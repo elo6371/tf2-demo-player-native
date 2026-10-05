@@ -986,6 +986,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
           demoNetworkSummary, g_playback.tick, currentEntityStates);
       if (entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available) {
+        std::vector<tf2::native::EntityMarker> entityMarkers;
+        entityMarkers.reserve(128);
         bool focused = false;
         const auto tryFocusEntity = [&](std::size_t entityIndex) {
           if (entityIndex >= currentEntityStates.size()) return false;
@@ -1001,6 +1003,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           if (origin == entity.properties.end() || origin->second.type != tf2::native::SendPropType::Vector) return false;
           if (!std::isfinite(origin->second.x) || !std::isfinite(origin->second.y) || !std::isfinite(origin->second.z)) return false;
           renderer.setObserverFocusWorld(origin->second.x, origin->second.y, origin->second.z);
+          if (entityMarkers.size() < 128) {
+            tf2::native::EntityMarker marker;
+            marker.position[0] = origin->second.x;
+            marker.position[1] = origin->second.y;
+            marker.position[2] = origin->second.z;
+            marker.color[0] = 0.2f; marker.color[1] = 0.95f; marker.color[2] = 0.35f; marker.color[3] = 0.0f;
+            entityMarkers.push_back(marker);
+          }
           return true;
         };
         if (demoNetworkSummary.lastViewEntity < currentEntityStates.size()) {
@@ -1009,7 +1019,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         for (std::size_t entityIndex = 0; !focused && entityIndex < currentEntityStates.size(); ++entityIndex) {
           focused = tryFocusEntity(entityIndex);
         }
-        if (!focused) currentEntityStates.clear();
+        for (std::size_t entityIndex = 0; entityIndex < currentEntityStates.size() && entityMarkers.size() < 128; ++entityIndex) {
+          const auto& entity = currentEntityStates[entityIndex];
+          const auto origin = entity.properties.find("m_vecOrigin");
+          if (origin == entity.properties.end() || origin->second.type != tf2::native::SendPropType::Vector) continue;
+          if (!std::isfinite(origin->second.x) || !std::isfinite(origin->second.y) || !std::isfinite(origin->second.z)) continue;
+          tf2::native::EntityMarker marker;
+          marker.position[0] = origin->second.x; marker.position[1] = origin->second.y; marker.position[2] = origin->second.z;
+          marker.color[0] = 0.95f; marker.color[1] = 0.75f; marker.color[2] = 0.15f; marker.color[3] = 0.0f;
+          entityMarkers.push_back(marker);
+        }
+        renderer.setEntityMarkers(entityMarkers);
+      } else {
+        renderer.setEntityMarkers({});
       }
       renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);
       renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);

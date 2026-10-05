@@ -59,6 +59,11 @@ struct ProjectileLine {
   float color[4] = {1.0f, 0.25f, 0.05f, 0.0f};
 };
 
+struct EntityMarker {
+  float position[3] = {};
+  float color[4] = {0.2f, 0.9f, 0.35f, 0.0f};
+};
+
 struct WorldMaterialParams {
   bool bumpMapping = false;
   bool envMap = false;
@@ -97,6 +102,7 @@ public:
   void setWorldMaterialParams(const WorldMaterialParams& params);
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
+  void setEntityMarkers(const std::vector<EntityMarker>& markers);
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
   const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
   WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
@@ -163,6 +169,9 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> projectileVertexBuffer_;
   std::size_t projectileVertexCapacity_ = 0;
   UINT projectileVertexCount_ = 0;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> entityMarkerVertexBuffer_;
+  std::size_t entityMarkerVertexCapacity_ = 0;
+  UINT entityMarkerVertexCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelVertexBuffer_;
   UINT modelVertexCount_ = 0;
   ModelGpuStatus modelGpuStatus_ = ModelGpuStatus::NotLoaded;

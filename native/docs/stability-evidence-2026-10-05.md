@@ -90,6 +90,17 @@ A real playback run against the local TF2 root and
 {"stability":"pass","samples":13,"average_fps":105.68,"peak_working_set_bytes":151650304,"play_mode":true}
 ```
 
+The same playback path after adding the bounded entity-origin marker pass
+passed a five-second run with the current Release build:
+
+```text
+{"stability":"pass","samples":6,"average_fps":100.23,"peak_working_set_bytes":154652672,"play_mode":true}
+```
+
+The marker pass is a diagnostic world-space cross for up to 128 decoded entity
+origins. It proves entity snapshots reach the GPU scene without claiming that
+player or weapon StudioMDL meshes are complete.
+
 ## Not yet proven
 
 - Long-duration playback and memory ceiling checks still require a longer run.

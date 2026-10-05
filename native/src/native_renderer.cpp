@@ -863,6 +863,49 @@ void Renderer::setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>
   projectileVertexCount_ = static_cast<UINT>(particles.size());
 }
 
+void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
+  entityMarkerVertexCount_ = 0;
+  if (!device_ || !worldBoundsValid_ || markers.empty()) return;
+  constexpr std::size_t maxMarkers = 256;
+  std::vector<WorldVertex> vertices;
+  vertices.reserve(std::min(markers.size(), maxMarkers) * 6u);
+  const auto normalize = [this](float x, float y, float z) {
+    return DirectX::XMFLOAT3((x - worldCenterX_) * worldHorizontalScale_,
+      (y - worldCenterY_) * worldHorizontalScale_,
+      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+  };
+  for (std::size_t i = 0; i < markers.size() && i < maxMarkers; ++i) {
+    const auto& marker = markers[i];
+    if (!std::isfinite(marker.position[0]) || !std::isfinite(marker.position[1]) || !std::isfinite(marker.position[2])) continue;
+    const auto center = normalize(marker.position[0], marker.position[1], marker.position[2]);
+    constexpr float extent = 12.0f;
+    const auto x = normalize(marker.position[0] + extent, marker.position[1], marker.position[2]);
+    const auto y = normalize(marker.position[0], marker.position[1] + extent, marker.position[2]);
+    const auto z = normalize(marker.position[0], marker.position[1], marker.position[2] + extent);
+    const auto vertex = [&](const DirectX::XMFLOAT3& p) {
+      return WorldVertex{p.x, p.y, p.z, marker.color[0], marker.color[1], marker.color[2], marker.color[3], 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+    };
+    vertices.push_back(vertex(center)); vertices.push_back(vertex(x));
+    vertices.push_back(vertex(center)); vertices.push_back(vertex(y));
+    vertices.push_back(vertex(center)); vertices.push_back(vertex(z));
+  }
+  if (vertices.empty()) return;
+  if (!entityMarkerVertexBuffer_ || entityMarkerVertexCapacity_ < vertices.size()) {
+    D3D11_BUFFER_DESC description{};
+    description.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(WorldVertex));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, entityMarkerVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    entityMarkerVertexCapacity_ = vertices.size();
+  }
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(context_->Map(entityMarkerVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+  std::memcpy(mapped.pData, vertices.data(), vertices.size() * sizeof(WorldVertex));
+  context_->Unmap(entityMarkerVertexBuffer_.Get(), 0);
+  entityMarkerVertexCount_ = static_cast<UINT>(vertices.size());
+}
+
 bool Renderer::saveCameraPreset(std::size_t slot) {
   if (slot >= cameraPresets_.size() || !std::isfinite(cameraYaw_)
       || !std::isfinite(cameraPitch_) || !std::isfinite(cameraDistance_)) return false;
@@ -1007,18 +1050,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->Draw(projectileVertexCount_, 0);
       context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     }
-    if (modelVertexBuffer_ && modelVertexCount_ > 0) {
-      context_->IASetInputLayout(modelInputLayout_.Get());
-      const UINT modelStride = sizeof(ModelGpuVertex), modelOffset = 0; auto* modelBuffer = modelVertexBuffer_.Get();
-      context_->IASetVertexBuffers(0, 1, &modelBuffer, &modelStride, &modelOffset);
-      context_->VSSetShader(modelVertexShader_.Get(), nullptr, 0);
-      context_->PSSetShader(modelPixelShader_.Get(), nullptr, 0);
-      auto* modelTexture = worldTexture_.view() ? worldTexture_.view() : texture_.view();
-      context_->PSSetShaderResources(0, 1, &modelTexture);
-      context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
-      auto* modelConstants = modelSkinningConstants_.Get();
-      context_->VSSetConstantBuffers(1, 1, &modelConstants);
-      context_->Draw(modelVertexCount_, 0);
+    if (entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0) {
+      const UINT markerStride = sizeof(WorldVertex), markerOffset = 0;
+      auto* markerBuffer = entityMarkerVertexBuffer_.Get();
+      context_->IASetVertexBuffers(0, 1, &markerBuffer, &markerStride, &markerOffset);
+      context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+      context_->Draw(entityMarkerVertexCount_, 0);
+      context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     }
   } else {
     context_->IASetInputLayout(nullptr);
@@ -1058,6 +1096,9 @@ void Renderer::shutdown() {
   projectileVertexBuffer_.Reset();
   projectileVertexCapacity_ = 0;
   projectileVertexCount_ = 0;
+  entityMarkerVertexBuffer_.Reset();
+  entityMarkerVertexCapacity_ = 0;
+  entityMarkerVertexCount_ = 0;
   modelVertexBuffer_.Reset();
   modelGpuStatus_ = ModelGpuStatus::NotLoaded;
   worldBoundsValid_ = false;
