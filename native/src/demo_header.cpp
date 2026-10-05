@@ -811,12 +811,13 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
   const std::size_t firstEvent = summary.entityHistoryEvents.size();
   for (auto& event : events) event.packetOrdinal = packetOrdinal;
   if (isDelta) {
-    const bool hasBase = std::any_of(
+    const auto base = std::lower_bound(
         summary.entityHistoryPackets.begin(), summary.entityHistoryPackets.end(),
-        [deltaFrom](const EntityHistoryPacket& packet) {
-          return packet.tick == deltaFrom;
+        deltaFrom,
+        [](const EntityHistoryPacket& packet, std::int32_t tick) {
+          return packet.tick < tick;
         });
-    if (!hasBase) {
+    if (base == summary.entityHistoryPackets.end() || base->tick != deltaFrom) {
       ++summary.entityHistoryDeltaBaseMisses;
     }
   }
@@ -846,10 +847,16 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   const bool deltaBaseUnavailable = isDelta != 0 &&
       (summary.entityHistoryHasGap ||
        summary.entityHistoryPackets.empty() ||
-       std::none_of(summary.entityHistoryPackets.begin(), summary.entityHistoryPackets.end(),
-                    [deltaFrom](const EntityHistoryPacket& packet) {
-                      return packet.tick == static_cast<std::int32_t>(deltaFrom);
-                    }));
+       [&summary, deltaFrom] {
+         const auto base = std::lower_bound(
+             summary.entityHistoryPackets.begin(), summary.entityHistoryPackets.end(),
+             static_cast<std::int32_t>(deltaFrom),
+             [](const EntityHistoryPacket& packet, std::int32_t tick) {
+               return packet.tick < tick;
+             });
+         return base == summary.entityHistoryPackets.end()
+             || base->tick != static_cast<std::int32_t>(deltaFrom);
+       }());
   if (isDelta) {
     ++summary.packetEntityDeltaCount;
     if (summary.firstPacketEntitiesDeltaTick < 0) {

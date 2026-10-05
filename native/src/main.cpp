@@ -867,7 +867,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         if (!bone.poseToBoneValid) { poseMatricesValid = false; break; }
         boneMatrices.push_back(poseToBoneToMatrix4x4(bone.poseToBone));
       }
-      uploadedBones = poseMatricesValid && renderer.uploadBoneMatrices(boneMatrices, true);
+      // The MVP uploads normalized model vertices. poseToBone is an inverse
+      // bind matrix, not a bind skin matrix, so applying it here would move a
+      // static model into bone-local space. Keep the fallback in bind pose
+      // until AnimationPlayer supplies animatedWorld * inverse(bindWorld).
+      uploadedBones = poseMatricesValid && renderer.uploadBoneMatrices(boneMatrices, false);
     }
     return uploadedTexture && uploadedWorld && uploadedModel && uploadedBones;
   };

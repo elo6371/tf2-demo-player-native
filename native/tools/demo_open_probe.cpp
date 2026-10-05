@@ -16,7 +16,7 @@ int wmain(int argc, wchar_t** argv) {
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--snapshot") {
     wchar_t* end = nullptr;
     const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
-    if (end == argv[firstPath + 1] || *end != L'\\0' || parsed < 0 || parsed > std::numeric_limits<std::int32_t>::max()) {
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0 || parsed > std::numeric_limits<std::int32_t>::max()) {
       std::wcerr << L"invalid snapshot tick\n";
       return 2;
     }
