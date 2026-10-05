@@ -253,15 +253,29 @@ Output main(Input input) {
   return output;
 }
 )HLSL";
+  static constexpr char modelPixelSource[] = R"HLSL(
+struct Input { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; };
+float4 main(Input input) : SV_TARGET {
+  float3 normal = normalize(input.normal);
+  float diffuse = saturate(dot(normal, normalize(float3(0.35, 0.55, 0.75))));
+  float lighting = 0.62 + 0.38 * diffuse;
+  return float4(input.colour.rgb * lighting, input.colour.a);
+}
+)HLSL";
   Microsoft::WRL::ComPtr<ID3DBlob> worldVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> worldPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> modelVertexBytecode;
+  Microsoft::WRL::ComPtr<ID3DBlob> modelPixelBytecode;
   HRESULT worldShaderResult = S_OK;
   const bool worldShadersCompiled = compileShader(worldVertexSource, "main", "vs_5_0", worldVertexBytecode, &worldShaderResult)
       && compileShader(worldPixelSource, "main", "ps_5_0", worldPixelBytecode, &worldShaderResult);
   if (!worldShadersCompiled) { lastError_ = worldShaderResult; return false; }
   HRESULT modelShaderResult = S_OK;
   if (!compileShader(modelVertexSource, "main", "vs_5_0", modelVertexBytecode, &modelShaderResult)) {
+    lastError_ = modelShaderResult;
+    return false;
+  }
+  if (!compileShader(modelPixelSource, "main", "ps_5_0", modelPixelBytecode, &modelShaderResult)) {
     lastError_ = modelShaderResult;
     return false;
   }
@@ -293,11 +307,12 @@ Output main(Input input) {
       {"BLENDWEIGHT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"BLENDINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 60, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    const bool modelShaderCreated = SUCCEEDED(device_->CreateVertexShader(modelVertexBytecode->GetBufferPointer(), modelVertexBytecode->GetBufferSize(), nullptr, modelVertexShader_.GetAddressOf()));
+    const bool modelShaderCreated = SUCCEEDED(device_->CreateVertexShader(modelVertexBytecode->GetBufferPointer(), modelVertexBytecode->GetBufferSize(), nullptr, modelVertexShader_.GetAddressOf()))
+      && SUCCEEDED(device_->CreatePixelShader(modelPixelBytecode->GetBufferPointer(), modelPixelBytecode->GetBufferSize(), nullptr, modelPixelShader_.GetAddressOf()));
     const bool modelLayoutCreated = modelShaderCreated && SUCCEEDED(device_->CreateInputLayout(modelElements, 6,
       modelVertexBytecode->GetBufferPointer(), modelVertexBytecode->GetBufferSize(), modelInputLayout_.GetAddressOf()));
     if (!modelLayoutCreated) {
-      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset(); modelInputLayout_.Reset();
+      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset(); modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
       lastError_ = E_FAIL;
       return false;
     }
@@ -997,6 +1012,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       const UINT modelStride = sizeof(ModelGpuVertex), modelOffset = 0; auto* modelBuffer = modelVertexBuffer_.Get();
       context_->IASetVertexBuffers(0, 1, &modelBuffer, &modelStride, &modelOffset);
       context_->VSSetShader(modelVertexShader_.Get(), nullptr, 0);
+      context_->PSSetShader(modelPixelShader_.Get(), nullptr, 0);
+      auto* modelTexture = worldTexture_.view() ? worldTexture_.view() : texture_.view();
+      context_->PSSetShaderResources(0, 1, &modelTexture);
+      context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
       auto* modelConstants = modelSkinningConstants_.Get();
       context_->VSSetConstantBuffers(1, 1, &modelConstants);
       context_->Draw(modelVertexCount_, 0);
@@ -1038,6 +1057,7 @@ void Renderer::shutdown() {
   worldPixelShader_.Reset();
   worldVertexShader_.Reset();
   modelVertexShader_.Reset();
+  modelPixelShader_.Reset();
   worldVertexCount_ = 0;
   projectileVertexCount_ = 0;
   modelVertexCount_ = 0;

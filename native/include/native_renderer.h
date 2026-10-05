@@ -153,6 +153,7 @@ private:
   Microsoft::WRL::ComPtr<ID3D11VertexShader> worldVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> modelVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> worldPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> modelPixelShader_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> worldInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> modelInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
