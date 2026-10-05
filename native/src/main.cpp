@@ -766,7 +766,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" faces=" + std::to_wstring(displayMap.lightmapFaceCount)
       + L" tris=" + std::to_wstring(displayMap.lightmapTriangleCount)
       + L" bytes=" + std::to_wstring(displayMap.lightmapBytes)
-      + L" state=FallbackUnlit"
+      + L" state=AverageIntensity"
       + L", mapmat: " + (mapMaterialName.empty() ? L"none" : std::wstring(mapMaterialName.begin(), mapMaterialName.end()))
       + L", deps: base2=" + (mapBaseTexture2Declared ? (mapBaseTexture2Found ? L"ok" : L"missing") : L"none")
       + L" bump=" + (mapBumpMapDeclared ? (mapBumpMapFound ? L"ok" : L"missing") : L"none")
