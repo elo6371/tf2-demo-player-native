@@ -932,6 +932,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool running = true;
   double tickAccumulator = 0.0;
   std::int32_t lastAudioTick = -1;
+  std::int32_t lastSceneTick = -1;
   bool lastReverse = false;
   bool lastPaused = false;
   std::vector<tf2::native::EntityState> currentEntityStates;
@@ -987,7 +988,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         lastAudioTick = g_playback.tick;
       }
     }
-    if (g_renderer && g_playback.enabled) {
+    if (g_renderer && g_playback.enabled && g_playback.tick != lastSceneTick) {
       entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
           demoNetworkSummary, g_playback.tick, currentEntityStates);
       if (entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available) {
@@ -1041,6 +1042,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);
       renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);
       hudTrailVertices = renderer.projectileVertexCount();
+      lastSceneTick = g_playback.tick;
     }
     refreshWindowTitle();
     writeMetrics(now, false);
