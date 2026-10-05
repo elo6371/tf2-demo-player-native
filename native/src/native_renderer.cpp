@@ -1029,6 +1029,19 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(6, 0);
   }
+  if (modelVertexBuffer_ && modelVertexCount_ > 0 && modelVertexShader_ && modelPixelShader_ && modelInputLayout_) {
+    context_->IASetInputLayout(modelInputLayout_.Get());
+    const UINT modelStride = sizeof(ModelGpuVertex), modelOffset = 0; auto* modelBuffer = modelVertexBuffer_.Get();
+    context_->IASetVertexBuffers(0, 1, &modelBuffer, &modelStride, &modelOffset);
+    context_->VSSetShader(modelVertexShader_.Get(), nullptr, 0);
+    context_->PSSetShader(modelPixelShader_.Get(), nullptr, 0);
+    auto* modelTexture = worldTexture_.view() ? worldTexture_.view() : texture_.view();
+    context_->PSSetShaderResources(0, 1, &modelTexture);
+    context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    auto* modelConstants = modelSkinningConstants_.Get();
+    context_->VSSetConstantBuffers(1, 1, &modelConstants);
+    context_->Draw(modelVertexCount_, 0);
+  }
   const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
   if (FAILED(result)) { lastError_ = result; return false; }
   return true;
