@@ -1,7 +1,7 @@
 # Native Stability Evidence (2026-10-05)
 
-This record covers the Native MVP only. It does not claim that PacketEntities
-or animation decoding is complete.
+This record covers the Native MVP only. It does not claim that animation
+decoding or advanced material passes are complete.
 
 ## Passing checks
 
@@ -35,10 +35,13 @@ The POV sample `autorecord_2026-05-14_16-09-14.dem` also indexed successfully:
 header=1 index=1 malformed_offset=0 commands=125302 packets=58815
 ```
 
-Full scans expose the existing protocol limitation: `73.dem` reports
-`entity_unknown_state_failures=112172` from tick 16350; the POV sample reports
-`malformed_packets=3` and the first entity failure at tick 8320. These are
-tracked by the entity/protocol work and are not hidden by this stability pass.
+Full scans now report zero entity reconstruction failures. `73.dem` reports
+`entities=3030444`, `entity_failures=0`, `entity_unknown_state_failures=0`,
+and zero property index/value failures. The POV sample reports
+`datatable_classes=363`, `entities=1741112`, `entity_failures=0`,
+`entity_unknown_state_failures=0`, and zero property index/value failures.
+This POV sample has no `svc_ClassInfo`; class bits are taken from the
+DataTables server-class list.
 
 ## Resource fallback
 
@@ -51,12 +54,18 @@ The runtime still uses bounded decoded-audio caching (32 MiB and 512 entries)
 and resolves uncached WAV data on demand. Hardware D3D11 creation falls back
 to WARP; the smoke probe validates WARP independently without audio output.
 
+The controlled five-second startup sample with the real TF2 root and POV demo
+remained responsive, with approximately 106--113 FPS and a stable working set
+of about 152 MiB:
+
+```text
+1.00285,109,108.69,0,151785472,191737856
+2.00287,222,112.998,0,151810048,191737856
+3.00303,328,105.983,0,151810048,191737856
+```
+
 ## Not yet proven
 
-- A long-running frame-time or memory budget sample is not available from the
-  current executable; the 120 Hz loop is implemented but does not emit a
-  machine-readable FPS/RSS counter.
-- Entity state reconstruction remains blocked by the known real-demo protocol
-  failures recorded above.
+- Long-duration playback and memory ceiling checks still require a longer run.
 - Clean-machine packaged startup and visual frame-rate acceptance require an
   external Windows validation host.
