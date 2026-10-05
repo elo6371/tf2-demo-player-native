@@ -8,6 +8,7 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <unordered_map>
 
 namespace tf2::native {
 namespace {
@@ -453,6 +454,45 @@ ModelAssetCandidate ModelLoader::resolveAssetReference(const AssetRoot& root, co
     ? "asset reference has model index but no model path; index-to-path mapping is unknown"
     : "asset reference has no model path";
   return result;
+}
+
+std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot& root,
+  const std::vector<AssetReference>& references, const ItemSchema* schema) {
+  std::vector<ModelRenderRequest> requests;
+  requests.reserve(std::min<std::size_t>(references.size(), 2048u));
+  std::unordered_map<std::string, ModelAssetCandidate> candidateCache;
+  std::unordered_map<std::string, ModelInspection> inspectionCache;
+  candidateCache.reserve(256);
+  inspectionCache.reserve(256);
+  for (const auto& reference : references) {
+    if (!reference.hasModelPath || reference.modelPath.empty()) continue;
+    if (requests.size() >= 2048u) break;
+    ModelRenderRequest request;
+    request.entityIndex = reference.entityIndex;
+    request.classId = reference.classId;
+    request.className = reference.className;
+    request.modelPath = reference.modelPath;
+    const auto normalized = normalizeModelPath(reference.modelPath);
+    auto candidateIt = candidateCache.find(normalized);
+    if (candidateIt == candidateCache.end()) {
+      candidateIt = candidateCache.emplace(normalized, resolveAssetReference(root, reference, schema)).first;
+    }
+    const auto& candidate = candidateIt->second;
+    request.resolution = candidate.resolution;
+    request.companionSetComplete = candidate.companionSetComplete;
+    request.diagnostic = candidate.diagnostic;
+    if (candidate.resolution == ModelAssetResolution::FoundLoose && candidate.companionSetComplete) {
+      auto inspectionIt = inspectionCache.find(normalized);
+      if (inspectionIt == inspectionCache.end()) {
+        inspectionIt = inspectionCache.emplace(normalized, inspect(candidate.resources)).first;
+      }
+      request.inspection = inspectionIt->second;
+      request.renderable = request.inspection.renderableResourceSet;
+      if (!request.renderable) request.diagnostic += "; inspection is not renderable";
+    }
+    requests.push_back(std::move(request));
+  }
+  return requests;
 }
 
 AppearanceResolution ModelLoader::resolveAppearanceReference(const AssetReference& reference,
