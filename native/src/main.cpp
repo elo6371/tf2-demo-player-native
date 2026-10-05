@@ -120,6 +120,18 @@ void setUiControlVisible(HWND control, bool visible) {
   if (control) ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
 }
 
+const wchar_t* importStatusName(tf2::native::ImportStatus status) {
+  switch (status) {
+    case tf2::native::ImportStatus::ReadingHeader: return L"reading-header";
+    case tf2::native::ImportStatus::Indexing: return L"indexing";
+    case tf2::native::ImportStatus::Complete: return L"complete";
+    case tf2::native::ImportStatus::CancelRequested: return L"cancel-requested";
+    case tf2::native::ImportStatus::Cancelled: return L"cancelled";
+    case tf2::native::ImportStatus::Failed: return L"failed";
+    case tf2::native::ImportStatus::Idle: default: return L"idle";
+  }
+}
+
 void updateNativeUiControls(HWND window) {
   if (!g_nativeUi) return;
   const auto state = g_nativeUi->snapshot();
@@ -142,18 +154,23 @@ void updateNativeUiControls(HWND window) {
     SendMessageW(g_uiTimeline, TBM_SETPOS, TRUE, state.tick);
   }
   std::wstring status = L"Opening: choose a .dem file";
+  const std::wstring importPrefix = L"Import: "
+    + std::wstring(importStatusName(state.importStatus))
+    + L" " + std::to_wstring(state.importProgress) + L"% | ";
   if (review) {
-    status = L"Import review: " + std::wstring(state.mapName.begin(), state.mapName.end())
+    status = importPrefix + L"Import review: " + std::wstring(state.mapName.begin(), state.mapName.end())
       + L" | " + std::wstring(state.recordingType.begin(), state.recordingType.end())
       + L" | ticks=" + std::to_wstring(state.ticks)
       + L" | BSP=" + (state.bspAvailable ? L"ready" : L"missing")
       + L" | missing=" + std::to_wstring(state.missingResourceCount);
   } else if (player) {
-    status = L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
+    status = importPrefix + L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
       + (state.playing ? L" | playing" : L" | paused")
       + (state.reverse ? L" | reverse" : L"");
   } else if (error) {
-    status = L"Error: " + std::wstring(state.error.begin(), state.error.end());
+    status = importPrefix + L"Error: " + std::wstring(state.error.begin(), state.error.end());
+  } else if (state.importStatus != tf2::native::ImportStatus::Idle) {
+    status = importPrefix + L"Opening: choose a .dem file";
   }
   if (g_uiStatus) SetWindowTextW(g_uiStatus, status.c_str());
   if (window) InvalidateRect(window, nullptr, FALSE);
@@ -1132,6 +1149,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       DispatchMessageW(&message);
     }
     if (!running) break;
+    nativeUi.pollImport();
+    updateNativeUiControls(window);
 
     LARGE_INTEGER now{};
     QueryPerformanceCounter(&now);
