@@ -124,6 +124,10 @@ The resilience gate also passed with the same real Demo: normal indexing was
 accepted, a 4 KiB truncated copy was rejected at the header boundary, and an
 explicitly missing TF2 root entered safe fallback without a crash.
 
+Projectile and particle diagnostic lines now use the same fallback draw pass
+as entity markers, so decoded Demo effects remain visible when BSP geometry or
+world textures are unavailable.
+
 An explicit missing `--tf-root` path was also accepted by the stability gate
 without a crash, while remaining in the resource fallback state. Explicit
 roots now have strict precedence: a moved or missing operator-supplied path is

@@ -1042,14 +1042,6 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(2, 1, &envView);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(worldVertexCount_, 0);
-    if (projectileVertexBuffer_ && projectileVertexCount_ > 0) {
-      const UINT projectileStride = sizeof(WorldVertex), projectileOffset = 0;
-      auto* projectileBuffer = projectileVertexBuffer_.Get();
-      context_->IASetVertexBuffers(0, 1, &projectileBuffer, &projectileStride, &projectileOffset);
-      context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-      context_->Draw(projectileVertexCount_, 0);
-      context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    }
   } else {
     context_->IASetInputLayout(nullptr);
     context_->VSSetShader(vertexShader_.Get(), nullptr, 0);
@@ -1079,6 +1071,28 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
     context_->Draw(entityMarkerVertexCount_, 0);
+    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  }
+  if (projectileVertexBuffer_ && projectileVertexCount_ > 0 && worldVertexShader_ && worldPixelShader_
+      && worldInputLayout_ && worldConstants_) {
+    const UINT projectileStride = sizeof(WorldVertex), projectileOffset = 0;
+    auto* projectileBuffer = projectileVertexBuffer_.Get();
+    context_->IASetInputLayout(worldInputLayout_.Get());
+    context_->IASetVertexBuffers(0, 1, &projectileBuffer, &projectileStride, &projectileOffset);
+    context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
+    auto* worldConstants = worldConstants_.Get();
+    context_->VSSetConstantBuffers(0, 1, &worldConstants);
+    context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+    context_->PSSetConstantBuffers(0, 1, &worldConstants);
+    auto* worldView = worldTexture_.view() ? worldTexture_.view() : texture_.view();
+    context_->PSSetShaderResources(0, 1, &worldView);
+    ID3D11ShaderResourceView* bumpView = worldBumpTexture_.view();
+    ID3D11ShaderResourceView* envView = worldEnvTexture_.view();
+    context_->PSSetShaderResources(1, 1, &bumpView);
+    context_->PSSetShaderResources(2, 1, &envView);
+    context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+    context_->Draw(projectileVertexCount_, 0);
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
   if (modelVertexBuffer_ && modelVertexCount_ > 0 && modelVertexShader_ && modelPixelShader_ && modelInputLayout_) {
