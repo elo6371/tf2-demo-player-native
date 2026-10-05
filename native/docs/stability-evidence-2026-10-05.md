@@ -120,6 +120,10 @@ A thirty-second real playback long run also passed the same gate:
 The short and long runs show no monotonic working-set increase in this local
 environment. They still do not prove a clean-machine 120 FPS target.
 
+The resilience gate also passed with the same real Demo: normal indexing was
+accepted, a 4 KiB truncated copy was rejected at the header boundary, and an
+explicitly missing TF2 root entered safe fallback without a crash.
+
 An explicit missing `--tf-root` path was also accepted by the stability gate
 without a crash, while remaining in the resource fallback state. Explicit
 roots now have strict precedence: a moved or missing operator-supplied path is

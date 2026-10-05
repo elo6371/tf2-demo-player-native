@@ -73,6 +73,10 @@ bytes, and private bytes; metrics are opt-in and do not open an audio device.
 The runtime caches up to 32 MiB of decoded PCM data (at most 512 resources) and
 otherwise resolves WAV resources on demand.
 
+Run `powershell -ExecutionPolicy Bypass -File native/tools/native_resilience_gate.ps1
+-Demo X:\path\sample.dem` to verify normal indexing, rejection of a truncated
+Demo, and safe startup with an explicitly missing TF2 root.
+
 ## Release install smoke
 
 Install the Release targets with `cmake --install native/build --config Release
