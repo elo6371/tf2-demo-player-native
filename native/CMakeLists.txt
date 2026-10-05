@@ -63,6 +63,10 @@ add_executable(model_pose_probe tools/model_pose_probe.cpp src/model_loader.cpp 
 target_include_directories(model_pose_probe PRIVATE include)
 set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(model_render_request_probe tools/model_render_request_probe.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
+target_include_directories(model_render_request_probe PRIVATE include)
+set_target_properties(model_render_request_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(viewmodel_fov_probe tools/viewmodel_fov_probe.cpp)
 target_include_directories(viewmodel_fov_probe PRIVATE include)
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
