@@ -298,6 +298,10 @@ struct DemoNetworkSummary {
   std::size_t packetEntityPreserveCount = 0;
   std::size_t packetEntityLeaveCount = 0;
   std::size_t packetEntityDeleteCount = 0;
+  std::size_t packetEntityDeltaCount = 0;
+  std::size_t packetEntityDeltaBaseUnavailableCount = 0;
+  std::int32_t firstPacketEntitiesUnavailableTick = -1;
+  std::int32_t firstPacketEntitiesUnavailableFrom = -1;
   std::size_t packetEntityDecodeFailures = 0;
   std::size_t entityPropMissingTableFailures = 0;
   std::size_t entityPropIndexFailures = 0;
@@ -316,6 +320,8 @@ struct DemoNetworkSummary {
   std::int32_t firstPacketEntitiesUpdatedEntries = -1;
   std::int32_t firstPacketEntitiesPayloadBits = -1;
   std::int32_t firstPacketEntitiesDelta = -1;
+  std::int32_t firstPacketEntitiesDeltaTick = -1;
+  std::int32_t firstPacketEntitiesDeltaFrom = -1;
   std::int32_t firstPacketEntitiesEnterTick = -1;
   std::int32_t firstPacketEntitiesPreserveTick = -1;
   std::int64_t firstPacketEntitiesFirstUpdateBit = -1;

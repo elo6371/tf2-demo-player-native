@@ -24,11 +24,12 @@ add_executable(tf2_demo_native WIN32
   src/texture2d.cpp
   src/settings_store.cpp
   src/item_schema.cpp
+  src/native_ui.cpp
 )
 
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
 target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm bcrypt psapi)
+target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm bcrypt psapi comctl32 comdlg32)
 
 add_executable(item_schema_probe tools/item_schema_probe.cpp src/item_schema.cpp src/proto_wire.cpp)
 target_include_directories(item_schema_probe PRIVATE include)
@@ -62,6 +63,10 @@ add_executable(model_pose_probe tools/model_pose_probe.cpp src/model_loader.cpp 
 target_include_directories(model_pose_probe PRIVATE include)
 set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(model_render_request_probe tools/model_render_request_probe.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
+target_include_directories(model_render_request_probe PRIVATE include)
+set_target_properties(model_render_request_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(viewmodel_fov_probe tools/viewmodel_fov_probe.cpp)
 target_include_directories(viewmodel_fov_probe PRIVATE include)
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
@@ -86,6 +91,10 @@ target_include_directories(native_install_smoke_probe PRIVATE include)
 target_compile_definitions(native_install_smoke_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(native_install_smoke_probe PRIVATE d3d11 dxgi)
 set_target_properties(native_install_smoke_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp src/demo_header.cpp src/proto_wire.cpp src/item_schema.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(native_ui_probe PRIVATE include third_party/lzma)
+set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 install(TARGETS tf2_demo_native native_install_smoke_probe
   RUNTIME DESTINATION .

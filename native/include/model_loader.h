@@ -205,11 +205,25 @@ struct ModelInspection {
   std::vector<std::string> diagnostics;
 };
 
+struct ModelRenderRequest {
+  std::uint16_t entityIndex = 0;
+  std::int32_t classId = -1;
+  std::string className;
+  std::string modelPath;
+  ModelAssetResolution resolution = ModelAssetResolution::Unknown;
+  bool companionSetComplete = false;
+  bool renderable = false;
+  ModelInspection inspection;
+  std::string diagnostic;
+};
+
 class ModelLoader final {
 public:
   static ModelAssetCandidate resolveAsset(const AssetRoot& root, const std::string& modelPath);
   static ModelAssetCandidate resolveAssetReference(const AssetRoot& root, const AssetReference& reference,
     const ItemSchema* schema = nullptr);
+  static std::vector<ModelRenderRequest> buildRenderRequests(const AssetRoot& root,
+    const std::vector<AssetReference>& references, const ItemSchema* schema = nullptr);
   static AppearanceResolution resolveAppearanceReference(const AssetReference& reference,
     const ItemSchema* schema);
   static ModelInspection inspect(const std::filesystem::path& mdlPath);

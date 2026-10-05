@@ -795,19 +795,31 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
   if (summary.entityHistoryEvents.size() + events.size() > kEntityHistoryMaxEvents ||
       (packetOrdinal > 0 && packetOrdinal % kEntityHistoryCheckpointStride == 0 &&
        summary.entityHistoryCheckpoints.size() >= kEntityHistoryMaxCheckpoints)) {
+    // The live entity table already contains the state after this packet. Start
+    // a new bounded history window from that state instead of turning normal
+    // retention into a permanent decode gap. Each history event stores a full
+    // post-update state, so subsequent packets remain independently replayable.
     ++summary.entityHistoryDroppedPackets;
     summary.entityHistoryEvents.clear();
     summary.entityHistoryPackets.clear();
     summary.entityHistoryCheckpoints.clear();
     packetOrdinal = 0;
+    summary.entityHistoryCheckpoints.push_back({tick, 0u,
+                                                summary.entityClassByIndex,
+                                                summary.entityStates});
   }
   const std::size_t firstEvent = summary.entityHistoryEvents.size();
   for (auto& event : events) event.packetOrdinal = packetOrdinal;
-  if (isDelta && std::none_of(summary.entityHistoryPackets.begin(), summary.entityHistoryPackets.end(),
-                              [deltaFrom](const EntityHistoryPacket& packet) {
-                                return packet.tick == deltaFrom;
-                              })) {
-    ++summary.entityHistoryDeltaBaseMisses;
+  if (isDelta) {
+    const auto base = std::lower_bound(
+        summary.entityHistoryPackets.begin(), summary.entityHistoryPackets.end(),
+        deltaFrom,
+        [](const EntityHistoryPacket& packet, std::int32_t tick) {
+          return packet.tick < tick;
+        });
+    if (base == summary.entityHistoryPackets.end() || base->tick != deltaFrom) {
+      ++summary.entityHistoryDeltaBaseMisses;
+    }
   }
   summary.entityHistoryEvents.insert(summary.entityHistoryEvents.end(),
                                      std::make_move_iterator(events.begin()),
@@ -835,7 +847,30 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   const bool deltaBaseUnavailable = isDelta != 0 &&
       (summary.entityHistoryHasGap ||
        summary.entityHistoryPackets.empty() ||
-       summary.entityHistoryPackets.back().tick != static_cast<std::int32_t>(deltaFrom));
+       [&summary, deltaFrom] {
+         const auto base = std::lower_bound(
+             summary.entityHistoryPackets.begin(), summary.entityHistoryPackets.end(),
+             static_cast<std::int32_t>(deltaFrom),
+             [](const EntityHistoryPacket& packet, std::int32_t tick) {
+               return packet.tick < tick;
+             });
+         return base == summary.entityHistoryPackets.end()
+             || base->tick != static_cast<std::int32_t>(deltaFrom);
+       }());
+  if (isDelta) {
+    ++summary.packetEntityDeltaCount;
+    if (summary.firstPacketEntitiesDeltaTick < 0) {
+      summary.firstPacketEntitiesDeltaTick = packetTick;
+      summary.firstPacketEntitiesDeltaFrom = static_cast<std::int32_t>(deltaFrom);
+    }
+    if (deltaBaseUnavailable) {
+      ++summary.packetEntityDeltaBaseUnavailableCount;
+      if (summary.firstPacketEntitiesUnavailableTick < 0) {
+        summary.firstPacketEntitiesUnavailableTick = packetTick;
+        summary.firstPacketEntitiesUnavailableFrom = static_cast<std::int32_t>(deltaFrom);
+      }
+    }
+  }
   std::int32_t lastEntity = -1;
   bool entityUpdatesComplete = true;
   std::vector<EntityHistoryEvent> historyEvents;
@@ -939,13 +974,12 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   if (bits.remaining() < payloadEnd) return false;
   if (bits.remaining() > payloadEnd) return false;
   if (maxEntries > 2048) return false;
-  if (!entityUpdatesComplete || deltaBaseUnavailable) {
+  if (!entityUpdatesComplete) {
     summary.entityHistoryEvents.clear();
     summary.entityHistoryPackets.clear();
     summary.entityHistoryCheckpoints.clear();
     summary.entityHistoryHasGap = true;
     summary.entityHistoryGapTick = packetTick;
-    if (deltaBaseUnavailable) ++summary.entityHistoryDeltaBaseMisses;
     // Source keeps the live entity directory across packet decode failures and
     // delta gaps. Clearing it turns the next Preserve updates into a cascade
     // of false unknown-state failures; history remains unavailable until a
@@ -1823,14 +1857,11 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
   states = base.states;
   for (const auto& packet : summary.entityHistoryPackets) {
     if (packet.packetOrdinal <= base.packetOrdinal || packet.tick > tick) continue;
-    if (packet.isDelta) {
-      const bool hasBase = std::any_of(
-          summary.entityHistoryPackets.begin(), summary.entityHistoryPackets.end(),
-          [&packet](const EntityHistoryPacket& candidate) {
-            return candidate.packetOrdinal < packet.packetOrdinal && candidate.tick == packet.deltaFrom;
-          });
-      if (!hasBase) return EntitySnapshotQueryStatus::DeltaBaseMissing;
-    }
+    // History events contain the complete post-update state for every changed
+    // entity. The live decoder applies deltas in stream order, so replaying a
+    // retained window does not require retaining the packet named by
+    // deltaFrom (that reference may intentionally point outside the bounded
+    // history window).
     const std::size_t end = packet.firstEvent + packet.eventCount;
     if (end > summary.entityHistoryEvents.size()) return EntitySnapshotQueryStatus::Gap;
     for (std::size_t i = packet.firstEvent; i < end; ++i) {

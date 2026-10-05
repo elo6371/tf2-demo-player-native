@@ -9,8 +9,11 @@
 #include "audio_player.h"
 #include "model_loader.h"
 #include "item_schema.h"
+#include "native_ui.h"
 
 #include <Windows.h>
+#include <commctrl.h>
+#include <commdlg.h>
 #include <bcrypt.h>
 #include <dxgi.h>
 #include <psapi.h>
@@ -30,6 +33,26 @@
 
 namespace {
 tf2::native::Renderer* g_renderer = nullptr;
+tf2::native::NativeUiController* g_nativeUi = nullptr;
+HWND g_uiStatus = nullptr;
+HWND g_uiOpen = nullptr;
+HWND g_uiCancel = nullptr;
+HWND g_uiConfirm = nullptr;
+HWND g_uiPlay = nullptr;
+HWND g_uiStop = nullptr;
+HWND g_uiBack = nullptr;
+HWND g_uiForward = nullptr;
+HWND g_uiReverse = nullptr;
+HWND g_uiTimeline = nullptr;
+constexpr int kUiOpen = 4101;
+constexpr int kUiCancel = 4102;
+constexpr int kUiConfirm = 4103;
+constexpr int kUiPlay = 4104;
+constexpr int kUiStop = 4105;
+constexpr int kUiBack = 4106;
+constexpr int kUiForward = 4107;
+constexpr int kUiReverse = 4108;
+constexpr int kUiTimeline = 4109;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
@@ -93,6 +116,86 @@ void addSteamRegistryRoots(std::vector<std::filesystem::path>& roots) {
   }
 }
 
+void setUiControlVisible(HWND control, bool visible) {
+  if (control) ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
+}
+
+void updateNativeUiControls(HWND window) {
+  if (!g_nativeUi) return;
+  const auto state = g_nativeUi->snapshot();
+  const bool opening = state.screen == tf2::native::UiScreen::Opening;
+  const bool review = state.screen == tf2::native::UiScreen::ImportReview;
+  const bool player = state.screen == tf2::native::UiScreen::Player;
+  const bool error = state.screen == tf2::native::UiScreen::Error;
+  setUiControlVisible(g_uiOpen, opening || error);
+  setUiControlVisible(g_uiCancel, review || error);
+  setUiControlVisible(g_uiConfirm, review);
+  setUiControlVisible(g_uiPlay, player);
+  setUiControlVisible(g_uiStop, player);
+  setUiControlVisible(g_uiBack, player);
+  setUiControlVisible(g_uiForward, player);
+  setUiControlVisible(g_uiReverse, player);
+  setUiControlVisible(g_uiTimeline, player);
+  if (g_uiTimeline) {
+    SendMessageW(g_uiTimeline, TBM_SETRANGE, TRUE,
+      MAKELONG(0, std::max<std::int32_t>(0, state.ticks)));
+    SendMessageW(g_uiTimeline, TBM_SETPOS, TRUE, state.tick);
+  }
+  std::wstring status = L"Opening: choose a .dem file";
+  if (review) {
+    status = L"Import review: " + std::wstring(state.mapName.begin(), state.mapName.end())
+      + L" | " + std::wstring(state.recordingType.begin(), state.recordingType.end())
+      + L" | ticks=" + std::to_wstring(state.ticks)
+      + L" | BSP=" + (state.bspAvailable ? L"ready" : L"missing")
+      + L" | missing=" + std::to_wstring(state.missingResourceCount);
+  } else if (player) {
+    status = L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
+      + (state.playing ? L" | playing" : L" | paused")
+      + (state.reverse ? L" | reverse" : L"");
+  } else if (error) {
+    status = L"Error: " + std::wstring(state.error.begin(), state.error.end());
+  }
+  if (g_uiStatus) SetWindowTextW(g_uiStatus, status.c_str());
+  if (window) InvalidateRect(window, nullptr, FALSE);
+}
+
+void createNativeUiControls(HWND window, HINSTANCE instance) {
+  INITCOMMONCONTROLSEX common{sizeof(common), ICC_BAR_CLASSES};
+  InitCommonControlsEx(&common);
+  const auto make = [&](LPCWSTR className, LPCWSTR text, DWORD style, int id,
+      int x, int y, int width, int height) {
+    return CreateWindowExW(0, className, text, WS_CHILD | style,
+      x, y, width, height, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+      instance, nullptr);
+  };
+  g_uiStatus = make(L"STATIC", L"Opening: choose a .dem file", SS_LEFT, 0, 16, 12, 900, 28);
+  g_uiOpen = make(L"BUTTON", L"Open Demo...", BS_PUSHBUTTON, kUiOpen, 16, 48, 120, 30);
+  g_uiCancel = make(L"BUTTON", L"Cancel", BS_PUSHBUTTON, kUiCancel, 144, 48, 90, 30);
+  g_uiConfirm = make(L"BUTTON", L"Import", BS_DEFPUSHBUTTON, kUiConfirm, 240, 48, 90, 30);
+  g_uiPlay = make(L"BUTTON", L"Play/Pause", BS_PUSHBUTTON, kUiPlay, 16, 84, 110, 30);
+  g_uiStop = make(L"BUTTON", L"Stop", BS_PUSHBUTTON, kUiStop, 132, 84, 80, 30);
+  g_uiBack = make(L"BUTTON", L"< Tick", BS_PUSHBUTTON, kUiBack, 218, 84, 80, 30);
+  g_uiForward = make(L"BUTTON", L"Tick >", BS_PUSHBUTTON, kUiForward, 304, 84, 80, 30);
+  g_uiReverse = make(L"BUTTON", L"Reverse", BS_PUSHBUTTON, kUiReverse, 390, 84, 90, 30);
+  g_uiTimeline = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_ENABLESELRANGE,
+    kUiTimeline, 16, 122, 700, 30);
+  updateNativeUiControls(window);
+}
+
+bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
+  wchar_t buffer[32768]{};
+  OPENFILENAMEW dialog{};
+  dialog.lStructSize = sizeof(dialog);
+  dialog.hwndOwner = owner;
+  dialog.lpstrFilter = L"Demo files (*.dem)\0*.dem\0All files (*.*)\0*.*\0\0";
+  dialog.lpstrFile = buffer;
+  dialog.nMaxFile = static_cast<DWORD>(std::size(buffer));
+  dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+  if (!GetOpenFileNameW(&dialog)) return false;
+  result = std::filesystem::path(buffer);
+  return true;
+}
+
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
   switch (message) {
   case WM_SIZE:
@@ -117,6 +220,75 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   case WM_MOUSEWHEEL:
     if (g_renderer) g_renderer->zoomCamera(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA));
     return 0;
+  case WM_DROPFILES: {
+    if (g_nativeUi) {
+      const HDROP drop = reinterpret_cast<HDROP>(wParam);
+      wchar_t path[MAX_PATH]{};
+      if (DragQueryFileW(drop, 0, path, static_cast<UINT>(std::size(path))) != 0) {
+        const bool accepted = g_nativeUi->dropDemo(std::filesystem::path(path));
+        const auto state = g_nativeUi->snapshot();
+        std::wstring title = L"TF2 Demo Player - ";
+        title += std::wstring(state.error.begin(), state.error.end());
+        if (accepted) title = L"TF2 Demo Player - import review: "
+          + std::wstring(state.mapName.begin(), state.mapName.end());
+        SetWindowTextW(window, title.c_str());
+        updateNativeUiControls(window);
+      }
+      DragFinish(drop);
+    }
+    return 0;
+  }
+  case WM_COMMAND: {
+    if (!g_nativeUi || HIWORD(wParam) != BN_CLICKED) {
+      return DefWindowProcW(window, message, wParam, lParam);
+    }
+    const auto id = LOWORD(wParam);
+    if (id == kUiOpen) {
+      std::filesystem::path path;
+      if (chooseDemoFile(window, path)) g_nativeUi->openDemo(path);
+    } else if (id == kUiCancel) {
+      g_nativeUi->cancelImport();
+    } else if (id == kUiConfirm) {
+      if (g_nativeUi->confirmImport()) {
+        const auto state = g_nativeUi->snapshot();
+        g_playback.enabled = true;
+        g_playback.endTick = state.ticks;
+        g_playback.tick = 0;
+        g_playback.paused = true;
+        g_playback.reverse = false;
+      }
+    } else if (id == kUiPlay) {
+      g_nativeUi->command(tf2::native::UiCommand::PlayPause);
+    } else if (id == kUiStop) {
+      g_nativeUi->command(tf2::native::UiCommand::Stop);
+    } else if (id == kUiBack) {
+      g_nativeUi->command(tf2::native::UiCommand::StepBackward);
+    } else if (id == kUiForward) {
+      g_nativeUi->command(tf2::native::UiCommand::StepForward);
+    } else if (id == kUiReverse) {
+      g_nativeUi->command(tf2::native::UiCommand::Reverse);
+    } else {
+      return DefWindowProcW(window, message, wParam, lParam);
+    }
+    const auto state = g_nativeUi->snapshot();
+    g_playback.tick = state.tick;
+    g_playback.paused = !state.playing;
+    g_playback.reverse = state.reverse;
+    updateNativeUiControls(window);
+    return 0;
+  }
+  case WM_HSCROLL:
+    if (g_nativeUi && reinterpret_cast<HWND>(lParam) == g_uiTimeline) {
+      const auto position = static_cast<std::int32_t>(SendMessageW(
+        g_uiTimeline, TBM_GETPOS, 0, 0));
+      g_nativeUi->command(tf2::native::UiCommand::Scrub, position);
+      const auto state = g_nativeUi->snapshot();
+      g_playback.tick = state.tick;
+      g_playback.paused = true;
+      updateNativeUiControls(window);
+      return 0;
+    }
+    return DefWindowProcW(window, message, wParam, lParam);
   case WM_PAINT:
     {
       PAINTSTRUCT paint{};
@@ -269,6 +441,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   tf2::native::Renderer renderer;
   g_renderer = &renderer;
   auto persistent = tf2::native::loadSettings();
+  tf2::native::NativeUiController nativeUi;
+  nativeUi.setTfRoot(persistent.tfRoot);
+  g_nativeUi = &nativeUi;
+  DragAcceptFiles(window, TRUE);
+  createNativeUiControls(window, instance);
   int argumentCount = 0;
   std::filesystem::path commandTfRoot;
   std::filesystem::path commandDemo;
@@ -333,6 +510,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     candidates.insert(candidates.begin(), persistent.tfRoot);
   }
   if (arguments) LocalFree(arguments);
+  if (!commandDemo.empty()) {
+    nativeUi.openDemo(commandDemo);
+    if (nativeUi.snapshot().screen == tf2::native::UiScreen::ImportReview) {
+      nativeUi.confirmImport();
+    }
+  }
   wchar_t* steamRoot = nullptr;
   size_t steamRootLength = 0;
   if (_wdupenv_s(&steamRoot, &steamRootLength, L"STEAM_DIR") == 0 && steamRoot) {
@@ -349,6 +532,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   const auto steamCandidates = tf2::native::AssetRoot::steamLibraryCandidates(steamRoots);
   candidates.insert(candidates.end(), steamCandidates.begin(), steamCandidates.end());
   const auto assets = tf2::native::AssetRoot::findInstalled(candidates);
+  nativeUi.setTfRoot(assets.valid() ? assets.tfDirectory : persistent.tfRoot);
   std::string cacheStatus;
   const auto cacheDirectory = localCacheDirectory(cacheStatus);
   std::string hashStatus = commandDemo.empty() ? "missing" : "failed";
@@ -867,7 +1051,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         if (!bone.poseToBoneValid) { poseMatricesValid = false; break; }
         boneMatrices.push_back(poseToBoneToMatrix4x4(bone.poseToBone));
       }
-      uploadedBones = poseMatricesValid && renderer.uploadBoneMatrices(boneMatrices, true);
+      // The MVP uploads normalized model vertices. poseToBone is an inverse
+      // bind matrix, not a bind skin matrix, so applying it here would move a
+      // static model into bone-local space. Keep the fallback in bind pose
+      // until AnimationPlayer supplies animatedWorld * inverse(bindWorld).
+      uploadedBones = poseMatricesValid && renderer.uploadBoneMatrices(boneMatrices, false);
     }
     return uploadedTexture && uploadedWorld && uploadedModel && uploadedBones;
   };
@@ -1044,6 +1232,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       hudTrailVertices = renderer.projectileVertexCount();
       lastSceneTick = g_playback.tick;
     }
+    nativeUi.setPlaybackState(g_playback.tick, g_playback.enabled && !g_playback.paused,
+      g_playback.reverse, g_playback.speed);
+    updateNativeUiControls(window);
     refreshWindowTitle();
     writeMetrics(now, false);
     if (elapsed >= kTargetFrameSeconds) {

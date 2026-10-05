@@ -1,0 +1,48 @@
+#include "asset_root.h"
+#include "demo_header.h"
+#include "model_loader.h"
+
+#include <iostream>
+
+int main(int argc, char** argv) {
+  if (argc != 2) {
+    std::cerr << "usage: model_render_request_probe <tf-directory>\n";
+    return 2;
+  }
+  const auto root = tf2::native::AssetRoot::fromPath(std::filesystem::u8path(argv[1]));
+  if (!root.valid()) {
+    std::cerr << "invalid_tf_root\n";
+    return 1;
+  }
+  tf2::native::AssetReference vpkReference;
+  vpkReference.entityIndex = 7;
+  vpkReference.classId = 12;
+  vpkReference.className = "CTestModel";
+  vpkReference.hasModelPath = true;
+  vpkReference.modelPath = "models/ambulance.mdl";
+  tf2::native::AssetReference missingReference = vpkReference;
+  missingReference.entityIndex = 8;
+  missingReference.modelPath = "models/does_not_exist_probe.mdl";
+
+  const auto repeated = tf2::native::ModelLoader::buildRenderRequests(root, {vpkReference, vpkReference}, nullptr);
+  const auto missing = tf2::native::ModelLoader::buildRenderRequests(root, {missingReference}, nullptr);
+  std::vector<tf2::native::AssetReference> boundedReferences(2050, vpkReference);
+  const auto boundedRequests = tf2::native::ModelLoader::buildRenderRequests(root, boundedReferences, nullptr);
+  const bool duplicateStable = repeated.size() == 2 && repeated[0].resolution == repeated[1].resolution
+    && repeated[0].diagnostic == repeated[1].diagnostic;
+  const bool vpkResolution = repeated.size() == 2
+    && (repeated[0].resolution == tf2::native::ModelAssetResolution::FoundVpk
+      || repeated[0].resolution == tf2::native::ModelAssetResolution::Ambiguous);
+  const bool vpkFallback = vpkResolution && !repeated[0].renderable;
+  const bool missingFallback = missing.size() == 1 && missing[0].resolution == tf2::native::ModelAssetResolution::Missing
+    && !missing[0].renderable && !missing[0].companionSetComplete;
+  const bool boundedOk = boundedRequests.size() == 2048;
+  std::cout << "duplicate_stable=" << (duplicateStable ? 1 : 0)
+            << " vpk_fallback=" << (vpkFallback ? 1 : 0)
+            << " vpk_resolution=" << static_cast<int>(repeated.empty() ? tf2::native::ModelAssetResolution::Unknown : repeated[0].resolution)
+            << " vpk_companions=" << (!repeated.empty() && repeated[0].companionSetComplete ? 1 : 0)
+            << " missing_fallback=" << (missingFallback ? 1 : 0)
+            << " bounded_2048=" << (boundedOk ? 1 : 0)
+            << " requests=" << boundedRequests.size() << '\n';
+  return duplicateStable && vpkFallback && missingFallback && boundedOk ? 0 : 1;
+}
