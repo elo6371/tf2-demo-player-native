@@ -13,6 +13,13 @@ struct ViewModelRenderRequest {
   ViewModelHand hand = ViewModelHand::Right;
   std::string attachmentName;
   bool bodygroupSelectionKnown = false;
+  bool resourceComplete = false;
+  std::string attachmentStatus = "unknown";
+  std::string bodygroupStatus = "unknown";
+  std::string sequenceStatus = "unsupported";
+  std::string sequenceDecodeReason;
+  std::uint32_t sequenceCount = 0;
+  bool firstPersonDrawn = false;
 };
 
 constexpr float defaultViewModelFov() { return 80.0f; }
