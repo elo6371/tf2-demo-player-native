@@ -125,6 +125,14 @@ without a crash, while remaining in the resource fallback state. Explicit
 roots now have strict precedence: a moved or missing operator-supplied path is
 not silently replaced by another Steam installation.
 
+Scene uploads are now cached per Demo tick, so paused frames and repeated
+renders at one tick do not rescan entity state or rebuild particle buffers. A
+post-change thirty-second playback run passed:
+
+```text
+{"stability":"pass","samples":30,"average_fps":103.47,"peak_working_set_bytes":151576576,"play_mode":true}
+```
+
 ## Not yet proven
 
 - Long-duration playback and memory ceiling checks still require a longer run.
