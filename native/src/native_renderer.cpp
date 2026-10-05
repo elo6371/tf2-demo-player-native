@@ -904,6 +904,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   if (depthStencilView_) context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(rasterizerState_.Get());
+  D3D11_VIEWPORT viewport{};
+  viewport.Width = static_cast<float>(width_);
+  viewport.Height = static_cast<float>(height_);
+  viewport.MinDepth = 0.0f;
+  viewport.MaxDepth = 1.0f;
+  context_->RSSetViewports(1, &viewport);
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   if (worldConstants_) {
     using namespace DirectX;
