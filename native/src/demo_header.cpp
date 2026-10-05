@@ -693,7 +693,9 @@ bool readSendPropValueDepth(MessageBits& bits, const SendPropSchema& prop, Entit
     case SendPropType::Array: {
       std::uint32_t count = 0;
       std::uint32_t countBits = 1;
-      while ((1u << countBits) < std::max<std::uint32_t>(1u, prop.elementCount)) ++countBits;
+      // Source uses floor(log2(elementCount)) + 1 bits, including when the
+      // array capacity is an exact power of two.
+      while (countBits < 31u && (1u << countBits) <= std::max<std::uint32_t>(1u, prop.elementCount)) ++countBits;
       if (!bits.read(countBits, count) || count > prop.elementCount) return false;
       EntityPropertyValue element{};
       const SendPropSchema child{prop.arrayElementType, prop.name, prop.ownerTable, prop.arrayElementFlags, prop.arrayElementBitCount, 0, {}, {}, {}, {}};
@@ -937,9 +939,10 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
     summary.entityHistoryHasGap = true;
     summary.entityHistoryGapTick = packetTick;
     if (deltaBaseUnavailable) ++summary.entityHistoryDeltaBaseMisses;
-    std::fill(summary.entityClassByIndex.begin(), summary.entityClassByIndex.end(), -1);
-    std::fill(summary.entityStates.begin(), summary.entityStates.end(), EntityState{});
-    summary.activeEntityCount = 0;
+    // Source keeps the live entity directory across packet decode failures and
+    // delta gaps. Clearing it turns the next Preserve updates into a cascade
+    // of false unknown-state failures; history remains unavailable until a
+    // complete packet re-establishes a checkpoint.
     return true;
   }
   appendEntityHistory(summary, packetTick, isDelta != 0, static_cast<std::int32_t>(deltaFrom), std::move(historyEvents));

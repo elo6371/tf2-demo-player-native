@@ -99,6 +99,7 @@ int wmain(int argc, wchar_t** argv) {
                 << L" first_entity_failure_name=" << wide(summary.firstEntityPropFailureName)
                 << L" first_entity_failure_class=" << summary.firstEntityPropFailureClass
                 << L" first_entity_failure_index=" << summary.firstEntityPropFailureIndex
+                << L" first_entity_failure_entity=" << summary.firstEntityPropFailureEntity
                 << L" first_entity_failure_type=" << summary.firstEntityPropFailureType
                 << L" first_entity_failure_flags=" << summary.firstEntityPropFailureFlags
                 << L" first_entity_failure_bits=" << summary.firstEntityPropFailureBits
