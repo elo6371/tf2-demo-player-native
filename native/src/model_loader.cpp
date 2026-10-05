@@ -591,6 +591,35 @@ ModelInspection ModelLoader::inspect(const ModelResourcePaths& paths) {
   return result;
 }
 
+bool ModelLoader::buildModelMeshData(const ModelInspection& inspection, std::size_t descriptorIndex,
+  ModelMeshData& mesh, std::string& error) {
+  mesh = {};
+  error.clear();
+  if (!inspection.renderableResourceSet || descriptorIndex >= inspection.metadata.indices.size()) {
+    error = "model inspection has no renderable descriptor";
+    return false;
+  }
+  const auto& descriptor = inspection.metadata.indices[descriptorIndex];
+  if (descriptor.renderIndexCount == 0 || descriptor.renderIndexCount % 3u != 0
+      || static_cast<std::size_t>(descriptor.renderIndexStart) + descriptor.renderIndexCount
+          > inspection.metadata.renderIndices.size()) {
+    error = "descriptor is not a bounded triangle list";
+    return false;
+  }
+  auto metadata = inspection.metadata;
+  if (!buildBindPoseMesh(metadata, descriptorIndex, error)) return false;
+  if (metadata.bindPoseVertices.size() != descriptor.renderIndexCount) {
+    error = "bind-pose vertex count does not match descriptor index count";
+    return false;
+  }
+  mesh.descriptorIndex = descriptorIndex;
+  mesh.vertices = std::move(metadata.bindPoseVertices);
+  mesh.indices.resize(mesh.vertices.size());
+  for (std::size_t i = 0; i < mesh.indices.size(); ++i) mesh.indices[i] = static_cast<std::uint32_t>(i);
+  mesh.triangleList = true;
+  return true;
+}
+
 bool ModelLoader::buildBindPoseMesh(ModelMetadata& metadata, std::size_t descriptorIndex, std::string& error) {
   if (descriptorIndex >= metadata.indices.size()) { error = "model index descriptor is out of range"; return false; }
   const auto& descriptor = metadata.indices[descriptorIndex];
