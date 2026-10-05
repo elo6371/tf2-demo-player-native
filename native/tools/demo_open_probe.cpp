@@ -59,6 +59,9 @@ int wmain(int argc, wchar_t** argv) {
                 << L" last_signon=" << summary.lastSignonState
                 << L" classes=" << summary.serverClassCount
                 << L" class_info=" << summary.classInfoCount
+                << L" datatable_packets=" << summary.dataTablePacketCount
+                << L" datatable_defs=" << summary.dataTableDefinitionCount
+                << L" datatable_classes=" << summary.dataTableServerClassCount
                 << L" packets_scanned=" << summary.packetsScanned
                 << L" malformed_packets=" << summary.malformedPackets
                 << L" temp_events=" << summary.tempEventCount

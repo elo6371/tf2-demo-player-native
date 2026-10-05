@@ -618,6 +618,12 @@ const SendTableSchema* tableForClass(const DemoNetworkSummary& summary, std::uin
   return nullptr;
 }
 
+std::uint32_t effectiveServerClassCount(const DemoNetworkSummary& summary) {
+  return summary.serverClassCount != 0
+      ? summary.serverClassCount
+      : static_cast<std::uint32_t>(summary.dataTableServerClassCount);
+}
+
 
 bool readSendPropValueDepth(MessageBits& bits, const SendPropSchema& prop, EntityPropertyValue& value,
                             std::uint32_t depth) {
@@ -857,8 +863,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
                                summary.entityStates[static_cast<std::size_t>(lastEntity)]});
     } else if (updateType == 1) {
       ++summary.packetEntityLeaveCount;
-      if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
-      if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, {}});
+      // Leave means the entity left the PVS, not that it was destroyed. Keep
+      // its class and last state so a later Preserve/Enter can resolve it.
     } else if (updateType == 3) {
       ++summary.packetEntityDeleteCount;
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
@@ -870,7 +876,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
         summary.firstPacketEntitiesFirstDiff = static_cast<std::int32_t>(diff);
       }
       ++summary.packetEntityEnterCount;
-      std::uint32_t classBits = 1; while (classBits < 31u && (1u << classBits) <= std::max<std::uint32_t>(1u, summary.serverClassCount)) ++classBits;
+      const std::uint32_t serverClassCount = effectiveServerClassCount(summary);
+      std::uint32_t classBits = 1; while (classBits < 31u && (1u << classBits) <= std::max<std::uint32_t>(1u, serverClassCount)) ++classBits;
       std::uint32_t classId = 0, serial = 0;
       if (!bits.read(classBits, classId) || !bits.read(10, serial)) { ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break; }
       if (lastEntity < 0 || lastEntity >= 2048 || classId >= summary.serverClassSchemas.size()) { ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break; }
@@ -1145,8 +1152,9 @@ bool readTempEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32
   const std::uint32_t eventCount = count == 0 ? 1u : count;
   std::uint32_t lastClassId = 0;
   bool haveClass = false;
+  const std::uint32_t serverClassCount = effectiveServerClassCount(summary);
   std::uint32_t classBits = 1;
-  while (classBits < 31u && (1u << classBits) <= std::max<std::uint32_t>(1u, summary.serverClassCount)) ++classBits;
+  while (classBits < 31u && (1u << classBits) <= std::max<std::uint32_t>(1u, serverClassCount)) ++classBits;
   for (std::uint32_t i = 0; i < eventCount; ++i) {
     std::uint32_t hasDelay = 0, delayRaw = 0, hasClass = 0;
     if (!body.read(1, hasDelay)) { ++summary.tempEventDecodeFailures; break; }
@@ -1155,7 +1163,7 @@ bool readTempEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32
     if (hasClass) {
       std::uint32_t encodedClass = 0;
       if (!body.read(classBits, encodedClass) || encodedClass == 0 ||
-          encodedClass > summary.serverClassCount) { ++summary.tempEventDecodeFailures; break; }
+          encodedClass > serverClassCount) { ++summary.tempEventDecodeFailures; break; }
       lastClassId = encodedClass - 1u;
       haveClass = true;
     } else if (!haveClass) {
