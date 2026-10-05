@@ -88,7 +88,7 @@ struct WorldMaterialSampleState {
   bool selfIllumEnabled = false;
 };
 
-enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningMissing, ViewModelUnknown };
+enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
 
 class Renderer {
 public:

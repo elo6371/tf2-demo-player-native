@@ -628,6 +628,7 @@ bool Renderer::uploadBoneMatrices(const std::vector<std::array<float, 16>>& bone
   constants.padding[0] = 0u;
   constants.padding[1] = 0u;
   context_->UpdateSubresource(modelSkinningConstants_.Get(), 0, nullptr, &constants, 0, 0);
+  modelGpuStatus_ = enableSkinning ? ModelGpuStatus::SkinningReady : ModelGpuStatus::BindPoseOnly;
   return true;
 }
 
@@ -1100,6 +1101,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     const UINT modelStride = sizeof(ModelGpuVertex), modelOffset = 0; auto* modelBuffer = modelVertexBuffer_.Get();
     context_->IASetVertexBuffers(0, 1, &modelBuffer, &modelStride, &modelOffset);
     context_->VSSetShader(modelVertexShader_.Get(), nullptr, 0);
+    auto* worldConstants = worldConstants_.Get();
+    context_->VSSetConstantBuffers(0, 1, &worldConstants);
     context_->PSSetShader(modelPixelShader_.Get(), nullptr, 0);
     auto* modelTexture = worldTexture_.view() ? worldTexture_.view() : texture_.view();
     context_->PSSetShaderResources(0, 1, &modelTexture);
