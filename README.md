@@ -17,4 +17,4 @@ native/build/Release/tf2_demo_native.exe --tf-root "D:\SteamLibrary\steamapps\co
 
 软件直接引用用户本地 TF2 `tf` 目录，不需要 Electron、浏览器、Node.js 或启动 TF2。当前 native MVP 已接入 VPK、VTF、VMT、压缩 BSP lump、PacketEntities 状态重建、基础地图/实体/投射物回放、Win32 UI 导入状态机和稳定性门禁；当前完整产品状态以 [native/docs/TAKEOVER-2026-10-05.md](native/docs/TAKEOVER-2026-10-05.md) 为准。
 
-当前 UI 仍处于第一切片：支持 `.dem` 打开/拖放、导入审核状态、播放命令状态、tick 边界、HUD/静音/全屏状态和可恢复错误探针；实际 Win32 按钮、时间轴绘制、HUD 绘制、主题导入和设置页面仍由 `handoff-ui` 分支继续实现。
+当前 UI 已有第一版 Win32 操作层：支持 `.dem` 打开对话框/拖放、导入审核、播放/暂停、停止、逐 tick、反向和时间轴拖动；HUD 主题、完整 HUD 绘制、设置页和导出仍未完成。大 Demo 的导入扫描目前在窗口线程同步执行，导入取消和后台进度属于下一 UI 增量。
