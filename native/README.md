@@ -9,9 +9,12 @@ Electron, browser, WebGL, Node.js runtime, or web UI dependency.
 
 ## Current stage
 
-The first slice creates a Win32 window, initializes a hardware Direct3D 11
-device and swap chain, resizes its render target, and presents a stable frame.
-It is still an incremental renderer, but the native resource boundary now includes VPK, VTF, VMT, and compressed BSP geometry metadata parsing.
+The current MVP creates a Win32 window, initializes a hardware Direct3D 11
+device and swap chain with WARP fallback, indexes real TF2 resources, rebuilds
+entity state from real Demos, draws the basic BSP world and diagnostic effects,
+and exposes a tested UI import state controller. It is still an incremental
+renderer: the controller exists, but the full button/timeline/HUD/settings
+visual layer is the next UI slice.
 
 ## Initial quality profiles
 
@@ -50,7 +53,7 @@ The release preset uses the static MSVC runtime and enables ASLR/NX. A
 Windows 10/11 SDK and the MSVC C++ workload are required on the build machine.
 
 The migration order is: shared binary parsers, replay timeline, D3D11 world
-pass and lightmaps, StudioMDL skinning, particles/audio, then native HUD and
+pass and lightmaps, StudioMDL skinning, particles/audio, native UI/HUD, then
 export. `AssetRoot` is the native boundary for the user's existing `tf`
 directory; it validates loose `materials`, `models`, and `maps` directories or
 standard `*_dir.vpk` archives, and rejects path escape attempts. The former WebGL/Electron tree was removed from this product worktree on 2026-10-03; native code and the documented real-resource smoke checks are now the source of truth.
@@ -80,6 +83,18 @@ otherwise resolves WAV resources on demand.
 Run `powershell -ExecutionPolicy Bypass -File native/tools/native_resilience_gate.ps1
 -Demo X:\path\sample.dem` to verify normal indexing, rejection of a truncated
 Demo, and safe startup with an explicitly missing TF2 root.
+
+For the current acceptance gate, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File native/tools/native_acceptance_gate.ps1 `
+  -InstallDir native/build/Release -MissingTfRoot -Seconds 5 -MinSamples 3
+```
+
+The native UI state-machine probe is `native/build/Release/native_ui_probe.exe`.
+It verifies opening, import review, player transition, cancel recovery, tick
+clamping, HUD toggle, and corrupt-Demo recovery. The product handoff and all
+remaining work are tracked in `native/docs/TAKEOVER-2026-10-05.md`.
 
 ## Release install smoke
 
