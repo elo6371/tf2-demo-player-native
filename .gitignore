@@ -1,0 +1,44 @@
+node_modules/
+dist/
+desktop-release/
+testdata/
+*.local
+vite.config.ts.timestamp-*
+shot-*.png
+
+# Local scratch: stale copies kept during a task, and the check scripts'
+# output directories. Neither belongs in the history.
+work/
+release-*/
+
+# 探针的控制台日志。它们是探针打印内容的副本，结构化读数已写在同目录的
+# `release-*.json` 里，而后者是进历史的（见下方说明）。
+/*.log
+
+# 注意 `release-*/` 只匹配**目录**，不匹配根目录下的 `release-*.json` / `release-*.png`。
+# 那是有意的：探针的结构化读数与全景图/剖面图是判据的证据，应当进历史——
+# 例如 `release-sky-shader-check.json` 是「bk|rt 接缝 0.324 vs 45.98」那条读数的出处。
+# 重新生成它们需要本机的 TF2 安装与样本 demo，不是随时可再生的东西。
+
+# 验收运行的本地临时产物（可再生），与 .bak 转移目录
+accbounds.json
+accerr*.txt
+accrun*.json
+cameraprobe*.log
+realwindow.log
+mmc.log
+playback-control-*.log
+smoke-out/
+playback-control-current/
+dist.bak*/
+desktop-release.bak*/
+desktop-release-nsis/
+desktop-release-zip/
+
+# 被守卫拦下无法删除、改为转移过来的构建残留
+.scratch/
+
+# Native CMake outputs (reproducible, never source)
+native/build/
+native/build-*/
+native/*.user
