@@ -9,6 +9,7 @@
 #include "audio_player.h"
 #include "model_loader.h"
 #include "item_schema.h"
+#include "native_ui.h"
 
 #include <Windows.h>
 #include <bcrypt.h>
@@ -30,6 +31,7 @@
 
 namespace {
 tf2::native::Renderer* g_renderer = nullptr;
+tf2::native::NativeUiController* g_nativeUi = nullptr;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
@@ -117,6 +119,23 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   case WM_MOUSEWHEEL:
     if (g_renderer) g_renderer->zoomCamera(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA));
     return 0;
+  case WM_DROPFILES: {
+    if (g_nativeUi) {
+      const HDROP drop = reinterpret_cast<HDROP>(wParam);
+      wchar_t path[MAX_PATH]{};
+      if (DragQueryFileW(drop, 0, path, static_cast<UINT>(std::size(path))) != 0) {
+        const bool accepted = g_nativeUi->dropDemo(std::filesystem::path(path));
+        const auto state = g_nativeUi->snapshot();
+        std::wstring title = L"TF2 Demo Player - ";
+        title += std::wstring(state.error.begin(), state.error.end());
+        if (accepted) title = L"TF2 Demo Player - import review: "
+          + std::wstring(state.mapName.begin(), state.mapName.end());
+        SetWindowTextW(window, title.c_str());
+      }
+      DragFinish(drop);
+    }
+    return 0;
+  }
   case WM_PAINT:
     {
       PAINTSTRUCT paint{};
@@ -269,6 +288,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   tf2::native::Renderer renderer;
   g_renderer = &renderer;
   auto persistent = tf2::native::loadSettings();
+  tf2::native::NativeUiController nativeUi;
+  nativeUi.setTfRoot(persistent.tfRoot);
+  g_nativeUi = &nativeUi;
+  DragAcceptFiles(window, TRUE);
   int argumentCount = 0;
   std::filesystem::path commandTfRoot;
   std::filesystem::path commandDemo;
@@ -349,6 +372,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   const auto steamCandidates = tf2::native::AssetRoot::steamLibraryCandidates(steamRoots);
   candidates.insert(candidates.end(), steamCandidates.begin(), steamCandidates.end());
   const auto assets = tf2::native::AssetRoot::findInstalled(candidates);
+  nativeUi.setTfRoot(assets.valid() ? assets.tfDirectory : persistent.tfRoot);
   std::string cacheStatus;
   const auto cacheDirectory = localCacheDirectory(cacheStatus);
   std::string hashStatus = commandDemo.empty() ? "missing" : "failed";
