@@ -1,5 +1,9 @@
 # TF2 Demo Player Native Renderer
 
+Current handoff: [`docs/TAKEOVER-2026-10-05.md`](docs/TAKEOVER-2026-10-05.md).
+Use that file as the native branch entry point; older root-level handoffs are
+historical records.
+
 This is the new Windows-native rendering direction. It deliberately has no
 Electron, browser, WebGL, Node.js runtime, or web UI dependency.
 

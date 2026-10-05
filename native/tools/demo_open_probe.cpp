@@ -81,6 +81,15 @@ int wmain(int argc, wchar_t** argv) {
                 << L" entity_missing_table_failures=" << summary.entityPropMissingTableFailures
                 << L" entity_prop_index_failures=" << summary.entityPropIndexFailures
                 << L" entity_prop_value_failures=" << summary.entityPropValueFailures
+                << L" entity_history_gap=" << (summary.entityHistoryHasGap ? 1 : 0)
+                << L" entity_history_delta_misses=" << summary.entityHistoryDeltaBaseMisses
+                << L" entity_history_packets=" << summary.entityHistoryPackets.size()
+                << L" entity_history_events=" << summary.entityHistoryEvents.size()
+                << L" entity_history_checkpoints=" << summary.entityHistoryCheckpoints.size()
+                << L" entity_delta_count=" << summary.packetEntityDeltaCount
+                << L" entity_delta_base_unavailable=" << summary.packetEntityDeltaBaseUnavailableCount
+                << L" first_delta_tick=" << summary.firstPacketEntitiesDeltaTick
+                << L" first_delta_from=" << summary.firstPacketEntitiesDeltaFrom
                 << L" first_unknown_tick=" << summary.firstEntityUnknownStateTick
                 << L" first_unknown_entity=" << summary.firstEntityUnknownStateEntity
                 << L" first_unknown_update=" << summary.firstEntityUnknownStateUpdate
