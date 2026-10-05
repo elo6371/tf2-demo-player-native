@@ -1050,14 +1050,6 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->Draw(projectileVertexCount_, 0);
       context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     }
-    if (entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0) {
-      const UINT markerStride = sizeof(WorldVertex), markerOffset = 0;
-      auto* markerBuffer = entityMarkerVertexBuffer_.Get();
-      context_->IASetVertexBuffers(0, 1, &markerBuffer, &markerStride, &markerOffset);
-      context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-      context_->Draw(entityMarkerVertexCount_, 0);
-      context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    }
   } else {
     context_->IASetInputLayout(nullptr);
     context_->VSSetShader(vertexShader_.Get(), nullptr, 0);
@@ -1066,6 +1058,28 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(0, 1, &view);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(6, 0);
+  }
+  if (entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0
+      && worldVertexShader_ && worldPixelShader_ && worldInputLayout_ && worldConstants_) {
+    const UINT markerStride = sizeof(WorldVertex), markerOffset = 0;
+    auto* markerBuffer = entityMarkerVertexBuffer_.Get();
+    context_->IASetInputLayout(worldInputLayout_.Get());
+    context_->IASetVertexBuffers(0, 1, &markerBuffer, &markerStride, &markerOffset);
+    context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
+    auto* worldConstants = worldConstants_.Get();
+    context_->VSSetConstantBuffers(0, 1, &worldConstants);
+    context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+    context_->PSSetConstantBuffers(0, 1, &worldConstants);
+    auto* worldView = worldTexture_.view() ? worldTexture_.view() : texture_.view();
+    context_->PSSetShaderResources(0, 1, &worldView);
+    ID3D11ShaderResourceView* bumpView = worldBumpTexture_.view();
+    ID3D11ShaderResourceView* envView = worldEnvTexture_.view();
+    context_->PSSetShaderResources(1, 1, &bumpView);
+    context_->PSSetShaderResources(2, 1, &envView);
+    context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+    context_->Draw(entityMarkerVertexCount_, 0);
+    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
   if (modelVertexBuffer_ && modelVertexCount_ > 0 && modelVertexShader_ && modelPixelShader_ && modelInputLayout_) {
     context_->IASetInputLayout(modelInputLayout_.Get());
