@@ -72,6 +72,17 @@ of about 152 MiB:
 3.00303,328,105.983,0,151810048,191737856
 ```
 
+The repeatable gate `native/tools/native_stability_gate.ps1` was run against
+the current Release binary for a three-second silent startup sample:
+
+```text
+{"stability":"pass","samples":4,"average_fps":94.3,"peak_working_set_bytes":151670784,"play_mode":false}
+```
+
+This is a local smoke result only. The gate accepts `-Play` for a real demo
+playback sample and an optional `-MinFps` threshold; it does not replace
+long-duration or clean-machine acceptance.
+
 ## Not yet proven
 
 - Long-duration playback and memory ceiling checks still require a longer run.
