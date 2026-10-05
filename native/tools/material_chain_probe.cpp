@@ -2,6 +2,7 @@
 #include "vmt_material.h"
 #include "vpk_archive.h"
 #include "vtf_texture.h"
+#include "vmt_material.h"
 
 #include <filesystem>
 #include <fstream>
@@ -92,6 +93,11 @@ int main(int argc, char** argv) {
   std::uint16_t explicitVtfWidth = 0, explicitVtfHeight = 0;
   std::uint32_t explicitVtfFormat = 0;
   std::size_t explicitVtfRgbaBytes = 0;
+  bool explicitVmtParsed = false;
+  std::string explicitVmtShader;
+  std::string explicitVmtBump;
+  std::string explicitVmtEnv;
+  bool explicitVmtSelfIllum = false;
   if (argc == 3 && std::string_view(argv[1]) == "--vtf") {
     const auto bytes = readFile(std::filesystem::u8path(argv[2]));
     tf2::native::VtfTexture texture;
@@ -102,6 +108,18 @@ int main(int argc, char** argv) {
       explicitVtfHeight = texture.header().height;
       explicitVtfFormat = texture.header().format;
       explicitVtfRgbaBytes = rgba.size();
+    }
+  }
+  if (argc == 3 && std::string_view(argv[1]) == "--vmt") {
+    const auto bytes = readFile(std::filesystem::u8path(argv[2]));
+    tf2::native::VmtMaterial material;
+    explicitVmtParsed = !bytes.empty()
+      && tf2::native::VmtParser::parse(std::string(bytes.begin(), bytes.end()), material);
+    if (explicitVmtParsed) {
+      explicitVmtShader = material.shader;
+      explicitVmtBump = material.bumpMap;
+      explicitVmtEnv = material.envMap;
+      explicitVmtSelfIllum = material.selfIllum;
     }
   }
   if (argc == 3 && std::string_view(argv[1]) == "--bsp") {
@@ -119,7 +137,7 @@ int main(int argc, char** argv) {
       << ",\"bspLightmapBytes\":" << parsedMap.lightmapBytes
       << ",\"bspError\":\"" << parsedMap.error << "\"}\n";
   }
-  if (argc > 1 && std::string_view(argv[1]) != "--vtf" && std::string_view(argv[1]) != "--bsp") {
+  if (argc > 1 && std::string_view(argv[1]) != "--vtf" && std::string_view(argv[1]) != "--vmt" && std::string_view(argv[1]) != "--bsp") {
     const std::filesystem::path tfRoot = std::filesystem::u8path(argv[1]);
     std::vector<std::shared_ptr<tf2::native::VpkArchive>> archives;
     std::error_code rootError;
@@ -245,6 +263,11 @@ int main(int argc, char** argv) {
     << ",\"explicitVtfHeight\":" << explicitVtfHeight
     << ",\"explicitVtfFormat\":" << explicitVtfFormat
     << ",\"explicitVtfRgbaBytes\":" << explicitVtfRgbaBytes
+    << ",\"explicitVmtParsed\":" << (explicitVmtParsed ? "true" : "false")
+    << ",\"explicitVmtShader\":\"" << explicitVmtShader << "\""
+    << ",\"explicitVmtHasBump\":" << (!explicitVmtBump.empty() ? "true" : "false")
+    << ",\"explicitVmtHasEnvMap\":" << (!explicitVmtEnv.empty() ? "true" : "false")
+    << ",\"explicitVmtSelfIllum\":" << (explicitVmtSelfIllum ? "true" : "false")
     << ",\"realBumpDecoded\":" << (realBumpDecoded ? "true" : "false")
     << ",\"realEnvDecoded\":" << (realEnvDecoded ? "true" : "false")
     << ",\"realMaterials\":" << realMaterials
