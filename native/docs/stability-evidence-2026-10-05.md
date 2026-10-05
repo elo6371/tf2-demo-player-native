@@ -101,6 +101,16 @@ The marker pass is a diagnostic world-space cross for up to 128 decoded entity
 origins. It proves entity snapshots reach the GPU scene without claiming that
 player or weapon StudioMDL meshes are complete.
 
+Entity-state regression on four real samples remains clean after the marker
+integration:
+
+```text
+73.dem: entities=3030444 entity_failures=0 unknown_state=0 prop_index=0 prop_value=0
+POV autorecord_2026-05-14_16-09-14.dem: entities=1741112 entity_failures=0 unknown_state=0 prop_index=0 prop_value=0
+autorecord_2026-09-30_23-06-57.dem: entities=1819342 entity_failures=0 unknown_state=0 prop_index=0 prop_value=0
+cp_snakewater_final1 SourceTV: entities=1427501 entity_failures=0 unknown_state=0 prop_index=0 prop_value=0
+```
+
 ## Not yet proven
 
 - Long-duration playback and memory ceiling checks still require a longer run.
