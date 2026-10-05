@@ -26,6 +26,19 @@ std::uint32_t u32le(const std::string& bytes, std::size_t offset) {
     | (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[offset + 2])) << 16u)
     | (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[offset + 3])) << 24u);
 }
+
+std::string hexBytes(const std::string& bytes, std::size_t offset, std::size_t count) {
+  static constexpr char digits[] = "0123456789abcdef";
+  std::string result;
+  const auto end = std::min(bytes.size(), offset + count);
+  for (std::size_t at = offset; at < end; ++at) {
+    if (!result.empty()) result.push_back(' ');
+    const auto value = static_cast<unsigned char>(bytes[at]);
+    result.push_back(digits[value >> 4]);
+    result.push_back(digits[value & 15]);
+  }
+  return result;
+}
 }
 
 int main(int argc, char** argv) {
@@ -130,6 +143,9 @@ int main(int argc, char** argv) {
               << " boundary_candidate=" << ((safePrefixBytes > 0 && safePrefixBytes < segmentBytes) ? 1 : 0)
               << " boundary_payload_bytes=" << safePrefixBytes
               << " boundary_remainder_bytes=" << (segmentBytes >= safePrefixBytes ? segmentBytes - safePrefixBytes : 0)
+              << " boundary_failure_segment_offset=" << safePrefixBytes
+              << " boundary_failure_file_offset=" << (vpdHeaderBytes + safePrefixBytes)
+              << " boundary_tail_hex=" << hexBytes(bytes, vpdHeaderBytes + safePrefixBytes, 6)
               << " container_segments=unproven"
               << " semantic_status=unproven"
               << " decoded=false"
