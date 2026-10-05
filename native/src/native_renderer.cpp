@@ -750,7 +750,7 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.lightmapIntensity = worldLightmapIntensity_;
   state.bumpTextureBound = worldBumpTexture_.view() != nullptr;
   state.envTextureBound = worldEnvTexture_.view() != nullptr;
-  state.selfIllumEnabled = worldMaterialParams_.selfIllum;
+  state.selfIllumEnabled = settings_.preset == QualityPreset::Standard && worldMaterialParams_.selfIllum;
   return state;
 }
 
