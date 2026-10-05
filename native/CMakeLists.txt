@@ -66,6 +66,10 @@ add_executable(viewmodel_fov_probe tools/viewmodel_fov_probe.cpp)
 target_include_directories(viewmodel_fov_probe PRIVATE include)
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(viewmodel_contract_probe tools/viewmodel_contract_probe.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
+target_include_directories(viewmodel_contract_probe PRIVATE include)
+set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(audio_scheduler_probe tools/audio_scheduler_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp)
 target_include_directories(audio_scheduler_probe PRIVATE include)
 target_compile_definitions(audio_scheduler_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
