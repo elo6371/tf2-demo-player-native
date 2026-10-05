@@ -111,6 +111,15 @@ autorecord_2026-09-30_23-06-57.dem: entities=1819342 entity_failures=0 unknown_s
 cp_snakewater_final1 SourceTV: entities=1427501 entity_failures=0 unknown_state=0 prop_index=0 prop_value=0
 ```
 
+A thirty-second real playback long run also passed the same gate:
+
+```text
+{"stability":"pass","samples":31,"average_fps":107.31,"peak_working_set_bytes":152055808,"play_mode":true}
+```
+
+The short and long runs show no monotonic working-set increase in this local
+environment. They still do not prove a clean-machine 120 FPS target.
+
 ## Not yet proven
 
 - Long-duration playback and memory ceiling checks still require a longer run.
