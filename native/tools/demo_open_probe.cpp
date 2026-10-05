@@ -1,6 +1,8 @@
 #include "demo_header.h"
 
+#include <cstdlib>
 #include <iostream>
+#include <limits>
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
@@ -8,8 +10,19 @@ int wmain(int argc, wchar_t** argv) {
     return 2;
   }
   bool scan = false;
+  std::int32_t snapshotTick = -1;
   int firstPath = 1;
   if (std::wstring(argv[1]) == L"--scan") { scan = true; firstPath = 2; }
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--snapshot") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\\0' || parsed < 0 || parsed > std::numeric_limits<std::int32_t>::max()) {
+      std::wcerr << L"invalid snapshot tick\n";
+      return 2;
+    }
+    snapshotTick = static_cast<std::int32_t>(parsed);
+    firstPath += 2;
+  }
   if (firstPath >= argc) {
     std::wcerr << L"usage: demo_open_probe [--scan] <demo.dem>\n";
     return 2;
@@ -86,10 +99,14 @@ int wmain(int argc, wchar_t** argv) {
                 << L" entity_history_packets=" << summary.entityHistoryPackets.size()
                 << L" entity_history_events=" << summary.entityHistoryEvents.size()
                 << L" entity_history_checkpoints=" << summary.entityHistoryCheckpoints.size()
+                << L" entity_history_first_tick=" << (summary.entityHistoryCheckpoints.empty() ? -1 : summary.entityHistoryCheckpoints.front().tick)
+                << L" entity_history_last_tick=" << (summary.entityHistoryCheckpoints.empty() ? -1 : summary.entityHistoryCheckpoints.back().tick)
                 << L" entity_delta_count=" << summary.packetEntityDeltaCount
                 << L" entity_delta_base_unavailable=" << summary.packetEntityDeltaBaseUnavailableCount
                 << L" first_delta_tick=" << summary.firstPacketEntitiesDeltaTick
                 << L" first_delta_from=" << summary.firstPacketEntitiesDeltaFrom
+                << L" first_unavailable_tick=" << summary.firstPacketEntitiesUnavailableTick
+                << L" first_unavailable_from=" << summary.firstPacketEntitiesUnavailableFrom
                 << L" first_unknown_tick=" << summary.firstEntityUnknownStateTick
                 << L" first_unknown_entity=" << summary.firstEntityUnknownStateEntity
                 << L" first_unknown_update=" << summary.firstEntityUnknownStateUpdate
@@ -126,6 +143,23 @@ int wmain(int argc, wchar_t** argv) {
                 << L" first_temp_failure_bits=" << summary.firstTempEntityFailureBits
                 << L" first_temp_failure_tick=" << summary.firstTempEntityFailureTick
                 << L" unknown_packets=" << summary.unknownMessagePackets;
+      if (snapshotTick >= 0) {
+        std::vector<tf2::native::EntityState> states;
+        const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, snapshotTick, states);
+        const auto statusName = [](tf2::native::EntitySnapshotQueryStatus value) {
+          switch (value) {
+            case tf2::native::EntitySnapshotQueryStatus::Available: return L"available";
+            case tf2::native::EntitySnapshotQueryStatus::NoHistory: return L"no-history";
+            case tf2::native::EntitySnapshotQueryStatus::TickBeforeHistory: return L"before-history";
+            case tf2::native::EntitySnapshotQueryStatus::Gap: return L"gap";
+            case tf2::native::EntitySnapshotQueryStatus::DeltaBaseMissing: return L"delta-base-missing";
+          }
+          return L"unknown";
+        };
+        std::wcout << L" snapshot_tick=" << snapshotTick
+                   << L" snapshot_status=" << statusName(status)
+                   << L" snapshot_states=" << states.size();
+      }
     }
     std::wcout << L'\n';
   }
