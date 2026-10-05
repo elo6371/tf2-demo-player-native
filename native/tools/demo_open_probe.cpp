@@ -41,6 +41,16 @@ int wmain(int argc, wchar_t** argv) {
           break;
         }
       }
+      std::string firstEntityClassName;
+      std::size_t firstEntityPropCount = 0;
+      for (const auto& serverClass : summary.serverClassSchemas) {
+        if (serverClass.id != static_cast<std::uint16_t>(summary.firstEntityPropFailureClass)) continue;
+        firstEntityClassName = serverClass.name;
+        for (const auto& table : summary.sendTableSchemas) {
+          if (table.name == serverClass.dataTable) firstEntityPropCount = table.flattenedProps.size();
+        }
+        break;
+      }
       const auto wide = [](const std::string& value) {
         return std::wstring(value.begin(), value.end());
       };
@@ -87,6 +97,13 @@ int wmain(int argc, wchar_t** argv) {
                 << L" first_entities_message_bit=" << summary.firstPacketEntitiesMessageBit
                 << L" first_entity_failure_stage=" << wide(summary.firstEntityPropFailureStage)
                 << L" first_entity_failure_name=" << wide(summary.firstEntityPropFailureName)
+                << L" first_entity_failure_class=" << summary.firstEntityPropFailureClass
+                << L" first_entity_failure_index=" << summary.firstEntityPropFailureIndex
+                << L" first_entity_failure_type=" << summary.firstEntityPropFailureType
+                << L" first_entity_failure_flags=" << summary.firstEntityPropFailureFlags
+                << L" first_entity_failure_bits=" << summary.firstEntityPropFailureBits
+                << L" first_entity_failure_class_name=" << wide(firstEntityClassName)
+                << L" first_entity_failure_prop_count=" << firstEntityPropCount
                 << L" first_temp_failure_stage=" << wide(summary.firstTempEntityFailureStage)
                 << L" first_temp_failure_name=" << wide(summary.firstTempEntityFailureName)
                 << L" first_temp_failure_class=" << summary.firstTempEntityFailureClass
