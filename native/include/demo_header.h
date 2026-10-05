@@ -370,6 +370,9 @@ struct DemoNetworkSummary {
   std::size_t prefetchCount = 0;
   std::size_t stringCommandCount = 0;
   std::size_t fixAngleCount = 0;
+  bool lastFixAngleValid = false;
+  bool lastFixAngleRelative = false;
+  float lastFixAngle[3] = {0.0f, 0.0f, 0.0f};
   std::size_t getCvarValueCount = 0;
   std::size_t entityMessageCount = 0;
   std::size_t entityMessagePayloadBits = 0;
