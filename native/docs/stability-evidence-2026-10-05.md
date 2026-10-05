@@ -35,6 +35,14 @@ The POV sample `autorecord_2026-05-14_16-09-14.dem` also indexed successfully:
 header=1 index=1 malformed_offset=0 commands=125302 packets=58815
 ```
 
+The local `cp_snakewater_final1` POV sample also completed a full scan:
+
+```text
+header=1 index=1 commands=64337 packets=64333 datatable_classes=363
+entities=1427501 entity_failures=0 entity_unknown_state_failures=0
+entity_prop_index_failures=0 entity_prop_value_failures=0 temp_failures=0
+```
+
 Full scans now report zero entity reconstruction failures. `73.dem` reports
 `entities=3030444`, `entity_failures=0`, `entity_unknown_state_failures=0`,
 and zero property index/value failures. The POV sample reports
