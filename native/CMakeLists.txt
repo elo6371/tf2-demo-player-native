@@ -24,6 +24,7 @@ add_executable(tf2_demo_native WIN32
   src/texture2d.cpp
   src/settings_store.cpp
   src/item_schema.cpp
+  src/native_ui.cpp
 )
 
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
@@ -82,6 +83,10 @@ target_include_directories(native_install_smoke_probe PRIVATE include)
 target_compile_definitions(native_install_smoke_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(native_install_smoke_probe PRIVATE d3d11 dxgi)
 set_target_properties(native_install_smoke_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp src/demo_header.cpp src/proto_wire.cpp src/item_schema.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(native_ui_probe PRIVATE include third_party/lzma)
+set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 install(TARGETS tf2_demo_native native_install_smoke_probe
   RUNTIME DESTINATION .
