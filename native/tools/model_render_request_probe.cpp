@@ -2,6 +2,7 @@
 #include "demo_header.h"
 #include "model_loader.h"
 
+#include <fstream>
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -37,12 +38,47 @@ int main(int argc, char** argv) {
   const bool missingFallback = missing.size() == 1 && missing[0].resolution == tf2::native::ModelAssetResolution::Missing
     && !missing[0].renderable && !missing[0].companionSetComplete;
   const bool boundedOk = boundedRequests.size() == 2048;
+  const auto archivePath = root.tfDirectory / "tf2_misc_dir.vpk";
+  tf2::native::VpkArchive archive;
+  std::string archiveError;
+  bool extractedRenderable = false;
+  bool malformedRejected = false;
+  if (archive.open(archivePath, &archiveError)) {
+    const std::filesystem::path temp = std::filesystem::temp_directory_path() / "tf2-model-render-request-probe";
+    std::error_code cleanupError;
+    std::filesystem::remove_all(temp, cleanupError);
+    std::filesystem::create_directories(temp / "models", cleanupError);
+    const std::string stem = "models/ambulance";
+    const auto write = [&](const std::string& suffix, std::size_t limit = 0) {
+      const auto bytes = archive.read(stem + suffix, &archiveError);
+      if (bytes.empty()) return false;
+      const auto target = temp / ("models/ambulance" + suffix);
+      std::ofstream file(target, std::ios::binary);
+      if (!file) return false;
+      const auto count = limit == 0 ? bytes.size() : std::min(limit, bytes.size());
+      file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(count));
+      return static_cast<bool>(file);
+    };
+    const bool filesReady = write(".mdl") && write(".vvd") && write(".dx90.vtx");
+    if (filesReady) {
+      const auto inspection = tf2::native::ModelLoader::inspect(temp / "models/ambulance.mdl");
+      extractedRenderable = inspection.renderableResourceSet && !inspection.metadata.indices.empty()
+        && inspection.metadata.renderIndices.size() >= inspection.metadata.indices.front().renderIndexCount;
+      std::error_code malformedError;
+      std::filesystem::remove(temp / "models/ambulance.dx90.vtx", malformedError);
+      malformedRejected = !tf2::native::ModelLoader::inspect(temp / "models/ambulance.mdl").renderableResourceSet;
+    }
+    std::filesystem::remove_all(temp, cleanupError);
+  }
   std::cout << "duplicate_stable=" << (duplicateStable ? 1 : 0)
             << " vpk_fallback=" << (vpkFallback ? 1 : 0)
             << " vpk_resolution=" << static_cast<int>(repeated.empty() ? tf2::native::ModelAssetResolution::Unknown : repeated[0].resolution)
             << " vpk_companions=" << (!repeated.empty() && repeated[0].companionSetComplete ? 1 : 0)
             << " missing_fallback=" << (missingFallback ? 1 : 0)
             << " bounded_2048=" << (boundedOk ? 1 : 0)
+            << " extracted_renderable=" << (extractedRenderable ? 1 : 0)
+            << " malformed_rejected=" << (malformedRejected ? 1 : 0)
             << " requests=" << boundedRequests.size() << '\n';
-  return duplicateStable && vpkFallback && missingFallback && boundedOk ? 0 : 1;
+  return duplicateStable && vpkFallback && missingFallback && boundedOk
+    && extractedRenderable && malformedRejected ? 0 : 1;
 }
