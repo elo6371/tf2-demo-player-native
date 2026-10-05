@@ -2,6 +2,7 @@
 #include "viewmodel.h"
 
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 
@@ -43,6 +44,14 @@ int main(int argc, char** argv) {
     && (inspection.vtx.signatureValid || inspection.vtxDx80.signatureValid || inspection.vtxSw.signatureValid);
   const bool attachmentsValid = invalidAttachments == 0
     && inspection.metadata.attachments.size() == inspection.metadata.attachmentCount;
+  tf2::native::ViewModelRenderRequest request;
+  request.modelPath = argv[1];
+  request.resourceComplete = resourceComplete;
+  request.attachmentStatus = status(inspection.attachmentStatus);
+  request.bodygroupStatus = status(inspection.bodygroupStatus);
+  request.sequenceCount = static_cast<std::uint32_t>(inspection.metadata.sequences.size());
+  request.sequenceStatus = inspection.metadata.sequenceFrameCountAvailable ? "available" : "unsupported";
+  request.sequenceDecodeReason = inspection.metadata.sequenceDecodeReason;
   std::cout << "{\"mdlReadable\":" << (inspection.metadata.valid ? "true" : "false")
     << ",\"resourceComplete\":" << (resourceComplete ? "true" : "false")
     << ",\"viewModelPathDetected\":" << (inspection.viewModelPathDetected ? "true" : "false")
@@ -53,11 +62,20 @@ int main(int argc, char** argv) {
     << ",\"invalidAttachments\":" << invalidAttachments
     << ",\"bodygroupStatus\":\"" << status(inspection.bodygroupStatus) << "\""
     << ",\"bodyParts\":" << inspection.metadata.bodyParts.size()
+    << ",\"sequenceCount\":" << inspection.metadata.sequences.size()
+    << ",\"sequenceFrameCountAvailable\":" << (inspection.metadata.sequenceFrameCountAvailable ? "true" : "false")
+    << ",\"sequenceDecodeReason\":\"" << inspection.metadata.sequenceDecodeReason << "\""
     << ",\"defaultFov\":" << tf2::native::defaultViewModelFov()
     << ",\"fovRangeValid\":" << (tf2::native::validViewModelFov(80.0f) ? "true" : "false")
     << ",\"rightHandX\":" << right[0]
     << ",\"leftHandX\":" << left[0]
     << ",\"handProbePassed\":" << (handProbePassed ? "true" : "false")
-    << ",\"animationStatus\":\"unsupported\"}\n";
+    << ",\"animationStatus\":\"unsupported\""
+    << ",\"requestResourceComplete\":" << (request.resourceComplete ? "true" : "false")
+    << ",\"requestAttachmentStatus\":\"" << request.attachmentStatus << "\""
+    << ",\"requestBodygroupStatus\":\"" << request.bodygroupStatus << "\""
+    << ",\"requestSequenceCount\":" << request.sequenceCount
+    << ",\"requestSequenceStatus\":\"" << request.sequenceStatus << "\""
+    << ",\"firstPersonDrawn\":false}\n";
   return (resourceComplete && inspection.viewModelPathDetected && attachmentsValid && handProbePassed) ? 0 : 1;
 }
