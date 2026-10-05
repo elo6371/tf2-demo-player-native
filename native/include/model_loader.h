@@ -205,6 +205,13 @@ struct ModelInspection {
   std::vector<std::string> diagnostics;
 };
 
+struct ModelMeshData {
+  std::size_t descriptorIndex = 0;
+  std::vector<ModelDrawVertex> vertices;
+  std::vector<std::uint32_t> indices;
+  bool triangleList = false;
+};
+
 struct ModelRenderRequest {
   std::uint16_t entityIndex = 0;
   std::int32_t classId = -1;
@@ -228,6 +235,8 @@ public:
     const ItemSchema* schema);
   static ModelInspection inspect(const std::filesystem::path& mdlPath);
   static ModelInspection inspect(const ModelResourcePaths& paths);
+  static bool buildModelMeshData(const ModelInspection& inspection, std::size_t descriptorIndex,
+    ModelMeshData& mesh, std::string& error);
   static bool buildBindPoseMesh(ModelMetadata& metadata, std::size_t descriptorIndex, std::string& error);
   static bool cpuSkinVertexReference(const ModelMetadata& metadata, const ModelDrawVertex& vertex,
     std::array<float, 3>& outputPosition, std::string& error);

@@ -43,6 +43,8 @@ int main(int argc, char** argv) {
   std::string archiveError;
   bool extractedRenderable = false;
   bool malformedRejected = false;
+  bool meshDataReady = false;
+  bool malformedMeshRejected = false;
   if (archive.open(archivePath, &archiveError)) {
     const std::filesystem::path temp = std::filesystem::temp_directory_path() / "tf2-model-render-request-probe";
     std::error_code cleanupError;
@@ -64,6 +66,16 @@ int main(int argc, char** argv) {
       const auto inspection = tf2::native::ModelLoader::inspect(temp / "models/ambulance.mdl");
       extractedRenderable = inspection.renderableResourceSet && !inspection.metadata.indices.empty()
         && inspection.metadata.renderIndices.size() >= inspection.metadata.indices.front().renderIndexCount;
+      if (extractedRenderable) {
+        tf2::native::ModelMeshData mesh;
+        std::string meshError;
+        meshDataReady = tf2::native::ModelLoader::buildModelMeshData(inspection, 0, mesh, meshError)
+          && mesh.triangleList && !mesh.vertices.empty()
+          && mesh.indices.size() == mesh.vertices.size() && mesh.indices.size() % 3u == 0;
+        auto malformed = inspection;
+        malformed.metadata.indices[0].renderIndexCount += 1u;
+        malformedMeshRejected = !tf2::native::ModelLoader::buildModelMeshData(malformed, 0, mesh, meshError);
+      }
       std::error_code malformedError;
       std::filesystem::remove(temp / "models/ambulance.dx90.vtx", malformedError);
       malformedRejected = !tf2::native::ModelLoader::inspect(temp / "models/ambulance.mdl").renderableResourceSet;
@@ -77,8 +89,10 @@ int main(int argc, char** argv) {
             << " missing_fallback=" << (missingFallback ? 1 : 0)
             << " bounded_2048=" << (boundedOk ? 1 : 0)
             << " extracted_renderable=" << (extractedRenderable ? 1 : 0)
+            << " mesh_data_ready=" << (meshDataReady ? 1 : 0)
+            << " malformed_mesh_rejected=" << (malformedMeshRejected ? 1 : 0)
             << " malformed_rejected=" << (malformedRejected ? 1 : 0)
             << " requests=" << boundedRequests.size() << '\n';
   return duplicateStable && vpkFallback && missingFallback && boundedOk
-    && extractedRenderable && malformedRejected ? 0 : 1;
+    && extractedRenderable && meshDataReady && malformedMeshRejected && malformedRejected ? 0 : 1;
 }
