@@ -42,6 +42,41 @@ std::string hexBytes(const std::string& bytes, std::size_t offset, std::size_t c
 }
 
 int main(int argc, char** argv) {
+  if (argc == 3 && std::string(argv[1]) == "--wire-mutation-self-test") {
+    std::ifstream input(argv[2], std::ios::binary | std::ios::ate);
+    if (!input) { std::cerr << "error: cannot open VPD\n"; return 2; }
+    const auto size = input.tellg();
+    if (size < 12) { std::cerr << "error: VPD header is truncated\n"; return 2; }
+    input.seekg(0);
+    std::string bytes(static_cast<std::size_t>(size), '\0');
+    input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    const auto headerBytes = u32le(bytes, 4);
+    if (headerBytes > bytes.size() - 12) { std::cerr << "error: first VPD segment exceeds file\n"; return 2; }
+    const auto segment = bytes.substr(12, headerBytes);
+    std::size_t acceptedPrefix = 0;
+    for (std::size_t candidate = 1; candidate <= segment.size(); ++candidate)
+      if (tf2::native::parseProtoWire(segment.substr(0, candidate), 200000, 16).ok)
+        acceptedPrefix = candidate;
+    if (acceptedPrefix >= segment.size()) { std::cerr << "error: no failing tail to mutate\n"; return 3; }
+    std::cout << "segment_bytes=" << segment.size() << " accepted_prefix=" << acceptedPrefix
+              << " failure_file_offset=" << (12 + acceptedPrefix)
+              << " original_tail_hex=" << hexBytes(segment, acceptedPrefix, segment.size() - acceptedPrefix) << "\n";
+    std::size_t acceptedMutations = 0;
+    for (std::uint32_t wire = 0; wire < 8; ++wire) {
+      std::string mutated = segment;
+      mutated[acceptedPrefix] = static_cast<char>((10u << 3u) | wire);
+      const auto result = tf2::native::parseProtoWire(mutated, 200000, 16);
+      if (result.ok) ++acceptedMutations;
+      std::cout << "mutation_field=10 wire=" << wire
+                << " tag=0x" << std::hex << ((10u << 3u) | wire) << std::dec
+                << " parse_ok=" << (result.ok ? 1 : 0)
+                << " fields=" << result.fields.size()
+                << " error=" << (result.error.empty() ? "none" : result.error) << "\n";
+    }
+    std::cout << "accepted_mutations=" << acceptedMutations
+              << " interpretation=syntax_only schema_inferred=false\n";
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--wire-self-test") {
     const auto truncatedVarint = tf2::native::parseProtoWire(std::string({char(0x80)}));
     const auto truncatedLength = tf2::native::parseProtoWire(std::string({char(0x0a), char(0x03), 'a', 'b'}));
