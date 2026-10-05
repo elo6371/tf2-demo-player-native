@@ -415,12 +415,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   if (assets.valid()) {
     std::filesystem::path mapPath = L"maps/2koth_abbey.bsp";
     if (demoHeader.valid) mapPath = std::filesystem::path(L"maps") / std::filesystem::path(std::wstring(demoHeader.mapName.begin(), demoHeader.mapName.end()) + L".bsp");
-    const auto mapBytes = readFile(assets.tfDirectory / mapPath);
-    tf2::native::BspParser::parse(mapBytes, displayMap, 200000);
     for (const auto* name : { L"pak01_dir.vpk", L"tf2_misc_dir.vpk", L"tf2_textures_dir.vpk", L"tf2_sound_misc_dir.vpk", L"tf2_sound_vo_english_dir.vpk" }) {
       auto archive = std::make_shared<tf2::native::VpkArchive>();
       if (archive->open(assets.tfDirectory / name)) soundArchives.push_back(std::move(archive));
     }
+    auto mapBytes = readFile(assets.tfDirectory / mapPath);
+    if (mapBytes.empty()) {
+      const std::string mapResource =
+        std::filesystem::path(mapPath).generic_string();
+      for (const auto& archive : soundArchives) {
+        mapBytes = archive->read(mapResource);
+        if (!mapBytes.empty()) break;
+      }
+    }
+    tf2::native::BspParser::parse(mapBytes, displayMap, 200000);
     std::unordered_map<std::string, std::vector<std::uint8_t>> materialVtfCache;
     const auto readMaterialVtf = [&](const std::string& path) -> const std::vector<std::uint8_t>& {
       auto found = materialVtfCache.find(path);
