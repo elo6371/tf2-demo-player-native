@@ -160,6 +160,7 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelSkinningConstants_;
   UINT worldVertexCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> projectileVertexBuffer_;
+  std::size_t projectileVertexCapacity_ = 0;
   UINT projectileVertexCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelVertexBuffer_;
   UINT modelVertexCount_ = 0;

@@ -619,6 +619,7 @@ bool Renderer::uploadBoneMatrices(const std::vector<std::array<float, 16>>& bone
 
 bool Renderer::uploadProjectileLines(const std::vector<ProjectileLine>& lines) {
   projectileVertexBuffer_.Reset();
+  projectileVertexCapacity_ = 0;
   projectileVertexCount_ = 0;
   if (!device_ || !worldBoundsValid_ || lines.empty()) return true;
   const std::size_t limited = std::min<std::size_t>(lines.size(), 512u);
@@ -646,6 +647,7 @@ bool Renderer::uploadProjectileLines(const std::vector<ProjectileLine>& lines) {
   Microsoft::WRL::ComPtr<ID3D11Buffer> buffer;
   if (FAILED(device_->CreateBuffer(&description, &initial, buffer.GetAddressOf()))) return false;
   projectileVertexBuffer_ = std::move(buffer);
+  projectileVertexCapacity_ = vertices.size();
   projectileVertexCount_ = static_cast<UINT>(vertices.size());
   return true;
 }
@@ -780,13 +782,14 @@ void Renderer::setProjectileTimeline(const std::vector<ProjectileTimelineEvent>&
     if (vertices.size() >= 32768u) break;
   }
   if (vertices.empty()) return;
-  if (!projectileVertexBuffer_ || projectileVertexCount_ < vertices.size()) {
+  if (!projectileVertexBuffer_ || projectileVertexCapacity_ < vertices.size()) {
     D3D11_BUFFER_DESC description{};
     description.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(WorldVertex));
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     if (FAILED(device_->CreateBuffer(&description, nullptr, projectileVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    projectileVertexCapacity_ = vertices.size();
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
   if (FAILED(context_->Map(projectileVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
@@ -828,7 +831,16 @@ void Renderer::setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>
     }
     if (particles.size() >= 4096) break;
   }
-  if (!projectileVertexBuffer_ || particles.empty()) return;
+  if (particles.empty()) return;
+  if (!projectileVertexBuffer_ || projectileVertexCapacity_ < particles.size()) {
+    D3D11_BUFFER_DESC description{};
+    description.ByteWidth = static_cast<UINT>(particles.size() * sizeof(WorldVertex));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, projectileVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    projectileVertexCapacity_ = particles.size();
+  }
   D3D11_MAPPED_SUBRESOURCE mapped{};
   if (FAILED(context_->Map(projectileVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
   std::memcpy(mapped.pData, particles.data(), particles.size() * sizeof(WorldVertex));
@@ -1012,6 +1024,7 @@ void Renderer::shutdown() {
   worldEnvTexture_.reset();
   worldVertexBuffer_.Reset();
   projectileVertexBuffer_.Reset();
+  projectileVertexCapacity_ = 0;
   projectileVertexCount_ = 0;
   modelVertexBuffer_.Reset();
   modelGpuStatus_ = ModelGpuStatus::NotLoaded;
