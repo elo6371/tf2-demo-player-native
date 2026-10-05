@@ -83,6 +83,13 @@ This is a local smoke result only. The gate accepts `-Play` for a real demo
 playback sample and an optional `-MinFps` threshold; it does not replace
 long-duration or clean-machine acceptance.
 
+A real playback run against the local TF2 root and
+`tf/demos/autorecord_2026-09-30_23-06-57.dem` also passed for twelve seconds:
+
+```text
+{"stability":"pass","samples":13,"average_fps":105.68,"peak_working_set_bytes":151650304,"play_mode":true}
+```
+
 ## Not yet proven
 
 - Long-duration playback and memory ceiling checks still require a longer run.
