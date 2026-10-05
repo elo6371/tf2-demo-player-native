@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <string>
 
 int main(int argc, char** argv) {
   if (argc != 2) {
@@ -22,7 +23,9 @@ int main(int argc, char** argv) {
   const bool resourcesReadable = inspection.mdl.signatureValid
     && inspection.vvd.signatureValid && inspection.renderableResourceSet;
   const bool passed = resourcesReadable && vtxDecoded && bindPoseReady && indicesAreTriangles;
-  std::cout << "{\"model\":\"" << argv[1]
+  std::string modelPath = argv[1];
+  for (auto& character : modelPath) if (character == '\\') character = '/';
+  std::cout << "{\"model\":\"" << modelPath
     << "\",\"resourcesReadable\":" << (resourcesReadable ? "true" : "false")
     << ",\"renderableResourceSet\":" << (inspection.renderableResourceSet ? "true" : "false")
     << ",\"vtxDescriptorCount\":" << inspection.metadata.vtxDiagnostics.vtxDescriptorCount
