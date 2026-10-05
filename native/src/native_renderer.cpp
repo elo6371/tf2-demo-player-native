@@ -841,7 +841,7 @@ bool Renderer::saveCameraPreset(std::size_t slot) {
       || !std::isfinite(cameraPitch_) || !std::isfinite(cameraDistance_)) return false;
   const float focusX = observerFocusValid_ ? observerFocusX_ : 0.0f;
   const float focusY = observerFocusValid_ ? observerFocusY_ : 0.0f;
-  const float focusZ = observerFocusValid_ ? observerFocusZ_ : 0.25f;
+  const float focusZ = observerFocusValid_ ? observerFocusZ_ : 0.5f;
   if (!std::isfinite(focusX) || !std::isfinite(focusY) || !std::isfinite(focusZ)) return false;
   auto& preset = cameraPresets_[slot];
   preset.focusX = std::clamp(focusX, -1.0e6f, 1.0e6f);
@@ -879,8 +879,8 @@ void Renderer::clearCameraPresets() {
 
 void Renderer::resetCamera() {
   cameraYaw_ = 0.0f;
-  cameraPitch_ = 0.55f;
-  cameraDistance_ = 3.0f;
+  cameraPitch_ = 0.36f;
+  cameraDistance_ = 1.65f;
   observerFocusValid_ = false;
   observerFocusX_ = 0.0f;
   observerFocusY_ = 0.0f;
@@ -916,7 +916,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     const XMVECTOR target = XMVectorSet(
       observerFocusValid_ ? observerFocusX_ : 0.0f,
       observerFocusValid_ ? observerFocusY_ : 0.0f,
-      observerFocusValid_ ? observerFocusZ_ : 0.25f, 1.0f);
+      observerFocusValid_ ? observerFocusZ_ : 0.5f, 1.0f);
     const float horizontal = std::cos(cameraPitch_) * cameraDistance_;
     const XMVECTOR eye = XMVectorSet(
       XMVectorGetX(target) + std::cos(cameraYaw_) * horizontal,

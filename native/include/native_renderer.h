@@ -128,7 +128,7 @@ private:
     bool valid = false;
     float focusX = 0.0f;
     float focusY = 0.0f;
-    float focusZ = 0.25f;
+    float focusZ = 0.5f;
     float yaw = 0.0f;
     float pitch = 0.55f;
     float distance = 3.0f;
@@ -172,8 +172,8 @@ private:
   Texture2D worldEnvTexture_;
   RenderSettings settings_{};
   float cameraYaw_ = 0.0f;
-  float cameraPitch_ = 0.9f;
-  float cameraDistance_ = 3.0f;
+  float cameraPitch_ = 0.36f;
+  float cameraDistance_ = 1.65f;
   bool observerFocusValid_ = false;
   float observerFocusX_ = 0.0f;
   float observerFocusY_ = 0.0f;
