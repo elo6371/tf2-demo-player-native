@@ -325,8 +325,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     L"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Team Fortress 2\\tf",
     L"C:\\Program Files\\Steam\\steamapps\\common\\Team Fortress 2\\tf",
   };
-  if (!persistent.tfRoot.empty()) candidates.insert(candidates.begin(), persistent.tfRoot);
-  if (!commandTfRoot.empty()) candidates.insert(candidates.begin(), commandTfRoot);
+  if (!commandTfRoot.empty()) {
+    // An explicit command-line root is an operator decision. Do not silently
+    // switch to another Steam installation when that path is moved or missing.
+    candidates = {commandTfRoot};
+  } else if (!persistent.tfRoot.empty()) {
+    candidates.insert(candidates.begin(), persistent.tfRoot);
+  }
   if (arguments) LocalFree(arguments);
   wchar_t* steamRoot = nullptr;
   size_t steamRootLength = 0;

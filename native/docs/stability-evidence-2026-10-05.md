@@ -120,6 +120,11 @@ A thirty-second real playback long run also passed the same gate:
 The short and long runs show no monotonic working-set increase in this local
 environment. They still do not prove a clean-machine 120 FPS target.
 
+An explicit missing `--tf-root` path was also accepted by the stability gate
+without a crash, while remaining in the resource fallback state. Explicit
+roots now have strict precedence: a moved or missing operator-supplied path is
+not silently replaced by another Steam installation.
+
 ## Not yet proven
 
 - Long-duration playback and memory ceiling checks still require a longer run.
