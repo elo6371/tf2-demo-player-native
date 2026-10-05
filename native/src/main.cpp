@@ -25,6 +25,7 @@
 #include <cstring>
 #include <fstream>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <sstream>
 #include <vector>
 #include <memory>
@@ -44,6 +45,13 @@ HWND g_uiBack = nullptr;
 HWND g_uiForward = nullptr;
 HWND g_uiReverse = nullptr;
 HWND g_uiTimeline = nullptr;
+HWND g_uiProgress = nullptr;
+HWND g_uiRecent = nullptr;
+HWND g_uiRecentOpen = nullptr;
+HWND g_uiRoot = nullptr;
+HWND g_uiFullscreen = nullptr;
+HWND g_uiMute = nullptr;
+HWND g_uiSettings = nullptr;
 constexpr int kUiOpen = 4101;
 constexpr int kUiCancel = 4102;
 constexpr int kUiConfirm = 4103;
@@ -53,6 +61,19 @@ constexpr int kUiBack = 4106;
 constexpr int kUiForward = 4107;
 constexpr int kUiReverse = 4108;
 constexpr int kUiTimeline = 4109;
+constexpr int kUiRecentOpen = 4110;
+constexpr int kUiRecent = 4115;
+constexpr int kUiRoot = 4111;
+constexpr int kUiFullscreen = 4112;
+constexpr int kUiMute = 4113;
+constexpr int kUiSettings = 4114;
+constexpr UINT_PTR kUiImportTimer = 42;
+std::vector<std::wstring> g_uiRecentItems;
+bool g_fullscreen = false;
+LONG_PTR g_windowedStyle = 0;
+LONG_PTR g_windowedExStyle = 0;
+RECT g_windowedRect{};
+bool g_windowedPlacementValid = false;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
@@ -120,15 +141,65 @@ void setUiControlVisible(HWND control, bool visible) {
   if (control) ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
 }
 
+void applyFullscreen(HWND window, bool fullscreen) {
+  if (!window || g_fullscreen == fullscreen) return;
+  if (fullscreen) {
+    g_windowedStyle = GetWindowLongPtrW(window, GWL_STYLE);
+    g_windowedExStyle = GetWindowLongPtrW(window, GWL_EXSTYLE);
+    g_windowedPlacementValid = GetWindowRect(window, &g_windowedRect) != FALSE;
+    MONITORINFO monitor{sizeof(monitor)};
+    const HMONITOR handle = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+    if (!GetMonitorInfoW(handle, &monitor)) return;
+    SetWindowLongPtrW(window, GWL_STYLE,
+      g_windowedStyle & ~(WS_CAPTION | WS_THICKFRAME));
+    SetWindowLongPtrW(window, GWL_EXSTYLE,
+      g_windowedExStyle & ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE
+        | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
+    SetWindowPos(window, HWND_TOP, monitor.rcMonitor.left, monitor.rcMonitor.top,
+      monitor.rcMonitor.right - monitor.rcMonitor.left,
+      monitor.rcMonitor.bottom - monitor.rcMonitor.top,
+      SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+  } else {
+    if (g_windowedStyle != 0) SetWindowLongPtrW(window, GWL_STYLE, g_windowedStyle);
+    if (g_windowedExStyle != 0) SetWindowLongPtrW(window, GWL_EXSTYLE, g_windowedExStyle);
+    if (g_windowedPlacementValid) {
+      SetWindowPos(window, HWND_NOTOPMOST, g_windowedRect.left, g_windowedRect.top,
+        g_windowedRect.right - g_windowedRect.left,
+        g_windowedRect.bottom - g_windowedRect.top,
+        SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    }
+  }
+  g_fullscreen = fullscreen;
+}
+
+bool chooseTfRoot(HWND owner, std::filesystem::path& result) {
+  BROWSEINFOW dialog{};
+  dialog.hwndOwner = owner;
+  dialog.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_EDITBOX;
+  dialog.lpszTitle = L"Select the Team Fortress 2 tf folder";
+  PIDLIST_ABSOLUTE item = SHBrowseForFolderW(&dialog);
+  if (!item) return false;
+  wchar_t path[MAX_PATH]{};
+  const bool valid = SHGetPathFromIDListW(item, path) != FALSE;
+  CoTaskMemFree(item);
+  if (!valid || path[0] == L'\0') return false;
+  result = std::filesystem::path(path);
+  return true;
+}
+
 void updateNativeUiControls(HWND window) {
   if (!g_nativeUi) return;
   const auto state = g_nativeUi->snapshot();
   const bool opening = state.screen == tf2::native::UiScreen::Opening;
   const bool review = state.screen == tf2::native::UiScreen::ImportReview;
   const bool player = state.screen == tf2::native::UiScreen::Player;
+  const bool settings = state.screen == tf2::native::UiScreen::Settings;
   const bool error = state.screen == tf2::native::UiScreen::Error;
-  setUiControlVisible(g_uiOpen, opening || error);
-  setUiControlVisible(g_uiCancel, review || error);
+  const bool importing = state.importStatus == tf2::native::ImportStatus::ReadingHeader
+    || state.importStatus == tf2::native::ImportStatus::Indexing
+    || state.importStatus == tf2::native::ImportStatus::CancelRequested;
+  setUiControlVisible(g_uiOpen, (opening || error) && !importing);
+  setUiControlVisible(g_uiCancel, review || error || importing || settings);
   setUiControlVisible(g_uiConfirm, review);
   setUiControlVisible(g_uiPlay, player);
   setUiControlVisible(g_uiStop, player);
@@ -136,13 +207,39 @@ void updateNativeUiControls(HWND window) {
   setUiControlVisible(g_uiForward, player);
   setUiControlVisible(g_uiReverse, player);
   setUiControlVisible(g_uiTimeline, player);
+  setUiControlVisible(g_uiProgress, importing);
+  setUiControlVisible(g_uiRecent, opening || error);
+  setUiControlVisible(g_uiRecentOpen, opening || error);
+  setUiControlVisible(g_uiRoot, opening || error || review || settings);
+  setUiControlVisible(g_uiFullscreen, player || settings);
+  setUiControlVisible(g_uiMute, player || settings);
+  setUiControlVisible(g_uiSettings, true);
+  if (g_uiProgress) SendMessageW(g_uiProgress, PBM_SETPOS, state.importProgress, 0);
+  if (g_uiRecent) {
+    std::vector<std::wstring> current;
+    current.reserve(state.recentDemos.size());
+    for (const auto& path : state.recentDemos) current.push_back(path.wstring());
+    if (current != g_uiRecentItems) {
+      SendMessageW(g_uiRecent, LB_RESETCONTENT, 0, 0);
+      for (const auto& path : current) SendMessageW(g_uiRecent, LB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(path.c_str()));
+      g_uiRecentItems = std::move(current);
+    }
+  }
+  if (g_uiRoot) {
+    const auto rootText = state.tfRoot.empty() ? L"TF2 root: not selected"
+      : L"TF2 root: " + state.tfRoot.wstring();
+    SetWindowTextW(g_uiRoot, rootText.c_str());
+  }
   if (g_uiTimeline) {
     SendMessageW(g_uiTimeline, TBM_SETRANGE, TRUE,
       MAKELONG(0, std::max<std::int32_t>(0, state.ticks)));
     SendMessageW(g_uiTimeline, TBM_SETPOS, TRUE, state.tick);
   }
   std::wstring status = L"Opening: choose a .dem file";
-  if (review) {
+  if (importing) {
+    status = L"Importing Demo: " + std::to_wstring(state.importProgress) + L"%";
+  } else if (review) {
     status = L"Import review: " + std::wstring(state.mapName.begin(), state.mapName.end())
       + L" | " + std::wstring(state.recordingType.begin(), state.recordingType.end())
       + L" | ticks=" + std::to_wstring(state.ticks)
@@ -154,13 +251,19 @@ void updateNativeUiControls(HWND window) {
       + (state.reverse ? L" | reverse" : L"");
   } else if (error) {
     status = L"Error: " + std::wstring(state.error.begin(), state.error.end());
+  } else if (settings) {
+    status = L"Settings: quality=" + std::wstring(state.standardQuality ? L"standard" : L"performance")
+      + L" | FOV=" + std::to_wstring(state.fov)
+      + L" | VSync=" + (state.vsync ? L"on" : L"off")
+      + L" | volume=" + std::to_wstring(state.volume)
+      + L" | DPI=" + std::to_wstring(state.dpi) + L" (" + std::to_wstring(state.dpiScale) + L"x)";
   }
   if (g_uiStatus) SetWindowTextW(g_uiStatus, status.c_str());
   if (window) InvalidateRect(window, nullptr, FALSE);
 }
 
 void createNativeUiControls(HWND window, HINSTANCE instance) {
-  INITCOMMONCONTROLSEX common{sizeof(common), ICC_BAR_CLASSES};
+  INITCOMMONCONTROLSEX common{sizeof(common), ICC_BAR_CLASSES | ICC_PROGRESS_CLASS};
   InitCommonControlsEx(&common);
   const auto make = [&](LPCWSTR className, LPCWSTR text, DWORD style, int id,
       int x, int y, int width, int height) {
@@ -179,6 +282,15 @@ void createNativeUiControls(HWND window, HINSTANCE instance) {
   g_uiReverse = make(L"BUTTON", L"Reverse", BS_PUSHBUTTON, kUiReverse, 390, 84, 90, 30);
   g_uiTimeline = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_ENABLESELRANGE,
     kUiTimeline, 16, 122, 700, 30);
+  g_uiProgress = make(PROGRESS_CLASSW, L"", 0, 0, 16, 158, 700, 20);
+  g_uiRoot = make(L"BUTTON", L"TF2 root: not selected", BS_PUSHBUTTON, kUiRoot, 16, 186, 320, 30);
+  g_uiSettings = make(L"BUTTON", L"Settings", BS_PUSHBUTTON, kUiSettings, 344, 186, 90, 30);
+  g_uiFullscreen = make(L"BUTTON", L"Fullscreen", BS_PUSHBUTTON, kUiFullscreen, 440, 186, 100, 30);
+  g_uiMute = make(L"BUTTON", L"Mute", BS_PUSHBUTTON, kUiMute, 546, 186, 80, 30);
+  g_uiRecent = make(L"LISTBOX", L"", WS_BORDER | LBS_NOTIFY | WS_VSCROLL,
+    kUiRecent, 730, 12, 390, 128);
+  g_uiRecentOpen = make(L"BUTTON", L"Open Recent", BS_PUSHBUTTON, kUiRecentOpen,
+    730, 146, 110, 30);
   updateNativeUiControls(window);
 }
 
@@ -200,7 +312,23 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   switch (message) {
   case WM_SIZE:
     if (g_renderer) g_renderer->resize(LOWORD(lParam), HIWORD(lParam));
+    if (g_nativeUi) g_nativeUi->setDisplayMetrics(GetDpiForWindow(window),
+      LOWORD(lParam), HIWORD(lParam), g_fullscreen);
     return 0;
+  case WM_DPICHANGED: {
+    const auto* suggested = reinterpret_cast<const RECT*>(lParam);
+    if (suggested && !g_fullscreen) {
+      SetWindowPos(window, nullptr, suggested->left, suggested->top,
+        suggested->right - suggested->left, suggested->bottom - suggested->top,
+        SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    RECT client{};
+    GetClientRect(window, &client);
+    if (g_nativeUi) g_nativeUi->setDisplayMetrics(HIWORD(wParam),
+      static_cast<unsigned>(client.right - client.left),
+      static_cast<unsigned>(client.bottom - client.top), g_fullscreen);
+    return 0;
+  }
   case WM_RBUTTONDOWN:
     g_orbiting = true;
     g_lastMouse = POINT{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
@@ -225,7 +353,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       const HDROP drop = reinterpret_cast<HDROP>(wParam);
       wchar_t path[MAX_PATH]{};
       if (DragQueryFileW(drop, 0, path, static_cast<UINT>(std::size(path))) != 0) {
-        const bool accepted = g_nativeUi->dropDemo(std::filesystem::path(path));
+        const bool accepted = g_nativeUi->beginOpenDemo(std::filesystem::path(path));
+        if (accepted) SetTimer(window, kUiImportTimer, 30, nullptr);
         const auto state = g_nativeUi->snapshot();
         std::wstring title = L"TF2 Demo Player - ";
         title += std::wstring(state.error.begin(), state.error.end());
@@ -239,15 +368,27 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     return 0;
   }
   case WM_COMMAND: {
-    if (!g_nativeUi || HIWORD(wParam) != BN_CLICKED) {
+    if (!g_nativeUi) {
       return DefWindowProcW(window, message, wParam, lParam);
     }
     const auto id = LOWORD(wParam);
+    const auto code = HIWORD(wParam);
+    if (id == kUiRecent && code == LBN_DBLCLK) {
+      const auto selection = static_cast<int>(SendMessageW(g_uiRecent, LB_GETCURSEL, 0, 0));
+      if (selection >= 0 && g_nativeUi->openRecentDemo(static_cast<std::size_t>(selection))) {
+        SetTimer(window, kUiImportTimer, 30, nullptr);
+      }
+      updateNativeUiControls(window);
+      return 0;
+    }
+    if (code != BN_CLICKED) return DefWindowProcW(window, message, wParam, lParam);
     if (id == kUiOpen) {
       std::filesystem::path path;
-      if (chooseDemoFile(window, path)) g_nativeUi->openDemo(path);
+      if (chooseDemoFile(window, path) && g_nativeUi->beginOpenDemo(path)) {
+        SetTimer(window, kUiImportTimer, 30, nullptr);
+      }
     } else if (id == kUiCancel) {
-      g_nativeUi->cancelImport();
+      g_nativeUi->command(tf2::native::UiCommand::Cancel);
     } else if (id == kUiConfirm) {
       if (g_nativeUi->confirmImport()) {
         const auto state = g_nativeUi->snapshot();
@@ -267,6 +408,24 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       g_nativeUi->command(tf2::native::UiCommand::StepForward);
     } else if (id == kUiReverse) {
       g_nativeUi->command(tf2::native::UiCommand::Reverse);
+    } else if (id == kUiRecentOpen) {
+      const auto selection = static_cast<int>(SendMessageW(g_uiRecent, LB_GETCURSEL, 0, 0));
+      if (selection >= 0 && g_nativeUi->openRecentDemo(static_cast<std::size_t>(selection))) {
+        SetTimer(window, kUiImportTimer, 30, nullptr);
+      }
+    } else if (id == kUiRoot) {
+      std::filesystem::path root;
+      if (chooseTfRoot(window, root)) {
+        g_nativeUi->setTfRoot(root);
+        g_nativeUi->saveSettings();
+      }
+    } else if (id == kUiFullscreen) {
+      g_nativeUi->command(tf2::native::UiCommand::ToggleFullscreen);
+      applyFullscreen(window, g_nativeUi->snapshot().fullscreen);
+    } else if (id == kUiMute) {
+      g_nativeUi->command(tf2::native::UiCommand::ToggleMute);
+    } else if (id == kUiSettings) {
+      g_nativeUi->command(tf2::native::UiCommand::OpenSettings);
     } else {
       return DefWindowProcW(window, message, wParam, lParam);
     }
@@ -277,6 +436,14 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     updateNativeUiControls(window);
     return 0;
   }
+  case WM_TIMER:
+    if (wParam == kUiImportTimer && g_nativeUi) {
+      g_nativeUi->pollImport();
+      if (!g_nativeUi->importActive()) KillTimer(window, kUiImportTimer);
+      updateNativeUiControls(window);
+      return 0;
+    }
+    return DefWindowProcW(window, message, wParam, lParam);
   case WM_HSCROLL:
     if (g_nativeUi && reinterpret_cast<HWND>(lParam) == g_uiTimeline) {
       const auto position = static_cast<std::int32_t>(SendMessageW(
@@ -304,6 +471,14 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     if ((lParam & (1u << 30)) != 0u
         && (wParam == VK_SPACE || wParam == 'R' || wParam == VK_HOME || wParam == VK_END
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
+    if (wParam == VK_F11) {
+      if (g_nativeUi) {
+        g_nativeUi->command(tf2::native::UiCommand::ToggleFullscreen);
+        applyFullscreen(window, g_nativeUi->snapshot().fullscreen);
+        updateNativeUiControls(window);
+      }
+      return 0;
+    }
     const bool functionKey = wParam >= VK_F1 && wParam <= VK_F8;
     if (functionKey && g_renderer) {
       const std::size_t slot = static_cast<std::size_t>(wParam - VK_F1);
