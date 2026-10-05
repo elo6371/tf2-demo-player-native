@@ -496,7 +496,15 @@ bool readGetCvarValue(MessageBits& bits, DemoNetworkSummary& summary) {
 
 bool readFixAngle(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t relative = 0;
-  if (!bits.read(1, relative) || !bits.skip(16 * 3)) return false;
+  std::uint32_t raw[3] = {};
+  if (!bits.read(1, relative) || !bits.read(16, raw[0]) ||
+      !bits.read(16, raw[1]) || !bits.read(16, raw[2])) return false;
+  constexpr float kAngleScale = 360.0f / 65536.0f;
+  summary.lastFixAngleRelative = relative != 0;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    summary.lastFixAngle[axis] = static_cast<float>(raw[axis]) * kAngleScale;
+  }
+  summary.lastFixAngleValid = true;
   ++summary.fixAngleCount;
   return true;
 }

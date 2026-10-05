@@ -28,7 +28,9 @@ constexpr std::size_t kVtxLodStride = 12;
 constexpr std::size_t kVtxMeshStride = 9;
 constexpr std::size_t kVtxStripGroupStride = 25;
 constexpr std::size_t kVtxIndexStride = 2;
-constexpr std::size_t kVtxVertexStride = 12;
+// OptimizedModel::Vertex_t is packed: boneWeightIndex[3], numBones,
+// origMeshVertID (uint16), and boneID[3] = 9 bytes.
+constexpr std::size_t kVtxVertexStride = 9;
 
 std::string normalizeModelPath(std::string value) {
   std::replace(value.begin(), value.end(), '\\', '/');

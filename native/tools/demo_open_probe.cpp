@@ -1,6 +1,7 @@
 #include "demo_header.h"
 
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <limits>
 
@@ -40,6 +41,10 @@ int wmain(int argc, wchar_t** argv) {
                << L" header_error=" << std::wstring(header.error.begin(), header.error.end())
                << L" index=" << (indexOk ? 1 : 0)
                << L" index_error=" << std::wstring(index.error.begin(), index.error.end())
+               << L" recording=" << std::wstring(tf2::native::demoRecordingTypeName(header.recordingType),
+                                                  tf2::native::demoRecordingTypeName(header.recordingType) +
+                                                  std::strlen(tf2::native::demoRecordingTypeName(header.recordingType)))
+               << L" map=" << std::wstring(header.mapName.begin(), header.mapName.end())
                << L" malformed_offset=" << index.malformedOffset
                << L" commands=" << index.commandCount
                << L" packets=" << index.packetCount;
@@ -68,6 +73,11 @@ int wmain(int argc, wchar_t** argv) {
         return std::wstring(value.begin(), value.end());
       };
       std::wcout << L" scan=" << (scanOk ? 1 : 0)
+                << L" source_tv=" << (summary.sourceTv ? 1 : 0)
+                << L" server_name=" << std::wstring(summary.serverName.begin(), summary.serverName.end())
+                << L" server_map=" << std::wstring(summary.serverMap.begin(), summary.serverMap.end())
+                << L" setview_count=" << summary.setViewCount
+                << L" last_view_entity=" << summary.lastViewEntity
                 << L" signon_states=" << summary.signonStateCount
                 << L" last_signon=" << summary.lastSignonState
                 << L" classes=" << summary.serverClassCount
@@ -143,6 +153,10 @@ int wmain(int argc, wchar_t** argv) {
                 << L" first_temp_failure_bits=" << summary.firstTempEntityFailureBits
                 << L" first_temp_failure_tick=" << summary.firstTempEntityFailureTick
                 << L" unknown_packets=" << summary.unknownMessagePackets;
+      std::wcout << L" fixangle_valid=" << (summary.lastFixAngleValid ? 1 : 0)
+                 << L" fixangle_relative=" << (summary.lastFixAngleRelative ? 1 : 0)
+                 << L" fixangle=" << summary.lastFixAngle[0] << L"," << summary.lastFixAngle[1]
+                 << L"," << summary.lastFixAngle[2];
       if (snapshotTick >= 0) {
         std::vector<tf2::native::EntityState> states;
         const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, snapshotTick, states);

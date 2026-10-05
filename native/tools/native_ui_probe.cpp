@@ -1,9 +1,11 @@
 #include "native_ui.h"
 
+#include <Windows.h>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 namespace {
 std::filesystem::path findDemo() {
@@ -38,6 +40,15 @@ int main() {
   review = ui.snapshot();
   assert(ui.confirmImport());
   assert(ui.snapshot().screen == UiScreen::Player);
+  ui.command(UiCommand::OpenSettings);
+  assert(ui.snapshot().screen == UiScreen::Settings);
+  ui.command(UiCommand::Cancel);
+  assert(ui.snapshot().screen == UiScreen::Player);
+  ui.setDisplayMetrics(144, 2560, 1440, true);
+  assert(ui.snapshot().dpi == 144 && ui.snapshot().clientWidth == 2560
+    && ui.snapshot().clientHeight == 1440 && ui.snapshot().dpiScale == 1.5f);
+  ui.command(UiCommand::ToggleFullscreen);
+  assert(ui.snapshot().fullscreen);
   ui.command(UiCommand::StepForward);
   assert(ui.snapshot().tick == 1 || review.ticks == 0);
   ui.command(UiCommand::Scrub, review.ticks + 100);
@@ -59,6 +70,31 @@ int main() {
   assert(!corrupt.snapshot().error.empty());
   corrupt.cancelImport();
   assert(corrupt.snapshot().screen == UiScreen::Opening);
+
+  NativeUiController background;
+  assert(background.beginOpenDemo(demo));
+  for (int attempt = 0; attempt < 100 && background.importActive(); ++attempt) {
+    background.pollImport();
+    Sleep(1);
+  }
+  background.pollImport();
+  assert(!background.importActive());
+  assert(background.snapshot().screen == UiScreen::ImportReview);
+  assert(background.snapshot().importStatus == ImportStatus::Complete);
+  assert(background.snapshot().importProgress == 100);
+  const auto recent = background.snapshot().recentDemos;
+  assert(std::find(recent.begin(), recent.end(), demo.lexically_normal()) != recent.end());
+
+  NativeUiController cancelled;
+  assert(cancelled.beginOpenDemo(demo));
+  cancelled.cancelImport();
+  for (int attempt = 0; attempt < 100 && cancelled.importActive(); ++attempt) {
+    cancelled.pollImport();
+    Sleep(1);
+  }
+  cancelled.pollImport();
+  assert(cancelled.snapshot().importStatus == ImportStatus::Cancelled);
+  assert(cancelled.snapshot().screen == UiScreen::Opening);
   std::error_code error;
   std::filesystem::remove(path, error);
   std::cout << "PASS native_ui_probe screen=opening->import-review->player->opening"
