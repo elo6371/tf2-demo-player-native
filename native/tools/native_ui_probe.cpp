@@ -20,6 +20,8 @@ int main() {
   using namespace tf2::native;
   NativeUiController ui;
   assert(ui.snapshot().screen == UiScreen::Opening);
+  int callbackCount = 0;
+  ui.setCallbacks(UiCallbacks{[&](UiCommand) { ++callbackCount; }});
 
   const auto demo = findDemo();
   if (demo.empty()) {
@@ -42,6 +44,8 @@ int main() {
   assert(ui.snapshot().tick == review.ticks);
   ui.command(UiCommand::ToggleHud);
   assert(!ui.snapshot().hudVisible);
+  ui.command(UiCommand::PlayPause);
+  assert(callbackCount > 0 && ui.snapshot().playing);
   ui.command(UiCommand::Stop);
   assert(ui.snapshot().tick == 0 && !ui.snapshot().playing);
   ui.cancelImport();

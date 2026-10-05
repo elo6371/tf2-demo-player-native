@@ -107,6 +107,15 @@ void NativeUiController::clearError() {
   }
 }
 
+void NativeUiController::setPlaybackState(std::int32_t tick, bool playing,
+    bool reverse, double speed) {
+  if (!hasLoadedDemo() || screen_ != UiScreen::Player) return;
+  tick_ = std::clamp(tick, 0, std::max<std::int32_t>(0, header_.ticks));
+  playing_ = playing;
+  reverse_ = reverse;
+  speed_ = std::clamp(speed, 0.125, 8.0);
+}
+
 void NativeUiController::command(UiCommand value, std::int32_t requestedTick) {
   if (callbacks_.command) callbacks_.command(value);
   if (value == UiCommand::OpenSettings) { screen_ = UiScreen::Settings; return; }

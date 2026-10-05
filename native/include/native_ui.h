@@ -84,6 +84,7 @@ public:
   void cancelImport();
   void clearError();
   void command(UiCommand value, std::int32_t tick = 0);
+  void setPlaybackState(std::int32_t tick, bool playing, bool reverse, double speed);
 
   UiSnapshot snapshot() const;
 
