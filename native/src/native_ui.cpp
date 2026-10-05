@@ -92,7 +92,7 @@ void NativeUiController::setSettings(const UiSettings& settings) {
 
 void NativeUiController::updateSettings(const UiSettings& settings) {
   setSettings(settings);
-  screen_ = screen_ == UiScreen::Settings ? UiScreen::Opening : screen_;
+  if (screen_ == UiScreen::Settings) screen_ = settingsReturnScreen_;
 }
 
 bool NativeUiController::saveSettings() const {
@@ -168,6 +168,18 @@ bool NativeUiController::openDemo(const std::filesystem::path& path) {
   importStatus_ = ImportStatus::Complete;
   importProgress_.store(100, std::memory_order_release);
   return true;
+}
+
+bool NativeUiController::openRecentDemo(std::size_t index) {
+  if (index >= settings_.recentDemos.size()) return false;
+  const auto path = settings_.recentDemos[index];
+  std::error_code error;
+  if (!std::filesystem::is_regular_file(path, error) || error) {
+    settings_.recentDemos.erase(settings_.recentDemos.begin() + static_cast<std::ptrdiff_t>(index));
+    saveSettings();
+    return false;
+  }
+  return beginOpenDemo(path);
 }
 
 bool NativeUiController::beginOpenDemo(const std::filesystem::path& path) {
@@ -406,6 +418,7 @@ UiSnapshot NativeUiController::snapshot() const {
   result.clientHeight = clientHeight_;
   result.dpiScale = static_cast<float>(dpi_) / 96.0f;
   result.recentDemos = settings_.recentDemos;
+  result.tfRoot = settings_.tfRoot;
   return result;
 }
 

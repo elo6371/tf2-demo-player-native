@@ -20,6 +20,13 @@ std::filesystem::path findDemo() {
 
 int main() {
   using namespace tf2::native;
+  wchar_t* previousLocalAppData = nullptr;
+  std::size_t previousLength = 0;
+  _wdupenv_s(&previousLocalAppData, &previousLength, L"LOCALAPPDATA");
+  const auto isolatedSettingsRoot = std::filesystem::temp_directory_path() / L"tf2-native-ui-probe-settings";
+  std::error_code cleanupError;
+  std::filesystem::remove_all(isolatedSettingsRoot, cleanupError);
+  _wputenv_s(L"LOCALAPPDATA", isolatedSettingsRoot.wstring().c_str());
   NativeUiController ui;
   assert(ui.snapshot().screen == UiScreen::Opening);
   int callbackCount = 0;
@@ -49,6 +56,25 @@ int main() {
     && ui.snapshot().clientHeight == 1440 && ui.snapshot().dpiScale == 1.5f);
   ui.command(UiCommand::ToggleFullscreen);
   assert(ui.snapshot().fullscreen);
+  ui.command(UiCommand::ToggleMute);
+  assert(ui.snapshot().muted);
+  UiSettings changed = ui.settings();
+  changed.standardQuality = true;
+  changed.fov = 95.0f;
+  changed.vsync = true;
+  changed.volume = 0.35f;
+  changed.tfRoot = std::filesystem::temp_directory_path() / L"tf2-root-probe";
+  ui.updateSettings(changed);
+  assert(ui.snapshot().screen == UiScreen::Player);
+  assert(ui.snapshot().fov == 95.0f && ui.snapshot().standardQuality
+    && ui.snapshot().vsync && ui.snapshot().volume == 0.35f
+    && ui.snapshot().tfRoot == changed.tfRoot);
+  assert(ui.saveSettings());
+  NativeUiController reloaded;
+  assert(reloaded.settings().standardQuality && reloaded.settings().vsync);
+  assert(reloaded.settings().fov == 95.0f);
+  assert(reloaded.settings().volume == 0.35f);
+  assert(reloaded.settings().tfRoot == changed.tfRoot);
   ui.command(UiCommand::StepForward);
   assert(ui.snapshot().tick == 1 || review.ticks == 0);
   ui.command(UiCommand::Scrub, review.ticks + 100);
@@ -84,6 +110,15 @@ int main() {
   assert(background.snapshot().importProgress == 100);
   const auto recent = background.snapshot().recentDemos;
   assert(std::find(recent.begin(), recent.end(), demo.lexically_normal()) != recent.end());
+  NativeUiController recentUi;
+  assert(recentUi.openRecentDemo(0));
+  for (int attempt = 0; attempt < 100 && recentUi.importActive(); ++attempt) {
+    recentUi.pollImport();
+    Sleep(1);
+  }
+  recentUi.pollImport();
+  assert(recentUi.snapshot().screen == UiScreen::ImportReview);
+  assert(!recentUi.openRecentDemo(99));
 
   NativeUiController cancelled;
   assert(cancelled.beginOpenDemo(demo));
@@ -97,6 +132,9 @@ int main() {
   assert(cancelled.snapshot().screen == UiScreen::Opening);
   std::error_code error;
   std::filesystem::remove(path, error);
+  _wputenv_s(L"LOCALAPPDATA", previousLocalAppData ? previousLocalAppData : L"");
+  if (previousLocalAppData) free(previousLocalAppData);
+  std::filesystem::remove_all(isolatedSettingsRoot, cleanupError);
   std::cout << "PASS native_ui_probe screen=opening->import-review->player->opening"
     << " scrub=clamped corrupt=recoverable\n";
   return 0;

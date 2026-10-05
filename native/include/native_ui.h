@@ -76,6 +76,7 @@ struct UiSnapshot {
   unsigned clientHeight = 720;
   float dpiScale = 1.0f;
   std::vector<std::filesystem::path> recentDemos;
+  std::filesystem::path tfRoot;
 };
 
 struct UiCallbacks {
@@ -95,6 +96,7 @@ public:
   void setTfRoot(const std::filesystem::path& root);
 
   bool openDemo(const std::filesystem::path& path);
+  bool openRecentDemo(std::size_t index);
   bool beginOpenDemo(const std::filesystem::path& path);
   void pollImport();
   bool importActive() const;
