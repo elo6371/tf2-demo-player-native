@@ -88,3 +88,7 @@ directory to verify both executables, required system DLLs, a diagnostic
 missing-TF-root state, and D3D11 WARP fallback without opening an audio device.
 
 Demo 元数据和命令边界索引使用文件流式读取，避免启动时将整个录像文件载入内存。
+
+For entity and TempEntity regression across real samples, run
+`powershell -ExecutionPolicy Bypass -File native/tools/native_demo_regression_gate.ps1
+-Demo X:\path\pov.dem,Y:\path\sourcetv.dem` with comma-separated paths.

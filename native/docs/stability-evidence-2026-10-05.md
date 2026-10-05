@@ -128,6 +128,17 @@ Projectile and particle diagnostic lines now use the same fallback draw pass
 as entity markers, so decoded Demo effects remain visible when BSP geometry or
 world textures are unavailable.
 
+The four-sample regression gate passed after these changes:
+
+```text
+73.dem: entities=3030444
+autorecord_2026-05-14_16-09-14.dem: entities=1741112
+autorecord_2026-09-30_23-06-57.dem: entities=1819342
+cp_snakewater_final1 SourceTV: entities=1427501
+regression=pass entity_failures=0 entity_unknown_state_failures=0
+entity_prop_index_failures=0 entity_prop_value_failures=0 temp_failures=0
+```
+
 An explicit missing `--tf-root` path was also accepted by the stability gate
 without a crash, while remaining in the resource fallback state. Explicit
 roots now have strict precedence: a moved or missing operator-supplied path is
