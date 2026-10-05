@@ -14,7 +14,8 @@ SoundEventKind classify(std::string name) {
   });
   if (name.find("footstep") != std::string::npos || name.find("step") != std::string::npos) return SoundEventKind::Footstep;
   if (name.find("uber") != std::string::npos || name.find("invulnerable") != std::string::npos) return SoundEventKind::Uber;
-  if (name.find("weapon") != std::string::npos || name.find("rocket") != std::string::npos
+  if (name.find("weapon") != std::string::npos || name.find("weapons/") != std::string::npos
+      || name.find("rocket") != std::string::npos
       || name.find("scatter") != std::string::npos || name.find("shot") != std::string::npos) return SoundEventKind::Weapon;
   return SoundEventKind::World;
 }

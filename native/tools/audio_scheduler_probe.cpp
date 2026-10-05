@@ -20,6 +20,7 @@ int main() {
   const std::vector<std::uint8_t> badChunk = {'R','I','F','F', 20,0,0,0, 'W','A','V','E', 'd','a','t','a', 8,0,0,0, 0,0,0,0};
   if (parseWav(badChunk, wav) || wav.error.find("exceeds") == std::string::npos) return 8;
   SoundEventTimeline timeline; timeline.add(eventAt(2,1)); timeline.add(eventAt(5,2)); timeline.add(eventAt(9,3)); timeline.add(eventAt(9,4)); timeline.sortByTick();
+  if (timeline.events().size() != 4 || timeline.events()[0].kind != SoundEventKind::Weapon) return 14;
   AudioEventScheduler scheduler; scheduler.setDeviceId(0); scheduler.setResolver([](const std::string&, WavPcmData&) { return false; });
   scheduler.reset(0); const auto jumped=scheduler.advance(timeline,5); if(jumped.eventsSeen!=2||jumped.eventsMissingResource!=2||jumped.eventsPlayed!=0)return 1;
   scheduler.stop(); const auto paused=scheduler.stats();
