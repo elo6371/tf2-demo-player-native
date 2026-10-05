@@ -86,7 +86,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
   if (!decodeLump(bytes, table[kLumpStringTable], stringTable)) return fail("BSP string table LZMA decode failed");
   if (vertices.size() % 12 || texInfo.size() % 72 || faces.size() % 56 || edges.size() % 4 || surfEdges.size() % 4 || models.size() % 48 || texData.size() % 32 || stringTable.size() % 4 || models.empty()) return fail("BSP lump layout is invalid");
   const auto firstFace = read<std::int32_t>(models, 40), faceCount = read<std::int32_t>(models, 44); if (firstFace < 0 || faceCount < 0 || static_cast<std::size_t>(firstFace) + static_cast<std::size_t>(faceCount) > faces.size() / 56) return fail("BSP world face range is invalid"); map.faceCount = static_cast<std::size_t>(faceCount);
-  std::unordered_map<std::int32_t, std::string> names; for (std::size_t i = 0; i < texData.size() / 32; ++i) { const auto id = read<std::int32_t>(texData, i * 32); if (id >= 0 && static_cast<std::size_t>(id) < stringTable.size() / 4) names[static_cast<std::int32_t>(i)] = readString(stringData, read<std::int32_t>(stringTable, static_cast<std::size_t>(id) * 4)); }
+  std::unordered_map<std::int32_t, std::string> names; for (std::size_t i = 0; i < texData.size() / 32; ++i) { const auto id = read<std::int32_t>(texData, i * 32 + 12); if (id >= 0 && static_cast<std::size_t>(id) < stringTable.size() / 4) names[static_cast<std::int32_t>(i)] = readString(stringData, read<std::int32_t>(stringTable, static_cast<std::size_t>(id) * 4)); }
   const auto vertexCount = vertices.size() / 12, edgeCount = edges.size() / 4, surfEdgeCount = surfEdges.size() / 4;
   for (std::int32_t faceIndex = firstFace; faceIndex < firstFace + faceCount; ++faceIndex) {
     const auto base = static_cast<std::size_t>(faceIndex) * 56; const auto firstEdge = read<std::int32_t>(faces, base + 4); const auto count = read<std::int16_t>(faces, base + 8); const auto infoIndex = read<std::int16_t>(faces, base + 10);
@@ -98,9 +98,9 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
     const float lu0 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 32), lu1 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 36), lu2 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 40), lu3 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 44);
     const float lv0 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 48), lv1 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 52), lv2 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 56), lv3 = read<float>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 60);
     const auto lightCoord = [&](const BspVertex& point) { return std::array<float, 2>{(point.x * lu0 + point.y * lu1 + point.z * lu2 + lu3) * 0.125f, (point.x * lv0 + point.y * lv1 + point.z * lv2 + lv3) * 0.125f}; };
-    const auto lightOffset = read<std::int32_t>(faces, base + 28);
-    const auto lightWidth = read<std::int32_t>(faces, base + 44) + 1;
-    const auto lightHeight = read<std::int32_t>(faces, base + 48) + 1;
+    const auto lightOffset = read<std::int32_t>(faces, base + 20);
+    const auto lightWidth = read<std::int32_t>(faces, base + 36) + 1;
+    const auto lightHeight = read<std::int32_t>(faces, base + 40) + 1;
     const auto lightBytes = lightWidth > 0 && lightHeight > 0
       ? static_cast<std::uint64_t>(lightWidth) * static_cast<std::uint64_t>(lightHeight) * 3u : 0u;
     const bool hasLightmap = lightOffset >= 0 && lightBytes > 0

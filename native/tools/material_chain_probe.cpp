@@ -106,10 +106,18 @@ int main(int argc, char** argv) {
   }
   if (argc == 3 && std::string_view(argv[1]) == "--bsp") {
     const auto bytes = readFile(std::filesystem::u8path(argv[2]));
+    tf2::native::BspMap parsedMap;
+    const bool parsed = tf2::native::BspParser::parse(bytes, parsedMap);
     constexpr std::string_view marker = "env_cubemap";
     for (std::size_t at = 0; at + marker.size() <= bytes.size(); ++at) {
       if (std::memcmp(bytes.data() + at, marker.data(), marker.size()) == 0) ++bspCubemapEntities;
     }
+    std::cout << "{\"bspParse\":" << (parsed ? "true" : "false")
+      << ",\"bspVersion\":" << parsedMap.version
+      << ",\"bspTriangles\":" << parsedMap.triangleCount
+      << ",\"bspLightmapFaces\":" << parsedMap.lightmapFaceCount
+      << ",\"bspLightmapBytes\":" << parsedMap.lightmapBytes
+      << ",\"bspError\":\"" << parsedMap.error << "\"}\n";
   }
   if (argc > 1 && std::string_view(argv[1]) != "--vtf" && std::string_view(argv[1]) != "--bsp") {
     const std::filesystem::path tfRoot = std::filesystem::u8path(argv[1]);
