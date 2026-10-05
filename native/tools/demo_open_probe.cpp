@@ -2,32 +2,34 @@
 
 #include <iostream>
 
-int main(int argc, char** argv) {
+int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::cerr << "usage: demo_open_probe [--scan] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] <demo.dem>\n";
     return 2;
   }
   bool scan = false;
   int firstPath = 1;
-  if (std::string(argv[1]) == "--scan") { scan = true; firstPath = 2; }
+  if (std::wstring(argv[1]) == L"--scan") { scan = true; firstPath = 2; }
   if (firstPath >= argc) {
-    std::cerr << "usage: demo_open_probe [--scan] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] <demo.dem>\n";
     return 2;
   }
   for (int i = firstPath; i < argc; ++i) {
-    const auto path = std::filesystem::u8path(argv[i]);
+    const std::filesystem::path path(argv[i]);
     tf2::native::DemoHeader header;
     const bool headerOk = tf2::native::parseDemoHeaderFile(path, header);
     tf2::native::DemoIndex index;
     const bool indexOk = headerOk && tf2::native::indexDemoFile(path, header, index);
-    std::cout << "path=" << path.string()
-              << " header=" << (headerOk ? 1 : 0)
-              << " header_error=" << header.error
-              << " index=" << (indexOk ? 1 : 0)
-              << " index_error=" << index.error
-              << " malformed_offset=" << index.malformedOffset
-              << " commands=" << index.commandCount
-              << " packets=" << index.packetCount;
+    // Keep probe output ASCII-compatible; the input path itself may contain
+    // characters unsupported by the active console code page.
+    std::wcout << L"path=<wide-path>"
+               << L" header=" << (headerOk ? 1 : 0)
+               << L" header_error=" << std::wstring(header.error.begin(), header.error.end())
+               << L" index=" << (indexOk ? 1 : 0)
+               << L" index_error=" << std::wstring(index.error.begin(), index.error.end())
+               << L" malformed_offset=" << index.malformedOffset
+               << L" commands=" << index.commandCount
+               << L" packets=" << index.packetCount;
     if (scan && indexOk) {
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
@@ -39,60 +41,63 @@ int main(int argc, char** argv) {
           break;
         }
       }
-      std::cout << " scan=" << (scanOk ? 1 : 0)
-                << " signon_states=" << summary.signonStateCount
-                << " last_signon=" << summary.lastSignonState
-                << " classes=" << summary.serverClassCount
-                << " class_info=" << summary.classInfoCount
-                << " packets_scanned=" << summary.packetsScanned
-                << " malformed_packets=" << summary.malformedPackets
-                << " temp_events=" << summary.tempEventCount
-                << " temp_failures=" << summary.tempEventDecodeFailures
-                << " particles=" << summary.tempParticleEffectCount
-                << " explosions=" << summary.tempExplosionCount
-                << " firebullets=" << summary.tempFireBulletsCount
-                << " projectiles=" << summary.projectileTimeline.size()
-                << " sounds=" << summary.soundEventCount
-                << " sound_failures=" << summary.decodedSoundEventFailures
-                << " sound_matches=" << summary.decodedSoundResourceMatches
-                << " sound_misses=" << summary.decodedSoundResourceMisses
-                << " entities=" << summary.packetEntityUpdates
-                << " entity_failures=" << summary.packetEntityDecodeFailures
-                << " entity_header_failures=" << summary.entityUpdateHeaderFailures
-                << " entity_unknown_state_failures=" << summary.entityUnknownStateFailures
-                << " entity_missing_table_failures=" << summary.entityPropMissingTableFailures
-                << " entity_prop_index_failures=" << summary.entityPropIndexFailures
-                << " entity_prop_value_failures=" << summary.entityPropValueFailures
-                << " first_unknown_tick=" << summary.firstEntityUnknownStateTick
-                << " first_unknown_entity=" << summary.firstEntityUnknownStateEntity
-                << " first_unknown_update=" << summary.firstEntityUnknownStateUpdate
-                << " first_unknown_max=" << summary.firstEntityUnknownStateMaxEntries
-                << " first_unknown_entries=" << summary.firstEntityUnknownStateUpdatedEntries
-                << " first_unknown_payload=" << summary.firstEntityUnknownStatePayloadBits
-                << " first_unknown_diff=" << summary.firstEntityUnknownStateDiff
-                << " first_entities_tick=" << summary.firstPacketEntitiesTick
-                << " first_entities_max=" << summary.firstPacketEntitiesMaxEntries
-                << " first_entities_entries=" << summary.firstPacketEntitiesUpdatedEntries
-                << " first_entities_payload=" << summary.firstPacketEntitiesPayloadBits
-                << " first_entities_delta=" << summary.firstPacketEntitiesDelta
-                << " first_enter_tick=" << summary.firstPacketEntitiesEnterTick
-                << " first_preserve_tick=" << summary.firstPacketEntitiesPreserveTick
-                << " first_entity_update_bit=" << summary.firstPacketEntitiesFirstUpdateBit
-                << " first_entity_update_diff=" << summary.firstPacketEntitiesFirstDiff
-                << " first_entities_message_bit=" << summary.firstPacketEntitiesMessageBit
-                << " first_entity_failure_stage=" << summary.firstEntityPropFailureStage
-                << " first_entity_failure_name=" << summary.firstEntityPropFailureName
-                << " first_temp_failure_stage=" << summary.firstTempEntityFailureStage
-                << " first_temp_failure_name=" << summary.firstTempEntityFailureName
-                << " first_temp_failure_class=" << summary.firstTempEntityFailureClass
-                << " first_temp_failure_class_name=" << firstTempClassName
-                << " first_temp_failure_type=" << summary.firstTempEntityFailureType
-                << " first_temp_failure_flags=" << summary.firstTempEntityFailureFlags
-                << " first_temp_failure_bits=" << summary.firstTempEntityFailureBits
-                << " first_temp_failure_tick=" << summary.firstTempEntityFailureTick
-                << " unknown_packets=" << summary.unknownMessagePackets;
+      const auto wide = [](const std::string& value) {
+        return std::wstring(value.begin(), value.end());
+      };
+      std::wcout << L" scan=" << (scanOk ? 1 : 0)
+                << L" signon_states=" << summary.signonStateCount
+                << L" last_signon=" << summary.lastSignonState
+                << L" classes=" << summary.serverClassCount
+                << L" class_info=" << summary.classInfoCount
+                << L" packets_scanned=" << summary.packetsScanned
+                << L" malformed_packets=" << summary.malformedPackets
+                << L" temp_events=" << summary.tempEventCount
+                << L" temp_failures=" << summary.tempEventDecodeFailures
+                << L" particles=" << summary.tempParticleEffectCount
+                << L" explosions=" << summary.tempExplosionCount
+                << L" firebullets=" << summary.tempFireBulletsCount
+                << L" projectiles=" << summary.projectileTimeline.size()
+                << L" sounds=" << summary.soundEventCount
+                << L" sound_failures=" << summary.decodedSoundEventFailures
+                << L" sound_matches=" << summary.decodedSoundResourceMatches
+                << L" sound_misses=" << summary.decodedSoundResourceMisses
+                << L" entities=" << summary.packetEntityUpdates
+                << L" entity_failures=" << summary.packetEntityDecodeFailures
+                << L" entity_header_failures=" << summary.entityUpdateHeaderFailures
+                << L" entity_unknown_state_failures=" << summary.entityUnknownStateFailures
+                << L" entity_missing_table_failures=" << summary.entityPropMissingTableFailures
+                << L" entity_prop_index_failures=" << summary.entityPropIndexFailures
+                << L" entity_prop_value_failures=" << summary.entityPropValueFailures
+                << L" first_unknown_tick=" << summary.firstEntityUnknownStateTick
+                << L" first_unknown_entity=" << summary.firstEntityUnknownStateEntity
+                << L" first_unknown_update=" << summary.firstEntityUnknownStateUpdate
+                << L" first_unknown_max=" << summary.firstEntityUnknownStateMaxEntries
+                << L" first_unknown_entries=" << summary.firstEntityUnknownStateUpdatedEntries
+                << L" first_unknown_payload=" << summary.firstEntityUnknownStatePayloadBits
+                << L" first_unknown_diff=" << summary.firstEntityUnknownStateDiff
+                << L" first_entities_tick=" << summary.firstPacketEntitiesTick
+                << L" first_entities_max=" << summary.firstPacketEntitiesMaxEntries
+                << L" first_entities_entries=" << summary.firstPacketEntitiesUpdatedEntries
+                << L" first_entities_payload=" << summary.firstPacketEntitiesPayloadBits
+                << L" first_entities_delta=" << summary.firstPacketEntitiesDelta
+                << L" first_enter_tick=" << summary.firstPacketEntitiesEnterTick
+                << L" first_preserve_tick=" << summary.firstPacketEntitiesPreserveTick
+                << L" first_entity_update_bit=" << summary.firstPacketEntitiesFirstUpdateBit
+                << L" first_entity_update_diff=" << summary.firstPacketEntitiesFirstDiff
+                << L" first_entities_message_bit=" << summary.firstPacketEntitiesMessageBit
+                << L" first_entity_failure_stage=" << wide(summary.firstEntityPropFailureStage)
+                << L" first_entity_failure_name=" << wide(summary.firstEntityPropFailureName)
+                << L" first_temp_failure_stage=" << wide(summary.firstTempEntityFailureStage)
+                << L" first_temp_failure_name=" << wide(summary.firstTempEntityFailureName)
+                << L" first_temp_failure_class=" << summary.firstTempEntityFailureClass
+                << L" first_temp_failure_class_name=" << wide(firstTempClassName)
+                << L" first_temp_failure_type=" << summary.firstTempEntityFailureType
+                << L" first_temp_failure_flags=" << summary.firstTempEntityFailureFlags
+                << L" first_temp_failure_bits=" << summary.firstTempEntityFailureBits
+                << L" first_temp_failure_tick=" << summary.firstTempEntityFailureTick
+                << L" unknown_packets=" << summary.unknownMessagePackets;
     }
-    std::cout << '\n';
+    std::wcout << L'\n';
   }
   return 0;
 }
