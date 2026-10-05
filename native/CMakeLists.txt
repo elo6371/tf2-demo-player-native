@@ -28,7 +28,7 @@ add_executable(tf2_demo_native WIN32
 
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
 target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm bcrypt)
+target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm bcrypt psapi)
 
 add_executable(item_schema_probe tools/item_schema_probe.cpp src/item_schema.cpp src/proto_wire.cpp)
 target_include_directories(item_schema_probe PRIVATE include)

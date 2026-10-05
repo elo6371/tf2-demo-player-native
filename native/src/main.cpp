@@ -13,6 +13,7 @@
 #include <Windows.h>
 #include <bcrypt.h>
 #include <dxgi.h>
+#include <psapi.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -275,6 +276,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   UINT audioDevice = WAVE_MAPPER;
   bool audioDeviceRejected = false;
   bool startPaused = false;
+  std::filesystem::path metricsPath;
   LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -305,6 +307,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         audioDeviceRejected = true;
       } else if (wcscmp(arguments[i], L"--start-paused") == 0) {
         startPaused = true;
+      } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
+        metricsPath = arguments[++i];
       }
     }
     persistent.render.normalize();
@@ -879,6 +883,45 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     g_renderer = nullptr;
     return 13;
   }
+  std::ofstream metricsFile;
+  if (!metricsPath.empty()) {
+    metricsFile.open(metricsPath, std::ios::out | std::ios::trunc);
+    if (!metricsFile) {
+      OutputDebugStringW(L"TF2 Demo Player: cannot open --metrics-file.\n");
+      renderer.shutdown();
+      g_renderer = nullptr;
+      return 15;
+    }
+    metricsFile << "elapsed_seconds,rendered_frames,fps,tick,working_set_bytes,private_bytes\n";
+    metricsFile.flush();
+  }
+  std::uint64_t renderedFrames = 0;
+  std::uint64_t metricsFrames = 0;
+  const LARGE_INTEGER metricsStart = lastFrame;
+  LARGE_INTEGER metricsLast = lastFrame;
+  const auto writeMetrics = [&](LARGE_INTEGER sample, bool force) {
+    if (!metricsFile) return;
+    const double interval = static_cast<double>(sample.QuadPart - metricsLast.QuadPart)
+      / static_cast<double>(frequency.QuadPart);
+    if (!force && interval < 1.0) return;
+    PROCESS_MEMORY_COUNTERS_EX counters{};
+    counters.cb = sizeof(counters);
+    if (!GetProcessMemoryInfo(GetCurrentProcess(),
+        reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters))) {
+      counters.WorkingSetSize = 0;
+      counters.PrivateUsage = 0;
+    }
+    const double elapsedSeconds = static_cast<double>(sample.QuadPart - metricsStart.QuadPart)
+      / static_cast<double>(frequency.QuadPart);
+    const double fps = interval > 0.0
+      ? static_cast<double>(renderedFrames - metricsFrames) / interval : 0.0;
+    metricsFile << elapsedSeconds << ',' << renderedFrames << ',' << fps << ','
+      << g_playback.tick << ',' << counters.WorkingSetSize << ','
+      << counters.PrivateUsage << '\n';
+    metricsFile.flush();
+    metricsLast = sample;
+    metricsFrames = renderedFrames;
+  };
   unsigned deviceRecoveryAttempts = 0;
   MSG message{};
   bool running = true;
@@ -973,8 +1016,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       hudTrailVertices = renderer.projectileVertexCount();
     }
     refreshWindowTitle();
+    writeMetrics(now, false);
     if (elapsed >= kTargetFrameSeconds) {
-      if (g_renderer) renderer.draw(0.055f, 0.07f, 0.085f);
+      if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) ++renderedFrames;
       lastFrame = now;
       continue;
     }
@@ -999,6 +1043,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
   }
+  LARGE_INTEGER metricsEnd{};
+  if (QueryPerformanceCounter(&metricsEnd)) writeMetrics(metricsEnd, true);
   renderer.shutdown();
   persistent.render = renderer.settings();
   if (assets.valid()) persistent.tfRoot = assets.tfDirectory;

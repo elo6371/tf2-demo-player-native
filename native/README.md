@@ -66,6 +66,10 @@ that launch without changing the saved settings.
 
 Audio diagnostics can use `--audio-device N` to select a WinMM output device;
 the default is `WAVE_MAPPER`. Use `--start-paused` for silent startup checks.
+For a machine-readable one-second performance sample, pass
+`--metrics-file X:\\path\\metrics.csv`. The process writes CSV columns for
+elapsed seconds, rendered frames, interval FPS, playback tick, working-set
+bytes, and private bytes; metrics are opt-in and do not open an audio device.
 The runtime caches up to 32 MiB of decoded PCM data (at most 512 resources) and
 otherwise resolves WAV resources on demand.
 
