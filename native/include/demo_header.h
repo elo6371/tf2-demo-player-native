@@ -318,6 +318,9 @@ struct DemoNetworkSummary {
   std::int32_t firstPacketEntitiesDelta = -1;
   std::int32_t firstPacketEntitiesEnterTick = -1;
   std::int32_t firstPacketEntitiesPreserveTick = -1;
+  std::int64_t firstPacketEntitiesFirstUpdateBit = -1;
+  std::int32_t firstPacketEntitiesFirstDiff = -1;
+  std::int64_t firstPacketEntitiesMessageBit = -1;
   std::int32_t firstEntityPropFailureClass = -1;
   std::int32_t firstEntityPropFailureIndex = -1;
   std::int32_t firstEntityPropFailureTick = -1;

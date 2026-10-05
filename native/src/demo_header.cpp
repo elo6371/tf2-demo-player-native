@@ -253,6 +253,7 @@ namespace {
 class MessageBits {
 public:
   explicit MessageBits(const std::vector<std::uint8_t>& bytes) : bytes_(bytes) {}
+  std::size_t offsetBits() const { return offset_; }
   std::size_t remaining() const { return bytes_.size() * 8 - offset_; }
   void setMinimumRemaining(std::size_t minimum) { minimumRemaining_ = std::min(minimum, bytes_.size() * 8); }
   bool read(std::uint32_t count, std::uint32_t& value) {
@@ -450,7 +451,15 @@ void flattenSendTableSchemas(DemoNetworkSummary& summary) {
     std::vector<SendPropSchema> output;
     std::unordered_set<std::string> stack;
     pushEnd(i, excludes, output, stack);
-    std::stable_partition(output.begin(), output.end(), [](const SendPropSchema& prop) { return (prop.flags & 1024u) != 0; });
+    // Source's flatten pass moves each CHANGES_OFTEN prop to the next front
+    // slot with a swap. A stable partition changes the relative order of the
+    // remaining props and therefore changes the wire property indexes.
+    std::size_t changesOftenEnd = 0;
+    for (std::size_t propIndex = 0; propIndex < output.size(); ++propIndex) {
+      if ((output[propIndex].flags & 1024u) == 0) continue;
+      if (propIndex != changesOftenEnd) std::swap(output[propIndex], output[changesOftenEnd]);
+      ++changesOftenEnd;
+    }
     summary.sendTableSchemas[i].flattenedProps = std::move(output);
     summary.dataTableFlattenedPropCount += summary.sendTableSchemas[i].flattenedProps.size();
   }
@@ -823,12 +832,17 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   bool entityUpdatesComplete = true;
   std::vector<EntityHistoryEvent> historyEvents;
   for (std::uint32_t i = 0; i < updatedEntries; ++i) {
+    const std::size_t updateBitOffset = bits.offsetBits();
     std::uint32_t diff = 0, updateType = 0;
     if (!bits.readBitVar(diff) || !bits.read(2, updateType)) { ++summary.packetEntityDecodeFailures; ++summary.entityUpdateHeaderFailures; entityUpdatesComplete = false; break; }
     lastEntity += static_cast<std::int32_t>(diff) + 1;
     ++summary.packetEntityHeaderUpdates;
     if (updateType == 0) {
-      if (summary.firstPacketEntitiesPreserveTick < 0) summary.firstPacketEntitiesPreserveTick = packetTick;
+      if (summary.firstPacketEntitiesPreserveTick < 0) {
+        summary.firstPacketEntitiesPreserveTick = packetTick;
+        summary.firstPacketEntitiesFirstUpdateBit = static_cast<std::int64_t>(updateBitOffset);
+        summary.firstPacketEntitiesFirstDiff = static_cast<std::int32_t>(diff);
+      }
       ++summary.packetEntityPreserveCount;
       if (lastEntity < 0 || lastEntity >= 2048 || static_cast<std::size_t>(lastEntity) >= summary.entityClassByIndex.size() || summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] < 0) { ++summary.entityUnknownStateFailures; if (summary.firstEntityUnknownStateTick < 0) { summary.firstEntityUnknownStateTick = packetTick; summary.firstEntityUnknownStateEntity = lastEntity; summary.firstEntityUnknownStateUpdate = static_cast<std::int32_t>(updateType); summary.firstEntityUnknownStateMaxEntries = static_cast<std::int32_t>(maxEntries); summary.firstEntityUnknownStateUpdatedEntries = static_cast<std::int32_t>(updatedEntries); summary.firstEntityUnknownStatePayloadBits = static_cast<std::int32_t>(payloadBits); summary.firstEntityUnknownStateDiff = static_cast<std::int32_t>(diff); } entityUpdatesComplete = false; break; }
       const auto classId = static_cast<std::uint32_t>(summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)]);
@@ -848,7 +862,11 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
       if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, {}});
     } else if (updateType == 2) {
-      if (summary.firstPacketEntitiesEnterTick < 0) summary.firstPacketEntitiesEnterTick = packetTick;
+      if (summary.firstPacketEntitiesEnterTick < 0) {
+        summary.firstPacketEntitiesEnterTick = packetTick;
+        summary.firstPacketEntitiesFirstUpdateBit = static_cast<std::int64_t>(updateBitOffset);
+        summary.firstPacketEntitiesFirstDiff = static_cast<std::int32_t>(diff);
+      }
       ++summary.packetEntityEnterCount;
       std::uint32_t classBits = 1; while (classBits < 31u && (1u << classBits) <= std::max<std::uint32_t>(1u, summary.serverClassCount)) ++classBits;
       std::uint32_t classId = 0, serial = 0;
@@ -1729,6 +1747,7 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
     MessageBits bits(payload); bool decodedAny = false; bool packetValid = true;
     std::int32_t networkTick = summary.lastNetworkTick >= 0 ? summary.lastNetworkTick : entry.tick;
     while (bits.remaining() > 6) {
+      const std::size_t messageBit = bits.offsetBits();
       std::uint32_t type = 0; if (!bits.read(6, type)) { packetValid = false; break; }
       if (type == 0) { decodedAny = true; continue; }
       if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; decodedAny = true; } }
@@ -1749,7 +1768,7 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
       else if (type == 23) { if (!readUserMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 24) { if (!readEntityMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 25) { if (!readGameEvent(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 26) { if (!readPacketEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
+      else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 28) { if (!readPrefetch(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 30) { if (!readGameEventList(bits, summary)) packetValid = false; else { decodedAny = true; } }

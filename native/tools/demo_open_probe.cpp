@@ -40,6 +40,10 @@ int main(int argc, char** argv) {
         }
       }
       std::cout << " scan=" << (scanOk ? 1 : 0)
+                << " signon_states=" << summary.signonStateCount
+                << " last_signon=" << summary.lastSignonState
+                << " classes=" << summary.serverClassCount
+                << " class_info=" << summary.classInfoCount
                 << " packets_scanned=" << summary.packetsScanned
                 << " malformed_packets=" << summary.malformedPackets
                 << " temp_events=" << summary.tempEventCount
@@ -73,6 +77,9 @@ int main(int argc, char** argv) {
                 << " first_entities_delta=" << summary.firstPacketEntitiesDelta
                 << " first_enter_tick=" << summary.firstPacketEntitiesEnterTick
                 << " first_preserve_tick=" << summary.firstPacketEntitiesPreserveTick
+                << " first_entity_update_bit=" << summary.firstPacketEntitiesFirstUpdateBit
+                << " first_entity_update_diff=" << summary.firstPacketEntitiesFirstDiff
+                << " first_entities_message_bit=" << summary.firstPacketEntitiesMessageBit
                 << " first_entity_failure_stage=" << summary.firstEntityPropFailureStage
                 << " first_entity_failure_name=" << summary.firstEntityPropFailureName
                 << " first_temp_failure_stage=" << summary.firstTempEntityFailureStage
