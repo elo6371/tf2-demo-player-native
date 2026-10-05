@@ -558,6 +558,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::size_t modelVpkHits = 0;
   std::size_t modelLooseHits = 0;
   std::size_t modelUnknownPaths = 0;
+  bool modelAutoSelected = false;
   std::size_t itemSchemaHits = 0;
   std::size_t itemSchemaMisses = 0;
   tf2::native::ModelFeatureStatus modelAttachmentStatus = tf2::native::ModelFeatureStatus::Unknown;
@@ -589,6 +590,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         if (candidate.resolution == tf2::native::ModelAssetResolution::FoundLoose) ++modelLooseHits;
         else if (candidate.resolution == tf2::native::ModelAssetResolution::FoundVpk) ++modelVpkHits;
         else if (candidate.resolution == tf2::native::ModelAssetResolution::Unknown) ++modelUnknownPaths;
+        if (commandModel.empty()
+            && candidate.resolution == tf2::native::ModelAssetResolution::FoundLoose
+            && candidate.companionSetComplete
+            && !candidate.looseMdl.empty()) {
+          commandModel = candidate.looseMdl;
+          modelAutoSelected = true;
+        }
         if (reference.hasItemDefIndex) {
           if (itemSchema && itemSchema->find(static_cast<int>(reference.itemDefIndex))) ++itemSchemaHits;
           else ++itemSchemaMisses;
@@ -1010,6 +1018,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + (cacheDirectory.empty() ? L"" : L"@" + cacheDirectory.wstring())
       + L" hash=" + std::wstring(hashStatus.begin(), hashStatus.end())
       + (demoSha256.empty() ? L"" : L":" + std::wstring(demoSha256.begin(), demoSha256.end()))
+      + L" modelSelection=" + (modelAutoSelected ? L"demo-auto" : (commandModel.empty() ? L"none" : L"explicit"))
       + L" modelMissing=" + std::to_wstring(modelCompanionMissing)
       + L" vpkHits=" + std::to_wstring(modelVpkHits)
       + L" attachment=" + std::wstring(modelAttachmentStatus == tf2::native::ModelFeatureStatus::Available ? L"available" : modelAttachmentStatus == tf2::native::ModelFeatureStatus::Missing ? L"missing" : L"unknown")
