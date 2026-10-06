@@ -18,6 +18,10 @@ if ($MaxWorkingSetBytes -lt 0) { throw 'max_working_set_must_be_nonnegative' }
 
 $exe = Join-Path $InstallDir 'tf2_demo_native.exe'
 if (-not (Test-Path $exe -PathType Leaf)) { throw "missing_executable=$exe" }
+$exeFullPath = [System.IO.Path]::GetFullPath($exe)
+$preExistingPids = @(Get-CimInstance Win32_Process -Filter "Name='tf2_demo_native.exe'" |
+  Where-Object { $_.ExecutablePath -and [System.IO.Path]::GetFullPath($_.ExecutablePath) -eq $exeFullPath } |
+  ForEach-Object { [int]$_.ProcessId })
 
 $metrics = Join-Path ([System.IO.Path]::GetTempPath()) ("tf2-native-stability-{0}.csv" -f [guid]::NewGuid())
 $arguments = @('--no-vsync', '--metrics-file', $metrics)
@@ -45,6 +49,13 @@ finally {
 }
 
 if (-not (Test-Path $metrics -PathType Leaf)) { throw 'metrics_file_missing' }
+$postRunPids = @(Get-CimInstance Win32_Process -Filter "Name='tf2_demo_native.exe'" |
+  Where-Object { $_.ExecutablePath -and [System.IO.Path]::GetFullPath($_.ExecutablePath) -eq $exeFullPath } |
+  ForEach-Object { [int]$_.ProcessId })
+$residualPids = @($postRunPids | Where-Object { $preExistingPids -notcontains $_ })
+if ($residualPids.Count -gt 0) {
+  throw "residual_process_pids=$($residualPids -join ',')"
+}
 $rows = Import-Csv $metrics
 try {
   if ($rows.Count -lt 1) { throw 'metrics_sample_missing' }
