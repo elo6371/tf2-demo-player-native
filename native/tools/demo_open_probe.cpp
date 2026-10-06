@@ -135,6 +135,10 @@ int wmain(int argc, wchar_t** argv) {
                 << L" first_unknown_entries=" << summary.firstEntityUnknownStateUpdatedEntries
                 << L" first_unknown_payload=" << summary.firstEntityUnknownStatePayloadBits
                 << L" first_unknown_diff=" << summary.firstEntityUnknownStateDiff
+                << L" first_unknown_delta_from=" << summary.firstEntityUnknownStateDeltaFrom
+                << L" first_unknown_bit=" << summary.firstEntityUnknownStateBit
+                << L" first_unknown_class_slot=" << summary.firstEntityUnknownStateClassSlot
+                << L" first_unknown_packet_ordinal=" << summary.firstEntityUnknownStatePacketOrdinal
                 << L" first_entities_tick=" << summary.firstPacketEntitiesTick
                 << L" first_entities_max=" << summary.firstPacketEntitiesMaxEntries
                 << L" first_entities_entries=" << summary.firstPacketEntitiesUpdatedEntries

@@ -326,6 +326,10 @@ struct DemoNetworkSummary {
   std::int32_t firstEntityUnknownStateUpdatedEntries = -1;
   std::int32_t firstEntityUnknownStatePayloadBits = -1;
   std::int32_t firstEntityUnknownStateDiff = -1;
+  std::int32_t firstEntityUnknownStateDeltaFrom = -1;
+  std::int64_t firstEntityUnknownStateBit = -1;
+  std::int32_t firstEntityUnknownStateClassSlot = -1;
+  std::int32_t firstEntityUnknownStatePacketOrdinal = -1;
   std::int32_t firstPacketEntitiesTick = -1;
   std::int32_t firstPacketEntitiesMaxEntries = -1;
   std::int32_t firstPacketEntitiesUpdatedEntries = -1;
