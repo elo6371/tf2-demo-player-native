@@ -545,4 +545,26 @@ P0 的核心缺口已闭环：bagel 从 `entity_failures=6581 / decode_failures=
 
 ## 附：修复补丁
 
-`fix-P0-entity-messages.patch` —— 只含协议四文件，可干净应用到 `d585af8`。
+`fix-P0-entity-messages.patch` —— 只含协议相关文件（`native/`），
+sha256 `5c513c851c4a68af28df810ff6852947442ee55e77fe1280d1f27907e22a9cf5`，
+1413 行。
+
+**已实测**：把 `d585af8` 的 `native/` 树导出到空目录后
+`git apply` 干净通过（`--check` 也过），6 个文件与交付树**逐字节相同**：
+
+```
+APPLY=OK
+IDENTICAL native/src/demo_header.cpp
+IDENTICAL native/include/demo_header.h
+IDENTICAL native/CMakeLists.txt
+IDENTICAL native/tools/presentation_probe.cpp
+IDENTICAL native/tools/entity_protocol_probe.cpp
+IDENTICAL native/tools/entity_message_fixture_probe.cpp
+```
+
+注：本仓库 `core.autocrlf=true`，补丁内容来自 blob（LF），
+`git apply` 落盘时转 CRLF，与工作树一致。
+第一次比对时两个**新增**文件报 `DIFFERS`：它们是我用 LF 直接写的，
+而仓库其余文件是 CRLF，差 252 / 581 字节（正好等于行数）。已统一为 CRLF
+（blob 内容不变，`git diff --stat` 为空），重编译后 `fixture_failures=0`、
+bagel `entity_failures=0` 读数不变。
