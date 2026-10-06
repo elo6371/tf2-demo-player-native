@@ -105,6 +105,15 @@ PlaybackState g_playback{};
 bool g_firstPersonCamera = false;
 bool g_freeObserverCamera = false;
 ULONGLONG g_lastSpacePressMs = 0;
+bool g_cameraKeys[6]{}; // W, A, S, D, Q, E
+
+int cameraKeyIndex(WPARAM key) {
+  switch (key) {
+  case 'W': return 0; case 'A': return 1; case 'S': return 2;
+  case 'D': return 3; case 'Q': return 4; case 'E': return 5;
+  default: return -1;
+  }
+}
 constexpr double kTargetFrameSeconds = 1.0 / 120.0;
 
 const wchar_t* entitySnapshotStatusName(tf2::native::EntitySnapshotQueryStatus status) {
@@ -507,13 +516,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       if (control && shift) g_renderer->clearCameraPreset(slot);
       else if (control) g_renderer->saveCameraPreset(slot);
       else g_renderer->applyCameraPreset(slot);
-    } else if (g_renderer && (wParam == 'W' || wParam == 'A' || wParam == 'S'
-        || wParam == 'D' || wParam == 'Q' || wParam == 'E')) {
-      constexpr float kCameraKeyStep = 1.0f;
-      const float right = wParam == 'D' ? kCameraKeyStep : (wParam == 'A' ? -kCameraKeyStep : 0.0f);
-      const float forward = wParam == 'W' ? kCameraKeyStep : (wParam == 'S' ? -kCameraKeyStep : 0.0f);
-      const float up = wParam == 'E' ? kCameraKeyStep : (wParam == 'Q' ? -kCameraKeyStep : 0.0f);
-      g_renderer->moveCamera(right, forward, up);
+    } else if (cameraKeyIndex(wParam) >= 0) {
+      g_cameraKeys[cameraKeyIndex(wParam)] = true;
     } else if (wParam == VK_HOME) {
       if (g_renderer) g_renderer->resetCamera();
       if (g_playback.enabled) { g_playback.tick = 0; g_playback.reverse = false; }
@@ -550,6 +554,9 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     }
     return 0;
   }
+  case WM_KEYUP:
+    if (cameraKeyIndex(wParam) >= 0) g_cameraKeys[cameraKeyIndex(wParam)] = false;
+    return 0;
   case WM_DESTROY:
     PostQuitMessage(0);
     return 0;
@@ -1367,6 +1374,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // temporary OS stall. The next frame resumes at the current playback rate.
     const double elapsed = std::clamp(measuredElapsed, 0.0, 0.25);
     if (measuredElapsed > 0.25) tickAccumulator = 0.0;
+    if (g_renderer && (g_freeObserverCamera || g_firstPersonCamera)) {
+      const float speed = static_cast<float>(elapsed * 3.0);
+      const float right = (g_cameraKeys[3] ? 1.0f : 0.0f) - (g_cameraKeys[1] ? 1.0f : 0.0f);
+      const float forward = (g_cameraKeys[0] ? 1.0f : 0.0f) - (g_cameraKeys[2] ? 1.0f : 0.0f);
+      const float up = (g_cameraKeys[5] ? 1.0f : 0.0f) - (g_cameraKeys[4] ? 1.0f : 0.0f);
+      if (right != 0.0f || forward != 0.0f || up != 0.0f) {
+        g_renderer->moveCamera(right * speed, forward * speed, up * speed);
+      }
+    }
     if (g_playback.paused != lastPaused) {
       if (g_playback.paused) soundScheduler.stop();
       else soundScheduler.reset(g_playback.tick);
