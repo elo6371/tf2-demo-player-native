@@ -1405,12 +1405,13 @@ bool readSignonState(MessageBits& bits, DemoNetworkSummary& summary) {
 
 bool readServerInfo(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t value = 0;
-  if (!bits.read(16, value) || !bits.read(32, value) || !bits.read(1, value) || !bits.read(1, value) || !bits.read(32, value) || !bits.read(16, value)) return false;
+  std::uint32_t stv = 0;
+  if (!bits.read(16, value) || !bits.read(32, value) || !bits.read(1, stv) || !bits.read(1, value) || !bits.read(32, value) || !bits.read(16, value)) return false;
   for (int i = 0; i < 16; ++i) if (!bits.read(8, value)) return false;
   if (!bits.read(8, value) || !bits.read(8, value) || !bits.read(32, value)) return false;
   std::string platform, game, map, skybox, server;
   if (!bits.readStringLimit(platform, 1) || !bits.readString(game) || !bits.readString(map) || !bits.readString(skybox) || !bits.readString(server) || !bits.read(1, value)) return false;
-  summary.serverMap = map; summary.serverName = server; summary.sourceTv = value != 0; return true;
+  summary.serverMap = map; summary.serverName = server; summary.sourceTv = stv != 0; return true;
 }
 
 bool decodeLzss(const std::vector<std::uint8_t>& input, std::size_t offset, std::size_t length,
