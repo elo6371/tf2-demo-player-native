@@ -14,14 +14,20 @@ Source-equivalent lightmaps, cubemaps, or water rendering.
 - Explicit `spray.vtf` decode reports format `13` and `262144` RGBA bytes.
 - Explicit `2koth_abbey.bsp` probe reports `bspCubemapEntities=0`,
   `cubemapCompleteSets=0`, and `realCubemapComplete=false`.
+- The BSP parser recognizes optional HDR lighting lump 53 as RGBExp32. On
+  `2koth_abbey.bsp`, the probe reports `bspHdrLightmap=true`,
+  `bspHdrLightmapFaces=22991`, `bspHdrLightmapSamples=6184213`, and
+  `bspHdrLightmapIntensity=0.735616`. This is an exposure estimate, not
+  per-face shader interpolation.
 
 ## Current shader boundary
 
 - The world constant buffer is 128 bytes: an `mvp` matrix followed by four
   `float4` values. CPU `WorldConstantsData` matches this layout and binds it
   to `b0` for both world vertex and pixel shaders.
-- `lightmapFeatures.x` is the clamped average-intensity fallback. The current
-  shader does not sample per-face lightmap texels.
+- `lightmapFeatures.x` is the clamped lightmap exposure estimate; HDR RGBExp32
+  is preferred when present, otherwise LDR average intensity is used. The
+  current shader does not sample per-face lightmap texels.
 - Bump and env-map branches are enabled only after a non-empty decoded VTF is
   uploaded to the corresponding SRV slot.
 - Self-illumination tint components are finite-checked and clamped to `[0, 4]`

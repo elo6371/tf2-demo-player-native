@@ -19,6 +19,12 @@ struct BspMap {
   std::size_t lightmapTriangleCount = 0;
   std::size_t lightmapBytes = 0;
   float lightmapIntensity = 1.0f;
+  // HDR BSP lighting uses RGBExp32 (RGB bytes plus a shared exponent).
+  std::size_t hdrLightmapSampleCount = 0;
+  std::size_t hdrLightmapFaceCount = 0;
+  std::size_t hdrLightmapBytes = 0;
+  float hdrLightmapIntensity = 1.0f;
+  bool hasHdrLightmap = false;
   std::vector<BspTriangle> triangles;
   std::string error;
   bool valid = false;

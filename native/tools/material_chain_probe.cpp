@@ -135,6 +135,10 @@ int main(int argc, char** argv) {
       << ",\"bspTriangles\":" << parsedMap.triangleCount
       << ",\"bspLightmapFaces\":" << parsedMap.lightmapFaceCount
       << ",\"bspLightmapBytes\":" << parsedMap.lightmapBytes
+      << ",\"bspHdrLightmap\":" << (parsedMap.hasHdrLightmap ? "true" : "false")
+      << ",\"bspHdrLightmapFaces\":" << parsedMap.hdrLightmapFaceCount
+      << ",\"bspHdrLightmapSamples\":" << parsedMap.hdrLightmapSampleCount
+      << ",\"bspHdrLightmapIntensity\":" << parsedMap.hdrLightmapIntensity
       << ",\"bspError\":\"" << parsedMap.error << "\"}\n";
   }
   if (argc > 1 && std::string_view(argv[1]) != "--vtf" && std::string_view(argv[1]) != "--vmt" && std::string_view(argv[1]) != "--bsp") {

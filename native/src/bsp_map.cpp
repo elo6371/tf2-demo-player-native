@@ -16,6 +16,7 @@ using Bytes = std::vector<std::uint8_t>;
 constexpr std::size_t kHeaderSize = 8 + 64 * 16 + 4;
 constexpr int kLumpTexData = 2, kLumpVertices = 3, kLumpTexInfo = 6, kLumpFaces = 7,
   kLumpLighting = 8,
+  kLumpLightingHdr = 53,
   kLumpEdges = 12, kLumpSurfEdges = 13, kLumpModels = 14,
   kLumpStringData = 43, kLumpStringTable = 44;
 
@@ -73,12 +74,15 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
   if (bytes.size() < kHeaderSize || read<std::uint32_t>(bytes, 0) != 0x50534256u) return fail("BSP header is invalid");
   map.version = read<std::int32_t>(bytes, 4); map.revision = read<std::int32_t>(bytes, 8 + 64 * 16);
   Lump table[64]{}; for (int i = 0; i < 64; ++i) { table[i].offset = read<std::int32_t>(bytes, 8 + i * 16); table[i].length = read<std::int32_t>(bytes, 8 + i * 16 + 4); }
-  Bytes texData, vertices, texInfo, faces, edges, surfEdges, models, stringData, stringTable, lighting;
+  Bytes texData, vertices, texInfo, faces, edges, surfEdges, models, stringData, stringTable, lighting, lightingHdr;
   if (!decodeLump(bytes, table[kLumpTexData], texData)) { map.error = std::string("BSP texdata LZMA decode failed/") + gLzmaError; return false; }
   if (!decodeLump(bytes, table[kLumpVertices], vertices)) return fail("BSP vertices LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpTexInfo], texInfo)) return fail("BSP texinfo LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpFaces], faces)) return fail("BSP faces LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpLighting], lighting)) return fail("BSP lighting LZMA decode failed");
+  // HDR lighting is optional. An absent or malformed HDR lump must not make an
+  // otherwise valid LDR BSP unloadable; it simply leaves the HDR capability off.
+  if (table[kLumpLightingHdr].length > 0) decodeLump(bytes, table[kLumpLightingHdr], lightingHdr);
   if (!decodeLump(bytes, table[kLumpEdges], edges)) return fail("BSP edges LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpSurfEdges], surfEdges)) return fail("BSP surfedges LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpModels], models)) return fail("BSP models LZMA decode failed");
@@ -107,6 +111,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
       && static_cast<std::uint64_t>(lightOffset) <= lighting.size()
       && lightBytes <= static_cast<std::uint64_t>(lighting.size()) - static_cast<std::uint64_t>(lightOffset);
     if (hasLightmap) { ++map.lightmapFaceCount; map.lightmapBytes += static_cast<std::size_t>(lightWidth) * static_cast<std::size_t>(lightHeight) * 3u; }
+    const auto hdrLightBytes = lightWidth > 0 && lightHeight > 0
+      ? static_cast<std::uint64_t>(lightWidth) * static_cast<std::uint64_t>(lightHeight) * 4u : 0u;
+    const bool hasHdrLightmap = lightOffset >= 0 && hdrLightBytes > 0
+      && static_cast<std::uint64_t>(lightOffset) <= lightingHdr.size()
+      && hdrLightBytes <= static_cast<std::uint64_t>(lightingHdr.size()) - static_cast<std::uint64_t>(lightOffset);
+    if (hasHdrLightmap) { ++map.hdrLightmapFaceCount; map.hdrLightmapBytes += static_cast<std::size_t>(hdrLightBytes); }
     std::vector<BspVertex> polygon; polygon.reserve(static_cast<std::size_t>(count)); bool validFace = true;
     for (std::int16_t i = 0; i < count; ++i) { const auto surf = read<std::int32_t>(surfEdges, (static_cast<std::size_t>(firstEdge) + i) * 4); const auto edge = surf < 0 ? -surf : surf; if (edge < 0 || static_cast<std::size_t>(edge) >= edgeCount) { validFace = false; break; } const auto vertexIndex = read<std::uint16_t>(edges, static_cast<std::size_t>(edge) * 4 + (surf < 0 ? 2 : 0)); if (vertexIndex >= vertexCount) { validFace = false; break; } polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12)); }
     if (!validFace) continue; ++map.renderedFaceCount;
@@ -134,6 +144,18 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
     for (const auto value : lighting) sum += value;
     const double average = static_cast<double>(sum) / static_cast<double>(lighting.size());
     map.lightmapIntensity = static_cast<float>(std::clamp(average / 128.0, 0.15, 2.0));
+  }
+  if (lightingHdr.size() >= 4 && lightingHdr.size() % 4 == 0) {
+    double sum = 0.0;
+    for (std::size_t at = 0; at + 3 < lightingHdr.size(); at += 4) {
+      const auto exponent = static_cast<int>(static_cast<std::int8_t>(lightingHdr[at + 3]));
+      const double scale = std::ldexp(1.0, exponent);
+      sum += (static_cast<double>(lightingHdr[at]) + static_cast<double>(lightingHdr[at + 1])
+        + static_cast<double>(lightingHdr[at + 2])) * scale / 3.0;
+    }
+    map.hdrLightmapSampleCount = lightingHdr.size() / 4u;
+    map.hasHdrLightmap = true;
+    map.hdrLightmapIntensity = static_cast<float>(std::clamp(sum / static_cast<double>(map.hdrLightmapSampleCount) / 128.0, 0.15, 8.0));
   }
   map.valid = true; return true;
 }

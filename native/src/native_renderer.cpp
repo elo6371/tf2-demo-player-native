@@ -431,7 +431,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   worldSpanZ_ = spanZ; worldHorizontalScale_ = horizontalScale;
   worldBoundsValid_ = true;
   worldLightmapStatus_ = WorldLightmapStatus::FallbackUnlit;
-  worldLightmapIntensity_ = std::clamp(map.lightmapIntensity, 0.15f, 2.0f);
+  // Prefer RGBExp32 HDR statistics when the BSP provides them. The current
+  // shader still uses fallback sampling, but exposure is grounded in real HDR data.
+  worldLightmapIntensity_ = std::clamp(
+    map.hasHdrLightmap ? map.hdrLightmapIntensity : map.lightmapIntensity, 0.15f, 2.0f);
   if (map.lightmapTriangleCount > 0) worldLightmapStatus_ = WorldLightmapStatus::Active;
   return true;
 }
@@ -550,7 +553,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldSpanZ_ = spanZ; worldHorizontalScale_ = horizontalScale;
   worldBoundsValid_ = true;
   worldLightmapStatus_ = WorldLightmapStatus::FallbackUnlit;
-  worldLightmapIntensity_ = std::clamp(map.lightmapIntensity, 0.15f, 2.0f);
+  worldLightmapIntensity_ = std::clamp(
+    map.hasHdrLightmap ? map.hdrLightmapIntensity : map.lightmapIntensity, 0.15f, 2.0f);
   if (map.lightmapTriangleCount > 0) worldLightmapStatus_ = WorldLightmapStatus::Active;
   return true;
 }
