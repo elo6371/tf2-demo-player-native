@@ -1374,7 +1374,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // temporary OS stall. The next frame resumes at the current playback rate.
     const double elapsed = std::clamp(measuredElapsed, 0.0, 0.25);
     if (measuredElapsed > 0.25) tickAccumulator = 0.0;
-    if (g_renderer && (g_freeObserverCamera || g_firstPersonCamera)) {
+    if (g_renderer) {
       const float speed = static_cast<float>(elapsed * 3.0);
       const float right = (g_cameraKeys[3] ? 1.0f : 0.0f) - (g_cameraKeys[1] ? 1.0f : 0.0f);
       const float forward = (g_cameraKeys[0] ? 1.0f : 0.0f) - (g_cameraKeys[2] ? 1.0f : 0.0f);
