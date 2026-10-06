@@ -6,6 +6,83 @@
 
 ---
 
+## 0. 本轮修正（第二遍复核，2026-10-06 晚）
+
+第一遍验收有三处结论是错的。用户提供
+`D:\SteamLibrary\steamapps\common\Team Fortress 2\tf\demos`（1643 份 / 40.2 GB）
+之后暴露出来。**这三条是我自己的判断失误，不是环境问题**，原样记录：
+
+### 0.1 「本机 9 份 demo 全部是 POV」是错的 —— 5 份是 SourceTV
+
+第一遍用探针的 `recording=` 判定，而该字段来自 `parseDemoHeader`，
+它只查 `servername`。但 Valve `src/public/demofile/demoformat.h` 写得很清楚：
+
+```c
+char servername[ MAX_OSPATH ];  // Name of server
+char clientname[ MAX_OSPATH ];  // Name of client who recorded the game
+```
+
+SourceTV 录制由服务端的 SourceTV 客户端写出，**录制者名字落在 `clientname`**。
+本机 9 份 oracle 语料的真实字段：
+
+| demo | servername | clientname | 实际类型 | 流内 `m_bIsHLTV` |
+|---|---|---|---|---|
+| bagel | `na.serveme.tf #633053` | `SourceTV Demo` | **SourceTV** | 1 |
+| snakewater | `Matcha Bookable` | `SourceTV Demo` | **SourceTV** | 1 |
+| ashville73 | `Matcha Bookable` | `SourceTV Demo` | **SourceTV** | 1 |
+| comp | `Spire Server` | `SourceTV Demo` | **SourceTV** | 1 |
+| saytext2 | `GNDS RGL Highlander Match` | `SourceTV Demo` | **SourceTV** | 1 |
+| decal | `sigafoo36.game.nfoservers.com: Tomat△` | `Tomat△` | POV | 0 |
+| protocol23 | `95.156.230.156:27085` | `[GC]Kimo [DK]` | POV | 0 |
+| short2024 | `localhost:27015` | `Icewind \| demos.tf` | POV | 0 |
+| small | `localhost:27015` | `Icewind \| demos.tf` | POV | 0 |
+
+**推论**：§8 里「真实 SourceTV 语料缺失」这一项从来就不成立。
+`ORACLE-GATE=PASS` 的 9 份里本来就有 5 份 SourceTV —— 包括 bagel，
+也就是整个 P0 缺陷最初被发现的那份 demo。清单要求的
+「SourceTV delta/base 语义」一直有 SourceTV 侧证据，只是被错误地标成了 POV。
+
+修复：判定收敛到 `namesIndicateSourceTv()`（`demo_header.cpp` 匿名命名空间），
+`parseDemoHeader` 与 `classifyDemoRecording` 共用；`servername` 与 `clientname`
+任一含 `sourcetv`/`hltv`（大小写不敏感）即判 SourceTV。
+回归用例写在 `presentation_probe.cpp::checkRecording()`，取的就是上表里的
+两对真实字段（`Matcha Bookable` + `SourceTV Demo` 必须判 SourceTV；
+`169.254.129.46:10120` + `Icewind | demos.tf` 必须判 POV）。
+新增 `oracle-recording-types.sh` 把 9 份的判定钉成可 diff 的读数。
+
+### 0.2 普查判据恒为通过（`CORPUS-CENSUS=PASS` 但什么都没查）
+
+`corpus-census.py` 第一版的 `parse_report()` 只解析 `header=` 那一行。
+探针把其余计数器分行打印，于是 `entity_failures` / `malformed_packets` /
+`packet_entity_decode_failures` 等 8 个字段全部读成「缺失」，
+而断言循环写的是「字段存在且非 0 才算失败」→ 缺失被当成跳过。
+结果：24 份 demo 报 `CORPUS-CENSUS=PASS`，同一份汇总里 `sum_packets=0`。
+
+修复三条：
+1. 解析所有 `key=value` 行（`message_type_histogram:` 行除外）。
+2. **字段缺失即失败**（`REQUIRED_FIELDS`），不再静默跳过。
+3. `packets_scanned=0` 即失败 —— 「什么都没查」不能读成「什么都没错」。
+
+`census-negative-test.sh` 用 4 个变异证明该判据能变红（改计数器、删字段、
+清零包数、伪造分类分歧），恢复后报告逐字节相同。
+
+### 0.3 探针改了输出却没有证明旧读数没动
+
+给 `entity_protocol_probe` 加 `recording_stream=` 一行时，没有任何东西证明
+原有计数器没被顺手改掉。补 `check-probe-output-additive.sh`：
+把新行过滤掉后与 `evidence/final/*.txt` 的存档报告逐字节比对，9/9 相同。
+
+### 0.4 顺带补上的读数
+
+`entity_protocol_probe` 现在同时输出：
+`recording=`（仅头字段）、`recording_stream=`（完整分类器）、
+`recording_header_name=`、`server_info_count=`、`server_info_hltv=`、
+`server_info_replay_bit=`、`source_tv_flag=`。
+加这一行的直接原因：头判定看不到流内 `svc_ServerInfo` 的 `m_bIsHLTV` 位，
+所以普查既无法验证 SourceTV 标记，也无法发现语料里到底有没有 SourceTV。
+
+---
+
 ## 1. 提交、基线与修改文件
 
 | 项 | 值 |
@@ -13,6 +90,7 @@
 | 测试树 | `D:\TF2_Native_Test`，分支 `p0-entity-protocol` |
 | 导入提交 | `7ab4e72` = `git archive d585af8 native` 的 `native/` 树 |
 | **修复提交** | **`658ae69`** `fix(p0): decode the message types that were abandoning whole packets` |
+| **第二遍复核提交** | **`226d119`** `fix(p0): SourceTV demos were classified as POV, and the census could not go red` |
 | 上游基线 | `d585af8`（`native-mvp`；`HANDOFF` 记录的 `51f6f0d` 是它的父提交） |
 | 源目录状态 | `work/native-mvp-source` HEAD `d585af8`，`git status` 干净 |
 
@@ -406,22 +484,24 @@ work/wt-P0-sourcetv-fix    HEAD=7b8d97d dirty=5   <- 文件 mtime 11:45–11:48�
 ### 已验证
 
 - 9/9 本地 demo：`entity_failures=0 malformed_packets=0 unknown_message_packets=0`。
-- 9/9 的录制类型判为 `POV (heuristic)`，满足"POV 保持 0 failures"。
-  **注意这是启发式判定**（探针输出里带 `(heuristic)` 后缀），不是从 SourceTV
-  标记字段直接读出来的 —— 所以它不能替代"真实 SourceTV 语料"那一项。
-- bagel 与 snakewater 全量扫描通过（清单指定）。
+- **9/9 的录制类型已由头字段与流内标记双向确认**（`oracle-recording-types.sh`，
+  `ORACLE-RECORDING-TYPES=PASS`）：5 份 SourceTV（`clientname="SourceTV Demo"`，
+  流内 `m_bIsHLTV=1`）+ 4 份 POV（`m_bIsHLTV=0`），两种判定 9/9 一致。
+  见 §0.1 —— 第一遍把 9 份全标成 POV 是分类器只读 `servername` 所致。
+- bagel 与 snakewater 全量扫描通过（清单指定）。**两份都是 SourceTV**，
+  所以清单的「SourceTV delta/base 语义」有直接证据。
 - 与 Rust oracle 的包数 / 实体更新数 / enter 数逐值对照（§4.7）。
 - 58 个 bit-exact fixture 断言通过，覆盖 baseline / delta / Preserve / Leave / Delete。
-- 5 个变异全部变红，恢复后读数逐字节相同。
+- 6 个变异全部变红，恢复后读数逐字节相同。
 - 干净全量构建 21 个 exe，0 error，1 个既有警告。
 - 新增 5 个消息解码器中的 3 个（`net_File` / `svc_SetPause` / `svc_BSPDecal`）
   在真实 demo 上确实触发（§4.4）。
 
 ### 未验证（本机做不到，明确标出）
 
-- **真实 SourceTV 语料**。本机 9 份 demo 全部被启发式判为 POV。
-  清单的"SourceTV delta/base 语义"只有 POV 侧证据，SourceTV 侧缺语料。
-  需要外部提供一份真实 SourceTV `.dem` 才能关闭这一项。
+- ~~**真实 SourceTV 语料**~~ —— **已关闭，见 §0.1**。本机 9 份 oracle 语料里
+  5 份是真实 SourceTV（bagel / snakewater / ashville73 / comp / saytext2），
+  全部通过 oracle 逐值对照。原先写「缺语料」是分类器缺陷造成的误判。
 - **`svc_Menu` / `svc_CmdKeyValues`**：本地 demo 零出现，只有 fixture 证据。
 - **主程序画面**：本次只跑探针，未做人工画面确认（属外部输入）。
 - **本机 exe 哈希不可复现**（本次实测）：`touch` 源码强制重链接两次，产物 sha256 不同，
@@ -538,8 +618,12 @@ P0 的核心缺口已闭环：bagel 从 `entity_failures=6581 / decode_failures=
 降到 0，snakewater 与另外 7 份 demo 同样归零，失败原因为"5 个消息类型没有
 解码分支导致整包被丢弃"，不是 SendProp 位流语义错误。
 
-阻塞下一项的唯一外部输入是**真实 SourceTV 语料**。P1 的实体回放画面依赖本项
-的状态重建，现在状态本身可信了，但画面需要人工确认，属外部输入。
+**清单要求的 SourceTV 侧证据成立**：9 份 oracle 语料里 5 份是真实 SourceTV
+（§0.1），全部通过 oracle 逐值对照；其中 bagel 正是 P0 缺陷的发现样本。
+第一遍写「SourceTV 语料缺失」是分类器缺陷造成的误判，已在本轮修正。
+
+仍然阻塞的只有**人工画面确认**（外部输入）。P1 的实体回放画面依赖本项的状态
+重建，现在状态本身可信了，但画面必须由人看。
 
 ---
 

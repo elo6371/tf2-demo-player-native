@@ -1,0 +1,12 @@
+
+autorecord_2026-09-20_15-38-38.dem  size=143.0 MB  seconds=138.3  peak_rss=1590 MB  throughput=1.03 MB/s
+    header=1 index=1 scan=1 recording=POV (heuristic) protocol=24 map=pl_patagonia commands=506527 packets=238547
+    packets_scanned=238547 malformed_packets=0 unknown_message_packets=0
+    unknown_message_types=<none>
+    packet_entities=238543 packet_entity_updates=8010304 header_updates=8010304 delta_packets=238542
+    enter=564040 preserve=6842422 leave=425196 delete=178646
+    entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+    delta_base_unavailable=4746 history_gap=0 history_gap_tick=0 history_dropped_packets=928
+    instance_baselines=145 baseline_applied=497205 baseline_misses=66835 baseline_apply_failures=0
+    string_table_user_data_max_bytes=7669
+    message_types_seen_without_decoder: <none>

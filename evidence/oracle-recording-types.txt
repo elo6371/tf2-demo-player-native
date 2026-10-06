@@ -1,0 +1,12 @@
+demo         expect     header     stream   hltv_bit replay_bit verdict
+bagel        SourceTV   SourceTV   SourceTV 1        0        OK
+snakewater   SourceTV   SourceTV   SourceTV 1        0        OK
+ashville73   SourceTV   SourceTV   SourceTV 1        0        OK
+comp         SourceTV   SourceTV   SourceTV 1        0        OK
+saytext2     SourceTV   SourceTV   SourceTV 1        0        OK
+decal        POV        POV        POV      0        0        OK
+protocol23   POV        POV        POV      0        0        OK
+short2024    POV        POV        POV      0        0        OK
+small        POV        POV        POV      0        0        OK
+
+ORACLE-RECORDING-TYPES=PASS

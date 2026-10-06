@@ -78,6 +78,19 @@ must_appear() { # must_appear <label> <file> <literal-line>
   fi
 }
 
+# Some readings must NOT move under a given mutation. A mutation that changes
+# them means the two signals are not as independent as the design claims.
+must_hold() { # must_hold <label> <file> <regex> <expected>
+  local label="$1" file="$2" regex="$3" want="$4" got
+  got="$(value "$file" "$regex")"
+  if [ "$got" = "$want" ]; then
+    printf 'MUTATION-HOLD  %-56s %s (unchanged)\n' "$label" "$got"
+  else
+    printf 'MUTATION-BROKE %-56s got=%s want=%s\n' "$label" "${got:-<none>}" "$want"
+    rc_all=1
+  fi
+}
+
 echo "=== fixed-build readings (the values every mutation must move away from) ==="
 "$PROBE" "$BAGEL"   > "$OUT/bagel.fixed.txt"   2>&1
 "$PROBE" "$PROTO23" > "$OUT/proto23.fixed.txt" 2>&1
@@ -199,8 +212,17 @@ for case_id in $CASES; do
       "$PROBE" "$BAGEL" > "$OUT/bagel.m6.txt" 2>&1
       must_move "m6 classifier regressed -> bagel header verdict" "$OUT/bagel.m6.txt" \
         'recording=[^ ]*' 'SourceTV'
-      must_move "m6 classifier regressed -> bagel stream verdict" "$OUT/bagel.m6.txt" \
+      must_move "m6 classifier regressed -> bagel recording_header_name" "$OUT/bagel.m6.txt" \
+        'recording_header_name=[0-9]' '1'
+      # This one must NOT move. recording_stream consults svc_ServerInfo's
+      # m_bIsHLTV, which is an independent signal from the header names, so a
+      # broken header classifier cannot hide a SourceTV demo that carries the
+      # bit. Asserting it pins that redundancy instead of assuming it -- the
+      # first version of this case wrongly expected it to move and read GREEN.
+      must_hold "m6 classifier regressed -> bagel stream verdict stays" "$OUT/bagel.m6.txt" \
         'recording_stream=[A-Za-z]*' 'SourceTV'
+      must_hold "m6 classifier regressed -> bagel hltv bit stays" "$OUT/bagel.m6.txt" \
+        'server_info_hltv=[0-9]' '1'
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac
