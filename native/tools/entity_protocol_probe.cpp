@@ -86,6 +86,21 @@ const char* recordingName(tf2::native::DemoRecordingType type) {
   return tf2::native::demoRecordingTypeName(type);
 }
 
+// The header alone cannot tell SourceTV from POV: TF2's SourceTV demos are not
+// required to spell "SourceTV" in servername, and POV demos are not required to
+// fill in clientname. The authoritative in-stream marker is svc_ServerInfo's
+// m_bIsHLTV bit, which classifyDemoRecording() also consults. The probe used to
+// print only the header verdict, so the corpus census could not see whether any
+// demo in the corpus actually declared itself HLTV. Print both.
+const char* recordingKindName(tf2::native::DemoRecordingKind kind) {
+  switch (kind) {
+    case tf2::native::DemoRecordingKind::SourceTv: return "SourceTV";
+    case tf2::native::DemoRecordingKind::Pov: return "POV";
+    case tf2::native::DemoRecordingKind::Unknown: return "unknown";
+  }
+  return "unknown";
+}
+
 void printHistogram(const DemoNetworkSummary& summary) {
   std::cout << "message_type_histogram:";
   bool any = false;
@@ -244,6 +259,14 @@ int wmain(int argc, wchar_t** argv) {
               << " commands=" << index.commandCount
               << " packets=" << index.packetCount << "\n";
     if (!scanOk) { exitCode = 2; continue; }
+
+    const auto classification = tf2::native::classifyDemoRecording(header, summary);
+    std::cout << "recording_stream=" << recordingKindName(classification.kind)
+              << " recording_header_name=" << (classification.headerName ? 1 : 0)
+              << " server_info_count=" << summary.serverInfoCount
+              << " server_info_hltv=" << (summary.serverInfoHltv ? 1 : 0)
+              << " server_info_replay_bit=" << (summary.serverInfoReplayBit ? 1 : 0)
+              << " source_tv_flag=" << (summary.sourceTv ? 1 : 0) << "\n";
 
     if (!histogramOnly) printSummary(summary);
     if (!summaryOnly) printHistogram(summary);

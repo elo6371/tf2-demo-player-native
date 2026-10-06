@@ -5,3 +5,12 @@ native/build-nmake/
 # 945k-line diff is not reviewable. The gate result is in oracle-gate-summary.txt.
 evidence/**/oracle-survey-*.txt
 evidence/**/oracle-enters-*.txt
+# One raw probe report per demo. 1643 reports for the full corpus run: kept on
+# disk so a failure can be re-read instead of re-run, but they are derived data.
+# The gate reads corpus-summary.json + corpus-failures.txt, which stay tracked.
+evidence/corpus*/reports/
+evidence/corpus*/corpus.csv
+# Truncated and rewritten by every build-cmake.sh run, so it churns on every
+# commit. The build reading that matters is captured per run in
+# evidence/verify/1-build.txt.
+evidence/cmake-build.log

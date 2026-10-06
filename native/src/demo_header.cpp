@@ -47,6 +47,22 @@ bool validMapName(const std::string& value) {
   });
 }
 
+// src/public/demofile/demoformat.h (Valve) documents the two name fields as:
+//   char servername[MAX_OSPATH];  // Name of server
+//   char clientname[MAX_OSPATH];  // Name of client who recorded the game
+// A SourceTV recording is written by the server's SourceTV client, so the
+// recorder's name lands in clientname: the real match demos in this corpus carry
+// clientname="SourceTV Demo" while servername is an ordinary hostname
+// ("Matcha Bookable", "Spire Server", "na.serveme.tf #633053"). Checking only
+// servername labelled all of those POV, which is how five SourceTV demos were
+// reported as POV in the P0 acceptance run.
+bool namesIndicateSourceTv(const DemoHeader& header) {
+  return containsInsensitive(header.serverName, "sourcetv")
+      || containsInsensitive(header.serverName, "hltv")
+      || containsInsensitive(header.clientName, "sourcetv")
+      || containsInsensitive(header.clientName, "hltv");
+}
+
 } // namespace
 
 bool parseDemoHeader(const std::vector<std::uint8_t>& bytes, DemoHeader& header) {
@@ -65,7 +81,7 @@ bool parseDemoHeader(const std::vector<std::uint8_t>& bytes, DemoHeader& header)
   header.frames = readValue<std::int32_t>(bytes, 1064);
   if (!validMapName(header.mapName)) { header.error = "demo map name is invalid"; return false; }
   if (header.ticks < 0 || header.frames < 0 || header.playbackTime < 0.0f) { header.error = "demo timing fields are invalid"; return false; }
-  if (containsInsensitive(header.serverName, "sourcetv") || containsInsensitive(header.serverName, "hltv")) {
+  if (namesIndicateSourceTv(header)) {
     header.recordingType = DemoRecordingType::SourceTv;
   } else if (!header.clientName.empty()) {
     header.recordingType = DemoRecordingType::PovHeuristic;
@@ -2236,7 +2252,11 @@ bool findObserverViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int3
 
 DemoRecordingClassification classifyDemoRecording(const DemoHeader& header, const DemoNetworkSummary& summary) {
   DemoRecordingClassification result;
-  result.headerName = header.recordingType == DemoRecordingType::SourceTv;
+  // Re-derive from the names rather than trusting header.recordingType alone, so
+  // a caller holding a hand-built DemoHeader gets the same verdict as one that
+  // went through parseDemoHeader.
+  result.headerName = header.recordingType == DemoRecordingType::SourceTv
+      || namesIndicateSourceTv(header);
   result.serverInfoHltv = summary.serverInfoHltv;
   result.serverInfoReplayBit = summary.serverInfoReplayBit;
   if (result.headerName || result.serverInfoHltv) {

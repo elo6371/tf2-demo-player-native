@@ -66,7 +66,29 @@ bool checkRecording() {
   summary.serverInfoHltv = false;
   header.recordingType = tf2::native::DemoRecordingType::SourceTv;
   const auto fromName = tf2::native::classifyDemoRecording(header, summary);
-  return fromName.kind == tf2::native::DemoRecordingKind::SourceTv && fromName.headerName;
+  if (fromName.kind != tf2::native::DemoRecordingKind::SourceTv || !fromName.headerName) return false;
+
+  // Regression (found 2026-10-06): every real SourceTV demo in the corpus has an
+  // ordinary server hostname and puts the recorder's name in clientname. A
+  // classifier that reads only servername calls all of them POV -- which is what
+  // the P0 acceptance run reported for bagel/snakewater/ashville/comp/saytext2.
+  // These two cases are the exact header pairs taken from those files.
+  tf2::native::DemoNetworkSummary noStream;
+  tf2::native::DemoHeader stvByName;
+  stvByName.serverName = "Matcha Bookable";
+  stvByName.clientName = "SourceTV Demo";
+  const auto fromClientName = tf2::native::classifyDemoRecording(stvByName, noStream);
+  if (fromClientName.kind != tf2::native::DemoRecordingKind::SourceTv) return false;
+  if (!fromClientName.headerName) return false;
+  if (std::string(fromClientName.label) != "SourceTV") return false;
+
+  // Negative control: an ordinary POV header must still read POV, or the check
+  // above would pass for the wrong reason.
+  tf2::native::DemoHeader povByName;
+  povByName.serverName = "169.254.129.46:10120";
+  povByName.clientName = "Icewind | demos.tf";
+  const auto povFromName = tf2::native::classifyDemoRecording(povByName, noStream);
+  return povFromName.kind == tf2::native::DemoRecordingKind::Pov;
 }
 
 tf2::native::EntityPropertyValue vectorValue(float x, float y, float z) {

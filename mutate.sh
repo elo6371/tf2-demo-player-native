@@ -9,7 +9,7 @@
 #
 # The tree MUST be committed first: `git checkout --` is the restore mechanism.
 #
-# Usage: bash mutate.sh [m1 m2 m3 m4 m5]
+# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6]
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -21,7 +21,7 @@ FIXPROBE=native/build-nmake/entity_message_fixture_probe.exe
 OUT=evidence/mutation
 mkdir -p "$OUT"
 
-CASES="${*:-m1 m2 m3 m4 m5}"
+CASES="${*:-m1 m2 m3 m4 m5 m6}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
@@ -49,7 +49,9 @@ PY
 
 restore() {
   git checkout -- native/ >/dev/null 2>&1
-  bash build-target.sh entity_protocol_probe entity_message_fixture_probe >/dev/null 2>&1
+  # Rebuild every target any case touched, or the next case would read a stale
+  # binary left over from the previous mutation.
+  bash build-target.sh entity_protocol_probe entity_message_fixture_probe presentation_probe >/dev/null 2>&1
 }
 
 value() { grep -oE "$2" "$1" | head -1 | cut -d= -f2; }
@@ -80,9 +82,11 @@ echo "=== fixed-build readings (the values every mutation must move away from) =
 "$PROBE" "$BAGEL"   > "$OUT/bagel.fixed.txt"   2>&1
 "$PROBE" "$PROTO23" > "$OUT/proto23.fixed.txt" 2>&1
 "$FIXPROBE"         > "$OUT/fixture.fixed.txt" 2>&1
-echo "bagel:   entity_failures=$(value "$OUT/bagel.fixed.txt" 'entity_failures=[0-9]+') malformed=$(value "$OUT/bagel.fixed.txt" 'malformed_packets=[0-9]+') baselines=$(value "$OUT/bagel.fixed.txt" 'instance_baselines=[0-9]+')"
+./native/build-nmake/presentation_probe.exe > "$OUT/recording.fixed.txt" 2>&1
+echo "bagel:   entity_failures=$(value "$OUT/bagel.fixed.txt" 'entity_failures=[0-9]+') malformed=$(value "$OUT/bagel.fixed.txt" 'malformed_packets=[0-9]+') baselines=$(value "$OUT/bagel.fixed.txt" 'instance_baselines=[0-9]+') recording=$(value "$OUT/bagel.fixed.txt" 'recording=[^ ]*')"
 echo "proto23: malformed=$(value "$OUT/proto23.fixed.txt" 'malformed_packets=[0-9]+') unknown=$(value "$OUT/proto23.fixed.txt" 'unknown_message_packets=[0-9]+')"
 echo "fixture: $(grep -oE 'fixture_failures=[0-9]+' "$OUT/fixture.fixed.txt")"
+echo "recording probe: $(grep -oE '"recording":[a-z]+' "$OUT/recording.fixed.txt")"
 
 for case_id in $CASES; do
   echo
@@ -172,6 +176,32 @@ for case_id in $CASES; do
       must_appear "m5 preserve loses the base -> untouched prop fails" "$OUT/fixture.m5.txt" \
         'FAIL delta preserve: untouched m_iTeamNum kept at 200'
       ;;
+    m6)
+      # Put the recording classifier back to reading servername only. This is the
+      # state the P0 acceptance run was in when it reported all nine oracle demos
+      # as POV; five of them are SourceTV match demos (clientname="SourceTV Demo").
+      echo "--- m6: classifier reads servername only again"
+      patch_in "$SRC" \
+        '  return containsInsensitive(header.serverName, "sourcetv")
+      || containsInsensitive(header.serverName, "hltv")
+      || containsInsensitive(header.clientName, "sourcetv")
+      || containsInsensitive(header.clientName, "hltv");' \
+        '  return containsInsensitive(header.serverName, "sourcetv")
+      || containsInsensitive(header.serverName, "hltv");' || { rc_all=1; continue; }
+      patch_in "$SRC" \
+        '  result.headerName = header.recordingType == DemoRecordingType::SourceTv
+      || namesIndicateSourceTv(header);' \
+        '  result.headerName = header.recordingType == DemoRecordingType::SourceTv;' || { rc_all=1; continue; }
+      bash build-target.sh presentation_probe entity_protocol_probe >/dev/null 2>&1
+      ./native/build-nmake/presentation_probe.exe > "$OUT/recording.m6.txt" 2>&1
+      must_appear "m6 classifier regressed -> presentation_probe recording flag" \
+        "$OUT/recording.m6.txt" '"recording":false'
+      "$PROBE" "$BAGEL" > "$OUT/bagel.m6.txt" 2>&1
+      must_move "m6 classifier regressed -> bagel header verdict" "$OUT/bagel.m6.txt" \
+        'recording=[^ ]*' 'SourceTV'
+      must_move "m6 classifier regressed -> bagel stream verdict" "$OUT/bagel.m6.txt" \
+        'recording_stream=[A-Za-z]*' 'SourceTV'
+      ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac
   restore
@@ -182,7 +212,9 @@ echo "=== restored tree: readings must be identical to the fixed build ==="
 "$PROBE" "$BAGEL"   > "$OUT/bagel.restored.txt"   2>&1
 "$PROBE" "$PROTO23" > "$OUT/proto23.restored.txt" 2>&1
 "$FIXPROBE"         > "$OUT/fixture.restored.txt" 2>&1
-for pair in "bagel.fixed.txt bagel.restored.txt" "proto23.fixed.txt proto23.restored.txt" "fixture.fixed.txt fixture.restored.txt"; do
+./native/build-nmake/presentation_probe.exe > "$OUT/recording.restored.txt" 2>&1
+for pair in "bagel.fixed.txt bagel.restored.txt" "proto23.fixed.txt proto23.restored.txt" \
+            "fixture.fixed.txt fixture.restored.txt" "recording.fixed.txt recording.restored.txt"; do
   set -- $pair
   if diff -q "$OUT/$1" "$OUT/$2" >/dev/null; then
     echo "RESTORED-IDENTICAL $1"
