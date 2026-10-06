@@ -1837,7 +1837,7 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
       else if (type == 14) { if (!readVoiceInit(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 15) { if (!readVoiceData(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 18) { if (!readSetView(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 17) { if (!readSounds(bits, summary, entry.tick)) packetValid = false; else { decodedAny = true; } }
+      else if (type == 17) { if (!readSounds(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 23) { if (!readUserMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 24) { if (!readEntityMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
