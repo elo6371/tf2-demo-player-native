@@ -121,6 +121,27 @@ add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp src/d
 target_include_directories(native_ui_probe PRIVATE include third_party/lzma)
 set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# P0 entity protocol census probe. Deliberately compiled with the same strict
+# flags as the product target (/W4 /permissive-) so a header change that would
+# break the product cannot hide behind a lenient probe build.
+add_executable(entity_protocol_probe
+  tools/entity_protocol_probe.cpp
+  src/demo_header.cpp
+  src/proto_wire.cpp
+)
+target_include_directories(entity_protocol_probe PRIVATE include)
+set_target_properties(entity_protocol_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# Synthetic wire fixtures for the message decoders. Same sources and same
+# strictness as the product target so a layout regression cannot hide here.
+add_executable(entity_message_fixture_probe
+  tools/entity_message_fixture_probe.cpp
+  src/demo_header.cpp
+  src/proto_wire.cpp
+)
+target_include_directories(entity_message_fixture_probe PRIVATE include)
+set_target_properties(entity_message_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 install(TARGETS tf2_demo_native native_install_smoke_probe
   RUNTIME DESTINATION .
 )
@@ -128,6 +149,8 @@ install(PROGRAMS tools/install_smoke_probe.ps1 DESTINATION .)
 
 if (MSVC)
   target_compile_options(tf2_demo_native PRIVATE /W4 /permissive- /EHsc /utf-8)
+  target_compile_options(entity_protocol_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
+  target_compile_options(entity_message_fixture_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_link_options(tf2_demo_native PRIVATE /DYNAMICBASE /NXCOMPAT)
 endif()
 

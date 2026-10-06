@@ -1,0 +1,13 @@
+header=1 index=1 scan=1 recording=POV (heuristic) protocol=24 map=pl_upward commands=171894 packets=80944
+packets_scanned=80944 malformed_packets=8 unknown_message_packets=7
+unknown_message_types=2,21,2,11,11,11,11
+packet_entities=80884 packet_entity_updates=1971011 header_updates=1970899 delta_packets=80883
+enter=158818 preserve=1655150 leave=121194 delete=35737
+entity_failures=49 entity_update_header_failures=0 packet_entity_decode_failures=49 prop_missing_table=0 prop_index=0 prop_value=0
+delta_base_unavailable=22057 history_gap=1 history_gap_tick=89912 history_dropped_packets=21398
+instance_baselines=6 baseline_applied=264 baseline_misses=158554 baseline_apply_failures=0
+active_entities=616 max_active_entities=648
+first_entity_failure_tick=89765 first_entity_failure_entity=1096 first_entity_failure_update=0 first_entity_failure_max_entries=1201 first_entity_failure_updated_entries=24 first_entity_failure_payload_bits=3122 first_entity_failure_diff=0
+first_delta_base_unavailable_tick=29828 first_delta_base_unavailable_from=29823
+message_type_histogram: 0(net_NOP)=13047 2(net_File)=2 3(net_Tick)=80886 4(net_StringCmd)=15 5(net_SetConVar)=3 6(net_SignonState)=2 7(svc_Print)=2 8(svc_ServerInfo)=1 11(svc_SetPause)=4 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=400 15(svc_VoiceData)=13 17(svc_Sounds)=21337 18(svc_SetView)=1 19(svc_FixAngle)=15 21(svc_BSPDecal)=1 23(svc_UserMessage)=1061 24(svc_EntityMessage)=197 25(svc_GameEvent)=7042 26(svc_PacketEntities)=80884 27(svc_TempEntities)=26760 28(svc_Prefetch)=2751
+message_types_seen_without_decoder: 2(net_File) 11(svc_SetPause) 21(svc_BSPDecal)

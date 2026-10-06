@@ -208,13 +208,29 @@ struct AssetReference {
   std::int64_t quality = 0;
 };
 
+// One property a packet actually wrote, addressed by its position in the
+// class's flattened SendTable. Storing the index instead of the composed
+// "owner.name" key keeps the record at 4 bytes + the value and makes it
+// allocation-free; replay rebuilds the key from the table.
+struct EntityPropChange {
+  std::uint32_t propIndex = 0;
+  EntityPropertyValue value;
+};
+
 struct EntityHistoryEvent {
   std::int32_t tick = 0;
   std::uint32_t packetOrdinal = 0;
   std::uint16_t entityIndex = 0;
   std::int32_t classId = -1;
   bool removed = false;
+  // Enter events carry the complete post-update state (instance baseline plus
+  // the wire properties). Preserve events carry only `changes`.
+  bool fullState = false;
   EntityState state;
+  // Properties touched by a Preserve update. Before this existed every event
+  // deep-copied the whole EntityState; on koth_bagel_rc13 that is 1.39M copies
+  // of a ~50-entry unordered_map and dominated the scan.
+  std::vector<EntityPropChange> changes;
 };
 
 struct EntityHistoryCheckpoint {
@@ -340,6 +356,15 @@ struct DemoNetworkSummary {
   std::size_t voiceInitCount = 0;
   std::size_t voiceDataCount = 0;
   std::size_t voicePayloadBits = 0;
+  // Message types the reference parser implements and this decoder used to
+  // abandon packets on. Counts are kept so "the decoder was actually reached"
+  // is a reading, not an assumption about dead code.
+  std::size_t fileMessageCount = 0;
+  std::size_t setPauseCount = 0;
+  std::size_t bspDecalCount = 0;
+  std::size_t menuCount = 0;
+  std::size_t cmdKeyValuesCount = 0;
+  bool setPauseState = false;
   std::size_t updateStringTableCount = 0;
   std::size_t packetEntitiesCount = 0;
   std::size_t packetEntityUpdates = 0;
@@ -442,7 +467,24 @@ struct DemoNetworkSummary {
   std::vector<ServerClassSchema> serverClassSchemas;
   int networkProtocol = 0;
   std::size_t stringTableCount = 0;
+  // Largest user-data byte length seen on any string-table entry. The wire
+  // field is 14 or 16 bits wide and the local Rust reference imposes NO upper
+  // bound (work/_refs_demostf/src/demo/message/stringtable.rs, read_table_entry:
+  // read the length, then skip length*8 bits). This decoder used to reject
+  // anything over 1024, which turned legal data -- instancebaseline entry 3 of
+  // koth_bagel_rc13 is 7669 bytes -- into a malformed packet. Recording the
+  // observed maximum makes "the old cap was wrong" a checkable reading.
+  std::size_t stringTableUserDataMaxBytes = 0;
   std::vector<std::uint32_t> unknownMessageTypes;
+  // Per-type svc_/net_ message histogram over the whole demo. The message loop
+  // has to abandon a packet when it meets a type it cannot skip (the length is
+  // type-specific), so any type that appears in the histogram with a non-zero
+  // count is a type whose decoder MUST exist. This turns "did we implement the
+  // whole protocol?" from a guess into a reading: compare the non-zero entries
+  // against the handled type list, and the set of types that are decoded but
+  // never appear is the set that is untested by this corpus.
+  static constexpr std::size_t kMessageTypeHistogramSize = 64;
+  std::size_t messageTypeCounts[kMessageTypeHistogramSize] = {};
   std::vector<std::string> stringTableNames;
   std::unordered_map<std::uint16_t, std::string> soundPrecache;
   std::unordered_map<std::uint32_t, std::string> stringTableById;
@@ -488,6 +530,30 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states);
 void appendEntityHistoryPacket(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                                std::int32_t deltaFrom, std::vector<EntityHistoryEvent> events);
+// Outcome of decoding one demo message stream (the payload of a dem_signon or
+// dem_packet entry: a sequence of 6-bit-typed net messages).
+struct DemoMessageStreamResult {
+  std::size_t messagesDecoded = 0;  // messages whose decoder returned true
+  std::size_t bitsConsumed = 0;
+  bool packetValid = true;
+  bool decodedAny = false;
+  bool hitUnknownType = false;
+  std::uint32_t unknownType = 0;
+  std::int32_t lastNetworkTick = -1;
+};
+
+// Decodes a raw message stream exactly the way scanKnownDemoMessages does.
+// Exists so tools/entity_message_fixture_probe.cpp can drive the decoders with
+// synthetic wire bytes -- including message layouts that no local demo carries
+// in isolation -- without fabricating a whole .dem file. `payloadBits` bounds
+// the stream; bits inside the last retained byte stay readable, matching the
+// byte-aligned entry lengths on the real path.
+bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
+                             std::size_t payloadBits,
+                             std::int32_t entryTick,
+                             std::int32_t initialNetworkTick,
+                             DemoNetworkSummary& summary,
+                             DemoMessageStreamResult& result);
 bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int32_t firstTick,
                                      std::int32_t lastTick, std::vector<TempEntityEvent>& events);
 bool parseDemoCmdInfo(const std::uint8_t* bytes, std::size_t size, DemoViewSample& sample);

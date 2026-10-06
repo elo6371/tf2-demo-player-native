@@ -114,6 +114,9 @@ void pushHistory(tf2::native::DemoNetworkSummary& summary, std::int32_t tick) {
   event.tick = tick;
   event.entityIndex = 1;
   event.classId = tick;
+  // This fixture encodes the tick in the state itself, so it must be replayed
+  // as a whole-state event rather than a property delta.
+  event.fullState = true;
   event.state.classId = tick;
   tf2::native::appendEntityHistoryPacket(summary, tick, false, -1, {event});
 }

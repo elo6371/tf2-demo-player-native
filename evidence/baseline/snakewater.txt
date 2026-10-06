@@ -1,0 +1,13 @@
+header=1 index=1 scan=1 recording=POV (heuristic) protocol=24 map=cp_snakewater_final1 commands=64337 packets=64333
+packets_scanned=64333 malformed_packets=1 unknown_message_packets=0
+unknown_message_types=<none>
+packet_entities=64330 packet_entity_updates=1427501 header_updates=1427501 delta_packets=64329
+enter=9822 preserve=1409980 leave=1314 delete=6385
+entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+delta_base_unavailable=0 history_gap=0 history_gap_tick=0 history_dropped_packets=174
+instance_baselines=6 baseline_applied=288 baseline_misses=9534 baseline_apply_failures=0
+active_entities=626 max_active_entities=675
+first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+first_delta_base_unavailable_tick=-1 first_delta_base_unavailable_from=-1
+message_type_histogram: 0(net_NOP)=8094 3(net_Tick)=64331 5(net_SetConVar)=10 6(net_SignonState)=3 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=77 14(svc_VoiceInit)=1 17(svc_Sounds)=12402 18(svc_SetView)=1 23(svc_UserMessage)=100 24(svc_EntityMessage)=240 25(svc_GameEvent)=10703 26(svc_PacketEntities)=64330 27(svc_TempEntities)=14441 28(svc_Prefetch)=3317 30(svc_GameEventList)=1
+message_types_seen_without_decoder: <none>

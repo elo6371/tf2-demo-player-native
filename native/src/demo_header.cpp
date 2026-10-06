@@ -666,9 +666,106 @@ bool readStringCommand(MessageBits& bits, DemoNetworkSummary& summary) {
 
 bool readPrefetch(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t soundIndex = 0;
-  const std::uint32_t width = summary.networkProtocol > 23 ? 14u : 13u;
+  // MAX_SOUND_INDEX_BITS is 14 from protocol 23 onward, not 24. First source:
+  // Valve source-sdk-2013, src/public/soundinfo.h -- SoundInfo_t::ReadDelta()
+  // does `if ( nProtoVersion > 22 ) READ_DELTA_UINT( nSoundNum,
+  // MAX_SOUND_INDEX_BITS )` and src/public/soundflags.h defines
+  // MAX_SOUND_INDEX_BITS 14. The local Rust reference agrees:
+  // work/_refs_demostf/src/demo/message/prefetch.rs uses
+  // `if protocol_version > 22 { 14 } else { 13 }`.
+  // Reading 13 bits for a protocol-23 demo shifts every later message in the
+  // packet by one bit, so the rest of the packet decodes as garbage types.
+  const std::uint32_t width = summary.networkProtocol > 22 ? 14u : 13u;
   if (!bits.read(width, soundIndex)) return false;
   ++summary.prefetchCount;
+  return true;
+}
+
+// --- Message types the local reference parser implements and this decoder
+// --- used to abandon the whole packet on.
+// Numbers are Valve's SVC_MESSAGES / NET_Messages enumerations
+// (source-sdk-2013 src/engine/netmessages.h). Layouts are from the local Rust
+// reference, work/_refs_demostf/src/demo/message/:
+//   generated.rs -- FileMessage, SetPauseMessage, MenuMessage,
+//                   CmdKeyValuesMessage (primitive-only structs)
+//   bspdecal.rs  -- BSPDecalMessage (uses read_bit_coord, NOT BitCoordMP)
+// Leaving any of these unimplemented does not merely skip a message: the
+// message loop cannot know its length, so it drops the rest of the packet,
+// including the svc_PacketEntities that follows in the same packet.
+
+// bf_read::ReadBitCoord -- source-sdk-2013 src/public/bitbuf.cpp.
+// 1 bit has_int, 1 bit has_frac, and only if either is set: 1 bit sign,
+// 14-bit integer part, 5-bit fractional part. Max 22 bits.
+bool skipBitCoord(MessageBits& bits) {
+  std::uint32_t hasInt = 0, hasFrac = 0;
+  if (!bits.read(1, hasInt) || !bits.read(1, hasFrac)) return false;
+  if (!hasInt && !hasFrac) return true;
+  std::uint32_t sign = 0;
+  if (!bits.read(1, sign)) return false;
+  if (hasInt && !bits.skip(14)) return false;
+  if (hasFrac && !bits.skip(5)) return false;
+  return true;
+}
+
+// net_File = 2: transfer_id(32) + null-terminated name + requested(1).
+bool readFileMessage(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t transferId = 0, requested = 0;
+  std::string fileName;
+  if (!bits.read(32, transferId) || !bits.readString(fileName) || !bits.read(1, requested)) return false;
+  ++summary.fileMessageCount;
+  return true;
+}
+
+// svc_SetPause = 11: 1 bit. This is the type that used to truncate the packet
+// that carried the demo's first svc_PacketEntities after a pause.
+bool readSetPause(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t pause = 0;
+  if (!bits.read(1, pause)) return false;
+  ++summary.setPauseCount;
+  summary.setPauseState = pause != 0;
+  return true;
+}
+
+// svc_BSPDecal = 21: 3 presence flags, a conditional BitCoord per axis, a
+// 9-bit texture index, a 1-bit "has entity/model" flag with an 11-bit entity
+// and 13-bit model index, then a low-priority bit.
+bool readBspDecal(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t hasX = 0, hasY = 0, hasZ = 0;
+  if (!bits.read(1, hasX) || !bits.read(1, hasY) || !bits.read(1, hasZ)) return false;
+  if (hasX && !skipBitCoord(bits)) return false;
+  if (hasY && !skipBitCoord(bits)) return false;
+  if (hasZ && !skipBitCoord(bits)) return false;
+  std::uint32_t textureIndex = 0;
+  if (!bits.read(9, textureIndex)) return false;
+  std::uint32_t hasIndices = 0;
+  if (!bits.read(1, hasIndices)) return false;
+  if (hasIndices) {
+    std::uint32_t entIndex = 0, modelIndex = 0;
+    if (!bits.read(11, entIndex) || !bits.read(13, modelIndex)) return false;
+  }
+  std::uint32_t lowPriority = 0;
+  if (!bits.read(1, lowPriority)) return false;
+  ++summary.bspDecalCount;
+  return true;
+}
+
+// svc_Menu = 29: kind(16) + byte length(16) + that many bytes.
+bool readMenu(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t kind = 0, length = 0;
+  if (!bits.read(16, kind) || !bits.read(16, length)) return false;
+  const std::size_t payloadBits = static_cast<std::size_t>(length) * 8u;
+  if (payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
+  ++summary.menuCount;
+  return true;
+}
+
+// svc_CmdKeyValues = 32: byte length(32) + that many bytes.
+bool readCmdKeyValues(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t length = 0;
+  if (!bits.read(32, length)) return false;
+  const std::size_t payloadBits = static_cast<std::size_t>(length) * 8u;
+  if (payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
+  ++summary.cmdKeyValuesCount;
   return true;
 }
 
@@ -876,7 +973,8 @@ bool readSendPropValue(MessageBits& bits, const SendPropSchema& prop, EntityProp
 }
 
 bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, EntityState& state, DemoNetworkSummary* summary = nullptr,
-    std::int32_t packetTick = -1, std::int32_t entityIndex = -1, const char* stage = "entity") {
+    std::int32_t packetTick = -1, std::int32_t entityIndex = -1, const char* stage = "entity",
+    std::vector<EntityPropChange>* changes = nullptr) {
   const bool isTempStage = summary != nullptr && std::strcmp(stage, "temp") == 0;
   auto recordTempFailure = [&](const char* name, const SendPropSchema* prop) {
     if (!isTempStage || summary->firstTempEntityFailureTick >= 0) return;
@@ -929,6 +1027,12 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
       return false;
     }
     const std::string key = prop.ownerTable.empty() ? prop.name : prop.ownerTable + "." + prop.name;
+    if (changes) {
+      EntityPropChange change;
+      change.propIndex = static_cast<std::uint32_t>(lastProp);
+      change.value = value;  // copy for the history record; the state takes the original
+      changes->push_back(std::move(change));
+    }
     state.properties[key] = std::move(value);
   }
   return false;
@@ -1067,12 +1171,22 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       if (lastEntity < 0 || lastEntity >= 2048 || static_cast<std::size_t>(lastEntity) >= summary.entityClassByIndex.size() || summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] < 0) { ++summary.entityUnknownStateFailures; if (summary.firstEntityUnknownStateTick < 0) { summary.firstEntityUnknownStateTick = packetTick; summary.firstEntityUnknownStateEntity = lastEntity; summary.firstEntityUnknownStateUpdate = static_cast<std::int32_t>(updateType); summary.firstEntityUnknownStateMaxEntries = static_cast<std::int32_t>(maxEntries); summary.firstEntityUnknownStateUpdatedEntries = static_cast<std::int32_t>(updatedEntries); summary.firstEntityUnknownStatePayloadBits = static_cast<std::int32_t>(payloadBits); summary.firstEntityUnknownStateDiff = static_cast<std::int32_t>(diff); } entityUpdatesComplete = false; break; }
       const auto classId = static_cast<std::uint32_t>(summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)]);
       const auto* table = tableForClass(summary, classId);
-      EntityState candidate = summary.entityStates[static_cast<std::size_t>(lastEntity)];
-      if (!readEntityPropUpdates(bits, table, candidate, &summary, packetTick, lastEntity, "preserve")) { ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break; }
-      summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
+      // std::swap instead of copy-and-move-back. EntityState owns an
+      // unordered_map with hundreds of entries, and this runs once per updated
+      // entity -- 1.4M times for koth_bagel_rc13. The previous form made two
+      // full copies of that map per update.
+      auto& liveState = summary.entityStates[static_cast<std::size_t>(lastEntity)];
+      EntityState candidate;
+      std::swap(candidate, liveState);
+      std::vector<EntityPropChange> changes;
+      if (!readEntityPropUpdates(bits, table, candidate, &summary, packetTick, lastEntity, "preserve", &changes)) {
+        std::swap(candidate, liveState);  // failure: restore the original state
+        ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break;
+      }
+      std::swap(candidate, liveState);
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
                                summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)], false,
-                               summary.entityStates[static_cast<std::size_t>(lastEntity)]});
+                               false, {}, std::move(changes)});
     } else if (updateType == 1) {
       ++summary.packetEntityLeaveCount;
       // Leave means the entity left the PVS, not that it was destroyed. Keep
@@ -1080,7 +1194,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
     } else if (updateType == 3) {
       ++summary.packetEntityDeleteCount;
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
-      if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, {}});
+      if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, false, {}, {}});
     } else if (updateType == 2) {
       if (summary.firstPacketEntitiesEnterTick < 0) {
         summary.firstPacketEntitiesEnterTick = packetTick;
@@ -1123,8 +1237,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       summary.maxActiveEntityCount = std::max(summary.maxActiveEntityCount, summary.activeEntityCount);
       summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
-                               static_cast<std::int32_t>(classId), false,
-                               summary.entityStates[static_cast<std::size_t>(lastEntity)]});
+                               static_cast<std::int32_t>(classId), false, true,
+                               summary.entityStates[static_cast<std::size_t>(lastEntity)], {}});
     } else { ++summary.packetEntityDecodeFailures; ++summary.entityUpdateHeaderFailures; entityUpdatesComplete = false; break; }
     if (bits.remaining() <= payloadEnd) break;
   }
@@ -1139,7 +1253,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
         summary.entityClassByIndex[removedEntity] = -1;
         if (removedEntity < summary.entityStates.size()) summary.entityStates[removedEntity] = {};
         if (summary.activeEntityCount > 0) --summary.activeEntityCount;
-        if (removedEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(removedEntity), -1, true, {}});
+        if (removedEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(removedEntity), -1, true, false, {}, {}});
       }
     }
   }
@@ -1227,7 +1341,13 @@ bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
           if (!update.skip(summary.soundPrecacheFixedBits)) { ok = false; break; }
         } else {
           std::uint32_t userBytes = 0;
-          if (!update.read(14, userBytes) || userBytes > 1024u || !update.skip(static_cast<std::size_t>(userBytes) * 8u)) { ok = false; break; }
+          // 14-bit length field; the reference parser has no cap. skip() still
+          // refuses to run past the end of the payload.
+          if (!update.read(14, userBytes)) { ok = false; break; }
+          if (userBytes > summary.stringTableUserDataMaxBytes) {
+            summary.stringTableUserDataMaxBytes = userBytes;
+          }
+          if (!update.skip(static_cast<std::size_t>(userBytes) * 8u)) { ok = false; break; }
         }
       }
       if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
@@ -1667,7 +1787,13 @@ bool readInstanceBaselinePayload(const std::vector<std::uint8_t>& payload, std::
       std::uint32_t userDataBits = fixedUserData ? fixedUserDataBits : 0;
       if (!fixedUserData) {
         std::uint32_t userDataBytes = 0;
-        if (!data.read(14, userDataBytes) || userDataBytes > 1024u) return false;
+        // No 1024-byte cap: the length field is 14 bits and the reference
+        // parser imposes no bound on it. Over-long values are still rejected,
+        // by the per-bit read below running off the end of the payload.
+        if (!data.read(14, userDataBytes)) return false;
+        if (userDataBytes > summary.stringTableUserDataMaxBytes) {
+          summary.stringTableUserDataMaxBytes = userDataBytes;
+        }
         userDataBits = userDataBytes * 8u;
       }
       std::vector<std::uint8_t> raw((static_cast<std::size_t>(userDataBits) + 7u) / 8u, 0);
@@ -1699,7 +1825,15 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoN
       std::vector<std::uint8_t> raw;
       if (hasUserData) {
         std::uint32_t userBytes = 0;
-        if (!bits.read(16, userBytes) || userBytes > 1024u) return false;
+        // 16-bit length field, and the reference parser imposes no cap on it.
+        // instancebaseline entry 3 of koth_bagel_rc13 is 7669 bytes; the old
+        // `> 1024u` guard rejected it and reported the whole dem_stringtables
+        // packet as malformed. Bounded here by the payload length instead.
+        if (!bits.read(16, userBytes)) return false;
+        if (userBytes > summary.stringTableUserDataMaxBytes) {
+          summary.stringTableUserDataMaxBytes = userBytes;
+        }
+        if (static_cast<std::size_t>(userBytes) * 8u > bits.remaining()) return false;
         raw.assign(userBytes, 0);
         for (std::uint32_t bit = 0; bit < userBytes * 8u; ++bit) {
           std::uint32_t value = 0;
@@ -1720,7 +1854,12 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoN
         if (!bits.readString(text) || !bits.read(1, hasUserData)) return false;
         if (hasUserData) {
           std::uint32_t userBytes = 0;
-          if (!bits.read(16, userBytes) || userBytes > 1024u || !bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
+          // Same 16-bit length field, same removed cap.
+          if (!bits.read(16, userBytes)) return false;
+          if (userBytes > summary.stringTableUserDataMaxBytes) {
+            summary.stringTableUserDataMaxBytes = userBytes;
+          }
+          if (!bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
         }
       }
     }
@@ -1818,7 +1957,12 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
           if (!table.skip(fixedUserDataBits)) { tableOk = false; break; }
         } else {
           std::uint32_t userBytes = 0;
-          if (!table.read(14, userBytes) || userBytes > 1024u || !table.skip(static_cast<std::size_t>(userBytes) * 8u)) { tableOk = false; break; }
+          // 14-bit length field; same removed cap as the other string-table paths.
+          if (!table.read(14, userBytes)) { tableOk = false; break; }
+          if (userBytes > summary.stringTableUserDataMaxBytes) {
+            summary.stringTableUserDataMaxBytes = userBytes;
+          }
+          if (!table.skip(static_cast<std::size_t>(userBytes) * 8u)) { tableOk = false; break; }
         }
       }
       if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
@@ -1878,6 +2022,70 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
 
 }
 
+bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
+                             std::size_t payloadBits,
+                             std::int32_t entryTick,
+                             std::int32_t initialNetworkTick,
+                             DemoNetworkSummary& summary,
+                             DemoMessageStreamResult& result) {
+  result = {};
+  std::vector<std::uint8_t> trimmed;
+  const std::vector<std::uint8_t>* source = &payload;
+  if (payloadBits < payload.size() * 8u) {
+    // Trailing bits inside the last retained byte are still readable, exactly
+    // as they are on the real demo path where the entry length is byte-aligned.
+    trimmed.assign(payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>((payloadBits + 7u) / 8u));
+    source = &trimmed;
+  }
+  MessageBits bits(*source);
+  std::int32_t networkTick = initialNetworkTick >= 0 ? initialNetworkTick : entryTick;
+  while (bits.remaining() > 6) {
+    const std::size_t messageBit = bits.offsetBits();
+    std::uint32_t type = 0;
+    if (!bits.read(6, type)) { result.packetValid = false; break; }
+    if (type < DemoNetworkSummary::kMessageTypeHistogramSize) ++summary.messageTypeCounts[type];
+    if (type == 0) { result.decodedAny = true; ++result.messagesDecoded; continue; }
+    if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) result.packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; result.decodedAny = true; } }
+    else if (type == 4) { if (!readStringCommand(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 5) { if (!readSetConVar(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 6) { if (!readSignonState(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 7) { std::string printText; if (!bits.readString(printText)) result.packetValid = false; else { ++summary.printCount; result.decodedAny = true; } }
+    else if (type == 8) { if (!readServerInfo(bits, summary)) result.packetValid = false; else { ++summary.serverInfoCount; result.decodedAny = true; } }
+    else if (type == 9) { if (!readSendTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 10) { if (!readClassInfo(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 12) { if (!readCreateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 13) { if (!readUpdateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 14) { if (!readVoiceInit(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 15) { if (!readVoiceData(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 18) { if (!readSetView(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 17) { if (!readSounds(bits, summary, entryTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 23) { if (!readUserMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 24) { if (!readEntityMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 25) { if (!readGameEvent(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 28) { if (!readPrefetch(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 30) { if (!readGameEventList(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 31) { if (!readGetCvarValue(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    // Types the local Rust reference implements. Before these existed the loop
+    // fell through to the unknown-type arm and abandoned the packet, which also
+    // discarded the svc_PacketEntities sharing that packet and silently froze
+    // the entity->class map from then on.
+    else if (type == 2) { if (!readFileMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 11) { if (!readSetPause(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 21) { if (!readBspDecal(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 29) { if (!readMenu(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 32) { if (!readCmdKeyValues(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else { ++summary.unknownMessagePackets; if (summary.unknownMessageTypes.size() < 16) summary.unknownMessageTypes.push_back(type); result.hitUnknownType = true; result.unknownType = type; result.packetValid = false; break; }
+    if (!result.packetValid) break;
+    ++result.messagesDecoded;
+  }
+  result.bitsConsumed = bits.offsetBits();
+  result.lastNetworkTick = networkTick;
+  return true;
+}
+
 bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& index, DemoNetworkSummary& summary) {
   const int networkProtocol = summary.networkProtocol;
   summary = {};
@@ -1920,39 +2128,11 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
     }
     std::vector<std::uint8_t> payload;
     if (!readEntryPayload(file, entry, payload, 128u * 1024u * 1024u)) { ++summary.malformedPackets; continue; }
-    MessageBits bits(payload); bool decodedAny = false; bool packetValid = true;
-    std::int32_t networkTick = summary.lastNetworkTick >= 0 ? summary.lastNetworkTick : entry.tick;
-    while (bits.remaining() > 6) {
-      const std::size_t messageBit = bits.offsetBits();
-      std::uint32_t type = 0; if (!bits.read(6, type)) { packetValid = false; break; }
-      if (type == 0) { decodedAny = true; continue; }
-      if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; decodedAny = true; } }
-      else if (type == 4) { if (!readStringCommand(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 5) { if (!readSetConVar(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 6) { if (!readSignonState(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 7) { std::string printText; if (!bits.readString(printText)) packetValid = false; else { ++summary.printCount; decodedAny = true; } }
-      else if (type == 8) { if (!readServerInfo(bits, summary)) packetValid = false; else { ++summary.serverInfoCount; decodedAny = true; } }
-      else if (type == 9) { if (!readSendTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 10) { if (!readClassInfo(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 12) { if (!readCreateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 13) { if (!readUpdateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 14) { if (!readVoiceInit(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 15) { if (!readVoiceData(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 18) { if (!readSetView(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 17) { if (!readSounds(bits, summary, entry.tick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 23) { if (!readUserMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 24) { if (!readEntityMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 25) { if (!readGameEvent(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 28) { if (!readPrefetch(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 30) { if (!readGameEventList(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 31) { if (!readGetCvarValue(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else { ++summary.unknownMessagePackets; if (summary.unknownMessageTypes.size() < 16) summary.unknownMessageTypes.push_back(type); packetValid = false; break; }
-      if (!packetValid) break;
-    }
-    ++summary.packetsScanned; if (!packetValid || !decodedAny) ++summary.malformedPackets;
+    DemoMessageStreamResult stream;
+    const bool streamOk = decodeDemoMessageStream(payload, payload.size() * 8u, entry.tick,
+                                                  summary.lastNetworkTick, summary, stream);
+    ++summary.packetsScanned;
+    if (!streamOk || !stream.packetValid || !stream.decodedAny) ++summary.malformedPackets;
   }
   for (const auto& entity : summary.entityStates) {
     for (const auto& [name, value] : entity.properties) {
@@ -2014,7 +2194,20 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     for (std::size_t i = packet.firstEvent; i < end; ++i) {
       const auto& event = summary.entityHistoryEvents[i];
       if (event.entityIndex >= states.size()) states.resize(2048u);
-      states[event.entityIndex] = event.removed ? EntityState{} : event.state;
+      auto& target = states[event.entityIndex];
+      if (event.removed) { target = EntityState{}; continue; }
+      if (event.fullState) { target = event.state; continue; }
+      // Preserve events carry only the properties the packet wrote, so they are
+      // applied on top of the state already replayed from the checkpoint.
+      const auto* table = event.classId >= 0
+          ? tableForClass(summary, static_cast<std::uint32_t>(event.classId)) : nullptr;
+      for (const auto& change : event.changes) {
+        if (!table || static_cast<std::size_t>(change.propIndex) >= table->flattenedProps.size()) {
+          return EntitySnapshotQueryStatus::Gap;
+        }
+        const auto& prop = table->flattenedProps[change.propIndex];
+        target.properties[prop.ownerTable.empty() ? prop.name : prop.ownerTable + "." + prop.name] = change.value;
+      }
     }
   }
   return EntitySnapshotQueryStatus::Available;
