@@ -43,12 +43,12 @@ ORACLE-GATE=PASS
 ORACLE=PASS
 
 === 5/9 oracle cross-check on a corpus sample (n=8) ===
-  ok        autorecord_2026-09-14_17-21-56.dem         18.4MB  15.6s  POV      pkts 35653/35653 ent 1042996/1042996 enter 30594/30594
+  ok        autorecord_2026-09-14_17-21-56.dem         18.4MB  15.7s  POV      pkts 35653/35653 ent 1042996/1042996 enter 30594/30594
 
 sampled=8
 agreed=8
 mismatched=0
-wall_seconds=146.6
+wall_seconds=145.9
 sum_oracle_entities=15358251
 sum_cpp_entities=15358251
 recording_kinds=['POV', 'SourceTV']
@@ -78,29 +78,35 @@ RECORDING-TYPES=PASS
 
 === 7/9 probe output is additive ===
 demo         verdict      note
-bagel        STALE-BASE   evidence/final/bagel.txt already contains a stripped prefix
-snakewater   STALE-BASE   evidence/final/snakewater.txt already contains a stripped prefix
-ashville73   STALE-BASE   evidence/final/ashville73.txt already contains a stripped prefix
-decal        STALE-BASE   evidence/final/decal.txt already contains a stripped prefix
-protocol23   STALE-BASE   evidence/final/protocol23.txt already contains a stripped prefix
-comp         STALE-BASE   evidence/final/comp.txt already contains a stripped prefix
-saytext2     STALE-BASE   evidence/final/saytext2.txt already contains a stripped prefix
-short2024    STALE-BASE   evidence/final/short2024.txt already contains a stripped prefix
-small        STALE-BASE   evidence/final/small.txt already contains a stripped prefix
+bagel        IDENTICAL    added_lines=2
+snakewater   IDENTICAL    added_lines=2
+ashville73   IDENTICAL    added_lines=2
+decal        IDENTICAL    added_lines=2
+protocol23   IDENTICAL    added_lines=2
+comp         IDENTICAL    added_lines=2
+saytext2     IDENTICAL    added_lines=2
+short2024    IDENTICAL    added_lines=2
+small        IDENTICAL    added_lines=2
 
-compared=0/9
-reason=only 0 of 9 demos were actually compared
-PROBE-OUTPUT-ADDITIVE=FAIL
-PROBE-ADDITIVE=FAIL
+compared=9/9
+PROBE-OUTPUT-ADDITIVE=PASS
+PROBE-ADDITIVE=PASS
 
 === 8/9 mutation suite (C++) ===
-refusing to run: native/ has uncommitted changes, git checkout would lose them
-MUTATION=FAIL
+
+=== restored tree: readings must be identical to the fixed build ===
+RESTORED-IDENTICAL bagel.fixed.txt
+RESTORED-IDENTICAL proto23.fixed.txt
+RESTORED-IDENTICAL fixture.fixed.txt
+RESTORED-IDENTICAL recording.fixed.txt
+
+MUTATION-SUITE=PASS
+MUTATION=PASS
 
 === 9/9 census verdict is falsifiable ===
 
 === prepare: copy raw reports to evidence/corpus-negative ===
-  reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
+  reports=41  digest=5192b07121e44a14f200fac5d3f443fa8b041de5dd0cd9b234bc5a9a01e663a9
 
 === baseline: unmodified reports must PASS ===
   clean=24
@@ -108,9 +114,9 @@ MUTATION=FAIL
   dirty=0
   sum_packets=1242351
   OK   baseline PASS
-  extra_reports=17 (corpus grew -> sample moved)
+  extra_reports=0 (corpus grew -> sample moved)
   victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
-  FAIL victim autorecord_2026-05-18_23-53-06 is NOT in corpus.csv -- the mutations below would be inert
+  OK   victim autorecord_2026-05-18_23-53-06 is in the scanned set
 
 === mutation A: entity_failures 0 -> 3 (must FAIL) ===
   OK   verdict went red
@@ -153,10 +159,10 @@ MUTATION=FAIL
   OK   names the counter
 
 === restore: reports must be byte-identical and PASS again ===
-  OK   digest unchanged (cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5)
+  OK   digest unchanged (5192b07121e44a14f200fac5d3f443fa8b041de5dd0cd9b234bc5a9a01e663a9)
   OK   restored PASS
 
-CENSUS-NEGATIVE=FAIL
-CENSUS-NEGATIVE=FAIL
+CENSUS-NEGATIVE=PASS
+CENSUS-NEGATIVE=PASS
 
-VERIFY=FAIL
+VERIFY=PASS

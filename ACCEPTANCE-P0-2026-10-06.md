@@ -208,6 +208,7 @@ gullywash / process / product / reckoner / sultry）。
 | 导入提交 | `7ab4e72` = `git archive d585af8 native` 的 `native/` 树 |
 | **修复提交** | **`658ae69`** `fix(p0): decode the message types that were abandoning whole packets` |
 | **第二遍复核提交** | **`226d119`** `fix(p0): SourceTV demos were classified as POV, and the census could not go red` |
+| **第三遍复核提交** | **`22dc465`** `fix(p0): a verdict that passes without checking anything is not a verdict`（截断尾部三态 + 三处空转判据） |
 | 上游基线 | `d585af8`（`native-mvp`；`HANDOFF` 记录的 `51f6f0d` 是它的父提交） |
 | 源目录状态 | `work/native-mvp-source` HEAD `d585af8`，`git status` 干净 |
 

@@ -1,6 +1,6 @@
 
 === prepare: copy raw reports to evidence/corpus-negative ===
-  reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
+  reports=41  digest=5192b07121e44a14f200fac5d3f443fa8b041de5dd0cd9b234bc5a9a01e663a9
 
 === baseline: unmodified reports must PASS ===
   clean=24
@@ -8,9 +8,9 @@
   dirty=0
   sum_packets=1242351
   OK   baseline PASS
-  extra_reports=17 (corpus grew -> sample moved)
+  extra_reports=0 (corpus grew -> sample moved)
   victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
-  FAIL victim autorecord_2026-05-18_23-53-06 is NOT in corpus.csv -- the mutations below would be inert
+  OK   victim autorecord_2026-05-18_23-53-06 is in the scanned set
 
 === mutation A: entity_failures 0 -> 3 (must FAIL) ===
   OK   verdict went red
@@ -53,7 +53,7 @@
   OK   names the counter
 
 === restore: reports must be byte-identical and PASS again ===
-  OK   digest unchanged (cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5)
+  OK   digest unchanged (5192b07121e44a14f200fac5d3f443fa8b041de5dd0cd9b234bc5a9a01e663a9)
   OK   restored PASS
 
-CENSUS-NEGATIVE=FAIL
+CENSUS-NEGATIVE=PASS

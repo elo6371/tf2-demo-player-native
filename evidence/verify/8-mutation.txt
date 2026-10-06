@@ -1,1 +1,43 @@
-refusing to run: native/ has uncommitted changes, git checkout would lose them
+=== fixed-build readings (the values every mutation must move away from) ===
+bagel:   entity_failures=0 malformed=0 baselines=126 recording=SourceTV
+proto23: malformed=0 unknown=0
+fixture: fixture_failures=0
+recording probe: "recording":true
+
+--- m1: delete the svc_SetPause(11) dispatch arm
+MUTATION-RED   m1 svc_SetPause removed -> unknown_message_types         11,11 (fixed=<none>)
+MUTATION-RED   m1 svc_SetPause removed -> entity_failures               6581 (fixed=0)
+MUTATION-RED   m1 svc_SetPause removed -> malformed_packets             2 (fixed=0)
+
+--- m2: restore the 1024-byte cap at all five string-table sites
+MUTATION-RED   m2 1024 cap restored -> instance_baselines               6 (fixed=126)
+MUTATION-RED   m2 1024 cap restored -> malformed_packets                1 (fixed=0)
+MUTATION-RED   m2 1024 cap restored -> baseline_misses                  9191 (fixed=16)
+
+--- m3: revert svc_Prefetch to the >23 width rule
+MUTATION-RED   m3 prefetch width reverted -> malformed_packets          1700 (fixed=0)
+MUTATION-RED   m3 prefetch width reverted -> unknown_message_packets    1183 (fixed=0)
+MUTATION-RED   m3 prefetch width reverted -> unknown_message_types      34,34,56,56,50,56,56,50,50,56,56,56,56,56,56,56 (fixed=<none>)
+
+--- m4: make Preserve history events carry a full state again
+MUTATION-RED   m4 full-state preserve events -> fixture_failures        1 (fixed=0)
+MUTATION-RED   m4 full-state preserve events -> delta event not found   FAIL history: preserve event recorded
+
+--- m5: drop the base state on the preserve path (no swap-back)
+MUTATION-RED   m5 preserve loses the base -> fixture_failures           1 (fixed=0)
+MUTATION-RED   m5 preserve loses the base -> untouched prop fails       FAIL delta preserve: untouched m_iTeamNum kept at 200
+
+--- m6: classifier reads servername only again
+MUTATION-RED   m6 classifier regressed -> presentation_probe recording flag "recording":false
+MUTATION-RED   m6 classifier regressed -> bagel header verdict          POV (fixed=SourceTV)
+MUTATION-RED   m6 classifier regressed -> bagel recording_header_name   0 (fixed=1)
+MUTATION-HOLD  m6 classifier regressed -> bagel stream verdict stays    SourceTV (unchanged)
+MUTATION-HOLD  m6 classifier regressed -> bagel hltv bit stays          1 (unchanged)
+
+=== restored tree: readings must be identical to the fixed build ===
+RESTORED-IDENTICAL bagel.fixed.txt
+RESTORED-IDENTICAL proto23.fixed.txt
+RESTORED-IDENTICAL fixture.fixed.txt
+RESTORED-IDENTICAL recording.fixed.txt
+
+MUTATION-SUITE=PASS
