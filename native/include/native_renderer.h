@@ -98,6 +98,7 @@ public:
   void zoomCamera(float delta);
   void setObserverFocus(float x, float y, float z);
   void setObserverFocusWorld(float x, float y, float z);
+  void setObserverAngles(float pitch, float yaw);
   bool observerFocusWorld(float& x, float& y, float& z) const;
   void setWorldMaterialParams(const WorldMaterialParams& params);
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);

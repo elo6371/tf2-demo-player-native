@@ -1383,6 +1383,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
           demoNetworkSummary, g_playback.tick, currentEntityStates);
       if (entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available) {
+        tf2::native::ObserverCameraTrackSample cameraSample;
+        if (tf2::native::findObserverCameraAtOrBeforeTick(
+              demoNetworkSummary, g_playback.tick, cameraSample)
+            && cameraSample.hasAngles && !cameraSample.anglesRelative) {
+          renderer.setObserverAngles(cameraSample.angles[0], cameraSample.angles[1]);
+        }
         std::vector<tf2::native::EntityMarker> entityMarkers;
         entityMarkers.reserve(128);
         bool focused = false;

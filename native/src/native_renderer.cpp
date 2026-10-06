@@ -728,6 +728,13 @@ void Renderer::setObserverFocusWorld(float x, float y, float z) {
   setObserverFocus(normalizedX, normalizedY, normalizedZ);
 }
 
+void Renderer::setObserverAngles(float pitch, float yaw) {
+  if (!std::isfinite(pitch) || !std::isfinite(yaw)) return;
+  constexpr float kPi = 3.14159265358979323846f;
+  cameraYaw_ = std::remainder(yaw * kPi / 180.0f, kPi * 2.0f);
+  cameraPitch_ = std::clamp(pitch * kPi / 180.0f, -1.35f, 1.35f);
+}
+
 bool Renderer::observerFocusWorld(float& x, float& y, float& z) const {
   if (!observerFocusValid_) return false;
   x = observerFocusX_; y = observerFocusY_; z = observerFocusZ_;
