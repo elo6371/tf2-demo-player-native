@@ -102,6 +102,7 @@ public:
   void resize(UINT width, UINT height);
   void orbitCamera(float deltaX, float deltaY);
   void zoomCamera(float delta);
+  void moveCamera(float right, float forward, float up);
   void setObserverFocus(float x, float y, float z);
   void setObserverFocusWorld(float x, float y, float z);
   void setObserverAngles(float pitch, float yaw);

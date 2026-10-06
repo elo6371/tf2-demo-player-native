@@ -711,6 +711,27 @@ void Renderer::zoomCamera(float delta) {
   if (std::isfinite(distance)) cameraDistance_ = std::clamp(distance, 0.8f, 12.0f);
 }
 
+void Renderer::moveCamera(float right, float forward, float up) {
+  if (!std::isfinite(right) || !std::isfinite(forward) || !std::isfinite(up)
+      || !observerFocusValid_) return;
+  const float yaw = cameraYaw_;
+  const float stepRightX = std::cos(yaw), stepRightY = std::sin(yaw);
+  const float stepForwardX = -std::sin(yaw), stepForwardY = std::cos(yaw);
+  observerFocusX_ += (stepRightX * right + stepForwardX * forward) * 0.04f;
+  observerFocusY_ += (stepRightY * right + stepForwardY * forward) * 0.04f;
+  observerFocusZ_ += up * 0.04f;
+  if (worldBoundsValid_) {
+    const float margin = 0.04f;
+    const float minX = (worldMinX_ - worldCenterX_) * worldHorizontalScale_ - margin;
+    const float maxX = (worldMaxX_ - worldCenterX_) * worldHorizontalScale_ + margin;
+    const float minY = (worldMinY_ - worldCenterY_) * worldHorizontalScale_ - margin;
+    const float maxY = (worldMaxY_ - worldCenterY_) * worldHorizontalScale_ + margin;
+    observerFocusX_ = std::clamp(observerFocusX_, minX, maxX);
+    observerFocusY_ = std::clamp(observerFocusY_, minY, maxY);
+    observerFocusZ_ = std::clamp(observerFocusZ_, 0.05f, 0.95f);
+  }
+}
+
 void Renderer::setObserverFocus(float x, float y, float z) {
   if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return;
   observerFocusX_ = std::clamp(x, -1.0e6f, 1.0e6f);

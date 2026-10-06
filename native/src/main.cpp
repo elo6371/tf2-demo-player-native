@@ -504,6 +504,13 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       if (control && shift) g_renderer->clearCameraPreset(slot);
       else if (control) g_renderer->saveCameraPreset(slot);
       else g_renderer->applyCameraPreset(slot);
+    } else if (g_renderer && (wParam == 'W' || wParam == 'A' || wParam == 'S'
+        || wParam == 'D' || wParam == 'Q' || wParam == 'E')) {
+      constexpr float kCameraKeyStep = 1.0f;
+      const float right = wParam == 'D' ? kCameraKeyStep : (wParam == 'A' ? -kCameraKeyStep : 0.0f);
+      const float forward = wParam == 'W' ? kCameraKeyStep : (wParam == 'S' ? -kCameraKeyStep : 0.0f);
+      const float up = wParam == 'E' ? kCameraKeyStep : (wParam == 'Q' ? -kCameraKeyStep : 0.0f);
+      g_renderer->moveCamera(right, forward, up);
     } else if (wParam == VK_HOME) {
       if (g_renderer) g_renderer->resetCamera();
       if (g_playback.enabled) { g_playback.tick = 0; g_playback.reverse = false; }
