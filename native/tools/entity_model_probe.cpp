@@ -220,7 +220,15 @@ int main(int argc, char** argv) {
     tf2::native::DemoNetworkSummary summary;
     if (!tf2::native::parseDemoHeaderFile(demoPath, header)) return fail("demo header parse failed");
     tf2::native::indexDemoFile(demoPath, header, index);
-    tf2::native::scanKnownDemoMessages(demoPath, index, summary);
+    // The protocol has to be copied in before the scan: svc_CreateStringTable
+    // reads its payload length as a varint above protocol 23 and as a fixed
+    // 20-bit field at or below it. Leaving this at 0 took the wrong branch and
+    // produced a plausible-looking summary -- 673 asset references and 0 render
+    // requests -- that had nothing to do with the demo's actual contents.
+    summary.networkProtocol = header.networkProtocol;
+    if (!tf2::native::scanKnownDemoMessages(demoPath, index, summary)) {
+      return fail("demo scan failed (network protocol not set?)");
+    }
     tf2::native::buildAssetReferenceList(summary, summary.assetReferences);
     const auto assets = tf2::native::AssetRoot::fromPath(tfRoot);
     tf2::native::ModelRenderRequestStats stats;

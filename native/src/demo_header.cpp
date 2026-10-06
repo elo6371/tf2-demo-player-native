@@ -1297,6 +1297,82 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   return true;
 }
 
+// Walk the entries of a precache string table and record each one's text by
+// index. Shared by svc_CreateStringTable and svc_UpdateStringTable, and by every
+// precache table: the sequential/index encoding, the 32-entry string history and
+// the user-data skip are byte-identical between them. This used to be three
+// near-copies (create/soundprecache, update/soundprecache, and the instancebaseline
+// walk), which is exactly how one of them silently loses a field.
+//
+// entryIndexBits is the index width derived from maxEntries; the caller owns
+// that derivation because create and update take maxEntries from different
+// places. Returns false if the payload ran out early -- the caller turns that
+// into its own per-table failure counter.
+bool walkPrecacheTablePayload(const std::vector<std::uint8_t>& payload,
+                              std::uint32_t entryCount,
+                              std::uint32_t entryIndexBits,
+                              bool fixedUserData,
+                              std::uint32_t fixedUserDataBits,
+                              DemoNetworkSummary& summary,
+                              std::unordered_map<std::uint16_t, std::string>& out) {
+  MessageBits table(payload);
+  std::vector<std::string> history;
+  history.reserve(32);
+  // -1 rather than a separate haveLastIndex flag: the first sequential entry
+  // must resolve to index 0, and -1 + 1 == 0.
+  std::int32_t lastIndex = -1;
+  for (std::uint32_t entry = 0; entry < entryCount; ++entry) {
+    std::uint32_t sequential = 0, index = 0, value = 0;
+    if (!table.read(1, sequential)) return false;
+    if (sequential) {
+      index = static_cast<std::uint32_t>(lastIndex + 1);
+    } else if (!table.read(entryIndexBits, index)) {
+      return false;
+    }
+    lastIndex = static_cast<std::int32_t>(index);
+    std::string text;
+    if (!table.read(1, value)) return false;
+    if (value) {
+      if (!table.read(1, value)) return false;
+      if (value) {
+        std::uint32_t historyIndex = 0, copyCount = 0;
+        std::string rest;
+        if (!table.read(5, historyIndex) || !table.read(5, copyCount) || !table.readString(rest, 4096)) return false;
+        if (historyIndex < history.size() && copyCount <= history[historyIndex].size()) {
+          text = history[historyIndex].substr(0, copyCount) + rest;
+        } else {
+          text = std::move(rest);
+        }
+      } else if (!table.readString(text, 4096)) {
+        return false;
+      }
+    }
+    // The history is pushed before the move into `out`, so a later entry can
+    // still reference this text.
+    history.push_back(text);
+    if (history.size() > 32u) history.erase(history.begin());
+    if (!table.read(1, value)) return false;
+    if (value) {
+      if (fixedUserData) {
+        if (!table.skip(fixedUserDataBits)) return false;
+      } else {
+        std::uint32_t userBytes = 0;
+        // 14-bit length field; the reference parser imposes no cap. skip()
+        // still refuses to run past the end of the payload.
+        if (!table.read(14, userBytes)) return false;
+        if (userBytes > summary.stringTableUserDataMaxBytes) {
+          summary.stringTableUserDataMaxBytes = userBytes;
+        }
+        if (!table.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
+      }
+    }
+    if (!text.empty() && index <= 0xffffu) {
+      out[static_cast<std::uint16_t>(index)] = std::move(text);
+    }
+  }
+  return true;
+}
+
 bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t tableId = 0;
   std::uint32_t changed = 0;
@@ -1318,57 +1394,34 @@ bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
     if (!bits.read(1, value)) return false;
     payload[bit / 8u] |= static_cast<std::uint8_t>(value << (bit % 8u));
   }
-  if (tableId < 32u && tableId == summary.soundPrecacheTableId) {
-    ++summary.soundPrecacheUpdateCount;
-    const auto maxIt = summary.stringTableMaxEntries.find(tableId);
-    const std::uint32_t maxEntries = maxIt == summary.stringTableMaxEntries.end() ? summary.soundPrecacheMaxEntries : maxIt->second;
-    // Source's log_base2(maxEntries) is floor(log2(maxEntries)); the old
-    // loop computed one bit too few for every power-of-two table size.
+  // Both precache tables arrive through the same update path; only the table id,
+  // the declared capacity and the destination differ.
+  const auto updatePrecache = [&](std::uint32_t maxEntries, std::uint32_t fixedBits,
+                                  std::unordered_map<std::uint16_t, std::string>& out,
+                                  std::size_t& failures) {
+    // Source's log_base2(maxEntries) is floor(log2(maxEntries)); the old loop
+    // computed one bit too few for every power-of-two table size.
     std::uint32_t indexBits = 0;
     const std::uint32_t boundedMaxEntries = std::max<std::uint32_t>(1u, maxEntries);
     while ((1u << indexBits) < boundedMaxEntries && indexBits < 31u) ++indexBits;
-    MessageBits update(payload);
-    std::vector<std::string> history;
-    std::int32_t lastIndex = -1;
-    bool ok = maxEntries != 0;
-    for (std::uint32_t i = 0; ok && i < changedEntries; ++i) {
-      std::uint32_t sequential = 0, value = 0, index = 0;
-      if (!update.read(1, sequential)) { ok = false; break; }
-      if (sequential) index = static_cast<std::uint32_t>(lastIndex + 1);
-      else if (!update.read(indexBits, index)) { ok = false; break; }
-      lastIndex = static_cast<std::int32_t>(index);
-      std::string text;
-      if (!update.read(1, value)) { ok = false; break; }
-      if (value) {
-        if (!update.read(1, value)) { ok = false; break; }
-        if (value) {
-          std::uint32_t historyIndex = 0, copyCount = 0;
-          std::string rest;
-          if (!update.read(5, historyIndex) || !update.read(5, copyCount) || !update.readString(rest, 4096)) { ok = false; break; }
-          if (historyIndex < history.size() && copyCount <= history[historyIndex].size()) text = history[historyIndex].substr(0, copyCount) + rest;
-          else text = std::move(rest);
-        } else if (!update.readString(text, 4096)) { ok = false; break; }
-      }
-      history.push_back(text);
-      if (history.size() > 32u) history.erase(history.begin());
-      if (!update.read(1, value)) { ok = false; break; }
-      if (value) {
-        if (summary.soundPrecacheFixedBits != 0u) {
-          if (!update.skip(summary.soundPrecacheFixedBits)) { ok = false; break; }
-        } else {
-          std::uint32_t userBytes = 0;
-          // 14-bit length field; the reference parser has no cap. skip() still
-          // refuses to run past the end of the payload.
-          if (!update.read(14, userBytes)) { ok = false; break; }
-          if (userBytes > summary.stringTableUserDataMaxBytes) {
-            summary.stringTableUserDataMaxBytes = userBytes;
-          }
-          if (!update.skip(static_cast<std::size_t>(userBytes) * 8u)) { ok = false; break; }
-        }
-      }
-      if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
-    }
-    if (!ok) ++summary.soundPrecacheDecodeFailures;
+    // A table with no declared capacity cannot be decoded at all. The old code
+    // counted that as a decode failure rather than quietly keeping zero entries,
+    // and that must not change.
+    const bool ok = maxEntries != 0
+      && walkPrecacheTablePayload(payload, changedEntries, indexBits,
+                                  fixedBits != 0u, fixedBits, summary, out);
+    if (!ok) ++failures;
+  };
+  if (tableId < 32u && tableId == summary.soundPrecacheTableId) {
+    ++summary.soundPrecacheUpdateCount;
+    const auto maxIt = summary.stringTableMaxEntries.find(tableId);
+    updatePrecache(maxIt == summary.stringTableMaxEntries.end() ? summary.soundPrecacheMaxEntries : maxIt->second,
+                   summary.soundPrecacheFixedBits, summary.soundPrecache, summary.soundPrecacheDecodeFailures);
+  } else if (tableId < 32u && tableId == summary.modelPrecacheTableId) {
+    ++summary.modelPrecacheUpdateCount;
+    const auto maxIt = summary.stringTableMaxEntries.find(tableId);
+    updatePrecache(maxIt == summary.stringTableMaxEntries.end() ? summary.modelPrecacheMaxEntries : maxIt->second,
+                   summary.modelPrecacheFixedBits, summary.modelPrecache, summary.modelPrecacheDecodeFailures);
   }
   ++summary.updateStringTableCount;
   return true;
@@ -1732,6 +1785,58 @@ bool decodeSnappyRaw(const std::vector<std::uint8_t>& input, std::size_t offset,
   return output.size() == decodedSize && cursor == end;
 }
 
+// What the 12-byte compressed string-table header declared. Reported separately
+// from the decode result so a caller can record the sizes even when the
+// decompressor refuses the payload.
+struct StringTablePayloadInfo {
+  std::uint32_t decompressedBytes = 0;
+  std::uint32_t compressedBytes = 0;
+  std::uint32_t magic = 0;
+  // The payload is usable: either it was never compressed, or it decompressed.
+  bool decoded = false;
+  // `decodedPayload` holds the bytes to read. Kept explicit rather than inferred
+  // from `decodedPayload.empty()`, because a legitimately empty decode would
+  // otherwise send the caller back to the compressed bytes.
+  bool usedDecompressed = false;
+};
+
+std::uint32_t readLe32(const std::vector<std::uint8_t>& data, std::size_t offset) {
+  return static_cast<std::uint32_t>(data[offset])
+    | (static_cast<std::uint32_t>(data[offset + 1u]) << 8u)
+    | (static_cast<std::uint32_t>(data[offset + 2u]) << 16u)
+    | (static_cast<std::uint32_t>(data[offset + 3u]) << 24u);
+}
+
+// Unwrap a compressed string-table payload. The wrapper is identical for
+// soundprecache, modelprecache and instancebaseline: u32 decompressedSize,
+// u32 compressedSize, then a 4-byte "SNAP"/"LZSS" tag, then the stream. This was
+// copied at each call site before; keeping one copy is what makes "the same
+// payload decodes the same way for every table" a property of the code rather
+// than of three parallel edits.
+StringTablePayloadInfo decodeStringTablePayload(const std::vector<std::uint8_t>& payload,
+                                                bool compressed,
+                                                std::vector<std::uint8_t>& decodedPayload) {
+  StringTablePayloadInfo info;
+  if (!compressed) {
+    info.decoded = true;
+    return info;
+  }
+  if (payload.size() < 12u) return info;
+  info.decompressedBytes = readLe32(payload, 0u);
+  info.compressedBytes = readLe32(payload, 4u);
+  info.magic = readLe32(payload, 8u);
+  const bool snap = payload[8] == 'S' && payload[9] == 'N' && payload[10] == 'A' && payload[11] == 'P';
+  const bool lzss = payload[8] == 'L' && payload[9] == 'Z' && payload[10] == 'S' && payload[11] == 'S';
+  if (!(snap || lzss) || info.compressedBytes < 4u) return info;
+  if (12u + static_cast<std::size_t>(info.compressedBytes - 4u) > payload.size()) return info;
+  if (info.decompressedBytes > 100u * 1024u * 1024u) return info;
+  info.decoded = snap
+    ? decodeSnappyRaw(payload, 12u, info.compressedBytes - 4u, info.decompressedBytes, decodedPayload)
+    : decodeLzss(payload, 12u, info.compressedBytes - 4u, info.decompressedBytes, decodedPayload);
+  info.usedDecompressed = info.decoded;
+  return info;
+}
+
 void recordInstanceBaselineEntry(const std::string& text, std::vector<std::uint8_t> raw,
     DemoNetworkSummary& summary) {
   std::uint32_t classId = 0;
@@ -1912,112 +2017,42 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
     if (!bits.read(1, value)) return false;
     payload[bit / 8u] |= static_cast<std::uint8_t>(value << (bit % 8u));
   }
-  if (name == "soundprecache") {
+  // soundprecache and modelprecache share the whole create path: the same
+  // compressed wrapper, the same entry encoding, the same fixed-user-data rules.
+  // Only the table id and the destination differ. modelprecache used to have no
+  // arm here at all, which is why every entity carried an m_nModelIndex and no
+  // model path.
+  if (name == "soundprecache" || name == "modelprecache") {
+    const bool isModelPrecache = name == "modelprecache";
+    std::unordered_map<std::uint16_t, std::string>& destination =
+      isModelPrecache ? summary.modelPrecache : summary.soundPrecache;
+    std::size_t& failures = isModelPrecache
+      ? summary.modelPrecacheDecodeFailures : summary.soundPrecacheDecodeFailures;
     std::vector<std::uint8_t> decodedPayload;
-    const std::vector<std::uint8_t>* tablePayload = &payload;
-    bool decoded = compressed == 0;
-    if (compressed != 0 && payload.size() >= 12u) {
-      const std::uint32_t decompressedSize = static_cast<std::uint32_t>(payload[0]) |
-        (static_cast<std::uint32_t>(payload[1]) << 8u) |
-        (static_cast<std::uint32_t>(payload[2]) << 16u) |
-        (static_cast<std::uint32_t>(payload[3]) << 24u);
-      const std::uint32_t compressedSize = static_cast<std::uint32_t>(payload[4]) |
-        (static_cast<std::uint32_t>(payload[5]) << 8u) |
-        (static_cast<std::uint32_t>(payload[6]) << 16u) |
-        (static_cast<std::uint32_t>(payload[7]) << 24u);
-      const bool snap = payload[8] == 'S' && payload[9] == 'N' && payload[10] == 'A' && payload[11] == 'P';
-      const bool lzss = payload[8] == 'L' && payload[9] == 'Z' && payload[10] == 'S' && payload[11] == 'S';
-      if ((snap || lzss) && compressedSize >= 4u
-          && 12u + static_cast<std::size_t>(compressedSize - 4u) <= payload.size()
-          && decompressedSize <= 100u * 1024u * 1024u) {
-        decoded = snap
-          ? decodeSnappyRaw(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload)
-          : decodeLzss(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload);
-        if (decoded) tablePayload = &decodedPayload;
-      }
-    }
-    if (!decoded) {
-      ++summary.soundPrecacheDecodeFailures;
-    } else {
-    MessageBits table(*tablePayload);
-    std::vector<std::string> history;
-    history.reserve(32);
-    std::uint32_t lastIndex = 0;
-    bool haveLastIndex = false;
-    bool tableOk = true;
-    for (std::uint32_t entry = 0; entry < entryCount; ++entry) {
-      std::uint32_t sequential = 0, index = 0;
-      std::uint32_t value = 0;
-      if (!table.read(1, sequential)) { tableOk = false; break; }
-      if (sequential) index = haveLastIndex ? lastIndex + 1u : 0u;
-      else if (!table.read(entryIndexBits, index)) { tableOk = false; break; }
-      lastIndex = index; haveLastIndex = true;
-      std::string text;
-      if (!table.read(1, value)) { tableOk = false; break; }
-      if (value) {
-        if (!table.read(1, value)) { tableOk = false; break; }
-        if (value) {
-          std::uint32_t historyIndex = 0, copyCount = 0;
-          if (!table.read(5, historyIndex) || !table.read(5, copyCount)) { tableOk = false; break; }
-          std::string rest;
-          if (!table.readString(rest, 4096)) { tableOk = false; break; }
-          if (historyIndex < history.size() && copyCount <= history[historyIndex].size()) text = history[historyIndex].substr(0, copyCount) + rest;
-          else text = std::move(rest);
-        } else if (!table.readString(text, 4096)) { tableOk = false; break; }
-      }
-      history.push_back(text);
-      if (history.size() > 32u) history.erase(history.begin());
-      if (!table.read(1, value)) { tableOk = false; break; }
-      if (value) {
-        if (fixedUserData != 0u) {
-          if (!table.skip(fixedUserDataBits)) { tableOk = false; break; }
-        } else {
-          std::uint32_t userBytes = 0;
-          // 14-bit length field; same removed cap as the other string-table paths.
-          if (!table.read(14, userBytes)) { tableOk = false; break; }
-          if (userBytes > summary.stringTableUserDataMaxBytes) {
-            summary.stringTableUserDataMaxBytes = userBytes;
-          }
-          if (!table.skip(static_cast<std::size_t>(userBytes) * 8u)) { tableOk = false; break; }
-        }
-      }
-      if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
-    }
-    if (!tableOk) ++summary.soundPrecacheDecodeFailures;
+    const auto info = decodeStringTablePayload(payload, compressed != 0, decodedPayload);
+    const std::vector<std::uint8_t>& tablePayload = info.usedDecompressed ? decodedPayload : payload;
+    if (!info.decoded) {
+      ++failures;
+    } else if (!walkPrecacheTablePayload(tablePayload, entryCount, entryIndexBits,
+                                        fixedUserData != 0u, fixedUserDataBits,
+                                        summary, destination)) {
+      ++failures;
     }
   }
   if (name == "instancebaseline") {
+    if (compressed) ++summary.instanceBaselineCompressedCount;
     std::vector<std::uint8_t> decodedPayload;
-    const std::vector<std::uint8_t>* tablePayload = &payload;
-    bool decoded = !compressed;
-    if (compressed) {
-      ++summary.instanceBaselineCompressedCount;
-      if (payload.size() >= 12u) {
-        const std::uint32_t decompressedSize = static_cast<std::uint32_t>(payload[0]) |
-          (static_cast<std::uint32_t>(payload[1]) << 8u) |
-          (static_cast<std::uint32_t>(payload[2]) << 16u) |
-          (static_cast<std::uint32_t>(payload[3]) << 24u);
-        const std::uint32_t compressedSize = static_cast<std::uint32_t>(payload[4]) |
-          (static_cast<std::uint32_t>(payload[5]) << 8u) |
-          (static_cast<std::uint32_t>(payload[6]) << 16u) |
-          (static_cast<std::uint32_t>(payload[7]) << 24u);
-        summary.instanceBaselineDecompressedBytes = decompressedSize;
-        summary.instanceBaselineCompressedBytes = compressedSize;
-        summary.instanceBaselineMagic = static_cast<std::uint32_t>(payload[8]) |
-          (static_cast<std::uint32_t>(payload[9]) << 8u) |
-          (static_cast<std::uint32_t>(payload[10]) << 16u) |
-          (static_cast<std::uint32_t>(payload[11]) << 24u);
-        const bool snap = payload[8] == 'S' && payload[9] == 'N' && payload[10] == 'A' && payload[11] == 'P';
-        const bool lzss = payload[8] == 'L' && payload[9] == 'Z' && payload[10] == 'S' && payload[11] == 'S';
-        if ((snap || lzss) && compressedSize >= 4u && 12u + static_cast<std::size_t>(compressedSize - 4u) <= payload.size()) {
-          decoded = snap
-            ? decodeSnappyRaw(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload)
-            : decodeLzss(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload);
-          if (decoded) tablePayload = &decodedPayload;
-        }
-      }
+    const auto info = decodeStringTablePayload(payload, compressed != 0, decodedPayload);
+    // The declared sizes and magic are recorded whenever the 12-byte header is
+    // present, even if the payload is then rejected -- that is what the old
+    // inline block did, and these counters are part of the P0 evidence.
+    if (compressed && payload.size() >= 12u) {
+      summary.instanceBaselineDecompressedBytes = info.decompressedBytes;
+      summary.instanceBaselineCompressedBytes = info.compressedBytes;
+      summary.instanceBaselineMagic = info.magic;
     }
-    if (!decoded || !readInstanceBaselinePayload(*tablePayload, entryCount, maxEntries, fixedUserData != 0, fixedUserDataBits, summary)) {
+    const std::vector<std::uint8_t>& tablePayload = info.usedDecompressed ? decodedPayload : payload;
+    if (!info.decoded || !readInstanceBaselinePayload(tablePayload, entryCount, maxEntries, fixedUserData != 0, fixedUserDataBits, summary)) {
       ++summary.instanceBaselineDecodeFailures;
     }
   }
@@ -2030,6 +2065,11 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
     summary.soundPrecacheMaxEntries = maxEntries;
     summary.soundPrecacheFixedBits = fixedUserData ? fixedUserDataBits : 0u;
     summary.soundPrecacheCompressed = compressed != 0;
+  } else if (name == "modelprecache") {
+    summary.modelPrecacheTableId = static_cast<std::uint32_t>(summary.stringTableCount);
+    summary.modelPrecacheMaxEntries = maxEntries;
+    summary.modelPrecacheFixedBits = fixedUserData ? fixedUserDataBits : 0u;
+    summary.modelPrecacheCompressed = compressed != 0;
   }
   ++summary.stringTableCount;
   if (summary.stringTableNames.size() < 32) summary.stringTableNames.push_back(name);
@@ -2104,6 +2144,13 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
 
 bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& index, DemoNetworkSummary& summary) {
   const int networkProtocol = summary.networkProtocol;
+  // A zero here means the caller forgot to copy header.networkProtocol in.
+  // Decoding with protocol 0 silently takes the wrong branch in
+  // svc_CreateStringTable (a 20-bit length field instead of a varint) and
+  // produces a plausible-looking but wrong summary. entity_model_probe did
+  // exactly that and reported requests=0 out of 673 references; refusing turns a
+  // silent wrong reading into a loud failure.
+  if (networkProtocol <= 0) return false;
   summary = {};
   summary.networkProtocol = networkProtocol;
   if (index.entries.empty()) return false;
@@ -2294,6 +2341,10 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
   summary.assetPaintKitKnown = summary.assetSkinKnown = summary.assetQualityKnown = 0;
   summary.assetIdentityUnknown = 0;
   summary.assetModelPathKnown = summary.assetWeaponClassKnown = 0;
+  summary.assetModelPathFromPrecache = summary.assetModelIndexUnresolved = 0;
+  summary.assetModelIndexZero = 0;
+  summary.assetModelIndexOutOfRange = 0;
+  summary.assetModelIndexUnresolvedMax = -1;
   for (std::size_t entityIndex = 0; entityIndex < summary.entityStates.size() && entityIndex < 2048u; ++entityIndex) {
     const auto& state = summary.entityStates[entityIndex];
     if (state.classId < 0) continue;
@@ -2344,6 +2395,43 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
       }
     }
     findInt({"m_hActiveWeapon", "m_hWeapon"}, reference.hasWeapon, reference.weapon);
+    // A real Source demo does not send the model path as an entity property: the
+    // entity carries m_nModelIndex and the path lives in the modelprecache
+    // string table. Before this lookup every reference had an index and no path,
+    // and ModelLoader::buildRenderRequests dropped all of them -- 673 references
+    // in, 0 render requests out, on both a POV and a SourceTV demo. The property
+    // route is tried first so a demo that does send the name still wins; the
+    // precache route only fills the gap.
+    if (!reference.hasModelPath && reference.hasModelIndex) {
+      if (reference.modelIndex == 0) {
+        // Source's "no model" sentinel, and modelprecache does not declare
+        // index 0.
+        ++summary.assetModelIndexZero;
+      } else if (reference.modelIndex >= 1 && reference.modelIndex <= 0xffff) {
+        const auto found = summary.modelPrecache.find(
+          static_cast<std::uint16_t>(reference.modelIndex));
+        if (found != summary.modelPrecache.end() && !found->second.empty()) {
+          reference.hasModelPath = true;
+          reference.modelPath = found->second;
+          reference.modelPathFromPrecache = true;
+        } else {
+          // In range but the table never declared it. This is the count that
+          // must be zero on a healthy demo.
+          ++summary.assetModelIndexUnresolved;
+          if (reference.modelIndex > summary.assetModelIndexUnresolvedMax) {
+            summary.assetModelIndexUnresolvedMax = reference.modelIndex;
+          }
+        }
+      } else {
+        // Outside [1, 0xffff], so it never named a table entry. The local demos
+        // send the unset sentinel as 0xFFFFFFEA (-22) / 0xFFFFFFFC (-4); those
+        // must not be counted as misses or they would drown the real ones.
+        ++summary.assetModelIndexOutOfRange;
+      }
+      // Never guess a path here. An unresolved index stays unresolved and is
+      // counted, so "the table was missing an entry" cannot hide behind a
+      // plausible-looking fallback model.
+    }
     findInt({"m_iItemDefinitionIndex"}, reference.hasItemDefIndex, reference.itemDefIndex);
     findInt({"m_nFallbackPaintKit", "m_iPaintKit"}, reference.hasPaintKit, reference.paintKit);
     findInt({"m_nSkin"}, reference.hasSkin, reference.skin);
@@ -2355,6 +2443,7 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
     if (reference.hasSkin) ++summary.assetSkinKnown;
     if (reference.hasQuality) ++summary.assetQualityKnown;
     if (reference.hasModelPath) ++summary.assetModelPathKnown;
+    if (reference.modelPathFromPrecache) ++summary.assetModelPathFromPrecache;
     if (reference.hasWeaponClass) ++summary.assetWeaponClassKnown;
     if (!reference.hasModelPath && !reference.hasWeaponClass && !reference.hasModelIndex &&
         !reference.hasWeapon && !reference.hasItemDefIndex && !reference.hasPaintKit &&

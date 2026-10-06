@@ -210,6 +210,35 @@ void printSummary(const DemoNetworkSummary& summary) {
 
   std::cout << "string_table_user_data_max_bytes=" << summary.stringTableUserDataMaxBytes << "\n";
 
+  // Precache tables, reported together so a change to one is visible against the
+  // other. soundprecache and instancebaseline were already retained and are what
+  // the audio and entity-baseline paths consume; modelprecache is what turns an
+  // entity's m_nModelIndex into a model path, and until it is retained the
+  // entity-model path has nothing to load.
+  std::cout << "sound_precache_entries=" << summary.soundPrecache.size()
+            << " sound_precache_decode_failures=" << summary.soundPrecacheDecodeFailures
+            << " model_precache_entries=" << summary.modelPrecache.size()
+            << " model_precache_max_entries=" << summary.modelPrecacheMaxEntries
+            << " model_precache_decode_failures=" << summary.modelPrecacheDecodeFailures
+            << " model_precache_updates=" << summary.modelPrecacheUpdateCount << "\n";
+
+  // Why the asset references do or do not become render requests. The breakdown
+  // separates "the entity sent no model reference at all" from "it sent a model
+  // index that could not be resolved because the precache table was missing".
+  // Those need different fixes, and only the second one is the P1 wiring gap.
+  // asset_model_index_unresolved is the one that must be zero on a healthy
+  // demo: a non-zero value means the entity named a model the table never
+  // declared, and there is no path for the renderer to load.
+  std::cout << "asset_refs=" << summary.assetReferences.size()
+            << " asset_model_path_known=" << summary.assetModelPathKnown
+            << " asset_model_path_from_precache=" << summary.assetModelPathFromPrecache
+            << " asset_model_index_known=" << summary.assetModelIndexKnown
+            << " asset_model_index_zero=" << summary.assetModelIndexZero
+            << " asset_model_index_out_of_range=" << summary.assetModelIndexOutOfRange
+            << " asset_model_index_unresolved=" << summary.assetModelIndexUnresolved
+            << " asset_model_index_unresolved_max=" << summary.assetModelIndexUnresolvedMax
+            << " asset_identity_unknown=" << summary.assetIdentityUnknown << "\n";
+
   // First-failure coordinates. -1 means "never happened".
   std::cout << "first_entity_failure_tick=" << summary.firstEntityUnknownStateTick
             << " first_entity_failure_entity=" << summary.firstEntityUnknownStateEntity
@@ -318,6 +347,9 @@ int wmain(int argc, wchar_t** argv) {
               << " server_info_replay_bit=" << (summary.serverInfoReplayBit ? 1 : 0)
               << " source_tv_flag=" << (summary.sourceTv ? 1 : 0) << "\n";
 
+    // Fill the asset reference list before printing, so the breakdown below
+    // describes this demo's entities rather than an empty vector.
+    tf2::native::buildAssetReferenceList(summary, summary.assetReferences);
     if (!histogramOnly) printSummary(summary);
     if (!summaryOnly) printHistogram(summary);
   }

@@ -192,6 +192,11 @@ struct AssetReference {
   std::string className;
   bool hasModelPath = false;
   std::string modelPath;
+  // True when modelPath came from the modelprecache string table via
+  // m_nModelIndex rather than from an entity string property. A real Source demo
+  // only ever takes the first route, so this flag is what makes "the precache
+  // lookup is the one doing the work" checkable instead of assumed.
+  bool modelPathFromPrecache = false;
   bool hasWeaponClass = false;
   std::string weaponClass;
   bool hasModelIndex = false;
@@ -340,6 +345,28 @@ struct DemoNetworkSummary {
   std::size_t assetQualityKnown = 0;
   std::size_t assetIdentityUnknown = 0;
   std::size_t assetModelPathKnown = 0;
+  std::size_t assetModelPathFromPrecache = 0;
+  // Carried an m_nModelIndex that the modelprecache table did not resolve. This
+  // is the number that must be zero on a healthy demo: a non-zero value means
+  // the entity referenced a model the table never declared, and the renderer has
+  // no path to load.
+  std::size_t assetModelIndexUnresolved = 0;
+  // Carried m_nModelIndex == 0. Kept separate from the unresolved count because
+  // 0 is Source's "this entity has no model" sentinel and modelprecache does not
+  // declare index 0; folding the two together would bury a real table miss in
+  // the noise of every trigger and logic entity in the map.
+  std::size_t assetModelIndexZero = 0;
+  // Carried an m_nModelIndex outside the range a precache entry can occupy.
+  // Source uses negative values as the "this entity has no model" sentinel, and
+  // the local demos send -22 / -4 rather than -1 for it. Those arrive here as
+  // unsigned 32-bit patterns (0xFFFFFFEA / 0xFFFFFFFC) because the sendprop is
+  // read without sign extension, so the test is `outside [1, 0xffff]` rather
+  // than `negative` -- measuring that distinction is what this counter is for.
+  std::size_t assetModelIndexOutOfRange = 0;
+  // Largest unresolved in-range m_nModelIndex (1..0xffff). Only a non-zero value
+  // here means the entity named a model the table never declared. The sentinels
+  // above must not be allowed to fill this in, or a real miss hides among them.
+  std::int64_t assetModelIndexUnresolvedMax = -1;
   std::size_t assetWeaponClassKnown = 0;
   std::size_t soundMessageCount = 0;
   std::size_t soundEventCount = 0;
@@ -487,6 +514,20 @@ struct DemoNetworkSummary {
   std::size_t messageTypeCounts[kMessageTypeHistogramSize] = {};
   std::vector<std::string> stringTableNames;
   std::unordered_map<std::uint16_t, std::string> soundPrecache;
+  // modelprecache maps an entity's m_nModelIndex to its model path. Source demos
+  // do not send that path as an entity string property: the path lives in this
+  // table and the entity carries only the index. Without the table every
+  // AssetReference has an index and no path, ModelLoader::buildRenderRequests
+  // drops all of them (its first statement is `if (!hasModelPath) continue`),
+  // and no entity model resolves -- which is exactly why entity_model_probe
+  // reported requests=0 out of 673 references on a real demo.
+  std::unordered_map<std::uint16_t, std::string> modelPrecache;
+  std::size_t modelPrecacheDecodeFailures = 0;
+  std::size_t modelPrecacheUpdateCount = 0;
+  std::uint32_t modelPrecacheTableId = 0xffffffffu;
+  std::uint32_t modelPrecacheMaxEntries = 0;
+  std::uint32_t modelPrecacheFixedBits = 0;
+  bool modelPrecacheCompressed = false;
   std::unordered_map<std::uint32_t, std::string> stringTableById;
   std::unordered_map<std::uint32_t, std::uint32_t> stringTableMaxEntries;
   std::size_t soundPrecacheDecodeFailures = 0;
