@@ -494,7 +494,16 @@ bool readGetCvarValue(MessageBits& bits, DemoNetworkSummary& summary) {
   return true;
 }
 
-bool readFixAngle(MessageBits& bits, DemoNetworkSummary& summary) {
+void appendObserverCameraSample(DemoNetworkSummary& summary, ObserverCameraTrackSample sample) {
+  constexpr std::size_t kMaxObserverCameraSamples = 32768;
+  if (summary.observerCameraTrack.size() >= kMaxObserverCameraSamples) {
+    summary.observerCameraTrack.erase(summary.observerCameraTrack.begin());
+    ++summary.observerCameraTrackDropped;
+  }
+  summary.observerCameraTrack.push_back(sample);
+}
+
+bool readFixAngle(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
   std::uint32_t relative = 0;
   std::uint32_t raw[3] = {};
   if (!bits.read(1, relative) || !bits.read(16, raw[0]) ||
@@ -506,6 +515,12 @@ bool readFixAngle(MessageBits& bits, DemoNetworkSummary& summary) {
   }
   summary.lastFixAngleValid = true;
   ++summary.fixAngleCount;
+  ObserverCameraTrackSample sample;
+  sample.tick = packetTick;
+  sample.hasAngles = true;
+  sample.anglesRelative = summary.lastFixAngleRelative;
+  std::copy(std::begin(summary.lastFixAngle), std::end(summary.lastFixAngle), std::begin(sample.angles));
+  appendObserverCameraSample(summary, sample);
   return true;
 }
 
@@ -1340,11 +1355,16 @@ bool readSetConVar(MessageBits& bits, DemoNetworkSummary& summary) {
   return true;
 }
 
-bool readSetView(MessageBits& bits, DemoNetworkSummary& summary) {
+bool readSetView(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
   std::uint32_t entityIndex = 0;
   if (!bits.read(11, entityIndex)) return false;
   ++summary.setViewCount;
   summary.lastViewEntity = entityIndex;
+  ObserverCameraTrackSample sample;
+  sample.tick = packetTick;
+  sample.hasViewEntity = true;
+  sample.viewEntity = entityIndex;
+  appendObserverCameraSample(summary, sample);
   return true;
 }
 
@@ -1815,9 +1835,9 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
       else if (type == 13) { if (!readUpdateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 14) { if (!readVoiceInit(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 15) { if (!readVoiceData(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 18) { if (!readSetView(bits, summary)) packetValid = false; else { decodedAny = true; } }
+      else if (type == 18) { if (!readSetView(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 17) { if (!readSounds(bits, summary, entry.tick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 19) { if (!readFixAngle(bits, summary)) packetValid = false; else { decodedAny = true; } }
+      else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 23) { if (!readUserMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 24) { if (!readEntityMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 25) { if (!readGameEvent(bits, summary)) packetValid = false; else { decodedAny = true; } }
@@ -1899,6 +1919,29 @@ bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int
       [](std::int32_t tick, const TempEntityEvent& event) { return tick < event.tick; });
   events.assign(begin, end);
   return !events.empty();
+}
+
+bool findObserverCameraAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,
+                                      ObserverCameraTrackSample& sample) {
+  sample = {};
+  bool found = false;
+  for (const auto& candidate : summary.observerCameraTrack) {
+    if (candidate.tick > tick) continue;
+    if (candidate.hasViewEntity) {
+      sample.hasViewEntity = true;
+      sample.viewEntity = candidate.viewEntity;
+    }
+    if (candidate.hasAngles) {
+      sample.hasAngles = true;
+      sample.anglesRelative = candidate.anglesRelative;
+      std::copy(std::begin(candidate.angles), std::end(candidate.angles), std::begin(sample.angles));
+    }
+    if (candidate.hasViewEntity || candidate.hasAngles) {
+      sample.tick = candidate.tick;
+      found = true;
+    }
+  }
+  return found;
 }
 
 bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetReference>& references) {
