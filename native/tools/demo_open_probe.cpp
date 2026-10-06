@@ -146,6 +146,7 @@ int wmain(int argc, wchar_t** argv) {
                 << L" first_entity_update_diff=" << summary.firstPacketEntitiesFirstDiff
                 << L" first_entities_message_bit=" << summary.firstPacketEntitiesMessageBit
                 << L" first_entity_failure_stage=" << wide(summary.firstEntityPropFailureStage)
+                << L" first_entity_failure_tick=" << summary.firstEntityPropFailureTick
                 << L" first_entity_failure_name=" << wide(summary.firstEntityPropFailureName)
                 << L" first_entity_failure_class=" << summary.firstEntityPropFailureClass
                 << L" first_entity_failure_index=" << summary.firstEntityPropFailureIndex
