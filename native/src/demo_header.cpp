@@ -894,6 +894,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
        }());
   if (isDelta) {
     ++summary.packetEntityDeltaCount;
+    const bool seenDeltaTick = std::find(summary.packetEntityTicksSeen.begin(), summary.packetEntityTicksSeen.end(), static_cast<std::int32_t>(deltaFrom)) != summary.packetEntityTicksSeen.end();
+    if (seenDeltaTick) ++summary.packetEntityDeltaTickMatches; else ++summary.packetEntityDeltaTickMisses;
     if (summary.firstPacketEntitiesDeltaTick < 0) {
       summary.firstPacketEntitiesDeltaTick = packetTick;
       summary.firstPacketEntitiesDeltaFrom = static_cast<std::int32_t>(deltaFrom);
@@ -1015,6 +1017,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   }
   bits.setMinimumRemaining(0);
   ++summary.packetEntitiesCount;
+  summary.packetEntityTicksSeen.push_back(packetTick);
   summary.packetEntityUpdates += updatedEntries;
   summary.packetEntityPayloadBits += payloadBits;
   if (bits.remaining() < payloadEnd) return false;

@@ -376,6 +376,9 @@ struct DemoNetworkSummary {
   std::vector<EntityHistoryEvent> entityHistoryEvents;
   std::vector<EntityHistoryCheckpoint> entityHistoryCheckpoints;
   std::vector<EntityHistoryPacket> entityHistoryPackets;
+  std::vector<std::int32_t> packetEntityTicksSeen;
+  std::size_t packetEntityDeltaTickMatches = 0;
+  std::size_t packetEntityDeltaTickMisses = 0;
   std::vector<PacketEntitiesDiagnostic> packetEntitiesDiagnostics;
   std::size_t entityHistoryDroppedPackets = 0;
   std::size_t entityHistoryDeltaBaseMisses = 0;

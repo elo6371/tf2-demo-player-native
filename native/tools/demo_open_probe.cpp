@@ -126,6 +126,8 @@ int wmain(int argc, wchar_t** argv) {
                 << L" entity_history_last_tick=" << (summary.entityHistoryCheckpoints.empty() ? -1 : summary.entityHistoryCheckpoints.back().tick)
                 << L" entity_delta_count=" << summary.packetEntityDeltaCount
                 << L" entity_delta_base_unavailable=" << summary.packetEntityDeltaBaseUnavailableCount
+                << L" entity_delta_tick_matches=" << summary.packetEntityDeltaTickMatches
+                << L" entity_delta_tick_misses=" << summary.packetEntityDeltaTickMisses
                 << L" first_delta_tick=" << summary.firstPacketEntitiesDeltaTick
                 << L" first_delta_from=" << summary.firstPacketEntitiesDeltaFrom
                 << L" first_unavailable_tick=" << summary.firstPacketEntitiesUnavailableTick
