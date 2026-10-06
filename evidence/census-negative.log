@@ -1,0 +1,42 @@
+
+=== prepare: copy raw reports to evidence/corpus-negative ===
+  reports=24  digest=0038cf88b5ce6aa16769eeeca3c3e266ffb5c3dab5d1badb3ed64853fe7d0855
+
+=== baseline: unmodified reports must PASS ===
+  clean=24
+  dirty=0
+  sum_packets=1361392
+  OK   baseline PASS
+  victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
+
+=== mutation A: entity_failures 0 -> 3 (must FAIL) ===
+  OK   verdict went red
+  OK   failure names the counter
+
+=== mutation B: remove malformed_packets entirely (must FAIL as missing:) ===
+  OK   verdict went red
+  OK   reported as missing, not skipped
+
+=== mutation C: zero the packet count (must FAIL as no_packets_scanned) ===
+  OK   empty decode detected
+
+=== mutation D: POV classifier disagreement (must FAIL) ===
+  OK   verdict went red
+  OK   disagreement reported
+
+=== mutation E: in-stream HLTV bit set but classifier still says POV (must FAIL) ===
+  OK   verdict went red
+  OK   reported as hltv_bit_ignored
+
+=== mutation F: autorecord_ file reclassified as SourceTV on the stream path (must FAIL) ===
+  OK   verdict went red
+  OK   reported as pov_ground_truth_violated
+
+=== mutation G: source_tv_flag disagrees with the HLTV bit (must FAIL) ===
+  OK   inconsistent flag reported
+
+=== restore: reports must be byte-identical and PASS again ===
+  OK   digest unchanged (0038cf88b5ce6aa16769eeeca3c3e266ffb5c3dab5d1badb3ed64853fe7d0855)
+  OK   restored PASS
+
+CENSUS-NEGATIVE=PASS

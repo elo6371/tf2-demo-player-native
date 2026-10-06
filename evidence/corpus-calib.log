@@ -1,0 +1,29 @@
+demos_total=24 pending=24 resumed=0 corpus_gb=0.6 (full 40.2) workers=3
+  progress 24/24  0.12 demo/s  eta=0.0 min
+
+scanned=24
+clean=24
+dirty=0
+corpus_gb=0.6
+wall_seconds=200.2
+sum_packets=1361392
+sum_packet_entities=1361268
+sum_entity_updates=30772245
+sum_enter=1798957
+sum_preserve=27098327
+sum_leave=1384938
+sum_delete=490023
+autorecord_pov_files=23
+autorecord_classified_pov=23
+autorecord_pov_disagreements=0
+recording_kinds=['POV', 'SourceTV']
+recording_stream_kinds=['POV', 'SourceTV']
+recording_heuristic_count=23
+source_tv_files=['73.dem']
+server_info_hltv_files=['73.dem']
+server_info_replay_bit_files=0
+distinct_maps=18
+protocols=['24']
+message_types_seen_without_decoder=[]
+
+CORPUS-CENSUS=PASS

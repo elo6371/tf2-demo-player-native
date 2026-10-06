@@ -1,0 +1,20 @@
+=== fixed-build readings (the values every mutation must move away from) ===
+bagel:   entity_failures=0 malformed=0 baselines=126 recording=SourceTV
+proto23: malformed=0 unknown=0
+fixture: fixture_failures=0
+recording probe: "recording":true
+
+--- m6: classifier reads servername only again
+MUTATION-RED   m6 classifier regressed -> presentation_probe recording flag "recording":false
+MUTATION-RED   m6 classifier regressed -> bagel header verdict          POV (fixed=SourceTV)
+MUTATION-RED   m6 classifier regressed -> bagel recording_header_name   0 (fixed=1)
+MUTATION-HOLD  m6 classifier regressed -> bagel stream verdict stays    SourceTV (unchanged)
+MUTATION-HOLD  m6 classifier regressed -> bagel hltv bit stays          1 (unchanged)
+
+=== restored tree: readings must be identical to the fixed build ===
+RESTORED-IDENTICAL bagel.fixed.txt
+RESTORED-IDENTICAL proto23.fixed.txt
+RESTORED-IDENTICAL fixture.fixed.txt
+RESTORED-IDENTICAL recording.fixed.txt
+
+MUTATION-SUITE=PASS
