@@ -226,6 +226,16 @@ struct EntityHistoryPacket {
   bool isDelta = false;
 };
 
+struct PacketEntitiesDiagnostic {
+  std::int32_t tick = -1;
+  std::int32_t deltaFrom = -1;
+  std::size_t commandOffset = 0;
+  std::size_t payloadOffset = 0;
+  std::size_t messageBit = 0;
+  std::size_t payloadBits = 0;
+  std::vector<std::uint8_t> rawBits;
+};
+
 enum class EntitySnapshotQueryStatus {
   Available,
   NoHistory,
@@ -366,6 +376,7 @@ struct DemoNetworkSummary {
   std::vector<EntityHistoryEvent> entityHistoryEvents;
   std::vector<EntityHistoryCheckpoint> entityHistoryCheckpoints;
   std::vector<EntityHistoryPacket> entityHistoryPackets;
+  std::vector<PacketEntitiesDiagnostic> packetEntitiesDiagnostics;
   std::size_t entityHistoryDroppedPackets = 0;
   std::size_t entityHistoryDeltaBaseMisses = 0;
   bool entityHistoryHasGap = false;

@@ -4,6 +4,8 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <fstream>
+#include <iomanip>
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
@@ -174,6 +176,19 @@ int wmain(int argc, wchar_t** argv) {
                  << L"," << summary.lastFixAngle[2]
                  << L" camera_track=" << summary.observerCameraTrack.size()
                  << L" camera_track_dropped=" << summary.observerCameraTrackDropped;
+      if (!summary.packetEntitiesDiagnostics.empty()) {
+        std::ofstream evidence("packet-entities-target-evidence.txt", std::ios::trunc);
+        for (const auto& item : summary.packetEntitiesDiagnostics) {
+          evidence << "tick=" << item.tick << " deltaFrom=" << item.deltaFrom
+                   << " commandOffset=" << item.commandOffset << " payloadOffset=" << item.payloadOffset
+                   << " messageBit=" << item.messageBit << " payloadBits=" << item.payloadBits
+                   << " rawBytes=" << item.rawBits.size() << "\nhex=";
+          for (const auto byte : item.rawBits) evidence << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(byte);
+          evidence << std::dec << "\n";
+        }
+        evidence.close();
+        std::wcout << L" packet_entities_evidence=packet-entities-target-evidence.txt";
+      }
       if (cameraTick >= 0) {
         tf2::native::ObserverCameraTrackSample camera;
         const bool found = tf2::native::findObserverCameraAtOrBeforeTick(summary, cameraTick, camera);
