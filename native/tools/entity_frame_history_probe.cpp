@@ -28,12 +28,14 @@ int main() {
   if (history.apply(10, -1, {enter(2, 7, 3, 10)}) != EntityFrameApplyResult::Applied) return 1;
   if (history.apply(11, 10, {update(EntityFrameUpdate::Kind::Delta, 2, 3, 11)}) != EntityFrameApplyResult::Applied) return 2;
   if (history.apply(12, 11, {update(EntityFrameUpdate::Kind::Preserve, 2, 3, 12)}) != EntityFrameApplyResult::Applied) return 3;
-  const auto property = history.current().entities[2].properties.find("x");
-  if (property == history.current().entities[2].properties.end() || property->second != 12 || !history.current().entities[2].transmitted) return 4;
+  const auto entity = history.current().entities.find(2);
+  if (entity == history.current().entities.end()) return 4;
+  const auto property = entity->second.properties.find("x");
+  if (property == entity->second.properties.end() || property->second != 12 || !entity->second.transmitted) return 4;
   if (history.apply(13, 12, {update(EntityFrameUpdate::Kind::Leave, 2, 3)}) != EntityFrameApplyResult::Applied) return 5;
-  if (history.current().entities[2].transmitted || !history.current().entities[2].present) return 6;
+  if (history.current().entities.find(2)->second.transmitted || !history.current().entities.find(2)->second.present) return 6;
   if (history.apply(14, 13, {update(EntityFrameUpdate::Kind::Delete, 2, 3)}) != EntityFrameApplyResult::Applied) return 7;
-  if (history.current().entities[2].present) return 8;
+  if (history.current().entities.find(2) != history.current().entities.end()) return 8;
   if (history.apply(15, 999, {}) != EntityFrameApplyResult::MissingDeltaBase) return 9;
   if (history.apply(16, 14, {update(EntityFrameUpdate::Kind::Preserve, 2, 3)}) != EntityFrameApplyResult::InvalidSerial) return 10;
   std::cout << "entity_frame_history=PASS frames=" << history.frameCount() << "\n";

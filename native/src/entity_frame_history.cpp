@@ -6,12 +6,10 @@ namespace tf2::native {
 
 EntityFrameHistory::EntityFrameHistory(std::size_t maxEntities)
     : maxEntities_(maxEntities), current_{} {
-  current_.entities.resize(maxEntities_);
 }
 
 void EntityFrameHistory::clear() {
   current_ = {};
-  current_.entities.resize(maxEntities_);
   frames_.clear();
 }
 
@@ -31,13 +29,14 @@ EntityFrameApplyResult EntityFrameHistory::apply(
     if (!base) return EntityFrameApplyResult::MissingDeltaBase;
     next = *base;
   } else {
-    next.entities.resize(maxEntities_);
   }
   next.tick = tick;
   next.deltaFrom = deltaFrom;
   for (const auto& update : updates) {
     if (update.index >= maxEntities_) return EntityFrameApplyResult::InvalidEntity;
-    auto& entity = next.entities[update.index];
+    auto existing = next.entities.find(update.index);
+    EntityFrameState empty;
+    auto& entity = existing == next.entities.end() ? next.entities.emplace(update.index, std::move(empty)).first->second : existing->second;
     switch (update.kind) {
       case EntityFrameUpdate::Kind::Enter:
         if (update.serial > 1023) return EntityFrameApplyResult::InvalidSerial;
@@ -59,7 +58,7 @@ EntityFrameApplyResult EntityFrameHistory::apply(
         entity.transmitted = false;
         break;
       case EntityFrameUpdate::Kind::Delete:
-        entity = {};
+        next.entities.erase(update.index);
         break;
     }
   }

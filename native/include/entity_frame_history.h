@@ -18,7 +18,7 @@ struct EntityFrameState {
 struct HistoryFrame {
   std::int32_t tick = -1;
   std::int32_t deltaFrom = -1;
-  std::vector<EntityFrameState> entities;
+  std::unordered_map<std::uint16_t, EntityFrameState> entities;
 };
 
 enum class EntityFrameApplyResult {
@@ -46,6 +46,7 @@ class EntityFrameHistory {
   const HistoryFrame* find(std::int32_t tick) const;
   const HistoryFrame& current() const { return current_; }
   std::size_t frameCount() const { return frames_.size(); }
+  std::size_t currentEntityCount() const { return current_.entities.size(); }
 
  private:
   std::size_t maxEntities_;
