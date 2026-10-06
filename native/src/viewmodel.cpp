@@ -170,10 +170,7 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
       request.reason = error.empty() ? "viewmodel MDL is missing or invalid" : error;
       return request;
     }
-    // The native-mvp ModelLoader exposes file and resource inspection only;
-    // keep VPK request validation independent of that richer inspection API.
-    inspection.mdl.signatureValid = true;
-    inspection.metadata.valid = true;
+    inspection = ModelLoader::inspectVpk(archive, request.path);
   }
   if (!inspection.mdl.signatureValid || !inspection.metadata.valid) {
     request.reason = "viewmodel MDL is missing or invalid";

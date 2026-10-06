@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <limits>
@@ -248,6 +249,134 @@ bool indexDemoFile(const std::filesystem::path& path, const DemoHeader& header, 
   return index.valid;
 }
 
+namespace {
+const EntityPropertyValue* findPropertySuffix(const std::unordered_map<std::string, EntityPropertyValue>& properties, const char* suffix) {
+  for (const auto& [name, value] : properties) {
+    if (name == suffix || (name.size() > std::strlen(suffix) &&
+        name.compare(name.size() - std::strlen(suffix), std::strlen(suffix), suffix) == 0)) return &value;
+  }
+  return nullptr;
+}
+}
+
+float demoBitAngleToDegrees(std::uint32_t raw, int width) {
+  if (width <= 0 || width >= 31) return 0.0f;
+  const float span = static_cast<float>(1u << static_cast<unsigned>(width));
+  return static_cast<float>(raw) * (360.0f / span);
+}
+
+void demoViewForward(float pitchDegrees, float yawDegrees, float out[3]) {
+  constexpr float kDeg = 0.01745329251994329577f;
+  const float pitch = pitchDegrees * kDeg;
+  const float yaw = yawDegrees * kDeg;
+  const float cosinePitch = std::cos(pitch);
+  out[0] = cosinePitch * std::cos(yaw);
+  out[1] = cosinePitch * std::sin(yaw);
+  out[2] = -std::sin(pitch);
+}
+
+bool parseDemoCmdInfo(const std::uint8_t* bytes, std::size_t size, DemoViewSample& sample) {
+  sample = {};
+  if (!bytes || size < 76) return false;
+  const auto readFloat = [&](std::size_t offset) {
+    float value = 0.0f;
+    std::memcpy(&value, bytes + offset, sizeof(value));
+    return value;
+  };
+  sample.origin[0] = readFloat(4); sample.origin[1] = readFloat(8); sample.origin[2] = readFloat(12);
+  sample.angles[0] = readFloat(16); sample.angles[1] = readFloat(20); sample.angles[2] = readFloat(24);
+  sample.hasOrigin = std::isfinite(sample.origin[0]) && std::isfinite(sample.origin[1]) && std::isfinite(sample.origin[2]);
+  sample.hasAngles = std::isfinite(sample.angles[0]) && std::isfinite(sample.angles[1]) && std::isfinite(sample.angles[2]);
+  sample.source = DemoViewSource::CmdInfo;
+  return sample.hasOrigin || sample.hasAngles;
+}
+
+void applyTempEntityFields(TempEntityEvent& event) {
+  event.knownFieldCount = 0;
+  event.hasOrigin = event.hasAngles = event.hasPlayer = event.hasWeaponId = event.hasMode = false;
+  event.hasSeed = event.hasEvent = event.hasEffectIndex = event.hasMagnitude = event.hasScale = false;
+  event.hasRadius = event.hasParticleName = event.hasVelocity = event.hasModelIndex = false;
+  event.hasOwner = event.hasLifeTime = false;
+  const auto* properties = &event.properties;
+  auto takeInt = [&](const char* name, bool& present, std::int64_t& target) {
+    const auto* value = findPropertySuffix(*properties, name);
+    if (!value || value->type != SendPropType::Int) return;
+    present = true;
+    target = value->intValue;
+    ++event.knownFieldCount;
+  };
+  auto takeVec = [&](const char* name, bool& present, float target[3]) {
+    const auto* value = findPropertySuffix(*properties, name);
+    if (!value || value->type != SendPropType::Vector) return;
+    if (!std::isfinite(value->x) || !std::isfinite(value->y) || !std::isfinite(value->z)) return;
+    present = true;
+    target[0] = value->x; target[1] = value->y; target[2] = value->z;
+    ++event.knownFieldCount;
+  };
+  takeVec("m_vecOrigin", event.hasOrigin, event.origin);
+  takeVec("m_vecAngles", event.hasAngles, event.angles);
+  if (event.className == "CTEFireBullets") {
+    takeInt("m_iPlayer", event.hasPlayer, event.player);
+    takeInt("m_iWeaponID", event.hasWeaponId, event.weaponId);
+    takeInt("m_iMode", event.hasMode, event.mode);
+    takeInt("m_iSeed", event.hasSeed, event.seed);
+  } else if (event.className == "CTEPlayerAnimEvent") {
+    takeInt("m_hPlayer", event.hasPlayer, event.player);
+    takeInt("m_iEvent", event.hasEvent, event.event);
+  } else if (event.className == "CTETFParticleEffect") {
+    takeInt("m_iEffectIndex", event.hasEffectIndex, event.effectIndex);
+    if (const auto* value = findPropertySuffix(*properties, "m_szParticleName");
+        value && value->type == SendPropType::String) {
+      event.hasParticleName = true;
+      event.particleName = value->stringValue;
+      ++event.knownFieldCount;
+    }
+  } else if (event.className == "CTETFExplosion" || event.className == "CTEExplosion") {
+    takeInt("m_iMagnitude", event.hasMagnitude, event.magnitude);
+    takeInt("m_iScale", event.hasScale, event.scale);
+    takeInt("m_iRadius", event.hasRadius, event.radius);
+  } else if (event.className == "CTEClientProjectile") {
+    takeVec("m_vecVelocity", event.hasVelocity, event.velocity);
+    takeInt("m_nModelIndex", event.hasModelIndex, event.modelIndex);
+    if (!event.hasModelIndex) takeInt("m_iModelIndex", event.hasModelIndex, event.modelIndex);
+    takeInt("m_hOwner", event.hasOwner, event.owner);
+    takeInt("m_nLifeTime", event.hasLifeTime, event.lifeTime);
+    if (!event.hasLifeTime) takeInt("m_iLifeTime", event.hasLifeTime, event.lifeTime);
+  }
+}
+
+bool projectileFromTempEntity(const TempEntityEvent& event, ProjectileTimelineEvent& timeline) {
+  const bool projectileClass = event.className == "CTEFireBullets" ||
+    event.className == "CTETFParticleEffect" || event.className == "CTETFExplosion" ||
+    event.className == "CTEExplosion" || event.className == "CTEClientProjectile";
+  if (!projectileClass) return false;
+  timeline = {};
+  timeline.tick = event.tick;
+  timeline.className = event.className;
+  timeline.hasOrigin = event.hasOrigin;
+  if (timeline.hasOrigin) std::copy(std::begin(event.origin), std::end(event.origin), std::begin(timeline.origin));
+  timeline.hasDirection = event.hasAngles;
+  if (timeline.hasDirection) std::copy(std::begin(event.angles), std::end(event.angles), std::begin(timeline.direction));
+  timeline.hasWeaponId = event.hasWeaponId;
+  timeline.weaponId = event.weaponId;
+  timeline.hasParticleName = event.hasParticleName;
+  timeline.particleName = event.particleName;
+  timeline.hasMagnitude = event.hasMagnitude && event.magnitude >= 0;
+  timeline.magnitude = event.magnitude;
+  timeline.hasScale = event.hasScale;
+  timeline.scale = event.scale;
+  timeline.hasRadius = event.hasRadius && event.radius >= 0;
+  timeline.radius = event.radius;
+  timeline.hasVelocity = event.hasVelocity;
+  if (timeline.hasVelocity) std::copy(std::begin(event.velocity), std::end(event.velocity), std::begin(timeline.velocity));
+  timeline.hasModelIndex = event.hasModelIndex;
+  timeline.modelIndex = event.modelIndex;
+  timeline.hasOwner = event.hasOwner;
+  timeline.owner = event.owner;
+  timeline.hasLifeTime = event.hasLifeTime && event.lifeTime >= 0;
+  timeline.lifeTime = event.lifeTime;
+  return true;
+}
 
 namespace {
 class MessageBits {
@@ -494,33 +623,37 @@ bool readGetCvarValue(MessageBits& bits, DemoNetworkSummary& summary) {
   return true;
 }
 
-void appendObserverCameraSample(DemoNetworkSummary& summary, ObserverCameraTrackSample sample) {
-  constexpr std::size_t kMaxObserverCameraSamples = 32768;
-  if (summary.observerCameraTrack.size() >= kMaxObserverCameraSamples) {
-    summary.observerCameraTrack.erase(summary.observerCameraTrack.begin());
-    ++summary.observerCameraTrackDropped;
-  }
-  summary.observerCameraTrack.push_back(sample);
-}
-
 bool readFixAngle(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
   std::uint32_t relative = 0;
-  std::uint32_t raw[3] = {};
-  if (!bits.read(1, relative) || !bits.read(16, raw[0]) ||
-      !bits.read(16, raw[1]) || !bits.read(16, raw[2])) return false;
-  constexpr float kAngleScale = 360.0f / 65536.0f;
-  summary.lastFixAngleRelative = relative != 0;
-  for (std::size_t axis = 0; axis < 3; ++axis) {
-    summary.lastFixAngle[axis] = static_cast<float>(raw[axis]) * kAngleScale;
+  if (!bits.read(1, relative)) return false;
+  float angles[3] = {};
+  for (float& angle : angles) {
+    std::uint32_t raw = 0;
+    if (!bits.read(16, raw)) return false;
+    angle = demoBitAngleToDegrees(raw, 16);
   }
+  if (relative != 0 && summary.lastFixAngleValid) {
+    for (int axis = 0; axis < 3; ++axis) {
+      angles[axis] = std::fmod(angles[axis] + summary.lastFixAngle[axis], 360.0f);
+      if (angles[axis] < 0.0f) angles[axis] += 360.0f;
+    }
+  }
+  summary.lastFixAngle[0] = angles[0];
+  summary.lastFixAngle[1] = angles[1];
+  summary.lastFixAngle[2] = angles[2];
   summary.lastFixAngleValid = true;
+  summary.lastFixAngleRelative = relative != 0;
   ++summary.fixAngleCount;
-  ObserverCameraTrackSample sample;
-  sample.tick = packetTick;
-  sample.hasAngles = true;
-  sample.anglesRelative = summary.lastFixAngleRelative;
-  std::copy(std::begin(summary.lastFixAngle), std::end(summary.lastFixAngle), std::begin(sample.angles));
-  appendObserverCameraSample(summary, sample);
+  ++summary.fixAngleDecoded;
+  if (summary.viewSamples.size() >= 65536u) ++summary.viewSamplesDropped;
+  else {
+    DemoViewSample sample;
+    sample.tick = packetTick;
+    sample.angles[0] = angles[0]; sample.angles[1] = angles[1]; sample.angles[2] = angles[2];
+    sample.hasAngles = true;
+    sample.source = DemoViewSource::FixAngle;
+    summary.viewSamples.push_back(sample);
+  }
   return true;
 }
 
@@ -801,12 +934,28 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
   return false;
 }
 
-constexpr std::size_t kEntityHistoryMaxEvents = 8192;
-constexpr std::size_t kEntityHistoryMaxCheckpoints = 8;
-constexpr std::size_t kEntityHistoryCheckpointStride = 128;
+void thinHistoryArchive(std::vector<EntityHistoryCheckpoint>& archive, std::size_t maxCount) {
+  if (archive.size() <= maxCount || maxCount < 2) return;
+  std::vector<EntityHistoryCheckpoint> kept;
+  kept.reserve(maxCount);
+  const std::size_t last = archive.size() - 1;
+  std::size_t previous = static_cast<std::size_t>(-1);
+  for (std::size_t slot = 0; slot < maxCount; ++slot) {
+    std::size_t index = (last * slot) / (maxCount - 1);
+    if (index <= previous) index = std::min(last, previous + 1);
+    previous = index;
+    kept.push_back(std::move(archive[index]));
+    if (index == last) break;
+  }
+  archive = std::move(kept);
+}
 
 void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                          std::int32_t deltaFrom, std::vector<EntityHistoryEvent>&& events) {
+  const std::size_t maxEvents = std::max<std::size_t>(1, summary.entityHistoryLimits.maxEvents);
+  const std::size_t maxCheckpoints = std::max<std::size_t>(1, summary.entityHistoryLimits.maxCheckpoints);
+  const std::size_t stride = std::max<std::size_t>(1, summary.entityHistoryLimits.checkpointStride);
+  const std::size_t archiveMax = std::max<std::size_t>(2, summary.entityHistoryLimits.archiveMax);
   if (summary.entityHistoryHasGap) {
     if (isDelta) {
       ++summary.entityHistoryDroppedPackets;
@@ -815,14 +964,19 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
     summary.entityHistoryHasGap = false;
   }
   std::uint32_t packetOrdinal = static_cast<std::uint32_t>(summary.entityHistoryPackets.size());
-  if (summary.entityHistoryEvents.size() + events.size() > kEntityHistoryMaxEvents ||
-      (packetOrdinal > 0 && packetOrdinal % kEntityHistoryCheckpointStride == 0 &&
-       summary.entityHistoryCheckpoints.size() >= kEntityHistoryMaxCheckpoints)) {
-    // The live entity table already contains the state after this packet. Start
-    // a new bounded history window from that state instead of turning normal
-    // retention into a permanent decode gap. Each history event stores a full
-    // post-update state, so subsequent packets remain independently replayable.
+  if (summary.entityHistoryEvents.size() + events.size() > maxEvents ||
+      (packetOrdinal > 0 && packetOrdinal % stride == 0 &&
+       summary.entityHistoryCheckpoints.size() >= maxCheckpoints)) {
+    // The live entity table already contains the state after this packet. Keep
+    // the checkpoints we are about to drop so a tick anywhere in the demo can
+    // resolve to the newest retained snapshot. The open window still replays
+    // its own events exactly. Ticks between archived snapshots are Checkpoint,
+    // not a second full event log.
     ++summary.entityHistoryDroppedPackets;
+    summary.entityHistoryArchive.insert(summary.entityHistoryArchive.end(),
+                                        summary.entityHistoryCheckpoints.begin(),
+                                        summary.entityHistoryCheckpoints.end());
+    thinHistoryArchive(summary.entityHistoryArchive, archiveMax);
     summary.entityHistoryEvents.clear();
     summary.entityHistoryPackets.clear();
     summary.entityHistoryCheckpoints.clear();
@@ -850,7 +1004,7 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
   summary.entityHistoryPackets.push_back({tick, deltaFrom, packetOrdinal, firstEvent,
                                            events.size(), isDelta});
   if (summary.entityHistoryCheckpoints.empty() ||
-      packetOrdinal % kEntityHistoryCheckpointStride == 0) {
+      packetOrdinal % stride == 0) {
     summary.entityHistoryCheckpoints.push_back({tick, packetOrdinal,
                                                 summary.entityClassByIndex,
                                                 summary.entityStates});
@@ -1260,76 +1414,13 @@ bool readTempEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32
       event.hasDelay = hasDelay != 0;
       event.delayRaw = static_cast<std::uint8_t>(delayRaw);
       event.properties = eventState.properties;
-      auto findValue = [&eventState](const char* suffix) -> const EntityPropertyValue* {
-        for (const auto& [name, value] : eventState.properties) {
-          if (name == suffix || (name.size() > std::strlen(suffix) &&
-                                 name.compare(name.size() - std::strlen(suffix), std::strlen(suffix), suffix) == 0)) {
-            return &value;
-          }
-        }
-        return nullptr;
-      };
-      auto intField = [&event, &findValue](const char* name, bool& present, std::int64_t& target) {
-        if (const auto* value = findValue(name); value && value->type == SendPropType::Int) {
-          present = true; target = value->intValue; ++event.knownFieldCount;
-        }
-      };
-      auto vecField = [&event, &findValue](const char* name, bool& present, float target[3]) {
-        if (const auto* value = findValue(name); value &&
-            (value->type == SendPropType::Vector || value->type == SendPropType::VectorXY)) {
-          present = value->type == SendPropType::Vector;
-          target[0] = value->x; target[1] = value->y; target[2] = value->z;
-          if (present) ++event.knownFieldCount;
-        }
-      };
-      vecField("m_vecOrigin", event.hasOrigin, event.origin);
-      vecField("m_vecAngles", event.hasAngles, event.angles);
-      if (event.className == "CTEFireBullets") {
-        intField("m_iPlayer", event.hasPlayer, event.player);
-        intField("m_iWeaponID", event.hasWeaponId, event.weaponId);
-        intField("m_iMode", event.hasMode, event.mode);
-        intField("m_iSeed", event.hasSeed, event.seed);
-      } else if (event.className == "CTEPlayerAnimEvent") {
-        intField("m_hPlayer", event.hasPlayer, event.player);
-        intField("m_iEvent", event.hasEvent, event.event);
-      } else if (event.className == "CTETFParticleEffect") {
-        intField("m_iEffectIndex", event.hasEffectIndex, event.effectIndex);
-        if (const auto* value = findValue("m_szParticleName"); value && value->type == SendPropType::String) {
-          event.hasParticleName = true; event.particleName = value->stringValue; ++event.knownFieldCount;
-        }
-      } else if (event.className == "CTETFExplosion" || event.className == "CTEExplosion") {
-        intField("m_iMagnitude", event.hasMagnitude, event.magnitude);
-        intField("m_iScale", event.hasScale, event.scale);
-        intField("m_iRadius", event.hasRadius, event.radius);
-      }
+      applyTempEntityFields(event);
       if (event.className == "CTEFireBullets") summary.tempFireBulletsFieldHits += event.knownFieldCount;
       else if (event.className == "CTETFParticleEffect") summary.tempParticleEffectFieldHits += event.knownFieldCount;
       else if (event.className == "CTETFExplosion" || event.className == "CTEExplosion") summary.tempExplosionFieldHits += event.knownFieldCount;
       else if (event.className == "CTEPlayerAnimEvent") summary.tempPlayerAnimEventFieldHits += event.knownFieldCount;
-      const bool projectileClass = event.className == "CTEFireBullets" ||
-                                   event.className == "CTETFParticleEffect" ||
-                                   event.className == "CTETFExplosion" ||
-                                   event.className == "CTEExplosion";
-      if (projectileClass && summary.projectileTimeline.size() < 16384u) {
-        ProjectileTimelineEvent timeline;
-        timeline.tick = event.tick;
-        timeline.className = event.className;
-        timeline.hasOrigin = event.hasOrigin && std::isfinite(event.origin[0]) &&
-                             std::isfinite(event.origin[1]) && std::isfinite(event.origin[2]);
-        if (timeline.hasOrigin) std::copy(std::begin(event.origin), std::end(event.origin), std::begin(timeline.origin));
-        timeline.hasDirection = event.hasAngles && std::isfinite(event.angles[0]) &&
-                                std::isfinite(event.angles[1]) && std::isfinite(event.angles[2]);
-        if (timeline.hasDirection) std::copy(std::begin(event.angles), std::end(event.angles), std::begin(timeline.direction));
-        timeline.hasWeaponId = event.hasWeaponId;
-        timeline.weaponId = event.weaponId;
-        timeline.hasParticleName = event.hasParticleName;
-        timeline.particleName = event.particleName;
-        timeline.hasMagnitude = event.hasMagnitude && event.magnitude >= 0;
-        timeline.magnitude = event.magnitude;
-        timeline.hasScale = event.hasScale;
-        timeline.scale = event.scale;
-        timeline.hasRadius = event.hasRadius && event.radius >= 0;
-        timeline.radius = event.radius;
+      ProjectileTimelineEvent timeline;
+      if (projectileFromTempEntity(event, timeline) && summary.projectileTimeline.size() < 16384u) {
         summary.projectileTimeline.push_back(std::move(timeline));
       }
       summary.tempEntityEvents.push_back(std::move(event));
@@ -1355,16 +1446,11 @@ bool readSetConVar(MessageBits& bits, DemoNetworkSummary& summary) {
   return true;
 }
 
-bool readSetView(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
+bool readSetView(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t entityIndex = 0;
   if (!bits.read(11, entityIndex)) return false;
   ++summary.setViewCount;
   summary.lastViewEntity = entityIndex;
-  ObserverCameraTrackSample sample;
-  sample.tick = packetTick;
-  sample.hasViewEntity = true;
-  sample.viewEntity = entityIndex;
-  appendObserverCameraSample(summary, sample);
   return true;
 }
 
@@ -1404,14 +1490,18 @@ bool readSignonState(MessageBits& bits, DemoNetworkSummary& summary) {
 }
 
 bool readServerInfo(MessageBits& bits, DemoNetworkSummary& summary) {
-  std::uint32_t value = 0;
-  std::uint32_t stv = 0;
-  if (!bits.read(16, value) || !bits.read(32, value) || !bits.read(1, stv) || !bits.read(1, value) || !bits.read(32, value) || !bits.read(16, value)) return false;
+  std::uint32_t value = 0, hltv = 0, dedicated = 0, replay = 0;
+  if (!bits.read(16, value) || !bits.read(32, value) || !bits.read(1, hltv) || !bits.read(1, dedicated) || !bits.read(32, value) || !bits.read(16, value)) return false;
   for (int i = 0; i < 16; ++i) if (!bits.read(8, value)) return false;
   if (!bits.read(8, value) || !bits.read(8, value) || !bits.read(32, value)) return false;
   std::string platform, game, map, skybox, server;
-  if (!bits.readStringLimit(platform, 1) || !bits.readString(game) || !bits.readString(map) || !bits.readString(skybox) || !bits.readString(server) || !bits.read(1, value)) return false;
-  summary.serverMap = map; summary.serverName = server; summary.sourceTv = stv != 0; return true;
+  if (!bits.readStringLimit(platform, 1) || !bits.readString(game) || !bits.readString(map) || !bits.readString(skybox) || !bits.readString(server) || !bits.read(1, replay)) return false;
+  summary.serverMap = map; summary.serverName = server;
+  summary.serverInfoHltv = hltv != 0;
+  summary.serverInfoDedicated = dedicated != 0;
+  summary.serverInfoReplayBit = replay != 0;
+  summary.sourceTv = summary.serverInfoHltv;
+  return true;
 }
 
 bool decodeLzss(const std::vector<std::uint8_t>& input, std::size_t offset, std::size_t length,
@@ -1816,6 +1906,18 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
       continue;
     }
     if (entry.command != 1 && entry.command != 2) continue;
+    if (entry.payloadOffset >= 88) {
+      std::uint8_t cmdInfo[76] = {};
+      file.seekg(static_cast<std::streamoff>(entry.payloadOffset - 88), std::ios::beg);
+      if (readExact(file, cmdInfo, sizeof(cmdInfo))) {
+        DemoViewSample sample;
+        if (parseDemoCmdInfo(cmdInfo, sizeof(cmdInfo), sample)) {
+          sample.tick = entry.tick;
+          if (summary.viewSamples.size() >= 65536u) ++summary.viewSamplesDropped;
+          else summary.viewSamples.push_back(sample);
+        }
+      }
+    }
     std::vector<std::uint8_t> payload;
     if (!readEntryPayload(file, entry, payload, 128u * 1024u * 1024u)) { ++summary.malformedPackets; continue; }
     MessageBits bits(payload); bool decodedAny = false; bool packetValid = true;
@@ -1836,8 +1938,8 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
       else if (type == 13) { if (!readUpdateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 14) { if (!readVoiceInit(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 15) { if (!readVoiceData(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 18) { if (!readSetView(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 17) { if (!readSounds(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
+      else if (type == 18) { if (!readSetView(bits, summary)) packetValid = false; else { decodedAny = true; } }
+      else if (type == 17) { if (!readSounds(bits, summary, entry.tick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
       else if (type == 23) { if (!readUserMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
       else if (type == 24) { if (!readEntityMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
@@ -1877,7 +1979,23 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states) {
   if (summary.entityHistoryHasGap) return EntitySnapshotQueryStatus::Gap;
-  if (summary.entityHistoryCheckpoints.empty()) return EntitySnapshotQueryStatus::NoHistory;
+  const bool liveWindow = !summary.entityHistoryCheckpoints.empty()
+      && tick >= summary.entityHistoryCheckpoints.front().tick;
+  if (!liveWindow) {
+    if (summary.entityHistoryArchive.empty() && summary.entityHistoryCheckpoints.empty()) {
+      return EntitySnapshotQueryStatus::NoHistory;
+    }
+    if (!summary.entityHistoryArchive.empty()) {
+      const auto archived = std::upper_bound(
+          summary.entityHistoryArchive.begin(), summary.entityHistoryArchive.end(), tick,
+          [](std::int32_t value, const EntityHistoryCheckpoint& item) { return value < item.tick; });
+      if (archived != summary.entityHistoryArchive.begin()) {
+        states = std::prev(archived)->states;
+        return EntitySnapshotQueryStatus::Checkpoint;
+      }
+    }
+    return EntitySnapshotQueryStatus::TickBeforeHistory;
+  }
   const auto checkpoint = std::upper_bound(
       summary.entityHistoryCheckpoints.begin(), summary.entityHistoryCheckpoints.end(), tick,
       [](std::int32_t value, const EntityHistoryCheckpoint& item) { return value < item.tick; });
@@ -1904,8 +2022,43 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
 
 bool findEntitySnapshotAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,
                                       std::vector<EntityState>& states) {
-  return queryEntitySnapshotAtOrBeforeTick(summary, tick, states) ==
-         EntitySnapshotQueryStatus::Available;
+  const auto status = queryEntitySnapshotAtOrBeforeTick(summary, tick, states);
+  return status == EntitySnapshotQueryStatus::Available || status == EntitySnapshotQueryStatus::Checkpoint;
+}
+
+void appendEntityHistoryPacket(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
+                               std::int32_t deltaFrom, std::vector<EntityHistoryEvent> events) {
+  appendEntityHistory(summary, tick, isDelta, deltaFrom, std::move(events));
+}
+
+bool findObserverViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick, DemoViewSample& sample) {
+  if (summary.viewSamples.empty()) return false;
+  const auto match = std::upper_bound(
+      summary.viewSamples.begin(), summary.viewSamples.end(), tick,
+      [](std::int32_t value, const DemoViewSample& item) { return value < item.tick; });
+  if (match == summary.viewSamples.begin()) return false;
+  sample = *std::prev(match);
+  return true;
+}
+
+DemoRecordingClassification classifyDemoRecording(const DemoHeader& header, const DemoNetworkSummary& summary) {
+  DemoRecordingClassification result;
+  result.headerName = header.recordingType == DemoRecordingType::SourceTv;
+  result.serverInfoHltv = summary.serverInfoHltv;
+  result.serverInfoReplayBit = summary.serverInfoReplayBit;
+  if (result.headerName || result.serverInfoHltv) {
+    result.kind = DemoRecordingKind::SourceTv;
+    result.label = "SourceTV";
+    return result;
+  }
+  if (header.recordingType == DemoRecordingType::PovHeuristic || !header.clientName.empty()) {
+    result.kind = DemoRecordingKind::Pov;
+    result.label = summary.serverInfoCount > 0 ? "POV" : "POV (heuristic)";
+    return result;
+  }
+  result.kind = DemoRecordingKind::Unknown;
+  result.label = "unknown";
+  return result;
 }
 
 bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int32_t firstTick,
@@ -1920,29 +2073,6 @@ bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int
       [](std::int32_t tick, const TempEntityEvent& event) { return tick < event.tick; });
   events.assign(begin, end);
   return !events.empty();
-}
-
-bool findObserverCameraAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,
-                                      ObserverCameraTrackSample& sample) {
-  sample = {};
-  bool found = false;
-  for (const auto& candidate : summary.observerCameraTrack) {
-    if (candidate.tick > tick) continue;
-    if (candidate.hasViewEntity) {
-      sample.hasViewEntity = true;
-      sample.viewEntity = candidate.viewEntity;
-    }
-    if (candidate.hasAngles) {
-      sample.hasAngles = true;
-      sample.anglesRelative = candidate.anglesRelative;
-      std::copy(std::begin(candidate.angles), std::end(candidate.angles), std::begin(sample.angles));
-    }
-    if (candidate.hasViewEntity || candidate.hasAngles) {
-      sample.tick = candidate.tick;
-      found = true;
-    }
-  }
-  return found;
 }
 
 bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetReference>& references) {

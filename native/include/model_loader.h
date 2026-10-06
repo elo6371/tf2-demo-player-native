@@ -205,23 +205,28 @@ struct ModelInspection {
   std::vector<std::string> diagnostics;
 };
 
-struct ModelMeshData {
-  std::size_t descriptorIndex = 0;
-  std::vector<ModelDrawVertex> vertices;
-  std::vector<std::uint32_t> indices;
-  bool triangleList = false;
-};
-
 struct ModelRenderRequest {
   std::uint16_t entityIndex = 0;
   std::int32_t classId = -1;
   std::string className;
   std::string modelPath;
+  std::string cacheKey;
+  std::uint32_t checksum = 0;
   ModelAssetResolution resolution = ModelAssetResolution::Unknown;
   bool companionSetComplete = false;
   bool renderable = false;
+  bool inspectedFromVpk = false;
   ModelInspection inspection;
   std::string diagnostic;
+};
+
+struct ModelRenderRequestStats {
+  std::size_t candidateResolves = 0;
+  std::size_t candidateCacheHits = 0;
+  std::size_t inspections = 0;
+  std::size_t inspectionCacheHits = 0;
+  std::size_t vpkExtracts = 0;
+  std::size_t archiveOpens = 0;
 };
 
 class ModelLoader final {
@@ -230,14 +235,15 @@ public:
   static ModelAssetCandidate resolveAssetReference(const AssetRoot& root, const AssetReference& reference,
     const ItemSchema* schema = nullptr);
   static std::vector<ModelRenderRequest> buildRenderRequests(const AssetRoot& root,
-    const std::vector<AssetReference>& references, const ItemSchema* schema = nullptr);
+    const std::vector<AssetReference>& references, const ItemSchema* schema = nullptr,
+    ModelRenderRequestStats* stats = nullptr);
   static AppearanceResolution resolveAppearanceReference(const AssetReference& reference,
     const ItemSchema* schema);
   static ModelInspection inspect(const std::filesystem::path& mdlPath);
   static ModelInspection inspect(const ModelResourcePaths& paths);
-  static bool buildModelMeshData(const ModelInspection& inspection, std::size_t descriptorIndex,
-    ModelMeshData& mesh, std::string& error);
+  static ModelInspection inspectVpk(const VpkArchive& archive, const std::string& modelPath);
   static bool buildBindPoseMesh(ModelMetadata& metadata, std::size_t descriptorIndex, std::string& error);
+  static bool buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error, std::size_t maxVertices = 12000);
   static bool cpuSkinVertexReference(const ModelMetadata& metadata, const ModelDrawVertex& vertex,
     std::array<float, 3>& outputPosition, std::string& error);
 };

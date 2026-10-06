@@ -44,11 +44,22 @@ if (-not $Play) { $arguments += '--start-paused' }
 if ($effectiveTfRoot) { $arguments += @('--tf-root', $effectiveTfRoot) }
 if ($Demo) { $arguments += @('--demo', $Demo) }
 
+# Windows PowerShell 5.1 joins an argument array with spaces and does not quote
+# paths. TF2 lives under "Team Fortress 2", so an unquoted --demo never opens.
+function Format-NativeArgument([string]$text) {
+  if ($text -match '[\s"]') { return '"' + ($text.Replace('"', '\"')) + '"' }
+  return $text
+}
+$quotedArguments = (@($arguments | ForEach-Object { Format-NativeArgument $_ })) -join ' '
+
 $process = $null
 $exitCode = $null
 try {
-  $process = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $InstallDir -PassThru
-  if (-not $process.WaitForInputIdle(10000)) { throw 'process_input_idle_timeout' }
+  $process = Start-Process -FilePath $exe -ArgumentList $quotedArguments -WorkingDirectory $InstallDir -PassThru
+  # Demo indexing and map upload run before the message loop. A real TF2 demo
+  # on this machine needs more than the old 10 second idle budget.
+  $idleMs = $(if ($Play) { 60000 } else { 10000 })
+  if (-not $process.WaitForInputIdle($idleMs)) { throw 'process_input_idle_timeout' }
   Start-Sleep -Seconds $Seconds
   if ($process.HasExited) { throw "process_exited_early=$($process.ExitCode)" }
 }
@@ -77,7 +88,7 @@ try {
     throw ("fps_below_threshold average={0:N2} threshold={1:N2}" -f $averageFps, $MinFps)
   }
   if ($MaxWorkingSetBytes -gt 0 -and $peakWorkingSet -gt $MaxWorkingSetBytes) {
-    throw "working_set_above_threshold peak=$peakWorkingSet threshold=$MaxWorkingSetBytes"
+    throw ("working_set_above_threshold peak={0} threshold={1} average_fps={2:N2} samples={3}" -f $peakWorkingSet, $MaxWorkingSetBytes, $averageFps, $rows.Count)
   }
   [pscustomobject]@{
     acceptance = 'pass'

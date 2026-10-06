@@ -22,31 +22,6 @@ enum class ViewModelHand { Right, Left };
 
 enum class ViewModelStatus { Ok, Failed };
 
-// Compatibility contract used by the existing renderer-neutral probe. These
-// fields describe a request only; drawing remains outside this module.
-struct ViewModelRenderRequest {
-  std::string modelPath;
-  float fov = kDefaultViewModelFov;
-  ViewModelHand hand = ViewModelHand::Right;
-  std::string attachmentName;
-  bool bodygroupSelectionKnown = false;
-  bool resourceComplete = false;
-  std::string attachmentStatus = "unknown";
-  std::string bodygroupStatus = "unknown";
-  std::string sequenceStatus = "unsupported";
-  std::string sequenceDecodeReason;
-  std::uint32_t sequenceCount = 0;
-  bool firstPersonDrawn = false;
-};
-
-inline constexpr float defaultViewModelFov() { return kDefaultViewModelFov; }
-inline bool validViewModelFov(float value) {
-  return value >= 40.0f && value <= 120.0f;
-}
-inline std::array<float, 3> applyViewModelHand(const std::array<float, 3>& value, ViewModelHand hand) {
-  return hand == ViewModelHand::Right ? value : std::array<float, 3>{-value[0], value[1], value[2]};
-}
-
 struct ViewModelAttachment {
   std::string name;
   std::array<float, 3> origin{};

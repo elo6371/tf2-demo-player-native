@@ -3,21 +3,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cctype>
+#include <limits>
 #include <utility>
 
 namespace tf2::native {
 namespace {
 
-SoundEventKind classify(std::string name) {
-  std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) {
-    return static_cast<char>(std::tolower(c));
-  });
-  if (name.find("footstep") != std::string::npos || name.find("step") != std::string::npos) return SoundEventKind::Footstep;
-  if (name.find("uber") != std::string::npos || name.find("invulnerable") != std::string::npos) return SoundEventKind::Uber;
-  // Source weapon samples are conventionally under weapons/. Do not classify
-  // arbitrary ambient filenames containing "shot" or "rocket" as weapons.
-  if (name.find("weapons/") != std::string::npos) return SoundEventKind::Weapon;
-  return SoundEventKind::World;
+SoundEventKind classify(const std::string& name) {
+  return classifySoundEvent(name);
 }
 
 bool safeName(const std::string& name) {
@@ -54,9 +47,7 @@ bool hasPathToken(const std::string& name, const char* token) {
 }
 
 bool isNonGameplayAudio(const std::string& name) {
-  return hasPathToken(name, "vo") || hasPathToken(name, "voice")
-    || hasPathToken(name, "announcer") || hasPathToken(name, "radio")
-    || hasPathToken(name, "music") || hasPathToken(name, "commentary");
+  return soundNameIsVoiceOrMusic(name);
 }
 
 bool hasMp3Frame(const std::vector<std::uint8_t>& bytes) {
@@ -192,6 +183,67 @@ bool readSoundResource(const VpkArchive& archive, const std::string& name,
   }
   out.error = "WAV/MP3 sound entry is missing";
   return false;
+}
+
+bool soundNameIsVoiceOrMusic(const std::string& name) {
+  return hasPathToken(name, "vo") || hasPathToken(name, "voice")
+    || hasPathToken(name, "announcer") || hasPathToken(name, "radio")
+    || hasPathToken(name, "music") || hasPathToken(name, "commentary");
+}
+
+SoundEventKind classifySoundEvent(const std::string& rawName) {
+  std::string name = rawName;
+  std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
+  if (name.find("footstep") != std::string::npos || name.find("step") != std::string::npos) return SoundEventKind::Footstep;
+  if (name.find("uber") != std::string::npos || name.find("invulnerable") != std::string::npos) return SoundEventKind::Uber;
+  if (name.find("weapon") != std::string::npos || name.find("weapons/") != std::string::npos
+      || name.find("rocket") != std::string::npos
+      || name.find("scatter") != std::string::npos || name.find("shot") != std::string::npos) return SoundEventKind::Weapon;
+  return SoundEventKind::World;
+}
+
+std::int32_t applySoundDelayTicks(std::int32_t tick, float delaySeconds, double tickRate) {
+  if (tick < 0 || !std::isfinite(delaySeconds) || !std::isfinite(tickRate) || tickRate <= 0.0) return -1;
+  const double shifted = static_cast<double>(tick) + static_cast<double>(delaySeconds) * tickRate;
+  if (!std::isfinite(shifted)) return -1;
+  const long long rounded = std::llround(shifted);
+  if (rounded < 0) return 0;
+  if (rounded > static_cast<long long>(std::numeric_limits<std::int32_t>::max())) {
+    return std::numeric_limits<std::int32_t>::max();
+  }
+  return static_cast<std::int32_t>(rounded);
+}
+
+bool scheduleGameplaySound(SoundEventTimeline& timeline, ScheduledSound sound, double tickRate) {
+  if (sound.soundIndex == 0 || sound.name.empty() || soundNameIsVoiceOrMusic(sound.name)) return false;
+  if (!std::isfinite(sound.volume)) return false;
+  sound.volume = std::clamp(sound.volume, 0.0f, 1.0f);
+  const std::int32_t scheduledTick = applySoundDelayTicks(sound.tick, sound.delaySeconds, tickRate);
+  if (scheduledTick < 0) return false;
+  SoundPlaybackEvent event;
+  event.tick = scheduledTick;
+  event.soundIndex = sound.soundIndex;
+  event.name = std::move(sound.name);
+  event.kind = classifySoundEvent(event.name);
+  event.volume = sound.volume;
+  event.origin[0] = sound.origin[0];
+  event.origin[1] = sound.origin[1];
+  event.origin[2] = sound.origin[2];
+  event.skipVoice = false;
+  return timeline.add(std::move(event));
+}
+
+SoundKindCounts countSoundKinds(const SoundEventTimeline& timeline) {
+  SoundKindCounts counts;
+  for (const auto& event : timeline.events()) {
+    if (event.kind == SoundEventKind::Weapon) ++counts.weapon;
+    else if (event.kind == SoundEventKind::Footstep) ++counts.footstep;
+    else if (event.kind == SoundEventKind::Uber) ++counts.uber;
+    else if (event.kind == SoundEventKind::World) ++counts.world;
+  }
+  return counts;
 }
 
 } // namespace tf2::native

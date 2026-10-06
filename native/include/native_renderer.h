@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <wrl/client.h>
 
@@ -64,10 +65,12 @@ struct EntityMarker {
   float color[4] = {0.2f, 0.9f, 0.35f, 0.0f};
 };
 
-struct ModelInstanceDraw {
-  float position[3] = {};
+struct EntityModelDrawInstance {
+  std::string cacheKey;
+  float origin[3] = {};
   float angles[3] = {};
-  float scale = 0.06f;
+  bool hasAngles = false;
+  float color[4] = {0.72f, 0.72f, 0.76f, 1.0f};
 };
 
 struct WorldMaterialParams {
@@ -91,6 +94,7 @@ struct WorldMaterialSampleState {
   float lightmapIntensity = 1.0f;
   bool bumpTextureBound = false;
   bool envTextureBound = false;
+  bool lightmapAtlasBound = false;
   bool selfIllumEnabled = false;
 };
 
@@ -102,17 +106,20 @@ public:
   void resize(UINT width, UINT height);
   void orbitCamera(float deltaX, float deltaY);
   void zoomCamera(float delta);
-  void moveCamera(float right, float forward, float up);
   void setObserverFocus(float x, float y, float z);
   void setObserverFocusWorld(float x, float y, float z);
-  void setObserverAngles(float pitch, float yaw);
-  void setCameraViewMode(bool firstPerson, bool freeObserver);
+  void setObserverDemoViewWorld(float x, float y, float z, float pitchDegrees, float yawDegrees);
+  void clearObserverDemoView();
   bool observerFocusWorld(float& x, float& y, float& z) const;
   void setWorldMaterialParams(const WorldMaterialParams& params);
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setEntityMarkers(const std::vector<EntityMarker>& markers);
-  void setModelInstances(const std::vector<ModelInstanceDraw>& instances);
+  bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
+  void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
+  std::size_t entityModelMeshCount() const { return entityModelMeshes_.size(); }
+  std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
+  std::size_t entityModelVertexCount() const { return entityModelVertexCount_; }
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
   const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
   WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
@@ -128,6 +135,7 @@ public:
   bool uploadWorldGeometry(const BspMap& map, const std::vector<WorldTexture>& textures);
   bool uploadWorldAuxTextures(const std::vector<std::uint8_t>& bumpRgba, UINT bumpWidth, UINT bumpHeight,
     const std::vector<std::uint8_t>& envRgba, UINT envWidth, UINT envHeight);
+  bool uploadWorldLightmap(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   bool uploadProjectileLines(const std::vector<ProjectileLine>& lines);
   bool uploadBindPoseModel(const std::vector<ModelDrawVertex>& vertices);
   bool uploadBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices, bool enableSkinning);
@@ -168,10 +176,12 @@ private:
   Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader_;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> worldVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> modelVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> entityModelVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> worldPixelShader_;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> modelPixelShader_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> worldInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> modelInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> entityModelInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelSkinningConstants_;
@@ -184,25 +194,44 @@ private:
   UINT entityMarkerVertexCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelVertexBuffer_;
   UINT modelVertexCount_ = 0;
-  std::vector<ModelInstanceDraw> modelInstances_;
-  float modelNormalizationScale_ = 1.0f;
   ModelGpuStatus modelGpuStatus_ = ModelGpuStatus::NotLoaded;
+  struct EntityModelMesh {
+    Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
+    UINT vertexCount = 0;
+  };
+  struct EntityModelDrawRange {
+    ID3D11Buffer* vertexBuffer = nullptr;
+    UINT vertexCount = 0;
+    UINT instanceStart = 0;
+    UINT instanceCount = 0;
+  };
+  std::unordered_map<std::string, EntityModelMesh> entityModelMeshes_;
+  std::vector<EntityModelDrawRange> entityModelDrawRanges_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> entityModelInstanceBuffer_;
+  std::size_t entityModelInstanceCapacity_ = 0;
+  UINT entityModelVertexCount_ = 0;
+  std::size_t entityModelInstanceCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
   Texture2D texture_;
   Texture2D worldTexture_;
   Texture2D worldBumpTexture_;
   Texture2D worldEnvTexture_;
+  Texture2D worldLightmapTexture_;
   RenderSettings settings_{};
   float cameraYaw_ = 0.0f;
   float cameraPitch_ = 0.36f;
   float cameraDistance_ = 1.65f;
-  bool firstPersonCamera_ = false;
-  bool freeObserverCamera_ = false;
   bool observerFocusValid_ = false;
   float observerFocusX_ = 0.0f;
   float observerFocusY_ = 0.0f;
   float observerFocusZ_ = 0.25f;
+  bool observerDemoView_ = false;
+  float observerDemoEyeX_ = 0.0f;
+  float observerDemoEyeY_ = 0.0f;
+  float observerDemoEyeZ_ = 0.0f;
+  float observerDemoPitchDeg_ = 0.0f;
+  float observerDemoYawDeg_ = 0.0f;
   bool worldBoundsValid_ = false;
   float worldMinX_ = 0.0f;
   float worldMinY_ = 0.0f;

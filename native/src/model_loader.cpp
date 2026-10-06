@@ -7,6 +7,7 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <unordered_map>
 
@@ -155,49 +156,59 @@ void parseVtxDiagnostics(const Bytes& b, ModelMetadata& out) {
   }
 }
 
-void parseVtxHierarchy(const Bytes& b, ModelMetadata& out) {
+bool parseVtxHierarchyWithStrides(const Bytes& b, ModelMetadata& out, std::size_t stripGroupStride, std::size_t vertexStride) {
   auto& d = out.vtxDiagnostics;
-  if (!d.bodyPartTableInBounds) return;
+  if (!d.bodyPartTableInBounds) return false;
+  out.indices.clear();
+  out.renderIndices.clear();
+  d.vtxDescriptorCount = 0;
+  d.vtxIndexCount = 0;
+  d.vtxOutOfBoundsCount = 0;
+  d.vtxDegenerateTriangleCount = 0;
   for (std::uint32_t bp = 0; bp < d.bodyPartCount; ++bp) {
     const auto bpOff = static_cast<std::size_t>(d.bodyPartOffset) + bp * kVtxBodyPartStride;
     std::uint32_t modelCount = 0, modelRel = 0;
     readAt(b, bpOff, modelCount); readAt(b, bpOff + 4, modelRel);
-    if (modelCount > 4096 || !rangeFits(bpOff + modelRel, modelCount, kVtxModelStride, b.size())) { d.failureReason = "model table exceeds VTX file bounds"; return; }
+    if (modelCount > 4096 || !rangeFits(bpOff + modelRel, modelCount, kVtxModelStride, b.size())) continue;
     for (std::uint32_t model = 0; model < modelCount; ++model) {
       const auto modelOff = bpOff + modelRel + model * kVtxModelStride;
       std::uint32_t lodCount = 0, lodRel = 0; readAt(b, modelOff, lodCount); readAt(b, modelOff + 4, lodRel);
-      if (lodCount > 32 || !rangeFits(modelOff + lodRel, lodCount, kVtxLodStride, b.size())) { d.failureReason = "LOD table exceeds VTX file bounds"; return; }
+      if (lodCount > 32 || !rangeFits(modelOff + lodRel, lodCount, kVtxLodStride, b.size())) continue;
       for (std::uint32_t lod = 0; lod < lodCount; ++lod) {
         const auto lodOff = modelOff + lodRel + lod * kVtxLodStride;
         std::uint32_t meshCount = 0, meshRel = 0; readAt(b, lodOff, meshCount); readAt(b, lodOff + 4, meshRel);
-        if (meshCount > 4096 || !rangeFits(lodOff + meshRel, meshCount, kVtxMeshStride, b.size())) { d.failureReason = "mesh table exceeds VTX file bounds"; return; }
+        if (meshCount > 4096 || !rangeFits(lodOff + meshRel, meshCount, kVtxMeshStride, b.size())) continue;
         for (std::uint32_t mesh = 0; mesh < meshCount; ++mesh) {
           const auto meshOff = lodOff + meshRel + mesh * kVtxMeshStride;
           std::uint32_t groupCount = 0, groupRel = 0; readAt(b, meshOff, groupCount); readAt(b, meshOff + 4, groupRel);
-          if (groupCount > 4096 || !rangeFits(meshOff + groupRel, groupCount, kVtxStripGroupStride, b.size())) { d.failureReason = "stripgroup table exceeds VTX file bounds"; return; }
+          if (groupCount > 4096 || !rangeFits(meshOff + groupRel, groupCount, stripGroupStride, b.size())) continue;
           for (std::uint32_t group = 0; group < groupCount; ++group) {
-            const auto groupOff = meshOff + groupRel + group * kVtxStripGroupStride;
+            const auto groupOff = meshOff + groupRel + group * stripGroupStride;
             std::uint32_t vertexCount = 0, vertexRel = 0, indexCount = 0, indexRel = 0;
             readAt(b, groupOff, vertexCount); readAt(b, groupOff + 4, vertexRel); readAt(b, groupOff + 8, indexCount); readAt(b, groupOff + 12, indexRel);
-            if (vertexCount > 4000000 || indexCount > 12000000 || !rangeFits(groupOff + vertexRel, vertexCount, kVtxVertexStride, b.size()) || !rangeFits(groupOff + indexRel, indexCount, kVtxIndexStride, b.size())) { d.failureReason = "stripgroup arrays exceed VTX file bounds"; return; }
+            if (vertexCount == 0 || indexCount < 3 || vertexCount > 4000000 || indexCount > 12000000
+                || !rangeFits(groupOff + vertexRel, vertexCount, vertexStride, b.size())
+                || !rangeFits(groupOff + indexRel, indexCount, kVtxIndexStride, b.size())) {
+              ++d.vtxOutOfBoundsCount;
+              continue;
+            }
             ModelIndexDescriptor descriptor{bp, model, lod, mesh, group, static_cast<std::uint32_t>(groupOff + indexRel), indexCount, static_cast<std::uint32_t>(groupOff + vertexRel), vertexCount, static_cast<std::uint32_t>(out.renderIndices.size()), indexCount};
             const auto renderStart = out.renderIndices.size();
-            d.vtxIndexCount += indexCount;
             bool conversionOk = true;
             for (std::uint32_t i = 0; i < indexCount; ++i) {
               std::uint16_t localIndex = 0;
               readAt(b, groupOff + indexRel + i * kVtxIndexStride, localIndex);
               if (localIndex >= vertexCount) { ++d.vtxOutOfBoundsCount; conversionOk = false; break; }
               std::uint16_t originalIndex = 0;
-              if (!readAt(b, groupOff + vertexRel + localIndex * kVtxVertexStride + 4, originalIndex)
+              if (!readAt(b, groupOff + vertexRel + localIndex * vertexStride + 4, originalIndex)
                   || originalIndex >= out.vertices.size()) { ++d.vtxOutOfBoundsCount; conversionOk = false; break; }
               out.renderIndices.push_back(originalIndex);
             }
             if (!conversionOk) {
               out.renderIndices.resize(renderStart);
-              d.failureReason = "stripgroup index conversion exceeded local or VVD vertex bounds";
-              return;
+              continue;
             }
+            d.vtxIndexCount += indexCount;
             ++d.vtxDescriptorCount;
             for (std::uint32_t i = 0; i + 2 < indexCount; i += 3) {
               const auto a = out.renderIndices[renderStart + i];
@@ -211,7 +222,45 @@ void parseVtxHierarchy(const Bytes& b, ModelMetadata& out) {
       }
     }
   }
-  d.failureReason = "VTX hierarchy and stripgroup arrays are within file bounds";
+  return !out.indices.empty();
+}
+
+void parseVtxHierarchy(const Bytes& b, ModelMetadata& out) {
+  auto& d = out.vtxDiagnostics;
+  if (!d.bodyPartTableInBounds) return;
+  const std::size_t groupStrides[] = { kVtxStripGroupStride, 33u, 29u };
+  const std::size_t vertexStrides[] = { kVtxVertexStride, 9u };
+  std::vector<ModelIndexDescriptor> bestIndices;
+  std::vector<std::uint32_t> bestRender;
+  std::size_t bestDescriptors = 0;
+  std::size_t bestGroupStride = kVtxStripGroupStride;
+  std::size_t bestVertexStride = kVtxVertexStride;
+  ModelVtxDiagnostics bestDiag = d;
+  for (const auto groupStride : groupStrides) {
+    for (const auto vertexStride : vertexStrides) {
+      ModelMetadata trial;
+      trial.vertices = out.vertices;
+      trial.vtxDiagnostics = d;
+      if (!parseVtxHierarchyWithStrides(b, trial, groupStride, vertexStride)) continue;
+      if (trial.indices.size() > bestDescriptors) {
+        bestDescriptors = trial.indices.size();
+        bestIndices = std::move(trial.indices);
+        bestRender = std::move(trial.renderIndices);
+        bestDiag = trial.vtxDiagnostics;
+        bestGroupStride = groupStride;
+        bestVertexStride = vertexStride;
+      }
+    }
+  }
+  if (bestDescriptors == 0) {
+    d.failureReason = "stripgroup index conversion exceeded local or VVD vertex bounds";
+    return;
+  }
+  out.indices = std::move(bestIndices);
+  out.renderIndices = std::move(bestRender);
+  out.vtxDiagnostics = bestDiag;
+  d.failureReason = "VTX hierarchy decoded with stripgroupStride=" + std::to_string(bestGroupStride)
+    + " vertexStride=" + std::to_string(bestVertexStride);
 }
 
 ModelFileStatus inspectFile(const std::filesystem::path& path, ModelFileKind kind) {
@@ -364,6 +413,106 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
   out.valid = out.id == kIdStudio && out.version >= 44 && out.length <= b.size();
   if (!out.valid) out.diagnostics.push_back("MDL signature/version/declared length failed validation");
 }
+
+ModelFileStatus inspectBytes(const Bytes& bytes, ModelFileKind kind, const std::filesystem::path& path) {
+  ModelFileStatus result;
+  result.kind = kind;
+  result.path = path;
+  result.exists = !bytes.empty();
+  result.bytes = bytes.size();
+  if (!result.exists) { result.diagnostic = "missing"; return result; }
+  if (bytes.size() < 12) { result.diagnostic = "file too small"; return result; }
+  std::uint32_t id = 0;
+  readAt(bytes, 0, id);
+  std::uint32_t version = 0;
+  std::uint32_t checksum = 0;
+  if (kind == ModelFileKind::Vtx) {
+    version = id;
+    readAt(bytes, 16, checksum);
+    result.version = version;
+    result.checksum = checksum;
+    result.signatureValid = version >= 6 && version <= 8 && checksum != 0;
+  } else {
+    readAt(bytes, 4, version);
+    readAt(bytes, 8, checksum);
+    result.version = version;
+    result.checksum = checksum;
+    const auto expected = kind == ModelFileKind::Mdl ? kIdStudio : kIdVvd;
+    result.signatureValid = id == expected;
+  }
+  if (!result.signatureValid) { result.diagnostic = "unexpected signature or unsupported VTX header"; return result; }
+  result.diagnostic = "signature and header prefix valid";
+  return result;
+}
+
+ModelInspection inspectBuffers(const Bytes& mdlBytes, const Bytes& vvdBytes, const Bytes& vtxBytes,
+    const Bytes& vtxDx80Bytes, const Bytes& vtxSwBytes, const ModelResourcePaths& paths) {
+  ModelInspection result;
+  result.resources = paths;
+  result.mdl = inspectBytes(mdlBytes, ModelFileKind::Mdl, paths.mdl);
+  result.vvd = inspectBytes(vvdBytes, ModelFileKind::Vvd, paths.vvd);
+  result.vtx = inspectBytes(vtxBytes, ModelFileKind::Vtx, paths.vtx);
+  result.vtxDx80 = inspectBytes(vtxDx80Bytes, ModelFileKind::Vtx, paths.vtxDx80);
+  result.vtxSw = inspectBytes(vtxSwBytes, ModelFileKind::Vtx, paths.vtxSw);
+  if (result.mdl.exists && result.mdl.signatureValid) parseMdl(mdlBytes, result.metadata);
+  if (result.vvd.exists && result.vvd.signatureValid) parseVvd(vvdBytes, result.metadata);
+  const auto vtxVersion = result.vtx.signatureValid ? result.vtx.version
+      : (result.vtxDx80.signatureValid ? result.vtxDx80.version : result.vtxSw.version);
+  const bool anyVtx = result.vtx.signatureValid || result.vtxDx80.signatureValid || result.vtxSw.signatureValid;
+  if (anyVtx) {
+    const Bytes& vtxData = result.vtx.signatureValid ? vtxBytes
+      : (result.vtxDx80.signatureValid ? vtxDx80Bytes : vtxSwBytes);
+    parseVtxDiagnostics(vtxData, result.metadata);
+    parseVtxHierarchy(vtxData, result.metadata);
+  }
+  for (auto& mesh : result.metadata.meshes) {
+    mesh.vtxVersion = vtxVersion;
+    mesh.indexStatus = !anyVtx ? ModelMeshIndexStatus::MissingVtx
+        : (!result.metadata.indices.empty() ? ModelMeshIndexStatus::Available : ModelMeshIndexStatus::NotDecoded);
+  }
+  result.renderableResourceSet = result.mdl.signatureValid && result.vvd.signatureValid && anyVtx;
+  if (result.metadata.valid) {
+    result.attachmentStatus = result.metadata.attachmentCount > 0
+      && result.metadata.attachments.size() == result.metadata.attachmentCount
+      ? ModelFeatureStatus::Available : ModelFeatureStatus::Missing;
+    result.bodygroupStatus = ModelFeatureStatus::Unknown;
+    const auto modelName = paths.mdl.filename().generic_string();
+    const bool isViewModel = modelName.size() > 6 && modelName.rfind("v_", 0) == 0
+      && paths.mdl.extension() == ".mdl";
+    result.viewModelPathDetected = isViewModel;
+    result.viewModelStatus = isViewModel ? ModelFeatureStatus::Unknown : ModelFeatureStatus::Missing;
+  }
+  if (!result.mdl.signatureValid) result.diagnostics.push_back("MDL is missing or invalid");
+  if (!result.vvd.signatureValid) result.diagnostics.push_back("VVD is missing or invalid");
+  if (!anyVtx) result.diagnostics.push_back("no valid DX90/DX80/SW VTX companion found");
+  else if (result.metadata.indices.empty()) {
+    result.diagnostics.push_back("VTX strip/group index hierarchy produced no descriptors");
+  } else {
+    const auto& first = result.metadata.indices.front();
+    result.diagnostics.push_back("VTX index descriptors=" + std::to_string(result.metadata.indices.size())
+        + " first indexOffset=" + std::to_string(first.indexOffset)
+        + " indexCount=" + std::to_string(first.indexCount)
+        + " vertexOffset=" + std::to_string(first.vertexOffset)
+        + " vertexCount=" + std::to_string(first.vertexCount));
+  }
+  if (result.renderableResourceSet) result.diagnostics.push_back("resource set is structurally complete; GPU mesh upload and skinning are not implemented here");
+  result.diagnostics.push_back("attachment status=" + std::string(
+    result.attachmentStatus == ModelFeatureStatus::Available ? "available" :
+    result.attachmentStatus == ModelFeatureStatus::Missing ? "missing" : "unknown"));
+  result.diagnostics.push_back("bodygroup status=unknown; runtime selection is not decoded");
+  result.diagnostics.push_back("bodypart probe count=" + std::to_string(result.metadata.bodyParts.size()));
+  for (std::size_t i = 0; i < result.metadata.bodyParts.size() && i < 8; ++i) {
+    const auto& part = result.metadata.bodyParts[i];
+    result.diagnostics.push_back("bodypart[" + std::to_string(i) + "] name=" + part.name
+      + " models=" + std::to_string(part.modelCount)
+      + " base=" + std::to_string(part.base)
+      + " modelIndex=" + std::to_string(part.modelIndex));
+  }
+  result.diagnostics.push_back("viewmodel status=" + std::string(
+    result.viewModelStatus == ModelFeatureStatus::Missing ? "missing" : "unknown")
+    + "; first-person rendering is not implemented");
+  return result;
+}
 }
 
 ModelResourcePaths ModelResourcePaths::fromMdl(const std::filesystem::path& mdlPath) {
@@ -459,13 +608,26 @@ ModelAssetCandidate ModelLoader::resolveAssetReference(const AssetRoot& root, co
 }
 
 std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot& root,
-  const std::vector<AssetReference>& references, const ItemSchema* schema) {
+  const std::vector<AssetReference>& references, const ItemSchema* schema,
+  ModelRenderRequestStats* stats) {
   std::vector<ModelRenderRequest> requests;
   requests.reserve(std::min<std::size_t>(references.size(), 2048u));
   std::unordered_map<std::string, ModelAssetCandidate> candidateCache;
   std::unordered_map<std::string, ModelInspection> inspectionCache;
+  std::unordered_map<std::wstring, std::unique_ptr<VpkArchive>> archiveCache;
   candidateCache.reserve(256);
   inspectionCache.reserve(256);
+  auto openArchive = [&](const std::filesystem::path& archivePath) -> VpkArchive* {
+    const auto key = archivePath.native();
+    auto found = archiveCache.find(key);
+    if (found != archiveCache.end()) return found->second.get();
+    auto archive = std::make_unique<VpkArchive>();
+    if (stats) ++stats->archiveOpens;
+    if (!archive->open(archivePath)) return nullptr;
+    auto* pointer = archive.get();
+    archiveCache.emplace(key, std::move(archive));
+    return pointer;
+  };
   for (const auto& reference : references) {
     if (!reference.hasModelPath || reference.modelPath.empty()) continue;
     if (requests.size() >= 2048u) break;
@@ -477,20 +639,47 @@ std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot
     const auto normalized = normalizeModelPath(reference.modelPath);
     auto candidateIt = candidateCache.find(normalized);
     if (candidateIt == candidateCache.end()) {
+      if (stats) ++stats->candidateResolves;
       candidateIt = candidateCache.emplace(normalized, resolveAssetReference(root, reference, schema)).first;
+    } else if (stats) {
+      ++stats->candidateCacheHits;
     }
     const auto& candidate = candidateIt->second;
     request.resolution = candidate.resolution;
     request.companionSetComplete = candidate.companionSetComplete;
     request.diagnostic = candidate.diagnostic;
-    if (candidate.resolution == ModelAssetResolution::FoundLoose && candidate.companionSetComplete) {
+    const bool inspectLoose = candidate.resolution == ModelAssetResolution::FoundLoose
+      && candidate.companionSetComplete;
+    const bool inspectPacked = candidate.resolution == ModelAssetResolution::FoundVpk
+      && candidate.companionSetComplete && !candidate.vpkArchives.empty();
+    if (inspectLoose || inspectPacked) {
       auto inspectionIt = inspectionCache.find(normalized);
       if (inspectionIt == inspectionCache.end()) {
-        inspectionIt = inspectionCache.emplace(normalized, inspect(candidate.resources)).first;
+        if (stats) ++stats->inspections;
+        ModelInspection inspection;
+        if (inspectPacked) {
+          if (stats) ++stats->vpkExtracts;
+          if (auto* archive = openArchive(candidate.vpkArchives.front())) {
+            inspection = ModelLoader::inspectVpk(*archive, normalized);
+            request.inspectedFromVpk = true;
+          } else {
+            inspection.diagnostics.push_back("failed to open VPK archive for inspection");
+          }
+        } else {
+          inspection = inspect(candidate.resources);
+        }
+        inspectionIt = inspectionCache.emplace(normalized, std::move(inspection)).first;
+      } else {
+        if (stats) ++stats->inspectionCacheHits;
+        request.inspectedFromVpk = inspectPacked;
       }
       request.inspection = inspectionIt->second;
+      request.checksum = request.inspection.metadata.checksum;
+      request.cacheKey = normalized + "#" + std::to_string(request.checksum);
       request.renderable = request.inspection.renderableResourceSet;
       if (!request.renderable) request.diagnostic += "; inspection is not renderable";
+    } else {
+      request.cacheKey = normalized + "#uninspected";
     }
     requests.push_back(std::move(request));
   }
@@ -517,77 +706,35 @@ ModelInspection ModelLoader::inspect(const std::filesystem::path& mdlPath) {
 }
 
 ModelInspection ModelLoader::inspect(const ModelResourcePaths& paths) {
-  ModelInspection result; result.resources = paths;
-  result.mdl = inspectFile(paths.mdl, ModelFileKind::Mdl);
-  result.vvd = inspectFile(paths.vvd, ModelFileKind::Vvd);
-  result.vtx = inspectFile(paths.vtx, ModelFileKind::Vtx);
-  result.vtxDx80 = inspectFile(paths.vtxDx80, ModelFileKind::Vtx);
-  result.vtxSw = inspectFile(paths.vtxSw, ModelFileKind::Vtx);
-  if (result.mdl.exists && result.mdl.signatureValid) {
-    std::string error; const auto bytes = readFile(paths.mdl, error);
-    if (!bytes.empty()) parseMdl(bytes, result.metadata); else result.diagnostics.push_back("MDL read failed: " + error);
+  std::string ignored;
+  return inspectBuffers(readFile(paths.mdl, ignored), readFile(paths.vvd, ignored),
+    readFile(paths.vtx, ignored), readFile(paths.vtxDx80, ignored), readFile(paths.vtxSw, ignored), paths);
+}
+
+ModelInspection ModelLoader::inspectVpk(const VpkArchive& archive, const std::string& modelPath) {
+  auto relative = normalizeModelPath(modelPath);
+  ModelInspection failed;
+  if (relative.empty()) {
+    failed.diagnostics.push_back("empty model path");
+    return failed;
   }
-  if (result.vvd.exists && result.vvd.signatureValid) {
-    std::string error; const auto bytes = readFile(paths.vvd, error);
-    if (!bytes.empty()) parseVvd(bytes, result.metadata); else result.diagnostics.push_back("VVD read failed: " + error);
-  }
-  const auto vtxVersion = result.vtx.signatureValid ? result.vtx.version
-      : (result.vtxDx80.signatureValid ? result.vtxDx80.version : result.vtxSw.version);
-  const bool anyVtx = result.vtx.signatureValid || result.vtxDx80.signatureValid || result.vtxSw.signatureValid;
-  if (anyVtx) {
-    const auto& status = result.vtx.signatureValid ? result.vtx : (result.vtxDx80.signatureValid ? result.vtxDx80 : result.vtxSw);
-    std::string error; const auto bytes = readFile(status.path, error);
-    if (!bytes.empty()) { parseVtxDiagnostics(bytes, result.metadata); parseVtxHierarchy(bytes, result.metadata); }
-    else result.diagnostics.push_back("VTX read failed: " + error);
-  }
-  for (auto& mesh : result.metadata.meshes) {
-    mesh.vtxVersion = vtxVersion;
-    mesh.indexStatus = !anyVtx ? ModelMeshIndexStatus::MissingVtx
-        : (!result.metadata.indices.empty() ? ModelMeshIndexStatus::Available : ModelMeshIndexStatus::NotDecoded);
-  }
-  result.renderableResourceSet = result.mdl.signatureValid && result.vvd.signatureValid && anyVtx;
-  if (result.metadata.valid) {
-    result.attachmentStatus = result.metadata.attachmentCount > 0
-      && result.metadata.attachments.size() == result.metadata.attachmentCount
-      ? ModelFeatureStatus::Available : ModelFeatureStatus::Missing;
-    // The MDL body-part table is not the runtime bodygroup selection state.
-    // Keep this explicitly unknown until entity skin/bodygroup values are wired.
-    result.bodygroupStatus = ModelFeatureStatus::Unknown;
-    const auto modelName = paths.mdl.filename().generic_string();
-    const bool isViewModel = modelName.size() > 6 && modelName.rfind("v_", 0) == 0
-      && paths.mdl.extension() == ".mdl";
-    result.viewModelPathDetected = isViewModel;
-    result.viewModelStatus = isViewModel ? ModelFeatureStatus::Unknown : ModelFeatureStatus::Missing;
-  }
-  if (!result.mdl.signatureValid) result.diagnostics.push_back("MDL is missing or invalid");
-  if (!result.vvd.signatureValid) result.diagnostics.push_back("VVD is missing or invalid");
-  if (!anyVtx) result.diagnostics.push_back("no valid DX90/DX80/SW VTX companion found");
-  else if (result.metadata.indices.empty()) {
-    result.diagnostics.push_back("VTX strip/group index hierarchy produced no descriptors");
-  } else {
-    const auto& first = result.metadata.indices.front();
-    result.diagnostics.push_back("VTX index descriptors=" + std::to_string(result.metadata.indices.size())
-        + " first indexOffset=" + std::to_string(first.indexOffset)
-        + " indexCount=" + std::to_string(first.indexCount)
-        + " vertexOffset=" + std::to_string(first.vertexOffset)
-        + " vertexCount=" + std::to_string(first.vertexCount));
-  }
-  if (result.renderableResourceSet) result.diagnostics.push_back("resource set is structurally complete; GPU mesh upload and skinning are not implemented here");
-  result.diagnostics.push_back("attachment status=" + std::string(
-    result.attachmentStatus == ModelFeatureStatus::Available ? "available" :
-    result.attachmentStatus == ModelFeatureStatus::Missing ? "missing" : "unknown"));
-  result.diagnostics.push_back("bodygroup status=unknown; runtime selection is not decoded");
-  result.diagnostics.push_back("bodypart probe count=" + std::to_string(result.metadata.bodyParts.size()));
-  for (std::size_t i = 0; i < result.metadata.bodyParts.size() && i < 8; ++i) {
-    const auto& part = result.metadata.bodyParts[i];
-    result.diagnostics.push_back("bodypart[" + std::to_string(i) + "] name=" + part.name
-      + " models=" + std::to_string(part.modelCount)
-      + " base=" + std::to_string(part.base)
-      + " modelIndex=" + std::to_string(part.modelIndex));
-  }
-  result.diagnostics.push_back("viewmodel status=" + std::string(
-    result.viewModelStatus == ModelFeatureStatus::Missing ? "missing" : "unknown")
-    + "; first-person rendering is not implemented");
+  if (relative.size() < 4 || relative.substr(relative.size() - 4) != ".mdl") relative += ".mdl";
+  const auto stem = relative.substr(0, relative.size() - 4);
+  std::string error;
+  const auto mdlBytes = archive.read(relative, &error);
+  const auto vvdBytes = archive.read(stem + ".vvd", &error);
+  const auto vtxBytes = archive.read(stem + ".dx90.vtx", &error);
+  const auto vtxDx80Bytes = archive.read(stem + ".dx80.vtx", &error);
+  const auto vtxSwBytes = archive.read(stem + ".sw.vtx", &error);
+  ModelResourcePaths paths;
+  paths.mdl = relative;
+  paths.vvd = stem + ".vvd";
+  paths.vtx = stem + ".dx90.vtx";
+  paths.vtxDx80 = stem + ".dx80.vtx";
+  paths.vtxSw = stem + ".sw.vtx";
+  auto result = inspectBuffers(mdlBytes, vvdBytes, vtxBytes, vtxDx80Bytes, vtxSwBytes, paths);
+  result.diagnostics.insert(result.diagnostics.begin(),
+    mdlBytes.empty() ? "VPK extraction missed MDL bytes" : "inspected from VPK bytes");
   return result;
 }
 
@@ -649,6 +796,53 @@ bool ModelLoader::buildBindPoseMesh(ModelMetadata& metadata, std::size_t descrip
       source.position, source.normal, source.texcoord, source.weights, source.boneIndices, source.boneCount});
   }
   metadata.bindPoseVertexCount = metadata.bindPoseVertices.size();
+  return true;
+}
+
+bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error, std::size_t maxVertices) {
+  metadata.bindPoseVertices.clear();
+  metadata.bindPoseVertexCount = 0;
+  if (metadata.indices.empty() || metadata.renderIndices.empty() || metadata.vertices.empty()) {
+    error = "model has no decoded bind-pose indices";
+    return false;
+  }
+  if (maxVertices == 0) maxVertices = 12000;
+  bool anyLod0 = false;
+  for (const auto& descriptor : metadata.indices) {
+    if (descriptor.lod == 0) { anyLod0 = true; break; }
+  }
+  metadata.bindPoseVertices.reserve(std::min(maxVertices, metadata.renderIndices.size()));
+  std::size_t skipped = 0;
+  for (const auto& descriptor : metadata.indices) {
+    if (anyLod0 && descriptor.lod != 0) continue;
+    if (descriptor.renderIndexStart + descriptor.renderIndexCount > metadata.renderIndices.size()) {
+      skipped += descriptor.renderIndexCount;
+      continue;
+    }
+    for (std::uint32_t i = 0; i < descriptor.renderIndexCount; ++i) {
+      if (metadata.bindPoseVertices.size() >= maxVertices) break;
+      const auto original = metadata.renderIndices[descriptor.renderIndexStart + i];
+      if (original >= metadata.vertices.size()) { ++skipped; continue; }
+      const auto& source = metadata.vertices[original];
+      const float weightSum = source.weights[0] + source.weights[1] + source.weights[2];
+      if (source.boneCount > source.boneIndices.size()
+          || !std::isfinite(weightSum) || weightSum < 0.90f || weightSum > 1.10f) {
+        ++skipped;
+        continue;
+      }
+      metadata.bindPoseVertices.push_back(ModelDrawVertex{
+        source.position, source.normal, source.texcoord, source.weights, source.boneIndices, source.boneCount});
+    }
+    if (metadata.bindPoseVertices.size() >= maxVertices) break;
+  }
+  metadata.bindPoseVertexCount = metadata.bindPoseVertices.size();
+  if (metadata.bindPoseVertices.size() < 3) {
+    error = "bind-pose LOD0 produced fewer than 3 vertices";
+    metadata.bindPoseVertices.clear();
+    metadata.bindPoseVertexCount = 0;
+    return false;
+  }
+  if (skipped > 0) metadata.diagnostics.push_back("bind-pose LOD0 skipped " + std::to_string(skipped) + " vertices");
   return true;
 }
 

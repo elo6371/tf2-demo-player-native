@@ -51,3 +51,5 @@ current local evidence shows real playback around 103--107 FPS over short
 runs, so `-MinFps 120` is expected to fail on this machine until the renderer
 is optimized or a faster validation GPU is used. Clean Windows packaged startup
 and sustained 120 FPS still require an external Windows validation host.
+
+The 2026-10-06 run is recorded in `stability-acceptance-2026-10-06.md`.

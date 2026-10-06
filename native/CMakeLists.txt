@@ -14,11 +14,14 @@ add_executable(tf2_demo_native WIN32
   src/vpk_archive.cpp
   src/vtf_texture.cpp
   src/model_loader.cpp
+  src/entity_model.cpp
   src/vmt_material.cpp
   src/audio_resource.cpp
   src/audio_player.cpp
   src/audio_timeline.cpp
   src/effects_timeline.cpp
+  src/pcf_operators.cpp
+  src/playback_hud.cpp
   src/bsp_map.cpp
   third_party/lzma/LzmaDec.c
   src/texture2d.cpp
@@ -54,6 +57,14 @@ add_executable(material_chain_probe tools/material_chain_probe.cpp src/vtf_textu
 target_include_directories(material_chain_probe PRIVATE include third_party/lzma)
 set_target_properties(material_chain_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(world_material_probe PRIVATE include third_party/lzma)
+set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+add_executable(presentation_probe tools/presentation_probe.cpp src/demo_header.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(presentation_probe PRIVATE include third_party/lzma)
+set_target_properties(presentation_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(texture_quad_probe tools/texture_quad_probe.cpp src/vtf_texture.cpp)
 target_include_directories(texture_quad_probe PRIVATE include)
 target_link_libraries(texture_quad_probe PRIVATE d3d11 d3dcompiler)
@@ -63,45 +74,37 @@ add_executable(model_pose_probe tools/model_pose_probe.cpp src/model_loader.cpp 
 target_include_directories(model_pose_probe PRIVATE include)
 set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(model_mesh_probe tools/model_mesh_probe.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
-target_include_directories(model_mesh_probe PRIVATE include)
-set_target_properties(model_mesh_probe PROPERTIES WIN32_EXECUTABLE OFF)
-
-add_executable(model_render_request_probe tools/model_render_request_probe.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
-target_include_directories(model_render_request_probe PRIVATE include)
-set_target_properties(model_render_request_probe PROPERTIES WIN32_EXECUTABLE OFF)
-
-add_executable(model_instance_cache_probe tools/model_instance_cache_probe.cpp src/model_instance_cache.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
-target_include_directories(model_instance_cache_probe PRIVATE include)
-set_target_properties(model_instance_cache_probe PROPERTIES WIN32_EXECUTABLE OFF)
+add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
+target_include_directories(entity_model_probe PRIVATE include)
+set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(viewmodel_fov_probe tools/viewmodel_fov_probe.cpp)
 target_include_directories(viewmodel_fov_probe PRIVATE include)
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(viewmodel_contract_probe tools/viewmodel_contract_probe.cpp src/viewmodel.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
-target_include_directories(viewmodel_contract_probe PRIVATE include)
-set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
+add_executable(animation_viewmodel_probe
+  tools/animation_viewmodel_probe.cpp
+  src/animation_decoder.cpp
+  src/viewmodel.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/demo_header.cpp
+  src/item_schema.cpp)
+target_include_directories(animation_viewmodel_probe PRIVATE include)
+set_target_properties(animation_viewmodel_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(animation_decoder_probe tools/animation_decoder_probe.cpp src/animation_decoder.cpp src/vpk_archive.cpp)
-target_include_directories(animation_decoder_probe PRIVATE include)
-set_target_properties(animation_decoder_probe PROPERTIES WIN32_EXECUTABLE OFF)
+add_executable(audio_effects_probe tools/audio_effects_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/effects_timeline.cpp src/pcf_operators.cpp src/playback_hud.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(audio_effects_probe PRIVATE include third_party/lzma)
+target_compile_definitions(audio_effects_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(audio_effects_probe PRIVATE winmm)
+set_target_properties(audio_effects_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(audio_scheduler_probe tools/audio_scheduler_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp)
 target_include_directories(audio_scheduler_probe PRIVATE include)
 target_compile_definitions(audio_scheduler_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(audio_scheduler_probe PRIVATE winmm)
 set_target_properties(audio_scheduler_probe PROPERTIES WIN32_EXECUTABLE OFF)
-
-add_executable(audio_index_probe tools/audio_index_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp)
-target_include_directories(audio_index_probe PRIVATE include)
-target_compile_definitions(audio_index_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(audio_index_probe PRIVATE winmm)
-set_target_properties(audio_index_probe PROPERTIES WIN32_EXECUTABLE OFF)
-
-add_executable(audio_vpk_classification_probe tools/audio_vpk_classification_probe.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp)
-target_include_directories(audio_vpk_classification_probe PRIVATE include)
-set_target_properties(audio_vpk_classification_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(winmm_sink_probe tools/winmm_sink_probe.cpp)
 target_compile_definitions(winmm_sink_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

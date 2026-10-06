@@ -32,6 +32,12 @@ std::vector<TempEffectEvent> TempEffectTimeline::range(std::int32_t firstTick, s
   return result;
 }
 
+std::size_t TempEffectTimeline::countThrough(std::int32_t tick) const {
+  const auto end = std::upper_bound(events_.begin(), events_.end(), tick,
+    [](std::int32_t value, const TempEffectEvent& event) { return value < event.tick; });
+  return static_cast<std::size_t>(end - events_.begin());
+}
+
 bool addFireBulletsEvent(const TempEntityEvent& source, TempEffectTimeline& timeline) {
   if (source.className != "CTEFireBullets") return false;
   TempEffectEvent event;
@@ -58,6 +64,18 @@ bool addExplosionEvent(const TempEntityEvent& source, TempEffectTimeline& timeli
   if (source.hasMagnitude) { event.hasMagnitude = true; event.magnitude = static_cast<std::int32_t>(source.magnitude); }
   if (source.hasScale) { event.hasScale = true; event.scale = static_cast<std::int32_t>(source.scale); }
   if (source.hasRadius) { event.hasRadius = true; event.radius = static_cast<std::int32_t>(source.radius); }
+  return timeline.add(event);
+}
+
+bool addParticleEvent(const TempEntityEvent& source, TempEffectTimeline& timeline) {
+  if (source.className != "CTETFParticleEffect") return false;
+  TempEffectEvent event;
+  event.tick = source.tick;
+  event.kind = TempEffectKind::Particle;
+  event.hasPosition = source.hasOrigin;
+  if (event.hasPosition) event.origin = {source.origin[0], source.origin[1], source.origin[2]};
+  if (source.hasEffectIndex) event.particleSystemIndex = static_cast<std::int32_t>(source.effectIndex);
+  if (source.hasParticleName) event.particleName = source.particleName;
   return timeline.add(event);
 }
 

@@ -36,6 +36,7 @@ struct TempEffectEvent {
   bool hasRadius = false;
   bool hasPosition = false;
   bool hasDirection = false;
+  std::string particleName;
 };
 
 class TempEffectTimeline {
@@ -45,6 +46,8 @@ public:
   void sortByTick();
   const std::vector<TempEffectEvent>& events() const { return events_; }
   std::vector<TempEffectEvent> range(std::int32_t firstTick, std::int32_t lastTick) const;
+  // Requires sortByTick. Counts events whose tick is at or before the target.
+  std::size_t countThrough(std::int32_t tick) const;
 
 private:
   std::vector<TempEffectEvent> events_;
@@ -55,5 +58,9 @@ private:
 bool addFireBulletsEvent(const TempEntityEvent& source, TempEffectTimeline& timeline);
 
 bool addExplosionEvent(const TempEntityEvent& source, TempEffectTimeline& timeline);
+
+// CTETFParticleEffect only. delayRaw is not converted; its time unit is not
+// established by the demo reader, so fireDelaySeconds stays 0.
+bool addParticleEvent(const TempEntityEvent& source, TempEffectTimeline& timeline);
 
 } // namespace tf2::native

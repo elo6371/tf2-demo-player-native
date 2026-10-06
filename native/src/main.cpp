@@ -7,7 +7,10 @@
 #include "bsp_map.h"
 #include "demo_header.h"
 #include "audio_player.h"
+#include "effects_timeline.h"
+#include "playback_hud.h"
 #include "model_loader.h"
+#include "entity_model.h"
 #include "item_schema.h"
 #include "native_ui.h"
 
@@ -25,7 +28,6 @@
 #include <cstring>
 #include <fstream>
 #include <shellapi.h>
-#include <shlobj.h>
 #include <sstream>
 #include <vector>
 #include <memory>
@@ -45,13 +47,6 @@ HWND g_uiBack = nullptr;
 HWND g_uiForward = nullptr;
 HWND g_uiReverse = nullptr;
 HWND g_uiTimeline = nullptr;
-HWND g_uiProgress = nullptr;
-HWND g_uiRecent = nullptr;
-HWND g_uiRecentOpen = nullptr;
-HWND g_uiRoot = nullptr;
-HWND g_uiFullscreen = nullptr;
-HWND g_uiMute = nullptr;
-HWND g_uiSettings = nullptr;
 constexpr int kUiOpen = 4101;
 constexpr int kUiCancel = 4102;
 constexpr int kUiConfirm = 4103;
@@ -61,19 +56,6 @@ constexpr int kUiBack = 4106;
 constexpr int kUiForward = 4107;
 constexpr int kUiReverse = 4108;
 constexpr int kUiTimeline = 4109;
-constexpr int kUiRecentOpen = 4110;
-constexpr int kUiRecent = 4115;
-constexpr int kUiRoot = 4111;
-constexpr int kUiFullscreen = 4112;
-constexpr int kUiMute = 4113;
-constexpr int kUiSettings = 4114;
-constexpr UINT_PTR kUiImportTimer = 42;
-std::vector<std::wstring> g_uiRecentItems;
-bool g_fullscreen = false;
-LONG_PTR g_windowedStyle = 0;
-LONG_PTR g_windowedExStyle = 0;
-RECT g_windowedRect{};
-bool g_windowedPlacementValid = false;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
@@ -102,23 +84,12 @@ struct PlaybackState {
   tf2::native::DemoIndexEntry anchor{};
 };
 PlaybackState g_playback{};
-bool g_firstPersonCamera = false;
-bool g_freeObserverCamera = false;
-ULONGLONG g_lastSpacePressMs = 0;
-bool g_cameraKeys[6]{}; // W, A, S, D, Q, E
-
-int cameraKeyIndex(WPARAM key) {
-  switch (key) {
-  case 'W': return 0; case 'A': return 1; case 'S': return 2;
-  case 'D': return 3; case 'Q': return 4; case 'E': return 5;
-  default: return -1;
-  }
-}
 constexpr double kTargetFrameSeconds = 1.0 / 120.0;
 
 const wchar_t* entitySnapshotStatusName(tf2::native::EntitySnapshotQueryStatus status) {
   switch (status) {
     case tf2::native::EntitySnapshotQueryStatus::Available: return L"available";
+    case tf2::native::EntitySnapshotQueryStatus::Checkpoint: return L"checkpoint";
     case tf2::native::EntitySnapshotQueryStatus::NoHistory: return L"no-history";
     case tf2::native::EntitySnapshotQueryStatus::TickBeforeHistory: return L"before-window";
     case tf2::native::EntitySnapshotQueryStatus::Gap: return L"gap";
@@ -153,77 +124,15 @@ void setUiControlVisible(HWND control, bool visible) {
   if (control) ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
 }
 
-const wchar_t* importStatusName(tf2::native::ImportStatus status) {
-  switch (status) {
-    case tf2::native::ImportStatus::ReadingHeader: return L"reading-header";
-    case tf2::native::ImportStatus::Indexing: return L"indexing";
-    case tf2::native::ImportStatus::Complete: return L"complete";
-    case tf2::native::ImportStatus::CancelRequested: return L"cancel-requested";
-    case tf2::native::ImportStatus::Cancelled: return L"cancelled";
-    case tf2::native::ImportStatus::Failed: return L"failed";
-    case tf2::native::ImportStatus::Idle: default: return L"idle";
-  }
-}
-
-void applyFullscreen(HWND window, bool fullscreen) {
-  if (!window || g_fullscreen == fullscreen) return;
-  if (fullscreen) {
-    g_windowedStyle = GetWindowLongPtrW(window, GWL_STYLE);
-    g_windowedExStyle = GetWindowLongPtrW(window, GWL_EXSTYLE);
-    g_windowedPlacementValid = GetWindowRect(window, &g_windowedRect) != FALSE;
-    MONITORINFO monitor{sizeof(monitor)};
-    const HMONITOR handle = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
-    if (!GetMonitorInfoW(handle, &monitor)) return;
-    SetWindowLongPtrW(window, GWL_STYLE,
-      g_windowedStyle & ~(WS_CAPTION | WS_THICKFRAME));
-    SetWindowLongPtrW(window, GWL_EXSTYLE,
-      g_windowedExStyle & ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE
-        | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
-    SetWindowPos(window, HWND_TOP, monitor.rcMonitor.left, monitor.rcMonitor.top,
-      monitor.rcMonitor.right - monitor.rcMonitor.left,
-      monitor.rcMonitor.bottom - monitor.rcMonitor.top,
-      SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-  } else {
-    if (g_windowedStyle != 0) SetWindowLongPtrW(window, GWL_STYLE, g_windowedStyle);
-    if (g_windowedExStyle != 0) SetWindowLongPtrW(window, GWL_EXSTYLE, g_windowedExStyle);
-    if (g_windowedPlacementValid) {
-      SetWindowPos(window, HWND_NOTOPMOST, g_windowedRect.left, g_windowedRect.top,
-        g_windowedRect.right - g_windowedRect.left,
-        g_windowedRect.bottom - g_windowedRect.top,
-        SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-    }
-  }
-  g_fullscreen = fullscreen;
-}
-
-bool chooseTfRoot(HWND owner, std::filesystem::path& result) {
-  BROWSEINFOW dialog{};
-  dialog.hwndOwner = owner;
-  dialog.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_EDITBOX;
-  dialog.lpszTitle = L"Select the Team Fortress 2 tf folder";
-  PIDLIST_ABSOLUTE item = SHBrowseForFolderW(&dialog);
-  if (!item) return false;
-  wchar_t path[MAX_PATH]{};
-  const bool valid = SHGetPathFromIDListW(item, path) != FALSE;
-  CoTaskMemFree(item);
-  if (!valid || path[0] == L'\0') return false;
-  result = std::filesystem::path(path);
-  return true;
-}
-
 void updateNativeUiControls(HWND window) {
   if (!g_nativeUi) return;
   const auto state = g_nativeUi->snapshot();
   const bool opening = state.screen == tf2::native::UiScreen::Opening;
   const bool review = state.screen == tf2::native::UiScreen::ImportReview;
   const bool player = state.screen == tf2::native::UiScreen::Player;
-  const bool settings = state.screen == tf2::native::UiScreen::Settings;
   const bool error = state.screen == tf2::native::UiScreen::Error;
-  const bool importing = state.importStatus == tf2::native::ImportStatus::ReadingHeader
-    || state.importStatus == tf2::native::ImportStatus::Indexing
-    || state.importStatus == tf2::native::ImportStatus::CancelRequested;
-  setUiControlVisible(g_uiOpen, (opening || error) && !importing);
-  setUiControlVisible(g_uiCancel, review || error || importing || settings);
+  setUiControlVisible(g_uiOpen, opening || error);
+  setUiControlVisible(g_uiCancel, review || error);
   setUiControlVisible(g_uiConfirm, review);
   setUiControlVisible(g_uiPlay, player);
   setUiControlVisible(g_uiStop, player);
@@ -231,68 +140,31 @@ void updateNativeUiControls(HWND window) {
   setUiControlVisible(g_uiForward, player);
   setUiControlVisible(g_uiReverse, player);
   setUiControlVisible(g_uiTimeline, player);
-  setUiControlVisible(g_uiProgress, importing);
-  setUiControlVisible(g_uiRecent, opening || error);
-  setUiControlVisible(g_uiRecentOpen, opening || error);
-  setUiControlVisible(g_uiRoot, opening || error || review || settings);
-  setUiControlVisible(g_uiFullscreen, player || settings);
-  setUiControlVisible(g_uiMute, player || settings);
-  setUiControlVisible(g_uiSettings, true);
-  if (g_uiProgress) SendMessageW(g_uiProgress, PBM_SETPOS, state.importProgress, 0);
-  if (g_uiRecent) {
-    std::vector<std::wstring> current;
-    current.reserve(state.recentDemos.size());
-    for (const auto& path : state.recentDemos) current.push_back(path.wstring());
-    if (current != g_uiRecentItems) {
-      SendMessageW(g_uiRecent, LB_RESETCONTENT, 0, 0);
-      for (const auto& path : current) SendMessageW(g_uiRecent, LB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(path.c_str()));
-      g_uiRecentItems = std::move(current);
-    }
-  }
-  if (g_uiRoot) {
-    const auto rootText = state.tfRoot.empty() ? L"TF2 root: not selected"
-      : L"TF2 root: " + state.tfRoot.wstring();
-    SetWindowTextW(g_uiRoot, rootText.c_str());
-  }
   if (g_uiTimeline) {
     SendMessageW(g_uiTimeline, TBM_SETRANGE, TRUE,
       MAKELONG(0, std::max<std::int32_t>(0, state.ticks)));
     SendMessageW(g_uiTimeline, TBM_SETPOS, TRUE, state.tick);
   }
   std::wstring status = L"Opening: choose a .dem file";
-  const std::wstring importPrefix = L"Import: "
-    + std::wstring(importStatusName(state.importStatus))
-    + L" " + std::to_wstring(state.importProgress) + L"% | ";
-  if (importing) {
-    status = importPrefix + L"Importing Demo: " + std::to_wstring(state.importProgress) + L"%";
-  } else if (review) {
-    status = importPrefix + L"Import review: " + std::wstring(state.mapName.begin(), state.mapName.end())
+  if (review) {
+    status = L"Import review: " + std::wstring(state.mapName.begin(), state.mapName.end())
       + L" | " + std::wstring(state.recordingType.begin(), state.recordingType.end())
       + L" | ticks=" + std::to_wstring(state.ticks)
       + L" | BSP=" + (state.bspAvailable ? L"ready" : L"missing")
       + L" | missing=" + std::to_wstring(state.missingResourceCount);
   } else if (player) {
-    status = importPrefix + L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
+    status = L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
       + (state.playing ? L" | playing" : L" | paused")
       + (state.reverse ? L" | reverse" : L"");
   } else if (error) {
-    status = importPrefix + L"Error: " + std::wstring(state.error.begin(), state.error.end());
-  } else if (state.importStatus != tf2::native::ImportStatus::Idle) {
-    status = importPrefix + L"Opening: choose a .dem file";
-  } else if (settings) {
-    status = L"Settings: quality=" + std::wstring(state.standardQuality ? L"standard" : L"performance")
-      + L" | FOV=" + std::to_wstring(state.fov)
-      + L" | VSync=" + (state.vsync ? L"on" : L"off")
-      + L" | volume=" + std::to_wstring(state.volume)
-      + L" | DPI=" + std::to_wstring(state.dpi) + L" (" + std::to_wstring(state.dpiScale) + L"x)";
+    status = L"Error: " + std::wstring(state.error.begin(), state.error.end());
   }
   if (g_uiStatus) SetWindowTextW(g_uiStatus, status.c_str());
   if (window) InvalidateRect(window, nullptr, FALSE);
 }
 
 void createNativeUiControls(HWND window, HINSTANCE instance) {
-  INITCOMMONCONTROLSEX common{sizeof(common), ICC_BAR_CLASSES | ICC_PROGRESS_CLASS};
+  INITCOMMONCONTROLSEX common{sizeof(common), ICC_BAR_CLASSES};
   InitCommonControlsEx(&common);
   const auto make = [&](LPCWSTR className, LPCWSTR text, DWORD style, int id,
       int x, int y, int width, int height) {
@@ -311,15 +183,6 @@ void createNativeUiControls(HWND window, HINSTANCE instance) {
   g_uiReverse = make(L"BUTTON", L"Reverse", BS_PUSHBUTTON, kUiReverse, 390, 84, 90, 30);
   g_uiTimeline = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_ENABLESELRANGE,
     kUiTimeline, 16, 122, 700, 30);
-  g_uiProgress = make(PROGRESS_CLASSW, L"", 0, 0, 16, 158, 700, 20);
-  g_uiRoot = make(L"BUTTON", L"TF2 root: not selected", BS_PUSHBUTTON, kUiRoot, 16, 186, 320, 30);
-  g_uiSettings = make(L"BUTTON", L"Settings", BS_PUSHBUTTON, kUiSettings, 344, 186, 90, 30);
-  g_uiFullscreen = make(L"BUTTON", L"Fullscreen", BS_PUSHBUTTON, kUiFullscreen, 440, 186, 100, 30);
-  g_uiMute = make(L"BUTTON", L"Mute", BS_PUSHBUTTON, kUiMute, 546, 186, 80, 30);
-  g_uiRecent = make(L"LISTBOX", L"", WS_BORDER | LBS_NOTIFY | WS_VSCROLL,
-    kUiRecent, 730, 12, 390, 128);
-  g_uiRecentOpen = make(L"BUTTON", L"Open Recent", BS_PUSHBUTTON, kUiRecentOpen,
-    730, 146, 110, 30);
   updateNativeUiControls(window);
 }
 
@@ -341,23 +204,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   switch (message) {
   case WM_SIZE:
     if (g_renderer) g_renderer->resize(LOWORD(lParam), HIWORD(lParam));
-    if (g_nativeUi) g_nativeUi->setDisplayMetrics(GetDpiForWindow(window),
-      LOWORD(lParam), HIWORD(lParam), g_fullscreen);
     return 0;
-  case WM_DPICHANGED: {
-    const auto* suggested = reinterpret_cast<const RECT*>(lParam);
-    if (suggested && !g_fullscreen) {
-      SetWindowPos(window, nullptr, suggested->left, suggested->top,
-        suggested->right - suggested->left, suggested->bottom - suggested->top,
-        SWP_NOZORDER | SWP_NOACTIVATE);
-    }
-    RECT client{};
-    GetClientRect(window, &client);
-    if (g_nativeUi) g_nativeUi->setDisplayMetrics(HIWORD(wParam),
-      static_cast<unsigned>(client.right - client.left),
-      static_cast<unsigned>(client.bottom - client.top), g_fullscreen);
-    return 0;
-  }
   case WM_RBUTTONDOWN:
     g_orbiting = true;
     g_lastMouse = POINT{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
@@ -382,8 +229,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       const HDROP drop = reinterpret_cast<HDROP>(wParam);
       wchar_t path[MAX_PATH]{};
       if (DragQueryFileW(drop, 0, path, static_cast<UINT>(std::size(path))) != 0) {
-        const bool accepted = g_nativeUi->beginOpenDemo(std::filesystem::path(path));
-        if (accepted) SetTimer(window, kUiImportTimer, 30, nullptr);
+        const bool accepted = g_nativeUi->dropDemo(std::filesystem::path(path));
         const auto state = g_nativeUi->snapshot();
         std::wstring title = L"TF2 Demo Player - ";
         title += std::wstring(state.error.begin(), state.error.end());
@@ -397,27 +243,15 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     return 0;
   }
   case WM_COMMAND: {
-    if (!g_nativeUi) {
+    if (!g_nativeUi || HIWORD(wParam) != BN_CLICKED) {
       return DefWindowProcW(window, message, wParam, lParam);
     }
     const auto id = LOWORD(wParam);
-    const auto code = HIWORD(wParam);
-    if (id == kUiRecent && code == LBN_DBLCLK) {
-      const auto selection = static_cast<int>(SendMessageW(g_uiRecent, LB_GETCURSEL, 0, 0));
-      if (selection >= 0 && g_nativeUi->openRecentDemo(static_cast<std::size_t>(selection))) {
-        SetTimer(window, kUiImportTimer, 30, nullptr);
-      }
-      updateNativeUiControls(window);
-      return 0;
-    }
-    if (code != BN_CLICKED) return DefWindowProcW(window, message, wParam, lParam);
     if (id == kUiOpen) {
       std::filesystem::path path;
-      if (chooseDemoFile(window, path) && g_nativeUi->beginOpenDemo(path)) {
-        SetTimer(window, kUiImportTimer, 30, nullptr);
-      }
+      if (chooseDemoFile(window, path)) g_nativeUi->openDemo(path);
     } else if (id == kUiCancel) {
-      g_nativeUi->command(tf2::native::UiCommand::Cancel);
+      g_nativeUi->cancelImport();
     } else if (id == kUiConfirm) {
       if (g_nativeUi->confirmImport()) {
         const auto state = g_nativeUi->snapshot();
@@ -437,24 +271,6 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       g_nativeUi->command(tf2::native::UiCommand::StepForward);
     } else if (id == kUiReverse) {
       g_nativeUi->command(tf2::native::UiCommand::Reverse);
-    } else if (id == kUiRecentOpen) {
-      const auto selection = static_cast<int>(SendMessageW(g_uiRecent, LB_GETCURSEL, 0, 0));
-      if (selection >= 0 && g_nativeUi->openRecentDemo(static_cast<std::size_t>(selection))) {
-        SetTimer(window, kUiImportTimer, 30, nullptr);
-      }
-    } else if (id == kUiRoot) {
-      std::filesystem::path root;
-      if (chooseTfRoot(window, root)) {
-        g_nativeUi->setTfRoot(root);
-        g_nativeUi->saveSettings();
-      }
-    } else if (id == kUiFullscreen) {
-      g_nativeUi->command(tf2::native::UiCommand::ToggleFullscreen);
-      applyFullscreen(window, g_nativeUi->snapshot().fullscreen);
-    } else if (id == kUiMute) {
-      g_nativeUi->command(tf2::native::UiCommand::ToggleMute);
-    } else if (id == kUiSettings) {
-      g_nativeUi->command(tf2::native::UiCommand::OpenSettings);
     } else {
       return DefWindowProcW(window, message, wParam, lParam);
     }
@@ -465,14 +281,6 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     updateNativeUiControls(window);
     return 0;
   }
-  case WM_TIMER:
-    if (wParam == kUiImportTimer && g_nativeUi) {
-      g_nativeUi->pollImport();
-      if (!g_nativeUi->importActive()) KillTimer(window, kUiImportTimer);
-      updateNativeUiControls(window);
-      return 0;
-    }
-    return DefWindowProcW(window, message, wParam, lParam);
   case WM_HSCROLL:
     if (g_nativeUi && reinterpret_cast<HWND>(lParam) == g_uiTimeline) {
       const auto position = static_cast<std::int32_t>(SendMessageW(
@@ -498,16 +306,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // Toggle commands must be edge-triggered; Windows may repeat WM_KEYDOWN
     // while a key is held, which otherwise flips state several times.
     if ((lParam & (1u << 30)) != 0u
-        && (wParam == 'P' || wParam == 'R' || wParam == VK_HOME || wParam == VK_END
+        && (wParam == VK_SPACE || wParam == 'R' || wParam == VK_HOME || wParam == VK_END
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
-    if (wParam == VK_F11) {
-      if (g_nativeUi) {
-        g_nativeUi->command(tf2::native::UiCommand::ToggleFullscreen);
-        applyFullscreen(window, g_nativeUi->snapshot().fullscreen);
-        updateNativeUiControls(window);
-      }
-      return 0;
-    }
     const bool functionKey = wParam >= VK_F1 && wParam <= VK_F8;
     if (functionKey && g_renderer) {
       const std::size_t slot = static_cast<std::size_t>(wParam - VK_F1);
@@ -516,27 +316,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       if (control && shift) g_renderer->clearCameraPreset(slot);
       else if (control) g_renderer->saveCameraPreset(slot);
       else g_renderer->applyCameraPreset(slot);
-    } else if (cameraKeyIndex(wParam) >= 0) {
-      g_cameraKeys[cameraKeyIndex(wParam)] = true;
     } else if (wParam == VK_HOME) {
       if (g_renderer) g_renderer->resetCamera();
       if (g_playback.enabled) { g_playback.tick = 0; g_playback.reverse = false; }
     } else if (wParam == VK_END && g_playback.enabled) {
       g_playback.tick = g_playback.endTick;
-    } else if (wParam == VK_SPACE && g_renderer) {
-      const ULONGLONG now = GetTickCount64();
-      const bool doublePress = g_lastSpacePressMs != 0
-        && now - g_lastSpacePressMs <= static_cast<ULONGLONG>(GetDoubleClickTime());
-      g_lastSpacePressMs = now;
-      if (doublePress) {
-        g_freeObserverCamera = true;
-        g_firstPersonCamera = false;
-      } else {
-        g_freeObserverCamera = false;
-        g_firstPersonCamera = !g_firstPersonCamera;
-      }
-      g_renderer->setCameraViewMode(g_firstPersonCamera, g_freeObserverCamera);
-    } else if (wParam == 'P' && g_playback.enabled) {
+    } else if (wParam == VK_SPACE && g_playback.enabled) {
       g_playback.paused = !g_playback.paused;
     } else if (wParam == 'R' && g_playback.enabled) {
       if (!g_playback.reverse && g_playback.tick == 0) g_playback.tick = g_playback.endTick;
@@ -554,9 +339,6 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     }
     return 0;
   }
-  case WM_KEYUP:
-    if (cameraKeyIndex(wParam) >= 0) g_cameraKeys[cameraKeyIndex(wParam)] = false;
-    return 0;
   case WM_DESTROY:
     PostQuitMessage(0);
     return 0;
@@ -630,15 +412,6 @@ std::filesystem::path localCacheDirectory(std::string& status) {
   return {};
 }
 
-bool isVoiceOrMusic(const std::string& name) {
-  std::string lower = name;
-  std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
-    return static_cast<char>(std::tolower(c));
-  });
-  return lower.find("vo/") != std::string::npos || lower.find("voice") != std::string::npos
-    || lower.find("announcer") != std::string::npos || lower.find("commentary") != std::string::npos
-    || lower.find("radio") != std::string::npos || lower.find("music") != std::string::npos;
-}
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
@@ -763,7 +536,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::size_t modelVpkHits = 0;
   std::size_t modelLooseHits = 0;
   std::size_t modelUnknownPaths = 0;
-  bool modelAutoSelected = false;
   std::size_t itemSchemaHits = 0;
   std::size_t itemSchemaMisses = 0;
   tf2::native::ModelFeatureStatus modelAttachmentStatus = tf2::native::ModelFeatureStatus::Unknown;
@@ -795,18 +567,52 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         if (candidate.resolution == tf2::native::ModelAssetResolution::FoundLoose) ++modelLooseHits;
         else if (candidate.resolution == tf2::native::ModelAssetResolution::FoundVpk) ++modelVpkHits;
         else if (candidate.resolution == tf2::native::ModelAssetResolution::Unknown) ++modelUnknownPaths;
-        if (commandModel.empty()
-            && candidate.resolution == tf2::native::ModelAssetResolution::FoundLoose
-            && candidate.companionSetComplete
-            && !candidate.looseMdl.empty()) {
-          commandModel = candidate.looseMdl;
-          modelAutoSelected = true;
-        }
         if (reference.hasItemDefIndex) {
           if (itemSchema && itemSchema->find(static_cast<int>(reference.itemDefIndex))) ++itemSchemaHits;
           else ++itemSchemaMisses;
         }
       }
+    }
+  }
+  tf2::native::ModelRenderRequestStats modelRequestStats;
+  std::vector<tf2::native::ModelRenderRequest> modelRenderRequests;
+  struct PreparedEntityMesh {
+    std::string path;
+    std::string cacheKey;
+    std::vector<tf2::native::ModelDrawVertex> vertices;
+  };
+  std::vector<PreparedEntityMesh> preparedEntityMeshes;
+  std::unordered_map<std::string, std::string> entityMeshKeyByPath;
+  if (assets.valid()) {
+    modelRenderRequests = tf2::native::ModelLoader::buildRenderRequests(
+      assets, demoNetworkSummary.assetReferences, itemSchema.get(), &modelRequestStats);
+    std::vector<tf2::native::AssetReference> classFallbacks;
+    for (std::int64_t tfClass = 1; tfClass <= 9; ++tfClass) {
+      tf2::native::AssetReference fallback;
+      fallback.hasModelPath = true;
+      fallback.modelPath = tf2::native::EntityModelResolver::defaultPlayerModelPath(tfClass);
+      classFallbacks.push_back(std::move(fallback));
+    }
+    auto classRequests = tf2::native::ModelLoader::buildRenderRequests(
+      assets, classFallbacks, itemSchema.get(), nullptr);
+    std::vector<tf2::native::ModelRenderRequest> meshSource = modelRenderRequests;
+    meshSource.insert(meshSource.end(), classRequests.begin(), classRequests.end());
+    std::unordered_set<std::string> preparedKeys;
+    preparedEntityMeshes.reserve(64);
+    for (auto& request : meshSource) {
+      if (!request.renderable || request.inspection.viewModelPathDetected) continue;
+      if (preparedKeys.count(request.cacheKey)) continue;
+      std::string meshError;
+      if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)
+          || request.inspection.metadata.bindPoseVertices.size() < 3) continue;
+      PreparedEntityMesh prepared;
+      prepared.path = request.modelPath;
+      prepared.cacheKey = request.cacheKey;
+      prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
+      preparedKeys.insert(request.cacheKey);
+      entityMeshKeyByPath[request.modelPath] = request.cacheKey;
+      preparedEntityMeshes.push_back(std::move(prepared));
+      if (preparedEntityMeshes.size() >= 64) break;
     }
   }
   std::size_t indexedVpkEntries = 0;
@@ -993,19 +799,27 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     [](const auto& entry) { return entry.command == 1 || entry.command == 2; });
   if (firstPacket != demoIndex.entries.end()) firstPacketTick = firstPacket->tick;
   for (const auto& source : demoNetworkSummary.decodedSoundEvents) {
-    if (source.resourceName.empty() || isVoiceOrMusic(source.resourceName)) continue;
-    tf2::native::SoundPlaybackEvent event;
-    event.tick = std::max<std::int32_t>(0, source.tick - firstPacketTick);
-    event.soundIndex = source.soundIndex;
-    event.name = source.resourceName;
-    event.skipVoice = false;
-    event.volume = std::clamp(source.volume, 0.0f, 1.0f);
-    event.origin[0] = source.origin[0];
-    event.origin[1] = source.origin[1];
-    event.origin[2] = source.origin[2];
-    soundTimeline.add(std::move(event));
+    if (source.resourceName.empty()) continue;
+    tf2::native::ScheduledSound sound;
+    sound.tick = std::max<std::int32_t>(0, source.tick - firstPacketTick);
+    sound.soundIndex = source.soundIndex;
+    sound.name = source.resourceName;
+    sound.volume = source.volume;
+    sound.delaySeconds = source.delaySeconds;
+    sound.origin[0] = source.origin[0];
+    sound.origin[1] = source.origin[1];
+    sound.origin[2] = source.origin[2];
+    tf2::native::scheduleGameplaySound(soundTimeline, std::move(sound), g_playback.tickRate);
   }
   soundTimeline.sortByTick();
+  const tf2::native::SoundKindCounts soundKindCounts = tf2::native::countSoundKinds(soundTimeline);
+  tf2::native::TempEffectTimeline effectTimeline;
+  for (const auto& source : demoNetworkSummary.tempEntityEvents) {
+    tf2::native::addFireBulletsEvent(source, effectTimeline);
+    tf2::native::addExplosionEvent(source, effectTimeline);
+    tf2::native::addParticleEvent(source, effectTimeline);
+  }
+  effectTimeline.sortByTick();
   tf2::native::AudioEventScheduler soundScheduler;
   soundScheduler.setDeviceId(audioDevice);
   std::unordered_map<std::string, tf2::native::WavPcmData> soundCache;
@@ -1035,7 +849,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::wstring demoSuffix;
   if (!commandDemo.empty()) {
     if (demoHeader.valid) {
-      const char* typeName = tf2::native::demoRecordingTypeName(demoHeader.recordingType);
+      const auto recording = tf2::native::classifyDemoRecording(demoHeader, demoNetworkSummary);
+      const char* typeName = recording.label;
       demoSuffix = L" | Demo: " + std::wstring(demoHeader.mapName.begin(), demoHeader.mapName.end())
         + L" " + std::wstring(typeName, typeName + std::strlen(typeName))
         + L" ticks=" + std::to_wstring(demoHeader.ticks)
@@ -1169,11 +984,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         + L" tables=" + std::to_wstring(demoNetworkSummary.stringTableCount)
         + L" table0=" + (demoNetworkSummary.stringTableNames.empty() ? L"" : std::wstring(demoNetworkSummary.stringTableNames.front().begin(), demoNetworkSummary.stringTableNames.front().end()))
         + L" servermap=" + std::wstring(demoNetworkSummary.serverMap.begin(), demoNetworkSummary.serverMap.end())
-        + L" stv=" + (demoNetworkSummary.sourceTv ? L"1" : L"0");
+        + L" stv=" + (demoNetworkSummary.serverInfoHltv ? L"1" : L"0")
+        + L" replaybit=" + (demoNetworkSummary.serverInfoReplayBit ? L"1" : L"0")
+        + L" views=" + std::to_wstring(demoNetworkSummary.viewSamples.size());
     } else {
       demoSuffix = L" | Demo error: " + std::wstring(demoHeader.error.begin(), demoHeader.error.end());
     }
   }
+  const std::string lightmapStateNarrow = tf2::native::BspParser::lightmapModeName(displayMap.lightmapMode);
+  const std::wstring lightmapState(lightmapStateNarrow.begin(), lightmapStateNarrow.end());
+  const std::wstring lightmapTone = displayMap.lightmapMode == tf2::native::BspLightmapMode::RgbExp32 ? L" tone=ldr-clamp" : L"";
   const std::wstring title = assets.valid()
     ? std::wstring(L"TF2 Demo Player - TF2 资源已连接: ") + assets.tfDirectory.wstring()
       + L" [VPK entries: " + std::to_wstring(indexedVpkEntries)
@@ -1185,8 +1005,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" faces=" + std::to_wstring(displayMap.lightmapFaceCount)
       + L" tris=" + std::to_wstring(displayMap.lightmapTriangleCount)
       + L" bytes=" + std::to_wstring(displayMap.lightmapBytes)
-      + L" state=" + (displayMap.lightmapTriangleCount > 0
-        ? L"Active" : (displayMap.lightmapSampleCount > 0 ? L"AverageIntensity" : L"Unavailable"))
+      + L" state=" + lightmapState + lightmapTone
+      + L" atlas=" + std::to_wstring(displayMap.lightmapAtlasWidth) + L"x" + std::to_wstring(displayMap.lightmapAtlasHeight)
       + L", mapmat: " + (mapMaterialName.empty() ? L"none" : std::wstring(mapMaterialName.begin(), mapMaterialName.end()))
       + L", deps: base2=" + (mapBaseTexture2Declared ? (mapBaseTexture2Found ? L"ok" : L"missing") : L"none")
       + L" bump=" + (mapBumpMapDeclared ? (mapBumpMapFound ? L"ok" : L"missing") : L"none")
@@ -1197,6 +1017,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::size_t hudAudioPlayed = 0;
   std::size_t hudAudioMissing = 0;
   std::size_t hudTrailVertices = 0;
+  std::size_t hudEffectsDue = 0;
+  tf2::native::PlaybackHudState hudState;
   const auto refreshWindowTitle = [&]() {
     if (!g_playback.enabled) {
       SetWindowTextW(window, titleBase.c_str());
@@ -1219,17 +1041,27 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" speed=" + std::to_wstring(g_playback.speed)
       + L" entity=" + std::wstring(entitySnapshotStatusName(entitySnapshotStatus))
       + L" audio=" + std::to_wstring(hudAudioPlayed) + L"/" + std::to_wstring(hudAudioMissing)
+      + L" health=" + (hudState.healthKnown ? std::to_wstring(hudState.health) : L"?")
+      + L" team=" + (hudState.teamKnown ? std::to_wstring(hudState.team) : L"?")
+      + L" class=" + (hudState.classKnown ? std::to_wstring(hudState.playerClass) : L"?")
+      + L" clip=" + (hudState.clipKnown ? std::to_wstring(hudState.clip) : L"?")
+      + L" uber=" + (hudState.uberKnown ? std::to_wstring(hudState.uberCharge) : L"?")
+      + L" snd=" + std::to_wstring(soundKindCounts.weapon) + L"/"
+      + std::to_wstring(soundKindCounts.footstep) + L"/" + std::to_wstring(soundKindCounts.uber)
+      + L" fxDue=" + std::to_wstring(hudEffectsDue)
       + L" trailVerts=" + std::to_wstring(hudTrailVertices) + L"/1024"
       + L" cache=" + std::wstring(cacheStatus.begin(), cacheStatus.end())
       + (cacheDirectory.empty() ? L"" : L"@" + cacheDirectory.wstring())
       + L" hash=" + std::wstring(hashStatus.begin(), hashStatus.end())
       + (demoSha256.empty() ? L"" : L":" + std::wstring(demoSha256.begin(), demoSha256.end()))
-      + L" modelSelection=" + (modelAutoSelected ? L"demo-auto" : (commandModel.empty() ? L"none" : L"explicit"))
       + L" modelMissing=" + std::to_wstring(modelCompanionMissing)
       + L" vpkHits=" + std::to_wstring(modelVpkHits)
       + L" attachment=" + std::wstring(modelAttachmentStatus == tf2::native::ModelFeatureStatus::Available ? L"available" : modelAttachmentStatus == tf2::native::ModelFeatureStatus::Missing ? L"missing" : L"unknown")
       + L" bodygroup=" + std::wstring(modelBodygroupStatus == tf2::native::ModelFeatureStatus::Available ? L"available" : modelBodygroupStatus == tf2::native::ModelFeatureStatus::Missing ? L"missing" : L"unknown")
       + L" viewmodel=" + std::wstring(modelViewModelStatus == tf2::native::ModelFeatureStatus::Available ? L"available" : modelViewModelStatus == tf2::native::ModelFeatureStatus::Missing ? L"missing" : L"unknown")
+      + L" entityMeshes=" + std::to_wstring(renderer.entityModelMeshCount())
+      + L" entityModels=" + std::to_wstring(renderer.entityModelInstanceCount())
+      + L" entityModelVerts=" + std::to_wstring(renderer.entityModelVertexCount())
       + L" posePreflight=" + (modelPosePreflight ? L"ready" : L"unknown")
       + L" bones=" + std::to_wstring(modelBoneCount)
       + L" attachments=" + std::to_wstring(modelAttachmentCount)
@@ -1271,9 +1103,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     else if (!displayRgba.empty()) uploadedTexture = renderer.uploadTexture(displayRgba, displayWidth, displayHeight);
     bool uploadedWorld = displayMap.triangles.empty();
     if (!renderer.uploadWorldAuxTextures(mapBumpRgba, mapBumpWidth, mapBumpHeight, mapEnvRgba, mapEnvWidth, mapEnvHeight)) return false;
+    if (!renderer.uploadWorldLightmap(displayMap.lightmapAtlas,
+        static_cast<UINT>(displayMap.lightmapAtlasWidth), static_cast<UINT>(displayMap.lightmapAtlasHeight))) return false;
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
     const bool uploadedModel = !modelReady || renderer.uploadBindPoseModel(modelMetadata.bindPoseVertices);
+    for (const auto& prepared : preparedEntityMeshes) {
+      renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices);
+    }
     bool uploadedBones = true;
     if (modelReady && !modelMetadata.bones.empty()) {
       std::vector<std::array<float, 16>> boneMatrices;
@@ -1364,8 +1201,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       DispatchMessageW(&message);
     }
     if (!running) break;
-    nativeUi.pollImport();
-    updateNativeUiControls(window);
 
     LARGE_INTEGER now{};
     QueryPerformanceCounter(&now);
@@ -1375,15 +1210,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // temporary OS stall. The next frame resumes at the current playback rate.
     const double elapsed = std::clamp(measuredElapsed, 0.0, 0.25);
     if (measuredElapsed > 0.25) tickAccumulator = 0.0;
-    if (g_renderer) {
-      const float speed = static_cast<float>(elapsed * 3.0);
-      const float right = (g_cameraKeys[3] ? 1.0f : 0.0f) - (g_cameraKeys[1] ? 1.0f : 0.0f);
-      const float forward = (g_cameraKeys[0] ? 1.0f : 0.0f) - (g_cameraKeys[2] ? 1.0f : 0.0f);
-      const float up = (g_cameraKeys[5] ? 1.0f : 0.0f) - (g_cameraKeys[4] ? 1.0f : 0.0f);
-      if (right != 0.0f || forward != 0.0f || up != 0.0f) {
-        g_renderer->moveCamera(right * speed, forward * speed, up * speed);
-      }
-    }
     if (g_playback.paused != lastPaused) {
       if (g_playback.paused) soundScheduler.stop();
       else soundScheduler.reset(g_playback.tick);
@@ -1420,91 +1246,92 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
     if (g_renderer && g_playback.enabled && g_playback.tick != lastSceneTick) {
+      const std::int32_t sceneTick = firstPacketTick + g_playback.tick;
       entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
-          demoNetworkSummary, g_playback.tick, currentEntityStates);
-      if (entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available) {
-        tf2::native::ObserverCameraTrackSample cameraSample;
-        if (tf2::native::findObserverCameraAtOrBeforeTick(
-              demoNetworkSummary, g_playback.tick, cameraSample)
-            && cameraSample.hasAngles && !cameraSample.anglesRelative && !g_freeObserverCamera) {
-          renderer.setObserverAngles(cameraSample.angles[0], cameraSample.angles[1]);
-        }
-        std::vector<tf2::native::EntityMarker> entityMarkers;
-        std::vector<tf2::native::ModelInstanceDraw> modelInstances;
-        entityMarkers.reserve(128);
-        modelInstances.reserve(32);
+          demoNetworkSummary, sceneTick, currentEntityStates);
+      tf2::native::DemoViewSample observerView;
+      if (tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneTick, observerView)
+          && observerView.hasOrigin && observerView.hasAngles) {
+        renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1], observerView.origin[2],
+          observerView.angles[0], observerView.angles[1]);
+      } else {
+        renderer.clearObserverDemoView();
+      }
+      const bool snapshotDrawable = entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
+          || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
+      hudState = snapshotDrawable
+        ? tf2::native::readPlaybackHud(currentEntityStates, demoNetworkSummary.lastViewEntity)
+        : tf2::native::PlaybackHudState{};
+      hudEffectsDue = effectTimeline.countThrough(sceneTick);
+      if (snapshotDrawable) {
+        const auto modelInstances = tf2::native::EntityModelResolver::buildInstances(
+          modelRenderRequests, currentEntityStates, demoNetworkSummary.serverClassSchemas, 256);
+        std::vector<tf2::native::EntityModelDrawInstance> draws;
+        std::vector<tf2::native::EntityMarker> fallbackMarkers;
+        draws.reserve(96);
+        fallbackMarkers.reserve(32);
         bool focused = false;
-        const auto tryFocusEntity = [&](std::size_t entityIndex) {
-          if (entityIndex >= currentEntityStates.size()) return false;
-          const auto& entity = currentEntityStates[entityIndex];
-          bool playerClass = entity.classId >= 0 &&
-            static_cast<std::size_t>(entity.classId) < demoNetworkSummary.serverClassSchemas.size();
-          if (playerClass) {
-            const auto& entityClassName = demoNetworkSummary.serverClassSchemas[static_cast<std::size_t>(entity.classId)].name;
-            playerClass = entityClassName.find("Player") != std::string::npos || entityClassName.find("TFPlayer") != std::string::npos;
-          }
-          if (!playerClass) return false;
-          const auto origin = entity.properties.find("m_vecOrigin");
-          if (origin == entity.properties.end() || origin->second.type != tf2::native::SendPropType::Vector) return false;
-          if (!std::isfinite(origin->second.x) || !std::isfinite(origin->second.y) || !std::isfinite(origin->second.z)) return false;
-          if (!g_freeObserverCamera) {
-            renderer.setObserverFocusWorld(origin->second.x, origin->second.y, origin->second.z);
-          }
-          if (entityMarkers.size() < 128) {
-            tf2::native::EntityMarker marker;
-            marker.position[0] = origin->second.x;
-            marker.position[1] = origin->second.y;
-            marker.position[2] = origin->second.z;
-            marker.color[0] = 0.2f; marker.color[1] = 0.95f; marker.color[2] = 0.35f; marker.color[3] = 0.0f;
-            entityMarkers.push_back(marker);
-          }
+        const auto tryFocusOrigin = [&](float x, float y, float z) {
+          if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
+          renderer.setObserverFocusWorld(x, y, z);
           return true;
         };
         if (demoNetworkSummary.lastViewEntity < currentEntityStates.size()) {
-          focused = tryFocusEntity(demoNetworkSummary.lastViewEntity);
+          const auto focus = tf2::native::EntityModelResolver::extractTransform(
+            currentEntityStates[demoNetworkSummary.lastViewEntity]);
+          if (focus.hasOrigin) focused = tryFocusOrigin(focus.origin[0], focus.origin[1], focus.origin[2]);
         }
-        for (std::size_t entityIndex = 0; !focused && entityIndex < currentEntityStates.size(); ++entityIndex) {
-          focused = tryFocusEntity(entityIndex);
-        }
-        for (std::size_t entityIndex = 0; entityIndex < currentEntityStates.size() && entityMarkers.size() < 128; ++entityIndex) {
-          const auto& entity = currentEntityStates[entityIndex];
-          const auto origin = entity.properties.find("m_vecOrigin");
-          if (origin == entity.properties.end() || origin->second.type != tf2::native::SendPropType::Vector) continue;
-          if (!std::isfinite(origin->second.x) || !std::isfinite(origin->second.y) || !std::isfinite(origin->second.z)) continue;
-          bool playerClass = entity.classId >= 0
-            && static_cast<std::size_t>(entity.classId) < demoNetworkSummary.serverClassSchemas.size();
-          if (playerClass) {
-            const auto& entityClassName = demoNetworkSummary.serverClassSchemas[
-              static_cast<std::size_t>(entity.classId)].name;
-            playerClass = entityClassName.find("Player") != std::string::npos
-              || entityClassName.find("TFPlayer") != std::string::npos;
+        for (const auto& instance : modelInstances) {
+          if (!instance.transform.hasOrigin) continue;
+          const bool player = instance.className.find("Player") != std::string::npos
+            || instance.className.find("TFPlayer") != std::string::npos
+            || instance.playerClassFallback;
+          if (!focused && player) {
+            focused = tryFocusOrigin(instance.transform.origin[0], instance.transform.origin[1], instance.transform.origin[2]);
           }
-          if (playerClass && modelReady && modelInstances.size() < 32u) {
-            tf2::native::ModelInstanceDraw drawInstance;
-            drawInstance.position[0] = origin->second.x;
-            drawInstance.position[1] = origin->second.y;
-            drawInstance.position[2] = origin->second.z;
-            const auto angles = entity.properties.find("m_angRotation");
-            if (angles != entity.properties.end() && angles->second.type == tf2::native::SendPropType::Vector) {
-              drawInstance.angles[0] = angles->second.x;
-              drawInstance.angles[1] = angles->second.y;
-              drawInstance.angles[2] = angles->second.z;
+          if (instance.viewModelSkipped) continue;
+          std::string cacheKey = instance.cacheKey;
+          if (cacheKey.empty() || entityMeshKeyByPath.count(instance.modelPath)) {
+            const auto found = entityMeshKeyByPath.find(instance.modelPath);
+            if (found != entityMeshKeyByPath.end()) cacheKey = found->second;
+          }
+          const bool hasMesh = !cacheKey.empty() && !instance.viewModelSkipped
+            && (instance.renderable || instance.playerClassFallback);
+          if (hasMesh && draws.size() < 96) {
+            tf2::native::EntityModelDrawInstance draw;
+            draw.cacheKey = cacheKey;
+            draw.origin[0] = instance.transform.origin[0];
+            draw.origin[1] = instance.transform.origin[1];
+            draw.origin[2] = instance.transform.origin[2];
+            draw.hasAngles = instance.transform.hasAngles;
+            draw.angles[0] = instance.transform.angles[0];
+            draw.angles[1] = instance.transform.angles[1];
+            draw.angles[2] = instance.transform.angles[2];
+            if (instance.transform.hasTeam && instance.transform.team == 2) {
+              draw.color[0] = 0.86f; draw.color[1] = 0.28f; draw.color[2] = 0.22f; draw.color[3] = 1.0f;
+            } else if (instance.transform.hasTeam && instance.transform.team == 3) {
+              draw.color[0] = 0.28f; draw.color[1] = 0.52f; draw.color[2] = 0.86f; draw.color[3] = 1.0f;
+            } else {
+              draw.color[0] = 0.72f; draw.color[1] = 0.74f; draw.color[2] = 0.70f; draw.color[3] = 1.0f;
             }
-            modelInstances.push_back(drawInstance);
+            draws.push_back(draw);
+          } else if (fallbackMarkers.size() < 32) {
+            tf2::native::EntityMarker marker;
+            marker.position[0] = instance.transform.origin[0];
+            marker.position[1] = instance.transform.origin[1];
+            marker.position[2] = instance.transform.origin[2];
+            marker.color[0] = 0.95f; marker.color[1] = 0.75f; marker.color[2] = 0.15f; marker.color[3] = 0.0f;
+            fallbackMarkers.push_back(marker);
           }
-          tf2::native::EntityMarker marker;
-          marker.position[0] = origin->second.x; marker.position[1] = origin->second.y; marker.position[2] = origin->second.z;
-          marker.color[0] = 0.95f; marker.color[1] = 0.75f; marker.color[2] = 0.15f; marker.color[3] = 0.0f;
-          entityMarkers.push_back(marker);
         }
-        renderer.setEntityMarkers(entityMarkers);
-        renderer.setModelInstances(modelInstances);
+        renderer.setEntityModelInstances(draws);
+        renderer.setEntityMarkers(fallbackMarkers);
       } else {
+        renderer.setEntityModelInstances({});
         renderer.setEntityMarkers({});
-        renderer.setModelInstances({});
       }
-      renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);
-      renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);
+      renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
+      renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
       hudTrailVertices = renderer.projectileVertexCount();
       lastSceneTick = g_playback.tick;
     }

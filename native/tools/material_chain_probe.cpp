@@ -89,6 +89,8 @@ int main(int argc, char** argv) {
   std::uint16_t allCubemapMaxDepth = 0;
   std::size_t cubemapParseFailures = 0;
   std::size_t cubemapOversized = 0;
+  std::string reportedLightmapMode = "average-intensity";
+  std::string reportedLightmapToneMap = "none";
   bool explicitVtfDecoded = false;
   std::uint16_t explicitVtfWidth = 0, explicitVtfHeight = 0;
   std::uint32_t explicitVtfFormat = 0;
@@ -126,6 +128,10 @@ int main(int argc, char** argv) {
     const auto bytes = readFile(std::filesystem::u8path(argv[2]));
     tf2::native::BspMap parsedMap;
     const bool parsed = tf2::native::BspParser::parse(bytes, parsedMap);
+    if (parsed) {
+      reportedLightmapMode = tf2::native::BspParser::lightmapModeName(parsedMap.lightmapMode);
+      if (parsedMap.lightmapMode == tf2::native::BspLightmapMode::RgbExp32) reportedLightmapToneMap = "ldr-clamp";
+    }
     constexpr std::string_view marker = "env_cubemap";
     for (std::size_t at = 0; at + marker.size() <= bytes.size(); ++at) {
       if (std::memcmp(bytes.data() + at, marker.data(), marker.size()) == 0) ++bspCubemapEntities;
@@ -204,6 +210,11 @@ int main(int argc, char** argv) {
       constexpr std::string_view marker = "env_cubemap";
       for (std::size_t at = 0; at + marker.size() <= bspBytes.size(); ++at) {
         if (std::memcmp(bspBytes.data() + at, marker.data(), marker.size()) == 0) ++bspCubemapEntities;
+      }
+      tf2::native::BspMap parsedMap;
+      if (tf2::native::BspParser::parse(bspBytes, parsedMap, 200000)) {
+        reportedLightmapMode = tf2::native::BspParser::lightmapModeName(parsedMap.lightmapMode);
+        if (parsedMap.lightmapMode == tf2::native::BspLightmapMode::RgbExp32) reportedLightmapToneMap = "ldr-clamp";
       }
     }
     constexpr std::size_t maxVtfSize = 64u * 1024u * 1024u;
@@ -297,7 +308,8 @@ int main(int argc, char** argv) {
     << ",\"allCubemapVtfFlags\":" << allCubemapVtfFlags
     << ",\"allCubemapDepth6\":" << allCubemapDepth6
     << ",\"allCubemapMaxDepth\":" << allCubemapMaxDepth
-    << ",\"cubemapMode\":\"approximate-2d\",\"lightmapMode\":\"average-intensity\"}\n";
+    << ",\"cubemapMode\":\"approximate-2d\",\"lightmapMode\":\"" << reportedLightmapMode
+    << "\",\"lightmapToneMap\":\"" << reportedLightmapToneMap << "\"}\n";
   return emptyRejected && corruptRejected && oversizedRejected && cubemapDecodeRejected && emptyBspRejected && noLightingDefault
     && vmtFeatureMapping && waterFeatureMapping ? 0 : 1;
 }

@@ -185,6 +185,7 @@ int wmain(int argc, wchar_t** argv) {
         const auto statusName = [](tf2::native::EntitySnapshotQueryStatus value) {
           switch (value) {
             case tf2::native::EntitySnapshotQueryStatus::Available: return L"available";
+            case tf2::native::EntitySnapshotQueryStatus::Checkpoint: return L"checkpoint";
             case tf2::native::EntitySnapshotQueryStatus::NoHistory: return L"no-history";
             case tf2::native::EntitySnapshotQueryStatus::TickBeforeHistory: return L"before-history";
             case tf2::native::EntitySnapshotQueryStatus::Gap: return L"gap";

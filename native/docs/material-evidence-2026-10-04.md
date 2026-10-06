@@ -35,6 +35,11 @@ Source-equivalent lightmaps, cubemaps, or water rendering.
 
 ## Not established by local evidence
 
-No local resource and pixel readback currently establishes six-face cubemap
-sampling, per-face lightmap interpolation, or complete Source water behavior.
-The reported modes therefore remain `approximate-2d` and `average-intensity`.
+As of 2026-10-04, no pixel readback established six-face cubemap sampling,
+per-face lightmap interpolation, or complete Source water behavior. The shader
+at that date used `approximate-2d` and `average-intensity`.
+
+The 2026-10-05 successor is `world-materials-2026-10-05.md`. Its
+`source-equivalent` string is only the luxel-index contract for tone-mapped
+RGBExp32, and that note states the `ldr-clamp` caveat. GPU cubemap sampling
+stays `approximate-2d`. Water reflection and refraction stay unavailable.

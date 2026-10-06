@@ -60,6 +60,33 @@ struct SpatialMix {
 SpatialMix computeSpatialMix(const float source[3], const float listener[3],
   float maxDistance = 2048.0f, float rolloff = 1.0f);
 
+// Path-token match for vo/voice/announcer/radio/music/commentary.
+bool soundNameIsVoiceOrMusic(const std::string& name);
+
+// Weapon, footstep, then Uber, then world. Voice names still classify, and
+// the scheduler drops them before playback.
+SoundEventKind classifySoundEvent(const std::string& name);
+
+// playbackTick + round(delaySeconds * tickRate). A negative result clamps to
+// 0. Returns -1 when the tick, delay, or tick rate cannot be scheduled.
+std::int32_t applySoundDelayTicks(std::int32_t tick, float delaySeconds, double tickRate);
+
+struct ScheduledSound {
+  std::int32_t tick = 0;
+  std::uint32_t soundIndex = 0;
+  std::string name;
+  float volume = 1.0f;
+  float delaySeconds = 0.0f;
+  float origin[3] = {0.0f, 0.0f, 0.0f};
+};
+
+struct SoundKindCounts {
+  std::size_t weapon = 0;
+  std::size_t footstep = 0;
+  std::size_t uber = 0;
+  std::size_t world = 0;
+};
+
 class SoundEventTimeline {
 public:
   void clear();
@@ -76,6 +103,12 @@ public:
 private:
   std::vector<SoundPlaybackEvent> events_;
 };
+
+// Classifies the name, folds delay into the playback tick, and drops voice,
+// announcer, and music. Does not open an audio device.
+bool scheduleGameplaySound(SoundEventTimeline& timeline, ScheduledSound sound, double tickRate);
+
+SoundKindCounts countSoundKinds(const SoundEventTimeline& timeline);
 
 // Resolves a precache name to WAV or MP3 bytes. WAV data is parsed; MP3 is
 // only signature-validated because codec decoding belongs to the native audio
