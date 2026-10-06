@@ -760,6 +760,13 @@ void Renderer::setObserverAngles(float pitch, float yaw) {
   cameraPitch_ = std::clamp(pitch * kPi / 180.0f, -1.35f, 1.35f);
 }
 
+void Renderer::setCameraViewMode(bool firstPerson, bool freeObserver) {
+  firstPersonCamera_ = firstPerson;
+  freeObserverCamera_ = freeObserver;
+  if (firstPersonCamera_) cameraDistance_ = 0.05f;
+  else if (!freeObserverCamera_ && cameraDistance_ < 0.8f) cameraDistance_ = 1.65f;
+}
+
 bool Renderer::observerFocusWorld(float& x, float& y, float& z) const {
   if (!observerFocusValid_) return false;
   x = observerFocusX_; y = observerFocusY_; z = observerFocusZ_;
@@ -1042,12 +1049,16 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       observerFocusValid_ ? observerFocusY_ : 0.0f,
       observerFocusValid_ ? observerFocusZ_ : 0.5f, 1.0f);
     const float horizontal = std::cos(cameraPitch_) * cameraDistance_;
-    const XMVECTOR eye = XMVectorSet(
+    const XMVECTOR eye = firstPersonCamera_ ? target : XMVectorSet(
       XMVectorGetX(target) + std::cos(cameraYaw_) * horizontal,
       XMVectorGetY(target) + std::sin(cameraYaw_) * horizontal,
       XMVectorGetZ(target) + std::sin(cameraPitch_) * cameraDistance_, 1.0f);
+    const XMVECTOR lookTarget = firstPersonCamera_ ? XMVectorSet(
+      XMVectorGetX(target) - std::cos(cameraYaw_) * std::cos(cameraPitch_),
+      XMVectorGetY(target) - std::sin(cameraYaw_) * std::cos(cameraPitch_),
+      XMVectorGetZ(target) - std::sin(cameraPitch_), 1.0f) : target;
     const XMVECTOR up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-    const XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
+    const XMMATRIX view = XMMatrixLookAtLH(eye, lookTarget, up);
     const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
     const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, 0.05f, 100.0f);
     const XMMATRIX mvp = view * projection;

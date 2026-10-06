@@ -102,6 +102,9 @@ struct PlaybackState {
   tf2::native::DemoIndexEntry anchor{};
 };
 PlaybackState g_playback{};
+bool g_firstPersonCamera = false;
+bool g_freeObserverCamera = false;
+ULONGLONG g_lastSpacePressMs = 0;
 constexpr double kTargetFrameSeconds = 1.0 / 120.0;
 
 const wchar_t* entitySnapshotStatusName(tf2::native::EntitySnapshotQueryStatus status) {
@@ -486,7 +489,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // Toggle commands must be edge-triggered; Windows may repeat WM_KEYDOWN
     // while a key is held, which otherwise flips state several times.
     if ((lParam & (1u << 30)) != 0u
-        && (wParam == VK_SPACE || wParam == 'R' || wParam == VK_HOME || wParam == VK_END
+        && (wParam == 'P' || wParam == 'R' || wParam == VK_HOME || wParam == VK_END
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
     if (wParam == VK_F11) {
       if (g_nativeUi) {
@@ -516,7 +519,20 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       if (g_playback.enabled) { g_playback.tick = 0; g_playback.reverse = false; }
     } else if (wParam == VK_END && g_playback.enabled) {
       g_playback.tick = g_playback.endTick;
-    } else if (wParam == VK_SPACE && g_playback.enabled) {
+    } else if (wParam == VK_SPACE && g_renderer) {
+      const ULONGLONG now = GetTickCount64();
+      const bool doublePress = g_lastSpacePressMs != 0
+        && now - g_lastSpacePressMs <= static_cast<ULONGLONG>(GetDoubleClickTime());
+      g_lastSpacePressMs = now;
+      if (doublePress) {
+        g_freeObserverCamera = true;
+        g_firstPersonCamera = false;
+      } else {
+        g_freeObserverCamera = false;
+        g_firstPersonCamera = !g_firstPersonCamera;
+      }
+      g_renderer->setCameraViewMode(g_firstPersonCamera, g_freeObserverCamera);
+    } else if (wParam == 'P' && g_playback.enabled) {
       g_playback.paused = !g_playback.paused;
     } else if (wParam == 'R' && g_playback.enabled) {
       if (!g_playback.reverse && g_playback.tick == 0) g_playback.tick = g_playback.endTick;
@@ -1393,7 +1409,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         tf2::native::ObserverCameraTrackSample cameraSample;
         if (tf2::native::findObserverCameraAtOrBeforeTick(
               demoNetworkSummary, g_playback.tick, cameraSample)
-            && cameraSample.hasAngles && !cameraSample.anglesRelative) {
+            && cameraSample.hasAngles && !cameraSample.anglesRelative && !g_freeObserverCamera) {
           renderer.setObserverAngles(cameraSample.angles[0], cameraSample.angles[1]);
         }
         std::vector<tf2::native::EntityMarker> entityMarkers;
@@ -1414,7 +1430,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           const auto origin = entity.properties.find("m_vecOrigin");
           if (origin == entity.properties.end() || origin->second.type != tf2::native::SendPropType::Vector) return false;
           if (!std::isfinite(origin->second.x) || !std::isfinite(origin->second.y) || !std::isfinite(origin->second.z)) return false;
-          renderer.setObserverFocusWorld(origin->second.x, origin->second.y, origin->second.z);
+          if (!g_freeObserverCamera) {
+            renderer.setObserverFocusWorld(origin->second.x, origin->second.y, origin->second.z);
+          }
           if (entityMarkers.size() < 128) {
             tf2::native::EntityMarker marker;
             marker.position[0] = origin->second.x;

@@ -106,6 +106,7 @@ public:
   void setObserverFocus(float x, float y, float z);
   void setObserverFocusWorld(float x, float y, float z);
   void setObserverAngles(float pitch, float yaw);
+  void setCameraViewMode(bool firstPerson, bool freeObserver);
   bool observerFocusWorld(float& x, float& y, float& z) const;
   void setWorldMaterialParams(const WorldMaterialParams& params);
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
@@ -196,6 +197,8 @@ private:
   float cameraYaw_ = 0.0f;
   float cameraPitch_ = 0.36f;
   float cameraDistance_ = 1.65f;
+  bool firstPersonCamera_ = false;
+  bool freeObserverCamera_ = false;
   bool observerFocusValid_ = false;
   float observerFocusX_ = 0.0f;
   float observerFocusY_ = 0.0f;
