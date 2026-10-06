@@ -1390,7 +1390,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           renderer.setObserverAngles(cameraSample.angles[0], cameraSample.angles[1]);
         }
         std::vector<tf2::native::EntityMarker> entityMarkers;
+        std::vector<tf2::native::ModelInstanceDraw> modelInstances;
         entityMarkers.reserve(128);
+        modelInstances.reserve(32);
         bool focused = false;
         const auto tryFocusEntity = [&](std::size_t entityIndex) {
           if (entityIndex >= currentEntityStates.size()) return false;
@@ -1405,6 +1407,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           const auto origin = entity.properties.find("m_vecOrigin");
           if (origin == entity.properties.end() || origin->second.type != tf2::native::SendPropType::Vector) return false;
           if (!std::isfinite(origin->second.x) || !std::isfinite(origin->second.y) || !std::isfinite(origin->second.z)) return false;
+          if (modelReady && modelInstances.size() < 32u) {
+            tf2::native::ModelInstanceDraw instance;
+            instance.position[0] = origin->second.x;
+            instance.position[1] = origin->second.y;
+            instance.position[2] = origin->second.z;
+            const auto angles = entity.properties.find("m_angRotation");
+            if (angles != entity.properties.end() && angles->second.type == tf2::native::SendPropType::Vector) {
+              instance.angles[0] = angles->second.x;
+              instance.angles[1] = angles->second.y;
+              instance.angles[2] = angles->second.z;
+            }
+            modelInstances.push_back(instance);
+          }
           renderer.setObserverFocusWorld(origin->second.x, origin->second.y, origin->second.z);
           if (entityMarkers.size() < 128) {
             tf2::native::EntityMarker marker;
@@ -1427,14 +1442,37 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           const auto origin = entity.properties.find("m_vecOrigin");
           if (origin == entity.properties.end() || origin->second.type != tf2::native::SendPropType::Vector) continue;
           if (!std::isfinite(origin->second.x) || !std::isfinite(origin->second.y) || !std::isfinite(origin->second.z)) continue;
+          bool playerClass = entity.classId >= 0
+            && static_cast<std::size_t>(entity.classId) < demoNetworkSummary.serverClassSchemas.size();
+          if (playerClass) {
+            const auto& entityClassName = demoNetworkSummary.serverClassSchemas[
+              static_cast<std::size_t>(entity.classId)].name;
+            playerClass = entityClassName.find("Player") != std::string::npos
+              || entityClassName.find("TFPlayer") != std::string::npos;
+          }
+          if (playerClass && modelReady && modelInstances.size() < 32u) {
+            tf2::native::ModelInstanceDraw drawInstance;
+            drawInstance.position[0] = origin->second.x;
+            drawInstance.position[1] = origin->second.y;
+            drawInstance.position[2] = origin->second.z;
+            const auto angles = entity.properties.find("m_angRotation");
+            if (angles != entity.properties.end() && angles->second.type == tf2::native::SendPropType::Vector) {
+              drawInstance.angles[0] = angles->second.x;
+              drawInstance.angles[1] = angles->second.y;
+              drawInstance.angles[2] = angles->second.z;
+            }
+            modelInstances.push_back(drawInstance);
+          }
           tf2::native::EntityMarker marker;
           marker.position[0] = origin->second.x; marker.position[1] = origin->second.y; marker.position[2] = origin->second.z;
           marker.color[0] = 0.95f; marker.color[1] = 0.75f; marker.color[2] = 0.15f; marker.color[3] = 0.0f;
           entityMarkers.push_back(marker);
         }
         renderer.setEntityMarkers(entityMarkers);
+        renderer.setModelInstances(modelInstances);
       } else {
         renderer.setEntityMarkers({});
+        renderer.setModelInstances({});
       }
       renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);
       renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, g_playback.tick);

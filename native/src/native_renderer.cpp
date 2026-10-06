@@ -165,6 +165,7 @@ float4 main(float4 position : SV_POSITION, float2 uv : TEXCOORD0) : SV_TARGET {
   static constexpr char worldVertexSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
   row_major float4x4 mvp;
+  row_major float4x4 modelTransform;
   float4 lightDirectionAndMode;
   float4 cameraPositionAndSpecular;
   float4 materialFeatures;
@@ -177,6 +178,7 @@ Output main(Input input) { Output output; output.position = mul(float4(input.pos
   static constexpr char worldPixelSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
   row_major float4x4 mvp;
+  row_major float4x4 modelTransform;
   float4 lightDirectionAndMode;
   float4 cameraPositionAndSpecular;
   float4 materialFeatures;
@@ -220,7 +222,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
 }
 )HLSL";
   static constexpr char modelVertexSource[] = R"HLSL(
-cbuffer WorldConstants : register(b0) { row_major float4x4 mvp; float4 unused0; float4 unused1; float4 unused2; float4 unused3; };
+cbuffer WorldConstants : register(b0) { row_major float4x4 mvp; row_major float4x4 modelTransform; float4 unused0; float4 unused1; float4 unused2; float4 unused3; };
 cbuffer ModelSkinningConstants : register(b1) { row_major float4x4 bones[128]; uint boneCount; uint skinEnabled; uint2 padding; };
 struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 weights : BLENDWEIGHT; uint4 boneIndices : BLENDINDICES; };
 struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; };
@@ -238,14 +240,14 @@ Output main(Input input) {
           skinnedNormal += mul(float4(input.normal, 0.0), bones[input.boneIndices[i]]).xyz * normalizedWeights[i];
         }
       }
-      output.position = mul(float4(skinnedPos, 1.0), mvp);
+      output.position = mul(mul(float4(skinnedPos, 1.0), modelTransform), mvp);
       output.normal = normalize(skinnedNormal);
     } else {
-      output.position = mul(float4(input.position, 1.0), mvp);
+      output.position = mul(mul(float4(input.position, 1.0), modelTransform), mvp);
       output.normal = input.normal;
     }
   } else {
-    output.position = mul(float4(input.position, 1.0), mvp);
+    output.position = mul(mul(float4(input.position, 1.0), modelTransform), mvp);
     output.normal = input.normal;
   }
   output.colour = input.colour;
@@ -338,7 +340,7 @@ float4 main(Input input) : SV_TARGET {
   rasterDescription.DepthClipEnable = TRUE;
   if (FAILED(device_->CreateRasterizerState(&rasterDescription, rasterizerState_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC constantsDescription{};
-  constantsDescription.ByteWidth = 128;
+  constantsDescription.ByteWidth = 192;
   constantsDescription.Usage = D3D11_USAGE_DEFAULT;
   constantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldConstants_.GetAddressOf()))) return false;
@@ -582,6 +584,7 @@ bool Renderer::uploadBindPoseModel(const std::vector<ModelDrawVertex>& vertices)
   const float extent = (std::max)({maximum[0] - minimum[0], maximum[1] - minimum[1], maximum[2] - minimum[2], 1e-4f});
   const float scale = 1.2f / extent;
   const std::array<float, 3> center = {(minimum[0] + maximum[0]) * 0.5f, (minimum[1] + maximum[1]) * 0.5f, (minimum[2] + maximum[2]) * 0.5f};
+  modelNormalizationScale_ = scale;
   for (const auto& v : vertices) {
     ModelGpuVertex output{};
     output.x = (v.position[0]-center[0])*scale; output.y = (v.position[1]-center[1])*scale;
@@ -914,6 +917,19 @@ void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
   entityMarkerVertexCount_ = static_cast<UINT>(vertices.size());
 }
 
+void Renderer::setModelInstances(const std::vector<ModelInstanceDraw>& instances) {
+  modelInstances_.clear();
+  modelInstances_.reserve(std::min<std::size_t>(instances.size(), 128u));
+  for (const auto& instance : instances) {
+    if (!std::isfinite(instance.position[0]) || !std::isfinite(instance.position[1])
+        || !std::isfinite(instance.position[2]) || !std::isfinite(instance.angles[0])
+        || !std::isfinite(instance.angles[1]) || !std::isfinite(instance.angles[2])
+        || !std::isfinite(instance.scale) || instance.scale <= 0.0f) continue;
+    modelInstances_.push_back(instance);
+    if (modelInstances_.size() >= 128u) break;
+  }
+}
+
 bool Renderer::saveCameraPreset(std::size_t slot) {
   if (slot >= cameraPresets_.size() || !std::isfinite(cameraYaw_)
       || !std::isfinite(cameraPitch_) || !std::isfinite(cameraDistance_)) return false;
@@ -989,8 +1005,16 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   viewport.MaxDepth = 1.0f;
   context_->RSSetViewports(1, &viewport);
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  using namespace DirectX;
+  struct WorldConstantsData {
+    XMFLOAT4X4 mvp;
+    XMFLOAT4X4 modelTransform;
+    XMFLOAT4 lightDirectionAndMode;
+    XMFLOAT4 cameraPositionAndSpecular;
+    XMFLOAT4 materialFeatures;
+    XMFLOAT4 lightmapFeatures;
+  } constants{};
   if (worldConstants_) {
-    using namespace DirectX;
     const XMVECTOR target = XMVectorSet(
       observerFocusValid_ ? observerFocusX_ : 0.0f,
       observerFocusValid_ ? observerFocusY_ : 0.0f,
@@ -1005,14 +1029,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
     const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, 0.05f, 100.0f);
     const XMMATRIX mvp = view * projection;
-    struct WorldConstantsData {
-      XMFLOAT4X4 mvp;
-      XMFLOAT4 lightDirectionAndMode;
-      XMFLOAT4 cameraPositionAndSpecular;
-      XMFLOAT4 materialFeatures;
-      XMFLOAT4 lightmapFeatures;
-    } constants{};
     XMStoreFloat4x4(&constants.mvp, mvp);
+    XMStoreFloat4x4(&constants.modelTransform, XMMatrixIdentity());
     const bool standardLighting = settings_.preset == QualityPreset::Standard && settings_.dynamicLighting;
     const bool standardSpecular = settings_.preset == QualityPreset::Standard && settings_.specular;
     constants.lightDirectionAndMode = XMFLOAT4(0.35f, -0.45f, 0.82f, standardLighting ? 1.0f : 0.0f);
@@ -1116,7 +1134,35 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     auto* modelConstants = modelSkinningConstants_.Get();
     context_->VSSetConstantBuffers(1, 1, &modelConstants);
-    context_->Draw(modelVertexCount_, 0);
+    const auto drawModel = [&](const ModelInstanceDraw* instance) {
+      WorldConstantsData modelWorld{};
+      modelWorld.mvp = constants.mvp;
+      modelWorld.lightDirectionAndMode = constants.lightDirectionAndMode;
+      modelWorld.cameraPositionAndSpecular = constants.cameraPositionAndSpecular;
+      modelWorld.materialFeatures = constants.materialFeatures;
+      modelWorld.lightmapFeatures = constants.lightmapFeatures;
+      using namespace DirectX;
+      XMMATRIX transform = XMMatrixIdentity();
+      if (instance) {
+        const float radians = XMConvertToRadians(1.0f);
+        const XMMATRIX rotation = XMMatrixRotationRollPitchYaw(
+          instance->angles[0] * radians, instance->angles[1] * radians, instance->angles[2] * radians);
+        const XMMATRIX scale = XMMatrixScaling(
+          worldHorizontalScale_ * instance->scale / modelNormalizationScale_,
+          worldHorizontalScale_ * instance->scale / modelNormalizationScale_,
+          (0.8f / worldSpanZ_) * instance->scale / modelNormalizationScale_);
+        const XMMATRIX translation = XMMatrixTranslation(
+          (instance->position[0] - worldCenterX_) * worldHorizontalScale_,
+          (instance->position[1] - worldCenterY_) * worldHorizontalScale_,
+          (instance->position[2] - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+        transform = scale * rotation * translation;
+      }
+      XMStoreFloat4x4(&modelWorld.modelTransform, transform);
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &modelWorld, 0, 0);
+      context_->Draw(modelVertexCount_, 0);
+    };
+    if (modelInstances_.empty()) drawModel(nullptr);
+    else for (const auto& instance : modelInstances_) drawModel(&instance);
   }
   const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
   if (FAILED(result)) { lastError_ = result; return false; }
@@ -1138,6 +1184,7 @@ void Renderer::shutdown() {
   entityMarkerVertexCapacity_ = 0;
   entityMarkerVertexCount_ = 0;
   modelVertexBuffer_.Reset();
+  modelInstances_.clear();
   modelGpuStatus_ = ModelGpuStatus::NotLoaded;
   worldBoundsValid_ = false;
   worldLightmapStatus_ = WorldLightmapStatus::Unavailable;

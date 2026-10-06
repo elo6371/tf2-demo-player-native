@@ -64,6 +64,12 @@ struct EntityMarker {
   float color[4] = {0.2f, 0.9f, 0.35f, 0.0f};
 };
 
+struct ModelInstanceDraw {
+  float position[3] = {};
+  float angles[3] = {};
+  float scale = 0.06f;
+};
+
 struct WorldMaterialParams {
   bool bumpMapping = false;
   bool envMap = false;
@@ -104,6 +110,7 @@ public:
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setEntityMarkers(const std::vector<EntityMarker>& markers);
+  void setModelInstances(const std::vector<ModelInstanceDraw>& instances);
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
   const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
   WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
@@ -175,6 +182,8 @@ private:
   UINT entityMarkerVertexCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelVertexBuffer_;
   UINT modelVertexCount_ = 0;
+  std::vector<ModelInstanceDraw> modelInstances_;
+  float modelNormalizationScale_ = 1.0f;
   ModelGpuStatus modelGpuStatus_ = ModelGpuStatus::NotLoaded;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
