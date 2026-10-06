@@ -42,6 +42,10 @@ set_target_properties(temp_effect_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(temp_entities_fixture_probe tools/temp_entities_fixture_probe.cpp)
 set_target_properties(temp_entities_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(entity_frame_history_probe tools/entity_frame_history_probe.cpp src/entity_frame_history.cpp)
+target_include_directories(entity_frame_history_probe PRIVATE include)
+set_target_properties(entity_frame_history_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(demo_open_probe tools/demo_open_probe.cpp src/demo_header.cpp src/proto_wire.cpp src/item_schema.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(demo_open_probe PRIVATE include third_party/lzma)
 set_target_properties(demo_open_probe PROPERTIES WIN32_EXECUTABLE OFF)

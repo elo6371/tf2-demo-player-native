@@ -89,6 +89,8 @@ struct EntityPropertyValue {
 
 struct EntityState {
   std::int32_t classId = -1;
+  std::uint32_t serial = 0;
+  bool inPvs = false;
   std::unordered_map<std::string, EntityPropertyValue> properties;
 };
 
@@ -224,6 +226,16 @@ struct EntityHistoryPacket {
   std::size_t firstEvent = 0;
   std::size_t eventCount = 0;
   bool isDelta = false;
+};
+
+// A complete directory state at a PacketEntities boundary. Delta packets are
+// explicitly relative to this state, so replay must restore it before reading
+// the packet body instead of relying on whichever live state a prior packet
+// left behind.
+struct EntityFrame {
+  std::int32_t tick = 0;
+  std::vector<std::int32_t> classByIndex;
+  std::vector<EntityState> states;
 };
 
 enum class EntitySnapshotQueryStatus {
@@ -362,6 +374,7 @@ struct DemoNetworkSummary {
   std::vector<EntityHistoryEvent> entityHistoryEvents;
   std::vector<EntityHistoryCheckpoint> entityHistoryCheckpoints;
   std::vector<EntityHistoryPacket> entityHistoryPackets;
+  std::vector<EntityFrame> entityFrames;
   std::size_t entityHistoryDroppedPackets = 0;
   std::size_t entityHistoryDeltaBaseMisses = 0;
   bool entityHistoryHasGap = false;

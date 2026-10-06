@@ -805,6 +805,21 @@ constexpr std::size_t kEntityHistoryMaxEvents = 8192;
 constexpr std::size_t kEntityHistoryMaxCheckpoints = 8;
 constexpr std::size_t kEntityHistoryCheckpointStride = 128;
 
+const EntityFrame* findEntityFrame(const DemoNetworkSummary& summary, std::int32_t tick) {
+  const auto it = std::find_if(summary.entityFrames.rbegin(), summary.entityFrames.rend(),
+                               [tick](const EntityFrame& frame) { return frame.tick == tick; });
+  return it == summary.entityFrames.rend() ? nullptr : &*it;
+}
+
+void retainEntityFrame(DemoNetworkSummary& summary, std::int32_t tick) {
+  summary.entityFrames.push_back({tick, summary.entityClassByIndex, summary.entityStates});
+  constexpr std::size_t maxFrames = 256;
+  if (summary.entityFrames.size() > maxFrames) {
+    summary.entityFrames.erase(summary.entityFrames.begin(),
+                               summary.entityFrames.begin() + static_cast<std::ptrdiff_t>(summary.entityFrames.size() - maxFrames));
+  }
+}
+
 void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                          std::int32_t deltaFrom, std::vector<EntityHistoryEvent>&& events) {
   if (summary.entityHistoryHasGap) {
@@ -855,6 +870,7 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
                                                 summary.entityClassByIndex,
                                                 summary.entityStates});
   }
+  retainEntityFrame(summary, tick);
 }
 
 bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
@@ -893,6 +909,10 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
         summary.firstPacketEntitiesUnavailableFrom = static_cast<std::int32_t>(deltaFrom);
       }
     }
+    if (const auto* frame = findEntityFrame(summary, static_cast<std::int32_t>(deltaFrom))) {
+      summary.entityClassByIndex = frame->classByIndex;
+      summary.entityStates = frame->states;
+    }
   }
   std::int32_t lastEntity = -1;
   bool entityUpdatesComplete = true;
@@ -914,6 +934,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       const auto classId = static_cast<std::uint32_t>(summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)]);
       const auto* table = tableForClass(summary, classId);
       EntityState candidate = summary.entityStates[static_cast<std::size_t>(lastEntity)];
+      candidate.inPvs = true;
       if (!readEntityPropUpdates(bits, table, candidate, &summary, packetTick, lastEntity, "preserve")) { ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break; }
       summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
@@ -922,7 +943,9 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
     } else if (updateType == 1) {
       ++summary.packetEntityLeaveCount;
       // Leave means the entity left the PVS, not that it was destroyed. Keep
-      // its class and last state so a later Preserve/Enter can resolve it.
+      // Keep class/serial/state for a later Preserve, but mark it outside PVS.
+      if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityStates.size())
+        summary.entityStates[static_cast<std::size_t>(lastEntity)].inPvs = false;
     } else if (updateType == 3) {
       ++summary.packetEntityDeleteCount;
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
@@ -943,6 +966,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       if (summary.entityStates.size() < 2048u) summary.entityStates.resize(2048u);
       EntityState candidate;
       candidate.classId = static_cast<std::int32_t>(classId);
+      candidate.serial = serial;
+      candidate.inPvs = true;
       const auto* table = tableForClass(summary, classId);
       const auto baselineEntry = summary.instanceBaselines.find(static_cast<std::uint16_t>(classId));
       if (summary.firstInstanceBaselineClassId < 0) {
