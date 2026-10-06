@@ -374,7 +374,6 @@ struct DemoNetworkSummary {
   std::vector<EntityHistoryEvent> entityHistoryEvents;
   std::vector<EntityHistoryCheckpoint> entityHistoryCheckpoints;
   std::vector<EntityHistoryPacket> entityHistoryPackets;
-  std::vector<EntityFrame> entityFrames;
   std::size_t entityHistoryDroppedPackets = 0;
   std::size_t entityHistoryDeltaBaseMisses = 0;
   bool entityHistoryHasGap = false;

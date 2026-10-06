@@ -805,21 +805,6 @@ constexpr std::size_t kEntityHistoryMaxEvents = 8192;
 constexpr std::size_t kEntityHistoryMaxCheckpoints = 8;
 constexpr std::size_t kEntityHistoryCheckpointStride = 128;
 
-const EntityFrame* findEntityFrame(const DemoNetworkSummary& summary, std::int32_t tick) {
-  const auto it = std::find_if(summary.entityFrames.rbegin(), summary.entityFrames.rend(),
-                               [tick](const EntityFrame& frame) { return frame.tick == tick; });
-  return it == summary.entityFrames.rend() ? nullptr : &*it;
-}
-
-void retainEntityFrame(DemoNetworkSummary& summary, std::int32_t tick) {
-  summary.entityFrames.push_back({tick, summary.entityClassByIndex, summary.entityStates});
-  constexpr std::size_t maxFrames = 256;
-  if (summary.entityFrames.size() > maxFrames) {
-    summary.entityFrames.erase(summary.entityFrames.begin(),
-                               summary.entityFrames.begin() + static_cast<std::ptrdiff_t>(summary.entityFrames.size() - maxFrames));
-  }
-}
-
 void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                          std::int32_t deltaFrom, std::vector<EntityHistoryEvent>&& events) {
   if (summary.entityHistoryHasGap) {
@@ -870,7 +855,6 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
                                                 summary.entityClassByIndex,
                                                 summary.entityStates});
   }
-  retainEntityFrame(summary, tick);
 }
 
 bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
@@ -908,10 +892,6 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
         summary.firstPacketEntitiesUnavailableTick = packetTick;
         summary.firstPacketEntitiesUnavailableFrom = static_cast<std::int32_t>(deltaFrom);
       }
-    }
-    if (const auto* frame = findEntityFrame(summary, static_cast<std::int32_t>(deltaFrom))) {
-      summary.entityClassByIndex = frame->classByIndex;
-      summary.entityStates = frame->states;
     }
   }
   std::int32_t lastEntity = -1;
