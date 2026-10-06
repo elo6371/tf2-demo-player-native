@@ -78,6 +78,10 @@ target_compile_definitions(audio_index_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEA
 target_link_libraries(audio_index_probe PRIVATE winmm)
 set_target_properties(audio_index_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(audio_vpk_classification_probe tools/audio_vpk_classification_probe.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp)
+target_include_directories(audio_vpk_classification_probe PRIVATE include)
+set_target_properties(audio_vpk_classification_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(winmm_sink_probe tools/winmm_sink_probe.cpp)
 target_compile_definitions(winmm_sink_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(winmm_sink_probe PRIVATE winmm)
