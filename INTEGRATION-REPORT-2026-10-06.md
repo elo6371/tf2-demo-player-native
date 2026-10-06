@@ -45,6 +45,45 @@ Some independent probes build, including `audio_effects_probe`,
 `world_material_probe`. The product executable and the full target set are not
 buildable in this snapshot, so it is **not runnable as a complete player**.
 
+## Local compatibility repair
+
+The following compatibility-only repairs were made in this integration clone
+after the first build failed: restored `ModelMeshData` and
+`buildModelMeshData` declarations, changed `demo_open_probe` to the imported
+`DemoViewSample` API, and restored the mainline HDR lightmap fields in
+`BspMap`. These edits are local to this experiment and are not a mainline
+commit.
+
+After the repair, the complete Release build succeeded with one existing MSVC
+warning (`C4457` in `main.cpp`).
+
+Real-resource probes with `TF_ROOT=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf`:
+
+```text
+animation_viewmodel_probe:
+selfTest=true ... bindPose=true scout=true soldier=true motion=true section=true realLoop=true deterministic=true viewmodel=true ... bones=76 anims=1012 viewSequences=8 viewAttachment=weapon_bone
+entity_model_probe:
+ok=true ... uniqueRenderable=0 vpkRenderable=0 inspections=0 instanceCount=0
+world_material_probe:
+selfTest=true ... cubemapMode=approximate-2d waterReflection=unavailable waterRefraction=unavailable
+native_ui_probe: PASS
+presentation_probe: selfTest=true viewMath=true recording=true projectileFields=true fullSpanCheckpoint=true
+```
+
+The animation/ViewModel path and independent probes run, but entity model
+rendering is not available in this snapshot (`vpkRenderable=0`), and cubemap
+and Water render targets are explicitly unavailable.
+
+The real Demo open probe also ran successfully:
+
+```text
+header=1 index=1 recording=POV (heuristic) map=pl_upward_f12 malformed_offset=0 commands=78100 packets=78096
+```
+
+Launching `tf2_demo_native.exe --help` opened the native window successfully;
+the process was then closed by the test harness. No default audio device was
+opened by the probes.
+
 ## Required next repair
 
 1. Restore the model-loader contract: define `ModelMeshData` and declare

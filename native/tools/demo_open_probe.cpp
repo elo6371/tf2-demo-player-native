@@ -169,15 +169,15 @@ int wmain(int argc, wchar_t** argv) {
                  << L" fixangle_relative=" << (summary.lastFixAngleRelative ? 1 : 0)
                  << L" fixangle=" << summary.lastFixAngle[0] << L"," << summary.lastFixAngle[1]
                  << L"," << summary.lastFixAngle[2]
-                 << L" camera_track=" << summary.observerCameraTrack.size()
-                 << L" camera_track_dropped=" << summary.observerCameraTrackDropped;
+                 << L" camera_track=" << summary.viewSamples.size()
+                 << L" camera_track_dropped=" << summary.viewSamplesDropped;
       if (cameraTick >= 0) {
-        tf2::native::ObserverCameraTrackSample camera;
-        const bool found = tf2::native::findObserverCameraAtOrBeforeTick(summary, cameraTick, camera);
+        tf2::native::DemoViewSample camera;
+        const bool found = tf2::native::findObserverViewAtOrBeforeTick(summary, cameraTick, camera);
         std::wcout << L" camera_tick=" << cameraTick << L" camera_found=" << (found ? 1 : 0)
                    << L" camera_sample_tick=" << camera.tick
-                   << L" camera_view_entity=" << (camera.hasViewEntity ? static_cast<int>(camera.viewEntity) : -1)
-                   << L" camera_angles_valid=" << (camera.hasAngles ? 1 : 0);
+                   << L" camera_angles_valid=" << (camera.hasAngles ? 1 : 0)
+                   << L" camera_origin_valid=" << (camera.hasOrigin ? 1 : 0);
       }
       if (snapshotTick >= 0) {
         std::vector<tf2::native::EntityState> states;

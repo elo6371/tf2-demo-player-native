@@ -39,6 +39,11 @@ struct BspMap {
   std::size_t lightmapPackedFaces = 0;
   std::size_t lightmapLuxelFits = 0;
   float lightmapIntensity = 1.0f;
+  std::size_t hdrLightmapSampleCount = 0;
+  std::size_t hdrLightmapFaceCount = 0;
+  std::size_t hdrLightmapBytes = 0;
+  float hdrLightmapIntensity = 1.0f;
+  bool hasHdrLightmap = false;
   BspLightmapMode lightmapMode = BspLightmapMode::Unavailable;
   int lightmapAtlasWidth = 0;
   int lightmapAtlasHeight = 0;
