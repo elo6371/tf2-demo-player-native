@@ -12,6 +12,7 @@ int wmain(int argc, wchar_t** argv) {
   }
   bool scan = false;
   std::int32_t snapshotTick = -1;
+  std::int32_t cameraTick = -1;
   int firstPath = 1;
   if (std::wstring(argv[1]) == L"--scan") { scan = true; firstPath = 2; }
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--snapshot") {
@@ -22,6 +23,16 @@ int wmain(int argc, wchar_t** argv) {
       return 2;
     }
     snapshotTick = static_cast<std::int32_t>(parsed);
+    firstPath += 2;
+  }
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--camera-tick") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0 || parsed > std::numeric_limits<std::int32_t>::max()) {
+      std::wcerr << L"invalid camera tick\n";
+      return 2;
+    }
+    cameraTick = static_cast<std::int32_t>(parsed);
     firstPath += 2;
   }
   if (firstPath >= argc) {
@@ -156,7 +167,17 @@ int wmain(int argc, wchar_t** argv) {
       std::wcout << L" fixangle_valid=" << (summary.lastFixAngleValid ? 1 : 0)
                  << L" fixangle_relative=" << (summary.lastFixAngleRelative ? 1 : 0)
                  << L" fixangle=" << summary.lastFixAngle[0] << L"," << summary.lastFixAngle[1]
-                 << L"," << summary.lastFixAngle[2];
+                 << L"," << summary.lastFixAngle[2]
+                 << L" camera_track=" << summary.observerCameraTrack.size()
+                 << L" camera_track_dropped=" << summary.observerCameraTrackDropped;
+      if (cameraTick >= 0) {
+        tf2::native::ObserverCameraTrackSample camera;
+        const bool found = tf2::native::findObserverCameraAtOrBeforeTick(summary, cameraTick, camera);
+        std::wcout << L" camera_tick=" << cameraTick << L" camera_found=" << (found ? 1 : 0)
+                   << L" camera_sample_tick=" << camera.tick
+                   << L" camera_view_entity=" << (camera.hasViewEntity ? static_cast<int>(camera.viewEntity) : -1)
+                   << L" camera_angles_valid=" << (camera.hasAngles ? 1 : 0);
+      }
       if (snapshotTick >= 0) {
         std::vector<tf2::native::EntityState> states;
         const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, snapshotTick, states);

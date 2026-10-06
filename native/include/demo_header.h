@@ -116,6 +116,15 @@ struct DecodedSoundEvent {
   std::string resourceName;
 };
 
+struct ObserverCameraTrackSample {
+  std::int32_t tick = -1;
+  bool hasViewEntity = false;
+  std::uint32_t viewEntity = 0;
+  bool hasAngles = false;
+  bool anglesRelative = false;
+  float angles[3] = {0.0f, 0.0f, 0.0f};
+};
+
 struct TempEntityEvent {
   std::int32_t tick = 0;
   std::string className;
@@ -234,6 +243,8 @@ struct DemoNetworkSummary {
   std::size_t classInfoCount = 0;
   std::size_t setViewCount = 0;
   std::uint32_t lastViewEntity = 0;
+  std::vector<ObserverCameraTrackSample> observerCameraTrack;
+  std::size_t observerCameraTrackDropped = 0;
   std::uint32_t serverClassCount = 0;
   std::vector<std::string> serverClassNames;
   std::vector<std::string> serverDataTableNames;
@@ -435,5 +446,7 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states);
 bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int32_t firstTick,
                                      std::int32_t lastTick, std::vector<TempEntityEvent>& events);
+bool findObserverCameraAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,
+                                      ObserverCameraTrackSample& sample);
 
 } // namespace tf2::native
