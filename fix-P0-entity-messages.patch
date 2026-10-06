@@ -1,0 +1,1413 @@
+diff --git a/native/CMakeLists.txt b/native/CMakeLists.txt
+index 6d0d902..6bb7ead 100644
+--- a/native/CMakeLists.txt
++++ b/native/CMakeLists.txt
+@@ -121,6 +121,27 @@ add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp src/d
+ target_include_directories(native_ui_probe PRIVATE include third_party/lzma)
+ set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
+ 
++# P0 entity protocol census probe. Deliberately compiled with the same strict
++# flags as the product target (/W4 /permissive-) so a header change that would
++# break the product cannot hide behind a lenient probe build.
++add_executable(entity_protocol_probe
++  tools/entity_protocol_probe.cpp
++  src/demo_header.cpp
++  src/proto_wire.cpp
++)
++target_include_directories(entity_protocol_probe PRIVATE include)
++set_target_properties(entity_protocol_probe PROPERTIES WIN32_EXECUTABLE OFF)
++
++# Synthetic wire fixtures for the message decoders. Same sources and same
++# strictness as the product target so a layout regression cannot hide here.
++add_executable(entity_message_fixture_probe
++  tools/entity_message_fixture_probe.cpp
++  src/demo_header.cpp
++  src/proto_wire.cpp
++)
++target_include_directories(entity_message_fixture_probe PRIVATE include)
++set_target_properties(entity_message_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
++
+ install(TARGETS tf2_demo_native native_install_smoke_probe
+   RUNTIME DESTINATION .
+ )
+@@ -128,6 +149,8 @@ install(PROGRAMS tools/install_smoke_probe.ps1 DESTINATION .)
+ 
+ if (MSVC)
+   target_compile_options(tf2_demo_native PRIVATE /W4 /permissive- /EHsc /utf-8)
++  target_compile_options(entity_protocol_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
++  target_compile_options(entity_message_fixture_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
+   target_link_options(tf2_demo_native PRIVATE /DYNAMICBASE /NXCOMPAT)
+ endif()
+ 
+diff --git a/native/include/demo_header.h b/native/include/demo_header.h
+index 04310b6..b2c7572 100644
+--- a/native/include/demo_header.h
++++ b/native/include/demo_header.h
+@@ -208,13 +208,29 @@ struct AssetReference {
+   std::int64_t quality = 0;
+ };
+ 
++// One property a packet actually wrote, addressed by its position in the
++// class's flattened SendTable. Storing the index instead of the composed
++// "owner.name" key keeps the record at 4 bytes + the value and makes it
++// allocation-free; replay rebuilds the key from the table.
++struct EntityPropChange {
++  std::uint32_t propIndex = 0;
++  EntityPropertyValue value;
++};
++
+ struct EntityHistoryEvent {
+   std::int32_t tick = 0;
+   std::uint32_t packetOrdinal = 0;
+   std::uint16_t entityIndex = 0;
+   std::int32_t classId = -1;
+   bool removed = false;
++  // Enter events carry the complete post-update state (instance baseline plus
++  // the wire properties). Preserve events carry only `changes`.
++  bool fullState = false;
+   EntityState state;
++  // Properties touched by a Preserve update. Before this existed every event
++  // deep-copied the whole EntityState; on koth_bagel_rc13 that is 1.39M copies
++  // of a ~50-entry unordered_map and dominated the scan.
++  std::vector<EntityPropChange> changes;
+ };
+ 
+ struct EntityHistoryCheckpoint {
+@@ -340,6 +356,15 @@ struct DemoNetworkSummary {
+   std::size_t voiceInitCount = 0;
+   std::size_t voiceDataCount = 0;
+   std::size_t voicePayloadBits = 0;
++  // Message types the reference parser implements and this decoder used to
++  // abandon packets on. Counts are kept so "the decoder was actually reached"
++  // is a reading, not an assumption about dead code.
++  std::size_t fileMessageCount = 0;
++  std::size_t setPauseCount = 0;
++  std::size_t bspDecalCount = 0;
++  std::size_t menuCount = 0;
++  std::size_t cmdKeyValuesCount = 0;
++  bool setPauseState = false;
+   std::size_t updateStringTableCount = 0;
+   std::size_t packetEntitiesCount = 0;
+   std::size_t packetEntityUpdates = 0;
+@@ -442,7 +467,24 @@ struct DemoNetworkSummary {
+   std::vector<ServerClassSchema> serverClassSchemas;
+   int networkProtocol = 0;
+   std::size_t stringTableCount = 0;
++  // Largest user-data byte length seen on any string-table entry. The wire
++  // field is 14 or 16 bits wide and the local Rust reference imposes NO upper
++  // bound (work/_refs_demostf/src/demo/message/stringtable.rs, read_table_entry:
++  // read the length, then skip length*8 bits). This decoder used to reject
++  // anything over 1024, which turned legal data -- instancebaseline entry 3 of
++  // koth_bagel_rc13 is 7669 bytes -- into a malformed packet. Recording the
++  // observed maximum makes "the old cap was wrong" a checkable reading.
++  std::size_t stringTableUserDataMaxBytes = 0;
+   std::vector<std::uint32_t> unknownMessageTypes;
++  // Per-type svc_/net_ message histogram over the whole demo. The message loop
++  // has to abandon a packet when it meets a type it cannot skip (the length is
++  // type-specific), so any type that appears in the histogram with a non-zero
++  // count is a type whose decoder MUST exist. This turns "did we implement the
++  // whole protocol?" from a guess into a reading: compare the non-zero entries
++  // against the handled type list, and the set of types that are decoded but
++  // never appear is the set that is untested by this corpus.
++  static constexpr std::size_t kMessageTypeHistogramSize = 64;
++  std::size_t messageTypeCounts[kMessageTypeHistogramSize] = {};
+   std::vector<std::string> stringTableNames;
+   std::unordered_map<std::uint16_t, std::string> soundPrecache;
+   std::unordered_map<std::uint32_t, std::string> stringTableById;
+@@ -488,6 +530,30 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
+     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states);
+ void appendEntityHistoryPacket(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
+                                std::int32_t deltaFrom, std::vector<EntityHistoryEvent> events);
++// Outcome of decoding one demo message stream (the payload of a dem_signon or
++// dem_packet entry: a sequence of 6-bit-typed net messages).
++struct DemoMessageStreamResult {
++  std::size_t messagesDecoded = 0;  // messages whose decoder returned true
++  std::size_t bitsConsumed = 0;
++  bool packetValid = true;
++  bool decodedAny = false;
++  bool hitUnknownType = false;
++  std::uint32_t unknownType = 0;
++  std::int32_t lastNetworkTick = -1;
++};
++
++// Decodes a raw message stream exactly the way scanKnownDemoMessages does.
++// Exists so tools/entity_message_fixture_probe.cpp can drive the decoders with
++// synthetic wire bytes -- including message layouts that no local demo carries
++// in isolation -- without fabricating a whole .dem file. `payloadBits` bounds
++// the stream; bits inside the last retained byte stay readable, matching the
++// byte-aligned entry lengths on the real path.
++bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
++                             std::size_t payloadBits,
++                             std::int32_t entryTick,
++                             std::int32_t initialNetworkTick,
++                             DemoNetworkSummary& summary,
++                             DemoMessageStreamResult& result);
+ bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int32_t firstTick,
+                                      std::int32_t lastTick, std::vector<TempEntityEvent>& events);
+ bool parseDemoCmdInfo(const std::uint8_t* bytes, std::size_t size, DemoViewSample& sample);
+diff --git a/native/src/demo_header.cpp b/native/src/demo_header.cpp
+index 59d4dc9..5b435f5 100644
+--- a/native/src/demo_header.cpp
++++ b/native/src/demo_header.cpp
+@@ -666,12 +666,109 @@ bool readStringCommand(MessageBits& bits, DemoNetworkSummary& summary) {
+ 
+ bool readPrefetch(MessageBits& bits, DemoNetworkSummary& summary) {
+   std::uint32_t soundIndex = 0;
+-  const std::uint32_t width = summary.networkProtocol > 23 ? 14u : 13u;
++  // MAX_SOUND_INDEX_BITS is 14 from protocol 23 onward, not 24. First source:
++  // Valve source-sdk-2013, src/public/soundinfo.h -- SoundInfo_t::ReadDelta()
++  // does `if ( nProtoVersion > 22 ) READ_DELTA_UINT( nSoundNum,
++  // MAX_SOUND_INDEX_BITS )` and src/public/soundflags.h defines
++  // MAX_SOUND_INDEX_BITS 14. The local Rust reference agrees:
++  // work/_refs_demostf/src/demo/message/prefetch.rs uses
++  // `if protocol_version > 22 { 14 } else { 13 }`.
++  // Reading 13 bits for a protocol-23 demo shifts every later message in the
++  // packet by one bit, so the rest of the packet decodes as garbage types.
++  const std::uint32_t width = summary.networkProtocol > 22 ? 14u : 13u;
+   if (!bits.read(width, soundIndex)) return false;
+   ++summary.prefetchCount;
+   return true;
+ }
+ 
++// --- Message types the local reference parser implements and this decoder
++// --- used to abandon the whole packet on.
++// Numbers are Valve's SVC_MESSAGES / NET_Messages enumerations
++// (source-sdk-2013 src/engine/netmessages.h). Layouts are from the local Rust
++// reference, work/_refs_demostf/src/demo/message/:
++//   generated.rs -- FileMessage, SetPauseMessage, MenuMessage,
++//                   CmdKeyValuesMessage (primitive-only structs)
++//   bspdecal.rs  -- BSPDecalMessage (uses read_bit_coord, NOT BitCoordMP)
++// Leaving any of these unimplemented does not merely skip a message: the
++// message loop cannot know its length, so it drops the rest of the packet,
++// including the svc_PacketEntities that follows in the same packet.
++
++// bf_read::ReadBitCoord -- source-sdk-2013 src/public/bitbuf.cpp.
++// 1 bit has_int, 1 bit has_frac, and only if either is set: 1 bit sign,
++// 14-bit integer part, 5-bit fractional part. Max 22 bits.
++bool skipBitCoord(MessageBits& bits) {
++  std::uint32_t hasInt = 0, hasFrac = 0;
++  if (!bits.read(1, hasInt) || !bits.read(1, hasFrac)) return false;
++  if (!hasInt && !hasFrac) return true;
++  std::uint32_t sign = 0;
++  if (!bits.read(1, sign)) return false;
++  if (hasInt && !bits.skip(14)) return false;
++  if (hasFrac && !bits.skip(5)) return false;
++  return true;
++}
++
++// net_File = 2: transfer_id(32) + null-terminated name + requested(1).
++bool readFileMessage(MessageBits& bits, DemoNetworkSummary& summary) {
++  std::uint32_t transferId = 0, requested = 0;
++  std::string fileName;
++  if (!bits.read(32, transferId) || !bits.readString(fileName) || !bits.read(1, requested)) return false;
++  ++summary.fileMessageCount;
++  return true;
++}
++
++// svc_SetPause = 11: 1 bit. This is the type that used to truncate the packet
++// that carried the demo's first svc_PacketEntities after a pause.
++bool readSetPause(MessageBits& bits, DemoNetworkSummary& summary) {
++  std::uint32_t pause = 0;
++  if (!bits.read(1, pause)) return false;
++  ++summary.setPauseCount;
++  summary.setPauseState = pause != 0;
++  return true;
++}
++
++// svc_BSPDecal = 21: 3 presence flags, a conditional BitCoord per axis, a
++// 9-bit texture index, a 1-bit "has entity/model" flag with an 11-bit entity
++// and 13-bit model index, then a low-priority bit.
++bool readBspDecal(MessageBits& bits, DemoNetworkSummary& summary) {
++  std::uint32_t hasX = 0, hasY = 0, hasZ = 0;
++  if (!bits.read(1, hasX) || !bits.read(1, hasY) || !bits.read(1, hasZ)) return false;
++  if (hasX && !skipBitCoord(bits)) return false;
++  if (hasY && !skipBitCoord(bits)) return false;
++  if (hasZ && !skipBitCoord(bits)) return false;
++  std::uint32_t textureIndex = 0;
++  if (!bits.read(9, textureIndex)) return false;
++  std::uint32_t hasIndices = 0;
++  if (!bits.read(1, hasIndices)) return false;
++  if (hasIndices) {
++    std::uint32_t entIndex = 0, modelIndex = 0;
++    if (!bits.read(11, entIndex) || !bits.read(13, modelIndex)) return false;
++  }
++  std::uint32_t lowPriority = 0;
++  if (!bits.read(1, lowPriority)) return false;
++  ++summary.bspDecalCount;
++  return true;
++}
++
++// svc_Menu = 29: kind(16) + byte length(16) + that many bytes.
++bool readMenu(MessageBits& bits, DemoNetworkSummary& summary) {
++  std::uint32_t kind = 0, length = 0;
++  if (!bits.read(16, kind) || !bits.read(16, length)) return false;
++  const std::size_t payloadBits = static_cast<std::size_t>(length) * 8u;
++  if (payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
++  ++summary.menuCount;
++  return true;
++}
++
++// svc_CmdKeyValues = 32: byte length(32) + that many bytes.
++bool readCmdKeyValues(MessageBits& bits, DemoNetworkSummary& summary) {
++  std::uint32_t length = 0;
++  if (!bits.read(32, length)) return false;
++  const std::size_t payloadBits = static_cast<std::size_t>(length) * 8u;
++  if (payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
++  ++summary.cmdKeyValuesCount;
++  return true;
++}
++
+ bool readGameEvent(MessageBits& bits, DemoNetworkSummary& summary) {
+   std::uint32_t payloadBits = 0;
+   if (!bits.read(11, payloadBits) || payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
+@@ -876,7 +973,8 @@ bool readSendPropValue(MessageBits& bits, const SendPropSchema& prop, EntityProp
+ }
+ 
+ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, EntityState& state, DemoNetworkSummary* summary = nullptr,
+-    std::int32_t packetTick = -1, std::int32_t entityIndex = -1, const char* stage = "entity") {
++    std::int32_t packetTick = -1, std::int32_t entityIndex = -1, const char* stage = "entity",
++    std::vector<EntityPropChange>* changes = nullptr) {
+   const bool isTempStage = summary != nullptr && std::strcmp(stage, "temp") == 0;
+   auto recordTempFailure = [&](const char* name, const SendPropSchema* prop) {
+     if (!isTempStage || summary->firstTempEntityFailureTick >= 0) return;
+@@ -929,6 +1027,12 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
+       return false;
+     }
+     const std::string key = prop.ownerTable.empty() ? prop.name : prop.ownerTable + "." + prop.name;
++    if (changes) {
++      EntityPropChange change;
++      change.propIndex = static_cast<std::uint32_t>(lastProp);
++      change.value = value;  // copy for the history record; the state takes the original
++      changes->push_back(std::move(change));
++    }
+     state.properties[key] = std::move(value);
+   }
+   return false;
+@@ -1067,12 +1171,22 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
+       if (lastEntity < 0 || lastEntity >= 2048 || static_cast<std::size_t>(lastEntity) >= summary.entityClassByIndex.size() || summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] < 0) { ++summary.entityUnknownStateFailures; if (summary.firstEntityUnknownStateTick < 0) { summary.firstEntityUnknownStateTick = packetTick; summary.firstEntityUnknownStateEntity = lastEntity; summary.firstEntityUnknownStateUpdate = static_cast<std::int32_t>(updateType); summary.firstEntityUnknownStateMaxEntries = static_cast<std::int32_t>(maxEntries); summary.firstEntityUnknownStateUpdatedEntries = static_cast<std::int32_t>(updatedEntries); summary.firstEntityUnknownStatePayloadBits = static_cast<std::int32_t>(payloadBits); summary.firstEntityUnknownStateDiff = static_cast<std::int32_t>(diff); } entityUpdatesComplete = false; break; }
+       const auto classId = static_cast<std::uint32_t>(summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)]);
+       const auto* table = tableForClass(summary, classId);
+-      EntityState candidate = summary.entityStates[static_cast<std::size_t>(lastEntity)];
+-      if (!readEntityPropUpdates(bits, table, candidate, &summary, packetTick, lastEntity, "preserve")) { ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break; }
+-      summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
++      // std::swap instead of copy-and-move-back. EntityState owns an
++      // unordered_map with hundreds of entries, and this runs once per updated
++      // entity -- 1.4M times for koth_bagel_rc13. The previous form made two
++      // full copies of that map per update.
++      auto& liveState = summary.entityStates[static_cast<std::size_t>(lastEntity)];
++      EntityState candidate;
++      std::swap(candidate, liveState);
++      std::vector<EntityPropChange> changes;
++      if (!readEntityPropUpdates(bits, table, candidate, &summary, packetTick, lastEntity, "preserve", &changes)) {
++        std::swap(candidate, liveState);  // failure: restore the original state
++        ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break;
++      }
++      std::swap(candidate, liveState);
+       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
+                                summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)], false,
+-                               summary.entityStates[static_cast<std::size_t>(lastEntity)]});
++                               false, {}, std::move(changes)});
+     } else if (updateType == 1) {
+       ++summary.packetEntityLeaveCount;
+       // Leave means the entity left the PVS, not that it was destroyed. Keep
+@@ -1080,7 +1194,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
+     } else if (updateType == 3) {
+       ++summary.packetEntityDeleteCount;
+       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
+-      if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, {}});
++      if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, false, {}, {}});
+     } else if (updateType == 2) {
+       if (summary.firstPacketEntitiesEnterTick < 0) {
+         summary.firstPacketEntitiesEnterTick = packetTick;
+@@ -1123,8 +1237,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
+       summary.maxActiveEntityCount = std::max(summary.maxActiveEntityCount, summary.activeEntityCount);
+       summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
+       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
+-                               static_cast<std::int32_t>(classId), false,
+-                               summary.entityStates[static_cast<std::size_t>(lastEntity)]});
++                               static_cast<std::int32_t>(classId), false, true,
++                               summary.entityStates[static_cast<std::size_t>(lastEntity)], {}});
+     } else { ++summary.packetEntityDecodeFailures; ++summary.entityUpdateHeaderFailures; entityUpdatesComplete = false; break; }
+     if (bits.remaining() <= payloadEnd) break;
+   }
+@@ -1139,7 +1253,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
+         summary.entityClassByIndex[removedEntity] = -1;
+         if (removedEntity < summary.entityStates.size()) summary.entityStates[removedEntity] = {};
+         if (summary.activeEntityCount > 0) --summary.activeEntityCount;
+-        if (removedEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(removedEntity), -1, true, {}});
++        if (removedEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(removedEntity), -1, true, false, {}, {}});
+       }
+     }
+   }
+@@ -1227,7 +1341,13 @@ bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
+           if (!update.skip(summary.soundPrecacheFixedBits)) { ok = false; break; }
+         } else {
+           std::uint32_t userBytes = 0;
+-          if (!update.read(14, userBytes) || userBytes > 1024u || !update.skip(static_cast<std::size_t>(userBytes) * 8u)) { ok = false; break; }
++          // 14-bit length field; the reference parser has no cap. skip() still
++          // refuses to run past the end of the payload.
++          if (!update.read(14, userBytes)) { ok = false; break; }
++          if (userBytes > summary.stringTableUserDataMaxBytes) {
++            summary.stringTableUserDataMaxBytes = userBytes;
++          }
++          if (!update.skip(static_cast<std::size_t>(userBytes) * 8u)) { ok = false; break; }
+         }
+       }
+       if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
+@@ -1667,7 +1787,13 @@ bool readInstanceBaselinePayload(const std::vector<std::uint8_t>& payload, std::
+       std::uint32_t userDataBits = fixedUserData ? fixedUserDataBits : 0;
+       if (!fixedUserData) {
+         std::uint32_t userDataBytes = 0;
+-        if (!data.read(14, userDataBytes) || userDataBytes > 1024u) return false;
++        // No 1024-byte cap: the length field is 14 bits and the reference
++        // parser imposes no bound on it. Over-long values are still rejected,
++        // by the per-bit read below running off the end of the payload.
++        if (!data.read(14, userDataBytes)) return false;
++        if (userDataBytes > summary.stringTableUserDataMaxBytes) {
++          summary.stringTableUserDataMaxBytes = userDataBytes;
++        }
+         userDataBits = userDataBytes * 8u;
+       }
+       std::vector<std::uint8_t> raw((static_cast<std::size_t>(userDataBits) + 7u) / 8u, 0);
+@@ -1699,7 +1825,15 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoN
+       std::vector<std::uint8_t> raw;
+       if (hasUserData) {
+         std::uint32_t userBytes = 0;
+-        if (!bits.read(16, userBytes) || userBytes > 1024u) return false;
++        // 16-bit length field, and the reference parser imposes no cap on it.
++        // instancebaseline entry 3 of koth_bagel_rc13 is 7669 bytes; the old
++        // `> 1024u` guard rejected it and reported the whole dem_stringtables
++        // packet as malformed. Bounded here by the payload length instead.
++        if (!bits.read(16, userBytes)) return false;
++        if (userBytes > summary.stringTableUserDataMaxBytes) {
++          summary.stringTableUserDataMaxBytes = userBytes;
++        }
++        if (static_cast<std::size_t>(userBytes) * 8u > bits.remaining()) return false;
+         raw.assign(userBytes, 0);
+         for (std::uint32_t bit = 0; bit < userBytes * 8u; ++bit) {
+           std::uint32_t value = 0;
+@@ -1720,7 +1854,12 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoN
+         if (!bits.readString(text) || !bits.read(1, hasUserData)) return false;
+         if (hasUserData) {
+           std::uint32_t userBytes = 0;
+-          if (!bits.read(16, userBytes) || userBytes > 1024u || !bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
++          // Same 16-bit length field, same removed cap.
++          if (!bits.read(16, userBytes)) return false;
++          if (userBytes > summary.stringTableUserDataMaxBytes) {
++            summary.stringTableUserDataMaxBytes = userBytes;
++          }
++          if (!bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
+         }
+       }
+     }
+@@ -1818,7 +1957,12 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
+           if (!table.skip(fixedUserDataBits)) { tableOk = false; break; }
+         } else {
+           std::uint32_t userBytes = 0;
+-          if (!table.read(14, userBytes) || userBytes > 1024u || !table.skip(static_cast<std::size_t>(userBytes) * 8u)) { tableOk = false; break; }
++          // 14-bit length field; same removed cap as the other string-table paths.
++          if (!table.read(14, userBytes)) { tableOk = false; break; }
++          if (userBytes > summary.stringTableUserDataMaxBytes) {
++            summary.stringTableUserDataMaxBytes = userBytes;
++          }
++          if (!table.skip(static_cast<std::size_t>(userBytes) * 8u)) { tableOk = false; break; }
+         }
+       }
+       if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
+@@ -1878,6 +2022,70 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
+ 
+ }
+ 
++bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
++                             std::size_t payloadBits,
++                             std::int32_t entryTick,
++                             std::int32_t initialNetworkTick,
++                             DemoNetworkSummary& summary,
++                             DemoMessageStreamResult& result) {
++  result = {};
++  std::vector<std::uint8_t> trimmed;
++  const std::vector<std::uint8_t>* source = &payload;
++  if (payloadBits < payload.size() * 8u) {
++    // Trailing bits inside the last retained byte are still readable, exactly
++    // as they are on the real demo path where the entry length is byte-aligned.
++    trimmed.assign(payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>((payloadBits + 7u) / 8u));
++    source = &trimmed;
++  }
++  MessageBits bits(*source);
++  std::int32_t networkTick = initialNetworkTick >= 0 ? initialNetworkTick : entryTick;
++  while (bits.remaining() > 6) {
++    const std::size_t messageBit = bits.offsetBits();
++    std::uint32_t type = 0;
++    if (!bits.read(6, type)) { result.packetValid = false; break; }
++    if (type < DemoNetworkSummary::kMessageTypeHistogramSize) ++summary.messageTypeCounts[type];
++    if (type == 0) { result.decodedAny = true; ++result.messagesDecoded; continue; }
++    if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) result.packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; result.decodedAny = true; } }
++    else if (type == 4) { if (!readStringCommand(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 5) { if (!readSetConVar(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 6) { if (!readSignonState(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 7) { std::string printText; if (!bits.readString(printText)) result.packetValid = false; else { ++summary.printCount; result.decodedAny = true; } }
++    else if (type == 8) { if (!readServerInfo(bits, summary)) result.packetValid = false; else { ++summary.serverInfoCount; result.decodedAny = true; } }
++    else if (type == 9) { if (!readSendTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 10) { if (!readClassInfo(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 12) { if (!readCreateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 13) { if (!readUpdateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 14) { if (!readVoiceInit(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 15) { if (!readVoiceData(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 18) { if (!readSetView(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 17) { if (!readSounds(bits, summary, entryTick)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 23) { if (!readUserMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 24) { if (!readEntityMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 25) { if (!readGameEvent(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 28) { if (!readPrefetch(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 30) { if (!readGameEventList(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 31) { if (!readGetCvarValue(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    // Types the local Rust reference implements. Before these existed the loop
++    // fell through to the unknown-type arm and abandoned the packet, which also
++    // discarded the svc_PacketEntities sharing that packet and silently froze
++    // the entity->class map from then on.
++    else if (type == 2) { if (!readFileMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 11) { if (!readSetPause(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 21) { if (!readBspDecal(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 29) { if (!readMenu(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else if (type == 32) { if (!readCmdKeyValues(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
++    else { ++summary.unknownMessagePackets; if (summary.unknownMessageTypes.size() < 16) summary.unknownMessageTypes.push_back(type); result.hitUnknownType = true; result.unknownType = type; result.packetValid = false; break; }
++    if (!result.packetValid) break;
++    ++result.messagesDecoded;
++  }
++  result.bitsConsumed = bits.offsetBits();
++  result.lastNetworkTick = networkTick;
++  return true;
++}
++
+ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& index, DemoNetworkSummary& summary) {
+   const int networkProtocol = summary.networkProtocol;
+   summary = {};
+@@ -1920,39 +2128,11 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
+     }
+     std::vector<std::uint8_t> payload;
+     if (!readEntryPayload(file, entry, payload, 128u * 1024u * 1024u)) { ++summary.malformedPackets; continue; }
+-    MessageBits bits(payload); bool decodedAny = false; bool packetValid = true;
+-    std::int32_t networkTick = summary.lastNetworkTick >= 0 ? summary.lastNetworkTick : entry.tick;
+-    while (bits.remaining() > 6) {
+-      const std::size_t messageBit = bits.offsetBits();
+-      std::uint32_t type = 0; if (!bits.read(6, type)) { packetValid = false; break; }
+-      if (type == 0) { decodedAny = true; continue; }
+-      if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; decodedAny = true; } }
+-      else if (type == 4) { if (!readStringCommand(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 5) { if (!readSetConVar(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 6) { if (!readSignonState(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 7) { std::string printText; if (!bits.readString(printText)) packetValid = false; else { ++summary.printCount; decodedAny = true; } }
+-      else if (type == 8) { if (!readServerInfo(bits, summary)) packetValid = false; else { ++summary.serverInfoCount; decodedAny = true; } }
+-      else if (type == 9) { if (!readSendTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 10) { if (!readClassInfo(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 12) { if (!readCreateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 13) { if (!readUpdateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 14) { if (!readVoiceInit(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 15) { if (!readVoiceData(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 18) { if (!readSetView(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 17) { if (!readSounds(bits, summary, entry.tick)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 23) { if (!readUserMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 24) { if (!readEntityMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 25) { if (!readGameEvent(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 28) { if (!readPrefetch(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 30) { if (!readGameEventList(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else if (type == 31) { if (!readGetCvarValue(bits, summary)) packetValid = false; else { decodedAny = true; } }
+-      else { ++summary.unknownMessagePackets; if (summary.unknownMessageTypes.size() < 16) summary.unknownMessageTypes.push_back(type); packetValid = false; break; }
+-      if (!packetValid) break;
+-    }
+-    ++summary.packetsScanned; if (!packetValid || !decodedAny) ++summary.malformedPackets;
++    DemoMessageStreamResult stream;
++    const bool streamOk = decodeDemoMessageStream(payload, payload.size() * 8u, entry.tick,
++                                                  summary.lastNetworkTick, summary, stream);
++    ++summary.packetsScanned;
++    if (!streamOk || !stream.packetValid || !stream.decodedAny) ++summary.malformedPackets;
+   }
+   for (const auto& entity : summary.entityStates) {
+     for (const auto& [name, value] : entity.properties) {
+@@ -2014,7 +2194,20 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
+     for (std::size_t i = packet.firstEvent; i < end; ++i) {
+       const auto& event = summary.entityHistoryEvents[i];
+       if (event.entityIndex >= states.size()) states.resize(2048u);
+-      states[event.entityIndex] = event.removed ? EntityState{} : event.state;
++      auto& target = states[event.entityIndex];
++      if (event.removed) { target = EntityState{}; continue; }
++      if (event.fullState) { target = event.state; continue; }
++      // Preserve events carry only the properties the packet wrote, so they are
++      // applied on top of the state already replayed from the checkpoint.
++      const auto* table = event.classId >= 0
++          ? tableForClass(summary, static_cast<std::uint32_t>(event.classId)) : nullptr;
++      for (const auto& change : event.changes) {
++        if (!table || static_cast<std::size_t>(change.propIndex) >= table->flattenedProps.size()) {
++          return EntitySnapshotQueryStatus::Gap;
++        }
++        const auto& prop = table->flattenedProps[change.propIndex];
++        target.properties[prop.ownerTable.empty() ? prop.name : prop.ownerTable + "." + prop.name] = change.value;
++      }
+     }
+   }
+   return EntitySnapshotQueryStatus::Available;
+diff --git a/native/tools/entity_message_fixture_probe.cpp b/native/tools/entity_message_fixture_probe.cpp
+new file mode 100644
+index 0000000..effd9de
+--- /dev/null
++++ b/native/tools/entity_message_fixture_probe.cpp
+@@ -0,0 +1,581 @@
++// Synthetic wire fixtures for the demo message decoders.
++//
++// Why this exists: the nine local demos only exercise the message layouts that
++// happen to appear in them, and they cannot isolate a single layout. This probe
++// builds bit-exact message streams by hand and drives the real decoder through
++// decodeDemoMessageStream(), so every assertion is about the shipped code path,
++// not a re-implementation.
++//
++// Two kinds of assertion are used:
++//
++//   1. Exact bit consumption. A message is followed by a sentinel net_Tick with
++//      a known tick value. If the decoder consumed one bit too few or too many,
++//      the sentinel is misaligned and summary.lastNetworkTick stops matching.
++//      That is the only observable that catches an off-by-N-bits layout error.
++//
++//   2. Entity state reconstruction. svc_PacketEntities streams are built for
++//      the baseline / delta / Preserve / Leave / Delete cases and the resulting
++//      summary is inspected, including a delta that references a base frame the
++//      decoder must report as unavailable rather than fake.
++//
++// Layouts come from the local Rust reference (work/_refs_demostf/src/demo/,
++// demostf's tf_demo_parser) with the primitive widths cross-checked against
++// Valve's source-sdk-2013 (src/public/bitbuf.cpp, src/engine/netmessages.h).
++
++#include "demo_header.h"
++
++#include <cstdint>
++#include <iostream>
++#include <string>
++#include <vector>
++
++namespace {
++
++using tf2::native::DemoMessageStreamResult;
++using tf2::native::DemoNetworkSummary;
++using tf2::native::SendPropSchema;
++using tf2::native::SendPropType;
++using tf2::native::SendTableSchema;
++using tf2::native::ServerClassSchema;
++
++int g_failures = 0;
++
++void check(bool ok, const std::string& label) {
++  std::cout << (ok ? "PASS " : "FAIL ") << label << '\n';
++  if (!ok) ++g_failures;
++}
++
++// ---------------------------------------------------------------- bit writer
++
++struct BitWriter {
++  std::vector<std::uint8_t> bytes;
++  std::size_t bit = 0;
++
++  void write(std::uint32_t value, std::size_t width) {
++    for (std::size_t i = 0; i < width; ++i) {
++      if (bit % 8u == 0) bytes.push_back(0);
++      bytes.back() |= static_cast<std::uint8_t>(((value >> i) & 1u) << (bit % 8u));
++      ++bit;
++    }
++  }
++
++  void writeSigned(std::int32_t value, std::size_t width) {
++    write(static_cast<std::uint32_t>(value), width);
++  }
++
++  void writeString(const std::string& value) {
++    for (const char c : value) write(static_cast<std::uint8_t>(c), 8);
++    write(0, 8);
++  }
++
++  // Mirrors MessageBits::readBitVar: a 2-bit width selector then the payload.
++  void writeBitVar(std::uint32_t value) {
++    if (value < 16u) { write(0, 2); write(value, 4); }
++    else if (value < 256u) { write(1, 2); write(value, 8); }
++    else if (value < 4096u) { write(2, 2); write(value, 12); }
++    else { write(3, 2); write(value, 32); }
++  }
++
++  void append(const BitWriter& other) {
++    for (std::size_t i = 0; i < other.bit; ++i) {
++      write(static_cast<std::uint32_t>((other.bytes[i / 8u] >> (i % 8u)) & 1u), 1);
++    }
++  }
++
++  // All-zero tail bits decode as net_NOP, so the stream stays valid and the
++  // message loop's `remaining() > 6` guard cannot invent a message from padding.
++  void padToByte() { while (bit % 8u != 0) write(0, 1); }
++};
++
++// ------------------------------------------------------------- summary setup
++
++DemoNetworkSummary makeSummary(int networkProtocol = 24) {
++  DemoNetworkSummary summary;
++  summary.networkProtocol = networkProtocol;
++
++  SendTableSchema table;
++  table.name = "DT_TestEntity";
++  SendPropSchema health;
++  health.type = SendPropType::Int;
++  health.name = "m_iHealth";
++  health.ownerTable = "DT_TestEntity";
++  health.bitCount = 8;
++  health.flags = 1;  // signed
++  SendPropSchema team;
++  team.type = SendPropType::Int;
++  team.name = "m_iTeamNum";
++  team.ownerTable = "DT_TestEntity";
++  team.bitCount = 8;
++  team.flags = 1;
++  table.flattenedProps = {health, team};
++  table.props = table.flattenedProps;
++  summary.sendTableSchemas.push_back(table);
++
++  ServerClassSchema serverClass;
++  serverClass.id = 0;
++  serverClass.name = "CTestEntity";
++  serverClass.dataTable = "DT_TestEntity";
++  summary.serverClassSchemas.push_back(serverClass);
++  summary.serverClassNames.push_back("CTestEntity");
++  // One server class -> one class bit, matching Valve's Q_log2(count) + 1.
++  summary.serverClassCount = 1;
++  summary.dataTableServerClassCount = 1;
++  return summary;
++}
++
++// --------------------------------------------------------------- message bits
++
++constexpr std::uint32_t kSentinelTick = 4242u;
++
++void writeSentinelTick(BitWriter& out) {
++  out.write(3, 6);              // net_Tick
++  out.write(kSentinelTick, 32);
++  out.write(0, 16);             // frame time
++  out.write(0, 16);             // standard deviation
++}
++
++struct RunOutcome {
++  DemoMessageStreamResult result;
++  bool ok = false;
++};
++
++RunOutcome run(DemoNetworkSummary& summary, BitWriter& stream) {
++  stream.padToByte();
++  RunOutcome outcome;
++  outcome.ok = tf2::native::decodeDemoMessageStream(stream.bytes, stream.bit, 0, -1,
++                                                    summary, outcome.result);
++  return outcome;
++}
++
++// A stream whose last message is the sentinel: if every preceding layout was
++// consumed exactly, the sentinel's tick is what the summary ends up holding.
++bool sentinelReached(const DemoNetworkSummary& summary, const RunOutcome& outcome) {
++  return outcome.ok && outcome.result.packetValid && !outcome.result.hitUnknownType &&
++         summary.lastNetworkTick == static_cast<std::int32_t>(kSentinelTick);
++}
++
++// ------------------------------------------------------- svc_PacketEntities
++
++void writePacketEntitiesHeader(BitWriter& out, std::uint32_t maxEntries, bool isDelta,
++                               std::uint32_t deltaFrom, std::uint32_t updatedEntries,
++                               std::uint32_t payloadBits) {
++  out.write(maxEntries, 11);
++  out.write(isDelta ? 1u : 0u, 1);
++  if (isDelta) out.write(deltaFrom, 32);
++  out.write(0, 1);              // baseline
++  out.write(updatedEntries, 11);
++  out.write(payloadBits, 20);
++  out.write(0, 1);              // updateBaseline
++}
++
++void writeUpdate(BitWriter& out, std::uint32_t diff, std::uint32_t type) {
++  out.writeBitVar(diff);
++  out.write(type, 2);
++}
++
++void writeProp(BitWriter& out, std::uint32_t diff, std::int32_t value) {
++  out.write(1, 1);              // hasProp
++  out.writeBitVar(diff);
++  out.writeSigned(value, 8);
++}
++
++void writePropListEnd(BitWriter& out) { out.write(0, 1); }
++
++// Emits one whole svc_PacketEntities message: body first so the header can
++// carry its exact bit length, which readPacketEntities requires.
++void writePacketEntities(BitWriter& out, std::uint32_t maxEntries, bool isDelta,
++                         std::uint32_t deltaFrom, std::uint32_t updatedEntries,
++                         const BitWriter& body) {
++  out.write(26, 6);             // svc_PacketEntities
++  writePacketEntitiesHeader(out, maxEntries, isDelta, deltaFrom, updatedEntries,
++                            static_cast<std::uint32_t>(body.bit));
++  out.append(body);
++}
++
++// ------------------------------------------------------------------ fixtures
++
++void fixtureMessageLayouts() {
++  std::cout << "-- message layout fixtures\n";
++
++  // net_File = 2: transfer_id(32) + null-terminated name + requested(1).
++  {
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(2, 6);
++    out.write(0x12345678u, 32);
++    out.writeString("models/test.mdl");
++    out.write(1, 1);
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "net_File: sentinel tick reached");
++    check(summary.fileMessageCount == 1, "net_File: fileMessageCount == 1");
++  }
++
++  // svc_SetPause = 11: one bit. This is the message that used to truncate the
++  // packet carrying the demo's next svc_PacketEntities.
++  {
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(11, 6);
++    out.write(1, 1);
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_SetPause: sentinel tick reached");
++    check(summary.setPauseCount == 1, "svc_SetPause: setPauseCount == 1");
++    check(summary.setPauseState, "svc_SetPause: paused state latched");
++  }
++
++  // svc_BSPDecal = 21. Three shapes: all axes absent, one axis present with
++  // both integer and fractional parts, and the entity/model index variant.
++  {
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(21, 6);
++    out.write(0, 1); out.write(0, 1); out.write(0, 1);   // no coordinates
++    out.write(7, 9);                                     // texture index
++    out.write(0, 1);                                     // no ent/model
++    out.write(1, 1);                                     // low priority
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_BSPDecal: no-coordinate form");
++    check(summary.bspDecalCount == 1, "svc_BSPDecal: bspDecalCount == 1");
++  }
++  {
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(21, 6);
++    out.write(1, 1); out.write(0, 1); out.write(1, 1);   // x and z present
++    // bf_read::ReadBitCoord, both parts present: has_int, has_frac, sign,
++    // 14-bit integer, 5-bit fraction.
++    out.write(1, 1); out.write(1, 1); out.write(0, 1); out.write(100, 14); out.write(3, 5);
++    // has_int only: the fraction field is absent, so no 5 bits follow.
++    out.write(1, 1); out.write(0, 1); out.write(0, 1); out.write(1, 14);
++    out.write(511, 9);
++    out.write(1, 1);                                     // has ent/model
++    out.write(2047, 11);
++    out.write(8191, 13);
++    out.write(0, 1);
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_BSPDecal: bit-coord + ent/model form");
++    check(summary.bspDecalCount == 1, "svc_BSPDecal: counted once");
++  }
++  {
++    // Fraction-only coordinate: has_int absent, has_frac present, so sign(1)
++    // and 5 fraction bits follow and the 14-bit integer field does not.
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(21, 6);
++    out.write(0, 1); out.write(1, 1); out.write(0, 1);
++    out.write(0, 1); out.write(1, 1); out.write(1, 1); out.write(17, 5);
++    out.write(0, 9);
++    out.write(0, 1);
++    out.write(0, 1);
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_BSPDecal: fraction-only coordinate form");
++  }
++  {
++    // Mutation: claim the fraction field for a has_frac=0 coordinate. The extra
++    // 5 bits must misalign the sentinel, which proves the fixture is sensitive
++    // to the conditional-width rule rather than merely well-formed.
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(21, 6);
++    out.write(1, 1); out.write(0, 1); out.write(0, 1);
++    out.write(1, 1); out.write(0, 1); out.write(0, 1); out.write(1, 14); out.write(0, 5);
++    out.write(0, 9);
++    out.write(0, 1);
++    out.write(0, 1);
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(!sentinelReached(summary, outcome),
++          "svc_BSPDecal: surplus fraction bits misalign the stream");
++  }
++
++  // svc_Menu = 29: kind(16) + byte length(16) + bytes.
++  {
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(29, 6);
++    out.write(3, 16);
++    out.write(5, 16);
++    for (int i = 0; i < 5; ++i) out.write(static_cast<std::uint32_t>(0xa0 + i), 8);
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_Menu: sentinel tick reached");
++    check(summary.menuCount == 1, "svc_Menu: menuCount == 1");
++  }
++
++  // svc_CmdKeyValues = 32: byte length(32) + bytes.
++  {
++    DemoNetworkSummary summary = makeSummary();
++    BitWriter out;
++    out.write(32, 6);
++    out.write(4, 32);
++    for (int i = 0; i < 4; ++i) out.write(0x5au, 8);
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_CmdKeyValues: sentinel tick reached");
++    check(summary.cmdKeyValuesCount == 1, "svc_CmdKeyValues: cmdKeyValuesCount == 1");
++  }
++
++  // svc_Prefetch = 28. The index width is 14 bits from protocol 23 onward and
++  // 13 before it; reading the wrong width shifts every later message.
++  {
++    DemoNetworkSummary summary = makeSummary(24);
++    BitWriter out;
++    out.write(28, 6);
++    out.write(9000, 14);          // needs all 14 bits
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_Prefetch: protocol 24 uses 14 bits");
++  }
++  {
++    DemoNetworkSummary summary = makeSummary(22);
++    BitWriter out;
++    out.write(28, 6);
++    out.write(9000 & 0x1fffu, 13);  // needs all 13 bits
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(sentinelReached(summary, outcome), "svc_Prefetch: protocol 22 uses 13 bits");
++  }
++  {
++    // Same bytes read as protocol 23 must misalign the sentinel. This is the
++    // mutation that proves the width fixture can actually fail.
++    DemoNetworkSummary summary = makeSummary(23);
++    BitWriter out;
++    out.write(28, 6);
++    out.write(9000, 13);          // deliberately one bit short
++    writeSentinelTick(out);
++    const RunOutcome outcome = run(summary, out);
++    check(!sentinelReached(summary, outcome), "svc_Prefetch: 13-bit stream misaligns protocol 23");
++  }
++}
++
++void fixtureEntityUpdates() {
++  std::cout << "-- svc_PacketEntities fixtures\n";
++
++  const std::int32_t baseTick = 100;
++  const std::int32_t preserveTick = 110;
++  const std::int32_t leaveTick = 120;
++  const std::int32_t deleteTick = 130;
++  const std::int32_t afterDeleteTick = 140;
++  const std::int32_t orphanDeltaTick = 150;
++  const std::string healthKey = "DT_TestEntity.m_iHealth";
++  const std::string teamKey = "DT_TestEntity.m_iTeamNum";
++
++  DemoNetworkSummary summary = makeSummary();
++
++  // Baseline frame: a non-delta packet that Enters entity 0 and writes both
++  // properties. Nothing here depends on prior state.
++  {
++    BitWriter body;
++    writeUpdate(body, 0, 2);       // diff 0 -> entity 0, Enter
++    body.write(0, 1);              // class id 0 (one class bit)
++    body.write(1, 10);             // serial
++    writeProp(body, 0, 100);       // m_iHealth = 100
++    writeProp(body, 0, 200);       // m_iTeamNum = 200
++    writePropListEnd(body);
++
++    BitWriter out;
++    writePacketEntities(out, 16, false, 0, 1, body);
++    BitWriter stream;
++    stream.write(3, 6);
++    stream.write(baseTick, 32);
++    stream.write(0, 16);
++    stream.write(0, 16);
++    stream.append(out);
++    writeSentinelTick(stream);
++
++    const RunOutcome outcome = run(summary, stream);
++    check(sentinelReached(summary, outcome), "baseline: sentinel tick reached");
++    check(summary.packetEntityEnterCount == 1, "baseline: one Enter");
++    check(summary.entityUnknownStateFailures == 0, "baseline: no entity failures");
++    check(summary.packetEntitiesCount == 1, "baseline: one packet");
++    check(summary.activeEntityCount == 1, "baseline: one active entity");
++    check(summary.entityStates.size() > 0 && summary.entityStates[0].classId == 0,
++          "baseline: entity 0 bound to class 0");
++    check(summary.entityStates.size() > 0 &&
++              summary.entityStates[0].properties[healthKey].intValue == 100,
++          "baseline: m_iHealth == 100");
++    check(summary.entityStates.size() > 0 &&
++              summary.entityStates[0].properties[teamKey].intValue == 200,
++          "baseline: m_iTeamNum == 200");
++    check(summary.entityClassByIndex.size() > 0 && summary.entityClassByIndex[0] == 0,
++          "baseline: entity -> class map populated");
++  }
++
++  // Delta frame that references the baseline by tick and Preserves entity 0,
++  // changing only m_iHealth. The untouched property must survive: that is what
++  // proves the base frame is applied rather than replaced.
++  {
++    BitWriter body;
++    writeUpdate(body, 0, 0);       // Preserve entity 0
++    writeProp(body, 0, 150);       // m_iHealth = 150
++    writePropListEnd(body);
++    body.write(0, 1);              // no removed entities
++
++    BitWriter out;
++    writePacketEntities(out, 16, true, static_cast<std::uint32_t>(baseTick), 1, body);
++    BitWriter stream;
++    stream.write(3, 6);
++    stream.write(preserveTick, 32);
++    stream.write(0, 16);
++    stream.write(0, 16);
++    stream.append(out);
++    writeSentinelTick(stream);
++
++    const RunOutcome outcome = run(summary, stream);
++    check(sentinelReached(summary, outcome), "delta preserve: sentinel tick reached");
++    check(summary.packetEntityPreserveCount == 1, "delta preserve: one Preserve");
++    check(summary.entityUnknownStateFailures == 0, "delta preserve: no entity failures");
++    check(summary.packetEntityDeltaBaseUnavailableCount == 0,
++          "delta preserve: base frame found in history");
++    check(summary.entityStates[0].properties[healthKey].intValue == 150,
++          "delta preserve: m_iHealth updated to 150");
++    check(summary.entityStates[0].properties[teamKey].intValue == 200,
++          "delta preserve: untouched m_iTeamNum kept at 200");
++
++    // The history record for a Preserve must be a delta, and replaying it must
++    // reproduce the same state. This is the check on EntityHistoryEvent.
++    bool foundPreserveEvent = false;
++    for (const auto& event : summary.entityHistoryEvents) {
++      if (event.removed || event.fullState || event.entityIndex != 0) continue;
++      if (event.tick != preserveTick) continue;
++      foundPreserveEvent = true;
++      check(event.changes.size() == 1, "history: preserve event carries one property delta");
++      check(event.changes.size() == 1 && event.changes[0].propIndex == 0,
++            "history: delta addresses flattened prop 0");
++    }
++    check(foundPreserveEvent, "history: preserve event recorded");
++
++    std::vector<tf2::native::EntityState> states;
++    const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, preserveTick, states);
++    check(status == tf2::native::EntitySnapshotQueryStatus::Available,
++          "replay: snapshot status Available");
++    check(states.size() > 0 && states[0].properties[healthKey].intValue == 150,
++          "replay: m_iHealth == 150");
++    check(states.size() > 0 && states[0].properties[teamKey].intValue == 200,
++          "replay: untouched m_iTeamNum == 200 after delta replay");
++  }
++
++  // Leave: the entity leaves the PVS. Class and last state must be retained.
++  {
++    BitWriter body;
++    writeUpdate(body, 0, 1);       // Leave entity 0
++    body.write(0, 1);              // no removed entities
++
++    BitWriter out;
++    writePacketEntities(out, 16, true, static_cast<std::uint32_t>(preserveTick), 1, body);
++    BitWriter stream;
++    stream.write(3, 6);
++    stream.write(leaveTick, 32);
++    stream.write(0, 16);
++    stream.write(0, 16);
++    stream.append(out);
++    writeSentinelTick(stream);
++
++    const RunOutcome outcome = run(summary, stream);
++    check(sentinelReached(summary, outcome), "delta leave: sentinel tick reached");
++    check(summary.packetEntityLeaveCount == 1, "delta leave: one Leave");
++    check(summary.entityUnknownStateFailures == 0, "delta leave: no entity failures");
++    check(summary.entityClassByIndex[0] == 0, "delta leave: class retained");
++    check(summary.entityStates[0].properties[healthKey].intValue == 150,
++          "delta leave: last state retained");
++  }
++
++  // Delete: the entity is destroyed and its slot must be cleared.
++  {
++    BitWriter body;
++    writeUpdate(body, 0, 3);       // Delete entity 0, no payload
++    body.write(0, 1);              // no removed entities
++
++    BitWriter out;
++    writePacketEntities(out, 16, true, static_cast<std::uint32_t>(leaveTick), 1, body);
++    BitWriter stream;
++    stream.write(3, 6);
++    stream.write(deleteTick, 32);
++    stream.write(0, 16);
++    stream.write(0, 16);
++    stream.append(out);
++    writeSentinelTick(stream);
++
++    const RunOutcome outcome = run(summary, stream);
++    check(sentinelReached(summary, outcome), "delta delete: sentinel tick reached");
++    check(summary.packetEntityDeleteCount == 1, "delta delete: one Delete");
++    check(summary.entityUnknownStateFailures == 0, "delta delete: no entity failures");
++    check(summary.entityClassByIndex[0] == -1, "delta delete: class cleared");
++    check(summary.activeEntityCount == 0, "delta delete: active entity count back to 0");
++  }
++
++  // A Preserve on a deleted entity has no base to stand on. The decoder must
++  // count it as a failure; substituting the most recent frame would hide it.
++  {
++    BitWriter body;
++    writeUpdate(body, 0, 0);       // Preserve entity 0
++    writeProp(body, 0, 999);
++    writePropListEnd(body);
++    body.write(0, 1);
++
++    BitWriter out;
++    writePacketEntities(out, 16, true, static_cast<std::uint32_t>(deleteTick), 1, body);
++    BitWriter stream;
++    stream.write(3, 6);
++    stream.write(afterDeleteTick, 32);
++    stream.write(0, 16);
++    stream.write(0, 16);
++    stream.append(out);
++    writeSentinelTick(stream);
++
++    const RunOutcome outcome = run(summary, stream);
++    check(sentinelReached(summary, outcome), "preserve-after-delete: sentinel tick reached");
++    check(summary.entityUnknownStateFailures == 1,
++          "preserve-after-delete: counted as an entity failure");
++    check(summary.packetEntityDecodeFailures == 1,
++          "preserve-after-delete: counted as a decode failure");
++    check(summary.firstEntityUnknownStateTick == afterDeleteTick,
++          "preserve-after-delete: first failure records the tick");
++    check(summary.entityClassByIndex[0] == -1,
++          "preserve-after-delete: no fabricated class binding");
++  }
++
++  // A delta naming a base frame that is not in the history must be reported as
++  // such. It must not be silently rebased onto a nearby frame.
++  {
++    DemoNetworkSummary orphan = makeSummary();
++    BitWriter body;
++    writeUpdate(body, 0, 0);       // Preserve entity 0
++    writeProp(body, 0, 5);
++    writePropListEnd(body);
++    body.write(0, 1);
++
++    BitWriter out;
++    writePacketEntities(out, 16, true, 999999u, 1, body);
++    BitWriter stream;
++    stream.write(3, 6);
++    stream.write(orphanDeltaTick, 32);
++    stream.write(0, 16);
++    stream.write(0, 16);
++    stream.append(out);
++    writeSentinelTick(stream);
++
++    const RunOutcome outcome = run(orphan, stream);
++    check(sentinelReached(orphan, outcome), "orphan delta: sentinel tick reached");
++    check(orphan.packetEntityDeltaBaseUnavailableCount == 1,
++          "orphan delta: missing base frame reported");
++    check(orphan.firstPacketEntitiesUnavailableTick == orphanDeltaTick,
++          "orphan delta: first missing base records the tick");
++    check(orphan.packetEntityDeltaCount == 1, "orphan delta: counted as a delta packet");
++  }
++}
++
++}  // namespace
++
++int main() {
++  std::cout << "entity_message_fixture_probe\n";
++  fixtureMessageLayouts();
++  fixtureEntityUpdates();
++  std::cout << "fixture_failures=" << g_failures << '\n';
++  return g_failures == 0 ? 0 : 1;
++}
+diff --git a/native/tools/entity_protocol_probe.cpp b/native/tools/entity_protocol_probe.cpp
+new file mode 100644
+index 0000000..7580594
+--- /dev/null
++++ b/native/tools/entity_protocol_probe.cpp
+@@ -0,0 +1,252 @@
++// entity_protocol_probe - full-demo entity protocol decoder census.
++//
++// WHY THIS EXISTS
++//   `demo_open_probe` only reports header/index/packet counts. The P0 task in
++//   docs/TASKS-2026-10-06.md needs a reading for entityUnknownStateFailures (the
++//   "7320 failures" number) plus enough context to explain each failure. This
++//   probe prints one key=value line per metric so it can be diffed and gated.
++//
++// WHAT IT ADDS OVER THE EXISTING PROBES
++//   - message_type_histogram: how many times each 6-bit svc_/net_ type appeared.
++//     Any type with a non-zero count MUST have a decoder, because a packet is
++//     abandoned at the first type whose length the decoder cannot skip. This
++//     makes "is the protocol fully covered?" a reading instead of a guess.
++//   - first_* failure coordinates, so a regression points at one packet instead
++//     of a count.
++//
++// USAGE
++//   entity_protocol_probe <demo.dem>
++//   entity_protocol_probe --histogram <demo.dem>    # only the type histogram
++//   entity_protocol_probe --summary <demo.dem>      # only the counters
++//
++// EXIT CODES
++//   0 = scanned, 2 = usage/open error.
++#include "demo_header.h"
++
++#include <algorithm>
++#include <cstring>
++#include <iostream>
++#include <string>
++#include <vector>
++
++namespace {
++
++using tf2::native::DemoHeader;
++using tf2::native::DemoIndex;
++using tf2::native::DemoNetworkSummary;
++
++// Source's SVC_MESSAGES / NET_Messages enumerations. Reference for the numbers:
++//   - Valve source-sdk-2013, src/engine/netmessages.h (SVC_MESSAGES, NET_Messages)
++//   - local Rust reference: work/_refs_demostf/src/demo/message/mod.rs (MessageType)
++// Both agree on every value used here. Types 16/20/22/33 exist in the enum but
++// are NOT implemented by the Rust reference either, which is why the histogram
++// matters: if their count is 0 in the corpus, not implementing them is provably
++// harmless rather than merely convenient.
++const char* messageTypeName(std::uint32_t type) {
++  switch (type) {
++    case 0: return "net_NOP";
++    case 1: return "net_Disconnect";
++    case 2: return "net_File";
++    case 3: return "net_Tick";
++    case 4: return "net_StringCmd";
++    case 5: return "net_SetConVar";
++    case 6: return "net_SignonState";
++    case 7: return "svc_Print";
++    case 8: return "svc_ServerInfo";
++    case 9: return "svc_SendTable";
++    case 10: return "svc_ClassInfo";
++    case 11: return "svc_SetPause";
++    case 12: return "svc_CreateStringTable";
++    case 13: return "svc_UpdateStringTable";
++    case 14: return "svc_VoiceInit";
++    case 15: return "svc_VoiceData";
++    case 16: return "svc_HLTV";
++    case 17: return "svc_Sounds";
++    case 18: return "svc_SetView";
++    case 19: return "svc_FixAngle";
++    case 20: return "svc_CrosshairAngle";
++    case 21: return "svc_BSPDecal";
++    case 22: return "svc_SplitScreen";
++    case 23: return "svc_UserMessage";
++    case 24: return "svc_EntityMessage";
++    case 25: return "svc_GameEvent";
++    case 26: return "svc_PacketEntities";
++    case 27: return "svc_TempEntities";
++    case 28: return "svc_Prefetch";
++    case 29: return "svc_Menu";
++    case 30: return "svc_GameEventList";
++    case 31: return "svc_GetCvarValue";
++    case 32: return "svc_CmdKeyValues";
++    case 33: return "svc_SetPauseTimed";
++    default: return "unknown";
++  }
++}
++
++const char* recordingName(tf2::native::DemoRecordingType type) {
++  return tf2::native::demoRecordingTypeName(type);
++}
++
++void printHistogram(const DemoNetworkSummary& summary) {
++  std::cout << "message_type_histogram:";
++  bool any = false;
++  for (std::size_t type = 0; type < DemoNetworkSummary::kMessageTypeHistogramSize; ++type) {
++    if (summary.messageTypeCounts[type] == 0) continue;
++    any = true;
++    std::cout << ' ' << type << '(' << messageTypeName(static_cast<std::uint32_t>(type)) << ')'
++              << '=' << summary.messageTypeCounts[type];
++  }
++  if (!any) std::cout << " <none>";
++  std::cout << "\n";
++
++  // The handled set is what scanKnownDemoMessages() dispatches. Keep it next to
++  // the histogram so a type that shows up without a decoder is obvious.
++  // Every 6-bit message type the decoder in src/demo_header.cpp has an arm for.
++  // If a type shows a non-zero count in the histogram and is missing here, the
++  // message loop reached the unknown-type arm and abandoned the packet, which
++  // also discards any svc_PacketEntities sharing that packet.
++  static const std::uint32_t kHandled[] = {0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
++                                          17, 18, 19, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32};
++  std::cout << "message_types_seen_without_decoder:";
++  bool gap = false;
++  for (std::size_t type = 0; type < DemoNetworkSummary::kMessageTypeHistogramSize; ++type) {
++    if (summary.messageTypeCounts[type] == 0) continue;
++    const bool handled = std::find(std::begin(kHandled), std::end(kHandled),
++                                   static_cast<std::uint32_t>(type)) != std::end(kHandled);
++    if (!handled) {
++      gap = true;
++      std::cout << ' ' << type << '(' << messageTypeName(static_cast<std::uint32_t>(type)) << ')';
++    }
++  }
++  if (!gap) std::cout << " <none>";
++  std::cout << "\n";
++}
++
++void printSummary(const DemoNetworkSummary& summary) {
++  std::cout << "packets_scanned=" << summary.packetsScanned
++            << " malformed_packets=" << summary.malformedPackets
++            << " unknown_message_packets=" << summary.unknownMessagePackets << "\n";
++
++  std::cout << "unknown_message_types=";
++  if (summary.unknownMessageTypes.empty()) std::cout << "<none>";
++  for (std::size_t i = 0; i < summary.unknownMessageTypes.size(); ++i) {
++    if (i) std::cout << ',';
++    std::cout << summary.unknownMessageTypes[i];
++  }
++  std::cout << "\n";
++
++  std::cout << "packet_entities=" << summary.packetEntitiesCount
++            << " packet_entity_updates=" << summary.packetEntityUpdates
++            << " header_updates=" << summary.packetEntityHeaderUpdates
++            << " delta_packets=" << summary.packetEntityDeltaCount << "\n";
++
++  std::cout << "enter=" << summary.packetEntityEnterCount
++            << " preserve=" << summary.packetEntityPreserveCount
++            << " leave=" << summary.packetEntityLeaveCount
++            << " delete=" << summary.packetEntityDeleteCount << "\n";
++
++  // The acceptance number for the P0 task.
++  std::cout << "entity_failures=" << summary.entityUnknownStateFailures
++            << " entity_update_header_failures=" << summary.entityUpdateHeaderFailures
++            << " packet_entity_decode_failures=" << summary.packetEntityDecodeFailures
++            << " prop_missing_table=" << summary.entityPropMissingTableFailures
++            << " prop_index=" << summary.entityPropIndexFailures
++            << " prop_value=" << summary.entityPropValueFailures << "\n";
++
++  std::cout << "delta_base_unavailable=" << summary.packetEntityDeltaBaseUnavailableCount
++            << " history_gap=" << (summary.entityHistoryHasGap ? 1 : 0)
++            << " history_gap_tick=" << summary.entityHistoryGapTick
++            << " history_dropped_packets=" << summary.entityHistoryDroppedPackets << "\n";
++
++  std::cout << "instance_baselines=" << summary.instanceBaselineEntryCount
++            << " baseline_applied=" << summary.instanceBaselineAppliedCount
++            << " baseline_misses=" << summary.instanceBaselineLookupMisses
++            << " baseline_apply_failures=" << summary.instanceBaselineApplyFailures << "\n";
++
++  std::cout << "active_entities=" << summary.activeEntityCount
++            << " max_active_entities=" << summary.maxActiveEntityCount << "\n";
++
++  // The message types this decoder used to have no arm for. All four are
++  // non-zero on at least one local demo, so these counters double as the
++  // per-demo proof that the new decoders actually ran.
++  std::cout << "file_messages=" << summary.fileMessageCount
++            << " set_pause=" << summary.setPauseCount
++            << " bsp_decals=" << summary.bspDecalCount
++            << " menus=" << summary.menuCount
++            << " cmd_key_values=" << summary.cmdKeyValuesCount << "\n";
++
++  std::cout << "string_table_user_data_max_bytes=" << summary.stringTableUserDataMaxBytes << "\n";
++
++  // First-failure coordinates. -1 means "never happened".
++  std::cout << "first_entity_failure_tick=" << summary.firstEntityUnknownStateTick
++            << " first_entity_failure_entity=" << summary.firstEntityUnknownStateEntity
++            << " first_entity_failure_update=" << summary.firstEntityUnknownStateUpdate
++            << " first_entity_failure_max_entries=" << summary.firstEntityUnknownStateMaxEntries
++            << " first_entity_failure_updated_entries=" << summary.firstEntityUnknownStateUpdatedEntries
++            << " first_entity_failure_payload_bits=" << summary.firstEntityUnknownStatePayloadBits
++            << " first_entity_failure_diff=" << summary.firstEntityUnknownStateDiff << "\n";
++
++  std::cout << "first_delta_base_unavailable_tick=" << summary.firstPacketEntitiesUnavailableTick
++            << " first_delta_base_unavailable_from=" << summary.firstPacketEntitiesUnavailableFrom
++            << "\n";
++
++  if (!summary.firstEntityPropFailureStage.empty()) {
++    std::cout << "first_prop_failure_stage=" << summary.firstEntityPropFailureStage
++              << " tick=" << summary.firstEntityPropFailureTick
++              << " entity=" << summary.firstEntityPropFailureEntity
++              << " class=" << summary.firstEntityPropFailureClass
++              << " index=" << summary.firstEntityPropFailureIndex
++              << " name=" << summary.firstEntityPropFailureName
++              << " type=" << summary.firstEntityPropFailureType
++              << " flags=" << summary.firstEntityPropFailureFlags
++              << " bits=" << summary.firstEntityPropFailureBits << "\n";
++  }
++}
++
++}  // namespace
++
++int wmain(int argc, wchar_t** argv) {
++  if (argc < 2) {
++    std::wcerr << L"usage: entity_protocol_probe [--histogram|--summary] <demo.dem>\n";
++    return 2;
++  }
++  bool histogramOnly = false;
++  bool summaryOnly = false;
++  int firstPath = 1;
++  while (firstPath < argc) {
++    const std::wstring arg(argv[firstPath]);
++    if (arg == L"--histogram") { histogramOnly = true; ++firstPath; continue; }
++    if (arg == L"--summary") { summaryOnly = true; ++firstPath; continue; }
++    break;
++  }
++  if (firstPath >= argc) {
++    std::wcerr << L"usage: entity_protocol_probe [--histogram|--summary] <demo.dem>\n";
++    return 2;
++  }
++
++  int exitCode = 0;
++  for (int i = firstPath; i < argc; ++i) {
++    const std::filesystem::path path(argv[i]);
++    DemoHeader header;
++    const bool headerOk = tf2::native::parseDemoHeaderFile(path, header);
++    DemoIndex index;
++    const bool indexOk = headerOk && tf2::native::indexDemoFile(path, header, index);
++    DemoNetworkSummary summary;
++    summary.networkProtocol = header.networkProtocol;
++    const bool scanOk = indexOk && tf2::native::scanKnownDemoMessages(path, index, summary);
++
++    // Keep the path out of the output; it may not survive the console code page.
++    std::cout << "header=" << (headerOk ? 1 : 0)
++              << " index=" << (indexOk ? 1 : 0)
++              << " scan=" << (scanOk ? 1 : 0)
++              << " recording=" << recordingName(header.recordingType)
++              << " protocol=" << header.networkProtocol
++              << " map=" << header.mapName
++              << " commands=" << index.commandCount
++              << " packets=" << index.packetCount << "\n";
++    if (!scanOk) { exitCode = 2; continue; }
++
++    if (!histogramOnly) printSummary(summary);
++    if (!summaryOnly) printHistogram(summary);
++  }
++  return exitCode;
++}
+diff --git a/native/tools/presentation_probe.cpp b/native/tools/presentation_probe.cpp
+index 650b149..029926d 100644
+--- a/native/tools/presentation_probe.cpp
++++ b/native/tools/presentation_probe.cpp
+@@ -114,6 +114,9 @@ void pushHistory(tf2::native::DemoNetworkSummary& summary, std::int32_t tick) {
+   event.tick = tick;
+   event.entityIndex = 1;
+   event.classId = tick;
++  // This fixture encodes the tick in the state itself, so it must be replayed
++  // as a whole-state event rather than a property delta.
++  event.fullState = true;
+   event.state.classId = tick;
+   tf2::native::appendEntityHistoryPacket(summary, tick, false, -1, {event});
+ }

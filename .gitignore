@@ -1,2 +1,7 @@
 native/build/
 native/build-nmake/
+# ~94 MB of raw oracle dumps: kept on disk for inspection, reproducible with
+# `bash check-oracle.sh <oracle.exe> evidence/final`, out of git because a
+# 945k-line diff is not reviewable. The gate result is in oracle-gate-summary.txt.
+evidence/**/oracle-survey-*.txt
+evidence/**/oracle-enters-*.txt

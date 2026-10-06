@@ -41,16 +41,28 @@ export LIB="$MSVC_W/lib/x64;$SDK_W/Lib/$SDK_VER/ucrt/x64;$SDK_W/Lib/$SDK_VER/um/
 BUILD=native/build-nmake
 LOG=evidence/cmake-build.log
 mkdir -p evidence
+# The log is appended to during a run but must not accumulate across runs, or
+# the error/warning counts below would report earlier builds as well.
+: > "$LOG"
 
 case "${1:-all}" in
   clean)
-    rm -rf "$BUILD"; echo "removed $BUILD"; exit 0 ;;
+    # `cmake --build --target clean` rather than `rm -rf`: this sandbox refuses
+    # bulk deletes over 50 files, and a silently blocked rm would leave the
+    # build tree in place, turning the next "clean" build into an incremental
+    # one whose warning count reads 0 for the wrong reason.
+    cmake --build "$BUILD" --target clean >/dev/null 2>&1
+    echo "cleaned $BUILD"; exit 0 ;;
   configure)
     cmake -S native -B "$BUILD" -G "NMake Makefiles" \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl 2>&1 | tee "$LOG"
     exit "${PIPESTATUS[0]}" ;;
 esac
+
+if [ "${1:-all}" = "all" ] && [ -f "$BUILD/CMakeCache.txt" ]; then
+  cmake --build "$BUILD" --target clean >/dev/null 2>&1
+fi
 
 if [ ! -f "$BUILD/CMakeCache.txt" ]; then
   echo "=== configure ==="
@@ -62,7 +74,6 @@ fi
 echo "=== build (Release, parallel 2) ==="
 cmake --build "$BUILD" --config Release --parallel 2 2>&1 | tee -a "$LOG"
 rc=${PIPESTATUS[0]}
-
 echo "=== summary ==="
 echo "cmake_build_rc=$rc"
 echo "errors=$(grep -c 'error C' "$LOG" || true)"

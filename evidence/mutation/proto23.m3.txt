@@ -1,0 +1,15 @@
+header=1 index=1 scan=1 recording=POV (heuristic) protocol=23 map=pl_badwater commands=128235 packets=43330
+packets_scanned=43330 malformed_packets=1700 unknown_message_packets=1183
+unknown_message_types=34,34,56,56,50,56,56,50,50,56,56,56,56,56,56,56
+packet_entities=41624 packet_entity_updates=1239542 header_updates=1239542 delta_packets=41623
+enter=175107 preserve=865196 leave=163647 delete=35592
+entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+delta_base_unavailable=2045 history_gap=0 history_gap_tick=0 history_dropped_packets=131
+instance_baselines=125 baseline_applied=175107 baseline_misses=0 baseline_apply_failures=0
+active_entities=724 max_active_entities=774
+file_messages=3 set_pause=24 bsp_decals=1 menus=0 cmd_key_values=0
+string_table_user_data_max_bytes=1940
+first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+first_delta_base_unavailable_tick=178451 first_delta_base_unavailable_from=178441
+message_type_histogram: 0(net_NOP)=6968 2(net_File)=3 3(net_Tick)=41626 4(net_StringCmd)=14 5(net_SetConVar)=5 6(net_SignonState)=541 7(svc_Print)=1 8(svc_ServerInfo)=2 10(svc_ClassInfo)=1 11(svc_SetPause)=24 12(svc_CreateStringTable)=21 13(svc_UpdateStringTable)=251 14(svc_VoiceInit)=1 15(svc_VoiceData)=383 17(svc_Sounds)=19818 18(svc_SetView)=1 19(svc_FixAngle)=15 21(svc_BSPDecal)=1 23(svc_UserMessage)=1625 24(svc_EntityMessage)=273 25(svc_GameEvent)=5366 26(svc_PacketEntities)=41624 27(svc_TempEntities)=12337 28(svc_Prefetch)=1702 30(svc_GameEventList)=1 32(svc_CmdKeyValues)=1 34(unknown)=50 36(unknown)=2 37(unknown)=1 40(unknown)=2 44(unknown)=3 45(unknown)=1 46(unknown)=7 48(unknown)=3 50(unknown)=182 52(unknown)=4 56(unknown)=927 60(unknown)=1
+message_types_seen_without_decoder: 34(unknown) 36(unknown) 37(unknown) 40(unknown) 44(unknown) 45(unknown) 46(unknown) 48(unknown) 50(unknown) 52(unknown) 56(unknown) 60(unknown)

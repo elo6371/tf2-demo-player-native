@@ -1,0 +1,62 @@
+entity_message_fixture_probe
+-- message layout fixtures
+PASS net_File: sentinel tick reached
+PASS net_File: fileMessageCount == 1
+PASS svc_SetPause: sentinel tick reached
+PASS svc_SetPause: setPauseCount == 1
+PASS svc_SetPause: paused state latched
+PASS svc_BSPDecal: no-coordinate form
+PASS svc_BSPDecal: bspDecalCount == 1
+PASS svc_BSPDecal: bit-coord + ent/model form
+PASS svc_BSPDecal: counted once
+PASS svc_BSPDecal: fraction-only coordinate form
+PASS svc_BSPDecal: surplus fraction bits misalign the stream
+PASS svc_Menu: sentinel tick reached
+PASS svc_Menu: menuCount == 1
+PASS svc_CmdKeyValues: sentinel tick reached
+PASS svc_CmdKeyValues: cmdKeyValuesCount == 1
+PASS svc_Prefetch: protocol 24 uses 14 bits
+PASS svc_Prefetch: protocol 22 uses 13 bits
+PASS svc_Prefetch: 13-bit stream misaligns protocol 23
+-- svc_PacketEntities fixtures
+PASS baseline: sentinel tick reached
+PASS baseline: one Enter
+PASS baseline: no entity failures
+PASS baseline: one packet
+PASS baseline: one active entity
+PASS baseline: entity 0 bound to class 0
+PASS baseline: m_iHealth == 100
+PASS baseline: m_iTeamNum == 200
+PASS baseline: entity -> class map populated
+PASS delta preserve: sentinel tick reached
+PASS delta preserve: one Preserve
+PASS delta preserve: no entity failures
+PASS delta preserve: base frame found in history
+PASS delta preserve: m_iHealth updated to 150
+FAIL delta preserve: untouched m_iTeamNum kept at 200
+PASS history: preserve event carries one property delta
+PASS history: delta addresses flattened prop 0
+PASS history: preserve event recorded
+PASS replay: snapshot status Available
+PASS replay: m_iHealth == 150
+PASS replay: untouched m_iTeamNum == 200 after delta replay
+PASS delta leave: sentinel tick reached
+PASS delta leave: one Leave
+PASS delta leave: no entity failures
+PASS delta leave: class retained
+PASS delta leave: last state retained
+PASS delta delete: sentinel tick reached
+PASS delta delete: one Delete
+PASS delta delete: no entity failures
+PASS delta delete: class cleared
+PASS delta delete: active entity count back to 0
+PASS preserve-after-delete: sentinel tick reached
+PASS preserve-after-delete: counted as an entity failure
+PASS preserve-after-delete: counted as a decode failure
+PASS preserve-after-delete: first failure records the tick
+PASS preserve-after-delete: no fabricated class binding
+PASS orphan delta: sentinel tick reached
+PASS orphan delta: missing base frame reported
+PASS orphan delta: first missing base records the tick
+PASS orphan delta: counted as a delta packet
+fixture_failures=1

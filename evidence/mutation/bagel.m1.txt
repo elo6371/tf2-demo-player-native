@@ -1,0 +1,16 @@
+header=1 index=1 scan=1 recording=POV (heuristic) protocol=24 map=koth_bagel_rc13 commands=73125 packets=73121
+packets_scanned=73121 malformed_packets=2 unknown_message_packets=2
+unknown_message_types=11,11
+packet_entities=73116 packet_entity_updates=1409043 header_updates=1344611 delta_packets=73115
+enter=9526 preserve=1327267 leave=1357 delete=6461
+entity_failures=6581 entity_update_header_failures=0 packet_entity_decode_failures=7320 prop_missing_table=0 prop_index=217 prop_value=21
+delta_base_unavailable=72268 history_gap=1 history_gap_tick=129277 history_dropped_packets=65376
+instance_baselines=126 baseline_applied=9370 baseline_misses=86 baseline_apply_failures=0
+active_entities=645 max_active_entities=732
+file_messages=0 set_pause=0 bsp_decals=0 menus=0 cmd_key_values=0
+string_table_user_data_max_bytes=7669
+first_entity_failure_tick=57004 first_entity_failure_entity=804 first_entity_failure_update=0 first_entity_failure_max_entries=841 first_entity_failure_updated_entries=25 first_entity_failure_payload_bits=5018 first_entity_failure_diff=9
+first_delta_base_unavailable_tick=56920 first_delta_base_unavailable_from=56919
+first_prop_failure_stage=preserve tick=122788 entity=806 class=114 index=1238938728 name=index type=-1 flags=-1 bits=-1
+message_type_histogram: 0(net_NOP)=9135 3(net_Tick)=73117 5(net_SetConVar)=10 6(net_SignonState)=3 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 11(svc_SetPause)=2 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=23 14(svc_VoiceInit)=1 17(svc_Sounds)=15113 18(svc_SetView)=1 23(svc_UserMessage)=137 24(svc_EntityMessage)=376 25(svc_GameEvent)=12979 26(svc_PacketEntities)=73116 27(svc_TempEntities)=14878 28(svc_Prefetch)=3682 30(svc_GameEventList)=1
+message_types_seen_without_decoder: <none>
