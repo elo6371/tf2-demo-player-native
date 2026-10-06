@@ -11,6 +11,8 @@ instance_baselines=125 baseline_applied=184114 baseline_misses=0 baseline_apply_
 active_entities=724 max_active_entities=774
 file_messages=2 set_pause=0 bsp_decals=1 menus=0 cmd_key_values=0
 string_table_user_data_max_bytes=1940
+sound_precache_entries=4221 sound_precache_decode_failures=0 model_precache_entries=843 model_precache_max_entries=2048 model_precache_decode_failures=0 model_precache_updates=0
+asset_refs=724 asset_model_path_known=366 asset_model_path_from_precache=366 asset_model_index_known=596 asset_model_index_zero=190 asset_model_index_out_of_range=40 asset_model_index_unresolved=0 asset_model_index_unresolved_max=-1 asset_identity_unknown=112
 first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
 first_delta_base_unavailable_tick=179018 first_delta_base_unavailable_from=179008
 message_type_histogram: 0(net_NOP)=7723 2(net_File)=2 3(net_Tick)=43326 4(net_StringCmd)=15 5(net_SetConVar)=5 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=256 14(svc_VoiceInit)=1 15(svc_VoiceData)=405 17(svc_Sounds)=21261 18(svc_SetView)=1 19(svc_FixAngle)=16 21(svc_BSPDecal)=1 23(svc_UserMessage)=2232 24(svc_EntityMessage)=287 25(svc_GameEvent)=6428 26(svc_PacketEntities)=43324 27(svc_TempEntities)=13220 28(svc_Prefetch)=3059 30(svc_GameEventList)=1

@@ -2,15 +2,24 @@
 # check-probe-output-additive.sh -- prove the probe's new output lines moved no
 # existing reading.
 #
-# Why: entity_protocol_probe.cpp gained two output lines -- recording_stream=...
-# (with the svc_ServerInfo signals) and index_state=... (with the truncated-tail
-# classification). The nine stored reports under evidence/final/ were produced by
-# the previous binary. Rather than re-run the 15-minute oracle gate to show
-# nothing regressed, diff the counter block directly: with the new lines removed,
-# every byte of every report must match.
+# Why: entity_protocol_probe.cpp gained output lines in two rounds -- first
+# recording_stream=... (with the svc_ServerInfo signals) and index_state=... (with
+# the truncated-tail classification), then sound_precache_entries=... and
+# asset_refs=... (with the P1 precache tables and asset breakdown). The nine
+# stored reports under evidence/probe-baseline/ were produced by the binary that
+# predates them. Rather than re-run the 15-minute oracle gate to show nothing
+# regressed, diff the counter block directly: with the new lines removed, every
+# byte of every report must match.
 #
 # A change that is genuinely additive proves it; a change that quietly moved a
 # counter fails here. Run this whenever the probe's output is touched.
+#
+# Two claims, both asserted:
+#   1. no counter that existed before the additions moved (the stripped diff), and
+#   2. the added lines themselves have not moved since they were introduced
+#      (added-lines.txt, refreshed only as a deliberate act via --refresh-added).
+# Without the second claim "stripped" would quietly mean "unverified", which is
+# the same shape of mistake this whole chain exists to catch.
 #
 # Three ways this check has silently proved nothing, all now asserted against:
 #
@@ -54,7 +63,21 @@ T=$SRC/.scratch/tf2-demo-parser/test_data
 # name lines the stored reports predate.
 #   recording_stream=  added with the stream-level recording verdict
 #   index_state=       added with the truncated-tail classification
-STRIP='^(recording_stream=|index_state=)'
+#   sound_precache_entries=  added by 8c6f06e with the precache table readings
+#   asset_refs=              added by 8c6f06e with the asset reference breakdown
+# The last two are the P1 additions. They are not left unverified by being
+# stripped: their values are frozen separately in ADDED below, and the mutation
+# suite proves they are load-bearing (m7 removes the modelprecache branch and
+# both collapse, while sound_precache_entries must hold).
+STRIP='^(recording_stream=|index_state=|sound_precache_entries=|asset_refs=)'
+
+# The subset of stripped lines that gets its own frozen baseline. recording_stream=
+# is deliberately NOT here: its value legitimately changed for the five SourceTV
+# demos when 226d119 fixed the header classifier, and oracle-recording-types.sh
+# pins it per demo against a hard-coded table. Freezing it here would mean either
+# re-freezing on every classifier change or asserting a value we know is stale.
+ADDED_STRIP='^(sound_precache_entries=|asset_refs=)'
+ADDED=evidence/probe-baseline/added-lines.txt
 
 # `recording=` is normalised rather than stripped-as-a-line: its *value* legitimately
 # changed for the five SourceTV demos when 226d119 fixed the header classifier
@@ -84,6 +107,13 @@ DEMOS=(
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+REFRESH=0
+[ "${1:-}" = "--refresh-added" ] && REFRESH=1
+
+# The added lines are collected in DEMOS order, so the frozen file is a stable
+# sequence rather than whatever order the shell happened to iterate.
+: > "$TMP/added.new"
+
 fail=0
 compared=0
 printf '%-12s %-12s %s\n' demo verdict note
@@ -109,6 +139,7 @@ for entry in "${DEMOS[@]}"; do
     continue
   fi
   "$PROBE" "$path" > "$TMP/$name.new" 2>/dev/null
+  grep -E "$ADDED_STRIP" "$TMP/$name.new" | tr -d '\r' >> "$TMP/added.new"
   grep -v -E "$STRIP" "$TMP/$name.new" | tr -d '\r' | sed -E "$NORMALISE" > "$TMP/$name.stripped"
   tr -d '\r' < "$stored" | sed -E "$NORMALISE" > "$TMP/$name.old"
   if diff -q "$TMP/$name.stripped" "$TMP/$name.old" >/dev/null; then
@@ -121,6 +152,34 @@ for entry in "${DEMOS[@]}"; do
     fail=1
   fi
 done
+
+if [ "$REFRESH" -eq 1 ]; then
+  if [ "$fail" -ne 0 ]; then
+    echo "refusing to refresh: the stripped diff is not clean, so the added lines"
+    echo "would be frozen on top of an unrelated change"
+    echo "PROBE-OUTPUT-ADDITIVE=FAIL"
+    exit 1
+  fi
+  cp "$TMP/added.new" "$ADDED"
+  echo "refreshed $ADDED from $(grep -c -E "$ADDED_STRIP" "$ADDED") lines"
+  echo "PROBE-OUTPUT-ADDITIVE=PASS"
+  exit 0
+fi
+
+# Claim 2: the added lines must still read what they read when they were
+# introduced. A missing or empty frozen file is a failure, not a skip -- the
+# whole point of this block is that "stripped" does not become "unverified".
+echo
+if [ ! -s "$ADDED" ]; then
+  echo "added-lines=MISSING $ADDED is absent or empty"
+  fail=1
+elif diff -q "$TMP/added.new" "$ADDED" >/dev/null; then
+  echo "added-lines=IDENTICAL ($(wc -l < "$ADDED") lines frozen)"
+else
+  echo "added-lines=DRIFTED -- the added lines moved since they were introduced"
+  diff "$ADDED" "$TMP/added.new" | head -12
+  fail=1
+fi
 
 echo
 echo "compared=$compared/${#DEMOS[@]}"

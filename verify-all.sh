@@ -7,8 +7,9 @@
 #   4. cross-check against the independent Rust oracle (nine demos)
 #   5. cross-check against the oracle on a stratified sample of the real corpus
 #   6. pin the recording type (POV vs SourceTV) of the nine oracle demos
-#   7. prove the probe's stream-recording change moved no existing counter
-#   8. prove the readings can go red (C++ mutation suite)
+#   7. prove the probe's added output lines moved no existing counter, and that
+#      the added lines themselves have not moved since they were introduced
+#   8. prove the readings can go red (C++ mutation suite, P0 and P1 cases)
 #   9. prove the corpus-census verdict can go red
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer
@@ -32,7 +33,12 @@
 # nine demos (it used repo-relative paths, and the isolated tree has no testdata/)
 # and still ended in PASS; the fixture step asserted fixture_failures=0 but not
 # that any fixture ran; the build step asserted rc=0 but not that any exe was
-# produced. Each of those now asserts a non-zero work count as well.
+# produced; the mutation step asserted MUTATION-SUITE=PASS but not that any case
+# ran. Each of those now asserts a non-zero work count as well.
+#
+# The P1 pass added a sixth: a line that is *stripped* from a comparison is a line
+# nothing verifies. check-probe-output-additive.sh now keeps a second frozen file
+# for the lines it strips, so "additive" and "unverified" stop being the same word.
 #
 # Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40.
 #
@@ -137,7 +143,20 @@ fi
 step "8/9 mutation suite (C++)"
 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
-if grep -q 'MUTATION-SUITE=PASS' "$OUT/8-mutation.txt"; then
+# Counting the verdict lines is what stops this step from passing on an empty
+# suite: MUTATION-SUITE=PASS is also what a script that ran zero cases prints.
+# 25 red + 3 hold is the current case count, so adding a case is an explicit
+# edit here. Any GREEN or BROKE line means a mutation did not move the reading
+# it targets -- which is the one thing the suite exists to detect.
+RED=$(grep -c '^MUTATION-RED' "$OUT/8-mutation.txt" || true)
+HOLD=$(grep -c '^MUTATION-HOLD' "$OUT/8-mutation.txt" || true)
+BROKE=$(grep -c '^MUTATION-BROKE' "$OUT/8-mutation.txt" || true)
+GREEN=$(grep -c '^MUTATION-GREEN' "$OUT/8-mutation.txt" || true)
+IDENT=$(grep -c '^RESTORED-IDENTICAL' "$OUT/8-mutation.txt" || true)
+echo "mutation_red=$RED hold=$HOLD green=$GREEN broke=$BROKE restored_identical=$IDENT"
+if grep -q 'MUTATION-SUITE=PASS' "$OUT/8-mutation.txt" \
+   && [ "$RED" -eq 25 ] && [ "$HOLD" -eq 3 ] \
+   && [ "$GREEN" -eq 0 ] && [ "$BROKE" -eq 0 ] && [ "$IDENT" -eq 6 ]; then
   echo "MUTATION=PASS"
 else
   echo "MUTATION=FAIL"; rc_all=1

@@ -1,13 +1,15 @@
 demo         verdict      note
-bagel        IDENTICAL    added_lines=2
-snakewater   IDENTICAL    added_lines=2
-ashville73   IDENTICAL    added_lines=2
-decal        IDENTICAL    added_lines=2
-protocol23   IDENTICAL    added_lines=2
-comp         IDENTICAL    added_lines=2
-saytext2     IDENTICAL    added_lines=2
-short2024    IDENTICAL    added_lines=2
-small        IDENTICAL    added_lines=2
+bagel        IDENTICAL    added_lines=4
+snakewater   IDENTICAL    added_lines=4
+ashville73   IDENTICAL    added_lines=4
+decal        IDENTICAL    added_lines=4
+protocol23   IDENTICAL    added_lines=4
+comp         IDENTICAL    added_lines=4
+saytext2     IDENTICAL    added_lines=4
+short2024    IDENTICAL    added_lines=4
+small        IDENTICAL    added_lines=4
+
+added-lines=IDENTICAL (18 lines frozen)
 
 compared=9/9
 PROBE-OUTPUT-ADDITIVE=PASS

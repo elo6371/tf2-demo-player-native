@@ -1,0 +1,1 @@
+{"ok":true,"selfTest":false,"demo":"D:/TF2_Demo_Player/work/protocol-rescue-20261005/73.dem","assetRefs":562,"requests":394,"demoRenderable":147,"inspections":49,"inspectionCacheHits":98,"vpkExtracts":49,"uniqueRenderable":4,"vpkRenderable":4,"scoutVertices":12000,"scoutChecksum":1098120898,"duplicateStable":true,"instanceCount":6,"playerFallbacks":1}
