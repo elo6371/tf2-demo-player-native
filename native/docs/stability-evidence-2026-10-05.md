@@ -231,3 +231,7 @@ The ten-minute run stayed below the 300 MB working-set ceiling and showed no
 monotonic memory growth in the aggregate peak, but its average FPS remained
 below the 120 FPS target. Clean-machine startup, visual correctness, and the
 residual-process check remain unverified.
+
+The gate was subsequently strengthened to snapshot same-path PIDs before the
+run and reject any new same-path PID after shutdown (`263d109`). A two-second
+smoke rerun passed with `samples=2`, `average_fps=104.32`, and no residual PID.
