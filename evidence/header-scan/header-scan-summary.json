@@ -1,0 +1,37 @@
+{
+  "scanned": 1643,
+  "unreadable": 0,
+  "corpus_gb": 40.22,
+  "recording_counts": {
+    "POV": 1634,
+    "SourceTV": 9
+  },
+  "autorecord_files": 1634,
+  "autorecord_pov_violations": [],
+  "source_tv_files": [
+    "73.dem",
+    "gullyscout.dem",
+    "proc2.dem",
+    "processdemo.dem",
+    "prodcutscout.dem",
+    "review1.dem",
+    "review12.dem",
+    "review44.dem",
+    "SUNSHINE.dem"
+  ],
+  "source_tv_client_names": [
+    "SourceTV Demo"
+  ],
+  "distinct_maps": 129,
+  "distinct_network_protocols": [
+    24
+  ],
+  "distinct_demo_protocols": [
+    3
+  ],
+  "distinct_game_dirs": [
+    "tf"
+  ],
+  "zero_tick_files": 7,
+  "errors": []
+}

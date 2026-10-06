@@ -1,12 +1,14 @@
 
 === prepare: copy raw reports to evidence/corpus-negative ===
-  reports=24  digest=0038cf88b5ce6aa16769eeeca3c3e266ffb5c3dab5d1badb3ed64853fe7d0855
+  reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
 
 === baseline: unmodified reports must PASS ===
   clean=24
+  skipped=0
   dirty=0
-  sum_packets=1361392
+  sum_packets=994372
   OK   baseline PASS
+  extra_reports=17 (corpus grew -> sample moved)
   victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
 
 === mutation A: entity_failures 0 -> 3 (must FAIL) ===
@@ -17,7 +19,8 @@
   OK   verdict went red
   OK   reported as missing, not skipped
 
-=== mutation C: zero the packet count (must FAIL as no_packets_scanned) ===
+=== mutation C: zero the packet count (must FAIL as probe_decoded_nothing) ===
+  OK   verdict went red
   OK   empty decode detected
 
 === mutation D: POV classifier disagreement (must FAIL) ===
@@ -35,8 +38,21 @@
 === mutation G: source_tv_flag disagrees with the HLTV bit (must FAIL) ===
   OK   inconsistent flag reported
 
+=== mutation H: index_state=invalid must FAIL, not be filed as truncated ===
+  OK   verdict went red
+  OK   reported as invalid, not skipped
+
+=== mutation I: index_state=truncated_tail must SKIP, not FAIL and not clean ===
+  OK   verdict stayed green (a skip is not a failure)
+  OK   counted as skipped
+  OK   named in truncated_tail_files
+
+=== mutation J: truncated_tail with a non-zero counter must still FAIL ===
+  OK   verdict went red
+  OK   names the counter
+
 === restore: reports must be byte-identical and PASS again ===
-  OK   digest unchanged (0038cf88b5ce6aa16769eeeca3c3e266ffb5c3dab5d1badb3ed64853fe7d0855)
+  OK   digest unchanged (cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5)
   OK   restored PASS
 
 CENSUS-NEGATIVE=PASS

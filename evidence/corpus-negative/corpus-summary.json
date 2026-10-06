@@ -1,0 +1,41 @@
+{
+  "scanned": 24,
+  "clean": 24,
+  "skipped": 0,
+  "dirty": 0,
+  "skip_reasons": {},
+  "truncated_tail_files": [],
+  "corpus_gb": 0.6,
+  "wall_seconds": 0.0,
+  "sum_packets": 1242351,
+  "sum_packet_entities": 1242178,
+  "sum_entity_updates": 26898926,
+  "sum_enter": 1351833,
+  "sum_preserve": 24184299,
+  "sum_leave": 1002905,
+  "sum_delete": 359889,
+  "autorecord_pov_files": 23,
+  "autorecord_classified_pov": 23,
+  "autorecord_pov_disagreements": 0,
+  "recording_kinds": [
+    "POV",
+    "SourceTV"
+  ],
+  "recording_stream_kinds": [
+    "POV",
+    "SourceTV"
+  ],
+  "recording_heuristic_count": 23,
+  "source_tv_files": [
+    "73.dem"
+  ],
+  "server_info_hltv_files": [
+    "73.dem"
+  ],
+  "server_info_replay_bit_files": 0,
+  "distinct_maps": 20,
+  "protocols": [
+    "24"
+  ],
+  "message_types_seen_without_decoder": []
+}

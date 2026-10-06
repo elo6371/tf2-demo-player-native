@@ -27,6 +27,13 @@
 #   * the probe gained an output line with nothing proving the old counters
 #     were untouched.
 #
+# A fifth class of error turned up while re-reading the chain: a step that passes
+# without checking anything. check-probe-output-additive.sh printed SKIP for all
+# nine demos (it used repo-relative paths, and the isolated tree has no testdata/)
+# and still ended in PASS; the fixture step asserted fixture_failures=0 but not
+# that any fixture ran; the build step asserted rc=0 but not that any exe was
+# produced. Each of those now asserts a non-zero work count as well.
+#
 # Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40.
 #
 # Usage: bash verify-all.sh [--quick]     (--quick: oracle corpus sample of 8)
@@ -46,7 +53,12 @@ step() { printf '\n=== %s ===\n' "$1"; }
 step "1/9 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
-if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" && grep -q '^errors=0$' "$OUT/1-build.txt"; then
+# exe_count pins that the build actually produced the targets: rc=0 with zero
+# exes would otherwise read as a clean build. 21 is the count after P0 added two
+# probe targets, so adding a target is an explicit edit here.
+if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
+   && grep -q '^errors=0$' "$OUT/1-build.txt" \
+   && grep -q '^exe_count=21$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
@@ -68,10 +80,14 @@ fi
 
 step "3/9 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
-grep -c '^PASS' "$OUT/3-fixture.txt" | sed 's/^/fixture_pass_count=/'
+FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
+echo "fixture_pass_count=$FIXTURES"
 tail -1 "$OUT/3-fixture.txt"
-if grep -q '^fixture_failures=0$' "$OUT/3-fixture.txt"; then
-  echo "FIXTURE=PASS"
+# fixture_failures=0 alone would also hold if the probe ran nothing, so the pass
+# count is asserted too. 58 is the current fixture count; adding one is a
+# deliberate edit here.
+if grep -q '^fixture_failures=0$' "$OUT/3-fixture.txt" && [ "$FIXTURES" -eq 58 ]; then
+  echo "FIXTURE=PASS ($FIXTURES/58)"
 else
   echo "FIXTURE=FAIL"; rc_all=1
 fi

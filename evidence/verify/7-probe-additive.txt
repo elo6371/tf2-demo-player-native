@@ -1,0 +1,14 @@
+demo         verdict      note
+bagel        STALE-BASE   evidence/final/bagel.txt already contains a stripped prefix
+snakewater   STALE-BASE   evidence/final/snakewater.txt already contains a stripped prefix
+ashville73   STALE-BASE   evidence/final/ashville73.txt already contains a stripped prefix
+decal        STALE-BASE   evidence/final/decal.txt already contains a stripped prefix
+protocol23   STALE-BASE   evidence/final/protocol23.txt already contains a stripped prefix
+comp         STALE-BASE   evidence/final/comp.txt already contains a stripped prefix
+saytext2     STALE-BASE   evidence/final/saytext2.txt already contains a stripped prefix
+short2024    STALE-BASE   evidence/final/short2024.txt already contains a stripped prefix
+small        STALE-BASE   evidence/final/small.txt already contains a stripped prefix
+
+compared=0/9
+reason=only 0 of 9 demos were actually compared
+PROBE-OUTPUT-ADDITIVE=FAIL

@@ -1,0 +1,22 @@
+demos=40 workers=2 oracle=D:\TF2_Demo_Player_Deliverable\tools\ent-oracle\target\release\ent-oracle.exe
+  ok        73.dem                                    101.5MB  50.6s  SourceTV pkts 112172/112172 ent 3030444/3030444 enter 22424/22424
+  ok        autorecord_2026-05-17_12-01-16.dem          2.2MB   2.0s  POV      pkts 2496/2496 ent 70469/70469 enter 4266/4266
+  ok        autorecord_2026-05-20_22-12-12.dem          1.8MB   0.7s  POV      pkts 2647/2647 ent 30834/30834 enter 2482/2482
+  ok        autorecord_2026-05-24_20-13-46.dem          1.8MB   0.4s  POV      pkts 5051/5051 ent 8732/8732 enter 822/822
+  ok        autorecord_2026-05-29_22-58-10.dem          1.1MB   0.1s  POV      pkts 172/172 ent 1237/1237 enter 366/366
+  ok        autorecord_2026-06-02_16-17-51.dem         13.5MB  14.1s  POV      pkts 24467/24467 ent 693969/693969 enter 52243/52243
+  ok        autorecord_2026-06-06_21-10-30.dem          1.0MB   0.1s  POV      pkts 76/76 ent 765/765 enter 249/249
+  ok        autorecord_2026-06-09_21-31-46.dem         38.0MB  33.9s  POV      pkts 131646/131646 ent 1427003/1427003 enter 115300/115300
+  ok        autorecord_2026-06-14_21-26-20.dem         15.1MB  17.6s  POV      pkts 32271/32271 ent 801960/801960 enter 36766/36766
+  MISMATCH  autorecord_2026-06-19_22-37-28.dem         63.4MB  78.8s  POV      pkts 0/169344 ent 0/3290491 enter 0/316951  enter: oracle=0 cpp=316951; packet_entities: oracle=0 cpp=169344; packet_entity_updates: oracle=0 cpp=3290491
+  ok        autorecord_2026-06-24_18-06-50.dem         21.0MB  25.4s  POV      pkts 40393/40393 ent 1161347/1161347 enter 51829/51829
+  ok        autorecord_2026-06-30_00-16-57.dem          4.5MB   4.0s  POV      pkts 6511/6511 ent 210006/210006 enter 13589/13589
+  MISMATCH  autorecord_2026-07-03_12-22-17.dem         23.8MB  29.3s  POV      pkts 0/45019 ent 0/1439040 enter 0/72712  enter: oracle=0 cpp=72712; packet_entities: oracle=0 cpp=45019; packet_entity_updates: oracle=0 cpp=1439040
+Traceback (most recent call last):
+  File "D:\TF2_Native_Test\oracle-corpus-check.py", line 229, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "D:\TF2_Native_Test\oracle-corpus-check.py", line 192, in main
+    f"{row['seconds']:>5.1f}s  {row['recording_stream']:<8} "
+                                ~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'recording_stream'

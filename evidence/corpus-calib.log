@@ -1,11 +1,14 @@
 demos_total=24 pending=24 resumed=0 corpus_gb=0.6 (full 40.2) workers=3
-  progress 24/24  0.12 demo/s  eta=0.0 min
+  progress 24/24  0.13 demo/s  eta=0.0 min
 
 scanned=24
 clean=24
+skipped=0
 dirty=0
+skip_reasons={}
+truncated_tail_files=[]
 corpus_gb=0.6
-wall_seconds=200.2
+wall_seconds=181.8
 sum_packets=1361392
 sum_packet_entities=1361268
 sum_entity_updates=30772245

@@ -20,13 +20,18 @@
 //   entity_protocol_probe --summary <demo.dem>      # only the counters
 //
 // EXIT CODES
-//   0 = scanned, 2 = usage/open error.
+//   0 = scanned (including a demo whose index stopped at a truncated tail)
+//   2 = usage error, unreadable file, or an index failure that is NOT a
+//       truncated tail (index_state=invalid -- the indexer walked into
+//       something it does not understand)
 #include "demo_header.h"
 
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
@@ -99,6 +104,20 @@ const char* recordingKindName(tf2::native::DemoRecordingKind kind) {
     case tf2::native::DemoRecordingKind::Unknown: return "unknown";
   }
   return "unknown";
+}
+
+// How far the indexer got. A plain const char* would invite `state == "invalid"`,
+// which compares pointers rather than text and happens to work only if the linker
+// merges the two literals -- /W4 flags it as C4130 for good reason.
+enum class IndexState { Ok, TruncatedTail, Invalid };
+
+const char* indexStateName(IndexState state) {
+  switch (state) {
+    case IndexState::Ok: return "ok";
+    case IndexState::TruncatedTail: return "truncated_tail";
+    case IndexState::Invalid: return "invalid";
+  }
+  return "invalid";
 }
 
 void printHistogram(const DemoNetworkSummary& summary) {
@@ -247,7 +266,31 @@ int wmain(int argc, wchar_t** argv) {
     const bool indexOk = headerOk && tf2::native::indexDemoFile(path, header, index);
     DemoNetworkSummary summary;
     summary.networkProtocol = header.networkProtocol;
-    const bool scanOk = indexOk && tf2::native::scanKnownDemoMessages(path, index, summary);
+
+    // An interrupted recording ends mid-entry, so the last command is partial and
+    // the indexer refuses the file. The entries before that point are still
+    // whole, and one of the seven such files in the corpus has 110886 of them.
+    // Throwing the whole file away would lose that coverage and would also read
+    // as a decode failure, which it is not. Classify the tail explicitly instead:
+    // a short unindexed tail is a truncated recording; a long one means the
+    // indexer walked into something it does not understand, which is a real
+    // failure and must not be filed under "truncated".
+    std::size_t tailBytes = 0;
+    if (headerOk) {
+      std::error_code sizeError;
+      const auto fileSize = std::filesystem::file_size(path, sizeError);
+      if (!sizeError && fileSize > index.malformedOffset) {
+        tailBytes = static_cast<std::size_t>(fileSize - index.malformedOffset);
+      }
+    }
+    constexpr std::size_t kTruncatedTailLimit = 64u * 1024u;
+    IndexState indexState = IndexState::Ok;
+    if (!indexOk) {
+      indexState = (!index.entries.empty() && tailBytes > 0 && tailBytes <= kTruncatedTailLimit)
+          ? IndexState::TruncatedTail : IndexState::Invalid;
+    }
+    const bool hasEntries = !index.entries.empty();
+    const bool scanOk = hasEntries && tf2::native::scanKnownDemoMessages(path, index, summary);
 
     // Keep the path out of the output; it may not survive the console code page.
     std::cout << "header=" << (headerOk ? 1 : 0)
@@ -258,7 +301,14 @@ int wmain(int argc, wchar_t** argv) {
               << " map=" << header.mapName
               << " commands=" << index.commandCount
               << " packets=" << index.packetCount << "\n";
-    if (!scanOk) { exitCode = 2; continue; }
+    std::cout << "index_state=" << indexStateName(indexState)
+              << " index_entries=" << index.entries.size()
+              << " index_tail_bytes=" << tailBytes << "\n";
+    // scan=0 with no entries at all means there is genuinely nothing to decode,
+    // so it is not a probe failure -- the caller decides whether that is a SKIP
+    // or a problem. A non-truncated index failure is the probe's own failure.
+    if (!scanOk && (indexState == IndexState::Invalid || !headerOk)) { exitCode = 2; continue; }
+    if (!scanOk) continue;
 
     const auto classification = tf2::native::classifyDemoRecording(header, summary);
     std::cout << "recording_stream=" << recordingKindName(classification.kind)

@@ -1,4 +1,5 @@
-header=1 index=1 scan=1 recording=POV (heuristic) protocol=24 map=koth_bagel_rc13 commands=73125 packets=73121
+header=1 index=1 scan=1 recording=SourceTV protocol=24 map=koth_bagel_rc13 commands=73125 packets=73121
+recording_stream=SourceTV recording_header_name=1 server_info_count=1 server_info_hltv=1 server_info_replay_bit=0 source_tv_flag=1
 packets_scanned=73121 malformed_packets=2 unknown_message_packets=2
 unknown_message_types=11,11
 packet_entities=73116 packet_entity_updates=1409043 header_updates=1344611 delta_packets=73115

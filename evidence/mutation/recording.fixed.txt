@@ -1,0 +1,1 @@
+{"selfTest":true,"viewMath":true,"recording":true,"projectileFields":true,"fullSpanCheckpoint":true,"cameraFormula":"source-pitch-down","seekOutsideWindow":"checkpoint"}

@@ -1,0 +1,162 @@
+
+=== 1/9 clean full Release build ===
+=== summary ===
+cmake_build_rc=0
+errors=0
+warnings=1
+D:\TF2_Native_Test\native\src\main.cpp(1284): warning C4457: “instance”的声明隐藏了函数参数
+exe_count=21
+BUILD=PASS
+
+=== 2/9 nine-demo census ===
+bagel        rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+snakewater   rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+ashville73   rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+decal        rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+protocol23   rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+comp         rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+saytext2     rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+short2024    rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+small        rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+outdir=evidence/final
+CENSUS=PASS (9/9 demos at zero)
+COVERAGE=PASS (9/9 demos, every observed message type decoded)
+
+=== 3/9 wire fixtures ===
+fixture_pass_count=58
+fixture_failures=0
+FIXTURE=PASS (58/58)
+
+=== 4/9 oracle cross-check (nine demos) ===
+demo          o_enter  c_enter    o_pkts   c_pkts  o_entities c_entities    fails  verdict
+bagel           10051    10051     73118    73118     1409096    1409096        0  OK
+snakewater       9822     9822     64330    64330     1427501    1427501        0  OK
+ashville73      22424    22424    112172   112172     3030444    3030444        0  OK
+decal          158837   158837     80886    80886     1971055    1971055        0  OK
+protocol23     184114   184114     43324    43324     1294290    1294290        0  OK
+comp            14605    14605     85864    85864     2335407    2335407        0  OK
+saytext2        10846    10846     72528    72528     1739480    1739480        0  OK
+short2024         296      296       170      170         474        474        0  OK
+small             204      204       111      111         316        316        0  OK
+
+ORACLE-GATE=PASS
+ORACLE=PASS
+
+=== 5/9 oracle cross-check on a corpus sample (n=8) ===
+  ok        autorecord_2026-09-14_17-21-56.dem         18.4MB  15.6s  POV      pkts 35653/35653 ent 1042996/1042996 enter 30594/30594
+
+sampled=8
+agreed=8
+mismatched=0
+wall_seconds=146.6
+sum_oracle_entities=15358251
+sum_cpp_entities=15358251
+recording_kinds=['POV', 'SourceTV']
+pov_count=7
+source_tv_count=1
+distinct_maps=8
+
+ORACLE-CORPUS=PASS
+ORACLE-CORPUS=PASS
+ORACLE-CORPUS-SELFTEST=PASS
+
+=== 6/9 oracle demo recording types ===
+demo         expect     header     stream   hltv_bit replay_bit verdict
+bagel        SourceTV   SourceTV   SourceTV 1        0        OK
+snakewater   SourceTV   SourceTV   SourceTV 1        0        OK
+ashville73   SourceTV   SourceTV   SourceTV 1        0        OK
+comp         SourceTV   SourceTV   SourceTV 1        0        OK
+saytext2     SourceTV   SourceTV   SourceTV 1        0        OK
+decal        POV        POV        POV      0        0        OK
+protocol23   POV        POV        POV      0        0        OK
+short2024    POV        POV        POV      0        0        OK
+small        POV        POV        POV      0        0        OK
+compared=9/9
+
+ORACLE-RECORDING-TYPES=PASS
+RECORDING-TYPES=PASS
+
+=== 7/9 probe output is additive ===
+demo         verdict      note
+bagel        STALE-BASE   evidence/final/bagel.txt already contains a stripped prefix
+snakewater   STALE-BASE   evidence/final/snakewater.txt already contains a stripped prefix
+ashville73   STALE-BASE   evidence/final/ashville73.txt already contains a stripped prefix
+decal        STALE-BASE   evidence/final/decal.txt already contains a stripped prefix
+protocol23   STALE-BASE   evidence/final/protocol23.txt already contains a stripped prefix
+comp         STALE-BASE   evidence/final/comp.txt already contains a stripped prefix
+saytext2     STALE-BASE   evidence/final/saytext2.txt already contains a stripped prefix
+short2024    STALE-BASE   evidence/final/short2024.txt already contains a stripped prefix
+small        STALE-BASE   evidence/final/small.txt already contains a stripped prefix
+
+compared=0/9
+reason=only 0 of 9 demos were actually compared
+PROBE-OUTPUT-ADDITIVE=FAIL
+PROBE-ADDITIVE=FAIL
+
+=== 8/9 mutation suite (C++) ===
+refusing to run: native/ has uncommitted changes, git checkout would lose them
+MUTATION=FAIL
+
+=== 9/9 census verdict is falsifiable ===
+
+=== prepare: copy raw reports to evidence/corpus-negative ===
+  reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
+
+=== baseline: unmodified reports must PASS ===
+  clean=24
+  skipped=0
+  dirty=0
+  sum_packets=1242351
+  OK   baseline PASS
+  extra_reports=17 (corpus grew -> sample moved)
+  victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
+  FAIL victim autorecord_2026-05-18_23-53-06 is NOT in corpus.csv -- the mutations below would be inert
+
+=== mutation A: entity_failures 0 -> 3 (must FAIL) ===
+  OK   verdict went red
+  OK   failure names the counter
+
+=== mutation B: remove malformed_packets entirely (must FAIL as missing:) ===
+  OK   verdict went red
+  OK   reported as missing, not skipped
+
+=== mutation C: zero the packet count (must FAIL as probe_decoded_nothing) ===
+  OK   verdict went red
+  OK   empty decode detected
+
+=== mutation D: POV classifier disagreement (must FAIL) ===
+  OK   verdict went red
+  OK   disagreement reported
+
+=== mutation E: in-stream HLTV bit set but classifier still says POV (must FAIL) ===
+  OK   verdict went red
+  OK   reported as hltv_bit_ignored
+
+=== mutation F: autorecord_ file reclassified as SourceTV on the stream path (must FAIL) ===
+  OK   verdict went red
+  OK   reported as pov_ground_truth_violated
+
+=== mutation G: source_tv_flag disagrees with the HLTV bit (must FAIL) ===
+  OK   inconsistent flag reported
+
+=== mutation H: index_state=invalid must FAIL, not be filed as truncated ===
+  OK   verdict went red
+  OK   reported as invalid, not skipped
+
+=== mutation I: index_state=truncated_tail must SKIP, not FAIL and not clean ===
+  OK   verdict stayed green (a skip is not a failure)
+  OK   counted as skipped
+  OK   named in truncated_tail_files
+
+=== mutation J: truncated_tail with a non-zero counter must still FAIL ===
+  OK   verdict went red
+  OK   names the counter
+
+=== restore: reports must be byte-identical and PASS again ===
+  OK   digest unchanged (cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5)
+  OK   restored PASS
+
+CENSUS-NEGATIVE=FAIL
+CENSUS-NEGATIVE=FAIL
+
+VERIFY=FAIL

@@ -12,11 +12,23 @@ What it asserts (per demo, all must be zero or empty):
     entity_update_header_failures, packet_entity_decode_failures,
     prop_missing_table, prop_index, prop_value
     message_types_seen_without_decoder == <none>
+and, per demo, one of three outcomes:
+    clean            -- index_state=ok, counters zero, full read
+    skipped          -- index_state=truncated_tail (an interrupted recording ends
+                        mid-entry; the whole entries before that point are still
+                        scanned and their counters are still asserted to be zero)
+                        or index_entries=0 (nothing in the file to read). A skip
+                        is neither PASS nor FAIL: the file was not read in full,
+                        so it is not evidence either way. Reported by name.
+    dirty            -- anything else, including index_state=invalid (the indexer
+                        walked into something it does not understand, which is a
+                        real failure and must not be filed under "truncated"),
+                        a missing field, or a non-zero counter.
 
 What it reports but does not assert:
     delta_base_unavailable, history_gap  -- driven by the bounded history window,
     informational by design (see ACCEPTANCE doc).
-    recording=                           -- the classifier's guess.
+    recording=                           -- the header-only classifier verdict.
 
 Ground truth for the POV claim: TF2 writes `autorecord_*.dem` from the client's
 own `record` command, so a file with that prefix IS a client-recorded POV demo.
@@ -39,6 +51,7 @@ import re
 import subprocess
 import sys
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -68,10 +81,20 @@ REPORT_FIELDS = [
     "string_table_user_data_max_bytes",
     "recording_stream", "recording_header_name", "server_info_count",
     "server_info_hltv", "server_info_replay_bit", "source_tv_flag",
+    "index_state", "index_entries", "index_tail_bytes",
 ]
 
 KV = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=([^\s]+)")
 RECORDING = re.compile(r"recording=(POV|SourceTV)([^\r\n]*)")
+
+
+def _as_int(value):
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 # A field that is absent is a FAILURE, not a skip. The first version of this
 # script only parsed the `header=` line, so every counter below came back None,
@@ -93,6 +116,10 @@ REQUIRED_FIELDS = MUST_BE_ZERO + [
     "recording_stream", "recording_header_name",
     "server_info_count", "server_info_hltv", "server_info_replay_bit",
     "source_tv_flag",
+    # How far the indexer got. An interrupted recording ends mid-entry; the
+    # entries before that point are still whole and are still scanned, so such a
+    # file is neither a failure nor a silent skip -- it is a SKIP with a reason.
+    "index_state", "index_entries", "index_tail_bytes",
 ]
 
 
@@ -229,20 +256,31 @@ def main() -> int:
             writer.writerow(row)
 
     # ---- assertions -------------------------------------------------------
-    clean, dirty = [], []
+    # Three outcomes, not two. A demo whose index stopped at a truncated tail is
+    # scanned for the whole entries before that point and then recorded as SKIP
+    # with a reason -- it must not read as PASS (the file was not read in full)
+    # and must not read as FAIL (nothing is wrong with the decoder). Everything
+    # else keeps the strict rule: an absent field is a failure.
+    clean, skipped, dirty = [], [], []
     for row in rows:
         bad = []
-        if row.get("header") != "1" or row.get("index") != "1":
-            bad.append("header/index")
+        if row.get("header") != "1":
+            bad.append("header")
         if row.get("timed_out"):
             bad.append("timeout")
         missing = [f for f in REQUIRED_FIELDS if row.get(f) is None]
         if missing:
             bad.append("missing:" + ",".join(missing))
-        # A demo that yielded no packets means the probe never got going. Treat it
-        # as a failure: "nothing was checked" must never read as "nothing was wrong".
-        if row.get("packets_scanned") == "0":
-            bad.append("no_packets_scanned")
+
+        state = row.get("index_state")
+        entries = _as_int(row.get("index_entries"))
+        if state == "invalid":
+            bad.append(f"index_state=invalid tail={row.get('index_tail_bytes')}")
+        elif state == "ok" and row.get("index") != "1":
+            bad.append("index_state=ok but index=0")
+
+        # The counters below are asserted for truncated files too: the prefix that
+        # was scanned must be just as clean as a complete file.
         for field in MUST_BE_ZERO:
             value = row.get(field)
             if value is not None and value != "0":
@@ -261,7 +299,22 @@ def main() -> int:
                        f"hltv={row.get('server_info_hltv')}")
         if row["demo"].startswith("autorecord_") and row.get("recording_stream") != "POV":
             bad.append(f"pov_ground_truth_violated:{row.get('recording_stream')}")
-        (dirty if bad else clean).append((row, bad))
+
+        if bad:
+            dirty.append((row, bad))
+        elif entries == 0:
+            # Nothing in the file to index at all. Not a decoder failure, but
+            # explicitly not evidence either.
+            skipped.append((row, "no_entries"))
+        elif row.get("packets_scanned") == "0":
+            # The indexer produced entries and the scan still decoded nothing.
+            # That is a probe failure: "nothing was checked" must never read as
+            # "nothing was wrong".
+            dirty.append((row, ["probe_decoded_nothing"]))
+        elif state == "truncated_tail":
+            skipped.append((row, "truncated_tail"))
+        else:
+            clean.append((row, []))
 
     # The classifier must agree with the autorecord_ ground truth.
     # Compare by demo name, not by dict membership: two demos can carry identical
@@ -274,7 +327,11 @@ def main() -> int:
     summary = {
         "scanned": len(rows),
         "clean": len(clean),
+        "skipped": len(skipped),
         "dirty": len(dirty),
+        "skip_reasons": dict(sorted(Counter(reason for _, reason in skipped).items())),
+        "truncated_tail_files": sorted(r["demo"] for r, reason in skipped
+                                       if reason == "truncated_tail"),
         "corpus_gb": round(sum(r["size_mb"] for r in rows) / 1024, 1),
         "wall_seconds": round(time.perf_counter() - started, 1),
         "sum_packets": sum(int(r.get("packets_scanned") or 0) for r in rows),
@@ -316,12 +373,21 @@ def main() -> int:
 
     print()
     for key, value in summary.items():
-        print(f"{key}={value}")
+        if key == "truncated_tail_files" and isinstance(value, list) and len(value) > 8:
+            print(f"{key}=<{len(value)} files>")
+        else:
+            print(f"{key}={value}")
     print()
     if pov_disagree:
         print("POV CLASSIFIER DISAGREEMENTS:")
         for row in pov_disagree[:20]:
             print(f"  {row['demo']} -> {row.get('recording')}")
+    if skipped:
+        print("SKIPPED (scanned as far as the file allows; not evidence of a full read):")
+        for row, reason in skipped[:20]:
+            print(f"  {row['demo']}: {reason} "
+                  f"index_entries={row.get('index_entries')} "
+                  f"tail_bytes={row.get('index_tail_bytes')}")
     if dirty:
         print("DIRTY DEMOS:")
         for row, bad in dirty[:40]:

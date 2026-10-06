@@ -63,14 +63,19 @@ SourceTV 录制由服务端的 SourceTV 客户端写出，**录制者名字落�
 2. **字段缺失即失败**（`REQUIRED_FIELDS`），不再静默跳过。
 3. `packets_scanned=0` 即失败 —— 「什么都没查」不能读成「什么都没错」。
 
-`census-negative-test.sh` 用 4 个变异证明该判据能变红（改计数器、删字段、
-清零包数、伪造分类分歧），恢复后报告逐字节相同。
+`census-negative-test.sh` 用 10 个变异证明该判据能变红：改计数器、删字段、
+清零包数、伪造分类分歧、流内 HLTV 位被忽略、`source_tv_flag` 自相矛盾、
+`index_state=invalid` 必须红、`truncated_tail` 必须记为跳过、
+以及截断文件的前缀计数器非 0 仍须红。恢复后报告逐字节相同。
 
 ### 0.3 探针改了输出却没有证明旧读数没动
 
 给 `entity_protocol_probe` 加 `recording_stream=` 一行时，没有任何东西证明
 原有计数器没被顺手改掉。补 `check-probe-output-additive.sh`：
-把新行过滤掉后与 `evidence/final/*.txt` 的存档报告逐字节比对，9/9 相同。
+把新行过滤掉后与 `evidence/final/*.txt` 的存档报告逐字节比对。
+
+**这一条第一版是空转的**（全部 SKIP 却报 PASS），详见 §0.7。
+修好之后的真实读数是 9/9 计数器逐字节相同。
 
 ### 0.4 顺带补上的读数
 
@@ -80,6 +85,118 @@ SourceTV 录制由服务端的 SourceTV 客户端写出，**录制者名字落�
 `server_info_replay_bit=`、`source_tv_flag=`。
 加这一行的直接原因：头判定看不到流内 `svc_ServerInfo` 的 `m_bIsHLTV` 位，
 所以普查既无法验证 SourceTV 标记，也无法发现语料里到底有没有 SourceTV。
+
+### 0.5 语料里有 7 份「录制中断」的文件，原来会被记成失败
+
+头字段普查（`corpus-header-scan.py`，独立 Python 实现，见 §0.6）发现
+**7 份 demo 的 `playback_ticks=0` 且 `playback_frames=0`**。原因：TF2 在录制
+**开始**时写头（`ticks`/`frames` 为 0），在收到 `dem_stop` 时回填；录制被中断
+（客户端被杀、进程退出）就永远不回填，文件末尾停在半个 entry 上。
+
+实测这 7 份：索引器走到文件末尾失败（`tail_after_fail=0.00MB`、无 `dem_stop`），
+但**失败点之前的 entry 全部完整**。原探针的行为是直接 `index=0`、`rc=2`、
+不扫描 —— 后果有两层：
+
+1. 普查会把它们记成失败（`header/index`、`no_packets_scanned`），**误红**。
+2. **丢掉真实覆盖**：其中一份有 235951 个 entry / 110886 个包，全部被丢弃。
+
+修复（`entity_protocol_probe.cpp`）：
+- 新增 `index_state=ok|truncated_tail|invalid`、`index_entries=`、`index_tail_bytes=`。
+  未索引尾部 ≤ 64 KiB 且已有 entry → `truncated_tail`；否则 `invalid`。
+- 只要索引出过 entry 就照常扫描，退出码只在 `invalid` 或无 entry 时为 2。
+- **区分是必须的**：把 `invalid` 也归到「截断」会把真缺陷变成静默通过。
+
+普查侧改成**三态**（`corpus-census.py`）：
+
+| 判定 | 条件 | 含义 |
+|---|---|---|
+| `clean` | `index_state=ok` + 计数器全 0 + 字段齐全 | 完整读取，通过 |
+| `skipped` | `truncated_tail` 或 `index_entries=0` | **既不是 PASS 也不是 FAIL**：文件没被读全，不构成证据。按名字列出 |
+| `dirty` | 其它一切，含 `index_state=invalid` | 失败 |
+
+截断文件的**已扫描前缀仍要断言计数器全 0**（`census-negative-test.sh` 的
+mutation J 钉住这条）。
+
+7 份的实测读数（`evidence/truncated-tail-probe.txt`）：
+
+| demo | entries | 尾部字节 | 恢复的包数 | failures |
+|---|---|---|---|---|
+| `autorecord_2026-05-21_21-54-16` | 235951 | 144 | 110885 | 0 |
+| `autorecord_2026-07-18_22-16-54` | 82643 | 204 | 39011 | 0 |
+| `autorecord_2026-07-05_22-03-13` | 59478 | 26 | 27106 | 0 |
+| `autorecord_2026-07-06_00-35-38` | 21071 | 42 | 9940 | 0 |
+| `autorecord_2026-09-02_20-36-02` | 17285 | 287 | 8185 | 0 |
+| `autorecord_2026-09-30_21-03-06` | 10178 | 12 | 4998 | 0 |
+| `autorecord_2026-09-02_20-46-11` | 5330 | 256 | 2447 | 0 |
+
+合计 **202572 个包**从「被丢弃」变成「被扫描且全部通过」。
+
+顺带：`/W4` 在这个改动上抓到一处真 bug —— 我最初用
+`const char* indexState` 加 `indexState == "invalid"`，那是指针比较（C4130），
+只在链接器合并字面量时才碰巧成立。改成 `enum class IndexState`。
+
+### 0.6 全语料头字段普查（独立实现）
+
+`corpus-header-scan.py` 按 `demoformat.h` 的布局**另写一份 Python 解析器**，
+只读每份文件的前 1072 字节，因此能覆盖解码要花几小时的全量语料。
+结果（1643/1643 可读）：
+
+| 项 | 值 |
+|---|---|
+| 扫描 | 1643，不可读 0 |
+| 体积 | 40.22 GB（min 1.0 / median 19.7 / p90 55.6 / max 143.0 MB） |
+| 录制类型 | **1634 POV + 9 SourceTV** |
+| `autorecord_*` 判 POV 违反数 | **0**（1634/1634 一致） |
+| SourceTV 的 `clientname` | 全部为 `SourceTV Demo`（唯一取值） |
+| 不同地图 | 129 |
+| 协议 | demoProtocol 3 / networkProtocol 24（唯一） |
+| `ticks=0` 文件 | 7（见 §0.5） |
+
+**9 份 SourceTV 全部是手工命名的那 9 份**（`autorecord_*` 一份都不是）：
+`73.dem`、`SUNSHINE.dem`、`gullyscout.dem`、`proc2.dem`、`processdemo.dem`、
+`prodcutscout.dem`、`review1.dem`、`review12.dem`、`review44.dem`，
+服务端都是 `Matcha Bookable`，地图 9 张各不相同（ashville / sunshine /
+gullywash / process / product / reckoner / sultry）。
+
+`--selftest` 用 6 个用例（含 4 个必须判 SourceTV 的写法变体 + 1 个必须判 POV
+的负对照）证明分类不是常量。
+
+### 0.7 `check-probe-output-additive.sh` 从建立起就是空转的
+
+§0.3 说「补了增量性检查，9/9 相同」。**那个读数从来没有真实发生过。**
+
+该脚本用的是仓库相对路径（`testdata/demos/bagel.dem`），而隔离测试树是用
+`git archive d585af8 native` 导入的，**只有 `native/`，没有 `testdata/`**。
+于是 9 份 demo 全部命中「文件不存在」分支，打印 `SKIP` 后 `fail` 仍为 0，
+脚本以 `PROBE-OUTPUT-ADDITIVE=PASS` 结束。**零次比较的通过不是通过。**
+
+修掉路径后又暴露第二层：5 份 demo 在 `recording=` 一个字段上 `DRIFTED` ——
+`POV (heuristic)` → `SourceTV`。这不是计数器漂移，而是 `226d119` 分类器修复
+的**预期结果**（存档报告是修复前的二进制产出的）。
+
+现在这个脚本只主张一件事：**计数器逐字节未动**。
+- 路径改为绝对路径（`SRC=D:/TF2_Demo_Player`），缺失输入记为失败而非跳过。
+- 新增 `compared=` 计数，必须等于 demo 数，否则判 FAIL。
+- 基线改为**冻结目录 `evidence/probe-baseline/`**，不再用 `evidence/final/`。
+  原因是 `verify-all.sh` 的 2/9 步会跑 `run-demos.sh evidence/final`
+  把那份存档用当前二进制**覆盖**，等 7/9 步跑到时已经变成「新对新」。
+  第一次接进验证链就是这么红的：9 份全部 `STALE-BASE`、`compared=0/9`。
+- 存档报告若已含被过滤的行 → `STALE-BASE` 失败（说明基线被刷新过）。
+- `recording=` 连同其可选 ` (heuristic)` 后缀一起归一化；该字段的断言
+  交给 `oracle-recording-types.sh`（它按硬编码表逐份钉 `recording=` /
+  `recording_stream=` / `server_info_hltv=` / `server_info_replay_bit=`）。
+
+同类缺陷一并修掉（都是「通过但什么都没查」）：
+
+| 位置 | 原判据 | 现在 |
+|---|---|---|
+| `verify-all.sh` 1/9 | 只看 `cmake_build_rc=0` + `errors=0` | 加 `exe_count=21` |
+| `verify-all.sh` 3/9 | 只看 `fixture_failures=0` | 加 `^PASS` 行数 = 58 |
+| `oracle-recording-types.sh` | 缺 demo → `SKIP` 且仍 PASS；`hltv_bit` 列只打印不校验 | 缺 demo → FAIL；加 `compared` 计数；逐份断言 `hltv_bit`（SourceTV=1 / POV=0）与 `replay_bit=0` |
+| `census-negative-test.sh` | 摘要对 `reports/*.txt` 取 glob；受害者可能已不在抽样里 | 摘要对**本次快照**取哈希；新增「受害者必须在 `corpus.csv` 里」断言（`corpus.csv` 的 demo 名带 `.dem`，报告文件名是 `.txt`，两种写法都接受） |
+
+**教训**：判据不能只写「没有失败」，还要写「确实查了 N 件」。前者在输入缺失
+时恒真。这条已写进 `verify-all.sh` 头部注释。
 
 ---
 
@@ -496,6 +613,16 @@ work/wt-P0-sourcetv-fix    HEAD=7b8d97d dirty=5   <- 文件 mtime 11:45–11:48�
 - 干净全量构建 21 个 exe，0 error，1 个既有警告。
 - 新增 5 个消息解码器中的 3 个（`net_File` / `svc_SetPause` / `svc_BSPDecal`）
   在真实 demo 上确实触发（§4.4）。
+- **全语料头字段普查 1643/1643 可读**（`corpus-header-scan.py`，独立 Python 实现）：
+  1634 POV + 9 SourceTV，`autorecord_*` 违反 0（§0.6）。
+- **7 份「录制中断」文件**从「记成失败且不扫描」改为 `truncated_tail` 后照常扫描，
+  恢复 **202572 个包**，计数器全 0（§0.5）。
+- **普查判据可证伪**：`census-negative-test.sh` 10 个变异全部按预期变红
+  （含 `index_state=invalid` 必须红、`truncated_tail` 必须记为跳过、
+  截断文件前缀计数器非 0 仍须红），恢复后报告摘要不变。
+- **oracle 语料抽样**与 Rust 实现逐值全等（`--quick` 为 8 份；
+  `ORACLE-CORPUS=PASS` + `--selftest` 6 用例证明比较能拒绝不匹配）。
+- **探针输出增量性**：`compared=9/9`，计数器逐字节相同（§0.7）。
 
 ### 未验证（本机做不到，明确标出）
 
@@ -624,6 +751,13 @@ P0 的核心缺口已闭环：bagel 从 `entity_failures=6581 / decode_failures=
 
 仍然阻塞的只有**人工画面确认**（外部输入）。P1 的实体回放画面依赖本项的状态
 重建，现在状态本身可信了，但画面必须由人看。
+
+第三遍复核（§0.7）修掉的是另一类问题：**判据「通过」但什么都没查**。
+`check-probe-output-additive.sh` 因路径写错，9 份全部 `SKIP` 却仍报 PASS；
+fixture 步只断言失败数为 0 而不断言跑过几个；构建步只断言 rc=0 而不断言产出
+几个 exe。三处现在都断言「确实查了 N 件」。验证链因此从 8 步扩到 9 步，
+并加了 oracle 语料抽样这一步 —— 此前「POV 保持 0 failures」只有 9 份 demo 的
+证据，对 1634 份 POV 语料没有独立实现侧证据。
 
 ---
 

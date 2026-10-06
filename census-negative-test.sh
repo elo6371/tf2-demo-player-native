@@ -26,19 +26,45 @@ run() { # run <outdir>  -> echoes verdict
 }
 
 step "prepare: copy raw reports to $NEG"
-rm -f "$NEG"/reports/*.txt 2>/dev/null
+# Clear every file, not just *.txt: a leftover from an earlier run would be
+# included in the digest below and read as a failed restore.
+rm -f "$NEG"/reports/* 2>/dev/null
 mkdir -p "$NEG/reports"
 cp "$SRC"/reports/*.txt "$NEG/reports/"
-BEFORE=$(cat "$NEG"/reports/*.txt | sha256sum | cut -d' ' -f1)
-echo "  reports=$(ls "$NEG"/reports/*.txt | wc -l)  digest=$BEFORE"
+# The digest is taken over exactly the copied files. The corpus itself is a live
+# TF2 demos directory: it gained a file while this was being written, which
+# changes which demos `--sample 24` picks, so globbing the directory afterwards
+# would compare different sets and report a bogus drift.
+mapfile -t SAMPLED < <(cd "$NEG/reports" && ls *.txt | sort)
+digest() { for f in "${SAMPLED[@]}"; do cat "$NEG/reports/$f"; done | sha256sum | cut -d' ' -f1; }
+BEFORE=$(digest)
+echo "  reports=${#SAMPLED[@]}  digest=$BEFORE"
 
 step "baseline: unmodified reports must PASS"
 OUT=$(run "$NEG")
-echo "$OUT" | grep -E '^(clean|dirty|sum_packets)=' | sed 's/^/  /'
+echo "$OUT" | grep -E '^(clean|dirty|skipped|sum_packets)=' | sed 's/^/  /'
 if grep -q '^CORPUS-CENSUS=PASS$' <<<"$OUT"; then ok "baseline PASS"; else bad "baseline not PASS"; fi
+# Informational: if the corpus grew, --sample picks different demos and new
+# reports appear. That is the environment moving, not a restore failure.
+EXTRA=$(cd "$NEG/reports" && ls *.txt | sort | comm -13 <(printf '%s\n' "${SAMPLED[@]}") - | wc -l)
+echo "  extra_reports=$EXTRA (corpus grew -> sample moved)"
 
 VICTIM=$(ls "$NEG"/reports/autorecord_*.txt | head -1)
 echo "  victim=$VICTIM"
+
+# The victim must be a demo the census actually read. The corpus is a live TF2
+# demos directory, so a future recording could push this file out of the
+# `--sample` set -- every mutation below would then edit a report nobody reads
+# and the suite would go red for the wrong reason. corpus.csv lists exactly the
+# rows the run consumed, so assert membership rather than assume it.
+# corpus.csv names demos with their .dem extension while the raw report file is
+# <stem>.txt, so both spellings are accepted.
+VICTIM_DEMO=$(basename "$VICTIM" .txt)
+if cut -d, -f1 "$NEG/corpus.csv" | grep -qxF -e "$VICTIM_DEMO" -e "$VICTIM_DEMO.dem"; then
+  ok "victim $VICTIM_DEMO is in the scanned set"
+else
+  bad "victim $VICTIM_DEMO is NOT in corpus.csv -- the mutations below would be inert"
+fi
 
 step "mutation A: entity_failures 0 -> 3 (must FAIL)"
 cp "$VICTIM" "$VICTIM.orig"
@@ -56,11 +82,16 @@ if grep -q '^CORPUS-CENSUS=FAIL$' <<<"$OUT"; then ok "verdict went red"; else ba
 if grep -q 'missing:.*malformed_packets' <<<"$OUT"; then ok "reported as missing, not skipped"; else bad "missing field was not reported"; fi
 mv "$VICTIM.orig" "$VICTIM"
 
-step "mutation C: zero the packet count (must FAIL as no_packets_scanned)"
+step "mutation C: zero the packet count (must FAIL as probe_decoded_nothing)"
+# The indexer produced entries and the scan still decoded zero packets. That is a
+# probe failure and must never read as "nothing was wrong". (This assertion was
+# stale for one run: the census renamed the reason from no_packets_scanned to
+# probe_decoded_nothing when the three-state split landed.)
 cp "$VICTIM" "$VICTIM.orig"
 sed -i 's/packets_scanned=[0-9]*/packets_scanned=0/' "$VICTIM"
 OUT=$(run "$NEG")
-if grep -q 'no_packets_scanned' <<<"$OUT"; then ok "empty decode detected"; else bad "empty decode not detected"; fi
+if grep -q '^CORPUS-CENSUS=FAIL$' <<<"$OUT"; then ok "verdict went red"; else bad "verdict stayed green"; fi
+if grep -q 'probe_decoded_nothing' <<<"$OUT"; then ok "empty decode detected"; else bad "empty decode not detected"; fi
 mv "$VICTIM.orig" "$VICTIM"
 
 step "mutation D: POV classifier disagreement (must FAIL)"
@@ -98,8 +129,42 @@ OUT=$(run "$NEG")
 if grep -q 'source_tv_flag=1' <<<"$OUT"; then ok "inconsistent flag reported"; else bad "inconsistent flag not reported"; fi
 mv "$VICTIM.orig" "$VICTIM"
 
+step "mutation H: index_state=invalid must FAIL, not be filed as truncated"
+# index_state=invalid means the indexer walked into something it does not
+# understand. Folding that into the truncated-tail skip would turn a real failure
+# into a silent pass, so this case pins the distinction.
+cp "$VICTIM" "$VICTIM.orig"
+sed -i 's/^index_state=ok/index_state=invalid/' "$VICTIM"
+OUT=$(run "$NEG")
+if grep -q '^CORPUS-CENSUS=FAIL$' <<<"$OUT"; then ok "verdict went red"; else bad "verdict stayed green"; fi
+if grep -q 'index_state=invalid' <<<"$OUT"; then ok "reported as invalid, not skipped"; else bad "invalid index not reported"; fi
+mv "$VICTIM.orig" "$VICTIM"
+
+step "mutation I: index_state=truncated_tail must SKIP, not FAIL and not clean"
+# index=0 is what the probe actually reports for a truncated file (the indexer
+# returned false) even though index_entries is non-zero. The field sits mid-line
+# in `header=1 index=1 scan=1 ...`, so match it with surrounding spaces.
+cp "$VICTIM" "$VICTIM.orig"
+sed -i 's/^index_state=ok/index_state=truncated_tail/; s/ index=1 / index=0 /' "$VICTIM"
+OUT=$(run "$NEG")
+if grep -q '^CORPUS-CENSUS=PASS$' <<<"$OUT"; then ok "verdict stayed green (a skip is not a failure)"; else bad "verdict went red"; fi
+if grep -q '^skipped=1$' <<<"$OUT"; then ok "counted as skipped"; else bad "not counted as skipped"; fi
+if grep -q 'truncated_tail_files=' <<<"$OUT"; then ok "named in truncated_tail_files"; else bad "not named"; fi
+mv "$VICTIM.orig" "$VICTIM"
+
+step "mutation J: truncated_tail with a non-zero counter must still FAIL"
+# The scanned prefix of a truncated file must be as clean as a complete file.
+cp "$VICTIM" "$VICTIM.orig"
+sed -i 's/^index_state=ok/index_state=truncated_tail/; s/ index=1 / index=0 /; s/entity_failures=0/entity_failures=2/' "$VICTIM"
+OUT=$(run "$NEG")
+if grep -q '^CORPUS-CENSUS=FAIL$' <<<"$OUT"; then ok "verdict went red"; else bad "verdict stayed green"; fi
+if grep -q 'entity_failures=2' <<<"$OUT"; then ok "names the counter"; else bad "does not name the counter"; fi
+mv "$VICTIM.orig" "$VICTIM"
+
 step "restore: reports must be byte-identical and PASS again"
-AFTER=$(cat "$NEG"/reports/*.txt | sha256sum | cut -d' ' -f1)
+# Digest the snapshot taken at the start, not a fresh glob: the corpus is live and
+# the sample can move underneath us between runs.
+AFTER=$(digest)
 if [ "$BEFORE" = "$AFTER" ]; then ok "digest unchanged ($AFTER)"; else bad "digest drifted: $BEFORE -> $AFTER"; fi
 OUT=$(run "$NEG")
 if grep -q '^CORPUS-CENSUS=PASS$' <<<"$OUT"; then ok "restored PASS"; else bad "restored run not PASS"; fi

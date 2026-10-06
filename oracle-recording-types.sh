@@ -33,6 +33,7 @@ DEMOS=(
 mkdir -p evidence
 
 fail=0
+compared=0
 {
   printf '%-12s %-10s %-10s %-8s %-8s %-8s %s\n' \
     demo expect header stream hltv_bit replay_bit verdict
@@ -42,8 +43,12 @@ for entry in "${DEMOS[@]}"; do
   name=$(printf '%s' "$entry" | cut -d'|' -f1)
   path=$(printf '%s' "$entry" | cut -d'|' -f2)
   expect=$(printf '%s' "$entry" | cut -d'|' -f3)
+  # A missing demo must not read as a pass. The first version of
+  # check-probe-output-additive.sh printed SKIP for every entry and still ended in
+  # PASS, which is how a gate can prove nothing; do not repeat that here.
   if [ ! -f "$path" ]; then
-    printf '%-12s %-10s %s\n' "$name" "$expect" "SKIP (missing $path)" | tee -a "$OUT"
+    printf '%-12s %-10s %s\n' "$name" "$expect" "MISSING ($path)" | tee -a "$OUT"
+    fail=1
     continue
   fi
   dump=$("$PROBE" "$path" 2>/dev/null)
@@ -52,13 +57,27 @@ for entry in "${DEMOS[@]}"; do
   hltv=$(printf '%s' "$dump" | tr -d '\r' | sed -n 's/.*server_info_hltv=\([0-9]*\).*/\1/p' | head -1)
   replay=$(printf '%s' "$dump" | tr -d '\r' | sed -n 's/.*server_info_replay_bit=\([0-9]*\).*/\1/p' | head -1)
 
+  # The expected in-stream HLTV bit is the second, independent signal: a POV demo
+  # must never set m_bIsHLTV, and every SourceTV demo must. Without this the
+  # hltv_bit column was printed but never checked.
+  if [ "$expect" = "SourceTV" ]; then want_hltv=1; else want_hltv=0; fi
+
   verdict=OK
   [ "$stream" = "$expect" ] || verdict="MISMATCH-stream"
-  if [ "$expect" = "SourceTV" ] && [ "$header" != "SourceTV" ]; then verdict="MISMATCH-header"; fi
+  [ "$header" = "$expect" ] || verdict="MISMATCH-header"
+  [ "$hltv" = "$want_hltv" ] || verdict="MISMATCH-hltv"
+  [ "$replay" = "0" ] || verdict="MISMATCH-replay"
   [ "$verdict" = "OK" ] || fail=1
+  compared=$((compared + 1))
   printf '%-12s %-10s %-10s %-8s %-8s %-8s %s\n' \
     "$name" "$expect" "$header" "$stream" "$hltv" "$replay" "$verdict" | tee -a "$OUT"
 done
+
+echo "compared=$compared/${#DEMOS[@]}" | tee -a "$OUT"
+if [ "$compared" -ne "${#DEMOS[@]}" ]; then
+  echo "reason=only $compared of ${#DEMOS[@]} demos were actually read" | tee -a "$OUT"
+  fail=1
+fi
 
 echo | tee -a "$OUT"
 if [ "$fail" -eq 0 ]; then

@@ -1,0 +1,122 @@
+# Interrupted recordings in the corpus: the indexer stops at a partial final
+# entry, the whole entries before it are still scanned. Captured 2026-10-06.
+# demo / index_state / entries / tail_bytes / packets_scanned / failures
+autorecord_2026-05-21_21-54-16         header=1 index=0 scan=1 recording=POV (heuristic) protocol=24 map=koth_product_final commands=235951 packets=110886
+autorecord_2026-05-21_21-54-16         index_state=truncated_tail index_entries=235951 index_tail_bytes=144
+autorecord_2026-05-21_21-54-16         recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+autorecord_2026-05-21_21-54-16         packets_scanned=110885 malformed_packets=0 unknown_message_packets=0
+autorecord_2026-05-21_21-54-16         unknown_message_types=<none>
+autorecord_2026-05-21_21-54-16         packet_entities=110879 packet_entity_updates=1630607 header_updates=1630607 delta_packets=110878
+autorecord_2026-05-21_21-54-16         enter=126013 preserve=1376066 leave=104257 delete=24271
+autorecord_2026-05-21_21-54-16         entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+autorecord_2026-05-21_21-54-16         delta_base_unavailable=351 history_gap=0 history_gap_tick=0 history_dropped_packets=194
+autorecord_2026-05-21_21-54-16         instance_baselines=73 baseline_applied=124705 baseline_misses=1308 baseline_apply_failures=0
+autorecord_2026-05-21_21-54-16         active_entities=394 max_active_entities=421
+autorecord_2026-05-21_21-54-16         file_messages=0 set_pause=0 bsp_decals=1 menus=0 cmd_key_values=0
+autorecord_2026-05-21_21-54-16         string_table_user_data_max_bytes=7669
+autorecord_2026-05-21_21-54-16         first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+autorecord_2026-05-21_21-54-16         first_delta_base_unavailable_tick=3480 first_delta_base_unavailable_from=3477
+autorecord_2026-05-21_21-54-16         message_type_histogram: 0(net_NOP)=20132 3(net_Tick)=110881 4(net_StringCmd)=84 5(net_SetConVar)=31 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=369 14(svc_VoiceInit)=1 17(svc_Sounds)=25454 18(svc_SetView)=1 19(svc_FixAngle)=30 21(svc_BSPDecal)=1 23(svc_UserMessage)=1944 24(svc_EntityMessage)=488 25(svc_GameEvent)=11609 26(svc_PacketEntities)=110879 27(svc_TempEntities)=18144 28(svc_Prefetch)=6390 30(svc_GameEventList)=1
+autorecord_2026-05-21_21-54-16         message_types_seen_without_decoder: <none>
+autorecord_2026-07-05_22-03-13         header=1 index=0 scan=1 recording=POV (heuristic) protocol=24 map=koth_bagel_rc12 commands=59478 packets=27106
+autorecord_2026-07-05_22-03-13         index_state=truncated_tail index_entries=59478 index_tail_bytes=26
+autorecord_2026-07-05_22-03-13         recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+autorecord_2026-07-05_22-03-13         packets_scanned=27106 malformed_packets=0 unknown_message_packets=0
+autorecord_2026-07-05_22-03-13         unknown_message_types=<none>
+autorecord_2026-07-05_22-03-13         packet_entities=27101 packet_entity_updates=543382 header_updates=543382 delta_packets=27100
+autorecord_2026-07-05_22-03-13         enter=58282 preserve=425875 leave=49155 delete=10070
+autorecord_2026-07-05_22-03-13         entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+autorecord_2026-07-05_22-03-13         delta_base_unavailable=176 history_gap=0 history_gap_tick=0 history_dropped_packets=60
+autorecord_2026-07-05_22-03-13         instance_baselines=82 baseline_applied=55468 baseline_misses=2814 baseline_apply_failures=0
+autorecord_2026-07-05_22-03-13         active_entities=620 max_active_entities=629
+autorecord_2026-07-05_22-03-13         file_messages=6 set_pause=0 bsp_decals=0 menus=0 cmd_key_values=0
+autorecord_2026-07-05_22-03-13         string_table_user_data_max_bytes=7669
+autorecord_2026-07-05_22-03-13         first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+autorecord_2026-07-05_22-03-13         first_delta_base_unavailable_tick=1816 first_delta_base_unavailable_from=1812
+autorecord_2026-07-05_22-03-13         message_type_histogram: 0(net_NOP)=4838 2(net_File)=6 3(net_Tick)=27103 4(net_StringCmd)=21 5(net_SetConVar)=41 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=261 14(svc_VoiceInit)=1 17(svc_Sounds)=8222 18(svc_SetView)=1 19(svc_FixAngle)=18 23(svc_UserMessage)=1131 24(svc_EntityMessage)=153 25(svc_GameEvent)=3127 26(svc_PacketEntities)=27101 27(svc_TempEntities)=5213 28(svc_Prefetch)=1613 30(svc_GameEventList)=1 31(svc_GetCvarValue)=77
+autorecord_2026-07-05_22-03-13         message_types_seen_without_decoder: <none>
+autorecord_2026-07-06_00-35-38         header=1 index=0 scan=1 recording=POV (heuristic) protocol=24 map=pl_odyssey commands=21071 packets=9940
+autorecord_2026-07-06_00-35-38         index_state=truncated_tail index_entries=21071 index_tail_bytes=42
+autorecord_2026-07-06_00-35-38         recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+autorecord_2026-07-06_00-35-38         packets_scanned=9940 malformed_packets=0 unknown_message_packets=0
+autorecord_2026-07-06_00-35-38         unknown_message_types=<none>
+autorecord_2026-07-06_00-35-38         packet_entities=9935 packet_entity_updates=334175 header_updates=334175 delta_packets=9934
+autorecord_2026-07-06_00-35-38         enter=14723 preserve=304218 leave=10992 delete=4242
+autorecord_2026-07-06_00-35-38         entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+autorecord_2026-07-06_00-35-38         delta_base_unavailable=98 history_gap=0 history_gap_tick=0 history_dropped_packets=39
+autorecord_2026-07-06_00-35-38         instance_baselines=266 baseline_applied=14718 baseline_misses=5 baseline_apply_failures=0
+autorecord_2026-07-06_00-35-38         active_entities=555 max_active_entities=570
+autorecord_2026-07-06_00-35-38         file_messages=7 set_pause=0 bsp_decals=1 menus=0 cmd_key_values=0
+autorecord_2026-07-06_00-35-38         string_table_user_data_max_bytes=7669
+autorecord_2026-07-06_00-35-38         first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+autorecord_2026-07-06_00-35-38         first_delta_base_unavailable_tick=84122 first_delta_base_unavailable_from=84119
+autorecord_2026-07-06_00-35-38         message_type_histogram: 0(net_NOP)=1831 2(net_File)=7 3(net_Tick)=9937 4(net_StringCmd)=7 5(net_SetConVar)=1 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=113 14(svc_VoiceInit)=1 17(svc_Sounds)=3778 18(svc_SetView)=1 19(svc_FixAngle)=160 21(svc_BSPDecal)=1 23(svc_UserMessage)=126 24(svc_EntityMessage)=53 25(svc_GameEvent)=2116 26(svc_PacketEntities)=9935 27(svc_TempEntities)=3755 28(svc_Prefetch)=563 30(svc_GameEventList)=1
+autorecord_2026-07-06_00-35-38         message_types_seen_without_decoder: <none>
+autorecord_2026-07-18_22-16-54         header=1 index=0 scan=1 recording=POV (heuristic) protocol=24 map=pl_odyssey commands=82643 packets=39012
+autorecord_2026-07-18_22-16-54         index_state=truncated_tail index_entries=82643 index_tail_bytes=204
+autorecord_2026-07-18_22-16-54         recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+autorecord_2026-07-18_22-16-54         packets_scanned=39011 malformed_packets=0 unknown_message_packets=0
+autorecord_2026-07-18_22-16-54         unknown_message_types=<none>
+autorecord_2026-07-18_22-16-54         packet_entities=39007 packet_entity_updates=1333602 header_updates=1333602 delta_packets=39006
+autorecord_2026-07-18_22-16-54         enter=52498 preserve=1226170 leave=39094 delete=15840
+autorecord_2026-07-18_22-16-54         entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+autorecord_2026-07-18_22-16-54         delta_base_unavailable=308 history_gap=0 history_gap_tick=0 history_dropped_packets=158
+autorecord_2026-07-18_22-16-54         instance_baselines=230 baseline_applied=52155 baseline_misses=343 baseline_apply_failures=0
+autorecord_2026-07-18_22-16-54         active_entities=663 max_active_entities=755
+autorecord_2026-07-18_22-16-54         file_messages=6 set_pause=0 bsp_decals=0 menus=0 cmd_key_values=0
+autorecord_2026-07-18_22-16-54         string_table_user_data_max_bytes=7669
+autorecord_2026-07-18_22-16-54         first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+autorecord_2026-07-18_22-16-54         first_delta_base_unavailable_tick=33107 first_delta_base_unavailable_from=33104
+autorecord_2026-07-18_22-16-54         message_type_histogram: 0(net_NOP)=7500 2(net_File)=6 3(net_Tick)=39009 4(net_StringCmd)=15 5(net_SetConVar)=1 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=614 14(svc_VoiceInit)=1 15(svc_VoiceData)=1680 17(svc_Sounds)=15414 18(svc_SetView)=1 19(svc_FixAngle)=10 23(svc_UserMessage)=307 24(svc_EntityMessage)=221 25(svc_GameEvent)=7670 26(svc_PacketEntities)=39007 27(svc_TempEntities)=11884 28(svc_Prefetch)=2541 30(svc_GameEventList)=1
+autorecord_2026-07-18_22-16-54         message_types_seen_without_decoder: <none>
+autorecord_2026-09-02_20-36-02         header=1 index=0 scan=1 recording=POV (heuristic) protocol=24 map=pl_pier commands=17285 packets=8186
+autorecord_2026-09-02_20-36-02         index_state=truncated_tail index_entries=17285 index_tail_bytes=287
+autorecord_2026-09-02_20-36-02         recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+autorecord_2026-09-02_20-36-02         packets_scanned=8185 malformed_packets=0 unknown_message_packets=0
+autorecord_2026-09-02_20-36-02         unknown_message_types=<none>
+autorecord_2026-09-02_20-36-02         packet_entities=8180 packet_entity_updates=232977 header_updates=232977 delta_packets=8179
+autorecord_2026-09-02_20-36-02         enter=14338 preserve=203328 leave=12609 delete=2702
+autorecord_2026-09-02_20-36-02         entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+autorecord_2026-09-02_20-36-02         delta_base_unavailable=52 history_gap=0 history_gap_tick=0 history_dropped_packets=26
+autorecord_2026-09-02_20-36-02         instance_baselines=208 baseline_applied=14242 baseline_misses=96 baseline_apply_failures=0
+autorecord_2026-09-02_20-36-02         active_entities=690 max_active_entities=704
+autorecord_2026-09-02_20-36-02         file_messages=9 set_pause=0 bsp_decals=1 menus=0 cmd_key_values=0
+autorecord_2026-09-02_20-36-02         string_table_user_data_max_bytes=7669
+autorecord_2026-09-02_20-36-02         first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+autorecord_2026-09-02_20-36-02         first_delta_base_unavailable_tick=13790 first_delta_base_unavailable_from=13787
+autorecord_2026-09-02_20-36-02         message_type_histogram: 0(net_NOP)=1599 2(net_File)=9 3(net_Tick)=8182 4(net_StringCmd)=6 5(net_SetConVar)=1 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=212 14(svc_VoiceInit)=1 15(svc_VoiceData)=123 17(svc_Sounds)=3411 18(svc_SetView)=1 19(svc_FixAngle)=48 21(svc_BSPDecal)=1 23(svc_UserMessage)=112 24(svc_EntityMessage)=46 25(svc_GameEvent)=1190 26(svc_PacketEntities)=8180 27(svc_TempEntities)=1309 28(svc_Prefetch)=419 30(svc_GameEventList)=1
+autorecord_2026-09-02_20-36-02         message_types_seen_without_decoder: <none>
+autorecord_2026-09-02_20-46-11         header=1 index=0 scan=1 recording=POV (heuristic) protocol=24 map=pl_frontier_final commands=5330 packets=2448
+autorecord_2026-09-02_20-46-11         index_state=truncated_tail index_entries=5330 index_tail_bytes=256
+autorecord_2026-09-02_20-46-11         recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+autorecord_2026-09-02_20-46-11         packets_scanned=2447 malformed_packets=0 unknown_message_packets=0
+autorecord_2026-09-02_20-46-11         unknown_message_types=<none>
+autorecord_2026-09-02_20-46-11         packet_entities=2442 packet_entity_updates=84902 header_updates=84902 delta_packets=2441
+autorecord_2026-09-02_20-46-11         enter=6141 preserve=72969 leave=4156 delete=1636
+autorecord_2026-09-02_20-46-11         entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+autorecord_2026-09-02_20-46-11         delta_base_unavailable=36 history_gap=0 history_gap_tick=0 history_dropped_packets=9
+autorecord_2026-09-02_20-46-11         instance_baselines=249 baseline_applied=6138 baseline_misses=3 baseline_apply_failures=0
+autorecord_2026-09-02_20-46-11         active_entities=530 max_active_entities=532
+autorecord_2026-09-02_20-46-11         file_messages=20 set_pause=0 bsp_decals=1 menus=0 cmd_key_values=0
+autorecord_2026-09-02_20-46-11         string_table_user_data_max_bytes=7669
+autorecord_2026-09-02_20-46-11         first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+autorecord_2026-09-02_20-46-11         first_delta_base_unavailable_tick=66694 first_delta_base_unavailable_from=66689
+autorecord_2026-09-02_20-46-11         message_type_histogram: 0(net_NOP)=446 2(net_File)=20 3(net_Tick)=2444 5(net_SetConVar)=1 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=44 14(svc_VoiceInit)=1 15(svc_VoiceData)=10 17(svc_Sounds)=1015 18(svc_SetView)=1 21(svc_BSPDecal)=1 23(svc_UserMessage)=31 24(svc_EntityMessage)=12 25(svc_GameEvent)=279 26(svc_PacketEntities)=2442 27(svc_TempEntities)=549 28(svc_Prefetch)=138 30(svc_GameEventList)=1
+autorecord_2026-09-02_20-46-11         message_types_seen_without_decoder: <none>
+autorecord_2026-09-30_21-03-06         header=1 index=0 scan=1 recording=POV (heuristic) protocol=24 map=cp_process_f12 commands=10178 packets=4998
+autorecord_2026-09-30_21-03-06         index_state=truncated_tail index_entries=10178 index_tail_bytes=12
+autorecord_2026-09-30_21-03-06         recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+autorecord_2026-09-30_21-03-06         packets_scanned=4998 malformed_packets=0 unknown_message_packets=0
+autorecord_2026-09-30_21-03-06         unknown_message_types=<none>
+autorecord_2026-09-30_21-03-06         packet_entities=4993 packet_entity_updates=45633 header_updates=45633 delta_packets=4992
+autorecord_2026-09-30_21-03-06         enter=2682 preserve=40519 leave=1568 delete=864
+autorecord_2026-09-30_21-03-06         entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+autorecord_2026-09-30_21-03-06         delta_base_unavailable=10 history_gap=0 history_gap_tick=0 history_dropped_packets=5
+autorecord_2026-09-30_21-03-06         instance_baselines=80 baseline_applied=2682 baseline_misses=0 baseline_apply_failures=0
+autorecord_2026-09-30_21-03-06         active_entities=274 max_active_entities=283
+autorecord_2026-09-30_21-03-06         file_messages=9 set_pause=0 bsp_decals=1 menus=0 cmd_key_values=0
+autorecord_2026-09-30_21-03-06         string_table_user_data_max_bytes=7669
+autorecord_2026-09-30_21-03-06         first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+autorecord_2026-09-30_21-03-06         first_delta_base_unavailable_tick=15659 first_delta_base_unavailable_from=15656
+autorecord_2026-09-30_21-03-06         message_type_histogram: 0(net_NOP)=799 2(net_File)=9 3(net_Tick)=4995 4(net_StringCmd)=2 5(net_SetConVar)=1 6(net_SignonState)=3 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=22 14(svc_VoiceInit)=1 17(svc_Sounds)=499 18(svc_SetView)=1 19(svc_FixAngle)=2 21(svc_BSPDecal)=1 23(svc_UserMessage)=203 24(svc_EntityMessage)=26 25(svc_GameEvent)=475 26(svc_PacketEntities)=4993 27(svc_TempEntities)=680 28(svc_Prefetch)=237 30(svc_GameEventList)=1
+autorecord_2026-09-30_21-03-06         message_types_seen_without_decoder: <none>
