@@ -1,9 +1,11 @@
 #include "demo_header.h"
 
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <string_view>
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
@@ -52,6 +54,25 @@ int wmain(int argc, wchar_t** argv) {
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
+      std::vector<tf2::native::AssetReference> assetReferences;
+      tf2::native::buildAssetReferenceList(summary, assetReferences);
+      std::size_t originValues = 0, rotationValues = 0;
+      for (const auto& entity : summary.entityStates) {
+        const auto findSuffix = [&entity](const char* suffix) -> const tf2::native::EntityPropertyValue* {
+          for (const auto& [name, value] : entity.properties) {
+            const std::string_view wanted(suffix);
+            if (name == suffix || (name.size() > wanted.size()
+                && name.compare(name.size() - wanted.size(), wanted.size(), wanted) == 0)) return &value;
+          }
+          return nullptr;
+        };
+        const auto* origin = findSuffix("m_vecOrigin");
+        if (origin && origin->type == tf2::native::SendPropType::Vector
+            && std::isfinite(origin->x) && std::isfinite(origin->y) && std::isfinite(origin->z)) ++originValues;
+        const auto* rotation = findSuffix("m_angRotation");
+        if (rotation && rotation->type == tf2::native::SendPropType::Vector
+            && std::isfinite(rotation->x) && std::isfinite(rotation->y) && std::isfinite(rotation->z)) ++rotationValues;
+      }
       std::string firstTempClassName;
       for (const auto& serverClass : summary.serverClassSchemas) {
         if (serverClass.id == static_cast<std::uint16_t>(summary.firstTempEntityFailureClass)) {
@@ -98,6 +119,19 @@ int wmain(int argc, wchar_t** argv) {
                 << L" sound_matches=" << summary.decodedSoundResourceMatches
                 << L" sound_misses=" << summary.decodedSoundResourceMisses
                 << L" entities=" << summary.packetEntityUpdates
+                << L" entity_enters=" << summary.packetEntityEnterCount
+                << L" entity_preserves=" << summary.packetEntityPreserveCount
+                << L" entity_leaves=" << summary.packetEntityLeaveCount
+                << L" entity_deletes=" << summary.packetEntityDeleteCount
+                << L" baseline_applied=" << summary.instanceBaselineAppliedCount
+                << L" asset_references=" << assetReferences.size()
+                << L" asset_model_paths=" << summary.assetModelPathKnown
+                << L" asset_model_indices=" << summary.assetModelIndexKnown
+                << L" asset_item_defs=" << summary.assetItemDefKnown
+                << L" asset_unknown=" << summary.assetIdentityUnknown
+                << L" entity_origin_states=" << summary.entityOriginStateCount
+                << L" finite_origin_values=" << originValues
+                << L" finite_ang_rotation_values=" << rotationValues
                 << L" entity_failures=" << summary.packetEntityDecodeFailures
                 << L" entity_header_failures=" << summary.entityUpdateHeaderFailures
                 << L" entity_unknown_state_failures=" << summary.entityUnknownStateFailures
