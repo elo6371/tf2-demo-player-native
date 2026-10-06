@@ -207,3 +207,28 @@ the desired 120 FPS target; longer memory-soak behavior, a clean-machine
 package launch, and visual correctness remain unverified. Demo entity-state
 correctness is covered by the separate regression gate and is not established
 by this startup/playback smoke.
+
+## Ten-minute real-demo soak (2026-10-06)
+
+The same Release gate ran `73.dem` for 600 seconds with the real TF2 root,
+`-Play`, and a 300,000,000-byte working-set ceiling:
+
+```text
+powershell -NoProfile -ExecutionPolicy Bypass -File native/tools/native_stability_gate.ps1 -InstallDir native/build/Release -TfRoot "D:\SteamLibrary\steamapps\common\Team Fortress 2\tf" -Demo "D:\SteamLibrary\steamapps\common\Team Fortress 2\tf\demos\73.dem" -Seconds 600 -MinSamples 60 -MaxWorkingSetBytes 300000000 -Play
+{"stability":"pass","samples":600,"average_fps":106.77,"peak_working_set_bytes":146624512,"clean_exit":true,"play_mode":true}
+```
+
+The gate process stayed alive for the complete ten-minute interval and its
+reported exit code was zero. Immediately afterward, process inspection found
+one `tf2_demo_native.exe` with the same Release path (PID 46884, command line
+including the soak arguments); it was manually terminated and a second process
+inspection found no remaining process. Therefore `clean_exit=true` from the
+gate is not sufficient to prove that no same-path process remained after the
+soak. This residual-process discrepancy is a gate limitation and needs a
+follow-up check that records pre-existing PIDs and verifies the post-run PID
+set before calling the soak fully clean.
+
+The ten-minute run stayed below the 300 MB working-set ceiling and showed no
+monotonic memory growth in the aggregate peak, but its average FPS remained
+below the 120 FPS target. Clean-machine startup, visual correctness, and the
+residual-process check remain unverified.
