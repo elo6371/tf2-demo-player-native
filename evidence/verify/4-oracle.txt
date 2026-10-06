@@ -1,0 +1,12 @@
+demo          o_enter  c_enter    o_pkts   c_pkts  o_entities c_entities    fails  verdict
+bagel           10051    10051     73118    73118     1409096    1409096        0  OK
+snakewater       9822     9822     64330    64330     1427501    1427501        0  OK
+ashville73      22424    22424    112172   112172     3030444    3030444        0  OK
+decal          158837   158837     80886    80886     1971055    1971055        0  OK
+protocol23     184114   184114     43324    43324     1294290    1294290        0  OK
+comp            14605    14605     85864    85864     2335407    2335407        0  OK
+saytext2        10846    10846     72528    72528     1739480    1739480        0  OK
+short2024         296      296       170      170         474        474        0  OK
+small             204      204       111      111         316        316        0  OK
+
+ORACLE-GATE=PASS

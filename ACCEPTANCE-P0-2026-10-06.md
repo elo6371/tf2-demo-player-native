@@ -121,12 +121,21 @@ bash build-target.sh entity_protocol_probe entity_message_fixture_probe
 
 ### 3.2 读数
 
+一条命令跑完整个证据链（构建 → 普查 → fixture → oracle → 变异）：
+
+```bash
+cd /d/TF2_Native_Test
+bash verify-all.sh          # 输出 evidence/verify/*.txt，末行 VERIFY=PASS
+```
+
+分步：
+
 ```bash
 cd /d/TF2_Native_Test
 bash run-demos.sh evidence/final          # 9 份 demo 普查
 native/build-nmake/entity_protocol_probe.exe --summary <demo.dem>
 native/build-nmake/entity_message_fixture_probe.exe
-bash check-oracle.sh evidence/final       # 与 Rust oracle 三项逐值对照
+bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final
 bash mutate.sh                            # 变异验证套件
 ```
 
@@ -288,8 +297,45 @@ ORACLE-GATE=PASS
 
 ---
 
-## 5. 变异验证（反向证据）
+### 4.8 一条命令的全链验证
 
+```bash
+$ bash verify-all.sh
+=== 1/5 clean full Release build ===
+cmake_build_rc=0
+errors=0
+warnings=1
+exe_count=21
+BUILD=PASS
+=== 2/5 nine-demo census ===
+... 9/9 entity_failures=0 malformed_packets=0 unknown_message_packets=0
+CENSUS=PASS (9/9 demos at zero)
+COVERAGE=PASS (9/9 demos, every observed message type decoded)
+=== 3/5 wire fixtures ===
+fixture_pass_count=58
+fixture_failures=0
+FIXTURE=PASS
+=== 4/5 oracle cross-check ===
+... 9/9 OK
+ORACLE-GATE=PASS
+ORACLE=PASS
+=== 5/5 mutation suite ===
+... 5/5 MUTATION-RED
+RESTORED-IDENTICAL bagel.fixed.txt
+RESTORED-IDENTICAL proto23.fixed.txt
+RESTORED-IDENTICAL fixture.fixed.txt
+MUTATION-SUITE=PASS
+MUTATION=PASS
+
+VERIFY=PASS
+```
+
+原始输出落在 `evidence/verify/1-build.txt` … `5-mutation.txt`。
+总耗时约 15 分钟。
+
+---
+
+## 5. 变异验证（反向证据）
 `bash mutate.sh`，5 个变异全部变红，恢复后读数与修复版**逐字节相同**。
 
 | 变异 | 改动 | 读数 | 结果 |
@@ -323,9 +369,20 @@ m1 尤其关键：把修复**单独**去掉，bagel 精确回到 `entity_failure
 | 仅修协议（历史事件仍整表拷贝） | **~7 min（回退）** | 未跑完 |
 | 修协议 + 事件改增量 | **19.5 s** | 3 min 41 s |
 
+原始时间戳（可复核，`ls -la --time-style=+%H:%M:%S`）：
+
+```
+evidence/baseline/   bagel.txt 18:00:04   ...   small.txt 18:09:04
+evidence/after-fix/  bagel.txt 18:17:57   snakewater.txt 18:19:xx ... 18:21:5x
+evidence/final/      bagel.txt 18:52:xx   ...   small.txt 18:56:0x
+```
+
+基线 9 份从首份完成到末份完成是 9m0s，加上首份自身约 60 s ≈ 10 min。
+最终版 9 份 3m41s（`run-demos.sh` 的实测总时长）。
+
 `entity_failures=0` 之后实体状态不再为空，历史事件的整表拷贝从"被掩盖"变成
 主导项，所以协议修复单独上线会**让扫描慢 7 倍**。这条是本次交付里最重要的
-非协议发现。
+非协议发现，也是"缺陷掩盖了另一个缺陷"的实例。
 
 ---
 
@@ -349,7 +406,9 @@ work/wt-P0-sourcetv-fix    HEAD=7b8d97d dirty=5   <- 文件 mtime 11:45–11:48�
 ### 已验证
 
 - 9/9 本地 demo：`entity_failures=0 malformed_packets=0 unknown_message_packets=0`。
-- 其中 9/9 是 `recording=POV`，满足"POV 保持 0 failures"。
+- 9/9 的录制类型判为 `POV (heuristic)`，满足"POV 保持 0 failures"。
+  **注意这是启发式判定**（探针输出里带 `(heuristic)` 后缀），不是从 SourceTV
+  标记字段直接读出来的 —— 所以它不能替代"真实 SourceTV 语料"那一项。
 - bagel 与 snakewater 全量扫描通过（清单指定）。
 - 与 Rust oracle 的包数 / 实体更新数 / enter 数逐值对照（§4.7）。
 - 58 个 bit-exact fixture 断言通过，覆盖 baseline / delta / Preserve / Leave / Delete。

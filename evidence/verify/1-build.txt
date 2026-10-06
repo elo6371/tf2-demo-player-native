@@ -1,3 +1,4 @@
+=== build (Release, parallel 2) ===
 Warning: NMake does not support parallel builds. Ignoring parallel build command line option.
 [  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main.cpp.obj
 main.cpp
@@ -254,3 +255,9 @@ demo_header.cpp
 proto_wire.cpp
 [100%] Linking CXX executable entity_message_fixture_probe.exe
 [100%] Built target entity_message_fixture_probe
+=== summary ===
+cmake_build_rc=0
+errors=0
+warnings=1
+D:\TF2_Native_Test\native\src\main.cpp(1284): warning C4457: “instance”的声明隐藏了函数参数
+exe_count=21
