@@ -516,10 +516,11 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     const float normalLength = std::sqrt(nx * nx + ny * ny + nz * nz);
     const auto normal = normalLength > 1e-6f ? BspVertex{nx / normalLength, ny / normalLength, nz / normalLength} : BspVertex{0.0f, 0.0f, 1.0f};
     auto a = convert(triangle.a, normal), b = convert(triangle.b, normal), c = convert(triangle.c, normal);
+    a.r = a.g = a.b = triangle.lightA; b.r = b.g = b.b = triangle.lightB; c.r = c.g = c.b = triangle.lightC;
     const auto tile = tiles.find(triangle.material);
     if (tile != tiles.end()) {
       const auto& t = tile->second;
-      a.r = a.g = a.b = b.r = b.g = b.b = c.r = c.g = c.b = 1.0f;
+      a.r = a.g = a.b = std::clamp(triangle.lightA, 0.15f, 2.0f); b.r = b.g = b.b = std::clamp(triangle.lightB, 0.15f, 2.0f); c.r = c.g = c.b = std::clamp(triangle.lightC, 0.15f, 2.0f);
       a.a = b.a = c.a = 1.0f;
       a.u = atlasCoord(triangle.au, static_cast<float>(t.sourceWidth), t.x, t.width); a.v = atlasCoord(triangle.av, static_cast<float>(t.sourceHeight), t.y, t.height);
       b.u = atlasCoord(triangle.bu, static_cast<float>(t.sourceWidth), t.x, t.width); b.v = atlasCoord(triangle.bv, static_cast<float>(t.sourceHeight), t.y, t.height);

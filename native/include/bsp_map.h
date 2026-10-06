@@ -7,7 +7,7 @@
 namespace tf2::native {
 
 struct BspVertex { float x = 0; float y = 0; float z = 0; };
-struct BspTriangle { BspVertex a; BspVertex b; BspVertex c; float au = 0; float av = 0; float bu = 0; float bv = 0; float cu = 0; float cv = 0; float alu = 0; float alv = 0; float blu = 0; float blv = 0; float clu = 0; float clv = 0; std::string material; };
+struct BspTriangle { BspVertex a; BspVertex b; BspVertex c; float au = 0; float av = 0; float bu = 0; float bv = 0; float cu = 0; float cv = 0; float alu = 0; float alv = 0; float blu = 0; float blv = 0; float clu = 0; float clv = 0; float lightA = 1.0f; float lightB = 1.0f; float lightC = 1.0f; std::string material; };
 struct BspMap {
   int version = 0;
   int revision = 0;

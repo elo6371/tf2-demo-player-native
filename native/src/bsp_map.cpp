@@ -115,7 +115,16 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
       const auto ta = texCoord(polygon[0]), tb = texCoord(polygon[i]), tc = texCoord(polygon[i + 1]);
       const auto la = lightCoord(polygon[0]), lb = lightCoord(polygon[i]), lc = lightCoord(polygon[i + 1]);
       if (hasLightmap) ++map.lightmapTriangleCount;
-      map.triangles.push_back({polygon[0], polygon[i], polygon[i + 1], ta[0], ta[1], tb[0], tb[1], tc[0], tc[1], la[0], la[1], lb[0], lb[1], lc[0], lc[1], material});
+      const auto lightValue = [&](const std::array<float, 2>& coord) {
+        if (!hasLightmap) return map.lightmapIntensity;
+        const auto x = std::clamp(static_cast<int>(std::floor(coord[0])), 0, lightWidth - 1);
+        const auto y = std::clamp(static_cast<int>(std::floor(coord[1])), 0, lightHeight - 1);
+        const auto at = static_cast<std::size_t>(lightOffset) +
+          (static_cast<std::size_t>(y) * static_cast<std::size_t>(lightWidth) + static_cast<std::size_t>(x)) * 3u;
+        const float value = (static_cast<float>(lighting[at]) + static_cast<float>(lighting[at + 1]) + static_cast<float>(lighting[at + 2])) / (3.0f * 128.0f);
+        return std::clamp(value, 0.15f, 2.0f);
+      };
+      map.triangles.push_back({polygon[0], polygon[i], polygon[i + 1], ta[0], ta[1], tb[0], tb[1], tc[0], tc[1], la[0], la[1], lb[0], lb[1], lc[0], lc[1], lightValue(la), lightValue(lb), lightValue(lc), material});
     }
     if (map.triangles.size() >= triangleLimit) break;
   }
