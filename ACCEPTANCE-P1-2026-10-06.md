@@ -1,13 +1,16 @@
-# P1 交付验收（第 1 项）：实体模型引用接线
+# P1 交付验收（第 1 项）：实体模型引用接线 + 逐 tick 位移
 
-> 本轮只覆盖清单里 P1「基础实体回放画面」的**模型引用**一条：
-> 把 `m_nModelIndex` 接到 `modelprecache` 字符串表，让实体真的能解析出模型路径。
-> 逐 tick 位移 / 观察目标 / 武器 / 投射物 / team-skin / 截图对比**不在本轮**，见 §8。
+> 本轮覆盖清单里 P1「基础实体回放画面」的**两条**：
+> **模型引用**（`m_nModelIndex` → `modelprecache` → 可加载路径，§1–§9）与
+> **逐 tick 位移**（§10）。观察目标 / 武器 / 投射物 / team-skin / 截图对比
+> **不在本轮**，见 §8 与 §10.6。
 > 完整 P0 验收见 `ACCEPTANCE-P0-2026-10-06.md`。
 
 ---
 
 ## 0. 结论
+
+### 0.1 模型引用（§1–§9）
 
 清单写着「当前 `entity_model_probe` 仍为 `vpkRenderable=0`」，并把这归因为
 「采样的 Demo 只有 assetRefs、没有 `m_ModelName` 路径，所以回放只能靠玩家职业兜底模型」。
@@ -50,6 +53,26 @@ P1 喂进 505 条真实路径后，光重复解析就花掉 90 秒，主程序�
 
 我自己的性能修复又漏了一个链接依赖（`AssetRoot::archives()` 需要 `vpk_archive.cpp`），
 被门禁第 1 步以 `exe_count=17`（期望 21）抓出，连带第 8 步变异套件变红。已修，见 §2.5。
+
+### 0.2 逐 tick 位移（§10）
+
+接线之后，实体位置第一次真的被送进渲染器，于是暴露出**两个渲染缺陷**和一个**新的阻塞项**：
+
+1. **玩家的 Z 恒为 0。** 玩家的 `m_vecOrigin` 是 VectorXY（wire 上只有 x/y），
+   真实 Z 在**另一条独立的 Float 属性** `m_vecOrigin[2]` 里，而 `extractTransform`
+   只读前者的 `z`。修复后渲染器在 bagel server tick 129211 拿到
+   `z=407.836273`，与独立实现（demostf）的 `407.83627` 一致；修复前是 `0`。**已修**。
+2. **Local / NonLocal 两份 origin 由哈希顺序决定。** 两者在 bagel 同一 tick 上
+   相距约 **4000 单位**（`-3157.42,110.70` vs `765.625,-529.5`），
+   而 `findProperty` 遍历 `unordered_map` 取第一个匹配。**已修**（改为确定规则）。
+3. **只有 demo 尾部约 70 个包是 tick 精确的。** 归档快照在
+   `57829 → 112221` 之间有 **54392 tick（约 13.7 分钟）的空洞**，
+   而 `main.cpp:1260` 把 `Checkpoint` 与 `Available` 一样当作可绘制。
+   屏幕上因此会是每十几分钟跳一次的瞬移。**未修**，是本项剩下的阻塞项。详见 §10.4。
+
+这三条都不是计数型判据能看见的，所以新增了一条**逐值**门禁
+`oracle-trajectory-check.py`（`compared=40 mismatches=0`，变异 `MUTATION-CAUGHT=PASS`），
+它抓到了我第一次 tick 对齐的错误（`delta` 是基线而不是本包 tick）。详见 §10.3。
 
 ---
 
@@ -289,6 +312,44 @@ bash build-target.sh model_path_bisect_probe
 ./native/build-nmake/model_path_bisect_probe.exe "$TF" "$BAGEL" 10
 ```
 
+### 4.2 复现逐 tick 位移与 z 读数（§10）
+
+```bash
+cd /d/TF2_Native_Test
+bash build-target.sh entity_model_probe
+TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
+
+# 位移 + Z 分布：注意 trajectoryRawZZero 是对照读数，修复后仍是 3516
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --trajectory 24 2>/dev/null | tr ',' '\n' | grep trajectory
+
+# 渲染器实际拿到的位置（修复前这里 z=0）
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --trajectory-at 129211 --rendered 2>&1 >/dev/null | grep 'entity=1 '
+
+# 原始解码属性（与 oracle 对齐用）
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --props-at 129211 --entity 1 2>&1 >/dev/null | grep -E 'm_nTickBase|m_vecOrigin'
+
+# 发送表逐槽对照（对 ent-oracle 3 CTFPlayer）
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --dump-class-props CTFPlayer 2>&1 >/dev/null | sed -n '1,20p'
+
+# 历史保留读数：archive / live 的 tick 列表与间距（§10.4 的阻塞项）
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --history-stats 2>&1 >/dev/null | head -2
+```
+
+逐值门禁（与独立实现 demostf 对照，约 1.5 分钟）：
+
+```bash
+cd /d/TF2_Native_Test
+PY=C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
+$PY oracle-trajectory-check.py --ticks 4          # GATE=PASS, compared=40
+$PY oracle-trajectory-check.py --ticks 2 --mutation   # MUTATION-CAUGHT=PASS
+```
+
 ---
 
 ## 5. 原始输出
@@ -495,6 +556,14 @@ sound_precache_entries=6701 sound_precache_decode_failures=0
 - **VPK 目录只解析一次**：修复前后 `entity_model_probe` 在 bagel 上的
   `assetRefs` / `requests` / `demoRenderable` / `inspections` / `vpkExtracts` /
   `scoutChecksum` 逐字段相同，耗时 117 s → 23 s / 31 s（两次实测）。
+- **玩家 Z 已修**：渲染器在 bagel server tick 129211 收到 `z=407.836273`，
+  与独立实现的 `407.83627` 一致（修复前为 `0`）；`--rendered` 端到端读数。
+- **Local/NonLocal 选择已确定**：改为优先 `LocalPlayerExclusive`，
+  不再依赖 `unordered_map` 顺序。
+- **新增逐值门禁 `oracle-trajectory-check.py`**：`compared=40 mismatches=0`，
+  变异 `MUTATION-CAUGHT=PASS (18 mismatches)`，且 `compared==0` 时直接 FAIL。
+- **tick 对齐按值推导**：门禁从两侧共同导出 offset（bagel 上 51811），
+  不硬编码；且实测该 offset 在同一份 demo 内**并不恒定**（demo tick 8 处为 56146）。
 
 ### 未验证
 
@@ -503,8 +572,9 @@ sound_precache_entries=6701 sound_precache_decode_failures=0
   没有截图对比，也没有和 Source 逐像素比对。
 - **主程序只在 bagel 一份 demo 上跑过**。其余 8 份探针语料只跑过
   `entity_protocol_probe` / `entity_model_probe`，没有跑主程序。
-- **逐 tick 实体位移、观察目标、武器、投射物、team/skin 的接线不在本轮。**
-  本轮只把「模型引用」这一条接通。`requests>0` 不蕴含这些实体在正确的位置上。
+- **逐 tick 位移已做，但只在 bagel 的尾部实时窗口内与独立实现逐值对照过**
+  （§10）。观察目标、武器、投射物、team/skin 的接线不在本轮。
+  `requests>0` 不蕴含这些实体在正确的位置上。
 - `playerFallbacks=1` 仍在：仍有实体没解析出模型而走玩家职业兜底。
   具体是哪一类实体没有逐类统计。
 - `asset_identity_unknown` 139 / 67 条（无任何模型标识的引用）未逐类归因。
@@ -534,3 +604,207 @@ sound_precache_entries=6701 sound_precache_decode_failures=0
 | `native/docs/HANDOFF-2026-10-06.md:38` | 「当前 `entity_model_probe` 仍为 `vpkRenderable=0`」 | `vpkRenderable` 只在「硬编码 5 个模型」那条分支里赋值，demo 路径的对应读数是 `demoRenderable`。过时的是 `demoRenderable=0`（现 244 / 147）。`vpkRenderable` 在带 `--tf-root` 时读数为 4，在只跑 `--self-test` 时为 0 —— 这行原文的措辞本身就不精确 |
 | `native/docs/TASKS-2026-10-06.md:96` | 同上 | 同上 |
 | `native/docs/entity-model-instances-2026-10-05.md:26` | 「`assetRefs=195 requests=0 demoRenderable=0`」，并归因为「采样的 Demo 只有 assetRefs、没有 `m_ModelName` 路径，所以回放只能靠玩家职业兜底模型」 | 读数是真实现的，**归因是错的**：demo 不发路径是设计如此（路径在 `modelprecache` 里），不是数据缺失。`requests=0` 是解析缺陷，现已修复 |
+
+---
+
+## 10. 逐 tick 位移（第 1 项的第二条）：一个渲染缺陷、一个新门禁、一个未修的阻塞项
+
+本节是「基础回放实体画面」里**逐 tick 位移**这一条的验收。三条结论：
+
+| # | 结论 | 状态 |
+|---|---|---|
+| 1 | 玩家 Z 恒为 0，因为真实 Z 在另一条属性里 | **已修** |
+| 2 | Local / NonLocal 两份 origin 由哈希顺序决定，差约 4000 单位 | **已修** |
+| 3 | 只有 demo 尾部约 70 个包是 tick 精确的，其余解析到最远 54392 tick 之前的快照 | **未修，新的 P1 阻塞项** |
+
+### 10.1 缺陷一：玩家的 Z 恒为 0（已修）
+
+**现象**：`EntityModelResolver::extractTransform`（`native/src/entity_model.cpp:41`）
+只读 `m_vecOrigin` 这一个属性的 `z`，而玩家的 `m_vecOrigin` 是 **VectorXY**，
+wire 格式只带 x 和 y，解码器永远不会往它的 `z` 写值（恒为 0）。真实的 Z 在
+**另一条独立的 Float 属性** `m_vecOrigin[2]` 里，值落在 `EntityPropertyValue.x`。
+
+**证据（三条，互相独立）**：
+
+1. 发送表本身有四个 origin 槽位，两边逐槽一致（`--dump-class-props` 对
+   `ent-oracle 3`）：
+
+```
+[10] DT_TFLocalPlayerExclusive.m_vecOrigin      VectorXY
+[11] DT_TFLocalPlayerExclusive.m_vecOrigin[2]   Float
+[14] DT_TFNonLocalPlayerExclusive.m_vecOrigin   VectorXY
+[15] DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] Float
+```
+   `flat=885` 两侧相同，CBeam 的 `flat=44` 也相同。
+
+2. 独立实现（demostf）在 wire 上确实看到这条 Float：
+   `ent-oracle <bagel> 8` → `idx= 11 DT_TFLocalPlayerExclusive.m_vecOrigin[2] = Float(354.6386)`。
+
+3. 我们的解码器也**确实**保留了它，只是消费方不读：
+   `entity_model_probe --trajectory-at 129211` 里
+   `DT_TFLocalPlayerExclusive.m_vecOrigin[2] type=1 x=407.836273`（type=1 = Float）。
+
+**修复**：新增 `readVectorProperty`（`entity_model.cpp`）——按基名找 Vector/VectorXY，
+再用同名的 `[i]` 兄弟标量补齐该向量编码不携带的分量。缺失兄弟时**不静默补 0**，
+而是把 `diagnostic` 置为 `origin-z-sibling-missing` 并由探针计数
+（`trajectoryZSiblingMissing`）。
+
+**修复前后（bagel，`--trajectory 24`）**：
+
+```
+修复前  trajectoryZZero=3516  trajectoryZNonZero=10560
+修复后  trajectoryZZero=3204  trajectoryZNonZero=10872
+        trajectoryRawZZero=3516  trajectoryZSiblingMissing=0
+```
+`trajectoryRawZZero` 是**对照读数**：它读的是解码器写进 VectorXY 的原始 z，
+修复后仍是 3516（缺陷的签名还在，因为 wire 格式就是这样）。两者相差的 312
+个采样点就是被修复救回来的玩家位置；剩下的 3204 个 z=0 是**真值为 0** 的实体
+（`CWorld`、`CVoteController`、地面上的 prop），不是缺陷。
+
+**端到端**（渲染器实际拿到的值，`--rendered`）：
+
+```
+C++  server tick 129211  entity 1  x=-3157.420166 y=110.702408 z=407.836273
+oracle demo tick 77400   entity 1  x=-3157.4202   y=110.70241   z=407.83627
+```
+修复前这里是 `z=0`。
+
+### 10.2 缺陷二：Local / NonLocal 的选择由哈希顺序决定（已修）
+
+`EntityState::properties` 是 `unordered_map`，`findProperty` 遍历它取**第一个**
+后缀匹配。玩家同时带 `DT_TFLocalPlayerExclusive.m_vecOrigin`（全精度）与
+`DT_TFNonLocalPlayerExclusive.m_vecOrigin`（量化），两者都匹配。
+
+**这不是舍入误差**。bagel server tick 129211 实测：
+
+```
+LocalPlayerExclusive      x=-3157.420166 y=110.702408 z=407.836273
+NonLocalPlayerExclusive   x=765.625000   y=-529.500000 z=320.000000
+```
+两点相距约 **4000 单位**（TF2 地图半径约 16384）。也就是说同一个实体的渲染位置
+可以在这两个值之间随哈希顺序翻转，而所有计数型判据都是绿的。
+（NonLocal 那组是量化值且**已经很旧**——该包里根本没发 `idx=14/15`，
+我们的重建把最后一次收到的值留着，这也是为什么它停在一个陈旧的坐标上。）
+
+**修复**：`readVectorProperty` 里加 `exclusiveRank`，优先
+`LocalPlayerExclusive`（0）→ 其它（1）→ `NonLocalPlayerExclusive`（2），
+同档再按名字字典序取最小，结果与哈希顺序无关。
+
+### 10.3 新门禁：与独立实现逐值对照（`oracle-trajectory-check.py`）
+
+`check-oracle.sh` 只比**计数**（多少实体、多少包）。计数看不见「解码正确但读错属性」
+——这正是 z 缺陷的形状：所有计数全绿，每个玩家都在 z=0。所以新增一条逐值门禁。
+
+**tick 对齐是推导出来的，不是硬编码的。** C++ 侧存的是 server tick
+（来自 `svc_NetTick`），oracle 迭代的是 demo entry tick，两者的差**在一份 demo 内
+并不恒定**（实测 demo tick 8 处是 56146，demo tick 77400 处是 51811）。
+门禁的做法是：先问探针它的 tick 精确窗口从哪开始（`S0`），再问 oracle
+哪个 demo tick 的 `delta` 等于 `S0`，然后 `offset = S0 - demo_tick` 由两侧在同一次
+运行中共同给出。
+
+```
+$ python oracle-trajectory-check.py --ticks 4
+live window starts at server tick 129210; its first packet's own server tick is
+129211 == demo tick 77400 (offset 51811)
+archive max gap 54392 ticks -- ticks outside the live window are NOT comparable
+entities=12 serverTicks=4 compared=40 mismatches=0 skipped=0
+GATE=PASS
+```
+
+`compared=40` 是工作量断言：一个什么都没比的判据不算判据（`compared==0` 直接 FAIL）。
+
+**变异验证**（`--mutation`，把期望值整体 +1.0）：
+
+```
+$ python oracle-trajectory-check.py --ticks 2 --mutation
+MUTATION-CAUGHT=PASS (18 mismatches on the perturbed expectation)
+```
+
+**这个门禁抓到过我一次**：第一版把 `demo_tick = server_tick - offset` 直接用，
+结果 40 个值里 36 个不匹配、每个都差大约「一 tick 的位移」。原因是
+`svc_PacketEntities` 的 `delta` 字段是**基线 tick 而不是本包的 tick**，
+本包产生的状态属于 `delta + 1`。门禁红了一次，红得对；修的是门禁不是被测代码。
+
+### 10.4 阻塞项：只有尾部约 70 个包是 tick 精确的（未修）
+
+`queryEntitySnapshotAtOrBeforeTick` 的语义是「取 at-or-before 的最新检查点」。
+检查点分两层：一个**有界的实时窗口**（重放该窗口内的逐包事件）和一个
+**稀疏归档**（`thinHistoryArchive`）。实测 bagel：
+
+```
+$ ./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" --history-stats
+history archive=96 ticks=[56148..129125] medianGap=128 maxGap=54392
+history liveCheckpoints=2 ticks=[129210..129210] maxGap=0 packets=68 events=1155 dropped=172
+```
+
+归档的完整 tick 列表（原始输出，可自行重算间距）：
+
+```
+56277 56405 56489 56489 56617 56745 56873 56943 56943 57071 57199 57327 57404 57404
+57532 57660 57788 57829 112221 112684 112720 113225 ... 129125
+                 ^^^^^^^^^^^^^^^^^^^ 54392 tick 的洞（约 13.7 分钟）
+```
+
+两个可复核的事实：
+
+1. **`57829 → 112221` 之间没有任何保留快照。** 落在这个区间的 tick 会解析到
+   57829 那个检查点，即最远 **54392 tick（约 13.7 分钟）** 之前的实体位置。
+2. **`56489 56489`、`56943 56943`、`57404 57404`、`124508 124508`… 成对重复。**
+   每次 flush 之后 `packetOrdinal` 归零，而归零后又满足
+   `packetOrdinal % checkpointStride == 0`，于是同一个 tick 被推入两个检查点
+   （`demo_header.cpp:1104` 与 `:1128`）。浪费内存，也污染按索引均匀抽稀。
+
+**这对主程序是实际影响**：`main.cpp:1260` 把 `Checkpoint` 与 `Available` 一起
+当作可绘制，然后 `buildInstances` + 逐个画。也就是说除最后约 6 秒外，
+实体画面来自最远 13.7 分钟之前的快照——屏幕上会是每十几分钟跳一次的「瞬移」，
+而不是平滑移动。
+
+**根因（已定位到代码，但未修）**：`thinHistoryArchive` 按**索引**均匀抽稀
+（`index = (last * slot) / (maxCount - 1)`），而调用方需要的是按 **tick** 均匀覆盖。
+每次 flush 追加的检查点数固定（≤8）但覆盖的 tick 跨度随实体活跃度变化，
+于是「按索引均匀」会过度采样检查点密集的区段、在稀疏区段留下空洞。
+
+**它同时解释了本轮两个刺眼的数字**：`trajectoryMaxStep=480250`、
+`trajectoryMaxZ=275845`。它们不是解码错误——`--trajectory-dump` 显示实体 724
+在 tick 56148 是一个玩家（`x=365.2 y=-341.5 z=251.7`），在 70760/85373/99985
+是同一个归档检查点里的一个 `CBeam`（`x=232944 y=253587 z=271883`），
+在 114598 又变回玩家（`x=329.3 y=-342.5 z=263.2`）。**实体索引在相隔很远的
+快照之间被复用**，而「位移」是在这些不同纪元的快照之间算的。
+
+> 关于 `CBeam.m_vecOrigin = 232944` 本身是不是解码错误：**未验证**。
+> 它的表项是 `Vector flags=0x0400 bits=19 range=[-16384,16384]`，而我们在能对齐的
+> tick 上对玩家位置与 oracle **逐位一致**（§10.3），所以 `readSendPropValue`
+> 的坐标路径至少对玩家是正确的。CBeam 这条没有找到 oracle 侧的同类样本
+> （扫了 17 个 tick，没有 CBeam 的 origin 变更），**记为未验证**。
+
+### 10.5 本轮新增的读数开关
+
+| 开关 | 作用 |
+|---|---|
+| `--trajectory N` | 沿 demo 等距取 N 个 tick，报告位移/Z 分布/摘要；现在同时给「原始」与「渲染」两套 z 读数 |
+| `--trajectory-dump` | 位移最大的实体的逐 tick 轨迹（stderr） |
+| `--trajectory-at t1,t2` | 每个实体在指定 tick 的**原始** origin 属性（stderr） |
+| `--rendered` | 与 `--trajectory-at` 合用：改印 `extractTransform` 的输出，即渲染器拿到的值 |
+| `--props-at t1,t2 [--entity N]` | 指定 tick 的属性；带 `--entity` 时打印该实体全部属性（含 `m_nTickBase`），用于与 oracle 对齐 |
+| `--dump-class-props <substr>` | 扁平发送表：槽位、owner、名字、类型、`flags`/`bits`/`range`。对 `ent-oracle 3` 的形状 |
+| `--history-stats` | 归档/实时窗口的 tick 列表与间距，即 §10.4 的读数 |
+
+全部输出走 stderr，stdout 仍是**单个可解析的 JSON 对象**；
+默认（不带这些开关）输出与 `evidence/probe-baseline/` 冻结的内容逐字节一致。
+
+### 10.6 本轮未验证 / 已知限制
+
+- **画面仍无人工确认。** §10.1 的端到端读数证明渲染器**收到了** `z=407.836273`，
+  不证明屏幕上画对了。
+- **逐 tick 位置对照只在 bagel 的实时窗口内做过**（12 个实体 × 4 个 tick = 40 个值）。
+  其余 8 份 oracle 语料没有做逐值对照，因为它们的实时窗口同样只有尾部几十个包。
+- **§10.4 的阻塞项没有修。** 修它需要把 `thinHistoryArchive` 改成按 tick 抽稀、
+  修掉 flush 后的重复检查点，并决定主程序在 `Checkpoint` 下应该怎么画
+  （冻结？插值？还是要求 tick 精确？）。三者都没做。
+- `trajectoryDigest` 在同一个二进制上两次运行相同，但它的输入里仍包含按
+  `unordered_map` 顺序遍历的实体（修复后 origin 的选择已确定，但**遍历顺序**
+  仍是实现定义的）。跨编译器/跨 STL 版本不应假定一致。
+- CBeam 的 `m_vecOrigin = 232944`（§10.4 末尾）未归因。
+- `SendPropType` 没有无符号区分（我们的 `Int` 对应 oracle 的 `UnsignedInt`）。
+  逐槽对照时这一列不可比；是否有符号扩展错误**未验证**。
+

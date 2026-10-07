@@ -1,8 +1,11 @@
 # TF2_Native_Test
 
-P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线）的隔离测试树。
-P1 共四个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 目录重复解析性能悬崖
-（`4868e7b`）、补上该修复漏掉的链接依赖（`9316416`），以及记录与判据加固（`f38bcf6`）。
+P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
+的隔离测试树。
+
+P1 共五个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 目录重复解析性能悬崖
+（`4868e7b`）、补上该修复漏掉的链接依赖（`9316416`），以及两次记录与判据加固
+（`f38bcf6` / `a2c584f`）。逐 tick 位移那一条见 `ACCEPTANCE-P1-2026-10-06.md` §10。
 
 - 源目录 `D:\TF2_Demo_Player` **本次未改动**（`work/native-mvp-source` 仍是
   `d585af8`，`git status` 干净）。
@@ -15,8 +18,9 @@ P1 共四个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 
 |---|---|
 | `ACCEPTANCE-P0-2026-10-06.md` | **P0 主验收文档**，按清单的强制验收清单逐项填写 |
 | `HANDOFF-P0-2026-10-06.md` | P0 的可并入主线的交接条目 |
-| `ACCEPTANCE-P1-2026-10-06.md` | **P1 第 1 项验收**：`m_nModelIndex` → `modelprecache` → 可加载路径 |
+| `ACCEPTANCE-P1-2026-10-06.md` | **P1 第 1 项验收**：§1–§9 模型引用（`m_nModelIndex` → `modelprecache` → 可加载路径），§10 逐 tick 位移 |
 | `HANDOFF-P1-2026-10-06.md` | P1 第 1 项的交接条目（含对旧文档 `requests=0` 归因的更正） |
+| `oracle-trajectory-check.py` | **逐值**门禁：与独立实现（demostf）按 tick 对照实体位置。tick 对齐按值推导，不硬编码 |
 | `fix-P0-entity-messages.patch` | 只含 `native/` 的协议修复补丁（**不含** `226d119` 的分类器修正） |
 | `evidence/probe-baseline/` | **冻结**的 9 份探针报告（`recording_stream=` / `index_state=` 两行加入之前的二进制产出），供 `check-probe-output-additive.sh` 当基线。不要用 `run-demos.sh` 覆盖它 |
 | `evidence/probe-baseline/added-lines.txt` | 同上，冻结的是 P1 新增的两行（`sound_precache_entries=` / `asset_refs=`）。剥离的行也要有基线，否则「additive」等于「没人验证」 |
@@ -51,6 +55,19 @@ timeout 60 ./native/build-nmake/tf2_demo_native.exe --tf-root "$TF" --demo "$BAG
   --audio-device 6 --metrics-file "D:/TF2_Native_Test/evidence/p1/bagel-after-fix.csv"
 head -3 evidence/p1/bagel-after-fix.csv    # 首帧应在 ~18 s 出现
 
+# P1 逐 tick 位移与 z 读数（详见验收文档 §4.2）
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --trajectory 24 2>/dev/null | tr ',' '\n' | grep trajectory
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --trajectory-at 129211 --rendered 2>&1 >/dev/null | grep 'entity=1 '
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --history-stats 2>&1 >/dev/null | head -2
+
+# 逐值门禁（约 1.5 分钟）
+PY=C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
+$PY oracle-trajectory-check.py --ticks 4              # GATE=PASS, compared=40
+$PY oracle-trajectory-check.py --ticks 2 --mutation   # MUTATION-CAUGHT=PASS
+
 # 只读头 1072 字节的独立 Python 头解析器，可覆盖全量语料（秒级）
 python corpus-header-scan.py --demos-dir "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos"
 # 语料抽样与 Rust oracle 逐值对照（自带 --selftest）
@@ -72,8 +89,21 @@ bash run-corpus-evidence.sh
 | `native/build-nmake/entity_protocol_probe.exe` | 协议普查：包数、消息类型直方图、实体失败坐标、实例基线、precache 表（`soundprecache` / `modelprecache`）、资产引用分解、录制类型（头字段 + 流内 STV 位） |
 | `native/build-nmake/entity_message_fixture_probe.exe` | 58 个 bit-exact 合成 wire fixture，覆盖 baseline/delta/Preserve/Leave/Delete |
 | `native/build-nmake/presentation_probe.exe` | 视图数学 / 录制类型分类 / 投射物字段 / 全跨度 seek 自检 |
-| `native/build-nmake/entity_model_probe.exe` | 资产引用 → 渲染请求；`--tf-root` + `--demo` 给出 `requests` / `demoRenderable` / `vpkExtracts`；`--self-test` 校验实例矩阵 |
+| `native/build-nmake/entity_model_probe.exe` | 资产引用 → 渲染请求；`--tf-root` + `--demo` 给出 `requests` / `demoRenderable` / `vpkExtracts`；`--self-test` 校验实例矩阵；诊断开关见下 |
 | `native/build-nmake/tf2_demo_native.exe` | 主程序 |
+
+`entity_model_probe` 的诊断开关（**全部输出走 stderr**，stdout 仍是单个可解析 JSON；
+不带这些开关时输出与 `evidence/probe-baseline/` 冻结内容逐字节一致）：
+
+| 开关 | 作用 |
+|---|---|
+| `--trajectory N` | 沿 demo 等距取 N 个 tick，报告位移 / Z 分布 / 摘要（`trajectoryRawZZero` 是「解码器原始 z」的对照读数） |
+| `--trajectory-dump` | 位移最大的实体的逐 tick 轨迹 |
+| `--trajectory-at t1,t2` | 每个实体在指定 tick 的**原始** origin 属性 |
+| `--rendered` | 与 `--trajectory-at` 合用：改印 `extractTransform` 的输出，即渲染器拿到的值 |
+| `--props-at t1,t2 [--entity N]` | 指定 tick 的属性；带 `--entity` 时打印该实体全部属性（含 `m_nTickBase`），用于与 oracle 对齐 |
+| `--dump-class-props <substr>` | 扁平发送表：槽位 / owner / 名字 / 类型 / `flags` / `bits` / `range`。形状对 `ent-oracle 3` |
+| `--history-stats` | 归档与实时窗口的 tick 列表和间距 |
 
 ## 注意
 
@@ -112,6 +142,20 @@ bash run-corpus-evidence.sh
   在 bagel 上的 117 秒读成了「卡死」（其实是我给的 `timeout` 比它短），
   差点去查一个不存在的回归。给足时间后它正常返回。同类事故还有 `mutate.sh` 的
   `PATTERN NOT FOUND`：真因是重构让补丁模式过期，不是代码出错。
+  同一天更隐蔽的一次：`--trajectory-at` 用**后缀匹配** `name` 以 `m_vecOrigin` 结尾，
+  于是 `m_vecOrigin[2]` 被结构性排除在视野外，我差点把「仪器看不见」报成
+  「解码器丢了属性」。**写过滤器时先问：如果缺陷就是「我要找的那个东西不在」，
+  这个过滤器能看见它吗？**
+- **玩家的 `m_vecOrigin` 是 VectorXY，它的 `z` 恒为 0 是设计如此。** 真实 Z 在
+  同名的兄弟属性 `m_vecOrigin[2]`（Float）里，值落在 `EntityPropertyValue.x`。
+  任何读玩家位置的地方都要走 `EntityModelResolver::extractTransform`
+  （内部是 `readVectorProperty`），不要直接取 `m_vecOrigin` 的 `z`。
+  同理 `DT_TFLocalPlayerExclusive` 与 `DT_TFNonLocalPlayerExclusive` 两份 origin
+  在同一 tick 上可以相距约 4000 单位，选择必须确定（优先 Local）。
+- **实体历史只在尾部窗口内是 tick 精确的。** 归档快照按**索引**抽稀，
+  在 bagel 上有 54392 tick（约 13.7 分钟）的空洞，而 `main.cpp:1260` 把
+  `Checkpoint` 当作可绘制。**这是 P1 剩下的阻塞项，不是已修项。**
+  用 `--history-stats` 复核，不要假定任意 tick 都能拿到准确位置。
 - **语料是活的。** `tf/demos` 是用户正在录的目录，会话中途就从 1643 涨到 1645 份。
   任何按 `--sample` 抽样再与「上一次的报告目录」比对的脚本都会被这个漂移误伤；
   比较前先对**本次实际用到的文件清单**取快照再取哈希。

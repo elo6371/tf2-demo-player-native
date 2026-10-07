@@ -44,6 +44,20 @@ step "baseline: unmodified reports must PASS"
 OUT=$(run "$NEG")
 echo "$OUT" | grep -E '^(clean|dirty|skipped|sum_packets)=' | sed 's/^/  /'
 if grep -q '^CORPUS-CENSUS=PASS$' <<<"$OUT"; then ok "baseline PASS"; else bad "baseline not PASS"; fi
+# The baseline skip count is *not* assumed to be zero. Seven of the 1644 corpus
+# demos are truncated-tail recordings (TF2 writes the header at record start and
+# only backfills it on dem_stop), so a `--sample 24` that happens to include one
+# legitimately reports skipped=1 before any mutation. Mutation I below must be
+# judged by the *increase* it causes, not by a hard-coded total: the previous
+# version asserted `skipped=1` and went red the first time the live corpus grew
+# enough for a truncated demo to land in the sample.
+BASE_SKIPPED=$(sed -n 's/^skipped=//p' <<<"$OUT" | head -1)
+if [[ "$BASE_SKIPPED" =~ ^[0-9]+$ ]]; then
+  ok "baseline skipped=$BASE_SKIPPED is a number"
+else
+  bad "baseline skipped is not a number (got '${BASE_SKIPPED}')"
+  BASE_SKIPPED=0
+fi
 # Informational: if the corpus grew, --sample picks different demos and new
 # reports appear. That is the environment moving, not a restore failure.
 EXTRA=$(cd "$NEG/reports" && ls *.txt | sort | comm -13 <(printf '%s\n' "${SAMPLED[@]}") - | wc -l)
@@ -64,6 +78,14 @@ if cut -d, -f1 "$NEG/corpus.csv" | grep -qxF -e "$VICTIM_DEMO" -e "$VICTIM_DEMO.
   ok "victim $VICTIM_DEMO is in the scanned set"
 else
   bad "victim $VICTIM_DEMO is NOT in corpus.csv -- the mutations below would be inert"
+fi
+# ...and it must not be one of the truncated-tail demos either: those are filed
+# as skipped, so mutating a counter inside one changes a report the verdict never
+# reads, and mutations A-H would pass by doing nothing.
+if grep -q '^index_state=ok' "$VICTIM"; then
+  ok "victim is a clean report (its counters are actually read)"
+else
+  bad "victim $VICTIM_DEMO is not index_state=ok -- mutations A-H would be inert"
 fi
 
 step "mutation A: entity_failures 0 -> 3 (must FAIL)"
@@ -148,7 +170,13 @@ cp "$VICTIM" "$VICTIM.orig"
 sed -i 's/^index_state=ok/index_state=truncated_tail/; s/ index=1 / index=0 /' "$VICTIM"
 OUT=$(run "$NEG")
 if grep -q '^CORPUS-CENSUS=PASS$' <<<"$OUT"; then ok "verdict stayed green (a skip is not a failure)"; else bad "verdict went red"; fi
-if grep -q '^skipped=1$' <<<"$OUT"; then ok "counted as skipped"; else bad "not counted as skipped"; fi
+MUT_SKIPPED=$(sed -n 's/^skipped=//p' <<<"$OUT" | head -1)
+EXPECT_SKIPPED=$((BASE_SKIPPED + 1))
+if [ "$MUT_SKIPPED" = "$EXPECT_SKIPPED" ]; then
+  ok "counted as skipped ($BASE_SKIPPED -> $MUT_SKIPPED)"
+else
+  bad "skip count did not rise by one: baseline=$BASE_SKIPPED mutated=${MUT_SKIPPED:-<absent>} expected=$EXPECT_SKIPPED"
+fi
 if grep -q 'truncated_tail_files=' <<<"$OUT"; then ok "named in truncated_tail_files"; else bad "not named"; fi
 mv "$VICTIM.orig" "$VICTIM"
 
