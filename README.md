@@ -1,6 +1,8 @@
 # TF2_Native_Test
 
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线）的隔离测试树。
+P1 共四个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 目录重复解析性能悬崖
+（`4868e7b`）、补上该修复漏掉的链接依赖（`9316416`），以及记录与判据加固（`f38bcf6`）。
 
 - 源目录 `D:\TF2_Demo_Player` **本次未改动**（`work/native-mvp-source` 仍是
   `d585af8`，`git status` 干净）。
@@ -18,6 +20,7 @@ P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引�
 | `fix-P0-entity-messages.patch` | 只含 `native/` 的协议修复补丁（**不含** `226d119` 的分类器修正） |
 | `evidence/probe-baseline/` | **冻结**的 9 份探针报告（`recording_stream=` / `index_state=` 两行加入之前的二进制产出），供 `check-probe-output-additive.sh` 当基线。不要用 `run-demos.sh` 覆盖它 |
 | `evidence/probe-baseline/added-lines.txt` | 同上，冻结的是 P1 新增的两行（`sound_precache_entries=` / `asset_refs=`）。剥离的行也要有基线，否则「additive」等于「没人验证」 |
+| `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
 | `verify-all.sh` | 一条命令跑完整证据链（9 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪）；`--quick` 把语料抽样降到 8 份 |
 
 ## 命令
@@ -41,6 +44,12 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 POV="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
 ./native/build-nmake/entity_protocol_probe.exe "$POV" | grep -E 'precache_entries|asset_refs='
 ./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$POV"
+
+# P1：主程序读数（会出声，必须 --audio-device 6）
+BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
+timeout 60 ./native/build-nmake/tf2_demo_native.exe --tf-root "$TF" --demo "$BAGEL" \
+  --audio-device 6 --metrics-file "D:/TF2_Native_Test/evidence/p1/bagel-after-fix.csv"
+head -3 evidence/p1/bagel-after-fix.csv    # 首帧应在 ~18 s 出现
 
 # 只读头 1072 字节的独立 Python 头解析器，可覆盖全量语料（秒级）
 python corpus-header-scan.py --demos-dir "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos"
@@ -89,6 +98,20 @@ bash run-corpus-evidence.sh
 - **被「剥离」的行等于没人验证的行。** 增量性检查剥掉新输出行才能比旧计数器，
   但剥掉之后那几行就再没有判据了。现在它们有独立的冻结基线
   （`evidence/probe-baseline/added-lines.txt`）。
+- **VPK 目录只能解析一次。** `VpkArchive::open()` 会把整个 `_dir.vpk` 目录树读进内存建哈希表
+  （`tf2_misc_dir.vpk` 几十 MB、约 5 万条目）。曾经 `ModelLoader::resolveAsset` 每查一个模型
+  就重开一遍所有 `_dir.vpk`，还要为 5 个伴生后缀各再来一遍 —— 505 条路径下光重复解析就 90 秒。
+  归档现在挂在 `AssetRoot` 上（`VpkArchiveSet`），只解析一次。
+  **改 `resolveAsset` / `hasCompanion` / `buildRenderRequests` 时不要退回去逐次 `VpkArchive::open`。**
+- **`asset_root.cpp` 与 `vpk_archive.cpp` 是一对。** `AssetRoot::archives()` 调用
+  `VpkArchiveSet::openDirectory`，所以任何编译 `asset_root.cpp` 的目标都必须同时链接
+  `vpk_archive.cpp`。2026-10-06 漏了 `native_install_smoke_probe` → 干净构建 LNK2019 →
+  NMAKE `Stop.` → 后面 4 个目标没建 → 门禁 `exe_count=17`（期望 21）。
+  **加新目标时用 `grep asset_root.cpp CMakeLists.txt` 核对一遍。**
+- **读数变红先怀疑仪器，不要先怀疑刚改的代码。** 2026-10-06 我把 `entity_model_probe`
+  在 bagel 上的 117 秒读成了「卡死」（其实是我给的 `timeout` 比它短），
+  差点去查一个不存在的回归。给足时间后它正常返回。同类事故还有 `mutate.sh` 的
+  `PATTERN NOT FOUND`：真因是重构让补丁模式过期，不是代码出错。
 - **语料是活的。** `tf/demos` 是用户正在录的目录，会话中途就从 1643 涨到 1645 份。
   任何按 `--sample` 抽样再与「上一次的报告目录」比对的脚本都会被这个漂移误伤；
   比较前先对**本次实际用到的文件清单**取快照再取哈希。
