@@ -446,12 +446,16 @@ for case_id in $CASES; do
       # The fixture is the sharpest witness: its whole branch table is pinned, so
       # the defect collapses the reading to zeros. The assertion is the refusal,
       # not merely a moved number -- the fixture must not print a summary that
-      # looks like a pass.
+      # looks like a pass. The literal carries the collapsed shape *and* the one
+      # number that moves the other way: armsWeapon reads 2, not 1, because
+      # entity 1 -- the reference the fixed route rescues, whose world index 11
+      # names the weapon while its model index 10 is arms -- falls back to the
+      # arms path too, alongside entity 10 which was built to be that case.
       "$MODELPROBE" --self-test > "$OUT/model.m10-selftest.json" 2> "$OUT/model.m10-selftest.txt"
       m10src=$?
       must_refuse "m10 world route gone -> fixture self-test refuses" \
         "$OUT/model.m10-selftest.txt" \
-        'weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=1' \
+        'weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2' \
         "$m10src"
       # The real demo: the route's counters collapse while the property keeps
       # being read -- which is exactly what separates "did not read it" from
