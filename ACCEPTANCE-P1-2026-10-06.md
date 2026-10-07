@@ -89,6 +89,23 @@ P1 喂进 505 条真实路径后，光重复解析就花掉 90 秒，主程序�
 - 第三个提交（补链，由门禁抓出）：`git diff 4868e7b..9316416 -- native/ | sha256sum` =
   `b1889fa05036a7b96f20b3fb3ba8b3cd7745c631dec7efd04e8154b2d0b6861d`，`native/CMakeLists.txt` +5/-1（见 §2.5）
 
+**逐 tick 位移（§10）新增三个提交**：
+
+- `6cb0ecf`（z 合并 + 确定性属性选择）：`git diff a2c584f..6cb0ecf -- native/ | sha256sum` =
+  `ce2a53e78490de2a4ba6cfeb7ff0520936b413310047f2dc9f711d71f0d93bd3`
+  （`entity_model.cpp` +95/-12、`entity_model_probe.cpp` +530/-12；
+  含 `oracle-trajectory-check.py`，整体 `b980a00a…`）
+- `cc17ebe`（普查判据改成按增量判定 + 文档）：`7a878b01…`
+- `dab6ce1`（把逐值门禁接成 `verify-all.sh` 第 10 步）：`0db83d55…`
+
+| 文件 | 改动 | 内容 |
+|---|---|---|
+| `native/src/entity_model.cpp` | +95/-12 | `readVectorProperty`（VectorXY 的 z 由 `m_vecOrigin[2]` 补齐）；`preferCandidate` / `exclusiveRank`，`findProperty` 与 `readVectorProperty` 都改成确定选择 |
+| `native/tools/entity_model_probe.cpp` | +530/-12 | `--trajectory` / `--trajectory-dump` / `--trajectory-at` / `--rendered` / `--props-at` / `--entity` / `--dump-class-props` / `--history-stats`；全部走 stderr |
+| `oracle-trajectory-check.py` | 新增 | 与独立实现逐值对照，tick 对齐按值推导，带 `--mutation` 与 `compared==0` 失败 |
+| `census-negative-test.sh` | +30/-6 | mutation I 改判**增量**（`skipped` 必须 +1）而非硬编码总数；并断言 victim 本身是 `index_state=ok` |
+| `verify-all.sh` | +38/-10 | 新第 10 步：逐值门禁 + 其变异用例；步骤标签 9 → 10 |
+
 | 文件 | 改动 | 内容 |
 |---|---|---|
 | `native/include/demo_header.h` | +41 | `AssetReference::modelPathFromPrecache`；`DemoNetworkSummary` 的 `modelPrecache` 表与 6 个表级计数、4 个资产解析计数 |
@@ -792,7 +809,40 @@ history liveCheckpoints=2 ticks=[129210..129210] maxGap=0 packets=68 events=1155
 全部输出走 stderr，stdout 仍是**单个可解析的 JSON 对象**；
 默认（不带这些开关）输出与 `evidence/probe-baseline/` 冻结的内容逐字节一致。
 
-### 10.6 本轮未验证 / 已知限制
+### 10.6 顺带修掉的判据脆弱性：`census-negative-test.sh` 的 mutation I
+
+跑本轮验收链时第 9 步变红了，但**不是因为代码改动**：
+
+```
+=== mutation I: index_state=truncated_tail must SKIP, not FAIL and not clean ===
+  OK   verdict stayed green (a skip is not a failure)
+  FAIL not counted as skipped
+```
+
+mutation I 断言 `skipped=1`，这**隐含假设基线里没有已跳过的 demo**。而语料是活的
+（1644 份里有 7 份是「录制中断」的 `truncated_tail`），一旦 `--sample 24` 抽到其中一份，
+基线本身就是 `skipped=1`，变异后是 2 —— 断言为红，而红的原因是**环境在动**，
+不是代码坏了。这一次的现场：`reports=53 clean=23 skipped=1 dirty=0
+sum_packets=1260289`，`extra_reports=21 (corpus grew -> sample moved)`。
+
+修法：读基线的 `skipped`，断言变异后**恰好 +1**，并断言基线值确实是个数字
+（否则缺行会让比较恒真）。修后：
+
+```
+  OK   counted as skipped (1 -> 2)
+```
+
+顺带加了一条同类断言：**victim 自己必须是 `index_state=ok`**。若 victim 恰好是被跳过的那份
+报告，mutation A–H 就是在改一份「判据根本不读」的报告，会以「什么都没做」的方式通过 ——
+与 §「判据不能只写没有失败」是同一类错误。
+
+### 10.7 逐值门禁已接进验收链（`verify-all.sh` 第 10 步）
+
+一条不在链里的判据等于没人跑的判据。第 10 步跑 `oracle-trajectory-check.py`（`--ticks 4`）
+与它的变异用例，断言 `TRAJECTORY-ORACLE=PASS (compared=40, mutation caught)`；
+`compared` 低于 20 或变异没抓住都算失败。
+
+### 10.8 本轮未验证 / 已知限制
 
 - **画面仍无人工确认。** §10.1 的端到端读数证明渲染器**收到了** `z=407.836273`，
   不证明屏幕上画对了。
