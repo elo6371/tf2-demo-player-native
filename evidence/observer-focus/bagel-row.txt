@@ -1,0 +1,3 @@
+observer-focus at tick=129277 status=available resolved=129277 states=2048
+  observer entity=1 class=247 CTFPlayer mode=4 targetHandle=1718275 targetIndex=3 targetSerial=839 targetPresent=1 follows=1 targetOrigin=-3244.337891,198.821442,352.031250 selfOrigin=-3244.337891,198.821442,352.031250
+observer-focus-summary ticks=1 examined=1 emitted=1 withMode=1 modeNonZero=1 follows=1 targetInRange=1 targetPresent=1 targetMissing=0 targetOutOfRange=0

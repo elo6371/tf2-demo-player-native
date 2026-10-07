@@ -19,6 +19,9 @@
 #  12. prove a weapon's render request names the weapon and not the hands that
 #      hold it (m_nModelIndex is the first-person composite on a weapon entity;
 #      the world pass has to use m_iWorldModelIndex)
+#  13. resolve TF2's observer pair -- m_iObserverMode and m_hObserverTarget -- and
+#      measure what believing it would cost (it is left unwired on purpose; see
+#      observer-focus-check.sh for the 2729-unit reading that says why)
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer
 # does not have to read twelve reports. Every step writes its raw output to
@@ -259,6 +262,37 @@ if grep -q 'WEAPON-WORLD-MODEL=PASS' "$WSMODEL" \
   echo "WEAPON-WORLD-MODEL=PASS (fixture_ok=$WS_FIXTURE, live_window_packets=$WS_PACKETS)"
 else
   echo "WEAPON-WORLD-MODEL=FAIL (fixture_ok=$WS_FIXTURE, live_window_packets=${WS_PACKETS:-0})"; rc_all=1
+fi
+
+step "13/13 observer focus (who a spectator is watching, and what it would cost)"
+# A camera driven by the view entity alone is right for a live player and wrong
+# for a spectator: TF2 names the subject in m_iObserverMode / m_hObserverTarget,
+# and this pipeline read neither. Step 13 asserts the pair resolves, that it agrees
+# with the oracle's own packet, and -- because the obvious wiring is wrong on this
+# demo -- pins the distance it would move the camera, so the round's refusal to
+# follow is a measurement rather than an opinion. Run with --mutation too: both
+# compared values are nudged by one and have to go red.
+OBFOCUS="$OUT/13-observer-focus.txt"
+bash observer-focus-check.sh > "$OBFOCUS" 2>&1
+cat "$OBFOCUS"
+OB_OK=$(grep -c '^  OK   ' "$OBFOCUS" || true)
+OB_DIV=$(sed -n 's/^camera-to-target distance = \([0-9]*\) units.*/\1/p' "$OBFOCUS" | head -1)
+if grep -q 'OBSERVER-FOCUS=PASS' "$OBFOCUS" && [ "${OB_OK:-0}" -gt 0 ] \
+   && [ "${OB_DIV:-0}" -gt 0 ]; then
+  echo "OBSERVER-FOCUS=PASS (assertions_ok=$OB_OK, camera-to-target=${OB_DIV}u)"
+else
+  echo "OBSERVER-FOCUS=FAIL (assertions_ok=${OB_OK:-0}, camera-to-target=${OB_DIV:-0})"; rc_all=1
+fi
+# The gate's own mutation lives inside step 13 rather than in mutate.sh, because the
+# case it guards did not ship: there is no source line to reinstate, so what has to
+# be shown able to fail is the comparison itself.
+OBMUT="$OUT/13-observer-focus-mutation.txt"
+bash observer-focus-check.sh --mutation > "$OBMUT" 2>&1
+if grep -q 'MUTATION-CAUGHT=PASS' "$OBMUT" && grep -qc '^  FAIL ' "$OBMUT"; then
+  OB_RED=$(grep -c '^  FAIL ' "$OBMUT")
+  echo "OBSERVER-FOCUS-MUTATION=PASS (perturbations caught, red_lines=$OB_RED)"
+else
+  echo "OBSERVER-FOCUS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
 printf '\n'

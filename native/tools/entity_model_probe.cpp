@@ -248,6 +248,125 @@ bool runSelfTest() {
   if (std::string(refs[6].modelPath) != kWeaponPath || !refs[6].modelPathFromWorldModelIndex) return false;
   if (std::string(refs[9].modelPath) != kArmsPath || refs[9].modelPathFromWorldModelIndex) return false;
   if (std::string(refs[10].modelPath) != kArmsPath || !refs[10].modelPathFromWorldModelIndex) return false;
+
+  // -------------------------------------------------------------------------
+  // Observer-focus fixture.
+  //
+  // resolveObserverFocus has one job: say whether the camera belongs on
+  // somebody else, and be right about when it does not. Every way of not
+  // having a target is built here rather than trusted to the corpus, because
+  // the corpus only exercises the two branches that occur (in-eye with a
+  // present target, and mode 0):
+  //
+  //   1  mode 4, target h(2,867)      -> follows; serial decodes to 867
+  //   2  mode 0                       -> playing, nothing to follow
+  //   3  mode 4, target h(1000,1)     -> index past the snapshot
+  //   4  mode 4, target h(5,1)        -> slot 5 holds nothing (classId -1)
+  //   6  mode 1, target h(2,869)      -> deathcam: a scripted move, NOT followed
+  //   7  no m_iObserverMode           -> mode absent is not mode 0
+  //   8  mode 4, no target            -> nothing to follow
+  //   9  mode 4, target h(2047,3)     -> INVALID_EHANDLE_INDEX (the field's init)
+  //  10  mode 5, target 0xFFFFFFFF    -> the wire sentinel
+  //  11  mode 5, target h(2,868)      -> chase follows too
+  //
+  // Entity 6 is the case worth guarding: if deathcam were ever folded into the
+  // follow set, the corpus would happily agree (both demos die at least once),
+  // so only this fixture can say the set is exactly {in-eye, chase}.
+  // -------------------------------------------------------------------------
+  {
+    std::vector<tf2::native::EntityState> obsStates(12);
+    for (auto& obsState : obsStates) obsState.classId = 0;
+    const auto setObs = [&obsStates](std::size_t entity, const char* name, std::int64_t value) {
+      tf2::native::EntityPropertyValue prop;
+      prop.type = tf2::native::SendPropType::Int;
+      prop.intValue = value;
+      obsStates[entity].properties[name] = prop;
+    };
+    const auto handle = [](std::uint32_t index, std::uint32_t serial) {
+      return static_cast<std::int64_t>((serial << 11) | index);
+    };
+    const char* kModeKey = "DT_BasePlayer.m_iObserverMode";
+    const char* kTargetKey = "DT_BasePlayer.m_hObserverTarget";
+    setObs(1, kModeKey, 4); setObs(1, kTargetKey, handle(2, 867));
+    setObs(2, kModeKey, 0);
+    setObs(3, kModeKey, 4); setObs(3, kTargetKey, handle(1000, 1));
+    setObs(4, kModeKey, 4); setObs(4, kTargetKey, handle(5, 1));
+    setObs(5, kModeKey, 4); setObs(5, kTargetKey, handle(6, 1));
+    obsStates[5].classId = -1; // "(1000, 1)"-style out-of-range guard: slot empty
+    setObs(6, kModeKey, 1); setObs(6, kTargetKey, handle(2, 869));
+    setObs(7, kTargetKey, handle(2, 870));
+    setObs(8, kModeKey, 4);
+    setObs(9, kModeKey, 4); setObs(9, kTargetKey, handle(2047, 3));
+    setObs(10, kModeKey, 5); setObs(10, kTargetKey, 0xFFFFFFFFLL);
+    setObs(11, kModeKey, 5); setObs(11, kTargetKey, handle(2, 868));
+
+    std::size_t fixtureFollows = 0, fixturePresent = 0, fixtureInRange = 0;
+    std::size_t fixtureOutOfRange = 0, fixtureMissing = 0, fixtureWithMode = 0;
+    std::size_t fixtureNonZero = 0, fixtureHasTarget = 0;
+    std::uint16_t fixtureSerial = 0;
+    for (std::size_t entity = 0; entity < obsStates.size(); ++entity) {
+      if (obsStates[entity].classId < 0) continue;
+      const auto resolution = tf2::native::resolveObserverFocus(obsStates[entity], obsStates);
+      if (resolution.hasMode) {
+        ++fixtureWithMode;
+        if (resolution.mode != 0) ++fixtureNonZero;
+      }
+      if (resolution.hasTarget) {
+        ++fixtureHasTarget;
+        if (resolution.targetInRange) {
+          ++fixtureInRange;
+          if (resolution.targetPresent) ++fixturePresent;
+          else ++fixtureMissing;
+        } else {
+          ++fixtureOutOfRange;
+        }
+      }
+      if (resolution.followsTarget) ++fixtureFollows;
+      if (entity == 1) fixtureSerial = resolution.targetSerial;
+      std::fprintf(stderr,
+                   "  observer-fixture entity=%zu mode=%lld targetIndex=%u serial=%u inRange=%d "
+                   "present=%d follows=%d\n",
+                   entity, static_cast<long long>(resolution.mode),
+                   static_cast<unsigned>(resolution.targetIndex),
+                   static_cast<unsigned>(resolution.targetSerial),
+                   resolution.targetInRange ? 1 : 0, resolution.targetPresent ? 1 : 0,
+                   resolution.followsTarget ? 1 : 0);
+    }
+    std::fprintf(stderr,
+                 "observer-focus-fixture cases=%zu withMode=%zu modeNonZero=%zu hasTarget=%zu "
+                 "inRange=%zu present=%zu missing=%zu outOfRange=%zu follows=%zu serial=%u\n",
+                 obsStates.size() - 1, fixtureWithMode, fixtureNonZero, fixtureHasTarget,
+                 fixtureInRange, fixturePresent, fixtureMissing, fixtureOutOfRange,
+                 fixtureFollows, static_cast<unsigned>(fixtureSerial));
+    std::fflush(stderr);
+    if (fixtureWithMode != 9) return false;
+    if (fixtureNonZero != 8) return false;
+    if (fixtureHasTarget != 8) return false;
+    if (fixtureInRange != 5) return false;
+    if (fixturePresent != 4) return false;
+    if (fixtureMissing != 1) return false;
+    if (fixtureOutOfRange != 3) return false;
+    // Exactly the two built to be followed -- in-eye at a present target, chase
+    // at a present target. If this ever reads 3, deathcam leaked into the set.
+    if (fixtureFollows != 2) return false;
+    if (fixtureSerial != 867) return false;
+    // And per-case, because a counter that is right for the wrong pair of cases
+    // is exactly what the count alone cannot see.
+    const auto focusAt = [&obsStates](std::size_t entity) {
+      return tf2::native::resolveObserverFocus(obsStates[entity], obsStates);
+    };
+    if (!focusAt(1).followsTarget || focusAt(1).targetIndex != 2) return false;
+    if (focusAt(2).followsTarget) return false;
+    if (focusAt(3).followsTarget || focusAt(3).targetInRange) return false;
+    if (focusAt(4).followsTarget || !focusAt(4).targetInRange || focusAt(4).targetPresent) return false;
+    if (focusAt(6).followsTarget) return false;
+    if (focusAt(6).mode != 1) return false;
+    if (focusAt(7).followsTarget || focusAt(7).hasMode) return false;
+    if (focusAt(8).followsTarget || focusAt(8).hasTarget) return false;
+    if (focusAt(9).followsTarget || focusAt(9).targetInRange) return false;
+    if (focusAt(10).followsTarget || focusAt(10).targetInRange) return false;
+    if (!focusAt(11).followsTarget || focusAt(11).mode != 5) return false;
+  }
   return true;
 }
 
@@ -908,6 +1027,125 @@ void printWeaponModels(const tf2::native::DemoNetworkSummary& summary) {
   std::fflush(stderr);
 }
 
+const char* viewSourceName(tf2::native::DemoViewSource source) {
+  switch (source) {
+    case tf2::native::DemoViewSource::CmdInfo: return "cmdinfo";
+    case tf2::native::DemoViewSource::FixAngle: return "fixangle";
+    case tf2::native::DemoViewSource::None: return "none";
+  }
+  return "none";
+}
+
+// The demo's own camera track at the given ticks: the sample the playback loop
+// would hand the renderer via findObserverViewAtOrBeforeTick. This is the
+// independent witness for "where was the recording player actually looking" --
+// dem_cmdinfo is written by the recording client itself, so it cannot be biased
+// by anything this decoder believes about observer targets.
+void printCameraAt(const tf2::native::DemoNetworkSummary& summary,
+                   const std::vector<std::int32_t>& ticks) {
+  for (const std::int32_t tick : ticks) {
+    tf2::native::DemoViewSample sample;
+    const bool found = tf2::native::findObserverViewAtOrBeforeTick(summary, tick, sample);
+    std::fprintf(stderr,
+                 "camera at tick=%d found=%d sample_tick=%d source=%s origin=%.6f,%.6f,%.6f "
+                 "angles=%.6f,%.6f originValid=%d anglesValid=%d\n",
+                 tick, found ? 1 : 0, sample.tick, viewSourceName(sample.source),
+                 sample.origin[0], sample.origin[1], sample.origin[2],
+                 sample.angles[0], sample.angles[1],
+                 sample.hasOrigin ? 1 : 0, sample.hasAngles ? 1 : 0);
+  }
+  std::fflush(stderr);
+}
+
+// One line per (tick, entity) for the observer-focus resolution: what mode the
+// entity's own state says it is in, where its m_hObserverTarget points, and
+// whether the camera should follow that target. With --entity N only that view
+// entity is printed; without it every entity whose mode is non-zero is printed
+// (a zero-mode entity has nothing to say) and the summary line counts every
+// entity that was examined, printed or not.
+void printObserverFocusAt(const tf2::native::DemoNetworkSummary& summary,
+                          const std::vector<std::int32_t>& ticks, int viewEntityIndex) {
+  std::size_t examined = 0, emitted = 0, withMode = 0, modeNonZero = 0, follows = 0;
+  std::size_t targetPresent = 0, targetInRange = 0, targetOutOfRange = 0, targetMissing = 0;
+  for (const std::int32_t tick : ticks) {
+    std::vector<tf2::native::EntityState> states;
+    std::int32_t resolvedTick = 0;
+    const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, tick, states, &resolvedTick);
+    // `resolved` is the tick the states actually came from. An archive answer is
+    // stale by construction -- it is the newest archived snapshot at or before the
+    // query tick, which can be a thousand ticks behind it -- so printing the pair
+    // makes the staleness a reading. A check that compares a checkpoint value with
+    // a packet written later is comparing two different instants, and this line is
+    // what lets it say so.
+    std::fprintf(stderr, "observer-focus at tick=%d status=%s resolved=%d states=%zu\n",
+                 tick, snapshotStatusName(status), resolvedTick, states.size());
+    for (std::size_t entity = 0; entity < states.size(); ++entity) {
+      if (viewEntityIndex >= 0 && entity != static_cast<std::size_t>(viewEntityIndex)) continue;
+      if (states[entity].classId < 0) continue;
+      ++examined;
+      // A synthetic entity in the fixture has no snapshot status; the demos do.
+      const auto resolution = tf2::native::resolveObserverFocus(states[entity], states);
+      if (resolution.hasMode) {
+        ++withMode;
+        if (resolution.mode != 0) ++modeNonZero;
+      }
+      if (resolution.hasTarget) {
+        if (resolution.targetInRange) {
+          ++targetInRange;
+          if (resolution.targetPresent) ++targetPresent;
+          else ++targetMissing;
+        } else {
+          ++targetOutOfRange;
+        }
+      }
+      if (resolution.followsTarget) ++follows;
+      // Quiet unless there is something to say: with no --entity this walks
+      // every entity in the snapshot, and a line per zero-mode player would bury
+      // the few that are actually spectating.
+      const bool interesting = viewEntityIndex >= 0 || (resolution.hasMode && resolution.mode != 0);
+      if (!interesting) continue;
+      ++emitted;
+      const char* className = "-";
+      if (static_cast<std::size_t>(states[entity].classId) < summary.serverClassSchemas.size()) {
+        className = summary.serverClassSchemas[static_cast<std::size_t>(states[entity].classId)].name.c_str();
+      }
+      std::fprintf(stderr,
+                   "  observer entity=%zu class=%d %s mode=%lld targetHandle=%u targetIndex=%u "
+                   "targetSerial=%u targetPresent=%d follows=%d",
+                   entity, states[entity].classId, className,
+                   static_cast<long long>(resolution.mode), resolution.targetHandle,
+                   static_cast<unsigned>(resolution.targetIndex),
+                   static_cast<unsigned>(resolution.targetSerial),
+                   resolution.targetPresent ? 1 : 0, resolution.followsTarget ? 1 : 0);
+      // Where the focus would land, read through the same extractTransform the
+      // playback loop uses -- a property being decoded is not the claim; the
+      // claim is that the camera has somewhere correct to go.
+      if (resolution.followsTarget) {
+        const auto targetTransform = tf2::native::EntityModelResolver::extractTransform(
+            states[resolution.targetIndex]);
+        if (targetTransform.hasOrigin) {
+          std::fprintf(stderr, " targetOrigin=%.6f,%.6f,%.6f",
+                       targetTransform.origin[0], targetTransform.origin[1], targetTransform.origin[2]);
+        } else {
+          std::fprintf(stderr, " targetOrigin=<none>");
+        }
+      }
+      const auto selfTransform = tf2::native::EntityModelResolver::extractTransform(states[entity]);
+      if (selfTransform.hasOrigin) {
+        std::fprintf(stderr, " selfOrigin=%.6f,%.6f,%.6f",
+                     selfTransform.origin[0], selfTransform.origin[1], selfTransform.origin[2]);
+      }
+      std::fprintf(stderr, "\n");
+    }
+  }
+  std::fprintf(stderr,
+               "observer-focus-summary ticks=%zu examined=%zu emitted=%zu withMode=%zu modeNonZero=%zu "
+               "follows=%zu targetInRange=%zu targetPresent=%zu targetMissing=%zu targetOutOfRange=%zu\n",
+               ticks.size(), examined, emitted, withMode, modeNonZero, follows,
+               targetInRange, targetPresent, targetMissing, targetOutOfRange);
+  std::fflush(stderr);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -918,6 +1156,8 @@ int main(int argc, char** argv) {
   bool trajectoryDump = false;
   std::vector<std::int32_t> trajectoryAt;
   std::vector<std::int32_t> propsAt;
+  std::vector<std::int32_t> cameraAt;
+  std::vector<std::int32_t> observerFocusAt;
   int propsAtEntity = -1;
   std::string classPropsFilter;
   std::string precacheFilter;
@@ -938,6 +1178,8 @@ int main(int argc, char** argv) {
     else if (arg == "--rendered") renderedOrigins = true;
     else if (arg == "--entity" && i + 1 < argc) propsAtEntity = static_cast<int>(std::strtol(argv[++i], nullptr, 10));
     else if (arg == "--props-at" && i + 1 < argc) parseTickList(argv[++i], propsAt);
+    else if (arg == "--camera-at" && i + 1 < argc) parseTickList(argv[++i], cameraAt);
+    else if (arg == "--observer-focus-at" && i + 1 < argc) parseTickList(argv[++i], observerFocusAt);
     else if (arg == "--trajectory" && i + 1 < argc) trajectoryTicks = std::strtoul(argv[++i], nullptr, 10);
     else if (arg == "--trajectory-dump") trajectoryDump = true;
     else if (arg == "--trajectory-at" && i + 1 < argc) parseTickList(argv[++i], trajectoryAt);
@@ -1157,6 +1399,8 @@ int main(int argc, char** argv) {
       else printOriginsAt(summary, trajectoryAt);
     }
     if (!propsAt.empty()) printPropsAt(summary, propsAt, propsAtEntity);
+    if (!cameraAt.empty()) printCameraAt(summary, cameraAt);
+    if (!observerFocusAt.empty()) printObserverFocusAt(summary, observerFocusAt, propsAtEntity);
     if (!classPropsFilter.empty()) printClassProps(summary, classPropsFilter);
     if (!precacheFilter.empty()) printPrecache(summary, precacheFilter);
     if (historyStats) {

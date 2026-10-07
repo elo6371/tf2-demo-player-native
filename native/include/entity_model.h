@@ -58,6 +58,44 @@ public:
     std::size_t maxInstances = kMaxInstances);
 };
 
+// How a demo player's observer target resolves against one snapshot. A player
+// whose entity owns the camera ("the view entity") can be watching somebody
+// else: TF2 writes m_iObserverMode / m_hObserverTarget while a player is dead
+// or spectating, and Source's observe_mode.h has only in-eye (4) and chase (5)
+// hands the camera to the target -- 0 none, 1 deathcam, 2 freezecam, 3 fixed and
+// 6 roaming all keep it elsewhere. Until this round nothing read either property.
+//
+// WHAT THIS DOES NOT LICENSE. It would be easy to read followsTarget and move the
+// camera onto the target, and that is wrong on the first demo measured: the POV
+// recorder declares in-eye on entity 3 while the camera dem_cmdinfo recorded sits
+// on the recorder's own eye (pitch byte-identical, position 0.012 units off in x),
+// 2729 units from the coordinate this pipeline's slot rule resolves for entity 3
+// -- a slot 2379 ticks stale by its own m_nTickBase. So the resolution is reported
+// and asserted, and the renderer does NOT follow it yet. observer-focus-check.sh
+// pins that distance so the day the slot rule changes, someone is told.
+//
+// HANDLE LAYOUT -- Source's CBaseHandle packs the entity index into the low 11
+// bits and a serial number into the next 10 (source-sdk-2013,
+// public/basehandle.h: NUM_ENT_ENTRY_BITS 11, ENT_ENTRY_MASK). The serial is
+// decoded and reported but NOT validated, because EntityState carries no serial:
+// a handle whose slot was reused by a newer entity still resolves to that slot.
+// That limit is stated here rather than worked around.
+struct ObserverFocusResolution {
+  bool hasMode = false;
+  std::int64_t mode = 0;
+  bool hasTarget = false;
+  std::uint32_t targetHandle = 0;
+  std::uint16_t targetIndex = 0;
+  std::uint16_t targetSerial = 0;
+  bool targetInRange = false;
+  bool targetPresent = false;
+  bool followsTarget = false;
+};
+
+ObserverFocusResolution resolveObserverFocus(
+  const EntityState& viewEntity,
+  const std::vector<EntityState>& statesByIndex);
+
 struct EntityModelWorldMap {
   float centerX = 0.0f;
   float centerY = 0.0f;

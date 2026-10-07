@@ -110,6 +110,25 @@ bool isViewModelPath(const std::string& path) {
     && file.compare(file.size() - 4, 4, ".mdl") == 0;
 }
 
+// Source's CBaseHandle layout (source-sdk-2013, public/basehandle.h):
+// NUM_ENT_ENTRY_BITS = 11, so the entity index is the low 11 bits and 2047 is
+// the INVALID_EHANDLE_INDEX every field is initialized to. The serial number
+// occupies the next 10 bits; see the header for why it is decoded but not
+// validated here.
+constexpr std::uint32_t kEntityHandleIndexBits = 11;
+constexpr std::uint32_t kEntityHandleIndexMask = (1u << kEntityHandleIndexBits) - 1u;
+constexpr std::uint32_t kInvalidEntityHandle = 0xFFFFFFFFu;
+constexpr std::uint32_t kInvalidEntityIndex = kEntityHandleIndexMask;
+
+// TF2 observer modes (source-sdk-2013, game/shared/observe_mode.h, shared by the
+// server's CBasePlayer::m_iObserverMode and the client's camera logic):
+//   0 none, 1 deathcam, 2 freezecam, 3 fixed, 4 in-eye, 5 chase, 6 roaming.
+// Only in-eye and chase hang the camera on the target; the others move it by
+// their own rules (deathcam/freezecam are scripted around the killer, fixed is
+// the spectating player's own location, roaming is free movement).
+constexpr std::int64_t kObserverModeInEye = 4;
+constexpr std::int64_t kObserverModeChase = 5;
+
 } // namespace
 
 ModelInstanceTransform EntityModelResolver::extractTransform(const EntityState& state) {
@@ -173,6 +192,36 @@ ModelInstanceTransform EntityModelResolver::extractTransform(const EntityState& 
   if (!transform.hasOrigin) transform.diagnostic = "origin missing";
   else if (!transform.hasAngles) transform.diagnostic = "angles missing";
   return transform;
+}
+
+ObserverFocusResolution resolveObserverFocus(
+    const EntityState& viewEntity,
+    const std::vector<EntityState>& statesByIndex) {
+  ObserverFocusResolution result;
+  if (const auto* mode = findProperty(viewEntity, "m_iObserverMode")) {
+    result.hasMode = true;
+    result.mode = mode->intValue;
+  }
+  if (const auto* target = findProperty(viewEntity, "m_hObserverTarget")) {
+    result.hasTarget = true;
+    const auto handle = static_cast<std::uint32_t>(target->intValue);
+    result.targetHandle = handle;
+    result.targetIndex = static_cast<std::uint16_t>(handle & kEntityHandleIndexMask);
+    result.targetSerial = static_cast<std::uint16_t>(handle >> kEntityHandleIndexBits);
+    // Three ways a handle is not a place to look: the wire sentinel 0xFFFFFFFF,
+    // the 2047 index that field initialization leaves behind, and an index past
+    // the snapshot. Each is checked by name so a failure says which one fired.
+    const bool sentinel = handle == kInvalidEntityHandle;
+    const bool invalidIndex = result.targetIndex == kInvalidEntityIndex;
+    result.targetInRange = !sentinel && !invalidIndex
+      && result.targetIndex < statesByIndex.size();
+    if (result.targetInRange) {
+      result.targetPresent = statesByIndex[result.targetIndex].classId >= 0;
+    }
+    result.followsTarget = result.hasMode && result.targetPresent
+      && (result.mode == kObserverModeInEye || result.mode == kObserverModeChase);
+  }
+  return result;
 }
 
 std::string EntityModelResolver::defaultPlayerModelPath(std::int64_t tfClass) {
