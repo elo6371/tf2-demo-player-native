@@ -9,7 +9,7 @@
 #
 # The tree MUST be committed first: `git checkout --` is the restore mechanism.
 #
-# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8]
+# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9]
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -28,7 +28,7 @@ MODELPROBE=native/build-nmake/entity_model_probe.exe
 OUT=evidence/mutation
 mkdir -p "$OUT"
 
-CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8}"
+CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
@@ -98,6 +98,20 @@ must_hold() { # must_hold <label> <file> <regex> <expected>
     printf 'MUTATION-HOLD  %-56s %s (unchanged)\n' "$label" "$got"
   else
     printf 'MUTATION-BROKE %-56s got=%s want=%s\n' "$label" "${got:-<none>}" "$want"
+    rc_all=1
+  fi
+}
+
+# A mutation whose reading must get *worse*, not merely different. `must_move`
+# would accept a worst gap that fell from 1180 to 1179; the defect being
+# reintroduced is a multi-thousand-tick hole, so the assertion is a threshold.
+must_exceed() { # must_exceed <label> <file> <regex> <threshold>
+  local label="$1" file="$2" regex="$3" threshold="$4" got
+  got="$(value "$file" "$regex")"
+  if [ -n "$got" ] && [ "$got" -gt "$threshold" ]; then
+    printf 'MUTATION-RED   %-56s %s (> %s)\n' "$label" "$got" "$threshold"
+  else
+    printf 'MUTATION-GREEN %-56s got=%s threshold=%s\n' "$label" "${got:-<none>}" "$threshold"
     rc_all=1
   fi
 }
@@ -333,6 +347,83 @@ for case_id in $CASES; do
           "m8b guard gone -> the wrong reading exits 0" "$m8brc"
         rc_all=1
       fi
+      ;;
+    m9)
+      # Reintroduce the retention defect §3.1 fixes: thin the archive by *index*,
+      # which pins the head verbatim and leaves a multi-thousand-tick hole. The
+      # replacement is the pre-fix body verbatim, so the case fails if the fix is
+      # ever reworded without the gate noticing.
+      echo "--- m9: thin the history archive by index again (head pinned, big hole)"
+      patch_in "$SRC" \
+        '  const std::size_t last = archive.size() - 1;
+  std::vector<char> kept(archive.size(), 0);
+  kept[0] = 1;
+  kept[last] = 1;
+  std::size_t used = 2;
+  std::priority_queue<HistoryGap, std::vector<HistoryGap>, HistoryGapWider> gaps;
+  gaps.push(HistoryGap{archive[last].tick - archive[0].tick, 0, last});
+  while (used < maxCount && !gaps.empty()) {
+    const HistoryGap gap = gaps.top();
+    gaps.pop();
+    if (gap.right <= gap.left + 1) continue;  // no candidate left inside it
+    // Nearest candidate to the tick midpoint. `archive` is tick-ordered, so this
+    // is a binary search rather than a scan.
+    const std::int64_t midpoint =
+        (static_cast<std::int64_t>(archive[gap.left].tick) + archive[gap.right].tick) / 2;
+    const auto lower = std::lower_bound(
+        archive.begin() + static_cast<std::ptrdiff_t>(gap.left + 1),
+        archive.begin() + static_cast<std::ptrdiff_t>(gap.right), midpoint,
+        [](const EntityHistoryCheckpoint& item, std::int64_t value) { return item.tick < value; });
+    std::size_t pick = static_cast<std::size_t>(lower - archive.begin());
+    if (pick > gap.left + 1) {
+      const std::size_t before = pick - 1;
+      const std::int64_t distanceBefore = midpoint - archive[before].tick;
+      const std::int64_t distanceAt = pick < gap.right
+          ? archive[pick].tick - midpoint : std::numeric_limits<std::int64_t>::max();
+      if (distanceBefore <= distanceAt) pick = before;
+    }
+    if (pick <= gap.left) pick = gap.left + 1;
+    if (pick >= gap.right) pick = gap.right - 1;
+    kept[pick] = 1;
+    ++used;
+    gaps.push(HistoryGap{archive[pick].tick - archive[gap.left].tick, gap.left, pick});
+    gaps.push(HistoryGap{archive[gap.right].tick - archive[pick].tick, pick, gap.right});
+  }
+  std::vector<EntityHistoryCheckpoint> reduced;
+  reduced.reserve(used);
+  for (std::size_t index = 0; index < archive.size(); ++index) {
+    if (kept[index]) reduced.push_back(std::move(archive[index]));
+  }
+  archive = std::move(reduced);' \
+        '  const std::size_t last = archive.size() - 1;
+  std::vector<EntityHistoryCheckpoint> kept;
+  kept.reserve(maxCount);
+  std::size_t previous = static_cast<std::size_t>(-1);
+  for (std::size_t slot = 0; slot < maxCount; ++slot) {
+    std::size_t index = (last * slot) / (maxCount - 1);
+    if (index <= previous) index = std::min(last, previous + 1);
+    previous = index;
+    kept.push_back(std::move(archive[index]));
+    if (index == last) break;
+  }
+  archive = std::move(kept);' || { rc_all=1; continue; }
+      bash build-target.sh presentation_probe entity_model_probe >/dev/null 2>&1
+      ./native/build-nmake/presentation_probe.exe > "$OUT/recording.m9.txt" 2>&1
+      must_appear "m9 index-even thinning -> fixture coverage flag" \
+        "$OUT/recording.m9.txt" '"historyCoverage":false'
+      must_move_j "m9 index-even thinning -> fixture worst gap" "$OUT/recording.m9.txt" \
+        historyWorstGap '4096'
+      # The gate is run end to end while the defect is live, with its output
+      # redirected so a red run cannot overwrite the fixed-build evidence. The
+      # exit status plus the verdict line is the assertion: the gate must catch
+      # the policy, not merely the fixture.
+      HISTORY_COVERAGE_OUT="$OUT/historycoverage-m9" bash history-coverage-check.sh \
+        > "$OUT/gate.m9.txt" 2>&1
+      m9rc=$?
+      must_refuse "m9 index-even thinning -> gate refuses" "$OUT/gate.m9.txt" \
+        'HISTORY-COVERAGE=FAIL' "$m9rc"
+      must_exceed "m9 index-even thinning -> bagel worst gap" \
+        "$OUT/historycoverage-m9/bagel-summary.txt" 'history gap worst=[0-9]+' 10000
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac

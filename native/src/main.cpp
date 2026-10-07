@@ -1014,6 +1014,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     : L"TF2 Demo Player - TF2 资源未找到";
   const std::wstring titleBase = title + demoSuffix;
   auto entitySnapshotStatus = tf2::native::EntitySnapshotQueryStatus::NoHistory;
+  // How far behind the requested tick the drawn snapshot is. Non-zero means the
+  // entity picture is frozen at an older snapshot, so this is the number that
+  // says whether what is on screen is tick-exact -- without it `entity=checkpoint`
+  // reads the same for a 5-tick-old snapshot and a 13-minute-old one.
+  std::int32_t entitySnapshotStaleness = 0;
   std::size_t hudAudioPlayed = 0;
   std::size_t hudAudioMissing = 0;
   std::size_t hudTrailVertices = 0;
@@ -1040,6 +1045,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" state=" + (g_playback.paused ? L"paused" : (g_playback.reverse ? L"reverse" : L"playing"))
       + L" speed=" + std::to_wstring(g_playback.speed)
       + L" entity=" + std::wstring(entitySnapshotStatusName(entitySnapshotStatus))
+      + L" stale=" + std::to_wstring(entitySnapshotStaleness)
       + L" audio=" + std::to_wstring(hudAudioPlayed) + L"/" + std::to_wstring(hudAudioMissing)
       + L" health=" + (hudState.healthKnown ? std::to_wstring(hudState.health) : L"?")
       + L" team=" + (hudState.teamKnown ? std::to_wstring(hudState.team) : L"?")
@@ -1247,8 +1253,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     if (g_renderer && g_playback.enabled && g_playback.tick != lastSceneTick) {
       const std::int32_t sceneTick = firstPacketTick + g_playback.tick;
+      std::int32_t resolvedSceneTick = sceneTick;
       entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
-          demoNetworkSummary, sceneTick, currentEntityStates);
+          demoNetworkSummary, sceneTick, currentEntityStates, &resolvedSceneTick);
+      entitySnapshotStaleness = sceneTick - resolvedSceneTick;
       tf2::native::DemoViewSample observerView;
       if (tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneTick, observerView)
           && observerView.hasOrigin && observerView.hasAngles) {

@@ -459,6 +459,12 @@ struct DemoNetworkSummary {
   bool entityHistoryHasGap = false;
   std::int32_t entityHistoryGapTick = 0;
   std::vector<EntityHistoryCheckpoint> entityHistoryArchive;
+  // `entityHistoryDroppedPackets` counts two different things: packets the live
+  // window gave up because it had accumulated maxEvents updates, and packets
+  // dropped because a delta arrived with no base. Reading them as one number hid
+  // whether a change to the flush rule moved either of them, so the flush share is
+  // counted separately and the gap share stays derived (dropped - flushes).
+  std::size_t entityHistoryFlushes = 0;
   EntityHistoryLimits entityHistoryLimits{};
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
@@ -567,8 +573,14 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
 bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetReference>& references);
 bool findEntitySnapshotAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,
                                       std::vector<EntityState>& states);
+// `resolvedTick`, when non-null, receives the tick of the snapshot the answer
+// actually came from: `tick` itself when the live window replayed it exactly,
+// otherwise the archived checkpoint the answer fell back to. Without it a caller
+// can see *that* it got a Checkpoint but not *how old* that checkpoint is, which
+// is the whole question this retention policy has to answer.
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
-    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states);
+    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
+    std::int32_t* resolvedTick = nullptr);
 void appendEntityHistoryPacket(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                                std::int32_t deltaFrom, std::vector<EntityHistoryEvent> events);
 // Outcome of decoding one demo message stream (the payload of a dem_signon or

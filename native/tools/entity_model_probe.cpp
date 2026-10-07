@@ -378,6 +378,7 @@ struct HistoryStats {
   std::size_t packetsRetained = 0;
   std::size_t eventsRetained = 0;
   std::size_t droppedPackets = 0;
+  std::size_t flushes = 0;
   std::int32_t firstPacketTick = 0;
   std::int32_t lastPacketTick = 0;
 };
@@ -418,9 +419,145 @@ void measureHistory(const tf2::native::DemoNetworkSummary& summary, HistoryStats
   stats.packetsRetained = summary.entityHistoryPackets.size();
   stats.eventsRetained = summary.entityHistoryEvents.size();
   stats.droppedPackets = summary.entityHistoryDroppedPackets;
+  stats.flushes = summary.entityHistoryFlushes;
   if (!summary.entityHistoryPackets.empty()) {
     stats.firstPacketTick = summary.entityHistoryPackets.front().tick;
     stats.lastPacketTick = summary.entityHistoryPackets.back().tick;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// What the retention policy costs, and what it buys.
+//
+// `--history-stats` reports the retained tick list; from that a reader can see the
+// gap distribution but not what holding it costs, and the budget is exactly the
+// trade-off being made. Two derived readings:
+//
+//   approxBytes -- a checkpoint owns the class-index vector, a dense vector of
+//     EntityState, and one unordered_map per occupied entity whose nodes own a
+//     heap copy of the property key (the composed names are longer than the
+//     15-byte small-string buffer, so every key allocates). Counted from the
+//     containers themselves plus one link pointer and one allocation header per
+//     node. This is a deterministic lower bound, not a working-set measurement --
+//     it can be re-derived from this file, which a profiler reading cannot.
+//
+//   retainedGap -- with `resolvedTick` now reported by the query, staleness is a
+//     reading rather than an inference: the worst staleness over the sampled ticks
+//     is printed next to the worst gap between retained checkpoints, and on a
+//     healthy policy they agree with the gap list.
+// ---------------------------------------------------------------------------
+struct HistoryCoverage {
+  std::int32_t firstTick = 0;
+  std::int32_t lastTick = 0;
+  std::size_t archiveCount = 0;
+  std::size_t archiveBytes = 0;
+  std::size_t liveCount = 0;
+  std::size_t liveBytes = 0;
+  std::size_t packetBytes = 0;
+  std::size_t eventBytes = 0;
+  std::size_t retained = 0;
+  std::size_t distinctTicks = 0;
+  std::int32_t worstGap = 0;
+  std::int32_t worstGapFrom = 0;
+  std::int32_t worstGapTo = 0;
+  std::int32_t medianRetainedGap = 0;
+  std::size_t samples = 0;
+  std::size_t exact = 0;
+  std::size_t checkpoint = 0;
+  std::size_t unavailable = 0;
+  std::int32_t worstStaleness = -1;
+  std::int32_t worstStalenessAt = 0;
+  std::uint64_t stalenessSum = 0;
+};
+
+// Per property, on top of the key bytes: the map node's forward link, the
+// allocation header, the pair's std::string header and the value itself.
+constexpr unsigned long long kHistoryPerEntryFixed =
+    sizeof(std::string) + sizeof(tf2::native::EntityPropertyValue) + 3 * sizeof(void*);
+
+unsigned long long entityStateApproxBytes(const tf2::native::EntityState& state) {
+  if (state.properties.empty()) return 0;
+  unsigned long long bytes =
+      static_cast<unsigned long long>(state.properties.bucket_count()) * sizeof(void*);
+  for (const auto& entry : state.properties) {
+    bytes += kHistoryPerEntryFixed + entry.first.size() + 1;
+  }
+  return bytes;
+}
+
+unsigned long long checkpointApproxBytes(const tf2::native::EntityHistoryCheckpoint& checkpoint) {
+  unsigned long long bytes =
+      static_cast<unsigned long long>(checkpoint.classByIndex.capacity()) * sizeof(std::int32_t) +
+      static_cast<unsigned long long>(checkpoint.states.capacity()) * sizeof(tf2::native::EntityState);
+  for (const auto& state : checkpoint.states) bytes += entityStateApproxBytes(state);
+  return bytes;
+}
+
+void measureHistoryCoverage(const tf2::native::DemoNetworkSummary& summary,
+                            std::size_t sampleCount, HistoryCoverage& coverage) {
+  std::vector<std::int32_t> retained;
+  retained.reserve(summary.entityHistoryArchive.size() + summary.entityHistoryCheckpoints.size());
+  for (const auto& checkpoint : summary.entityHistoryArchive) {
+    retained.push_back(checkpoint.tick);
+    coverage.archiveBytes += checkpointApproxBytes(checkpoint);
+  }
+  coverage.archiveCount = summary.entityHistoryArchive.size();
+  for (const auto& checkpoint : summary.entityHistoryCheckpoints) {
+    retained.push_back(checkpoint.tick);
+    coverage.liveBytes += checkpointApproxBytes(checkpoint);
+  }
+  coverage.liveCount = summary.entityHistoryCheckpoints.size();
+  // The retained event log is what makes a tick inside the window exact instead
+  // of merely near; its cost is reported next to the checkpoints' so the two can
+  // be traded against each other.
+  coverage.packetBytes = summary.entityHistoryPackets.size() * sizeof(tf2::native::EntityHistoryPacket);
+  for (const auto& event : summary.entityHistoryEvents) {
+    coverage.eventBytes += sizeof(tf2::native::EntityHistoryEvent);
+    coverage.eventBytes += event.changes.size() * sizeof(tf2::native::EntityPropChange);
+    if (event.fullState) coverage.eventBytes += entityStateApproxBytes(event.state);
+  }
+  coverage.retained = retained.size();
+  if (retained.size() < 2) return;
+  coverage.firstTick = retained.front();
+  coverage.lastTick = retained.back();
+  std::vector<std::int32_t> sorted = retained;
+  std::sort(sorted.begin(), sorted.end());
+  coverage.distinctTicks = static_cast<std::size_t>(
+      std::unique(sorted.begin(), sorted.end()) - sorted.begin());
+  std::vector<std::int32_t> gaps;
+  gaps.reserve(retained.size() - 1);
+  for (std::size_t i = 1; i < retained.size(); ++i) {
+    const std::int32_t gap = retained[i] - retained[i - 1];
+    gaps.push_back(gap);
+    if (gap > coverage.worstGap) {
+      coverage.worstGap = gap;
+      coverage.worstGapFrom = retained[i - 1];
+      coverage.worstGapTo = retained[i];
+    }
+  }
+  std::sort(gaps.begin(), gaps.end());
+  coverage.medianRetainedGap = gaps[gaps.size() / 2];
+  if (coverage.lastTick <= coverage.firstTick || sampleCount == 0) return;
+
+  coverage.samples = sampleCount;
+  std::vector<tf2::native::EntityState> states;
+  for (std::size_t i = 0; i < sampleCount; ++i) {
+    const double fraction = sampleCount == 1 ? 0.0
+        : static_cast<double>(i) / static_cast<double>(sampleCount - 1);
+    const std::int32_t tick = coverage.firstTick + static_cast<std::int32_t>(
+        std::lround(fraction * static_cast<double>(coverage.lastTick - coverage.firstTick)));
+    std::int32_t resolved = tick;
+    const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, tick, states, &resolved);
+    if (status == tf2::native::EntitySnapshotQueryStatus::Available) ++coverage.exact;
+    else if (status == tf2::native::EntitySnapshotQueryStatus::Checkpoint) ++coverage.checkpoint;
+    else { ++coverage.unavailable; continue; }
+    const std::int32_t staleness = tick - resolved;
+    if (staleness < 0) continue;
+    coverage.stalenessSum += static_cast<std::uint64_t>(staleness);
+    if (staleness > coverage.worstStaleness) {
+      coverage.worstStaleness = staleness;
+      coverage.worstStalenessAt = tick;
+    }
   }
 }
 
@@ -580,6 +717,7 @@ int main(int argc, char** argv) {
   int propsAtEntity = -1;
   std::string classPropsFilter;
   bool historyStats = false;
+  std::size_t historyCoverageSamples = 0;
   bool renderedOrigins = false;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -588,6 +726,7 @@ int main(int argc, char** argv) {
     else if (arg == "--demo" && i + 1 < argc) demoPath = argv[++i];
     else if (arg == "--dump-class-props" && i + 1 < argc) classPropsFilter = argv[++i];
     else if (arg == "--history-stats") historyStats = true;
+    else if (arg == "--history-coverage" && i + 1 < argc) historyCoverageSamples = std::strtoul(argv[++i], nullptr, 10);
     else if (arg == "--rendered") renderedOrigins = true;
     else if (arg == "--entity" && i + 1 < argc) propsAtEntity = static_cast<int>(std::strtol(argv[++i], nullptr, 10));
     else if (arg == "--props-at" && i + 1 < argc) parseTickList(argv[++i], propsAt);
@@ -764,6 +903,11 @@ int main(int argc, char** argv) {
         history.liveCheckpointCount, history.liveFirstTick, history.liveLastTick,
         history.liveMaxGap, history.packetsRetained, history.eventsRetained,
         history.droppedPackets);
+      // `dropped` mixes the two ways a packet leaves the live window, and the
+      // split is what tells a reader which rule moved: a flush happens because
+      // maxEvents updates accumulated, a gap drop because a delta had no base.
+      std::fprintf(stderr, "history flushes=%zu gapDropped=%zu\n",
+                   history.flushes, history.droppedPackets - history.flushes);
       // The tick list itself, so the gap distribution can be recomputed by hand
       // instead of trusted. A summary that cannot be re-derived from its own raw
       // output is not evidence.
@@ -777,6 +921,34 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "%d,", checkpoint.tick);
       }
       std::fprintf(stderr, "\n");
+      std::fflush(stderr);
+    }
+    if (historyCoverageSamples > 0) {
+      HistoryCoverage coverage;
+      measureHistoryCoverage(summary, historyCoverageSamples, coverage);
+      const std::int32_t span = coverage.lastTick - coverage.firstTick;
+      const std::int32_t floorGap = coverage.retained >= 2
+          ? span / static_cast<std::int32_t>(coverage.retained - 1) : 0;
+      std::fprintf(stderr,
+        "history coverage samples=%zu exact=%zu checkpoint=%zu unavailable=%zu\n"
+        "history retained archive=%zu live=%zu distinct=%zu span=[%d..%d]\n"
+        "history gap worst=%d at=[%d..%d] median=%d floor=%d budget=%zu\n"
+        "history staleness worst=%d at=%d mean=%.1f\n"
+        "history bytes archive=%zu live=%zu checkpointApprox=%zu packets=%zu events=%zu eventsApprox=%zu\n",
+        coverage.samples, coverage.exact, coverage.checkpoint, coverage.unavailable,
+        coverage.archiveCount, coverage.liveCount, coverage.distinctTicks,
+        coverage.firstTick, coverage.lastTick,
+        coverage.worstGap, coverage.worstGapFrom, coverage.worstGapTo,
+        coverage.medianRetainedGap, floorGap,
+        summary.entityHistoryLimits.archiveMax,
+        coverage.worstStaleness, coverage.worstStalenessAt,
+        coverage.samples > coverage.unavailable
+            ? static_cast<double>(coverage.stalenessSum) /
+              static_cast<double>(coverage.samples - coverage.unavailable)
+            : 0.0,
+        coverage.archiveBytes, coverage.liveBytes,
+        coverage.archiveCount > 0 ? coverage.archiveBytes / coverage.archiveCount : 0,
+        coverage.packetBytes, summary.entityHistoryEvents.size(), coverage.eventBytes);
       std::fflush(stderr);
     }
     return (selfTest && demoRenderable + uniqueRenderable == 0) ? 2 : 0;

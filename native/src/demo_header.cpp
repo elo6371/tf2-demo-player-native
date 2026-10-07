@@ -9,6 +9,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <queue>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -1054,20 +1055,78 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
   return false;
 }
 
+// One gap between two retained checkpoints, ordered so that a max-heap yields
+// the widest tick gap first. Ties break on the left index, so the retained set is
+// a pure function of the input and two runs cannot disagree.
+struct HistoryGap {
+  std::int32_t width = 0;
+  std::size_t left = 0;
+  std::size_t right = 0;
+};
+struct HistoryGapWider {
+  bool operator()(const HistoryGap& left, const HistoryGap& right) const {
+    if (left.width != right.width) return left.width < right.width;
+    return left.left > right.left;
+  }
+};
+
 void thinHistoryArchive(std::vector<EntityHistoryCheckpoint>& archive, std::size_t maxCount) {
   if (archive.size() <= maxCount || maxCount < 2) return;
-  std::vector<EntityHistoryCheckpoint> kept;
-  kept.reserve(maxCount);
+  // Keep the two endpoints and spend every remaining slot splitting whichever gap
+  // is currently the widest *in ticks*. That is the quantity a caller feels: a
+  // query for a tick outside the live window is answered with the newest retained
+  // checkpoint at or before it, so the worst answer quality over the whole demo is
+  // the largest tick gap between two neighbours that survived.
+  //
+  // The previous rule divided the *index* range evenly
+  // (`index = (last * slot) / (maxCount - 1)`). It only ever runs in the state
+  // where maxCount is just above the archive size, because it runs on every flush;
+  // there floor() maps the earliest slots onto their own index, so the head of the
+  // archive is pinned verbatim while everything after it is decimated again and
+  // again. Measured on bagel: 19 checkpoints frozen inside 56148..57829 (1681
+  // ticks), then a 54392-tick hole up to 112221, then the recent tail. The hole is
+  // not caused by uneven entity activity -- it reproduces on a supply that emits
+  // one checkpoint every 128 ticks with no variation at all.
   const std::size_t last = archive.size() - 1;
-  std::size_t previous = static_cast<std::size_t>(-1);
-  for (std::size_t slot = 0; slot < maxCount; ++slot) {
-    std::size_t index = (last * slot) / (maxCount - 1);
-    if (index <= previous) index = std::min(last, previous + 1);
-    previous = index;
-    kept.push_back(std::move(archive[index]));
-    if (index == last) break;
+  std::vector<char> kept(archive.size(), 0);
+  kept[0] = 1;
+  kept[last] = 1;
+  std::size_t used = 2;
+  std::priority_queue<HistoryGap, std::vector<HistoryGap>, HistoryGapWider> gaps;
+  gaps.push(HistoryGap{archive[last].tick - archive[0].tick, 0, last});
+  while (used < maxCount && !gaps.empty()) {
+    const HistoryGap gap = gaps.top();
+    gaps.pop();
+    if (gap.right <= gap.left + 1) continue;  // no candidate left inside it
+    // Nearest candidate to the tick midpoint. `archive` is tick-ordered, so this
+    // is a binary search rather than a scan.
+    const std::int64_t midpoint =
+        (static_cast<std::int64_t>(archive[gap.left].tick) + archive[gap.right].tick) / 2;
+    const auto lower = std::lower_bound(
+        archive.begin() + static_cast<std::ptrdiff_t>(gap.left + 1),
+        archive.begin() + static_cast<std::ptrdiff_t>(gap.right), midpoint,
+        [](const EntityHistoryCheckpoint& item, std::int64_t value) { return item.tick < value; });
+    std::size_t pick = static_cast<std::size_t>(lower - archive.begin());
+    if (pick > gap.left + 1) {
+      const std::size_t before = pick - 1;
+      const std::int64_t distanceBefore = midpoint - archive[before].tick;
+      const std::int64_t distanceAt = pick < gap.right
+          ? archive[pick].tick - midpoint : std::numeric_limits<std::int64_t>::max();
+      if (distanceBefore <= distanceAt) pick = before;
+    }
+    if (pick <= gap.left) pick = gap.left + 1;
+    if (pick >= gap.right) pick = gap.right - 1;
+    kept[pick] = 1;
+    ++used;
+    gaps.push(HistoryGap{archive[pick].tick - archive[gap.left].tick, gap.left, pick});
+    gaps.push(HistoryGap{archive[gap.right].tick - archive[pick].tick, pick, gap.right});
   }
-  archive = std::move(kept);
+  std::vector<EntityHistoryCheckpoint> reduced;
+  reduced.reserve(used);
+  for (std::size_t index = 0; index < archive.size(); ++index) {
+    if (kept[index]) reduced.push_back(std::move(archive[index]));
+  }
+  archive = std::move(reduced);
 }
 
 void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
@@ -1093,6 +1152,7 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
     // its own events exactly. Ticks between archived snapshots are Checkpoint,
     // not a second full event log.
     ++summary.entityHistoryDroppedPackets;
+    ++summary.entityHistoryFlushes;
     summary.entityHistoryArchive.insert(summary.entityHistoryArchive.end(),
                                         summary.entityHistoryCheckpoints.begin(),
                                         summary.entityHistoryCheckpoints.end());
@@ -1101,9 +1161,11 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
     summary.entityHistoryPackets.clear();
     summary.entityHistoryCheckpoints.clear();
     packetOrdinal = 0;
-    summary.entityHistoryCheckpoints.push_back({tick, 0u,
-                                                summary.entityClassByIndex,
-                                                summary.entityStates});
+    // The checkpoint for this packet is pushed by the rule below, which fires on
+    // packetOrdinal == 0. Pushing one here as well put two checkpoints on the same
+    // tick (bagel: every duplicate pair in the archive tick list, e.g. 56489
+    // 56489 and 124508 124508), spending half the archive budget on a copy of a
+    // tick that was already represented.
   }
   const std::size_t firstEvent = summary.entityHistoryEvents.size();
   for (auto& event : events) event.packetOrdinal = packetOrdinal;
@@ -2220,7 +2282,8 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
 }
 
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
-    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states) {
+    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
+    std::int32_t* resolvedTick) {
   if (summary.entityHistoryHasGap) return EntitySnapshotQueryStatus::Gap;
   const bool liveWindow = !summary.entityHistoryCheckpoints.empty()
       && tick >= summary.entityHistoryCheckpoints.front().tick;
@@ -2233,7 +2296,13 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
           summary.entityHistoryArchive.begin(), summary.entityHistoryArchive.end(), tick,
           [](std::int32_t value, const EntityHistoryCheckpoint& item) { return value < item.tick; });
       if (archived != summary.entityHistoryArchive.begin()) {
-        states = std::prev(archived)->states;
+        const auto& fallback = *std::prev(archived);
+        // A Checkpoint answer is stale by construction: it is the newest archived
+        // snapshot at or before the query tick, not the query tick itself. The
+        // caller gets the tick it actually came from so the staleness is a reading
+        // rather than an inference from the archive's tick list.
+        if (resolvedTick) *resolvedTick = fallback.tick;
+        states = fallback.states;
         return EntitySnapshotQueryStatus::Checkpoint;
       }
     }
@@ -2244,6 +2313,7 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
       [](std::int32_t value, const EntityHistoryCheckpoint& item) { return value < item.tick; });
   if (checkpoint == summary.entityHistoryCheckpoints.begin()) return EntitySnapshotQueryStatus::TickBeforeHistory;
   const auto& base = *std::prev(checkpoint);
+  if (resolvedTick) *resolvedTick = tick;  // replayed through `tick` exactly
   states = base.states;
   for (const auto& packet : summary.entityHistoryPackets) {
     if (packet.packetOrdinal <= base.packetOrdinal || packet.tick > tick) continue;

@@ -28,12 +28,19 @@ somewhere by construction. Instead:
 Known limitation (reported, not hidden)
 --------------------------------------
 The entity history keeps a bounded live window; older ticks resolve to sparse
-archived checkpoints (bagel: 96 checkpoints, median gap 128 ticks, max gap
-54392). Only the live window is tick-accurate, and on bagel it is ~70 packets
-long. This gate therefore compares the live window only, and prints how many
-ticks it actually covered. A wide comparison is not possible with the current
-retention settings, and pretending otherwise would be a green light that means
-nothing.
+archived checkpoints. Only the live window is tick-accurate, and on bagel it is
+~70 packets long. This gate therefore compares the live window only, and prints
+how many ticks it actually covered. A wide comparison is not possible without
+retaining every packet's event chain (measured: 856 MB of events, 4.77 GB when
+kept live), and pretending otherwise would be a green light that means nothing.
+
+What *is* bounded is how far off an out-of-window answer may be: since the
+2026-10-07 §3.1 fix the archive is thinned by widest retained tick gap, and
+`history-coverage-check.sh` (verify-all step 11) asserts worst gap <= 2x the
+pigeonhole floor on a synthetic fixture and on bagel end to end. Before that fix
+this docstring recorded max gap 54392 (13.7 minutes); bagel now reads worst 1180
+against a floor of 761, and the query reports the resolved tick it fell back to
+so the staleness is a printed number rather than an assumption.
 
 Usage
 -----

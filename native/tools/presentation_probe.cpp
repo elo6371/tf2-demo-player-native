@@ -170,17 +170,78 @@ bool checkSeek() {
   return true;
 }
 
+// The retention policy has to hold the worst staleness near the bound its slot
+// budget implies, and it has to do it on a *uniform* supply: the defect it
+// replaces (bagel: a 54392-tick hole at 57829..112221, 13.7 minutes) reproduced
+// with a supply that emitted one checkpoint every 128 ticks with no variation at
+// all, so a fixture with lopsided activity would be testing the data instead of
+// the policy.
+//
+// Asserted bound: `kept` checkpoints spanning `span` ticks cannot do better than
+// span / (kept - 1) (pigeonhole), so "worst gap <= 2x that floor" is a real
+// statement about the policy rather than about the input. The rule this replaces
+// misses it by 6.5x; the retained-gap-first rule meets it at 1.1x.
+bool checkHistoryCoverage(std::int32_t& worstGap, std::int32_t& slotFloor) {
+  tf2::native::DemoNetworkSummary summary;
+  summary.entityHistoryLimits.maxEvents = 4;       // flush on accumulated updates
+  summary.entityHistoryLimits.maxCheckpoints = 4;  // ... in blocks of four
+  summary.entityHistoryLimits.checkpointStride = 1;
+  summary.entityHistoryLimits.archiveMax = 8;
+  constexpr std::int32_t kStride = 128;
+  constexpr std::size_t kPackets = 200;
+  for (std::size_t i = 0; i < kPackets; ++i) {
+    tf2::native::EntityHistoryEvent event;
+    event.tick = static_cast<std::int32_t>(i) * kStride;
+    event.entityIndex = 1;
+    event.fullState = true;
+    tf2::native::appendEntityHistoryPacket(summary, event.tick, false, -1, {event});
+  }
+  const auto& archive = summary.entityHistoryArchive;
+  if (archive.size() < 2) return false;
+  std::size_t distinct = 1;
+  worstGap = 0;
+  for (std::size_t i = 1; i < archive.size(); ++i) {
+    worstGap = std::max(worstGap, archive[i].tick - archive[i - 1].tick);
+    if (archive[i].tick != archive[i - 1].tick) ++distinct;
+  }
+  const std::int32_t span = archive.back().tick - archive.front().tick;
+  slotFloor = span / static_cast<std::int32_t>(archive.size() - 1);
+  // Every slot must hold a distinct tick: the pre-fix rule pushed two checkpoints
+  // per flush at the same tick (bagel: 56489 56489, 124508 124508, ...), spending
+  // half the budget on copies of a tick that was already represented.
+  const bool budgetSpent = archive.size() == summary.entityHistoryLimits.archiveMax
+      && distinct == archive.size();
+  const bool bounded = slotFloor > 0 && worstGap <= 2 * slotFloor;
+  // A Checkpoint answer must report the tick it came from. Without that the
+  // 13.7-minute case was indistinguishable from a fresh hit: same status, same
+  // renderer call.
+  std::vector<tf2::native::EntityState> states;
+  const std::int32_t probeTick = kStride * 150;
+  std::int32_t resolved = -1;
+  const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(
+      summary, probeTick, states, &resolved);
+  const bool reportsAge = status == tf2::native::EntitySnapshotQueryStatus::Checkpoint
+      && resolved >= 0 && resolved <= probeTick && probeTick - resolved <= worstGap;
+  return budgetSpent && bounded && reportsAge;
+}
+
 int main() {
   const bool view = checkViewMath();
   const bool recording = checkRecording();
   const bool projectile = checkProjectile();
   const bool seek = checkSeek();
-  const bool ok = view && recording && projectile && seek;
+  std::int32_t worstGap = 0;
+  std::int32_t slotFloor = 0;
+  const bool coverage = checkHistoryCoverage(worstGap, slotFloor);
+  const bool ok = view && recording && projectile && seek && coverage;
   std::cout << "{\"selfTest\":" << (ok ? "true" : "false")
     << ",\"viewMath\":" << (view ? "true" : "false")
     << ",\"recording\":" << (recording ? "true" : "false")
     << ",\"projectileFields\":" << (projectile ? "true" : "false")
     << ",\"fullSpanCheckpoint\":" << (seek ? "true" : "false")
+    << ",\"historyCoverage\":" << (coverage ? "true" : "false")
+    << ",\"historyWorstGap\":" << worstGap
+    << ",\"historySlotFloor\":" << slotFloor
     << ",\"cameraFormula\":\"source-pitch-down\""
     << ",\"seekOutsideWindow\":\"checkpoint\"}\n";
   return ok ? 0 : 1;
