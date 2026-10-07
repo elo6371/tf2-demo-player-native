@@ -1,0 +1,52 @@
+=== 1/3 wiring fixture (synthetic entities, every branch by construction) ===
+weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
+fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
+  OK   fixture refs = 11
+  FAIL fixture known = 0, expected 10
+  FAIL fixture resolved = 0, expected 6
+  FAIL fixture zero = 0, expected 2
+  FAIL fixture unresolved = 0, expected 1
+  FAIL fixture outOfRange = 0, expected 1
+  FAIL fixture onlyWorld = 0, expected 2
+  FAIL fixture fromWorld = 0, expected 6
+  FAIL fixture agrees = 0, expected 6
+  FAIL fixture viewZero = 0, expected 2
+  FAIL fixture differs = 0, expected 1
+  FAIL fixture armsWeapon (the counter the demos must read 0 on) = 2, expected 1
+
+=== 2/3 bagel and POV, end to end ===
+bagel refs=679 requests=505 withWorldIndex=33 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 pathFromWorld=0 onlyWorld=0 worldIndexNonZero=32 armsWeapon=32 armsNonWeapon=12 viewAgrees=0 viewZero=0 viewDiffers=0
+  FAIL 0 + 0 + 0 + 0 != known 0
+  FAIL worldIndexNonZero=32 but only 0 paths came from it
+  FAIL 32 weapon(s) still name an arms model
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=0 is the unset case)
+  FAIL bagel pathFromWorld = 0, expected 32
+  FAIL bagel known = 0, expected 33
+  FAIL bagel zero = 0, expected 1
+  FAIL bagel worldModelRequests = 0, expected 32
+  OK   bagel onlyWorld = 0
+pov refs=675 requests=387 withWorldIndex=71 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 pathFromWorld=0 onlyWorld=0 worldIndexNonZero=69 armsWeapon=63 armsNonWeapon=6 viewAgrees=0 viewZero=0 viewDiffers=0
+  FAIL 0 + 0 + 0 + 0 != known 0
+  FAIL worldIndexNonZero=69 but only 0 paths came from it
+  FAIL 63 weapon(s) still name an arms model
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=0 is the unset case)
+  FAIL pov pathFromWorld = 0, expected 69
+  FAIL pov known = 0, expected 71
+  FAIL pov zero = 0, expected 2
+  FAIL pov worldModelRequests = 0, expected 69
+  OK   pov onlyWorld = 0
+
+=== 3/3 oracle witness ===
+witness anchor: demo tick 52427 entity 822 class CTFRocketLauncher (oracle enter list, last match)
+oracle m_iWorldModelIndex=363 / ours=363 class=CTFRocketLauncher path=models/weapons/c_models/c_soldier_arms.mdl source=model
+  OK   the two parsers read the same world model index for entity 822
+  FAIL source=model
+  FAIL modelprecache[363] does not name models/weapons/c_models/c_soldier_arms.mdl
+live window [129210..129277]: packets checked=68 that carried m_iWorldModelIndex=0
+  OK   no packet in the live window writes the property, so no tick-exact
+       comparison exists -- the property rides the instance baseline, and
+       this decoder is tick-exact only inside that window
+
+WEAPON-WORLD-MODEL=FAIL

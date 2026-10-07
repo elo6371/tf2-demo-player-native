@@ -57,6 +57,16 @@ MUTATION-RED   m9 index-even thinning -> fixture worst gap              23040 (f
 MUTATION-RED   m9 index-even thinning -> gate refuses                   exit=1 HISTORY-COVERAGE=FAIL
 MUTATION-RED   m9 index-even thinning -> bagel worst gap                51568 (> 10000)
 
+--- m10: world-model route unreachable again (weapons name their arms)
+MUTATION-RED   m10 world route gone -> fixture self-test refuses        exit=1 weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
+MUTATION-RED   m10 world route gone -> protocol probe fromWorld         0 (fixed=69)
+MUTATION-RED   m10 world route gone -> protocol probe known             0 (fixed=71)
+MUTATION-RED   m10 world route gone -> view/model compare dies with the block 0 (fixed=2)
+MUTATION-RED   m10 world route gone -> requests leave the world route   0 (fixed=69)
+MUTATION-RED   m10 world route gone -> weapons name their arms          63 (fixed=0)
+MUTATION-RED   m10 world route gone -> weapon gate refuses              exit=1 WEAPON-WORLD-MODEL=FAIL
+MUTATION-RED   m10 world route gone -> gate bagel run reads known=0     0 (fixed=33)
+
 === restored tree: readings must be identical to the fixed build ===
 RESTORED-IDENTICAL bagel.fixed.txt
 RESTORED-IDENTICAL proto23.fixed.txt

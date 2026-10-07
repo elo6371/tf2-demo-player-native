@@ -11,5 +11,9 @@ small        IDENTICAL    added_lines=4
 
 added-lines=IDENTICAL (18 lines frozen)
 
+pre-world-model-fields=IDENTICAL (9 asset_refs= lines, new keys stripped)
+  moved=6 paths added by the world route, all accounted for
+pre-world-model-movement=ACCOUNTED
+
 compared=9/9
 PROBE-OUTPUT-ADDITIVE=PASS

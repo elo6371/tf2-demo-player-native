@@ -77,6 +77,22 @@ P1 喂进 505 条真实路径后，光重复解析就花掉 90 秒，主程序�
 `oracle-trajectory-check.py`（`compared=40 mismatches=0`，变异 `MUTATION-CAUGHT=PASS`），
 它抓到了我第一次 tick 对齐的错误（`delta` 是基线而不是本包 tick）。详见 §10.3。
 
+### 0.3 武器世界模型（§11）
+
+第三类缺陷：**路径可以错，而且错得能解析成功**。武器实体的 `m_nModelIndex` 是它的
+第一人称手臂合成模型（`c_*_arms`，一个真实存在的资产），世界渲染按它取路径时，
+每一个计数门禁都绿着，而武器会被画成一双手。修复（`cd36db1`）后：
+
+- POV：`armsWeapon=0 worldModelRequests=69 known=71 resolved=69`；
+- bagel：`armsWeapon=0 worldModelRequests=32 known=33 resolved=32`；
+- oracle 同实体同包见证：实体 822 的 Enter 包 `m_iWorldModelIndex = Integer(363)`
+  ↔ `c_rocketlauncher.mdl`，本侧同值同路径（`source=world`）；
+- 新增门禁为验收链第 12 步（`weapon-world-model-check.sh`），变异用例 `m10`。
+
+「两个索引指两样东西」这条语义不来自记忆而来自实测：POV tick 55418 的 8/8 件武器
+逐件 `m_nModelIndex == m_iViewModelIndex != m_iWorldModelIndex`，再用 modelprecache
+把两组索引解成路径互相印证。详见 §11。
+
 ---
 
 ## 1. 提交、基线与改动文件
@@ -91,6 +107,26 @@ P1 喂进 505 条真实路径后，光重复解析就花掉 90 秒，主程序�
   `364ede91222b18739a1a1460fe3d1c8af1eb43aa1a8cf3a1ccbe6f2782c18935`，5 文件 +104/-23（见 §2.3）
 - 第三个提交（补链，由门禁抓出）：`git diff 4868e7b..9316416 -- native/ | sha256sum` =
   `b1889fa05036a7b96f20b3fb3ba8b3cd7745c631dec7efd04e8154b2d0b6861d`，`native/CMakeLists.txt` +5/-1（见 §2.5）
+
+**武器世界模型（§11）新增一个提交（2026-10-07 第二轮）**：
+
+- `cd36db1`（世界模型优先路线 + 门禁 + m10 + 验收链第 12 步）：
+  `git diff cd36db1~1..cd36db1 -- native/ | sha256sum` =
+  `0d7620ee2d1a9649e68590d7285d55fa902c0fc1b49380bcef95d75bab6dc0b6`
+  （含脚本与冻结证据的整体为 `0cf0de7313392d872d4784ae8a82847e839fc7836899921bd7a7c192271c7743`）
+
+| 文件 | 改动 | 内容 |
+|---|---|---|
+| `native/src/demo_header.cpp` | +83 | 世界模型优先路线：`precachePathFor` 统一查表；带 `m_iWorldModelIndex` 的引用先按它填路径，只在世界索引指不到条目时才回落到 `m_nModelIndex`；逐桶计数 |
+| `native/include/demo_header.h` | +62 | `AssetReference` 5 个新字段（`hasWorldModelIndex` / `worldModelIndex` / `hasViewModelIndex` / `viewModelIndex` / `modelPathFromWorldModelIndex`）+ `DemoNetworkSummary` 11 个新计数器 |
+| `native/include/model_loader.h` + `native/src/model_loader.cpp` | +7 | `ModelRenderRequest::modelPathFromWorldModelIndex` 透传 |
+| `native/include/entity_model.h` + `native/src/entity_model.cpp` | +5 | `ModelInstance::worldModelIndexPath` 透传 |
+| `native/tools/entity_model_probe.cpp` | +267 | weapon-wiring fixture（10 个合成实体逐分支构造）+ `--dump-weapon-models` + 15 个 JSON 键 |
+| `native/tools/entity_protocol_probe.cpp` | +19/-1 | `asset_refs=` 行尾追加 11 个新键（旧计数器零移动） |
+| `weapon-world-model-check.sh` | 新增 320 行 | 三节门禁：fixture / bagel+POV 端到端 / oracle 见证 + 可证伪的 SKIP |
+| `mutate.sh` | +55/-2 | m10：世界路线改成不可达（缺陷原样），8 条断言；默认用例列表 9→10 |
+| `verify-all.sh` | +52/-17 | 新第 12 步；步骤标签 11→12；变异计数期望 29→37 |
+| `check-probe-output-additive.sh` | +143 | claim 3（变更前冻结的 9 行 `asset_refs=`，剥键后逐字节一致）与 claim 3b（移动量恒等式 `delta == world_model_only`） |
 
 **逐 tick 位移（§10）新增三个提交**：
 
@@ -563,6 +599,9 @@ sound_precache_entries=6701 sound_precache_decode_failures=0
 上表是**最终提交 `9316416`** 上的结果。P1 的第二次提交（`4868e7b`）曾跑出 `VERIFY=FAIL`，
 原因见 §2.5：`exe_count=17` 与 `MUTATION-SUITE=FAIL` 是同一个链接缺陷的两个表现。
 门禁抓到了它，修完（`9316416`）后重跑即上表。
+本节表格是**第一轮（9 步，`9316416`）**的历史读数；后续两轮的链读数见 §10.7（10 步）、
+§11.4（12 步），以及 HANDOFF §3.2 的两段「闭合 / 再闭合」记录。全链始终是同一命令
+（`bash verify-all.sh --quick`），步数只因新增门禁而增长。
 
 ### 7.2 用干净构建的产物复测 P1 读数
 
@@ -930,3 +969,95 @@ sum_packets=1260289`，`extra_reports=21 (corpus grew -> sample moved)`。
 - `SendPropType` 没有无符号区分（我们的 `Int` 对应 oracle 的 `UnsignedInt`）。
   逐槽对照时这一列不可比；是否有符号扩展错误**未验证**。
 
+---
+
+## 11. 武器世界模型（P1 剩余子项，2026-10-07 第二轮，`cd36db1`）
+
+### 11.1 缺陷：世界路线把「手臂」当成了武器
+
+TF2 的武器实体带**两个**模型索引，它们指的不是同一个东西：
+
+| 属性 | 含义 | POV demo server tick 55418 实测（8/8 件武器） |
+|---|---|---|
+| `DT_BaseEntity.m_nModelIndex` | 第一人称合成模型（`c_*_arms`） | pistol 1097 / medigun 1060 / knife 1088 |
+| `DT_BaseCombatWeapon.m_iViewModelIndex` | 同上；这批武器上两槽位逐件相等 | 1097 / 1060 / 1088 |
+| `DT_BaseCombatWeapon.m_iWorldModelIndex` | **武器本体**（掉落 / 第三人称绘制用） | pistol 255 / medigun 261 / knife 240 |
+
+modelprecache 解析：255=`c_pistol`、240=`c_knife`、1097=`c_engineer_arms`。
+
+旧管线只读 `m_nModelIndex`。这个错误**能成功渲染出一个真实资产**（一双手臂），
+所以所有计数型门禁全绿也看不见它 —— 与 §10 的 z 缺陷同类：
+「读对了位、写进了属性、渲染器读错了槽位」。
+
+### 11.2 修复（`cd36db1`）
+
+`buildAssetReferenceList` 新增世界路线：带 `m_iWorldModelIndex` 的引用**先**按它查表，
+只在世界索引指不到任何已声明条目时才回落到 `m_nModelIndex` 路线。
+该块是**加法**：只在旧路线会填空（或留空）的位置填，因此 P0/P1 既有计数器零移动
+（`check-probe-output-additive.sh` 的 claim 1 九份语料 9/9 `IDENTICAL`）。
+
+新增读数（`entity_protocol_probe` 的 `asset_refs=` 行尾 + `entity_model_probe` JSON）：
+
+| 读数 | 含义 |
+|---|---|
+| `asset_world_model_index_known / resolved / zero / unresolved / out_of_range` | 人口与其划分（恒等式 `resolved+zero+unresolved+outOfRange == known`） |
+| `asset_model_path_from_world_model` | 走了世界路线的路径数 |
+| `asset_model_path_world_model_only` | **只有**世界路线能给出路径的（旧路线为空） |
+| `asset_weapon_view_model_agrees / zero / differs` | 两槽位三态比较：相等 / view 未写(=0) / **真冲突**（两个探针 demo 上必须为 0） |
+| `worldModelRequests` / `armsWeaponRefs` / `armsNonWeaponRefs` / `worldModelInstances` | 渲染请求层：走世界路线的请求 / **仍指手臂的武器（必须为 0）** / 无世界索引的手臂穿戴物（`CTFViewModel`，属 ViewModel 轮次） / 实例层同口径 |
+
+### 11.3 读数（固定构建，`evidence/weapon-world-model/`）
+
+```
+POV    refs=675 requests=387 known=71 resolved=69 zero=2 fromWorld=69 onlyWorld=0
+       worldIndexNonZero=69 armsWeapon=0 armsNonWeapon=6 viewAgrees=69 viewZero=2 viewDiffers=0
+       worldModelRequests=69 worldModelInstances=25
+bagel  refs=679 requests=505 known=33 resolved=32 zero=1 fromWorld=32 onlyWorld=0
+       worldIndexNonZero=32 armsWeapon=0 armsNonWeapon=12 viewAgrees=33 viewZero=0 viewDiffers=0
+       worldModelRequests=32 worldModelInstances=0
+snakewater  asset_model_path_known 451 -> 454（+3），onlyWorld=3
+```
+
+snakewater 的 +3：实体 382 CTFKnife / 428 CTFMinigun / 429 CTFLunchBox
+**根本没有 `m_nModelIndex` 属性**（`present=--w`），世界路线是这三条路径的唯一来源 ——
+这正是 claim 3b 的恒等式 `delta(asset_model_path_known) == asset_model_path_world_model_only`。
+
+逐实体样例（bagel `--dump-weapon-models`）：
+
+```
+weapon entity=822 class=292 CTFRocketLauncher present=mvw modelIndex=1204 viewModelIndex=1204
+       worldModelIndex=363 path=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl source=world
+```
+
+**oracle 见证**（同实体同包，值级）：`ent-oracle 1` 的 Enter 列表取最后一条武器 Enter
+→ 锚点 `demo tick 52427 entity 822 CTFRocketLauncher` → 该实体块内
+`idx= 242 DT_BaseCombatWeapon.m_iWorldModelIndex = Integer(363)`；
+本侧发送表同槽位 `[242] … bits=13`；`modelprecache[363]` 即上表路径。
+
+**可证伪的 SKIP**：该属性走**实例基线**，只在武器 Enter 包出现；两个 demo 的实时窗口
+（bagel 129210..129277、POV 55265..55394）逐包扫描均**零写入**，值级逐 tick 对照不可得。
+脚本把这个前提本身断言下来（`packets checked=68 that carried m_iWorldModelIndex=0`，
+窗口上下界从 `--history-stats` 与 oracle survey 推导，不硬编码）——前提变了门禁就变红，
+而不是安静地「什么都没比」。
+
+### 11.4 判据与变异
+
+- `weapon-world-model-check.sh`（新，验收链第 12 步）：fixture（10 个合成实体逐分支构造，
+  含一个故意「武器仍指手臂」的实体，证明该计数器能燃）→ bagel/POV 端到端恒等式与钉死值
+  → oracle 见证 → 可证伪 SKIP。
+- `mutate.sh m10`：把世界路线改成不可达（缺陷原样），断言 8 条读数变红，含 fixture 自检
+  **拒绝**（rc≠0，读数塌成 `known=0 … armsWeapon=2`）与门禁自身 `WEAPON-WORLD-MODEL=FAIL`。
+- `check-probe-output-additive.sh` 新增 claim 3（变更前冻结的 9 行 `asset_refs=`，
+  剥掉新键后逐字节一致）与 claim 3b（唯一移动是 snakewater 451→454，且等于
+  `asset_model_path_world_model_only`）；`added-lines.txt` 经全部门禁后刷新为 18 行。
+
+### 11.5 未验证 / 已知限制
+
+- **画面仍无人工确认**：本节证明路径正确（实体 → 索引 → 表 → mdl → 渲染请求），
+  不证明屏幕上画对了。
+- `worldModelInstances` 在 bagel 是 0、POV 是 25：实例层建在末态 + 256 上限之上，
+  bagel 实时窗口只有 1 个检查点（POV 有 2 个）。此读数**未入门禁**，仅记录。
+- `viewDiffers` 在 POV/bagel 为 0，在语料其他 demo 非 0（saytext2=8：全部是工程师系
+  shotgun/builder/PDA×2/wrangler，两槽位在 851/961 间互换）。已核实那些实体世界路线
+  仍全部胜出、`armsWeapon=0`；它按**语料形状**记录，不是接线判据。
+- `m_nModelIndexOverrides`、观察目标 `m_hObserverTarget`、投射物仍未接（HANDOFF §3.3 其余子项）。

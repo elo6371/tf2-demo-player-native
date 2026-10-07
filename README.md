@@ -9,12 +9,22 @@ P1 共八个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 
 普查判据改按增量判定（`cc17ebe`）、把逐值门禁接成验收链第 10 步（`dab6ce1`）。
 逐 tick 位移那一条见 `ACCEPTANCE-P1-2026-10-06.md` §10。
 
-2026-10-07 续接会话又落两个提交：`9842a9f`（文档）与 **`aa93926`（代码基线）**——
+2026-10-07 续接会话又落两个提交：`9842a9f`（文档）与 `aa93926`——
 实体历史保留修复（按最大 tick 间隙抽稀 + 去掉重复检查点 + `resolvedTick` 读数），
 把原 §3.1 阻塞项闭合，验收链扩到 11 步（新增历史覆盖门禁）。见 HANDOFF §1.1 / §3.1。
 
-**`VERIFY=PASS` 已在 `aa93926` 上取得**（11 步 `bash verify-all.sh --quick`，
-读数在 `evidence/verify/1..11-*.txt`）。此前 `a2c584f` 那次 9 步运行只作对照。
+2026-10-07 第二轮：**`cd36db1`（当前代码基线）** —— 武器世界模型接线。
+武器的 `DT_BaseEntity.m_nModelIndex` 是第一人称手臂合成模型（`c_*_arms`），
+世界渲染此前按它取路径；错得能解析成功（一双手臂是真实资产），
+所以每一个计数门禁都绿着也看不见。修复后 POV `armsWeapon=0
+worldModelRequests=69 known=71`、bagel `armsWeapon=0 worldModelRequests=32 known=33`，
+oracle 同实体同包见证（实体 822 的 Enter 包 `Integer(363)` ↔ `c_rocketlauncher.mdl`）。
+新增门禁为验收链第 12 步、变异用例 `m10`。见 `ACCEPTANCE-P1-2026-10-06.md` §11。
+
+**`VERIFY=PASS` 已在 `cd36db1`（+ `356a249`）上取得**（12 步
+`bash verify-all.sh --quick`，读数在 `evidence/verify/1..12-*.txt`；
+mutation red=37 hold=3 green=0 broke=0 restored_identical=6）。
+上一轮基线 `aa93926` 的 11 步通过记录保留作对照；`a2c584f` 那次 9 步运行同为对照。
 重跑前请先确认 `git status --porcelain -- native/` 为空。
 
 - 源目录 `D:\TF2_Demo_Player` **本次未改动**（`work/native-mvp-source` 仍是
@@ -35,8 +45,9 @@ P1 共八个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 
 | `fix-P0-entity-messages.patch` | 只含 `native/` 的协议修复补丁（**不含** `226d119` 的分类器修正） |
 | `evidence/probe-baseline/` | **冻结**的 9 份探针报告（`recording_stream=` / `index_state=` 两行加入之前的二进制产出），供 `check-probe-output-additive.sh` 当基线。不要用 `run-demos.sh` 覆盖它 |
 | `evidence/probe-baseline/added-lines.txt` | 同上，冻结的是 P1 新增的两行（`sound_precache_entries=` / `asset_refs=`）。剥离的行也要有基线，否则「additive」等于「没人验证」 |
+| `evidence/weapon-world-model/` | 武器世界模型门禁的原始读数：fixture 断言行、bagel/POV 逐实体武器列表（`--dump-weapon-models`）、oracle 见证块、两份 JSON 计数器 |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
-| `verify-all.sh` | 一条命令跑完整证据链（11 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁**）；`--quick` 把语料抽样降到 8 份 |
+| `verify-all.sh` | 一条命令跑完整证据链（12 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁**）；`--quick` 把语料抽样降到 8 份 |
 
 ## 命令
 
@@ -50,9 +61,10 @@ bash check-oracle.sh "<oracle.exe>" evidence/final   # 与 Rust oracle 逐值对
 bash oracle-recording-types.sh            # 钉住 9 份 demo 的 POV/SourceTV 判定（头字段 + 流内 STV 位）
 bash check-probe-output-additive.sh       # 证明探针新增输出行没动旧计数器，且新增行本身未漂移
 bash check-probe-output-additive.sh --refresh-added   # 只在刻意改过探针输出后刷新新增行基线
-bash mutate.sh               # 变异验证（证明判据能变红）；9 个用例，29 条断言
+bash mutate.sh               # 变异验证（证明判据能变红）；10 个用例，37 条断言
 bash census-negative-test.sh # 证明普查判据能变红（10 个变异）
 bash history-coverage-check.sh # 历史覆盖门禁：Checkpoint 答案最多能多旧（fixture + bagel）
+bash weapon-world-model-check.sh # 武器世界模型门禁：武器不能被画成手臂（fixture + bagel/POV + oracle 见证）
 bash verify-all.sh --quick   # 上面全部串起来
 
 # P1：模型引用读数的单点复现

@@ -1,0 +1,52 @@
+=== 1/3 wiring fixture (synthetic entities, every branch by construction) ===
+weapon-wiring-fixture refs=11 known=10 resolved=6 zero=2 unresolved=1 outOfRange=1 unresolvedMax=99 onlyWorld=2 fromWorld=6 agrees=6 viewZero=2 differs=1 armsWeapon=1
+fixture refs=11 known=10 resolved=6 zero=2 unresolved=1 outOfRange=1 onlyWorld=2 fromWorld=6 agrees=6 viewZero=2 differs=1 armsWeapon=1
+  OK   fixture refs = 11
+  OK   fixture known = 10
+  OK   fixture resolved = 6
+  OK   fixture zero = 2
+  OK   fixture unresolved = 1
+  OK   fixture outOfRange = 1
+  OK   fixture onlyWorld = 2
+  OK   fixture fromWorld = 6
+  OK   fixture agrees = 6
+  OK   fixture viewZero = 2
+  OK   fixture differs = 1
+  OK   fixture armsWeapon (the counter the demos must read 0 on) = 1
+
+=== 2/3 bagel and POV, end to end ===
+bagel refs=679 requests=505 withWorldIndex=33 known=33 resolved=32 zero=1 unresolved=0 outOfRange=0 pathFromWorld=32 onlyWorld=0 worldIndexNonZero=32 armsWeapon=0 armsNonWeapon=12 viewAgrees=33 viewZero=0 viewDiffers=0
+  OK   resolved + zero + unresolved + outOfRange = known = 33
+  OK   every one of 32 non-zero world indices named the path
+  OK   no weapon is left naming its first-person arms
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=0 is the unset case)
+  OK   bagel pathFromWorld = 32
+  OK   bagel known = 33
+  OK   bagel zero = 1
+  OK   bagel worldModelRequests = 32
+  OK   bagel onlyWorld = 0
+pov refs=675 requests=387 withWorldIndex=71 known=71 resolved=69 zero=2 unresolved=0 outOfRange=0 pathFromWorld=69 onlyWorld=0 worldIndexNonZero=69 armsWeapon=0 armsNonWeapon=6 viewAgrees=69 viewZero=2 viewDiffers=0
+  OK   resolved + zero + unresolved + outOfRange = known = 71
+  OK   every one of 69 non-zero world indices named the path
+  OK   no weapon is left naming its first-person arms
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=2 is the unset case)
+  OK   pov pathFromWorld = 69
+  OK   pov known = 71
+  OK   pov zero = 2
+  OK   pov worldModelRequests = 69
+  OK   pov onlyWorld = 0
+
+=== 3/3 oracle witness ===
+witness anchor: demo tick 52427 entity 822 class CTFRocketLauncher (oracle enter list, last match)
+oracle m_iWorldModelIndex=363 / ours=363 class=CTFRocketLauncher path=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl source=world
+  OK   the two parsers read the same world model index for entity 822
+  OK   the path came from the world route
+  OK   modelprecache[363] is that path
+live window [129210..129277]: packets checked=68 that carried m_iWorldModelIndex=0
+  OK   no packet in the live window writes the property, so no tick-exact
+       comparison exists -- the property rides the instance baseline, and
+       this decoder is tick-exact only inside that window
+
+WEAPON-WORLD-MODEL=PASS
