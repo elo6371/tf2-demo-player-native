@@ -534,14 +534,13 @@ ModelAssetCandidate ModelLoader::resolveAsset(const AssetRoot& root, const std::
   const auto loose = root.resolve(relative);
   std::error_code ec;
   if (!loose.empty() && std::filesystem::is_regular_file(loose, ec) && !ec) result.looseMdl = loose;
-  for (const auto& entry : std::filesystem::directory_iterator(root.tfDirectory, ec)) {
-    if (ec || !entry.is_regular_file(ec)) continue;
-    const auto name = entry.path().filename().string();
-    if (name.size() >= 8 && name.substr(name.size() - 8) == "_dir.vpk") {
-      VpkArchive archive;
-      if (archive.open(entry.path()) && archive.contains(result.requestedPath)) result.vpkArchives.push_back(entry.path());
-    }
-  }
+  // The archives are opened once per AssetRoot and reused. Opening them here
+  // (and again for each companion suffix below) meant re-reading and re-hashing
+  // every *_dir.vpk directory tree -- about a second per model. See
+  // VpkArchiveSet. Iteration order is unchanged, so vpkArchives.front() still
+  // names the same archive it used to.
+  const VpkArchiveSet& archives = root.archives();
+  archives.collectContaining(result.requestedPath, result.vpkArchives);
   const bool looseFound = !result.looseMdl.empty();
   result.mdlFound = looseFound || !result.vpkArchives.empty();
   const auto stem = result.requestedPath.substr(0, result.requestedPath.size() - 4);
@@ -551,8 +550,8 @@ ModelAssetCandidate ModelLoader::resolveAsset(const AssetRoot& root, const std::
       return std::filesystem::is_regular_file(root.resolve(stem + suffix), fileError) && !fileError;
     }
     for (const auto& archivePath : result.vpkArchives) {
-      VpkArchive archive;
-      if (archive.open(archivePath) && archive.contains(stem + suffix)) return true;
+      const VpkArchive* archive = archives.find(archivePath);
+      if (archive && archive->contains(stem + suffix)) return true;
     }
     return false;
   };
@@ -614,20 +613,14 @@ std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot
   requests.reserve(std::min<std::size_t>(references.size(), 2048u));
   std::unordered_map<std::string, ModelAssetCandidate> candidateCache;
   std::unordered_map<std::string, ModelInspection> inspectionCache;
-  std::unordered_map<std::wstring, std::unique_ptr<VpkArchive>> archiveCache;
   candidateCache.reserve(256);
   inspectionCache.reserve(256);
-  auto openArchive = [&](const std::filesystem::path& archivePath) -> VpkArchive* {
-    const auto key = archivePath.native();
-    auto found = archiveCache.find(key);
-    if (found != archiveCache.end()) return found->second.get();
-    auto archive = std::make_unique<VpkArchive>();
-    if (stats) ++stats->archiveOpens;
-    if (!archive->open(archivePath)) return nullptr;
-    auto* pointer = archive.get();
-    archiveCache.emplace(key, std::move(archive));
-    return pointer;
-  };
+  // The archives live on the AssetRoot and are parsed once for the whole run,
+  // not once per call. This used to keep a private cache keyed by archive path,
+  // which still paid a full directory parse for the first lookup of every
+  // archive in every call -- and the callers make several such calls per demo.
+  const VpkArchiveSet& archives = root.archives();
+  if (stats) stats->archiveOpens += archives.size();
   for (const auto& reference : references) {
     if (!reference.hasModelPath || reference.modelPath.empty()) continue;
     if (requests.size() >= 2048u) break;
@@ -659,7 +652,7 @@ std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot
         ModelInspection inspection;
         if (inspectPacked) {
           if (stats) ++stats->vpkExtracts;
-          if (auto* archive = openArchive(candidate.vpkArchives.front())) {
+          if (const auto* archive = archives.find(candidate.vpkArchives.front())) {
             inspection = ModelLoader::inspectVpk(*archive, normalized);
             request.inspectedFromVpk = true;
           } else {

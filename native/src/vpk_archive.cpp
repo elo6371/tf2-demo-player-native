@@ -200,4 +200,40 @@ std::vector<std::uint8_t> VpkArchive::read(const std::string& path, std::string*
   return result;
 }
 
+VpkArchiveSet VpkArchiveSet::openDirectory(const std::filesystem::path& tfDirectory) {
+  VpkArchiveSet set;
+  std::error_code error;
+  for (const auto& entry : std::filesystem::directory_iterator(tfDirectory, error)) {
+    if (error) break;
+    if (!entry.is_regular_file(error) || error) continue;
+    const auto name = entry.path().filename().string();
+    if (name.size() < 8 || name.substr(name.size() - 8) != "_dir.vpk") continue;
+    Held held;
+    held.path = entry.path();
+    if (!held.archive.open(held.path)) continue;
+    set.archives_.push_back(std::move(held));
+  }
+  return set;
+}
+
+void VpkArchiveSet::collectContaining(const std::string& normalizedPath,
+    std::vector<std::filesystem::path>& out) const {
+  for (const auto& held : archives_) {
+    if (held.archive.contains(normalizedPath)) out.push_back(held.path);
+  }
+}
+
+const VpkArchive* VpkArchiveSet::find(const std::filesystem::path& archivePath) const {
+  for (const auto& held : archives_) {
+    if (held.path == archivePath) return &held.archive;
+  }
+  return nullptr;
+}
+
+std::size_t VpkArchiveSet::totalEntryCount() const {
+  std::size_t total = 0;
+  for (const auto& held : archives_) total += held.archive.entryCount();
+  return total;
+}
+
 } // namespace tf2::native

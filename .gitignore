@@ -14,3 +14,7 @@ evidence/corpus*/corpus.csv
 # commit. The build reading that matters is captured per run in
 # evidence/verify/1-build.txt.
 evidence/cmake-build.log
+# Diagnostic git worktrees (p0-tree / p1-tree) used for before-and-after
+# experiments. Each one carries a .git pointer file, so tracking the directory
+# would commit worktree plumbing rather than source.
+.scratch/
