@@ -3,11 +3,17 @@
 #include "entity_model.h"
 #include "model_loader.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace {
@@ -119,17 +125,475 @@ bool runSelfTest() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Per-tick displacement reading.
+//
+// Until now nothing measured entity motion: entity_model_probe took one static
+// snapshot, so "entities are at the right place" was an assertion with no
+// reading behind it. This walks N ticks across the demo, rebuilds the entity
+// snapshot at each one through the same query the renderer uses, and reports how
+// far each entity actually travelled.
+//
+// It is opt-in (--trajectory N) so the default output stays byte-identical to
+// what evidence/probe-baseline freezes.
+// ---------------------------------------------------------------------------
+
+using Origin = std::array<float, 3>;
+
+// Mirrors EntityModelResolver's private lookup: a property whose name ends in
+// ".m_vecOrigin". Deliberately not exported from the library, because the point
+// of this probe is to observe the decoder's raw output rather than to re-use the
+// resolver's own selection logic.
+const tf2::native::EntityPropertyValue* rawOriginProperty(const tf2::native::EntityState& state) {
+  constexpr std::size_t kSuffixLength = 11;  // "m_vecOrigin"
+  for (const auto& [name, value] : state.properties) {
+    if (name.size() > kSuffixLength
+        && name.compare(name.size() - kSuffixLength, kSuffixLength, "m_vecOrigin") == 0
+        && name[name.size() - kSuffixLength - 1] == '.') {
+      return &value;
+    }
+  }
+  return nullptr;
+}
+
+std::uint64_t fnv1a(std::uint64_t hash, std::uint64_t value) {
+  for (int byte = 0; byte < 8; ++byte) {
+    hash ^= (value >> (byte * 8)) & 0xffu;
+    hash *= 1099511628211ull;
+  }
+  return hash;
+}
+
+struct TrajectorySample {
+  std::int32_t tick = 0;
+  std::vector<std::pair<std::uint16_t, Origin>> origins;
+};
+
+struct TrajectoryStats {
+  std::int32_t firstTick = 0;
+  std::int32_t lastTick = 0;
+  std::size_t ticks = 0;
+  std::size_t available = 0;
+  std::size_t checkpoint = 0;
+  std::size_t unavailable = 0;
+  std::size_t samples = 0;        // (entity, tick) pairs carrying a finite origin
+  std::size_t entities = 0;       // distinct entity indices carrying a finite origin
+  std::size_t moved = 0;          // entities whose origin changed between two samples
+  std::size_t noOriginProperty = 0;
+  std::size_t originNotFinite = 0;
+  std::size_t zZero = 0;
+  std::size_t zNonZero = 0;
+  std::size_t rawZZero = 0;        // control: VectorXY z as decoded (0 for players)
+  std::size_t rawZNonZero = 0;
+  std::size_t zSiblingMissing = 0; // origin rendered with a guessed z of 0
+  double totalDistance = 0.0;
+  double maxStep = 0.0;
+  double minZ = 0.0;
+  double maxZ = 0.0;
+  bool anyZ = false;
+  std::uint64_t digest = 1469598103934665603ull;
+  std::vector<TrajectorySample> trace;
+};
+
+void measureTrajectory(const tf2::native::DemoNetworkSummary& summary, std::size_t sampleCount,
+                       TrajectoryStats& stats) {
+  std::int32_t firstTick = 0;
+  std::int32_t lastTick = 0;
+  bool haveWindow = false;
+  const auto extend = [&](std::int32_t tick) {
+    if (!haveWindow) { firstTick = tick; lastTick = tick; haveWindow = true; return; }
+    firstTick = std::min(firstTick, tick);
+    lastTick = std::max(lastTick, tick);
+  };
+  for (const auto& checkpoint : summary.entityHistoryArchive) extend(checkpoint.tick);
+  for (const auto& checkpoint : summary.entityHistoryCheckpoints) extend(checkpoint.tick);
+  if (!haveWindow || lastTick <= firstTick || sampleCount == 0) return;
+
+  stats.firstTick = firstTick;
+  stats.lastTick = lastTick;
+  stats.ticks = sampleCount;
+
+  std::unordered_map<std::uint16_t, Origin> previous;
+  std::unordered_set<std::uint16_t> moved;
+  std::vector<tf2::native::EntityState> states;
+  for (std::size_t i = 0; i < sampleCount; ++i) {
+    const double fraction = sampleCount == 1 ? 0.0
+      : static_cast<double>(i) / static_cast<double>(sampleCount - 1);
+    const std::int32_t tick = firstTick + static_cast<std::int32_t>(
+      std::lround(fraction * static_cast<double>(lastTick - firstTick)));
+    const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, tick, states);
+    if (status == tf2::native::EntitySnapshotQueryStatus::Available) ++stats.available;
+    else if (status == tf2::native::EntitySnapshotQueryStatus::Checkpoint) ++stats.checkpoint;
+    else { ++stats.unavailable; continue; }
+
+    TrajectorySample sample;
+    sample.tick = tick;
+    for (std::size_t entity = 0; entity < states.size(); ++entity) {
+      if (states[entity].classId < 0) continue;
+      // Two readings of the same entity, deliberately side by side:
+      //
+      //   raw      -- the VectorXY property exactly as the decoder wrote it.
+      //               Its z is structurally 0 for a player, because the wire
+      //               format for VectorXY carries x and y only. This is the
+      //               signature of the bug, so it is kept as a control.
+      //   rendered -- what EntityModelResolver::extractTransform hands the
+      //               renderer, i.e. the number that actually matters.
+      //
+      // A reading that only reports the rendered value cannot tell you whether
+      // the fix is doing anything; a reading that only reports the raw value
+      // cannot tell you whether the renderer is affected.
+      if (const auto* raw = rawOriginProperty(states[entity]); raw != nullptr) {
+        if (raw->z == 0.0f) ++stats.rawZZero; else ++stats.rawZNonZero;
+      }
+      const auto transform = tf2::native::EntityModelResolver::extractTransform(states[entity]);
+      if (!transform.hasOrigin) { ++stats.noOriginProperty; continue; }
+      if (!std::isfinite(transform.origin[0]) || !std::isfinite(transform.origin[1])
+          || !std::isfinite(transform.origin[2])) {
+        ++stats.originNotFinite;
+        continue;
+      }
+      const auto index = static_cast<std::uint16_t>(entity);
+      const Origin origin{transform.origin[0], transform.origin[1], transform.origin[2]};
+      if (transform.diagnostic == "origin-z-sibling-missing") ++stats.zSiblingMissing;
+      ++stats.samples;
+      if (origin[2] == 0.0f) ++stats.zZero; else ++stats.zNonZero;
+      if (!stats.anyZ) { stats.minZ = origin[2]; stats.maxZ = origin[2]; stats.anyZ = true; }
+      else {
+        stats.minZ = std::min<double>(stats.minZ, origin[2]);
+        stats.maxZ = std::max<double>(stats.maxZ, origin[2]);
+      }
+      const auto seen = previous.find(index);
+      if (seen != previous.end()) {
+        const double dx = static_cast<double>(origin[0]) - seen->second[0];
+        const double dy = static_cast<double>(origin[1]) - seen->second[1];
+        const double dz = static_cast<double>(origin[2]) - seen->second[2];
+        const double step = std::sqrt(dx * dx + dy * dy + dz * dz);
+        stats.totalDistance += step;
+        stats.maxStep = std::max(stats.maxStep, step);
+        if (step > 1.0e-3) moved.insert(index);
+      }
+      previous[index] = origin;
+      stats.digest = fnv1a(stats.digest, index);
+      stats.digest = fnv1a(stats.digest, static_cast<std::uint64_t>(
+        static_cast<std::int64_t>(std::lround(origin[0] * 1000.0f))));
+      stats.digest = fnv1a(stats.digest, static_cast<std::uint64_t>(
+        static_cast<std::int64_t>(std::lround(origin[1] * 1000.0f))));
+      stats.digest = fnv1a(stats.digest, static_cast<std::uint64_t>(
+        static_cast<std::int64_t>(std::lround(origin[2] * 1000.0f))));
+      sample.origins.emplace_back(index, origin);
+    }
+    stats.trace.push_back(std::move(sample));
+  }
+  stats.entities = previous.size();
+  stats.moved = moved.size();
+}
+
+// The trace the oracle check aligns against: the entity that moved furthest.
+void printTrajectoryDump(const TrajectoryStats& stats) {
+  if (stats.trace.empty()) return;
+  std::unordered_map<std::uint16_t, double> travelled;
+  for (std::size_t i = 1; i < stats.trace.size(); ++i) {
+    for (const auto& [index, origin] : stats.trace[i].origins) {
+      for (const auto& [previousIndex, previousOrigin] : stats.trace[i - 1].origins) {
+        if (previousIndex != index) continue;
+        const double dx = static_cast<double>(origin[0]) - previousOrigin[0];
+        const double dy = static_cast<double>(origin[1]) - previousOrigin[1];
+        const double dz = static_cast<double>(origin[2]) - previousOrigin[2];
+        travelled[index] += std::sqrt(dx * dx + dy * dy + dz * dz);
+        break;
+      }
+    }
+  }
+  std::uint16_t best = 0;
+  double bestDistance = -1.0;
+  for (const auto& [index, distance] : travelled) {
+    if (distance > bestDistance) { bestDistance = distance; best = index; }
+  }
+  // Diagnostics go to stderr; stdout stays a single parseable JSON object.
+  std::fprintf(stderr, "trajectory-dump entity=%u travelled=%.3f\n", best, bestDistance);
+  for (const auto& sample : stats.trace) {
+    for (const auto& [index, origin] : sample.origins) {
+      if (index != best) continue;
+      std::fprintf(stderr, "traj tick=%d entity=%u x=%.6f y=%.6f z=%.6f\n",
+                   sample.tick, index, origin[0], origin[1], origin[2]);
+      break;
+    }
+  }
+  std::fflush(stderr);
+}
+
+// Every property whose name carries ".m_vecOrigin", with its owner table, for
+// one tick. A player carries four of them:
+//   DT_TFLocalPlayerExclusive.m_vecOrigin      VectorXY (full precision x/y)
+//   DT_TFLocalPlayerExclusive.m_vecOrigin[2]   Float    (full precision z)
+//   DT_TFNonLocalPlayerExclusive.m_vecOrigin   VectorXY (quantized x/y)
+//   DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] Float   (quantized z)
+// so printing all four is what makes both the z split and the Local/NonLocal
+// choice observable instead of assumed. This is the shape the Rust oracle
+// prints, so the two can be diffed.
+//
+// The match is a prefix match, not a suffix match: an earlier version required
+// the name to *end* with "m_vecOrigin", which silently excluded the "[2]" float
+// and made the decoder look like it was dropping a property it was in fact
+// keeping. An instrument that cannot observe the failure it is looking for is
+// worse than no instrument.
+bool isOriginProperty(const std::string& name) {
+  constexpr const char* kNeedle = ".m_vecOrigin";
+  constexpr std::size_t kNeedleLength = 12;
+  const auto at = name.rfind(kNeedle);
+  if (at == std::string::npos) return false;
+  const std::string rest = name.substr(at + kNeedleLength);
+  if (rest.empty()) return true;
+  return rest.size() >= 2 && rest.front() == '[' && rest.back() == ']';
+}
+
+// Comma-separated tick list, e.g. "56148,70760". Empty tokens are skipped so a
+// trailing comma is not a parse error.
+void parseTickList(const std::string& list, std::vector<std::int32_t>& out) {
+  std::size_t start = 0;
+  while (start <= list.size()) {
+    const auto comma = list.find(',', start);
+    const auto token = list.substr(start, comma == std::string::npos ? comma : comma - start);
+    if (!token.empty()) out.push_back(static_cast<std::int32_t>(std::strtol(token.c_str(), nullptr, 10)));
+    if (comma == std::string::npos) break;
+    start = comma + 1;
+  }
+}
+
+// How far apart the retained snapshots are, and therefore how stale the answer
+// to "what did the world look like at tick T" can be. The query interface
+// resolves a tick to the newest checkpoint at or before it, so the *gap* between
+// consecutive checkpoints is the positional error a renderer inherits. Reporting
+// the gap distribution turns "the entity positions look wrong" into a number.
+struct HistoryStats {
+  std::size_t archiveCount = 0;
+  std::int32_t archiveFirstTick = 0;
+  std::int32_t archiveLastTick = 0;
+  std::int32_t archiveMaxGap = 0;
+  std::int32_t archiveMedianGap = 0;
+  std::size_t liveCheckpointCount = 0;
+  std::int32_t liveFirstTick = 0;
+  std::int32_t liveLastTick = 0;
+  std::int32_t liveMaxGap = 0;
+  std::size_t packetsRetained = 0;
+  std::size_t eventsRetained = 0;
+  std::size_t droppedPackets = 0;
+  std::int32_t firstPacketTick = 0;
+  std::int32_t lastPacketTick = 0;
+};
+
+std::int32_t medianGap(const std::vector<std::int32_t>& ticks) {
+  if (ticks.size() < 2) return 0;
+  std::vector<std::int32_t> gaps;
+  gaps.reserve(ticks.size() - 1);
+  for (std::size_t i = 1; i < ticks.size(); ++i) gaps.push_back(ticks[i] - ticks[i - 1]);
+  std::sort(gaps.begin(), gaps.end());
+  return gaps[gaps.size() / 2];
+}
+
+void measureHistory(const tf2::native::DemoNetworkSummary& summary, HistoryStats& stats) {
+  std::vector<std::int32_t> archiveTicks;
+  archiveTicks.reserve(summary.entityHistoryArchive.size());
+  for (const auto& checkpoint : summary.entityHistoryArchive) archiveTicks.push_back(checkpoint.tick);
+  stats.archiveCount = archiveTicks.size();
+  if (!archiveTicks.empty()) {
+    stats.archiveFirstTick = archiveTicks.front();
+    stats.archiveLastTick = archiveTicks.back();
+    for (std::size_t i = 1; i < archiveTicks.size(); ++i) {
+      stats.archiveMaxGap = std::max(stats.archiveMaxGap, archiveTicks[i] - archiveTicks[i - 1]);
+    }
+    stats.archiveMedianGap = medianGap(archiveTicks);
+  }
+  std::vector<std::int32_t> liveTicks;
+  liveTicks.reserve(summary.entityHistoryCheckpoints.size());
+  for (const auto& checkpoint : summary.entityHistoryCheckpoints) liveTicks.push_back(checkpoint.tick);
+  stats.liveCheckpointCount = liveTicks.size();
+  if (!liveTicks.empty()) {
+    stats.liveFirstTick = liveTicks.front();
+    stats.liveLastTick = liveTicks.back();
+    for (std::size_t i = 1; i < liveTicks.size(); ++i) {
+      stats.liveMaxGap = std::max(stats.liveMaxGap, liveTicks[i] - liveTicks[i - 1]);
+    }
+  }
+  stats.packetsRetained = summary.entityHistoryPackets.size();
+  stats.eventsRetained = summary.entityHistoryEvents.size();
+  stats.droppedPackets = summary.entityHistoryDroppedPackets;
+  if (!summary.entityHistoryPackets.empty()) {
+    stats.firstPacketTick = summary.entityHistoryPackets.front().tick;
+    stats.lastPacketTick = summary.entityHistoryPackets.back().tick;
+  }
+}
+
+const char* snapshotStatusName(tf2::native::EntitySnapshotQueryStatus status) {
+  switch (status) {
+    case tf2::native::EntitySnapshotQueryStatus::Available: return "available";
+    case tf2::native::EntitySnapshotQueryStatus::Checkpoint: return "checkpoint";
+    case tf2::native::EntitySnapshotQueryStatus::NoHistory: return "no-history";
+    case tf2::native::EntitySnapshotQueryStatus::TickBeforeHistory: return "before-window";
+    case tf2::native::EntitySnapshotQueryStatus::Gap: return "gap";
+    case tf2::native::EntitySnapshotQueryStatus::DeltaBaseMissing: return "delta-base-missing";
+  }
+  return "unavailable";
+}
+
+// All properties of one entity at the given ticks. This is the oracle-alignment
+// instrument: `m_nTickBase` is a server tick carried in the player's own state,
+// so finding the tick at which our reconstruction agrees with the oracle's
+// `m_nTickBase` pins the C++-tick to demo-tick mapping by value instead of by a
+// hard-coded constant that nobody re-checks.
+void printPropsAt(const tf2::native::DemoNetworkSummary& summary,
+                  const std::vector<std::int32_t>& ticks, int entityIndex) {
+  std::vector<tf2::native::EntityState> states;
+  for (const std::int32_t tick : ticks) {
+    const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, tick, states);
+    std::fprintf(stderr, "at tick=%d status=%s\n", tick, snapshotStatusName(status));
+    for (std::size_t entity = 0; entity < states.size(); ++entity) {
+      if (states[entity].classId < 0) continue;
+      if (entityIndex >= 0 && entity != static_cast<std::size_t>(entityIndex)) continue;
+      const char* className = "-";
+      if (static_cast<std::size_t>(states[entity].classId) < summary.serverClassSchemas.size()) {
+        className = summary.serverClassSchemas[static_cast<std::size_t>(states[entity].classId)].name.c_str();
+      }
+      // A map has no stable order, so the lines are sorted before printing:
+      // otherwise two runs of the same binary can emit the same set of values in
+      // a different order and a diff would look like a disagreement.
+      std::vector<std::pair<std::string, tf2::native::EntityPropertyValue>> ordered(
+          states[entity].properties.begin(), states[entity].properties.end());
+      std::sort(ordered.begin(), ordered.end(),
+                [](const auto& left, const auto& right) { return left.first < right.first; });
+      for (const auto& [name, value] : ordered) {
+        if (entityIndex < 0 && !isOriginProperty(name)) continue;
+        std::fprintf(stderr, "  entity=%zu class=%d %s %s type=%d x=%.6f y=%.6f z=%.6f int=%lld\n",
+                     entity, states[entity].classId, className, name.c_str(),
+                     static_cast<int>(value.type), value.x, value.y, value.z,
+                     static_cast<long long>(value.intValue));
+      }
+    }
+  }
+  std::fflush(stderr);
+}
+
+// Origin-only view of every entity: the wrapper the --trajectory-at flag uses.
+void printOriginsAt(const tf2::native::DemoNetworkSummary& summary,
+                    const std::vector<std::int32_t>& ticks) {
+  printPropsAt(summary, ticks, -1);
+}
+
+// What the renderer is actually handed, per entity: the output of
+// EntityModelResolver::extractTransform. This is the end-to-end reading -- the
+// raw property dump above shows what the decoder decoded, this shows what the
+// player would see, and the two differ exactly where the z merge matters.
+void printRenderedAt(const tf2::native::DemoNetworkSummary& summary,
+                     const std::vector<std::int32_t>& ticks) {
+  std::vector<tf2::native::EntityState> states;
+  for (const std::int32_t tick : ticks) {
+    const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, tick, states);
+    std::fprintf(stderr, "at tick=%d status=%s\n", tick, snapshotStatusName(status));
+    for (std::size_t entity = 0; entity < states.size(); ++entity) {
+      if (states[entity].classId < 0) continue;
+      const auto transform = tf2::native::EntityModelResolver::extractTransform(states[entity]);
+      if (!transform.hasOrigin) continue;
+      const char* className = "-";
+      if (static_cast<std::size_t>(states[entity].classId) < summary.serverClassSchemas.size()) {
+        className = summary.serverClassSchemas[static_cast<std::size_t>(states[entity].classId)].name.c_str();
+      }
+      std::fprintf(stderr, "  rendered entity=%zu class=%d %s x=%.6f y=%.6f z=%.6f%s%s\n",
+                   entity, states[entity].classId, className,
+                   transform.origin[0], transform.origin[1], transform.origin[2],
+                   transform.diagnostic.empty() ? "" : " diag=",
+                   transform.diagnostic.c_str());
+    }
+  }
+  std::fflush(stderr);
+}
+
+// Same names the Rust oracle prints, so a diff of the two tables is readable.
+const char* sendPropTypeName(tf2::native::SendPropType type) {
+  switch (type) {
+    case tf2::native::SendPropType::Int: return "Int";
+    case tf2::native::SendPropType::Float: return "Float";
+    case tf2::native::SendPropType::Vector: return "Vector";
+    case tf2::native::SendPropType::VectorXY: return "VectorXY";
+    case tf2::native::SendPropType::String: return "String";
+    case tf2::native::SendPropType::Array: return "Array";
+    case tf2::native::SendPropType::DataTable: return "DataTable";
+  }
+  return "?";
+}
+
+// Flattened send-table props of every class whose name contains `filter`, one
+// line per slot. This is deliberately the same shape as the Rust oracle's mode
+// 3 so the two tables can be diffed slot by slot: the slot number is the index
+// svc_PacketEntities puts on the wire, so a slot that exists in one table and
+// not the other is exactly the property the decoder cannot name.
+void printClassProps(const tf2::native::DemoNetworkSummary& summary, const std::string& filter) {
+  for (std::size_t id = 0; id < summary.serverClassSchemas.size(); ++id) {
+    const auto& serverClass = summary.serverClassSchemas[id];
+    if (serverClass.name.find(filter) == std::string::npos) continue;
+    const tf2::native::SendTableSchema* table = nullptr;
+    for (const auto& candidate : summary.sendTableSchemas) {
+      if (candidate.name == serverClass.dataTable) { table = &candidate; break; }
+    }
+    if (!table) {
+      std::fprintf(stderr, "class id=%zu name=%s table=%s <no table>\n",
+                   id, serverClass.name.c_str(), serverClass.dataTable.c_str());
+      continue;
+    }
+    std::fprintf(stderr, "class id=%zu name=%s table=%s flat=%zu\n",
+                 id, serverClass.name.c_str(), serverClass.dataTable.c_str(),
+                 table->flattenedProps.size());
+    for (std::size_t slot = 0; slot < table->flattenedProps.size(); ++slot) {
+      const auto& prop = table->flattenedProps[slot];
+      // flags/bitCount/range are the raw words the decoder actually uses, so
+      // printing them is what turns "the tables look the same" into "the tables
+      // agree on the encoding" -- a name-only diff cannot see a coord-vs-float
+      // mistake, which is exactly the kind that produces plausible garbage.
+      std::fprintf(stderr, "    [%zu] %s%s %s flags=0x%04x bits=%u range=%s",
+                   slot,
+                   prop.ownerTable.empty() ? "" : (prop.ownerTable + ".").c_str(),
+                   prop.name.c_str(), sendPropTypeName(prop.type),
+                   prop.flags, prop.bitCount,
+                   prop.hasFloatRange ? "yes" : "no");
+      if (prop.hasFloatRange) {
+        std::fprintf(stderr, "[%.6g,%.6g]", prop.lowValue, prop.highValue);
+      }
+      if (prop.elementCount > 0) {
+        std::fprintf(stderr, " elems=%u elemType=%s", prop.elementCount,
+                     sendPropTypeName(prop.arrayElementType));
+      }
+      std::fprintf(stderr, "\n");
+    }
+  }
+  std::fflush(stderr);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
   std::string tfRoot;
   std::string demoPath;
   bool selfTest = false;
+  std::size_t trajectoryTicks = 0;
+  bool trajectoryDump = false;
+  std::vector<std::int32_t> trajectoryAt;
+  std::vector<std::int32_t> propsAt;
+  int propsAtEntity = -1;
+  std::string classPropsFilter;
+  bool historyStats = false;
+  bool renderedOrigins = false;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--self-test") selfTest = true;
     else if (arg == "--tf-root" && i + 1 < argc) tfRoot = argv[++i];
     else if (arg == "--demo" && i + 1 < argc) demoPath = argv[++i];
+    else if (arg == "--dump-class-props" && i + 1 < argc) classPropsFilter = argv[++i];
+    else if (arg == "--history-stats") historyStats = true;
+    else if (arg == "--rendered") renderedOrigins = true;
+    else if (arg == "--entity" && i + 1 < argc) propsAtEntity = static_cast<int>(std::strtol(argv[++i], nullptr, 10));
+    else if (arg == "--props-at" && i + 1 < argc) parseTickList(argv[++i], propsAt);
+    else if (arg == "--trajectory" && i + 1 < argc) trajectoryTicks = std::strtoul(argv[++i], nullptr, 10);
+    else if (arg == "--trajectory-dump") trajectoryDump = true;
+    else if (arg == "--trajectory-at" && i + 1 < argc) parseTickList(argv[++i], trajectoryAt);
   }
   if (selfTest && !runSelfTest()) return fail("self-test failed");
 
@@ -236,6 +700,8 @@ int main(int argc, char** argv) {
       assets, summary.assetReferences, nullptr, &stats);
     std::size_t demoRenderable = 0;
     for (const auto& request : requests) if (request.renderable) ++demoRenderable;
+    TrajectoryStats trajectory;
+    if (trajectoryTicks > 0) measureTrajectory(summary, trajectoryTicks, trajectory);
     std::cout << "{\"ok\":true"
       << ",\"selfTest\":" << (selfTest ? "true" : "false")
       << ",\"demo\":\"" << demoPath << "\""
@@ -251,8 +717,68 @@ int main(int argc, char** argv) {
       << ",\"scoutChecksum\":" << scoutChecksum
       << ",\"duplicateStable\":" << (duplicateStable ? "true" : "false")
       << ",\"instanceCount\":" << instanceCount
-      << ",\"playerFallbacks\":" << playerFallbacks
-      << "}\n";
+      << ",\"playerFallbacks\":" << playerFallbacks;
+    // Opt-in, so the default line stays byte-identical to the frozen baseline.
+    if (trajectoryTicks > 0) {
+      std::cout << ",\"trajectoryTicks\":" << trajectory.ticks
+        << ",\"trajectoryFirstTick\":" << trajectory.firstTick
+        << ",\"trajectoryLastTick\":" << trajectory.lastTick
+        << ",\"trajectoryAvailable\":" << trajectory.available
+        << ",\"trajectoryCheckpoint\":" << trajectory.checkpoint
+        << ",\"trajectoryUnavailable\":" << trajectory.unavailable
+        << ",\"trajectorySamples\":" << trajectory.samples
+        << ",\"trajectoryEntities\":" << trajectory.entities
+        << ",\"trajectoryMoved\":" << trajectory.moved
+        << ",\"trajectoryNoOrigin\":" << trajectory.noOriginProperty
+        << ",\"trajectoryNotFinite\":" << trajectory.originNotFinite
+        << ",\"trajectoryZZero\":" << trajectory.zZero
+        << ",\"trajectoryZNonZero\":" << trajectory.zNonZero
+        << ",\"trajectoryRawZZero\":" << trajectory.rawZZero
+        << ",\"trajectoryRawZNonZero\":" << trajectory.rawZNonZero
+        << ",\"trajectoryZSiblingMissing\":" << trajectory.zSiblingMissing
+        << ",\"trajectoryTotalDistance\":" << std::lround(trajectory.totalDistance)
+        << ",\"trajectoryMaxStep\":" << trajectory.maxStep
+        << ",\"trajectoryMinZ\":" << trajectory.minZ
+        << ",\"trajectoryMaxZ\":" << trajectory.maxZ
+        << ",\"trajectoryDigest\":\"" << std::hex << trajectory.digest << std::dec << "\"";
+    }
+    std::cout << "}\n";
+    if (trajectoryDump && trajectoryTicks > 0) printTrajectoryDump(trajectory);
+    // Independent of --trajectory: this one answers "which m_vecOrigin does the
+    // decoder actually hand the renderer at tick T", which is what the Rust
+    // oracle prints. Kept separate so it can be run on its own.
+    if (!trajectoryAt.empty()) {
+      if (renderedOrigins) printRenderedAt(summary, trajectoryAt);
+      else printOriginsAt(summary, trajectoryAt);
+    }
+    if (!propsAt.empty()) printPropsAt(summary, propsAt, propsAtEntity);
+    if (!classPropsFilter.empty()) printClassProps(summary, classPropsFilter);
+    if (historyStats) {
+      HistoryStats history;
+      measureHistory(summary, history);
+      std::fprintf(stderr,
+        "history archive=%zu ticks=[%d..%d] medianGap=%d maxGap=%d\n"
+        "history liveCheckpoints=%zu ticks=[%d..%d] maxGap=%d packets=%zu events=%zu dropped=%zu\n",
+        history.archiveCount, history.archiveFirstTick, history.archiveLastTick,
+        history.archiveMedianGap, history.archiveMaxGap,
+        history.liveCheckpointCount, history.liveFirstTick, history.liveLastTick,
+        history.liveMaxGap, history.packetsRetained, history.eventsRetained,
+        history.droppedPackets);
+      // The tick list itself, so the gap distribution can be recomputed by hand
+      // instead of trusted. A summary that cannot be re-derived from its own raw
+      // output is not evidence.
+      std::fprintf(stderr, "history archiveTicks=");
+      for (const auto& checkpoint : summary.entityHistoryArchive) {
+        std::fprintf(stderr, "%d,", checkpoint.tick);
+      }
+      std::fprintf(stderr, "\n");
+      std::fprintf(stderr, "history liveTicks=");
+      for (const auto& checkpoint : summary.entityHistoryCheckpoints) {
+        std::fprintf(stderr, "%d,", checkpoint.tick);
+      }
+      std::fprintf(stderr, "\n");
+      std::fflush(stderr);
+    }
     return (selfTest && demoRenderable + uniqueRenderable == 0) ? 2 : 0;
   }
 

@@ -16,11 +16,87 @@ bool suffixMatch(const std::string& name, const char* suffix) {
   return false;
 }
 
+// Lower is better. A player carries its position twice: the copy the owning
+// client receives (DT_TFLocalPlayerExclusive, full precision) and the quantized
+// copy every other client receives (DT_TFNonLocalPlayerExclusive). Measured on
+// bagel at server tick 129211 the two differ by ~4000 units -- the width of the
+// map -- so picking "whichever the hash table yields first" is not a rounding
+// detail, it is a teleport.
+int exclusiveRank(const std::string& name) {
+  if (name.find("LocalPlayerExclusive") != std::string::npos) return 0;
+  if (name.find("NonLocalPlayerExclusive") != std::string::npos) return 2;
+  return 1;
+}
+
+// Deterministic choice between two equally-suffixed properties: prefer the
+// full-precision Local variant, then the lexicographically smaller name.
+bool preferCandidate(const std::string& name, const std::string& bestName) {
+  const int rank = exclusiveRank(name);
+  const int bestRank = exclusiveRank(bestName);
+  if (rank != bestRank) return rank < bestRank;
+  return name < bestName;
+}
+
 const EntityPropertyValue* findProperty(const EntityState& state, const char* suffix) {
+  // EntityState::properties is an unordered_map, so "first match wins" is not a
+  // rule -- it is whichever bucket the hash landed in. Rank the candidates
+  // instead, so the same state always yields the same property. This matters for
+  // every suffix a player carries twice (m_vecOrigin, m_angEyeAngles[i], ...).
+  const EntityPropertyValue* best = nullptr;
+  std::string bestName;
   for (const auto& [name, value] : state.properties) {
-    if (suffixMatch(name, suffix)) return &value;
+    if (!suffixMatch(name, suffix)) continue;
+    if (!best || preferCandidate(name, bestName)) {
+      best = &value;
+      bestName = name;
+    }
   }
-  return nullptr;
+  return best;
+}
+
+// Reads a vector property by base name, filling in components that the vector's
+// own encoding does not carry from the sibling scalar properties "<base>[i]".
+//
+// This is the P1 z defect: a player's m_vecOrigin is a VectorXY, so the wire
+// format carries x and y only and the decoder leaves z at 0. The real z travels
+// in a *separate* Float named "m_vecOrigin[2]" whose value lands in .x. Reading
+// only the VectorXY's z therefore put every player on the ground plane at z = 0
+// while every count-based check stayed green.
+//
+// The choice among duplicates is made deterministic (prefer the full-precision
+// Local variant, then the lexicographically smallest name) because
+// EntityState::properties is an unordered_map and its iteration order is not
+// specified.
+bool readVectorProperty(const EntityState& state, const std::string& base, float out[3],
+                        bool* complete) {
+  if (complete) *complete = true;
+  const EntityPropertyValue* best = nullptr;
+  std::string bestName;
+  for (const auto& [name, value] : state.properties) {
+    if (!suffixMatch(name, base.c_str())) continue;
+    if (value.type != SendPropType::Vector && value.type != SendPropType::VectorXY) continue;
+    if (!best || preferCandidate(name, bestName)) {
+      best = &value;
+      bestName = name;
+    }
+  }
+  if (!best) return false;
+  const bool carriesZ = best->type == SendPropType::Vector;
+  out[0] = best->x;
+  out[1] = best->y;
+  out[2] = carriesZ ? best->z : 0.0f;
+  for (std::size_t component = carriesZ ? 3u : 2u; component < 3u; ++component) {
+    const std::string scalar = base + "[" + std::to_string(component) + "]";
+    const auto* value = findProperty(state, scalar.c_str());
+    if (!value) {
+      // The vector really is 2D and its z sibling is absent from this snapshot.
+      // Zero is a guess, so say so rather than letting it pass as a reading.
+      if (complete) *complete = false;
+      continue;
+    }
+    out[component] = value->type == SendPropType::Int ? static_cast<float>(value->intValue) : value->x;
+  }
+  return std::isfinite(out[0]) && std::isfinite(out[1]) && std::isfinite(out[2]);
 }
 
 bool isPlayerClassName(const std::string& className) {
@@ -38,14 +114,13 @@ bool isViewModelPath(const std::string& path) {
 
 ModelInstanceTransform EntityModelResolver::extractTransform(const EntityState& state) {
   ModelInstanceTransform transform;
-  if (const auto* origin = findProperty(state, "m_vecOrigin")) {
-    if ((origin->type == SendPropType::Vector || origin->type == SendPropType::VectorXY)
-        && std::isfinite(origin->x) && std::isfinite(origin->y) && std::isfinite(origin->z)) {
-      transform.hasOrigin = true;
-      transform.origin[0] = origin->x;
-      transform.origin[1] = origin->y;
-      transform.origin[2] = origin->z;
-    }
+  bool originComplete = true;
+  if (float origin[3]; readVectorProperty(state, "m_vecOrigin", origin, &originComplete)) {
+    transform.hasOrigin = true;
+    transform.origin[0] = origin[0];
+    transform.origin[1] = origin[1];
+    transform.origin[2] = origin[2];
+    if (!originComplete) transform.diagnostic = "origin-z-sibling-missing";
   }
   if (const auto* angles = findProperty(state, "m_angEyeAngles")) {
     if ((angles->type == SendPropType::Vector || angles->type == SendPropType::VectorXY)
