@@ -629,6 +629,7 @@ std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot
     request.classId = reference.classId;
     request.className = reference.className;
     request.modelPath = reference.modelPath;
+    request.modelPathFromWorldModelIndex = reference.modelPathFromWorldModelIndex;
     const auto normalized = normalizeModelPath(reference.modelPath);
     auto candidateIt = candidateCache.find(normalized);
     if (candidateIt == candidateCache.end()) {

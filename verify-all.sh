@@ -16,9 +16,12 @@
 #  11. bound how old an out-of-window entity answer is allowed to be (step 10
 #      only sees the live window; nothing before this step said how far back a
 #      Checkpoint answer may fall)
+#  12. prove a weapon's render request names the weapon and not the hands that
+#      hold it (m_nModelIndex is the first-person composite on a weapon entity;
+#      the world pass has to use m_iWorldModelIndex)
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer
-# does not have to read eleven reports. Every step writes its raw output to
+# does not have to read twelve reports. Every step writes its raw output to
 # evidence/ before the assertion runs.
 #
 # Step 10 exists because the P1 z defect was invisible to every count-based
@@ -30,6 +33,13 @@
 # the checkpoint was: the retention policy could pin the head of the archive and
 # answer a tick 54392 ticks stale (13.7 minutes) while every count stayed green
 # and step 10 stayed green too (it only compares inside the live window).
+#
+# Step 12 exists because a path can be wrong and still resolve. A weapon entity's
+# m_nModelIndex names its first-person arms composite -- a real asset -- so a
+# world pass driven by it draws a pair of hands where the weapon belongs, and
+# every counting step above stays green while it does. The step compares the
+# index against the oracle's own packet value and pins which route chose the
+# path, on the fixture, on two demos, and end to end.
 #
 # Steps 5, 6, 7 and 9 exist because the first P0 acceptance pass got four things
 # wrong that no green reading caught:
@@ -58,6 +68,8 @@
 # Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40.
 # Step 10 adds ~2.5 min (the oracle walks the whole demo once per compared tick).
 # Step 11 adds ~1.5 min (one bagel scan for the staleness sample).
+# Step 12 adds ~4 min (one bagel scan, one POV scan, and one oracle run per
+# packet in the live window -- 68 of them).
 #
 # Usage: bash verify-all.sh [--quick]     (--quick: oracle corpus sample of 8)
 # Exit:  0 = every step passed.
@@ -73,7 +85,7 @@ rc_all=0
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
-step "1/11 clean full Release build"
+step "1/12 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
@@ -87,7 +99,7 @@ else
   echo "BUILD=FAIL"; rc_all=1
 fi
 
-step "2/11 nine-demo census"
+step "2/12 nine-demo census"
 bash run-demos.sh evidence/final | tee "$OUT/2-census.txt"
 if [ "$(grep -c 'entity_failures=0 malformed_packets=0 unknown_message_packets=0' "$OUT/2-census.txt")" -eq 9 ]; then
   echo "CENSUS=PASS (9/9 demos at zero)"
@@ -101,7 +113,7 @@ else
   echo "COVERAGE=FAIL"; rc_all=1
 fi
 
-step "3/11 wire fixtures"
+step "3/12 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
 FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
 echo "fixture_pass_count=$FIXTURES"
@@ -115,7 +127,7 @@ else
   echo "FIXTURE=FAIL"; rc_all=1
 fi
 
-step "4/11 oracle cross-check (nine demos)"
+step "4/12 oracle cross-check (nine demos)"
 bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final \
   | tee "$OUT/4-oracle.txt"
 if grep -q 'ORACLE-GATE=PASS' "$OUT/4-oracle.txt"; then
@@ -124,7 +136,7 @@ else
   echo "ORACLE=FAIL"; rc_all=1
 fi
 
-step "5/11 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+step "5/12 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
 "$PY" oracle-corpus-check.py --sample "$ORACLE_SAMPLE" --workers 2 \
   > "$OUT/5-oracle-corpus.txt" 2>&1
@@ -141,7 +153,7 @@ else
   echo "ORACLE-CORPUS-SELFTEST=FAIL"; rc_all=1
 fi
 
-step "6/11 oracle demo recording types"
+step "6/12 oracle demo recording types"
 bash oracle-recording-types.sh | tee "$OUT/6-recording-types.txt"
 if grep -q 'ORACLE-RECORDING-TYPES=PASS' "$OUT/6-recording-types.txt"; then
   echo "RECORDING-TYPES=PASS"
@@ -149,7 +161,7 @@ else
   echo "RECORDING-TYPES=FAIL"; rc_all=1
 fi
 
-step "7/11 probe output is additive"
+step "7/12 probe output is additive"
 bash check-probe-output-additive.sh | tee "$OUT/7-probe-additive.txt"
 if grep -q 'PROBE-OUTPUT-ADDITIVE=PASS' "$OUT/7-probe-additive.txt"; then
   echo "PROBE-ADDITIVE=PASS"
@@ -157,15 +169,15 @@ else
   echo "PROBE-ADDITIVE=FAIL"; rc_all=1
 fi
 
-step "8/11 mutation suite (C++)"
+step "8/12 mutation suite (C++)"
 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
 # suite: MUTATION-SUITE=PASS is also what a script that ran zero cases prints.
-# 29 red + 3 hold is the current case count (m9 added four red assertions),
-# so adding a case is an explicit edit here. Any GREEN or BROKE line means a
-# mutation did not move the reading it targets -- which is the one thing the
-# suite exists to detect.
+# 37 red + 3 hold is the current case count (m10 added eight red assertions,
+# all of them readings this round introduced), so adding a case is an explicit
+# edit here. Any GREEN or BROKE line means a mutation did not move the reading
+# it targets -- which is the one thing the suite exists to detect.
 RED=$(grep -c '^MUTATION-RED' "$OUT/8-mutation.txt" || true)
 HOLD=$(grep -c '^MUTATION-HOLD' "$OUT/8-mutation.txt" || true)
 BROKE=$(grep -c '^MUTATION-BROKE' "$OUT/8-mutation.txt" || true)
@@ -173,14 +185,14 @@ GREEN=$(grep -c '^MUTATION-GREEN' "$OUT/8-mutation.txt" || true)
 IDENT=$(grep -c '^RESTORED-IDENTICAL' "$OUT/8-mutation.txt" || true)
 echo "mutation_red=$RED hold=$HOLD green=$GREEN broke=$BROKE restored_identical=$IDENT"
 if grep -q 'MUTATION-SUITE=PASS' "$OUT/8-mutation.txt" \
-   && [ "$RED" -eq 29 ] && [ "$HOLD" -eq 3 ] \
+   && [ "$RED" -eq 37 ] && [ "$HOLD" -eq 3 ] \
    && [ "$GREEN" -eq 0 ] && [ "$BROKE" -eq 0 ] && [ "$IDENT" -eq 6 ]; then
   echo "MUTATION=PASS"
 else
   echo "MUTATION=FAIL"; rc_all=1
 fi
 
-step "9/11 census verdict is falsifiable"
+step "9/12 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
 if grep -q 'CENSUS-NEGATIVE=PASS' "$OUT/9-census-negative.txt"; then
   echo "CENSUS-NEGATIVE=PASS"
@@ -188,7 +200,7 @@ else
   echo "CENSUS-NEGATIVE=FAIL"; rc_all=1
 fi
 
-step "10/11 reconstructed positions vs the independent oracle, per value"
+step "10/12 reconstructed positions vs the independent oracle, per value"
 # Steps 4-6 compare *counts* against the Rust oracle. Counts cannot see a value
 # that is decoded correctly and then read from the wrong property -- which is
 # exactly the P1 z defect: every counter stayed green while every player rendered
@@ -208,7 +220,7 @@ else
   echo "TRAJECTORY-ORACLE=FAIL (rc=$TRAJ_RC compared=${COMPARED:-0} mutation_rc=$MUT_RC)"; rc_all=1
 fi
 
-step "11/11 entity history coverage (how old a Checkpoint answer may be)"
+step "11/12 entity history coverage (how old a Checkpoint answer may be)"
 # Step 10 compares values only inside the ~70-packet live window, because that is
 # the only place the answer is tick-exact. Everywhere else the answer falls back
 # to a retained checkpoint, and nothing bounded how old that could be -- measured
@@ -224,6 +236,29 @@ if grep -q 'HISTORY-COVERAGE=PASS' "$COV" \
   echo "HISTORY-COVERAGE=PASS"
 else
   echo "HISTORY-COVERAGE=FAIL"; rc_all=1
+fi
+
+step "12/12 weapon world model (a weapon must not be drawn as its arms)"
+# Step 10 compares values but only for positions; a model path is the other half
+# of "the picture is right", and it fails differently. A weapon entity carries
+# two indices: m_nModelIndex is the first-person composite (its class's c_*_arms
+# model) and m_iWorldModelIndex is the weapon itself. Reading the first one is not
+# an error the decoder can see -- it resolves, to a real asset -- so the wrong
+# picture was reachable with every count above staying green. The gate pins the
+# fixture (every branch by construction), both demo readings, the index against
+# the oracle's own packet value, and the skip: no packet in the live window writes
+# the property, so the count of packets that carry it must be zero, and the gate
+# says so out loud instead of comparing nothing.
+WSMODEL="$OUT/12-weapon-world-model.txt"
+bash weapon-world-model-check.sh > "$WSMODEL" 2>&1
+cat "$WSMODEL"
+WS_FIXTURE=$(grep -c '^  OK   fixture' "$WSMODEL" || true)
+WS_PACKETS=$(sed -n 's/.*packets checked=\([0-9][0-9]*\) .*/\1/p' "$WSMODEL" | head -1)
+if grep -q 'WEAPON-WORLD-MODEL=PASS' "$WSMODEL" \
+   && [ "$WS_FIXTURE" -eq 12 ] && [ "${WS_PACKETS:-0}" -gt 0 ]; then
+  echo "WEAPON-WORLD-MODEL=PASS (fixture_ok=$WS_FIXTURE, live_window_packets=$WS_PACKETS)"
+else
+  echo "WEAPON-WORLD-MODEL=FAIL (fixture_ok=$WS_FIXTURE, live_window_packets=${WS_PACKETS:-0})"; rc_all=1
 fi
 
 printf '\n'

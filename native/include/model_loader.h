@@ -223,6 +223,12 @@ struct ModelRenderRequest {
   bool companionSetComplete = false;
   bool renderable = false;
   bool inspectedFromVpk = false;
+  // Mirrors AssetReference::modelPathFromWorldModelIndex so a caller downstream
+  // of the reference list can still tell "this request names the weapon" from
+  // "this request names the first-person arms". The distinction matters exactly
+  // because the arms model is a real, resolvable asset: the wrong route produces
+  // a perfectly renderable request for the wrong object.
+  bool modelPathFromWorldModelIndex = false;
   ModelInspection inspection;
   std::string diagnostic;
 };

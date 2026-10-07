@@ -222,6 +222,7 @@ std::vector<ModelInstance> EntityModelResolver::buildInstances(
     instance.renderable = request.renderable;
     instance.missingAssetFallback = !request.renderable;
     instance.viewModelSkipped = isViewModelPath(request.modelPath);
+    instance.worldModelIndexPath = request.modelPathFromWorldModelIndex;
     instance.diagnostic = request.diagnostic;
     if (instance.viewModelSkipped) {
       instance.renderable = false;

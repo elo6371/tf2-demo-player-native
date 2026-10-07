@@ -23,6 +23,19 @@ int fail(const std::string& message) {
   return 1;
 }
 
+// A path that names a class's first-person arms composite
+// (models/weapons/c_models/c_*_arms/*_arms.mdl). Counted separately from the
+// world-model route because the two are independent readings of the same claim:
+// the route flag says which index the resolver chose, this says what the chosen
+// path actually is. A weapon drawn with its arms model would keep the route
+// reading honest-looking only if both were wrong in the same way, and they are
+// not computed from each other.
+bool isArmsPath(const std::string& path) {
+  const auto slash = path.find_last_of("/\\");
+  const std::string file = slash == std::string::npos ? path : path.substr(slash + 1);
+  return file.size() > 9 && file.compare(file.size() - 9, 9, "_arms.mdl") == 0;
+}
+
 bool runSelfTest() {
   tf2::native::EntityState state;
   tf2::native::EntityPropertyValue origin;
@@ -122,6 +135,119 @@ bool runSelfTest() {
 
   const float badOrigin[3] = {0.0f, 0.0f, std::numeric_limits<float>::quiet_NaN()};
   if (tf2::native::buildEntityModelInstanceRows(badOrigin, nullptr, false, unit, rows)) return false;
+
+  // -------------------------------------------------------------------------
+  // World-model wiring fixture.
+  //
+  // Every branch of the route is exercised by construction here rather than by
+  // hoping a corpus demo happens to contain it. Ten synthetic entities against a
+  // synthetic modelprecache table, then buildAssetReferenceList -- the same call
+  // the real scan makes, not a re-implementation of it:
+  //
+  //   1  model  10 (arms)  world 11          -> names the weapon, not the arms
+  //   2  model  12         world  0          -> the sentinel falls back
+  //   3  model  12         world 99 undeclared -> unresolved, then falls back
+  //   4  model   0         world 14          -> the route fills the gap
+  //   5  model  12         world 0xFFFFFFEA  -> out of range, then falls back
+  //   6  no model index at all, world 11     -> the snakewater shape
+  //   7  model  12 view 12 world 11          -> a real view/model conflict
+  //   8  model  12 view  0 world 11          -> an unset view slot
+  //   9  model  10 (arms)  world  0          -> an arms path off the fallback
+  //  10  model  10 (arms)  world 10          -> a weapon left naming its arms
+  //
+  // Entity 10 is the one the real demos must never produce: it is here so the
+  // counter that has to stay zero on them is known to be able to fire.
+  // -------------------------------------------------------------------------
+  static const char* kArmsPath = "models/weapons/c_models/c_test_arms.mdl";
+  static const char* kWeaponPath = "models/weapons/c_models/c_test_weapon.mdl";
+  static const char* kPlayerPath = "models/player/scout.mdl";
+  static const char* kOtherPath = "models/weapons/c_models/c_test_other.mdl";
+  tf2::native::DemoNetworkSummary wiring;
+  wiring.modelPrecache[10] = kArmsPath;
+  wiring.modelPrecache[11] = kWeaponPath;
+  wiring.modelPrecache[12] = kPlayerPath;
+  wiring.modelPrecache[14] = kOtherPath;
+  wiring.entityStates.resize(11);
+  for (std::size_t i = 0; i < wiring.entityStates.size(); ++i) wiring.entityStates[i].classId = 0;
+  const auto setIndex = [&wiring](std::size_t entity, const char* name, std::int64_t value) {
+    tf2::native::EntityPropertyValue prop;
+    prop.type = tf2::native::SendPropType::Int;
+    prop.intValue = value;
+    wiring.entityStates[entity].properties[name] = prop;
+  };
+  const char* kModelKey = "DT_BaseEntity.m_nModelIndex";
+  const char* kWorldKey = "DT_BaseCombatWeapon.m_iWorldModelIndex";
+  const char* kViewKey = "DT_BaseCombatWeapon.m_iViewModelIndex";
+  setIndex(1, kModelKey, 10); setIndex(1, kWorldKey, 11); setIndex(1, kViewKey, 10);
+  setIndex(2, kModelKey, 12); setIndex(2, kWorldKey, 0); setIndex(2, kViewKey, 0);
+  setIndex(3, kModelKey, 12); setIndex(3, kWorldKey, 99); setIndex(3, kViewKey, 12);
+  setIndex(4, kModelKey, 0); setIndex(4, kWorldKey, 14); setIndex(4, kViewKey, 0);
+  setIndex(5, kModelKey, 12); setIndex(5, kWorldKey, 4294967274LL); setIndex(5, kViewKey, 12);
+  setIndex(6, kWorldKey, 11); setIndex(6, kViewKey, 11);
+  setIndex(7, kModelKey, 12); setIndex(7, kWorldKey, 11); setIndex(7, kViewKey, 11);
+  setIndex(8, kModelKey, 12); setIndex(8, kWorldKey, 11); setIndex(8, kViewKey, 0);
+  setIndex(9, kModelKey, 10); setIndex(9, kWorldKey, 0); setIndex(9, kViewKey, 10);
+  setIndex(10, kModelKey, 10); setIndex(10, kWorldKey, 10); setIndex(10, kViewKey, 10);
+  tf2::native::buildAssetReferenceList(wiring, wiring.assetReferences);
+  const auto& refs = wiring.assetReferences;
+  std::size_t fixtureArmsWeapon = 0;
+  for (const auto& reference : refs) {
+    if (reference.hasWorldModelIndex && reference.worldModelIndex > 0
+        && isArmsPath(reference.modelPath)) {
+      ++fixtureArmsWeapon;
+    }
+  }
+  // Printed before the assertions, not after: when one of them fires, this line is
+  // the only place the actual numbers appear, and a diagnostic that only prints on
+  // success is a diagnostic that is never there when it is needed.
+  std::fprintf(stderr,
+               "weapon-wiring-fixture refs=%zu known=%zu resolved=%zu zero=%zu unresolved=%zu "
+               "outOfRange=%zu unresolvedMax=%lld onlyWorld=%zu fromWorld=%zu agrees=%zu "
+               "viewZero=%zu differs=%zu armsWeapon=%zu\n",
+               refs.size(), wiring.assetWorldModelIndexKnown, wiring.assetWorldModelIndexResolved,
+               wiring.assetWorldModelIndexZero, wiring.assetWorldModelIndexUnresolved,
+               wiring.assetWorldModelIndexOutOfRange,
+               static_cast<long long>(wiring.assetWorldModelIndexUnresolvedMax),
+               wiring.assetModelPathWorldModelOnly, wiring.assetModelPathFromWorldModelIndex,
+               wiring.assetWeaponViewModelIndexAgrees, wiring.assetWeaponViewModelIndexZero,
+               wiring.assetWeaponViewModelIndexDiffers, fixtureArmsWeapon);
+  for (const auto& reference : refs) {
+    std::fprintf(stderr,
+                 "  fixture entity=%u modelIndex=%lld viewModelIndex=%lld worldModelIndex=%lld path=%s source=%s\n",
+                 static_cast<unsigned>(reference.entityIndex),
+                 static_cast<long long>(reference.modelIndex),
+                 static_cast<long long>(reference.viewModelIndex),
+                 static_cast<long long>(reference.worldModelIndex),
+                 reference.modelPath.empty() ? "<none>" : reference.modelPath.c_str(),
+                 reference.modelPathFromWorldModelIndex ? "world" : "model");
+  }
+  std::fflush(stderr);
+  if (refs.size() != wiring.entityStates.size()) return false;
+  if (wiring.assetWorldModelIndexKnown != 10) return false;
+  if (wiring.assetWorldModelIndexResolved != 6) return false;
+  if (wiring.assetWorldModelIndexZero != 2) return false;
+  if (wiring.assetWorldModelIndexUnresolved != 1) return false;
+  if (wiring.assetWorldModelIndexOutOfRange != 1) return false;
+  if (wiring.assetWorldModelIndexUnresolvedMax != 99) return false;
+  if (wiring.assetModelPathFromWorldModelIndex != 6) return false;
+  if (wiring.assetModelPathWorldModelOnly != 2) return false;
+  if (wiring.assetWeaponViewModelIndexAgrees != 6) return false;
+  if (wiring.assetWeaponViewModelIndexZero != 2) return false;
+  if (wiring.assetWeaponViewModelIndexDiffers != 1) return false;
+  // Exactly one, and only because entity 10 was built to be that case. This is
+  // what makes "armsWeapon is 0 on both real demos" a reading rather than a
+  // counter nobody has ever seen move.
+  if (fixtureArmsWeapon != 1) return false;
+  // The second claim the fixture carries: the route is what decided each path.
+  // A count that came out right off the wrong path would be invisible otherwise.
+  if (std::string(refs[1].modelPath) != kWeaponPath || !refs[1].modelPathFromWorldModelIndex) return false;
+  if (std::string(refs[2].modelPath) != kPlayerPath || refs[2].modelPathFromWorldModelIndex) return false;
+  if (std::string(refs[3].modelPath) != kPlayerPath || refs[3].modelPathFromWorldModelIndex) return false;
+  if (std::string(refs[4].modelPath) != kOtherPath || !refs[4].modelPathFromWorldModelIndex) return false;
+  if (std::string(refs[5].modelPath) != kPlayerPath || refs[5].modelPathFromWorldModelIndex) return false;
+  if (std::string(refs[6].modelPath) != kWeaponPath || !refs[6].modelPathFromWorldModelIndex) return false;
+  if (std::string(refs[9].modelPath) != kArmsPath || refs[9].modelPathFromWorldModelIndex) return false;
+  if (std::string(refs[10].modelPath) != kArmsPath || !refs[10].modelPathFromWorldModelIndex) return false;
   return true;
 }
 
@@ -704,6 +830,84 @@ void printClassProps(const tf2::native::DemoNetworkSummary& summary, const std::
   std::fflush(stderr);
 }
 
+// The modelprecache table itself, index by index. Every other reading here says
+// "index N resolved"; this is the only one that says *to what*, which is what a
+// reader needs when two candidate indices disagree (a weapon carries both its
+// world-model index and its view-model index and they are different numbers).
+void printPrecache(const tf2::native::DemoNetworkSummary& summary, const std::string& filter) {
+  std::vector<std::pair<std::uint16_t, std::string>> entries(
+      summary.modelPrecache.begin(), summary.modelPrecache.end());
+  std::sort(entries.begin(), entries.end(),
+            [](const auto& left, const auto& right) { return left.first < right.first; });
+  std::size_t shown = 0;
+  for (const auto& [index, path] : entries) {
+    if (filter != "*" && path.find(filter) == std::string::npos) continue;
+    std::fprintf(stderr, "precache idx=%u %s\n", static_cast<unsigned>(index), path.c_str());
+    ++shown;
+  }
+  std::fprintf(stderr, "precache entries=%zu shown=%zu filter=%s\n",
+               summary.modelPrecache.size(), shown, filter.c_str());
+  std::fflush(stderr);
+}
+
+// One line per entity that carries a world-model index, plus the totals. This is
+// the per-entity view a check can assert on, the same way --props-at is the
+// per-entity view of the decoder: the counters say every index resolved, this
+// says for which entity and to which model.
+void printWeaponModels(const tf2::native::DemoNetworkSummary& summary) {
+  std::size_t withWorld = 0, worldNonZero = 0, fromWorld = 0, stillArms = 0, weaponArms = 0;
+  std::size_t armsNonWeapon = 0;
+  for (const auto& reference : summary.assetReferences) {
+    if (!reference.hasWorldModelIndex) {
+      // A path naming a class's arms model on something that carries no world
+      // model index is not a weapon at all: it is a first-person-only wearable
+      // (CTFWearableVM), which belongs to the ViewModel round, not to this one.
+      // Counted and listed so the count in the summary line can never be
+      // mistaken for the defect this round fixed.
+      if (isArmsPath(reference.modelPath)) {
+        ++armsNonWeapon;
+        std::fprintf(stderr, "arms-nonweapon entity=%u class=%d %s modelIndex=%lld path=%s\n",
+                     static_cast<unsigned>(reference.entityIndex), reference.classId,
+                     reference.className.c_str(),
+                     static_cast<long long>(reference.modelIndex),
+                     reference.modelPath.c_str());
+      }
+      continue;
+    }
+    ++withWorld;
+    if (reference.worldModelIndex > 0) {
+      ++worldNonZero;
+      if (isArmsPath(reference.modelPath)) ++weaponArms;
+    }
+    if (reference.modelPathFromWorldModelIndex) ++fromWorld;
+    if (isArmsPath(reference.modelPath)) ++stillArms;
+    std::fprintf(stderr,
+                 "weapon entity=%u class=%d %s present=%s%s%s modelIndex=%lld viewModelIndex=%lld "
+                 "worldModelIndex=%lld path=%s source=%s\n",
+                 static_cast<unsigned>(reference.entityIndex), reference.classId,
+                 reference.className.c_str(),
+                 reference.hasModelIndex ? "m" : "-",
+                 reference.hasViewModelIndex ? "v" : "-",
+                 reference.hasWorldModelIndex ? "w" : "-",
+                 static_cast<long long>(reference.modelIndex),
+                 static_cast<long long>(reference.viewModelIndex),
+                 static_cast<long long>(reference.worldModelIndex),
+                 reference.modelPath.empty() ? "<none>" : reference.modelPath.c_str(),
+                 reference.modelPathFromWorldModelIndex ? "world" : "model");
+  }
+  std::fprintf(stderr,
+               "weapon-dump refs=%zu withWorldIndex=%zu worldIndexNonZero=%zu pathFromWorld=%zu "
+               "pathStillArms=%zu armsWeapon=%zu armsNonWeapon=%zu known=%zu resolved=%zu "
+               "unresolved=%zu zero=%zu outOfRange=%zu agrees=%zu viewIndexZero=%zu differs=%zu\n",
+               summary.assetReferences.size(), withWorld, worldNonZero, fromWorld, stillArms,
+               weaponArms, armsNonWeapon, summary.assetWorldModelIndexKnown,
+               summary.assetWorldModelIndexResolved, summary.assetWorldModelIndexUnresolved,
+               summary.assetWorldModelIndexZero, summary.assetWorldModelIndexOutOfRange,
+               summary.assetWeaponViewModelIndexAgrees, summary.assetWeaponViewModelIndexZero,
+               summary.assetWeaponViewModelIndexDiffers);
+  std::fflush(stderr);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -716,6 +920,8 @@ int main(int argc, char** argv) {
   std::vector<std::int32_t> propsAt;
   int propsAtEntity = -1;
   std::string classPropsFilter;
+  std::string precacheFilter;
+  bool weaponModelDump = false;
   bool historyStats = false;
   std::size_t historyCoverageSamples = 0;
   bool renderedOrigins = false;
@@ -725,6 +931,8 @@ int main(int argc, char** argv) {
     else if (arg == "--tf-root" && i + 1 < argc) tfRoot = argv[++i];
     else if (arg == "--demo" && i + 1 < argc) demoPath = argv[++i];
     else if (arg == "--dump-class-props" && i + 1 < argc) classPropsFilter = argv[++i];
+    else if (arg == "--dump-precache" && i + 1 < argc) precacheFilter = argv[++i];
+    else if (arg == "--dump-weapon-models") weaponModelDump = true;
     else if (arg == "--history-stats") historyStats = true;
     else if (arg == "--history-coverage" && i + 1 < argc) historyCoverageSamples = std::strtoul(argv[++i], nullptr, 10);
     else if (arg == "--rendered") renderedOrigins = true;
@@ -839,6 +1047,48 @@ int main(int argc, char** argv) {
       assets, summary.assetReferences, nullptr, &stats);
     std::size_t demoRenderable = 0;
     for (const auto& request : requests) if (request.renderable) ++demoRenderable;
+    std::size_t worldModelRequests = 0;
+    std::size_t armsRequests = 0;
+    for (const auto& request : requests) {
+      if (request.modelPathFromWorldModelIndex) ++worldModelRequests;
+      if (isArmsPath(request.modelPath)) ++armsRequests;
+    }
+    // The claim this round is answerable for: a reference whose world index is a
+    // real value ends up naming the world model, never the arms. `worldIndexNonZero`
+    // is the population, `assetModelPathFromWorldModel` the ones that took the
+    // route, and `armsWeaponRefs` the counter that has to stay 0 -- a weapon left
+    // naming its arms would trip exactly that one and nothing else. Refs naming an
+    // arms model without a world index are first-person-only wearables and are
+    // reported separately so they cannot be mistaken for that defect.
+    std::size_t worldIndexNonZero = 0;
+    std::size_t armsWeaponRefs = 0;
+    std::size_t armsNonWeaponRefs = 0;
+    for (const auto& reference : summary.assetReferences) {
+      const bool arms = isArmsPath(reference.modelPath);
+      if (!reference.hasWorldModelIndex) {
+        if (arms) ++armsNonWeaponRefs;
+        continue;
+      }
+      // Only a *real* world index counts here. On both demos the CTFSpellBook
+      // carries the property with the value 0 and its own m_nModelIndex names
+      // c_demo_arms, so its path is an arms path by the entity's own statement --
+      // folding that into the defect counter would make the counter measure the
+      // corpus instead of the wiring.
+      if (reference.worldModelIndex > 0) {
+        ++worldIndexNonZero;
+        if (arms) ++armsWeaponRefs;
+      }
+    }
+    // Built over the same end-state the reference list came from and with the
+    // renderer's own cap, so this reading is at the depth main.cpp actually uses
+    // rather than a second, differently-shaped pipeline.
+    std::size_t worldModelInstances = 0;
+    {
+      const auto instances = tf2::native::EntityModelResolver::buildInstances(
+        requests, summary.entityStates, summary.serverClassSchemas, 256);
+      for (const auto& instance : instances) if (instance.worldModelIndexPath) ++worldModelInstances;
+    }
+    if (weaponModelDump) printWeaponModels(summary);
     TrajectoryStats trajectory;
     if (trajectoryTicks > 0) measureTrajectory(summary, trajectoryTicks, trajectory);
     std::cout << "{\"ok\":true"
@@ -847,6 +1097,22 @@ int main(int argc, char** argv) {
       << ",\"assetRefs\":" << summary.assetReferences.size()
       << ",\"requests\":" << requests.size()
       << ",\"demoRenderable\":" << demoRenderable
+      << ",\"assetWorldModelKnown\":" << summary.assetWorldModelIndexKnown
+      << ",\"assetWorldModelResolved\":" << summary.assetWorldModelIndexResolved
+      << ",\"assetWorldModelUnresolved\":" << summary.assetWorldModelIndexUnresolved
+      << ",\"assetWorldModelZero\":" << summary.assetWorldModelIndexZero
+      << ",\"assetWorldModelOutOfRange\":" << summary.assetWorldModelIndexOutOfRange
+      << ",\"assetModelPathFromWorldModel\":" << summary.assetModelPathFromWorldModelIndex
+      << ",\"assetModelPathWorldModelOnly\":" << summary.assetModelPathWorldModelOnly
+      << ",\"weaponViewModelAgrees\":" << summary.assetWeaponViewModelIndexAgrees
+      << ",\"weaponViewModelZero\":" << summary.assetWeaponViewModelIndexZero
+      << ",\"weaponViewModelDiffers\":" << summary.assetWeaponViewModelIndexDiffers
+      << ",\"worldModelRequests\":" << worldModelRequests
+      << ",\"armsRequests\":" << armsRequests
+      << ",\"worldIndexNonZero\":" << worldIndexNonZero
+      << ",\"armsWeaponRefs\":" << armsWeaponRefs
+      << ",\"armsNonWeaponRefs\":" << armsNonWeaponRefs
+      << ",\"worldModelInstances\":" << worldModelInstances
       << ",\"inspections\":" << stats.inspections
       << ",\"inspectionCacheHits\":" << stats.inspectionCacheHits
       << ",\"vpkExtracts\":" << stats.vpkExtracts
@@ -892,6 +1158,7 @@ int main(int argc, char** argv) {
     }
     if (!propsAt.empty()) printPropsAt(summary, propsAt, propsAtEntity);
     if (!classPropsFilter.empty()) printClassProps(summary, classPropsFilter);
+    if (!precacheFilter.empty()) printPrecache(summary, precacheFilter);
     if (historyStats) {
       HistoryStats history;
       measureHistory(summary, history);

@@ -237,7 +237,25 @@ void printSummary(const DemoNetworkSummary& summary) {
             << " asset_model_index_out_of_range=" << summary.assetModelIndexOutOfRange
             << " asset_model_index_unresolved=" << summary.assetModelIndexUnresolved
             << " asset_model_index_unresolved_max=" << summary.assetModelIndexUnresolvedMax
-            << " asset_identity_unknown=" << summary.assetIdentityUnknown << "\n";
+            << " asset_identity_unknown=" << summary.assetIdentityUnknown
+            // The world-model route, appended as new keys on the same line so that
+            // every field above keeps its meaning and its value. The nine stored
+            // reports under evidence/probe-baseline/ predate these keys, so
+            // check-probe-output-additive.sh strips them and compares what is left
+            // against evidence/probe-baseline/asset-refs-pre-world-model.txt --
+            // that frozen subset is what makes "the refresh added keys, it did not
+            // move a counter" a reading instead of a promise.
+            << " asset_world_model_index_known=" << summary.assetWorldModelIndexKnown
+            << " asset_world_model_index_resolved=" << summary.assetWorldModelIndexResolved
+            << " asset_world_model_index_zero=" << summary.assetWorldModelIndexZero
+            << " asset_world_model_index_unresolved=" << summary.assetWorldModelIndexUnresolved
+            << " asset_world_model_index_out_of_range=" << summary.assetWorldModelIndexOutOfRange
+            << " asset_world_model_index_unresolved_max=" << summary.assetWorldModelIndexUnresolvedMax
+            << " asset_model_path_from_world_model=" << summary.assetModelPathFromWorldModelIndex
+            << " asset_model_path_world_model_only=" << summary.assetModelPathWorldModelOnly
+            << " asset_weapon_view_model_agrees=" << summary.assetWeaponViewModelIndexAgrees
+            << " asset_weapon_view_model_zero=" << summary.assetWeaponViewModelIndexZero
+            << " asset_weapon_view_model_differs=" << summary.assetWeaponViewModelIndexDiffers << "\n";
 
   // First-failure coordinates. -1 means "never happened".
   std::cout << "first_entity_failure_tick=" << summary.firstEntityUnknownStateTick

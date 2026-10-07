@@ -9,7 +9,7 @@
 #
 # The tree MUST be committed first: `git checkout --` is the restore mechanism.
 #
-# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9]
+# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10]
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -28,7 +28,7 @@ MODELPROBE=native/build-nmake/entity_model_probe.exe
 OUT=evidence/mutation
 mkdir -p "$OUT"
 
-CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9}"
+CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
@@ -426,6 +426,59 @@ for case_id in $CASES; do
         'HISTORY-COVERAGE=FAIL' "$m9rc"
       must_exceed "m9 index-even thinning -> bagel worst gap" \
         "$OUT/historycoverage-m9/bagel-summary.txt" 'history gap worst=[0-9]+' 10000
+      ;;
+    m10)
+      # Reintroduce the weapon-render defect §3.3 fixes: make the world-model
+      # route unreachable, so a weapon's path falls back to m_nModelIndex -- the
+      # first-person arms composite. The wrong path still resolves to a real
+      # asset, so every counter the old acceptance chain measured stays green;
+      # the readings that move are the ones this round added, and the gate that
+      # has to catch it is the one this round wrote. `false &&` rather than
+      # deleting the block: the defect being reproduced is "the route was never
+      # there", and an unreachable block leaves the same runtime shape while
+      # keeping the compilers quiet about everything around it.
+      echo "--- m10: world-model route unreachable again (weapons name their arms)"
+      patch_in "$SRC" \
+        '    if (reference.hasWorldModelIndex) {
+' '    if (false && reference.hasWorldModelIndex) {
+' || { rc_all=1; continue; }
+      bash build-target.sh entity_protocol_probe entity_model_probe >/dev/null 2>&1
+      # The fixture is the sharpest witness: its whole branch table is pinned, so
+      # the defect collapses the reading to zeros. The assertion is the refusal,
+      # not merely a moved number -- the fixture must not print a summary that
+      # looks like a pass.
+      "$MODELPROBE" --self-test > "$OUT/model.m10-selftest.json" 2> "$OUT/model.m10-selftest.txt"
+      m10src=$?
+      must_refuse "m10 world route gone -> fixture self-test refuses" \
+        "$OUT/model.m10-selftest.txt" \
+        'weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=1' \
+        "$m10src"
+      # The real demo: the route's counters collapse while the property keeps
+      # being read -- which is exactly what separates "did not read it" from
+      # "read it and ignored it" (the defect's actual shape).
+      "$PROBE" "$POV" > "$OUT/pov.m10.txt" 2>&1
+      must_move "m10 world route gone -> protocol probe fromWorld" "$OUT/pov.m10.txt" \
+        'asset_model_path_from_world_model=[0-9]+' '69'
+      must_move "m10 world route gone -> protocol probe known" "$OUT/pov.m10.txt" \
+        'asset_world_model_index_known=[0-9]+' '71'
+      must_move "m10 world route gone -> view/model compare dies with the block" \
+        "$OUT/pov.m10.txt" 'asset_weapon_view_model_zero=[0-9]+' '2'
+      "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.m10.txt" 2>&1
+      must_move_j "m10 world route gone -> requests leave the world route" \
+        "$OUT/model.m10.txt" worldModelRequests '69'
+      must_move_j "m10 world route gone -> weapons name their arms" \
+        "$OUT/model.m10.txt" armsWeaponRefs '0'
+      # The gate, end to end, with its output redirected so a red run cannot
+      # overwrite the fixed-build evidence in evidence/weapon-world-model/.
+      WEAPON_WORLD_MODEL_OUT="$OUT/weaponworldmodel-m10" bash weapon-world-model-check.sh \
+        > "$OUT/gate.m10.txt" 2>&1
+      m10rc=$?
+      must_refuse "m10 world route gone -> weapon gate refuses" "$OUT/gate.m10.txt" \
+        'WEAPON-WORLD-MODEL=FAIL' "$m10rc"
+      # The gate's own bagel run is the second demo, read out of the redirected
+      # evidence rather than paid for with another full bagel scan here.
+      must_move_j "m10 world route gone -> gate bagel run reads known=0" \
+        "$OUT/weaponworldmodel-m10/bagel.json" assetWorldModelKnown '33'
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac

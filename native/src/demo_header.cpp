@@ -2415,6 +2415,17 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
   summary.assetModelIndexZero = 0;
   summary.assetModelIndexOutOfRange = 0;
   summary.assetModelIndexUnresolvedMax = -1;
+  summary.assetWorldModelIndexKnown = 0;
+  summary.assetWorldModelIndexResolved = 0;
+  summary.assetWorldModelIndexZero = 0;
+  summary.assetWorldModelIndexUnresolved = 0;
+  summary.assetWorldModelIndexOutOfRange = 0;
+  summary.assetWorldModelIndexUnresolvedMax = -1;
+  summary.assetModelPathFromWorldModelIndex = 0;
+  summary.assetModelPathWorldModelOnly = 0;
+  summary.assetWeaponViewModelIndexAgrees = 0;
+  summary.assetWeaponViewModelIndexZero = 0;
+  summary.assetWeaponViewModelIndexDiffers = 0;
   for (std::size_t entityIndex = 0; entityIndex < summary.entityStates.size() && entityIndex < 2048u; ++entityIndex) {
     const auto& state = summary.entityStates[entityIndex];
     if (state.classId < 0) continue;
@@ -2456,6 +2467,8 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
     findString({"m_ModelName", "m_iszModel", "m_szModel"}, reference.hasModelPath, reference.modelPath);
     findString({"m_iClassName", "m_szClassName"}, reference.hasWeaponClass, reference.weaponClass);
     findInt({"m_nModelIndex", "m_iModelIndex"}, reference.hasModelIndex, reference.modelIndex);
+    findInt({"m_iWorldModelIndex"}, reference.hasWorldModelIndex, reference.worldModelIndex);
+    findInt({"m_iViewModelIndex"}, reference.hasViewModelIndex, reference.viewModelIndex);
     for (const auto& [name, value] : state.properties) {
       if (value.type != SendPropType::String || value.stringValue.empty()) continue;
       if (name == "m_ModelName" || name == "m_iszModelName" || name.find("ModelName") != std::string::npos) {
@@ -2465,6 +2478,76 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
       }
     }
     findInt({"m_hActiveWeapon", "m_hWeapon"}, reference.hasWeapon, reference.weapon);
+    // A weapon carries two model indices and they name different things. The
+    // one DT_BaseEntity.m_nModelIndex holds is the first-person composite: on
+    // the POV demo at server tick 55418 every held weapon reads
+    // m_nModelIndex == m_iViewModelIndex == its class's c_*_arms model (engineer
+    // 1097, medic 1060, spy 1088, pyro 1079, demo 1050), while
+    // m_iWorldModelIndex holds the weapon itself (c_pistol 255, c_medigun 261,
+    // c_knife 240, c_ham 605). The world pass wants the second one -- an arms
+    // model standing where a weapon belongs is what "the weapon's world model is
+    // not wired" looked like -- so the world index is tried first. This block is
+    // additive: it only ever fills a path the m_nModelIndex block below could not
+    // have filled differently, and every bucket it counts has its own counter so
+    // that no reading the P1 round recorded had to move for it.
+    // The one lookup both index routes go through. Returning nullptr covers every
+    // way an index fails to name a model -- the 0 sentinel, Source's negative
+    // sentinels arriving as unsigned 32-bit patterns, and an in-range value the
+    // table never declared -- so "would the other route have produced a path" is
+    // one call rather than four conditions written twice.
+    auto precachePathFor = [&summary](std::int64_t index) -> const std::string* {
+      if (index < 1 || index > 0xffff) return nullptr;
+      const auto found = summary.modelPrecache.find(static_cast<std::uint16_t>(index));
+      if (found == summary.modelPrecache.end() || found->second.empty()) return nullptr;
+      return &found->second;
+    };
+    if (reference.hasWorldModelIndex) {
+      ++summary.assetWorldModelIndexKnown;
+      if (reference.hasViewModelIndex && reference.hasModelIndex) {
+        // Both slots name the first-person composite, so where both are set they
+        // agree. Where they do not, the view slot is 0: the POV demo's syringe
+        // gun (249/0) and Crusader's Crossbow (381/0) are that case, and they are
+        // the only shape it takes across both demos. Splitting "unset" from
+        // "conflicting" is what makes the claim falsifiable -- a real conflict
+        // would land in `Differs`, which is the counter that must stay 0.
+        if (reference.viewModelIndex == reference.modelIndex) {
+          ++summary.assetWeaponViewModelIndexAgrees;
+        } else if (reference.viewModelIndex == 0) {
+          ++summary.assetWeaponViewModelIndexZero;
+        } else {
+          ++summary.assetWeaponViewModelIndexDiffers;
+        }
+      }
+      if (reference.worldModelIndex == 0) {
+        // Unset on the instance baseline, so the property being present at all
+        // means a packet wrote a real value; 0 can only be an explicit clear.
+        ++summary.assetWorldModelIndexZero;
+      } else if (reference.worldModelIndex >= 1 && reference.worldModelIndex <= 0xffff) {
+        if (const auto* worldPath = precachePathFor(reference.worldModelIndex)) {
+          ++summary.assetWorldModelIndexResolved;
+          if (!reference.hasModelPath) {
+            reference.hasModelPath = true;
+            reference.modelPath = *worldPath;
+            reference.modelPathFromPrecache = true;
+            reference.modelPathFromWorldModelIndex = true;
+            ++summary.assetModelPathFromWorldModelIndex;
+            // Did the m_nModelIndex route have anything to offer for this entity?
+            // If not, this path exists *because* of the world route, which is
+            // exactly the quantity assetModelPathKnown moves by.
+            if (precachePathFor(reference.modelIndex) == nullptr) {
+              ++summary.assetModelPathWorldModelOnly;
+            }
+          }
+        } else {
+          ++summary.assetWorldModelIndexUnresolved;
+          if (reference.worldModelIndex > summary.assetWorldModelIndexUnresolvedMax) {
+            summary.assetWorldModelIndexUnresolvedMax = reference.worldModelIndex;
+          }
+        }
+      } else {
+        ++summary.assetWorldModelIndexOutOfRange;
+      }
+    }
     // A real Source demo does not send the model path as an entity property: the
     // entity carries m_nModelIndex and the path lives in the modelprecache
     // string table. Before this lookup every reference had an index and no path,

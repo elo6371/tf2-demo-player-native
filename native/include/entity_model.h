@@ -38,6 +38,10 @@ struct ModelInstance {
   bool missingAssetFallback = false;
   bool playerClassFallback = false;
   bool viewModelSkipped = false;
+  // This instance's path came from the entity's m_iWorldModelIndex -- the weapon
+  // itself -- rather than from m_nModelIndex, which on a weapon names its class's
+  // first-person arms composite.
+  bool worldModelIndexPath = false;
   std::string diagnostic;
 };
 

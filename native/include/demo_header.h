@@ -197,6 +197,24 @@ struct AssetReference {
   // only ever takes the first route, so this flag is what makes "the precache
   // lookup is the one doing the work" checkable instead of assumed.
   bool modelPathFromPrecache = false;
+  // TF2 splits a weapon's model in two. DT_BaseEntity.m_nModelIndex (and
+  // DT_BaseCombatWeapon.m_iViewModelIndex, which carries the same value) names
+  // the first-person composite -- the class's c_*_arms model -- while
+  // DT_BaseCombatWeapon.m_iWorldModelIndex names the weapon itself, which is what
+  // a third-person or dropped weapon is drawn with. Measured on the POV demo at
+  // server tick 55418, all eight held weapons read `modelIndex == viewModelIndex`
+  // and neither equal to the world index (pistol 1097/1097 vs 255, medigun
+  // 1060/1060 vs 261, knife 1088/1088 vs 240); modelprecache resolves 255 to
+  // models/weapons/c_models/c_pistol/c_pistol.mdl and 1097 to
+  // models/weapons/c_models/c_engineer_arms.mdl.
+  bool hasWorldModelIndex = false;
+  std::int64_t worldModelIndex = 0;
+  bool hasViewModelIndex = false;
+  std::int64_t viewModelIndex = 0;
+  // True when modelPath came from m_iWorldModelIndex. Only ever set together
+  // with modelPathFromPrecache: both routes go through the same table, and this
+  // flag is what tells the two apart afterwards.
+  bool modelPathFromWorldModelIndex = false;
   bool hasWeaponClass = false;
   std::string weaponClass;
   bool hasModelIndex = false;
@@ -367,6 +385,50 @@ struct DemoNetworkSummary {
   // here means the entity named a model the table never declared. The sentinels
   // above must not be allowed to fill this in, or a real miss hides among them.
   std::int64_t assetModelIndexUnresolvedMax = -1;
+  // The world-model route, counted separately from the m_nModelIndex route above
+  // so that adding it could not quietly move a reading the P1 round recorded.
+  // `known` is presence only (the state carries m_iWorldModelIndex); the other
+  // three partition it by value, mirroring the m_nModelIndex buckets exactly so
+  // the two routes can be compared bucket for bucket.
+  std::size_t assetWorldModelIndexKnown = 0;
+  // Named a declared, non-empty modelprecache entry. Every weapon entity's world
+  // index should land here on a healthy demo.
+  std::size_t assetWorldModelIndexResolved = 0;
+  // Held the 0 sentinel, so the m_nModelIndex route below stays in charge.
+  std::size_t assetWorldModelIndexZero = 0;
+  // In [1, 0xffff] but the table never declared it. The world-route counterpart
+  // of assetModelIndexUnresolved, and the one that must be zero for the same
+  // reason: a weapon whose world index names no entry cannot be drawn.
+  std::size_t assetWorldModelIndexUnresolved = 0;
+  std::size_t assetWorldModelIndexOutOfRange = 0;
+  // Largest unresolved world index; -1 when none, matching the m_nModelIndex
+  // convention above.
+  std::int64_t assetWorldModelIndexUnresolvedMax = -1;
+  // References whose modelPath came from m_iWorldModelIndex. This is the count
+  // that says the wiring is doing something: before it existed every weapon
+  // render request named its c_*_arms model instead of the weapon.
+  std::size_t assetModelPathFromWorldModelIndex = 0;
+  // The subset of those where the m_nModelIndex route could not have produced a
+  // path at all -- no such property in the state, or a value that names no
+  // declared entry. Measured on the nine-demo probe set this is the *only* thing
+  // that makes assetModelPathKnown move: it rose 451 -> 454 on snakewater, where
+  // three weapons (CTFKnife 382, CTFMinigun 428, CTFLunchBox 429) carry
+  // m_iWorldModelIndex and no m_nModelIndex whatsoever, and it did not move on the
+  // other eight demos, where the 32/33/58... world-model paths only *replace* a
+  // path the old route would have named anyway. That makes
+  // `delta(assetModelPathKnown) == assetModelPathWorldModelOnly` an identity a
+  // check can assert, instead of a movement a reader has to trust.
+  std::size_t assetModelPathWorldModelOnly = 0;
+  // m_iViewModelIndex == m_nModelIndex. Both name the first-person composite, so
+  // they agree wherever both are set. They are NOT always equal: on the POV demo
+  // the syringe gun and the Crusader's Crossbow read m_iViewModelIndex 0 against
+  // m_nModelIndex 249 / 381, and on both demos some weapons read 0 in the view
+  // slot because no packet ever wrote it. Counting the three cases apart is what
+  // keeps "0 means unset" a measurement instead of an assumption -- a real
+  // conflict between the two slots would land in `Differs` and nowhere else.
+  std::size_t assetWeaponViewModelIndexAgrees = 0;
+  std::size_t assetWeaponViewModelIndexZero = 0;
+  std::size_t assetWeaponViewModelIndexDiffers = 0;
   std::size_t assetWeaponClassKnown = 0;
   std::size_t soundMessageCount = 0;
   std::size_t soundEventCount = 0;
