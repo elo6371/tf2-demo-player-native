@@ -11,10 +11,17 @@
 #      the added lines themselves have not moved since they were introduced
 #   8. prove the readings can go red (C++ mutation suite, P0 and P1 cases)
 #   9. prove the corpus-census verdict can go red
+#  10. compare reconstructed entity positions against the independent oracle
+#      *value by value* (counts cannot see a value read from the wrong property)
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer
-# does not have to read nine reports. Every step writes its raw output to
+# does not have to read ten reports. Every step writes its raw output to
 # evidence/ before the assertion runs.
+#
+# Step 10 exists because the P1 z defect was invisible to every count-based
+# check: the decoder was reading the right bits, writing the right property, and
+# the renderer was reading a different one, so every entity sat at z = 0 while
+# steps 4-6 stayed green.
 #
 # Steps 5, 6, 7 and 9 exist because the first P0 acceptance pass got four things
 # wrong that no green reading caught:
@@ -41,6 +48,7 @@
 # for the lines it strips, so "additive" and "unverified" stop being the same word.
 #
 # Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40.
+# Step 10 adds ~2.5 min (the oracle walks the whole demo once per compared tick).
 #
 # Usage: bash verify-all.sh [--quick]     (--quick: oracle corpus sample of 8)
 # Exit:  0 = every step passed.
@@ -56,7 +64,7 @@ rc_all=0
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
-step "1/9 clean full Release build"
+step "1/10 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
@@ -70,7 +78,7 @@ else
   echo "BUILD=FAIL"; rc_all=1
 fi
 
-step "2/9 nine-demo census"
+step "2/10 nine-demo census"
 bash run-demos.sh evidence/final | tee "$OUT/2-census.txt"
 if [ "$(grep -c 'entity_failures=0 malformed_packets=0 unknown_message_packets=0' "$OUT/2-census.txt")" -eq 9 ]; then
   echo "CENSUS=PASS (9/9 demos at zero)"
@@ -84,7 +92,7 @@ else
   echo "COVERAGE=FAIL"; rc_all=1
 fi
 
-step "3/9 wire fixtures"
+step "3/10 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
 FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
 echo "fixture_pass_count=$FIXTURES"
@@ -98,7 +106,7 @@ else
   echo "FIXTURE=FAIL"; rc_all=1
 fi
 
-step "4/9 oracle cross-check (nine demos)"
+step "4/10 oracle cross-check (nine demos)"
 bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final \
   | tee "$OUT/4-oracle.txt"
 if grep -q 'ORACLE-GATE=PASS' "$OUT/4-oracle.txt"; then
@@ -107,7 +115,7 @@ else
   echo "ORACLE=FAIL"; rc_all=1
 fi
 
-step "5/9 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+step "5/10 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
 "$PY" oracle-corpus-check.py --sample "$ORACLE_SAMPLE" --workers 2 \
   > "$OUT/5-oracle-corpus.txt" 2>&1
@@ -124,7 +132,7 @@ else
   echo "ORACLE-CORPUS-SELFTEST=FAIL"; rc_all=1
 fi
 
-step "6/9 oracle demo recording types"
+step "6/10 oracle demo recording types"
 bash oracle-recording-types.sh | tee "$OUT/6-recording-types.txt"
 if grep -q 'ORACLE-RECORDING-TYPES=PASS' "$OUT/6-recording-types.txt"; then
   echo "RECORDING-TYPES=PASS"
@@ -132,7 +140,7 @@ else
   echo "RECORDING-TYPES=FAIL"; rc_all=1
 fi
 
-step "7/9 probe output is additive"
+step "7/10 probe output is additive"
 bash check-probe-output-additive.sh | tee "$OUT/7-probe-additive.txt"
 if grep -q 'PROBE-OUTPUT-ADDITIVE=PASS' "$OUT/7-probe-additive.txt"; then
   echo "PROBE-ADDITIVE=PASS"
@@ -140,7 +148,7 @@ else
   echo "PROBE-ADDITIVE=FAIL"; rc_all=1
 fi
 
-step "8/9 mutation suite (C++)"
+step "8/10 mutation suite (C++)"
 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
@@ -162,12 +170,32 @@ else
   echo "MUTATION=FAIL"; rc_all=1
 fi
 
-step "9/9 census verdict is falsifiable"
+step "9/10 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
 if grep -q 'CENSUS-NEGATIVE=PASS' "$OUT/9-census-negative.txt"; then
   echo "CENSUS-NEGATIVE=PASS"
 else
   echo "CENSUS-NEGATIVE=FAIL"; rc_all=1
+fi
+
+step "10/10 reconstructed positions vs the independent oracle, per value"
+# Steps 4-6 compare *counts* against the Rust oracle. Counts cannot see a value
+# that is decoded correctly and then read from the wrong property -- which is
+# exactly the P1 z defect: every counter stayed green while every player rendered
+# at z = 0. This step compares values, entity by entity. It also asserts a work
+# count (compared=), so a run that compares nothing cannot report PASS.
+TRAJ_OUT="$OUT/10-trajectory.txt"
+"$PY" oracle-trajectory-check.py --ticks 4 > "$TRAJ_OUT" 2>&1
+TRAJ_RC=$?
+"$PY" oracle-trajectory-check.py --ticks 2 --mutation > "$OUT/10-trajectory-mutation.txt" 2>&1
+MUT_RC=$?
+cat "$TRAJ_OUT"
+COMPARED=$(sed -n 's/.*compared=\([0-9][0-9]*\).*/\1/p' "$TRAJ_OUT" | head -1)
+if [ "$TRAJ_RC" -eq 0 ] && [ "${COMPARED:-0}" -ge 20 ] \
+   && [ "$MUT_RC" -eq 0 ] && grep -q 'MUTATION-CAUGHT=PASS' "$OUT/10-trajectory-mutation.txt"; then
+  echo "TRAJECTORY-ORACLE=PASS (compared=$COMPARED, mutation caught)"
+else
+  echo "TRAJECTORY-ORACLE=FAIL (rc=$TRAJ_RC compared=${COMPARED:-0} mutation_rc=$MUT_RC)"; rc_all=1
 fi
 
 printf '\n'
