@@ -848,6 +848,9 @@ history gap worst=1180 at=[66628..67808] median=822 floor=761 budget=96
 history staleness worst=1139 at=87460 mean=407.5
 ```
 
+（`medianGap` 128 → 822 是预期代价：旧策略把槽位堆在头部，中位好看、worst 失控；
+新策略把同样的 96 个槽位摊到全跨度，用中位换 worst 的界。查询感受的是 worst。）
+
 判据（新增，并接为 `verify-all.sh` 第 11 步）：`history-coverage-check.sh` 断言
 fixture（合成均匀供给：`historyWorstGap=4096 ≤ 2×historySlotFloor=3565`）与 bagel
 （`worst=1180 ≤ 2×floor=761`、`distinct=97/97`、`sampled=512`、`unavailable=0`、
