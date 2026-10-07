@@ -111,7 +111,11 @@ target_compile_definitions(winmm_sink_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN
 target_link_libraries(winmm_sink_probe PRIVATE winmm)
 set_target_properties(winmm_sink_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(native_install_smoke_probe tools/native_install_smoke_probe.cpp src/asset_root.cpp)
+# AssetRoot::archives() lives in asset_root.cpp and calls
+# VpkArchiveSet::openDirectory, so anything compiling asset_root.cpp also has to
+# link vpk_archive.cpp. A clean build catches the omission as LNK2019 rather
+# than silently producing a probe that cannot open a VPK.
+add_executable(native_install_smoke_probe tools/native_install_smoke_probe.cpp src/asset_root.cpp src/vpk_archive.cpp)
 target_include_directories(native_install_smoke_probe PRIVATE include)
 target_compile_definitions(native_install_smoke_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(native_install_smoke_probe PRIVATE d3d11 dxgi)
