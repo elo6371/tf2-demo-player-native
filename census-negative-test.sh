@@ -7,6 +7,15 @@
 # go red is not evidence. This script mutates the raw probe reports (no probe
 # re-run, so it costs seconds) and asserts the verdict flips to FAIL.
 #
+# Why the input set is pinned (2026-10-08): this used to run `--sample 24` over
+# the live Steam demos directory. The corpus grew (1643 -> 1656 files, two
+# recordings the machine made while this was being worked on), the evenly spaced
+# sample moved to neighbouring files, and 23 of the 24 frozen reports stopped
+# being read by the census -- so every mutation below would have been inert and
+# the suite went red for the right reason. A gate whose input set is a property
+# of the machine cannot be re-run, so the set is pinned by name in
+# evidence/corpus-calib/demos.txt and asserted to match the frozen reports.
+#
 # Usage: bash census-negative-test.sh
 set -uo pipefail
 
@@ -14,6 +23,7 @@ cd "$(dirname "$0")"
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
 DEMOS="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos"
 SRC=evidence/corpus-calib
+LIST="$SRC/demos.txt"        # the pinned input set: one demo file name per line
 NEG=evidence/corpus-negative
 
 fail=0
@@ -22,35 +32,69 @@ ok()   { printf '  OK   %s\n' "$1"; }
 bad()  { printf '  FAIL %s\n' "$1"; fail=1; }
 
 run() { # run <outdir>  -> echoes verdict
-  "$PY" corpus-census.py --demos-dir "$DEMOS" --outdir "$1" --sample 24 --resume 2>&1
+  "$PY" corpus-census.py --demos-dir "$DEMOS" --demos-list "$LIST" --outdir "$1" --resume 2>&1
 }
 
 step "prepare: copy raw reports to $NEG"
 # Clear every file, not just *.txt: a leftover from an earlier run would be
-# included in the digest below and read as a failed restore.
-rm -f "$NEG"/reports/* 2>/dev/null
-mkdir -p "$NEG/reports"
+# included in the digest below and read as a failed restore. Strays are moved
+# out rather than deleted: this sandbox charges about five seconds per file for
+# a bulk delete (24 files measured at 2m02s) while a rename is instant, and the
+# point of this suite is that it costs seconds. Steady state is zero strays, and
+# the quarantine is under .scratch/ (gitignored), not under evidence/.
+mkdir -p "$NEG/reports" .scratch/corpus-negative-strays
+for f in "$NEG"/reports/*; do
+  [ -e "$f" ] || continue
+  [ -f "$SRC/reports/$(basename "$f")" ] || mv -f "$f" .scratch/corpus-negative-strays/
+done
 cp "$SRC"/reports/*.txt "$NEG/reports/"
-# The digest is taken over exactly the copied files. The corpus itself is a live
-# TF2 demos directory: it gained a file while this was being written, which
-# changes which demos `--sample 24` picks, so globbing the directory afterwards
-# would compare different sets and report a bogus drift.
+# The digest is taken over exactly the copied files: globbing the corpus
+# directory afterwards would compare a different set and report a bogus drift.
 mapfile -t SAMPLED < <(cd "$NEG/reports" && ls *.txt | sort)
 digest() { for f in "${SAMPLED[@]}"; do cat "$NEG/reports/$f"; done | sha256sum | cut -d' ' -f1; }
 BEFORE=$(digest)
 echo "  reports=${#SAMPLED[@]}  digest=$BEFORE"
 
+# The pinned list and the frozen reports must describe the same set. A name in
+# the list without a report would be scanned fresh (slow, and the mutation
+# target could move); a report without a name would sit unread. Assert the
+# correspondence here, so a re-calibration that misses one side goes red at the
+# top instead of surfacing as a mysterious inert mutation below.
+if [ ! -f "$LIST" ]; then
+  bad "pinned demo list is missing: $LIST"
+else
+  PINNED=$(grep -cv '^[[:space:]]*\(#\|$\)' "$LIST" || true)
+  if [ "$PINNED" -eq "${#SAMPLED[@]}" ]; then
+    ok "pinned list and frozen reports agree: $PINNED demos"
+  else
+    bad "pinned list has $PINNED demos, frozen reports ${#SAMPLED[@]}"
+  fi
+  ORPHANS=0
+  while IFS= read -r name; do
+    case "$name" in ''|'#'*) continue ;; esac
+    if [ ! -f "$SRC/reports/${name%.dem}.txt" ]; then
+      bad "pinned demo has no frozen report: $name"; ORPHANS=1
+    fi
+    if [ ! -f "$DEMOS/$name" ]; then
+      bad "pinned demo is not in the corpus: $name"; ORPHANS=1
+    fi
+  done < "$LIST"
+  if [ "$ORPHANS" -eq 0 ]; then
+    ok "every pinned demo exists and has a frozen report"
+  fi
+fi
+
 step "baseline: unmodified reports must PASS"
 OUT=$(run "$NEG")
 echo "$OUT" | grep -E '^(clean|dirty|skipped|sum_packets)=' | sed 's/^/  /'
 if grep -q '^CORPUS-CENSUS=PASS$' <<<"$OUT"; then ok "baseline PASS"; else bad "baseline not PASS"; fi
-# The baseline skip count is *not* assumed to be zero. Seven of the 1644 corpus
-# demos are truncated-tail recordings (TF2 writes the header at record start and
-# only backfills it on dem_stop), so a `--sample 24` that happens to include one
-# legitimately reports skipped=1 before any mutation. Mutation I below must be
-# judged by the *increase* it causes, not by a hard-coded total: the previous
-# version asserted `skipped=1` and went red the first time the live corpus grew
-# enough for a truncated demo to land in the sample.
+# The baseline skip count is *not* assumed to be zero: seven of the corpus demos
+# are truncated-tail recordings (TF2 writes the header at record start and only
+# backfills it on dem_stop), and one could legitimately be in any given set.
+# Mutation I below must therefore be judged by the *increase* it causes, not by
+# a hard-coded total: the previous version asserted `skipped=1` and went red the
+# first time the live corpus grew enough for a truncated demo to land in the
+# sample.
 BASE_SKIPPED=$(sed -n 's/^skipped=//p' <<<"$OUT" | head -1)
 if [[ "$BASE_SKIPPED" =~ ^[0-9]+$ ]]; then
   ok "baseline skipped=$BASE_SKIPPED is a number"
@@ -58,21 +102,21 @@ else
   bad "baseline skipped is not a number (got '${BASE_SKIPPED}')"
   BASE_SKIPPED=0
 fi
-# Informational: if the corpus grew, --sample picks different demos and new
-# reports appear. That is the environment moving, not a restore failure.
+# Informational: with a pinned list this is expected to be 0 -- the reports
+# directory starts clean and only the pinned 24 are copied in.
 EXTRA=$(cd "$NEG/reports" && ls *.txt | sort | comm -13 <(printf '%s\n' "${SAMPLED[@]}") - | wc -l)
-echo "  extra_reports=$EXTRA (corpus grew -> sample moved)"
+echo "  extra_reports=$EXTRA (pinned list: expected 0)"
 
 VICTIM=$(ls "$NEG"/reports/autorecord_*.txt | head -1)
 echo "  victim=$VICTIM"
 
-# The victim must be a demo the census actually read. The corpus is a live TF2
-# demos directory, so a future recording could push this file out of the
-# `--sample` set -- every mutation below would then edit a report nobody reads
-# and the suite would go red for the wrong reason. corpus.csv lists exactly the
-# rows the run consumed, so assert membership rather than assume it.
-# corpus.csv names demos with their .dem extension while the raw report file is
-# <stem>.txt, so both spellings are accepted.
+# The victim must be a demo the census actually read. That is now structural --
+# every report in this directory is on the pinned list -- but membership is
+# still asserted: on 2026-10-08 this very check caught the live sample moving
+# out from under the frozen reports, and a structural argument that is never
+# checked is how that class of failure comes back. corpus.csv lists exactly the
+# rows the run consumed; it names demos with their .dem extension while the raw
+# report file is <stem>.txt, so both spellings are accepted.
 VICTIM_DEMO=$(basename "$VICTIM" .txt)
 if cut -d, -f1 "$NEG/corpus.csv" | grep -qxF -e "$VICTIM_DEMO" -e "$VICTIM_DEMO.dem"; then
   ok "victim $VICTIM_DEMO is in the scanned set"

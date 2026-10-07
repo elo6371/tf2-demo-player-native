@@ -68,6 +68,14 @@
 # nothing verifies. check-probe-output-additive.sh now keeps a second frozen file
 # for the lines it strips, so "additive" and "unverified" stop being the same word.
 #
+# 2026-10-08 added a seventh, found the expensive way: an input set that is a
+# property of the machine. Step 9 used to run `--sample 24` over the live Steam
+# demos directory; two recordings landed while the round was being worked on, the
+# evenly spaced sample moved to neighbouring files, and 23 of the 24 frozen
+# reports stopped being read -- so every mutation would have been inert and the
+# step went red for the right reason. The set is now pinned by name in
+# evidence/corpus-calib/demos.txt and the step asserts the 24-report count.
+#
 # Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40.
 # Step 10 adds ~2.5 min (the oracle walks the whole demo once per compared tick).
 # Step 11 adds ~1.5 min (one bagel scan for the staleness sample).
@@ -198,10 +206,16 @@ fi
 
 step "9/13 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
-if grep -q 'CENSUS-NEGATIVE=PASS' "$OUT/9-census-negative.txt"; then
-  echo "CENSUS-NEGATIVE=PASS"
+# The report count is asserted so this step cannot pass on an empty pinned set:
+# CENSUS-NEGATIVE=PASS is also what a suite that mutated zero reports would
+# print. 24 is the frozen calibration set (evidence/corpus-calib/demos.txt),
+# because on 2026-10-08 the live `--sample 24` moved out from under the frozen
+# reports and every mutation would have been inert.
+NEG_REPORTS=$(sed -n 's/^  reports=\([0-9]*\)  digest=.*/\1/p' "$OUT/9-census-negative.txt" | head -1)
+if grep -q 'CENSUS-NEGATIVE=PASS' "$OUT/9-census-negative.txt" && [ "${NEG_REPORTS:-0}" -eq 24 ]; then
+  echo "CENSUS-NEGATIVE=PASS (pinned_reports=$NEG_REPORTS)"
 else
-  echo "CENSUS-NEGATIVE=FAIL"; rc_all=1
+  echo "CENSUS-NEGATIVE=FAIL (pinned_reports=${NEG_REPORTS:-0})"; rc_all=1
 fi
 
 step "10/13 reconstructed positions vs the independent oracle, per value"

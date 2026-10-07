@@ -38,7 +38,14 @@ The script therefore also checks that the classifier agrees, which is what turns
 Usage:
   python corpus-census.py --demos-dir <dir> --outdir <dir> [--workers 3]
                           [--sample N] [--limit N] [--resume]
+                          [--demos-list <file>]
 Exit: 0 = every scanned demo clean.
+
+--demos-list pins the input set to the file names listed in <file> (one per
+line, relative to --demos-dir). It exists because the corpus is a live Steam
+demos directory: an evenly spaced --sample over it moves as soon as one
+recording lands, which silently re-points every consumer that believed it was
+measuring the same demos. --sample/--limit are refused together with it.
 """
 
 from __future__ import annotations
@@ -178,6 +185,9 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--sample", type=int, default=0, help="evenly spaced stratified sample size, 0 = all")
     ap.add_argument("--limit", type=int, default=0, help="cap the number of demos after sampling")
+    ap.add_argument("--demos-list", default="",
+                    help="file of demo file names (one per line, relative to --demos-dir): "
+                         "pins the input set instead of globbing/sampling the live corpus")
     ap.add_argument("--timeout", type=int, default=1800)
     ap.add_argument("--resume", action="store_true", help="skip demos whose raw report already exists")
     args = ap.parse_args()
@@ -188,17 +198,41 @@ def main() -> int:
         return 2
 
     demos_dir = Path(args.demos_dir)
-    demos = sorted(demos_dir.glob("*.dem"))
-    if not demos:
-        print(f"FATAL: no .dem under {demos_dir}", file=sys.stderr)
-        return 2
+    if args.demos_list:
+        # A pinned list rather than a sample of the live directory. Rationale in
+        # the module docstring: the sample moves when the corpus grows, and a
+        # gate whose input set is a property of the machine cannot be re-run.
+        # A pinned list that is then silently truncated would not be pinned, so
+        # --sample/--limit are refused rather than ignored.
+        if args.sample or args.limit:
+            print("FATAL: --demos-list pins the set; --sample/--limit do not apply", file=sys.stderr)
+            return 2
+        names = [line.strip() for line in Path(args.demos_list).read_text(
+            encoding="utf-8", errors="replace").splitlines()]
+        names = [name for name in names if name and not name.startswith("#")]
+        if not names:
+            print(f"FATAL: no demo names in {args.demos_list}", file=sys.stderr)
+            return 2
+        demos = [demos_dir / name for name in names]
+        missing = [str(d) for d in demos if not d.is_file()]
+        if missing:
+            print(f"FATAL: {len(missing)} of {len(demos)} pinned demos are missing, "
+                  f"first: {missing[0]}", file=sys.stderr)
+            return 2
+        # No wider set is in play: "full" is the pinned set itself.
+        full_bytes = sum(d.stat().st_size for d in demos)
+    else:
+        demos = sorted(demos_dir.glob("*.dem"))
+        if not demos:
+            print(f"FATAL: no .dem under {demos_dir}", file=sys.stderr)
+            return 2
 
-    full_bytes = sum(d.stat().st_size for d in demos)
-    if args.sample and args.sample < len(demos):
-        step = len(demos) / args.sample
-        demos = [demos[int(i * step)] for i in range(args.sample)]
-    if args.limit:
-        demos = demos[: args.limit]
+        full_bytes = sum(d.stat().st_size for d in demos)
+        if args.sample and args.sample < len(demos):
+            step = len(demos) / args.sample
+            demos = [demos[int(i * step)] for i in range(args.sample)]
+        if args.limit:
+            demos = demos[: args.limit]
 
     total_bytes = sum(d.stat().st_size for d in demos)
 
@@ -223,7 +257,8 @@ def main() -> int:
 
     print(f"demos_total={len(demos)} pending={len(pending)} resumed={len(resumed)} "
           f"corpus_gb={total_bytes / 2**30:.1f} (full {full_bytes / 2**30:.1f}) "
-          f"workers={args.workers}", flush=True)
+          f"workers={args.workers}"
+          + (f" pinned={args.demos_list}" if args.demos_list else ""), flush=True)
 
     done = 0
     started = time.perf_counter()
