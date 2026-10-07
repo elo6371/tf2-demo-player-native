@@ -1,0 +1,4 @@
+live window starts at server tick 129210; its first packet's own server tick is 129211 == demo tick 77400 (offset 51811)
+archive max gap 1180 ticks -- ticks outside the live window are NOT comparable
+entities=12 serverTicks=4 compared=40 mismatches=0 skipped=0
+GATE=PASS

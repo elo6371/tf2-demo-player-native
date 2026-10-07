@@ -2,9 +2,9 @@
   "sampled": 8,
   "agreed": 8,
   "mismatched": 0,
-  "wall_seconds": 193.1,
-  "sum_oracle_entities": 15358251,
-  "sum_cpp_entities": 15358251,
+  "wall_seconds": 92.1,
+  "sum_oracle_entities": 9316921,
+  "sum_cpp_entities": 9316921,
   "recording_kinds": [
     "POV",
     "SourceTV"

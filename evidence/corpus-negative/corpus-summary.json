@@ -1,19 +1,23 @@
 {
   "scanned": 24,
-  "clean": 24,
-  "skipped": 0,
+  "clean": 23,
+  "skipped": 1,
   "dirty": 0,
-  "skip_reasons": {},
-  "truncated_tail_files": [],
-  "corpus_gb": 0.6,
+  "skip_reasons": {
+    "truncated_tail": 1
+  },
+  "truncated_tail_files": [
+    "autorecord_2026-09-02_20-46-11.dem"
+  ],
+  "corpus_gb": 0.5,
   "wall_seconds": 0.0,
-  "sum_packets": 1299129,
-  "sum_packet_entities": 1298977,
-  "sum_entity_updates": 28285631,
-  "sum_enter": 1496144,
-  "sum_preserve": 25262057,
-  "sum_leave": 1144055,
-  "sum_delete": 383375,
+  "sum_packets": 1260289,
+  "sum_packet_entities": 1260116,
+  "sum_entity_updates": 24564976,
+  "sum_enter": 1353220,
+  "sum_preserve": 21860786,
+  "sum_leave": 978563,
+  "sum_delete": 372407,
   "autorecord_pov_files": 23,
   "autorecord_classified_pov": 23,
   "autorecord_pov_disagreements": 0,
@@ -33,7 +37,7 @@
     "73.dem"
   ],
   "server_info_replay_bit_files": 0,
-  "distinct_maps": 18,
+  "distinct_maps": 19,
   "protocols": [
     "24"
   ],

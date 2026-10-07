@@ -1,0 +1,22 @@
+live window starts at server tick 129210; its first packet's own server tick is 129211 == demo tick 77400 (offset 51811)
+archive max gap 1180 ticks -- ticks outside the live window are NOT comparable
+entities=12 serverTicks=2 compared=20 mismatches=18 skipped=0
+  MISMATCH entity 1 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin.x: ours=-3157.420166 oracle=-3156.4202
+  MISMATCH entity 1 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin.y: ours=110.702408 oracle=111.70241
+  MISMATCH entity 1 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin[2]: ours=407.836273 oracle=408.83627
+  MISMATCH entity 1 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin.x: ours=-3156.405029 oracle=-3155.405
+  MISMATCH entity 1 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin.y: ours=110.369446 oracle=111.369446
+  MISMATCH entity 1 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin[2]: ours=412.006256 oracle=413.00626
+  MISMATCH entity 3 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin.x: ours=-3157.420166 oracle=-3156.4202
+  MISMATCH entity 3 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin.y: ours=110.702408 oracle=111.70241
+  MISMATCH entity 3 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin[2]: ours=407.836273 oracle=408.83627
+  MISMATCH entity 3 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin.x: ours=-3156.405029 oracle=-3155.405
+  MISMATCH entity 3 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin.y: ours=110.369446 oracle=111.369446
+  MISMATCH entity 3 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin[2]: ours=412.006256 oracle=413.00626
+  MISMATCH entity 9 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin.x: ours=-3439.897461 oracle=-3438.8975
+  MISMATCH entity 9 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin.y: ours=-80.517403 oracle=-79.5174
+  MISMATCH entity 9 server 129211 / demo 77400 DT_TFLocalPlayerExclusive.m_vecOrigin[2]: ours=394.801239 oracle=395.80124
+  MISMATCH entity 9 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin.x: ours=-3441.393555 oracle=-3440.3936
+  MISMATCH entity 9 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin.y: ours=-76.850922 oracle=-75.85092
+  MISMATCH entity 9 server 129212 / demo 77401 DT_TFLocalPlayerExclusive.m_vecOrigin[2]: ours=397.966248 oracle=398.96625
+MUTATION-CAUGHT=PASS (18 mismatches on the perturbed expectation)

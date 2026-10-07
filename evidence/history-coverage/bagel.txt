@@ -1,0 +1,11 @@
+history archive=96 ticks=[56148..129125] medianGap=822 maxGap=1180
+history liveCheckpoints=1 ticks=[129210..129210] maxGap=0 packets=68 events=1155 dropped=172
+history flushes=172 gapDropped=0
+history archiveTicks=56148,56873,57957,58618,59145,60208,60941,61465,62187,62905,63686,64609,65357,66085,66628,67808,68770,69486,69997,71041,71670,72358,72909,73572,74163,75021,75664,76573,77367,78154,79053,79891,80295,81189,81743,82523,83372,84227,84676,85493,86321,87461,88408,89227,90051,90491,91308,91808,92684,93594,94492,95381,95842,96661,97532,98439,99295,100181,100665,101599,102052,102881,103703,104136,104929,105836,106613,107119,107958,108448,109298,109735,110570,111417,112221,112976,113481,114306,115224,116096,116945,117614,118124,118957,119800,120633,121518,122362,123041,124011,124892,125715,126520,127354,128219,129125,
+history liveTicks=129210,
+history coverage samples=512 exact=1 checkpoint=511 unavailable=0
+history retained archive=96 live=1 distinct=97 span=[56148..129210]
+history gap worst=1180 at=[66628..67808] median=822 floor=761 budget=96
+history staleness worst=1139 at=87460 mean=407.5
+history bytes archive=801034304 live=8501982 checkpointApprox=8344107 packets=2720 events=1155 eventsApprox=453676
+{"ok":true,"selfTest":false,"demo":"D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem","assetRefs":679,"requests":505,"demoRenderable":113,"inspections":34,"inspectionCacheHits":79,"vpkExtracts":34,"uniqueRenderable":4,"vpkRenderable":4,"scoutVertices":12000,"scoutChecksum":1098120898,"duplicateStable":true,"instanceCount":6,"playerFallbacks":1}

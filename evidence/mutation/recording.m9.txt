@@ -1,0 +1,1 @@
+{"selfTest":false,"viewMath":true,"recording":true,"projectileFields":true,"fullSpanCheckpoint":true,"historyCoverage":false,"historyWorstGap":23040,"historySlotFloor":3565,"cameraFormula":"source-pitch-down","seekOutsideWindow":"checkpoint"}

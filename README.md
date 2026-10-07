@@ -9,9 +9,13 @@ P1 共八个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 
 普查判据改按增量判定（`cc17ebe`）、把逐值门禁接成验收链第 10 步（`dab6ce1`）。
 逐 tick 位移那一条见 `ACCEPTANCE-P1-2026-10-06.md` §10。
 
-**⚠️ `VERIFY=PASS` 尚未在 `dab6ce1` 上取得**（本轮按指示中断在 6/10 步）。
-`evidence/verify/` 里的内容是 `a2c584f` 那次通过的运行，可直接引用；
-重跑 `bash verify-all.sh --quick` 前请先确认 `git status --porcelain -- native/` 为空。
+2026-10-07 续接会话又落两个提交：`9842a9f`（文档）与 **`aa93926`（代码基线）**——
+实体历史保留修复（按最大 tick 间隙抽稀 + 去掉重复检查点 + `resolvedTick` 读数），
+把原 §3.1 阻塞项闭合，验收链扩到 11 步（新增历史覆盖门禁）。见 HANDOFF §1.1 / §3.1。
+
+**`VERIFY=PASS` 已在 `aa93926` 上取得**（11 步 `bash verify-all.sh --quick`，
+读数在 `evidence/verify/1..11-*.txt`）。此前 `a2c584f` 那次 9 步运行只作对照。
+重跑前请先确认 `git status --porcelain -- native/` 为空。
 
 - 源目录 `D:\TF2_Demo_Player` **本次未改动**（`work/native-mvp-source` 仍是
   `d585af8`，`git status` 干净）。
@@ -32,7 +36,7 @@ P1 共八个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 
 | `evidence/probe-baseline/` | **冻结**的 9 份探针报告（`recording_stream=` / `index_state=` 两行加入之前的二进制产出），供 `check-probe-output-additive.sh` 当基线。不要用 `run-demos.sh` 覆盖它 |
 | `evidence/probe-baseline/added-lines.txt` | 同上，冻结的是 P1 新增的两行（`sound_precache_entries=` / `asset_refs=`）。剥离的行也要有基线，否则「additive」等于「没人验证」 |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
-| `verify-all.sh` | 一条命令跑完整证据链（9 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪）；`--quick` 把语料抽样降到 8 份 |
+| `verify-all.sh` | 一条命令跑完整证据链（11 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁**）；`--quick` 把语料抽样降到 8 份 |
 
 ## 命令
 
@@ -46,8 +50,9 @@ bash check-oracle.sh "<oracle.exe>" evidence/final   # 与 Rust oracle 逐值对
 bash oracle-recording-types.sh            # 钉住 9 份 demo 的 POV/SourceTV 判定（头字段 + 流内 STV 位）
 bash check-probe-output-additive.sh       # 证明探针新增输出行没动旧计数器，且新增行本身未漂移
 bash check-probe-output-additive.sh --refresh-added   # 只在刻意改过探针输出后刷新新增行基线
-bash mutate.sh               # 变异验证（证明判据能变红）；8 个用例，25 条断言
+bash mutate.sh               # 变异验证（证明判据能变红）；9 个用例，29 条断言
 bash census-negative-test.sh # 证明普查判据能变红（10 个变异）
+bash history-coverage-check.sh # 历史覆盖门禁：Checkpoint 答案最多能多旧（fixture + bagel）
 bash verify-all.sh --quick   # 上面全部串起来
 
 # P1：模型引用读数的单点复现
@@ -69,6 +74,8 @@ head -3 evidence/p1/bagel-after-fix.csv    # 首帧应在 ~18 s 出现
   --trajectory-at 129211 --rendered 2>&1 >/dev/null | grep 'entity=1 '
 ./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
   --history-stats 2>&1 >/dev/null | head -2
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
+  --history-stats --history-coverage 512 2>&1 >/dev/null | grep -E 'history (gap|staleness|retained)'
 
 # 逐值门禁（约 1.5 分钟）
 PY=C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
@@ -95,7 +102,7 @@ bash run-corpus-evidence.sh
 |---|---|
 | `native/build-nmake/entity_protocol_probe.exe` | 协议普查：包数、消息类型直方图、实体失败坐标、实例基线、precache 表（`soundprecache` / `modelprecache`）、资产引用分解、录制类型（头字段 + 流内 STV 位） |
 | `native/build-nmake/entity_message_fixture_probe.exe` | 58 个 bit-exact 合成 wire fixture，覆盖 baseline/delta/Preserve/Leave/Delete |
-| `native/build-nmake/presentation_probe.exe` | 视图数学 / 录制类型分类 / 投射物字段 / 全跨度 seek 自检 |
+| `native/build-nmake/presentation_probe.exe` | 视图数学 / 录制类型分类 / 投射物字段 / 全跨度 seek / 历史覆盖（合成均匀供给，`historyWorstGap` vs `historySlotFloor`）自检 |
 | `native/build-nmake/entity_model_probe.exe` | 资产引用 → 渲染请求；`--tf-root` + `--demo` 给出 `requests` / `demoRenderable` / `vpkExtracts`；`--self-test` 校验实例矩阵；诊断开关见下 |
 | `native/build-nmake/tf2_demo_native.exe` | 主程序 |
 
@@ -110,7 +117,8 @@ bash run-corpus-evidence.sh
 | `--rendered` | 与 `--trajectory-at` 合用：改印 `extractTransform` 的输出，即渲染器拿到的值 |
 | `--props-at t1,t2 [--entity N]` | 指定 tick 的属性；带 `--entity` 时打印该实体全部属性（含 `m_nTickBase`），用于与 oracle 对齐 |
 | `--dump-class-props <substr>` | 扁平发送表：槽位 / owner / 名字 / 类型 / `flags` / `bits` / `range`。形状对 `ent-oracle 3` |
-| `--history-stats` | 归档与实时窗口的 tick 列表和间距 |
+| `--history-stats` | 归档与实时窗口的 tick 列表和间距（含 `flushes=` / `gapDropped=` 分拆） |
+| `--history-coverage N` | 均匀抽 N 个 tick 查询一遍：`exact` / `checkpoint` / `unavailable`、最坏/中位 tick 间隙 vs 鸽笼下界、最坏陈旧度、内存字节数 |
 
 ## 注意
 
@@ -159,10 +167,13 @@ bash run-corpus-evidence.sh
   （内部是 `readVectorProperty`），不要直接取 `m_vecOrigin` 的 `z`。
   同理 `DT_TFLocalPlayerExclusive` 与 `DT_TFNonLocalPlayerExclusive` 两份 origin
   在同一 tick 上可以相距约 4000 单位，选择必须确定（优先 Local）。
-- **实体历史只在尾部窗口内是 tick 精确的。** 归档快照按**索引**抽稀，
-  在 bagel 上有 54392 tick（约 13.7 分钟）的空洞，而 `main.cpp:1260` 把
-  `Checkpoint` 当作可绘制。**这是 P1 剩下的阻塞项，不是已修项。**
-  用 `--history-stats` 复核，不要假定任意 tick 都能拿到准确位置。
+- **实体历史只在尾部窗口内是 tick 精确的（已缓解，未消除）。** 直到 2026-10-07，
+  归档快照按**索引**抽稀，在 bagel 上有 54392 tick（约 13.7 分钟）的空洞，
+  而 `main.cpp:1260` 把 `Checkpoint` 当作可绘制。`aa93926` 改为按**最大 tick 间隙**
+  抽稀后：worst gap 1180 / 鸽笼下界 761，重复检查点清零，陈旧度成为可打印读数
+  （主程序标题 `stale=`、探针 `--history-coverage`）。窗口外的答案仍是 `Checkpoint`，
+  只是上了界；要 tick 精确需重塑保留表示（全量事件链实测 856 MB 事件 / 4.77 GB 常驻，
+  已否决）。复核用 `bash history-coverage-check.sh`，不要假定任意 tick 都能拿到准确位置。
 - **语料是活的。** `tf/demos` 是用户正在录的目录，会话中途就从 1643 涨到 1645 份。
   任何按 `--sample` 抽样再与「上一次的报告目录」比对的脚本都会被这个漂移误伤；
   比较前先对**本次实际用到的文件清单**取快照再取哈希。

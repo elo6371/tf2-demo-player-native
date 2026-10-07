@@ -51,6 +51,12 @@ MUTATION-RED   m8b guard gone -> requests collapse                      0 (fixed
 MUTATION-RED   m8b guard gone -> assetRefs differ too                   673 (fixed=675)
 MUTATION-RED   m8b guard gone -> the wrong reading exits 0              exit=0 while reporting a wrong summary
 
+--- m9: thin the history archive by index again (head pinned, big hole)
+MUTATION-RED   m9 index-even thinning -> fixture coverage flag          "historyCoverage":false
+MUTATION-RED   m9 index-even thinning -> fixture worst gap              23040 (fixed=4096)
+MUTATION-RED   m9 index-even thinning -> gate refuses                   exit=1 HISTORY-COVERAGE=FAIL
+MUTATION-RED   m9 index-even thinning -> bagel worst gap                51568 (> 10000)
+
 === restored tree: readings must be identical to the fixed build ===
 RESTORED-IDENTICAL bagel.fixed.txt
 RESTORED-IDENTICAL proto23.fixed.txt

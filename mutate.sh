@@ -352,7 +352,9 @@ for case_id in $CASES; do
       # Reintroduce the retention defect §3.1 fixes: thin the archive by *index*,
       # which pins the head verbatim and leaves a multi-thousand-tick hole. The
       # replacement is the pre-fix body verbatim, so the case fails if the fix is
-      # ever reworded without the gate noticing.
+      # ever reworded without the gate noticing. The hole reads 51568 here rather
+      # than the handoff's 54392: the duplicate-tick pushes that padded the old
+      # archive are gone in this build, so the hole is the policy's alone.
       echo "--- m9: thin the history archive by index again (head pinned, big hole)"
       patch_in "$SRC" \
         '  const std::size_t last = archive.size() - 1;

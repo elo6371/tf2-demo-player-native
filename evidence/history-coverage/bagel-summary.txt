@@ -1,0 +1,8 @@
+history archive=96 ticks=[56148..129125] medianGap=822 maxGap=1180
+history liveCheckpoints=1 ticks=[129210..129210] maxGap=0 packets=68 events=1155 dropped=172
+history flushes=172 gapDropped=0
+history coverage samples=512 exact=1 checkpoint=511 unavailable=0
+history retained archive=96 live=1 distinct=97 span=[56148..129210]
+history gap worst=1180 at=[66628..67808] median=822 floor=761 budget=96
+history staleness worst=1139 at=87460 mean=407.5
+history bytes archive=801034304 live=8501982 checkpointApprox=8344107 packets=2720 events=1155 eventsApprox=453676

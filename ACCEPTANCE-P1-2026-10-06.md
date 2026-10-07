@@ -56,7 +56,8 @@ P1 喂进 505 条真实路径后，光重复解析就花掉 90 秒，主程序�
 
 ### 0.2 逐 tick 位移（§10）
 
-接线之后，实体位置第一次真的被送进渲染器，于是暴露出**两个渲染缺陷**和一个**新的阻塞项**：
+接线之后，实体位置第一次真的被送进渲染器，于是暴露出**两个渲染缺陷**和一个
+**新的阻塞项**（后者 2026-10-07 已修）：
 
 1. **玩家的 Z 恒为 0。** 玩家的 `m_vecOrigin` 是 VectorXY（wire 上只有 x/y），
    真实 Z 在**另一条独立的 Float 属性** `m_vecOrigin[2]` 里，而 `extractTransform`
@@ -68,7 +69,9 @@ P1 喂进 505 条真实路径后，光重复解析就花掉 90 秒，主程序�
 3. **只有 demo 尾部约 70 个包是 tick 精确的。** 归档快照在
    `57829 → 112221` 之间有 **54392 tick（约 13.7 分钟）的空洞**，
    而 `main.cpp:1260` 把 `Checkpoint` 与 `Available` 一样当作可绘制。
-   屏幕上因此会是每十几分钟跳一次的瞬移。**未修**，是本项剩下的阻塞项。详见 §10.4。
+   屏幕上因此会是每十几分钟跳一次的瞬移。**2026-10-07 已修**（`aa93926`：按最大
+   tick 间隙抽稀 + 去掉重复检查点；worst gap 54392 → 1180、鸽笼下界 761）。
+   详见 §10.4 及末尾的「修复（`aa93926`）」。窗口外的答案仍是 Checkpoint，只是上了界。
 
 这三条都不是计数型判据能看见的，所以新增了一条**逐值**门禁
 `oracle-trajectory-check.py`（`compared=40 mismatches=0`，变异 `MUTATION-CAUGHT=PASS`），
@@ -97,6 +100,26 @@ P1 喂进 505 条真实路径后，光重复解析就花掉 90 秒，主程序�
   含 `oracle-trajectory-check.py`，整体 `b980a00a…`）
 - `cc17ebe`（普查判据改成按增量判定 + 文档）：`7a878b01…`
 - `dab6ce1`（把逐值门禁接成 `verify-all.sh` 第 10 步）：`0db83d55…`
+
+**2026-10-07 续接会话（§10.4 修复）新增一个代码提交**：
+
+- `aa93926`（历史保留修复 + 历史覆盖门禁 + m9 变异用例 + 验收链第 11 步）：
+  `git diff 9842a9f..aa93926 -- native/ | sha256sum` =
+  `628273269f87aaf12382b14b0a472ff9c31db3fcddff984f617990ed56d1a8fa`
+  （含 4 个判据脚本的整体为 `71391519eb7766ddef89ac2850a122ac1c16bde9d8722387301c7ec75543550f`）
+- 前序：`9842a9f`（文档：把 HANDOFF 的提交列表写实、指明哪条检查说了算）
+
+| 文件 | 改动 | 内容 |
+|---|---|---|
+| `native/src/demo_header.cpp` | +100/-22 | `thinHistoryArchive` 改按**最大 tick 间隙**抽稀（优先队列 + 二分中点，首尾钉住）；flush 分支去掉重复推入并单列 `entityHistoryFlushes`；`queryEntitySnapshotAtOrBeforeTick` 增加 `resolvedTick` 出参 |
+| `native/include/demo_header.h` | +14/-2 | 上述计数器与出参声明 |
+| `native/src/main.cpp` | +10/-2 | 查询接收 `resolvedTick`；窗口标题新增 `stale=` |
+| `native/tools/entity_model_probe.cpp` | +172 | `--history-coverage N`：均匀抽样统计 exact/checkpoint/unavailable、间隙最坏/中位/鸽笼下界、陈旧度、字节估计 |
+| `native/tools/presentation_probe.cpp` | +63/-2 | `checkHistoryCoverage` fixture（合成均匀供给）+ `historyCoverage`/`historyWorstGap`/`historySlotFloor` 输出 |
+| `history-coverage-check.sh` | 新增 144 行 | 历史覆盖门禁：fixture + bagel 端到端，`HISTORY-COVERAGE=PASS` |
+| `mutate.sh` | +95/-2 | m9：把按索引抽稀原样改回，断言 fixture 与门禁一起变红（新增 `must_exceed` 助手） |
+| `verify-all.sh` | +58/-12 | 新第 11 步；步骤标签 10→11；变异计数期望 25→29 |
+| `oracle-trajectory-check.py` | +19/-14 | 更新「已知限制」：窗口外的界由 `history-coverage-check.sh` 断言，不再只写「不可比」 |
 
 | 文件 | 改动 | 内容 |
 |---|---|---|
@@ -353,9 +376,13 @@ BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-
 ./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
   --dump-class-props CTFPlayer 2>&1 >/dev/null | sed -n '1,20p'
 
-# 历史保留读数：archive / live 的 tick 列表与间距（§10.4 的阻塞项）
+# 历史保留读数：archive / live 的 tick 列表与间距（§10.4；修复前 maxGap=54392，
+# 2026-10-07 aa93926 修复后 maxGap=1180）
 ./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$BAGEL" \
   --history-stats 2>&1 >/dev/null | head -2
+
+# 历史覆盖门禁：fixture（合成均匀供给）+ bagel 端到端（§10.4 修复的判据）
+bash history-coverage-check.sh    # HISTORY-COVERAGE=PASS
 ```
 
 逐值门禁（与独立实现 demostf 对照，约 1.5 分钟）：
@@ -624,7 +651,7 @@ sound_precache_entries=6701 sound_precache_decode_failures=0
 
 ---
 
-## 10. 逐 tick 位移（第 1 项的第二条）：一个渲染缺陷、一个新门禁、一个未修的阻塞项
+## 10. 逐 tick 位移（第 1 项的第二条）：一个渲染缺陷、一个新门禁、一个已修的历史保留阻塞项
 
 本节是「基础回放实体画面」里**逐 tick 位移**这一条的验收。三条结论：
 
@@ -632,7 +659,7 @@ sound_precache_entries=6701 sound_precache_decode_failures=0
 |---|---|---|
 | 1 | 玩家 Z 恒为 0，因为真实 Z 在另一条属性里 | **已修** |
 | 2 | Local / NonLocal 两份 origin 由哈希顺序决定，差约 4000 单位 | **已修** |
-| 3 | 只有 demo 尾部约 70 个包是 tick 精确的，其余解析到最远 54392 tick 之前的快照 | **未修，新的 P1 阻塞项** |
+| 3 | 只有 demo 尾部约 70 个包是 tick 精确的，其余解析到最远 54392 tick 之前的快照 | **2026-10-07 已修（`aa93926`）**：按最大 tick 间隙抽稀，worst gap 1180 / 下界 761；窗口外仍是 Checkpoint（有界） |
 
 ### 10.1 缺陷一：玩家的 Z 恒为 0（已修）
 
@@ -742,7 +769,7 @@ MUTATION-CAUGHT=PASS (18 mismatches on the perturbed expectation)
 `svc_PacketEntities` 的 `delta` 字段是**基线 tick 而不是本包的 tick**，
 本包产生的状态属于 `delta + 1`。门禁红了一次，红得对；修的是门禁不是被测代码。
 
-### 10.4 阻塞项：只有尾部约 70 个包是 tick 精确的（未修）
+### 10.4 阻塞项：只有尾部约 70 个包是 tick 精确的（2026-10-07 已修，`aa93926`）
 
 `queryEntitySnapshotAtOrBeforeTick` 的语义是「取 at-or-before 的最新检查点」。
 检查点分两层：一个**有界的实时窗口**（重放该窗口内的逐包事件）和一个
@@ -776,7 +803,7 @@ history liveCheckpoints=2 ticks=[129210..129210] maxGap=0 packets=68 events=1155
 实体画面来自最远 13.7 分钟之前的快照——屏幕上会是每十几分钟跳一次的「瞬移」，
 而不是平滑移动。
 
-**根因（已定位到代码，但未修）**：`thinHistoryArchive` 按**索引**均匀抽稀
+**根因（已定位到代码；修复见本节末尾）**：`thinHistoryArchive` 按**索引**均匀抽稀
 （`index = (last * slot) / (maxCount - 1)`），而调用方需要的是按 **tick** 均匀覆盖。
 每次 flush 追加的检查点数固定（≤8）但覆盖的 tick 跨度随实体活跃度变化，
 于是「按索引均匀」会过度采样检查点密集的区段、在稀疏区段留下空洞。
@@ -794,6 +821,44 @@ history liveCheckpoints=2 ticks=[129210..129210] maxGap=0 packets=68 events=1155
 > 的坐标路径至少对玩家是正确的。CBeam 这条没有找到 oracle 侧的同类样本
 > （扫了 17 个 tick，没有 CBeam 的 origin 变更），**记为未验证**。
 
+**修复（2026-10-07，`aa93926`）**
+
+三个决定都做了：
+
+1. `thinHistoryArchive` 改按**最大 tick 间隙优先**抽稀：优先队列取最宽的间隙、
+   二分选最接近 tick 中点的检查点、首尾钉住。抽稀在**每次 flush** 时运行，
+   所以「按索引」的 floor() 钉头行为会在下一次 flush 被再次放大 —— 换成「按 tick」
+   后同一份归档（96 槽）的 worst gap 从 54392 降到 1180
+   （鸽笼下界 `floor = span/(kept-1) = 761`，门禁断言 worst ≤ 2×floor）。
+2. flush 后的重复推入删除（`packetOrdinal` 归零后本就会按 stride 推一个）；
+   另加 `entityHistoryFlushes` 计数，把 flush 型丢弃与 gap 型丢弃分开
+   （修复前两者混在同一个 `dropped` 里，`dropped=172` 无法归因）。
+3. `main.cpp` 在 `Checkpoint` 下**仍按原样冻结绘制**（不改画面行为），
+   但标题新增 `stale=`；`queryEntitySnapshotAtOrBeforeTick` 新增 `resolvedTick`
+   出参，把「答案来自哪个 tick」变成可读数字而不是沉默。
+
+修复后 bagel 读数（`--history-stats`，另加 `--history-coverage 512`）：
+
+```
+history archive=96 ticks=[56148..129125] medianGap=822 maxGap=1180
+history liveCheckpoints=1 ticks=[129210..129210] maxGap=0 packets=68 events=1155 dropped=172
+history flushes=172 gapDropped=0
+history coverage samples=512 exact=1 checkpoint=511 unavailable=0
+history gap worst=1180 at=[66628..67808] median=822 floor=761 budget=96
+history staleness worst=1139 at=87460 mean=407.5
+```
+
+判据（新增，并接为 `verify-all.sh` 第 11 步）：`history-coverage-check.sh` 断言
+fixture（合成均匀供给：`historyWorstGap=4096 ≤ 2×historySlotFloor=3565`）与 bagel
+（`worst=1180 ≤ 2×floor=761`、`distinct=97/97`、`sampled=512`、`unavailable=0`、
+`staleness 1139 ≤ worstGap 1180`、且不得再现 54392 量级的洞）；
+`mutate.sh m9` 把按索引抽稀**原样改回**，fixture 与门禁一起变红
+（fixture worst gap 23040、bagel 51568、gate `HISTORY-COVERAGE=FAIL`）。
+
+**仍是能力边界**：窗口外答案还是 `Checkpoint`（只是上了界）。要做到窗口外
+tick 精确必须重塑保留表示 —— 全量事件链实测 856 MB 事件 / 常驻 4.77 GB /
+每 checkpoint 约 8.34 MB（bagel 96 槽 = 801 MB），已否决。
+
 ### 10.5 本轮新增的读数开关
 
 | 开关 | 作用 |
@@ -805,6 +870,7 @@ history liveCheckpoints=2 ticks=[129210..129210] maxGap=0 packets=68 events=1155
 | `--props-at t1,t2 [--entity N]` | 指定 tick 的属性；带 `--entity` 时打印该实体全部属性（含 `m_nTickBase`），用于与 oracle 对齐 |
 | `--dump-class-props <substr>` | 扁平发送表：槽位、owner、名字、类型、`flags`/`bits`/`range`。对 `ent-oracle 3` 的形状 |
 | `--history-stats` | 归档/实时窗口的 tick 列表与间距，即 §10.4 的读数 |
+| `--history-coverage N` | 均匀抽 N 个 tick 查询一遍：`exact`/`checkpoint`/`unavailable`、最坏/中位 tick 间隙 vs 鸽笼下界、最坏陈旧度、字节估计（`aa93926` 新增） |
 
 全部输出走 stderr，stdout 仍是**单个可解析的 JSON 对象**；
 默认（不带这些开关）输出与 `evidence/probe-baseline/` 冻结的内容逐字节一致。
@@ -848,9 +914,12 @@ sum_packets=1260289`，`extra_reports=21 (corpus grew -> sample moved)`。
   不证明屏幕上画对了。
 - **逐 tick 位置对照只在 bagel 的实时窗口内做过**（12 个实体 × 4 个 tick = 40 个值）。
   其余 8 份 oracle 语料没有做逐值对照，因为它们的实时窗口同样只有尾部几十个包。
-- **§10.4 的阻塞项没有修。** 修它需要把 `thinHistoryArchive` 改成按 tick 抽稀、
-  修掉 flush 后的重复检查点，并决定主程序在 `Checkpoint` 下应该怎么画
-  （冻结？插值？还是要求 tick 精确？）。三者都没做。
+  （窗口外的答案不是「精确」的，其陈旧度上界由 `history-coverage-check.sh` 断言 ——
+  这是两种不同强度的保证，别混用。）
+- **§10.4 的阻塞项已在 2026-10-07（`aa93926`）修复**：按 tick 抽稀 + 去掉重复检查点
+  已做；主程序在 `Checkpoint` 下**仍冻结绘制**（这是个决定：不改画面行为，
+  只把陈旧度变成读数）。窗口外答案仍是 `Checkpoint`，只是有了界
+  （worst ≤ 2×鸽笼下界，由 `history-coverage-check.sh` 担保）。
 - `trajectoryDigest` 在同一个二进制上两次运行相同，但它的输入里仍包含按
   `unordered_map` 顺序遍历的实体（修复后 origin 的选择已确定，但**遍历顺序**
   仍是实现定义的）。跨编译器/跨 STL 版本不应假定一致。

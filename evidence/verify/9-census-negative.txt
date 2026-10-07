@@ -1,16 +1,18 @@
 
 === prepare: copy raw reports to evidence/corpus-negative ===
-  reports=41  digest=4e2fd61265ee223d41817a8901faf787cd8db1bb3bd00fa1e7f851f7d477c2aa
+  reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
 
 === baseline: unmodified reports must PASS ===
-  clean=24
-  skipped=0
+  clean=23
+  skipped=1
   dirty=0
-  sum_packets=1299129
+  sum_packets=1260289
   OK   baseline PASS
-  extra_reports=12 (corpus grew -> sample moved)
+  OK   baseline skipped=1 is a number
+  extra_reports=22 (corpus grew -> sample moved)
   victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
   OK   victim autorecord_2026-05-18_23-53-06 is in the scanned set
+  OK   victim is a clean report (its counters are actually read)
 
 === mutation A: entity_failures 0 -> 3 (must FAIL) ===
   OK   verdict went red
@@ -45,7 +47,7 @@
 
 === mutation I: index_state=truncated_tail must SKIP, not FAIL and not clean ===
   OK   verdict stayed green (a skip is not a failure)
-  OK   counted as skipped
+  OK   counted as skipped (1 -> 2)
   OK   named in truncated_tail_files
 
 === mutation J: truncated_tail with a non-zero counter must still FAIL ===
@@ -53,7 +55,7 @@
   OK   names the counter
 
 === restore: reports must be byte-identical and PASS again ===
-  OK   digest unchanged (4e2fd61265ee223d41817a8901faf787cd8db1bb3bd00fa1e7f851f7d477c2aa)
+  OK   digest unchanged (cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5)
   OK   restored PASS
 
 CENSUS-NEGATIVE=PASS
