@@ -208,6 +208,83 @@ gullywash / process / product / reckoner / sultry）。
 
 ---
 
+### 0.8 真实 SourceTV 覆盖：9 份里只解了 1 份（2026-10-08 晚）
+
+§0.1 把「本机没有真实 SourceTV 语料」判为分类器缺陷造成的误判，这是对的；
+但**覆盖率**那半句没人量过，量出来是这样的：
+
+| 输入集 | 份数 | 其中 SourceTV | SourceTV 包数 |
+|---|---|---|---|
+| `evidence/corpus-calib/demos.txt`（钉住的 24 份校准集） | 24 | **1**（`73.dem`） | 112175 / 1361392 |
+| oracle 九份（步骤 4/6/10） | 9 | 5 | 未单独统计 |
+| **全量语料头扫描**（`evidence/header-scan/`，1643 份 `.dem`） | 1643 | **9** | — |
+
+也就是说：整条验收链里**真正被整份解码过的 SourceTV 录制只有 `73.dem`**
+（其余 SourceTV 侧证据是 oracle 九份里的 bagel 与 snakewater）。而全机一共只有
+9 份 SourceTV —— 所以「扩大覆盖」是有界的，不需要 4 小时普查 1634 份 POV
+（那些和 oracle 里已有的五份 POV 走同一条代码路径）。
+
+**做法**：新增 `source-tv-coverage-check.sh`，把 9 份全部整份解码并逐份断言。
+
+| # | 断言 | 为什么单列 |
+|---|---|---|
+| A1 | 头字段与流内扫描**都**判 SourceTV | §0.1 的缺陷正是头字段判错 |
+| A2 | 流内信号成立（`hltv=1` / `replay_bit=0` / `source_tv_flag=1`） | 与 A1 相互独立 |
+| A3 | `index_state=ok` 且 `index_tail_bytes` **等于文件字节数** | 「读完了整份」是读数，不是希望 —— 只读一个包也会报同样的零失败 |
+| A4 | `packets_scanned` 与 `map` 等于钉住值 | 输入被换掉要响 |
+| A5 | `entity_failures=0`、`malformed_packets=0`、`unknown_message_packets=0`、`unknown_message_types=<none>`、`delta_base_unavailable=0` | `delta_base_unavailable` 直指 P0 任务书里的「SourceTV delta/base 语义」 |
+
+**读数**（`evidence/verify/15-source-tv-coverage.txt`，原始逐份输出在
+`evidence/source-tv-coverage/`）：
+
+```
+demos_read=9 packets_scanned=917543 entity_failures=0 assertions_ok=47 assertions_fail=0
+SOURCE-TV-COVERAGE=PASS (demos=9 packets=917543 assertions_ok=47)
+```
+
+逐份（字节 / `packets_scanned` / 地图）：
+
+| demo | 字节 | 包数 | 地图 |
+|---|---|---|---|
+| `73.dem` | 106397681 | 112175 | `koth_ashville_final1` |
+| `SUNSHINE.dem` | 82759239 | 120929 | `cp_sunshine` |
+| `gullyscout.dem` | 76066801 | 120929 | `cp_gullywash_f9` |
+| `proc2.dem` | 38541519 | 61544 | `cp_process_f12` |
+| `processdemo.dem` | 81960416 | 120904 | `cp_process_f12` |
+| `prodcutscout.dem` | 62389932 | 88307 | `koth_product_final` |
+| `review1.dem` | 82903524 | 91247 | `koth_ashville_final1` |
+| `review12.dem` | 80261474 | 120917 | `cp_reckoner` |
+| `review44.dem` | 53569778 | 80591 | `cp_sultry_b8a` |
+
+覆盖变化：SourceTV 整份解码从 **1 份 / 112175 包** 到 **9 份 / 917543 包**（8.2×）。
+耗时 3m34s（664 MB）。
+
+**变异**（`--mutation`，两个扰动各要求**恰好 9 行红**）：
+
+```
+P1 packets_scanned 期望 +1        -> assertions_fail=9  （逐份 A4 红）
+P2 流内 source_tv_flag 期望改 0   -> assertions_fail=9  （逐份 A2 红）
+MUTATION-CAUGHT=PASS (2/2 perturbations caught, red_rows=18)
+```
+
+「恰好 9」而不是「至少 1」是刻意的：一个把所有份都染红、或一份都不染红的扰动，
+都证明不了比较是**逐份**的。
+
+**未验证 / 已知限制**：
+
+- **POV 侧的全量普查仍未跑。** 本轮只扩大 SourceTV 覆盖，因为那正是审查点名的洞；
+  1634 份 POV 的整份解码（`run-corpus-evidence.sh`，约 4 小时）仍未跑，
+  POV 侧的覆盖仍是 oracle 九份里的 4 份 + 校准集 23 份。
+- **9 份是「本机有」不是「全世界有」**：这 9 份都是 `clientname="SourceTV Demo"`、
+  `network_protocol=24`、`demo_protocol=3` 的同一代录制。更老的 STV demo
+  （`svc_Prefetch` 位宽分支、protocol 23 那类）没有 SourceTV 样本。
+- 本轮**没有**因为扩大覆盖而发现任何新的解码缺陷 —— 九份全绿。这既可能是
+  P0 修复确实完整，也可能是这 9 份彼此太像（同一代、同一服务器配置、
+  都在 TF2 `tf` 目录下、地图都出自同一批）。**不能把「9 份全绿」扩大成
+  「SourceTV 解码已验证」**。
+
+---
+
 ## 1. 提交、基线与修改文件
 
 | 项 | 值 |

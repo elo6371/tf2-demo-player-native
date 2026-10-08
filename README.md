@@ -42,6 +42,18 @@ POV 实体 3 上 Local **冻在 51596 后再未更新**、NonLocal 每检查点�
 **bagel 保持 0（对照组）**；第 13 步 `camera-to-target 2729→45`（逐轴 `-0.031,44.344,3.781`）。
 新增门禁为验收链第 14 步、变异用例 `m11`。见 `ACCEPTANCE-P1-2026-10-06.md` §14。
 
+2026-10-08 第五轮：**真实 SourceTV 覆盖**（整合审查「仍未解决」第 2 项）。
+这项是个覆盖洞，不是读数错：钉住的 24 份校准语料（`evidence/corpus-calib/demos.txt`）
+里**只有 1 份 SourceTV**（`73.dem`），所以它 1361392 个包里有 112175 个是 SourceTV，
+其余 SourceTV 侧证据全靠 oracle 九份里的 bagel 与 snakewater。全量语料的头扫描
+（1643 份 `.dem`）说本机**总共 9 份 SourceTV**，所以「扩大覆盖」是有界的：
+把九份全解一遍（664 MB / 917543 包 / ~3.5 min），而不是花 4 小时普查 1634 份 POV
+—— 那些和 oracle 里已有的五份 POV 走同一条代码路径。九份**全部 `entity_failures=0`**、
+`malformed_packets=0`、`unknown_message_packets=0`、`delta_base_unavailable=0`；
+每份还断言 `index_tail_bytes` **等于文件字节数**，否则「只读了一个包就报零失败」
+也能打印同样的零。新增门禁为验收链第 15 步（47 条断言 + 两个变异，各 9 行红）。
+见 `ACCEPTANCE-P0-2026-10-06.md` §0.8。
+
 **`VERIFY=PASS` 已在 `fefc216` 上取得**（**14 步** `bash verify-all.sh --quick`，
 30m35s，读数在 `evidence/verify/1..14-*.txt`；RC=0，14 步全绿）。
 **第一次跑（`3ca75ae`）是 `VERIFY=FAIL`**：唯一红的是第 8 步 —— 新增变异用例 `m11`
@@ -79,8 +91,10 @@ POV 实体 3 上 Local **冻在 51596 后再未更新**、NonLocal 每检查点�
 | `evidence/observer-focus/` | 观察目标门禁的原始读数与两份门禁输出：fixture 断言行、POV 五档 observer 行（含 `resolved=`）、录制相机对照、实体 3 两槽读数、oracle 见证块、`gate.txt` / `gate-mutation.txt` |
 | `slot-freshness-check.sh` | **选槽新鲜度门禁**（验收链第 14 步）：断言规则取**后写的那个槽**、平局/无 tick 时仍回落到原 rank＋字典序、且排序与渲染器真正调用的 `extractTransform` 一致。`--mutation` 扰动两份 demo 的 `chosenStale` 并要求恰好 2 条红行 |
 | `evidence/slot-freshness/` | 上述门禁的原始读数：fixture 断言行、POV 实体 3 三次查询的逐候选 `rank/name/lastWrite/age`、bagel 对照 |
+| `source-tv-coverage-check.sh` | **真实 SourceTV 覆盖门禁**（验收链第 15 步）：把本机**全部 9 份** SourceTV 录制整份解码，逐份断言录制类型（头字段＋流内位）、`index_tail_bytes` 等于文件字节数（证明读完了整份）、钉住的包数/地图、以及 `entity_failures`/`malformed`/`unknown`/`delta_base_unavailable` 全零。`--mutation` 两个扰动各要求恰好 9 行红 |
+| `evidence/source-tv-coverage/` | 上述门禁的原始读数：9 份 demo 各自的完整探针输出（`<name>.txt`）。不重跑就复核时读这里 |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
-| `verify-all.sh` | 一条命令跑完整证据链（14 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁**）；`--quick` 把语料抽样降到 8 份 |
+| `verify-all.sh` | 一条命令跑完整证据链（15 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁**）；`--quick` 把语料抽样降到 8 份 |
 
 ## 命令
 
@@ -102,7 +116,9 @@ bash observer-focus-check.sh  # 观察目标门禁：解析 + oracle 对照 + �
 bash observer-focus-check.sh --mutation   # 同一门禁的变异：两处比较各挪 1，必须都变红
 bash slot-freshness-check.sh  # 选槽新鲜度门禁：规则必须取后写的那个槽（fixture + POV/bagel 对照 + 影响面）
 bash slot-freshness-check.sh --mutation   # 同一门禁的变异：两份 demo 的 chosenStale 各挪 1，必须恰好红 2 条
-bash verify-all.sh --quick   # 上面全部串起来（14 步）
+bash source-tv-coverage-check.sh          # 真实 SourceTV 覆盖门禁：本机全部 9 份整份解码，逐份零失败
+bash source-tv-coverage-check.sh --mutation  # 同一门禁的变异：两个扰动各要求恰好 9 行红
+bash verify-all.sh --quick   # 上面全部串起来（15 步）
 
 # P1：模型引用读数的单点复现
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"

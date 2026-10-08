@@ -26,9 +26,12 @@
 #  14. prove the entity-property selection rule takes the slot a later packet
 #      wrote, not the one its rank prefers (a player's origin arrives twice and
 #      only one copy keeps updating; step 13's 2729 -> 45 is this step's work)
+#  15. decode every real SourceTV recording this machine has -- all nine of them --
+#      and assert zero failures on each, so the SourceTV half of the protocol has
+#      more than one demo behind it
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer
-# does not have to read fourteen reports. Every step writes its raw output to
+# does not have to read fifteen reports. Every step writes its raw output to
 # evidence/ before the assertion runs.
 #
 # Step 10 exists because the P1 z defect was invisible to every count-based
@@ -80,12 +83,23 @@
 # step went red for the right reason. The set is now pinned by name in
 # evidence/corpus-calib/demos.txt and the step asserts the 24-report count.
 #
+# Step 15 is the eighth, and it is a coverage hole rather than a wrong reading: the
+# pinned 24-demo calibration set holds one SourceTV recording, so of its 1361392
+# packets 112175 were SourceTV. A whole-corpus header scan found nine SourceTV
+# recordings, so the fix is bounded -- decode all nine (664 MB, 917543 packets,
+# ~3.5 min) instead of running a four-hour census over 1634 POV files that share one
+# code path with the five POV demos already in the oracle set. Each demo is checked
+# for zero entity failures *and* for having been read end to end (index_tail_bytes
+# equals the file size), because a probe that stopped early reports the same zeros.
+#
 # Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40.
 # Step 10 adds ~2.5 min (the oracle walks the whole demo once per compared tick).
 # Step 11 adds ~1.5 min (one bagel scan for the staleness sample).
 # Step 12 adds ~4 min (one bagel scan, one POV scan, and one oracle run per
 # packet in the live window -- 68 of them).
 # Step 13 adds ~4 min (the gate twice: once straight, once with --mutation).
+# Step 15 adds ~3.5 min (nine full decodes; --mutation reuses those dumps, because
+# it perturbs the comparison and not the decode).
 #
 # Usage: bash verify-all.sh [--quick]     (--quick: oracle corpus sample of 8)
 # Exit:  0 = every step passed.
@@ -101,7 +115,7 @@ rc_all=0
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
-step "1/14 clean full Release build"
+step "1/15 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
@@ -115,7 +129,7 @@ else
   echo "BUILD=FAIL"; rc_all=1
 fi
 
-step "2/14 nine-demo census"
+step "2/15 nine-demo census"
 bash run-demos.sh evidence/final | tee "$OUT/2-census.txt"
 if [ "$(grep -c 'entity_failures=0 malformed_packets=0 unknown_message_packets=0' "$OUT/2-census.txt")" -eq 9 ]; then
   echo "CENSUS=PASS (9/9 demos at zero)"
@@ -129,7 +143,7 @@ else
   echo "COVERAGE=FAIL"; rc_all=1
 fi
 
-step "3/14 wire fixtures"
+step "3/15 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
 FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
 echo "fixture_pass_count=$FIXTURES"
@@ -143,7 +157,7 @@ else
   echo "FIXTURE=FAIL"; rc_all=1
 fi
 
-step "4/14 oracle cross-check (nine demos)"
+step "4/15 oracle cross-check (nine demos)"
 bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final \
   | tee "$OUT/4-oracle.txt"
 if grep -q 'ORACLE-GATE=PASS' "$OUT/4-oracle.txt"; then
@@ -152,7 +166,7 @@ else
   echo "ORACLE=FAIL"; rc_all=1
 fi
 
-step "5/14 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+step "5/15 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
 "$PY" oracle-corpus-check.py --sample "$ORACLE_SAMPLE" --workers 2 \
   > "$OUT/5-oracle-corpus.txt" 2>&1
@@ -169,7 +183,7 @@ else
   echo "ORACLE-CORPUS-SELFTEST=FAIL"; rc_all=1
 fi
 
-step "6/14 oracle demo recording types"
+step "6/15 oracle demo recording types"
 bash oracle-recording-types.sh | tee "$OUT/6-recording-types.txt"
 if grep -q 'ORACLE-RECORDING-TYPES=PASS' "$OUT/6-recording-types.txt"; then
   echo "RECORDING-TYPES=PASS"
@@ -177,7 +191,7 @@ else
   echo "RECORDING-TYPES=FAIL"; rc_all=1
 fi
 
-step "7/14 probe output is additive"
+step "7/15 probe output is additive"
 bash check-probe-output-additive.sh | tee "$OUT/7-probe-additive.txt"
 if grep -q 'PROBE-OUTPUT-ADDITIVE=PASS' "$OUT/7-probe-additive.txt"; then
   echo "PROBE-ADDITIVE=PASS"
@@ -185,7 +199,7 @@ else
   echo "PROBE-ADDITIVE=FAIL"; rc_all=1
 fi
 
-step "8/14 mutation suite (C++)"
+step "8/15 mutation suite (C++)"
 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
@@ -211,7 +225,7 @@ else
   echo "MUTATION=FAIL"; rc_all=1
 fi
 
-step "9/14 census verdict is falsifiable"
+step "9/15 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
 # The report count is asserted so this step cannot pass on an empty pinned set:
 # CENSUS-NEGATIVE=PASS is also what a suite that mutated zero reports would
@@ -225,7 +239,7 @@ else
   echo "CENSUS-NEGATIVE=FAIL (pinned_reports=${NEG_REPORTS:-0})"; rc_all=1
 fi
 
-step "10/14 reconstructed positions vs the independent oracle, per value"
+step "10/15 reconstructed positions vs the independent oracle, per value"
 # Steps 4-6 compare *counts* against the Rust oracle. Counts cannot see a value
 # that is decoded correctly and then read from the wrong property -- which is
 # exactly the P1 z defect: every counter stayed green while every player rendered
@@ -245,7 +259,7 @@ else
   echo "TRAJECTORY-ORACLE=FAIL (rc=$TRAJ_RC compared=${COMPARED:-0} mutation_rc=$MUT_RC)"; rc_all=1
 fi
 
-step "11/14 entity history coverage (how old a Checkpoint answer may be)"
+step "11/15 entity history coverage (how old a Checkpoint answer may be)"
 # Step 10 compares values only inside the ~70-packet live window, because that is
 # the only place the answer is tick-exact. Everywhere else the answer falls back
 # to a retained checkpoint, and nothing bounded how old that could be -- measured
@@ -263,7 +277,7 @@ else
   echo "HISTORY-COVERAGE=FAIL"; rc_all=1
 fi
 
-step "12/14 weapon world model (a weapon must not be drawn as its arms)"
+step "12/15 weapon world model (a weapon must not be drawn as its arms)"
 # Step 10 compares values but only for positions; a model path is the other half
 # of "the picture is right", and it fails differently. A weapon entity carries
 # two indices: m_nModelIndex is the first-person composite (its class's c_*_arms
@@ -286,7 +300,7 @@ else
   echo "WEAPON-WORLD-MODEL=FAIL (fixture_ok=$WS_FIXTURE, live_window_packets=${WS_PACKETS:-0})"; rc_all=1
 fi
 
-step "13/14 observer focus (who a spectator is watching, and what it would cost)"
+step "13/15 observer focus (who a spectator is watching, and what it would cost)"
 # A camera driven by the view entity alone is right for a live player and wrong
 # for a spectator: TF2 names the subject in m_iObserverMode / m_hObserverTarget,
 # and this pipeline read neither. Step 13 asserts the pair resolves, that it agrees
@@ -317,7 +331,7 @@ else
   echo "OBSERVER-FOCUS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "14/14 entity property slot freshness (the rule must take the later write)"
+step "14/15 entity property slot freshness (the rule must take the later write)"
 # Step 10 compares positions but only inside one demo's live window, and on that
 # demo the rank rule happens to be right. A player's origin arrives in two slots --
 # DT_TFLocalPlayerExclusive (full precision, sent to the owning client) and
@@ -351,6 +365,40 @@ if grep -q 'MUTATION-CAUGHT=PASS' "$SLOTMUT" && grep -qc '^  FAIL ' "$SLOTMUT"; 
   echo "SLOT-FRESHNESS-MUTATION=PASS (2/2 perturbations caught, red_lines=$SF_RED)"
 else
   echo "SLOT-FRESHNESS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
+fi
+
+step "15/15 real SourceTV coverage (all nine recordings, end to end)"
+# The pinned 24-demo calibration set carries one SourceTV recording, so almost all of
+# the SourceTV-side evidence in steps 1-14 is bagel and snakewater. A whole-corpus
+# header scan says there are nine SourceTV recordings on this machine, and this step
+# decodes all of them. The assertion that matters is not just entity_failures=0 --
+# that is also what a probe that read one packet would print -- but index_tail_bytes
+# equal to the file's own byte size, which is only true if the whole file was indexed
+# and walked.
+STV="$OUT/15-source-tv-coverage.txt"
+bash source-tv-coverage-check.sh > "$STV" 2>&1
+cat "$STV"
+STV_OK=$(grep -c '^  OK   ' "$STV" || true)
+STV_DEMOS=$(sed -n 's/^demos_read=\([0-9][0-9]*\) .*/\1/p' "$STV" | head -1)
+STV_PKTS=$(sed -n 's/^demos_read=[0-9][0-9]* packets_scanned=\([0-9][0-9]*\) .*/\1/p' "$STV" | head -1)
+# 47 is the current assertion count (9 demos x 5 assertions + 2 work counters),
+# pinned for the same reason steps 8 and 14 pin theirs.
+if grep -q 'SOURCE-TV-COVERAGE=PASS' "$STV" && [ "${STV_OK:-0}" -eq 47 ] \
+   && [ "${STV_DEMOS:-0}" -eq 9 ] && [ "${STV_PKTS:-0}" -ge 900000 ]; then
+  echo "SOURCE-TV-COVERAGE=PASS (demos=$STV_DEMOS packets=$STV_PKTS assertions_ok=$STV_OK)"
+else
+  echo "SOURCE-TV-COVERAGE=FAIL (demos=${STV_DEMOS:-0} packets=${STV_PKTS:-0} assertions_ok=${STV_OK:-0})"; rc_all=1
+fi
+# Both compared values are nudged by one and have to go red, nine rows each: a
+# perturbation that reddens everything or nothing would not show that the comparison
+# is per-demo.
+STVMUT="$OUT/15-source-tv-coverage-mutation.txt"
+bash source-tv-coverage-check.sh --mutation > "$STVMUT" 2>&1
+if grep -q 'MUTATION-CAUGHT=PASS' "$STVMUT" && grep -qc '^  FAIL ' "$STVMUT"; then
+  STV_RED=$(grep -c '^  FAIL ' "$STVMUT")
+  echo "SOURCE-TV-COVERAGE-MUTATION=PASS (2/2 perturbations caught, red_rows=$STV_RED)"
+else
+  echo "SOURCE-TV-COVERAGE-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
 printf '\n'

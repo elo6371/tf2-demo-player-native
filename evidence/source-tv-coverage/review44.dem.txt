@@ -1,0 +1,19 @@
+header=1 index=1 scan=1 recording=SourceTV protocol=24 map=cp_sultry_b8a commands=80595 packets=80591
+index_state=ok index_entries=80595 index_tail_bytes=53569778
+recording_stream=SourceTV recording_header_name=1 server_info_count=1 server_info_hltv=1 server_info_replay_bit=0 source_tv_flag=1
+packets_scanned=80591 malformed_packets=0 unknown_message_packets=0
+unknown_message_types=<none>
+packet_entities=80588 packet_entity_updates=1396722 header_updates=1396722 delta_packets=80587
+enter=12699 preserve=1374454 leave=1332 delete=8237
+entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+delta_base_unavailable=0 history_gap=0 history_gap_tick=0 history_dropped_packets=170
+instance_baselines=122 baseline_applied=12584 baseline_misses=115 baseline_apply_failures=0
+active_entities=853 max_active_entities=897
+file_messages=0 set_pause=0 bsp_decals=0 menus=0 cmd_key_values=0
+string_table_user_data_max_bytes=7669
+sound_precache_entries=6776 sound_precache_decode_failures=0 model_precache_entries=1410 model_precache_max_entries=4096 model_precache_decode_failures=0 model_precache_updates=2
+asset_refs=853 asset_model_path_known=565 asset_model_path_from_precache=565 asset_model_index_known=620 asset_model_index_zero=20 asset_model_index_out_of_range=35 asset_model_index_unresolved=0 asset_model_index_unresolved_max=-1 asset_identity_unknown=217 asset_world_model_index_known=34 asset_world_model_index_resolved=32 asset_world_model_index_zero=2 asset_world_model_index_unresolved=0 asset_world_model_index_out_of_range=0 asset_world_model_index_unresolved_max=-1 asset_model_path_from_world_model=32 asset_model_path_world_model_only=0 asset_weapon_view_model_agrees=34 asset_weapon_view_model_zero=0 asset_weapon_view_model_differs=0
+first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+first_delta_base_unavailable_tick=-1 first_delta_base_unavailable_from=-1
+message_type_histogram: 0(net_NOP)=10085 3(net_Tick)=80589 5(net_SetConVar)=10 6(net_SignonState)=3 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=82 14(svc_VoiceInit)=1 15(svc_VoiceData)=31 17(svc_Sounds)=14089 18(svc_SetView)=1 23(svc_UserMessage)=99 24(svc_EntityMessage)=335 25(svc_GameEvent)=13661 26(svc_PacketEntities)=80588 27(svc_TempEntities)=17337 28(svc_Prefetch)=4506 30(svc_GameEventList)=1
+message_types_seen_without_decoder: <none>
