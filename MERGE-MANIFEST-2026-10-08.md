@@ -24,8 +24,9 @@
 >   源码提交 12 → **13**、`native/` 文件 16 → **19**、+3684 −242 → **+3851 −242**、
 >   补丁 sha256 `0b583685…` → **`c09742a1…`**、补丁字节 245595 → **257962 B**、
 >   `HEAD:native` 树对象 `ece80926…` → **`a6d1944d…`**、提交总数 45 → **48**、路径 250 → **254**、
->   判据脚本 21 → **22**、验收链 15 → **16** 步、证据 204 → **211**（新增 `evidence/frame-capture/` 9 个
->   与 `evidence/verify/16-*.txt` 2 个，其中 3 个是判据跑出来的）。
+>   判据脚本 21 → **22**、验收链 15 → **16** 步、证据 204 → **216**（新增 `evidence/frame-capture/` **10 个**
+>   + `evidence/verify/16-*.txt` **2 个**；变异帧 `mutated.bmp` 已 gitignore —— 它由脚本从
+>   `paused.bmp` 现生成，是已保留文件的一字节改动，不携带独立证据）。
 >   **§6.1（路径 A）已实测重跑**：`git apply` 在 `d3e2b7c` 上干净，
 >   排除 `native/docs/` 后 **87 个代码文件 blob 逐个相同**。
 >   **§6.2（路径 B）仍未重跑**（见 §6.2 的诚实标注）。
@@ -60,7 +61,7 @@
 | `native/`（源码） | 19 | **是** | 13 个提交，+3851 −242 |
 | 判据脚本（仓库根） | 22 | 否 | 17 个 `.sh` + 5 个 `.py`，复核源码用，不参与产品构建 |
 | 文档 | 7 | 否 | 验收/交接文档 |
-| 证据 `evidence/` | 204 | 否 | 读数与产物（含冻结基线） |
+| 证据 `evidence/` | 216 | 否 | 读数与产物（含冻结基线） |
 | `.gitignore` + `fix-P0-entity-messages.patch` | 2 | 视情况 | `.gitignore` 与主线**冲突**（见 §6.2） |
 
 > 上表的行加起来不等于 254，是因为 `native/` 那 19 个里含 `native/README.md`
@@ -186,7 +187,7 @@ CI 上会失败，这是**设计如此**（那条断言要证的就是「这台�
 | `MERGE-MANIFEST-2026-10-08.md` | 本文件 |
 | `README.md` | 索引 + 当前状态 |
 
-**证据 `evidence/`（204 个 tracked）**
+**证据 `evidence/`（216 个 tracked）**
 
 | 目录 | tracked | 是什么 |
 |---|---|---|
@@ -194,7 +195,7 @@ CI 上会失败，这是**设计如此**（那条断言要证的就是「这台�
 | `evidence/after-fix/` | 27 | P0 修复后的探针 + oracle 对照 |
 | `evidence/verify/` | 22 | **16 步链的逐步原始输出**（`1-build.txt` … `16-frame-capture.txt`，第 16 步另有 `16-frame-capture-mutation.txt`） |
 | `evidence/observer-focus/` | 16 | 观察目标门禁原始读数（含 `pov-census.{json,txt}` 541 点普查与 `pov-e18-dead.txt` 死亡见证） |
-| `evidence/frame-capture/` | 9 | **帧抓取门禁原始产物**：`paused.bmp` / `paused-again.bmp` / `demo.bmp` / `mutated.bmp` 及其 `.log`，外加一次真实抓帧存下的对照帧 —— **这是「接材质前后画面变没变」的唯一基线** |
+| `evidence/frame-capture/` | 10 | **帧抓取门禁原始产物**：`paused.bmp` / `paused-again.bmp` / `demo.bmp` 及各自 `.log`、`.csv`，以及 `bad.log` —— **这是「接材质前后画面变没变」的唯一对照基线**（`mutated.bmp` 由脚本现生成，已 gitignore） |
 | `evidence/probe-baseline/` | 11 | **冻结基线**（9 份探针报告 + 新增行基线）。增量性检查拿它当参照，**不要用新运行覆盖** |
 | `evidence/final/` | 10 | P0 最终态探针报告 |
 | `evidence/baseline/` | 9 | P0 修复前的对照 |

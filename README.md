@@ -152,7 +152,7 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 | `source-tv-coverage-check.sh` | **真实 SourceTV 覆盖门禁**（验收链第 15 步）：把本机**全部 9 份** SourceTV 录制整份解码，逐份断言录制类型（头字段＋流内位）、`index_tail_bytes` 等于文件字节数（证明读完了整份）、钉住的包数/地图、以及 `entity_failures`/`malformed`/`unknown`/`delta_base_unavailable` 全零。`--mutation` 两个扰动各要求恰好 9 行红 |
 | `evidence/source-tv-coverage/` | 上述门禁的原始读数：9 份 demo 各自的完整探针输出（`<name>.txt`）。不重跑就复核时读这里 |
 | `frame-capture-check.sh` | **帧抓取门禁**（验收链第 16 步）：从运行中的程序抓一帧（`draw()` 内、`Present()` 之前读 back buffer，写未压缩 24 位 BMP），断言 BMP 头与自身字节数自洽、同场景两次**逐字节相同**、demo 场景与暂停场景**不同**、非法 `--capture-tick` **退出 13**；**缺输入记 FAIL 不记 SKIP**。`--mutation` 翻转图像一字节，要求内容哈希察觉 |
-| `evidence/frame-capture/` | 上述门禁的原始产物：`paused.bmp` / `paused-again.bmp` / `demo.bmp` / `mutated.bmp` 及各自 `.log`（实测暂停 sha256 `ab0bc11e…`、demo sha256 `fa1bb194…`）。**这是「接材质前后画面变没变」的唯一对照基线** |
+| `evidence/frame-capture/` | 上述门禁的原始产物：`paused.bmp` / `paused-again.bmp` / `demo.bmp` 及各自 `.log` / `.csv`（实测暂停 sha256 `ab0bc11e…`、demo sha256 `fa1bb194…`）。**这是「接材质前后画面变没变」的唯一对照基线**（`mutated.bmp` 由脚本从 `paused.bmp` 现生成，已 gitignore） |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
 | `verify-all.sh` | 一条命令跑完整证据链（16 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁**）；`--quick` 把语料抽样降到 8 份 |
 
