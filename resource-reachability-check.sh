@@ -67,7 +67,7 @@ probe() {
   echo "$json"
 }
 
-echo "=== 1/3 the archives main.cpp names are all present, or the reason is named ==="
+echo "=== 1/4 the archives main.cpp names are all present, or the reason is named ==="
 # main.cpp opens five named archives and silently drops the ones that fail. The
 # count is asserted, and the names that failed are asserted to be the ones we
 # actually expect to be missing on this install -- so a *second* archive
@@ -81,7 +81,7 @@ assert_eq "archives opened" "$OPENED" "4"
 assert_eq "missing archive (by name)" "$MISSING" "pak01_dir.vpk"
 
 echo
-echo "=== 2/3 the demo map's own BSP is reachable, and its materials resolve ==="
+echo "=== 2/4 the demo map's own BSP is reachable, and its materials resolve ==="
 # A BSP that is not reachable is the difference between "the scene drew untextured"
 # and "the scene did not draw at all" -- the bagel frame is the second case and
 # nothing before this step could tell them apart.
@@ -103,7 +103,7 @@ else
 fi
 
 echo
-echo "=== 3/3 resolvable is not drawable: the 512 cap is measured, not assumed ==="
+echo "=== 3/4 resolvable is not drawable: the 512 cap is measured, not assumed ==="
 # main.cpp builds the world atlas from at most 64 materials at or below 512x512.
 # Most of this map's textures are 1024x1024, so the number that predicts whether
 # texturing can be visible at all is the triangle share, not the material count.
@@ -115,6 +115,19 @@ echo "atlasEligible=$ELIGIBLE oversizedRejected=$REJECTED triangles=$COVERED/$TO
 assert_eq "atlas-eligible materials" "$ELIGIBLE" "7"
 assert_eq "oversized materials rejected by the 512 cap" "$REJECTED" "104"
 assert_eq "triangles the atlas can texture" "$COVERED" "30731"
+
+echo
+echo "=== 4/4 the negative control: the map the old gate used is unreachable ==="
+# Everything above is about a map that works. This is about the map that does not,
+# and it is the reading that would have caught the original defect: step 16 used
+# koth_bagel_rc13, and on this machine that map has no BSP at all. If a future
+# install adds it this assertion goes red on purpose -- the finding it records
+# ("step 16's demo had no scene here") would no longer be true, and a reader needs
+# to be told rather than left with a stale note.
+BAGEL=$(probe koth_bagel_rc13 "$OUT/bagel.json")
+BAGEL_BSP=$(field "$BAGEL" bspBytes)
+echo "bagel bspBytes=$BAGEL_BSP (expected 0: this map is not installed here)"
+assert_eq "bagel BSP bytes (the unreachable case)" "$BAGEL_BSP" "0"
 
 echo
 if [ "$MUTATION" -eq 1 ]; then
