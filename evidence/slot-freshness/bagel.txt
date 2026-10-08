@@ -1,0 +1,5 @@
+prop-candidates at tick=129277 status=available resolved=129277
+  entity=1 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=-3244.337891 y=198.821442 z=0.000000 int=0 lastWrite=129277 age=0
+    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=765.625000 y=-529.500000 z=0.000000 int=0 lastWrite=56148 age=73129
+prop-candidates-summary ticks=1 examined=1 withCandidates=1 candidates=2 withTick=2 chosenStale=0 worstChosenAge=0

@@ -96,6 +96,22 @@ ObserverFocusResolution resolveObserverFocus(
   const EntityState& viewEntity,
   const std::vector<EntityState>& statesByIndex);
 
+// One property that matches a suffix, with the tick it was last written at.
+struct PropertyCandidate {
+  std::string name;
+  std::int32_t lastWriteTick = -1;
+};
+
+// Every property whose name matches `suffix`, best first, in the order the
+// selection rule itself ranks them. Exposed so a diagnostic prints the rule's own
+// ordering rather than re-implementing it: a second implementation would drift
+// from the first, and the drift would be invisible exactly when the rule is the
+// thing under test. `lastWriteTick` is the server tick the slot was last written
+// at (-1 when it did not come from a packet), which is what lets a reader tell a
+// fresh slot from a stale one -- the decision the current rule cannot make.
+std::vector<PropertyCandidate> rankPropertyCandidates(
+  const EntityState& state, const char* suffix);
+
 struct EntityModelWorldMap {
   float centerX = 0.0f;
   float centerY = 0.0f;

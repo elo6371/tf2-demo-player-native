@@ -367,6 +367,67 @@ bool runSelfTest() {
     if (focusAt(10).followsTarget || focusAt(10).targetInRange) return false;
     if (!focusAt(11).followsTarget || focusAt(11).mode != 5) return false;
   }
+
+  // -------------------------------------------------------------------------
+  // Slot-freshness wiring fixture.
+  //
+  // EntityPropertyValue::lastWriteTick is instrumentation, and instrumentation
+  // rots silently: a field nobody asserts on stops being stamped and nothing
+  // notices until a rule is built on top of it. Two synthetic entities pin it end
+  // to end, built so that BOTH answers of the counter exist by construction:
+  //
+  //   A  Local fresh (1000) / NonLocal stale (100)  -> the rule picks the fresh
+  //      slot, chosenStale = 0. This is the bagel shape.
+  //   B  Local stale (100)  / NonLocal fresh (1000) -> the rule picks the stale
+  //      slot while a newer one sits right there, chosenStale = 1. This is the
+  //      POV entity-3 shape, and it is the whole reason the field exists.
+  //
+  // The ranking comes from rankPropertyCandidates -- the rule's own ordering, not
+  // a copy of it -- so this fixture also fails if the rule changes. What it
+  // asserts about the rule is that it has NOT changed: Local still wins. This
+  // round added a reading, not a policy.
+  // -------------------------------------------------------------------------
+  {
+    const auto buildState = [](std::int32_t localTick, std::int32_t nonLocalTick) {
+      tf2::native::EntityState state;
+      state.classId = 247;
+      tf2::native::EntityPropertyValue local;
+      local.type = tf2::native::SendPropType::VectorXY;
+      local.x = 1.0f; local.y = 2.0f;
+      local.lastWriteTick = localTick;
+      tf2::native::EntityPropertyValue nonLocal;
+      nonLocal.type = tf2::native::SendPropType::VectorXY;
+      nonLocal.x = 3.0f; nonLocal.y = 4.0f;
+      nonLocal.lastWriteTick = nonLocalTick;
+      state.properties["DT_TFLocalPlayerExclusive.m_vecOrigin"] = local;
+      state.properties["DT_TFNonLocalPlayerExclusive.m_vecOrigin"] = nonLocal;
+      return state;
+    };
+    const std::pair<std::int32_t, std::int32_t> shapes[] = {{1000, 100}, {100, 1000}};
+    const std::size_t shapeCount = sizeof(shapes) / sizeof(shapes[0]);
+    std::size_t ruleUnchanged = 0, tickRoundTrip = 0, freshChosen = 0, staleChosen = 0;
+    for (const auto& [localTick, nonLocalTick] : shapes) {
+      const auto ranked = tf2::native::rankPropertyCandidates(buildState(localTick, nonLocalTick), "m_vecOrigin");
+      if (ranked.size() != 2) return false;
+      // The rule must still prefer the LocalPlayerExclusive slot.
+      if (ranked[0].name != "DT_TFLocalPlayerExclusive.m_vecOrigin") return false;
+      ++ruleUnchanged;
+      if (ranked[0].lastWriteTick == localTick && ranked[1].lastWriteTick == nonLocalTick) ++tickRoundTrip;
+      if (ranked[0].lastWriteTick == std::max(localTick, nonLocalTick)) ++freshChosen;
+      else ++staleChosen;
+    }
+    std::fprintf(stderr,
+                 "slot-freshness-fixture shapes=%zu ruleUnchanged=%zu tickRoundTrip=%zu "
+                 "freshChosen=%zu staleChosen=%zu\n",
+                 shapeCount, ruleUnchanged, tickRoundTrip, freshChosen, staleChosen);
+    std::fflush(stderr);
+    if (ruleUnchanged != 2) return false;
+    if (tickRoundTrip != 2) return false;
+    if (freshChosen != 1) return false;
+    // If this reads 0 the fixture can no longer construct the case the field was
+    // added for, and the counter below it would pass by being unable to fire.
+    if (staleChosen != 1) return false;
+  }
   return true;
 }
 
@@ -1146,6 +1207,80 @@ void printObserverFocusAt(const tf2::native::DemoNetworkSummary& summary,
   std::fflush(stderr);
 }
 
+// Every slot that matches one suffix, in the order the selection rule ranks them,
+// with the age of each. This is the instrument for the question the current rule
+// cannot answer: a player's origin arrives in a LocalPlayerExclusive slot and a
+// NonLocalPlayerExclusive slot, and on this POV demo the one the rule prefers is
+// the stale one. Nothing here changes the rule -- the point is to make "the rule
+// picked a slot written N ticks ago while a newer one was sitting right there"
+// a printable number before any rule is allowed to depend on it.
+//
+// `chosenStale` counts the ticks where the rule's pick was NOT the freshest
+// candidate: that is the defect's signature, and it is a counter so a gate can
+// assert on it rather than on a wall of text.
+void printPropCandidatesAt(const tf2::native::DemoNetworkSummary& summary,
+                           const std::vector<std::int32_t>& ticks, int entityIndex,
+                           const std::string& suffix) {
+  if (entityIndex < 0 || suffix.empty()) {
+    std::fprintf(stderr, "prop-candidates: needs --entity N and --candidate-suffix S\n");
+    std::fflush(stderr);
+    return;
+  }
+  std::size_t examined = 0, withCandidates = 0, candidates = 0, withTick = 0, chosenStale = 0;
+  std::int32_t worstAge = 0;
+  for (const std::int32_t tick : ticks) {
+    std::vector<tf2::native::EntityState> states;
+    std::int32_t resolvedTick = 0;
+    const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, tick, states, &resolvedTick);
+    std::fprintf(stderr, "prop-candidates at tick=%d status=%s resolved=%d\n",
+                 tick, snapshotStatusName(status), resolvedTick);
+    if (static_cast<std::size_t>(entityIndex) >= states.size()) continue;
+    const auto& state = states[static_cast<std::size_t>(entityIndex)];
+    if (state.classId < 0) continue;
+    ++examined;
+    const auto ranked = tf2::native::rankPropertyCandidates(state, suffix.c_str());
+    if (ranked.empty()) continue;
+    ++withCandidates;
+    const char* className = "-";
+    if (static_cast<std::size_t>(state.classId) < summary.serverClassSchemas.size()) {
+      className = summary.serverClassSchemas[static_cast<std::size_t>(state.classId)].name.c_str();
+    }
+    std::fprintf(stderr, "  entity=%d class=%d %s suffix=%s candidates=%zu\n",
+                 entityIndex, state.classId, className, suffix.c_str(), ranked.size());
+    // The freshest write among the candidates, which is the age a rule with
+    // freshness awareness would get. -1 means no candidate carries a tick.
+    std::int32_t freshest = -1;
+    for (const auto& candidate : ranked) {
+      if (candidate.lastWriteTick > freshest) freshest = candidate.lastWriteTick;
+    }
+    for (std::size_t rank = 0; rank < ranked.size(); ++rank) {
+      const auto& candidate = ranked[rank];
+      ++candidates;
+      const auto& value = state.properties.at(candidate.name);
+      std::string age = "n/a";
+      if (candidate.lastWriteTick >= 0) {
+        ++withTick;
+        age = std::to_string(resolvedTick - candidate.lastWriteTick);
+      }
+      std::fprintf(stderr,
+                   "    rank=%zu%s name=%s type=%d x=%.6f y=%.6f z=%.6f int=%lld lastWrite=%d age=%s\n",
+                   rank, rank == 0 ? " (chosen)" : "", candidate.name.c_str(),
+                   static_cast<int>(value.type), value.x, value.y, value.z,
+                   static_cast<long long>(value.intValue), candidate.lastWriteTick, age.c_str());
+    }
+    if (ranked.front().lastWriteTick >= 0 && freshest >= 0) {
+      const std::int32_t age = resolvedTick - ranked.front().lastWriteTick;
+      if (age > worstAge) worstAge = age;
+      if (ranked.front().lastWriteTick < freshest) ++chosenStale;
+    }
+  }
+  std::fprintf(stderr,
+               "prop-candidates-summary ticks=%zu examined=%zu withCandidates=%zu candidates=%zu "
+               "withTick=%zu chosenStale=%zu worstChosenAge=%d\n",
+               ticks.size(), examined, withCandidates, candidates, withTick, chosenStale, worstAge);
+  std::fflush(stderr);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1158,6 +1293,8 @@ int main(int argc, char** argv) {
   std::vector<std::int32_t> propsAt;
   std::vector<std::int32_t> cameraAt;
   std::vector<std::int32_t> observerFocusAt;
+  std::vector<std::int32_t> propCandidatesAt;
+  std::string candidateSuffix;
   int propsAtEntity = -1;
   std::string classPropsFilter;
   std::string precacheFilter;
@@ -1180,6 +1317,8 @@ int main(int argc, char** argv) {
     else if (arg == "--props-at" && i + 1 < argc) parseTickList(argv[++i], propsAt);
     else if (arg == "--camera-at" && i + 1 < argc) parseTickList(argv[++i], cameraAt);
     else if (arg == "--observer-focus-at" && i + 1 < argc) parseTickList(argv[++i], observerFocusAt);
+    else if (arg == "--prop-candidates-at" && i + 1 < argc) parseTickList(argv[++i], propCandidatesAt);
+    else if (arg == "--candidate-suffix" && i + 1 < argc) candidateSuffix = argv[++i];
     else if (arg == "--trajectory" && i + 1 < argc) trajectoryTicks = std::strtoul(argv[++i], nullptr, 10);
     else if (arg == "--trajectory-dump") trajectoryDump = true;
     else if (arg == "--trajectory-at" && i + 1 < argc) parseTickList(argv[++i], trajectoryAt);
@@ -1401,6 +1540,9 @@ int main(int argc, char** argv) {
     if (!propsAt.empty()) printPropsAt(summary, propsAt, propsAtEntity);
     if (!cameraAt.empty()) printCameraAt(summary, cameraAt);
     if (!observerFocusAt.empty()) printObserverFocusAt(summary, observerFocusAt, propsAtEntity);
+    if (!propCandidatesAt.empty()) {
+      printPropCandidatesAt(summary, propCandidatesAt, propsAtEntity, candidateSuffix);
+    }
     if (!classPropsFilter.empty()) printClassProps(summary, classPropsFilter);
     if (!precacheFilter.empty()) printPrecache(summary, precacheFilter);
     if (historyStats) {

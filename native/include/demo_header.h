@@ -85,6 +85,21 @@ struct EntityPropertyValue {
   float y = 0.0f;
   float z = 0.0f;
   std::string stringValue;
+  // Server tick of the packet that last wrote this property, or -1 when the
+  // value did not come from a packet (fixture-built states, and the default).
+  //
+  // A player carries its position in more than one slot and the slots are not
+  // equally fresh: on POV entity 3 the LocalPlayerExclusive origin is 2379 ticks
+  // behind the checkpoint the snapshot was resolved from, while the
+  // NonLocalPlayerExclusive origin sits 44 units from the recorded camera. A rule
+  // that picks between slots cannot tell those apart without the age, and the age
+  // can only be recorded where the write happens -- deriving it later would mean
+  // replaying the whole packet history.
+  //
+  // Stamped by readEntityPropUpdates (demo_header.cpp) from its packetTick.
+  // Nothing reads it for rendering yet: this is instrumentation first, so that
+  // the age of every candidate is a reading before any rule depends on it.
+  std::int32_t lastWriteTick = -1;
 };
 
 struct EntityState {

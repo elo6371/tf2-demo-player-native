@@ -1,5 +1,6 @@
 #include "entity_model.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <unordered_set>
@@ -130,6 +131,22 @@ constexpr std::int64_t kObserverModeInEye = 4;
 constexpr std::int64_t kObserverModeChase = 5;
 
 } // namespace
+
+std::vector<PropertyCandidate> rankPropertyCandidates(const EntityState& state, const char* suffix) {
+  // Same matcher and same ranking the selection rule uses, so what a diagnostic
+  // prints is what the rule would do -- not a second opinion that can drift from
+  // it. `properties` is an unordered_map, so the order has to be imposed here.
+  std::vector<PropertyCandidate> candidates;
+  for (const auto& [name, value] : state.properties) {
+    if (!suffixMatch(name, suffix)) continue;
+    candidates.push_back(PropertyCandidate{name, value.lastWriteTick});
+  }
+  std::sort(candidates.begin(), candidates.end(),
+            [](const PropertyCandidate& left, const PropertyCandidate& right) {
+              return preferCandidate(left.name, right.name);
+            });
+  return candidates;
+}
 
 ModelInstanceTransform EntityModelResolver::extractTransform(const EntityState& state) {
   ModelInstanceTransform transform;

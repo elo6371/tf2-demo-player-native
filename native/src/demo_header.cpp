@@ -1044,6 +1044,11 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
       return false;
     }
     const std::string key = prop.ownerTable.empty() ? prop.name : prop.ownerTable + "." + prop.name;
+    // Stamp before the copy below, so the history record carries the same tick as
+    // the state: a replayed value must not look fresher than it is. One stamp here
+    // covers all four call sites (preserve / baseline / enter / temp) because they
+    // all pass their packet tick into this function.
+    value.lastWriteTick = packetTick;
     if (changes) {
       EntityPropChange change;
       change.propIndex = static_cast<std::uint32_t>(lastProp);
