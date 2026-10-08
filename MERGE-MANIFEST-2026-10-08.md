@@ -59,7 +59,8 @@
 
 **提交总数 `7ab4e72..HEAD` = 45**，其中**只有 12 个碰 `native/`**。
 剩下 33 个是纯文档/证据/判据提交 —— 判断源码有没有被动过要看
-`git log --oneline 7ab4e72..HEAD -- native/`，不要数提交条数。
+`git log --oneline 7ab4e72..HEAD -- native/`，不要数提交条数
+（**这两个数会随每一次文档提交增长；`native/` 那 12 个不会**）。
 （**2026-10-08 晚那两轮都是纯外围**：`3a935a3` 文档 + `18fe7ea` 判据，
 以及 `290db52` 判据 + 文档，`git diff --stat c0ff710..HEAD -- native/` 仍为空。）
 
@@ -388,8 +389,12 @@ git clone <repo> <dir> && git config core.autocrlf false   # 错：工作区立�
 > 上一轮的锚点（10 个提交时）保留作对照：补丁 sha256 `488fc828…`、
 > 合并后树对象 `6ba1d19b…`。**看到这两个值说明你手上是旧补丁。**
 
-测试树当前状态：HEAD = `23db4af`，分支 `p0-entity-protocol`，工作区干净，
-`git status --porcelain -- native/` 为空。**15 步链已在 `290db52` 上重跑，`VERIFY=PASS`**
-（RC=0，**36m20s**，15 步全绿；其后的 `23db4af` 是**纯文档提交**，不再重跑）—— 第六轮只改了第 13 步门禁与文档、`native/` 一个字节未改，
-其余 14 步读数与 `18fe7ea` 那次**逐条相同**，第 13 步按新期望
-（`assertions_ok=46`、变异 3/3 恰 3 行红）。读数见 §7 第 3 条与 `evidence/verify/1..15-*.txt`。
+测试树状态：分支 `p0-entity-protocol`，工作区干净，`git status --porcelain -- native/` 为空。
+**最后一次碰 `native/` 的提交是 `66cd97f`** —— 用它做基线，**不要用「当前 HEAD」**
+（文档提交会一直把 HEAD 往前推：`290db52` → `23db4af` → `f9a1b0f` …，
+上面四个锚点却始终不变，这正是「认基线用 blob 哈希」的用处）。
+
+**15 步链已在 `290db52` 上重跑，`VERIFY=PASS`**（RC=0，**36m20s**，15 步全绿）——
+第六轮只改了第 13 步门禁与文档、`native/` 一个字节未改，其余 14 步读数与 `18fe7ea` 那次
+**逐条相同**，第 13 步按新期望（`assertions_ok=46`、变异 3/3 恰 3 行红）。
+`290db52` 之后只有纯文档提交，不再重跑。读数见 §7 第 3 条与 `evidence/verify/1..15-*.txt`。
