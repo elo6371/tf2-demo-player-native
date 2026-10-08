@@ -1,1 +1,1 @@
-slot-freshness-fixture shapes=2 ruleUnchanged=2 tickRoundTrip=2 freshChosen=1 staleChosen=1
+slot-freshness-fixture shapes=4 freshChosen=2 staleChosen=0 freshnessDecided=1 rankTiePrefersLocal=2 apiMatches=4 tickRoundTrip=4

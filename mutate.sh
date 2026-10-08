@@ -9,11 +9,12 @@
 #
 # The tree MUST be committed first: `git checkout --` is the restore mechanism.
 #
-# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10]
+# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11]
 set -uo pipefail
 cd "$(dirname "$0")"
 
 SRC=native/src/demo_header.cpp
+MODELSRC=native/src/entity_model.cpp
 MODELTOOL=native/tools/entity_model_probe.cpp
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
 PROTO23="D:/TF2_Demo_Player/.scratch/tf2-demo-parser/test_data/protocol23.dem"
@@ -28,7 +29,7 @@ MODELPROBE=native/build-nmake/entity_model_probe.exe
 OUT=evidence/mutation
 mkdir -p "$OUT"
 
-CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10}"
+CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
@@ -483,6 +484,39 @@ for case_id in $CASES; do
       # evidence rather than paid for with another full bagel scan here.
       must_move_j "m10 world route gone -> gate bagel run reads known=0" \
         "$OUT/weaponworldmodel-m10/bagel.json" assetWorldModelKnown '33'
+      ;;
+    m11)
+      # Reintroduce the slot-selection defect the freshness round fixed: drop the
+      # lastWriteTick term from preferCandidate, so the rule falls back to
+      # rank-then-name -- the rule that resolved a 2379-tick-stale copy of the POV
+      # target's origin while a freshly written copy sat in the neighbouring slot.
+      # The number of candidates examined does not change, so every count-based
+      # reading stays green; the witness has to be the gate this round wrote, and
+      # the assertion is its refusal, not merely a moved number.
+      echo "--- m11: freshness ignored again (the stale slot wins on rank)"
+      patch_in "$MODELSRC" \
+        '  if (lastWriteTick != bestTick) return lastWriteTick > bestTick;
+' '  // mutation: the freshness term is removed, rank decides alone
+' || { rc_all=1; continue; }
+      bash build-target.sh entity_model_probe >/dev/null 2>&1
+      SLOT_FRESHNESS_OUT="$OUT/slotfreshness-m11" bash slot-freshness-check.sh \
+        > "$OUT/gate.m11.txt" 2>&1
+      m11rc=$?
+      must_refuse "m11 freshness ignored -> gate refuses" "$OUT/gate.m11.txt" \
+        'SLOT-FRESHNESS=FAIL' "$m11rc"
+      # The reading that has to move is the one that names the defect: on all three
+      # POV queries the pick is a non-freshest slot again, and it is the Local slot
+      # frozen at 51596 that comes back.
+      must_move "m11 freshness ignored -> POV chosenStale" \
+        "$OUT/slotfreshness-m11/pov.txt" 'chosenStale=[0-9]+' '0'
+      must_appear "m11 freshness ignored -> the frozen Local slot is chosen again" \
+        "$OUT/slotfreshness-m11/pov.txt" \
+        'rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin'
+      # Bagel must NOT move: there the rank rule already picks the fresh slot, so a
+      # mutation that moved bagel as well would mean the gate is not reading the two
+      # demos independently -- and "always prefer NonLocal" would pass it.
+      must_hold "m11 freshness ignored -> bagel chosenStale stays 0" \
+        "$OUT/slotfreshness-m11/bagel.txt" 'chosenStale=[0-9]+' '0'
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac

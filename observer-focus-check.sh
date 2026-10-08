@@ -21,26 +21,39 @@
 #     packet, and the entity whose own origin the recorded camera sits on) declares
 #     mode 4, target handle 1775619 == index 3 | serial 867 << 11, holding that for
 #     the whole 437-tick stretch before it respawns by 54747.
-#   The coordinate this pipeline's renderer would use for that target is
-#     x=1511.459961 y=894.130005 z=-186.000000 -- entity 3's own
-#     DT_TFLocalPlayerExclusive.m_vecOrigin, the slot the rank rule prefers for its
-#     full precision. 2729 units from the camera the demo recorded, 2623 of them
-#     along x alone.
 #   That camera (dem_cmdinfo at demo tick 37677, which the oracle's packet list
 #     pairs with server tick 54000) sits at x=-1112.031250 y=505.593719
-#     z=459.031250 -- 0.012 units in x from what this decoder reports as the
-#     recorder's own origin at checkpoint 53976, and its pitch, 13.764709, is
-#     byte-identical to the recorder's own m_angEyeAngles[0].
-#   Entity 3 carries a second, fresher copy of the same quantity: its
-#     DT_TFNonLocalPlayerExclusive reads x=-1112.000000 y=461.250000 z=455.250000,
-#     44 units from the camera. Its own m_nTickBase is 51597 against the
-#     checkpoint's 53976, so the slot the renderer prefers is 2379 ticks stale.
+#     z=459.031250, and its pitch, 13.764709, is byte-identical to the recorder's
+#     own m_angEyeAngles[0].
+#   Entity 3 carries the same quantity twice. When this round first ran, the
+#     coordinate this pipeline's renderer would use for it was
+#     x=1511.459961 y=894.130005 z=-186.000000 -- its
+#     DT_TFLocalPlayerExclusive.m_vecOrigin, the slot the rank rule preferred for
+#     its full precision. 2729 units from that camera, 2623 of them along x alone.
+#     Its own m_nTickBase read 51597 against the checkpoint's 53976, and the slot
+#     was last written at 51596 and never again: the rank rule was resolving a
+#     value 2379 ticks stale, while the target's
+#     DT_TFNonLocalPlayerExclusive copy (written at 53976, reading
+#     x=-1112.000000 y=461.250000 z=455.250000) sat 44 units from the camera.
 #
-# So the obvious wiring -- the mode says in-eye, so put the camera on the target --
-# moves this demo's view 2729 units off where the demo recorded it, using a value
-# that parses cleanly and belongs to a real player. The rank rule (take Local first)
-# is right often enough that nothing else caught it: on bagel the Local copy *is*
-# the truth, and the divergence below is zero there by construction.
+# The slot-freshness round (2026-10-08) made the rule prefer the later-written
+# slot, and this script's own pinned distance moved with it: 2729 -> 45. That is
+# the correction, and it is why this file is a diff rather than a sentence. The
+# rank rule had been right often enough that nothing else caught it -- on bagel the
+# Local copy *is* the truth, and the divergence there is zero by construction.
+#
+# What is still true, and what is no longer true
+# ----------------------------------------------
+# The renderer still does not follow the target. What changed is the reason. It used
+# to be a measurement -- believing the mode would move this demo's view 2729 units
+# off where the demo recorded it. It is now a decision: the resolved coordinate
+# agrees with the recorded camera to 45 units, so wiring the follow is no longer
+# demonstrably wrong here, it is simply not a change this round makes (the
+# integration review deferred the camera wiring, and this gate does not
+# second-guess that). The number is pinned so whoever does wire it inherits 45 and
+# not 2729 -- and the per-axis split is printed, because 45 is not spread evenly
+# across the three axes. Which axis carries it is a reading, not a rounding detail
+# to be waved through.
 #
 # What is asserted
 # ----------------
@@ -52,18 +65,20 @@
 #      the tick each answer actually came from, and the handle split into index and
 #      serial, and mode 4 only where the demo says in-eye;
 #   3. the divergence -- the distance from the recorded camera to the target's
-#      preferred-slot coordinate, pinned at the value above, together with the
-#      target's own staleness witness. This is what makes not wiring the follow a
-#      measurement rather than a preference: the day the slot rule changes, these
-#      lines move and this script says so;
+#      resolved coordinate, pinned at 45 with the per-axis split printed, together
+#      with the target's own tickbase witness. This is the line that caught the slot
+#      rule: it read 2729 before the freshness round and 45 after, so the claim it
+#      makes is a measurement that has already moved once, not a preference;
 #   4. the oracle witness -- tf_demo_parser's raw packet at demo tick 33242 carries
 #      m_iObserverMode = 1 and m_hObserverTarget = 606217 for entity 18, and both
 #      come out of this decoder's own snapshot of the same packet.
 #
 # What is NOT asserted, and why
 # -----------------------------
-# There is no "camera == targetOrigin" assertion, because measured on the POV demo
-# it is false, and pinning a false claim green is worse than leaving it unasserted.
+# There is no "camera == targetOrigin" assertion. Measured on the POV demo it is
+# false both before and after the freshness fix -- 2729 units then, 45 now -- and
+# pinning a claim that is false at either distance green is worse than leaving it
+# unasserted. What the 45 is made of is printed per axis instead of explained away.
 # Bagel does agree -- entity 1's own coordinate equals its target's exactly at
 # 129277 -- but cannot serve as the witness either: its dem_cmdinfo stream ends at
 # demo tick ~69881 while its entity history runs to 129277, so there is no recorded
@@ -157,7 +172,12 @@ assert_eq "row 3 targetHandle" "$(field "$R3" targetHandle)" "1775619"
 assert_eq "row 3 targetIndex" "$(field "$R3" targetIndex)" "3"
 assert_eq "row 3 targetSerial" "$(field "$R3" targetSerial)" "867"
 assert_eq "row 3 follows" "$(field "$R3" follows)" "1"
-assert_eq "row 3 targetOrigin (what a follow would use)" "$(field "$R3" targetOrigin)" "1511.459961,894.130005,-186.000000"
+# Before the freshness round this read entity 3's DT_TFLocalPlayerExclusive value,
+# x=1511.459961 y=894.130005 z=-186.000000 -- the slot last written at 51596. The
+# rule now takes the slot written at 53976, so the reading moved to the NonLocal
+# copy. Both names are pinned by name elsewhere (slot-freshness-check.sh); what is
+# pinned here is the coordinate a follow would use.
+assert_eq "row 3 targetOrigin (what a follow would use)" "$(field "$R3" targetOrigin)" "-1112.000000,461.250000,455.250000"
 assert_eq "row 3 selfOrigin (where the camera actually is)" "$(field "$R3" selfOrigin)" "-1112.019531,461.310516,455.251282"
 R4=$(printf '%s\n' "$ROWS" | sed -n '4p')
 assert_eq "row 4 mode (respawned, watching nothing)" "$(field "$R4" mode)" "0"
@@ -195,20 +215,30 @@ if [ -z "$DIVERGENCE" ]; then
   echo "FATAL: could not measure the camera-to-target distance from '$CAM_ORIGIN'"
   exit 1
 fi
+# The same subtraction, axis by axis. 45 units is small enough to be waved through as
+# "close enough, everywhere" -- but it is not spread evenly, and which axis carries it
+# is the part a reader needs before deciding whether the follow is safe to wire.
+# Printed rather than summarised away.
+AXIS_SPLIT=$(awk -v c="$CAM_ORIGIN" -v t="$(field "$R3" targetOrigin)" 'BEGIN{
+    n=split(c,A,","); split(t,B,",")
+    for(i=1;i<=n;i++) printf "%s%.3f", (i>1 ? "," : ""), A[i]-B[i]}')
+echo "per-axis camera-minus-target (x,y,z): $AXIS_SPLIT"
 if [ "$MUTATION" -eq 1 ]; then
   DIVERGENCE=$((DIVERGENCE + 1))
   echo "mutation: expected divergence perturbed to $DIVERGENCE"
 fi
-echo "camera-to-target distance = $DIVERGENCE units (2729 when this round measured it)"
-assert_eq "the follow's cost is still the one documented here" "$DIVERGENCE" "2729"
+echo "camera-to-target distance = $DIVERGENCE units (2729 before the freshness round moved it)"
+assert_eq "the follow's cost is still the one documented here" "$DIVERGENCE" "45"
 # Entity 3's own staleness witness, read from the entity rather than assumed: the
-# tick its m_nTickBase reports against the checkpoint it was answered from.
+# tick its m_nTickBase reports against the checkpoint it was answered from. It is the
+# reason the slot the rule used to take was 2379 ticks behind, and it is still read
+# from the entity so the explanation cannot drift from the state it explains.
 "$PROBE" --tf-root "$TF" --demo "$POV" --props-at 53976 --entity 3 > /dev/null 2> "$OUT/pov-e3.txt"
 E3_TICKBASE=$(sed -n 's/.*DT_LocalPlayerExclusive\.m_nTickBase .*int=\([0-9]*\).*/\1/p' "$OUT/pov-e3.txt" | head -1)
 E3_NONLOCAL=$(sed -n 's/.*DT_TFNonLocalPlayerExclusive\.m_vecOrigin type=3 x=\([^ ]*\) y=\([^ ]*\) z=.*/\1,\2/p' "$OUT/pov-e3.txt" | head -1)
-echo "entity 3 m_nTickBase=$E3_TICKBASE against checkpoint 53976; its other slot reads $E3_NONLOCAL"
+echo "entity 3 m_nTickBase=$E3_TICKBASE against checkpoint 53976; the slot the rule now takes reads $E3_NONLOCAL"
 assert_eq "entity 3 tickbase (2379 ticks behind the checkpoint)" "$E3_TICKBASE" "51597"
-assert_eq "entity 3 other-slot x,y (44 units from the camera)" "$E3_NONLOCAL" "-1112.000000,461.250000"
+assert_eq "entity 3 chosen-slot x,y (the one ~45 units from the camera)" "$E3_NONLOCAL" "-1112.000000,461.250000"
 # Bagel, where the same divergence is zero and therefore harmless -- which is why the
 # rank rule went unchallenged for a round. It has no recorded camera anywhere near
 # its entity window, so no camera claim is made for it.

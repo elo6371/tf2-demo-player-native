@@ -96,9 +96,12 @@ struct EntityPropertyValue {
   // can only be recorded where the write happens -- deriving it later would mean
   // replaying the whole packet history.
   //
-  // Stamped by readEntityPropUpdates (demo_header.cpp) from its packetTick.
-  // Nothing reads it for rendering yet: this is instrumentation first, so that
-  // the age of every candidate is a reading before any rule depends on it.
+  // Stamped by readEntityPropUpdates (demo_header.cpp) from its packetTick. The
+  // selection rule (entity_model.cpp, preferCandidate) ranks duplicate slots by it
+  // first, which is what moved the POV target's resolved coordinate off the frozen
+  // Local copy and onto the fresh one. A state built outside that function -- a
+  // fixture, or any hand-built state -- carries -1 everywhere, and the rule then
+  // falls back to the rank order it used before this field existed.
   std::int32_t lastWriteTick = -1;
 };
 

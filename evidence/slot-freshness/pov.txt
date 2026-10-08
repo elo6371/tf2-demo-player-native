@@ -1,13 +1,13 @@
 prop-candidates at tick=53976 status=checkpoint resolved=53976
   entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
-    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=2380
-    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1112.000000 y=461.250000 z=0.000000 int=0 lastWrite=53976 age=0
+    rank=0 (chosen) name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1112.000000 y=461.250000 z=0.000000 int=0 lastWrite=53976 age=0
+    rank=1 name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=2380
 prop-candidates at tick=54747 status=checkpoint resolved=54747
   entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
-    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3151
-    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1562.000000 y=464.625000 z=0.000000 int=0 lastWrite=54623 age=124
+    rank=0 (chosen) name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1562.000000 y=464.625000 z=0.000000 int=0 lastWrite=54623 age=124
+    rank=1 name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3151
 prop-candidates at tick=55394 status=available resolved=55394
   entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
-    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3798
-    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-2420.375000 y=731.500000 z=0.000000 int=0 lastWrite=55394 age=0
-prop-candidates-summary ticks=3 examined=3 withCandidates=3 candidates=6 withTick=6 chosenStale=3 worstChosenAge=3798
+    rank=0 (chosen) name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-2420.375000 y=731.500000 z=0.000000 int=0 lastWrite=55394 age=0
+    rank=1 name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3798
+prop-candidates-summary ticks=3 examined=3 withCandidates=3 candidates=6 withTick=6 chosenStale=0 worstChosenAge=124

@@ -3,7 +3,7 @@ observer-focus at tick=51900 status=checkpoint resolved=51742 states=2048
 observer-focus at tick=53400 status=checkpoint resolved=53075 states=2048
   observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
 observer-focus at tick=53976 status=checkpoint resolved=53976 states=2048
-  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=1511.459961,894.130005,-186.000000 selfOrigin=-1112.019531,461.310516,455.251282
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
 observer-focus at tick=54747 status=checkpoint resolved=54747 states=2048
   observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-459.084106,806.615845,143.571259
 observer-focus at tick=55394 status=available resolved=55394 states=2048

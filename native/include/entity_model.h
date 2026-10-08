@@ -66,13 +66,16 @@ public:
 // 6 roaming all keep it elsewhere. Until this round nothing read either property.
 //
 // WHAT THIS DOES NOT LICENSE. It would be easy to read followsTarget and move the
-// camera onto the target, and that is wrong on the first demo measured: the POV
-// recorder declares in-eye on entity 3 while the camera dem_cmdinfo recorded sits
-// on the recorder's own eye (pitch byte-identical, position 0.012 units off in x),
-// 2729 units from the coordinate this pipeline's slot rule resolves for entity 3
-// -- a slot 2379 ticks stale by its own m_nTickBase. So the resolution is reported
-// and asserted, and the renderer does NOT follow it yet. observer-focus-check.sh
-// pins that distance so the day the slot rule changes, someone is told.
+// camera onto the target. When this round first measured the POV demo, doing so
+// would have moved the view 2729 units off where dem_cmdinfo recorded it, because
+// the coordinate the slot rule resolved for entity 3 was its
+// DT_TFLocalPlayerExclusive copy -- last written at 51596, 2379 ticks behind the
+// checkpoint it was answered from. The freshness round (2026-10-08) made the slot
+// rule prefer the later-written slot, and that distance fell to 45 units, so the
+// reason not to wire the follow is now a decision rather than a measurement. The
+// resolution is reported and asserted; the renderer still does NOT follow it, and
+// observer-focus-check.sh pins the 45 (and the per-axis split inside it) so whoever
+// does wire it inherits the measured number rather than a memory of 2729.
 //
 // HANDLE LAYOUT -- Source's CBaseHandle packs the entity index into the low 11
 // bits and a serial number into the next 10 (source-sdk-2013,
@@ -107,8 +110,8 @@ struct PropertyCandidate {
 // ordering rather than re-implementing it: a second implementation would drift
 // from the first, and the drift would be invisible exactly when the rule is the
 // thing under test. `lastWriteTick` is the server tick the slot was last written
-// at (-1 when it did not come from a packet), which is what lets a reader tell a
-// fresh slot from a stale one -- the decision the current rule cannot make.
+// at (-1 when it did not come from a packet) -- the quantity the rule now ranks by
+// first, so rank 0 is the slot findProperty and readVectorProperty would pick.
 std::vector<PropertyCandidate> rankPropertyCandidates(
   const EntityState& state, const char* suffix);
 

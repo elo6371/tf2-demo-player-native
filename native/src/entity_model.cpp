@@ -29,9 +29,27 @@ int exclusiveRank(const std::string& name) {
   return 1;
 }
 
-// Deterministic choice between two equally-suffixed properties: prefer the
-// full-precision Local variant, then the lexicographically smaller name.
-bool preferCandidate(const std::string& name, const std::string& bestName) {
+// Which of two equally-suffixed properties to use.
+//
+// Freshness first. Two slots can carry the same quantity while only one of them
+// is still being written, and the one a later packet wrote is the one that
+// describes the world now. Measured on the POV demo's entity 3 at server tick
+// 53976: the Local slot was last written at 51596 and its value sits 2729 units
+// from the camera the demo recorded, while the NonLocal slot was written at
+// 53976 and sits 44 units from that camera. The rank rule below is exactly what
+// prefers the stale one. On bagel the same rule is right -- Local written at
+// 129277, NonLocal 73129 ticks stale -- which is why every count-based gate
+// stayed green through both.
+//
+// Rank is the tie-break, not the decision, so a state that carries no packet
+// ticks at all (a fixture, or any state built outside readEntityPropUpdates,
+// where lastWriteTick is -1) is ordered exactly as it was before this rule
+// existed. Equal ticks -- including two -1s -- therefore keep the old
+// full-precision-Local-then-lexicographic order, and the choice stays a pure
+// function of the state: no hash order, no wall clock.
+bool preferCandidate(const std::string& name, std::int32_t lastWriteTick,
+                     const std::string& bestName, std::int32_t bestTick) {
+  if (lastWriteTick != bestTick) return lastWriteTick > bestTick;
   const int rank = exclusiveRank(name);
   const int bestRank = exclusiveRank(bestName);
   if (rank != bestRank) return rank < bestRank;
@@ -47,7 +65,7 @@ const EntityPropertyValue* findProperty(const EntityState& state, const char* su
   std::string bestName;
   for (const auto& [name, value] : state.properties) {
     if (!suffixMatch(name, suffix)) continue;
-    if (!best || preferCandidate(name, bestName)) {
+    if (!best || preferCandidate(name, value.lastWriteTick, bestName, best->lastWriteTick)) {
       best = &value;
       bestName = name;
     }
@@ -64,10 +82,10 @@ const EntityPropertyValue* findProperty(const EntityState& state, const char* su
 // only the VectorXY's z therefore put every player on the ground plane at z = 0
 // while every count-based check stayed green.
 //
-// The choice among duplicates is made deterministic (prefer the full-precision
-// Local variant, then the lexicographically smallest name) because
-// EntityState::properties is an unordered_map and its iteration order is not
-// specified.
+// The choice among duplicates is made deterministic (prefer the slot written at
+// the later tick, then the full-precision Local variant, then the
+// lexicographically smallest name) because EntityState::properties is an
+// unordered_map and its iteration order is not specified.
 bool readVectorProperty(const EntityState& state, const std::string& base, float out[3],
                         bool* complete) {
   if (complete) *complete = true;
@@ -76,7 +94,7 @@ bool readVectorProperty(const EntityState& state, const std::string& base, float
   for (const auto& [name, value] : state.properties) {
     if (!suffixMatch(name, base.c_str())) continue;
     if (value.type != SendPropType::Vector && value.type != SendPropType::VectorXY) continue;
-    if (!best || preferCandidate(name, bestName)) {
+    if (!best || preferCandidate(name, value.lastWriteTick, bestName, best->lastWriteTick)) {
       best = &value;
       bestName = name;
     }
@@ -143,7 +161,7 @@ std::vector<PropertyCandidate> rankPropertyCandidates(const EntityState& state, 
   }
   std::sort(candidates.begin(), candidates.end(),
             [](const PropertyCandidate& left, const PropertyCandidate& right) {
-              return preferCandidate(left.name, right.name);
+              return preferCandidate(left.name, left.lastWriteTick, right.name, right.lastWriteTick);
             });
   return candidates;
 }

@@ -371,24 +371,33 @@ bool runSelfTest() {
   // -------------------------------------------------------------------------
   // Slot-freshness wiring fixture.
   //
-  // EntityPropertyValue::lastWriteTick is instrumentation, and instrumentation
-  // rots silently: a field nobody asserts on stops being stamped and nothing
-  // notices until a rule is built on top of it. Two synthetic entities pin it end
-  // to end, built so that BOTH answers of the counter exist by construction:
+  // A player's origin arrives in two slots and the selection rule has to choose
+  // between them. Four synthetic entities pin the rule end to end, built so that
+  // every branch exists by construction and so that a branch going dead is a
+  // changed reading rather than a silent hole:
   //
-  //   A  Local fresh (1000) / NonLocal stale (100)  -> the rule picks the fresh
-  //      slot, chosenStale = 0. This is the bagel shape.
-  //   B  Local stale (100)  / NonLocal fresh (1000) -> the rule picks the stale
-  //      slot while a newer one sits right there, chosenStale = 1. This is the
-  //      POV entity-3 shape, and it is the whole reason the field exists.
+  //   A  Local fresh (1000) / NonLocal stale (100)  -> picks Local. bagel's shape.
+  //   B  Local stale (100)  / NonLocal fresh (1000) -> picks NonLocal. The POV
+  //      entity-3 shape: rank alone would take Local, so this is the one shape
+  //      where freshness has to override rank, i.e. freshnessDecided = 1.
+  //   C  both written at 500                        -> picks Local. Equal ticks are
+  //      the tie the rank rule still decides, so the deterministic order the
+  //      earlier round established is unchanged wherever freshness is silent.
+  //   D  neither written by a packet (-1)           -> picks Local. A state built
+  //      outside readEntityPropUpdates (this fixture, and any hand-built state)
+  //      has no ticks at all and must order exactly as it did before the rule
+  //      gained a freshness term.
   //
-  // The ranking comes from rankPropertyCandidates -- the rule's own ordering, not
-  // a copy of it -- so this fixture also fails if the rule changes. What it
-  // asserts about the rule is that it has NOT changed: Local still wins. This
-  // round added a reading, not a policy.
+  // Two independent paths are checked, not one: rankPropertyCandidates (the
+  // rule's own ordering, the same comparator findProperty and readVectorProperty
+  // call) and EntityModelResolver::extractTransform (the public API the renderer
+  // uses). If the ranking and the renderer's answer ever disagree, this fails
+  // even though each alone would look right.
   // -------------------------------------------------------------------------
   {
-    const auto buildState = [](std::int32_t localTick, std::int32_t nonLocalTick) {
+    const std::string kLocalName = "DT_TFLocalPlayerExclusive.m_vecOrigin";
+    const std::string kNonLocalName = "DT_TFNonLocalPlayerExclusive.m_vecOrigin";
+    const auto buildState = [&](std::int32_t localTick, std::int32_t nonLocalTick) {
       tf2::native::EntityState state;
       state.classId = 247;
       tf2::native::EntityPropertyValue local;
@@ -399,34 +408,63 @@ bool runSelfTest() {
       nonLocal.type = tf2::native::SendPropType::VectorXY;
       nonLocal.x = 3.0f; nonLocal.y = 4.0f;
       nonLocal.lastWriteTick = nonLocalTick;
-      state.properties["DT_TFLocalPlayerExclusive.m_vecOrigin"] = local;
-      state.properties["DT_TFNonLocalPlayerExclusive.m_vecOrigin"] = nonLocal;
+      state.properties[kLocalName] = local;
+      state.properties[kNonLocalName] = nonLocal;
       return state;
     };
-    const std::pair<std::int32_t, std::int32_t> shapes[] = {{1000, 100}, {100, 1000}};
+    // {localTick, nonLocalTick, the slot the rule must pick}
+    struct Shape { std::int32_t localTick; std::int32_t nonLocalTick; const std::string* expected; };
+    const Shape shapes[] = {
+      {1000,  100, &kLocalName},
+      { 100, 1000, &kNonLocalName},
+      { 500,  500, &kLocalName},
+      {  -1,   -1, &kLocalName},
+    };
     const std::size_t shapeCount = sizeof(shapes) / sizeof(shapes[0]);
-    std::size_t ruleUnchanged = 0, tickRoundTrip = 0, freshChosen = 0, staleChosen = 0;
-    for (const auto& [localTick, nonLocalTick] : shapes) {
-      const auto ranked = tf2::native::rankPropertyCandidates(buildState(localTick, nonLocalTick), "m_vecOrigin");
+    std::size_t freshChosen = 0, staleChosen = 0, freshnessDecided = 0;
+    std::size_t rankTiePrefersLocal = 0, apiMatches = 0, tickRoundTrip = 0;
+    for (const auto& shape : shapes) {
+      const auto state = buildState(shape.localTick, shape.nonLocalTick);
+      const auto ranked = tf2::native::rankPropertyCandidates(state, "m_vecOrigin");
       if (ranked.size() != 2) return false;
-      // The rule must still prefer the LocalPlayerExclusive slot.
-      if (ranked[0].name != "DT_TFLocalPlayerExclusive.m_vecOrigin") return false;
-      ++ruleUnchanged;
-      if (ranked[0].lastWriteTick == localTick && ranked[1].lastWriteTick == nonLocalTick) ++tickRoundTrip;
-      if (ranked[0].lastWriteTick == std::max(localTick, nonLocalTick)) ++freshChosen;
-      else ++staleChosen;
+      const auto& pick = ranked[0];
+      if (pick.name != *shape.expected) return false;
+      // The ranking must carry the same ticks the state does, in rank order --
+      // i.e. the field survives the trip through the comparator.
+      if (pick.lastWriteTick == (pick.name == kLocalName ? shape.localTick : shape.nonLocalTick)) {
+        ++tickRoundTrip;
+      }
+      if (shape.localTick != shape.nonLocalTick) {
+        if (pick.lastWriteTick == std::max(shape.localTick, shape.nonLocalTick)) ++freshChosen;
+        else ++staleChosen;
+      } else if (pick.name == kLocalName) {
+        // No freshness signal: the rank rule must still be the one deciding.
+        ++rankTiePrefersLocal;
+      }
+      // Rank alone would pick Local on every shape above, so any shape whose
+      // pick is not Local is one freshness decided. Exactly one exists (B);
+      // if it ever reads 0 the freshness term has become dead code that the
+      // other counters would not notice.
+      if (pick.name != kLocalName) ++freshnessDecided;
+      // And the answer the renderer actually reads has to be the same answer.
+      const auto transform = tf2::native::EntityModelResolver::extractTransform(state);
+      if (transform.hasOrigin
+          && transform.origin[0] == (pick.name == kLocalName ? 1.0f : 3.0f)) {
+        ++apiMatches;
+      }
     }
     std::fprintf(stderr,
-                 "slot-freshness-fixture shapes=%zu ruleUnchanged=%zu tickRoundTrip=%zu "
-                 "freshChosen=%zu staleChosen=%zu\n",
-                 shapeCount, ruleUnchanged, tickRoundTrip, freshChosen, staleChosen);
+                 "slot-freshness-fixture shapes=%zu freshChosen=%zu staleChosen=%zu "
+                 "freshnessDecided=%zu rankTiePrefersLocal=%zu apiMatches=%zu tickRoundTrip=%zu\n",
+                 shapeCount, freshChosen, staleChosen, freshnessDecided,
+                 rankTiePrefersLocal, apiMatches, tickRoundTrip);
     std::fflush(stderr);
-    if (ruleUnchanged != 2) return false;
-    if (tickRoundTrip != 2) return false;
-    if (freshChosen != 1) return false;
-    // If this reads 0 the fixture can no longer construct the case the field was
-    // added for, and the counter below it would pass by being unable to fire.
-    if (staleChosen != 1) return false;
+    if (freshChosen != 2) return false;
+    if (staleChosen != 0) return false;
+    if (freshnessDecided != 1) return false;
+    if (rankTiePrefersLocal != 2) return false;
+    if (apiMatches != shapeCount) return false;
+    if (tickRoundTrip != shapeCount) return false;
   }
   return true;
 }
