@@ -54,13 +54,32 @@ POV 实体 3 上 Local **冻在 51596 后再未更新**、NonLocal 每检查点�
 也能打印同样的零。新增门禁为验收链第 15 步（47 条断言 + 两个变异，各 9 行红）。
 见 `ACCEPTANCE-P0-2026-10-06.md` §0.8。
 
+2026-10-08 第六轮：**45 单位的归因**（整合审查「仍未解决」第 1 项的前置，**无 `native/` 改动**）。
+上一轮把第 13 步的 `camera-to-target` 从 2729 降到 45，但**没归因**。本轮把那 45 拆开：
+用 `--camera-at` 逐 tick 采样发现**录制的相机原点在 demo 里是「保持」的** ——
+demo tick 37640..37678 这 39 个 tick 的 origin 逐字节相同
+（`-1112.031250,505.593719,459.031250`），而角度每 tick 都在变。**直接读原始
+`democmdinfo` 字节**确认：37640/37650/37655/37677/37679 五个包的 `viewOrigin`
+逐字节相同（前 16 字节 sha1 都是 `ef7a26d97762`）。该值等于**录像者自己**在
+demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`（x,y）
+与最后一次写下的 `m_vecOrigin[2]`（z）；而录像者**此刻已经死了**
+（37633 起 `m_fFlags` 带 `FL_TRANSRAGDOLL`、37634 起 `m_flFallVelocity` 掉到 0）。
+所以 **45 = 一台被冻结的死亡相机 − 同一具身体 12 tick 之后的位置**：44.28 在 y、3.78 在 z
+是身体死后自己掉的，剩下每轴 ≤0.061 是 NonLocal 槽的 1/8 量化。
+更有分量的是 **541 点普查**（server tick 1000..55000 步长 100）：`follows=1` 只在
+**13 个不同检查点**出现，其中 **11 个**目标解出的坐标**就落在录像者自己身上（≤0.15 单位，
+同一快照）** —— 即**这一份 demo 的观察对从不指向别的玩家**，它**无法**回答「跟随另一个玩家对不对」。
+结论：整合审查「不接相机」**结论不变**，依据换成「这一份 demo 无法验证接线」。
+判据 39 → **46 条断言**，`--mutation` 2 → **3 个扰动且要求恰好 3 条红行**。
+见 `ACCEPTANCE-P1-2026-10-06.md` §15 与 HANDOFF §1.7。
+
 **`VERIFY=PASS` 已在 `18fe7ea` 上取得**（**15 步** `bash verify-all.sh --quick`，
 **33m09s**，RC=0，15 步全绿，读数在 `evidence/verify/1..15-*.txt`）。
 逐步：`BUILD` / `CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` / `ORACLE` /
 `ORACLE-CORPUS + selftest` / `RECORDING-TYPES` / `PROBE-ADDITIVE` / `MUTATION (red=40 hold=4)` /
 `CENSUS-NEGATIVE (pinned_reports=24)` / `TRAJECTORY-ORACLE (compared=40)` /
 `HISTORY-COVERAGE (worst 1180 ≤ 2×761)` / `WEAPON-WORLD-MODEL (fixture_ok=12)` /
-`OBSERVER-FOCUS (39 断言, camera-to-target=45u)` + 变异 /
+`OBSERVER-FOCUS (46 断言, camera-to-target=45u)` + 变异（3/3 扰动，恰 3 行红） /
 `SLOT-FRESHNESS (24 断言, POV chosenStale=0)` + 变异 /
 **`SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异（各 9 行红）**。
 上一轮 **`VERIFY=PASS` 在 `fefc216` 上取得**（14 步，30m35s，读数
@@ -120,8 +139,8 @@ bash mutate.sh               # 变异验证（证明判据能变红）；11 个�
 bash census-negative-test.sh # 证明普查判据能变红（10 个变异）
 bash history-coverage-check.sh # 历史覆盖门禁：Checkpoint 答案最多能多旧（fixture + bagel）
 bash weapon-world-model-check.sh # 武器世界模型门禁：武器不能被画成手臂（fixture + bagel/POV + oracle 见证）
-bash observer-focus-check.sh  # 观察目标门禁：解析 + oracle 对照 + 不接线的分歧读数（fixture + POV + bagel）
-bash observer-focus-check.sh --mutation   # 同一门禁的变异：两处比较各挪 1，必须都变红
+bash observer-focus-check.sh  # 观察目标门禁：解析 + oracle 对照 + 45 单位的归因 + 541 点普查（fixture + POV + bagel）
+bash observer-focus-check.sh --mutation   # 同一门禁的变异：三处比较各挪 1，必须恰好 3 条红行
 bash slot-freshness-check.sh  # 选槽新鲜度门禁：规则必须取后写的那个槽（fixture + POV/bagel 对照 + 影响面）
 bash slot-freshness-check.sh --mutation   # 同一门禁的变异：两份 demo 的 chosenStale 各挪 1，必须恰好红 2 条
 bash source-tv-coverage-check.sh          # 真实 SourceTV 覆盖门禁：本机全部 9 份整份解码，逐份零失败

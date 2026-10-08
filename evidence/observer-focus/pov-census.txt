@@ -1,0 +1,929 @@
+observer-focus at tick=1000 status=before-window resolved=0 states=0
+observer-focus at tick=1100 status=before-window resolved=0 states=0
+observer-focus at tick=1200 status=before-window resolved=0 states=0
+observer-focus at tick=1300 status=before-window resolved=0 states=0
+observer-focus at tick=1400 status=before-window resolved=0 states=0
+observer-focus at tick=1500 status=before-window resolved=0 states=0
+observer-focus at tick=1600 status=before-window resolved=0 states=0
+observer-focus at tick=1700 status=before-window resolved=0 states=0
+observer-focus at tick=1800 status=before-window resolved=0 states=0
+observer-focus at tick=1900 status=before-window resolved=0 states=0
+observer-focus at tick=2000 status=before-window resolved=0 states=0
+observer-focus at tick=2100 status=before-window resolved=0 states=0
+observer-focus at tick=2200 status=before-window resolved=0 states=0
+observer-focus at tick=2300 status=before-window resolved=0 states=0
+observer-focus at tick=2400 status=before-window resolved=0 states=0
+observer-focus at tick=2500 status=before-window resolved=0 states=0
+observer-focus at tick=2600 status=before-window resolved=0 states=0
+observer-focus at tick=2700 status=before-window resolved=0 states=0
+observer-focus at tick=2800 status=before-window resolved=0 states=0
+observer-focus at tick=2900 status=before-window resolved=0 states=0
+observer-focus at tick=3000 status=before-window resolved=0 states=0
+observer-focus at tick=3100 status=before-window resolved=0 states=0
+observer-focus at tick=3200 status=before-window resolved=0 states=0
+observer-focus at tick=3300 status=before-window resolved=0 states=0
+observer-focus at tick=3400 status=before-window resolved=0 states=0
+observer-focus at tick=3500 status=before-window resolved=0 states=0
+observer-focus at tick=3600 status=before-window resolved=0 states=0
+observer-focus at tick=3700 status=before-window resolved=0 states=0
+observer-focus at tick=3800 status=before-window resolved=0 states=0
+observer-focus at tick=3900 status=before-window resolved=0 states=0
+observer-focus at tick=4000 status=before-window resolved=0 states=0
+observer-focus at tick=4100 status=before-window resolved=0 states=0
+observer-focus at tick=4200 status=before-window resolved=0 states=0
+observer-focus at tick=4300 status=before-window resolved=0 states=0
+observer-focus at tick=4400 status=before-window resolved=0 states=0
+observer-focus at tick=4500 status=before-window resolved=0 states=0
+observer-focus at tick=4600 status=before-window resolved=0 states=0
+observer-focus at tick=4700 status=before-window resolved=0 states=0
+observer-focus at tick=4800 status=before-window resolved=0 states=0
+observer-focus at tick=4900 status=before-window resolved=0 states=0
+observer-focus at tick=5000 status=before-window resolved=0 states=0
+observer-focus at tick=5100 status=before-window resolved=0 states=0
+observer-focus at tick=5200 status=before-window resolved=0 states=0
+observer-focus at tick=5300 status=before-window resolved=0 states=0
+observer-focus at tick=5400 status=before-window resolved=0 states=0
+observer-focus at tick=5500 status=before-window resolved=0 states=0
+observer-focus at tick=5600 status=before-window resolved=0 states=0
+observer-focus at tick=5700 status=before-window resolved=0 states=0
+observer-focus at tick=5800 status=before-window resolved=0 states=0
+observer-focus at tick=5900 status=before-window resolved=0 states=0
+observer-focus at tick=6000 status=before-window resolved=0 states=0
+observer-focus at tick=6100 status=before-window resolved=0 states=0
+observer-focus at tick=6200 status=before-window resolved=0 states=0
+observer-focus at tick=6300 status=before-window resolved=0 states=0
+observer-focus at tick=6400 status=before-window resolved=0 states=0
+observer-focus at tick=6500 status=before-window resolved=0 states=0
+observer-focus at tick=6600 status=before-window resolved=0 states=0
+observer-focus at tick=6700 status=before-window resolved=0 states=0
+observer-focus at tick=6800 status=before-window resolved=0 states=0
+observer-focus at tick=6900 status=before-window resolved=0 states=0
+observer-focus at tick=7000 status=before-window resolved=0 states=0
+observer-focus at tick=7100 status=before-window resolved=0 states=0
+observer-focus at tick=7200 status=before-window resolved=0 states=0
+observer-focus at tick=7300 status=before-window resolved=0 states=0
+observer-focus at tick=7400 status=before-window resolved=0 states=0
+observer-focus at tick=7500 status=before-window resolved=0 states=0
+observer-focus at tick=7600 status=before-window resolved=0 states=0
+observer-focus at tick=7700 status=before-window resolved=0 states=0
+observer-focus at tick=7800 status=before-window resolved=0 states=0
+observer-focus at tick=7900 status=before-window resolved=0 states=0
+observer-focus at tick=8000 status=before-window resolved=0 states=0
+observer-focus at tick=8100 status=before-window resolved=0 states=0
+observer-focus at tick=8200 status=before-window resolved=0 states=0
+observer-focus at tick=8300 status=before-window resolved=0 states=0
+observer-focus at tick=8400 status=before-window resolved=0 states=0
+observer-focus at tick=8500 status=before-window resolved=0 states=0
+observer-focus at tick=8600 status=before-window resolved=0 states=0
+observer-focus at tick=8700 status=before-window resolved=0 states=0
+observer-focus at tick=8800 status=before-window resolved=0 states=0
+observer-focus at tick=8900 status=before-window resolved=0 states=0
+observer-focus at tick=9000 status=before-window resolved=0 states=0
+observer-focus at tick=9100 status=before-window resolved=0 states=0
+observer-focus at tick=9200 status=before-window resolved=0 states=0
+observer-focus at tick=9300 status=before-window resolved=0 states=0
+observer-focus at tick=9400 status=before-window resolved=0 states=0
+observer-focus at tick=9500 status=before-window resolved=0 states=0
+observer-focus at tick=9600 status=before-window resolved=0 states=0
+observer-focus at tick=9700 status=before-window resolved=0 states=0
+observer-focus at tick=9800 status=before-window resolved=0 states=0
+observer-focus at tick=9900 status=before-window resolved=0 states=0
+observer-focus at tick=10000 status=before-window resolved=0 states=0
+observer-focus at tick=10100 status=before-window resolved=0 states=0
+observer-focus at tick=10200 status=before-window resolved=0 states=0
+observer-focus at tick=10300 status=before-window resolved=0 states=0
+observer-focus at tick=10400 status=before-window resolved=0 states=0
+observer-focus at tick=10500 status=before-window resolved=0 states=0
+observer-focus at tick=10600 status=before-window resolved=0 states=0
+observer-focus at tick=10700 status=before-window resolved=0 states=0
+observer-focus at tick=10800 status=before-window resolved=0 states=0
+observer-focus at tick=10900 status=before-window resolved=0 states=0
+observer-focus at tick=11000 status=before-window resolved=0 states=0
+observer-focus at tick=11100 status=before-window resolved=0 states=0
+observer-focus at tick=11200 status=before-window resolved=0 states=0
+observer-focus at tick=11300 status=before-window resolved=0 states=0
+observer-focus at tick=11400 status=before-window resolved=0 states=0
+observer-focus at tick=11500 status=before-window resolved=0 states=0
+observer-focus at tick=11600 status=before-window resolved=0 states=0
+observer-focus at tick=11700 status=before-window resolved=0 states=0
+observer-focus at tick=11800 status=before-window resolved=0 states=0
+observer-focus at tick=11900 status=before-window resolved=0 states=0
+observer-focus at tick=12000 status=before-window resolved=0 states=0
+observer-focus at tick=12100 status=before-window resolved=0 states=0
+observer-focus at tick=12200 status=before-window resolved=0 states=0
+observer-focus at tick=12300 status=before-window resolved=0 states=0
+observer-focus at tick=12400 status=before-window resolved=0 states=0
+observer-focus at tick=12500 status=before-window resolved=0 states=0
+observer-focus at tick=12600 status=before-window resolved=0 states=0
+observer-focus at tick=12700 status=before-window resolved=0 states=0
+observer-focus at tick=12800 status=before-window resolved=0 states=0
+observer-focus at tick=12900 status=before-window resolved=0 states=0
+observer-focus at tick=13000 status=before-window resolved=0 states=0
+observer-focus at tick=13100 status=before-window resolved=0 states=0
+observer-focus at tick=13200 status=before-window resolved=0 states=0
+observer-focus at tick=13300 status=before-window resolved=0 states=0
+observer-focus at tick=13400 status=before-window resolved=0 states=0
+observer-focus at tick=13500 status=before-window resolved=0 states=0
+observer-focus at tick=13600 status=before-window resolved=0 states=0
+observer-focus at tick=13700 status=before-window resolved=0 states=0
+observer-focus at tick=13800 status=before-window resolved=0 states=0
+observer-focus at tick=13900 status=before-window resolved=0 states=0
+observer-focus at tick=14000 status=before-window resolved=0 states=0
+observer-focus at tick=14100 status=before-window resolved=0 states=0
+observer-focus at tick=14200 status=before-window resolved=0 states=0
+observer-focus at tick=14300 status=before-window resolved=0 states=0
+observer-focus at tick=14400 status=before-window resolved=0 states=0
+observer-focus at tick=14500 status=before-window resolved=0 states=0
+observer-focus at tick=14600 status=before-window resolved=0 states=0
+observer-focus at tick=14700 status=before-window resolved=0 states=0
+observer-focus at tick=14800 status=before-window resolved=0 states=0
+observer-focus at tick=14900 status=before-window resolved=0 states=0
+observer-focus at tick=15000 status=before-window resolved=0 states=0
+observer-focus at tick=15100 status=before-window resolved=0 states=0
+observer-focus at tick=15200 status=before-window resolved=0 states=0
+observer-focus at tick=15300 status=before-window resolved=0 states=0
+observer-focus at tick=15400 status=before-window resolved=0 states=0
+observer-focus at tick=15500 status=before-window resolved=0 states=0
+observer-focus at tick=15600 status=before-window resolved=0 states=0
+observer-focus at tick=15700 status=before-window resolved=0 states=0
+observer-focus at tick=15800 status=before-window resolved=0 states=0
+observer-focus at tick=15900 status=before-window resolved=0 states=0
+observer-focus at tick=16000 status=before-window resolved=0 states=0
+observer-focus at tick=16100 status=before-window resolved=0 states=0
+observer-focus at tick=16200 status=before-window resolved=0 states=0
+observer-focus at tick=16300 status=before-window resolved=0 states=0
+observer-focus at tick=16400 status=checkpoint resolved=16306 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-3272.000000,968.007996,768.031250
+observer-focus at tick=16500 status=checkpoint resolved=16306 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-3272.000000,968.007996,768.031250
+observer-focus at tick=16600 status=checkpoint resolved=16306 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-3272.000000,968.007996,768.031250
+observer-focus at tick=16700 status=checkpoint resolved=16306 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-3272.000000,968.007996,768.031250
+observer-focus at tick=16800 status=checkpoint resolved=16306 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-3272.000000,968.007996,768.031250
+observer-focus at tick=16900 status=checkpoint resolved=16832 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1824.970459,714.703430,512.031250
+observer-focus at tick=17000 status=checkpoint resolved=16832 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1824.970459,714.703430,512.031250
+observer-focus at tick=17100 status=checkpoint resolved=16832 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1824.970459,714.703430,512.031250
+observer-focus at tick=17200 status=checkpoint resolved=17120 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-827.981201,139.707809,298.106262
+observer-focus at tick=17300 status=checkpoint resolved=17120 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-827.981201,139.707809,298.106262
+observer-focus at tick=17400 status=checkpoint resolved=17120 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-827.981201,139.707809,298.106262
+observer-focus at tick=17500 status=checkpoint resolved=17466 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=266.472809,156.788345,-63.968750
+observer-focus at tick=17600 status=checkpoint resolved=17466 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=266.472809,156.788345,-63.968750
+observer-focus at tick=17700 status=checkpoint resolved=17466 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=266.472809,156.788345,-63.968750
+observer-focus at tick=17800 status=checkpoint resolved=17733 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1234.254883,394.256927,-330.837585
+observer-focus at tick=17900 status=checkpoint resolved=17733 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1234.254883,394.256927,-330.837585
+observer-focus at tick=18000 status=checkpoint resolved=17733 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1234.254883,394.256927,-330.837585
+observer-focus at tick=18100 status=checkpoint resolved=18055 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=1458198 targetIndex=22 targetSerial=712 targetPresent=1 follows=0 selfOrigin=1544.142456,13.629393,-177.968750
+observer-focus at tick=18200 status=checkpoint resolved=18055 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=1458198 targetIndex=22 targetSerial=712 targetPresent=1 follows=0 selfOrigin=1544.142456,13.629393,-177.968750
+observer-focus at tick=18300 status=checkpoint resolved=18055 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=1458198 targetIndex=22 targetSerial=712 targetPresent=1 follows=0 selfOrigin=1544.142456,13.629393,-177.968750
+observer-focus at tick=18400 status=checkpoint resolved=18055 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=1458198 targetIndex=22 targetSerial=712 targetPresent=1 follows=0 selfOrigin=1544.142456,13.629393,-177.968750
+observer-focus at tick=18500 status=checkpoint resolved=18055 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=1458198 targetIndex=22 targetSerial=712 targetPresent=1 follows=0 selfOrigin=1544.142456,13.629393,-177.968750
+observer-focus at tick=18600 status=checkpoint resolved=18055 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=1458198 targetIndex=22 targetSerial=712 targetPresent=1 follows=0 selfOrigin=1544.142456,13.629393,-177.968750
+observer-focus at tick=18700 status=checkpoint resolved=18620 states=2048
+  observer entity=18 class=247 CTFPlayer mode=5 targetHandle=1540266 targetIndex=170 targetSerial=752 targetPresent=1 follows=1 targetOrigin=1053.031250,-270.250000,-207.968750 selfOrigin=1053.049805,-270.271851,-207.999954
+observer-focus at tick=18800 status=checkpoint resolved=18620 states=2048
+  observer entity=18 class=247 CTFPlayer mode=5 targetHandle=1540266 targetIndex=170 targetSerial=752 targetPresent=1 follows=1 targetOrigin=1053.031250,-270.250000,-207.968750 selfOrigin=1053.049805,-270.271851,-207.999954
+observer-focus at tick=18900 status=checkpoint resolved=18888 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2938.994385,1289.938477,768.031250
+observer-focus at tick=19000 status=checkpoint resolved=18888 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2938.994385,1289.938477,768.031250
+observer-focus at tick=19100 status=checkpoint resolved=18888 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2938.994385,1289.938477,768.031250
+observer-focus at tick=19200 status=checkpoint resolved=18888 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2938.994385,1289.938477,768.031250
+observer-focus at tick=19300 status=checkpoint resolved=19294 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1674.701538,541.382202,512.031250
+observer-focus at tick=19400 status=checkpoint resolved=19294 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1674.701538,541.382202,512.031250
+observer-focus at tick=19500 status=checkpoint resolved=19294 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1674.701538,541.382202,512.031250
+observer-focus at tick=19600 status=checkpoint resolved=19294 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1674.701538,541.382202,512.031250
+observer-focus at tick=19700 status=checkpoint resolved=19294 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1674.701538,541.382202,512.031250
+observer-focus at tick=19800 status=checkpoint resolved=19794 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-19.311718,635.605774,128.031250
+observer-focus at tick=19900 status=checkpoint resolved=19794 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-19.311718,635.605774,128.031250
+observer-focus at tick=20000 status=checkpoint resolved=19794 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-19.311718,635.605774,128.031250
+observer-focus at tick=20100 status=checkpoint resolved=19794 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-19.311718,635.605774,128.031250
+observer-focus at tick=20200 status=checkpoint resolved=19794 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-19.311718,635.605774,128.031250
+observer-focus at tick=20300 status=checkpoint resolved=20231 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1365.728760,1238.397339,-321.473694
+observer-focus at tick=20400 status=checkpoint resolved=20231 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1365.728760,1238.397339,-321.473694
+observer-focus at tick=20500 status=checkpoint resolved=20489 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=820.949097,1781.965698,-575.968750
+observer-focus at tick=20600 status=checkpoint resolved=20489 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=820.949097,1781.965698,-575.968750
+observer-focus at tick=20700 status=checkpoint resolved=20489 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=820.949097,1781.965698,-575.968750
+observer-focus at tick=20800 status=checkpoint resolved=20489 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=820.949097,1781.965698,-575.968750
+observer-focus at tick=20900 status=checkpoint resolved=20873 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=683.038086,2284.326172,-575.968750
+observer-focus at tick=21000 status=checkpoint resolved=20873 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=683.038086,2284.326172,-575.968750
+observer-focus at tick=21100 status=checkpoint resolved=20873 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=683.038086,2284.326172,-575.968750
+observer-focus at tick=21200 status=checkpoint resolved=20873 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=683.038086,2284.326172,-575.968750
+observer-focus at tick=21300 status=checkpoint resolved=20873 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=683.038086,2284.326172,-575.968750
+observer-focus at tick=21400 status=checkpoint resolved=21388 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1275.225342,3434.357910,-564.557190
+observer-focus at tick=21500 status=checkpoint resolved=21388 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1275.225342,3434.357910,-564.557190
+observer-focus at tick=21600 status=checkpoint resolved=21388 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=1275.225342,3434.357910,-564.557190
+observer-focus at tick=21700 status=checkpoint resolved=21647 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=615.805176,3205.277344,-486.168732
+observer-focus at tick=21800 status=checkpoint resolved=21647 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=615.805176,3205.277344,-486.168732
+observer-focus at tick=21900 status=checkpoint resolved=21647 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=615.805176,3205.277344,-486.168732
+observer-focus at tick=22000 status=checkpoint resolved=21647 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=615.805176,3205.277344,-486.168732
+observer-focus at tick=22100 status=checkpoint resolved=22035 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=403.149475,3383.547363,-511.968750
+observer-focus at tick=22200 status=checkpoint resolved=22035 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=403.149475,3383.547363,-511.968750
+observer-focus at tick=22300 status=checkpoint resolved=22035 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=403.149475,3383.547363,-511.968750
+observer-focus at tick=22400 status=checkpoint resolved=22330 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-5.341020,3222.037109,-767.968750
+observer-focus at tick=22500 status=checkpoint resolved=22330 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-5.341020,3222.037109,-767.968750
+observer-focus at tick=22600 status=checkpoint resolved=22330 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-5.341020,3222.037109,-767.968750
+observer-focus at tick=22700 status=checkpoint resolved=22330 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-5.341020,3222.037109,-767.968750
+observer-focus at tick=22800 status=checkpoint resolved=22709 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-83.421082,2845.046143,-767.973755
+observer-focus at tick=22900 status=checkpoint resolved=22709 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-83.421082,2845.046143,-767.973755
+observer-focus at tick=23000 status=checkpoint resolved=22709 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-83.421082,2845.046143,-767.973755
+observer-focus at tick=23100 status=checkpoint resolved=22709 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-83.421082,2845.046143,-767.973755
+observer-focus at tick=23200 status=checkpoint resolved=23162 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-83.421082,2845.046143,-767.973755
+observer-focus at tick=23300 status=checkpoint resolved=23162 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-83.421082,2845.046143,-767.973755
+observer-focus at tick=23400 status=checkpoint resolved=23162 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-83.421082,2845.046143,-767.973755
+observer-focus at tick=23500 status=checkpoint resolved=23489 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-127.076103,2823.931396,-767.973755
+observer-focus at tick=23600 status=checkpoint resolved=23489 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-127.076103,2823.931396,-767.973755
+observer-focus at tick=23700 status=checkpoint resolved=23489 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-127.076103,2823.931396,-767.973755
+observer-focus at tick=23800 status=checkpoint resolved=23771 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-981.161438,3488.535645,-755.911194
+observer-focus at tick=23900 status=checkpoint resolved=23771 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-981.161438,3488.535645,-755.911194
+observer-focus at tick=24000 status=checkpoint resolved=23771 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-981.161438,3488.535645,-755.911194
+observer-focus at tick=24100 status=checkpoint resolved=23771 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-981.161438,3488.535645,-755.911194
+observer-focus at tick=24200 status=checkpoint resolved=24170 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1293.187012,4061.471191,-953.768677
+observer-focus at tick=24300 status=checkpoint resolved=24170 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1293.187012,4061.471191,-953.768677
+observer-focus at tick=24400 status=checkpoint resolved=24170 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1293.187012,4061.471191,-953.768677
+observer-focus at tick=24500 status=checkpoint resolved=24170 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1293.187012,4061.471191,-953.768677
+observer-focus at tick=24600 status=checkpoint resolved=24170 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1293.187012,4061.471191,-953.768677
+observer-focus at tick=24700 status=checkpoint resolved=24684 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1599.940552,5268.155762,-1279.968750
+observer-focus at tick=24800 status=checkpoint resolved=24684 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1599.940552,5268.155762,-1279.968750
+observer-focus at tick=24900 status=checkpoint resolved=24684 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1599.940552,5268.155762,-1279.968750
+observer-focus at tick=25000 status=checkpoint resolved=24684 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-1599.940552,5268.155762,-1279.968750
+observer-focus at tick=25100 status=checkpoint resolved=25100 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2350.406494,5663.952148,-1279.978760
+observer-focus at tick=25200 status=checkpoint resolved=25100 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2350.406494,5663.952148,-1279.978760
+observer-focus at tick=25300 status=checkpoint resolved=25100 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2350.406494,5663.952148,-1279.978760
+observer-focus at tick=25400 status=checkpoint resolved=25100 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2350.406494,5663.952148,-1279.978760
+observer-focus at tick=25500 status=checkpoint resolved=25100 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2350.406494,5663.952148,-1279.978760
+observer-focus at tick=25600 status=checkpoint resolved=25100 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=434379 targetIndex=203 targetSerial=212 targetPresent=1 follows=0 selfOrigin=-2350.406494,5663.952148,-1279.978760
+observer-focus at tick=25700 status=checkpoint resolved=25682 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2592.625000,5154.750000,-1534.875000 selfOrigin=-2597.526367,5192.239746,-1535.349487
+observer-focus at tick=25800 status=checkpoint resolved=25682 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2592.625000,5154.750000,-1534.875000 selfOrigin=-2597.526367,5192.239746,-1535.349487
+observer-focus at tick=25900 status=checkpoint resolved=25682 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2592.625000,5154.750000,-1534.875000 selfOrigin=-2597.526367,5192.239746,-1535.349487
+observer-focus at tick=26000 status=checkpoint resolved=25682 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2592.625000,5154.750000,-1534.875000 selfOrigin=-2597.526367,5192.239746,-1535.349487
+observer-focus at tick=26100 status=checkpoint resolved=25682 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2592.625000,5154.750000,-1534.875000 selfOrigin=-2597.526367,5192.239746,-1535.349487
+observer-focus at tick=26200 status=checkpoint resolved=26135 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2910.750000,4888.375000,-1535.875000 selfOrigin=-2910.759033,4888.392090,-1535.968750
+observer-focus at tick=26300 status=checkpoint resolved=26135 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2910.750000,4888.375000,-1535.875000 selfOrigin=-2910.759033,4888.392090,-1535.968750
+observer-focus at tick=26400 status=checkpoint resolved=26135 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2910.750000,4888.375000,-1535.875000 selfOrigin=-2910.759033,4888.392090,-1535.968750
+observer-focus at tick=26500 status=checkpoint resolved=26135 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-2910.750000,4888.375000,-1535.875000 selfOrigin=-2910.759033,4888.392090,-1535.968750
+observer-focus at tick=26600 status=checkpoint resolved=26593 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=0.328326,3386.159912,-767.968750
+observer-focus at tick=26700 status=checkpoint resolved=26593 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=0.328326,3386.159912,-767.968750
+observer-focus at tick=26800 status=checkpoint resolved=26593 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=0.328326,3386.159912,-767.968750
+observer-focus at tick=26900 status=checkpoint resolved=26852 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-757.725708,4165.299805,-812.553772
+observer-focus at tick=27000 status=checkpoint resolved=26852 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-757.725708,4165.299805,-812.553772
+observer-focus at tick=27100 status=checkpoint resolved=26852 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-757.725708,4165.299805,-812.553772
+observer-focus at tick=27200 status=checkpoint resolved=26852 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-757.725708,4165.299805,-812.553772
+observer-focus at tick=27300 status=checkpoint resolved=27256 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-1480.908203,4602.062500,-1281.402588
+observer-focus at tick=27400 status=checkpoint resolved=27256 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-1480.908203,4602.062500,-1281.402588
+observer-focus at tick=27500 status=checkpoint resolved=27256 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-1480.908203,4602.062500,-1281.402588
+observer-focus at tick=27600 status=checkpoint resolved=27256 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-1480.908203,4602.062500,-1281.402588
+observer-focus at tick=27700 status=checkpoint resolved=27256 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-1480.908203,4602.062500,-1281.402588
+observer-focus at tick=27800 status=checkpoint resolved=27720 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2247.344971,5554.821289,-1279.968750
+observer-focus at tick=27900 status=checkpoint resolved=27720 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2247.344971,5554.821289,-1279.968750
+observer-focus at tick=28000 status=checkpoint resolved=27720 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2247.344971,5554.821289,-1279.968750
+observer-focus at tick=28100 status=checkpoint resolved=27720 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2247.344971,5554.821289,-1279.968750
+observer-focus at tick=28200 status=checkpoint resolved=27720 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2247.344971,5554.821289,-1279.968750
+observer-focus at tick=28300 status=checkpoint resolved=28229 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2511.478760,5599.524414,-1315.606201
+observer-focus at tick=28400 status=checkpoint resolved=28229 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2511.478760,5599.524414,-1315.606201
+observer-focus at tick=28500 status=checkpoint resolved=28229 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2511.478760,5599.524414,-1315.606201
+observer-focus at tick=28600 status=checkpoint resolved=28229 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2511.478760,5599.524414,-1315.606201
+observer-focus at tick=28700 status=checkpoint resolved=28609 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2418.223389,5598.516113,-1279.968750
+observer-focus at tick=28800 status=checkpoint resolved=28609 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2418.223389,5598.516113,-1279.968750
+observer-focus at tick=28900 status=checkpoint resolved=28829 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2422.920166,5610.891113,-1279.968750
+observer-focus at tick=29000 status=checkpoint resolved=28829 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2422.920166,5610.891113,-1279.968750
+observer-focus at tick=29100 status=checkpoint resolved=28829 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2422.920166,5610.891113,-1279.968750
+observer-focus at tick=29200 status=checkpoint resolved=28829 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2422.920166,5610.891113,-1279.968750
+observer-focus at tick=29300 status=checkpoint resolved=29262 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2423.565674,5565.971680,-1279.968750
+observer-focus at tick=29400 status=checkpoint resolved=29262 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2423.565674,5565.971680,-1279.968750
+observer-focus at tick=29500 status=checkpoint resolved=29262 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2423.565674,5565.971680,-1279.968750
+observer-focus at tick=29600 status=checkpoint resolved=29262 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2423.565674,5565.971680,-1279.968750
+observer-focus at tick=29700 status=checkpoint resolved=29262 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2423.565674,5565.971680,-1279.968750
+observer-focus at tick=29800 status=checkpoint resolved=29707 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2526.652832,5580.277832,-1325.308228
+observer-focus at tick=29900 status=checkpoint resolved=29707 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2526.652832,5580.277832,-1325.308228
+observer-focus at tick=30000 status=checkpoint resolved=29707 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2526.652832,5580.277832,-1325.308228
+observer-focus at tick=30100 status=checkpoint resolved=29707 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=0 selfOrigin=-2526.652832,5580.277832,-1325.308228
+observer-focus at tick=30200 status=checkpoint resolved=30182 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=2097151 targetIndex=2047 targetSerial=1023 targetPresent=0 follows=0 selfOrigin=-2930.552979,5224.146973,-1456.968750
+observer-focus at tick=30300 status=checkpoint resolved=30182 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=2097151 targetIndex=2047 targetSerial=1023 targetPresent=0 follows=0 selfOrigin=-2930.552979,5224.146973,-1456.968750
+observer-focus at tick=30400 status=checkpoint resolved=30182 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=2097151 targetIndex=2047 targetSerial=1023 targetPresent=0 follows=0 selfOrigin=-2930.552979,5224.146973,-1456.968750
+observer-focus at tick=30500 status=checkpoint resolved=30182 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=2097151 targetIndex=2047 targetSerial=1023 targetPresent=0 follows=0 selfOrigin=-2930.552979,5224.146973,-1456.968750
+observer-focus at tick=30600 status=checkpoint resolved=30182 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=2097151 targetIndex=2047 targetSerial=1023 targetPresent=0 follows=0 selfOrigin=-2930.552979,5224.146973,-1456.968750
+observer-focus at tick=30700 status=checkpoint resolved=30618 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=1 targetOrigin=-3348.125000,4347.250000,-1277.250000 selfOrigin=-3350.354248,4356.315430,-1278.551025
+observer-focus at tick=30800 status=checkpoint resolved=30618 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=1 targetOrigin=-3348.125000,4347.250000,-1277.250000 selfOrigin=-3350.354248,4356.315430,-1278.551025
+observer-focus at tick=30900 status=checkpoint resolved=30618 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=1 targetOrigin=-3348.125000,4347.250000,-1277.250000 selfOrigin=-3350.354248,4356.315430,-1278.551025
+observer-focus at tick=31000 status=checkpoint resolved=30618 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=1 targetOrigin=-3348.125000,4347.250000,-1277.250000 selfOrigin=-3350.354248,4356.315430,-1278.551025
+observer-focus at tick=31100 status=checkpoint resolved=31065 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-399.760773,1304.010010,72.030975
+observer-focus at tick=31200 status=checkpoint resolved=31065 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-399.760773,1304.010010,72.030975
+observer-focus at tick=31300 status=checkpoint resolved=31065 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-399.760773,1304.010010,72.030975
+observer-focus at tick=31400 status=checkpoint resolved=31065 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-399.760773,1304.010010,72.030975
+observer-focus at tick=31500 status=checkpoint resolved=31433 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-857.256226,175.560135,244.156265
+observer-focus at tick=31600 status=checkpoint resolved=31433 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-857.256226,175.560135,244.156265
+observer-focus at tick=31700 status=checkpoint resolved=31433 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-857.256226,175.560135,244.156265
+observer-focus at tick=31800 status=checkpoint resolved=31433 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-857.256226,175.560135,244.156265
+observer-focus at tick=31900 status=checkpoint resolved=31433 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-857.256226,175.560135,244.156265
+observer-focus at tick=32000 status=checkpoint resolved=31969 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1541.673218,1428.127930,863.376282
+observer-focus at tick=32100 status=checkpoint resolved=31969 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1541.673218,1428.127930,863.376282
+observer-focus at tick=32200 status=checkpoint resolved=31969 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1541.673218,1428.127930,863.376282
+observer-focus at tick=32300 status=checkpoint resolved=31969 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1541.673218,1428.127930,863.376282
+observer-focus at tick=32400 status=checkpoint resolved=31969 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1541.673218,1428.127930,863.376282
+observer-focus at tick=32500 status=checkpoint resolved=32460 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=32600 status=checkpoint resolved=32460 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=32700 status=checkpoint resolved=32460 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=32800 status=checkpoint resolved=32460 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=32900 status=checkpoint resolved=32460 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33000 status=checkpoint resolved=32901 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33100 status=checkpoint resolved=32901 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33200 status=checkpoint resolved=33159 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33300 status=checkpoint resolved=33159 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33400 status=checkpoint resolved=33159 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33500 status=checkpoint resolved=33469 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33600 status=checkpoint resolved=33469 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33700 status=checkpoint resolved=33469 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33800 status=checkpoint resolved=33745 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=33900 status=checkpoint resolved=33745 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34000 status=checkpoint resolved=33745 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34100 status=checkpoint resolved=33745 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34200 status=checkpoint resolved=33745 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34300 status=checkpoint resolved=34263 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34400 status=checkpoint resolved=34263 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34500 status=checkpoint resolved=34263 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34600 status=checkpoint resolved=34263 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34700 status=checkpoint resolved=34642 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34800 status=checkpoint resolved=34642 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=34900 status=checkpoint resolved=34642 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=35000 status=checkpoint resolved=34642 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=35100 status=checkpoint resolved=34642 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1640.418701,1613.389282,960.031250
+observer-focus at tick=35200 status=checkpoint resolved=35196 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1997.856201,1964.596802,960.031250
+observer-focus at tick=35300 status=checkpoint resolved=35196 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1997.856201,1964.596802,960.031250
+observer-focus at tick=35400 status=checkpoint resolved=35196 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1997.856201,1964.596802,960.031250
+observer-focus at tick=35500 status=checkpoint resolved=35499 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1968.398926,1919.517334,960.031250
+observer-focus at tick=35600 status=checkpoint resolved=35499 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1968.398926,1919.517334,960.031250
+observer-focus at tick=35700 status=checkpoint resolved=35499 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1968.398926,1919.517334,960.031250
+observer-focus at tick=35800 status=checkpoint resolved=35499 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1968.398926,1919.517334,960.031250
+observer-focus at tick=35900 status=checkpoint resolved=35499 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1968.398926,1919.517334,960.031250
+observer-focus at tick=36000 status=checkpoint resolved=35914 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1903.786377,1957.922974,960.031250
+observer-focus at tick=36100 status=checkpoint resolved=35914 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1903.786377,1957.922974,960.031250
+observer-focus at tick=36200 status=checkpoint resolved=35914 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1903.786377,1957.922974,960.031250
+observer-focus at tick=36300 status=checkpoint resolved=35914 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1903.786377,1957.922974,960.031250
+observer-focus at tick=36400 status=checkpoint resolved=35914 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1903.786377,1957.922974,960.031250
+observer-focus at tick=36500 status=checkpoint resolved=36410 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1973.248047,1921.173584,960.031250
+observer-focus at tick=36600 status=checkpoint resolved=36410 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1973.248047,1921.173584,960.031250
+observer-focus at tick=36700 status=checkpoint resolved=36410 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1973.248047,1921.173584,960.031250
+observer-focus at tick=36800 status=checkpoint resolved=36722 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1351.217773,1149.608398,704.031250
+observer-focus at tick=36900 status=checkpoint resolved=36722 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1351.217773,1149.608398,704.031250
+observer-focus at tick=37000 status=checkpoint resolved=36722 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1351.217773,1149.608398,704.031250
+observer-focus at tick=37100 status=checkpoint resolved=36722 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1351.217773,1149.608398,704.031250
+observer-focus at tick=37200 status=checkpoint resolved=37133 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1449.916138,865.137329,704.031250
+observer-focus at tick=37300 status=checkpoint resolved=37133 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1449.916138,865.137329,704.031250
+observer-focus at tick=37400 status=checkpoint resolved=37133 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1449.916138,865.137329,704.031250
+observer-focus at tick=37500 status=checkpoint resolved=37451 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1375.445068,1141.312500,704.031250
+observer-focus at tick=37600 status=checkpoint resolved=37451 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1375.445068,1141.312500,704.031250
+observer-focus at tick=37700 status=checkpoint resolved=37451 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1375.445068,1141.312500,704.031250
+observer-focus at tick=37800 status=checkpoint resolved=37451 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1375.445068,1141.312500,704.031250
+observer-focus at tick=37900 status=checkpoint resolved=37451 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1375.445068,1141.312500,704.031250
+observer-focus at tick=38000 status=checkpoint resolved=37451 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1375.445068,1141.312500,704.031250
+observer-focus at tick=38100 status=checkpoint resolved=38004 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1665.149414,1568.257935,952.742065
+observer-focus at tick=38200 status=checkpoint resolved=38004 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1665.149414,1568.257935,952.742065
+observer-focus at tick=38300 status=checkpoint resolved=38004 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1665.149414,1568.257935,952.742065
+observer-focus at tick=38400 status=checkpoint resolved=38392 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1355.673462,1093.215698,704.031250
+observer-focus at tick=38500 status=checkpoint resolved=38392 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1355.673462,1093.215698,704.031250
+observer-focus at tick=38600 status=checkpoint resolved=38392 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1355.673462,1093.215698,704.031250
+observer-focus at tick=38700 status=checkpoint resolved=38392 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1355.673462,1093.215698,704.031250
+observer-focus at tick=38800 status=checkpoint resolved=38392 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1355.673462,1093.215698,704.031250
+observer-focus at tick=38900 status=checkpoint resolved=38896 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1478.234253,732.487793,723.446228
+observer-focus at tick=39000 status=checkpoint resolved=38896 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1478.234253,732.487793,723.446228
+observer-focus at tick=39100 status=checkpoint resolved=38896 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1478.234253,732.487793,723.446228
+observer-focus at tick=39200 status=checkpoint resolved=39139 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1513.886963,711.496033,704.031250
+observer-focus at tick=39300 status=checkpoint resolved=39139 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1513.886963,711.496033,704.031250
+observer-focus at tick=39400 status=checkpoint resolved=39139 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1513.886963,711.496033,704.031250
+observer-focus at tick=39500 status=checkpoint resolved=39139 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1513.886963,711.496033,704.031250
+observer-focus at tick=39600 status=checkpoint resolved=39139 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1513.886963,711.496033,704.031250
+observer-focus at tick=39700 status=checkpoint resolved=39601 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1376.569702,1459.703247,832.031250
+observer-focus at tick=39800 status=checkpoint resolved=39601 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1376.569702,1459.703247,832.031250
+observer-focus at tick=39900 status=checkpoint resolved=39601 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1376.569702,1459.703247,832.031250
+observer-focus at tick=40000 status=checkpoint resolved=39601 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1376.569702,1459.703247,832.031250
+observer-focus at tick=40100 status=checkpoint resolved=40036 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1495.127808,1394.334351,832.031250
+observer-focus at tick=40200 status=checkpoint resolved=40036 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1495.127808,1394.334351,832.031250
+observer-focus at tick=40300 status=checkpoint resolved=40280 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1566.873169,1401.069336,832.031250
+observer-focus at tick=40400 status=checkpoint resolved=40280 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1566.873169,1401.069336,832.031250
+observer-focus at tick=40500 status=checkpoint resolved=40280 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1566.873169,1401.069336,832.031250
+observer-focus at tick=40600 status=checkpoint resolved=40280 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1566.873169,1401.069336,832.031250
+observer-focus at tick=40700 status=checkpoint resolved=40280 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1566.873169,1401.069336,832.031250
+observer-focus at tick=40800 status=checkpoint resolved=40768 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1703.359009,1535.382080,955.408936
+observer-focus at tick=40900 status=checkpoint resolved=40768 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1703.359009,1535.382080,955.408936
+observer-focus at tick=41000 status=checkpoint resolved=40768 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1703.359009,1535.382080,955.408936
+observer-focus at tick=41100 status=checkpoint resolved=40768 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1703.359009,1535.382080,955.408936
+observer-focus at tick=41200 status=checkpoint resolved=40768 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-1703.359009,1535.382080,955.408936
+observer-focus at tick=41300 status=checkpoint resolved=41236 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2133.374023,2007.946655,960.031250
+observer-focus at tick=41400 status=checkpoint resolved=41236 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2133.374023,2007.946655,960.031250
+observer-focus at tick=41500 status=checkpoint resolved=41236 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2133.374023,2007.946655,960.031250
+observer-focus at tick=41600 status=checkpoint resolved=41236 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2133.374023,2007.946655,960.031250
+observer-focus at tick=41700 status=checkpoint resolved=41236 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2133.374023,2007.946655,960.031250
+observer-focus at tick=41800 status=checkpoint resolved=41712 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2214.809326,2394.397217,960.031250
+observer-focus at tick=41900 status=checkpoint resolved=41712 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2214.809326,2394.397217,960.031250
+observer-focus at tick=42000 status=checkpoint resolved=41712 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2214.809326,2394.397217,960.031250
+observer-focus at tick=42100 status=checkpoint resolved=41712 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2214.809326,2394.397217,960.031250
+observer-focus at tick=42200 status=checkpoint resolved=42137 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2163.033203,2286.975098,968.156616
+observer-focus at tick=42300 status=checkpoint resolved=42137 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2163.033203,2286.975098,968.156616
+observer-focus at tick=42400 status=checkpoint resolved=42137 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2163.033203,2286.975098,968.156616
+observer-focus at tick=42500 status=checkpoint resolved=42137 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2163.033203,2286.975098,968.156616
+observer-focus at tick=42600 status=checkpoint resolved=42137 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2163.033203,2286.975098,968.156616
+observer-focus at tick=42700 status=checkpoint resolved=42612 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2150.443604,2189.313232,960.031250
+observer-focus at tick=42800 status=checkpoint resolved=42612 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2150.443604,2189.313232,960.031250
+observer-focus at tick=42900 status=checkpoint resolved=42612 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2150.443604,2189.313232,960.031250
+observer-focus at tick=43000 status=checkpoint resolved=42612 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2150.443604,2189.313232,960.031250
+observer-focus at tick=43100 status=checkpoint resolved=42612 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=65547 targetIndex=11 targetSerial=32 targetPresent=1 follows=0 selfOrigin=-2150.443604,2189.313232,960.031250
+observer-focus at tick=43200 status=checkpoint resolved=43105 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-1776.875000,1942.875000,960.000000 selfOrigin=-1776.927612,1942.947510,960.031250
+observer-focus at tick=43300 status=checkpoint resolved=43105 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-1776.875000,1942.875000,960.000000 selfOrigin=-1776.927612,1942.947510,960.031250
+observer-focus at tick=43400 status=checkpoint resolved=43105 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-1776.875000,1942.875000,960.000000 selfOrigin=-1776.927612,1942.947510,960.031250
+observer-focus at tick=43500 status=checkpoint resolved=43105 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1013766 targetIndex=6 targetSerial=495 targetPresent=1 follows=1 targetOrigin=-1776.875000,1942.875000,960.000000 selfOrigin=-1776.927612,1942.947510,960.031250
+observer-focus at tick=43600 status=checkpoint resolved=43581 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1636356 targetIndex=4 targetSerial=799 targetPresent=1 follows=1 targetOrigin=-1347.625000,1611.250000,832.000000 selfOrigin=-1347.692383,1611.260010,832.031250
+observer-focus at tick=43700 status=checkpoint resolved=43581 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1636356 targetIndex=4 targetSerial=799 targetPresent=1 follows=1 targetOrigin=-1347.625000,1611.250000,832.000000 selfOrigin=-1347.692383,1611.260010,832.031250
+observer-focus at tick=43800 status=checkpoint resolved=43581 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1636356 targetIndex=4 targetSerial=799 targetPresent=1 follows=1 targetOrigin=-1347.625000,1611.250000,832.000000 selfOrigin=-1347.692383,1611.260010,832.031250
+observer-focus at tick=43900 status=checkpoint resolved=43581 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1636356 targetIndex=4 targetSerial=799 targetPresent=1 follows=1 targetOrigin=-1347.625000,1611.250000,832.000000 selfOrigin=-1347.692383,1611.260010,832.031250
+observer-focus at tick=44000 status=checkpoint resolved=43965 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-341.347137,1253.767212,105.526146
+observer-focus at tick=44100 status=checkpoint resolved=43965 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-341.347137,1253.767212,105.526146
+observer-focus at tick=44200 status=checkpoint resolved=43965 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-341.347137,1253.767212,105.526146
+observer-focus at tick=44300 status=checkpoint resolved=43965 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-341.347137,1253.767212,105.526146
+observer-focus at tick=44400 status=checkpoint resolved=44343 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2226.804199,814.807190,640.031250
+observer-focus at tick=44500 status=checkpoint resolved=44343 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2226.804199,814.807190,640.031250
+observer-focus at tick=44600 status=checkpoint resolved=44343 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2226.804199,814.807190,640.031250
+observer-focus at tick=44700 status=checkpoint resolved=44648 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2257.468018,225.742813,378.331207
+observer-focus at tick=44800 status=checkpoint resolved=44648 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2257.468018,225.742813,378.331207
+observer-focus at tick=44900 status=checkpoint resolved=44648 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2257.468018,225.742813,378.331207
+observer-focus at tick=45000 status=checkpoint resolved=44909 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2142.451172,519.715210,419.034790
+observer-focus at tick=45100 status=checkpoint resolved=44909 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2142.451172,519.715210,419.034790
+observer-focus at tick=45200 status=checkpoint resolved=44909 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2142.451172,519.715210,419.034790
+observer-focus at tick=45300 status=checkpoint resolved=44909 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-2142.451172,519.715210,419.034790
+observer-focus at tick=45400 status=checkpoint resolved=45350 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1715.549805,570.258301,512.038513
+observer-focus at tick=45500 status=checkpoint resolved=45350 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1715.549805,570.258301,512.038513
+observer-focus at tick=45600 status=checkpoint resolved=45599 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1709.515015,525.060425,512.038513
+observer-focus at tick=45700 status=checkpoint resolved=45599 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1709.515015,525.060425,512.038513
+observer-focus at tick=45800 status=checkpoint resolved=45599 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1709.515015,525.060425,512.038513
+observer-focus at tick=45900 status=checkpoint resolved=45599 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1709.515015,525.060425,512.038513
+observer-focus at tick=46000 status=checkpoint resolved=45599 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1709.515015,525.060425,512.038513
+observer-focus at tick=46100 status=checkpoint resolved=46027 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1916.134766,252.923981,512.031250
+observer-focus at tick=46200 status=checkpoint resolved=46027 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1916.134766,252.923981,512.031250
+observer-focus at tick=46300 status=checkpoint resolved=46027 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1916.134766,252.923981,512.031250
+observer-focus at tick=46400 status=checkpoint resolved=46027 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1943562 targetIndex=10 targetSerial=949 targetPresent=1 follows=0 selfOrigin=-1916.134766,252.923981,512.031250
+observer-focus at tick=46500 status=checkpoint resolved=46482 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1877.500000,1358.000000,629.250000 selfOrigin=-1877.520630,1358.019897,629.297974
+observer-focus at tick=46600 status=checkpoint resolved=46482 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1877.500000,1358.000000,629.250000 selfOrigin=-1877.520630,1358.019897,629.297974
+observer-focus at tick=46700 status=checkpoint resolved=46482 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1877.500000,1358.000000,629.250000 selfOrigin=-1877.520630,1358.019897,629.297974
+observer-focus at tick=46800 status=checkpoint resolved=46482 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1877.500000,1358.000000,629.250000 selfOrigin=-1877.520630,1358.019897,629.297974
+observer-focus at tick=46900 status=checkpoint resolved=46482 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1877.500000,1358.000000,629.250000 selfOrigin=-1877.520630,1358.019897,629.297974
+observer-focus at tick=47000 status=checkpoint resolved=46953 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1293.250000,1452.625000,805.000000 selfOrigin=-1293.308716,1452.634033,805.009644
+observer-focus at tick=47100 status=checkpoint resolved=46953 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1293.250000,1452.625000,805.000000 selfOrigin=-1293.308716,1452.634033,805.009644
+observer-focus at tick=47200 status=checkpoint resolved=46953 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1293.250000,1452.625000,805.000000 selfOrigin=-1293.308716,1452.634033,805.009644
+observer-focus at tick=47300 status=checkpoint resolved=46953 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1293.250000,1452.625000,805.000000 selfOrigin=-1293.308716,1452.634033,805.009644
+observer-focus at tick=47400 status=checkpoint resolved=46953 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1293.250000,1452.625000,805.000000 selfOrigin=-1293.308716,1452.634033,805.009644
+observer-focus at tick=47500 status=checkpoint resolved=47415 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-1466.358521,-345.966034,402.851257
+observer-focus at tick=47600 status=checkpoint resolved=47415 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-1466.358521,-345.966034,402.851257
+observer-focus at tick=47700 status=checkpoint resolved=47415 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-1466.358521,-345.966034,402.851257
+observer-focus at tick=47800 status=checkpoint resolved=47415 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-1466.358521,-345.966034,402.851257
+observer-focus at tick=47900 status=checkpoint resolved=47831 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2012.735718,736.669617,494.422729
+observer-focus at tick=48000 status=checkpoint resolved=47831 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2012.735718,736.669617,494.422729
+observer-focus at tick=48100 status=checkpoint resolved=47831 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2012.735718,736.669617,494.422729
+observer-focus at tick=48200 status=checkpoint resolved=47831 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2012.735718,736.669617,494.422729
+observer-focus at tick=48300 status=checkpoint resolved=48291 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2432.755859,-58.386047,409.096985
+observer-focus at tick=48400 status=checkpoint resolved=48291 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2432.755859,-58.386047,409.096985
+observer-focus at tick=48500 status=checkpoint resolved=48291 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2432.755859,-58.386047,409.096985
+observer-focus at tick=48600 status=checkpoint resolved=48291 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2432.755859,-58.386047,409.096985
+observer-focus at tick=48700 status=checkpoint resolved=48291 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2432.755859,-58.386047,409.096985
+observer-focus at tick=48800 status=checkpoint resolved=48724 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2341.261230,-129.331985,412.853455
+observer-focus at tick=48900 status=checkpoint resolved=48724 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2341.261230,-129.331985,412.853455
+observer-focus at tick=49000 status=checkpoint resolved=48724 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2341.261230,-129.331985,412.853455
+observer-focus at tick=49100 status=checkpoint resolved=48724 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2341.261230,-129.331985,412.853455
+observer-focus at tick=49200 status=checkpoint resolved=49169 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2386.108154,-116.547821,412.906769
+observer-focus at tick=49300 status=checkpoint resolved=49169 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2386.108154,-116.547821,412.906769
+observer-focus at tick=49400 status=checkpoint resolved=49169 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2386.108154,-116.547821,412.906769
+observer-focus at tick=49500 status=checkpoint resolved=49169 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2386.108154,-116.547821,412.906769
+observer-focus at tick=49600 status=checkpoint resolved=49589 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=606217 targetIndex=9 targetSerial=296 targetPresent=1 follows=0 selfOrigin=-2410.663818,676.145081,514.778870
+observer-focus at tick=49700 status=checkpoint resolved=49589 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=606217 targetIndex=9 targetSerial=296 targetPresent=1 follows=0 selfOrigin=-2410.663818,676.145081,514.778870
+observer-focus at tick=49800 status=checkpoint resolved=49589 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=606217 targetIndex=9 targetSerial=296 targetPresent=1 follows=0 selfOrigin=-2410.663818,676.145081,514.778870
+observer-focus at tick=49900 status=checkpoint resolved=49589 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=606217 targetIndex=9 targetSerial=296 targetPresent=1 follows=0 selfOrigin=-2410.663818,676.145081,514.778870
+observer-focus at tick=50000 status=checkpoint resolved=49589 states=2048
+  observer entity=18 class=247 CTFPlayer mode=1 targetHandle=606217 targetIndex=9 targetSerial=296 targetPresent=1 follows=0 selfOrigin=-2410.663818,676.145081,514.778870
+observer-focus at tick=50100 status=checkpoint resolved=50057 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2137.875000,58.125000,406.750000 selfOrigin=-2137.914062,58.245331,406.786255
+observer-focus at tick=50200 status=checkpoint resolved=50057 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2137.875000,58.125000,406.750000 selfOrigin=-2137.914062,58.245331,406.786255
+observer-focus at tick=50300 status=checkpoint resolved=50057 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2137.875000,58.125000,406.750000 selfOrigin=-2137.914062,58.245331,406.786255
+observer-focus at tick=50400 status=checkpoint resolved=50057 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2137.875000,58.125000,406.750000 selfOrigin=-2137.914062,58.245331,406.786255
+observer-focus at tick=50500 status=checkpoint resolved=50057 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2137.875000,58.125000,406.750000 selfOrigin=-2137.914062,58.245331,406.786255
+observer-focus at tick=50600 status=checkpoint resolved=50521 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2253.625000,286.375000,383.750000 selfOrigin=-2253.748291,286.455780,383.773163
+observer-focus at tick=50700 status=checkpoint resolved=50521 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2253.625000,286.375000,383.750000 selfOrigin=-2253.748291,286.455780,383.773163
+observer-focus at tick=50800 status=checkpoint resolved=50521 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2253.625000,286.375000,383.750000 selfOrigin=-2253.748291,286.455780,383.773163
+observer-focus at tick=50900 status=checkpoint resolved=50521 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=1 targetOrigin=-2253.625000,286.375000,383.750000 selfOrigin=-2253.748291,286.455780,383.773163
+observer-focus at tick=51000 status=checkpoint resolved=50901 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-521.279785,1267.463867,96.395035
+observer-focus at tick=51100 status=checkpoint resolved=50901 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-521.279785,1267.463867,96.395035
+observer-focus at tick=51200 status=checkpoint resolved=50901 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-521.279785,1267.463867,96.395035
+observer-focus at tick=51300 status=checkpoint resolved=50901 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-521.279785,1267.463867,96.395035
+observer-focus at tick=51400 status=checkpoint resolved=51312 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2241.960449,813.387634,640.031250
+observer-focus at tick=51500 status=checkpoint resolved=51312 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2241.960449,813.387634,640.031250
+observer-focus at tick=51600 status=checkpoint resolved=51312 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2241.960449,813.387634,640.031250
+observer-focus at tick=51700 status=checkpoint resolved=51312 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2241.960449,813.387634,640.031250
+observer-focus at tick=51800 status=checkpoint resolved=51742 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-1934.375854,800.682556,512.035950
+observer-focus at tick=51900 status=checkpoint resolved=51742 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-1934.375854,800.682556,512.035950
+observer-focus at tick=52000 status=checkpoint resolved=51742 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-1934.375854,800.682556,512.035950
+observer-focus at tick=52100 status=checkpoint resolved=51742 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-1934.375854,800.682556,512.035950
+observer-focus at tick=52200 status=checkpoint resolved=51742 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-1934.375854,800.682556,512.035950
+observer-focus at tick=52300 status=checkpoint resolved=52240 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2340.716064,-151.426361,412.351593
+observer-focus at tick=52400 status=checkpoint resolved=52240 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2340.716064,-151.426361,412.351593
+observer-focus at tick=52500 status=checkpoint resolved=52240 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2340.716064,-151.426361,412.351593
+observer-focus at tick=52600 status=checkpoint resolved=52240 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2340.716064,-151.426361,412.351593
+observer-focus at tick=52700 status=checkpoint resolved=52681 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2244.511475,-349.508026,227.644440
+observer-focus at tick=52800 status=checkpoint resolved=52681 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2244.511475,-349.508026,227.644440
+observer-focus at tick=52900 status=checkpoint resolved=52681 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2244.511475,-349.508026,227.644440
+observer-focus at tick=53000 status=checkpoint resolved=52681 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2244.511475,-349.508026,227.644440
+observer-focus at tick=53100 status=checkpoint resolved=53075 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
+observer-focus at tick=53200 status=checkpoint resolved=53075 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
+observer-focus at tick=53300 status=checkpoint resolved=53075 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
+observer-focus at tick=53400 status=checkpoint resolved=53075 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
+observer-focus at tick=53500 status=checkpoint resolved=53075 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
+observer-focus at tick=53600 status=checkpoint resolved=53539 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1596.750000,461.250000,512.000000 selfOrigin=-1596.773804,461.269318,512.093323
+observer-focus at tick=53700 status=checkpoint resolved=53539 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1596.750000,461.250000,512.000000 selfOrigin=-1596.773804,461.269318,512.093323
+observer-focus at tick=53800 status=checkpoint resolved=53539 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1596.750000,461.250000,512.000000 selfOrigin=-1596.773804,461.269318,512.093323
+observer-focus at tick=53900 status=checkpoint resolved=53539 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1596.750000,461.250000,512.000000 selfOrigin=-1596.773804,461.269318,512.093323
+observer-focus at tick=54000 status=checkpoint resolved=53976 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
+observer-focus at tick=54100 status=checkpoint resolved=53976 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
+observer-focus at tick=54200 status=checkpoint resolved=53976 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
+observer-focus at tick=54300 status=checkpoint resolved=53976 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
+observer-focus at tick=54400 status=checkpoint resolved=53976 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
+observer-focus at tick=54500 status=checkpoint resolved=54416 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1495.375000,459.625000,469.000000 selfOrigin=-1495.457520,459.735992,469.009277
+observer-focus at tick=54600 status=checkpoint resolved=54416 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1495.375000,459.625000,469.000000 selfOrigin=-1495.457520,459.735992,469.009277
+observer-focus at tick=54700 status=checkpoint resolved=54416 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1495.375000,459.625000,469.000000 selfOrigin=-1495.457520,459.735992,469.009277
+observer-focus at tick=54800 status=checkpoint resolved=54747 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-459.084106,806.615845,143.571259
+observer-focus at tick=54900 status=checkpoint resolved=54747 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-459.084106,806.615845,143.571259
+observer-focus at tick=55000 status=checkpoint resolved=54747 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-459.084106,806.615845,143.571259
+observer-focus-summary ticks=541 examined=387 emitted=387 withMode=387 modeNonZero=70 follows=54 targetInRange=382 targetPresent=382 targetMissing=0 targetOutOfRange=5

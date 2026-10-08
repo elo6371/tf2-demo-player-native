@@ -44,16 +44,35 @@
 #
 # What is still true, and what is no longer true
 # ----------------------------------------------
-# The renderer still does not follow the target. What changed is the reason. It used
-# to be a measurement -- believing the mode would move this demo's view 2729 units
-# off where the demo recorded it. It is now a decision: the resolved coordinate
-# agrees with the recorded camera to 45 units, so wiring the follow is no longer
-# demonstrably wrong here, it is simply not a change this round makes (the
-# integration review deferred the camera wiring, and this gate does not
-# second-guess that). The number is pinned so whoever does wire it inherits 45 and
-# not 2729 -- and the per-axis split is printed, because 45 is not spread evenly
-# across the three axes. Which axis carries it is a reading, not a rounding detail
-# to be waved through.
+# The renderer still does not follow the target. What changed is the reason, twice.
+# It used to be a measurement -- believing the mode would move this demo's view 2729
+# units off where the demo recorded it. After the freshness round it read 45, which
+# looked like a small residual. It is neither a residual nor a cost.
+#
+# The 2026-10-08 attribution round read the stretch the number comes from and found
+# three things that were not in this file before:
+#
+#   * the recorded camera origin is *held*, not sampled per tick. The raw
+#     democmdinfo blocks at demo ticks 37640, 37650, 37655, 37677 and 37679 are
+#     byte-identical except for the angles, so the origin the subtraction uses is
+#     the value from demo tick 37639 and not a position at 37677. Section 3 re-reads
+#     three of those ticks through this pipeline and asserts they are one value.
+#   * that value is the recorder's *own* origin, and the recorder is dead there:
+#     m_lifeState = 2 and FL_TRANSRAGDOLL set at the checkpoint the subtraction
+#     uses. The camera is a deathcam frozen where the player died.
+#   * the observer pair names the recorder's own body. A 541-query census finds 13
+#     distinct checkpoints where the pair asks for a follow, and at 11 of them the
+#     target's resolved coordinate sits on the recorder's own resolved coordinate to
+#     within 0.15 units -- both read from the same snapshot, so not a cross-instant
+#     comparison.
+#
+# Put together: 45 units is a frozen deathcam measured against the same body 12
+# server ticks later, after that body had fallen 44.28 in y and 3.78 in z. It is a
+# time/state difference, not a position error -- and because the pair only ever names
+# the recorder's own body, this demo contains no checkpoint where the camera is asked
+# to follow a different player. That is the answer the wiring question needs: this
+# demo cannot decide it, so the review's deferral stands, but no longer on the
+# strength of a 45 that was never the follow's cost.
 #
 # What is asserted
 # ----------------
@@ -64,11 +83,15 @@
 #   2. POV, end to end -- the recorder's observing life across five checkpoints with
 #      the tick each answer actually came from, and the handle split into index and
 #      serial, and mode 4 only where the demo says in-eye;
-#   3. the divergence -- the distance from the recorded camera to the target's
-#      resolved coordinate, pinned at 45 with the per-axis split printed, together
-#      with the target's own tickbase witness. This is the line that caught the slot
-#      rule: it read 2729 before the freshness round and 45 after, so the claim it
-#      makes is a measurement that has already moved once, not a preference;
+#   3. the divergence and its attribution -- the distance from the recorded camera to
+#      the target's resolved coordinate, pinned at 45 with the per-axis split printed
+#      and the target's own tickbase witness; that the camera origin is held across
+#      the stretch (three samples, one value); that the recorder is dead where the
+#      subtraction happens (m_lifeState 2, FL_TRANSRAGDOLL); and the 541-query follow
+#      census (13 distinct checkpoints, 11 of them on the recorder's own body, worst
+#      37.812 units). This is the line that caught the slot rule -- 2729 before the
+#      freshness round, 45 after -- so the claim it makes is a measurement that has
+#      already moved twice, not a preference;
 #   4. the oracle witness -- tf_demo_parser's raw packet at demo tick 33242 carries
 #      m_iObserverMode = 1 and m_hObserverTarget = 606217 for entity 18, and both
 #      come out of this decoder's own snapshot of the same packet.
@@ -78,16 +101,25 @@
 # There is no "camera == targetOrigin" assertion. Measured on the POV demo it is
 # false both before and after the freshness fix -- 2729 units then, 45 now -- and
 # pinning a claim that is false at either distance green is worse than leaving it
-# unasserted. What the 45 is made of is printed per axis instead of explained away.
+# unasserted. What the 45 is made of is attributed instead, per axis and per state
+# (a held deathcam against the same body twelve ticks later), and the census is the
+# assertion that says why this demo cannot settle the wiring question.
+#
+# What is still NOT asserted, and should not be read as settled: that the observer
+# pair ever names a *different* player. Two of the thirteen census checkpoints are
+# 37.812 and 9.426 units off the recorder's own body; whether those are a second
+# player, a coarser snapshot of the same body, or a target that has gone stale is
+# not decided here. The census counts what the pair asks for, not who it is.
 # Bagel does agree -- entity 1's own coordinate equals its target's exactly at
 # 129277 -- but cannot serve as the witness either: its dem_cmdinfo stream ends at
 # demo tick ~69881 while its entity history runs to 129277, so there is no recorded
 # camera there to compare against. That fact is printed, not asserted past.
 #
 # Usage: bash observer-focus-check.sh [--mutation]
-#   --mutation nudges the oracle's expected mode and the pinned divergence by one
-#   each and requires this script to go red -- how both are shown able to fail.
-# Exit:  0 = every assertion held (or, with --mutation, they went red).
+#   --mutation nudges three compared values by one each -- the oracle's expected mode,
+#   the pinned divergence, and the census's follow-checkpoint count -- and requires all
+#   three assertions to go red, so each of them is shown able to fail.
+# Exit:  0 = every assertion held (or, with --mutation, all three went red).
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -104,6 +136,7 @@ MUTATION=0
 
 fail=0
 ok=0
+bad=0
 for path in "$PROBE" "$ORACLE"; do
   [ -x "$path" ] || { echo "FATAL: missing binary: $path"; exit 1; }
 done
@@ -116,7 +149,7 @@ assert_eq() { # assert_eq <label> <actual> <expected>
     echo "  OK   $1 = $3"
     ok=$((ok + 1))
   else
-    echo "  FAIL $1 = ${2:-<none>}, expected $3"; fail=1
+    echo "  FAIL $1 = ${2:-<none>}, expected $3"; fail=1; bad=$((bad + 1))
   fi
 }
 # field <text> <key> -- one `key=value` token; the value runs to the next space.
@@ -195,9 +228,12 @@ echo "=== 3/4 the divergence -- what following the target would cost ==="
 # The recorded camera at demo tick 37677: the oracle's packet list pairs that demo
 # tick with server tick 54000, and the probe's answer for 54000 resolves to
 # checkpoint 53976, so the two instants are 24 ticks apart instead of misaligned.
-"$PROBE" --tf-root "$TF" --demo "$POV" --camera-at 37677 > /dev/null 2> "$OUT/pov-camera.txt"
-CAM=$(cat "$OUT/pov-camera.txt")
-echo "$CAM"
+# Two earlier ticks ride along in the same run because the next assertion needs them
+# (the origin is held across the stretch), and one pass over the demo is enough for
+# all three.
+"$PROBE" --tf-root "$TF" --demo "$POV" --camera-at 37640,37650,37677 > /dev/null 2> "$OUT/pov-camera.txt"
+cat "$OUT/pov-camera.txt"
+CAM=$(grep 'tick=37677 ' "$OUT/pov-camera.txt" | tail -1)
 CAM_ORIGIN=$(printf '%s' "$CAM" | sed -n 's/.*origin=\([^ ]*\) .*/\1/p')
 CAM_PITCH=$(printf '%s' "$CAM" | sed -n 's/.*angles=\([^,]*\),.*/\1/p')
 echo "recorder own origin $(field "$R3" selfOrigin) / recorded camera $CAM_ORIGIN / pitch $CAM_PITCH"
@@ -228,7 +264,61 @@ if [ "$MUTATION" -eq 1 ]; then
   echo "mutation: expected divergence perturbed to $DIVERGENCE"
 fi
 echo "camera-to-target distance = $DIVERGENCE units (2729 before the freshness round moved it)"
-assert_eq "the follow's cost is still the one documented here" "$DIVERGENCE" "45"
+assert_eq "the pinned camera-to-target distance" "$DIVERGENCE" "45"
+
+# What the 45 is made of, part one: the camera origin is not a position at 37677. The
+# demo's own cmdinfo stream repeats one origin across a 39-tick stretch -- the 76-byte
+# democmdinfo block at demo ticks 37640, 37650, 37655, 37677 and 37679 is byte-identical
+# except for the angles, read straight out of the file. The three ticks sampled in the
+# run above are re-read here as a set, so the hold is a reading this script makes rather
+# than a claim about a file it opened once. A held value cannot be subtracted from a
+# per-tick one and called a distance.
+HOLD_VALUES=$(sed -n 's/.*origin=\([^ ]*\) .*/\1/p' "$OUT/pov-camera.txt" | sort -u)
+HOLD_COUNT=$(printf '%s\n' "$HOLD_VALUES" | grep -c .)
+echo "camera origin at demo ticks 37640 / 37650 / 37677: $HOLD_COUNT distinct value(s)"
+assert_eq "the recorded camera origin is held across the 45-unit stretch" "$HOLD_COUNT" "1"
+assert_eq "and the held value is the one this section subtracts" "$HOLD_VALUES" "$CAM_ORIGIN"
+
+# Part two: the recorder is dead where the subtraction happens, so what is being
+# measured is a deathcam against a corpse. FL_TRANSRAGDOLL is 0x40000000 and
+# m_lifeState 2 is LIFE_DEAD; both are read out of the recorder's own row rather than
+# inferred from the shape of the camera track.
+"$PROBE" --tf-root "$TF" --demo "$POV" --props-at 53976 --entity 18 > /dev/null 2> "$OUT/pov-e18-dead.txt"
+E18_LIFE=$(sed -n 's/.*DT_BasePlayer\.m_lifeState .*int=\([0-9]*\).*/\1/p' "$OUT/pov-e18-dead.txt" | head -1)
+E18_FLAGS=$(sed -n 's/.*DT_BasePlayer\.m_fFlags .*int=\([0-9]*\).*/\1/p' "$OUT/pov-e18-dead.txt" | head -1)
+echo "recorder at checkpoint 53976: m_lifeState=$E18_LIFE m_fFlags=$E18_FLAGS (FL_TRANSRAGDOLL bit = $(( ${E18_FLAGS:-0} & 1073741824 )))"
+assert_eq "recorder lifeState at the checkpoint (LIFE_DEAD)" "$E18_LIFE" "2"
+assert_eq "recorder carries FL_TRANSRAGDOLL there" "$(( ${E18_FLAGS:-0} & 1073741824 ))" "1073741824"
+
+# Part three: the census. Every 100th server tick across the demo -- 541 queries, 387
+# of them inside the demo's own window -- asking the pair what it wants. `follows` is 1
+# only where the mode is in-eye or chase *and* the target resolves. For each of those
+# the target's resolved coordinate is compared with the recorder's own resolved
+# coordinate from the same snapshot; that difference is a reading about who the pair
+# names, and it is the line that says whether this demo can answer the wiring question
+# at all.
+CENSUS_TICKS=$(seq 1000 100 55000 | tr '\n' ',' | sed 's/,$//')
+"$PROBE" --tf-root "$TF" --demo "$POV" --observer-focus-at "$CENSUS_TICKS" --entity 18 \
+  > "$OUT/pov-census.json" 2> "$OUT/pov-census.txt"
+CENSUS=$(awk '
+  /^observer-focus at tick=/ { for (i=1;i<=NF;i++) { split($i,a,"="); if (a[1]=="resolved") res=a[2] } ; next }
+  /^  observer/ && /follows=1/ {
+    to=""; so=""; for (i=1;i<=NF;i++) { split($i,a,"="); if (a[1]=="targetOrigin") to=a[2]; if (a[1]=="selfOrigin") so=a[2] }
+    if (to=="" || so=="") next
+    n=split(to,T,","); split(so,S,","); d=0; for (i=1;i<=n;i++) d+=(T[i]-S[i])*(T[i]-S[i])
+    printf "%s %.3f\n", res, sqrt(d)
+  }' "$OUT/pov-census.txt" | sort -u)
+CENSUS_CK=$(printf '%s\n' "$CENSUS" | grep -c .)
+CENSUS_ONBODY=$(printf '%s\n' "$CENSUS" | awk '$2 <= 0.15' | grep -c .)
+CENSUS_WORST=$(printf '%s\n' "$CENSUS" | awk 'BEGIN{m=0} { if ($2>m) m=$2 } END { printf "%.3f", m }')
+echo "follow checkpoints (541 queries): $CENSUS_CK distinct; target on the recorder's own coordinate at $CENSUS_ONBODY of them (<=0.15u); worst $CENSUS_WORST u"
+if [ "$MUTATION" -eq 1 ]; then
+  CENSUS_CK=$((CENSUS_CK + 1))
+  echo "mutation: expected follow-checkpoint count perturbed to $CENSUS_CK"
+fi
+assert_eq "distinct follow checkpoints in the census" "$CENSUS_CK" "13"
+assert_eq "of those, the target resolves onto the recorder's own body" "$CENSUS_ONBODY" "11"
+assert_eq "worst target-to-recorder gap on one snapshot" "$CENSUS_WORST" "37.812"
 # Entity 3's own staleness witness, read from the entity rather than assumed: the
 # tick its m_nTickBase reports against the checkpoint it was answered from. It is the
 # reason the slot the rule used to take was 2379 ticks behind, and it is still read
@@ -293,11 +383,15 @@ assert_eq "witness answers deathcam, not a follow" "$(field "$D" follows)" "0"
 
 echo
 if [ "$MUTATION" -eq 1 ]; then
-  if [ "$fail" -eq 1 ]; then
-    echo "MUTATION-CAUGHT=PASS (both perturbations went red)"
+  # Three perturbations, one per compared value: the pinned divergence, the oracle's
+  # expected mode, and the census's checkpoint count. All three have to land. A single
+  # red line would let a perturbation that fired for the wrong reason pass as a caught
+  # one, which is exactly how a gate stops testing what it claims to test.
+  if [ "$bad" -eq 3 ]; then
+    echo "MUTATION-CAUGHT=PASS (3/3 perturbations went red)"
     exit 0
   fi
-  echo "MUTATION-CAUGHT=FAIL (a one-off perturbation went unnoticed)"
+  echo "MUTATION-CAUGHT=FAIL (expected 3 red lines, saw $bad)"
   exit 1
 fi
 if [ "$fail" -eq 0 ]; then

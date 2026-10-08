@@ -22,7 +22,9 @@
 #  13. resolve TF2's observer pair -- m_iObserverMode and m_hObserverTarget -- and
 #      measure what believing it would cost (it is left unwired on purpose; see
 #      observer-focus-check.sh for the 45-unit residual that decision now rests on,
-#      and for the 2729 it read before step 14 moved it)
+#      for the 2729 it read before step 14 moved it, and for the 2026-10-08
+#      attribution: the camera there is a held deathcam, the pair only ever names the
+#      recorder's own body, and so the demo cannot decide the wiring question)
 #  14. prove the entity-property selection rule takes the slot a later packet
 #      wrote, not the one its rank prefers (a player's origin arrives twice and
 #      only one copy keeps updating; step 13's 2729 -> 45 is this step's work)
@@ -324,9 +326,9 @@ fi
 # be shown able to fail is the comparison itself.
 OBMUT="$OUT/13-observer-focus-mutation.txt"
 bash observer-focus-check.sh --mutation > "$OBMUT" 2>&1
-if grep -q 'MUTATION-CAUGHT=PASS' "$OBMUT" && grep -qc '^  FAIL ' "$OBMUT"; then
-  OB_RED=$(grep -c '^  FAIL ' "$OBMUT")
-  echo "OBSERVER-FOCUS-MUTATION=PASS (perturbations caught, red_lines=$OB_RED)"
+OB_RED=$(grep -c '^  FAIL ' "$OBMUT")
+if grep -q 'MUTATION-CAUGHT=PASS' "$OBMUT" && [ "${OB_RED:-0}" -eq 3 ]; then
+  echo "OBSERVER-FOCUS-MUTATION=PASS (3/3 perturbations caught, red_lines=$OB_RED)"
 else
   echo "OBSERVER-FOCUS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi

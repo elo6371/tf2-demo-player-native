@@ -1,1 +1,3 @@
+camera at tick=37640 found=1 sample_tick=37640 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=18.705887,-176.304993 originValid=1 anglesValid=1
+camera at tick=37650 found=1 sample_tick=37650 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=18.705887,-176.304993 originValid=1 anglesValid=1
 camera at tick=37677 found=1 sample_tick=37677 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=13.764709,-119.663826 originValid=1 anglesValid=1
