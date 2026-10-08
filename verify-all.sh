@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # verify-all.sh -- one command that reproduces the whole P0 evidence chain.
 #
-#   1. clean full Release build (21 exe) and check error/warning counts
+#   1. clean full Release build (23 exe) and check error/warning counts
 #   2. census all nine local demos
 #   3. run the 58 wire fixtures
 #   4. cross-check against the independent Rust oracle (nine demos)
@@ -38,6 +38,13 @@
 #      say anything about the picture at all, and it deliberately says nothing
 #      about whether the picture is *right* -- only that a later claim about the
 #      picture would be measurable.
+#  17. name what the demo scene can actually load. Step 16 pins the instrument but
+#      never asks what is in the frame; on this machine its demo (koth_bagel_rc13)
+#      has no installed BSP, so the capture came back as the renderer's fallback
+#      full-screen spray-decal quad and step 16 passed anyway. This step asserts
+#      which of main.cpp's five hardcoded archives opened, whether the demo map's
+#      BSP is reachable, how many of its materials resolve to pixels, and how many
+#      survive the 512x512 world-atlas cap -- resolvable is not drawable.
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer
 # does not have to read sixteen reports. Every step writes its raw output to
@@ -124,7 +131,7 @@ rc_all=0
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
-step "1/16 clean full Release build"
+step "1/17 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
@@ -132,13 +139,13 @@ tail -6 "$OUT/1-build.txt"
 # probe targets, so adding a target is an explicit edit here.
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=21$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=23$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
 fi
 
-step "2/16 nine-demo census"
+step "2/17 nine-demo census"
 bash run-demos.sh evidence/final | tee "$OUT/2-census.txt"
 if [ "$(grep -c 'entity_failures=0 malformed_packets=0 unknown_message_packets=0' "$OUT/2-census.txt")" -eq 9 ]; then
   echo "CENSUS=PASS (9/9 demos at zero)"
@@ -152,7 +159,7 @@ else
   echo "COVERAGE=FAIL"; rc_all=1
 fi
 
-step "3/16 wire fixtures"
+step "3/17 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
 FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
 echo "fixture_pass_count=$FIXTURES"
@@ -166,7 +173,7 @@ else
   echo "FIXTURE=FAIL"; rc_all=1
 fi
 
-step "4/16 oracle cross-check (nine demos)"
+step "4/17 oracle cross-check (nine demos)"
 bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final \
   | tee "$OUT/4-oracle.txt"
 if grep -q 'ORACLE-GATE=PASS' "$OUT/4-oracle.txt"; then
@@ -175,7 +182,7 @@ else
   echo "ORACLE=FAIL"; rc_all=1
 fi
 
-step "5/16 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+step "5/17 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
 "$PY" oracle-corpus-check.py --sample "$ORACLE_SAMPLE" --workers 2 \
   > "$OUT/5-oracle-corpus.txt" 2>&1
@@ -192,7 +199,7 @@ else
   echo "ORACLE-CORPUS-SELFTEST=FAIL"; rc_all=1
 fi
 
-step "6/16 oracle demo recording types"
+step "6/17 oracle demo recording types"
 bash oracle-recording-types.sh | tee "$OUT/6-recording-types.txt"
 if grep -q 'ORACLE-RECORDING-TYPES=PASS' "$OUT/6-recording-types.txt"; then
   echo "RECORDING-TYPES=PASS"
@@ -200,7 +207,7 @@ else
   echo "RECORDING-TYPES=FAIL"; rc_all=1
 fi
 
-step "7/16 probe output is additive"
+step "7/17 probe output is additive"
 bash check-probe-output-additive.sh | tee "$OUT/7-probe-additive.txt"
 if grep -q 'PROBE-OUTPUT-ADDITIVE=PASS' "$OUT/7-probe-additive.txt"; then
   echo "PROBE-ADDITIVE=PASS"
@@ -208,7 +215,7 @@ else
   echo "PROBE-ADDITIVE=FAIL"; rc_all=1
 fi
 
-step "8/16 mutation suite (C++)"
+step "8/17 mutation suite (C++)"
 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
@@ -234,7 +241,7 @@ else
   echo "MUTATION=FAIL"; rc_all=1
 fi
 
-step "9/16 census verdict is falsifiable"
+step "9/17 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
 # The report count is asserted so this step cannot pass on an empty pinned set:
 # CENSUS-NEGATIVE=PASS is also what a suite that mutated zero reports would
@@ -248,7 +255,7 @@ else
   echo "CENSUS-NEGATIVE=FAIL (pinned_reports=${NEG_REPORTS:-0})"; rc_all=1
 fi
 
-step "10/16 reconstructed positions vs the independent oracle, per value"
+step "10/17 reconstructed positions vs the independent oracle, per value"
 # Steps 4-6 compare *counts* against the Rust oracle. Counts cannot see a value
 # that is decoded correctly and then read from the wrong property -- which is
 # exactly the P1 z defect: every counter stayed green while every player rendered
@@ -268,7 +275,7 @@ else
   echo "TRAJECTORY-ORACLE=FAIL (rc=$TRAJ_RC compared=${COMPARED:-0} mutation_rc=$MUT_RC)"; rc_all=1
 fi
 
-step "11/16 entity history coverage (how old a Checkpoint answer may be)"
+step "11/17 entity history coverage (how old a Checkpoint answer may be)"
 # Step 10 compares values only inside the ~70-packet live window, because that is
 # the only place the answer is tick-exact. Everywhere else the answer falls back
 # to a retained checkpoint, and nothing bounded how old that could be -- measured
@@ -286,7 +293,7 @@ else
   echo "HISTORY-COVERAGE=FAIL"; rc_all=1
 fi
 
-step "12/16 weapon world model (a weapon must not be drawn as its arms)"
+step "12/17 weapon world model (a weapon must not be drawn as its arms)"
 # Step 10 compares values but only for positions; a model path is the other half
 # of "the picture is right", and it fails differently. A weapon entity carries
 # two indices: m_nModelIndex is the first-person composite (its class's c_*_arms
@@ -309,7 +316,7 @@ else
   echo "WEAPON-WORLD-MODEL=FAIL (fixture_ok=$WS_FIXTURE, live_window_packets=${WS_PACKETS:-0})"; rc_all=1
 fi
 
-step "13/16 observer focus (who a spectator is watching, and what it would cost)"
+step "13/17 observer focus (who a spectator is watching, and what it would cost)"
 # A camera driven by the view entity alone is right for a live player and wrong
 # for a spectator: TF2 names the subject in m_iObserverMode / m_hObserverTarget,
 # and this pipeline read neither. Step 13 asserts the pair resolves, that it agrees
@@ -340,7 +347,7 @@ else
   echo "OBSERVER-FOCUS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "14/16 entity property slot freshness (the rule must take the later write)"
+step "14/17 entity property slot freshness (the rule must take the later write)"
 # Step 10 compares positions but only inside one demo's live window, and on that
 # demo the rank rule happens to be right. A player's origin arrives in two slots --
 # DT_TFLocalPlayerExclusive (full precision, sent to the owning client) and
@@ -376,7 +383,7 @@ else
   echo "SLOT-FRESHNESS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "15/16 real SourceTV coverage (all nine recordings, end to end)"
+step "15/17 real SourceTV coverage (all nine recordings, end to end)"
 # The pinned 24-demo calibration set carries one SourceTV recording, so almost all of
 # the SourceTV-side evidence in steps 1-14 is bagel and snakewater. A whole-corpus
 # header scan says there are nine SourceTV recordings on this machine, and this step
@@ -410,7 +417,7 @@ else
   echo "SOURCE-TV-COVERAGE-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "16/16 frame capture (the picture can be taken out of the running program)"
+step "16/17 frame capture (the picture can be taken out of the running program)"
 # Steps 1-15 are all counters and decoded values. Not one of them can speak to
 # whether the picture is right, and the gap is structural rather than a missing
 # assertion: step 12's weapon drawn as its arms resolved to a real asset and drew
@@ -430,12 +437,15 @@ cat "$FRAMECAP"
 FC_OK=$(grep -c '^  OK   ' "$FRAMECAP" || true)
 # The assertion count is pinned for the same reason steps 8, 14 and 15 pin theirs:
 # a gate that keeps printing PASS while its assertions quietly disappear is not a
-# gate. 16 is the current count, and it is worth naming how it is arrived at
-# because the first version of this line said 15 and the chain went red for
+# gate. 18 is the current count, and it is worth naming how it is arrived at
+# because an earlier version of this line said 15 and the chain went red for
 # exactly that reason -- the machine caught the author's miscount, not a defect:
 # 2 exit codes (paused, paused-again) + 9 header identities + 1 non-flat colour
-# + 1 positive extent + 1 determinism + 1 scene-sensitivity + 2 rejection.
-if grep -q 'FRAME-CAPTURE=PASS' "$FRAMECAP" && [ "${FC_OK:-0}" -eq 16 ]; then
+# + 1 positive extent + 1 determinism + 1 scene-sensitivity + 2 rejection
+# + 2 for the second demo (differs from paused; and is shaded geometry rather than
+#   a full-screen decal, added 2026-10-08 when the original demo was found to be
+#   producing the fallback spray picture).
+if grep -q 'FRAME-CAPTURE=PASS' "$FRAMECAP" && [ "${FC_OK:-0}" -eq 18 ]; then
   echo "FRAME-CAPTURE=PASS (assertions_ok=$FC_OK)"
 else
   echo "FRAME-CAPTURE=FAIL (assertions_ok=${FC_OK:-0})"; rc_all=1
@@ -448,6 +458,42 @@ if grep -q 'MUTATION-CAUGHT=PASS' "$FCMUT"; then
   echo "FRAME-CAPTURE-MUTATION=PASS (a one-byte change moves the content hash)"
 else
   echo "FRAME-CAPTURE-MUTATION=FAIL (a one-byte change went unnoticed)"; rc_all=1
+fi
+
+step "17/17 resource reachability (what the demo scene can actually load)"
+# Step 16 pins the instrument but never asks what is *in* the frame it takes. That
+# gap was not hypothetical on this machine: the demo named in frame-capture-check.sh
+# is koth_bagel_rc13, whose BSP is not installed here, so the renderer fell through
+# to its six-vertex full-screen quad textured with the fallback `texture_` -- the
+# vgui spray decal -- and step 16 called that "the demo scene differs from the paused
+# scene" and passed. This step names the resource facts that tell the two apart:
+# which of the five archives main.cpp hardcodes actually opened (it skips a missing
+# one silently), whether the demo map's BSP is reachable at all, how many of its
+# materials resolve to decodable pixels, and how many survive main.cpp's 512x512
+# atlas cap -- because a material that resolves but is 1024x1024 is still not
+# drawable, so the triangle share is the reading that predicts the picture.
+#
+# The readings are for cp_snakewater_final1, the one demo here whose map is installed
+# (loose BSP). The bagel map is the negative case: its BSP is absent, which is what
+# produced the spray-decal frame step 16 accepted.
+RR="$OUT/17-resource-reachability.txt"
+bash resource-reachability-check.sh > "$RR" 2>&1
+cat "$RR"
+RR_OK=$(grep -c '^  OK   ' "$RR" || true)
+# Assertion count pinned for the same reason as steps 8, 14, 15 and 16.
+if grep -q 'RESOURCE-REACHABILITY=PASS' "$RR" && [ "${RR_OK:-0}" -eq 9 ]; then
+  echo "RESOURCE-REACHABILITY=PASS (assertions_ok=$RR_OK)"
+else
+  echo "RESOURCE-REACHABILITY=FAIL (assertions_ok=${RR_OK:-0})"; rc_all=1
+fi
+# The archive count is the reading that would have caught the silent skip, so the
+# mutation demands five archives and requires the check to notice that four opened.
+RRMUT="$OUT/17-resource-reachability-mutation.txt"
+bash resource-reachability-check.sh --mutation > "$RRMUT" 2>&1
+if grep -q 'MUTATION-CAUGHT=PASS' "$RRMUT"; then
+  echo "RESOURCE-REACHABILITY-MUTATION=PASS (a wrong archive-count expectation goes red)"
+else
+  echo "RESOURCE-REACHABILITY-MUTATION=FAIL (a wrong expectation went unnoticed)"; rc_all=1
 fi
 
 printf '\n'

@@ -1805,9 +1805,17 @@ MUTATION-CAUGHT=PASS (a one-byte change moves the content hash)
   `--capture-tick N` 的能力已实现并可测（带 demo 时主循环约在 17.5 s 开始、
   约 275 tick/s，见 16.9），但门禁**尚未**用「推进到第 N 帧」这条路径做断言 ——
   因为那会让第 16 步额外多花几十秒，而它现在要证的是**仪器**而不是**时点选择**。
+  ⚠️ **2026-10-08 修正**：`--capture-tick N>0` 的**前提是不要 `--start-paused`**，
+  因为 tick 推进的条件是 `main.cpp:1245` 的
+  `if (g_playback.enabled && !g_playback.paused)`；`--start-paused` 下 tick 恒为 0，
+  `N>0` 永不触发（只能靠按键步进 `main.cpp:331/334`）。别处若照本节原话
+  理解为「暂停也能推进到第 N 帧」，那是错的，见 §17.5。
 - **实体模型是否在帧里**未单独确认：暂停场景走的是全屏四边形回退 + UI 叠加层
   （`native_renderer.cpp` 的 `Draw(6, 0)` 路径）。带 demo 的帧里**有没有实体模型**，
   本轮**没有**判定 —— 这正好是下一步（接材质）要解决的。
+  ⚠️ **2026-10-08 续**：这一条在 §17 里查了，结论是**第 16 步当时那个 demo 的
+  「demo 帧」是回退四边形贴的喷漆图，根本不是场景**；已加第二个有安装地图的 demo
+  与「色彩多样性 < 1000」判据修掉。
 
 ### 16.9 实测：带 demo 时的启动与推进速度（为后续定超时用）
 
@@ -1824,3 +1832,87 @@ elapsed_seconds,rendered_frames,fps,tick,working_set_bytes,private_bytes
 - 因此 `--capture-tick 0` **第一帧即命中**（`g_playback.tick` 从 0 起步），
   门禁给无 demo **120 s**、带 demo **300 s** 超时，都是宽裕的（实测带 demo 约 20 s 就抓到）。
 - `rc=124` 是 `timeout` 杀死进程，**不是缺陷**；启动慢也不是缺陷。
+
+## 17. 资源可达性：第 16 步的假绿，与「demo 场景到底能不能加载」（2026-10-08）
+
+> 起因：准备开工「实体模型接材质」前，按 16.8 留下的硬前提「带 demo 跑主程序时
+> BSP 真的加载成功吗」，去抓一帧带 demo 的帧看里面有没有模型区域。
+> 结果抓到的帧**不是场景**，是一张**动漫立绘**。由此发现第 16 步通过的理由是错的。
+
+### 17.1 结论（三条，都可机械复核）
+
+1. **第 16 步「demo 帧 ≠ 暂停帧」是假绿。** 门禁唯一命名的 demo 是
+   `koth_bagel_rc13`，而**这张图在本机没有安装**（`maps/koth_bagel_rc13.bsp`
+   既不在磁盘上、也不在任何能打开的 VPK 里）。BSP 加载失败 →
+   `worldBoundsValid_` 为假 → 渲染器走 **6 顶点全屏四边形回退**
+   （`native_renderer.cpp:1313-1320` 的 `Draw(6, 0)`），`t0` 绑的是
+   `worldTexture_ ?: texture_`，而 `texture_` 因为地图材质缺失回落到
+   **`materials/vgui/logos/spray.vmt`（一张喷漆贴图）**。所以那一帧是
+   「把喷漆贴图铺满屏幕」，「与暂停帧不同」成立，但**与 demo 无关**。
+2. **`pak01_dir.vpk` 在本机不存在。** `main.cpp:647` 硬编码五个档案名并以
+   `pak01_dir.vpk` 开头，用 `if (archive->open(...))` **静默跳过**打不开的：
+   没有报错、没有日志、没有计数。实测打开 **4/5**，缺的正是 `pak01_dir.vpk`。
+   它带走了 `materials/maps/*.vmt`（全部地图专属材质）。
+3. **但「世界材质」是可用的，所以「接材质」在当前环境可验证。**
+   `cp_snakewater_final1`（本机磁盘上有 BSP）的 148 个材质里
+   **111 个能解析成可解码的像素**（VMT→VTF→RGBA 全通）。真正的瓶颈不是
+   `pak01`，是 **`main.cpp:775` 的 512×512 上限**：这 111 个里只有 **7 个**
+   过得了上限（**104 个是 1024×1024 或更大**），这 7 个只覆盖
+   **30731/200000 = 15.4%** 的三角形 —— 所以画面仍是**几乎全灰**。
+
+### 17.2 读数（`resource_reachability_probe`，本机）
+
+```
+# 有安装地图的 demo（cp_snakewater_final1）
+archivesOpened=4 archivesExpected=5 missingNames="pak01_dir.vpk" totalEntries=149686
+bspSource=loose bspBytes=59590420 bspTriangles=200000
+distinctMaterials=148 materialsWithVmt=111 materialsWithDecodableVtf=111
+atlasEligible=7 oversizedRejected=104 largestAccepted=512 smallestRejected=1024
+totalTriangles=200000 trianglesCoveredByAtlas=30731
+vmtBytes=0            <- 地图自己的材质（materials/maps/cp_snakewater_final1.vmt）不存在
+
+# 无安装地图的 demo（koth_bagel_rc13，第 16 步用的那个）
+bspBytes=0 bspSource=""    <- BSP 根本取不到
+```
+
+三张帧的**色彩多样性**把「场景」和「回退四边形」分开（同一套抓帧代码）：
+
+| 帧 | distinct colours | 判读 |
+|---|---|---|
+| `paused.bmp`（无 demo） | **69** | 世界几何剪影（灰） |
+| `demo-installed-map.bmp`（snakewater） | **162** | 有 BSP 的世界，平涂无贴图 |
+| `demo.bmp`（bagel） | **139121** | **喷漆立绘铺满屏幕 = 回退四边形** |
+
+### 17.3 修法：两处改动（都是加法）
+
+- **新增仪表** `native/tools/resource_reachability_probe.cpp`：不建窗口、不载 demo，
+  直接回答「主程序命名的那五个档案谁打开了」「这张地图的 BSP 取不取得到」
+  「它的材质有多少能解到像素」「多少能过 512 上限、覆盖多少三角形」。
+  配套 `vpk_query.cpp` 用于查 `list(prefix, ext)`。验收链新增**第 17 步**
+  `resource-reachability-check.sh`（9 条断言 + 变异：把期望的档案数改成 5，必须变红）。
+- **扩接第 16 步**：加入第二个 demo（`cp_snakewater_final1`，地图有装），
+  断言两件事 —— ①它也 ≠ 暂停帧；②它的 distinct colours **< 1000**
+  （回退四边形是照片，世界是平涂灰）。**这正是能抓住喷漆假绿的那条判据。**
+  第 16 步断言数 16 → **18**（`verify-all.sh` 的 pin 已同步）。
+
+### 17.4 ⚠️ 记账：我在这轮的第一判断是错的
+
+我最初把 `archivesOpened=4` 读成「材质全没了」，并据此写下「接材质在本环境不可验证」。
+**错在两点**：① 我先用 `list("concrete")` 查询，返回 0，就以为世界贴图不存在 ——
+实际 `VpkArchive::list` 是**路径前缀**匹配，必须写 `list("materials/concrete")`
+才命中 253 条；② 我把「地图专属材质缺失」当成了「所有材质缺失」。
+把 `atlasEligible/oversizedRejected` 这两个读数加进探针之后，真实瓶颈
+（512 上限 vs 1024 贴图）才显出来。**教训：探针给出的 0 要先怀疑探针的查询姿势，
+再怀疑资源本身。**（与 16.7 同类，都记在这里。）
+
+### 17.5 本轮的边界（写清楚，不伪装）
+
+- **仍未证明「屏幕上画对了」**。第 17 步只证明「资源取得到、且第 16 步不是假绿」，
+  不证明渲染结果正确。16.8 的主缺口仍然开着。
+- **相机在 demo 播放中不动**：tick 16/200/500/1000 抓到的帧里，
+  200/500/1000 **逐字节相同**（`83db5fdf…`），即 demo 推进 tick 但**视图不跟随**。
+  这与第 13 步「观察目标解析已接、跟随刻意未接」一致，但**本轮未判定**这是否是缺陷。
+- **`--capture-tick N>0` 需要不暂停播放**（`main.cpp:1245` 的
+  `if (g_playback.enabled && !g_playback.paused)`；`--start-paused` 下 tick 恒为 0）。
+  16.8 里「`--capture-tick N` 的能力已实现并可测」的表述**据此修正**：能力在，
+  但**前提是不暂停**。

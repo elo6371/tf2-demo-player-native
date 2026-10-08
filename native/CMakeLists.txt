@@ -57,6 +57,14 @@ add_executable(material_chain_probe tools/material_chain_probe.cpp src/vtf_textu
 target_include_directories(material_chain_probe PRIVATE include third_party/lzma)
 set_target_properties(material_chain_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(resource_reachability_probe tools/resource_reachability_probe.cpp src/vtf_texture.cpp src/bsp_map.cpp src/vmt_material.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(resource_reachability_probe PRIVATE include third_party/lzma)
+set_target_properties(resource_reachability_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+add_executable(vpk_query tools/vpk_query.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(vpk_query PRIVATE include third_party/lzma)
+set_target_properties(vpk_query PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(world_material_probe PRIVATE include third_party/lzma)
 set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)

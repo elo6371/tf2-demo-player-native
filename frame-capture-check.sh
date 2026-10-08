@@ -32,12 +32,29 @@
 #   --mutation flips a byte in the captured image and requires this script to go
 #   red, which is how "the content checks can fail" is shown rather than assumed.
 # Exit:  0 = every assertion held (or, with --mutation, the checks went red).
+#
+# 2026-10-08: the demo half of this script was passing for the wrong reason. The
+# only demo it named was koth_bagel_rc13, whose map is not installed here, so the
+# capture it produced was the renderer's fallback full-screen quad textured with the
+# fallback `texture_` -- the vgui spray decal -- and "differs from the paused scene"
+# held on that. A second demo on an installed map, plus a cap on how many distinct
+# colours the frame may have, is what makes this half of the script mean what its
+# name says. See resource-reachability-check.sh for the underlying resource facts.
 set -uo pipefail
 cd "$(dirname "$0")"
 
 EXE=native/build-nmake/tf2_demo_native.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+# Two demos, on purpose. The first is the one every other step uses. Its map
+# (koth_bagel_rc13) is not installed on this machine, so the renderer falls through
+# to its full-screen fallback quad and the capture comes back as the vgui spray
+# decal -- a picture that is "not the paused scene" for a reason that has nothing to
+# do with the demo advancing. The second demo's map (cp_snakewater_final1) *is*
+# installed, so it produces a real, flat-shaded world. Asserting on both is what
+# separates "the capture is scene-sensitive" from "the capture is scene-sensitive
+# because two different fallbacks were drawn".
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
+SNAKE="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
 OUT="${FRAME_CAPTURE_OUT:-evidence/frame-capture}"
 mkdir -p "$OUT"
 
@@ -48,7 +65,7 @@ fail=0
 # Missing input is a failure, not a skip. A capture gate that quietly SKIPs when
 # the binary or the demo is absent is exactly the shape the P0 pass shipped four
 # of (see verify-all.sh's header), so this exits non-zero instead.
-for path in "$EXE" "$TF" "$BAGEL"; do
+for path in "$EXE" "$TF" "$BAGEL" "$SNAKE"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
 done
 
@@ -211,6 +228,47 @@ else
   # step. Reported separately from the assertions so a reader can tell "the demo
   # never reached tick 0 in time" from "the file came back malformed".
   echo "  FAIL the demo capture did not complete in ${DEMO_TIMEOUT}s (rc=$DEMO_RC)"; fail=1
+fi
+
+# The second demo, on a map that is actually installed. Its frame must also differ
+# from the paused one, and it must look like shaded geometry rather than like a
+# photograph: the fallback quad on this machine is a flat full-screen decal, so its
+# frame has orders of magnitude more distinct colours than a lit-but-untextured
+# world. That count is the reading that would have caught the spray-decal capture
+# passing as "the demo scene"; bagel's frame measured 139121 distinct colours,
+# snakewater's 162, and the paused frame 69.
+SNAKE_BMP="$OUT/demo-installed-map.bmp"
+SNAKE_RC=$(run_capture "$SNAKE_BMP" "$DEMO_TIMEOUT" --demo "$SNAKE" --capture-tick 0)
+echo "installed-map demo capture rc=$SNAKE_RC size=$(stat -c%s "$SNAKE_BMP" 2>/dev/null || echo 0)"
+if [ "$SNAKE_RC" = "0" ]; then
+  SNAKE_HASH=$("$PY" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$SNAKE_BMP")
+  echo "installed-map demo sha256 = $SNAKE_HASH"
+  if [ -n "$SNAKE_HASH" ] && [ "$SNAKE_HASH" != "$HASH1" ]; then
+    echo "  OK   the installed-map demo scene differs from the paused scene"
+  else
+    echo "  FAIL the installed-map demo capture equals the paused capture"; fail=1
+  fi
+  SNAKE_COLORS=$("$PY" - "$SNAKE_BMP" <<'PYEOF'
+import sys
+data = open(sys.argv[1], 'rb').read()
+seen = set()
+for i in range(54, len(data), 3):
+    seen.add(data[i:i+3])
+    if len(seen) > 4096: break
+print(len(seen))
+PYEOF
+)
+  echo "installed-map distinct colours (capped at 4097) = $SNAKE_COLORS"
+  # A fallback decal is a photograph printed on one quad; a shaded world with no
+  # textures is a handful of flat greys. 1000 sits between the two measured values
+  # with a wide margin on both sides.
+  if [ "${SNAKE_COLORS:-0}" -lt 1000 ]; then
+    echo "  OK   the installed-map frame is shaded geometry, not a full-screen decal"
+  else
+    echo "  FAIL the installed-map frame has photographic colour diversity, which is the fallback-quad shape"; fail=1
+  fi
+else
+  echo "  FAIL the installed-map demo capture did not complete in ${DEMO_TIMEOUT}s (rc=$SNAKE_RC)"; fail=1
 fi
 
 echo

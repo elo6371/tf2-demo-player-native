@@ -93,6 +93,17 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 `1264×681×24bpp`、`fileBytes 2582406 == 54 + 2582352`（磁盘实字节）。
 **缺输入是 FAIL 不是 SKIP**。`--mutation` 翻转图像一个字节，要求内容哈希能察觉。
 
+> 2026-10-08 第八轮已覆盖上文的一部分说法，留在这里以便对照：
+> **① 第 16 步的「demo 场景」当时是假绿** —— 它唯一命名的 demo 的地图
+> `koth_bagel_rc13` 在本机没有安装，抓到的是**回退全屏四边形贴的喷漆图**，
+> 不是场景。第 16 步现在加了第二个（有安装地图的）demo 与
+> 「色彩多样性 < 1000」判据，断言 16 → **18**。
+> **② `native/` 又多了两个探针**（`resource_reachability_probe` / `vpk_query`），
+> 所以 `exe_count` 的 pin 从 21 变成 **23**，链条 16 → **17 步**。
+> 判断代码有无被动过请改用最新的基线标签，别照抄下面这条
+> `git diff --stat 3d03719..HEAD -- native/`（它现在非空，是探针的加法）。
+> 见 `ACCEPTANCE-P1-2026-10-06.md` §17。
+
 ⚠️ **本轮起「`native/` 一个字节未改」不再成立**：`native/` 三文件 +156 行、**全部加法**，
 渲染行为未变（抓帧只在被请求时执行一次）。判断代码有无被动过请用
 `git diff --stat 3d03719..HEAD -- native/`（应为空）。
