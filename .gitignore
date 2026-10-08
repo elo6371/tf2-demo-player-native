@@ -18,3 +18,6 @@ evidence/cmake-build.log
 # experiments. Each one carries a .git pointer file, so tracking the directory
 # would commit worktree plumbing rather than source.
 .scratch/
+
+# 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
+merge-patches/
