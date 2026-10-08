@@ -74,7 +74,8 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 见 `ACCEPTANCE-P1-2026-10-06.md` §15 与 HANDOFF §1.7。
 
 **`VERIFY=PASS` 已在 `290db52` 上取得**（**15 步** `bash verify-all.sh --quick`，
-**36m20s**，RC=0，15 步全绿，读数在 `evidence/verify/1..15-*.txt`）。
+**36m20s**，RC=0，15 步全绿，读数在 `evidence/verify/1..15-*.txt`；其后的 `23db4af`
+是**纯文档提交**，不再重跑）。
 这一轮相对上一次只改了**第 13 步的门禁**与文档，**`native/` 一个字节未动**：
 第 13 步断言 39 → **46**、变异 2 → **3 个扰动且要求恰好 3 条红行**。
 实测 `OBSERVER-FOCUS=PASS (assertions_ok=46, camera-to-target=45u)`、
