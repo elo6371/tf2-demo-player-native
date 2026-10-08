@@ -168,17 +168,21 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 | `evidence/slot-freshness/` | 上述门禁的原始读数：fixture 断言行、POV 实体 3 三次查询的逐候选 `rank/name/lastWrite/age`、bagel 对照 |
 | `source-tv-coverage-check.sh` | **真实 SourceTV 覆盖门禁**（验收链第 15 步）：把本机**全部 9 份** SourceTV 录制整份解码，逐份断言录制类型（头字段＋流内位）、`index_tail_bytes` 等于文件字节数（证明读完了整份）、钉住的包数/地图、以及 `entity_failures`/`malformed`/`unknown`/`delta_base_unavailable` 全零。`--mutation` 两个扰动各要求恰好 9 行红 |
 | `evidence/source-tv-coverage/` | 上述门禁的原始读数：9 份 demo 各自的完整探针输出（`<name>.txt`）。不重跑就复核时读这里 |
-| `frame-capture-check.sh` | **帧抓取门禁**（验收链第 16 步）：从运行中的程序抓一帧（`draw()` 内、`Present()` 之前读 back buffer，写未压缩 24 位 BMP），断言 BMP 头与自身字节数自洽、同场景两次**逐字节相同**、demo 场景与暂停场景**不同**、非法 `--capture-tick` **退出 13**；**缺输入记 FAIL 不记 SKIP**。`--mutation` 翻转图像一字节，要求内容哈希察觉 |
-| `evidence/frame-capture/` | 上述门禁的原始产物：`paused.bmp` / `paused-again.bmp` / `demo.bmp` 及各自 `.log` / `.csv`（实测暂停 sha256 `ab0bc11e…`、demo sha256 `fa1bb194…`）。**这是「接材质前后画面变没变」的唯一对照基线**（`mutated.bmp` 由脚本从 `paused.bmp` 现生成，已 gitignore） |
+| `frame-capture-check.sh` | **帧抓取门禁**（验收链第 16 步）：从运行中的程序抓一帧（`draw()` 内、`Present()` 之前读 back buffer，写未压缩 24 位 BMP），断言 BMP 头与自身字节数自洽、同场景两次**逐字节相同**、**两个** demo 场景与暂停场景**不同**、非法 `--capture-tick` **退出 13**；**缺输入记 FAIL 不记 SKIP**。`--mutation` 翻转图像一字节，要求内容哈希察觉。**18 条断言**。⚠️ 2026-10-08 起加了第二个 demo（`cp_snakewater_final1`，本机有装地图）与「色彩多样性 < 1000」判据 —— 原先唯一那个 demo 的地图本机没装，抓到的「demo 帧」其实是回退四边形贴的喷漆图 |
+| `evidence/frame-capture/` | 上述门禁的原始产物：`paused.bmp` / `paused-again.bmp` / `demo.bmp` / `demo-installed-map.bmp` 及各自 `.log` / `.csv`（实测暂停 sha256 `ab0bc11e…`、bagel sha256 `fa1bb194…`、snakewater sha256 `18447d16…`；色彩多样性 69 / 162 / 139121）。**这是「接材质前后画面变没变」的唯一对照基线**（`mutated.bmp` 由脚本从 `paused.bmp` 现生成，已 gitignore） |
+| `resource-reachability-check.sh` | **资源可达性门禁**（验收链第 17 步）：断言主程序硬编码的 5 个 VPK 里**实际打开了几个**（`pak01_dir.vpk` 本机缺失，`main.cpp:647` 会**静默跳过**）、demo 地图的 BSP 取不取得到、它的材质有多少能解到像素、多少能过 `main.cpp:775` 的 **512×512 世界图集上限**、覆盖多少三角形，外加**负面对照**（旧门禁那个 demo 的地图必须取不到）。**9 条断言 + 变异**。`--mutation` 把期望档案数改成 5，要求变红 |
+| `evidence/resource-reachability/` | 上述门禁的原始 JSON：`snakewater.json`（有装地图，`bspSource=loose`，148 材质 / 111 可解 / 7 过上限 / 30731 三角形）与 `bagel.json`（`bspBytes=0`，负面对照） |
+| `native/tools/resource_reachability_probe.cpp` | 上条门禁的仪表：不建窗口、不载 demo，直接报资源可达性。用法 `resource_reachability_probe <tfRoot> <mapStem> [materialName]`，stdout 单行 JSON |
+| `native/tools/vpk_query.cpp` | 辅助仪表：按 `list(prefix, ext)` 统计每个档案下的条目数。⚠️ `VpkArchive::list` 是**路径前缀**匹配，`list("concrete")` 恒为 0，必须写 `list("materials/concrete")` |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
-| `verify-all.sh` | 一条命令跑完整证据链（16 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁**）；`--quick` 把语料抽样降到 8 份 |
+| `verify-all.sh` | 一条命令跑完整证据链（**17 步**：构建（23 exe）→ 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁** → **资源可达性门禁**）；`--quick` 把语料抽样降到 8 份 |
 
 ## 命令
 
 ```bash
 cd /d/TF2_Native_Test
 
-bash build-cmake.sh          # 干净全量 Release 构建（NMake，21 个 exe）
+bash build-cmake.sh          # 干净全量 Release 构建（NMake，23 个 exe）
 bash build-target.sh entity_protocol_probe entity_model_probe   # 只重建单个目标
 bash run-demos.sh evidence/final          # 9 份 demo 协议普查
 bash check-oracle.sh "<oracle.exe>" evidence/final   # 与 Rust oracle 逐值对照
@@ -197,7 +201,11 @@ bash source-tv-coverage-check.sh          # 真实 SourceTV 覆盖门禁：本�
 bash source-tv-coverage-check.sh --mutation  # 同一门禁的变异：两个扰动各要求恰好 9 行红
 bash frame-capture-check.sh   # 帧抓取门禁：从运行中的程序抓一帧，断言产物格式与场景敏感
 bash frame-capture-check.sh --mutation   # 同一门禁的变异：翻转图像一个字节，要求内容哈希察觉
-bash verify-all.sh --quick   # 上面全部串起来（16 步）
+bash resource-reachability-check.sh       # 资源可达性门禁：5 个 VPK 开了几个、demo 地图的 BSP/材质取不取得到
+bash resource-reachability-check.sh --mutation  # 同一门禁的变异：期望档案数改成 5，必须变红
+bash verify-all.sh --quick   # 上面全部串起来（17 步）
+# 单独问一份地图的资源可达性（不建窗口、不载 demo）：
+./native/build-nmake/resource_reachability_probe.exe "$TF" cp_snakewater_final1
 
 # P1：模型引用读数的单点复现
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
