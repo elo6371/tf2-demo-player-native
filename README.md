@@ -30,7 +30,7 @@ oracle 同实体同包见证（实体 822 的 Enter 包 `Integer(363)` ↔ `c_ro
 该槽自己落后 **2379 tick**。交付 = 解析 + 仪表 + 把这笔账钉进验收链第 13 步。
 见 `ACCEPTANCE-P1-2026-10-06.md` §12 与 HANDOFF §1.3 / §3.3.2。
 
-2026-10-08 第四轮：**`66cd97f`（当前代码基线）** —— 实体属性选槽的新鲜度。
+2026-10-08 第四轮：**`66cd97f`** —— 实体属性选槽的新鲜度。
 上一轮留下的「2729 单位」不是坐标算错，是**读错了槽**：玩家的 `m_vecOrigin` 在
 `DT_TFLocalPlayerExclusive`（全精度）和 `DT_TFNonLocalPlayerExclusive`（量化）里各有一份，
 而 rank 规则看不见**哪一份还在被写**。bagel 上 Local 就是真值（NonLocal 已陈旧 73129 tick），
@@ -73,21 +73,46 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 判据 39 → **46 条断言**，`--mutation` 2 → **3 个扰动且要求恰好 3 条红行**。
 见 `ACCEPTANCE-P1-2026-10-06.md` §15 与 HANDOFF §1.7。
 
-**`VERIFY=PASS` 已在 `290db52` 上取得**（**15 步** `bash verify-all.sh --quick`，
-**36m20s**，RC=0，15 步全绿，读数在 `evidence/verify/1..15-*.txt`；其后的提交
-**全是纯文档**，不再重跑）。
-这一轮相对上一次只改了**第 13 步的门禁**与文档，**`native/` 一个字节未动**：
-第 13 步断言 39 → **46**、变异 2 → **3 个扰动且要求恰好 3 条红行**。
-实测 `OBSERVER-FOCUS=PASS (assertions_ok=46, camera-to-target=45u)`、
-`OBSERVER-FOCUS-MUTATION=PASS (3/3 perturbations caught, red_lines=3)`。
-逐步：`BUILD` / `CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` / `ORACLE` /
-`ORACLE-CORPUS + selftest` / `RECORDING-TYPES` / `PROBE-ADDITIVE` / `MUTATION (red=40 hold=4)` /
-`CENSUS-NEGATIVE (pinned_reports=24)` / `TRAJECTORY-ORACLE (compared=40)` /
-`HISTORY-COVERAGE (worst 1180 ≤ 2×761)` / `WEAPON-WORLD-MODEL (fixture_ok=12)` /
-`OBSERVER-FOCUS (46 断言, camera-to-target=45u)` + 变异（3/3 扰动，恰 3 行红） /
+2026-10-08 第七轮：**帧抓取**（整合审查「仍未解决」第 3–5 项的第一步，**回归结果仍是先补仪表**）。
+这一步解决的是**结构性**缺口，不是漏了一条断言：第 1–15 步全是计数与解码值，
+**没有一条能说画面对不对**；而「画面错」可以是「画面格式完好」——
+上一轮武器画成手臂就是这样的缺陷，它**解析成功、绘制成功**，所有计数保持绿色。
+本轮做**仪表，不下结论**：渲染器可按 `--capture-frame` 抓**一帧**
+（可选 `--capture-tick N`），读回点在 `draw()` 内、`Present()` **之前**
+（Present 之后 back buffer 内容未定义，这是唯一能读到「刚刚合成的这一帧」的时刻）。
+请求**一次性消费**，抓完程序自己退出，门禁不必猜何时杀进程。
+抓取失败走**独立退出码 16**，且**刻意不写 `lastError_`** —— 那个成员是主循环设备恢复路径的输入，
+诊断失败不能装成设备失败。产物是**手写的未压缩 24 位 BMP**（不引编码器、不做色彩管理），
+选它就是为了让门禁能直接哈希与度量。
+
+新增门禁 `frame-capture-check.sh`（验收链第 16 步）断言四件事，正是后续任何
+「画面变了」结论的前提：① 文件是 BMP 且**头部与自身字节数自洽**；
+② 同一静态场景抓两次**逐字节相同**（确定性）；③ demo 场景与暂停场景
+**逐字节不同**（抓的是真画面，不是恒定缓冲）；④ 非法 `--capture-tick` **退出 13 而不是静默抓第 0 帧**。
+实测：暂停场景 sha256 `ab0bc11e…`（两次相同）、demo 场景 `fa1bb194…`（不同）、
+`1264×681×24bpp`、`fileBytes 2582406 == 54 + 2582352`（磁盘实字节）。
+**缺输入是 FAIL 不是 SKIP**。`--mutation` 翻转图像一个字节，要求内容哈希能察觉。
+
+⚠️ **本轮起「`native/` 一个字节未改」不再成立**：`native/` 三文件 +156 行、**全部加法**，
+渲染行为未变（抓帧只在被请求时执行一次）。判断代码有无被动过请用
+`git diff --stat 3d03719..HEAD -- native/`（应为空）。
+另：门禁里**每条启动都写了 `--audio-device 6`** —— 本机默认设备不是该出声的那个，
+且 `--start-paused` **不豁免**（音频设备在启动阶段就打开）。
+见 `ACCEPTANCE-P1-2026-10-06.md` §16 与 HANDOFF §1.8。
+
+**`VERIFY=PASS` 已在 `3d03719` 上取得**（**16 步** `bash verify-all.sh --quick`，
+读数在 `evidence/verify/1..16-*.txt`）。
+本轮相对上一次改了 **`native/` 三文件（帧抓取）**、新增第 16 步门禁 `frame-capture-check.sh`、
+把链条从 15 步拓到 16 步。逐步：`BUILD` / `CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` /
+`ORACLE` / `ORACLE-CORPUS + selftest` / `RECORDING-TYPES` / `PROBE-ADDITIVE` /
+`MUTATION (red=40 hold=4)` / `CENSUS-NEGATIVE (pinned_reports=24)` /
+`TRAJECTORY-ORACLE (compared=40)` / `HISTORY-COVERAGE (worst 1180 ≤ 2×761)` /
+`WEAPON-WORLD-MODEL (fixture_ok=12)` / `OBSERVER-FOCUS (46 断言, camera-to-target=45u)` + 变异 /
 `SLOT-FRESHNESS (24 断言, POV chosenStale=0)` + 变异 /
-**`SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异（各 9 行红）**。
-上一次 **`VERIFY=PASS` 在 `18fe7ea` 上取得**（15 步，**33m09s**）。
+`SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异 /
+**`FRAME-CAPTURE (16 断言)` + 变异（一字节改动移动内容哈希）**。
+上一次 **`VERIFY=PASS` 在 `290db52` 上取得**（15 步，36m20s）。
+更早 **`VERIFY=PASS` 在 `18fe7ea` 上取得**（15 步，**33m09s**）。
 上一轮 **`VERIFY=PASS` 在 `fefc216` 上取得**（14 步，30m35s，读数
 `evidence/verify/1..14-*.txt`）。**第一次跑（`3ca75ae`）是 `VERIFY=FAIL`**：
 唯一红的是第 8 步 —— 新增变异用例 `m11` 把 `red/hold` 从 `37/3` 抬到 `40/4`，
@@ -126,8 +151,10 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 | `evidence/slot-freshness/` | 上述门禁的原始读数：fixture 断言行、POV 实体 3 三次查询的逐候选 `rank/name/lastWrite/age`、bagel 对照 |
 | `source-tv-coverage-check.sh` | **真实 SourceTV 覆盖门禁**（验收链第 15 步）：把本机**全部 9 份** SourceTV 录制整份解码，逐份断言录制类型（头字段＋流内位）、`index_tail_bytes` 等于文件字节数（证明读完了整份）、钉住的包数/地图、以及 `entity_failures`/`malformed`/`unknown`/`delta_base_unavailable` 全零。`--mutation` 两个扰动各要求恰好 9 行红 |
 | `evidence/source-tv-coverage/` | 上述门禁的原始读数：9 份 demo 各自的完整探针输出（`<name>.txt`）。不重跑就复核时读这里 |
+| `frame-capture-check.sh` | **帧抓取门禁**（验收链第 16 步）：从运行中的程序抓一帧（`draw()` 内、`Present()` 之前读 back buffer，写未压缩 24 位 BMP），断言 BMP 头与自身字节数自洽、同场景两次**逐字节相同**、demo 场景与暂停场景**不同**、非法 `--capture-tick` **退出 13**；**缺输入记 FAIL 不记 SKIP**。`--mutation` 翻转图像一字节，要求内容哈希察觉 |
+| `evidence/frame-capture/` | 上述门禁的原始产物：`paused.bmp` / `paused-again.bmp` / `demo.bmp` / `mutated.bmp` 及各自 `.log`（实测暂停 sha256 `ab0bc11e…`、demo sha256 `fa1bb194…`）。**这是「接材质前后画面变没变」的唯一对照基线** |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
-| `verify-all.sh` | 一条命令跑完整证据链（15 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁**）；`--quick` 把语料抽样降到 8 份 |
+| `verify-all.sh` | 一条命令跑完整证据链（16 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁**）；`--quick` 把语料抽样降到 8 份 |
 
 ## 命令
 
@@ -151,7 +178,9 @@ bash slot-freshness-check.sh  # 选槽新鲜度门禁：规则必须取后写的
 bash slot-freshness-check.sh --mutation   # 同一门禁的变异：两份 demo 的 chosenStale 各挪 1，必须恰好红 2 条
 bash source-tv-coverage-check.sh          # 真实 SourceTV 覆盖门禁：本机全部 9 份整份解码，逐份零失败
 bash source-tv-coverage-check.sh --mutation  # 同一门禁的变异：两个扰动各要求恰好 9 行红
-bash verify-all.sh --quick   # 上面全部串起来（15 步）
+bash frame-capture-check.sh   # 帧抓取门禁：从运行中的程序抓一帧，断言产物格式与场景敏感
+bash frame-capture-check.sh --mutation   # 同一门禁的变异：翻转图像一个字节，要求内容哈希察觉
+bash verify-all.sh --quick   # 上面全部串起来（16 步）
 
 # P1：模型引用读数的单点复现
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"

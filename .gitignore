@@ -21,3 +21,7 @@ evidence/cmake-build.log
 
 # 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
 merge-patches/
+
+# The mutated frame is regenerated from paused.bmp by frame-capture-check.sh --mutation;
+# it is a one-byte edit of a file already kept, so it carries no independent evidence.
+evidence/frame-capture/mutated.bmp

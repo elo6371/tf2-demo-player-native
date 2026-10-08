@@ -1,0 +1,35 @@
+=== 1/4 a frame comes back from the running program (no demo) ===
+paused capture rc=0 size=2582406
+  OK   paused capture rc = 0
+
+=== 2/4 the file is a well-formed BMP and its header agrees with its size ===
+fileBytes=2582406 1264x681 bpp=24 dataOffset=54 dibSize=40 imageBytes=2582352 planes=1 compression=0 actual=2582406
+  OK   dataOffset (14-byte file header + 40-byte DIB) = 54
+  OK   DIB header size = 40
+  OK   bits per pixel = 24
+  OK   planes = 1
+  OK   compression (BI_RGB) = 0
+  OK   imageBytes == stride*height = 2582352
+  OK   fileBytes == dataOffset + imageBytes = 2582406
+  OK   fileBytes == the bytes actually on disk = 2582406
+distinct colours (capped at 9) = 9
+  OK   the frame is not a single flat colour
+  OK   the frame has a positive extent
+
+=== 3/4 the same input twice gives the same bytes, and a different scene does not ===
+second paused capture rc=0 size=2582406
+  OK   second paused capture rc = 0
+paused sha256 #1 = ab0bc11e541831513f4c7971caeaca777d8b7aa2dc2da7a623d77a290c37155e
+paused sha256 #2 = ab0bc11e541831513f4c7971caeaca777d8b7aa2dc2da7a623d77a290c37155e
+  OK   two captures of the same static scene are byte-identical
+demo capture rc=0 size=2582406
+demo 1264x681 bpp=24 fileBytes=2582406 actual=2582406
+demo sha256 = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
+  OK   a demo scene and the paused scene are different pictures
+
+=== 4/4 a bad tick is refused instead of guessed ===
+invalid --capture-tick rc=13
+  OK   invalid --capture-tick exit code = 13
+  OK   no frame was written for the rejected request
+
+FRAME-CAPTURE=PASS

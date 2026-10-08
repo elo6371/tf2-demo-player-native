@@ -430,9 +430,12 @@ cat "$FRAMECAP"
 FC_OK=$(grep -c '^  OK   ' "$FRAMECAP" || true)
 # The assertion count is pinned for the same reason steps 8, 14 and 15 pin theirs:
 # a gate that keeps printing PASS while its assertions quietly disappear is not a
-# gate. 15 is the current count (1 exit code + 9 header identities + 1 non-flat
-# colour + 1 positive extent + 1 determinism + 1 scene-sensitivity + 1 rejection).
-if grep -q 'FRAME-CAPTURE=PASS' "$FRAMECAP" && [ "${FC_OK:-0}" -eq 15 ]; then
+# gate. 16 is the current count, and it is worth naming how it is arrived at
+# because the first version of this line said 15 and the chain went red for
+# exactly that reason -- the machine caught the author's miscount, not a defect:
+# 2 exit codes (paused, paused-again) + 9 header identities + 1 non-flat colour
+# + 1 positive extent + 1 determinism + 1 scene-sensitivity + 2 rejection.
+if grep -q 'FRAME-CAPTURE=PASS' "$FRAMECAP" && [ "${FC_OK:-0}" -eq 16 ]; then
   echo "FRAME-CAPTURE=PASS (assertions_ok=$FC_OK)"
 else
   echo "FRAME-CAPTURE=FAIL (assertions_ok=${FC_OK:-0})"; rc_all=1

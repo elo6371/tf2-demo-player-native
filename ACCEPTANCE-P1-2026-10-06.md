@@ -584,7 +584,7 @@ sound_precache_entries=6701 sound_precache_decode_failures=0
 
 | 步 | 读数 |
 |---|---|
-| 1 构建 | `errors=0 warnings=1 exe_count=21`（既有 `main.cpp(1284) C4457`） |
+| 1 构建 | `errors=0 warnings=1 exe_count=21`（既有 `main.cpp(1313) C4457`；行号随改动漂移，内容未变） |
 | 2 九份普查 | 9/9 `entity_failures=0 malformed_packets=0 unknown_message_packets=0`，coverage 9/9 |
 | 3 fixture | 58/58，`fixture_failures=0` |
 | 4 oracle 九份 | 9 行逐值全等，`ORACLE-GATE=PASS` |
@@ -1628,3 +1628,184 @@ MUTATION-CAUGHT=PASS (3/3 perturbations went red)
   需要一份**录像者在活着的时候 in-eye 别人**的 demo —— 而按 TF2 的语义，
   活着的玩家 `m_iObserverMode` 恒为 0，所以这种 demo 只可能是**旁观者**录的，
   不是玩家 `autorecord`。这一条是本轮给出的、下一轮真正需要的东西。
+
+## 16. 帧抓取：让「画面」第一次变成可复核的产物（P1 剩余子项「实体模型实际渲染」的前置，
+
+## 2026-10-08 第七轮，`3d03719`）
+
+### 16.1 结论
+
+**验收链第 1–15 步全是计数与解码值，没有一条能说画面对不对。** 这不是「少了一条断言」，
+而是**结构性**的：一个错的画面可以是一个格式完好的画面。最切近的先例就在上一轮 ——
+`cd36db1` 修的「武器画成手臂」缺陷里，`m_nModelIndex` 指向 `c_*_arms`，
+**解析成功、模型取到、绘制调用成功**，屏幕上多出一双放在武器位置的手，
+而所有计数门禁保持绿色。没有任何计数能看见它。
+
+本轮交的是**仪表，不是结论**：让运行中的程序能把「它刚合成的这一帧」交回来，
+并且这个产物可以被机器直接检验。**本轮刻意不判断画面对不对**（那需要人眼或参照图），
+只把「画面变了没有」从一句无法证伪的话变成**可哈希的字节**。
+
+### 16.2 抓取点：`Present()` 之前，且只有一次
+
+```cpp
+// native/src/native_renderer.cpp（draw() 末尾，Present 之前）
+if (!capturePath_.empty()) {
+  const std::wstring path = capturePath_;
+  capturePath_.clear();
+  captureSucceeded_ = writeBackBufferToFile(path);
+}
+const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
+```
+
+**为什么必须在 `Present()` 之前**：`Present()` 一旦跑完，back buffer 的内容就没有定义了
+（它被交给显示子系统），所以 **`Present()` 之前的那一瞬是唯一能读到「刚刚合成的这一帧」的时刻**。
+写在 `Present()` 之后读的就是下一帧、或者垃圾。
+
+**为什么是一次性请求**：`requestFrameCapture()` 把路径存下，`draw()` 消费后立刻清空；
+主程序抓完就直接 `PostQuitMessage()`，所以门禁**不需要猜什么时候杀进程**——
+程序自己会走，并且用退出码告诉我们成了没有。
+
+### 16.3 抓取失败绝不能被当成设备失败
+
+`Renderer::lastError_` 是主循环设备恢复路径的**输入**：
+
+```cpp
+// native/src/main.cpp（主循环）
+if (FAILED(result) && (result == DXGI_ERROR_DEVICE_REMOVED || result == DXGI_ERROR_DEVICE_RESET)) {
+  ...reloadGpuResources()...        // 退出码 14
+} else if (FAILED(result)) {
+  PostQuitMessage(3);               // 设备错误
+}
+```
+
+如果抓帧的失败沿着 `lastError_` 走，一个**诊断**失败会**装成设备失败**，
+把主循环推进恢复路径。所以抓取错误走**独立通道**：
+
+- `Renderer::captureError_`（`std::wstring`）—— 分开的字符串，不碰 `lastError_`；
+- `Renderer::lastFrameCaptureSucceeded()` / `lastFrameCaptureError()` —— 分开的读取口；
+- 退出码 **16** = 「帧抓取失败」（13 已被参数/设备错误占用，14 `reloadGpuResources` 失败，
+  15 `--metrics-file` 打不开，124 `timeout` 杀）。
+
+`writeBackBufferToFile()` 的注释把这条写死了：
+
+```cpp
+// This deliberately does NOT touch lastError_: a capture failure is a
+// diagnostic failure, not a device failure, and must not send the main loop
+// down its device-removed recovery path.
+```
+
+### 16.4 产物：手写未压缩 24 位 BMP
+
+**故意做得「笨」**：不引编码器、不做色彩管理、不带元数据。选它的唯一理由是
+**门禁能直接哈希与度量它**，而不是它好看。实现要点：
+
+- 从 swap chain `GetBuffer(0)` 取 back buffer，建 `D3D11_USAGE_STAGING` +
+  `CPU_ACCESS_READ` 的纹理，`CopyResource`，`Map(D3D11_MAP_READ)`；
+- 自动识别 `DXGI_FORMAT_B8G8R8A8_UNORM`（swap chain 默认）与 `R8G8B8A8_UNORM`，
+  按需交换 R/B；
+- BMP 行序**自底向上**（源行 `height-1-y`），行尾按 4 字节对齐补 padding；
+- 手写 54 字节头：`BM` / `fileBytes` / `dataOffset=54` / `dibSize=40` / `width` / `height` /
+  `planes=1` / `bitsPerPixel=24` / `compression=0` / `imageBytes`；
+- 用 **`_wfopen_s` 而不是 `_wfopen`**：主目标 `tf2_demo_native` 额外要 `/W4 /permissive-`，
+  `_wfopen` 会触发 C4996 弃用警告，而链条第 1 步**钉住了 `warnings=1`**（只有已有的
+  `main.cpp` C4457），多一个警告会让链条变红。
+
+### 16.5 门禁：`frame-capture-check.sh`（验收链第 16 步）
+
+断言四件事 —— 正是**后续任何「画面变了」结论的前提**：
+
+| # | 断言 | 为什么它是前提 |
+|---|---|---|
+| 1 | **文件是 BMP 且头部与自身字节数自洽** | `fileBytes == 54 + stride*height == 磁盘实字节`、`bpp=24`、`dataOffset=54`、`DIB=40`、`compression=0`。用一个字段去核另一个字段，**不需要外部工具**，也不预设分辨率。 |
+| 2 | **同一静态场景抓两次逐字节相同** | 抓帧**不确定**的话，后面任何「这两帧不同」都无法解释——可能只是抖动。没这条，第 3 条就是空的。 |
+| 3 | **demo 场景与暂停场景逐字节不同** | 若两者相同，说明抓的不是合成结果（或 demo 没生效），「画面」根本测不到。 |
+| 4 | **非法 `--capture-tick` 退出 13 而不是静默抓第 0 帧** | 门禁若请求第 N 帧却拿到第 0 帧还判 PASS，就是**测了错的东西还说对了**。 |
+
+**实测读数**（`evidence/verify/16-frame-capture.txt`）：
+
+```
+paused capture rc=0 size=2582406
+fileBytes=2582406 1264x681 bpp=24 dataOffset=54 dibSize=40 imageBytes=2582352 planes=1 compression=0 actual=2582406
+distinct colours (capped at 9) = 9
+paused sha256 #1 = ab0bc11e541831513f4c7971caeaca777d8b7aa2dc2da7a623d77a290c37155e
+paused sha256 #2 = ab0bc11e541831513f4c7971caeaca777d8b7aa2dc2da7a623d77a290c37155e
+demo sha256    = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
+invalid --capture-tick rc=13
+FRAME-CAPTURE=PASS
+```
+
+- **确定性成立**：两次暂停抓帧 sha256 完全相同（`ab0bc11e…`）；
+- **场景敏感成立**：demo 帧 `fa1bb194…` ≠ 暂停帧 —— 抓的是真画面；
+- **拒猜成立**：非法 tick → rc=13 且**不写文件**；
+- 头自洽 9 项全过（`1264×681`，`2582352 = 1264*3*681`，`54+2582352 = 2582406 = 磁盘`）；
+- 共 **16 条断言**，链条第 16 步**钉住这个数字**（理由同第 8/14/15 步：
+  一个「断言悄悄消失但照样打印 PASS」的门禁不是门禁）。
+
+> **⚠️ 记账：第一次跑链条时第 16 步红了，是我把断言数数错了。**
+> `verify-all.sh` 第一版写的是 `-eq 15`，实际是 **16** 条
+> （2 个退出码 + 9 个头自洽 + 1 非纯色 + 1 正尺寸 + 1 确定性 + 1 场景敏感 + 2 拒绝）。
+> 原始输出因此长这样：
+>
+> ```
+> FRAME-CAPTURE=PASS                      <- 门禁自己说通过
+> FRAME-CAPTURE=FAIL (assertions_ok=16)   <- 链条期望 15
+> VERIFY=FAIL
+> ```
+>
+> **门禁是绿的，红的是验收机器的期望值。** 这与 `3ca75ae` 那次同类
+> （新增变异用例把 `red/hold` 从 `37/3` 抬到 `40/4`，而第 8 步期望写死）——
+> **验收机器按设计抓住了作者自己的改动**，这是它该做的事，不是 bug。
+> 修正期望后重跑转绿。第 16 步的注释里现在写明了这 16 条是怎么数出来的。
+
+### 16.6 变异：内容检查必须先能红
+
+`--mutation` 翻转图像**第一个像素的一个字节**，要求内容哈希察觉：
+
+```
+MUTATION-CAUGHT=PASS (a one-byte change moves the content hash)
+```
+
+这条**不是形式**：第 3 条的「两帧不同」全靠哈希比较，一个分辨不出一个字节的哈希比较
+等于没比较。所以变异直接打在**后续画面结论将要依赖的那一层**。
+
+### 16.7 ⚠️ 记账：我在本轮犯的错 —— 测试在错误的音频设备上出声
+
+门禁最初的三次抓帧调用**都没带 `--audio-device`**，于是落到 `WAVE_MAPPER`
+（**系统默认设备**），用户当面听到并制止。我当时的错误假设是「`--start-paused`
+既然是静默启动，就不会开音频」—— **错的**：音频设备在**启动阶段**就初始化，
+暂停只停播放、不停设备打开；带 demo 那次更是直接走默认设备。
+
+**修法**：`frame-capture-check.sh` 里**每条启动路径**都显式加 `--audio-device 6`
+（`耳机 (xduoo audio)`），并把这条写进脚本注释与 `~/.workbuddy-ai/MEMORY.md`，
+理由是「一个在错误设备上出声的门禁，是会被人们关掉的门禁」。
+
+这也顺带确认了一件事：**主程序在本环境确实能出声**，`--audio-device` 的合法范围是
+`[0, waveOutGetNumDevs())`（`main.cpp:478`），越界或不带值 → 退出码 13。
+
+### 16.8 本轮的边界（写清楚，不伪装）
+
+- **不判断画面对不对**：本轮只证明「帧抓得到、产物可检验、产物对场景敏感」，
+  **没有**证明屏幕上画的是 TF2 该有的样子。**这一条仍然是 P1 未闭环的主缺口。**
+- **抓的是暂停/首帧场景**：门禁与实测都用 `--start-paused` 或 `--capture-tick 0`。
+  `--capture-tick N` 的能力已实现并可测（带 demo 时主循环约在 17.5 s 开始、
+  约 275 tick/s，见 16.9），但门禁**尚未**用「推进到第 N 帧」这条路径做断言 ——
+  因为那会让第 16 步额外多花几十秒，而它现在要证的是**仪器**而不是**时点选择**。
+- **实体模型是否在帧里**未单独确认：暂停场景走的是全屏四边形回退 + UI 叠加层
+  （`native_renderer.cpp` 的 `Draw(6, 0)` 路径）。带 demo 的帧里**有没有实体模型**，
+  本轮**没有**判定 —— 这正好是下一步（接材质）要解决的。
+
+### 16.9 实测：带 demo 时的启动与推进速度（为后续定超时用）
+
+```
+# timeout 150 tf2_demo_native.exe --tf-root ... --demo <bagel> --metrics-file m4.csv
+elapsed_seconds,rendered_frames,fps,tick,working_set_bytes,private_bytes
+17.4991,0,0,16,1453477888,1520701440      <- 主循环从这里开始
+...
+130.905,10788,116.967,30940,1451282432,1515896832
+```
+
+- **主循环约在 `elapsed≈17.5 s` 开始**（前 17.5 s 是 VPK 索引 104041 条 + demo 加载）；
+- 之后 tick 从 16 推进到 **30940**，用时约 113 s → **约 275 tick/s**，渲染 **~116 FPS**；
+- 因此 `--capture-tick 0` **第一帧即命中**（`g_playback.tick` 从 0 起步），
+  门禁给无 demo **120 s**、带 demo **300 s** 超时，都是宽裕的（实测带 demo 约 20 s 就抓到）。
+- `rc=124` 是 `timeout` 杀死进程，**不是缺陷**；启动慢也不是缺陷。
