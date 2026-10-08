@@ -1,4 +1,4 @@
-=== 1/3 wiring fixture (every branch by construction, ranking and renderer) ===
+=== 1/4 wiring fixture (every branch by construction, ranking and renderer) ===
 slot-freshness-fixture shapes=4 freshChosen=2 staleChosen=0 freshnessDecided=1 rankTiePrefersLocal=2 apiMatches=4 tickRoundTrip=4
   OK   fixture shapes = 4
   OK   fixture freshChosen = 2
@@ -8,7 +8,7 @@ slot-freshness-fixture shapes=4 freshChosen=2 staleChosen=0 freshnessDecided=1 r
   OK   fixture apiMatches (extractTransform agrees with the ranking) = 4
   OK   fixture tickRoundTrip = 4
 
-=== 2/3 POV entity 3 -- the pick moved to the slot that was still being written ===
+=== 2/4 POV entity 3 -- the pick moved to the slot that was still being written ===
 prop-candidates at tick=53976 status=checkpoint resolved=53976
   entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
     rank=0 (chosen) name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1112.000000 y=461.250000 z=0.000000 int=0 lastWrite=53976 age=0
@@ -31,7 +31,7 @@ prop-candidates-summary ticks=3 examined=3 withCandidates=3 candidates=6 withTic
   OK   POV rival slot = DT_TFLocalPlayerExclusive.m_vecOrigin
   OK   POV rival slot last write at 55394 (frozen) = 51596
 
-=== 3/3 bagel entity 1 -- the same rule, and the reading did not move ===
+=== 3/4 bagel entity 1 -- the same rule, and the reading did not move ===
 prop-candidates at tick=129277 status=available resolved=129277
   entity=1 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
     rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=-3244.337891 y=198.821442 z=0.000000 int=0 lastWrite=129277 age=0
@@ -43,4 +43,13 @@ prop-candidates-summary ticks=1 examined=1 withCandidates=1 candidates=2 withTic
   OK   bagel rival slot = DT_TFNonLocalPlayerExclusive.m_vecOrigin
   OK   bagel rival slot age (the stale one there) = 73129
 
-SLOT-FRESHNESS=PASS (assertions_ok=20, POV chosenStale=0 worstAge=124, bagel chosenStale=0)
+=== 4/4 which properties the rule can even act on (its blast radius) ===
+POV entity 3   duplicated: m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+POV entity 1   duplicated: m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+bagel entity 1 duplicated: m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   duplicated properties, POV entity 3 = m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   duplicated properties, POV entity 1 (same set, other player) = m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   duplicated properties, bagel entity 1 (same set, other demo) = m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   m_nModelIndex is not duplicated (model selection is untouched)
+
+SLOT-FRESHNESS=PASS (assertions_ok=24, POV chosenStale=0 worstAge=124, bagel chosenStale=0)

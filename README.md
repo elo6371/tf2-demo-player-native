@@ -42,9 +42,14 @@ POV 实体 3 上 Local **冻在 51596 后再未更新**、NonLocal 每检查点�
 **bagel 保持 0（对照组）**；第 13 步 `camera-to-target 2729→45`（逐轴 `-0.031,44.344,3.781`）。
 新增门禁为验收链第 14 步、变异用例 `m11`。见 `ACCEPTANCE-P1-2026-10-06.md` §14。
 
-**`VERIFY=PASS` 已在 `a1d5e8d` 上取得**（13 步 `bash verify-all.sh --quick`，
-32m30s，读数在 `evidence/verify/1..13-*.txt`）。
-**第一次跑（`c0ff710` + `0eca5ab`）是 `VERIFY=FAIL`**：红在第 9 步，
+**`VERIFY=PASS` 已在 `fefc216` 上取得**（**14 步** `bash verify-all.sh --quick`，
+30m35s，读数在 `evidence/verify/1..14-*.txt`；RC=0，14 步全绿）。
+**第一次跑（`3ca75ae`）是 `VERIFY=FAIL`**：唯一红的是第 8 步 —— 新增变异用例 `m11`
+把 `red/hold` 从 `37/3` 抬到 `40/4`，而第 8 步的期望是写死的；**这是验收机器按设计
+抓住了我自己的改动**，显式改计数后在 `fefc216` 转绿。
+上一轮 **`VERIFY=PASS` 在 `a1d5e8d` 上取得**（13 步，32m30s，读数
+`evidence/verify/1..13-*.txt`，`66cd97f` 只让链条多一步、不改前 13 步语义）。
+**更早一次跑（`c0ff710` + `0eca5ab`）是 `VERIFY=FAIL`**：红在第 9 步，
 原因在验收机器而非被测代码 —— `--sample 24` 抽的是**活的** Steam 语料目录，
 当晚新增两份 demo 让 24 个抽样落点整体移位，变异会全部空转（`native/` 一个字节没动）。
 `a1d5e8d` 把输入集钉成 `evidence/corpus-calib/demos.txt` 后转绿。见 §13。
@@ -89,19 +94,25 @@ bash check-oracle.sh "<oracle.exe>" evidence/final   # 与 Rust oracle 逐值对
 bash oracle-recording-types.sh            # 钉住 9 份 demo 的 POV/SourceTV 判定（头字段 + 流内 STV 位）
 bash check-probe-output-additive.sh       # 证明探针新增输出行没动旧计数器，且新增行本身未漂移
 bash check-probe-output-additive.sh --refresh-added   # 只在刻意改过探针输出后刷新新增行基线
-bash mutate.sh               # 变异验证（证明判据能变红）；10 个用例，37 条断言
+bash mutate.sh               # 变异验证（证明判据能变红）；11 个用例，40 条红断言 + 4 条 hold
 bash census-negative-test.sh # 证明普查判据能变红（10 个变异）
 bash history-coverage-check.sh # 历史覆盖门禁：Checkpoint 答案最多能多旧（fixture + bagel）
 bash weapon-world-model-check.sh # 武器世界模型门禁：武器不能被画成手臂（fixture + bagel/POV + oracle 见证）
 bash observer-focus-check.sh  # 观察目标门禁：解析 + oracle 对照 + 不接线的分歧读数（fixture + POV + bagel）
 bash observer-focus-check.sh --mutation   # 同一门禁的变异：两处比较各挪 1，必须都变红
-bash verify-all.sh --quick   # 上面全部串起来
+bash slot-freshness-check.sh  # 选槽新鲜度门禁：规则必须取后写的那个槽（fixture + POV/bagel 对照 + 影响面）
+bash slot-freshness-check.sh --mutation   # 同一门禁的变异：两份 demo 的 chosenStale 各挪 1，必须恰好红 2 条
+bash verify-all.sh --quick   # 上面全部串起来（14 步）
 
 # P1：模型引用读数的单点复现
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 POV="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
 ./native/build-nmake/entity_protocol_probe.exe "$POV" | grep -E 'precache_entries|asset_refs='
 ./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$POV"
+
+# P1：选槽新鲜度的单点复现（逐候选打印 rank / 最后写入 tick / 年龄）
+./native/build-nmake/entity_model_probe.exe --tf-root "$TF" --demo "$POV" \
+  --prop-candidates-at 53976,54747,55394 --entity 3 --candidate-suffix m_vecOrigin
 
 # P1：主程序读数（会出声，必须 --audio-device 6）
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
