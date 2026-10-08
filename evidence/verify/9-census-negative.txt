@@ -1,15 +1,17 @@
 
 === prepare: copy raw reports to evidence/corpus-negative ===
   reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
+  OK   pinned list and frozen reports agree: 24 demos
+  OK   every pinned demo exists and has a frozen report
 
 === baseline: unmodified reports must PASS ===
-  clean=23
-  skipped=1
+  clean=24
+  skipped=0
   dirty=0
-  sum_packets=1260289
+  sum_packets=1361392
   OK   baseline PASS
-  OK   baseline skipped=1 is a number
-  extra_reports=22 (corpus grew -> sample moved)
+  OK   baseline skipped=0 is a number
+  extra_reports=0 (pinned list: expected 0)
   victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
   OK   victim autorecord_2026-05-18_23-53-06 is in the scanned set
   OK   victim is a clean report (its counters are actually read)
@@ -47,7 +49,7 @@
 
 === mutation I: index_state=truncated_tail must SKIP, not FAIL and not clean ===
   OK   verdict stayed green (a skip is not a failure)
-  OK   counted as skipped (1 -> 2)
+  OK   counted as skipped (0 -> 1)
   OK   named in truncated_tail_files
 
 === mutation J: truncated_tail with a non-zero counter must still FAIL ===

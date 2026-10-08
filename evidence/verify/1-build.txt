@@ -6,11 +6,12 @@ D:\TF2_Native_Test\native\src\main.cpp(1292): warning C4457: “instance”的�
 D:\TF2_Native_Test\native\src\main.cpp(417): note: 参见“instance”的声明
 [  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header.cpp.obj
 demo_header.cpp
-?⒁? 包含文件:          C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\vcruntime_new.h
 [  3%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer.cpp.obj
 native_renderer.cpp
+?⒁? 包含文件:        C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt.h
 [  3%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/asset_root.cpp.obj
 asset_root.cpp
+?⒁? 包含文件:             C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\__msvc_xlocinfo_types.hpp
 [  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vpk_archive.cpp.obj
 vpk_archive.cpp
 [  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vtf_texture.cpp.obj
@@ -19,9 +20,9 @@ vtf_texture.cpp
 model_loader.cpp
 [  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/entity_model.cpp.obj
 entity_model.cpp
-?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\stdexcept
 [  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vmt_material.cpp.obj
 vmt_material.cpp
+?⒁? 包含文件:          C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\__msvc_system_error_abi.hpp
 [  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_resource.cpp.obj
 audio_resource.cpp
 [  9%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_player.cpp.obj
@@ -32,6 +33,7 @@ audio_timeline.cpp
 effects_timeline.cpp
 [ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/pcf_operators.cpp.obj
 pcf_operators.cpp
+?⒁? 包含文件:        C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\stdlib.h
 [ 12%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/playback_hud.cpp.obj
 playback_hud.cpp
 [ 13%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/bsp_map.cpp.obj
@@ -40,11 +42,11 @@ bsp_map.cpp
 LzmaDec.c
 [ 15%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/texture2d.cpp.obj
 texture2d.cpp
-?⒁? 包含文件:       C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared\ktmtypes.h
 [ 16%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/settings_store.cpp.obj
 settings_store.cpp
 [ 16%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/item_schema.cpp.obj
 item_schema.cpp
+?⒁? 包含文件:              C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\errno.h
 [ 17%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_ui.cpp.obj
 native_ui.cpp
 [ 18%] Linking CXX executable tf2_demo_native.exe
@@ -89,14 +91,12 @@ vpk_archive.cpp
 [ 33%] Built target pcf_capability_probe
 [ 34%] Building CXX object CMakeFiles/material_chain_probe.dir/tools/material_chain_probe.cpp.obj
 material_chain_probe.cpp
-?⒁? 包含文件:        C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\stdio.h
 [ 34%] Building CXX object CMakeFiles/material_chain_probe.dir/src/vtf_texture.cpp.obj
 vtf_texture.cpp
 [ 35%] Building CXX object CMakeFiles/material_chain_probe.dir/src/bsp_map.cpp.obj
 bsp_map.cpp
 [ 36%] Building CXX object CMakeFiles/material_chain_probe.dir/src/vmt_material.cpp.obj
 vmt_material.cpp
-?⒁? 包含文件:         C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\eh.h
 [ 37%] Building CXX object CMakeFiles/material_chain_probe.dir/src/vpk_archive.cpp.obj
 vpk_archive.cpp
 [ 38%] Building C object CMakeFiles/material_chain_probe.dir/third_party/lzma/LzmaDec.c.obj
@@ -113,6 +113,7 @@ LzmaDec.c
 [ 42%] Built target world_material_probe
 [ 43%] Building CXX object CMakeFiles/presentation_probe.dir/tools/presentation_probe.cpp.obj
 presentation_probe.cpp
+?⒁? 包含文件:          C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\sys/types.h
 [ 44%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header.cpp.obj
 demo_header.cpp
 [ 45%] Building C object CMakeFiles/presentation_probe.dir/third_party/lzma/LzmaDec.c.obj
@@ -127,8 +128,10 @@ vtf_texture.cpp
 [ 48%] Built target texture_quad_probe
 [ 49%] Building CXX object CMakeFiles/model_pose_probe.dir/tools/model_pose_probe.cpp.obj
 model_pose_probe.cpp
+?⒁? 包含文件:  C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\iostream
 [ 50%] Building CXX object CMakeFiles/model_pose_probe.dir/src/model_loader.cpp.obj
 model_loader.cpp
+?⒁? 包含文件:         C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\iterator
 [ 51%] Building CXX object CMakeFiles/model_pose_probe.dir/src/asset_root.cpp.obj
 asset_root.cpp
 [ 52%] Building CXX object CMakeFiles/model_pose_probe.dir/src/vpk_archive.cpp.obj
@@ -151,13 +154,13 @@ asset_root.cpp
 vpk_archive.cpp
 [ 59%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header.cpp.obj
 demo_header.cpp
-?⒁? 包含文件:  C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\queue
 [ 59%] Building CXX object CMakeFiles/entity_model_probe.dir/src/item_schema.cpp.obj
 item_schema.cpp
 [ 60%] Linking CXX executable entity_model_probe.exe
 [ 60%] Built target entity_model_probe
 [ 61%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/tools/viewmodel_fov_probe.cpp.obj
 viewmodel_fov_probe.cpp
+?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared\windef.h
 [ 62%] Linking CXX executable viewmodel_fov_probe.exe
 [ 62%] Built target viewmodel_fov_probe
 [ 62%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/tools/animation_viewmodel_probe.cpp.obj
@@ -182,6 +185,7 @@ item_schema.cpp
 audio_effects_probe.cpp
 [ 70%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/audio_player.cpp.obj
 audio_player.cpp
+?⒁? 包含文件:      C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xatomic.h
 [ 71%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/audio_timeline.cpp.obj
 audio_timeline.cpp
 [ 72%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/audio_resource.cpp.obj
@@ -200,7 +204,6 @@ LzmaDec.c
 [ 77%] Built target audio_effects_probe
 [ 78%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/tools/audio_scheduler_probe.cpp.obj
 audio_scheduler_probe.cpp
-?⒁? 包含文件:           C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\intrin.h
 [ 79%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/src/audio_player.cpp.obj
 audio_player.cpp
 [ 79%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/src/audio_timeline.cpp.obj
@@ -225,7 +228,6 @@ vpk_archive.cpp
 [ 86%] Built target native_install_smoke_probe
 [ 87%] Building CXX object CMakeFiles/native_ui_probe.dir/tools/native_ui_probe.cpp.obj
 native_ui_probe.cpp
-?⒁? 包含文件:   C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\ostream
 [ 88%] Building CXX object CMakeFiles/native_ui_probe.dir/src/native_ui.cpp.obj
 native_ui.cpp
 [ 89%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header.cpp.obj
@@ -252,6 +254,7 @@ proto_wire.cpp
 entity_message_fixture_probe.cpp
 [ 98%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header.cpp.obj
 demo_header.cpp
+?⒁? 包含文件:     C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\__msvc_chrono.hpp
 [ 99%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/proto_wire.cpp.obj
 proto_wire.cpp
 [100%] Linking CXX executable entity_message_fixture_probe.exe

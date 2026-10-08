@@ -1,22 +1,22 @@
 demos=8 workers=2 oracle=D:\TF2_Demo_Player_Deliverable\tools\ent-oracle\target\release\ent-oracle.exe
-  ok        73.dem                                    101.5MB  40.2s  SourceTV pkts 112172/112172 ent 3030444/3030444 enter 22424/22424
-  ok        autorecord_2026-06-02_16-24-29.dem          1.7MB   1.2s  POV      pkts 1267/1267 ent 36573/36573 enter 3024/3024
-  ok        autorecord_2026-06-24_22-55-26.dem          1.1MB   0.7s  POV      pkts 161/161 ent 1630/1630 enter 331/331
-  ok        autorecord_2026-07-12_21-44-58.dem         53.4MB  47.2s  POV      pkts 156586/156586 ent 2133397/2133397 enter 184796/184796
-  ok        autorecord_2026-07-23_22-45-37.dem          2.5MB   1.6s  POV      pkts 6162/6162 ent 47764/47764 enter 3019/3019
-  ok        autorecord_2026-08-08_20-34-07.dem          8.9MB   7.6s  POV      pkts 14336/14336 ent 401457/401457 enter 46288/46288
-  ok        autorecord_2026-08-26_22-07-39.dem         68.1MB  57.5s  POV      pkts 220175/220175 ent 3145398/3145398 enter 218945/218945
-  ok        autorecord_2026-09-15_20-30-57.dem         10.4MB   7.9s  POV      pkts 14390/14390 ent 520258/520258 enter 25547/25547
+  ok        73.dem                                    101.5MB  55.6s  SourceTV pkts 112172/112172 ent 3030444/3030444 enter 22424/22424
+  ok        autorecord_2026-06-02_19-48-18.dem         11.4MB   8.8s  POV      pkts 19158/19158 ent 614178/614178 enter 20482/20482
+  ok        autorecord_2026-06-24_22-56-16.dem          4.3MB   1.3s  POV      pkts 20840/20840 ent 35738/35738 enter 3229/3229
+  ok        autorecord_2026-07-13_14-22-40.dem          5.9MB   3.4s  POV      pkts 10860/10860 ent 280045/280045 enter 10990/10990
+  ok        autorecord_2026-07-23_22-47-25.dem         27.2MB  34.2s  POV      pkts 56753/56753 ent 1441952/1441952 enter 76518/76518
+  ok        autorecord_2026-08-08_21-02-00.dem         12.9MB   7.7s  POV      pkts 27262/27262 ent 575776/575776 enter 31276/31276
+  ok        autorecord_2026-08-27_13-27-24.dem         11.5MB  10.2s  POV      pkts 24633/24633 ent 532900/532900 enter 24572/24572
+  ok        autorecord_2026-09-15_20-57-13.dem          1.0MB   0.2s  POV      pkts 184/184 ent 1337/1337 enter 362/362
 
 sampled=8
 agreed=8
 mismatched=0
-wall_seconds=106.6
-sum_oracle_entities=9316921
-sum_cpp_entities=9316921
+wall_seconds=65.6
+sum_oracle_entities=6512370
+sum_cpp_entities=6512370
 recording_kinds=['POV', 'SourceTV']
 pov_count=7
 source_tv_count=1
-distinct_maps=8
+distinct_maps=7
 
 ORACLE-CORPUS=PASS

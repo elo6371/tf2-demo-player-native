@@ -1,0 +1,70 @@
+=== 1/4 wiring fixture (synthetic entities, every branch by construction) ===
+observer-focus-fixture cases=11 withMode=9 modeNonZero=8 hasTarget=8 inRange=5 present=4 missing=1 outOfRange=3 follows=2 serial=867
+  OK   fixture cases = 11
+  OK   fixture withMode = 9
+  OK   fixture modeNonZero = 8
+  OK   fixture hasTarget = 8
+  OK   fixture inRange = 5
+  OK   fixture present = 4
+  OK   fixture missing (slot present, entity gone) = 1
+  OK   fixture outOfRange (index past the snapshot) = 3
+  OK   fixture follows (in-eye + chase only, not the deathcam) = 2
+
+=== 2/4 POV -- the recorder's observing life, with the tick each answer came from ===
+observer-focus at tick=51900 status=checkpoint resolved=51742 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-1934.375854,800.682556,512.035950
+observer-focus at tick=53400 status=checkpoint resolved=53075 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
+observer-focus at tick=53976 status=checkpoint resolved=53976 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=1511.459961,894.130005,-186.000000 selfOrigin=-1112.019531,461.310516,455.251282
+observer-focus at tick=54747 status=checkpoint resolved=54747 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-459.084106,806.615845,143.571259
+observer-focus at tick=55394 status=available resolved=55394 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2420.383057,731.573364,523.633423
+observer-focus-summary ticks=5 examined=5 emitted=5 withMode=5 modeNonZero=1 follows=1 targetInRange=5 targetPresent=5 targetMissing=0 targetOutOfRange=0
+resolved ticks: 51742 53075 53976 54747 55394 
+  OK   resolved ticks (archive grid, in query order) = 51742 53075 53976 54747 55394 
+  OK   row 1 mode (alive between deaths) = 0
+  OK   row 1 follows = 0
+  OK   row 3 mode (in-eye) = 4
+  OK   row 3 targetHandle = 1775619
+  OK   row 3 targetIndex = 3
+  OK   row 3 targetSerial = 867
+  OK   row 3 follows = 1
+  OK   row 3 targetOrigin (what a follow would use) = 1511.459961,894.130005,-186.000000
+  OK   row 3 selfOrigin (where the camera actually is) = -1112.019531,461.310516,455.251282
+  OK   row 4 mode (respawned, watching nothing) = 0
+  OK   row 4 follows = 0
+  OK   row 5 mode (live window, tick-exact) = 0
+  OK   row 5 follows = 0
+  OK   POV ticks walked = 5
+  OK   POV entities examined = 5
+  OK   POV follows total = 1
+
+=== 3/4 the divergence -- what following the target would cost ===
+camera at tick=37677 found=1 sample_tick=37677 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=13.764709,-119.663826 originValid=1 anglesValid=1
+recorder own origin -1112.019531,461.310516,455.251282 / recorded camera -1112.031250,505.593719,459.031250 / pitch 13.764709
+  OK   recorded camera pitch is the recorder's own eye pitch = 13.764709
+camera-to-target distance = 2729 units (2729 when this round measured it)
+  OK   the follow's cost is still the one documented here = 2729
+entity 3 m_nTickBase=51597 against checkpoint 53976; its other slot reads -1112.000000,461.250000
+  OK   entity 3 tickbase (2379 ticks behind the checkpoint) = 51597
+  OK   entity 3 other-slot x,y (44 units from the camera) = -1112.000000,461.250000
+observer-focus at tick=129277 status=available resolved=129277 states=2048
+  observer entity=1 class=247 CTFPlayer mode=4 targetHandle=1718275 targetIndex=3 targetSerial=839 targetPresent=1 follows=1 targetOrigin=-3244.337891,198.821442,352.031250 selfOrigin=-3244.337891,198.821442,352.031250
+observer-focus-summary ticks=1 examined=1 emitted=1 withMode=1 modeNonZero=1 follows=1 targetInRange=1 targetPresent=1 targetMissing=0 targetOutOfRange=0
+  OK   bagel mode (in-eye) = 4
+  OK   bagel targetIndex = 3
+  OK   bagel follows = 1
+  OK   bagel selfOrigin == targetOrigin (why the rank rule looks fine there) = -3244.337891,198.821442,352.031250
+(no camera comparison for bagel: its dem_cmdinfo stream ends at demo tick ~69881, its entity history runs to server tick 129277)
+
+=== 4/4 oracle witness (tf_demo_parser, independent of this decoder) ===
+oracle mode=1 target=606217 / ours mode=1 handle=606217 idx=9 serial=296 status=checkpoint
+  OK   witness mode = 1
+  OK   witness target handle (packed) = 606217
+  OK   witness handle -> index = 9
+  OK   witness handle -> serial = 296
+  OK   witness answers deathcam, not a follow = 0
+
+OBSERVER-FOCUS=PASS (assertions_ok=39)
