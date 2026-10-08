@@ -1,0 +1,45 @@
+=== 1/3 wiring fixture (every branch by construction, ranking and renderer) ===
+  FAIL fixture shapes = <none>, expected 4
+  FAIL fixture freshChosen = <none>, expected 2
+  FAIL fixture staleChosen (the defect signature) = <none>, expected 0
+  FAIL fixture freshnessDecided (the term is load-bearing) = <none>, expected 1
+  FAIL fixture rankTiePrefersLocal (equal + unknown ticks) = <none>, expected 2
+  FAIL fixture apiMatches (extractTransform agrees with the ranking) = <none>, expected 4
+  FAIL fixture tickRoundTrip = <none>, expected 4
+
+=== 2/3 POV entity 3 -- the pick moved to the slot that was still being written ===
+prop-candidates at tick=53976 status=checkpoint resolved=53976
+  entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=2380
+    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1112.000000 y=461.250000 z=0.000000 int=0 lastWrite=53976 age=0
+prop-candidates at tick=54747 status=checkpoint resolved=54747
+  entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3151
+    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1562.000000 y=464.625000 z=0.000000 int=0 lastWrite=54623 age=124
+prop-candidates at tick=55394 status=available resolved=55394
+  entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3798
+    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-2420.375000 y=731.500000 z=0.000000 int=0 lastWrite=55394 age=0
+prop-candidates-summary ticks=3 examined=3 withCandidates=3 candidates=6 withTick=6 chosenStale=3 worstChosenAge=3798
+  FAIL POV ticks where the rule picked a non-freshest slot = 3, expected 0
+  OK   POV candidates examined = 6
+  FAIL POV worst chosen age (ticks) = 3798, expected 124
+  FAIL POV chosen slot = DT_TFLocalPlayerExclusive.m_vecOrigin, expected DT_TFNonLocalPlayerExclusive.m_vecOrigin
+  FAIL POV chosen slot last write at 55394 = 51596, expected 55394
+  FAIL POV chosen slot age at 55394 = 3798, expected 0
+  FAIL POV rival slot = DT_TFNonLocalPlayerExclusive.m_vecOrigin, expected DT_TFLocalPlayerExclusive.m_vecOrigin
+  FAIL POV rival slot last write at 55394 (frozen) = 55394, expected 51596
+
+=== 3/3 bagel entity 1 -- the same rule, and the reading did not move ===
+prop-candidates at tick=129277 status=available resolved=129277
+  entity=1 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=-3244.337891 y=198.821442 z=0.000000 int=0 lastWrite=129277 age=0
+    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=765.625000 y=-529.500000 z=0.000000 int=0 lastWrite=56148 age=73129
+prop-candidates-summary ticks=1 examined=1 withCandidates=1 candidates=2 withTick=2 chosenStale=0 worstChosenAge=0
+  OK   bagel ticks where the rule picked a non-freshest slot = 0
+  OK   bagel chosen slot = DT_TFLocalPlayerExclusive.m_vecOrigin
+  OK   bagel chosen slot last write = 129277
+  OK   bagel rival slot = DT_TFNonLocalPlayerExclusive.m_vecOrigin
+  OK   bagel rival slot age (the stale one there) = 73129
+
+SLOT-FRESHNESS=FAIL (assertions_ok=6)
