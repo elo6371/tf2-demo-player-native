@@ -1,7 +1,7 @@
 # 合并清单（给整合 AI）— 2026-10-08
 
 > **一句话**：源码改动只有 **12 个提交 / 16 个文件 / +3684 −242**，已实测能干净应用到主线
-> `d585af8`（16/16 文件，0 error）；**其余 229 个路径全是源码之外的东西**（判据脚本、证据、文档），
+> `d585af8`（16/16 文件，0 error）；**其余 234 个路径全是源码之外的东西**（判据脚本、证据、文档），
 > 它们不进产品，但**没有它们就无法复核这批源码**。
 >
 > 本清单里的每条结论都做过实测，命令与预期读数写在 §6/§7。
@@ -13,6 +13,10 @@
 > - 2026-10-08 晚第三轮（真实 SourceTV 覆盖，`18fe7ea`）后更新 —— **这一轮一个 `native/`
 >   文件都没动**，所以补丁 sha256 与合并后树对象**逐字节未变**（§9 已复核）；
 >   变的只有外围：路径 235 → **245**、判据脚本 20 → **21**、验收链 14 → **15** 步。
+> - 2026-10-08 深夜第四轮（45 单位归因，`290db52`）后更新 —— **这一轮同样一个 `native/`
+>   文件都没动**（§9 已复核），变的只有外围：路径 245 → **250**、证据 199 → **204**
+>   （新增 `pov-census.json` / `pov-census.txt` / `pov-e18-dead.txt`，`pov-camera.txt` 改为
+>   三行）、提交总数 42 → **44**、第 13 步断言 39 → **46**、第 13 步变异 2 → **3** 条红行。
 
 ---
 
@@ -37,24 +41,24 @@
 
 ## 2. 源码 vs 外围：分界
 
-`git diff --name-status 7ab4e72..HEAD` 一共 **245 个路径**：
+`git diff --name-status 7ab4e72..HEAD` 一共 **250 个路径**：
 
 | 类别 | 文件数 | 进产品？ | 说明 |
 |---|---|---|---|
 | `native/`（源码） | 16 | **是** | 12 个提交，+3684 −242 |
 | 判据脚本（仓库根） | 21 | 否 | 16 个 `.sh` + 5 个 `.py`，复核源码用，不参与产品构建 |
 | 文档 | 7 | 否 | 验收/交接文档 |
-| 证据 `evidence/` | 199 | 否 | 读数与产物（含冻结基线） |
+| 证据 `evidence/` | 204 | 否 | 读数与产物（含冻结基线） |
 | `.gitignore` + `fix-P0-entity-messages.patch` | 2 | 视情况 | `.gitignore` 与主线**冲突**（见 §6.2） |
 
-`merge-patches/` 里的 12 份补丁**不计入这 245**（已 gitignore，随时可用
+`merge-patches/` 里的 12 份补丁**不计入这 250**（已 gitignore，随时可用
 `git diff 7ab4e72..HEAD -- native/` 重新生成）。
 
-**提交总数 `7ab4e72..HEAD` = 42**，其中**只有 12 个碰 `native/`**。
-剩下 30 个是纯文档/证据/判据提交 —— 判断源码有没有被动过要看
+**提交总数 `7ab4e72..HEAD` = 44**，其中**只有 12 个碰 `native/`**。
+剩下 32 个是纯文档/证据/判据提交 —— 判断源码有没有被动过要看
 `git log --oneline 7ab4e72..HEAD -- native/`，不要数提交条数。
-（**2026-10-08 晚那一轮就是纯外围**：`3a935a3` 文档 + `18fe7ea` 判据，
-`git diff --stat c0ff710..HEAD -- native/` 仍为空。）
+（**2026-10-08 晚那两轮都是纯外围**：`3a935a3` 文档 + `18fe7ea` 判据，
+以及 `290db52` 判据 + 文档，`git diff --stat c0ff710..HEAD -- native/` 仍为空。）
 
 ---
 
@@ -85,11 +89,21 @@
 2. **`main.cpp` 只被 `aa93926` 动过 +9/−1**，只加了一行 `stale=` 读数。
    `cd36db1` / `c0ff710` / `d61b3d6` / `66cd97f` 四轮 `main.cpp` 一个字没动
    （`git diff aa93926..HEAD -- native/src/main.cpp` 为空）。
-3. **`c0ff710` 的观察目标刻意不接线**。⚠️ **但 `66cd97f` 改变了这条理由的数字**：
-   接线会偏的距离从 **2729 单位降到 45 单位**（`observer-focus-check.sh` 第 13 步，
-   逐轴 `-0.031,44.344,3.781`）。所以「不接」现在是一个**决定**而不是一个**测量** ——
-   原先的拒绝依据（那 2729）已经不成立了。**合并前请重新判断这一条**，
-   不要沿用旧结论。本轮仍然没接。
+3. **`c0ff710` 的观察目标刻意不接线**。⚠️ **这条理由经过两次改写，最新的一次（`290db52`）
+   把问题判成了「这一份 demo 答不了」**：
+   - 第三轮：接线会偏的距离从 **2729 单位降到 45 单位**（`observer-focus-check.sh` 第 13 步，
+     逐轴 `-0.031,44.344,3.781`）；
+   - 第四轮（`290db52`）：那 45 **不是误差、也不是接线的代价**。录制的相机原点在 demo 里是
+     **保持**的（原始 `democmdinfo` 字节在 demo tick 37640/37650/37655/37677/37679 逐字节相同，
+     只是角度不同），它等于**录像者死亡那一刻自己**的 origin；录像者此刻已死
+     （`m_lifeState=2`、`FL_TRANSRAGDOLL`）。45 里 44.28 在 y、3.78 在 z 是身体死后自己掉的。
+     更有分量的是 **541 点普查**：`follows=1` 只在 **13 个不同检查点**出现，其中 **11 个**
+     目标解出的坐标**就落在录像者自己身上（≤0.15 单位，同一快照）** ——
+     即**这一份 POV demo 的观察对从不指向别的玩家**。
+   **所以合并时这一条不用再「重新判断」**：结论仍是**不接**，依据是
+   **「这一份 demo 无法验证接线」**（要验证需要旁观者录的 demo；活着的玩家
+   `m_iObserverMode` 恒为 0，玩家 `autorecord` 结构上不可能包含这种情形）。
+   本轮仍然没接，`native/` 一个字未改。
 4. **选槽规则是通用的**：`findProperty` 对任何后缀匹配到多个候选都会走它。
    实测玩家实体上被复制的属性只有五个 —— `m_vecOrigin`、`m_vecOrigin[2]`、
    `m_angEyeAngles[0]`、`m_angEyeAngles[1]`、`m_nWaterLevel`（第 14 步断言了这个集合，
@@ -116,7 +130,7 @@
 | `oracle-trajectory-check.py` | 逐**值**对照重建位置（`compared=40 mismatches=0`，`--mutation` 能红） |
 | `history-coverage-check.sh` | Checkpoint 答案最多能多旧（fixture + bagel） |
 | `weapon-world-model-check.sh` | 武器不能被画成手臂（fixture + 两 demo + oracle 见证） |
-| `observer-focus-check.sh` | 观察目标解析 + oracle 见证 + 「跟着走要偏 45 单位」的分歧读数（**第二轮由 2729 变成 45**）；`--mutation` 在脚本内 |
+| `observer-focus-check.sh` | 观察目标解析 + oracle 见证 + **45 单位的归因**（相机原点被保持、录像者已死、逐轴拆分）+ **541 点普查**（13 个 follow 检查点、11 个落在录像者自己身上、最差 37.812 单位）；`--mutation` 三个扰动、要求**恰好 3 条红行**，在脚本内 |
 | `slot-freshness-check.sh` | **选槽必须取后写的那个槽**：fixture 4 形状（含平局/无 tick 回落 + 渲染 API 一致）+ POV/bagel 对照 + 规则影响面（哪五个属性被复制）；`--mutation` 在脚本内 |
 | `source-tv-coverage-check.sh` | **本机全部 9 份真实 SourceTV 录制整份解码**，逐份断言录制类型（头字段＋流内）、`index_tail_bytes` **等于文件字节数**（证明读完了整份）、钉住的包数/地图、以及四类零失败；`--mutation` 两个扰动各要求恰好 9 行红 |
 | `oracle-corpus-check.py` | 在语料抽样上与 oracle 对照（带 selftest） |
@@ -140,20 +154,20 @@
 | 文件 | 内容 |
 |---|---|
 | `HANDOFF-2026-10-07.md` | **单一入口接手文档**（9 节）。合并后建议保留 |
-| `ACCEPTANCE-P1-2026-10-06.md` | P1 验收：§10 逐 tick 位移 / §11 武器世界模型 / §12 观察目标 / §13 验收机器自己的缺陷 / **§14 选槽新鲜度** |
+| `ACCEPTANCE-P1-2026-10-06.md` | P1 验收：§10 逐 tick 位移 / §11 武器世界模型 / §12 观察目标 / §13 验收机器自己的缺陷 / §14 选槽新鲜度 / **§15 45 单位的归因** |
 | `ACCEPTANCE-P0-2026-10-06.md` | P0 验收 |
 | `HANDOFF-P0/P1-2026-10-06.md` | 上一轮交接（保留作对照） |
 | `MERGE-MANIFEST-2026-10-08.md` | 本文件 |
 | `README.md` | 索引 + 当前状态 |
 
-**证据 `evidence/`（199 个 tracked）**
+**证据 `evidence/`（204 个 tracked）**
 
 | 目录 | tracked | 是什么 |
 |---|---|---|
 | `evidence/mutation/` | 49 | 变异运行的红色读数（证明判据能红） |
 | `evidence/after-fix/` | 27 | P0 修复后的探针 + oracle 对照 |
 | `evidence/verify/` | 20 | **15 步链的逐步原始输出**（`1-build.txt` … `15-source-tv-coverage.txt`） |
-| `evidence/observer-focus/` | 13 | 观察目标门禁原始读数 |
+| `evidence/observer-focus/` | 16 | 观察目标门禁原始读数（含 `pov-census.{json,txt}` 541 点普查与 `pov-e18-dead.txt` 死亡见证） |
 | `evidence/probe-baseline/` | 11 | **冻结基线**（9 份探针报告 + 新增行基线）。增量性检查拿它当参照，**不要用新运行覆盖** |
 | `evidence/final/` | 10 | P0 最终态探针报告 |
 | `evidence/baseline/` | 9 | P0 修复前的对照 |
@@ -292,7 +306,7 @@ git clone <repo> <dir> && git config core.autocrlf false   # 错：工作区立�
 
 ---
 
-## 7. 合并后必须做的四件事
+## 7. 合并后必须做的五件事
 
 1. **把 `evidence/corpus-calib/reports/`（24 份，gitignore 内）一起带过去**，
    或按 §5 的方法重新生成。否则第 9 步会失败。
@@ -305,10 +319,12 @@ git clone <repo> <dir> && git config core.autocrlf false   # 错：工作区立�
    bash verify-all.sh --quick            # 约 35 分钟
    ```
    预期：`CENSUS-NEGATIVE=PASS (pinned_reports=24)`、
-   `OBSERVER-FOCUS=PASS (assertions_ok=39, camera-to-target=45u)`、
+   `OBSERVER-FOCUS=PASS (assertions_ok=46, camera-to-target=45u)` 及其
+   `OBSERVER-FOCUS-MUTATION=PASS (3/3 perturbations caught, red_lines=3)`、
    `SLOT-FRESHNESS=PASS (assertions_ok=24, POV chosenStale=0)`、
    `SOURCE-TV-COVERAGE=PASS (demos=9 packets=917543 assertions_ok=47)`、`VERIFY=PASS`。
-   （链条现为 **15 步**；第 13 步那个数在第二轮由 2729 变成 45；第 15 步在第三轮加入。）
+   （链条现为 **15 步**；第 13 步那个数在第二轮由 2729 变成 45、断言 39 → 46（第四轮）；
+   第 15 步在第三轮加入。第 13 步耗时约 2 分钟。）
 4. **检查 `evidence/probe-baseline/` 是否仍是旧二进制的产物**。它是**冻结基线**；
    如果你改了探针的输出格式，增量性检查会（正确地）变红 —— 那是要你确认的行为变化，
    不是 bug。要更新基线得用 `--refresh-added` 并重新提交。
@@ -357,9 +373,20 @@ git clone <repo> <dir> && git config core.autocrlf false   # 错：工作区立�
 > `git rev-parse HEAD:native` 仍是 `ece80926…`）。
 > **合并清单里唯一没有随本轮变动的，恰好是真正要进产品的那部分。**
 >
+> **2026-10-08 深夜第四轮的复核**：这一轮改了 9 个外围路径（含 4 个证据文件）、
+> 0 个 `native/` 文件，所以上面四个锚点**逐字节与第三轮相同**（重跑过：
+> `git diff 7ab4e72..HEAD -- native/ | sha256sum` 与
+> `sha256sum merge-patches/00-native-combined.patch` 都是 `0b583685…`，
+> 补丁文件仍是 245595 B，`git rev-parse HEAD:native` 仍是 `ece80926…`，
+> `git rev-parse 7ab4e72:native` 仍是 `887a2f31…`）。
+> **两轮连续的外围改动都没动到要进产品的那部分 —— 这正是「认基线用 blob 哈希、
+> 不数提交条数」的用处。**
+>
 > 上一轮的锚点（10 个提交时）保留作对照：补丁 sha256 `488fc828…`、
 > 合并后树对象 `6ba1d19b…`。**看到这两个值说明你手上是旧补丁。**
 
-测试树当前状态：HEAD = `18fe7ea`，分支 `p0-entity-protocol`，工作区干净，
-`git status --porcelain -- native/` 为空，15 步链的读数见 §7 第 3 条与
-`evidence/verify/1..15-*.txt`。
+测试树当前状态：HEAD = `290db52`，分支 `p0-entity-protocol`，工作区干净，
+`git status --porcelain -- native/` 为空。**15 步链已在 `290db52` 上重跑，`VERIFY=PASS`**
+（RC=0，**36m20s**，15 步全绿）—— 第六轮只改了第 13 步门禁与文档、`native/` 一个字节未改，
+其余 14 步读数与 `18fe7ea` 那次**逐条相同**，第 13 步按新期望
+（`assertions_ok=46`、变异 3/3 恰 3 行红）。读数见 §7 第 3 条与 `evidence/verify/1..15-*.txt`。

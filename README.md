@@ -73,8 +73,12 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 判据 39 → **46 条断言**，`--mutation` 2 → **3 个扰动且要求恰好 3 条红行**。
 见 `ACCEPTANCE-P1-2026-10-06.md` §15 与 HANDOFF §1.7。
 
-**`VERIFY=PASS` 已在 `18fe7ea` 上取得**（**15 步** `bash verify-all.sh --quick`，
-**33m09s**，RC=0，15 步全绿，读数在 `evidence/verify/1..15-*.txt`）。
+**`VERIFY=PASS` 已在 `290db52` 上取得**（**15 步** `bash verify-all.sh --quick`，
+**36m20s**，RC=0，15 步全绿，读数在 `evidence/verify/1..15-*.txt`）。
+这一轮相对上一次只改了**第 13 步的门禁**与文档，**`native/` 一个字节未动**：
+第 13 步断言 39 → **46**、变异 2 → **3 个扰动且要求恰好 3 条红行**。
+实测 `OBSERVER-FOCUS=PASS (assertions_ok=46, camera-to-target=45u)`、
+`OBSERVER-FOCUS-MUTATION=PASS (3/3 perturbations caught, red_lines=3)`。
 逐步：`BUILD` / `CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` / `ORACLE` /
 `ORACLE-CORPUS + selftest` / `RECORDING-TYPES` / `PROBE-ADDITIVE` / `MUTATION (red=40 hold=4)` /
 `CENSUS-NEGATIVE (pinned_reports=24)` / `TRAJECTORY-ORACLE (compared=40)` /
@@ -82,6 +86,7 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 `OBSERVER-FOCUS (46 断言, camera-to-target=45u)` + 变异（3/3 扰动，恰 3 行红） /
 `SLOT-FRESHNESS (24 断言, POV chosenStale=0)` + 变异 /
 **`SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异（各 9 行红）**。
+上一次 **`VERIFY=PASS` 在 `18fe7ea` 上取得**（15 步，**33m09s**）。
 上一轮 **`VERIFY=PASS` 在 `fefc216` 上取得**（14 步，30m35s，读数
 `evidence/verify/1..14-*.txt`）。**第一次跑（`3ca75ae`）是 `VERIFY=FAIL`**：
 唯一红的是第 8 步 —— 新增变异用例 `m11` 把 `red/hold` 从 `37/3` 抬到 `40/4`，
@@ -115,7 +120,7 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 | `evidence/probe-baseline/` | **冻结**的 9 份探针报告（`recording_stream=` / `index_state=` 两行加入之前的二进制产出），供 `check-probe-output-additive.sh` 当基线。不要用 `run-demos.sh` 覆盖它 |
 | `evidence/probe-baseline/added-lines.txt` | 同上，冻结的是 P1 新增的两行（`sound_precache_entries=` / `asset_refs=`）。剥离的行也要有基线，否则「additive」等于「没人验证」 |
 | `evidence/weapon-world-model/` | 武器世界模型门禁的原始读数：fixture 断言行、bagel/POV 逐实体武器列表（`--dump-weapon-models`）、oracle 见证块、两份 JSON 计数器 |
-| `evidence/observer-focus/` | 观察目标门禁的原始读数与两份门禁输出：fixture 断言行、POV 五档 observer 行（含 `resolved=`）、录制相机对照、实体 3 两槽读数、oracle 见证块、`gate.txt` / `gate-mutation.txt` |
+| `evidence/observer-focus/` | 观察目标门禁的原始读数与两份门禁输出：fixture 断言行、POV 五档 observer 行（含 `resolved=`）、录制相机对照（三个 tick 一行一个）、录像者死亡见证（`pov-e18-dead.txt`）、541 点普查（`pov-census.json` / `.txt`）、实体 3 两槽读数、oracle 见证块、`gate.txt` / `gate-mutation.txt` |
 | `slot-freshness-check.sh` | **选槽新鲜度门禁**（验收链第 14 步）：断言规则取**后写的那个槽**、平局/无 tick 时仍回落到原 rank＋字典序、且排序与渲染器真正调用的 `extractTransform` 一致。`--mutation` 扰动两份 demo 的 `chosenStale` 并要求恰好 2 条红行 |
 | `evidence/slot-freshness/` | 上述门禁的原始读数：fixture 断言行、POV 实体 3 三次查询的逐候选 `rank/name/lastWrite/age`、bagel 对照 |
 | `source-tv-coverage-check.sh` | **真实 SourceTV 覆盖门禁**（验收链第 15 步）：把本机**全部 9 份** SourceTV 录制整份解码，逐份断言录制类型（头字段＋流内位）、`index_tail_bytes` 等于文件字节数（证明读完了整份）、钉住的包数/地图、以及 `entity_failures`/`malformed`/`unknown`/`delta_base_unavailable` 全零。`--mutation` 两个扰动各要求恰好 9 行红 |
