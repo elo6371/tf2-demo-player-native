@@ -1061,3 +1061,258 @@ weapon entity=822 class=292 CTFRocketLauncher present=mvw modelIndex=1204 viewMo
   shotgun/builder/PDA×2/wrangler，两槽位在 851/961 间互换）。已核实那些实体世界路线
   仍全部胜出、`armsWeapon=0`；它按**语料形状**记录，不是接线判据。
 - `m_nModelIndexOverrides`、观察目标 `m_hObserverTarget`、投射物仍未接（HANDOFF §3.3 其余子项）。
+
+---
+
+## 12. 观察目标 `m_hObserverTarget`（P1 剩余子项，2026-10-07 第三轮，`c0ff710`）
+
+### 12.1 缺陷的形状：管线一处没读，而「跟随」是个陷阱
+
+玩家在看谁，写在**观看者自己的实体**上，而不是被观看者身上：
+
+| 属性 | 发送表槽 | 位宽 | 含义 |
+|---|---|---|---|
+| `DT_BasePlayer.m_iObserverMode` | 835 | 3 | 0 none / 1 deathcam / 2 freezecam / 3 fixed / 4 in-eye / 5 chase / 6 roaming（`observe_mode.h`） |
+| `DT_BasePlayer.m_hObserverTarget` | 836 | 21 | `CBaseHandle`：被观看的实体 |
+
+只有 in-eye 与 chase 把相机挂在目标身上；deathcam / freezecam / fixed / roaming 都不跟。
+旧管线两个属性一处未读，聚焦永远落在 view entity 上。
+
+这一条与 §11 的武器、§10 的 z 属于同一形状（**错得能解析成功**）：重放谱系里
+view entity 是真实玩家、坐标有限且在图上，只是**可能不是画面正在看的那个人**。
+
+### 12.2 解析（`c0ff710`）
+
+`resolveObserverFocus(viewEntity, statesByIndex)`（`entity_model.{h,cpp}`，渲染器中立）：
+
+| 字段 | 含义 |
+|---|---|
+| `hasMode / mode` | 读到了 `m_iObserverMode` 及其值 |
+| `hasTarget / targetHandle` | 读到了 `m_hObserverTarget` 的**打包**值 |
+| `targetIndex / targetSerial` | 按 Source `NUM_ENT_ENTRY_BITS=11` 拆：低 11 位索引、高 10 位序列号 |
+| `targetInRange / targetPresent` | 索引在快照内 / 该槽确实有实体（`classId >= 0`） |
+| `followsTarget` | `mode ∈ {4,5}` **且** 目标存在 —— 只有这种组合才谈得上「跟」 |
+
+句柄的三种「不是一个能看的位置」分别判定并命名：wire 哨兵 `0xFFFFFFFF`、
+字段初始化的 `2047`（`INVALID_EHANDLE_INDEX`）、索引越出快照。
+**序列号只解码不校验**：`EntityState` 不带序列号，槽被新实体复用时句柄仍会解析到该槽 ——
+这是写明的能力边界，不是绕过。
+
+探针新增 `--observer-focus-at`（服务器 tick 域，逐 tick 打印每个 mode≠0 的实体）
+与 `--camera-at`（demo tick 域，打印重放循环会拿到的 `DemoViewSample`），
+并在 observer 行上打印 `resolved=<tick>`：归档答案是「查询 tick 之前最近的检查点」，
+**陈旧度从此是读数而不是推断**。
+
+### 12.3 读数（固定构建，`evidence/observer-focus/`）
+
+fixture（11 个合成实体，逐分支构造）：
+
+```
+observer-focus-fixture cases=11 withMode=9 modeNonZero=8 hasTarget=8 inRange=5
+                      present=4 missing=1 outOfRange=3 follows=2 serial=867
+```
+
+其中实体 6 是**拿着合法且存在的句柄的 deathcam**：它证明 `follows` 这个计数器
+能燃（若把 deathcam 也当跟随，这里会读 3），而不是只会读 0。
+`missing=1` 是「槽在快照内但没有实体」，`outOfRange=3` 是索引越界那三种写法。
+
+POV（录像者实体 18，`--entity 18`，五档查询；`resolved` 为实际取数的检查点）：
+
+| 查询 tick | resolved | mode | 目标 | follows | 说明 |
+|---|---|---|---|---|---|
+| 51900 | 51742 | 0 | idx20 | 0 | 两段死亡之间的存活期 |
+| 53400 | 53075 | 0 | idx20 | 0 | 同上（不同检查点） |
+| 53976 | 53976 | **4** | idx3 / serial 867 | **1** | in-eye，唯一 `follows=1` 的一档 |
+| 54747 | 54747 | 0 | idx3 | 0 | 已复活 |
+| 55394 | 55394 | 0 | idx3 | 0 | 实时窗口，tick 精确 |
+
+死亡包（demo tick 33242，server tick 49562）之后第一个检查点是 49589：
+`mode=1 / handle=606217 / idx=9 / serial=296`，`follows=0`。
+
+bagel（server tick 129277，实时窗口，tick 精确）：实体 1 `mode=4`、目标 `idx3 / serial 839`、
+`follows=1`，且 **`selfOrigin == targetOrigin`**（两者坐标逐位相同）。
+
+### 12.4 为什么不接线：三条独立读数
+
+原计划是把聚焦链接到目标上（`followsTarget` 时聚焦目标实体）。实测把它否掉了：
+
+1. **录制的相机贴在录像者自己身上。** demo tick 37677（oracle 包列表把它与
+   server tick 54000 配对）的 `dem_cmdinfo` 相机在
+   `-1112.031250,505.593719,459.031250`，与本解码器在检查点 53976 报出的
+   实体 18 自身 origin `-1112.019531,461.310516,455.251282` 相差 **0.012**（x）；
+   它的俯仰角 `13.764709` 与实体 18 自己的 `m_angEyeAngles[0]` **逐位相同**。
+   `dem_cmdinfo` 由录制客户端自己写出，不受本解码器的信念影响 —— 这是独立见证。
+2. **管线优先槽给目标解出的坐标离那台相机 2729 单位。**
+   实体 3 的 `DT_TFLocalPlayerExclusive.m_vecOrigin` 读作
+   `1511.459961,894.130005,-186.000000`（x 方向就差 2623）。
+3. **那个槽自己承认过期。** 实体 3 的 `m_nTickBase=51597`，比检查点 53976 落后
+   **2379 tick**；它的另一个槽（`NonLocalPlayerExclusive`）读
+   `-1112.000000,461.250000,455.250000`，离相机只有 44 单位。
+
+即：按声明接线会把这一份 demo 的画面搬走 2729 单位，而且搬到一个过期两千多 tick 的
+坐标上。**本轮的交付因此是「解析 + 仪表 + 账本」，不是「搬相机」**：
+`renderer` 的聚焦链一个字未改（`git diff cd36db1..c0ff710 -- native/src/main.cpp` 为空）。
+
+顺带回答了「为什么上一轮的排序规则没被挑战」：在 bagel 上
+`LocalPlayerExclusive` 就是真值、分歧为 0（12.3 末行），规则看上去完全正确；
+在 POV 实体 3 上它是过期值。**缺的不是换一个槽，而是带新鲜度意识的选槽** ——
+可用的新鲜度读数至少有 `m_nTickBase`（实体自报）。留给下一轮，本轮不修。
+
+### 12.5 判据与变异
+
+- `observer-focus-check.sh`（新，验收链第 13 步，39 条断言）：
+  ① fixture 逐分支钉死（含 deathcam 反例）；
+  ② POV 五档（含 `resolved` 序列 `51742 53075 53976 54747 55394`、句柄三分解）；
+  ③ 分歧读数：相机俯仰逐位等于录像者正视俯仰、`camera-to-target distance = 2729`、
+     实体 3 `m_nTickBase=51597`、另一槽 `44` 单位；
+  ④ oracle 见证：33242 包 `mode=1 / handle=606217` ↔ 本侧 `idx=9 / serial=296`。
+- `--mutation`：把 oracle 期望 mode 与 2729 各挪 1，要求**都**变红
+  （`MUTATION-CAUGHT=PASS`，两条 `FAIL` 行）。门禁的变异写在门禁内、不落 `mutate.sh`：
+  这一轮没有「把缺陷改回源码」的对象（相机没被改），能失败的是**比较本身**。
+- bagel 侧**不做**相机对照并写明原因：它的 `dem_cmdinfo` 序列在 demo tick ~69881 就停了，
+  而实体历史跑到 server tick 129277 —— 那里根本没有可比的录制相机。
+
+### 12.6 未验证 / 已知限制
+
+- **画面仍无人工确认**：本节证明「属性解得对、与独立实现一致、跟着走会搬错多少」，
+  不证明屏幕上画对了。
+- **序列号不校验**（12.2）：槽复用时会解析到新实体。fixture 里 serial 分支单独断言，
+  语料上无法验证。
+- **归档非 tick 精确**：53976 之外的所有 POV 读数都带 `resolved` 与陈旧度；
+  in-eye 持续区间（≥437 tick）由两个检查点界定，边界不是逐 tick 的。
+- **POV 的相机与目标不一致这件事本身未归因**：是 `dem_cmdinfo` 记录的是本地视角，
+  还是该 demo 的 in-eye 目标另有含义（实体 3 的 `m_nTickBase` 早于死亡包，
+  且同槽曾带 `DT_LocalPlayerExclusive` 数据，索引复用是已知现象）——
+  本轮只把它作为**不接线**的依据记录，未做归因结论。
+
+---
+
+## 13. 验收机器自己的两处缺陷（2026-10-08 凌晨，`a1d5e8d` + `0eca5ab`）
+
+§12 的代码提交 `c0ff710` 之后，13 步链第一次跑**红了**——红在它该红的地方，
+但原因不在被测代码，而在**验收机器自己**。本轮修的是机器，不是产品。
+
+### 13.1 现象：第一次 13 步链 `VERIFY=FAIL`，红在第 9 步
+
+`c0ff710 + 0eca5ab` 上跑完 13 步，末行 `VERIFY=FAIL`（`RC=1`）：
+第 1–8 步与第 10–13 步全绿（含新第 13 步
+`OBSERVER-FOCUS=PASS (assertions_ok=39, camera-to-target=2729u)` 及其变异），
+**只有第 9 步**（普查判据可证伪）红了。现场（当轮 `evidence/verify/9-census-negative.txt`）：
+
+```
+  extra_reports=23 (corpus grew -> sample moved)
+  victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
+  FAIL victim autorecord_2026-05-18_23-53-06 is NOT in corpus.csv -- the mutations below would be inert
+  FAIL skip count did not rise by one: baseline=0 mutated=0 expected=1
+```
+
+门禁自己的**前置断言**拦下了「变异会空转」，并把原因写在现场。这是正确行为。
+
+### 13.2 根因：输入集是「机器的属性」
+
+`census-negative-test.sh` 原本调用 `corpus-census.py --sample 24` 对**活的**
+Steam 语料目录（`D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos`）做
+等距抽样。实现是 `demos = sorted(glob("*.dem"))` 后按 `step = N/24` 取 24 个下标；
+**语料每增删一份文件，全部 24 个落点都会移位**。实测：
+
+| 读数 | 值 |
+|---|---|
+| 语料文件数（当轮） | 1656（含当晚新录的 `autorecord_2026-10-07_21-42-26` / `_22-11-16`） |
+| 冻结校准报告数 | 24（`evidence/corpus-calib/`，2026-10-06 存） |
+| 两者交集（当轮抽样 ∩ 冻结报告） | **1** |
+
+于是脚本挑中的 victim（冻结集里第一份 `autorecord_*`）不在当轮 `corpus.csv` 里，
+**10 个变异全部会改一份没人读的报告** —— 变异跑绿也只是因为分母里没有它。
+
+这与 §2.5 是同一类缺陷的第二次发作：那一次是**断言写成常数**（`skipped=1`），
+这一次是**输入来自活目录**。共同点：判据依赖了一个会自己变化的量。
+
+### 13.3 修订一：输入集钉成仓库文件（`a1d5e8d`）
+
+- `corpus-census.py` 新增 `--demos-list <file>`：输入集由文件逐行给名，
+  **不再 glob、不再抽样**；与 `--sample/--limit` 同用是 FATAL（"钉住的名单再被截断"
+  不是钉住），名单里不存在的 demo 是 FATAL，运行行打印 `pinned=<file>`
+  让证据自带来源。
+- `evidence/corpus-calib/demos.txt`：24 行，恰为冻结校准报告的 24 个 demo 名。
+- `census-negative-test.sh`：改用 `--demos-list`；新增断言
+  「名单 ↔ 冻结报告同集（计数 + 逐一）」与「每个钉住的 demo 仍在语料里」；
+  victim 的 `corpus.csv` 成员断言保留（现在结构性成立，但仍然检查）。
+- `verify-all.sh` 第 9 步：断言 `pinned_reports=24` ——
+  `CENSUS-NEGATIVE=PASS` 也是「零变异」会打印的东西。
+
+单步复核（`CENSUS-NEGATIVE=PASS`，2026-10-08 01:02）：
+`reports=24 digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5`、
+`OK pinned list and frozen reports agree: 24 demos`、`OK victim ... is in the scanned set`、
+10 个变异逐个 `verdict went red`、`mutation I` 为 `counted as skipped (0 -> 1)`、
+`restore: digest unchanged`。
+
+### 13.4 修订二：把「清空目录」从删除改成移出（同提交）
+
+同一处顺手量到一台机器成本：**本沙箱的批量删除约 5 秒/文件**。
+
+| 操作 | 实测 |
+|---|---|
+| `rm -f` 24 个报告文件 | **2m01.8s** |
+| 同目录下 census 判据本体一次完整运行 | **0.57s** |
+| 改 `mv` 隔离后，第 9 步整体 | **20s（稳态）/ 55s（需移走 23 份滞留报告）** |
+
+脚本原来每轮 `rm -f "$NEG"/reports/*` 再重拷。现改为把**不在冻结集里的文件**
+`mv` 到 `.scratch/corpus-negative-strays/`（gitignore 内，不进证据），
+只有在出现滞留文件时才付出 rename 的代价；稳态为零。
+这是纯粹的成本修订，**不改变任何断言**。
+
+### 13.5 修订三：链条标号（`0eca5ab`）
+
+第 1–12 步仍打印 `N/12`、第 13 步打印 `13/13`（上一轮加步骤时漏改），
+统一为 `N/13`；文件头 "twelve reports" 改 "thirteen"、Cost 段补第 13 步。
+显示字符串，断言/工作计数未动；`grep -l '1/12\|13/13' evidence/verify/*` 为空
+（证据文件从不含标号）。为遵守"证据必须来自最终提交的字节"，
+第一次跑在普查阶段即作废，改完重跑。
+
+### 13.6 与「红线」的关系
+
+第 9 步这次是**外部环境变化触发的前置条件红**，与 §10/§11/§12 的缺陷红不同：
+被测代码一个字节没动（`git diff c0ff710..HEAD -- native/` 为空）。
+两处修订都在验收机器侧：一处让输入可复现，一处让成本从分钟回到秒。
+留下的一条通用判据：**任何"抽样活目录"的判据，都要先问"这份输入是可复现的吗"**。
+
+### 13.7 修订后的重跑：`VERIFY=PASS`（`a1d5e8d`，32m30s）
+
+在已提交的干净树上（`git status --porcelain -- native/` 为空）重跑完整 13 步链，
+末行 `VERIFY=PASS`、`RC=0`。逐步判定（`evidence/verify/1..13-*.txt`）：
+
+```
+BUILD=PASS
+CENSUS=PASS (9/9 demos at zero)
+COVERAGE=PASS (9/9 demos, every observed message type decoded)
+FIXTURE=PASS (58/58)
+ORACLE=PASS
+ORACLE-CORPUS=PASS / ORACLE-CORPUS-SELFTEST=PASS
+RECORDING-TYPES=PASS
+PROBE-ADDITIVE=PASS
+MUTATION=PASS
+CENSUS-NEGATIVE=PASS (pinned_reports=24)          <- §13.1 的那一步，已转绿
+TRAJECTORY-ORACLE=PASS (compared=40, mutation caught)
+HISTORY-COVERAGE=PASS (bagel worst gap 1180 <= 2 x floor 761)
+WEAPON-WORLD-MODEL=PASS (fixture_ok=12, live_window_packets=68)
+OBSERVER-FOCUS=PASS (assertions_ok=39, camera-to-target=2729u)
+OBSERVER-FOCUS-MUTATION=PASS (perturbations caught, red_lines=2)
+VERIFY=PASS
+```
+
+对比两次跑，**唯一变化的就是第 9 步**（`CENSUS-NEGATIVE=FAIL` → `PASS (pinned_reports=24)`），
+其余 12 步判定行逐字相同 —— 这与 §13.6 的判断一致：修的是机器，不是产品。
+
+**第 9 步的现场读数**（`evidence/verify/9-census-negative.txt`）：
+`reports=24 digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5`、
+`clean=24 skipped=0 dirty=0 sum_packets=1361392`、`extra_reports=0 (pinned list: expected 0)`、
+victim `autorecord_2026-05-18_23-53-06` 在扫描集内、10 个变异逐个变红、
+`mutation I` 为 `counted as skipped (0 -> 1)`、`restore: digest unchanged`。
+
+### 13.8 本节自己的教训
+
+第一次跑出的那份文档草稿（README/HANDOFF 的"`VERIFY=PASS` 已在 `c0ff710` + `0eca5ab`
+上取得"）是**在链条跑完之前写的**，而那次实际是 `VERIFY=FAIL`。这不只是笔误：
+`VERIFY=PASS` 是一个**由运行产生的事实**，不能先写结论再等运行。
+订正后的表述把两次跑都写出来（FAIL 在前、PASS 在后、各自的提交与耗时），
+并保留"只有第 9 步变化"这个可复核的对照。
