@@ -16,7 +16,7 @@ observer-focus at tick=51900 status=checkpoint resolved=51742 states=2048
 observer-focus at tick=53400 status=checkpoint resolved=53075 states=2048
   observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
 observer-focus at tick=53976 status=checkpoint resolved=53976 states=2048
-  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=1511.459961,894.130005,-186.000000 selfOrigin=-1112.019531,461.310516,455.251282
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
 observer-focus at tick=54747 status=checkpoint resolved=54747 states=2048
   observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-459.084106,806.615845,143.571259
 observer-focus at tick=55394 status=available resolved=55394 states=2048
@@ -31,7 +31,7 @@ resolved ticks: 51742 53075 53976 54747 55394
   OK   row 3 targetIndex = 3
   OK   row 3 targetSerial = 867
   OK   row 3 follows = 1
-  OK   row 3 targetOrigin (what a follow would use) = 1511.459961,894.130005,-186.000000
+  OK   row 3 targetOrigin (what a follow would use) = -1112.000000,461.250000,455.250000
   OK   row 3 selfOrigin (where the camera actually is) = -1112.019531,461.310516,455.251282
   OK   row 4 mode (respawned, watching nothing) = 0
   OK   row 4 follows = 0
@@ -45,12 +45,13 @@ resolved ticks: 51742 53075 53976 54747 55394
 camera at tick=37677 found=1 sample_tick=37677 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=13.764709,-119.663826 originValid=1 anglesValid=1
 recorder own origin -1112.019531,461.310516,455.251282 / recorded camera -1112.031250,505.593719,459.031250 / pitch 13.764709
   OK   recorded camera pitch is the recorder's own eye pitch = 13.764709
-mutation: expected divergence perturbed to 2730
-camera-to-target distance = 2730 units (2729 when this round measured it)
-  FAIL the follow's cost is still the one documented here = 2730, expected 2729
-entity 3 m_nTickBase=51597 against checkpoint 53976; its other slot reads -1112.000000,461.250000
+per-axis camera-minus-target (x,y,z): -0.031,44.344,3.781
+mutation: expected divergence perturbed to 46
+camera-to-target distance = 46 units (2729 before the freshness round moved it)
+  FAIL the follow's cost is still the one documented here = 46, expected 45
+entity 3 m_nTickBase=51597 against checkpoint 53976; the slot the rule now takes reads -1112.000000,461.250000
   OK   entity 3 tickbase (2379 ticks behind the checkpoint) = 51597
-  OK   entity 3 other-slot x,y (44 units from the camera) = -1112.000000,461.250000
+  OK   entity 3 chosen-slot x,y (the one ~45 units from the camera) = -1112.000000,461.250000
 observer-focus at tick=129277 status=available resolved=129277 states=2048
   observer entity=1 class=247 CTFPlayer mode=4 targetHandle=1718275 targetIndex=3 targetSerial=839 targetPresent=1 follows=1 targetOrigin=-3244.337891,198.821442,352.031250 selfOrigin=-3244.337891,198.821442,352.031250
 observer-focus-summary ticks=1 examined=1 emitted=1 withMode=1 modeNonZero=1 follows=1 targetInRange=1 targetPresent=1 targetMissing=0 targetOutOfRange=0

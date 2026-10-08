@@ -22,3 +22,4 @@ weapon-wiring-fixture refs=11 known=10 resolved=6 zero=2 unresolved=1 outOfRange
   observer-fixture entity=10 mode=5 targetIndex=2047 serial=65535 inRange=0 present=0 follows=0
   observer-fixture entity=11 mode=5 targetIndex=2 serial=868 inRange=1 present=1 follows=1
 observer-focus-fixture cases=11 withMode=9 modeNonZero=8 hasTarget=8 inRange=5 present=4 missing=1 outOfRange=3 follows=2 serial=867
+slot-freshness-fixture shapes=4 freshChosen=2 staleChosen=0 freshnessDecided=1 rankTiePrefersLocal=2 apiMatches=4 tickRoundTrip=4

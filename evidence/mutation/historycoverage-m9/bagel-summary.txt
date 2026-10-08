@@ -5,4 +5,4 @@ history coverage samples=512 exact=1 checkpoint=511 unavailable=0
 history retained archive=96 live=1 distinct=97 span=[56148..129210]
 history gap worst=51568 at=[58618..110186] median=128 floor=761 budget=96
 history staleness worst=51433 at=110051 mean=18171.7
-history bytes archive=804742151 live=8501982 checkpointApprox=8382730 packets=2720 events=1155 eventsApprox=453676
+history bytes archive=841913175 live=8894070 checkpointApprox=8769928 packets=2720 events=1155 eventsApprox=487732

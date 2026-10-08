@@ -7,5 +7,5 @@ history coverage samples=512 exact=1 checkpoint=511 unavailable=0
 history retained archive=96 live=1 distinct=97 span=[56148..129210]
 history gap worst=1180 at=[66628..67808] median=822 floor=761 budget=96
 history staleness worst=1139 at=87460 mean=407.5
-history bytes archive=801034304 live=8501982 checkpointApprox=8344107 packets=2720 events=1155 eventsApprox=453676
+history bytes archive=838049760 live=8894070 checkpointApprox=8729685 packets=2720 events=1155 eventsApprox=487732
 {"ok":true,"selfTest":false,"demo":"D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem","assetRefs":679,"requests":505,"demoRenderable":113,"assetWorldModelKnown":33,"assetWorldModelResolved":32,"assetWorldModelUnresolved":0,"assetWorldModelZero":1,"assetWorldModelOutOfRange":0,"assetModelPathFromWorldModel":32,"assetModelPathWorldModelOnly":0,"weaponViewModelAgrees":33,"weaponViewModelZero":0,"weaponViewModelDiffers":0,"worldModelRequests":32,"armsRequests":13,"worldIndexNonZero":32,"armsWeaponRefs":0,"armsNonWeaponRefs":12,"worldModelInstances":0,"inspections":43,"inspectionCacheHits":70,"vpkExtracts":43,"uniqueRenderable":4,"vpkRenderable":4,"scoutVertices":12000,"scoutChecksum":1098120898,"duplicateStable":true,"instanceCount":6,"playerFallbacks":1}

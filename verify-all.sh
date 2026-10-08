@@ -190,10 +190,13 @@ bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
 # suite: MUTATION-SUITE=PASS is also what a script that ran zero cases prints.
-# 37 red + 3 hold is the current case count (m10 added eight red assertions,
-# all of them readings this round introduced), so adding a case is an explicit
-# edit here. Any GREEN or BROKE line means a mutation did not move the reading
-# it targets -- which is the one thing the suite exists to detect.
+# 40 red + 4 hold is the current case count (m11 added three red assertions and
+# one hold -- the hold is bagel's chosenStale, which must NOT move when the
+# freshness term is deleted, or the gate would be passable by a rule that simply
+# prefers NonLocal). Adding a case is an explicit edit here, which is the point:
+# a suite whose assertion count drifts silently is a suite that stopped testing.
+# Any GREEN or BROKE line means a mutation did not move the reading it targets --
+# which is the one thing the suite exists to detect.
 RED=$(grep -c '^MUTATION-RED' "$OUT/8-mutation.txt" || true)
 HOLD=$(grep -c '^MUTATION-HOLD' "$OUT/8-mutation.txt" || true)
 BROKE=$(grep -c '^MUTATION-BROKE' "$OUT/8-mutation.txt" || true)
@@ -201,7 +204,7 @@ GREEN=$(grep -c '^MUTATION-GREEN' "$OUT/8-mutation.txt" || true)
 IDENT=$(grep -c '^RESTORED-IDENTICAL' "$OUT/8-mutation.txt" || true)
 echo "mutation_red=$RED hold=$HOLD green=$GREEN broke=$BROKE restored_identical=$IDENT"
 if grep -q 'MUTATION-SUITE=PASS' "$OUT/8-mutation.txt" \
-   && [ "$RED" -eq 37 ] && [ "$HOLD" -eq 3 ] \
+   && [ "$RED" -eq 40 ] && [ "$HOLD" -eq 4 ] \
    && [ "$GREEN" -eq 0 ] && [ "$BROKE" -eq 0 ] && [ "$IDENT" -eq 6 ]; then
   echo "MUTATION=PASS"
 else
@@ -332,7 +335,10 @@ bash slot-freshness-check.sh > "$SLOTF" 2>&1
 cat "$SLOTF"
 SF_OK=$(grep -c '^  OK   ' "$SLOTF" || true)
 SF_STALE=$(sed -n 's/^SLOT-FRESHNESS=PASS (.*POV chosenStale=\([0-9]*\).*/\1/p' "$SLOTF" | head -1)
-if grep -q 'SLOT-FRESHNESS=PASS' "$SLOTF" && [ "${SF_OK:-0}" -gt 0 ] \
+# 24 is the current assertion count (7 fixture + 8 POV + 5 bagel + 4 blast radius),
+# pinned for the same reason step 8 pins its mutation count: a gate that keeps
+# printing PASS while its assertions quietly disappear is not a gate.
+if grep -q 'SLOT-FRESHNESS=PASS' "$SLOTF" && [ "${SF_OK:-0}" -eq 24 ] \
    && [ "${SF_STALE:-x}" = "0" ]; then
   echo "SLOT-FRESHNESS=PASS (assertions_ok=$SF_OK, POV chosenStale=0)"
 else

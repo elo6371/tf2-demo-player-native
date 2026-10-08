@@ -67,6 +67,12 @@ MUTATION-RED   m10 world route gone -> weapons name their arms          63 (fixe
 MUTATION-RED   m10 world route gone -> weapon gate refuses              exit=1 WEAPON-WORLD-MODEL=FAIL
 MUTATION-RED   m10 world route gone -> gate bagel run reads known=0     0 (fixed=33)
 
+--- m11: freshness ignored again (the stale slot wins on rank)
+MUTATION-RED   m11 freshness ignored -> gate refuses                    exit=1 SLOT-FRESHNESS=FAIL
+MUTATION-RED   m11 freshness ignored -> POV chosenStale                 3 (fixed=0)
+MUTATION-RED   m11 freshness ignored -> the frozen Local slot is chosen again rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin
+MUTATION-HOLD  m11 freshness ignored -> bagel chosenStale stays 0       0 (unchanged)
+
 === restored tree: readings must be identical to the fixed build ===
 RESTORED-IDENTICAL bagel.fixed.txt
 RESTORED-IDENTICAL proto23.fixed.txt

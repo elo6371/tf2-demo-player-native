@@ -84,7 +84,7 @@ field() { printf '%s' "$1" | sed -n "s/.* $2=\\([^ ]*\\).*/\\1/p" | head -1; }
 rank_field() { sed -n "s/^ *rank=$2 .* $3=\\([^ ]*\\).*/\\1/p" "$1" | tail -1; }
 rank_name()  { sed -n "s/^ *rank=$2 \\(([a-z]*)\\)\\? *name=\\([^ ]*\\).*/\\2/p" "$1" | tail -1; }
 
-echo "=== 1/3 wiring fixture (every branch by construction, ranking and renderer) ==="
+echo "=== 1/4 wiring fixture (every branch by construction, ranking and renderer) ==="
 "$PROBE" --self-test > "$OUT/fixture.json" 2> "$OUT/fixture.txt"
 grep '^slot-freshness-fixture' "$OUT/fixture.txt" > "$OUT/fixture-line.txt"
 cat "$OUT/fixture-line.txt"
@@ -109,7 +109,7 @@ assert_eq "fixture apiMatches (extractTransform agrees with the ranking)" "$(fie
 assert_eq "fixture tickRoundTrip" "$(field "$FL" tickRoundTrip)" "4"
 
 echo
-echo "=== 2/3 POV entity 3 -- the pick moved to the slot that was still being written ==="
+echo "=== 2/4 POV entity 3 -- the pick moved to the slot that was still being written ==="
 "$PROBE" --tf-root "$TF" --demo "$POV" --prop-candidates-at 53976,54747,55394 \
   --entity 3 --candidate-suffix m_vecOrigin > "$OUT/pov.json" 2> "$OUT/pov.txt"
 cat "$OUT/pov.txt"
@@ -139,7 +139,7 @@ assert_eq "POV rival slot" "$(rank_name "$OUT/pov.txt" 1)" "DT_TFLocalPlayerExcl
 assert_eq "POV rival slot last write at 55394 (frozen)" "$(rank_field "$OUT/pov.txt" 1 lastWrite)" "51596"
 
 echo
-echo "=== 3/3 bagel entity 1 -- the same rule, and the reading did not move ==="
+echo "=== 3/4 bagel entity 1 -- the same rule, and the reading did not move ==="
 "$PROBE" --tf-root "$TF" --demo "$BAGEL" --prop-candidates-at 129277 \
   --entity 1 --candidate-suffix m_vecOrigin > "$OUT/bagel.json" 2> "$OUT/bagel.txt"
 cat "$OUT/bagel.txt"
@@ -161,6 +161,39 @@ assert_eq "bagel chosen slot last write" "$(rank_field "$OUT/bagel.txt" 0 lastWr
 # stamped on bagel at all.
 assert_eq "bagel rival slot" "$(rank_name "$OUT/bagel.txt" 1)" "DT_TFNonLocalPlayerExclusive.m_vecOrigin"
 assert_eq "bagel rival slot age (the stale one there)" "$BAGEL_RIVAL_AGE" "73129"
+
+echo
+echo "=== 4/4 which properties the rule can even act on (its blast radius) ==="
+# The rule is generic: findProperty walks every property whose name matches the
+# suffix, so it applies to any quantity a player carries in both exclusive tables.
+# Which quantities those are is a reading, not an assumption -- and it is what
+# bounds the change: if m_nModelIndex were on this list, this round would have
+# silently changed model selection too.
+#
+# The dump names each property as "<ownerTable>.<name>", so the table prefix is
+# stripped before grouping: two entries with the same remainder are the same
+# quantity arriving twice, which is exactly the set the rule chooses within.
+duplicated_suffixes() { # duplicated_suffixes <demo> <tick> <entity>
+  "$PROBE" --tf-root "$TF" --demo "$1" --props-at "$2" --entity "$3" 2>&1 \
+    | awk '$1 ~ /^entity=/ {print $4}' | tr -d '\r' \
+    | sed 's/^DT_[A-Za-z]*\.//' | sort | uniq -c | awk '$1>1 && $2!="" {print $2}' \
+    | sort | paste -sd, -
+}
+POV_DUP=$(duplicated_suffixes "$POV" 55394 3)
+BAGEL_DUP=$(duplicated_suffixes "$BAGEL" 129277 1)
+POV1_DUP=$(duplicated_suffixes "$POV" 55394 1)
+echo "POV entity 3   duplicated: $POV_DUP"
+echo "POV entity 1   duplicated: $POV1_DUP"
+echo "bagel entity 1 duplicated: $BAGEL_DUP"
+EXPECTED_DUP="m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]"
+assert_eq "duplicated properties, POV entity 3" "$POV_DUP" "$EXPECTED_DUP"
+assert_eq "duplicated properties, POV entity 1 (same set, other player)" "$POV1_DUP" "$EXPECTED_DUP"
+assert_eq "duplicated properties, bagel entity 1 (same set, other demo)" "$BAGEL_DUP" "$EXPECTED_DUP"
+# The one that would make this round a much larger change than it claims to be.
+case ",$POV_DUP," in
+  *",m_nModelIndex,"*) echo "  FAIL m_nModelIndex is duplicated after all -- model selection is affected"; fail=1; fails=$((fails + 1)) ;;
+  *) echo "  OK   m_nModelIndex is not duplicated (model selection is untouched)"; ok=$((ok + 1)) ;;
+esac
 
 echo
 if [ "$MUTATION" -eq 1 ]; then

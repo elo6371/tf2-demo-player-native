@@ -21,7 +21,7 @@ worldModelRequests=69 known=71`、bagel `armsWeapon=0 worldModelRequests=32 know
 oracle 同实体同包见证（实体 822 的 Enter 包 `Integer(363)` ↔ `c_rocketlauncher.mdl`）。
 新增门禁为验收链第 12 步、变异用例 `m10`。见 `ACCEPTANCE-P1-2026-10-06.md` §11。
 
-2026-10-07 第三轮：**`c0ff710`（当前代码基线）** —— 观察目标 `m_hObserverTarget`。
+2026-10-07 第三轮：**`c0ff710`** —— 观察目标 `m_hObserverTarget`。
 玩家的观看对象写在**观看者自己**的实体上（`m_iObserverMode` 槽 835 / `m_hObserverTarget`
 槽 836，21 位 `CBaseHandle`），旧管线一处未读。本轮解出 mode、句柄、索引与序列号，
 并与 oracle 逐值对照（33242 包 `mode=1 / 606217` ↔ `idx=9 / serial=296`）；
@@ -29,6 +29,18 @@ oracle 同实体同包见证（实体 822 的 Enter 包 `Integer(363)` ↔ `c_ro
 （俯仰逐位相同、位置差 0.012），而管线优先槽给目标解出的坐标离它 **2729 单位**、
 该槽自己落后 **2379 tick**。交付 = 解析 + 仪表 + 把这笔账钉进验收链第 13 步。
 见 `ACCEPTANCE-P1-2026-10-06.md` §12 与 HANDOFF §1.3 / §3.3.2。
+
+2026-10-08 第四轮：**`66cd97f`（当前代码基线）** —— 实体属性选槽的新鲜度。
+上一轮留下的「2729 单位」不是坐标算错，是**读错了槽**：玩家的 `m_vecOrigin` 在
+`DT_TFLocalPlayerExclusive`（全精度）和 `DT_TFNonLocalPlayerExclusive`（量化）里各有一份，
+而 rank 规则看不见**哪一份还在被写**。bagel 上 Local 就是真值（NonLocal 已陈旧 73129 tick），
+POV 实体 3 上 Local **冻在 51596 后再未更新**、NonLocal 每检查点重写。
+修法分两步提交：`d61b3d6` 先只加仪表（`EntityPropertyValue::lastWriteTick`，在
+`readEntityPropUpdates` 唯一写入点盖章；零行为变化，`PROBE-OUTPUT-ADDITIVE=PASS` 9/9）；
+`66cd97f` 再让 `preferCandidate` 先比 tick、**平局回落到原 rank＋字典序**。
+读数：POV `chosenStale 3→0`、选中槽从 Local 变 NonLocal、`worstChosenAge 3798→124`；
+**bagel 保持 0（对照组）**；第 13 步 `camera-to-target 2729→45`（逐轴 `-0.031,44.344,3.781`）。
+新增门禁为验收链第 14 步、变异用例 `m11`。见 `ACCEPTANCE-P1-2026-10-06.md` §14。
 
 **`VERIFY=PASS` 已在 `a1d5e8d` 上取得**（13 步 `bash verify-all.sh --quick`，
 32m30s，读数在 `evidence/verify/1..13-*.txt`）。
@@ -60,8 +72,10 @@ oracle 同实体同包见证（实体 822 的 Enter 包 `Integer(363)` ↔ `c_ro
 | `evidence/probe-baseline/added-lines.txt` | 同上，冻结的是 P1 新增的两行（`sound_precache_entries=` / `asset_refs=`）。剥离的行也要有基线，否则「additive」等于「没人验证」 |
 | `evidence/weapon-world-model/` | 武器世界模型门禁的原始读数：fixture 断言行、bagel/POV 逐实体武器列表（`--dump-weapon-models`）、oracle 见证块、两份 JSON 计数器 |
 | `evidence/observer-focus/` | 观察目标门禁的原始读数与两份门禁输出：fixture 断言行、POV 五档 observer 行（含 `resolved=`）、录制相机对照、实体 3 两槽读数、oracle 见证块、`gate.txt` / `gate-mutation.txt` |
+| `slot-freshness-check.sh` | **选槽新鲜度门禁**（验收链第 14 步）：断言规则取**后写的那个槽**、平局/无 tick 时仍回落到原 rank＋字典序、且排序与渲染器真正调用的 `extractTransform` 一致。`--mutation` 扰动两份 demo 的 `chosenStale` 并要求恰好 2 条红行 |
+| `evidence/slot-freshness/` | 上述门禁的原始读数：fixture 断言行、POV 实体 3 三次查询的逐候选 `rank/name/lastWrite/age`、bagel 对照 |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
-| `verify-all.sh` | 一条命令跑完整证据链（13 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁**）；`--quick` 把语料抽样降到 8 份 |
+| `verify-all.sh` | 一条命令跑完整证据链（14 步：构建 → 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁**）；`--quick` 把语料抽样降到 8 份 |
 
 ## 命令
 

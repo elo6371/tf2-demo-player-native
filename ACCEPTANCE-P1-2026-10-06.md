@@ -1316,3 +1316,156 @@ victim `autorecord_2026-05-18_23-53-06` 在扫描集内、10 个变异逐个变�
 `VERIFY=PASS` 是一个**由运行产生的事实**，不能先写结论再等运行。
 订正后的表述把两次跑都写出来（FAIL 在前、PASS 在后、各自的提交与耗时），
 并保留"只有第 9 步变化"这个可复核的对照。
+
+## 14. 实体属性选槽的新鲜度（P1 剩余子项「观察目标相机接线」的前置，
+## 2026-10-08，`d61b3d6` + `66cd97f`）
+
+整合审查把「观察目标相机接线」列为仍未解决的第 1 项，理由写的是
+**目标槽位的新鲜度仍未解决**。本节处理的就是那半项：不是接线，是**选槽**。
+
+### 14.1 缺陷的形状：同一个量在两个槽里，只有一个还在更新
+
+玩家的 `m_vecOrigin` 在实体上出现**两次**：
+
+| 槽 | 表 | 收件人 | 精度 |
+|---|---|---|---|
+| `DT_TFLocalPlayerExclusive.m_vecOrigin` | `DT_TFLocalPlayerExclusive` | 玩家自己的客户端 | 全精度 |
+| `DT_TFNonLocalPlayerExclusive.m_vecOrigin` | `DT_TFNonLocalPlayerExclusive` | 其它所有客户端 | 量化 |
+
+`preferCandidate` 的规则是 rank（Local 0 → 其它 1 → NonLocal 2）再字典序。这条规则
+**确定**（那是 `6cb0ecf` 的修复），但确定不等于对：**两个槽的新鲜度可以不同**，
+而 rank 规则看不见这件事。实测两份 demo，同一条规则，相反的结局：
+
+| demo | Local 最后写入 | NonLocal 最后写入 | rank 选中 | 对不对 |
+|---|---|---|---|---|
+| bagel 实体 1 @129277 | 129277（age 0） | 56148（age 73129） | Local | **对** |
+| POV 实体 3 @53976 | 51596（**此后再未更新**） | 53976（每检查点重写） | Local | **错** |
+
+POV 上被选中的那个槽的值**冻在** `1511.459961,894.130005`，而 demo 录下的相机在
+`-1112.03,505.59,459.03` —— **2729 单位**（第 13 步原本钉的就是这个数）。该槽的
+`m_nTickBase` 是 51597，比它被回答的检查点 53976 落后 **2379 tick**；同一实体的
+NonLocal 槽只离那台相机 **44 单位**。
+
+**为什么所有计数门禁都是绿的**：候选数、实体数、包数、`compared=` 全都不变 ——
+两个槽都在，选中哪个是「值从哪个属性读」的问题，不是「读到几个」的问题。
+和第 10 步修的 z 缺陷是同一个形状（解码对了，读错了属性）。
+
+### 14.2 第一步：先只记录，不改规则（`d61b3d6`）
+
+按 `NEXT-round-slot-freshness-recon.md` 的收尾要求，规则与门禁放在量完之后**单独一步**。
+所以第一步只加仪表：
+
+- `EntityPropertyValue` 新增 `std::int32_t lastWriteTick = -1`（server tick 域）。
+  `-1` 表示**不是包写入的**（fixture 造的、以及默认值）。
+- 盖章点在 `readEntityPropUpdates`（`demo_header.cpp`）**唯一**的写入处，且在
+  `change.value = value` 之前 —— 历史记录与状态拿到同一个 tick，重放出来的值不会显得更新。
+  四个调用点（`preserve` / `baseline` / `enter` / `temp`）**都传 `packetTick`**，所以一处盖章覆盖全部。
+- `rankPropertyCandidates()` 暴露**规则自己的排序**（复用同一个 `suffixMatch` +
+  `preferCandidate`），避免探针另写一份会漂移的实现。
+- 探针新增 `--prop-candidates-at <ticks>` / `--candidate-suffix <S>`，逐候选打印
+  `rank / name / type / x,y,z / lastWrite / age`，末尾一行
+  `prop-candidates-summary ... chosenStale= worstChosenAge=`。
+
+**这一步零行为变化**，并且是**实测**的：`bash check-probe-output-additive.sh` →
+`PROBE-OUTPUT-ADDITIVE=PASS`、`compared=9/9` 全部 `IDENTICAL`、`added-lines=IDENTICAL
+(18 lines frozen)`。既有读数逐字节未移动。
+
+### 14.3 第二步：规则改为「取后来写的那个」（`66cd97f`）
+
+```
+bool preferCandidate(name, lastWriteTick, bestName, bestTick) {
+  if (lastWriteTick != bestTick) return lastWriteTick > bestTick;   // 新鲜度：决定
+  ... rank 再字典序 ...                                             // 平局：回落
+}
+```
+
+**平局回落是这条规则不引入新的不确定性的全部理由**：没有包 tick 的状态（fixture、
+任何在 `readEntityPropUpdates` 之外造出来的状态，`lastWriteTick` 全是 `-1`）以及两槽同
+tick 的状态，排序**与这条规则存在之前逐位相同**。fixture 把这两个分支都断言了
+（`rankTiePrefersLocal=2`），所以「回落还在」是读数而不是说法。
+
+### 14.4 读数（固定构建）
+
+POV 实体 3，三次查询 53976 / 54747 / 55394（`evidence/slot-freshness/pov.txt`）：
+
+```
+chosenStale 3 -> 0
+rank=0 (chosen) DT_TFNonLocalPlayerExclusive.m_vecOrigin  lastWrite=55394 age=0
+rank=1          DT_TFLocalPlayerExclusive.m_vecOrigin     lastWrite=51596 age=3798   <- 仍冻在 51596
+worstChosenAge 3798 -> 124
+```
+
+`124` **不是缺陷**：54747 那次查询里，包流能提供的最新候选就是 54623 写的那个，
+`124` 是「可得的最新值有多旧」，不是「选错了」。
+
+bagel 实体 1 @129277（`evidence/slot-freshness/bagel.txt`）：`chosenStale` **仍是 0**，
+选中的**仍是 Local**（lastWrite 129277），被它拒掉的 NonLocal 仍是 age 73129。
+这是**对照组**：一个「一律偏好 NonLocal」的规则会通过 POV 那一半、在这一半失败。
+
+第 13 步（`evidence/observer-focus/`）：相机到目标的距离 **2729 → 45**，
+并且现在**逐轴打印**：`per-axis camera-minus-target (x,y,z): -0.031,44.344,3.781`。
+45 不是均匀摊在三个轴上的 —— 几乎全在 y 轴上，这是读数，不该被一句话带过。
+
+### 14.5 判据与变异
+
+**`slot-freshness-check.sh`**（第 14 步，20 条断言，三节）：
+
+1. **fixture**（4 个形状，每个分支按构造存在）：
+   `shapes=4 freshChosen=2 staleChosen=0 freshnessDecided=1 rankTiePrefersLocal=2 apiMatches=4 tickRoundTrip=4`。
+   其中两条是**防止门禁变成死门禁**的：
+   - `freshnessDecided=1`：只有「Local 旧 / NonLocal 新」这一个形状是 rank 单独答不出来的。
+     若读成 0，说明新鲜度这一项成了死代码，而**其它计数全都还是绿的**。
+   - `apiMatches=4`：fixture 同时走两条独立路径 —— `rankPropertyCandidates`（规则的排序）
+     和 `EntityModelResolver::extractTransform`（**渲染器真正调用的公开 API**），
+     断言两者答案一致。少了这条，排序可以悄悄偏离实际渲染。
+2. **POV 实体 3**：`chosenStale=0`、`withTick=6`、选中槽名 / lastWrite / age，
+   以及被拒掉的那个槽**仍冻在 51596**。
+3. **bagel 实体 1**：`chosenStale=0`、选中 Local、被拒的 NonLocal age 73129。
+
+`--mutation` 对两份 demo 的 `chosenStale` 各扰动 +1，**要求恰好 2 条红行**
+（只红 1 条说明某个断言没在读自己的那份 demo）。
+
+**`mutate.sh m11`**（源码级变异，补 `--mutation` 证明不了的另一半）：
+删掉 `preferCandidate` 里的新鲜度项，重建，然后要求
+
+- `slot-freshness-check.sh` **拒绝**（`SLOT-FRESHNESS=FAIL`，exit=1）；
+- POV `chosenStale` 从 0 **回到 3**，且**冻在 51596 的 Local 槽重新被选中**；
+- **bagel `chosenStale` 保持 0** —— 这一条是防止门禁被「一律偏好 NonLocal」蒙过去的关键。
+
+实测：`MUTATION-RED` ×3、`MUTATION-HOLD` ×1、`MUTATION-SUITE=PASS`，
+且恢复后六份读数与固定构建**逐字节相同**。
+
+### 14.6 未验证 / 已知限制
+
+- **相机仍未接线**，这一轮没有改变这个决定。改变的是**理由**：从「接上去会偏 2729 单位」
+  （测量）变成「接上去只偏 45 单位，但这轮不做」（决定）。整合审查原本就是基于陈旧槽
+  下的读数做出「不接」的结论，现在那个读数已经不成立了，**这件事应当被重新判断，
+  而不是沿用**。本轮只负责把数摆正。
+- **45 单位的来源未归因**。它几乎全在 y 轴（44.344），x 只有 0.031、z 只有 3.781。
+  一个可能的解释是查询错位（相机在 demo tick 37677 ↔ server tick 54000，而被回答的检查点是
+  53976，相差 24 tick），但**没有证明**：24 tick 的位移应该让三个轴一起动，而这里 x 几乎不动。
+  按 `CBeam.m_vecOrigin=232944` 的先例，记为**未归因**，不写成「就是量化误差」。
+- **`baseline` 调用点的时间戳是近似**：`enter` 时套用实例基线用的是**当前包的 tick**
+  （`demo_header.cpp:1309`），不是基线被记录时的 tick。所以「只从基线来的属性」会显得比实际新。
+  这对 Local/NonLocal 的**比较是公平的**（两槽的基线属性拿同一个戳），但它是一条真实近似。
+  实体离场再进场会重新套基线并重新盖章，同样对两槽对称。
+- **「写得晚 ⇒ 值更新」是本轮的假设，不是定理**。它在两份 demo 上成立（bagel：Local 新且
+  就是真值；POV：NonLocal 新且离录下的相机 44 单位）。上一条恰好指出一个**可能破坏它**的机制：
+  只走实例基线的属性会在实体每次重新进场时被重新盖成「新鲜」。若某个重复属性的一槽只走基线、
+  另一槽走增量，前者会在重新进场后赢下选槽，而它的值可能来自很久以前的基线。
+  本轮**没有构造出**这个场景，也没有门禁盯它 —— 这是一条已识别、未验证的洞。
+- **选槽新鲜不等于 tick 精确**。窗口外的答案仍受第 11 步的有界保留约束（bagel worst gap 1180，
+  鸽笼下界 761）。本节只保证「在两个都在的槽之间选对」，不保证「答案就是那个 tick 的」。
+- **只在两份 demo 上逐值确认过**（bagel SourceTV、POV autorecord 一份）。
+  规则改动对其它 POV demo 的影响只由第 2 步的九份普查和既有门禁覆盖，没有逐值对照。
+- **`m_nModelIndexOverrides` 未处理**。本轮只把位置/角度的选槽修了。**玩家实体上被复制的
+  属性已量过**（`--props-at` 后按「去掉表前缀」分组，见下），`m_nModelIndex` **不在其中**：
+  `DT_BaseEntity.m_nModelIndex` 不属于 Local/NonLocal 两张独占表，所以模型索引没有
+  「同量两槽」的问题。但玩家实体上**确实**有 `m_nModelIndexOverrides.000..003` 四个槽
+  （POV 实体 3 实测），本轮**没有读它**，也没有门禁盯它 —— 这与整合审查列的
+  「`m_nModelIndexOverrides` 未处理」一致。
+  实测被复制的属性（POV 实体 3 / POV 实体 1 / bagel 实体 1 三处一致）：
+  `m_vecOrigin`、`m_vecOrigin[2]`、`m_angEyeAngles[0]`、`m_angEyeAngles[1]`、`m_nWaterLevel`。
+  这条规则是通用的（`findProperty` 对任何后缀匹配到多个候选都会走它），所以这五个量现在
+  **都**按新鲜度选；但只有 `m_vecOrigin`（含其 z 兄弟）有逐值门禁，其余四个没有。
+
