@@ -449,6 +449,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool audioDeviceRejected = false;
   bool startPaused = false;
   std::filesystem::path metricsPath;
+  std::filesystem::path captureFramePath;
+  std::int64_t captureTick = 0;
+  bool captureTickRejected = false;
   LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -481,12 +484,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         startPaused = true;
       } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
         metricsPath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
+        captureFramePath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) captureTick = static_cast<std::int64_t>(parsed);
+        else captureTickRejected = true;
+      } else if (wcscmp(arguments[i], L"--capture-tick") == 0) {
+        captureTickRejected = true;
       }
     }
     persistent.render.normalize();
   }
   if (audioDeviceRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --audio-device; default device not used.\n");
+    return 13;
+  }
+  if (captureTickRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
@@ -1200,6 +1216,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool lastPaused = false;
   std::vector<tf2::native::EntityState> currentEntityStates;
   soundScheduler.reset(0);
+  // `--capture-frame` is a one-shot diagnostic: arm it, wait until playback has
+  // reached the requested tick, write one frame, then leave through the exit
+  // code. A gate therefore never has to guess when to kill the process.
+  bool captureArmed = !captureFramePath.empty();
+  bool captureRequested = false;
   while (running) {
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
       if (message.message == WM_QUIT) { running = false; break; }
@@ -1349,7 +1370,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     refreshWindowTitle();
     writeMetrics(now, false);
     if (elapsed >= kTargetFrameSeconds) {
+      if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
+        renderer.requestFrameCapture(captureFramePath.wstring());
+        captureArmed = false;
+        captureRequested = true;
+      }
       if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) ++renderedFrames;
+      if (captureRequested && !renderer.frameCapturePending()) {
+        PostQuitMessage(renderer.lastFrameCaptureSucceeded() ? 0 : 16);
+        continue;
+      }
       lastFrame = now;
       continue;
     }

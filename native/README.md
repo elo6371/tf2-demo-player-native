@@ -80,6 +80,17 @@ bytes, and private bytes; metrics are opt-in and do not open an audio device.
 The runtime caches up to 32 MiB of decoded PCM data (at most 512 resources) and
 otherwise resolves WAV resources on demand.
 
+For a diagnostic frame grab, pass `--capture-frame X:\path\frame.bmp` with an
+optional `--capture-tick N`. The back buffer is read back inside the draw call,
+*before* `Present()`, because that is the only moment at which "the frame this
+call composed" is still defined; the request is consumed once, and the process
+then exits on its own with code 0, or with code 16 if the capture itself failed
+(a capture failure is a diagnostic failure and deliberately does not touch the
+device-error path). `--capture-tick` is parsed rather than defaulted: a value
+that is not a non-negative integer exits 13 instead of silently capturing the
+first frame. The file is an uncompressed 24-bit BMP with no colour management,
+chosen so a gate can hash and measure it without an image library.
+
 Run `powershell -ExecutionPolicy Bypass -File native/tools/native_resilience_gate.ps1
 -Demo X:\path\sample.dem` to verify normal indexing, rejection of a truncated
 Demo, and safe startup with an explicitly missing TF2 root.

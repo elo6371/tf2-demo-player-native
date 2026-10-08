@@ -147,6 +147,15 @@ public:
   const RenderSettings& settings() const { return settings_; }
   HRESULT lastError() const { return lastError_; }
 
+  // Diagnostic capture. The back buffer is read back inside draw(), *before*
+  // Present(), so the file holds the frame this call actually composed -- not
+  // whatever the swap chain happens to leave behind afterwards. The request is
+  // consumed once; ask again if you want the next frame too.
+  void requestFrameCapture(std::wstring path);
+  bool frameCapturePending() const { return !capturePath_.empty(); }
+  bool lastFrameCaptureSucceeded() const { return captureSucceeded_; }
+  const std::wstring& lastFrameCaptureError() const { return captureError_; }
+
 private:
   struct CameraPreset {
     bool valid = false;
@@ -161,6 +170,7 @@ private:
   void releaseTarget();
   bool createTarget(UINT width, UINT height);
   bool createPipeline();
+  bool writeBackBufferToFile(const std::wstring& path);
 
   HWND window_ = nullptr;
   UINT width_ = 0;
@@ -248,6 +258,9 @@ private:
   WorldLightmapStatus worldLightmapStatus_ = WorldLightmapStatus::Unavailable;
   float worldLightmapIntensity_ = 1.0f;
   HRESULT lastError_ = S_OK;
+  std::wstring capturePath_;
+  bool captureSucceeded_ = false;
+  std::wstring captureError_;
 };
 
 } // namespace tf2::native

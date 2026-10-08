@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
 #include <cmath>
@@ -11,6 +12,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <unordered_map>
 
 namespace tf2::native {
@@ -1223,6 +1225,109 @@ void Renderer::resize(UINT width, UINT height) {
   else lastError_ = S_OK;
 }
 
+void Renderer::requestFrameCapture(std::wstring path) {
+  capturePath_ = std::move(path);
+  captureSucceeded_ = false;
+  captureError_.clear();
+}
+
+// Reads the swap chain's back buffer back to the CPU and writes it as an
+// uncompressed 24-bit BMP. Deliberately dumb: no encoder dependency, no colour
+// management, one file per call. The point is a byte-inspectable artefact a
+// gate can hash and measure, not a pretty picture.
+//
+// This deliberately does NOT touch lastError_: a capture failure is a
+// diagnostic failure, not a device failure, and must not send the main loop
+// down its device-removed recovery path.
+bool Renderer::writeBackBufferToFile(const std::wstring& path) {
+  if (!swapChain_ || !device_ || !context_) {
+    captureError_ = L"renderer is not initialised";
+    return false;
+  }
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
+  HRESULT result = swapChain_->GetBuffer(0, __uuidof(ID3D11Texture2D),
+    reinterpret_cast<void**>(backBuffer.GetAddressOf()));
+  if (FAILED(result)) { captureError_ = L"swap chain GetBuffer(0) failed"; return false; }
+  D3D11_TEXTURE2D_DESC desc{};
+  backBuffer->GetDesc(&desc);
+  const bool bgra = desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM;
+  if (!bgra && desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM) {
+    captureError_ = L"unsupported back buffer format";
+    return false;
+  }
+  D3D11_TEXTURE2D_DESC staging = desc;
+  staging.Usage = D3D11_USAGE_STAGING;
+  staging.BindFlags = 0;
+  staging.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+  staging.MiscFlags = 0;
+  staging.MipLevels = 1;
+  staging.ArraySize = 1;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> readback;
+  result = device_->CreateTexture2D(&staging, nullptr, readback.GetAddressOf());
+  if (FAILED(result)) { captureError_ = L"staging texture creation failed"; return false; }
+  context_->CopyResource(readback.Get(), backBuffer.Get());
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  result = context_->Map(readback.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+  if (FAILED(result)) { captureError_ = L"mapping the staging texture for read failed"; return false; }
+
+  const UINT width = desc.Width;
+  const UINT height = desc.Height;
+  const UINT rowBytes = width * 3;
+  const UINT padding = (4 - (rowBytes % 4)) % 4;
+  const UINT stride = rowBytes + padding;
+  const std::uint32_t imageBytes = static_cast<std::uint32_t>(stride) * height;
+  const std::uint32_t headerBytes = 14 + 40;
+  const std::uint32_t fileBytes = headerBytes + imageBytes;
+
+  bool ok = true;
+  std::FILE* file = nullptr;
+  // _wfopen_s rather than _wfopen: the main target builds at /W4 and the
+  // deprecation warning would move the chain's warning count off its pinned 1.
+  if (_wfopen_s(&file, path.c_str(), L"wb") != 0 || !file) {
+    captureError_ = L"could not open the output file";
+    ok = false;
+  } else {
+    std::uint8_t header[54] = {};
+    header[0] = 'B'; header[1] = 'M';
+    const std::uint32_t dataOffset = headerBytes;
+    const std::uint32_t dibSize = 40;
+    const std::uint16_t planes = 1;
+    const std::uint16_t bitsPerPixel = 24;
+    const std::uint32_t compression = 0;
+    std::memcpy(&header[2], &fileBytes, 4);
+    std::memcpy(&header[10], &dataOffset, 4);
+    std::memcpy(&header[14], &dibSize, 4);
+    std::memcpy(&header[18], &width, 4);
+    std::memcpy(&header[22], &height, 4);
+    std::memcpy(&header[26], &planes, 2);
+    std::memcpy(&header[28], &bitsPerPixel, 2);
+    std::memcpy(&header[30], &compression, 4);
+    std::memcpy(&header[34], &imageBytes, 4);
+    if (std::fwrite(header, 1, sizeof(header), file) != sizeof(header)) ok = false;
+
+    const auto* base = static_cast<const std::uint8_t*>(mapped.pData);
+    std::vector<std::uint8_t> row(stride, 0);
+    // BMP rows run bottom-up, so walk the source from its last row downwards.
+    for (UINT y = 0; ok && y < height; ++y) {
+      const auto* source = base + static_cast<std::size_t>(height - 1 - y) * mapped.RowPitch;
+      for (UINT x = 0; x < width; ++x) {
+        const std::uint8_t c0 = source[x * 4 + 0];
+        const std::uint8_t c1 = source[x * 4 + 1];
+        const std::uint8_t c2 = source[x * 4 + 2];
+        row[x * 3 + 0] = bgra ? c0 : c2;   // blue
+        row[x * 3 + 1] = c1;               // green
+        row[x * 3 + 2] = bgra ? c2 : c0;   // red
+      }
+      for (UINT p = 0; p < padding; ++p) row[rowBytes + p] = 0;
+      if (std::fwrite(row.data(), 1, stride, file) != stride) ok = false;
+    }
+    if (std::fclose(file) != 0) ok = false;
+    if (!ok) captureError_ = L"writing the output file failed";
+  }
+  context_->Unmap(readback.Get(), 0);
+  return ok;
+}
+
 bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   if (!context_ || !target_ || !swapChain_) return false;
   const float colour[4] = { clearRed, clearGreen, clearBlue, 1.0f };
@@ -1403,6 +1508,14 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     auto* modelConstants = modelSkinningConstants_.Get();
     context_->VSSetConstantBuffers(1, 1, &modelConstants);
     context_->Draw(modelVertexCount_, 0);
+  }
+  // Capture before Present: once Present has run the back buffer contents are
+  // no longer defined, so this is the only point at which "the frame we just
+  // composed" is still readable.
+  if (!capturePath_.empty()) {
+    const std::wstring path = capturePath_;
+    capturePath_.clear();
+    captureSucceeded_ = writeBackBufferToFile(path);
   }
   const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
   if (FAILED(result)) { lastError_ = result; return false; }
