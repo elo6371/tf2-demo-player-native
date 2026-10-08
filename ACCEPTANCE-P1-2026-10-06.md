@@ -1757,6 +1757,21 @@ FRAME-CAPTURE=PASS
 > **验收机器按设计抓住了作者自己的改动**，这是它该做的事，不是 bug。
 > 修正期望后重跑转绿。第 16 步的注释里现在写明了这 16 条是怎么数出来的。
 
+**整条 16 步链在 `e43a3f3` 上重跑并转绿**（`bash verify-all.sh --quick`）：
+
+```
+FRAME-CAPTURE=PASS (assertions_ok=16)
+FRAME-CAPTURE-MUTATION=PASS (a one-byte change moves the content hash)
+VERIFY=PASS
+```
+
+RC=0，**38m27s**，16 步全绿。逐步读数见 `evidence/verify/1..16-*.txt`，
+日志（gitignore）`.scratch/verify-run-16step-pass.log`。前 15 步的读数与上一轮 15 步链
+在实质数字上一致（构建 `errors=0 warnings=1 exe_count=21`、普查 9/9、fixture 58/58、
+`oracle-corpus agreed=8 mismatched=0`、`mutation red=40 hold=4`、`census-negative 24`、
+`trajectory compared=40 mismatches=0`、`history 1180 ≤ 2×761`、`weapon fixture_ok=12`、
+`observer 46`、`slot 24 chosenStale=0`、`source-tv 9 份 917543 包 47 断言`）。
+
 ### 16.6 变异：内容检查必须先能红
 
 `--mutation` 翻转图像**第一个像素的一个字节**，要求内容哈希察觉：

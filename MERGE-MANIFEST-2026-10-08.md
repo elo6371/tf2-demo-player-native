@@ -427,13 +427,48 @@ git clone <repo> <dir> && git config core.autocrlf false   # 错：工作区立�
 > 上一轮的锚点保留作对照（说明你手上是旧补丁）：补丁 sha256 `0b583685…`、
 > 合并后树对象 `ece80926…`；更旧一轮：`488fc828…` / `6ba1d19b…`。
 
-测试树状态：分支 `p0-entity-protocol`，工作区干净，`git status --porcelain -- native/` 为空。
+测试树状态：分支 `p0-entity-protocol`，**`native/` 干净**（`git status --porcelain -- native/` 为空），
+但 `evidence/` 下有 6 个文件带着**上一轮链条重跑留下的时值漂移**（见下）。
+
+### ⚠️ 证据里有 6 个文件「每次跑都会变」—— 变的全是时值，不是结论
+
+重跑链条会把这几个文件**重写一遍**，`git diff` 因此常驻非空。逐个核对过，**差异只在时值上**：
+
+| 文件 | 差异内容 | 结论性数字是否变 |
+|---|---|---|
+| `evidence/verify/1-build.txt` | 15 行 `?⒁? 包含文件: …`（MSVC `/showIncludes` 的追踪噪声） | **否**：`warning C` 条数 2 → 2、`errors=0` |
+| `evidence/verify/5-oracle-corpus.txt` | 各 demo 的 `xx.xs` 与 `wall_seconds` | **否**：`112172/112172`、`3030444/3030444`、`agreed=8 mismatched=0` 全部逐字未变 |
+| `evidence/oracle-corpus/oracle-corpus-summary.json` | `wall_seconds` 52.1 → 44.7 | **否**：`sampled/agreed/mismatched/sum_*` 未变 |
+| `evidence/frame-capture/paused.bmp.csv` | `elapsed_seconds`/`fps`/内存字节 | **否**：`tick=0`、`rendered_frames=1` |
+| `evidence/frame-capture/paused-again.bmp.csv` | 同上 | **否**：同上 |
+| `evidence/frame-capture/demo.bmp.csv` | 同上 | **否**：`tick=16`、帧数 0→1 |
+
+**为什么是这 6 个**：`oracle-corpus-check.py:143,204` 写的是
+`round(time.perf_counter() - started, 1)` —— **墙钟测量，本质不确定**；
+`1-build.txt` 的 include 行是 MSVC 的追踪输出，**顺序与内容也不确定**；
+三个 `.csv` 是 `--metrics-file` 的时值侧产物。**没有任何一处来自被测代码。**
+可机械复核（把「包含文件」行剔除后逐行比）：
+
+```bash
+diff <(git show e43a3f3:evidence/verify/1-build.txt | grep -v '包含文件') \
+     <(grep -v '包含文件' evidence/verify/1-build.txt)   # 无输出 = 除追踪外完全一致
+```
+
+> **合并建议**：这 6 个文件**要带过去（它们是证据），但不要因为 `git diff` 非空就以为
+> 代码变了**。判断代码有没有动，只看 `git diff --stat <基线>..HEAD -- native/`（§9 锚点）。
+> 若要让它们保持逐字节稳定，需要在生成脚本里把时值字段归一化（例如写 `wall_seconds=0`
+> 或集中到一个 `timings.json`）—— **本轮没做**，因为这会改动第 5 步的判据脚本，
+> 而那属于「改仪器去迁就证据外表」，得先问清楚再动。
+
 **最后一次碰 `native/` 的提交是 `3d03719`**（本轮）—— 用它做基线，**不要用「当前 HEAD」**
 （文档提交会一直把 HEAD 往前推：`290db52` → `23db4af` → `f9a1b0f` → `8aa3c95` → …，
 上面几个锚点却只在代码真变时才动，这正是「认基线用 blob 哈希」的用处）。
 
-**16 步链已在 `3d03719` 上重跑**（本轮把链条从 15 步拓到 16 步，新增帧抓取门禁）。
-读数见 §7 第 3 条与 `evidence/verify/1..16-*.txt`。上一轮 **15 步链在 `290db52` 上
-`VERIFY=PASS`**（RC=0，**36m20s**，15 步全绿）：第六轮只改了第 13 步门禁与文档、
-`native/` 一个字节未改，其余 14 步读数与 `18fe7ea` 那次**逐条相同**，
+**16 步链已在 `e43a3f3` 上重跑**（本轮把链条从 15 步拓到 16 步，新增帧抓取门禁）：
+**`VERIFY=PASS`**（RC=0，**38m27s**，16 步全绿）。**第一次跑 `3d03719` 是 `VERIFY=FAIL`，
+唯一红的是第 16 步** —— `verify-all.sh` 把断言数写死成 15 而门禁实际打印 16 条，
+**是验收机器抓住了作者自己的数错**（与 `3ca75ae` 同类），修正后转绿。
+读数见 §7 第 3 条与 `evidence/verify/1..16-*.txt`。
+上一轮 **15 步链在 `290db52` 上 `VERIFY=PASS`**（RC=0，**36m20s**，15 步全绿）：第六轮只改了
+第 13 步门禁与文档、`native/` 一个字节未改，其余 14 步读数与 `18fe7ea` 那次**逐条相同**，
 第 13 步按新期望（`assertions_ok=46`、变异 3/3 恰 3 行红）。

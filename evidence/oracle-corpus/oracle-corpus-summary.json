@@ -2,7 +2,7 @@
   "sampled": 8,
   "agreed": 8,
   "mismatched": 0,
-  "wall_seconds": 52.1,
+  "wall_seconds": 44.7,
   "sum_oracle_entities": 6512370,
   "sum_cpp_entities": 6512370,
   "recording_kinds": [

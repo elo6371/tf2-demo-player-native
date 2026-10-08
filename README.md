@@ -100,13 +100,19 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 且 `--start-paused` **不豁免**（音频设备在启动阶段就打开）。
 见 `ACCEPTANCE-P1-2026-10-06.md` §16 与 HANDOFF §1.8。
 
-**`VERIFY=PASS` 已在 `3d03719` 上取得**（**16 步** `bash verify-all.sh --quick`，
-读数在 `evidence/verify/1..16-*.txt`）。
+**`VERIFY=PASS` 已在 `e43a3f3` 上取得**（**16 步** `bash verify-all.sh --quick`，
+**38m27s**，RC=0，16 步全绿，读数在 `evidence/verify/1..16-*.txt`）。
+**这是第七轮的第二次跑** —— 第一次（`3d03719`）是 `VERIFY=FAIL`，**唯一红的是第 16 步**，
+原因是我把断言数写死成 15 而实际是 16：门禁自己打印 `FRAME-CAPTURE=PASS`，
+链条打印 `FRAME-CAPTURE=FAIL (assertions_ok=16)`，
+**是验收机器抓住了作者的数错，不是缺陷**（与 `3ca75ae` 那次同类）。
+修正期望后重跑转绿。第 16 步的注释现在写明了这 16 条是怎么数出来的。
 本轮相对上一次改了 **`native/` 三文件（帧抓取）**、新增第 16 步门禁 `frame-capture-check.sh`、
-把链条从 15 步拓到 16 步。逐步：`BUILD` / `CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` /
+把链条从 15 步拓到 16 步。逐步：`BUILD (errors=0 warnings=1 exe_count=21)` /
+`CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` /
 `ORACLE` / `ORACLE-CORPUS + selftest` / `RECORDING-TYPES` / `PROBE-ADDITIVE` /
 `MUTATION (red=40 hold=4)` / `CENSUS-NEGATIVE (pinned_reports=24)` /
-`TRAJECTORY-ORACLE (compared=40)` / `HISTORY-COVERAGE (worst 1180 ≤ 2×761)` /
+`TRAJECTORY-ORACLE (compared=40, mismatches=0)` / `HISTORY-COVERAGE (worst 1180 ≤ 2×761)` /
 `WEAPON-WORLD-MODEL (fixture_ok=12)` / `OBSERVER-FOCUS (46 断言, camera-to-target=45u)` + 变异 /
 `SLOT-FRESHNESS (24 断言, POV chosenStale=0)` + 变异 /
 `SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异 /
