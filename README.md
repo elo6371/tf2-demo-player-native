@@ -54,14 +54,21 @@ POV 实体 3 上 Local **冻在 51596 后再未更新**、NonLocal 每检查点�
 也能打印同样的零。新增门禁为验收链第 15 步（47 条断言 + 两个变异，各 9 行红）。
 见 `ACCEPTANCE-P0-2026-10-06.md` §0.8。
 
-**`VERIFY=PASS` 已在 `fefc216` 上取得**（**14 步** `bash verify-all.sh --quick`，
-30m35s，读数在 `evidence/verify/1..14-*.txt`；RC=0，14 步全绿）。
-**第一次跑（`3ca75ae`）是 `VERIFY=FAIL`**：唯一红的是第 8 步 —— 新增变异用例 `m11`
-把 `red/hold` 从 `37/3` 抬到 `40/4`，而第 8 步的期望是写死的；**这是验收机器按设计
-抓住了我自己的改动**，显式改计数后在 `fefc216` 转绿。
-上一轮 **`VERIFY=PASS` 在 `a1d5e8d` 上取得**（13 步，32m30s，读数
-`evidence/verify/1..13-*.txt`，`66cd97f` 只让链条多一步、不改前 13 步语义）。
-**更早一次跑（`c0ff710` + `0eca5ab`）是 `VERIFY=FAIL`**：红在第 9 步，
+**`VERIFY=PASS` 已在 `18fe7ea` 上取得**（**15 步** `bash verify-all.sh --quick`，
+**33m09s**，RC=0，15 步全绿，读数在 `evidence/verify/1..15-*.txt`）。
+逐步：`BUILD` / `CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` / `ORACLE` /
+`ORACLE-CORPUS + selftest` / `RECORDING-TYPES` / `PROBE-ADDITIVE` / `MUTATION (red=40 hold=4)` /
+`CENSUS-NEGATIVE (pinned_reports=24)` / `TRAJECTORY-ORACLE (compared=40)` /
+`HISTORY-COVERAGE (worst 1180 ≤ 2×761)` / `WEAPON-WORLD-MODEL (fixture_ok=12)` /
+`OBSERVER-FOCUS (39 断言, camera-to-target=45u)` + 变异 /
+`SLOT-FRESHNESS (24 断言, POV chosenStale=0)` + 变异 /
+**`SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异（各 9 行红）**。
+上一轮 **`VERIFY=PASS` 在 `fefc216` 上取得**（14 步，30m35s，读数
+`evidence/verify/1..14-*.txt`）。**第一次跑（`3ca75ae`）是 `VERIFY=FAIL`**：
+唯一红的是第 8 步 —— 新增变异用例 `m11` 把 `red/hold` 从 `37/3` 抬到 `40/4`，
+而第 8 步的期望是写死的；**这是验收机器按设计抓住了我自己的改动**，显式改计数后转绿。
+更早一次 **`VERIFY=PASS` 在 `a1d5e8d` 上取得**（13 步，32m30s）。
+而**更早的第一次跑（`c0ff710` + `0eca5ab`）是 `VERIFY=FAIL`**：红在第 9 步，
 原因在验收机器而非被测代码 —— `--sample 24` 抽的是**活的** Steam 语料目录，
 当晚新增两份 demo 让 24 个抽样落点整体移位，变异会全部空转（`native/` 一个字节没动）。
 `a1d5e8d` 把输入集钉成 `evidence/corpus-calib/demos.txt` 后转绿。见 §13。
@@ -70,7 +77,8 @@ POV 实体 3 上 Local **冻在 51596 后再未更新**、NonLocal 每检查点�
 重跑前请先确认 `git status --porcelain -- native/` 为空。
 
 - 源目录 `D:\TF2_Demo_Player` **本次未改动**（`work/native-mvp-source` 仍是
-  `d585af8`，`git status` 干净）。
+  `d3e2b7c`，`git status` 干净；该提交由**另一路 AI 会话**写入，只改 `native/docs/`
+  3 个 markdown，**一个代码文件都没动** —— 合并补丁对它也干净，见 `MERGE-MANIFEST` §6.1）。
 - 本目录由 `git archive d585af8 native | tar -x` 建立，独立 git 仓库，
   分支 `p0-entity-protocol`。
 

@@ -1,14 +1,18 @@
 # 合并清单（给整合 AI）— 2026-10-08
 
 > **一句话**：源码改动只有 **12 个提交 / 16 个文件 / +3684 −242**，已实测能干净应用到主线
-> `d585af8`（16/16 文件，0 error）；**其余 219 个路径全是源码之外的东西**（判据脚本、证据、文档），
+> `d585af8`（16/16 文件，0 error）；**其余 229 个路径全是源码之外的东西**（判据脚本、证据、文档），
 > 它们不进产品，但**没有它们就无法复核这批源码**。
 >
 > 本清单里的每条结论都做过实测，命令与预期读数写在 §6/§7。
 >
-> 修订记录：2026-10-08 第二轮（实体属性选槽新鲜度，`d61b3d6` + `66cd97f`）后重测并更新 ——
-> 源码提交 10 → 12、路径 216 → 235、补丁树对象 `6ba1d19b…` → `ece80926…`、补丁 sha256
-> `488fc828…` → `0b583685…`。**§6 的两条路径都按新数字重跑过。**
+> 修订记录：
+> - 2026-10-08 第二轮（实体属性选槽新鲜度，`d61b3d6` + `66cd97f`）后重测并更新 ——
+>   源码提交 10 → 12、路径 216 → 235、补丁树对象 `6ba1d19b…` → `ece80926…`、补丁 sha256
+>   `488fc828…` → `0b583685…`。**§6 的两条路径都按新数字重跑过。**
+> - 2026-10-08 晚第三轮（真实 SourceTV 覆盖，`18fe7ea`）后更新 —— **这一轮一个 `native/`
+>   文件都没动**，所以补丁 sha256 与合并后树对象**逐字节未变**（§9 已复核）；
+>   变的只有外围：路径 235 → **245**、判据脚本 20 → **21**、验收链 14 → **15** 步。
 
 ---
 
@@ -33,22 +37,24 @@
 
 ## 2. 源码 vs 外围：分界
 
-`git diff --name-status 7ab4e72..HEAD` 一共 **235 个路径**：
+`git diff --name-status 7ab4e72..HEAD` 一共 **245 个路径**：
 
 | 类别 | 文件数 | 进产品？ | 说明 |
 |---|---|---|---|
 | `native/`（源码） | 16 | **是** | 12 个提交，+3684 −242 |
-| 判据脚本（仓库根） | 20 | 否 | 15 个 `.sh` + 5 个 `.py`，复核源码用，不参与产品构建 |
+| 判据脚本（仓库根） | 21 | 否 | 16 个 `.sh` + 5 个 `.py`，复核源码用，不参与产品构建 |
 | 文档 | 7 | 否 | 验收/交接文档 |
-| 证据 `evidence/` | 190 | 否 | 读数与产物（含冻结基线） |
+| 证据 `evidence/` | 199 | 否 | 读数与产物（含冻结基线） |
 | `.gitignore` + `fix-P0-entity-messages.patch` | 2 | 视情况 | `.gitignore` 与主线**冲突**（见 §6.2） |
 
-`merge-patches/` 里的 12 份补丁**不计入这 235**（已 gitignore，随时可用
+`merge-patches/` 里的 12 份补丁**不计入这 245**（已 gitignore，随时可用
 `git diff 7ab4e72..HEAD -- native/` 重新生成）。
 
-**提交总数 `7ab4e72..HEAD` = 40**，其中**只有 12 个碰 `native/`**。
-剩下 28 个是纯文档/证据/判据提交 —— 判断源码有没有被动过要看
+**提交总数 `7ab4e72..HEAD` = 42**，其中**只有 12 个碰 `native/`**。
+剩下 30 个是纯文档/证据/判据提交 —— 判断源码有没有被动过要看
 `git log --oneline 7ab4e72..HEAD -- native/`，不要数提交条数。
+（**2026-10-08 晚那一轮就是纯外围**：`3a935a3` 文档 + `18fe7ea` 判据，
+`git diff --stat c0ff710..HEAD -- native/` 仍为空。）
 
 ---
 
@@ -99,7 +105,7 @@
 
 | 脚本 | 用途 |
 |---|---|
-| `verify-all.sh` | **一条命令跑完 14 步验收链**，末行 `VERIFY=PASS`/`FAIL`。支持 `--quick` |
+| `verify-all.sh` | **一条命令跑完 15 步验收链**，末行 `VERIFY=PASS`/`FAIL`。支持 `--quick` |
 | `mutate.sh` | 变异套件：改源码证明读数能变红，跑完 `git checkout -- native/` 恢复。**有干净树守卫** |
 | `build-cmake.sh` / `build-target.sh` / `env-msvc.sh` | 本机 CMake 构建（`vcvars64.bat` 不可用，见 §8） |
 | `run-demos.sh` | 对 9 份本地 demo 跑探针普查 |
@@ -112,6 +118,7 @@
 | `weapon-world-model-check.sh` | 武器不能被画成手臂（fixture + 两 demo + oracle 见证） |
 | `observer-focus-check.sh` | 观察目标解析 + oracle 见证 + 「跟着走要偏 45 单位」的分歧读数（**第二轮由 2729 变成 45**）；`--mutation` 在脚本内 |
 | `slot-freshness-check.sh` | **选槽必须取后写的那个槽**：fixture 4 形状（含平局/无 tick 回落 + 渲染 API 一致）+ POV/bagel 对照 + 规则影响面（哪五个属性被复制）；`--mutation` 在脚本内 |
+| `source-tv-coverage-check.sh` | **本机全部 9 份真实 SourceTV 录制整份解码**，逐份断言录制类型（头字段＋流内）、`index_tail_bytes` **等于文件字节数**（证明读完了整份）、钉住的包数/地图、以及四类零失败；`--mutation` 两个扰动各要求恰好 9 行红 |
 | `oracle-corpus-check.py` | 在语料抽样上与 oracle 对照（带 selftest） |
 | `corpus-census.py` | 全语料普查（`--demos-list` 钉输入集；`--workers 3 --resume`） |
 | `corpus-header-scan.py` | 只读头的全语料普查 |
@@ -119,8 +126,10 @@
 | `run-corpus-evidence.sh` | 两个长语料运行，按顺序 |
 
 **硬依赖（合并后必须保留）**：`verify-all.sh` 按**相对路径**调用上述所有脚本，
-并且第 11/12/13/14 步分别调用 `history-coverage-check.sh` / `weapon-world-model-check.sh` /
-`observer-focus-check.sh` / `slot-freshness-check.sh`。缺一个，链条就断。
+并且第 11/12/13/14/15 步分别调用 `history-coverage-check.sh` / `weapon-world-model-check.sh` /
+`observer-focus-check.sh` / `slot-freshness-check.sh` / `source-tv-coverage-check.sh`。
+缺一个，链条就断。第 15 步还依赖**本机的 9 份 SourceTV 录制**
+（`D:/SteamLibrary/.../tf/demos/`，见 §7 第 5 条）。
 
 ---
 
@@ -137,22 +146,23 @@
 | `MERGE-MANIFEST-2026-10-08.md` | 本文件 |
 | `README.md` | 索引 + 当前状态 |
 
-**证据 `evidence/`（190 个 tracked）**
+**证据 `evidence/`（199 个 tracked）**
 
 | 目录 | tracked | 是什么 |
 |---|---|---|
 | `evidence/mutation/` | 49 | 变异运行的红色读数（证明判据能红） |
 | `evidence/after-fix/` | 27 | P0 修复后的探针 + oracle 对照 |
-| `evidence/verify/` | 18 | **14 步链的逐步原始输出**（`1-build.txt` … `14-slot-freshness.txt`） |
+| `evidence/verify/` | 20 | **15 步链的逐步原始输出**（`1-build.txt` … `15-source-tv-coverage.txt`） |
 | `evidence/observer-focus/` | 13 | 观察目标门禁原始读数 |
 | `evidence/probe-baseline/` | 11 | **冻结基线**（9 份探针报告 + 新增行基线）。增量性检查拿它当参照，**不要用新运行覆盖** |
 | `evidence/final/` | 10 | P0 最终态探针报告 |
 | `evidence/baseline/` | 9 | P0 修复前的对照 |
+| `evidence/source-tv-coverage/` | 9 | **9 份真实 SourceTV 的完整探针输出**（不重跑就复核时读这里） |
 | `evidence/weapon-world-model/` | 8 | 武器世界模型门禁原始读数 |
 | `evidence/p1/` | 8 | P1 单点复现读数 |
 | `evidence/slot-freshness/` | 7 | 选槽新鲜度门禁原始读数（POV 逐候选 `rank/name/lastWrite/age` + bagel 对照） |
 | `evidence/history-coverage/` | 3 | 历史覆盖门禁读数 |
-| `evidence/header-scan/` | 2 | 只读头的语料普查 |
+| `evidence/header-scan/` | 2 | 只读头的语料普查（**9 份 SourceTV 的名单出自这里**） |
 | `evidence/corpus-calib/` | 2 | `demos.txt`（**钉住的 24 份输入集**）+ `corpus-summary.json` |
 | `evidence/corpus-negative/` | 2 | 普查判据的失败清单与汇总 |
 | `evidence/oracle-corpus/` | 1 | oracle 语料抽样汇总 |
@@ -204,6 +214,9 @@ git apply         /d/TF2_Native_Test/merge-patches/00-native-combined.patch
 - **并且对主线当前 HEAD 也干净**：`git apply --check` 在
   `d3e2b7c docs(native): record P0 P1 merge review` 上同样通过（16/16），
   应用后逐个比对 16 个文件的 blob 哈希，**identical=16 differs=0**
+- **2026-10-08 晚复核**：那一轮改了 12 个外围路径、**0 个 `native/` 文件**，
+  所以补丁 sha256 与合并后树对象**与上一行逐字节相同**（§9）。也就是说
+  **合并清单里唯一没有随本轮变动的，恰好是真正要进产品的那部分。**
 
 > ⚠️ **主线已经不是我上次记的 `d585af8` 了。** 现在是 `d3e2b7c`（`d585af8` 的后继），
 > 作者仍是 `Codex Native`，提交时间 `Thu Oct 8 12:42:31 2026 +0800` ——
@@ -221,7 +234,7 @@ git apply         /d/TF2_Native_Test/merge-patches/00-native-combined.patch
 用 `git -c core.autocrlf=false archive …` 解，或直接
 `git clone -c core.autocrlf=false`。**行尾差异不是内容差异**，先看树对象对不对再怀疑补丁。
 
-### 6.2 路径 B：合并全部 40 个提交（含判据与证据）
+### 6.2 路径 B：合并全部 42 个提交（含判据与证据）
 
 ```bash
 git clone -c core.autocrlf=false "D:/TF2_Demo_Player/work/native-mvp-source" work
@@ -253,6 +266,15 @@ git cherry-pick 658ae69 226d119 22dc465 8c6f06e 4868e7b 9316416 \
 > 也就是说**不会新增冲突文件**，但这是推理，不是重跑的读数。
 > 另注：主线 `d3e2b7c` 已经改过 `native/docs/` 里的 3 个 markdown，
 > 而测试树里也有同名的旧版本，**这 3 个文件合并时会冲突，取主线版本**。
+>
+> **第三轮补充（2026-10-08 晚，`3a935a3` + `18fe7ea`）**：这两个提交**同样没有**重跑
+> 路径 B。它们新增的文件只有 `source-tv-coverage-check.sh` 与
+> `evidence/source-tv-coverage/*.txt`、`evidence/verify/15-*.txt` —— 全是**测试树专有**的
+> 新文件，主线里不存在，所以按上面的原则「取测试树版本」即可，
+> **不会产生新的冲突类型**。仍然是推理，不是读数。
+>
+> **一句话给整合者**：路径 A（只并 `native/`，16 文件）已经实测干净且本轮未变；
+> 路径 B 需要真跑一遍才能确认冲突清单，**别照抄这份清单，跑完再改它**。
 
 ### ⚠️ `core.autocrlf` 陷阱（踩过，写下来）
 
@@ -277,18 +299,25 @@ git clone <repo> <dir> && git config core.autocrlf false   # 错：工作区立�
 2. **重跑变异套件**。`mutate.sh` 靠**文本模式匹配**改源码；任何格式化/重排都会让
    某个用例 `PATTERN NOT FOUND` → 用例被 `continue` 跳过 → 断言数悄悄变少而
    `MUTATION-SUITE=PASS` 照样打印。**这是本项目抓到过的真实事故。**
-3. **重跑 14 步链**，确认末行仍是 `VERIFY=PASS`：
+3. **重跑 15 步链**，确认末行仍是 `VERIFY=PASS`：
    ```bash
    git status --porcelain -- native/     # 必须为空（mutate.sh 的干净树守卫）
-   bash verify-all.sh --quick            # 约 32 分钟
+   bash verify-all.sh --quick            # 约 35 分钟
    ```
    预期：`CENSUS-NEGATIVE=PASS (pinned_reports=24)`、
    `OBSERVER-FOCUS=PASS (assertions_ok=39, camera-to-target=45u)`、
-   `SLOT-FRESHNESS=PASS (assertions_ok=24, POV chosenStale=0)`、`VERIFY=PASS`。
-   （链条现为 **14 步**；第 13 步那个数在第二轮由 2729 变成 45。）
+   `SLOT-FRESHNESS=PASS (assertions_ok=24, POV chosenStale=0)`、
+   `SOURCE-TV-COVERAGE=PASS (demos=9 packets=917543 assertions_ok=47)`、`VERIFY=PASS`。
+   （链条现为 **15 步**；第 13 步那个数在第二轮由 2729 变成 45；第 15 步在第三轮加入。）
 4. **检查 `evidence/probe-baseline/` 是否仍是旧二进制的产物**。它是**冻结基线**；
    如果你改了探针的输出格式，增量性检查会（正确地）变红 —— 那是要你确认的行为变化，
    不是 bug。要更新基线得用 `--refresh-added` 并重新提交。
+5. **第 15 步需要本机那 9 份 SourceTV 录制**（`D:/SteamLibrary/.../tf/demos/` 下的
+   `73.dem`、`SUNSHINE.dem`、`gullyscout.dem`、`proc2.dem`、`processdemo.dem`、
+   `prodcutscout.dem`、`review1.dem`、`review12.dem`、`review44.dem`，共 664 MB）。
+   缺任何一份 → 该份记 **FAIL**（不是 SKIP），链条红。这是刻意的：
+   覆盖门禁在输入缺失时必须是红的，否则它就成了一个装饰。
+   录制的原始读数留在 `evidence/source-tv-coverage/`，不重跑也能看。
 
 ---
 
@@ -314,15 +343,23 @@ git clone <repo> <dir> && git config core.autocrlf false   # 错：工作区立�
 | 范围 | `sha256` |
 |---|---|
 | `git diff 7ab4e72..HEAD -- native/`（全部源码改动） | `0b583685f64c3a70b8a86b1cdc32ef3f0b49f9d3c943d01339581eae2979551e` |
-| `merge-patches/00-native-combined.patch`（与上一行同一份字节） | `0b583685f64c3a70b8a86b1cdc32ef3f0b49f9d3c943d01339581eae2979551e` |
+| `merge-patches/00-native-combined.patch`（与上一行同一份字节，245595 B） | `0b583685f64c3a70b8a86b1cdc32ef3f0b49f9d3c943d01339581eae2979551e` |
 | `native/` 树对象（合并后应与测试树相同） | `ece809267c627eb2b35868d479fd245fbe54f02f` |
 | 基线 `native/` 树对象（两边同源，= `7ab4e72:native` = `d585af8:native`） | `887a2f31b9d0097438f44392464ad139133e1efc` |
 
 > **本机 exe 哈希不可复现**（两次强制重链接差 2 字节）→ 用**源码补丁哈希 + 读数**做锚点，
 > 不要用 exe 哈希。
 >
+> **2026-10-08 晚第三轮的复核**：这一轮改了 12 个外围路径、0 个 `native/` 文件，
+> 所以上面四个锚点**逐字节与第二轮相同**（重跑过：
+> `git diff 7ab4e72..HEAD -- native/ | sha256sum` 与
+> `sha256sum merge-patches/00-native-combined.patch` 都是 `0b583685…`，
+> `git rev-parse HEAD:native` 仍是 `ece80926…`）。
+> **合并清单里唯一没有随本轮变动的，恰好是真正要进产品的那部分。**
+>
 > 上一轮的锚点（10 个提交时）保留作对照：补丁 sha256 `488fc828…`、
 > 合并后树对象 `6ba1d19b…`。**看到这两个值说明你手上是旧补丁。**
 
-测试树当前状态：HEAD = `79ffc8b`，分支 `p0-entity-protocol`，工作区干净，
-13 步链 `VERIFY=PASS`。
+测试树当前状态：HEAD = `18fe7ea`，分支 `p0-entity-protocol`，工作区干净，
+`git status --porcelain -- native/` 为空，15 步链的读数见 §7 第 3 条与
+`evidence/verify/1..15-*.txt`。

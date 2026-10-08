@@ -1,0 +1,52 @@
+source-tv-coverage-check  demos_dir=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos
+
+  OK   A1 recording type 73.dem: header+stream=SourceTV
+  OK   A2 STV signals 73.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file 73.dem: index_state=ok tail_bytes=106397681
+  OK   A4 pinned input 73.dem: packets_scanned=112175 map=koth_ashville_final1
+  OK   A5 zero failures 73.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type SUNSHINE.dem: header+stream=SourceTV
+  OK   A2 STV signals SUNSHINE.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file SUNSHINE.dem: index_state=ok tail_bytes=82759239
+  OK   A4 pinned input SUNSHINE.dem: packets_scanned=120929 map=cp_sunshine
+  OK   A5 zero failures SUNSHINE.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type gullyscout.dem: header+stream=SourceTV
+  OK   A2 STV signals gullyscout.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file gullyscout.dem: index_state=ok tail_bytes=76066801
+  OK   A4 pinned input gullyscout.dem: packets_scanned=120929 map=cp_gullywash_f9
+  OK   A5 zero failures gullyscout.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type proc2.dem: header+stream=SourceTV
+  OK   A2 STV signals proc2.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file proc2.dem: index_state=ok tail_bytes=38541519
+  OK   A4 pinned input proc2.dem: packets_scanned=61544 map=cp_process_f12
+  OK   A5 zero failures proc2.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type processdemo.dem: header+stream=SourceTV
+  OK   A2 STV signals processdemo.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file processdemo.dem: index_state=ok tail_bytes=81960416
+  OK   A4 pinned input processdemo.dem: packets_scanned=120904 map=cp_process_f12
+  OK   A5 zero failures processdemo.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type prodcutscout.dem: header+stream=SourceTV
+  OK   A2 STV signals prodcutscout.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file prodcutscout.dem: index_state=ok tail_bytes=62389932
+  OK   A4 pinned input prodcutscout.dem: packets_scanned=88307 map=koth_product_final
+  OK   A5 zero failures prodcutscout.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type review1.dem: header+stream=SourceTV
+  OK   A2 STV signals review1.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file review1.dem: index_state=ok tail_bytes=82903524
+  OK   A4 pinned input review1.dem: packets_scanned=91247 map=koth_ashville_final1
+  OK   A5 zero failures review1.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type review12.dem: header+stream=SourceTV
+  OK   A2 STV signals review12.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file review12.dem: index_state=ok tail_bytes=80261474
+  OK   A4 pinned input review12.dem: packets_scanned=120917 map=cp_reckoner
+  OK   A5 zero failures review12.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type review44.dem: header+stream=SourceTV
+  OK   A2 STV signals review44.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file review44.dem: index_state=ok tail_bytes=53569778
+  OK   A4 pinned input review44.dem: packets_scanned=80591 map=cp_sultry_b8a
+  OK   A5 zero failures review44.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   W1 demos read: 9/9
+  OK   W2 packets covered: 917543 (floor 900000)
+
+demos_read=9 packets_scanned=917543 entity_failures=0 assertions_ok=47 assertions_fail=0
+SOURCE-TV-COVERAGE=PASS (demos=9 packets=917543 assertions_ok=47)

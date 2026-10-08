@@ -270,6 +270,9 @@ MUTATION-CAUGHT=PASS (2/2 perturbations caught, red_rows=18)
 「恰好 9」而不是「至少 1」是刻意的：一个把所有份都染红、或一份都不染红的扰动，
 都证明不了比较是**逐份**的。
 
+**整条链**：15 步在 `18fe7ea` 上跑完，`VERIFY=PASS`（RC=0，33m09s，15 步全绿，
+读数 `evidence/verify/1..15-*.txt`）。
+
 **未验证 / 已知限制**：
 
 - **POV 侧的全量普查仍未跑。** 本轮只扩大 SourceTV 覆盖，因为那正是审查点名的洞；
