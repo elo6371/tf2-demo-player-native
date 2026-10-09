@@ -112,12 +112,10 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 且 `--start-paused` **不豁免**（音频设备在启动阶段就打开）。
 见 `ACCEPTANCE-P1-2026-10-06.md` §16 与 HANDOFF §1.8。
 
-**`VERIFY=PASS` 已在 `cfd6637` 上取得**（**17 步** `bash verify-all.sh`，**1h08m36s**，
-RC=0，17 步全绿，读数在 `evidence/verify/1..17-*.txt`）。
-**这是 17 步链的第一次跑完**：上一次（01:39）**死在第 8 步中间**，
-`mutate.sh: fork: retry: Resource temporarily unavailable` —— 机器上有 **456 个进程**，
-Git Bash 的 fork 槽耗尽；**是被测机器没跑完，不是判据变红**（同一份代码上一轮 16 步全绿）。
-本次在负载回落后重跑，第 8 步（变异套件）顺利跑完。
+**`VERIFY=PASS` 已在 `c84e32d` 上取得**（**17 步** `bash verify-all.sh`，**1h16m16s**，
+RC=0，17 步全绿，读数在 `evidence/verify/1..17-*.txt`）。本轮相对上一次（`cfd6637`，
+1h08m36s）**只改了第 17 步的探针**（加反事实读数）与门禁断言数（9 → 12），
+17 步链在新基线上**重跑复核通过**。
 逐步：`BUILD (errors=0 warnings=1 exe_count=23)` / `CENSUS 9/9` / `COVERAGE 9/9` /
 `FIXTURE 58/58` / `ORACLE` / `ORACLE-CORPUS (pinned_sample=24 of 24 pinned) + selftest` /
 `RECORDING-TYPES` / `PROBE-ADDITIVE` /
@@ -128,12 +126,18 @@ Git Bash 的 fork 槽耗尽；**是被测机器没跑完，不是判据变红**�
 `SLOT-FRESHNESS (24 断言, POV chosenStale=0 worstAge=124)` + 变异（2/2） /
 `SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异（2/2） /
 `FRAME-CAPTURE (18 断言)` + 变异（一字节改动移动内容哈希） /
-`RESOURCE-REACHABILITY (9 断言)` + 变异（错档案数变红）。
-⚠️ **本轮第 5 步的输入集也改成了钉住的**（`cfd6637`）：它原本和已修过的第 9 步
+**`RESOURCE-REACHABILITY (12 断言, cap 1024 → 193875/200000)` + 变异（错档案数变红）**。
+**接材质的第一刀已量**（`c84e32d`）：把 `main.cpp:775` 的 512 世界图集上限抬到 1024，
+`cp_snakewater_final1` 的三角形覆盖从 **30731/200000（15.4%）** 跳到
+**193875/200000（96.9%）** —— **瓶颈就是 512 这个整数，不是接线**；
+无上限只到 199227，剩下 773 个三角形引用的材质根本没解到像素（真实安装缺口）。
+⚠️ **第 5 步的输入集已改成钉住的**（`cfd6637`）：它原本和已修过的第 9 步
 **共用同一个 `sorted(glob())` 抽样活目录**的写法，语料 1656 → 1658 让八份抽样
 整体移位 —— 但第 5 步只比较**计数**，所以**继续报绿**的同时产出了一份不可复现的证据。
 详见 `ACCEPTANCE-P1-2026-10-06.md` §13.9。
-上一次 **`VERIFY=PASS` 在 `e43a3f3` 上取得**（16 步，38m27s）。
+上一次 **`VERIFY=PASS` 在 `cfd6637` 上取得**（17 步，1h08m36s，**17 步链第一次跑完**；
+其前一次跑到 01:39 因机器 fork 耗尽死在第 8 步中间，非判据红）。
+更早 **`VERIFY=PASS` 在 `e43a3f3` 上取得**（16 步，38m27s）。
 上一次 **`VERIFY=PASS` 在 `290db52` 上取得**（15 步，36m20s）。
 更早 **`VERIFY=PASS` 在 `18fe7ea` 上取得**（15 步，**33m09s**）。
 上一轮 **`VERIFY=PASS` 在 `fefc216` 上取得**（14 步，30m35s，读数
@@ -176,7 +180,7 @@ Git Bash 的 fork 槽耗尽；**是被测机器没跑完，不是判据变红**�
 | `evidence/source-tv-coverage/` | 上述门禁的原始读数：9 份 demo 各自的完整探针输出（`<name>.txt`）。不重跑就复核时读这里 |
 | `frame-capture-check.sh` | **帧抓取门禁**（验收链第 16 步）：从运行中的程序抓一帧（`draw()` 内、`Present()` 之前读 back buffer，写未压缩 24 位 BMP），断言 BMP 头与自身字节数自洽、同场景两次**逐字节相同**、**两个** demo 场景与暂停场景**不同**、非法 `--capture-tick` **退出 13**；**缺输入记 FAIL 不记 SKIP**。`--mutation` 翻转图像一字节，要求内容哈希察觉。**18 条断言**。⚠️ 2026-10-08 起加了第二个 demo（`cp_snakewater_final1`，本机有装地图）与「色彩多样性 < 1000」判据 —— 原先唯一那个 demo 的地图本机没装，抓到的「demo 帧」其实是回退四边形贴的喷漆图 |
 | `evidence/frame-capture/` | 上述门禁的原始产物：`paused.bmp` / `paused-again.bmp` / `demo.bmp` / `demo-installed-map.bmp` 及各自 `.log` / `.csv`（实测暂停 sha256 `ab0bc11e…`、bagel sha256 `fa1bb194…`、snakewater sha256 `18447d16…`；色彩多样性 69 / 162 / 139121）。**这是「接材质前后画面变没变」的唯一对照基线**（`mutated.bmp` 由脚本从 `paused.bmp` 现生成，已 gitignore） |
-| `resource-reachability-check.sh` | **资源可达性门禁**（验收链第 17 步）：断言主程序硬编码的 5 个 VPK 里**实际打开了几个**（`pak01_dir.vpk` 本机缺失，`main.cpp:647` 会**静默跳过**）、demo 地图的 BSP 取不取得到、它的材质有多少能解到像素、多少能过 `main.cpp:775` 的 **512×512 世界图集上限**、覆盖多少三角形，外加**负面对照**（旧门禁那个 demo 的地图必须取不到）。**9 条断言 + 变异**。`--mutation` 把期望档案数改成 5，要求变红 |
+| `resource-reachability-check.sh` | **资源可达性门禁**（验收链第 17 步）：断言主程序硬编码的 5 个 VPK 里**实际打开了几个**（`pak01_dir.vpk` 本机缺失，`main.cpp:647` 会**静默跳过**）、demo 地图的 BSP 取不取得到、它的材质有多少能解到像素、多少能过 `main.cpp:775` 的 **512×512 世界图集上限**、覆盖多少三角形，外加**负面对照**（旧门禁那个 demo 的地图必须取不到），以及**反事实读数**（`triangleCoverageByCap`：把上限抬到 1024/2048/无上限各覆盖多少三角形，用于**归因**是上限还是接线丢了画面）。**12 条断言 + 变异**。`--mutation` 把期望档案数改成 5，要求变红 |
 | `evidence/resource-reachability/` | 上述门禁的原始 JSON：`snakewater.json`（有装地图，`bspSource=loose`，148 材质 / 111 可解 / 7 过上限 / 30731 三角形）与 `bagel.json`（`bspBytes=0`，负面对照） |
 | `native/tools/resource_reachability_probe.cpp` | 上条门禁的仪表：不建窗口、不载 demo，直接报资源可达性。用法 `resource_reachability_probe <tfRoot> <mapStem> [materialName]`，stdout 单行 JSON |
 | `native/tools/vpk_query.cpp` | 辅助仪表：按 `list(prefix, ext)` 统计每个档案下的条目数。⚠️ `VpkArchive::list` 是**路径前缀**匹配，`list("concrete")` 恒为 0，必须写 `list("materials/concrete")` |
