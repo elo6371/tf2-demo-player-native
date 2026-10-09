@@ -153,11 +153,88 @@ RC=0，17 步全绿，读数在 `evidence/verify/1..17-*.txt`）。本轮相对�
 `aa93926`（11 步）与 `a2c584f`（9 步）两次运行同为对照。
 重跑前请先确认 `git status --porcelain -- native/` 为空。
 
+2026-10-09 第十轮：**主循环空转**（`5ae6c10` 代码 + 门禁，读数在 `79c18ee` 上）。
+缺陷是一行：`const DWORD waitMs = static_cast<DWORD>(std::max(0.0, std::min(remainingMs, 1.0)));`
+—— 等一个**还没到点**的帧时，等的是 1 ms 的切片而不是「到点为止」，每个切片都把整个循环体
+对**没有变化的状态**重跑一遍。此前 17 步全部读的都是程序**产出**了什么（计数、解码值、
+抓到的像素、解到的资源），**没有一步能看见循环在烧 CPU**，因为热循环产出的是同样的东西。
+判据读的是**等待本身**（`mean_wait_ms`，修复后实测 8.97 ms、变异版 1.00 ms），
+不是派生的速率：`main_loop_iterations / rendered_frames` 在**本机没有判别力** ——
+帧目标是 120 Hz（8.33 ms）而循环体自己就要几毫秒，两个版本都落在 ~2 迭代/帧，
+所以它只作为诊断打印、**刻意不断言**（是 `--mutation` 把这件事抓出来的）。
+另外两条断言独立于等待路径：状态驱动的两个更新器在无变化时必须远低于循环计数、metrics 节流必须成立。
+门禁 `idle-spin-check.sh`，**11 条断言**，`--mutation` 把那一行改回去并要求 `mean_wait_ms` 变红；
+它需要**已提交的树**，因为还原机制是 `git checkout`。链扩到 **18 步**，
+`VERIFY=PASS` 在 `79c18ee` 上取得（**1h19m40s**，证据 `6fe6cdc`）。
+
+2026-10-09 第十一轮：**实体属性查找（P1 第二条的性能面）**，`665c0e9`（代码）+ `3a890ce`（门禁）。
+`EntityModelResolver::buildInstances` 的**类回退扫描**原本对每个名字像玩家的实体都先
+`extractTransform()`，再问它有没有可用的玩家职业；而 `extractTransform` 会按每个后缀把
+整张属性表扫一遍，所以一个注定被丢弃的实体也要付全部代价。改法是**先问便宜的问题**：
+一次 `findProperty(state, "m_iClass")`（后缀与 1..9 取值区间都和 `extractTransform` 一致），
+通过的才付 transform。**实例集合必须一点不动**——省的是工，不是结果。
+读数：夹具 `fixtureTransforms 7→6`、`fixturePropertyComparisons 24→19`、
+`fixtureClassLookups 0→1`，而 `fixtureInstanceCount` **6→6**。
+新增门禁 `entity-property-lookup-check.sh` 为验收链**第 19 步**（10 条断言 + 变异，
+变异删掉前置判断后要求夹具读回 7/24/0）。
+
+⚠️ **这一处在真实 demo 上的收益是 0，而且是被判据钉住的 0**：九份 demo 里每个玩家实体
+**都已经带渲染请求**，扫描全部被 `covered` 判断挡在门口，`resolverFallbackScanned=0`。
+第 19 步因此把「demo 上必须读到 0」也写成断言 —— 哪天某份 demo 开始走到这条路径，
+是这个文件先说话，而不是收益悄悄变了。所以这轮的正确表述是
+**「在夹具上省了恰好一次完整 transform 和五次属性比较」**，不是「更快了」。
+
+2026-10-09 第十二轮：**验收流程分级**（本文件新增「分级验收」一节）。
+见下节。
+
 - 源目录 `D:\TF2_Demo_Player` **本次未改动**（`work/native-mvp-source` 仍是
   `d3e2b7c`，`git status` 干净；该提交由**另一路 AI 会话**写入，只改 `native/docs/`
   3 个 markdown，**一个代码文件都没动** —— 合并补丁对它也干净，见 `MERGE-MANIFEST` §6.1）。
 - 本目录由 `git archive d585af8 native | tar -x` 建立，独立 git 仓库，
   分支 `p0-entity-protocol`。
+
+## 分级验收
+
+**一小时链是合并/发布门禁，不是日常门禁。** 19 步里有 12 步要整份解码 demo、跑独立
+oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改的这个文件还编不编得过」，
+而为一个一文件改动付一小时，结果是这一轮里只有两次验收跑、中间什么都没有。
+
+按改动能波及多大范围选档：
+
+| 档 | 命令 | 耗时 | 什么时候跑 |
+|---|---|---|---|
+| 1 | `bash verify-fast.sh` | 33–37 s（两次实测） | **每次小改动**：增量构建主程序 + 五个自检探针，跑各自 `--self-test`（36 条断言） |
+| 2 实体 | `bash verify-entity.sh` | 10m59s（实测） | 实体解码 / 摆放这一块做完（5 个门禁 + 58 真相干 + 单份真 demo 的 oracle 对照 = 8 项） |
+| 2 渲染 | `bash verify-render.sh` | 3m37s（实测） | 材质 / VTF / BSP / 画面这一块做完（4 项） |
+| 2 音频 | `bash verify-audio.sh` | 约 10 s | 音频这一块做完（28 条断言，全走注入 sink，不开真设备） |
+| 3 | `bash verify-all.sh` | ~80 min | **合并主线、发版、改核心协议**，且必须在**已提交的干净树**上 |
+
+单项门禁也可以直接跑（改哪儿跑哪儿）：
+
+| 改了什么 | 跑什么 |
+|---|---|
+| `main.cpp`、窗口循环、标题/UI | `verify-fast.sh` + `bash idle-spin-check.sh` |
+| `demo_header.cpp`、实体协议 | `verify-entity.sh` |
+| `entity_model.cpp` | `verify-entity.sh`（含历史覆盖 / 武器世界模型 / 观察目标 / 选槽新鲜度 / 属性查找） |
+| 材质、VTF、BSP、渲染 | `verify-render.sh` |
+| 音频 | `verify-audio.sh` |
+| 只有文档、脚本、证据 | `bash -n <改过的脚本>` + 跑受影响的那个脚本，不必重跑真 demo |
+
+**变异不必每次都跑。** 它回答的是「这条判据能不能变红」，是关于**判据**的问题；
+只有改了解码边界、判据脚本或验收条件时才必须跑。四个分层脚本各自带 `--mutation`。
+
+**每个提交保留的证据仍然只有完整链的那一份**（`evidence/verify/`）。分层脚本的输出写在
+`evidence/fast/`（已 gitignore）：它们每轮要跑很多次，是该轮的工作读数，不是该提交的证据。
+
+这条**不是靠自觉，是靠断言**：门禁默认把自己的原始读数写进 `evidence/<门禁名>/`，
+而那些目录正是**链**提交的地方 —— 直接调用会把提交过的记录用一次临时读数覆盖掉。
+两个第 2 档脚本因此显式把每个门禁的 `*_OUT` 变量指到 `evidence/fast/`（`mutate.sh` 一直
+就是这么用的），并在末尾**断言 `git status --porcelain evidence/` 前后一模一样**。
+2026-10-09 实测过这个缺陷：重定向存在之前，跑一次实体档改写了 **7 个已跟踪文件**，
+并把 `evidence/weapon-world-model/pov-dump.txt` 截掉了 **1327 行**。
+
+分层不改变判据纪律：每一档都断言**具名键值与工作量计数**，不只断言退出码 ——
+「rc=0 但什么都没查」是这个仓库命中过四次的缺陷类，见下面「注意」第一条。
 
 ## 入口
 
@@ -185,15 +262,28 @@ RC=0，17 步全绿，读数在 `evidence/verify/1..17-*.txt`）。本轮相对�
 | `native/tools/resource_reachability_probe.cpp` | 上条门禁的仪表：不建窗口、不载 demo，直接报资源可达性。用法 `resource_reachability_probe <tfRoot> <mapStem> [materialName]`，stdout 单行 JSON |
 | `native/tools/vpk_query.cpp` | 辅助仪表：按 `list(prefix, ext)` 统计每个档案下的条目数。⚠️ `VpkArchive::list` 是**路径前缀**匹配，`list("concrete")` 恒为 0，必须写 `list("materials/concrete")` |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
-| `verify-all.sh` | 一条命令跑完整证据链（**17 步**：构建（23 exe）→ 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁** → **资源可达性门禁**）；`--quick` 把语料抽样降到 8 份 |
+| `verify-fast.sh` | **第 1 档**（33–37 s，两次实测）：增量构建主程序 + 五个自检探针，跑各自 `--self-test`，**36 条断言**（具名键值 + 工作量计数，不只退出码）。`--mutation` 篡改捕获输出，要求每份期望列表变红 |
+| `verify-entity.sh` | **第 2 档 · 实体**（实测 10m59s）：58 真相干 + 历史覆盖 / 武器世界模型 / 观察目标 / 选槽新鲜度 / 属性查找五个门禁 + **单份真 demo**（bagel）与 oracle 逐计数对照 + **证据树不变断言**。**不打印 `VERIFY=PASS`**，不是合并门禁 |
+| `verify-render.sh` | **第 2 档 · 渲染**（实测 3m37s）：资源可达性门禁 + 帧抓取门禁 + `material_chain_probe` 的合成层（10 个合成拒绝键 + 3 个模式键）+ 证据树不变断言。`texture_quad_probe` **刻意未接线**，理由写在脚本头部（缺一份提交进仓库的 VTF 夹具） |
+| `verify-audio.sh` | **第 2 档 · 音频**（约 10 s）：三个音频探针的免设备契约（`device":"sink"` / `device=0 playbackCalls=0` / `mode=dry_run device_opened=0`）+ 工作量计数 + 设备枚举的自洽性（`device_count` 与逐设备行数相等；**不钉具体台数**，那是机器的属性），**28 条断言** |
+| `verify-all.sh` | **第 3 档**，一条命令跑完整证据链（**19 步**：构建（23 exe）→ 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁** → **资源可达性门禁** → **空转门禁** → **属性查找门禁**）；`--quick` 把语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
 
 ## 命令
 
 ```bash
 cd /d/TF2_Native_Test
 
+# 分级验收：按改动能波及多大范围选档（见「分级验收」一节）
+bash verify-fast.sh          # 每次小改动，两次实测 32.8 / 36.6 s
+bash verify-fast.sh --mutation        # 证明第 1 档的判据确实能变红
+bash verify-entity.sh        # 实体这一块做完，实测 10m59s
+bash verify-entity.sh --mutation      # 五个门禁里四个各带自己的扰动（history-coverage 没有变异分支）
+bash verify-render.sh        # 材质/渲染这一块做完，实测 3m37s
+bash verify-audio.sh         # 音频这一块做完，约 10s（全走注入 sink，不开真设备）
+bash verify-all.sh           # 合并/发版前的完整 19 步链约 80 min（必须在已提交的干净树上）
+
 bash build-cmake.sh          # 干净全量 Release 构建（NMake，23 个 exe）
-bash build-target.sh entity_protocol_probe entity_model_probe   # 只重建单个目标
+bash build-target.sh entity_protocol_probe entity_model_probe   # 只重建指定目标（失败即非零退出）
 bash run-demos.sh evidence/final          # 9 份 demo 协议普查
 bash check-oracle.sh "<oracle.exe>" evidence/final   # 与 Rust oracle 逐值对照
 bash oracle-recording-types.sh            # 钉住 9 份 demo 的 POV/SourceTV 判定（头字段 + 流内 STV 位）
@@ -213,7 +303,7 @@ bash frame-capture-check.sh   # 帧抓取门禁：从运行中的程序抓一帧
 bash frame-capture-check.sh --mutation   # 同一门禁的变异：翻转图像一个字节，要求内容哈希察觉
 bash resource-reachability-check.sh       # 资源可达性门禁：5 个 VPK 开了几个、demo 地图的 BSP/材质取不取得到
 bash resource-reachability-check.sh --mutation  # 同一门禁的变异：期望档案数改成 5，必须变红
-bash verify-all.sh --quick   # 上面全部串起来（17 步）
+bash verify-all.sh --quick   # 上面全部串起来（19 步）；完整跑约 80 min，只用于合并/发版
 # 单独问一份地图的资源可达性（不建窗口、不载 demo）：
 ./native/build-nmake/resource_reachability_probe.exe "$TF" cp_snakewater_final1
 
@@ -309,6 +399,33 @@ bash run-corpus-evidence.sh
   `fixture_failures=0` 而不断言跑过几个；构建步只断言 `rc=0` 而不断言产出几个 exe；
   变异步只断言 `MUTATION-SUITE=PASS` 而不断言跑了几个用例。
   现在四处都加了工作量计数（`compared=` / `^PASS` 行数 / `exe_count=` / `MUTATION-RED` 行数）。
+- **「退出码 0」不等于「自检跑了」。** 2026-10-09 接线第 1 档时发现的第五例：
+  `item_schema_probe --self-test` **不是自检** —— 那个探针把 `argv[1]` 当 `items_game.txt`
+  的路径，没有 `--self-test` 分支，于是它把参数当文件名、打印
+  `error: cannot open items_game.txt: --self-test`、**返回 0**。真正的入口是
+  `--wire-self-test`。凡是「顺手把 flag 名统一一下」的清理都会把它重新引进来，
+  所以 `verify-fast.sh` 头部写明了这件事。
+- **`compared == requested` 单独用是恒真的**（2026-10-09 自己踩到）。
+  给 `check-oracle.sh` 加 `only` 过滤时，第一版只断言这两个计数相等 ——
+  而**拼错 demo 名**时 `requested=0 compared=0`，相等，照样打印 `ORACLE-GATE=PASS`：
+  正是那条断言要防的缺陷。现在过滤名不在名单里就直接 `FATAL` 并把可用名字列出来。
+  **教训：给「子集化」加计数断言时，要先跑一遍反面（名字打错、集合为空）。**
+- **`build-target.sh` 曾经永远返回 0**，所以 `entity-property-lookup-check.sh` 里
+  `bash build-target.sh ... || { echo "mutation: rebuild failed"; exit 1; }` 那个守卫
+  **从来没有生效过** —— 构建失败会留下旧二进制，后面的门禁就读到一个和源码不符的探针。
+  现在构建失败即非零退出；还原路径的失败也改成**大声告警**而不是静默（源码修好了、
+  二进制还是变异版，是这一类里最危险的一种）。
+- **`texture_quad_probe` 刻意没有接进第 2 档**：它要一个真实的 `.vtf` 路径，而本机唯一的
+  候选是安装目录里的松散文件。**输入集是机器的属性**这个缺陷在本仓库已经发作过两次
+  （第 9 步真红、第 5 步假绿），所以接线的前提是**先往仓库里提交一份 VTF 夹具**。
+  在那之前诚实的表述是「探针存在且能跑」，不是「纹理路径已验证」。
+- **分层脚本必须把门禁的原始读数重定向出去。** 每个门禁默认写 `evidence/<门禁名>/`，
+  而那正是**链**提交本轮证据的地方；`*_OUT` 变量就是为这件事留的（`mutate.sh` 一直在用）。
+  第 2 档的两个脚本因此显式重定向，并**断言 `evidence/` 前后不变** ——
+  2026-10-09 在重定向存在之前跑一次实体档，改写了 **7 个已跟踪文件**、
+  把 `evidence/weapon-world-model/pov-dump.txt` 截掉了 **1327 行**。
+  同理：`check-oracle.sh` 会**清空重写**它被指向的目录里的 `oracle-gate-summary.txt`，
+  所以分层脚本**绝不能**把 oracle 目录指向 `evidence/final`。
 - **被「剥离」的行等于没人验证的行。** 增量性检查剥掉新输出行才能比旧计数器，
   但剥掉之后那几行就再没有判据了。现在它们有独立的冻结基线
   （`evidence/probe-baseline/added-lines.txt`）。
