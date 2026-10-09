@@ -102,6 +102,23 @@ add_executable(animation_viewmodel_probe
 target_include_directories(animation_viewmodel_probe PRIVATE include)
 set_target_properties(animation_viewmodel_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# Proves the skinning contract (poseToBone is the inverse bind; skin is
+# animWorld * poseToBone and identity at bind pose) against the game's own
+# files, before the product wires any of it up.
+add_executable(skeleton_skin_probe
+  tools/skeleton_skin_probe.cpp
+  src/animation_decoder.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp
+  src/demo_header.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(skeleton_skin_probe PRIVATE include third_party/lzma)
+target_compile_definitions(skeleton_skin_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+set_target_properties(skeleton_skin_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(audio_effects_probe tools/audio_effects_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/effects_timeline.cpp src/pcf_operators.cpp src/playback_hud.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(audio_effects_probe PRIVATE include third_party/lzma)
 target_compile_definitions(audio_effects_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
