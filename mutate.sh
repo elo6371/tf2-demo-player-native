@@ -9,7 +9,7 @@
 #
 # The tree MUST be committed first: `git checkout --` is the restore mechanism.
 #
-# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12]
+# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13]
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -30,7 +30,7 @@ MODELPROBE=native/build-nmake/entity_model_probe.exe
 OUT=evidence/mutation
 mkdir -p "$OUT"
 
-CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12}"
+CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
@@ -555,6 +555,45 @@ for case_id in $CASES; do
       # And the parse layer holds, which is what keeps the two halves separate.
       must_hold "m12 no model SRV -> medic still resolves 19 slots" \
         "$OUT/gate.m12.txt" 'resolved=[0-9]+' '19'
+      ;;
+    m13)
+      # Ablate the animation-property sweep so it stops counting anything. The
+      # gate's central claim is a NEGATIVE -- CTFPlayer carries zero of four
+      # animation properties -- and a negative reads identically to a rule that
+      # never fires. This mutation makes the rule never fire (the leaf-name
+      # comparison is neutered), and the positive control is what has to catch it:
+      # classesWithSequence must collapse from 197 to 0 and the gate must refuse.
+      # Without clause 2 the whole gate would pass while measuring nothing, which
+      # is the failure mode this case exists to rule out.
+      echo "--- m13 the animation-property sweep stops matching (the positive control must catch it)"
+      patch_in "$MODELTOOL" \
+        '      if (leaf == "m_nSequence") ++sequence;
+' '      // mutation: the sweep never matches, so every count reads zero
+      if (false && leaf == "m_nSequence") ++sequence;
+' || { rc_all=1; continue; }
+      bash build-target.sh entity_model_probe >/dev/null 2>&1
+      ANIM_AVAILABILITY_OUT="$OUT/animavail-m13" bash animation-availability-check.sh \
+        > "$OUT/gate.m13.txt" 2>&1
+      m13rc=$?
+      must_refuse "m13 sweep ablated -> availability gate refuses" "$OUT/gate.m13.txt" \
+        'ANIMATION-AVAILABILITY=FAIL' "$m13rc"
+      # The positive control moving to 0 is the reading the mutation targets. If
+      # this stayed at 197 the mutation did not take, and if the gate still passed
+      # with it at 0 then clause 2 is not load bearing.
+      must_move "m13 sweep ablated -> classesWithSequence collapses" \
+        "$OUT/animavail-m13/bagel.txt" 'classesWithSequence=[0-9]+' '197'
+      # And the player line must NOT move: the mutation is in the counter, not in
+      # the class lookup, so a moved player line would mean the two readings are
+      # the same reading counted twice -- the reason clause 1 and clause 2 are
+      # asserted separately rather than as one "animation props look right" blob.
+      must_hold "m13 sweep ablated -> the CTFPlayer line stays empty of all four" \
+        "$OUT/animavail-m13/bagel.txt" '^animprop-player class=CTFPlayer id=247 sequence=[0-9]+ cycle=[0-9]+ rate=[0-9]+ pose=[0-9]+$' \
+        'animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0'
+      # tfPlayerFound must hold too: the class is still found, it is the counting
+      # that broke. This is the difference between "the player has none" and "the
+      # sweep looked at nothing".
+      must_hold "m13 sweep ablated -> CTFPlayer is still found (found=1)" \
+        "$OUT/animavail-m13/bagel.txt" 'tfPlayerFound=[0-9]+' '1'
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac
