@@ -1,0 +1,573 @@
+
+=== 1/18 clean full Release build ===
+=== summary ===
+cmake_build_rc=0
+errors=0
+warnings=1
+D:\TF2_Native_Test\native\src\main.cpp(1390): warning C4457: “instance”的声明隐藏了函数参数
+exe_count=23
+BUILD=PASS
+
+=== 2/18 nine-demo census ===
+bagel        rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+snakewater   rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+ashville73   rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+decal        rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+protocol23   rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+comp         rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+saytext2     rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=SourceTV
+short2024    rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+small        rc=0  entity_failures=0 malformed_packets=0 unknown_message_packets=0 recording=POV
+outdir=evidence/final
+CENSUS=PASS (9/9 demos at zero)
+COVERAGE=PASS (9/9 demos, every observed message type decoded)
+
+=== 3/18 wire fixtures ===
+fixture_pass_count=58
+fixture_failures=0
+FIXTURE=PASS (58/58)
+
+=== 4/18 oracle cross-check (nine demos) ===
+demo          o_enter  c_enter    o_pkts   c_pkts  o_entities c_entities    fails  verdict
+bagel           10051    10051     73118    73118     1409096    1409096        0  OK
+snakewater       9822     9822     64330    64330     1427501    1427501        0  OK
+ashville73      22424    22424    112172   112172     3030444    3030444        0  OK
+decal          158837   158837     80886    80886     1971055    1971055        0  OK
+protocol23     184114   184114     43324    43324     1294290    1294290        0  OK
+comp            14605    14605     85864    85864     2335407    2335407        0  OK
+saytext2        10846    10846     72528    72528     1739480    1739480        0  OK
+short2024         296      296       170      170         474        474        0  OK
+small             204      204       111      111         316        316        0  OK
+
+ORACLE-GATE=PASS
+ORACLE=PASS
+
+=== 5/18 oracle cross-check on a corpus sample (n=40) ===
+  ok        autorecord_2026-09-30_23-06-57.dem         45.7MB  42.9s  POV      pkts 131009/131009 ent 1819342/1819342 enter 157324/157324
+
+sampled=24
+agreed=24
+mismatched=0
+wall_seconds=311.1
+sum_oracle_entities=30772245
+sum_cpp_entities=30772245
+recording_kinds=['POV', 'SourceTV']
+pov_count=23
+source_tv_count=1
+distinct_maps=18
+
+ORACLE-CORPUS=PASS
+ORACLE-CORPUS=PASS (pinned_sample=24 of 24 pinned)
+ORACLE-CORPUS-SELFTEST=PASS
+
+=== 6/18 oracle demo recording types ===
+demo         expect     header     stream   hltv_bit replay_bit verdict
+bagel        SourceTV   SourceTV   SourceTV 1        0        OK
+snakewater   SourceTV   SourceTV   SourceTV 1        0        OK
+ashville73   SourceTV   SourceTV   SourceTV 1        0        OK
+comp         SourceTV   SourceTV   SourceTV 1        0        OK
+saytext2     SourceTV   SourceTV   SourceTV 1        0        OK
+decal        POV        POV        POV      0        0        OK
+protocol23   POV        POV        POV      0        0        OK
+short2024    POV        POV        POV      0        0        OK
+small        POV        POV        POV      0        0        OK
+compared=9/9
+
+ORACLE-RECORDING-TYPES=PASS
+RECORDING-TYPES=PASS
+
+=== 7/18 probe output is additive ===
+demo         verdict      note
+bagel        IDENTICAL    added_lines=4
+snakewater   IDENTICAL    added_lines=4
+ashville73   IDENTICAL    added_lines=4
+decal        IDENTICAL    added_lines=4
+protocol23   IDENTICAL    added_lines=4
+comp         IDENTICAL    added_lines=4
+saytext2     IDENTICAL    added_lines=4
+short2024    IDENTICAL    added_lines=4
+small        IDENTICAL    added_lines=4
+
+added-lines=IDENTICAL (18 lines frozen)
+
+pre-world-model-fields=IDENTICAL (9 asset_refs= lines, new keys stripped)
+  moved=6 paths added by the world route, all accounted for
+pre-world-model-movement=ACCOUNTED
+
+compared=9/9
+PROBE-OUTPUT-ADDITIVE=PASS
+[safe-delete][SAFE_DELETE_INVALID_PATH] embedded drive prefix is not allowed
+PROBE-ADDITIVE=PASS
+
+=== 8/18 mutation suite (C++) ===
+RESTORED-IDENTICAL bagel.fixed.txt
+RESTORED-IDENTICAL proto23.fixed.txt
+RESTORED-IDENTICAL pov.fixed.txt
+RESTORED-IDENTICAL model.fixed.txt
+RESTORED-IDENTICAL fixture.fixed.txt
+RESTORED-IDENTICAL recording.fixed.txt
+
+MUTATION-SUITE=PASS
+mutation_red=40 hold=4 green=0 broke=0 restored_identical=6
+MUTATION=PASS
+
+=== 9/18 census verdict is falsifiable ===
+
+=== prepare: copy raw reports to evidence/corpus-negative ===
+  reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
+  OK   pinned list and frozen reports agree: 24 demos
+  OK   every pinned demo exists and has a frozen report
+
+=== baseline: unmodified reports must PASS ===
+  clean=24
+  skipped=0
+  dirty=0
+  sum_packets=1361392
+  OK   baseline PASS
+  OK   baseline skipped=0 is a number
+  extra_reports=0 (pinned list: expected 0)
+  victim=evidence/corpus-negative/reports/autorecord_2026-05-18_23-53-06.txt
+  OK   victim autorecord_2026-05-18_23-53-06 is in the scanned set
+  OK   victim is a clean report (its counters are actually read)
+
+=== mutation A: entity_failures 0 -> 3 (must FAIL) ===
+  OK   verdict went red
+  OK   failure names the counter
+
+=== mutation B: remove malformed_packets entirely (must FAIL as missing:) ===
+  OK   verdict went red
+  OK   reported as missing, not skipped
+
+=== mutation C: zero the packet count (must FAIL as probe_decoded_nothing) ===
+  OK   verdict went red
+  OK   empty decode detected
+
+=== mutation D: POV classifier disagreement (must FAIL) ===
+  OK   verdict went red
+  OK   disagreement reported
+
+=== mutation E: in-stream HLTV bit set but classifier still says POV (must FAIL) ===
+  OK   verdict went red
+  OK   reported as hltv_bit_ignored
+
+=== mutation F: autorecord_ file reclassified as SourceTV on the stream path (must FAIL) ===
+  OK   verdict went red
+  OK   reported as pov_ground_truth_violated
+
+=== mutation G: source_tv_flag disagrees with the HLTV bit (must FAIL) ===
+  OK   inconsistent flag reported
+
+=== mutation H: index_state=invalid must FAIL, not be filed as truncated ===
+  OK   verdict went red
+  OK   reported as invalid, not skipped
+
+=== mutation I: index_state=truncated_tail must SKIP, not FAIL and not clean ===
+  OK   verdict stayed green (a skip is not a failure)
+  OK   counted as skipped (0 -> 1)
+  OK   named in truncated_tail_files
+
+=== mutation J: truncated_tail with a non-zero counter must still FAIL ===
+  OK   verdict went red
+  OK   names the counter
+
+=== restore: reports must be byte-identical and PASS again ===
+  OK   digest unchanged (cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5)
+  OK   restored PASS
+
+CENSUS-NEGATIVE=PASS
+CENSUS-NEGATIVE=PASS (pinned_reports=24)
+
+=== 10/18 reconstructed positions vs the independent oracle, per value ===
+live window starts at server tick 129210; its first packet's own server tick is 129211 == demo tick 77400 (offset 51811)
+archive max gap 1180 ticks -- ticks outside the live window are NOT comparable
+entities=12 serverTicks=4 compared=40 mismatches=0 skipped=0
+GATE=PASS
+TRAJECTORY-ORACLE=PASS (compared=40, mutation caught)
+
+=== 11/18 entity history coverage (how old a Checkpoint answer may be) ===
+=== 1/2 retention policy fixture (synthetic uniform supply) ===
+{"selfTest":true,"viewMath":true,"recording":true,"projectileFields":true,"fullSpanCheckpoint":true,"historyCoverage":true,"historyWorstGap":4096,"historySlotFloor":3565,"cameraFormula":"source-pitch-down","seekOutsideWindow":"checkpoint"}
+fixture coverage=true worstGap=4096 slotFloor=3565
+FIXTURE-COVERAGE=PASS (worst 4096 <= 2 x floor 3565)
+
+=== 2/2 bagel: retained tick list and staleness over the whole demo ===
+history archive=96 ticks=[56148..129125] medianGap=822 maxGap=1180
+history liveCheckpoints=1 ticks=[129210..129210] maxGap=0 packets=68 events=1155 dropped=172
+history flushes=172 gapDropped=0
+history coverage samples=512 exact=1 checkpoint=511 unavailable=0
+history retained archive=96 live=1 distinct=97 span=[56148..129210]
+history gap worst=1180 at=[66628..67808] median=822 floor=761 budget=96
+history staleness worst=1139 at=87460 mean=407.5
+history bytes archive=838049760 live=8894070 checkpointApprox=8729685 packets=2720 events=1155 eventsApprox=487732
+bagel archive=96 live=1 distinct=97 worstGap=1180 floor=761 sampled=512 unavailable=0 worstStaleness=1139
+  OK   sampled=512 of the requested 512 ticks
+  OK   distinct=97 of 97 retained slots
+  OK   every sampled tick resolved to a snapshot
+  OK   worstGap 1180 <= 2 x floor 761
+  OK   worstStaleness 1139 <= worstGap 1180
+  OK   no 54392-tick hole (pre-fix worst gap)
+
+HISTORY-COVERAGE=PASS (fixture within 2x floor, bagel worst gap 1180 <= 2 x floor 761)
+HISTORY-COVERAGE=PASS
+
+=== 12/18 weapon world model (a weapon must not be drawn as its arms) ===
+=== 1/3 wiring fixture (synthetic entities, every branch by construction) ===
+weapon-wiring-fixture refs=11 known=10 resolved=6 zero=2 unresolved=1 outOfRange=1 unresolvedMax=99 onlyWorld=2 fromWorld=6 agrees=6 viewZero=2 differs=1 armsWeapon=1
+fixture refs=11 known=10 resolved=6 zero=2 unresolved=1 outOfRange=1 onlyWorld=2 fromWorld=6 agrees=6 viewZero=2 differs=1 armsWeapon=1
+  OK   fixture refs = 11
+  OK   fixture known = 10
+  OK   fixture resolved = 6
+  OK   fixture zero = 2
+  OK   fixture unresolved = 1
+  OK   fixture outOfRange = 1
+  OK   fixture onlyWorld = 2
+  OK   fixture fromWorld = 6
+  OK   fixture agrees = 6
+  OK   fixture viewZero = 2
+  OK   fixture differs = 1
+  OK   fixture armsWeapon (the counter the demos must read 0 on) = 1
+
+=== 2/3 bagel and POV, end to end ===
+bagel refs=679 requests=505 withWorldIndex=33 known=33 resolved=32 zero=1 unresolved=0 outOfRange=0 pathFromWorld=32 onlyWorld=0 worldIndexNonZero=32 armsWeapon=0 armsNonWeapon=12 viewAgrees=33 viewZero=0 viewDiffers=0
+  OK   resolved + zero + unresolved + outOfRange = known = 33
+  OK   every one of 32 non-zero world indices named the path
+  OK   no weapon is left naming its first-person arms
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=0 is the unset case)
+  OK   bagel pathFromWorld = 32
+  OK   bagel known = 33
+  OK   bagel zero = 1
+  OK   bagel worldModelRequests = 32
+  OK   bagel onlyWorld = 0
+pov refs=675 requests=387 withWorldIndex=71 known=71 resolved=69 zero=2 unresolved=0 outOfRange=0 pathFromWorld=69 onlyWorld=0 worldIndexNonZero=69 armsWeapon=0 armsNonWeapon=6 viewAgrees=69 viewZero=2 viewDiffers=0
+  OK   resolved + zero + unresolved + outOfRange = known = 71
+  OK   every one of 69 non-zero world indices named the path
+  OK   no weapon is left naming its first-person arms
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=2 is the unset case)
+  OK   pov pathFromWorld = 69
+  OK   pov known = 71
+  OK   pov zero = 2
+  OK   pov worldModelRequests = 69
+  OK   pov onlyWorld = 0
+
+=== 3/3 oracle witness ===
+witness anchor: demo tick 52427 entity 822 class CTFRocketLauncher (oracle enter list, last match)
+oracle m_iWorldModelIndex=363 / ours=363 class=CTFRocketLauncher path=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl source=world
+  OK   the two parsers read the same world model index for entity 822
+  OK   the path came from the world route
+  OK   modelprecache[363] is that path
+live window [129210..129277]: packets checked=68 that carried m_iWorldModelIndex=0
+  OK   no packet in the live window writes the property, so no tick-exact
+       comparison exists -- the property rides the instance baseline, and
+       this decoder is tick-exact only inside that window
+
+WEAPON-WORLD-MODEL=PASS
+WEAPON-WORLD-MODEL=PASS (fixture_ok=12, live_window_packets=68)
+
+=== 13/18 observer focus (who a spectator is watching, and what it would cost) ===
+=== 1/4 wiring fixture (synthetic entities, every branch by construction) ===
+observer-focus-fixture cases=11 withMode=9 modeNonZero=8 hasTarget=8 inRange=5 present=4 missing=1 outOfRange=3 follows=2 serial=867
+  OK   fixture cases = 11
+  OK   fixture withMode = 9
+  OK   fixture modeNonZero = 8
+  OK   fixture hasTarget = 8
+  OK   fixture inRange = 5
+  OK   fixture present = 4
+  OK   fixture missing (slot present, entity gone) = 1
+  OK   fixture outOfRange (index past the snapshot) = 3
+  OK   fixture follows (in-eye + chase only, not the deathcam) = 2
+
+=== 2/4 POV -- the recorder's observing life, with the tick each answer came from ===
+observer-focus at tick=51900 status=checkpoint resolved=51742 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-1934.375854,800.682556,512.035950
+observer-focus at tick=53400 status=checkpoint resolved=53075 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=763924 targetIndex=20 targetSerial=373 targetPresent=1 follows=0 selfOrigin=-2282.800537,286.355164,383.703766
+observer-focus at tick=53976 status=checkpoint resolved=53976 states=2048
+  observer entity=18 class=247 CTFPlayer mode=4 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=1 targetOrigin=-1112.000000,461.250000,455.250000 selfOrigin=-1112.019531,461.310516,455.251282
+observer-focus at tick=54747 status=checkpoint resolved=54747 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-459.084106,806.615845,143.571259
+observer-focus at tick=55394 status=available resolved=55394 states=2048
+  observer entity=18 class=247 CTFPlayer mode=0 targetHandle=1775619 targetIndex=3 targetSerial=867 targetPresent=1 follows=0 selfOrigin=-2420.383057,731.573364,523.633423
+observer-focus-summary ticks=5 examined=5 emitted=5 withMode=5 modeNonZero=1 follows=1 targetInRange=5 targetPresent=5 targetMissing=0 targetOutOfRange=0
+resolved ticks: 51742 53075 53976 54747 55394 
+  OK   resolved ticks (archive grid, in query order) = 51742 53075 53976 54747 55394 
+  OK   row 1 mode (alive between deaths) = 0
+  OK   row 1 follows = 0
+  OK   row 3 mode (in-eye) = 4
+  OK   row 3 targetHandle = 1775619
+  OK   row 3 targetIndex = 3
+  OK   row 3 targetSerial = 867
+  OK   row 3 follows = 1
+  OK   row 3 targetOrigin (what a follow would use) = -1112.000000,461.250000,455.250000
+  OK   row 3 selfOrigin (where the camera actually is) = -1112.019531,461.310516,455.251282
+  OK   row 4 mode (respawned, watching nothing) = 0
+  OK   row 4 follows = 0
+  OK   row 5 mode (live window, tick-exact) = 0
+  OK   row 5 follows = 0
+  OK   POV ticks walked = 5
+  OK   POV entities examined = 5
+  OK   POV follows total = 1
+
+=== 3/4 the divergence -- what following the target would cost ===
+camera at tick=37640 found=1 sample_tick=37640 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=18.705887,-176.304993 originValid=1 anglesValid=1
+camera at tick=37650 found=1 sample_tick=37650 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=18.705887,-176.304993 originValid=1 anglesValid=1
+camera at tick=37677 found=1 sample_tick=37677 source=cmdinfo origin=-1112.031250,505.593719,459.031250 angles=13.764709,-119.663826 originValid=1 anglesValid=1
+recorder own origin -1112.019531,461.310516,455.251282 / recorded camera -1112.031250,505.593719,459.031250 / pitch 13.764709
+  OK   recorded camera pitch is the recorder's own eye pitch = 13.764709
+per-axis camera-minus-target (x,y,z): -0.031,44.344,3.781
+camera-to-target distance = 45 units (2729 before the freshness round moved it)
+  OK   the pinned camera-to-target distance = 45
+camera origin at demo ticks 37640 / 37650 / 37677: 1 distinct value(s)
+  OK   the recorded camera origin is held across the 45-unit stretch = 1
+  OK   and the held value is the one this section subtracts = -1112.031250,505.593719,459.031250
+recorder at checkpoint 53976: m_lifeState=2 m_fFlags=1073873152 (FL_TRANSRAGDOLL bit = 1073741824)
+  OK   recorder lifeState at the checkpoint (LIFE_DEAD) = 2
+  OK   recorder carries FL_TRANSRAGDOLL there = 1073741824
+follow checkpoints (541 queries): 13 distinct; target on the recorder's own coordinate at 11 of them (<=0.15u); worst 37.812 u
+  OK   distinct follow checkpoints in the census = 13
+  OK   of those, the target resolves onto the recorder's own body = 11
+  OK   worst target-to-recorder gap on one snapshot = 37.812
+entity 3 m_nTickBase=51597 against checkpoint 53976; the slot the rule now takes reads -1112.000000,461.250000
+  OK   entity 3 tickbase (2379 ticks behind the checkpoint) = 51597
+  OK   entity 3 chosen-slot x,y (the one ~45 units from the camera) = -1112.000000,461.250000
+observer-focus at tick=129277 status=available resolved=129277 states=2048
+  observer entity=1 class=247 CTFPlayer mode=4 targetHandle=1718275 targetIndex=3 targetSerial=839 targetPresent=1 follows=1 targetOrigin=-3244.337891,198.821442,352.031250 selfOrigin=-3244.337891,198.821442,352.031250
+observer-focus-summary ticks=1 examined=1 emitted=1 withMode=1 modeNonZero=1 follows=1 targetInRange=1 targetPresent=1 targetMissing=0 targetOutOfRange=0
+  OK   bagel mode (in-eye) = 4
+  OK   bagel targetIndex = 3
+  OK   bagel follows = 1
+  OK   bagel selfOrigin == targetOrigin (why the rank rule looks fine there) = -3244.337891,198.821442,352.031250
+(no camera comparison for bagel: its dem_cmdinfo stream ends at demo tick ~69881, its entity history runs to server tick 129277)
+
+=== 4/4 oracle witness (tf_demo_parser, independent of this decoder) ===
+oracle mode=1 target=606217 / ours mode=1 handle=606217 idx=9 serial=296 status=checkpoint
+  OK   witness mode = 1
+  OK   witness target handle (packed) = 606217
+  OK   witness handle -> index = 9
+  OK   witness handle -> serial = 296
+  OK   witness answers deathcam, not a follow = 0
+
+OBSERVER-FOCUS=PASS (assertions_ok=46)
+OBSERVER-FOCUS=PASS (assertions_ok=46, camera-to-target=45u)
+OBSERVER-FOCUS-MUTATION=PASS (3/3 perturbations caught, red_lines=3)
+
+=== 14/18 entity property slot freshness (the rule must take the later write) ===
+=== 1/4 wiring fixture (every branch by construction, ranking and renderer) ===
+slot-freshness-fixture shapes=4 freshChosen=2 staleChosen=0 freshnessDecided=1 rankTiePrefersLocal=2 apiMatches=4 tickRoundTrip=4
+  OK   fixture shapes = 4
+  OK   fixture freshChosen = 2
+  OK   fixture staleChosen (the defect signature) = 0
+  OK   fixture freshnessDecided (the term is load-bearing) = 1
+  OK   fixture rankTiePrefersLocal (equal + unknown ticks) = 2
+  OK   fixture apiMatches (extractTransform agrees with the ranking) = 4
+  OK   fixture tickRoundTrip = 4
+
+=== 2/4 POV entity 3 -- the pick moved to the slot that was still being written ===
+prop-candidates at tick=53976 status=checkpoint resolved=53976
+  entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1112.000000 y=461.250000 z=0.000000 int=0 lastWrite=53976 age=0
+    rank=1 name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=2380
+prop-candidates at tick=54747 status=checkpoint resolved=54747
+  entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-1562.000000 y=464.625000 z=0.000000 int=0 lastWrite=54623 age=124
+    rank=1 name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3151
+prop-candidates at tick=55394 status=available resolved=55394
+  entity=3 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=-2420.375000 y=731.500000 z=0.000000 int=0 lastWrite=55394 age=0
+    rank=1 name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=1511.459961 y=894.130005 z=0.000000 int=0 lastWrite=51596 age=3798
+prop-candidates-summary ticks=3 examined=3 withCandidates=3 candidates=6 withTick=6 chosenStale=0 worstChosenAge=124
+  OK   POV ticks where the rule picked a non-freshest slot = 0
+  OK   POV candidates examined = 6
+  OK   POV worst chosen age (ticks) = 124
+  OK   POV chosen slot = DT_TFNonLocalPlayerExclusive.m_vecOrigin
+  OK   POV chosen slot last write at 55394 = 55394
+  OK   POV chosen slot age at 55394 = 0
+  OK   POV rival slot = DT_TFLocalPlayerExclusive.m_vecOrigin
+  OK   POV rival slot last write at 55394 (frozen) = 51596
+
+=== 3/4 bagel entity 1 -- the same rule, and the reading did not move ===
+prop-candidates at tick=129277 status=available resolved=129277
+  entity=1 class=247 CTFPlayer suffix=m_vecOrigin candidates=2
+    rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin type=3 x=-3244.337891 y=198.821442 z=0.000000 int=0 lastWrite=129277 age=0
+    rank=1 name=DT_TFNonLocalPlayerExclusive.m_vecOrigin type=3 x=765.625000 y=-529.500000 z=0.000000 int=0 lastWrite=56148 age=73129
+prop-candidates-summary ticks=1 examined=1 withCandidates=1 candidates=2 withTick=2 chosenStale=0 worstChosenAge=0
+  OK   bagel ticks where the rule picked a non-freshest slot = 0
+  OK   bagel chosen slot = DT_TFLocalPlayerExclusive.m_vecOrigin
+  OK   bagel chosen slot last write = 129277
+  OK   bagel rival slot = DT_TFNonLocalPlayerExclusive.m_vecOrigin
+  OK   bagel rival slot age (the stale one there) = 73129
+
+=== 4/4 which properties the rule can even act on (its blast radius) ===
+POV entity 3   duplicated: m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+POV entity 1   duplicated: m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+bagel entity 1 duplicated: m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   duplicated properties, POV entity 3 = m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   duplicated properties, POV entity 1 (same set, other player) = m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   duplicated properties, bagel entity 1 (same set, other demo) = m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
+  OK   m_nModelIndex is not duplicated (model selection is untouched)
+
+SLOT-FRESHNESS=PASS (assertions_ok=24, POV chosenStale=0 worstAge=124, bagel chosenStale=0)
+SLOT-FRESHNESS=PASS (assertions_ok=24, POV chosenStale=0)
+SLOT-FRESHNESS-MUTATION=PASS (2/2 perturbations caught, red_lines=2)
+
+=== 15/18 real SourceTV coverage (all nine recordings, end to end) ===
+source-tv-coverage-check  demos_dir=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos
+
+  OK   A1 recording type 73.dem: header+stream=SourceTV
+  OK   A2 STV signals 73.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file 73.dem: index_state=ok tail_bytes=106397681
+  OK   A4 pinned input 73.dem: packets_scanned=112175 map=koth_ashville_final1
+  OK   A5 zero failures 73.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type SUNSHINE.dem: header+stream=SourceTV
+  OK   A2 STV signals SUNSHINE.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file SUNSHINE.dem: index_state=ok tail_bytes=82759239
+  OK   A4 pinned input SUNSHINE.dem: packets_scanned=120929 map=cp_sunshine
+  OK   A5 zero failures SUNSHINE.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type gullyscout.dem: header+stream=SourceTV
+  OK   A2 STV signals gullyscout.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file gullyscout.dem: index_state=ok tail_bytes=76066801
+  OK   A4 pinned input gullyscout.dem: packets_scanned=120929 map=cp_gullywash_f9
+  OK   A5 zero failures gullyscout.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type proc2.dem: header+stream=SourceTV
+  OK   A2 STV signals proc2.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file proc2.dem: index_state=ok tail_bytes=38541519
+  OK   A4 pinned input proc2.dem: packets_scanned=61544 map=cp_process_f12
+  OK   A5 zero failures proc2.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type processdemo.dem: header+stream=SourceTV
+  OK   A2 STV signals processdemo.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file processdemo.dem: index_state=ok tail_bytes=81960416
+  OK   A4 pinned input processdemo.dem: packets_scanned=120904 map=cp_process_f12
+  OK   A5 zero failures processdemo.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type prodcutscout.dem: header+stream=SourceTV
+  OK   A2 STV signals prodcutscout.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file prodcutscout.dem: index_state=ok tail_bytes=62389932
+  OK   A4 pinned input prodcutscout.dem: packets_scanned=88307 map=koth_product_final
+  OK   A5 zero failures prodcutscout.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type review1.dem: header+stream=SourceTV
+  OK   A2 STV signals review1.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file review1.dem: index_state=ok tail_bytes=82903524
+  OK   A4 pinned input review1.dem: packets_scanned=91247 map=koth_ashville_final1
+  OK   A5 zero failures review1.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type review12.dem: header+stream=SourceTV
+  OK   A2 STV signals review12.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file review12.dem: index_state=ok tail_bytes=80261474
+  OK   A4 pinned input review12.dem: packets_scanned=120917 map=cp_reckoner
+  OK   A5 zero failures review12.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   A1 recording type review44.dem: header+stream=SourceTV
+  OK   A2 STV signals review44.dem: hltv=1 replay=0 flag=1
+  OK   A3 whole file review44.dem: index_state=ok tail_bytes=53569778
+  OK   A4 pinned input review44.dem: packets_scanned=80591 map=cp_sultry_b8a
+  OK   A5 zero failures review44.dem: entity=0 malformed=0 unknown=0 delta_base_unavailable=0
+  OK   W1 demos read: 9/9
+  OK   W2 packets covered: 917543 (floor 900000)
+
+demos_read=9 packets_scanned=917543 entity_failures=0 assertions_ok=47 assertions_fail=0
+SOURCE-TV-COVERAGE=PASS (demos=9 packets=917543 assertions_ok=47)
+SOURCE-TV-COVERAGE=PASS (demos=9 packets=917543 assertions_ok=47)
+SOURCE-TV-COVERAGE-MUTATION=PASS (2/2 perturbations caught, red_rows=18)
+
+=== 16/18 frame capture (the picture can be taken out of the running program) ===
+=== 1/4 a frame comes back from the running program (no demo) ===
+paused capture rc=0 size=2582406
+  OK   paused capture rc = 0
+
+=== 2/4 the file is a well-formed BMP and its header agrees with its size ===
+fileBytes=2582406 1264x681 bpp=24 dataOffset=54 dibSize=40 imageBytes=2582352 planes=1 compression=0 actual=2582406
+  OK   dataOffset (14-byte file header + 40-byte DIB) = 54
+  OK   DIB header size = 40
+  OK   bits per pixel = 24
+  OK   planes = 1
+  OK   compression (BI_RGB) = 0
+  OK   imageBytes == stride*height = 2582352
+  OK   fileBytes == dataOffset + imageBytes = 2582406
+  OK   fileBytes == the bytes actually on disk = 2582406
+distinct colours (capped at 9) = 9
+  OK   the frame is not a single flat colour
+  OK   the frame has a positive extent
+
+=== 3/4 the same input twice gives the same bytes, and a different scene does not ===
+second paused capture rc=0 size=2582406
+  OK   second paused capture rc = 0
+paused sha256 #1 = ab0bc11e541831513f4c7971caeaca777d8b7aa2dc2da7a623d77a290c37155e
+paused sha256 #2 = ab0bc11e541831513f4c7971caeaca777d8b7aa2dc2da7a623d77a290c37155e
+  OK   two captures of the same static scene are byte-identical
+demo capture rc=0 size=2582406
+demo 1264x681 bpp=24 fileBytes=2582406 actual=2582406
+demo sha256 = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
+  OK   a demo scene and the paused scene are different pictures
+installed-map demo capture rc=0 size=2582406
+installed-map demo sha256 = 18447d166a4aa49407e49a3a5f1d13e12942d0e67cdb749cce3e0f787af875d3
+  OK   the installed-map demo scene differs from the paused scene
+installed-map distinct colours (capped at 4097) = 162
+  OK   the installed-map frame is shaded geometry, not a full-screen decal
+
+=== 4/4 a bad tick is refused instead of guessed ===
+invalid --capture-tick rc=13
+  OK   invalid --capture-tick exit code = 13
+  OK   no frame was written for the rejected request
+
+FRAME-CAPTURE=PASS
+FRAME-CAPTURE=PASS (assertions_ok=18)
+FRAME-CAPTURE-MUTATION=PASS (a one-byte change moves the content hash)
+
+=== 17/18 resource reachability (what the demo scene can actually load) ===
+=== 1/5 the archives main.cpp names are all present, or the reason is named ===
+archivesOpened=4 missingNames=pak01_dir.vpk totalEntries=149686
+  OK   archives opened = 4
+  OK   missing archive (by name) = pak01_dir.vpk
+
+=== 2/5 the demo map's own BSP is reachable, and its materials resolve ===
+bspSource=loose bspBytes=59590420 distinctMaterials=148 materialsWithDecodableVtf=111
+  OK   the demo map's BSP is reachable
+  OK   BSP source = loose
+  OK   111 materials resolve to decodable pixels
+
+=== 3/5 resolvable is not drawable: the 512 cap is measured, not assumed ===
+atlasEligible=7 oversizedRejected=104 triangles=30731/200000
+  OK   atlas-eligible materials = 7
+  OK   oversized materials rejected by the 512 cap = 104
+  OK   triangles the atlas can texture = 30731
+
+=== 4/5 the negative control: the map the old gate used is unreachable ===
+bagel bspBytes=0 (expected 0: this map is not installed here)
+  OK   bagel BSP bytes (the unreachable case) = 0
+
+=== 5/5 the counterfactual: is the 512 cap or the wiring what loses the map? ===
+triangles covered at cap 1024=193875 (vs 30731 at 512, of 200000)
+  OK   triangles at a 1024 cap = 193875
+  OK   triangles with no cap (a real install gap remains) = 199227
+  OK   raising the cap 512 -> 1024 recovers geometry (the cap is the bottleneck)
+
+RESOURCE-REACHABILITY=PASS
+RESOURCE-REACHABILITY=PASS (assertions_ok=12)
+RESOURCE-REACHABILITY-MUTATION=PASS (a wrong archive-count expectation goes red)
+
+=== 18/18 idle spin (the loop must sleep until the next frame is due) ===
+=== 1/3 an idle window waits for the frame, not a fixed 1 ms ===
+idle sample: 12s after 2s of load
+loop_per_frame=2.00 (diagnostic)  wait_calls=783  wait_per_frame=1.00  mean_wait_ms=8.59
+ui_update_calls=0  title_update_calls=0  metrics_write_calls=12
+  OK   mean wait when the loop waited >= 4 ms (8.59)
+  OK   (ui_update_calls + title_update_calls) / main_loop_iterations = 0.0000 < 0.1
+  OK   metrics_write_calls over 12s <= 18 (about one a second)
+
+=== 2/3 the counters move when there is something to move for ===
+play sample: 12s after 15s of load
+played to tick=865  ui_update_calls=771  title_update_calls=771
+  OK   playback advanced, so the run was not a frozen idle window
+  OK   both updaters fired while playing, so step 1 was not passed by never updating
+
+=== 3/3 the counters are in the metrics stream, not invented here ===
+  OK   metrics header carries main_loop_iterations
+  OK   metrics header carries ui_update_calls
+  OK   metrics header carries title_update_calls
+  OK   metrics header carries metrics_write_calls
+  OK   metrics header carries wait_calls
+  OK   metrics header carries wait_ms_total
+
+IDLE-SPIN=PASS
+IDLE-SPIN=PASS (assertions_ok=11)
+IDLE-SPIN-MUTATION=PASS (the 1 ms wait reads 1.00, under the 4 ms floor)
+
+VERIFY=PASS

@@ -2,8 +2,8 @@
 Warning: NMake does not support parallel builds. Ignoring parallel build command line option.
 [  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main.cpp.obj
 main.cpp
-D:\TF2_Native_Test\native\src\main.cpp(1313): warning C4457: “instance”的声明隐藏了函数参数
-D:\TF2_Native_Test\native\src\main.cpp(417): note: 参见“instance”的声明
+D:\TF2_Native_Test\native\src\main.cpp(1390): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Test\native\src\main.cpp(456): note: 参见“instance”的声明
 [  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header.cpp.obj
 demo_header.cpp
 [  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer.cpp.obj
@@ -40,7 +40,6 @@ LzmaDec.c
 texture2d.cpp
 [ 14%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/settings_store.cpp.obj
 settings_store.cpp
-?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared\poppack.h
 [ 15%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/item_schema.cpp.obj
 item_schema.cpp
 [ 16%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_ui.cpp.obj
@@ -73,6 +72,7 @@ demo_header.cpp
 proto_wire.cpp
 [ 27%] Building CXX object CMakeFiles/demo_open_probe.dir/src/item_schema.cpp.obj
 item_schema.cpp
+?⒁? 包含文件:        C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xlocnum
 [ 28%] Building CXX object CMakeFiles/demo_open_probe.dir/src/vpk_archive.cpp.obj
 vpk_archive.cpp
 [ 29%] Building C object CMakeFiles/demo_open_probe.dir/third_party/lzma/LzmaDec.c.obj
@@ -155,6 +155,7 @@ vpk_archive.cpp
 demo_header.cpp
 [ 57%] Building CXX object CMakeFiles/model_pose_probe.dir/src/item_schema.cpp.obj
 item_schema.cpp
+?⒁? 包含文件:         C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\streambuf
 [ 58%] Linking CXX executable model_pose_probe.exe
 [ 58%] Built target model_pose_probe
 [ 59%] Building CXX object CMakeFiles/entity_model_probe.dir/tools/entity_model_probe.cpp.obj
@@ -187,7 +188,6 @@ viewmodel.cpp
 model_loader.cpp
 [ 68%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/asset_root.cpp.obj
 asset_root.cpp
-?⒁? 包含文件:    C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\locale
 [ 69%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/vpk_archive.cpp.obj
 vpk_archive.cpp
 [ 70%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header.cpp.obj
@@ -242,11 +242,11 @@ vpk_archive.cpp
 [ 88%] Built target native_install_smoke_probe
 [ 88%] Building CXX object CMakeFiles/native_ui_probe.dir/tools/native_ui_probe.cpp.obj
 native_ui_probe.cpp
-?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um\wow64apiset.h
 [ 89%] Building CXX object CMakeFiles/native_ui_probe.dir/src/native_ui.cpp.obj
 native_ui.cpp
 [ 90%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header.cpp.obj
 demo_header.cpp
+?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\cstdio
 [ 91%] Building CXX object CMakeFiles/native_ui_probe.dir/src/proto_wire.cpp.obj
 proto_wire.cpp
 [ 91%] Building CXX object CMakeFiles/native_ui_probe.dir/src/item_schema.cpp.obj
@@ -277,5 +277,5 @@ proto_wire.cpp
 cmake_build_rc=0
 errors=0
 warnings=1
-D:\TF2_Native_Test\native\src\main.cpp(1313): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Test\native\src\main.cpp(1390): warning C4457: “instance”的声明隐藏了函数参数
 exe_count=23
