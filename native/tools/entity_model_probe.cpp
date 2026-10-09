@@ -2,6 +2,9 @@
 #include "demo_header.h"
 #include "entity_model.h"
 #include "model_loader.h"
+#include "vmt_material.h"
+#include "vpk_archive.h"
+#include "vtf_texture.h"
 
 #include <algorithm>
 #include <array>
@@ -9,6 +12,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -1336,6 +1340,7 @@ int main(int argc, char** argv) {
   int propsAtEntity = -1;
   std::string classPropsFilter;
   std::string precacheFilter;
+  std::string modelTexturePath;
   bool weaponModelDump = false;
   bool historyStats = false;
   std::size_t historyCoverageSamples = 0;
@@ -1347,6 +1352,7 @@ int main(int argc, char** argv) {
     else if (arg == "--demo" && i + 1 < argc) demoPath = argv[++i];
     else if (arg == "--dump-class-props" && i + 1 < argc) classPropsFilter = argv[++i];
     else if (arg == "--dump-precache" && i + 1 < argc) precacheFilter = argv[++i];
+    else if (arg == "--dump-model-textures" && i + 1 < argc) modelTexturePath = argv[++i];
     else if (arg == "--dump-weapon-models") weaponModelDump = true;
     else if (arg == "--history-stats") historyStats = true;
     else if (arg == "--history-coverage" && i + 1 < argc) historyCoverageSamples = std::strtoul(argv[++i], nullptr, 10);
@@ -1432,6 +1438,108 @@ int main(int argc, char** argv) {
       }
     }
     if (first.size() >= 3 && first[0].cacheKey != first[2].cacheKey) duplicateStable = false;
+    // Dump the `mstudiotexture_t` name table of one named model. This is the
+    // reading the entity-material round rests on: the paint the renderer can
+    // reach for a model is exactly this list, each entry a material path stem
+    // under `materials/`, and no other mode of this probe prints it. Silent
+    // unless the flag is passed, so no existing consumer of this output moves.
+    if (!modelTexturePath.empty()) {
+      const auto readResource = [&](const std::string& resource) -> std::vector<std::uint8_t> {
+        std::vector<std::filesystem::path> resourceHolders;
+        assets.archives().collectContaining(resource, resourceHolders);
+        for (const auto& holder : resourceHolders) {
+          const auto* resourceArchive = assets.archives().find(holder);
+          if (!resourceArchive) continue;
+          auto bytes = resourceArchive->read(resource);
+          if (!bytes.empty()) return bytes;
+        }
+        return {};
+      };
+      // Each slot resolved end to end, name -> .vmt -> base texture -> .vtf
+      // bytes -> decoded RGBA. The slots are the model's whole paint budget, and
+      // a slot whose material the archives cannot produce is one the renderer
+      // will have to fall back for. Returns true only when the chain is complete
+      // so the caller can count them.
+      const auto resolveMaterialChain = [&](const std::string& materialName) {
+        const std::string vmtResource = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
+        const auto vmtBytes = readResource(vmtResource);
+        tf2::native::VmtMaterial material;
+        const bool materialParsed = !vmtBytes.empty()
+          && tf2::native::VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material);
+        if (!materialParsed || material.baseTexture.empty()) {
+          std::fprintf(stderr, "model-material name=%s vmt=%s vmtBytes=%zu parsed=%d complete=0\n",
+                       materialName.c_str(), vmtResource.c_str(), vmtBytes.size(), materialParsed ? 1 : 0);
+          return false;
+        }
+        const std::string vtfResource = tf2::native::VmtParser::resourcePath(material.baseTexture, ".vtf");
+        const auto vtfBytes = readResource(vtfResource);
+        tf2::native::VtfTexture texture;
+        const bool vtfParsed = !vtfBytes.empty() && texture.parse(vtfBytes);
+        const std::size_t decodedBytes = vtfParsed ? texture.decodeRgba(vtfBytes).size() : 0;
+        std::fprintf(stderr,
+                     "model-material name=%s vmt=%s vmtBytes=%zu parsed=%d shader=%s base=%s"
+                     " vtf=%s vtfBytes=%zu size=%ux%u decodedBytes=%zu complete=%d\n",
+                     materialName.c_str(), vmtResource.c_str(), vmtBytes.size(), materialParsed ? 1 : 0,
+                     material.shader.c_str(), material.baseTexture.c_str(),
+                     vtfResource.c_str(), vtfBytes.size(), texture.header().width, texture.header().height,
+                     decodedBytes, decodedBytes > 0 ? 1 : 0);
+        return decodedBytes > 0;
+      };
+      tf2::native::AssetReference textureProbe;
+      textureProbe.entityIndex = 1;
+      textureProbe.hasModelPath = true;
+      textureProbe.modelPath = modelTexturePath;
+      textureProbe.className = "CBaseAnimating";
+      const auto textureRequests = tf2::native::ModelLoader::buildRenderRequests(assets, {textureProbe}, nullptr, nullptr);
+      if (textureRequests.size() == 1 && textureRequests[0].renderable) {
+        const auto& textureMetadata = textureRequests[0].inspection.metadata;
+        std::fprintf(stderr, "model-textures path=%s declared=%u read=%zu\n",
+                     modelTexturePath.c_str(), textureMetadata.textureCount, textureMetadata.textureNames.size());
+        std::fprintf(stderr, "model-cdtextures count=%zu", textureMetadata.cdTexturePaths.size());
+        for (const auto& cdPath : textureMetadata.cdTexturePaths) {
+          std::fprintf(stderr, " [%s]", cdPath.c_str());
+        }
+        std::fprintf(stderr, "\n");
+        for (std::size_t slot = 0; slot < textureMetadata.textureNames.size(); ++slot) {
+          std::fprintf(stderr, "  texture[%zu] %s\n", slot,
+                       textureMetadata.textureNames[slot].empty() ? "<empty>" : textureMetadata.textureNames[slot].c_str());
+        }
+        // Every slot resolved, not just slot 0 -- see resolveMaterialChain above.
+        std::size_t resolvedSlots = 0;
+        for (const auto& slotName : textureMetadata.textureNames) {
+          if (slotName.empty()) continue;
+          if (resolveMaterialChain(slotName)) ++resolvedSlots;
+        }
+        std::fprintf(stderr, "model-material summary slots=%zu resolved=%zu\n",
+                     textureMetadata.textureNames.size(), resolvedSlots);
+      } else {
+        std::fprintf(stderr, "model-textures path=%s unresolved requests=%zu\n",
+                     modelTexturePath.c_str(), textureRequests.size());
+      }
+      // Raw header words, read straight out of the archive. When a table pointer
+      // in the header is wrong, the parsed result is an empty or nonsensical
+      // list and there is nothing to compare it against -- the failure is
+      // silent. Printing the candidate words is what turns "the names came back
+      // empty" into "numtextures is at 204 and the parser is reading 212".
+      std::vector<std::filesystem::path> holders;
+      assets.archives().collectContaining(modelTexturePath, holders);
+      for (const auto& holder : holders) {
+        const auto* archive = assets.archives().find(holder);
+        if (!archive) continue;
+        std::string archiveError;
+        const auto mdlBytes = archive->read(modelTexturePath, &archiveError);
+        if (mdlBytes.size() < 320) continue;
+        std::fprintf(stderr, "model-header words offset:value");
+        for (const std::size_t offset : {188u, 192u, 196u, 200u, 204u, 208u, 212u, 216u,
+                                         220u, 224u, 228u, 232u, 236u, 240u, 244u, 248u, 252u}) {
+          std::int32_t value = 0;
+          std::memcpy(&value, mdlBytes.data() + offset, sizeof(value));
+          std::fprintf(stderr, " %zu:%d", offset, value);
+        }
+        std::fprintf(stderr, " fileBytes=%zu\n", mdlBytes.size());
+        break;
+      }
+    }
     if (inspections > 4) duplicateStable = false;
 
     std::vector<tf2::native::EntityState> states(8);

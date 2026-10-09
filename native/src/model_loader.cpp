@@ -22,6 +22,9 @@ constexpr std::size_t kBoneStride = 216;
 constexpr std::size_t kAttachmentStride = 92;
 constexpr std::size_t kSequenceStride = 212;
 constexpr std::size_t kBodyPartStride = 16;
+// mstudiotexture_t: sznameindex/flags/used/unused1/material/clientmaterial then
+// ten unused words. 24 + 40 = 64.
+constexpr std::size_t kTextureStride = 64;
 constexpr std::size_t kVvdVertexStride = 48;
 constexpr std::size_t kVtxBodyPartStride = 8;
 constexpr std::size_t kVtxModelStride = 8;
@@ -82,6 +85,45 @@ std::string indexedString(const Bytes& b, std::size_t base, std::int32_t index) 
   const auto relative = static_cast<std::size_t>(index);
   if (!addFits(base, relative, b.size())) return {};
   return fixedString(b, base + relative, 4096);
+}
+
+// Turn a `mstudiotexture_t` name into a material path stem.
+//
+// Three shapes appear in real models and all three have to end up as one
+// canonical `models/...` stem:
+//   * `models/player/scout/scout_red` -- already absolute, used as is.
+//   * `scout_blue` (scout.mdl) / `medic_red` (medic.mdl) -- a bare stem, which
+//     belongs to the directory the model itself lives in.
+//   * `..\..\effects\invulnfx_red` (medic.mdl) -- climbs out of that directory,
+//     with backslashes and `..` segments that have to be resolved before the
+//     path can be looked up.
+// Resolving `..` after prefixing, rather than special-casing it, is what keeps
+// the third shape from silently becoming a path with `..` in the middle of it.
+std::string resolveTextureStem(const std::string& raw, const std::string& modelDirectory) {
+  std::string name = raw;
+  std::replace(name.begin(), name.end(), '\\', '/');
+  const bool climbs = name.rfind("../", 0) == 0 || name == "..";
+  const bool bare = name.find('/') == std::string::npos;
+  if ((bare || climbs) && !modelDirectory.empty()) name = modelDirectory + name;
+  std::vector<std::string> segments;
+  std::size_t start = 0;
+  while (start <= name.size()) {
+    const auto end = name.find('/', start);
+    const std::string segment = name.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    if (segment == "..") {
+      if (!segments.empty()) segments.pop_back();
+    } else if (!segment.empty() && segment != ".") {
+      segments.push_back(segment);
+    }
+    if (end == std::string::npos) break;
+    start = end + 1;
+  }
+  std::string result;
+  for (const auto& segment : segments) {
+    if (!result.empty()) result += "/";
+    result += segment;
+  }
+  return result;
 }
 
 bool readVec3(const Bytes& b, std::size_t offset, std::array<float, 3>& value) {
@@ -298,7 +340,7 @@ ModelFileStatus inspectFile(const std::filesystem::path& path, ModelFileKind kin
   return result;
 }
 
-void parseMdl(const Bytes& b, ModelMetadata& out) {
+void parseMdl(const Bytes& b, ModelMetadata& out, const std::string& modelPath) {
   if (b.size() < 316) { out.diagnostics.push_back("MDL header is shorter than the known Source studio header"); return; }
   readAt(b, 0, out.id); readAt(b, 4, out.version); readAt(b, 8, out.checksum);
   out.name = fixedString(b, 12, 64);
@@ -306,9 +348,19 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
   std::uint32_t numBones = 0, boneIndex = 0, numTextures = 0, textureIndex = 0;
   std::uint32_t numAttachments = 0, attachmentIndex = 0, numSequences = 0, sequenceIndex = 0;
   std::uint32_t numBodyParts = 0, bodyPartIndex = 0;
+  std::uint32_t numCdTextures = 0, cdTextureIndex = 0;
   readAt(b, 156, numBones); readAt(b, 160, boneIndex);
   readAt(b, 188, numSequences); readAt(b, 192, sequenceIndex);
-  readAt(b, 212, numTextures); readAt(b, 216, textureIndex);
+  // studiohdr_t word layout, verified against scout.mdl byte for byte:
+  // 204 numtextures / 208 textureindex / 212 numcdtextures / 216 cdtextureindex /
+  // 232 numbodyparts / 236 bodypartindex / 240 numlocalattachments / 244 attachmentindex.
+  // The texture pair used to be read from 212/216 -- the CD-texture table -- so
+  // `textureCount` came back as numcdtextures (2) and the table pointer landed
+  // in a list of strings. Nothing consumed `textureCount`, so the wrong word was
+  // never caught; the byte evidence for 208 is that textureindex + 17*64 lands
+  // exactly on cdtextureindex (589552 + 1088 = 590640).
+  readAt(b, 204, numTextures); readAt(b, 208, textureIndex);
+  readAt(b, 212, numCdTextures); readAt(b, 216, cdTextureIndex);
   readAt(b, 240, numBodyParts); readAt(b, 244, bodyPartIndex);
   readAt(b, 248, numAttachments); readAt(b, 252, attachmentIndex);
   out.boneCount = numBones; out.sequenceCount = numSequences; out.textureCount = numTextures;
@@ -383,6 +435,53 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
       out.bodyParts.push_back(std::move(bodyPart));
     }
   }
+  // The name table leads with a relative string index, exactly like the
+  // attachment and bodypart descriptors above, so `indexedString` already knows
+  // how to follow it. A slot whose name is unreadable stays in the vector as an
+  // empty string rather than being dropped: slot order is the model's own
+  // texture index space, and a dropped entry would silently renumber the rest.
+  if (!saneCount(numTextures, "texture") || !rangeFits(textureIndex, numTextures, kTextureStride, b.size())) {
+    out.diagnostics.push_back("texture table is outside the MDL file or uses an unsupported layout");
+  } else {
+    out.textureNames.reserve(numTextures);
+    // Bare stems and `..` climbs are relative to the model's own directory:
+    // `models/player/medic.mdl` stores `medic_red`, which lives at
+    // `models/player/medic/medic_red`. The rule is *not* "the directory of the
+    // previous absolute entry" -- medic.mdl's table opens with a bare stem, so
+    // there is no previous entry, and that rule resolved 0 of its 21 slots. On a
+    // table that does open absolute (scout.mdl) the two rules agree, which is
+    // exactly why the wrong one looked right.
+    std::string modelDirectory;
+    if (!modelPath.empty()) {
+      std::string stem = modelPath;
+      if (stem.size() > 4 && stem.substr(stem.size() - 4) == ".mdl") stem.erase(stem.size() - 4);
+      modelDirectory = stem + "/";
+    }
+    for (std::uint32_t i = 0; i < numTextures; ++i) {
+      const auto off = static_cast<std::size_t>(textureIndex) + i * kTextureStride;
+      std::int32_t nameIndex = -1;
+      readAt(b, off, nameIndex);
+      std::string name = resolveTextureStem(indexedString(b, off, nameIndex), modelDirectory);
+      if (!std::all_of(name.begin(), name.end(), [](unsigned char c) { return c >= 32 && c <= 126; })) {
+        out.diagnostics.push_back("texture name is not printable; slot kept empty");
+        name.clear();
+      }
+      out.textureNames.push_back(std::move(name));
+    }
+  }
+  // The CD-texture list: `numcdtextures` int offsets, each of which is added to
+  // cdtextureindex itself (not to the entry) to reach a path string. This is the
+  // list a bare texture stem is relative to.
+  if (!saneCount(numCdTextures, "cdtexture") || !rangeFits(cdTextureIndex, numCdTextures, 4, b.size())) {
+    out.diagnostics.push_back("CD texture table is outside the MDL file or uses an unsupported layout");
+  } else {
+    out.cdTexturePaths.reserve(numCdTextures);
+    for (std::uint32_t i = 0; i < numCdTextures; ++i) {
+      std::int32_t pathOffset = 0;
+      readAt(b, static_cast<std::size_t>(cdTextureIndex) + i * 4, pathOffset);
+      out.cdTexturePaths.push_back(indexedString(b, cdTextureIndex, pathOffset));
+    }
+  }
   if (!saneCount(numSequences, "sequence") || !rangeFits(sequenceIndex, numSequences, kSequenceStride, b.size())) {
     out.diagnostics.push_back("sequence table is outside the MDL file or uses an unsupported layout");
     out.sequenceDecodeReason = "sequence descriptor table is outside bounds";
@@ -454,7 +553,7 @@ ModelInspection inspectBuffers(const Bytes& mdlBytes, const Bytes& vvdBytes, con
   result.vtx = inspectBytes(vtxBytes, ModelFileKind::Vtx, paths.vtx);
   result.vtxDx80 = inspectBytes(vtxDx80Bytes, ModelFileKind::Vtx, paths.vtxDx80);
   result.vtxSw = inspectBytes(vtxSwBytes, ModelFileKind::Vtx, paths.vtxSw);
-  if (result.mdl.exists && result.mdl.signatureValid) parseMdl(mdlBytes, result.metadata);
+  if (result.mdl.exists && result.mdl.signatureValid) parseMdl(mdlBytes, result.metadata, paths.mdl.generic_string());
   if (result.vvd.exists && result.vvd.signatureValid) parseVvd(vvdBytes, result.metadata);
   const auto vtxVersion = result.vtx.signatureValid ? result.vtx.version
       : (result.vtxDx80.signatureValid ? result.vtxDx80.version : result.vtxSw.version);
