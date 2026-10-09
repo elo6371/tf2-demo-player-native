@@ -26,6 +26,11 @@ demo capture rc=0 size=2582406
 demo 1264x681 bpp=24 fileBytes=2582406 actual=2582406
 demo sha256 = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
   OK   a demo scene and the paused scene are different pictures
+installed-map demo capture rc=0 size=2582406
+installed-map demo sha256 = 18447d166a4aa49407e49a3a5f1d13e12942d0e67cdb749cce3e0f787af875d3
+  OK   the installed-map demo scene differs from the paused scene
+installed-map distinct colours (capped at 4097) = 162
+  OK   the installed-map frame is shaded geometry, not a full-screen decal
 
 === 4/4 a bad tick is refused instead of guessed ===
 invalid --capture-tick rc=13

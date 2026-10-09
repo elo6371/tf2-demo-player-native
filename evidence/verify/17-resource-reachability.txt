@@ -1,0 +1,22 @@
+=== 1/4 the archives main.cpp names are all present, or the reason is named ===
+archivesOpened=4 missingNames=pak01_dir.vpk totalEntries=149686
+  OK   archives opened = 4
+  OK   missing archive (by name) = pak01_dir.vpk
+
+=== 2/4 the demo map's own BSP is reachable, and its materials resolve ===
+bspSource=loose bspBytes=59590420 distinctMaterials=148 materialsWithDecodableVtf=111
+  OK   the demo map's BSP is reachable
+  OK   BSP source = loose
+  OK   111 materials resolve to decodable pixels
+
+=== 3/4 resolvable is not drawable: the 512 cap is measured, not assumed ===
+atlasEligible=7 oversizedRejected=104 triangles=30731/200000
+  OK   atlas-eligible materials = 7
+  OK   oversized materials rejected by the 512 cap = 104
+  OK   triangles the atlas can texture = 30731
+
+=== 4/4 the negative control: the map the old gate used is unreachable ===
+bagel bspBytes=0 (expected 0: this map is not installed here)
+  OK   bagel BSP bytes (the unreachable case) = 0
+
+RESOURCE-REACHABILITY=PASS
