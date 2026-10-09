@@ -1,0 +1,35 @@
+=== 1/3 the player class carries no animation state (three recordings) ===
+bagel: player line -> 'animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0'
+  OK   bagel CTFPlayer present in schema (found) = 1
+  OK   bagel m_nSequence slots = 0
+  OK   bagel m_flCycle slots = 0
+  OK   bagel m_flPlaybackRate slots = 0
+  OK   bagel m_flPoseParameter slots = 0
+pov: player line -> 'animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0'
+  OK   pov CTFPlayer present in schema (found) = 1
+  OK   pov m_nSequence slots = 0
+  OK   pov m_flCycle slots = 0
+  OK   pov m_flPlaybackRate slots = 0
+  OK   pov m_flPoseParameter slots = 0
+sourcetv: player line -> 'animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0'
+  OK   sourcetv CTFPlayer present in schema (found) = 1
+  OK   sourcetv m_nSequence slots = 0
+  OK   sourcetv m_flCycle slots = 0
+  OK   sourcetv m_flPlaybackRate slots = 0
+  OK   sourcetv m_flPoseParameter slots = 0
+
+=== 2/3 the same rule reports the classes that DO carry it (positive control) ===
+bagel control: classesWithSequence=0 classesWithCycle=195 classesWithRate=197
+  FAIL the rule reported no class with m_nSequence; it cannot measure the absence
+  FAIL classesWithSequence = 0, expected 197
+  OK   classesWithRate = 197
+  OK   classesWithCycle = 195
+  FAIL CTFWeaponBase did not report a sequence slot
+
+=== 3/3 the independent oracle agrees CTFPlayer's table is free of them ===
+oracle: DT_BaseAnimating slots=15 animation-property slots=0
+  OK   the oracle flattened CTFPlayer's DT_BaseAnimating block (15 slots)
+  OK   oracle animation-property slots for CTFPlayer = 0
+  OK   the oracle's schema contains CTFPlayer
+
+ANIMATION-AVAILABILITY=FAIL

@@ -73,9 +73,21 @@
 #      read out of the window title past the boundary, and the 20 pixels of the
 #      one visible instance against a committed witness captured before the
 #      binding existed.
+#  21. measure whether a demo carries the animation state that per-entity skeletal
+#      animation would need, before wiring any. The 2026-10-07 recon listed bone
+#      animation as a wiring task -- compile the decoder in, open
+#      uploadBoneMatrices(..., true), advance the sequence by tick -- which assumes
+#      the demo says which sequence a player is playing. It does not: TF2 strips
+#      m_nSequence / m_flCycle / m_flPlaybackRate from CTFPlayer's send table
+#      (source-sdk-2013 declares them in DT_BaseAnimating but routes m_flCycle via
+#      SendProxy_ClientSideAnimation, and c_baseanimating.cpp:1168 notes that
+#      player entities do not network m_nSequence). The step asserts the absence
+#      on three recordings, the positive control on the same run (197 classes DO
+#      carry it -- a rule that can only say no measures nothing), and the
+#      independent oracle's agreement. 22 assertions; m13 makes it go red.
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer does
-# not have to read twenty reports. Every step writes its raw output to
+# not have to read twenty-one reports. Every step writes its raw output to
 # evidence/ before the assertion runs.
 #
 # Step 10 exists because the P1 z defect was invisible to every count-based
@@ -177,7 +189,7 @@ rc_all=0
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
-step "1/20 clean full Release build"
+step "1/21 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
@@ -191,7 +203,7 @@ else
   echo "BUILD=FAIL"; rc_all=1
 fi
 
-step "2/20 nine-demo census"
+step "2/21 nine-demo census"
 bash run-demos.sh evidence/final | tee "$OUT/2-census.txt"
 if [ "$(grep -c 'entity_failures=0 malformed_packets=0 unknown_message_packets=0' "$OUT/2-census.txt")" -eq 9 ]; then
   echo "CENSUS=PASS (9/9 demos at zero)"
@@ -205,7 +217,7 @@ else
   echo "COVERAGE=FAIL"; rc_all=1
 fi
 
-step "3/20 wire fixtures"
+step "3/21 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
 FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
 echo "fixture_pass_count=$FIXTURES"
@@ -219,7 +231,7 @@ else
   echo "FIXTURE=FAIL"; rc_all=1
 fi
 
-step "4/20 oracle cross-check (nine demos)"
+step "4/21 oracle cross-check (nine demos)"
 bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final \
   | tee "$OUT/4-oracle.txt"
 if grep -q 'ORACLE-GATE=PASS' "$OUT/4-oracle.txt"; then
@@ -228,7 +240,7 @@ else
   echo "ORACLE=FAIL"; rc_all=1
 fi
 
-step "5/20 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+step "5/21 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
 # The input set is pinned, not sampled from the live directory. `sorted(glob())`
 # plus evenly spaced sampling is a property of the machine: the live corpus grew
 # from 1656 to 1658 recordings mid-round on 2026-10-08, every index moved, and the
@@ -261,7 +273,7 @@ else
   echo "ORACLE-CORPUS-SELFTEST=FAIL"; rc_all=1
 fi
 
-step "6/20 oracle demo recording types"
+step "6/21 oracle demo recording types"
 bash oracle-recording-types.sh | tee "$OUT/6-recording-types.txt"
 if grep -q 'ORACLE-RECORDING-TYPES=PASS' "$OUT/6-recording-types.txt"; then
   echo "RECORDING-TYPES=PASS"
@@ -269,7 +281,7 @@ else
   echo "RECORDING-TYPES=FAIL"; rc_all=1
 fi
 
-step "7/20 probe output is additive"
+step "7/21 probe output is additive"
 bash check-probe-output-additive.sh | tee "$OUT/7-probe-additive.txt"
 if grep -q 'PROBE-OUTPUT-ADDITIVE=PASS' "$OUT/7-probe-additive.txt"; then
   echo "PROBE-ADDITIVE=PASS"
@@ -277,7 +289,7 @@ else
   echo "PROBE-ADDITIVE=FAIL"; rc_all=1
 fi
 
-step "8/20 mutation suite (C++)"
+step "8/21 mutation suite (C++)"
 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
@@ -310,7 +322,7 @@ else
   echo "MUTATION=FAIL"; rc_all=1
 fi
 
-step "9/20 census verdict is falsifiable"
+step "9/21 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
 # The report count is asserted so this step cannot pass on an empty pinned set:
 # CENSUS-NEGATIVE=PASS is also what a suite that mutated zero reports would
@@ -324,7 +336,7 @@ else
   echo "CENSUS-NEGATIVE=FAIL (pinned_reports=${NEG_REPORTS:-0})"; rc_all=1
 fi
 
-step "10/20 reconstructed positions vs the independent oracle, per value"
+step "10/21 reconstructed positions vs the independent oracle, per value"
 # Steps 4-6 compare *counts* against the Rust oracle. Counts cannot see a value
 # that is decoded correctly and then read from the wrong property -- which is
 # exactly the P1 z defect: every counter stayed green while every player rendered
@@ -344,7 +356,7 @@ else
   echo "TRAJECTORY-ORACLE=FAIL (rc=$TRAJ_RC compared=${COMPARED:-0} mutation_rc=$MUT_RC)"; rc_all=1
 fi
 
-step "11/20 entity history coverage (how old a Checkpoint answer may be)"
+step "11/21 entity history coverage (how old a Checkpoint answer may be)"
 # Step 10 compares values only inside the ~70-packet live window, because that is
 # the only place the answer is tick-exact. Everywhere else the answer falls back
 # to a retained checkpoint, and nothing bounded how old that could be -- measured
@@ -362,7 +374,7 @@ else
   echo "HISTORY-COVERAGE=FAIL"; rc_all=1
 fi
 
-step "12/20 weapon world model (a weapon must not be drawn as its arms)"
+step "12/21 weapon world model (a weapon must not be drawn as its arms)"
 # Step 10 compares values but only for positions; a model path is the other half
 # of "the picture is right", and it fails differently. A weapon entity carries
 # two indices: m_nModelIndex is the first-person composite (its class's c_*_arms
@@ -385,7 +397,7 @@ else
   echo "WEAPON-WORLD-MODEL=FAIL (fixture_ok=$WS_FIXTURE, live_window_packets=${WS_PACKETS:-0})"; rc_all=1
 fi
 
-step "13/20 observer focus (who a spectator is watching, and what it would cost)"
+step "13/21 observer focus (who a spectator is watching, and what it would cost)"
 # A camera driven by the view entity alone is right for a live player and wrong
 # for a spectator: TF2 names the subject in m_iObserverMode / m_hObserverTarget,
 # and this pipeline read neither. Step 13 asserts the pair resolves, that it agrees
@@ -416,7 +428,7 @@ else
   echo "OBSERVER-FOCUS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "14/20 entity property slot freshness (the rule must take the later write)"
+step "14/21 entity property slot freshness (the rule must take the later write)"
 # Step 10 compares positions but only inside one demo's live window, and on that
 # demo the rank rule happens to be right. A player's origin arrives in two slots --
 # DT_TFLocalPlayerExclusive (full precision, sent to the owning client) and
@@ -452,7 +464,7 @@ else
   echo "SLOT-FRESHNESS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "15/20 real SourceTV coverage (all nine recordings, end to end)"
+step "15/21 real SourceTV coverage (all nine recordings, end to end)"
 # The pinned 24-demo calibration set carries one SourceTV recording, so almost all of
 # the SourceTV-side evidence in steps 1-14 is bagel and snakewater. A whole-corpus
 # header scan says there are nine SourceTV recordings on this machine, and this step
@@ -486,7 +498,7 @@ else
   echo "SOURCE-TV-COVERAGE-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "16/20 frame capture (the picture can be taken out of the running program)"
+step "16/21 frame capture (the picture can be taken out of the running program)"
 # Steps 1-15 are all counters and decoded values. Not one of them can speak to
 # whether the picture is right, and the gap is structural rather than a missing
 # assertion: step 12's weapon drawn as its arms resolved to a real asset and drew
@@ -529,7 +541,7 @@ else
   echo "FRAME-CAPTURE-MUTATION=FAIL (a one-byte change went unnoticed)"; rc_all=1
 fi
 
-step "17/20 resource reachability (what the demo scene can actually load)"
+step "17/21 resource reachability (what the demo scene can actually load)"
 # Step 16 pins the instrument but never asks what is *in* the frame it takes. That
 # gap was not hypothetical on this machine: the demo named in frame-capture-check.sh
 # is koth_bagel_rc13, whose BSP is not installed here, so the renderer fell through
@@ -573,7 +585,7 @@ else
   echo "RESOURCE-REACHABILITY-MUTATION=FAIL (a wrong expectation went unnoticed)"; rc_all=1
 fi
 
-step "18/20 idle spin (the loop must sleep until the next frame is due)"
+step "18/21 idle spin (the loop must sleep until the next frame is due)"
 # Every step above reads what the program *produced*: counters, decoded values,
 # resources, pixels. None of them could see the loop running hot between frames,
 # because a hot loop produces the same output -- it just produces it while
@@ -621,7 +633,7 @@ else
   echo "IDLE-SPIN-MUTATION=FAIL (the defect stayed at or above the floor)"; rc_all=1
 fi
 
-step "19/20 entity property lookup (the class sweep must not transform what it discards)"
+step "19/21 entity property lookup (the class sweep must not transform what it discards)"
 # The class-fallback sweep in EntityModelResolver::buildInstances used to build a
 # full transform for every player-named entity it walked, then throw the work away
 # when the transform came back without a player class. extractTransform scans the
@@ -664,7 +676,7 @@ else
   echo "ENTITY-PROPERTY-LOOKUP-MUTATION=FAIL (the pre-check's absence moved nothing)"; rc_all=1
 fi
 
-step "20/20 entity material (a model must carry its own paint, past the entity boundary)"
+step "20/21 entity material (a model must carry its own paint, past the entity boundary)"
 ENTITY_MAT="$OUT/20-entity-material.txt"
 bash entity-material-check.sh > "$ENTITY_MAT" 2>&1
 cat "$ENTITY_MAT"
@@ -691,6 +703,37 @@ if grep -q 'MUTATION-CAUGHT=PASS' "$ENTITY_MAT_MUT"; then
   echo "ENTITY-MATERIAL-MUTATION=PASS (layer 3 reads the atlas pixels as the defect)"
 else
   echo "ENTITY-MATERIAL-MUTATION=FAIL (the atlas-painted input was not caught)"; rc_all=1
+fi
+
+step "21/21 animation availability (a demo does not carry a player's sequence)"
+ANIM_AVAIL="$OUT/21-animation-availability.txt"
+bash animation-availability-check.sh > "$ANIM_AVAIL" 2>&1
+cat "$ANIM_AVAIL"
+# The assertion count is pinned for the same reason as steps 8 and 14-20: a gate
+# that prints PASS while its assertions quietly disappear is not a gate. 23 is
+# arrived at as: 5 per recording in section 1 (the class is found, plus the four
+# property counts) x 3 recordings = 15, + 5 in section 2 (the rule can report
+# presence, classesWithSequence, classesWithRate, classesWithCycle, and
+# CTFWeaponBase carrying a slot) + 3 in section 3 (the oracle's DT_BaseAnimating
+# block is non-empty, its animation-property count is 0, and its schema contains
+# CTFPlayer).
+ANIM_AVAIL_OK=$(grep -c '^  OK   ' "$ANIM_AVAIL" || true)
+if grep -q 'ANIMATION-AVAILABILITY=PASS' "$ANIM_AVAIL" && [ "${ANIM_AVAIL_OK:-0}" -eq 23 ]; then
+  echo "ANIMATION-AVAILABILITY=PASS (assertions_ok=$ANIM_AVAIL_OK)"
+else
+  echo "ANIMATION-AVAILABILITY=FAIL (assertions_ok=${ANIM_AVAIL_OK:-0})"; rc_all=1
+fi
+# The in-script mutation is the cheap half: it rewrites the captured output and
+# requires each assertion's extractor to see the rewrite, which is what catches a
+# regex that silently returns nothing (the ' pose=' field did exactly that on the
+# first run). The rebuilt, source-level half is m13 in mutate.sh, which neuters
+# the sweep and requires the positive control to collapse to 0.
+ANIM_AVAIL_MUT="$OUT/21-animation-availability-mutation.txt"
+bash animation-availability-check.sh --mutation > "$ANIM_AVAIL_MUT" 2>&1
+if grep -q 'MUTATION-CAUGHT=PASS' "$ANIM_AVAIL_MUT"; then
+  echo "ANIMATION-AVAILABILITY-MUTATION=PASS (every rewritten reading reached its extractor)"
+else
+  echo "ANIMATION-AVAILABILITY-MUTATION=FAIL (a reading was assumed rather than extracted)"; rc_all=1
 fi
 
 printf '\n'
