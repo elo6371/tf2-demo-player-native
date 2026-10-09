@@ -282,13 +282,17 @@ bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
 # suite: MUTATION-SUITE=PASS is also what a script that ran zero cases prints.
-# 42 red + 5 hold is the current case count (m11 added three red assertions and
+# 43 red + 5 hold is the current case count (m11 added three red assertions and
 # one hold -- the hold is bagel's chosenStale, which must NOT move when the
 # freshness term is deleted, or the gate would be passable by a rule that simply
-# prefers NonLocal; m12 added two red assertions and one hold -- the hold is
-# medic's resolved slot count, which must NOT move when only the upload is
-# short-circuited, or the gate's parse layer and its binding layer would be one
-# reading counted twice). Adding a case is an explicit edit here, which is the
+# prefers NonLocal; m12 added three red assertions and one hold -- the reds are
+# the gate's refusal, the instance counter and the ledger's uploaded count, and
+# the hold is medic's resolved slot count, which must NOT move when only the
+# upload is short-circuited, or the gate's parse layer and its binding layer
+# would be one reading counted twice). m12 was run alone on 2026-10-09 and read
+# exactly MUTATION-RED x3, MUTATION-HOLD x1, RESTORED-IDENTICAL x6, so the sum
+# is a measurement of that case on a 40+4 base and not an estimate. Adding a case
+# is an explicit edit here, which is the
 # point: a suite whose assertion count drifts silently is a suite that stopped
 # testing. Any GREEN or BROKE line means a mutation did not move the reading it
 # targets -- which is the one thing the suite exists to detect.
@@ -299,7 +303,7 @@ GREEN=$(grep -c '^MUTATION-GREEN' "$OUT/8-mutation.txt" || true)
 IDENT=$(grep -c '^RESTORED-IDENTICAL' "$OUT/8-mutation.txt" || true)
 echo "mutation_red=$RED hold=$HOLD green=$GREEN broke=$BROKE restored_identical=$IDENT"
 if grep -q 'MUTATION-SUITE=PASS' "$OUT/8-mutation.txt" \
-   && [ "$RED" -eq 42 ] && [ "$HOLD" -eq 5 ] \
+   && [ "$RED" -eq 43 ] && [ "$HOLD" -eq 5 ] \
    && [ "$GREEN" -eq 0 ] && [ "$BROKE" -eq 0 ] && [ "$IDENT" -eq 6 ]; then
   echo "MUTATION=PASS"
 else

@@ -13,7 +13,8 @@
 #   nothing about entity decoding, audio, or SourceTV coverage.
 #
 # WHERE THE READINGS GO
-#   Both gates below write into the committed `evidence/` directories by default.
+#   All three gates below write into the committed `evidence/` directories by
+#   default.
 #   This tier redirects them into `evidence/fast/render/` and then *asserts* that
 #   nothing under `evidence/` moved. The redirect matters most for frame-capture,
 #   whose metrics CSVs carry wall-clock and memory readings and therefore differ
