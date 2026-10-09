@@ -9,13 +9,14 @@
 #
 # The tree MUST be committed first: `git checkout --` is the restore mechanism.
 #
-# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11]
+# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12]
 set -uo pipefail
 cd "$(dirname "$0")"
 
 SRC=native/src/demo_header.cpp
 MODELSRC=native/src/entity_model.cpp
 MODELTOOL=native/tools/entity_model_probe.cpp
+MAINSRC=native/src/main.cpp
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
 PROTO23="D:/TF2_Demo_Player/.scratch/tf2-demo-parser/test_data/protocol23.dem"
 # The P1 cases need a real demo whose entities carry m_nModelIndex and a TF root
@@ -29,7 +30,7 @@ MODELPROBE=native/build-nmake/entity_model_probe.exe
 OUT=evidence/mutation
 mkdir -p "$OUT"
 
-CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11}"
+CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
@@ -58,8 +59,11 @@ PY
 restore() {
   git checkout -- native/ >/dev/null 2>&1
   # Rebuild every target any case touched, or the next case would read a stale
-  # binary left over from the previous mutation.
-  bash build-target.sh entity_protocol_probe entity_message_fixture_probe presentation_probe entity_model_probe >/dev/null 2>&1
+  # binary left over from the previous mutation. tf2_demo_native is in the list
+  # because m12 mutates main.cpp: without it the restore would put the source back
+  # and leave the *mutated* program on disk for anything that runs it afterwards
+  # (verify-all.sh's frame-capture step is the first such caller).
+  bash build-target.sh entity_protocol_probe entity_message_fixture_probe presentation_probe entity_model_probe tf2_demo_native >/dev/null 2>&1
 }
 
 value() { grep -oE "$2" "$1" | head -1 | cut -d= -f2; }
@@ -517,6 +521,40 @@ for case_id in $CASES; do
       # demos independently -- and "always prefer NonLocal" would pass it.
       must_hold "m11 freshness ignored -> bagel chosenStale stays 0" \
         "$OUT/slotfreshness-m11/bagel.txt" 'chosenStale=[0-9]+' '0'
+      ;;
+    m12)
+      # Reintroduce the defect the entity-material round fixed, at the one point
+      # the round's own gate has to be able to see: the resolution chain still
+      # runs, the texture is still decoded, and the SRV never reaches the draw --
+      # so every instance is painted with the world atlas again. The synthetic
+      # half of the gate must NOT move (19 of medic's 21 slots still resolve),
+      # because a red there would mean the mutation moved the wrong thing and the
+      # gate's two layers are one reading counted twice.
+      echo "--- m12 no model SRV reaches the draw (the atlas paints the models again)"
+      patch_in "$MAINSRC" \
+        '      const bool textureUploaded =
+        renderer.uploadEntityModelTexture(prepared.cacheKey, preparedRgba, preparedWidth, preparedHeight);
+' '      // mutation: the resolved texture never reaches the draw
+      const bool textureUploaded = false;
+' || { rc_all=1; continue; }
+      bash build-target.sh tf2_demo_native >/dev/null 2>&1
+      ENTITY_MATERIAL_OUT="$OUT/entitymaterial-m12" bash entity-material-check.sh \
+        > "$OUT/gate.m12.txt" 2>&1
+      m12rc=$?
+      must_refuse "m12 no model SRV -> entity-material gate refuses" "$OUT/gate.m12.txt" \
+        'ENTITY-MATERIAL=FAIL' "$m12rc"
+      # The instance-level counter is the reading the defect targets: every
+      # instance still drawn, none of them with a model texture bound. The
+      # extractor cuts on the first '=', so each assertion names one field.
+      must_move "m12 no model SRV -> every instance loses its texture" \
+        "$OUT/gate.m12.txt" 'entityMaterials=[0-9]+/[0-9]+' '95/95'
+      # The per-model account must move too, and for the reason the mutation has:
+      # all 59 models still resolve a material, none of them upload.
+      must_move "m12 no model SRV -> the ledger's uploaded count drops" \
+        "$OUT/gate.m12.txt" 'uploaded=[0-9]+' '59'
+      # And the parse layer holds, which is what keeps the two halves separate.
+      must_hold "m12 no model SRV -> medic still resolves 19 slots" \
+        "$OUT/gate.m12.txt" 'resolved=[0-9]+' '19'
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac

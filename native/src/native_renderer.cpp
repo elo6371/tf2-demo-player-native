@@ -1065,12 +1065,29 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   entityModelDrawRanges_.clear();
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  entityModelTexturedRangeCount_ = 0;
+  entityModelTexturedInstanceCount_ = 0;
+  return true;
+}
+
+bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+  if (!device_ || cacheKey.empty() || rgba.empty() || width == 0 || height == 0) { lastError_ = E_INVALIDARG; return false; }
+  const auto mesh = entityModelMeshes_.find(cacheKey);
+  if (mesh == entityModelMeshes_.end()) { lastError_ = E_INVALIDARG; return false; }
+  std::string error;
+  if (!mesh->second.texture.create(device_.Get(), rgba, width, height, &error)) {
+    if (!error.empty()) OutputDebugStringA(("Entity model texture upload failed: " + error + "\n").c_str());
+    lastError_ = E_INVALIDARG;
+    return false;
+  }
   return true;
 }
 
 void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances) {
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  entityModelTexturedRangeCount_ = 0;
+  entityModelTexturedInstanceCount_ = 0;
   entityModelDrawRanges_.clear();
   if (!device_ || !context_ || !worldBoundsValid_ || instances.empty() || entityModelMeshes_.empty()) return;
   if (!std::isfinite(worldCenterX_) || !std::isfinite(worldCenterY_) || !std::isfinite(worldMinZ_)
@@ -1086,6 +1103,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   struct Bucket {
     ID3D11Buffer* vertexBuffer = nullptr;
     UINT vertexCount = 0;
+    ID3D11ShaderResourceView* textureView = nullptr;
     std::vector<EntityModelInstanceGpu> items;
   };
   std::vector<Bucket> buckets;
@@ -1106,6 +1124,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       Bucket created;
       created.vertexBuffer = mesh->second.vertexBuffer.Get();
       created.vertexCount = mesh->second.vertexCount;
+      created.textureView = mesh->second.texture.view();
       buckets.push_back(std::move(created));
     }
     EntityModelInstanceGpu gpu{};
@@ -1132,12 +1151,19 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     range.vertexCount = bucket.vertexCount;
     range.instanceStart = static_cast<UINT>(packed.size());
     range.instanceCount = static_cast<UINT>(bucket.items.size());
+    range.textureView = bucket.textureView;
     packed.insert(packed.end(), bucket.items.begin(), bucket.items.end());
     entityModelDrawRanges_.push_back(range);
     uniqueVertices += bucket.vertexCount;
+    if (range.textureView) {
+      ++entityModelTexturedRangeCount_;
+      entityModelTexturedInstanceCount_ += range.instanceCount;
+    }
   }
   if (packed.empty()) {
     entityModelDrawRanges_.clear();
+    entityModelTexturedRangeCount_ = 0;
+    entityModelTexturedInstanceCount_ = 0;
     return;
   }
   if (!entityModelInstanceBuffer_ || entityModelInstanceCapacity_ < packed.size()) {
@@ -1149,6 +1175,8 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     if (FAILED(device_->CreateBuffer(&description, nullptr, entityModelInstanceBuffer_.ReleaseAndGetAddressOf()))) {
       entityModelDrawRanges_.clear();
+      entityModelTexturedRangeCount_ = 0;
+      entityModelTexturedInstanceCount_ = 0;
       return;
     }
     entityModelInstanceCapacity_ = capacity;
@@ -1156,6 +1184,8 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   D3D11_MAPPED_SUBRESOURCE mapped{};
   if (FAILED(context_->Map(entityModelInstanceBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
     entityModelDrawRanges_.clear();
+    entityModelTexturedRangeCount_ = 0;
+    entityModelTexturedInstanceCount_ = 0;
     return;
   }
   std::memcpy(mapped.pData, packed.data(), packed.size() * sizeof(EntityModelInstanceGpu));
@@ -1467,6 +1497,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     auto* instanceBuffer = entityModelInstanceBuffer_.Get();
     for (const auto& range : entityModelDrawRanges_) {
       if (!range.vertexBuffer || range.vertexCount < 3 || range.instanceCount == 0) continue;
+      auto* rangeView = range.textureView ? range.textureView : worldView;
+      context_->PSSetShaderResources(0, 1, &rangeView);
       ID3D11Buffer* buffers[2] = { range.vertexBuffer, instanceBuffer };
       context_->IASetVertexBuffers(0, 2, buffers, strides, offsets);
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
@@ -1541,6 +1573,8 @@ void Renderer::shutdown() {
   entityModelInstanceCapacity_ = 0;
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  entityModelTexturedRangeCount_ = 0;
+  entityModelTexturedInstanceCount_ = 0;
   entityModelDrawRanges_.clear();
   entityModelMeshes_.clear();
   modelVertexBuffer_.Reset();

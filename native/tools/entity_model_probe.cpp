@@ -1460,30 +1460,38 @@ int main(int argc, char** argv) {
       // a slot whose material the archives cannot produce is one the renderer
       // will have to fall back for. Returns true only when the chain is complete
       // so the caller can count them.
-      const auto resolveMaterialChain = [&](const std::string& materialName) {
-        const std::string vmtResource = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
-        const auto vmtBytes = readResource(vmtResource);
-        tf2::native::VmtMaterial material;
-        const bool materialParsed = !vmtBytes.empty()
-          && tf2::native::VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material);
-        if (!materialParsed || material.baseTexture.empty()) {
-          std::fprintf(stderr, "model-material name=%s vmt=%s vmtBytes=%zu parsed=%d complete=0\n",
-                       materialName.c_str(), vmtResource.c_str(), vmtBytes.size(), materialParsed ? 1 : 0);
-          return false;
+      // A slot resolves by walking its candidate list -- for a bare stem, the
+      // `$cdmaterials`-prefixed forms -- and taking the first one whose VMT and
+      // VTF both read. Unresolved candidates still print a line, so a slot that
+      // resolves on the second candidate shows both the miss and the hit, and a
+      // slot that resolves on neither shows every directory that was tried.
+      const auto resolveMaterialChain = [&](const std::vector<std::string>& candidates) {
+        for (const auto& materialName : candidates) {
+          const std::string vmtResource = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
+          const auto vmtBytes = readResource(vmtResource);
+          tf2::native::VmtMaterial material;
+          const bool materialParsed = !vmtBytes.empty()
+            && tf2::native::VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material);
+          if (!materialParsed || material.baseTexture.empty()) {
+            std::fprintf(stderr, "model-material name=%s vmt=%s vmtBytes=%zu parsed=%d complete=0\n",
+                         materialName.c_str(), vmtResource.c_str(), vmtBytes.size(), materialParsed ? 1 : 0);
+            continue;
+          }
+          const std::string vtfResource = tf2::native::VmtParser::resourcePath(material.baseTexture, ".vtf");
+          const auto vtfBytes = readResource(vtfResource);
+          tf2::native::VtfTexture texture;
+          const bool vtfParsed = !vtfBytes.empty() && texture.parse(vtfBytes);
+          const std::size_t decodedBytes = vtfParsed ? texture.decodeRgba(vtfBytes).size() : 0;
+          std::fprintf(stderr,
+                       "model-material name=%s vmt=%s vmtBytes=%zu parsed=%d shader=%s base=%s"
+                       " vtf=%s vtfBytes=%zu size=%ux%u decodedBytes=%zu complete=%d\n",
+                       materialName.c_str(), vmtResource.c_str(), vmtBytes.size(), materialParsed ? 1 : 0,
+                       material.shader.c_str(), material.baseTexture.c_str(),
+                       vtfResource.c_str(), vtfBytes.size(), texture.header().width, texture.header().height,
+                       decodedBytes, decodedBytes > 0 ? 1 : 0);
+          if (decodedBytes > 0) return true;
         }
-        const std::string vtfResource = tf2::native::VmtParser::resourcePath(material.baseTexture, ".vtf");
-        const auto vtfBytes = readResource(vtfResource);
-        tf2::native::VtfTexture texture;
-        const bool vtfParsed = !vtfBytes.empty() && texture.parse(vtfBytes);
-        const std::size_t decodedBytes = vtfParsed ? texture.decodeRgba(vtfBytes).size() : 0;
-        std::fprintf(stderr,
-                     "model-material name=%s vmt=%s vmtBytes=%zu parsed=%d shader=%s base=%s"
-                     " vtf=%s vtfBytes=%zu size=%ux%u decodedBytes=%zu complete=%d\n",
-                     materialName.c_str(), vmtResource.c_str(), vmtBytes.size(), materialParsed ? 1 : 0,
-                     material.shader.c_str(), material.baseTexture.c_str(),
-                     vtfResource.c_str(), vtfBytes.size(), texture.header().width, texture.header().height,
-                     decodedBytes, decodedBytes > 0 ? 1 : 0);
-        return decodedBytes > 0;
+        return false;
       };
       tf2::native::AssetReference textureProbe;
       textureProbe.entityIndex = 1;
@@ -1504,11 +1512,20 @@ int main(int argc, char** argv) {
           std::fprintf(stderr, "  texture[%zu] %s\n", slot,
                        textureMetadata.textureNames[slot].empty() ? "<empty>" : textureMetadata.textureNames[slot].c_str());
         }
+        // The candidate list behind each slot, in the order the resolver tries
+        // them. Printed separately so the `texture[i]` lines keep their shape.
+        for (std::size_t slot = 0; slot < textureMetadata.textureCandidates.size(); ++slot) {
+          std::fprintf(stderr, "  texture-candidates[%zu]", slot);
+          for (const auto& candidate : textureMetadata.textureCandidates[slot]) {
+            std::fprintf(stderr, " [%s]", candidate.c_str());
+          }
+          std::fprintf(stderr, "\n");
+        }
         // Every slot resolved, not just slot 0 -- see resolveMaterialChain above.
         std::size_t resolvedSlots = 0;
-        for (const auto& slotName : textureMetadata.textureNames) {
-          if (slotName.empty()) continue;
-          if (resolveMaterialChain(slotName)) ++resolvedSlots;
+        for (const auto& candidates : textureMetadata.textureCandidates) {
+          if (candidates.empty()) continue;
+          if (resolveMaterialChain(candidates)) ++resolvedSlots;
         }
         std::fprintf(stderr, "model-material summary slots=%zu resolved=%zu\n",
                      textureMetadata.textureNames.size(), resolvedSlots);

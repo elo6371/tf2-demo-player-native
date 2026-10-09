@@ -116,10 +116,14 @@ public:
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setEntityMarkers(const std::vector<EntityMarker>& markers);
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
+  bool uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
   std::size_t entityModelMeshCount() const { return entityModelMeshes_.size(); }
   std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
   std::size_t entityModelVertexCount() const { return entityModelVertexCount_; }
+  std::size_t entityModelTexturedRangeCount() const { return entityModelTexturedRangeCount_; }
+  std::size_t entityModelTexturedInstanceCount() const { return entityModelTexturedInstanceCount_; }
+  std::size_t entityModelDrawRangeCount() const { return entityModelDrawRanges_.size(); }
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
   const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
   WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
@@ -208,12 +212,18 @@ private:
   struct EntityModelMesh {
     Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
     UINT vertexCount = 0;
+    // The model's own paint, resolved from its MDL texture table. Empty until
+    // uploadEntityModelTexture succeeds; a null view keeps the world atlas.
+    Texture2D texture;
   };
   struct EntityModelDrawRange {
     ID3D11Buffer* vertexBuffer = nullptr;
     UINT vertexCount = 0;
     UINT instanceStart = 0;
     UINT instanceCount = 0;
+    // Non-owning. Points at the mesh's own Texture2D so the draw loop can bind
+    // t0 per range; null means "no model material, fall back to the world atlas".
+    ID3D11ShaderResourceView* textureView = nullptr;
   };
   std::unordered_map<std::string, EntityModelMesh> entityModelMeshes_;
   std::vector<EntityModelDrawRange> entityModelDrawRanges_;
@@ -221,6 +231,8 @@ private:
   std::size_t entityModelInstanceCapacity_ = 0;
   UINT entityModelVertexCount_ = 0;
   std::size_t entityModelInstanceCount_ = 0;
+  std::size_t entityModelTexturedRangeCount_ = 0;
+  std::size_t entityModelTexturedInstanceCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
   Texture2D texture_;

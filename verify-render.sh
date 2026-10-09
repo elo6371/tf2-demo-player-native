@@ -6,7 +6,7 @@
 #   gates that can see a material, a texture or a pixel. Everything expensive in
 #   verify-all.sh that is *not* about rendering -- the corpus sample, the SourceTV
 #   sweep, the entity gates -- is left out, so "the material work is done" can be
-#   answered in ~8 min instead of ~80.
+#   answered in ~10 min instead of ~85.
 #
 # WHAT IT DOES NOT SAY
 #   It does not print VERIFY=PASS and is not a merge gate. In particular it says
@@ -31,7 +31,13 @@
 #      frame is taken out of the running program, the BMP is checked against its
 #      own size, the same static scene twice is byte-identical, and two demo
 #      scenes differ from the paused one.
-#   3. the material chain's synthetic layer -- VTF parse rejections (empty,
+#   3. entity material -- a model drawn as an entity must be painted with its own
+#      material, and the program must survive the tick at which entities appear.
+#      Every gate above captures at `--capture-tick 0`, i.e. playback tick 16,
+#      which is before this demo's first checkpoint: entities do not exist yet,
+#      so a defect that only fires once they do is outside every gate's field of
+#      view. On 2026-10-09 one did, and only this gate was there to see it.
+#   4. the material chain's synthetic layer -- VTF parse rejections (empty,
 #      corrupt, oversized, cubemap-as-2d), the BSP defaults (an empty BSP is
 #      rejected, no-lighting is the default), and the VMT feature mapping. This
 #      is the parse layer under gates 1 and 2; it runs in milliseconds and needs
@@ -52,7 +58,7 @@
 #   verified".
 #
 # Usage: bash verify-render.sh [--mutation] [--no-build]
-#   --mutation adds the perturbation runs of gates 1 and 2 (~+10 min).
+#   --mutation adds the perturbation runs of gates 1, 2 and 3 (~+12 min).
 # Exit:  0 = every gate passed.
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -79,14 +85,15 @@ EVIDENCE_BEFORE=$(git status --porcelain evidence/ 2>/dev/null | sort)
 B=native/build-nmake
 
 if [ "$BUILD" -eq 1 ]; then
-  echo "=== 1/3 incremental build ==="
-  # tf2_demo_native is the program frame-capture takes its frame from.
-  bash build-target.sh tf2_demo_native resource_reachability_probe world_material_probe material_chain_probe
+  echo "=== 1/4 incremental build ==="
+  # tf2_demo_native is the program frame-capture and entity-material take their
+  # frames from; entity_model_probe is entity-material's resolve-from-bytes half.
+  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe
   rc_build=$?
   echo "build_rc=$rc_build"
   [ "$rc_build" -eq 0 ] || { echo "VERIFY-RENDER=FAIL (build)"; exit 1; }
 else
-  echo "=== 1/3 incremental build (skipped: --no-build) ==="
+  echo "=== 1/4 incremental build (skipped: --no-build) ==="
 fi
 
 ok=0
@@ -116,12 +123,13 @@ gate() { # gate <label> <script> <pass-marker-regex> <out-env-var>
 }
 
 echo
-echo "=== 2/3 the gates ==="
+echo "=== 2/4 the gates ==="
 gate resource-reachability resource-reachability-check.sh 'RESOURCE-REACHABILITY=(PASS|FAIL)' RESOURCE_CHECK_OUT
 gate frame-capture         frame-capture-check.sh         'FRAME-CAPTURE=(PASS|FAIL)'         FRAME_CAPTURE_OUT
+gate entity-material       entity-material-check.sh       'ENTITY-MATERIAL=(PASS|FAIL)'       ENTITY_MATERIAL_OUT
 
 echo
-echo "=== 3/3 the material chain's synthetic layer ==="
+echo "=== 3/4 the material chain's synthetic layer ==="
 CHAIN_OUT="$OUT/material-chain.txt"
 "$B/material_chain_probe.exe" > "$CHAIN_OUT" 2>&1
 rc_chain=$?
@@ -162,7 +170,7 @@ else
 fi
 
 echo
-echo "=== the committed evidence tree must be untouched ==="
+echo "=== 4/4 the committed evidence tree must be untouched ==="
 EVIDENCE_AFTER=$(git status --porcelain evidence/ 2>/dev/null | sort)
 if [ "$EVIDENCE_BEFORE" = "$EVIDENCE_AFTER" ]; then
   ok=$((ok + 1)); printf '  OK   %-22s nothing under evidence/ moved (tier output stayed in %s)\n' evidence-tree "$OUT"
@@ -175,7 +183,7 @@ fi
 echo
 echo "gates_ok=$ok gates_bad=$bad"
 if [ "$bad" -eq 0 ]; then
-  echo "VERIFY-RENDER=PASS ($ok/4 gates, mutation=$MUTATION)"
+  echo "VERIFY-RENDER=PASS ($ok/5 gates, mutation=$MUTATION)"
   exit 0
 fi
 echo "VERIFY-RENDER=FAIL ($bad red)"
