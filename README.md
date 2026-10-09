@@ -104,30 +104,36 @@ demo tick 37639 / server tick 53968 的 `DT_TFLocalPlayerExclusive.m_vecOrigin`�
 > `git diff --stat 3d03719..HEAD -- native/`（它现在非空，是探针的加法）。
 > 见 `ACCEPTANCE-P1-2026-10-06.md` §17。
 
-⚠️ **本轮起「`native/` 一个字节未改」不再成立**：`native/` 三文件 +156 行、**全部加法**，
-渲染行为未变（抓帧只在被请求时执行一次）。判断代码有无被动过请用
-`git diff --stat 3d03719..HEAD -- native/`（应为空）。
+⚠️ **从第七轮起「`native/` 一个字节未改」不再成立**：第七轮 `native/` 三文件 +156 行
+（帧抓取，**全部加法**，渲染行为未变），第八轮又 +293 行（两个资源探针）。
+**判断代码有无被动过请用当前基线**：`git diff --stat fe6cb3b..HEAD -- native/`（应为空，
+`fe6cb3b` 是最后一次动 `native/` 的提交；更早的 `3d03719..HEAD` **现在非空**，是上面两次加法）。
 另：门禁里**每条启动都写了 `--audio-device 6`** —— 本机默认设备不是该出声的那个，
 且 `--start-paused` **不豁免**（音频设备在启动阶段就打开）。
 见 `ACCEPTANCE-P1-2026-10-06.md` §16 与 HANDOFF §1.8。
 
-**`VERIFY=PASS` 已在 `e43a3f3` 上取得**（**16 步** `bash verify-all.sh --quick`，
-**38m27s**，RC=0，16 步全绿，读数在 `evidence/verify/1..16-*.txt`）。
-**这是第七轮的第二次跑** —— 第一次（`3d03719`）是 `VERIFY=FAIL`，**唯一红的是第 16 步**，
-原因是我把断言数写死成 15 而实际是 16：门禁自己打印 `FRAME-CAPTURE=PASS`，
-链条打印 `FRAME-CAPTURE=FAIL (assertions_ok=16)`，
-**是验收机器抓住了作者的数错，不是缺陷**（与 `3ca75ae` 那次同类）。
-修正期望后重跑转绿。第 16 步的注释现在写明了这 16 条是怎么数出来的。
-本轮相对上一次改了 **`native/` 三文件（帧抓取）**、新增第 16 步门禁 `frame-capture-check.sh`、
-把链条从 15 步拓到 16 步。逐步：`BUILD (errors=0 warnings=1 exe_count=21)` /
-`CENSUS 9/9` / `COVERAGE 9/9` / `FIXTURE 58/58` /
-`ORACLE` / `ORACLE-CORPUS + selftest` / `RECORDING-TYPES` / `PROBE-ADDITIVE` /
+**`VERIFY=PASS` 已在 `cfd6637` 上取得**（**17 步** `bash verify-all.sh`，**1h08m36s**，
+RC=0，17 步全绿，读数在 `evidence/verify/1..17-*.txt`）。
+**这是 17 步链的第一次跑完**：上一次（01:39）**死在第 8 步中间**，
+`mutate.sh: fork: retry: Resource temporarily unavailable` —— 机器上有 **456 个进程**，
+Git Bash 的 fork 槽耗尽；**是被测机器没跑完，不是判据变红**（同一份代码上一轮 16 步全绿）。
+本次在负载回落后重跑，第 8 步（变异套件）顺利跑完。
+逐步：`BUILD (errors=0 warnings=1 exe_count=23)` / `CENSUS 9/9` / `COVERAGE 9/9` /
+`FIXTURE 58/58` / `ORACLE` / `ORACLE-CORPUS (pinned_sample=24 of 24 pinned) + selftest` /
+`RECORDING-TYPES` / `PROBE-ADDITIVE` /
 `MUTATION (red=40 hold=4)` / `CENSUS-NEGATIVE (pinned_reports=24)` /
-`TRAJECTORY-ORACLE (compared=40, mismatches=0)` / `HISTORY-COVERAGE (worst 1180 ≤ 2×761)` /
-`WEAPON-WORLD-MODEL (fixture_ok=12)` / `OBSERVER-FOCUS (46 断言, camera-to-target=45u)` + 变异 /
-`SLOT-FRESHNESS (24 断言, POV chosenStale=0)` + 变异 /
-`SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异 /
-**`FRAME-CAPTURE (16 断言)` + 变异（一字节改动移动内容哈希）**。
+`TRAJECTORY-ORACLE (compared=40)` / `HISTORY-COVERAGE (worst 1180 ≤ 2×761)` /
+`WEAPON-WORLD-MODEL (fixture_ok=12, live_window_packets=68)` /
+`OBSERVER-FOCUS (46 断言, camera-to-target=45u)` + 变异（3/3） /
+`SLOT-FRESHNESS (24 断言, POV chosenStale=0 worstAge=124)` + 变异（2/2） /
+`SOURCE-TV-COVERAGE (9 份 / 917543 包 / 47 断言)` + 变异（2/2） /
+`FRAME-CAPTURE (18 断言)` + 变异（一字节改动移动内容哈希） /
+`RESOURCE-REACHABILITY (9 断言)` + 变异（错档案数变红）。
+⚠️ **本轮第 5 步的输入集也改成了钉住的**（`cfd6637`）：它原本和已修过的第 9 步
+**共用同一个 `sorted(glob())` 抽样活目录**的写法，语料 1656 → 1658 让八份抽样
+整体移位 —— 但第 5 步只比较**计数**，所以**继续报绿**的同时产出了一份不可复现的证据。
+详见 `ACCEPTANCE-P1-2026-10-06.md` §13.9。
+上一次 **`VERIFY=PASS` 在 `e43a3f3` 上取得**（16 步，38m27s）。
 上一次 **`VERIFY=PASS` 在 `290db52` 上取得**（15 步，36m20s）。
 更早 **`VERIFY=PASS` 在 `18fe7ea` 上取得**（15 步，**33m09s**）。
 上一轮 **`VERIFY=PASS` 在 `fefc216` 上取得**（14 步，30m35s，读数
@@ -240,8 +246,11 @@ $PY oracle-trajectory-check.py --ticks 2 --mutation   # MUTATION-CAUGHT=PASS
 
 # 只读头 1072 字节的独立 Python 头解析器，可覆盖全量语料（秒级）
 python corpus-header-scan.py --demos-dir "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos"
-# 语料抽样与 Rust oracle 逐值对照（自带 --selftest）
-python oracle-corpus-check.py --sample 40 --workers 2
+# 语料抽样与 Rust oracle 逐值对照（自带 --selftest）。
+# ⚠️ 2026-10-09 起输入集必须钉住：--demos-list 指向冻结名单（否则抽样活目录，
+# 语料一涨读数就不可复现）。链条第 5 步就是这么调的。
+python oracle-corpus-check.py \
+  --demos-list evidence/corpus-calib/demos.txt --sample 8 --workers 2
 
 # 全语料普查（1644 份 / 40.2 GB，3 并发约 4 小时；--resume 可断点续跑）
 python corpus-census.py \
