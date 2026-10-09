@@ -67,7 +67,7 @@ probe() {
   echo "$json"
 }
 
-echo "=== 1/4 the archives main.cpp names are all present, or the reason is named ==="
+echo "=== 1/5 the archives main.cpp names are all present, or the reason is named ==="
 # main.cpp opens five named archives and silently drops the ones that fail. The
 # count is asserted, and the names that failed are asserted to be the ones we
 # actually expect to be missing on this install -- so a *second* archive
@@ -81,7 +81,7 @@ assert_eq "archives opened" "$OPENED" "4"
 assert_eq "missing archive (by name)" "$MISSING" "pak01_dir.vpk"
 
 echo
-echo "=== 2/4 the demo map's own BSP is reachable, and its materials resolve ==="
+echo "=== 2/5 the demo map's own BSP is reachable, and its materials resolve ==="
 # A BSP that is not reachable is the difference between "the scene drew untextured"
 # and "the scene did not draw at all" -- the bagel frame is the second case and
 # nothing before this step could tell them apart.
@@ -103,7 +103,7 @@ else
 fi
 
 echo
-echo "=== 3/4 resolvable is not drawable: the 512 cap is measured, not assumed ==="
+echo "=== 3/5 resolvable is not drawable: the 512 cap is measured, not assumed ==="
 # main.cpp builds the world atlas from at most 64 materials at or below 512x512.
 # Most of this map's textures are 1024x1024, so the number that predicts whether
 # texturing can be visible at all is the triangle share, not the material count.
@@ -117,7 +117,7 @@ assert_eq "oversized materials rejected by the 512 cap" "$REJECTED" "104"
 assert_eq "triangles the atlas can texture" "$COVERED" "30731"
 
 echo
-echo "=== 4/4 the negative control: the map the old gate used is unreachable ==="
+echo "=== 4/5 the negative control: the map the old gate used is unreachable ==="
 # Everything above is about a map that works. This is about the map that does not,
 # and it is the reading that would have caught the original defect: step 16 used
 # koth_bagel_rc13, and on this machine that map has no BSP at all. If a future
@@ -128,6 +128,30 @@ BAGEL=$(probe koth_bagel_rc13 "$OUT/bagel.json")
 BAGEL_BSP=$(field "$BAGEL" bspBytes)
 echo "bagel bspBytes=$BAGEL_BSP (expected 0: this map is not installed here)"
 assert_eq "bagel BSP bytes (the unreachable case)" "$BAGEL_BSP" "0"
+
+echo
+echo "=== 5/5 the counterfactual: is the 512 cap or the wiring what loses the map? ==="
+# Section 3 measures how much the *current* cap can texture (15.4%). It does not
+# say whether the loss is the cap's fault or the wiring's. This holds the install
+# and the parse fixed and varies only the cap, so the answer is a reading rather
+# than an argument. If coverage leaps when the cap rises, the fix is one integer;
+# if it stays flat, the cap is innocent and the wiring is what to change.
+CAP1024=$("$PY" -c "
+import json,sys
+print(json.loads(sys.argv[1])['triangleCoverageByCap']['1024'])
+" "$SNAKE")
+CAP_UNCAP=$("$PY" -c "
+import json,sys
+print(json.loads(sys.argv[1])['triangleCoverageByCap']['uncapped'])
+" "$SNAKE")
+echo "triangles covered at cap 1024=$CAP1024 (vs 30731 at 512, of $TOTAL_TRI)"
+assert_eq "triangles at a 1024 cap" "$CAP1024" "193875"
+assert_eq "triangles with no cap (a real install gap remains)" "$CAP_UNCAP" "199227"
+if [ "${CAP1024:-0}" -gt "${COVERED:-0}" ]; then
+  echo "  OK   raising the cap 512 -> 1024 recovers geometry (the cap is the bottleneck)"
+else
+  echo "  FAIL raising the cap recovered nothing (the cap is not the bottleneck)"; fail=1
+fi
 
 echo
 if [ "$MUTATION" -eq 1 ]; then

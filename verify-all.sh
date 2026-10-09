@@ -504,14 +504,16 @@ RR="$OUT/17-resource-reachability.txt"
 bash resource-reachability-check.sh > "$RR" 2>&1
 cat "$RR"
 RR_OK=$(grep -c '^  OK   ' "$RR" || true)
-# Assertion count pinned for the same reason as steps 8, 14, 15 and 16. 9 is
+# Assertion count pinned for the same reason as steps 8, 14, 15 and 16. 12 is
 # arrived at as: 1 archive count + 1 missing-archive name + 1 BSP reachable
 # + 1 BSP source + 1 materials resolve + 3 for the 512 cap (eligible, rejected,
-# triangles covered) + 1 negative control (the old gate's map has no BSP).
+# triangles covered) + 1 negative control (the old gate's map has no BSP)
+# + 3 for the counterfactual (triangles at a 1024 cap, triangles uncapped, and
+# the check that raising the cap actually recovers geometry).
 # An earlier version of this line said 9 while the gate emitted 8, and the chain
 # went red for exactly that reason -- the same class of author miscount as step
 # 16's first run, caught by the machine rather than by reading.
-if grep -q 'RESOURCE-REACHABILITY=PASS' "$RR" && [ "${RR_OK:-0}" -eq 9 ]; then
+if grep -q 'RESOURCE-REACHABILITY=PASS' "$RR" && [ "${RR_OK:-0}" -eq 12 ]; then
   echo "RESOURCE-REACHABILITY=PASS (assertions_ok=$RR_OK)"
 else
   echo "RESOURCE-REACHABILITY=FAIL (assertions_ok=${RR_OK:-0})"; rc_all=1
