@@ -546,23 +546,33 @@ step "18/18 idle spin (the loop must sleep until the next frame is due)"
 # one pushing a title and UI controls for state that had not moved. This step is
 # the only one in the chain that reads the loop's rate rather than its output.
 #
-# The assertion is a ratio (main_loop_iterations per rendered frame, ceiling 4
-# against a measured 2), and the mutation is a source-level counterfactual: it
-# puts `min(remainingMs, 1.0)` back, rebuilds, and requires the same ceiling to
-# go red. Measured: 2.0 fixed, 253.4 mutated -- the ratio tracks the loop, not
-# the threshold.
+# The assertion is the wait itself: mean_wait_ms, which the fixed build reads at
+# ~8.97 (its clamp is sized to the frame gap) and the defective build at exactly
+# 1.00 (min(remainingMs, 1)). The mutation is a source-level counterfactual: it
+# puts the 1 ms wait back, rebuilds, and requires the same >= 4 ms floor to go
+# red.
+#
+# An earlier version of this step asserted main_loop_iterations per rendered
+# frame instead, with a ceiling of 4 against a measured 2. That reading does not
+# discriminate here -- with a 120 Hz target (8.33 ms) and a loop body costing
+# several ms, elapsed has already passed the target when the wait returns in both
+# builds, so both read 2.0 and the defective build passed the straight run. The
+# chain caught it, but only through --mutation; the ratio is now a diagnostic and
+# the wait is the assertion. This is the repo's own rule applied to itself: a
+# reading whose margin is that wide has to be shown failing on the defect, not on
+# a tightened threshold.
 IDLE="$OUT/18-idle-spin.txt"
 bash idle-spin-check.sh > "$IDLE" 2>&1
 cat "$IDLE"
 IDLE_OK=$(grep -c '^  OK   ' "$IDLE" || true)
 # Assertion count pinned for the same reason as steps 8, 14, 15, 16 and 17: a
 # gate that prints PASS while its assertions quietly disappear is not a gate.
-# 9 is arrived at as: 3 in step 1 (loop-per-frame ceiling, update ratio, metrics
-# rate) + 2 in step 2 (playback advanced, updaters fired) + 4 in step 3 (the
-# four metric columns present). The idle sample also has to carry at least three
-# metrics rows or the rate cannot be computed, and that is asserted inside the
-# script (it prints `x` and fails) rather than counted here.
-if grep -q 'IDLE-SPIN=PASS' "$IDLE" && [ "${IDLE_OK:-0}" -eq 9 ]; then
+# 11 is arrived at as: 3 in step 1 (mean wait floor, update ratio, metrics rate)
+# + 2 in step 2 (playback advanced, both updaters fired) + 6 in step 3 (the six
+# metric columns the assertions read). The idle sample also has to carry at least
+# three metrics rows or the rate cannot be computed, and that is asserted inside
+# the script (it fails) rather than counted here.
+if grep -q 'IDLE-SPIN=PASS' "$IDLE" && [ "${IDLE_OK:-0}" -eq 11 ]; then
   echo "IDLE-SPIN=PASS (assertions_ok=$IDLE_OK)"
 else
   echo "IDLE-SPIN=FAIL (assertions_ok=${IDLE_OK:-0})"; rc_all=1
@@ -570,9 +580,9 @@ fi
 IDLEMUT="$OUT/18-idle-spin-mutation.txt"
 bash idle-spin-check.sh --mutation > "$IDLEMUT" 2>&1
 if grep -q 'MUTATION-CAUGHT=PASS' "$IDLEMUT"; then
-  echo "IDLE-SPIN-MUTATION=PASS (the 1 ms wait pushes loop-per-frame past the ceiling)"
+  echo "IDLE-SPIN-MUTATION=PASS (the 1 ms wait reads 1.00, under the 4 ms floor)"
 else
-  echo "IDLE-SPIN-MUTATION=FAIL (the defect left the ratio under the ceiling)"; rc_all=1
+  echo "IDLE-SPIN-MUTATION=FAIL (the defect stayed at or above the floor)"; rc_all=1
 fi
 
 printf '\n'
