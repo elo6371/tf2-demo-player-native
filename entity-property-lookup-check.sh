@@ -104,7 +104,13 @@ restore() {
     # Restoring the source is not enough: the gate itself re-reads the probe, and
     # a probe left built from the mutated source would make the next plain run
     # read the mutation. Rebuild so the binary matches the tree.
-    bash build-target.sh entity_model_probe > /dev/null 2>&1
+    #
+    # A failed rebuild here is the dangerous case, so it is loud rather than
+    # ignored: the source would be fixed while the binary stayed mutated, and
+    # every later reading of this probe would be the defect. build-target.sh now
+    # exits non-zero on a failed build, which is what makes this check possible.
+    bash build-target.sh entity_model_probe > /dev/null 2>&1 \
+      || echo "WARNING: restore rebuild failed; $PROBE may still be the mutated build" >&2
   fi
 }
 trap restore EXIT
