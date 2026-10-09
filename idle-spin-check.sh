@@ -256,7 +256,13 @@ if find not in data:
     sys.exit('PATTERN NOT FOUND: the wait clamp is not where this script expects')
 io.open(path, 'wb').write(data.replace(find, repl, 1).encode('utf-8'))
 PYEOF
-  restore() { git checkout -- native/ >/dev/null 2>&1; }
+  # The restore must put both the source *and* the binary back: leaving the
+  # mutated exe in place would make the next non-mutation run read the defect and
+  # fail for a reason that has nothing to do with the code under test.
+  restore() {
+    git checkout -- native/ >/dev/null 2>&1
+    bash build-target.sh tf2_demo_native >/dev/null 2>&1
+  }
   trap restore EXIT
   bash build-target.sh tf2_demo_native >/dev/null 2>&1
   if [ ! -x "$EXE" ]; then

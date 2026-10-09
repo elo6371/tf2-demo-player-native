@@ -46,9 +46,16 @@
 #      which of main.cpp's five hardcoded archives opened, whether the demo map's
 #      BSP is reachable, how many of its materials resolve to pixels, and how many
 #      survive the 512x512 world-atlas cap -- resolvable is not drawable.
+#  18. read the loop's *rate* rather than its output. The main loop awaited the
+#      next frame in 1 ms slices, so an idle window ran the whole body ~1000 times
+#      a second, pushing a title and UI controls for state that had not moved; a
+#      hot loop still produces correct output, which is why no step above could
+#      see it. This step asserts main_loop_iterations per rendered frame, that the
+#      two state-driven updaters stay far below the loop count when nothing moves,
+#      and that the metrics throttle still holds.
 #
-# Anything that must be true for the delivery is asserted here, so a reviewer
-# does not have to read sixteen reports. Every step writes its raw output to
+# Anything that must be true for the delivery is asserted here, so a reviewer does
+# not have to read eighteen reports. Every step writes its raw output to
 # evidence/ before the assertion runs.
 #
 # Step 10 exists because the P1 z defect was invisible to every count-based
@@ -124,6 +131,8 @@
 # Step 13 adds ~4 min (the gate twice: once straight, once with --mutation).
 # Step 15 adds ~3.5 min (nine full decodes; --mutation reuses those dumps, because
 # it perturbs the comparison and not the decode).
+# Step 18 adds ~5 min (two 12 s idle/play samples, plus the mutation, which
+# rebuilds tf2_demo_native once to put the 1 ms wait back and once to restore it).
 #
 # Usage: bash verify-all.sh [--quick]     (--quick: oracle corpus sample of 8)
 # Exit:  0 = every step passed.
@@ -139,7 +148,7 @@ rc_all=0
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
-step "1/17 clean full Release build"
+step "1/18 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
@@ -153,7 +162,7 @@ else
   echo "BUILD=FAIL"; rc_all=1
 fi
 
-step "2/17 nine-demo census"
+step "2/18 nine-demo census"
 bash run-demos.sh evidence/final | tee "$OUT/2-census.txt"
 if [ "$(grep -c 'entity_failures=0 malformed_packets=0 unknown_message_packets=0' "$OUT/2-census.txt")" -eq 9 ]; then
   echo "CENSUS=PASS (9/9 demos at zero)"
@@ -167,7 +176,7 @@ else
   echo "COVERAGE=FAIL"; rc_all=1
 fi
 
-step "3/17 wire fixtures"
+step "3/18 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
 FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
 echo "fixture_pass_count=$FIXTURES"
@@ -181,7 +190,7 @@ else
   echo "FIXTURE=FAIL"; rc_all=1
 fi
 
-step "4/17 oracle cross-check (nine demos)"
+step "4/18 oracle cross-check (nine demos)"
 bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final \
   | tee "$OUT/4-oracle.txt"
 if grep -q 'ORACLE-GATE=PASS' "$OUT/4-oracle.txt"; then
@@ -190,7 +199,7 @@ else
   echo "ORACLE=FAIL"; rc_all=1
 fi
 
-step "5/17 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+step "5/18 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
 # The input set is pinned, not sampled from the live directory. `sorted(glob())`
 # plus evenly spaced sampling is a property of the machine: the live corpus grew
 # from 1656 to 1658 recordings mid-round on 2026-10-08, every index moved, and the
@@ -223,7 +232,7 @@ else
   echo "ORACLE-CORPUS-SELFTEST=FAIL"; rc_all=1
 fi
 
-step "6/17 oracle demo recording types"
+step "6/18 oracle demo recording types"
 bash oracle-recording-types.sh | tee "$OUT/6-recording-types.txt"
 if grep -q 'ORACLE-RECORDING-TYPES=PASS' "$OUT/6-recording-types.txt"; then
   echo "RECORDING-TYPES=PASS"
@@ -231,7 +240,7 @@ else
   echo "RECORDING-TYPES=FAIL"; rc_all=1
 fi
 
-step "7/17 probe output is additive"
+step "7/18 probe output is additive"
 bash check-probe-output-additive.sh | tee "$OUT/7-probe-additive.txt"
 if grep -q 'PROBE-OUTPUT-ADDITIVE=PASS' "$OUT/7-probe-additive.txt"; then
   echo "PROBE-ADDITIVE=PASS"
@@ -239,7 +248,7 @@ else
   echo "PROBE-ADDITIVE=FAIL"; rc_all=1
 fi
 
-step "8/17 mutation suite (C++)"
+step "8/18 mutation suite (C++)"
 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
@@ -265,7 +274,7 @@ else
   echo "MUTATION=FAIL"; rc_all=1
 fi
 
-step "9/17 census verdict is falsifiable"
+step "9/18 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
 # The report count is asserted so this step cannot pass on an empty pinned set:
 # CENSUS-NEGATIVE=PASS is also what a suite that mutated zero reports would
@@ -279,7 +288,7 @@ else
   echo "CENSUS-NEGATIVE=FAIL (pinned_reports=${NEG_REPORTS:-0})"; rc_all=1
 fi
 
-step "10/17 reconstructed positions vs the independent oracle, per value"
+step "10/18 reconstructed positions vs the independent oracle, per value"
 # Steps 4-6 compare *counts* against the Rust oracle. Counts cannot see a value
 # that is decoded correctly and then read from the wrong property -- which is
 # exactly the P1 z defect: every counter stayed green while every player rendered
@@ -299,7 +308,7 @@ else
   echo "TRAJECTORY-ORACLE=FAIL (rc=$TRAJ_RC compared=${COMPARED:-0} mutation_rc=$MUT_RC)"; rc_all=1
 fi
 
-step "11/17 entity history coverage (how old a Checkpoint answer may be)"
+step "11/18 entity history coverage (how old a Checkpoint answer may be)"
 # Step 10 compares values only inside the ~70-packet live window, because that is
 # the only place the answer is tick-exact. Everywhere else the answer falls back
 # to a retained checkpoint, and nothing bounded how old that could be -- measured
@@ -317,7 +326,7 @@ else
   echo "HISTORY-COVERAGE=FAIL"; rc_all=1
 fi
 
-step "12/17 weapon world model (a weapon must not be drawn as its arms)"
+step "12/18 weapon world model (a weapon must not be drawn as its arms)"
 # Step 10 compares values but only for positions; a model path is the other half
 # of "the picture is right", and it fails differently. A weapon entity carries
 # two indices: m_nModelIndex is the first-person composite (its class's c_*_arms
@@ -340,7 +349,7 @@ else
   echo "WEAPON-WORLD-MODEL=FAIL (fixture_ok=$WS_FIXTURE, live_window_packets=${WS_PACKETS:-0})"; rc_all=1
 fi
 
-step "13/17 observer focus (who a spectator is watching, and what it would cost)"
+step "13/18 observer focus (who a spectator is watching, and what it would cost)"
 # A camera driven by the view entity alone is right for a live player and wrong
 # for a spectator: TF2 names the subject in m_iObserverMode / m_hObserverTarget,
 # and this pipeline read neither. Step 13 asserts the pair resolves, that it agrees
@@ -371,7 +380,7 @@ else
   echo "OBSERVER-FOCUS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "14/17 entity property slot freshness (the rule must take the later write)"
+step "14/18 entity property slot freshness (the rule must take the later write)"
 # Step 10 compares positions but only inside one demo's live window, and on that
 # demo the rank rule happens to be right. A player's origin arrives in two slots --
 # DT_TFLocalPlayerExclusive (full precision, sent to the owning client) and
@@ -407,7 +416,7 @@ else
   echo "SLOT-FRESHNESS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "15/17 real SourceTV coverage (all nine recordings, end to end)"
+step "15/18 real SourceTV coverage (all nine recordings, end to end)"
 # The pinned 24-demo calibration set carries one SourceTV recording, so almost all of
 # the SourceTV-side evidence in steps 1-14 is bagel and snakewater. A whole-corpus
 # header scan says there are nine SourceTV recordings on this machine, and this step
@@ -441,7 +450,7 @@ else
   echo "SOURCE-TV-COVERAGE-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "16/17 frame capture (the picture can be taken out of the running program)"
+step "16/18 frame capture (the picture can be taken out of the running program)"
 # Steps 1-15 are all counters and decoded values. Not one of them can speak to
 # whether the picture is right, and the gap is structural rather than a missing
 # assertion: step 12's weapon drawn as its arms resolved to a real asset and drew
@@ -484,7 +493,7 @@ else
   echo "FRAME-CAPTURE-MUTATION=FAIL (a one-byte change went unnoticed)"; rc_all=1
 fi
 
-step "17/17 resource reachability (what the demo scene can actually load)"
+step "17/18 resource reachability (what the demo scene can actually load)"
 # Step 16 pins the instrument but never asks what is *in* the frame it takes. That
 # gap was not hypothetical on this machine: the demo named in frame-capture-check.sh
 # is koth_bagel_rc13, whose BSP is not installed here, so the renderer fell through
@@ -526,6 +535,44 @@ if grep -q 'MUTATION-CAUGHT=PASS' "$RRMUT"; then
   echo "RESOURCE-REACHABILITY-MUTATION=PASS (a wrong archive-count expectation goes red)"
 else
   echo "RESOURCE-REACHABILITY-MUTATION=FAIL (a wrong expectation went unnoticed)"; rc_all=1
+fi
+
+step "18/18 idle spin (the loop must sleep until the next frame is due)"
+# Every step above reads what the program *produced*: counters, decoded values,
+# resources, pixels. None of them could see the loop running hot between frames,
+# because a hot loop produces the same output -- it just produces it while
+# burning a core. The defect was one line (waiting at most 1 ms instead of until
+# the frame was due), and at ~100 fps it meant ~1000 iterations a second, each
+# one pushing a title and UI controls for state that had not moved. This step is
+# the only one in the chain that reads the loop's rate rather than its output.
+#
+# The assertion is a ratio (main_loop_iterations per rendered frame, ceiling 4
+# against a measured 2), and the mutation is a source-level counterfactual: it
+# puts `min(remainingMs, 1.0)` back, rebuilds, and requires the same ceiling to
+# go red. Measured: 2.0 fixed, 253.4 mutated -- the ratio tracks the loop, not
+# the threshold.
+IDLE="$OUT/18-idle-spin.txt"
+bash idle-spin-check.sh > "$IDLE" 2>&1
+cat "$IDLE"
+IDLE_OK=$(grep -c '^  OK   ' "$IDLE" || true)
+# Assertion count pinned for the same reason as steps 8, 14, 15, 16 and 17: a
+# gate that prints PASS while its assertions quietly disappear is not a gate.
+# 9 is arrived at as: 3 in step 1 (loop-per-frame ceiling, update ratio, metrics
+# rate) + 2 in step 2 (playback advanced, updaters fired) + 4 in step 3 (the
+# four metric columns present). The idle sample also has to carry at least three
+# metrics rows or the rate cannot be computed, and that is asserted inside the
+# script (it prints `x` and fails) rather than counted here.
+if grep -q 'IDLE-SPIN=PASS' "$IDLE" && [ "${IDLE_OK:-0}" -eq 9 ]; then
+  echo "IDLE-SPIN=PASS (assertions_ok=$IDLE_OK)"
+else
+  echo "IDLE-SPIN=FAIL (assertions_ok=${IDLE_OK:-0})"; rc_all=1
+fi
+IDLEMUT="$OUT/18-idle-spin-mutation.txt"
+bash idle-spin-check.sh --mutation > "$IDLEMUT" 2>&1
+if grep -q 'MUTATION-CAUGHT=PASS' "$IDLEMUT"; then
+  echo "IDLE-SPIN-MUTATION=PASS (the 1 ms wait pushes loop-per-frame past the ceiling)"
+else
+  echo "IDLE-SPIN-MUTATION=FAIL (the defect left the ratio under the ceiling)"; rc_all=1
 fi
 
 printf '\n'
