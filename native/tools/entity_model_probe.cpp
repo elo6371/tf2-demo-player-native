@@ -1371,6 +1371,15 @@ int main(int argc, char** argv) {
   std::uint32_t scoutChecksum = 0;
   std::size_t instanceCount = 0;
   std::size_t playerFallbacks = 0;
+  // The synthetic fixture at the end of the tf-root block is the only path where
+  // the class-fallback sweep fires (see the comment there), so its resolver
+  // counters are captured separately from any demo run's.
+  std::size_t fixtureFallbackScanned = 0;
+  std::size_t fixtureClassLookups = 0;
+  std::size_t fixtureTransforms = 0;
+  std::size_t fixturePropertyComparisons = 0;
+  std::size_t fixtureInstanceCount = 0;
+  std::size_t fixtureFallbacks = 0;
   std::string scoutKey;
   bool duplicateStable = true;
 
@@ -1429,17 +1438,48 @@ int main(int argc, char** argv) {
     tf2::native::EntityPropertyValue origin;
     origin.type = tf2::native::SendPropType::Vector;
     origin.x = 10; origin.y = 20; origin.z = 30;
-    states[1].classId = 0;
-    states[1].properties["DT_BaseEntity.m_vecOrigin"] = origin;
+    // The five requests above cover entity indices 1..5, so the sweep only walks
+    // indices 0 and 6..7. The two entities below are placed on indices the
+    // requests do *not* cover, or the sweep would skip them and show nothing.
+    //
+    // Entity 7: player-named (classId 0 -> "CTFPlayer") but with no m_iClass at
+    // all. This is the entity the cheap pre-check exists for: the old sweep built
+    // it a full transform and then threw that work away when the transform came
+    // back with no player class, the new sweep answers the class question first
+    // and skips the transform. Without an entity in this shape the fixture cannot
+    // show the pre-check saving anything, which is why it is constructed here.
+    states[7].classId = 0;
+    states[7].properties["DT_BaseEntity.m_vecOrigin"] = origin;
     tf2::native::EntityPropertyValue playerClass;
     playerClass.type = tf2::native::SendPropType::Int;
     playerClass.intValue = 3;
+    // Entity 6: player-named *and* carrying m_iClass=3, so it survives the
+    // pre-check and still gets its fallback instance. The pair (7, 6) is what
+    // makes the claim falsifiable: entity 6 pins that a passing entity is not
+    // dropped, entity 7 pins that a failing one is not transformed.
     states[6].classId = 0;
     states[6].properties["DT_BaseEntity.m_vecOrigin"] = origin;
     states[6].properties["DT_TFPlayer.m_iClass"] = playerClass;
     std::vector<tf2::native::ServerClassSchema> schemas(1);
     schemas[0].name = "CTFPlayer";
+    // The class-fallback sweep only runs over entities no request already covers.
+    // On every demo in the corpus every player entity already has a request, so
+    // that sweep is cold there and the counters read zero -- which tells a reader
+    // nothing about the path P1 asked about. This synthetic states table is the
+    // one place the sweep fires, so its counters are kept separately and printed
+    // under their own names.
     const auto instances = tf2::native::EntityModelResolver::buildInstances(first, states, schemas, 64);
+    const auto& fixtureStats = tf2::native::lastResolverStats();
+    fixtureFallbackScanned = fixtureStats.fallbackEntitiesScanned;
+    fixtureClassLookups = fixtureStats.classLookups;
+    fixtureTransforms = fixtureStats.transformsBuilt;
+    fixturePropertyComparisons = fixtureStats.propertyComparisons;
+    // The fixture's own result, captured before the demo block below overwrites
+    // instanceCount/playerFallbacks with the demo call's. The gate asserts this
+    // pair stays put while the transform count moves, which is the whole claim:
+    // the pre-check spares work without dropping an instance.
+    fixtureInstanceCount = instances.size();
+    for (const auto& instance : instances) if (instance.playerClassFallback) ++fixtureFallbacks;
     instanceCount = instances.size();
     for (const auto& instance : instances) if (instance.playerClassFallback) ++playerFallbacks;
   }
@@ -1542,6 +1582,30 @@ int main(int argc, char** argv) {
       << ",\"duplicateStable\":" << (duplicateStable ? "true" : "false")
       << ",\"instanceCount\":" << instanceCount
       << ",\"playerFallbacks\":" << playerFallbacks;
+    // Work counters for the resolver, printed from the buildInstances call above
+    // (the same call whose result is instanceCount/playerFallbacks). P1 asked to
+    // measure property-lookup cost before changing the data structures, so these
+    // are the reading that decision rests on: transformsBuilt counts full
+    // transforms, fallbackEntitiesScanned counts entities walked for the class
+    // sweep, propertyComparisons counts name-vs-suffix comparisons, and
+    // classLookups counts entities the cheap pre-check spared a transform.
+    //
+    // The demo call's sweep is cold on this corpus (every player already has a
+    // request), so `resolverFallbackScanned` reading 0 here is a fact about the
+    // demos, not a claim that the path was never taken. The `fixture*` counters
+    // below are the sweep's own reading, from the synthetic states table where it
+    // does fire; a change to the sweep has to show up there or it is unmeasured.
+    const auto& resolver = tf2::native::lastResolverStats();
+    std::cout << ",\"resolverTransforms\":" << resolver.transformsBuilt
+      << ",\"resolverFallbackScanned\":" << resolver.fallbackEntitiesScanned
+      << ",\"resolverPropertyComparisons\":" << resolver.propertyComparisons
+      << ",\"resolverClassLookups\":" << resolver.classLookups
+      << ",\"fixtureFallbackScanned\":" << fixtureFallbackScanned
+      << ",\"fixtureClassLookups\":" << fixtureClassLookups
+      << ",\"fixtureTransforms\":" << fixtureTransforms
+      << ",\"fixturePropertyComparisons\":" << fixturePropertyComparisons
+      << ",\"fixtureInstanceCount\":" << fixtureInstanceCount
+      << ",\"fixtureFallbacks\":" << fixtureFallbacks;
     // Opt-in, so the default line stays byte-identical to the frozen baseline.
     if (trajectoryTicks > 0) {
       std::cout << ",\"trajectoryTicks\":" << trajectory.ticks

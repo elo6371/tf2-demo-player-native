@@ -45,6 +45,27 @@ struct ModelInstance {
   std::string diagnostic;
 };
 
+// Work counters for the resolver, so "how much does property lookup cost" can be
+// answered from a reading instead of from an estimate. P1 asked for exactly this
+// before any change: `extractTransform` scans the whole property map once per
+// requested suffix, and the class-fallback sweep calls it for every entity in the
+// snapshot, so the numbers worth having are how many property comparisons the
+// transform path performs and how many entities it walks to find the players.
+//
+// These are plain counters set by the most recent buildInstances call, not
+// thread-local: the resolver is called from the render loop and the probes, and
+// neither runs it concurrently.
+struct ResolverStats {
+  std::size_t instanceRequests = 0;      // requests handed to buildInstances
+  std::size_t fallbackEntitiesScanned = 0; // entities walked in the fallback sweep
+  std::size_t transformsBuilt = 0;       // extractTransform calls
+  std::size_t propertyComparisons = 0;   // name-vs-suffix comparisons performed
+  std::size_t classLookups = 0;          // cheap pre-checks that avoided a transform
+};
+
+const ResolverStats& lastResolverStats();
+void resetResolverStats();
+
 class EntityModelResolver final {
 public:
   static constexpr std::size_t kMaxInstances = 2048;

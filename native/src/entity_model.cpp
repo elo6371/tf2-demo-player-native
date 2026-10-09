@@ -8,7 +8,11 @@
 namespace tf2::native {
 namespace {
 
+// Set by the most recent buildInstances call. See ResolverStats in the header.
+ResolverStats g_resolverStats;
+
 bool suffixMatch(const std::string& name, const char* suffix) {
+  ++g_resolverStats.propertyComparisons;
   const auto length = std::strlen(suffix);
   if (name.size() == length && name == suffix) return true;
   if (name.size() > length && name.compare(name.size() - length, length, suffix) == 0) {
@@ -150,6 +154,9 @@ constexpr std::int64_t kObserverModeChase = 5;
 
 } // namespace
 
+const ResolverStats& lastResolverStats() { return g_resolverStats; }
+void resetResolverStats() { g_resolverStats = ResolverStats{}; }
+
 std::vector<PropertyCandidate> rankPropertyCandidates(const EntityState& state, const char* suffix) {
   // Same matcher and same ranking the selection rule uses, so what a diagnostic
   // prints is what the rule would do -- not a second opinion that can drift from
@@ -167,6 +174,7 @@ std::vector<PropertyCandidate> rankPropertyCandidates(const EntityState& state, 
 }
 
 ModelInstanceTransform EntityModelResolver::extractTransform(const EntityState& state) {
+  ++g_resolverStats.transformsBuilt;
   ModelInstanceTransform transform;
   bool originComplete = true;
   if (float origin[3]; readVectorProperty(state, "m_vecOrigin", origin, &originComplete)) {
@@ -280,6 +288,8 @@ std::vector<ModelInstance> EntityModelResolver::buildInstances(
     const std::vector<ServerClassSchema>& classSchemas,
     std::size_t maxInstances) {
   if (maxInstances == 0 || maxInstances > kMaxInstances) maxInstances = kMaxInstances;
+  g_resolverStats = ResolverStats{};
+  g_resolverStats.instanceRequests = requests.size();
   std::vector<ModelInstance> instances;
   instances.reserve(std::min(requests.size() + 64u, maxInstances));
   std::unordered_set<std::uint16_t> covered;
@@ -325,9 +335,19 @@ std::vector<ModelInstance> EntityModelResolver::buildInstances(
     if (entityIndex > 0xffffu) break;
     const auto index16 = static_cast<std::uint16_t>(entityIndex);
     if (covered.count(index16)) continue;
+    ++g_resolverStats.fallbackEntitiesScanned;
     const auto& state = statesByIndex[entityIndex];
     const auto className = classNameOf(state.classId);
     if (!isPlayerClassName(className)) continue;
+    // One lookup answers "is this a class we can draw a fallback for". Only an
+    // entity that passes pays for the full transform. The check is the same
+    // suffix and the same value range extractTransform applies to m_iClass, so
+    // the set of entities that get an instance is unchanged -- and that is what
+    // the probe's instance counts are there to confirm.
+    const auto* playerClass = findProperty(state, "m_iClass");
+    if (!playerClass || playerClass->type != SendPropType::Int
+        || playerClass->intValue < 1 || playerClass->intValue > 9) continue;
+    ++g_resolverStats.classLookups;
     const auto transform = extractTransform(state);
     if (!transform.hasPlayerClass) continue;
     const auto path = defaultPlayerModelPath(transform.playerClass);
