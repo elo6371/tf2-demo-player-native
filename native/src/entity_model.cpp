@@ -1,5 +1,6 @@
 #include "entity_model.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <unordered_set>
@@ -7,7 +8,11 @@
 namespace tf2::native {
 namespace {
 
+// Set by the most recent buildInstances call. See ResolverStats in the header.
+ResolverStats g_resolverStats;
+
 bool suffixMatch(const std::string& name, const char* suffix) {
+  ++g_resolverStats.propertyComparisons;
   const auto length = std::strlen(suffix);
   if (name.size() == length && name == suffix) return true;
   if (name.size() > length && name.compare(name.size() - length, length, suffix) == 0) {
@@ -16,11 +21,105 @@ bool suffixMatch(const std::string& name, const char* suffix) {
   return false;
 }
 
+// Lower is better. A player carries its position twice: the copy the owning
+// client receives (DT_TFLocalPlayerExclusive, full precision) and the quantized
+// copy every other client receives (DT_TFNonLocalPlayerExclusive). Measured on
+// bagel at server tick 129211 the two differ by ~4000 units -- the width of the
+// map -- so picking "whichever the hash table yields first" is not a rounding
+// detail, it is a teleport.
+int exclusiveRank(const std::string& name) {
+  if (name.find("LocalPlayerExclusive") != std::string::npos) return 0;
+  if (name.find("NonLocalPlayerExclusive") != std::string::npos) return 2;
+  return 1;
+}
+
+// Which of two equally-suffixed properties to use.
+//
+// Freshness first. Two slots can carry the same quantity while only one of them
+// is still being written, and the one a later packet wrote is the one that
+// describes the world now. Measured on the POV demo's entity 3 at server tick
+// 53976: the Local slot was last written at 51596 and its value sits 2729 units
+// from the camera the demo recorded, while the NonLocal slot was written at
+// 53976 and sits 44 units from that camera. The rank rule below is exactly what
+// prefers the stale one. On bagel the same rule is right -- Local written at
+// 129277, NonLocal 73129 ticks stale -- which is why every count-based gate
+// stayed green through both.
+//
+// Rank is the tie-break, not the decision, so a state that carries no packet
+// ticks at all (a fixture, or any state built outside readEntityPropUpdates,
+// where lastWriteTick is -1) is ordered exactly as it was before this rule
+// existed. Equal ticks -- including two -1s -- therefore keep the old
+// full-precision-Local-then-lexicographic order, and the choice stays a pure
+// function of the state: no hash order, no wall clock.
+bool preferCandidate(const std::string& name, std::int32_t lastWriteTick,
+                     const std::string& bestName, std::int32_t bestTick) {
+  if (lastWriteTick != bestTick) return lastWriteTick > bestTick;
+  const int rank = exclusiveRank(name);
+  const int bestRank = exclusiveRank(bestName);
+  if (rank != bestRank) return rank < bestRank;
+  return name < bestName;
+}
+
 const EntityPropertyValue* findProperty(const EntityState& state, const char* suffix) {
+  // EntityState::properties is an unordered_map, so "first match wins" is not a
+  // rule -- it is whichever bucket the hash landed in. Rank the candidates
+  // instead, so the same state always yields the same property. This matters for
+  // every suffix a player carries twice (m_vecOrigin, m_angEyeAngles[i], ...).
+  const EntityPropertyValue* best = nullptr;
+  std::string bestName;
   for (const auto& [name, value] : state.properties) {
-    if (suffixMatch(name, suffix)) return &value;
+    if (!suffixMatch(name, suffix)) continue;
+    if (!best || preferCandidate(name, value.lastWriteTick, bestName, best->lastWriteTick)) {
+      best = &value;
+      bestName = name;
+    }
   }
-  return nullptr;
+  return best;
+}
+
+// Reads a vector property by base name, filling in components that the vector's
+// own encoding does not carry from the sibling scalar properties "<base>[i]".
+//
+// This is the P1 z defect: a player's m_vecOrigin is a VectorXY, so the wire
+// format carries x and y only and the decoder leaves z at 0. The real z travels
+// in a *separate* Float named "m_vecOrigin[2]" whose value lands in .x. Reading
+// only the VectorXY's z therefore put every player on the ground plane at z = 0
+// while every count-based check stayed green.
+//
+// The choice among duplicates is made deterministic (prefer the slot written at
+// the later tick, then the full-precision Local variant, then the
+// lexicographically smallest name) because EntityState::properties is an
+// unordered_map and its iteration order is not specified.
+bool readVectorProperty(const EntityState& state, const std::string& base, float out[3],
+                        bool* complete) {
+  if (complete) *complete = true;
+  const EntityPropertyValue* best = nullptr;
+  std::string bestName;
+  for (const auto& [name, value] : state.properties) {
+    if (!suffixMatch(name, base.c_str())) continue;
+    if (value.type != SendPropType::Vector && value.type != SendPropType::VectorXY) continue;
+    if (!best || preferCandidate(name, value.lastWriteTick, bestName, best->lastWriteTick)) {
+      best = &value;
+      bestName = name;
+    }
+  }
+  if (!best) return false;
+  const bool carriesZ = best->type == SendPropType::Vector;
+  out[0] = best->x;
+  out[1] = best->y;
+  out[2] = carriesZ ? best->z : 0.0f;
+  for (std::size_t component = carriesZ ? 3u : 2u; component < 3u; ++component) {
+    const std::string scalar = base + "[" + std::to_string(component) + "]";
+    const auto* value = findProperty(state, scalar.c_str());
+    if (!value) {
+      // The vector really is 2D and its z sibling is absent from this snapshot.
+      // Zero is a guess, so say so rather than letting it pass as a reading.
+      if (complete) *complete = false;
+      continue;
+    }
+    out[component] = value->type == SendPropType::Int ? static_cast<float>(value->intValue) : value->x;
+  }
+  return std::isfinite(out[0]) && std::isfinite(out[1]) && std::isfinite(out[2]);
 }
 
 bool isPlayerClassName(const std::string& className) {
@@ -34,18 +133,56 @@ bool isViewModelPath(const std::string& path) {
     && file.compare(file.size() - 4, 4, ".mdl") == 0;
 }
 
+// Source's CBaseHandle layout (source-sdk-2013, public/basehandle.h):
+// NUM_ENT_ENTRY_BITS = 11, so the entity index is the low 11 bits and 2047 is
+// the INVALID_EHANDLE_INDEX every field is initialized to. The serial number
+// occupies the next 10 bits; see the header for why it is decoded but not
+// validated here.
+constexpr std::uint32_t kEntityHandleIndexBits = 11;
+constexpr std::uint32_t kEntityHandleIndexMask = (1u << kEntityHandleIndexBits) - 1u;
+constexpr std::uint32_t kInvalidEntityHandle = 0xFFFFFFFFu;
+constexpr std::uint32_t kInvalidEntityIndex = kEntityHandleIndexMask;
+
+// TF2 observer modes (source-sdk-2013, game/shared/observe_mode.h, shared by the
+// server's CBasePlayer::m_iObserverMode and the client's camera logic):
+//   0 none, 1 deathcam, 2 freezecam, 3 fixed, 4 in-eye, 5 chase, 6 roaming.
+// Only in-eye and chase hang the camera on the target; the others move it by
+// their own rules (deathcam/freezecam are scripted around the killer, fixed is
+// the spectating player's own location, roaming is free movement).
+constexpr std::int64_t kObserverModeInEye = 4;
+constexpr std::int64_t kObserverModeChase = 5;
+
 } // namespace
 
+const ResolverStats& lastResolverStats() { return g_resolverStats; }
+void resetResolverStats() { g_resolverStats = ResolverStats{}; }
+
+std::vector<PropertyCandidate> rankPropertyCandidates(const EntityState& state, const char* suffix) {
+  // Same matcher and same ranking the selection rule uses, so what a diagnostic
+  // prints is what the rule would do -- not a second opinion that can drift from
+  // it. `properties` is an unordered_map, so the order has to be imposed here.
+  std::vector<PropertyCandidate> candidates;
+  for (const auto& [name, value] : state.properties) {
+    if (!suffixMatch(name, suffix)) continue;
+    candidates.push_back(PropertyCandidate{name, value.lastWriteTick});
+  }
+  std::sort(candidates.begin(), candidates.end(),
+            [](const PropertyCandidate& left, const PropertyCandidate& right) {
+              return preferCandidate(left.name, left.lastWriteTick, right.name, right.lastWriteTick);
+            });
+  return candidates;
+}
+
 ModelInstanceTransform EntityModelResolver::extractTransform(const EntityState& state) {
+  ++g_resolverStats.transformsBuilt;
   ModelInstanceTransform transform;
-  if (const auto* origin = findProperty(state, "m_vecOrigin")) {
-    if ((origin->type == SendPropType::Vector || origin->type == SendPropType::VectorXY)
-        && std::isfinite(origin->x) && std::isfinite(origin->y) && std::isfinite(origin->z)) {
-      transform.hasOrigin = true;
-      transform.origin[0] = origin->x;
-      transform.origin[1] = origin->y;
-      transform.origin[2] = origin->z;
-    }
+  bool originComplete = true;
+  if (float origin[3]; readVectorProperty(state, "m_vecOrigin", origin, &originComplete)) {
+    transform.hasOrigin = true;
+    transform.origin[0] = origin[0];
+    transform.origin[1] = origin[1];
+    transform.origin[2] = origin[2];
+    if (!originComplete) transform.diagnostic = "origin-z-sibling-missing";
   }
   if (const auto* angles = findProperty(state, "m_angEyeAngles")) {
     if ((angles->type == SendPropType::Vector || angles->type == SendPropType::VectorXY)
@@ -100,6 +237,36 @@ ModelInstanceTransform EntityModelResolver::extractTransform(const EntityState& 
   return transform;
 }
 
+ObserverFocusResolution resolveObserverFocus(
+    const EntityState& viewEntity,
+    const std::vector<EntityState>& statesByIndex) {
+  ObserverFocusResolution result;
+  if (const auto* mode = findProperty(viewEntity, "m_iObserverMode")) {
+    result.hasMode = true;
+    result.mode = mode->intValue;
+  }
+  if (const auto* target = findProperty(viewEntity, "m_hObserverTarget")) {
+    result.hasTarget = true;
+    const auto handle = static_cast<std::uint32_t>(target->intValue);
+    result.targetHandle = handle;
+    result.targetIndex = static_cast<std::uint16_t>(handle & kEntityHandleIndexMask);
+    result.targetSerial = static_cast<std::uint16_t>(handle >> kEntityHandleIndexBits);
+    // Three ways a handle is not a place to look: the wire sentinel 0xFFFFFFFF,
+    // the 2047 index that field initialization leaves behind, and an index past
+    // the snapshot. Each is checked by name so a failure says which one fired.
+    const bool sentinel = handle == kInvalidEntityHandle;
+    const bool invalidIndex = result.targetIndex == kInvalidEntityIndex;
+    result.targetInRange = !sentinel && !invalidIndex
+      && result.targetIndex < statesByIndex.size();
+    if (result.targetInRange) {
+      result.targetPresent = statesByIndex[result.targetIndex].classId >= 0;
+    }
+    result.followsTarget = result.hasMode && result.targetPresent
+      && (result.mode == kObserverModeInEye || result.mode == kObserverModeChase);
+  }
+  return result;
+}
+
 std::string EntityModelResolver::defaultPlayerModelPath(std::int64_t tfClass) {
   switch (tfClass) {
     case 1: return "models/player/scout.mdl";
@@ -121,6 +288,8 @@ std::vector<ModelInstance> EntityModelResolver::buildInstances(
     const std::vector<ServerClassSchema>& classSchemas,
     std::size_t maxInstances) {
   if (maxInstances == 0 || maxInstances > kMaxInstances) maxInstances = kMaxInstances;
+  g_resolverStats = ResolverStats{};
+  g_resolverStats.instanceRequests = requests.size();
   std::vector<ModelInstance> instances;
   instances.reserve(std::min(requests.size() + 64u, maxInstances));
   std::unordered_set<std::uint16_t> covered;
@@ -147,6 +316,7 @@ std::vector<ModelInstance> EntityModelResolver::buildInstances(
     instance.renderable = request.renderable;
     instance.missingAssetFallback = !request.renderable;
     instance.viewModelSkipped = isViewModelPath(request.modelPath);
+    instance.worldModelIndexPath = request.modelPathFromWorldModelIndex;
     instance.diagnostic = request.diagnostic;
     if (instance.viewModelSkipped) {
       instance.renderable = false;
@@ -165,9 +335,19 @@ std::vector<ModelInstance> EntityModelResolver::buildInstances(
     if (entityIndex > 0xffffu) break;
     const auto index16 = static_cast<std::uint16_t>(entityIndex);
     if (covered.count(index16)) continue;
+    ++g_resolverStats.fallbackEntitiesScanned;
     const auto& state = statesByIndex[entityIndex];
     const auto className = classNameOf(state.classId);
     if (!isPlayerClassName(className)) continue;
+    // One lookup answers "is this a class we can draw a fallback for". Only an
+    // entity that passes pays for the full transform. The check is the same
+    // suffix and the same value range extractTransform applies to m_iClass, so
+    // the set of entities that get an instance is unchanged -- and that is what
+    // the probe's instance counts are there to confirm.
+    const auto* playerClass = findProperty(state, "m_iClass");
+    if (!playerClass || playerClass->type != SendPropType::Int
+        || playerClass->intValue < 1 || playerClass->intValue > 9) continue;
+    ++g_resolverStats.classLookups;
     const auto transform = extractTransform(state);
     if (!transform.hasPlayerClass) continue;
     const auto path = defaultPlayerModelPath(transform.playerClass);

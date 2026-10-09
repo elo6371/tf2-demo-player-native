@@ -33,4 +33,38 @@ private:
   std::unordered_map<std::string, Entry> entries_;
 };
 
+// Every *_dir.vpk directly under a tf directory, opened once and reused.
+//
+// VpkArchive::open() reads the whole directory tree into memory and builds a
+// hash map of every entry -- tens of megabytes and roughly 50k entries for
+// tf2_misc_dir.vpk. Opening an archive per lookup therefore cost about a second
+// per model, and ModelLoader::resolveAsset did it once for the model plus five
+// more times for the companion suffixes (.vvd/.dx90.vtx/.dx80.vtx/.sw.vtx/.phy),
+// across every *_dir.vpk in the directory. That was invisible while no demo
+// model path resolved (the resolve loop never ran) and turned into a ~96 s
+// stall once the P1 modelprecache work started feeding it 505 real paths.
+//
+// Resolving a model is a pure function of the archive contents, so open them
+// once and share the result. Iteration order matches std::filesystem::
+// directory_iterator on the tf directory, which is what callers relied on when
+// they took vpkArchives.front().
+class VpkArchiveSet {
+public:
+  static VpkArchiveSet openDirectory(const std::filesystem::path& tfDirectory);
+  // Archive paths holding normalizedPath, appended in directory order.
+  void collectContaining(const std::string& normalizedPath,
+    std::vector<std::filesystem::path>& out) const;
+  const VpkArchive* find(const std::filesystem::path& archivePath) const;
+  bool empty() const { return archives_.empty(); }
+  std::size_t size() const { return archives_.size(); }
+  std::size_t totalEntryCount() const;
+
+private:
+  struct Held {
+    std::filesystem::path path;
+    VpkArchive archive;
+  };
+  std::vector<Held> archives_;
+};
+
 } // namespace tf2::native

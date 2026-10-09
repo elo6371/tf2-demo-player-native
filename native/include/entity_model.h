@@ -38,8 +38,33 @@ struct ModelInstance {
   bool missingAssetFallback = false;
   bool playerClassFallback = false;
   bool viewModelSkipped = false;
+  // This instance's path came from the entity's m_iWorldModelIndex -- the weapon
+  // itself -- rather than from m_nModelIndex, which on a weapon names its class's
+  // first-person arms composite.
+  bool worldModelIndexPath = false;
   std::string diagnostic;
 };
+
+// Work counters for the resolver, so "how much does property lookup cost" can be
+// answered from a reading instead of from an estimate. P1 asked for exactly this
+// before any change: `extractTransform` scans the whole property map once per
+// requested suffix, and the class-fallback sweep calls it for every entity in the
+// snapshot, so the numbers worth having are how many property comparisons the
+// transform path performs and how many entities it walks to find the players.
+//
+// These are plain counters set by the most recent buildInstances call, not
+// thread-local: the resolver is called from the render loop and the probes, and
+// neither runs it concurrently.
+struct ResolverStats {
+  std::size_t instanceRequests = 0;      // requests handed to buildInstances
+  std::size_t fallbackEntitiesScanned = 0; // entities walked in the fallback sweep
+  std::size_t transformsBuilt = 0;       // extractTransform calls
+  std::size_t propertyComparisons = 0;   // name-vs-suffix comparisons performed
+  std::size_t classLookups = 0;          // cheap pre-checks that avoided a transform
+};
+
+const ResolverStats& lastResolverStats();
+void resetResolverStats();
 
 class EntityModelResolver final {
 public:
@@ -53,6 +78,63 @@ public:
     const std::vector<ServerClassSchema>& classSchemas = {},
     std::size_t maxInstances = kMaxInstances);
 };
+
+// How a demo player's observer target resolves against one snapshot. A player
+// whose entity owns the camera ("the view entity") can be watching somebody
+// else: TF2 writes m_iObserverMode / m_hObserverTarget while a player is dead
+// or spectating, and Source's observe_mode.h has only in-eye (4) and chase (5)
+// hands the camera to the target -- 0 none, 1 deathcam, 2 freezecam, 3 fixed and
+// 6 roaming all keep it elsewhere. Until this round nothing read either property.
+//
+// WHAT THIS DOES NOT LICENSE. It would be easy to read followsTarget and move the
+// camera onto the target. When this round first measured the POV demo, doing so
+// would have moved the view 2729 units off where dem_cmdinfo recorded it, because
+// the coordinate the slot rule resolved for entity 3 was its
+// DT_TFLocalPlayerExclusive copy -- last written at 51596, 2379 ticks behind the
+// checkpoint it was answered from. The freshness round (2026-10-08) made the slot
+// rule prefer the later-written slot, and that distance fell to 45 units, so the
+// reason not to wire the follow is now a decision rather than a measurement. The
+// resolution is reported and asserted; the renderer still does NOT follow it, and
+// observer-focus-check.sh pins the 45 (and the per-axis split inside it) so whoever
+// does wire it inherits the measured number rather than a memory of 2729.
+//
+// HANDLE LAYOUT -- Source's CBaseHandle packs the entity index into the low 11
+// bits and a serial number into the next 10 (source-sdk-2013,
+// public/basehandle.h: NUM_ENT_ENTRY_BITS 11, ENT_ENTRY_MASK). The serial is
+// decoded and reported but NOT validated, because EntityState carries no serial:
+// a handle whose slot was reused by a newer entity still resolves to that slot.
+// That limit is stated here rather than worked around.
+struct ObserverFocusResolution {
+  bool hasMode = false;
+  std::int64_t mode = 0;
+  bool hasTarget = false;
+  std::uint32_t targetHandle = 0;
+  std::uint16_t targetIndex = 0;
+  std::uint16_t targetSerial = 0;
+  bool targetInRange = false;
+  bool targetPresent = false;
+  bool followsTarget = false;
+};
+
+ObserverFocusResolution resolveObserverFocus(
+  const EntityState& viewEntity,
+  const std::vector<EntityState>& statesByIndex);
+
+// One property that matches a suffix, with the tick it was last written at.
+struct PropertyCandidate {
+  std::string name;
+  std::int32_t lastWriteTick = -1;
+};
+
+// Every property whose name matches `suffix`, best first, in the order the
+// selection rule itself ranks them. Exposed so a diagnostic prints the rule's own
+// ordering rather than re-implementing it: a second implementation would drift
+// from the first, and the drift would be invisible exactly when the rule is the
+// thing under test. `lastWriteTick` is the server tick the slot was last written
+// at (-1 when it did not come from a packet) -- the quantity the rule now ranks by
+// first, so rank 0 is the slot findProperty and readVectorProperty would pick.
+std::vector<PropertyCandidate> rankPropertyCandidates(
+  const EntityState& state, const char* suffix);
 
 struct EntityModelWorldMap {
   float centerX = 0.0f;

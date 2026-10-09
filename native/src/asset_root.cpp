@@ -1,5 +1,7 @@
 #include "asset_root.h"
 
+#include "vpk_archive.h"
+
 #include <algorithm>
 #include <cwchar>
 #include <cwctype>
@@ -124,6 +126,13 @@ std::filesystem::path AssetRoot::resolve(const std::filesystem::path& relative) 
   const auto first = *within.begin();
   if (first == std::filesystem::path("..")) return {};
   return candidate;
+}
+
+const VpkArchiveSet& AssetRoot::archives() const {
+  if (!vpkArchives) {
+    vpkArchives = std::make_shared<const VpkArchiveSet>(VpkArchiveSet::openDirectory(tfDirectory));
+  }
+  return *vpkArchives;
 }
 
 std::string AssetRoot::describe() const {

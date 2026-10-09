@@ -23,9 +23,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
 #include <cctype>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <shellapi.h>
 #include <sstream>
@@ -37,6 +40,66 @@
 
 namespace {
 tf2::native::Renderer* g_renderer = nullptr;
+
+// TEMP DIAGNOSTIC -- entity-material wiring regression, 2026-10-09.
+// The process leaves with 0xC0000409 a fraction of a second after the main loop
+// starts advancing ticks. The metrics file's last line cannot say where, and the
+// exception is a fast-fail, so no filter that runs after the fact can. These
+// checkpoints can: every line is flushed as it is written, so the last line in
+// the file names the phase the process died in. Nothing opens the file unless
+// TF2_NATIVE_TRACE names one, so every other run is byte-for-byte unaffected.
+std::FILE* g_traceFile = nullptr;
+LARGE_INTEGER g_traceFrequency{};
+LARGE_INTEGER g_traceOrigin{};
+
+double traceNowMs() {
+  LARGE_INTEGER now{};
+  QueryPerformanceCounter(&now);
+  return 1000.0 * static_cast<double>(now.QuadPart - g_traceOrigin.QuadPart)
+    / static_cast<double>(g_traceFrequency.QuadPart);
+}
+
+void traceCheckpoint(const char* what) {
+  if (!g_traceFile) return;
+  std::fprintf(g_traceFile, "%.1f %s\n", traceNowMs(), what);
+  std::fflush(g_traceFile);
+}
+
+void traceFmt(const char* format, ...) {
+  if (!g_traceFile) return;
+  char buffer[192];
+  va_list args;
+  va_start(args, format);
+  std::vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+  traceCheckpoint(buffer);
+}
+
+void openTrace() {
+  // Read through the Win32 call rather than getenv/fopen so the steady build
+  // keeps its one pre-existing warning and no more: a diagnostic channel that
+  // adds noise to every build is a diagnostic channel people turn off.
+  wchar_t path[MAX_PATH]{};
+  if (GetEnvironmentVariableW(L"TF2_NATIVE_TRACE", path, MAX_PATH) == 0) return;
+  if (_wfopen_s(&g_traceFile, path, L"w") != 0) return;
+  if (!g_traceFile) return;
+  QueryPerformanceFrequency(&g_traceFrequency);
+  QueryPerformanceCounter(&g_traceOrigin);
+  std::set_terminate([]() {
+    traceCheckpoint("TERMINATE (a C++ exception left main)");
+    std::abort();
+  });
+  // A fast-fail is not catchable, but a stack-cookie failure or a plain access
+  // violation reaches this filter before the process dies, and the code is what
+  // separates "our buffer was overrun" from "the heap was corrupted".
+  SetUnhandledExceptionFilter([](LPEXCEPTION_POINTERS info) -> LONG {
+    traceFmt("UNHANDLED 0x%08lX",
+      static_cast<unsigned long>(info->ExceptionRecord->ExceptionCode));
+    return EXCEPTION_EXECUTE_HANDLER;
+  });
+  traceCheckpoint("trace open");
+}
+
 tf2::native::NativeUiController* g_nativeUi = nullptr;
 HWND g_uiStatus = nullptr;
 HWND g_uiOpen = nullptr;
@@ -454,6 +517,7 @@ std::filesystem::path localCacheDirectory(std::string& status) {
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
+  openTrace();
   // Keep the render surface in physical pixels on mixed-DPI desktop setups.
   if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
     SetProcessDPIAware();
@@ -488,6 +552,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool audioDeviceRejected = false;
   bool startPaused = false;
   std::filesystem::path metricsPath;
+  std::filesystem::path captureFramePath;
+  std::filesystem::path dumpEntityMaterialsPath;
+  std::int64_t captureTick = 0;
+  bool captureTickRejected = false;
   LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -520,12 +588,27 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         startPaused = true;
       } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
         metricsPath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--dump-entity-materials") == 0 && i + 1 < argumentCount) {
+        dumpEntityMaterialsPath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
+        captureFramePath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) captureTick = static_cast<std::int64_t>(parsed);
+        else captureTickRejected = true;
+      } else if (wcscmp(arguments[i], L"--capture-tick") == 0) {
+        captureTickRejected = true;
       }
     }
     persistent.render.normalize();
   }
   if (audioDeviceRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --audio-device; default device not used.\n");
+    return 13;
+  }
+  if (captureTickRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
@@ -619,9 +702,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::string path;
     std::string cacheKey;
     std::vector<tf2::native::ModelDrawVertex> vertices;
+    // Paint resolution for this model, filled from its MDL texture table. The
+    // empty materialVtfPath means the model ships no readable main texture and
+    // the draw loop keeps the world atlas for its instances.
+    std::vector<std::string> materialCandidates;
+    std::string materialName;
+    std::string materialVmtPath;
+    std::string materialVtfPath;
+    std::size_t textureSlots = 0;
+    std::size_t textureNamesRead = 0;
   };
   std::vector<PreparedEntityMesh> preparedEntityMeshes;
   std::unordered_map<std::string, std::string> entityMeshKeyByPath;
+  // Paint accounting for the window title: how many prepared models reached a
+  // readable VTF, and how many of those became a GPU texture.
+  std::size_t entityMaterialResolvedModels = 0;
+  std::size_t entityMaterialUploadedModels = 0;
+  // One flag per prepared mesh, in the same order, so --dump-entity-materials
+  // can say which models reached a GPU texture and which did not.
+  std::vector<char> entityMaterialUploadFlags;
   if (assets.valid()) {
     modelRenderRequests = tf2::native::ModelLoader::buildRenderRequests(
       assets, demoNetworkSummary.assetReferences, itemSchema.get(), &modelRequestStats);
@@ -648,6 +747,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       prepared.path = request.modelPath;
       prepared.cacheKey = request.cacheKey;
       prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
+      prepared.textureSlots = request.inspection.metadata.textureCount;
+      prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
+      if (!request.inspection.metadata.textureCandidates.empty()) {
+        prepared.materialCandidates = request.inspection.metadata.textureCandidates.front();
+      }
+      if (!prepared.materialCandidates.empty()) {
+        prepared.materialName = prepared.materialCandidates.front();
+      }
       preparedKeys.insert(request.cacheKey);
       entityMeshKeyByPath[request.modelPath] = request.cacheKey;
       preparedEntityMeshes.push_back(std::move(prepared));
@@ -680,6 +787,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   tf2::native::WorldMaterialParams mapMaterialParams;
   std::vector<tf2::native::WorldTexture> worldTextures;
   std::vector<std::shared_ptr<tf2::native::VpkArchive>> soundArchives;
+  std::unordered_map<std::string, std::vector<std::uint8_t>> materialVtfCache;
+  const auto readMaterialVtf = [&](const std::string& path) -> const std::vector<std::uint8_t>& {
+    auto found = materialVtfCache.find(path);
+    if (found != materialVtfCache.end()) return found->second;
+    auto bytes = readFile(assets.tfDirectory / std::filesystem::path(path));
+    for (const auto& archive : soundArchives) {
+      if (!bytes.empty()) break;
+      bytes = archive->read(path);
+    }
+    return materialVtfCache.emplace(path, std::move(bytes)).first->second;
+  };
   if (assets.valid()) {
     std::filesystem::path mapPath = L"maps/2koth_abbey.bsp";
     if (demoHeader.valid) mapPath = std::filesystem::path(L"maps") / std::filesystem::path(std::wstring(demoHeader.mapName.begin(), demoHeader.mapName.end()) + L".bsp");
@@ -697,17 +815,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
     tf2::native::BspParser::parse(mapBytes, displayMap, 200000);
-    std::unordered_map<std::string, std::vector<std::uint8_t>> materialVtfCache;
-    const auto readMaterialVtf = [&](const std::string& path) -> const std::vector<std::uint8_t>& {
-      auto found = materialVtfCache.find(path);
-      if (found != materialVtfCache.end()) return found->second;
-      auto bytes = readFile(assets.tfDirectory / std::filesystem::path(path));
-      for (const auto& archive : soundArchives) {
-        if (!bytes.empty()) break;
-        bytes = archive->read(path);
-      }
-      return materialVtfCache.emplace(path, std::move(bytes)).first->second;
-    };
     const std::string displayVmtPath = "materials/vgui/logos/spray.vmt";
     auto displayVmt = readFile(assets.tfDirectory / L"materials/vgui/logos/spray.vmt");
     if (!displayVmt.empty()) {
@@ -821,6 +928,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       if (texture.parse(displayVtf) && !(displayRgba = texture.decodeRgba(displayVtf)).empty()) {
         displayWidth = texture.header().width;
         displayHeight = texture.header().height;
+      }
+    }
+    // Entity model paint, stage one: walk each prepared model's candidate list
+    // for its first slot -- a bare stem carries one entry per `$cdmaterials`
+    // directory -- and keep the first one whose VMT parses and whose VTF reads.
+    // The pixels stay unread here; reloadGpuResources decodes and uploads one
+    // model at a time so the RGBA buffers are not all alive at once.
+    for (auto& prepared : preparedEntityMeshes) {
+      for (const auto& candidate : prepared.materialCandidates) {
+        if (candidate.empty()) continue;
+        const std::string preparedVmtPath = tf2::native::VmtParser::resourcePath(candidate, ".vmt");
+        auto preparedVmt = readFile(assets.tfDirectory / std::filesystem::path(preparedVmtPath));
+        if (preparedVmt.empty()) for (const auto& archive : soundArchives) {
+          preparedVmt = archive->read(preparedVmtPath); if (!preparedVmt.empty()) break;
+        }
+        if (preparedVmt.empty()) continue;
+        tf2::native::VmtMaterial preparedMaterial;
+        if (!tf2::native::VmtParser::parse(std::string(preparedVmt.begin(), preparedVmt.end()), preparedMaterial)
+            || preparedMaterial.baseTexture.empty()) continue;
+        const auto preparedVtfPath = tf2::native::VmtParser::resourcePath(preparedMaterial.baseTexture, ".vtf");
+        if (readMaterialVtf(preparedVtfPath).empty()) continue;
+        prepared.materialName = candidate;
+        prepared.materialVmtPath = preparedVmtPath;
+        prepared.materialVtfPath = preparedVtfPath;
+        ++entityMaterialResolvedModels;
+        break;
       }
     }
   }
@@ -1053,6 +1186,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     : L"TF2 Demo Player - TF2 资源未找到";
   const std::wstring titleBase = title + demoSuffix;
   auto entitySnapshotStatus = tf2::native::EntitySnapshotQueryStatus::NoHistory;
+  // How far behind the requested tick the drawn snapshot is. Non-zero means the
+  // entity picture is frozen at an older snapshot, so this is the number that
+  // says whether what is on screen is tick-exact -- without it `entity=checkpoint`
+  // reads the same for a 5-tick-old snapshot and a 13-minute-old one.
+  std::int32_t entitySnapshotStaleness = 0;
   std::size_t hudAudioPlayed = 0;
   std::size_t hudAudioMissing = 0;
   std::size_t hudTrailVertices = 0;
@@ -1086,6 +1224,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" state=" + (g_playback.paused ? L"paused" : (g_playback.reverse ? L"reverse" : L"playing"))
       + L" speed=" + std::to_wstring(g_playback.speed)
       + L" entity=" + std::wstring(entitySnapshotStatusName(entitySnapshotStatus))
+      + L" stale=" + std::to_wstring(entitySnapshotStaleness)
       + L" audio=" + std::to_wstring(hudAudioPlayed) + L"/" + std::to_wstring(hudAudioMissing)
       + L" health=" + (hudState.healthKnown ? std::to_wstring(hudState.health) : L"?")
       + L" team=" + (hudState.teamKnown ? std::to_wstring(hudState.team) : L"?")
@@ -1108,6 +1247,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" entityMeshes=" + std::to_wstring(renderer.entityModelMeshCount())
       + L" entityModels=" + std::to_wstring(renderer.entityModelInstanceCount())
       + L" entityModelVerts=" + std::to_wstring(renderer.entityModelVertexCount())
+      + L" entityMaterials=" + std::to_wstring(renderer.entityModelTexturedInstanceCount()) + L"/" + std::to_wstring(renderer.entityModelInstanceCount())
+      + L" entityMaterialRanges=" + std::to_wstring(renderer.entityModelTexturedRangeCount()) + L"/" + std::to_wstring(renderer.entityModelDrawRangeCount())
+      + L" entityMaterialModels=" + std::to_wstring(entityMaterialUploadedModels) + L"/" + std::to_wstring(preparedEntityMeshes.size())
       + L" posePreflight=" + (modelPosePreflight ? L"ready" : L"unknown")
       + L" bones=" + std::to_wstring(modelBoneCount)
       + L" attachments=" + std::to_wstring(modelAttachmentCount)
@@ -1148,6 +1290,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
   }
   const auto reloadGpuResources = [&]() {
+    traceCheckpoint("gpu: reload begin");
     bool uploadedTexture = mapRgba.empty() && displayRgba.empty();
     if (!mapRgba.empty()) uploadedTexture = renderer.uploadTexture(mapRgba, mapWidth, mapHeight);
     else if (!displayRgba.empty()) uploadedTexture = renderer.uploadTexture(displayRgba, displayWidth, displayHeight);
@@ -1158,9 +1301,37 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
     const bool uploadedModel = !modelReady || renderer.uploadBindPoseModel(modelMetadata.bindPoseVertices);
-    for (const auto& prepared : preparedEntityMeshes) {
+    entityMaterialUploadFlags.assign(preparedEntityMeshes.size(), 0);
+    for (std::size_t preparedIndex = 0; preparedIndex < preparedEntityMeshes.size(); ++preparedIndex) {
+      const double modelBeginMs = traceNowMs();
+      const auto& prepared = preparedEntityMeshes[preparedIndex];
       renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices);
+      if (prepared.materialVtfPath.empty()) continue;
+      // Stage two of the paint path: decode one model at a time so only one
+      // RGBA buffer is alive, then hand it to the renderer as that model's t0.
+      const auto& preparedVtf = readMaterialVtf(prepared.materialVtfPath);
+      tf2::native::VtfTexture preparedTexture;
+      std::vector<std::uint8_t> preparedRgba;
+      if (preparedVtf.empty() || !preparedTexture.parse(preparedVtf)
+          || (preparedRgba = preparedTexture.decodeRgba(preparedVtf)).empty()) {
+        traceFmt("gpu: model %zu/%zu decode-failed %.1fms %s", preparedIndex,
+          preparedEntityMeshes.size(), traceNowMs() - modelBeginMs, prepared.materialVtfPath.c_str());
+        continue;
+      }
+      const UINT preparedWidth = preparedTexture.header().width;
+      const UINT preparedHeight = preparedTexture.header().height;
+      const bool textureUploaded =
+        renderer.uploadEntityModelTexture(prepared.cacheKey, preparedRgba, preparedWidth, preparedHeight);
+      if (textureUploaded) {
+        ++entityMaterialUploadedModels;
+        entityMaterialUploadFlags[preparedIndex] = 1;
+      }
+      traceFmt("gpu: model %zu/%zu %ux%u %.1fms uploaded=%d", preparedIndex,
+        preparedEntityMeshes.size(), preparedWidth, preparedHeight, traceNowMs() - modelBeginMs,
+        textureUploaded ? 1 : 0);
     }
+    traceFmt("gpu: models done %zu uploaded=%zu", preparedEntityMeshes.size(),
+      entityMaterialUploadedModels);
     bool uploadedBones = true;
     if (modelReady && !modelMetadata.bones.empty()) {
       std::vector<std::array<float, 16>> boneMatrices;
@@ -1176,6 +1347,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // until AnimationPlayer supplies animatedWorld * inverse(bindWorld).
       uploadedBones = poseMatricesValid && renderer.uploadBoneMatrices(boneMatrices, false);
     }
+    traceCheckpoint("gpu: reload end");
     return uploadedTexture && uploadedWorld && uploadedModel && uploadedBones;
   };
   if (!reloadGpuResources()) {
@@ -1183,6 +1355,29 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     g_renderer = nullptr;
     DestroyWindow(window);
     return 14;
+  }
+  // The paint ledger: one row per prepared model, written after the GPU upload
+  // so `uploaded` reflects what the renderer actually accepted. This is the
+  // per-model account behind the two window-title counters, and it is the only
+  // place the *names* of the models without paint are visible.
+  if (!dumpEntityMaterialsPath.empty()) {
+    std::ofstream materialDump(dumpEntityMaterialsPath, std::ios::out | std::ios::trunc);
+    if (!materialDump) {
+      OutputDebugStringW(L"TF2 Demo Player: cannot open --dump-entity-materials.\n");
+    } else {
+      materialDump << "path\tcacheKey\tslots\tnamesRead\tmaterialName\tvmt\tvtf\tresolved\tuploaded\n";
+      for (std::size_t index = 0; index < preparedEntityMeshes.size(); ++index) {
+        const auto& prepared = preparedEntityMeshes[index];
+        const bool uploaded = index < entityMaterialUploadFlags.size() && entityMaterialUploadFlags[index] != 0;
+        materialDump << prepared.path << '\t' << prepared.cacheKey << '\t' << prepared.textureSlots << '\t'
+          << prepared.textureNamesRead << '\t' << prepared.materialName << '\t' << prepared.materialVmtPath << '\t'
+          << prepared.materialVtfPath << '\t' << (prepared.materialVtfPath.empty() ? 0 : 1) << '\t'
+          << (uploaded ? 1 : 0) << '\n';
+      }
+      materialDump << "# summary models=" << preparedEntityMeshes.size()
+        << " resolved=" << entityMaterialResolvedModels
+        << " uploaded=" << entityMaterialUploadedModels << '\n';
+    }
   }
   ShowWindow(window, showCommand);
   UpdateWindow(window);
@@ -1256,6 +1451,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       << titleUpdateCalls << ',' << metricsWriteCalls << ','
       << waitCalls << ',' << waitMsTotal << '\n';
     metricsFile.flush();
+    traceFmt("metrics t=%.2f tick=%d iter=%llu", elapsedSeconds, static_cast<int>(g_playback.tick),
+      static_cast<unsigned long long>(mainLoopIterations));
     ++metricsWriteCalls;
     metricsLast = sample;
     metricsFrames = renderedFrames;
@@ -1270,8 +1467,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool lastPaused = false;
   std::vector<tf2::native::EntityState> currentEntityStates;
   soundScheduler.reset(0);
+  // `--capture-frame` is a one-shot diagnostic: arm it, wait until playback has
+  // reached the requested tick, write one frame, then leave through the exit
+  // code. A gate therefore never has to guess when to kill the process.
+  bool captureArmed = !captureFramePath.empty();
+  bool captureRequested = false;
   while (running) {
     ++mainLoopIterations;
+    traceFmt("loop n=%llu tick=%d", static_cast<unsigned long long>(mainLoopIterations),
+      static_cast<int>(g_playback.tick));
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
       if (message.message == WM_QUIT) { running = false; break; }
       TranslateMessage(&message);
@@ -1324,8 +1528,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     if (g_renderer && g_playback.enabled && g_playback.tick != lastSceneTick) {
       const std::int32_t sceneTick = firstPacketTick + g_playback.tick;
+      traceFmt("scene: begin tick=%d sceneTick=%d", static_cast<int>(g_playback.tick),
+        static_cast<int>(sceneTick));
+      std::int32_t resolvedSceneTick = sceneTick;
       entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
-          demoNetworkSummary, sceneTick, currentEntityStates);
+          demoNetworkSummary, sceneTick, currentEntityStates, &resolvedSceneTick);
+      entitySnapshotStaleness = sceneTick - resolvedSceneTick;
+      traceFmt("scene: snapshot status=%d stale=%d states=%zu",
+        static_cast<int>(entitySnapshotStatus), static_cast<int>(entitySnapshotStaleness),
+        currentEntityStates.size());
       tf2::native::DemoViewSample observerView;
       if (tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneTick, observerView)
           && observerView.hasOrigin && observerView.hasAngles) {
@@ -1334,15 +1545,36 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       } else {
         renderer.clearObserverDemoView();
       }
+      traceCheckpoint("scene: observer done");
       const bool snapshotDrawable = entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
           || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
       hudState = snapshotDrawable
         ? tf2::native::readPlaybackHud(currentEntityStates, demoNetworkSummary.lastViewEntity)
         : tf2::native::PlaybackHudState{};
       hudEffectsDue = effectTimeline.countThrough(sceneTick);
+      traceFmt("scene: hud fxDue=%d drawable=%d", static_cast<int>(hudEffectsDue),
+        snapshotDrawable ? 1 : 0);
       if (snapshotDrawable) {
-        const auto modelInstances = tf2::native::EntityModelResolver::buildInstances(
-          modelRenderRequests, currentEntityStates, demoNetworkSummary.serverClassSchemas, 256);
+        // TEMP DIAGNOSTIC: the last checkpoint before the unhandled 0xE06D7363
+        // is the one above, so the throw is inside this call. Print what() and
+        // both sizes before rethrowing, so nothing is hidden by the tracing.
+        const auto buildGuarded = [&]() {
+          try {
+            return tf2::native::EntityModelResolver::buildInstances(
+              modelRenderRequests, currentEntityStates, demoNetworkSummary.serverClassSchemas, 256);
+          } catch (const std::exception& error) {
+            traceFmt("scene: buildInstances THREW %s requests=%zu states=%zu schemas=%zu",
+              error.what(), modelRenderRequests.size(), currentEntityStates.size(),
+              demoNetworkSummary.serverClassSchemas.size());
+            throw;
+          } catch (...) {
+            traceFmt("scene: buildInstances THREW non-std requests=%zu states=%zu",
+              modelRenderRequests.size(), currentEntityStates.size());
+            throw;
+          }
+        };
+        const auto modelInstances = buildGuarded();
+        traceFmt("scene: buildInstances=%zu", modelInstances.size());
         std::vector<tf2::native::EntityModelDrawInstance> draws;
         std::vector<tf2::native::EntityMarker> fallbackMarkers;
         draws.reserve(96);
@@ -1401,8 +1633,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             fallbackMarkers.push_back(marker);
           }
         }
+        traceFmt("scene: setInstances draws=%zu markers=%zu", draws.size(), fallbackMarkers.size());
         renderer.setEntityModelInstances(draws);
         renderer.setEntityMarkers(fallbackMarkers);
+        traceCheckpoint("scene: instances set");
       } else {
         renderer.setEntityModelInstances({});
         renderer.setEntityMarkers({});
@@ -1411,6 +1645,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
       hudTrailVertices = renderer.projectileVertexCount();
       lastSceneTick = g_playback.tick;
+      traceCheckpoint("scene: done");
     }
     nativeUi.setPlaybackState(g_playback.tick, g_playback.enabled && !g_playback.paused,
       g_playback.reverse, g_playback.speed);
@@ -1425,7 +1660,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (refreshWindowTitle()) ++titleUpdateCalls;
     writeMetrics(now, false);
     if (elapsed >= kTargetFrameSeconds) {
+      traceFmt("draw: begin tick=%d frames=%llu", static_cast<int>(g_playback.tick),
+        static_cast<unsigned long long>(renderedFrames));
+      if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
+        renderer.requestFrameCapture(captureFramePath.wstring());
+        captureArmed = false;
+        captureRequested = true;
+      }
       if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) ++renderedFrames;
+      traceFmt("draw: end frames=%llu pending=%d", static_cast<unsigned long long>(renderedFrames),
+        renderer.frameCapturePending() ? 1 : 0);
+      if (captureRequested && !renderer.frameCapturePending()) {
+        PostQuitMessage(renderer.lastFrameCaptureSucceeded() ? 0 : 16);
+        continue;
+      }
       lastFrame = now;
       continue;
     }

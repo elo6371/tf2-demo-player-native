@@ -179,6 +179,24 @@ struct ModelMetadata {
   std::vector<ModelAttachment> attachments;
   std::vector<ModelSequence> sequences;
   std::vector<ModelBodyPart> bodyParts;
+  // The `mstudiotexture_t` name table, in slot order. `textureNames[i]` is the
+  // first candidate from `textureCandidates[i]`; each name is a material path
+  // stem (`models/player/scout/scout_red`) that resolves to a `.vmt` under
+  // `materials/`. Nothing consumed this table before the entity-material round:
+  // the renderer bound the map atlas to every entity draw, so the count was
+  // enough. It is not enough to bind the model's own texture.
+  std::vector<std::string> textureNames;
+  // Every path a slot's raw name could resolve to, in the order the engine would
+  // try them: a rooted name stands alone, a bare one is prefixed with each
+  // `$cdmaterials` directory in turn. The consumer takes the first candidate
+  // whose `.vmt` actually reads. Slots whose name was unreadable stay in the
+  // vector as empty lists, so slot order is preserved.
+  std::vector<std::vector<std::string>> textureCandidates;
+  // The `studiohdr_t` CD-texture path list (words 212/216): `$cdmaterials`
+  // directories, normalized with a trailing slash. This is the list a bare
+  // texture stem is relative to -- not the model's own directory, which only
+  // happens to agree for the player models.
+  std::vector<std::string> cdTexturePaths;
   std::vector<ModelVertex> vertices;
   std::vector<ModelMeshDescriptor> meshes;
   std::vector<ModelIndexDescriptor> indices;
@@ -223,6 +241,12 @@ struct ModelRenderRequest {
   bool companionSetComplete = false;
   bool renderable = false;
   bool inspectedFromVpk = false;
+  // Mirrors AssetReference::modelPathFromWorldModelIndex so a caller downstream
+  // of the reference list can still tell "this request names the weapon" from
+  // "this request names the first-person arms". The distinction matters exactly
+  // because the arms model is a real, resolvable asset: the wrong route produces
+  // a perfectly renderable request for the wrong object.
+  bool modelPathFromWorldModelIndex = false;
   ModelInspection inspection;
   std::string diagnostic;
 };

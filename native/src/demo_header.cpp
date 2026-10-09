@@ -9,6 +9,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <queue>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -47,6 +48,22 @@ bool validMapName(const std::string& value) {
   });
 }
 
+// src/public/demofile/demoformat.h (Valve) documents the two name fields as:
+//   char servername[MAX_OSPATH];  // Name of server
+//   char clientname[MAX_OSPATH];  // Name of client who recorded the game
+// A SourceTV recording is written by the server's SourceTV client, so the
+// recorder's name lands in clientname: the real match demos in this corpus carry
+// clientname="SourceTV Demo" while servername is an ordinary hostname
+// ("Matcha Bookable", "Spire Server", "na.serveme.tf #633053"). Checking only
+// servername labelled all of those POV, which is how five SourceTV demos were
+// reported as POV in the P0 acceptance run.
+bool namesIndicateSourceTv(const DemoHeader& header) {
+  return containsInsensitive(header.serverName, "sourcetv")
+      || containsInsensitive(header.serverName, "hltv")
+      || containsInsensitive(header.clientName, "sourcetv")
+      || containsInsensitive(header.clientName, "hltv");
+}
+
 } // namespace
 
 bool parseDemoHeader(const std::vector<std::uint8_t>& bytes, DemoHeader& header) {
@@ -65,7 +82,7 @@ bool parseDemoHeader(const std::vector<std::uint8_t>& bytes, DemoHeader& header)
   header.frames = readValue<std::int32_t>(bytes, 1064);
   if (!validMapName(header.mapName)) { header.error = "demo map name is invalid"; return false; }
   if (header.ticks < 0 || header.frames < 0 || header.playbackTime < 0.0f) { header.error = "demo timing fields are invalid"; return false; }
-  if (containsInsensitive(header.serverName, "sourcetv") || containsInsensitive(header.serverName, "hltv")) {
+  if (namesIndicateSourceTv(header)) {
     header.recordingType = DemoRecordingType::SourceTv;
   } else if (!header.clientName.empty()) {
     header.recordingType = DemoRecordingType::PovHeuristic;
@@ -666,9 +683,106 @@ bool readStringCommand(MessageBits& bits, DemoNetworkSummary& summary) {
 
 bool readPrefetch(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t soundIndex = 0;
-  const std::uint32_t width = summary.networkProtocol > 23 ? 14u : 13u;
+  // MAX_SOUND_INDEX_BITS is 14 from protocol 23 onward, not 24. First source:
+  // Valve source-sdk-2013, src/public/soundinfo.h -- SoundInfo_t::ReadDelta()
+  // does `if ( nProtoVersion > 22 ) READ_DELTA_UINT( nSoundNum,
+  // MAX_SOUND_INDEX_BITS )` and src/public/soundflags.h defines
+  // MAX_SOUND_INDEX_BITS 14. The local Rust reference agrees:
+  // work/_refs_demostf/src/demo/message/prefetch.rs uses
+  // `if protocol_version > 22 { 14 } else { 13 }`.
+  // Reading 13 bits for a protocol-23 demo shifts every later message in the
+  // packet by one bit, so the rest of the packet decodes as garbage types.
+  const std::uint32_t width = summary.networkProtocol > 22 ? 14u : 13u;
   if (!bits.read(width, soundIndex)) return false;
   ++summary.prefetchCount;
+  return true;
+}
+
+// --- Message types the local reference parser implements and this decoder
+// --- used to abandon the whole packet on.
+// Numbers are Valve's SVC_MESSAGES / NET_Messages enumerations
+// (source-sdk-2013 src/engine/netmessages.h). Layouts are from the local Rust
+// reference, work/_refs_demostf/src/demo/message/:
+//   generated.rs -- FileMessage, SetPauseMessage, MenuMessage,
+//                   CmdKeyValuesMessage (primitive-only structs)
+//   bspdecal.rs  -- BSPDecalMessage (uses read_bit_coord, NOT BitCoordMP)
+// Leaving any of these unimplemented does not merely skip a message: the
+// message loop cannot know its length, so it drops the rest of the packet,
+// including the svc_PacketEntities that follows in the same packet.
+
+// bf_read::ReadBitCoord -- source-sdk-2013 src/public/bitbuf.cpp.
+// 1 bit has_int, 1 bit has_frac, and only if either is set: 1 bit sign,
+// 14-bit integer part, 5-bit fractional part. Max 22 bits.
+bool skipBitCoord(MessageBits& bits) {
+  std::uint32_t hasInt = 0, hasFrac = 0;
+  if (!bits.read(1, hasInt) || !bits.read(1, hasFrac)) return false;
+  if (!hasInt && !hasFrac) return true;
+  std::uint32_t sign = 0;
+  if (!bits.read(1, sign)) return false;
+  if (hasInt && !bits.skip(14)) return false;
+  if (hasFrac && !bits.skip(5)) return false;
+  return true;
+}
+
+// net_File = 2: transfer_id(32) + null-terminated name + requested(1).
+bool readFileMessage(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t transferId = 0, requested = 0;
+  std::string fileName;
+  if (!bits.read(32, transferId) || !bits.readString(fileName) || !bits.read(1, requested)) return false;
+  ++summary.fileMessageCount;
+  return true;
+}
+
+// svc_SetPause = 11: 1 bit. This is the type that used to truncate the packet
+// that carried the demo's first svc_PacketEntities after a pause.
+bool readSetPause(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t pause = 0;
+  if (!bits.read(1, pause)) return false;
+  ++summary.setPauseCount;
+  summary.setPauseState = pause != 0;
+  return true;
+}
+
+// svc_BSPDecal = 21: 3 presence flags, a conditional BitCoord per axis, a
+// 9-bit texture index, a 1-bit "has entity/model" flag with an 11-bit entity
+// and 13-bit model index, then a low-priority bit.
+bool readBspDecal(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t hasX = 0, hasY = 0, hasZ = 0;
+  if (!bits.read(1, hasX) || !bits.read(1, hasY) || !bits.read(1, hasZ)) return false;
+  if (hasX && !skipBitCoord(bits)) return false;
+  if (hasY && !skipBitCoord(bits)) return false;
+  if (hasZ && !skipBitCoord(bits)) return false;
+  std::uint32_t textureIndex = 0;
+  if (!bits.read(9, textureIndex)) return false;
+  std::uint32_t hasIndices = 0;
+  if (!bits.read(1, hasIndices)) return false;
+  if (hasIndices) {
+    std::uint32_t entIndex = 0, modelIndex = 0;
+    if (!bits.read(11, entIndex) || !bits.read(13, modelIndex)) return false;
+  }
+  std::uint32_t lowPriority = 0;
+  if (!bits.read(1, lowPriority)) return false;
+  ++summary.bspDecalCount;
+  return true;
+}
+
+// svc_Menu = 29: kind(16) + byte length(16) + that many bytes.
+bool readMenu(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t kind = 0, length = 0;
+  if (!bits.read(16, kind) || !bits.read(16, length)) return false;
+  const std::size_t payloadBits = static_cast<std::size_t>(length) * 8u;
+  if (payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
+  ++summary.menuCount;
+  return true;
+}
+
+// svc_CmdKeyValues = 32: byte length(32) + that many bytes.
+bool readCmdKeyValues(MessageBits& bits, DemoNetworkSummary& summary) {
+  std::uint32_t length = 0;
+  if (!bits.read(32, length)) return false;
+  const std::size_t payloadBits = static_cast<std::size_t>(length) * 8u;
+  if (payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
+  ++summary.cmdKeyValuesCount;
   return true;
 }
 
@@ -876,7 +990,8 @@ bool readSendPropValue(MessageBits& bits, const SendPropSchema& prop, EntityProp
 }
 
 bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, EntityState& state, DemoNetworkSummary* summary = nullptr,
-    std::int32_t packetTick = -1, std::int32_t entityIndex = -1, const char* stage = "entity") {
+    std::int32_t packetTick = -1, std::int32_t entityIndex = -1, const char* stage = "entity",
+    std::vector<EntityPropChange>* changes = nullptr) {
   const bool isTempStage = summary != nullptr && std::strcmp(stage, "temp") == 0;
   auto recordTempFailure = [&](const char* name, const SendPropSchema* prop) {
     if (!isTempStage || summary->firstTempEntityFailureTick >= 0) return;
@@ -929,25 +1044,94 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
       return false;
     }
     const std::string key = prop.ownerTable.empty() ? prop.name : prop.ownerTable + "." + prop.name;
+    // Stamp before the copy below, so the history record carries the same tick as
+    // the state: a replayed value must not look fresher than it is. One stamp here
+    // covers all four call sites (preserve / baseline / enter / temp) because they
+    // all pass their packet tick into this function.
+    value.lastWriteTick = packetTick;
+    if (changes) {
+      EntityPropChange change;
+      change.propIndex = static_cast<std::uint32_t>(lastProp);
+      change.value = value;  // copy for the history record; the state takes the original
+      changes->push_back(std::move(change));
+    }
     state.properties[key] = std::move(value);
   }
   return false;
 }
 
+// One gap between two retained checkpoints, ordered so that a max-heap yields
+// the widest tick gap first. Ties break on the left index, so the retained set is
+// a pure function of the input and two runs cannot disagree.
+struct HistoryGap {
+  std::int32_t width = 0;
+  std::size_t left = 0;
+  std::size_t right = 0;
+};
+struct HistoryGapWider {
+  bool operator()(const HistoryGap& left, const HistoryGap& right) const {
+    if (left.width != right.width) return left.width < right.width;
+    return left.left > right.left;
+  }
+};
+
 void thinHistoryArchive(std::vector<EntityHistoryCheckpoint>& archive, std::size_t maxCount) {
   if (archive.size() <= maxCount || maxCount < 2) return;
-  std::vector<EntityHistoryCheckpoint> kept;
-  kept.reserve(maxCount);
+  // Keep the two endpoints and spend every remaining slot splitting whichever gap
+  // is currently the widest *in ticks*. That is the quantity a caller feels: a
+  // query for a tick outside the live window is answered with the newest retained
+  // checkpoint at or before it, so the worst answer quality over the whole demo is
+  // the largest tick gap between two neighbours that survived.
+  //
+  // The previous rule divided the *index* range evenly
+  // (`index = (last * slot) / (maxCount - 1)`). It only ever runs in the state
+  // where maxCount is just above the archive size, because it runs on every flush;
+  // there floor() maps the earliest slots onto their own index, so the head of the
+  // archive is pinned verbatim while everything after it is decimated again and
+  // again. Measured on bagel: 19 checkpoints frozen inside 56148..57829 (1681
+  // ticks), then a 54392-tick hole up to 112221, then the recent tail. The hole is
+  // not caused by uneven entity activity -- it reproduces on a supply that emits
+  // one checkpoint every 128 ticks with no variation at all.
   const std::size_t last = archive.size() - 1;
-  std::size_t previous = static_cast<std::size_t>(-1);
-  for (std::size_t slot = 0; slot < maxCount; ++slot) {
-    std::size_t index = (last * slot) / (maxCount - 1);
-    if (index <= previous) index = std::min(last, previous + 1);
-    previous = index;
-    kept.push_back(std::move(archive[index]));
-    if (index == last) break;
+  std::vector<char> kept(archive.size(), 0);
+  kept[0] = 1;
+  kept[last] = 1;
+  std::size_t used = 2;
+  std::priority_queue<HistoryGap, std::vector<HistoryGap>, HistoryGapWider> gaps;
+  gaps.push(HistoryGap{archive[last].tick - archive[0].tick, 0, last});
+  while (used < maxCount && !gaps.empty()) {
+    const HistoryGap gap = gaps.top();
+    gaps.pop();
+    if (gap.right <= gap.left + 1) continue;  // no candidate left inside it
+    // Nearest candidate to the tick midpoint. `archive` is tick-ordered, so this
+    // is a binary search rather than a scan.
+    const std::int64_t midpoint =
+        (static_cast<std::int64_t>(archive[gap.left].tick) + archive[gap.right].tick) / 2;
+    const auto lower = std::lower_bound(
+        archive.begin() + static_cast<std::ptrdiff_t>(gap.left + 1),
+        archive.begin() + static_cast<std::ptrdiff_t>(gap.right), midpoint,
+        [](const EntityHistoryCheckpoint& item, std::int64_t value) { return item.tick < value; });
+    std::size_t pick = static_cast<std::size_t>(lower - archive.begin());
+    if (pick > gap.left + 1) {
+      const std::size_t before = pick - 1;
+      const std::int64_t distanceBefore = midpoint - archive[before].tick;
+      const std::int64_t distanceAt = pick < gap.right
+          ? archive[pick].tick - midpoint : std::numeric_limits<std::int64_t>::max();
+      if (distanceBefore <= distanceAt) pick = before;
+    }
+    if (pick <= gap.left) pick = gap.left + 1;
+    if (pick >= gap.right) pick = gap.right - 1;
+    kept[pick] = 1;
+    ++used;
+    gaps.push(HistoryGap{archive[pick].tick - archive[gap.left].tick, gap.left, pick});
+    gaps.push(HistoryGap{archive[gap.right].tick - archive[pick].tick, pick, gap.right});
   }
-  archive = std::move(kept);
+  std::vector<EntityHistoryCheckpoint> reduced;
+  reduced.reserve(used);
+  for (std::size_t index = 0; index < archive.size(); ++index) {
+    if (kept[index]) reduced.push_back(std::move(archive[index]));
+  }
+  archive = std::move(reduced);
 }
 
 void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
@@ -973,6 +1157,7 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
     // its own events exactly. Ticks between archived snapshots are Checkpoint,
     // not a second full event log.
     ++summary.entityHistoryDroppedPackets;
+    ++summary.entityHistoryFlushes;
     summary.entityHistoryArchive.insert(summary.entityHistoryArchive.end(),
                                         summary.entityHistoryCheckpoints.begin(),
                                         summary.entityHistoryCheckpoints.end());
@@ -981,9 +1166,11 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
     summary.entityHistoryPackets.clear();
     summary.entityHistoryCheckpoints.clear();
     packetOrdinal = 0;
-    summary.entityHistoryCheckpoints.push_back({tick, 0u,
-                                                summary.entityClassByIndex,
-                                                summary.entityStates});
+    // The checkpoint for this packet is pushed by the rule below, which fires on
+    // packetOrdinal == 0. Pushing one here as well put two checkpoints on the same
+    // tick (bagel: every duplicate pair in the archive tick list, e.g. 56489
+    // 56489 and 124508 124508), spending half the archive budget on a copy of a
+    // tick that was already represented.
   }
   const std::size_t firstEvent = summary.entityHistoryEvents.size();
   for (auto& event : events) event.packetOrdinal = packetOrdinal;
@@ -1067,12 +1254,22 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       if (lastEntity < 0 || lastEntity >= 2048 || static_cast<std::size_t>(lastEntity) >= summary.entityClassByIndex.size() || summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] < 0) { ++summary.entityUnknownStateFailures; if (summary.firstEntityUnknownStateTick < 0) { summary.firstEntityUnknownStateTick = packetTick; summary.firstEntityUnknownStateEntity = lastEntity; summary.firstEntityUnknownStateUpdate = static_cast<std::int32_t>(updateType); summary.firstEntityUnknownStateMaxEntries = static_cast<std::int32_t>(maxEntries); summary.firstEntityUnknownStateUpdatedEntries = static_cast<std::int32_t>(updatedEntries); summary.firstEntityUnknownStatePayloadBits = static_cast<std::int32_t>(payloadBits); summary.firstEntityUnknownStateDiff = static_cast<std::int32_t>(diff); } entityUpdatesComplete = false; break; }
       const auto classId = static_cast<std::uint32_t>(summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)]);
       const auto* table = tableForClass(summary, classId);
-      EntityState candidate = summary.entityStates[static_cast<std::size_t>(lastEntity)];
-      if (!readEntityPropUpdates(bits, table, candidate, &summary, packetTick, lastEntity, "preserve")) { ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break; }
-      summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
+      // std::swap instead of copy-and-move-back. EntityState owns an
+      // unordered_map with hundreds of entries, and this runs once per updated
+      // entity -- 1.4M times for koth_bagel_rc13. The previous form made two
+      // full copies of that map per update.
+      auto& liveState = summary.entityStates[static_cast<std::size_t>(lastEntity)];
+      EntityState candidate;
+      std::swap(candidate, liveState);
+      std::vector<EntityPropChange> changes;
+      if (!readEntityPropUpdates(bits, table, candidate, &summary, packetTick, lastEntity, "preserve", &changes)) {
+        std::swap(candidate, liveState);  // failure: restore the original state
+        ++summary.packetEntityDecodeFailures; entityUpdatesComplete = false; break;
+      }
+      std::swap(candidate, liveState);
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
                                summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)], false,
-                               summary.entityStates[static_cast<std::size_t>(lastEntity)]});
+                               false, {}, std::move(changes)});
     } else if (updateType == 1) {
       ++summary.packetEntityLeaveCount;
       // Leave means the entity left the PVS, not that it was destroyed. Keep
@@ -1080,7 +1277,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
     } else if (updateType == 3) {
       ++summary.packetEntityDeleteCount;
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
-      if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, {}});
+      if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, false, {}, {}});
     } else if (updateType == 2) {
       if (summary.firstPacketEntitiesEnterTick < 0) {
         summary.firstPacketEntitiesEnterTick = packetTick;
@@ -1123,8 +1320,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       summary.maxActiveEntityCount = std::max(summary.maxActiveEntityCount, summary.activeEntityCount);
       summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
-                               static_cast<std::int32_t>(classId), false,
-                               summary.entityStates[static_cast<std::size_t>(lastEntity)]});
+                               static_cast<std::int32_t>(classId), false, true,
+                               summary.entityStates[static_cast<std::size_t>(lastEntity)], {}});
     } else { ++summary.packetEntityDecodeFailures; ++summary.entityUpdateHeaderFailures; entityUpdatesComplete = false; break; }
     if (bits.remaining() <= payloadEnd) break;
   }
@@ -1139,7 +1336,7 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
         summary.entityClassByIndex[removedEntity] = -1;
         if (removedEntity < summary.entityStates.size()) summary.entityStates[removedEntity] = {};
         if (summary.activeEntityCount > 0) --summary.activeEntityCount;
-        if (removedEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(removedEntity), -1, true, {}});
+        if (removedEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(removedEntity), -1, true, false, {}, {}});
       }
     }
   }
@@ -1167,6 +1364,82 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   return true;
 }
 
+// Walk the entries of a precache string table and record each one's text by
+// index. Shared by svc_CreateStringTable and svc_UpdateStringTable, and by every
+// precache table: the sequential/index encoding, the 32-entry string history and
+// the user-data skip are byte-identical between them. This used to be three
+// near-copies (create/soundprecache, update/soundprecache, and the instancebaseline
+// walk), which is exactly how one of them silently loses a field.
+//
+// entryIndexBits is the index width derived from maxEntries; the caller owns
+// that derivation because create and update take maxEntries from different
+// places. Returns false if the payload ran out early -- the caller turns that
+// into its own per-table failure counter.
+bool walkPrecacheTablePayload(const std::vector<std::uint8_t>& payload,
+                              std::uint32_t entryCount,
+                              std::uint32_t entryIndexBits,
+                              bool fixedUserData,
+                              std::uint32_t fixedUserDataBits,
+                              DemoNetworkSummary& summary,
+                              std::unordered_map<std::uint16_t, std::string>& out) {
+  MessageBits table(payload);
+  std::vector<std::string> history;
+  history.reserve(32);
+  // -1 rather than a separate haveLastIndex flag: the first sequential entry
+  // must resolve to index 0, and -1 + 1 == 0.
+  std::int32_t lastIndex = -1;
+  for (std::uint32_t entry = 0; entry < entryCount; ++entry) {
+    std::uint32_t sequential = 0, index = 0, value = 0;
+    if (!table.read(1, sequential)) return false;
+    if (sequential) {
+      index = static_cast<std::uint32_t>(lastIndex + 1);
+    } else if (!table.read(entryIndexBits, index)) {
+      return false;
+    }
+    lastIndex = static_cast<std::int32_t>(index);
+    std::string text;
+    if (!table.read(1, value)) return false;
+    if (value) {
+      if (!table.read(1, value)) return false;
+      if (value) {
+        std::uint32_t historyIndex = 0, copyCount = 0;
+        std::string rest;
+        if (!table.read(5, historyIndex) || !table.read(5, copyCount) || !table.readString(rest, 4096)) return false;
+        if (historyIndex < history.size() && copyCount <= history[historyIndex].size()) {
+          text = history[historyIndex].substr(0, copyCount) + rest;
+        } else {
+          text = std::move(rest);
+        }
+      } else if (!table.readString(text, 4096)) {
+        return false;
+      }
+    }
+    // The history is pushed before the move into `out`, so a later entry can
+    // still reference this text.
+    history.push_back(text);
+    if (history.size() > 32u) history.erase(history.begin());
+    if (!table.read(1, value)) return false;
+    if (value) {
+      if (fixedUserData) {
+        if (!table.skip(fixedUserDataBits)) return false;
+      } else {
+        std::uint32_t userBytes = 0;
+        // 14-bit length field; the reference parser imposes no cap. skip()
+        // still refuses to run past the end of the payload.
+        if (!table.read(14, userBytes)) return false;
+        if (userBytes > summary.stringTableUserDataMaxBytes) {
+          summary.stringTableUserDataMaxBytes = userBytes;
+        }
+        if (!table.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
+      }
+    }
+    if (!text.empty() && index <= 0xffffu) {
+      out[static_cast<std::uint16_t>(index)] = std::move(text);
+    }
+  }
+  return true;
+}
+
 bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t tableId = 0;
   std::uint32_t changed = 0;
@@ -1188,51 +1461,34 @@ bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
     if (!bits.read(1, value)) return false;
     payload[bit / 8u] |= static_cast<std::uint8_t>(value << (bit % 8u));
   }
-  if (tableId < 32u && tableId == summary.soundPrecacheTableId) {
-    ++summary.soundPrecacheUpdateCount;
-    const auto maxIt = summary.stringTableMaxEntries.find(tableId);
-    const std::uint32_t maxEntries = maxIt == summary.stringTableMaxEntries.end() ? summary.soundPrecacheMaxEntries : maxIt->second;
-    // Source's log_base2(maxEntries) is floor(log2(maxEntries)); the old
-    // loop computed one bit too few for every power-of-two table size.
+  // Both precache tables arrive through the same update path; only the table id,
+  // the declared capacity and the destination differ.
+  const auto updatePrecache = [&](std::uint32_t maxEntries, std::uint32_t fixedBits,
+                                  std::unordered_map<std::uint16_t, std::string>& out,
+                                  std::size_t& failures) {
+    // Source's log_base2(maxEntries) is floor(log2(maxEntries)); the old loop
+    // computed one bit too few for every power-of-two table size.
     std::uint32_t indexBits = 0;
     const std::uint32_t boundedMaxEntries = std::max<std::uint32_t>(1u, maxEntries);
     while ((1u << indexBits) < boundedMaxEntries && indexBits < 31u) ++indexBits;
-    MessageBits update(payload);
-    std::vector<std::string> history;
-    std::int32_t lastIndex = -1;
-    bool ok = maxEntries != 0;
-    for (std::uint32_t i = 0; ok && i < changedEntries; ++i) {
-      std::uint32_t sequential = 0, value = 0, index = 0;
-      if (!update.read(1, sequential)) { ok = false; break; }
-      if (sequential) index = static_cast<std::uint32_t>(lastIndex + 1);
-      else if (!update.read(indexBits, index)) { ok = false; break; }
-      lastIndex = static_cast<std::int32_t>(index);
-      std::string text;
-      if (!update.read(1, value)) { ok = false; break; }
-      if (value) {
-        if (!update.read(1, value)) { ok = false; break; }
-        if (value) {
-          std::uint32_t historyIndex = 0, copyCount = 0;
-          std::string rest;
-          if (!update.read(5, historyIndex) || !update.read(5, copyCount) || !update.readString(rest, 4096)) { ok = false; break; }
-          if (historyIndex < history.size() && copyCount <= history[historyIndex].size()) text = history[historyIndex].substr(0, copyCount) + rest;
-          else text = std::move(rest);
-        } else if (!update.readString(text, 4096)) { ok = false; break; }
-      }
-      history.push_back(text);
-      if (history.size() > 32u) history.erase(history.begin());
-      if (!update.read(1, value)) { ok = false; break; }
-      if (value) {
-        if (summary.soundPrecacheFixedBits != 0u) {
-          if (!update.skip(summary.soundPrecacheFixedBits)) { ok = false; break; }
-        } else {
-          std::uint32_t userBytes = 0;
-          if (!update.read(14, userBytes) || userBytes > 1024u || !update.skip(static_cast<std::size_t>(userBytes) * 8u)) { ok = false; break; }
-        }
-      }
-      if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
-    }
-    if (!ok) ++summary.soundPrecacheDecodeFailures;
+    // A table with no declared capacity cannot be decoded at all. The old code
+    // counted that as a decode failure rather than quietly keeping zero entries,
+    // and that must not change.
+    const bool ok = maxEntries != 0
+      && walkPrecacheTablePayload(payload, changedEntries, indexBits,
+                                  fixedBits != 0u, fixedBits, summary, out);
+    if (!ok) ++failures;
+  };
+  if (tableId < 32u && tableId == summary.soundPrecacheTableId) {
+    ++summary.soundPrecacheUpdateCount;
+    const auto maxIt = summary.stringTableMaxEntries.find(tableId);
+    updatePrecache(maxIt == summary.stringTableMaxEntries.end() ? summary.soundPrecacheMaxEntries : maxIt->second,
+                   summary.soundPrecacheFixedBits, summary.soundPrecache, summary.soundPrecacheDecodeFailures);
+  } else if (tableId < 32u && tableId == summary.modelPrecacheTableId) {
+    ++summary.modelPrecacheUpdateCount;
+    const auto maxIt = summary.stringTableMaxEntries.find(tableId);
+    updatePrecache(maxIt == summary.stringTableMaxEntries.end() ? summary.modelPrecacheMaxEntries : maxIt->second,
+                   summary.modelPrecacheFixedBits, summary.modelPrecache, summary.modelPrecacheDecodeFailures);
   }
   ++summary.updateStringTableCount;
   return true;
@@ -1596,6 +1852,58 @@ bool decodeSnappyRaw(const std::vector<std::uint8_t>& input, std::size_t offset,
   return output.size() == decodedSize && cursor == end;
 }
 
+// What the 12-byte compressed string-table header declared. Reported separately
+// from the decode result so a caller can record the sizes even when the
+// decompressor refuses the payload.
+struct StringTablePayloadInfo {
+  std::uint32_t decompressedBytes = 0;
+  std::uint32_t compressedBytes = 0;
+  std::uint32_t magic = 0;
+  // The payload is usable: either it was never compressed, or it decompressed.
+  bool decoded = false;
+  // `decodedPayload` holds the bytes to read. Kept explicit rather than inferred
+  // from `decodedPayload.empty()`, because a legitimately empty decode would
+  // otherwise send the caller back to the compressed bytes.
+  bool usedDecompressed = false;
+};
+
+std::uint32_t readLe32(const std::vector<std::uint8_t>& data, std::size_t offset) {
+  return static_cast<std::uint32_t>(data[offset])
+    | (static_cast<std::uint32_t>(data[offset + 1u]) << 8u)
+    | (static_cast<std::uint32_t>(data[offset + 2u]) << 16u)
+    | (static_cast<std::uint32_t>(data[offset + 3u]) << 24u);
+}
+
+// Unwrap a compressed string-table payload. The wrapper is identical for
+// soundprecache, modelprecache and instancebaseline: u32 decompressedSize,
+// u32 compressedSize, then a 4-byte "SNAP"/"LZSS" tag, then the stream. This was
+// copied at each call site before; keeping one copy is what makes "the same
+// payload decodes the same way for every table" a property of the code rather
+// than of three parallel edits.
+StringTablePayloadInfo decodeStringTablePayload(const std::vector<std::uint8_t>& payload,
+                                                bool compressed,
+                                                std::vector<std::uint8_t>& decodedPayload) {
+  StringTablePayloadInfo info;
+  if (!compressed) {
+    info.decoded = true;
+    return info;
+  }
+  if (payload.size() < 12u) return info;
+  info.decompressedBytes = readLe32(payload, 0u);
+  info.compressedBytes = readLe32(payload, 4u);
+  info.magic = readLe32(payload, 8u);
+  const bool snap = payload[8] == 'S' && payload[9] == 'N' && payload[10] == 'A' && payload[11] == 'P';
+  const bool lzss = payload[8] == 'L' && payload[9] == 'Z' && payload[10] == 'S' && payload[11] == 'S';
+  if (!(snap || lzss) || info.compressedBytes < 4u) return info;
+  if (12u + static_cast<std::size_t>(info.compressedBytes - 4u) > payload.size()) return info;
+  if (info.decompressedBytes > 100u * 1024u * 1024u) return info;
+  info.decoded = snap
+    ? decodeSnappyRaw(payload, 12u, info.compressedBytes - 4u, info.decompressedBytes, decodedPayload)
+    : decodeLzss(payload, 12u, info.compressedBytes - 4u, info.decompressedBytes, decodedPayload);
+  info.usedDecompressed = info.decoded;
+  return info;
+}
+
 void recordInstanceBaselineEntry(const std::string& text, std::vector<std::uint8_t> raw,
     DemoNetworkSummary& summary) {
   std::uint32_t classId = 0;
@@ -1667,7 +1975,13 @@ bool readInstanceBaselinePayload(const std::vector<std::uint8_t>& payload, std::
       std::uint32_t userDataBits = fixedUserData ? fixedUserDataBits : 0;
       if (!fixedUserData) {
         std::uint32_t userDataBytes = 0;
-        if (!data.read(14, userDataBytes) || userDataBytes > 1024u) return false;
+        // No 1024-byte cap: the length field is 14 bits and the reference
+        // parser imposes no bound on it. Over-long values are still rejected,
+        // by the per-bit read below running off the end of the payload.
+        if (!data.read(14, userDataBytes)) return false;
+        if (userDataBytes > summary.stringTableUserDataMaxBytes) {
+          summary.stringTableUserDataMaxBytes = userDataBytes;
+        }
         userDataBits = userDataBytes * 8u;
       }
       std::vector<std::uint8_t> raw((static_cast<std::size_t>(userDataBits) + 7u) / 8u, 0);
@@ -1699,7 +2013,15 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoN
       std::vector<std::uint8_t> raw;
       if (hasUserData) {
         std::uint32_t userBytes = 0;
-        if (!bits.read(16, userBytes) || userBytes > 1024u) return false;
+        // 16-bit length field, and the reference parser imposes no cap on it.
+        // instancebaseline entry 3 of koth_bagel_rc13 is 7669 bytes; the old
+        // `> 1024u` guard rejected it and reported the whole dem_stringtables
+        // packet as malformed. Bounded here by the payload length instead.
+        if (!bits.read(16, userBytes)) return false;
+        if (userBytes > summary.stringTableUserDataMaxBytes) {
+          summary.stringTableUserDataMaxBytes = userBytes;
+        }
+        if (static_cast<std::size_t>(userBytes) * 8u > bits.remaining()) return false;
         raw.assign(userBytes, 0);
         for (std::uint32_t bit = 0; bit < userBytes * 8u; ++bit) {
           std::uint32_t value = 0;
@@ -1720,7 +2042,12 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoN
         if (!bits.readString(text) || !bits.read(1, hasUserData)) return false;
         if (hasUserData) {
           std::uint32_t userBytes = 0;
-          if (!bits.read(16, userBytes) || userBytes > 1024u || !bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
+          // Same 16-bit length field, same removed cap.
+          if (!bits.read(16, userBytes)) return false;
+          if (userBytes > summary.stringTableUserDataMaxBytes) {
+            summary.stringTableUserDataMaxBytes = userBytes;
+          }
+          if (!bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;
         }
       }
     }
@@ -1757,107 +2084,42 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
     if (!bits.read(1, value)) return false;
     payload[bit / 8u] |= static_cast<std::uint8_t>(value << (bit % 8u));
   }
-  if (name == "soundprecache") {
+  // soundprecache and modelprecache share the whole create path: the same
+  // compressed wrapper, the same entry encoding, the same fixed-user-data rules.
+  // Only the table id and the destination differ. modelprecache used to have no
+  // arm here at all, which is why every entity carried an m_nModelIndex and no
+  // model path.
+  if (name == "soundprecache" || name == "modelprecache") {
+    const bool isModelPrecache = name == "modelprecache";
+    std::unordered_map<std::uint16_t, std::string>& destination =
+      isModelPrecache ? summary.modelPrecache : summary.soundPrecache;
+    std::size_t& failures = isModelPrecache
+      ? summary.modelPrecacheDecodeFailures : summary.soundPrecacheDecodeFailures;
     std::vector<std::uint8_t> decodedPayload;
-    const std::vector<std::uint8_t>* tablePayload = &payload;
-    bool decoded = compressed == 0;
-    if (compressed != 0 && payload.size() >= 12u) {
-      const std::uint32_t decompressedSize = static_cast<std::uint32_t>(payload[0]) |
-        (static_cast<std::uint32_t>(payload[1]) << 8u) |
-        (static_cast<std::uint32_t>(payload[2]) << 16u) |
-        (static_cast<std::uint32_t>(payload[3]) << 24u);
-      const std::uint32_t compressedSize = static_cast<std::uint32_t>(payload[4]) |
-        (static_cast<std::uint32_t>(payload[5]) << 8u) |
-        (static_cast<std::uint32_t>(payload[6]) << 16u) |
-        (static_cast<std::uint32_t>(payload[7]) << 24u);
-      const bool snap = payload[8] == 'S' && payload[9] == 'N' && payload[10] == 'A' && payload[11] == 'P';
-      const bool lzss = payload[8] == 'L' && payload[9] == 'Z' && payload[10] == 'S' && payload[11] == 'S';
-      if ((snap || lzss) && compressedSize >= 4u
-          && 12u + static_cast<std::size_t>(compressedSize - 4u) <= payload.size()
-          && decompressedSize <= 100u * 1024u * 1024u) {
-        decoded = snap
-          ? decodeSnappyRaw(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload)
-          : decodeLzss(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload);
-        if (decoded) tablePayload = &decodedPayload;
-      }
-    }
-    if (!decoded) {
-      ++summary.soundPrecacheDecodeFailures;
-    } else {
-    MessageBits table(*tablePayload);
-    std::vector<std::string> history;
-    history.reserve(32);
-    std::uint32_t lastIndex = 0;
-    bool haveLastIndex = false;
-    bool tableOk = true;
-    for (std::uint32_t entry = 0; entry < entryCount; ++entry) {
-      std::uint32_t sequential = 0, index = 0;
-      std::uint32_t value = 0;
-      if (!table.read(1, sequential)) { tableOk = false; break; }
-      if (sequential) index = haveLastIndex ? lastIndex + 1u : 0u;
-      else if (!table.read(entryIndexBits, index)) { tableOk = false; break; }
-      lastIndex = index; haveLastIndex = true;
-      std::string text;
-      if (!table.read(1, value)) { tableOk = false; break; }
-      if (value) {
-        if (!table.read(1, value)) { tableOk = false; break; }
-        if (value) {
-          std::uint32_t historyIndex = 0, copyCount = 0;
-          if (!table.read(5, historyIndex) || !table.read(5, copyCount)) { tableOk = false; break; }
-          std::string rest;
-          if (!table.readString(rest, 4096)) { tableOk = false; break; }
-          if (historyIndex < history.size() && copyCount <= history[historyIndex].size()) text = history[historyIndex].substr(0, copyCount) + rest;
-          else text = std::move(rest);
-        } else if (!table.readString(text, 4096)) { tableOk = false; break; }
-      }
-      history.push_back(text);
-      if (history.size() > 32u) history.erase(history.begin());
-      if (!table.read(1, value)) { tableOk = false; break; }
-      if (value) {
-        if (fixedUserData != 0u) {
-          if (!table.skip(fixedUserDataBits)) { tableOk = false; break; }
-        } else {
-          std::uint32_t userBytes = 0;
-          if (!table.read(14, userBytes) || userBytes > 1024u || !table.skip(static_cast<std::size_t>(userBytes) * 8u)) { tableOk = false; break; }
-        }
-      }
-      if (!text.empty() && index <= 0xffffu) summary.soundPrecache[static_cast<std::uint16_t>(index)] = std::move(text);
-    }
-    if (!tableOk) ++summary.soundPrecacheDecodeFailures;
+    const auto info = decodeStringTablePayload(payload, compressed != 0, decodedPayload);
+    const std::vector<std::uint8_t>& tablePayload = info.usedDecompressed ? decodedPayload : payload;
+    if (!info.decoded) {
+      ++failures;
+    } else if (!walkPrecacheTablePayload(tablePayload, entryCount, entryIndexBits,
+                                        fixedUserData != 0u, fixedUserDataBits,
+                                        summary, destination)) {
+      ++failures;
     }
   }
   if (name == "instancebaseline") {
+    if (compressed) ++summary.instanceBaselineCompressedCount;
     std::vector<std::uint8_t> decodedPayload;
-    const std::vector<std::uint8_t>* tablePayload = &payload;
-    bool decoded = !compressed;
-    if (compressed) {
-      ++summary.instanceBaselineCompressedCount;
-      if (payload.size() >= 12u) {
-        const std::uint32_t decompressedSize = static_cast<std::uint32_t>(payload[0]) |
-          (static_cast<std::uint32_t>(payload[1]) << 8u) |
-          (static_cast<std::uint32_t>(payload[2]) << 16u) |
-          (static_cast<std::uint32_t>(payload[3]) << 24u);
-        const std::uint32_t compressedSize = static_cast<std::uint32_t>(payload[4]) |
-          (static_cast<std::uint32_t>(payload[5]) << 8u) |
-          (static_cast<std::uint32_t>(payload[6]) << 16u) |
-          (static_cast<std::uint32_t>(payload[7]) << 24u);
-        summary.instanceBaselineDecompressedBytes = decompressedSize;
-        summary.instanceBaselineCompressedBytes = compressedSize;
-        summary.instanceBaselineMagic = static_cast<std::uint32_t>(payload[8]) |
-          (static_cast<std::uint32_t>(payload[9]) << 8u) |
-          (static_cast<std::uint32_t>(payload[10]) << 16u) |
-          (static_cast<std::uint32_t>(payload[11]) << 24u);
-        const bool snap = payload[8] == 'S' && payload[9] == 'N' && payload[10] == 'A' && payload[11] == 'P';
-        const bool lzss = payload[8] == 'L' && payload[9] == 'Z' && payload[10] == 'S' && payload[11] == 'S';
-        if ((snap || lzss) && compressedSize >= 4u && 12u + static_cast<std::size_t>(compressedSize - 4u) <= payload.size()) {
-          decoded = snap
-            ? decodeSnappyRaw(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload)
-            : decodeLzss(payload, 12u, compressedSize - 4u, decompressedSize, decodedPayload);
-          if (decoded) tablePayload = &decodedPayload;
-        }
-      }
+    const auto info = decodeStringTablePayload(payload, compressed != 0, decodedPayload);
+    // The declared sizes and magic are recorded whenever the 12-byte header is
+    // present, even if the payload is then rejected -- that is what the old
+    // inline block did, and these counters are part of the P0 evidence.
+    if (compressed && payload.size() >= 12u) {
+      summary.instanceBaselineDecompressedBytes = info.decompressedBytes;
+      summary.instanceBaselineCompressedBytes = info.compressedBytes;
+      summary.instanceBaselineMagic = info.magic;
     }
-    if (!decoded || !readInstanceBaselinePayload(*tablePayload, entryCount, maxEntries, fixedUserData != 0, fixedUserDataBits, summary)) {
+    const std::vector<std::uint8_t>& tablePayload = info.usedDecompressed ? decodedPayload : payload;
+    if (!info.decoded || !readInstanceBaselinePayload(tablePayload, entryCount, maxEntries, fixedUserData != 0, fixedUserDataBits, summary)) {
       ++summary.instanceBaselineDecodeFailures;
     }
   }
@@ -1870,6 +2132,11 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
     summary.soundPrecacheMaxEntries = maxEntries;
     summary.soundPrecacheFixedBits = fixedUserData ? fixedUserDataBits : 0u;
     summary.soundPrecacheCompressed = compressed != 0;
+  } else if (name == "modelprecache") {
+    summary.modelPrecacheTableId = static_cast<std::uint32_t>(summary.stringTableCount);
+    summary.modelPrecacheMaxEntries = maxEntries;
+    summary.modelPrecacheFixedBits = fixedUserData ? fixedUserDataBits : 0u;
+    summary.modelPrecacheCompressed = compressed != 0;
   }
   ++summary.stringTableCount;
   if (summary.stringTableNames.size() < 32) summary.stringTableNames.push_back(name);
@@ -1878,8 +2145,79 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary) {
 
 }
 
+bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
+                             std::size_t payloadBits,
+                             std::int32_t entryTick,
+                             std::int32_t initialNetworkTick,
+                             DemoNetworkSummary& summary,
+                             DemoMessageStreamResult& result) {
+  result = {};
+  std::vector<std::uint8_t> trimmed;
+  const std::vector<std::uint8_t>* source = &payload;
+  if (payloadBits < payload.size() * 8u) {
+    // Trailing bits inside the last retained byte are still readable, exactly
+    // as they are on the real demo path where the entry length is byte-aligned.
+    trimmed.assign(payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>((payloadBits + 7u) / 8u));
+    source = &trimmed;
+  }
+  MessageBits bits(*source);
+  std::int32_t networkTick = initialNetworkTick >= 0 ? initialNetworkTick : entryTick;
+  while (bits.remaining() > 6) {
+    const std::size_t messageBit = bits.offsetBits();
+    std::uint32_t type = 0;
+    if (!bits.read(6, type)) { result.packetValid = false; break; }
+    if (type < DemoNetworkSummary::kMessageTypeHistogramSize) ++summary.messageTypeCounts[type];
+    if (type == 0) { result.decodedAny = true; ++result.messagesDecoded; continue; }
+    if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) result.packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; result.decodedAny = true; } }
+    else if (type == 4) { if (!readStringCommand(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 5) { if (!readSetConVar(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 6) { if (!readSignonState(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 7) { std::string printText; if (!bits.readString(printText)) result.packetValid = false; else { ++summary.printCount; result.decodedAny = true; } }
+    else if (type == 8) { if (!readServerInfo(bits, summary)) result.packetValid = false; else { ++summary.serverInfoCount; result.decodedAny = true; } }
+    else if (type == 9) { if (!readSendTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 10) { if (!readClassInfo(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 12) { if (!readCreateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 13) { if (!readUpdateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 14) { if (!readVoiceInit(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 15) { if (!readVoiceData(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 18) { if (!readSetView(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 17) { if (!readSounds(bits, summary, entryTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 23) { if (!readUserMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 24) { if (!readEntityMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 25) { if (!readGameEvent(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 28) { if (!readPrefetch(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 30) { if (!readGameEventList(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 31) { if (!readGetCvarValue(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    // Types the local Rust reference implements. Before these existed the loop
+    // fell through to the unknown-type arm and abandoned the packet, which also
+    // discarded the svc_PacketEntities sharing that packet and silently froze
+    // the entity->class map from then on.
+    else if (type == 2) { if (!readFileMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 11) { if (!readSetPause(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 21) { if (!readBspDecal(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 29) { if (!readMenu(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 32) { if (!readCmdKeyValues(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else { ++summary.unknownMessagePackets; if (summary.unknownMessageTypes.size() < 16) summary.unknownMessageTypes.push_back(type); result.hitUnknownType = true; result.unknownType = type; result.packetValid = false; break; }
+    if (!result.packetValid) break;
+    ++result.messagesDecoded;
+  }
+  result.bitsConsumed = bits.offsetBits();
+  result.lastNetworkTick = networkTick;
+  return true;
+}
+
 bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& index, DemoNetworkSummary& summary) {
   const int networkProtocol = summary.networkProtocol;
+  // A zero here means the caller forgot to copy header.networkProtocol in.
+  // Decoding with protocol 0 silently takes the wrong branch in
+  // svc_CreateStringTable (a 20-bit length field instead of a varint) and
+  // produces a plausible-looking but wrong summary. entity_model_probe did
+  // exactly that and reported requests=0 out of 673 references; refusing turns a
+  // silent wrong reading into a loud failure.
+  if (networkProtocol <= 0) return false;
   summary = {};
   summary.networkProtocol = networkProtocol;
   if (index.entries.empty()) return false;
@@ -1920,39 +2258,11 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
     }
     std::vector<std::uint8_t> payload;
     if (!readEntryPayload(file, entry, payload, 128u * 1024u * 1024u)) { ++summary.malformedPackets; continue; }
-    MessageBits bits(payload); bool decodedAny = false; bool packetValid = true;
-    std::int32_t networkTick = summary.lastNetworkTick >= 0 ? summary.lastNetworkTick : entry.tick;
-    while (bits.remaining() > 6) {
-      const std::size_t messageBit = bits.offsetBits();
-      std::uint32_t type = 0; if (!bits.read(6, type)) { packetValid = false; break; }
-      if (type == 0) { decodedAny = true; continue; }
-      if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; decodedAny = true; } }
-      else if (type == 4) { if (!readStringCommand(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 5) { if (!readSetConVar(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 6) { if (!readSignonState(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 7) { std::string printText; if (!bits.readString(printText)) packetValid = false; else { ++summary.printCount; decodedAny = true; } }
-      else if (type == 8) { if (!readServerInfo(bits, summary)) packetValid = false; else { ++summary.serverInfoCount; decodedAny = true; } }
-      else if (type == 9) { if (!readSendTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 10) { if (!readClassInfo(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 12) { if (!readCreateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 13) { if (!readUpdateStringTable(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 14) { if (!readVoiceInit(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 15) { if (!readVoiceData(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 18) { if (!readSetView(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 17) { if (!readSounds(bits, summary, entry.tick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 23) { if (!readUserMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 24) { if (!readEntityMessage(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 25) { if (!readGameEvent(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 28) { if (!readPrefetch(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 30) { if (!readGameEventList(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else if (type == 31) { if (!readGetCvarValue(bits, summary)) packetValid = false; else { decodedAny = true; } }
-      else { ++summary.unknownMessagePackets; if (summary.unknownMessageTypes.size() < 16) summary.unknownMessageTypes.push_back(type); packetValid = false; break; }
-      if (!packetValid) break;
-    }
-    ++summary.packetsScanned; if (!packetValid || !decodedAny) ++summary.malformedPackets;
+    DemoMessageStreamResult stream;
+    const bool streamOk = decodeDemoMessageStream(payload, payload.size() * 8u, entry.tick,
+                                                  summary.lastNetworkTick, summary, stream);
+    ++summary.packetsScanned;
+    if (!streamOk || !stream.packetValid || !stream.decodedAny) ++summary.malformedPackets;
   }
   for (const auto& entity : summary.entityStates) {
     for (const auto& [name, value] : entity.properties) {
@@ -1977,7 +2287,8 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
 }
 
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
-    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states) {
+    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
+    std::int32_t* resolvedTick) {
   if (summary.entityHistoryHasGap) return EntitySnapshotQueryStatus::Gap;
   const bool liveWindow = !summary.entityHistoryCheckpoints.empty()
       && tick >= summary.entityHistoryCheckpoints.front().tick;
@@ -1990,7 +2301,13 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
           summary.entityHistoryArchive.begin(), summary.entityHistoryArchive.end(), tick,
           [](std::int32_t value, const EntityHistoryCheckpoint& item) { return value < item.tick; });
       if (archived != summary.entityHistoryArchive.begin()) {
-        states = std::prev(archived)->states;
+        const auto& fallback = *std::prev(archived);
+        // A Checkpoint answer is stale by construction: it is the newest archived
+        // snapshot at or before the query tick, not the query tick itself. The
+        // caller gets the tick it actually came from so the staleness is a reading
+        // rather than an inference from the archive's tick list.
+        if (resolvedTick) *resolvedTick = fallback.tick;
+        states = fallback.states;
         return EntitySnapshotQueryStatus::Checkpoint;
       }
     }
@@ -2001,6 +2318,7 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
       [](std::int32_t value, const EntityHistoryCheckpoint& item) { return value < item.tick; });
   if (checkpoint == summary.entityHistoryCheckpoints.begin()) return EntitySnapshotQueryStatus::TickBeforeHistory;
   const auto& base = *std::prev(checkpoint);
+  if (resolvedTick) *resolvedTick = tick;  // replayed through `tick` exactly
   states = base.states;
   for (const auto& packet : summary.entityHistoryPackets) {
     if (packet.packetOrdinal <= base.packetOrdinal || packet.tick > tick) continue;
@@ -2014,7 +2332,20 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     for (std::size_t i = packet.firstEvent; i < end; ++i) {
       const auto& event = summary.entityHistoryEvents[i];
       if (event.entityIndex >= states.size()) states.resize(2048u);
-      states[event.entityIndex] = event.removed ? EntityState{} : event.state;
+      auto& target = states[event.entityIndex];
+      if (event.removed) { target = EntityState{}; continue; }
+      if (event.fullState) { target = event.state; continue; }
+      // Preserve events carry only the properties the packet wrote, so they are
+      // applied on top of the state already replayed from the checkpoint.
+      const auto* table = event.classId >= 0
+          ? tableForClass(summary, static_cast<std::uint32_t>(event.classId)) : nullptr;
+      for (const auto& change : event.changes) {
+        if (!table || static_cast<std::size_t>(change.propIndex) >= table->flattenedProps.size()) {
+          return EntitySnapshotQueryStatus::Gap;
+        }
+        const auto& prop = table->flattenedProps[change.propIndex];
+        target.properties[prop.ownerTable.empty() ? prop.name : prop.ownerTable + "." + prop.name] = change.value;
+      }
     }
   }
   return EntitySnapshotQueryStatus::Available;
@@ -2043,7 +2374,11 @@ bool findObserverViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int3
 
 DemoRecordingClassification classifyDemoRecording(const DemoHeader& header, const DemoNetworkSummary& summary) {
   DemoRecordingClassification result;
-  result.headerName = header.recordingType == DemoRecordingType::SourceTv;
+  // Re-derive from the names rather than trusting header.recordingType alone, so
+  // a caller holding a hand-built DemoHeader gets the same verdict as one that
+  // went through parseDemoHeader.
+  result.headerName = header.recordingType == DemoRecordingType::SourceTv
+      || namesIndicateSourceTv(header);
   result.serverInfoHltv = summary.serverInfoHltv;
   result.serverInfoReplayBit = summary.serverInfoReplayBit;
   if (result.headerName || result.serverInfoHltv) {
@@ -2081,6 +2416,21 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
   summary.assetPaintKitKnown = summary.assetSkinKnown = summary.assetQualityKnown = 0;
   summary.assetIdentityUnknown = 0;
   summary.assetModelPathKnown = summary.assetWeaponClassKnown = 0;
+  summary.assetModelPathFromPrecache = summary.assetModelIndexUnresolved = 0;
+  summary.assetModelIndexZero = 0;
+  summary.assetModelIndexOutOfRange = 0;
+  summary.assetModelIndexUnresolvedMax = -1;
+  summary.assetWorldModelIndexKnown = 0;
+  summary.assetWorldModelIndexResolved = 0;
+  summary.assetWorldModelIndexZero = 0;
+  summary.assetWorldModelIndexUnresolved = 0;
+  summary.assetWorldModelIndexOutOfRange = 0;
+  summary.assetWorldModelIndexUnresolvedMax = -1;
+  summary.assetModelPathFromWorldModelIndex = 0;
+  summary.assetModelPathWorldModelOnly = 0;
+  summary.assetWeaponViewModelIndexAgrees = 0;
+  summary.assetWeaponViewModelIndexZero = 0;
+  summary.assetWeaponViewModelIndexDiffers = 0;
   for (std::size_t entityIndex = 0; entityIndex < summary.entityStates.size() && entityIndex < 2048u; ++entityIndex) {
     const auto& state = summary.entityStates[entityIndex];
     if (state.classId < 0) continue;
@@ -2122,6 +2472,8 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
     findString({"m_ModelName", "m_iszModel", "m_szModel"}, reference.hasModelPath, reference.modelPath);
     findString({"m_iClassName", "m_szClassName"}, reference.hasWeaponClass, reference.weaponClass);
     findInt({"m_nModelIndex", "m_iModelIndex"}, reference.hasModelIndex, reference.modelIndex);
+    findInt({"m_iWorldModelIndex"}, reference.hasWorldModelIndex, reference.worldModelIndex);
+    findInt({"m_iViewModelIndex"}, reference.hasViewModelIndex, reference.viewModelIndex);
     for (const auto& [name, value] : state.properties) {
       if (value.type != SendPropType::String || value.stringValue.empty()) continue;
       if (name == "m_ModelName" || name == "m_iszModelName" || name.find("ModelName") != std::string::npos) {
@@ -2131,6 +2483,113 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
       }
     }
     findInt({"m_hActiveWeapon", "m_hWeapon"}, reference.hasWeapon, reference.weapon);
+    // A weapon carries two model indices and they name different things. The
+    // one DT_BaseEntity.m_nModelIndex holds is the first-person composite: on
+    // the POV demo at server tick 55418 every held weapon reads
+    // m_nModelIndex == m_iViewModelIndex == its class's c_*_arms model (engineer
+    // 1097, medic 1060, spy 1088, pyro 1079, demo 1050), while
+    // m_iWorldModelIndex holds the weapon itself (c_pistol 255, c_medigun 261,
+    // c_knife 240, c_ham 605). The world pass wants the second one -- an arms
+    // model standing where a weapon belongs is what "the weapon's world model is
+    // not wired" looked like -- so the world index is tried first. This block is
+    // additive: it only ever fills a path the m_nModelIndex block below could not
+    // have filled differently, and every bucket it counts has its own counter so
+    // that no reading the P1 round recorded had to move for it.
+    // The one lookup both index routes go through. Returning nullptr covers every
+    // way an index fails to name a model -- the 0 sentinel, Source's negative
+    // sentinels arriving as unsigned 32-bit patterns, and an in-range value the
+    // table never declared -- so "would the other route have produced a path" is
+    // one call rather than four conditions written twice.
+    auto precachePathFor = [&summary](std::int64_t index) -> const std::string* {
+      if (index < 1 || index > 0xffff) return nullptr;
+      const auto found = summary.modelPrecache.find(static_cast<std::uint16_t>(index));
+      if (found == summary.modelPrecache.end() || found->second.empty()) return nullptr;
+      return &found->second;
+    };
+    if (reference.hasWorldModelIndex) {
+      ++summary.assetWorldModelIndexKnown;
+      if (reference.hasViewModelIndex && reference.hasModelIndex) {
+        // Both slots name the first-person composite, so where both are set they
+        // agree. Where they do not, the view slot is 0: the POV demo's syringe
+        // gun (249/0) and Crusader's Crossbow (381/0) are that case, and they are
+        // the only shape it takes across both demos. Splitting "unset" from
+        // "conflicting" is what makes the claim falsifiable -- a real conflict
+        // would land in `Differs`, which is the counter that must stay 0.
+        if (reference.viewModelIndex == reference.modelIndex) {
+          ++summary.assetWeaponViewModelIndexAgrees;
+        } else if (reference.viewModelIndex == 0) {
+          ++summary.assetWeaponViewModelIndexZero;
+        } else {
+          ++summary.assetWeaponViewModelIndexDiffers;
+        }
+      }
+      if (reference.worldModelIndex == 0) {
+        // Unset on the instance baseline, so the property being present at all
+        // means a packet wrote a real value; 0 can only be an explicit clear.
+        ++summary.assetWorldModelIndexZero;
+      } else if (reference.worldModelIndex >= 1 && reference.worldModelIndex <= 0xffff) {
+        if (const auto* worldPath = precachePathFor(reference.worldModelIndex)) {
+          ++summary.assetWorldModelIndexResolved;
+          if (!reference.hasModelPath) {
+            reference.hasModelPath = true;
+            reference.modelPath = *worldPath;
+            reference.modelPathFromPrecache = true;
+            reference.modelPathFromWorldModelIndex = true;
+            ++summary.assetModelPathFromWorldModelIndex;
+            // Did the m_nModelIndex route have anything to offer for this entity?
+            // If not, this path exists *because* of the world route, which is
+            // exactly the quantity assetModelPathKnown moves by.
+            if (precachePathFor(reference.modelIndex) == nullptr) {
+              ++summary.assetModelPathWorldModelOnly;
+            }
+          }
+        } else {
+          ++summary.assetWorldModelIndexUnresolved;
+          if (reference.worldModelIndex > summary.assetWorldModelIndexUnresolvedMax) {
+            summary.assetWorldModelIndexUnresolvedMax = reference.worldModelIndex;
+          }
+        }
+      } else {
+        ++summary.assetWorldModelIndexOutOfRange;
+      }
+    }
+    // A real Source demo does not send the model path as an entity property: the
+    // entity carries m_nModelIndex and the path lives in the modelprecache
+    // string table. Before this lookup every reference had an index and no path,
+    // and ModelLoader::buildRenderRequests dropped all of them -- 673 references
+    // in, 0 render requests out, on both a POV and a SourceTV demo. The property
+    // route is tried first so a demo that does send the name still wins; the
+    // precache route only fills the gap.
+    if (!reference.hasModelPath && reference.hasModelIndex) {
+      if (reference.modelIndex == 0) {
+        // Source's "no model" sentinel, and modelprecache does not declare
+        // index 0.
+        ++summary.assetModelIndexZero;
+      } else if (reference.modelIndex >= 1 && reference.modelIndex <= 0xffff) {
+        const auto found = summary.modelPrecache.find(
+          static_cast<std::uint16_t>(reference.modelIndex));
+        if (found != summary.modelPrecache.end() && !found->second.empty()) {
+          reference.hasModelPath = true;
+          reference.modelPath = found->second;
+          reference.modelPathFromPrecache = true;
+        } else {
+          // In range but the table never declared it. This is the count that
+          // must be zero on a healthy demo.
+          ++summary.assetModelIndexUnresolved;
+          if (reference.modelIndex > summary.assetModelIndexUnresolvedMax) {
+            summary.assetModelIndexUnresolvedMax = reference.modelIndex;
+          }
+        }
+      } else {
+        // Outside [1, 0xffff], so it never named a table entry. The local demos
+        // send the unset sentinel as 0xFFFFFFEA (-22) / 0xFFFFFFFC (-4); those
+        // must not be counted as misses or they would drown the real ones.
+        ++summary.assetModelIndexOutOfRange;
+      }
+      // Never guess a path here. An unresolved index stays unresolved and is
+      // counted, so "the table was missing an entry" cannot hide behind a
+      // plausible-looking fallback model.
+    }
     findInt({"m_iItemDefinitionIndex"}, reference.hasItemDefIndex, reference.itemDefIndex);
     findInt({"m_nFallbackPaintKit", "m_iPaintKit"}, reference.hasPaintKit, reference.paintKit);
     findInt({"m_nSkin"}, reference.hasSkin, reference.skin);
@@ -2142,6 +2601,7 @@ bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetRefer
     if (reference.hasSkin) ++summary.assetSkinKnown;
     if (reference.hasQuality) ++summary.assetQualityKnown;
     if (reference.hasModelPath) ++summary.assetModelPathKnown;
+    if (reference.modelPathFromPrecache) ++summary.assetModelPathFromPrecache;
     if (reference.hasWeaponClass) ++summary.assetWeaponClassKnown;
     if (!reference.hasModelPath && !reference.hasWeaponClass && !reference.hasModelIndex &&
         !reference.hasWeapon && !reference.hasItemDefIndex && !reference.hasPaintKit &&

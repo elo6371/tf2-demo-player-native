@@ -32,9 +32,17 @@ std::vector<Token> tokenize(const std::string& text) {
     if (text[i] == '"') {
       ++i;
       while (i < text.size() && text[i] != '"') {
-        if (text[i] == '\\' && i + 1 < text.size()) {
+        // A backslash in a VMT value is a path separator, not an escape. TF2
+        // ships VMTs whose $basetexture reads
+        // `models\props_gameplay/resupply_locker`; consuming the backslash
+        // turned that into `modelsprops_gameplay/resupply_locker`, which
+        // resolves nowhere, so the model silently kept the world atlas. Only a
+        // backslash in front of a quote or another backslash is consumed, which
+        // keeps `\"` working for the rare file that uses it.
+        if (text[i] == '\\' && i + 1 < text.size()
+            && (text[i + 1] == '"' || text[i + 1] == '\\')) {
           ++i;
-          value.push_back(text[i] == 'n' ? '\n' : text[i]);
+          value.push_back(text[i]);
         } else value.push_back(text[i]);
         ++i;
       }

@@ -21,6 +21,13 @@
 //   materialName e.g. maps/koth_bagel_rc13 (probed as materials/<name>.vmt)
 // Prints one JSON object. Exit 0 always; the readings carry the verdict so the
 // caller can assert on them.
+//
+// `triangleCoverageByCap` recomputes the triangle count at several atlas caps
+// (1024, 2048, 4096, uncapped) with the install and the parse held fixed. Its
+// purpose is to attribute the loss: on cp_snakewater_final1 the 512 cap covers
+// 30731/200000 triangles, a 1024 cap covers 193875, and no cap covers 199227 --
+// so the cap, not the material wiring, is what discards the map, and the next fix
+// is one integer. It is a measurement, not a proposal: main.cpp is untouched.
 
 #include "bsp_map.h"
 #include "vmt_material.h"
@@ -102,6 +109,14 @@ int main(int argc, char** argv) {
   std::uint32_t largestAccepted = 0, smallestRejected = 0xFFFFFFFFu;
   std::string firstResolvedTexture;
   std::vector<std::string> eligibleMaterialNames;
+  // Counterfactual: what the world atlas could cover if main.cpp:775's 512x512
+  // cap were raised. The cap is the single parameter that drops 104 of the 111
+  // snakewater materials, so "how much more geometry becomes drawable" is a
+  // question about one integer, not about wiring. We record each resolved
+  // material's longest side and then count triangle coverage at several caps,
+  // so the answer is a reading rather than an estimate.
+  std::vector<std::pair<std::string, std::uint32_t>> resolvedMaterialLongest;
+  std::vector<std::pair<std::uint32_t, std::size_t>> triangleCoverageByCap;
   std::size_t totalTriangles = 0, texturedTriangles = 0;
   if (!bspBytes.empty()) {
     tf2::native::BspMap map;
@@ -142,13 +157,14 @@ int main(int argc, char** argv) {
         if (texture.parse(vtfBytes, &decodeError) && !texture.decodeRgba(vtfBytes, &decodeError).empty()) {
           ++resolvableBaseTextures;
           if (firstResolvedTexture.empty()) firstResolvedTexture = vtfPath;
-          const bool fitsAtlas = texture.header().width <= 512 && texture.header().height <= 512;
+          const std::uint32_t w = texture.header().width, h = texture.header().height;
+          const std::uint32_t longest = (std::max)(w, h);
+          resolvedMaterialLongest.emplace_back(name, longest);
+          const bool fitsAtlas = w <= 512 && h <= 512;
           if (fitsAtlas) eligibleMaterialNames.push_back(name);
           // main.cpp keeps only textures at or below 512x512 when building the
           // world atlas (it uses 514px tiles with a 1px border). Count both sides
           // so "the atlas is empty" can be told apart from "the atlas is capped".
-          const std::uint32_t w = texture.header().width, h = texture.header().height;
-          const std::uint32_t longest = (std::max)(w, h);
           if (!fitsAtlas) {
             ++oversizedRejected;
             smallestRejected = (std::min)(smallestRejected, longest);
@@ -167,6 +183,23 @@ int main(int argc, char** argv) {
         if (std::binary_search(eligibleMaterialNames.begin(), eligibleMaterialNames.end(), triangle.material)) {
           ++texturedTriangles;
         }
+      }
+      // Counterfactual coverage: hold the install and the parse fixed, and vary
+      // only the cap. A cap of 0 means "no cap". If the 512 cap is what is
+      // throwing the picture away, these numbers diverge sharply; if wiring is
+      // the bottleneck they stay close, and the wiring is what to fix instead.
+      const std::uint32_t caps[] = {512u, 1024u, 2048u, 4096u, 0u};
+      for (const std::uint32_t cap : caps) {
+        std::vector<std::string> names;
+        for (const auto& [name, longest] : resolvedMaterialLongest) {
+          if (cap == 0u || longest <= cap) names.push_back(name);
+        }
+        std::sort(names.begin(), names.end());
+        std::size_t covered = 0;
+        for (const auto& triangle : map.triangles) {
+          if (std::binary_search(names.begin(), names.end(), triangle.material)) ++covered;
+        }
+        triangleCoverageByCap.emplace_back(cap, covered);
       }
     }
   }
@@ -231,6 +264,16 @@ int main(int argc, char** argv) {
             << "\"smallestRejected\":" << (smallestRejected == 0xFFFFFFFFu ? 0u : smallestRejected) << ","
             << "\"totalTriangles\":" << totalTriangles << ","
             << "\"trianglesCoveredByAtlas\":" << texturedTriangles << ","
+            << "\"triangleCoverageByCap\":{";
+  for (std::size_t i = 0; i < triangleCoverageByCap.size(); ++i) {
+    if (i) std::cout << ",";
+    const auto& [cap, covered] = triangleCoverageByCap[i];
+    // cap 0 is printed as "uncapped" so a reader cannot mistake it for a real cap.
+    std::cout << "\"" << (cap == 0u ? std::string("uncapped") : std::to_string(cap))
+              << "\":" << covered;
+  }
+  std::cout << "},"
+            << "\"materialsResolvedLongest\":" << resolvedMaterialLongest.size() << ","
             << "\"vmtResource\":\"" << escape(vmtResource) << "\","
             << "\"vmtBytes\":" << vmtBytes.size() << ","
             << "\"vmtSource\":\"" << vmtSource << "\","

@@ -85,6 +85,24 @@ struct EntityPropertyValue {
   float y = 0.0f;
   float z = 0.0f;
   std::string stringValue;
+  // Server tick of the packet that last wrote this property, or -1 when the
+  // value did not come from a packet (fixture-built states, and the default).
+  //
+  // A player carries its position in more than one slot and the slots are not
+  // equally fresh: on POV entity 3 the LocalPlayerExclusive origin is 2379 ticks
+  // behind the checkpoint the snapshot was resolved from, while the
+  // NonLocalPlayerExclusive origin sits 44 units from the recorded camera. A rule
+  // that picks between slots cannot tell those apart without the age, and the age
+  // can only be recorded where the write happens -- deriving it later would mean
+  // replaying the whole packet history.
+  //
+  // Stamped by readEntityPropUpdates (demo_header.cpp) from its packetTick. The
+  // selection rule (entity_model.cpp, preferCandidate) ranks duplicate slots by it
+  // first, which is what moved the POV target's resolved coordinate off the frozen
+  // Local copy and onto the fresh one. A state built outside that function -- a
+  // fixture, or any hand-built state -- carries -1 everywhere, and the rule then
+  // falls back to the rank order it used before this field existed.
+  std::int32_t lastWriteTick = -1;
 };
 
 struct EntityState {
@@ -192,6 +210,29 @@ struct AssetReference {
   std::string className;
   bool hasModelPath = false;
   std::string modelPath;
+  // True when modelPath came from the modelprecache string table via
+  // m_nModelIndex rather than from an entity string property. A real Source demo
+  // only ever takes the first route, so this flag is what makes "the precache
+  // lookup is the one doing the work" checkable instead of assumed.
+  bool modelPathFromPrecache = false;
+  // TF2 splits a weapon's model in two. DT_BaseEntity.m_nModelIndex (and
+  // DT_BaseCombatWeapon.m_iViewModelIndex, which carries the same value) names
+  // the first-person composite -- the class's c_*_arms model -- while
+  // DT_BaseCombatWeapon.m_iWorldModelIndex names the weapon itself, which is what
+  // a third-person or dropped weapon is drawn with. Measured on the POV demo at
+  // server tick 55418, all eight held weapons read `modelIndex == viewModelIndex`
+  // and neither equal to the world index (pistol 1097/1097 vs 255, medigun
+  // 1060/1060 vs 261, knife 1088/1088 vs 240); modelprecache resolves 255 to
+  // models/weapons/c_models/c_pistol/c_pistol.mdl and 1097 to
+  // models/weapons/c_models/c_engineer_arms.mdl.
+  bool hasWorldModelIndex = false;
+  std::int64_t worldModelIndex = 0;
+  bool hasViewModelIndex = false;
+  std::int64_t viewModelIndex = 0;
+  // True when modelPath came from m_iWorldModelIndex. Only ever set together
+  // with modelPathFromPrecache: both routes go through the same table, and this
+  // flag is what tells the two apart afterwards.
+  bool modelPathFromWorldModelIndex = false;
   bool hasWeaponClass = false;
   std::string weaponClass;
   bool hasModelIndex = false;
@@ -208,13 +249,29 @@ struct AssetReference {
   std::int64_t quality = 0;
 };
 
+// One property a packet actually wrote, addressed by its position in the
+// class's flattened SendTable. Storing the index instead of the composed
+// "owner.name" key keeps the record at 4 bytes + the value and makes it
+// allocation-free; replay rebuilds the key from the table.
+struct EntityPropChange {
+  std::uint32_t propIndex = 0;
+  EntityPropertyValue value;
+};
+
 struct EntityHistoryEvent {
   std::int32_t tick = 0;
   std::uint32_t packetOrdinal = 0;
   std::uint16_t entityIndex = 0;
   std::int32_t classId = -1;
   bool removed = false;
+  // Enter events carry the complete post-update state (instance baseline plus
+  // the wire properties). Preserve events carry only `changes`.
+  bool fullState = false;
   EntityState state;
+  // Properties touched by a Preserve update. Before this existed every event
+  // deep-copied the whole EntityState; on koth_bagel_rc13 that is 1.39M copies
+  // of a ~50-entry unordered_map and dominated the scan.
+  std::vector<EntityPropChange> changes;
 };
 
 struct EntityHistoryCheckpoint {
@@ -324,6 +381,72 @@ struct DemoNetworkSummary {
   std::size_t assetQualityKnown = 0;
   std::size_t assetIdentityUnknown = 0;
   std::size_t assetModelPathKnown = 0;
+  std::size_t assetModelPathFromPrecache = 0;
+  // Carried an m_nModelIndex that the modelprecache table did not resolve. This
+  // is the number that must be zero on a healthy demo: a non-zero value means
+  // the entity referenced a model the table never declared, and the renderer has
+  // no path to load.
+  std::size_t assetModelIndexUnresolved = 0;
+  // Carried m_nModelIndex == 0. Kept separate from the unresolved count because
+  // 0 is Source's "this entity has no model" sentinel and modelprecache does not
+  // declare index 0; folding the two together would bury a real table miss in
+  // the noise of every trigger and logic entity in the map.
+  std::size_t assetModelIndexZero = 0;
+  // Carried an m_nModelIndex outside the range a precache entry can occupy.
+  // Source uses negative values as the "this entity has no model" sentinel, and
+  // the local demos send -22 / -4 rather than -1 for it. Those arrive here as
+  // unsigned 32-bit patterns (0xFFFFFFEA / 0xFFFFFFFC) because the sendprop is
+  // read without sign extension, so the test is `outside [1, 0xffff]` rather
+  // than `negative` -- measuring that distinction is what this counter is for.
+  std::size_t assetModelIndexOutOfRange = 0;
+  // Largest unresolved in-range m_nModelIndex (1..0xffff). Only a non-zero value
+  // here means the entity named a model the table never declared. The sentinels
+  // above must not be allowed to fill this in, or a real miss hides among them.
+  std::int64_t assetModelIndexUnresolvedMax = -1;
+  // The world-model route, counted separately from the m_nModelIndex route above
+  // so that adding it could not quietly move a reading the P1 round recorded.
+  // `known` is presence only (the state carries m_iWorldModelIndex); the other
+  // three partition it by value, mirroring the m_nModelIndex buckets exactly so
+  // the two routes can be compared bucket for bucket.
+  std::size_t assetWorldModelIndexKnown = 0;
+  // Named a declared, non-empty modelprecache entry. Every weapon entity's world
+  // index should land here on a healthy demo.
+  std::size_t assetWorldModelIndexResolved = 0;
+  // Held the 0 sentinel, so the m_nModelIndex route below stays in charge.
+  std::size_t assetWorldModelIndexZero = 0;
+  // In [1, 0xffff] but the table never declared it. The world-route counterpart
+  // of assetModelIndexUnresolved, and the one that must be zero for the same
+  // reason: a weapon whose world index names no entry cannot be drawn.
+  std::size_t assetWorldModelIndexUnresolved = 0;
+  std::size_t assetWorldModelIndexOutOfRange = 0;
+  // Largest unresolved world index; -1 when none, matching the m_nModelIndex
+  // convention above.
+  std::int64_t assetWorldModelIndexUnresolvedMax = -1;
+  // References whose modelPath came from m_iWorldModelIndex. This is the count
+  // that says the wiring is doing something: before it existed every weapon
+  // render request named its c_*_arms model instead of the weapon.
+  std::size_t assetModelPathFromWorldModelIndex = 0;
+  // The subset of those where the m_nModelIndex route could not have produced a
+  // path at all -- no such property in the state, or a value that names no
+  // declared entry. Measured on the nine-demo probe set this is the *only* thing
+  // that makes assetModelPathKnown move: it rose 451 -> 454 on snakewater, where
+  // three weapons (CTFKnife 382, CTFMinigun 428, CTFLunchBox 429) carry
+  // m_iWorldModelIndex and no m_nModelIndex whatsoever, and it did not move on the
+  // other eight demos, where the 32/33/58... world-model paths only *replace* a
+  // path the old route would have named anyway. That makes
+  // `delta(assetModelPathKnown) == assetModelPathWorldModelOnly` an identity a
+  // check can assert, instead of a movement a reader has to trust.
+  std::size_t assetModelPathWorldModelOnly = 0;
+  // m_iViewModelIndex == m_nModelIndex. Both name the first-person composite, so
+  // they agree wherever both are set. They are NOT always equal: on the POV demo
+  // the syringe gun and the Crusader's Crossbow read m_iViewModelIndex 0 against
+  // m_nModelIndex 249 / 381, and on both demos some weapons read 0 in the view
+  // slot because no packet ever wrote it. Counting the three cases apart is what
+  // keeps "0 means unset" a measurement instead of an assumption -- a real
+  // conflict between the two slots would land in `Differs` and nowhere else.
+  std::size_t assetWeaponViewModelIndexAgrees = 0;
+  std::size_t assetWeaponViewModelIndexZero = 0;
+  std::size_t assetWeaponViewModelIndexDiffers = 0;
   std::size_t assetWeaponClassKnown = 0;
   std::size_t soundMessageCount = 0;
   std::size_t soundEventCount = 0;
@@ -340,6 +463,15 @@ struct DemoNetworkSummary {
   std::size_t voiceInitCount = 0;
   std::size_t voiceDataCount = 0;
   std::size_t voicePayloadBits = 0;
+  // Message types the reference parser implements and this decoder used to
+  // abandon packets on. Counts are kept so "the decoder was actually reached"
+  // is a reading, not an assumption about dead code.
+  std::size_t fileMessageCount = 0;
+  std::size_t setPauseCount = 0;
+  std::size_t bspDecalCount = 0;
+  std::size_t menuCount = 0;
+  std::size_t cmdKeyValuesCount = 0;
+  bool setPauseState = false;
   std::size_t updateStringTableCount = 0;
   std::size_t packetEntitiesCount = 0;
   std::size_t packetEntityUpdates = 0;
@@ -407,6 +539,12 @@ struct DemoNetworkSummary {
   bool entityHistoryHasGap = false;
   std::int32_t entityHistoryGapTick = 0;
   std::vector<EntityHistoryCheckpoint> entityHistoryArchive;
+  // `entityHistoryDroppedPackets` counts two different things: packets the live
+  // window gave up because it had accumulated maxEvents updates, and packets
+  // dropped because a delta arrived with no base. Reading them as one number hid
+  // whether a change to the flush rule moved either of them, so the flush share is
+  // counted separately and the gap share stays derived (dropped - flushes).
+  std::size_t entityHistoryFlushes = 0;
   EntityHistoryLimits entityHistoryLimits{};
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
@@ -442,9 +580,40 @@ struct DemoNetworkSummary {
   std::vector<ServerClassSchema> serverClassSchemas;
   int networkProtocol = 0;
   std::size_t stringTableCount = 0;
+  // Largest user-data byte length seen on any string-table entry. The wire
+  // field is 14 or 16 bits wide and the local Rust reference imposes NO upper
+  // bound (work/_refs_demostf/src/demo/message/stringtable.rs, read_table_entry:
+  // read the length, then skip length*8 bits). This decoder used to reject
+  // anything over 1024, which turned legal data -- instancebaseline entry 3 of
+  // koth_bagel_rc13 is 7669 bytes -- into a malformed packet. Recording the
+  // observed maximum makes "the old cap was wrong" a checkable reading.
+  std::size_t stringTableUserDataMaxBytes = 0;
   std::vector<std::uint32_t> unknownMessageTypes;
+  // Per-type svc_/net_ message histogram over the whole demo. The message loop
+  // has to abandon a packet when it meets a type it cannot skip (the length is
+  // type-specific), so any type that appears in the histogram with a non-zero
+  // count is a type whose decoder MUST exist. This turns "did we implement the
+  // whole protocol?" from a guess into a reading: compare the non-zero entries
+  // against the handled type list, and the set of types that are decoded but
+  // never appear is the set that is untested by this corpus.
+  static constexpr std::size_t kMessageTypeHistogramSize = 64;
+  std::size_t messageTypeCounts[kMessageTypeHistogramSize] = {};
   std::vector<std::string> stringTableNames;
   std::unordered_map<std::uint16_t, std::string> soundPrecache;
+  // modelprecache maps an entity's m_nModelIndex to its model path. Source demos
+  // do not send that path as an entity string property: the path lives in this
+  // table and the entity carries only the index. Without the table every
+  // AssetReference has an index and no path, ModelLoader::buildRenderRequests
+  // drops all of them (its first statement is `if (!hasModelPath) continue`),
+  // and no entity model resolves -- which is exactly why entity_model_probe
+  // reported requests=0 out of 673 references on a real demo.
+  std::unordered_map<std::uint16_t, std::string> modelPrecache;
+  std::size_t modelPrecacheDecodeFailures = 0;
+  std::size_t modelPrecacheUpdateCount = 0;
+  std::uint32_t modelPrecacheTableId = 0xffffffffu;
+  std::uint32_t modelPrecacheMaxEntries = 0;
+  std::uint32_t modelPrecacheFixedBits = 0;
+  bool modelPrecacheCompressed = false;
   std::unordered_map<std::uint32_t, std::string> stringTableById;
   std::unordered_map<std::uint32_t, std::uint32_t> stringTableMaxEntries;
   std::size_t soundPrecacheDecodeFailures = 0;
@@ -484,10 +653,40 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
 bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetReference>& references);
 bool findEntitySnapshotAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,
                                       std::vector<EntityState>& states);
+// `resolvedTick`, when non-null, receives the tick of the snapshot the answer
+// actually came from: `tick` itself when the live window replayed it exactly,
+// otherwise the archived checkpoint the answer fell back to. Without it a caller
+// can see *that* it got a Checkpoint but not *how old* that checkpoint is, which
+// is the whole question this retention policy has to answer.
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
-    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states);
+    const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
+    std::int32_t* resolvedTick = nullptr);
 void appendEntityHistoryPacket(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                                std::int32_t deltaFrom, std::vector<EntityHistoryEvent> events);
+// Outcome of decoding one demo message stream (the payload of a dem_signon or
+// dem_packet entry: a sequence of 6-bit-typed net messages).
+struct DemoMessageStreamResult {
+  std::size_t messagesDecoded = 0;  // messages whose decoder returned true
+  std::size_t bitsConsumed = 0;
+  bool packetValid = true;
+  bool decodedAny = false;
+  bool hitUnknownType = false;
+  std::uint32_t unknownType = 0;
+  std::int32_t lastNetworkTick = -1;
+};
+
+// Decodes a raw message stream exactly the way scanKnownDemoMessages does.
+// Exists so tools/entity_message_fixture_probe.cpp can drive the decoders with
+// synthetic wire bytes -- including message layouts that no local demo carries
+// in isolation -- without fabricating a whole .dem file. `payloadBits` bounds
+// the stream; bits inside the last retained byte stay readable, matching the
+// byte-aligned entry lengths on the real path.
+bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
+                             std::size_t payloadBits,
+                             std::int32_t entryTick,
+                             std::int32_t initialNetworkTick,
+                             DemoNetworkSummary& summary,
+                             DemoMessageStreamResult& result);
 bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int32_t firstTick,
                                      std::int32_t lastTick, std::vector<TempEntityEvent>& events);
 bool parseDemoCmdInfo(const std::uint8_t* bytes, std::size_t size, DemoViewSample& sample);

@@ -22,6 +22,9 @@ constexpr std::size_t kBoneStride = 216;
 constexpr std::size_t kAttachmentStride = 92;
 constexpr std::size_t kSequenceStride = 212;
 constexpr std::size_t kBodyPartStride = 16;
+// mstudiotexture_t: sznameindex/flags/used/unused1/material/clientmaterial then
+// ten unused words. 24 + 40 = 64.
+constexpr std::size_t kTextureStride = 64;
 constexpr std::size_t kVvdVertexStride = 48;
 constexpr std::size_t kVtxBodyPartStride = 8;
 constexpr std::size_t kVtxModelStride = 8;
@@ -82,6 +85,76 @@ std::string indexedString(const Bytes& b, std::size_t base, std::int32_t index) 
   const auto relative = static_cast<std::size_t>(index);
   if (!addFits(base, relative, b.size())) return {};
   return fixedString(b, base + relative, 4096);
+}
+
+// Collapse `.` and `..` segments after converting separators. Used on a name
+// that already carries its base directory, so a leading `..` eats a real
+// segment rather than being dropped.
+std::string foldModelPath(const std::string& raw) {
+  std::string name = raw;
+  std::replace(name.begin(), name.end(), '\\', '/');
+  std::vector<std::string> segments;
+  std::size_t start = 0;
+  while (start <= name.size()) {
+    const auto end = name.find('/', start);
+    const std::string segment = name.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    if (segment == "..") {
+      if (!segments.empty()) segments.pop_back();
+    } else if (!segment.empty() && segment != ".") {
+      segments.push_back(segment);
+    }
+    if (end == std::string::npos) break;
+    start = end + 1;
+  }
+  std::string result;
+  for (const auto& segment : segments) {
+    if (!result.empty()) result += "/";
+    result += segment;
+  }
+  return result;
+}
+
+// Turn a `mstudiotexture_t` name into the list of material path stems the
+// engine would try, in order.
+//
+// Two shapes appear in real models:
+//   * `models/player/scout/scout_red` -- already rooted under `materials/`,
+//     used as is.
+//   * `medic_red`, `resupply_locker`, `..\..\effects\invulnfx_red` -- not
+//     rooted, so each `$cdmaterials` directory is prefixed in turn. This is the
+//     list `studiohdr_t::cdtextureindex` carries.
+//
+// The previous rule (prefix the model's own directory, i.e. the model path with
+// `.mdl` stripped) was an over-fit to the player models, whose `$cdmaterials`
+// entry happens to equal that directory: `models/player/medic.mdl` + `medic_red`
+// gives `models/player/medic/medic_red` either way. A prop model breaks it --
+// `models/props_gameplay/resupply_locker.mdl` stores `resupply_locker`, which
+// lives at `models/props_gameplay/resupply_locker`, not in a `resupply_locker/`
+// directory of its own. That is why 21 of 59 prepared models came back with no
+// paint while every player model was fine.
+std::vector<std::string> textureCandidatesFor(const std::string& raw,
+    const std::vector<std::string>& cdDirectories) {
+  std::vector<std::string> candidates;
+  std::string name = raw;
+  std::replace(name.begin(), name.end(), '\\', '/');
+  if (name.empty()) return candidates;
+  const bool rooted = name.compare(0, 7, "models/") == 0
+    || name.compare(0, 10, "materials/") == 0;
+  const auto push = [&](std::string candidate) {
+    if (candidate.empty()) return;
+    if (std::find(candidates.begin(), candidates.end(), candidate) == candidates.end()) {
+      candidates.push_back(std::move(candidate));
+    }
+  };
+  if (rooted) {
+    push(foldModelPath(name));
+    return candidates;
+  }
+  for (const auto& directory : cdDirectories) {
+    if (directory.empty()) continue;
+    push(foldModelPath(directory + name));
+  }
+  return candidates;
 }
 
 bool readVec3(const Bytes& b, std::size_t offset, std::array<float, 3>& value) {
@@ -306,9 +379,19 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
   std::uint32_t numBones = 0, boneIndex = 0, numTextures = 0, textureIndex = 0;
   std::uint32_t numAttachments = 0, attachmentIndex = 0, numSequences = 0, sequenceIndex = 0;
   std::uint32_t numBodyParts = 0, bodyPartIndex = 0;
+  std::uint32_t numCdTextures = 0, cdTextureIndex = 0;
   readAt(b, 156, numBones); readAt(b, 160, boneIndex);
   readAt(b, 188, numSequences); readAt(b, 192, sequenceIndex);
-  readAt(b, 212, numTextures); readAt(b, 216, textureIndex);
+  // studiohdr_t word layout, verified against scout.mdl byte for byte:
+  // 204 numtextures / 208 textureindex / 212 numcdtextures / 216 cdtextureindex /
+  // 232 numbodyparts / 236 bodypartindex / 240 numlocalattachments / 244 attachmentindex.
+  // The texture pair used to be read from 212/216 -- the CD-texture table -- so
+  // `textureCount` came back as numcdtextures (2) and the table pointer landed
+  // in a list of strings. Nothing consumed `textureCount`, so the wrong word was
+  // never caught; the byte evidence for 208 is that textureindex + 17*64 lands
+  // exactly on cdtextureindex (589552 + 1088 = 590640).
+  readAt(b, 204, numTextures); readAt(b, 208, textureIndex);
+  readAt(b, 212, numCdTextures); readAt(b, 216, cdTextureIndex);
   readAt(b, 240, numBodyParts); readAt(b, 244, bodyPartIndex);
   readAt(b, 248, numAttachments); readAt(b, 252, attachmentIndex);
   out.boneCount = numBones; out.sequenceCount = numSequences; out.textureCount = numTextures;
@@ -381,6 +464,57 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
         out.diagnostics.push_back("bodypart model count exceeds safe limit");
       }
       out.bodyParts.push_back(std::move(bodyPart));
+    }
+  }
+  // The name table leads with a relative string index, exactly like the
+  // attachment and bodypart descriptors above, so `indexedString` already knows
+  // how to follow it. A slot whose name is unreadable stays in the vector as an
+  // empty string rather than being dropped: slot order is the model's own
+  // texture index space, and a dropped entry would silently renumber the rest.
+  // The $cdmaterials list: `numcdtextures` int offsets. Each offset is an
+  // absolute file offset to a directory string, NOT an offset relative to
+  // `cdtextureindex`. Reading them as relative failed silently: the sums landed
+  // past the end of the file, `indexedString` returned an empty string, and
+  // every bare texture stem then resolved against an empty directory list.
+  // medic.mdl's entry 0 sits at byte 964798 with cdtextureindex=943560, so the
+  // old reading asked for byte 1908358 of a 964852-byte file.
+  std::vector<std::string> cdDirectories;
+  if (!saneCount(numCdTextures, "cdtexture") || !rangeFits(cdTextureIndex, numCdTextures, 4, b.size())) {
+    out.diagnostics.push_back("CD texture table is outside the MDL file or uses an unsupported layout");
+  } else {
+    cdDirectories.reserve(numCdTextures);
+    for (std::uint32_t i = 0; i < numCdTextures; ++i) {
+      std::int32_t pathOffset = 0;
+      readAt(b, static_cast<std::size_t>(cdTextureIndex) + i * 4, pathOffset);
+      std::string directory;
+      if (pathOffset > 0 && static_cast<std::size_t>(pathOffset) < b.size()) {
+        directory = fixedString(b, static_cast<std::size_t>(pathOffset), 512);
+      }
+      std::replace(directory.begin(), directory.end(), '\\', '/');
+      while (!directory.empty() && directory.back() == '/') directory.pop_back();
+      if (!directory.empty()) directory += "/";
+      cdDirectories.push_back(std::move(directory));
+    }
+    out.cdTexturePaths = cdDirectories;
+  }
+  if (!saneCount(numTextures, "texture") || !rangeFits(textureIndex, numTextures, kTextureStride, b.size())) {
+    out.diagnostics.push_back("texture table is outside the MDL file or uses an unsupported layout");
+  } else {
+    out.textureNames.reserve(numTextures);
+    out.textureCandidates.reserve(numTextures);
+    for (std::uint32_t i = 0; i < numTextures; ++i) {
+      const auto off = static_cast<std::size_t>(textureIndex) + i * kTextureStride;
+      std::int32_t nameIndex = -1;
+      readAt(b, off, nameIndex);
+      std::vector<std::string> candidates = textureCandidatesFor(indexedString(b, off, nameIndex), cdDirectories);
+      std::string name = candidates.empty() ? std::string{} : candidates.front();
+      if (!std::all_of(name.begin(), name.end(), [](unsigned char c) { return c >= 32 && c <= 126; })) {
+        out.diagnostics.push_back("texture name is not printable; slot kept empty");
+        name.clear();
+        candidates.clear();
+      }
+      out.textureNames.push_back(std::move(name));
+      out.textureCandidates.push_back(std::move(candidates));
     }
   }
   if (!saneCount(numSequences, "sequence") || !rangeFits(sequenceIndex, numSequences, kSequenceStride, b.size())) {
@@ -534,14 +668,13 @@ ModelAssetCandidate ModelLoader::resolveAsset(const AssetRoot& root, const std::
   const auto loose = root.resolve(relative);
   std::error_code ec;
   if (!loose.empty() && std::filesystem::is_regular_file(loose, ec) && !ec) result.looseMdl = loose;
-  for (const auto& entry : std::filesystem::directory_iterator(root.tfDirectory, ec)) {
-    if (ec || !entry.is_regular_file(ec)) continue;
-    const auto name = entry.path().filename().string();
-    if (name.size() >= 8 && name.substr(name.size() - 8) == "_dir.vpk") {
-      VpkArchive archive;
-      if (archive.open(entry.path()) && archive.contains(result.requestedPath)) result.vpkArchives.push_back(entry.path());
-    }
-  }
+  // The archives are opened once per AssetRoot and reused. Opening them here
+  // (and again for each companion suffix below) meant re-reading and re-hashing
+  // every *_dir.vpk directory tree -- about a second per model. See
+  // VpkArchiveSet. Iteration order is unchanged, so vpkArchives.front() still
+  // names the same archive it used to.
+  const VpkArchiveSet& archives = root.archives();
+  archives.collectContaining(result.requestedPath, result.vpkArchives);
   const bool looseFound = !result.looseMdl.empty();
   result.mdlFound = looseFound || !result.vpkArchives.empty();
   const auto stem = result.requestedPath.substr(0, result.requestedPath.size() - 4);
@@ -551,8 +684,8 @@ ModelAssetCandidate ModelLoader::resolveAsset(const AssetRoot& root, const std::
       return std::filesystem::is_regular_file(root.resolve(stem + suffix), fileError) && !fileError;
     }
     for (const auto& archivePath : result.vpkArchives) {
-      VpkArchive archive;
-      if (archive.open(archivePath) && archive.contains(stem + suffix)) return true;
+      const VpkArchive* archive = archives.find(archivePath);
+      if (archive && archive->contains(stem + suffix)) return true;
     }
     return false;
   };
@@ -614,20 +747,14 @@ std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot
   requests.reserve(std::min<std::size_t>(references.size(), 2048u));
   std::unordered_map<std::string, ModelAssetCandidate> candidateCache;
   std::unordered_map<std::string, ModelInspection> inspectionCache;
-  std::unordered_map<std::wstring, std::unique_ptr<VpkArchive>> archiveCache;
   candidateCache.reserve(256);
   inspectionCache.reserve(256);
-  auto openArchive = [&](const std::filesystem::path& archivePath) -> VpkArchive* {
-    const auto key = archivePath.native();
-    auto found = archiveCache.find(key);
-    if (found != archiveCache.end()) return found->second.get();
-    auto archive = std::make_unique<VpkArchive>();
-    if (stats) ++stats->archiveOpens;
-    if (!archive->open(archivePath)) return nullptr;
-    auto* pointer = archive.get();
-    archiveCache.emplace(key, std::move(archive));
-    return pointer;
-  };
+  // The archives live on the AssetRoot and are parsed once for the whole run,
+  // not once per call. This used to keep a private cache keyed by archive path,
+  // which still paid a full directory parse for the first lookup of every
+  // archive in every call -- and the callers make several such calls per demo.
+  const VpkArchiveSet& archives = root.archives();
+  if (stats) stats->archiveOpens += archives.size();
   for (const auto& reference : references) {
     if (!reference.hasModelPath || reference.modelPath.empty()) continue;
     if (requests.size() >= 2048u) break;
@@ -636,6 +763,7 @@ std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot
     request.classId = reference.classId;
     request.className = reference.className;
     request.modelPath = reference.modelPath;
+    request.modelPathFromWorldModelIndex = reference.modelPathFromWorldModelIndex;
     const auto normalized = normalizeModelPath(reference.modelPath);
     auto candidateIt = candidateCache.find(normalized);
     if (candidateIt == candidateCache.end()) {
@@ -659,7 +787,7 @@ std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot
         ModelInspection inspection;
         if (inspectPacked) {
           if (stats) ++stats->vpkExtracts;
-          if (auto* archive = openArchive(candidate.vpkArchives.front())) {
+          if (const auto* archive = archives.find(candidate.vpkArchives.front())) {
             inspection = ModelLoader::inspectVpk(*archive, normalized);
             request.inspectedFromVpk = true;
           } else {

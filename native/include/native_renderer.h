@@ -116,10 +116,14 @@ public:
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setEntityMarkers(const std::vector<EntityMarker>& markers);
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
+  bool uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
   std::size_t entityModelMeshCount() const { return entityModelMeshes_.size(); }
   std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
   std::size_t entityModelVertexCount() const { return entityModelVertexCount_; }
+  std::size_t entityModelTexturedRangeCount() const { return entityModelTexturedRangeCount_; }
+  std::size_t entityModelTexturedInstanceCount() const { return entityModelTexturedInstanceCount_; }
+  std::size_t entityModelDrawRangeCount() const { return entityModelDrawRanges_.size(); }
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
   const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
   WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
@@ -147,6 +151,15 @@ public:
   const RenderSettings& settings() const { return settings_; }
   HRESULT lastError() const { return lastError_; }
 
+  // Diagnostic capture. The back buffer is read back inside draw(), *before*
+  // Present(), so the file holds the frame this call actually composed -- not
+  // whatever the swap chain happens to leave behind afterwards. The request is
+  // consumed once; ask again if you want the next frame too.
+  void requestFrameCapture(std::wstring path);
+  bool frameCapturePending() const { return !capturePath_.empty(); }
+  bool lastFrameCaptureSucceeded() const { return captureSucceeded_; }
+  const std::wstring& lastFrameCaptureError() const { return captureError_; }
+
 private:
   struct CameraPreset {
     bool valid = false;
@@ -161,6 +174,7 @@ private:
   void releaseTarget();
   bool createTarget(UINT width, UINT height);
   bool createPipeline();
+  bool writeBackBufferToFile(const std::wstring& path);
 
   HWND window_ = nullptr;
   UINT width_ = 0;
@@ -198,12 +212,18 @@ private:
   struct EntityModelMesh {
     Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
     UINT vertexCount = 0;
+    // The model's own paint, resolved from its MDL texture table. Empty until
+    // uploadEntityModelTexture succeeds; a null view keeps the world atlas.
+    Texture2D texture;
   };
   struct EntityModelDrawRange {
     ID3D11Buffer* vertexBuffer = nullptr;
     UINT vertexCount = 0;
     UINT instanceStart = 0;
     UINT instanceCount = 0;
+    // Non-owning. Points at the mesh's own Texture2D so the draw loop can bind
+    // t0 per range; null means "no model material, fall back to the world atlas".
+    ID3D11ShaderResourceView* textureView = nullptr;
   };
   std::unordered_map<std::string, EntityModelMesh> entityModelMeshes_;
   std::vector<EntityModelDrawRange> entityModelDrawRanges_;
@@ -211,6 +231,8 @@ private:
   std::size_t entityModelInstanceCapacity_ = 0;
   UINT entityModelVertexCount_ = 0;
   std::size_t entityModelInstanceCount_ = 0;
+  std::size_t entityModelTexturedRangeCount_ = 0;
+  std::size_t entityModelTexturedInstanceCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
   Texture2D texture_;
@@ -248,6 +270,9 @@ private:
   WorldLightmapStatus worldLightmapStatus_ = WorldLightmapStatus::Unavailable;
   float worldLightmapIntensity_ = 1.0f;
   HRESULT lastError_ = S_OK;
+  std::wstring capturePath_;
+  bool captureSucceeded_ = false;
+  std::wstring captureError_;
 };
 
 } // namespace tf2::native
