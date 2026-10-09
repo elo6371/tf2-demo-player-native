@@ -1970,3 +1970,131 @@ pin 成 **9**，而门禁实际只打印 **8** 行 `OK` —— `VERIFY=FAIL`，�
   `if (g_playback.enabled && !g_playback.paused)`；`--start-paused` 下 tick 恒为 0）。
   16.8 里「`--capture-tick N` 的能力已实现并可测」的表述**据此修正**：能力在，
   但**前提是不暂停**。
+
+## 18. 骨骼动画的输入供给：demo 不给玩家播哪段（P1 剩余子项「骨骼动画接线」的**前置**，
+## 2026-10-09，`6d3bfba` + `58d7ab7` + `9363001` + `1d6ab37` + `ce3806e` + `7fb9069`）
+
+### 18.1 问题不在渲染，在输入
+
+2026-10-07 的侦察把骨骼动画放在渲染缺口清单第 3 位，写成一个**接线任务**：
+
+> 把 `animation_decoder.cpp` 编进主目标，打开 `uploadBoneMatrices(..., true)`，
+> 按 demo tick 推进序列。
+
+这句话有一个未被检验的前提：**demo 会告诉你每个实体在播哪段序列**。本轮先问了这个前提，
+因为如果它不成立，接线就是「消费一个永不到来的序列」——循环会跑在解码器留下的默认值上，
+而计数门禁会全绿。那种形状本项目已经付过两次代价。
+
+### 18.2 读数：CTFPlayer 四个动画属性全是 0
+
+新增 `entity_model_probe --anim-props`：摊平每个 server class 的发送表，按**叶名**统计
+
+| 属性 | 含义 |
+|---|---|
+| `m_nSequence` | 播哪段 |
+| `m_flCycle` | 播到哪 |
+| `m_flPlaybackRate` | 播多快 |
+| `m_flPoseParameter` | 姿态参数 |
+
+`CTFPlayer` **单列一行**，无论它有没有这四个 —— 这是「它存在但没有」与「它根本没被找到」
+可区分的关键。
+
+2026-10-09 在三份录像上的读数（bagel / POV `autorecord_2026-07-02_13-26-46` / SourceTV `73.dem`），
+三份完全一致：
+
+```
+animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0
+animprop-summary classesWithSequence=197 classesWithCycle=195 classesWithRate=197
+                tfPlayerFound=1 tfPlayerSequence=0 tfPlayerCycle=0 tfPlayerRate=0
+```
+
+**正对照**：同一份读数里，197 个 class 有 `m_nSequence`、195 有 `m_flCycle`、
+197 有 `m_flPlaybackRate`；`CTFWeaponBase` 有 1 槽。一条**只能说不**的规则什么都没测，
+所以正对照和否定命题是同一轮里的两个断言。
+
+### 18.3 SDK 依据：TF2 主动剥掉它们
+
+`source-sdk-2013`：
+
+- `src/game/server/baseanimating.cpp:245-246` —— `IMPLEMENT_SERVERCLASS_ST(CBaseAnimating, DT_BaseAnimating)`
+  里用 `SendProp.Int(SENDINFO(m_nSequence), ANIMATION_SEQUENCE_BITS, SPROP_UNSIGNED)` 与
+  `SendPropFloat(SENDINFO(m_flPlaybackRate), ...)` 声明了它们；
+- 同文件 `:222` —— `m_flCycle` 走 `DT_ServerAnimationData` 子表，挂在
+  `SendProxy_ClientSideAnimation` 上，注释原文：*"Sendtable for fields we don't want to send
+  to clientside animating entities."*
+- `src/game/client/c_baseanimating.cpp:1168` —— *"Most entities clear out their sequences when
+  they change models on the server, but not all entities network down their m_nSequence
+  (like **multiplayer game player entities**)…"*
+
+**「SDK 有声明」≠「运行时在线上」**——这正是本项目的硬规矩。所以声明与实测互为佐证才算闭环，
+而实测的答案是：**TF2 的玩家类被剥掉了这四个**（运行时表比 SDK 声明少 5 个槽）。
+
+### 18.4 独立见证
+
+`ent-oracle`（Rust，另一份实现）摊平同一份 demo 的 `CTFPlayer`：
+
+```
+oracle: DT_BaseAnimating slots=15 animation-property slots=0
+```
+
+且它的 schema 里**有** `CTFPlayer` —— 所以「0」是「表加载了但这四个槽不在」，
+不是「类没找到」。两种实现一致，且这个一致本身排除了「我们的摊平器有 bug 把它们丢了」。
+
+### 18.5 判据与它怎么变红
+
+`animation-availability-check.sh`（验收链**第 21 步**，23 条断言）分三节：
+
+1. 三份录像上 `CTFPlayer` 存在且四个属性全 0（5 × 3 = 15）；
+2. 同一条规则确实会说是（正对照，5 条）；
+3. oracle 独立同意（其 `DT_BaseAnimating` 块非空、动画属性 0 个、schema 含 `CTFPlayer`，3 条）。
+
+**变异 `m13`**（`mutate.sh`，源码级、重编译）：把叶名比较改成永假，
+扫描就再也不匹配任何东西。要求：
+
+- 门禁**拒绝**（`ANIMATION-AVAILABILITY=FAIL`，退出码 1）；
+- 正对照 `classesWithSequence` 从 **197 塌到 0**；
+- `CTFPlayer` 那一行**不动**（`sequence=0 cycle=0 rate=0 pose=0`）——因为没动的是计数，不是查类；
+- `tfPlayerFound` **保持 1**——「玩家没有」≠「扫描什么都没看」。
+
+四项全对，`MUTATION-SUITE=PASS`，还原树与修复构建逐字节相同。
+
+### 18.6 结论
+
+**玩家骨骼动画不能从 demo 驱动**，所以 ③ 不是接线任务。`skeleton_skin_probe`（`00b6033`）
+已经**证明过矩阵约定**（`skin[i] = animWorld[i] * poseToBone[i]`，行主序；78 骨最大误差
+3.05e-05；`--mutation` / `--mutation-offset` 都能红），所以真要接线时**数学不用再猜**——
+缺的是**输入**，不是公式。
+
+- **武器/投射物/可穿戴确有 `m_nSequence`**（`CTFWeaponBase` 1 槽），那里接线有目标；
+  本轮**没有做**，记为可做的下一步。
+- **玩家动画需要另一个输入源**：客户端预测（usercmd + 武器状态）或真实游戏连接。
+  那是比「接线」大得多的一件事，且**本机这四个外部输入里解决不了玩家动画本身**
+  （需要真实连接）。记为**未验证 / 需要外部环境**。
+- **未接线的现状不变**：`animation_decoder.cpp` 仍未编进主目标，`uploadBoneMatrices(..., false)`
+  仍是 bind pose。本轮**没有**改渲染行为，方向从「待接线」修正为「输入不在此处」。
+
+### 18.7 本轮自己的错
+
+- `--anim-props` 第一版用 `name.find("Player")` 判玩家，于是把
+  `CPlayerDestructionDispenser`（一个建筑）和 `CBasePlayer`（SDK 基类，其表不是 TF2 的线上格式）
+  一起扫进来，打印 `playerSequence=32`；而**真正决定设计的 `CTFPlayer` 因为四个计数全 0
+  被 `continue` 跳过，根本没出现在列表里**。这是仪器里的假阳性 —— 改成精确比名字，
+  且无论有没有都单列一行。**「列表里没有」不能和「有但为 0」混淆**。
+- 门禁第一版抓 `pose=` 用了和前三项一样的 `' pose=\([0-9]*\) .*'` 模式，
+  但 `pose` 是**行尾**没有尾随空格，抽出空值 → 门禁**正确拒绝**而不是跳过。
+  这正是把四个计数**分开断言**而不是一个整体的原因。
+- `m13` 的两条 `must_hold` 第一版把整行当断言，而 `mutate.sh` 的 `value()` 按**第一个 `=`**
+  切割，于是拿 `0 cycle` 去比 `sequence=0 cycle`，把**已经保持住的**读数报成 `MUTATION-BROKE`。
+  改用 `must_appear` 做字面匹配 —— 那也正是这条断言本来的意思。
+- 步数注释第一版写 22，实际是 23。**被 pin 的是门禁里的数，不是散文里的算术**，
+  已按门禁改正。
+
+### 18.8 可复核产物
+
+| 路径 | 内容 |
+|---|---|
+| `evidence/animation-availability/{bagel,pov,sourcetv}.txt` | 三份录像的 `--anim-props` 全文与 JSON |
+| `evidence/animation-availability/oracle-ctfplayer.txt` | oracle 的 `CTFPlayer` 扁平表 |
+| `evidence/animation-availability/oracle-all-classes.txt` | oracle 的 schema（证明含 `CTFPlayer`） |
+| `evidence/mutation/animavail-m13/bagel.txt` | 变异构建下的读数（正对照塌到 0，玩家行不动） |
+| `evidence/mutation/gate.m13.txt` | 变异下门禁的完整输出（`ANIMATION-AVAILABILITY=FAIL`） |
