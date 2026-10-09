@@ -582,13 +582,18 @@ for case_id in $CASES; do
       # with it at 0 then clause 2 is not load bearing.
       must_move "m13 sweep ablated -> classesWithSequence collapses" \
         "$OUT/animavail-m13/bagel.txt" 'classesWithSequence=[0-9]+' '197'
-      # And the player line must NOT move: the mutation is in the counter, not in
-      # the class lookup, so a moved player line would mean the two readings are
-      # the same reading counted twice -- the reason clause 1 and clause 2 are
+      # And the player's four counts must NOT move: the mutation is in the counter,
+      # not in the class lookup, so a moved player line would mean the two readings
+      # are the same reading counted twice -- the reason clause 1 and clause 2 are
       # asserted separately rather than as one "animation props look right" blob.
-      must_hold "m13 sweep ablated -> the CTFPlayer line stays empty of all four" \
-        "$OUT/animavail-m13/bagel.txt" '^animprop-player class=CTFPlayer id=247 sequence=[0-9]+ cycle=[0-9]+ rate=[0-9]+ pose=[0-9]+$' \
-        'animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0'
+      # Asserted per field, not as one line: mutate.sh's `value` cuts on the first
+      # '=' and would return only the first field of a multi-'=' line, which is how
+      # the first version of this case reported MUTATION-BROKE on a reading that had
+      # actually held.
+      must_hold "m13 sweep ablated -> CTFPlayer m_nSequence slots stay 0" \
+        "$OUT/animavail-m13/bagel.txt" 'sequence=[0-9]+ cycle' 'sequence=0 cycle'
+      must_hold "m13 sweep ablated -> CTFPlayer m_flPoseParameter slots stay 0" \
+        "$OUT/animavail-m13/bagel.txt" 'pose=[0-9]+$' 'pose=0'
       # tfPlayerFound must hold too: the class is still found, it is the counting
       # that broke. This is the difference between "the player has none" and "the
       # sweep looked at nothing".
