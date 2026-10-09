@@ -3,6 +3,18 @@
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
+> **当前链条：21 步**（`bash verify-all.sh --quick`，末行 `VERIFY=PASS`）。
+> 分级：`verify-fast.sh`（自检探针，秒级）/ `verify-entity.sh` / `verify-render.sh`。
+> 最后一次全绿见 `evidence/verify/`。**下面各段是历代记录，步数是当时的**，
+> 不要按旧数字去数今天的链。
+
+2026-10-09：**骨骼动画的输入供给已测量 —— 玩家侧不存在**。侦察把它当接线任务，
+前提是「demo 会告诉你每个实体在播哪段」。`entity_model_probe --anim-props` 摊平发送表：
+197 个 class 有 `m_nSequence`，**`CTFPlayer` 四个动画属性全是 0**（三份录像一致，Rust oracle
+独立同意）。SDK 依据见 `HANDOFF-2026-10-07.md` §0「骨骼动画」条。新增第 21 步门禁
+`animation-availability-check.sh`（23 断言）与变异 `m13`。矩阵约定另由
+`skeleton_skin_probe` 证明（`skin = animWorld * poseToBone`，78 骨误差 3e-05）。
+
 P1 共八个提交：模型引用接线（`8c6f06e`）、接线暴露出的 VPK 目录重复解析性能悬崖
 （`4868e7b`）、补上该修复漏掉的链接依赖（`9316416`）、两次记录与判据加固
 （`f38bcf6` / `a2c584f`），以及逐 tick 位移的 z 合并与确定性属性选择（`6cb0ecf`）、
@@ -441,6 +453,7 @@ bash run-corpus-evidence.sh
 | `--dump-class-props <substr>` | 扁平发送表：槽位 / owner / 名字 / 类型 / `flags` / `bits` / `range`。形状对 `ent-oracle 3` |
 | `--history-stats` | 归档与实时窗口的 tick 列表和间距（含 `flushes=` / `gapDropped=` 分拆） |
 | `--history-coverage N` | 均匀抽 N 个 tick 查询一遍：`exact` / `checkpoint` / `unavailable`、最坏/中位 tick 间隙 vs 鸽笼下界、最坏陈旧度、内存字节数 |
+| `--anim-props` | 每个 server class 的动画属性**供给**：`m_nSequence` / `m_flCycle` / `m_flPlaybackRate` / `m_flPoseParameter` 的槽数，按叶名统计，`CTFPlayer` 单列一行（无论有没有）。**读数：`CTFPlayer` 四个全 0，197 个 class 有 `m_nSequence`** —— 所以玩家骨骼动画驱动不了 demo |
 
 ## 注意
 
