@@ -11,7 +11,18 @@
 #
 # A fourth value, the per-demo entity failure count, is required to be zero.
 #
-# Usage: bash check-oracle.sh [oracle-exe] [evidence-dir]
+# Usage: bash check-oracle.sh [oracle-exe] [evidence-dir] [only]
+#   only -- optional comma-separated demo names to restrict the cross-check to,
+#   e.g. `bagel` or `bagel,snakewater`. Empty means all nine, which is what the
+#   chain's step 4 asks for. This exists so the entity tier (verify-entity.sh) can
+#   cross-check *one* real demo against the oracle in about a minute instead of
+#   paying for all nine every time; the full set stays the chain's job.
+#
+#   Restricting the set is allowed to shrink the work but not to shrink the
+#   check: an unknown name would otherwise compare zero demos and still print
+#   ORACLE-GATE=PASS, which is this repo's recurring "pass while checking
+#   nothing" failure. The gate now asserts compared == requested.
+#
 # Exit:  0 = every demo agrees on all three counts and reports zero failures.
 #
 # MUTATION (proof this gate can go red): the m3 case in mutate.sh reintroduces
@@ -21,6 +32,7 @@ cd "$(dirname "$0")"
 
 ORACLE="${1:-D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe}"
 DIR="${2:-evidence/final}"
+ONLY="${3:-}"
 PROBE=native/build-nmake/entity_protocol_probe.exe
 SRC=D:/TF2_Demo_Player
 T=$SRC/.scratch/tf2-demo-parser/test_data
@@ -48,6 +60,39 @@ mkdir -p "$DIR"
 SUMMARY="$DIR/oracle-gate-summary.txt"
 : > "$SUMMARY"
 fail=0
+
+# requested vs compared. `requested` counts the DEMOS entries the `only` filter
+# names, so a mistyped name is visible as requested=0 rather than as a smaller
+# all-green run. `compared` counts the demos that actually reached a verdict.
+if [ -n "$ONLY" ]; then
+  requested=0
+  for entry in "${DEMOS[@]}"; do
+    name=${entry%%|*}
+    case ",$ONLY," in *",$name,"*) requested=$((requested + 1)) ;; esac
+  done
+  # `requested == compared == 0` is NOT the failure this guard is for -- it is the
+  # failure it would have been. The first version of this restriction only
+  # asserted compared == requested, and a mistyped name satisfied it at 0 == 0
+  # while printing ORACLE-GATE=PASS. Verified on 2026-10-09: `only=smal` compared
+  # nothing and passed. A filter that names no demo in the list is a caller error
+  # and is refused, with the offending names printed.
+  unknown=""
+  for want in ${ONLY//,/ }; do
+    found=0
+    for entry in "${DEMOS[@]}"; do
+      [ "${entry%%|*}" = "$want" ] && { found=1; break; }
+    done
+    [ "$found" -eq 1 ] || unknown="$unknown $want"
+  done
+  if [ -n "$unknown" ]; then
+    echo "FATAL: demo name(s) not in this gate's list:$unknown"
+    echo "known names: $(printf '%s ' "${DEMOS[@]%%|*}")"
+    exit 1
+  fi
+else
+  requested=${#DEMOS[@]}
+fi
+compared=0
 {
 printf '%-12s %8s %8s  %8s %8s  %10s %10s  %7s  %s\n' \
   demo o_enter c_enter o_pkts c_pkts o_entities c_entities fails verdict
@@ -56,6 +101,9 @@ printf '%-12s %8s %8s  %8s %8s  %10s %10s  %7s  %s\n' \
 for entry in "${DEMOS[@]}"; do
   name=${entry%%|*}
   path=${entry#*|}
+  if [ -n "$ONLY" ]; then
+    case ",$ONLY," in *",$name,"*) ;; *) continue ;; esac
+  fi
   s="$DIR/$name.txt"
   if [ ! -f "$s" ]; then echo "MISSING probe report: $s"; fail=1; continue; fi
 
@@ -83,8 +131,14 @@ for entry in "${DEMOS[@]}"; do
   printf '%-12s %8s %8s  %8s %8s  %10s %10s  %7s  %s\n' \
     "$name" "$o_enter" "$c_enter" "$o_pkts" "$c_pkts" "$o_ent" "$c_ent" "$c_fail" "$verdict" \
     | tee -a "$SUMMARY"
+  compared=$((compared + 1))
 done
 
 echo | tee -a "$SUMMARY"
+# `compared == requested` is the work-count assertion. Without it, a filter that
+# names no demo (a typo, or an empty --only) compares nothing, exits 0, and reads
+# as agreement across the corpus.
+echo "compared=$compared requested=$requested" | tee -a "$SUMMARY"
+[ "$compared" -eq "$requested" ] || fail=1
 if [ "$fail" -eq 0 ]; then echo "ORACLE-GATE=PASS" | tee -a "$SUMMARY"; else echo "ORACLE-GATE=FAIL" | tee -a "$SUMMARY"; fi
 exit "$fail"

@@ -19,6 +19,12 @@ evidence/cmake-build.log
 # would commit worktree plumbing rather than source.
 .scratch/
 
+# 分层验收（verify-fast / verify-entity / verify-render / verify-audio）的输出。
+# 这些门禁每轮要跑很多次，产物是工作读数而不是该提交的证据 —— 每个提交保留的
+# 证据是完整链的 evidence/verify/（见 README「分级验收」一节）。留在盘上供复核，
+# 不进 git，否则每跑一次就脏一次工作树，而 mutate.sh 那类脚本需要干净的树。
+evidence/fast/
+
 # 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
 merge-patches/
 
