@@ -1,0 +1,20 @@
+model-textures path=models/props_gameplay/resupply_locker.mdl declared=4 read=4
+model-cdtextures count=2 [models/props_gameplay/] [models/items/]
+  texture[0] models/props_gameplay/resupply_locker
+  texture[1] models/props_gameplay/ammo_box2
+  texture[2] models/props_gameplay/ammo_box1
+  texture[3] models/props_gameplay/medkit
+  texture-candidates[0] [models/props_gameplay/resupply_locker] [models/items/resupply_locker]
+  texture-candidates[1] [models/props_gameplay/ammo_box2] [models/items/ammo_box2]
+  texture-candidates[2] [models/props_gameplay/ammo_box1] [models/items/ammo_box1]
+  texture-candidates[3] [models/props_gameplay/medkit] [models/items/medkit]
+model-material name=models/props_gameplay/resupply_locker vmt=materials/models/props_gameplay/resupply_locker.vmt vmtBytes=214 parsed=1 shader=VertexLitGeneric base=models\props_gameplay/resupply_locker vtf=materials/models/props_gameplay/resupply_locker.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/props_gameplay/ammo_box2 vmt=materials/models/props_gameplay/ammo_box2.vmt vmtBytes=0 parsed=0 complete=0
+model-material name=models/items/ammo_box2 vmt=materials/models/items/ammo_box2.vmt vmtBytes=396 parsed=1 shader=VertexLitGeneric base=models\items/ammo_box2 vtf=materials/models/items/ammo_box2.vtf vtfBytes=1398368 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/props_gameplay/ammo_box1 vmt=materials/models/props_gameplay/ammo_box1.vmt vmtBytes=0 parsed=0 complete=0
+model-material name=models/items/ammo_box1 vmt=materials/models/items/ammo_box1.vmt vmtBytes=396 parsed=1 shader=VertexLitGeneric base=models\items/ammo_box1 vtf=materials/models/items/ammo_box1.vtf vtfBytes=1398368 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/props_gameplay/medkit vmt=materials/models/props_gameplay/medkit.vmt vmtBytes=0 parsed=0 complete=0
+model-material name=models/items/medkit vmt=materials/models/items/medkit.vmt vmtBytes=389 parsed=1 shader=VertexLitGeneric base=models\items/medkit vtf=materials/models/items/medkit.vtf vtfBytes=1398368 size=1024x1024 decodedBytes=4194304 complete=1
+model-material summary slots=4 resolved=4
+model-header words offset:value 188:3 192:2244 196:0 200:0 204:4 208:3532 212:2 216:3788 220:4 224:1 228:3796 232:1 236:2904 240:0 244:1312 248:0 252:2904 fileBytes=3956
+{"ok":true,"selfTest":false,"uniqueRenderable":4,"vpkRenderable":4,"inspections":3,"inspectionCacheHits":1,"scoutVertices":12000,"scoutChecksum":1098120898,"scoutKey":"models/player/scout.mdl#1098120898","duplicateStable":true,"instanceCount":6,"playerFallbacks":1}

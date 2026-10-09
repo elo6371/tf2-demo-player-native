@@ -1,0 +1,66 @@
+=== 1/4 the model's own paint resolves, per model, from bytes ===
+models/player/medic.mdl rc=0
+  model-textures path=models/player/medic.mdl declared=21 read=21
+  model-cdtextures count=2 [models/player/medic/]
+  model-material summary slots=21 resolved=19
+  OK   models/player/medic.mdl declared slots = 21
+  OK   models/player/medic.mdl resolved slots = 19
+  OK   models/player/medic.mdl resolved bare stems against [models/player/medic/]
+models/player/scout.mdl rc=0
+  model-textures path=models/player/scout.mdl declared=17 read=17
+  model-cdtextures count=2 [models/player/scout/]
+  model-material summary slots=17 resolved=15
+  OK   models/player/scout.mdl declared slots = 17
+  OK   models/player/scout.mdl resolved slots = 15
+  OK   models/player/scout.mdl resolved bare stems against [models/player/scout/]
+models/props_gameplay/resupply_locker.mdl rc=0
+  model-textures path=models/props_gameplay/resupply_locker.mdl declared=4 read=4
+  model-cdtextures count=2 [models/props_gameplay/]
+  model-material summary slots=4 resolved=4
+  OK   models/props_gameplay/resupply_locker.mdl declared slots = 4
+  OK   models/props_gameplay/resupply_locker.mdl resolved slots = 4
+  OK   models/props_gameplay/resupply_locker.mdl resolved bare stems against [models/props_gameplay/]
+models/items/medkit_large.mdl rc=0
+  model-textures path=models/items/medkit_large.mdl declared=1 read=1
+  model-cdtextures count=1 [/models/items/]
+  model-material summary slots=1 resolved=1
+  OK   models/items/medkit_large.mdl declared slots = 1
+  OK   models/items/medkit_large.mdl resolved slots = 1
+  OK   models/items/medkit_large.mdl resolved bare stems against [/models/items/]
+models/props_gameplay/cap_point_base.mdl rc=0
+  model-textures path=models/props_gameplay/cap_point_base.mdl declared=3 read=3
+  model-cdtextures count=1 [models/props_gameplay/]
+  model-material summary slots=3 resolved=3
+  OK   models/props_gameplay/cap_point_base.mdl declared slots = 3
+  OK   models/props_gameplay/cap_point_base.mdl resolved slots = 3
+  OK   models/props_gameplay/cap_point_base.mdl resolved bare stems against [models/props_gameplay/]
+
+=== 2/4 the program survives the entity boundary and paints what it draws ===
+RC=0
+TITLES_WITH_MATERIALS=379
+TITLE=TF2 Demo Player - TF2 资源已连接: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104091, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=199263 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=2048x2047, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 weaponKnown=50 itemKnown=81 paintKnown=0 skinKnown=242 qualityKnown=79 modelPathKnown=454 weaponClassKnown=0 assetUnknown=88 modelLoose=0 modelVpk=177 modelPathUnknown=172 schema=ready schemaHits=79 schemaMiss=2 tempevents=26921 sounds=12402 soundevents=15942 sounddecoded=5292 sounddecodefail=8308 soundprecache=6725 soundtablefail=0 soundtableid=23 soundupdates=0 updateentries=1 updatebits=234 soundupdate=1 updateids=3 soundmatch=5229 soundmiss=63 voice=0 updates=77 entities=64330 entityupdates=1427501 entityheaders=1427501 enters=9822 preserves=1409980 leaves=1314 deletes=6385 entityfail=0 epmiss=0 epidx=0 epval=0 epfirst=-1 epent=-1 epclass=-1 epidx0=-1 epstage= epname= eptype=-1 epflags=-1 epbits=-1 netraw=74671 tefirst=-1 teclass=-1 tebits=-1 testage= tename= tetype=-1 teflags=-1 tepropbits=-1 epstate=0 ephdr=0 base=120 baseok=9651 basemiss=171 baseapplyfail=0 basefirst=353 baselook=353 basetable=1 baseentry=1 baseapplied=1 baseclass=353 basefail=0 basezip=1 basemagic=1346457171 basec=11488 based=40240 active=626 activeMax=675 histEvents=3718 histCheckpoints=2 histDropped=174 histDeltaMiss=174 histGap=0 eventlists=1 events=10703 usermsg=100 prefetch=3317 stringcmd=0 fixangle=0 cvar=0 entitymsg=240 sendtables=0 dtables=518 dtprops=8323 flatprops=62226 dtclasses=363 unknown0= tables=40 table0=downloadables servermap=cp_snakewater_final1 stv=1 replaybit=0 views=64333 playback=3000/64352 speed=1.000000 rate=66.666669 anchorAbs=13238@10888768 forward playing HUD[tick=3000 state=playing speed=1.000000 entity=checkpoint stale=157 audio=846/1909 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=159 trailVerts=0/1024 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=59 entityModels=95 entityModelVerts=127797 entityMaterials=0/95 entityMaterialRanges=0/29 entityMaterialModels=0/59 posePreflight=unknown bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing)
+PLAYBACK=3000/64352
+ENTITYMODELS=95
+ENTITYMATERIALS=0/95
+ENTITYMATERIALRANGES=0/29
+ENTITYMATERIALMODELS=0/59
+ENTITY=checkpoint
+  OK   the run reached tick 3001 and exited on its own = 0
+  OK   the title was read at playback tick 3000 (>= 3000)
+entityMaterials=0/95
+  FAIL entityMaterials=0/95 is not N/N with N > 0
+entityMaterialRanges=0/29
+  FAIL entityMaterialRanges=0/29 is not N/N with N > 0
+# summary models=59 resolved=59 uploaded=0
+  OK   ledger rows == models = 59
+  OK   every model resolved a material = 59
+  FAIL every resolved model uploaded its texture = 0, expected 59
+  entityModels=95
+  OK   title materialModels denominator == ledger models = 59
+
+=== 3/4 the model block is no longer painted with the world atlas ===
+witness vs fresh: blockDiff=0 frameDiff=0 first=-
+block pixels changed: 0, whole frame: 0
+  FAIL the model block still holds the atlas-painted pixels (0 changed)
+
+ENTITY-MATERIAL=FAIL

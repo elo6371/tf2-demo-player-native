@@ -1,0 +1,14 @@
+model-textures path=models/props_gameplay/cap_point_base.mdl declared=3 read=3
+model-cdtextures count=1 [models/props_gameplay/]
+  texture[0] models/props_gameplay/cap_point_base
+  texture[1] models/props_gameplay/cap_point_base_red
+  texture[2] models/props_gameplay/cap_point_base_blue
+  texture-candidates[0] [models/props_gameplay/cap_point_base]
+  texture-candidates[1] [models/props_gameplay/cap_point_base_red]
+  texture-candidates[2] [models/props_gameplay/cap_point_base_blue]
+model-material name=models/props_gameplay/cap_point_base vmt=materials/models/props_gameplay/cap_point_base.vmt vmtBytes=245 parsed=1 shader=VertexLitGeneric base=Models/props_gameplay/cap_point_base vtf=materials/Models/props_gameplay/cap_point_base.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/props_gameplay/cap_point_base_red vmt=materials/models/props_gameplay/cap_point_base_red.vmt vmtBytes=249 parsed=1 shader=VertexLitGeneric base=Models/props_gameplay/cap_point_base_red vtf=materials/Models/props_gameplay/cap_point_base_red.vtf vtfBytes=1398368 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/props_gameplay/cap_point_base_blue vmt=materials/models/props_gameplay/cap_point_base_blue.vmt vmtBytes=250 parsed=1 shader=VertexLitGeneric base=Models/props_gameplay/cap_point_base_blue vtf=materials/Models/props_gameplay/cap_point_base_blue.vtf vtfBytes=1398368 size=1024x1024 decodedBytes=4194304 complete=1
+model-material summary slots=3 resolved=3
+model-header words offset:value 188:1 192:1068 196:0 200:0 204:3 208:1568 212:1 216:1760 220:3 224:3 228:1764 232:1 236:1288 240:0 244:880 248:0 252:1288 fileBytes=1904
+{"ok":true,"selfTest":false,"uniqueRenderable":4,"vpkRenderable":4,"inspections":3,"inspectionCacheHits":1,"scoutVertices":12000,"scoutChecksum":1098120898,"scoutKey":"models/player/scout.mdl#1098120898","duplicateStable":true,"instanceCount":6,"playerFallbacks":1}
