@@ -1205,7 +1205,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       return 15;
     }
     metricsFile << "elapsed_seconds,rendered_frames,fps,tick,working_set_bytes,private_bytes"
-      << ",main_loop_iterations,ui_update_calls,title_update_calls,metrics_write_calls\n";
+      << ",main_loop_iterations,ui_update_calls,title_update_calls,metrics_write_calls"
+      << ",wait_calls,wait_ms_total\n";
     metricsFile.flush();
   }
   std::uint64_t renderedFrames = 0;
@@ -1220,6 +1221,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::uint64_t uiUpdateCalls = 0;
   std::uint64_t titleUpdateCalls = 0;
   std::uint64_t metricsWriteCalls = 0;
+  // The two readings that say whether the wait branch was reached at all. The
+  // frame loop only waits when a frame is not yet due; when the render itself
+  // takes longer than kTargetFrameSeconds (120 Hz target, ~8.3 ms), `elapsed`
+  // already exceeds it on the next pass and the loop renders back to back
+  // without ever waiting. In that regime min(remainingMs,1.0) and
+  // clamp(...,1,16) are the same code path, so a comparison between them is
+  // vacuous -- these counters are how a gate can tell "the fix holds" from "the
+  // fix was never exercised", which a bare loop-per-frame ratio cannot.
+  std::uint64_t waitCalls = 0;
+  std::uint64_t waitMsTotal = 0;
   const LARGE_INTEGER metricsStart = lastFrame;
   LARGE_INTEGER metricsLast = lastFrame;
   const auto writeMetrics = [&](LARGE_INTEGER sample, bool force) {
@@ -1242,7 +1253,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       << g_playback.tick << ',' << counters.WorkingSetSize << ','
       << counters.PrivateUsage << ','
       << mainLoopIterations << ',' << uiUpdateCalls << ','
-      << titleUpdateCalls << ',' << metricsWriteCalls << '\n';
+      << titleUpdateCalls << ',' << metricsWriteCalls << ','
+      << waitCalls << ',' << waitMsTotal << '\n';
     metricsFile.flush();
     ++metricsWriteCalls;
     metricsLast = sample;
@@ -1430,6 +1442,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // an arriving message wakes it immediately -- the wait is a sleeping wait,
     // not a busy one.
     const double waitMs = std::clamp(std::ceil(remainingMs), 1.0, 16.0);
+    ++waitCalls;
+    waitMsTotal += static_cast<std::uint64_t>(waitMs);
     MsgWaitForMultipleObjectsEx(0, nullptr, static_cast<DWORD>(waitMs), QS_ALLINPUT,
       MWMO_INPUTAVAILABLE);
 
