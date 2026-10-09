@@ -6,7 +6,8 @@
 #   gates that can see a material, a texture or a pixel. Everything expensive in
 #   verify-all.sh that is *not* about rendering -- the corpus sample, the SourceTV
 #   sweep, the entity gates -- is left out, so "the material work is done" can be
-#   answered in ~10 min instead of ~85.
+#   answered in ~5.5 min instead of ~85 (measured 2026-10-09: 5m27s straight,
+#   5m45s with --mutation).
 #
 # WHAT IT DOES NOT SAY
 #   It does not print VERIFY=PASS and is not a merge gate. In particular it says
@@ -59,7 +60,10 @@
 #   verified".
 #
 # Usage: bash verify-render.sh [--mutation] [--no-build]
-#   --mutation adds the perturbation runs of gates 1, 2 and 3 (~+12 min).
+#   --mutation replaces each of gates 1-3 with its perturbation run. It costs
+#   about the same as the straight run (5m45s against 5m27s), because the
+#   perturbation replaces that gate's run rather than adding one -- the +12 min
+#   this comment used to claim was never measured.
 # Exit:  0 = every gate passed.
 set -uo pipefail
 cd "$(dirname "$0")"

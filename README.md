@@ -187,6 +187,59 @@ RC=0，17 步全绿，读数在 `evidence/verify/1..17-*.txt`）。本轮相对�
 2026-10-09 第十二轮：**验收流程分级**（本文件新增「分级验收」一节）。
 见下节。
 
+2026-10-09 第十三轮：**实体模型接材质**（`16ecf68` 读表 + `d1e02c9` 接线与判据，
+修补 `1edaa04`，证据 `d0a3919`）。这是 HANDOFF §3.3 建议顺序的 ②。
+
+实体绘制块原先把 `worldTexture_`（地图图集）绑在**每个模型的 `t0`** 上，模型于是被涂成
+图集在该纹素处的颜色。这件事**全部计数看不出来**：计数器数的是实例、顶点与绘制范围，
+而这些数在哪个 SRV 后面都一样，所以「模型被涂成图集」与「模型本来就没漆」在读数上是
+同一件事。
+
+把纹理表读出来（`16ecf68`）之后又量出三个静默缺陷，前两个在 MDL 读取侧：
+① `$cdmaterials` 的每一项是**绝对文件偏移**，原按「相对 `cdtextureindex`」解释，
+medic.mdl 的 CD 表因此解析成两个空串（实测 `cdtextureindex=943560`、首项 `964798`，
+文件共 964852 字节）；② 裸纹理名属于 `$cdmaterials` 的目录，**不是模型自己的目录**，
+scout.mdl 恰好两者等价、所以错规则活了一整轮，而 medic.mdl 的 21 个槽用错规则解出 0 个。
+第三个在 VMT 侧：`VmtParser::tokenize` 把 `\` 当转义符，TF2 却把它当路径分隔符
+（`models\props_gameplay/resupply_locker`），解析结果为 `modelsprops_gameplay/...`；
+`resupply_locker` 因此从 0/4 槽变成 4/4。
+
+接线方式：`EntityModelMesh` 持有自己的 `Texture2D`，`EntityModelDrawRange` 带一个
+**非拥有**的 SRV，绘制循环**按 range 切 `t0`**。一个 range 就是一个 `cacheKey`、
+就是一个材质，所以原有的分桶已经完成了分组，不需要新的排序。
+
+新增读数全部是工作量计数：`entityMaterials=N/M`（用模型 SRV 画的实例 / 画出的实例）、
+`entityMaterialRanges=N/M`（带材质的绘制范围 / 构建的范围）、`entityMaterialModels=N/M`
+（解析并上传成功的模型 / 准备的模型）、`--dump-entity-materials <path>`（逐模型台账）。
+播放 tick 3001（`cp_snakewater_final1`）实测
+`entityMaterials=95/95 entityMaterialRanges=29/29 entityMaterialModels=59/59`，
+台账 `models=59 resolved=59 uploaded=59`。
+
+新增门禁 `entity-material-check.sh` 为验收链**第 20 步**，分三层，同时**补上一个全链
+盲区**：此前每一个会跑程序的判据都抓 `--capture-tick 0`，即播放 tick 16，而本 demo 的
+第一个 checkpoint 在 scene tick 10320，**实体在 tick 16 根本不存在**。本轮撞上的回归
+正好住在那条边界后面：19 步全绿，程序在第一个可绘制的快照上死掉。三层判据是
+① 合成层，五个模型的 `.mdl → VMT → VTF` 链逐项断言（medic 21 槽 19 解、scout 17/15、
+resupply_locker 4/4、medkit_large 1/1、cap_point_base 3/3）；② 接线层，tick 3001 的
+标题读数与台账，断言 `N/N` 且 `N>0`（不钉具体数字，它随快照变：tick 79 是 83/83，
+tick 3001 是 95/95）；③ 像素层，唯一的可见实例占 6×5 共 20 个像素，与**随判据一起
+提交的见证帧**（接线前同 tick 抓的）对照，要求这 20 个像素变色且**整帧只有它们变**。
+实测 `blockDiff=20 frameDiff=20`。`--mutation` 把新鲜帧换成见证帧，要求层 3 变红。
+
+`mutate.sh` 新增 `m12`：把上传短路，要求实例计数与台账的 `uploaded` 都掉、
+而 medic 的解析层 `resolved=19` **不动**，那个 hold 是「判据的两层不是同一个读数
+数两遍」的证明。全套件实测
+`mutation_red=43 hold=5 green=0 broke=0 restored_identical=6`（`1edaa04` 修正了
+`d1e02c9` 把 m12 记成 2 红 1 hold 的笔误，`must_refuse` 也打 `MUTATION-RED`）。
+
+⚠️ **本轮那次 `0xC0000409` 的根因不是代码**：`entity_model.cpp` 的目标文件编译于
+`model_loader.h` 增加 `textureNames` 之前，而 `ModelRenderRequest` 内含 `ModelMetadata`，
+于是它按错步长读 `requests`、在 `buildInstances` 里抛出 `std::bad_alloc`；
+`compiler_depend.make` 对该目标文件只记了 `.cpp` 自己、**零头文件依赖**，所以增量构建
+没有理由重编它。**干净重建即消除，未改一行代码。** 为定位它加了一条默认静默的诊断
+通道（`TF2_NATIVE_TRACE=<file>`：逐阶段检查点 + `std::terminate` 与未处理异常的记录），
+一次运行就说出了死在哪个阶段。
+
 - 源目录 `D:\TF2_Demo_Player` **本次未改动**（`work/native-mvp-source` 仍是
   `d3e2b7c`，`git status` 干净；该提交由**另一路 AI 会话**写入，只改 `native/docs/`
   3 个 markdown，**一个代码文件都没动** —— 合并补丁对它也干净，见 `MERGE-MANIFEST` §6.1）。
@@ -195,7 +248,7 @@ RC=0，17 步全绿，读数在 `evidence/verify/1..17-*.txt`）。本轮相对�
 
 ## 分级验收
 
-**一小时链是合并/发布门禁，不是日常门禁。** 19 步里有 12 步要整份解码 demo、跑独立
+**一小时链是合并/发布门禁，不是日常门禁。** 20 步里有 13 步要整份解码 demo、跑独立
 oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改的这个文件还编不编得过」，
 而为一个一文件改动付一小时，结果是这一轮里只有两次验收跑、中间什么都没有。
 
@@ -205,9 +258,9 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 |---|---|---|---|
 | 1 | `bash verify-fast.sh` | 33–37 s（两次实测） | **每次小改动**：增量构建主程序 + 五个自检探针，跑各自 `--self-test`（36 条断言） |
 | 2 实体 | `bash verify-entity.sh` | 10m59s（实测） | 实体解码 / 摆放这一块做完（5 个门禁 + 58 真相干 + 单份真 demo 的 oracle 对照 = 8 项） |
-| 2 渲染 | `bash verify-render.sh` | 3m37s（实测） | 材质 / VTF / BSP / 画面这一块做完（4 项） |
+| 2 渲染 | `bash verify-render.sh` | 5m27s（实测） | 材质 / VTF / BSP / 画面这一块做完（3 门禁 + 合成层 + 证据树不变断言 = 5 项） |
 | 2 音频 | `bash verify-audio.sh` | 约 10 s | 音频这一块做完（28 条断言，全走注入 sink，不开真设备） |
-| 3 | `bash verify-all.sh` | ~80 min | **合并主线、发版、改核心协议**，且必须在**已提交的干净树**上 |
+| 3 | `bash verify-all.sh` | ~85 min | **合并主线、发版、改核心协议**，且必须在**已提交的干净树**上 |
 
 单项门禁也可以直接跑（改哪儿跑哪儿）：
 
@@ -261,12 +314,14 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 | `evidence/resource-reachability/` | 上述门禁的原始 JSON：`snakewater.json`（有装地图，`bspSource=loose`，148 材质 / 111 可解 / 7 过上限 / 30731 三角形）与 `bagel.json`（`bspBytes=0`，负面对照） |
 | `native/tools/resource_reachability_probe.cpp` | 上条门禁的仪表：不建窗口、不载 demo，直接报资源可达性。用法 `resource_reachability_probe <tfRoot> <mapStem> [materialName]`，stdout 单行 JSON |
 | `native/tools/vpk_query.cpp` | 辅助仪表：按 `list(prefix, ext)` 统计每个档案下的条目数。⚠️ `VpkArchive::list` 是**路径前缀**匹配，`list("concrete")` 恒为 0，必须写 `list("materials/concrete")` |
+| `entity-material-check.sh` | **实体材质门禁**（验收链第 20 步）：三层。① 合成层把五个模型的 `.mdl → VMT → VTF` 链逐项断言（medic 21 槽 19 解、scout 17/15、resupply_locker 4/4、medkit_large 1/1、cap_point_base 3/3）；② 接线层读 tick 3001 的窗口标题与台账，断言 `N/N` 且 `N>0`；③ 像素层对照**随判据一起提交的**见证帧，要求那 20 个像素变色且整帧只有它们变。**24 条断言**。`--mutation` 把新鲜帧换成见证帧，要求层 3 变红 |
+| `evidence/entity-material/` | 上述门禁的原始读数：`gate.txt`（三层断言行）、`ledger.tsv`（逐模型台账，59 行 + summary）、`fresh-tick3001.bmp` / `witness-tick3001.bmp` / `mutated-tick3001.bmp`（后两者**逐字节相同**：变异模式下喂给层 3 的就是见证帧本身）、五份 `probe-*.txt`。见证帧是**钉住的输入**，随判据一起提交，理由同 `evidence/probe-baseline/` |
 | `evidence/p1/` | P1 的原始读数：`protocol-*.fixed.txt` / `model-*.fixed.txt`（探针）、`p0-baseline.csv`（P0 对照主程序）、`bagel-after-fix.csv`（修复后主程序）、`m3.csv` / `m5.csv`（对照运行） |
 | `verify-fast.sh` | **第 1 档**（33–37 s，两次实测）：增量构建主程序 + 五个自检探针，跑各自 `--self-test`，**36 条断言**（具名键值 + 工作量计数，不只退出码）。`--mutation` 篡改捕获输出，要求每份期望列表变红 |
 | `verify-entity.sh` | **第 2 档 · 实体**（实测 10m59s）：58 真相干 + 历史覆盖 / 武器世界模型 / 观察目标 / 选槽新鲜度 / 属性查找五个门禁 + **单份真 demo**（bagel）与 oracle 逐计数对照 + **证据树不变断言**。**不打印 `VERIFY=PASS`**，不是合并门禁 |
-| `verify-render.sh` | **第 2 档 · 渲染**（实测 3m37s）：资源可达性门禁 + 帧抓取门禁 + `material_chain_probe` 的合成层（10 个合成拒绝键 + 3 个模式键）+ 证据树不变断言。`texture_quad_probe` **刻意未接线**，理由写在脚本头部（缺一份提交进仓库的 VTF 夹具） |
+| `verify-render.sh` | **第 2 档 · 渲染**（实测 5m27s）：资源可达性门禁 + 帧抓取门禁 + 实体材质门禁 + `material_chain_probe` 的合成层（10 个合成拒绝键 + 3 个模式键）+ 证据树不变断言。`texture_quad_probe` **刻意未接线**，理由写在脚本头部（缺一份提交进仓库的 VTF 夹具） |
 | `verify-audio.sh` | **第 2 档 · 音频**（约 10 s）：三个音频探针的免设备契约（`device":"sink"` / `device=0 playbackCalls=0` / `mode=dry_run device_opened=0`）+ 工作量计数 + 设备枚举的自洽性（`device_count` 与逐设备行数相等；**不钉具体台数**，那是机器的属性），**28 条断言** |
-| `verify-all.sh` | **第 3 档**，一条命令跑完整证据链（**19 步**：构建（23 exe）→ 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁** → **资源可达性门禁** → **空转门禁** → **属性查找门禁**）；`--quick` 把语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
+| `verify-all.sh` | **第 3 档**，一条命令跑完整证据链（**20 步**：构建（23 exe）→ 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁** → **资源可达性门禁** → **空转门禁** → **属性查找门禁** → **实体材质门禁**）；`--quick` 把语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
 
 ## 命令
 
@@ -278,9 +333,10 @@ bash verify-fast.sh          # 每次小改动，两次实测 32.8 / 36.6 s
 bash verify-fast.sh --mutation        # 证明第 1 档的判据确实能变红
 bash verify-entity.sh        # 实体这一块做完，实测 10m59s
 bash verify-entity.sh --mutation      # 五个门禁里四个各带自己的扰动（history-coverage 没有变异分支）
-bash verify-render.sh        # 材质/渲染这一块做完，实测 3m37s
+bash verify-render.sh        # 材质/渲染这一块做完，实测 5m27s
+bash verify-render.sh --mutation      # 三个门禁各带扰动，实测 5m45s（扰动是替代该门禁的运行，不是叠加）
 bash verify-audio.sh         # 音频这一块做完，约 10s（全走注入 sink，不开真设备）
-bash verify-all.sh           # 合并/发版前的完整 19 步链约 80 min（必须在已提交的干净树上）
+bash verify-all.sh           # 合并/发版前的完整 20 步链约 85 min（必须在已提交的干净树上）
 
 bash build-cmake.sh          # 干净全量 Release 构建（NMake，23 个 exe）
 bash build-target.sh entity_protocol_probe entity_model_probe   # 只重建指定目标（失败即非零退出）
@@ -289,7 +345,7 @@ bash check-oracle.sh "<oracle.exe>" evidence/final   # 与 Rust oracle 逐值对
 bash oracle-recording-types.sh            # 钉住 9 份 demo 的 POV/SourceTV 判定（头字段 + 流内 STV 位）
 bash check-probe-output-additive.sh       # 证明探针新增输出行没动旧计数器，且新增行本身未漂移
 bash check-probe-output-additive.sh --refresh-added   # 只在刻意改过探针输出后刷新新增行基线
-bash mutate.sh               # 变异验证（证明判据能变红）；11 个用例，40 条红断言 + 4 条 hold
+bash mutate.sh               # 变异验证（证明判据能变红）；12 个用例，43 条红断言 + 5 条 hold
 bash census-negative-test.sh # 证明普查判据能变红（10 个变异）
 bash history-coverage-check.sh # 历史覆盖门禁：Checkpoint 答案最多能多旧（fixture + bagel）
 bash weapon-world-model-check.sh # 武器世界模型门禁：武器不能被画成手臂（fixture + bagel/POV + oracle 见证）
@@ -303,7 +359,9 @@ bash frame-capture-check.sh   # 帧抓取门禁：从运行中的程序抓一帧
 bash frame-capture-check.sh --mutation   # 同一门禁的变异：翻转图像一个字节，要求内容哈希察觉
 bash resource-reachability-check.sh       # 资源可达性门禁：5 个 VPK 开了几个、demo 地图的 BSP/材质取不取得到
 bash resource-reachability-check.sh --mutation  # 同一门禁的变异：期望档案数改成 5，必须变红
-bash verify-all.sh --quick   # 上面全部串起来（19 步）；完整跑约 80 min，只用于合并/发版
+bash entity-material-check.sh   # 实体材质门禁：三层（解析 / 接线 / 像素），模型必须带自己的漆
+bash entity-material-check.sh --mutation  # 同一门禁的变异：把新鲜帧换成见证帧，层 3 必须变红
+bash verify-all.sh --quick   # 上面全部串起来（20 步）；完整跑约 85 min，只用于合并/发版
 # 单独问一份地图的资源可达性（不建窗口、不载 demo）：
 ./native/build-nmake/resource_reachability_probe.exe "$TF" cp_snakewater_final1
 
