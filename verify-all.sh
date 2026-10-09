@@ -5,7 +5,8 @@
 #   2. census all nine local demos
 #   3. run the 58 wire fixtures
 #   4. cross-check against the independent Rust oracle (nine demos)
-#   5. cross-check against the oracle on a stratified sample of the real corpus
+#   5. cross-check against the oracle on a sample drawn from the pinned
+#      evidence/corpus-calib/demos.txt universe (not the live demos directory)
 #   6. pin the recording type (POV vs SourceTV) of the nine oracle demos
 #   7. prove the probe's added output lines moved no existing counter, and that
 #      the added lines themselves have not moved since they were introduced
@@ -98,6 +99,11 @@
 # reports stopped being read -- so every mutation would have been inert and the
 # step went red for the right reason. The set is now pinned by name in
 # evidence/corpus-calib/demos.txt and the step asserts the 24-report count.
+# Step 5 had the same latent defect -- its own `--sample` globbed the same live
+# directory -- and would have produced non-reproducible evidence on any round
+# where a recording landed mid-run (it in fact did, on 2026-10-09: the eight
+# compared demos were not the eight the committed file named). It now reads the
+# same pinned list and asserts the compared count.
 #
 # Step 15 is the eighth, and it is a coverage hole rather than a wrong reading: the
 # pinned 24-demo calibration set holds one SourceTV recording, so of its 1361392
@@ -108,7 +114,9 @@
 # for zero entity failures *and* for having been read end to end (index_tail_bytes
 # equals the file size), because a probe that stopped early reports the same zeros.
 #
-# Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40.
+# Cost: steps 1 and 5 dominate. Step 1 ~4 min, step 5 ~20 min at --sample 40
+# (both now sample *within* the pinned 24-name list, so the same demo set is
+# compared on every machine). The pinned list caps the reachable sample at 24.
 # Step 10 adds ~2.5 min (the oracle walks the whole demo once per compared tick).
 # Step 11 adds ~1.5 min (one bagel scan for the staleness sample).
 # Step 12 adds ~4 min (one bagel scan, one POV scan, and one oracle run per
@@ -183,14 +191,30 @@ else
 fi
 
 step "5/17 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+# The input set is pinned, not sampled from the live directory. `sorted(glob())`
+# plus evenly spaced sampling is a property of the machine: the live corpus grew
+# from 1656 to 1658 recordings mid-round on 2026-10-08, every index moved, and the
+# evidence file named eight demos the committed run had never seen. Step 9 hit the
+# same seventh class first; both now read evidence/corpus-calib/demos.txt, so the
+# sample is a function of a frozen file rather than of whatever is on disk. The
+# sample is taken *within* that pinned list, so --quick and the full run stay
+# reproducible and the full run can ask for more demos than the quick one.
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
-"$PY" oracle-corpus-check.py --sample "$ORACLE_SAMPLE" --workers 2 \
-  > "$OUT/5-oracle-corpus.txt" 2>&1
+ORACLE_CORPUS_LIST="evidence/corpus-calib/demos.txt"
+ORACLE_CORPUS_SET=$(grep -cv '^#' "$ORACLE_CORPUS_LIST")
+"$PY" oracle-corpus-check.py --demos-list "$ORACLE_CORPUS_LIST" \
+  --sample "$ORACLE_SAMPLE" --workers 2 > "$OUT/5-oracle-corpus.txt" 2>&1
 tail -14 "$OUT/5-oracle-corpus.txt"
-if grep -q 'ORACLE-CORPUS=PASS' "$OUT/5-oracle-corpus.txt"; then
-  echo "ORACLE-CORPUS=PASS"
+# Assert the size actually compared, capped at the pinned list, so this step cannot
+# pass on zero demos and cannot silently fall back to globbing the live directory.
+ORACLE_CORPUS_N=$(sed -n 's/^sampled=\([0-9][0-9]*\)$/\1/p' "$OUT/5-oracle-corpus.txt" | head -1)
+ORACLE_CORPUS_WANT=$ORACLE_SAMPLE
+[ "$ORACLE_CORPUS_WANT" -gt "$ORACLE_CORPUS_SET" ] && ORACLE_CORPUS_WANT=$ORACLE_CORPUS_SET
+if grep -q 'ORACLE-CORPUS=PASS' "$OUT/5-oracle-corpus.txt" \
+   && [ "${ORACLE_CORPUS_N:-0}" -eq "$ORACLE_CORPUS_WANT" ]; then
+  echo "ORACLE-CORPUS=PASS (pinned_sample=$ORACLE_CORPUS_N of $ORACLE_CORPUS_SET pinned)"
 else
-  echo "ORACLE-CORPUS=FAIL"; rc_all=1
+  echo "ORACLE-CORPUS=FAIL (pinned_sample=${ORACLE_CORPUS_N:-0} want=$ORACLE_CORPUS_WANT of $ORACLE_CORPUS_SET)"; rc_all=1
 fi
 # The comparison itself must be able to reject a mismatch.
 if "$PY" oracle-corpus-check.py --selftest 2>&1 | grep -q 'ORACLE-CORPUS-SELFTEST=PASS'; then

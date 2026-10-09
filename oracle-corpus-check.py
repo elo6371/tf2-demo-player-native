@@ -5,9 +5,16 @@
 Why this exists
 ---------------
 The nine-demo oracle gate covers 5 SourceTV + 4 POV demos. The corpus in
-D:/SteamLibrary/.../tf/demos holds 1634 client-recorded POV demos that the gate
+D:/SteamLibrary/.../tf/demos holds 1600+ client-recorded POV demos that the gate
 never touched, so "POV keeps zero failures" had no independent-implementation
 evidence behind it. This samples that corpus and compares, per demo:
+
+The sample is drawn from evidence/corpus-calib/demos.txt (--demos-list), a frozen
+24-name file, *not* from the live directory. Globbing the live directory made the
+input set a property of the machine: the corpus grew from 1656 to 1658 recordings
+while a round was in flight on 2026-10-08, so `sorted(glob(...))` shifted every
+evenly spaced index and the evidence file named demos the committed run never
+read. Passing --demos-list pins the universe; --sample then samples within it.
 
     oracle `pkt` lines        <-> probe packet_entities=
     oracle sum(entities=N)    <-> probe packet_entity_updates=
@@ -22,7 +29,8 @@ indistinguishable from a correct one.
 
 Usage:
   python oracle-corpus-check.py --oracle <ent-oracle.exe> [--demos-dir DIR]
-                                [--sample 40] [--workers 2] [--outdir DIR]
+                                [--demos-list FILE] [--sample 40] [--workers 2]
+                                [--outdir DIR]
   python oracle-corpus-check.py --selftest
 Exit: 0 = every sampled demo agrees and reports zero failures.
 """
@@ -153,6 +161,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--oracle", default="D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe")
     ap.add_argument("--demos-dir", default=DEFAULT_DEMOS)
+    ap.add_argument("--demos-list", default="",
+                    help="file of demo file names (one per line, relative to --demos-dir): "
+                         "pins the input set instead of sampling the live corpus")
     ap.add_argument("--sample", type=int, default=40)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--outdir", default="evidence/oracle-corpus")
@@ -170,18 +181,43 @@ def main() -> int:
         print(f"FATAL: probe not found: {PROBE}", file=sys.stderr)
         return 2
 
-    demos = sorted(Path(args.demos_dir).glob("*.dem"))
-    if not demos:
-        print(f"FATAL: no .dem under {args.demos_dir}", file=sys.stderr)
-        return 2
-    if args.sample and args.sample < len(demos):
-        step = len(demos) / args.sample
-        demos = [demos[int(i * step)] for i in range(args.sample)]
+    demos_dir = Path(args.demos_dir)
+    if args.demos_list:
+        # A pinned *universe*, sampled evenly within itself. The live corpus grew
+        # from 1656 to 1658 recordings while a round was in flight on 2026-10-08;
+        # `sorted(glob(...))` plus evenly spaced sampling moved every index, so the
+        # evidence file described a different eight demos than the committed one.
+        # Step 9 hit this first and was fixed the same way (see verify-all.sh).
+        names = [line.strip() for line in Path(args.demos_list).read_text(
+            encoding="utf-8", errors="replace").splitlines()]
+        names = [name for name in names if name and not name.startswith("#")]
+        if not names:
+            print(f"FATAL: no demo names in {args.demos_list}", file=sys.stderr)
+            return 2
+        universe = [demos_dir / name for name in names]
+        missing = [str(d) for d in universe if not d.is_file()]
+        if missing:
+            print(f"FATAL: {len(missing)} of {len(universe)} pinned demos are missing, "
+                  f"first: {missing[0]}", file=sys.stderr)
+            return 2
+        demos = universe
+        if args.sample and args.sample < len(demos):
+            step = len(demos) / args.sample
+            demos = [demos[int(i * step)] for i in range(args.sample)]
+    else:
+        demos = sorted(demos_dir.glob("*.dem"))
+        if not demos:
+            print(f"FATAL: no .dem under {args.demos_dir}", file=sys.stderr)
+            return 2
+        if args.sample and args.sample < len(demos):
+            step = len(demos) / args.sample
+            demos = [demos[int(i * step)] for i in range(args.sample)]
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    print(f"demos={len(demos)} workers={args.workers} oracle={oracle}", flush=True)
+    print(f"demos={len(demos)} workers={args.workers} oracle={oracle}"
+          + (f" pinned={args.demos_list}" if args.demos_list else ""), flush=True)
     rows: list[dict] = []
     started = time.perf_counter()
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
