@@ -29,6 +29,7 @@
 #include <fstream>
 #include <shellapi.h>
 #include <sstream>
+#include <tuple>
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -124,9 +125,46 @@ void setUiControlVisible(HWND control, bool visible) {
   if (control) ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
 }
 
-void updateNativeUiControls(HWND window) {
-  if (!g_nativeUi) return;
+// Signature of everything updateNativeUiControls actually pushes to a control:
+// the screen, the fields that appear in the status line, and the timeline range
+// and position. `dpi`/`recentDemos`/`tfRoot` are deliberately absent -- nothing
+// here renders them, so a change there must not force a refresh. dtors of the
+// tuple members (std::string) are cheap next to a SendMessageW round trip.
+bool uiControlsUnchanged(const tf2::native::UiSnapshot& state,
+    const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
+      std::string, bool, std::uint32_t, std::string>& signature) {
+  return std::get<0>(signature) == static_cast<int>(state.screen)
+    && std::get<1>(signature) == state.tick
+    && std::get<2>(signature) == state.ticks
+    && std::get<3>(signature) == state.playing
+    && std::get<4>(signature) == state.reverse
+    && std::get<5>(signature) == state.mapName
+    && std::get<6>(signature) == state.recordingType
+    && std::get<7>(signature) == state.bspAvailable
+    && std::get<8>(signature) == state.missingResourceCount
+    && std::get<9>(signature) == state.error;
+}
+
+// Returns true when it actually pushed to the controls, false when the cached
+// signature said there was nothing to push. Callers use the return value as the
+// "work done" reading rather than counting the call itself.
+bool updateNativeUiControls(HWND window) {
+  if (!g_nativeUi) return false;
   const auto state = g_nativeUi->snapshot();
+  // Cached signature of the previous push. A static here is safe: there is one
+  // window, hence one call site, and the whole reason this function is called
+  // every iteration is to keep the controls in step with the playback state.
+  static std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
+    std::string, bool, std::uint32_t, std::string> lastSignature{};
+  static bool signatureValid = false;
+  const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
+    std::string, bool, std::uint32_t, std::string> signature{
+      static_cast<int>(state.screen), state.tick, state.ticks, state.playing,
+      state.reverse, state.mapName, state.recordingType, state.bspAvailable,
+      state.missingResourceCount, state.error};
+  if (signatureValid && uiControlsUnchanged(state, lastSignature)) return false;
+  lastSignature = signature;
+  signatureValid = true;
   const bool opening = state.screen == tf2::native::UiScreen::Opening;
   const bool review = state.screen == tf2::native::UiScreen::ImportReview;
   const bool player = state.screen == tf2::native::UiScreen::Player;
@@ -161,6 +199,7 @@ void updateNativeUiControls(HWND window) {
   }
   if (g_uiStatus) SetWindowTextW(g_uiStatus, status.c_str());
   if (window) InvalidateRect(window, nullptr, FALSE);
+  return true;
 }
 
 void createNativeUiControls(HWND window, HINSTANCE instance) {
@@ -1040,10 +1079,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::size_t hudTrailVertices = 0;
   std::size_t hudEffectsDue = 0;
   tf2::native::PlaybackHudState hudState;
-  const auto refreshWindowTitle = [&]() {
+  // The title is a pure function of the playback state, so the last string is
+  // kept and SetWindowTextW is only called when the string actually moves.
+  // Without this the title was rebuilt and pushed once per loop iteration --
+  // ~1000/s idle -- for a string that changes only when a tick changes.
+  std::wstring lastTitle;
+  const auto refreshWindowTitle = [&]() -> bool {
     if (!g_playback.enabled) {
+      if (lastTitle == titleBase) return false;
       SetWindowTextW(window, titleBase.c_str());
-      return;
+      lastTitle = titleBase;
+      return true;
     }
     if (!g_playback.anchorValid || g_playback.tick < g_playback.anchorLookupTick
         || g_playback.tick - g_playback.anchorLookupTick >= 32) {
@@ -1090,7 +1136,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" bodyParts=" + std::to_wstring(modelBodyPartCount)
       + L" resources=" + ((modelCompanionMissing == 0 && demoNetworkSummary.decodedSoundResourceMisses == 0) ? L"ok" : L"missing") + L"]"
       + L" export=unavailable(native-encoder-missing)";
-    SetWindowTextW(window, (titleBase + playbackSuffix).c_str());
+    std::wstring title = titleBase + playbackSuffix;
+    if (title == lastTitle) return false;
+    SetWindowTextW(window, title.c_str());
+    lastTitle = std::move(title);
+    return true;
   };
   refreshWindowTitle();
   if (!renderer.initialize(window)) {
@@ -1176,11 +1226,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       g_renderer = nullptr;
       return 15;
     }
-    metricsFile << "elapsed_seconds,rendered_frames,fps,tick,working_set_bytes,private_bytes\n";
+    metricsFile << "elapsed_seconds,rendered_frames,fps,tick,working_set_bytes,private_bytes"
+      << ",main_loop_iterations,ui_update_calls,title_update_calls,metrics_write_calls\n";
     metricsFile.flush();
   }
   std::uint64_t renderedFrames = 0;
   std::uint64_t metricsFrames = 0;
+  // Idle-spin counters. The loop used to wait at most 1 ms even when the next
+  // frame was 15 ms away, so an idle window ran the body ~1000 times a second
+  // and called the UI/title/metrics updaters just as often. These five numbers
+  // are how a gate can tell "the loop stopped spinning" from "the loop looks
+  // the same but the counters went up" -- rendered_frames is the denominator,
+  // so every other counter reads as work-per-frame rather than as a raw rate.
+  std::uint64_t mainLoopIterations = 0;
+  std::uint64_t uiUpdateCalls = 0;
+  std::uint64_t titleUpdateCalls = 0;
+  std::uint64_t metricsWriteCalls = 0;
   const LARGE_INTEGER metricsStart = lastFrame;
   LARGE_INTEGER metricsLast = lastFrame;
   const auto writeMetrics = [&](LARGE_INTEGER sample, bool force) {
@@ -1201,8 +1262,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       ? static_cast<double>(renderedFrames - metricsFrames) / interval : 0.0;
     metricsFile << elapsedSeconds << ',' << renderedFrames << ',' << fps << ','
       << g_playback.tick << ',' << counters.WorkingSetSize << ','
-      << counters.PrivateUsage << '\n';
+      << counters.PrivateUsage << ','
+      << mainLoopIterations << ',' << uiUpdateCalls << ','
+      << titleUpdateCalls << ',' << metricsWriteCalls << '\n';
     metricsFile.flush();
+    ++metricsWriteCalls;
     metricsLast = sample;
     metricsFrames = renderedFrames;
   };
@@ -1222,6 +1286,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool captureArmed = !captureFramePath.empty();
   bool captureRequested = false;
   while (running) {
+    ++mainLoopIterations;
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
       if (message.message == WM_QUIT) { running = false; break; }
       TranslateMessage(&message);
@@ -1366,8 +1431,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     nativeUi.setPlaybackState(g_playback.tick, g_playback.enabled && !g_playback.paused,
       g_playback.reverse, g_playback.speed);
-    updateNativeUiControls(window);
-    refreshWindowTitle();
+    // All three are called every iteration on purpose -- the cheap part of each
+    // is the state comparison, and that comparison is what lets the expensive
+    // part (SendMessageW, SetWindowTextW, GetProcessMemoryInfo) run only when
+    // the state behind it has moved. Both updaters return whether they pushed,
+    // so the counters read "work done", not "calls made"; that is the number a
+    // gate can distinguish "the cache works" with, because a counter that
+    // incremented on every call would be identical to main_loop_iterations.
+    if (updateNativeUiControls(window)) ++uiUpdateCalls;
+    if (refreshWindowTitle()) ++titleUpdateCalls;
     writeMetrics(now, false);
     if (elapsed >= kTargetFrameSeconds) {
       if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
@@ -1385,8 +1457,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
 
     const double remainingMs = (kTargetFrameSeconds - elapsed) * 1000.0;
-    const DWORD waitMs = static_cast<DWORD>(std::max(0.0, std::min(remainingMs, 1.0)));
-    MsgWaitForMultipleObjectsEx(0, nullptr, waitMs, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    // Wait until the next frame is actually due, not for at most 1 ms. The old
+    // `min(remainingMs, 1.0)` meant a pending frame 15 ms out was still waited
+    // for in fifteen 1-ms slices, and each slice ran the whole loop body: ~1000
+    // iterations a second doing nothing but re-testing state that had not moved.
+    // The clamp keeps a floor of 1 ms so the wait is never zero (a zero-timeout
+    // MsgWait is a poll, which is the spin this removes) and a ceiling of 16 ms
+    // so message processing stays responsive without a tight slice. The call is
+    // still MsgWaitForMultipleObjectsEx with QS_ALLINPUT|MWMO_INPUTAVAILABLE, so
+    // an arriving message wakes it immediately -- the wait is a sleeping wait,
+    // not a busy one.
+    const double waitMs = std::clamp(std::ceil(remainingMs), 1.0, 16.0);
+    MsgWaitForMultipleObjectsEx(0, nullptr, static_cast<DWORD>(waitMs), QS_ALLINPUT,
+      MWMO_INPUTAVAILABLE);
 
     if (g_renderer && renderer.lastError() != S_OK) {
       const HRESULT error = renderer.lastError();
