@@ -284,7 +284,7 @@ tick 3001 是 95/95）；③ 像素层，唯一的可见实例占 6×5 共 20 �
 
 ## 分级验收
 
-**一小时链是合并/发布门禁，不是日常门禁。** 20 步里有 13 步要整份解码 demo、跑独立
+**一小时链是合并/发布门禁，不是日常门禁。** 当前 21 步里有 13 步要整份解码 demo、跑独立
 oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改的这个文件还编不编得过」，
 而为一个一文件改动付一小时，结果是这一轮里只有两次验收跑、中间什么都没有。
 
@@ -330,6 +330,7 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 | 文件 | 用途 |
 |---|---|
 | `HANDOFF-2026-10-07.md` | **接手入口（先读这个）**：已完成 / 未完成 / 困难 / 试过但没用的办法 / 复核命令 / 红线 |
+| `IMPLEMENTATION-PLAN-2026-10-10.md` | **当前任务执行书（接手 AI 必读）**：现状、隔离 worktree、实现步骤、分级验收、负向测试和交付模板 |
 | `ACCEPTANCE-P0-2026-10-06.md` | **P0 主验收文档**，按清单的强制验收清单逐项填写 |
 | `HANDOFF-P0-2026-10-06.md` | P0 的可并入主线的交接条目 |
 | `ACCEPTANCE-P1-2026-10-06.md` | **P1 第 1 项验收**：§1–§9 模型引用（`m_nModelIndex` → `modelprecache` → 可加载路径），§10 逐 tick 位移 |
@@ -357,7 +358,7 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 | `verify-entity.sh` | **第 2 档 · 实体**（实测 10m59s）：58 真相干 + 历史覆盖 / 武器世界模型 / 观察目标 / 选槽新鲜度 / 属性查找五个门禁 + **单份真 demo**（bagel）与 oracle 逐计数对照 + **证据树不变断言**。**不打印 `VERIFY=PASS`**，不是合并门禁 |
 | `verify-render.sh` | **第 2 档 · 渲染**（实测 5m27s）：资源可达性门禁 + 帧抓取门禁 + 实体材质门禁 + `material_chain_probe` 的合成层（10 个合成拒绝键 + 3 个模式键）+ 证据树不变断言。`texture_quad_probe` **刻意未接线**，理由写在脚本头部（缺一份提交进仓库的 VTF 夹具） |
 | `verify-audio.sh` | **第 2 档 · 音频**（约 10 s）：三个音频探针的免设备契约（`device":"sink"` / `device=0 playbackCalls=0` / `mode=dry_run device_opened=0`）+ 工作量计数 + 设备枚举的自洽性（`device_count` 与逐设备行数相等；**不钉具体台数**，那是机器的属性），**28 条断言** |
-| `verify-all.sh` | **第 3 档**，一条命令跑完整证据链（**20 步**：构建（23 exe）→ 9 份普查 → fixture → oracle → **oracle 语料抽样** → 录制类型 → 探针增量性 → 变异 → 普查判据可证伪 → 逐值对照 → **历史覆盖门禁** → **武器世界模型门禁** → **观察目标门禁** → **选槽新鲜度门禁** → **真实 SourceTV 覆盖门禁** → **帧抓取门禁** → **资源可达性门禁** → **空转门禁** → **属性查找门禁** → **实体材质门禁**）；`--quick` 把语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
+| `verify-all.sh` | **第 3 档**，当前脚本含 **21 步**（构建 24 个目标 → 9 份普查 → fixture/oracle/变异与 17 个专项门禁，最后为动画可用性）；`--quick` 把 oracle 语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
 
 ## 命令
 
@@ -372,9 +373,9 @@ bash verify-entity.sh --mutation      # 五个门禁里四个各带自己的扰�
 bash verify-render.sh        # 材质/渲染这一块做完，实测 5m27s
 bash verify-render.sh --mutation      # 三个门禁各带扰动，实测 5m45s（扰动是替代该门禁的运行，不是叠加）
 bash verify-audio.sh         # 音频这一块做完，约 10s（全走注入 sink，不开真设备）
-bash verify-all.sh           # 合并/发版前的完整 20 步链约 85 min（必须在已提交的干净树上）
+bash verify-all.sh           # 合并/发版前的完整 21 步链（当前约 85 min，必须在已提交的干净树上）
 
-bash build-cmake.sh          # 干净全量 Release 构建（NMake，23 个 exe）
+bash build-cmake.sh          # 干净全量 Release 构建（NMake，24 个 exe）
 bash build-target.sh entity_protocol_probe entity_model_probe   # 只重建指定目标（失败即非零退出）
 bash run-demos.sh evidence/final          # 9 份 demo 协议普查
 bash check-oracle.sh "<oracle.exe>" evidence/final   # 与 Rust oracle 逐值对照
@@ -397,7 +398,7 @@ bash resource-reachability-check.sh       # 资源可达性门禁：5 个 VPK �
 bash resource-reachability-check.sh --mutation  # 同一门禁的变异：期望档案数改成 5，必须变红
 bash entity-material-check.sh   # 实体材质门禁：三层（解析 / 接线 / 像素），模型必须带自己的漆
 bash entity-material-check.sh --mutation  # 同一门禁的变异：把新鲜帧换成见证帧，层 3 必须变红
-bash verify-all.sh --quick   # 上面全部串起来（20 步）；完整跑约 85 min，只用于合并/发版
+bash verify-all.sh --quick   # 上面全部串起来（21 步）；完整跑约 85 min，只用于合并/发版
 # 单独问一份地图的资源可达性（不建窗口、不载 demo）：
 ./native/build-nmake/resource_reachability_probe.exe "$TF" cp_snakewater_final1
 
