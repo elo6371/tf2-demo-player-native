@@ -36,22 +36,15 @@ int main(int argc, char** argv) {
       && length3(attachment.axisZ) >= 0.5f;
     if (valid) ++validAttachments; else ++invalidAttachments;
   }
-  const auto right = tf2::native::applyViewModelHand({1.0f, 2.0f, 3.0f}, tf2::native::ViewModelHand::Right);
-  const auto left = tf2::native::applyViewModelHand({1.0f, 2.0f, 3.0f}, tf2::native::ViewModelHand::Left);
+  const auto right = tf2::native::viewModelHandMatrix(tf2::native::ViewModelHand::Right);
+  const auto left = tf2::native::viewModelHandMatrix(tf2::native::ViewModelHand::Left);
   const bool handProbePassed = right[0] == 1.0f && left[0] == -1.0f
-    && right[1] == left[1] && right[2] == left[2];
+    && right[5] == 1.0f && left[5] == 1.0f
+    && right[10] == 1.0f && left[10] == 1.0f;
   const bool resourceComplete = inspection.mdl.signatureValid && inspection.vvd.signatureValid
     && (inspection.vtx.signatureValid || inspection.vtxDx80.signatureValid || inspection.vtxSw.signatureValid);
   const bool attachmentsValid = invalidAttachments == 0
     && inspection.metadata.attachments.size() == inspection.metadata.attachmentCount;
-  tf2::native::ViewModelRenderRequest request;
-  request.modelPath = argv[1];
-  request.resourceComplete = resourceComplete;
-  request.attachmentStatus = status(inspection.attachmentStatus);
-  request.bodygroupStatus = status(inspection.bodygroupStatus);
-  request.sequenceCount = static_cast<std::uint32_t>(inspection.metadata.sequences.size());
-  request.sequenceStatus = inspection.metadata.sequenceFrameCountAvailable ? "available" : "unsupported";
-  request.sequenceDecodeReason = inspection.metadata.sequenceDecodeReason;
   std::cout << "{\"mdlReadable\":" << (inspection.metadata.valid ? "true" : "false")
     << ",\"resourceComplete\":" << (resourceComplete ? "true" : "false")
     << ",\"viewModelPathDetected\":" << (inspection.viewModelPathDetected ? "true" : "false")
@@ -65,17 +58,13 @@ int main(int argc, char** argv) {
     << ",\"sequenceCount\":" << inspection.metadata.sequences.size()
     << ",\"sequenceFrameCountAvailable\":" << (inspection.metadata.sequenceFrameCountAvailable ? "true" : "false")
     << ",\"sequenceDecodeReason\":\"" << inspection.metadata.sequenceDecodeReason << "\""
-    << ",\"defaultFov\":" << tf2::native::defaultViewModelFov()
-    << ",\"fovRangeValid\":" << (tf2::native::validViewModelFov(80.0f) ? "true" : "false")
+    << ",\"defaultFov\":" << tf2::native::kDefaultViewModelFov
+    << ",\"fovLow\":" << tf2::native::normalizeViewModelFov(0.0f)
+    << ",\"fovHigh\":" << tf2::native::normalizeViewModelFov(180.0f)
     << ",\"rightHandX\":" << right[0]
     << ",\"leftHandX\":" << left[0]
     << ",\"handProbePassed\":" << (handProbePassed ? "true" : "false")
     << ",\"animationStatus\":\"unsupported\""
-    << ",\"requestResourceComplete\":" << (request.resourceComplete ? "true" : "false")
-    << ",\"requestAttachmentStatus\":\"" << request.attachmentStatus << "\""
-    << ",\"requestBodygroupStatus\":\"" << request.bodygroupStatus << "\""
-    << ",\"requestSequenceCount\":" << request.sequenceCount
-    << ",\"requestSequenceStatus\":\"" << request.sequenceStatus << "\""
     << ",\"firstPersonDrawn\":false}\n";
   return (resourceComplete && inspection.viewModelPathDetected && attachmentsValid && handProbePassed) ? 0 : 1;
 }

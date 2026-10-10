@@ -92,6 +92,18 @@ add_executable(viewmodel_fov_probe tools/viewmodel_fov_probe.cpp)
 target_include_directories(viewmodel_fov_probe PRIVATE include)
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+add_executable(viewmodel_contract_probe
+  tools/viewmodel_contract_probe.cpp
+  src/viewmodel.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/demo_header.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp)
+target_include_directories(viewmodel_contract_probe PRIVATE include)
+set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(animation_viewmodel_probe
   tools/animation_viewmodel_probe.cpp
   src/animation_decoder.cpp
