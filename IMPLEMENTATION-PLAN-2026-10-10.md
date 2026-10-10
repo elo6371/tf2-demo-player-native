@@ -1,9 +1,9 @@
 # TF2 Demo Player Native 实现任务与验收计划
 
-更新时间：2026-10-10  
-产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）  
-当前验收与诊断基线：`origin/p0-entity-protocol@cbcdd98`（包含验收锁修复；不是产品发布分支）  
-主程序目录：`D:\TF2_Native_Test`  
+更新时间：2026-10-10
+产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
+当前验收与诊断基线：`origin/p0-entity-protocol@cbcdd98`（包含验收锁修复；不是产品发布分支）
+主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
 这份文件是交给其他 AI 的执行说明。接手者必须先读本文件和
@@ -86,7 +86,7 @@ git worktree add -b task/<task-name> D:\TF2_Native_Worktrees\<task-name> origin/
 
 ### T0：验收链恢复与基线冻结
 
-**负责人**：整合 AI。  
+**负责人**：整合 AI。
 **工作区**：`D:\TF2_Native_Worktrees\acceptance-recovery`。
 **边界**：只改验收脚本和文档，不改 `native/src`。
 
@@ -111,7 +111,7 @@ bash verify-all.sh --quick
 
 ### T1：武器/投射物骨骼动画接线
 
-**负责人**：动画/实体 AI。  
+**负责人**：动画/实体 AI。
 **工作区**：`D:\TF2_Native_Worktrees\weapon-animation`。
 **允许文件**：动画解码模块、实体模型请求、`main.cpp` 的动画接线、renderer 骨骼上传、对应 probe/CMake；禁止改 BSP、音频、UI。
 
@@ -138,7 +138,7 @@ bash verify-all.sh --quick
 
 ### T2：ViewModel 第一人称绘制
 
-**负责人**：ViewModel AI。  
+**负责人**：ViewModel AI。
 **工作区**：`D:\TF2_Native_Worktrees\viewmodel-render`。
 **允许文件**：`viewmodel.*`、模型材质请求、独立第一人称 draw pass、FOV/attachment、对应 probe；必须与世界实体材质路径分开。
 
@@ -165,7 +165,7 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 ### T3：相机、观察者模式与基础 HUD/UI
 
-**负责人**：UI/相机 AI。  
+**负责人**：UI/相机 AI。
 **工作区**：`D:\TF2_Native_Worktrees\camera-ui`。
 **允许文件**：`native_ui.*`、相机输入/状态、HUD 绘制和设置存储；禁止改 PacketEntities 解码。
 
@@ -186,7 +186,7 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 ### T4：世界材质与地图光照
 
-**负责人**：BSP/材质 AI。  
+**负责人**：BSP/材质 AI。
 **工作区**：`D:\TF2_Native_Worktrees\world-materials`。
 **允许文件**：`bsp_map.*`、`vmt_material.*`、`vtf_texture.*`、world shader/probe；禁止改实体协议和音频。
 
@@ -210,7 +210,7 @@ native/build-nmake/world_material_probe.exe --self-test
 
 ### T5：Demo 音频与临时效果
 
-**负责人**：音频 AI。  
+**负责人**：音频 AI。
 **工作区**：`D:\TF2_Native_Worktrees\audio-effects`。
 **允许文件**：音频资源、时间线、TempEntity/PCF、audio probe；禁止改协议 bit reader 和 renderer。
 
@@ -234,7 +234,7 @@ native/build-nmake/audio_scheduler_probe.exe --self-test
 
 ### T6：稳定性与发布
 
-**负责人**：稳定性 AI。  
+**负责人**：稳定性 AI。
 **工作区**：`D:\TF2_Native_Worktrees\stability-release`。
 **允许文件**：门禁脚本、启动包装、安装/发布文档；正式解析和渲染逻辑只有复现 bug 时才允许修改。
 
@@ -259,7 +259,7 @@ bash verify-audio.sh
 
 ### T7：PaintKit 与高级画质
 
-**负责人**：材质/效果 AI。  
+**负责人**：材质/效果 AI。
 **工作区**：`D:\TF2_Native_Worktrees\advanced-materials`。
 **允许文件**：PaintKit/schema/material shader/particle/water；禁止重写实体协议。
 
@@ -278,7 +278,7 @@ bash verify-audio.sh
 
 ### T8：主线整合与发布门禁
 
-**负责人**：主线整合 AI。  
+**负责人**：主线整合 AI。
 **工作区**：`D:\TF2_Native_Worktrees\release-integration`。
 **职责**：不直接开发功能，只合并通过验收的专项提交。
 
