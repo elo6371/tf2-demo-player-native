@@ -1,0 +1,6 @@
+=== 1/3 the player class carries no animation state (three recordings) ===
+mutation: rewriting the captured probe output so the readings must move
+  OK   rewrote tfPlayerFound to 0 and the gate's extractor saw it (clause 1 would fail)
+  OK   rewrote classesWithSequence to 0 and the gate's extractor saw it (clause 2 would fail)
+  OK   the pose field extracts as '0' (the regex that failed on the first run works)
+MUTATION-CAUGHT=PASS (every rewritten reading reached the gate's own extractor)

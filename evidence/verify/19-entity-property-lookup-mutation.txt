@@ -1,0 +1,22 @@
+=== mutation: remove the cheap class pre-check and require section 1 to move ===
+mutation: pre-check removed
+=== 1/3 fixture: the class-fallback sweep's own work ===
+fixture fallbackScanned=3 classLookups=0 transforms=7 propertyComparisons=24
+  OK   mutation fixture transforms (back to the un-spared count) = 7
+  OK   mutation fixture propertyComparisons (un-spared) = 24
+  OK   mutation fixture classLookups (the pre-check is gone) = 0
+
+=== 2/3 fixture: the pre-check spared work without dropping or adding an instance ===
+fixture instanceCount=6 playerFallbacks=1
+  OK   fixture instanceCount (unchanged by the pre-check) = 6
+  OK   fixture playerFallbacks (unchanged by the pre-check) = 1
+
+=== 3/3 demos end to end: the sweep is cold, which is why the fixture is the witness ===
+bagel resolverFallbackScanned=0 resolverTransforms=256 instanceCount=6
+  OK   bagel sweep is cold (every player already has a request) = 0
+  OK   bagel instanceCount (unchanged) = 6
+pov resolverFallbackScanned=0 resolverTransforms=256 instanceCount=6
+  OK   pov sweep is cold (every player already has a request) = 0
+  OK   pov instanceCount (unchanged) = 6
+
+MUTATION-CAUGHT=PASS (the un-spared build read transforms=7 comparisons=24 lookups=0)

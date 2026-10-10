@@ -1,16 +1,16 @@
 {
-  "sampled": 24,
-  "agreed": 24,
+  "sampled": 8,
+  "agreed": 8,
   "mismatched": 0,
-  "wall_seconds": 311.1,
-  "sum_oracle_entities": 30772245,
-  "sum_cpp_entities": 30772245,
+  "wall_seconds": 77.4,
+  "sum_oracle_entities": 11101018,
+  "sum_cpp_entities": 11101018,
   "recording_kinds": [
     "POV",
     "SourceTV"
   ],
-  "pov_count": 23,
+  "pov_count": 7,
   "source_tv_count": 1,
-  "distinct_maps": 18,
+  "distinct_maps": 8,
   "failures": []
 }

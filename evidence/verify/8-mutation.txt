@@ -73,6 +73,18 @@ MUTATION-RED   m11 freshness ignored -> POV chosenStale                 3 (fixed
 MUTATION-RED   m11 freshness ignored -> the frozen Local slot is chosen again rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin
 MUTATION-HOLD  m11 freshness ignored -> bagel chosenStale stays 0       0 (unchanged)
 
+--- m12 no model SRV reaches the draw (the atlas paints the models again)
+MUTATION-RED   m12 no model SRV -> entity-material gate refuses         exit=1 ENTITY-MATERIAL=FAIL
+MUTATION-RED   m12 no model SRV -> every instance loses its texture     0/95 (fixed=95/95)
+MUTATION-RED   m12 no model SRV -> the ledger's uploaded count drops    0 (fixed=59)
+MUTATION-HOLD  m12 no model SRV -> medic still resolves 19 slots        19 (unchanged)
+
+--- m13 the animation-property sweep stops matching (the positive control must catch it)
+MUTATION-RED   m13 sweep ablated -> availability gate refuses           exit=1 ANIMATION-AVAILABILITY=FAIL
+MUTATION-RED   m13 sweep ablated -> classesWithSequence collapses       0 (fixed=197)
+MUTATION-RED   m13 sweep ablated -> the CTFPlayer line is unchanged     animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0
+MUTATION-HOLD  m13 sweep ablated -> CTFPlayer is still found (found=1)  1 (unchanged)
+
 === restored tree: readings must be identical to the fixed build ===
 RESTORED-IDENTICAL bagel.fixed.txt
 RESTORED-IDENTICAL proto23.fixed.txt
