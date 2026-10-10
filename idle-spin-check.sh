@@ -85,7 +85,10 @@ LOAD_CEILING=120
 # seconds spent loading so a slow start is visible in the log.
 run_sample() {
   local seconds="$1" csv="$2" log="$3"; shift 3
-  rm -f "$csv"
+  # Do not use rm here: the Windows safety wrapper can refuse a bulk delete,
+  # leaving an old CSV that makes a failed child process look like a fresh run.
+  # Truncation is enough and guarantees a stale file cannot satisfy the gate.
+  : > "$csv" || { echo "FAIL cannot truncate metrics file: $csv" >&2; return 1; }
   "$EXE" --tf-root "$TF" --audio-device "$AUDIO_DEVICE" "$@" \
     --metrics-file "$csv" > "$log" 2>&1 &
   local pid=$!

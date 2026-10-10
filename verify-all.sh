@@ -84,7 +84,7 @@
 #      player entities do not network m_nSequence). The step asserts the absence
 #      on three recordings, the positive control on the same run (197 classes DO
 #      carry it -- a rule that can only say no measures nothing), and the
-#      independent oracle's agreement. 22 assertions; m13 makes it go red.
+#      independent oracle's agreement. 23 assertions; m13 makes it go red.
 #
 # Anything that must be true for the delivery is asserted here, so a reviewer does
 # not have to read twenty-one reports. Every step writes its raw output to
@@ -179,6 +179,20 @@
 # Exit:  0 = every step passed.
 set -uo pipefail
 cd "$(dirname "$0")"
+
+# A full chain owns the build tree and every path under evidence/verify. Two
+# callers sharing those paths produce a plausible but unusable hybrid report:
+# one run can overwrite another run's SourceTV output or mutation counts. mkdir
+# is atomic on the filesystem, so a second caller fails before it starts a
+# build. Remove the directory only on normal shell exit; a stale lock after a
+# killed process must be cleared deliberately rather than silently overlapping.
+LOCK_DIR=.scratch/verify-all.lock
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "VERIFY-LOCK=FAIL (another verify-all run owns $LOCK_DIR)"
+  exit 2
+fi
+printf '%s\n' "pid=$$" > "$LOCK_DIR/owner"
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 ORACLE_SAMPLE=40
 [ "${1:-}" = "--quick" ] && ORACLE_SAMPLE=8
@@ -299,17 +313,17 @@ bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
 # suite: MUTATION-SUITE=PASS is also what a script that ran zero cases prints.
-# 43 red + 5 hold is the current case count (m11 added three red assertions and
+# 46 red + 6 hold is the current case count (m11 added three red assertions and
 # one hold -- the hold is bagel's chosenStale, which must NOT move when the
 # freshness term is deleted, or the gate would be passable by a rule that simply
 # prefers NonLocal; m12 added three red assertions and one hold -- the reds are
 # the gate's refusal, the instance counter and the ledger's uploaded count, and
 # the hold is medic's resolved slot count, which must NOT move when only the
 # upload is short-circuited, or the gate's parse layer and its binding layer
-# would be one reading counted twice). m12 was run alone on 2026-10-09 and read
-# exactly MUTATION-RED x3, MUTATION-HOLD x1, RESTORED-IDENTICAL x6, so the sum
-# is a measurement of that case on a 40+4 base and not an estimate. Adding a case
-# is an explicit edit here, which is the
+# would be one reading counted twice; m13 adds three red assertions and one hold
+# for the animation-property positive control. m13 was run alone on 2026-10-10
+# and the complete suite read 46/6/0/0/6. Adding a case is an explicit edit here,
+# which is the
 # point: a suite whose assertion count drifts silently is a suite that stopped
 # testing. Any GREEN or BROKE line means a mutation did not move the reading it
 # targets -- which is the one thing the suite exists to detect.
@@ -320,7 +334,7 @@ GREEN=$(grep -c '^MUTATION-GREEN' "$OUT/8-mutation.txt" || true)
 IDENT=$(grep -c '^RESTORED-IDENTICAL' "$OUT/8-mutation.txt" || true)
 echo "mutation_red=$RED hold=$HOLD green=$GREEN broke=$BROKE restored_identical=$IDENT"
 if grep -q 'MUTATION-SUITE=PASS' "$OUT/8-mutation.txt" \
-   && [ "$RED" -eq 43 ] && [ "$HOLD" -eq 5 ] \
+   && [ "$RED" -eq 46 ] && [ "$HOLD" -eq 6 ] \
    && [ "$GREEN" -eq 0 ] && [ "$BROKE" -eq 0 ] && [ "$IDENT" -eq 6 ]; then
   echo "MUTATION=PASS"
 else
