@@ -1,0 +1,22 @@
+=== 1/3 fixture: the class-fallback sweep's own work ===
+fixture fallbackScanned=3 classLookups=1 transforms=6 propertyComparisons=19
+  OK   fixture fallbackScanned = 3
+  OK   fixture classLookups (entities spared a transform) = 1
+  OK   fixture transforms (was 7 before the pre-check) = 6
+  OK   fixture propertyComparisons (was 24 before the pre-check) = 19
+
+=== 2/3 fixture: the pre-check spared work without dropping or adding an instance ===
+fixture instanceCount=6 playerFallbacks=1
+  OK   fixture instanceCount (unchanged by the pre-check) = 6
+  OK   fixture playerFallbacks (unchanged by the pre-check) = 1
+
+=== 3/3 demos end to end: the sweep is cold, which is why the fixture is the witness ===
+bagel resolverFallbackScanned=0 resolverTransforms=256 instanceCount=6
+  OK   bagel sweep is cold (every player already has a request) = 0
+  OK   bagel instanceCount (unchanged) = 6
+pov resolverFallbackScanned=0 resolverTransforms=256 instanceCount=6
+  OK   pov sweep is cold (every player already has a request) = 0
+  OK   pov instanceCount (unchanged) = 6
+
+
+ENTITY-PROPERTY-LOOKUP=PASS (assertions_ok=10)

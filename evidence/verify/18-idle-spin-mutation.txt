@@ -1,14 +1,14 @@
 === 1/3 an idle window waits for the frame, not a fixed 1 ms ===
 idle sample: 12s after 2s of load
-loop_per_frame=2.00 (diagnostic)  wait_calls=787  wait_per_frame=1.00  mean_wait_ms=8.64
-ui_update_calls=0  title_update_calls=0  metrics_write_calls=12
-  OK   mean wait when the loop waited >= 4 ms (8.64)
+loop_per_frame=2.07 (diagnostic)  wait_calls=770  wait_per_frame=1.07  mean_wait_ms=8.75
+ui_update_calls=0  title_update_calls=0  metrics_write_calls=11
+  OK   mean wait when the loop waited >= 4 ms (8.75)
   OK   (ui_update_calls + title_update_calls) / main_loop_iterations = 0.0000 < 0.1
   OK   metrics_write_calls over 12s <= 18 (about one a second)
 
 === 2/3 the counters move when there is something to move for ===
-play sample: 12s after 15s of load
-played to tick=897  ui_update_calls=812  title_update_calls=812
+play sample: 12s after 18s of load
+played to tick=610  ui_update_calls=536  title_update_calls=536
   OK   playback advanced, so the run was not a frozen idle window
   OK   both updaters fired while playing, so step 1 was not passed by never updating
 
@@ -21,5 +21,5 @@ played to tick=897  ui_update_calls=812  title_update_calls=812
   OK   metrics header carries wait_ms_total
 
 === mutation: main.cpp waits at most 1 ms again ===
-mutated sample: 12s after 2s of load, mean_wait_ms=1.00 (fixed=8.64)
-MUTATION-CAUGHT=PASS (the 1 ms wait reads 1.00, under the 4 ms floor)
+mutated sample: 12s after 2s of load, mean_wait_ms=0.75 (fixed=8.75)
+MUTATION-CAUGHT=PASS (the 1 ms wait reads 0.75, under the 4 ms floor)

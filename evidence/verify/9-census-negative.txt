@@ -1,6 +1,6 @@
 
 === prepare: copy raw reports to evidence/corpus-negative ===
-  reports=24  digest=cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5
+  reports=24  digest=578445c7585ae98540eb26bb6306f10df9bc1c493bfd61bbde38dd18d56f3482
   OK   pinned list and frozen reports agree: 24 demos
   OK   every pinned demo exists and has a frozen report
 
@@ -57,7 +57,7 @@
   OK   names the counter
 
 === restore: reports must be byte-identical and PASS again ===
-  OK   digest unchanged (cd96d99803b3de0d2c4b80b4c56ed4ca2cbbc4faf7cdf850bf61300ac96cf2c5)
+  OK   digest unchanged (578445c7585ae98540eb26bb6306f10df9bc1c493bfd61bbde38dd18d56f3482)
   OK   restored PASS
 
 CENSUS-NEGATIVE=PASS

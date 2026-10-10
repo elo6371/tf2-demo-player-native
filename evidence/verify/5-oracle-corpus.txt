@@ -1,38 +1,22 @@
-demos=24 workers=2 oracle=D:\TF2_Demo_Player_Deliverable\tools\ent-oracle\target\release\ent-oracle.exe pinned=evidence/corpus-calib/demos.txt
-  ok        73.dem                                    101.5MB  43.9s  SourceTV pkts 112172/112172 ent 3030444/3030444 enter 22424/22424
-  ok        autorecord_2026-05-18_23-53-06.dem          1.6MB   1.1s  POV      pkts 2227/2227 ent 20125/20125 enter 1735/1735
-  ok        autorecord_2026-05-27_20-24-30.dem         44.2MB  39.8s  POV      pkts 101125/101125 ent 2337170/2337170 enter 98453/98453
-  ok        autorecord_2026-06-02_16-17-51.dem         13.5MB  12.9s  POV      pkts 24467/24467 ent 693969/693969 enter 52243/52243
-  ok        autorecord_2026-06-08_16-56-47.dem         56.3MB  67.4s  POV      pkts 154867/154867 ent 2505446/2505446 enter 306986/306986
-  ok        autorecord_2026-06-16_12-55-07.dem          3.2MB   2.0s  POV      pkts 7223/7223 ent 99366/99366 enter 2751/2751
-  ok        autorecord_2026-06-24_18-06-50.dem         21.0MB  22.3s  POV      pkts 40393/40393 ent 1161347/1161347 enter 51829/51829
-  ok        autorecord_2026-07-02_17-28-40.dem          5.7MB   4.0s  POV      pkts 11226/11226 ent 266759/266759 enter 8271/8271
-  ok        autorecord_2026-07-06_21-01-23.dem         61.1MB  62.9s  POV      pkts 176970/176970 ent 2631635/2631635 enter 189415/189415
-  ok        autorecord_2026-07-12_20-11-03.dem         32.4MB  23.9s  POV      pkts 75813/75813 ent 1662118/1662118 enter 78211/78211
-  ok        autorecord_2026-07-16_12-41-25.dem          5.3MB   4.6s  POV      pkts 11859/11859 ent 203514/203514 enter 12802/12802
-  ok        autorecord_2026-07-19_11-29-36.dem          5.5MB   4.3s  POV      pkts 13230/13230 ent 231984/231984 enter 11883/11883
-  ok        autorecord_2026-07-23_12-57-17.dem         70.3MB  62.0s  POV      pkts 134604/134604 ent 4214175/4214175 enter 158956/158956
-  ok        autorecord_2026-07-27_22-20-12.dem         45.9MB  36.3s  POV      pkts 107097/107097 ent 2473167/2473167 enter 163015/163015
-  ok        autorecord_2026-08-02_21-51-29.dem          1.8MB   1.2s  POV      pkts 4338/4338 ent 18178/18178 enter 1142/1142
-  ok        autorecord_2026-08-07_21-52-46.dem          7.2MB   4.5s  POV      pkts 18365/18365 ent 270785/270785 enter 14192/14192
-  ok        autorecord_2026-08-14_11-06-06.dem         15.9MB  16.3s  POV      pkts 31609/31609 ent 793726/793726 enter 36021/36021
-  ok        autorecord_2026-08-20_11-26-24.dem         17.4MB  14.0s  POV      pkts 38720/38720 ent 891491/891491 enter 38962/38962
-  ok        autorecord_2026-08-26_18-32-11.dem          1.4MB   0.9s  POV      pkts 1241/1241 ent 15273/15273 enter 717/717
-  ok        autorecord_2026-08-31_22-46-57.dem          2.1MB   1.4s  POV      pkts 3262/3262 ent 51568/51568 enter 2524/2524
-  ok        autorecord_2026-09-08_22-53-50.dem         56.4MB  69.6s  POV      pkts 110269/110269 ent 2972933/2972933 enter 168547/168547
-  ok        autorecord_2026-09-14_17-15-25.dem          2.4MB   1.6s  POV      pkts 4192/4192 ent 52907/52907 enter 4430/4430
-  ok        autorecord_2026-09-22_16-16-27.dem         38.3MB  49.4s  POV      pkts 44990/44990 ent 2354823/2354823 enter 216124/216124
-  ok        autorecord_2026-09-30_23-06-57.dem         45.7MB  42.9s  POV      pkts 131009/131009 ent 1819342/1819342 enter 157324/157324
+demos=8 workers=2 oracle=D:\TF2_Demo_Player_Deliverable\tools\ent-oracle\target\release\ent-oracle.exe pinned=evidence/corpus-calib/demos.txt
+  ok        73.dem                                    101.5MB  34.2s  SourceTV pkts 112172/112172 ent 3030444/3030444 enter 22424/22424
+  ok        autorecord_2026-06-02_16-17-51.dem         13.5MB  11.6s  POV      pkts 24467/24467 ent 693969/693969 enter 52243/52243
+  ok        autorecord_2026-06-24_18-06-50.dem         21.0MB  18.8s  POV      pkts 40393/40393 ent 1161347/1161347 enter 51829/51829
+  ok        autorecord_2026-07-12_20-11-03.dem         32.4MB  19.6s  POV      pkts 75813/75813 ent 1662118/1662118 enter 78211/78211
+  ok        autorecord_2026-07-23_12-57-17.dem         70.3MB  43.2s  POV      pkts 134604/134604 ent 4214175/4214175 enter 158956/158956
+  ok        autorecord_2026-08-07_21-52-46.dem          7.2MB   4.0s  POV      pkts 18365/18365 ent 270785/270785 enter 14192/14192
+  ok        autorecord_2026-08-26_18-32-11.dem          1.4MB   0.4s  POV      pkts 1241/1241 ent 15273/15273 enter 717/717
+  ok        autorecord_2026-09-14_17-15-25.dem          2.4MB   1.1s  POV      pkts 4192/4192 ent 52907/52907 enter 4430/4430
 
-sampled=24
-agreed=24
+sampled=8
+agreed=8
 mismatched=0
-wall_seconds=311.1
-sum_oracle_entities=30772245
-sum_cpp_entities=30772245
+wall_seconds=77.4
+sum_oracle_entities=11101018
+sum_cpp_entities=11101018
 recording_kinds=['POV', 'SourceTV']
-pov_count=23
+pov_count=7
 source_tv_count=1
-distinct_maps=18
+distinct_maps=8
 
 ORACLE-CORPUS=PASS

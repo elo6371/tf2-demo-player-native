@@ -9,4 +9,5 @@ saytext2        10846    10846     72528    72528     1739480    1739480        
 short2024         296      296       170      170         474        474        0  OK
 small             204      204       111      111         316        316        0  OK
 
+compared=9 requested=9
 ORACLE-GATE=PASS
