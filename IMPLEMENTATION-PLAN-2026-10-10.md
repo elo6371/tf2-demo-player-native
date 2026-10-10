@@ -184,7 +184,29 @@ T1 的最小完成判据是：一个真实武器或投射物实例的 `sampled f
 - 绑定姿势误差、矩阵刚性、循环首尾误差和缺序列负向测试。
 - 真实帧抓取：动作前/中/后各一帧；不得只凭“探针通过”宣称画面正确。
 
-### T2：ViewModel 第一人称绘制
+### T2：ViewModel 第一人称绘制（当前进行项，2026-10-10）
+
+工作区：`D:\TF2_Native_Worktrees\viewmodel-render`；分支：`task/viewmodel-render`；基线：
+`origin/p0-entity-protocol@8f56fc6`。只允许修改 ViewModel、第一人称投影和对应探针；不得回写共享主线，
+不得整体覆盖 T1 动画接线。
+
+执行顺序：
+
+1. **资源契约**：将现有 `viewmodel_contract_probe.cpp` 接入 CMake，用真实 `v_*.mdl`、VVD、VTX 和材质 companion
+   验证可加载数量；缺任一 companion 的 fixture 必须失败，不能把世界模型当 ViewModel。
+2. **请求缓存**：在 demo/TF root 切换时调用一次 `buildViewModelRequest`，缓存 mesh、材质、attachment 和动画绑定；
+   输出 `viewModelPath/companions/status/reason`，禁止每帧重新解析 VPK。
+3. **独立绘制接口**：在 `native_renderer` 增加 ViewModel mesh、骨骼、投影状态和 draw pass；不得直接复用世界实体的
+   `worldConstants_`、位置归一化、材质回退或深度状态。先以 flat color 证明 draw pass，再接 VMT/VTF。
+4. **第一人称变换**：实现 FOV 40--120 夹取、attachment 到相机空间变换和最终左右手镜像；绘制顺序固定为世界 pass
+   之后、HUD 之前，并输出 `drawn/depthWrite`。
+5. **动画状态**：从同一实体快照读取 sequence/cycle/playback rate；有输入时复用 T1 动画绑定和矩阵，缺输入时明确
+   `viewmodelAnimationInput=missing` 并稳定回退 bind pose，不按文件名猜动作。
+6. **专项验收**：默认 FOV、40/120 边界、左右手、attachment 各抓真实帧；缺 companion、非 `v_` 路径、越界 FOV 做
+   负向 fixture。正常门禁与 mutation 必须分别变红，`drawn=1` 必须来自实际 draw pass。
+
+T2 交付前运行 `bash verify-fast.sh`、ViewModel 专项门禁（正常与 `--mutation`）和 `bash verify-render.sh`；只有合并
+主线时运行 `bash verify-all.sh --quick`，期间禁止其他构建或 mutation。
 
 **负责人**：ViewModel AI。
 **工作区**：`D:\TF2_Native_Worktrees\viewmodel-render`。
