@@ -35,6 +35,23 @@
 8. 10 分钟 soak、损坏 demo、移动资源目录、安装启动、真实 GPU/FPS 和发布包未完成。
 9. PaintKit、Phong、bump/selfillum、完整粒子和高级水面效果未完成。
 
+### T1 交付审查（2026-10-10）
+
+`task/weapon-animation@91a0de6` 已实现实体实例的 GPU skinning 适配，使用每实例
+`StructuredBuffer<float4x4>` 和 `boneOffset/boneCount`，不是旧的单副 `b1` 常量缓冲。
+真实 `cp_snakewater_final1` 读数为 `gpuSkin=62/237`、`boneMismatch=0`、`advances=48→283`、
+`poseChanges=48→283`；`weapon-animation-check.sh` 和其 mutation、实体档、渲染档均通过。
+这证明产品路径被调用，但不能直接标记 T1 完成，原因如下：
+
+- `--model` 单模型路径仍在 `main.cpp` 使用 `uploadBoneMatrices(..., false)`；它与实体实例路径是两条不同契约，需明确改为“有效动画才 true、无输入保持 false”，并为该路径增加定向测试。
+- T1 报告的三帧中只有 2/3 像素帧不同；目标武器/道具序列多为单一原始姿态块（`sectionFrames=0`），游标推进不等于可见动作。应保留该限制，另找真实多姿态武器/投射物输入，不能降低门禁到只看游标。
+- `weapon_animation_probe --mutation bindpose` 在当前短采样窗口无法稳定变红；不可判别的 mutation 不能进入正式门禁。应增加 `--ticks`/采样窗口或改成固定的多帧 pose fixture，直到正常/变异读数分离；否则删除该 mutation，不得假装覆盖。
+- T1 还没有跑 `verify-fast.sh`，`weapon-animation-check.sh` 尚未接入 `verify-entity.sh`、`verify-render.sh` 或 `verify-all.sh`，变异计数和总链步数尚未更新。
+- 证据目录新增大量 BMP/trace（约 300k 行）；合并前应确认哪些是冻结见证帧，派生 trace 改为门禁输出目录或 `.gitignore`，避免把机器状态误当产品输入。
+
+**T1 合并门槛**：先在专项分支补齐上面五项；至少跑 `verify-fast.sh`、T1 正常/变异、对应二级门禁，
+并提交真实输入、修改文件、读数、负向结果和未验证项。未满足前只保留在专项分支，不 cherry-pick 到产品基线。
+
 ## 二、统一工作区规则
 
 ### 创建工作区
