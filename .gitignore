@@ -36,6 +36,16 @@ evidence/cmake-build.log
 # 不进 git，否则每跑一次就脏一次工作树，而 mutate.sh 那类脚本需要干净的树。
 evidence/fast/
 
+# weapon-animation-check.sh 的 trace 与 metrics CSV 是机器产物：三个 tick 约 15 万行，
+# CSV 里的 elapsed_seconds / fps / working_set_bytes 每次运行都不同。默认写进
+# evidence/fast/weapon-animation/（上面那条已经覆盖），这里再按扩展名兜一层，
+# 免得有人把 TRACE_DIR 指到提交目录里就顺手把 9 MB trace 提交上去。
+# 提交的是冻结见证帧（tick-*.bmp、model-*.bmp）、readings.txt 与 mutation-failure.txt。
+evidence/weapon-animation/*.trace
+evidence/weapon-animation/*.log
+evidence/weapon-animation/**/*.trace
+evidence/weapon-animation/**/*.log
+
 # 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
 merge-patches/
 

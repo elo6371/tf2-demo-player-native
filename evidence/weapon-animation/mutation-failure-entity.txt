@@ -1,0 +1,10 @@
+# the mutation was caught: these assertions went red with entity mutated
+no witness model at tick 2000
+no witness model at tick 4000
+no witness model at tick 6000
+uploaded pose changes by the last tick: 0 < 1
+witness frame advances by the last tick: 0 < 1
+witness pose changes by the last tick: 0 < 1
+pose change count did not grow
+a sampled sequence moves the geometry: BMP-DIFF differing=262 total=2582352 percent=0.0101 max_delta=100 extent=1264x681x24 status=FAIL reason=diff_percent=0.0101 is below 1.0000
+the sampled pose follows the tick: BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 1.0000; max_delta=0 is below 100
