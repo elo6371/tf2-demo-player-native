@@ -99,7 +99,7 @@ animprop class=CTFPistol id=243 sequence=1 cycle=1 rate=1 pose=0
 animprop class=CTFPistol_Scout id=244 sequence=1 cycle=1 rate=1 pose=0
 animprop class=CTFPistol_ScoutPrimary id=245 sequence=1 cycle=1 rate=1 pose=0
 animprop class=CTFPistol_ScoutSecondary id=246 sequence=1 cycle=1 rate=1 pose=0
-animprop-player class=CTFPlayer_MUTATED id=247 sequence=0 cycle=0 rate=0 pose=0
+animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0
 animprop class=CTFPowerupBottle id=251 sequence=1 cycle=1 rate=1 pose=0
 animprop class=CTFProjectile_Arrow id=252 sequence=1 cycle=1 rate=1 pose=0
 animprop class=CTFProjectile_BallOfFire id=253 sequence=1 cycle=1 rate=1 pose=0

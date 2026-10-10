@@ -193,11 +193,16 @@ step "1/21 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
-# exes would otherwise read as a clean build. 21 is the count after P0 added two
-# probe targets, so adding a target is an explicit edit here.
+# exes would otherwise read as a clean build. 24 is the count after the
+# entity-material round and the skeleton_skin_probe target, so adding a target is
+# an explicit edit here. (The pin read 23 while the tree built 24 between
+# 00b6033 and this line: the probe target was added without the pin moving, so
+# step 1 reported BUILD=FAIL on every chain run in that window. The warning
+# count is deliberately NOT asserted -- the one C4457 in main.cpp predates all of
+# this and only its line number moves.)
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=23$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=24$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
@@ -729,7 +734,8 @@ fi
 # first run). The rebuilt, source-level half is m13 in mutate.sh, which neuters
 # the sweep and requires the positive control to collapse to 0.
 ANIM_AVAIL_MUT="$OUT/21-animation-availability-mutation.txt"
-bash animation-availability-check.sh --mutation > "$ANIM_AVAIL_MUT" 2>&1
+ANIM_AVAILABILITY_OUT="$OUT/21-animation-availability-mutation-evidence" \
+  bash animation-availability-check.sh --mutation > "$ANIM_AVAIL_MUT" 2>&1
 if grep -q 'MUTATION-CAUGHT=PASS' "$ANIM_AVAIL_MUT"; then
   echo "ANIMATION-AVAILABILITY-MUTATION=PASS (every rewritten reading reached its extractor)"
 else

@@ -135,12 +135,22 @@ if [ "$MUTATION" -eq 1 ]; then
   # catches an extraction regex that silently returns nothing (exactly the bug
   # the ' pose=' field had on the first run: it extracted <none> and the gate
   # correctly refused rather than passing).
+  #
+  # The mutation writes to its own directory, NOT to $OUT. The first version
+  # rewrote "$OUT/bagel.txt" in place, and since $OUT defaults to the committed
+  # evidence directory, the mutated line -- 'class=CTFPlayer_MUTATED' -- was
+  # committed as if it were a reading. That is the documented 'the mutation forgot
+  # to roll back and polluted the artifact' failure, and the fix is structural:
+  # mutation output cannot land where the clean evidence lives.
+  MUTDIR="$OUT/mutation"
+  rm -rf "$MUTDIR"
+  mkdir -p "$MUTDIR"
   echo "mutation: rewriting the captured probe output so the readings must move"
-  "$PROBE" --tf-root "$TF" --demo "$BAGEL" --anim-props > "$OUT/mut.json" 2> "$OUT/mut.txt"
+  "$PROBE" --tf-root "$TF" --demo "$BAGEL" --anim-props > "$MUTDIR/bagel.json" 2> "$MUTDIR/bagel.txt"
   # (a) The class is not found -> clause 1 must fail. If tfPlayerFound is hard-coded
   # or the regex does not read it, the rewrite is invisible and the gate says so.
-  sed -i 's/ tfPlayerFound=1 / tfPlayerFound=0 /' "$OUT/mut.txt"
-  found=$(sed -n 's/.* tfPlayerFound=\([0-9]*\) .*/\1/p' "$OUT/mut.txt" | tail -1)
+  sed -i 's/ tfPlayerFound=1 / tfPlayerFound=0 /' "$MUTDIR/bagel.txt"
+  found=$(sed -n 's/.* tfPlayerFound=\([0-9]*\) .*/\1/p' "$MUTDIR/bagel.txt" | tail -1)
   if [ "${found:-1}" = "0" ]; then
     echo "  OK   rewrote tfPlayerFound to 0 and the gate's extractor saw it (clause 1 would fail)"
   else
@@ -148,8 +158,8 @@ if [ "$MUTATION" -eq 1 ]; then
   fi
   # (b) The positive control is removed -> clause 2 must fail, which is what stops
   # "the rule always says no" from reading as a pass.
-  sed -i 's/ classesWithSequence=197 / classesWithSequence=0 /' "$OUT/mut.txt"
-  ctrl=$(sed -n 's/.* classesWithSequence=\([0-9]*\) .*/\1/p' "$OUT/mut.txt" | tail -1)
+  sed -i 's/ classesWithSequence=197 / classesWithSequence=0 /' "$MUTDIR/bagel.txt"
+  ctrl=$(sed -n 's/.* classesWithSequence=\([0-9]*\) .*/\1/p' "$MUTDIR/bagel.txt" | tail -1)
   if [ "${ctrl:-1}" = "0" ]; then
     echo "  OK   rewrote classesWithSequence to 0 and the gate's extractor saw it (clause 2 would fail)"
   else
@@ -157,7 +167,7 @@ if [ "$MUTATION" -eq 1 ]; then
   fi
   # (c) The pose field extraction is the one that already failed once. It must come
   # back as a number, not as empty, when the line is well formed.
-  pline=$(grep '^animprop-player ' "$OUT/mut.txt" | tail -1)
+  pline=$(grep '^animprop-player ' "$MUTDIR/bagel.txt" | tail -1)
   posev=$(printf '%s' "$pline" | sed -n 's/.* pose=\([0-9]*\)$/\1/p')
   if [ -n "$posev" ]; then
     echo "  OK   the pose field extracts as '$posev' (the regex that failed on the first run works)"
