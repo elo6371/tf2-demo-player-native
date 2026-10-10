@@ -1072,6 +1072,84 @@ void printPrecache(const tf2::native::DemoNetworkSummary& summary, const std::st
   std::fflush(stderr);
 }
 
+// Animation-property availability, per server class. This is the reading that
+// decides whether per-entity skeletal animation is even wired end to end: the
+// player class in a TF2 demo does not network its animation state, so a renderer
+// has no sequence to advance and no cycle to evaluate. That is a property of the
+// protocol, not of this decoder -- source-sdk-2013 declares m_nSequence and
+// m_flPlaybackRate in DT_BaseAnimating, but c_baseanimating.cpp:1168 records that
+// "not all entities network down their m_nSequence (like multiplayer game player
+// entities)", and TF2 strips them for CTFPlayer. Weapon and projectile classes
+// keep theirs. A gate on this needs both halves: the absence (so nobody builds a
+// per-entity playback loop on a sequence that will never arrive) and the presence
+// (so the same rule is shown to be able to report "yes" somewhere).
+//
+// Three properties are counted per class, each by its own name so a future
+// rename cannot make the check pass by counting something else:
+//   m_nSequence      the animation to play
+//   m_flCycle        how far into it
+//   m_flPlaybackRate how fast it advances
+// A class is reported only when at least one of the three is present, so the
+// output stays short on a 400-class schema and the caller can assert on the set.
+void printAnimationProps(const tf2::native::DemoNetworkSummary& summary) {
+  std::size_t classesWithSequence = 0;
+  std::size_t classesWithCycle = 0;
+  std::size_t classesWithRate = 0;
+  std::size_t tfPlayerSequence = 0, tfPlayerCycle = 0, tfPlayerRate = 0;
+  std::size_t tfPlayerFound = 0;
+  for (std::size_t id = 0; id < summary.serverClassSchemas.size(); ++id) {
+    const auto& serverClass = summary.serverClassSchemas[id];
+    const tf2::native::SendTableSchema* table = nullptr;
+    for (const auto& candidate : summary.sendTableSchemas) {
+      if (candidate.name == serverClass.dataTable) { table = &candidate; break; }
+    }
+    if (!table) continue;
+    std::size_t sequence = 0, cycle = 0, rate = 0, pose = 0;
+    for (const auto& prop : table->flattenedProps) {
+      // Match the leaf name only: the owner-table prefix varies with the include
+      // chain (DT_BaseAnimating vs DT_AnimatingOverlay), and the question here is
+      // whether the slot exists in this class's wire format at all.
+      const std::size_t dot = prop.name.rfind('.');
+      const std::string leaf = dot == std::string::npos ? prop.name : prop.name.substr(dot + 1);
+      if (leaf == "m_nSequence") ++sequence;
+      else if (leaf == "m_flCycle") ++cycle;
+      else if (leaf == "m_flPlaybackRate") ++rate;
+      else if (leaf == "m_flPoseParameter") ++pose;
+    }
+    // The exact class name, not a substring. A first version of this used
+    // name.find("Player") and swept in CPlayerDestructionDispenser (a building)
+    // and CBasePlayer (the SDK base, whose table is not TF2's wire format),
+    // reporting "playerSequence=32" while CTFPlayer -- the class that actually
+    // decides the renderer's design -- was absent from the list entirely, because
+    // its own count is zero and the guard below skipped it. That is a false
+    // positive in the instrument, so the name is compared exactly now, and
+    // CTFPlayer is reported on its own line whether or not it has any of the
+    // three, so "absent from the list" can never again be confused with "has
+    // zero".
+    const bool isTfPlayer = serverClass.name == "CTFPlayer";
+    if (isTfPlayer) {
+      ++tfPlayerFound;
+      tfPlayerSequence += sequence;
+      tfPlayerCycle += cycle;
+      tfPlayerRate += rate;
+      std::fprintf(stderr, "animprop-player class=%s id=%zu sequence=%zu cycle=%zu rate=%zu pose=%zu\n",
+                   serverClass.name.c_str(), id, sequence, cycle, rate, pose);
+    }
+    if (sequence == 0 && cycle == 0 && rate == 0) continue;
+    if (sequence > 0) ++classesWithSequence;
+    if (cycle > 0) ++classesWithCycle;
+    if (rate > 0) ++classesWithRate;
+    std::fprintf(stderr, "animprop class=%s id=%zu sequence=%zu cycle=%zu rate=%zu pose=%zu\n",
+                 serverClass.name.c_str(), id, sequence, cycle, rate, pose);
+  }
+  std::fprintf(stderr,
+    "animprop-summary classesWithSequence=%zu classesWithCycle=%zu classesWithRate=%zu "
+    "tfPlayerFound=%zu tfPlayerSequence=%zu tfPlayerCycle=%zu tfPlayerRate=%zu\n",
+    classesWithSequence, classesWithCycle, classesWithRate,
+    tfPlayerFound, tfPlayerSequence, tfPlayerCycle, tfPlayerRate);
+  std::fflush(stderr);
+}
+
 // One line per entity that carries a world-model index, plus the totals. This is
 // the per-entity view a check can assert on, the same way --props-at is the
 // per-entity view of the decoder: the counters say every index resolved, this
@@ -1342,6 +1420,7 @@ int main(int argc, char** argv) {
   std::string precacheFilter;
   std::string modelTexturePath;
   bool weaponModelDump = false;
+  bool animationPropsDump = false;
   bool historyStats = false;
   std::size_t historyCoverageSamples = 0;
   bool renderedOrigins = false;
@@ -1354,6 +1433,7 @@ int main(int argc, char** argv) {
     else if (arg == "--dump-precache" && i + 1 < argc) precacheFilter = argv[++i];
     else if (arg == "--dump-model-textures" && i + 1 < argc) modelTexturePath = argv[++i];
     else if (arg == "--dump-weapon-models") weaponModelDump = true;
+    else if (arg == "--anim-props") animationPropsDump = true;
     else if (arg == "--history-stats") historyStats = true;
     else if (arg == "--history-coverage" && i + 1 < argc) historyCoverageSamples = std::strtoul(argv[++i], nullptr, 10);
     else if (arg == "--rendered") renderedOrigins = true;
@@ -1771,6 +1851,7 @@ int main(int argc, char** argv) {
       printPropCandidatesAt(summary, propCandidatesAt, propsAtEntity, candidateSuffix);
     }
     if (!classPropsFilter.empty()) printClassProps(summary, classPropsFilter);
+    if (animationPropsDump) printAnimationProps(summary);
     if (!precacheFilter.empty()) printPrecache(summary, precacheFilter);
     if (historyStats) {
       HistoryStats history;
