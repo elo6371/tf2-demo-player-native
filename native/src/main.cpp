@@ -128,16 +128,37 @@ constexpr int kUiTimeline = 4109;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
-// Convert 3x4 poseToBone matrix to 4x4 for GPU upload
-std::array<float, 16> poseToBoneToMatrix4x4(const std::array<float, 12>& poseToBone) {
-  // poseToBone is stored as [row0(4), row1(4), row2(4)]
-  // Convert to column-major 4x4 for HLSL
-  return {
-    poseToBone[0], poseToBone[4], poseToBone[8],  0.0f,
-    poseToBone[1], poseToBone[5], poseToBone[9],  0.0f,
-    poseToBone[2], poseToBone[6], poseToBone[10], 0.0f,
-    poseToBone[3], poseToBone[7], poseToBone[11], 1.0f
+// Reduce a `--model` argument to the form the animation cache is keyed by.
+// Two legitimate shapes, and picking the wrong one is the difference between
+// "model-missing" and a pose:
+//   * a path under the tf root, e.g. tf/download/models/buildables/x.mdl --
+//     loose custom models live there and are NOT reachable as `models/...`
+//   * a VPK path, e.g. models/weapons/w_models/w_pistol.mdl
+// So an absolute path under the root becomes root-relative first, and only a
+// path with no root prefix is reduced to its `models/` suffix. Anything that
+// matches neither is passed through unchanged, so a wrong path stays wrong and
+// surfaces as model-missing with the path it tried.
+std::string normalizedModelPath(const std::string& rawPath, const std::filesystem::path& tfRoot) {
+  std::string path = rawPath;
+  for (char& character : path) {
+    if (character == '\\') character = '/';
+  }
+  const auto lower = [](std::string value) {
+    for (char& character : value) {
+      character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    }
+    return value;
   };
+  const std::string root = lower(tfRoot.generic_string());
+  const std::string lowered = lower(path);
+  if (!root.empty() && lowered.size() > root.size() && lowered.compare(0, root.size(), root) == 0) {
+    std::size_t start = root.size();
+    while (start < path.size() && path[start] == '/') ++start;
+    if (start < path.size()) return path.substr(start);
+  }
+  const std::size_t marker = lowered.rfind("models/");
+  if (marker == std::string::npos) return path;
+  return path.substr(marker);
 }
 
 struct PlaybackState {
@@ -561,6 +582,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
+  // Standalone `--model` skinning contract. The single-model path is a separate
+  // contract from the entity-instance path: it uploads one skeleton to b1, so
+  // it can and must enable the skinning branch explicitly. Three knobs:
+  //   --model-sequence <n>  sample that sequence instead of the identity pose
+  //   --model-tick <n>      the tick the standalone model samples at
+  //   --model-skinning <0|1> 0 is the control: same matrices, branch disabled
+  // The control exists so "bind pose does not deform" is a byte comparison
+  // between two runs that differ only in the shader branch, not an assertion.
+  std::int32_t modelSequence = -1;
+  std::int64_t modelTick = 0;
+  bool modelSkinningEnabled = true;
+  bool modelArgumentRejected = false;
   LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -582,6 +615,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         commandDemo = arguments[++i];
       } else if (wcscmp(arguments[i], L"--model") == 0 && i + 1 < argumentCount) {
         commandModel = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--model-sequence") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) modelSequence = static_cast<std::int32_t>(parsed);
+        else modelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--model-sequence") == 0) {
+        modelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--model-tick") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) modelTick = static_cast<std::int64_t>(parsed);
+        else modelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--model-tick") == 0) {
+        modelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--model-skinning") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"0") == 0) modelSkinningEnabled = false;
+        else if (wcscmp(arguments[i], L"1") == 0) modelSkinningEnabled = true;
+        else modelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--model-skinning") == 0) {
+        modelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--audio-device") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const unsigned long parsed = std::wcstoul(arguments[++i], &end, 10);
@@ -614,6 +667,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   if (captureTickRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
+    return 13;
+  }
+  if (modelArgumentRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --model-sequence/--model-tick/--model-skinning; refusing to guess.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
@@ -755,6 +812,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // world props reads as "advances=N, target witness none" instead of looking
     // like a wiring failure.
     std::size_t targetAdvances = 0;
+    // How many weapon/projectile/wearable instances were skinned at all. Without
+    // this, `targetAdvances=0` and `targetPose=0` have two opposite readings --
+    // "no weapon was drawn in this window" and "weapons were drawn and did not
+    // move" -- and the plan's T1 witness question ("is the cursor live, or does
+    // the asset have no visible motion?") cannot be answered from the run. One is
+    // a demo-content boundary, the other is a wiring defect.
+    std::size_t targetClassInstances = 0;
     std::string targetWitnessModel;
     std::int32_t targetWitnessEntity = -1;
     std::int32_t targetWitnessSequence = -1;
@@ -796,6 +860,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       instancesSkinned = 0;
       instancesBindPose = 0;
       boneMatricesUploaded = 0;
+      // `targetClassInstances` is "how many weapon/projectile/wearable models are
+      // in this update's draw list", so it belongs with the per-update readings
+      // above. Left out, it accumulated across every scene update and read
+      // 8139/16588/24637 at the three witness ticks -- a number that looks like
+      // "how many weapons are drawn" and is actually a running total. It is
+      // deliberately the only field added here: `poseChanges`, `advances`,
+      // `targetPose` and `cycle` are cumulative by design (the gates read them as
+      // "ever moved", and resetting them would silently change those readings),
+      // which is exactly why the new field's kind has to be stated rather than
+      // inferred from its neighbours.
+      targetClassInstances = 0;
       bindingsResolved = 0;
       bindingsUsable = 0;
       cacheHits = 0;
@@ -1307,6 +1382,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::size_t hudTrailVertices = 0;
   std::size_t hudEffectsDue = 0;
   tf2::native::PlaybackHudState hudState;
+  // Standalone --model skinning readings, filled by reloadGpuResources() and
+  // read by the title below. The single-model path is a second skinning
+  // contract (one skeleton in b1) and it keeps its own readings rather than
+  // sharing the entity counters, so a title can never mix the two.
+  std::string modelSkinSource = "none";
+  std::string modelSkinReason;
+  int modelSkinFrame = 0;
+  int modelSkinFrameCount = 0;
+  std::size_t modelSkinBones = 0;
+  std::size_t modelSkinUploaded = 0;
   // The title is a pure function of the playback state, so the last string is
   // kept and SetWindowTextW is only called when the string actually moves.
   // Without this the title was rebuilt and pushed once per loop iteration --
@@ -1377,6 +1462,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           ? L"-" : std::wstring(animationStats.witnessModel.begin(), animationStats.witnessModel.end()))
       + L" gpuSkin=" + std::to_wstring(renderer.entitySkinnedInstanceCount()) + L"/" + std::to_wstring(renderer.entityBoneMatrixCount())
       + L" posePreflight=" + (modelPosePreflight ? L"ready" : L"unknown")
+      // The standalone --model skinning contract, reported separately from the
+      // entity counters above so the two can never be read as one number.
+      + L" modelSkin=" + std::wstring(modelSkinSource.begin(), modelSkinSource.end())
+      + L" modelSeq=" + std::to_wstring(modelSequence)
+      + L" modelFrame=" + std::to_wstring(modelSkinFrame) + L"/" + std::to_wstring(modelSkinFrameCount)
+      + L" modelBones=" + std::to_wstring(modelSkinUploaded) + L"/" + std::to_wstring(modelSkinBones)
       + L" bones=" + std::to_wstring(modelBoneCount)
       + L" attachments=" + std::to_wstring(modelAttachmentCount)
       + L" bodyParts=" + std::to_wstring(modelBodyPartCount)
@@ -1402,6 +1493,38 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool modelReady = false;
   if (!commandModel.empty()) {
     auto inspection = tf2::native::ModelLoader::inspect(commandModel);
+    // A game model lives *inside* a VPK, which the loose-file inspect cannot
+    // see. Without this fallback `--model` was only usable with loose custom
+    // content under tf/download, and every model that actually ships with the
+    // game (models/player/scout.mdl, models/weapons/...) came back with zero
+    // bones and no way to tell "not installed" from "wrong loader". The path is
+    // reduced to the VPK form first, then read through the same archive set the
+    // entity path uses.
+    if (!inspection.metadata.valid) {
+      const std::string relative = normalizedModelPath(commandModel.string(), assets.tfDirectory);
+      const tf2::native::VpkArchiveSet& archives = assets.archives();
+      std::vector<std::filesystem::path> holders;
+      archives.collectContaining(relative, holders);
+      for (const auto& archivePath : holders) {
+        const tf2::native::VpkArchive* archive = archives.find(archivePath);
+        if (archive == nullptr || !archive->contains(relative)) continue;
+        auto vpkInspection = tf2::native::ModelLoader::inspectVpk(*archive, relative);
+        if (vpkInspection.metadata.valid) { inspection = std::move(vpkInspection); break; }
+      }
+    }
+    if (!inspection.metadata.valid) {
+      // A `--model` that resolves to nothing has to say so. Otherwise the run is
+      // a silent no-op: no bone upload and no `gpu: model skin` line, and the
+      // only difference from a correct run is a line that is *absent* -- which
+      // reads identically to "this path was never asked to do anything". The
+      // loose reader and the VPK reader disagree about where a model lives, so
+      // the reason matters: "not installed" and "wrong loader" are different
+      // defects and only one of them is fixable here.
+      traceFmt("gpu: model inspect path=%s valid=0 mdl=%d mdlReason=%s vvd=%d vtx=%d",
+        commandModel.string().c_str(),
+        static_cast<int>(inspection.mdl.exists), inspection.mdl.diagnostic.c_str(),
+        static_cast<int>(inspection.vvd.exists), static_cast<int>(inspection.vtx.exists));
+    }
     modelAttachmentStatus = inspection.attachmentStatus;
     modelBodygroupStatus = inspection.bodygroupStatus;
     modelViewModelStatus = inspection.viewModelStatus;
@@ -1463,19 +1586,81 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     traceFmt("gpu: models done %zu uploaded=%zu", preparedEntityMeshes.size(),
       entityMaterialUploadedModels);
     bool uploadedBones = true;
+    modelSkinSource = "none";
+    modelSkinReason.clear();
+    modelSkinBones = 0;
+    modelSkinUploaded = 0;
     if (modelReady && !modelMetadata.bones.empty()) {
+      const std::size_t bindBoneCount = modelMetadata.bones.size();
+      modelSkinBones = bindBoneCount;
+      // The single-model path is a *different* contract from the entity path:
+      // it uploads one skeleton into b1, so it can and must turn the skinning
+      // branch on explicitly. Two inputs, two poses:
+      //   no --model-sequence -> identity skin matrices. Every vertex lands
+      //     where the bind pose put it, but the branch really runs.
+      //   --model-sequence N  -> skin[i] = animatedWorld[i] * poseToBone[i],
+      //     the same product contract the entity instances use.
+      // The previous code uploaded poseToBone here with skinning off. That is
+      // wrong in both directions: poseToBone is an *inverse* bind matrix, so
+      // enabling the branch with it would drag a static model into bone-local
+      // space, and leaving the branch off meant this path could not skin at all.
+      const auto identityMatrices = [&]() {
+        std::vector<std::array<float, 16>> identity;
+        identity.reserve(bindBoneCount);
+        for (std::size_t i = 0; i < bindBoneCount; ++i) {
+          std::array<float, 16> matrix{};
+          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;
+          identity.push_back(matrix);
+        }
+        return identity;
+      };
       std::vector<std::array<float, 16>> boneMatrices;
-      boneMatrices.reserve(modelMetadata.bones.size());
-      bool poseMatricesValid = modelMetadata.bones.size() <= 128;
-      for (const auto& bone : modelMetadata.bones) {
-        if (!bone.poseToBoneValid) { poseMatricesValid = false; break; }
-        boneMatrices.push_back(poseToBoneToMatrix4x4(bone.poseToBone));
+      if (modelSequence < 0) {
+        boneMatrices = identityMatrices();
+        modelSkinSource = "identity";
+        modelSkinReason = "no --model-sequence";
+      } else {
+        tf2::native::AnimationInputStatus skinStatus = tf2::native::AnimationInputStatus::ModelMissing;
+        std::string skinReason;
+        const auto* binding = animationBindings.resolve(
+          normalizedModelPath(commandModel.string(), assets.tfDirectory), skinStatus, skinReason);
+        tf2::native::AnimationSampleRequest request;
+        request.sequence = modelSequence;
+        request.tick = static_cast<std::int32_t>(modelTick);
+        request.tickRate = 30.0f;
+        const auto sampled = binding != nullptr
+          ? tf2::native::buildAnimationSkinMatrices(binding, request)
+          : tf2::native::AnimationSampleResult{};
+        // The matrices are indexed by the render skeleton's bone order, which is
+        // the same order the vertex bone indices use. A count that does not
+        // match the model's own bone count would silently mis-index every
+        // vertex, so it is refused rather than uploaded.
+        if (binding != nullptr && !sampled.bindPose && !sampled.skinMatrices.empty()
+            && sampled.skinMatrices.size() == bindBoneCount) {
+          boneMatrices = sampled.skinMatrices;
+          modelSkinSource = "animated";
+          modelSkinFrame = sampled.frame;
+          modelSkinFrameCount = sampled.frameCount;
+          modelSkinReason = sampled.sequenceLabel;
+        } else {
+          boneMatrices = identityMatrices();
+          modelSkinSource = "identity";
+          modelSkinReason = binding != nullptr ? sampled.reason : skinReason;
+          if (binding != nullptr && !sampled.skinMatrices.empty()
+              && sampled.skinMatrices.size() != bindBoneCount) {
+            modelSkinReason = "skin bone count does not match the model skeleton";
+          }
+        }
       }
-      // The MVP uploads normalized model vertices. poseToBone is an inverse
-      // bind matrix, not a bind skin matrix, so applying it here would move a
-      // static model into bone-local space. Keep the fallback in bind pose
-      // until AnimationPlayer supplies animatedWorld * inverse(bindWorld).
-      uploadedBones = poseMatricesValid && renderer.uploadBoneMatrices(boneMatrices, false);
+      const bool matricesUsable = boneMatrices.size() == bindBoneCount
+        && boneMatrices.size() <= tf2::native::kMaxSkinningBones;
+      uploadedBones = matricesUsable
+        && renderer.uploadBoneMatrices(boneMatrices, modelSkinningEnabled);
+      if (uploadedBones) modelSkinUploaded = boneMatrices.size();
+      traceFmt("gpu: model skin source=%s bones=%zu uploaded=%zu skinning=%d seq=%d frame=%d/%d reason=%s",
+        modelSkinSource.c_str(), modelSkinBones, modelSkinUploaded,
+        modelSkinningEnabled ? 1 : 0, modelSequence, modelSkinFrame, modelSkinFrameCount,
+        modelSkinReason.c_str());
     }
     traceCheckpoint("gpu: reload end");
     return uploadedTexture && uploadedWorld && uploadedModel && uploadedBones;
@@ -1904,6 +2089,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
                   || instance.modelPath.find("models/player/items/") != std::string::npos
                   || instance.modelPath.find("models/workshop/player/items/") != std::string::npos;
                 if (targetClass && poseChanged) ++animationStats.targetPoseChanges;
+                if (targetClass) ++animationStats.targetClassInstances;
                 if (targetClass && frameAdvanced) {
                   ++animationStats.targetAdvances;
                   const int changes = animationStats.changesByEntity[instance.entityIndex];
@@ -1958,11 +2144,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         animationStats.bindingsResolved = animationBindings.resolveCalls();
         animationStats.cacheHits = animationBindings.cacheHits();
         animationStats.archiveReads = animationBindings.archiveReads();
-        traceFmt("scene: anim skinned=%zu bindPose=%zu matrices=%zu gpuSkin=%zu/%zu boneMismatch=%zu poseChanges=%zu targetPose=%zu advances=%zu targetAdv=%zu cycle=%zu/%zu tick=%d status=%s reason=%s",
+        traceFmt("scene: anim skinned=%zu bindPose=%zu matrices=%zu gpuSkin=%zu/%zu boneMismatch=%zu poseChanges=%zu targetInstances=%zu targetPose=%zu advances=%zu targetAdv=%zu cycle=%zu/%zu tick=%d status=%s reason=%s",
           animationStats.instancesSkinned, animationStats.instancesBindPose,
           animationStats.boneMatricesUploaded, animationStats.gpuSkinnedInstances,
           animationStats.gpuBoneMatrices, animationStats.boneCountMismatches,
-          animationStats.poseChanges, animationStats.targetPoseChanges,
+          animationStats.poseChanges, animationStats.targetClassInstances,
+          animationStats.targetPoseChanges,
           animationStats.frameAdvances, animationStats.targetAdvances,
           animationStats.cycleInstances, animationStats.cycleNonZero,
           static_cast<int>(resolvedSceneTick),
