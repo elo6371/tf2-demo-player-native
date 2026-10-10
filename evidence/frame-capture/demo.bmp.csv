@@ -1,3 +1,3 @@
 elapsed_seconds,rendered_frames,fps,tick,working_set_bytes,private_bytes,main_loop_iterations,ui_update_calls,title_update_calls,metrics_write_calls,wait_calls,wait_ms_total
-17.91,0,0,16,1535004672,1895153664,2,2,2,0,1,3
-19.9399,1,0.492656,16,1540034560,1899708416,3,2,2,1,1,3
+22.0747,0,0,16,1537241088,1899618304,2,2,2,0,1,4
+24.5269,1,0.407798,16,1542397952,1904300032,3,2,2,1,1,4

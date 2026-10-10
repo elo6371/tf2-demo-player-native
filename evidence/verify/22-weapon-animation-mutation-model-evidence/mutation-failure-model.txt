@@ -1,0 +1,2 @@
+# the mutation was caught: these assertions went red with model mutated
+identity skinning does not deform the bind pose: BMP-DIFF differing=2542251 total=2582352 percent=98.4471 max_delta=182 extent=1264x681x24 status=FAIL reason=max_delta=182 exceeds 1; diff_percent=98.4471 exceeds 0.0010

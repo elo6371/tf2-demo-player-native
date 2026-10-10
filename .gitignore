@@ -46,6 +46,16 @@ evidence/weapon-animation/*.log
 evidence/weapon-animation/**/*.trace
 evidence/weapon-animation/**/*.log
 
+# verify-all.sh 第 22 步把 weapon-animation-check.sh 的输出指到 evidence/verify/ 下，
+# 但那里同样是机器产物：三个 trace 目录共 61 MB（每行带 elapsed_seconds/fps/working_set），
+# 帧是 10 张 2.5 MB 的 BMP —— 且它们与已提交的冻结见证帧 evidence/weapon-animation/*.bmp
+# **逐字节相同**（2026-10-10 用 cmp 逐张验过，10/10 IDENTICAL），再提交一份只是重复。
+# 第 22 步留在主线的是三个 verdict 日志与两份 mutation-failure 文本（原始失败信息）。
+evidence/verify/22-weapon-animation-traces/
+evidence/verify/22-weapon-animation-mutation-traces/
+evidence/verify/22-weapon-animation-mutation-model-traces/
+evidence/verify/22-weapon-animation/
+
 # 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
 merge-patches/
 

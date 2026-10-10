@@ -1,0 +1,42 @@
+=== mutation: the --model identity matrices become the inverse bind matrices ===
+MUTATION-PATCHED
+mutation build rc=0
+=== 1-3/6 skipped: the --model mutation does not touch the entity path ===
+
+=== 4/6 the standalone --model path skins without deforming the bind pose ===
+  identity: 1684.4 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
+  control : 1691.1 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
+  animated: 1684.6 gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=0 frame=0/1 reason=ref
+  wave-a  : 1707.7 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=15/100 reason=wave
+  wave-b  : 1692.2 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=50/100 reason=wave
+  OK   the --model path uploads identity matrices with skinning on = identity
+  OK   the --model path enables the skinning branch = 1
+  OK   the --model path uploads every bone = 78
+  OK   a supplied sequence produces an animated pose = animated
+  OK   the animated run uploads every bone = 78
+  BMP-DIFF differing=2542251 total=2582352 percent=98.4471 max_delta=182 extent=1264x681x24 status=FAIL reason=max_delta=182 exceeds 1; diff_percent=98.4471 exceeds 0.0010
+  FAIL identity skinning does not deform the bind pose (rc=1)
+  BMP-DIFF differing=2542845 total=2582352 percent=98.4701 max_delta=182 extent=1264x681x24 status=PASS
+  OK   a sampled sequence moves the geometry
+  OK   the witness sequence has 100 frames = 100
+  OK   the two ticks sample different frames = 15/100 (!= 50/100)
+  BMP-DIFF differing=1193579 total=2582352 percent=46.2206 max_delta=153 extent=1264x681x24 status=PASS
+  OK   the sampled pose follows the tick
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   the frame index wraps at the frame count
+
+=== 5/6 the probe's bind-pose mutation is discriminated ===
+  normal : {"status":"ok","demo":"D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem","selfTests":3,"selfTestsTotal":3,"sequenceOutOfRange":true,"snapshots":6,"tickCount":6,"tickFirst":74481,"tickLast":74671,"entitiesScanned":6,"sequenceReads":6,"sequencesOutOfRange":0,"distinctModels":1,"modelsWithAnimations":1,"modelsWithoutAnimations":0,"modelLoadFailures":0,"sampledFrames":6,"entitiesCompared":1,"frameAdvanced":0,"staticEntities":1,"changedEntities":0,"boneMatricesBuilt":96,"validBindBones":96,"skinOrderChecks":6,"bindPoseWorst":0,"rigidityWorst":2.98023e-07,"motionDelta":1.24223,"motionRotationDelta":0.0224676,"motionWorst":1.24223,"motionEntity":"136@models/props_ui/bannerflag_comp_l.mdl","skinLands":1.52588e-05,"skinReversed":82.9222,"skinSequence":"wave","sampleStart":74481,"sampleStep":0,"sampleCount":6,"models":"props_ui/bannerflag_comp_l","failures":0}
+  mutated: {"status":"ok","mutation":"bindpose","mutationMoved":true,"entitiesCompared":1,"skinOrderChecks":6,"skinLands":7.62939e-06,"skinReversed":2.28882e-05,"motionDelta":0,"motionRotationDelta":0,"motionWorst":0,"bindPoseWorst":1.51098e-05,"rigidityWorst":2.38419e-07}
+  OK   the normal run reads a pose change = 1.24223 (> 0)
+  OK   the normal run compared at least one entity = 1 (>= 1)
+  OK   the mutated run reports the mutation as moved = true
+  OK   the mutated run compared at least one entity = 1 (>= 1)
+  OK   the mutated run reads no pose change = 0
+  OK   the moving witness is "136@models/props_ui/bannerflag_comp_l.mdl"
+
+=== 6/6 the probe's matrix-order mutation is caught ===
+probe skinLands under --mutation order = 35.9878
+  OK   the order mutation moves skinLands off zero = 35.9878 (> 1.0)
+restore build rc=0
+MUTATION-CAUGHT=PASS (model mutation turns this step red)

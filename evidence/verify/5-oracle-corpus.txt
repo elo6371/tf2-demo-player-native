@@ -1,17 +1,17 @@
 demos=8 workers=2 oracle=D:\TF2_Demo_Player_Deliverable\tools\ent-oracle\target\release\ent-oracle.exe pinned=evidence/corpus-calib/demos.txt
-  ok        73.dem                                    101.5MB  34.2s  SourceTV pkts 112172/112172 ent 3030444/3030444 enter 22424/22424
-  ok        autorecord_2026-06-02_16-17-51.dem         13.5MB  11.6s  POV      pkts 24467/24467 ent 693969/693969 enter 52243/52243
-  ok        autorecord_2026-06-24_18-06-50.dem         21.0MB  18.8s  POV      pkts 40393/40393 ent 1161347/1161347 enter 51829/51829
-  ok        autorecord_2026-07-12_20-11-03.dem         32.4MB  19.6s  POV      pkts 75813/75813 ent 1662118/1662118 enter 78211/78211
-  ok        autorecord_2026-07-23_12-57-17.dem         70.3MB  43.2s  POV      pkts 134604/134604 ent 4214175/4214175 enter 158956/158956
+  ok        73.dem                                    101.5MB  33.5s  SourceTV pkts 112172/112172 ent 3030444/3030444 enter 22424/22424
+  ok        autorecord_2026-06-02_16-17-51.dem         13.5MB  11.4s  POV      pkts 24467/24467 ent 693969/693969 enter 52243/52243
+  ok        autorecord_2026-06-24_18-06-50.dem         21.0MB  18.2s  POV      pkts 40393/40393 ent 1161347/1161347 enter 51829/51829
+  ok        autorecord_2026-07-12_20-11-03.dem         32.4MB  19.4s  POV      pkts 75813/75813 ent 1662118/1662118 enter 78211/78211
+  ok        autorecord_2026-07-23_12-57-17.dem         70.3MB  42.4s  POV      pkts 134604/134604 ent 4214175/4214175 enter 158956/158956
   ok        autorecord_2026-08-07_21-52-46.dem          7.2MB   4.0s  POV      pkts 18365/18365 ent 270785/270785 enter 14192/14192
   ok        autorecord_2026-08-26_18-32-11.dem          1.4MB   0.4s  POV      pkts 1241/1241 ent 15273/15273 enter 717/717
-  ok        autorecord_2026-09-14_17-15-25.dem          2.4MB   1.1s  POV      pkts 4192/4192 ent 52907/52907 enter 4430/4430
+  ok        autorecord_2026-09-14_17-15-25.dem          2.4MB   1.0s  POV      pkts 4192/4192 ent 52907/52907 enter 4430/4430
 
 sampled=8
 agreed=8
 mismatched=0
-wall_seconds=77.4
+wall_seconds=76.0
 sum_oracle_entities=11101018
 sum_cpp_entities=11101018
 recording_kinds=['POV', 'SourceTV']

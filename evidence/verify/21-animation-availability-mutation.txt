@@ -1,4 +1,5 @@
 === 1/3 the player class carries no animation state (three recordings) ===
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["/d/TF2_Native_Test/evidence/verify/21-animation-availability-mutation-evidence/mutation"],"targetCount":1}
 mutation: rewriting the captured probe output so the readings must move
   OK   rewrote tfPlayerFound to 0 and the gate's extractor saw it (clause 1 would fail)
   OK   rewrote classesWithSequence to 0 and the gate's extractor saw it (clause 2 would fail)
