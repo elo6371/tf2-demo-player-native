@@ -71,6 +71,14 @@ struct EntityModelDrawInstance {
   float angles[3] = {};
   bool hasAngles = false;
   float color[4] = {0.72f, 0.72f, 0.76f, 1.0f};
+  // Skinning for this instance. `skinningEnabled` is set only when the caller
+  // has a complete, in-range pose for this entity; when it is false the instance
+  // is drawn through the bind-pose path exactly as before. `boneOffset` indexes
+  // the buffer handed to setEntityBoneMatrices, and `boneCount` bounds the
+  // per-vertex bone indices the shader is allowed to accept.
+  bool skinningEnabled = false;
+  std::uint32_t boneOffset = 0;
+  std::uint32_t boneCount = 0;
 };
 
 struct WorldMaterialParams {
@@ -118,6 +126,12 @@ public:
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
   bool uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
+  // The bone matrices every skinned instance indexes into, concatenated. Uploaded
+  // once per scene update rather than per draw: a demo can carry 96 instances and
+  // a per-draw structured-buffer recreate would dominate the frame.
+  void setEntityBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices);
+  std::size_t entitySkinnedInstanceCount() const { return entityModelSkinnedInstanceCount_; }
+  std::size_t entityBoneMatrixCount() const { return entityBoneMatrixCount_; }
   std::size_t entityModelMeshCount() const { return entityModelMeshes_.size(); }
   std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
   std::size_t entityModelVertexCount() const { return entityModelVertexCount_; }
@@ -150,6 +164,12 @@ public:
   void setSettings(const RenderSettings& settings) { settings_ = settings; settings_.normalize(); }
   const RenderSettings& settings() const { return settings_; }
   HRESULT lastError() const { return lastError_; }
+  // Which step of initialize() refused, as a stable name. Every failure path in
+  // there returned the same E_FAIL, so "the renderer did not start" carried no
+  // information at all -- and a shader is compiled at run time, which makes a
+  // silent startup failure the normal shape of a bad shader edit. The stage is
+  // reported next to the HRESULT so the two together name the fault.
+  const char* initStage() const { return initStage_; }
 
   // Diagnostic capture. The back buffer is read back inside draw(), *before*
   // Present(), so the file holds the frame this call actually composed -- not
@@ -229,8 +249,14 @@ private:
   std::vector<EntityModelDrawRange> entityModelDrawRanges_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> entityModelInstanceBuffer_;
   std::size_t entityModelInstanceCapacity_ = 0;
+  // Per-instance skin matrices, bound to the entity shader at t4.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> entityBoneBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> entityBoneView_;
+  std::size_t entityBoneCapacity_ = 0;
+  std::size_t entityBoneMatrixCount_ = 0;
   UINT entityModelVertexCount_ = 0;
   std::size_t entityModelInstanceCount_ = 0;
+  std::size_t entityModelSkinnedInstanceCount_ = 0;
   std::size_t entityModelTexturedRangeCount_ = 0;
   std::size_t entityModelTexturedInstanceCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
@@ -270,6 +296,7 @@ private:
   WorldLightmapStatus worldLightmapStatus_ = WorldLightmapStatus::Unavailable;
   float worldLightmapIntensity_ = 1.0f;
   HRESULT lastError_ = S_OK;
+  const char* initStage_ = "none";
   std::wstring capturePath_;
   bool captureSucceeded_ = false;
   std::wstring captureError_;

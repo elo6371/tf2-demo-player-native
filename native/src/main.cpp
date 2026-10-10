@@ -11,6 +11,7 @@
 #include "playback_hud.h"
 #include "model_loader.h"
 #include "entity_model.h"
+#include "animation_binding.h"
 #include "item_schema.h"
 #include "native_ui.h"
 
@@ -67,7 +68,11 @@ void traceCheckpoint(const char* what) {
 
 void traceFmt(const char* format, ...) {
   if (!g_traceFile) return;
-  char buffer[192];
+  // 192 was enough while every line was a handful of counters. A witness line
+  // names a model path, and TF2 model paths run past 60 characters, so the
+  // reading was being silently truncated mid-field -- the worst shape for a
+  // diagnostic: it looks like it answered.
+  char buffer[512];
   va_list args;
   va_start(args, format);
   std::vsnprintf(buffer, sizeof(buffer), format, args);
@@ -698,6 +703,112 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   tf2::native::ModelRenderRequestStats modelRequestStats;
   std::vector<tf2::native::ModelRenderRequest> modelRenderRequests;
+  // Per-modelPath animation cache. It is filled lazily on the first scene update
+  // that references a model, so a demo that never spawns a weapon never pays for
+  // decoding one, and no model is decoded twice.
+  tf2::native::AnimationBindingCache animationBindings;
+  animationBindings.reset(&assets);
+  // What the last scene update actually animated, for the title and the gates.
+  // These are the readings that make "the product is animating" checkable from
+  // outside the process instead of only from a probe.
+  struct AnimationSceneStats {
+    std::size_t instancesWithAnimationInput = 0;
+    std::size_t instancesSkinned = 0;
+    std::size_t instancesBindPose = 0;
+    std::size_t boneMatricesUploaded = 0;
+    std::size_t bindingsResolved = 0;
+    std::size_t bindingsUsable = 0;
+    std::size_t cacheHits = 0;
+    std::size_t archiveReads = 0;
+    std::int32_t lastSequence = -1;
+    int lastFrame = 0;
+    int lastFrameCount = 0;
+    std::string lastStatus = "none";
+    std::string lastModel;
+    std::string lastReason;
+    // The T1 claim is not "matrices were uploaded" -- a bind pose uploads
+    // matrices too. It is "the sampled frame of a real weapon/projectile entity
+    // moves as the demo advances". That needs a named witness and a count of how
+    // many times its frame actually changed, because a single scene update can
+    // only ever show one frame.
+    std::string witnessModel;
+    std::int32_t witnessEntity = -1;
+    std::int32_t witnessSequence = -1;
+    int witnessFrame = 0;
+    int witnessFrameCount = 0;
+    std::size_t witnessObservations = 0;
+    std::size_t witnessChanges = 0;
+    std::size_t frameAdvances = 0;
+    // Separates "the demo carries no cycle for these entities" from "it carries
+    // one and it never moves". Without both, advances=0 is ambiguous between a
+    // wiring gap and a static scene, and the two need different work.
+    std::size_t cycleInstances = 0;
+    std::size_t cycleNonZero = 0;
+    std::size_t cycleChanges = 0;
+    std::unordered_map<std::int32_t, int> lastFrameByEntity;
+    std::unordered_map<std::int32_t, int> changesByEntity;
+    std::unordered_map<std::int32_t, float> lastCycleByEntity;
+    // The T1 target class is weapons, projectiles and wearables -- player
+    // animation is a separate problem because these demos carry no sequence for
+    // CTFPlayer. The witness is therefore restricted to that class, while
+    // `frameAdvances` still counts every entity so a demo that only animates
+    // world props reads as "advances=N, target witness none" instead of looking
+    // like a wiring failure.
+    std::size_t targetAdvances = 0;
+    std::string targetWitnessModel;
+    std::int32_t targetWitnessEntity = -1;
+    std::int32_t targetWitnessSequence = -1;
+    int targetWitnessFrame = 0;
+    int targetWitnessFrameCount = 0;
+    std::size_t targetWitnessChanges = 0;
+    std::size_t targetWitnessObservations = 0;
+    // Did the witness's own uploaded pose actually move, and if not, why not:
+    // localFrame/sectionFrames come from the decoder and say whether the
+    // animation carries one frame block for its whole span.
+    int targetWitnessLocalFrame = 0;
+    int targetWitnessSectionFrames = 0;
+    std::size_t targetWitnessPoseChanges = 0;
+    std::size_t targetPoseChanges = 0;
+    std::size_t poseChanges = 0;
+    std::size_t witnessPoseChanges = 0;
+    int witnessLocalFrame = 0;
+    int witnessSectionFrames = 0;
+    std::unordered_map<std::int32_t, std::uint64_t> poseHashByEntity;
+    std::unordered_map<std::int32_t, int> poseChangesByEntity;
+    // "The uploaded bone count equals the valid bone count" as a reading rather
+    // than as an assumption: every skinned instance must have produced exactly
+    // as many matrices as it declared valid bind bones.
+    std::size_t boneCountMismatches = 0;
+    std::size_t gpuSkinnedInstances = 0;
+    std::size_t gpuBoneMatrices = 0;
+    // Playback position of the last scene update. A tick that goes backwards
+    // means the demo was restarted or rewound, and the per-entity frame/cycle
+    // history describes a different run from then on.
+    std::int32_t lastObservedTick = 0;
+    bool hasObservedTick = false;
+    // Per-update readings are cleared before each scene update; the cumulative
+    // ones above are not. Assigning a fresh AnimationSceneStats{} every update
+    // (which is what this used to do) wiped the per-entity history along with
+    // them, so no update could ever compare a frame against the previous one and
+    // advances stayed at zero no matter how long the demo ran.
+    void resetPerUpdate() {
+      instancesWithAnimationInput = 0;
+      instancesSkinned = 0;
+      instancesBindPose = 0;
+      boneMatricesUploaded = 0;
+      bindingsResolved = 0;
+      bindingsUsable = 0;
+      cacheHits = 0;
+      archiveReads = 0;
+      lastSequence = -1;
+      lastFrame = 0;
+      lastFrameCount = 0;
+      lastStatus = "none";
+      lastModel.clear();
+      lastReason.clear();
+    }
+  };
+  AnimationSceneStats animationStats;
   struct PreparedEntityMesh {
     std::string path;
     std::string cacheKey;
@@ -1250,6 +1361,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" entityMaterials=" + std::to_wstring(renderer.entityModelTexturedInstanceCount()) + L"/" + std::to_wstring(renderer.entityModelInstanceCount())
       + L" entityMaterialRanges=" + std::to_wstring(renderer.entityModelTexturedRangeCount()) + L"/" + std::to_wstring(renderer.entityModelDrawRangeCount())
       + L" entityMaterialModels=" + std::to_wstring(entityMaterialUploadedModels) + L"/" + std::to_wstring(preparedEntityMeshes.size())
+      // Animation, stated as the readings a gate can assert from outside the
+      // process: how many instances actually got a pose, how many bones went to
+      // the GPU, and -- when none did -- which model and which reason.
+      + L" animSkinned=" + std::to_wstring(animationStats.instancesSkinned)
+      + L"/" + std::to_wstring(animationStats.instancesSkinned + animationStats.instancesBindPose)
+      + L" animBones=" + std::to_wstring(animationStats.boneMatricesUploaded)
+      + L" animSeq=" + std::to_wstring(animationStats.lastSequence)
+      + L" animFrame=" + std::to_wstring(animationStats.lastFrame) + L"/" + std::to_wstring(animationStats.lastFrameCount)
+      + L" animSource=" + std::wstring(animationStats.lastStatus.begin(), animationStats.lastStatus.end())
+      + L" animBindings=" + std::to_wstring(animationStats.bindingsUsable) + L"/" + std::to_wstring(animationStats.bindingsResolved)
+      + L" animCache=" + std::to_wstring(animationStats.cacheHits)
+      + L" animAdv=" + std::to_wstring(animationStats.frameAdvances)
+      + L" animWitness=" + std::wstring(animationStats.witnessModel.empty()
+          ? L"-" : std::wstring(animationStats.witnessModel.begin(), animationStats.witnessModel.end()))
+      + L" gpuSkin=" + std::to_wstring(renderer.entitySkinnedInstanceCount()) + L"/" + std::to_wstring(renderer.entityBoneMatrixCount())
       + L" posePreflight=" + (modelPosePreflight ? L"ready" : L"unknown")
       + L" bones=" + std::to_wstring(modelBoneCount)
       + L" attachments=" + std::to_wstring(modelAttachmentCount)
@@ -1264,6 +1390,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   };
   refreshWindowTitle();
   if (!renderer.initialize(window)) {
+    // The HRESULT is the only thing that distinguishes "no D3D device" from "a
+    // shader failed to compile at run time", and both exit the same way.
+    traceFmt("gpu: initialize failed stage=%s hr=0x%08lX",
+      renderer.initStage(), static_cast<unsigned long>(renderer.lastError()));
     DestroyWindow(window);
     return 12;
   }
@@ -1577,8 +1707,56 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         traceFmt("scene: buildInstances=%zu", modelInstances.size());
         std::vector<tf2::native::EntityModelDrawInstance> draws;
         std::vector<tf2::native::EntityMarker> fallbackMarkers;
+        // Every skinned instance's matrices, concatenated. One upload per scene
+        // update; the instances index into it by boneOffset.
+        std::vector<std::array<float, 16>> entityBoneMatrices;
         draws.reserve(96);
         fallbackMarkers.reserve(32);
+        entityBoneMatrices.reserve(1024);
+        if (animationStats.hasObservedTick && sceneTick < animationStats.lastObservedTick) {
+          animationStats = AnimationSceneStats{};
+        }
+        animationStats.hasObservedTick = true;
+        animationStats.lastObservedTick = sceneTick;
+        animationStats.resetPerUpdate();
+        // The properties that drive playback, read through the same resolver
+        // suffix rule the transform path uses. A property the entity does not
+        // carry is reported as missing rather than defaulted to sequence 0 --
+        // "no sequence" and "sequence 0" are different states and only one of
+        // them means the model should move.
+        const auto readPlaybackState = [&](std::uint16_t entityIndex,
+            tf2::native::AnimationSampleRequest& request, std::string& missingReason) {
+          request.sequence = -1;
+          request.hasCycle = false;
+          request.hasPlaybackRate = false;
+          if (entityIndex >= currentEntityStates.size()) { missingReason = "no entity state"; return; }
+          const auto& state = currentEntityStates[entityIndex];
+          for (const auto& entry : state.properties) {
+            const auto& name = entry.first;
+            const auto matches = [&](const char* suffix) {
+              const std::size_t length = std::strlen(suffix);
+              if (name.size() < length) return false;
+              if (name.compare(name.size() - length, length, suffix) != 0) return false;
+              return name.size() == length || name[name.size() - length - 1] == '.';
+            };
+            if (matches("m_nSequence")) {
+              const auto& value = entry.second;
+              request.sequence = value.type == tf2::native::SendPropType::Float
+                ? static_cast<std::int32_t>(value.x) : static_cast<std::int32_t>(value.intValue);
+            } else if (matches("m_flCycle")) {
+              const auto& value = entry.second;
+              request.cycle = value.type == tf2::native::SendPropType::Float
+                ? value.x : static_cast<float>(value.intValue);
+              request.hasCycle = true;
+            } else if (matches("m_flPlaybackRate")) {
+              const auto& value = entry.second;
+              request.playbackRate = value.type == tf2::native::SendPropType::Float
+                ? value.x : static_cast<float>(value.intValue);
+              request.hasPlaybackRate = true;
+            }
+          }
+          if (request.sequence < 0) missingReason = "m_nSequence is absent";
+        };
         bool focused = false;
         const auto tryFocusOrigin = [&](float x, float y, float z) {
           if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
@@ -1623,6 +1801,140 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             } else {
               draw.color[0] = 0.72f; draw.color[1] = 0.74f; draw.color[2] = 0.70f; draw.color[3] = 1.0f;
             }
+            // Animation, when this entity has a sequence and the model has a
+            // table to look it up in. Anything short of a complete pose leaves
+            // the instance in the bind-pose path and records why.
+            tf2::native::AnimationInputStatus animStatus = tf2::native::AnimationInputStatus::ModelMissing;
+            std::string animReason;
+            const auto* binding = animationBindings.resolve(instance.modelPath, animStatus, animReason);
+            ++animationStats.bindingsResolved;
+            if (binding != nullptr) ++animationStats.bindingsUsable;
+            tf2::native::AnimationSampleRequest request;
+            request.tick = resolvedSceneTick;
+            // The demo's own tick rate, not a constant: it is what turns a tick
+            // into an animation cursor, and it varies with the recording.
+            request.tickRate = static_cast<float>(g_playback.tickRate);
+            std::string missingReason;
+            readPlaybackState(instance.entityIndex, request, missingReason);
+            if (request.hasCycle) {
+              ++animationStats.cycleInstances;
+              if (request.cycle != 0.0f) ++animationStats.cycleNonZero;
+              const auto previousCycle = animationStats.lastCycleByEntity.find(instance.entityIndex);
+              if (previousCycle != animationStats.lastCycleByEntity.end()
+                  && previousCycle->second != request.cycle) {
+                ++animationStats.cycleChanges;
+              }
+              animationStats.lastCycleByEntity[instance.entityIndex] = request.cycle;
+            }
+            if (binding != nullptr) {
+              const auto sampled = tf2::native::buildAnimationSkinMatrices(binding, request);
+              if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
+                draw.skinningEnabled = true;
+                draw.boneOffset = static_cast<std::uint32_t>(entityBoneMatrices.size());
+                draw.boneCount = static_cast<std::uint32_t>(sampled.skinMatrices.size());
+                if (sampled.skinBones != sampled.validBones
+                    || sampled.skinBones != sampled.skinMatrices.size()) {
+                  ++animationStats.boneCountMismatches;
+                }
+                entityBoneMatrices.insert(entityBoneMatrices.end(),
+                  sampled.skinMatrices.begin(), sampled.skinMatrices.end());
+                ++animationStats.instancesSkinned;
+                animationStats.lastSequence = request.sequence;
+                animationStats.lastFrame = sampled.frame;
+                animationStats.lastFrameCount = sampled.frameCount;
+                animationStats.lastStatus = tf2::native::animationInputStatusName(sampled.status);
+                animationStats.lastModel = instance.modelPath;
+                animationStats.lastReason = sampled.sequenceLabel;
+                // Two readings that fail independently, kept apart on purpose:
+                //   * the frame cursor advancing per tick (advances / target)
+                //   * the uploaded pose actually changing (poseChanges / witness)
+                // A sequence can advance its cursor through a block whose bone
+                // data is one raw pose -- TF2 props do exactly that -- in which
+                // case the first is true and the second is false. That is a
+                // property of the asset, not of the wiring, and collapsing the
+                // two into one number would report a static asset as a wiring
+                // failure.
+                const auto previous = animationStats.lastFrameByEntity.find(instance.entityIndex);
+                const bool frameAdvanced = previous != animationStats.lastFrameByEntity.end()
+                  && previous->second != sampled.frame;
+                if (frameAdvanced) {
+                  ++animationStats.frameAdvances;
+                  ++animationStats.changesByEntity[instance.entityIndex];
+                }
+
+                std::uint64_t poseHash = 1469598103934665603ull;
+                for (const auto& matrix : sampled.skinMatrices) {
+                  for (const float value : matrix) {
+                    std::uint32_t bits = 0;
+                    std::memcpy(&bits, &value, sizeof(bits));
+                    poseHash = (poseHash ^ bits) * 1099511628211ull;
+                  }
+                }
+                const auto previousPose = animationStats.poseHashByEntity.find(instance.entityIndex);
+                const bool poseChanged = previousPose != animationStats.poseHashByEntity.end()
+                  && previousPose->second != poseHash;
+                animationStats.poseHashByEntity[instance.entityIndex] = poseHash;
+                if (poseChanged) {
+                  ++animationStats.poseChanges;
+                  // The witness is the entity whose uploaded pose has been
+                  // caught changing most often: the one the picture visibly
+                  // moves for.
+                  const int changes = ++animationStats.poseChangesByEntity[instance.entityIndex];
+                  if (changes > static_cast<int>(animationStats.witnessChanges)) {
+                    animationStats.witnessChanges = static_cast<std::size_t>(changes);
+                    animationStats.witnessEntity = instance.entityIndex;
+                    animationStats.witnessModel = instance.modelPath;
+                    animationStats.witnessSequence = request.sequence;
+                    animationStats.witnessFrameCount = sampled.frameCount;
+                    animationStats.witnessPoseChanges = static_cast<std::size_t>(changes);
+                  }
+                }
+                if (instance.entityIndex == animationStats.witnessEntity) {
+                  animationStats.witnessFrame = sampled.frame;
+                  animationStats.witnessLocalFrame = sampled.localFrame;
+                  animationStats.witnessSectionFrames = sampled.sectionFrames;
+                  ++animationStats.witnessObservations;
+                }
+                // The plan's target class: weapons, projectiles, wearables. The
+                // paths are the ones the demo and the item schema actually use;
+                // a model that matches none of them still counts in frameAdvances
+                // and poseChanges, it just is not allowed to be the witness.
+                const bool targetClass = instance.modelPath.find("models/weapons/") != std::string::npos
+                  || instance.modelPath.find("models/workshop/weapons/") != std::string::npos
+                  || instance.modelPath.find("models/player/items/") != std::string::npos
+                  || instance.modelPath.find("models/workshop/player/items/") != std::string::npos;
+                if (targetClass && poseChanged) ++animationStats.targetPoseChanges;
+                if (targetClass && frameAdvanced) {
+                  ++animationStats.targetAdvances;
+                  const int changes = animationStats.changesByEntity[instance.entityIndex];
+                  if (changes > static_cast<int>(animationStats.targetWitnessChanges)) {
+                    animationStats.targetWitnessChanges = static_cast<std::size_t>(changes);
+                    animationStats.targetWitnessEntity = instance.entityIndex;
+                    animationStats.targetWitnessModel = instance.modelPath;
+                    animationStats.targetWitnessSequence = request.sequence;
+                    animationStats.targetWitnessFrameCount = sampled.frameCount;
+                  }
+                }
+                if (targetClass && instance.entityIndex == animationStats.targetWitnessEntity) {
+                  animationStats.targetWitnessFrame = sampled.frame;
+                  animationStats.targetWitnessLocalFrame = sampled.localFrame;
+                  animationStats.targetWitnessSectionFrames = sampled.sectionFrames;
+                  ++animationStats.targetWitnessObservations;
+                }
+                animationStats.lastFrameByEntity[instance.entityIndex] = sampled.frame;
+              } else {
+                ++animationStats.instancesBindPose;
+                animationStats.lastStatus = tf2::native::animationInputStatusName(sampled.status);
+                animationStats.lastReason = sampled.reason;
+                animationStats.lastModel = instance.modelPath;
+              }
+            } else {
+              ++animationStats.instancesBindPose;
+              animationStats.lastStatus = tf2::native::animationInputStatusName(animStatus);
+              animationStats.lastReason = animReason;
+              animationStats.lastModel = instance.modelPath;
+            }
+            if (request.sequence >= 0) ++animationStats.instancesWithAnimationInput;
             draws.push_back(draw);
           } else if (fallbackMarkers.size() < 32) {
             tf2::native::EntityMarker marker;
@@ -1634,10 +1946,46 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           }
         }
         traceFmt("scene: setInstances draws=%zu markers=%zu", draws.size(), fallbackMarkers.size());
+        renderer.setEntityBoneMatrices(entityBoneMatrices);
         renderer.setEntityModelInstances(draws);
         renderer.setEntityMarkers(fallbackMarkers);
+        animationStats.boneMatricesUploaded = entityBoneMatrices.size();
+        // What the renderer actually accepted, not what the caller offered: an
+        // instance whose bone range ran past the uploaded buffer is drawn
+        // unskinned, and only the renderer knows that.
+        animationStats.gpuSkinnedInstances = renderer.entitySkinnedInstanceCount();
+        animationStats.gpuBoneMatrices = renderer.entityBoneMatrixCount();
+        animationStats.bindingsResolved = animationBindings.resolveCalls();
+        animationStats.cacheHits = animationBindings.cacheHits();
+        animationStats.archiveReads = animationBindings.archiveReads();
+        traceFmt("scene: anim skinned=%zu bindPose=%zu matrices=%zu gpuSkin=%zu/%zu boneMismatch=%zu poseChanges=%zu targetPose=%zu advances=%zu targetAdv=%zu cycle=%zu/%zu tick=%d status=%s reason=%s",
+          animationStats.instancesSkinned, animationStats.instancesBindPose,
+          animationStats.boneMatricesUploaded, animationStats.gpuSkinnedInstances,
+          animationStats.gpuBoneMatrices, animationStats.boneCountMismatches,
+          animationStats.poseChanges, animationStats.targetPoseChanges,
+          animationStats.frameAdvances, animationStats.targetAdvances,
+          animationStats.cycleInstances, animationStats.cycleNonZero,
+          static_cast<int>(resolvedSceneTick),
+          animationStats.lastStatus.c_str(), animationStats.lastReason.c_str());
+        // The witnesses on their own line. `any` is the entity whose uploaded
+        // pose changed most often -- the picture that visibly moves. `target`
+        // is the best weapon/projectile/wearable by frame cursor, with the
+        // decoder's localFrame/sectionFrames so "the cursor moved but the pose
+        // did not" names its own cause instead of looking like a wiring gap.
+        traceFmt("scene: animwitness any=%s ent=%d seq=%d frame=%d/%d lf=%d/%d poseChanges=%zu seen=%zu target=%s ent=%d seq=%d frame=%d/%d lf=%d/%d seen=%zu",
+          animationStats.witnessModel.empty() ? "-" : animationStats.witnessModel.c_str(),
+          static_cast<int>(animationStats.witnessEntity), static_cast<int>(animationStats.witnessSequence),
+          animationStats.witnessFrame, animationStats.witnessFrameCount,
+          animationStats.witnessLocalFrame, animationStats.witnessSectionFrames,
+          animationStats.witnessPoseChanges, animationStats.witnessObservations,
+          animationStats.targetWitnessModel.empty() ? "-" : animationStats.targetWitnessModel.c_str(),
+          static_cast<int>(animationStats.targetWitnessEntity), static_cast<int>(animationStats.targetWitnessSequence),
+          animationStats.targetWitnessFrame, animationStats.targetWitnessFrameCount,
+          animationStats.targetWitnessLocalFrame, animationStats.targetWitnessSectionFrames,
+          animationStats.targetWitnessObservations);
         traceCheckpoint("scene: instances set");
       } else {
+        renderer.setEntityBoneMatrices({});
         renderer.setEntityModelInstances({});
         renderer.setEntityMarkers({});
       }

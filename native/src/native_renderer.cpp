@@ -19,17 +19,38 @@ namespace tf2::native {
 
 namespace {
 struct WorldVertex { float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz; float lu = -1.0f; float lv = -1.0f; };
-struct EntityModelGpuVertex { float x, y, z; float nx, ny, nz; float u, v; };
+struct EntityModelGpuVertex {
+  float x, y, z;
+  float nx, ny, nz;
+  float u, v;
+  // Skinning inputs. They were dropped on the floor before this round: the
+  // loader had decoded them (ModelDrawVertex carries weights/boneIndices) and
+  // the GPU copy simply did not carry them, so the entity shader could not have
+  // skinned anything even if it had been asked to.
+  float weight0, weight1, weight2;
+  std::uint8_t bone0, bone1, bone2, boneCount;
+};
 struct EntityModelInstanceGpu {
   float position[3][4];
   float normal[3][4];
   float color[4];
+  // Where this instance's skin matrices start in the shared bone buffer, and
+  // whether to use them at all. Both live in the instance rather than in a
+  // constant buffer because two instances of the same model routinely carry
+  // different sequences -- a per-model upload would silently pose one of them
+  // with the other's bones.
+  std::uint32_t boneOffset = 0;
+  std::uint32_t skinEnabled = 0;
+  std::uint32_t padding[2] = {0, 0};
 };
-static_assert(sizeof(EntityModelGpuVertex) == 32, "entity mesh vertex stride");
+static_assert(sizeof(EntityModelGpuVertex) == 48, "entity mesh vertex stride");
 static_assert(offsetof(EntityModelGpuVertex, nx) == 12, "entity mesh normal offset");
 static_assert(offsetof(EntityModelGpuVertex, u) == 24, "entity mesh uv offset");
-static_assert(sizeof(EntityModelInstanceGpu) == 112, "entity instance stride");
+static_assert(offsetof(EntityModelGpuVertex, weight0) == 32, "entity mesh blend weight offset");
+static_assert(offsetof(EntityModelGpuVertex, bone0) == 44, "entity mesh blend index offset");
+static_assert(sizeof(EntityModelInstanceGpu) == 128, "entity instance stride");
 static_assert(offsetof(EntityModelInstanceGpu, color) == 96, "entity instance color offset");
+static_assert(offsetof(EntityModelInstanceGpu, boneOffset) == 112, "entity instance bone offset");
 struct ModelGpuVertex {
   float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz;
   float weights[3]; std::uint8_t boneIndices[3]; std::uint8_t boneCount; std::uint8_t padding[1];
@@ -46,7 +67,17 @@ bool compileShader(const char* source, const char* entry, const char* target,
     entry, target, D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, bytecode.GetAddressOf(), errors.GetAddressOf());
   if (compileResult) *compileResult = result;
   if (FAILED(result) && errors) {
+    // OutputDebugString is invisible to every caller in this repo, and a shader
+    // is compiled at run time, so a bad edit surfaces as a bare rc=12 from
+    // initialize() with no reason attached. Write the HLSL diagnostic to stderr
+    // as well: the gate scripts and every manual run redirect it to a log, which
+    // is what turns "it exited 12" into "the entity vertex shader failed on
+    // line N".
     OutputDebugStringA(static_cast<const char*>(errors->GetBufferPointer()));
+    std::fputs("[shader-compile] ", stderr);
+    std::fputs(static_cast<const char*>(errors->GetBufferPointer()), stderr);
+    std::fputc('\n', stderr);
+    std::fflush(stderr);
   }
   return SUCCEEDED(result);
 }
@@ -133,6 +164,7 @@ bool Renderer::initialize(HWND window) {
     }
     return result;
   };
+  initStage_ = "createDeviceAndSwapChain";
   HRESULT result = createWithFallback(D3D_DRIVER_TYPE_HARDWARE);
   if (FAILED(result)) {
     swapChain_.Reset();
@@ -141,14 +173,17 @@ bool Renderer::initialize(HWND window) {
     result = createWithFallback(D3D_DRIVER_TYPE_WARP);
   }
   if (FAILED(result)) { lastError_ = result; return false; }
+  initStage_ = "createTarget";
   if (!createTarget(width_, height_)) {
     lastError_ = E_FAIL;
     return false;
   }
+  initStage_ = "createPipeline";
   if (!createPipeline()) {
     lastError_ = E_FAIL;
     return false;
   }
+  initStage_ = "ready";
   return true;
 }
 
@@ -293,6 +328,8 @@ struct Input {
   float3 position : POSITION;
   float3 normal : NORMAL0;
   float2 uv : TEXCOORD0;
+  float3 weights : BLENDWEIGHT;
+  uint4 boneIndices : BLENDINDICES;
   float4 row0 : TEXCOORD1;
   float4 row1 : TEXCOORD2;
   float4 row2 : TEXCOORD3;
@@ -300,7 +337,12 @@ struct Input {
   float4 nrow1 : TEXCOORD5;
   float4 nrow2 : TEXCOORD6;
   float4 colour : COLOR0;
+  uint4 boneInfo : TEXCOORD7;
 };
+// Per-instance bone matrices, in a StructuredBuffer rather than the b1 constant
+// buffer the single-model shader uses: b1 holds one skeleton at a time, and
+// every entity instance needs its own.
+StructuredBuffer<float4x4> boneMatrices : register(t4);
 struct Output {
   float4 position : SV_POSITION;
   float4 colour : COLOR0;
@@ -312,11 +354,33 @@ struct Output {
 Output main(Input input) {
   Output output;
   float4 local = float4(input.position, 1.0);
+  float3 normalLocal = input.normal;
+  // Skinning runs in bind-pose model space, before the instance transform:
+  // skin[i] already maps a bind-pose vertex into the animated model space, so
+  // the instance rows then place it in the world exactly as they would place an
+  // unskinned vertex.
+  if (input.boneInfo.y != 0) {
+    float totalWeight = input.weights.x + input.weights.y + input.weights.z;
+    if (totalWeight > 0.0) {
+      float3 normalizedWeights = input.weights / totalWeight;
+      float3 skinnedPos = float3(0.0, 0.0, 0.0);
+      float3 skinnedNormal = float3(0.0, 0.0, 0.0);
+      for (uint i = 0; i < 3; ++i) {
+        if (normalizedWeights[i] > 0.0 && input.boneIndices[i] < input.boneInfo.z) {
+          uint bone = input.boneInfo.x + input.boneIndices[i];
+          skinnedPos += mul(local, boneMatrices[bone]).xyz * normalizedWeights[i];
+          skinnedNormal += mul(float4(input.normal, 0.0), boneMatrices[bone]).xyz * normalizedWeights[i];
+        }
+      }
+      local = float4(skinnedPos, 1.0);
+      normalLocal = skinnedNormal;
+    }
+  }
   float3 mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));
   output.position = mul(float4(mapped, 1.0), mvp);
   output.colour = input.colour;
   output.uv = input.uv;
-  float3 rotated = float3(dot(input.nrow0.xyz, input.normal), dot(input.nrow1.xyz, input.normal), dot(input.nrow2.xyz, input.normal));
+  float3 rotated = float3(dot(input.nrow0.xyz, normalLocal), dot(input.nrow1.xyz, normalLocal), dot(input.nrow2.xyz, normalLocal));
   float lengthSquared = dot(rotated, rotated);
   output.normal = (lengthSquared > 1e-8 && lengthSquared < 1e8) ? rotated * rsqrt(lengthSquared) : float3(0.0, 0.0, 1.0);
   output.worldPosition = mapped;
@@ -330,6 +394,7 @@ Output main(Input input) {
   Microsoft::WRL::ComPtr<ID3DBlob> modelPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> entityModelVertexBytecode;
   HRESULT worldShaderResult = S_OK;
+  initStage_ = "compileShaders.world";
   const bool worldShadersCompiled = compileShader(worldVertexSource, "main", "vs_5_0", worldVertexBytecode, &worldShaderResult)
       && compileShader(worldPixelSource, "main", "ps_5_0", worldPixelBytecode, &worldShaderResult);
   if (!worldShadersCompiled) { lastError_ = worldShaderResult; return false; }
@@ -347,6 +412,7 @@ Output main(Input input) {
     lastError_ = entityShaderResult;
     return false;
   }
+  initStage_ = "createShaders.singleModel";
   if (FAILED(device_->CreateVertexShader(vertexBytecode->GetBufferPointer(), vertexBytecode->GetBufferSize(),
       nullptr, vertexShader_.GetAddressOf()))
       || FAILED(device_->CreatePixelShader(pixelBytecode->GetBufferPointer(), pixelBytecode->GetBufferSize(),
@@ -362,6 +428,7 @@ Output main(Input input) {
       {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
+    initStage_ = "layout.world";
     const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 5, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
     if (!layoutCreated) {
       worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
@@ -378,6 +445,7 @@ Output main(Input input) {
     };
     const bool modelShaderCreated = SUCCEEDED(device_->CreateVertexShader(modelVertexBytecode->GetBufferPointer(), modelVertexBytecode->GetBufferSize(), nullptr, modelVertexShader_.GetAddressOf()))
       && SUCCEEDED(device_->CreatePixelShader(modelPixelBytecode->GetBufferPointer(), modelPixelBytecode->GetBufferSize(), nullptr, modelPixelShader_.GetAddressOf()));
+    initStage_ = "layout.model";
     const bool modelLayoutCreated = modelShaderCreated && SUCCEEDED(device_->CreateInputLayout(modelElements, 6,
       modelVertexBytecode->GetBufferPointer(), modelVertexBytecode->GetBufferSize(), modelInputLayout_.GetAddressOf()));
     if (!modelLayoutCreated) {
@@ -389,6 +457,8 @@ Output main(Input input) {
       {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"BLENDWEIGHT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"BLENDINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 44, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"TEXCOORD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D11_INPUT_PER_INSTANCE_DATA, 1},
       {"TEXCOORD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D11_INPUT_PER_INSTANCE_DATA, 1},
       {"TEXCOORD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D11_INPUT_PER_INSTANCE_DATA, 1},
@@ -396,13 +466,27 @@ Output main(Input input) {
       {"TEXCOORD", 5, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 64, D3D11_INPUT_PER_INSTANCE_DATA, 1},
       {"TEXCOORD", 6, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 80, D3D11_INPUT_PER_INSTANCE_DATA, 1},
       {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 96, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+      // boneOffset / skinEnabled / padding, read as one uint4 so the layout has
+      // no gap the runtime has to guess about.
+      {"TEXCOORD", 7, DXGI_FORMAT_R32G32B32A32_UINT, 1, 112, D3D11_INPUT_PER_INSTANCE_DATA, 1},
     };
+    initStage_ = "createShaders.entity";
     const bool entityShaderCreated = SUCCEEDED(device_->CreateVertexShader(
       entityModelVertexBytecode->GetBufferPointer(), entityModelVertexBytecode->GetBufferSize(),
       nullptr, entityModelVertexShader_.GetAddressOf()));
+    // The element count is derived, not written a second time. It was a literal
+    // 11 while this array already had 13 entries, so the layout stopped at
+    // TEXCOORD5; CreateInputLayout then refused because the shader also reads
+    // TEXCOORD6, COLOR0 and TEXCOORD7, and the only symptom was initialize()
+    // returning E_FAIL with the entity path never running at all.
+    static_assert(sizeof(entityElements) / sizeof(entityElements[0]) == 13,
+      "entity input layout element count");
+    constexpr UINT entityElementCount =
+      static_cast<UINT>(sizeof(entityElements) / sizeof(entityElements[0]));
+    initStage_ = "layout.entity";
     const bool entityLayoutCreated = entityShaderCreated && SUCCEEDED(device_->CreateInputLayout(
-      entityElements, 10, entityModelVertexBytecode->GetBufferPointer(), entityModelVertexBytecode->GetBufferSize(),
-      entityModelInputLayout_.GetAddressOf()));
+      entityElements, entityElementCount, entityModelVertexBytecode->GetBufferPointer(),
+      entityModelVertexBytecode->GetBufferSize(), entityModelInputLayout_.GetAddressOf()));
     if (!entityLayoutCreated) {
       worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
       modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
@@ -411,6 +495,7 @@ Output main(Input input) {
       return false;
     }
   }
+  initStage_ = "samplerStates";
   D3D11_SAMPLER_DESC samplerDescription{};
   samplerDescription.Filter = settings_.anisotropicLevel > 1 ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
   samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -441,6 +526,7 @@ Output main(Input input) {
   modelConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
   modelConstantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&modelConstantsDescription, nullptr, modelSkinningConstants_.GetAddressOf()))) return false;
+  initStage_ = "testTexture";
   const std::vector<std::uint8_t> testPixels = {
     180, 40, 35, 255, 35, 45, 60, 255,
     35, 45, 60, 255, 180, 40, 35, 255,
@@ -1045,7 +1131,9 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
     local[i] = EntityModelGpuVertex{
       source.position[0], source.position[1], source.position[2],
       source.normal[0], source.normal[1], source.normal[2],
-      source.texcoord[0], source.texcoord[1]};
+      source.texcoord[0], source.texcoord[1],
+      source.weights[0], source.weights[1], source.weights[2],
+      source.boneIndices[0], source.boneIndices[1], source.boneIndices[2], source.boneCount};
   }
   D3D11_BUFFER_DESC description{};
   description.ByteWidth = static_cast<UINT>(count * sizeof(EntityModelGpuVertex));
@@ -1086,6 +1174,7 @@ bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, const std::
 void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances) {
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  entityModelSkinnedInstanceCount_ = 0;
   entityModelTexturedRangeCount_ = 0;
   entityModelTexturedInstanceCount_ = 0;
   entityModelDrawRanges_.clear();
@@ -1136,6 +1225,19 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     gpu.color[1] = instance.color[1];
     gpu.color[2] = instance.color[2];
     gpu.color[3] = instance.color[3];
+    // Skinning is only advertised when the caller actually supplied matrices for
+    // this instance. An instance whose boneOffset would run past the uploaded
+    // buffer is drawn unskinned rather than reading another entity's bones --
+    // a wrong pose is worse than a static one, and it is silent.
+    const bool skinned = instance.skinningEnabled
+      && instance.boneCount > 0
+      && static_cast<std::size_t>(instance.boneOffset) + instance.boneCount <= entityBoneMatrixCount_;
+    if (skinned) {
+      gpu.boneOffset = instance.boneOffset;
+      gpu.skinEnabled = 1u;
+      gpu.padding[0] = instance.boneCount;
+      ++entityModelSkinnedInstanceCount_;
+    }
     buckets[inserted.first->second].items.push_back(gpu);
     ++accepted;
   }
@@ -1192,6 +1294,49 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   context_->Unmap(entityModelInstanceBuffer_.Get(), 0);
   entityModelVertexCount_ = uniqueVertices;
   entityModelInstanceCount_ = packed.size();
+}
+
+void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices) {
+  entityBoneMatrixCount_ = 0;
+  if (boneMatrices.empty()) return;
+  if (!device_ || !context_) return;
+  // Every matrix has to be finite before it reaches the GPU: one NaN in the
+  // buffer turns a whole instance into a black smear and gives no clue which
+  // entity it came from. Rejecting the upload is the loud failure.
+  for (const auto& matrix : boneMatrices) {
+    for (const float element : matrix) {
+      if (!std::isfinite(element)) { lastError_ = E_INVALIDARG; return; }
+    }
+  }
+  if (!entityBoneBuffer_ || entityBoneCapacity_ < boneMatrices.size()) {
+    entityBoneView_.Reset();
+    entityBoneBuffer_.Reset();
+    D3D11_BUFFER_DESC description{};
+    const auto capacity = std::max(boneMatrices.size(), std::size_t{256});
+    description.ByteWidth = static_cast<UINT>(capacity * sizeof(std::array<float, 16>));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    description.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    description.StructureByteStride = sizeof(std::array<float, 16>);
+    if (FAILED(device_->CreateBuffer(&description, nullptr, entityBoneBuffer_.ReleaseAndGetAddressOf()))) return;
+    D3D11_SHADER_RESOURCE_VIEW_DESC view{};
+    view.Format = DXGI_FORMAT_UNKNOWN;
+    view.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    view.Buffer.FirstElement = 0;
+    view.Buffer.NumElements = static_cast<UINT>(capacity);
+    if (FAILED(device_->CreateShaderResourceView(entityBoneBuffer_.Get(), &view,
+        entityBoneView_.ReleaseAndGetAddressOf()))) {
+      entityBoneBuffer_.Reset();
+      return;
+    }
+    entityBoneCapacity_ = capacity;
+  }
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(context_->Map(entityBoneBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+  std::memcpy(mapped.pData, boneMatrices.data(), boneMatrices.size() * sizeof(std::array<float, 16>));
+  context_->Unmap(entityBoneBuffer_.Get(), 0);
+  entityBoneMatrixCount_ = boneMatrices.size();
 }
 
 bool Renderer::saveCameraPreset(std::size_t slot) {
@@ -1494,6 +1639,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(1, 1, &bumpView);
     context_->PSSetShaderResources(2, 1, &envView);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    // t4 is the per-instance bone buffer. An unbound SRV would make a skinned
+    // draw read garbage, so the slot is always set here, even when empty.
+    auto* boneView = entityBoneView_.Get();
+    context_->VSSetShaderResources(4, 1, &boneView);
     auto* instanceBuffer = entityModelInstanceBuffer_.Get();
     for (const auto& range : entityModelDrawRanges_) {
       if (!range.vertexBuffer || range.vertexCount < 3 || range.instanceCount == 0) continue;
@@ -1570,6 +1719,10 @@ void Renderer::shutdown() {
   entityMarkerVertexCapacity_ = 0;
   entityMarkerVertexCount_ = 0;
   entityModelInstanceBuffer_.Reset();
+  entityBoneView_.Reset();
+  entityBoneBuffer_.Reset();
+  entityBoneCapacity_ = 0;
+  entityBoneMatrixCount_ = 0;
   entityModelInstanceCapacity_ = 0;
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
