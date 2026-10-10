@@ -608,6 +608,15 @@ int main(int argc, char** argv) {
         resolvedTick, kDemoTickRate);
       if (sample.status != AnimationStatus::Ok) continue;
       ++sampledFrames;
+      if (diagnose) {
+        std::cerr << "wa-sample entity=" << entity
+                  << " class=" << entityClassByKey[key]
+                  << " sequence=" << sequence
+                  << " sequences=" << anims.sequences.size()
+                  << " frame=" << sample.frame
+                  << " frameCount=" << anim.frameCount
+                  << " model=" << modelPath << "\n";
+      }
 
       SamplePoint point;
       point.tick = resolvedTick;

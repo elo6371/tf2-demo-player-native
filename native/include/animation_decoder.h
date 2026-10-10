@@ -71,6 +71,14 @@ struct AnimationSample {
   std::int32_t animDesc = -1;
   std::int32_t frame = 0;
   std::int32_t frameCount = 0;
+  // Which frame *block* inside the animation the requested frame resolved to.
+  // An animation may declare 30 frames while carrying a single block of data
+  // (sectionframes == 1), in which case every frame is the same pose and the
+  // cursor moves without the picture moving. Without this reading, "frame=13/30
+  // but the pose never changes" is indistinguishable from a decoder that reads
+  // the frame index but not the frame data.
+  std::int32_t localFrame = 0;
+  std::int32_t sectionFrames = 0;
   float fps = 0.0f;
   bool looping = false;
   std::vector<std::array<float, 3>> localPosition;

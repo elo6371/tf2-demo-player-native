@@ -560,6 +560,8 @@ AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequen
   if (!locateFrame(model.bytes.data(), model.bytes.size(), animOffset, anim, frame, dataOffset, localFrame, sample.reason)) {
     return sample;
   }
+  sample.localFrame = localFrame;
+  sample.sectionFrames = anim.sectionFrames;
 
   sample.localPosition.assign(model.bones.size(), {});
   sample.localRotation.assign(model.bones.size(), {0.0f, 0.0f, 0.0f, 1.0f});

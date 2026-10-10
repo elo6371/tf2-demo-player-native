@@ -15,6 +15,8 @@ add_executable(tf2_demo_native WIN32
   src/vtf_texture.cpp
   src/model_loader.cpp
   src/entity_model.cpp
+  src/animation_decoder.cpp
+  src/animation_binding.cpp
   src/vmt_material.cpp
   src/audio_resource.cpp
   src/audio_player.cpp
