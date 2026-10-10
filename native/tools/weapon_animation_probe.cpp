@@ -383,17 +383,47 @@ int main(int argc, char** argv) {
   std::size_t tickCount = 6;
   bool diagnose = false;
   bool selfTestOnly = false;
+  // Explicit sampling window. The default (no flags) is the historical
+  // behaviour -- `--ticks N` spread evenly across the whole demo -- so the
+  // default JSON stays byte-identical to the frozen baseline. The window
+  // exists because the even spread is what made `--mutation bindpose`
+  // undecidable: the ticks it lands on can all carry the same pose, so
+  // "motion" is zero both before and after the mutation, and a mutation that
+  // cannot move its reading is not a mutation. With an explicit window (and
+  // `--models`) a caller can point the probe at ticks and models that are known
+  // to carry more than one pose.
+  bool windowGiven = false;
+  std::int32_t sampleStart = 0;
+  std::int32_t sampleStep = 0;   // 0 = derive from the window/count
+  std::size_t sampleCount = 0;   // 0 = use --ticks
+  std::string modelFilter;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--demo" && i + 1 < argc) demoPath = argv[++i];
     else if (arg == "--tf-root" && i + 1 < argc) tfRoot = argv[++i];
     else if (arg == "--ticks" && i + 1 < argc) tickCount = static_cast<std::size_t>(std::stoul(argv[++i]));
-    else if (arg == "--mutation" && i + 1 < argc) mutationName = argv[++i];
+    else if (arg == "--sample-start" && i + 1 < argc) {
+      sampleStart = static_cast<std::int32_t>(std::stol(argv[++i])); windowGiven = true;
+    } else if (arg == "--sample-step" && i + 1 < argc) {
+      sampleStep = static_cast<std::int32_t>(std::stol(argv[++i])); windowGiven = true;
+    } else if (arg == "--sample-count" && i + 1 < argc) {
+      sampleCount = static_cast<std::size_t>(std::stoul(argv[++i])); windowGiven = true;
+    } else if (arg == "--models" && i + 1 < argc) {
+      modelFilter = argv[++i];
+    } else if (arg == "--mutation" && i + 1 < argc) mutationName = argv[++i];
     else if (arg == "--diagnose") diagnose = true;
     else if (arg == "--self-test") selfTestOnly = true;
     else {
       std::cerr << "usage: weapon_animation_probe [--demo <path>] [--tf-root <path>] [--ticks N]"
-                   " [--mutation order|bindpose] [--diagnose] [--self-test]\n";
+                   " [--sample-start <tick>] [--sample-step <tick>] [--sample-count <n>]"
+                   " [--models <substring>] [--mutation order|bindpose] [--diagnose] [--self-test]\n";
+      return 2;
+    }
+  }
+  if (windowGiven) {
+    if (sampleCount == 0) sampleCount = tickCount;
+    if (sampleCount < 2) {
+      std::cerr << "--sample-count must be at least 2; a window of one tick cannot show motion\n";
       return 2;
     }
   }
@@ -478,7 +508,17 @@ int main(int argc, char** argv) {
   for (const auto& reference : summary.assetReferences) {
     if (!reference.hasModelPath || reference.modelPath.empty()) continue;
     entityClass[reference.entityIndex] = reference.className;
-    if (!isAnimatedClass(reference.className)) continue;
+    // The class-name heuristic is the default sample set. `--models` overrides
+    // it, because the point of the filter is to be able to aim the probe at a
+    // model that is known to carry more than one pose -- and in the reference
+    // demo the only entity whose pose actually moves is a props_ui prop, which
+    // the "Weapon|Projectile|Wearable|Grenade" heuristic excludes. Filtering
+    // here rather than inside the sampling loop is what makes that possible:
+    // a loop-level filter can only ever see the models this map already holds.
+    const bool selected = modelFilter.empty()
+      ? isAnimatedClass(reference.className)
+      : reference.modelPath.find(modelFilter) != std::string::npos;
+    if (!selected) continue;
     // A weapon's m_nModelIndex names its class's first-person arms composite;
     // m_iWorldModelIndex names the weapon itself. The animation belongs to the
     // weapon, so prefer the world path when the demo carries one.
@@ -530,9 +570,22 @@ int main(int argc, char** argv) {
 
   std::vector<EntityState> states;
   const std::int32_t span = lastTick - firstTick;
-  for (std::size_t step = 0; step < tickCount; ++step) {
-    const std::int32_t tick = firstTick + static_cast<std::int32_t>(
-      (static_cast<long long>(span) * static_cast<long long>(step)) / static_cast<long long>(tickCount - 1));
+  // An explicit window replaces the even spread. `--sample-step` 0 means "fill
+  // the requested count evenly across the demo span", which is the old rule.
+  const std::size_t effectiveCount = windowGiven ? sampleCount : tickCount;
+  const std::int32_t windowStart = windowGiven ? sampleStart : firstTick;
+  std::int32_t windowStep = 0;
+  if (windowGiven) {
+    windowStep = sampleStep > 0
+      ? sampleStep
+      : static_cast<std::int32_t>(std::max<long long>(1,
+          static_cast<long long>(span) / static_cast<long long>(effectiveCount - 1)));
+  }
+  for (std::size_t step = 0; step < effectiveCount; ++step) {
+    const std::int32_t tick = windowGiven
+      ? windowStart + windowStep * static_cast<std::int32_t>(step)
+      : firstTick + static_cast<std::int32_t>(
+          (static_cast<long long>(span) * static_cast<long long>(step)) / static_cast<long long>(tickCount - 1));
     std::int32_t resolvedTick = tick;
     if (tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, tick, states, &resolvedTick)
         != tf2::native::EntitySnapshotQueryStatus::Available) continue;
@@ -609,7 +662,8 @@ int main(int argc, char** argv) {
       if (sample.status != AnimationStatus::Ok) continue;
       ++sampledFrames;
       if (diagnose) {
-        std::cerr << "wa-sample entity=" << entity
+        std::cerr << "wa-sample tick=" << tick
+                  << " entity=" << entity
                   << " class=" << entityClassByKey[key]
                   << " sequence=" << sequence
                   << " sequences=" << anims.sequences.size()
@@ -792,15 +846,27 @@ int main(int argc, char** argv) {
 
   if (mutation != Mutation::None) {
     // A mutation run reports the reading it was aimed at and exits 0 only when
-    // the flip actually moved it. A gate that cannot see the flip measures nothing.
-    const bool moved = mutation == Mutation::Order ? !skinLandsOk : !motionOk;
+    // the flip actually moved it. A gate that cannot see the flip measures
+    // nothing -- and so does a flip that "moved" a reading which was already
+    // zero. `entitiesCompared` is required to be non-zero for the bind-pose
+    // mutation for exactly that reason: without a compared entity, motion is
+    // zero for the trivial reason that nothing was measured, and the old
+    // criterion called that a caught mutation. The gate pairs this run with a
+    // normal run and requires motion there, which is the separation that makes
+    // the pair mean something.
+    const bool moved = mutation == Mutation::Order
+      ? (skinOrderChecks > 0 && !skinLandsOk)
+      : (entitiesCompared > 0 && !motionOk);
     std::cout << "{\"status\":\"" << (moved ? "ok" : "failed") << "\""
               << ",\"mutation\":\"" << mutationName << "\""
               << ",\"mutationMoved\":" << (moved ? "true" : "false")
+              << ",\"entitiesCompared\":" << entitiesCompared
+              << ",\"skinOrderChecks\":" << skinOrderChecks
               << ",\"skinLands\":" << skinLands
               << ",\"skinReversed\":" << skinReversed
               << ",\"motionDelta\":" << motionDelta
               << ",\"motionRotationDelta\":" << motionRotationDelta
+              << ",\"motionWorst\":" << motionWorst
               << ",\"bindPoseWorst\":" << bindPoseWorst
               << ",\"rigidityWorst\":" << rigidityWorst << "}\n";
     return moved ? 0 : 1;
@@ -823,6 +889,17 @@ int main(int argc, char** argv) {
   require(rigidityOkReal, "a skin matrix was not rigid");
   require(orderDiscriminated, "the multiply order was not discriminated");
   require(modelsWithAnimations > 0, "no referenced model carried animation data");
+  // A window that resolves to fewer than two snapshots cannot express motion at
+  // all, and a filter that selects nothing would otherwise look like a clean
+  // run with zero of everything. Both are failures of the *instrument*, so they
+  // are reported as failures rather than as absent readings.
+  if (windowGiven) {
+    require(snapshots >= 2, "the sampling window resolved fewer than two snapshots");
+    require(entitiesScanned > 0, "the sampling window and --models selected no entity");
+  }
+  if (!modelFilter.empty()) {
+    require(!distinctModels.empty(), "--models matched no model path");
+  }
 
   std::cout << "{\"status\":\"" << (failed == 0 ? "ok" : "failed") << "\""
             << ",\"demo\":\"" << demoPath << "\""
@@ -857,6 +934,17 @@ int main(int argc, char** argv) {
             << ",\"skinLands\":" << skinLands
             << ",\"skinReversed\":" << skinReversed
             << ",\"skinSequence\":\"" << skinSequence << "\""
-            << ",\"failures\":" << failed << "}\n";
+            // Reported only when they were given, so the default stdout stays
+            // byte-identical to the frozen baseline: the additive-output gate
+            // compares this line, and a new field by default would look like a
+            // behaviour change rather than a new option.
+            ;
+  if (windowGiven || !modelFilter.empty()) {
+    std::cout << ",\"sampleStart\":" << windowStart
+              << ",\"sampleStep\":" << windowStep
+              << ",\"sampleCount\":" << effectiveCount
+              << ",\"models\":\"" << modelFilter << "\"";
+  }
+  std::cout << ",\"failures\":" << failed << "}\n";
   return failed == 0 ? 0 : 1;
 }
