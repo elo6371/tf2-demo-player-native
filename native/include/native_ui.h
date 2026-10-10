@@ -39,7 +39,7 @@ enum class UiCommand {
 
 struct UiSettings {
   bool standardQuality = false;
-  float fov = 80.0f;
+  float fov = 90.0f;
   bool vsync = false;
   float volume = 1.0f;
   std::filesystem::path tfRoot;
@@ -64,7 +64,7 @@ struct UiSnapshot {
   std::uint32_t missingResourceCount = 0;
   std::string error;
   double speed = 1.0;
-  float fov = 80.0f;
+  float fov = 90.0f;
   bool standardQuality = false;
   bool vsync = false;
   float volume = 1.0f;

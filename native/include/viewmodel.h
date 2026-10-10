@@ -11,8 +11,8 @@ namespace tf2::native {
 
 // Same clamp as native_renderer.h clampViewModelFov. NaN stays NaN because
 // both comparisons are false. Kept here so ViewModel code does not include
-// the D3D renderer header. The default used when the caller omits a value is 80.
-inline constexpr float kDefaultViewModelFov = 80.0f;
+// the D3D renderer header. The default used when the caller omits a value is 90.
+inline constexpr float kDefaultViewModelFov = 90.0f;
 
 inline float normalizeViewModelFov(float value) {
   return value < 40.0f ? 40.0f : (value > 120.0f ? 120.0f : value);

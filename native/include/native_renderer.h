@@ -40,7 +40,7 @@ struct RenderSettings {
   bool skybox = false;
   int modelLod = 4;
   float renderScale = 1.0f;
-  float viewModelFov = 80.0f;
+  float viewModelFov = 90.0f;
   bool vsync = false;
 
   static RenderSettings fromPreset(QualityPreset preset);

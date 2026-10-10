@@ -264,7 +264,7 @@ bool fovAndHands() {
   const float missing = std::numeric_limits<float>::quiet_NaN();
   const bool fov = normalizeViewModelFov(0.0f) == 40.0f
     && normalizeViewModelFov(180.0f) == 120.0f
-    && normalizeViewModelFov(80.0f) == 80.0f
+    && normalizeViewModelFov(90.0f) == 90.0f
     && std::isnan(normalizeViewModelFov(missing));
   const auto right = viewModelHandMatrix(ViewModelHand::Right);
   const auto left = viewModelHandMatrix(ViewModelHand::Left);
