@@ -119,6 +119,24 @@ target_include_directories(skeleton_skin_probe PRIVATE include third_party/lzma)
 target_compile_definitions(skeleton_skin_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 set_target_properties(skeleton_skin_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# The half skeleton_skin_probe does not cover: an entity's own m_nSequence, read
+# out of a real demo, turned into the matrices the product would upload. Links the
+# demo reader as well as the animation decoder, because the sequence value comes
+# from the wire, not from the model file.
+add_executable(weapon_animation_probe
+  tools/weapon_animation_probe.cpp
+  src/animation_decoder.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp
+  src/demo_header.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(weapon_animation_probe PRIVATE include third_party/lzma)
+target_compile_definitions(weapon_animation_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+set_target_properties(weapon_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(audio_effects_probe tools/audio_effects_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/effects_timeline.cpp src/pcf_operators.cpp src/playback_hud.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(audio_effects_probe PRIVATE include third_party/lzma)
 target_compile_definitions(audio_effects_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
