@@ -2135,7 +2135,7 @@ oracle: DT_BaseAnimating slots=15 animation-property slots=0
 ### 19.2 本轮验收流程缺陷
 
 1. **锁清理失败**：`verify-all.sh` 在锁目录内写 `owner` 文件，EXIT trap 仅执行 `rmdir`，导致锁无法删除。修复为不创建 owner 文件；目录创建仍提供原子互斥，残留锁仍要求先确认没有活动验收进程再人工清除。
-2. **缺少独占边界**：完整链和另一个 `mutate.sh` 可以并发；锁只能阻止第二个 `verify-all.sh`，不能阻止独立变异脚本。执行规则必须明确要求总链期间不运行任何构建/变异脚本，下一步应让所有会重编译的验收入口共用同一把锁。
+2. **缺少独占边界（代码已修，竞争回归待验证）**：完整链和另一个 `mutate.sh` 曾可并发。现在独立 `mutate.sh` 获取 `.scratch/verify-all.lock`；总链以 `VERIFY_ALL_LOCK_HELD=1` 调用它，避免嵌套死锁。仍须在后续干净树上验证总链持锁期间独立 mutation 立即退出且不改源码/二进制。
 3. **旧 CSV 假通过风险**：`idle-spin-check.sh` 使用 `rm -f` 清理输出；Windows 安全删除包装器拒绝删除时脚本仍可能读取旧 CSV。已改为先截断 CSV 并在截断失败时退出。运行时需继续确认子进程退出码与采样时间，不能只以文件存在判断成功。
 
 ### 19.3 定向验证
@@ -2143,6 +2143,7 @@ oracle: DT_BaseAnimating slots=15 animation-property slots=0
 - `bash -n verify-all.sh`：`BASH-SYNTAX=PASS`。
 - 预置 `.scratch/verify-all.lock` 后运行 `bash verify-all.sh --quick`：打印 `VERIFY-LOCK=FAIL`，退出码 `2`。
 - 以同样 `rmdir` EXIT trap 建立的锁目录退出后已删除：`LOCK-RELEASE-TRAP=PASS`。
+- `verify-fast.sh`：`VERIFY-FAST=PASS (assertions_ok=36)`。
 - 完整链没有重跑；第 8--21 步及整体状态仍未验证。
 
 ### 19.4 隔离诊断整合

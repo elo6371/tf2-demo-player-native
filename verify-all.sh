@@ -308,7 +308,7 @@ else
 fi
 
 step "8/21 mutation suite (C++)"
-bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
+VERIFY_ALL_LOCK_HELD=1 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
 # suite: MUTATION-SUITE=PASS is also what a script that ran zero cases prints.

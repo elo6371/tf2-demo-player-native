@@ -13,6 +13,18 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
+# Mutations rebuild the same binaries as verify-all. Direct mutation runs must
+# therefore share verify-all's filesystem lock; the parent chain sets the
+# environment marker so its step 8 does not try to acquire the lock twice.
+LOCK_DIR=.scratch/verify-all.lock
+if [ "${VERIFY_ALL_LOCK_HELD:-0}" != "1" ]; then
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "MUTATION-LOCK=FAIL (another build or mutation owns $LOCK_DIR)"
+    exit 2
+  fi
+  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+fi
+
 SRC=native/src/demo_header.cpp
 MODELSRC=native/src/entity_model.cpp
 MODELTOOL=native/tools/entity_model_probe.cpp
