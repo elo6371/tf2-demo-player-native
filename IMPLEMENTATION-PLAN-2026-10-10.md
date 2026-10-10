@@ -116,6 +116,42 @@ bash verify-all.sh --quick
 
 与 T2 有共享文件风险：动画 AI 与 ViewModel AI 可并行做资源调查、独立 probe 和 fixture；任何一方开始改 `main.cpp`、renderer 或共享模型请求类型前，先做小提交并通知整合者。两个分支不得各自复制相同接线后再整体覆盖。
 
+#### T1 接入路线（保留现有 decoder，不重写）
+
+当前已有 `native/include/animation_decoder.h`、`native/src/animation_decoder.cpp` 和
+`animation_viewmodel_probe`。它们已经验证 RAWROT/RAWROT2、局部采样、父链位置和循环边界；
+它们不是产品接线。按下面的边界接入：
+
+1. **先接入构建**：把 `src/animation_decoder.cpp` 加入 `tf2_demo_native`，只增加编译依赖；先跑
+   `build-target.sh tf2_demo_native` 和 `verify-fast.sh`，确认未改行为。
+2. **建立模型缓存**：按 `modelPath` 缓存 `AnimationModel`、序列标签索引、渲染骨骼名到动画骨骼名的映射；
+   不在每个渲染帧从 VPK 重新读取。模型包含的 `*_animations.mdl` 通过 decoder 的 include 名称解析，找不到时记录
+   `animationSource=missing` 并保持 bind pose。
+3. **建立骨骼映射**：以骨骼名称匹配 76 个动画骨骼到渲染模型骨骼；检查 parent 名称和顺序。渲染模型多出的
+   helper bone 使用 bind transform；名称缺失、parent 不一致或骨骼数超过 128 时整实例拒绝动画，不部分猜测。
+4. **从实体快照读取播放状态**：在 `EntityModelResolver` 的 `ModelInstance` 增加
+   `hasSequence/sequence/cycle/playbackRate/poseParameters` 和诊断字段；读取真实发送属性时保留
+   `lastWriteTick`。缺字段必须是 `animationInput=missing`，不能把 sequence=0 当作“正在播放 idle”。
+5. **按 demo tick 采样**：将场景 tick 转换为统一的 demo tick rate，使用已有
+   `sampleAnimation(model, sequenceIndex, tick, tickRate)`；`cycle`/`playbackRate` 若存在则作为采样时间，
+   否则使用 decoder 的确定性 tick 采样。序列越界、frameCount/fps 非法和外部 anim block 都返回 bind pose。
+6. **生成产品矩阵**：补一个与现有矩阵约定一致的 `composeLocalToModelMatrices`，输出完整旋转+平移的
+   model-space 矩阵；按骨骼逐项计算 `skin[i] = animatedWorld[i] * poseToBone[i]`。不得用只组合位置的
+   `modelPosition` 直接驱动 GPU，也不得重新发明转置约定；必须用 `skeleton_skin_probe` 的 identity/反序变异作门禁。
+7. **先做单模型 MVP**：第一阶段只给当前 `--model` 路径上传一套矩阵，替换
+   `main.cpp` 中 `uploadBoneMatrices(boneMatrices, false)` 为“有效动画时 true、无输入时 false”。标题增加
+   `animSource/animSequence/animFrame/animBones/uploadedBones`，这样可以先证明产品 GPU 路径确实改变。
+8. **再做实体实例**：当前 `EntityModelDrawInstance` 只有 origin/angles，不能承载每实例骨骼。新增
+   `skeletonKey` 和矩阵范围，或新增独立的 `SkinnedEntityDrawInstance`；renderer 为每个模型/骨骼集合建立
+   独立 constant-buffer/structured-buffer，不能用一套全局骨骼矩阵误画所有实体。没有动画输入的实例继续走
+   bind-pose entity shader。
+9. **武器/投射物优先**：从真实 demo 找到带非零序列或可解释静态序列的实体，记录 entity index、model path、
+   sequence、cycle、sampled frame、bone count 和上传数。玩家 `CTFPlayer` 的动画属性在现有 POV/SourceTV
+   语料中为空，必须保持 `animationInput=missing`，另列外部客户端预测任务。
+
+T1 的最小完成判据是：一个真实武器或投射物实例的 `sampled frame` 随 tick 变化，GPU 上传数等于有效骨骼数，
+   bind pose/动画矩阵变异可使门禁变红，并有前中后三张真实帧。只有探针通过而 `main.cpp` 仍上传 `false`，不能算完成。
+
 前提：先读取 `D:\TF2_Native_Animation_Integration` 的 `2296e59`。该提交只提供诊断，不代表功能完成。骨骼数学探针证明矩阵契约，不证明主程序已接线或画面对。
 
 实施步骤：
@@ -142,6 +178,32 @@ bash verify-all.sh --quick
 **允许文件**：`viewmodel.*`、模型材质请求、独立第一人称 draw pass、FOV/attachment、对应 probe；必须与世界实体材质路径分开。
 
 与 T1 共用主程序和 renderer 边界；可并行完成接口设计、独立 probe 和真实资源盘点，主程序 draw pass 的共同文件按先 T1 后 T2 的顺序逐个整合、构建和回归。
+
+#### T2 接入路线（保留现有 viewmodel 模块）
+
+当前 `native/src/viewmodel.cpp` 只构造 renderer-neutral `ViewModelRequest`，不会绘制；
+`native/include/native_renderer.h` 也只有世界模型的 `uploadBindPoseModel`/`uploadBoneMatrices`。
+因此 T2 必须新增独立 pass，不能把 ViewModel 塞进实体世界实例路径：
+
+1. **先补 probe target**：将已有 `native/tools/viewmodel_contract_probe.cpp` 加入 CMake，使用真实
+   `v_*.mdl`、VVD、VTX companion 验证路径、attachment、FOV、左右手矩阵；缺 companion 的 fixture 必须失败。
+2. **建立资源生命周期**：启动或换 demo 时调用 `buildViewModelRequest` 一次，缓存模型 mesh、材质、attachment
+   和动画模型；禁止每帧解析 VPK。缺资源只禁用 ViewModel，不影响世界实体绘制。
+3. **补独立渲染接口**：新增 `uploadViewModelMesh`、`uploadViewModelBones`、`setViewModelState` 和
+   `drawViewModel`（名称可按本地风格调整）。ViewModel 使用独立 vertex/index buffer、skin constant buffer、
+   projection constant buffer 和 material SRV；不要复用世界 `worldConstants_` 的位置归一化。
+4. **建立第一人称投影**：ViewModel 矩阵使用窗口宽高和 `clampViewModelFov` 的 40--120 范围，应用 attachment
+   到相机空间；左手只在最终 hand transform 镜像，不能修改世界实体骨骼。draw 顺序为世界 pass 后、HUD 前，
+   深度状态使用独立配置并记录是否写深度。
+5. **接当前武器状态**：从同一实体快照读取 sequence/cycle/playback rate；有状态时用 T1 的采样/矩阵缓存，
+   没有状态时明确显示 bind pose 和 `viewmodelAnimationInput=missing`。不要根据文件名猜当前武器动作。
+6. **保留材质隔离**：ViewModel 使用自己的 VMT/VTF 和材质常量，不能把世界 lightmap/cubemap fallback 当作
+   ViewModel 成功；材质缺失时只回退到明确的 flat color，并计数。
+7. **添加运行态读数**：标题或 trace 输出 `viewModelPath/companions/attachment/fov/hand/sequence/frame/
+   bones/drawn`；`drawn=0` 时必须说明是缺资源、无实体状态还是 shader/上传失败。
+
+T2 的最小完成判据是：真实 `v_*.mdl` 在默认 FOV、FOV 边界和左右手下各有一张帧，缺 companion 负向 fixture
+   稳定回退；标题显示 `drawn=1`，并确认 ViewModel draw pass 实际发生在世界 pass 之后。
 
 实施步骤：
 
