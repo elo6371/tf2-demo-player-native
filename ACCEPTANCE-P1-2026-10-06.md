@@ -2124,3 +2124,40 @@ oracle: DT_BaseAnimating slots=15 animation-property slots=0
 | `7fb9069` / `2bac4fb` | README / HANDOFF / 本文件 §18 |
 | `590de4f` | **修污染**（变异输出改到 `$OUT/mutation/`）+ **修 `exe_count` pin 23→24** |
 
+## 19. 2026-10-10 验收链并发审计与诊断代码隔离整合
+
+### 19.1 总链结果
+
+本轮 `bash verify-all.sh --quick` **没有通过**，不得写作 `VERIFY=PASS`。唯一记录到的链在第 1--7 步通过后进入第 8 步 mutation suite；随后发现另一份验收任务也运行 `mutate.sh`，两者共享 `native/` 与构建产物。由于变异脚本会改源码并重编译，剩余读数无效；已停止两边进程并把 `native/src/entity_model.cpp` 恢复到提交版本。
+
+失败证据：`.scratch/obs/verify-all-21c.log`（任务机本地日志，不作为通过证据）；停止时第 8 步尚未结束。第 1--7 步分别完成构建（`exe_count=24`）、9 demo 普查、fixture、oracle、录制类型和 additive 检查。第 8--21 步未完成。
+
+### 19.2 本轮验收流程缺陷
+
+1. **锁清理失败**：`verify-all.sh` 在锁目录内写 `owner` 文件，EXIT trap 仅执行 `rmdir`，导致锁无法删除。修复为不创建 owner 文件；目录创建仍提供原子互斥，残留锁仍要求先确认没有活动验收进程再人工清除。
+2. **缺少独占边界**：完整链和另一个 `mutate.sh` 可以并发；锁只能阻止第二个 `verify-all.sh`，不能阻止独立变异脚本。执行规则必须明确要求总链期间不运行任何构建/变异脚本，下一步应让所有会重编译的验收入口共用同一把锁。
+3. **旧 CSV 假通过风险**：`idle-spin-check.sh` 使用 `rm -f` 清理输出；Windows 安全删除包装器拒绝删除时脚本仍可能读取旧 CSV。已改为先截断 CSV 并在截断失败时退出。运行时需继续确认子进程退出码与采样时间，不能只以文件存在判断成功。
+
+### 19.3 定向验证
+
+- `bash -n verify-all.sh`：`BASH-SYNTAX=PASS`。
+- 预置 `.scratch/verify-all.lock` 后运行 `bash verify-all.sh --quick`：打印 `VERIFY-LOCK=FAIL`，退出码 `2`。
+- 以同样 `rmdir` EXIT trap 建立的锁目录退出后已删除：`LOCK-RELEASE-TRAP=PASS`。
+- 完整链没有重跑；第 8--21 步及整体状态仍未验证。
+
+### 19.4 隔离诊断整合
+
+分支 `integration/animation-diagnostics` 从 `integration/entity-material@1a96adb` 建立，提交 `2296e59`（3 文件，+534 行）：
+
+| 文件 | 改动 |
+|---|---|
+| `native/CMakeLists.txt` | 注册 `skeleton_skin_probe` |
+| `native/tools/entity_model_probe.cpp` | 增加 `--anim-props`，按 server class 统计动画属性供给 |
+| `native/tools/skeleton_skin_probe.cpp` | 用真实 Scout MDL/动画验证骨骼绑定、矩阵顺序和变异 |
+
+构建命令：配置为 NMake 时显式设置 MSVC/Windows SDK 的 `PATH`、`INCLUDE`、`LIB`，再执行 `cmake -S native -B native/build-nmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl` 和 `cmake --build native/build-nmake --target skeleton_skin_probe entity_model_probe`。
+
+真实输出：`bones=78 animBones=76 mappedBones=76 conventionError=3.05176e-05 identityWorst=2.47955e-05 skinLands=3.8147e-06 skinReversed=38.8973 sampledSequences=286`；`--mutation` 与 `--mutation-offset` 均触发预期失败读数。它是诊断探针，不接入主程序 GPU 上传，也不证明动画画面正确。玩家属性供给的 bagel 单样本复核为 `CTFPlayer sequence=0 cycle=0 rate=0 pose=0`；三样本门禁本轮未完整复跑。
+
+**本轮结论**：可以审查/复用诊断提交；不得把它标成动画功能完成。产品侧武器/投射物骨骼动画、玩家动画输入源、ViewModel 第一人称绘制和视觉确认仍是独立未完成项。
+
