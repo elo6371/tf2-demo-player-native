@@ -1,0 +1,17 @@
+header=1 index=1 scan=1 recording=POV (heuristic) protocol=24 map=pl_badwater commands=216593 packets=101131
+index_state=ok index_entries=216593 index_tail_bytes=46368944
+recording_stream=POV recording_header_name=0 server_info_count=1 server_info_hltv=0 server_info_replay_bit=0 source_tv_flag=0
+packets_scanned=101131 malformed_packets=0 unknown_message_packets=0
+unknown_message_types=<none>
+packet_entities=101125 packet_entity_updates=2337170 header_updates=2337170 delta_packets=101124
+enter=98453 preserve=2136342 leave=70263 delete=32112
+entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+delta_base_unavailable=491 history_gap=0 history_gap_tick=0 history_dropped_packets=277
+instance_baselines=103 baseline_applied=79800 baseline_misses=18653 baseline_apply_failures=0
+active_entities=403 max_active_entities=638
+file_messages=18 set_pause=0 bsp_decals=0 menus=0 cmd_key_values=0
+string_table_user_data_max_bytes=7669
+first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+first_delta_base_unavailable_tick=3054 first_delta_base_unavailable_from=3051
+message_type_histogram: 0(net_NOP)=19098 2(net_File)=18 3(net_Tick)=101127 4(net_StringCmd)=78 5(net_SetConVar)=3 6(net_SignonState)=4 7(svc_Print)=1 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=1579 14(svc_VoiceInit)=1 15(svc_VoiceData)=107 17(svc_Sounds)=38562 18(svc_SetView)=3 19(svc_FixAngle)=262 23(svc_UserMessage)=1232 24(svc_EntityMessage)=513 25(svc_GameEvent)=14636 26(svc_PacketEntities)=101125 27(svc_TempEntities)=26245 28(svc_Prefetch)=4690 30(svc_GameEventList)=1
+message_types_seen_without_decoder: <none>

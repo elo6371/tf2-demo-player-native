@@ -161,7 +161,16 @@ if grep -qE "(${NEW_KEYS})=" "$PRE"; then
   echo "FATAL: $PRE already carries a world-model key; it is not a pre-change artifact"
   exit 1
 fi
-sed -E "$NEW_KEY_STRIP" "$PRE" > "$TMP/assetrefs.pre.subset"
+# The frozen artifacts are read through `tr -d '\r'` for the same reason the
+# stored reports are (see the loop below): they are *tracked* files, so what a
+# checkout puts on disk depends on core.autocrlf, not on what was committed. On
+# this machine core.autocrlf=true comes from the system gitconfig, so a fresh
+# clone or worktree gets CRLF while the working tree this gate was written in
+# still held the LF bytes some earlier script had written. Claim 2 compared a
+# CR-stripped stream against the CR-preserving file and read `added-lines=DRIFTED`
+# on every line -- a false red produced by the checkout, not by a counter. The
+# comparison is over content, so the line terminator is normalised on both sides.
+sed -E "$NEW_KEY_STRIP" <(tr -d '\r' < "$PRE") > "$TMP/assetrefs.pre.subset"
 
 # Claim 3 is a comparison of the current asset_refs= line with the new keys
 # stripped against the pre-change artifact, and both the refresh path and the
@@ -287,15 +296,24 @@ fi
 # Claim 2: the added lines must still read what they read when they were
 # introduced. A missing or empty frozen file is a failure, not a skip -- the
 # whole point of this block is that "stripped" does not become "unverified".
+#
+# The frozen file is read through `tr -d '\r'` because it is tracked and therefore
+# whatever the checkout put on disk: with core.autocrlf=true (the system gitconfig
+# on this machine, and the Git-for-Windows default) that is CRLF, while
+# $TMP/added.new was collected with CR already stripped. Comparing them raw made
+# every one of the 18 lines differ and read as counter drift on a fresh checkout.
+# The claim is about the values, so the line terminator is normalised here too --
+# a genuinely moved counter still shows up, because only the terminator is
+# discarded.
 echo
 if [ ! -s "$ADDED" ]; then
   echo "added-lines=MISSING $ADDED is absent or empty"
   fail=1
-elif diff -q "$TMP/added.new" "$ADDED" >/dev/null; then
+elif diff -q "$TMP/added.new" <(tr -d '\r' < "$ADDED") >/dev/null; then
   echo "added-lines=IDENTICAL ($(wc -l < "$ADDED") lines frozen)"
 else
   echo "added-lines=DRIFTED -- the added lines moved since they were introduced"
-  diff "$ADDED" "$TMP/added.new" | head -12
+  diff <(tr -d '\r' < "$ADDED") "$TMP/added.new" | head -12
   fail=1
 fi
 

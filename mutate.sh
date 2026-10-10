@@ -75,10 +75,35 @@ restore() {
   # because m12 mutates main.cpp: without it the restore would put the source back
   # and leave the *mutated* program on disk for anything that runs it afterwards
   # (verify-all.sh's frame-capture step is the first such caller).
-  bash build-target.sh entity_protocol_probe entity_message_fixture_probe presentation_probe entity_model_probe tf2_demo_native >/dev/null 2>&1
+  rebuild entity_protocol_probe entity_message_fixture_probe presentation_probe entity_model_probe tf2_demo_native || true
 }
 
 value() { grep -oE "$2" "$1" | head -1 | cut -d= -f2; }
+
+# mutate.sh rebuilds a mutated source and then reads the probe's output. It used
+# to run `bash build-target.sh ... >/dev/null 2>&1` and carry on regardless, so a
+# build that failed produced an empty capture, every assertion on that capture
+# read nothing, and the case was reported as MUTATION-GREEN -- "the mutation did
+# not move the reading" -- when the reading had never been taken. That is exactly
+# what happened to m5 in the 2026-10-10 chain: entity_message_fixture_probe.exe
+# was missing, and the compiler error went into /dev/null with the redirect.
+#
+# rebuild keeps the compiler output, and returns non-zero only when the build is
+# still failing. Callers must `|| continue`: a case whose build failed has no
+# readings to assert on, and skipping it is what lets the pinned red/hold count
+# notice that the suite did less work than it claims.
+rebuild() { # rebuild <target> [target...]
+  local log=.scratch/mutation-build.log
+  if bash build-target.sh "$@" > "$log" 2>&1; then
+    return 0
+  fi
+  printf 'MUTATION-BUILD-FAIL rebuild failed: build-target.sh %s\n' "$*"
+  grep -a -E "error C|fatal error|LNK[0-9]+" "$log" | head -10
+  cp "$log" "$log.failed" 2>/dev/null
+  echo "  full compiler output: $log.failed"
+  rc_all=1
+  return 1
+}
 
 # The entity_model_probe reports JSON, not key=value lines, so it needs its own
 # extractor. `value` would cut on '=' and return nothing at all.
@@ -182,7 +207,7 @@ for case_id in $CASES; do
       patch_in "$SRC" \
         '    else if (type == 11) { if (!readSetPause(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
 ' '' || { rc_all=1; continue; }
-      bash build-target.sh entity_protocol_probe >/dev/null 2>&1
+      rebuild entity_protocol_probe || continue
       "$PROBE" "$BAGEL" > "$OUT/bagel.m1.txt" 2>&1
       must_move "m1 svc_SetPause removed -> unknown_message_types" "$OUT/bagel.m1.txt" \
         'unknown_message_types=[^ ]*' '<none>'
@@ -211,7 +236,7 @@ for case_id in $CASES; do
       patch_in "$SRC" \
         '          if (!bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;' \
         '          if (userBytes > 1024u || !bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;' || { rc_all=1; continue; }
-      bash build-target.sh entity_protocol_probe >/dev/null 2>&1
+      rebuild entity_protocol_probe || continue
       "$PROBE" "$BAGEL" > "$OUT/bagel.m2.txt" 2>&1
       must_move "m2 1024 cap restored -> instance_baselines" "$OUT/bagel.m2.txt" \
         'instance_baselines=[0-9]+' '126'
@@ -225,7 +250,7 @@ for case_id in $CASES; do
       patch_in "$SRC" \
         '  const std::uint32_t width = summary.networkProtocol > 22 ? 14u : 13u;' \
         '  const std::uint32_t width = summary.networkProtocol > 23 ? 14u : 13u;' || { rc_all=1; continue; }
-      bash build-target.sh entity_protocol_probe >/dev/null 2>&1
+      rebuild entity_protocol_probe || continue
       "$PROBE" "$PROTO23" > "$OUT/proto23.m3.txt" 2>&1
       must_move "m3 prefetch width reverted -> malformed_packets" "$OUT/proto23.m3.txt" \
         'malformed_packets=[0-9]+' '0'
@@ -239,7 +264,7 @@ for case_id in $CASES; do
       patch_in "$SRC" \
         '                               false, {}, std::move(changes)});' \
         '                               true, summary.entityStates[static_cast<std::size_t>(lastEntity)], std::move(changes)});' || { rc_all=1; continue; }
-      bash build-target.sh entity_message_fixture_probe >/dev/null 2>&1
+      rebuild entity_message_fixture_probe || continue
       "$FIXPROBE" > "$OUT/fixture.m4.txt" 2>&1
       must_move "m4 full-state preserve events -> fixture_failures" "$OUT/fixture.m4.txt" \
         'fixture_failures=[0-9]+' '0'
@@ -254,7 +279,7 @@ for case_id in $CASES; do
       std::vector<EntityPropChange> changes;' \
         '      EntityState candidate;
       std::vector<EntityPropChange> changes;' || { rc_all=1; continue; }
-      bash build-target.sh entity_message_fixture_probe >/dev/null 2>&1
+      rebuild entity_message_fixture_probe || continue
       "$FIXPROBE" > "$OUT/fixture.m5.txt" 2>&1
       must_move "m5 preserve loses the base -> fixture_failures" "$OUT/fixture.m5.txt" \
         'fixture_failures=[0-9]+' '0'
@@ -277,7 +302,7 @@ for case_id in $CASES; do
         '  result.headerName = header.recordingType == DemoRecordingType::SourceTv
       || namesIndicateSourceTv(header);' \
         '  result.headerName = header.recordingType == DemoRecordingType::SourceTv;' || { rc_all=1; continue; }
-      bash build-target.sh presentation_probe entity_protocol_probe >/dev/null 2>&1
+      rebuild presentation_probe entity_protocol_probe || continue
       ./native/build-nmake/presentation_probe.exe > "$OUT/recording.m6.txt" 2>&1
       must_appear "m6 classifier regressed -> presentation_probe recording flag" \
         "$OUT/recording.m6.txt" '"recording":false'
@@ -305,7 +330,7 @@ for case_id in $CASES; do
       patch_in "$SRC" \
         '  if (name == "soundprecache" || name == "modelprecache") {' \
         '  if (name == "soundprecache") {' || { rc_all=1; continue; }
-      bash build-target.sh entity_protocol_probe entity_model_probe >/dev/null 2>&1
+      rebuild entity_protocol_probe entity_model_probe || continue
       "$PROBE" "$POV" > "$OUT/pov.m7.txt" 2>&1
       "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.m7.txt" 2>&1
       must_move "m7 modelprecache dropped -> model_precache_entries" "$OUT/pov.m7.txt" \
@@ -334,7 +359,7 @@ for case_id in $CASES; do
       patch_in "$MODELTOOL" \
         '    summary.networkProtocol = header.networkProtocol;
 ' '' || { rc_all=1; continue; }
-      bash build-target.sh entity_model_probe >/dev/null 2>&1
+      rebuild entity_model_probe || continue
       "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.m8a.txt" 2>&1
       m8rc=$?
       must_refuse "m8a protocol not set -> probe refuses to scan" "$OUT/model.m8a.txt" \
@@ -351,7 +376,7 @@ for case_id in $CASES; do
       patch_in "$SRC" \
         '  if (networkProtocol <= 0) return false;
 ' '' || { rc_all=1; continue; }
-      bash build-target.sh entity_model_probe >/dev/null 2>&1
+      rebuild entity_model_probe || continue
       "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.m8b.txt" 2>&1
       m8brc=$?
       must_move_j "m8b guard gone -> requests collapse" "$OUT/model.m8b.txt" requests '387'
@@ -426,7 +451,7 @@ for case_id in $CASES; do
     if (index == last) break;
   }
   archive = std::move(kept);' || { rc_all=1; continue; }
-      bash build-target.sh presentation_probe entity_model_probe >/dev/null 2>&1
+      rebuild presentation_probe entity_model_probe || continue
       ./native/build-nmake/presentation_probe.exe > "$OUT/recording.m9.txt" 2>&1
       must_appear "m9 index-even thinning -> fixture coverage flag" \
         "$OUT/recording.m9.txt" '"historyCoverage":false'
@@ -459,7 +484,7 @@ for case_id in $CASES; do
         '    if (reference.hasWorldModelIndex) {
 ' '    if (false && reference.hasWorldModelIndex) {
 ' || { rc_all=1; continue; }
-      bash build-target.sh entity_protocol_probe entity_model_probe >/dev/null 2>&1
+      rebuild entity_protocol_probe entity_model_probe || continue
       # The fixture is the sharpest witness: its whole branch table is pinned, so
       # the defect collapses the reading to zeros. The assertion is the refusal,
       # not merely a moved number -- the fixture must not print a summary that
@@ -514,7 +539,7 @@ for case_id in $CASES; do
         '  if (lastWriteTick != bestTick) return lastWriteTick > bestTick;
 ' '  // mutation: the freshness term is removed, rank decides alone
 ' || { rc_all=1; continue; }
-      bash build-target.sh entity_model_probe >/dev/null 2>&1
+      rebuild entity_model_probe || continue
       SLOT_FRESHNESS_OUT="$OUT/slotfreshness-m11" bash slot-freshness-check.sh \
         > "$OUT/gate.m11.txt" 2>&1
       m11rc=$?
@@ -549,7 +574,7 @@ for case_id in $CASES; do
 ' '      // mutation: the resolved texture never reaches the draw
       const bool textureUploaded = false;
 ' || { rc_all=1; continue; }
-      bash build-target.sh tf2_demo_native >/dev/null 2>&1
+      rebuild tf2_demo_native || continue
       ENTITY_MATERIAL_OUT="$OUT/entitymaterial-m12" bash entity-material-check.sh \
         > "$OUT/gate.m12.txt" 2>&1
       m12rc=$?
@@ -583,7 +608,7 @@ for case_id in $CASES; do
 ' '      // mutation: the sweep never matches, so every count reads zero
       if (false && leaf == "m_nSequence") ++sequence;
 ' || { rc_all=1; continue; }
-      bash build-target.sh entity_model_probe >/dev/null 2>&1
+      rebuild entity_model_probe || continue
       ANIM_AVAILABILITY_OUT="$OUT/animavail-m13" bash animation-availability-check.sh \
         > "$OUT/gate.m13.txt" 2>&1
       m13rc=$?

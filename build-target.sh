@@ -66,11 +66,32 @@ echo "=== build $* ==="
 : > "$LOG"
 cmake --build "$BUILD" --target "$@" > "$LOG" 2>&1
 rc=$?
+# A failed build is retried once. The failure this was added for (2026-10-10) was
+# entity_message_fixture_probe.exe missing when mutate.sh case m5 rebuilt it,
+# seconds after case m4 had run the same exe: Windows keeps an image locked until
+# the previous process is fully gone, so the link cannot replace it. The retry
+# cannot hide a real error -- a deterministic failure fails again, and the
+# preserved log below is what gets read -- and it keeps a transient lock from
+# being reported as a mutation that did not move its reading.
+if [ "$rc" -ne 0 ]; then
+  echo "build failed (rc=$rc); preserving $LOG.failed-attempt-1 and retrying once"
+  cp "$LOG" "$LOG.failed-attempt-1" 2>/dev/null
+  sleep 3
+  cmake --build "$BUILD" --target "$@" > "$LOG" 2>&1
+  rc=$?
+fi
 # Warnings are printed for a human; errors are printed and also decide the exit
 # status. LNK errors are listed explicitly: a missing source in a target's link
 # line does not contain the string "error C". `-a` because NMAKE's progress
 # output contains bytes grep would otherwise treat as binary and report as
 # "Binary file ... matches" instead of printing the line.
 grep -a -E "error C|warning C|error MSB|fatal error|LNK[0-9]+" "$LOG" | head -20
+# Keep the log of a build that is still failing: $LOG is a fixed path that the
+# next build truncates, and a caller that redirects this script's output has no
+# other way to read the compiler error afterwards.
+if [ "$rc" -ne 0 ]; then
+  cp "$LOG" "$LOG.failed" 2>/dev/null
+  echo "build FAILED (rc=$rc); full output preserved at $LOG.failed"
+fi
 echo "rc=$rc"
 exit "$rc"
