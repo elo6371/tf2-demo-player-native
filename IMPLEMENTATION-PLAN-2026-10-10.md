@@ -2,7 +2,7 @@
 
 更新时间：2026-10-10
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`origin/p0-entity-protocol@cbcdd98`（包含验收锁修复；不是产品发布分支）
+当前验收与诊断基线：`origin/p0-entity-protocol@c14da6d`（已整合 T0 验收修复与 21/21 证据；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -19,15 +19,14 @@
 | SourceTV PacketEntities 恢复 | 9 份固定 demo 与 Rust oracle 的包数、实体更新数逐值一致；`entity_failures=0` | 协议修复可复用；新协议改动仍需完整回归 |
 | 实体历史保留 | `history-coverage-check.sh` 已有按最大 tick 间隙的门禁 | 窗口内精确，窗口外仍可能返回 Checkpoint |
 | 实体模型材质 | tick 3001：`entityMaterials=95/95`、`resolved=59 uploaded=59`、`blockDiff=20 frameDiff=20` | 实体使用自有材质已接通 |
-| 主循环等待 | `verify-fast.sh` 当前 `36/36`；idle CSV 使用截断写入 | 空转修复已完成，完整链尚需单实例重跑 |
+| 主循环等待 | `verify-fast.sh` 当前 `36/36`；idle CSV 使用截断写入 | 空转修复已完成；T0 总链已在 `98df09b` 通过 |
 | 动画数学诊断 | `skeleton_skin_probe`：`bones=78 animBones=76 mappedBones=76`，矩阵反序变异可红 | 只证明数学契约，不证明产品 GPU 动画已接线 |
 | 玩家动画供给诊断 | `CTFPlayer sequence=0 cycle=0 rate=0 pose=0`；正对照 class 计数 197/195/197 | POV demo 不能直接驱动玩家序列动画 |
 | VPK 音频资源分类 | weapon/footstep/Uber 资源探针通过，`device_opened=0` | 资源可用，不等于 demo 音频时序完成 |
 
 ### 当前未完成
 
-1. 干净的 21 步总验收尚未重新完成；上次在第 8 步被并发 mutation 污染，不能记为通过。
-2. 武器、投射物和可穿戴模型的序列动画尚未从实体属性接到 GPU 骨骼矩阵。
+1. 武器、投射物和可穿戴模型的序列动画尚未从实体属性接到 GPU 骨骼矩阵。
 3. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
 4. ViewModel 尚未进入主程序第一人称 draw pass。
 5. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
@@ -84,7 +83,7 @@ git worktree add -b task/<task-name> D:\TF2_Native_Worktrees\<task-name> origin/
 
 ## 三、任务清单
 
-### T0：验收链恢复与基线冻结
+### T0：验收链恢复与基线冻结（已完成）
 
 **负责人**：整合 AI。
 **工作区**：`D:\TF2_Native_Worktrees\acceptance-recovery`。
@@ -92,11 +91,11 @@ git worktree add -b task/<task-name> D:\TF2_Native_Worktrees\<task-name> origin/
 
 实施步骤：
 
-1. 从 `origin/p0-entity-protocol@cbcdd98` 创建工作区，确认 `git status` 干净。
+1. 从 `origin/p0-entity-protocol@080f0fe` 创建工作区，确认 `git status` 干净。
 2. 运行 `bash verify-fast.sh`，保存 `VERIFY-FAST=PASS` 和 `assertions_ok`。
 3. 预置 `.scratch/verify-all.lock`，确认 `verify-all.sh` 和 `mutate.sh` 都以 2 拒绝；再确认锁可清理。
 4. 清除锁后只启动一个 `bash verify-all.sh --quick`；整个过程不启动其他构建或 mutation。
-5. 只有 21/21 全部通过、退出码 0、证据时间一致，才更新 `README`/`HANDOFF` 为 `VERIFY=PASS`。
+5. 已完成：`VERIFY=PASS`、21/21、退出码 0、48m56s；证据提交为 `98df09b`，修复与文档已整合到当前分支 `c14da6d`。
 
 验收：
 
