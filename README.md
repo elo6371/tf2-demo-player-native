@@ -3,8 +3,8 @@
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
-> **当前链条：21 步**（`bash verify-all.sh --quick`）。**`VERIFY=PASS` 已在 `98df09b` 上取得**：
-> 21/21、退出码 0、48m56s（14:33:29 → 15:22:24），分支 `task/acceptance-recovery`，
+> **当前链条：22 步**（`bash verify-all.sh --quick`）。合并节点已完成 1–21 步端到端通过；第 22 步随后独立重跑：
+> `WEAPON-ANIMATION=PASS`，实体/`--model` 两个变异均捕获。尚无一次未中断的 22/22 总链结论，不能写成完整 `VERIFY=PASS`。
 > 基线 `origin/p0-entity-protocol@080f0fe`。**必须在已提交的干净树上、且单实例运行。**
 > 分级：`verify-fast.sh`（自检探针，秒级）/ `verify-entity.sh` / `verify-render.sh`。
 > 最后一次全绿见 `evidence/verify/`。**下面各段是历代记录，步数是当时的**，
@@ -56,14 +56,13 @@ P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引�
 
 1. ~~**重跑干净 21 步链**~~ —— **已完成 2026-10-10**：`VERIFY=PASS`，21/21，退出码 0，
    提交 `98df09b`。见上「验收恢复（T0）」。
-2. **武器/投射物骨骼接线**：沿 `m_nSequence`、`m_flCycle`、`m_flPlaybackRate` 从实体快照到动画采样，再生成模型骨骼矩阵并调用 renderer 上传；先用真实武器实体探针和 `skeleton_skin_probe` 的矩阵契约，之后才改主程序。
-3. **ViewModel 第一人称绘制**：接入独立投影/FOV、`v_*.mdl` companion、attachment 和手性变换；保持 `viewmodel` 请求模块与世界实体材质路径分离，增加真实 v_* 见证帧及负向缺资源门禁。
-4. **世界高级材质**：在当前 BSP 基础上补逐面 lightmap、cubemap 六面、skybox、displacement、水面 RT 和 vis clipping；每项先建合成夹具，再用真实 BSP 证明可达性，缺资源保留稳定回退。
-5. **音频时序与效果**：将 demo sound index 映射到 VPK WAV，按网络 tick 调度武器/脚步/Uber/TempEntity/PCF，并过滤 voice/announcer/music；所有验收固定 `--audio-device 6` 或 null sink。
-6. **稳定性与发布**：10 分钟 soak、截断/损坏 demo、缺失/移动 TF root、WARP/真实 GPU、安装启动和残留进程；保留失败原文，不以跳过代替缺输入。
-7. **UI/相机/高级画质**：补 TF2 相机模式和基础 HUD 后再做 DPI、主题、PaintKit、Phong/bump/selfillum、粒子和水面画质；需要外部录像或真实硬件的项目明确标为未验证。
+2. **ViewModel 第一人称绘制（当前下一项）**：接入独立投影/FOV、`v_*.mdl` companion、attachment 和手性变换；保持 `viewmodel` 请求模块与世界实体材质路径分离，增加真实 v_* 见证帧及负向缺资源门禁。
+3. **世界高级材质**：在当前 BSP 基础上补逐面 lightmap、cubemap 六面、skybox、displacement、水面 RT 和 vis clipping；每项先建合成夹具，再用真实 BSP 证明可达性，缺资源保留稳定回退。
+4. **音频时序与效果**：将 demo sound index 映射到 VPK WAV，按网络 tick 调度武器/脚步/Uber/TempEntity/PCF，并过滤 voice/announcer/music；所有验收固定 `--audio-device 6` 或 null sink。
+5. **稳定性与发布**：10 分钟 soak、截断/损坏 demo、缺失/移动 TF root、WARP/真实 GPU、安装启动和残留进程；保留失败原文，不以跳过代替缺输入。
+6. **UI/相机/高级画质**：补 TF2 相机模式和基础 HUD 后再做 DPI、主题、PaintKit、Phong/bump/selfillum、粒子和水面画质；需要外部录像或真实硬件的项目明确标为未验证。
 
-动画解码器和 ViewModel 的实现继续留在隔离工作区；`D:\TF2_Native_Animation_Integration` 的 `2296e59` 只提供诊断探针，不代表产品已接线。
+动画解码器已接入主程序实体路径；`D:\TF2_Native_Animation_Integration` 的 `2296e59` 仍只代表早期诊断探针，不能替代产品验收。ViewModel 模块仍已存在但尚未接入第一人称 draw pass。
 
 2026-10-09：**骨骼动画的输入供给已测量 —— 玩家侧不存在**。侦察把它当接线任务，
 前提是「demo 会告诉你每个实体在播哪段」。`entity_model_probe --anim-props` 摊平发送表：
@@ -396,7 +395,7 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 | `verify-entity.sh` | **第 2 档 · 实体**（实测 10m59s）：58 真相干 + 历史覆盖 / 武器世界模型 / 观察目标 / 选槽新鲜度 / 属性查找五个门禁 + **单份真 demo**（bagel）与 oracle 逐计数对照 + **证据树不变断言**。**不打印 `VERIFY=PASS`**，不是合并门禁 |
 | `verify-render.sh` | **第 2 档 · 渲染**（实测 5m27s）：资源可达性门禁 + 帧抓取门禁 + 实体材质门禁 + `material_chain_probe` 的合成层（10 个合成拒绝键 + 3 个模式键）+ 证据树不变断言。`texture_quad_probe` **刻意未接线**，理由写在脚本头部（缺一份提交进仓库的 VTF 夹具） |
 | `verify-audio.sh` | **第 2 档 · 音频**（约 10 s）：三个音频探针的免设备契约（`device":"sink"` / `device=0 playbackCalls=0` / `mode=dry_run device_opened=0`）+ 工作量计数 + 设备枚举的自洽性（`device_count` 与逐设备行数相等；**不钉具体台数**，那是机器的属性），**28 条断言** |
-| `verify-all.sh` | **第 3 档**，当前脚本含 **21 步**（构建 24 个目标 → 9 份普查 → fixture/oracle/变异与 17 个专项门禁，最后为动画可用性）；`--quick` 把 oracle 语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
+| `verify-all.sh` | **第 3 档**，当前脚本含 **22 步**（构建 25 个目标 → 9 份普查 → fixture/oracle/变异与专项门禁，最后为动画可用性和武器动画）；`--quick` 把 oracle 语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
 
 ## 命令
 

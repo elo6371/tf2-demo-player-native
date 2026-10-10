@@ -2,7 +2,7 @@
 
 更新时间：2026-10-10
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`origin/p0-entity-protocol@c14da6d`（已整合 T0 验收修复与 21/21 证据；不是产品发布分支）
+当前验收与诊断基线：`origin/p0-entity-protocol@b65da2d`（已整合 T0、实体材质和 T1 动画接线；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -26,31 +26,27 @@
 
 ### 当前未完成
 
-1. 武器、投射物和可穿戴模型的序列动画尚未从实体属性接到 GPU 骨骼矩阵。
-3. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
-4. ViewModel 尚未进入主程序第一人称 draw pass。
+1. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
+2. ViewModel 尚未进入主程序第一人称 draw pass。
 5. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
 6. Demo 音频的 sound index 到 WAV 的 tick 对齐、TempEntity/PCF、过滤规则未闭环。
 7. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
 8. 10 分钟 soak、损坏 demo、移动资源目录、安装启动、真实 GPU/FPS 和发布包未完成。
 9. PaintKit、Phong、bump/selfillum、完整粒子和高级水面效果未完成。
 
-### T1 交付审查（2026-10-10）
+### T1 交付与验收状态（2026-10-10）
 
 `task/weapon-animation@91a0de6` 已实现实体实例的 GPU skinning 适配，使用每实例
 `StructuredBuffer<float4x4>` 和 `boneOffset/boneCount`，不是旧的单副 `b1` 常量缓冲。
 真实 `cp_snakewater_final1` 读数为 `gpuSkin=62/237`、`boneMismatch=0`、`advances=48→283`、
 `poseChanges=48→283`；`weapon-animation-check.sh` 和其 mutation、实体档、渲染档均通过。
-这证明产品路径被调用，但不能直接标记 T1 完成，原因如下：
+T1 已合并主线并通过专项门禁：正常 `WEAPON-ANIMATION=PASS (6/6)`，实体 bind-pose 变异和
+`--model` 逆绑定变异均被捕获；实体档与渲染档均通过。产品实体路径真实读数为
+`gpuSkin=62/237`、`boneMismatch=0`、`advances=48→283`、`poseChanges=48→283`。
 
-- `--model` 单模型路径仍在 `main.cpp` 使用 `uploadBoneMatrices(..., false)`；它与实体实例路径是两条不同契约，需明确改为“有效动画才 true、无输入保持 false”，并为该路径增加定向测试。
-- T1 报告的三帧中只有 2/3 像素帧不同；目标武器/道具序列多为单一原始姿态块（`sectionFrames=0`），游标推进不等于可见动作。应保留该限制，另找真实多姿态武器/投射物输入，不能降低门禁到只看游标。
-- `weapon_animation_probe --mutation bindpose` 在当前短采样窗口无法稳定变红；不可判别的 mutation 不能进入正式门禁。应增加 `--ticks`/采样窗口或改成固定的多帧 pose fixture，直到正常/变异读数分离；否则删除该 mutation，不得假装覆盖。
-- T1 还没有跑 `verify-fast.sh`，`weapon-animation-check.sh` 尚未接入 `verify-entity.sh`、`verify-render.sh` 或 `verify-all.sh`，变异计数和总链步数尚未更新。
-- 证据目录新增大量 BMP/trace（约 300k 行）；合并前应确认哪些是冻结见证帧，派生 trace 改为门禁输出目录或 `.gitignore`，避免把机器状态误当产品输入。
-
-**T1 合并门槛**：先在专项分支补齐上面五项；至少跑 `verify-fast.sh`、T1 正常/变异、对应二级门禁，
-并提交真实输入、修改文件、读数、负向结果和未验证项。未满足前只保留在专项分支，不 cherry-pick 到产品基线。
+限制必须保留：当前见证帧只有 2/3 像素帧不同，部分武器/道具序列本身只有单一姿态块；
+游标推进不等于可见动作。玩家动画仍因 demo 没有 `CTFPlayer` 动画输入而未验证，真实人工画面确认也未完成。
+合并节点的总链是 1–21 步端到端通过，第 22 步随后以相同环境独立重跑通过；仓库没有把两段拼成一次虚假的 22/22 结论。
 
 ## 二、统一工作区规则
 
