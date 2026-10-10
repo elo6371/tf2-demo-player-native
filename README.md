@@ -3,10 +3,29 @@
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
-> **当前链条：21 步**（`bash verify-all.sh --quick`，末行 `VERIFY=PASS`）。
+> **当前链条：21 步**（`bash verify-all.sh --quick`）。最近一次尝试在第 8 步被并发变异任务污染，**不得记作 `VERIFY=PASS`**；下一次必须在干净、已提交树上单实例重跑。
 > 分级：`verify-fast.sh`（自检探针，秒级）/ `verify-entity.sh` / `verify-render.sh`。
 > 最后一次全绿见 `evidence/verify/`。**下面各段是历代记录，步数是当时的**，
 > 不要按旧数字去数今天的链。
+
+## 2026-10-10 验收审计
+
+- 已验证：第 1--7 步在本轮唯一链中通过（24 个目标构建、9 份 demo 普查、fixture、oracle、录制类型和 additive 检查）。
+- 未验证：第 8--21 步的整体验收。本轮有第二个 `verify-all.sh`/`mutate.sh` 同时改写同一构建树，导致证据作废；`native/src/entity_model.cpp` 已恢复到提交版本。
+- 已修复：`verify-all.sh` 的锁退出清理不再写非空 `owner` 文件；锁目录可由 `rmdir` 正常清除。锁目录存在时第二实例必须退出 `VERIFY-LOCK=FAIL`。
+- 运行规则：会重编译的脚本独占构建树；先 `verify-fast.sh`，实体/渲染改动跑对应二级门禁，只有合并、发版或核心协议修改才跑完整 21 步链。完整链运行期间不得编辑源码、脚本或 `evidence/`。
+
+## 剩余任务顺序
+
+1. **重跑干净 21 步链**：提交当前锁修复后，确认无 `bash verify-all.sh`、`mutate.sh`、探针进程，再单实例运行；只有末行 `VERIFY=PASS`、退出码 0、证据时间一致才更新通过记录。
+2. **武器/投射物骨骼接线**：沿 `m_nSequence`、`m_flCycle`、`m_flPlaybackRate` 从实体快照到动画采样，再生成模型骨骼矩阵并调用 renderer 上传；先用真实武器实体探针和 `skeleton_skin_probe` 的矩阵契约，之后才改主程序。
+3. **ViewModel 第一人称绘制**：接入独立投影/FOV、`v_*.mdl` companion、attachment 和手性变换；保持 `viewmodel` 请求模块与世界实体材质路径分离，增加真实 v_* 见证帧及负向缺资源门禁。
+4. **世界高级材质**：在当前 BSP 基础上补逐面 lightmap、cubemap 六面、skybox、displacement、水面 RT 和 vis clipping；每项先建合成夹具，再用真实 BSP 证明可达性，缺资源保留稳定回退。
+5. **音频时序与效果**：将 demo sound index 映射到 VPK WAV，按网络 tick 调度武器/脚步/Uber/TempEntity/PCF，并过滤 voice/announcer/music；所有验收固定 `--audio-device 6` 或 null sink。
+6. **稳定性与发布**：10 分钟 soak、截断/损坏 demo、缺失/移动 TF root、WARP/真实 GPU、安装启动和残留进程；保留失败原文，不以跳过代替缺输入。
+7. **UI/相机/高级画质**：补 TF2 相机模式和基础 HUD 后再做 DPI、主题、PaintKit、Phong/bump/selfillum、粒子和水面画质；需要外部录像或真实硬件的项目明确标为未验证。
+
+动画解码器和 ViewModel 的实现继续留在隔离工作区；`D:\TF2_Native_Animation_Integration` 的 `2296e59` 只提供诊断探针，不代表产品已接线。
 
 2026-10-09：**骨骼动画的输入供给已测量 —— 玩家侧不存在**。侦察把它当接线任务，
 前提是「demo 会告诉你每个实体在播哪段」。`entity_model_probe --anim-props` 摊平发送表：

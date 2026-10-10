@@ -191,7 +191,6 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "VERIFY-LOCK=FAIL (another verify-all run owns $LOCK_DIR)"
   exit 2
 fi
-printf '%s\n' "pid=$$" > "$LOCK_DIR/owner"
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 ORACLE_SAMPLE=40
