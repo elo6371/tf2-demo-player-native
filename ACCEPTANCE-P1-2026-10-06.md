@@ -2019,9 +2019,11 @@ animprop-summary classesWithSequence=197 classesWithCycle=195 classesWithRate=19
 - `src/game/server/baseanimating.cpp:245-246` —— `IMPLEMENT_SERVERCLASS_ST(CBaseAnimating, DT_BaseAnimating)`
   里用 `SendProp.Int(SENDINFO(m_nSequence), ANIMATION_SEQUENCE_BITS, SPROP_UNSIGNED)` 与
   `SendPropFloat(SENDINFO(m_flPlaybackRate), ...)` 声明了它们；
-- 同文件 `:222` —— `m_flCycle` 走 `DT_ServerAnimationData` 子表，挂在
-  `SendProxy_ClientSideAnimation` 上，注释原文：*"Sendtable for fields we don't want to send
-  to clientside animating entities."*
+- 同文件 `:223` —— `DT_ServerAnimationData` 子表的注释原文：*"Sendtable for fields we
+  don't want to send to clientside animating entities"*；该子表在 `:260` 以
+  `SendPropDataTable("serveranimdata", 0, &REFERENCE_SEND_TABLE(DT_ServerAnimationData),
+  SendProxy_ClientSideAnimation)` 挂上，`:224` 起 `BEGIN_SEND_TABLE_NOBASE(CBaseAnimating,
+  DT_ServerAnimationData)` 里只有 `m_flCycle` 一项。
 - `src/game/client/c_baseanimating.cpp:1168` —— *"Most entities clear out their sequences when
   they change models on the server, but not all entities network down their m_nSequence
   (like **multiplayer game player entities**)…"*

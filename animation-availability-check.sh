@@ -18,8 +18,10 @@
 #
 # and routes m_flCycle through a separate sub-table, DT_ServerAnimationData,
 # attached with SendProxy_ClientSideAnimation and annotated in the same file
-# (line 222): "Sendtable for fields we don't want to send to clientside animating
-# entities." The client's own source says the rest, src/game/client/
+# (line 223): "Sendtable for fields we don't want to send to clientside animating
+# entities" -- the sub-table holds only m_flCycle (BEGIN_SEND_TABLE_NOBASE at
+# line 224) and is attached at line 260 by SendPropDataTable("serveranimdata",
+# ...). The client's own source says the rest, src/game/client/
 # c_baseanimating.cpp:1168: "not all entities network down their m_nSequence
 # (like multiplayer game player entities)". TF2 is the game that strips them.
 #
