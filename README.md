@@ -3,21 +3,59 @@
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
-> **当前链条：21 步**（`bash verify-all.sh --quick`）。最近一次尝试在第 8 步被并发变异任务污染，**不得记作 `VERIFY=PASS`**；下一次必须在干净、已提交树上单实例重跑。
+> **当前链条：21 步**（`bash verify-all.sh --quick`）。**`VERIFY=PASS` 已在 `98df09b` 上取得**：
+> 21/21、退出码 0、48m56s（14:33:29 → 15:22:24），分支 `task/acceptance-recovery`，
+> 基线 `origin/p0-entity-protocol@080f0fe`。**必须在已提交的干净树上、且单实例运行。**
 > 分级：`verify-fast.sh`（自检探针，秒级）/ `verify-entity.sh` / `verify-render.sh`。
 > 最后一次全绿见 `evidence/verify/`。**下面各段是历代记录，步数是当时的**，
 > 不要按旧数字去数今天的链。
 
-## 2026-10-10 验收审计
+## 2026-10-10 验收恢复（T0）
 
-- 已验证：第 1--7 步在本轮唯一链中通过（24 个目标构建、9 份 demo 普查、fixture、oracle、录制类型和 additive 检查）。
-- 未验证：第 8--21 步的整体验收。本轮有第二个 `verify-all.sh`/`mutate.sh` 同时改写同一构建树，导致证据作废；`native/src/entity_model.cpp` 已恢复到提交版本。
-- 已修复：`verify-all.sh` 的锁退出清理不再写非空 `owner` 文件；锁目录可由 `rmdir` 正常清除。锁目录存在时第二实例必须退出 `VERIFY-LOCK=FAIL`。
-- 运行规则：会重编译的脚本独占构建树；先 `verify-fast.sh`，实体/渲染改动跑对应二级门禁，只有合并、发版或核心协议修改才跑完整 21 步链。完整链运行期间不得编辑源码、脚本或 `evidence/`。
+分支 `task/acceptance-recovery`，基线 `origin/p0-entity-protocol@080f0fe`，
+工作区 `D:\TF2_Native_Worktrees\acceptance-recovery`。
+
+**结果：`VERIFY=PASS`，21/21，退出码 0，48m56s。** 提交：`49e89b3`（三处输入修复）→
+`98df09b`（本次链的原始证据）。第 1 档 `verify-fast.sh` = `36/36`。锁行为已复核：
+预置 `.scratch/verify-all.lock` 后 `verify-all.sh` 与 `mutate.sh` 都以 rc=2 拒绝，`rmdir` 可清。
+
+**在全新 worktree 上第一次跑是 18/21。** 三处红都是「判据在读机器，不是读 git」，不是产品回归：
+
+1. **第 7 步假红（行尾）**：`check-probe-output-additive.sh` 的 claim 2 把去了 CR 的当前输出与
+   **没去 CR** 的 `evidence/probe-baseline/added-lines.txt` 直接 `diff`。本机 `core.autocrlf=true`
+   来自**系统级 gitconfig**（Windows Git 默认）→ 任何全新检出该文件都是 CRLF → 18 行全变 →
+   `added-lines=DRIFTED`。claim 1/3 恰好各自去掉了 CR，所以只有它红。修：两处冻结文件读取
+   都 `tr -d '\r'`。
+2. **第 9 步缺输入 + 行尾**：`evidence/corpus-calib/demos.txt`（24 份名单）入库了，但 `reports/`
+   被 `evidence/corpus*/reports/` 排除 → 全新检出 `pinned_reports=0`、48 条 FAIL。修：规则改为
+   排除目录内容 + `!evidence/corpus-calib/reports/*.txt`（**父目录被排除后无法再包含文件，模式
+   必须以 `/*` 结尾**），24 份入库。补齐后仍 24 条红 —— `demos.txt` 同样被检出成 CRLF，而
+   **bash 的 `read` 不剥 CR**（`sed`/`awk` 在本环境按文本模式打开、看不见 CR）→ `name` 成了
+   `73.dem\r`。修：循环里 `name=${name%$'\r'}`。
+3. **第 8 步把「构建失败」记成「变异没移动读数」**：套件跑
+   `bash build-target.sh … >/dev/null 2>&1` 后照常继续；构建失败 → 捕获为空 → 断言读不到值 →
+   记 `MUTATION-GREEN`。链里读到的 `44/6/2/0/6` 就是 m5 的两条（那一刻
+   `entity_message_fixture_probe.exe` 不存在，紧接 m4 刚跑过同一个 exe），编译错误被 `/dev/null`
+   吞掉。修：`build-target.sh` 失败重试一次并保留 `.scratch/build-target.log.failed`；`mutate.sh`
+   15 处调用走 `rebuild`（打印 `MUTATION-BUILD-FAIL` + 编译器原文，`|| continue` 跳过该用例）。
+   **整套变异回到 `46/6/0/0/6`。**
+
+三处都做了反向验证：第 7 步把冻结文件一个计数 +1 仍 `DRIFTED`/rc=1，扰动后逐字节恢复；
+第 9 步 `CENSUS-NEGATIVE=PASS (pinned_reports=24)`；m5 单跑两条都 RED，
+`build-target.sh` 传不存在的目标 rc=2、重试一次、日志点名目标。
+
+**建议未做**：`.gitattributes` 能从检出端一次消除整类行尾陷阱，但它改变每个现有工作树的内容，
+应单独一个改动。
+
+- 运行规则：会重编译的脚本独占构建树；先 `verify-fast.sh`，实体/渲染改动跑对应二级门禁，
+  只有合并、发版或核心协议修改才跑完整 21 步链。完整链运行期间不得编辑源码、脚本或 `evidence/`。
+- 链跑满一次约 48--70 分钟。上一次「21 分钟被杀」的真因是**并发第二个 `verify-all.sh`/`mutate.sh`
+  改写同一构建树**；隔离 worktree 后不再复现。
 
 ## 剩余任务顺序
 
-1. **重跑干净 21 步链**：提交当前锁修复后，确认无 `bash verify-all.sh`、`mutate.sh`、探针进程，再单实例运行；只有末行 `VERIFY=PASS`、退出码 0、证据时间一致才更新通过记录。
+1. ~~**重跑干净 21 步链**~~ —— **已完成 2026-10-10**：`VERIFY=PASS`，21/21，退出码 0，
+   提交 `98df09b`。见上「验收恢复（T0）」。
 2. **武器/投射物骨骼接线**：沿 `m_nSequence`、`m_flCycle`、`m_flPlaybackRate` 从实体快照到动画采样，再生成模型骨骼矩阵并调用 renderer 上传；先用真实武器实体探针和 `skeleton_skin_probe` 的矩阵契约，之后才改主程序。
 3. **ViewModel 第一人称绘制**：接入独立投影/FOV、`v_*.mdl` companion、attachment 和手性变换；保持 `viewmodel` 请求模块与世界实体材质路径分离，增加真实 v_* 见证帧及负向缺资源门禁。
 4. **世界高级材质**：在当前 BSP 基础上补逐面 lightmap、cubemap 六面、skybox、displacement、水面 RT 和 vis clipping；每项先建合成夹具，再用真实 BSP 证明可达性，缺资源保留稳定回退。
