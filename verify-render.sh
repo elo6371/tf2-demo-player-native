@@ -14,13 +14,15 @@
 #   nothing about entity decoding, audio, or SourceTV coverage.
 #
 # WHERE THE READINGS GO
-#   All three gates below write into the committed `evidence/` directories by
+#   The four gates below write into the committed `evidence/` directories by
 #   default.
 #   This tier redirects them into `evidence/fast/render/` and then *asserts* that
 #   nothing under `evidence/` moved. The redirect matters most for frame-capture,
 #   whose metrics CSVs carry wall-clock and memory readings and therefore differ
 #   on every run; the captured BMPs, by contrast, come back byte-identical, which
-#   is the property that gate exists to assert.
+#   is the property that gate exists to assert. weapon-animation is redirected for
+#   the same reason: its metrics CSVs are per-run, and its committed witness
+#   frames must not be rewritten by a tier run.
 #
 # THE GATES
 #   1. resource reachability -- which of main.cpp's five archives actually opened
@@ -39,7 +41,13 @@
 #      which is before this demo's first checkpoint: entities do not exist yet,
 #      so a defect that only fires once they do is outside every gate's field of
 #      view. On 2026-10-09 one did, and only this gate was there to see it.
-#   4. the material chain's synthetic layer -- VTF parse rejections (empty,
+#   4. weapon animation -- the models gate 3 paints must be skinned from real demo
+#      animation input, on the GPU, and the pose must follow the tick rather than
+#      merely advancing a frame cursor. Gate 3 can pass on a model whose vertices
+#      never move: it asserts that the right *paint* reaches the draw, not that
+#      the geometry does anything. This is the gate whose subject is the vertex
+#      transform.
+#   5. the material chain's synthetic layer -- VTF parse rejections (empty,
 #      corrupt, oversized, cubemap-as-2d), the BSP defaults (an empty BSP is
 #      rejected, no-lighting is the default), and the VMT feature mapping. This
 #      is the parse layer under gates 1 and 2; it runs in milliseconds and needs
@@ -91,9 +99,13 @@ B=native/build-nmake
 
 if [ "$BUILD" -eq 1 ]; then
   echo "=== 1/4 incremental build ==="
-  # tf2_demo_native is the program frame-capture and entity-material take their
-  # frames from; entity_model_probe is entity-material's resolve-from-bytes half.
-  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe
+  # tf2_demo_native is the program frame-capture, entity-material and
+  # weapon-animation take their frames from; entity_model_probe is
+  # entity-material's resolve-from-bytes half; weapon_animation_probe is the
+  # instrument weapon-animation uses to separate a moving pose from a moving
+  # cursor, and it is a separate binary because that distinction needs a model
+  # filter the product does not have.
+  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe
   rc_build=$?
   echo "build_rc=$rc_build"
   [ "$rc_build" -eq 0 ] || { echo "VERIFY-RENDER=FAIL (build)"; exit 1; }
@@ -132,6 +144,7 @@ echo "=== 2/4 the gates ==="
 gate resource-reachability resource-reachability-check.sh 'RESOURCE-REACHABILITY=(PASS|FAIL)' RESOURCE_CHECK_OUT
 gate frame-capture         frame-capture-check.sh         'FRAME-CAPTURE=(PASS|FAIL)'         FRAME_CAPTURE_OUT
 gate entity-material       entity-material-check.sh       'ENTITY-MATERIAL=(PASS|FAIL)'       ENTITY_MATERIAL_OUT
+gate weapon-animation      weapon-animation-check.sh      'WEAPON-ANIMATION=(PASS|FAIL)'      WEAPON_ANIMATION_OUT
 
 echo
 echo "=== 3/4 the material chain's synthetic layer ==="
@@ -188,7 +201,7 @@ fi
 echo
 echo "gates_ok=$ok gates_bad=$bad"
 if [ "$bad" -eq 0 ]; then
-  echo "VERIFY-RENDER=PASS ($ok/5 gates, mutation=$MUTATION)"
+  echo "VERIFY-RENDER=PASS ($ok/6 gates, mutation=$MUTATION)"
   exit 0
 fi
 echo "VERIFY-RENDER=FAIL ($bad red)"

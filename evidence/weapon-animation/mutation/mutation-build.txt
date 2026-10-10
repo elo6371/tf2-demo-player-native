@@ -1,2 +1,0 @@
-=== build tf2_demo_native ===
-rc=0

@@ -1,0 +1,19 @@
+# weapon-animation-check.sh readings (2026-10-10T11:41:33Z)
+# demo: D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+# model: models/player/scout.mdl sequence=0 tick=30
+# mutation: none
+ticks: 2000 4000 6000
+tick 2000: 58984.9 scene: anim skinned=63 bindPose=33 matrices=177 gpuSkin=62/177 boneMismatch=0 poseChanges=48 targetInstances=4 targetPose=0 advances=48 targetAdv=0 cycle=7682/0 tick=12016 status=sample-failed reason=animation bone index is outside the skeleton
+tick 4000: 91445.2 scene: anim skinned=63 bindPose=33 matrices=237 gpuSkin=62/237 boneMismatch=0 poseChanges=146 targetInstances=5 targetPose=0 advances=146 targetAdv=0 cycle=15615/0 tick=13614 status=sample-failed reason=animation bone index is outside the skeleton
+tick 6000: 114777.2 scene: anim skinned=63 bindPose=33 matrices=237 gpuSkin=62/237 boneMismatch=0 poseChanges=283 targetInstances=5 targetPose=0 advances=283 targetAdv=0 cycle=25081/0 tick=15907 status=ok reason=c_spy_arms
+model-identity: 2672.1 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
+model-control: 2176.4 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
+model-animated: 2088.8 gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=0 frame=0/1 reason=ref
+wave-a (tick 15): 3029.7 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=15/100 reason=wave
+wave-b (tick 50): 2251.0 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=50/100 reason=wave
+wave-full (tick 100): 2144.0 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=0/100 reason=wave
+probe-normal: {"status":"ok","demo":"D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem","selfTests":3,"selfTestsTotal":3,"sequenceOutOfRange":true,"snapshots":6,"tickCount":6,"tickFirst":74481,"tickLast":74671,"entitiesScanned":6,"sequenceReads":6,"sequencesOutOfRange":0,"distinctModels":1,"modelsWithAnimations":1,"modelsWithoutAnimations":0,"modelLoadFailures":0,"sampledFrames":6,"entitiesCompared":1,"frameAdvanced":0,"staticEntities":1,"changedEntities":0,"boneMatricesBuilt":96,"validBindBones":96,"skinOrderChecks":6,"bindPoseWorst":0,"rigidityWorst":2.98023e-07,"motionDelta":1.24223,"motionRotationDelta":0.0224676,"motionWorst":1.24223,"motionEntity":"136@models/props_ui/bannerflag_comp_l.mdl","skinLands":1.52588e-05,"skinReversed":82.9222,"skinSequence":"wave","sampleStart":74481,"sampleStep":0,"sampleCount":6,"models":"props_ui/bannerflag_comp_l","failures":0}
+probe-mutated-bindpose: {"status":"ok","mutation":"bindpose","mutationMoved":true,"entitiesCompared":1,"skinOrderChecks":6,"skinLands":7.62939e-06,"skinReversed":2.28882e-05,"motionDelta":0,"motionRotationDelta":0,"motionWorst":0,"bindPoseWorst":1.51098e-05,"rigidityWorst":2.38419e-07}
+probe-order: {"status":"ok","mutation":"order","mutationMoved":true,"entitiesCompared":12,"skinOrderChecks":54,"skinLands":35.9878,"skinReversed":35.9878,"motionDelta":0,"motionRotationDelta":0,"motionWorst":0,"bindPoseWorst":0,"rigidityWorst":4.17233e-07}
+distinct-frames: 2/3
+failures: 0
