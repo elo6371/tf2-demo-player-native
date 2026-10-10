@@ -1972,7 +1972,7 @@ pin 成 **9**，而门禁实际只打印 **8** 行 `OK` —— `VERIFY=FAIL`，�
   但**前提是不暂停**。
 
 ## 18. 骨骼动画的输入供给：demo 不给玩家播哪段（P1 剩余子项「骨骼动画接线」的**前置**，
-## 2026-10-09，`6d3bfba` + `58d7ab7` + `9363001` + `1d6ab37` + `ce3806e` + `7fb9069`）
+## 2026-10-09，`6d3bfba` + `58d7ab7` + `9363001` + `1d6ab37` + `ce3806e` + `7fb9069` + `2bac4fb` + `590de4f`）
 
 ### 18.1 问题不在渲染，在输入
 
@@ -2075,6 +2075,17 @@ oracle: DT_BaseAnimating slots=15 animation-property slots=0
 
 ### 18.7 本轮自己的错
 
+- **变异污染了产物（最严重的一条，已修）**：`--mutation` 第一版就地改写 `"$OUT/bagel.txt"`，
+  而 `$OUT` 默认就是**已提交的证据目录** —— 于是 `class=CTFPlayer_MUTATED` 被当成读数
+  **提交进了仓库**。这正是本项目 2026-10-06 栽过的那一类：**变异忘了回退，污染了产物，
+  之后取的每个读数都作废**。修法是结构性的：变异输出改到 `"$OUT/mutation/"`，
+  **在位置上就不可能落到干净证据里**。污染文件已重新生成，两个 `mut.*` 残留已删除。
+  **触发这件事的是「真的把链跑了一遍」，不是读代码。**
+- **`exe_count` pin 过期（同样是跑链才发现的）**：第 1 步 pin `exe_count=23`，而树实际构建
+  **24** 个 exe —— `skeleton_skin_probe` 在 `00b6033` 加进来时**没有同步改 pin**，
+  于是那个窗口里**每一次**跑链第 1 步都报 `BUILD=FAIL`。已改成 24 并写明原因。
+  （`main.cpp` 那一条 `C4457` 是**既有**警告：本轮之前的 `1-build.txt` 里同一条警告、
+  只是行号不同；它**故意不作断言**。）
 - `--anim-props` 第一版用 `name.find("Player")` 判玩家，于是把
   `CPlayerDestructionDispenser`（一个建筑）和 `CBasePlayer`（SDK 基类，其表不是 TF2 的线上格式）
   一起扫进来，打印 `playerSequence=32`；而**真正决定设计的 `CTFPlayer` 因为四个计数全 0
@@ -2093,8 +2104,21 @@ oracle: DT_BaseAnimating slots=15 animation-property slots=0
 
 | 路径 | 内容 |
 |---|---|
-| `evidence/animation-availability/{bagel,pov,sourcetv}.txt` | 三份录像的 `--anim-props` 全文与 JSON |
+| `evidence/animation-availability/{bagel,pov,sourcetv}.txt` | 三份录像的 `--anim-props` 全文与 JSON（**干净读数**，变异不再写这里） |
 | `evidence/animation-availability/oracle-ctfplayer.txt` | oracle 的 `CTFPlayer` 扁平表 |
 | `evidence/animation-availability/oracle-all-classes.txt` | oracle 的 schema（证明含 `CTFPlayer`） |
 | `evidence/mutation/animavail-m13/bagel.txt` | 变异构建下的读数（正对照塌到 0，玩家行不动） |
 | `evidence/mutation/gate.m13.txt` | 变异下门禁的完整输出（`ANIMATION-AVAILABILITY=FAIL`） |
+| `evidence/verify/21-animation-availability.txt` | 链上第 21 步的门禁全文（含 23 条断言行） |
+
+### 18.9 提交清单
+
+| 提交 | 内容 |
+|---|---|
+| `00b6033` | `skeleton_skin_probe`：矩阵约定（上一轮已提交，本轮结论引用它） |
+| `6d3bfba` | `--anim-props` + `animation-availability-check.sh`（**含污染**：变异写进了证据目录） |
+| `58d7ab7` / `9363001` / `1d6ab37` | `mutate.sh` **m13** 及其两条断言修正 |
+| `ce3806e` | `verify-all.sh` 第 21 步 + pin 23 断言 |
+| `7fb9069` / `2bac4fb` | README / HANDOFF / 本文件 §18 |
+| `590de4f` | **修污染**（变异输出改到 `$OUT/mutation/`）+ **修 `exe_count` pin 23→24** |
+
