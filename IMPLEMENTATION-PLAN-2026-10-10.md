@@ -28,11 +28,11 @@
 
 1. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
 2. ViewModel 尚未进入主程序第一人称 draw pass。
-5. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
-6. Demo 音频的 sound index 到 WAV 的 tick 对齐、TempEntity/PCF、过滤规则未闭环。
-7. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
-8. 10 分钟 soak、损坏 demo、移动资源目录、安装启动、真实 GPU/FPS 和发布包未完成。
-9. PaintKit、Phong、bump/selfillum、完整粒子和高级水面效果未完成。
+3. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
+4. Demo 音频的 sound index 到 WAV 的 tick 对齐、TempEntity/PCF、过滤规则未闭环。
+5. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
+6. 10 分钟 soak、损坏 demo、移动资源目录、安装启动、真实 GPU/FPS 和发布包未完成。
+7. PaintKit、Phong、bump/selfillum、完整粒子和高级水面效果未完成。
 
 ### T1 交付与验收状态（2026-10-10）
 
