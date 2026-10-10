@@ -71,6 +71,15 @@ else
   fi
   ORPHANS=0
   while IFS= read -r name; do
+    # demos.txt is tracked, so with core.autocrlf=true (the system gitconfig on
+    # this machine, and the Git-for-Windows default) a fresh checkout gives it
+    # CRLF. bash's `read` does not strip the CR, so every name arrived as
+    # "73.dem\r": both lookups below -- $SRC/reports/73.dem\r.txt and
+    # $DEMOS/73.dem\r -- then missed, and all 24 demos were reported as having no
+    # frozen report and not being in the corpus on a fresh checkout. sed and awk
+    # here open files in text mode and hide the CR, which is why the same file
+    # reads correctly everywhere else; `read` is the one that does not.
+    name=${name%$'\r'}
     case "$name" in ''|'#'*) continue ;; esac
     if [ ! -f "$SRC/reports/${name%.dem}.txt" ]; then
       bad "pinned demo has no frozen report: $name"; ORPHANS=1

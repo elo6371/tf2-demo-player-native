@@ -8,7 +8,18 @@ evidence/**/oracle-enters-*.txt
 # One raw probe report per demo. 1643 reports for the full corpus run: kept on
 # disk so a failure can be re-read instead of re-run, but they are derived data.
 # The gate reads corpus-summary.json + corpus-failures.txt, which stay tracked.
-evidence/corpus*/reports/
+#
+# The rule excludes the *contents* rather than the directory, and the 24
+# calibration reports are re-included, because those 24 are not derived data:
+# verify-all.sh step 9 compares its mutated copies against them as the frozen
+# baseline, the way evidence/probe-baseline/ is a frozen baseline. Leaving them
+# ignored meant a fresh clone had the pinned 24-name list (demos.txt is tracked)
+# and none of the reports it names, so step 9 read `pinned_reports=0` and failed
+# 48 assertions -- an undeclared input dependency on one machine's disk. It is
+# not possible to re-include a file whose parent directory is excluded, which is
+# why the pattern ends in `/*` instead of `/`.
+evidence/corpus*/reports/*
+!evidence/corpus-calib/reports/*.txt
 evidence/corpus*/corpus.csv
 # Truncated and rewritten by every build-cmake.sh run, so it churns on every
 # commit. The build reading that matters is captured per run in
