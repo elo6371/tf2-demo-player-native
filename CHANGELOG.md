@@ -18,7 +18,7 @@
 
 ### T2 ViewModel 起点
 
-- 已创建 `D:\TF2_Native_Worktrees\viewmodel-render` / `task/viewmodel-render`，基线 `origin/p0-entity-protocol@bd48e42`。
+- 已创建 `D:\TF2_Native_Worktrees\viewmodel-render` / `task/viewmodel-render`，产品基线 `origin/p0-entity-protocol@5b58760`；首个 probe 提交为 `2c87438`。
 - 已有 `viewmodel.cpp`、`viewmodel.h` 和诊断 probe，但尚未进入主程序第一人称 draw pass。
 - 实施顺序：资源 companion 契约 → 请求缓存 → 独立 ViewModel draw pass → FOV/attachment/左右手 → T1 动画状态复用 → 真实帧和缺资源负向验收。
 

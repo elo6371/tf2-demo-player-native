@@ -186,8 +186,8 @@ T1 的最小完成判据是：一个真实武器或投射物实例的 `sampled f
 
 ### T2：ViewModel 第一人称绘制（当前进行项，2026-10-10）
 
-工作区：`D:\TF2_Native_Worktrees\viewmodel-render`；分支：`task/viewmodel-render`；基线：
-`origin/p0-entity-protocol@8f56fc6`。只允许修改 ViewModel、第一人称投影和对应探针；不得回写共享主线，
+工作区：`D:\TF2_Native_Worktrees\viewmodel-render`；分支：`task/viewmodel-render`；产品基线：
+`origin/p0-entity-protocol@5b58760`（T2 首个 probe 提交为 `2c87438`）。只允许修改 ViewModel、第一人称投影和对应探针；不得回写共享主线，
 不得整体覆盖 T1 动画接线。
 
 执行顺序：
