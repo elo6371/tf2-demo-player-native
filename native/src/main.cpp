@@ -67,6 +67,14 @@ void traceCheckpoint(const char* what) {
   std::fflush(g_traceFile);
 }
 
+// The format string is NOT checked by the compiler. `_Printf_format_string_` was
+// tried here and is inert for a user-defined variadic function: under /W4 a probe
+// with `%d` fed a `const char*` produced no C4477, while the CRT's own printf did.
+// Only /analyze acts on the annotation, and that is a project-wide flag rather than
+// a local one. So a mismatch between this format and its arguments compiles
+// silently -- one did: `%zu` fed a `uint32_t` printed uninitialised register bits as
+// a bone count. Cast the argument to the type the conversion asks for, and do not
+// trust the compiler to catch it.
 void traceFmt(const char* format, ...) {
   if (!g_traceFile) return;
   // 192 was enough while every line was a handful of counters. A witness line
@@ -1986,7 +1994,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       renderer.viewModelDrawCallCount(), renderer.viewModelVertexCount(),
       renderer.viewModelDepthWrite() ? 1 : 0, renderer.viewModelDepthFuncName().c_str(),
       renderer.viewModelSkinningEnabled() ? 1 : 0,
-      renderer.viewModelBoneUploadCount(), renderer.viewModelState().boneCount,
+      renderer.viewModelBoneUploadCount(),
+      // %zu reads a 64-bit value and this field is a uint32_t; on x64 the
+      // upper half of the register is not guaranteed zeroed, so the first
+      // order line of a run printed a bone count of 4598175219545276416 (the
+      // bit pattern of 0.25). The gate read `tail -1` and never saw it.
+      static_cast<std::size_t>(renderer.viewModelState().boneCount),
       renderer.viewModelAnimationInput().c_str(),
       renderer.viewModelMeshRadius(),
       renderer.viewModelState().attachmentName.empty() ? "-" : renderer.viewModelState().attachmentName.c_str());
