@@ -1,20 +1,24 @@
 # TF2_Native_Test
 
-## 当前状态（2026-10-11）
+## 当前状态（2026-10-12）
 
-T2 ViewModel 第一人称绘制已在整合分支 `integration/viewmodel-t2` 合并，来源为
-`task/viewmodel-render@9894c5b`，整合提交为 `1b765d5`。产品现在有独立 ViewModel pass，默认 FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略和缺资源稳定回退。
+T2 ViewModel 第一人称绘制和 T2.5 ViewModel 动画输入契约已合并到 `p0-entity-protocol`。
+T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品提交 `447ca74`，门禁/文档提交 `2a92967`，主线整合提交 `f5e427f`。
+产品默认 ViewModel FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略、缺资源回退；T2.5 会读取 `CTFViewModel` 的 `m_nSequence`/`m_flPlaybackRate`，对不属于当前 `v_*.mdl` 序列表的序列明确拒绝并回退 bind pose。
 
-已验证：`viewmodel-contract-check.sh` 154 条断言通过，5/5 变异捕获；缺模型、缺 companion、无 placement attachment、短骨表不会崩溃或污染世界帧。当前证据仍是 flat-color ViewModel；尚未证明材质、真实游戏画面对照或 ViewModel 动画输入。
+已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；主线 `verify-render.sh` = `VERIFY-RENDER=PASS (8/8 gates)`；T2.5 专项正常门禁 `VIEWMODEL-ANIMATION=PASS`，独立 mutation 与父锁 mutation 均 `MUTATION-CAUGHT=PASS (red=3/3 hold=3/3)`，源码逐字节恢复、恢复构建 `rc=0`。
+T2.5 没有实现真实的实体序列到 `v_*.mdl` 序列映射；诊断开关 `--viewmodel-apply-animation` 不是正式能力。当前仍未证明 ViewModel 材质/VMT/VTF、真实游戏人工画面对照、玩家动画输入、跨机器抓帧点集合和真实 GPU/FPS。
 
-接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、未验证项和可运行结论。
+接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、变异结果、未验证项和可运行结论；每完成一项立即更新交接清单。
 
-下一步按顺序：T3 ViewModel 动画状态接入；T4 世界材质/光照；T5 音频时序与效果；T6 相机、观察者模式和 HUD/UI；T7 10 分钟 soak、损坏输入、安装启动和发布包。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+当前验收链为 23 步。第 1/2 档已在主线通过；完整 `verify-all.sh --quick` 尚未在本次 T2.5 合并树上运行，必须在已提交、干净、单实例工作区执行，运行期间禁止修改源码、脚本、证据或并发构建/变异。
 
+下一步按顺序：先在合并后的干净主线运行一次 23 步总链；然后在新 worktree 设计并验证 T2.5 的真实映射链（当前武器实体 → weapon definition/`v_*.mdl` companion → activity → drawn-model sequence），再做 T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
-> **当前链条：22 步**（`bash verify-all.sh --quick`）。合并节点已完成 1–21 步端到端通过；第 22 步随后独立重跑：
+> **历史 T1 记录：22 步**（`bash verify-all.sh --quick`）。当前 T2.5 合并树的链已扩展为 23 步，完整总链尚未在该树上运行；下文历史记录中的步数不代表当前状态。
+> 旧合并节点曾完成 1–21 步端到端通过，第 22 步随后独立重跑：
 > `WEAPON-ANIMATION=PASS`，实体/`--model` 两个变异均捕获。尚无一次未中断的 22/22 总链结论，不能写成完整 `VERIFY=PASS`。
 > 基线 `origin/p0-entity-protocol@080f0fe`。**必须在已提交的干净树上、且单实例运行。**
 > 分级：`verify-fast.sh`（自检探针，秒级）/ `verify-entity.sh` / `verify-render.sh`。
@@ -67,7 +71,7 @@ P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引�
 
 1. ~~**重跑干净 21 步链**~~ —— **已完成 2026-10-10**：`VERIFY=PASS`，21/21，退出码 0，
    提交 `98df09b`。见上「验收恢复（T0）」。
-2. **ViewModel 第一人称绘制（当前下一项）**：接入独立投影/FOV、`v_*.mdl` companion、attachment 和手性变换；保持 `viewmodel` 请求模块与世界实体材质路径分离，增加真实 v_* 见证帧及负向缺资源门禁。
+2. **ViewModel 真实动画映射**：在独立 worktree 建立当前武器实体 → weapon definition/`v_*.mdl` companion → activity → 绘制模型 sequence 的可验证链；保留现有拒绝契约，不直接套用 `m_nSequence`。
 3. **世界高级材质**：在当前 BSP 基础上补逐面 lightmap、cubemap 六面、skybox、displacement、水面 RT 和 vis clipping；每项先建合成夹具，再用真实 BSP 证明可达性，缺资源保留稳定回退。
 4. **音频时序与效果**：将 demo sound index 映射到 VPK WAV，按网络 tick 调度武器/脚步/Uber/TempEntity/PCF，并过滤 voice/announcer/music；所有验收固定 `--audio-device 6` 或 null sink。
 5. **稳定性与发布**：10 分钟 soak、截断/损坏 demo、缺失/移动 TF root、WARP/真实 GPU、安装启动和残留进程；保留失败原文，不以跳过代替缺输入。

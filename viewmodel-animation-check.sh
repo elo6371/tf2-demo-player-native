@@ -90,6 +90,13 @@ VM_MODEL="models/weapons/v_models/v_scattergun_scout.mdl"
 # that decides whether the two index spaces really differ.
 ENTITY_MODEL="models/weapons/c_models/c_sniper_arms.mdl"
 INPUTS=evidence/viewmodel/animation-inputs.txt
+# Git may check this script out with CRLF; strip the carriage return from path
+# variables before passing them to native tools or filesystem tests.
+TF=${TF%$'\r'}
+TESTDATA_ROOT=${TESTDATA_ROOT%$'\r'}
+EXE=${EXE%$'\r'}
+PROBE=${PROBE%$'\r'}
+INPUTS=${INPUTS%$'\r'}
 
 # Where the readings go. Every product this gate makes is a machine product -- a
 # trace and two 2.5 MB witness frames per launch, plus per-run metrics CSVs -- so
@@ -309,6 +316,7 @@ DEMO_POV=""
 DEMO_MATCHA=""
 PINNED=0
 while read -r size sha256 root name; do
+  name=${name%$'\r'}
   case "$size" in ''|'#'*) continue ;; esac
   case "$root" in
     steam)    path="$TF/demos/$name" ;;

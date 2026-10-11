@@ -1,5 +1,15 @@
 # 更新日志
 
+## 2026-10-12
+
+### T2.5 ViewModel 动画输入契约已整合
+
+- 主线整合提交：`f5e427f`；来源产品提交 `447ca74`，门禁/交付提交 `2a92967`。
+- 产品读取 `CTFViewModel.m_nSequence` 与 `m_flPlaybackRate`，区分 `missing`、`ok`、`sequenceOutOfRange`、`boneMismatch`；越界序列稳定回退 bind pose。
+- 真实 POV 读数确认实体序列空间与绘制的 `v_scattergun_scout.mdl` 序列表不同（绘制模型 7 序列，实体模型 43 序列；观察到 0--34，104 次越界）。没有把数值落在范围内误认为映射。
+- 门禁：主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8、T2.5 正常 PASS；独立和父锁 mutation 均 `red=3/3 hold=3/3`，源码恢复和恢复构建通过。
+- 修复的问题：父级持构建锁时 mutation 恢复责任被错误跳过；pin 文件 CRLF 使 Git Bash 读到 `name\r` 并误报 demo 缺失；变异模式仍按正常版断言拒绝状态。
+- 未完成：真实序列映射、ViewModel 材质与人工画面对照、完整 23 步总链、玩家动画外部输入。下一步先跑干净主线总链，再开独立 worktree 做映射调查。
 ## 2026-10-11
 
 ### T2 ViewModel 第一人称绘制已整合

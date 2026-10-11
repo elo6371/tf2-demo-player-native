@@ -1,8 +1,8 @@
 # TF2 Demo Player Native 实现任务与验收计划
 
-更新时间：2026-10-11
+更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`integration/viewmodel-t2@1b765d5`（已整合 T0、实体材质、T1 动画接线和 T2 ViewModel；不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@f5e427f`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel 和 T2.5 输入契约；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -27,7 +27,7 @@
 ### 当前未完成
 
 1. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
-2. ViewModel 第一人称 draw pass 已接入；材质/VMT/VTF、真实游戏画面对照和 ViewModel 动画输入仍未闭环。
+2. ViewModel 第一人称 draw pass 和 T2.5 动画输入拒绝契约已接入；材质/VMT/VTF、真实游戏画面对照和实体序列到 `v_*.mdl` 的真实映射仍未闭环。
 3. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
 4. Demo 音频的 sound index 到 WAV 的 tick 对齐、TempEntity/PCF、过滤规则未闭环。
 5. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
@@ -184,6 +184,8 @@ T1 的最小完成判据是：一个真实武器或投射物实例的 `sampled f
 - 绑定姿势误差、矩阵刚性、循环首尾误差和缺序列负向测试。
 - 真实帧抓取：动作前/中/后各一帧；不得只凭“探针通过”宣称画面正确。
 
+> 本节保留 T2 实施时的原始步骤作为历史记录；当前状态以本计划下方的 T2.5 和文件顶部基线为准。第一人称绘制与动画输入拒绝契约已完成，真实 sequence 映射另列为未完成任务。
+
 ### T2：ViewModel 第一人称绘制（已完成接入，2026-10-11）
 
 工作区：`D:\TF2_Native_Worktrees\viewmodel-render`；分支：`task/viewmodel-render`；产品基线：
@@ -265,6 +267,11 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 另需真实截图：默认 FOV、FOV 边界、左右手、attachment 对齐、缺资源回退；截图标题必须包含 demo tick 和 model path。
 
+### T2.5：ViewModel 动画输入契约（拒绝路径已完成，真实映射未完成）
+
+主线整合：`p0-entity-protocol@f5e427f`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，验证实体模型表与绘制 `v_*.mdl` 表不共用索引；越界、缺归属实体和骨骼不匹配均回退 bind pose。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。`verify-all.sh --quick` 尚未在该合并树上运行。
+
+真实动画映射仍需独立 worktree 完成：当前武器实体与 `m_hOwner` 配对 → weapon definition/`v_*.mdl` companion → activity/动作语义 → 绘制模型 sequence，再以正负 fixture 和跨 tick 见证帧验收。禁止把 `m_nSequence` 直接当作 `v_*.mdl` 的 sequence 索引，也禁止把 `--viewmodel-apply-animation` 当作正式能力。
 ### T3：相机、观察者模式与基础 HUD/UI
 
 **负责人**：UI/相机 AI。
