@@ -573,13 +573,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
 
   tf2::native::Renderer renderer;
   g_renderer = &renderer;
+  // Which settings file to read has to be known *before* it is read, and the main
+  // argument loop below runs after that read. So `--settings-file` is taken from a
+  // pre-scan here; parsed down there it would arrive after the file had been loaded
+  // and would silently do nothing.
+  int argumentCount = 0;
+  LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
+  if (arguments) {
+    for (int i = 1; i < argumentCount; ++i) {
+      if (wcscmp(arguments[i], L"--settings-file") == 0) {
+        // A flag with no value is refused rather than ignored: falling back to the
+        // user's real settings file would make a run that asked to be hermetic read
+        // the machine, and nothing in the trace would say so.
+        if (i + 1 >= argumentCount) {
+          OutputDebugStringW(L"TF2 Demo Player: --settings-file needs a path; refusing to guess.\n");
+          return 13;
+        }
+        tf2::native::setSettingsFileOverride(std::filesystem::path(arguments[++i]));
+      }
+    }
+  }
   auto persistent = tf2::native::loadSettings();
   tf2::native::NativeUiController nativeUi;
   nativeUi.setTfRoot(persistent.tfRoot);
   g_nativeUi = &nativeUi;
   DragAcceptFiles(window, TRUE);
   createNativeUiControls(window, instance);
-  int argumentCount = 0;
   std::filesystem::path commandTfRoot;
   std::filesystem::path commandDemo;
   std::filesystem::path commandModel;
@@ -607,7 +626,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // the plan forbids rescanning the VPK or re-parsing the MDL per frame.
   //   --viewmodel <path>        a `v_*.mdl`, loose or inside a VPK
   //   --viewmodel-hand <r|l>    which hand's attachment table to prefer
-  //   --viewmodel-fov <n>       clamped to 40..120; omitted means the default 90
+  //   --viewmodel-fov <n>       clamped to 40..120; omitted means the stored
+  //                             setting, and the compiled default (90) when there
+  //                             is no stored value. `--settings-file` (read by the
+  //                             pre-scan near the top of wWinMain) is what makes
+  //                             "no stored value" reachable from a gate.
   //   --viewmodel-identity-bones  a diagnostic, not a feature: upload one
   //                             identity matrix per bone so the pass takes its
   //                             skinning branch with a transform that must leave
@@ -623,7 +646,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool viewModelIdentityBones = false;
   std::size_t viewModelBoneLimit = 0;   // 0 = upload the whole table
   bool viewModelArgumentRejected = false;
-  LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -1958,10 +1980,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // boneTableCoverage=0/0` is no table at all, and `skinning=1
     // boneTableCoverage=45/45` is a skinned draw. Without the pair, the refusal
     // and the no-table case are both just `skinning=0`.
-    traceFmt("gpu: viewmodel pass order worldPass=%zu viewModelPass=%zu afterWorld=%d drawCalls=%zu vertices=%zu skinning=%d boneTableCoverage=%zu/%zu animationInput=%s meshRadius=%.2f alignment=%s",
+    traceFmt("gpu: viewmodel pass order worldPass=%zu viewModelPass=%zu afterWorld=%d drawCalls=%zu vertices=%zu depthWrite=%d depthFunc=%s skinning=%d boneTableCoverage=%zu/%zu animationInput=%s meshRadius=%.2f alignment=%s",
       renderer.viewModelWorldPassOrdinal(), renderer.viewModelPassOrdinal(),
       renderer.viewModelPassOrdinal() > renderer.viewModelWorldPassOrdinal() ? 1 : 0,
       renderer.viewModelDrawCallCount(), renderer.viewModelVertexCount(),
+      renderer.viewModelDepthWrite() ? 1 : 0, renderer.viewModelDepthFuncName().c_str(),
       renderer.viewModelSkinningEnabled() ? 1 : 0,
       renderer.viewModelBoneUploadCount(), renderer.viewModelState().boneCount,
       renderer.viewModelAnimationInput().c_str(),

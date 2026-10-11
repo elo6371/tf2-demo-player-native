@@ -12,6 +12,8 @@ namespace tf2::native {
 namespace {
 constexpr wchar_t kSection[] = L"renderer";
 constexpr wchar_t kSettingsFile[] = L"settings.ini";
+// Empty means "the user's real settings file". Set by setSettingsFileOverride.
+std::filesystem::path g_settingsFileOverride;
 
 int readInt(const std::filesystem::path& file, const wchar_t* key, int fallback) {
   return GetPrivateProfileIntW(kSection, key, fallback, file.c_str());
@@ -33,6 +35,7 @@ bool writeBool(const std::filesystem::path& file, const wchar_t* key, bool value
 }
 
 std::filesystem::path settingsPath() {
+  if (!g_settingsFileOverride.empty()) return g_settingsFileOverride;
   PWSTR appData = nullptr;
   std::filesystem::path base;
   if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_DEFAULT, nullptr, &appData))) {
@@ -101,6 +104,10 @@ bool saveSettings(const PersistentSettings& settings) {
     return false;
   }
   return true;
+}
+
+void setSettingsFileOverride(const std::filesystem::path& file) {
+  g_settingsFileOverride = file;
 }
 
 } // namespace tf2::native

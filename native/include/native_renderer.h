@@ -212,6 +212,14 @@ public:
   std::size_t viewModelVertexCount() const { return viewModelVertexCount_; }
   std::size_t viewModelBoneUploadCount() const { return viewModelBoneUploadCount_; }
   float viewModelMeshRadius() const { return viewModelMeshRadius_; }
+  // The pass's depth policy, recorded from the description the state was created
+  // with. D3D11 cannot read a state object back, so this is the input to
+  // CreateDepthStencilState rather than the device's copy -- stated rather than
+  // glossed over. Both values are constants for this pass and are asserted anyway:
+  // a change to the depth policy should redden a gate, not quietly change the
+  // picture.
+  bool viewModelDepthWrite() const { return viewModelDepthWrite_; }
+  const std::string& viewModelDepthFuncName() const { return viewModelDepthFunc_; }
   // Whether the *pass* skinned, not whether a caller asked it to. Those differ:
   // a bone table that cannot cover the skeleton is refused (the all-or-nothing
   // gate in drawViewModel) and the bind pose is drawn instead, and reporting the
@@ -367,6 +375,9 @@ private:
   std::size_t viewModelBoneUploadCount_ = 0;
   // Set by drawViewModel to the number of matrices it actually skinned with.
   std::size_t viewModelEffectiveBoneCount_ = 0;
+  // Read off the depth description at createPipeline time.
+  bool viewModelDepthWrite_ = false;
+  std::string viewModelDepthFunc_ = "unset";
   Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelConstants_;
   // A depth state of its own. The pass clears depth before it draws, so the
   // weapon is never clipped by the map it is standing in -- the same policy the

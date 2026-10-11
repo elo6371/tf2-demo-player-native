@@ -631,6 +631,9 @@ float4 main(Input input) : SV_TARGET {
       lastError_ = E_FAIL;
       return false;
     }
+    viewModelDepthWrite_ = viewModelDepthDescription.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL;
+    viewModelDepthFunc_ = viewModelDepthDescription.DepthFunc == D3D11_COMPARISON_LESS_EQUAL
+      ? "less_equal" : "other";
     D3D11_RASTERIZER_DESC viewModelRasterDescription{};
     viewModelRasterDescription.FillMode = D3D11_FILL_SOLID;
     viewModelRasterDescription.CullMode = D3D11_CULL_NONE;

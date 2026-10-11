@@ -1,6 +1,11 @@
 // vpk_query -- count entries under a prefix in the TF2 archives main.cpp opens.
 // Throwaway diagnostic: answers "does any open archive still hold materials/maps/*"
 // so the material-chain failure can be attributed to the right archive.
+//
+// The hit list used to stop at five. That cap is what made "is any shipped viewmodel
+// a usable negative fixture?" unanswerable from here: `models/weapons/v_models` holds
+// 37 entries and the tool printed 5 of them, so the only way to name the rest was to
+// guess. Printing all of them costs nothing and turns that question into a sweep.
 #include "vpk_archive.h"
 
 #include <filesystem>
@@ -32,7 +37,7 @@ int main(int argc, char** argv) {
               << " entries, " << hits.size() << " match '" << prefix << "'";
     if (!ext.empty()) std::cout << " ext=" << ext;
     std::cout << "\n";
-    for (std::size_t i = 0; i < hits.size() && i < 5; ++i) std::cout << "    " << hits[i] << "\n";
+    for (std::size_t i = 0; i < hits.size(); ++i) std::cout << "    " << hits[i] << "\n";
   }
   std::cout << "total matches: " << grand << "\n";
   return 0;
