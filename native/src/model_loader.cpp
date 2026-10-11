@@ -390,10 +390,21 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
   // in a list of strings. Nothing consumed `textureCount`, so the wrong word was
   // never caught; the byte evidence for 208 is that textureindex + 17*64 lands
   // exactly on cdtextureindex (589552 + 1088 = 590640).
+  //
+  // The bodypart and attachment pairs were shifted by two words in exactly the
+  // same way, and that one *did* have a consumer. 240/244 are numlocalattachments
+  // / localattachmentindex; 248/252 are numlocalnodes / localnodeindex. Reading
+  // the node pair as the attachment pair put the attachment table pointer in the
+  // node table, so every attachment came back with an unreadable name and a
+  // transform of 1e27 -- and nothing noticed, because the only consumer was
+  // `attachments.size() == attachmentCount`, a count check that a table of
+  // garbage satisfies. The two are indistinguishable by count and obvious by
+  // content: a real attachment has a name, a bone index inside the skeleton and
+  // a unit-length basis.
   readAt(b, 204, numTextures); readAt(b, 208, textureIndex);
   readAt(b, 212, numCdTextures); readAt(b, 216, cdTextureIndex);
-  readAt(b, 240, numBodyParts); readAt(b, 244, bodyPartIndex);
-  readAt(b, 248, numAttachments); readAt(b, 252, attachmentIndex);
+  readAt(b, 232, numBodyParts); readAt(b, 236, bodyPartIndex);
+  readAt(b, 240, numAttachments); readAt(b, 244, attachmentIndex);
   out.boneCount = numBones; out.sequenceCount = numSequences; out.textureCount = numTextures;
   out.bodyPartCount = numBodyParts; out.attachmentCount = numAttachments;
   const auto saneCount = [&](std::uint32_t count, const char* label) {

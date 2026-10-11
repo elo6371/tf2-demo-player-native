@@ -43,24 +43,31 @@ int selfTest() {
   writeAt<std::uint32_t>(bytes, 4, 48u);
   writeAt<std::uint32_t>(bytes, 8, 1u);
   writeAt<std::uint32_t>(bytes, 76, 316u);
-  writeAt<std::uint32_t>(bytes, 248, 1u);
-  writeAt<std::uint32_t>(bytes, 252, 400u);
+  // studiohdr_t words: 232/236 bodyparts, 240/244 attachments. These two
+  // fixtures used to patch 240/244 for the *bodypart* table and 248/252 for the
+  // *attachment* table, which is the pair the parser itself read -- so the
+  // fixture agreed with the bug and stayed green while the attachment table
+  // pointer was actually pointing into the node table. Patching the words the
+  // parser is supposed to read is what makes this a test of the parser rather
+  // than of the two mistakes cancelling out.
+  writeAt<std::uint32_t>(bytes, 240, 1u);
+  writeAt<std::uint32_t>(bytes, 244, 400u);
   { std::ofstream out(attachmentPath, std::ios::binary); out.write(reinterpret_cast<const char*>(bytes.data()), bytes.size()); }
   const auto attachmentInspection = tf2::native::ModelLoader::inspect(attachmentPath);
   const bool attachmentRejected = hasDiagnostic(attachmentInspection, "attachment table is outside");
   const bool attachmentPreflight = attachmentInspection.mdl.signatureValid
     && attachmentInspection.vvd.signatureValid;
-  writeAt<std::uint32_t>(bytes, 248, 0u);
-  writeAt<std::uint32_t>(bytes, 252, 0u);
-  writeAt<std::uint32_t>(bytes, 240, 1u);
-  writeAt<std::uint32_t>(bytes, 244, 400u);
+  writeAt<std::uint32_t>(bytes, 240, 0u);
+  writeAt<std::uint32_t>(bytes, 244, 0u);
+  writeAt<std::uint32_t>(bytes, 232, 1u);
+  writeAt<std::uint32_t>(bytes, 236, 400u);
   { std::ofstream out(bodyPartPath, std::ios::binary); out.write(reinterpret_cast<const char*>(bytes.data()), bytes.size()); }
   const auto bodyPartInspection = tf2::native::ModelLoader::inspect(bodyPartPath);
   const bool bodyPartRejected = hasDiagnostic(bodyPartInspection, "bodypart table is outside");
   const bool bodyPartPreflight = bodyPartInspection.mdl.signatureValid
     && bodyPartInspection.vvd.signatureValid;
-  writeAt<std::uint32_t>(bytes, 240, 0u);
-  writeAt<std::uint32_t>(bytes, 244, 0u);
+  writeAt<std::uint32_t>(bytes, 232, 0u);
+  writeAt<std::uint32_t>(bytes, 236, 0u);
   writeAt<std::uint32_t>(bytes, 156, 1u);
   writeAt<std::uint32_t>(bytes, 160, 400u);
   { std::ofstream out(bonePath, std::ios::binary); out.write(reinterpret_cast<const char*>(bytes.data()), bytes.size()); }

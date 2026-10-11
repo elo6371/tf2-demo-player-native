@@ -1,5 +1,7 @@
 #include "settings_store.h"
 
+#include "viewmodel.h"
+
 #include <Windows.h>
 #include <shlobj.h>
 #include <cstdlib>
@@ -56,7 +58,8 @@ PersistentSettings loadSettings() {
   result.render.preset = readInt(file, L"preset", 0) == 1
     ? QualityPreset::Standard : QualityPreset::Performance;
   result.render.renderScale = static_cast<float>(readInt(file, L"renderScalePercent", 100)) / 100.0f;
-  result.render.viewModelFov = static_cast<float>(readInt(file, L"viewModelFov", 90));
+  result.render.viewModelFov = static_cast<float>(
+    migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));
   result.render.vsync = readBool(file, L"vsync", false);
   result.render.normalize();
   wchar_t root[32768]{};

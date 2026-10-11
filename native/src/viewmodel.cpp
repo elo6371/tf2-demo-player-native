@@ -1,9 +1,8 @@
 #include "viewmodel.h"
 
+#include <algorithm>
 #include <cctype>
-#include <cstring>
-#include <fstream>
-#include <limits>
+#include <cmath>
 
 namespace tf2::native {
 namespace {
@@ -17,93 +16,93 @@ std::string normalizePath(std::string value) {
   return value;
 }
 
-bool rangeFits(std::size_t offset, std::size_t count, std::size_t stride, std::size_t size) {
-  if (count != 0 && stride > (std::numeric_limits<std::size_t>::max)() / count) return false;
-  const auto bytes = count * stride;
-  return offset <= size && bytes <= size - offset;
-}
-
-template <typename T>
-bool readAt(const std::vector<std::uint8_t>& bytes, std::size_t offset, T& out) {
-  if (!rangeFits(offset, sizeof(T), 1, bytes.size())) return false;
-  std::memcpy(&out, bytes.data() + offset, sizeof(T));
-  return true;
-}
-
-std::string indexedString(const std::vector<std::uint8_t>& bytes, std::size_t base, std::int32_t index) {
-  if (index < 0) return {};
-  const auto relative = static_cast<std::size_t>(index);
-  if (base > bytes.size() || relative > bytes.size() - base) return {};
-  const auto offset = base + relative;
-  std::size_t end = offset;
-  const auto limit = std::min(bytes.size(), offset + 256);
-  while (end < limit && bytes[end] != 0) ++end;
-  std::string text(reinterpret_cast<const char*>(bytes.data() + offset), end - offset);
-  for (const unsigned char character : text) {
-    if (character < 32 || character > 126) return {};
-  }
-  return text;
-}
-
-bool readAttachments(const std::vector<std::uint8_t>& bytes, std::vector<ViewModelAttachment>& out, std::string& reason) {
-  // studiohdr numlocalattachments/localattachmentindex. The bind-pose loader
-  // reads a later pair and is left unchanged.
-  std::int32_t count = 0;
-  std::int32_t index = 0;
-  if (!readAt(bytes, 240, count) || !readAt(bytes, 244, index)) {
-    reason = "viewmodel attachment table is outside the file";
-    return false;
-  }
-  if (count < 0 || count > 1024
-      || index < 0
-      || !rangeFits(static_cast<std::size_t>(index), static_cast<std::size_t>(count), 92, bytes.size())) {
-    reason = "viewmodel attachment table is outside the file";
-    return false;
-  }
-  out.clear();
-  out.reserve(static_cast<std::size_t>(count));
-  for (std::int32_t i = 0; i < count; ++i) {
-    const auto offset = static_cast<std::size_t>(index) + static_cast<std::size_t>(i) * 92u;
-    std::int32_t nameIndex = 0;
-    readAt(bytes, offset, nameIndex);
-    ViewModelAttachment attachment;
-    attachment.name = indexedString(bytes, offset, nameIndex);
-    readAt(bytes, offset + 24, attachment.origin[0]);
-    readAt(bytes, offset + 40, attachment.origin[1]);
-    readAt(bytes, offset + 56, attachment.origin[2]);
-    out.push_back(std::move(attachment));
-  }
-  reason.clear();
-  return true;
-}
-
-std::vector<std::uint8_t> readLoose(const std::filesystem::path& path, std::string& reason) {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) {
-    reason = "viewmodel MDL is missing or invalid";
-    return {};
-  }
-  in.seekg(0, std::ios::end);
-  const auto length = in.tellg();
-  if (length <= 0 || static_cast<std::uint64_t>(length) > 64ull * 1024ull * 1024ull) {
-    reason = "viewmodel MDL is missing or invalid";
-    return {};
-  }
-  in.seekg(0, std::ios::beg);
-  std::vector<std::uint8_t> bytes(static_cast<std::size_t>(length));
-  in.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!in) {
-    reason = "viewmodel MDL is missing or invalid";
-    return {};
-  }
-  return bytes;
-}
-
 bool isViewModelPath(const std::string& path) {
   const auto slash = path.find_last_of('/');
   const auto file = slash == std::string::npos ? path : path.substr(slash + 1);
   return file.size() > 6 && file.rfind("v_", 0) == 0 && file.size() >= 4
     && file.compare(file.size() - 4, 4, ".mdl") == 0;
+}
+
+bool finite3(const std::array<float, 3>& value) {
+  return std::isfinite(value[0]) && std::isfinite(value[1]) && std::isfinite(value[2]);
+}
+
+float length3(const std::array<float, 3>& value) {
+  return std::sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2]);
+}
+
+// A rotation basis is unit length. 0.5..2.0 is loose enough that a real model
+// never trips it and tight enough that a truncated read (an all-zero basis) or a
+// misread stride does. Failing it is `Partial`, not `Invalid`: the transform is
+// still finite and the bone still exists.
+bool axisLengthReasonable(const std::array<float, 3>& value) {
+  const float length = length3(value);
+  return length >= 0.5f && length <= 2.0f;
+}
+
+// The classification the plan asks for, in the order the reasons matter: a
+// nameless attachment cannot be selected by name at all, a bone index outside
+// the skeleton cannot be resolved, and a non-finite transform cannot be applied.
+// Only after all three pass does a suspicious basis get to be `Partial`.
+ViewModelAttachment classifyAttachment(const ModelAttachment& source, std::size_t boneCount) {
+  ViewModelAttachment attachment;
+  attachment.name = source.name;
+  attachment.bone = source.bone;
+  attachment.origin = source.origin;
+  attachment.axisX = source.axisX;
+  attachment.axisY = source.axisY;
+  attachment.axisZ = source.axisZ;
+  if (attachment.name.empty()) {
+    attachment.reason = "attachment name is unreadable";
+    return attachment;
+  }
+  if (source.bone < 0 || static_cast<std::size_t>(source.bone) >= boneCount) {
+    attachment.reason = "attachment bone index is outside the skeleton";
+    return attachment;
+  }
+  if (!finite3(attachment.origin) || !finite3(attachment.axisX)
+      || !finite3(attachment.axisY) || !finite3(attachment.axisZ)) {
+    attachment.reason = "attachment transform is not finite";
+    return attachment;
+  }
+  if (!axisLengthReasonable(attachment.axisX) || !axisLengthReasonable(attachment.axisY)
+      || !axisLengthReasonable(attachment.axisZ)) {
+    attachment.status = ViewModelAttachmentStatus::Partial;
+    attachment.reason = "attachment basis is not unit length";
+    return attachment;
+  }
+  attachment.status = ViewModelAttachmentStatus::Valid;
+  return attachment;
+}
+
+const char* attachmentStatusName(ViewModelAttachmentStatus status) {
+  switch (status) {
+    case ViewModelAttachmentStatus::Valid: return "valid";
+    case ViewModelAttachmentStatus::Partial: return "partial";
+    default: return "invalid";
+  }
+}
+
+void fillResources(const ModelInspection& inspection, ViewModelResourceStatus& resources) {
+  resources.mdlReadable = inspection.mdl.signatureValid && inspection.metadata.valid;
+  resources.vvdPresent = inspection.vvd.signatureValid;
+  if (inspection.vtx.signatureValid) {
+    resources.vtxPresent = true;
+    resources.vtxVariant = "dx90";
+  } else if (inspection.vtxDx80.signatureValid) {
+    resources.vtxPresent = true;
+    resources.vtxVariant = "dx80";
+  } else if (inspection.vtxSw.signatureValid) {
+    resources.vtxPresent = true;
+    resources.vtxVariant = "sw";
+  }
+  resources.materialCount = inspection.metadata.textureNames.empty()
+    ? static_cast<std::size_t>(inspection.metadata.textureCount)
+    : inspection.metadata.textureNames.size();
+  // Flat-colour phase: the texture table is read and counted, but nothing binds
+  // a VMT yet, so this stays 0 rather than claiming a material that is not used.
+  resources.materialResolved = 0;
+  resources.companionsComplete = resources.mdlReadable && resources.vvdPresent && resources.vtxPresent;
 }
 
 } // namespace
@@ -114,6 +113,57 @@ std::array<float, 12> viewModelHandMatrix(ViewModelHand hand) {
   matrix[5] = 1.0f;
   matrix[10] = 1.0f;
   return matrix;
+}
+
+std::vector<std::string> defaultViewModelAlignmentPreferences(ViewModelHand hand) {
+  // `weapon_bone` is the placement anchor on every shipped weapon viewmodel
+  // checked on 2026-10-11 (`v_scattergun_scout`, `v_bat_scout`, `v_pda_spy`,
+  // `v_grenadelauncher_demo`); `v_watch_spy` carries the left-hand variant
+  // `weapon_bone_L`. The other hand's bone stays as a fallback so a model
+  // without a variant is still placeable, and the reason string says so.
+  if (hand == ViewModelHand::Left) return { "weapon_bone_L", "weapon_bone" };
+  return { "weapon_bone", "weapon_bone_R" };
+}
+
+std::int32_t selectViewModelAlignment(ViewModelRequest& request,
+    const std::vector<std::string>& preferences) {
+  request.alignmentName.clear();
+  request.alignmentIndex = -1;
+  if (request.attachments.empty()) {
+    request.alignmentReason = "the model carries no attachment; the pass uses the model transform";
+    return -1;
+  }
+  std::string present;
+  for (const auto& attachment : request.attachments) {
+    if (attachment.name.empty()) continue;
+    if (!present.empty()) present += ",";
+    present += attachment.name;
+  }
+  std::string rejected;
+  for (const auto& wanted : preferences) {
+    for (std::size_t index = 0; index < request.attachments.size(); ++index) {
+      const auto& attachment = request.attachments[index];
+      if (attachment.name != wanted) continue;
+      if (attachment.status == ViewModelAttachmentStatus::Invalid) {
+        if (!rejected.empty()) rejected += ",";
+        rejected += wanted + "(invalid)";
+        break;
+      }
+      request.alignmentName = attachment.name;
+      request.alignmentIndex = static_cast<std::int32_t>(index);
+      request.alignmentReason = "placement attachment '" + wanted + "' is "
+        + attachmentStatusName(attachment.status);
+      if (!rejected.empty()) request.alignmentReason += "; rejected " + rejected;
+      return request.alignmentIndex;
+    }
+  }
+  // No placement anchor. This is a documented fallback, not "take the first
+  // one": the request keeps the model's own transform and the reason names what
+  // the model does have, so a reader can tell an effect-only attachment set from
+  // a model that was never going to be placeable.
+  request.alignmentReason = "no placement attachment present (found: " + present
+    + "); the pass uses the model transform";
+  return -1;
 }
 
 ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string& path,
@@ -152,11 +202,13 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
     return request;
   }
 
+  // One inspection, from whichever source holds the model. This used to be a
+  // second, hand-rolled MDL reader inside this file (hard-coded offsets 240/244,
+  // and only the three origin scalars at +24/+40/+56), which disagreed with
+  // model_loader.cpp about the same structure. The attachment table, the bones
+  // and the sequences now come from the same parser the world models use.
   ModelInspection inspection;
-  std::vector<std::uint8_t> mdlBytes;
   if (candidate.resolution == ModelAssetResolution::FoundLoose) {
-    mdlBytes = readLoose(candidate.looseMdl, request.reason);
-    if (mdlBytes.empty()) return request;
     inspection = ModelLoader::inspect(candidate.looseMdl);
   } else {
     VpkArchive archive;
@@ -165,20 +217,65 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
       request.reason = error.empty() ? "viewmodel archive did not open" : error;
       return request;
     }
-    mdlBytes = archive.read(request.path, &error);
-    if (mdlBytes.empty()) {
-      request.reason = error.empty() ? "viewmodel MDL is missing or invalid" : error;
-      return request;
-    }
     inspection = ModelLoader::inspectVpk(archive, request.path);
   }
   if (!inspection.mdl.signatureValid || !inspection.metadata.valid) {
     request.reason = "viewmodel MDL is missing or invalid";
     return request;
   }
-  if (!readAttachments(mdlBytes, request.attachments, request.reason)) return request;
+
+  fillResources(inspection, request.resources);
+  request.bones = inspection.metadata.bones;
   request.sequenceLabels.reserve(inspection.metadata.sequences.size());
   for (const auto& sequence : inspection.metadata.sequences) request.sequenceLabels.push_back(sequence.label);
+
+  request.attachmentCount = inspection.metadata.attachmentCount;
+  request.attachments.reserve(inspection.metadata.attachments.size());
+  for (const auto& source : inspection.metadata.attachments) {
+    auto attachment = classifyAttachment(source, request.bones.size());
+    if (attachment.status == ViewModelAttachmentStatus::Valid) ++request.attachmentsValid;
+    else if (attachment.status == ViewModelAttachmentStatus::Partial) ++request.attachmentsPartial;
+    else ++request.attachmentsInvalid;
+    request.attachments.push_back(std::move(attachment));
+  }
+  if (request.attachments.size() != request.attachmentCount) {
+    request.attachmentReason = "the attachment table did not parse completely";
+  } else if (request.attachmentsInvalid != 0) {
+    request.attachmentReason = std::to_string(request.attachmentsInvalid)
+      + " attachment(s) unusable; alignment falls back to the model transform";
+  } else if (request.attachmentsPartial != 0) {
+    request.attachmentReason = std::to_string(request.attachmentsPartial)
+      + " attachment(s) usable but suspicious";
+  } else {
+    request.attachmentReason = "all attachments valid";
+  }
+
+  // A damaged attachment is recorded and skipped; it never fails the request.
+  selectViewModelAlignment(request, defaultViewModelAlignmentPreferences(hand));
+
+  if (!request.resources.companionsComplete) {
+    request.reason = "viewmodel companions are missing";
+    return request;
+  }
+  // Build the mesh once here so the draw path never decodes a VTX per frame.
+  std::size_t descriptor = inspection.metadata.meshes.size();
+  for (std::size_t index = 0; index < inspection.metadata.meshes.size(); ++index) {
+    if (inspection.metadata.meshes[index].indexStatus == ModelMeshIndexStatus::Available) {
+      descriptor = index;
+      break;
+    }
+  }
+  if (descriptor < inspection.metadata.meshes.size()) {
+    std::string error;
+    if (ModelLoader::buildModelMeshData(inspection, descriptor, request.mesh, error)) {
+      request.resources.meshReady = true;
+    } else {
+      request.resources.meshReason = error.empty() ? "viewmodel mesh did not build" : error;
+    }
+  } else {
+    request.resources.meshReason = "the model has no decodable mesh";
+  }
+
   request.status = ViewModelStatus::Ok;
   request.reason.clear();
   return request;
