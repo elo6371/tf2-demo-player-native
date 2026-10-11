@@ -107,6 +107,28 @@ struct ViewModelDrawState {
   // skinning instead of guessing a partial one.
   bool skinningEnabled = false;
   std::uint32_t boneCount = 0;
+  // The animation input the caller resolved for this frame, spelled the way
+  // viewModelAnimationStatusName does (missing / ok / sequenceOutOfRange /
+  // boneMismatch). The product prints it as `vmAnimInput` on the pass-order line.
+  //
+  // It is deliberately a SECOND field rather than a replacement for
+  // `animationInput`, and the reason is that the two answer different questions.
+  // `animationInput` is an *effect* reading -- `missing`, or `bones:<n>` once a
+  // bone table was uploaded -- and the identity-bones instrument depends on it
+  // staying that way. This one is the *contract* reading. Keeping both is what
+  // makes "the pass skinned from a real pose" (vmAnimInput=ok, skinning=1)
+  // distinguishable from "the pass skinned through the identity instrument"
+  // (vmAnimInput=missing, skinning=1); folding them into one string would lose
+  // exactly that distinction, and would also rewrite a T2 reading that 154
+  // assertions and a byte-identical frame pair were frozen against.
+  std::string animationStatus;
+  // Whether the resolved pose was actually applied. It is a separate field from
+  // `skinningEnabled` because they answer different questions: skinningEnabled is
+  // "the pass has a table it accepted", this is "the caller decided to use it".
+  // The default is false even when a complete pose exists -- see main.cpp for the
+  // measurement behind that -- and the pair (animationStatus=ok,
+  // animationApplied=0) is the state this round ships.
+  bool animationApplied = false;
   float tint[4] = {0.78f, 0.78f, 0.84f, 1.0f};
   // Why the pass did or did not draw, as a stable string the runtime prints.
   std::string reason;
@@ -201,6 +223,15 @@ public:
   // mistake, which is why the pass owns `viewModelConstants_` instead.
   bool uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices);
   bool uploadViewModelBones(const std::vector<std::array<float, 16>>& boneMatrices);
+  // Empties the pass's bone table. The table is re-uploaded on every scene update
+  // while a pose is being applied, so a frame that does not apply one has to be
+  // able to say "there is no table": without this the previous frame's upload
+  // stays in the count and `boneTableCoverage` reports a comparison that did not
+  // run. It is a named call rather than `uploadViewModelBones({})` because the
+  // latter returns false -- meaning "nothing was uploaded" -- and reading that
+  // false as "the table is now empty" would be relying on a side effect of a
+  // failure.
+  void clearViewModelBones() { viewModelBoneUploadCount_ = 0; }
   void setViewModelState(const ViewModelDrawState& state);
   // Draws one ViewModel. Called from draw() after the world and entity passes
   // and before the frame capture, so the frame that gets written to disk is the

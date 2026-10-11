@@ -281,4 +281,102 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
   return request;
 }
 
+const char* viewModelAnimationStatusName(ViewModelAnimationStatus status) {
+  switch (status) {
+    case ViewModelAnimationStatus::Ok: return "ok";
+    case ViewModelAnimationStatus::SequenceOutOfRange: return "sequenceOutOfRange";
+    case ViewModelAnimationStatus::BoneMismatch: return "boneMismatch";
+    default: return "missing";
+  }
+}
+
+ViewModelAnimationOutcome resolveViewModelAnimationInput(
+    const ViewModelAnimationInput& input, const ViewModelRequest& drawn,
+    const AnimationBinding* drawnBinding, const AnimationSampleRequest& timing) {
+  ViewModelAnimationOutcome outcome;
+  if (drawn.status != ViewModelStatus::Ok) {
+    // Nothing was drawn, so there is no sequence table to be inside or outside
+    // of. Without this branch an empty drawn table would make every sequence
+    // `>= 0` read as out of range, and a resource failure would be reported as
+    // `sequenceOutOfRange` -- a mislabelled reading, which is the failure mode
+    // this project keeps finding in its own gates.
+    outcome.reason = "the drawn model was not resolved: "
+      + (drawn.reason.empty() ? std::string("no reason recorded") : drawn.reason);
+    return outcome;
+  }
+  // The order of these branches is the order of the reasons, and each is
+  // reachable on its own: a caller with no entity, one with an entity whose
+  // sequence slot is absent, one whose sequence is past the drawn table, and one
+  // whose drawn model simply carries no animation data all end in a bind pose --
+  // and the reason string says which of the four it was. One "no pose" status
+  // would make those four indistinguishable, which is the failure this round
+  // exists to remove.
+  if (!input.entityPresent) {
+    outcome.reason = "no viewmodel entity owned by the view entity";
+    return outcome;
+  }
+  if (!input.hasSequence) {
+    outcome.reason = "the viewmodel entity at index " + std::to_string(input.entityIndex)
+      + " carries no m_nSequence";
+    return outcome;
+  }
+  if (input.sequence < 0) {
+    outcome.reason = "m_nSequence is negative";
+    return outcome;
+  }
+  // Measured against the model the pass draws, never against the entity's own
+  // model: the two tables are different (see the header), so a value legal for
+  // one is not legal for the other, and the entity's own model is not what is
+  // on screen.
+  const std::size_t drawnSequences = drawn.sequenceLabels.size();
+  if (static_cast<std::size_t>(input.sequence) >= drawnSequences) {
+    outcome.status = ViewModelAnimationStatus::SequenceOutOfRange;
+    outcome.reason = "m_nSequence " + std::to_string(input.sequence)
+      + " is past the drawn model's " + std::to_string(drawnSequences) + " sequences";
+    return outcome;
+  }
+  if (drawnBinding == nullptr) {
+    outcome.reason = "the drawn model carries no animation data";
+    return outcome;
+  }
+  AnimationSampleRequest request = timing;
+  request.sequence = input.sequence;
+  request.hasCycle = input.hasCycle;
+  request.cycle = input.cycle;
+  request.hasPlaybackRate = input.hasPlaybackRate;
+  request.playbackRate = input.playbackRate;
+  const AnimationSampleResult sampled = buildAnimationSkinMatrices(drawnBinding, request);
+  outcome.sequenceLabel = sampled.sequenceLabel;
+  outcome.frame = sampled.frame;
+  outcome.frameCount = sampled.frameCount;
+  if (sampled.bindPose || sampled.skinMatrices.empty()) {
+    // T1's refusal, translated. A bone that did not line up and a skeleton too
+    // large for the skinning buffer are both "the tables do not match", which is
+    // one status here; everything else it can refuse is an absent or unusable
+    // input, which is Missing. The decoder's own words are kept in `reason` so
+    // the translation does not lose the detail.
+    outcome.status = sampled.status == AnimationInputStatus::BoneMismatch
+        || sampled.status == AnimationInputStatus::TooManyBones
+      ? ViewModelAnimationStatus::BoneMismatch
+      : ViewModelAnimationStatus::Missing;
+    outcome.reason = sampled.reason;
+    return outcome;
+  }
+  // The pose is indexed by the render skeleton's bone order, which is the same
+  // order the mesh's bone indices use. A table that does not cover the drawn
+  // skeleton would silently mis-index every vertex, so it is refused rather than
+  // uploaded -- the same guard the standalone `--model` path applies.
+  if (sampled.skinMatrices.size() != drawn.bones.size()) {
+    outcome.status = ViewModelAnimationStatus::BoneMismatch;
+    outcome.reason = "the pose covers " + std::to_string(sampled.skinMatrices.size())
+      + " bones but the drawn model has " + std::to_string(drawn.bones.size());
+    return outcome;
+  }
+  outcome.status = ViewModelAnimationStatus::Ok;
+  outcome.bindPose = false;
+  outcome.skinMatrices = sampled.skinMatrices;
+  outcome.reason.clear();
+  return outcome;
+}
+
 } // namespace tf2::native

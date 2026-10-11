@@ -1623,8 +1623,19 @@ bool Renderer::uploadViewModelBones(const std::vector<std::array<float, 16>>& bo
 }
 
 std::string Renderer::viewModelAnimationInput() const {
-  if (viewModelBoneUploadCount_ == 0) return "missing";
-  return "bones:" + std::to_string(viewModelBoneUploadCount_);
+  // The EFFECT, not the last request and not the last upload. This used to key on
+  // viewModelBoneUploadCount_, which was a stable statement while the table was
+  // uploaded exactly once at startup; T2.5 re-uploads it on every scene update,
+  // and a frame that applies no pose would otherwise report the previous frame's
+  // upload -- `animationInput=bones:45` next to `skinning=0`, an effect reading
+  // claiming an effect that did not happen. viewModelEffectiveBoneCount_ is reset
+  // at the top of every drawViewModel, so it answers "did the pass skin, just
+  // now". When it did not, the caller's own contract reading explains why.
+  if (viewModelEffectiveBoneCount_ > 0) {
+    return "bones:" + std::to_string(viewModelBoneUploadCount_);
+  }
+  return viewModelState_.animationStatus.empty()
+    ? std::string("missing") : viewModelState_.animationStatus;
 }
 
 void Renderer::setViewModelState(const ViewModelDrawState& state) {

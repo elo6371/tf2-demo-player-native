@@ -61,6 +61,14 @@
 #      the map's unit box and writes depth with the world policy, so a weapon
 #      routed through it would be scaled into the map and occluded by it. Nothing
 #      above can see whether a ViewModel exists at all.
+#   7. viewmodel animation -- the first-person model is drawn from the demo's own
+#      animation input rather than held in its bind pose, or the refusal says so
+#      out loud. Gate 6 draws the weapon but never asked whether the demo carries
+#      a sequence for it; T2 reported `animationInput=missing` and nothing had
+#      measured whether that was true. This gate measures it for the class that
+#      does carry it (CTFViewModel), separates the two index spaces, reads the
+#      owning entity from m_hOwner instead of guessing it, and asserts the
+#      negative on a recording where the pairing does not resolve at all.
 #
 # WHY texture_quad_probe IS NOT HERE
 #   `texture_quad_probe <file.vtf>` uploads a real VTF through D3D11 on a WARP
@@ -83,7 +91,9 @@
 #   (5m45s against 5m27s) -- the +12 min this comment used to claim was never
 #   measured. viewmodel-contract is the exception: each of its mutations rebuilds
 #   the product and re-captures its frames, so it costs several times its straight
-#   run and this tier is correspondingly slower with --mutation.
+#   run and this tier is correspondingly slower with --mutation. viewmodel-animation
+#   is in the same class: its --mutation rebuilds the five targets that link
+#   viewmodel.cpp, turns the refusal red, restores the source and rebuilds again.
 # Exit:  0 = every gate passed.
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -96,6 +106,11 @@ mkdir -p "$OUT"
 # tier directory, so the committed evidence tree stays untouched. Exported rather
 # than passed per-call because the `gate` helper sets only one variable.
 export VIEWMODEL_CONTRACT_TRACE_DIR="$OUT/viewmodel"
+# viewmodel-animation's machine products -- six BMP frames, their per-run metrics
+# CSVs and a trace per launch -- go under the same tier directory for the same
+# reason. It writes nothing into the committed tree: its committed record is the
+# pin file evidence/viewmodel/animation-inputs.txt plus the chain's step log.
+export VIEWMODEL_ANIMATION_TRACE_DIR="$OUT/viewmodel-animation"
 
 MUTATION=0
 BUILD=1
@@ -130,7 +145,7 @@ if [ "$BUILD" -eq 1 ]; then
   # (Measured 2026-10-11: without them gate 6 exits on its preflight's
   # `FATAL: missing input: native/build-nmake/viewmodel_contract_probe.exe` on a
   # tree where verify-fast had not run.)
-  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe
+  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe viewmodel_animation_probe
   rc_build=$?
   echo "build_rc=$rc_build"
   [ "$rc_build" -eq 0 ] || { echo "VERIFY-RENDER=FAIL (build)"; exit 1; }
@@ -171,6 +186,7 @@ gate frame-capture         frame-capture-check.sh         'FRAME-CAPTURE=(PASS|F
 gate entity-material       entity-material-check.sh       'ENTITY-MATERIAL=(PASS|FAIL)'       ENTITY_MATERIAL_OUT
 gate weapon-animation      weapon-animation-check.sh      'WEAPON-ANIMATION=(PASS|FAIL)'      WEAPON_ANIMATION_OUT
 gate viewmodel-contract    viewmodel-contract-check.sh    'VIEWMODEL-CONTRACT=(PASS|FAIL)'    VIEWMODEL_CONTRACT_OUT
+gate viewmodel-animation   viewmodel-animation-check.sh   'VIEWMODEL-ANIMATION=(PASS|FAIL)'   VIEWMODEL_ANIMATION_TRACE_DIR
 
 echo
 echo "=== 3/4 the material chain's synthetic layer ==="
@@ -227,7 +243,7 @@ fi
 echo
 echo "gates_ok=$ok gates_bad=$bad"
 if [ "$bad" -eq 0 ]; then
-  echo "VERIFY-RENDER=PASS ($ok/7 gates, mutation=$MUTATION)"
+  echo "VERIFY-RENDER=PASS ($ok/8 gates, mutation=$MUTATION)"
   exit 0
 fi
 echo "VERIFY-RENDER=FAIL ($bad red)"
