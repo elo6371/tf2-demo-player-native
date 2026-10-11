@@ -219,6 +219,10 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "VIEWMODEL-CONTRACT=FAIL (another viewmodel-contract-check run owns $LOCK_DIR)"
   exit 2
 fi
+cleanup_lock() {
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+trap cleanup_lock EXIT
 
 # Missing input is a failure, not a skip: a gate that quietly SKIPs when its
 # binary or its demo is absent is the shape the P0 pass shipped four of.
@@ -575,8 +579,8 @@ echo "-- the fixture bytes must be reproducible from the generator --"
 GEN_DIR="$TRACE_DIR/fixture-regen"
 rm -rf "$GEN_DIR"
 "$PY" viewmodel-fixture-gen.py "$GEN_DIR/tf" > "$TRACE_DIR/fixture-gen.txt" 2>&1
-if diff -r "$GEN_DIR/tf" "$FIXTURE_DIR/tf" > "$TRACE_DIR/fixture-regen.diff" 2>&1; then
-  echo "  OK   the committed fixtures are byte-identical to a fresh generation"
+if diff -r --strip-trailing-cr "$GEN_DIR/tf" "$FIXTURE_DIR/tf" > "$TRACE_DIR/fixture-regen.diff" 2>&1; then
+  echo "  OK   the committed fixtures are identical to a fresh generation"
   ASSERTIONS=$((ASSERTIONS + 1))
 else
   echo "  FAIL the committed fixtures differ from a fresh generation:"

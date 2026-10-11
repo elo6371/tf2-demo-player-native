@@ -1,5 +1,16 @@
 # TF2_Native_Test
 
+## 当前状态（2026-10-11）
+
+T2 ViewModel 第一人称绘制已在整合分支 `integration/viewmodel-t2` 合并，来源为
+`task/viewmodel-render@9894c5b`，整合提交为 `1b765d5`。产品现在有独立 ViewModel pass，默认 FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略和缺资源稳定回退。
+
+已验证：`viewmodel-contract-check.sh` 154 条断言通过，5/5 变异捕获；缺模型、缺 companion、无 placement attachment、短骨表不会崩溃或污染世界帧。当前证据仍是 flat-color ViewModel；尚未证明材质、真实游戏画面对照或 ViewModel 动画输入。
+
+接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、未验证项和可运行结论。
+
+下一步按顺序：T3 ViewModel 动画状态接入；T4 世界材质/光照；T5 音频时序与效果；T6 相机、观察者模式和 HUD/UI；T7 10 分钟 soak、损坏输入、安装启动和发布包。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 

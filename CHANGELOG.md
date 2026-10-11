@@ -1,5 +1,21 @@
 # 更新日志
 
+## 2026-10-11
+
+### T2 ViewModel 第一人称绘制已整合
+
+- 整合提交：`1b765d5`（合并 `task/viewmodel-render@9894c5b`）；主线功能基线仍需在本次整合分支验收后更新。
+- 产品已接入独立 ViewModel draw pass：默认 FOV 90，范围 40--120，attachment `weapon_bone`、左右手镜像、独立深度状态和世界 pass 后绘制均有运行时读数。
+- `v_scattergun_scout.mdl` 实测 `drawn=1`、`vertices=9723`、`viewModelPass=6`、`afterWorld=1`、`depthWrite=1`、`depthFunc=less_equal`；缺模型/缺 companion/短骨表稳定回退且不改变场景帧。
+- 验收：`viewmodel-contract-check.sh` 正常 `154` 条断言通过；`--mutation` `5/5` 捕获；`verify-fast.sh` 与 `verify-render.sh` 需在本整合提交上继续执行并记录最终结果。
+- 本轮修复两个验收缺陷：门禁缺输入早退不清理锁目录；夹具可再生比较受 `core.autocrlf=true` 造成 CRLF 假红。比较改为 `diff --strip-trailing-cr`，锁使用 `trap` 清理。
+- 未验证：完整 `verify-all.sh --quick`、真实游戏人工画面对照、ViewModel 材质/VMT/VTF、ViewModel 动画输入和不同机器的抓帧点集合。
+
+### 下一项
+
+- T3：把 T1 动画输入接入 ViewModel（有输入复用骨骼矩阵，无输入保持 `animationInput=missing`），只在新的 worktree 修改并先跑 `verify-fast.sh`。
+- T4：世界材质与光照；T5：demo 音频时序；T6：相机/HUD/UI；T7：soak、损坏输入和发布验收。每项独立门禁，合并或核心协议变更才跑总链。
+
 ## 2026-10-10
 
 ### T1 武器/投射物骨骼动画接入

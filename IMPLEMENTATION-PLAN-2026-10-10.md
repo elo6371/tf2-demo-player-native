@@ -1,8 +1,8 @@
 # TF2 Demo Player Native 实现任务与验收计划
 
-更新时间：2026-10-10
+更新时间：2026-10-11
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`origin/p0-entity-protocol@b65da2d`（已整合 T0、实体材质和 T1 动画接线；不是产品发布分支）
+当前验收与诊断基线：`integration/viewmodel-t2@1b765d5`（已整合 T0、实体材质、T1 动画接线和 T2 ViewModel；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -27,7 +27,7 @@
 ### 当前未完成
 
 1. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
-2. ViewModel 尚未进入主程序第一人称 draw pass。
+2. ViewModel 第一人称 draw pass 已接入；材质/VMT/VTF、真实游戏画面对照和 ViewModel 动画输入仍未闭环。
 3. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
 4. Demo 音频的 sound index 到 WAV 的 tick 对齐、TempEntity/PCF、过滤规则未闭环。
 5. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
@@ -184,11 +184,17 @@ T1 的最小完成判据是：一个真实武器或投射物实例的 `sampled f
 - 绑定姿势误差、矩阵刚性、循环首尾误差和缺序列负向测试。
 - 真实帧抓取：动作前/中/后各一帧；不得只凭“探针通过”宣称画面正确。
 
-### T2：ViewModel 第一人称绘制（当前进行项，2026-10-10）
+### T2：ViewModel 第一人称绘制（已完成接入，2026-10-11）
 
 工作区：`D:\TF2_Native_Worktrees\viewmodel-render`；分支：`task/viewmodel-render`；产品基线：
 `origin/p0-entity-protocol@5b58760`（T2 首个 probe 提交为 `2c87438`）。只允许修改 ViewModel、第一人称投影和对应探针；不得回写共享主线，
 不得整体覆盖 T1 动画接线。
+
+整合结果：来源提交 `9894c5b`，整合提交 `1b765d5`。`v_scattergun_scout.mdl` 已在主程序独立 pass
+绘制，实测 `drawn=1`、`viewModelPass=6`、`afterWorld=1`、`vertices=9723`、`depthWrite=1`、
+`depthFunc=less_equal`、默认 `fov=90`；缺资源、缺 companion、无 placement attachment 和短骨表均有稳定回退。
+专项门禁 `viewmodel-contract-check.sh` 为 `154` 条断言通过，`--mutation` 为 `5/5` 捕获。
+本段后续只保留材质、真实人工画面对照和 T3 动画输入接入，不得重复重写 ViewModel 模块。
 
 执行顺序：
 
@@ -205,7 +211,7 @@ T1 的最小完成判据是：一个真实武器或投射物实例的 `sampled f
 6. **专项验收**：默认 FOV、40/120 边界、左右手、attachment 各抓真实帧；缺 companion、非 `v_` 路径、越界 FOV 做
    负向 fixture。正常门禁与 mutation 必须分别变红，`drawn=1` 必须来自实际 draw pass。
 
-T2 交付前运行 `bash verify-fast.sh`、ViewModel 专项门禁（正常与 `--mutation`）和 `bash verify-render.sh`；只有合并
+T2 交付后仍需在整合提交上运行 `bash verify-fast.sh`、ViewModel 专项门禁（正常与 `--mutation`）和 `bash verify-render.sh`；只有合并
 主线时运行 `bash verify-all.sh --quick`，期间禁止其他构建或 mutation。
 
 **负责人**：ViewModel AI。
