@@ -1,0 +1,54 @@
+# viewmodel-contract-check.sh readings (2026-10-11T06:15:02Z)
+# demo: D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+# model: models/weapons/v_models/v_scattergun_scout.mdl
+# fixture root: evidence/viewmodel/fixtures/tf
+# assertions that held: 154
+# failures: 0
+novm: 
+novm order: 
+novm centre: 
+vm90: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vm90 order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vm90 centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(2.550,-3.471,34.192,34.705) ndc=(0.073,-0.100) onScreen=1
+vm40: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vm40 order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vm40 centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(7.005,-9.535,34.192,34.705) ndc=(0.202,-0.275) onScreen=1
+vm120: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vm120 order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vm120 centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(1.472,-2.004,34.192,34.705) ndc=(0.042,-0.058) onScreen=1
+vmleft: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=left drawn=1 reason=drawn
+vmleft order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vmleft centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(2.550,-3.471,34.192,34.705) ndc=(0.073,-0.100) onScreen=1
+vmident: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vmident order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=45/45 animationInput=bones:45 meshRadius=15.78 alignment=weapon_bone
+vmident centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(2.550,-3.471,34.192,34.705) ndc=(0.073,-0.100) onScreen=1
+vmfov10: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vmfov10 order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vmfov10 centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(7.005,-9.535,34.192,34.705) ndc=(0.202,-0.275) onScreen=1
+vmfov200: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vmfov200 order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vmfov200 centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(1.472,-2.004,34.192,34.705) ndc=(0.042,-0.058) onScreen=1
+vmmissing: viewModelPath=models/weapons/v_models/v_ada_does_not_exist.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel was not found
+vmmissing order: gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=-
+vmmissing centre: gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0
+vmdefault: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vmdefault order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vmdefault centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(2.550,-3.471,34.192,34.705) ndc=(0.073,-0.100) onScreen=1
+vmstored: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=60.0 settingsFov=60.0 hand=right drawn=1 reason=drawn
+vmstored order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vmstored centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(4.416,-6.011,34.192,34.705) ndc=(0.127,-0.173) onScreen=1
+vmlegacy: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+vmlegacy order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone
+vmlegacy centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(2.550,-3.471,34.192,34.705) ndc=(0.073,-0.100) onScreen=1
+vmfdamaged: viewModelPath=models/weapons/v_models/v_fixture_damaged.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=degraded(valid=0,partial=0,invalid=1,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+vmfdamaged order: gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=-
+vmfdamaged centre: gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0
+vmfnoanchor: viewModelPath=models/weapons/v_models/v_fixture_noanchor.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=ok(valid=1,partial=0,invalid=0,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+vmfnoanchor order: gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=-
+vmfnoanchor centre: gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0
+vmfnocompanion: viewModelPath=models/weapons/v_models/v_fixture_nocompanion.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel companions are missing
+vmfnocompanion order: gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=-
+vmfnocompanion centre: gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0
+vmshort: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=skinning was requested but the bone table covers 1 of 45 bones; drawing the bind pose
+vmshort order: gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=1/45 animationInput=bones:1 meshRadius=15.78 alignment=weapon_bone
+vmshort centre: gpu: viewmodel centre viewSpace=(4.73,-3.47,34.71) clip=(2.550,-3.471,34.192,34.705) ndc=(0.073,-0.100) onScreen=1

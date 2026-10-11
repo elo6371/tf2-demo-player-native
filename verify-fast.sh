@@ -39,7 +39,7 @@
 #   is exactly the cleanup that would reintroduce it.
 #
 # USAGE
-#   bash verify-fast.sh              # incremental build + the five self-tests
+#   bash verify-fast.sh              # incremental build + the six self-tests
 #   bash verify-fast.sh --mutation   # perturb each captured output and require
 #                                    # the assertions to go red (discriminating
 #                                    # power, not a second opinion)
@@ -65,9 +65,11 @@ for arg in "$@"; do
   esac
 done
 
-# 36 assertions across the five self-tests. Pinned for the same reason as the
+# 43 assertions across the six self-tests. Pinned for the same reason as the
 # chain's per-step counts: an assertion list that quietly shrinks is not a gate.
-FAST_ASSERTIONS=36
+# (36 -> 43 on 2026-10-11: viewmodel_fov_probe joined this tier for the T2
+# ViewModel work, with seven assertions of its own.)
+FAST_ASSERTIONS=43
 
 # The build is the first assertion of this tier and its failure is reported by
 # build-target.sh's exit status; nothing else here can be trusted if it failed.
@@ -77,7 +79,7 @@ if [ "$BUILD" -eq 1 ]; then
   # a shared .cpp can compile into a probe and still break the program, and the
   # whole point of a fast tier is to learn that now rather than in an hour.
   bash build-target.sh tf2_demo_native presentation_probe entity_model_probe \
-    world_material_probe model_pose_probe item_schema_probe
+    world_material_probe model_pose_probe item_schema_probe viewmodel_fov_probe
   rc_build=$?
   echo "build_rc=$rc_build"
   if [ "$rc_build" -ne 0 ]; then echo "VERIFY-FAST=FAIL (build)"; exit 1; fi
@@ -169,12 +171,27 @@ E_ITEM_SCHEMA=(
   'status=pass|item_schema: the wire self-test verdict'
 )
 
+# The ViewModel FOV contract: the default is 90, an old config's 80 migrates to
+# 90 rather than overriding it, the clamps are 40 and 120, and the two clamp
+# functions agree. `legacyFovDefault` is asserted alongside the migration so that
+# a build which simply deleted the legacy constant would not read as a pass.
+E_VIEWMODEL_FOV=(
+  '"contractOk":true|viewmodel_fov: the FOV contract holds'
+  '"defaultFov":90|viewmodel_fov: the default ViewModel FOV is 90'
+  '"legacyEightyMigrates":true|viewmodel_fov: an old 80 migrates to 90'
+  '"legacyFovDefault":80|viewmodel_fov: the legacy default is still 80, so the migration is a real edit'
+  '"fovLow":40|viewmodel_fov: the low clamp is 40'
+  '"fovHigh":120|viewmodel_fov: the high clamp is 120'
+  '"probeValues":9|viewmodel_fov: nine probe values were compared, not one'
+)
+
 # --- run them --------------------------------------------------------------
 "$B/presentation_probe.exe"  --self-test > "$OUT/presentation-probe.txt" 2>&1
 "$B/entity_model_probe.exe"  --self-test > "$OUT/entity-model-probe.txt" 2>&1
 "$B/world_material_probe.exe" --self-test > "$OUT/world-material-probe.txt" 2>&1
 "$B/model_pose_probe.exe"    --self-test > "$OUT/model-pose-probe.txt" 2>&1
 "$B/item_schema_probe.exe"   --wire-self-test > "$OUT/item-schema-probe.txt" 2>&1
+"$B/viewmodel_fov_probe.exe"                 > "$OUT/viewmodel-fov-probe.txt" 2>&1
 
 echo "-- presentation_probe --self-test"
 run_expectations "$OUT/presentation-probe.txt"  "${E_PRESENTATION[@]}"
@@ -186,6 +203,8 @@ echo "-- model_pose_probe --self-test"
 run_expectations "$OUT/model-pose-probe.txt"    "${E_MODEL_POSE[@]}"
 echo "-- item_schema_probe --wire-self-test"
 run_expectations "$OUT/item-schema-probe.txt"   "${E_ITEM_SCHEMA[@]}"
+echo "-- viewmodel_fov_probe"
+run_expectations "$OUT/viewmodel-fov-probe.txt" "${E_VIEWMODEL_FOV[@]}"
 
 echo "assertions_ok=$ok assertions_bad=$bad"
 
@@ -224,8 +243,9 @@ if [ "$MUTATION" -eq 1 ]; then
   mutate_case world_material "$OUT/world-material-probe.txt" 's/"skyPath":true/"skyPath":false/'  "${E_WORLD_MATERIAL[@]}"
   mutate_case model_pose    "$OUT/model-pose-probe.txt" 's/"bindPoseMutationRejected":true/"bindPoseMutationRejected":false/' "${E_MODEL_POSE[@]}"
   mutate_case item_schema   "$OUT/item-schema-probe.txt" 's/valid=1/valid=0/'                   "${E_ITEM_SCHEMA[@]}"
+  mutate_case viewmodel_fov "$OUT/viewmodel-fov-probe.txt" 's/"contractOk":true/"contractOk":false/' "${E_VIEWMODEL_FOV[@]}"
   [ "$mrc" -eq 0 ] || { echo "VERIFY-FAST-MUTATION=FAIL"; exit 1; }
-  echo "VERIFY-FAST-MUTATION=PASS (all five expectation lists can go red)"
+  echo "VERIFY-FAST-MUTATION=PASS (all six expectation lists can go red)"
 fi
 
 echo

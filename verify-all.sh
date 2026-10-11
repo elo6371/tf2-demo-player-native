@@ -219,9 +219,13 @@ step "1/22 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
-# exes would otherwise read as a clean build. 25 is the count after the
-# entity-material round, the skeleton_skin_probe target and the T1 animation
-# round's weapon_animation_probe, so adding a target is an explicit edit here.
+# exes would otherwise read as a clean build. 26 is the count after the
+# entity-material round, the skeleton_skin_probe target, the T1 animation round's
+# weapon_animation_probe and the T2 round's viewmodel_contract_probe, so adding a
+# target is an explicit edit here. T2 added exactly one target: viewmodel_fov_probe
+# was already in the baseline's 25 and only gained source files (measured
+# 2026-10-11: `git show 80c7949:native/CMakeLists.txt` has 25 add_executable lines
+# and includes viewmodel_fov_probe; the working tree has 26).
 # (The pin read 23 while the tree built 24 between 00b6033 and this line: the
 # probe target was added without the pin moving, so step 1 reported BUILD=FAIL on
 # every chain run in that window. The warning count is deliberately NOT asserted
@@ -229,7 +233,7 @@ tail -6 "$OUT/1-build.txt"
 # moves.)
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=25$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=26$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
