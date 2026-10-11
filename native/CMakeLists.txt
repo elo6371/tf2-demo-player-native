@@ -92,6 +92,11 @@ set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(viewmodel_fov_probe
   tools/viewmodel_fov_probe.cpp
   src/viewmodel.cpp
+  # viewmodel.cpp calls buildAnimationSkinMatrices, so the T1 animation layer is
+  # a link dependency of every target that compiles it. Left out, the link fails,
+  # NMAKE stops, and every target after this one is silently not built.
+  src/animation_binding.cpp
+  src/animation_decoder.cpp
   src/model_loader.cpp
   src/asset_root.cpp
   src/vpk_archive.cpp
@@ -105,6 +110,8 @@ set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(viewmodel_contract_probe
   tools/viewmodel_contract_probe.cpp
   src/viewmodel.cpp
+  src/animation_binding.cpp
+  src/animation_decoder.cpp
   src/model_loader.cpp
   src/asset_root.cpp
   src/vpk_archive.cpp
@@ -115,9 +122,31 @@ add_executable(viewmodel_contract_probe
 target_include_directories(viewmodel_contract_probe PRIVATE include third_party/lzma)
 set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# Answers the question T2 left open and T1 answered "no" for players: does the
+# demo carry a ViewModel's animation state at all, and does it index the model
+# the ViewModel pass draws? It links viewmodel.cpp so the self-test can drive the
+# product's own path rule and its own resolver instead of trusting a second copy
+# of either.
+add_executable(viewmodel_animation_probe
+  tools/viewmodel_animation_probe.cpp
+  src/viewmodel.cpp
+  src/animation_binding.cpp
+  src/animation_decoder.cpp
+  src/entity_model.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/demo_header.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(viewmodel_animation_probe PRIVATE include third_party/lzma)
+set_target_properties(viewmodel_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(animation_viewmodel_probe
   tools/animation_viewmodel_probe.cpp
   src/animation_decoder.cpp
+  src/animation_binding.cpp
   src/viewmodel.cpp
   src/model_loader.cpp
   src/asset_root.cpp

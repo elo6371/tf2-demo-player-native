@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "animation_binding.h"
 #include "model_loader.h"
 
 namespace tf2::native {
@@ -136,5 +137,90 @@ std::int32_t selectViewModelAlignment(ViewModelRequest& request,
 
 ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string& path,
   ViewModelHand hand, std::optional<float> fov = std::nullopt);
+
+// ---- ViewModel animation input (T2.5) -------------------------------------
+//
+// T2 drew the ViewModel in its bind pose and reported `animationInput=missing`.
+// What may replace that reading is a measurement, not an assumption, and
+// native/tools/viewmodel_animation_probe.cpp is where it was taken. It says
+// three things:
+//
+//   1. The input exists. TF2's server creates a networked CTFViewModel per
+//      player, and DT_BaseViewModel carries m_nSequence (unsigned 8 bit) and
+//      m_flPlaybackRate (float). That is the opposite of the T1 result for
+//      CTFPlayer, which networks none of the three fields -- the ViewModel is a
+//      different class, so the answer had to be measured rather than inherited.
+//   2. One of the three fields the task named is not on the wire at all.
+//      DT_BaseViewModel has no m_flCycle. `hasCycle` below is therefore a
+//      first-class false rather than an omitted field: a caller cannot mistake
+//      its absence for a cycle of zero.
+//   3. The sequence indexes a DIFFERENT table than the model the pass draws. The
+//      entity names `models/weapons/c_models/c_<class>_arms.mdl` (39..54
+//      sequences); the pass draws `models/weapons/v_models/v_<weapon>.mdl` (2..9
+//      sequences); observed sequences run 0..34.
+//
+// Point 3 is why this is a refusal contract and not a mapping. Applying the
+// entity's index to the drawn model's table is wrong even when the value lands
+// inside it: `inRange` measured against the wrong table is a coincidence, and
+// the probe reports the two counts side by side (`vmmapping-summary ...
+// inRange=37 outOfRange=104`) so the coincidence is visible instead of
+// flattering. The real mapping -- entity sequence space -> activity -> `v_*`
+// sequence -- is follow-up work. Until it exists the honest behaviour is: accept
+// what is inside the drawn table, refuse what is not, and never present an
+// accepted coincidence as a correct pose.
+enum class ViewModelAnimationStatus {
+  Missing,             // no owning ViewModel entity, or it carried no sequence
+  Ok,                  // the sequence is inside the drawn model's own table
+  SequenceOutOfRange,  // it is past the end of that table
+  BoneMismatch,        // the drawn model's animation bones do not line up
+};
+
+const char* viewModelAnimationStatusName(ViewModelAnimationStatus status);
+
+// What the owning ViewModel entity said, read from the demo's own snapshot.
+// `entityPresent` and `hasSequence` are separate because they are separate
+// failures: "the demo has no ViewModel entity for this player" and "it has one
+// and the slot is absent" are different reasons to draw a bind pose, and a
+// single flag would make them read the same.
+struct ViewModelAnimationInput {
+  bool entityPresent = false;
+  int entityIndex = -1;
+  std::string entityModelPath;  // what the entity's m_nModelIndex names
+  bool hasSequence = false;
+  int sequence = -1;
+  bool hasPlaybackRate = false;
+  float playbackRate = 0.0f;
+  // DT_BaseViewModel has no m_flCycle; see point 2 above.
+  bool hasCycle = false;
+  float cycle = 0.0f;
+};
+
+struct ViewModelAnimationOutcome {
+  ViewModelAnimationStatus status = ViewModelAnimationStatus::Missing;
+  std::string reason;
+  std::string sequenceLabel;
+  int frame = 0;
+  int frameCount = 0;
+  // True for every status except Ok, and the caller has to honour it: there is
+  // no partial outcome, so a bind pose with skinning off is the only thing a
+  // refused input may produce.
+  bool bindPose = true;
+  std::vector<std::array<float, 16>> skinMatrices;
+};
+
+// The whole contract as one function, so it can be driven without a window, a
+// device or a demo.
+//
+// `drawnBinding` is the animation binding of the model the pass draws, or
+// nullptr when that model has none; `drawn` supplies that model's own sequence
+// and bone counts, which is what "in range" is measured against. `timing`
+// carries the tick the frame is being drawn for, and its sequence / cycle / rate
+// fields are overwritten from the input -- so a caller cannot sample a sequence
+// the input did not name.
+ViewModelAnimationOutcome resolveViewModelAnimationInput(
+  const ViewModelAnimationInput& input,
+  const ViewModelRequest& drawn,
+  const AnimationBinding* drawnBinding,
+  const AnimationSampleRequest& timing);
 
 } // namespace tf2::native

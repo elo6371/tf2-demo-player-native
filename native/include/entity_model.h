@@ -2,10 +2,12 @@
 
 #include "demo_header.h"
 #include "model_loader.h"
+#include "viewmodel.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tf2::native {
@@ -119,6 +121,47 @@ struct ObserverFocusResolution {
 ObserverFocusResolution resolveObserverFocus(
   const EntityState& viewEntity,
   const std::vector<EntityState>& statesByIndex);
+
+// Which ViewModel entity belongs to the player the recording's camera is in, and
+// what that entity's animation slots say.
+//
+// THE PAIRING IS READ, NOT GUESSED. `svc_SetView` names the player whose eyes
+// the demo is from, and a ViewModel entity carries `m_hOwner`; the entity whose
+// owner resolves to that player is the one whose sequence is in front of the
+// camera. "The first ViewModel entity in the packet" would be a guess, and on
+// the POV demo it would be the wrong one: there are 18 CTFViewModel entities in
+// a snapshot and exactly two of them belong to the local player, because
+// Source's MAX_VIEWMODELS is 2.
+//
+// THE CLASS TEST IS BY NAME. A class id is a property of one recording's server
+// class table -- CTFViewModel was 320 and CBaseViewModel 18 on the demo measured
+// on 2026-10-11 -- and the same name carries a different id on the next demo, so
+// a pinned id would be a rule that quietly stops matching. The id is reported by
+// the probe for diagnostics and never used as the test.
+//
+// THE THREE FIELDS ARE ANSWERED SEPARATELY, because their supply differs.
+// DT_BaseViewModel carries m_nSequence and m_flPlaybackRate and does NOT carry
+// m_flCycle, so `hasSequence` and `hasCycle` are independent answers and one
+// "animation state present" flag would hide exactly the finding that matters.
+struct ViewModelEntityLookup {
+  bool viewEntityKnown = false;
+  std::uint32_t viewEntity = 0;
+  // How many entities in the snapshot are ViewModel entities at all, and how many
+  // of those name the view entity in m_hOwner. Both are work counts: "no entity
+  // was found" has to be distinguishable from "nothing was looked at".
+  std::size_t viewModelEntitiesSeen = 0;
+  std::size_t candidatesOwnedByViewEntity = 0;
+  ViewModelAnimationInput input;
+  // Which rule chose the entity, or why none was chosen.
+  std::string reason;
+};
+
+ViewModelEntityLookup findViewModelAnimationInput(
+  const std::vector<EntityState>& statesByIndex,
+  const std::vector<ServerClassSchema>& classSchemas,
+  bool viewEntityKnown,
+  std::uint32_t viewEntity,
+  const std::unordered_map<std::uint16_t, std::string>& modelPrecache);
 
 // One property that matches a suffix, with the tick it was last written at.
 struct PropertyCandidate {
