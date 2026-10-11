@@ -1,5 +1,7 @@
 #include "native_ui.h"
 
+#include "viewmodel.h"
+
 #include <Windows.h>
 #include <algorithm>
 #include <cwctype>
@@ -49,7 +51,7 @@ void loadUiSettings(UiSettings& settings) {
   const auto path = uiSettingsPath();
   if (path.empty()) return;
   settings.standardQuality = readUiInt(path, L"standardQuality", 0) != 0;
-  settings.fov = static_cast<float>(readUiInt(path, L"fov", 80));
+  settings.fov = static_cast<float>(migrateLegacyViewModelFov(readUiInt(path, L"fov", kDefaultViewModelFovInt)));
   settings.vsync = readUiInt(path, L"vsync", 0) != 0;
   settings.volume = static_cast<float>(readUiInt(path, L"volumePercent", 100)) / 100.0f;
   wchar_t root[32768]{};

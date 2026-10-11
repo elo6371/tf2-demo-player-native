@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 #include <d3d11.h>
+#include <DirectXMath.h>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -40,7 +41,7 @@ struct RenderSettings {
   bool skybox = false;
   int modelLod = 4;
   float renderScale = 1.0f;
-  float viewModelFov = 80.0f;
+  float viewModelFov = 90.0f;
   bool vsync = false;
 
   static RenderSettings fromPreset(QualityPreset preset);
@@ -79,6 +80,36 @@ struct EntityModelDrawInstance {
   bool skinningEnabled = false;
   std::uint32_t boneOffset = 0;
   std::uint32_t boneCount = 0;
+};
+
+// Everything the first-person pass needs, in one value. It is deliberately a
+// plain struct rather than a set of setters: the ViewModel pass must not be able
+// to read the world path's state by accident, and a single struct makes it
+// obvious at the call site which fields the pass actually consumes.
+//
+// The transform chain is applied in this order, all row-major 3x4 and all with
+// the row-vector convention the rest of this file uses (v' = v * A * H * T * V * P):
+//   attachment local -> owning bone model space -> ViewModel model space (A)
+//   -> hand transform (H) -> camera space (T) -> ViewModel projection (P)
+// The left-hand mirror lives only in H. Nothing here reaches the world entity
+// bone buffer or the animation decode output.
+struct ViewModelDrawState {
+  bool enabled = false;
+  float fov = 90.0f;
+  bool leftHand = false;
+  std::array<float, 12> handTransform{};
+  std::array<float, 12> attachmentTransform{};
+  bool attachmentValid = false;
+  std::string attachmentName;
+  // Bind pose is `skinningEnabled = false`: the mesh is drawn through the
+  // unskinned path rather than being skinned with a matrix table the caller
+  // could not build. The plan is explicit that a bone-mapping failure refuses
+  // skinning instead of guessing a partial one.
+  bool skinningEnabled = false;
+  std::uint32_t boneCount = 0;
+  float tint[4] = {0.78f, 0.78f, 0.84f, 1.0f};
+  // Why the pass did or did not draw, as a stable string the runtime prints.
+  std::string reason;
 };
 
 struct WorldMaterialParams {
@@ -160,6 +191,72 @@ public:
   ModelGpuStatus modelGpuStatus() const { return modelGpuStatus_; }
   void setViewModelFov(float fov) { settings_.viewModelFov = clampViewModelFov(fov); }
   float viewModelFov() const { return settings_.viewModelFov; }
+
+  // ---- First-person ViewModel pass (T2) -----------------------------------
+  // Its own vertex buffer, bone buffer, constant buffer, shader, projection and
+  // depth state. It shares no buffer with the world or entity path: the world
+  // pass normalises geometry into the map's unit box and writes depth with the
+  // world policy, so a ViewModel routed through it would be scaled into the map
+  // and occluded by it. Reusing `worldConstants_` here would be exactly that
+  // mistake, which is why the pass owns `viewModelConstants_` instead.
+  bool uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices);
+  bool uploadViewModelBones(const std::vector<std::array<float, 16>>& boneMatrices);
+  void setViewModelState(const ViewModelDrawState& state);
+  // Draws one ViewModel. Called from draw() after the world and entity passes
+  // and before the frame capture, so the frame that gets written to disk is the
+  // one that already contains the ViewModel. Returns true only when a draw was
+  // actually issued.
+  bool drawViewModel();
+  std::size_t viewModelDrawCount() const { return viewModelDrawCount_; }
+  std::size_t viewModelDrawCallCount() const { return viewModelDrawCallCount_; }
+  std::size_t viewModelVertexCount() const { return viewModelVertexCount_; }
+  std::size_t viewModelBoneUploadCount() const { return viewModelBoneUploadCount_; }
+  float viewModelMeshRadius() const { return viewModelMeshRadius_; }
+  // The pass's depth policy, recorded from the description the state was created
+  // with. D3D11 cannot read a state object back, so this is the input to
+  // CreateDepthStencilState rather than the device's copy -- stated rather than
+  // glossed over. Both values are constants for this pass and are asserted anyway:
+  // a change to the depth policy should redden a gate, not quietly change the
+  // picture.
+  bool viewModelDepthWrite() const { return viewModelDepthWrite_; }
+  const std::string& viewModelDepthFuncName() const { return viewModelDepthFunc_; }
+  // Whether the *pass* skinned, not whether a caller asked it to. Those differ:
+  // a bone table that cannot cover the skeleton is refused (the all-or-nothing
+  // gate in drawViewModel) and the bind pose is drawn instead, and reporting the
+  // request rather than the effect would make that refusal read as `skinning=1`.
+  bool viewModelSkinningEnabled() const { return viewModelEffectiveBoneCount_ > 0; }
+  // The product reads the effect above and the pair (viewModelBoneUploadCount(),
+  // viewModelState().boneCount) for the table it compared, so there is no
+  // separate accessor for the effective count: an accessor nobody calls is a
+  // reading nobody checks.
+  // What the pass has to skin with, as a reading rather than a claim. A
+  // ViewModel is not an entity, so nothing in a demo drives its sequence and the
+  // honest state is `missing` -- the pass then draws the model's bind pose, which
+  // is a defined picture rather than an animation. The string flips to
+  // `bones:<n>` the moment a caller uploads a bone table, so this is not a
+  // constant: it is the same counter the all-or-nothing skinning gate reads.
+  std::string viewModelAnimationInput() const;
+  // Pass ordinals, so "the ViewModel draws after the world" is a reading rather
+  // than a claim about the order of the statements in draw().
+  std::size_t viewModelPassOrdinal() const { return viewModelPassOrdinal_; }
+  std::size_t viewModelWorldPassOrdinal() const { return viewModelWorldPassOrdinal_; }
+  const std::string& viewModelDrawReason() const { return viewModelDrawReason_; }
+  const ViewModelDrawState& viewModelState() const { return viewModelState_; }
+  // Where the mesh centre lands in normalised device coordinates, computed from
+  // the same mvp the shader gets. `drawn=1` only says a draw was issued; this
+  // says whether the geometry was anywhere the viewport could show, which is the
+  // difference between "the pass ran" and "the weapon is on screen".
+  const std::array<float, 4>& viewModelCenterClip() const { return viewModelCenterClip_; }
+  const std::array<float, 3>& viewModelCenterViewSpace() const { return viewModelCenterViewSpace_; }
+  // The frame camera and the placement point the pass solved for. Published so a
+  // "the weapon is behind the camera" reading can be traced to the input that
+  // caused it instead of being guessed at.
+  const float* frameEye() const { return frameEye_; }
+  const float* frameForward() const { return frameForward_; }
+  const float* viewModelPlacementTarget() const { return viewModelPlacementTarget_.data(); }
+  // The composed first-person matrix actually handed to the shader, row-major.
+  // Exposed so the hand mirror can be shown to live in the final transform only.
+  const std::array<float, 16>& viewModelMvp() const { return viewModelMvp_; }
   void shutdown();
   void setSettings(const RenderSettings& settings) { settings_ = settings; settings_.normalize(); }
   const RenderSettings& settings() const { return settings_; }
@@ -259,6 +356,63 @@ private:
   std::size_t entityModelSkinnedInstanceCount_ = 0;
   std::size_t entityModelTexturedRangeCount_ = 0;
   std::size_t entityModelTexturedInstanceCount_ = 0;
+  // First-person pass. Nothing here is shared with the entity members above.
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> viewModelVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> viewModelPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> viewModelInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelVertexBuffer_;
+  UINT viewModelVertexCount_ = 0;
+  // The mesh's own bounds, measured at upload. The ViewModel is authored in
+  // Source units (tens of them across) and the pass has its own projection, so
+  // the distance it sits from the eye has to come from its own size: placing it
+  // a fixed 0.30 units out, as a world-scaled camera would, puts the whole model
+  // behind the near plane and the pass draws nothing visible.
+  float viewModelMeshCenter_[3] = {};
+  float viewModelMeshRadius_ = 0.0f;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelBoneBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelBoneView_;
+  std::size_t viewModelBoneCapacity_ = 0;
+  std::size_t viewModelBoneUploadCount_ = 0;
+  // Set by drawViewModel to the number of matrices it actually skinned with.
+  std::size_t viewModelEffectiveBoneCount_ = 0;
+  // Read off the depth description at createPipeline time.
+  bool viewModelDepthWrite_ = false;
+  std::string viewModelDepthFunc_ = "unset";
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelConstants_;
+  // A depth state of its own. The pass clears depth before it draws, so the
+  // weapon is never clipped by the map it is standing in -- the same policy the
+  // game uses, and not something the world depth state can express.
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> viewModelDepthStencilState_;
+  // Its own rasterizer state. The world state culls back faces with the world's
+  // winding; a ViewModel mesh whose triangles wind the other way would then be
+  // culled away entirely -- it draws, and no pixel changes. A first-person
+  // weapon is one closed model seen from inside its own space, so culling is
+  // disabled for this pass rather than guessed at.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> viewModelRasterizerState_;
+  ViewModelDrawState viewModelState_{};
+  std::array<float, 16> viewModelMvp_{};
+  // The mesh centre in clip space (x, y, z, w). w <= 0 means the point is behind
+  // the camera; |x| or |y| > w means it is off the side of the viewport.
+  std::array<float, 4> viewModelCenterClip_{};
+  // The same point in view space. z here is the distance in front of the camera;
+  // a negative z is what a "behind the camera" clip w looks like before the
+  // projection divides it.
+  std::array<float, 3> viewModelCenterViewSpace_{};
+  std::array<float, 3> viewModelPlacementTarget_{};
+  std::size_t viewModelDrawCount_ = 0;
+  std::size_t viewModelDrawCallCount_ = 0;
+  std::size_t viewModelPassOrdinal_ = 0;
+  std::size_t viewModelWorldPassOrdinal_ = 0;
+  std::string viewModelDrawReason_ = "the pass never ran";
+  // The frame's camera, published by draw() so the ViewModel pass can place the
+  // weapon in camera space without recomputing (and without disagreeing with)
+  // the view matrix the world pass used.
+  DirectX::XMFLOAT4X4 frameView_{};
+  float frameEye_[3] = {};
+  float frameForward_[3] = {};
+  float frameUp_[3] = {};
+  float frameRight_[3] = {};
+  std::size_t framePassOrdinal_ = 0;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
   Texture2D texture_;

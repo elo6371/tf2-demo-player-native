@@ -31,6 +31,23 @@
 #   target is still picked up by `cmake --build` alone; running configure
 #   unconditionally cost 22 s per call on this machine and bought nothing.
 #
+# HEADER DEPENDENCIES ARE NOT TRACKED -- THE STAMP GUARD
+#   Every `.obj.d` under the build tree is empty: 144 of 144, measured after a
+#   clean build on 2026-10-11. CMake hands `cmake_cl_compile_depends` a localized
+#   `--filter-prefix` ("注意: 包含文件:") captured at configure time, the bytes
+#   cl.exe emits at build time do not match it, and so not one include line is
+#   ever recorded. NMake therefore has no header dependencies at all, and the
+#   failure is silent: editing a header does not rebuild the translation units
+#   that include it, and the stale object links into the exe.
+#
+#   It already bit this worktree. Adding a member to `native_renderer.h` left
+#   `main.cpp.obj` stale, the two objects then disagreed about the struct layout,
+#   and a run printed `skinning=1` and `alignment=-` on a line whose own log had
+#   just recorded `alignment=weapon_bone`. Until the generator is fixed, a header
+#   newer than the stamp forces the requested targets to really rebuild by
+#   touching their sources. The stamp lives in the build tree, so a clean build
+#   resets it.
+#
 # Usage: bash build-target.sh entity_model_probe [tf2_demo_native ...]
 # Exit:  0 = the named targets built; 1 = they did not.
 set -uo pipefail
@@ -64,6 +81,12 @@ fi
 
 echo "=== build $* ==="
 : > "$LOG"
+STAMP="$BUILD/.headers-stamp"
+if [ -n "$(find native/include native/src native/tools third_party \
+    \( -name '*.h' -o -name '*.hpp' \) -newer "$STAMP" -print -quit 2>/dev/null)" ]; then
+  echo "note: a header is newer than $STAMP; touching sources (header deps are untracked)"
+  touch native/src/*.cpp native/tools/*.cpp
+fi
 cmake --build "$BUILD" --target "$@" > "$LOG" 2>&1
 rc=$?
 # A failed build is retried once. The failure this was added for (2026-10-10) was
@@ -92,6 +115,10 @@ grep -a -E "error C|warning C|error MSB|fatal error|LNK[0-9]+" "$LOG" | head -20
 if [ "$rc" -ne 0 ]; then
   cp "$LOG" "$LOG.failed" 2>/dev/null
   echo "build FAILED (rc=$rc); full output preserved at $LOG.failed"
+else
+  # Record that the tree is built with the headers as they are now. A header
+  # touched after this point forces the sources to be touched on the next build.
+  touch "$STAMP"
 fi
 echo "rc=$rc"
 exit "$rc"

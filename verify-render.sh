@@ -6,8 +6,10 @@
 #   gates that can see a material, a texture or a pixel. Everything expensive in
 #   verify-all.sh that is *not* about rendering -- the corpus sample, the SourceTV
 #   sweep, the entity gates -- is left out, so "the material work is done" can be
-#   answered in ~5.5 min instead of ~85 (measured 2026-10-09: 5m27s straight,
-#   5m45s with --mutation).
+#   answered in ~13 min instead of ~85 (measured 2026-10-09: 5m27s straight,
+#   5m45s with --mutation, for gates 1-5; viewmodel-contract measured 7m01s
+#   straight on 2026-10-11 and is the expensive one, because it launches the
+#   product a dozen times and takes its frames from each launch).
 #
 # WHAT IT DOES NOT SAY
 #   It does not print VERIFY=PASS and is not a merge gate. In particular it says
@@ -52,6 +54,13 @@
 #      rejected, no-lighting is the default), and the VMT feature mapping. This
 #      is the parse layer under gates 1 and 2; it runs in milliseconds and needs
 #      no assets.
+#   6. viewmodel contract -- the first-person weapon is drawn through its own pass,
+#      with its own projection, its own attachment chain and its own hand mirror,
+#      and a missing resource disables that pass without taking the run down.
+#      Gates 1-5 are all about the world: the world pass normalises geometry into
+#      the map's unit box and writes depth with the world policy, so a weapon
+#      routed through it would be scaled into the map and occluded by it. Nothing
+#      above can see whether a ViewModel exists at all.
 #
 # WHY texture_quad_probe IS NOT HERE
 #   `texture_quad_probe <file.vtf>` uploads a real VTF through D3D11 on a WARP
@@ -68,16 +77,25 @@
 #   verified".
 #
 # Usage: bash verify-render.sh [--mutation] [--no-build]
-#   --mutation replaces each of gates 1-3 with its perturbation run. It costs
-#   about the same as the straight run (5m45s against 5m27s), because the
-#   perturbation replaces that gate's run rather than adding one -- the +12 min
-#   this comment used to claim was never measured.
+#   --mutation replaces gates 1-3 with their perturbation runs and gate 6 with its
+#   own five-mutation run. For gates 1-3 the perturbation replaces that gate's run
+#   rather than adding one, so they cost about the same as the straight run
+#   (5m45s against 5m27s) -- the +12 min this comment used to claim was never
+#   measured. viewmodel-contract is the exception: each of its mutations rebuilds
+#   the product and re-captures its frames, so it costs several times its straight
+#   run and this tier is correspondingly slower with --mutation.
 # Exit:  0 = every gate passed.
 set -uo pipefail
 cd "$(dirname "$0")"
 
 OUT="${VERIFY_RENDER_OUT:-evidence/fast/render}"
 mkdir -p "$OUT"
+# viewmodel-contract redirects its own two output paths. Its witness PNGs go
+# where every other gate's output goes (see the `gate` function), and its traces
+# -- a few MB of BMP per frame plus per-run metrics CSVs -- go under the same
+# tier directory, so the committed evidence tree stays untouched. Exported rather
+# than passed per-call because the `gate` helper sets only one variable.
+export VIEWMODEL_CONTRACT_TRACE_DIR="$OUT/viewmodel"
 
 MUTATION=0
 BUILD=1
@@ -99,13 +117,20 @@ B=native/build-nmake
 
 if [ "$BUILD" -eq 1 ]; then
   echo "=== 1/4 incremental build ==="
-  # tf2_demo_native is the program frame-capture, entity-material and
-  # weapon-animation take their frames from; entity_model_probe is
-  # entity-material's resolve-from-bytes half; weapon_animation_probe is the
-  # instrument weapon-animation uses to separate a moving pose from a moving
-  # cursor, and it is a separate binary because that distinction needs a model
-  # filter the product does not have.
-  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe
+  # tf2_demo_native is the program frame-capture, entity-material,
+  # weapon-animation and viewmodel-contract take their frames from;
+  # entity_model_probe is entity-material's resolve-from-bytes half;
+  # weapon_animation_probe is the instrument weapon-animation uses to separate a
+  # moving pose from a moving cursor, and it is a separate binary because that
+  # distinction needs a model filter the product does not have.
+  # viewmodel_contract_probe and viewmodel_fov_probe are gate 6's instruments and
+  # are built here rather than left to verify-fast: a tier script that needs a
+  # binary its own build step does not produce only works on a tree where some
+  # other script has already run, which is the failure this list exists to avoid.
+  # (Measured 2026-10-11: without them gate 6 exits on its preflight's
+  # `FATAL: missing input: native/build-nmake/viewmodel_contract_probe.exe` on a
+  # tree where verify-fast had not run.)
+  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe
   rc_build=$?
   echo "build_rc=$rc_build"
   [ "$rc_build" -eq 0 ] || { echo "VERIFY-RENDER=FAIL (build)"; exit 1; }
@@ -145,6 +170,7 @@ gate resource-reachability resource-reachability-check.sh 'RESOURCE-REACHABILITY
 gate frame-capture         frame-capture-check.sh         'FRAME-CAPTURE=(PASS|FAIL)'         FRAME_CAPTURE_OUT
 gate entity-material       entity-material-check.sh       'ENTITY-MATERIAL=(PASS|FAIL)'       ENTITY_MATERIAL_OUT
 gate weapon-animation      weapon-animation-check.sh      'WEAPON-ANIMATION=(PASS|FAIL)'      WEAPON_ANIMATION_OUT
+gate viewmodel-contract    viewmodel-contract-check.sh    'VIEWMODEL-CONTRACT=(PASS|FAIL)'    VIEWMODEL_CONTRACT_OUT
 
 echo
 echo "=== 3/4 the material chain's synthetic layer ==="
@@ -201,7 +227,7 @@ fi
 echo
 echo "gates_ok=$ok gates_bad=$bad"
 if [ "$bad" -eq 0 ]; then
-  echo "VERIFY-RENDER=PASS ($ok/6 gates, mutation=$MUTATION)"
+  echo "VERIFY-RENDER=PASS ($ok/7 gates, mutation=$MUTATION)"
   exit 0
 fi
 echo "VERIFY-RENDER=FAIL ($bad red)"

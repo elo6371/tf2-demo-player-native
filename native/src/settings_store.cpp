@@ -1,5 +1,7 @@
 #include "settings_store.h"
 
+#include "viewmodel.h"
+
 #include <Windows.h>
 #include <shlobj.h>
 #include <cstdlib>
@@ -10,6 +12,8 @@ namespace tf2::native {
 namespace {
 constexpr wchar_t kSection[] = L"renderer";
 constexpr wchar_t kSettingsFile[] = L"settings.ini";
+// Empty means "the user's real settings file". Set by setSettingsFileOverride.
+std::filesystem::path g_settingsFileOverride;
 
 int readInt(const std::filesystem::path& file, const wchar_t* key, int fallback) {
   return GetPrivateProfileIntW(kSection, key, fallback, file.c_str());
@@ -31,6 +35,7 @@ bool writeBool(const std::filesystem::path& file, const wchar_t* key, bool value
 }
 
 std::filesystem::path settingsPath() {
+  if (!g_settingsFileOverride.empty()) return g_settingsFileOverride;
   PWSTR appData = nullptr;
   std::filesystem::path base;
   if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_DEFAULT, nullptr, &appData))) {
@@ -56,7 +61,8 @@ PersistentSettings loadSettings() {
   result.render.preset = readInt(file, L"preset", 0) == 1
     ? QualityPreset::Standard : QualityPreset::Performance;
   result.render.renderScale = static_cast<float>(readInt(file, L"renderScalePercent", 100)) / 100.0f;
-  result.render.viewModelFov = static_cast<float>(readInt(file, L"viewModelFov", 80));
+  result.render.viewModelFov = static_cast<float>(
+    migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));
   result.render.vsync = readBool(file, L"vsync", false);
   result.render.normalize();
   wchar_t root[32768]{};
@@ -98,6 +104,10 @@ bool saveSettings(const PersistentSettings& settings) {
     return false;
   }
   return true;
+}
+
+void setSettingsFileOverride(const std::filesystem::path& file) {
+  g_settingsFileOverride = file;
 }
 
 } // namespace tf2::native

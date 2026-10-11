@@ -10,6 +10,7 @@
 #include "effects_timeline.h"
 #include "playback_hud.h"
 #include "model_loader.h"
+#include "viewmodel.h"
 #include "entity_model.h"
 #include "animation_binding.h"
 #include "item_schema.h"
@@ -66,6 +67,14 @@ void traceCheckpoint(const char* what) {
   std::fflush(g_traceFile);
 }
 
+// The format string is NOT checked by the compiler. `_Printf_format_string_` was
+// tried here and is inert for a user-defined variadic function: under /W4 a probe
+// with `%d` fed a `const char*` produced no C4477, while the CRT's own printf did.
+// Only /analyze acts on the annotation, and that is a project-wide flag rather than
+// a local one. So a mismatch between this format and its arguments compiles
+// silently -- one did: `%zu` fed a `uint32_t` printed uninitialised register bits as
+// a bone count. Cast the argument to the type the conversion asks for, and do not
+// trust the compiler to catch it.
 void traceFmt(const char* format, ...) {
   if (!g_traceFile) return;
   // 192 was enough while every line was a handful of counters. A witness line
@@ -156,7 +165,15 @@ std::string normalizedModelPath(const std::string& rawPath, const std::filesyste
     while (start < path.size() && path[start] == '/') ++start;
     if (start < path.size()) return path.substr(start);
   }
-  const std::size_t marker = lowered.rfind("models/");
+  // The VPK-relative path starts at the *first* "models/", not the last.
+  // `rfind` was latent-wrong for any path containing "v_models/", because that
+  // directory name itself contains "models/": `models/weapons/v_models/
+  // v_scattergun_scout.mdl` was truncated to `models/v_scattergun_scout.mdl` and
+  // every ViewModel then read as "was not found". The two `--model` paths the T1
+  // gate uses (`models/player/scout.mdl`, `models/props_ui/bannerflag_comp_l.mdl`)
+  // contain the substring once, so `find` and `rfind` agree on them and that
+  // gate's readings are unchanged.
+  const std::size_t marker = lowered.find("models/");
   if (marker == std::string::npos) return path;
   return path.substr(marker);
 }
@@ -564,13 +581,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
 
   tf2::native::Renderer renderer;
   g_renderer = &renderer;
+  // Which settings file to read has to be known *before* it is read, and the main
+  // argument loop below runs after that read. So `--settings-file` is taken from a
+  // pre-scan here; parsed down there it would arrive after the file had been loaded
+  // and would silently do nothing.
+  int argumentCount = 0;
+  LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
+  if (arguments) {
+    for (int i = 1; i < argumentCount; ++i) {
+      if (wcscmp(arguments[i], L"--settings-file") == 0) {
+        // A flag with no value is refused rather than ignored: falling back to the
+        // user's real settings file would make a run that asked to be hermetic read
+        // the machine, and nothing in the trace would say so.
+        if (i + 1 >= argumentCount) {
+          OutputDebugStringW(L"TF2 Demo Player: --settings-file needs a path; refusing to guess.\n");
+          return 13;
+        }
+        tf2::native::setSettingsFileOverride(std::filesystem::path(arguments[++i]));
+      }
+    }
+  }
   auto persistent = tf2::native::loadSettings();
   tf2::native::NativeUiController nativeUi;
   nativeUi.setTfRoot(persistent.tfRoot);
   g_nativeUi = &nativeUi;
   DragAcceptFiles(window, TRUE);
   createNativeUiControls(window, instance);
-  int argumentCount = 0;
   std::filesystem::path commandTfRoot;
   std::filesystem::path commandDemo;
   std::filesystem::path commandModel;
@@ -594,7 +630,30 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::int64_t modelTick = 0;
   bool modelSkinningEnabled = true;
   bool modelArgumentRejected = false;
-  LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
+  // First-person ViewModel. The request is built once, at startup, and cached:
+  // the plan forbids rescanning the VPK or re-parsing the MDL per frame.
+  //   --viewmodel <path>        a `v_*.mdl`, loose or inside a VPK
+  //   --viewmodel-hand <r|l>    which hand's attachment table to prefer
+  //   --viewmodel-fov <n>       clamped to 40..120; omitted means the stored
+  //                             setting, and the compiled default (90) when there
+  //                             is no stored value. `--settings-file` (read by the
+  //                             pre-scan near the top of wWinMain) is what makes
+  //                             "no stored value" reachable from a gate.
+  //   --viewmodel-identity-bones  a diagnostic, not a feature: upload one
+  //                             identity matrix per bone so the pass takes its
+  //                             skinning branch with a transform that must leave
+  //                             the bind pose exactly where it was. Same shape as
+  //                             T1's `--model-skinning` pair, and it is the only
+  //                             way to show the ViewModel skinning branch runs
+  //                             without deforming, since nothing else supplies a
+  //                             bone table to this pass.
+  std::filesystem::path commandViewModel;
+  bool viewModelLeftHand = false;
+  float viewModelFov = 0.0f;
+  bool viewModelFovGiven = false;
+  bool viewModelIdentityBones = false;
+  std::size_t viewModelBoneLimit = 0;   // 0 = upload the whole table
+  bool viewModelArgumentRejected = false;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -635,6 +694,39 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else modelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--model-skinning") == 0) {
         modelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel") == 0 && i + 1 < argumentCount) {
+        commandViewModel = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--viewmodel") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-hand") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"left") == 0) viewModelLeftHand = true;
+        else if (wcscmp(arguments[i], L"right") == 0) viewModelLeftHand = false;
+        else viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-hand") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-fov") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const double parsed = std::wcstod(arguments[++i], &end);
+        // A non-numeric or non-finite FOV is refused rather than silently
+        // becoming the default: "the gate asked for 40" and "the gate asked for
+        // nothing" must not read the same.
+        if (end && *end == L'\0' && std::isfinite(parsed)) {
+          viewModelFov = static_cast<float>(parsed);
+          viewModelFovGiven = true;
+        } else {
+          viewModelArgumentRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--viewmodel-fov") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-identity-bones") == 0) {
+        viewModelIdentityBones = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-bone-limit") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const unsigned long long parsed = std::wcstoull(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed > 0) viewModelBoneLimit = static_cast<std::size_t>(parsed);
+        else viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-bone-limit") == 0) {
+        viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--audio-device") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const unsigned long parsed = std::wcstoul(arguments[++i], &end, 10);
@@ -671,6 +763,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   if (modelArgumentRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --model-sequence/--model-tick/--model-skinning; refusing to guess.\n");
+    return 13;
+  }
+  if (viewModelArgumentRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov; refusing to guess.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
@@ -1542,6 +1638,37 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       modelMetadata = std::move(inspection.metadata);
     }
   }
+  // ---- First-person ViewModel (T2) ----------------------------------------
+  // Built once, here, rather than per frame. The plan is explicit that the model
+  // path, the companion status, the mesh, the attachment table and the bone
+  // mapping are resolved when the demo or the TF root changes -- this run has
+  // exactly one of each, so "once at startup" *is* the cache. Nothing below
+  // re-opens the VPK or re-parses the MDL.
+  tf2::native::ViewModelRequest viewModelRequest;
+  const bool viewModelRequested = !commandViewModel.empty();
+  bool viewModelMeshUploaded = false;
+  if (viewModelRequested) {
+    const std::string relative = normalizedModelPath(commandViewModel.string(), assets.tfDirectory);
+    // The stored setting is the source of truth; --viewmodel-fov is an explicit
+    // override. The setting already went through migrateLegacyViewModelFov, so a
+    // file written by the old build (which stored 80 as its default) reads as 90
+    // here rather than pinning the ViewModel at the retired default.
+    const float requestedFov = viewModelFovGiven ? viewModelFov : persistent.render.viewModelFov;
+    viewModelRequest = tf2::native::buildViewModelRequest(assets, relative,
+      viewModelLeftHand ? tf2::native::ViewModelHand::Left : tf2::native::ViewModelHand::Right,
+      requestedFov);
+    traceFmt("gpu: viewmodel request path=%s status=%s resolution=%d companions=%d meshReady=%d attachments=%zu valid=%zu partial=%zu invalid=%zu alignment=%s fov=%.1f hand=%s reason=%s",
+      viewModelRequest.path.c_str(),
+      viewModelRequest.status == tf2::native::ViewModelStatus::Ok ? "ok" : "failed",
+      static_cast<int>(viewModelRequest.resolution),
+      viewModelRequest.companionsComplete ? 1 : 0,
+      viewModelRequest.resources.meshReady ? 1 : 0,
+      viewModelRequest.attachmentCount, viewModelRequest.attachmentsValid,
+      viewModelRequest.attachmentsPartial, viewModelRequest.attachmentsInvalid,
+      viewModelRequest.alignmentName.empty() ? "-" : viewModelRequest.alignmentName.c_str(),
+      viewModelRequest.fov, viewModelLeftHand ? "left" : "right",
+      viewModelRequest.reason.empty() ? "-" : viewModelRequest.reason.c_str());
+  }
   const auto reloadGpuResources = [&]() {
     traceCheckpoint("gpu: reload begin");
     bool uploadedTexture = mapRgba.empty() && displayRgba.empty();
@@ -1662,6 +1789,78 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         modelSkinningEnabled ? 1 : 0, modelSequence, modelSkinFrame, modelSkinFrameCount,
         modelSkinReason.c_str());
     }
+    // First-person ViewModel. Uploaded here so a device reset re-uploads it with
+    // everything else. It is deliberately *not* folded into the return value: the
+    // plan says a missing or damaged ViewModel disables the ViewModel pass, not
+    // the run, and `drawn=false` plus a reason is how that is reported.
+    viewModelMeshUploaded = false;
+    if (viewModelRequested) {
+      tf2::native::ViewModelDrawState viewModelState;
+      viewModelState.fov = viewModelRequest.fov;
+      viewModelState.leftHand = viewModelLeftHand;
+      viewModelState.handTransform = viewModelRequest.handTransform;
+      viewModelState.attachmentValid = viewModelRequest.alignmentIndex >= 0
+        && static_cast<std::size_t>(viewModelRequest.alignmentIndex) < viewModelRequest.attachments.size();
+      if (viewModelState.attachmentValid) {
+        const auto& attachment =
+          viewModelRequest.attachments[static_cast<std::size_t>(viewModelRequest.alignmentIndex)];
+        viewModelState.attachmentName = attachment.name;
+        // mstudioattachment_t::local as a row-major 3x4: the three basis vectors
+        // are its columns, the origin is its translation column. This is the
+        // "attachment local -> owning bone / model space" stage of the chain.
+        viewModelState.attachmentTransform = {
+          attachment.axisX[0], attachment.axisY[0], attachment.axisZ[0], attachment.origin[0],
+          attachment.axisX[1], attachment.axisY[1], attachment.axisZ[1], attachment.origin[1],
+          attachment.axisX[2], attachment.axisY[2], attachment.axisZ[2], attachment.origin[2],
+        };
+      }
+      if (viewModelRequest.status == tf2::native::ViewModelStatus::Ok
+          && viewModelRequest.resources.meshReady) {
+        viewModelMeshUploaded = renderer.uploadViewModelMesh(viewModelRequest.mesh.vertices);
+        viewModelState.enabled = viewModelMeshUploaded;
+        if (!viewModelMeshUploaded) viewModelState.reason = "the viewmodel mesh did not upload";
+      } else {
+        viewModelState.enabled = false;
+        viewModelState.reason = viewModelRequest.reason.empty()
+          ? std::string("the viewmodel request produced no mesh") : viewModelRequest.reason;
+      }
+      // The T1 instrument, reapplied to this pass: identity skin matrices through
+      // the skinning branch must leave the bind pose exactly where it was, while
+      // a real pose would move it. It exists because the honest state of this
+      // pass is `animationInput=missing` -- nothing drives a ViewModel's sequence
+      // -- and "the branch never ran" and "the branch ran and changed nothing"
+      // are the two readings that state has to be separated from. The count must
+      // cover the whole skeleton: the pass refuses a short table rather than
+      // skinning with one.
+      if (viewModelIdentityBones && viewModelMeshUploaded && !viewModelRequest.bones.empty()) {
+        // The skeleton the mesh declares and the table the pass is handed: they
+        // differ only when --viewmodel-bone-limit truncates it. boneCount is the
+        // skeleton's size in both cases, which is what makes the pass notice the
+        // shortfall instead of skinning with whatever it was given.
+        const std::size_t skeletonBones = viewModelRequest.bones.size();
+        const std::size_t tableBones = viewModelBoneLimit == 0
+          ? skeletonBones : std::min(viewModelBoneLimit, skeletonBones);
+        std::vector<std::array<float, 16>> identity;
+        identity.reserve(tableBones);
+        for (std::size_t index = 0; index < tableBones; ++index) {
+          std::array<float, 16> matrix{};
+          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;
+          identity.push_back(matrix);
+        }
+        const bool bonesUploaded = renderer.uploadViewModelBones(identity);
+        viewModelState.skinningEnabled = bonesUploaded;
+        viewModelState.boneCount = bonesUploaded
+          ? static_cast<std::uint32_t>(skeletonBones) : 0u;
+        if (!bonesUploaded) viewModelState.reason = "the identity bone table did not upload";
+      }
+      renderer.setViewModelState(viewModelState);
+      traceFmt("gpu: viewmodel upload mesh=%d vertices=%zu bones=%zu alignment=%s enabled=%d reason=%s",
+        viewModelMeshUploaded ? 1 : 0, viewModelRequest.mesh.vertices.size(),
+        viewModelRequest.bones.size(),
+        viewModelState.attachmentName.empty() ? "-" : viewModelState.attachmentName.c_str(),
+        viewModelState.enabled ? 1 : 0,
+        viewModelState.reason.empty() ? "-" : viewModelState.reason.c_str());
+    }
     traceCheckpoint("gpu: reload end");
     return uploadedTexture && uploadedWorld && uploadedModel && uploadedBones;
   };
@@ -1743,6 +1942,84 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::uint64_t waitMsTotal = 0;
   const LARGE_INTEGER metricsStart = lastFrame;
   LARGE_INTEGER metricsLast = lastFrame;
+  // The runtime readings the plan asks for, assembled once here so the periodic
+  // trace and the window title cannot disagree about what they mean. Each field
+  // is a reading, not a claim: `drawn` is the pass's own draw counter, and
+  // `reason` is the string the pass recorded when it did not draw.
+  const auto viewModelResourceStatusText = [&]() -> std::string {
+    if (!viewModelRequested) return "none";
+    if (viewModelRequest.resources.companionsComplete && viewModelRequest.resources.meshReady) return "ok";
+    return "incomplete(mdl=" + std::to_string(viewModelRequest.resources.mdlReadable ? 1 : 0)
+      + ",vvd=" + std::to_string(viewModelRequest.resources.vvdPresent ? 1 : 0)
+      + ",vtx=" + std::to_string(viewModelRequest.resources.vtxPresent ? 1 : 0)
+      + ",mesh=" + std::to_string(viewModelRequest.resources.meshReady ? 1 : 0) + ")";
+  };
+  const auto viewModelAttachmentStatusText = [&]() -> std::string {
+    if (!viewModelRequested) return "none";
+    if (viewModelRequest.attachmentCount == 0) return "absent";
+    return std::string(viewModelRequest.attachmentsInvalid == 0 && viewModelRequest.attachmentsPartial == 0
+      ? "ok" : "degraded")
+      + "(valid=" + std::to_string(viewModelRequest.attachmentsValid)
+      + ",partial=" + std::to_string(viewModelRequest.attachmentsPartial)
+      + ",invalid=" + std::to_string(viewModelRequest.attachmentsInvalid)
+      + ",total=" + std::to_string(viewModelRequest.attachmentCount) + ")";
+  };
+  const auto writeViewModelReading = [&]() {
+    if (!viewModelRequested) return;
+    // `fov` is the FOV the pass is actually using (the request's, after the
+    // clamp), not the settings value: those two differ whenever --viewmodel-fov
+    // overrides, and reporting the settings one would have hidden that.
+    traceFmt("viewModelPath=%s resourceStatus=%s attachmentStatus=%s sequenceCount=%zu fov=%.1f settingsFov=%.1f hand=%s drawn=%zu reason=%s",
+      viewModelRequest.path.empty() ? "-" : viewModelRequest.path.c_str(),
+      viewModelResourceStatusText().c_str(),
+      viewModelAttachmentStatusText().c_str(),
+      viewModelRequest.sequenceLabels.size(),
+      renderer.viewModelState().enabled ? renderer.viewModelState().fov : viewModelRequest.fov,
+      renderer.viewModelFov(),
+      viewModelLeftHand ? "left" : "right",
+      renderer.viewModelDrawCount(),
+      renderer.viewModelDrawReason().c_str());
+    // The draw-order reading: the world pass is ordinal 1 and the ViewModel pass
+    // must be later. Without this, "world then ViewModel" would only be a claim
+    // about the order of two statements in draw().
+    // `skinning` is what the pass *did*; `boneTableCoverage` is the table it was
+    // handed against the skeleton the mesh declares. Read together:
+    // `skinning=0 boneTableCoverage=1/45` is a refused table, `skinning=0
+    // boneTableCoverage=0/0` is no table at all, and `skinning=1
+    // boneTableCoverage=45/45` is a skinned draw. Without the pair, the refusal
+    // and the no-table case are both just `skinning=0`.
+    traceFmt("gpu: viewmodel pass order worldPass=%zu viewModelPass=%zu afterWorld=%d drawCalls=%zu vertices=%zu depthWrite=%d depthFunc=%s skinning=%d boneTableCoverage=%zu/%zu animationInput=%s meshRadius=%.2f alignment=%s",
+      renderer.viewModelWorldPassOrdinal(), renderer.viewModelPassOrdinal(),
+      renderer.viewModelPassOrdinal() > renderer.viewModelWorldPassOrdinal() ? 1 : 0,
+      renderer.viewModelDrawCallCount(), renderer.viewModelVertexCount(),
+      renderer.viewModelDepthWrite() ? 1 : 0, renderer.viewModelDepthFuncName().c_str(),
+      renderer.viewModelSkinningEnabled() ? 1 : 0,
+      renderer.viewModelBoneUploadCount(),
+      // %zu reads a 64-bit value and this field is a uint32_t; on x64 the
+      // upper half of the register is not guaranteed zeroed, so the first
+      // order line of a run printed a bone count of 4598175219545276416 (the
+      // bit pattern of 0.25). The gate read `tail -1` and never saw it.
+      static_cast<std::size_t>(renderer.viewModelState().boneCount),
+      renderer.viewModelAnimationInput().c_str(),
+      renderer.viewModelMeshRadius(),
+      renderer.viewModelState().attachmentName.empty() ? "-" : renderer.viewModelState().attachmentName.c_str());
+    const auto& clip = renderer.viewModelCenterClip();
+    const auto& viewSpace = renderer.viewModelCenterViewSpace();
+    const bool onScreen = clip[3] > 0.0f
+      && std::fabs(clip[0]) <= clip[3] && std::fabs(clip[1]) <= clip[3];
+    const float* eye = renderer.frameEye();
+    const float* forward = renderer.frameForward();
+    const float* target = renderer.viewModelPlacementTarget();
+    traceFmt("gpu: viewmodel frame eye=(%.2f,%.2f,%.2f) forward=(%.3f,%.3f,%.3f) placement=(%.2f,%.2f,%.2f)",
+      eye[0], eye[1], eye[2], forward[0], forward[1], forward[2],
+      target[0], target[1], target[2]);
+    traceFmt("gpu: viewmodel centre viewSpace=(%.2f,%.2f,%.2f) clip=(%.3f,%.3f,%.3f,%.3f) ndc=(%.3f,%.3f) onScreen=%d",
+      viewSpace[0], viewSpace[1], viewSpace[2],
+      clip[0], clip[1], clip[2], clip[3],
+      clip[3] != 0.0f ? clip[0] / clip[3] : 0.0f,
+      clip[3] != 0.0f ? clip[1] / clip[3] : 0.0f,
+      onScreen ? 1 : 0);
+  };
   const auto writeMetrics = [&](LARGE_INTEGER sample, bool force) {
     if (!metricsFile) return;
     const double interval = static_cast<double>(sample.QuadPart - metricsLast.QuadPart)
@@ -1768,6 +2045,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     metricsFile.flush();
     traceFmt("metrics t=%.2f tick=%d iter=%llu", elapsedSeconds, static_cast<int>(g_playback.tick),
       static_cast<unsigned long long>(mainLoopIterations));
+    writeViewModelReading();
     ++metricsWriteCalls;
     metricsLast = sample;
     metricsFrames = renderedFrames;
@@ -2203,6 +2481,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         captureRequested = true;
       }
       if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) ++renderedFrames;
+      // Emitted on the frame the capture was requested for, so the readings and
+      // the bitmap on disk describe the same frame.
+      if (captureRequested) writeViewModelReading();
       traceFmt("draw: end frames=%llu pending=%d", static_cast<unsigned long long>(renderedFrames),
         renderer.frameCapturePending() ? 1 : 0);
       if (captureRequested && !renderer.frameCapturePending()) {

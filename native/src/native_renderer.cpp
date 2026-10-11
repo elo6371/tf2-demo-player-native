@@ -51,6 +51,16 @@ static_assert(offsetof(EntityModelGpuVertex, bone0) == 44, "entity mesh blend in
 static_assert(sizeof(EntityModelInstanceGpu) == 128, "entity instance stride");
 static_assert(offsetof(EntityModelInstanceGpu, color) == 96, "entity instance color offset");
 static_assert(offsetof(EntityModelInstanceGpu, boneOffset) == 112, "entity instance bone offset");
+// Mirrors the ViewModelConstants cbuffer in viewModelVertexSource field for
+// field. `skinInfo.x` is the skeleton size (0 = draw the bind pose) so the
+// shader can reject an out-of-range bone index the same way the entity shader
+// rejects one against `boneInfo.z`.
+struct ViewModelConstantsData {
+  DirectX::XMFLOAT4X4 mvp;
+  DirectX::XMFLOAT4 tint;
+  DirectX::XMFLOAT4 skinInfo;
+};
+static_assert(sizeof(ViewModelConstantsData) == 96, "viewmodel constant buffer size");
 struct ModelGpuVertex {
   float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz;
   float weights[3]; std::uint8_t boneIndices[3]; std::uint8_t boneCount; std::uint8_t padding[1];
@@ -388,11 +398,79 @@ Output main(Input input) {
   return output;
 }
 )HLSL";
+  // The first-person pass has its own shader pair. It is not the entity shader
+  // with a different constant buffer: the entity shader takes its placement from
+  // per-instance rows (TEXCOORD1..6) and its skin offset from a packed uint4 in
+  // the instance stream, neither of which exists here. The ViewModel gets one
+  // composed mvp, a tint, and the skeleton in a structured buffer it indexes
+  // from bone 0, with boneCount in a constant so an out-of-range index is
+  // rejected in the shader exactly as the entity path does.
+  static constexpr char viewModelVertexSource[] = R"HLSL(
+cbuffer ViewModelConstants : register(b0) {
+  row_major float4x4 mvp;
+  float4 tint;
+  float4 skinInfo;
+};
+StructuredBuffer<float4x4> viewModelBones : register(t4);
+struct Input {
+  float3 position : POSITION;
+  float3 normal : NORMAL0;
+  float2 uv : TEXCOORD0;
+  float3 weights : BLENDWEIGHT;
+  uint4 boneIndices : BLENDINDICES;
+};
+struct Output {
+  float4 position : SV_POSITION;
+  float3 normal : NORMAL0;
+  float4 colour : COLOR0;
+};
+Output main(Input input) {
+  Output output;
+  float4 local = float4(input.position, 1.0);
+  float3 normalLocal = input.normal;
+  // skinInfo.x is the skeleton size, or 0 when the caller could not build a
+  // pose. 0 means bind pose: the mesh is drawn unskinned rather than skinned
+  // with a table that would put it somewhere invented.
+  if (skinInfo.x > 0.0) {
+    float totalWeight = input.weights.x + input.weights.y + input.weights.z;
+    if (totalWeight > 0.0) {
+      float3 normalizedWeights = input.weights / totalWeight;
+      float3 skinnedPos = float3(0.0, 0.0, 0.0);
+      float3 skinnedNormal = float3(0.0, 0.0, 0.0);
+      for (uint i = 0; i < 3; ++i) {
+        if (normalizedWeights[i] > 0.0 && input.boneIndices[i] < (uint)skinInfo.x) {
+          skinnedPos += mul(local, viewModelBones[input.boneIndices[i]]).xyz * normalizedWeights[i];
+          skinnedNormal += mul(float4(input.normal, 0.0), viewModelBones[input.boneIndices[i]]).xyz * normalizedWeights[i];
+        }
+      }
+      local = float4(skinnedPos, 1.0);
+      normalLocal = skinnedNormal;
+    }
+  }
+  // mvp already carries attachment -> model -> hand -> camera -> projection, so
+  // the hand mirror is applied once, here, and never to the world skeleton.
+  output.position = mul(local, mvp);
+  output.normal = normalLocal;
+  output.colour = tint;
+  return output;
+}
+)HLSL";
+  static constexpr char viewModelPixelSource[] = R"HLSL(
+struct Input { float4 position : SV_POSITION; float3 normal : NORMAL0; float4 colour : COLOR0; };
+float4 main(Input input) : SV_TARGET {
+  float3 normal = normalize(input.normal);
+  float diffuse = saturate(dot(normal, normalize(float3(-0.30, 0.42, 0.86))));
+  float lighting = 0.55 + 0.45 * diffuse;
+  return float4(input.colour.rgb * lighting, input.colour.a);
+}
+)HLSL";
   Microsoft::WRL::ComPtr<ID3DBlob> worldVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> worldPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> modelVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> modelPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> entityModelVertexBytecode;
+  Microsoft::WRL::ComPtr<ID3DBlob> viewModelVertexBytecode;
+  Microsoft::WRL::ComPtr<ID3DBlob> viewModelPixelBytecode;
   HRESULT worldShaderResult = S_OK;
   initStage_ = "compileShaders.world";
   const bool worldShadersCompiled = compileShader(worldVertexSource, "main", "vs_5_0", worldVertexBytecode, &worldShaderResult)
@@ -410,6 +488,13 @@ Output main(Input input) {
   HRESULT entityShaderResult = S_OK;
   if (!compileShader(entityModelVertexSource, "main", "vs_5_0", entityModelVertexBytecode, &entityShaderResult)) {
     lastError_ = entityShaderResult;
+    return false;
+  }
+  HRESULT viewModelShaderResult = S_OK;
+  initStage_ = "compileShaders.viewModel";
+  if (!compileShader(viewModelVertexSource, "main", "vs_5_0", viewModelVertexBytecode, &viewModelShaderResult)
+      || !compileShader(viewModelPixelSource, "main", "ps_5_0", viewModelPixelBytecode, &viewModelShaderResult)) {
+    lastError_ = viewModelShaderResult;
     return false;
   }
   initStage_ = "createShaders.singleModel";
@@ -491,6 +576,72 @@ Output main(Input input) {
       worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
       modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
       entityModelVertexShader_.Reset(); entityModelInputLayout_.Reset();
+      lastError_ = E_FAIL;
+      return false;
+    }
+    // First-person pass objects. Its input layout is per-vertex only: the
+    // ViewModel has one instance, so the instance rows the entity layout carries
+    // (TEXCOORD1..7) would be a stream nothing ever binds.
+    const D3D11_INPUT_ELEMENT_DESC viewModelElements[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"BLENDWEIGHT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"BLENDINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 44, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    constexpr UINT viewModelElementCount =
+      static_cast<UINT>(sizeof(viewModelElements) / sizeof(viewModelElements[0]));
+    initStage_ = "createShaders.viewModelObjects";
+    const bool viewModelShaderCreated = SUCCEEDED(device_->CreateVertexShader(
+      viewModelVertexBytecode->GetBufferPointer(), viewModelVertexBytecode->GetBufferSize(),
+      nullptr, viewModelVertexShader_.GetAddressOf()))
+      && SUCCEEDED(device_->CreatePixelShader(
+      viewModelPixelBytecode->GetBufferPointer(), viewModelPixelBytecode->GetBufferSize(),
+      nullptr, viewModelPixelShader_.GetAddressOf()));
+    initStage_ = "layout.viewModel";
+    const bool viewModelLayoutCreated = viewModelShaderCreated && SUCCEEDED(device_->CreateInputLayout(
+      viewModelElements, viewModelElementCount, viewModelVertexBytecode->GetBufferPointer(),
+      viewModelVertexBytecode->GetBufferSize(), viewModelInputLayout_.GetAddressOf()));
+    if (!viewModelLayoutCreated) {
+      viewModelVertexShader_.Reset(); viewModelPixelShader_.Reset(); viewModelInputLayout_.Reset();
+      lastError_ = E_FAIL;
+      return false;
+    }
+    // The pass's own constant buffer and depth state. The depth state writes and
+    // tests less-equal, and the pass clears depth before drawing, so the weapon
+    // is never clipped by the map around it.
+    D3D11_BUFFER_DESC viewModelConstantsDescription{};
+    viewModelConstantsDescription.ByteWidth = sizeof(ViewModelConstantsData);
+    viewModelConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
+    viewModelConstantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    initStage_ = "createBuffers.viewModelConstants";
+    if (FAILED(device_->CreateBuffer(&viewModelConstantsDescription, nullptr,
+        viewModelConstants_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+    D3D11_DEPTH_STENCIL_DESC viewModelDepthDescription{};
+    viewModelDepthDescription.DepthEnable = TRUE;
+    viewModelDepthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    viewModelDepthDescription.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    viewModelDepthDescription.StencilEnable = FALSE;
+    initStage_ = "createDepthState.viewModel";
+    if (FAILED(device_->CreateDepthStencilState(&viewModelDepthDescription,
+        viewModelDepthStencilState_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+    viewModelDepthWrite_ = viewModelDepthDescription.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL;
+    viewModelDepthFunc_ = viewModelDepthDescription.DepthFunc == D3D11_COMPARISON_LESS_EQUAL
+      ? "less_equal" : "other";
+    D3D11_RASTERIZER_DESC viewModelRasterDescription{};
+    viewModelRasterDescription.FillMode = D3D11_FILL_SOLID;
+    viewModelRasterDescription.CullMode = D3D11_CULL_NONE;
+    viewModelRasterDescription.FrontCounterClockwise = FALSE;
+    viewModelRasterDescription.DepthClipEnable = TRUE;
+    initStage_ = "createRasterState.viewModel";
+    if (FAILED(device_->CreateRasterizerState(&viewModelRasterDescription,
+        viewModelRasterizerState_.GetAddressOf()))) {
       lastError_ = E_FAIL;
       return false;
     }
@@ -1339,6 +1490,303 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
   entityBoneMatrixCount_ = boneMatrices.size();
 }
 
+namespace {
+// Row-major 3x4 in the Source `matrix3x4_t` layout, applied the column-vector
+// way: `v' = M * v`, with the translation in column 3. `multiply34(a, b)` is the
+// ordinary product a*b, which under this convention applies b first. These are
+// the *ViewModel pass's* matrices; the world `mvp` and the shader's `mul(local,
+// mvp)` use the row-vector form, which is why the assembled matrix is transposed
+// where it is handed over.
+std::array<float, 12> multiply34(const std::array<float, 12>& a, const std::array<float, 12>& b) {
+  std::array<float, 12> out{};
+  for (int row = 0; row < 3; ++row) {
+    for (int column = 0; column < 3; ++column) {
+      out[row * 4 + column] = a[row * 4 + 0] * b[0 * 4 + column]
+        + a[row * 4 + 1] * b[1 * 4 + column]
+        + a[row * 4 + 2] * b[2 * 4 + column];
+    }
+    out[row * 4 + 3] = a[row * 4 + 0] * b[3] + a[row * 4 + 1] * b[7]
+      + a[row * 4 + 2] * b[11] + a[row * 4 + 3];
+  }
+  return out;
+}
+
+std::array<float, 12> identity34() {
+  std::array<float, 12> matrix{};
+  matrix[0] = 1.0f;
+  matrix[5] = 1.0f;
+  matrix[10] = 1.0f;
+  return matrix;
+}
+
+std::array<float, 12> translation34(float x, float y, float z) {
+  std::array<float, 12> matrix = identity34();
+  matrix[3] = x;
+  matrix[7] = y;
+  matrix[11] = z;
+  return matrix;
+}
+} // namespace
+
+bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices) {
+  viewModelVertexCount_ = 0;
+  if (!device_ || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
+  // A ViewModel is one model, so it gets its own immutable buffer rather than a
+  // keyed mesh map: there is no second ViewModel to key against, and the map the
+  // entity path uses also resets the entity draw ranges, which this must not do.
+  const auto limit = std::min<std::size_t>(vertices.size(), 60000u);
+  const auto count = limit - (limit % 3);
+  if (count < 3) { lastError_ = E_INVALIDARG; return false; }
+  std::vector<EntityModelGpuVertex> local(count);
+  // Measure the model while copying it. The pass uses these bounds to decide how
+  // far in front of the eye to place it, so they are taken from the same vertices
+  // that are uploaded rather than from a second read of the model.
+  float minX = vertices[0].position[0], minY = vertices[0].position[1], minZ = vertices[0].position[2];
+  float maxX = minX, maxY = minY, maxZ = minZ;
+  for (std::size_t i = 0; i < count; ++i) {
+    const auto& source = vertices[i];
+    local[i] = EntityModelGpuVertex{
+      source.position[0], source.position[1], source.position[2],
+      source.normal[0], source.normal[1], source.normal[2],
+      source.texcoord[0], source.texcoord[1],
+      source.weights[0], source.weights[1], source.weights[2],
+      source.boneIndices[0], source.boneIndices[1], source.boneIndices[2], source.boneCount};
+    minX = std::min(minX, source.position[0]); maxX = std::max(maxX, source.position[0]);
+    minY = std::min(minY, source.position[1]); maxY = std::max(maxY, source.position[1]);
+    minZ = std::min(minZ, source.position[2]); maxZ = std::max(maxZ, source.position[2]);
+  }
+  viewModelMeshCenter_[0] = 0.5f * (minX + maxX);
+  viewModelMeshCenter_[1] = 0.5f * (minY + maxY);
+  viewModelMeshCenter_[2] = 0.5f * (minZ + maxZ);
+  const float halfX = 0.5f * (maxX - minX);
+  const float halfY = 0.5f * (maxY - minY);
+  const float halfZ = 0.5f * (maxZ - minZ);
+  viewModelMeshRadius_ = std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ);
+  D3D11_BUFFER_DESC description{};
+  description.ByteWidth = static_cast<UINT>(count * sizeof(EntityModelGpuVertex));
+  description.Usage = D3D11_USAGE_IMMUTABLE;
+  description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+  D3D11_SUBRESOURCE_DATA data{};
+  data.pSysMem = local.data();
+  Microsoft::WRL::ComPtr<ID3D11Buffer> buffer;
+  if (FAILED(device_->CreateBuffer(&description, &data, buffer.GetAddressOf()))) {
+    lastError_ = E_FAIL;
+    return false;
+  }
+  viewModelVertexBuffer_ = std::move(buffer);
+  viewModelVertexCount_ = static_cast<UINT>(count);
+  return true;
+}
+
+bool Renderer::uploadViewModelBones(const std::vector<std::array<float, 16>>& boneMatrices) {
+  viewModelBoneUploadCount_ = 0;
+  if (boneMatrices.empty() || !device_ || !context_) return false;
+  // Same rule as the entity buffer: one non-finite matrix turns the weapon into
+  // a smear and names no bone, so the upload is refused instead.
+  for (const auto& matrix : boneMatrices) {
+    for (const float element : matrix) {
+      if (!std::isfinite(element)) { lastError_ = E_INVALIDARG; return false; }
+    }
+  }
+  if (!viewModelBoneBuffer_ || viewModelBoneCapacity_ < boneMatrices.size()) {
+    viewModelBoneView_.Reset();
+    viewModelBoneBuffer_.Reset();
+    D3D11_BUFFER_DESC description{};
+    const auto capacity = std::max(boneMatrices.size(), std::size_t{128});
+    description.ByteWidth = static_cast<UINT>(capacity * sizeof(std::array<float, 16>));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    description.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    description.StructureByteStride = sizeof(std::array<float, 16>);
+    if (FAILED(device_->CreateBuffer(&description, nullptr, viewModelBoneBuffer_.ReleaseAndGetAddressOf()))) {
+      return false;
+    }
+    D3D11_SHADER_RESOURCE_VIEW_DESC view{};
+    view.Format = DXGI_FORMAT_UNKNOWN;
+    view.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    view.Buffer.FirstElement = 0;
+    view.Buffer.NumElements = static_cast<UINT>(capacity);
+    if (FAILED(device_->CreateShaderResourceView(viewModelBoneBuffer_.Get(), &view,
+        viewModelBoneView_.ReleaseAndGetAddressOf()))) {
+      viewModelBoneBuffer_.Reset();
+      return false;
+    }
+    viewModelBoneCapacity_ = capacity;
+  }
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(context_->Map(viewModelBoneBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return false;
+  std::memcpy(mapped.pData, boneMatrices.data(), boneMatrices.size() * sizeof(std::array<float, 16>));
+  context_->Unmap(viewModelBoneBuffer_.Get(), 0);
+  viewModelBoneUploadCount_ = boneMatrices.size();
+  return true;
+}
+
+std::string Renderer::viewModelAnimationInput() const {
+  if (viewModelBoneUploadCount_ == 0) return "missing";
+  return "bones:" + std::to_string(viewModelBoneUploadCount_);
+}
+
+void Renderer::setViewModelState(const ViewModelDrawState& state) {
+  viewModelState_ = state;
+  viewModelState_.fov = clampViewModelFov(state.fov);
+}
+
+bool Renderer::drawViewModel() {
+  viewModelMvp_.fill(0.0f);
+  // Cleared before every early return, so a refusal this frame cannot leave the
+  // previous frame's count behind and read as "it skinned".
+  viewModelEffectiveBoneCount_ = 0;
+  if (!context_) { viewModelDrawReason_ = "the renderer has no device context"; return false; }
+  if (!viewModelState_.enabled) {
+    viewModelDrawReason_ = viewModelState_.reason.empty()
+      ? std::string("no viewmodel was requested") : viewModelState_.reason;
+    return false;
+  }
+  if (!viewModelVertexBuffer_ || viewModelVertexCount_ < 3) {
+    viewModelDrawReason_ = "no viewmodel mesh is uploaded";
+    return false;
+  }
+  if (!viewModelVertexShader_ || !viewModelPixelShader_ || !viewModelInputLayout_
+      || !viewModelConstants_ || !viewModelDepthStencilState_) {
+    viewModelDrawReason_ = "the viewmodel pipeline did not build";
+    return false;
+  }
+  // Skinning is all-or-nothing. The plan refuses a partial guess, so when the
+  // caller asked for skinning but the bone table cannot cover the skeleton, the
+  // pass draws the bind pose and says so instead of skinning with a short table.
+  std::uint32_t effectiveBoneCount = 0;
+  std::string skinNote;
+  if (viewModelState_.skinningEnabled && viewModelState_.boneCount > 0) {
+    if (!viewModelBoneView_ || viewModelBoneUploadCount_ < viewModelState_.boneCount) {
+      skinNote = "skinning was requested but the bone table covers "
+        + std::to_string(viewModelBoneUploadCount_) + " of "
+        + std::to_string(viewModelState_.boneCount) + " bones; drawing the bind pose";
+    } else {
+      effectiveBoneCount = viewModelState_.boneCount;
+    }
+  }
+  viewModelEffectiveBoneCount_ = effectiveBoneCount;
+
+  using namespace DirectX;
+  // CONVENTION. Every 3x4 in this pass is the Source `matrix3x4_t` layout --
+  // row-major, translation in column 3 -- and every one of them is applied the
+  // column-vector way, `v' = M * v`. That is the layout `mstudioattachment_t::
+  // local` itself uses, so the attachment matrix needs no reinterpretation.
+  //
+  // The chain the plan asks for is attachment local -> owning bone model space ->
+  // ViewModel model space (A) -> hand (H) -> camera space (T). Column-vector
+  // composition applies the rightmost factor first, so the product is T * H * A.
+  //
+  // The shader consumes `mul(local, mvp)`, which is the row-vector product, so
+  // the assembled 3x4 is transposed on its way into the XMMATRIX below. Getting
+  // this wrong is not a small error: the first version used the row-vector
+  // formula for the centre, multiplied in the row-vector order and then dropped
+  // the translation entirely by leaving the XMMATRIX's last row at (0,0,0,1).
+  // The mesh centre landed at clip w = -467 -- behind the camera -- while the
+  // pass reported `drawn=1`.
+  const std::array<float, 12> attachment = viewModelState_.attachmentValid
+    ? viewModelState_.attachmentTransform : identity34();
+  const std::array<float, 12> hand = viewModelState_.handTransform;
+  const std::array<float, 12> attachmentHand = multiply34(hand, attachment);
+  // The model's own origin is not its centre, and T is applied last, so the
+  // translation is solved for "the mesh centre lands where the weapon should sit"
+  // rather than guessed at.
+  const float cx = viewModelMeshCenter_[0];
+  const float cy = viewModelMeshCenter_[1];
+  const float cz = viewModelMeshCenter_[2];
+  const float centerX = attachmentHand[0] * cx + attachmentHand[1] * cy + attachmentHand[2] * cz + attachmentHand[3];
+  const float centerY = attachmentHand[4] * cx + attachmentHand[5] * cy + attachmentHand[6] * cz + attachmentHand[7];
+  const float centerZ = attachmentHand[8] * cx + attachmentHand[9] * cy + attachmentHand[10] * cz + attachmentHand[11];
+  // Distance and offsets are in the model's own units, taken from its own radius.
+  // A fixed small offset would put a tens-of-units Source model behind the near
+  // plane, which is how the first version drew and changed no pixels.
+  const float radius = std::max(viewModelMeshRadius_, 1e-3f);
+  const float distance = radius * 2.2f;
+  const float rightOffset = radius * 0.30f;
+  const float downOffset = -radius * 0.22f;
+  const float targetX = frameEye_[0] + frameForward_[0] * distance
+    + frameRight_[0] * rightOffset + frameUp_[0] * downOffset;
+  const float targetY = frameEye_[1] + frameForward_[1] * distance
+    + frameRight_[1] * rightOffset + frameUp_[1] * downOffset;
+  const float targetZ = frameEye_[2] + frameForward_[2] * distance
+    + frameRight_[2] * rightOffset + frameUp_[2] * downOffset;
+  viewModelPlacementTarget_ = { targetX, targetY, targetZ };
+  const auto placement = translation34(targetX - centerX, targetY - centerY, targetZ - centerZ);
+  const auto world = multiply34(placement, attachmentHand);
+
+  // Transposed into the row-vector form the shader multiplies with: the basis
+  // becomes the rows and the translation moves to the last row, which is where
+  // `mul(float4, float4x4)` reads it.
+  const XMMATRIX worldMatrix(
+    world[0], world[4], world[8], 0.0f,
+    world[1], world[5], world[9], 0.0f,
+    world[2], world[6], world[10], 0.0f,
+    world[3], world[7], world[11], 1.0f);
+  const XMMATRIX view = XMLoadFloat4x4(&frameView_);
+  const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
+
+  // Its own projection: the ViewModel FOV, and a near plane derived from the
+  // model's own radius so the whole weapon is in front of it.
+  const float nearPlane = std::max(radius * 0.05f, 0.01f);
+  const float farPlane = distance + radius * 4.0f;
+  const XMMATRIX projection = XMMatrixPerspectiveFovLH(
+    XMConvertToRadians(viewModelState_.fov), aspect, nearPlane, farPlane);
+  const XMMATRIX mvp = worldMatrix * view * projection;
+
+  // Where the *mesh centre* ends up, through the same matrix the shader is
+  // handed. `drawn=1` alone cannot distinguish "on screen" from "issued a draw
+  // the rasteriser discarded", which is the failure this pass already had once.
+  // It has to be the mesh centre, not the placement point: the placement point is
+  // already in world space, so running it through `worldMatrix` applies the
+  // placement a second time and reports a position the weapon never occupies.
+  {
+    const XMVECTOR centre = XMVectorSet(cx, cy, cz, 1.0f);
+    const XMVECTOR clip = XMVector4Transform(centre, mvp);
+    viewModelCenterClip_ = { XMVectorGetX(clip), XMVectorGetY(clip), XMVectorGetZ(clip), XMVectorGetW(clip) };
+    const XMVECTOR viewSpace = XMVector4Transform(centre, worldMatrix * view);
+    viewModelCenterViewSpace_ = { XMVectorGetX(viewSpace), XMVectorGetY(viewSpace), XMVectorGetZ(viewSpace) };
+  }
+
+  ViewModelConstantsData constants{};
+  XMStoreFloat4x4(&constants.mvp, mvp);
+  constants.tint = XMFLOAT4(viewModelState_.tint[0], viewModelState_.tint[1],
+    viewModelState_.tint[2], viewModelState_.tint[3]);
+  constants.skinInfo = XMFLOAT4(static_cast<float>(effectiveBoneCount), 0.0f, 0.0f, 0.0f);
+  context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &constants, 0, 0);
+  XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(viewModelMvp_.data()), mvp);
+
+  // The pass's own depth policy. Depth is cleared first, so the weapon is drawn
+  // over the map it is standing in rather than being clipped by it -- the world
+  // depth state cannot express that, which is why this pass does not use it.
+  if (depthStencilView_) {
+    context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+  }
+  context_->OMSetDepthStencilState(viewModelDepthStencilState_.Get(), 0);
+  context_->RSSetState(viewModelRasterizerState_.Get());
+  const UINT stride = sizeof(EntityModelGpuVertex), offset = 0;
+  auto* buffer = viewModelVertexBuffer_.Get();
+  context_->IASetInputLayout(viewModelInputLayout_.Get());
+  context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  context_->IASetVertexBuffers(0, 1, &buffer, &stride, &offset);
+  context_->VSSetShader(viewModelVertexShader_.Get(), nullptr, 0);
+  auto* constantsBuffer = viewModelConstants_.Get();
+  context_->VSSetConstantBuffers(0, 1, &constantsBuffer);
+  context_->PSSetShader(viewModelPixelShader_.Get(), nullptr, 0);
+  context_->PSSetConstantBuffers(0, 1, &constantsBuffer);
+  // t4 is always bound, even when it holds no bones: an unbound structured
+  // buffer is read as garbage, not as zeros.
+  auto* boneView = viewModelBoneView_.Get();
+  context_->VSSetShaderResources(4, 1, &boneView);
+  context_->Draw(viewModelVertexCount_, 0);
+
+  ++viewModelDrawCount_;
+  ++viewModelDrawCallCount_;
+  viewModelPassOrdinal_ = ++framePassOrdinal_;
+  viewModelDrawReason_ = skinNote.empty() ? std::string("drawn") : skinNote;
+  return true;
+}
+
 bool Renderer::saveCameraPreset(std::size_t slot) {
   if (slot >= cameraPresets_.size() || !std::isfinite(cameraYaw_)
       || !std::isfinite(cameraPitch_) || !std::isfinite(cameraDistance_)) return false;
@@ -1518,6 +1966,16 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   viewport.MaxDepth = 1.0f;
   context_->RSSetViewports(1, &viewport);
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  framePassOrdinal_ = 0;
+  viewModelWorldPassOrdinal_ = 0;
+  // Defaults for the case where worldConstants_ is missing: a Z-up camera
+  // looking down +X, so the ViewModel pass always has a camera to place against.
+  frameView_ = {};
+  frameView_.m[0][0] = 1.0f; frameView_.m[1][1] = 1.0f; frameView_.m[2][2] = 1.0f; frameView_.m[3][3] = 1.0f;
+  frameEye_[0] = 0.0f; frameEye_[1] = 0.0f; frameEye_[2] = 0.0f;
+  frameForward_[0] = 1.0f; frameForward_[1] = 0.0f; frameForward_[2] = 0.0f;
+  frameUp_[0] = 0.0f; frameUp_[1] = 0.0f; frameUp_[2] = 1.0f;
+  frameRight_[0] = 0.0f; frameRight_[1] = 1.0f; frameRight_[2] = 0.0f;
   if (worldConstants_) {
     using namespace DirectX;
     XMVECTOR target = XMVectorSet(
@@ -1540,6 +1998,17 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         XMVectorGetZ(target) + std::sin(cameraPitch_) * cameraDistance_, 1.0f);
     }
     const XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
+    // Publish the frame camera for the ViewModel pass. The pass places the
+    // weapon in this camera's space and reuses this view matrix, so the two
+    // passes cannot drift apart.
+    XMStoreFloat4x4(&frameView_, view);
+    const XMVECTOR forwardVector = XMVector3Normalize(XMVectorSubtract(target, eye));
+    // Left-handed basis: right = up x forward.
+    const XMVECTOR rightVector = XMVector3Normalize(XMVector3Cross(up, forwardVector));
+    frameEye_[0] = XMVectorGetX(eye); frameEye_[1] = XMVectorGetY(eye); frameEye_[2] = XMVectorGetZ(eye);
+    frameForward_[0] = XMVectorGetX(forwardVector); frameForward_[1] = XMVectorGetY(forwardVector); frameForward_[2] = XMVectorGetZ(forwardVector);
+    frameUp_[0] = XMVectorGetX(up); frameUp_[1] = XMVectorGetY(up); frameUp_[2] = XMVectorGetZ(up);
+    frameRight_[0] = XMVectorGetX(rightVector); frameRight_[1] = XMVectorGetY(rightVector); frameRight_[2] = XMVectorGetZ(rightVector);
     const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
     const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, 0.05f, 100.0f);
     const XMMATRIX mvp = view * projection;
@@ -1599,6 +2068,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(6, 0);
   }
+  // The world pass is ordinal 1. The ViewModel pass takes the next ordinal after
+  // the passes below, so "the weapon draws after the world" is a number the
+  // runtime can print rather than a claim about the order of these statements.
+  viewModelWorldPassOrdinal_ = ++framePassOrdinal_;
   if (entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0
       && worldVertexShader_ && worldPixelShader_ && worldInputLayout_ && worldConstants_) {
     const UINT markerStride = sizeof(WorldVertex), markerOffset = 0;
@@ -1621,6 +2094,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->Draw(entityMarkerVertexCount_, 0);
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
+  ++framePassOrdinal_;
   if (!entityModelDrawRanges_.empty() && entityModelInstanceBuffer_ && entityModelInstanceCount_ > 0
       && entityModelVertexShader_ && entityModelInputLayout_ && worldPixelShader_ && worldConstants_) {
     const UINT strides[2] = { sizeof(EntityModelGpuVertex), sizeof(EntityModelInstanceGpu) };
@@ -1653,6 +2127,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
     }
   }
+  ++framePassOrdinal_;
   if (projectileVertexBuffer_ && projectileVertexCount_ > 0 && worldVertexShader_ && worldPixelShader_
       && worldInputLayout_ && worldConstants_) {
     const UINT projectileStride = sizeof(WorldVertex), projectileOffset = 0;
@@ -1675,6 +2150,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->Draw(projectileVertexCount_, 0);
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
+  ++framePassOrdinal_;
   if (modelVertexBuffer_ && modelVertexCount_ > 0 && modelVertexShader_ && modelPixelShader_ && modelInputLayout_) {
     context_->IASetInputLayout(modelInputLayout_.Get());
     const UINT modelStride = sizeof(ModelGpuVertex), modelOffset = 0; auto* modelBuffer = modelVertexBuffer_.Get();
@@ -1690,6 +2166,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->VSSetConstantBuffers(1, 1, &modelConstants);
     context_->Draw(modelVertexCount_, 0);
   }
+  ++framePassOrdinal_;
+  // First person, after the world and entity passes and before the capture, so
+  // the frame written to disk already contains the weapon. The pass restores the
+  // world depth state it overrides, so a later HUD pass (T3) is unaffected.
+  drawViewModel();
+  context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+  context_->RSSetState(rasterizerState_.Get());
   // Capture before Present: once Present has run the back buffer contents are
   // no longer defined, so this is the only point at which "the frame we just
   // composed" is still readable.
@@ -1732,6 +2215,21 @@ void Renderer::shutdown() {
   entityModelMeshes_.clear();
   modelVertexBuffer_.Reset();
   modelGpuStatus_ = ModelGpuStatus::NotLoaded;
+  // First-person pass objects.
+  viewModelVertexBuffer_.Reset();
+  viewModelVertexCount_ = 0;
+  viewModelBoneView_.Reset();
+  viewModelBoneBuffer_.Reset();
+  viewModelBoneCapacity_ = 0;
+  viewModelBoneUploadCount_ = 0;
+  viewModelConstants_.Reset();
+  viewModelDepthStencilState_.Reset();
+  viewModelRasterizerState_.Reset();
+  viewModelInputLayout_.Reset();
+  viewModelVertexShader_.Reset();
+  viewModelPixelShader_.Reset();
+  viewModelState_ = ViewModelDrawState{};
+  viewModelDrawReason_ = "the pass never ran";
   worldBoundsValid_ = false;
   worldLightmapStatus_ = WorldLightmapStatus::Unavailable;
   worldLightmapIntensity_ = 1.0f;

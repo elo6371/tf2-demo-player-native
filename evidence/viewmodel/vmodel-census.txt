@@ -1,0 +1,64 @@
+# vmodel-census -- every v_*.mdl in the installed VPK, through viewmodel_contract_probe
+# generated: 2026-10-11T04:49:33Z
+# command:
+#   vpk_query.exe <tfRoot> "models/weapons/v_models" mdl   -> 37 entries, full paths
+#   viewmodel_contract_probe.exe --tf-root <tfRoot> --model <entry>   (once per entry)
+# notes:
+#   - the prefix matches without a trailing slash; with one it matches 0 entries.
+#   - one entry lives in a subdirectory:
+#     models/weapons/v_models/v_hm_watch/v_hm_watch.mdl
+#     so the key column below is the full path, not a basename.
+#   - pak01_dir.vpk does not exist on this machine (vpk_query reports OPEN FAILED),
+#     so 37 is what this machine can see, not every viewmodel TF2 has.
+#
+# summary (checked 37, distinct paths 37)
+#   resolution=found-vpk   37/37
+#   status=ok              37/37
+#   companionsComplete=true 37/37
+#   meshReady=true         37/37
+#   invalidAttachments!=0  0
+#   partialAttachments!=0  0
+#   contractOk=true        25
+#   contractOk=false       12   every one because there is no placement anchor,
+#                              never because of a bad attachment
+#     attachments==0        3
+#     attachments>0, no anchor 9
+#
+# readings: model resolution comp mesh valid/partial/invalid align seq bones contractOk
+models/weapons/v_models/v_baseball.mdl                     found-vpk   comp=true  mesh=true  att=0/0/0 align=-            seq=1   bones=1    contractOk=False
+models/weapons/v_models/v_bat_scout.mdl                    found-vpk   comp=true  mesh=true  att=1/0/0 align=weapon_bone  seq=8   bones=27   contractOk=True
+models/weapons/v_models/v_bonesaw_medic.mdl                found-vpk   comp=true  mesh=true  att=0/0/0 align=-            seq=5   bones=21   contractOk=False
+models/weapons/v_models/v_bottle_demoman.mdl               found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=6   bones=25   contractOk=True
+models/weapons/v_models/v_builder_engineer.mdl             found-vpk   comp=true  mesh=true  att=1/0/0 align=weapon_bone  seq=2   bones=51   contractOk=True
+models/weapons/v_models/v_fireaxe_pyro.mdl                 found-vpk   comp=true  mesh=true  att=2/0/0 align=weapon_bone  seq=6   bones=41   contractOk=True
+models/weapons/v_models/v_fist_heavy.mdl                   found-vpk   comp=true  mesh=true  att=1/0/0 align=weapon_bone  seq=5   bones=40   contractOk=True
+models/weapons/v_models/v_grenadelauncher_demo.mdl         found-vpk   comp=true  mesh=true  att=2/0/0 align=weapon_bone  seq=7   bones=55   contractOk=True
+models/weapons/v_models/v_hm_watch/v_hm_watch.mdl          found-vpk   comp=true  mesh=true  att=3/0/0 align=-            seq=3   bones=26   contractOk=False
+models/weapons/v_models/v_knife_spy.mdl                    found-vpk   comp=true  mesh=true  att=1/0/0 align=weapon_bone  seq=11  bones=23   contractOk=True
+models/weapons/v_models/v_medigun_medic.mdl                found-vpk   comp=true  mesh=true  att=3/0/0 align=-            seq=6   bones=42   contractOk=False
+models/weapons/v_models/v_minigun_heavy.mdl                found-vpk   comp=true  mesh=true  att=2/0/0 align=-            seq=6   bones=18   contractOk=False
+models/weapons/v_models/v_pda_engineer.mdl                 found-vpk   comp=true  mesh=true  att=4/0/0 align=weapon_bone  seq=2   bones=57   contractOk=True
+models/weapons/v_models/v_pda_spy.mdl                      found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=2   bones=26   contractOk=True
+models/weapons/v_models/v_pistol_engineer.mdl              found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=4   bones=42   contractOk=True
+models/weapons/v_models/v_pistol_scout.mdl                 found-vpk   comp=true  mesh=true  att=4/0/0 align=weapon_bone  seq=4   bones=40   contractOk=True
+models/weapons/v_models/v_revolver_spy.mdl                 found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=4   bones=48   contractOk=True
+models/weapons/v_models/v_rocketlauncher_soldier.mdl       found-vpk   comp=true  mesh=true  att=0/0/0 align=-            seq=7   bones=29   contractOk=False
+models/weapons/v_models/v_sapper_spy.mdl                   found-vpk   comp=true  mesh=true  att=2/0/0 align=weapon_bone  seq=4   bones=47   contractOk=True
+models/weapons/v_models/v_scattergun_scout.mdl             found-vpk   comp=true  mesh=true  att=5/0/0 align=weapon_bone  seq=7   bones=45   contractOk=True
+models/weapons/v_models/v_sd_sapper_spy.mdl                found-vpk   comp=true  mesh=true  att=6/0/0 align=weapon_bone  seq=4   bones=47   contractOk=True
+models/weapons/v_models/v_shotgun_engineer.mdl             found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=6   bones=53   contractOk=True
+models/weapons/v_models/v_shotgun_heavy.mdl                found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=6   bones=43   contractOk=True
+models/weapons/v_models/v_shotgun_pyro.mdl                 found-vpk   comp=true  mesh=true  att=3/0/0 align=-            seq=6   bones=25   contractOk=False
+models/weapons/v_models/v_shotgun_soldier.mdl              found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=9   bones=51   contractOk=True
+models/weapons/v_models/v_shovel_soldier.mdl               found-vpk   comp=true  mesh=true  att=1/0/0 align=weapon_bone  seq=6   bones=26   contractOk=True
+models/weapons/v_models/v_smg_sniper.mdl                   found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=8   bones=43   contractOk=True
+models/weapons/v_models/v_sniperrifle_sniper.mdl           found-vpk   comp=true  mesh=true  att=3/0/0 align=weapon_bone  seq=7   bones=44   contractOk=True
+models/weapons/v_models/v_stickybomb_defender.mdl          found-vpk   comp=true  mesh=true  att=2/0/0 align=-            seq=1   bones=1    contractOk=False
+models/weapons/v_models/v_stickybomb_launcher_demo.mdl     found-vpk   comp=true  mesh=true  att=2/0/0 align=weapon_bone  seq=8   bones=51   contractOk=True
+models/weapons/v_models/v_syringegun_medic.mdl             found-vpk   comp=true  mesh=true  att=2/0/0 align=-            seq=4   bones=44   contractOk=False
+models/weapons/v_models/v_toolbox_engineer.mdl             found-vpk   comp=true  mesh=true  att=1/0/0 align=weapon_bone  seq=2   bones=27   contractOk=True
+models/weapons/v_models/v_ttg_watch_spy.mdl                found-vpk   comp=true  mesh=true  att=3/0/0 align=-            seq=3   bones=26   contractOk=False
+models/weapons/v_models/v_watch_leather_spy.mdl            found-vpk   comp=true  mesh=true  att=3/0/0 align=-            seq=3   bones=26   contractOk=False
+models/weapons/v_models/v_watch_pocket_spy.mdl             found-vpk   comp=true  mesh=true  att=8/0/0 align=weapon_bone  seq=3   bones=50   contractOk=True
+models/weapons/v_models/v_watch_spy.mdl                    found-vpk   comp=true  mesh=true  att=3/0/0 align=-            seq=3   bones=26   contractOk=False
+models/weapons/v_models/v_wrench_engineer.mdl              found-vpk   comp=true  mesh=true  att=1/0/0 align=weapon_bone  seq=5   bones=50   contractOk=True

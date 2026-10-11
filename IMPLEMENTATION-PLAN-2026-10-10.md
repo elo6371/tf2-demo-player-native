@@ -198,7 +198,7 @@ T1 的最小完成判据是：一个真实武器或投射物实例的 `sampled f
    输出 `viewModelPath/companions/status/reason`，禁止每帧重新解析 VPK。
 3. **独立绘制接口**：在 `native_renderer` 增加 ViewModel mesh、骨骼、投影状态和 draw pass；不得直接复用世界实体的
    `worldConstants_`、位置归一化、材质回退或深度状态。先以 flat color 证明 draw pass，再接 VMT/VTF。
-4. **第一人称变换**：实现 FOV 40--120 夹取、attachment 到相机空间变换和最终左右手镜像；绘制顺序固定为世界 pass
+4. **第一人称变换**：默认 FOV 为 **90**，并实现 40--120 夹取、attachment 到相机空间变换和最终左右手镜像；绘制顺序固定为世界 pass
    之后、HUD 之前，并输出 `drawn/depthWrite`。
 5. **动画状态**：从同一实体快照读取 sequence/cycle/playback rate；有输入时复用 T1 动画绑定和矩阵，缺输入时明确
    `viewmodelAnimationInput=missing` 并稳定回退 bind pose，不按文件名猜动作。

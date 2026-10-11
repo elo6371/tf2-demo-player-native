@@ -14,6 +14,7 @@ add_executable(tf2_demo_native WIN32
   src/vpk_archive.cpp
   src/vtf_texture.cpp
   src/model_loader.cpp
+  src/viewmodel.cpp
   src/entity_model.cpp
   src/animation_decoder.cpp
   src/animation_binding.cpp
@@ -88,9 +89,31 @@ add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.
 target_include_directories(entity_model_probe PRIVATE include third_party/lzma)
 set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(viewmodel_fov_probe tools/viewmodel_fov_probe.cpp)
-target_include_directories(viewmodel_fov_probe PRIVATE include)
+add_executable(viewmodel_fov_probe
+  tools/viewmodel_fov_probe.cpp
+  src/viewmodel.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/demo_header.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(viewmodel_fov_probe PRIVATE include third_party/lzma)
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+add_executable(viewmodel_contract_probe
+  tools/viewmodel_contract_probe.cpp
+  src/viewmodel.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/demo_header.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(viewmodel_contract_probe PRIVATE include third_party/lzma)
+set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(animation_viewmodel_probe
   tools/animation_viewmodel_probe.cpp
