@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -14,6 +16,28 @@ namespace tf2::native {
 
 struct AssetReference;
 enum class ModelFileKind { Mdl, Vvd, Vtx, Unknown };
+
+// The one rule for comparing two model paths, whichever layers they came from.
+//
+// A model path reaches this code spelled four different ways: the demo's
+// model_precache writes forward slashes, an MDL's own $cdmaterials block writes
+// backslashes, a VMT's $basetexture writes backslashes without the `materials/`
+// prefix, and a command line can carry either. Whether two of them name the
+// same model is therefore never a string equality on the raw values.
+//
+// Exported because more than one translation unit needs to ask that question --
+// model_loader.cpp while resolving an asset, viewmodel.cpp when it checks that
+// the model an entity names is the one being drawn, and entity_model.cpp when it
+// checks that a weapon's world model is not the arms composite. Three separate
+// copies would be three answers, and the failure they produce is quiet: a
+// comparison that misses draws the wrong model while every count stays green.
+inline std::string normalizeModelPath(std::string value) {
+  std::replace(value.begin(), value.end(), '\\', '/');
+  while (!value.empty() && value.front() == '/') value.erase(value.begin());
+  std::transform(value.begin(), value.end(), value.begin(),
+    [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+  return value;
+}
 
 struct ModelResourcePaths {
   std::filesystem::path mdl;

@@ -243,6 +243,36 @@ public:
   std::size_t viewModelVertexCount() const { return viewModelVertexCount_; }
   std::size_t viewModelBoneUploadCount() const { return viewModelBoneUploadCount_; }
   float viewModelMeshRadius() const { return viewModelMeshRadius_; }
+  // ---- The weapon body: a second, independent draw request ----------------
+  // The first-person composite the T2.5 investigation established is two models:
+  // the arms (`models/weapons/c_models/c_<class>_arms.mdl`) and the static
+  // weapon body the weapon entity's own `m_iWorldModelIndex` names
+  // (`c_medigun.mdl`, `c_pro_rifle.mdl`). T2 drew the arms; this is the other
+  // half, and it is a SEPARATE MESH SLOT AND A SEPARATE DRAW CALL rather than a
+  // second range in the arms buffer: the two models have their own vertex
+  // counts, their own measured bounds (the placement distance is derived from
+  // the mesh's own radius), their own transform state and their own draw
+  // reason, and folding them into one buffer would make "which model did this
+  // draw" unanswerable from the readings. The two draws share the pass's
+  // pipeline objects (shaders, input layout, constants buffer, depth and
+  // rasterizer states) and the depth clear -- clearing between them would erase
+  // the arms the first draw just wrote.
+  bool uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& vertices);
+  void setViewModelWeaponState(const ViewModelDrawState& state);
+  const ViewModelDrawState& viewModelWeaponState() const { return viewModelWeaponState_; }
+  // Per-pass draw-call counters, so `armDrawCalls` and `weaponDrawCalls` are
+  // effects rather than claims: each increments at its own Draw. The
+  // pre-existing viewModelDrawCount/viewModelDrawCallCount keep their T2 meaning
+  // exactly (the arms draw), which is why this pair is separate.
+  std::size_t viewModelArmDrawCallCount() const { return viewModelArmDrawCallCount_; }
+  std::size_t viewModelWeaponDrawCallCount() const { return viewModelWeaponDrawCallCount_; }
+  const std::string& viewModelWeaponDrawReason() const { return viewModelWeaponDrawReason_; }
+  float viewModelWeaponMeshRadius() const { return viewModelWeaponMeshRadius_; }
+  UINT viewModelWeaponVertexCount() const { return viewModelWeaponVertexCount_; }
+  // The weapon body's own centre through its own mvp -- the same reading the
+  // arms centre has, so "the weapon is off screen" is answerable for this draw
+  // as well.
+  const std::array<float, 4>& viewModelWeaponCenterClip() const { return viewModelWeaponCenterClip_; }
   // The pass's depth policy, recorded from the description the state was created
   // with. D3D11 cannot read a state object back, so this is the input to
   // CreateDepthStencilState rather than the device's copy -- stated rather than
@@ -400,6 +430,19 @@ private:
   // behind the near plane and the pass draws nothing visible.
   float viewModelMeshCenter_[3] = {};
   float viewModelMeshRadius_ = 0.0f;
+  // The weapon body slot: same rules as the arms slot, separate buffers because
+  // the two models are uploaded and switched independently (`--viewmodel-render
+  // command` can hold the arms slot while the entity's weapon body stays live,
+  // and a path change on either side re-uploads only its own slot).
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelWeaponVertexBuffer_;
+  UINT viewModelWeaponVertexCount_ = 0;
+  float viewModelWeaponMeshCenter_[3] = {};
+  float viewModelWeaponMeshRadius_ = 0.0f;
+  ViewModelDrawState viewModelWeaponState_{};
+  std::string viewModelWeaponDrawReason_ = "the weapon body pass never ran";
+  std::array<float, 4> viewModelWeaponCenterClip_{};
+  std::size_t viewModelArmDrawCallCount_ = 0;
+  std::size_t viewModelWeaponDrawCallCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelBoneBuffer_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelBoneView_;
   std::size_t viewModelBoneCapacity_ = 0;

@@ -163,6 +163,95 @@ ViewModelEntityLookup findViewModelAnimationInput(
   std::uint32_t viewEntity,
   const std::unordered_map<std::uint16_t, std::string>& modelPrecache);
 
+// Which weapon entity the ViewModel entity names, and which model the weapon's
+// OWN m_iWorldModelIndex resolves to. This is the second half of the first-person
+// composite the T2.5 investigation established: the ViewModel entity names the
+// arms (`models/weapons/c_models/c_<class>_arms.mdl`), and the weapon entity its
+// `m_hWeapon` slot points at names the static weapon body through
+// `DT_BaseCombatWeapon.m_iWorldModelIndex`.
+//
+// THE CHAIN IS WALKED FROM THE VIEWMODEL ENTITY, NOT FROM THE PLAYER. The
+// ViewModel entity carries `m_hWeapon` itself -- measured on the POV recording
+// (entity 1077, `m_hWeapon=2022384` -> weapon entity 1008, a CTFSniperRifle
+// whose `m_iWorldModelIndex=533` -> `models/workshop/weapons/c_models/c_pro_rifle/
+// c_pro_rifle.mdl`) and on bagel (entity 160 -> weapon 593, a CWeaponMedigun
+// whose `m_iWorldModelIndex=374` -> `models/weapons/c_models/c_medigun/
+// c_medigun.mdl`). The player's `m_hActiveWeapon` is the slot the weapon-selection
+// rule already uses to CHOOSE between two ViewModel entities; this lookup starts
+// from the entity that rule chose, so "which weapon" is answered by the same
+// entity that answers "which arms".
+//
+// WHY EVERY REFUSAL IS SEPARATE. Each failure below is a different repair, and a
+// single "the weapon body could not be found" would make them look the same: no
+// ViewModel entity was selected at all, the entity has no m_hWeapon slot, the
+// handle is the empty sentinel, the named slot is not in this snapshot (a
+// temporarily absent weapon entity), the weapon carries no world index slot, the
+// world index is zero (an explicit clear, not an unset), the index is out of
+// range, the index names nothing in modelprecache (a resource that is declared
+// nowhere), and -- the defect this round exists for -- the world index resolves
+// to the arms composite itself. That last one is the signature of reading
+// `m_nModelIndex` where `m_iWorldModelIndex` belongs, which is exactly the defect
+// the world pass hit before `cd36db1`: on a weapon both slots sit next to each
+// other, and the wrong one still resolves to a real, drawable file.
+//
+// `armModelPath` is the model the ViewModel entity named as its own (the arms
+// composite the pass is drawing). When the world index resolves to that same
+// path, this lookup refuses rather than drawing the hands a second time and
+// calling it a weapon.
+//
+// `worldModelPath` IS NON-EMPTY IF AND ONLY IF THE LOOKUP SUCCEEDED. Every
+// refusal leaves it empty, including the arms case, so a caller that only wants
+// "is there a body to draw" does not have to re-derive that from the reason
+// text -- and, the reason this invariant exists, a refusal that happens to name
+// a real file (the arms) cannot be mistaken for a success by a caller reading
+// `worldModelPath.empty()`. The refused path is named inside `reason` instead,
+// where it is information rather than an output.
+//
+// `refusal` is the same partition as machine-readable data. The reason strings
+// are for a person reading a trace; a gate that matched on their wording would
+// turn any edit to a sentence into a false failure.
+enum class ViewModelWeaponBodyRefusal {
+  None = 0,                 // the lookup succeeded
+  NoViewModelEntity,        // no ViewModel entity was selected at all
+  ViewModelEntityAbsent,    // the selected slot holds no entity in this snapshot
+  NoWeaponSlot,             // the ViewModel entity carries no m_hWeapon slot
+  EmptyWeaponHandle,        // m_hWeapon is the empty/sentinel handle
+  WeaponPastSnapshot,       // the named index is past the snapshot
+  WeaponAbsent,             // the named slot holds no entity in this snapshot
+  NoWorldModelSlot,         // the weapon carries no m_iWorldModelIndex slot
+  WorldModelIndexZero,      // m_iWorldModelIndex is 0 (Source's "no model")
+  WorldModelIndexOutOfRange,// the index is outside 1..0xffff
+  WorldModelNotDeclared,    // in range, but modelprecache never declared it
+  WorldModelIsArms,         // it resolves to the arms composite, not a body
+};
+
+const char* viewModelWeaponBodyRefusalName(ViewModelWeaponBodyRefusal refusal);
+
+struct ViewModelWeaponBodyLookup {
+  bool hasViewModelEntity = false;
+  int viewModelEntityIndex = -1;
+  bool hasWeaponHandle = false;
+  std::int64_t weaponHandle = 0;
+  int weaponEntityIndex = -1;
+  bool weaponEntityPresent = false;
+  int weaponClassId = -1;
+  std::string weaponClassName;
+  bool hasWorldModelIndex = false;
+  std::int64_t worldModelIndex = 0;
+  std::string worldModelPath;
+  ViewModelWeaponBodyRefusal refusal = ViewModelWeaponBodyRefusal::NoViewModelEntity;
+  // Why the lookup returned what it returned. On success it names the rule that
+  // produced the path; on failure it names the one condition that refused.
+  std::string reason;
+};
+
+ViewModelWeaponBodyLookup findViewModelWeaponBodyInput(
+  const std::vector<EntityState>& statesByIndex,
+  const std::vector<ServerClassSchema>& classSchemas,
+  int viewModelEntityIndex,
+  const std::string& armModelPath,
+  const std::unordered_map<std::uint16_t, std::string>& modelPrecache);
+
 // One property that matches a suffix, with the tick it was last written at.
 struct PropertyCandidate {
   std::string name;

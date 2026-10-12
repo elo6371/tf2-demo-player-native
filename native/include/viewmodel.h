@@ -77,6 +77,41 @@ struct ViewModelResourceStatus {
   std::string meshReason;
 };
 
+// The material chain reading for the request's own model, resolved once at
+// build time: MDL texture slot -> $cdmaterials -> .vmt -> $basetexture -> .vtf
+// existence, through the same AssetRoot the model itself came from.
+//
+// THIS IS A READING, NOT A BINDING. The pass still draws flat colour (T2's
+// contract, unchanged here); what the count makes possible is telling "this
+// model's materials are missing" apart from "this model has no material slots
+// at all" -- both of which otherwise read as the same flat-shaded picture. The
+// chain stops at the VTF existing and being readable, because pixel decode is
+// the material task's own measurement (viewmodel_material_probe) and repeating
+// it here would double the cost of every request for a number nothing in this
+// pass consumes.
+struct ViewModelMaterialReading {
+  std::size_t slots = 0;        // texture slots the MDL declares
+  std::size_t named = 0;        // slots with at least one candidate path
+  std::size_t vmtResolved = 0;  // slots whose .vmt was read and parsed
+  std::size_t vtfResolved = 0;  // slots whose $basetexture resolved to a .vtf
+  // The first slot that did not reach a VTF, with the resource it stopped on.
+  // One named failure is what turns "0 of 2" into a repairable statement.
+  std::string firstFailure;
+};
+
+// Walks that chain for one already-inspected model: MDL texture slot ->
+// $cdmaterials -> .vmt -> $basetexture -> .vtf existence, through `root`.
+//
+// Exported because the chain has states a shipped model cannot show and a
+// source edit would be needed to construct: an MDL whose texture slot names a
+// material that is not in the game, and one whose material names a texture that
+// is not in the game. A probe can build either by taking a real model's
+// inspection and replacing one slot's candidate path -- which is the same
+// function the product runs, given different input -- where a gate would have to
+// edit the installation to see the same thing.
+ViewModelMaterialReading resolveViewModelMaterialChain(
+  const AssetRoot& root, const ModelInspection& inspection);
+
 // Renderer-neutral request. It does not draw and does not upload a mesh.
 //
 // It is also the cache the plan asks for: the model path, the companion status,
@@ -110,6 +145,7 @@ struct ViewModelRequest {
   std::string alignmentReason;
   ModelMeshData mesh;
   std::vector<ModelBone> bones;
+  ViewModelMaterialReading materials;
 };
 
 std::array<float, 12> viewModelHandMatrix(ViewModelHand hand);

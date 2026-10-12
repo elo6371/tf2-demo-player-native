@@ -1528,15 +1528,23 @@ std::array<float, 12> translation34(float x, float y, float z) {
 }
 } // namespace
 
-bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices) {
-  viewModelVertexCount_ = 0;
-  if (!device_ || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
-  // A ViewModel is one model, so it gets its own immutable buffer rather than a
-  // keyed mesh map: there is no second ViewModel to key against, and the map the
-  // entity path uses also resets the entity draw ranges, which this must not do.
+// The shared body of both ViewModel mesh uploads. A ViewModel is one model per
+// slot, so each slot gets its own immutable buffer rather than a keyed mesh map:
+// there is no second model of the same kind to key against, and the map the
+// entity path uses also resets the entity draw ranges, which this must not do.
+//
+// The measured bounds travel with the buffer because the pass derives its
+// placement distance from them: a ViewModel is authored in Source units (tens
+// of them across) and a fixed small offset would put it behind the near plane.
+static bool uploadViewModelMeshInto(ID3D11Device* device,
+    const std::vector<ModelDrawVertex>& vertices,
+    Microsoft::WRL::ComPtr<ID3D11Buffer>& buffer, UINT& vertexCount,
+    float center[3], float& radius) {
+  vertexCount = 0;
+  if (!device || vertices.size() < 3) return false;
   const auto limit = std::min<std::size_t>(vertices.size(), 60000u);
   const auto count = limit - (limit % 3);
-  if (count < 3) { lastError_ = E_INVALIDARG; return false; }
+  if (count < 3) return false;
   std::vector<EntityModelGpuVertex> local(count);
   // Measure the model while copying it. The pass uses these bounds to decide how
   // far in front of the eye to place it, so they are taken from the same vertices
@@ -1555,26 +1563,45 @@ bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices)
     minY = std::min(minY, source.position[1]); maxY = std::max(maxY, source.position[1]);
     minZ = std::min(minZ, source.position[2]); maxZ = std::max(maxZ, source.position[2]);
   }
-  viewModelMeshCenter_[0] = 0.5f * (minX + maxX);
-  viewModelMeshCenter_[1] = 0.5f * (minY + maxY);
-  viewModelMeshCenter_[2] = 0.5f * (minZ + maxZ);
+  center[0] = 0.5f * (minX + maxX);
+  center[1] = 0.5f * (minY + maxY);
+  center[2] = 0.5f * (minZ + maxZ);
   const float halfX = 0.5f * (maxX - minX);
   const float halfY = 0.5f * (maxY - minY);
   const float halfZ = 0.5f * (maxZ - minZ);
-  viewModelMeshRadius_ = std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ);
+  radius = std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ);
   D3D11_BUFFER_DESC description{};
   description.ByteWidth = static_cast<UINT>(count * sizeof(EntityModelGpuVertex));
   description.Usage = D3D11_USAGE_IMMUTABLE;
   description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
   D3D11_SUBRESOURCE_DATA data{};
   data.pSysMem = local.data();
-  Microsoft::WRL::ComPtr<ID3D11Buffer> buffer;
-  if (FAILED(device_->CreateBuffer(&description, &data, buffer.GetAddressOf()))) {
-    lastError_ = E_FAIL;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> created;
+  if (FAILED(device->CreateBuffer(&description, &data, created.GetAddressOf()))) {
     return false;
   }
-  viewModelVertexBuffer_ = std::move(buffer);
-  viewModelVertexCount_ = static_cast<UINT>(count);
+  buffer = std::move(created);
+  vertexCount = static_cast<UINT>(count);
+  return true;
+}
+
+bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices) {
+  if (!uploadViewModelMeshInto(device_.Get(), vertices, viewModelVertexBuffer_,
+      viewModelVertexCount_, viewModelMeshCenter_, viewModelMeshRadius_)) {
+    viewModelVertexCount_ = 0;
+    lastError_ = E_INVALIDARG;
+    return false;
+  }
+  return true;
+}
+
+bool Renderer::uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& vertices) {
+  if (!uploadViewModelMeshInto(device_.Get(), vertices, viewModelWeaponVertexBuffer_,
+      viewModelWeaponVertexCount_, viewModelWeaponMeshCenter_, viewModelWeaponMeshRadius_)) {
+    viewModelWeaponVertexCount_ = 0;
+    lastError_ = E_INVALIDARG;
+    return false;
+  }
   return true;
 }
 
@@ -1648,6 +1675,11 @@ bool Renderer::drawViewModel() {
   // Cleared before every early return, so a refusal this frame cannot leave the
   // previous frame's count behind and read as "it skinned".
   viewModelEffectiveBoneCount_ = 0;
+  // The weapon body's readings are reset together with the arms': an early
+  // return below is the whole pass being off, and the body must not keep the
+  // previous frame's reason (or centre) as if this frame had produced it.
+  viewModelWeaponCenterClip_.fill(0.0f);
+  viewModelWeaponDrawReason_ = "the pass did not draw";
   if (!context_) { viewModelDrawReason_ = "the renderer has no device context"; return false; }
   if (!viewModelState_.enabled) {
     viewModelDrawReason_ = viewModelState_.reason.empty()
@@ -1793,9 +1825,88 @@ bool Renderer::drawViewModel() {
 
   ++viewModelDrawCount_;
   ++viewModelDrawCallCount_;
+  ++viewModelArmDrawCallCount_;
   viewModelPassOrdinal_ = ++framePassOrdinal_;
   viewModelDrawReason_ = skinNote.empty() ? std::string("drawn") : skinNote;
+
+  // ---- The weapon body: the second, independent draw request --------------
+  // Same pass, same pipeline objects, same depth clear -- a second Draw with
+  // its own mesh, its own measured bounds and its own transform state. The
+  // depth is NOT cleared again here: the clear above is what keeps the
+  // composite in front of the map, and a second clear would erase the arms the
+  // first draw just wrote.
+  //
+  // The body shares the arms' placement point. The two models make up one
+  // first-person composite in front of one eye, so the body's own centre is
+  // solved onto the same target the arms were solved onto -- a second,
+  // independent placement formula would let the two drift apart as their radii
+  // differ. Its own radius still drives its own near and far planes, because
+  // those are about the geometry actually being drawn.
+  //
+  // Reaching this point means the arms draw already happened (every early
+  // return above is the whole pass being off -- a first-person composite that
+  // cannot draw its arms does not draw a floating weapon either).
+  if (!viewModelWeaponState_.enabled) {
+    viewModelWeaponDrawReason_ = viewModelWeaponState_.reason.empty()
+      ? std::string("no weapon body was requested") : viewModelWeaponState_.reason;
+  } else if (!viewModelWeaponVertexBuffer_ || viewModelWeaponVertexCount_ < 3) {
+    viewModelWeaponDrawReason_ = "no weapon body mesh is uploaded";
+  } else {
+    const float weaponRadius = std::max(viewModelWeaponMeshRadius_, 1e-3f);
+    const std::array<float, 12> weaponAttachment = viewModelWeaponState_.attachmentValid
+      ? viewModelWeaponState_.attachmentTransform : identity34();
+    const std::array<float, 12> weaponAttachmentHand =
+      multiply34(viewModelWeaponState_.handTransform, weaponAttachment);
+    const float wcx = viewModelWeaponMeshCenter_[0];
+    const float wcy = viewModelWeaponMeshCenter_[1];
+    const float wcz = viewModelWeaponMeshCenter_[2];
+    const float weaponCenterX = weaponAttachmentHand[0] * wcx + weaponAttachmentHand[1] * wcy
+      + weaponAttachmentHand[2] * wcz + weaponAttachmentHand[3];
+    const float weaponCenterY = weaponAttachmentHand[4] * wcx + weaponAttachmentHand[5] * wcy
+      + weaponAttachmentHand[6] * wcz + weaponAttachmentHand[7];
+    const float weaponCenterZ = weaponAttachmentHand[8] * wcx + weaponAttachmentHand[9] * wcy
+      + weaponAttachmentHand[10] * wcz + weaponAttachmentHand[11];
+    const auto weaponPlacement =
+      translation34(targetX - weaponCenterX, targetY - weaponCenterY, targetZ - weaponCenterZ);
+    const auto weaponWorld = multiply34(weaponPlacement, weaponAttachmentHand);
+    const XMMATRIX weaponWorldMatrix(
+      weaponWorld[0], weaponWorld[4], weaponWorld[8], 0.0f,
+      weaponWorld[1], weaponWorld[5], weaponWorld[9], 0.0f,
+      weaponWorld[2], weaponWorld[6], weaponWorld[10], 0.0f,
+      weaponWorld[3], weaponWorld[7], weaponWorld[11], 1.0f);
+    const float weaponNear = std::max(weaponRadius * 0.05f, 0.01f);
+    const float weaponFar = distance + weaponRadius * 4.0f;
+    const XMMATRIX weaponProjection = XMMatrixPerspectiveFovLH(
+      XMConvertToRadians(viewModelWeaponState_.fov), aspect, weaponNear, weaponFar);
+    const XMMATRIX weaponMvp = weaponWorldMatrix * view * weaponProjection;
+    {
+      const XMVECTOR centre = XMVectorSet(wcx, wcy, wcz, 1.0f);
+      const XMVECTOR clip = XMVector4Transform(centre, weaponMvp);
+      viewModelWeaponCenterClip_ = { XMVectorGetX(clip), XMVectorGetY(clip),
+        XMVectorGetZ(clip), XMVectorGetW(clip) };
+    }
+    ViewModelConstantsData weaponConstants{};
+    XMStoreFloat4x4(&weaponConstants.mvp, weaponMvp);
+    weaponConstants.tint = XMFLOAT4(viewModelWeaponState_.tint[0], viewModelWeaponState_.tint[1],
+      viewModelWeaponState_.tint[2], viewModelWeaponState_.tint[3]);
+    // No skinning for this draw: a weapon body is a static mesh and the arms'
+    // bone table does not describe its skeleton. The shader reads skinInfo from
+    // this last update, so it has to be zeroed rather than left at the arms'
+    // count -- otherwise the body would be skinned by the arms' matrices.
+    weaponConstants.skinInfo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+    context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &weaponConstants, 0, 0);
+    auto* weaponBuffer = viewModelWeaponVertexBuffer_.Get();
+    context_->IASetVertexBuffers(0, 1, &weaponBuffer, &stride, &offset);
+    context_->Draw(viewModelWeaponVertexCount_, 0);
+    ++viewModelWeaponDrawCallCount_;
+    viewModelWeaponDrawReason_ = "drawn";
+  }
   return true;
+}
+
+void Renderer::setViewModelWeaponState(const ViewModelDrawState& state) {
+  viewModelWeaponState_ = state;
+  viewModelWeaponState_.fov = clampViewModelFov(state.fov);
 }
 
 bool Renderer::saveCameraPreset(std::size_t slot) {
@@ -2229,6 +2340,12 @@ void Renderer::shutdown() {
   // First-person pass objects.
   viewModelVertexBuffer_.Reset();
   viewModelVertexCount_ = 0;
+  viewModelWeaponVertexBuffer_.Reset();
+  viewModelWeaponVertexCount_ = 0;
+  viewModelWeaponMeshRadius_ = 0.0f;
+  viewModelWeaponState_ = ViewModelDrawState{};
+  viewModelWeaponDrawReason_ = "the weapon body pass never ran";
+  viewModelWeaponCenterClip_.fill(0.0f);
   viewModelBoneView_.Reset();
   viewModelBoneBuffer_.Reset();
   viewModelBoneCapacity_ = 0;

@@ -103,6 +103,11 @@ add_executable(viewmodel_fov_probe
   src/demo_header.cpp
   src/item_schema.cpp
   src/proto_wire.cpp
+  # viewmodel.cpp also resolves the model's material chain (MDL texture slot ->
+  # $cdmaterials -> .vmt -> $basetexture -> .vtf), so VmtParser is a link
+  # dependency of every target that compiles it. Same failure mode as the
+  # animation layer above: left out, the link fails and NMAKE stops.
+  src/vmt_material.cpp
   third_party/lzma/LzmaDec.c)
 target_include_directories(viewmodel_fov_probe PRIVATE include third_party/lzma)
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
@@ -118,6 +123,7 @@ add_executable(viewmodel_contract_probe
   src/demo_header.cpp
   src/item_schema.cpp
   src/proto_wire.cpp
+  src/vmt_material.cpp
   third_party/lzma/LzmaDec.c)
 target_include_directories(viewmodel_contract_probe PRIVATE include third_party/lzma)
 set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
@@ -139,9 +145,36 @@ add_executable(viewmodel_animation_probe
   src/demo_header.cpp
   src/item_schema.cpp
   src/proto_wire.cpp
+  src/vmt_material.cpp
   third_party/lzma/LzmaDec.c)
 target_include_directories(viewmodel_animation_probe PRIVATE include third_party/lzma)
 set_target_properties(viewmodel_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# The static weapon body: the second half of the first-person composite the
+# ViewModel pass draws. It links entity_model.cpp for the chain that walks
+# ViewModel entity -> m_hWeapon -> weapon entity -> m_iWorldModelIndex, and
+# viewmodel.cpp for the material reading and the request builder the product
+# uses, so the probe drives the product's own rules instead of a second copy.
+# Its negatives are constructed (a zero index, an index that resolves to the
+# arms, an absent weapon entity) because no recording here contains them; the
+# ones that need a broken installation are left to mutation in
+# weapon-body-check.sh.
+add_executable(weapon_body_probe
+  tools/weapon_body_probe.cpp
+  src/viewmodel.cpp
+  src/animation_binding.cpp
+  src/animation_decoder.cpp
+  src/entity_model.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/vmt_material.cpp
+  src/demo_header.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(weapon_body_probe PRIVATE include third_party/lzma)
+set_target_properties(weapon_body_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(animation_viewmodel_probe
   tools/animation_viewmodel_probe.cpp
@@ -152,7 +185,8 @@ add_executable(animation_viewmodel_probe
   src/asset_root.cpp
   src/vpk_archive.cpp
   src/demo_header.cpp
-  src/item_schema.cpp)
+  src/item_schema.cpp
+  src/vmt_material.cpp)
 target_include_directories(animation_viewmodel_probe PRIVATE include)
 set_target_properties(animation_viewmodel_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
