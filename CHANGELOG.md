@@ -2,6 +2,16 @@
 
 ## 2026-10-12
 
+### T0：渲染档 9/9 已在整合主线补跑（正向与变异各一次）
+
+- 补上 README 记载的缺口「`verify-render.sh` 已扩展为 9/9，尚未在主线上重跑」。工作区 `D:\TF2_Native_Worktrees\render-gate-recheck`，基线 `9a8387b`。
+- 正向 `bash verify-render.sh` = `VERIFY-RENDER=PASS (9/9 gates, mutation=0)`，退出码 0，1h11m29s（全新 worktree，从零 configure + 全量构建，没有构建缓存）。
+- 变异 `bash verify-render.sh --mutation` = `VERIFY-RENDER=PASS (9/9 gates, mutation=1)`，退出码 0，1h34m12s：gates 1–4 各自扰动被捕获，contract 5/5、animation `mutation_red=3/3 hold=4/4`、companion `caught=6 of 6`。
+- 九个门禁正向：resource-reachability / frame-capture / entity-material / weapon-animation / viewmodel-contract(154) / viewmodel-animation(139) / viewmodel-companion / material-chain(12/12) / evidence-tree。
+- 证据新鲜度：本轮全部抓帧与已提交见证帧逐字节一致（paused `a61a3e4d…`、bagel `fa1bb194…`、snakewater `d086695e…`、entity-material `86b680bb…`、weapon-animation `7bc06bc7…`/`2ed0add0…`）；两次运行前后 `git status --porcelain` 均为空、未产生未跟踪文件、锁全部释放、变异源码已恢复。
+- 未做：`verify-all.sh`（24 步，本任务边界明令不跑）。`verify-all.sh:876` 的 `VM_ANIM_OK` 仍钉 111、渲染档实测 139；第 23 步 mutation 的 hold 由 3/3 变为 4/4（`4f43560` 把猜测值改为实测配对）。两条 pin留给总链重跑者更新。
+- 本轮不改产品源码、不改门禁判据；提交只含证据与文档。记录 `T0-RENDER-RECHECK-2026-10-12.md`，证据 `evidence/render-gate-recheck/`。
+
 ### 清单四：音频 tick 调度与 null sink 契约已整合
 
 - 整合提交：`28007af`，来源 `task/audio-tick-scheduler@9b4b41a21d4546efe85087e9fea72873a58069f3`；保留清单二的 `OutcomeSink`、`eventsSkippedDisabled` 和 `waveOutOpenCalls()`，并加入设备尝试/成功计数与 tick 调度实现。

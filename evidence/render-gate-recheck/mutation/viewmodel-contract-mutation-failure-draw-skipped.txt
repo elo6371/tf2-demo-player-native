@@ -1,0 +1,11 @@
+# the draw-skipped mutation was caught: these assertions went red
+product vm90 drawn: 0 < 1
+product vm90 reason: the pass never ran != drawn
+product vm90 afterWorld: 0 != 1
+product vm90 viewModelPass: 0 <= 1
+product vm90 drawCalls: 0 < 1
+product vm90 centre on screen: gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0 does not contain onScreen=1
+the weapon appears against the frame without it: BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 0.5000; max_delta=0 is below 100
+FOV 40 and FOV 90 are different pictures: BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 3.0000; max_delta=0 is below 100
+FOV 90 and FOV 120 are different pictures: BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 0.5000; max_delta=0 is below 100
+the left hand is a different picture from the right: BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 0.2000; max_delta=0 is below 100
