@@ -46,8 +46,17 @@ bool hasPathToken(const std::string& name, const char* token) {
   return false;
 }
 
-bool isNonGameplayAudio(const std::string& name) {
-  return soundNameIsVoiceOrMusic(name);
+// Plain substring match on the lowercased name. The gameplay tokens below keep
+// this looser rule on purpose: "player/footstep1.wav" must classify as a
+// footstep, the digit is part of the name, and audio_effects_probe pins that
+// outcome. The filtered and reserved groups use hasPathToken instead, so a
+// broadcast token has to sit on a path boundary.
+bool hasSubstring(const std::string& name, const char* token) {
+  std::string lowerName = name;
+  std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
+  return lowerName.find(token) != std::string::npos;
 }
 
 bool hasMp3Frame(const std::vector<std::uint8_t>& bytes) {
@@ -69,7 +78,47 @@ bool hasMp3Frame(const std::vector<std::uint8_t>& bytes) {
   return false;
 }
 
+// The candidate archive paths for one precache name, mirroring
+// readSoundResource: a name that already carries an extension is used as-is,
+// otherwise .wav is tried before .mp3.
+std::vector<std::string> soundPathCandidates(const std::string& name) {
+  const std::string base = normalizeSoundPath(name, nullptr);
+  const auto slash = base.find_last_of('/');
+  const auto dot = base.find_last_of('.');
+  const bool hasExtension = dot != std::string::npos && (slash == std::string::npos || dot > slash);
+  std::vector<std::string> candidates;
+  if (hasExtension) candidates.push_back(base);
+  else { candidates.push_back(base + ".wav"); candidates.push_back(base + ".mp3"); }
+  return candidates;
+}
+
 } // namespace
+
+const char* soundEventKindName(SoundEventKind kind) {
+  switch (kind) {
+  case SoundEventKind::Weapon: return "weapon";
+  case SoundEventKind::Footstep: return "footstep";
+  case SoundEventKind::Uber: return "uber";
+  case SoundEventKind::World: return "world";
+  case SoundEventKind::TempEntity: return "temp_entity";
+  case SoundEventKind::Pcf: return "pcf";
+  case SoundEventKind::Voice: return "voice";
+  case SoundEventKind::Announcer: return "announcer";
+  case SoundEventKind::Music: return "music";
+  default: return "unknown";
+  }
+}
+
+const char* soundResolveStatusName(SoundResolveStatus status) {
+  switch (status) {
+  case SoundResolveStatus::Resolved: return "resolved";
+  case SoundResolveStatus::MissingPrecache: return "missing_precache";
+  case SoundResolveStatus::MissingWav: return "missing_wav";
+  case SoundResolveStatus::InvalidWav: return "invalid_wav";
+  case SoundResolveStatus::UnsupportedFormat: return "unsupported_format";
+  default: return "unknown";
+  }
+}
 
 void SoundIndexTable::clear() { entries_.clear(); }
 
@@ -110,13 +159,18 @@ void SoundEventTimeline::clear() { events_.clear(); }
 
 bool SoundEventTimeline::add(SoundPlaybackEvent event) {
   if (event.tick < 0 || event.soundIndex == 0 || event.name.empty()) return false;
-  if (isNonGameplayAudio(event.name)) return false;
   if (!(event.volume >= 0.0f && event.volume <= 1.0f)) return false;
   if (!std::isfinite(event.origin[0]) || !std::isfinite(event.origin[1]) || !std::isfinite(event.origin[2])) return false;
-  if (event.kind == SoundEventKind::Weapon || event.kind == SoundEventKind::Footstep
-      || event.kind == SoundEventKind::Uber || event.kind == SoundEventKind::World) {
-    event.skipVoice = false;
-  }
+  // The kind follows the name, decided in exactly one place: a caller cannot
+  // relabel a voice name as weapon audio, and the nine-way classification
+  // cannot drift between the index table, this container and the scheduler.
+  event.kind = classifySoundEvent(event.name);
+  // Voice, announcer and music are kept, flagged, and skipped by the scheduler
+  // at advance time. Dropping them here instead would leave
+  // eventsSkippedVoice a counter nothing can ever move, and scheduleGameplaySound
+  // is already the layer that refuses them for gameplay scheduling.
+  event.skipVoice = event.kind == SoundEventKind::Voice
+    || event.kind == SoundEventKind::Announcer || event.kind == SoundEventKind::Music;
   events_.push_back(std::move(event));
   return true;
 }
@@ -152,14 +206,7 @@ bool readSoundResource(const VpkArchive& archive, const std::string& name,
   SoundResource& out, std::size_t maxBytes) {
   out = {};
   if (!safeName(name) || maxBytes == 0) { out.error = "unsafe or empty sound name"; return false; }
-  std::string base = normalizeSoundPath(name, nullptr);
-  const auto slash = base.find_last_of('/');
-  const auto dot = base.find_last_of('.');
-  const bool hasExtension = dot != std::string::npos && (slash == std::string::npos || dot > slash);
-  std::vector<std::string> candidates;
-  if (hasExtension) candidates.push_back(base);
-  else { candidates.push_back(base + ".wav"); candidates.push_back(base + ".mp3"); }
-  for (const auto& path : candidates) {
+  for (const auto& path : soundPathCandidates(name)) {
     if (!archive.contains(path)) continue;
     std::string error;
     const auto bytes = archive.read(path, &error);
@@ -186,21 +233,30 @@ bool readSoundResource(const VpkArchive& archive, const std::string& name,
 }
 
 bool soundNameIsVoiceOrMusic(const std::string& name) {
-  return hasPathToken(name, "vo") || hasPathToken(name, "voice")
-    || hasPathToken(name, "announcer") || hasPathToken(name, "radio")
-    || hasPathToken(name, "music") || hasPathToken(name, "commentary");
+  const SoundEventKind kind = classifySoundEvent(name);
+  return kind == SoundEventKind::Voice || kind == SoundEventKind::Announcer
+    || kind == SoundEventKind::Music;
 }
 
 SoundEventKind classifySoundEvent(const std::string& rawName) {
-  std::string name = rawName;
-  std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) {
-    return static_cast<char>(std::tolower(c));
-  });
-  if (name.find("footstep") != std::string::npos || name.find("step") != std::string::npos) return SoundEventKind::Footstep;
-  if (name.find("uber") != std::string::npos || name.find("invulnerable") != std::string::npos) return SoundEventKind::Uber;
-  if (name.find("weapon") != std::string::npos || name.find("weapons/") != std::string::npos
-      || name.find("rocket") != std::string::npos
-      || name.find("scatter") != std::string::npos || name.find("shot") != std::string::npos) return SoundEventKind::Weapon;
+  // The filtered kinds come first: a name carrying a broadcast token is
+  // skipped even when it also carries a gameplay token, because
+  // "vo/killstreak/announcer_ks_26.mp3" is an announcer line that arrived
+  // through the vo archive, not a weapon sound.
+  if (hasPathToken(rawName, "announcer") || hasPathToken(rawName, "commentary")) return SoundEventKind::Announcer;
+  if (hasPathToken(rawName, "vo") || hasPathToken(rawName, "voice") || hasPathToken(rawName, "radio")) return SoundEventKind::Voice;
+  if (hasPathToken(rawName, "music")) return SoundEventKind::Music;
+  // Gameplay tokens keep the substring rule they always had (see
+  // hasSubstring): "player/footstep1.wav" is a footstep, digit and all.
+  if (hasSubstring(rawName, "footstep") || hasSubstring(rawName, "step")) return SoundEventKind::Footstep;
+  if (hasSubstring(rawName, "uber") || hasSubstring(rawName, "invulnerable")) return SoundEventKind::Uber;
+  if (hasSubstring(rawName, "weapon") || hasSubstring(rawName, "rocket")
+      || hasSubstring(rawName, "scatter") || hasSubstring(rawName, "shot")) return SoundEventKind::Weapon;
+  // Reserved for sound names routed from the temp-entity and particle channels.
+  // No shipped sound name carries these tokens today; the probe measures that
+  // rather than assuming it.
+  if (hasPathToken(rawName, "tempent") || hasPathToken(rawName, "temp_entity")) return SoundEventKind::TempEntity;
+  if (hasPathToken(rawName, "particles") || hasPathToken(rawName, "pcf")) return SoundEventKind::Pcf;
   return SoundEventKind::World;
 }
 
@@ -242,8 +298,94 @@ SoundKindCounts countSoundKinds(const SoundEventTimeline& timeline) {
     else if (event.kind == SoundEventKind::Footstep) ++counts.footstep;
     else if (event.kind == SoundEventKind::Uber) ++counts.uber;
     else if (event.kind == SoundEventKind::World) ++counts.world;
+    else if (event.kind == SoundEventKind::TempEntity) ++counts.tempEntity;
+    else if (event.kind == SoundEventKind::Pcf) ++counts.pcf;
+    else if (event.kind == SoundEventKind::Voice) ++counts.voice;
+    else if (event.kind == SoundEventKind::Announcer) ++counts.announcer;
+    else if (event.kind == SoundEventKind::Music) ++counts.music;
   }
   return counts;
+}
+
+SoundResolveStatus resolveSoundIndexResource(const SoundIndexTable& table,
+  const VpkArchive& archive, std::uint32_t soundIndex,
+  SoundResource& out, std::string& detail) {
+  out = {};
+  detail.clear();
+  const SoundIndexEntry* entry = table.find(soundIndex);
+  if (entry == nullptr) {
+    detail = "sound index " + std::to_string(soundIndex) + " has no precache entry";
+    return SoundResolveStatus::MissingPrecache;
+  }
+  // SoundIndexTable::set already rejects unsafe names, so this is a defensive
+  // stop rather than a reachable branch; it is still named, not silently
+  // resolved, because an entry that got here some other way is a table bug.
+  if (!safeName(entry->name)) {
+    detail = "precache name for index " + std::to_string(soundIndex) + " is not a safe path";
+    return SoundResolveStatus::MissingPrecache;
+  }
+  const auto candidates = soundPathCandidates(entry->name);
+  std::string present;
+  for (const auto& candidate : candidates) {
+    if (archive.contains(candidate)) { present = candidate; break; }
+  }
+  if (present.empty()) {
+    detail = "no WAV/MP3 entry for precache name '" + entry->name + "'";
+    return SoundResolveStatus::MissingWav;
+  }
+  std::string readError;
+  const auto bytes = archive.read(present, &readError);
+  if (bytes.empty()) {
+    detail = "archive entry '" + present + "' yielded no bytes";
+    if (!readError.empty()) detail += ": " + readError;
+    return SoundResolveStatus::MissingWav;
+  }
+  out.archivePath = present;
+  out.bytes = bytes;
+  const auto ext = present.substr(present.find_last_of('.') + 1);
+  if (ext == "wav") {
+    out.codec = SoundCodec::Wav;
+    if (!parseWav(bytes, out.wav)) {
+      out.error = out.wav.error;
+      detail = "WAV '" + present + "' does not parse: " + out.wav.error;
+      return SoundResolveStatus::InvalidWav;
+    }
+  } else if (ext == "mp3") {
+    out.codec = SoundCodec::Mp3;
+    if (!hasMp3Frame(bytes)) {
+      out.error = "MP3 frame signature is missing";
+      detail = "MP3 '" + present + "' carries no decodable frame signature";
+      return SoundResolveStatus::InvalidWav;
+    }
+  } else {
+    out.codec = SoundCodec::Unknown;
+    out.error = "unsupported sound extension";
+    detail = "sound '" + present + "' is neither WAV nor MP3";
+    return SoundResolveStatus::UnsupportedFormat;
+  }
+  // Found and parsed, but not playable: an MP3 has no PCM decode in this
+  // backend, and a WAV whose shape the output path rejects is just as
+  // unplayable. Both are resource facts, not byte corruption.
+  if (!wavPcmIsPlayable(out.wav)) {
+    out.error = out.codec == SoundCodec::Mp3
+      ? "MP3 is not decoded by the native PCM output path"
+      : "parsed WAV is not playable by the native PCM output path";
+    detail = out.error + " (" + present + ")";
+    return SoundResolveStatus::UnsupportedFormat;
+  }
+  out.valid = true;
+  detail = "resolved '" + present + "' channels=" + std::to_string(out.wav.channels)
+    + " rate=" + std::to_string(out.wav.sampleRate)
+    + " bits=" + std::to_string(out.wav.bitsPerSample)
+    + " bytes=" + std::to_string(out.wav.pcm.size());
+  return SoundResolveStatus::Resolved;
+}
+
+bool wavPcmIsPlayable(const WavPcmData& wav) {
+  return wav.valid && wav.encoding == WavEncoding::Pcm
+    && (wav.bitsPerSample == 8 || wav.bitsPerSample == 16)
+    && wav.channels >= 1 && wav.channels <= 2 && wav.sampleRate != 0
+    && wav.blockAlign != 0 && !wav.pcm.empty() && wav.pcm.size() % wav.blockAlign == 0;
 }
 
 } // namespace tf2::native

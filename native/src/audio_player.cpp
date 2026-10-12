@@ -1,12 +1,22 @@
 #include "audio_player.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <utility>
 
 namespace tf2::native {
 namespace {
+
+// Counted at the waveOutOpen boundary, the only place this backend can reach an
+// audio device. Attempts and successes are separate readings because the
+// defect shape that matters here -- playback routed to a real player while a
+// sink was injected -- must be visible even when the open itself fails (an
+// out-of-range device id), which is how the probe exercises it without
+// producing sound.
+std::atomic<std::uint32_t> g_deviceOpenAttempts{0};
+std::atomic<std::uint32_t> g_deviceOpenedCount{0};
 
 std::string mmError(MMRESULT result, const char* operation) {
   char buffer[256]{};
@@ -28,6 +38,14 @@ void writeS16(std::uint8_t* bytes, std::int32_t sample) {
 }
 
 } // namespace
+
+std::uint32_t audioDeviceOpenAttempts() {
+  return g_deviceOpenAttempts.load(std::memory_order_relaxed);
+}
+
+std::uint32_t audioDeviceOpenedCount() {
+  return g_deviceOpenedCount.load(std::memory_order_relaxed);
+}
 
 bool applyPcmPan(std::vector<std::uint8_t>& pcm, std::uint16_t& channels,
     std::uint16_t bitsPerSample, float volume, float pan) {
@@ -115,7 +133,9 @@ bool AudioPlayer::play(const WavPcmData& wav, float volume, float pan) {
   format.nAvgBytesPerSec = wav.sampleRate * format.nBlockAlign;
   format.cbSize = 0;
   auto* playback = new PlaybackState{};
+  g_deviceOpenAttempts.fetch_add(1, std::memory_order_relaxed);
   MMRESULT result = waveOutOpen(&playback->output, deviceId_, &format, 0, 0, CALLBACK_NULL);
+  if (result == MMSYSERR_NOERROR) g_deviceOpenedCount.fetch_add(1, std::memory_order_relaxed);
   if (result != MMSYSERR_NOERROR) {
     delete playback;
     lastError_ = mmError(result, "waveOutOpen");
@@ -218,11 +238,7 @@ AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeli
       ++stats_.eventsMissingResource;
       return;
     }
-    const bool pcmShapeValid = wav.encoding == WavEncoding::Pcm
-      && (wav.bitsPerSample == 8 || wav.bitsPerSample == 16)
-      && wav.channels >= 1 && wav.channels <= 2 && wav.sampleRate != 0
-      && wav.blockAlign != 0 && wav.pcm.size() % wav.blockAlign == 0;
-    const bool played = pcmShapeValid && (playbackSink_
+    const bool played = wavPcmIsPlayable(wav) && (playbackSink_
       ? playbackSink_(wav, volume, lastSpatialMix_.pan)
       : player.play(wav, volume, lastSpatialMix_.pan));
     if (!played) {
