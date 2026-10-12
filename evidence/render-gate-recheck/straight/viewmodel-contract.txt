@@ -1,0 +1,288 @@
+=== 1/7 the request contract ===
+-- the positive fixture is a real game asset --
+  positive models/weapons/v_models/v_scattergun_scout.mdl: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe positive status = ok
+  OK   probe positive resourceComplete = true
+  OK   probe positive invalidAttachments = 0
+  OK   probe positive validAttachments = 5 (>= 1)
+  OK   probe positive attachmentStatus = all attachments valid
+  OK   probe positive alignmentName = weapon_bone
+  OK   probe positive alignmentIndex = 0
+  OK   probe positive sequenceCount = 7 (>= 1)
+  OK   probe positive bones = 45 (>= 1)
+  OK   probe positive contractOk = true
+  OK   probe positive alignmentIsIdentity = true
+  OK   probe positive rc = 0
+-- the synthetic fixture pair: one int32 apart --
+  fixture ok: {"model":"models/weapons/v_models/v_fixture_ok.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_ok status = ok
+  OK   probe v_fixture_ok validAttachments = 1
+  OK   probe v_fixture_ok invalidAttachments = 0
+  OK   probe v_fixture_ok alignmentIndex = 0
+  fixture damaged: {"model":"models/weapons/v_models/v_fixture_damaged.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":0,"partialAttachments":0,"invalidAttachments":1,"attachmentStatus":"1 attachment(s) unusable; alignment falls back to the model transform","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: weapon_bone); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_damaged invalidAttachments = 1
+  OK   probe v_fixture_damaged alignmentIsIdentity = false
+  OK   probe v_fixture_damaged status = ok
+  OK   probe v_fixture_damaged alignmentIndex = -1
+  OK   probe v_fixture_damaged attachmentStatus contains unusable
+  OK   probe v_fixture_damaged alignmentReason contains uses the model transform
+-- a valid attachment with the wrong name is not 'the first attachment' --
+  fixture noanchor: {"model":"models/weapons/v_models/v_fixture_noanchor.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: muzzle); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_noanchor validAttachments = 1
+  OK   probe v_fixture_noanchor invalidAttachments = 0
+  OK   probe v_fixture_noanchor alignmentIndex = -1
+  OK   probe v_fixture_noanchor alignmentReason contains no placement attachment present
+-- a missing companion is refused before the MDL is inspected --
+  fixture nocompanion: {"model":"models/weapons/v_models/v_fixture_nocompanion.mdl","resolution":"found-loose","status":"failed","reason":"viewmodel companions are missing","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_nocompanion status = failed
+  OK   probe v_fixture_nocompanion reason = viewmodel companions are missing
+  OK   probe v_fixture_nocompanion resourceComplete = false
+  OK   probe v_fixture_nocompanion fallbackStable = false
+-- a missing path and a non-viewmodel path have distinct reasons --
+  missing path: {"model":"models/weapons/v_models/v_ada_does_not_exist.mdl","resolution":"missing","status":"failed","reason":"viewmodel was not found","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe missing status = failed
+  OK   probe missing reason = viewmodel was not found
+  OK   probe missing resolution = missing
+  non-viewmodel path: {"model":"models/player/scout.mdl","resolution":"missing","status":"failed","reason":"path is not a viewmodel","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe non-viewmodel reason = path is not a viewmodel
+-- the FOV contract --
+  OK   probe default FOV = 90
+  OK   probe FOV low = 40
+  OK   probe FOV high = 120
+  OK   probe legacy FOV default = 80
+  OK   probe legacy 80 migrates to 90 = 90
+  OK   probe an explicit 101 is kept = 101
+  fov 90: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":true,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 90 is kept = 90
+  OK   probe fov 90 is not clamped = false
+  fov 10: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":40,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 10 clamps to 40 = 40
+  OK   probe fov 10 reports the clamp = true
+  fov 200: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":120,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 200 clamps to 120 = 120
+-- the hand matrices, and that the mirror is the only difference --
+  hand right: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe right hand X basis = 1
+  OK   probe hand mirror probe = true
+  OK   probe mirror touches only X = true
+  hand left: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"left","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe left hand is selected = left
+  OK   probe left hand X basis = -1
+-- the FOV contract probe --
+  {"constants":true,"clampsAgree":true,"boundaries":true,"nanPreserved":true,"legacyEightyMigrates":true,"defaultIsNinety":true,"explicitClamped":true,"probeValues":9,"defaultFov":90,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"contractOk":true}
+  OK   fov probe contractOk = true
+  OK   fov probe probeValues = 9
+  OK   fov probe defaultFov = 90
+  OK   fov probe legacyEightyMigrates = true
+-- the fixture bytes must be reproducible from the generator --
+  OK   the committed fixtures are identical to a fresh generation
+
+=== 2/7 the product's runtime reading and the pass order ===
+  vm90 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vm90 rc = 0
+  OK   product vm90 path contains viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl
+  OK   product vm90 resourceStatus contains resourceStatus=ok
+  OK   product vm90 attachmentStatus contains attachmentStatus=ok(valid=
+  OK   product vm90 sequenceCount = 7 (>= 1)
+  OK   product vm90 fov = 90.0
+  OK   product vm90 hand = right
+  OK   product vm90 drawn = 1 (>= 1)
+  OK   product vm90 depthWrite = 1
+  OK   product vm90 depthFunc = less_equal
+  OK   product vm90 reason = drawn
+  OK   product vm90 afterWorld = 1
+  OK   product vm90 viewModelPass = 6 (> 1)
+  OK   product vm90 drawCalls = 1 (>= 1)
+  OK   product vm90 vertices = 9723 (>= 3)
+  OK   product vm90 alignment contains alignment=weapon_bone
+  OK   product vm90 centre on screen contains onScreen=1
+-- with no flag and no stored value the pass takes the compiled default --
+  vmdefault rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmdefault rc = 0
+  OK   product vmdefault fov (no flag, no stored value -> compiled default) = 90.0
+  OK   product vmdefault settingsFov (nothing was stored to read) = 90.0
+-- a stored value is the source of truth, and an old 80 migrates --
+  vmstored rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=60.0 settingsFov=60.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmstored rc = 0
+  OK   product vmstored fov (a stored 60 is honoured, not overridden by 90) = 60.0
+  vmlegacy rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmlegacy rc = 0
+  OK   product vmlegacy fov (a stored legacy 80 migrates to 90) = 90.0
+
+=== 3/7 first-person projection and the hand mirror ===
+  novm rc=0 bmp=2582406
+  OK   product novm rc = 0
+  vm90 reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  vm40 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vm40 fov = 40.0
+  vm120 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vm120 fov = 120.0
+  vmleft rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=left drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmleft hand = left
+  vmfov10 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product fov 10 is clamped to 40 = 40.0
+  vmfov200 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product fov 200 is clamped to 120 = 120.0
+  ..   capture ticks: 16 16 16 0 0 0 0
+  ..   capture sceneTicks: 10268 10268 10268 10252 10252 10252 10252  (measured points: 10252 10268)
+  OK   all 7 compared frames came from a measured capture point = 7
+  BMP-DIFF differing=37374 total=2582352 percent=1.4473 max_delta=191 extent=1264x681x24 status=PASS
+  OK   the weapon appears against the frame without it
+  BMP-DIFF differing=275380 total=2582352 percent=10.6639 max_delta=191 extent=1264x681x24 status=PASS
+  OK   FOV 40 and FOV 90 are different pictures
+  BMP-DIFF differing=40575 total=2582352 percent=1.5712 max_delta=191 extent=1264x681x24 status=PASS
+  OK   FOV 90 and FOV 120 are different pictures
+  BMP-DIFF differing=11236 total=2582352 percent=0.4351 max_delta=154 extent=1264x681x24 status=PASS
+  OK   the left hand is a different picture from the right
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a clamped FOV 10 renders exactly what FOV 40 renders
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a clamped FOV 200 renders exactly what FOV 120 renders
+
+=== 4/7 a missing resource disables the ViewModel pass, not the run ===
+  novm reused (captured by this build, token 4d67cc106966866c)
+  vmmissing rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_ada_does_not_exist.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel was not found
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_ada_does_not_exist.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmmissing rc = 0
+  OK   product vmmissing drawn = 0
+  OK   product vmmissing reason = viewmodel was not found
+  OK   product vmmissing resourceStatus contains resourceStatus=incomplete(
+  OK   product vmmissing afterWorld = 0
+  OK   product vmmissing viewModelPass = 0
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a missing ViewModel leaves the frame alone
+-- the fixture root: a damaged attachment, an unplaceable name, a missing companion --
+  vmfdamaged rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_fixture_damaged.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=degraded(valid=0,partial=0,invalid=1,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+  OK   product fixture damaged rc = 0
+  OK   product fixture damaged attachmentStatus contains attachmentStatus=degraded(
+  OK   product fixture damaged invalid count contains invalid=1
+  OK   product fixture damaged drawn = 0
+  OK   product fixture damaged alignment contains alignment=-
+  vmfnoanchor rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_fixture_noanchor.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=ok(valid=1,partial=0,invalid=0,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+  OK   product fixture noanchor rc = 0
+  OK   product fixture noanchor attachmentStatus contains attachmentStatus=ok(valid=1
+  OK   product fixture noanchor alignment = -
+  vmfnocompanion rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_fixture_nocompanion.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel companions are missing
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+  OK   product fixture nocompanion rc = 0
+  OK   product fixture nocompanion drawn = 0
+  OK   product fixture nocompanion reason = viewmodel companions are missing
+  OK   product fixture nocompanion resourceStatus contains resourceStatus=incomplete(
+
+=== 5/7 the animation input is missing and the bind pose is drawn ===
+  vm90 reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vm90 animationInput = missing
+  OK   product vm90 skinning = 0
+  OK   product vm90 boneTableCoverage = 0/0
+  vmident rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=45/45 animationInput=bones:45 meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmident rc = 0
+  OK   product vmident skinning = 1
+  OK   product vmident animationInput contains bones:
+  OK   product vmident boneTableCoverage numerator = 45 (> 0)
+  OK   product vmident boneTableCoverage covers the skeleton = 45
+  OK   product vmident reason = drawn
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   identity skinning does not deform the bind pose
+  vmshort rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=skinning was requested but the bone table covers 1 of 45 bones; drawing the bind pose
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=1/45 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmshort rc = 0
+  OK   product vmshort drawn = 1
+  OK   product vmshort skinning = 0
+  OK   product vmshort boneTableCoverage numerator = 1
+  OK   product vmshort boneTableCoverage denominator = 45 (> 1)
+  OK   product vmshort reason contains the bone table covers 1 of
+  OK   product vmshort reason names the skeleton contains bones; drawing the bind pose
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a refused short bone table renders the same bind pose
+
+=== 6/7 the witness frames ===
+  vm90 reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  vm40 reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  vm120 reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  vmleft reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=left drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  vmident reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=45/45 animationInput=bones:45 meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  vmshort reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=skinning was requested but the bone table covers 1 of 45 bones; drawing the bind pose
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=1/45 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  vmmissing reused (captured by this build, token 4d67cc106966866c)
+  viewModelPath=models/weapons/v_models/v_ada_does_not_exist.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel was not found
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_ada_does_not_exist.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  witness viewmodel-fov90-right.png bytes=29012 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 v_scattergun_scout.mdl fov=90 hand=right drawn=1"
+  OK   witness frame viewmodel-fov90-right.png was written
+  witness viewmodel-default-fov90.png bytes=29896 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 v_scattergun_scout.mdl no-fov-flag compiled-default-fov=90 drawn=1"
+  OK   witness frame viewmodel-default-fov90.png was written
+  witness viewmodel-fov40-right.png bytes=34541 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 v_scattergun_scout.mdl fov=40 hand=right drawn=1"
+  OK   witness frame viewmodel-fov40-right.png was written
+  witness viewmodel-fov120-right.png bytes=26761 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 v_scattergun_scout.mdl fov=120 hand=right drawn=1"
+  OK   witness frame viewmodel-fov120-right.png was written
+  witness viewmodel-fov90-left.png bytes=26955 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 v_scattergun_scout.mdl fov=90 hand=left drawn=1"
+  OK   witness frame viewmodel-fov90-left.png was written
+  witness viewmodel-identity-bindpose.png bytes=30207 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 v_scattergun_scout.mdl fov=90 identity-bones skinning=1 bind-pose"
+  OK   witness frame viewmodel-identity-bindpose.png was written
+  witness viewmodel-shortbonetable.png bytes=29872 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 v_scattergun_scout.mdl fov=90 bone-limit=1 refused skinning=0 bind-pose"
+  OK   witness frame viewmodel-shortbonetable.png was written
+  witness viewmodel-absent.png bytes=23765 caption="cp_snakewater_final1 demo_tick=10268 playback_tick=16 no-viewmodel drawn=0 reason=viewmodel-was-not-found"
+  OK   witness frame viewmodel-absent.png was written
+
+=== 7/7 the pass readings agree with themselves ===
+  OK   the frame with no ViewModel request is the frame with no order line = 0
+  OK   trace vm90 reports one boneTableCoverage on every order line = 1
+  OK   trace vm40 reports one boneTableCoverage on every order line = 1
+  OK   trace vm120 reports one boneTableCoverage on every order line = 1
+  OK   trace vmleft reports one boneTableCoverage on every order line = 1
+  OK   trace vmident reports one boneTableCoverage on every order line = 1
+  OK   trace vmfov10 reports one boneTableCoverage on every order line = 1
+  OK   trace vmfov200 reports one boneTableCoverage on every order line = 1
+  OK   trace vmmissing reports one boneTableCoverage on every order line = 1
+  OK   trace vmdefault reports one boneTableCoverage on every order line = 1
+  OK   trace vmstored reports one boneTableCoverage on every order line = 1
+  OK   trace vmlegacy reports one boneTableCoverage on every order line = 1
+  OK   trace vmfdamaged reports one boneTableCoverage on every order line = 1
+  OK   trace vmfnoanchor reports one boneTableCoverage on every order line = 1
+  OK   trace vmfnocompanion reports one boneTableCoverage on every order line = 1
+  OK   trace vmshort reports one boneTableCoverage on every order line = 1
+  OK   the reading-integrity section examined every frame that has a reading = 15
+
+assertions_ok=154
+VIEWMODEL-CONTRACT=PASS

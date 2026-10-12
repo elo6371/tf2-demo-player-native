@@ -6,7 +6,7 @@ T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单一 
 T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品提交 `447ca74`，门禁/文档提交 `2a92967`，主线整合提交 `f5e427f`。
 产品默认 ViewModel FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略、缺资源回退；T2.5 会读取 `CTFViewModel` 的 `m_nSequence`/`m_flPlaybackRate`，对不属于当前 `v_*.mdl` 序列表的序列明确拒绝并回退 bind pose。
 
-已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；清单一 companion 正常 108 条断言、mutation 6/6，动画专项 139 条断言；清单三资源专项 159 条断言；历史渲染档 8/8。当前整合后的 `verify-render.sh` 已扩展为 9/9，尚未在主线上重跑。
+已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；清单一 companion 正常 108 条断言、mutation 6/6，动画专项 139 条断言；清单三资源专项 159 条断言；历史渲染档 8/8。整合后的 `verify-render.sh`（9 个门禁）已在 `9a8387b` 上补跑：正向 `VERIFY-RENDER=PASS (9/9 gates, mutation=0)`、`--mutation` 同样 9/9，两次退出码均为 0，记录见 `T0-RENDER-RECHECK-2026-10-12.md`、证据见 `evidence/render-gate-recheck/`。
 T2.5 没有实现实体序列到旧式 `v_*.mdl` 的映射，而是证明实体自身 `c_*_arms.mdl` 才是动画表；POV 自然序列没有动画绑定，`--viewmodel-sequence 0` 只作为构造正例。当前仍未证明 ViewModel 材质已接入产品 draw pass、真实游戏人工画面对照、玩家动画输入、跨机器抓帧点集合和真实 GPU/FPS。
 
 T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默认 `v_scattergun_scout.mdl` 对 POV 的 141 次实体序列只有 37 次在范围内；按实体自身 `m_nModelIndex` 对应模型比较为 141/141。清单一已切换产品绘制路径：默认绘制实体自身 `c_*_arms.mdl`，命令行 `v_*` 保留为 modelMismatch 对照，并要求 owner、模型路径、sequence 表和骨骼覆盖同时成立。

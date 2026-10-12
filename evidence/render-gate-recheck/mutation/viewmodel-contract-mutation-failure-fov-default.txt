@@ -1,0 +1,9 @@
+# the fov-default mutation was caught: these assertions went red
+probe default FOV: 80 != 90
+probe legacy 80 migrates to 90: 80 != 90
+fov probe contractOk: false != true
+fov probe defaultFov: 80 != 90
+fov probe legacyEightyMigrates: false != true
+product vmdefault fov (no flag, no stored value -> compiled default): 80.0 != 90.0
+product vmdefault settingsFov (nothing was stored to read): 80.0 != 90.0
+product vmlegacy fov (a stored legacy 80 migrates to 90): 80.0 != 90.0

@@ -3,6 +3,11 @@
 更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
 当前验收与诊断基线：`p0-entity-protocol@4f43560`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链、音频 tick 调度契约、验收脚本修复和历史 23 步总链证据；当前 24 步总链尚未重跑，不是产品发布分支）
+
+渲染档补跑（2026-10-12，工作区 `D:\TF2_Native_Worktrees\render-gate-recheck`，基线 `9a8387b`）：
+9 个门禁的 `verify-render.sh` 已在该基线上跑过正向与 `--mutation` 各一次，两次都是
+`VERIFY-RENDER=PASS (9/9 gates)`、退出码 0，记录 `T0-RENDER-RECHECK-2026-10-12.md`。
+总链仍按上一段记为未重跑；渲染档的补跑不构成总链结论。
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 

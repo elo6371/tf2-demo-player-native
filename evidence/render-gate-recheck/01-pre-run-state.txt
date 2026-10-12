@@ -1,0 +1,36 @@
+# T0 pre-run state
+2026-10-12T20:08:27+08:00
+
+## which tree
+/d/TF2_Native_Worktrees/render-gate-recheck
+
+## HEAD
+9a8387b57143848a66db4a550466b06d956e2c9f
+9a8387b feat: integrate ViewModel companion rendering
+
+## branch
+task/render-gate-recheck
+
+## git status --porcelain (tracked changes + untracked, ignored excluded)
+(end -- empty above means the tree is clean)
+
+## git status --porcelain evidence/ (the tier asserts this does not move)
+(end)
+
+## build tree present?
+native/build-nmake/CMakeCache.txt ABSENT -- this is a fresh worktree,
+so verify-render.sh's build step must configure and build from scratch
+
+## lock files anywhere (a running gate holds one)
+(none in this tree)
+(none in any worktree)
+(none in the main tree)
+
+## relevant processes (tasklist, read-only)
+-- filter: tf2 / probe / verify / python
+(no match: no gate, no probe, no tf2_demo_native, no python)
+-- bash.exe (the tool's own shells are expected; a gate would also hold a lock above)
+bash.exe                     49852 Console                    1      7,848 K
+bash.exe                     49996 Console                    1     12,628 K
+bash.exe                      3940 Console                    1     11,640 K
+bash.exe                     40448 Console                    1     10,492 K

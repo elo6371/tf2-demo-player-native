@@ -1,0 +1,605 @@
+
+###################################################################
+=== mutation: attachment-bone ===
+patched native/src/model_loader.cpp
+mutation build rc=0
+=== 1/7 the request contract ===
+-- the positive fixture is a real game asset --
+  positive models/weapons/v_models/v_scattergun_scout.mdl: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe positive status = ok
+  OK   probe positive resourceComplete = true
+  OK   probe positive invalidAttachments = 0
+  OK   probe positive validAttachments = 5 (>= 1)
+  OK   probe positive attachmentStatus = all attachments valid
+  OK   probe positive alignmentName = weapon_bone
+  OK   probe positive alignmentIndex = 0
+  OK   probe positive sequenceCount = 7 (>= 1)
+  OK   probe positive bones = 45 (>= 1)
+  OK   probe positive contractOk = true
+  OK   probe positive alignmentIsIdentity = true
+  OK   probe positive rc = 0
+-- the synthetic fixture pair: one int32 apart --
+  fixture ok: {"model":"models/weapons/v_models/v_fixture_ok.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_ok status = ok
+  OK   probe v_fixture_ok validAttachments = 1
+  OK   probe v_fixture_ok invalidAttachments = 0
+  OK   probe v_fixture_ok alignmentIndex = 0
+  fixture damaged: {"model":"models/weapons/v_models/v_fixture_damaged.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  FAIL probe v_fixture_damaged invalidAttachments = 0, expected 1
+  FAIL probe v_fixture_damaged alignmentIsIdentity = true, expected false
+  OK   probe v_fixture_damaged status = ok
+  FAIL probe v_fixture_damaged alignmentIndex = 0, expected -1
+  FAIL probe v_fixture_damaged attachmentStatus = all attachments valid, expected it to contain unusable
+  FAIL probe v_fixture_damaged alignmentReason = placement attachment 'weapon_bone' is valid, expected it to contain uses the model transform
+-- a valid attachment with the wrong name is not 'the first attachment' --
+  fixture noanchor: {"model":"models/weapons/v_models/v_fixture_noanchor.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: muzzle); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_noanchor validAttachments = 1
+  OK   probe v_fixture_noanchor invalidAttachments = 0
+  OK   probe v_fixture_noanchor alignmentIndex = -1
+  OK   probe v_fixture_noanchor alignmentReason contains no placement attachment present
+-- a missing companion is refused before the MDL is inspected --
+  fixture nocompanion: {"model":"models/weapons/v_models/v_fixture_nocompanion.mdl","resolution":"found-loose","status":"failed","reason":"viewmodel companions are missing","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_nocompanion status = failed
+  OK   probe v_fixture_nocompanion reason = viewmodel companions are missing
+  OK   probe v_fixture_nocompanion resourceComplete = false
+  OK   probe v_fixture_nocompanion fallbackStable = false
+-- a missing path and a non-viewmodel path have distinct reasons --
+  missing path: {"model":"models/weapons/v_models/v_ada_does_not_exist.mdl","resolution":"missing","status":"failed","reason":"viewmodel was not found","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe missing status = failed
+  OK   probe missing reason = viewmodel was not found
+  OK   probe missing resolution = missing
+  non-viewmodel path: {"model":"models/player/scout.mdl","resolution":"missing","status":"failed","reason":"path is not a viewmodel","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe non-viewmodel reason = path is not a viewmodel
+-- the FOV contract --
+  OK   probe default FOV = 90
+  OK   probe FOV low = 40
+  OK   probe FOV high = 120
+  OK   probe legacy FOV default = 80
+  OK   probe legacy 80 migrates to 90 = 90
+  OK   probe an explicit 101 is kept = 101
+  fov 90: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":true,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 90 is kept = 90
+  OK   probe fov 90 is not clamped = false
+  fov 10: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":40,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 10 clamps to 40 = 40
+  OK   probe fov 10 reports the clamp = true
+  fov 200: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":120,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 200 clamps to 120 = 120
+-- the hand matrices, and that the mirror is the only difference --
+  hand right: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe right hand X basis = 1
+  OK   probe hand mirror probe = true
+  OK   probe mirror touches only X = true
+  hand left: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"left","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe left hand is selected = left
+  OK   probe left hand X basis = -1
+-- the FOV contract probe --
+  {"constants":true,"clampsAgree":true,"boundaries":true,"nanPreserved":true,"legacyEightyMigrates":true,"defaultIsNinety":true,"explicitClamped":true,"probeValues":9,"defaultFov":90,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"contractOk":true}
+  OK   fov probe contractOk = true
+  OK   fov probe probeValues = 9
+  OK   fov probe defaultFov = 90
+  OK   fov probe legacyEightyMigrates = true
+-- the fixture bytes must be reproducible from the generator --
+  OK   the committed fixtures are identical to a fresh generation
+restore build rc=0
+MUTATION-CAUGHT=PASS (attachment-bone turns this step red on 'probe v_fixture_damaged invalidAttachments')
+
+###################################################################
+=== mutation: fov-default ===
+patched native/include/viewmodel.h
+patched native/include/viewmodel.h
+mutation build rc=0
+=== 1/7 the request contract ===
+-- the positive fixture is a real game asset --
+  positive models/weapons/v_models/v_scattergun_scout.mdl: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe positive status = ok
+  OK   probe positive resourceComplete = true
+  OK   probe positive invalidAttachments = 0
+  OK   probe positive validAttachments = 5 (>= 1)
+  OK   probe positive attachmentStatus = all attachments valid
+  OK   probe positive alignmentName = weapon_bone
+  OK   probe positive alignmentIndex = 0
+  OK   probe positive sequenceCount = 7 (>= 1)
+  OK   probe positive bones = 45 (>= 1)
+  OK   probe positive contractOk = true
+  OK   probe positive alignmentIsIdentity = true
+  OK   probe positive rc = 0
+-- the synthetic fixture pair: one int32 apart --
+  fixture ok: {"model":"models/weapons/v_models/v_fixture_ok.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":0,"bones":1,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_ok status = ok
+  OK   probe v_fixture_ok validAttachments = 1
+  OK   probe v_fixture_ok invalidAttachments = 0
+  OK   probe v_fixture_ok alignmentIndex = 0
+  fixture damaged: {"model":"models/weapons/v_models/v_fixture_damaged.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":0,"partialAttachments":0,"invalidAttachments":1,"attachmentStatus":"1 attachment(s) unusable; alignment falls back to the model transform","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: weapon_bone); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_damaged invalidAttachments = 1
+  OK   probe v_fixture_damaged alignmentIsIdentity = false
+  OK   probe v_fixture_damaged status = ok
+  OK   probe v_fixture_damaged alignmentIndex = -1
+  OK   probe v_fixture_damaged attachmentStatus contains unusable
+  OK   probe v_fixture_damaged alignmentReason contains uses the model transform
+-- a valid attachment with the wrong name is not 'the first attachment' --
+  fixture noanchor: {"model":"models/weapons/v_models/v_fixture_noanchor.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: muzzle); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_noanchor validAttachments = 1
+  OK   probe v_fixture_noanchor invalidAttachments = 0
+  OK   probe v_fixture_noanchor alignmentIndex = -1
+  OK   probe v_fixture_noanchor alignmentReason contains no placement attachment present
+-- a missing companion is refused before the MDL is inspected --
+  fixture nocompanion: {"model":"models/weapons/v_models/v_fixture_nocompanion.mdl","resolution":"found-loose","status":"failed","reason":"viewmodel companions are missing","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_nocompanion status = failed
+  OK   probe v_fixture_nocompanion reason = viewmodel companions are missing
+  OK   probe v_fixture_nocompanion resourceComplete = false
+  OK   probe v_fixture_nocompanion fallbackStable = false
+-- a missing path and a non-viewmodel path have distinct reasons --
+  missing path: {"model":"models/weapons/v_models/v_ada_does_not_exist.mdl","resolution":"missing","status":"failed","reason":"viewmodel was not found","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe missing status = failed
+  OK   probe missing reason = viewmodel was not found
+  OK   probe missing resolution = missing
+  non-viewmodel path: {"model":"models/player/scout.mdl","resolution":"missing","status":"failed","reason":"path is not a viewmodel","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe non-viewmodel reason = path is not a viewmodel
+-- the FOV contract --
+  FAIL probe default FOV = 80, expected 90
+  OK   probe FOV low = 40
+  OK   probe FOV high = 120
+  OK   probe legacy FOV default = 80
+  FAIL probe legacy 80 migrates to 90 = 80, expected 90
+  OK   probe an explicit 101 is kept = 101
+  fov 90: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":80,"fov":90,"fovGiven":true,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 90 is kept = 90
+  OK   probe fov 90 is not clamped = false
+  fov 10: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":80,"fov":40,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 10 clamps to 40 = 40
+  OK   probe fov 10 reports the clamp = true
+  fov 200: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":80,"fov":120,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 200 clamps to 120 = 120
+-- the hand matrices, and that the mirror is the only difference --
+  hand right: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe right hand X basis = 1
+  OK   probe hand mirror probe = true
+  OK   probe mirror touches only X = true
+  hand left: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":80,"fov":80,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":80,"chosenFovKept":101,"hand":"left","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe left hand is selected = left
+  OK   probe left hand X basis = -1
+-- the FOV contract probe --
+  {"constants":false,"clampsAgree":true,"boundaries":true,"nanPreserved":true,"legacyEightyMigrates":false,"defaultIsNinety":false,"explicitClamped":true,"probeValues":9,"defaultFov":80,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"contractOk":false}
+  FAIL fov probe contractOk = false, expected true
+  OK   fov probe probeValues = 9
+  FAIL fov probe defaultFov = 80, expected 90
+  FAIL fov probe legacyEightyMigrates = false, expected true
+-- the fixture bytes must be reproducible from the generator --
+  OK   the committed fixtures are identical to a fresh generation
+
+=== 2/7 the product's runtime reading and the pass order ===
+  vm90 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=80.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vm90 rc = 0
+  OK   product vm90 path contains viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl
+  OK   product vm90 resourceStatus contains resourceStatus=ok
+  OK   product vm90 attachmentStatus contains attachmentStatus=ok(valid=
+  OK   product vm90 sequenceCount = 7 (>= 1)
+  OK   product vm90 fov = 90.0
+  OK   product vm90 hand = right
+  OK   product vm90 drawn = 1 (>= 1)
+  OK   product vm90 depthWrite = 1
+  OK   product vm90 depthFunc = less_equal
+  OK   product vm90 reason = drawn
+  OK   product vm90 afterWorld = 1
+  OK   product vm90 viewModelPass = 6 (> 1)
+  OK   product vm90 drawCalls = 1 (>= 1)
+  OK   product vm90 vertices = 9723 (>= 3)
+  OK   product vm90 alignment contains alignment=weapon_bone
+  OK   product vm90 centre on screen contains onScreen=1
+-- with no flag and no stored value the pass takes the compiled default --
+  vmdefault rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=80.0 settingsFov=80.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmdefault rc = 0
+  FAIL product vmdefault fov (no flag, no stored value -> compiled default) = 80.0, expected 90.0
+  FAIL product vmdefault settingsFov (nothing was stored to read) = 80.0, expected 90.0
+-- a stored value is the source of truth, and an old 80 migrates --
+  vmstored rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=60.0 settingsFov=60.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmstored rc = 0
+  OK   product vmstored fov (a stored 60 is honoured, not overridden by 90) = 60.0
+  vmlegacy rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=80.0 settingsFov=80.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmlegacy rc = 0
+  FAIL product vmlegacy fov (a stored legacy 80 migrates to 90) = 80.0, expected 90.0
+restore build rc=0
+MUTATION-CAUGHT=PASS (fov-default turns this step red on 'product vmdefault fov')
+
+###################################################################
+=== mutation: hand-matrix ===
+patched native/src/viewmodel.cpp
+mutation build rc=0
+=== 1/7 the request contract ===
+-- the positive fixture is a real game asset --
+  positive models/weapons/v_models/v_scattergun_scout.mdl: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe positive status = ok
+  OK   probe positive resourceComplete = true
+  OK   probe positive invalidAttachments = 0
+  OK   probe positive validAttachments = 5 (>= 1)
+  OK   probe positive attachmentStatus = all attachments valid
+  OK   probe positive alignmentName = weapon_bone
+  OK   probe positive alignmentIndex = 0
+  OK   probe positive sequenceCount = 7 (>= 1)
+  OK   probe positive bones = 45 (>= 1)
+  FAIL probe positive contractOk = false, expected true
+  OK   probe positive alignmentIsIdentity = true
+  FAIL probe positive rc = 1, expected 0
+-- the synthetic fixture pair: one int32 apart --
+  fixture ok: {"model":"models/weapons/v_models/v_fixture_ok.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_ok status = ok
+  OK   probe v_fixture_ok validAttachments = 1
+  OK   probe v_fixture_ok invalidAttachments = 0
+  OK   probe v_fixture_ok alignmentIndex = 0
+  fixture damaged: {"model":"models/weapons/v_models/v_fixture_damaged.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":0,"partialAttachments":0,"invalidAttachments":1,"attachmentStatus":"1 attachment(s) unusable; alignment falls back to the model transform","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: weapon_bone); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_damaged invalidAttachments = 1
+  OK   probe v_fixture_damaged alignmentIsIdentity = false
+  OK   probe v_fixture_damaged status = ok
+  OK   probe v_fixture_damaged alignmentIndex = -1
+  OK   probe v_fixture_damaged attachmentStatus contains unusable
+  OK   probe v_fixture_damaged alignmentReason contains uses the model transform
+-- a valid attachment with the wrong name is not 'the first attachment' --
+  fixture noanchor: {"model":"models/weapons/v_models/v_fixture_noanchor.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: muzzle); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_noanchor validAttachments = 1
+  OK   probe v_fixture_noanchor invalidAttachments = 0
+  OK   probe v_fixture_noanchor alignmentIndex = -1
+  OK   probe v_fixture_noanchor alignmentReason contains no placement attachment present
+-- a missing companion is refused before the MDL is inspected --
+  fixture nocompanion: {"model":"models/weapons/v_models/v_fixture_nocompanion.mdl","resolution":"found-loose","status":"failed","reason":"viewmodel companions are missing","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_nocompanion status = failed
+  OK   probe v_fixture_nocompanion reason = viewmodel companions are missing
+  OK   probe v_fixture_nocompanion resourceComplete = false
+  OK   probe v_fixture_nocompanion fallbackStable = false
+-- a missing path and a non-viewmodel path have distinct reasons --
+  missing path: {"model":"models/weapons/v_models/v_ada_does_not_exist.mdl","resolution":"missing","status":"failed","reason":"viewmodel was not found","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe missing status = failed
+  OK   probe missing reason = viewmodel was not found
+  OK   probe missing resolution = missing
+  non-viewmodel path: {"model":"models/player/scout.mdl","resolution":"missing","status":"failed","reason":"path is not a viewmodel","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe non-viewmodel reason = path is not a viewmodel
+-- the FOV contract --
+  OK   probe default FOV = 90
+  OK   probe FOV low = 40
+  OK   probe FOV high = 120
+  OK   probe legacy FOV default = 80
+  OK   probe legacy 80 migrates to 90 = 90
+  OK   probe an explicit 101 is kept = 101
+  fov 90: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":true,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe fov 90 is kept = 90
+  OK   probe fov 90 is not clamped = false
+  fov 10: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":40,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe fov 10 clamps to 40 = 40
+  OK   probe fov 10 reports the clamp = true
+  fov 200: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":120,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe fov 200 clamps to 120 = 120
+-- the hand matrices, and that the mirror is the only difference --
+  hand right: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe right hand X basis = 1
+  FAIL probe hand mirror probe = false, expected true
+  FAIL probe mirror touches only X = false, expected true
+  hand left: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"left","rightHandX":1,"leftHandX":1,"handProbePassed":false,"mirrorOnlyX":false,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe left hand is selected = left
+  FAIL probe left hand X basis = 1, expected -1
+-- the FOV contract probe --
+  {"constants":true,"clampsAgree":true,"boundaries":true,"nanPreserved":true,"legacyEightyMigrates":true,"defaultIsNinety":true,"explicitClamped":true,"probeValues":9,"defaultFov":90,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"contractOk":true}
+  OK   fov probe contractOk = true
+  OK   fov probe probeValues = 9
+  OK   fov probe defaultFov = 90
+  OK   fov probe legacyEightyMigrates = true
+-- the fixture bytes must be reproducible from the generator --
+  OK   the committed fixtures are identical to a fresh generation
+
+=== 3/7 first-person projection and the hand mirror ===
+  novm rc=0 bmp=2582406
+  OK   product novm rc = 0
+  vm90 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  vm40 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vm40 fov = 40.0
+  vm120 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vm120 fov = 120.0
+  vmleft rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=left drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmleft hand = left
+  vmfov10 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product fov 10 is clamped to 40 = 40.0
+  vmfov200 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product fov 200 is clamped to 120 = 120.0
+  ..   capture ticks: 0 16 16 0 16 16 16
+  ..   capture sceneTicks: 10252 10268 10268 10252 10268 10268 10268  (measured points: 10252 10268)
+  OK   all 7 compared frames came from a measured capture point = 7
+  BMP-DIFF differing=37374 total=2582352 percent=1.4473 max_delta=191 extent=1264x681x24 status=PASS
+  OK   the weapon appears against the frame without it
+  BMP-DIFF differing=275380 total=2582352 percent=10.6639 max_delta=191 extent=1264x681x24 status=PASS
+  OK   FOV 40 and FOV 90 are different pictures
+  BMP-DIFF differing=40575 total=2582352 percent=1.5712 max_delta=191 extent=1264x681x24 status=PASS
+  OK   FOV 90 and FOV 120 are different pictures
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 0.2000; max_delta=0 is below 100
+  FAIL the left hand is a different picture from the right (rc=1)
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a clamped FOV 10 renders exactly what FOV 40 renders
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a clamped FOV 200 renders exactly what FOV 120 renders
+restore build rc=0
+MUTATION-CAUGHT=PASS (hand-matrix turns this step red on 'left hand is a different picture')
+
+###################################################################
+=== mutation: companion-missing ===
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200-settings.ini"],"targetCount":1}
+patched native/src/model_loader.cpp
+patched native/src/viewmodel.cpp
+mutation build rc=0
+=== 1/7 the request contract ===
+-- the positive fixture is a real game asset --
+  positive models/weapons/v_models/v_scattergun_scout.mdl: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe positive status = ok
+  OK   probe positive resourceComplete = true
+  OK   probe positive invalidAttachments = 0
+  OK   probe positive validAttachments = 5 (>= 1)
+  OK   probe positive attachmentStatus = all attachments valid
+  OK   probe positive alignmentName = weapon_bone
+  OK   probe positive alignmentIndex = 0
+  OK   probe positive sequenceCount = 7 (>= 1)
+  OK   probe positive bones = 45 (>= 1)
+  OK   probe positive contractOk = true
+  OK   probe positive alignmentIsIdentity = true
+  OK   probe positive rc = 0
+-- the synthetic fixture pair: one int32 apart --
+  fixture ok: {"model":"models/weapons/v_models/v_fixture_ok.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_ok status = ok
+  OK   probe v_fixture_ok validAttachments = 1
+  OK   probe v_fixture_ok invalidAttachments = 0
+  OK   probe v_fixture_ok alignmentIndex = 0
+  fixture damaged: {"model":"models/weapons/v_models/v_fixture_damaged.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":0,"partialAttachments":0,"invalidAttachments":1,"attachmentStatus":"1 attachment(s) unusable; alignment falls back to the model transform","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: weapon_bone); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_damaged invalidAttachments = 1
+  OK   probe v_fixture_damaged alignmentIsIdentity = false
+  OK   probe v_fixture_damaged status = ok
+  OK   probe v_fixture_damaged alignmentIndex = -1
+  OK   probe v_fixture_damaged attachmentStatus contains unusable
+  OK   probe v_fixture_damaged alignmentReason contains uses the model transform
+-- a valid attachment with the wrong name is not 'the first attachment' --
+  fixture noanchor: {"model":"models/weapons/v_models/v_fixture_noanchor.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"","alignmentIndex":-1,"alignmentReason":"no placement attachment present (found: muzzle); the pass uses the model transform","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe v_fixture_noanchor validAttachments = 1
+  OK   probe v_fixture_noanchor invalidAttachments = 0
+  OK   probe v_fixture_noanchor alignmentIndex = -1
+  OK   probe v_fixture_noanchor alignmentReason contains no placement attachment present
+-- a missing companion is refused before the MDL is inspected --
+  fixture nocompanion: {"model":"models/weapons/v_models/v_fixture_nocompanion.mdl","resolution":"found-loose","status":"ok","reason":"","mdlReadable":true,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":true,"meshReady":false,"meshReason":"the model has no decodable mesh","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":1,"declaredAttachments":1,"validAttachments":1,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":0,"bones":1,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":false}
+  FAIL probe v_fixture_nocompanion status = ok, expected failed
+  FAIL probe v_fixture_nocompanion reason = <none>, expected viewmodel companions are missing
+  OK   probe v_fixture_nocompanion resourceComplete = false
+  FAIL probe v_fixture_nocompanion fallbackStable = true, expected false
+-- a missing path and a non-viewmodel path have distinct reasons --
+  missing path: {"model":"models/weapons/v_models/v_ada_does_not_exist.mdl","resolution":"missing","status":"failed","reason":"viewmodel was not found","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe missing status = failed
+  OK   probe missing reason = viewmodel was not found
+  OK   probe missing resolution = missing
+  non-viewmodel path: {"model":"models/player/scout.mdl","resolution":"missing","status":"failed","reason":"path is not a viewmodel","mdlReadable":false,"vvdPresent":false,"vtxPresent":false,"vtxVariant":"","resourceComplete":false,"companionsComplete":false,"meshReady":false,"meshReason":"","meshVertices":0,"meshIndices":0,"meshTriangleList":false,"materialCount":0,"materialResolved":0,"flatColorFallback":true,"attachments":0,"declaredAttachments":0,"validAttachments":0,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"","alignmentName":"","alignmentIndex":-1,"alignmentReason":"","sequenceCount":0,"bones":0,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":false,"alignmentIsIdentity":false,"drawPass":"app","contractOk":false}
+  OK   probe non-viewmodel reason = path is not a viewmodel
+-- the FOV contract --
+  OK   probe default FOV = 90
+  OK   probe FOV low = 40
+  OK   probe FOV high = 120
+  OK   probe legacy FOV default = 80
+  OK   probe legacy 80 migrates to 90 = 90
+  OK   probe an explicit 101 is kept = 101
+  fov 90: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":true,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 90 is kept = 90
+  OK   probe fov 90 is not clamped = false
+  fov 10: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":40,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 10 clamps to 40 = 40
+  OK   probe fov 10 reports the clamp = true
+  fov 200: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":120,"fovGiven":true,"fovClamped":true,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe fov 200 clamps to 120 = 120
+-- the hand matrices, and that the mirror is the only difference --
+  hand right: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"right","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe right hand X basis = 1
+  OK   probe hand mirror probe = true
+  OK   probe mirror touches only X = true
+  hand left: {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","status":"ok","reason":"","mdlReadable":true,"vvdPresent":true,"vtxPresent":true,"vtxVariant":"dx90","resourceComplete":true,"companionsComplete":true,"meshReady":true,"meshReason":"","meshVertices":9723,"meshIndices":9723,"meshTriangleList":true,"materialCount":3,"materialResolved":0,"flatColorFallback":true,"attachments":5,"declaredAttachments":5,"validAttachments":5,"partialAttachments":0,"invalidAttachments":0,"attachmentStatus":"all attachments valid","alignmentName":"weapon_bone","alignmentIndex":0,"alignmentReason":"placement attachment 'weapon_bone' is valid","sequenceCount":7,"bones":45,"defaultFov":90,"fov":90,"fovGiven":false,"fovClamped":false,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"migratedLegacyFov":90,"chosenFovKept":101,"hand":"left","rightHandX":1,"leftHandX":-1,"handProbePassed":true,"mirrorOnlyX":true,"fallbackStable":true,"alignmentIsIdentity":true,"drawPass":"app","contractOk":true}
+  OK   probe left hand is selected = left
+  OK   probe left hand X basis = -1
+-- the FOV contract probe --
+  {"constants":true,"clampsAgree":true,"boundaries":true,"nanPreserved":true,"legacyEightyMigrates":true,"defaultIsNinety":true,"explicitClamped":true,"probeValues":9,"defaultFov":90,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"contractOk":true}
+  OK   fov probe contractOk = true
+  OK   fov probe probeValues = 9
+  OK   fov probe defaultFov = 90
+  OK   fov probe legacyEightyMigrates = true
+-- the fixture bytes must be reproducible from the generator --
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":61,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/fixture-regen"],"targetCount":1}
+  OK   the committed fixtures are identical to a fresh generation
+
+=== 4/7 a missing resource disables the ViewModel pass, not the run ===
+  novm rc=0 bmp=2582406
+  vmmissing rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_ada_does_not_exist.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel was not found
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_ada_does_not_exist.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmmissing rc = 0
+  OK   product vmmissing drawn = 0
+  OK   product vmmissing reason = viewmodel was not found
+  OK   product vmmissing resourceStatus contains resourceStatus=incomplete(
+  OK   product vmmissing afterWorld = 0
+  OK   product vmmissing viewModelPass = 0
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a missing ViewModel leaves the frame alone
+-- the fixture root: a damaged attachment, an unplaceable name, a missing companion --
+  vmfdamaged rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_fixture_damaged.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=degraded(valid=0,partial=0,invalid=1,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+  OK   product fixture damaged rc = 0
+  OK   product fixture damaged attachmentStatus contains attachmentStatus=degraded(
+  OK   product fixture damaged invalid count contains invalid=1
+  OK   product fixture damaged drawn = 0
+  OK   product fixture damaged alignment contains alignment=-
+  vmfnoanchor rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_fixture_noanchor.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=ok(valid=1,partial=0,invalid=0,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+  OK   product fixture noanchor rc = 0
+  OK   product fixture noanchor attachmentStatus contains attachmentStatus=ok(valid=1
+  OK   product fixture noanchor alignment = -
+  vmfnocompanion rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_fixture_nocompanion.mdl resourceStatus=incomplete(mdl=1,vvd=0,vtx=0,mesh=0) attachmentStatus=ok(valid=1,partial=0,invalid=0,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+  OK   product fixture nocompanion rc = 0
+  OK   product fixture nocompanion drawn = 0
+  FAIL product fixture nocompanion reason = the viewmodel request produced no mesh, expected viewmodel companions are missing
+  OK   product fixture nocompanion resourceStatus contains resourceStatus=incomplete(
+restore build rc=0
+MUTATION-CAUGHT=PASS (companion-missing turns this step red on 'companions are missing')
+
+###################################################################
+=== mutation: draw-skipped ===
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/novm.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/novm.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/novm.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/novm-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmmissing.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmmissing.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmmissing.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmmissing-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfdamaged.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfdamaged.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfdamaged.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfdamaged-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnoanchor.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnoanchor.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnoanchor.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnoanchor-settings.ini"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":52,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnocompanion.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnocompanion.csv","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnocompanion.token"],"targetCount":3}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfnocompanion-settings.ini"],"targetCount":1}
+patched native/src/native_renderer.cpp
+mutation build rc=0
+
+=== 2/7 the product's runtime reading and the pass order ===
+  ..   vm90 holds a frame from token 8e150a87c1e3fd5e, not 73c5bd762f758b42; re-capturing
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm90.csv"],"targetCount":2}
+  vm90 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vm90 rc = 0
+  OK   product vm90 path contains viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl
+  OK   product vm90 resourceStatus contains resourceStatus=ok
+  OK   product vm90 attachmentStatus contains attachmentStatus=ok(valid=
+  OK   product vm90 sequenceCount = 7 (>= 1)
+  OK   product vm90 fov = 90.0
+  OK   product vm90 hand = right
+  FAIL product vm90 drawn = 0, expected >= 1
+  OK   product vm90 depthWrite = 1
+  OK   product vm90 depthFunc = less_equal
+  FAIL product vm90 reason = the pass never ran, expected drawn
+  FAIL product vm90 afterWorld = 0, expected 1
+  FAIL product vm90 viewModelPass = 0, expected > 1
+  FAIL product vm90 drawCalls = 0, expected >= 1
+  OK   product vm90 vertices = 9723 (>= 3)
+  OK   product vm90 alignment contains alignment=weapon_bone
+  FAIL product vm90 centre on screen = gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0, expected it to contain onScreen=1
+-- with no flag and no stored value the pass takes the compiled default --
+  vmdefault rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmdefault rc = 0
+  OK   product vmdefault fov (no flag, no stored value -> compiled default) = 90.0
+  OK   product vmdefault settingsFov (nothing was stored to read) = 90.0
+-- a stored value is the source of truth, and an old 80 migrates --
+  vmstored rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=60.0 settingsFov=60.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vmstored rc = 0
+  OK   product vmstored fov (a stored 60 is honoured, not overridden by 90) = 60.0
+  vmlegacy rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmlegacy rc = 0
+  OK   product vmlegacy fov (a stored legacy 80 migrates to 90) = 90.0
+
+=== 3/7 first-person projection and the hand mirror ===
+  ..   novm holds a frame from token 0109af4fd37bfaf8, not 73c5bd762f758b42; re-capturing
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/novm.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/novm.csv"],"targetCount":2}
+  novm rc=0 bmp=2582406
+  OK   product novm rc = 0
+  vm90 reused (captured by this build, token 73c5bd762f758b42)
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  ..   vm40 holds a frame from token 8e150a87c1e3fd5e, not 73c5bd762f758b42; re-capturing
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm40.csv"],"targetCount":2}
+  vm40 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vm40 fov = 40.0
+  ..   vm120 holds a frame from token 8e150a87c1e3fd5e, not 73c5bd762f758b42; re-capturing
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vm120.csv"],"targetCount":2}
+  vm120 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product vm120 fov = 120.0
+  ..   vmleft holds a frame from token 8e150a87c1e3fd5e, not 73c5bd762f758b42; re-capturing
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmleft.csv"],"targetCount":2}
+  vmleft rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=left drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product vmleft hand = left
+  ..   vmfov10 holds a frame from token 8e150a87c1e3fd5e, not 73c5bd762f758b42; re-capturing
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov10.csv"],"targetCount":2}
+  vmfov10 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=40.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1
+  OK   product fov 10 is clamped to 40 = 40.0
+  ..   vmfov200 holds a frame from token 8e150a87c1e3fd5e, not 73c5bd762f758b42; re-capturing
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":51,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.bmp","D:/TF2_Native_Worktrees/render-gate-recheck/evidence/fast/render-mutation/viewmodel/vmfov200.csv"],"targetCount":2}
+  vmfov200 rc=0 bmp=2582406
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=120.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+  gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1
+  OK   product fov 200 is clamped to 120 = 120.0
+  ..   capture ticks: 0 16 0 16 0 16 0
+  ..   capture sceneTicks: 10252 10268 10252 10268 10252 10268 10252  (measured points: 10252 10268)
+  OK   all 7 compared frames came from a measured capture point = 7
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 0.5000; max_delta=0 is below 100
+  FAIL the weapon appears against the frame without it (rc=1)
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 3.0000; max_delta=0 is below 100
+  FAIL FOV 40 and FOV 90 are different pictures (rc=1)
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 0.5000; max_delta=0 is below 100
+  FAIL FOV 90 and FOV 120 are different pictures (rc=1)
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=diff_percent=0.0000 is below 0.2000; max_delta=0 is below 100
+  FAIL the left hand is a different picture from the right (rc=1)
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a clamped FOV 10 renders exactly what FOV 40 renders
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   a clamped FOV 200 renders exactly what FOV 120 renders
+restore build rc=0
+MUTATION-CAUGHT=PASS (draw-skipped turns this step red on 'product vm90 drawn')
+
+=== the mutated sources must be back where they started ===
+  OK   every mutated source is byte-identical to its pre-mutation state
+
+=== mutation summary ===
+  attachment-bone: CAUGHT
+  fov-default: CAUGHT
+  hand-matrix: CAUGHT
+  companion-missing: CAUGHT
+  draw-skipped: CAUGHT
+VIEWMODEL-CONTRACT-MUTATION=PASS (5/5 mutations caught)
