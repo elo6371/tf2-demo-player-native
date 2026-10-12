@@ -382,7 +382,21 @@ ViewModelRequest buildRequest(const AssetRoot& root, const std::string& path,
   // not gate the draw: a model whose materials are missing is still drawable in
   // flat colour, and the reading is what names that state rather than hiding it
   // behind an identical picture.
-  request.materials = resolveViewModelMaterialChain(root, inspection);
+  request.materialReading = resolveViewModelMaterialChain(root, inspection);
+  // The material chain, resolved against the same inspection. `descriptorIndex`
+  // is the descriptor the mesh was built from, and it is passed rather than
+  // assumed: `request.mesh.descriptorIndex` is set by the builder, so the slot
+  // the picture uses is read from the mesh table for *that* descriptor instead of
+  // from a default that happens to agree with it on the shipped models.
+  request.materials = resolveViewModelMaterialTable(root, inspection.metadata,
+    request.resources.meshReady ? static_cast<std::int32_t>(request.mesh.descriptorIndex) : -1);
+  // `materialCount` is a property of the MDL and is final here. `materialResolved`
+  // and `flatColorFallback` are not: they depend on whether the decoder produced
+  // pixels, which happens in the caller, on the device side, one slot at a time.
+  // `applyViewModelMaterialResult` is that half.
+  request.resources.materialCount = request.materials.materialSlots();
+  request.resources.materialResolved = 0;
+  request.resources.flatColorFallback = true;
 
   request.status = ViewModelStatus::Ok;
   request.reason.clear();
@@ -399,6 +413,19 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
 ViewModelRequest buildViewModelCompanionRequest(const AssetRoot& root, const std::string& path,
     ViewModelHand hand, std::optional<float> fov) {
   return buildRequest(root, path, hand, fov, false);
+}
+
+void applyViewModelMaterialResult(ViewModelRequest& request) {
+  request.resources.materialResolved = request.materials.materialResolved();
+  // The fallback reading is about the *drawn* range, not about the model: a
+  // ViewModel with three resolved slots and a fourth that failed still draws a
+  // texture for the mesh that was built, and calling that "flat colour fallback"
+  // would name the wrong thing. The drawn slot is the one the picture uses.
+  const auto drawn = request.materials.drawnSlot;
+  const bool drawnHasMaterial = drawn >= 0
+    && static_cast<std::size_t>(drawn) < request.materials.slots.size()
+    && request.materials.slots[static_cast<std::size_t>(drawn)].pixelsDecoded;
+  request.resources.flatColorFallback = !drawnHasMaterial;
 }
 
 const char* viewModelAnimationStatusName(ViewModelAnimationStatus status) {

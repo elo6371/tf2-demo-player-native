@@ -51,6 +51,7 @@
 
 #include "asset_root.h"
 #include "model_loader.h"
+#include "viewmodel_material.h"
 #include "vmt_material.h"
 #include "vpk_archive.h"
 #include "vtf_texture.h"
@@ -137,64 +138,21 @@ std::string join(const std::vector<std::string>& values, const char* separator) 
   return out;
 }
 
-std::vector<std::uint8_t> readLooseFile(const std::filesystem::path& path) {
-  std::error_code ec;
-  if (!std::filesystem::is_regular_file(path, ec) || ec) return {};
-  const auto size = std::filesystem::file_size(path, ec);
-  if (ec || size == 0 || size > 256u * 1024u * 1024u) return {};
-  std::ifstream input(path, std::ios::binary);
-  if (!input) return {};
-  std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
-  input.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!input || static_cast<std::size_t>(input.gcount()) != bytes.size()) return {};
-  return bytes;
-}
-
-enum class ResourceSource { None, Loose, Vpk, Rejected };
-
-struct ResourceRead {
-  std::vector<std::uint8_t> bytes;
-  ResourceSource source = ResourceSource::None;
-};
+// The reader is the product's, not a second copy of it. Until 2026-10-12 this
+// file carried its own loose-file-then-archive walk, which meant the frozen
+// readings and the runtime table were produced by two implementations that had
+// no obligation to agree about precedence or about what "rejected" means. The
+// gate now asserts the two against each other for the same model and slot, and
+// that assertion would be circular if they shared nothing.
+using ResourceSource = tf2::native::ViewModelResourceSource;
+using ResourceRead = tf2::native::ViewModelResourceRead;
 
 const char* sourceName(ResourceSource source) {
-  switch (source) {
-    case ResourceSource::Loose: return "loose";
-    case ResourceSource::Vpk: return "vpk";
-    case ResourceSource::Rejected: return "rejected";
-    default: return "none";
-  }
+  return tf2::native::viewModelResourceSourceName(source);
 }
 
-// The read order the product uses for its own materials: loose file first,
-// then every archive that holds the key. `Rejected` is not "not found" -- it
-// means the asset root refused the path (it escapes the root), which is a
-// different defect and is counted separately.
 ResourceRead readResource(const tf2::native::AssetRoot& root, const std::string& resource) {
-  ResourceRead out;
-  const auto resolved = root.resolve(std::filesystem::u8path(resource));
-  if (resolved.empty()) {
-    out.source = ResourceSource::Rejected;
-    return out;
-  }
-  out.bytes = readLooseFile(resolved);
-  if (!out.bytes.empty()) {
-    out.source = ResourceSource::Loose;
-    return out;
-  }
-  std::vector<std::filesystem::path> holders;
-  root.archives().collectContaining(resource, holders);
-  for (const auto& holder : holders) {
-    const auto* archive = root.archives().find(holder);
-    if (!archive) continue;
-    auto bytes = archive->read(resource);
-    if (!bytes.empty()) {
-      out.bytes = std::move(bytes);
-      out.source = ResourceSource::Vpk;
-      return out;
-    }
-  }
-  return out;
+  return tf2::native::readViewModelResource(root, resource);
 }
 
 const char* resolutionName(tf2::native::ModelAssetResolution value) {
@@ -232,6 +190,12 @@ struct SlotReport {
   bool hasBumpmap = false;
   bool hasPhong = false;
   bool hasSelfIllum = false;
+  // `$translucent` / `$alphatest` as the VMT declares them. These are the two
+  // fields that decide whether the material's alpha channel is *used*: the
+  // texture format says the channel exists, the shader key says the engine reads
+  // it. Phase 1 of the ViewModel material pass honours exactly these two.
+  bool translucent = false;
+  bool alphaTest = false;
 };
 
 struct ModelReport {
@@ -259,6 +223,24 @@ struct ModelReport {
   bool hasSelfIllum = false;
   bool complete = false;
   std::string reason;
+  // The mesh table decode: which `mstudiotexture_t` slot the mesh that a draw
+  // descriptor names actually uses. Reported here because "the model has three
+  // slots and all three resolve" says nothing about which one the picture uses,
+  // and binding the wrong one is exactly as wrong as binding none.
+  bool meshTableAvailable = false;
+  std::string meshTableReason;
+  std::size_t modelStride = 0;
+  std::size_t meshStride = 0;
+  std::string modelStrideSource = "none";
+  bool modelStrideExercised = false;
+  bool meshStrideExercised = false;
+  std::size_t meshCount = 0;
+  std::size_t descriptorsValidated = 0;
+  std::int32_t drawnSlot = -1;
+  std::uint32_t drawnBodyPart = 0;
+  std::uint32_t drawnModel = 0;
+  std::uint32_t drawnMesh = 0;
+  std::uint32_t drawnLod = 0;
   std::vector<SlotReport> slots;
 };
 
@@ -334,6 +316,8 @@ SlotReport resolveSlot(const tf2::native::AssetRoot& root, std::size_t slot,
     report.hasBumpmap = !material.bumpMap.empty();
     report.hasPhong = material.phong;
     report.hasSelfIllum = material.selfIllum;
+    report.translucent = material.translucent;
+    report.alphaTest = material.alphaTest;
     std::string decodeError;
     const auto rgba = texture.decodeRgba(vtfRead.bytes, &decodeError);
     if (rgba.empty()) {
@@ -397,6 +381,27 @@ ModelReport buildModelReport(const tf2::native::AssetRoot& root, const std::stri
   report.mdlReadable = true;
   report.cdmaterials = inspection.metadata.cdTexturePaths;
   const auto& metadata = inspection.metadata;
+  // The descriptor the ViewModel mesh is built from: `buildModelMeshData` is
+  // called with index 0 when the model has a decodable mesh, so descriptor 0 is
+  // the one whose material the picture uses. Reported even when the mesh table
+  // could not be validated -- `-1` is then the reading, not a guess.
+  report.meshTableAvailable = metadata.meshMaterials.available;
+  report.meshTableReason = metadata.meshMaterials.reason;
+  report.modelStride = metadata.meshMaterials.modelStride;
+  report.meshStride = metadata.meshMaterials.meshStride;
+  report.modelStrideSource = metadata.meshMaterials.modelStrideSource;
+  report.modelStrideExercised = metadata.meshMaterials.modelStrideExercised;
+  report.meshStrideExercised = metadata.meshMaterials.meshStrideExercised;
+  report.meshCount = metadata.meshMaterials.meshCount;
+  report.descriptorsValidated = metadata.meshMaterials.descriptorsValidated;
+  if (!metadata.indices.empty()) {
+    const auto& descriptor = metadata.indices.front();
+    report.drawnBodyPart = descriptor.bodyPart;
+    report.drawnModel = descriptor.model;
+    report.drawnMesh = descriptor.mesh;
+    report.drawnLod = descriptor.lod;
+    report.drawnSlot = metadata.meshMaterials.slotFor(descriptor.bodyPart, descriptor.model, descriptor.mesh);
+  }
   report.materialCount = metadata.textureCandidates.size();
   for (std::size_t slot = 0; slot < metadata.textureCandidates.size(); ++slot) {
     const std::string& name = slot < metadata.textureNames.size() ? metadata.textureNames[slot] : std::string{};
@@ -426,7 +431,7 @@ ModelReport buildModelReport(const tf2::native::AssetRoot& root, const std::stri
     else if (slotReport.status == "oversized-texture") ++report.oversizedTextures;
     std::fprintf(stderr,
       "vm-material model=%s slot=%zu name=%s candidates=%s status=%s vmt=%s vmt_bytes=%zu vmt_source=%s"
-      " shader=%s base=%s vtf=%s vtf_bytes=%zu vtf_source=%s size=%ux%u format=%s decoded=%zu"
+      " shader=%s translucent=%d alphatest=%d base=%s vtf=%s vtf_bytes=%zu vtf_source=%s size=%ux%u format=%s decoded=%zu"
       " alpha=%d bumpmap=%d phong=%d selfillum=%d reason=%s\n",
       modelPath.c_str(), slot, name.empty() ? "<empty>" : name.c_str(),
       slotReport.tried.empty() ? "<none>" : slotReport.tried.c_str(),
@@ -434,6 +439,7 @@ ModelReport buildModelReport(const tf2::native::AssetRoot& root, const std::stri
       slotReport.vmtResource.empty() ? "-" : slotReport.vmtResource.c_str(),
       slotReport.vmtBytes, slotReport.vmtSource,
       slotReport.vmtShader.empty() ? "-" : slotReport.vmtShader.c_str(),
+      slotReport.translucent ? 1 : 0, slotReport.alphaTest ? 1 : 0,
       slotReport.baseTexture.empty() ? "-" : slotReport.baseTexture.c_str(),
       slotReport.vtfResource.empty() ? "-" : slotReport.vtfResource.c_str(),
       slotReport.vtfBytes, slotReport.vtfSource,
@@ -493,6 +499,20 @@ void printModelReport(const ModelReport& report) {
   std::printf(",\"has_phong\":%s", report.hasPhong ? "true" : "false");
   std::printf(",\"has_selfillum\":%s", report.hasSelfIllum ? "true" : "false");
   std::printf(",\"complete\":%s", report.complete ? "true" : "false");
+  std::printf(",\"mesh_table\":%s", report.meshTableAvailable ? "true" : "false");
+  std::printf(",\"model_stride\":%zu", report.modelStride);
+  std::printf(",\"mesh_stride\":%zu", report.meshStride);
+  std::printf(",\"model_stride_source\":\"%s\"", jsonEscape(report.modelStrideSource).c_str());
+  std::printf(",\"model_stride_exercised\":%s", report.modelStrideExercised ? "true" : "false");
+  std::printf(",\"mesh_stride_exercised\":%s", report.meshStrideExercised ? "true" : "false");
+  std::printf(",\"mesh_count\":%zu", report.meshCount);
+  std::printf(",\"descriptors_validated\":%zu", report.descriptorsValidated);
+  std::printf(",\"drawn_slot\":%d", report.drawnSlot);
+  std::printf(",\"drawn_bodypart\":%u", report.drawnBodyPart);
+  std::printf(",\"drawn_model\":%u", report.drawnModel);
+  std::printf(",\"drawn_mesh\":%u", report.drawnMesh);
+  std::printf(",\"drawn_lod\":%u", report.drawnLod);
+  std::printf(",\"mesh_table_reason\":\"%s\"", jsonEscape(report.meshTableReason).c_str());
   std::printf(",\"reason\":\"%s\"}\n", jsonEscape(report.reason).c_str());
 }
 
@@ -567,6 +587,15 @@ int main(int argc, char** argv) {
   for (const auto& model : requested) {
     const auto report = buildModelReport(assets, model);
     printModelReport(report);
+    std::fprintf(stderr,
+      "vm-mesh-material model=%s meshTable=%d modelStride=%zu(%s,exercised=%d) meshStride=%zu(exercised=%d) meshes=%zu"
+      " descriptorsValidated=%zu drawn=(bodyPart %u, model %u, mesh %u, lod %u) drawnSlot=%d reason=%s\n",
+      model.c_str(), report.meshTableAvailable ? 1 : 0, report.modelStride,
+      report.modelStrideSource.c_str(), report.modelStrideExercised ? 1 : 0, report.meshStride,
+      report.meshStrideExercised ? 1 : 0, report.meshCount,
+      report.descriptorsValidated, report.drawnBodyPart, report.drawnModel,
+      report.drawnMesh, report.drawnLod, report.drawnSlot,
+      report.meshTableReason.empty() ? "-" : report.meshTableReason.c_str());
     slots += report.materialCount;
     vmtResolved += report.vmtResolved;
     vtfResolved += report.vtfResolved;

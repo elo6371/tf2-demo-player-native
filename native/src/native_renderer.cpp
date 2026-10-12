@@ -59,8 +59,12 @@ struct ViewModelConstantsData {
   DirectX::XMFLOAT4X4 mvp;
   DirectX::XMFLOAT4 tint;
   DirectX::XMFLOAT4 skinInfo;
+  // x = 1 when this range has a texture bound at t0, 0 for the flat-colour
+  // fallback. y = 1 when the material's own `$alphatest` says to discard below
+  // 0.5. z and w are unused and kept so the buffer stays a multiple of 16.
+  DirectX::XMFLOAT4 material;
 };
-static_assert(sizeof(ViewModelConstantsData) == 96, "viewmodel constant buffer size");
+static_assert(sizeof(ViewModelConstantsData) == 112, "viewmodel constant buffer size");
 struct ModelGpuVertex {
   float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz;
   float weights[3]; std::uint8_t boneIndices[3]; std::uint8_t boneCount; std::uint8_t padding[1];
@@ -410,6 +414,7 @@ cbuffer ViewModelConstants : register(b0) {
   row_major float4x4 mvp;
   float4 tint;
   float4 skinInfo;
+  float4 material;
 };
 StructuredBuffer<float4x4> viewModelBones : register(t4);
 struct Input {
@@ -422,6 +427,7 @@ struct Input {
 struct Output {
   float4 position : SV_POSITION;
   float3 normal : NORMAL0;
+  float2 uv : TEXCOORD0;
   float4 colour : COLOR0;
 };
 Output main(Input input) {
@@ -451,16 +457,45 @@ Output main(Input input) {
   // the hand mirror is applied once, here, and never to the world skeleton.
   output.position = mul(local, mvp);
   output.normal = normalLocal;
+  // The mesh's own TEXCOORD0. It was decoded from the VVD from the first
+  // version of this pass and thrown away here, because the pixel shader had no
+  // texture to sample; the material chain is what made it worth carrying.
+  output.uv = input.uv;
   output.colour = tint;
   return output;
 }
 )HLSL";
+  // The material stage. Two things this shader is careful about:
+  //
+  //   * The fallback is a *branch on a constant*, not an unbound sampler. A
+  //     sampler with no resource is read as garbage, not as white, so a range
+  //     with no material would draw noise rather than the flat colour the gate
+  //     pins. `material.x` is the flag that keeps the two apart.
+  //   * The tint is the fallback colour, not a multiplier on the albedo. It was
+  //     chosen (0.78, 0.78, 0.84) when it *was* the weapon's colour; applying it
+  //     to a real albedo would darken a correct texture by 22% for no reason a
+  //     reader could see, and the two paths are already told apart by
+  //     `texturesUploaded` and `fallbackSlots` rather than by a brightness.
   static constexpr char viewModelPixelSource[] = R"HLSL(
-struct Input { float4 position : SV_POSITION; float3 normal : NORMAL0; float4 colour : COLOR0; };
+cbuffer ViewModelConstants : register(b0) {
+  row_major float4x4 mvp;
+  float4 tint;
+  float4 skinInfo;
+  float4 material;
+};
+Texture2D albedo : register(t0);
+SamplerState albedoSampler : register(s0);
+struct Input { float4 position : SV_POSITION; float3 normal : NORMAL0; float2 uv : TEXCOORD0; float4 colour : COLOR0; };
 float4 main(Input input) : SV_TARGET {
   float3 normal = normalize(input.normal);
   float diffuse = saturate(dot(normal, normalize(float3(-0.30, 0.42, 0.86))));
   float lighting = 0.55 + 0.45 * diffuse;
+  if (material.x > 0.5) {
+    float4 texel = albedo.Sample(albedoSampler, input.uv);
+    // `$alphatest`: the material's own key, not a threshold invented here.
+    if (material.y > 0.5 && texel.a < 0.5) discard;
+    return float4(texel.rgb * lighting, texel.a * input.colour.a);
+  }
   return float4(input.colour.rgb * lighting, input.colour.a);
 }
 )HLSL";
@@ -642,6 +677,25 @@ float4 main(Input input) : SV_TARGET {
     initStage_ = "createRasterState.viewModel";
     if (FAILED(device_->CreateRasterizerState(&viewModelRasterDescription,
         viewModelRasterizerState_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+    // The alpha state a `$translucent` material switches to. Created here rather
+    // than lazily at the first translucent range: a state object created inside
+    // the draw path would be a per-frame creation of exactly the kind this pass
+    // is now monitored for.
+    D3D11_BLEND_DESC viewModelBlendDescription{};
+    viewModelBlendDescription.RenderTarget[0].BlendEnable = TRUE;
+    viewModelBlendDescription.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    viewModelBlendDescription.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    viewModelBlendDescription.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    viewModelBlendDescription.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    viewModelBlendDescription.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    viewModelBlendDescription.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    viewModelBlendDescription.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    initStage_ = "createBlendState.viewModel";
+    if (FAILED(device_->CreateBlendState(&viewModelBlendDescription,
+        viewModelAlphaBlendState_.GetAddressOf()))) {
       lastError_ = E_FAIL;
       return false;
     }
@@ -1586,11 +1640,25 @@ static bool uploadViewModelMeshInto(ID3D11Device* device,
 }
 
 bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices) {
+  return uploadViewModelMesh(vertices, {});
+}
+
+bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ViewModelDrawRange>& ranges) {
   if (!uploadViewModelMeshInto(device_.Get(), vertices, viewModelVertexBuffer_,
       viewModelVertexCount_, viewModelMeshCenter_, viewModelMeshRadius_)) {
     viewModelVertexCount_ = 0;
     lastError_ = E_INVALIDARG;
     return false;
+  }
+  viewModelDrawRanges_.clear();
+  for (const auto& range : ranges) {
+    if (range.firstVertex >= viewModelVertexCount_) continue;
+    ViewModelDrawRange clamped = range;
+    const auto available = static_cast<std::uint32_t>(viewModelVertexCount_) - range.firstVertex;
+    clamped.vertexCount = std::min(range.vertexCount, available);
+    clamped.vertexCount -= clamped.vertexCount % 3u;
+    if (clamped.vertexCount != 0) viewModelDrawRanges_.push_back(std::move(clamped));
   }
   return true;
 }
@@ -1603,6 +1671,51 @@ bool Renderer::uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& ver
     return false;
   }
   return true;
+}
+
+bool Renderer::uploadViewModelMaterialTexture(const std::string& key,
+    const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+  if (!device_) { lastError_ = E_POINTER; return false; }
+  if (key.empty() || rgba.empty() || width == 0 || height == 0) { lastError_ = E_INVALIDARG; return false; }
+  // The whole point of the key. A second call for the same normalized path is a
+  // reuse: the SRV that is already there is returned rather than rebuilt, and
+  // `false` says so. Rebuilding here is the defect `texturesReused` exists to
+  // detect, so this is the one place that must not "just work anyway".
+  if (viewModelMaterialTextures_.find(key) != viewModelMaterialTextures_.end()) return false;
+  const std::size_t expected = static_cast<std::size_t>(width) * height * 4u;
+  if (rgba.size() < expected) { lastError_ = E_INVALIDARG; return false; }
+  D3D11_TEXTURE2D_DESC description{};
+  description.Width = width;
+  description.Height = height;
+  description.MipLevels = 1;
+  description.ArraySize = 1;
+  description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  description.SampleDesc.Count = 1;
+  description.Usage = D3D11_USAGE_IMMUTABLE;
+  description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+  D3D11_SUBRESOURCE_DATA data{};
+  data.pSysMem = rgba.data();
+  data.SysMemPitch = width * 4u;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+  if (FAILED(device_->CreateTexture2D(&description, &data, texture.GetAddressOf()))) {
+    lastError_ = E_FAIL;
+    return false;
+  }
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
+  if (FAILED(device_->CreateShaderResourceView(texture.Get(), nullptr, view.GetAddressOf()))) {
+    lastError_ = E_FAIL;
+    return false;
+  }
+  viewModelMaterialTextures_.emplace(key, std::move(view));
+  ++viewModelTexturesUploaded_;
+  return true;
+}
+
+void Renderer::clearViewModelMaterials() {
+  viewModelMaterialTextures_.clear();
+  // The upload counter is deliberately NOT reset. It is the reading that says how
+  // many GPU textures this pass created over the whole run; a reset would let a
+  // per-frame recreation read as a small number that keeps starting over.
 }
 
 bool Renderer::uploadViewModelBones(const std::vector<std::array<float, 16>>& boneMatrices) {
@@ -1796,7 +1909,6 @@ bool Renderer::drawViewModel() {
   constants.tint = XMFLOAT4(viewModelState_.tint[0], viewModelState_.tint[1],
     viewModelState_.tint[2], viewModelState_.tint[3]);
   constants.skinInfo = XMFLOAT4(static_cast<float>(effectiveBoneCount), 0.0f, 0.0f, 0.0f);
-  context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &constants, 0, 0);
   XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(viewModelMvp_.data()), mvp);
 
   // The pass's own depth policy. Depth is cleared first, so the weapon is drawn
@@ -1817,11 +1929,66 @@ bool Renderer::drawViewModel() {
   context_->VSSetConstantBuffers(0, 1, &constantsBuffer);
   context_->PSSetShader(viewModelPixelShader_.Get(), nullptr, 0);
   context_->PSSetConstantBuffers(0, 1, &constantsBuffer);
+  context_->PSSetSamplers(0, 1, &sampler_);
   // t4 is always bound, even when it holds no bones: an unbound structured
   // buffer is read as garbage, not as zeros.
   auto* boneView = viewModelBoneView_.Get();
   context_->VSSetShaderResources(4, 1, &boneView);
-  context_->Draw(viewModelVertexCount_, 0);
+
+  // One draw per material range. A range with no cached texture for its slot is
+  // the fallback: `material.x = 0` and the flat colour, which is why the
+  // fallback can never be mistaken for a texture that happened to be white.
+  // `viewModelDrawRanges_` empty (no range information was supplied) is the
+  // whole-buffer draw this pass issued before the material chain existed, and it
+  // is kept as that rather than turned into a one-range fallback: the two
+  // produce the same picture, and saying so costs a branch.
+  viewModelFallbackRanges_ = 0;
+  viewModelBoundSlots_ = 0;
+  viewModelBlendedRanges_ = 0;
+  viewModelAlphaTestedRanges_ = 0;
+  ID3D11ShaderResourceView* nullView = nullptr;
+  if (viewModelDrawRanges_.empty()) {
+    constants.material = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+    context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &constants, 0, 0);
+    context_->PSSetShaderResources(0, 1, &nullView);
+    context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+    context_->Draw(viewModelVertexCount_, 0);
+    viewModelFallbackRanges_ = 1;
+  } else {
+    std::vector<std::int32_t> boundSlots;
+    for (const auto& range : viewModelDrawRanges_) {
+      auto cached = range.materialKey.empty()
+        ? viewModelMaterialTextures_.end()
+        : viewModelMaterialTextures_.find(range.materialKey);
+      const bool textured = cached != viewModelMaterialTextures_.end();
+      constants.material = XMFLOAT4(textured ? 1.0f : 0.0f, range.alphaTest ? 1.0f : 0.0f, 0.0f, 0.0f);
+      context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &constants, 0, 0);
+      if (textured) {
+        auto* view = cached->second.Get();
+        context_->PSSetShaderResources(0, 1, &view);
+        // Alpha blending is the material's own `$translucent`, not a default.
+        context_->OMSetBlendState(range.translucent ? viewModelAlphaBlendState_.Get() : nullptr,
+          nullptr, 0xffffffffu);
+        if (range.translucent) ++viewModelBlendedRanges_;
+        if (range.alphaTest) ++viewModelAlphaTestedRanges_;
+        // A bind served out of the cache. It counts only when a texture was
+        // actually handed to the pass -- an unbound fallback range is not a
+        // reuse of anything.
+        ++viewModelTexturesReused_;
+        if (std::find(boundSlots.begin(), boundSlots.end(), range.slot) == boundSlots.end()) {
+          boundSlots.push_back(range.slot);
+        }
+      } else {
+        context_->PSSetShaderResources(0, 1, &nullView);
+        context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+        ++viewModelFallbackRanges_;
+      }
+      context_->Draw(range.vertexCount, range.firstVertex);
+    }
+    viewModelBoundSlots_ = boundSlots.size();
+  }
+  context_->PSSetShaderResources(0, 1, &nullView);
+  context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
 
   ++viewModelDrawCount_;
   ++viewModelDrawCallCount_;
@@ -2346,6 +2513,17 @@ void Renderer::shutdown() {
   viewModelWeaponState_ = ViewModelDrawState{};
   viewModelWeaponDrawReason_ = "the weapon body pass never ran";
   viewModelWeaponCenterClip_.fill(0.0f);
+  viewModelDrawRanges_.clear();
+  // The cache goes with the device that owns the textures. Unlike the upload
+  // counter, `viewModelTexturesReused_` is reset too: a reuse is a statement
+  // about a texture that exists, and after a device reset none do.
+  viewModelMaterialTextures_.clear();
+  viewModelTexturesReused_ = 0;
+  viewModelFallbackRanges_ = 0;
+  viewModelBoundSlots_ = 0;
+  viewModelBlendedRanges_ = 0;
+  viewModelAlphaTestedRanges_ = 0;
+  viewModelAlphaBlendState_.Reset();
   viewModelBoneView_.Reset();
   viewModelBoneBuffer_.Reset();
   viewModelBoneCapacity_ = 0;

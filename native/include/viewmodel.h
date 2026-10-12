@@ -7,6 +7,7 @@
 
 #include "animation_binding.h"
 #include "model_loader.h"
+#include "viewmodel_material.h"
 
 namespace tf2::native {
 
@@ -145,7 +146,18 @@ struct ViewModelRequest {
   std::string alignmentReason;
   ModelMeshData mesh;
   std::vector<ModelBone> bones;
-  ViewModelMaterialReading materials;
+  // Resource reachability reading retained for the original ViewModel and
+  // weapon-body contracts. The runtime material table below is the product
+  // draw-pass input; keeping these separate prevents a slot table from being
+  // mistaken for a VMT/VTF reachability verdict.
+  ViewModelMaterialReading materialReading;
+  // The material chain for this model, resolved where the inspection is still
+  // alive. It belongs on the request rather than being re-derived by the caller
+  // for the same reason the mesh and the bone list do: the caller has no MDL to
+  // re-read, and a second walk of the VPK per frame is the thing this structure
+  // exists to prevent. The pixels are NOT here -- the caller decodes and uploads
+  // one slot at a time, because that is where the device is.
+  ViewModelMaterialTable materials;
 };
 
 std::array<float, 12> viewModelHandMatrix(ViewModelHand hand);
@@ -173,6 +185,11 @@ std::int32_t selectViewModelAlignment(ViewModelRequest& request,
 
 ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string& path,
   ViewModelHand hand, std::optional<float> fov = std::nullopt);
+
+// The half of the resource block that depends on the pixel decode. Called after
+// the decode pass, which lives on the device side; `buildViewModelRequest` cannot
+// fill these two because it never asks the decoder for pixels.
+void applyViewModelMaterialResult(ViewModelRequest& request);
 
 // The same request for the model a ViewModel ENTITY names as its own, which is
 // `models/weapons/c_models/c_<class>_arms.mdl` on every shipped first-person

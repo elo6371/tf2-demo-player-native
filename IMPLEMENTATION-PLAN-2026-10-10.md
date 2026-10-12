@@ -32,7 +32,7 @@
 ### 当前未完成
 
 1. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
-2. ViewModel 第一人称 draw pass 和 T2.5 动画输入拒绝契约已接入；材质/VMT/VTF、真实游戏画面对照和实体序列到 `v_*.mdl` 的真实映射仍未闭环。
+2. ViewModel 第一人称 draw pass 和 T2.5 动画输入拒绝契约已接入；材质/VMT/VTF 已在分支 `task/viewmodel-material-render`（AI-B / T1）接入产品 draw pass（未合并主线，见下），真实游戏画面对照、实体序列到 `v_*.mdl` 的真实映射和 phong/bump/selfillum 仍未闭环。
 3. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
 4. Demo 音频的 sound index 到 WAV 的 tick 对齐、TempEntity/PCF、过滤规则未闭环。
 5. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
@@ -47,7 +47,13 @@
 
 ### 清单三交付状态（2026-10-12）
 
-`task/viewmodel-materials@f795992` 已整合为 `e584052`。`viewmodel_material_probe` 复用产品材质解析链，门禁覆盖真实 VPK 模型和可再生缺陷夹具；整合主线正常门禁为 159 条断言通过，来源分支的 6/6 mutation 和 `verify-render.sh` 8/8 已通过。资源解析与 BC1/BC3 像素解码闭合，但产品 ViewModel draw pass 尚未读取这些材质，人工画面对照和高级 shader 效果仍未完成。
+`task/viewmodel-materials@f795992` 已整合为 `e584052`。`viewmodel_material_probe` 复用产品材质解析链，门禁覆盖真实 VPK 模型和可再生缺陷夹具；整合主线正常门禁为 159 条断言通过，来源分支的 6/6 mutation 和 `verify-render.sh` 8/8 已通过。资源解析与 BC1/BC3 像素解码闭合；产品 draw pass 尚未读取这些材质的缺口已由下方 T1 分支补上（未合并主线），人工画面对照和高级 shader 效果仍未完成。
+
+### ViewModel 材质接入交付状态（AI-B / T1，2026-10-12，分支未合并）
+
+`task/viewmodel-material-render`（worktree `D:\TF2_Native_Worktrees\viewmodel-material-render`，基线 `origin/p0-entity-protocol@9a8387b`）把清单三的解码链接入实际 ViewModel draw pass：每个材质槽有运行时状态，GPU 纹理按规范化 VTF 资源路径缓存并在每帧复用（长跑 149 帧 `texturesUploaded=2`、`texturesReused=149`），缺失槽进入具名 fallback；新增九项稳定读数与 `--viewmodel-material-slot` / `--viewmodel-material-missing-slot` / `--viewmodel-flat-color` 覆盖开关。像素对照必须在 `--start-paused --capture-tick 0` 冻结世界下取得——实测 `--capture-tick` 的落点随帧时机浮动（同一个值落在 tick 200/201/202，世界内容差异可达全帧 3.5%），长跑不可作为像素对照。专项门禁 220 条断言、10/10 mutation；phong/bump/selfillum 未实现，读数逐帧标 `*AppliedRanges=0`，防止把 VMT 声明当支持。
+
+剩余：人工画面对照、跨机器抓帧、phong/bump/selfillum、多帧像素稳定性；本项未合并主线，总链不因本项重跑。
 
 ### T1 交付与验收状态（2026-10-10）
 

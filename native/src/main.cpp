@@ -715,6 +715,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // as the A/B control that makes "the body changed the picture" a measured
   // statement instead of a claim. See the `--viewmodel-weapon-body` parse site.
   bool viewModelWeaponBodyEnabled = true;
+
+  // Which material slot the pass binds. Negative = "the slot the drawn mesh
+  // names", which is the only value a natural run has.
+  //
+  // The override exists because the negative cases the task must prove are not
+  // reachable on the shipped input: all 36 shipped ViewModels resolve every slot,
+  // and the only two `$translucent` slots both sit on meshes the pass does not
+  // draw. A run that could only ever exercise slot 0 could not tell "alpha works"
+  // from "alpha is never reached", so the override makes the alpha branch
+  // reachable -- and every reading line reports `slotOverride=`, so an overridden
+  // run cannot be mistaken for a natural one.
+  std::int32_t viewModelMaterialSlotOverride = -1;
+  // Forces one slot into the `MissingMaterial` state before the pass runs, so
+  // the fallback branch is reachable. Negative = no injection. See the
+  // `--viewmodel-material-missing-slot` parse site for why the input this
+  // represents cannot be shipped as a fixture.
+  std::int32_t viewModelMaterialMissingSlot = -1;
+  // Forces the untinted path: every range is emitted with an empty key, so the
+  // pass draws the flat colour and samples nothing.
+  //
+  // This is the control the pixel claim is measured against, and it is the same
+  // state an unresolved slot reaches -- deliberately, because a control that took
+  // a different route than the thing it controls would leave "the pixels changed"
+  // and "the fallback is stable" as two separate claims about two separate code
+  // paths. Here they are the same code path, measured twice.
+  bool viewModelFlatColor = false;
   bool viewModelArgumentRejected = false;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -827,6 +853,54 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         }
       } else if (wcscmp(arguments[i], L"--viewmodel-sequence") == 0) {
         viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-material-slot") == 0 && i + 1 < argumentCount) {
+        // An INPUT OVERRIDE, reported on every material reading line as
+        // `slotOverride=`, for the same reason `--viewmodel-sequence` is: the
+        // shipped viewmodels draw ONE descriptor, so only one slot's material can
+        // reach the screen naturally, and the slots that a model declares are not
+        // therefore uninteresting -- two of the 144 shipped ViewModel material
+        // slots are `$translucent` glass (v_sapper_spy slot 2, v_syringegun_medic
+        // slot 2) and both sit on a mesh the pass does not draw. Naming the slot
+        // makes the material path observable for any of them without pretending
+        // the default changed.
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) {
+          viewModelMaterialSlotOverride = static_cast<std::int32_t>(parsed);
+        } else {
+          viewModelArgumentRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--viewmodel-material-slot") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-material-missing-slot") == 0 && i + 1 < argumentCount) {
+        // A LABELLED FAULT INJECTION, and it exists because the honest input for
+        // this state does not ship: all 36 shipped ViewModels resolve every
+        // material slot, and the 10 fixtures that DO carry the defect have no
+        // geometry, so no fixture can reach the draw pass at all.
+        //
+        // So "a material that does not resolve falls back rather than drawing
+        // garbage" cannot be observed on any input this machine has. What it can
+        // be observed on is the state itself, forced here: the named slot is put
+        // into the same status and the same cleared fields the resolver produces
+        // for a genuinely absent material, and the reading line reports
+        // `missingSlotInjected=`, so an injected run cannot be read as a natural
+        // one. A test that could only ever see resolving materials would not know
+        // the fallback branch is reachable at all.
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) {
+          viewModelMaterialMissingSlot = static_cast<std::int32_t>(parsed);
+        } else {
+          viewModelArgumentRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--viewmodel-material-missing-slot") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-flat-color") == 0) {
+        // The control for the pixel claim: the same draw with no material bound,
+        // which is the picture this pass produced before the material chain
+        // existed. Without it "the texture is bound" and "the texture changed the
+        // picture in a way nobody measured" are the same observation.
+        viewModelFlatColor = true;
       } else if (wcscmp(arguments[i], L"--audio-device") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const unsigned long parsed = std::wcstoul(arguments[++i], &end, 10);
@@ -1926,11 +2000,120 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // new state through the old model's geometry. Empty means "nothing is in it",
   // which is what a device reset leaves behind.
   std::string viewModelMeshBufferPath;
+  // Which material table the periodic trace should describe. Filled by the scene
+  // update, which is the only place that knows whether `--viewmodel`'s own model
+  // or the entity's companion won; a lambda reading `viewModelRequest` directly
+  // would report the model the pass was *told* to draw on a run where it drew the
+  // recording's. A pointer rather than a copy, because the tables own the slot
+  // vectors and the two requests outlive every frame.
+  struct ViewModelMaterialReadings {
+    const tf2::native::ViewModelMaterialTable* table = nullptr;
+    const tf2::native::ViewModelRequest* request = nullptr;
+    std::string decodeFailure;
+    std::size_t decodedSlots = 0;
+    bool flatColorForced = false;
+    std::int32_t slotOverride = -1;
+    std::int32_t missingSlotInjected = -1;
+    bool materialPassRan = false;
+  } viewModelMaterialReadings;
+
+  // The ranges the pass draws, from the resolved table. One range today, because
+  // the ViewModel mesh is built from one VTX index descriptor; the plumbing is a
+  // list because the material chain is per-slot, and a second descriptor would
+  // otherwise have to re-derive which slot it belongs to.
+  //
+  // `--viewmodel-flat-color` empties the key on purpose: it is the control the
+  // pixel claim is measured against, and it is the same state a slot that failed
+  // to resolve reaches, so the control and the fallback cannot diverge.
+  const auto viewModelDrawRangesFor = [&](const tf2::native::ViewModelRequest& request) {
+    std::vector<tf2::native::ViewModelDrawRange> ranges;
+    if (!request.resources.meshReady || request.mesh.vertices.size() < 3) return ranges;
+    tf2::native::ViewModelDrawRange range;
+    range.firstVertex = 0;
+    range.vertexCount = static_cast<std::uint32_t>(request.mesh.vertices.size());
+    const std::int32_t slot = viewModelMaterialSlotOverride >= 0
+      ? viewModelMaterialSlotOverride : request.materials.drawnSlot;
+    if (!viewModelFlatColor && slot >= 0
+        && static_cast<std::size_t>(slot) < request.materials.slots.size()) {
+      const auto& materialSlot = request.materials.slots[static_cast<std::size_t>(slot)];
+      if (materialSlot.pixelsDecoded && !materialSlot.vtfPath.empty()) {
+        range.slot = slot;
+        range.materialKey = materialSlot.vtfPath;
+        range.translucent = materialSlot.translucent;
+        range.alphaTest = materialSlot.alphaTest;
+      }
+    }
+    ranges.push_back(std::move(range));
+    return ranges;
+  };
   const auto ensureViewModelMesh = [&](const std::string& path,
-      const std::vector<tf2::native::ModelDrawVertex>& vertices) {
+      tf2::native::ViewModelRequest& request) {
     if (!path.empty() && viewModelMeshBufferPath == path) return true;
-    const bool uploaded = renderer.uploadViewModelMesh(vertices);
+    // The injection, before anything reads the table: it has to land where the
+    // resolver's own verdict would land -- the status, the cleared pixel flag,
+    // and the cleared texture path -- or the fallback would be reached by a
+    // different route than a genuine failure takes, and the two would stop being
+    // evidence for each other.
+    std::int32_t missingSlotApplied = -1;
+    if (viewModelMaterialMissingSlot >= 0
+        && static_cast<std::size_t>(viewModelMaterialMissingSlot) < request.materials.slots.size()) {
+      auto& injected = request.materials.slots[static_cast<std::size_t>(viewModelMaterialMissingSlot)];
+      injected.status = tf2::native::ViewModelMaterialStatus::MissingMaterial;
+      injected.reason = "injected by --viewmodel-material-missing-slot";
+      injected.pixelsDecoded = false;
+      injected.vtfPath.clear();
+      injected.baseTexture.clear();
+      injected.alpha = false;
+      injected.translucent = false;
+      injected.alphaTest = false;
+      injected.bump = false;
+      injected.phong = false;
+      injected.selfIllum = false;
+      missingSlotApplied = viewModelMaterialMissingSlot;
+    }
+    // The material pass first: the ranges are derived from what the decoder
+    // produced, so running it after the upload would build ranges against a table
+    // whose `pixelsDecoded` flags are all still false and bind nothing.
+    const std::int32_t uploadSlot = viewModelFlatColor ? -1
+      : (viewModelMaterialSlotOverride >= 0 ? viewModelMaterialSlotOverride : request.materials.drawnSlot);
+    const auto summary = tf2::native::decodeViewModelMaterialSlots(request.materials, uploadSlot,
+      [&](const std::string& key, std::uint32_t width, std::uint32_t height,
+          const std::vector<std::uint8_t>& rgba) {
+        return renderer.uploadViewModelMaterialTexture(key, rgba, width, height);
+      });
+    tf2::native::applyViewModelMaterialResult(request);
+    viewModelMaterialReadings.table = &request.materials;
+    viewModelMaterialReadings.request = &request;
+    viewModelMaterialReadings.decodeFailure = summary.firstFailure;
+    viewModelMaterialReadings.decodedSlots = summary.decoded;
+    viewModelMaterialReadings.flatColorForced = viewModelFlatColor;
+    viewModelMaterialReadings.slotOverride = viewModelMaterialSlotOverride;
+    viewModelMaterialReadings.missingSlotInjected = missingSlotApplied;
+    viewModelMaterialReadings.materialPassRan = true;
+    traceFmt("gpu: viewmodel materials path=%s slots=%zu resolved=%zu decoded=%zu decodeFailed=%zu uploadSlot=%d uploads=%zu cache=%zu drawnSlot=%d source=%s meshTable=%d meshStride=%zu meshStrideExercised=%d meshCount=%zu descriptorsValidated=%zu strideSource=%s reason=%s",
+      request.path.empty() ? "-" : request.path.c_str(),
+      request.materials.materialSlots(), request.materials.materialResolved(),
+      summary.decoded, summary.decodeFailed, uploadSlot, summary.uploaded,
+      renderer.viewModelMaterialCacheSize(), request.materials.drawnSlot,
+      request.materials.drawnSlotSource.empty() ? "-" : request.materials.drawnSlotSource.c_str(),
+      request.materials.meshTableAvailable ? 1 : 0, request.materials.meshStride,
+      request.materials.meshStrideExercised ? 1 : 0, request.materials.meshCount,
+      request.materials.descriptorsValidated,
+      request.materials.modelStrideSource.empty() ? "-" : request.materials.modelStrideSource.c_str(),
+      summary.firstFailure.empty()
+        ? (request.materials.drawnSlotReason.empty() ? "-" : request.materials.drawnSlotReason.c_str())
+        : summary.firstFailure.c_str());
+    const auto ranges = viewModelDrawRangesFor(request);
+    const bool uploaded = renderer.uploadViewModelMesh(request.mesh.vertices, ranges);
     viewModelMeshBufferPath = uploaded ? path : std::string();
+    traceFmt("gpu: viewmodel ranges path=%s ranges=%zu firstRange=(slot %d, %u vertices, textured=%d translucent=%d alphatest=%d) uploaded=%d",
+      request.path.empty() ? "-" : request.path.c_str(), ranges.size(),
+      ranges.empty() ? -1 : ranges.front().slot,
+      ranges.empty() ? 0u : ranges.front().vertexCount,
+      (!ranges.empty() && !ranges.front().materialKey.empty()) ? 1 : 0,
+      (!ranges.empty() && ranges.front().translucent) ? 1 : 0,
+      (!ranges.empty() && ranges.front().alphaTest) ? 1 : 0,
+      uploaded ? 1 : 0);
     return uploaded;
   };
   // The weapon body's own slot, built once per distinct path for the same reason
@@ -2121,8 +2304,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       viewModelState = viewModelDrawStateFor(viewModelRequest, viewModelLeftHand);
       if (viewModelRequest.status == tf2::native::ViewModelStatus::Ok
           && viewModelRequest.resources.meshReady) {
-        viewModelMeshUploaded = renderer.uploadViewModelMesh(viewModelRequest.mesh.vertices);
-        if (viewModelMeshUploaded) viewModelMeshBufferPath = viewModelRequest.path;
+        // Through the material pass, NOT straight to uploadViewModelMesh.
+        //
+        // The direct upload this replaces was a real defect rather than a
+        // shortcut: it put the mesh in the buffer and recorded the buffer's
+        // contents, so when the scene update reached `ensureViewModelMesh` for the
+        // same path the early-return fired and the material pass never ran. The
+        // drawn model then had no ranges at all, and `--viewmodel-material-slot`
+        // and `--viewmodel-material-missing-slot` were both silently ignored --
+        // the readings said `slotOverride=-1` on a run that had been given one.
+        // It went unnoticed because the shipped recording draws the *companion*,
+        // whose path differs from `--viewmodel`, so the pass ran for that one.
+        viewModelMeshUploaded = ensureViewModelMesh(viewModelRequest.path, viewModelRequest);
         viewModelState.enabled = viewModelMeshUploaded;
         if (!viewModelMeshUploaded) viewModelState.reason = "the viewmodel mesh did not upload";
       } else {
@@ -2300,6 +2493,52 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       viewModelLeftHand ? "left" : "right",
       renderer.viewModelDrawCount(),
       renderer.viewModelDrawReason().c_str());
+    // The nine material readings, on one line, every sample.
+    //
+    // Eight of the nine describe the table the pass was handed; `texturesUploaded`
+    // and `texturesReused` are the renderer's own counters, which is why they can
+    // prove "no per-frame recreation" and the table alone cannot: a table that
+    // resolved a slot looks identical whether the texture behind it was created
+    // once or sixty times a second. `uploaded` is monotonic for the life of the
+    // process; `reused` counts binds that found the key already in the cache, so a
+    // steady `reused>0 uploaded` across frames is the reading that says so.
+    //
+    // `passRan=0` is reported rather than omitted: a run that never reached the
+    // upload would otherwise print the same zeros as a model with no materials,
+    // and those are different states.
+    //
+    // `phongSlots`/`bumpSlots`/`selfillumSlots` count what the RESOURCE SET
+    // DECLARES, not what this pass applies -- on the shipped arms every slot
+    // declares both a bumpmap and a phong exponent, so those readings are 3 while
+    // the shader reads none of them. They are printed next to `*Applied=0`
+    // because a reader who saw `phongSlots=3` alone could take it for support.
+    // Phase 1 is albedo, alpha and the fallback; phong, bump and selfillum are
+    // NOT implemented, and this line says so on every frame rather than leaving
+    // it to a document.
+    const auto& materialTable = viewModelMaterialReadings.table;
+    traceFmt("gpu: viewmodel materialReadings passRan=%d materialSlots=%zu materialResolved=%zu texturesUploaded=%zu texturesReused=%zu fallbackSlots=%zu alphaSlots=%zu alphaAppliedRanges=%zu phongSlots=%zu phongAppliedRanges=0 bumpSlots=%zu bumpAppliedRanges=0 selfillumSlots=%zu selfillumAppliedRanges=0 decodedSlots=%zu drawRanges=%zu fallbackRanges=%zu boundSlots=%zu blendedRanges=%zu alphaTestedRanges=%zu flatColor=%d slotOverride=%d missingSlotInjected=%d decodeFailure=%s",
+      viewModelMaterialReadings.materialPassRan ? 1 : 0,
+      materialTable ? materialTable->materialSlots() : 0u,
+      materialTable ? materialTable->materialResolved() : 0u,
+      renderer.viewModelTexturesUploaded(),
+      renderer.viewModelTexturesReused(),
+      materialTable ? materialTable->fallbackSlots() : 0u,
+      materialTable ? materialTable->alphaSlots() : 0u,
+      renderer.viewModelBlendedRanges() + renderer.viewModelAlphaTestedRanges(),
+      materialTable ? materialTable->phongSlots() : 0u,
+      materialTable ? materialTable->bumpSlots() : 0u,
+      materialTable ? materialTable->selfillumSlots() : 0u,
+      viewModelMaterialReadings.decodedSlots,
+      renderer.viewModelDrawRangeCount(),
+      renderer.viewModelFallbackRanges(),
+      renderer.viewModelBoundSlots(),
+      renderer.viewModelBlendedRanges(),
+      renderer.viewModelAlphaTestedRanges(),
+      viewModelMaterialReadings.flatColorForced ? 1 : 0,
+      viewModelMaterialReadings.slotOverride,
+      viewModelMaterialReadings.missingSlotInjected,
+      viewModelMaterialReadings.decodeFailure.empty()
+        ? "-" : viewModelMaterialReadings.decodeFailure.c_str());
     // The draw-order reading: the world pass is ordinal 1 and the ViewModel pass
     // must be later. Without this, "world then ViewModel" would only be a claim
     // about the order of two statements in draw().
@@ -3028,16 +3267,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
                 viewModelWeaponBody.request.sequenceLabels.size(),
                 viewModelWeaponBody.request.bones.size(),
                 viewModelWeaponBody.request.mesh.vertices.size(),
-                viewModelWeaponBody.request.materials.slots,
-                viewModelWeaponBody.request.materials.vmtResolved,
-                viewModelWeaponBody.request.materials.vtfResolved,
-                viewModelWeaponBody.request.materials.named,
+                viewModelWeaponBody.request.materialReading.slots,
+                viewModelWeaponBody.request.materialReading.vmtResolved,
+                viewModelWeaponBody.request.materialReading.vtfResolved,
+                viewModelWeaponBody.request.materialReading.named,
                 viewModelWeaponBody.request.alignmentName.empty()
                   ? "-" : viewModelWeaponBody.request.alignmentName.c_str(),
                 viewModelWeaponBody.request.reason.empty()
                   ? "-" : viewModelWeaponBody.request.reason.c_str());
             }
-            const auto& weaponMaterials = viewModelWeaponBody.request.materials;
+            const auto& weaponMaterials = viewModelWeaponBody.request.materialReading;
             viewModelWeaponStats.lastMaterialSlots = weaponMaterials.slots;
             viewModelWeaponStats.lastMaterialNamed = weaponMaterials.named;
             viewModelWeaponStats.lastMaterialVmt = weaponMaterials.vmtResolved;
@@ -3094,12 +3333,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           && viewModelCompanion.request.status == tf2::native::ViewModelStatus::Ok
           && viewModelCompanion.request.resources.meshReady
           && ensureViewModelMesh(viewModelCompanion.request.path,
-               viewModelCompanion.request.mesh.vertices);
+               viewModelCompanion.request);
         if (!companionDrawn && viewModelRequest.status == tf2::native::ViewModelStatus::Ok
             && viewModelRequest.resources.meshReady) {
           // The fallback needs its mesh back in the buffer when a companion held
           // it; a no-op on every run where it already does.
-          ensureViewModelMesh(viewModelRequest.path, viewModelRequest.mesh.vertices);
+          ensureViewModelMesh(viewModelRequest.path, viewModelRequest);
         }
         const tf2::native::ViewModelRequest& drawnRequest =
           companionDrawn ? viewModelCompanion.request : viewModelRequest;
