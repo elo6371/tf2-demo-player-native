@@ -2,7 +2,7 @@
 
 更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@e4c4d41`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、验收脚本修复和 23 步总链证据；不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@150f0c7`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、五层映射调查、验收脚本修复和 23 步总链证据；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -271,9 +271,9 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 ### T2.5：ViewModel 动画输入契约（拒绝路径已完成，真实映射未完成）
 
-主线整合：`p0-entity-protocol@e4c4d41`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，验证实体模型表与绘制 `v_*.mdl` 表不共用索引；越界、缺归属实体和骨骼不匹配均回退 bind pose。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。第 22 步 mutation 锚点和第 23 步断言 pin 已修复；随后总链已在 `e4c4d41` 上 23/23、rc=0、`VERIFY=PASS`。
+主线整合：`p0-entity-protocol@150f0c7`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，不可信序列回退 bind pose；五层调查新增 `vmselfsum`/`vmself-outlier`，证明按实体自身模型比较才是有效读数。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。总链已在 `e4c4d41` 上 23/23、rc=0、`VERIFY=PASS`。动态 `c_*_arms.mdl` 产品绘制仍未实现。
 
-真实动画映射仍需独立 worktree 完成：当前武器实体与 `m_hOwner` 配对 → weapon definition/`v_*.mdl` companion → activity/动作语义 → 绘制模型 sequence，再以正负 fixture 和跨 tick 见证帧验收。禁止把 `m_nSequence` 直接当作 `v_*.mdl` 的 sequence 索引，也禁止把 `--viewmodel-apply-animation` 当作正式能力。
+真实 `v_*` 映射调查已完成：demo、items_game 和加密 weapon ctx 没有可靠的狙击枪 `v_*` 数据源，实体 `c_*_arms.mdl` 也没有可连接的 activity 名称。下一项改为同伴证明和动态手臂绘制：实体序列只对实体自身模型表生效；禁止把 `m_nSequence` 直接当作 `v_*.mdl` 索引，也禁止把 `--viewmodel-apply-animation` 当作正式能力。
 
 ### 当前接手步骤
 

@@ -2,6 +2,14 @@
 
 ## 2026-10-12
 
+### T2.5 五层序列映射调查完成
+
+- 调查提交：`83920eb`，主线整合为 `150f0c7`；探针新增按实体自身模型查 sequence 范围的 `vmselfsum` 与具名 `vmself-outlier`，stdout 单行 JSON 契约不变。
+- POV 固定录制：view entity 18 → ViewModel 1077 → 武器实体 1008 `CTFSniperRifle`；武器给出手臂 `c_sniper_arms.mdl` 和工坊世界模型 `c_pro_rifle.mdl`，不给狙击枪 `v_*` 路径。
+- 同 141 次 POV 观测：默认 `v_scattergun_scout.mdl` 为 37 in-range / 104 out-of-range；按实体自身模型比较为 141/141 in-range。matcha 从单一模型比较的 121 次越界降至按实体比较仅 1 次；该越界为 entity 569 / tick 11355 / sequence 68 / `c_soldier_arms.mdl` 54 条，产品须拒绝而非截断。
+- `modelprecache`、`items_game.txt` 和加密 weapon ctx 均未提供狙击枪 `v_*` companion；`c_sniper_arms.mdl` 没有 activity 名称，无法测量得到 `v_*` 的 `ACT_VM_*` join。产品下一步采用“同伴证明”，本轮没有改产品绘制。
+- 调查报告 `T2.5-MAPPING-RECON-2026-10-12.md` 已入库；总链不重跑，日常按分层门禁执行。
+
 ### T2.5 ViewModel 动画输入契约已整合
 
 - 主线整合提交：`f5e427f`；来源产品提交 `447ca74`，门禁/交付提交 `2a92967`。
@@ -9,7 +17,7 @@
 - 真实 POV 读数确认实体序列空间与绘制的 `v_scattergun_scout.mdl` 序列表不同（绘制模型 7 序列，实体模型 43 序列；观察到 0--34，104 次越界）。没有把数值落在范围内误认为映射。
 - 门禁：主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8、T2.5 正常 PASS；独立和父锁 mutation 均 `red=3/3 hold=3/3`，源码恢复和恢复构建通过。
 - 修复的问题：父级持构建锁时 mutation 恢复责任被错误跳过；pin 文件 CRLF 使 Git Bash 读到 `name\r` 并误报 demo 缺失；变异模式仍按正常版断言拒绝状态。
-- 未完成：真实序列映射、ViewModel 材质与人工画面对照、完整 23 步总链、玩家动画外部输入。下一步先跑干净主线总链，再开独立 worktree 做映射调查。
+- 当时未完成：真实序列映射、ViewModel 材质与人工画面对照、完整 23 步总链、玩家动画外部输入。真实映射调查与总链随后分别在本日志后续条目闭合；产品动态手臂绘制和外部玩家动画仍未完成。
 
 ### 23 步总链复核与验收修复
 

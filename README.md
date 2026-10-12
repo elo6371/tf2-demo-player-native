@@ -9,13 +9,15 @@ T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品
 已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；主线 `verify-render.sh` = `VERIFY-RENDER=PASS (8/8 gates)`；T2.5 专项正常门禁 `VIEWMODEL-ANIMATION=PASS`，独立 mutation 与父锁 mutation 均 `MUTATION-CAUGHT=PASS (red=3/3 hold=3/3)`，源码逐字节恢复、恢复构建 `rc=0`。
 T2.5 没有实现真实的实体序列到 `v_*.mdl` 序列映射；诊断开关 `--viewmodel-apply-animation` 不是正式能力。当前仍未证明 ViewModel 材质/VMT/VTF、真实游戏人工画面对照、玩家动画输入、跨机器抓帧点集合和真实 GPU/FPS。
 
+T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默认 `v_scattergun_scout.mdl` 对 POV 的 141 次实体序列只有 37 次在范围内；按实体自身 `m_nModelIndex` 对应模型比较为 141/141，matcha 的全局 121 次越界降为按实体比较仅 1 次。产品下一步采用“同伴证明”：绘制模型必须等于实体自身模型才接受实体序列，旧式 `v_*.mdl` 继续拒绝并回退 bind pose；本轮尚未切换产品绘制路径。
+
 接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、变异结果、未验证项和可运行结论；每完成一项立即更新交接清单。
 
 当前验收链为 23 步。`e4c4d41` 上已由单实例运行 `bash verify-all.sh --quick` 完成 **23/23、rc=0、`VERIFY=PASS`**；日志为 `.scratch/obs/verify-all-23-quick.log`（sha256 `aff5fe6b40a4bea334feecd3f40df61a922b301204d2536927be68af85e4abd9`）。完整链只在合并主线、发版或核心协议变更时运行，运行期间禁止修改源码、脚本、证据或并发构建/变异。
 
 日常验收使用 `verify-fast.sh` 或对应的 `verify-entity.sh`、`verify-render.sh`、`verify-audio.sh`。fast/entity/audio 契约探针不建窗口且不打开音频；render/weapon/ViewModel 抓帧门禁仍启动主程序并传 `--audio-device 6`，所以可能显示窗口并播放声音。若需完全静默，后续任务应增加测试专用 hidden-window/null-sink 启动模式，并为该模式建立正负门禁；在此之前不要声称渲染档已静默。
 
-下一步按顺序：在独立 worktree 调查并实现 T2.5 真实映射链（当前武器实体 → weapon definition/`v_*.mdl` companion → activity → drawn-model sequence），再处理测试静默模式、ViewModel 材质/人工画面对照、T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+下一步按顺序：在独立 worktree 实现 T2.5“同伴证明”和动态手臂绘制，再处理测试静默模式、ViewModel 材质/人工画面对照、T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
