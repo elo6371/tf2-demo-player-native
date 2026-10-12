@@ -629,17 +629,29 @@ mutation_case() {
   end_mutation "$name" viewmodel_animation_probe
 }
 
+# THE CONTROL HAS TO BE A CHECK THE MUTATION CANNOT TOUCH, and the first draft of
+# two of these got that wrong -- measured, not guessed: `mismatch-off` was paired
+# with "the mismatch reading is reported as false" and `range-off` with "an
+# out-of-range sequence is not reported as in range", and both of those readings
+# are BY CONSTRUCTION the ones the mutation inverts. A control that the defect is
+# defined to move is not a control; it is a third red reading wearing a control's
+# label. So each mutation is now paired with the NEIGHBOURING branch of the same
+# proof -- the branch the mutation does not touch -- which is the reading that
+# says the change was surgical: `mismatch-off` leaves the range branch firing,
+# `range-off` leaves the model proof firing. Both pairings were verified against
+# the full list of checks each mutation actually turns red (5 for mismatch-off,
+# 2 for range-off), not against the mutation's own target line alone.
 if [ "$MUTATION" -eq 1 ]; then
   mutation_case mismatch-off native/src/viewmodel.cpp \
     '  if (!entityModelMatches) {' \
     '  if (false && !entityModelMatches) {   // MUTATION: the proof never fires' \
     'a drawn model that is not the entity'\''s own resolves to modelMismatch' \
-    'the mismatch reading is reported as false'
+    'one past the entity'\''s own table resolves to sequenceOutOfRange'
   mutation_case range-off native/src/viewmodel.cpp \
     '  if (static_cast<std::size_t>(input.sequence) >= drawnSequences) {' \
     '  if (false && static_cast<std::size_t>(input.sequence) >= drawnSequences) {   // MUTATION' \
     'one past the entity'\''s own table resolves to sequenceOutOfRange' \
-    'an out-of-range sequence is not reported as in range'
+    'a drawn model that is not the entity'\''s own resolves to modelMismatch'
   mutation_case bone-count-off native/src/viewmodel.cpp \
     '  if (sampled.skinMatrices.size() != drawn.bones.size()) {' \
     '  if (false && sampled.skinMatrices.size() != drawn.bones.size()) {   // MUTATION' \
@@ -660,9 +672,14 @@ if [ "$MUTATION" -eq 1 ]; then
   # The two mutations that live in the render path rather than in the resolver
   # cannot be read through the probe's self-test, so they are run here.
   echo "=== render-path mutations ==="
+  # The baseline is re-read here rather than reused from section 2, because the
+  # mutation loop's controls are compared against it and a snapshot taken minutes
+  # and several launches earlier would make "the control held" a statement about
+  # the wrong run. Two readings are deliberately NOT snapshotted: the number of
+  # scene updates (measured 1 or 2 at the same tick from one launch to the next --
+  # see the note in the force-v-model arm) and the model-match count (it is the
+  # work count itself, so pinning it would be pinning the thing under test).
   run_product baseline-companion "$DEMO_POV" "$T0"
-  BASE_MATCH=$(field "$LAST_SUMMARY" modelMatches)
-  BASE_OBS=$(field "$LAST_SUMMARY" observations)
   BASE_MISMATCH=$(field "$LAST_SUMMARY" modelMismatch)
   BASE_DRAWN=$(field "$LAST_ORDER" drawnModel)
   BASE_VERTICES=$(field "$LAST_ORDER" vertices)
@@ -673,9 +690,9 @@ if [ "$MUTATION" -eq 1 ]; then
     # These two cannot be read through the probe's self-test -- the defect lives in
     # the render path -- so "caught" is judged the same way the battery judges it:
     # the assertions below state the RED reading (the mismatch must fire, the proof
-    # must stop) AND the control (the pass still drew, same update count), so a case
-    # that adds no failure line is a case where the red reading appeared and the
-    # control held. Counted, not asserted in prose, so the summary is a tally.
+    # must stop) AND a control that the mutation cannot move, so a case that adds
+    # no failure line is a case where the red reading appeared and the control
+    # held. Counted, not asserted in prose, so the summary is a tally.
     local_fails_before=${#FAIL_LINES[@]}
     begin_mutation native/src/main.cpp
     case "$name" in
@@ -696,30 +713,62 @@ if [ "$MUTATION" -eq 1 ]; then
     run_product "mutation-$name" "$DEMO_POV" "$T0"
     case "$name" in
       force-v-model)
-        # The defect the round names: an entity sequence applied to a model that
-        # is not the entity's own. The refusal that catches it must fire.
-        assert_eq "$name: the pass draws the model it was told to draw" \
+        # The defect the round names: the pass is asked to draw a model the entity
+        # never named, and the entity's sequence would then be measured against
+        # that model's table. The refusal that catches it must fire.
+        assert_eq "$name: the pass's request names the model it was told to name" \
           "$(field "$LAST_ORDER" drawnModel)" "$VM_MODEL"
         assert_eq "$name: the entity's model no longer matches the drawn one" \
           "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "0"
         assert_ne "$name: the mismatch now fires" \
           "$(field "$LAST_SUMMARY" modelMismatch)" "0"
-        assert_eq "$name: control -- the pass still drew" "$(field "$LAST_ORDER" drawCalls)" "1"
-        assert_eq "$name: control -- the same number of scene updates" \
-          "$(field "$LAST_SUMMARY" observations)" "$BASE_OBS"
+        assert_eq "$name: the range question is never reached" \
+          "$(field "$LAST_ORDER" sequenceInRange)" "0"
+        # A SECOND consequence, asserted rather than tidied away: the mutated pass
+        # issues no draw call at all. The vertex buffer holds the mesh the
+        # companion path uploaded, the request now names the v_* path, and the
+        # pass's own "is this state's mesh the one in the buffer" check turns it
+        # off -- so `vertices` still reads the BUFFER's 600 and not a drawn count.
+        # A mutation whose only trace was a label would be proof of nothing, which
+        # is why the absent draw call is a reading here.
+        assert_eq "$name: and the mutated pass issues no draw call at all" \
+          "$(field "$LAST_ORDER" drawCalls)" "0"
+        # The controls, and neither is a scene-update count: measured on this
+        # recording, the number of scene updates before the capture tick reads 1
+        # or 2 from one launch to the next (1 in the ordinary companion run, 2 in
+        # the `--viewmodel-apply-animation`-alone run at the same tick, 2 here).
+        # Pinning it made a real mutation look like a moved control. So the work
+        # count is asserted as "at least one update happened" and the controls are
+        # the two readings the mutation cannot move: the refusal still leaves the
+        # bind pose, and no bone count was ever compared.
+        assert_ge "$name: work count -- scene updates" \
+          "$(field "$LAST_SUMMARY" observations)" 1
+        assert_eq "$name: control -- the refusal still leaves the bind pose" \
+          "$(field "$LAST_ORDER" bindPose)" "1"
+        assert_eq "$name: control -- the bone question is never reached either" \
+          "$(field "$LAST_ORDER" boneMismatch)" "0"
         ;;
       owner-cleared)
         # The owner is the first link in the proof. Dropping it must stop the
         # proof before the model question is asked.
-        assert_ne "$name: the owner is gone, so the proof stops" \
-          "$(field "$LAST_SUMMARY" sequenceInRange)" "$BASE_OBS"
+        assert_eq "$name: the owner is gone, so the proof stops before any sequence is measured" \
+          "$(field "$LAST_ORDER" sequenceInRange)" "0"
         assert_eq "$name: the model question is never reached" \
           "$(field "$LAST_SUMMARY" modelMatches)" "0"
         assert_contains "$name: the reason names the absent owner" "$LAST_VMANIM" "m_hOwner"
+        # The controls. This mutation only stops the PROOF, so the picture is
+        # untouched -- and that is a two-part claim: the same mesh is still in the
+        # pass, and the pass still issues its draw call. (The scene-update count
+        # that used to sit here was replaced for the reason given above; it read 1
+        # against a baseline of 1 on this run, which is luck rather than a control.)
+        assert_eq "$name: control -- the drawn request is still the entity's model" \
+          "$(field "$LAST_ORDER" drawnModel)" "$ENTITY_MODEL"
         assert_eq "$name: control -- the same mesh is still drawn" \
           "$(field "$LAST_ORDER" vertices)" "$BASE_VERTICES"
-        assert_eq "$name: control -- the same number of scene updates" \
-          "$(field "$LAST_SUMMARY" observations)" "$BASE_OBS"
+        assert_eq "$name: control -- and the pass still issues its draw call" \
+          "$(field "$LAST_ORDER" drawCalls)" "1"
+        assert_ge "$name: work count -- scene updates" \
+          "$(field "$LAST_SUMMARY" observations)" 1
         ;;
     esac
     MUTATION_TOTAL=$((MUTATION_TOTAL + 1))

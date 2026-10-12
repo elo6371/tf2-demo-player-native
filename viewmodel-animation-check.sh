@@ -201,12 +201,14 @@ done
 # The defect is not that an unsafe pose becomes available: the range check still
 # refuses 29, and the bind pose is still what is drawn. The defect is that the
 # pass can draw a model the entity never named while every reading says the input
-# was understood. So the three readings that must move are the status, the reason
-# (it stops naming the entity's own model at all), and the model-match count; and
-# the three controls that must NOT move are the pose availability (still a
-# refusal, only mislabelled), the matcha pairing (no owner is ever resolved there)
-# and the probe's index-space verdict (computed from the two models' own tables,
-# not through the resolver).
+# was understood -- including `entityModelMatchesDrawn`, which the neutered
+# resolver falls through and asserts as true. So the three readings that must move
+# are the status, the reason (it stops naming the entity's own model at all), and
+# the model-match count; and the four controls that must NOT move are the pose
+# availability (still a refusal, only mislabelled), the matcha pairing (no owner
+# is ever resolved there), the probe's index-space verdict (computed from the two
+# models' own tables, not through the resolver) and the probe's own battery, which
+# must still run all 92 checks while 5 of them go red.
 if [ "$MUTATION" -eq 1 ]; then
   if ! git diff --quiet -- native/; then
     echo "FATAL: --mutation needs a committed native/ tree (git checkout is the restore)"
@@ -388,26 +390,37 @@ SELFTEST_NOTES=$(grep -c 'NOTE the product cross-check did not run' "$SELFTEST_T
 # probe says so out loud -- this asserts it did not have to.
 if [ "$MUTATION" -eq 1 ]; then
   assert_eq "self-test rc" "$SELFTEST_RC" "1"
-  assert_eq "self-test failures" "$SELFTEST_FAIL" "1"
+  # Measured, not derived: neutering the companion proof turns exactly five of the
+  # battery's checks red -- the model-mismatch fixture's five claims (the status,
+  # the bind pose, the absent-match reading, the never-reached range question, and
+  # the reason naming both models). A mutated build must also SAY so in its exit
+  # code, which is why `rc` is asserted in both modes.
+  assert_eq "self-test failures" "$SELFTEST_FAIL" "5"
 else
   assert_eq "self-test rc" "$SELFTEST_RC" "0"
   assert_eq "self-test failures" "$SELFTEST_FAIL" "0"
 fi
 # Pinned, because a gate that prints PASS while its assertions quietly disappear
-# is not a gate. 92 is: the T2.5 instrument's own readings (the path rule, the
-# three-outcome range classifier, the series counters, the field-supply counter,
-# and the product cross-check), the resolver contract branch by branch -- missing
-# (3), absent sequence (2), out of range (4), accepted (4), bone mismatch (2), no
-# animation data (1), unresolved drawn model (2) -- the companion proof's ten
-# fixtures, the two models' measured shapes with the raw words they were read
-# from, and the cycle witness, which runs on the `v_*` control because the model
-# this round draws carries one-frame poses.
+# is not a gate. 92 checks in a healthy build: the T2.5 instrument's own readings
+# (the path rule, the three-outcome range classifier, the series counters, the
+# field-supply counter, and the product cross-check), the resolver contract branch
+# by branch -- missing (3), absent sequence (2), out of range (4), accepted (4),
+# bone mismatch (2), no animation data (1), unresolved drawn model (2) -- the
+# companion proof's ten fixtures, the two models' measured shapes with the raw
+# words they were read from, and the cycle witness, which runs on the `v_*`
+# control because the model this round draws carries one-frame poses.
+#
+# Two DIFFERENT quantities, which is why there are two assertions and not one
+# written twice: how many checks held, and how many checks the battery ran at all.
+# The second is pinned in both modes to the same 92, and that is the point -- a
+# mutation that made the battery stop halfway would move it, while 87 + 5 in
+# mutation mode says the other 87 checks still ran and still held.
 if [ "$MUTATION" -eq 1 ]; then
-  assert_eq "self-test assertions" "$SELFTEST_OK" "90"
-  assert_eq "self-test expected mutation failure" "$SELFTEST_FAIL" "2"
+  assert_eq "self-test assertions" "$SELFTEST_OK" "87"
+  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "92"
 else
   assert_eq "self-test assertions" "$SELFTEST_OK" "92"
-  assert_eq "self-test expected mutation failure" "$SELFTEST_FAIL" "0"
+  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "92"
 fi
 assert_eq "self-test ran the product cross-check" "$SELFTEST_NOTES" "0"
 # A work count for the contract half specifically: the self-test has to
@@ -611,11 +624,19 @@ assert_eq "pov refusal rc" "$LAST_RC" "0"
 assert_eq "pov refusal draws what it was told to draw" "$(field "$LAST_ORDER" drawnModel)" "$VM_MODEL"
 if [ "$MUTATION" -eq 1 ]; then
   assert_eq "pov refusal vmAnimInput" "$(field "$LAST_ORDER" vmAnimInput)" "sequenceOutOfRange"
+  # The mutation's own signature, and the sharpest statement of what it removed:
+  # with the proof neutered the resolver falls through and ASSERTS the match it was
+  # supposed to check, so this reading goes from 0 to 1 on a frame where the pass
+  # drew a model the entity never named. Neutering a checker does not merely stop
+  # it refusing -- it makes it claim the opposite, which is why the reading is
+  # pinned in both directions rather than branched away.
+  assert_eq "pov refusal entity model does not match the drawn one" \
+    "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "1"
 else
   assert_eq "pov refusal vmAnimInput" "$(field "$LAST_ORDER" vmAnimInput)" "modelMismatch"
+  assert_eq "pov refusal entity model does not match the drawn one" \
+    "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "0"
 fi
-assert_eq "pov refusal entity model does not match the drawn one" \
-  "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "0"
 assert_eq "pov refusal the range question was never reached" \
   "$(field "$LAST_ORDER" sequenceInRange)" "0"
 assert_eq "pov refusal vmAnimApplied" "$(field "$LAST_ORDER" vmAnimApplied)" "0"
