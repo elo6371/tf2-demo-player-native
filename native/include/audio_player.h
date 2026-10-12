@@ -20,6 +20,15 @@ namespace tf2::native {
 bool applyPcmPan(std::vector<std::uint8_t>& pcm, std::uint16_t& channels,
   std::uint16_t bitsPerSample, float volume, float pan);
 
+// Process-wide counters for real audio-device opens. Every waveOutOpen attempt
+// increments the first; every successful open increments the second. A run
+// that injects a playback sink must leave both at zero -- that is what turns
+// "no device was opened" from a promise in a comment into a reading a gate can
+// pin, and what makes a scheduler that ignores its sink fail the gate instead
+// of beeping in someone's ear at 3 a.m.
+std::uint32_t audioDeviceOpenAttempts();
+std::uint32_t audioDeviceOpenedCount();
+
 // Small single-buffer output used by the native player.  It deliberately
 // accepts only PCM WAV data so the caller can schedule decoded events without
 // handing compressed or untrusted bytes to the device API.
