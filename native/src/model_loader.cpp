@@ -35,6 +35,21 @@ constexpr std::size_t kVtxIndexStride = 2;
 // OptimizedModel::Vertex_t is packed: boneWeightIndex[3], numBones,
 // origMeshVertID (uint16), and boneID[3] = 9 bytes.
 constexpr std::size_t kVtxVertexStride = 9;
+// mstudiomodel_t and mstudiomesh_t. Unlike the tables above, these are not read
+// at a fixed offset and trusted: `decodeMeshMaterials` tries each candidate and
+// keeps the one the VTX descriptor list and the texture count both accept, so a
+// wrong number here is a rejected candidate rather than a wrong slot number.
+//
+// mstudiomesh_t: material/modelindex/numvertices/vertexoffset/numflexes/
+// flexindex/materialtype/materialparam/meshid (9 words), center (3), the
+// meshvertexdata block (1 + 8 words) and eight unused words. 36+12+36+32 = 116.
+constexpr std::size_t kMeshStride = 116;
+// mstudiomodel_t: name[64], type, boundingradius, nummeshes, meshindex, ... The
+// TF2 (MDL v49) record measured 148 bytes; 140 is the same layout without the
+// version-49 tail. Both are offered to the validator rather than picked here.
+constexpr std::size_t kModelNumMeshesOffset = 72;
+constexpr std::size_t kModelMeshIndexOffset = 76;
+constexpr std::size_t kModelStrideCandidates[] = { 148u, 140u };
 
 std::string normalizeModelPath(std::string value) {
   std::replace(value.begin(), value.end(), '\\', '/');
@@ -559,6 +574,176 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
   if (!out.valid) out.diagnostics.push_back("MDL signature/version/declared length failed validation");
 }
 
+// Decode `mstudiomesh_t.material` for every mesh of every model of every
+// bodypart, and *validate* the decode against two witnesses that do not come
+// from the same table:
+//
+//   * the VTX descriptor list. Each strip group carries the (bodyPart, model,
+//     mesh) triple it came from, so a candidate whose decode does not contain
+//     every one of those triples is provably wrong -- the two files describe the
+//     same model and disagree.
+//   * the texture count. `material` is an index into the `mstudiotexture_t`
+//     table, so a value outside [0, textureCount) is provably not a slot.
+//
+// A candidate that passes both is not "probably right": the VTX triples are a
+// second, independent statement about the same hierarchy.
+void decodeMeshMaterials(const Bytes& b, ModelMetadata& out) {
+  auto& table = out.meshMaterials;
+  table = ModelMeshMaterialTable{};
+  if (out.bodyParts.empty()) {
+    table.reason = "MDL declares no bodyparts";
+    return;
+  }
+  // The bodypart table's own words. `parseMdl` already read them into
+  // `ModelBodyPart`, so this walks the same records rather than re-reading the
+  // header: two reads of the same words is how the 232/240 word shift survived.
+  std::uint32_t bodyPartIndex = 0;
+  readAt(b, 236, bodyPartIndex);
+  const std::size_t bodyPartStride = kBodyPartStride;
+  // A stride candidate is accepted only if *every* descriptor triple lands
+  // inside the decode. `descriptorsChecked` is reported because a table accepted
+  // with zero descriptors checked is not validated at all.
+  const auto tryStride = [&](std::size_t modelStride, const char* source, ModelMeshMaterialTable& candidate) {
+    candidate.slots.clear();
+    candidate.modelStride = modelStride;
+    candidate.meshStride = kMeshStride;
+    candidate.modelStrideSource = source;
+    candidate.modelStrideExercised = false;
+    candidate.meshStrideExercised = false;
+    candidate.meshCount = 0;
+    candidate.descriptorsValidated = 0;
+    const std::uint32_t textureLimit = std::max<std::uint32_t>(1u, out.textureCount);
+    candidate.slots.resize(out.bodyParts.size());
+    for (std::size_t bp = 0; bp < out.bodyParts.size(); ++bp) {
+      const auto& part = out.bodyParts[bp];
+      if (part.modelCount < 0 || part.modelIndex < 0) { candidate.reason = "bodypart declares a negative model count or table offset"; return false; }
+      if (part.modelCount > 4096) { candidate.reason = "bodypart model count exceeds safe limit"; return false; }
+      // `mstudiobodyparts_t::modelindex` is relative to the bodypart record
+      // itself -- `pModel(i)` is `(mstudiomodel_t*)((byte*)this + modelindex) + i`
+      // -- not an absolute file offset. Reading it as absolute pointed the model
+      // table at whatever bytes happened to sit near the start of the file, which
+      // decoded to `nummeshes=0` and looked like a model with no geometry.
+      const std::size_t bodyPartOff = static_cast<std::size_t>(bodyPartIndex)
+        + bp * bodyPartStride + static_cast<std::size_t>(part.modelIndex);
+      candidate.slots[bp].resize(static_cast<std::size_t>(part.modelCount));
+      for (std::int32_t model = 0; model < part.modelCount; ++model) {
+        const std::size_t modelOff = bodyPartOff + static_cast<std::size_t>(model) * modelStride;
+        if (model > 0) candidate.modelStrideExercised = true;
+        if (modelOff + kModelMeshIndexOffset + 4 > b.size()) {
+          candidate.reason = "model table is outside the MDL file at stride " + std::to_string(modelStride);
+          return false;
+        }
+        std::uint32_t numMeshes = 0, meshIndex = 0;
+        readAt(b, modelOff + kModelNumMeshesOffset, numMeshes);
+        readAt(b, modelOff + kModelMeshIndexOffset, meshIndex);
+        if (numMeshes > 4096) { candidate.reason = "model mesh count exceeds safe limit"; return false; }
+        // `meshindex` is relative to the model record, for the same reason
+        // `modelindex` is relative to the bodypart record: `pMesh(i)` is
+        // `(mstudiomesh_t*)((byte*)this + meshindex) + i`. Reading it as an
+        // absolute file offset landed the mesh table on unrelated bytes, and the
+        // first word of unrelated bytes passed the slot-range check often enough
+        // that `c_scattergun` validated against a table it never read correctly.
+        const std::size_t meshBase = modelOff + static_cast<std::size_t>(meshIndex);
+        if (numMeshes != 0 && !rangeFits(meshBase, numMeshes, kMeshStride, b.size())) {
+          candidate.reason = "mesh table is outside the MDL file";
+          return false;
+        }
+        auto& slots = candidate.slots[bp][static_cast<std::size_t>(model)];
+        slots.reserve(numMeshes);
+        for (std::uint32_t mesh = 0; mesh < numMeshes; ++mesh) {
+          if (mesh > 0) candidate.meshStrideExercised = true;
+          std::int32_t material = -1;
+          readAt(b, meshBase + mesh * kMeshStride, material);
+          if (material < 0 || static_cast<std::uint32_t>(material) >= textureLimit) {
+            candidate.reason = "mesh " + std::to_string(mesh) + " names material slot "
+              + std::to_string(material) + ", outside the " + std::to_string(out.textureCount) + "-slot texture table";
+            return false;
+          }
+          slots.push_back(material);
+        }
+        candidate.meshCount += numMeshes;
+      }
+    }
+    // Witness one: every VTX descriptor's triple has to exist in the decode.
+    for (const auto& descriptor : out.indices) {
+      if (descriptor.bodyPart >= candidate.slots.size()
+          || descriptor.model >= candidate.slots[descriptor.bodyPart].size()
+          || descriptor.mesh >= candidate.slots[descriptor.bodyPart][descriptor.model].size()) {
+        candidate.reason = "VTX descriptor (bodyPart " + std::to_string(descriptor.bodyPart)
+          + ", model " + std::to_string(descriptor.model) + ", mesh " + std::to_string(descriptor.mesh)
+          + ") is not in the decoded mesh table at model stride " + std::to_string(modelStride);
+        return false;
+      }
+      ++candidate.descriptorsValidated;
+    }
+    if (candidate.meshCount == 0) {
+      candidate.reason = "every bodypart decoded to zero meshes";
+      return false;
+    }
+    return true;
+  };
+  // The stride is *solved* when two bodypart tables are laid out back to back:
+  // `modelIndex[bp+1] - modelIndex[bp]` is then `modelCount[bp] * stride` exactly.
+  // Solving it means the answer carries an arithmetic witness; it is offered to
+  // the validator like any other candidate, so a bodypart pair that is not
+  // contiguous simply produces a candidate that fails.
+  std::vector<std::pair<std::size_t, std::string>> candidates;
+  const auto modelTableOffset = [&](std::size_t bp) {
+    return static_cast<std::int64_t>(bodyPartIndex) + static_cast<std::int64_t>(bp) * bodyPartStride
+      + out.bodyParts[bp].modelIndex;
+  };
+  for (std::size_t bp = 0; bp + 1 < out.bodyParts.size(); ++bp) {
+    const auto& current = out.bodyParts[bp];
+    if (current.modelCount <= 0) continue;
+    const std::int64_t span = modelTableOffset(bp + 1) - modelTableOffset(bp);
+    if (span <= 0 || span % current.modelCount != 0) continue;
+    const std::size_t derived = static_cast<std::size_t>(span / current.modelCount);
+    if (derived == 0) continue;
+    candidates.emplace_back(derived, "derived");
+  }
+  for (const auto stride : kModelStrideCandidates) candidates.emplace_back(stride, "assumed");
+  std::string trail;
+  const auto accept = [&](ModelMeshMaterialTable& candidate) {
+    candidate.available = true;
+    if (!candidate.modelStrideExercised) {
+      // Not exercised: every bodypart has one model, so the decode never read a
+      // record at `modelStride`, let alone at `2 * modelStride`. The table is
+      // still exactly what the caller needs -- and saying `modelStride=148`
+      // here would attach a number to the answer that the answer never used.
+      candidate.modelStride = 0;
+      candidate.modelStrideSource = "unexercised";
+    }
+    table = std::move(candidate);
+    out.diagnostics.push_back("mesh material table decoded: modelStride=" + std::to_string(table.modelStride)
+      + " (" + table.modelStrideSource + ") meshStride=" + std::to_string(table.meshStride)
+      + " meshes=" + std::to_string(table.meshCount)
+      + " descriptorsValidated=" + std::to_string(table.descriptorsValidated));
+  };
+  // Two passes. The first refuses a candidate whose stride was never read, so a
+  // stride that *is* exercised is always preferred over one that merely happened
+  // not to break anything. The second pass exists because the unexercised table
+  // is still a correct answer to the question the caller asked -- which slot does
+  // the drawn mesh use -- and refusing it would leave the product guessing again.
+  for (int pass = 0; pass < 2; ++pass) {
+    for (const auto& [stride, source] : candidates) {
+      ModelMeshMaterialTable candidate;
+      if (!tryStride(stride, source.c_str(), candidate)) {
+        if (pass == 0) {
+          if (!trail.empty()) trail += "; ";
+          trail += "stride " + std::to_string(stride) + " (" + source + "): " + candidate.reason;
+          if (trail.size() > 900) trail.resize(900);
+        }
+        continue;
+      }
+      if (pass == 0 && !candidate.modelStrideExercised) continue;
+      accept(candidate);
+      return;
+    }
+  }
+  table.reason = trail.empty() ? "no model stride candidate was available" : trail;
+  out.diagnostics.push_back("mesh material table unavailable: " + table.reason);
+}
+
 ModelFileStatus inspectBytes(const Bytes& bytes, ModelFileKind kind, const std::filesystem::path& path) {
   ModelFileStatus result;
   result.kind = kind;
@@ -615,6 +800,10 @@ ModelInspection inspectBuffers(const Bytes& mdlBytes, const Bytes& vvdBytes, con
     mesh.indexStatus = !anyVtx ? ModelMeshIndexStatus::MissingVtx
         : (!result.metadata.indices.empty() ? ModelMeshIndexStatus::Available : ModelMeshIndexStatus::NotDecoded);
   }
+  // After the VTX hierarchy, because the decode is validated against it. Before
+  // anything consumes `meshMaterials`, so a consumer can never see an unvalidated
+  // table.
+  if (result.metadata.valid && result.mdl.signatureValid) decodeMeshMaterials(mdlBytes, result.metadata);
   result.renderableResourceSet = result.mdl.signatureValid && result.vvd.signatureValid && anyVtx;
   if (result.metadata.valid) {
     result.attachmentStatus = result.metadata.attachmentCount > 0

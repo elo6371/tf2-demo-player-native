@@ -15,6 +15,11 @@ add_executable(tf2_demo_native WIN32
   src/vtf_texture.cpp
   src/model_loader.cpp
   src/viewmodel.cpp
+  # The ViewModel material chain, shared with viewmodel_material_probe. In the
+  # product rather than inlined into viewmodel.cpp because the probe has to
+  # resolve the same table from the same bytes: a gate that asserts the two agree
+  # is only non-circular if there is one implementation to agree with.
+  src/viewmodel_material.cpp
   src/entity_model.cpp
   src/animation_decoder.cpp
   src/animation_binding.cpp
@@ -97,6 +102,13 @@ add_executable(viewmodel_fov_probe
   # NMAKE stops, and every target after this one is silently not built.
   src/animation_binding.cpp
   src/animation_decoder.cpp
+  # T1: viewmodel.cpp now calls the shared material resolver, which parses VMTs
+  # and decodes VTFs. Same failure class as the animation layer above -- a link
+  # dependency left out fails the link, NMAKE stops, and every target after this
+  # one is silently not built. Caught by verify-fast.sh, not by any viewmodel gate.
+  src/viewmodel_material.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp
   src/model_loader.cpp
   src/asset_root.cpp
   src/vpk_archive.cpp
@@ -112,6 +124,11 @@ add_executable(viewmodel_contract_probe
   src/viewmodel.cpp
   src/animation_binding.cpp
   src/animation_decoder.cpp
+  # T1 material chain: viewmodel.cpp calls into it, so it links wherever
+  # viewmodel.cpp does. See the note on viewmodel_fov_probe.
+  src/viewmodel_material.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp
   src/model_loader.cpp
   src/asset_root.cpp
   src/vpk_archive.cpp
@@ -132,6 +149,11 @@ add_executable(viewmodel_animation_probe
   src/viewmodel.cpp
   src/animation_binding.cpp
   src/animation_decoder.cpp
+  # T1 material chain: viewmodel.cpp calls into it, so it links wherever
+  # viewmodel.cpp does. See the note on viewmodel_fov_probe.
+  src/viewmodel_material.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp
   src/entity_model.cpp
   src/model_loader.cpp
   src/asset_root.cpp
@@ -148,6 +170,11 @@ add_executable(animation_viewmodel_probe
   src/animation_decoder.cpp
   src/animation_binding.cpp
   src/viewmodel.cpp
+  # T1 material chain: viewmodel.cpp calls into it, so it links wherever
+  # viewmodel.cpp does. See the note on viewmodel_fov_probe.
+  src/viewmodel_material.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp
   src/model_loader.cpp
   src/asset_root.cpp
   src/vpk_archive.cpp
@@ -264,6 +291,7 @@ add_executable(viewmodel_material_probe
   src/vpk_archive.cpp
   src/vmt_material.cpp
   src/vtf_texture.cpp
+  src/viewmodel_material.cpp
   src/demo_header.cpp
   src/item_schema.cpp
   src/proto_wire.cpp

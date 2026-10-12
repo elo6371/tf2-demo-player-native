@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -93,6 +94,28 @@ struct EntityModelDrawInstance {
 //   -> hand transform (H) -> camera space (T) -> ViewModel projection (P)
 // The left-hand mirror lives only in H. Nothing here reaches the world entity
 // bone buffer or the animation decode output.
+// One contiguous run of the ViewModel vertex buffer that shares one material.
+//
+// The ViewModel mesh is a flat triangle list, one vertex per index, so a range is
+// a `Draw(count, first)` and needs no index buffer. The runs are contiguous by
+// construction: the mesh builder appends a descriptor's vertices as it walks the
+// descriptors, so a descriptor's triangles are adjacent in the buffer. Two
+// descriptors that share a slot therefore produce two ranges, not one -- the
+// alternative (reordering the buffer) would move vertices the T2 mesh readings
+// are frozen against for no gain in what is drawn.
+struct ViewModelDrawRange {
+  std::uint32_t firstVertex = 0;
+  std::uint32_t vertexCount = 0;
+  std::int32_t slot = -1;
+  // The cache key of the material this range binds. Empty means "no material",
+  // which is the same state as an unresolvable slot: flat colour.
+  std::string materialKey;
+  // The material's own `$translucent` / `$alphatest`, copied from the slot table
+  // at mesh-build time so the draw does not have to reach back into it.
+  bool translucent = false;
+  bool alphaTest = false;
+};
+
 struct ViewModelDrawState {
   bool enabled = false;
   float fov = 90.0f;
@@ -221,7 +244,39 @@ public:
   // world policy, so a ViewModel routed through it would be scaled into the map
   // and occluded by it. Reusing `worldConstants_` here would be exactly that
   // mistake, which is why the pass owns `viewModelConstants_` instead.
-  bool uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices);
+  bool uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ViewModelDrawRange>& ranges = {});
+  // The material cache, keyed by the **normalized resource path** of the VTF
+  // (`materials/models/weapons/v_scattergun/v_scattergun.vtf`). Never keyed by
+  // the VMT's raw `$basetexture` value: on this install that value is written
+  // with backslashes in some VMTs and with forward slashes in others, so the raw
+  // string gives one texture two keys and the cache stops being a cache.
+  //
+  // Returns true only when a texture was created. A key already in the cache is a
+  // false and a reuse, which is what makes `texturesUploaded` a statement about
+  // GPU work rather than about how many times the caller asked.
+  bool uploadViewModelMaterialTexture(const std::string& key,
+    const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  void clearViewModelMaterials();
+  std::size_t viewModelMaterialCacheSize() const { return viewModelMaterialTextures_.size(); }
+  // GPU textures created for this pass over the whole run. Monotone: it only ever
+  // moves when a key was not already cached.
+  std::size_t viewModelTexturesUploaded() const { return viewModelTexturesUploaded_; }
+  // Binds served out of the cache without touching the device. Read together
+  // with the two above, this is the per-frame-recreation reading: `uploaded`
+  // constant and `reused` growing is a cache; both growing per frame is not.
+  std::size_t viewModelTexturesReused() const { return viewModelTexturesReused_; }
+  std::size_t viewModelDrawRangeCount() const { return viewModelDrawRanges_.size(); }
+  // Ranges on the last draw that had no usable material: no slot, no cached
+  // texture for the slot, or no material table at all. They draw the flat colour.
+  std::size_t viewModelFallbackRanges() const { return viewModelFallbackRanges_; }
+  // Distinct material slots bound on the last draw. Not the same as the number of
+  // ranges: two ranges can share one slot.
+  std::size_t viewModelBoundSlots() const { return viewModelBoundSlots_; }
+  // Ranges drawn with alpha blending on the last draw, from the material's own
+  // `$translucent` key.
+  std::size_t viewModelBlendedRanges() const { return viewModelBlendedRanges_; }
+  std::size_t viewModelAlphaTestedRanges() const { return viewModelAlphaTestedRanges_; }
   bool uploadViewModelBones(const std::vector<std::array<float, 16>>& boneMatrices);
   // Empties the pass's bone table. The table is re-uploaded on every scene update
   // while a pose is being applied, so a frame that does not apply one has to be
@@ -393,6 +448,23 @@ private:
   Microsoft::WRL::ComPtr<ID3D11InputLayout> viewModelInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelVertexBuffer_;
   UINT viewModelVertexCount_ = 0;
+  // The runs of the buffer that share a material, clamped to what was uploaded.
+  // Empty means "no range information was supplied", in which case the whole
+  // buffer is one range with no material -- exactly the pre-T1 draw.
+  std::vector<ViewModelDrawRange> viewModelDrawRanges_;
+  // GPU textures for this pass, keyed by the normalized VTF resource path.
+  std::map<std::string, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>> viewModelMaterialTextures_;
+  std::size_t viewModelTexturesUploaded_ = 0;
+  std::size_t viewModelTexturesReused_ = 0;
+  std::size_t viewModelFallbackRanges_ = 0;
+  std::size_t viewModelBoundSlots_ = 0;
+  std::size_t viewModelBlendedRanges_ = 0;
+  std::size_t viewModelAlphaTestedRanges_ = 0;
+  // SrcAlpha / InvSrcAlpha, for a range whose material declares `$translucent`.
+  // The pass is opaque by default: a weapon is not glass, and blending every
+  // range would make the alpha channel of an opaque DXT5 weapon composite it
+  // against the map behind it.
+  Microsoft::WRL::ComPtr<ID3D11BlendState> viewModelAlphaBlendState_;
   // The mesh's own bounds, measured at upload. The ViewModel is authored in
   // Source units (tens of them across) and the pass has its own projection, so
   // the distance it sits from the eye has to come from its own size: placing it

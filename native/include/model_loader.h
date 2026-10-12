@@ -136,6 +136,60 @@ struct ModelIndexDescriptor {
   std::uint32_t renderIndexCount = 0;
 };
 
+// The MDL mesh table, decoded far enough to answer one question: **which
+// `mstudiotexture_t` slot does the mesh a draw descriptor names use?**
+//
+// WHY THIS EXISTS
+//   `mstudiomesh_t` entry 0 is `material`, the texture slot index, and it is the
+//   only place in the resource set that ties a triangle to a material. Without
+//   it a consumer has to guess, and the guess that was already in the code --
+//   "slot 0 is the model's material" -- is right for the three ViewModels
+//   measured on 2026-10-12 and would have been wrong for any model whose first
+//   mesh is not slot 0. A reading that *is* the guess cannot tell the two apart.
+//
+// WHY IT IS VALIDATED RATHER THAN ASSUMED
+//   The strides (`mstudiomodel_t`, `mstudiomesh_t`) are version-dependent, and a
+//   wrong stride does not look like garbage -- it looks like a smaller table.
+//   Two independent witnesses pin it instead of a hard-coded layout:
+//     * the VTX descriptor list, which carries its own (bodyPart, model, mesh)
+//       triple for every strip group. A candidate stride is rejected unless every
+//       descriptor's triple lands inside the decoded table.
+//     * the texture count: every decoded `material` must be a real slot index.
+//   A candidate that satisfies both is reported with the stride it used, so a
+//   wrong decode reads as `available=false` plus a reason rather than as a slot
+//   number nobody can trace.
+struct ModelMeshMaterialTable {
+  bool available = false;
+  std::string reason;
+  // [bodyPart][model] -> one material slot per mesh, in MDL (= VTX) mesh order.
+  std::vector<std::vector<std::vector<std::int32_t>>> slots;
+  std::size_t modelStride = 0;
+  std::size_t meshStride = 0;
+  // "derived" when the stride was solved from consecutive bodypart tables,
+  // "assumed" when only the layout constant was available. The difference
+  // matters: a derived stride carries its own arithmetic witness.
+  std::string modelStrideSource;
+  // Whether the model stride was used at all. Every ViewModel measured on
+  // 2026-10-12 has exactly one model per bodypart, so `model` is always 0 and the
+  // decode cannot depend on the stride -- which means a wrong stride is *not*
+  // ruled out by the fact that the decode validated. The reading says so instead
+  // of letting "validated" imply more than it does.
+  bool modelStrideExercised = false;
+  // The same question for `meshStride`: a model whose meshes all decode to
+  // `nummeshes <= 1` never reads mesh 1, so the stride is not part of its answer.
+  bool meshStrideExercised = false;
+  std::size_t meshCount = 0;
+  // How many VTX descriptors were checked against this table.
+  std::size_t descriptorsValidated = 0;
+
+  std::int32_t slotFor(std::uint32_t bodyPart, std::uint32_t model, std::uint32_t mesh) const {
+    if (bodyPart >= slots.size()) return -1;
+    if (model >= slots[bodyPart].size()) return -1;
+    if (mesh >= slots[bodyPart][model].size()) return -1;
+    return slots[bodyPart][model][mesh];
+  }
+};
+
 struct ModelVtxDiagnostics {
   bool headerInBounds = false;
   bool bodyPartTableInBounds = false;
@@ -204,6 +258,12 @@ struct ModelMetadata {
   std::vector<ModelDrawVertex> bindPoseVertices;
   std::size_t bindPoseVertexCount = 0;
   ModelVtxDiagnostics vtxDiagnostics;
+  // Which texture slot each mesh uses, decoded and cross-validated against the
+  // VTX descriptor list. Filled by `decodeMeshMaterials` after the VTX hierarchy
+  // is up, because the validation needs the descriptors. Empty and
+  // `available=false` is a real state -- a consumer then has to say which slot it
+  // guessed instead of reporting an unearned slot number.
+  ModelMeshMaterialTable meshMaterials;
   std::vector<std::string> diagnostics;
 };
 
