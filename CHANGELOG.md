@@ -2,6 +2,18 @@
 
 ## 2026-10-12
 
+### T1：ViewModel 材质接入产品 draw pass（分支，未合并主线）
+
+- 分支 `task/viewmodel-material-render`，worktree `D://TF2_Native_Worktrees//viewmodel-material-render`，基线 `origin/p0-entity-protocol@9a8387b`。把已验证的 MDL → `$cdmaterials` → VMT → `$basetexture` → VTF → BC1/BC3 像素解码接进实际 ViewModel draw pass。
+- 新增 `native/include/viewmodel_material.h`、`native/src/viewmodel_material.cpp`（材质表、状态词表、解码遍历，探针与产品共用）；`native/include/model_loader.h`、`native/src/model_loader.cpp` 增加 `ModelMeshMaterialTable` 与 `decodeMeshMaterials()`（从 bodypart/model/mesh 表解出被绘制 mesh 命名的槽）；`native/include/viewmodel.h`、`native/src/viewmodel.cpp` 把材质表挂到 `ViewModelRequest`；`native/include/native_renderer.h`、`native/src/native_renderer.cpp` 增加 `ViewModelDrawRange`、按规范化 VTF 路径索引的纹理缓存、每帧 range 循环与 `$translucent` 混合状态；`native/src/main.cpp` 接线、新增 `--viewmodel-material-slot` / `--viewmodel-material-missing-slot` / `--viewmodel-flat-color` 与九项稳定读数；`bmp-pixel-diff.py` 新增 `--region`；`viewmodel-material-check.sh` 新增产品段落 6--9 与 4 条产品变异。
+- 修复接线缺陷一处：`reloadGpuResources()` 原先直接上传 ViewModel 网格并占据缓冲区归属，使场景更新里的材质 pass 被 early-return 跳过；因此 `--viewmodel-render command` 路径下材质从未绑定，覆盖开关被静默忽略（`slotOverride=-1`）。改为经同一材质 pass 上传。
+- 关键读数（长跑 149 帧）：`materialSlots=3 materialResolved=3 fallbackSlots=0 texturesUploaded=2 texturesReused=149 boundSlots=1 drawRanges=1 fallbackRanges=0 phongSlots=3 bumpSlots=3 selfillumSlots=0`，`drawnSlot=0 source=mdl-mesh-table`、`drawnModel=c_sniper_arms entityModelMatchesDrawn=1`。`texturesReused == rendered_frames`，`texturesUploaded` 不随帧数增长。
+- 像素证据：`--start-paused --capture-tick 0` 冻结世界（同设置两次运行逐字节一致），纹理态与纯色对照相差 `1.4295%`（`max_delta=186`），ViewModel 之外三条条带差异为 0；同几何换第二张真实纹理相差 `1.4111%`（`max_delta=120`）且同样只改 ViewModel 区域；注入缺失槽后该帧与纯色对照帧逐字节一致。
+- 门禁：`viewmodel-material-check.sh` 220 条断言通过（原 159 条资源断言 + 61 条产品断言）；这是在修掉比对工具的整帧假绿后重跑的结果，真判定与首轮的"220"不是同一件事。`--mutation` 十个变异**逐个**捕获（全量重跑 9/10，第 10 条 `texture-rebuilt-every-frame` 被新加的陈旧-capture 守卫中止——沙箱删除配额耗尽、宁红勿假——配额恢复后单独重跑捕获），源码与夹具均还原。
+- 本轮修掉的仪器缺陷（都是 mutation 首轮暴露出来的，不是产品缺陷）：`bmp-pixel-diff.py` 的 min/max 判定原先只在 `--region` 循环内执行，整帧条目被跳过，故**所有无 `--region` 的边界断言从不判定**（三个门禁共用此工具）；变异 `texture-rebuilt-every-frame` v1 删 early-return 反而让一次性解码重跑并降级所有槽；`clear_product_captures` 被沙箱安全删除垫片静默拦截后残留 capture 会让门禁测量上一个变异的二进制；mutation 还原哈希列表漏两个文件导致假红；判定 `fail -eq 1` 拒掉合法连锁红。
+- 修复链接缺陷一处：`viewmodel.cpp` 调用新的共享材质解析，但 `viewmodel_material.cpp` / `vmt_material.cpp` / `vtf_texture.cpp` 只加进了 `tf2_demo_native` 与 `viewmodel_material_probe`，`viewmodel_fov_probe`、`viewmodel_contract_probe`、`viewmodel_animation_probe`、`animation_viewmodel_probe` 链接失败（NMAKE 停在第一个，其后 target 静默不构建）。由 `verify-fast.sh` 抓到，四个 target 已补齐。
+- 未完成：phong/bump/selfillum 未实现（读数逐帧给出 `*AppliedRanges=0`，`*Slots` 仅为 VMT 声明值）；缺失材质在真实安装中不存在（扫过全部 37 个 ViewModel 共 147 个槽，无一缺失且全部解码，95 个 BC1 + 52 个 BC3，逐槽清单见 `evidence/viewmodel/material-readings-all-vmodels.txt`），fallback 由带标注的注入构造；未做人工画面对照、跨机器抓帧、多帧像素稳定性。总链未重跑。
+
 ### 清单四：音频 tick 调度与 null sink 契约已整合
 
 - 整合提交：`28007af`，来源 `task/audio-tick-scheduler@9b4b41a21d4546efe85087e9fea72873a58069f3`；保留清单二的 `OutcomeSink`、`eventsSkippedDisabled` 和 `waveOutOpenCalls()`，并加入设备尝试/成功计数与 tick 调度实现。

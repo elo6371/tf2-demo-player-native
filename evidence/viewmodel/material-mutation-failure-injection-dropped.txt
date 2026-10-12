@@ -1,0 +1,9 @@
+# the injection-dropped mutation was caught: these assertions went red
+the injection is reported: -1 != 0
+the injected slot is no longer resolved: 4 != 3
+the injected slot is counted as a fallback: 0 != 1
+nothing is bound: 1 != 0
+the range is a fallback range: 0 != 1
+no texture was uploaded for it: 1 != 0
+no texture bind happened: 1 != 0
+the fallback frame is exactly the flat control frame: BMP-DIFF differing=36915 total=2582352 percent=1.4295 max_delta=186 extent=1264x681x24 status=FAIL reason=whole frame percent=1.4295 exceeds 0.0000

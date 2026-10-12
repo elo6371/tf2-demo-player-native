@@ -6,14 +6,16 @@ T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单一 
 T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品提交 `447ca74`，门禁/文档提交 `2a92967`，主线整合提交 `f5e427f`。
 产品默认 ViewModel FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略、缺资源回退；T2.5 会读取 `CTFViewModel` 的 `m_nSequence`/`m_flPlaybackRate`，对不属于当前 `v_*.mdl` 序列表的序列明确拒绝并回退 bind pose。
 
-已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；清单一 companion 正常 108 条断言、mutation 6/6，动画专项 139 条断言；清单三资源专项 159 条断言；历史渲染档 8/8。当前整合后的 `verify-render.sh` 已扩展为 9/9，尚未在主线上重跑。
-T2.5 没有实现实体序列到旧式 `v_*.mdl` 的映射，而是证明实体自身 `c_*_arms.mdl` 才是动画表；POV 自然序列没有动画绑定，`--viewmodel-sequence 0` 只作为构造正例。当前仍未证明 ViewModel 材质已接入产品 draw pass、真实游戏人工画面对照、玩家动画输入、跨机器抓帧点集合和真实 GPU/FPS。
+已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；清单一 companion 正常 108 条断言、mutation 6/6，动画专项 139 条断言；清单三资源专项 159 条断言；历史渲染档 8/8。当前整合后的 `verify-render.sh` 已扩展为 9/9，尚未在主线上重跑。T1 材质接入把同一门禁扩展到 220 条断言、10/10 mutation（见下）。
+T2.5 没有实现实体序列到旧式 `v_*.mdl` 的映射，而是证明实体自身 `c_*_arms.mdl` 才是动画表；POV 自然序列没有动画绑定，`--viewmodel-sequence 0` 只作为构造正例。ViewModel 材质已接入产品 draw pass（见下），当前仍未证明真实游戏人工画面对照、玩家动画输入、跨机器抓帧点集合和真实 GPU/FPS。
 
 T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默认 `v_scattergun_scout.mdl` 对 POV 的 141 次实体序列只有 37 次在范围内；按实体自身 `m_nModelIndex` 对应模型比较为 141/141。清单一已切换产品绘制路径：默认绘制实体自身 `c_*_arms.mdl`，命令行 `v_*` 保留为 modelMismatch 对照，并要求 owner、模型路径、sequence 表和骨骼覆盖同时成立。
 
 清单四已整合（`28007af`）：音频按 demo tick 调度，支持 tick 去重与倒放恢复、延时取整/下限、声音分类和资源解析失败原因，并保留 `--audio-disabled` 的 OutcomeSink。`verify-audio.sh` 为 `VERIFY-AUDIO=PASS (assertions_ok=28)`，`--mutation` 的 6 个专项变异全部捕获；设备尝试和成功计数均可被门禁读取。当前未验证真实 demo 端到端播放、真实 MP3/ADPCM 设备播放、长时间压力和非 Windows 平台。
 
 清单三已整合（`e584052`）：新增 `viewmodel_material_probe` 和 `viewmodel-material-check.sh`，复用产品 MDL/VMT/VTF/VPK 解析器，覆盖 `$cdmaterials`、反斜杠 `$basetexture`、BC1/BC3、2048² 上限、cubemap 解码拒绝和资源缺失。真实安装的 4 个模型共 10/10 材质槽解析并解出像素；专项门禁为 159 条断言通过，分支验收的 6/6 mutation 和 `verify-render.sh` 8/8 均通过。该项只完成资源解析与像素解码，尚未接入产品 ViewModel 绘制，也未完成人工画面对照。
+
+T1 ViewModel 材质接入（分支 `task/viewmodel-material-render`，基线 `origin/p0-entity-protocol@9a8387b`）：把已验证的 MDL → `$cdmaterials` → VMT → `$basetexture` → VTF → BC1/BC3 像素解码接入实际 ViewModel draw pass。新增 `native/include/viewmodel_material.h` 与 `native/src/viewmodel_material.cpp`，由探针和产品共用同一个解析器（两个实现分头演进就无法互证）；`ModelMeshMaterialTable` 解出被绘制 mesh 命名的材质槽：四个真实模型 `drawnSlot` 均为 0，全部 10 个 VTX 描述符通过表内校验（含 mesh 数 1、描述符 4 的 c_scattergun）。GPU 纹理按规范化 VTF 资源路径缓存，产品读数 `texturesUploaded` 不随帧数增长（长跑 149 帧只上传 2 张，对应命令行模型与实体 companion 各一张；帧数本身随机时序浮动，稳定的是上传数不随之增长），draw pass 每帧只重绑不重建（`texturesReused` 与 `rendered_frames` 相等）。像素证据用 `--start-paused --capture-tick 0` 冻结世界，两次同设置运行逐字节一致后比对：绑定纹理与纯色对照相差 1.4295%（`max_delta=186`），ViewModel 之外的三条条带差异为 0；同几何换第二张真实纹理同样只改 ViewModel 区域；注入缺失槽后该帧与纯色对照帧逐字节一致。专项门禁 220 条断言通过、10/10 mutation 捕获（6 条夹具/探针 + 4 条产品源码与 shader）。未完成：phong/bump/selfillum 未实现，读数逐帧标为 `*AppliedRanges=0`，`*Slots` 只是 VMT 声明值；缺失材质在真实安装中不存在（扫过全部 37 个 ViewModel、共 147 个槽，无一缺失且全部解码，95 个 BC1 + 52 个 BC3，逐槽清单见 evidence/viewmodel/material-readings-all-vmodels.txt；10 个带缺陷的夹具没有几何、到不了 draw pass），因此 fallback 只能由带标注的注入构造；未做人工画面对照与跨机器抓帧。
 
 接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。不设固定修改文件数量上限，只要求文件都属于当前任务边界并在报告中逐文件说明理由。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、变异结果、未验证项和可运行结论；每完成一项立即更新交接清单。
 

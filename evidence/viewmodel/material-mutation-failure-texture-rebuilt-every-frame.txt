@@ -1,0 +1,2 @@
+# the texture-rebuilt-every-frame mutation was caught: these assertions went red
+uploads do not grow with the frame count: no != yes
