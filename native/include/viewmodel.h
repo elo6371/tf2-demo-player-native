@@ -138,6 +138,26 @@ std::int32_t selectViewModelAlignment(ViewModelRequest& request,
 ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string& path,
   ViewModelHand hand, std::optional<float> fov = std::nullopt);
 
+// The same request for the model a ViewModel ENTITY names as its own, which is
+// `models/weapons/c_models/c_<class>_arms.mdl` on every shipped first-person
+// composite. It differs from buildViewModelRequest in exactly one rule: the file
+// name is not checked for the `v_` prefix.
+//
+// That check is dropped deliberately, and the reason is which side is the
+// authority. `--viewmodel <path>` is a person naming a model, so the name is
+// where the meaning comes from and a `c_*` file there is a mistake worth
+// refusing. Here the path came from the entity's own m_nModelIndex, resolved
+// through the demo's model_precache -- the name is evidence, not an assertion.
+// Refusing a `c_*` name here would refuse the very model the next round has to
+// draw (measured 2026-10-12: every candidate ViewModel entity on the POV
+// recording resolves to `c_<class>_arms.mdl`, and no `v_*` name appears at all).
+//
+// Everything else is the same code path on purpose: the companion has to be
+// inspected, counted, alignment-selected and mesh-built by the same parser the
+// `--viewmodel` path uses, or the two would disagree about the same file.
+ViewModelRequest buildViewModelCompanionRequest(const AssetRoot& root, const std::string& path,
+  ViewModelHand hand, std::optional<float> fov = std::nullopt);
+
 // ---- ViewModel animation input (T2.5) -------------------------------------
 //
 // T2 drew the ViewModel in its bind pose and reported `animationInput=missing`.
@@ -159,19 +179,43 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
 //      sequences); the pass draws `models/weapons/v_models/v_<weapon>.mdl` (2..9
 //      sequences); observed sequences run 0..34.
 //
-// Point 3 is why this is a refusal contract and not a mapping. Applying the
-// entity's index to the drawn model's table is wrong even when the value lands
-// inside it: `inRange` measured against the wrong table is a coincidence, and
-// the probe reports the two counts side by side (`vmmapping-summary ...
-// inRange=37 outOfRange=104`) so the coincidence is visible instead of
-// flattering. The real mapping -- entity sequence space -> activity -> `v_*`
-// sequence -- is follow-up work. Until it exists the honest behaviour is: accept
-// what is inside the drawn table, refuse what is not, and never present an
-// accepted coincidence as a correct pose.
+// Point 3 is why the first round was a refusal contract and not a mapping.
+// Applying the entity's index to the drawn model's table is wrong even when the
+// value lands inside it: `inRange` measured against the wrong table is a
+// coincidence, and the probe reports the two counts side by side
+// (`vmmapping-summary ... inRange=37 outOfRange=104`) so the coincidence is
+// visible instead of flattering.
+//
+// THE MAPPING ROUND FOUND THAT NO MAPPING IS NEEDED, AND THAT IS WHY THIS ROUND
+// REPLACES THE RULE ABOVE. Follow-up work was expected to build
+// entity-sequence -> activity -> `v_*`-sequence. It cannot be built, and the
+// investigation (`T2.5-MAPPING-RECON-2026-10-12.md`) says why in five layers:
+// `v_*.mdl` is not carried by the demo, not named by `items_game.txt`, and the
+// weapon scripts that would name it are encrypted in every shipped build; the
+// activity labels that could bridge the two index spaces exist only on the `v_*`
+// side (`mstudioseqdesc_t + 8`) and on none of the `c_*_arms` models. The
+// premise was wrong, not the work: modern TF2's first-person view is a COMPOSITE
+// -- a static weapon body plus a separately animated pair of arms -- and the
+// entity's `m_nSequence` is an index into the arms model's own table all along.
+// Measured per entity against its own model: 1497 of 1498 observations land in
+// range, against 104 of 141 out of range when the `v_*` table is used instead.
+//
+// So the correct animation path is not a translation, it is a proof:
+//
+//   ViewModel owner -> weapon entity -> entity m_nModelIndex -> that model
+//     -> that model's own sequence table -> bone matrices
+//
+// and the pass must draw THE MODEL THE ENTITY NAMED. A sequence is accepted only
+// when the model being drawn is the entity's own model, so "which table" is
+// settled before "where in the table" is asked. The four refusals below are the
+// four ways that proof can fail, and they are separate because they are separate
+// repairs: a missing entity, a different model, an index past the right table,
+// and a skeleton the pose does not cover.
 enum class ViewModelAnimationStatus {
-  Missing,             // no owning ViewModel entity, or it carried no sequence
-  Ok,                  // the sequence is inside the drawn model's own table
-  SequenceOutOfRange,  // it is past the end of that table
+  Missing,             // no owning ViewModel entity, no model index, or no sequence
+  Ok,                  // the entity's own model is drawn and the sequence indexes it
+  ModelMismatch,       // the drawn model is not the model the entity's own index names
+  SequenceOutOfRange,  // it is past the end of that model's own table
   BoneMismatch,        // the drawn model's animation bones do not line up
 };
 
@@ -182,10 +226,30 @@ const char* viewModelAnimationStatusName(ViewModelAnimationStatus status);
 // failures: "the demo has no ViewModel entity for this player" and "it has one
 // and the slot is absent" are different reasons to draw a bind pose, and a
 // single flag would make them read the same.
+//
+// THE PROOF FIELDS ARE VALUES, NOT VERDICTS. `hasOwner`/`ownerEntity` and
+// `hasModelIndex`/`modelIndex` carry what the entity actually said, and the
+// contract derives the verdicts from them. Carrying a pre-computed
+// `ownerMatchesViewEntity` bool instead would make the negative fixture for a
+// wrong owner impossible to construct: a caller could set the flag true while
+// naming a different entity, and the contract would have nothing to compare.
 struct ViewModelAnimationInput {
   bool entityPresent = false;
   int entityIndex = -1;
   std::string entityModelPath;  // what the entity's m_nModelIndex names
+  // The owner proof. `viewEntity` is the entity svc_SetView named; `ownerEntity`
+  // is the low 11 bits of this entity's m_hOwner handle. They must be equal, and
+  // the contract checks it rather than assuming it, because the caller above it
+  // (findViewModelAnimationInput) already *selects* on that equality -- and a
+  // selection rule that is never re-asserted is a rule no fixture can break.
+  bool hasOwner = false;
+  int ownerEntity = -1;
+  int viewEntity = -1;
+  // The model proof. Zero is not a model here: it is the value an entity carries
+  // when nothing was set, and it is separately reportable from "the index did not
+  // resolve" because only one of the two is repairable by a different precache.
+  bool hasModelIndex = false;
+  int modelIndex = -1;
   bool hasSequence = false;
   int sequence = -1;
   bool hasPlaybackRate = false;
@@ -201,6 +265,16 @@ struct ViewModelAnimationOutcome {
   std::string sequenceLabel;
   int frame = 0;
   int frameCount = 0;
+  // The proof's first conclusion, reported on its own so a reader does not have
+  // to re-derive it from two paths that may have been normalised differently.
+  bool entityModelMatchesDrawn = false;
+  // The second conclusion, kept apart from `status` because the two answer
+  // different questions and the recording used to check this one separates them:
+  // an index can sit INSIDE the entity's own table and still name no pose, which
+  // is `sequenceInRange` true with `status` not Ok. Folded into one reading, "the
+  // index is wrong" and "the model has no pose there" would look the same, and
+  // the first is a defect while the second is the model's own content.
+  bool sequenceInRange = false;
   // True for every status except Ok, and the caller has to honour it: there is
   // no partial outcome, so a bind pose with skinning off is the only thing a
   // refused input may produce.
@@ -212,11 +286,31 @@ struct ViewModelAnimationOutcome {
 // device or a demo.
 //
 // `drawnBinding` is the animation binding of the model the pass draws, or
-// nullptr when that model has none; `drawn` supplies that model's own sequence
-// and bone counts, which is what "in range" is measured against. `timing`
-// carries the tick the frame is being drawn for, and its sequence / cycle / rate
-// fields are overwritten from the input -- so a caller cannot sample a sequence
-// the input did not name.
+// nullptr when that model has none; `drawn` supplies that model's own path, its
+// own sequence table and its own bone count -- so "in range" and "covers the
+// skeleton" are measured against the model that is on screen and against nothing
+// else. `timing` carries the tick the frame is being drawn for, and its sequence
+// / cycle / rate fields are overwritten from the input -- so a caller cannot
+// sample a sequence the input did not name.
+//
+// THE CHECKS RUN IN ONE ORDER, AND THE ORDER IS PART OF THE CONTRACT:
+//
+//   1. the drawn model resolved at all            -> Missing
+//   2. an owning ViewModel entity was found       -> Missing
+//   3. that entity's owner is the view entity     -> Missing
+//   4. its m_nModelIndex is non-zero and resolved -> Missing
+//   5. the entity carries a sequence              -> Missing
+//   6. the drawn model IS the entity's own model  -> ModelMismatch
+//   7. the sequence is inside that model's table  -> SequenceOutOfRange
+//   8. a pose can be sampled from that table      -> Missing / BoneMismatch
+//   9. the pose covers the drawn skeleton         -> BoneMismatch
+//
+// Step 6 comes before step 7 because a range measured against the wrong table is
+// not a shorter answer, it is a different question. The first round reported the
+// POV recording's sequence 29 as `sequenceOutOfRange` -- 29 is past the `v_*`
+// table's seven entries -- and that label was an artifact of comparing against a
+// table nobody was drawing from. With the proof in place the same frame reads
+// `modelMismatch`, which names the actual defect.
 ViewModelAnimationOutcome resolveViewModelAnimationInput(
   const ViewModelAnimationInput& input,
   const ViewModelRequest& drawn,

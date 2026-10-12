@@ -63,6 +63,32 @@ namespace {
 // Small helpers
 // ---------------------------------------------------------------------------
 
+// The sequence-descriptor stride the animation decoder assumes. Repeated here
+// (rather than shared) because the raw dump below has to walk the file without
+// the decoder, which is the only thing that makes it a second opinion.
+constexpr std::size_t kSeqDescStride = 212;
+
+// A NUL-terminated run of printable ASCII at an absolute file offset, or empty.
+// Used only by the raw-header dump below, whose whole point is to be readable
+// without trusting this decoder's own decoded fields.
+std::string rawAscii(const std::vector<std::uint8_t>& bytes, std::size_t offset) {  if (offset >= bytes.size()) return {};
+  std::string text;
+  for (std::size_t index = offset; index < bytes.size() && bytes[index] != 0; ++index) {
+    const std::uint8_t character = bytes[index];
+    if (character < 32 || character > 126) return {};
+    if (text.size() >= 40) return text;
+    text.push_back(static_cast<char>(character));
+  }
+  return text;
+}
+
+std::int32_t rawWord(const std::vector<std::uint8_t>& bytes, std::size_t offset) {
+  if (offset + 4 > bytes.size()) return -1;
+  std::int32_t value = 0;
+  std::memcpy(&value, bytes.data() + offset, sizeof(value));
+  return value;
+}
+
 std::string jsonEscape(const std::string& value) {
   std::string out;
   out.reserve(value.size() + 8);
@@ -308,6 +334,56 @@ int sequenceInRange(std::int64_t sequence, std::int64_t sequenceCount) {
 }
 
 // ---------------------------------------------------------------------------
+// The fixture battery's machine-readable account
+// ---------------------------------------------------------------------------
+//
+// One line per fixture, printed whether the fixture behaved or not, because a gate
+// that asserts on a line which is only printed when things go right is a gate
+// that cannot see the thing it exists to see. The line carries the verdict, the
+// proof's own reading, and the two counts a gate needs to tell "the pose covers
+// the skeleton" from "the skeleton was never measured".
+struct ProofReport {
+  std::size_t fixtures = 0;
+  std::size_t accepted = 0;
+  std::size_t missing = 0;
+  std::size_t modelMismatch = 0;
+  std::size_t outOfRange = 0;
+  std::size_t boneMismatch = 0;
+
+  void record(const char* name, const tf2::native::ViewModelAnimationInput& input,
+              const tf2::native::ViewModelRequest& model,
+              const tf2::native::ViewModelAnimationOutcome& outcome) {
+    ++fixtures;
+    switch (outcome.status) {
+      case tf2::native::ViewModelAnimationStatus::Ok: ++accepted; break;
+      case tf2::native::ViewModelAnimationStatus::ModelMismatch: ++modelMismatch; break;
+      case tf2::native::ViewModelAnimationStatus::SequenceOutOfRange: ++outOfRange; break;
+      case tf2::native::ViewModelAnimationStatus::BoneMismatch: ++boneMismatch; break;
+      default: ++missing; break;
+    }
+    // `reason` is printed last because it is several words long: every field
+    // before it can be read positionally, and the reason is the tail.
+    std::fprintf(stderr,
+      "vmproof fixture=%s status=%s modelMatch=%d inRange=%d bindPose=%d matrices=%zu bones=%zu "
+      "owner=%d viewEntity=%d modelIndex=%d drawn=%s reason=%s\n",
+      name, tf2::native::viewModelAnimationStatusName(outcome.status),
+      outcome.entityModelMatchesDrawn ? 1 : 0, outcome.sequenceInRange ? 1 : 0,
+      outcome.bindPose ? 1 : 0,
+      outcome.skinMatrices.size(), model.bones.size(),
+      input.ownerEntity, input.viewEntity, input.modelIndex,
+      model.path.empty() ? "-" : model.path.c_str(),
+      outcome.reason.empty() ? "-" : outcome.reason.c_str());
+  }
+
+  void summary() const {
+    std::fprintf(stderr,
+      "vmproof-summary fixtures=%zu accepted=%zu missing=%zu modelMismatch=%zu "
+      "outOfRange=%zu boneMismatch=%zu\n",
+      fixtures, accepted, missing, modelMismatch, outOfRange, boneMismatch);
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Self-test -- pure logic, no demo needed
 // ---------------------------------------------------------------------------
 
@@ -394,6 +470,28 @@ int selfTest(const tf2::native::AssetRoot* root) {
     check(supply.cycle == 0, "an absent slot counts zero, not one");
   }
 
+  // The fixture battery's account, declared outside the `--tf-root` guard so the
+  // summary can be printed (and asserted) whether or not the battery ran: a
+  // summary that only appears when the battery ran cannot report a battery that
+  // did not.
+  //
+  // Every fixture's verdict goes into a machine-readable line, so a gate can
+  // assert on the battery rather than on one chosen case. The names are the
+  // battery's own order and the count is asserted below: a fixture inserted
+  // without a name would shift the labels visibly instead of silently keeping a
+  // stale one, and the assertion is what turns that from a convention into a
+  // check.
+  const char* const fixtureNames[] = {
+    "no-entity", "no-owner", "wrong-owner", "no-model-index", "model-index-zero",
+    "model-unresolved", "model-mismatch", "drawn-matched", "path-separator",
+    "no-sequence", "negative-sequence", "sequence-past-own-table", "sequence-in-range-unbound",
+    "accepted",
+    "bone-mismatch", "no-binding", "unresolved-drawn", "cycle-witness", "cycle-applied",
+  };
+  constexpr std::size_t fixtureNameCount = sizeof(fixtureNames) / sizeof(fixtureNames[0]);
+  ProofReport report;
+  std::size_t fixtureOrdinal = 0;
+
   // 5. Agreement with the product, through the product's own entry point. The
   //    product's rule is file-local, so the only honest way to test agreement is
   //    to ask the product: a path the rule rejects must come back naming exactly
@@ -413,130 +511,499 @@ int selfTest(const tf2::native::AssetRoot* root) {
             && !isViewModelPath("models/weapons/c_models/c_soldier_arms.mdl"),
           "this probe's copy of the rule agrees with the product on both");
 
-    // 6. The resolver contract, driven through the product's own entry point. A
-    //    gate that asserts "the status is sequenceOutOfRange" is asserting a
-    //    string unless every branch is reachable and each one is shown to need
-    //    its own input. So: one real model, one real animation binding, and one
-    //    case per branch -- with the negative cases differing from the positive
-    //    one by exactly one field.
-    const auto drawn = tf2::native::buildViewModelRequest(
-      *root, "models/weapons/v_models/v_scattergun_scout.mdl", tf2::native::ViewModelHand::Right);
+    // 6. The companion proof, driven through the product's own entry point.
+    //
+    //    Six conditions, four refusals, one fixture per condition. Each fixture
+    //    differs from the accepting input by exactly one field, so an assertion
+    //    that moves says which field moved it -- a fixture that changed two things
+    //    at once could not say which one the contract reads.
+    //
+    //    The pairing is the REAL one: the model on the left is the composite the
+    //    entity's own `m_nModelIndex` names, and the sequence is measured against
+    //    ITS table. The first round measured the same sequence against
+    //    `v_scattergun_scout`'s seven-entry table, which is why its refusals named
+    //    a table nobody was drawing from.
+    const auto drawn = tf2::native::buildViewModelCompanionRequest(
+      *root, "models/weapons/c_models/c_soldier_arms.mdl", tf2::native::ViewModelHand::Right);
     check(drawn.status == tf2::native::ViewModelStatus::Ok,
-          "the product resolves the drawn model");
+          "the product resolves the entity's own model");
     check(!drawn.sequenceLabels.empty(), "the drawn model has a sequence table to be in or out of");
     check(!drawn.bones.empty(), "the drawn model has a skeleton");
+
+    // The companion entry point's own test, and it is two claims. It must accept
+    // a `c_*` path -- the `--viewmodel` rule refuses exactly that path, so a
+    // companion that resolved here through the other entry point would be
+    // impossible. And it must be the SAME parser: the same file read twice must
+    // yield the same table and the same skeleton, or the two entry points would
+    // disagree about one file and only one of them would be drawing it.
+    const auto companionSameFile = tf2::native::buildViewModelCompanionRequest(
+      *root, "models/weapons/c_models/c_soldier_arms.mdl", tf2::native::ViewModelHand::Right);
+    check(companionSameFile.sequenceLabels.size() == drawn.sequenceLabels.size()
+            && companionSameFile.bones.size() == drawn.bones.size(),
+          "the companion entry point parses the file the same way twice");
+    const auto stillRefusedByTheVPath = tf2::native::buildViewModelRequest(
+      *root, "models/weapons/c_models/c_soldier_arms.mdl", tf2::native::ViewModelHand::Right);
+    check(stillRefusedByTheVPath.reason == "path is not a viewmodel",
+          "the --viewmodel entry point still refuses the same c_*_arms path");
+
+    // A companion path that does not resolve is the "model file is missing" case,
+    // and it has to fail in the request rather than in the contract: a contract
+    // handed an unresolved model has nothing to measure a sequence against.
+    const auto missingCompanion = tf2::native::buildViewModelCompanionRequest(
+      *root, "models/weapons/c_models/c_probe_absent_arms.mdl", tf2::native::ViewModelHand::Right);
+    check(missingCompanion.status == tf2::native::ViewModelStatus::Failed,
+          "a companion whose file is absent does not resolve");
+    check(!missingCompanion.reason.empty(),
+          "the missing companion says why, rather than resolving to an empty model");
+
+    // The `v_*` model the first round drew, kept as the OTHER table: it has its
+    // own sequence count, and the mismatch fixture needs a drawn model that is
+    // not the entity's own but still legal to draw.
+    const auto other = tf2::native::buildViewModelRequest(
+      *root, "models/weapons/v_models/v_scattergun_scout.mdl", tf2::native::ViewModelHand::Right);
+    check(other.status == tf2::native::ViewModelStatus::Ok,
+          "the product resolves the v_* model as well");
+    const auto otherDrawn = tf2::native::buildViewModelCompanionRequest(
+      *root, other.path, tf2::native::ViewModelHand::Right);
 
     tf2::native::AnimationBindingCache bindings;
     bindings.reset(root);
     tf2::native::AnimationInputStatus bindingStatus = tf2::native::AnimationInputStatus::ModelMissing;
     std::string bindingReason;
+    // The cache hands out pointers INTO its own vector, and a miss pushes an entry
+    // -- so a second resolve for a different model can reallocate and leave the
+    // first pointer dangling. Measured here on 2026-10-12: with the two resolves
+    // in the other order the companion's binding read `anims.animations.empty()`
+    // and every accepting fixture came back `animation source carries no
+    // animations`, which is exactly the shape of a wrong answer that looks like a
+    // finding. Both entries are therefore inserted FIRST and the pointers taken
+    // afterwards, where every call is a cache hit and nothing is pushed.
+    bindings.resolve(other.path, bindingStatus, bindingReason);
+    bindings.resolve(drawn.path, bindingStatus, bindingReason);
+    const auto* otherBinding = bindings.resolve(other.path, bindingStatus, bindingReason);
     const auto* binding = bindings.resolve(drawn.path, bindingStatus, bindingReason);
-    check(binding != nullptr, "the drawn model has an animation binding");
+    check(binding != nullptr && otherBinding != nullptr,
+          "both the companion and the v_* model have an animation binding");
+    check(binding != otherBinding,
+          "the two models are two cache entries, not one");
     if (binding != nullptr) {
       check(binding->renderBones == drawn.bones.size(),
             "the binding's render skeleton is the drawn model's skeleton");
     }
+
     tf2::native::AnimationSampleRequest timing;
     timing.tick = 0;
     timing.tickRate = 30.0f;
 
+    // Every fixture's verdict goes into a machine-readable line, so a gate can
+    // assert on the battery rather than on one chosen case.
     const auto resolve = [&](const tf2::native::ViewModelAnimationInput& input,
                              const tf2::native::ViewModelRequest& model,
                              const tf2::native::AnimationBinding* bound) {
-      return tf2::native::resolveViewModelAnimationInput(input, model, bound, timing);
+      const auto outcome = tf2::native::resolveViewModelAnimationInput(input, model, bound, timing);
+      const char* name = fixtureOrdinal < fixtureNameCount ? fixtureNames[fixtureOrdinal] : "unnamed";
+      ++fixtureOrdinal;
+      report.record(name, input, model, outcome);
+      return outcome;
     };
 
-    // (a) no entity at all
+    // The accepting input. Every fixture below is this, one field changed.
     tf2::native::ViewModelAnimationInput input;
-    auto outcome = resolve(input, drawn, binding);
-    check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
-          "no owning entity resolves to missing");
-    check(outcome.bindPose, "missing leaves the bind pose");
-    check(outcome.reason.find("no viewmodel entity") != std::string::npos,
-          "missing names which of the two absences it was");
-
-    // (b) an entity whose sequence slot is absent -- one field away from (c)
     input.entityPresent = true;
     input.entityIndex = 7;
-    outcome = resolve(input, drawn, binding);
-    check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
-          "an entity with no m_nSequence resolves to missing, not to sequence 0");
-    check(outcome.reason.find("m_nSequence") != std::string::npos,
-          "the absent sequence is named");
-
-    // (c) out of range -- the refusal the round exists for
+    input.hasOwner = true;
+    input.ownerEntity = 42;          // the handle's low 11 bits
+    input.viewEntity = 42;           // what svc_SetView named
+    input.hasModelIndex = true;
+    input.modelIndex = 100;          // a demo precache slot
+    input.entityModelPath = drawn.path;
     input.hasSequence = true;
-    input.sequence = static_cast<int>(drawn.sequenceLabels.size());
-    outcome = resolve(input, drawn, binding);
-    check(outcome.status == tf2::native::ViewModelAnimationStatus::SequenceOutOfRange,
-          "one past the drawn table resolves to sequenceOutOfRange");
-    check(outcome.bindPose, "an out-of-range sequence leaves the bind pose");
-    check(outcome.reason.find(std::to_string(drawn.sequenceLabels.size())) != std::string::npos,
-          "the refusal names the drawn table's size");
+    input.sequence = 0;
 
-    // (d) in range -- the acceptance branch, which has to be reachable or (c) is
+    // (a) the two absences, kept apart: no entity at all, and an entity whose
+    //     owner is somebody else.
+    {
+      auto fixture = input;
+      fixture.entityPresent = false;
+      fixture.entityIndex = -1;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "no owning entity resolves to missing");
+      check(outcome.bindPose, "missing leaves the bind pose");
+      check(outcome.reason.find("no viewmodel entity") != std::string::npos,
+            "missing names which of the two absences it was");
+    }
+    {
+      auto fixture = input;
+      fixture.hasOwner = false;
+      fixture.ownerEntity = -1;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "an entity with no m_hOwner resolves to missing");
+      check(outcome.reason.find("m_hOwner") != std::string::npos,
+            "the absent owner is named");
+    }
+    {
+      // The wrong-owner fixture: the entity names a DIFFERENT owner. This is the
+      // case the lookup above already filters, which is why the contract's own
+      // check has to be provable from a fixture instead.
+      auto fixture = input;
+      fixture.ownerEntity = 43;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "an entity owned by another entity resolves to missing");
+      check(outcome.bindPose, "a wrong owner leaves the bind pose");
+      check(outcome.reason.find("owned by entity 43") != std::string::npos
+              && outcome.reason.find("view entity 42") != std::string::npos,
+            "the wrong owner names both entities");
+    }
+    // (b) the model index: absent, zero, and present-but-unresolved. Zero is not
+    //     the same refusal as unresolved -- the first is an entity that named no
+    //     model, the second an index the demo's precache does not carry.
+    {
+      auto fixture = input;
+      fixture.hasModelIndex = false;
+      fixture.modelIndex = -1;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "an entity with no m_nModelIndex resolves to missing");
+      check(outcome.reason.find("m_nModelIndex") != std::string::npos,
+            "the absent model index is named");
+    }
+    {
+      auto fixture = input;
+      fixture.modelIndex = 0;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "m_nModelIndex 0 resolves to missing, not to a model");
+      check(outcome.reason.find("names no model") != std::string::npos,
+            "model index 0 is refused as naming no model");
+    }
+    {
+      auto fixture = input;
+      fixture.modelIndex = 4095;
+      fixture.entityModelPath.clear();
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "an index the precache does not carry resolves to missing");
+      check(outcome.reason.find("model_precache") != std::string::npos,
+            "the unresolved index names the precache");
+    }
+    // (c) the entity's own model is not the model the pass draws -- the refusal
+    //     this round exists for. Sequence 0 is legal for the drawn `v_*` table, so
+    //     only the path equality is wrong: this is exactly the frame the first
+    //     round accepted as a coincidence.
+    {
+      auto fixture = input;
+      fixture.entityModelPath = drawn.path;
+      const auto outcome = resolve(fixture, otherDrawn, otherBinding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::ModelMismatch,
+            "a drawn model that is not the entity's own resolves to modelMismatch");
+      check(outcome.bindPose, "a model mismatch leaves the bind pose");
+      check(!outcome.entityModelMatchesDrawn, "the mismatch reading is reported as false");
+      check(!outcome.sequenceInRange,
+            "a model mismatch never reaches the range question, so it is not in range");
+      check(outcome.reason.find("c_soldier_arms.mdl") != std::string::npos
+              && outcome.reason.find("v_scattergun_scout.mdl") != std::string::npos,
+            "the mismatch names both models");
+      // The same input, one field changed: the entity's own model becomes the one
+      // being drawn, and the refusal turns into an acceptance. Without this pair
+      // the mismatch could be a constant.
+      auto matched = fixture;
+      matched.entityModelPath = other.path;
+      const auto accepted = resolve(matched, otherDrawn, otherBinding);
+      check(accepted.status == tf2::native::ViewModelAnimationStatus::Ok,
+            "the same input against a matching drawn model resolves to ok");
+    }
+    // A path the demo wrote with the other separator and mixed case is the same
+    // model. Both sides are normalised, and this is the fixture that says so: a
+    // raw comparison would refuse a correct pairing on a cosmetic detail.
+    {
+      auto fixture = input;
+      fixture.entityModelPath = "models\\weapons\\c_models\\c_soldier_arms.mdl";
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Ok,
+            "a backslash-separated entity path resolves to ok");
+      check(outcome.entityModelMatchesDrawn, "the normalised comparison reports a match");
+    }
+    // (d) the sequence, against the entity's OWN table.
+    {
+      auto fixture = input;
+      fixture.hasSequence = false;
+      fixture.sequence = -1;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "an entity with no m_nSequence resolves to missing, not to sequence 0");
+      check(outcome.reason.find("m_nSequence") != std::string::npos,
+            "the absent sequence is named");
+    }
+    {
+      auto fixture = input;
+      fixture.sequence = -1;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "a negative sequence resolves to missing");
+      check(outcome.reason.find("negative") != std::string::npos,
+            "the negative sequence is named as negative");
+    }
+    {
+      auto fixture = input;
+      fixture.sequence = static_cast<int>(drawn.sequenceLabels.size());
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::SequenceOutOfRange,
+            "one past the entity's own table resolves to sequenceOutOfRange");
+      check(!outcome.sequenceInRange, "an out-of-range sequence is not reported as in range");
+      check(outcome.bindPose, "an out-of-range sequence leaves the bind pose");
+      check(outcome.reason.find(std::to_string(drawn.sequenceLabels.size())) != std::string::npos,
+            "the refusal names the entity's own table's size");
+      // The two tables really are different sizes, so "out of range of the v_*
+      // table but inside the entity's own" is a value that exists. This is the
+      // measured fact the round rests on, asserted rather than assumed.
+      check(drawn.sequenceLabels.size() != other.sequenceLabels.size(),
+            "the entity's own table and the v_* table are different sizes");
+    }
+    // (e) inside the entity's own table and still naming no pose -- the shape the
+    //     pinned recordings actually show. Sequence 1 sits inside the companion
+    //     model's own table and reaches no animation descriptor at all
+    //     (`vmproof-rawblend` counts 53 of the 54 entries with no blend block), so
+    //     the range question and the pose question must be able to answer
+    //     differently. Folded into one reading, the recording's own state would be
+    //     indistinguishable from an index defect, and a defect is what this
+    //     round is supposed to catch.
+    {
+      auto fixture = input;
+      fixture.sequence = 1;
+      const auto outcome = resolve(fixture, drawn, binding);
+      check(outcome.sequenceInRange,
+            "a sequence inside the entity's own table reads as in range");
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "and still resolves to missing, because that entry names no pose");
+      check(outcome.bindPose, "an entry with no pose leaves the bind pose");
+      check(outcome.entityModelMatchesDrawn,
+            "the model proof is unaffected by the pose being absent");
+    }
+    // (f) in range -- the acceptance branch, which has to be reachable or (d) is
     //     a constant with extra steps
     input.sequence = 0;
-    outcome = resolve(input, drawn, binding);
-    check(outcome.status == tf2::native::ViewModelAnimationStatus::Ok,
+    const auto outcomeInRange = resolve(input, drawn, binding);
+    check(outcomeInRange.status == tf2::native::ViewModelAnimationStatus::Ok,
           "sequence 0 resolves to ok");
-    check(!outcome.bindPose, "ok does not leave the bind pose");
-    check(outcome.skinMatrices.size() == drawn.bones.size(),
+    check(!outcomeInRange.bindPose, "ok does not leave the bind pose");
+    check(outcomeInRange.entityModelMatchesDrawn, "ok reports the model match");
+    check(outcomeInRange.sequenceInRange, "ok reports the sequence as inside the entity's own table");
+    check(outcomeInRange.skinMatrices.size() == drawn.bones.size(),
           "the accepted pose covers the drawn skeleton exactly");
-    const auto acceptedOutcome = outcome;
+    const auto acceptedOutcome = outcomeInRange;
 
-    // (e) bone mismatch: the same accepted input against a skeleton one bone
+    // (f2) bone mismatch: the same accepted input against a skeleton one bone
     //     longer. This is the guard the standalone --model path applies, and the
     //     only way to reach it with real assets is to ask for the wrong skeleton.
-    tf2::native::ViewModelRequest longerSkeleton = drawn;
-    longerSkeleton.bones.resize(drawn.bones.size() + 1);
-    outcome = resolve(input, longerSkeleton, binding);
-    check(outcome.status == tf2::native::ViewModelAnimationStatus::BoneMismatch,
-          "a skeleton one bone longer resolves to boneMismatch");
-    check(outcome.bindPose, "a bone mismatch leaves the bind pose");
-
-    // (f) a drawn model with no animation data at all
-    outcome = resolve(input, drawn, nullptr);
-    check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
-          "a drawn model with no animation data resolves to missing");
-
-    // (g) a drawn model that was never resolved. Without the guard in the
+    {
+      tf2::native::ViewModelRequest longerSkeleton = drawn;
+      longerSkeleton.bones.resize(drawn.bones.size() + 1);
+      const auto outcome = resolve(input, longerSkeleton, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::BoneMismatch,
+            "a skeleton one bone longer resolves to boneMismatch");
+      check(outcome.bindPose, "a bone mismatch leaves the bind pose");
+    }
+    // (g) a drawn model with no animation data at all
+    {
+      const auto outcome = resolve(input, drawn, nullptr);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "a drawn model with no animation data resolves to missing");
+    }
+    // (h) a drawn model that was never resolved. Without the guard in the
     //     resolver an empty sequence table makes every sequence "past the end",
     //     and a resource failure would be reported as a sequence problem.
-    tf2::native::ViewModelRequest unresolved;
-    unresolved.status = tf2::native::ViewModelStatus::Failed;
-    unresolved.reason = "viewmodel was not found";
-    outcome = resolve(input, unresolved, binding);
-    check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
-          "an unresolved drawn model resolves to missing, not sequenceOutOfRange");
-    check(outcome.reason.find("viewmodel was not found") != std::string::npos,
-          "the unresolved reason is carried through");
-
-    // (h) m_flCycle: DT_BaseViewModel has none, so the field exists to report the
+    {
+      tf2::native::ViewModelRequest unresolved;
+      unresolved.status = tf2::native::ViewModelStatus::Failed;
+      unresolved.reason = "viewmodel was not found";
+      const auto outcome = resolve(input, unresolved, binding);
+      check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
+            "an unresolved drawn model resolves to missing, not sequenceOutOfRange");
+      check(outcome.reason.find("viewmodel was not found") != std::string::npos,
+            "the unresolved reason is carried through");
+    }
+    // (i) m_flCycle: DT_BaseViewModel has none, so the field exists to report the
     //     absence. A cycle that IS supplied has to reach the decoder rather than
-    //     being dropped, or "absent" and "ignored" would look the same. The
-    //     witness is a sequence long enough for a half-way cycle to land on a
-    //     different frame -- asserted first, so a one-frame sequence reddens the
-    //     premise instead of the conclusion.
-    tf2::native::ViewModelAnimationInput cycled = input;
-    cycled.sequence = 1;
-    const auto plain = resolve(cycled, drawn, binding);
-    check(plain.status == tf2::native::ViewModelAnimationStatus::Ok,
-          "sequence 1 is accepted, so the cycle witness is on a live branch");
-    check(plain.frameCount > 1, "the witness sequence has more than one frame");
-    cycled.hasCycle = true;
-    cycled.cycle = 0.5f;
-    const auto halfway = resolve(cycled, drawn, binding);
-    check(halfway.status == tf2::native::ViewModelAnimationStatus::Ok,
-          "a supplied cycle does not change the status");
-    check(halfway.frame != plain.frame,
-          "a supplied cycle moves the sampled frame");
-    check(acceptedOutcome.skinMatrices.size() == halfway.skinMatrices.size(),
-          "the cycle witness covers the same skeleton");
+    //     being dropped, or "absent" and "ignored" would look the same.
+    //
+    //     The witness sequence is SEARCHED for, not hardcoded. The index that
+    //     worked for the `v_*` model is 1, and on the companion model sequence 1
+    //     carries no animation binding at all -- hardcoding either one would turn
+    //     the witness into a fact about a file instead of a fact about the
+    //     decoder, and the failure would surface as "the cycle is ignored".
+    // What either model's own table offers, COUNTED rather than sampled. This is
+    // the premise the cycle witness needs, and it is reported instead of assumed
+    // because the two models do not answer it the same way: the `v_*` file is a
+    // multi-frame animation set, and the composite arms file is a table of
+    // one-frame poses -- one per weapon configuration. A witness hardcoded to the
+    // `v_*` answer would read as "the cycle is ignored" on the model this round
+    // actually draws, and a witness hardcoded to the companion's answer would
+    // stop covering the branch that samples a frame at all.
+    struct TableShape {
+      std::size_t sequences = 0;
+      std::size_t animated = 0;    // sequences that reach an animation descriptor
+      std::size_t multiFrame = 0;  // ... of which more than one frame
+      std::int32_t maxFrames = 0;
+      int firstMultiFrame = -1;
+      int firstMultiFrameFrames = 0;
+    };
+    const auto shapeOf = [](const tf2::native::AnimationBinding* candidate) {
+      TableShape shape;
+      if (candidate == nullptr) return shape;
+      shape.sequences = candidate->anims.sequences.size();
+      for (std::size_t index = 0; index < candidate->anims.sequences.size(); ++index) {
+        const std::int32_t animDesc = candidate->anims.sequences[index].animDesc;
+        if (animDesc < 0
+            || static_cast<std::size_t>(animDesc) >= candidate->anims.animations.size()) continue;
+        ++shape.animated;
+        const std::int32_t frames =
+          candidate->anims.animations[static_cast<std::size_t>(animDesc)].frameCount;
+        if (frames > shape.maxFrames) shape.maxFrames = frames;
+        if (frames > 1) {
+          ++shape.multiFrame;
+          if (shape.firstMultiFrame < 0) {
+            shape.firstMultiFrame = static_cast<int>(index);
+            shape.firstMultiFrameFrames = frames;
+          }
+        }
+      }
+      return shape;
+    };
+    const TableShape companionShape = shapeOf(binding);
+    const TableShape controlShape = shapeOf(otherBinding);
+    const std::size_t companionAnimated = companionShape.animated;
+    const std::size_t companionMultiFrame = companionShape.multiFrame;
+    const std::int32_t companionMaxFrames = companionShape.maxFrames;
+    const int witnessSequence = controlShape.firstMultiFrame;
+    const int witnessFrames = controlShape.firstMultiFrameFrames;
+    std::fprintf(stderr,
+      "vmproof-companion path=%s animPath=%s separate=%d includes=%zu sequences=%zu animations=%zu "
+      "animated=%zu multiFrame=%zu maxFrames=%d\n",
+      drawn.path.c_str(),
+      binding != nullptr ? binding->animPath.c_str() : "-",
+      binding != nullptr && binding->separateAnimSource ? 1 : 0,
+      binding != nullptr ? binding->anims.includes.size() : 0,
+      binding != nullptr ? binding->anims.sequences.size() : 0,
+      binding != nullptr ? binding->anims.animations.size() : 0,
+      companionAnimated, companionMultiFrame, companionMaxFrames);
+    if (binding != nullptr) {
+      for (const auto& include : binding->anims.includes) {
+        std::fprintf(stderr, "vmproof-include path=%s include=%s\n", drawn.path.c_str(), include.c_str());
+      }
+    }
+    // The same measurement on the `v_*` control, because the two files disagree
+    // about it and the disagreement is the whole reason the cycle witness had to
+    // move: the control is a multi-frame animation set, and the companion is not.
+    std::fprintf(stderr,
+      "vmproof-control path=%s sequences=%zu animations=%zu animated=%zu multiFrame=%zu "
+      "maxFrames=%d witness=%d witnessFrames=%d\n",
+      other.path.c_str(), controlShape.sequences,
+      otherBinding != nullptr ? otherBinding->anims.animations.size() : 0,
+      controlShape.animated, controlShape.multiFrame, controlShape.maxFrames,
+      witnessSequence, witnessFrames);
+    // The raw file, word for word, read from the bytes this decoder just parsed
+    // rather than from the fields it decoded out of them. "One animation, and
+    // every sequence but one carrying no binding" is a large claim about a model
+    // the task is about to draw, and it is the kind of claim a reader cannot
+    // check by rerunning the same decoder -- so the header's own counters, the
+    // sequence table's own words and the strings they point at are printed
+    // beside it. The offsets named here are the v44+ layout this decoder
+    // assumes; if that assumption were wrong, these words would not spell a
+    // sequence label.
+    if (binding != nullptr && binding->anims.bytes.size() > 400) {
+      const auto& raw = binding->anims.bytes;
+      const std::int32_t rawAnimCount = rawWord(raw, 180);
+      const std::int32_t rawAnimIndex = rawWord(raw, 184);
+      const std::int32_t rawSeqCount = rawWord(raw, 188);
+      const std::int32_t rawSeqIndex = rawWord(raw, 192);
+      std::fprintf(stderr,
+        "vmproof-rawhdr file=%zu declaredLength=%d animCount=%d animIndex=%d seqCount=%d seqIndex=%d\n",
+        raw.size(), rawWord(raw, 76), rawAnimCount, rawAnimIndex, rawSeqCount, rawSeqIndex);
+      const std::int32_t shown = std::min<std::int32_t>(rawSeqCount, 3);
+      for (std::int32_t index = 0; index < shown; ++index) {
+        const std::size_t base = static_cast<std::size_t>(rawSeqIndex)
+          + static_cast<std::size_t>(index) * kSeqDescStride;
+        const std::int32_t at4 = rawWord(raw, base + 4);
+        const std::int32_t at8 = rawWord(raw, base + 8);
+        std::fprintf(stderr,
+          "vmproof-rawseq index=%d w0=%d w4=%d w8=%d w12=%d w16=%d w56=%d w60=%d w72=%d w76=%d "
+          "strAt4=%s strAt8=%s\n",
+          index, rawWord(raw, base), at4, at8, rawWord(raw, base + 12), rawWord(raw, base + 16),
+          rawWord(raw, base + 56), rawWord(raw, base + 60), rawWord(raw, base + 72), rawWord(raw, base + 76),
+          rawAscii(raw, base + (at4 > 0 ? static_cast<std::size_t>(at4) : 0)).c_str(),
+          rawAscii(raw, base + (at8 > 0 ? static_cast<std::size_t>(at8) : 0)).c_str());
+      }
+      std::size_t blendZero = 0;
+      std::size_t pointerZero = 0;
+      for (std::size_t index = 0; index < binding->anims.sequences.size(); ++index) {
+        const std::size_t base = static_cast<std::size_t>(rawSeqIndex) + index * kSeqDescStride;
+        if (rawWord(raw, base + 56) <= 0) ++blendZero;
+        if (rawWord(raw, base + 60) <= 0) ++pointerZero;
+      }
+      std::fprintf(stderr, "vmproof-rawblend sequences=%zu word56NonPositive=%zu word60NonPositive=%zu\n",
+                   binding->anims.sequences.size(), blendZero, pointerZero);
+    }
+    // The companion's own table, asserted as DATA instead of papered over with a
+    // witness it cannot supply. Measured on this tree, and printed raw above: 54
+    // sequences, one animation descriptor, every sequence but one carrying no
+    // blend block at all, and the one that does carrying a single frame. So there
+    // is no motion inside a companion sequence to witness, and the honest thing to
+    // pin is that fact -- a witness that cannot exist must not be replaced by a
+    // witness that reports nothing.
+    check(companionShape.animated == 1,
+          "exactly one of the companion model's sequences reaches an animation descriptor");
+    check(companionShape.multiFrame == 0,
+          "no companion sequence carries more than one frame");
+    check(companionShape.maxFrames == 1,
+          "the companion's single binding is a one-frame pose");
+    // The cycle witness therefore runs on the `v_*` control, which IS a
+    // multi-frame set: the branch that samples a frame from a supplied cycle
+    // stays covered by a live witness even though the model this round draws
+    // cannot exercise it. Which model the witness ran on is printed, so the two
+    // models cannot be confused for one another in the log.
+    check(witnessSequence >= 0,
+          "the v_* control model has a sequence with more than one frame");
+    if (witnessSequence >= 0) {
+      tf2::native::ViewModelAnimationInput cycled = input;
+      cycled.entityModelPath = other.path;
+      cycled.sequence = witnessSequence;
+      const auto plain = resolve(cycled, otherDrawn, otherBinding);
+      check(plain.status == tf2::native::ViewModelAnimationStatus::Ok,
+            "the witness sequence is accepted, so the cycle reading is on a live branch");
+      check(plain.entityModelMatchesDrawn,
+            "the witness runs on a proven pair, not on a mismatched one");
+      check(plain.frameCount == witnessFrames,
+            "the witness sequence reports the frame count its animation carries");
+      check(plain.frameCount > 1, "the witness sequence has more than one frame");
+      cycled.hasCycle = true;
+      cycled.cycle = 0.5f;
+      const auto halfway = resolve(cycled, otherDrawn, otherBinding);
+      check(halfway.status == tf2::native::ViewModelAnimationStatus::Ok,
+            "a supplied cycle does not change the status");
+      check(halfway.frame != plain.frame,
+            "a supplied cycle moves the sampled frame");
+      check(halfway.skinMatrices.size() == otherDrawn.bones.size(),
+            "the cycle witness covers the control's skeleton exactly");
+    }
+    // The companion's accepted pose, read once more for the reading it carries:
+    // the sampling path ran on the model this round draws, and what it can report
+    // is the one frame that model has. Without this the companion's accepted path
+    // would only be read with the frame count unasserted.
+    check(acceptedOutcome.frameCount == companionMaxFrames,
+          "the companion's accepted sequence reports the single frame it carries");
   } else {
     std::fprintf(stderr,
                  "  NOTE the product cross-check did not run: no --tf-root was given, so\n"
                  "       the accepting half of the rule was not tested against the product\n");
+  }
+
+  if (root != nullptr) {
+    check(fixtureOrdinal == fixtureNameCount,
+          "every fixture in the companion battery has a name in the report");
+    report.summary();
   }
 
   std::fprintf(stderr, "self-test failures=%d\n", failures);
@@ -568,10 +1035,45 @@ int reportModelSequences(const tf2::native::AssetRoot& root, const std::string& 
     reason = "model was not found";
   }
   const bool readable = inspection.mdl.signatureValid && inspection.metadata.valid;
-  std::fprintf(stderr, "modelseq path=%s resolution=%d readable=%d sequences=%zu bones=%zu reason=%s\n",
-               path.c_str(), static_cast<int>(candidate.resolution), readable ? 1 : 0,
-               inspection.metadata.sequences.size(), inspection.metadata.bones.size(),
-               reason.empty() ? "-" : reason.c_str());
+  // The animation shape of the same file, taken from the binding the product
+  // itself would use. Sequence count alone cannot answer the question this round
+  // turns on -- an index can be inside a table and still name no pose -- so the
+  // count of sequences that reach a descriptor, the count with more than one
+  // frame, and the LOWEST sequence index that is animated at all are reported
+  // beside it. `firstAnimated` is what a reviewer needs to check a claim like
+  // "the recording never selects a sequence this model can pose": it is the one
+  // index that would produce a pose, and it is compared against the sequences the
+  // demo actually carries rather than assumed away.
+  tf2::native::AnimationBindingCache cache;
+  cache.reset(&root);
+  tf2::native::AnimationInputStatus bindingStatus = tf2::native::AnimationInputStatus::ModelMissing;
+  std::string bindingReason;
+  const auto* binding = cache.resolve(path, bindingStatus, bindingReason);
+  std::size_t animated = 0;
+  std::size_t multiFrame = 0;
+  std::int32_t maxFrames = 0;
+  std::int32_t firstAnimated = -1;
+  if (binding != nullptr) {
+    for (std::size_t index = 0; index < binding->anims.sequences.size(); ++index) {
+      const std::int32_t animDesc = binding->anims.sequences[index].animDesc;
+      if (animDesc < 0
+          || static_cast<std::size_t>(animDesc) >= binding->anims.animations.size()) continue;
+      ++animated;
+      if (firstAnimated < 0) firstAnimated = static_cast<std::int32_t>(index);
+      const std::int32_t frames =
+        binding->anims.animations[static_cast<std::size_t>(animDesc)].frameCount;
+      if (frames > maxFrames) maxFrames = frames;
+      if (frames > 1) ++multiFrame;
+    }
+  }
+  std::fprintf(stderr,
+    "modelseq path=%s resolution=%d readable=%d sequences=%zu bones=%zu reason=%s "
+    "animated=%zu multiFrame=%zu maxFrames=%d firstAnimated=%d binding=%s\n",
+    path.c_str(), static_cast<int>(candidate.resolution), readable ? 1 : 0,
+    inspection.metadata.sequences.size(), inspection.metadata.bones.size(),
+    reason.empty() ? "-" : reason.c_str(),
+    animated, multiFrame, maxFrames, firstAnimated,
+    binding != nullptr ? "ok" : "unavailable");
   std::fflush(stderr);
   std::cout << "{\"ok\":" << (readable ? "true" : "false")
             << ",\"path\":\"" << jsonEscape(path) << "\""
@@ -579,6 +1081,11 @@ int reportModelSequences(const tf2::native::AssetRoot& root, const std::string& 
             << ",\"readable\":" << (readable ? "true" : "false")
             << ",\"sequences\":" << inspection.metadata.sequences.size()
             << ",\"bones\":" << inspection.metadata.bones.size()
+            << ",\"animated\":" << animated
+            << ",\"multiFrame\":" << multiFrame
+            << ",\"maxFrames\":" << maxFrames
+            << ",\"firstAnimated\":" << firstAnimated
+            << ",\"binding\":\"" << (binding != nullptr ? "ok" : "unavailable") << "\""
             << ",\"reason\":\"" << jsonEscape(reason) << "\"}\n";
   return readable ? 0 : 1;
 }
