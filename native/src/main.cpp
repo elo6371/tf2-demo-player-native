@@ -612,6 +612,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::filesystem::path commandModel;
   UINT audioDevice = WAVE_MAPPER;
   bool audioDeviceRejected = false;
+  // Test-only capture modes, off by default so the product path keeps the
+  // window and the audio device exactly as before:
+  //   --hidden-window   create the window and render normally, never show it
+  //   --audio-disabled  never call waveOutOpen; events are counted and skipped
+  bool hiddenWindow = false;
+  bool audioDisabled = false;
   bool startPaused = false;
   std::filesystem::path metricsPath;
   std::filesystem::path captureFramePath;
@@ -742,6 +748,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else audioDeviceRejected = true;
       } else if (wcscmp(arguments[i], L"--audio-device") == 0) {
         audioDeviceRejected = true;
+      } else if (wcscmp(arguments[i], L"--hidden-window") == 0) {
+        hiddenWindow = true;
+      } else if (wcscmp(arguments[i], L"--audio-disabled") == 0) {
+        audioDisabled = true;
       } else if (wcscmp(arguments[i], L"--start-paused") == 0) {
         startPaused = true;
       } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
@@ -1320,6 +1330,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   effectTimeline.sortByTick();
   tf2::native::AudioEventScheduler soundScheduler;
   soundScheduler.setDeviceId(audioDevice);
+  if (audioDisabled) {
+    // --audio-disabled: the contract is that waveOutOpen is never called. A
+    // sink that resolves each event and then answers `skipped` keeps the tick
+    // and event accounting running without a device, and it is not the same
+    // as --start-paused: pausing stops the scheduler advancing, this only
+    // stops the device from being asked. `skipped` is distinct from `failed`,
+    // so the readings can tell "no device by policy" from "resource missing".
+    soundScheduler.setOutcomeSink([](const tf2::native::WavPcmData&, float, float) {
+      return tf2::native::AudioEventScheduler::PlaybackOutcome::skipped;
+    });
+  }
   std::unordered_map<std::string, tf2::native::WavPcmData> soundCache;
   constexpr std::size_t kSoundCacheLimit = 32u * 1024u * 1024u;
   constexpr std::size_t kSoundCacheEntryLimit = 512u;
@@ -1944,8 +1965,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         << " uploaded=" << entityMaterialUploadedModels << '\n';
     }
   }
-  ShowWindow(window, showCommand);
-  UpdateWindow(window);
+  if (hiddenWindow) {
+    // --hidden-window: the window must exist -- D3D11 needs the HWND, the swap
+    // chain binds to it, and close messages still dispatch -- but it is never
+    // shown and UpdateWindow is never called. The class was registered without
+    // WS_VISIBLE and CreateWindowExW does not show a window, so it is already
+    // hidden here; the SW_HIDE makes that an explicit act of this branch.
+    ShowWindow(window, SW_HIDE);
+  } else {
+    ShowWindow(window, showCommand);
+    UpdateWindow(window);
+  }
+  // The window half of the quiet-capture contract, read back through the API
+  // rather than restated from the flag. Emitted in both modes, so the normal
+  // run is the control for the quiet one.
+  traceFmt("mode: window_created=%d window_visible=%d hidden=%d audio_mode=%s",
+    window ? 1 : 0, IsWindowVisible(window) ? 1 : 0, hiddenWindow ? 1 : 0,
+    audioDisabled ? "disabled" : "device");
 
   LARGE_INTEGER frequency{};
   LARGE_INTEGER lastFrame{};
@@ -2712,6 +2748,30 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   LARGE_INTEGER metricsEnd{};
   if (QueryPerformanceCounter(&metricsEnd)) writeMetrics(metricsEnd, true);
+  // The quiet-capture contract, read at the last point where everything it
+  // names is still alive: a capture exit does not destroy the window, the
+  // scheduler still holds its final counters, and the capture result is the
+  // same value the exit code was chosen from. `audio_device_opened` is the
+  // process-wide waveOutOpen call count -- 0 means no device was opened or
+  // even asked for, which is the reading that separates "--audio-disabled
+  // works" from "the flag was ignored". `events_skipped` folds the two skip
+  // classes (voice, device-disabled); the contract cares that nothing played.
+  {
+    const bool windowAlive = window && IsWindow(window) != 0;
+    const auto& audioStats = soundScheduler.stats();
+    traceFmt("mode: summary window_created=%d window_visible=%d audio_mode=%s audio_device_opened=%zu events_seen=%zu events_played=%zu events_skipped=%zu events_missing=%zu drawn=%llu capture_written=%d metrics_written=%d exit=%d",
+      windowAlive ? 1 : 0,
+      (windowAlive && IsWindowVisible(window)) ? 1 : 0,
+      audioDisabled ? "disabled" : "device",
+      tf2::native::waveOutOpenCalls(),
+      audioStats.eventsSeen, audioStats.eventsPlayed,
+      audioStats.eventsSkippedVoice + audioStats.eventsSkippedDisabled,
+      audioStats.eventsMissingResource,
+      static_cast<unsigned long long>(renderedFrames),
+      (captureRequested && renderer.lastFrameCaptureSucceeded()) ? 1 : 0,
+      (!metricsPath.empty() && metricsFile.is_open() && metricsWriteCalls > 0) ? 1 : 0,
+      static_cast<int>(message.wParam));
+  }
   renderer.shutdown();
   persistent.render = renderer.settings();
   if (assets.valid()) persistent.tfRoot = assets.tfDirectory;

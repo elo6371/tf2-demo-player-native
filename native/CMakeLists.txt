@@ -243,6 +243,14 @@ add_executable(entity_message_fixture_probe
 target_include_directories(entity_message_fixture_probe PRIVATE include)
 set_target_properties(entity_message_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# The quiet-capture reader: compares one normal-mode run and one
+# --hidden-window --audio-disabled run of tf2_demo_native (their traces,
+# metrics and bitmaps) and reports the contract as one key=value line.
+# Standard library only -- no project sources, no Windows APIs -- because it
+# reads files the product already wrote.
+add_executable(quiet_capture_probe tools/quiet_capture_probe.cpp)
+set_target_properties(quiet_capture_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 install(TARGETS tf2_demo_native native_install_smoke_probe
   RUNTIME DESTINATION .
 )

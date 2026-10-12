@@ -8,6 +8,8 @@
 namespace tf2::native {
 namespace {
 
+std::size_t g_waveOutOpenCallCount = 0;
+
 std::string mmError(MMRESULT result, const char* operation) {
   char buffer[256]{};
   if (waveOutGetErrorTextA(result, buffer, static_cast<UINT>(sizeof(buffer))) == MMSYSERR_NOERROR) {
@@ -28,6 +30,8 @@ void writeS16(std::uint8_t* bytes, std::int32_t sample) {
 }
 
 } // namespace
+
+std::size_t waveOutOpenCalls() { return g_waveOutOpenCallCount; }
 
 bool applyPcmPan(std::vector<std::uint8_t>& pcm, std::uint16_t& channels,
     std::uint16_t bitsPerSample, float volume, float pan) {
@@ -115,6 +119,7 @@ bool AudioPlayer::play(const WavPcmData& wav, float volume, float pan) {
   format.nAvgBytesPerSec = wav.sampleRate * format.nBlockAlign;
   format.cbSize = 0;
   auto* playback = new PlaybackState{};
+  ++g_waveOutOpenCallCount;
   MMRESULT result = waveOutOpen(&playback->output, deviceId_, &format, 0, 0, CALLBACK_NULL);
   if (result != MMSYSERR_NOERROR) {
     delete playback;
@@ -222,9 +227,22 @@ AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeli
       && (wav.bitsPerSample == 8 || wav.bitsPerSample == 16)
       && wav.channels >= 1 && wav.channels <= 2 && wav.sampleRate != 0
       && wav.blockAlign != 0 && wav.pcm.size() % wav.blockAlign == 0;
-    const bool played = pcmShapeValid && (playbackSink_
+    if (!pcmShapeValid) {
+      ++stats_.eventsMissingResource;
+      return;
+    }
+    if (outcomeSink_) {
+      // The device-free sink owns the outcome; `skipped` is the explicit
+      // "not played, and that is the contract" answer --audio-disabled uses.
+      switch (outcomeSink_(wav, volume, lastSpatialMix_.pan)) {
+        case PlaybackOutcome::played: ++stats_.eventsPlayed; return;
+        case PlaybackOutcome::skipped: ++stats_.eventsSkippedDisabled; return;
+        case PlaybackOutcome::failed: ++stats_.eventsMissingResource; return;
+      }
+    }
+    const bool played = playbackSink_
       ? playbackSink_(wav, volume, lastSpatialMix_.pan)
-      : player.play(wav, volume, lastSpatialMix_.pan));
+      : player.play(wav, volume, lastSpatialMix_.pan);
     if (!played) {
       ++stats_.eventsMissingResource;
       return;
