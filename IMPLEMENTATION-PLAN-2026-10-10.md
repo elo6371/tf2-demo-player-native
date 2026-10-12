@@ -2,7 +2,7 @@
 
 更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@f5e427f`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel 和 T2.5 输入契约；不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@1848814`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约和验收脚本修复；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -269,9 +269,16 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 ### T2.5：ViewModel 动画输入契约（拒绝路径已完成，真实映射未完成）
 
-主线整合：`p0-entity-protocol@f5e427f`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，验证实体模型表与绘制 `v_*.mdl` 表不共用索引；越界、缺归属实体和骨骼不匹配均回退 bind pose。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。`verify-all.sh --quick` 尚未在该合并树上运行。
+主线整合：`p0-entity-protocol@1848814`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，验证实体模型表与绘制 `v_*.mdl` 表不共用索引；越界、缺归属实体和骨骼不匹配均回退 bind pose。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。此前总链暴露的第 22 步 mutation 锚点和第 23 步断言 pin 已修复；完整 `verify-all.sh --quick` 尚未在修复提交上完成，最近一次重跑按用户要求在第 2 步中止。
 
 真实动画映射仍需独立 worktree 完成：当前武器实体与 `m_hOwner` 配对 → weapon definition/`v_*.mdl` companion → activity/动作语义 → 绘制模型 sequence，再以正负 fixture 和跨 tick 见证帧验收。禁止把 `m_nSequence` 直接当作 `v_*.mdl` 的 sequence 索引，也禁止把 `--viewmodel-apply-animation` 当作正式能力。
+
+### 当前接手步骤
+
+1. 在主线 `1848814` 的干净工作树确认无锁、无并发进程，单实例运行 `bash verify-all.sh --quick`；2026-10-12 中止的运行没有验收结论。
+2. 总链成功后，在 `D:\TF2_Native_Worktrees\viewmodel-sequence-mapping` 开展 T2.5 映射调查：owner/weapon definition/companion/activity/sequence 五层逐层读数。
+3. 为每层建立合成 fixture 和反向 mutation，先证明错误映射会红，再接入产品；保留缺输入 bind pose 回退。
+4. 定向通过后更新 `README.md`、`CHANGELOG.md`、本计划和 `HANDOFF-2026-10-07.md`，并在合并节点重跑总链。
 ### T3：相机、观察者模式与基础 HUD/UI
 
 **负责人**：UI/相机 AI。

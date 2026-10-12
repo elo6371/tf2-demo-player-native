@@ -17,6 +17,8 @@
 - 在隔离分支修复第 22 步锚点，使其限定 standalone `--model` identity lambda；更新第 23 步断言 pin 为 111。
 - 定向复核：`weapon-animation-check.sh --mutation-model` → `MUTATION-CAUGHT=PASS`（变异及恢复构建均 rc=0）；`viewmodel-animation-check.sh` → 111 条断言、`VIEWMODEL-ANIMATION=PASS`。
 - **完整总链仍待在修复提交上重跑**；不把定向门禁结果替代 23/23 总链结果。
+- 2026-10-12 按用户要求中止了一次修复后总链：运行到第 2 步，未生成 `VERIFY` 结论；锁已清理，机器产物放在本地 stash，不作为验收证据。
+- 当前主线为 `1848814`。下一步必须先在干净、无并发、单实例环境重跑 23 步总链，再开始 T2.5 真实序列映射调查。
 ## 2026-10-11
 
 ### T2 ViewModel 第一人称绘制已整合
