@@ -1,0 +1,4 @@
+# the probe-fakes-decode mutation was caught: these assertions went red
+fixture vmfix_cubemap pixelsDecoded: 1 != 0
+fixture vmfix_cubemap missing_textures: 0 != 1
+fixture vmfix_cubemap complete: true != false
