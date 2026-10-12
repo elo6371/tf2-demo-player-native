@@ -16,6 +16,13 @@
 - 验收：整合主线运行 `viewmodel-material-check.sh` 为 159 条断言通过；来源分支 `--mutation` 6/6 捕获并恢复夹具，`verify-render.sh` 8/8 通过。总链未重跑。
 - 未完成：产品 ViewModel draw pass 材质绑定、真实画面人工确认、Phong/bump/selfillum 的 GPU 视觉效果。
 
+### 清单一：ViewModel companion 动态手臂绘制已整合
+
+- 整合提交：`9cfc913`、`4f43560`，来源 `task/viewmodel-companion-render@df0ce1e`；产品默认路径从 ViewModel owner 的 `m_nModelIndex` 解析并绘制实体自己的 `c_*_arms.mdl`，命令行 `v_*` 路径保留为明确的 mismatch 对照。
+- 运行时证明：owner 与 view entity 匹配、实体模型路径与上传 mesh 一致、sequence 按实体自身模型表检查、accepted pose 的骨骼覆盖为 `58/58`；POV 自然序列为 `1..30`，实体模型只有 sequence `0` 有绑定，所以自然运行 `ok=0`，构造 `--viewmodel-sequence 0` 才进入 skinning 正例。
+- 验收：`viewmodel-companion-check.sh` 108 条断言通过，`--mutation` 6/6 捕获；`viewmodel-animation-check.sh` 139 条断言通过，`verify-fast.sh` 43 条断言通过。`verify-render.sh` 尚未在整合主线上记录 9/9；总链已扩展为 24 步但尚未重跑。
+- 未完成：静态武器本体第二笔、材质绑定到产品 draw pass、自然 demo 中可见的手臂动画、人工画面对照。
+
 ### 清单二：静默抓帧测试已整合
 
 - 整合提交：`4dd79a9`，来源 `task/quiet-capture-tests@cf46caf`。

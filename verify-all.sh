@@ -113,6 +113,9 @@
 #      it would put a scattergun pose on a sniper rifle. `--mutation` neuters the
 #      resolver's range branch and must turn the refusal red.
 #
+#  24. prove the ViewModel pass draws the c_*_arms model named by the entity and
+#      keeps owner, model path, sequence table and bone coverage as one proof.
+#
 # Anything that must be true for the delivery is asserted here, so a reviewer does
 # not have to read twenty-three reports. Every step writes its raw output to
 # evidence/ before the assertion runs.
@@ -843,7 +846,7 @@ else
   echo "WEAPON-ANIMATION-MUTATION-MODEL=FAIL (the historical --model defect was not caught)"; rc_all=1
 fi
 
-step "23/23 viewmodel animation (the entity's sequence is refused by the drawn model's own table)"
+step "23/24 viewmodel animation (the entity's sequence is refused by the drawn model's own table)"
 # T2.5. T2 drew the ViewModel in its bind pose and reported animationInput=missing;
 # this step is what turns that string into a measurement. Its machine products
 # (a trace and two 2.5 MB witness frames per launch) go to the ignored
@@ -854,8 +857,11 @@ VIEWMODEL_ANIMATION_TRACE_DIR="$VM_ANIM_TRACE" \
   bash viewmodel-animation-check.sh > "$OUT/23-viewmodel-animation.txt" 2>&1
 tail -18 "$OUT/23-viewmodel-animation.txt"
 # The assertion count is pinned for the same reason as steps 8 and 21-22: a gate
-# that prints PASS while its assertions quietly disappear is not a gate. 111 is
-# arrived at as: 5 in section 0 (two recordings pinned by size and sha256, both
+# that prints PASS while its assertions quietly disappear is not a gate. The
+# current count is 139 after the companion product path replaced the old
+# refusal-only sections. It is intentionally read from this gate, not copied
+# from a previous branch report.
+# The historical 111 was arrived at as: 5 in section 0 (two recordings pinned by size and sha256, both
 # identified, and the verified count) + 5 in section 1 (the self-test rc, its
 # failure count, the pinned 49 assertions, the cross-check note, and the
 # per-branch work count) + 17 in section 2 (the probe rc, three per-field columns
@@ -873,7 +879,7 @@ tail -18 "$OUT/23-viewmodel-animation.txt"
 # counts).
 VM_ANIM_OK=$(grep -c '^  OK   ' "$OUT/23-viewmodel-animation.txt" || true)
 if grep -q 'VIEWMODEL-ANIMATION=PASS' "$OUT/23-viewmodel-animation.txt" \
-   && [ "${VM_ANIM_OK:-0}" -eq 111 ]; then
+   && [ "${VM_ANIM_OK:-0}" -eq 139 ]; then
   echo "VIEWMODEL-ANIMATION=PASS (assertions_ok=$VM_ANIM_OK)"
 else
   echo "VIEWMODEL-ANIMATION=FAIL (assertions_ok=${VM_ANIM_OK:-0})"; rc_all=1
@@ -894,6 +900,33 @@ if grep -q 'MUTATION-CAUGHT=PASS' "$VM_ANIM_MUT"; then
   echo "VIEWMODEL-ANIMATION-MUTATION=PASS (the neutered range branch turns the refusal red)"
 else
   echo "VIEWMODEL-ANIMATION-MUTATION=FAIL (the range branch was not load bearing)"; rc_all=1
+fi
+
+step "24/24 viewmodel companion proof (the pass draws the model named by the entity)"
+# The companion path is the product-side closure of T2.5: owner, model index,
+# model path equality, sequence table membership and bone coverage are checked
+# against the model actually uploaded by the pass. It runs under the chain lock,
+# so its source mutation must restore the tree while leaving the parent lock in
+# place.
+VM_COMPANION_OUT="$OUT/24-viewmodel-companion.txt"
+VIEWMODEL_COMPANION_TRACE_DIR="$OUT/24-viewmodel-companion-traces" \
+  VERIFY_ALL_LOCK_HELD=1 bash viewmodel-companion-check.sh > "$VM_COMPANION_OUT" 2>&1
+tail -18 "$VM_COMPANION_OUT"
+VM_COMPANION_OK=$(grep -c '^  OK   ' "$VM_COMPANION_OUT" || true)
+if grep -q 'VIEWMODEL-COMPANION=PASS' "$VM_COMPANION_OUT" \
+   && [ "${VM_COMPANION_OK:-0}" -eq 108 ]; then
+  echo "VIEWMODEL-COMPANION=PASS (assertions_ok=$VM_COMPANION_OK)"
+else
+  echo "VIEWMODEL-COMPANION=FAIL (assertions_ok=${VM_COMPANION_OK:-0})"; rc_all=1
+fi
+VM_COMPANION_MUT="$OUT/24-viewmodel-companion-mutation.txt"
+VERIFY_ALL_LOCK_HELD=1 VIEWMODEL_COMPANION_TRACE_DIR="$OUT/24-viewmodel-companion-mutation-traces" \
+  bash viewmodel-companion-check.sh --mutation > "$VM_COMPANION_MUT" 2>&1
+tail -12 "$VM_COMPANION_MUT"
+if grep -q 'MUTATION-CAUGHT=PASS' "$VM_COMPANION_MUT"; then
+  echo "VIEWMODEL-COMPANION-MUTATION=PASS (all six proof mutations were caught)"
+else
+  echo "VIEWMODEL-COMPANION-MUTATION=FAIL (a companion proof mutation was not caught)"; rc_all=1
 fi
 
 printf '\n'

@@ -2,7 +2,7 @@
 
 更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@e584052`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、五层映射调查、静默抓帧测试、ViewModel 材质资源链、音频 tick 调度契约、验收脚本修复和 23 步总链证据；不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@4f43560`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链、音频 tick 调度契约、验收脚本修复和历史 23 步总链证据；当前 24 步总链尚未重跑，不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -62,7 +62,7 @@ T1 已合并主线并通过专项门禁：正常 `WEAPON-ANIMATION=PASS (6/6)`�
 
 ### 创建工作区
 
-每个任务使用独立路径和分支。先创建工作区根目录，再从包含最新验收与诊断的分支创建任务 worktree：
+每个任务使用独立路径和分支。先创建工作区根目录，再从包含最新验收与诊断的分支创建任务 worktree；不设固定修改文件数量上限，只要求修改文件都属于当前任务边界并在报告中逐文件说明：
 
 ```powershell
 New-Item -ItemType Directory -Force D:\TF2_Native_Worktrees
