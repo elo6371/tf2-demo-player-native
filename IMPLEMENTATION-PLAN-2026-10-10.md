@@ -280,6 +280,35 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 另需真实截图：默认 FOV、FOV 边界、左右手、attachment 对齐、缺资源回退；截图标题必须包含 demo tick 和 model path。
 
+#### T2 第二笔：静态武器本体（已完成开发，2026-10-12，待合并）
+
+工作区：`D:\TF2_Native_Worktrees\weapon-body-render`；分支：`task/weapon-body-render`；基线
+`origin/p0-entity-protocol@9a8387b`。
+
+现代 TF2 第一人称是合成体：实体 `m_nModelIndex` 给出手臂 `c_*_arms.mdl`，武器实体的
+`DT_BaseCombatWeapon.m_iWorldModelIndex` 给出静态武器本体。本轮把它接成第二笔独立 draw request，
+与手臂共用 attachment/FOV 参数但拥有自己的 mesh、radius、near/far 和 projection：
+
+1. **输入**：`findViewModelWeaponBodyInput`（`native/src/entity_model.cpp`）从 ViewModel 实体经
+   `m_hWeapon` 走到武器实体，读 `m_iWorldModelIndex`，12 个具名拒绝分支
+   （`NoViewModelEntity` … `WorldModelIsArms`）；不变式为 `worldModelPath 非空 ⟺ 成功`，
+   失败时不回传任何真实路径。
+2. **绘制**：`native/src/native_renderer.cpp` 的 `drawViewModel` 内第二笔 `Draw`，独立顶点缓冲、
+   独立 projection、skin 常量清零、独立计数 `armDrawCalls`/`weaponDrawCalls`。
+3. **读数**：`weaponModelIndex`/`weaponModelPath`/`weaponMaterials`/`weaponFallback`/`weaponVisible`/
+   `weaponReason`/`weaponEntity`/`weaponClass`/`weaponMeshRadius`/`weaponVertices`/`weaponClip`；
+   拒绝时清空上一把武器的槽位。
+4. **开关**：`--viewmodel-weapon-body on|off`（默认 on；off 是 A/B 对照）。
+5. **门禁**：`weapon_body_probe`（自检 57 项 + 真实资源 117 项）与 `weapon-body-check.sh`
+   （61 条断言；`--mutation` 4/4 捕获，104 条断言）。
+
+验收（2026-10-12 本机）：构建 rc=0、`WEAPON-BODY=PASS`、`MUTATION-CAUGHT=PASS (4 defects)`、
+`verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)` rc=0。关键读数：
+`armDrawCalls=weaponDrawCalls=1379`、`weaponModelIndex=533` → `c_pro_rifle.mdl`、
+`byte_diff(on, off)=42209`、`byte_diff(on, on-repeat)=0`；`body-off`/`m1`/`m3` 三帧 sha256 相同
+（`1d2cab7d…`）。本轮未跑 `verify-render.sh` 和总链；人工画面对照、武器切换场景、真实 GPU 性能
+未验证。
+
 ### T2.5：ViewModel 动画输入契约（拒绝路径已完成，真实映射未完成）
 
 主线整合：`p0-entity-protocol@150f0c7`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，不可信序列回退 bind pose；五层调查新增 `vmselfsum`/`vmself-outlier`，证明按实体自身模型比较才是有效读数。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。总链已在 `e4c4d41` 上 23/23、rc=0、`VERIFY=PASS`。动态 `c_*_arms.mdl` 产品绘制仍未实现。
@@ -288,10 +317,11 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 ### 当前接手步骤
 
-1. 在 `D:\TF2_Native_Worktrees\viewmodel-sequence-mapping` 开展 T2.5 映射调查：owner/weapon definition/companion/activity/sequence 五层逐层读数。
-2. 为每层建立合成 fixture 和反向 mutation，先证明错误映射会红，再接入产品；保留缺输入 bind pose 回退。
+1. ~~在 `D:\TF2_Native_Worktrees\viewmodel-sequence-mapping` 开展 T2.5 映射调查~~：已完成（主线 `150f0c7`），结论见 `T2.5-MAPPING-RECON-2026-10-12.md`。
+2. ~~为每层建立合成 fixture 和反向 mutation，先证明错误映射会红，再接入产品~~：已完成；结论为"实体序列只对实体自身模型表生效，禁止按文件名猜动作"，缺输入保留 bind pose 回退。
 3. 定向通过后更新 `README.md`、`CHANGELOG.md`、本计划和 `HANDOFF-2026-10-07.md`；只有合并节点、发版或核心协议变更才重跑总链。
 4. 测试专用 hidden-window/null-sink 已由 `4dd79a9` 完成；后续抓帧门禁优先使用该模式，真实设备验收仍单独传 `--audio-device 6`。
+5. 2026-10-12 批次：T2 第二笔（静态武器本体）已完成（`task/weapon-body-render`，见上）；并行的 T1 材质接入、T0 渲染门禁补跑和 T3 音频主程序接线各自独立分支进行；T4 真实画面对照须在 T1、T2 合并后进行。抓帧门禁若断言同一 tick 的多张帧，必须按请求 tick 重试对齐（`--capture-tick N` 是"≥ N"，落点会随机器负载漂移）。
 ### T3：相机、观察者模式与基础 HUD/UI
 
 **负责人**：UI/相机 AI。

@@ -27,6 +27,38 @@ T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默�
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
+## 2026-10-12 T2 第二笔：静态武器本体（分支 `task/weapon-body-render`，尚未合并主线）
+
+分支 `task/weapon-body-render`，基线 `origin/p0-entity-protocol@9a8387b`，工作区
+`D:\TF2_Native_Worktrees\weapon-body-render`。
+
+产品在手臂之后新增第二笔独立 draw request：武器实体的 `DT_BaseCombatWeapon.m_iWorldModelIndex`
+→ `c_*` 武器本体模型，拥有自己的 mesh、radius、near/far 与 projection，与手臂共用 attachment/FOV
+参数但分别计数。读数新增 `armDrawCalls`/`weaponDrawCalls`/`weaponModelIndex`/`weaponModelPath`/
+`weaponMaterials`/`weaponFallback`/`weaponVisible`；关闭、拒绝、索引为 0、材质缺失都有具名原因，
+且拒绝时清空上一把武器的槽位，不留下过期 mesh 冒充当前武器。
+
+定向验收（2026-10-12 本机）：`bash build-target.sh tf2_demo_native weapon_body_probe` rc=0；
+`bash weapon-body-check.sh` = `WEAPON-BODY=PASS`（61 条断言、0 条 FAIL）；
+`bash weapon-body-check.sh --mutation` = `MUTATION-CAUGHT=PASS (4 defects)`（104 条断言、0 条 FAIL，
+四个变异各自有具名读数与具名 control）；`bash verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0。
+
+关键读数（POV `autorecord_2026-07-02_13-26-46.dem`，tick 2000，控制运行）：ViewModel 实体 1077 →
+`m_hWeapon` → 武器实体 1008 `CTFSniperRifle` → `m_iWorldModelIndex=533` →
+`models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl`；`armDrawCalls=1379` 与
+`weaponDrawCalls=1379` 相等（每帧两笔）；`weaponVisible=1`、`weaponVertices=12357`、
+`weaponMeshRadius=27.53`、`weaponMaterials=2/2/2/2`、`weaponFallback=-`。
+`byte_diff(on, off)=42209`、`byte_diff(on, on-repeat)=0`、`byte_diff(on, visible)=0`。
+模型只在路径变化时构建一次：`weaponBody model=` 与 `viewmodel request path=` 在整条 trace 里各出现 1 次。
+
+像素级闭合：`body-off.bmp`、`mutation-m1.bmp`（读错索引槽被拒绝）和 `mutation-m3.bmp`（删掉第二笔
+提交）三张帧的 sha256 相同（`1d2cab7d05ad6c80ac5bb27265e2f26d6cded8570c6e963867e63841514e156d`），
+即"拒绝"、"关闭"与"提交消失"画出同一个画面 —— 第二笔提交就是武器本体几何本身。
+
+未验证：真实游戏人工画面对照（T4）、武器切换/多武器场景、`verify-render.sh` 未在本分支重跑、总链未跑、
+真实 GPU 性能。抓帧落点以请求 tick 对齐：`--capture-tick N` 的"≥ N"语义会让落点随机器负载漂移，
+本次两次运行共 5 次落点漂移到 2001，全部由门禁重试纠正（旧写法锚定首帧落点，会必然失败）。
+
 > **历史 T1 记录：22 步**。当前主线已扩展为 23 步并在 `e4c4d41` 上完成一次正式 `VERIFY=PASS`；下文历史记录中的步数不代表当前状态。
 > 旧合并节点曾完成 1–21 步端到端通过，第 22 步随后独立重跑：
 > `WEAPON-ANIMATION=PASS`，实体/`--model` 两个变异均捕获。尚无一次未中断的 22/22 总链结论，不能写成完整 `VERIFY=PASS`。

@@ -2,6 +2,16 @@
 
 ## 2026-10-12
 
+### T2 第二笔：静态武器本体独立 draw request（`task/weapon-body-render`，待合并）
+
+- 分支 `task/weapon-body-render`，基线 `origin/p0-entity-protocol@9a8387b`，工作区 `D:\TF2_Native_Worktrees\weapon-body-render`。产品在手臂之后新增第二笔独立 draw request：武器实体的 `m_iWorldModelIndex` → `c_*` 武器本体模型，独立 mesh/radius/near-far/projection，与手臂分别计数；拒绝时清空旧武器槽位，不留过期 mesh。
+- 定向验收：`bash build-target.sh tf2_demo_native weapon_body_probe` rc=0；`bash weapon-body-check.sh` = `WEAPON-BODY=PASS`（61 条断言、0 FAIL）；`bash weapon-body-check.sh --mutation` = `MUTATION-CAUGHT=PASS (4 defects)`（104 条断言、0 FAIL）；`bash verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0。
+- 关键读数（POV `autorecord_2026-07-02_13-26-46.dem`，tick 2000）：武器实体 1008 `CTFSniperRifle` → `m_iWorldModelIndex=533` → `c_pro_rifle.mdl`；`armDrawCalls=weaponDrawCalls=1379`、`weaponMaterials=2/2/2/2`、`weaponVisible=1`、`weaponVertices=12357`、`weaponFallback=-`；`byte_diff(on, off)=42209`、`byte_diff(on, on-repeat)=0`、`byte_diff(on, visible)=0`；`weaponBody model=` 与 `viewmodel request path=` 各 1 次（非每帧重建）。
+- 变异（每个都有具名读数与具名 control）：m1 读 `m_nModelIndex` 代替 `m_iWorldModelIndex` → 读数报 1032、拒绝为 `worldModelIsArms`、不绘制、帧与 `body-off` 逐字节相同；m2 删除 arms 比较 → 探针 8 条命名断言变红而产品读数不变（control，正常路径不经过被删检查）；m3 删除第二笔提交连同其计数 → 计数分离（0 vs 1370）且帧与 `body-off` 逐字节相同；m4 材质链短路 → 8 条断言变红。四个变异全部捕获，源码逐字节恢复并重建成功。
+- 像素级闭合：`body-off.bmp`、`mutation-m1.bmp`、`mutation-m3.bmp` 的 sha256 相同（`1d2cab7d…`）——"拒绝"、"关闭"、"提交消失"画出同一画面。
+- 顺带修复的产品缺陷：arms 比较原先按原始字符串比较，反斜杠与大小写变体可绕过同一模型的判定；`normalizeModelPath` 提升为 `model_loader.h` 的共享 inline，三个翻译单元共用一条规则（该缺陷由探针自检首次运行抓出）。
+- 未验证：人工画面对照、武器切换/多武器场景、`verify-render.sh` 未在本分支重跑、总链未跑、真实 GPU 性能。抓帧落点按请求 tick 对齐：`--capture-tick N` 的"≥ N"语义会让落点漂移，本次两次运行共 5 次漂移到 2001 并全部由重试纠正。
+
 ### 清单四：音频 tick 调度与 null sink 契约已整合
 
 - 整合提交：`28007af`，来源 `task/audio-tick-scheduler@9b4b41a21d4546efe85087e9fea72873a58069f3`；保留清单二的 `OutcomeSink`、`eventsSkippedDisabled` 和 `waveOutOpenCalls()`，并加入设备尝试/成功计数与 tick 调度实现。
