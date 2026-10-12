@@ -53,6 +53,11 @@ struct AudioScheduleStats {
   std::size_t eventsPlayed = 0;
   std::size_t eventsSkippedVoice = 0;
   std::size_t eventsMissingResource = 0;
+  // Events the device-free sink answered with an explicit `skipped` result
+  // (--audio-disabled). Counted apart from eventsMissingResource on purpose:
+  // the resource resolved and the event was deliberately not played, which is
+  // a different state from "nothing was found".
+  std::size_t eventsSkippedDisabled = 0;
 };
 
 // Tick boundary adapter. Resource resolution stays injectable so the demo
@@ -61,9 +66,17 @@ class AudioEventScheduler final {
 public:
   using Resolver = std::function<bool(const std::string&, WavPcmData&)>;
   using PlaybackSink = std::function<bool(const WavPcmData&, float, float)>;
+  // A sink result that can say "deliberately not played" as itself. The bool
+  // sink above cannot: `false` there means "failed", and a test mode whose
+  // refusals were counted as failures would make the quiet-mode readings
+  // unreadable. The two sinks are mutually exclusive; setting one clears the
+  // other so "which sink ran" is never ambiguous.
+  enum class PlaybackOutcome { played, skipped, failed };
+  using OutcomeSink = std::function<PlaybackOutcome(const WavPcmData&, float, float)>;
 
   void setResolver(Resolver resolver) { resolver_ = std::move(resolver); }
-  void setPlaybackSink(PlaybackSink sink) { playbackSink_ = std::move(sink); }
+  void setPlaybackSink(PlaybackSink sink) { playbackSink_ = std::move(sink); outcomeSink_ = nullptr; }
+  void setOutcomeSink(OutcomeSink sink) { outcomeSink_ = std::move(sink); playbackSink_ = nullptr; }
   void setDeviceId(UINT deviceId) { for (auto& player : players_) player.setDeviceId(deviceId); }
   void reset(std::int32_t tick = 0);
   AudioScheduleStats advance(const SoundEventTimeline& timeline, std::int32_t tick);
@@ -82,6 +95,7 @@ private:
   std::size_t nextVoice_ = 0;
   Resolver resolver_;
   PlaybackSink playbackSink_;
+  OutcomeSink outcomeSink_;
   std::int32_t lastTick_ = -1;
   bool initialized_ = false;
   bool stopped_ = true;
@@ -90,5 +104,13 @@ private:
   SpatialMix lastSpatialMix_{};
   AudioScheduleStats stats_{};
 };
+
+// Number of waveOutOpen calls this process has made, across every AudioPlayer.
+// The quiet-capture contract ("no audio device is opened") is asserted against
+// this count rather than against the flag that requested the mode: a run that
+// ignores --audio-disabled still calls waveOutOpen, and only a real call
+// counter can tell the two apart. Counted at the call site, so an open that
+// fails still counts -- the contract is that the device was not even asked for.
+std::size_t waveOutOpenCalls();
 
 } // namespace tf2::native
