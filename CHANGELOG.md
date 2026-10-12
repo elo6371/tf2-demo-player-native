@@ -19,6 +19,15 @@
 - **完整总链仍待在修复提交上重跑**；不把定向门禁结果替代 23/23 总链结果。
 - 2026-10-12 按用户要求中止了一次修复后总链：运行到第 2 步，未生成 `VERIFY` 结论；锁已清理，机器产物放在本地 stash，不作为验收证据。
 - 当前主线为 `1848814`。下一步必须先在干净、无并发、单实例环境重跑 23 步总链，再开始 T2.5 真实序列映射调查。
+
+### 23 步总链正式闭合
+
+- 在 `e4c4d41` 的干净、单实例主线上运行 `bash verify-all.sh --quick`：23/23、退出码 0、末行 `VERIFY=PASS`，耗时 2h17m23s。
+- 关键计数：27 个目标构建、0 error、1 个既有 C4457；mutation `46 red / 6 hold / 0 green / 0 broke / 6 restored_identical`；第 23 步 111 条断言。
+- 原始日志：`.scratch/obs/verify-all-23-quick.log`，45293 字节，sha256 `aff5fe6b40a4bea334feecd3f40df61a922b301204d2536927be68af85e4abd9`；第 23 步 verdict 已纳入 `evidence/verify/`，大型 trace 目录不入库。
+- 第 20 步本次 `blockDiff=30`、`frameDiff=434510` 是接线后构建和 HUD 时间变化造成的整帧差异；门禁仍只钉块内至少 10 个像素变化，判定没有放宽。
+- 总链只在合并主线、发版或核心协议变更时运行；日常改动按 `verify-fast.sh` 或对应 `verify-entity.sh`/`verify-render.sh`/`verify-audio.sh` 分层验收。
+- 静默边界：fast、entity、audio 契约探针不建窗口且不打开音频；需要抓帧的 render/weapon/ViewModel 门禁目前仍启动主程序并使用 `--audio-device 6`，尚未实现隐藏窗口和 null sink 产品模式。
 ## 2026-10-11
 
 ### T2 ViewModel 第一人称绘制已整合

@@ -11,13 +11,15 @@ T2.5 没有实现真实的实体序列到 `v_*.mdl` 序列映射；诊断开关 
 
 接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、变异结果、未验证项和可运行结论；每完成一项立即更新交接清单。
 
-当前验收链为 23 步。第 1/2 档已在主线通过；完整 `verify-all.sh --quick` 尚未在本次 T2.5 合并树上运行，必须在已提交、干净、单实例工作区执行，运行期间禁止修改源码、脚本、证据或并发构建/变异。
+当前验收链为 23 步。`e4c4d41` 上已由单实例运行 `bash verify-all.sh --quick` 完成 **23/23、rc=0、`VERIFY=PASS`**；日志为 `.scratch/obs/verify-all-23-quick.log`（sha256 `aff5fe6b40a4bea334feecd3f40df61a922b301204d2536927be68af85e4abd9`）。完整链只在合并主线、发版或核心协议变更时运行，运行期间禁止修改源码、脚本、证据或并发构建/变异。
 
-下一步按顺序：先在合并后的干净主线运行一次 23 步总链；然后在新 worktree 设计并验证 T2.5 的真实映射链（当前武器实体 → weapon definition/`v_*.mdl` companion → activity → drawn-model sequence），再做 T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+日常验收使用 `verify-fast.sh` 或对应的 `verify-entity.sh`、`verify-render.sh`、`verify-audio.sh`。fast/entity/audio 契约探针不建窗口且不打开音频；render/weapon/ViewModel 抓帧门禁仍启动主程序并传 `--audio-device 6`，所以可能显示窗口并播放声音。若需完全静默，后续任务应增加测试专用 hidden-window/null-sink 启动模式，并为该模式建立正负门禁；在此之前不要声称渲染档已静默。
+
+下一步按顺序：在独立 worktree 调查并实现 T2.5 真实映射链（当前武器实体 → weapon definition/`v_*.mdl` companion → activity → drawn-model sequence），再处理测试静默模式、ViewModel 材质/人工画面对照、T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
-> **历史 T1 记录：22 步**（`bash verify-all.sh --quick`）。当前 T2.5 合并树的链已扩展为 23 步，完整总链尚未在该树上运行；下文历史记录中的步数不代表当前状态。
+> **历史 T1 记录：22 步**。当前主线已扩展为 23 步并在 `e4c4d41` 上完成一次正式 `VERIFY=PASS`；下文历史记录中的步数不代表当前状态。
 > 旧合并节点曾完成 1–21 步端到端通过，第 22 步随后独立重跑：
 > `WEAPON-ANIMATION=PASS`，实体/`--model` 两个变异均捕获。尚无一次未中断的 22/22 总链结论，不能写成完整 `VERIFY=PASS`。
 > 基线 `origin/p0-entity-protocol@080f0fe`。**必须在已提交的干净树上、且单实例运行。**

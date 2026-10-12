@@ -152,6 +152,32 @@ constexpr std::uint32_t kInvalidEntityIndex = kEntityHandleIndexMask;
 constexpr std::int64_t kObserverModeInEye = 4;
 constexpr std::int64_t kObserverModeChase = 5;
 
+// A ViewModel class is identified by NAME. See the header for why a pinned class
+// id would be the wrong test.
+bool isViewModelClassName(const std::string& className) {
+  return className.find("ViewModel") != std::string::npos;
+}
+
+// The same leaf-suffix matcher the transform path uses, for the slots a ViewModel
+// entity's animation state lives in. `found` is what separates "the slot is
+// absent" from "the slot holds zero" -- for m_nSequence those are different
+// states, and only one of them means the model should stand still.
+std::int64_t readIntSlot(const EntityState& state, const char* suffix, bool& found) {
+  const auto* value = findProperty(state, suffix);
+  found = value != nullptr;
+  if (value == nullptr) return 0;
+  return value->type == SendPropType::Float
+    ? static_cast<std::int64_t>(value->x) : value->intValue;
+}
+
+double readFloatSlot(const EntityState& state, const char* suffix, bool& found) {
+  const auto* value = findProperty(state, suffix);
+  found = value != nullptr;
+  if (value == nullptr) return 0.0;
+  return value->type == SendPropType::Float
+    ? static_cast<double>(value->x) : static_cast<double>(value->intValue);
+}
+
 } // namespace
 
 const ResolverStats& lastResolverStats() { return g_resolverStats; }
@@ -265,6 +291,142 @@ ObserverFocusResolution resolveObserverFocus(
       && (result.mode == kObserverModeInEye || result.mode == kObserverModeChase);
   }
   return result;
+}
+
+ViewModelEntityLookup findViewModelAnimationInput(
+    const std::vector<EntityState>& statesByIndex,
+    const std::vector<ServerClassSchema>& classSchemas,
+    bool viewEntityKnown,
+    std::uint32_t viewEntity,
+    const std::unordered_map<std::uint16_t, std::string>& modelPrecache) {
+  ViewModelEntityLookup lookup;
+  lookup.viewEntityKnown = viewEntityKnown;
+  lookup.viewEntity = viewEntity;
+  if (!viewEntityKnown) {
+    // Without svc_SetView there is no principled way to choose between the
+    // snapshot's ViewModel entities, so nothing is chosen and the caller is told
+    // which of the two failures this is rather than handed an arbitrary one.
+    lookup.reason = "svc_SetView did not name a view entity";
+    return lookup;
+  }
+  std::vector<std::int32_t> viewModelClassIds;
+  for (const auto& schema : classSchemas) {
+    if (isViewModelClassName(schema.name)) {
+      viewModelClassIds.push_back(static_cast<std::int32_t>(schema.id));
+    }
+  }
+  if (viewModelClassIds.empty()) {
+    lookup.reason = "the server class table names no ViewModel class";
+    return lookup;
+  }
+  // The view entity's own weapon handle, used below to choose between the two
+  // ViewModel entities a player owns. m_hActiveWeapon is the live one; m_hWeapon
+  // is the fallback slot the same value arrives in on some recordings.
+  std::int64_t viewWeapon = -1;
+  bool viewHasWeapon = false;
+  if (viewEntity < statesByIndex.size()) {
+    bool hasActive = false;
+    viewWeapon = readIntSlot(statesByIndex[viewEntity], "m_hActiveWeapon", hasActive);
+    viewHasWeapon = hasActive;
+    if (!hasActive) {
+      bool hasWeapon = false;
+      viewWeapon = readIntSlot(statesByIndex[viewEntity], "m_hWeapon", hasWeapon);
+      viewHasWeapon = hasWeapon;
+    }
+  }
+  int bestIndex = -1;
+  std::int64_t bestViewModelIndex = 0;
+  bool bestWeaponMatches = false;
+  bool bestHasModel = false;
+  std::string bestModelPath;
+  for (std::size_t index = 0; index < statesByIndex.size(); ++index) {
+    const auto& state = statesByIndex[index];
+    if (state.classId < 0) continue;
+    if (std::find(viewModelClassIds.begin(), viewModelClassIds.end(), state.classId)
+        == viewModelClassIds.end()) {
+      continue;
+    }
+    ++lookup.viewModelEntitiesSeen;
+    bool hasOwner = false;
+    const std::int64_t owner = readIntSlot(state, "m_hOwner", hasOwner);
+    // The same handle layout resolveObserverFocus uses: the entity index is the
+    // low 11 bits. The serial above it is not validated, because EntityState
+    // carries no serial -- a handle whose slot was reused still resolves to that
+    // slot, and that limit is stated rather than worked around.
+    if (!hasOwner || owner <= 0) continue;
+    if ((static_cast<std::uint32_t>(owner) & kEntityHandleIndexMask) != viewEntity) continue;
+    ++lookup.candidatesOwnedByViewEntity;
+    bool hasWeapon = false;
+    const std::int64_t weapon = readIntSlot(state, "m_hWeapon", hasWeapon);
+    bool hasViewModelIndex = false;
+    const std::int64_t viewModelIndex = readIntSlot(state, "m_nViewModelIndex", hasViewModelIndex);
+    bool hasModelIndex = false;
+    const std::int64_t modelIndex = readIntSlot(state, "m_nModelIndex", hasModelIndex);
+    std::string entityModelPath;
+    if (hasModelIndex && modelIndex >= 0 && modelIndex <= 0xffff) {
+      const auto found = modelPrecache.find(static_cast<std::uint16_t>(modelIndex));
+      if (found != modelPrecache.end()) entityModelPath = found->second;
+    }
+    const bool weaponMatches = viewHasWeapon && hasWeapon && weapon == viewWeapon;
+    // A resolvable model outranks everything, and that ordering is a fix rather
+    // than a preference. Measured on the POV demo: a player with no active weapon
+    // carries the sentinel handle 2097151 in m_hWeapon, the EMPTY ViewModel slot
+    // carries the same sentinel, and a weapon-first rule therefore selected the
+    // empty slot -- whose m_nModelIndex is 0 and whose m_nSequence is a
+    // trivially-in-range 0. That read as `ok` 857 times in one run while nothing
+    // was actually held. An entity with no model is not the thing on screen.
+    const bool hasModel = !entityModelPath.empty();
+    // Then the entity holding the player's active weapon, then the lowest
+    // m_nViewModelIndex (0 when the slot is absent). All three are stated because
+    // choosing between two real candidates is a decision, and `reason` below
+    // records which rule decided.
+    const bool better = bestIndex < 0
+      || (hasModel && !bestHasModel)
+      || (hasModel == bestHasModel && weaponMatches && !bestWeaponMatches)
+      || (hasModel == bestHasModel && weaponMatches == bestWeaponMatches
+          && viewModelIndex < bestViewModelIndex);
+    if (!better) continue;
+    bestIndex = static_cast<int>(index);
+    bestViewModelIndex = viewModelIndex;
+    bestWeaponMatches = weaponMatches;
+    bestHasModel = hasModel;
+    bestModelPath = entityModelPath;
+  }
+  if (bestIndex < 0) {
+    lookup.reason = lookup.viewModelEntitiesSeen == 0
+      ? "the snapshot holds no ViewModel entity"
+      : "no ViewModel entity names the view entity in m_hOwner";
+    return lookup;
+  }
+  const auto& state = statesByIndex[static_cast<std::size_t>(bestIndex)];
+  lookup.input.entityPresent = true;
+  lookup.input.entityIndex = bestIndex;
+  bool hasSequence = false;
+  const std::int64_t sequence = readIntSlot(state, "m_nSequence", hasSequence);
+  lookup.input.hasSequence = hasSequence;
+  lookup.input.sequence = hasSequence ? static_cast<int>(sequence) : -1;
+  bool hasRate = false;
+  const double rate = readFloatSlot(state, "m_flPlaybackRate", hasRate);
+  lookup.input.hasPlaybackRate = hasRate;
+  lookup.input.playbackRate = hasRate ? static_cast<float>(rate) : 0.0f;
+  // Read anyway and report the absence, rather than assuming it: DT_BaseViewModel
+  // has no m_flCycle today, and if a protocol revision adds one this line starts
+  // reporting it with no other change.
+  bool hasCycle = false;
+  const double cycle = readFloatSlot(state, "m_flCycle", hasCycle);
+  lookup.input.hasCycle = hasCycle;
+  lookup.input.cycle = hasCycle ? static_cast<float>(cycle) : 0.0f;
+  lookup.input.entityModelPath = bestModelPath;
+  if (bestHasModel && bestWeaponMatches) {
+    lookup.reason = "the viewmodel entity with a model that holds the view entity's active weapon";
+  } else if (bestHasModel) {
+    lookup.reason = "the viewmodel entity with a resolvable model and the lowest m_nViewModelIndex";
+  } else if (bestWeaponMatches) {
+    lookup.reason = "the viewmodel entity holding the view entity's active weapon; no candidate has a resolvable model";
+  } else {
+    lookup.reason = "the lowest m_nViewModelIndex among the entities the view entity owns; no candidate has a resolvable model";
+  }
+  return lookup;
 }
 
 std::string EntityModelResolver::defaultPlayerModelPath(std::int64_t tfClass) {

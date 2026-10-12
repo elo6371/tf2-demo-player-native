@@ -2,7 +2,7 @@
 
 更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@1848814`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约和验收脚本修复；不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@e4c4d41`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、验收脚本修复和 23 步总链证据；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -80,6 +80,8 @@ git worktree add -b task/<task-name> D:\TF2_Native_Worktrees\<task-name> origin/
 - 不要在总链运行期间编辑脚本、源码、`evidence/` 或启动第二个 mutation。
 - `native/` 头文件改动后必须全量 `bash build-cmake.sh`，不能相信增量 obj。
 - 有声音的程序一律传 `--audio-device 6`；没有设备验证时使用 null sink。
+- 非必要不运行 `verify-all.sh --quick`：它只用于合并主线、发版或核心协议变更；日常按分层门禁执行。
+- `verify-fast.sh`、`verify-entity.sh`、`verify-audio.sh` 的探针不建窗口且不打开音频；`verify-render.sh` 及武器/ViewModel 抓帧门禁仍启动窗口并使用 `--audio-device 6`，直到测试静默模式任务完成。
 
 ### 任务提交合同
 
@@ -108,7 +110,7 @@ git worktree add -b task/<task-name> D:\TF2_Native_Worktrees\<task-name> origin/
 2. 运行 `bash verify-fast.sh`，保存 `VERIFY-FAST=PASS` 和 `assertions_ok`。
 3. 预置 `.scratch/verify-all.lock`，确认 `verify-all.sh` 和 `mutate.sh` 都以 2 拒绝；再确认锁可清理。
 4. 清除锁后只启动一个 `bash verify-all.sh --quick`；整个过程不启动其他构建或 mutation。
-5. 已完成：`VERIFY=PASS`、21/21、退出码 0、48m56s；证据提交为 `98df09b`，修复与文档已整合到当前分支 `c14da6d`。
+5. 已完成：`VERIFY=PASS`、23/23、退出码 0、2h17m23s；当前证据基线为 `e4c4d41`，日志 sha256 `aff5fe6b40a4bea334feecd3f40df61a922b301204d2536927be68af85e4abd9`。第 8 步 `46/6/0/0/6`，第 23 步 111 条断言。
 
 验收：
 
@@ -269,16 +271,16 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 ### T2.5：ViewModel 动画输入契约（拒绝路径已完成，真实映射未完成）
 
-主线整合：`p0-entity-protocol@1848814`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，验证实体模型表与绘制 `v_*.mdl` 表不共用索引；越界、缺归属实体和骨骼不匹配均回退 bind pose。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。此前总链暴露的第 22 步 mutation 锚点和第 23 步断言 pin 已修复；完整 `verify-all.sh --quick` 尚未在修复提交上完成，最近一次重跑按用户要求在第 2 步中止。
+主线整合：`p0-entity-protocol@e4c4d41`；产品提交 `447ca74`；门禁/交付提交 `2a92967`。专项门禁读取 `CTFViewModel.m_nSequence`、`m_flPlaybackRate`，验证实体模型表与绘制 `v_*.mdl` 表不共用索引；越界、缺归属实体和骨骼不匹配均回退 bind pose。主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8；正常门禁与独立/父锁 mutation 均通过。第 22 步 mutation 锚点和第 23 步断言 pin 已修复；随后总链已在 `e4c4d41` 上 23/23、rc=0、`VERIFY=PASS`。
 
 真实动画映射仍需独立 worktree 完成：当前武器实体与 `m_hOwner` 配对 → weapon definition/`v_*.mdl` companion → activity/动作语义 → 绘制模型 sequence，再以正负 fixture 和跨 tick 见证帧验收。禁止把 `m_nSequence` 直接当作 `v_*.mdl` 的 sequence 索引，也禁止把 `--viewmodel-apply-animation` 当作正式能力。
 
 ### 当前接手步骤
 
-1. 在主线 `1848814` 的干净工作树确认无锁、无并发进程，单实例运行 `bash verify-all.sh --quick`；2026-10-12 中止的运行没有验收结论。
-2. 总链成功后，在 `D:\TF2_Native_Worktrees\viewmodel-sequence-mapping` 开展 T2.5 映射调查：owner/weapon definition/companion/activity/sequence 五层逐层读数。
-3. 为每层建立合成 fixture 和反向 mutation，先证明错误映射会红，再接入产品；保留缺输入 bind pose 回退。
-4. 定向通过后更新 `README.md`、`CHANGELOG.md`、本计划和 `HANDOFF-2026-10-07.md`，并在合并节点重跑总链。
+1. 在 `D:\TF2_Native_Worktrees\viewmodel-sequence-mapping` 开展 T2.5 映射调查：owner/weapon definition/companion/activity/sequence 五层逐层读数。
+2. 为每层建立合成 fixture 和反向 mutation，先证明错误映射会红，再接入产品；保留缺输入 bind pose 回退。
+3. 定向通过后更新 `README.md`、`CHANGELOG.md`、本计划和 `HANDOFF-2026-10-07.md`；只有合并节点、发版或核心协议变更才重跑总链。
+4. 在 T2.5 之后增加测试专用 hidden-window/null-sink 模式；在该任务完成前，渲染类门禁仍会显示窗口并使用 `--audio-device 6`。
 ### T3：相机、观察者模式与基础 HUD/UI
 
 **负责人**：UI/相机 AI。

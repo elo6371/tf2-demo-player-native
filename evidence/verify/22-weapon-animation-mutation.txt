@@ -4,8 +4,8 @@ mutation build rc=0
 === 1/6 the product skins entity models on the GPU ===
 tick=2000 rc=0 bmp=2582406
   OK   capture rc at tick 2000 = 0
-  40941.1 scene: anim skinned=63 bindPose=33 matrices=177 gpuSkin=62/177 boneMismatch=0 poseChanges=0 targetInstances=4 targetPose=0 advances=48 targetAdv=0 cycle=8142/0 tick=12016 status=sample-failed reason=animation bone index is outside the skeleton
-  40941.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  66860.4 scene: anim skinned=63 bindPose=33 matrices=177 gpuSkin=62/177 boneMismatch=0 poseChanges=0 targetInstances=4 targetPose=0 advances=48 targetAdv=0 cycle=7263/0 tick=12016 status=sample-failed reason=animation bone index is outside the skeleton
+  66860.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
   OK   skinned instances at tick 2000 = 63 (>= 1)
   OK   bone matrices uploaded at tick 2000 = 177 (>= 1)
   OK   GPU-accepted skinned instances at tick 2000 = 62 (>= 1)
@@ -17,8 +17,8 @@ tick=2000 rc=0 bmp=2582406
   FAIL no witness model at tick 2000 -- nothing was caught moving
 tick=4000 rc=0 bmp=2582406
   OK   capture rc at tick 4000 = 0
-  59508.0 scene: anim skinned=63 bindPose=33 matrices=237 gpuSkin=62/237 boneMismatch=0 poseChanges=0 targetInstances=5 targetPose=0 advances=146 targetAdv=0 cycle=16381/0 tick=13614 status=sample-failed reason=animation bone index is outside the skeleton
-  59508.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  89294.0 scene: anim skinned=63 bindPose=33 matrices=237 gpuSkin=62/237 boneMismatch=0 poseChanges=0 targetInstances=5 targetPose=0 advances=146 targetAdv=0 cycle=14598/0 tick=13614 status=sample-failed reason=animation bone index is outside the skeleton
+  89294.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
   OK   skinned instances at tick 4000 = 63 (>= 1)
   OK   bone matrices uploaded at tick 4000 = 237 (>= 1)
   OK   GPU-accepted skinned instances at tick 4000 = 62 (>= 1)
@@ -30,8 +30,8 @@ tick=4000 rc=0 bmp=2582406
   FAIL no witness model at tick 4000 -- nothing was caught moving
 tick=6000 rc=0 bmp=2582406
   OK   capture rc at tick 6000 = 0
-  77543.9 scene: anim skinned=63 bindPose=33 matrices=237 gpuSkin=62/237 boneMismatch=0 poseChanges=0 targetInstances=5 targetPose=0 advances=283 targetAdv=0 cycle=26551/0 tick=15907 status=ok reason=c_spy_arms
-  77543.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  113757.2 scene: anim skinned=63 bindPose=33 matrices=237 gpuSkin=62/237 boneMismatch=0 poseChanges=0 targetInstances=5 targetPose=0 advances=283 targetAdv=0 cycle=25307/0 tick=15907 status=ok reason=c_spy_arms
+  113757.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
   OK   skinned instances at tick 6000 = 63 (>= 1)
   OK   bone matrices uploaded at tick 6000 = 237 (>= 1)
   OK   GPU-accepted skinned instances at tick 6000 = 62 (>= 1)
@@ -54,18 +54,19 @@ tick=6000 rc=0 bmp=2582406
   FAIL the pose change count did not grow (0 -> 0)
 
 === 3/6 three frames at three ticks, and the picture follows ===
-  tick=2000 sha256=4934a2096bb83e9bafe0875bd68f911bd55d51b73171fba13976f221b0cb9aa6
-  tick=4000 sha256=16a83a22ea55e95907372d10a1a5b0ee9ede32d3ad4a26358b20b5a4552e096c
-  tick=6000 sha256=4934a2096bb83e9bafe0875bd68f911bd55d51b73171fba13976f221b0cb9aa6
+  tick=2000 sha256=46516f10967f5ebc60954b70caef0dc36416dafbb94d0b6936f913a15ffdc14a
+  tick=4000 sha256=2f5ecf43b18ef08fce9877b4f8b8a1b0d6f557b396e074ee51314f6720165be0
+  tick=6000 sha256=46516f10967f5ebc60954b70caef0dc36416dafbb94d0b6936f913a15ffdc14a
 distinct frames = 2 of 3
   OK   distinct captured frames = 2 (>= 2)
 
 === 4/6 the standalone --model path skins without deforming the bind pose ===
-  identity: 1686.4 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
-  control : 1701.5 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
-  animated: 1776.1 gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=0 frame=0/1 reason=ref
-  wave-a  : 1768.0 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=15/100 reason=wave
-  wave-b  : 1724.0 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=50/100 reason=wave
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/TF2_Native_Test/evidence/verify/22-weapon-animation-mutation-traces/mutation/model-wave-full.bmp"],"targetCount":1}
+  identity: 2033.1 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
+  control : 2275.3 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
+  animated: 2529.3 gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=0 frame=0/1 reason=ref
+  wave-a  : 2578.1 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=15/100 reason=wave
+  wave-b  : 2281.9 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=50/100 reason=wave
   OK   the --model path uploads identity matrices with skinning on = identity
   OK   the --model path enables the skinning branch = 1
   OK   the --model path uploads every bone = 78
@@ -73,7 +74,7 @@ distinct frames = 2 of 3
   OK   the animated run uploads every bone = 78
   BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
   OK   identity skinning does not deform the bind pose
-  BMP-DIFF differing=262 total=2582352 percent=0.0101 max_delta=100 extent=1264x681x24 status=FAIL reason=diff_percent=0.0101 is below 1.0000
+  BMP-DIFF differing=1214 total=2582352 percent=0.0470 max_delta=108 extent=1264x681x24 status=FAIL reason=diff_percent=0.0470 is below 1.0000
   FAIL a sampled sequence moves the geometry (rc=1)
   OK   the witness sequence has 100 frames = 100
   OK   the two ticks sample different frames = 15/100 (!= 50/100)

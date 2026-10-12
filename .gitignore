@@ -56,6 +56,11 @@ evidence/verify/22-weapon-animation-mutation-traces/
 evidence/verify/22-weapon-animation-mutation-model-traces/
 evidence/verify/22-weapon-animation/
 
+# 第 23 步 ViewModel animation 的原始 trace、BMP 和 CSV 是机器产物；
+# 主线只保留 23-viewmodel-animation*.txt verdict。
+evidence/verify/23-viewmodel-animation-traces/
+evidence/verify/23-viewmodel-animation-mutation-traces/
+
 # 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
 merge-patches/
 
