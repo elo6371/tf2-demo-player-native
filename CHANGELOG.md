@@ -9,6 +9,13 @@
 - 关键读数：`eventsSeen=10`、`eventsPlayed=6`、`eventsSkippedVoice=3`、`eventsMissingResource=1`、`repeatedSeen=2`、`recoveredSeen=2`、`device_open_attempts=0`、`device_opened=0`。
 - 未验证：真实 TF2 demo 端到端音频回放、真实 MP3/ADPCM 在 WinMM 设备上的播放、长时间压力和非 Windows 平台；既有 `firstPacketTick=INT_MIN` 批量 flush 问题仍未修复。总链未重跑。
 
+### 清单三：ViewModel 材质资源链已整合
+
+- 整合提交：`e584052`，来源 `task/viewmodel-materials@f795992`；新增 `viewmodel_material_probe`、材质链门禁和十类可再生夹具，仅扩展 CMake 目标注册，未修改 renderer/main 产品绘制。
+- 真实安装读数：`c_sniper_arms`、`c_scattergun`、`v_scattergun_scout`、`c_pro_rifle` 共 10/10 槽完成 VMT/VTF 定位和像素解码，覆盖 BC1/BC3、反斜杠 `$basetexture`、空 `$cdmaterials` 和 2048² 边界。
+- 验收：整合主线运行 `viewmodel-material-check.sh` 为 159 条断言通过；来源分支 `--mutation` 6/6 捕获并恢复夹具，`verify-render.sh` 8/8 通过。总链未重跑。
+- 未完成：产品 ViewModel draw pass 材质绑定、真实画面人工确认、Phong/bump/selfillum 的 GPU 视觉效果。
+
 ### 清单二：静默抓帧测试已整合
 
 - 整合提交：`4dd79a9`，来源 `task/quiet-capture-tests@cf46caf`。

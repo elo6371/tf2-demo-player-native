@@ -2,7 +2,7 @@
 
 ## 当前状态（2026-10-12）
 
-T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约和清单四音频 tick 调度契约已合并到 `p0-entity-protocol`。
+T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单三 ViewModel 材质资源链和清单四音频 tick 调度契约已合并到 `p0-entity-protocol`。
 T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品提交 `447ca74`，门禁/文档提交 `2a92967`，主线整合提交 `f5e427f`。
 产品默认 ViewModel FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略、缺资源回退；T2.5 会读取 `CTFViewModel` 的 `m_nSequence`/`m_flPlaybackRate`，对不属于当前 `v_*.mdl` 序列表的序列明确拒绝并回退 bind pose。
 
@@ -13,6 +13,8 @@ T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默�
 
 清单四已整合（`28007af`）：音频按 demo tick 调度，支持 tick 去重与倒放恢复、延时取整/下限、声音分类和资源解析失败原因，并保留 `--audio-disabled` 的 OutcomeSink。`verify-audio.sh` 为 `VERIFY-AUDIO=PASS (assertions_ok=28)`，`--mutation` 的 6 个专项变异全部捕获；设备尝试和成功计数均可被门禁读取。当前未验证真实 demo 端到端播放、真实 MP3/ADPCM 设备播放、长时间压力和非 Windows 平台。
 
+清单三已整合（`e584052`）：新增 `viewmodel_material_probe` 和 `viewmodel-material-check.sh`，复用产品 MDL/VMT/VTF/VPK 解析器，覆盖 `$cdmaterials`、反斜杠 `$basetexture`、BC1/BC3、2048² 上限、cubemap 解码拒绝和资源缺失。真实安装的 4 个模型共 10/10 材质槽解析并解出像素；专项门禁为 159 条断言通过，分支验收的 6/6 mutation 和 `verify-render.sh` 8/8 均通过。该项只完成资源解析与像素解码，尚未接入产品 ViewModel 绘制，也未完成人工画面对照。
+
 接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、变异结果、未验证项和可运行结论；每完成一项立即更新交接清单。
 
 当前验收链为 23 步。`e4c4d41` 上已由单实例运行 `bash verify-all.sh --quick` 完成 **23/23、rc=0、`VERIFY=PASS`**；日志为 `.scratch/obs/verify-all-23-quick.log`（sha256 `aff5fe6b40a4bea334feecd3f40df61a922b301204d2536927be68af85e4abd9`）。完整链只在合并主线、发版或核心协议变更时运行，运行期间禁止修改源码、脚本、证据或并发构建/变异。
@@ -21,7 +23,7 @@ T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默�
 
 静默抓帧模式已在 `4dd79a9` 整合：传 `--hidden-window --audio-disabled` 时窗口不可见、音频设备不打开，BMP/渲染读数与普通模式一致。`quiet-capture-check.sh` 正常 63 条断言、4 个 mutation 全部捕获；该门禁没有替代完整总链。bagel demo 的地图缺失和既有 `firstPacketTick` 音频回绕仍是单独未解决项。
 
-下一步按顺序：在独立 worktree 实现 T2.5“同伴证明”和动态手臂绘制，再处理 ViewModel 材质/人工画面对照、静态武器本体第二笔、T4 世界材质/光照、音频主程序接线、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。清单二和清单四的契约已完成；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+下一步按顺序：在独立 worktree 实现 T2.5“同伴证明”和动态手臂绘制，再把清单三材质链接入 ViewModel draw pass 并做人工作画面对照，随后处理静态武器本体第二笔、T4 世界材质/光照、音频主程序接线、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。清单二、三、四的契约已完成；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
