@@ -243,6 +243,26 @@ add_executable(entity_message_fixture_probe
 target_include_directories(entity_message_fixture_probe PRIVATE include)
 set_target_properties(entity_message_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# The ViewModel material resource chain, phase 1: MDL texture slot ->
+# $cdmaterials -> .vmt -> $basetexture -> .vtf -> decoded pixels, for the three
+# ViewModel model families (dynamic c_*_arms, old v_*, static weapon bodies).
+# It links the product's own parsers and asset root rather than a second copy of
+# either, draws nothing, and is gated by viewmodel-material-check.sh. The
+# product still flat-shades the ViewModel: nothing here is wired into a pass.
+add_executable(viewmodel_material_probe
+  tools/viewmodel_material_probe.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/vpk_archive.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp
+  src/demo_header.cpp
+  src/item_schema.cpp
+  src/proto_wire.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(viewmodel_material_probe PRIVATE include third_party/lzma)
+set_target_properties(viewmodel_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 install(TARGETS tf2_demo_native native_install_smoke_probe
   RUNTIME DESTINATION .
 )

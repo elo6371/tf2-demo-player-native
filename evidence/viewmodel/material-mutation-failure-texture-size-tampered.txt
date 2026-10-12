@@ -1,0 +1,2 @@
+# the texture-size-tampered mutation was caught: these assertions went red
+fixture vmfix_ok texture_width: 32 != 64

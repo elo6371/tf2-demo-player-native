@@ -1,0 +1,11 @@
+# the cdmaterials-broken mutation was caught: these assertions went red
+fixture vmfix_ok materialResolved: 0 != 1
+fixture vmfix_ok textureResolved: 0 != 1
+fixture vmfix_ok pixelsDecoded: 0 != 1
+fixture vmfix_ok missing_materials: 1 != 0
+fixture vmfix_ok complete: false != true
+fixture vmfix_ok texture_width: 0 != 64
+fixture vmfix_ok texture_height: 0 != 64
+fixture vmfix_ok texture_format: 0 != 13
+fixture vmfix_ok has_bumpmap: false != true
+fixture vmfix_ok has_phong: false != true
