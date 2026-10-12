@@ -2,7 +2,7 @@
 
 ## 当前状态（2026-10-12）
 
-T2 ViewModel 第一人称绘制和 T2.5 ViewModel 动画输入契约已合并到 `p0-entity-protocol`。
+T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约和清单四音频 tick 调度契约已合并到 `p0-entity-protocol`。
 T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品提交 `447ca74`，门禁/文档提交 `2a92967`，主线整合提交 `f5e427f`。
 产品默认 ViewModel FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略、缺资源回退；T2.5 会读取 `CTFViewModel` 的 `m_nSequence`/`m_flPlaybackRate`，对不属于当前 `v_*.mdl` 序列表的序列明确拒绝并回退 bind pose。
 
@@ -10,6 +10,8 @@ T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品
 T2.5 没有实现真实的实体序列到 `v_*.mdl` 序列映射；诊断开关 `--viewmodel-apply-animation` 不是正式能力。当前仍未证明 ViewModel 材质/VMT/VTF、真实游戏人工画面对照、玩家动画输入、跨机器抓帧点集合和真实 GPU/FPS。
 
 T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默认 `v_scattergun_scout.mdl` 对 POV 的 141 次实体序列只有 37 次在范围内；按实体自身 `m_nModelIndex` 对应模型比较为 141/141，matcha 的全局 121 次越界降为按实体比较仅 1 次。产品下一步采用“同伴证明”：绘制模型必须等于实体自身模型才接受实体序列，旧式 `v_*.mdl` 继续拒绝并回退 bind pose；本轮尚未切换产品绘制路径。
+
+清单四已整合（`28007af`）：音频按 demo tick 调度，支持 tick 去重与倒放恢复、延时取整/下限、声音分类和资源解析失败原因，并保留 `--audio-disabled` 的 OutcomeSink。`verify-audio.sh` 为 `VERIFY-AUDIO=PASS (assertions_ok=28)`，`--mutation` 的 6 个专项变异全部捕获；设备尝试和成功计数均可被门禁读取。当前未验证真实 demo 端到端播放、真实 MP3/ADPCM 设备播放、长时间压力和非 Windows 平台。
 
 接手规则：先读 `HANDOFF-2026-10-07.md` 和 `IMPLEMENTATION-PLAN-2026-10-10.md`；所有功能在独立 `D:\TF2_Native_Worktrees\<task>` worktree 修改，禁止直接改主线或 `D:\TF2_Demo_Player`。交付必须包含提交、文件职责、输入、命令、具名读数、正负向结果、变异结果、未验证项和可运行结论；每完成一项立即更新交接清单。
 
@@ -19,7 +21,7 @@ T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默�
 
 静默抓帧模式已在 `4dd79a9` 整合：传 `--hidden-window --audio-disabled` 时窗口不可见、音频设备不打开，BMP/渲染读数与普通模式一致。`quiet-capture-check.sh` 正常 63 条断言、4 个 mutation 全部捕获；该门禁没有替代完整总链。bagel demo 的地图缺失和既有 `firstPacketTick` 音频回绕仍是单独未解决项。
 
-下一步按顺序：在独立 worktree 实现 T2.5“同伴证明”和动态手臂绘制，再处理 ViewModel 材质/人工画面对照、T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。清单二的静默模式已完成；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+下一步按顺序：在独立 worktree 实现 T2.5“同伴证明”和动态手臂绘制，再处理 ViewModel 材质/人工画面对照、静态武器本体第二笔、T4 世界材质/光照、音频主程序接线、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。清单二和清单四的契约已完成；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 

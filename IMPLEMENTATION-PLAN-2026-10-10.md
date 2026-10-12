@@ -2,7 +2,7 @@
 
 更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@4dd79a9`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、五层映射调查、静默抓帧测试、验收脚本修复和 23 步总链证据；不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@28007af`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、五层映射调查、静默抓帧测试、音频 tick 调度契约、验收脚本修复和 23 步总链证据；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -33,6 +33,12 @@
 5. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
 6. 10 分钟 soak、损坏 demo、移动资源目录、安装启动、真实 GPU/FPS 和发布包未完成。
 7. PaintKit、Phong、bump/selfillum、完整粒子和高级水面效果未完成。
+
+### 清单四交付状态（2026-10-12）
+
+`task/audio-tick-scheduler@9b4b41a21d4546efe85087e9fea72873a58069f3` 已整合为 `28007af`。音频时间线现在按 tick 去重、支持倒放恢复、延时取整/下限、声音类别过滤和 sound index 到 VPK WAV 的失败原因；`AudioEventScheduler` 同时支持普通播放 sink 与 `--audio-disabled` 的 `OutcomeSink`。定向 `verify-audio.sh` 通过 28 条断言，效果/调度器/sink 变异全部捕获，`verify-fast.sh` 通过 43 条断言。
+
+本交付只闭合调度与 null sink 契约。真实 demo 端到端声音播放、真实 MP3/ADPCM 解码和设备输出、长时间压力、非 Windows 平台及主程序完整音频接线仍未完成；总链不因本项重跑。
 
 ### T1 交付与验收状态（2026-10-10）
 

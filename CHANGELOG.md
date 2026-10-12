@@ -2,6 +2,13 @@
 
 ## 2026-10-12
 
+### 清单四：音频 tick 调度与 null sink 契约已整合
+
+- 整合提交：`28007af`，来源 `task/audio-tick-scheduler@9b4b41a21d4546efe85087e9fea72873a58069f3`；保留清单二的 `OutcomeSink`、`eventsSkippedDisabled` 和 `waveOutOpenCalls()`，并加入设备尝试/成功计数与 tick 调度实现。
+- 定向验收：`verify-audio.sh` = `VERIFY-AUDIO=PASS (assertions_ok=28)`；`verify-audio.sh --mutation` 的效果、调度器和 sink 三组变异全部捕获；`verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`。
+- 关键读数：`eventsSeen=10`、`eventsPlayed=6`、`eventsSkippedVoice=3`、`eventsMissingResource=1`、`repeatedSeen=2`、`recoveredSeen=2`、`device_open_attempts=0`、`device_opened=0`。
+- 未验证：真实 TF2 demo 端到端音频回放、真实 MP3/ADPCM 在 WinMM 设备上的播放、长时间压力和非 Windows 平台；既有 `firstPacketTick=INT_MIN` 批量 flush 问题仍未修复。总链未重跑。
+
 ### 清单二：静默抓帧测试已整合
 
 - 整合提交：`4dd79a9`，来源 `task/quiet-capture-tests@cf46caf`。
