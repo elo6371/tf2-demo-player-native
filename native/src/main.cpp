@@ -647,18 +647,53 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   //                             way to show the ViewModel skinning branch runs
   //                             without deforming, since nothing else supplies a
   //                             bone table to this pass.
+  //   --viewmodel-render <which> companion (the default) draws the model the
+  //                             ViewModel entity's own m_nModelIndex names;
+  //                             command draws exactly `--viewmodel` instead.
+  //   --viewmodel-sequence <n>  an input OVERRIDE, not a feature: use sequence n
+  //                             in place of the entity's own m_nSequence. It
+  //                             exists because on both pinned recordings the
+  //                             ViewModel entity carries sequences 1, 29 and 30
+  //                             while the model it names can pose sequence 0 and
+  //                             nothing else, so the accepted-pose branch cannot
+  //                             be reached by waiting for a tick. Every reading
+  //                             line reports `sequenceOverride=`, so an
+  //                             overridden run cannot be read as a natural one.
   std::filesystem::path commandViewModel;
   bool viewModelLeftHand = false;
   float viewModelFov = 0.0f;
   bool viewModelFovGiven = false;
   bool viewModelIdentityBones = false;
-  // Off by default, and the default is the point. See the scene-update block
-  // below: the resolved pose comes from the drawn model's own sequence table,
-  // which the entity's m_nSequence does not index, so applying it draws a
-  // plausible-looking wrong pose. The flag exists so the acceptance path is
-  // reachable end to end and a gate can prove it moves the picture.
+  // Off by default, and the default is the point. This flag exists so the
+  // accepted-pose path is reachable end to end and a gate can prove it moves the
+  // picture; a natural run applies nothing and only reports what it refused.
+  //
+  // On both pinned recordings, turning it on changes nothing measurable: the
+  // entity's sequences (1, 29, 30) are all inside the entity's own model's table
+  // but none of them reaches an animation descriptor, so every frame is still
+  // refused as `missing` and the bind pose is what gets drawn. Reaching a pose at
+  // all on this input needs `--viewmodel-sequence` above.
   bool viewModelApplyAnimation = false;
   std::size_t viewModelBoneLimit = 0;   // 0 = upload the whole table
+  // Which model the first-person pass draws.
+  //
+  // `companion` is the correct path this round exists to build: the model the
+  // ViewModel entity's own `m_nModelIndex` names, which on every shipped
+  // first-person composite is `models/weapons/c_models/c_<class>_arms.mdl`. That
+  // model's own sequence table is what the entity's `m_nSequence` indexes, so
+  // drawing it is what makes an accepted sequence a correct pose rather than a
+  // coincidence (see viewmodel.h).
+  //
+  // `command` keeps T2's behaviour -- exactly the `--viewmodel` path -- and is
+  // not a legacy switch. It is the product-side negative case: with it the pass
+  // draws a model the entity did not name, and the contract must report
+  // `modelMismatch` on every such frame. A run under `command` that reported
+  // `ok` would mean the proof is not wired, which is a reading no fixture can
+  // give because a fixture never reaches the draw path.
+  bool viewModelRenderCompanion = true;
+  // Negative = "use what the entity said", which is the only value a natural run
+  // has. See the `--viewmodel-sequence` parse site for why the override exists.
+  std::int32_t viewModelSequenceOverride = -1;
   bool viewModelArgumentRejected = false;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -735,6 +770,31 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-bone-limit") == 0) {
         viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-render") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"companion") == 0) viewModelRenderCompanion = true;
+        else if (wcscmp(arguments[i], L"command") == 0) viewModelRenderCompanion = false;
+        else viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-render") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-sequence") == 0 && i + 1 < argumentCount) {
+        // An INPUT OVERRIDE, and named like one. The pinned recordings' ViewModel
+        // entity carries sequences 1, 29 and 30; the model it names can pose
+        // sequence 0 and nothing else, so the recording never selects the one
+        // sequence that would produce a pose and the pose branch is unreachable
+        // without constructing the input. Rather than let that branch go
+        // unobserved -- or, worse, claim an acceptance the recording cannot
+        // support -- the sequence can be named on the command line. It is
+        // reported on every reading line as `sequenceOverride=`, so an overridden
+        // run can never be mistaken for a natural one.
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) {
+          viewModelSequenceOverride = static_cast<std::int32_t>(parsed);
+        } else {
+          viewModelArgumentRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--viewmodel-sequence") == 0) {
+        viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--audio-device") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const unsigned long parsed = std::wcstoul(arguments[++i], &end, 10);
@@ -774,7 +834,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     return 13;
   }
   if (viewModelArgumentRejected) {
-    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov; refusing to guess.\n");
+    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov/--viewmodel-render/--viewmodel-sequence; refusing to guess.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
@@ -1010,6 +1070,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::size_t outOfRange = 0;
     std::size_t boneMismatch = 0;
     std::size_t missing = 0;
+    // The companion proof's own account. `modelMismatch` and `modelMatches`
+    // partition the observations by the one question the proof asks first, so a
+    // run that never reached the proof at all reads `0/0` rather than borrowing
+    // the `missing` count.
+    std::size_t modelMismatch = 0;
+    std::size_t modelMatches = 0;
+    std::size_t companionFrames = 0;
+    // The sequence question, counted separately from the pose question. On the
+    // pinned recordings the two disagree on every frame: the entity's sequence is
+    // inside its own model's table and that entry names no pose, so a single
+    // counter would report the model's own content as an index defect.
+    std::size_t sequenceInRange = 0;
     // "The cursor moves" is a weaker reading than "the picture moves", and it is
     // the one this pass can honestly offer: the sequence belongs to the entity,
     // and the pose the pass draws comes from the drawn model's own table, which
@@ -1022,6 +1094,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::string lastEntityModel;
     std::string lastStatus = "none";
     std::string lastReason;
+    bool lastEntityModelMatchesDrawn = false;
+    bool lastBindPose = true;
+    bool lastSequenceAccepted = false;
+    bool lastSequenceInRange = false;
+    std::string lastDrawnModel;
   };
   ViewModelAnimationStats viewModelAnimationStats;
   struct PreparedEntityMesh {
@@ -1697,6 +1774,59 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // frame after the upload and every later frame would draw with a
   // default-constructed state.
   tf2::native::ViewModelDrawState viewModelBaseState;
+  // The transform the pass consumes, read off a request. Shared by the
+  // `--viewmodel` model and the entity's own model so the two cannot disagree
+  // about how an attachment becomes a draw state: `mstudioattachment_t::local`
+  // as a row-major 3x4, the three basis vectors as its columns and the origin as
+  // its translation column -- the "attachment local -> owning bone / model space"
+  // stage of the chain.
+  const auto viewModelDrawStateFor = [](const tf2::native::ViewModelRequest& request,
+      bool leftHand) {
+    tf2::native::ViewModelDrawState state;
+    state.fov = request.fov;
+    state.leftHand = leftHand;
+    state.handTransform = request.handTransform;
+    state.attachmentValid = request.alignmentIndex >= 0
+      && static_cast<std::size_t>(request.alignmentIndex) < request.attachments.size();
+    if (state.attachmentValid) {
+      const auto& attachment = request.attachments[static_cast<std::size_t>(request.alignmentIndex)];
+      state.attachmentName = attachment.name;
+      state.attachmentTransform = {
+        attachment.axisX[0], attachment.axisY[0], attachment.axisZ[0], attachment.origin[0],
+        attachment.axisX[1], attachment.axisY[1], attachment.axisZ[1], attachment.origin[1],
+        attachment.axisX[2], attachment.axisY[2], attachment.axisZ[2], attachment.origin[2],
+      };
+    }
+    return state;
+  };
+  // The entity's own model: built and uploaded at most once per distinct path,
+  // and rebuilt only when the path changes. `requestedPath` starts empty, which
+  // is not a path any entity can name, so the first scene update always builds.
+  //
+  // It cannot be built in the startup block with `--viewmodel`: this path comes
+  // from a demo entity, and at that point no demo packet has been read. That is
+  // also why the upload lives on this side -- the mesh is a property of the
+  // recording, not of the command line.
+  struct ViewModelCompanionCache {
+    std::string requestedPath;
+    tf2::native::ViewModelRequest request;
+    tf2::native::ViewModelDrawState baseState;
+  };
+  ViewModelCompanionCache viewModelCompanion;
+  // The pass has ONE vertex buffer, so whichever model is drawn has to be the one
+  // in it. This records which mesh is in it, and it is why a switch in either
+  // direction -- `--viewmodel` -> companion, or companion -> `--viewmodel` when a
+  // recording's entity stops naming a model -- re-uploads instead of drawing the
+  // new state through the old model's geometry. Empty means "nothing is in it",
+  // which is what a device reset leaves behind.
+  std::string viewModelMeshBufferPath;
+  const auto ensureViewModelMesh = [&](const std::string& path,
+      const std::vector<tf2::native::ModelDrawVertex>& vertices) {
+    if (!path.empty() && viewModelMeshBufferPath == path) return true;
+    const bool uploaded = renderer.uploadViewModelMesh(vertices);
+    viewModelMeshBufferPath = uploaded ? path : std::string();
+    return uploaded;
+  };
   if (viewModelRequested) {
     const std::string relative = normalizedModelPath(commandViewModel.string(), assets.tfDirectory);
     // The stored setting is the source of truth; --viewmodel-fov is an explicit
@@ -1844,30 +1974,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // plan says a missing or damaged ViewModel disables the ViewModel pass, not
     // the run, and `drawn=false` plus a reason is how that is reported.
     viewModelMeshUploaded = false;
+    // Both the buffer and the record of what is in it are invalidated here: a
+    // reset frees the buffer, and the scene update re-uploads whichever model it
+    // then decides to draw.
+    viewModelMeshBufferPath.clear();
     if (viewModelRequested) {
       tf2::native::ViewModelDrawState& viewModelState = viewModelBaseState;
-      viewModelState = tf2::native::ViewModelDrawState{};
-      viewModelState.fov = viewModelRequest.fov;
-      viewModelState.leftHand = viewModelLeftHand;
-      viewModelState.handTransform = viewModelRequest.handTransform;
-      viewModelState.attachmentValid = viewModelRequest.alignmentIndex >= 0
-        && static_cast<std::size_t>(viewModelRequest.alignmentIndex) < viewModelRequest.attachments.size();
-      if (viewModelState.attachmentValid) {
-        const auto& attachment =
-          viewModelRequest.attachments[static_cast<std::size_t>(viewModelRequest.alignmentIndex)];
-        viewModelState.attachmentName = attachment.name;
-        // mstudioattachment_t::local as a row-major 3x4: the three basis vectors
-        // are its columns, the origin is its translation column. This is the
-        // "attachment local -> owning bone / model space" stage of the chain.
-        viewModelState.attachmentTransform = {
-          attachment.axisX[0], attachment.axisY[0], attachment.axisZ[0], attachment.origin[0],
-          attachment.axisX[1], attachment.axisY[1], attachment.axisZ[1], attachment.origin[1],
-          attachment.axisX[2], attachment.axisY[2], attachment.axisZ[2], attachment.origin[2],
-        };
-      }
+      viewModelState = viewModelDrawStateFor(viewModelRequest, viewModelLeftHand);
       if (viewModelRequest.status == tf2::native::ViewModelStatus::Ok
           && viewModelRequest.resources.meshReady) {
         viewModelMeshUploaded = renderer.uploadViewModelMesh(viewModelRequest.mesh.vertices);
+        if (viewModelMeshUploaded) viewModelMeshBufferPath = viewModelRequest.path;
         viewModelState.enabled = viewModelMeshUploaded;
         if (!viewModelMeshUploaded) viewModelState.reason = "the viewmodel mesh did not upload";
       } else {
@@ -2039,7 +2156,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // boneTableCoverage=0/0` is no table at all, and `skinning=1
     // boneTableCoverage=45/45` is a skinned draw. Without the pair, the refusal
     // and the no-table case are both just `skinning=0`.
-    traceFmt("gpu: viewmodel pass order worldPass=%zu viewModelPass=%zu afterWorld=%d drawCalls=%zu vertices=%zu depthWrite=%d depthFunc=%s skinning=%d boneTableCoverage=%zu/%zu animationInput=%s meshRadius=%.2f alignment=%s vmAnimInput=%s vmAnimApplied=%d",
+    traceFmt("gpu: viewmodel pass order worldPass=%zu viewModelPass=%zu afterWorld=%d drawCalls=%zu vertices=%zu depthWrite=%d depthFunc=%s skinning=%d boneTableCoverage=%zu/%zu animationInput=%s meshRadius=%.2f alignment=%s vmAnimInput=%s vmAnimApplied=%d drawnModel=%s entityModelMatchesDrawn=%d sequenceInRange=%d sequenceAccepted=%d sequenceOverride=%d modelMismatch=%zu boneMismatch=%zu bindPose=%d",
       renderer.viewModelWorldPassOrdinal(), renderer.viewModelPassOrdinal(),
       renderer.viewModelPassOrdinal() > renderer.viewModelWorldPassOrdinal() ? 1 : 0,
       renderer.viewModelDrawCallCount(), renderer.viewModelVertexCount(),
@@ -2055,7 +2172,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       renderer.viewModelMeshRadius(),
       renderer.viewModelState().attachmentName.empty() ? "-" : renderer.viewModelState().attachmentName.c_str(),
       renderer.viewModelState().animationStatus.empty() ? "missing" : renderer.viewModelState().animationStatus.c_str(),
-      renderer.viewModelState().animationApplied ? 1 : 0);
+      renderer.viewModelState().animationApplied ? 1 : 0,
+      // The companion proof, on the pass's own line. `drawnModel` is the model
+      // whose mesh is in the vertex buffer, which is what makes
+      // `entityModelMatchesDrawn` a statement about the picture rather than about
+      // the contract's inputs.
+      viewModelAnimationStats.lastDrawnModel.empty() ? "-" : viewModelAnimationStats.lastDrawnModel.c_str(),
+      viewModelAnimationStats.lastEntityModelMatchesDrawn ? 1 : 0,
+      viewModelAnimationStats.lastSequenceInRange ? 1 : 0,
+      viewModelAnimationStats.lastSequenceAccepted ? 1 : 0,
+      viewModelSequenceOverride,
+      viewModelAnimationStats.modelMismatch,
+      viewModelAnimationStats.boneMismatch,
+      viewModelAnimationStats.lastBindPose ? 1 : 0);
     const auto& clip = renderer.viewModelCenterClip();
     const auto& viewSpace = renderer.viewModelCenterViewSpace();
     const bool onScreen = clip[3] > 0.0f
@@ -2507,25 +2636,122 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         renderer.setEntityModelInstances({});
         renderer.setEntityMarkers({});
       }
-      // ---- First-person ViewModel animation input (T2.5) ------------------
+      // ---- First-person ViewModel animation input (companion proof) --------
       // Resolved on every scene update, because the state it reads is only
-      // available here: the draw state is uploaded once at startup, and a
-      // ViewModel's sequence changes with the tick.
+      // available here: a ViewModel's sequence changes with the tick, and the
+      // model the entity names as its own is only known once a demo packet has
+      // been read.
       //
-      // What this can and cannot say is the point of the round. It CAN say
-      // whether the demo carries a sequence for the ViewModel the camera is
-      // looking at, and it can refuse when that sequence does not index the model
-      // the pass draws. It CANNOT animate the weapon: the entity's sequence
-      // indexes `c_<class>_arms.mdl` while the pass draws `v_<weapon>.mdl`, two
-      // different tables, so the refusal is the honest outcome for nearly every
-      // real input. Building the mapping between the two index spaces is
-      // follow-up work; until it exists an accepted value is a coincidence of the
-      // tables, not a correct pose.
+      // WHAT THIS DOES. The entity's m_nSequence indexes the entity's OWN model
+      // -- `models/weapons/c_models/c_<class>_arms.mdl` -- and not the
+      // `v_<weapon>.mdl` T2 drew, so the pass is switched to that model here. The
+      // contract then proves the switch took: owner, model index, path equality,
+      // table membership and bone count are each re-derived from what the
+      // snapshot said, and a failure in any of them leaves the bind pose in place
+      // rather than a half-applied pose. viewmodel.h carries the order.
       if (viewModelRequested) {
         const auto lookup = tf2::native::findViewModelAnimationInput(
           currentEntityStates, demoNetworkSummary.serverClassSchemas,
           demoNetworkSummary.setViewCount > 0, demoNetworkSummary.lastViewEntity,
           demoNetworkSummary.modelPrecache);
+        // The proof's own inputs, read here rather than taken on trust from the
+        // lookup's selection. `rankPropertyCandidates` returns the selection
+        // rule's own ordering (entity_model.h), so the value read is the value
+        // the rule would have chosen -- a hand-rolled suffix match in this file
+        // would be a second rule, free to drift from the first.
+        tf2::native::ViewModelAnimationInput animationInput = lookup.input;
+        animationInput.viewEntity = static_cast<int>(lookup.viewEntity);
+        if (lookup.input.entityPresent
+            && lookup.input.entityIndex >= 0
+            && static_cast<std::size_t>(lookup.input.entityIndex) < currentEntityStates.size()) {
+          const auto& entityState =
+            currentEntityStates[static_cast<std::size_t>(lookup.input.entityIndex)];
+          const auto readSlotValue = [&entityState](const char* suffix, std::int64_t& value) {
+            const auto candidates = tf2::native::rankPropertyCandidates(entityState, suffix);
+            if (candidates.empty()) return false;
+            const auto property = entityState.properties.find(candidates.front().name);
+            if (property == entityState.properties.end()) return false;
+            // The same coercion the lookup applies: a Float slot that carries an
+            // integer quantity is read as one.
+            value = property->second.type == tf2::native::SendPropType::Float
+              ? static_cast<std::int64_t>(property->second.x) : property->second.intValue;
+            return true;
+          };
+          std::int64_t ownerHandle = 0;
+          animationInput.hasOwner = readSlotValue("m_hOwner", ownerHandle);
+          // The entity index is the handle's low 11 bits (source-sdk-2013,
+          // public/basehandle.h) -- the same layout the lookup selected on, so a
+          // disagreement here is a real disagreement and not a decoding one.
+          animationInput.ownerEntity = animationInput.hasOwner
+            ? static_cast<int>(static_cast<std::uint32_t>(ownerHandle) & 0x7ffu) : -1;
+          std::int64_t modelIndex = 0;
+          animationInput.hasModelIndex = readSlotValue("m_nModelIndex", modelIndex);
+          animationInput.modelIndex = animationInput.hasModelIndex
+            ? static_cast<int>(modelIndex) : -1;
+        }
+        // The override, applied after the entity has been read so it REPLACES a
+        // value rather than supplying one: with the flag set the line reports the
+        // same owner, the same model index and the same entity, and the only
+        // field that differs is the one the caller named.
+        if (viewModelSequenceOverride >= 0) {
+          animationInput.hasSequence = true;
+          animationInput.sequence = viewModelSequenceOverride;
+        }
+        // ---- The companion: the model the entity's index names --------------
+        // Built once per distinct path. `requestedPath` is assigned even when the
+        // entity names nothing, so a recording whose entity stops naming a model
+        // drops back to `--viewmodel` instead of keeping the last companion alive
+        // as a stale reading.
+        if (viewModelRenderCompanion
+            && viewModelCompanion.requestedPath != animationInput.entityModelPath) {
+          viewModelCompanion.requestedPath = animationInput.entityModelPath;
+          viewModelCompanion.baseState = tf2::native::ViewModelDrawState{};
+          viewModelCompanion.request = animationInput.entityModelPath.empty()
+            ? tf2::native::ViewModelRequest{}
+            : tf2::native::buildViewModelCompanionRequest(assets, animationInput.entityModelPath,
+                viewModelLeftHand ? tf2::native::ViewModelHand::Left : tf2::native::ViewModelHand::Right,
+                viewModelFovGiven ? viewModelFov : persistent.render.viewModelFov);
+          if (viewModelCompanion.request.status == tf2::native::ViewModelStatus::Ok) {
+            viewModelCompanion.baseState =
+              viewModelDrawStateFor(viewModelCompanion.request, viewModelLeftHand);
+          }
+          traceFmt("gpu: viewmodel companion path=%s status=%s meshReady=%d sequences=%zu bones=%zu attachment=%s reason=%s",
+            viewModelCompanion.requestedPath.empty() ? "-" : viewModelCompanion.requestedPath.c_str(),
+            viewModelCompanion.request.status == tf2::native::ViewModelStatus::Ok ? "ok" : "failed",
+            viewModelCompanion.request.resources.meshReady ? 1 : 0,
+            viewModelCompanion.request.sequenceLabels.size(),
+            viewModelCompanion.request.bones.size(),
+            viewModelCompanion.request.alignmentName.empty()
+              ? "-" : viewModelCompanion.request.alignmentName.c_str(),
+            viewModelCompanion.request.reason.empty()
+              ? "-" : viewModelCompanion.request.reason.c_str());
+        }
+        // Which model the pass draws.
+        //
+        // `--viewmodel-identity-bones` pins it to `--viewmodel`, and that is an
+        // invariant of the instrument rather than a convenience: it uploads one
+        // identity matrix per bone of a specific skeleton, so a model switch
+        // underneath it would change which skeleton its claim -- "the skinning
+        // branch runs and the bind pose does not move" -- is a claim about.
+        const bool companionDrawn = viewModelRenderCompanion && !viewModelIdentityBones
+          && viewModelCompanion.request.status == tf2::native::ViewModelStatus::Ok
+          && viewModelCompanion.request.resources.meshReady
+          && ensureViewModelMesh(viewModelCompanion.request.path,
+               viewModelCompanion.request.mesh.vertices);
+        if (!companionDrawn && viewModelRequest.status == tf2::native::ViewModelStatus::Ok
+            && viewModelRequest.resources.meshReady) {
+          // The fallback needs its mesh back in the buffer when a companion held
+          // it; a no-op on every run where it already does.
+          ensureViewModelMesh(viewModelRequest.path, viewModelRequest.mesh.vertices);
+        }
+        const tf2::native::ViewModelRequest& drawnRequest =
+          companionDrawn ? viewModelCompanion.request : viewModelRequest;
+        tf2::native::ViewModelDrawState state =
+          companionDrawn ? viewModelCompanion.baseState : viewModelBaseState;
+        // `enabled` means "this state's mesh is the one in the vertex buffer".
+        // Deriving it from the buffer's recorded contents rather than from the
+        // startup upload is what keeps the two from disagreeing after a switch.
+        state.enabled = viewModelMeshBufferPath == drawnRequest.path;
         tf2::native::AnimationSampleRequest timing;
         timing.tick = resolvedSceneTick;
         // The demo's own tick rate, not a constant: it is what turns a tick into
@@ -2534,28 +2760,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         tf2::native::AnimationInputStatus bindingStatus =
           tf2::native::AnimationInputStatus::ModelMissing;
         std::string bindingReason;
-        const auto* binding = viewModelRequest.status == tf2::native::ViewModelStatus::Ok
-          ? viewModelAnimations.resolve(viewModelRequest.path, bindingStatus, bindingReason)
+        const auto* binding = drawnRequest.status == tf2::native::ViewModelStatus::Ok
+          ? viewModelAnimations.resolve(drawnRequest.path, bindingStatus, bindingReason)
           : nullptr;
         const auto outcome = tf2::native::resolveViewModelAnimationInput(
-          lookup.input, viewModelRequest, binding, timing);
-        tf2::native::ViewModelDrawState state = viewModelBaseState;
+          animationInput, drawnRequest, binding, timing);
         state.animationStatus = tf2::native::viewModelAnimationStatusName(outcome.status);
         // The pose is AVAILABLE when the contract accepted the input, and APPLIED
         // only when the caller asked for it. Those are deliberately two different
-        // things this round.
+        // things.
         //
-        // Why the default is not to apply. Measured on the POV demo: the entity
-        // whose sequence is read is a SNIPER (its m_nModelIndex names
-        // c_sniper_arms.mdl) while the pass draws v_scattergun_scout.mdl, so an
-        // accepted value is a value that happened to land inside the drawn
-        // model's 7-entry table. Sequence 1 is accepted and samples a real 31-frame
-        // pose of the SCATTERGUN -- applied, it would put a scattergun pose on a
-        // sniper rifle. That is a wrong pose that looks plausible, which is the
-        // one outcome animation_binding.h refuses to produce, and building the
-        // entity-sequence -> v_* mapping is follow-up work rather than this
-        // round's. `vmAnimApplied` reports which of the two happened, so this is a
-        // reading and not an omission.
+        // What changed this round is what an acceptance MEANS: the pose now comes
+        // from the entity's own model, which is the model the pass draws, so
+        // applying it is no longer the plausible-looking wrong pose T2 refused to
+        // apply. The opt-in stays anyway, because a reading that applies by
+        // default cannot be compared against the frame that does not, and that
+        // byte comparison is how "the pose moved the picture" is measured rather
+        // than asserted. `vmAnimApplied` reports which of the two happened.
         const bool poseAvailable = !outcome.bindPose && !outcome.skinMatrices.empty();
         if (viewModelIdentityBones) {
           // The identity-bone instrument owns the pass state. It uploads one
@@ -2591,6 +2812,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         if (lookup.input.entityPresent) ++viewModelAnimationStats.entitiesFound;
         if (lookup.input.hasSequence) ++viewModelAnimationStats.sequencesFound;
         if (lookup.input.hasCycle) ++viewModelAnimationStats.cyclesFound;
+        if (outcome.entityModelMatchesDrawn) ++viewModelAnimationStats.modelMatches;
+        else ++viewModelAnimationStats.modelMismatch;
+        if (outcome.sequenceInRange) ++viewModelAnimationStats.sequenceInRange;
+        if (companionDrawn) ++viewModelAnimationStats.companionFrames;
         switch (outcome.status) {
           case tf2::native::ViewModelAnimationStatus::Ok:
             ++viewModelAnimationStats.okPoses; break;
@@ -2619,15 +2844,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         viewModelAnimationStats.lastEntityModel = lookup.input.entityModelPath;
         viewModelAnimationStats.lastStatus = state.animationStatus;
         viewModelAnimationStats.lastReason = outcome.reason;
-        traceFmt("scene: vmAnim entity=%d sequence=%d rate=%.2f cyclePresent=%d model=%s status=%s poseAvailable=%d applied=%d frame=%d/%d entityRule=%s reason=%s",
+        viewModelAnimationStats.lastEntityModelMatchesDrawn = outcome.entityModelMatchesDrawn;
+        viewModelAnimationStats.lastBindPose = outcome.bindPose;
+        viewModelAnimationStats.lastSequenceAccepted =
+          outcome.status == tf2::native::ViewModelAnimationStatus::Ok;
+        viewModelAnimationStats.lastSequenceInRange = outcome.sequenceInRange;
+        viewModelAnimationStats.lastDrawnModel = drawnRequest.path;
+        traceFmt("scene: vmAnim entity=%d sequence=%d rate=%.2f cyclePresent=%d model=%s status=%s poseAvailable=%d applied=%d frame=%d/%d entityRule=%s reason=%s owner=%d viewEntity=%d modelIndex=%d drawnModel=%s entityModelMatchesDrawn=%d sequenceInRange=%d bindPose=%d sequenceOverride=%d",
           lookup.input.entityIndex, lookup.input.sequence,
           static_cast<double>(lookup.input.playbackRate), lookup.input.hasCycle ? 1 : 0,
           lookup.input.entityModelPath.empty() ? "-" : lookup.input.entityModelPath.c_str(),
           state.animationStatus.c_str(), poseAvailable ? 1 : 0, state.animationApplied ? 1 : 0,
           outcome.frame, outcome.frameCount,
           lookup.reason.empty() ? "-" : lookup.reason.c_str(),
-          outcome.reason.empty() ? "-" : outcome.reason.c_str());
-        traceFmt("scene: vmAnim summary observations=%zu entities=%zu sequences=%zu cycles=%zu ok=%zu applied=%zu outOfRange=%zu boneMismatch=%zu missing=%zu changes=%zu range=%d..%d lastEntity=%d lastStatus=%s",
+          outcome.reason.empty() ? "-" : outcome.reason.c_str(),
+          animationInput.ownerEntity, animationInput.viewEntity, animationInput.modelIndex,
+          drawnRequest.path.empty() ? "-" : drawnRequest.path.c_str(),
+          outcome.entityModelMatchesDrawn ? 1 : 0, outcome.sequenceInRange ? 1 : 0,
+          outcome.bindPose ? 1 : 0, viewModelSequenceOverride);
+        traceFmt("scene: vmAnim summary observations=%zu entities=%zu sequences=%zu cycles=%zu ok=%zu applied=%zu outOfRange=%zu boneMismatch=%zu missing=%zu changes=%zu range=%d..%d lastEntity=%d lastStatus=%s modelMismatch=%zu modelMatches=%zu sequenceInRange=%zu companionFrames=%zu lastDrawnModel=%s",
           viewModelAnimationStats.observations, viewModelAnimationStats.entitiesFound,
           viewModelAnimationStats.sequencesFound, viewModelAnimationStats.cyclesFound,
           viewModelAnimationStats.okPoses, viewModelAnimationStats.posesApplied,
@@ -2635,7 +2870,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           viewModelAnimationStats.boneMismatch, viewModelAnimationStats.missing,
           viewModelAnimationStats.sequenceChanges,
           viewModelAnimationStats.minSequence, viewModelAnimationStats.maxSequence,
-          viewModelAnimationStats.lastEntity, viewModelAnimationStats.lastStatus.c_str());
+          viewModelAnimationStats.lastEntity, viewModelAnimationStats.lastStatus.c_str(),
+          viewModelAnimationStats.modelMismatch, viewModelAnimationStats.modelMatches,
+          viewModelAnimationStats.sequenceInRange,
+          viewModelAnimationStats.companionFrames,
+          viewModelAnimationStats.lastDrawnModel.empty()
+            ? "-" : viewModelAnimationStats.lastDrawnModel.c_str());
       }
       renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
       renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, sceneTick);

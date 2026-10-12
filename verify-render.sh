@@ -16,7 +16,7 @@
 #   nothing about entity decoding, audio, or SourceTV coverage.
 #
 # WHERE THE READINGS GO
-#   The four gates below write into the committed `evidence/` directories by
+#   Each gate below writes into its own committed `evidence/` directory by
 #   default.
 #   This tier redirects them into `evidence/fast/render/` and then *asserts* that
 #   nothing under `evidence/` moved. The redirect matters most for frame-capture,
@@ -24,7 +24,11 @@
 #   on every run; the captured BMPs, by contrast, come back byte-identical, which
 #   is the property that gate exists to assert. weapon-animation is redirected for
 #   the same reason: its metrics CSVs are per-run, and its committed witness
-#   frames must not be rewritten by a tier run.
+#   frames must not be rewritten by a tier run. That claim is checked against
+#   `git status --porcelain evidence/` and not merely intended, which is why a
+#   gate whose default output lands outside `evidence/` still gets a variable
+#   here: the assertion is about the tree, and a redirect that is not named is a
+#   redirect nobody verified.
 #
 # THE GATES
 #   1. resource reachability -- which of main.cpp's five archives actually opened
@@ -69,6 +73,27 @@
 #      does carry it (CTFViewModel), separates the two index spaces, reads the
 #      owning entity from m_hOwner instead of guessing it, and asserts the
 #      negative on a recording where the pairing does not resolve at all.
+#   8. viewmodel companion -- gate 7's refutation was correct and left the picture
+#      wrong: the entity carries a c_<class>_arms model whose sequence already
+#      indexes THAT model's table, so nothing needed translating -- what was
+#      missing was a proof that the pass draws the entity's own model. This gate
+#      pins that proof (owner, m_nModelIndex, path equality, table membership,
+#      bone count) at three ticks DERIVED from a history run that carry three
+#      different sequences with three pairwise-different witness frames; keeps
+#      gate 7's refusal in place and still red; and is honest about the one thing
+#      it cannot show -- see below.
+#
+# WHAT GATE 8 DOES NOT SAY, AND WHY THE HONESTY MATTERS
+#   On both pinned recordings the entity carries sequences 1, 29 and 30, and the
+#   model it names can pose sequence 0 and nothing else (its animation file holds
+#   one descriptor, one frame). So the naturally-observed `ok` count is 0 and the
+#   accepted branch is UNREACHABLE on this input; the gate reports
+#   `sequenceAccepted=0` beside `sequenceInRange=` rather than blurring the two.
+#   The accepted pose is therefore CONSTRUCTED with `--viewmodel-sequence 0`, read
+#   out of the model itself, and every reading line for it carries
+#   `sequenceOverride=0` so an overridden run cannot be mistaken for a natural
+#   one. An input set that is a property of the machine is this repo's oldest
+#   defect; naming the override is what keeps this gate out of that class.
 #
 # WHY texture_quad_probe IS NOT HERE
 #   `texture_quad_probe <file.vtf>` uploads a real VTF through D3D11 on a WARP
@@ -85,8 +110,9 @@
 #   verified".
 #
 # Usage: bash verify-render.sh [--mutation] [--no-build]
-#   --mutation replaces gates 1-3 with their perturbation runs and gate 6 with its
-#   own five-mutation run. For gates 1-3 the perturbation replaces that gate's run
+#   --mutation replaces gates 1-3 with their perturbation runs, gate 6 with its
+#   own five-mutation run, gate 7 with its own three-mutation run and gate 8 with
+#   its own six. For gates 1-3 the perturbation replaces that gate's run
 #   rather than adding one, so they cost about the same as the straight run
 #   (5m45s against 5m27s) -- the +12 min this comment used to claim was never
 #   measured. viewmodel-contract is the exception: each of its mutations rebuilds
@@ -94,6 +120,9 @@
 #   run and this tier is correspondingly slower with --mutation. viewmodel-animation
 #   is in the same class: its --mutation rebuilds the five targets that link
 #   viewmodel.cpp, turns the refusal red, restores the source and rebuilds again.
+#   viewmodel-companion is the same again and larger: six mutations, four of them
+#   against the probe's own fixtures and two against the render path, each with its
+#   own rebuild, its own source-hash check and its own restore build.
 # Exit:  0 = every gate passed.
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -111,6 +140,13 @@ export VIEWMODEL_CONTRACT_TRACE_DIR="$OUT/viewmodel"
 # reason. It writes nothing into the committed tree: its committed record is the
 # pin file evidence/viewmodel/animation-inputs.txt plus the chain's step log.
 export VIEWMODEL_ANIMATION_TRACE_DIR="$OUT/viewmodel-animation"
+# viewmodel-companion writes the same class of machine product -- a history trace,
+# three witness BMPs, an accepted-pose pair and a JSON/text pair per probe run --
+# and takes its frames from its own launches. Redirected for the same reason, and
+# its own default (`evidence/fast/viewmodel-companion/`) would already have been
+# out of the committed tree; naming it here keeps the tier's one claim -- that
+# everything this run produces lands in $OUT -- literally true.
+export VIEWMODEL_COMPANION_TRACE_DIR="$OUT/viewmodel-companion"
 
 MUTATION=0
 BUILD=1
@@ -187,6 +223,7 @@ gate entity-material       entity-material-check.sh       'ENTITY-MATERIAL=(PASS
 gate weapon-animation      weapon-animation-check.sh      'WEAPON-ANIMATION=(PASS|FAIL)'      WEAPON_ANIMATION_OUT
 gate viewmodel-contract    viewmodel-contract-check.sh    'VIEWMODEL-CONTRACT=(PASS|FAIL)'    VIEWMODEL_CONTRACT_OUT
 gate viewmodel-animation   viewmodel-animation-check.sh   'VIEWMODEL-ANIMATION=(PASS|FAIL)'   VIEWMODEL_ANIMATION_TRACE_DIR
+gate viewmodel-companion   viewmodel-companion-check.sh   'VIEWMODEL-COMPANION=(PASS|FAIL)'   VIEWMODEL_COMPANION_TRACE_DIR
 
 echo
 echo "=== 3/4 the material chain's synthetic layer ==="
@@ -243,7 +280,7 @@ fi
 echo
 echo "gates_ok=$ok gates_bad=$bad"
 if [ "$bad" -eq 0 ]; then
-  echo "VERIFY-RENDER=PASS ($ok/8 gates, mutation=$MUTATION)"
+  echo "VERIFY-RENDER=PASS ($ok/9 gates, mutation=$MUTATION)"
   exit 0
 fi
 echo "VERIFY-RENDER=FAIL ($bad red)"

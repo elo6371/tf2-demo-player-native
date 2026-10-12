@@ -166,8 +166,16 @@ std::int32_t selectViewModelAlignment(ViewModelRequest& request,
   return -1;
 }
 
-ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string& path,
-    ViewModelHand hand, std::optional<float> fov) {
+namespace {
+
+// The one implementation both entry points share. `requireViewModelName` is the
+// only difference between them and it is a parameter rather than a second
+// function body on purpose: the companion has to be inspected, counted,
+// alignment-selected and mesh-built by the same parser, or the two paths would
+// disagree about the same file and the disagreement would only show up as a
+// ViewModel that draws under one entry point and not the other.
+ViewModelRequest buildRequest(const AssetRoot& root, const std::string& path,
+    ViewModelHand hand, std::optional<float> fov, bool requireViewModelName) {
   ViewModelRequest request;
   request.hand = hand;
   request.handTransform = viewModelHandMatrix(hand);
@@ -180,7 +188,7 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
   if (request.path.size() < 4 || request.path.compare(request.path.size() - 4, 4, ".mdl") != 0) {
     request.path += ".mdl";
   }
-  if (!isViewModelPath(request.path)) {
+  if (requireViewModelName && !isViewModelPath(request.path)) {
     request.reason = "path is not a viewmodel";
     return request;
   }
@@ -281,9 +289,22 @@ ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string&
   return request;
 }
 
+} // namespace
+
+ViewModelRequest buildViewModelRequest(const AssetRoot& root, const std::string& path,
+    ViewModelHand hand, std::optional<float> fov) {
+  return buildRequest(root, path, hand, fov, true);
+}
+
+ViewModelRequest buildViewModelCompanionRequest(const AssetRoot& root, const std::string& path,
+    ViewModelHand hand, std::optional<float> fov) {
+  return buildRequest(root, path, hand, fov, false);
+}
+
 const char* viewModelAnimationStatusName(ViewModelAnimationStatus status) {
   switch (status) {
     case ViewModelAnimationStatus::Ok: return "ok";
+    case ViewModelAnimationStatus::ModelMismatch: return "modelMismatch";
     case ViewModelAnimationStatus::SequenceOutOfRange: return "sequenceOutOfRange";
     case ViewModelAnimationStatus::BoneMismatch: return "boneMismatch";
     default: return "missing";
@@ -305,14 +326,45 @@ ViewModelAnimationOutcome resolveViewModelAnimationInput(
     return outcome;
   }
   // The order of these branches is the order of the reasons, and each is
-  // reachable on its own: a caller with no entity, one with an entity whose
-  // sequence slot is absent, one whose sequence is past the drawn table, and one
-  // whose drawn model simply carries no animation data all end in a bind pose --
-  // and the reason string says which of the four it was. One "no pose" status
-  // would make those four indistinguishable, which is the failure this round
-  // exists to remove.
+  // reachable on its own. See the header for why the model proof sits before the
+  // range check: which table is being indexed is settled before how far into it
+  // the index reaches, or the range verdict is a statement about the wrong table.
   if (!input.entityPresent) {
     outcome.reason = "no viewmodel entity owned by the view entity";
+    return outcome;
+  }
+  // The owner proof. The lookup above already selects on this equality, so this
+  // branch is unreachable through the product today -- and that is exactly why it
+  // is here. The negative fixture for a wrong owner and the mutation that clears
+  // it both enter through this field, and a contract that could not reject them
+  // would be a rule stated in a comment rather than in code.
+  if (!input.hasOwner) {
+    outcome.reason = "the viewmodel entity at index " + std::to_string(input.entityIndex)
+      + " carries no m_hOwner";
+    return outcome;
+  }
+  if (input.ownerEntity != input.viewEntity) {
+    outcome.reason = "the viewmodel entity at index " + std::to_string(input.entityIndex)
+      + " is owned by entity " + std::to_string(input.ownerEntity)
+      + ", not by the view entity " + std::to_string(input.viewEntity);
+    return outcome;
+  }
+  // The model proof's first half. Zero is the value an entity carries when no
+  // model was set, so writing it to the precache would be a lookup for a model
+  // that was never named -- and on the POV recording the EMPTY ViewModel slot of
+  // a player with no weapon holds exactly that.
+  if (!input.hasModelIndex) {
+    outcome.reason = "the viewmodel entity at index " + std::to_string(input.entityIndex)
+      + " carries no m_nModelIndex";
+    return outcome;
+  }
+  if (input.modelIndex == 0) {
+    outcome.reason = "m_nModelIndex is 0, which names no model";
+    return outcome;
+  }
+  if (input.entityModelPath.empty()) {
+    outcome.reason = "m_nModelIndex " + std::to_string(input.modelIndex)
+      + " is not in the demo's model_precache";
     return outcome;
   }
   if (!input.hasSequence) {
@@ -324,17 +376,31 @@ ViewModelAnimationOutcome resolveViewModelAnimationInput(
     outcome.reason = "m_nSequence is negative";
     return outcome;
   }
-  // Measured against the model the pass draws, never against the entity's own
-  // model: the two tables are different (see the header), so a value legal for
-  // one is not legal for the other, and the entity's own model is not what is
-  // on screen.
+  // The model proof's second half, and the one this round is about: the pass has
+  // to be drawing the model the entity named. Both sides are normalised because
+  // one comes from the demo's precache (verbatim, as the server wrote it) and the
+  // other from the asset resolver (lowercased, forward slashes) -- a difference
+  // of case or separator is not a difference of model, and treating it as one
+  // would refuse a correct pairing on a cosmetic detail.
+  const std::string entityModel = normalizePath(input.entityModelPath);
+  const bool entityModelMatches = !entityModel.empty() && entityModel == drawn.path;
+  if (!entityModelMatches) {
+    outcome.reason = "the pass draws " + (drawn.path.empty() ? std::string("-") : drawn.path)
+      + " but the entity's own m_nModelIndex names " + input.entityModelPath;
+    outcome.status = ViewModelAnimationStatus::ModelMismatch;
+    return outcome;
+  }
+  outcome.entityModelMatchesDrawn = true;
+  // Measured against the model the pass draws, and that model has just been
+  // proven to be the entity's own, so this is the entity's own table.
   const std::size_t drawnSequences = drawn.sequenceLabels.size();
   if (static_cast<std::size_t>(input.sequence) >= drawnSequences) {
     outcome.status = ViewModelAnimationStatus::SequenceOutOfRange;
     outcome.reason = "m_nSequence " + std::to_string(input.sequence)
-      + " is past the drawn model's " + std::to_string(drawnSequences) + " sequences";
+      + " is past the entity's own model's " + std::to_string(drawnSequences) + " sequences";
     return outcome;
   }
+  outcome.sequenceInRange = true;
   if (drawnBinding == nullptr) {
     outcome.reason = "the drawn model carries no animation data";
     return outcome;
