@@ -902,6 +902,80 @@ int main(int argc, char** argv) {
                inRange, outOfRange, modelMatchesDrawn, indexSpace);
 
   // ---------------------------------------------------------------------
+  // 4. The per-entity question: the sequence against ITS OWN model's table
+  // ---------------------------------------------------------------------
+  //
+  // Block 3 compares every observation against ONE drawn model, and that is only
+  // the right question when the drawn model belongs to the entity being
+  // observed. A recording with several players of several classes answers it
+  // across a mixed population: on the SourceTV recording this tree pins,
+  // `vmmapping-summary` reads outOfRange=121 against a single arms model purely
+  // because thirty viewmodel entities of seven different classes were folded
+  // into one denominator.
+  //
+  // This block asks the question the entity can actually answer: is the observed
+  // sequence inside the table of the model that entity itself reports? It is a
+  // separate counter from block 3 on purpose -- if the two ever disagree, that
+  // disagreement is the reading, not a bug in one of them.
+  std::map<std::string, std::int64_t> modelSequenceCounts;
+  const auto sequenceCountForModel = [&](const std::string& path) -> std::int64_t {
+    const auto cached = modelSequenceCounts.find(path);
+    if (cached != modelSequenceCounts.end()) return cached->second;
+    std::int64_t count = -1;
+    const auto candidate = tf2::native::ModelLoader::resolveAsset(assets, path);
+    tf2::native::ModelInspection inspection;
+    if (candidate.resolution == tf2::native::ModelAssetResolution::FoundLoose) {
+      inspection = tf2::native::ModelLoader::inspect(candidate.looseMdl);
+    } else if (candidate.resolution == tf2::native::ModelAssetResolution::FoundVpk
+               && candidate.vpkArchives.size() == 1) {
+      tf2::native::VpkArchive archive;
+      std::string error;
+      if (archive.open(candidate.vpkArchives.front(), &error)) {
+        inspection = tf2::native::ModelLoader::inspectVpk(archive, path);
+      }
+    }
+    if (inspection.mdl.signatureValid && inspection.metadata.valid) {
+      count = static_cast<std::int64_t>(inspection.metadata.sequences.size());
+    }
+    modelSequenceCounts.emplace(path, count);
+    return count;
+  };
+
+  std::size_t selfMeasured = 0, selfInRange = 0, selfOutOfRange = 0, selfUnmeasured = 0;
+  for (const auto& sample : series.samples()) {
+    if (sample.modelPath.empty()) { ++selfUnmeasured; continue; }
+    const std::int64_t count = sequenceCountForModel(sample.modelPath);
+    if (count < 0) { ++selfUnmeasured; continue; }
+    ++selfMeasured;
+    const int verdict = sequenceInRange(sample.sequence, count);
+    if (verdict == 1) ++selfInRange;
+    else if (verdict == 0) {
+      ++selfOutOfRange;
+      // Named, not just counted: a counter that reads 0 because it never looked is
+      // indistinguishable from a counter that looked and found nothing, and a
+      // counter that reads 1 needs to say WHICH sample so the one can be explained
+      // instead of averaged away.
+      std::fprintf(stderr,
+                   "vmself-outlier tick=%d entity=%d sequence=%lld modelIndex=%lld "
+                   "model=%s sequences=%lld\n",
+                   sample.tick, sample.entity, static_cast<long long>(sample.sequence),
+                   static_cast<long long>(sample.modelIndex), sample.modelPath.c_str(),
+                   static_cast<long long>(count));
+    }
+  }
+  std::fprintf(stderr,
+               "vmselfsum observations=%zu measured=%zu unmeasured=%zu inRange=%zu "
+               "outOfRange=%zu modelsQueried=%zu\n",
+               series.samples().size(), selfMeasured, selfUnmeasured, selfInRange,
+               selfOutOfRange, modelSequenceCounts.size());
+  for (const auto& row : modelSequenceCounts) {
+    if (row.second < 0) {
+      std::fprintf(stderr, "vmself model=%s sequences=-1 (the entity's own model did not resolve)\n",
+                   row.first.c_str());
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // One JSON object on stdout.
   // ---------------------------------------------------------------------
   std::cout << "{"
