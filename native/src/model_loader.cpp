@@ -36,12 +36,9 @@ constexpr std::size_t kVtxIndexStride = 2;
 // origMeshVertID (uint16), and boneID[3] = 9 bytes.
 constexpr std::size_t kVtxVertexStride = 9;
 
-std::string normalizeModelPath(std::string value) {
-  std::replace(value.begin(), value.end(), '\\', '/');
-  while (!value.empty() && value.front() == '/') value.erase(value.begin());
-  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return value;
-}
+// normalizeModelPath is declared in model_loader.h: entity_model.cpp and
+// viewmodel.cpp compare paths through the same rule, and a copy here would be a
+// second answer to the same question.
 
 bool addFits(std::size_t a, std::size_t b, std::size_t limit) {
   return a <= limit && b <= limit - a;

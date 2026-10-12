@@ -656,6 +656,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   //   --viewmodel-render <which> companion (the default) draws the model the
   //                             ViewModel entity's own m_nModelIndex names;
   //                             command draws exactly `--viewmodel` instead.
+  //   --viewmodel-weapon-body <on|off>  the static weapon body, the second half
+  //                             of the first-person composite: the model the
+  //                             weapon entity's own m_iWorldModelIndex names,
+  //                             drawn as its own draw request next to the arms.
+  //                             `on` is the product default -- drawing it is
+  //                             what this round adds; `off` renders the arms
+  //                             alone and exists so the two frames can be
+  //                             subtracted, which is what makes "the body
+  //                             changed the picture" a measurement.
   //   --viewmodel-sequence <n>  an input OVERRIDE, not a feature: use sequence n
   //                             in place of the entity's own m_nSequence. It
   //                             exists because on both pinned recordings the
@@ -700,6 +709,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // Negative = "use what the entity said", which is the only value a natural run
   // has. See the `--viewmodel-sequence` parse site for why the override exists.
   std::int32_t viewModelSequenceOverride = -1;
+  // The static weapon body: the second half of the first-person composite, the
+  // model the weapon entity's own `m_iWorldModelIndex` names. On by default,
+  // because drawing it IS the product behaviour this round adds; `off` exists
+  // as the A/B control that makes "the body changed the picture" a measured
+  // statement instead of a claim. See the `--viewmodel-weapon-body` parse site.
+  bool viewModelWeaponBodyEnabled = true;
   bool viewModelArgumentRejected = false;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -782,6 +797,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-render") == 0) {
         viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-weapon-body") == 0 && i + 1 < argumentCount) {
+        // The A/B control for the second half of the composite. `off` is not a
+        // legacy mode: it is the frame the `on` frame is compared against, and
+        // without it "the body draw changed the picture" would be an assertion
+        // about this file rather than a measurement of two bitmaps. The product
+        // default is `on` -- see the declaration site.
+        if (wcscmp(arguments[++i], L"on") == 0) viewModelWeaponBodyEnabled = true;
+        else if (wcscmp(arguments[i], L"off") == 0) viewModelWeaponBodyEnabled = false;
+        else viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-weapon-body") == 0) {
+        viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-sequence") == 0 && i + 1 < argumentCount) {
         // An INPUT OVERRIDE, and named like one. The pinned recordings' ViewModel
         // entity carries sequences 1, 29 and 30; the model it names can pose
@@ -844,7 +870,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     return 13;
   }
   if (viewModelArgumentRejected) {
-    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov/--viewmodel-render/--viewmodel-sequence; refusing to guess.\n");
+    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov/--viewmodel-render/--viewmodel-weapon-body/--viewmodel-sequence; refusing to guess.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
@@ -1111,6 +1137,65 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::string lastDrawnModel;
   };
   ViewModelAnimationStats viewModelAnimationStats;
+  // The weapon body's account, kept separate from the arms' for the same reason
+  // the arms' is kept separate from the entity pass's: an arms reading that moved
+  // because of a weapon-body event would make both unreadable.
+  //
+  // WHAT EACH COUNTER IS. `observations` counts scene updates that ran the
+  // lookup at all. `refusalCounts` has one bucket per `ViewModelWeaponBodyRefusal`
+  // and is indexed by it, so bucket 0 IS the success count and every refusal has
+  // its own number: "the body never drew" repairs differently for each (no weapon
+  // entity named, the weapon entity absent from the snapshot, the index zero, the
+  // index naming nothing in modelprecache, and -- the defect signature -- the
+  // index resolving to the arms model itself). A single "not found" counter would
+  // make those look like one condition, and adding a refusal to the enum without
+  // a bucket here would be a compile error rather than a silent merge.
+  struct ViewModelWeaponBodyStats {
+    std::size_t observations = 0;
+    std::size_t weaponEntityNamed = 0;
+    std::size_t weaponEntityPresent = 0;
+    std::array<std::size_t, 12> refusalCounts{};
+    std::size_t bodiesBuilt = 0;
+    std::size_t bodiesUploaded = 0;
+    std::size_t buildFailed = 0;
+    int lastWeaponEntity = -1;
+    int lastWorldModelIndex = 0;
+    std::string lastWeaponClass;
+    std::string lastPath;
+    std::string lastReason;
+    // The refusal, in the form the reading prints: `-` when the body drew, and
+    // the specific condition when it did not. This is the field a gate reads to
+    // tell "the body is off by request" from "the body's model was missing".
+    std::string lastFallback;
+    tf2::native::ViewModelWeaponBodyRefusal lastRefusal =
+      tf2::native::ViewModelWeaponBodyRefusal::NoViewModelEntity;
+    std::size_t lastMaterialSlots = 0;
+    std::size_t lastMaterialNamed = 0;
+    std::size_t lastMaterialVmt = 0;
+    std::size_t lastMaterialVtf = 0;
+    // The first slot that did not reach a .vtf, with the resource it stopped on.
+    // It is the field that turns `weaponMaterials=2/2/1/2` into a repairable
+    // statement: the count says one material is missing, this says which.
+    std::string lastMaterialFailure;
+  };
+  ViewModelWeaponBodyStats viewModelWeaponStats;
+  // The refusals that actually happened, in the order the enum declares them:
+  // `none:41,worldModelIndexZero:3` reads as "41 scene updates resolved a body,
+  // 3 were refused because the index was zero". Only non-zero buckets print, so
+  // a clean run's text is just `none:<n>`.
+  const auto viewModelWeaponRefusalText = [&]() -> std::string {
+    std::string text;
+    for (std::size_t index = 0; index < viewModelWeaponStats.refusalCounts.size(); ++index) {
+      const std::size_t count = viewModelWeaponStats.refusalCounts[index];
+      if (count == 0) continue;
+      if (!text.empty()) text += ",";
+      text += tf2::native::viewModelWeaponBodyRefusalName(
+        static_cast<tf2::native::ViewModelWeaponBodyRefusal>(index));
+      text += ":";
+      text += std::to_string(count);
+    }
+    return text.empty() ? std::string("-") : text;
+  };
   struct PreparedEntityMesh {
     std::string path;
     std::string cacheKey;
@@ -1848,6 +1933,33 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     viewModelMeshBufferPath = uploaded ? path : std::string();
     return uploaded;
   };
+  // The weapon body's own slot, built once per distinct path for the same reason
+  // the companion is: the path comes from a demo entity, so it cannot be built at
+  // startup, and re-parsing the MDL per frame is what the plan forbids.
+  //
+  // `requestedPath` is assigned the NULL result too -- a recording whose weapon
+  // entity stops naming a model has to drop the last body instead of keeping it
+  // alive as a stale reading.
+  struct ViewModelWeaponBodyCache {
+    std::string requestedPath;
+    tf2::native::ViewModelRequest request;
+    tf2::native::ViewModelDrawState baseState;
+  };
+  ViewModelWeaponBodyCache viewModelWeaponBody;
+  std::string viewModelWeaponMeshBufferPath;
+  // Returns whether the body's mesh is in its slot; `uploaded` reports whether
+  // THIS call is the one that put it there, so the reading can count uploads
+  // rather than frames -- a per-frame upload is the defect the plan's "no
+  // per-frame model or texture reload" line names, and a counter that
+  // incremented on every no-op call would hide it.
+  const auto ensureViewModelWeaponMesh = [&](const std::string& path,
+      const std::vector<tf2::native::ModelDrawVertex>& vertices, bool& uploaded) {
+    uploaded = false;
+    if (!path.empty() && viewModelWeaponMeshBufferPath == path) return true;
+    uploaded = renderer.uploadViewModelWeaponMesh(vertices);
+    viewModelWeaponMeshBufferPath = uploaded ? path : std::string();
+    return uploaded;
+  };
   if (viewModelRequested) {
     const std::string relative = normalizedModelPath(commandViewModel.string(), assets.tfDirectory);
     // The stored setting is the source of truth; --viewmodel-fov is an explicit
@@ -1999,6 +2111,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // reset frees the buffer, and the scene update re-uploads whichever model it
     // then decides to draw.
     viewModelMeshBufferPath.clear();
+    // The weapon body's slot is freed by the same reset and re-uploaded the same
+    // way -- it is a separate buffer, so it needs its own record of what was in
+    // it; leaving this one behind would let a post-reset scene update skip the
+    // re-upload and draw an empty slot as if it were the body.
+    viewModelWeaponMeshBufferPath.clear();
     if (viewModelRequested) {
       tf2::native::ViewModelDrawState& viewModelState = viewModelBaseState;
       viewModelState = viewModelDrawStateFor(viewModelRequest, viewModelLeftHand);
@@ -2237,6 +2354,42 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       clip[3] != 0.0f ? clip[0] / clip[3] : 0.0f,
       clip[3] != 0.0f ? clip[1] / clip[3] : 0.0f,
       onScreen ? 1 : 0);
+    // ---- The weapon body's reading ----------------------------------------
+    // One line, and every field is a reading rather than a claim. The two draw
+    // call counts are the pass's own counters, each incremented at its own
+    // Draw, so "the arms and the body are two draw requests" is a number here
+    // and not a statement about the shape of drawViewModel. The index and the
+    // path are what the weapon entity said; `weaponMaterials` is how far the
+    // .vmt/.vtf chain got, spelled slots/vmt/vtf/named because a bare ratio
+    // cannot say whether a model with no material slots and a model whose
+    // materials all failed are the same picture (they are the same picture, and
+    // they are not the same defect).
+    //
+    // `weaponVisible` is the body's own centre through its own mvp -- the same
+    // on-screen test the arms centre gets -- so "the body drew but landed off
+    // screen" stays distinguishable from "the body did not draw". It is only
+    // meaningful together with `weaponDrawCalls`: a body that never drew has no
+    // clip of its own and reads not-visible, which is why the pair is printed
+    // on one line.
+    const auto& weaponClip = renderer.viewModelWeaponCenterClip();
+    const bool weaponOnScreen = weaponClip[3] > 0.0f
+      && std::fabs(weaponClip[0]) <= weaponClip[3] && std::fabs(weaponClip[1]) <= weaponClip[3];
+    traceFmt("gpu: viewmodel weaponBodyReading armDrawCalls=%zu weaponDrawCalls=%zu weaponModelIndex=%d weaponModelPath=%s weaponMaterials=%zu/%zu/%zu/%zu weaponFallback=%s weaponVisible=%d weaponReason=%s weaponEntity=%d weaponClass=%s weaponMeshRadius=%.2f weaponVertices=%u weaponClip=(%.3f,%.3f,%.3f,%.3f) weaponMaterialsFailure=%s",
+      renderer.viewModelArmDrawCallCount(), renderer.viewModelWeaponDrawCallCount(),
+      viewModelWeaponStats.lastWorldModelIndex,
+      viewModelWeaponStats.lastPath.empty() ? "-" : viewModelWeaponStats.lastPath.c_str(),
+      viewModelWeaponStats.lastMaterialSlots, viewModelWeaponStats.lastMaterialVmt,
+      viewModelWeaponStats.lastMaterialVtf, viewModelWeaponStats.lastMaterialNamed,
+      viewModelWeaponStats.lastFallback.c_str(),
+      weaponOnScreen ? 1 : 0,
+      renderer.viewModelWeaponDrawReason().c_str(),
+      viewModelWeaponStats.lastWeaponEntity,
+      viewModelWeaponStats.lastWeaponClass.empty() ? "-" : viewModelWeaponStats.lastWeaponClass.c_str(),
+      renderer.viewModelWeaponMeshRadius(),
+      renderer.viewModelWeaponVertexCount(),
+      weaponClip[0], weaponClip[1], weaponClip[2], weaponClip[3],
+      viewModelWeaponStats.lastMaterialFailure.empty()
+        ? "-" : viewModelWeaponStats.lastMaterialFailure.c_str());
   };
   const auto writeMetrics = [&](LARGE_INTEGER sample, bool force) {
     if (!metricsFile) return;
@@ -2762,6 +2915,174 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             viewModelCompanion.request.reason.empty()
               ? "-" : viewModelCompanion.request.reason.c_str());
         }
+        // ---- The weapon body: the other half of the first-person composite ---
+        // The arms above are the model the ViewModel entity names as its own
+        // (`c_<class>_arms.mdl`). This is the second model the T2.5
+        // investigation established the modern first person is made of: the
+        // static weapon body the WEAPON ENTITY's own `m_iWorldModelIndex`
+        // names, reached through the ViewModel entity's `m_hWeapon` slot. It is
+        // a real second model -- its own skeleton, its own material slots, its
+        // own mesh and its own draw request -- and not the arms mesh, and not a
+        // `v_*.mdl` inferred from the weapon's name. entity_model.h carries the
+        // chain and every refusal.
+        //
+        // The build reuses the companion builder on purpose: its one difference
+        // from buildViewModelRequest is that it drops the `v_` prefix check, and
+        // the reason it drops it -- the path came from an entity, so the name is
+        // evidence rather than an assertion -- is exactly true of this path too.
+        // A `v_*` check here would refuse `c_pro_rifle.mdl`, which is the model
+        // the POV recording actually names (precache 533 at tick 16306).
+        if (!viewModelWeaponBodyEnabled) {
+          // The A/B control. The arms are drawn exactly as they were before this
+          // round and the reading names the switch, so an `off` frame's missing
+          // body can never be read as a lookup failure.
+          if (!viewModelWeaponBody.requestedPath.empty()) {
+            viewModelWeaponBody.requestedPath.clear();
+            viewModelWeaponBody.request = tf2::native::ViewModelRequest{};
+          }
+          viewModelWeaponBody.baseState = tf2::native::ViewModelDrawState{};
+          viewModelWeaponBody.baseState.enabled = false;
+          viewModelWeaponBody.baseState.reason = "the weapon body is switched off";
+          viewModelWeaponStats.lastWeaponEntity = -1;
+          viewModelWeaponStats.lastWorldModelIndex = 0;
+          viewModelWeaponStats.lastWeaponClass.clear();
+          viewModelWeaponStats.lastPath.clear();
+          viewModelWeaponStats.lastFallback = "off";
+          // Not a refusal: no lookup ran, so `observations` does not move either
+          // and the outcome counts stay untouched. The pair
+          // (`refusal=none`, `fallback=off`) is what says "switched off" rather
+          // than "asked for and refused".
+          viewModelWeaponStats.lastRefusal = tf2::native::ViewModelWeaponBodyRefusal::None;
+          viewModelWeaponStats.lastReason =
+            "the weapon body is switched off (--viewmodel-weapon-body off)";
+          viewModelWeaponStats.lastMaterialSlots = 0;
+          viewModelWeaponStats.lastMaterialNamed = 0;
+          viewModelWeaponStats.lastMaterialVmt = 0;
+          viewModelWeaponStats.lastMaterialVtf = 0;
+          viewModelWeaponStats.lastMaterialFailure.clear();
+        } else {
+          ++viewModelWeaponStats.observations;
+          const auto weaponBody = tf2::native::findViewModelWeaponBodyInput(
+            currentEntityStates, demoNetworkSummary.serverClassSchemas,
+            lookup.input.entityIndex, animationInput.entityModelPath,
+            demoNetworkSummary.modelPrecache);
+          viewModelWeaponStats.lastWeaponEntity = weaponBody.weaponEntityIndex;
+          viewModelWeaponStats.lastWorldModelIndex =
+            static_cast<int>(weaponBody.worldModelIndex);
+          viewModelWeaponStats.lastWeaponClass = weaponBody.weaponClassName;
+          viewModelWeaponStats.lastReason = weaponBody.reason;
+          viewModelWeaponStats.lastRefusal = weaponBody.refusal;
+          if (weaponBody.hasWeaponHandle) ++viewModelWeaponStats.weaponEntityNamed;
+          if (weaponBody.weaponEntityPresent) ++viewModelWeaponStats.weaponEntityPresent;
+          ++viewModelWeaponStats.refusalCounts[static_cast<std::size_t>(weaponBody.refusal)];
+          if (weaponBody.refusal != tf2::native::ViewModelWeaponBodyRefusal::None) {
+            // A refusal has to leave no body behind. Keeping the previous
+            // weapon's mesh in the slot would draw it while the reading said
+            // the new one was refused -- a stale picture with a green count.
+            if (!viewModelWeaponBody.requestedPath.empty()) {
+              viewModelWeaponBody.requestedPath.clear();
+              viewModelWeaponBody.request = tf2::native::ViewModelRequest{};
+            }
+            viewModelWeaponBody.baseState = tf2::native::ViewModelDrawState{};
+            viewModelWeaponBody.baseState.enabled = false;
+            viewModelWeaponBody.baseState.reason = weaponBody.reason;
+            viewModelWeaponStats.lastPath.clear();
+            viewModelWeaponStats.lastFallback =
+              tf2::native::viewModelWeaponBodyRefusalName(weaponBody.refusal);
+            // No request was built for a refused body, so there is no material
+            // reading to carry over -- a stale "2/2/1" here would describe the
+            // previous weapon.
+            viewModelWeaponStats.lastMaterialSlots = 0;
+            viewModelWeaponStats.lastMaterialNamed = 0;
+            viewModelWeaponStats.lastMaterialVmt = 0;
+            viewModelWeaponStats.lastMaterialVtf = 0;
+            viewModelWeaponStats.lastMaterialFailure.clear();
+          } else {
+            // Built once per distinct path. Re-read on every scene update only
+            // to compare the path: the MDL is parsed and the mesh uploaded at
+            // most once per weapon, which is what keeps a weapon switch from
+            // re-parsing per frame and a steady weapon from re-parsing at all.
+            if (viewModelWeaponBody.requestedPath != weaponBody.worldModelPath) {
+              viewModelWeaponBody.requestedPath = weaponBody.worldModelPath;
+              viewModelWeaponBody.request = tf2::native::buildViewModelCompanionRequest(
+                assets, weaponBody.worldModelPath,
+                viewModelLeftHand ? tf2::native::ViewModelHand::Left : tf2::native::ViewModelHand::Right,
+                viewModelFovGiven ? viewModelFov : persistent.render.viewModelFov);
+              viewModelWeaponBody.baseState = tf2::native::ViewModelDrawState{};
+              viewModelWeaponStats.lastPath = weaponBody.worldModelPath;
+              if (viewModelWeaponBody.request.status == tf2::native::ViewModelStatus::Ok) {
+                ++viewModelWeaponStats.bodiesBuilt;
+                viewModelWeaponBody.baseState =
+                  viewModelDrawStateFor(viewModelWeaponBody.request, viewModelLeftHand);
+              } else {
+                ++viewModelWeaponStats.buildFailed;
+              }
+              traceFmt("gpu: viewmodel weaponBody model=%s class=%s entity=%d worldModelIndex=%d path=%s status=%s meshReady=%d sequences=%zu bones=%zu vertices=%zu materials=%zu/%zu/%zu/%zu attachment=%s reason=%s",
+                weaponBody.worldModelPath.empty() ? "-" : weaponBody.worldModelPath.c_str(),
+                weaponBody.weaponClassName.empty() ? "-" : weaponBody.weaponClassName.c_str(),
+                weaponBody.weaponEntityIndex, static_cast<int>(weaponBody.worldModelIndex),
+                viewModelWeaponBody.requestedPath.empty()
+                  ? "-" : viewModelWeaponBody.requestedPath.c_str(),
+                viewModelWeaponBody.request.status == tf2::native::ViewModelStatus::Ok ? "ok" : "failed",
+                viewModelWeaponBody.request.resources.meshReady ? 1 : 0,
+                viewModelWeaponBody.request.sequenceLabels.size(),
+                viewModelWeaponBody.request.bones.size(),
+                viewModelWeaponBody.request.mesh.vertices.size(),
+                viewModelWeaponBody.request.materials.slots,
+                viewModelWeaponBody.request.materials.vmtResolved,
+                viewModelWeaponBody.request.materials.vtfResolved,
+                viewModelWeaponBody.request.materials.named,
+                viewModelWeaponBody.request.alignmentName.empty()
+                  ? "-" : viewModelWeaponBody.request.alignmentName.c_str(),
+                viewModelWeaponBody.request.reason.empty()
+                  ? "-" : viewModelWeaponBody.request.reason.c_str());
+            }
+            const auto& weaponMaterials = viewModelWeaponBody.request.materials;
+            viewModelWeaponStats.lastMaterialSlots = weaponMaterials.slots;
+            viewModelWeaponStats.lastMaterialNamed = weaponMaterials.named;
+            viewModelWeaponStats.lastMaterialVmt = weaponMaterials.vmtResolved;
+            viewModelWeaponStats.lastMaterialVtf = weaponMaterials.vtfResolved;
+            viewModelWeaponStats.lastMaterialFailure = weaponMaterials.firstFailure;
+            bool uploadedNow = false;
+            const bool inSlot = viewModelWeaponBody.request.status == tf2::native::ViewModelStatus::Ok
+              && viewModelWeaponBody.request.resources.meshReady
+              && ensureViewModelWeaponMesh(viewModelWeaponBody.request.path,
+                   viewModelWeaponBody.request.mesh.vertices, uploadedNow);
+            if (uploadedNow) ++viewModelWeaponStats.bodiesUploaded;
+            if (inSlot) {
+              // `enabled` means "this state's mesh is the one in the weapon
+              // slot", derived the same way the arms' is. The reason is left
+              // empty so the pass reports its own draw reason on the frame it
+              // draws.
+              viewModelWeaponBody.baseState.enabled = true;
+              viewModelWeaponBody.baseState.reason.clear();
+              viewModelWeaponStats.lastFallback = "-";
+            } else {
+              viewModelWeaponBody.baseState.enabled = false;
+              viewModelWeaponBody.baseState.reason = viewModelWeaponBody.request.reason.empty()
+                ? std::string("the weapon body mesh did not upload")
+                : viewModelWeaponBody.request.reason;
+              viewModelWeaponStats.lastFallback =
+                viewModelWeaponBody.request.status == tf2::native::ViewModelStatus::Ok
+                  ? "uploadFailed" : "buildFailed";
+            }
+          }
+        }
+        // Built into a named local rather than passed as a temporary: %s reads a
+        // pointer, and handing the variadic call a std::string is a C4840
+        // warning for a real reason.
+        const std::string weaponRefusalText = viewModelWeaponRefusalText();
+        traceFmt("scene: weaponBody entity=%d class=%s worldModelIndex=%d path=%s refusal=%s fallback=%s reason=%s observations=%zu named=%zu present=%zu refusals=%s",
+          viewModelWeaponStats.lastWeaponEntity,
+          viewModelWeaponStats.lastWeaponClass.empty() ? "-" : viewModelWeaponStats.lastWeaponClass.c_str(),
+          viewModelWeaponStats.lastWorldModelIndex,
+          viewModelWeaponStats.lastPath.empty() ? "-" : viewModelWeaponStats.lastPath.c_str(),
+          tf2::native::viewModelWeaponBodyRefusalName(viewModelWeaponStats.lastRefusal),
+          viewModelWeaponStats.lastFallback.c_str(),
+          viewModelWeaponStats.lastReason.empty() ? "-" : viewModelWeaponStats.lastReason.c_str(),
+          viewModelWeaponStats.observations, viewModelWeaponStats.weaponEntityNamed,
+          viewModelWeaponStats.weaponEntityPresent,
+          weaponRefusalText.c_str());
         // Which model the pass draws.
         //
         // `--viewmodel-identity-bones` pins it to `--viewmodel`, and that is an
@@ -2844,6 +3165,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           renderer.clearViewModelBones();
         }
         renderer.setViewModelState(state);
+        // The second draw request's state, set in the same breath as the arms'
+        // so a frame can never draw the body with a stale state. Its `enabled`
+        // was already derived from what is in the weapon slot, and its reason is
+        // empty exactly when the body is drawable -- the pass reports its own
+        // refusal otherwise (see drawViewModel).
+        renderer.setViewModelWeaponState(viewModelWeaponBody.baseState);
         ++viewModelAnimationStats.observations;
         if (lookup.input.entityPresent) ++viewModelAnimationStats.entitiesFound;
         if (lookup.input.hasSequence) ++viewModelAnimationStats.sequencesFound;

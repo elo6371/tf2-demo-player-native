@@ -1,4 +1,8 @@
 #include "entity_model.h"
+// normalizeModelPath: the shared path-comparison rule. entity_model.h does not
+// pull this in because the rule is a model-loader concern, and only the one
+// comparison below needs it.
+#include "model_loader.h"
 
 #include <algorithm>
 #include <cmath>
@@ -426,6 +430,159 @@ ViewModelEntityLookup findViewModelAnimationInput(
   } else {
     lookup.reason = "the lowest m_nViewModelIndex among the entities the view entity owns; no candidate has a resolvable model";
   }
+  return lookup;
+}
+
+const char* viewModelWeaponBodyRefusalName(ViewModelWeaponBodyRefusal refusal) {
+  switch (refusal) {
+    case ViewModelWeaponBodyRefusal::None: return "none";
+    case ViewModelWeaponBodyRefusal::NoViewModelEntity: return "noViewModelEntity";
+    case ViewModelWeaponBodyRefusal::ViewModelEntityAbsent: return "viewModelEntityAbsent";
+    case ViewModelWeaponBodyRefusal::NoWeaponSlot: return "noWeaponSlot";
+    case ViewModelWeaponBodyRefusal::EmptyWeaponHandle: return "emptyWeaponHandle";
+    case ViewModelWeaponBodyRefusal::WeaponPastSnapshot: return "weaponPastSnapshot";
+    case ViewModelWeaponBodyRefusal::WeaponAbsent: return "weaponAbsent";
+    case ViewModelWeaponBodyRefusal::NoWorldModelSlot: return "noWorldModelSlot";
+    case ViewModelWeaponBodyRefusal::WorldModelIndexZero: return "worldModelIndexZero";
+    case ViewModelWeaponBodyRefusal::WorldModelIndexOutOfRange: return "worldModelIndexOutOfRange";
+    case ViewModelWeaponBodyRefusal::WorldModelNotDeclared: return "worldModelNotDeclared";
+    case ViewModelWeaponBodyRefusal::WorldModelIsArms: return "worldModelIsArms";
+  }
+  return "unknown";
+}
+
+ViewModelWeaponBodyLookup findViewModelWeaponBodyInput(
+    const std::vector<EntityState>& statesByIndex,
+    const std::vector<ServerClassSchema>& classSchemas,
+    int viewModelEntityIndex,
+    const std::string& armModelPath,
+    const std::unordered_map<std::uint16_t, std::string>& modelPrecache) {
+  ViewModelWeaponBodyLookup lookup;
+  if (viewModelEntityIndex < 0
+      || static_cast<std::size_t>(viewModelEntityIndex) >= statesByIndex.size()) {
+    lookup.refusal = ViewModelWeaponBodyRefusal::NoViewModelEntity;
+    lookup.reason = "no ViewModel entity was selected, so no weapon entity can be named";
+    return lookup;
+  }
+  const auto& viewModelState = statesByIndex[static_cast<std::size_t>(viewModelEntityIndex)];
+  if (viewModelState.classId < 0) {
+    // The selected index exists but holds no entity in this snapshot: the slot
+    // was freed between the selection and this read. Naming it separately from
+    // "the ViewModel entity has no weapon slot" is the difference between a
+    // selection problem and a packet-stream problem.
+    lookup.refusal = ViewModelWeaponBodyRefusal::ViewModelEntityAbsent;
+    lookup.reason = "the selected ViewModel entity is not present in this snapshot";
+    return lookup;
+  }
+  lookup.hasViewModelEntity = true;
+  lookup.viewModelEntityIndex = viewModelEntityIndex;
+  bool hasWeapon = false;
+  const std::int64_t weaponHandle = readIntSlot(viewModelState, "m_hWeapon", hasWeapon);
+  lookup.hasWeaponHandle = hasWeapon;
+  if (!hasWeapon) {
+    lookup.refusal = ViewModelWeaponBodyRefusal::NoWeaponSlot;
+    lookup.reason = "the ViewModel entity carries no m_hWeapon slot";
+    return lookup;
+  }
+  lookup.weaponHandle = weaponHandle;
+  // The same three ways a handle is not a place to look that resolveObserverFocus
+  // names: the wire sentinel 0xFFFFFFFF, the 2047 index that field
+  // initialization leaves behind (the empty-slot ViewModel entities carry
+  // exactly this), and an index past the snapshot.
+  const std::uint32_t handle = static_cast<std::uint32_t>(weaponHandle);
+  const bool sentinel = handle == kInvalidEntityHandle;
+  const std::uint32_t targetIndex = handle & kEntityHandleIndexMask;
+  const bool invalidIndex = targetIndex == kInvalidEntityIndex;
+  if (sentinel || invalidIndex) {
+    lookup.refusal = ViewModelWeaponBodyRefusal::EmptyWeaponHandle;
+    lookup.reason = "the ViewModel entity's m_hWeapon is the empty handle sentinel";
+    return lookup;
+  }
+  const int weaponIndex = static_cast<int>(targetIndex);
+  lookup.weaponEntityIndex = weaponIndex;
+  if (static_cast<std::size_t>(weaponIndex) >= statesByIndex.size()) {
+    lookup.refusal = ViewModelWeaponBodyRefusal::WeaponPastSnapshot;
+    lookup.reason = "weapon entity " + std::to_string(weaponIndex) + " is past the snapshot";
+    return lookup;
+  }
+  const auto& weaponState = statesByIndex[static_cast<std::size_t>(weaponIndex)];
+  if (weaponState.classId < 0) {
+    // `m_hWeapon` names a slot the snapshot does not hold yet -- the weapon
+    // entity is temporarily absent, which is a different state from "the handle
+    // is empty" and repairs differently.
+    lookup.refusal = ViewModelWeaponBodyRefusal::WeaponAbsent;
+    lookup.reason = "weapon entity " + std::to_string(weaponIndex) + " is not in this snapshot";
+    return lookup;
+  }
+  lookup.weaponEntityPresent = true;
+  lookup.weaponClassId = weaponState.classId;
+  for (const auto& schema : classSchemas) {
+    if (schema.id == static_cast<std::uint32_t>(weaponState.classId)) {
+      lookup.weaponClassName = schema.name;
+      break;
+    }
+  }
+  bool hasWorldModelIndex = false;
+  const std::int64_t worldModelIndex =
+    readIntSlot(weaponState, "m_iWorldModelIndex", hasWorldModelIndex);
+  lookup.hasWorldModelIndex = hasWorldModelIndex;
+  if (!hasWorldModelIndex) {
+    lookup.refusal = ViewModelWeaponBodyRefusal::NoWorldModelSlot;
+    lookup.reason = "weapon entity " + std::to_string(weaponIndex)
+      + " carries no m_iWorldModelIndex slot";
+    return lookup;
+  }
+  lookup.worldModelIndex = worldModelIndex;
+  if (worldModelIndex == 0) {
+    // Source's "no model" sentinel. Modelprecache does not declare index 0, so
+    // this is separately reportable from "the index named nothing": only one of
+    // the two is repairable by a different precache.
+    lookup.refusal = ViewModelWeaponBodyRefusal::WorldModelIndexZero;
+    lookup.reason = "the weapon's m_iWorldModelIndex is 0";
+    return lookup;
+  }
+  if (worldModelIndex < 1 || worldModelIndex > 0xffff) {
+    lookup.refusal = ViewModelWeaponBodyRefusal::WorldModelIndexOutOfRange;
+    lookup.reason = "the weapon's m_iWorldModelIndex is out of range";
+    return lookup;
+  }
+  const auto found = modelPrecache.find(static_cast<std::uint16_t>(worldModelIndex));
+  if (found == modelPrecache.end() || found->second.empty()) {
+    // In range but the table never declared it: the weapon names a model the
+    // demo does not ship, so no draw request can be built for it.
+    lookup.refusal = ViewModelWeaponBodyRefusal::WorldModelNotDeclared;
+    lookup.reason = "m_iWorldModelIndex " + std::to_string(worldModelIndex)
+      + " is not declared in modelprecache";
+    return lookup;
+  }
+  // The defect signature this refusal exists for. A weapon carries two indices
+  // next to each other in the send table, and the WRONG one -- m_nModelIndex,
+  // which names the class's first-person arms composite -- still resolves to a
+  // real, drawable file. Drawing it would put a second pair of hands in front
+  // of the camera and every count-based reading would stay green, which is
+  // exactly what the world pass did before cd36db1. Comparing the resolved path
+  // against the arms the pass is drawing is what makes that case refuse here
+  // instead of rendering.
+  //
+  // Both sides go through normalizeModelPath. The two paths come from different
+  // places -- this one from modelprecache, the other from the ViewModel entity's
+  // m_nModelIndex through the same table but possibly written with the other
+  // separator or a different case -- and a raw comparison would miss the match
+  // and draw the arms a second time while reporting a weapon body. Measured:
+  // before this used the shared rule, the probe's backslash case failed.
+  if (!armModelPath.empty()
+      && normalizeModelPath(found->second) == normalizeModelPath(armModelPath)) {
+    lookup.refusal = ViewModelWeaponBodyRefusal::WorldModelIsArms;
+    const std::string refused = found->second;
+    lookup.reason = "the weapon's world model resolves to the arms composite ("
+      + refused + "), not to a weapon body";
+    return lookup;
+  }
+  // Assigned last, so `worldModelPath` is non-empty exactly when this lookup
+  // succeeded -- including the refusal above, which named a real file.
+  lookup.worldModelPath = found->second;
+  lookup.refusal = ViewModelWeaponBodyRefusal::None;
+  lookup.reason = "the weapon entity's own m_iWorldModelIndex names the weapon body";
   return lookup;
 }
 

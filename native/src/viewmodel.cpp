@@ -3,17 +3,111 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <fstream>
+#include <iterator>
+
+#include "vmt_material.h"
 
 namespace tf2::native {
 namespace {
 
-std::string normalizePath(std::string value) {
-  for (char& character : value) {
-    if (character == '\\') character = '/';
-    character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+// One resource, loose file first and then every archive that holds the key --
+// the same order the product's own material reads use (and the same order
+// viewmodel_material_probe measured). `root.resolve` only covers loose files;
+// a resource that lives in a VPK comes back through `archives()`, which is the
+// one place the archive set is opened, so this helper cannot multiply the
+// expensive directory parse.
+std::vector<std::uint8_t> readAssetResource(const AssetRoot& root, const std::string& resource) {
+  std::vector<std::uint8_t> bytes;
+  const auto resolved = root.resolve(std::filesystem::u8path(resource));
+  if (!resolved.empty()) {
+    std::ifstream file(resolved, std::ios::binary);
+    if (file) {
+      bytes.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+    }
   }
-  while (!value.empty() && value.front() == '/') value.erase(value.begin());
-  return value;
+  if (!bytes.empty()) return bytes;
+  std::vector<std::filesystem::path> holders;
+  root.archives().collectContaining(resource, holders);
+  for (const auto& holder : holders) {
+    const auto* archive = root.archives().find(holder);
+    if (!archive) continue;
+    bytes = archive->read(resource);
+    if (!bytes.empty()) return bytes;
+  }
+  return {};
+}
+} // namespace
+
+// The material chain, slot by slot, stopping at the VTF existing. See
+// ViewModelMaterialReading for why it stops there and what the count is for.
+//
+// Defined outside the anonymous namespace because it is exported: the probe
+// drives this function with a hand-built inspection to reach the two chain
+// states a shipped model cannot show (a texture slot naming a material that is
+// not installed, and a material naming a texture that is not installed), which
+// is the same code path the product runs on its own real inspection.
+ViewModelMaterialReading resolveViewModelMaterialChain(const AssetRoot& root,
+    const ModelInspection& inspection) {
+  ViewModelMaterialReading reading;
+  reading.slots = inspection.metadata.textureCandidates.size();
+  for (std::size_t slot = 0; slot < inspection.metadata.textureCandidates.size(); ++slot) {
+    const auto& candidates = inspection.metadata.textureCandidates[slot];
+    if (candidates.empty()) {
+      if (reading.firstFailure.empty()) {
+        reading.firstFailure = "slot " + std::to_string(slot) + " has no candidate path";
+      }
+      continue;
+    }
+    ++reading.named;
+    bool vmtRead = false;
+    bool vtfRead = false;
+    std::string failure;
+    for (const auto& candidate : candidates) {
+      const std::string vmtResource = VmtParser::resourcePath(candidate, ".vmt");
+      const auto vmtBytes = readAssetResource(root, vmtResource);
+      if (vmtBytes.empty()) {
+        failure = "material " + vmtResource + " was not found";
+        continue;
+      }
+      VmtMaterial material;
+      if (!VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material)) {
+        failure = "material " + vmtResource + " did not parse";
+        continue;
+      }
+      vmtRead = true;
+      if (material.baseTexture.empty()) {
+        failure = "material " + vmtResource + " declares no $basetexture";
+        break;
+      }
+      const std::string vtfResource = VmtParser::resourcePath(material.baseTexture, ".vtf");
+      if (readAssetResource(root, vtfResource).empty()) {
+        failure = "texture " + vtfResource + " was not found";
+        break;
+      }
+      vtfRead = true;
+      failure.clear();
+      break;
+    }
+    if (vmtRead) ++reading.vmtResolved;
+    if (vtfRead) ++reading.vtfResolved;
+    if (!vtfRead && reading.firstFailure.empty()) {
+      reading.firstFailure = "slot " + std::to_string(slot) + ": "
+        + (failure.empty() ? std::string("no candidate produced a readable texture") : failure);
+    }
+  }
+  return reading;
+}
+
+namespace {
+
+// Kept as a local name, but there is only one rule: model_loader.h exports it
+// because entity_model.cpp needs the same answer when it checks that a weapon's
+// world model is not the arms composite. A second implementation here would be
+// free to drift, and the drift would be invisible -- a comparison that misses
+// draws the wrong model with every count still green.
+std::string normalizePath(const std::string& value) {
+  return normalizeModelPath(value);
 }
 
 bool isViewModelPath(const std::string& path) {
@@ -283,6 +377,12 @@ ViewModelRequest buildRequest(const AssetRoot& root, const std::string& path,
   } else {
     request.resources.meshReason = "the model has no decodable mesh";
   }
+
+  // Measured here, where the MDL's own texture table is still in hand. It does
+  // not gate the draw: a model whose materials are missing is still drawable in
+  // flat colour, and the reading is what names that state rather than hiding it
+  // behind an identical picture.
+  request.materials = resolveViewModelMaterialChain(root, inspection);
 
   request.status = ViewModelStatus::Ok;
   request.reason.clear();
