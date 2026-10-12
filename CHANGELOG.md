@@ -2,6 +2,15 @@
 
 ## 2026-10-12
 
+### 清单二：静默抓帧测试已整合
+
+- 整合提交：`4dd79a9`，来源 `task/quiet-capture-tests@cf46caf`。
+- 新增 `--hidden-window` 与 `--audio-disabled` 测试参数；新增 `quiet_capture_probe` 和 `quiet-capture-check.sh`，并注册 CMake 目标。
+- 定向验收：`QUIET-CAPTURE=PASS`（63 条断言）、`QUIET-CAPTURE-MUTATION=PASS`（4 个 mutation 全部变红）、`verify-fast.sh` 43 条断言通过；正常与静默模式 BMP 均为 2,582,406 字节且逐字节一致。
+- 实测静默模式 `window_visible=0`、`audio_device_opened=0`、`drawn=1`、capture/metrics 均写出；音频事件仍计数但 `events_played=0`，改记为 skipped。
+- 未跑总链；只使用 bagel demo，地图缺失导致画面是回退四边形。基线已有 `firstPacketTick=INT_MIN` 使 4610 个音频事件在首次调度批量 flush，本提交只验证禁用设备契约，没有修复 tick 回绕。
+- 清单一若修改 `native/src/main.cpp`，必须基于 `4dd79a9` 手动整合，不能直接把旧基线分支覆盖主线。
+
 ### T2.5 五层序列映射调查完成
 
 - 调查提交：`83920eb`，主线整合为 `150f0c7`；探针新增按实体自身模型查 sequence 范围的 `vmselfsum` 与具名 `vmself-outlier`，stdout 单行 JSON 契约不变。
@@ -35,7 +44,7 @@
 - 原始日志：`.scratch/obs/verify-all-23-quick.log`，45293 字节，sha256 `aff5fe6b40a4bea334feecd3f40df61a922b301204d2536927be68af85e4abd9`；第 23 步 verdict 已纳入 `evidence/verify/`，大型 trace 目录不入库。
 - 第 20 步本次 `blockDiff=30`、`frameDiff=434510` 是接线后构建和 HUD 时间变化造成的整帧差异；门禁仍只钉块内至少 10 个像素变化，判定没有放宽。
 - 总链只在合并主线、发版或核心协议变更时运行；日常改动按 `verify-fast.sh` 或对应 `verify-entity.sh`/`verify-render.sh`/`verify-audio.sh` 分层验收。
-- 静默边界：fast、entity、audio 契约探针不建窗口且不打开音频；需要抓帧的 render/weapon/ViewModel 门禁目前仍启动主程序并使用 `--audio-device 6`，尚未实现隐藏窗口和 null sink 产品模式。
+- 静默边界：fast、entity、audio 契约探针不建窗口且不打开音频；需要抓帧的 render/weapon/ViewModel 脚本尚未统一传入 `--hidden-window --audio-disabled`，未传参数时仍会启动可见窗口并使用 `--audio-device 6`。
 ## 2026-10-11
 
 ### T2 ViewModel 第一人称绘制已整合

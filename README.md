@@ -15,9 +15,11 @@ T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默�
 
 当前验收链为 23 步。`e4c4d41` 上已由单实例运行 `bash verify-all.sh --quick` 完成 **23/23、rc=0、`VERIFY=PASS`**；日志为 `.scratch/obs/verify-all-23-quick.log`（sha256 `aff5fe6b40a4bea334feecd3f40df61a922b301204d2536927be68af85e4abd9`）。完整链只在合并主线、发版或核心协议变更时运行，运行期间禁止修改源码、脚本、证据或并发构建/变异。
 
-日常验收使用 `verify-fast.sh` 或对应的 `verify-entity.sh`、`verify-render.sh`、`verify-audio.sh`。fast/entity/audio 契约探针不建窗口且不打开音频；render/weapon/ViewModel 抓帧门禁仍启动主程序并传 `--audio-device 6`，所以可能显示窗口并播放声音。若需完全静默，后续任务应增加测试专用 hidden-window/null-sink 启动模式，并为该模式建立正负门禁；在此之前不要声称渲染档已静默。
+日常验收使用 `verify-fast.sh` 或对应的 `verify-entity.sh`、`verify-render.sh`、`verify-audio.sh`。fast/entity/audio 契约探针不建窗口且不打开音频；现有 render/weapon/ViewModel 脚本仍需显式传入静默参数才会隐藏窗口和禁用音频，未传时可能显示窗口并播放声音。
 
-下一步按顺序：在独立 worktree 实现 T2.5“同伴证明”和动态手臂绘制，再处理测试静默模式、ViewModel 材质/人工画面对照、T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+静默抓帧模式已在 `4dd79a9` 整合：传 `--hidden-window --audio-disabled` 时窗口不可见、音频设备不打开，BMP/渲染读数与普通模式一致。`quiet-capture-check.sh` 正常 63 条断言、4 个 mutation 全部捕获；该门禁没有替代完整总链。bagel demo 的地图缺失和既有 `firstPacketTick` 音频回绕仍是单独未解决项。
+
+下一步按顺序：在独立 worktree 实现 T2.5“同伴证明”和动态手臂绘制，再处理 ViewModel 材质/人工画面对照、T4 世界材质/光照、T5 音频时序、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。清单二的静默模式已完成；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 

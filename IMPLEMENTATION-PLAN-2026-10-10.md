@@ -2,7 +2,7 @@
 
 更新时间：2026-10-12
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@150f0c7`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、五层映射调查、验收脚本修复和 23 步总链证据；不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@4dd79a9`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、五层映射调查、静默抓帧测试、验收脚本修复和 23 步总链证据；不是产品发布分支）
 主程序目录：`D:\TF2_Native_Test`
 只读源目录：`D:\TF2_Demo_Player`
 
@@ -82,6 +82,7 @@ git worktree add -b task/<task-name> D:\TF2_Native_Worktrees\<task-name> origin/
 - 有声音的程序一律传 `--audio-device 6`；没有设备验证时使用 null sink。
 - 非必要不运行 `verify-all.sh --quick`：它只用于合并主线、发版或核心协议变更；日常按分层门禁执行。
 - `verify-fast.sh`、`verify-entity.sh`、`verify-audio.sh` 的探针不建窗口且不打开音频；`verify-render.sh` 及武器/ViewModel 抓帧门禁仍启动窗口并使用 `--audio-device 6`，直到测试静默模式任务完成。
+- 清单二已完成：`--hidden-window --audio-disabled` 通过专项门禁，抓帧可无窗口、无设备；默认交互模式不变。现有其他抓帧脚本尚未统一传入这两个参数。清单一如修改 `main.cpp`，必须基于 `4dd79a9` 手动整合。
 
 ### 任务提交合同
 
@@ -280,7 +281,7 @@ native/build-nmake/viewmodel_fov_probe.exe
 1. 在 `D:\TF2_Native_Worktrees\viewmodel-sequence-mapping` 开展 T2.5 映射调查：owner/weapon definition/companion/activity/sequence 五层逐层读数。
 2. 为每层建立合成 fixture 和反向 mutation，先证明错误映射会红，再接入产品；保留缺输入 bind pose 回退。
 3. 定向通过后更新 `README.md`、`CHANGELOG.md`、本计划和 `HANDOFF-2026-10-07.md`；只有合并节点、发版或核心协议变更才重跑总链。
-4. 在 T2.5 之后增加测试专用 hidden-window/null-sink 模式；在该任务完成前，渲染类门禁仍会显示窗口并使用 `--audio-device 6`。
+4. 测试专用 hidden-window/null-sink 已由 `4dd79a9` 完成；后续抓帧门禁优先使用该模式，真实设备验收仍单独传 `--audio-device 6`。
 ### T3：相机、观察者模式与基础 HUD/UI
 
 **负责人**：UI/相机 AI。
