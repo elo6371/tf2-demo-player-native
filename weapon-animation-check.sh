@@ -303,10 +303,16 @@ raw = io.open(path, "rb").read()
 crlf = b"\r\n" in raw
 text = raw.decode("utf-8").replace("\r\n", "\n") if crlf else raw.decode("utf-8")
 anchor = (
+    "        identity.reserve(bindBoneCount);\n"
+    "        for (std::size_t i = 0; i < bindBoneCount; ++i) {\n"
+    "          std::array<float, 16> matrix{};\n"
     "          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;\n"
     "          identity.push_back(matrix);\n"
 )
 inject = (
+    "        identity.reserve(bindBoneCount);\n"
+    "        for (std::size_t i = 0; i < bindBoneCount; ++i) {\n"
+    "          std::array<float, 16> matrix{};\n"
     "          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;\n"
     "          // MUTATION: upload the inverse bind matrix instead of identity, which\n"
     "          // is what this path did before it was fixed.\n"
@@ -317,7 +323,7 @@ inject = (
     "          }\n"
     "          identity.push_back(matrix);\n"
 )
-assert text.count(anchor) == 1, "identity anchor"
+assert text.count(anchor) == 1, "standalone model identity anchor"
 text = text.replace(anchor, inject)
 if crlf:
     text = text.replace("\n", "\r\n")

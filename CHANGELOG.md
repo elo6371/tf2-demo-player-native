@@ -10,6 +10,13 @@
 - 门禁：主线 `verify-fast.sh` 43/43、`verify-render.sh` 8/8、T2.5 正常 PASS；独立和父锁 mutation 均 `red=3/3 hold=3/3`，源码恢复和恢复构建通过。
 - 修复的问题：父级持构建锁时 mutation 恢复责任被错误跳过；pin 文件 CRLF 使 Git Bash 读到 `name\r` 并误报 demo 缺失；变异模式仍按正常版断言拒绝状态。
 - 未完成：真实序列映射、ViewModel 材质与人工画面对照、完整 23 步总链、玩家动画外部输入。下一步先跑干净主线总链，再开独立 worktree 做映射调查。
+
+### 23 步总链复核与验收修复
+
+- `b9f000e` 上的完整总链实际结果为 `VERIFY=FAIL`、退出码 1；第 1–21 步通过，第 22 步 mutation-model 锚点失效，第 23 步断言数 pin 过期（门禁实际 111，pin 为 110）。
+- 在隔离分支修复第 22 步锚点，使其限定 standalone `--model` identity lambda；更新第 23 步断言 pin 为 111。
+- 定向复核：`weapon-animation-check.sh --mutation-model` → `MUTATION-CAUGHT=PASS`（变异及恢复构建均 rc=0）；`viewmodel-animation-check.sh` → 111 条断言、`VIEWMODEL-ANIMATION=PASS`。
+- **完整总链仍待在修复提交上重跑**；不把定向门禁结果替代 23/23 总链结果。
 ## 2026-10-11
 
 ### T2 ViewModel 第一人称绘制已整合

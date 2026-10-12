@@ -854,7 +854,7 @@ VIEWMODEL_ANIMATION_TRACE_DIR="$VM_ANIM_TRACE" \
   bash viewmodel-animation-check.sh > "$OUT/23-viewmodel-animation.txt" 2>&1
 tail -18 "$OUT/23-viewmodel-animation.txt"
 # The assertion count is pinned for the same reason as steps 8 and 21-22: a gate
-# that prints PASS while its assertions quietly disappear is not a gate. 110 is
+# that prints PASS while its assertions quietly disappear is not a gate. 111 is
 # arrived at as: 5 in section 0 (two recordings pinned by size and sha256, both
 # identified, and the verified count) + 5 in section 1 (the self-test rc, its
 # failure count, the pinned 49 assertions, the cross-check note, and the
@@ -873,7 +873,7 @@ tail -18 "$OUT/23-viewmodel-animation.txt"
 # counts).
 VM_ANIM_OK=$(grep -c '^  OK   ' "$OUT/23-viewmodel-animation.txt" || true)
 if grep -q 'VIEWMODEL-ANIMATION=PASS' "$OUT/23-viewmodel-animation.txt" \
-   && [ "${VM_ANIM_OK:-0}" -eq 110 ]; then
+   && [ "${VM_ANIM_OK:-0}" -eq 111 ]; then
   echo "VIEWMODEL-ANIMATION=PASS (assertions_ok=$VM_ANIM_OK)"
 else
   echo "VIEWMODEL-ANIMATION=FAIL (assertions_ok=${VM_ANIM_OK:-0})"; rc_all=1
