@@ -15,6 +15,10 @@ struct VtfHeader {
   std::uint16_t height = 0;
   std::uint32_t flags = 0;
   std::uint16_t frames = 0;
+  // The header's "first frame" field. Only interesting for cubemaps: the
+  // format's own rule is that an environment map is six-faced unless the
+  // version is below 7.5 and this field is -1, in which case it is seven-faced.
+  std::int16_t firstFrame = 0;
   std::uint32_t format = 0;
   std::uint8_t mipCount = 0;
   std::uint32_t lowResFormat = 0;
@@ -25,7 +29,27 @@ struct VtfHeader {
   std::vector<std::uint32_t> resourceTags;
   std::uint64_t mipStart = 0;
   std::uint64_t chainBytes = 0;
+  // Face slots the image data holds, MEASURED from the file rather than read
+  // from a field: one face's whole mip chain is faceChainBytes, and the image
+  // section divided by it is how many faces are really there. The two can
+  // disagree -- every cubemap cp_snakewater_final1 ships carries seven face
+  // slots while the header's rule above predicts six -- and the file is what a
+  // decoder has to walk, so the file is what is counted.
+  std::uint32_t faceCount = 1;
+  std::uint64_t faceChainBytes = 0;
+  std::uint64_t mip0Bytes = 0;
+  // Offset and size of one face's largest mip level. The layout is the
+  // format's: for each mip (smallest to largest), for each face, so the top
+  // mips of every face sit together at the end of the image section and face f
+  // of mip 0 is at mip0Offset + f * mip0Bytes.
+  std::uint64_t mip0Offset = 0;
+  std::uint64_t imageBytes = 0;
   bool isCubemap() const { return (flags & TextureFlagsEnvMap) != 0; }
+  // What the header's own rule predicts, for comparison against faceCount.
+  std::uint32_t declaredFaceCount() const {
+    if (!isCubemap()) return 1;
+    return (minor < 5 && firstFrame == -1) ? 7 : 6;
+  }
 };
 
 class VtfTexture {
@@ -48,10 +72,17 @@ public:
   // decoded by. A face that fails to decode fails the same way a flat texture
   // does, with the same message shape.
   //
-  // Measured on this install's real cubemaps (cp_snakewater_final1's
-  // c<X>_<Y>_<Z>.vtf, 32x32 DXT1, 6 mips, depth 1): the file holds seven
-  // face-sized chains and the first six are the faces, so face f starts at
-  // mipStart + f * chainBytes. The seventh chain is not interpreted here.
+  // The slice arithmetic is the format's layout, not an assumption:
+  //
+  //   for each mip (smallest to largest)
+  //     for each face (first to last)
+  //
+  // so face f's mip 0 begins at mip0Offset + f * mip0Bytes. An earlier version
+  // of this function assumed one face-sized chain per face starting at
+  // mipStart + f * chainBytes, which is a different arrangement that this
+  // install's files do not use: decoding a real 7-face cubemap that way returns
+  // each face's SMALLER MIPS laid out as if they were the whole face, and the
+  // fixture notices because face f comes back as a colour nobody wrote.
   std::vector<std::uint8_t> decodeCubeFaceRgba(const std::vector<std::uint8_t>& bytes,
     int face, std::uint32_t& width, std::uint32_t& height, std::string* error = nullptr) const;
 

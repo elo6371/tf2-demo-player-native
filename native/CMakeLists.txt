@@ -78,7 +78,7 @@ set_target_properties(vpk_query PROPERTIES WIN32_EXECUTABLE OFF)
 # native_renderer.cpp for the same reason viewmodel_material.cpp is shared: a
 # gate that asserts the two agree is only non-circular if there is one
 # implementation to agree with.
-add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(world_material_probe PRIVATE include third_party/lzma)
 set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 

@@ -1,12 +1,14 @@
 #include "bsp_map.h"
 #include "vmt_material.h"
 #include "vpk_archive.h"
+#include "vtf_texture.h"
 #include "world_material.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -331,6 +333,88 @@ std::string atlasPixelAt(const tf2::native::BspMap& map, int x, int y) {
 }
 
 // ---------------------------------------------------------------------------
+// A synthetic cubemap VTF
+// ---------------------------------------------------------------------------
+// Built to the layout this install's real cubemaps use, not to a convenient
+// one. The format's image section is
+//
+//   for each mip (smallest to largest)
+//     for each face (first to last)
+//
+// so the top mips of every face sit together at the end of the section; each
+// face's smaller mips hold the inverse of its colour, so a decoder that reads
+// the section at the wrong offset returns a colour the fixture never wrote
+// rather than a plausible-looking picture. The header mirrors the real files:
+// minor 4, a 96-byte header with one resource (tag 0x30) pointing at image data
+// that starts right after it, and seven face slots where the header's own rule
+// declares six.
+std::vector<std::uint8_t> syntheticCubemapVtf(std::uint32_t width, std::uint32_t height,
+    const std::array<std::array<std::uint8_t, 3>, 6>& faceColors, int faceSlots = 7) {
+  const std::uint32_t mipCount = 2;
+  const auto mipBytes = [&](std::uint32_t level) {
+    const std::uint32_t w = std::max(1u, width >> level);
+    const std::uint32_t h = std::max(1u, height >> level);
+    return static_cast<std::size_t>(w) * h * 4u;
+  };
+  std::vector<std::uint8_t> file(96, 0);
+  const auto put16At = [&](std::size_t at, std::uint16_t value) {
+    file[at] = static_cast<std::uint8_t>(value & 0xFFu);
+    file[at + 1] = static_cast<std::uint8_t>((value >> 8) & 0xFFu);
+  };
+  const auto put32At = [&](std::size_t at, std::uint32_t value) {
+    for (int byte = 0; byte < 4; ++byte) {
+      file[at + static_cast<std::size_t>(byte)] = static_cast<std::uint8_t>((value >> (byte * 8)) & 0xFFu);
+    }
+  };
+  std::memcpy(file.data(), "VTF\0", 4);
+  put32At(4, 7);
+  put32At(8, 4);
+  put32At(12, 96);
+  put16At(16, static_cast<std::uint16_t>(width));
+  put16At(18, static_cast<std::uint16_t>(height));
+  put32At(20, tf2::native::VtfHeader::TextureFlagsEnvMap);
+  put16At(24, 1);                       // frame count
+  put16At(26, 0);                       // first frame: not -1, so the header rule says six faces
+  put32At(52, 0);                       // format 0: RGBA8888, identity decode
+  file[56] = static_cast<std::uint8_t>(mipCount);
+  put32At(57, 0);                       // low-res format
+  file[61] = 1;                         // low-res width
+  file[62] = 1;                         // low-res height
+  put16At(63, 1);                       // depth
+  put32At(68, 1);                       // one resource
+  put32At(88, 0x30);                    // high-resolution image data
+  put32At(92, 96);                      // ... which starts right after the header
+  const auto colorFor = [&](int face) {
+    return face < 6 ? faceColors[static_cast<std::size_t>(face)]
+                    : std::array<std::uint8_t, 3>{255, 0, 255};
+  };
+  for (std::uint32_t mip = mipCount; mip-- > 0;) {
+    for (int face = 0; face < faceSlots; ++face) {
+      const auto color = colorFor(face);
+      const std::size_t bytes = mipBytes(mip);
+      for (std::size_t pixel = 0; pixel < bytes; pixel += 4) {
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+          const std::uint8_t value = color[channel];
+          file.push_back(mip == 0 ? value : static_cast<std::uint8_t>(255 - value));
+        }
+        file.push_back(255);
+      }
+    }
+  }
+  const std::size_t expected = 96
+    + static_cast<std::size_t>(faceSlots) * (mipBytes(0) + mipBytes(1));
+  if (file.size() != expected) return {};
+  return file;
+}
+
+std::string rgbaText(const std::vector<std::uint8_t>& rgba, std::size_t pixel) {
+  const std::size_t at = pixel * 4u;
+  if (at + 4u > rgba.size()) return "out-of-range";
+  return std::to_string(rgba[at]) + "," + std::to_string(rgba[at + 1]) + ","
+    + std::to_string(rgba[at + 2]) + "," + std::to_string(rgba[at + 3]);
+}
+
+// ---------------------------------------------------------------------------
 // Fixture cases
 // ---------------------------------------------------------------------------
 // Each case builds real BSP bytes through buildFixtureBsp and reads them back
@@ -340,12 +424,13 @@ std::string atlasPixelAt(const tf2::native::BspMap& map, int x, int y) {
 
 using CaseBody = std::function<std::vector<Check>(const tf2::native::BspMap&,
   const tf2::native::WorldCapabilityReadings&)>;
-using CaseMutate = std::function<bool(tf2::native::BspFixture&, std::vector<std::string>&)>;
+using CaseMutate = std::function<bool(tf2::native::BspFixture&,
+  std::vector<tf2::native::FixedResource>&)>;
 
 struct FixtureCase {
   std::string name;
   tf2::native::BspFixture fixture;
-  std::vector<std::string> resources;
+  std::vector<tf2::native::FixedResource> resources;
   // What the map's own material declares about water. Kept as explicit fields
   // rather than inferred from "resources is non-empty", because a fixture with
   // a water face and no material is a different case from one with neither.
@@ -387,6 +472,40 @@ std::map<std::string, std::string> flattenReadings(
   out["cubemap.reason"] = cubemap.reason;
   out["cubemap.samples"] = std::to_string(readings.cubemap.samples);
   out["cubemap.samplesComplete"] = std::to_string(readings.cubemap.samplesComplete);
+  out["cubemap.fromProbe"] = std::to_string(readings.cubemap.samplesFromProbe);
+  out["cubemap.fromPakfile"] = std::to_string(readings.cubemap.samplesFromPakfile);
+  out["cubemap.facesDecoded"] = std::to_string(readings.cubemap.facesDecoded);
+  out["cubemap.facesBeyondSix"] = std::to_string(readings.cubemap.facesBeyondSix);
+  out["cubemap.firstFacesInFile"] = readings.cubemap.perSample.empty() ? std::string()
+    : std::to_string(readings.cubemap.perSample.front().facesInFile);
+  out["cubemap.firstDeclaredFaces"] = readings.cubemap.perSample.empty() ? std::string()
+    : std::to_string(readings.cubemap.perSample.front().declaredFaces);
+  // The first sample's own file, so a reader can see which naming convention the
+  // measurement used instead of taking it on faith.
+  // The first sample's six decoded faces, as means and checksums. A gate can
+  // pin these; without them a decoder that walks the image section at the wrong
+  // stride still reports six faces and passes every count.
+  {
+    std::string means;
+    std::string sums;
+    char text[32];
+    for (int face = 0; face < 6; ++face) {
+      if (!readings.cubemap.perSample.empty()) {
+        std::snprintf(text, sizeof(text), "%s%d", face ? "," : "",
+          readings.cubemap.perSample.front().faceMean[face]);
+        means += text;
+        std::snprintf(text, sizeof(text), "%s%08x", face ? "," : "",
+          readings.cubemap.perSample.front().faceChecksum[face]);
+        sums += text;
+      }
+    }
+    out["cubemap.firstFaceMeans"] = means;
+    out["cubemap.firstFaceChecksums"] = sums;
+  }
+  out["cubemap.firstPath"] = readings.cubemap.perSample.empty()
+    ? std::string() : readings.cubemap.perSample.front().vtfPath;
+  out["cubemap.firstSource"] = readings.cubemap.perSample.empty()
+    ? std::string() : readings.cubemap.perSample.front().source;
 
   out["sky.state"] = worldCapabilityStateName(sky.state);
   out["sky.reason"] = sky.reason;
@@ -500,7 +619,7 @@ std::vector<FixtureCase> buildCases() {
     item.straight = body;
     // The exponent byte of the first luxel. If the atlas is not driven by the
     // face's own samples, this changes nothing and the mutation is caught.
-    item.mutate = [](BspFixture& f, std::vector<std::string>&) { f.lighting[3] = 1; return true; };
+    item.mutate = [](BspFixture& f, std::vector<tf2::native::FixedResource>&) { f.lighting[3] = 1; return true; };
     item.mutated = [](const tf2::native::BspMap& map,
         const tf2::native::WorldCapabilityReadings& readings) {
       std::vector<Check> checks = readingChecks(readings, {{"lightmap.state", "active"}});
@@ -550,7 +669,7 @@ std::vector<FixtureCase> buildCases() {
     // Sixteen faces fill the atlas exactly and nothing drops. This is the
     // reading that makes the previous one meaningful: without it, "dropped 1"
     // could be a constant.
-    item.mutate = [](tf2::native::BspFixture& f, std::vector<std::string>&) {
+    item.mutate = [](tf2::native::BspFixture& f, std::vector<tf2::native::FixedResource>&) {
       f.faces.pop_back();
       return true;
     };
@@ -604,38 +723,89 @@ std::vector<FixtureCase> buildCases() {
   }
 
   // ---- 3. cubemap: six-face discovery, order, sampling --------------------
+  // Two samples on purpose, one per store: the loose tree answers the first and
+  // the map's own pakfile answers the second, which is the store every TF2 map
+  // actually uses. The colours are the face identities -- face f is a solid
+  // colour no other face has -- so a reader that takes the faces in the wrong
+  // order, or reads a chain at the wrong offset, returns a colour the fixture
+  // never wrote.
   {
     FixtureCase item;
     item.name = "cubemap-six-face";
     item.fixture.cubemaps.push_back({{100, 200, 300}, 64});
     item.fixture.cubemaps.push_back({{-400, 500, 600}, 64});
     item.fixture.faces.push_back(lightmapQuad());
-    for (int sample = 0; sample < 2; ++sample) {
-      for (int face = 0; face < 6; ++face) {
-        item.resources.push_back("materials/maps/fixture/c_fixture_" + std::to_string(sample)
-          + tf2::native::worldCubemapFaceSuffix(face) + ".vtf");
-      }
-    }
-    item.straight = [](const tf2::native::BspMap&,
+    const std::array<std::array<std::uint8_t, 3>, 6> faceColors = {{
+      {204, 20, 20}, {20, 204, 20}, {20, 20, 204},
+      {204, 204, 20}, {204, 20, 204}, {20, 204, 204},
+    }};
+    const auto loosePath = std::string("materials/maps/fixture/c100_200_300.vtf");
+    const auto pakPath = std::string("materials/maps/fixture/c-400_500_600.vtf");
+    const auto looseBytes = syntheticCubemapVtf(4, 4, faceColors);
+    item.resources.push_back({loosePath, looseBytes});
+    item.fixture.pakfileEntries[pakPath] = syntheticCubemapVtf(4, 4, faceColors);
+    item.straight = [faceColors, looseBytes](const tf2::native::BspMap&,
         const tf2::native::WorldCapabilityReadings& readings) {
-      return readingChecks(readings, {
+      auto checks = readingChecks(readings, {
         {"cubemap.state", "active"},
         {"cubemap.samples", "2"},
         {"cubemap.samplesComplete", "2"},
+        {"cubemap.fromProbe", "1"},
+        {"cubemap.fromPakfile", "1"},
+        {"cubemap.facesDecoded", "12"},
+        // The file carries seven face slots where its own header rule declares
+        // six, which is what every cubemap in this install measures. Both
+        // numbers are asserted, so a reading that quietly takes one for the
+        // other goes red here.
+        {"cubemap.facesBeyondSix", "2"},
+        {"cubemap.firstFacesInFile", "7"},
+        {"cubemap.firstDeclaredFaces", "6"},
+        {"cubemap.firstPath", "materials/maps/fixture/c100_200_300.vtf"},
+        {"cubemap.firstSource", "loose-or-vpk"},
       });
-    };
-    // Drop the same face of both samples. With one sample still complete the
-    // state stays active and the reason does not name the gap, so the mutation
-    // takes both: zero complete samples is the state whose reason has to name
-    // the path that went missing, and that naming is what a reader of the real
-    // install's reading will rely on.
-    item.mutate = [](tf2::native::BspFixture&, std::vector<std::string>& resources) {
-      for (int sample = 0; sample < 2; ++sample) {
-        const std::string path = "materials/maps/fixture/c_fixture_" + std::to_string(sample)
-          + "up.vtf";
-        const auto at = std::find(resources.begin(), resources.end(), path);
-        if (at != resources.end()) resources.erase(at);
+      // The order claim, checked against the pixels rather than against the
+      // index the decoder was handed: face f of the fixture's own file must
+      // decode to face f's colour, at its first and its last pixel. The second
+      // mip of every face holds the inverse colour, so a decoder that reads the
+      // chain at the wrong end fails this too.
+      tf2::native::VtfTexture texture;
+      std::string error;
+      checks.push_back(checkBool("synthVtfParses", texture.parse(looseBytes, &error), true));
+      for (int face = 0; face < 6; ++face) {
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
+        const auto rgba = texture.decodeCubeFaceRgba(looseBytes, face, width, height, &error);
+        const std::string expected = std::to_string(faceColors[face][0]) + ","
+          + std::to_string(faceColors[face][1]) + "," + std::to_string(faceColors[face][2]) + ",255";
+        checks.push_back(checkStr("cubeFace" + std::to_string(face) + "FirstPixel",
+          rgbaText(rgba, 0), expected));
+        checks.push_back(checkStr("cubeFace" + std::to_string(face) + "LastPixel",
+          rgbaText(rgba, 15), expected));
+        checks.push_back(checkNum("cubeFace" + std::to_string(face) + "Width",
+          static_cast<int>(width), 4));
+        checks.push_back(checkNum("cubeFace" + std::to_string(face) + "Height",
+          static_cast<int>(height), 4));
       }
+      return checks;
+    };
+    // Break both samples in the two ways that are not "the six faces are all
+    // there": take the loose file away so nothing resolves it, and cut the
+    // pakfile's file down to five face chains so it resolves, parses, and then
+    // turns out to be missing a face. Zero complete samples is the state whose
+    // reason has to name both causes -- a path that is not there and a file that
+    // is -- and that naming is what a reader of the real install's reading has
+    // to be able to trust.
+    item.mutate = [](tf2::native::BspFixture& fixture,
+        std::vector<tf2::native::FixedResource>& resources) {
+      resources.clear();
+      auto& embedded = fixture.pakfileEntries["materials/maps/fixture/c-400_500_600.vtf"];
+      // Cut the file down to three whole faces -- 80 bytes per face, the
+      // smaller mip and the top mip -- so it stays self-consistent: it parses,
+      // it measures three face slots, and the three faces it claims are the
+      // three it holds. Faces 3, 4 and 5 are then refused rather than decoded
+      // from whatever bytes happen to follow.
+      const std::size_t threeFaces = 96 + 3 * 80;
+      if (embedded.size() > threeFaces) embedded.resize(threeFaces);
       return true;
     };
     item.mutated = [](const tf2::native::BspMap&,
@@ -644,12 +814,21 @@ std::vector<FixtureCase> buildCases() {
         {"cubemap.state", "fallback"},
         {"cubemap.samples", "2"},
         {"cubemap.samplesComplete", "0"},
+        {"cubemap.fromProbe", "0"},
+        {"cubemap.fromPakfile", "0"},
+        // Three of the six faces survived the cut, and the number is exact: a
+        // partial count that rounded to zero would hide how much of the file
+        // was still readable.
+        {"cubemap.facesDecoded", "3"},
+        {"cubemap.facesBeyondSix", "0"},
       });
       const auto flat = flattenReadings(readings);
       const auto at = flat.find("cubemap.reason");
-      checks.push_back(checkStr("cubemap.reasonNamesMissing",
-        at == flat.end() || at->second.find("c_fixture_0up.vtf") == std::string::npos
-          ? "not-named" : "named", "named"));
+      const std::string reason = at == flat.end() ? std::string() : at->second;
+      checks.push_back(checkStr("cubemap.reasonNamesMissingPath",
+        reason.find("c100_200_300.vtf") == std::string::npos ? "not-named" : "named", "named"));
+      checks.push_back(checkStr("cubemap.reasonNamesUndecodedFace",
+        reason.find("face 3 did not decode") == std::string::npos ? "not-named" : "named", "named"));
       return checks;
     };
     cases.push_back(std::move(item));
@@ -662,8 +841,8 @@ std::vector<FixtureCase> buildCases() {
     item.fixture.entities = "\"skyname\" \"sky_fixture_01\"\n";
     item.fixture.faces.push_back(lightmapQuad());
     for (int face = 0; face < 6; ++face) {
-      item.resources.push_back(std::string("materials/skybox/sky_fixture_01")
-        + tf2::native::worldCubemapFaceSuffix(face) + ".vmt");
+      item.resources.push_back({std::string("materials/skybox/sky_fixture_01")
+        + tf2::native::worldCubemapFaceSuffix(face) + ".vmt", {}});
     }
     item.straight = [](const tf2::native::BspMap&,
         const tf2::native::WorldCapabilityReadings& readings) {
@@ -673,9 +852,10 @@ std::vector<FixtureCase> buildCases() {
         {"sky.vmtFound", "6"},
       });
     };
-    item.mutate = [](tf2::native::BspFixture&, std::vector<std::string>& resources) {
+    item.mutate = [](tf2::native::BspFixture&, std::vector<tf2::native::FixedResource>& resources) {
       const std::string path = "materials/skybox/sky_fixture_01dn.vmt";
-      const auto at = std::find(resources.begin(), resources.end(), path);
+      const auto at = std::find_if(resources.begin(), resources.end(),
+        [&](const tf2::native::FixedResource& resource) { return resource.path == path; });
       if (at != resources.end()) resources.erase(at);
       return true;
     };
@@ -732,7 +912,7 @@ std::vector<FixtureCase> buildCases() {
     };
     // power 9 is outside the parser's 2..4, so no grid is built and the face
     // falls back to the flat quad.
-    item.mutate = [](BspFixture& f, std::vector<std::string>&) {
+    item.mutate = [](BspFixture& f, std::vector<tf2::native::FixedResource>&) {
       f.displacements[0].power = 9; return true;
     };
     item.mutated = [](const tf2::native::BspMap&,
@@ -754,7 +934,7 @@ std::vector<FixtureCase> buildCases() {
     auto face = lightmapQuad();
     face.flags = 8;   // the parser's water bit
     item.fixture.faces.push_back(face);
-    item.resources.push_back("materials/fixture/water.vtf");
+    item.resources.push_back({"materials/fixture/water.vtf", {}});
     item.waterMaterialDeclared = true;
     item.waterTextureReachable = true;
     item.straight = [](const tf2::native::BspMap&,
@@ -776,7 +956,7 @@ std::vector<FixtureCase> buildCases() {
     };
     // Clear the water bit: the faces stop being water faces entirely, which is
     // the difference between "water that cannot reflect" and "no water".
-    item.mutate = [](BspFixture& f, std::vector<std::string>&) {
+    item.mutate = [](BspFixture& f, std::vector<tf2::native::FixedResource>&) {
       f.faces[0].flags = 0; return true;
     };
     item.mutated = [](const tf2::native::BspMap&,
@@ -813,7 +993,7 @@ std::vector<FixtureCase> buildCases() {
       });
     };
     // Cluster 0's mask loses a bit: it now sees one cluster instead of two.
-    item.mutate = [](BspFixture& f, std::vector<std::string>&) {
+    item.mutate = [](BspFixture& f, std::vector<tf2::native::FixedResource>&) {
       f.visBits[0] = 0x01; return true;
     };
     item.mutated = [](const tf2::native::BspMap&,
@@ -873,13 +1053,13 @@ CaseOutcome runCase(const FixtureCase& item, bool withMutation) {
   CaseOutcome outcome;
   outcome.name = item.name;
   const auto evaluate = [&](const tf2::native::BspFixture& fixture,
-      const std::vector<std::string>& resources, const CaseBody& body) {
+      const std::vector<tf2::native::FixedResource>& resources, const CaseBody& body) {
     const auto bytes = tf2::native::buildFixtureBsp(fixture);
     tf2::native::BspMap map;
     tf2::native::BspParser::parse(bytes, map, item.triangleLimit);
     tf2::native::FixedResourceProbe probe(resources);
     const auto readings = tf2::native::measureWorldCapabilities(map, fixture.mapName, probe,
-      false, false, item.waterMaterialDeclared, item.waterTextureReachable, item.triangleLimit);
+      false, false, item.waterMaterialDeclared, item.waterTextureReachable, bytes, item.triangleLimit);
     return body(map, readings);
   };
   outcome.straight = evaluate(item.fixture, item.resources, item.straight);
@@ -1022,16 +1202,15 @@ bool capabilitySelfTest() {
   // rather than quietly sampling face 0.
   const bool refused = !tf2::native::worldCubemapFaceForDirection(0.0f, 0.0f, 0.0f, face, u, v)
     && !tf2::native::worldCubemapFaceForDirection(NAN, 0.0f, 1.0f, face, u, v);
-  std::string paths[6];
-  const bool faceOrder = tf2::native::worldCubemapFacePaths("snakewater", 0, paths)
-    && paths[0] == "materials/maps/snakewater/c_snakewater_0rt.vtf"
-    && paths[1] == "materials/maps/snakewater/c_snakewater_0lf.vtf"
-    && paths[2] == "materials/maps/snakewater/c_snakewater_0bk.vtf"
-    && paths[3] == "materials/maps/snakewater/c_snakewater_0ft.vtf"
-    && paths[4] == "materials/maps/snakewater/c_snakewater_0up.vtf"
-    && paths[5] == "materials/maps/snakewater/c_snakewater_0dn.vtf"
-    && !tf2::native::worldCubemapFacePaths("", 0, paths)
-    && !tf2::native::worldCubemapFacePaths("snakewater", -1, paths);
+  std::string path;
+  const int origin[3] = {-4771, 2021, -15};
+  const int negative[3] = {100, -200, 0};
+  const bool samplePath = tf2::native::worldCubemapVtfPath("cp_snakewater_final1", origin, path)
+    && path == "materials/maps/cp_snakewater_final1/c-4771_2021_-15.vtf"
+    && tf2::native::worldCubemapVtfPath("cp_snakewater_final1", negative, path)
+    && path == "materials/maps/cp_snakewater_final1/c100_-200_0.vtf"
+    && !tf2::native::worldCubemapVtfPath("", origin, path)
+    && !tf2::native::worldCubemapVtfPath("cp_snakewater_final1", nullptr, path);
   const bool suffixes = std::string(tf2::native::worldCubemapFaceSuffix(0)) == "rt"
     && std::string(tf2::native::worldCubemapFaceSuffix(5)) == "dn"
     && tf2::native::worldCubemapFaceSuffix(6) == nullptr
@@ -1044,7 +1223,7 @@ bool capabilitySelfTest() {
   tf2::native::BspParser::parse(emptyBytes, emptyMap, 200000);
   tf2::native::FixedResourceProbe nothing({});
   const auto emptyReadings = tf2::native::measureWorldCapabilities(emptyMap, "empty", nothing,
-    false, false, false, false, 200000);
+    false, false, false, false, emptyBytes, 200000);
   const auto emptyLightmap = tf2::native::judgeLightmap(emptyReadings.lightmap);
   const auto emptyCubemap = tf2::native::judgeCubemaps(emptyReadings.cubemap);
   const auto emptySky = tf2::native::judgeSky(emptyReadings.sky);
@@ -1058,7 +1237,7 @@ bool capabilitySelfTest() {
     && emptyWater.state == tf2::native::WorldCapabilityState::Unavailable
     && emptyVis.state == tf2::native::WorldCapabilityState::Unavailable;
   const bool ok = axes && negativeX && positiveY && negativeY && positiveZ && negativeZ
-    && dominant && refused && faceOrder && suffixes && emptyStates;
+    && dominant && refused && samplePath && suffixes && emptyStates;
   std::cout << "{\"capabilitySelfTest\":" << (ok ? "true" : "false")
     << ",\"cubeAxes\":" << (axes ? "true" : "false")
     << ",\"cubeNegativeX\":" << (negativeX ? "true" : "false")
@@ -1068,7 +1247,7 @@ bool capabilitySelfTest() {
     << ",\"cubeNegativeZ\":" << (negativeZ ? "true" : "false")
     << ",\"cubeDominantAxis\":" << (dominant ? "true" : "false")
     << ",\"cubeZeroRefused\":" << (refused ? "true" : "false")
-    << ",\"cubeFacePaths\":" << (faceOrder ? "true" : "false")
+    << ",\"cubeSamplePath\":" << (samplePath ? "true" : "false")
     << ",\"cubeSuffixes\":" << (suffixes ? "true" : "false")
     << ",\"emptyBspAllUnavailable\":" << (emptyStates ? "true" : "false") << "}\n";
   return ok;
@@ -1151,7 +1330,7 @@ int main(int argc, char** argv) {
       waterReason = water.reason;
     }
     const auto readings = tf2::native::measureWorldCapabilities(map, name, *resourceProbe,
-      false, false, waterMaterialDeclared, waterTextureReachable, 200000);
+      false, false, waterMaterialDeclared, waterTextureReachable, bytes, 200000);
     const auto flat = flattenReadings(readings);
     for (const auto& [key, value] : flat) {
       std::cout << "{\"reading\":\"" << key << "\",\"value\":\"" << value << "\"}\n";

@@ -85,7 +85,7 @@ assert_eq "selfTest" "$(flag "$SELF" selfTest)" "true"
 assert_eq "capabilitySelfTest" "$(flag "$SELF" capabilitySelfTest)" "true"
 assert_eq "cubeAxes" "$(flag "$SELF" cubeAxes)" "true"
 assert_eq "cubeZeroRefused" "$(flag "$SELF" cubeZeroRefused)" "true"
-assert_eq "cubeFacePaths" "$(flag "$SELF" cubeFacePaths)" "true"
+assert_eq "cubeSamplePath" "$(flag "$SELF" cubeSamplePath)" "true"
 assert_eq "emptyBspAllUnavailable" "$(flag "$SELF" emptyBspAllUnavailable)" "true"
 
 echo
@@ -95,7 +95,7 @@ echo "=== 2/6 every synthetic fixture passes ==="
 FIX=$("$EXE" --fixture 2>&1)
 echo "$FIX" > "$OUT/fixture-straight.txt"
 assert_eq "fixtures" "$(count "$FIX" fixtures)" "9"
-assert_eq "fixture checks" "$(count "$FIX" checks)" "52"
+assert_eq "fixture checks" "$(count "$FIX" checks)" "85"
 assert_eq "fixture failures" "$(count "$FIX" bad)" "0"
 
 echo
@@ -107,6 +107,9 @@ echo "$MUT" > "$OUT/fixture-mutation.txt"
 assert_eq "mutations executed" "$(count "$MUT" mutations)" "7"
 assert_eq "mutation failures" "$(count "$MUT" mutationBad)" "0"
 assert_eq "total failures with mutations" "$(count "$MUT" bad)" "0"
+# Straight plus mutated assertions: 85 + 27. Pinned so a fixture that quietly
+# stops asserting anything cannot pass by shrinking.
+assert_eq "assertions with mutations" "$(count "$MUT" checks)" "112"
 
 echo
 echo "=== 4/6 the real map's six capabilities, pinned ==="
@@ -123,9 +126,35 @@ assert_eq "lightmap dropped"      "$(field "$REAL" lightmap.facesDropped)" "15"
 assert_eq "lightmap triangles"    "$(field "$REAL" lightmap.trianglesWithLightUv)" "199263"
 assert_eq "lightmap atlas"        "$(field "$REAL" lightmap.atlas)"        "2048x2047"
 assert_eq "lightmap uv in range"  "$(field "$REAL" lightmap.uvAllInRange)" "true"
-assert_eq "cubemap state"         "$(field "$REAL" cubemap.state)"         "fallback"
+# The cubemap reading changed on 2026-10-13 and the change is the finding: the
+# probe used to look for six files per sample named c_<map>_<n><suffix>.vtf,
+# which this install has never contained, so it read "0 of 33 complete" and
+# called the capability a fallback. The files are one per sample --
+# materials/maps/<map>/c<X>_<Y>_<Z>.vtf, named after the sample's own integer
+# coordinates -- and TF2 ships them inside the BSP's pakfile, which is why they
+# could not be found by listing the tf directory or the VPKs. All 33 now decode
+# all six faces, and the file layout is the format's (for each mip, for each
+# face), not the face-per-chain arrangement the first decoder assumed.
+assert_eq "cubemap state"         "$(field "$REAL" cubemap.state)"         "active"
 assert_eq "cubemap samples"       "$(field "$REAL" cubemap.samples)"       "33"
-assert_eq "cubemap complete"      "$(field "$REAL" cubemap.samplesComplete)" "0"
+assert_eq "cubemap complete"      "$(field "$REAL" cubemap.samplesComplete)" "33"
+assert_eq "cubemap faces decoded" "$(field "$REAL" cubemap.facesDecoded)"  "198"
+assert_eq "cubemap from pakfile"  "$(field "$REAL" cubemap.fromPakfile)"   "33"
+assert_eq "cubemap first path"    "$(field "$REAL" cubemap.firstPath)"     "materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf"
+# Seven face slots per file where the header's rule declares six: the
+# discrepancy is measured and reported rather than normalised away.
+assert_eq "cubemap faces in file" "$(field "$REAL" cubemap.firstFacesInFile)" "7"
+assert_eq "cubemap declared faces" "$(field "$REAL" cubemap.firstDeclaredFaces)" "6"
+assert_eq "cubemap beyond six"    "$(field "$REAL" cubemap.facesBeyondSix)" "33"
+# The pixels the decoder returned for the first sample's six faces. Counts alone
+# cannot catch a decoder that walks the image section at the wrong stride: a
+# misread file still yields six "faces" of plausible-looking bytes, so every
+# count stays right while the pixels are ones nobody wrote. These two lines were
+# measured twice on 2026-10-13 -- once with the format's layout and once with the
+# face-per-chain layout the first decoder assumed -- and they differ, which is
+# what makes them a check rather than a description.
+assert_eq "cubemap face means"     "$(field "$REAL" cubemap.firstFaceMeans)" "62,45,56,58,51,54"
+assert_eq "cubemap face checksums" "$(field "$REAL" cubemap.firstFaceChecksums)" "300ee24d,c9beee88,ed1d429a,02bc6fd5,5ecd73ed,ed94acc3"
 assert_eq "sky state"             "$(field "$REAL" sky.state)"             "active"
 assert_eq "sky name"              "$(field "$REAL" sky.name)"              "sky_well_01"
 assert_eq "sky vmts found"        "$(field "$REAL" sky.vmtFound)"          "6"

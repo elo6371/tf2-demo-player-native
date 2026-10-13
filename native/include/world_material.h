@@ -28,6 +28,8 @@
 
 #include "bsp_map.h"
 
+#include <map>
+
 #include <array>
 #include <cstdint>
 #include <string>
@@ -50,19 +52,34 @@ class WorldResourceProbe {
 public:
   virtual ~WorldResourceProbe() = default;
   virtual bool reachable(const std::string& resourcePath) const = 0;
+  // Bytes for the paths that resolve. The default is empty because a probe that
+  // only answers reachability is a legitimate implementation: the cubemap
+  // reader then reports "reachable but unread" rather than inventing faces.
+  virtual std::vector<std::uint8_t> read(const std::string& resourcePath) const;
 };
 
-// A probe over an explicit set of paths. Used by the fixtures: the "install" is
+// One file in a fixture's "install": the path it answers to, and the bytes it
+// holds. An entry with no bytes is reachable but unreadable, which is a state
+// the cubemap reader names rather than silently treating as missing -- so a
+// fixture can produce all three (there with bytes, there without, absent) and
+// the difference between the last two stays visible.
+struct FixedResource {
+  std::string path;
+  std::vector<std::uint8_t> bytes;
+};
+
+// A probe over an explicit set of files. Used by the fixtures: the "install" is
 // exactly the list handed to the constructor, so a fixture that says a material
 // exists makes it exist and nothing else does.
 class FixedResourceProbe : public WorldResourceProbe {
 public:
-  explicit FixedResourceProbe(std::vector<std::string> present)
+  explicit FixedResourceProbe(std::vector<FixedResource> present)
     : present_(std::move(present)) {}
   bool reachable(const std::string& resourcePath) const override;
+  std::vector<std::uint8_t> read(const std::string& resourcePath) const override;
 
 private:
-  std::vector<std::string> present_;
+  std::vector<FixedResource> present_;
 };
 
 // ---------------------------------------------------------------------------
@@ -103,11 +120,27 @@ WorldLightmapReading measureLightmap(const BspMap& map);
 // a second table would be a second thing to get wrong.
 const char* worldCubemapFaceSuffix(int face);
 
-// The Source convention for an `env_cubemap` sample of <map>: the six faces are
-// materials/maps/<map>/c_<map>_<n><suffix>.vtf. Returns false if mapName is
-// empty, the index is negative, or the index is absurd (the BSP stores the
-// count; an index at or above it is a parser bug, not a resource problem).
-bool worldCubemapFacePaths(const std::string& mapName, int sampleIndex, std::string (&out)[6]);
+// The Source convention for an `env_cubemap` sample: ONE VTF file per sample,
+// named after the sample's integer coordinates, holding all six faces:
+//   materials/maps/<map>/c<X>_<Y>_<Z>.vtf
+// The BSP cubemap lump carries the origins but no names, so the path is derived
+// from them. TF2 maps additionally embed these files in the BSP's own pakfile
+// lump, which is why reachability alone cannot answer the question and the
+// bytes have to be readable (see bspPakfileEntry).
+//
+// This replaces an earlier six-file convention (c_<map>_<n><suffix>.vtf) that
+// this install's data refutes: cp_snakewater_final1's BSP pakfile holds 33
+// single c<X>_<Y>_<Z>.vtf files, and no six-file set exists anywhere in the
+// 149734 VPK entries or the BSP.
+bool worldCubemapVtfPath(const std::string& mapName, const int origin[3], std::string& out);
+
+// Reads one entry out of the ZIP a Source BSP carries in its pakfile lump
+// (lump 40). Returns false when the BSP has no pakfile lump, the entry is not
+// there, or the entry is deflated: every entry in this install's map is stored
+// (method 0), and a reader that silently mis-decodes a deflated entry is worse
+// than one that says it does not support it.
+bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::string& name,
+  std::vector<std::uint8_t>& out);
 
 // Direction -> face index and the (u,v) inside that face, in [0,1].
 //
@@ -125,23 +158,68 @@ bool worldCubemapFaceForDirection(float x, float y, float z, int& face, float& u
 struct WorldCubemapSampleReading {
   int index = 0;
   int origin[3] = {};
-  int facesFound = 0;
+  // The one file this sample's faces live in, and where its bytes came from.
+  // "loose", "vpk" or "bsp-pakfile" is recorded because the same path can
+  // resolve from more than one store, and which one answered changes what a
+  // missing file means.
+  std::string vtfPath;
+  std::string source;
+  bool reachable = false;
+  bool bytesRead = false;
+  bool parsed = false;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  std::uint32_t format = 0;
+  std::uint8_t mipCount = 0;
+  // Face slots the image section holds, measured from the file, and the count
+  // the header's own rule predicts. They disagree on this install's data (seven
+  // measured, six declared), and both are reported so the disagreement is a
+  // reading rather than something a decoder silently normalises away.
+  std::uint32_t facesInFile = 0;
+  std::uint32_t declaredFaces = 0;
+  std::size_t facesDecoded = 0;
+  // What the decoder actually returned for each face: mean luminance, and a
+  // checksum over the decoded RGBA bytes. The counts above say how many faces
+  // came back; these say WHICH pixels did, which is the only reading that can
+  // tell the format's layout apart from a plausible-looking wrong one -- every
+  // face of a misread file still decodes to something, so a decoder that walks
+  // the image section at the wrong stride reports six faces and hands back
+  // pixels nobody wrote.
+  int faceMean[6] = {};
+  std::uint32_t faceChecksum[6] = {};
   std::string firstMissing;
 };
 
 struct WorldCubemapReading {
   std::size_t samples = 0;
   std::vector<WorldCubemapSampleReading> perSample;
-  // Samples whose six faces are all reachable. `anyComplete` is what the
-  // renderer needs: one complete sample is enough to bind a cube, and saying
-  // "all or nothing" would make a map with one broken sample look like a map
-  // with none.
+  // Samples whose VTF parsed and yielded six decodable faces. `anyComplete` is
+  // what the renderer needs: one complete sample is enough to bind a cube, and
+  // saying "all or nothing" would make a map with one broken sample look like a
+  // map with none.
   std::size_t samplesComplete = 0;
   bool anyComplete = false;
+  // Where the complete samples' bytes came from. The two stores are different
+  // code paths and a fixture has to be able to tell them apart: a reading built
+  // only from the loose tree would never exercise the bsp-pakfile reader that
+  // every TF2 map actually needs.
+  std::size_t samplesFromProbe = 0;
+  std::size_t samplesFromPakfile = 0;
+  // Faces decoded across every sample, so the number is 6 per complete sample
+  // and the fixture's expectation is derived rather than remembered.
+  std::size_t facesDecoded = 0;
+  // Samples resolved but unreadable/unparsable, with the first reason. The
+  // state machine needs the difference between "the file is not there" and
+  // "the file is there and does not parse" to name a cause.
+  std::size_t samplesUnparsed = 0;
+  std::string firstUnparsedReason;
+  // Face slots beyond the six a cube needs, summed over complete samples: the
+  // seventh face these files carry is measured and reported, not interpreted.
+  std::size_t facesBeyondSix = 0;
 };
 
 WorldCubemapReading measureCubemaps(const BspMap& map, const std::string& mapName,
-  const WorldResourceProbe& probe);
+  const WorldResourceProbe& probe, const std::vector<std::uint8_t>& bspBytes);
 
 // ---------------------------------------------------------------------------
 // 3. Skybox
@@ -238,7 +316,7 @@ struct WorldCapabilityReadings {
 WorldCapabilityReadings measureWorldCapabilities(const BspMap& map, const std::string& mapName,
   const WorldResourceProbe& probe, bool reflectionDeclaredBySettings,
   bool refractionDeclaredBySettings, bool waterMaterialDeclared, bool waterTextureReachable,
-  std::size_t triangleLimit = 0);
+  const std::vector<std::uint8_t>& bspBytes = {}, std::size_t triangleLimit = 0);
 
 // ---------------------------------------------------------------------------
 // Judgement: state + reason per capability
@@ -336,6 +414,12 @@ struct BspFixture {
   // Raw RGBExp32 luxel bytes, shared by every face through its lightOffset.
   std::vector<std::uint8_t> lighting;
   std::vector<BspCubemapSample> cubemaps;
+  // Files to write into the bsp's pakfile lump (40), as a stored ZIP, read back
+  // by bspPakfileEntry. This is where TF2 ships a map's own cubemaps, so a
+  // fixture that wants to be read the way a real map is read has to carry them
+  // the same way -- a fixture that put them anywhere else would test a path the
+  // product never takes.
+  std::map<std::string, std::vector<std::uint8_t>> pakfileEntries;
   // Displacement: one dispInfo per displacement face, and the dispVerts grid
   // (size x size x 20 bytes) that face indexes. The parser requires the dispInfo
   // start position to be within 1 unit of one of the face's corners.

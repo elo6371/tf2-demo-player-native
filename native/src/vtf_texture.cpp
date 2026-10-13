@@ -62,6 +62,12 @@ bool VtfTexture::parse(const std::vector<std::uint8_t>& bytes, std::string* erro
   if (!readValue(bytes, 57, header_.lowResFormat)) return fail("truncated VTF low-res format");
   header_.lowResWidth = bytes[61];
   header_.lowResHeight = bytes[62];
+  {
+    std::uint16_t firstFrame = 0;
+    if (!readValue(bytes, 26, firstFrame)) return fail("truncated VTF first-frame field");
+    static_assert(sizeof(header_.firstFrame) == sizeof(firstFrame));
+    std::memcpy(&header_.firstFrame, &firstFrame, sizeof(firstFrame));
+  }
   if (header_.major == 7 && header_.minor >= 2
       && !readValue(bytes, 63, header_.depth)) return fail("truncated VTF depth");
   if (header_.major == 7 && header_.minor >= 3) {
@@ -99,6 +105,23 @@ bool VtfTexture::parse(const std::vector<std::uint8_t>& bytes, std::string* erro
   topMipBytes_ = mipSpan(header_.format, header_.width, header_.height, 1, header_.depth);
   if (topMipBytes_ > header_.chainBytes) return fail("invalid VTF mip chain");
   topMipOffset_ = header_.mipStart + header_.chainBytes - topMipBytes_;
+  // The cubemap face arithmetic. `chainBytes` above carries the header's depth
+  // as a factor, which is the model the flat decode path has always used and
+  // keeps; the face count here is measured against the image section instead,
+  // because that is the thing a decoder has to agree with.
+  header_.faceChainBytes = mipSpan(header_.format, header_.width, header_.height,
+    header_.mipCount, 1);
+  header_.mip0Bytes = mipSpan(header_.format, header_.width, header_.height, 1, 1);
+  header_.imageBytes = bytes.size() > header_.mipStart ? bytes.size() - header_.mipStart : 0;
+  header_.faceCount = 1;
+  if (header_.isCubemap() && header_.faceChainBytes > 0) {
+    const auto measured = header_.imageBytes / header_.faceChainBytes;
+    if (measured > 0 && measured <= 64) {
+      header_.faceCount = static_cast<std::uint32_t>(measured);
+    }
+  }
+  header_.mip0Offset = header_.mipStart
+    + (header_.faceChainBytes - header_.mip0Bytes) * header_.faceCount;
   return true;
 }
 
@@ -249,15 +272,32 @@ std::vector<std::uint8_t> VtfTexture::decodeCubeFaceRgba(const std::vector<std::
     return std::vector<std::uint8_t>{};
   };
   if (!header_.isCubemap()) return fail("VTF is not a cubemap");
-  if (face < 0 || face > 5) return fail("cubemap face index is out of range");
-  // depth carries the face count in the layout this install's cubemaps use;
-  // a file that declares something else has a layout this decoder has not
+  if (face < 0 || static_cast<std::uint32_t>(face) >= header_.faceCount) {
+    return fail("cubemap face index is out of range");
+  }
+  // A depth above one means the image carries more than one z slice per face,
+  // which puts another loop inside the one this offset arithmetic walks. When
+  // the depth happens to equal the measured face count the two readings of the
+  // same field agree and the arithmetic still holds (the frozen material-chain
+  // fixture is such a file); anything else is a layout this decoder has not
   // measured, and guessing at it would invent faces.
-  if (header_.depth != 1) return fail("cubemap does not use the single-depth face layout");
-  if (header_.chainBytes == 0 || topMipBytes_ == 0) return fail("cubemap mip chain is empty");
-  const std::uint64_t faceStart = header_.mipStart
-    + static_cast<std::uint64_t>(face) * header_.chainBytes;
-  const std::uint64_t faceEnd = faceStart + topMipBytes_;
+  if (header_.depth > 1 && header_.depth != header_.faceCount) {
+    return fail("cubemap depth does not match its measured face count");
+  }
+  // The image section has to be a whole number of face chains. When it is not,
+  // the file was cut mid-face: the arithmetic would still produce offsets, and
+  // every face after the cut would be decoded from bytes that belong to the
+  // previous face's smaller mips -- a picture nobody wrote, returned without a
+  // word. Refusing names the remainder instead.
+  const std::uint64_t claimed = static_cast<std::uint64_t>(header_.faceCount)
+    * header_.faceChainBytes;
+  if (header_.imageBytes != claimed) {
+    return fail("cubemap image section is not a whole number of face chains");
+  }
+  if (header_.mip0Bytes == 0) return fail("cubemap mip chain is empty");
+  const std::uint64_t faceStart = header_.mip0Offset
+    + static_cast<std::uint64_t>(face) * header_.mip0Bytes;
+  const std::uint64_t faceEnd = faceStart + header_.mip0Bytes;
   if (faceEnd > bytes.size()) return fail("cubemap face data is out of bounds");
   // Rewrite the header so the existing 2D decoder accepts this one face: the
   // ENVMAP flag cleared is what makes it stop refusing, mipCount 1 is what

@@ -1,5 +1,7 @@
 #include "world_material.h"
 
+#include "vtf_texture.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -20,8 +22,23 @@ const char* worldCapabilityStateName(WorldCapabilityState state) {
   return "unknown";
 }
 
+std::vector<std::uint8_t> WorldResourceProbe::read(const std::string& resourcePath) const {
+  (void)resourcePath;
+  return {};
+}
+
 bool FixedResourceProbe::reachable(const std::string& resourcePath) const {
-  return std::find(present_.begin(), present_.end(), resourcePath) != present_.end();
+  for (const auto& resource : present_) {
+    if (resource.path == resourcePath) return true;
+  }
+  return false;
+}
+
+std::vector<std::uint8_t> FixedResourceProbe::read(const std::string& resourcePath) const {
+  for (const auto& resource : present_) {
+    if (resource.path == resourcePath) return resource.bytes;
+  }
+  return {};
 }
 
 namespace {
@@ -79,16 +96,105 @@ const char* worldCubemapFaceSuffix(int face) {
   return suffixes[face];
 }
 
-bool worldCubemapFacePaths(const std::string& mapName, int sampleIndex, std::string (&out)[6]) {
-  // The BSP stores the sample count; an index beyond any plausible map is a
-  // parser bug rather than a missing resource, and reporting it as the latter
-  // would send a reader looking in the VPK for a file that was never named.
-  if (mapName.empty() || sampleIndex < 0 || sampleIndex > 4096) return false;
-  for (int face = 0; face < 6; ++face) {
-    out[face] = "materials/maps/" + mapName + "/c_" + mapName + "_"
-      + std::to_string(sampleIndex) + worldCubemapFaceSuffix(face) + ".vtf";
-  }
+bool worldCubemapVtfPath(const std::string& mapName, const int origin[3], std::string& out) {
+  // The name is the sample's integer coordinates, sign and all: the BSP's own
+  // patch materials refer to the same stem through $envmap, so a name built any
+  // other way would resolve against nothing. An empty map name or a null origin
+  // is a caller bug, reported as such rather than as a missing file.
+  if (mapName.empty() || origin == nullptr) return false;
+  out = "materials/maps/" + mapName + "/c" + std::to_string(origin[0]) + "_"
+    + std::to_string(origin[1]) + "_" + std::to_string(origin[2]) + ".vtf";
   return true;
+}
+
+namespace {
+
+// Little-endian readers over a byte range. The ZIP structures are all
+// little-endian and unaligned, so memcpy-style assembly is the portable form.
+std::uint16_t zip16(const std::vector<std::uint8_t>& bytes, std::size_t at) {
+  return static_cast<std::uint16_t>(bytes[at] | (static_cast<std::uint16_t>(bytes[at + 1]) << 8));
+}
+
+std::uint32_t zip32(const std::vector<std::uint8_t>& bytes, std::size_t at) {
+  return static_cast<std::uint32_t>(bytes[at])
+    | (static_cast<std::uint32_t>(bytes[at + 1]) << 8)
+    | (static_cast<std::uint32_t>(bytes[at + 2]) << 16)
+    | (static_cast<std::uint32_t>(bytes[at + 3]) << 24);
+}
+
+} // namespace
+
+bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::string& name,
+    std::vector<std::uint8_t>& out) {
+  out.clear();
+  if (bspBytes.size() < 8 + 64 * 16) return false;
+  // Lump 40 is the pakfile. The header's lump table is 64 entries of
+  // offset(4)+length(4)+version(4)+fourcc(4) starting at byte 8.
+  const std::size_t tableAt = 8 + 40 * 16;
+  if (tableAt + 16 > bspBytes.size()) return false;
+  const std::uint32_t offset = zip32(bspBytes, tableAt);
+  const std::uint32_t length = zip32(bspBytes, tableAt + 4);
+  if (offset == 0 || length == 0) return false;
+  if (static_cast<std::uint64_t>(offset) + length > bspBytes.size()) return false;
+  // The lump is a ZIP with no leading garbage: the first local file header sits
+  // at its start and the central directory at its end. Walk the central
+  // directory rather than the local headers so a stored payload with a data
+  // descriptor cannot desynchronise the scan.
+  const std::uint64_t lumpEnd = static_cast<std::uint64_t>(offset) + length;
+  std::size_t cursor = static_cast<std::size_t>(lumpEnd) - 22; // end-of-central-directory
+  while (cursor >= offset + 4 && cursor + 22 <= static_cast<std::size_t>(lumpEnd)) {
+    if (bspBytes[cursor] == 'P' && bspBytes[cursor + 1] == 'K' && bspBytes[cursor + 2] == 5
+        && bspBytes[cursor + 3] == 6) {
+      break;
+    }
+    --cursor;
+  }
+  if (cursor < offset + 4 || cursor + 22 > static_cast<std::size_t>(lumpEnd)) return false;
+  // The end-of-central-directory record: the entry counts are two-byte fields
+  // and the directory size and offset are four-byte ones. Reading the count as
+  // four bytes swallows the low half of the size that follows it, which is how
+  // a one-entry archive reads as 5636097 entries and every lookup fails -- a
+  // bug the synthetic fixture found, and one the real map could not have: its
+  // cubemaps were being asked for by a name that never existed.
+  const std::uint32_t entryCount = zip16(bspBytes, cursor + 10);
+  const std::uint32_t directoryOffset = zip32(bspBytes, cursor + 16);
+  if (entryCount == 0 || entryCount > 100000u) return false;
+  std::size_t at = offset + directoryOffset;
+  for (std::uint32_t index = 0; index < entryCount; ++index) {
+    if (at + 46 > static_cast<std::size_t>(lumpEnd)) return false;
+    if (!(bspBytes[at] == 'P' && bspBytes[at + 1] == 'K' && bspBytes[at + 2] == 1
+        && bspBytes[at + 3] == 2)) {
+      return false;
+    }
+    const std::uint16_t method = zip16(bspBytes, at + 10);
+    const std::uint32_t compressedSize = zip32(bspBytes, at + 20);
+    const std::uint32_t localOffset = zip32(bspBytes, at + 42);
+    const std::uint16_t nameLength = zip16(bspBytes, at + 28);
+    const std::uint16_t extraLength = zip16(bspBytes, at + 30);
+    const std::uint16_t commentLength = zip16(bspBytes, at + 32);
+    if (at + 46 + nameLength > static_cast<std::size_t>(lumpEnd)) return false;
+    const std::string entryName(reinterpret_cast<const char*>(bspBytes.data()) + at + 46,
+      nameLength);
+    const std::size_t next = at + 46 + nameLength + extraLength + commentLength;
+    if (entryName == name) {
+      if (method != 0) return false; // deflated entries are not supported; say so
+      const std::size_t localAt = offset + localOffset;
+      if (localAt + 30 > static_cast<std::size_t>(lumpEnd)) return false;
+      if (!(bspBytes[localAt] == 'P' && bspBytes[localAt + 1] == 'K' && bspBytes[localAt + 2] == 3
+          && bspBytes[localAt + 3] == 4)) {
+        return false;
+      }
+      const std::uint16_t localNameLength = zip16(bspBytes, localAt + 26);
+      const std::uint16_t localExtraLength = zip16(bspBytes, localAt + 28);
+      const std::size_t dataAt = localAt + 30 + localNameLength + localExtraLength;
+      if (dataAt + compressedSize > static_cast<std::size_t>(lumpEnd)) return false;
+      out.assign(bspBytes.begin() + static_cast<std::ptrdiff_t>(dataAt),
+        bspBytes.begin() + static_cast<std::ptrdiff_t>(dataAt + compressedSize));
+      return true;
+    }
+    at = next;
+  }
+  return false;
 }
 
 bool worldCubemapFaceForDirection(float x, float y, float z, int& face, float& u, float& v) {
@@ -118,7 +224,7 @@ bool worldCubemapFaceForDirection(float x, float y, float z, int& face, float& u
 }
 
 WorldCubemapReading measureCubemaps(const BspMap& map, const std::string& mapName,
-    const WorldResourceProbe& probe) {
+    const WorldResourceProbe& probe, const std::vector<std::uint8_t>& bspBytes) {
   WorldCubemapReading reading;
   reading.samples = map.cubemaps.size();
   reading.perSample.reserve(map.cubemaps.size());
@@ -128,20 +234,107 @@ WorldCubemapReading measureCubemaps(const BspMap& map, const std::string& mapNam
     sample.origin[0] = map.cubemaps[i].origin[0];
     sample.origin[1] = map.cubemaps[i].origin[1];
     sample.origin[2] = map.cubemaps[i].origin[2];
-    std::string paths[6];
-    if (!worldCubemapFacePaths(mapName, sample.index, paths)) {
-      sample.firstMissing = "face path rejected";
+    if (!worldCubemapVtfPath(mapName, sample.origin, sample.vtfPath)) {
+      sample.firstMissing = "cubemap path rejected";
       reading.perSample.push_back(std::move(sample));
       continue;
     }
-    for (int face = 0; face < 6; ++face) {
-      if (probe.reachable(paths[face])) {
-        ++sample.facesFound;
-      } else if (sample.firstMissing.empty()) {
-        sample.firstMissing = paths[face];
+    // Three stores, in the order the engine itself would look: the loose tf
+    // directory, then the VPKs, then the map's own pakfile. Which one answered
+    // is recorded because "missing from the VPK" and "missing from the map's
+    // own pakfile" are different failures.
+    std::vector<std::uint8_t> bytes;
+    if (probe.reachable(sample.vtfPath)) {
+      sample.reachable = true;
+      bytes = probe.read(sample.vtfPath);
+      sample.source = "loose-or-vpk";
+    }
+    if (bytes.empty()) {
+      std::vector<std::uint8_t> embedded;
+      if (bspPakfileEntry(bspBytes, sample.vtfPath, embedded)) {
+        bytes = std::move(embedded);
+        sample.reachable = true;
+        sample.source = "bsp-pakfile";
       }
     }
-    if (sample.facesFound == 6) ++reading.samplesComplete;
+    if (!sample.reachable) {
+      sample.firstMissing = sample.vtfPath;
+      reading.perSample.push_back(std::move(sample));
+      continue;
+    }
+    if (bytes.empty()) {
+      sample.firstMissing = "reachable but unread: " + sample.vtfPath;
+      if (reading.firstUnparsedReason.empty()) {
+        reading.firstUnparsedReason = sample.firstMissing + " (source " + sample.source + ")";
+      }
+      ++reading.samplesUnparsed;
+      reading.perSample.push_back(std::move(sample));
+      continue;
+    }
+    sample.bytesRead = true;
+    tf2::native::VtfTexture texture;
+    std::string error;
+    if (!texture.parse(bytes, &error)) {
+      sample.firstMissing = "vtf did not parse: " + error;
+      if (reading.firstUnparsedReason.empty()) {
+        reading.firstUnparsedReason = sample.vtfPath + ": " + error;
+      }
+      ++reading.samplesUnparsed;
+      reading.perSample.push_back(std::move(sample));
+      continue;
+    }
+    sample.parsed = true;
+    sample.width = texture.header().width;
+    sample.height = texture.header().height;
+    sample.format = texture.header().format;
+    sample.mipCount = texture.header().mipCount;
+    // Face slots the image section actually holds, from the header's own
+    // arithmetic against the file's length, and what the header's rule would
+    // have predicted. Every cubemap cp_snakewater_final1 ships measures seven
+    // and declares six, so the two are reported side by side rather than one
+    // being taken for the other.
+    sample.facesInFile = texture.header().faceCount;
+    sample.declaredFaces = texture.header().declaredFaceCount();
+    for (int face = 0; face < 6; ++face) {
+      std::uint32_t faceWidth = 0;
+      std::uint32_t faceHeight = 0;
+      const auto rgba = texture.decodeCubeFaceRgba(bytes, face, faceWidth, faceHeight, &error);
+      if (!rgba.empty() && faceWidth == texture.header().width
+          && faceHeight == texture.header().height) {
+        ++sample.facesDecoded;
+        std::uint64_t luminance = 0;
+        std::uint32_t checksum = 2166136261u;
+        for (std::size_t pixel = 0; pixel + 4 <= rgba.size(); pixel += 4) {
+          luminance += rgba[pixel] + rgba[pixel + 1] + rgba[pixel + 2];
+          for (std::size_t channel = 0; channel < 4; ++channel) {
+            checksum = (checksum ^ rgba[pixel + channel]) * 16777619u;
+          }
+        }
+        const std::size_t pixels = rgba.size() / 4u;
+        sample.faceMean[face] = pixels == 0 ? 0
+          : static_cast<int>(luminance / (pixels * 3u));
+        sample.faceChecksum[face] = checksum;
+      } else if (sample.firstMissing.empty()) {
+        sample.firstMissing = "face " + std::to_string(face) + " did not decode: " + error;
+      }
+    }
+    // Every decoded face is counted, including the five of a file that lost its
+    // sixth: "five of six" is the reading that names the loss, and counting only
+    // complete samples would round it back to zero.
+    reading.facesDecoded += sample.facesDecoded;
+    if (sample.facesDecoded == 6) {
+      ++reading.samplesComplete;
+      if (sample.source == "bsp-pakfile") ++reading.samplesFromPakfile;
+      else ++reading.samplesFromProbe;
+      // Face slots beyond the six a cube needs. Counted on complete samples
+      // only: a file too short to hold six has no meaningful seventh.
+      if (sample.facesInFile > 6) reading.facesBeyondSix += sample.facesInFile - 6;
+    } else {
+      ++reading.samplesUnparsed;
+      if (reading.firstUnparsedReason.empty()) {
+        reading.firstUnparsedReason = sample.vtfPath + ": " + sample.firstMissing;
+      }
+    }
     reading.perSample.push_back(std::move(sample));
   }
   reading.anyComplete = reading.samplesComplete > 0;
@@ -244,10 +437,10 @@ WorldVisReading measureVis(const BspMap& map) {
 WorldCapabilityReadings measureWorldCapabilities(const BspMap& map, const std::string& mapName,
     const WorldResourceProbe& probe, bool reflectionDeclaredBySettings,
     bool refractionDeclaredBySettings, bool waterMaterialDeclared, bool waterTextureReachable,
-    std::size_t triangleLimit) {
+    const std::vector<std::uint8_t>& bspBytes, std::size_t triangleLimit) {
   WorldCapabilityReadings readings;
   readings.lightmap = measureLightmap(map);
-  readings.cubemap = measureCubemaps(map, mapName, probe);
+  readings.cubemap = measureCubemaps(map, mapName, probe, bspBytes);
   readings.sky = measureSky(map, probe);
   readings.displacement = measureDisplacement(map, triangleLimit);
   readings.water = measureWater(map, reflectionDeclaredBySettings, refractionDeclaredBySettings,
@@ -321,12 +514,22 @@ WorldCapabilityVerdict judgeCubemaps(const WorldCubemapReading& r) {
   if (r.anyComplete) {
     verdict.state = WorldCapabilityState::Active;
     verdict.reason = counts(r.samplesComplete) + " of " + counts(r.samples)
-      + " env_cubemap samples have all six faces reachable";
+      + " env_cubemap samples decoded all six faces";
+    if (r.facesBeyondSix > 0) {
+      verdict.reason += "; " + counts(r.facesBeyondSix)
+        + " face slots beyond the six a cube needs";
+    }
     return verdict;
   }
   verdict.state = WorldCapabilityState::Fallback;
   verdict.reason = "0 of " + counts(r.samples)
-    + " env_cubemap samples have all six faces reachable";
+    + " env_cubemap samples decoded all six faces";
+  // "The file is not there" and "the file is there and does not parse" are
+  // different failures and name different fixes, so the unparsed reason goes
+  // first when it exists.
+  if (!r.firstUnparsedReason.empty()) {
+    verdict.reason += "; " + r.firstUnparsedReason;
+  }
   for (const auto& sample : r.perSample) {
     if (!sample.firstMissing.empty()) {
       verdict.reason += "; first missing " + sample.firstMissing;
@@ -468,6 +671,93 @@ struct LumpPlan {
   int index = 0;
   std::vector<std::uint8_t> bytes;
 };
+
+std::uint32_t crc32(const std::vector<std::uint8_t>& bytes) {
+  // Bitwise, no table: the fixture writes a handful of small files and a wrong
+  // CRC would make the pakfile unreadable to every tool except the one reader
+  // that ignores it, which is exactly the kind of self-consistent fixture this
+  // module avoids.
+  std::uint32_t crc = 0xFFFFFFFFu;
+  for (const std::uint8_t byte : bytes) {
+    crc ^= byte;
+    for (int bit = 0; bit < 8; ++bit) {
+      crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+    }
+  }
+  return crc ^ 0xFFFFFFFFu;
+}
+
+void put16v(std::vector<std::uint8_t>& bytes, std::uint16_t value) {
+  bytes.push_back(static_cast<std::uint8_t>(value & 0xFFu));
+  bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFFu));
+}
+void put32v(std::vector<std::uint8_t>& bytes, std::uint32_t value) {
+  for (int byte = 0; byte < 4; ++byte) {
+    bytes.push_back(static_cast<std::uint8_t>((value >> (byte * 8)) & 0xFFu));
+  }
+}
+
+// A ZIP archive of stored entries, which is what a Source pakfile lump is. The
+// fixture writes one so the product's own pakfile reader has something real to
+// read: a fixture that only listed a path would exercise reachability and never
+// the reader, and the reader is the part that has to be right for a TF2 map.
+std::vector<std::uint8_t> buildStoredZip(const std::map<std::string, std::vector<std::uint8_t>>& entries) {
+  struct Record { std::string name; std::uint32_t crc = 0; std::uint32_t size = 0; std::uint32_t offset = 0; };
+  std::vector<Record> records;
+  std::vector<std::uint8_t> zip;
+  for (const auto& [name, content] : entries) {
+    Record record;
+    record.name = name;
+    record.crc = crc32(content);
+    record.size = static_cast<std::uint32_t>(content.size());
+    record.offset = static_cast<std::uint32_t>(zip.size());
+    zip.insert(zip.end(), {'P', 'K', 3, 4});
+    put16v(zip, 20);                                    // version needed
+    put16v(zip, 0);                                     // flags
+    put16v(zip, 0);                                     // method: stored
+    put16v(zip, 0);                                     // mod time
+    put16v(zip, 0);                                     // mod date
+    put32v(zip, record.crc);
+    put32v(zip, record.size);                           // compressed size
+    put32v(zip, record.size);                           // uncompressed size
+    put16v(zip, static_cast<std::uint16_t>(name.size()));
+    put16v(zip, 0);                                     // extra length
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), content.begin(), content.end());
+    records.push_back(std::move(record));
+  }
+  const auto directoryOffset = static_cast<std::uint32_t>(zip.size());
+  for (const auto& record : records) {
+    zip.insert(zip.end(), {'P', 'K', 1, 2});
+    put16v(zip, 20);                                    // version made by
+    put16v(zip, 20);                                    // version needed
+    put16v(zip, 0);                                     // flags
+    put16v(zip, 0);                                     // method
+    put16v(zip, 0);                                     // mod time
+    put16v(zip, 0);                                     // mod date
+    put32v(zip, record.crc);
+    put32v(zip, record.size);
+    put32v(zip, record.size);
+    put16v(zip, static_cast<std::uint16_t>(record.name.size()));
+    put16v(zip, 0);                                     // extra
+    put16v(zip, 0);                                     // comment
+    put16v(zip, 0);                                     // disk
+    put16v(zip, 0);                                     // internal attrs
+    put32v(zip, 0);                                     // external attrs
+    put32v(zip, record.offset);
+    zip.insert(zip.end(), record.name.begin(), record.name.end());
+  }
+  const auto directorySize = static_cast<std::uint32_t>(zip.size()) - directoryOffset;
+  zip.insert(zip.end(), {'P', 'K', 5, 6});
+  put16v(zip, 0);                                       // this disk
+  put16v(zip, 0);                                       // directory start disk
+  put16v(zip, static_cast<std::uint16_t>(records.size()));
+  put16v(zip, static_cast<std::uint16_t>(records.size()));
+  put32v(zip, directorySize);
+  put32v(zip, directoryOffset);
+  put16v(zip, 0);                                       // comment length
+  return zip;
+}
 
 } // namespace
 
@@ -666,6 +956,9 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
   add(16, std::move(leafFaceBytes));
   add(26, std::move(dispInfo));
   add(33, std::move(dispVerts));
+  add(40, fixture.pakfileEntries.empty()
+    ? std::vector<std::uint8_t>{}
+    : buildStoredZip(fixture.pakfileEntries));
   add(42, std::move(cubemapBytes));
   add(43, std::move(stringData));
   add(44, std::move(stringTable));
