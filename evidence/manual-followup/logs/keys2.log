@@ -1,0 +1,13 @@
+[2026-10-14T00:43:40.407] launch: D:\TF2_Native_Worktrees\manual-followup\native\build-nmake\tf2_demo_native.exe --tf-root D:\SteamLibrary\steamapps\common\Team Fortress 2\tf --demo D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem --capture-tick 2000 --capture-frame D:/TF2_Native_Worktrees/manual-followup/.scratch/keys2\keys2.bmp --metrics-file D:/TF2_Native_Worktrees/manual-followup/.scratch/keys2\keys2.csv --audio-disabled
+[2026-10-14T00:43:40.410] pid=656
+[2026-10-14T00:43:56.489] window hwnd=16651262 at T+16.08s, title_len=3135
+[2026-10-14T00:43:56.497] before keys at T+16.09s: tick=0 camera=first-person
+[2026-10-14T00:43:58.133] after SPACE single at T+17.73s: tick=78 camera=third-person
+[2026-10-14T00:43:59.915] after SPACE double at T+19.51s: tick=262 camera=free-look
+[2026-10-14T00:44:01.547] after P (pause) at T+21.14s: tick=262 camera=free-look
+[2026-10-14T00:44:03.549] pause +2.0s at T+23.14s: tick=262 camera=free-look
+[2026-10-14T00:44:03.549] pause verdict: tick 262 -> 262 frozen=True
+[2026-10-14T00:44:05.181] after P (resume) at T+24.77s: tick=436 camera=free-look
+[2026-10-14T00:44:05.181] resume verdict: tick 262 -> 436 advancing=True
+[2026-10-14T00:44:21.252] product exited, rc=0
+[2026-10-14T00:44:21.253] frame=D:/TF2_Native_Worktrees/manual-followup/.scratch/keys2\keys2.bmp size=2582406
