@@ -435,4 +435,166 @@ const char* uiScreenName(UiScreen screen) {
   }
 }
 
+const char* cameraModeName(CameraMode mode) {
+  switch (mode) {
+    case CameraMode::FirstPerson: return "first-person";
+    case CameraMode::ThirdPerson: return "third-person";
+    case CameraMode::FreeLook: return "free-look";
+    default: return "unknown";
+  }
+}
+
+bool CameraModeController::setMode(CameraMode mode) {
+  if (mode == mode_) return false;
+  mode_ = mode;
+  ++modeChanges_;
+  return true;
+}
+
+bool CameraModeController::cycleMode() {
+  switch (mode_) {
+    case CameraMode::FirstPerson: return setMode(CameraMode::ThirdPerson);
+    case CameraMode::ThirdPerson: return setMode(CameraMode::FreeLook);
+    case CameraMode::FreeLook: return setMode(CameraMode::FirstPerson);
+    default: return false;
+  }
+}
+
+bool CameraModeController::spacePress(std::uint32_t nowMs) {
+  ++spacePresses_;
+  bool isDouble = false;
+  if (haveLastPress_) {
+    const std::uint32_t interval = nowMs - lastPressMs_;
+    lastIntervalMs_ = interval;
+    // Strictly inside the window counts as the double; the boundary itself
+    // (interval == window) is a fresh single. Both sides of that boundary are
+    // probed, which is what makes the window a measured constant.
+    isDouble = interval < kDoubleClickWindowMs;
+  } else {
+    lastIntervalMs_ = 0xFFFFFFFFu;
+  }
+  haveLastPress_ = true;
+  lastPressMs_ = nowMs;
+  lastWasDouble_ = isDouble;
+  if (isDouble) {
+    ++spaceDoubles_;
+    // The double click's job: straight into free-look, the mode the player
+    // cannot reach in one step from first-person. From third-person it is a
+    // no-op on the mode (still counted); the return value answers "did the
+    // mode change", so a double landing on free-look already reports false.
+    return setMode(CameraMode::FreeLook);
+  }
+  ++spaceSingles_;
+  return cycleMode();
+}
+
+CameraSceneAction decideCameraSceneAction(CameraMode mode, bool haveObserverView) {
+  switch (mode) {
+    case CameraMode::FirstPerson:
+      return haveObserverView ? CameraSceneAction::SetDemoView : CameraSceneAction::HoldCurrent;
+    case CameraMode::ThirdPerson:
+      return haveObserverView ? CameraSceneAction::SetOrbitFocus : CameraSceneAction::HoldCurrent;
+    case CameraMode::FreeLook:
+      return CameraSceneAction::FreezeCurrent;
+    default:
+      return CameraSceneAction::HoldCurrent;
+  }
+}
+
+namespace {
+
+int scaleDimension(int value, float dpiScale) {
+  // Round-half-up so a 1.25 scale does not silently floor every row height.
+  return static_cast<int>(static_cast<float>(value) * dpiScale + 0.5f);
+}
+
+} // namespace
+
+UiLayoutPlan planUiLayout(int clientWidth, int clientHeight, float dpiScale) {
+  UiLayoutPlan plan;
+  if (clientWidth <= 0 || clientHeight <= 0 || !(dpiScale > 0.0f) || !std::isfinite(dpiScale)) {
+    return plan;
+  }
+  plan.valid = true;
+  // Physical margins: 16 px at 96 dpi, scaled with the dpi.
+  const int margin = scaleDimension(16, dpiScale);
+  const int gap = scaleDimension(6, dpiScale);
+  const int usableWidth = (std::max)(0, clientWidth - 2 * margin);
+
+  // The fixed rows, at their 96-dpi geometry scaled by dpi. Rows are
+  // independent, so a clamp in one row cannot push another row out of place.
+  struct RowSpec {
+    UiControlId first;
+    int count;
+    int baseY;
+    int baseH;
+    int widths[5];
+  };
+  const RowSpec rows[3] = {
+    { UiControlId::Open, 3, 48, 30, { 120, 90, 90, 0, 0 } },
+    { UiControlId::Play, 5, 84, 30, { 110, 80, 80, 80, 90 } },
+    { UiControlId::Timeline, 1, 122, 30, { 700, 0, 0, 0, 0 } },
+  };
+  for (const auto& row : rows) {
+    // A row whose scaled y lands past the bottom has no room: it collapses to
+    // a zero-height rect pinned at the client's bottom edge, which stays
+    // inside the client and cannot overlap the rows above it.
+    int y = scaleDimension(row.baseY, dpiScale);
+    const int h = scaleDimension(row.baseH, dpiScale);
+    if (y > clientHeight) y = clientHeight;
+    int x = margin;
+    for (int index = 0; index < row.count; ++index) {
+      auto& rect = plan.rects[static_cast<std::size_t>(row.first) + static_cast<std::size_t>(index)];
+      const int wanted = scaleDimension(row.widths[index], dpiScale);
+      // The cursor itself is clamped: once a squeezed row runs out of room,
+      // the remaining controls collapse to zero width pinned at the client's
+      // right edge instead of marching past it (gap keeps adding up).
+      const int cx = (std::min)(x, clientWidth);
+      const int room = (std::max)(0, clientWidth - margin - cx);
+      // A control never leaves the client and never intrudes on the next
+      // one's start position; the floor keeps a squeezed control grabbable.
+      rect.x = cx;
+      rect.y = y;
+      rect.h = (std::min)(h, (std::max)(0, clientHeight - y));
+      rect.w = (std::clamp)(wanted, (std::min)(24, room), room);
+      x = cx + rect.w + gap;
+    }
+  }
+  // The status line spans the window between the margins: text can only clip
+  // at its own edge, never run over the buttons below (different row) or past
+  // the window (clamped).
+  {
+    auto& status = plan.rects[static_cast<std::size_t>(UiControlId::Status)];
+    status.x = margin;
+    status.y = scaleDimension(12, dpiScale);
+    if (status.y > clientHeight) status.y = clientHeight;
+    status.h = (std::min)(scaleDimension(28, dpiScale),
+      (std::max)(0, clientHeight - status.y));
+    status.w = usableWidth;
+  }
+  return plan;
+}
+
+bool uiRectsOverlap(const UiRect& a, const UiRect& b) {
+  // Strict interiors: sharing exactly one edge pixel counts as overlapping so
+  // a layout that merely touches is not waved through.
+  return a.x < b.x + b.w && b.x < a.x + a.w
+    && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+std::string composePlaybackHudLine(const PlaybackHudLine& fields) {
+  auto squash = [](std::string value) {
+    for (char& character : value) {
+      if (character == '\r' || character == '\n' || character == '\t') character = ' ';
+    }
+    return value;
+  };
+  std::string line = "tick=" + std::to_string(fields.tick);
+  line += " demo=" + squash(fields.demoName.empty() ? "-" : fields.demoName);
+  line += " state=" + squash(fields.state.empty() ? "-" : fields.state);
+  line += " camera=" + squash(fields.camera.empty() ? "-" : fields.camera);
+  line += " error=" + squash(fields.error.empty() ? "none" : fields.error);
+  return line;
+}
+
 } // namespace tf2::native

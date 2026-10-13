@@ -1,0 +1,43 @@
+=== 1/3 native_ui_probe (camera modes, double-click window, layout, HUD) ===
+PASS native_ui_probe screen=opening->import-review->player->opening scrub=clamped corrupt=recoverable
+doubleWindowMs=300 cameraDefault=first-person cameraCycle=1 doubleInsideMs=1 doubleBoundaryMs=1 cameraDecisionMatrix=6 cameraNoTargetHold=1 pauseToggles=2 pauseStateReturn=1 layoutCases=42 layoutOverlap=0 layoutOutOfRange=0 layoutControls=10 hudExact=1 hudSingleLine=1 hudFields=5 uiFixture=ran
+  OK   probe: the legacy verdict line, byte-identical
+  OK   camera: the default mode is first-person
+  OK   camera: one step per single press walks the full cycle
+  OK   camera: the double-click window is the named 300
+  OK   camera: 299 ms is inside the window (a double)
+  OK   camera: 300 ms is the boundary (a fresh single)
+  OK   camera: all 6 mode/target decisions are pinned
+  OK   camera: no observe target keeps the current camera
+  OK   pause: P toggled twice and returned
+  OK   pause: the second toggle restored the state
+  OK   layout: the planner ran the 42-case size/dpi matrix
+  OK   layout: no two control rects overlap anywhere
+  OK   layout: every control rect stays inside the client
+  OK   layout: all 10 controls are planned
+  OK   hud: the five fields sit in the pinned order
+  OK   hud: CR/LF/tab never survive into the line
+  OK   hud: five fields, always present
+  OK   fixture: the demo fixture was present and exercised
+assertions_ok=18 assertions_bad=0
+  OK   probe exit = 0
+
+=== 2/3 quiet product run (hidden window, audio disabled, title poll) ===
+  OK   e2e run rc = 0
+  OK   e2e title polls = 96 (>= 1)
+27059.7 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=232 events_played=0 events_skipped=141 events_missing=91 drawn=546 capture_written=1 metrics_written=0 exit=0
+27059.7 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=575 holdsNoTarget=0 freezeFrames=0
+  OK   trace mode summary (hidden, no device)
+  OK   trace camera mode default
+  OK   trace camera window constant
+  OK   trace camera no input in a gate run
+  OK   trace camera no pause toggles in a gate run
+  OK   trace camera freeze untouched
+  OK   trace camera followed observe targets = 575 (>= 1)
+  OK   title HUD tick field
+  OK   title HUD demo name
+  OK   title HUD playback state
+  OK   title HUD camera mode
+  OK   title HUD error status
+
+CAMERA-UI=PASS

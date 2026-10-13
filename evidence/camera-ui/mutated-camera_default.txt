@@ -1,0 +1,8 @@
+FAIL camera default is first-person
+FAIL first single press reaches third-person
+FAIL second single press reaches free-look
+FAIL third single press returns to first-person
+FAIL setting the current mode changes nothing
+FAIL an idempotent setMode is not a mode change
+FAIL two singles 300 ms apart walked first -> third -> free
+FAIL native_ui_probe failures=7

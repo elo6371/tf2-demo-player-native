@@ -1,0 +1,2 @@
+PASS native_ui_probe screen=opening->import-review->player->opening scrub=clamped corrupt=recoverable
+doubleWindowMs=300 cameraDefault=first-person cameraCycle=1 doubleInsideMs=1 doubleBoundaryMs=1 cameraDecisionMatrix=6 cameraNoTargetHold=0 pauseToggles=2 pauseStateReturn=1 layoutCases=42 layoutOverlap=0 layoutOutOfRange=0 layoutControls=10 hudExact=1 hudSingleLine=1 hudFields=5 uiFixture=ran
