@@ -188,9 +188,19 @@ void AudioPlayer::stop() {
 }
 
 void AudioEventScheduler::reset(std::int32_t tick) {
+  // A reset that moves the cursor backwards is a recovery: the caller wants the
+  // range it already consumed to be replayable (reverse, seek, tick regression).
+  // Counted before the counters are cleared, and carried across the clear,
+  // because it describes the scheduler's life rather than the current window --
+  // a value wiped by every reset could never be read from the final stats.
+  if (initialized_ && tick < lastTick_) ++stats_.reverseRecoveries;
+  const std::size_t keepReverseRecoveries = stats_.reverseRecoveries;
+  const std::size_t keepDuplicateTicks = stats_.duplicateTicks;
   lastTick_ = initialized_ ? tick : tick - 1;
   initialized_ = true;
   stats_ = {};
+  stats_.reverseRecoveries = keepReverseRecoveries;
+  stats_.duplicateTicks = keepDuplicateTicks;
   nextVoice_ = 0;
   for (auto& player : players_) player.stop();
   stopped_ = activeVoiceCount() != 0;
@@ -221,7 +231,7 @@ std::size_t AudioEventScheduler::activeVoiceCount() const {
 
 AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeline, std::int32_t tick) {
   if (tick < 0 || stopped_) return stats_;
-  if (lastTick_ >= tick) return stats_;
+  if (lastTick_ >= tick) { ++stats_.duplicateTicks; return stats_; }
   stopped_ = false;
   timeline.forEachRange(lastTick_ + 1, tick, [&](const auto& event) {
     ++stats_.eventsSeen;

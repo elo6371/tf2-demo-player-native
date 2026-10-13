@@ -272,8 +272,24 @@ std::int32_t applySoundDelayTicks(std::int32_t tick, float delaySeconds, double 
   return static_cast<std::int32_t>(rounded);
 }
 
-bool scheduleGameplaySound(SoundEventTimeline& timeline, ScheduledSound sound, double tickRate) {
-  if (sound.soundIndex == 0 || sound.name.empty() || soundNameIsVoiceOrMusic(sound.name)) return false;
+bool soundEventRelativeTick(std::int32_t sourceTick, std::int32_t originTick,
+    std::int32_t& outTick) {
+  // 64-bit on purpose: `sourceTick - originTick` in int32 wraps when the origin
+  // is a large negative sentinel, and the wrapped value can land on 0 -- the
+  // same "everything on the first tick" collapse this function exists to make
+  // impossible. Computed wide, the sign is decided by the real values.
+  const std::int64_t relative = static_cast<std::int64_t>(sourceTick)
+    - static_cast<std::int64_t>(originTick);
+  if (relative < 0) return false;
+  if (relative > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max())) {
+    return false;
+  }
+  outTick = static_cast<std::int32_t>(relative);
+  return true;
+}
+
+bool scheduleSoundEvent(SoundEventTimeline& timeline, ScheduledSound sound, double tickRate) {
+  if (sound.soundIndex == 0 || sound.name.empty()) return false;
   if (!std::isfinite(sound.volume)) return false;
   sound.volume = std::clamp(sound.volume, 0.0f, 1.0f);
   const std::int32_t scheduledTick = applySoundDelayTicks(sound.tick, sound.delaySeconds, tickRate);
@@ -287,8 +303,17 @@ bool scheduleGameplaySound(SoundEventTimeline& timeline, ScheduledSound sound, d
   event.origin[0] = sound.origin[0];
   event.origin[1] = sound.origin[1];
   event.origin[2] = sound.origin[2];
+  // `add` re-derives the kind from the name and sets skipVoice for the filtered
+  // kinds, so this assignment is a placeholder the container overwrites. It is
+  // written as false rather than left default so the intent -- "not filtered by
+  // the caller, let the container decide" -- is visible at the call site.
   event.skipVoice = false;
   return timeline.add(std::move(event));
+}
+
+bool scheduleGameplaySound(SoundEventTimeline& timeline, ScheduledSound sound, double tickRate) {
+  if (soundNameIsVoiceOrMusic(sound.name)) return false;
+  return scheduleSoundEvent(timeline, std::move(sound), tickRate);
 }
 
 SoundKindCounts countSoundKinds(const SoundEventTimeline& timeline) {

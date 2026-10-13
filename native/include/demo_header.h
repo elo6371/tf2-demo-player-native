@@ -650,6 +650,27 @@ struct DemoNetworkSummary {
   std::string serverMap;
 };
 bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& index, DemoNetworkSummary& summary);
+
+// The tick that a playback-relative timeline is measured from: the tick of the
+// first recorded packet (dem_packet, command 2).
+//
+// WHY NOT THE FIRST COMMAND 1 OR 2 ENTRY
+//   A demo opens with a signon block whose tick field holds the server's
+//   absolute tick at connect, while the recorded packets carry the demo's own
+//   counter, which starts near zero. Measured on
+//   autorecord_2026-07-02_13-26-46.dem: the four signon entries carry
+//   29368/29438/29456/29488 and every one of the 38554 packet entries carries
+//   0..39122. Taking the first command 1 or 2 entry as the origin therefore puts
+//   the entire recording *below* the origin, and `max(0, tick - origin)` folds
+//   5555 of 5563 sound events onto relative tick 0 -- a batch flush on the first
+//   frame. Against the packet-derived origin the same census folds 2.
+//
+// `found` is false when the demo carries no packet entry at all. That case is
+// reported rather than defaulted: a caller that silently used tick 0 would place
+// every event at its absolute tick and never play anything, which looks exactly
+// like "this recording has no sounds".
+std::int32_t firstRecordedPacketTick(const DemoIndex& index, bool& found);
+
 bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetReference>& references);
 bool findEntitySnapshotAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,
                                       std::vector<EntityState>& states);

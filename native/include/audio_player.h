@@ -67,6 +67,17 @@ struct AudioScheduleStats {
   // the resource resolved and the event was deliberately not played, which is
   // a different state from "nothing was found".
   std::size_t eventsSkippedDisabled = 0;
+  // advance() calls refused because the tick had already been consumed. The
+  // player calls advance() once per rendered frame while the timeline moves at
+  // the demo tick rate, so this is expected to be large; what it proves is that
+  // the guard fires, which is what keeps a repeated tick from replaying its
+  // events. Zero means every call was a fresh tick, i.e. the guard was never
+  // exercised and "the same tick does not replay" was not tested.
+  std::size_t duplicateTicks = 0;
+  // reset() calls that moved the cursor backwards: the reverse key, a seek, or a
+  // tick regression re-seeding the scheduler so the range it already consumed
+  // can be replayed. Without this a reverse run looks identical to a stalled one.
+  std::size_t reverseRecoveries = 0;
 };
 
 // Tick boundary adapter. Resource resolution stays injectable so the demo

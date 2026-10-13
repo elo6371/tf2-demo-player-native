@@ -106,6 +106,25 @@ SoundEventKind classifySoundEvent(const std::string& name);
 // 0. Returns -1 when the tick, delay, or tick rate cannot be scheduled.
 std::int32_t applySoundDelayTicks(std::int32_t tick, float delaySeconds, double tickRate);
 
+// Maps a demo-entry tick onto the playback-relative timeline, using the origin
+// `firstRecordedPacketTick` returns. Returns false -- and writes nothing -- when
+// the event precedes the origin.
+//
+// WHY THIS IS NOT `max(0, sourceTick - origin)`
+//   Clamping folds every event that precedes the origin onto tick 0, so an
+//   origin taken from the wrong entry turns a whole recording into one batch on
+//   the first frame instead of an error. Measured on
+//   autorecord_2026-07-02_13-26-46.dem: 5555 of 5563 events clamp under the
+//   signon-derived origin and 2 under the packet-derived one. A `false` here is
+//   countable ("before the origin"), which is the reading that makes the two
+//   cases distinguishable instead of identical.
+//
+// The subtraction runs in 64 bits: an origin that arrived as INT_MIN (the
+// "unknown" sentinel a caller might use) would overflow int32 and wrap a
+// positive tick into a negative one, which is the same collapse by another road.
+bool soundEventRelativeTick(std::int32_t sourceTick, std::int32_t originTick,
+  std::int32_t& outTick);
+
 struct ScheduledSound {
   std::int32_t tick = 0;
   std::uint32_t soundIndex = 0;
@@ -150,6 +169,16 @@ private:
 // Classifies the name, folds delay into the playback tick, and drops voice,
 // announcer, and music. Does not open an audio device.
 bool scheduleGameplaySound(SoundEventTimeline& timeline, ScheduledSound sound, double tickRate);
+
+// Like scheduleGameplaySound, but keeps voice, announcer and music events in the
+// timeline flagged as skipped instead of refusing them. This is the entry point
+// the product path uses: refusing the filtered kinds before `add` makes
+// AudioScheduleStats::eventsSkippedVoice a counter nothing can ever move, and a
+// reading that can only ever be zero is not a reading. The filter itself is not
+// weakened -- the scheduler never resolves and never plays those kinds.
+// Returns false for the same reasons as scheduleGameplaySound apart from the
+// filter: index 0, empty name, non-finite volume, or a tick that cannot be placed.
+bool scheduleSoundEvent(SoundEventTimeline& timeline, ScheduledSound sound, double tickRate);
 
 SoundKindCounts countSoundKinds(const SoundEventTimeline& timeline);
 

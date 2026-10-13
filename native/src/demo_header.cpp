@@ -2286,6 +2286,14 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   return summary.packetsScanned > 0;
 }
 
+std::int32_t firstRecordedPacketTick(const DemoIndex& index, bool& found) {
+  for (const auto& entry : index.entries) {
+    if (entry.command == 2) { found = true; return entry.tick; }
+  }
+  found = false;
+  return 0;
+}
+
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
     std::int32_t* resolvedTick) {
