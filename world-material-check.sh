@@ -23,6 +23,9 @@
 #      unavailable, which is the reading that would catch a gate that passes on
 #      constants
 #   6. with --mutation, a deliberately wrong expectation goes red
+#   7. the render side lights what the parse side measured: the product is run
+#      once and the GPU-side vertex pair is read back out of its own trace, so
+#      the lightmap pass is checked where the triangles are actually drawn
 #
 # Usage: bash world-material-check.sh [--mutation]
 # Exit:  0 = every assertion held (or, with --mutation, went red).
@@ -30,18 +33,23 @@ set -uo pipefail
 cd "$(dirname "$0")"
 
 EXE=native/build-nmake/world_material_probe.exe
+PRODUCT=native/build-nmake/tf2_demo_native.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 MAP="cp_snakewater_final1"
+DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
+SCRATCH="${WORLD_MATERIAL_SCRATCH:-.scratch/world-material}"
 OUT="${WORLD_MATERIAL_OUT:-evidence/world-material}"
-mkdir -p "$OUT"
+mkdir -p "$OUT" "$SCRATCH"
 
 MUTATION=0
 [ "${1:-}" = "--mutation" ] && MUTATION=1
 
 fail=0
-for path in "$EXE" "$TF" "$TF/maps/$MAP.bsp"; do
+for path in "$EXE" "$PRODUCT" "$TF" "$TF/maps/$MAP.bsp" "$DEMO"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
 done
+command -v timeout >/dev/null 2>&1 || { echo "FATAL: missing tool: timeout"; exit 1; }
+command -v cygpath >/dev/null 2>&1 || { echo "FATAL: missing tool: cygpath"; exit 1; }
 
 assert_eq() { # assert_eq <label> <actual> <expected>
   if [ "${2:-<none>}" = "$3" ]; then
@@ -152,6 +160,58 @@ assert_eq "bagel vis"          "$(field "$BAGEL" vis.state)"          "unavailab
 assert_eq "bagel lightmap reason" "$(field "$BAGEL" lightmap.reason)" "the bsp declares no lightmap faces"
 
 echo
+echo "=== 7/7 the render side lights what the parse side measured ==="
+# Sections 1-6 all read the BSP through the probe. This one runs the product
+# itself and reads the GPU-side pair back out of its trace, because the defect
+# this section exists for lived exactly there: uploadWorldGeometry's atlas
+# overload wrote the per-face light uv only for faces that hit the 64-tile
+# texture atlas, so on this map 30731 of 199263 lightmapped triangles were
+# drawn flat while lightmap.state still read active and the atlas was bound.
+# Neither the probe nor the status enum could see it; only the vertex pair can.
+#
+# The load phase (VPK index, demo scan, model uploads) measured ~30 s on this
+# machine, so 300 s is a generous ceiling rather than the norm.
+PRODUCT_TRACE="$SCRATCH/render-lightmap.trace"
+PRODUCT_BMP="$SCRATCH/render-lightmap.bmp"
+PRODUCT_CSV="$SCRATCH/render-lightmap.csv"
+PRODUCT_LOG="$SCRATCH/render-lightmap.log"
+rm -f "$PRODUCT_TRACE" "$PRODUCT_BMP" "$PRODUCT_CSV" "$PRODUCT_LOG"
+# The trace path is read with GetEnvironmentVariableW and opened by the program,
+# so it needs the Windows form; cygpath -m gives it without the doubled
+# backslashes the MSYS layer rewrites. --hidden-window and --audio-disabled keep
+# the run quiet, exactly as quiet-capture-check.sh established they may.
+TRACE_WIN="$(cygpath -m "$PWD/$PRODUCT_TRACE")"
+PRODUCT_RC=$(TF2_NATIVE_TRACE="$TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" \
+  --audio-disabled --hidden-window --demo "$DEMO" --capture-tick 0 \
+  --capture-frame "$PRODUCT_BMP" --metrics-file "$PRODUCT_CSV" > "$PRODUCT_LOG" 2>&1; echo $?)
+echo "product run rc=$PRODUCT_RC trace=$(stat -c%s "$PRODUCT_TRACE" 2>/dev/null || echo 0)"
+assert_eq "product run rc" "$PRODUCT_RC" "0"
+RENDER=$(grep -o "gpu: world lightmap .*" "$PRODUCT_TRACE" 2>/dev/null | head -1)
+echo "$RENDER" > "$OUT/render-lightmap.txt"
+rfield() { # rfield <key> -> number out of the render reading line
+  printf '%s\n' "$RENDER" | grep -oE "$1=[0-9]+" | head -1 | cut -d= -f2
+}
+RENDER_STATUS=$(printf '%s\n' "$RENDER" | grep -oE "status=[a-z-]+" | head -1 | cut -d= -f2)
+REAL_TRIS=$(field "$REAL" lightmap.trianglesWithLightUv)
+assert_eq "render lightmap status" "$RENDER_STATUS" "active"
+assert_eq "render atlas bound" "$(rfield atlas)" "1"
+assert_eq "render vertices" "$(rfield vertices)" "600000"
+# The identity, not a second pin: the GPU-side count must equal three times the
+# parse-side triangle count from section 4. If the parse side changes, this
+# follows it; if the renderer drops a face's light uv again, it does not.
+assert_eq "render lightmapped = 3 x parse triangles" "$(rfield lightmapped)" "$((REAL_TRIS * 3))"
+# And the map is not fully lit: 737 of its 200000 triangles carry no lightmap
+# face, so lightmapped must stay strictly below vertices. A reading of
+# lightmapped == vertices would mean unlit faces were being handed a uv.
+RENDER_LIGHTMAPPED=$(rfield lightmapped)
+RENDER_VERTICES=$(rfield vertices)
+if [ "$RENDER_LIGHTMAPPED" -lt "$RENDER_VERTICES" ] 2>/dev/null; then
+  echo "  OK   render lightmapped < vertices ($RENDER_LIGHTMAPPED < $RENDER_VERTICES)"
+else
+  echo "  FAIL render lightmapped >= vertices ($RENDER_LIGHTMAPPED >= $RENDER_VERTICES)"; fail=1
+fi
+
+echo
 if [ "$MUTATION" -eq 1 ]; then
   # Two wrong expectations, one for a counter and one for a state. The counter
   # is the one that would have caught the silent packer drop (15 faces lost
@@ -171,8 +231,17 @@ if [ "$MUTATION" -eq 1 ]; then
     echo "  FAIL the mutation count matched a value it should not have"
     exit 1
   fi
-  echo "MUTATION-CAUGHT=PASS (a wrong packer-drop expectation, a wrong sky state and a wrong"
-  echo "  mutation count each go red)"
+  # And the render half: the pre-fix vertex count. Before the else branch of
+  # uploadWorldGeometry's atlas overload was fixed, the GPU side reported
+  # 92193 lightmapped vertices -- the 30731 triangles that happened to hit the
+  # 64-tile atlas. Expecting that value now must go red, which is what makes
+  # the section 7 identity a check rather than a description.
+  if [ "${RENDER_LIGHTMAPPED:-0}" = "92193" ]; then
+    echo "  FAIL the render lightmapped count matched the pre-fix value it should not have"
+    exit 1
+  fi
+  echo "MUTATION-CAUGHT=PASS (a wrong packer-drop expectation, a wrong sky state, a wrong"
+  echo "  mutation count and the pre-fix render vertex count each go red)"
   exit 0
 fi
 

@@ -2226,6 +2226,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         static_cast<UINT>(displayMap.lightmapAtlasWidth), static_cast<UINT>(displayMap.lightmapAtlasHeight))) return false;
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
+    // The lightmap pass, read back from the renderer rather than assumed from
+    // the parse. The window title already carries the BSP-side numbers; this is
+    // the GPU-side pair (vertices carrying a per-face light uv / vertices
+    // uploaded), which is what distinguishes "the atlas is bound" from "the map
+    // is lit". It goes to the trace channel because the title is already at
+    // capacity and a reading nobody prints is a reading nobody checks.
+    {
+      const auto worldSample = renderer.worldMaterialSampleState();
+      const char* lightmapStatusName = "unknown";
+      switch (worldSample.lightmapStatus) {
+        case tf2::native::WorldLightmapStatus::Unavailable: lightmapStatusName = "unavailable"; break;
+        case tf2::native::WorldLightmapStatus::FallbackUnlit: lightmapStatusName = "fallback-unlit"; break;
+        case tf2::native::WorldLightmapStatus::Active: lightmapStatusName = "active"; break;
+      }
+      traceFmt("gpu: world lightmap status=%s intensity=%.3f atlas=%d bump=%d env=%d vertices=%u lightmapped=%u",
+        lightmapStatusName, worldSample.lightmapIntensity,
+        worldSample.lightmapAtlasBound ? 1 : 0, worldSample.bumpTextureBound ? 1 : 0,
+        worldSample.envTextureBound ? 1 : 0, worldSample.worldVertexCount,
+        worldSample.lightmappedVertexCount);
+    }
     const bool uploadedModel = !modelReady || renderer.uploadBindPoseModel(modelMetadata.bindPoseVertices);
     entityMaterialUploadFlags.assign(preparedEntityMeshes.size(), 0);
     for (std::size_t preparedIndex = 0; preparedIndex < preparedEntityMeshes.size(); ++preparedIndex) {

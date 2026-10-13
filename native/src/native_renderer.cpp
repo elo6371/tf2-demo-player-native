@@ -773,6 +773,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   const float centerX = (minX + maxX) * 0.5f, centerY = (minY + maxY) * 0.5f;
   std::vector<WorldVertex> vertices;
   vertices.reserve(map.triangles.size() * 3);
+  std::size_t lightmappedVertices = 0;
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
     return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 1.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
@@ -795,6 +796,9 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
     const float invHeight = textured ? 1.0f / static_cast<float>(textureHeight) : 0.0f;
     a.u = triangle.au * invWidth; a.v = triangle.av * invHeight; b.u = triangle.bu * invWidth; b.v = triangle.bv * invHeight; c.u = triangle.cu * invWidth; c.v = triangle.cv * invHeight;
     if (triangle.lightmapped) { a.lu = triangle.alu; a.lv = triangle.alv; b.lu = triangle.blu; b.lv = triangle.blv; c.lu = triangle.clu; c.lv = triangle.clv; }
+    // Same outcome-based count as the atlas overload below: keyed on the vertex
+    // the pixel shader will actually see, not on the triangle's claim.
+    if (a.lu >= 0.0f) lightmappedVertices += 3;
     vertices.push_back(a); vertices.push_back(b); vertices.push_back(c);
   }
   D3D11_BUFFER_DESC description{};
@@ -809,6 +813,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   }
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
+  worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   worldMinX_ = minX; worldMinY_ = minY; worldMinZ_ = minZ;
   worldMaxX_ = maxX; worldMaxY_ = maxY; worldMaxZ_ = maxZ;
   worldCenterX_ = centerX; worldCenterY_ = centerY;
@@ -886,6 +891,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   const float centerX = (minX + maxX) * 0.5f, centerY = (minY + maxY) * 0.5f;
   std::vector<WorldVertex> vertices;
   vertices.reserve(map.triangles.size() * 3);
+  std::size_t lightmappedVertices = 0;
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
     return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 0.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
@@ -913,7 +919,20 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(triangle.material));
       const float shade = 0.78f + static_cast<float>(hash % 23) / 100.0f;
       a.r = a.g = a.b = b.r = b.g = b.b = c.r = c.g = c.b = shade;
+      // The lightmap is per *face*, not per *texture*: a face that missed the
+      // 64-tile atlas still has its own RGBExp32 slice, and dropping its light
+      // uv here drew it flat. On snakewater the atlas covers 7 materials of
+      // ~150, so this branch was where ~16.8 万 lightmapped triangles lost
+      // their lighting -- the atlas was bound, the status read Active, and
+      // most of the map sampled nothing.
+      if (triangle.lightmapped) { a.lu = triangle.alu; a.lv = triangle.alv; b.lu = triangle.blu; b.lv = triangle.blv; c.lu = triangle.clu; c.lv = triangle.clv; }
     }
+    // Counted off the vertex, not off the triangle: the pixel shader samples
+    // the lightmap when lightUv.x >= 0.0, so a counter keyed on
+    // triangle.lightmapped would keep reporting the intent after the uv had
+    // been dropped -- which is how a regression injection went unnoticed the
+    // first time this instrument was written.
+    if (a.lu >= 0.0f) lightmappedVertices += 3;
     vertices.push_back(a); vertices.push_back(b); vertices.push_back(c);
   }
   D3D11_BUFFER_DESC description{};
@@ -928,6 +947,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   }
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
+  worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   worldMinX_ = minX; worldMinY_ = minY; worldMinZ_ = minZ;
   worldMaxX_ = maxX; worldMaxY_ = maxY; worldMaxZ_ = maxZ;
   worldCenterX_ = centerX; worldCenterY_ = centerY;
@@ -1165,6 +1185,8 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.envTextureBound = worldEnvTexture_.view() != nullptr;
   state.lightmapAtlasBound = worldLightmapTexture_.view() != nullptr;
   state.selfIllumEnabled = worldMaterialParams_.selfIllum;
+  state.worldVertexCount = worldVertexCount_;
+  state.lightmappedVertexCount = worldLightmappedVertexCount_;
   return state;
 }
 
