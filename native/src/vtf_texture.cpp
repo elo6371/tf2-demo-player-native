@@ -240,6 +240,48 @@ std::vector<std::uint8_t> VtfTexture::decodeRgba(const std::vector<std::uint8_t>
   return output;
 }
 
+std::vector<std::uint8_t> VtfTexture::decodeCubeFaceRgba(const std::vector<std::uint8_t>& bytes,
+    int face, std::uint32_t& width, std::uint32_t& height, std::string* error) const {
+  width = 0;
+  height = 0;
+  const auto fail = [&](const char* message) {
+    if (error) *error = message;
+    return std::vector<std::uint8_t>{};
+  };
+  if (!header_.isCubemap()) return fail("VTF is not a cubemap");
+  if (face < 0 || face > 5) return fail("cubemap face index is out of range");
+  // depth carries the face count in the layout this install's cubemaps use;
+  // a file that declares something else has a layout this decoder has not
+  // measured, and guessing at it would invent faces.
+  if (header_.depth != 1) return fail("cubemap does not use the single-depth face layout");
+  if (header_.chainBytes == 0 || topMipBytes_ == 0) return fail("cubemap mip chain is empty");
+  const std::uint64_t faceStart = header_.mipStart
+    + static_cast<std::uint64_t>(face) * header_.chainBytes;
+  const std::uint64_t faceEnd = faceStart + topMipBytes_;
+  if (faceEnd > bytes.size()) return fail("cubemap face data is out of bounds");
+  // Rewrite the header so the existing 2D decoder accepts this one face: the
+  // ENVMAP flag cleared is what makes it stop refusing, mipCount 1 is what
+  // makes its chain arithmetic match the single slice handed to it. The
+  // resource table stays where it is, inside headerSize, and still points at
+  // the image data that now begins immediately after the header.
+  std::vector<std::uint8_t> flat(bytes.begin(),
+    bytes.begin() + static_cast<std::ptrdiff_t>(header_.headerSize));
+  std::uint32_t flags = 0;
+  readValue(flat, 20, flags);
+  flags &= ~VtfHeader::TextureFlagsEnvMap;
+  for (std::size_t byte = 0; byte < 4; ++byte) {
+    flat[20 + byte] = static_cast<std::uint8_t>(flags >> (byte * 8));
+  }
+  flat[56] = 1;
+  flat.insert(flat.end(), bytes.begin() + static_cast<std::ptrdiff_t>(faceStart),
+    bytes.begin() + static_cast<std::ptrdiff_t>(faceEnd));
+  VtfTexture faceTexture;
+  if (!faceTexture.parse(flat, error)) return fail("rewritten cubemap face header did not parse");
+  width = faceTexture.header().width;
+  height = faceTexture.header().height;
+  return faceTexture.decodeRgba(flat, error);
+}
+
 std::vector<std::uint8_t> VtfTexture::topMip(const std::vector<std::uint8_t>& bytes) const {
   if (topMipOffset_ + topMipBytes_ > bytes.size()) return {};
   return std::vector<std::uint8_t>(bytes.begin() + static_cast<std::ptrdiff_t>(topMipOffset_),
