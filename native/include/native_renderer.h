@@ -213,6 +213,15 @@ struct WorldMaterialSampleState {
   // $envmap builds the cube and reads status=six-face with mode=0, and without
   // this field that state and "the cube is sampled" would print the same.
   std::uint32_t envMode = 0;
+  // What the uploaded vertex buffer actually holds, counted while it is built:
+  // how many of its triangles came from a displacement (the parser subdivides a
+  // displaced face into a grid, so these are the tessellated ones and not the
+  // flat quad) and how many are water. The parse side counts triangles per
+  // capability; these say how much of that reached the GPU, which is the
+  // difference between "the map has 165376 displacement triangles" and "the
+  // map draws them".
+  std::uint32_t displacedTriangles = 0;
+  std::uint32_t waterTriangles = 0;
 };
 
 enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
@@ -616,6 +625,8 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Texture2D> worldCubemapTexture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldCubemapView_;
   UINT worldCubemapSize_ = 0;
+  UINT worldDisplacedTriangleCount_ = 0;
+  UINT worldWaterTriangleCount_ = 0;
   RenderSettings settings_{};
   float cameraYaw_ = 0.0f;
   float cameraPitch_ = 0.36f;
