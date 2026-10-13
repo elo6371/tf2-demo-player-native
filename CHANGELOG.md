@@ -2,6 +2,12 @@
 
 ## 2026-10-13
 
+### T4：相机、观察者模式、HUD/UI（已整合）
+
+- 整合 `task/camera-ui@ca21a50`，主线提交 `bf0d268`；新增相机模式循环、P 键暂停、观察目标 HoldCurrent 决策、DPI/窗口布局规划和五字段 HUD。
+- `camera-ui-check.sh` 正向通过（18 条探针与静默 e2e 断言），`--mutation` 8/8 捕获。真实按键注入、窗口缩放目检和整帧画面仍未验证。
+- 修复门禁在 Windows 本地编码标题前缀上的假红：标题包含中文旧前缀时，shell locale 让 `grep` 截断，现以 `LC_ALL=C` 做字节级 ASCII HUD 标记匹配。
+
 ### T3 世界材质整合与渲染门禁修复
 
 - 整合 `task/world-material-lighting@b55e8e5`（主线提交 `b7d8035`）及共享 `frame-capture-check.sh` 判据；`world-material-check.sh` 正向和 mutation、`verify-fast.sh` 均通过。

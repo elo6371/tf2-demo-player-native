@@ -2,7 +2,7 @@
 
 ## 2026-10-13 整合状态覆盖
 
-当前主线已整合 `task/world-material-lighting@b55e8e5`（整合提交 `b7d8035`）与 `task/capture-determinism@a259b52`（整合提交 `1c69f08`）。定向验收：世界材质正向与 mutation 通过，ViewModel contract 154 条通过，frame-capture 正向与 2/2 mutation 通过，`verify-fast.sh` 43 条通过；随后渲染档 8/9 的唯一红项是 animation 的实时吞吐下限，已在 `viewmodel-animation-check.sh` 改为存在性检查并统一静默启动，单项复验 `VIEWMODEL-ANIMATION=PASS`。完整总链仍按约束不运行；T3 未验证真实 GPU 性能、天空盒/水面实际绘制、VIS 裁剪和人工画面对照。
+当前主线已整合 `task/world-material-lighting@b55e8e5`（整合提交 `b7d8035`）、`task/capture-determinism@a259b52`（整合提交 `1c69f08`）和 T4 `task/camera-ui@ca21a50`（整合提交 `bf0d268`）。T4 门禁首次暴露标题旧编码导致的解析假红，已由 `camera-ui-check.sh` 的 `LC_ALL=C` 字节匹配修复；正向 18 条探针/e2e 断言和 8/8 mutation 均通过。T3 世界材质专项在 T4 合并后仍通过。完整总链仍按约束不运行；T3 未验证真实 GPU 性能、天空盒/水面实际绘制、VIS 裁剪和人工画面对照。
 
 T2 人工验收已整合：`task/manual-acceptance@ae7bd09` 仅新增 `T2-MANUAL-ACCEPTANCE-2026-10-13.md` 和 `evidence/manual-acceptance/`。冻结矩阵证明 ViewModel/FOV/hand 输入会改变画面；真实设备 6 打开并播放 19 个事件，用户已完成人耳确认声音内容。选定 tick 没有 ViewModel 实体，武器本体 on/off 逐字节相同；tick 2000 与 4000 也相同，因此这些证据不能证明动画、材质或武器本体正确。
 

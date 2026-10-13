@@ -1,6 +1,6 @@
 # 当前整合覆盖（2026-10-13）
 
-T3 世界材质与光照已合入主线 `b7d8035`，共享抓帧修复已合入 `1c69f08`。世界材质、ViewModel contract、frame-capture 和 `verify-fast.sh` 定向验收通过；animation 门禁的实时观测吞吐阈值已修复并单项复验通过。完整总链非必要不运行。
+T3 世界材质与光照已合入主线 `b7d8035`，共享抓帧修复已合入 `1c69f08`，T4 相机/HUD/UI 已合入 `bf0d268`。世界材质、ViewModel contract、frame-capture、`verify-fast.sh` 和 camera-ui 定向验收通过；animation 吞吐阈值与 camera-ui 标题编码假红均已修复。完整总链非必要不运行；天空盒/水面绘制、VIS 裁剪和人工窗口验收仍是后续任务。
 
 # TF2 Demo Player Native 实现任务与验收计划
 

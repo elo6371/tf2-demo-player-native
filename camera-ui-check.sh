@@ -36,6 +36,10 @@
 
 set -uo pipefail
 cd "$(dirname "$0")"
+# The legacy title prefix contains bytes outside the shell's UTF-8 locale on
+# this Windows build. The gate is checking ASCII HUD markers in that title;
+# byte-oriented matching must not stop at the prefix's encoding.
+export LC_ALL=C
 
 EXE=native/build-nmake/tf2_demo_native.exe
 PROBE=native/build-nmake/native_ui_probe.exe
