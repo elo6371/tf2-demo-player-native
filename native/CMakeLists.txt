@@ -73,7 +73,12 @@ add_executable(vpk_query tools/vpk_query.cpp src/vpk_archive.cpp third_party/lzm
 target_include_directories(vpk_query PRIVATE include third_party/lzma)
 set_target_properties(vpk_query PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.cpp third_party/lzma/LzmaDec.c)
+# The world material and lighting capability layer. Shared with the product
+# (the renderer publishes its readings from it) rather than inlined into
+# native_renderer.cpp for the same reason viewmodel_material.cpp is shared: a
+# gate that asserts the two agree is only non-circular if there is one
+# implementation to agree with.
+add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(world_material_probe PRIVATE include third_party/lzma)
 set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 

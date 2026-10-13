@@ -1,0 +1,378 @@
+#pragma once
+
+// The world material and lighting capability layer.
+//
+// WHY THIS FILE EXISTS
+// --------------------
+// Six things the world pass claims are handled by the BSP/render path, and until
+// now each of them was answered by one number somewhere: `lightmapMode` said
+// "source-equivalent", `cubemapMode` said "approximate-2d", `waterSurface` said
+// "approximate-warp". None of those is falsifiable. A number that cannot go red
+// is a number that cannot be wrong, and this task's own rule is that a claim
+// nobody can refute is not a claim.
+//
+// So this module turns each capability into three things a gate can assert:
+//   * a state (Unavailable / Fallback / Active),
+//   * a reason that names the measured cause, and
+//   * the counters the state was derived from.
+//
+// Two deliberate restrictions:
+//   1. It does NOT touch bsp_map.cpp. Everything below is computed from the
+//      fields BspParser already fills, so the material-chain and
+//      resource-reachability gates keep their frozen readings and the other
+//      parallel tracks keep their binaries.
+//   2. It does NOT link a VPK reader. Resource reachability is injected through
+//      WorldResourceProbe, so the same evaluation runs against the real install
+//      (the probe tool) and against a synthetic resource set (the fixtures)
+//      without a second implementation of "does this file exist".
+
+#include "bsp_map.h"
+
+#include <array>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace tf2::native {
+
+// ---------------------------------------------------------------------------
+// Capability state
+// ---------------------------------------------------------------------------
+
+enum class WorldCapabilityState { Unavailable, Fallback, Active };
+
+const char* worldCapabilityStateName(WorldCapabilityState state);
+
+// Injected resource lookup. Implemented by the caller against whatever store it
+// has: a VpkArchiveSet plus the loose tf directory for the product, a fixed
+// in-memory set for the fixtures.
+class WorldResourceProbe {
+public:
+  virtual ~WorldResourceProbe() = default;
+  virtual bool reachable(const std::string& resourcePath) const = 0;
+};
+
+// A probe over an explicit set of paths. Used by the fixtures: the "install" is
+// exactly the list handed to the constructor, so a fixture that says a material
+// exists makes it exist and nothing else does.
+class FixedResourceProbe : public WorldResourceProbe {
+public:
+  explicit FixedResourceProbe(std::vector<std::string> present)
+    : present_(std::move(present)) {}
+  bool reachable(const std::string& resourcePath) const override;
+
+private:
+  std::vector<std::string> present_;
+};
+
+// ---------------------------------------------------------------------------
+// 1. RGBExp32 per-face lightmap
+// ---------------------------------------------------------------------------
+
+struct WorldLightmapReading {
+  // Faces the BSP declared a lightmap for, faces that fit the 2048-wide shelf
+  // packer, and the difference. `dropped` is the number this module exists to
+  // name: before it, a face that had lightmap data and lost it to the packer
+  // was indistinguishable from a face that never had any.
+  std::size_t facesWithLightmap = 0;
+  std::size_t facesPacked = 0;
+  std::size_t facesDropped = 0;
+  // Triangles whose lightmap UVs the parser actually emitted. This is the
+  // per-face claim made countable: a triangle with lightmapped=false carries
+  // (-1,-1) and the shader refuses to sample for it.
+  std::size_t trianglesWithLightUv = 0;
+  std::size_t triangles = 0;
+  std::size_t samples = 0;
+  std::size_t atlasBytes = 0;
+  int atlasWidth = 0;
+  int atlasHeight = 0;
+  std::size_t lightUvOutOfRange = 0;
+  bool atlasBytesMatchDimensions = false;
+  bool uvAllInRange = false;
+};
+
+WorldLightmapReading measureLightmap(const BspMap& map);
+
+// ---------------------------------------------------------------------------
+// 2. Cubemap: six-face discovery, order, sampling
+// ---------------------------------------------------------------------------
+
+// The six suffixes in face order. This order is D3D11's TextureCube face order
+// (+X, -X, +Y, -Y, +Z, -Z) and it is the same order BspParser::skyMaterialPath
+// already uses, which is why one table serves both the sky and the env path:
+// a second table would be a second thing to get wrong.
+const char* worldCubemapFaceSuffix(int face);
+
+// The Source convention for an `env_cubemap` sample of <map>: the six faces are
+// materials/maps/<map>/c_<map>_<n><suffix>.vtf. Returns false if mapName is
+// empty, the index is negative, or the index is absurd (the BSP stores the
+// count; an index at or above it is a parser bug, not a resource problem).
+bool worldCubemapFacePaths(const std::string& mapName, int sampleIndex, std::string (&out)[6]);
+
+// Direction -> face index and the (u,v) inside that face, in [0,1].
+//
+// The mapping is D3D11's TextureCube sampling convention, chosen because it is
+// written down somewhere other than this file: the face with the largest
+// |axis| wins, sc/tc are the two remaining axes with the signs the D3D spec
+// gives, and u = (sc/|ma| + 1)/2, v = (1 - tc/|ma|)/2. Picking the convention
+// instead of inventing one is what makes "the order is right" checkable against
+// a third-party definition rather than against itself.
+//
+// A zero or non-finite direction has no dominant axis and returns false; the
+// caller must fall back rather than sample face 0 by default.
+bool worldCubemapFaceForDirection(float x, float y, float z, int& face, float& u, float& v);
+
+struct WorldCubemapSampleReading {
+  int index = 0;
+  int origin[3] = {};
+  int facesFound = 0;
+  std::string firstMissing;
+};
+
+struct WorldCubemapReading {
+  std::size_t samples = 0;
+  std::vector<WorldCubemapSampleReading> perSample;
+  // Samples whose six faces are all reachable. `anyComplete` is what the
+  // renderer needs: one complete sample is enough to bind a cube, and saying
+  // "all or nothing" would make a map with one broken sample look like a map
+  // with none.
+  std::size_t samplesComplete = 0;
+  bool anyComplete = false;
+};
+
+WorldCubemapReading measureCubemaps(const BspMap& map, const std::string& mapName,
+  const WorldResourceProbe& probe);
+
+// ---------------------------------------------------------------------------
+// 3. Skybox
+// ---------------------------------------------------------------------------
+
+struct WorldSkyReading {
+  bool declared = false;
+  std::string name;
+  std::size_t skyFaces = 0;
+  int vmtFound = 0;
+  std::string firstMissing;
+};
+
+WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe);
+
+// ---------------------------------------------------------------------------
+// 4. Displacement
+// ---------------------------------------------------------------------------
+
+struct WorldDisplacementReading {
+  std::size_t faces = 0;
+  std::size_t cornerMatches = 0;
+  std::size_t triangles = 0;
+  // Counted from map.triangles rather than trusted from map.displacementTriangles,
+  // so the two disagreeing is a reading instead of a surprise.
+  std::size_t trianglesTagged = 0;
+  std::size_t renderedFaces = 0;
+  std::size_t facesTotal = 0;
+  // The parser's triangle limit truncates the walk. When it fires, every count
+  // below is a count of a prefix, and a capability reading that does not say so
+  // is lying about coverage. BspMap does not carry the limit, so the caller
+  // passes the one it handed to parse(); 0 means "unknown, do not claim".
+  bool limitTruncated = false;
+  bool cornerMatchesAllFaces = false;
+};
+
+WorldDisplacementReading measureDisplacement(const BspMap& map, std::size_t triangleLimit = 0);
+
+// ---------------------------------------------------------------------------
+// 5. Water capability and missing-resource fallback
+// ---------------------------------------------------------------------------
+
+struct WorldWaterReading {
+  std::size_t faces = 0;
+  std::size_t trianglesTagged = 0;
+  // What the map declares, what the material declares, what is reachable. The
+  // product's own RenderSettings carries waterReflection/waterRefraction as
+  // preset flags; BspMap hard-codes both to false. That disagreement is the
+  // reason this struct keeps them apart.
+  bool reflectionDeclaredBySettings = false;
+  bool refractionDeclaredBySettings = false;
+  bool materialDeclared = false;
+  bool textureReachable = false;
+};
+
+WorldWaterReading measureWater(const BspMap& map, bool reflectionDeclaredBySettings,
+  bool refractionDeclaredBySettings, bool waterMaterialDeclared, bool waterTextureReachable);
+
+// ---------------------------------------------------------------------------
+// 6. VIS clipping
+// ---------------------------------------------------------------------------
+
+struct WorldVisReading {
+  const char* mode = "unavailable";
+  int clusters = 0;
+  int visibleFromCluster0 = 0;
+  // Whether the PVS can answer a question at all. A map with one cluster has a
+  // PVS that hides nothing, and "0 hidden" is then a fact about the map rather
+  // than about clipping -- hence the separate flag.
+  bool queryable = false;
+  std::size_t trianglesWithCluster = 0;
+  std::size_t trianglesWithoutCluster = 0;
+  // The share of the world's triangles that a per-triangle cluster clip could
+  // act on. Without this number, "VIS is parsed" and "VIS clips anything" read
+  // the same.
+  double clusterCoverage = 0.0;
+};
+
+WorldVisReading measureVis(const BspMap& map);
+
+// ---------------------------------------------------------------------------
+// All six, in the order the task lists them
+// ---------------------------------------------------------------------------
+
+struct WorldCapabilityReadings {
+  WorldLightmapReading lightmap;
+  WorldCubemapReading cubemap;
+  WorldSkyReading sky;
+  WorldDisplacementReading displacement;
+  WorldWaterReading water;
+  WorldVisReading vis;
+};
+
+WorldCapabilityReadings measureWorldCapabilities(const BspMap& map, const std::string& mapName,
+  const WorldResourceProbe& probe, bool reflectionDeclaredBySettings,
+  bool refractionDeclaredBySettings, bool waterMaterialDeclared, bool waterTextureReachable,
+  std::size_t triangleLimit = 0);
+
+// ---------------------------------------------------------------------------
+// Judgement: state + reason per capability
+// ---------------------------------------------------------------------------
+// One implementation, shared by the probe and the product, for the same reason
+// viewmodel_material.cpp exists: a gate that asserts the two agree is only
+// non-circular if there is one thing to agree with.
+//
+// The reason is a measured sentence, not a label. It names the counters the
+// state came from, so a reader can re-derive the state from the numbers printed
+// next to it instead of taking the word on trust.
+
+struct WorldCapabilityVerdict {
+  WorldCapabilityState state = WorldCapabilityState::Unavailable;
+  std::string reason;
+};
+
+WorldCapabilityVerdict judgeLightmap(const WorldLightmapReading& reading);
+WorldCapabilityVerdict judgeCubemaps(const WorldCubemapReading& reading);
+WorldCapabilityVerdict judgeSky(const WorldSkyReading& reading);
+WorldCapabilityVerdict judgeDisplacement(const WorldDisplacementReading& reading);
+WorldCapabilityVerdict judgeWater(const WorldWaterReading& reading);
+WorldCapabilityVerdict judgeVis(const WorldVisReading& reading);
+
+// ---------------------------------------------------------------------------
+// Synthetic BSP fixtures
+// ---------------------------------------------------------------------------
+// A fixture is built as real BSP bytes and read back through BspParser::parse,
+// so the parser is under test and not the test's own idea of the parser. Every
+// knob a mutation needs is a field, because a mutation that has to hunt for a
+// byte offset is a mutation that breaks when an unrelated field moves.
+//
+// Layout notes taken from bsp_map.cpp (the only spec):
+//   faces      56 B: +4 firstEdge i32, +8 count i16, +10 infoIndex i16,
+//                    +12 dispIndex i16, +16 styles[4] B, +20 lightOffset i32,
+//                    +28 minsU i32, +32 minsV i32, +36 samplesW-1 i32,
+//                    +40 samplesH-1 i32
+//   texInfo    72 B: +0 u axis 4f, +16 v axis 4f, +32 lightmap u axis 4f,
+//                    +48 lightmap v axis 4f, +64 flags i32, +68 texDataIndex i32
+//   texData    32 B: +12 name table id i32
+//   vertices   12 B: 3f
+//   edges       4 B: 2 x u16 vertex
+//   surfEdges   4 B: i32 (negative reverses)
+//   models     48 B: +40 firstFace i32, +44 faceCount i32
+//   lighting    4 B per luxel: RGB plus a signed exponent byte (RGBExp32)
+//   cubemaps   16 B: 3 x i32 origin, 1 B size
+//   dispInfo  176 B: +0 start 3f, +12 vertStart i32, +20 power i32
+//   dispVerts  20 B: +0 direction 3f, +12 distance f
+//   leafs      32 B: +4 cluster i16, +20 firstFace u16, +22 faceCount u16
+//   leafFaces   2 B: u16 face index
+//   planes     20 B: normal 3f + dist f
+//   nodes      32 B: +0 plane i32, +4 child[2] i32
+//   vis         i32 cluster count, then cluster count x i32 offsets, then bits
+//   entities   text with a "skyname" "..." pair
+
+struct BspFixtureFace {
+  // Quad corners in winding order. Four and only four: the displacement path in
+  // the parser requires polygon.size() == 4 and the flat path needs >= 3.
+  float corners[4][3] = {};
+  // Texture axes: uv = dot(p, axis.xyz) + axis.w.
+  float uAxis[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+  float vAxis[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+  // Lightmap axes, same convention. The parser derives each triangle's light
+  // UV from these plus the face's mins/samples box, so a fixture that wants a
+  // face's luxels to land inside its own box sets these to match the corners.
+  float luAxis[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+  float lvAxis[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+  // texInfo flags. The parser reads four bits and ignores the rest: bit 2
+  // (value 2) and bit 3 (value 4) mark a sky face and the parser skips it
+  // entirely (counting it in skyFaces); bit 7 (value 64) and bit 8 (value 128)
+  // skip it as a trigger; bit 4 (value 8) marks water. There is no lightmap
+  // bit: whether a face has one is decided by styles[0], lightOffset and the
+  // samples box alone, which is why the fixture sets those instead.
+  std::int32_t flags = 0;
+  std::int32_t texDataIndex = 0;
+  // Lighting slice for this face. The parser reads samplesW*samplesH*4 bytes at
+  // lightOffset, so a fixture appends its luxels to BspFixture::lighting and
+  // records where they landed.
+  std::int32_t lightOffset = 0;
+  std::int32_t minsU = 0;
+  std::int32_t minsV = 0;
+  // Stored as value-1, matching the file format.
+  std::int32_t samplesW = 0;
+  std::int32_t samplesH = 0;
+  // styles[0] == 255 means "no lightmap on this face" to the parser.
+  std::uint8_t style0 = 0;
+  std::int16_t dispIndex = -1;
+};
+
+struct BspFixture {
+  std::string mapName = "fixture";
+  // Entity-lump text. When it contains a "skyname" pair the parser picks it up.
+  std::string entities;
+  std::vector<BspFixtureFace> faces;
+  // Raw RGBExp32 luxel bytes, shared by every face through its lightOffset.
+  std::vector<std::uint8_t> lighting;
+  std::vector<BspCubemapSample> cubemaps;
+  // Displacement: one dispInfo per displacement face, and the dispVerts grid
+  // (size x size x 20 bytes) that face indexes. The parser requires the dispInfo
+  // start position to be within 1 unit of one of the face's corners.
+  struct Displacement {
+    BspVertex start{};
+    int power = 2;         // 2..4 -> grid size 5..17
+    std::int32_t vertStart = 0;
+    // Grid rows, each `size` verts. A null direction with distance 0 leaves the
+    // face flat; a real one displaces it.
+    std::vector<std::array<float, 4>> verts;  // x,y,z direction + distance
+  };
+  std::vector<Displacement> displacements;
+  std::vector<std::uint8_t> dispVertBytes;
+  // VIS. clusterCount == 0 leaves the lump absent and the mode Unavailable.
+  int clusterCount = 0;
+  std::vector<std::int32_t> visOffsets;
+  std::vector<std::uint8_t> visBits;
+  // Planes/nodes/leafs. Left empty, clusterAt() cannot answer and every face
+  // gets cluster -1, which is the state a fixture uses when it wants the
+  // "triangle has no cluster" half of the VIS reading.
+  struct Leaf { std::int16_t cluster = -1; std::vector<std::uint16_t> faces; };
+  std::vector<Leaf> leaves;
+  // BSP tree for clusterAt(): a single plane splitting on x at `splitX`, with
+  // child 0 -> leaf 0 and child 1 -> leaf 1. Enough to make the camera's cluster
+  // answerable without a full tree.
+  bool withTree = false;
+  float splitX = 0.0f;
+};
+
+// Build the BSP bytes. The result is what a real .bsp file would be, so the only
+// thing between a fixture and a reading is BspParser::parse.
+std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture);
+
+// Append one RGBExp32 luxel (r,g,b and a signed exponent) to a lighting vector
+// and return the offset it landed at. A fixture that wants face 0's first luxel
+// to be a known colour uses this and then mutates the byte at that offset.
+std::int32_t appendLuxel(std::vector<std::uint8_t>& lighting, std::uint8_t r, std::uint8_t g,
+  std::uint8_t b, std::int8_t exponent);
+
+} // namespace tf2::native

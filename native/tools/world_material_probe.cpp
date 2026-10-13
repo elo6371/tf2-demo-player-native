@@ -1,12 +1,24 @@
 #include "bsp_map.h"
+#include "vmt_material.h"
+#include "vpk_archive.h"
+#include "world_material.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <map>
+#include <memory>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
+
+namespace {
 
 std::vector<std::uint8_t> readFile(const std::filesystem::path& path) {
   std::ifstream input(path, std::ios::binary);
@@ -136,6 +148,827 @@ void printMap(const std::filesystem::path& path, const tf2::native::BspMap& map)
     << "}\n";
 }
 
+// ---------------------------------------------------------------------------
+// The water material, resolved the way main.cpp resolves it
+// ---------------------------------------------------------------------------
+// main.cpp reads the first triangle's material, parses its VMT and takes
+// `waterShader` from it. That is the product's own rule, and a probe that
+// reported "no water material declared" while the product had found one would
+// be stating something false about the install. So the probe walks to a *water*
+// triangle instead of the first one -- same parser, same resource order, one
+// deliberate difference, recorded here because it is the only one.
+
+struct WaterMaterialResolution {
+  bool declared = false;
+  bool textureReachable = false;
+  std::string material;
+  std::string vmtPath;
+  std::string reason;
+};
+
+WaterMaterialResolution resolveWaterMaterial(const tf2::native::BspMap& map,
+    const std::filesystem::path& tfRoot, const tf2::native::VpkArchiveSet& archives) {
+  WaterMaterialResolution resolution;
+  const auto readBytes = [&](const std::string& path) {
+    std::error_code error;
+    if (std::filesystem::exists(tfRoot / std::filesystem::u8path(path), error)) {
+      return readFile(tfRoot / std::filesystem::u8path(path));
+    }
+    std::vector<std::filesystem::path> holders;
+    archives.collectContaining(path, holders);
+    for (const auto& holder : holders) {
+      const auto* archive = archives.find(holder);
+      if (!archive) continue;
+      const auto bytes = archive->read(path);
+      if (!bytes.empty()) return bytes;
+    }
+    return std::vector<std::uint8_t>{};
+  };
+  for (const auto& triangle : map.triangles) {
+    if (!triangle.water || triangle.material.empty()) continue;
+    resolution.material = triangle.material;
+    break;
+  }
+  if (resolution.material.empty()) {
+    resolution.reason = "no water triangle carries a material name";
+    return resolution;
+  }
+  resolution.vmtPath = tf2::native::VmtParser::resourcePath(resolution.material, ".vmt");
+  const auto vmtBytes = readBytes(resolution.vmtPath);
+  if (vmtBytes.empty()) {
+    resolution.reason = "water vmt unreadable: " + resolution.vmtPath;
+    return resolution;
+  }
+  tf2::native::VmtMaterial material;
+  if (!tf2::native::VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material)) {
+    resolution.reason = "water vmt did not parse: " + resolution.vmtPath;
+    return resolution;
+  }
+  resolution.declared = material.waterShader;
+  if (!resolution.declared) {
+    resolution.reason = "water vmt declares no water shader: " + resolution.vmtPath;
+    return resolution;
+  }
+  // A Water shader has no $basetexture by design: its surface is the normal map
+  // it refracts through. Checking $basetexture first and reporting the water as
+  // untextured would be a reading about the wrong key.
+  const char* keys[] = {"$basetexture", "$normalmap", "$bumpmap"};
+  std::string textureName;
+  std::string textureKey;
+  for (const char* key : keys) {
+    const auto at = material.fields.find(key);
+    if (at != material.fields.end() && !at->second.empty()) {
+      textureName = at->second;
+      textureKey = key;
+      break;
+    }
+  }
+  if (textureName.empty()) {
+    resolution.reason = "water vmt declares no surface texture: " + resolution.vmtPath;
+    return resolution;
+  }
+  const auto texturePath = tf2::native::VmtParser::resourcePath(textureName, ".vtf");
+  resolution.textureReachable = !readBytes(texturePath).empty();
+  resolution.reason = resolution.textureReachable
+    ? "water surface texture resolves via " + textureKey + ": " + texturePath
+    : "water surface texture unreadable via " + textureKey + ": " + texturePath;
+  return resolution;
+}
+
+// ---------------------------------------------------------------------------
+// Resource reachability against the real install
+// ---------------------------------------------------------------------------
+
+class TfResourceProbe : public tf2::native::WorldResourceProbe {
+public:
+  TfResourceProbe(std::filesystem::path tfRoot, tf2::native::VpkArchiveSet archives)
+    : tfRoot_(std::move(tfRoot)), archives_(std::move(archives)) {}
+
+  bool reachable(const std::string& resourcePath) const override {
+    std::error_code error;
+    if (std::filesystem::exists(tfRoot_ / std::filesystem::u8path(resourcePath), error)) return true;
+    std::vector<std::filesystem::path> holders;
+    archives_.collectContaining(resourcePath, holders);
+    return !holders.empty();
+  }
+
+private:
+  std::filesystem::path tfRoot_;
+  tf2::native::VpkArchiveSet archives_;
+};
+
+// ---------------------------------------------------------------------------
+// Assertions
+// ---------------------------------------------------------------------------
+// A check carries its own verdict so the runner can print a single line per
+// failure instead of re-deriving what went wrong from a pair of strings.
+
+struct Check {
+  std::string key;
+  bool ok = false;
+  std::string detail;
+};
+
+Check checkStr(const std::string& key, const std::string& actual, const std::string& expected) {
+  return Check{key, actual == expected, "actual=" + actual + " expected=" + expected};
+}
+Check checkNum(const std::string& key, std::size_t actual, std::size_t expected) {
+  return checkStr(key, std::to_string(actual), std::to_string(expected));
+}
+Check checkNum(const std::string& key, int actual, int expected) {
+  return checkStr(key, std::to_string(actual), std::to_string(expected));
+}
+Check checkBool(const std::string& key, bool actual, bool expected) {
+  return checkStr(key, actual ? "true" : "false", expected ? "true" : "false");
+}
+Check checkNear(const std::string& key, double actual, double expected, double tolerance) {
+  const bool ok = std::fabs(actual - expected) <= tolerance;
+  std::ostringstream detail;
+  detail.precision(8);
+  detail << "actual=" << actual << " expected=" << expected;
+  return Check{key, ok, detail.str()};
+}
+
+// The parser's own light-uv derivation, copied so the expectation is derived
+// from the fixture's parameters instead of hard-coded from a reading someone
+// once observed. If the parser changes, this changes with it and the fixture
+// fails loudly rather than quietly agreeing with the new behaviour.
+double expectedLightUv(double luxel, int stored, int samples, int mins, int origin, int atlasSize) {
+  double coord = stored > 0 ? (luxel - static_cast<double>(mins)) / static_cast<double>(stored) : 0.5;
+  if (coord < 0.0) coord = 0.0;
+  else if (coord > 1.0) coord = 1.0;
+  const double texel = samples <= 1 ? 0.5 : 0.5 + coord * static_cast<double>(samples - 1);
+  return (static_cast<double>(origin) + texel) / static_cast<double>(atlasSize);
+}
+
+// One RGBExp32 luxel decoded the way bsp_map.cpp's writeLuxel decodes it, so the
+// expected atlas pixel is derived rather than copied out of a dump.
+std::array<std::uint8_t, 4> expectedAtlasPixel(std::uint8_t r, std::uint8_t g, std::uint8_t b,
+    std::int8_t exponent) {
+  const double scale = std::ldexp(1.0, static_cast<int>(exponent)) / 255.0;
+  auto channel = [&](std::uint8_t sample) {
+    const double decoded = static_cast<double>(sample) * scale;
+    if (decoded >= 1.0) return static_cast<std::uint8_t>(255);
+    if (decoded <= 0.0) return static_cast<std::uint8_t>(0);
+    return static_cast<std::uint8_t>(decoded * 255.0 + 0.5);
+  };
+  return {channel(r), channel(g), channel(b), static_cast<std::uint8_t>(255)};
+}
+
+std::string atlasPixelText(const std::array<std::uint8_t, 4>& pixel) {
+  return std::to_string(pixel[0]) + "," + std::to_string(pixel[1]) + ","
+    + std::to_string(pixel[2]) + "," + std::to_string(pixel[3]);
+}
+
+std::string atlasPixelAt(const tf2::native::BspMap& map, int x, int y) {
+  if (map.lightmapAtlas.empty()) return "no-atlas";
+  const auto at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(map.lightmapAtlasWidth)
+    + static_cast<std::size_t>(x)) * 4u;
+  if (at + 4u > map.lightmapAtlas.size()) return "out-of-range";
+  return std::to_string(map.lightmapAtlas[at]) + "," + std::to_string(map.lightmapAtlas[at + 1])
+    + "," + std::to_string(map.lightmapAtlas[at + 2]) + ","
+    + std::to_string(map.lightmapAtlas[at + 3]);
+}
+
+// ---------------------------------------------------------------------------
+// Fixture cases
+// ---------------------------------------------------------------------------
+// Each case builds real BSP bytes through buildFixtureBsp and reads them back
+// through BspParser::parse, so the parser is what is under test. `mutate`
+// returns false when the case has no mutation, which the runner treats as "no
+// mutated run" rather than as a failure.
+
+using CaseBody = std::function<std::vector<Check>(const tf2::native::BspMap&,
+  const tf2::native::WorldCapabilityReadings&)>;
+using CaseMutate = std::function<bool(tf2::native::BspFixture&, std::vector<std::string>&)>;
+
+struct FixtureCase {
+  std::string name;
+  tf2::native::BspFixture fixture;
+  std::vector<std::string> resources;
+  // What the map's own material declares about water. Kept as explicit fields
+  // rather than inferred from "resources is non-empty", because a fixture with
+  // a water face and no material is a different case from one with neither.
+  bool waterMaterialDeclared = false;
+  bool waterTextureReachable = false;
+  // The triangle limit handed to BspParser::parse. 200000 is what the product
+  // uses; a case that needs the walk to stop early sets it lower.
+  std::size_t triangleLimit = 200000;
+  CaseBody straight;
+  CaseMutate mutate;
+  CaseBody mutated;
+};
+
+// Flattened into the key space the fixture bodies and the gate assert on, so a
+// fixture, the product and world-material-check.sh read one vocabulary.
+std::map<std::string, std::string> flattenReadings(
+    const tf2::native::WorldCapabilityReadings& readings) {
+  using tf2::native::worldCapabilityStateName;
+  std::map<std::string, std::string> out;
+  const auto lightmap = tf2::native::judgeLightmap(readings.lightmap);
+  const auto cubemap = tf2::native::judgeCubemaps(readings.cubemap);
+  const auto sky = tf2::native::judgeSky(readings.sky);
+  const auto displacement = tf2::native::judgeDisplacement(readings.displacement);
+  const auto water = tf2::native::judgeWater(readings.water);
+  const auto vis = tf2::native::judgeVis(readings.vis);
+
+  out["lightmap.state"] = worldCapabilityStateName(lightmap.state);
+  out["lightmap.reason"] = lightmap.reason;
+  out["lightmap.facesWithLightmap"] = std::to_string(readings.lightmap.facesWithLightmap);
+  out["lightmap.facesPacked"] = std::to_string(readings.lightmap.facesPacked);
+  out["lightmap.facesDropped"] = std::to_string(readings.lightmap.facesDropped);
+  out["lightmap.trianglesWithLightUv"] = std::to_string(readings.lightmap.trianglesWithLightUv);
+  out["lightmap.triangles"] = std::to_string(readings.lightmap.triangles);
+  out["lightmap.atlas"] = std::to_string(readings.lightmap.atlasWidth) + "x"
+    + std::to_string(readings.lightmap.atlasHeight);
+  out["lightmap.uvAllInRange"] = readings.lightmap.uvAllInRange ? "true" : "false";
+
+  out["cubemap.state"] = worldCapabilityStateName(cubemap.state);
+  out["cubemap.reason"] = cubemap.reason;
+  out["cubemap.samples"] = std::to_string(readings.cubemap.samples);
+  out["cubemap.samplesComplete"] = std::to_string(readings.cubemap.samplesComplete);
+
+  out["sky.state"] = worldCapabilityStateName(sky.state);
+  out["sky.reason"] = sky.reason;
+  out["sky.name"] = readings.sky.name;
+  out["sky.faces"] = std::to_string(readings.sky.skyFaces);
+  out["sky.vmtFound"] = std::to_string(readings.sky.vmtFound);
+
+  out["displacement.state"] = worldCapabilityStateName(displacement.state);
+  out["displacement.reason"] = displacement.reason;
+  out["displacement.faces"] = std::to_string(readings.displacement.faces);
+  out["displacement.triangles"] = std::to_string(readings.displacement.triangles);
+  out["displacement.trianglesTagged"] = std::to_string(readings.displacement.trianglesTagged);
+  out["displacement.cornerMatches"] = std::to_string(readings.displacement.cornerMatches);
+
+  out["water.state"] = worldCapabilityStateName(water.state);
+  out["water.reason"] = water.reason;
+  out["water.faces"] = std::to_string(readings.water.faces);
+  out["water.trianglesTagged"] = std::to_string(readings.water.trianglesTagged);
+
+  out["vis.state"] = worldCapabilityStateName(vis.state);
+  out["vis.reason"] = vis.reason;
+  out["vis.mode"] = readings.vis.mode;
+  out["vis.clusters"] = std::to_string(readings.vis.clusters);
+  out["vis.visibleFromCluster0"] = std::to_string(readings.vis.visibleFromCluster0);
+  out["vis.trianglesWithCluster"] = std::to_string(readings.vis.trianglesWithCluster);
+  return out;
+}
+
+std::vector<Check> readingChecks(const tf2::native::WorldCapabilityReadings& readings,
+    const std::vector<std::pair<std::string, std::string>>& expect) {
+  const auto flat = flattenReadings(readings);
+  std::vector<Check> checks;
+  for (const auto& [key, expected] : expect) {
+    const auto at = flat.find(key);
+    checks.push_back(checkStr(key, at == flat.end() ? "<absent>" : at->second, expected));
+  }
+  return checks;
+}
+
+tf2::native::BspFixtureFace lightmapQuad() {
+  tf2::native::BspFixtureFace face;
+  const float corners[4][3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},
+    {1.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
+  for (int i = 0; i < 4; ++i) {
+    face.corners[i][0] = corners[i][0];
+    face.corners[i][1] = corners[i][1];
+    face.corners[i][2] = corners[i][2];
+  }
+  // Lightmap axes map the quad onto its own luxel box: corner (0,0) -> luxel
+  // (0,0) and corner (1,1) -> luxel (1,1), with minsU/minsV at 0.
+  face.luAxis[0] = 1.0f; face.luAxis[1] = 0.0f; face.luAxis[2] = 0.0f; face.luAxis[3] = 0.0f;
+  face.lvAxis[0] = 0.0f; face.lvAxis[1] = 1.0f; face.lvAxis[2] = 0.0f; face.lvAxis[3] = 0.0f;
+  face.minsU = 0;
+  face.minsV = 0;
+  face.samplesW = 1;  // stored as value-1, so the grid is 2x2
+  face.samplesH = 1;
+  face.lightOffset = 0;
+  face.style0 = 0;
+  return face;
+}
+
+std::vector<FixtureCase> buildCases() {
+  using tf2::native::BspFixture;
+  std::vector<FixtureCase> cases;
+
+  // ---- 1. per-face RGBExp32 lightmap --------------------------------------
+  {
+    FixtureCase item;
+    item.name = "lightmap-per-face";
+    // Four luxels chosen so one channel of the decode is non-trivial: exponent
+    // 0 is the identity, exponent 1 doubles.
+    tf2::native::appendLuxel(item.fixture.lighting, 200, 100, 50, 0);
+    tf2::native::appendLuxel(item.fixture.lighting, 10, 20, 30, 1);
+    tf2::native::appendLuxel(item.fixture.lighting, 255, 255, 255, 0);
+    tf2::native::appendLuxel(item.fixture.lighting, 0, 0, 0, 0);
+    item.fixture.faces.push_back(lightmapQuad());
+    const auto body = [](const tf2::native::BspMap& map,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      std::vector<Check> checks = readingChecks(readings, {
+        {"lightmap.state", "active"},
+        {"lightmap.facesWithLightmap", "1"},
+        {"lightmap.facesPacked", "1"},
+        {"lightmap.facesDropped", "0"},
+        {"lightmap.trianglesWithLightUv", "2"},
+        {"lightmap.triangles", "2"},
+        {"lightmap.atlas", "2048x2"},
+        {"lightmap.uvAllInRange", "true"},
+      });
+      // The atlas texel a triangle's light uv points at is that face's own
+      // luxel, decoded. This is the per-face claim made checkable.
+      checks.push_back(checkStr("atlasPixel00", atlasPixelAt(map, 0, 0),
+        atlasPixelText(expectedAtlasPixel(200, 100, 50, 0))));
+      checks.push_back(checkStr("atlasPixel10", atlasPixelAt(map, 1, 0),
+        atlasPixelText(expectedAtlasPixel(10, 20, 30, 1))));
+      const auto& triangle = map.triangles.front();
+      // The parser rescales v when the trimmed atlas is shorter than 2048, so
+      // the expectation carries the same factor; both sides go through the same
+      // derivation and cannot drift apart silently.
+      const double vScale = map.lightmapAtlasHeight != 2048
+        ? 2048.0 / static_cast<double>(map.lightmapAtlasHeight) : 1.0;
+      checks.push_back(checkNear("lightUv.a.u", triangle.alu,
+        expectedLightUv(0, 1, 2, 0, 0, 2048), 1e-9));
+      checks.push_back(checkNear("lightUv.a.v", triangle.alv,
+        expectedLightUv(0, 1, 2, 0, 0, 2048) * vScale, 1e-9));
+      checks.push_back(checkNear("lightUv.b.u", triangle.blu,
+        expectedLightUv(1, 1, 2, 0, 0, 2048), 1e-9));
+      checks.push_back(checkNear("lightUv.c.v", triangle.clv,
+        expectedLightUv(1, 1, 2, 0, 0, 2048) * vScale, 1e-9));
+      return checks;
+    };
+    item.straight = body;
+    // The exponent byte of the first luxel. If the atlas is not driven by the
+    // face's own samples, this changes nothing and the mutation is caught.
+    item.mutate = [](BspFixture& f, std::vector<std::string>&) { f.lighting[3] = 1; return true; };
+    item.mutated = [](const tf2::native::BspMap& map,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      std::vector<Check> checks = readingChecks(readings, {{"lightmap.state", "active"}});
+      checks.push_back(checkStr("atlasPixel00", atlasPixelAt(map, 0, 0),
+        atlasPixelText(expectedAtlasPixel(200, 100, 50, 1))));
+      return checks;
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 2. the atlas's loss is measured, not assumed ------------------------
+  // The parser caps a face's lightmap at 512x512 samples (a bigger box makes
+  // lightBytes zero, so the face stops being a lightmap face at all), which
+  // means the only way to lose a face to the packer is to fill the 2048-tall
+  // atlas first. Four rows of four 512x512 faces fill it exactly, so the
+  // seventeenth face is the one that drops.
+  {
+    FixtureCase item;
+    item.name = "lightmap-atlas-capacity";
+    // One lighting slice shared by every face. The parser reads each face's
+    // box out of the same bytes, which is what makes a 1 MB fixture able to
+    // carry seventeen 512x512 lightmaps.
+    item.fixture.lighting.assign(512u * 512u * 4u, 0x40);
+    for (int i = 0; i < 17; ++i) {
+      auto face = lightmapQuad();
+      face.samplesW = 511;   // stored as value-1: the box is 512x512
+      face.samplesH = 511;
+      // The quad spans the whole luxel box so every corner lands inside it.
+      face.corners[1][0] = 511.0f;
+      face.corners[2][0] = 511.0f;
+      face.corners[2][1] = 511.0f;
+      face.corners[3][1] = 511.0f;
+      item.fixture.faces.push_back(face);
+    }
+    item.straight = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"lightmap.state", "active"},
+        {"lightmap.facesWithLightmap", "17"},
+        {"lightmap.facesPacked", "16"},
+        {"lightmap.facesDropped", "1"},
+        {"lightmap.trianglesWithLightUv", "32"},
+        {"lightmap.atlas", "2048x2048"},
+        {"lightmap.uvAllInRange", "true"},
+      });
+    };
+    // Sixteen faces fill the atlas exactly and nothing drops. This is the
+    // reading that makes the previous one meaningful: without it, "dropped 1"
+    // could be a constant.
+    item.mutate = [](tf2::native::BspFixture& f, std::vector<std::string>&) {
+      f.faces.pop_back();
+      return true;
+    };
+    item.mutated = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"lightmap.state", "active"},
+        {"lightmap.facesWithLightmap", "16"},
+        {"lightmap.facesPacked", "16"},
+        {"lightmap.facesDropped", "0"},
+        {"lightmap.trianglesWithLightUv", "32"},
+      });
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 2b. counted but unsampled -------------------------------------------
+  // The other way to reach "faces with lightmap data, zero triangles sampling
+  // it": the caller's triangle limit stops the walk before any triangle is
+  // emitted, while the atlas is still packed. Zero is the degenerate end of the
+  // same knob the product sets to 200000.
+  {
+    FixtureCase item;
+    item.name = "lightmap-triangle-limit";
+    item.triangleLimit = 0;
+    item.fixture.lighting.assign(512u * 512u * 4u, 0x40);
+    auto face = lightmapQuad();
+    face.samplesW = 511;
+    face.samplesH = 511;
+    item.fixture.faces.push_back(face);
+    item.straight = [](const tf2::native::BspMap& map,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      auto checks = readingChecks(readings, {
+        {"lightmap.state", "fallback"},
+        {"lightmap.facesWithLightmap", "1"},
+        {"lightmap.facesPacked", "1"},
+        {"lightmap.trianglesWithLightUv", "0"},
+      });
+      // The atlas exists and holds the packed face; what is missing is any
+      // triangle to sample it. Saying which of the two failed is the whole
+      // point of the separate branches in judgeLightmap.
+      checks.push_back(checkBool("atlasPackedAnyway", !map.lightmapAtlas.empty(), true));
+      const auto flat = flattenReadings(readings);
+      const auto at = flat.find("lightmap.reason");
+      checks.push_back(checkStr("reasonNamesTriangleLimit",
+        at == flat.end() || at->second.find("triangle limit") == std::string::npos
+          ? "not-named" : "named", "named"));
+      return checks;
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 3. cubemap: six-face discovery, order, sampling --------------------
+  {
+    FixtureCase item;
+    item.name = "cubemap-six-face";
+    item.fixture.cubemaps.push_back({{100, 200, 300}, 64});
+    item.fixture.cubemaps.push_back({{-400, 500, 600}, 64});
+    item.fixture.faces.push_back(lightmapQuad());
+    for (int sample = 0; sample < 2; ++sample) {
+      for (int face = 0; face < 6; ++face) {
+        item.resources.push_back("materials/maps/fixture/c_fixture_" + std::to_string(sample)
+          + tf2::native::worldCubemapFaceSuffix(face) + ".vtf");
+      }
+    }
+    item.straight = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"cubemap.state", "active"},
+        {"cubemap.samples", "2"},
+        {"cubemap.samplesComplete", "2"},
+      });
+    };
+    // Drop the same face of both samples. With one sample still complete the
+    // state stays active and the reason does not name the gap, so the mutation
+    // takes both: zero complete samples is the state whose reason has to name
+    // the path that went missing, and that naming is what a reader of the real
+    // install's reading will rely on.
+    item.mutate = [](tf2::native::BspFixture&, std::vector<std::string>& resources) {
+      for (int sample = 0; sample < 2; ++sample) {
+        const std::string path = "materials/maps/fixture/c_fixture_" + std::to_string(sample)
+          + "up.vtf";
+        const auto at = std::find(resources.begin(), resources.end(), path);
+        if (at != resources.end()) resources.erase(at);
+      }
+      return true;
+    };
+    item.mutated = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      auto checks = readingChecks(readings, {
+        {"cubemap.state", "fallback"},
+        {"cubemap.samples", "2"},
+        {"cubemap.samplesComplete", "0"},
+      });
+      const auto flat = flattenReadings(readings);
+      const auto at = flat.find("cubemap.reason");
+      checks.push_back(checkStr("cubemap.reasonNamesMissing",
+        at == flat.end() || at->second.find("c_fixture_0up.vtf") == std::string::npos
+          ? "not-named" : "named", "named"));
+      return checks;
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 4. skybox -----------------------------------------------------------
+  {
+    FixtureCase item;
+    item.name = "skybox-six-vmt";
+    item.fixture.entities = "\"skyname\" \"sky_fixture_01\"\n";
+    item.fixture.faces.push_back(lightmapQuad());
+    for (int face = 0; face < 6; ++face) {
+      item.resources.push_back(std::string("materials/skybox/sky_fixture_01")
+        + tf2::native::worldCubemapFaceSuffix(face) + ".vmt");
+    }
+    item.straight = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"sky.state", "active"},
+        {"sky.name", "sky_fixture_01"},
+        {"sky.vmtFound", "6"},
+      });
+    };
+    item.mutate = [](tf2::native::BspFixture&, std::vector<std::string>& resources) {
+      const std::string path = "materials/skybox/sky_fixture_01dn.vmt";
+      const auto at = std::find(resources.begin(), resources.end(), path);
+      if (at != resources.end()) resources.erase(at);
+      return true;
+    };
+    item.mutated = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"sky.state", "fallback"},
+        {"sky.vmtFound", "5"},
+      });
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 5. displacement -----------------------------------------------------
+  {
+    FixtureCase item;
+    item.name = "displacement-flat-grid";
+    auto face = lightmapQuad();
+    face.dispIndex = 0;
+    item.fixture.faces.push_back(face);
+    tf2::native::BspFixture::Displacement disp;
+    disp.start = {face.corners[0][0], face.corners[0][1], face.corners[0][2]};
+    disp.power = 2;   // grid size 5 -> 32 triangles
+    disp.vertStart = 0;
+    // Flat: a null direction with zero distance leaves every grid point on the
+    // bilinear surface, so the displacement face covers exactly the footprint
+    // of the flat quad and only the triangle count moves.
+    for (int i = 0; i < 25; ++i) disp.verts.push_back({0.0f, 0.0f, 0.0f, 0.0f});
+    for (const auto& vert : disp.verts) {
+      // Twenty bytes per vert: direction (3 floats), distance, then four bytes
+      // the format reserves. Sixteen would make the parser count twenty verts
+      // where twenty-five were written and silently build no grid at all.
+      for (int channel = 0; channel < 4; ++channel) {
+        const float value = channel < 3 ? vert[channel] : vert[3];
+        const auto* bytes = reinterpret_cast<const std::uint8_t*>(&value);
+        item.fixture.dispVertBytes.insert(item.fixture.dispVertBytes.end(), bytes, bytes + 4);
+      }
+      item.fixture.dispVertBytes.resize(item.fixture.dispVertBytes.size() + 4, 0);
+    }
+    item.fixture.displacements.push_back(disp);
+    item.straight = [](const tf2::native::BspMap& map,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      auto checks = readingChecks(readings, {
+        {"displacement.state", "active"},
+        {"displacement.faces", "1"},
+        {"displacement.triangles", "32"},
+        {"displacement.trianglesTagged", "32"},
+        {"displacement.cornerMatches", "1"},
+      });
+      // The flat quad alone would be 2 triangles; 32 is the subdivided grid, so
+      // the displacement path really ran rather than the fallback.
+      checks.push_back(checkBool("gridSubdivides", map.triangles.size() > 2, true));
+      return checks;
+    };
+    // power 9 is outside the parser's 2..4, so no grid is built and the face
+    // falls back to the flat quad.
+    item.mutate = [](BspFixture& f, std::vector<std::string>&) {
+      f.displacements[0].power = 9; return true;
+    };
+    item.mutated = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"displacement.state", "unavailable"},
+        {"displacement.faces", "0"},
+        {"displacement.triangles", "0"},
+        {"displacement.trianglesTagged", "0"},
+      });
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 6. water ------------------------------------------------------------
+  {
+    FixtureCase item;
+    item.name = "water-capability";
+    auto face = lightmapQuad();
+    face.flags = 8;   // the parser's water bit
+    item.fixture.faces.push_back(face);
+    item.resources.push_back("materials/fixture/water.vtf");
+    item.waterMaterialDeclared = true;
+    item.waterTextureReachable = true;
+    item.straight = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      auto checks = readingChecks(readings, {
+        {"water.state", "fallback"},
+        {"water.faces", "1"},
+        {"water.trianglesTagged", "2"},
+      });
+      // The product's own settings carry waterReflection/waterRefraction; the
+      // BSP hard-codes both false. The reading has to say which of the two the
+      // fallback came from, and here it is the unimplemented render target.
+      const auto flat = flattenReadings(readings);
+      const auto at = flat.find("water.reason");
+      checks.push_back(checkStr("water.reasonNamesRenderTarget",
+        at == flat.end() || at->second.find("render target") == std::string::npos
+          ? "not-named" : "named", "named"));
+      return checks;
+    };
+    // Clear the water bit: the faces stop being water faces entirely, which is
+    // the difference between "water that cannot reflect" and "no water".
+    item.mutate = [](BspFixture& f, std::vector<std::string>&) {
+      f.faces[0].flags = 0; return true;
+    };
+    item.mutated = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"water.state", "unavailable"},
+        {"water.faces", "0"},
+        {"water.trianglesTagged", "0"},
+      });
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 7. VIS --------------------------------------------------------------
+  {
+    FixtureCase item;
+    item.name = "vis-cluster-clip";
+    item.fixture.clusterCount = 4;
+    item.fixture.visBits = {0x03, 0x01, 0x00, 0x00};
+    // Cluster 0 sees clusters 0 and 1; the rest see only themselves.
+    item.fixture.withTree = true;
+    item.fixture.splitX = 0.5f;
+    item.fixture.leaves.push_back({0, {0}});
+    item.fixture.leaves.push_back({1, {}});
+    item.fixture.faces.push_back(lightmapQuad());
+    item.straight = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"vis.state", "active"},
+        {"vis.mode", "cluster-pvs"},
+        {"vis.clusters", "4"},
+        {"vis.visibleFromCluster0", "2"},
+        {"vis.trianglesWithCluster", "2"},
+      });
+    };
+    // Cluster 0's mask loses a bit: it now sees one cluster instead of two.
+    item.mutate = [](BspFixture& f, std::vector<std::string>&) {
+      f.visBits[0] = 0x01; return true;
+    };
+    item.mutated = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return readingChecks(readings, {
+        {"vis.state", "active"},
+        {"vis.visibleFromCluster0", "1"},
+      });
+    };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 8. the camera's own cluster is answerable ---------------------------
+  {
+    FixtureCase item;
+    item.name = "vis-camera-cluster";
+    item.fixture.clusterCount = 2;
+    item.fixture.visBits = {0x03, 0x03};
+    item.fixture.withTree = true;
+    item.fixture.splitX = 0.5f;
+    item.fixture.leaves.push_back({0, {0}});
+    item.fixture.leaves.push_back({1, {}});
+    item.fixture.faces.push_back(lightmapQuad());
+    item.straight = [](const tf2::native::BspMap& map,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      auto checks = readingChecks(readings, {{"vis.mode", "cluster-pvs"}});
+      // clusterAt is the only way a camera position becomes a cluster, so if it
+      // is wrong the clip clips the wrong half of the map. A point on the +x
+      // side of the split lands in leaf 0 (cluster 0); a point on the -x side
+      // lands in leaf 1 (cluster 1).
+      checks.push_back(checkNum("clusterAtPlusX",
+        tf2::native::BspParser::clusterAt(map, 2.0f, 0.0f, 0.0f), 0));
+      checks.push_back(checkNum("clusterAtMinusX",
+        tf2::native::BspParser::clusterAt(map, -2.0f, 0.0f, 0.0f), 1));
+      checks.push_back(checkNum("clusterAtNaN",
+        tf2::native::BspParser::clusterAt(map, NAN, 0.0f, 0.0f), -1));
+      return checks;
+    };
+    cases.push_back(std::move(item));
+  }
+
+  return cases;
+}
+
+// ---------------------------------------------------------------------------
+// Runner
+// ---------------------------------------------------------------------------
+
+struct CaseOutcome {
+  std::string name;
+  std::vector<Check> straight;
+  std::vector<Check> mutated;
+  bool mutationRan = false;
+};
+
+CaseOutcome runCase(const FixtureCase& item, bool withMutation) {
+  CaseOutcome outcome;
+  outcome.name = item.name;
+  const auto evaluate = [&](const tf2::native::BspFixture& fixture,
+      const std::vector<std::string>& resources, const CaseBody& body) {
+    const auto bytes = tf2::native::buildFixtureBsp(fixture);
+    tf2::native::BspMap map;
+    tf2::native::BspParser::parse(bytes, map, item.triangleLimit);
+    tf2::native::FixedResourceProbe probe(resources);
+    const auto readings = tf2::native::measureWorldCapabilities(map, fixture.mapName, probe,
+      false, false, item.waterMaterialDeclared, item.waterTextureReachable, item.triangleLimit);
+    return body(map, readings);
+  };
+  outcome.straight = evaluate(item.fixture, item.resources, item.straight);
+  if (withMutation && item.mutate && item.mutated) {
+    auto fixture = item.fixture;
+    auto resources = item.resources;
+    if (item.mutate(fixture, resources)) {
+      outcome.mutationRan = true;
+      outcome.mutated = evaluate(fixture, resources, item.mutated);
+    }
+  }
+  return outcome;
+}
+
+std::string checksToJson(const std::vector<Check>& checks) {
+  std::ostringstream text;
+  text << "[";
+  bool first = true;
+  for (const auto& check : checks) {
+    if (!first) text << ",";
+    first = false;
+    std::string detail = check.detail;
+    // A detail is built from paths and numbers, but a path is caller data: one
+    // quote in it would end the JSON string and silently truncate the log.
+    std::replace(detail.begin(), detail.end(), '"', '\'');
+    text << "{\"key\":\"" << check.key << "\",\"ok\":" << (check.ok ? "true" : "false")
+      << ",\"detail\":\"" << detail << "\"}";
+  }
+  text << "]";
+  return text.str();
+}
+
+std::size_t countBad(const std::vector<Check>& checks) {
+  std::size_t bad = 0;
+  for (const auto& check : checks) if (!check.ok) ++bad;
+  return bad;
+}
+
+int runFixtures(bool withMutation) {
+  const auto cases = buildCases();
+  std::size_t total = 0, bad = 0, mutations = 0, mutationsBad = 0;
+  for (const auto& item : cases) {
+    const auto outcome = runCase(item, withMutation);
+    total += outcome.straight.size();
+    bad += countBad(outcome.straight);
+    for (const auto& check : outcome.straight) {
+      if (!check.ok) {
+        std::cerr << "FAIL " << outcome.name << " " << check.key << ": " << check.detail << "\n";
+      }
+    }
+    if (outcome.mutationRan) {
+      ++mutations;
+      total += outcome.mutated.size();
+      const auto mutatedBad = countBad(outcome.mutated);
+      bad += mutatedBad;
+      mutationsBad += mutatedBad;
+      for (const auto& check : outcome.mutated) {
+        if (!check.ok) {
+          std::cerr << "FAIL " << outcome.name << " [mutated] " << check.key << ": "
+            << check.detail << "\n";
+        }
+      }
+    }
+    std::cout << "{\"fixture\":\"" << outcome.name << "\",\"checks\":" << outcome.straight.size()
+      << ",\"bad\":" << countBad(outcome.straight)
+      << ",\"mutationRan\":" << (outcome.mutationRan ? "true" : "false")
+      << ",\"mutationChecks\":" << outcome.mutated.size()
+      << ",\"mutationBad\":" << countBad(outcome.mutated) << "}\n";
+  }
+  std::cout << "{\"fixtures\":" << cases.size() << ",\"checks\":" << total << ",\"bad\":" << bad
+    << ",\"mutations\":" << mutations << ",\"mutationBad\":" << mutationsBad << "}\n";
+  if (bad != 0) return 1;
+  // A mutation run where nothing moved is a run that proved nothing, so it is a
+  // failure rather than a pass with a footnote.
+  if (withMutation && mutations == 0) {
+    std::cerr << "FAIL no fixture had a mutation to run\n";
+    return 1;
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Self-test
+// ---------------------------------------------------------------------------
+// The original self-test line is left byte-identical on purpose: verify-fast.sh
+// pins seven substrings of it, and that script is outside this task's
+// write scope. The capability self-test is a second line, so a reader of the
+// fast tier's capture sees both without either changing.
+
 bool selfTest() {
   tf2::native::BspMap empty;
   const bool rejected = !tf2::native::BspParser::parse({}, empty);
@@ -163,28 +996,168 @@ bool selfTest() {
   return ok;
 }
 
+// The pure half of the capability layer: no BSP, no resources, no GPU. Every
+// function here is one the renderer will call, so a wrong face order or a
+// direction that resolves to no face is caught here rather than in a picture.
+bool capabilitySelfTest() {
+  int face = -1;
+  float u = 0.0f, v = 0.0f;
+  const bool axes = tf2::native::worldCubemapFaceForDirection(1.0f, 0.0f, 0.0f, face, u, v)
+    && face == 0 && std::fabs(u - 0.5f) < 1e-6f && std::fabs(v - 0.5f) < 1e-6f;
+  const bool negativeX = tf2::native::worldCubemapFaceForDirection(-1.0f, 0.0f, 0.0f, face, u, v)
+    && face == 1;
+  const bool positiveY = tf2::native::worldCubemapFaceForDirection(0.0f, 1.0f, 0.0f, face, u, v)
+    && face == 2;
+  const bool negativeY = tf2::native::worldCubemapFaceForDirection(0.0f, -1.0f, 0.0f, face, u, v)
+    && face == 3;
+  const bool positiveZ = tf2::native::worldCubemapFaceForDirection(0.0f, 0.0f, 1.0f, face, u, v)
+    && face == 4;
+  const bool negativeZ = tf2::native::worldCubemapFaceForDirection(0.0f, 0.0f, -1.0f, face, u, v)
+    && face == 5;
+  // The dominant axis wins even when another axis is large: (2,1,0) is still
+  // the +X face, and its u,v are inside the face.
+  const bool dominant = tf2::native::worldCubemapFaceForDirection(2.0f, 1.0f, 0.0f, face, u, v)
+    && face == 0 && u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f;
+  // A zero or non-finite direction has no dominant axis and must be refused
+  // rather than quietly sampling face 0.
+  const bool refused = !tf2::native::worldCubemapFaceForDirection(0.0f, 0.0f, 0.0f, face, u, v)
+    && !tf2::native::worldCubemapFaceForDirection(NAN, 0.0f, 1.0f, face, u, v);
+  std::string paths[6];
+  const bool faceOrder = tf2::native::worldCubemapFacePaths("snakewater", 0, paths)
+    && paths[0] == "materials/maps/snakewater/c_snakewater_0rt.vtf"
+    && paths[1] == "materials/maps/snakewater/c_snakewater_0lf.vtf"
+    && paths[2] == "materials/maps/snakewater/c_snakewater_0bk.vtf"
+    && paths[3] == "materials/maps/snakewater/c_snakewater_0ft.vtf"
+    && paths[4] == "materials/maps/snakewater/c_snakewater_0up.vtf"
+    && paths[5] == "materials/maps/snakewater/c_snakewater_0dn.vtf"
+    && !tf2::native::worldCubemapFacePaths("", 0, paths)
+    && !tf2::native::worldCubemapFacePaths("snakewater", -1, paths);
+  const bool suffixes = std::string(tf2::native::worldCubemapFaceSuffix(0)) == "rt"
+    && std::string(tf2::native::worldCubemapFaceSuffix(5)) == "dn"
+    && tf2::native::worldCubemapFaceSuffix(6) == nullptr
+    && tf2::native::worldCubemapFaceSuffix(-1) == nullptr;
+  // An empty fixture must parse to an invalid map rather than crash, and the
+  // capability layer must call that "unavailable" for every capability.
+  tf2::native::BspFixture emptyFixture;
+  const auto emptyBytes = tf2::native::buildFixtureBsp(emptyFixture);
+  tf2::native::BspMap emptyMap;
+  tf2::native::BspParser::parse(emptyBytes, emptyMap, 200000);
+  tf2::native::FixedResourceProbe nothing({});
+  const auto emptyReadings = tf2::native::measureWorldCapabilities(emptyMap, "empty", nothing,
+    false, false, false, false, 200000);
+  const auto emptyLightmap = tf2::native::judgeLightmap(emptyReadings.lightmap);
+  const auto emptyCubemap = tf2::native::judgeCubemaps(emptyReadings.cubemap);
+  const auto emptySky = tf2::native::judgeSky(emptyReadings.sky);
+  const auto emptyDisplacement = tf2::native::judgeDisplacement(emptyReadings.displacement);
+  const auto emptyWater = tf2::native::judgeWater(emptyReadings.water);
+  const auto emptyVis = tf2::native::judgeVis(emptyReadings.vis);
+  const bool emptyStates = emptyLightmap.state == tf2::native::WorldCapabilityState::Unavailable
+    && emptyCubemap.state == tf2::native::WorldCapabilityState::Unavailable
+    && emptySky.state == tf2::native::WorldCapabilityState::Unavailable
+    && emptyDisplacement.state == tf2::native::WorldCapabilityState::Unavailable
+    && emptyWater.state == tf2::native::WorldCapabilityState::Unavailable
+    && emptyVis.state == tf2::native::WorldCapabilityState::Unavailable;
+  const bool ok = axes && negativeX && positiveY && negativeY && positiveZ && negativeZ
+    && dominant && refused && faceOrder && suffixes && emptyStates;
+  std::cout << "{\"capabilitySelfTest\":" << (ok ? "true" : "false")
+    << ",\"cubeAxes\":" << (axes ? "true" : "false")
+    << ",\"cubeNegativeX\":" << (negativeX ? "true" : "false")
+    << ",\"cubePositiveY\":" << (positiveY ? "true" : "false")
+    << ",\"cubeNegativeY\":" << (negativeY ? "true" : "false")
+    << ",\"cubePositiveZ\":" << (positiveZ ? "true" : "false")
+    << ",\"cubeNegativeZ\":" << (negativeZ ? "true" : "false")
+    << ",\"cubeDominantAxis\":" << (dominant ? "true" : "false")
+    << ",\"cubeZeroRefused\":" << (refused ? "true" : "false")
+    << ",\"cubeFacePaths\":" << (faceOrder ? "true" : "false")
+    << ",\"cubeSuffixes\":" << (suffixes ? "true" : "false")
+    << ",\"emptyBspAllUnavailable\":" << (emptyStates ? "true" : "false") << "}\n";
+  return ok;
+}
+
+} // namespace
+
 int main(int argc, char** argv) {
   bool runSelf = argc <= 1;
-  bool ok = true;
+  bool runFixturesFlag = false;
+  bool withMutation = false;
+  std::vector<std::filesystem::path> bspPaths;
+  std::filesystem::path tfRoot;
+  std::string mapName;
   for (int i = 1; i < argc; ++i) {
     const std::string_view arg = argv[i];
     if (arg == "--self-test") { runSelf = true; continue; }
+    if (arg == "--fixture") { runFixturesFlag = true; continue; }
+    if (arg == "--mutation") { withMutation = true; continue; }
     if (arg == "--bsp" && i + 1 < argc) {
-      const std::filesystem::path path = std::filesystem::u8path(argv[++i]);
-      const auto bytes = readFile(path);
-      tf2::native::BspMap map;
-      tf2::native::BspParser::parse(bytes, map, 200000);
-      printMap(path, map);
-      std::string error;
-      if (!checkMap(map, path, error)) {
-        std::cerr << path.filename().string() << " failed: " << error << "\n";
-        ok = false;
-      }
+      bspPaths.push_back(std::filesystem::u8path(argv[++i]));
       continue;
     }
-    std::cerr << "usage: world_material_probe --self-test [--bsp map.bsp]\n";
+    if (arg == "--tf-root" && i + 1 < argc) {
+      tfRoot = std::filesystem::u8path(argv[++i]);
+      continue;
+    }
+    if (arg == "--map-name" && i + 1 < argc) {
+      mapName = argv[++i];
+      continue;
+    }
+    std::cerr << "usage: world_material_probe [--self-test] [--fixture [--mutation]]"
+      " [--bsp map.bsp [--tf-root dir] [--map-name name]]\n";
     return 2;
   }
-  if (runSelf && !selfTest()) ok = false;
-  return ok ? 0 : 1;
+  int status = 0;
+  if (runSelf) {
+    if (!selfTest()) status = 1;
+    if (!capabilitySelfTest()) status = 1;
+  }
+  if (runFixturesFlag) {
+    if (runFixtures(withMutation) != 0) status = 1;
+  }
+  for (const auto& path : bspPaths) {
+    const auto bytes = readFile(path);
+    tf2::native::BspMap map;
+    tf2::native::BspParser::parse(bytes, map, 200000);
+    printMap(path, map);
+    // The readings are printed even when the map is invalid, because an
+    // unreadable BSP is exactly the case the capability layer has to describe:
+    // every capability unavailable, each with the reason it is unavailable.
+    // checkMap's verdict is reported afterwards and separately, so a gate can
+    // assert on the readings of a map it knows is broken.
+    std::string error;
+    const bool mapOk = checkMap(map, path, error);
+    if (!mapOk) std::cerr << path.filename().string() << " failed: " << error << "\n";
+    const std::string name = mapName.empty() ? path.stem().string() : mapName;
+    tf2::native::FixedResourceProbe nothing({});
+    // Held by pointer, not by value: copying a FixedResourceProbe into a
+    // WorldResourceProbe would slice it and answer every lookup with the base
+    // class's behaviour.
+    const tf2::native::WorldResourceProbe* resourceProbe = &nothing;
+    std::unique_ptr<tf2::native::WorldResourceProbe> held;
+    std::unique_ptr<tf2::native::VpkArchiveSet> archives;
+    if (!tfRoot.empty()) {
+      archives = std::make_unique<tf2::native::VpkArchiveSet>(
+        tf2::native::VpkArchiveSet::openDirectory(tfRoot));
+      held = std::make_unique<TfResourceProbe>(tfRoot, *archives);
+      resourceProbe = held.get();
+    }
+    // Water is the one capability whose declaration lives in a VMT rather than
+    // in the BSP, so it is resolved before the shared measurement and handed in.
+    bool waterMaterialDeclared = false;
+    bool waterTextureReachable = false;
+    std::string waterReason = "no tf root was given, so no material could be resolved";
+    if (archives) {
+      const auto water = resolveWaterMaterial(map, tfRoot, *archives);
+      waterMaterialDeclared = water.declared;
+      waterTextureReachable = water.textureReachable;
+      waterReason = water.reason;
+    }
+    const auto readings = tf2::native::measureWorldCapabilities(map, name, *resourceProbe,
+      false, false, waterMaterialDeclared, waterTextureReachable, 200000);
+    const auto flat = flattenReadings(readings);
+    for (const auto& [key, value] : flat) {
+      std::cout << "{\"reading\":\"" << key << "\",\"value\":\"" << value << "\"}\n";
+    }
+    std::cout << "{\"reading\":\"water.materialResolution\",\"value\":\"" << waterReason << "\"}\n";
+    if (!mapOk) status = 1;
+  }
+  return status;
 }
