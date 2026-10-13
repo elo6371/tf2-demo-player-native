@@ -135,12 +135,18 @@ const char* worldCubemapFaceSuffix(int face);
 bool worldCubemapVtfPath(const std::string& mapName, const int origin[3], std::string& out);
 
 // Reads one entry out of the ZIP a Source BSP carries in its pakfile lump
-// (lump 40). Returns false when the BSP has no pakfile lump, the entry is not
-// there, or the entry is deflated: every entry in this install's map is stored
-// (method 0), and a reader that silently mis-decodes a deflated entry is worse
-// than one that says it does not support it.
+// (lump 40). Two storage methods appear in this install and both are decoded:
+//
+//   method 0   stored, copied verbatim      cp_snakewater_final1, all 3354 entries
+//   method 14  LZMA                        2koth_abbey, all 4935 entries
+//
+// LZMA is the PKWARE framing -- two version bytes, a two-byte properties size,
+// the properties, then the raw stream -- and the decoder is the same one the BSP
+// lumps already use. Any other method is refused by name rather than guessed at,
+// and `reason` carries that name back so a reading can say which method it hit
+// instead of reporting a missing file.
 bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::string& name,
-  std::vector<std::uint8_t>& out);
+  std::vector<std::uint8_t>& out, std::string* reason = nullptr);
 
 // Direction -> face index and the (u,v) inside that face, in [0,1].
 //

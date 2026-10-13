@@ -234,6 +234,7 @@ cbuffer WorldConstants : register(b0) {
   float4 cameraPositionAndSpecular;
   float4 materialFeatures;
   float4 lightmapFeatures;
+  float4 envFeatures;
 };
 struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; };
 struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; };
@@ -246,11 +247,15 @@ cbuffer WorldConstants : register(b0) {
   float4 cameraPositionAndSpecular;
   float4 materialFeatures;
   float4 lightmapFeatures;
+  float4 envFeatures;
 };
 Texture2D texture0 : register(t0);
 Texture2D bumpTexture : register(t1);
 Texture2D envTexture : register(t2);
 Texture2D lightmapTexture : register(t3);
+// t5, not t4: the model passes bind their bone buffer at t4 and a slot serving
+// two meanings in two passes is one slot too many to keep straight.
+TextureCube envCube : register(t5);
 SamplerState sampler0 : register(s0);
 float3 safeNormalize(float3 value) {
   float lengthSquared = dot(value, value);
@@ -269,7 +274,15 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     float3 bump = bumpTexture.Sample(sampler0, uv).xyz * 2.0 - 1.0;
     n = safeNormalize(n + float3(bump.xy * 0.35, bump.z * 0.1));
   }
-  if (lightmapFeatures.z > 0.5) {
+  // envFeatures.x is the mode the renderer is actually in, not a claim about it:
+  // 0 = no env map, 1 = the 2D approximation, 2 = a real six-face cube. The two
+  // branches sample different resources and the mode is what decides which, so a
+  // cube that failed to upload cannot be sampled as if it were there.
+  if (envFeatures.x > 1.5) {
+    float3 viewDirection = safeNormalize(cameraPositionAndSpecular.xyz - worldPosition);
+    float3 reflected = reflect(-viewDirection, n);
+    albedo = lerp(albedo, albedo * envCube.Sample(sampler0, reflected).rgb, 0.22);
+  } else if (envFeatures.x > 0.5) {
     float2 envUv = float2(0.5 + 0.5 * n.x, 0.5 - 0.5 * n.y);
     albedo = lerp(albedo, albedo * envTexture.Sample(sampler0, envUv).rgb, 0.22);
   }
@@ -722,7 +735,13 @@ float4 main(Input input) : SV_TARGET {
   rasterDescription.DepthClipEnable = TRUE;
   if (FAILED(device_->CreateRasterizerState(&rasterDescription, rasterizerState_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC constantsDescription{};
-  constantsDescription.ByteWidth = 128;
+  // Must cover every field of WorldConstantsData in drawFrame(): mvp (64 bytes)
+  // plus five float4 blocks (80) is 144, rounded up to 160 so the next block
+  // added does not quietly fall off the end. It did: the buffer was 128 while
+  // the struct grew to 144, UpdateSubresource copies ByteWidth bytes and says
+  // nothing about the rest, and envFeatures read as zero in the shader -- a
+  // whole capability that was wired, compiled, counted as bound and never ran.
+  constantsDescription.ByteWidth = 160;
   constantsDescription.Usage = D3D11_USAGE_DEFAULT;
   constantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldConstants_.GetAddressOf()))) return false;
@@ -990,6 +1009,18 @@ bool Renderer::uploadWorldLightmap(const std::vector<std::uint8_t>& rgba, UINT w
   return true;
 }
 
+UINT Renderer::worldEnvMode() const {
+  // Computed from what is bound and what the material asked for, so it is the
+  // mode a world draw would send right now. This is deliberately not a member
+  // filled in at draw time: the trace that reports it runs at load, before the
+  // first world draw, and a member read there would print its initial zero and
+  // be mistaken for "the pass chose not to run".
+  const bool wanted = settings_.preset == QualityPreset::Standard && worldMaterialParams_.envMap;
+  if (!wanted) return 0;
+  if (worldCubemapView_) return 2;
+  return worldEnvTexture_.view() ? 1u : 0u;
+}
+
 const char* worldCubemapStatusName(WorldCubemapStatus status) {
   switch (status) {
     case WorldCubemapStatus::Unavailable: return "unavailable";
@@ -1008,7 +1039,16 @@ bool Renderer::uploadWorldCubemap(const std::array<std::vector<std::uint8_t>, 6>
     if (error) *error = message;
     return false;
   };
-  if (side == 0 || (side & (side - 1)) != 0) {
+  // No faces and no side means "this map has no cube", which is not a failure:
+  // it clears the previous map's cube and leaves the 2D path in charge, exactly
+  // as uploadWorldLightmap treats an empty atlas.
+  if (side == 0) {
+    bool anyFace = false;
+    for (const auto& face : faces) anyFace = anyFace || !face.empty();
+    if (!anyFace) return true;
+    return fail("a cubemap side of zero was given with face data");
+  }
+  if ((side & (side - 1)) != 0) {
     return fail("cubemap side is not a power of two, which a TextureCube sample needs");
   }
   const std::size_t expected = static_cast<std::size_t>(side) * side * 4u;
@@ -1259,6 +1299,7 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
                               : WorldCubemapStatus::Unavailable);
   state.cubemapFaces = worldCubemapView_ ? 6u : 0u;
   state.cubemapSize = worldCubemapSize_;
+  state.envMode = worldEnvMode();
   return state;
 }
 
@@ -2397,6 +2438,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       XMFLOAT4 cameraPositionAndSpecular;
       XMFLOAT4 materialFeatures;
       XMFLOAT4 lightmapFeatures;
+      XMFLOAT4 envFeatures;
     } constants{};
     XMStoreFloat4x4(&constants.mvp, mvp);
     const bool standardLighting = settings_.preset == QualityPreset::Standard && settings_.dynamicLighting;
@@ -2415,6 +2457,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       settings_.preset == QualityPreset::Standard && worldMaterialParams_.bumpMapping && worldBumpTexture_.view() ? 1.0f : 0.0f,
       settings_.preset == QualityPreset::Standard && worldMaterialParams_.envMap && worldEnvTexture_.view() ? 1.0f : 0.0f,
       worldLightmapTexture_.view() ? 1.0f : 0.0f);
+    // The cube wins when it is there: it is the map's own environment rather
+    // than a 2D projection of whatever $envmap named, and the capability layer
+    // only builds it when all six faces decoded.
+    constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f, 0.0f, 0.0f);
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
   }
   auto* lightView = worldLightmapTexture_.view();
@@ -2434,8 +2480,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(0, 1, &worldView);
     ID3D11ShaderResourceView* bumpView = worldBumpTexture_.view();
     ID3D11ShaderResourceView* envView = worldEnvTexture_.view();
+    ID3D11ShaderResourceView* cubeView = worldCubemapView_.Get();
     context_->PSSetShaderResources(1, 1, &bumpView);
     context_->PSSetShaderResources(2, 1, &envView);
+    context_->PSSetShaderResources(5, 1, &cubeView);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(worldVertexCount_, 0);
   } else {

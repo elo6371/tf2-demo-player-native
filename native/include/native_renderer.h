@@ -207,6 +207,12 @@ struct WorldMaterialSampleState {
   // if it were whole.
   std::uint32_t cubemapFaces = 0;
   std::uint32_t cubemapSize = 0;
+  // What the last world draw actually asked the pixel shader to do: 0 = no env
+  // pass, 1 = the 2D approximation, 2 = the six-face cube. `cubemapStatus` says
+  // what exists; this says what was used. A map whose material declares no
+  // $envmap builds the cube and reads status=six-face with mode=0, and without
+  // this field that state and "the cube is sampled" would print the same.
+  std::uint32_t envMode = 0;
 };
 
 enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
@@ -244,6 +250,9 @@ public:
   std::size_t entityModelDrawRangeCount() const { return entityModelDrawRanges_.size(); }
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
   const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
+  // The env mode a world draw would use now: 0 none, 1 the 2D approximation,
+  // 2 the map's six-face cube.
+  UINT worldEnvMode() const;
   WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
   WorldMaterialSampleState worldMaterialSampleState() const;
   bool saveCameraPreset(std::size_t slot);

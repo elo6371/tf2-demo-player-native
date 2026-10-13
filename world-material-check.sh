@@ -23,6 +23,8 @@
 #      unavailable, which is the reading that would catch a gate that passes on
 #      constants
 #   6. with --mutation, a deliberately wrong expectation goes red
+#   7. the product's own trace ties the GPU-side lightmap count to the parse side
+#   8. the product builds the map's cubemap and the env pass selects it
 #   7. the render side lights what the parse side measured: the product is run
 #      once and the GPU-side vertex pair is read back out of its own trace, so
 #      the lightmap pass is checked where the triangles are actually drawn
@@ -74,7 +76,7 @@ count() { # count <lines> <key> -> number, from the summary line
   printf '%s\n' "$1" | sed -n "s/.*\"$2\":\([0-9][0-9]*\).*/\1/p" | tail -1
 }
 
-echo "=== 1/6 the probe's self-tests pass ==="
+echo "=== 1/8 the probe's self-tests pass ==="
 # Two lines on purpose. The first is the pre-existing self-test and is left
 # byte-identical because verify-fast.sh pins seven substrings of it and that
 # script is outside this task's write scope; the second is the capability
@@ -89,7 +91,7 @@ assert_eq "cubeSamplePath" "$(flag "$SELF" cubeSamplePath)" "true"
 assert_eq "emptyBspAllUnavailable" "$(flag "$SELF" emptyBspAllUnavailable)" "true"
 
 echo
-echo "=== 2/6 every synthetic fixture passes ==="
+echo "=== 2/8 every synthetic fixture passes ==="
 # The fixtures build real BSP bytes and read them back through BspParser, so a
 # green run is a statement about the parser and the capability layer together.
 FIX=$("$EXE" --fixture 2>&1)
@@ -99,7 +101,7 @@ assert_eq "fixture checks" "$(count "$FIX" checks)" "85"
 assert_eq "fixture failures" "$(count "$FIX" bad)" "0"
 
 echo
-echo "=== 3/6 every fixture mutation moves its reading ==="
+echo "=== 3/8 every fixture mutation moves its reading ==="
 # A mutation that changes nothing is a mutation that proved nothing, so the
 # probe fails the run when no case had one to execute.
 MUT=$("$EXE" --fixture --mutation 2>&1)
@@ -112,7 +114,7 @@ assert_eq "total failures with mutations" "$(count "$MUT" bad)" "0"
 assert_eq "assertions with mutations" "$(count "$MUT" checks)" "112"
 
 echo
-echo "=== 4/6 the real map's six capabilities, pinned ==="
+echo "=== 4/8 the real map's six capabilities, pinned ==="
 # Every number below was measured on this install on 2026-10-13. A changed
 # install goes red on purpose: the finding it records ("this map's baked light
 # fits the atlas except for 15 faces") would no longer be true, and a reader
@@ -168,7 +170,7 @@ assert_eq "vis clusters"          "$(field "$REAL" vis.clusters)"          "2940
 assert_eq "vis visible from 0"    "$(field "$REAL" vis.visibleFromCluster0)" "384"
 
 echo
-echo "=== 5/6 the negative control: no BSP, so nothing is available ==="
+echo "=== 5/8 the negative control: no BSP, so nothing is available ==="
 # Section 4 pins numbers that only hold for a map that is installed. This is
 # about the map that is not, and it is the reading that would catch a gate
 # passing on constants: with no BSP every capability must say unavailable, and
@@ -189,7 +191,7 @@ assert_eq "bagel vis"          "$(field "$BAGEL" vis.state)"          "unavailab
 assert_eq "bagel lightmap reason" "$(field "$BAGEL" lightmap.reason)" "the bsp declares no lightmap faces"
 
 echo
-echo "=== 7/7 the render side lights what the parse side measured ==="
+echo "=== 7/8 the render side lights what the parse side measured ==="
 # Sections 1-6 all read the BSP through the probe. This one runs the product
 # itself and reads the GPU-side pair back out of its trace, because the defect
 # this section exists for lived exactly there: uploadWorldGeometry's atlas
@@ -240,19 +242,92 @@ else
   echo "  FAIL render lightmapped >= vertices ($RENDER_LIGHTMAPPED >= $RENDER_VERTICES)"; fail=1
 fi
 
+echo "=== 8/8 the product builds the map's cubemap and the env pass selects it ==="
+# The cube is built from the map's own pakfile rather than from anything the tf
+# tree or the VPKs hold, so this is the one place the whole chain -- pakfile
+# entry, VTF face layout, cube texture, shader branch -- runs end to end. Two
+# runs of the same map with the same preset: the first with the material's own
+# answer (no $envmap anywhere in this install's first materials, measured across
+# all 68 maps), the second with --world-env-force, which is the diagnostic that
+# makes the six-face branch executable at all.
+#
+# 2koth_abbey is the map because it is the product's no-demo default and its
+# pakfile is LZMA-compressed, which is the other storage method this install
+# uses: cp_snakewater_final1 is stored, abbey is deflated-not-stored, and a
+# reader that handled only one of them would read one map and call the
+# capability measured.
+ENV_TRACE="$SCRATCH/render-cubemap-plain.trace"
+ENV_BMP="$SCRATCH/render-cubemap-plain.bmp"
+ENV_FORCED_TRACE="$SCRATCH/render-cubemap-forced.trace"
+ENV_FORCED_BMP="$SCRATCH/render-cubemap-forced.bmp"
+rm -f "$ENV_TRACE" "$ENV_BMP" "$ENV_FORCED_TRACE" "$ENV_FORCED_BMP"
+ENV_TRACE_WIN="$(cygpath -m "$PWD/$ENV_TRACE")"
+ENV_BMP_WIN="$(cygpath -m "$PWD/$ENV_BMP")"
+ENV_FORCED_TRACE_WIN="$(cygpath -m "$PWD/$ENV_FORCED_TRACE")"
+ENV_FORCED_BMP_WIN="$(cygpath -m "$PWD/$ENV_FORCED_BMP")"
+ENV_RC=$(TF2_NATIVE_TRACE="$ENV_TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" \
+  --quality standard --audio-disabled --hidden-window --capture-tick 0 \
+  --capture-frame "$ENV_BMP_WIN" --metrics-file "$SCRATCH/render-cubemap-plain.csv" > "$SCRATCH/render-cubemap-plain.log" 2>&1; echo $?)
+ENV_FORCED_RC=$(TF2_NATIVE_TRACE="$ENV_FORCED_TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" \
+  --quality standard --world-env-force --audio-disabled --hidden-window --capture-tick 0 \
+  --capture-frame "$ENV_FORCED_BMP_WIN" --metrics-file "$SCRATCH/render-cubemap-forced.csv" > "$SCRATCH/render-cubemap-forced.log" 2>&1; echo $?)
+assert_eq "cubemap run rc" "$ENV_RC" "0"
+assert_eq "cubemap forced run rc" "$ENV_FORCED_RC" "0"
+ENV_LINE=$(grep -o "gpu: world cubemap .*" "$ENV_TRACE" 2>/dev/null | head -1)
+ENV_FORCED_LINE=$(grep -o "gpu: world cubemap .*" "$ENV_FORCED_TRACE" 2>/dev/null | head -1)
+echo "$ENV_LINE" > "$OUT/render-cubemap.txt"
+echo "$ENV_FORCED_LINE" >> "$OUT/render-cubemap.txt"
+efield() { # efield <line> <key> -> value; slashes are in the class for paths
+  printf '%s\n' "$1" | grep -oE "$2=[a-zA-Z0-9_./-]+" | head -1 | cut -d= -f2
+}
+assert_eq "cubemap status" "$(efield "$ENV_LINE" status)" "six-face"
+assert_eq "cubemap faces" "$(efield "$ENV_LINE" faces)" "6"
+assert_eq "cubemap size" "$(efield "$ENV_LINE" size)" "32"
+assert_eq "cubemap source" "$(efield "$ENV_LINE" source)" "materials/maps/2koth_abbey/c1316_-1018_238.vtf"
+assert_eq "cubemap reason" "$(efield "$ENV_LINE" reason)" "all"
+# The material's own answer, and the forced one. mode 0 here is the honest
+# reading of a map whose first material declares no $envmap; mode 2 there is the
+# cube being selected. A gate that only pinned the forced value could not tell
+# whether the product's own choice was working.
+assert_eq "cubemap plain mode" "$(efield "$ENV_LINE" mode)" "0"
+assert_eq "cubemap plain declared" "$(efield "$ENV_LINE" declared)" "0"
+assert_eq "cubemap forced mode" "$(efield "$ENV_FORCED_LINE" mode)" "2"
+assert_eq "cubemap forced declared" "$(efield "$ENV_FORCED_LINE" declared)" "1"
+# And the branch runs: with the mode selected the frame must move. This is
+# supporting evidence, not the check -- the check is the mode above, which is
+# read from the renderer. But a mode that changed nothing would mean the shader
+# branch was dead, and a dead branch is what the wider constant buffer fixed:
+# the buffer was 128 bytes while the struct grew to 144, so envFeatures read as
+# zero and the two runs were byte-identical.
+ENV_DIFF=0
+if [ -f "$ENV_BMP" ] && [ -f "$ENV_FORCED_BMP" ]; then
+  ENV_DIFF=$(cmp -l "$ENV_BMP" "$ENV_FORCED_BMP" 2>/dev/null | wc -l)
+fi
+if [ "$ENV_DIFF" -gt 1000 ] 2>/dev/null; then
+  echo "  OK   the forced env mode moved the frame ($ENV_DIFF bytes differ)"
+else
+  echo "  FAIL the forced env mode left the frame unchanged ($ENV_DIFF bytes)"; fail=1
+fi
+
 echo
 if [ "$MUTATION" -eq 1 ]; then
   # Two wrong expectations, one for a counter and one for a state. The counter
   # is the one that would have caught the silent packer drop (15 faces lost
   # with nothing reporting it); the state is the one that would have caught a
   # capability layer that labels everything active.
-  echo "=== mutation: the expected packer drop and the sky state are wrong on purpose ==="
+  echo "=== 6/8 mutation: the expected drop, the sky state and the cubemap mode are wrong on purpose ==="
   if [ "$(field "$REAL" lightmap.facesDropped)" = "0" ]; then
     echo "  FAIL the packer drop matched a value it should not have"
     exit 1
   fi
   if [ "$(field "$REAL" sky.state)" = "unavailable" ]; then
     echo "  FAIL the sky state matched a value it should not have"
+    exit 1
+  fi
+  # And the cubemap mode, the third one: the pre-force value is 0, and a gate
+  # that pinned the single sample it happened to see would call that a pass.
+  if [ "$(efield "$ENV_FORCED_LINE" mode)" = "0" ]; then
+    echo "  FAIL the forced cubemap mode matched the value it replaced"
     exit 1
   fi
   # And the fixture half: demand a mutation count that no run can produce.
@@ -270,7 +345,8 @@ if [ "$MUTATION" -eq 1 ]; then
     exit 1
   fi
   echo "MUTATION-CAUGHT=PASS (a wrong packer-drop expectation, a wrong sky state, a wrong"
-  echo "  mutation count and the pre-fix render vertex count each go red)"
+  echo "  mutation count, the pre-fix render vertex count and the pre-force cubemap mode"
+  echo "  each go red)"
   exit 0
 fi
 

@@ -31,6 +31,11 @@ add_executable(tf2_demo_native WIN32
   src/pcf_operators.cpp
   src/playback_hud.cpp
   src/bsp_map.cpp
+  # The world material capability layer. In the product, not just in the probe:
+  # the product resolves a map's cubemap through the same bspPakfileEntry and
+  # worldCubemapVtfPath the probe measures, so "what the gate pins" and "what the
+  # product does" are one implementation rather than two that agree by hand.
+  src/world_material.cpp
   third_party/lzma/LzmaDec.c
   src/texture2d.cpp
   src/settings_store.cpp

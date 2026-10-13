@@ -1,13 +1,66 @@
 #include "world_material.h"
 
+#include "LzmaDec.h"
 #include "vtf_texture.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 
 namespace tf2::native {
+
+namespace {
+
+// The BSP lumps already decode raw LZMA through this same library (bsp_map.cpp);
+// these are the two allocator hooks it needs and nothing more.
+void* pakLzmaAlloc(ISzAllocPtr, size_t size) { return std::malloc(size); }
+void pakLzmaFree(ISzAllocPtr, void* address) { std::free(address); }
+
+// The PKWARE LZMA framing a ZIP method-14 entry carries:
+//   2 bytes  LZMA SDK version
+//   2 bytes  properties size (5 in every entry this install has)
+//   5 bytes  properties: lc/lp/pb in byte 0, dictionary size in bytes 1..4
+//   rest     the raw stream
+// The size to decode to comes from the central directory, so a truncated stream
+// fails the length check rather than returning a short buffer that looks whole.
+bool decodeZipLzma(const std::uint8_t* payload, std::size_t payloadSize,
+    std::size_t outputSize, std::vector<std::uint8_t>& out, std::string* reason) {
+  const auto fail = [&](const char* message) {
+    if (reason) *reason = message;
+    out.clear();
+    return false;
+  };
+  if (payloadSize < 9) return fail("LZMA entry is shorter than its framing");
+  const std::uint16_t propertiesSize = static_cast<std::uint16_t>(payload[2]
+    | (static_cast<std::uint16_t>(payload[3]) << 8));
+  if (propertiesSize != LZMA_PROPS_SIZE || payloadSize < 4u + propertiesSize) {
+    return fail("LZMA entry declares a properties size this reader does not use");
+  }
+  if (outputSize == 0 || outputSize > 128u * 1024u * 1024u) {
+    return fail("LZMA entry declares an implausible uncompressed size");
+  }
+  ISzAlloc allocator{pakLzmaAlloc, pakLzmaFree};
+  out.resize(outputSize);
+  SizeT inputSize = payloadSize - 4u - propertiesSize;
+  SizeT decodedSize = outputSize;
+  ELzmaStatus status = LZMA_STATUS_NOT_SPECIFIED;
+  const SRes decoded = LzmaDecode(out.data(), &decodedSize, payload + 4u + propertiesSize,
+    &inputSize, payload + 4u, static_cast<unsigned>(propertiesSize), LZMA_FINISH_ANY, &status,
+    &allocator);
+  if (decoded != SZ_OK || decodedSize != outputSize) {
+    if (reason) {
+      *reason = "LZMA decode stopped at " + std::to_string(decodedSize) + " of "
+        + std::to_string(outputSize) + " bytes (status " + std::to_string(status) + ")";
+    }
+    out.clear();
+    return false;
+  }
+  return true;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Capability state
@@ -125,8 +178,12 @@ std::uint32_t zip32(const std::vector<std::uint8_t>& bytes, std::size_t at) {
 } // namespace
 
 bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::string& name,
-    std::vector<std::uint8_t>& out) {
+    std::vector<std::uint8_t>& out, std::string* reason) {
   out.clear();
+  const auto fail = [&](const std::string& message) {
+    if (reason) *reason = message;
+    return false;
+  };
   if (bspBytes.size() < 8 + 64 * 16) return false;
   // Lump 40 is the pakfile. The header's lump table is 64 entries of
   // offset(4)+length(4)+version(4)+fourcc(4) starting at byte 8.
@@ -168,6 +225,7 @@ bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::strin
     }
     const std::uint16_t method = zip16(bspBytes, at + 10);
     const std::uint32_t compressedSize = zip32(bspBytes, at + 20);
+    const std::uint32_t uncompressedSize = zip32(bspBytes, at + 24);
     const std::uint32_t localOffset = zip32(bspBytes, at + 42);
     const std::uint16_t nameLength = zip16(bspBytes, at + 28);
     const std::uint16_t extraLength = zip16(bspBytes, at + 30);
@@ -177,20 +235,31 @@ bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::strin
       nameLength);
     const std::size_t next = at + 46 + nameLength + extraLength + commentLength;
     if (entryName == name) {
-      if (method != 0) return false; // deflated entries are not supported; say so
       const std::size_t localAt = offset + localOffset;
-      if (localAt + 30 > static_cast<std::size_t>(lumpEnd)) return false;
+      if (localAt + 30 > static_cast<std::size_t>(lumpEnd)) return fail("pakfile entry header is out of bounds");
       if (!(bspBytes[localAt] == 'P' && bspBytes[localAt + 1] == 'K' && bspBytes[localAt + 2] == 3
           && bspBytes[localAt + 3] == 4)) {
-        return false;
+        return fail("pakfile entry has no local header");
       }
       const std::uint16_t localNameLength = zip16(bspBytes, localAt + 26);
       const std::uint16_t localExtraLength = zip16(bspBytes, localAt + 28);
       const std::size_t dataAt = localAt + 30 + localNameLength + localExtraLength;
-      if (dataAt + compressedSize > static_cast<std::size_t>(lumpEnd)) return false;
-      out.assign(bspBytes.begin() + static_cast<std::ptrdiff_t>(dataAt),
-        bspBytes.begin() + static_cast<std::ptrdiff_t>(dataAt + compressedSize));
-      return true;
+      if (dataAt + compressedSize > static_cast<std::size_t>(lumpEnd)) {
+        return fail("pakfile entry data runs past the pakfile lump");
+      }
+      if (method == 0) {
+        out.assign(bspBytes.begin() + static_cast<std::ptrdiff_t>(dataAt),
+          bspBytes.begin() + static_cast<std::ptrdiff_t>(dataAt + compressedSize));
+        return true;
+      }
+      if (method == 14) {
+        return decodeZipLzma(bspBytes.data() + dataAt, compressedSize, uncompressedSize, out, reason);
+      }
+      // Deflate and everything else is refused by name: a reader that guessed at
+      // an unfamiliar method would hand back bytes that decode to a picture
+      // nobody wrote, and the picture would look like a finding.
+      return fail("pakfile entry uses compression method " + std::to_string(method)
+        + ", which this reader does not decode");
     }
     at = next;
   }
