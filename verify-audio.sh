@@ -233,6 +233,7 @@ else
     # testing the last one misses every comment whose final word is not "#".
     # Measured 2026-10-13: it turned 24 comment lines into 24 missing-file FAILs.
     case "$want_size" in ''|'#'*) continue ;; esac
+    want_name=${want_name%$'\r'}
     if [ "$want_root" = "steam" ]; then demo_path="$TF_DIR/demos/$want_name"
     else demo_path="D:/TF2_Demo_Player/testdata/demos/$want_name"; fi
     label="census[$(printf '%s' "$want_name" | cut -c1-28)]"

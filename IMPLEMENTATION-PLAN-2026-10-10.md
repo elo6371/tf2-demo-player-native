@@ -2,7 +2,7 @@
 
 更新时间：2026-10-13
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@eec2c9c`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链与产品接入、T2 静态武器本体、音频 tick 调度契约和验收脚本修复；当前 24 步总链尚未重跑，不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@69baff8`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链与产品接入、T2 静态武器本体、清单四音频调度契约和 T3 音频主程序接线；当前完整总链尚未重跑，不是产品发布分支）
 
 渲染档补跑（2026-10-12，工作区 `D:\TF2_Native_Worktrees\render-gate-recheck`，基线 `9a8387b`）：
 9 个门禁的 `verify-render.sh` 已在该基线上跑过正向与 `--mutation` 各一次，两次都是
@@ -332,7 +332,7 @@ native/build-nmake/viewmodel_fov_probe.exe
 2. ~~为每层建立合成 fixture 和反向 mutation，先证明错误映射会红，再接入产品~~：已完成；结论为"实体序列只对实体自身模型表生效，禁止按文件名猜动作"，缺输入保留 bind pose 回退。
 3. 定向通过后更新 `README.md`、`CHANGELOG.md`、本计划和 `HANDOFF-2026-10-07.md`；只有合并节点、发版或核心协议变更才重跑总链。
 4. 测试专用 hidden-window/null-sink 已由 `4dd79a9` 完成；后续抓帧门禁优先使用该模式，真实设备验收仍单独传 `--audio-device 6`。
-5. 2026-10-12 批次：T2 第二笔（静态武器本体）已完成（`task/weapon-body-render`，见上）；并行的 T1 材质接入、T0 渲染门禁补跑和 T3 音频主程序接线各自独立分支进行；T4 真实画面对照须在 T1、T2 合并后进行。抓帧门禁若断言同一 tick 的多张帧，必须按请求 tick 重试对齐（`--capture-tick N` 是"≥ N"，落点会随机器负载漂移）。
+5. 2026-10-13 批次：T1 ViewModel 材质接入、T2 静态武器本体和 T3 音频主程序接线均已合并到 `69baff8`；当前下一步先补跑渲染档，再安排 T4 真实画面对照。真实设备音频、人工画面和完整总链状态必须分开报告。抓帧门禁若断言同一 tick 的多张帧，必须按请求 tick 重试对齐（`--capture-tick N` 是"≥ N"，落点会随机器负载漂移）。
 ### T3：相机、观察者模式与基础 HUD/UI
 
 **负责人**：UI/相机 AI。

@@ -1,5 +1,9 @@
 # TF2_Native_Test
 
+## 2026-10-13 整合状态覆盖
+
+当前主线为 `p0-entity-protocol@69baff8`。T1 ViewModel 材质接入、T2 静态武器本体第二笔和 T3 音频主程序接线均已整合并推送。合并后 `verify-fast.sh` 为 `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0；T1 专项 220 条/10 mutation、T2 专项 61 条/4 mutation、T3 音频专项 48 条/12 mutation 均有来源分支实测通过记录。`verify-render.sh` 尚未在此 HEAD 验证；完整总链未运行。T3 真实声卡播放、MP3/ADPCM 设备输出和音频 soak 未验证。下方较早的分支状态文字按历史记录阅读。
+
 ## 当前状态（2026-10-13）
 
 T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单一 companion 动态手臂绘制、清单三 ViewModel 材质资源链、T1 ViewModel 材质产品接入、T2 静态武器本体第二笔和清单四音频 tick 调度契约已合并到 `p0-entity-protocol@eec2c9c`。

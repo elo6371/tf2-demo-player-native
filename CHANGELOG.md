@@ -2,6 +2,10 @@
 
 ## 2026-10-13
 
+### 主线整合状态
+
+T1、T2、T3 已整合并推送至 `p0-entity-protocol@69baff8`。T3 来源为 `task/audio-main-wiring`，产品提交 `baf93e7`、门禁/证据提交 `61260a0`；合并后 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0。T3 专项 48 条断言和 12/12 mutation 在来源 worktree 通过。当前 HEAD 的渲染档及完整总链未验证；真实设备声音输出未验证。下方「尚未整合」字样均为来源分支交付时的历史状态。
+
 ### T3：音频主程序接线（`task/audio-main-wiring`，**尚未整合**）
 
 - 产品提交 `baf93e7`，门禁/证据提交 `61260a0`；基线 `origin/p0-entity-protocol@9a8387b`；工作区 `D:\TF2_Native_Worktrees\audio-main-wiring`。
