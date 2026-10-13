@@ -11,7 +11,9 @@ T2.5 没有实现实体序列到旧式 `v_*.mdl` 的映射，而是证明实体�
 
 T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默认 `v_scattergun_scout.mdl` 对 POV 的 141 次实体序列只有 37 次在范围内；按实体自身 `m_nModelIndex` 对应模型比较为 141/141。清单一已切换产品绘制路径：默认绘制实体自身 `c_*_arms.mdl`，命令行 `v_*` 保留为 modelMismatch 对照，并要求 owner、模型路径、sequence 表和骨骼覆盖同时成立。
 
-清单四已整合（`28007af`）：音频按 demo tick 调度，支持 tick 去重与倒放恢复、延时取整/下限、声音分类和资源解析失败原因，并保留 `--audio-disabled` 的 OutcomeSink。`verify-audio.sh` 为 `VERIFY-AUDIO=PASS (assertions_ok=28)`，`--mutation` 的 6 个专项变异全部捕获；设备尝试和成功计数均可被门禁读取。当前未验证真实 demo 端到端播放、真实 MP3/ADPCM 设备播放、长时间压力和非 Windows 平台。
+清单四已整合（`28007af`）：音频按 demo tick 调度，支持 tick 去重与倒放恢复、延时取整/下限、声音分类和资源解析失败原因，并保留 `--audio-disabled` 的 OutcomeSink。整合当时 `verify-audio.sh` 为 `VERIFY-AUDIO=PASS (assertions_ok=28)`，`--mutation` 的 6 个专项变异全部捕获；设备尝试和成功计数均可被门禁读取。
+
+T3 音频主程序接线已在 `task/audio-main-wiring` 完成（产品 `baf93e7`，门禁/证据 `61260a0`），**尚未整合**。demo 的声音事件现在落在**录制自己的 tick 原点**上：`readSounds()` 按到达的 entry 打 tick，而一份 demo 有两套 tick 空间（signon entry 带服务器绝对 tick，packet entry 带 demo 自己的 0 基计数），旧原点取的是 signon，于是 `max(0, tick - origin)` 把整段录制折到相对 tick 0（POV `clampedToZero=5555/5563`）。新原点取第一条 command-2 entry，并把相对 tick 计算成 `int64` 后**拒绝**而不是夹取。`verify-audio.sh` 扩到 **48 条断言 / 12 个变异**（全捕获）。仍**未**接真实设备播放：门禁一律 `--audio-disabled`。整个音频子系统仍未验证真实设备播放、真实 MP3/ADPCM 设备播放、长时间压力和非 Windows 平台。
 
 清单三已整合（`e584052`）：新增 `viewmodel_material_probe` 和 `viewmodel-material-check.sh`，复用产品 MDL/VMT/VTF/VPK 解析器，覆盖 `$cdmaterials`、反斜杠 `$basetexture`、BC1/BC3、2048² 上限、cubemap 解码拒绝和资源缺失。真实安装的 4 个模型共 10/10 材质槽解析并解出像素；专项门禁为 159 条断言通过，分支验收的 6/6 mutation 和 `verify-render.sh` 8/8 均通过。该项只完成资源解析与像素解码，尚未接入产品 ViewModel 绘制，也未完成人工画面对照。
 
@@ -23,9 +25,9 @@ T1 ViewModel 材质接入（分支 `task/viewmodel-material-render`，基线 `or
 
 日常验收使用 `verify-fast.sh` 或对应的 `verify-entity.sh`、`verify-render.sh`、`verify-audio.sh`。fast/entity/audio 契约探针不建窗口且不打开音频；需要静默抓帧时显式传入 `--hidden-window --audio-disabled`。当前渲染档包含 9 个门禁。
 
-静默抓帧模式已在 `4dd79a9` 整合：传 `--hidden-window --audio-disabled` 时窗口不可见、音频设备不打开，BMP/渲染读数与普通模式一致。`quiet-capture-check.sh` 正常 63 条断言、4 个 mutation 全部捕获；该门禁没有替代完整总链。bagel demo 的地图缺失和既有 `firstPacketTick` 音频回绕仍是单独未解决项。
+静默抓帧模式已在 `4dd79a9` 整合：传 `--hidden-window --audio-disabled` 时窗口不可见、音频设备不打开，BMP/渲染读数与普通模式一致。`quiet-capture-check.sh` 正常 63 条断言、4 个 mutation 全部捕获；该门禁没有替代完整总链。bagel demo 的地图缺失仍是单独未解决项；**`firstPacketTick` 音频回绕已由 T3 修复**（见上），`firstPacketTick` 本身保留给实体历史查询用，声音时间线改用 `soundOriginTick`。
 
-下一步按顺序：先在 `eec2c9c` 上补跑一次 `verify-render.sh`（正常，必要时再跑 mutation），然后在独立 worktree 开始 T3 音频主程序接线；之后做 ViewModel/武器本体人工画面对照、世界材质/光照、相机/HUD/UI、soak/损坏输入和发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+下一步按顺序：在当前合并 HEAD 上补跑一次 `verify-render.sh`（正常，必要时再跑 mutation）；随后处理 ViewModel/武器本体人工画面对照、世界材质/光照、相机/HUD/UI、soak/损坏输入和发布验收。T3 音频主程序接线专项已通过，但真实设备播放仍未验证；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
@@ -391,7 +393,7 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 | 1 | `bash verify-fast.sh` | 33–37 s（两次实测） | **每次小改动**：增量构建主程序 + 五个自检探针，跑各自 `--self-test`（36 条断言） |
 | 2 实体 | `bash verify-entity.sh` | 10m59s（实测） | 实体解码 / 摆放这一块做完（5 个门禁 + 58 真相干 + 单份真 demo 的 oracle 对照 = 8 项） |
 | 2 渲染 | `bash verify-render.sh` | 5m27s（实测） | 材质 / VTF / BSP / 画面这一块做完（3 门禁 + 合成层 + 证据树不变断言 = 5 项） |
-| 2 音频 | `bash verify-audio.sh` | 约 10 s | 音频这一块做完（28 条断言，全走注入 sink，不开真设备） |
+| 2 音频 | `bash verify-audio.sh` | 约 1m54s（含构建；`--no-build` 约 1m） | 音频这一块做完（48 条断言 + 12 个变异；探针全走注入 sink，产品跑真 demo 但 `--audio-disabled`，不开真设备） |
 | 3 | `bash verify-all.sh` | ~85 min | **合并主线、发版、改核心协议**，且必须在**已提交的干净树**上 |
 
 单项门禁也可以直接跑（改哪儿跑哪儿）：
@@ -454,7 +456,7 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 | `verify-fast.sh` | **第 1 档**（33–37 s，两次实测）：增量构建主程序 + 五个自检探针，跑各自 `--self-test`，**36 条断言**（具名键值 + 工作量计数，不只退出码）。`--mutation` 篡改捕获输出，要求每份期望列表变红 |
 | `verify-entity.sh` | **第 2 档 · 实体**（实测 10m59s）：58 真相干 + 历史覆盖 / 武器世界模型 / 观察目标 / 选槽新鲜度 / 属性查找五个门禁 + **单份真 demo**（bagel）与 oracle 逐计数对照 + **证据树不变断言**。**不打印 `VERIFY=PASS`**，不是合并门禁 |
 | `verify-render.sh` | **第 2 档 · 渲染**（实测 5m27s）：资源可达性门禁 + 帧抓取门禁 + 实体材质门禁 + `material_chain_probe` 的合成层（10 个合成拒绝键 + 3 个模式键）+ 证据树不变断言。`texture_quad_probe` **刻意未接线**，理由写在脚本头部（缺一份提交进仓库的 VTF 夹具） |
-| `verify-audio.sh` | **第 2 档 · 音频**（约 10 s）：三个音频探针的免设备契约（`device":"sink"` / `device=0 playbackCalls=0` / `mode=dry_run device_opened=0`）+ 工作量计数 + 设备枚举的自洽性（`device_count` 与逐设备行数相等；**不钉具体台数**，那是机器的属性），**28 条断言** |
+| `verify-audio.sh` | **第 2 档 · 音频**（含构建约 1m54s）：1/4 构建 5 个目标；2/4 三个音频探针的免设备契约（`device":"sink"` / `device=0 playbackCalls=0` / `mode=dry_run device_opened=0`）+ 工作量计数 + 设备枚举自洽性（`device_count` 与逐设备行数相等；**不钉具体台数**，那是机器的属性）；3/4 在**两份 pin 住的真实录制**上跑 `sound_timeline_census_probe`（原点、正向推进、同 tick 去重、倒放重放）；4/4 真 demo 跑产品但**仍 `--audio-disabled`**。**48 条断言 + 12 个变异** |
 | `verify-all.sh` | **第 3 档**，当前脚本含 **22 步**（构建 25 个目标 → 9 份普查 → fixture/oracle/变异与专项门禁，最后为动画可用性和武器动画）；`--quick` 把 oracle 语料抽样降到 8 份。**只在合并/发版/改核心协议时跑**，见「分级验收」 |
 
 ## 命令
@@ -469,7 +471,7 @@ bash verify-entity.sh        # 实体这一块做完，实测 10m59s
 bash verify-entity.sh --mutation      # 五个门禁里四个各带自己的扰动（history-coverage 没有变异分支）
 bash verify-render.sh        # 材质/渲染这一块做完，实测 5m27s
 bash verify-render.sh --mutation      # 三个门禁各带扰动，实测 5m45s（扰动是替代该门禁的运行，不是叠加）
-bash verify-audio.sh         # 音频这一块做完，约 10s（全走注入 sink，不开真设备）
+bash verify-audio.sh         # 音频这一块做完，含构建约 1m54s（探针全走注入 sink；产品跑真 demo 但 --audio-disabled，不开真设备）
 bash verify-all.sh           # 合并/发版前的完整 21 步链（当前约 85 min，必须在已提交的干净树上）
 
 bash build-cmake.sh          # 干净全量 Release 构建（NMake，24 个 exe）

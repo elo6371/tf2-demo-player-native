@@ -266,6 +266,25 @@ target_compile_definitions(audio_scheduler_probe PRIVATE NOMINMAX WIN32_LEAN_AND
 target_link_libraries(audio_scheduler_probe PRIVATE winmm)
 set_target_properties(audio_scheduler_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# Reads a real demo and reports where its decoded sound events sit relative to
+# the playback origin. Links demo_header.cpp (the decoder) and audio_timeline.cpp
+# (the origin/tick helpers) so the census and the product share one definition of
+# the relative tick instead of each keeping its own copy.
+add_executable(sound_timeline_census_probe
+  tools/sound_timeline_census_probe.cpp
+  src/audio_player.cpp
+  src/audio_timeline.cpp
+  src/audio_resource.cpp
+  src/demo_header.cpp
+  src/vpk_archive.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(sound_timeline_census_probe PRIVATE include third_party/lzma)
+target_compile_definitions(sound_timeline_census_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+# winmm for AudioPlayer's declarations; the probe injects an outcome sink, so no
+# device is opened even though the backend is linked.
+target_link_libraries(sound_timeline_census_probe PRIVATE winmm)
+set_target_properties(sound_timeline_census_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(winmm_sink_probe tools/winmm_sink_probe.cpp)
 target_compile_definitions(winmm_sink_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(winmm_sink_probe PRIVATE winmm)

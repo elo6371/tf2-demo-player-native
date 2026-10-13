@@ -1,0 +1,31 @@
+# The recordings verify-audio.sh reads for the timeline sections, pinned by size
+# and sha256.
+#
+# WHY A PINNED FILE AND NOT A GLOB
+#   The Steam demos directory is LIVE -- recordings land in it while a round is
+#   being worked on. A gate that globbed it would compare a different set on
+#   every machine and on every day, and step 9 of the acceptance chain already
+#   went red for exactly that reason (2026-10-08, a sample drawn from the live
+#   directory moved to neighbouring files and 23 of 24 frozen reports stopped
+#   being read). The same rule applies here.
+#
+# WHY TWO RECORDINGS
+#   pov    -- 5563 decoded sound events. Its signon block carries
+#             ticks 29368/29438/29456/29488 while every one of its 38554 packet
+#             entries carries 0..39122, so a signon-derived origin folds 5555
+#             events onto relative tick 0 and a packet-derived one folds 2. This
+#             is the recording that makes the origin defect visible at all.
+#   matcha -- 5292 decoded sound events, signon at 10252 and packets from 1, so
+#             the legacy origin folds 2393 and the packet origin 0. Its timeline
+#             is spread over the recording with no pile-up, which is what stops
+#             the pov numbers from being read as a general property.
+#
+# A MISSING OR CHANGED FILE IS A FAIL, NOT A SKIP
+#   "the input is not here" and "the input is clean" must not read the same. The
+#   gate prints which of the three it was (absent, wrong size, wrong hash).
+#
+# FORMAT: size  sha256  root  name
+#   root = steam     -> $TF/demos
+#   root = testdata  -> D:/TF2_Demo_Player/testdata/demos
+21856667  c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e  steam     autorecord_2026-07-02_13-26-46.dem
+51834617  308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f  testdata  bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem

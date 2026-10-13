@@ -1,5 +1,16 @@
 # 更新日志
 
+## 2026-10-13
+
+### T3：音频主程序接线（`task/audio-main-wiring`，**尚未整合**）
+
+- 产品提交 `baf93e7`，门禁/证据提交 `61260a0`；基线 `origin/p0-entity-protocol@9a8387b`；工作区 `D:\TF2_Native_Worktrees\audio-main-wiring`。
+- **声音事件现在落在录制自己的 tick 原点。** `readSounds()` 按事件到达的 entry 打 tick（`demo_header.cpp:2184`），而一份 demo 有两套 tick 空间：signon entry（command 1）带服务器绝对 tick（POV 29368/29438/29456/29488），packet entry（command 2）带 demo 自己的 0 基计数（POV 0..39122；38558 条里 28932 条低于 29368）。旧原点取第一条 command-1/2 entry —— 也就是 signon —— 于是 `max(0, tick - origin)` 把整段录制折到相对 tick 0：POV `clampedToZero=5555/5563`。这就是清单四遗留的批量 flush。
+- 修复形状：新增 `firstRecordedPacketTick()`（第一条 command-2 entry）与 `soundEventRelativeTick()`；后者把差算成 `int64`，**负值或超出 int32 一律拒绝并计数**，不再夹取。POV 换原点后 `clampedToZeroPacketOrigin=2`、`unplaceablePacketOrigin=0`；matcha 为 0/0。`firstPacketTick` 保留给实体历史查询（`sceneTick`），声音时间线改用新的 `soundOriginTick` —— 两者混用曾把 scene 清空（`scene: snapshot status=3 stale=0 states=0`）。
+- 新增产品 trace：`audio: timeline`（read/scheduled/unresolved/unplaceable/refused/kinds）、`audio: summary`（`soundEventsRead/scheduled/played/skippedVoice/missingResource`、`firstPacketTick`、`soundOriginTick`、`reverseRecoveries`、`duplicateTicks`）、逐 tick `audio: advance tick= cursor= seen= dup=`。`scheduleSoundEvent` 让 voice/announcer/music 事件**留在时间线里**并计数，`soundEventsSkippedVoice` 因此能读到 34，而不是一个恒 0 的计数器。
+- 定向验收：`verify-audio.sh` = `VERIFY-AUDIO=PASS (assertions_ok=48)`（含构建，`build_rc=0`）；`verify-audio.sh --mutation` = `VERIFY-AUDIO-MUTATION=PASS`（12/12 捕获）。新增 `sound_timeline_census_probe` 与 `evidence/audio/timeline-inputs.txt`（两份录制按 `size + sha256` pin 住）。
+- 未验证：`applySoundDelayTicks` 的负延时夹取（POV `delayMin=-39.72s`、2694 条负延时 → 原点修好后仍有 746 个事件落在相对 tick 0）是**既有解码行为**，本轮没有改（SDK 参考 `soundinfo.h` 不在公开 `source-sdk-2013` 里）；真实设备播放仍需人工执行，不在门禁内。
+
 ## 2026-10-12
 
 ### T0：渲染档 9/9 已在整合主线补跑（正向与变异各一次）
@@ -39,7 +50,7 @@
 - 整合提交：`28007af`，来源 `task/audio-tick-scheduler@9b4b41a21d4546efe85087e9fea72873a58069f3`；保留清单二的 `OutcomeSink`、`eventsSkippedDisabled` 和 `waveOutOpenCalls()`，并加入设备尝试/成功计数与 tick 调度实现。
 - 定向验收：`verify-audio.sh` = `VERIFY-AUDIO=PASS (assertions_ok=28)`；`verify-audio.sh --mutation` 的效果、调度器和 sink 三组变异全部捕获；`verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`。
 - 关键读数：`eventsSeen=10`、`eventsPlayed=6`、`eventsSkippedVoice=3`、`eventsMissingResource=1`、`repeatedSeen=2`、`recoveredSeen=2`、`device_open_attempts=0`、`device_opened=0`。
-- 未验证：真实 TF2 demo 端到端音频回放、真实 MP3/ADPCM 在 WinMM 设备上的播放、长时间压力和非 Windows 平台；既有 `firstPacketTick=INT_MIN` 批量 flush 问题仍未修复。总链未重跑。
+- 未验证：真实 TF2 demo 端到端音频回放、真实 MP3/ADPCM 在 WinMM 设备上的播放、长时间压力和非 Windows 平台；既有 `firstPacketTick=INT_MIN` 批量 flush 问题仍未修复（**该问题已由 2026-10-13 的 T3 修复，见上**）。总链未重跑。
 
 ### 清单三：ViewModel 材质资源链已整合
 

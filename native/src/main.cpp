@@ -1538,14 +1538,48 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     ? std::clamp(static_cast<double>(demoHeader.ticks) / static_cast<double>(demoHeader.playbackTime), 30.0, 128.0)
     : 66.6666667;
   tf2::native::SoundEventTimeline soundTimeline;
+  // TWO ORIGINS, because a demo carries two tick spaces and they are not the
+  // same number:
+  //   * `firstPacketTick` is the SERVER tick origin. Entity history is keyed by
+  //     the tick `svc_NetTick` carries, and the signon block's entry tick holds
+  //     the server tick at connect, so the first command 1 or 2 entry is the
+  //     right origin for `sceneTick`. Measured here: 29368.
+  //   * `soundOriginTick` is the DEMO ENTRY tick origin, because sound events
+  //     are tagged with `entry.tick`. The recorded packets carry their own
+  //     counter that starts near zero, so the signon tick is *above* the whole
+  //     recording and `max(0, tick - origin)` folds it onto tick 0 -- measured
+  //     5555 of 5563 events, i.e. a batch flush on the first frame. Measured
+  //     here: 0.
+  // They were one variable, so fixing the sounds silently emptied the scene
+  // (entity snapshots read `tick-before-history`, states=0). Kept separate and
+  // both reported so the next reader cannot repeat that.
   std::int32_t firstPacketTick = 0;
   const auto firstPacket = std::find_if(demoIndex.entries.begin(), demoIndex.entries.end(),
     [](const auto& entry) { return entry.command == 1 || entry.command == 2; });
   if (firstPacket != demoIndex.entries.end()) firstPacketTick = firstPacket->tick;
+  bool soundOriginFound = false;
+  const std::int32_t soundOriginTick = tf2::native::firstRecordedPacketTick(demoIndex, soundOriginFound);
+  const std::size_t soundEventsRead = demoNetworkSummary.decodedSoundEvents.size();
+  std::size_t soundEventsUnresolved = 0;
+  std::size_t soundEventsUnplaceable = 0;
+  std::size_t soundEventsRefused = 0;
   for (const auto& source : demoNetworkSummary.decodedSoundEvents) {
-    if (source.resourceName.empty()) continue;
+    // A decoded event with no precache entry has no name to resolve, so there is
+    // nothing to schedule. Counted, not silently dropped: it is one of the four
+    // named failure points the resolver reports.
+    if (source.resourceName.empty()) { ++soundEventsUnresolved; continue; }
+    // No origin at all means the recording's own tick counter is unknown. Every
+    // event is then unplaceable; refusing them keeps the failure countable
+    // instead of scheduling them at their absolute ticks, which would never play
+    // and would read exactly like "this recording has no sounds".
+    std::int32_t relativeTick = 0;
+    if (!soundOriginFound
+        || !tf2::native::soundEventRelativeTick(source.tick, soundOriginTick, relativeTick)) {
+      ++soundEventsUnplaceable;
+      continue;
+    }
     tf2::native::ScheduledSound sound;
-    sound.tick = std::max<std::int32_t>(0, source.tick - firstPacketTick);
+    sound.tick = relativeTick;
     sound.soundIndex = source.soundIndex;
     sound.name = source.resourceName;
     sound.volume = source.volume;
@@ -1553,10 +1587,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     sound.origin[0] = source.origin[0];
     sound.origin[1] = source.origin[1];
     sound.origin[2] = source.origin[2];
-    tf2::native::scheduleGameplaySound(soundTimeline, std::move(sound), g_playback.tickRate);
+    // scheduleSoundEvent rather than scheduleGameplaySound: voice, announcer and
+    // music stay in the timeline flagged as skipped so the scheduler's
+    // eventsSkippedVoice counter is a reading that can move. They are still never
+    // resolved and never played.
+    if (!tf2::native::scheduleSoundEvent(soundTimeline, std::move(sound), g_playback.tickRate)) {
+      ++soundEventsRefused;
+    }
   }
   soundTimeline.sortByTick();
   const tf2::native::SoundKindCounts soundKindCounts = tf2::native::countSoundKinds(soundTimeline);
+  // The timeline build, reported before playback starts. Kept separate from the
+  // exit summary because a run that is cut short (--capture-frame, a gate
+  // timeout) still has a built timeline, and the fields that describe the build
+  // are the ones that say whether the demo's sounds were placed at all.
+  traceFmt("audio: timeline firstPacketTick=%d soundOriginTick=%d originFound=%d read=%zu scheduled=%zu"
+    " unresolved=%zu unplaceable=%zu refused=%zu kinds=w%zu/f%zu/u%zu/o%zu/v%zu/a%zu/m%zu",
+    static_cast<int>(firstPacketTick), static_cast<int>(soundOriginTick), soundOriginFound ? 1 : 0,
+    soundEventsRead, soundTimeline.size(), soundEventsUnresolved, soundEventsUnplaceable,
+    soundEventsRefused, soundKindCounts.weapon, soundKindCounts.footstep, soundKindCounts.uber,
+    soundKindCounts.world, soundKindCounts.voice, soundKindCounts.announcer, soundKindCounts.music);
   tf2::native::TempEffectTimeline effectTimeline;
   for (const auto& source : demoNetworkSummary.tempEntityEvents) {
     tf2::native::addFireBulletsEvent(source, effectTimeline);
@@ -2724,6 +2774,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           soundScheduler.setListenerPosition(listenerX, listenerY, listenerZ);
         }
         soundScheduler.advance(soundTimeline, g_playback.tick);
+        // One line per tick the playback cursor actually moves. This is the
+        // reading that separates "the scheduler advanced and found nothing" from
+        // "the scheduler never advanced": the summary counters alone cannot tell
+        // them apart, because both end with a small eventsSeen.
+        if (g_playback.tick != lastAudioTick) {
+          const auto& advanceStats = soundScheduler.stats();
+          traceFmt("audio: advance tick=%d cursor=%d seen=%zu played=%zu skippedVoice=%zu"
+            " missing=%zu dup=%zu",
+            static_cast<int>(g_playback.tick), static_cast<int>(soundScheduler.lastTick()),
+            advanceStats.eventsSeen, advanceStats.eventsPlayed, advanceStats.eventsSkippedVoice,
+            advanceStats.eventsMissingResource, advanceStats.duplicateTicks);
+        }
         hudAudioPlayed = soundScheduler.stats().eventsPlayed;
         hudAudioMissing = soundScheduler.stats().eventsMissingResource;
         lastAudioTick = g_playback.tick;
@@ -3577,6 +3639,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       (captureRequested && renderer.lastFrameCaptureSucceeded()) ? 1 : 0,
       (!metricsPath.empty() && metricsFile.is_open() && metricsWriteCalls > 0) ? 1 : 0,
       static_cast<int>(message.wParam));
+    // The eight fields the audio wiring is accepted on, on one line so a gate
+    // reads them from a single place. `soundEventsRead` is what the decoder
+    // produced, `soundEventsScheduled` what survived the origin/name filter and
+    // entered the timeline, and the three scheduler counters are what the
+    // scheduler did with them. `soundEventsSkippedVoice` is only meaningful
+    // because voice events are kept in the timeline and flagged rather than
+    // refused before `add` -- otherwise it would be a counter that can only ever
+    // read zero. `duplicateTicks` proves the "same tick does not replay" guard
+    // actually fired; `reverseRecoveries` counts resets that moved the cursor
+    // backwards, which is what a reverse run has to do to replay anything.
+    traceFmt("audio: summary soundEventsRead=%zu soundEventsScheduled=%zu soundEventsPlayed=%zu"
+      " soundEventsSkippedVoice=%zu soundEventsMissingResource=%zu firstPacketTick=%d"
+      " soundOriginTick=%d reverseRecoveries=%zu duplicateTicks=%zu",
+      soundEventsRead, soundTimeline.size(), audioStats.eventsPlayed,
+      audioStats.eventsSkippedVoice, audioStats.eventsMissingResource,
+      static_cast<int>(firstPacketTick), static_cast<int>(soundOriginTick),
+      audioStats.reverseRecoveries, audioStats.duplicateTicks);
   }
   renderer.shutdown();
   persistent.render = renderer.settings();
