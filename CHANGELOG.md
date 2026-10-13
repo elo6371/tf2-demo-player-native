@@ -2,6 +2,12 @@
 
 ## 2026-10-13
 
+### T2：ViewModel、武器本体与真实音频人工验收（已整合）
+
+- 整合 `task/manual-acceptance@ae7bd09`；仅新增 `T2-MANUAL-ACCEPTANCE-2026-10-13.md` 与 `evidence/manual-acceptance/`，未改产品源码或门禁。
+- 冻结矩阵中 `--viewmodel` 对照差异为 57.9860%，FOV/hand 六格可分离；2000/4000 逐字节相同，6000 才变化。
+- 真实设备 6（xduoo）读数 `audio_device_opened=19 == events_played=19`。这只证明设备打开和播放调用成功，未做人耳确认；武器本体 on/off 因没有选中的 ViewModel 实体而逐字节相同。
+
 ### T1：当前渲染档复核（已整合，正向 8/9）
 
 - 整合 `task/render-current@8ddab34` 的报告与 `evidence/render-current/`；本项没有产品源码或门禁判据改动。

@@ -4,7 +4,7 @@
 代码基线：`p0-entity-protocol@0f023bb`  
 原则：每个任务独立 worktree；禁止直接修改主线；禁止运行完整 `verify-all.sh`。
 
-T1 已交付并整合：`task/render-current@8ddab34` → 主线整合 `edc4950`。正向复核为 8/9（1 red，capture tick 标定盲区），mutation 为 9/9；详见 `T1-RENDER-CURRENT-2026-10-13.md`。下一步是在后续代码任务整合完成后，按需在当前 HEAD 单独复核 `verify-render.sh`，不把来源分支结果当成当前 HEAD 结果。
+T1 已交付并整合：`task/render-current@8ddab34` → 主线整合 `edc4950`。正向复核为 8/9（1 red，capture tick 标定盲区），mutation 为 9/9；详见 `T1-RENDER-CURRENT-2026-10-13.md`。T2 已交付并进入整合：`task/manual-acceptance@ae7bd09`，只新增人工验收证据，不改产品或门禁。下一步是在后续代码任务整合完成后，按需在当前 HEAD 单独复核 `verify-render.sh`，不把来源分支结果当成当前 HEAD 结果。
 
 ## 分配总览
 
@@ -53,6 +53,8 @@ git status --short
 交付必须报告：`VERIFY-RENDER`、gate 数、mutation 数、退出码、日志哈希、锁是否清理。
 
 ## T2：人工验收
+
+状态：已交付，待本次整合提交；报告 `T2-MANUAL-ACCEPTANCE-2026-10-13.md`。矩阵证明 ViewModel/FOV/hand 输入影响画面，真实设备打开并播放 19 个事件；不证明动画、材质、武器本体或声音内容正确。武器本体在选定 tick 没有 ViewModel 实体，因此 on/off 逐字节相同；声音未做人耳确认。
 
 ### 工作区
 

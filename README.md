@@ -4,6 +4,8 @@
 
 当前主线为 `p0-entity-protocol@8d5c8cd`。T1 ViewModel 材质接入、T2 静态武器本体第二笔和 T3 音频主程序接线均已整合并推送。合并后 `verify-fast.sh` 为 `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0；T1 专项 220 条/10 mutation、T2 专项 61 条/4 mutation、T3 音频专项 48 条/12 mutation 均有来源分支实测通过记录。T1 当前渲染档复核已整合为正向 `8/9`（`viewmodel-contract` 1 red）和 mutation `9/9`；红项归因于 T3 音频接线造成的首帧 capture tick 落入 10253--10267 标定盲区，不能写成渲染档 PASS。`verify-render.sh` 尚未在此 HEAD 重跑；完整总链未运行。T3 真实声卡播放、MP3/ADPCM 设备输出和音频 soak 未验证。下方较早的分支状态文字按历史记录阅读。
 
+T2 人工验收已整合：`task/manual-acceptance@ae7bd09` 仅新增 `T2-MANUAL-ACCEPTANCE-2026-10-13.md` 和 `evidence/manual-acceptance/`。冻结矩阵证明 ViewModel/FOV/hand 输入会改变画面；真实设备 6 打开并播放 19 个事件，但没有人耳确认声音内容。选定 tick 没有 ViewModel 实体，武器本体 on/off 逐字节相同；tick 2000 与 4000 也相同，因此这些证据不能证明动画、材质或武器本体正确。
+
 ## 当前状态（2026-10-13）
 
 T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单一 companion 动态手臂绘制、清单三 ViewModel 材质资源链、T1 ViewModel 材质产品接入、T2 静态武器本体第二笔和清单四音频 tick 调度契约已合并到 `p0-entity-protocol@eec2c9c`。

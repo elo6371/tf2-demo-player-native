@@ -1,0 +1,7 @@
+# Machine output, kept on disk so a reading can be re-read instead of re-run,
+# but not reviewable and not the frozen witness: every .bmp in this directory
+# is the witness, the .trace/.csv/.log beside it is how it was produced.
+# Same rule as evidence/weapon-animation (BMPs tracked, traces not).
+traces/
+*.csv
+*.log
