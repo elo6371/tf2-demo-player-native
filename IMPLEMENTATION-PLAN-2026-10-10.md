@@ -1,8 +1,8 @@
 # TF2 Demo Player Native 实现任务与验收计划
 
-更新时间：2026-10-12
+更新时间：2026-10-13
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@4f43560`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链、音频 tick 调度契约、验收脚本修复和历史 23 步总链证据；当前 24 步总链尚未重跑，不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@eec2c9c`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链与产品接入、T2 静态武器本体、音频 tick 调度契约和验收脚本修复；当前 24 步总链尚未重跑，不是产品发布分支）
 
 渲染档补跑（2026-10-12，工作区 `D:\TF2_Native_Worktrees\render-gate-recheck`，基线 `9a8387b`）：
 9 个门禁的 `verify-render.sh` 已在该基线上跑过正向与 `--mutation` 各一次，两次都是
@@ -49,11 +49,11 @@
 
 `task/viewmodel-materials@f795992` 已整合为 `e584052`。`viewmodel_material_probe` 复用产品材质解析链，门禁覆盖真实 VPK 模型和可再生缺陷夹具；整合主线正常门禁为 159 条断言通过，来源分支的 6/6 mutation 和 `verify-render.sh` 8/8 已通过。资源解析与 BC1/BC3 像素解码闭合；产品 draw pass 尚未读取这些材质的缺口已由下方 T1 分支补上（未合并主线），人工画面对照和高级 shader 效果仍未完成。
 
-### ViewModel 材质接入交付状态（AI-B / T1，2026-10-12，分支未合并）
+### ViewModel 材质接入交付状态（AI-B / T1，2026-10-13，已合并）
 
 `task/viewmodel-material-render`（worktree `D:\TF2_Native_Worktrees\viewmodel-material-render`，基线 `origin/p0-entity-protocol@9a8387b`）把清单三的解码链接入实际 ViewModel draw pass：每个材质槽有运行时状态，GPU 纹理按规范化 VTF 资源路径缓存并在每帧复用（长跑 149 帧 `texturesUploaded=2`、`texturesReused=149`），缺失槽进入具名 fallback；新增九项稳定读数与 `--viewmodel-material-slot` / `--viewmodel-material-missing-slot` / `--viewmodel-flat-color` 覆盖开关。像素对照必须在 `--start-paused --capture-tick 0` 冻结世界下取得——实测 `--capture-tick` 的落点随帧时机浮动（同一个值落在 tick 200/201/202，世界内容差异可达全帧 3.5%），长跑不可作为像素对照。专项门禁 220 条断言、10/10 mutation；phong/bump/selfillum 未实现，读数逐帧标 `*AppliedRanges=0`，防止把 VMT 声明当支持。
 
-剩余：人工画面对照、跨机器抓帧、phong/bump/selfillum、多帧像素稳定性；本项未合并主线，总链不因本项重跑。
+剩余：人工画面对照、跨机器抓帧、phong/bump/selfillum、多帧像素稳定性；本项已合并主线，但 `verify-render.sh` 和总链尚未在当前 HEAD 重跑。
 
 ### T1 交付与验收状态（2026-10-10）
 
@@ -291,7 +291,7 @@ native/build-nmake/viewmodel_fov_probe.exe
 
 另需真实截图：默认 FOV、FOV 边界、左右手、attachment 对齐、缺资源回退；截图标题必须包含 demo tick 和 model path。
 
-#### T2 第二笔：静态武器本体（已完成开发，2026-10-12，待合并）
+#### T2 第二笔：静态武器本体（已完成并合并，2026-10-13）
 
 工作区：`D:\TF2_Native_Worktrees\weapon-body-render`；分支：`task/weapon-body-render`；基线
 `origin/p0-entity-protocol@9a8387b`。

@@ -1,12 +1,12 @@
 # TF2_Native_Test
 
-## 当前状态（2026-10-12）
+## 当前状态（2026-10-13）
 
-T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单一 companion 动态手臂绘制、清单三 ViewModel 材质资源链和清单四音频 tick 调度契约已合并到 `p0-entity-protocol`。
+T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单一 companion 动态手臂绘制、清单三 ViewModel 材质资源链、T1 ViewModel 材质产品接入、T2 静态武器本体第二笔和清单四音频 tick 调度契约已合并到 `p0-entity-protocol@eec2c9c`。
 T2 来源 `task/viewmodel-render@9894c5b`，整合提交 `1b765d5`；T2.5 产品提交 `447ca74`，门禁/文档提交 `2a92967`，主线整合提交 `f5e427f`。
 产品默认 ViewModel FOV 为 90（40--120 夹取），支持 attachment、左右手镜像、独立深度策略、缺资源回退；T2.5 会读取 `CTFViewModel` 的 `m_nSequence`/`m_flPlaybackRate`，对不属于当前 `v_*.mdl` 序列表的序列明确拒绝并回退 bind pose。
 
-已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；清单一 companion 正常 108 条断言、mutation 6/6，动画专项 139 条断言；清单三资源专项 159 条断言；历史渲染档 8/8。当前整合后的 `verify-render.sh` 已扩展为 9/9，尚未在主线上重跑。T1 材质接入把同一门禁扩展到 220 条断言、10/10 mutation（见下）。
+已验证：主线 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；T1 ViewModel 材质专项 220 条断言、10/10 mutation；T2 武器本体专项 61 条断言、4/4 mutation；清单四音频专项 28 条断言、6/6 mutation。`verify-render.sh` 9/9 已在旧整合基线通过，尚未在 `eec2c9c` 重跑；完整 24 步总链也未因本轮整合重跑。
 T2.5 没有实现实体序列到旧式 `v_*.mdl` 的映射，而是证明实体自身 `c_*_arms.mdl` 才是动画表；POV 自然序列没有动画绑定，`--viewmodel-sequence 0` 只作为构造正例。ViewModel 材质已接入产品 draw pass（见下），当前仍未证明真实游戏人工画面对照、玩家动画输入、跨机器抓帧点集合和真实 GPU/FPS。
 
 T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默认 `v_scattergun_scout.mdl` 对 POV 的 141 次实体序列只有 37 次在范围内；按实体自身 `m_nModelIndex` 对应模型比较为 141/141。清单一已切换产品绘制路径：默认绘制实体自身 `c_*_arms.mdl`，命令行 `v_*` 保留为 modelMismatch 对照，并要求 owner、模型路径、sequence 表和骨骼覆盖同时成立。
@@ -25,7 +25,7 @@ T1 ViewModel 材质接入（分支 `task/viewmodel-material-render`，基线 `or
 
 静默抓帧模式已在 `4dd79a9` 整合：传 `--hidden-window --audio-disabled` 时窗口不可见、音频设备不打开，BMP/渲染读数与普通模式一致。`quiet-capture-check.sh` 正常 63 条断言、4 个 mutation 全部捕获；该门禁没有替代完整总链。bagel demo 的地图缺失和既有 `firstPacketTick` 音频回绕仍是单独未解决项。
 
-下一步按顺序：把清单三材质链接入 ViewModel draw pass 并做人工作画面对照，随后处理静态武器本体第二笔、音频主程序接线、T4 世界材质/光照、T6 相机/HUD/UI、T7 soak/损坏输入/发布验收。清单一、二、三、四的契约已完成；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
+下一步按顺序：先在 `eec2c9c` 上补跑一次 `verify-render.sh`（正常，必要时再跑 mutation），然后在独立 worktree 开始 T3 音频主程序接线；之后做 ViewModel/武器本体人工画面对照、世界材质/光照、相机/HUD/UI、soak/损坏输入和发布验收。缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
 
