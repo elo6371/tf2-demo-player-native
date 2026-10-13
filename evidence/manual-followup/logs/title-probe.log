@@ -1,0 +1,4 @@
+child says: child hwnd=1511274 len=1200
+PROBE stored_len=1200 pywin32_len=511 ctypes_len=1200
+PROBE status=OK
+PROBE verdict=win32gui.GetWindowText truncates at 511 chars on a cross-process window; the length-aware read returns all 1200
