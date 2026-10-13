@@ -4,6 +4,10 @@
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
 当前验收与诊断基线：`p0-entity-protocol@69baff8`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链与产品接入、T2 静态武器本体、清单四音频调度契约和 T3 音频主程序接线；当前完整总链尚未重跑，不是产品发布分支）
 
+## 2026-10-13 T1 当前渲染档复核
+
+`task/render-current@8ddab34` 已整合，新增报告和 `evidence/render-current/`，未改产品源码、`verify-render.sh` 或 `verify-all.sh`。来源 worktree 的正向结果保留为 `VERIFY-RENDER=FAIL (1 red)`、8/9：`viewmodel-contract` 的测量抓帧点断言因 T3 音频接线改变首帧速度而落入 10253--10267 标定盲区；复采 3/3 稳定。变异结果为 `VERIFY-RENDER=PASS (9/9 gates, mutation=1)`。当前 HEAD 的正向渲染档仍需后续单独复核，不能把 mutation PASS 或旧基线 9/9 当作当前正向 PASS；完整总链不因本项重跑。
+
 渲染档补跑（2026-10-12，工作区 `D:\TF2_Native_Worktrees\render-gate-recheck`，基线 `9a8387b`）：
 9 个门禁的 `verify-render.sh` 已在该基线上跑过正向与 `--mutation` 各一次，两次都是
 `VERIFY-RENDER=PASS (9/9 gates)`、退出码 0，记录 `T0-RENDER-RECHECK-2026-10-12.md`。

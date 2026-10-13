@@ -1,0 +1,8 @@
+# the hand-matrix mutation was caught: these assertions went red
+probe positive contractOk: false != true
+probe positive rc: 1 != 0
+probe hand mirror probe: false != true
+probe mirror touches only X: false != true
+probe left hand X basis: 1 != -1
+all 7 compared frames came from a measured capture point: 5 != 7
+the left hand is a different picture from the right: BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=whole frame percent=0.0000 is below 0.2000; whole frame max_delta=0 is below 100

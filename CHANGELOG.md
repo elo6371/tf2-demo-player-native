@@ -2,6 +2,13 @@
 
 ## 2026-10-13
 
+### T1：当前渲染档复核（已整合，正向 8/9）
+
+- 整合 `task/render-current@8ddab34` 的报告与 `evidence/render-current/`；本项没有产品源码或门禁判据改动。
+- `bash verify-render.sh` 实测 `VERIFY-RENDER=FAIL (1 red)`、`gates_ok=8 gates_bad=1`；唯一红项是 `viewmodel-contract` 的测量抓帧点断言。
+- 复采 3/3 确认 T3 音频接线改变首帧速度，使部分探针落入 10253--10267 标定盲区；未修改判据掩盖失败。
+- `bash verify-render.sh --mutation` 实测 `VERIFY-RENDER=PASS (9/9 gates, mutation=1)`；变异源码已恢复，完整 `verify-all.sh` 按约束未运行。
+
 ### 主线整合状态
 
 T1、T2、T3 已整合并推送至 `p0-entity-protocol@69baff8`。T3 来源为 `task/audio-main-wiring`，产品提交 `baf93e7`、门禁/证据提交 `61260a0`；合并后 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0。T3 专项 48 条断言和 12/12 mutation 在来源 worktree 通过。当前 HEAD 的渲染档及完整总链未验证；真实设备声音输出未验证。下方「尚未整合」字样均为来源分支交付时的历史状态。
