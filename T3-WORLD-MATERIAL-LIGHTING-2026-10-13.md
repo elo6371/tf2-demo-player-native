@@ -3,7 +3,7 @@
 - 任务：`TASK-PLAN-2026-10-13-4-WAY.md` §T3（= `IMPLEMENTATION-PLAN-2026-10-10.md` §T4「世界材质与地图光照」；两份文档编号不同，本文件按任务书称 T3）。
 - 分支 / worktree：`task/world-material-lighting` / `D:\TF2_Native_Worktrees\world-material-lighting`
 - 基线 commit：`0f023bb6dcb6b9617ace804fcf9cf34b93594ae9`（`docs: record T3 integration and fix audio input line endings`）
-- 最终 commit：`f7eea49`（代码/门禁/证据/四份文档；本报告所在提交为链尾一笔，见 §7）
+- 最终 commit：`f7eea49`（代码/门禁/证据/四份文档；其后为判定运行的证据提交与交付报告，见 §7）
 - 执行日期：2026-10-13
 - 授权范围：产品与门禁改动见 §2 逐文件表；**`D:\TF2_Demo_Player` 全程只读**；未运行完整 `verify-all.sh`（任务书硬性约束）。
 
@@ -14,7 +14,7 @@
 | 任务 | T3 世界材质与光照 |
 | 分支与 worktree | `task/world-material-lighting` / `D:\TF2_Native_Worktrees\world-material-lighting` |
 | 基线 commit | `0f023bb` |
-| 最终 commit | `f7eea49`（+ 本报告所在提交，见 §7） |
+| 最终 commit | `f7eea49`（+ 判定运行证据与交付报告，见 §7） |
 | 修改文件及理由 | §2 逐文件表；其中 5 个文件超出任务书允许清单，逐条给理由 |
 | 构建命令与 rc | `bash build-target.sh world_material_probe tf2_demo_native` → rc=0 |
 | 专项验收命令与 rc | `world-material-check.sh` → `WORLD-MATERIAL=PASS` rc=0；`--mutation` → `MUTATION-CAUGHT=PASS` rc=0；`verify-fast.sh` → `VERIFY-FAST=PASS (assertions_ok=43)` rc=0；`verify-render.sh` → `gates_ok=8 gates_bad=1` rc=1（唯一红 = `viewmodel-contract`：T1 已归因、`task/capture-determinism@a259b52` 已修的落点盲区，**不在本分支**；§3.5） |
@@ -42,7 +42,7 @@
 
 ## 2. 修改文件及理由（逐文件）
 
-相对 `0f023bb` 共 16 个提交（11 产品/首批证据 + 判据更新 + 证据刷新 + 复跑留档 + 文档 + 本报告）；文件与理由如下（行数取自 `git diff --stat 0f023bb..HEAD`）。
+相对 `0f023bb` 共 17 个提交（11 产品/首批证据 + 门禁判据 + 三笔证据/留档 + 四份文档 + 交付报告）；文件与理由如下（行数取自 `git diff --stat 0f023bb..HEAD`）。
 
 | 文件 | 规模 | 为什么改 |
 |---|---|---|
@@ -180,9 +180,10 @@ e411733 fix(world-material): a cubemap the device refuses degrades the capabilit
 3857078 chore(evidence): frame-capture's witness frames for the lightmapped world, and the frame-shape record
 2e83e27 chore(evidence): the frame-capture verdicts, and the first tier attempt kept with its cause
 f7eea49 docs: sync the four handover documents for the T3 world-material round
+72b6a57 chore(evidence): the render tier's verdict run on the frozen tree, with the eight gate logs
 ```
 
-上列 15 笔 + 本报告所在提交（链尾）= 本轮共 16 笔。§6 复核锚点（HANDOFF §6 表）以 `f7eea49` 计算；本报告所在提交只增加本文件，不含 native、判据或证据字节。
+本轮共 18 笔：上列 16 笔 + 交付报告 `bcd32d6` + 链尾一笔计数校正（本段数字由它钉住）。§6 复核锚点（HANDOFF §6 表）以 `f7eea49` 计算；`72b6a57` 及其后的两笔只增加证据与文档字节，不含 native 或判据字节。
 
 ## 8. 证据路径与哈希
 
