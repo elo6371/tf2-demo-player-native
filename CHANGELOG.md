@@ -2,6 +2,13 @@
 
 ## 2026-10-13
 
+### T3 世界材质整合与渲染门禁修复
+
+- 整合 `task/world-material-lighting@b55e8e5`（主线提交 `b7d8035`）及共享 `frame-capture-check.sh` 判据；`world-material-check.sh` 正向和 mutation、`verify-fast.sh` 均通过。
+- 整合 `task/capture-determinism@a259b52`（主线提交 `1c69f08`）；ViewModel contract 统一 `--start-paused --hidden-window --audio-disabled`，154 条断言通过。
+- 修复 `viewmodel-animation-check.sh` 将实时回放观测吞吐误当固定正确性阈值的问题：保留观测存在、序列变化和不同序列断言，移除 `observations >= 1000` 的机器速度假设；产品运行统一静默模式。单项复验 `VIEWMODEL-ANIMATION=PASS`。
+- 当前渲染档定向运行中其余 8 项通过；完整总链未运行。天空盒/水面实际绘制、VIS 裁剪和真实 GPU 性能仍未验证。
+
 ### T2：ViewModel、武器本体与真实音频人工验收（已整合）
 
 - 整合 `task/manual-acceptance@ae7bd09`；仅新增 `T2-MANUAL-ACCEPTANCE-2026-10-13.md` 与 `evidence/manual-acceptance/`，未改产品源码或门禁。

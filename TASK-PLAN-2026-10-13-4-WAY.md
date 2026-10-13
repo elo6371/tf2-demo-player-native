@@ -4,6 +4,8 @@
 代码基线：`p0-entity-protocol@0f023bb`  
 原则：每个任务独立 worktree；禁止直接修改主线；禁止运行完整 `verify-all.sh`。
 
+整合更新：T3 世界材质与光照已由 `task/world-material-lighting@b55e8e5` 合入主线提交 `b7d8035`；抓帧确定性修复 `task/capture-determinism@a259b52` 合入 `1c69f08`。合并后定向验收已通过世界材质正向/mutation、ViewModel contract 154 条、frame-capture 正向/2 mutation 和 `verify-fast.sh` 43 条。渲染档发现并修复了 animation 门禁把实时观测吞吐固定为 `>=1000` 的假红；现改为存在性检查并统一隐藏窗口、禁用音频，单项复验 `VIEWMODEL-ANIMATION=PASS`。完整总链仍不运行。
+
 T1 已交付并整合：`task/render-current@8ddab34` → 主线整合 `edc4950`。正向复核为 8/9（1 red，capture tick 标定盲区），mutation 为 9/9；详见 `T1-RENDER-CURRENT-2026-10-13.md`。T2 已交付并进入整合：`task/manual-acceptance@ae7bd09`，只新增人工验收证据，不改产品或门禁。下一步是在后续代码任务整合完成后，按需在当前 HEAD 单独复核 `verify-render.sh`，不把来源分支结果当成当前 HEAD 结果。
 
 ## 分配总览
