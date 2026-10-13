@@ -2293,7 +2293,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (!renderer.uploadWorldAuxTextures(mapBumpRgba, mapBumpWidth, mapBumpHeight, mapEnvRgba, mapEnvWidth, mapEnvHeight)) return false;
     if (!renderer.uploadWorldLightmap(displayMap.lightmapAtlas,
         static_cast<UINT>(displayMap.lightmapAtlasWidth), static_cast<UINT>(displayMap.lightmapAtlasHeight))) return false;
-    if (!renderer.uploadWorldCubemap(mapCubemapFaces, mapCubemapSize)) return false;
+    // A cube that cannot be built is a capability this map does not get, not a
+    // reason to lose the world: reloadGpuResources returning false ends the
+    // program (main returns 14), and "this map's cubemap is malformed" has to
+    // degrade to the 2D path with a reason attached, which is what the reading
+    // is for. uploadWorldCubemap clears what it had before it validates.
+    std::string cubemapUploadError;
+    if (!renderer.uploadWorldCubemap(mapCubemapFaces, mapCubemapSize, &cubemapUploadError)) {
+      mapCubemapReason = "upload refused: " + cubemapUploadError;
+    }
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
     // The lightmap pass, read back from the renderer rather than assumed from
