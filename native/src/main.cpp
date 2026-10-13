@@ -137,6 +137,51 @@ constexpr int kUiTimeline = 4109;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
+// Camera mode machine (T4). The controller owns the mode and the SPACE
+// single/double classification; the per-scene-tick decision is
+// decideCameraSceneAction and the counters below are what the trace reports
+// and camera-ui-check.sh pins.
+tf2::native::CameraModeController g_cameraMode;
+tf2::native::PauseKeyController g_pauseKey;
+tf2::native::CameraMode g_lastAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
+std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
+std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
+std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
+
+// Repositions every UI control from the planner's answer for the current
+// client rect and window dpi. The planner guarantees containment and
+// non-overlap; this function is the only place that turns a plan into
+// MoveWindow calls, so a layout regression is a planner regression the probe
+// can see, not a Win32 accident it cannot.
+void applyUiLayout(HWND window) {
+  if (!window) return;
+  RECT client{};
+  if (!GetClientRect(window, &client)) return;
+  const UINT dpi = GetDpiForWindow(window);
+  const auto plan = tf2::native::planUiLayout(client.right, client.bottom,
+    static_cast<float>(dpi) / 96.0f);
+  if (!plan.valid) return;
+  const auto move = [&](tf2::native::UiControlId id, HWND control) {
+    if (!control) return;
+    const auto& rect = plan.rects[static_cast<std::size_t>(id)];
+    MoveWindow(control, rect.x, rect.y, rect.w, rect.h, TRUE);
+  };
+  move(tf2::native::UiControlId::Status, g_uiStatus);
+  move(tf2::native::UiControlId::Open, g_uiOpen);
+  move(tf2::native::UiControlId::Cancel, g_uiCancel);
+  move(tf2::native::UiControlId::Confirm, g_uiConfirm);
+  move(tf2::native::UiControlId::Play, g_uiPlay);
+  move(tf2::native::UiControlId::Stop, g_uiStop);
+  move(tf2::native::UiControlId::Back, g_uiBack);
+  move(tf2::native::UiControlId::Forward, g_uiForward);
+  move(tf2::native::UiControlId::Reverse, g_uiReverse);
+  move(tf2::native::UiControlId::Timeline, g_uiTimeline);
+  if (g_nativeUi) {
+    g_nativeUi->setDisplayMetrics(dpi, static_cast<unsigned>(client.right),
+      static_cast<unsigned>(client.bottom), IsZoomed(window) != 0);
+  }
+}
+
 // Reduce a `--model` argument to the form the animation cache is keyed by.
 // Two legitimate shapes, and picking the wrong one is the difference between
 // "model-missing" and a pose:
@@ -232,13 +277,14 @@ void setUiControlVisible(HWND control, bool visible) {
 }
 
 // Signature of everything updateNativeUiControls actually pushes to a control:
-// the screen, the fields that appear in the status line, and the timeline range
-// and position. `dpi`/`recentDemos`/`tfRoot` are deliberately absent -- nothing
-// here renders them, so a change there must not force a refresh. dtors of the
-// tuple members (std::string) are cheap next to a SendMessageW round trip.
-bool uiControlsUnchanged(const tf2::native::UiSnapshot& state,
+// the screen, the fields that appear in the status line, the camera mode the
+// player status line shows, and the timeline range and position. `dpi`/
+// `recentDemos`/`tfRoot` are deliberately absent -- nothing here renders them,
+// so a change there must not force a refresh. dtors of the tuple members
+// (std::string) are cheap next to a SendMessageW round trip.
+bool uiControlsUnchanged(const tf2::native::UiSnapshot& state, int cameraMode,
     const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-      std::string, bool, std::uint32_t, std::string>& signature) {
+      std::string, bool, std::uint32_t, std::string, int>& signature) {
   return std::get<0>(signature) == static_cast<int>(state.screen)
     && std::get<1>(signature) == state.tick
     && std::get<2>(signature) == state.ticks
@@ -248,7 +294,8 @@ bool uiControlsUnchanged(const tf2::native::UiSnapshot& state,
     && std::get<6>(signature) == state.recordingType
     && std::get<7>(signature) == state.bspAvailable
     && std::get<8>(signature) == state.missingResourceCount
-    && std::get<9>(signature) == state.error;
+    && std::get<9>(signature) == state.error
+    && std::get<10>(signature) == cameraMode;
 }
 
 // Returns true when it actually pushed to the controls, false when the cached
@@ -257,18 +304,19 @@ bool uiControlsUnchanged(const tf2::native::UiSnapshot& state,
 bool updateNativeUiControls(HWND window) {
   if (!g_nativeUi) return false;
   const auto state = g_nativeUi->snapshot();
+  const int cameraMode = static_cast<int>(g_cameraMode.mode());
   // Cached signature of the previous push. A static here is safe: there is one
   // window, hence one call site, and the whole reason this function is called
   // every iteration is to keep the controls in step with the playback state.
   static std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-    std::string, bool, std::uint32_t, std::string> lastSignature{};
+    std::string, bool, std::uint32_t, std::string, int> lastSignature{};
   static bool signatureValid = false;
   const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-    std::string, bool, std::uint32_t, std::string> signature{
+    std::string, bool, std::uint32_t, std::string, int> signature{
       static_cast<int>(state.screen), state.tick, state.ticks, state.playing,
       state.reverse, state.mapName, state.recordingType, state.bspAvailable,
-      state.missingResourceCount, state.error};
-  if (signatureValid && uiControlsUnchanged(state, lastSignature)) return false;
+      state.missingResourceCount, state.error, cameraMode};
+  if (signatureValid && uiControlsUnchanged(state, cameraMode, lastSignature)) return false;
   lastSignature = signature;
   signatureValid = true;
   const bool opening = state.screen == tf2::native::UiScreen::Opening;
@@ -299,7 +347,11 @@ bool updateNativeUiControls(HWND window) {
   } else if (player) {
     status = L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
       + (state.playing ? L" | playing" : L" | paused")
-      + (state.reverse ? L" | reverse" : L"");
+      + (state.reverse ? L" | reverse" : L"")
+      + L" | camera " + [&]() {
+          const char* modeName = tf2::native::cameraModeName(g_cameraMode.mode());
+          return std::wstring(modeName, modeName + std::strlen(modeName));
+        }();
   } else if (error) {
     status = L"Error: " + std::wstring(state.error.begin(), state.error.end());
   }
@@ -317,17 +369,46 @@ void createNativeUiControls(HWND window, HINSTANCE instance) {
       x, y, width, height, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
       instance, nullptr);
   };
-  g_uiStatus = make(L"STATIC", L"Opening: choose a .dem file", SS_LEFT, 0, 16, 12, 900, 28);
-  g_uiOpen = make(L"BUTTON", L"Open Demo...", BS_PUSHBUTTON, kUiOpen, 16, 48, 120, 30);
-  g_uiCancel = make(L"BUTTON", L"Cancel", BS_PUSHBUTTON, kUiCancel, 144, 48, 90, 30);
-  g_uiConfirm = make(L"BUTTON", L"Import", BS_DEFPUSHBUTTON, kUiConfirm, 240, 48, 90, 30);
-  g_uiPlay = make(L"BUTTON", L"Play/Pause", BS_PUSHBUTTON, kUiPlay, 16, 84, 110, 30);
-  g_uiStop = make(L"BUTTON", L"Stop", BS_PUSHBUTTON, kUiStop, 132, 84, 80, 30);
-  g_uiBack = make(L"BUTTON", L"< Tick", BS_PUSHBUTTON, kUiBack, 218, 84, 80, 30);
-  g_uiForward = make(L"BUTTON", L"Tick >", BS_PUSHBUTTON, kUiForward, 304, 84, 80, 30);
-  g_uiReverse = make(L"BUTTON", L"Reverse", BS_PUSHBUTTON, kUiReverse, 390, 84, 90, 30);
+  // The initial geometry comes from the same planner WM_SIZE will use later,
+  // so the first paint and every resize after it follow one set of rules.
+  RECT client{};
+  UINT dpi = 96;
+  if (GetClientRect(window, &client)) {
+    dpi = GetDpiForWindow(window);
+  } else {
+    client.right = 1280;
+    client.bottom = 720;
+  }
+  const auto plan = tf2::native::planUiLayout(client.right, client.bottom,
+    static_cast<float>(dpi) / 96.0f);
+  const auto& rects = plan.rects;
+  const auto rectFor = [&](tf2::native::UiControlId id, int fallbackX, int fallbackY,
+      int fallbackW, int fallbackH) {
+    if (!plan.valid) return std::make_tuple(fallbackX, fallbackY, fallbackW, fallbackH);
+    const auto& rect = rects[static_cast<std::size_t>(id)];
+    return std::make_tuple(rect.x, rect.y, rect.w, rect.h);
+  };
+  auto [sx, sy, sw, sh] = rectFor(tf2::native::UiControlId::Status, 16, 12, 900, 28);
+  g_uiStatus = make(L"STATIC", L"Opening: choose a .dem file", SS_LEFT, 0, sx, sy, sw, sh);
+  auto [ox, oy, ow, oh] = rectFor(tf2::native::UiControlId::Open, 16, 48, 120, 30);
+  g_uiOpen = make(L"BUTTON", L"Open Demo...", BS_PUSHBUTTON, kUiOpen, ox, oy, ow, oh);
+  auto [cx, cy, cw, ch] = rectFor(tf2::native::UiControlId::Cancel, 144, 48, 90, 30);
+  g_uiCancel = make(L"BUTTON", L"Cancel", BS_PUSHBUTTON, kUiCancel, cx, cy, cw, ch);
+  auto [fx, fy, fw, fh] = rectFor(tf2::native::UiControlId::Confirm, 240, 48, 90, 30);
+  g_uiConfirm = make(L"BUTTON", L"Import", BS_DEFPUSHBUTTON, kUiConfirm, fx, fy, fw, fh);
+  auto [px, py, pw, ph] = rectFor(tf2::native::UiControlId::Play, 16, 84, 110, 30);
+  g_uiPlay = make(L"BUTTON", L"Play/Pause", BS_PUSHBUTTON, kUiPlay, px, py, pw, ph);
+  auto [tx, ty, tw, th] = rectFor(tf2::native::UiControlId::Stop, 132, 84, 80, 30);
+  g_uiStop = make(L"BUTTON", L"Stop", BS_PUSHBUTTON, kUiStop, tx, ty, tw, th);
+  auto [bx, by, bw, bh] = rectFor(tf2::native::UiControlId::Back, 218, 84, 80, 30);
+  g_uiBack = make(L"BUTTON", L"< Tick", BS_PUSHBUTTON, kUiBack, bx, by, bw, bh);
+  auto [nx, ny, nw, nh] = rectFor(tf2::native::UiControlId::Forward, 304, 84, 80, 30);
+  g_uiForward = make(L"BUTTON", L"Tick >", BS_PUSHBUTTON, kUiForward, nx, ny, nw, nh);
+  auto [rx, ry, rw, rh] = rectFor(tf2::native::UiControlId::Reverse, 390, 84, 90, 30);
+  g_uiReverse = make(L"BUTTON", L"Reverse", BS_PUSHBUTTON, kUiReverse, rx, ry, rw, rh);
+  auto [lx, ly, lw, lh] = rectFor(tf2::native::UiControlId::Timeline, 16, 122, 700, 30);
   g_uiTimeline = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_ENABLESELRANGE,
-    kUiTimeline, 16, 122, 700, 30);
+    kUiTimeline, lx, ly, lw, lh);
   updateNativeUiControls(window);
 }
 
@@ -349,7 +430,21 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   switch (message) {
   case WM_SIZE:
     if (g_renderer) g_renderer->resize(LOWORD(lParam), HIWORD(lParam));
+    applyUiLayout(window);
     return 0;
+  case WM_DPICHANGED: {
+    // Per-monitor v2: the system suggests a new window rect scaled for the
+    // new dpi; taking it and re-laying the controls keeps both the render
+    // surface and the text rows proportional on a mixed-dpi desktop.
+    if (lParam) {
+      const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
+      SetWindowPos(window, nullptr, suggested->left, suggested->top,
+        suggested->right - suggested->left, suggested->bottom - suggested->top,
+        SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    applyUiLayout(window);
+    return 0;
+  }
   case WM_RBUTTONDOWN:
     g_orbiting = true;
     g_lastMouse = POINT{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
@@ -449,9 +544,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     return 1;
   case WM_KEYDOWN: {
     // Toggle commands must be edge-triggered; Windows may repeat WM_KEYDOWN
-    // while a key is held, which otherwise flips state several times.
+    // while a key is held, which otherwise flips state several times. 'P' is
+    // in this list for the same reason: a held P would flip pause every
+    // repeat.
     if ((lParam & (1u << 30)) != 0u
-        && (wParam == VK_SPACE || wParam == 'R' || wParam == VK_HOME || wParam == VK_END
+        && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
+            || wParam == VK_END
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
     const bool functionKey = wParam >= VK_F1 && wParam <= VK_F8;
     if (functionKey && g_renderer) {
@@ -467,7 +565,24 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     } else if (wParam == VK_END && g_playback.enabled) {
       g_playback.tick = g_playback.endTick;
     } else if (wParam == VK_SPACE && g_playback.enabled) {
-      g_playback.paused = !g_playback.paused;
+      // SPACE is the camera cycle key now; P owns pause (see the 'P' arm
+      // below). One edge press advances the mode; a second press inside the
+      // controller's double-click window jumps to free-look. The controller
+      // is pure, so the window is a number a gate measures, not a feeling.
+      if (g_cameraMode.spacePress(static_cast<std::uint32_t>(GetTickCount64()))) {
+        if (g_cameraMode.mode() != tf2::native::CameraMode::FirstPerson && g_renderer) {
+          // Leaving first-person must release the demo eye immediately, not
+          // at the next scene tick, or the orbit would fight a stale
+          // observer view for one frame.
+          g_renderer->clearObserverDemoView();
+          g_lastAppliedCameraMode = g_cameraMode.mode();
+        }
+        updateNativeUiControls(window);
+      }
+    } else if (wParam == 'P' && g_playback.enabled) {
+      // Pause moved from SPACE to P (T4): the pause toggle and the camera
+      // cycle no longer share a key.
+      g_playback.paused = g_pauseKey.toggle();
     } else if (wParam == 'R' && g_playback.enabled) {
       if (!g_playback.reverse && g_playback.tick == 0) g_playback.tick = g_playback.endTick;
       g_playback.reverse = !g_playback.reverse;
@@ -1863,8 +1978,29 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L" speed=" + std::to_wstring(g_playback.speed) + L" rate=" + std::to_wstring(g_playback.tickRate)
       + anchorSuffix + (g_playback.reverse ? L" reverse" : L" forward")
       + (g_playback.paused ? L" paused" : L" playing")
-      + L" HUD[tick=" + std::to_wstring(g_playback.tick)
-      + L" state=" + (g_playback.paused ? L"paused" : (g_playback.reverse ? L"reverse" : L"playing"))
+      + L" HUD[" + [&]() {
+          // The five fields a gate asserts on -- tick, demo name, playback
+          // state, camera mode, error status -- are composed by
+          // composePlaybackHudLine (native_ui), the same function the probe
+          // pins, so the product title and the probe-tested format cannot
+          // drift apart. The demo name is the file stem (what the player
+          // picked), not the map the server reported -- demoSuffix already
+          // carries the map name.
+          const std::string hudStateName = g_playback.paused ? "paused"
+            : (g_playback.reverse ? "reverse" : "playing");
+          const char* hudCameraName = tf2::native::cameraModeName(g_cameraMode.mode());
+          const std::string hudDemoName = commandDemo.empty()
+            ? std::string("-")
+            // u8string(), not an iterator cast of wstring(): the wide->narrow
+            // iterator cast loses data (C4244) and the gate builds are /W4.
+            // Non-ASCII file names arrive UTF-8 here, matching how the title
+            // already carries every other narrow string.
+            : commandDemo.filename().u8string();
+          const std::string hudError = g_nativeUi ? g_nativeUi->snapshot().error : std::string{};
+          const std::string composed = tf2::native::composePlaybackHudLine(
+            {g_playback.tick, hudDemoName, hudStateName, hudCameraName, hudError});
+          return std::wstring(composed.begin(), composed.end());
+        }()
       + L" speed=" + std::to_wstring(g_playback.speed)
       + L" entity=" + std::wstring(entitySnapshotStatusName(entitySnapshotStatus))
       + L" stale=" + std::to_wstring(entitySnapshotStaleness)
@@ -2803,13 +2939,47 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         static_cast<int>(entitySnapshotStatus), static_cast<int>(entitySnapshotStaleness),
         currentEntityStates.size());
       tf2::native::DemoViewSample observerView;
-      if (tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneTick, observerView)
-          && observerView.hasOrigin && observerView.hasAngles) {
-        renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1], observerView.origin[2],
-          observerView.angles[0], observerView.angles[1]);
-      } else {
-        renderer.clearObserverDemoView();
+      const bool haveObserverView =
+        tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneTick, observerView)
+        && observerView.hasOrigin && observerView.hasAngles;
+      // T4 camera modes. The mode machine and the no-target rule live in
+      // native_ui (decideCameraSceneAction, probe-checked over the whole
+      // matrix); this block only executes the decision. The historical
+      // behaviour -- clearing the demo view whenever a tick had no observe
+      // target -- is exactly the "moved the camera without a target" defect
+      // the task names, and HoldCurrent is what replaces it.
+      const tf2::native::CameraMode cameraMode = g_cameraMode.mode();
+      if (cameraMode != g_lastAppliedCameraMode) {
+        if (cameraMode != tf2::native::CameraMode::FirstPerson) {
+          renderer.clearObserverDemoView();
+        }
+        g_lastAppliedCameraMode = cameraMode;
       }
+      switch (tf2::native::decideCameraSceneAction(cameraMode, haveObserverView)) {
+        case tf2::native::CameraSceneAction::SetDemoView:
+          renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
+            observerView.origin[2], observerView.angles[0], observerView.angles[1]);
+          ++g_cameraFollows;
+          break;
+        case tf2::native::CameraSceneAction::SetOrbitFocus:
+          renderer.setObserverFocusWorld(observerView.origin[0], observerView.origin[1],
+            observerView.origin[2]);
+          ++g_cameraFollows;
+          break;
+        case tf2::native::CameraSceneAction::HoldCurrent:
+          // No observe target at this tick: keep the current camera. No
+          // clear, no focus update, no teleport to the orbit default.
+          ++g_cameraHoldsNoTarget;
+          break;
+        case tf2::native::CameraSceneAction::FreezeCurrent:
+          // Free-look: neither eye nor focus is fed from the demo, so the
+          // camera stays exactly where the user's orbit left it.
+          ++g_cameraFreezeFrames;
+          break;
+      }
+      traceFmt("scene: camera mode=%s target=%d follows=%u holds=%u freeze=%u",
+        tf2::native::cameraModeName(cameraMode), haveObserverView ? 1 : 0,
+        g_cameraFollows, g_cameraHoldsNoTarget, g_cameraFreezeFrames);
       traceCheckpoint("scene: observer done");
       const bool snapshotDrawable = entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
           || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
@@ -3656,6 +3826,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       audioStats.eventsSkippedVoice, audioStats.eventsMissingResource,
       static_cast<int>(firstPacketTick), static_cast<int>(soundOriginTick),
       audioStats.reverseRecoveries, audioStats.duplicateTicks);
+    // The camera/HUD contract, on one line so camera-ui-check.sh can pin it:
+    // the mode the run ended in, the double-click window the controller
+    // advertises (a constant, so a drift shows up as a changed reading), the
+    // key counters (0 in a gate run -- no input exists -- and the scene-side
+    // follow/hold/freeze split, where a real demo with observe targets must
+    // read follows>=1 and a run must never read holds as a clear.
+    traceFmt("camera: summary mode=%s modeChanges=%u spacePresses=%u spaceSingles=%u"
+      " spaceDoubles=%u doubleWindowMs=%u pauseToggles=%u follows=%u holdsNoTarget=%u"
+      " freezeFrames=%u",
+      tf2::native::cameraModeName(g_cameraMode.mode()),
+      g_cameraMode.modeChangeCount(), g_cameraMode.spacePressCount(),
+      g_cameraMode.spaceSingleCount(), g_cameraMode.spaceDoubleCount(),
+      tf2::native::CameraModeController::doubleClickWindowMs(),
+      g_pauseKey.toggles, g_cameraFollows, g_cameraHoldsNoTarget,
+      g_cameraFreezeFrames);
   }
   renderer.shutdown();
   persistent.render = renderer.settings();

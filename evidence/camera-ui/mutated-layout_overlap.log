@@ -1,0 +1,18 @@
+  OK   probe: the legacy verdict line, byte-identical
+  OK   camera: the default mode is first-person
+  OK   camera: one step per single press walks the full cycle
+  OK   camera: the double-click window is the named 300
+  OK   camera: 299 ms is inside the window (a double)
+  OK   camera: 300 ms is the boundary (a fresh single)
+  OK   camera: all 6 mode/target decisions are pinned
+  OK   camera: no observe target keeps the current camera
+  OK   pause: P toggled twice and returned
+  OK   pause: the second toggle restored the state
+  OK   layout: the planner ran the 42-case size/dpi matrix
+  FAIL layout: no two control rects overlap anywhere (wanted: layoutOverlap=0)
+  OK   layout: every control rect stays inside the client
+  OK   layout: all 10 controls are planned
+  OK   hud: the five fields sit in the pinned order
+  OK   hud: CR/LF/tab never survive into the line
+  OK   hud: five fields, always present
+  OK   fixture: the demo fixture was present and exercised

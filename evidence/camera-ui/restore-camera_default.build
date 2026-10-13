@@ -1,0 +1,5 @@
+=== build tf2_demo_native native_ui_probe ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\camera-ui\native\src\main.cpp(3076): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Worktrees\camera-ui\native\src\native_renderer.cpp(1963): warning C4456: “view”的声明隐藏了上一个本地声明
+rc=0

@@ -1,0 +1,3 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\camera-ui\native\src\main.cpp(3076): warning C4457: “instance”的声明隐藏了函数参数
+rc=0
