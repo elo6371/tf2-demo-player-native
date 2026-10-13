@@ -1,0 +1,56 @@
+# T1 · 状态检查快照 — 2026-10-13
+# worktree: D:\TF2_Native_Worktrees\render-current
+# branch:   task/render-current
+# HEAD:     0f023bb6dcb6b9617ace804fcf9cf34b93594ae9 (baseline, unchanged by this task)
+
+## 1) the working tree, after both runs
+
+$ git status --short
+?? evidence/render-current/
+
+The only entry is this task's own new evidence directory. No product source,
+no script, no fixture, no tracked file moved.
+
+$ git diff --stat -- native/ build-nmake/
+(empty)
+
+## 2) locks
+
+$ ls -d .scratch/*.lock
+(no output)
+
+Every gate takes a directory lock with mkdir (.scratch/<gate>.lock) and drops
+it on exit. None was left behind, so no later run can be refused a lock that a
+dead run still owns.
+
+## 3) source restoration
+
+viewmodel-contract's own assertion (mutation/viewmodel-contract.txt:601-602):
+  OK   every mutated source is byte-identical to its pre-mutation state
+
+viewmodel-companion's own assertion (mutation/viewmodel-companion.txt:188):
+  OK   owner-cleared: source restored byte-for-byte (40768a7a747b)
+
+viewmodel-animation restores native/src/viewmodel.cpp with `git checkout --`
+plus a SHA guard (viewmodel-animation-check.sh:135) and refuses to continue on
+a failed restore build; its mutation run reported MUTATION-CAUGHT=PASS and the
+final `git status` above is clean.
+
+## 4) evidence freshness
+
+straight tier  gate outputs: 2026-10-13 12:59:05 .. 13:37:25  (tier window 52m12s)
+mutation tier  gate outputs: 2026-10-13 16:16    .. 17:45     (tier window 1h29m32s)
+
+Both are later than the baseline commit (2026-10-13T12:15:46+08:00), so every
+reading below describes the current tree and not a stale capture.
+
+## 5) the audio_timeline.cpp.obj mtime workaround, reverted
+
+while the sandbox fault was being worked around:
+  2026-10-14 12:00:00 +0800   (a future stamp, used only to make nmake skip a
+                               recompile the sandbox refused; the file's content
+                               is the true compile output of the current source)
+after this task's cleanup:
+  2026-10-13 17:48:01 +0800   (touch; 482139 bytes; content untouched)
+
+Full account of the fault: ../ENVIRONMENT-BUILD-CURSE.md

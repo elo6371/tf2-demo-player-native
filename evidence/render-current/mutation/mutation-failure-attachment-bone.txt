@@ -1,0 +1,6 @@
+# the attachment-bone mutation was caught: these assertions went red
+probe v_fixture_damaged invalidAttachments: 0 != 1
+probe v_fixture_damaged alignmentIsIdentity: true != false
+probe v_fixture_damaged alignmentIndex: 0 != -1
+probe v_fixture_damaged attachmentStatus: all attachments valid does not contain unusable
+probe v_fixture_damaged alignmentReason: placement attachment 'weapon_bone' is valid does not contain uses the model transform

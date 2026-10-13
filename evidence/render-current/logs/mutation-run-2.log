@@ -1,0 +1,35 @@
+=== 1/4 incremental build ===
+=== build tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe viewmodel_animation_probe ===
+rc=0
+build_rc=0
+
+=== 2/4 the gates ===
+  OK   resource-reachability  MUTATION-CAUGHT=PASS
+  OK   frame-capture          MUTATION-CAUGHT=PASS
+  OK   entity-material        MUTATION-CAUGHT=PASS
+  OK   weapon-animation       MUTATION-CAUGHT=PASS
+  OK   viewmodel-contract     MUTATION-CAUGHT=PASS
+  OK   viewmodel-animation    MUTATION-CAUGHT=PASS
+  OK   viewmodel-companion    MUTATION-CAUGHT=PASS
+
+=== 3/4 the material chain's synthetic layer ===
+  OK   an empty VTF is rejected
+  OK   a corrupt VTF is rejected
+  OK   a >64 MB VTF is rejected before allocation
+  OK   a cubemap is refused by the 2d decode path
+  OK   a depth-6 cubemap header parses
+  OK   cubemap face data is ordered
+  OK   an empty BSP is rejected
+  OK   no-lighting is the default
+  OK   VMT shader features map
+  OK   water shader features map
+  OK   cubemap mode is the honest 2d approximation
+  OK   lightmap mode is documented as an average
+  ->   material-chain         12/12 synthetic keys held
+
+=== 4/4 the committed evidence tree must be untouched ===
+  OK   evidence-tree          nothing under evidence/ moved (tier output stayed in evidence/fast/render-mutation2)
+
+gates_ok=9 gates_bad=0
+VERIFY-RENDER=PASS (9/9 gates, mutation=1)
+MUTATION2-RUN-EXIT=0

@@ -1,0 +1,5 @@
+# the companion-missing mutation was caught: these assertions went red
+probe v_fixture_nocompanion status: ok != failed
+probe v_fixture_nocompanion reason: <none> != viewmodel companions are missing
+probe v_fixture_nocompanion fallbackStable: true != false
+product fixture nocompanion reason: the viewmodel request produced no mesh != viewmodel companions are missing
