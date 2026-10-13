@@ -8,6 +8,19 @@
 - `world-material-check.sh` 正向 `117/117`，mutation 全部捕获；`verify-fast.sh` `43/43`。门禁同时修复了 stale evidence 和 mutation 分支无条件 `exit 0` 两个真实缺陷。
 - 未验证仍包括人工画面对照、真实 GPU FPS/soak、跨机器抓帧、4096 以上 atlas 和频繁切图；`vis_clip_deleted` 与用户主动关闭裁剪的读数等价，报告未将其写成特异性证明。
 - T2 水面与高级材质任务的新基线为 `p0-entity-protocol@be27383`。
+### T3（第二轮四任务分工）：人工验收与真实输入（`task/manual-followup`，**尚未整合**）
+
+- 基线 `origin/p0-entity-protocol@3c92f7d`；工作区 `D:\TF2_Native_Worktrees\manual-followup`。只新增 `T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（45 个文件），未改产品源码与门禁判据。
+- ViewModel 实体定位：`autorecord_2026-07-02_13-26-46.dem`（pl_odyssey POV，ticks=39122）——ViewModel 实体 **1077**、武器实体 **1008** `CTFSniperRifle` → `c_pro_rifle.mdl`；matcha/bagel/SourceTV 三个候选录制均 `status=3 states=0` 无实体。
+- 开关矩阵 11 用例全部钉在 tick 2000：ViewModel 关→开 3.0638%；武器本体开→关 **42209 B（1.6345%）**（与 T2 的 POV 读数逐字节一致）；手性 3.2792%；FOV 40→120 18.4117%；动画 seq0 1.4293%；三个零差异对照证明默认即 on/right、同 flags 逐字节确定。**方法论修正**：`--capture-tick` 落点在 2000/2001/2002/2007 间漂移，必须像 `weapon-body-check.sh` 一样重试到落点相等——第一遍矩阵因落点漂移误读 22%。
+- 武器切换：单次运行 11044 次观测全是同一把 → **未确认**。ViewModel 动画：序列 1/28/29/30 全部 `status=missing poseAvailable=0 applied=0`，画面停在 bind pose → **未确认（无绑定）**；构造的 `--viewmodel-sequence 0` 改变 1.4293% 是唯一正向。
+- 真实键盘（`PostMessage` 消息投递；`SetForegroundWindow` 被 Windows 焦点策略拒绝）：SPACE 单击→第三人称、双击（150 ms，窗口 300 ms）→free-look、P→暂停/恢复。三重独立证据：修正读法后的 HUD（暂停时 `tick=` 冻结 2.0 s、恢复后 262→436 推进）、产品计数（`spaceSingles=2 spaceDoubles=1 pauseToggles=2`）、trace 中全运行唯一的 tick 停滞段（tick=262 连画 236 帧，与两次 P 对齐；第一轮同结构 247/151 帧）。
+- **仪器缺陷（已定位并绕过）**：`win32gui.GetWindowText` 在跨进程窗口上固定截断到 **511 字符**（探针实测：1200 字符标题被读成 511），恰好把 HUD 字段截掉、只留下静态资源行——第一轮按键脚本的 `tick field frozen = True` 因此是假阳性（`logs/keys.log` 留作缺陷现场）。修正读法 = `GetWindowTextLengthW` + 按长度分配缓冲区（与 `camera-ui-check.sh` 相同）；字段抽取必须锚定 `HUD[tick=`（裸 `tick=` 会先匹配到静态的 `nettick=`）。`freezeFrames` 语义同轮更正：它是 free-look 场景 tick 计数，不是暂停计数。
+- 缩放/DPI：默认帧 1264x681；窗口 800x600→帧 784x561、1400x900→帧 1384x861（帧头尺寸==客户区）；系统 DPI 96、显示器 2560x1440、窗口 DPI 96；其它 DPI 档未实机切换 → 未确认。
+- 画面观察（查看抓帧）：ViewModel+武器本体可见且可开关（`--viewmodel-weapon-body off` 后灰色步枪消失）；天空为纯色（无天空盒纹理）；水面未入画 → 未确认。HUD 行已按门禁读法引到（45 s 内 231 次标题、216 个版本）。
+- 声音分开记录：真实设备 `--audio-device 6`（`audio_mode=device`、`events_seen=1037 played=601 skipped=48 missing=388`）与 null sink `--audio-disabled`（`played=0`、`skipped=649`）两组独立读数；可听性未确认。
+- 验收：`bash verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)` rc=0；`bash camera-ui-check.sh` = `CAMERA-UI=PASS` rc=0。详见 `T3-MANUAL-FOLLOWUP-2026-10-14.md`（含 10 条未确认项）。
+>>>>>>> 95291f3 (docs: add T3 manual follow-up report and sync status docs)
 
 ## 2026-10-13
 
