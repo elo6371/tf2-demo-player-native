@@ -1,0 +1,52 @@
+{"bsp":"koth_bagel_rc13.bsp","valid":false,"error":"BSP header is invalid","triangles":0,"lightmapMode":"unavailable","lightmapContract":"luxel-index","lightmapToneMap":"none","lightmapSamples":0,"lightmapFaces":0,"lightmapPackedFaces":0,"lightmapLuxelFits":0,"lightmapTriangles":0,"atlas":"0x0","sky":"","skyFaces":0,"displacements":0,"displacementTriangles":0,"displacementCornerMatches":0,"cubemaps":0,"cubemapMode":"approximate-2d","waterFaces":0,"waterSurface":"absent","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"unavailable","visClusters":0,"visibleFromCluster0":-1}
+koth_bagel_rc13.bsp failed: BSP header is invalid
+{"reading":"cubemap.facesBeyondSix","value":"0"}
+{"reading":"cubemap.facesDecoded","value":"0"}
+{"reading":"cubemap.firstDeclaredFaces","value":""}
+{"reading":"cubemap.firstFaceChecksums","value":""}
+{"reading":"cubemap.firstFaceMeans","value":""}
+{"reading":"cubemap.firstFacesInFile","value":""}
+{"reading":"cubemap.firstPath","value":""}
+{"reading":"cubemap.firstSource","value":""}
+{"reading":"cubemap.fromPakfile","value":"0"}
+{"reading":"cubemap.fromProbe","value":"0"}
+{"reading":"cubemap.reason","value":"the bsp declares no env_cubemap samples"}
+{"reading":"cubemap.samples","value":"0"}
+{"reading":"cubemap.samplesComplete","value":"0"}
+{"reading":"cubemap.state","value":"unavailable"}
+{"reading":"displacement.cornerMatches","value":"0"}
+{"reading":"displacement.faces","value":"0"}
+{"reading":"displacement.reason","value":"no displacement face emitted geometry"}
+{"reading":"displacement.state","value":"unavailable"}
+{"reading":"displacement.triangles","value":"0"}
+{"reading":"displacement.trianglesTagged","value":"0"}
+{"reading":"lightmap.atlas","value":"0x0"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"0"}
+{"reading":"lightmap.facesWithLightmap","value":"0"}
+{"reading":"lightmap.reason","value":"the bsp declares no lightmap faces"}
+{"reading":"lightmap.state","value":"unavailable"}
+{"reading":"lightmap.triangles","value":"0"}
+{"reading":"lightmap.trianglesWithLightUv","value":"0"}
+{"reading":"lightmap.uvAllInRange","value":"false"}
+{"reading":"sky.decodedBytes","value":"0"}
+{"reading":"sky.faces","value":"0"}
+{"reading":"sky.firstSize","value":"0x0"}
+{"reading":"sky.name","value":""}
+{"reading":"sky.reason","value":"the entity lump names no skyname"}
+{"reading":"sky.smallestSize","value":"0x0"}
+{"reading":"sky.state","value":"unavailable"}
+{"reading":"sky.texturesDecoded","value":"0"}
+{"reading":"sky.texturesResolved","value":"0"}
+{"reading":"sky.vmtFound","value":"0"}
+{"reading":"vis.clusters","value":"0"}
+{"reading":"vis.mode","value":"unavailable"}
+{"reading":"vis.reason","value":"the bsp carries no usable pvs lump"}
+{"reading":"vis.state","value":"unavailable"}
+{"reading":"vis.trianglesWithCluster","value":"0"}
+{"reading":"vis.visibleFromCluster0","value":"0"}
+{"reading":"water.faces","value":"0"}
+{"reading":"water.reason","value":"the bsp declares no water faces"}
+{"reading":"water.state","value":"unavailable"}
+{"reading":"water.trianglesTagged","value":"0"}
+{"reading":"water.materialResolution","value":"no water triangle carries a material name"}

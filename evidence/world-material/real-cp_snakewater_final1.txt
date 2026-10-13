@@ -1,0 +1,51 @@
+{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":11527,"lightmapPackedFaces":11512,"lightmapLuxelFits":11513,"lightmapTriangles":199263,"atlas":"2048x2047","sky":"sky_well_01","skyFaces":690,"displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"cubemap.facesBeyondSix","value":"33"}
+{"reading":"cubemap.facesDecoded","value":"198"}
+{"reading":"cubemap.firstDeclaredFaces","value":"6"}
+{"reading":"cubemap.firstFaceChecksums","value":"300ee24d,c9beee88,ed1d429a,02bc6fd5,5ecd73ed,ed94acc3"}
+{"reading":"cubemap.firstFaceMeans","value":"62,45,56,58,51,54"}
+{"reading":"cubemap.firstFacesInFile","value":"7"}
+{"reading":"cubemap.firstPath","value":"materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf"}
+{"reading":"cubemap.firstSource","value":"bsp-pakfile"}
+{"reading":"cubemap.fromPakfile","value":"33"}
+{"reading":"cubemap.fromProbe","value":"0"}
+{"reading":"cubemap.reason","value":"33 of 33 env_cubemap samples decoded all six faces; 33 face slots beyond the six a cube needs"}
+{"reading":"cubemap.samples","value":"33"}
+{"reading":"cubemap.samplesComplete","value":"33"}
+{"reading":"cubemap.state","value":"active"}
+{"reading":"displacement.cornerMatches","value":"1316"}
+{"reading":"displacement.faces","value":"1316"}
+{"reading":"displacement.reason","value":"the triangle limit truncated the walk after 165376 triangles"}
+{"reading":"displacement.state","value":"fallback"}
+{"reading":"displacement.triangles","value":"165376"}
+{"reading":"displacement.trianglesTagged","value":"165376"}
+{"reading":"lightmap.atlas","value":"2048x2047"}
+{"reading":"lightmap.facesDropped","value":"15"}
+{"reading":"lightmap.facesPacked","value":"11512"}
+{"reading":"lightmap.facesWithLightmap","value":"11527"}
+{"reading":"lightmap.reason","value":"rgbexp32 atlas 2048x2047 packs 11512 of 11527 faces; 199263 of 200000 triangles carry a per-face light uv; 15 faces dropped by the packer"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.triangles","value":"200000"}
+{"reading":"lightmap.trianglesWithLightUv","value":"199263"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+{"reading":"sky.decodedBytes","value":"3145732"}
+{"reading":"sky.faces","value":"690"}
+{"reading":"sky.firstSize","value":"512x256"}
+{"reading":"sky.name","value":"sky_well_01"}
+{"reading":"sky.reason","value":"all six skybox vmts resolve for sky_well_01 and their 512x256..1x1 textures decode to 3145732 bytes"}
+{"reading":"sky.smallestSize","value":"1x1"}
+{"reading":"sky.state","value":"active"}
+{"reading":"sky.texturesDecoded","value":"6"}
+{"reading":"sky.texturesResolved","value":"6"}
+{"reading":"sky.vmtFound","value":"6"}
+{"reading":"vis.clusters","value":"2940"}
+{"reading":"vis.mode","value":"cluster-pvs"}
+{"reading":"vis.reason","value":"pvs hides 2556 of 2940 clusters; 34517 of 200000 triangles carry a cluster"}
+{"reading":"vis.state","value":"active"}
+{"reading":"vis.trianglesWithCluster","value":"34517"}
+{"reading":"vis.visibleFromCluster0","value":"384"}
+{"reading":"water.faces","value":"18"}
+{"reading":"water.reason","value":"18 water faces resolve to a texture; reflection=off refraction=off, neither render target is implemented so the surface draws unlit"}
+{"reading":"water.state","value":"fallback"}
+{"reading":"water.trianglesTagged","value":"36"}
+{"reading":"water.materialResolution","value":"water surface texture resolves via $normalmap: materials/water/tfwater001_normal.vtf"}
