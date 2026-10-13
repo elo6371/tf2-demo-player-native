@@ -388,6 +388,7 @@ run_product() {
   # deliberate case -- the compiled defaults are then the input.
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$DEMO" \
+    --start-paused --hidden-window --audio-disabled \
     --settings-file "$TRACE_DIR/$name-settings.ini" \
     --capture-frame "$bmp" --capture-tick "$CAPTURE_TICK" \
     --metrics-file "$TRACE_DIR/$name.csv" "$@" > "$TRACE_DIR/$name.log" 2>&1
@@ -436,7 +437,8 @@ run_fixture_product() {
   local bmp="$TRACE_DIR/$name.bmp"
   rm -f "$bmp" "$TRACE_DIR/$name.csv"
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
-    --tf-root "$FIXTURE_ROOT" --audio-device "$AUDIO_DEVICE" --start-paused \
+    --tf-root "$FIXTURE_ROOT" --audio-device "$AUDIO_DEVICE" \
+    --start-paused --hidden-window --audio-disabled \
     --settings-file "$TRACE_DIR/$name-settings.ini" \
     --viewmodel "$model" \
     --capture-frame "$bmp" --capture-tick "$CAPTURE_TICK" \
@@ -673,32 +675,11 @@ assert_eq "product fov 10 is clamped to 40" "$(field "$LAST_READING" fov)" "40.0
 ensure_product vmfov200 --viewmodel "$MODEL" --viewmodel-fov 200
 assert_eq "product fov 200 is clamped to 120" "$(field "$LAST_READING" fov)" "120.0"
 
-# Every frame below is compared against another one, so they all have to come from a
-# capture point whose world is the same. The capture point is a property of the run,
-# not of the request: the product captures its frame at the *first* draw, and how far
-# the world has advanced by then is decided by how long the loader took.
-#
-# On this demo that produces exactly two outcomes -- the first draw after one scene
-# update (playback tick 0, sceneTick 10252) or after two (tick 16, sceneTick 10268).
-# The frames are byte-identical between them, and that is measured rather than
-# assumed: the clamp pairs below compare two *separate* runs, and in the run that
-# recorded this evidence vmfov10 landed on 10268 while vm40 landed on 10252 and the
-# two still differed by 0.0000%.
-#
-# The set is pinned, and a third value is a red rather than a tolerance to widen. The
-# capture point is a *premise* of every comparison below: from a third point, a pair
-# that must be byte-identical could differ for a reason that has nothing to do with
-# the ViewModel, and the difference checks would be attributing scene motion to the
-# pass. A new value means the frames have to be re-shown to agree first.
-#
-# This replaced an assertion that all seven frames report the same `tick=`. That
-# counter varies run to run for the same command -- measured: one run reported
-# `16 16 0 16 0 16 0` while every compared pair was byte-identical, and at
-# --capture-tick 64 two runs reported different ticks and produced byte-identical
-# BMPs. It was asserting equality of a label while claiming sameness of the world,
-# and it reddened a run whose frames were provably identical pixel for pixel. The
-# premise has to be checked -- but checked for the thing the comparison needs.
-CAPTURE_SCENE_TICKS="10252 10268"
+# The command ViewModel contract compares render inputs, not playback. Keep the demo
+# paused at playback position 0 so every frame uses the same entity snapshot instead
+# of letting startup latency choose a scene tick. The fixed point is part of the
+# comparison premise and was measured on the pinned demo (firstPacketTick=10252).
+CAPTURE_SCENE_TICKS="10252"
 COMPARE_TICKS=""
 COMPARE_SCENE_TICKS=""
 COMPARE_POINTS_KNOWN=0
