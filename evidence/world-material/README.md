@@ -1,8 +1,10 @@
 # evidence/world-material — what each file is
 
-Written 2026-10-13 with the T3 world material and lighting task. Every file here
-is the captured stdout of one command; nothing is hand-edited. The gate that
-writes them is `world-material-check.sh` (8 sections, forward and --mutation).
+Written 2026-10-13 with the T3 world material and lighting task. Most files here
+are the captured stdout of one command and nothing is hand-edited; the exceptions
+(the analysis note and the PNG conversions, added late in the round) say so in
+their own table rows. The gate that writes the captured files is
+`world-material-check.sh` (8 sections, forward and --mutation).
 
 | File | Produced by | What it is |
 | --- | --- | --- |
@@ -13,6 +15,10 @@ writes them is `world-material-check.sh` (8 sections, forward and --mutation).
 | `negative-bagel.txt` | the same with `koth_bagel_rc13` | The negative control: a map that is not installed reads every capability unavailable, each with its own reason. |
 | `render-lightmap.txt` | the product's `TF2_NATIVE_TRACE` | The GPU side: lightmap status and vertex pair, the displacement and water counts taken while the vertex buffer was filled, and the VIS line with the observer's cluster. |
 | `render-cubemap.txt` | the product's trace, two runs | One line with the material's own answer (`mode=0 declared=0`) and one with `--world-env-force` (`mode=2 declared=1`), same map, same preset. |
+| `render-frame-shape.txt` | hand-written analysis note (2026-10-13) | The frame-shape record behind the frame-capture gate's criterion change: the six captures of two rounds, their pairwise byte distances, the paused frame's attribution, and the tool bug this record sits next to. Reproducible from the frames with the scratch loaders it names. |
+| `render-frame-fallback-decal.png` | PNG conversion of `evidence/frame-capture/demo.bmp` | The fallback picture this build draws when a demo's map is not installed (139121 colours). The negative pole of the comparison. |
+| `render-frame-installed-map-pre-t3.png` | PNG conversion of the 2026-10-12 round's `demo-installed-map.bmp` | The snakewater world before per-face lightmaps: flat shades, 563 colours. |
+| `render-frame-installed-map-t3.png` | PNG conversion of `evidence/frame-capture/demo-installed-map.bmp` | The same scene after: lightmapped, 15909 colours. |
 | `before/` | an earlier run of the same gate | The readings **before** this task's fixes: `cubemap.state=fallback`, `samplesComplete=0`, no sky textures. Kept because the change is the finding, and a before/after pair is what makes it one. |
 
 ## Reading the numbers
