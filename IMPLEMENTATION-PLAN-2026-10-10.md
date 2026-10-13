@@ -2,7 +2,7 @@
 
 更新时间：2026-10-13
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@69baff8`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链与产品接入、T2 静态武器本体、清单四音频调度契约和 T3 音频主程序接线；当前完整总链尚未重跑，不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@8d5c8cd`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链与产品接入、T2 静态武器本体、清单四音频调度契约和 T3 音频主程序接线；当前完整总链尚未重跑，不是产品发布分支）
 
 ## 2026-10-13 T1 当前渲染档复核
 
