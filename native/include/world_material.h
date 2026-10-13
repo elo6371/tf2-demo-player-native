@@ -302,6 +302,102 @@ WorldWaterReading measureWater(const BspMap& map, bool reflectionDeclaredBySetti
   bool refractionDeclaredBySettings, bool waterMaterialDeclared, bool waterTextureReachable);
 
 // ---------------------------------------------------------------------------
+// T1 interface freeze (2026-10-13): skybox geometry and VIS clipping
+// ---------------------------------------------------------------------------
+//
+// FROZEN BEFORE IMPLEMENTATION, because T2 (water and advanced materials) may
+// depend on these names and on nothing else: the reading structs, the state
+// words and the two pure entry points below are the contract, and the renderer
+// is not. T2 must not edit native_renderer.*; T1 owns them.
+//
+// Both entry points are pure (no GPU, no file I/O) so the probe can drive the
+// same code the product drives: a gate that tests a second implementation of
+// the clip is a gate that can pass while the clip is wrong.
+
+// One skybox vertex: a position on the unit box and the uv inside that side's
+// texture. The renderer scales the box by the request's half-extent and drops
+// the view matrix's translation, so the box follows the camera.
+struct WorldSkyVertex {
+  float x = 0.0f;
+  float y = 0.0f;
+  float z = 0.0f;
+  float u = 0.0f;
+  float v = 0.0f;
+};
+
+// One decoded side. RGBA8, because that is what the renderer uploads and what
+// a fixture can construct without a VTF encoder.
+struct WorldSkyFace {
+  std::vector<std::uint8_t> rgba;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+};
+
+enum class WorldSkyState { Unavailable, Fallback, Active };
+const char* worldSkyStateName(WorldSkyState state);
+
+struct WorldSkyDrawRequest {
+  // The caller's switch. Off means "do not draw", and the reading then says
+  // Disabled-by-caller rather than "no sky", which are different facts.
+  bool enabled = false;
+  // Half the box edge, in the renderer's world units. The world is scaled into
+  // a ~1.8-unit box, so 40 keeps the sky outside it and inside the far plane.
+  float halfExtent = 40.0f;
+  // Six sides in D3D11 cube order (+X, -X, +Y, -Y, +Z, -Z), the same order
+  // worldCubemapFaceSuffix and BspParser::skyMaterialPath use.
+  std::array<WorldSkyFace, 6> faces{};
+};
+
+struct WorldSkyDrawReading {
+  WorldSkyState state = WorldSkyState::Unavailable;
+  // 36 vertices / 12 triangles is a box. Zero means nothing was drawn, and the
+  // reason then names why -- "no skyname", "3 of 6 sides decoded", "disabled".
+  std::uint32_t skyboxVertices = 0;
+  std::uint32_t skyboxTriangles = 0;
+  std::uint32_t skyboxFaces = 0;
+  std::uint32_t skyboxDraws = 0;
+  std::string reason;
+};
+
+// Builds the box and judges the request. `outVertices` is filled with 6 sides x
+// 6 vertices in D3D11 cube order; face f occupies vertices [f*6, f*6+6).
+WorldSkyDrawReading evaluateSkyDrawRequest(const WorldSkyDrawRequest& request,
+  std::vector<WorldSkyVertex>& outVertices);
+
+enum class WorldVisClipState { Unavailable, Disabled, Active };
+const char* worldVisClipStateName(WorldVisClipState state);
+
+struct WorldVisClipRequest {
+  bool enabled = false;
+  // The cluster the camera is in; -1 means unknown, and a clip that cannot name
+  // the camera's cluster hides nothing rather than guessing.
+  int cameraCluster = -1;
+};
+
+struct WorldVisClipReading {
+  WorldVisClipState state = WorldVisClipState::Unavailable;
+  // What the clip did to the geometry. `input - output == hidden` whenever the
+  // clip ran, which is the pair a gate asserts: turning the clip on has to
+  // change the number of triangles the renderer is given.
+  bool clipApplied = false;
+  std::size_t inputTriangles = 0;
+  std::size_t outputTriangles = 0;
+  std::size_t hiddenTriangles = 0;
+  // Triangles the pvs cannot speak about: no cluster means no visibility bit,
+  // and dropping them would be a claim the data does not support, so they are
+  // kept and counted.
+  std::size_t trianglesWithoutCluster = 0;
+  int cameraCluster = -1;
+  std::string reason;
+};
+
+// Per-triangle PVS clip. The PVS is a cluster-to-cluster bitmap, so a triangle
+// is hidden when its cluster exists and the camera's cluster cannot see it.
+WorldVisClipReading clipWorldTrianglesByVis(const BspMap& map,
+  const std::vector<BspTriangle>& input, const WorldVisClipRequest& request,
+  std::vector<BspTriangle>& output);
+
+// ---------------------------------------------------------------------------
 // 6. VIS clipping
 // ---------------------------------------------------------------------------
 

@@ -47,6 +47,15 @@ struct BspMap {
   BspLightmapMode lightmapMode = BspLightmapMode::Unavailable;
   int lightmapAtlasWidth = 0;
   int lightmapAtlasHeight = 0;
+  // T1 interface (2026-10-13): what the atlas packer ended up doing. The three
+  // fields are read by world_material's lightmap reading, so a map that loses
+  // faces to the packer says so with a number and a reason instead of silently
+  // drawing unlit. `grown` is false for every map that fits the first shelf, so
+  // a map whose readings are already pinned keeps them.
+  int lightmapAtlasMaxWidth = 0;
+  std::size_t lightmapAtlasDroppedFaces = 0;
+  bool lightmapAtlasGrown = false;
+  std::string lightmapAtlasReason;
   std::vector<std::uint8_t> lightmapAtlas;
   std::vector<BspTriangle> triangles;
   std::string skyName;
