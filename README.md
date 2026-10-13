@@ -9,7 +9,7 @@ T2 人工验收已整合：`task/manual-acceptance@ae7bd09` 仅新增 `T2-MANUAL
 ## 2026-10-14 T3：人工验收与真实输入（分支 `task/manual-followup`，尚未合并主线）
 
 基线 `origin/p0-entity-protocol@3c92f7d`，工作区 `D:\TF2_Native_Worktrees\manual-followup`；只新增
-`T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（45 文件），未改产品源码与门禁。
+`T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（58 文件），未改产品源码与门禁。
 这一轮覆盖了 2026-10-13 覆盖块中列为未验证的「真实按键」与「窗口缩放」两项（不含物理键盘与人眼目检）。
 
 - ViewModel 实体在 `autorecord_2026-07-02_13-26-46.dem`（pl_odyssey POV）：ViewModel 实体 1077、

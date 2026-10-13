@@ -10,7 +10,7 @@ T3 世界材质与光照已合入主线 `b7d8035`，共享抓帧修复已合入 
 
 ## 2026-10-14 T3 人工验收与真实输入（`task/manual-followup`，未合并）
 
-基线 `origin/p0-entity-protocol@3c92f7d`，工作区 `D:\TF2_Native_Worktrees\manual-followup`；只新增报告 `T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（45 文件），未改产品源码与门禁。要点：POV 录制 `autorecord_2026-07-02_13-26-46.dem` 确有 ViewModel 实体（实体 1077、武器实体 1008 → `c_pro_rifle.mdl`）；开关矩阵 11 用例钉 tick 2000（`--capture-tick` 落点漂移必须重试钉住）；真实键盘三键（SPACE 单击/双击、P）经 `PostMessage` 消息投递，三重证据（修正读法 HUD + 产品计数 + trace 停滞段）；窗口缩放帧头==客户区；声音真实设备与 null sink 分开记录。未确认：武器切换、ViewModel 动画画面（无绑定）、水面、天空盒纹理、声音可听性、其它 DPI 档。**仪器读数规则（后续任务是硬约束）**：`win32gui.GetWindowText` 跨进程截断 511 字符——读 HUD 标题必须用长度感知读法（`GetWindowTextLengthW` + 精确缓冲区），字段抽取锚定 `HUD[tick=`；`freezeFrames` 是 free-look 场景计数不是暂停计数。验收：`verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、`camera-ui-check.sh` = `CAMERA-UI=PASS`，rc=0。
+基线 `origin/p0-entity-protocol@3c92f7d`，工作区 `D:\TF2_Native_Worktrees\manual-followup`；只新增报告 `T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（58 文件，含帧表全部 PNG），未改产品源码与门禁。要点：POV 录制 `autorecord_2026-07-02_13-26-46.dem` 确有 ViewModel 实体（实体 1077、武器实体 1008 → `c_pro_rifle.mdl`）；开关矩阵 11 用例钉 tick 2000（`--capture-tick` 落点漂移必须重试钉住）；真实键盘三键（SPACE 单击/双击、P）经 `PostMessage` 消息投递，三重证据（修正读法 HUD + 产品计数 + trace 停滞段）；窗口缩放帧头==客户区；声音真实设备与 null sink 分开记录。未确认：武器切换、ViewModel 动画画面（无绑定）、水面、天空盒纹理、声音可听性、其它 DPI 档。**仪器读数规则（后续任务是硬约束）**：`win32gui.GetWindowText` 跨进程截断 511 字符——读 HUD 标题必须用长度感知读法（`GetWindowTextLengthW` + 精确缓冲区），字段抽取锚定 `HUD[tick=`；`freezeFrames` 是 free-look 场景计数不是暂停计数。验收：`verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、`camera-ui-check.sh` = `CAMERA-UI=PASS`，rc=0。
 
 ## 2026-10-13 T1 当前渲染档复核
 

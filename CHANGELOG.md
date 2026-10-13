@@ -4,7 +4,7 @@
 
 ### T3（第二轮四任务分工）：人工验收与真实输入（`task/manual-followup`，**尚未整合**）
 
-- 基线 `origin/p0-entity-protocol@3c92f7d`；工作区 `D:\TF2_Native_Worktrees\manual-followup`。只新增 `T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（45 个文件），未改产品源码与门禁判据。
+- 基线 `origin/p0-entity-protocol@3c92f7d`；工作区 `D:\TF2_Native_Worktrees\manual-followup`。只新增 `T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（58 个文件，含 §9 表全部 23 帧 PNG），未改产品源码与门禁判据。
 - ViewModel 实体定位：`autorecord_2026-07-02_13-26-46.dem`（pl_odyssey POV，ticks=39122）——ViewModel 实体 **1077**、武器实体 **1008** `CTFSniperRifle` → `c_pro_rifle.mdl`；matcha/bagel/SourceTV 三个候选录制均 `status=3 states=0` 无实体。
 - 开关矩阵 11 用例全部钉在 tick 2000：ViewModel 关→开 3.0638%；武器本体开→关 **42209 B（1.6345%）**（与 T2 的 POV 读数逐字节一致）；手性 3.2792%；FOV 40→120 18.4117%；动画 seq0 1.4293%；三个零差异对照证明默认即 on/right、同 flags 逐字节确定。**方法论修正**：`--capture-tick` 落点在 2000/2001/2002/2007 间漂移，必须像 `weapon-body-check.sh` 一样重试到落点相等——第一遍矩阵因落点漂移误读 22%。
 - 武器切换：单次运行 11044 次观测全是同一把 → **未确认**。ViewModel 动画：序列 1/28/29/30 全部 `status=missing poseAvailable=0 applied=0`，画面停在 bind pose → **未确认（无绑定）**；构造的 `--viewmodel-sequence 0` 改变 1.4293% 是唯一正向。

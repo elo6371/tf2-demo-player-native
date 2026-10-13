@@ -143,7 +143,7 @@ bash camera-ui-check.sh  → CAMERA-UI=PASS                        rc=0
 
 ## 9. 截图清单（每帧：demo / 落点 tick / 模型路径 / FOV / hand / 相机 / sha256）
 
-全部帧：demo = `autorecord_2026-07-02_13-26-46.dem`（pl_odyssey POV），原始 BMP 1264x681（除非另注）。入库文件在 `evidence/manual-followup/frames/`（PNG），原始 BMP 的 sha256 如下（前 16 位；完整值见 `SHA256SUMS` 与各 trace 目录）。
+全部帧：demo = `autorecord_2026-07-02_13-26-46.dem`（pl_odyssey POV），原始 BMP 1264x681（除非另注）。**表中 23 帧全部已转 PNG 入库** `evidence/manual-followup/frames/`（PNG 的 sha256 见 `SHA256SUMS`；另加 `hud-bagel.png` 共 24 张）；表中给出的是**原始 BMP** 的 sha256(16)——BMP 每张 2.5 MB，留在 `.scratch/` 不入库。逐字节相同的用例共用同一画面（本节末注）。
 
 | 帧 | 落点 tick | 模型路径 | FOV | hand | 相机 | 原始 BMP sha256(16) |
 |---|---|---|---|---|---|---|
@@ -188,7 +188,7 @@ bash camera-ui-check.sh  → CAMERA-UI=PASS                        rc=0
 
 ## 11. 证据路径、哈希与工作树
 
-- 证据目录：`evidence/manual-followup/`（45 个文件）：`frames/`（PNG 帧）、`traces/`（每帧的完整 `TF2_NATIVE_TRACE`，含两轮按键运行）、`logs/`（按键时间线、缩放日志、HUD 轮询、矩阵落点、标题读数探针）、`SHA256SUMS`（全部文件的 sha256）。
+- 证据目录：`evidence/manual-followup/`（58 个文件）：`frames/`（24 张 PNG：§9 表 23 帧 + `hud-bagel`；逐字节相同的用例共用画面，见 §9 末注）、`traces/`（26 份完整 `TF2_NATIVE_TRACE`，含两轮按键运行）、`logs/`（7 份：按键时间线两轮、缩放、HUD 轮询、矩阵落点、标题读数探针）、`SHA256SUMS`（57 项全过）。
 - 关键日志：`logs/keys.log`（第一轮按键步骤与时间；含被截断的标题读数——缺陷现场）、`logs/keys2.log`（第二轮，修正读数法；§5 的表引自此）、`logs/title-probe.log`（`win32gui.GetWindowText` 511 字符截断的实测）、`logs/matrix-landings.txt`（每个用例的重试次数与落点）、`logs/resize.log`（窗口/客户区/DPI）、`logs/hud-pov.log`（HUD 标题轮询）。
 - 复核方式：`cd evidence/manual-followup && sha256sum -c SHA256SUMS`（本轮工作树内 44/44 通过）。注意本仓库 `core.autocrlf=true`：fresh checkout 会把该文件行尾变成 CRLF，GNU `sha256sum -c` 会因路径带 CR 而失败（既有先例文件同样如此）——此时用 `tr -d '\r' < SHA256SUMS | sha256sum -c -`。若要让哈希清单跨 checkout 直接可用，建议后续统一加 `.gitattributes` 的 `-text` 规则（本轮不改，避免超出"只动 evidence 与报告"的边界）。
 - 工作树：除 `evidence/manual-followup/`、本文件与四份状态文档的状态条目（`CHANGELOG.md`、`README.md`、`HANDOFF-2026-10-07.md`、`IMPLEMENTATION-PLAN-2026-10-10.md`，均为"只新增本节"）外无改动；产品源码与门禁脚本**未触碰**（`git status --porcelain` 只显示本任务的新增/这些文档的状态条目）。
