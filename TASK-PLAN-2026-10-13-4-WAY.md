@@ -4,6 +4,8 @@
 代码基线：`p0-entity-protocol@0f023bb`  
 原则：每个任务独立 worktree；禁止直接修改主线；禁止运行完整 `verify-all.sh`。
 
+T1 已交付并整合：`task/render-current@8ddab34` → 主线整合 `edc4950`。正向复核为 8/9（1 red，capture tick 标定盲区），mutation 为 9/9；详见 `T1-RENDER-CURRENT-2026-10-13.md`。下一步是在后续代码任务整合完成后，按需在当前 HEAD 单独复核 `verify-render.sh`，不把来源分支结果当成当前 HEAD 结果。
+
 ## 分配总览
 
 | 任务 | 名称 | 类型 | 是否可并行 | 整合顺序 |
