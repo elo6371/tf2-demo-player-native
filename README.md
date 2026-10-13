@@ -6,6 +6,27 @@
 
 T2 人工验收已整合：`task/manual-acceptance@ae7bd09` 仅新增 `T2-MANUAL-ACCEPTANCE-2026-10-13.md` 和 `evidence/manual-acceptance/`。冻结矩阵证明 ViewModel/FOV/hand 输入会改变画面；真实设备 6 打开并播放 19 个事件，用户已完成人耳确认声音内容。选定 tick 没有 ViewModel 实体，武器本体 on/off 逐字节相同；tick 2000 与 4000 也相同，因此这些证据不能证明动画、材质或武器本体正确。
 
+## 2026-10-14 T3：人工验收与真实输入（分支 `task/manual-followup`，尚未合并主线）
+
+基线 `origin/p0-entity-protocol@3c92f7d`，工作区 `D:\TF2_Native_Worktrees\manual-followup`；只新增
+`T3-MANUAL-FOLLOWUP-2026-10-14.md` 与 `evidence/manual-followup/`（45 文件），未改产品源码与门禁。
+这一轮覆盖了 2026-10-13 覆盖块中列为未验证的「真实按键」与「窗口缩放」两项（不含物理键盘与人眼目检）。
+
+- ViewModel 实体在 `autorecord_2026-07-02_13-26-46.dem`（pl_odyssey POV）：ViewModel 实体 1077、
+  武器实体 1008 `CTFSniperRifle` → `c_pro_rifle.mdl`；matcha/bagel/SourceTV 三个候选录制无实体。
+- 开关矩阵 11 用例全部钉在 tick 2000：ViewModel 关→开 3.0638%、武器本体开→关 42209 字节
+  （1.6345%，与 T2 的 POV 读数一致）、FOV 40→120 18.4117%；三个零差异对照。**`--capture-tick`
+  落点会漂移（2000/2001/2002/2007），必须重试钉住**——第一遍矩阵因落点漂移误读 22%。
+  武器切换未观察到（11044 次同一把）；ViewModel 动画全部 `status=missing`、停在 bind pose（未确认）。
+- 真实键盘：SPACE 单击→第三人称、双击→free-look、P→暂停/恢复；三重证据 = 修正读法后的 HUD
+  （暂停 `tick=` 冻结 2.0 s、恢复后 262→436）+ 产品计数 + trace 唯一停滞段。
+  **仪器缺陷**：`win32gui.GetWindowText` 跨进程截断 511 字符，HUD 须按 `GetWindowTextLengthW`
+  长度读、字段锚定 `HUD[tick=`；`freezeFrames` 是 free-look 计数不是暂停计数。
+- 缩放/DPI 实测（帧头==客户区）；画面观察：ViewModel/本体可见可开关、天空纯色、水面未入画；
+  声音：真实设备 601 播放 vs null sink 0，两组分开记录。未确认项清单见报告 §10。
+- 验收：`bash verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、
+  `bash camera-ui-check.sh` = `CAMERA-UI=PASS`，rc=0。
+
 ## 当前状态（2026-10-13）
 
 T2 ViewModel 第一人称绘制、T2.5 ViewModel 动画输入契约、清单一 companion 动态手臂绘制、清单三 ViewModel 材质资源链、T1 ViewModel 材质产品接入、T2 静态武器本体第二笔和清单四音频 tick 调度契约已合并到 `p0-entity-protocol@eec2c9c`。
