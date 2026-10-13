@@ -978,12 +978,79 @@ bool Renderer::uploadWorldAuxTextures(const std::vector<std::uint8_t>& bumpRgba,
 
 bool Renderer::uploadWorldLightmap(const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
   worldLightmapTexture_.reset();
+  worldCubemapTexture_.Reset();
+  worldCubemapView_.Reset();
+  worldCubemapSize_ = 0;
   if (rgba.empty() || width == 0 || height == 0) return true;
   std::string error;
   if (!worldLightmapTexture_.create(device_.Get(), rgba, width, height, &error)) {
     if (!error.empty()) OutputDebugStringA(("Lightmap Texture2D upload failed: " + error + "\n").c_str());
     return false;
   }
+  return true;
+}
+
+const char* worldCubemapStatusName(WorldCubemapStatus status) {
+  switch (status) {
+    case WorldCubemapStatus::Unavailable: return "unavailable";
+    case WorldCubemapStatus::Approximate2d: return "approximate-2d";
+    case WorldCubemapStatus::SixFace: return "six-face";
+  }
+  return "unknown";
+}
+
+bool Renderer::uploadWorldCubemap(const std::array<std::vector<std::uint8_t>, 6>& faces,
+    UINT side, std::string* error) {
+  worldCubemapTexture_.Reset();
+  worldCubemapView_.Reset();
+  worldCubemapSize_ = 0;
+  const auto fail = [&](const char* message) {
+    if (error) *error = message;
+    return false;
+  };
+  if (side == 0 || (side & (side - 1)) != 0) {
+    return fail("cubemap side is not a power of two, which a TextureCube sample needs");
+  }
+  const std::size_t expected = static_cast<std::size_t>(side) * side * 4u;
+  for (int face = 0; face < 6; ++face) {
+    if (faces[static_cast<std::size_t>(face)].size() != expected) {
+      return fail("a cubemap face is missing or not side*side*4 bytes");
+    }
+  }
+  D3D11_TEXTURE2D_DESC description{};
+  description.Width = side;
+  description.Height = side;
+  description.MipLevels = 1;
+  description.ArraySize = 6;
+  description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  description.SampleDesc.Count = 1;
+  description.Usage = D3D11_USAGE_IMMUTABLE;
+  description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+  // The flag is what makes the six array slices a cube rather than six unrelated
+  // 2D slices, and it is what makes the SRV below legal as a cube.
+  description.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+  D3D11_SUBRESOURCE_DATA initial[6]{};
+  for (int face = 0; face < 6; ++face) {
+    initial[face].pSysMem = faces[static_cast<std::size_t>(face)].data();
+    initial[face].SysMemPitch = side * 4u;
+    initial[face].SysMemSlicePitch = 0;
+  }
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+  if (FAILED(device_->CreateTexture2D(&description, initial, texture.GetAddressOf()))) {
+    return fail("CreateTexture2D refused the cube");
+  }
+  D3D11_SHADER_RESOURCE_VIEW_DESC view{};
+  view.Format = description.Format;
+  view.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+  view.TextureCube.MostDetailedMip = 0;
+  view.TextureCube.MipLevels = 1;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> resourceView;
+  if (FAILED(device_->CreateShaderResourceView(texture.Get(), &view, resourceView.GetAddressOf()))) {
+    return fail("CreateShaderResourceView refused the cube");
+  }
+  worldCubemapTexture_ = std::move(texture);
+  worldCubemapView_ = std::move(resourceView);
+  worldCubemapSize_ = side;
   return true;
 }
 
@@ -1187,6 +1254,11 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.selfIllumEnabled = worldMaterialParams_.selfIllum;
   state.worldVertexCount = worldVertexCount_;
   state.lightmappedVertexCount = worldLightmappedVertexCount_;
+  state.cubemapStatus = worldCubemapView_ ? WorldCubemapStatus::SixFace
+    : (worldEnvTexture_.view() ? WorldCubemapStatus::Approximate2d
+                              : WorldCubemapStatus::Unavailable);
+  state.cubemapFaces = worldCubemapView_ ? 6u : 0u;
+  state.cubemapSize = worldCubemapSize_;
   return state;
 }
 
@@ -2501,6 +2573,9 @@ void Renderer::shutdown() {
   worldBumpTexture_.reset();
   worldEnvTexture_.reset();
   worldLightmapTexture_.reset();
+  worldCubemapTexture_.Reset();
+  worldCubemapView_.Reset();
+  worldCubemapSize_ = 0;
   worldVertexBuffer_.Reset();
   projectileVertexBuffer_.Reset();
   projectileVertexCapacity_ = 0;

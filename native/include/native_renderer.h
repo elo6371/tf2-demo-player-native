@@ -173,6 +173,14 @@ enum class WorldLightmapStatus {
   Active,
 };
 
+// How the world pass samples reflections. Unavailable: the material declares no
+// env map, or none resolved. Approximate2d: the 2D projection of $envmap that
+// the renderer has always used, sampled by the world-space normal.
+// SixFace: a real TextureCube built from a map cubemap's six decoded faces and
+// sampled by the reflection vector.
+enum class WorldCubemapStatus { Unavailable, Approximate2d, SixFace };
+const char* worldCubemapStatusName(WorldCubemapStatus status);
+
 struct WorldMaterialSampleState {
   WorldLightmapStatus lightmapStatus = WorldLightmapStatus::Unavailable;
   float lightmapIntensity = 1.0f;
@@ -188,9 +196,21 @@ struct WorldMaterialSampleState {
   // 0/600000 would mean the atlas is bound and nothing samples it.
   std::uint32_t worldVertexCount = 0;
   std::uint32_t lightmappedVertexCount = 0;
+  // Which of the three things the env path is doing, as a value the runtime can
+  // read rather than a claim in a comment. `envTextureBound` alone could not
+  // tell a map whose cubemap failed to decode from one that never had an env
+  // map: both leave the 2D approximation bound and both read as bound.
+  WorldCubemapStatus cubemapStatus = WorldCubemapStatus::Unavailable;
+  // The faces uploaded to the cube texture, and its edge in pixels. Six and a
+  // power of two are what a D3D11 cube sample needs; anything else is refused
+  // and the status stays Approximate2d, so a partial cube cannot be sampled as
+  // if it were whole.
+  std::uint32_t cubemapFaces = 0;
+  std::uint32_t cubemapSize = 0;
 };
 
 enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
+
 
 class Renderer {
 public:
@@ -238,6 +258,12 @@ public:
   bool uploadWorldAuxTextures(const std::vector<std::uint8_t>& bumpRgba, UINT bumpWidth, UINT bumpHeight,
     const std::vector<std::uint8_t>& envRgba, UINT envWidth, UINT envHeight);
   bool uploadWorldLightmap(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // Six decoded cube faces, in Source's face order (+X,-X,+Y,-Y,+Z,-Z), each
+  // side*side RGBA. All six must be present, square, and the same size: the
+  // upload refuses anything else rather than filling the missing faces with
+  // black, which would sample as "the map is dark in that direction".
+  bool uploadWorldCubemap(const std::array<std::vector<std::uint8_t>, 6>& faces,
+    UINT side, std::string* error = nullptr);
   bool uploadProjectileLines(const std::vector<ProjectileLine>& lines);
   bool uploadBindPoseModel(const std::vector<ModelDrawVertex>& vertices);
   bool uploadBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices, bool enableSkinning);
@@ -578,6 +604,9 @@ private:
   Texture2D worldBumpTexture_;
   Texture2D worldEnvTexture_;
   Texture2D worldLightmapTexture_;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> worldCubemapTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldCubemapView_;
+  UINT worldCubemapSize_ = 0;
   RenderSettings settings_{};
   float cameraYaw_ = 0.0f;
   float cameraPitch_ = 0.36f;
