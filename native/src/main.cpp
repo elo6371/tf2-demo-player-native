@@ -2318,6 +2318,42 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // The env pass reads back as a mode rather than as a bound flag: approximate-2d
     // with a texture bound and six-face with a cube bound are the two states the
     // pixel shader branches on, and 'bound' alone cannot tell them apart.
+    traceFmt("gpu: world geometry displacedTriangles=%u waterTriangles=%u",
+      worldSample.displacedTriangles, worldSample.waterTriangles);
+    // The VIS capability, read where it can be: the renderer uploads the map as
+    // one buffer and tests no triangle against the pvs, so this measures the
+    // price of that rather than claiming a clip. The observer's own cluster is
+    // the one a clip would query; the rest comes from the parser's cluster table
+    // and the same bit test BspParser::clusterVisible gives the probe, so the
+    // product and the gate cannot disagree about what the pvs hides.
+    {
+      float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
+      if (!renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
+        // No observer yet: the first triangle's own vertex is a point the map
+        // certainly contains, and clusterAt answers -1 for a point in no leaf,
+        // which the line then reports rather than hides.
+        eyeX = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.x;
+        eyeY = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.y;
+        eyeZ = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.z;
+      }
+      const int cameraCluster = tf2::native::BspParser::clusterAt(displayMap, eyeX, eyeY, eyeZ);
+      std::size_t hidden = 0;
+      std::size_t clustered = 0;
+      for (const auto& triangle : displayMap.triangles) {
+        if (triangle.cluster < 0) continue;
+        ++clustered;
+        if (cameraCluster >= 0
+            && !tf2::native::BspParser::clusterVisible(displayMap, cameraCluster, triangle.cluster)) {
+          ++hidden;
+        }
+      }
+      traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
+        " clusteredTriangles=%zu hiddenTriangles=%zu clipApplied=0",
+        cameraCluster,
+        cameraCluster >= 0
+          ? tf2::native::BspParser::countVisibleClusters(displayMap, cameraCluster) : -1,
+        displayMap.visClusterCount, clustered, hidden);
+    }
     traceFmt("gpu: world cubemap status=%s mode=%u preset=%s declared=%d faces=%u size=%u source=%s reason=%s",
       tf2::native::worldCubemapStatusName(worldSample.cubemapStatus), worldSample.envMode,
       renderer.settings().preset == tf2::native::QualityPreset::Standard ? "standard" : "performance",

@@ -97,7 +97,7 @@ echo "=== 2/8 every synthetic fixture passes ==="
 FIX=$("$EXE" --fixture 2>&1)
 echo "$FIX" > "$OUT/fixture-straight.txt"
 assert_eq "fixtures" "$(count "$FIX" fixtures)" "9"
-assert_eq "fixture checks" "$(count "$FIX" checks)" "85"
+assert_eq "fixture checks" "$(count "$FIX" checks)" "90"
 assert_eq "fixture failures" "$(count "$FIX" bad)" "0"
 
 echo
@@ -109,9 +109,9 @@ echo "$MUT" > "$OUT/fixture-mutation.txt"
 assert_eq "mutations executed" "$(count "$MUT" mutations)" "7"
 assert_eq "mutation failures" "$(count "$MUT" mutationBad)" "0"
 assert_eq "total failures with mutations" "$(count "$MUT" bad)" "0"
-# Straight plus mutated assertions: 85 + 27. Pinned so a fixture that quietly
+# Straight plus mutated assertions: 90 + 30. Pinned so a fixture that quietly
 # stops asserting anything cannot pass by shrinking.
-assert_eq "assertions with mutations" "$(count "$MUT" checks)" "112"
+assert_eq "assertions with mutations" "$(count "$MUT" checks)" "120"
 
 echo
 echo "=== 4/8 the real map's six capabilities, pinned ==="
@@ -160,6 +160,16 @@ assert_eq "cubemap face checksums" "$(field "$REAL" cubemap.firstFaceChecksums)"
 assert_eq "sky state"             "$(field "$REAL" sky.state)"             "active"
 assert_eq "sky name"              "$(field "$REAL" sky.name)"              "sky_well_01"
 assert_eq "sky vmts found"        "$(field "$REAL" sky.vmtFound)"          "6"
+# Six vmts is not a sky: the textures behind them are, and one of these is a
+# 1x1 stub in the installed content (sky_well_01dn.vtf) while its five siblings
+# are 512x256 and 512x512. Both the size range and the byte total are pinned, so
+# "six faces decode" and "six faces decode to something the same size" cannot be
+# confused for one another.
+assert_eq "sky textures resolved" "$(field "$REAL" sky.texturesResolved)" "6"
+assert_eq "sky textures decoded"  "$(field "$REAL" sky.texturesDecoded)"  "6"
+assert_eq "sky largest face"      "$(field "$REAL" sky.firstSize)"        "512x256"
+assert_eq "sky smallest face"     "$(field "$REAL" sky.smallestSize)"     "1x1"
+assert_eq "sky decoded bytes"     "$(field "$REAL" sky.decodedBytes)"     "3145732"
 assert_eq "displacement faces"    "$(field "$REAL" displacement.faces)"    "1316"
 assert_eq "displacement triangles" "$(field "$REAL" displacement.triangles)" "165376"
 assert_eq "displacement corners"  "$(field "$REAL" displacement.cornerMatches)" "1316"
@@ -234,6 +244,28 @@ assert_eq "render lightmapped = 3 x parse triangles" "$(rfield lightmapped)" "$(
 # And the map is not fully lit: 737 of its 200000 triangles carry no lightmap
 # face, so lightmapped must stay strictly below vertices. A reading of
 # lightmapped == vertices would mean unlit faces were being handed a uv.
+# The displacement and water counts, taken while the vertex buffer was filled
+# rather than from the parse: the two must agree, and if they do not, the
+# renderer drew something other than what the capability layer measured.
+GEOMETRY=$(grep -o "gpu: world geometry .*" "$PRODUCT_TRACE" 2>/dev/null | head -1)
+echo "$GEOMETRY" >> "$OUT/render-lightmap.txt"
+gfield() { printf '%s\n' "$GEOMETRY" | grep -oE "$1=[0-9]+" | head -1 | cut -d= -f2; }
+assert_eq "render displaced = parse displacement triangles" \
+  "$(gfield displacedTriangles)" "$(field "$REAL" displacement.triangles)"
+assert_eq "render water = parse water triangles" \
+  "$(gfield waterTriangles)" "$(field "$REAL" water.trianglesTagged)"
+# The VIS capability, as its absence: the observer's cluster, what the pvs says
+# is visible from it, how much of the uploaded geometry sits in clusters that are
+# not, and the fact that no clip is applied. A number that can only be produced
+# by reading the pvs and the geometry together.
+VIS=$(grep -o "gpu: world vis .*" "$PRODUCT_TRACE" 2>/dev/null | head -1)
+echo "$VIS" >> "$OUT/render-lightmap.txt"
+vfield() { printf '%s\n' "$VIS" | grep -oE "$1=[0-9-]+" | head -1 | cut -d= -f2; }
+assert_eq "render vis camera cluster" "$(vfield cameraCluster)" "563"
+assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "850"
+assert_eq "render vis clustered triangles" "$(vfield clusteredTriangles)" "34517"
+assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "26936"
+assert_eq "render vis clip applied" "$(vfield clipApplied)" "0"
 RENDER_LIGHTMAPPED=$(rfield lightmapped)
 RENDER_VERTICES=$(rfield vertices)
 if [ "$RENDER_LIGHTMAPPED" -lt "$RENDER_VERTICES" ] 2>/dev/null; then

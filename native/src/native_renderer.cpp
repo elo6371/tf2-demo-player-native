@@ -793,6 +793,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   std::vector<WorldVertex> vertices;
   vertices.reserve(map.triangles.size() * 3);
   std::size_t lightmappedVertices = 0;
+  std::size_t displacedTriangles = 0;
+  std::size_t waterTriangles = 0;
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
     return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 1.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
@@ -818,6 +820,13 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
     // Same outcome-based count as the atlas overload below: keyed on the vertex
     // the pixel shader will actually see, not on the triangle's claim.
     if (a.lu >= 0.0f) lightmappedVertices += 3;
+    // Counted here rather than trusted from the parse: this loop is what decides
+    // how many triangles exist, and both tags are the parser's own on the
+    // triangle it emitted -- a displacement face arrives already subdivided into
+    // its grid, so a displaced triangle here is a tessellated one and the count
+    // is the geometry the renderer will draw.
+    if (triangle.displacement) ++displacedTriangles;
+    if (triangle.water) ++waterTriangles;
     vertices.push_back(a); vertices.push_back(b); vertices.push_back(c);
   }
   D3D11_BUFFER_DESC description{};
@@ -833,6 +842,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
+  worldDisplacedTriangleCount_ = static_cast<UINT>(displacedTriangles);
+  worldWaterTriangleCount_ = static_cast<UINT>(waterTriangles);
   worldMinX_ = minX; worldMinY_ = minY; worldMinZ_ = minZ;
   worldMaxX_ = maxX; worldMaxY_ = maxY; worldMaxZ_ = maxZ;
   worldCenterX_ = centerX; worldCenterY_ = centerY;
@@ -911,6 +922,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   std::vector<WorldVertex> vertices;
   vertices.reserve(map.triangles.size() * 3);
   std::size_t lightmappedVertices = 0;
+  std::size_t displacedTriangles = 0;
+  std::size_t waterTriangles = 0;
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
     return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 0.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
@@ -952,6 +965,13 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // been dropped -- which is how a regression injection went unnoticed the
     // first time this instrument was written.
     if (a.lu >= 0.0f) lightmappedVertices += 3;
+    // Counted here rather than trusted from the parse: this loop is what decides
+    // how many triangles exist, and both tags are the parser's own on the
+    // triangle it emitted -- a displacement face arrives already subdivided into
+    // its grid, so a displaced triangle here is a tessellated one and the count
+    // is the geometry the renderer will draw.
+    if (triangle.displacement) ++displacedTriangles;
+    if (triangle.water) ++waterTriangles;
     vertices.push_back(a); vertices.push_back(b); vertices.push_back(c);
   }
   D3D11_BUFFER_DESC description{};
@@ -967,6 +987,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
+  worldDisplacedTriangleCount_ = static_cast<UINT>(displacedTriangles);
+  worldWaterTriangleCount_ = static_cast<UINT>(waterTriangles);
   worldMinX_ = minX; worldMinY_ = minY; worldMinZ_ = minZ;
   worldMaxX_ = maxX; worldMaxY_ = maxY; worldMaxZ_ = maxZ;
   worldCenterX_ = centerX; worldCenterY_ = centerY;
@@ -1300,6 +1322,8 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.cubemapFaces = worldCubemapView_ ? 6u : 0u;
   state.cubemapSize = worldCubemapSize_;
   state.envMode = worldEnvMode();
+  state.displacedTriangles = worldDisplacedTriangleCount_;
+  state.waterTriangles = worldWaterTriangleCount_;
   return state;
 }
 
@@ -2624,6 +2648,8 @@ void Renderer::shutdown() {
   worldCubemapTexture_.Reset();
   worldCubemapView_.Reset();
   worldCubemapSize_ = 0;
+  worldDisplacedTriangleCount_ = 0;
+  worldWaterTriangleCount_ = 0;
   worldVertexBuffer_.Reset();
   projectileVertexBuffer_.Reset();
   projectileVertexCapacity_ = 0;

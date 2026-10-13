@@ -254,6 +254,25 @@ public:
     return !holders.empty();
   }
 
+  // The bytes, from the same two stores and in the same order reachable() looks
+  // in. Without this the sky reading could say six vmts resolve and zero of
+  // their textures decode -- a claim about the install made by a probe that
+  // never opened a file.
+  std::vector<std::uint8_t> read(const std::string& resourcePath) const override {
+    std::error_code error;
+    const auto loose = tfRoot_ / std::filesystem::u8path(resourcePath);
+    if (std::filesystem::exists(loose, error)) return readFile(loose);
+    std::vector<std::filesystem::path> holders;
+    archives_.collectContaining(resourcePath, holders);
+    for (const auto& holder : holders) {
+      const auto* archive = archives_.find(holder);
+      if (!archive) continue;
+      auto bytes = archive->read(resourcePath);
+      if (!bytes.empty()) return bytes;
+    }
+    return {};
+  }
+
 private:
   std::filesystem::path tfRoot_;
   tf2::native::VpkArchiveSet archives_;
@@ -407,6 +426,49 @@ std::vector<std::uint8_t> syntheticCubemapVtf(std::uint32_t width, std::uint32_t
   return file;
 }
 
+// A flat (non-cubemap) VTF in the same header shape as the cubemap builder: one
+// mip, format 0 so the decode is an identity, and no ENVMAP flag, because a sky
+// face is a plain texture and one that was flagged as a cube must be refused by
+// the sky path rather than sampled as if it were flat.
+std::vector<std::uint8_t> syntheticFlatVtf(std::uint32_t width, std::uint32_t height,
+    const std::array<std::uint8_t, 3>& colour) {
+  // Eighty bytes, not sixty-four: the depth field at offset 63 is two bytes
+  // wide, so a 64-byte header would have the second one land on the first image
+  // byte -- one byte past the end of the header vector. Writing it there is an
+  // out-of-bounds write and reading it back is a texture whose first pixel is
+  // the depth. The real files put the image after a 96-byte header; this builder
+  // uses the smallest header that holds every field it sets.
+  std::vector<std::uint8_t> file(80, 0);
+  const auto put16At = [&](std::size_t at, std::uint16_t value) {
+    file[at] = static_cast<std::uint8_t>(value & 0xFFu);
+    file[at + 1] = static_cast<std::uint8_t>((value >> 8) & 0xFFu);
+  };
+  const auto put32At = [&](std::size_t at, std::uint32_t value) {
+    for (int byte = 0; byte < 4; ++byte) {
+      file[at + static_cast<std::size_t>(byte)] = static_cast<std::uint8_t>((value >> (byte * 8)) & 0xFFu);
+    }
+  };
+  std::memcpy(file.data(), "VTF\0", 4);
+  put32At(4, 7);
+  put32At(8, 2);
+  put32At(12, 80);
+  put16At(16, static_cast<std::uint16_t>(width));
+  put16At(18, static_cast<std::uint16_t>(height));
+  put16At(24, 1);
+  put32At(52, 0);
+  file[56] = 1;
+  file[61] = 1;
+  file[62] = 1;
+  put16At(63, 1);
+  for (std::size_t pixel = 0; pixel < static_cast<std::size_t>(width) * height; ++pixel) {
+    file.push_back(colour[0]);
+    file.push_back(colour[1]);
+    file.push_back(colour[2]);
+    file.push_back(255);
+  }
+  return file;
+}
+
 std::string rgbaText(const std::vector<std::uint8_t>& rgba, std::size_t pixel) {
   const std::size_t at = pixel * 4u;
   if (at + 4u > rgba.size()) return "out-of-range";
@@ -512,6 +574,13 @@ std::map<std::string, std::string> flattenReadings(
   out["sky.name"] = readings.sky.name;
   out["sky.faces"] = std::to_string(readings.sky.skyFaces);
   out["sky.vmtFound"] = std::to_string(readings.sky.vmtFound);
+  out["sky.texturesResolved"] = std::to_string(readings.sky.texturesResolved);
+  out["sky.texturesDecoded"] = std::to_string(readings.sky.texturesDecoded);
+  out["sky.firstSize"] = std::to_string(readings.sky.firstWidth) + "x"
+    + std::to_string(readings.sky.firstHeight);
+  out["sky.smallestSize"] = std::to_string(readings.sky.smallestWidth) + "x"
+    + std::to_string(readings.sky.smallestHeight);
+  out["sky.decodedBytes"] = std::to_string(readings.sky.decodedBytes);
 
   out["displacement.state"] = worldCapabilityStateName(displacement.state);
   out["displacement.reason"] = displacement.reason;
@@ -840,9 +909,23 @@ std::vector<FixtureCase> buildCases() {
     item.name = "skybox-six-vmt";
     item.fixture.entities = "\"skyname\" \"sky_fixture_01\"\n";
     item.fixture.faces.push_back(lightmapQuad());
+    // Six VMTs that name six textures, and six textures that decode: a fixture
+    // whose VMTs were names with no bytes would prove "the files are listed" and
+    // nothing about the sky, which is the reading this capability is about.
     for (int face = 0; face < 6; ++face) {
-      item.resources.push_back({std::string("materials/skybox/sky_fixture_01")
-        + tf2::native::worldCubemapFaceSuffix(face) + ".vmt", {}});
+      const std::string suffix = tf2::native::worldCubemapFaceSuffix(face);
+      const std::string stem = "materials/skybox/sky_fixture_01" + suffix;
+      // One string, then its bytes. The first version of this built the vector
+      // from the begin() of one temporary and the end() of another: two
+      // different buffers, and an iterator range that walked off the end and
+      // took the process down with STATUS_STACK_BUFFER_OVERRUN before a single
+      // fixture printed.
+      const std::string vmtText = "UnlitGeneric\n{\n\t\"$basetexture\" \"skybox/sky_fixture_01"
+        + suffix + "\"\n}\n";
+      item.resources.push_back({stem + ".vmt",
+        std::vector<std::uint8_t>(vmtText.begin(), vmtText.end())});
+      item.resources.push_back({stem + ".vtf",
+        syntheticFlatVtf(8, 4, {{40, 90, 200}})});
     }
     item.straight = [](const tf2::native::BspMap&,
         const tf2::native::WorldCapabilityReadings& readings) {
@@ -850,10 +933,18 @@ std::vector<FixtureCase> buildCases() {
         {"sky.state", "active"},
         {"sky.name", "sky_fixture_01"},
         {"sky.vmtFound", "6"},
+        {"sky.texturesResolved", "6"},
+        {"sky.texturesDecoded", "6"},
+        {"sky.firstSize", "8x4"},
+        {"sky.smallestSize", "8x4"},
+        {"sky.decodedBytes", "768"},
       });
     };
+    // Take the DOWN face's texture, not its vmt: the vmt still resolves, so the
+    // reading has to distinguish "five vmts" from "six vmts, five textures" --
+    // the two failures this capability separates.
     item.mutate = [](tf2::native::BspFixture&, std::vector<tf2::native::FixedResource>& resources) {
-      const std::string path = "materials/skybox/sky_fixture_01dn.vmt";
+      const std::string path = "materials/skybox/sky_fixture_01dn.vtf";
       const auto at = std::find_if(resources.begin(), resources.end(),
         [&](const tf2::native::FixedResource& resource) { return resource.path == path; });
       if (at != resources.end()) resources.erase(at);
@@ -861,10 +952,18 @@ std::vector<FixtureCase> buildCases() {
     };
     item.mutated = [](const tf2::native::BspMap&,
         const tf2::native::WorldCapabilityReadings& readings) {
-      return readingChecks(readings, {
+      auto checks = readingChecks(readings, {
         {"sky.state", "fallback"},
-        {"sky.vmtFound", "5"},
+        {"sky.vmtFound", "6"},
+        {"sky.texturesResolved", "5"},
+        {"sky.texturesDecoded", "5"},
       });
+      const auto flat = flattenReadings(readings);
+      const auto at = flat.find("sky.reason");
+      const std::string reason = at == flat.end() ? std::string() : at->second;
+      checks.push_back(checkStr("sky.reasonNamesTexture",
+        reason.find("sky_fixture_01dn.vtf") == std::string::npos ? "not-named" : "named", "named"));
+      return checks;
     };
     cases.push_back(std::move(item));
   }

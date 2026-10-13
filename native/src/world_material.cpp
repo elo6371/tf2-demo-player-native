@@ -1,6 +1,7 @@
 #include "world_material.h"
 
 #include "LzmaDec.h"
+#include "vmt_material.h"
 #include "vtf_texture.h"
 
 #include <algorithm>
@@ -426,10 +427,61 @@ WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe) {
       if (reading.firstMissing.empty()) reading.firstMissing = "sky path rejected";
       continue;
     }
-    if (probe.reachable(path)) {
-      ++reading.vmtFound;
-    } else if (reading.firstMissing.empty()) {
-      reading.firstMissing = path;
+    if (!probe.reachable(path)) {
+      if (reading.firstMissing.empty()) reading.firstMissing = path;
+      continue;
+    }
+    ++reading.vmtFound;
+    // The VMT is there; resolve what it draws with. This is the step that turns
+    // "six files exist" into "six textures decode", and it is done with the same
+    // VmtParser and VtfTexture the renderer will use, so a reading here and a
+    // picture there cannot disagree about which file they loaded.
+    const auto vmtBytes = probe.read(path);
+    if (vmtBytes.empty()) {
+      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "vmt unreadable: " + path;
+      continue;
+    }
+    VmtMaterial material;
+    if (!VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material)) {
+      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "vmt did not parse: " + path;
+      continue;
+    }
+    if (material.baseTexture.empty()) {
+      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "vmt declares no $basetexture: " + path;
+      continue;
+    }
+    const auto texturePath = VmtParser::resourcePath(material.baseTexture, ".vtf");
+    const auto textureBytes = probe.read(texturePath);
+    if (textureBytes.empty()) {
+      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "texture unreadable: " + texturePath;
+      continue;
+    }
+    ++reading.texturesResolved;
+    VtfTexture texture;
+    std::string error;
+    if (!texture.parse(textureBytes, &error) || texture.header().isCubemap()) {
+      if (reading.firstTextureProblem.empty()) {
+        reading.firstTextureProblem = texturePath + (error.empty()
+          ? ": is a cubemap, which a sky face is not" : ": " + error);
+      }
+      continue;
+    }
+    const auto rgba = texture.decodeRgba(textureBytes, &error);
+    if (rgba.empty()) {
+      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = texturePath + ": " + error;
+      continue;
+    }
+    ++reading.texturesDecoded;
+    reading.decodedBytes += rgba.size();
+    if (reading.firstWidth == 0) {
+      reading.firstWidth = texture.header().width;
+      reading.firstHeight = texture.header().height;
+    }
+    if (reading.smallestWidth == 0
+        || static_cast<std::uint64_t>(texture.header().width) * texture.header().height
+          < static_cast<std::uint64_t>(reading.smallestWidth) * reading.smallestHeight) {
+      reading.smallestWidth = texture.header().width;
+      reading.smallestHeight = texture.header().height;
     }
   }
   return reading;
@@ -609,20 +661,34 @@ WorldCapabilityVerdict judgeCubemaps(const WorldCubemapReading& r) {
 }
 
 WorldCapabilityVerdict judgeSky(const WorldSkyReading& r) {
+  // The two failures below the declaration are separate on purpose: "the six
+  // vmt files are not there" and "they are there and the textures behind them
+  // do not decode" lead to different fixes, and a single 'sky unavailable'
+  // would leave a reader with neither.
   WorldCapabilityVerdict verdict;
   if (!r.declared) {
     verdict.state = WorldCapabilityState::Unavailable;
     verdict.reason = "the entity lump names no skyname";
     return verdict;
   }
-  if (r.vmtFound == 6) {
-    verdict.state = WorldCapabilityState::Active;
-    verdict.reason = "all six skybox vmts resolve for " + r.name;
+  if (r.vmtFound < 6) {
+    verdict.state = WorldCapabilityState::Fallback;
+    verdict.reason = std::to_string(r.vmtFound) + " of 6 skybox vmts resolve for " + r.name;
+    if (!r.firstMissing.empty()) verdict.reason += "; first missing " + r.firstMissing;
     return verdict;
   }
-  verdict.state = WorldCapabilityState::Fallback;
-  verdict.reason = std::to_string(r.vmtFound) + " of 6 skybox vmts resolve for " + r.name;
-  if (!r.firstMissing.empty()) verdict.reason += "; first missing " + r.firstMissing;
+  if (r.texturesDecoded < 6) {
+    verdict.state = WorldCapabilityState::Fallback;
+    verdict.reason = "all six skybox vmts resolve for " + r.name + " and "
+      + std::to_string(r.texturesDecoded) + " of their textures decode";
+    if (!r.firstTextureProblem.empty()) verdict.reason += "; " + r.firstTextureProblem;
+    return verdict;
+  }
+  verdict.state = WorldCapabilityState::Active;
+  verdict.reason = "all six skybox vmts resolve for " + r.name + " and their "
+    + std::to_string(r.firstWidth) + "x" + std::to_string(r.firstHeight)
+    + ".." + std::to_string(r.smallestWidth) + "x" + std::to_string(r.smallestHeight)
+    + " textures decode to " + counts(r.decodedBytes) + " bytes";
   return verdict;
 }
 

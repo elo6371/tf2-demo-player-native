@@ -237,6 +237,23 @@ struct WorldSkyReading {
   std::size_t skyFaces = 0;
   int vmtFound = 0;
   std::string firstMissing;
+  // A VMT that resolves is not a sky. Each one names a $basetexture, and the
+  // capability is the six textures behind them decoding to pixels -- which is
+  // what the renderer needs and what "six vmt files exist" does not say. A VMT
+  // with no $basetexture, or one whose VTF is missing, is a different failure
+  // from a missing VMT and gets its own counter.
+  int texturesResolved = 0;
+  int texturesDecoded = 0;
+  std::uint32_t firstWidth = 0;
+  std::uint32_t firstHeight = 0;
+  // The smallest of the six decoded faces. Measured because the content makes
+  // it worth measuring: sky_well_01dn.vtf is 1x1 in this install while its five
+  // siblings are 512x256 and 512x512, so "six faces decode" and "six faces are
+  // the same size" are different statements and only the second one is a sky.
+  std::uint32_t smallestWidth = 0;
+  std::uint32_t smallestHeight = 0;
+  std::size_t decodedBytes = 0;
+  std::string firstTextureProblem;
 };
 
 WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe);
