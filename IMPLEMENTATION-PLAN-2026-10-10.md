@@ -33,7 +33,7 @@
 
 1. 玩家动画需要客户端预测或外部输入，不能从当前 demo 猜测；不能把这一项伪装成已完成。
 2. ViewModel 第一人称 draw pass 和 T2.5 动画输入拒绝契约已接入；材质/VMT/VTF 已在分支 `task/viewmodel-material-render`（AI-B / T1）接入产品 draw pass（未合并主线，见下），真实游戏画面对照、实体序列到 `v_*.mdl` 的真实映射和 phong/bump/selfillum 仍未闭环。
-3. 世界逐面 lightmap、cubemap 六面采样、skybox、displacement、水面 RT、VIS clipping 未闭环。
+3. 世界逐面 lightmap、cubemap 六面采样与 displacement 已在 `task/world-material-lighting`（未合并，见下）闭环到"有读数、有状态"；skybox 与水面**未绘制**、水面 RT 未实现、VIS clipping 未裁剪。
 4. Demo 音频的 sound index 到 WAV 的 tick 对齐、TempEntity/PCF、过滤规则未闭环。
 5. 相机模式、观察者切换、基础 HUD/最终 UI、DPI/主题和导出状态未完成验收。
 6. 10 分钟 soak、损坏 demo、移动资源目录、安装启动、真实 GPU/FPS 和发布包未完成。
@@ -54,6 +54,14 @@
 `task/viewmodel-material-render`（worktree `D:\TF2_Native_Worktrees\viewmodel-material-render`，基线 `origin/p0-entity-protocol@9a8387b`）把清单三的解码链接入实际 ViewModel draw pass：每个材质槽有运行时状态，GPU 纹理按规范化 VTF 资源路径缓存并在每帧复用（长跑 149 帧 `texturesUploaded=2`、`texturesReused=149`），缺失槽进入具名 fallback；新增九项稳定读数与 `--viewmodel-material-slot` / `--viewmodel-material-missing-slot` / `--viewmodel-flat-color` 覆盖开关。像素对照必须在 `--start-paused --capture-tick 0` 冻结世界下取得——实测 `--capture-tick` 的落点随帧时机浮动（同一个值落在 tick 200/201/202，世界内容差异可达全帧 3.5%），长跑不可作为像素对照。专项门禁 220 条断言、10/10 mutation；phong/bump/selfillum 未实现，读数逐帧标 `*AppliedRanges=0`，防止把 VMT 声明当支持。
 
 剩余：人工画面对照、跨机器抓帧、phong/bump/selfillum、多帧像素稳定性；本项已合并主线，但 `verify-render.sh` 和总链尚未在当前 HEAD 重跑。
+
+### 世界材质与地图光照交付状态（2026-10-13，未合并；任务书 `TASK-PLAN-2026-10-13-4-WAY.md` 中编号为 T3，即本计划 §T4）
+
+`task/world-material-lighting`（worktree `D:\TF2_Native_Worktrees\world-material-lighting`，基线 `origin/p0-entity-protocol@0f023bb`）按任务书顺序实现六项能力，每项先做合成 BSP fixture 再接真实 BSP，各自输出 state/reason/counters，不以整帧变化当证据。实测：逐面 RGBExp32 lightmap `state=active`（snakewater 2048x2047 图集装 11512/11527 面、`trianglesWithLightUv=199263/200000`、15 面被装包器丢弃）；cubemap 33/33 六面全解、198 面、全部来自 BSP pakfile（旧读数 fallback 0/33；面数按图像段长度实测）；sky 6 个 VMT 解出像素（512x256..1x1）；displacement 1316 面/165376 三角（渲染侧计数相等）；water 18 面/`approximate-warp`（反射折射 unavailable 具名）；VIS `cluster-pvs`/2940 簇/`clipApplied=0`。产品 trace 与解析侧相等：`lightmapped=597789/600000`、`displacedTriangles=165376`、`waterTriangles=36`。`world-material-check.sh` = `WORLD-MATERIAL=PASS`（8 节）+ `--mutation`；`verify-fast.sh` = `VERIFY-FAST=PASS`（43 条断言）。
+
+同轮更新共享门禁 `frame-capture-check.sh` 的一条判据前提（颜色多样性上限 → 同次运行回退帧的字节比较，单独提交 `3ba4803`，需整合者确认）：lightmap 把世界帧 563→15909 色，旧上限 1000 由"能分辨"变成"必然红"。
+
+未完成：skybox 与水面**未绘制**（只有资源/状态读数）；VIS **未裁剪**；大图 lightmap 图集丢弃（abbey 4137/22991 面）；人工画面对照、真实 GPU 性能；总链未跑。详见 `T3-WORLD-MATERIAL-LIGHTING-2026-10-13.md`。
 
 ### T1 交付与验收状态（2026-10-10）
 
