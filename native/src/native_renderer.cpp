@@ -2546,6 +2546,7 @@ void Renderer::shutdown() {
   entityModelVertexShader_.Reset();
   modelPixelShader_.Reset();
   worldVertexCount_ = 0;
+  worldLightmappedVertexCount_ = 0;
   projectileVertexCount_ = 0;
   modelVertexCount_ = 0;
   sampler_.Reset();

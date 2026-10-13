@@ -180,6 +180,14 @@ struct WorldMaterialSampleState {
   bool envTextureBound = false;
   bool lightmapAtlasBound = false;
   bool selfIllumEnabled = false;
+  // Falsifiable vertex counts for the lightmap pass. `lightmappedVertexCount`
+  // is how many of the uploaded world vertices carry a per-face light uv; a
+  // vertex without one is drawn flat no matter what the atlas holds. The pair
+  // (lightmapped / total) is the number that says whether the lightmap pass
+  // covers the map, which the status enum on its own cannot: `Active` plus
+  // 0/600000 would mean the atlas is bound and nothing samples it.
+  std::uint32_t worldVertexCount = 0;
+  std::uint32_t lightmappedVertexCount = 0;
 };
 
 enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
@@ -433,6 +441,10 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelSkinningConstants_;
   UINT worldVertexCount_ = 0;
+  // How many of worldVertexCount_ carry a per-face light uv. Kept beside the
+  // total so the invariant lightmapped <= total survives a device reset: both
+  // are zeroed together in shutdown().
+  UINT worldLightmappedVertexCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> projectileVertexBuffer_;
   std::size_t projectileVertexCapacity_ = 0;
   UINT projectileVertexCount_ = 0;
