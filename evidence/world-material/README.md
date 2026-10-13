@@ -10,7 +10,7 @@ their own table rows. The gate that writes the captured files is
 | --- | --- | --- |
 | `self-test.txt` | `world_material_probe --self-test` | Two lines. The first is the pre-existing self-test, byte-identical because `verify-fast.sh` pins seven substrings of it. The second is the capability layer's pure-function test. |
 | `fixture-straight.txt` | `world_material_probe --fixture` | Nine synthetic BSP fixtures read back through `BspParser::parse`. 90 assertions, 0 bad. |
-| `fixture-mutation.txt` | `world_material_probe --fixture --mutation` | The same fixtures with one deliberate break each. 120 assertions, 7 mutations, 0 bad. |
+| `fixture-mutation.txt` | `world_material_probe --fixture --mutation` | The same fixtures, with a deliberate break in the seven that carry one (`lightmap-triangle-limit` and `vis-camera-cluster` are straight-only: no break is registered for them). 120 assertions, 7 mutations, 0 bad. |
 | `real-cp_snakewater_final1.txt` | `world_material_probe --bsp ... --tf-root ...` | The six capabilities measured on the installed map: every `{"reading": ...}` line the gate pins. |
 | `negative-bagel.txt` | the same with `koth_bagel_rc13` | The negative control: a map that is not installed reads every capability unavailable, each with its own reason. |
 | `render-lightmap.txt` | the product's `TF2_NATIVE_TRACE` | The GPU side: lightmap status and vertex pair, the displacement and water counts taken while the vertex buffer was filled, and the VIS line with the observer's cluster. |
@@ -19,6 +19,8 @@ their own table rows. The gate that writes the captured files is
 | `render-frame-fallback-decal.png` | PNG conversion of `evidence/frame-capture/demo.bmp` | The fallback picture this build draws when a demo's map is not installed (139121 colours). The negative pole of the comparison. |
 | `render-frame-installed-map-pre-t3.png` | PNG conversion of the 2026-10-12 round's `demo-installed-map.bmp` | The snakewater world before per-face lightmaps: flat shades, 563 colours. |
 | `render-frame-installed-map-t3.png` | PNG conversion of `evidence/frame-capture/demo-installed-map.bmp` | The same scene after: lightmapped, 15909 colours. |
+| `frame-capture-gate/` | the edited gate's own verdict logs | `straight-final.txt` and `mutation-final.txt` on the final script bytes: `FRAME-CAPTURE=PASS` and `MUTATION-CAUGHT=PASS (2/2)`. |
+| `verify-render/` | straight runs of the render tier on this branch | `run-attempt1.log` is kept with its cause: its two red gates are viewmodel-contract (the capture-landing blind spot T1 attributed and fixed on `task/capture-determinism@a259b52`, not in this branch) and evidence-tree (this round's own evidence files were being written while the tier ran -- the snapshot cannot tell an operator edit from a tier leak; the run itself started with an empty `git status --porcelain evidence/`). `run.log` is the verdict run on the frozen tree, with the eight gate logs beside it. |
 | `before/` | an earlier run of the same gate | The readings **before** this task's fixes: `cubemap.state=fallback`, `samplesComplete=0`, no sky textures. Kept because the change is the finding, and a before/after pair is what makes it one. |
 
 ## Reading the numbers
@@ -34,6 +36,18 @@ their own table rows. The gate that writes the captured files is
   five siblings are 512x256 and 512x512.
 - `hiddenTriangles=26936` with `clipApplied=0`: how much of the uploaded geometry
   the PVS hides from the observer's own cluster, and the fact that nothing clips it.
+
+## Mutation coverage, precisely
+
+Seven of the nine fixtures carry a break; the two without are
+`lightmap-triangle-limit` and `vis-camera-cluster`, whose readings are pinned in
+the straight direction only. Every one of the six capabilities still has at least
+one fixture that moves under mutation (`lightmap-per-face`,
+`lightmap-atlas-capacity`, `cubemap-six-face`, `skybox-six-vmt`,
+`displacement-flat-grid`, `water-capability`, `vis-cluster-clip`), and the probe
+fails outright if a mutation run executes zero mutations, so the mutated half
+cannot silently become empty. The delivery report lists the two straight-only
+fixtures under its unverified items.
 
 ## One claim with a narrower scope than it reads
 
