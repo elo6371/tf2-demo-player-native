@@ -1,5 +1,7 @@
 # T2 人工验收证据（2026-10-13，`task/manual-acceptance`）
 
+> **后续人工确认（2026-10-13）**：用户已通过真实设备确认声音内容。下文保留原始交付时的机器证据边界；该后续确认补齐了声音听感项，不改变矩阵对动画、材质或武器本体的限制。
+
 工作区 `D:\TF2_Native_Worktrees\manual-acceptance`，分支 `task/manual-acceptance`，
 基线 `origin/p0-entity-protocol@0f023bb`（`docs: record T3 integration and fix audio input line endings`）。
 本任务**只产证据，未改任何产品源码**（见 §7 工作树状态）。
@@ -10,7 +12,7 @@ tick 2000 与 4000 两帧**逐字节相同**、6000 不同；武器本体 on/off
 **逐字节相同**，原因是该 demo 在这些播放位置没有选中任何 ViewModel 实体
 （读数 `weaponFallback=noViewModelEntity weaponVisible=0 weaponDrawCalls=0`）。
 真实设备（6 号 xduoo）播放成功：`audio_device_opened=19 == events_played=19`，
-但**没有人耳确认声音内容**，这一项未验证。
+原始采集时没有记录人耳确认；后续用户已通过真实设备确认声音内容。
 
 ---
 
@@ -119,14 +121,14 @@ bash verify-fast.sh  ->  assertions_ok=43 assertions_bad=0
 ```
 
 抓帧一律带 `--hidden-window`（矩阵另加 `--audio-disabled`）。
-真实音频这一节**不是**自动门禁结果，`audio_device_opened` 只是设备打开计数，
-不等于"人能听到"。
+真实音频这一节**不是**自动门禁结果，`audio_device_opened` 只是设备打开计数；
+本报告的后续人工确认由用户补充，不由该计数推导。
 
 ## 6. 未验证项（不写成"完成"）
 
-1. **声音内容未经人耳确认**：只证明设备打开成功、有播放计数；
-   开火/脚步/Uber/环境音是否可听，需要人在真实设备上听。`kinds` 分布
-   （w2953/f5/u14/o1620/v633/a4/m0）说明事件类型存在，不等于内容正确。
+1. **声音内容已由用户通过真实设备确认**；机器证据仍只记录设备打开和播放计数。
+   `kinds` 分布（w2953/f5/u14/o1620/v633/a4/m0）说明事件类型存在，不能替代
+   用户对具体音效的听感确认。
 2. **武器本体维度未测到**：on/off 两帧逐字节相同（无 ViewModel 实体被选中），
    武器本体是否影响画面在本 demo 上未获得证据。
 3. **tick 维度部分未区分**：2000 与 4000 相同，只有 6000 分离。

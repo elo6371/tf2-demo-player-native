@@ -54,7 +54,7 @@ git status --short
 
 ## T2：人工验收
 
-状态：已交付，待本次整合提交；报告 `T2-MANUAL-ACCEPTANCE-2026-10-13.md`。矩阵证明 ViewModel/FOV/hand 输入影响画面，真实设备打开并播放 19 个事件；不证明动画、材质、武器本体或声音内容正确。武器本体在选定 tick 没有 ViewModel 实体，因此 on/off 逐字节相同；声音未做人耳确认。
+状态：已交付并整合（`591cbec`）；报告 `T2-MANUAL-ACCEPTANCE-2026-10-13.md`。矩阵证明 ViewModel/FOV/hand 输入影响画面，真实设备打开并播放 19 个事件；用户已确认声音内容。矩阵仍不证明动画、材质或武器本体正确：武器本体在选定 tick 没有 ViewModel 实体，因此 on/off 逐字节相同。
 
 ### 工作区
 

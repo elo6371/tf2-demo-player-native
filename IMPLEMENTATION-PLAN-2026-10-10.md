@@ -10,7 +10,7 @@
 
 ### T2 人工验收（2026-10-13，已整合）
 
-`task/manual-acceptance@ae7bd09` 仅新增人工验收报告和证据。冻结 ViewModel 矩阵确认模型输入、FOV、手性会影响画面；真实设备运行确认设备 6 打开且播放 19 个事件。未验证声音内容、动画/材质正确性、武器本体可见性和人工画面观看：选定 tick 没有 ViewModel 实体，武器本体 on/off 逐字节相同；tick 2000 与 4000 逐字节相同。该项不修改自动门禁，也不构成 `verify-render.sh` 或完整总链通过。
+`task/manual-acceptance@ae7bd09` 仅新增人工验收报告和证据。冻结 ViewModel 矩阵确认模型输入、FOV、手性会影响画面；真实设备运行确认设备 6 打开且播放 19 个事件，用户已确认声音内容。动画/材质正确性、武器本体可见性和人工画面观看仍未由该矩阵证明：选定 tick 没有 ViewModel 实体，武器本体 on/off 逐字节相同；tick 2000 与 4000 逐字节相同。该项不修改自动门禁，也不构成 `verify-render.sh` 或完整总链通过。
 
 渲染档补跑（2026-10-12，工作区 `D:\TF2_Native_Worktrees\render-gate-recheck`，基线 `9a8387b`）：
 9 个门禁的 `verify-render.sh` 已在该基线上跑过正向与 `--mutation` 各一次，两次都是
