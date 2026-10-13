@@ -1639,10 +1639,6 @@ static bool uploadViewModelMeshInto(ID3D11Device* device,
   return true;
 }
 
-bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices) {
-  return uploadViewModelMesh(vertices, {});
-}
-
 bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices,
     const std::vector<ViewModelDrawRange>& ranges) {
   if (!uploadViewModelMeshInto(device_.Get(), vertices, viewModelVertexBuffer_,

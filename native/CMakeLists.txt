@@ -184,6 +184,7 @@ set_target_properties(viewmodel_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(weapon_body_probe
   tools/weapon_body_probe.cpp
   src/viewmodel.cpp
+  src/viewmodel_material.cpp
   src/animation_binding.cpp
   src/animation_decoder.cpp
   src/entity_model.cpp
@@ -191,6 +192,7 @@ add_executable(weapon_body_probe
   src/asset_root.cpp
   src/vpk_archive.cpp
   src/vmt_material.cpp
+  src/vtf_texture.cpp
   src/demo_header.cpp
   src/item_schema.cpp
   src/proto_wire.cpp
