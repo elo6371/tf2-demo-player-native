@@ -19,6 +19,18 @@
 
 T1、T2、T3 已整合并推送至 `p0-entity-protocol@8d5c8cd`。T3 来源为 `task/audio-main-wiring`，产品提交 `baf93e7`、门禁/证据提交 `61260a0`；合并后 `verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0。T3 专项 48 条断言和 12/12 mutation 在来源 worktree 通过。T1 当前渲染档复核在来源 worktree 正向为 8/9（1 red），mutation 为 9/9；当前 HEAD 的渲染档及完整总链未验证；真实设备声音输出未验证。下方「尚未整合」字样均为来源分支交付时的历史状态。
 
+另：`TASK-PLAN-2026-10-13-4-WAY.md` 启用了第二套编号（T1 渲染复核 / T2 人工验收 / T3 世界材质与光照 / T4 相机与 HUD），与上面的旧编号并存，按条目标题区分；T1、T2 已整合（主线至 `b26f966`），T1 对该档唯一红项（抓帧落点）的修复在 `task/capture-determinism@a259b52`（未合入；落点固定为暂停 `playback_tick=0 / sceneTick=10252`，专项 154 条断言通过、7 张比较帧同一测量点、跨工作树 BMP SHA-256 一致），本轮 T3 见下条。
+
+### T3（四任务分工）：世界材质与光照（`task/world-material-lighting`，**尚未整合**）
+
+- 基线 `origin/p0-entity-protocol@0f023bb`；工作区 `D:\TF2_Native_Worktrees\world-material-lighting`。对应 `TASK-PLAN-2026-10-13-4-WAY.md` §T3，即 `IMPLEMENTATION-PLAN-2026-10-10.md` §T4「世界材质与地图光照」（两文档编号不同）。
+- **六项能力各自独立读数**，都先做合成 fixture 再接真实 BSP；`world_material_probe --fixture` 90 条断言、`--fixture --mutation` 120 条断言 7 变异、真实地图读数逐项入库 `evidence/world-material/`：① 逐面 RGBExp32 lightmap：snakewater `state=active`，2048x2047 图集装 11512/11527 面、`trianglesWithLightUv=199263/200000`、15 面被装包器丢弃；② cubemap：33/33 六面全解、198 面、全部来自 BSP pakfile（旧读数是 fallback 0/33；面数按图像段实测——文件 7 个面槽位 vs 头部声明 6）；③ sky：6 个 VMT 全解出像素，尺寸 512x256..1x1、3145732 字节；④ displacement：1316 面 / 165376 三角、corner match 1316/1316；⑤ water：18 个水面、`approximate-warp`，反射/折射以 unavailable 具名；⑥ VIS：`cluster-pvs`、2940 簇、`clipApplied=0`（显式记录未裁剪，不冒充 Source 等效）。
+- 渲染侧（产品 trace）：`lightmapped=597789/600000`、`displacedTriangles=165376`/`waterTriangles=36`（与解析侧相等）、cubemap `status=six-face mode=0 faces=6 size=32 source=materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf`；`--world-env-force` 对照 `mode=0 declared=0` vs `mode=2 declared=1`，帧差 62699 字节。
+- 关键修复：lightmap 图集重载的 `else` 分支丢逐面 uv → GPU `lightmapped` 92193（真值 597789 = 3×199263，门禁按顶点"结果度量"钉住）；世界常量缓冲 128 字节截断 `envFeatures`（`--world-env-force` 前后帧逐字节相同）→ 改 160；设备拒绝 cubemap 上传时降级为能力回退而不是终止程序（`e411733`）。
+- **共享门禁更新（需整合者注意）**：`frame-capture-check.sh` 的「颜色多样性上限 <1000」判据被本轮 lightmap 特性证伪（世界帧 563→15909 色，回退贴片 139121 色跨轮不变），改为「安装地图帧必须与同一次运行抓到的回退帧在 ≥10% 有效载荷字节上不同」（实测 0.9840，前轮 0.9899；`--mutation` 2/2，回退形状读 0.0200 被拒）。单独提交 `3ba4803`，读数与归因见 `evidence/world-material/render-frame-shape.txt`。
+- 定向验收：`build-target.sh world_material_probe tf2_demo_native` rc=0；`world-material-check.sh` = `WORLD-MATERIAL=PASS`（8 节，rc=0）；`--mutation` = `MUTATION-CAUGHT=PASS`；`verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)`；`verify-render.sh` 读数见交付报告。
+- 未验证：skybox 与水面**未绘制**（只有资源与状态读数）；VIS **未裁剪**；大图 lightmap 图集丢弃（abbey 4137/22991 面，具名读数）；人工画面对照与真实 GPU 性能未做。详见 `T3-WORLD-MATERIAL-LIGHTING-2026-10-13.md`。
+
 ### T3：音频主程序接线（`task/audio-main-wiring`，**尚未整合**）
 
 - 产品提交 `baf93e7`，门禁/证据提交 `61260a0`；基线 `origin/p0-entity-protocol@9a8387b`；工作区 `D:\TF2_Native_Worktrees\audio-main-wiring`。

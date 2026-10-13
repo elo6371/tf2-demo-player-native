@@ -1,0 +1,3 @@
+gpu: world lightmap status=active intensity=0.437 atlas=1 bump=0 env=0 vertices=600000 lightmapped=597789
+gpu: world geometry displacedTriangles=165376 waterTriangles=36
+gpu: world vis cameraCluster=563 visibleFromCamera=850 clusters=2940 clusteredTriangles=34517 hiddenTriangles=26936 clipApplied=0

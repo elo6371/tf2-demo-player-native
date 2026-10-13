@@ -29,8 +29,10 @@
 # consumed by the renderer rather than a mode the program stays in.
 #
 # Usage: bash frame-capture-check.sh [--mutation]
-#   --mutation flips a byte in the captured image and requires this script to go
-#   red, which is how "the content checks can fail" is shown rather than assumed.
+#   --mutation drives both content checks with inputs they must refuse (a
+#   one-byte change for the hash comparison, the fallback picture for the
+#   fallback comparison) and requires this script to go red on each, which is
+#   how "the content checks can fail" is shown rather than assumed.
 # Exit:  0 = every assertion held (or, with --mutation, the checks went red).
 #
 # 2026-10-08: the demo half of this script was passing for the wrong reason. The
@@ -40,6 +42,24 @@
 # held on that. A second demo on an installed map, plus a cap on how many distinct
 # colours the frame may have, is what makes this half of the script mean what its
 # name says. See resource-reachability-check.sh for the underlying resource facts.
+#
+# 2026-10-13: the cap is gone -- not relaxed, replaced. The world-material round
+# gave the world per-face lightmaps, which is exactly what the cap's premise
+# ("a shaded world with no textures is a handful of flat greys") excluded: the
+# installed-map capture went from 563 distinct colours to 15909, while the
+# fallback decal stayed at 139121 (its frame is byte-identical across rounds,
+# sha256 fa1bb194...). The cap had 858x of room when it was chosen (139121 / 162)
+# and 247x when this round started (139121 / 563); it now has 8.7x, and every
+# further realism step (albedo textures are next) moves the world's count toward
+# the decal's with no ceiling. What replaces it measures the thing the cap was a
+# proxy for: the installed-map capture and the fallback capture are taken in the
+# same run, and the installed-map frame must differ from the fallback frame in a
+# large fraction of its payload bytes. Measured byte distance: 0.9840 on
+# 2026-10-13 and 0.9899 on 2026-10-12; a capture that came back as the fallback
+# shares the decal artwork and lands near zero. The reference being captured in
+# the same run rather than assumed is the point -- the check does not carry this
+# machine's fallback asset inside its threshold. The distinct-colour count is
+# still printed, as a reading with no assertion on it.
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -104,10 +124,65 @@ run_capture() { # run_capture <out.bmp> <timeout> [extra args...]
   echo "$?"
 }
 
+# The installed-map capture must not be the fallback picture -- and "the fallback
+# picture" is not assumed: it is captured in the same run. `demo.bmp` is the
+# koth_bagel_rc13 demo, whose map is not installed on this machine (the resource
+# gate asserts `bagel BSP bytes = 0` as its negative control), so whatever that
+# capture shows IS what this build draws in place of a world -- measured: the
+# spray decal. The two payloads are compared byte for byte. A capture that came
+# back as the fallback shares the decal artwork and lands near zero; a real world
+# measured 0.9840 (2026-10-13) and 0.9899 (2026-10-12), so the threshold sits an
+# order of magnitude below the honest reading and well above the defect -- and it
+# does not carry this machine's fallback asset inside it, because the reference
+# frame is taken fresh on every run. No colour transform is applied to either
+# side: a lossy transform can hide a difference instead of measuring it.
+FALLBACK_MIN_DIFF_PERCENT=10
+not_fallback_frame() { # not_fallback_frame <installed.bmp> <fallback.bmp>
+  local readout
+  readout=$("$PY" - "$1" "$2" <<'PYEOF'
+import struct, sys
+def payload(path):
+    data = open(path, 'rb').read()
+    off, = struct.unpack_from('<I', data, 10)
+    return data[off:]
+a = payload(sys.argv[1])
+b = payload(sys.argv[2])
+if len(a) != len(b):
+    print('length-mismatch %d %d' % (len(a), len(b)))
+    raise SystemExit(0)
+n = len(a)
+x = int.from_bytes(a, 'little') ^ int.from_bytes(b, 'little')
+diff = n - x.to_bytes(n, 'little').count(0)
+print('%d %d %d %.4f' % (diff, n, int(100.0 * diff / n), diff / n))
+PYEOF
+)
+  if [ -z "$readout" ]; then
+    echo "  FAIL the fallback comparison produced no reading"; return 1
+  fi
+  set -- $readout
+  if [ "$1" = "length-mismatch" ]; then
+    echo "  FAIL the two captures have different payload sizes ($2 vs $3)"; return 1
+  fi
+  echo "installed-map vs fallback-capture: differing $1 / $2 = $4 (need >= ${FALLBACK_MIN_DIFF_PERCENT}%)"
+  if [ "$3" -ge "$FALLBACK_MIN_DIFF_PERCENT" ]; then
+    echo "  OK   the installed-map frame is not the fallback picture"
+    return 0
+  fi
+  echo "  FAIL the installed-map frame is the fallback picture ($3% of its bytes differ)"
+  return 1
+}
+
 echo "=== 1/4 a frame comes back from the running program (no demo) ==="
-# --start-paused with no demo: the renderer's fallback is a full-screen quad plus
-# the UI overlay, which is a scene that is cheap to reach and identical every run,
-# so it is the right place to establish determinism.
+# --start-paused with no demo. Correction (2026-10-13): the description that used
+# to stand here -- "the renderer's fallback is a full-screen quad plus the UI
+# overlay" -- had gone stale. The paused run draws a real world: with no demo the
+# program loads koth_abbey, and a traced paused capture reads its cubemap plus
+# 541665 world vertices, of which the world-material round lightmapped 169428
+# (= 3 x the probe's 56476 lightmapped triangles on 2koth_abbey.bsp; the two
+# sides agree). That is also why the paused frame moved in this round -- 180 ->
+# 4419 distinct colours, sha256 a61a3e4d -> dd65787f. What this section needs
+# from the capture is that it is cheap to reach and identical every run; both
+# still hold. What it must not be read as is "an empty scene".
 PAUSED_BMP="$OUT/paused.bmp"
 PAUSED_RC=$(run_capture "$PAUSED_BMP" "$PAUSED_TIMEOUT" --start-paused)
 echo "paused capture rc=$PAUSED_RC size=$(stat -c%s "$PAUSED_BMP" 2>/dev/null || echo 0)"
@@ -230,13 +305,15 @@ else
   echo "  FAIL the demo capture did not complete in ${DEMO_TIMEOUT}s (rc=$DEMO_RC)"; fail=1
 fi
 
-# The second demo, on a map that is actually installed. Its frame must also differ
-# from the paused one, and it must look like shaded geometry rather than like a
-# photograph: the fallback quad on this machine is a flat full-screen decal, so its
-# frame has orders of magnitude more distinct colours than a lit-but-untextured
-# world. That count is the reading that would have caught the spray-decal capture
-# passing as "the demo scene"; bagel's frame measured 139121 distinct colours,
-# snakewater's 162, and the paused frame 69.
+# The second demo, on a map that is actually installed. Its frame must differ
+# from the paused one, and it must not be the fallback picture: the bagel demo
+# above is this run's fallback reference (its map is not installed), and the two
+# frames are compared directly by not_fallback_frame. The colour-count cap that
+# used to stand here is gone for the reason in the 2026-10-13 note at the top;
+# the count is kept as a printed reading. History, for whoever needs the shape of
+# it: 2026-10-08 measured bagel 139121 / snakewater 162 / paused 69 and the cap
+# at 1000 sat between with orders of magnitude to spare; the world-material round
+# measured bagel 139121 / snakewater 15909 / paused 4419 with the same cap.
 SNAKE_BMP="$OUT/demo-installed-map.bmp"
 SNAKE_RC=$(run_capture "$SNAKE_BMP" "$DEMO_TIMEOUT" --demo "$SNAKE" --capture-tick 0)
 echo "installed-map demo capture rc=$SNAKE_RC size=$(stat -c%s "$SNAKE_BMP" 2>/dev/null || echo 0)"
@@ -248,25 +325,20 @@ if [ "$SNAKE_RC" = "0" ]; then
   else
     echo "  FAIL the installed-map demo capture equals the paused capture"; fail=1
   fi
+  # A reading, not an assertion: this is the number the old cap asserted on, and
+  # with the world's own lightmaps it no longer separates the two shapes (the
+  # world climbed 563 -> 15909 while the decal stayed at 139121).
   SNAKE_COLORS=$("$PY" - "$SNAKE_BMP" <<'PYEOF'
 import sys
 data = open(sys.argv[1], 'rb').read()
 seen = set()
 for i in range(54, len(data), 3):
     seen.add(data[i:i+3])
-    if len(seen) > 4096: break
 print(len(seen))
 PYEOF
 )
-  echo "installed-map distinct colours (capped at 4097) = $SNAKE_COLORS"
-  # A fallback decal is a photograph printed on one quad; a shaded world with no
-  # textures is a handful of flat greys. 1000 sits between the two measured values
-  # with a wide margin on both sides.
-  if [ "${SNAKE_COLORS:-0}" -lt 1000 ]; then
-    echo "  OK   the installed-map frame is shaded geometry, not a full-screen decal"
-  else
-    echo "  FAIL the installed-map frame has photographic colour diversity, which is the fallback-quad shape"; fail=1
-  fi
+  echo "installed-map distinct colours (full count) = $SNAKE_COLORS  [reading only]"
+  not_fallback_frame "$SNAKE_BMP" "$DEMO_BMP" || fail=1
 else
   echo "  FAIL the installed-map demo capture did not complete in ${DEMO_TIMEOUT}s (rc=$SNAKE_RC)"; fail=1
 fi
@@ -290,10 +362,14 @@ fi
 echo
 if [ "$MUTATION" -eq 1 ]; then
   # The content checks are the ones a later picture claim will lean on, so the
-  # mutation targets them: flip one byte of the captured image and require the
-  # determinism comparison to notice. A hash comparison that cannot tell one byte
-  # apart is not a comparison.
-  echo "=== mutation: one byte of the image is flipped ==="
+  # mutations target them, one per check: a one-byte change for the hash
+  # comparison (a hash comparison that cannot tell one byte apart is not a
+  # comparison) and the fallback picture for the fallback comparison (a fallback
+  # check that accepts the fallback picture is not a check).
+  caught=0
+  missed=0
+
+  echo "=== mutation 1/2: one byte of the image is flipped ==="
   MUT="$OUT/mutated.bmp"
   cp "$PAUSED_BMP" "$MUT"
   "$PY" - "$MUT" <<'PYEOF'
@@ -305,10 +381,43 @@ open(p, 'wb').write(bytes(data))
 PYEOF
   MUT_HASH=$("$PY" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$MUT")
   if [ -n "$MUT_HASH" ] && [ "$MUT_HASH" != "$HASH1" ]; then
-    echo "MUTATION-CAUGHT=PASS (a one-byte change moves the content hash)"
+    echo "mutation 1/2 caught: a one-byte change moves the content hash"
+    caught=$((caught + 1))
+  else
+    echo "mutation 1/2 NOT caught: a one-byte change did not move the content hash"
+    missed=$((missed + 1))
+  fi
+
+  # Mutation 2 drives the replacement criterion with the shape it exists to
+  # refuse: an installed-map capture that is the fallback picture. The copy gets
+  # 2% of its payload bytes perturbed, so the question is not "are two identical
+  # files identical" but "does the comparison refuse a frame that is 98% the
+  # fallback picture" -- which is what a fallback capture looks like.
+  echo "=== mutation 2/2: the installed-map capture becomes the fallback picture ==="
+  MUT2="$OUT/demo-installed-map.as-fallback.bmp"
+  cp "$DEMO_BMP" "$MUT2"
+  "$PY" - "$MUT2" <<'PYEOF'
+import sys
+p = sys.argv[1]
+data = bytearray(open(p, 'rb').read())
+for i in range(54, len(data), 50):
+    data[i] ^= 0x5A
+open(p, 'wb').write(bytes(data))
+PYEOF
+  if not_fallback_frame "$MUT2" "$DEMO_BMP"; then
+    echo "mutation 2/2 NOT caught: a fallback-shaped frame was accepted as the world"
+    missed=$((missed + 1))
+  else
+    echo "mutation 2/2 caught: the comparison refused the fallback-shaped frame"
+    caught=$((caught + 1))
+  fi
+
+  echo
+  if [ "$missed" -eq 0 ]; then
+    echo "MUTATION-CAUGHT=PASS ($caught/2 mutations red)"
     exit 0
   fi
-  echo "MUTATION-CAUGHT=FAIL (a one-byte change did not move the hash)"
+  echo "MUTATION-CAUGHT=FAIL ($missed/2 mutations stayed green)"
   exit 1
 fi
 

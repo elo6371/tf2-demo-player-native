@@ -2,7 +2,7 @@
 
 ## 2026-10-13 整合状态覆盖
 
-当前主线为 `p0-entity-protocol@8d5c8cd`。T1 ViewModel 材质接入、T2 静态武器本体第二笔和 T3 音频主程序接线均已整合并推送。合并后 `verify-fast.sh` 为 `VERIFY-FAST=PASS (assertions_ok=43)`、rc=0；T1 专项 220 条/10 mutation、T2 专项 61 条/4 mutation、T3 音频专项 48 条/12 mutation 均有来源分支实测通过记录。T1 当前渲染档复核已整合为正向 `8/9`（`viewmodel-contract` 1 red）和 mutation `9/9`；红项归因于 T3 音频接线造成的首帧 capture tick 落入 10253--10267 标定盲区，不能写成渲染档 PASS。`verify-render.sh` 尚未在此 HEAD 重跑；完整总链未运行。T3 真实声卡播放、MP3/ADPCM 设备输出和音频 soak 未验证。下方较早的分支状态文字按历史记录阅读。
+当前主线为 `p0-entity-protocol@b26f966`（2026-10-13 四任务分工的 T1 渲染复核与 T2 人工验收已整合；`task/capture-determinism@a259b52` 的抓帧修复将在本次整合中加入）。T3 世界材质与光照分支 `task/world-material-lighting@b55e8e5` 也已进入本次合并，待定向验收确认。T1 ViewModel 材质接入、T2 静态武器本体第二笔和 T3 音频主程序接线均已整合并推送。来源分支的 `verify-fast.sh`、T1/T2/T3 音频专项均通过；本次合并后将补跑世界材质、抓帧、ViewModel contract 与渲染档验收，不运行完整总链。T3 未验证真实 GPU 性能、天空盒/水面实际绘制、VIS 裁剪和人工画面对照。
 
 T2 人工验收已整合：`task/manual-acceptance@ae7bd09` 仅新增 `T2-MANUAL-ACCEPTANCE-2026-10-13.md` 和 `evidence/manual-acceptance/`。冻结矩阵证明 ViewModel/FOV/hand 输入会改变画面；真实设备 6 打开并播放 19 个事件，用户已完成人耳确认声音内容。选定 tick 没有 ViewModel 实体，武器本体 on/off 逐字节相同；tick 2000 与 4000 也相同，因此这些证据不能证明动画、材质或武器本体正确。
 
@@ -36,6 +36,35 @@ T1 ViewModel 材质接入（分支 `task/viewmodel-material-render`，基线 `or
 下一步按顺序：在当前合并 HEAD 上补跑一次 `verify-render.sh`（正常，必要时再跑 mutation）；随后处理 ViewModel/武器本体人工画面对照、世界材质/光照、相机/HUD/UI、soak/损坏输入和发布验收。T3 音频主程序接线专项已通过，但真实设备播放仍未验证；缺外部 demo、VPK 或真实硬件时记为未验证，不得写成通过。
 P0（SourceTV PacketEntities 状态重建）与 P1 第一项（实体模型引用接线 + 逐 tick 位移）
 的隔离测试树。
+
+## 2026-10-13 T3：世界材质与光照（分支 `task/world-material-lighting`，尚未合并主线）
+
+分支 `task/world-material-lighting`，基线 `origin/p0-entity-protocol@0f023bb`，工作区
+`D:\TF2_Native_Worktrees\world-material-lighting`。任务书 `TASK-PLAN-2026-10-13-4-WAY.md` §T3
+（= `IMPLEMENTATION-PLAN-2026-10-10.md` §T4「世界材质与地图光照」；两份文档编号不同）。
+
+按任务书顺序实现六项能力，每项先做合成 BSP fixture 再接真实地图，各自给出 state/reason/counters，
+不以整帧变化当证据：
+
+1. 逐面 RGBExp32 lightmap：`cp_snakewater_final1` 实测 2048x2047 图集装 11512/11527 面、
+   `trianglesWithLightUv=199263/200000`、15 面被装包器丢弃（具名）；产品 trace `lightmapped=597789/600000`。
+2. cubemap 六面：33/33 全部六面解码、198 面，全部来自 BSP 自带 pakfile；面数按图像段长度实测
+   （文件 7 个面槽位、头部声明 6 个，两个读数都钉住）。采样：`--world-env-force` 与默认模式的
+   `mode=0 declared=0` / `mode=2 declared=1` 对照，帧差 62699 字节。
+3. skybox：6 个 VMT 全部解析并解码出像素，尺寸 512x256..1x1（`sky_well_01dn.vtf` 是 1x1 桩）、
+   3145732 字节；**未绘制天空盒几何**。
+4. displacement：1316 个面、165376 三角、corner match 1316/1316；渲染侧计数与解析侧相等。
+5. water：18 个水面、`approximate-warp`；反射/折射 unavailable 具名；渲染侧 `waterTriangles=36`。
+6. VIS：`cluster-pvs`、2940 簇、隐藏 26936 三角；`clipApplied=0` 显式记录未裁剪。
+
+**共享门禁更新**：`frame-capture-check.sh` 的颜色上限判据被本轮 lightmap 特性证伪（世界帧 563→15909 色，
+回退贴片 139121 色跨轮不变），改为「安装地图帧 vs 同一次运行抓到的回退帧 ≥10% 字节差」（实测 0.9840；
+`--mutation` 2/2），单独提交 `3ba4803`，读数与归因见 `evidence/world-material/render-frame-shape.txt`。
+
+定向验收：`build-target.sh world_material_probe tf2_demo_native` rc=0；`world-material-check.sh` =
+`WORLD-MATERIAL=PASS`；`--mutation` = `MUTATION-CAUGHT=PASS`；`verify-fast.sh` =
+`VERIFY-FAST=PASS (assertions_ok=43)`；`verify-render.sh` 读数见交付报告。未验证：天空盒/水面绘制、
+VIS 裁剪、大图 lightmap 图集丢弃（abbey 4137/22991 面）、人工画面对照、真实 GPU 性能。
 
 ## 2026-10-12 T2 第二笔：静态武器本体（分支 `task/weapon-body-render`，尚未合并主线）
 

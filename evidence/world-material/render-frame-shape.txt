@@ -1,0 +1,87 @@
+# The render's frame shape across the T3 round, and why frame-capture's colour cap became a comparison
+
+2026-10-13. Analysis note, not captured stdout: the frames it reads are the
+frame-capture gate's own captures, and every number below is reproducible from
+those files with `.scratch/bmp_tools.py` / `.scratch/framediff.py` (scratch, not
+committed; both loaders apply no colour transform to the bytes they compare --
+the last section says why that sentence is here).
+
+## Three captures, two rounds
+
+The frame-capture gate takes four captures per run; three carry readings. `paused`
+is the no-demo scene (which is koth_abbey's world, not an empty scene -- see
+below), `demo` is the koth_bagel_rc13 demo whose map is not installed (so it shows
+this build's fallback picture), and `demo-installed-map` is the
+cp_snakewater_final1 demo, whose map is installed.
+
+```
+frame               round        sha256 (first 16)   colours   detail-density-h
+paused              2026-10-12   a61a3e4d28978fb6       180   0.0143
+demo (fallback)     2026-10-12   fa1bb19484f466ce    139121   0.0406
+demo-installed-map  2026-10-12   d086695e0e29c67d       563   0.0040
+paused              2026-10-13   dd65787f4fb86196      4419   0.0087
+demo (fallback)     2026-10-13   fa1bb19484f466ce    139121   0.0406
+demo-installed-map  2026-10-13   019a289910ad24aa     15909   0.0070
+```
+
+The 2026-10-12 frames are the ones kept in
+`D:\TF2_Native_Worktrees\render-gate-recheck\evidence\fast\render\frame-capture\`
+(that round's tree; its `evidence/fast/` is gitignored there as well). The
+2026-10-13 frames are `evidence/frame-capture/` in this tree, refreshed by this
+round's standalone run of the gate.
+
+## Pairwise payload byte distance (no colour transform on either side)
+
+```
+                     paused-demo   paused-installed   demo-installed
+T3 (2026-10-13)         0.9763          0.3108            0.9840
+pre-T3 (2026-10-12)     0.9821          0.5918            0.9899
+```
+
+`demo-installed` is the reading the replacement criterion asserts on (>= 10%).
+Same-build repeats of the installed-map capture are byte-identical (three captures
+of the same tick -- `.scratch/lightmap-verify/after-fix.bmp`,
+`.scratch/lightmap-verify/geom.bmp`, and the gate's own capture -- differ in 0 of
+2582352 bytes), so the metric carries no run-to-run noise.
+
+## What moved, and why
+
+- The fallback capture is byte-identical across the two rounds and four runs
+  (sha256 `fa1bb194...`, 139121 colours each time; the gate's own log has quoted
+  139121 since 2026-10-08). T3 did not touch the fallback path.
+- The installed-map capture moved exactly where the feature moved it: 563 -> 15909
+  distinct colours (28x) on the same scene, as per-face lightmaps turned flat faces
+  into gradients. `render-frame-installed-map-pre-t3.png` and
+  `render-frame-installed-map-t3.png` beside this file are the two frames.
+- The paused capture moved too, and the attribution is measured, not guessed: the
+  paused run draws a real world. A traced paused capture (2026-10-13) reads
+  `gpu: world lightmap status=active intensity=0.479 ... vertices=541665
+  lightmapped=169428` and `gpu: world cubemap ... source=materials/maps/2koth_abbey/...`
+  -- with no demo the program loads koth_abbey. 169428 = 3 x 56476, and
+  `world_material_probe --bsp 2koth_abbey.bsp` reads `lightmapPackedFaces=18854` of
+  `lightmapFaces=22991` (4137 faces dropped by the 2048x2048 atlas packer) and
+  `trianglesWithLightUv=56476` of 180555, so the parse side and the GPU side agree
+  exactly. The paused frame's 180 -> 4419 colours follow from that.
+- The old criterion asserted `distinct colours < 1000` on the installed-map frame.
+  Its margin was 858x when written (139121/162, 2026-10-08) and 247x when this round
+  started (139121/563); the feature moved it to 8.7x, and every further realism step
+  (albedo textures are next) moves the world's count toward the decal's with no
+  ceiling. The replacement compares the installed-map capture against the fallback
+  capture taken in the same run and requires them to differ in >= 10% of payload
+  bytes -- an intrinsic property of "the world vs the fallback picture" that does
+  not shrink as the world gets prettier.
+- The gate's own verdict logs for the two modes on the final script bytes:
+  `.scratch/fc-run/straight-verdict-final.txt` and
+  `.scratch/fc-run/mutation-verdict-final.txt`; the committed tier record is under
+  `verify-render/`.
+
+## The tool bug this record sits next to, and why it is written down
+
+The first version of the scratch loader swapped channels with
+`r[0::3], r[1::3] = r[2::3], r[1::3]`, which writes R into both the R slot and the
+B slot and drops B. It read 5957 colours where the correct count is 15909 (and 477
+where the gate's own counter read 563 on the pre-T3 frame). The disagreement
+between two independently written counters on the same bytes is what exposed it,
+and the numbers above are the corrected ones. A lossy transform applied to both
+sides of a comparison can hide a difference instead of measuring it -- which is
+also why the gate's comparison applies no transform at all.

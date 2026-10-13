@@ -3,6 +3,7 @@
 #include "settings_store.h"
 #include "vpk_archive.h"
 #include "vtf_texture.h"
+#include "world_material.h"
 #include "vmt_material.h"
 #include "bsp_map.h"
 #include "demo_header.h"
@@ -742,6 +743,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // paths. Here they are the same code path, measured twice.
   bool viewModelFlatColor = false;
   bool viewModelArgumentRejected = false;
+  // Diagnostic: treat the world material as if it declared an env map, so the
+  // six-face sampling branch can be run on content that does not ask for it.
+  // No installed map's first material declares $envmap -- measured across all
+  // 68 maps in this install -- so without this the branch would never execute
+  // and a wrong register or a dead sampler in it would go unnoticed. The
+  // product's own choice stays material-driven; this only says "run it anyway
+  // and print the mode", and the mode is reported either way.
+  bool forceWorldEnv = false;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -756,6 +765,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         persistent.render.vsync = true;
       } else if (wcscmp(arguments[i], L"--no-vsync") == 0) {
         persistent.render.vsync = false;
+      } else if (wcscmp(arguments[i], L"--world-env-force") == 0) {
+        forceWorldEnv = true;
       } else if (wcscmp(arguments[i], L"--tf-root") == 0 && i + 1 < argumentCount) {
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
@@ -1352,6 +1363,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::vector<std::uint8_t> mapBumpRgba;
   std::vector<std::uint8_t> mapEnvRgba;
   UINT mapBumpWidth = 0, mapBumpHeight = 0, mapEnvWidth = 0, mapEnvHeight = 0;
+  // The map's own cubemap: six decoded faces in Source's order (+X,-X,+Y,-Y,+Z,-Z)
+  // and the edge of the cube, or nothing when the map has no sample that decodes
+  // all six. Decoded once at load and uploaded with the other world textures.
+  std::array<std::vector<std::uint8_t>, 6> mapCubemapFaces;
+  UINT mapCubemapSize = 0;
+  std::string mapCubemapSource;
+  std::string mapCubemapReason = "no env_cubemap sample decoded all six faces";
   bool mapBaseTexture2Found = false;
   bool mapBumpMapFound = false;
   bool mapBaseTexture2Declared = false;
@@ -1387,6 +1405,48 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
     tf2::native::BspParser::parse(mapBytes, displayMap, 200000);
+    // The map's cubemap, resolved the way the capability layer measures it: one
+    // file per sample named after the sample's integer coordinates, in the tf
+    // tree or the VPKs, and -- for every TF2 map -- inside the BSP's own pakfile
+    // lump, which is the only store that has it. The first sample that yields six
+    // faces is the one bound. One cube per map, because the world pass has one
+    // env slot; which sample it came from is reported rather than assumed.
+    for (const auto& sample : displayMap.cubemaps) {
+      std::string cubemapPath;
+      if (!tf2::native::worldCubemapVtfPath(std::filesystem::path(mapPath).stem().string(),
+          sample.origin, cubemapPath)) continue;
+      std::vector<std::uint8_t> cubemapBytes = readMaterialVtf(cubemapPath);
+      std::string readReason;
+      if (cubemapBytes.empty()
+          && !tf2::native::bspPakfileEntry(mapBytes, cubemapPath, cubemapBytes, &readReason)) {
+        // The reader's own reason, not "missing": a pakfile entry stored with a
+        // method this reader does not decode is not the same finding as a map
+        // that has no cubemap, and the difference is the whole of this reading.
+        mapCubemapReason = cubemapPath + ": " + readReason;
+        continue;
+      }
+      if (cubemapBytes.empty()) { mapCubemapReason = "unreadable: " + cubemapPath; continue; }
+      tf2::native::VtfTexture cube;
+      std::string cubeError;
+      if (!cube.parse(cubemapBytes, &cubeError)) { mapCubemapReason = cubemapPath + ": " + cubeError; continue; }
+      std::array<std::vector<std::uint8_t>, 6> faces;
+      bool complete = true;
+      for (int face = 0; face < 6 && complete; ++face) {
+        std::uint32_t faceWidth = 0, faceHeight = 0;
+        faces[face] = cube.decodeCubeFaceRgba(cubemapBytes, face, faceWidth, faceHeight, &cubeError);
+        if (faces[face].empty() || faceWidth != faceHeight
+            || faceWidth != cube.header().width || faceHeight != cube.header().height) {
+          mapCubemapReason = cubemapPath + ": face " + std::to_string(face) + " " + cubeError;
+          complete = false;
+        }
+      }
+      if (!complete) continue;
+      mapCubemapFaces = std::move(faces);
+      mapCubemapSize = cube.header().width;
+      mapCubemapSource = cubemapPath;
+      mapCubemapReason = "all six faces decoded";
+      break;
+    }
     const std::string displayVmtPath = "materials/vgui/logos/spray.vmt";
     auto displayVmt = readFile(assets.tfDirectory / L"materials/vgui/logos/spray.vmt");
     if (!displayVmt.empty()) {
@@ -1460,14 +1520,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             mapMaterialParams.bumpMapping = !mapBumpRgba.empty();
           }
         }
+        if (forceWorldEnv) mapMaterialParams.envMap = true;
         if (!mapMaterial.envMap.empty()) {
+          // `envMap` means the MATERIAL declares an env map, not that the 2D
+          // projection of it resolved. The two were the same field while the 2D
+          // path was the only one: a material whose $envmap is a cubemap VTF
+          // decoded to nothing, so the declaration read as absent and the map's
+          // own TextureCube -- the resource built for exactly that material --
+          // was never sampled. The renderer now picks between the cube and the
+          // 2D texture from what is bound; the declaration only says the pass is
+          // wanted at all.
+          mapMaterialParams.envMap = true;
           mapEnvMapPath = tf2::native::VmtParser::resourcePath(mapMaterial.envMap, ".vtf");
           const auto& bytes = readMaterialVtf(mapEnvMapPath);
           tf2::native::VtfTexture texture;
           if (!bytes.empty() && texture.parse(bytes) && !texture.header().isCubemap()) {
             mapEnvRgba = texture.decodeRgba(bytes);
             mapEnvWidth = texture.header().width; mapEnvHeight = texture.header().height;
-            mapMaterialParams.envMap = !mapEnvRgba.empty();
           }
         }
       }
@@ -2224,8 +2293,83 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (!renderer.uploadWorldAuxTextures(mapBumpRgba, mapBumpWidth, mapBumpHeight, mapEnvRgba, mapEnvWidth, mapEnvHeight)) return false;
     if (!renderer.uploadWorldLightmap(displayMap.lightmapAtlas,
         static_cast<UINT>(displayMap.lightmapAtlasWidth), static_cast<UINT>(displayMap.lightmapAtlasHeight))) return false;
+    // A cube that cannot be built is a capability this map does not get, not a
+    // reason to lose the world: reloadGpuResources returning false ends the
+    // program (main returns 14), and "this map's cubemap is malformed" has to
+    // degrade to the 2D path with a reason attached, which is what the reading
+    // is for. uploadWorldCubemap clears what it had before it validates.
+    std::string cubemapUploadError;
+    if (!renderer.uploadWorldCubemap(mapCubemapFaces, mapCubemapSize, &cubemapUploadError)) {
+      mapCubemapReason = "upload refused: " + cubemapUploadError;
+    }
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
+    // The lightmap pass, read back from the renderer rather than assumed from
+    // the parse. The window title already carries the BSP-side numbers; this is
+    // the GPU-side pair (vertices carrying a per-face light uv / vertices
+    // uploaded), which is what distinguishes "the atlas is bound" from "the map
+    // is lit". It goes to the trace channel because the title is already at
+    // capacity and a reading nobody prints is a reading nobody checks.
+    {
+      const auto worldSample = renderer.worldMaterialSampleState();
+      const char* lightmapStatusName = "unknown";
+      switch (worldSample.lightmapStatus) {
+        case tf2::native::WorldLightmapStatus::Unavailable: lightmapStatusName = "unavailable"; break;
+        case tf2::native::WorldLightmapStatus::FallbackUnlit: lightmapStatusName = "fallback-unlit"; break;
+        case tf2::native::WorldLightmapStatus::Active: lightmapStatusName = "active"; break;
+      }
+      traceFmt("gpu: world lightmap status=%s intensity=%.3f atlas=%d bump=%d env=%d vertices=%u lightmapped=%u",
+        lightmapStatusName, worldSample.lightmapIntensity,
+        worldSample.lightmapAtlasBound ? 1 : 0, worldSample.bumpTextureBound ? 1 : 0,
+        worldSample.envTextureBound ? 1 : 0, worldSample.worldVertexCount,
+        worldSample.lightmappedVertexCount);
+    // The env pass reads back as a mode rather than as a bound flag: approximate-2d
+    // with a texture bound and six-face with a cube bound are the two states the
+    // pixel shader branches on, and 'bound' alone cannot tell them apart.
+    traceFmt("gpu: world geometry displacedTriangles=%u waterTriangles=%u",
+      worldSample.displacedTriangles, worldSample.waterTriangles);
+    // The VIS capability, read where it can be: the renderer uploads the map as
+    // one buffer and tests no triangle against the pvs, so this measures the
+    // price of that rather than claiming a clip. The observer's own cluster is
+    // the one a clip would query; the rest comes from the parser's cluster table
+    // and the same bit test BspParser::clusterVisible gives the probe, so the
+    // product and the gate cannot disagree about what the pvs hides.
+    {
+      float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
+      if (!renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
+        // No observer yet: the first triangle's own vertex is a point the map
+        // certainly contains, and clusterAt answers -1 for a point in no leaf,
+        // which the line then reports rather than hides.
+        eyeX = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.x;
+        eyeY = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.y;
+        eyeZ = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.z;
+      }
+      const int cameraCluster = tf2::native::BspParser::clusterAt(displayMap, eyeX, eyeY, eyeZ);
+      std::size_t hidden = 0;
+      std::size_t clustered = 0;
+      for (const auto& triangle : displayMap.triangles) {
+        if (triangle.cluster < 0) continue;
+        ++clustered;
+        if (cameraCluster >= 0
+            && !tf2::native::BspParser::clusterVisible(displayMap, cameraCluster, triangle.cluster)) {
+          ++hidden;
+        }
+      }
+      traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
+        " clusteredTriangles=%zu hiddenTriangles=%zu clipApplied=0",
+        cameraCluster,
+        cameraCluster >= 0
+          ? tf2::native::BspParser::countVisibleClusters(displayMap, cameraCluster) : -1,
+        displayMap.visClusterCount, clustered, hidden);
+    }
+    traceFmt("gpu: world cubemap status=%s mode=%u preset=%s declared=%d faces=%u size=%u source=%s reason=%s",
+      tf2::native::worldCubemapStatusName(worldSample.cubemapStatus), worldSample.envMode,
+      renderer.settings().preset == tf2::native::QualityPreset::Standard ? "standard" : "performance",
+      renderer.worldMaterialParams().envMap ? 1 : 0,
+      worldSample.cubemapFaces, worldSample.cubemapSize,
+      mapCubemapSource.empty() ? "-" : mapCubemapSource.c_str(),
+      mapCubemapReason.c_str());
+    }
     const bool uploadedModel = !modelReady || renderer.uploadBindPoseModel(modelMetadata.bindPoseVertices);
     entityMaterialUploadFlags.assign(preparedEntityMeshes.size(), 0);
     for (std::size_t preparedIndex = 0; preparedIndex < preparedEntityMeshes.size(); ++preparedIndex) {

@@ -1,0 +1,2 @@
+{"selfTest":true,"emptyBspRejected":true,"noLightingDefault":true,"lightmapNames":true,"skyPath":true,"visUnavailableOpen":true,"cubemapMode":"approximate-2d","waterReflection":"unavailable","waterRefraction":"unavailable"}
+{"capabilitySelfTest":true,"cubeAxes":true,"cubeNegativeX":true,"cubePositiveY":true,"cubeNegativeY":true,"cubePositiveZ":true,"cubeNegativeZ":true,"cubeDominantAxis":true,"cubeZeroRefused":true,"cubeSamplePath":true,"cubeSuffixes":true,"emptyBspAllUnavailable":true}

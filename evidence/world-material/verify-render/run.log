@@ -1,0 +1,40 @@
+=== 1/4 incremental build ===
+=== build tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe viewmodel_animation_probe ===
+rc=0
+build_rc=0
+
+=== 2/4 the gates ===
+  OK   resource-reachability  RESOURCE-REACHABILITY=PASS
+  OK   frame-capture          FRAME-CAPTURE=PASS
+  OK   entity-material        ENTITY-MATERIAL=PASS
+  OK   weapon-animation       WEAPON-ANIMATION=PASS
+  FAIL viewmodel-contract     rc=1 marker=VIEWMODEL-CONTRACT=FAIL
+       |   OK   trace vmfnocompanion reports one boneTableCoverage on every order line = 1
+       |   OK   trace vmshort reports one boneTableCoverage on every order line = 1
+       |   OK   the reading-integrity section examined every frame that has a reading = 15
+       | 
+       | assertions_ok=153
+       | VIEWMODEL-CONTRACT=FAIL
+  OK   viewmodel-animation    VIEWMODEL-ANIMATION=PASS
+  OK   viewmodel-companion    VIEWMODEL-COMPANION=PASS
+
+=== 3/4 the material chain's synthetic layer ===
+  OK   an empty VTF is rejected
+  OK   a corrupt VTF is rejected
+  OK   a >64 MB VTF is rejected before allocation
+  OK   a cubemap is refused by the 2d decode path
+  OK   a depth-6 cubemap header parses
+  OK   cubemap face data is ordered
+  OK   an empty BSP is rejected
+  OK   no-lighting is the default
+  OK   VMT shader features map
+  OK   water shader features map
+  OK   cubemap mode is the honest 2d approximation
+  OK   lightmap mode is documented as an average
+  ->   material-chain         12/12 synthetic keys held
+
+=== 4/4 the committed evidence tree must be untouched ===
+  OK   evidence-tree          nothing under evidence/ moved (tier output stayed in evidence/fast/render)
+
+gates_ok=8 gates_bad=1
+VERIFY-RENDER=FAIL (1 red)
