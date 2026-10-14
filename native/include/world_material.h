@@ -32,6 +32,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -103,6 +104,12 @@ struct WorldLightmapReading {
   std::size_t atlasBytes = 0;
   int atlasWidth = 0;
   int atlasHeight = 0;
+  // T1 (2026-10-13): the packer now chooses its shelf width and says so. The
+  // three fields are the map's own, carried through rather than recomputed, so
+  // the probe and the parser cannot disagree about which width was used.
+  int atlasMaxWidth = 0;
+  bool atlasGrown = false;
+  std::string atlasReason;
   std::size_t lightUvOutOfRange = 0;
   bool atlasBytesMatchDimensions = false;
   bool uvAllInRange = false;
@@ -364,6 +371,29 @@ struct WorldSkyDrawReading {
 WorldSkyDrawReading evaluateSkyDrawRequest(const WorldSkyDrawRequest& request,
   std::vector<WorldSkyVertex>& outVertices);
 
+// The six sides' pixels, for a caller that means to draw them. `measureSky`
+// proves the files decode and counts them; this hands the decoded bytes to
+// whoever uploads them, so the renderer cannot be drawing a different set of
+// files from the ones the reading counted. `read` answers "the bytes at this
+// resource path", which is the product's VPK-and-loose-tree reader.
+//
+// The sides are returned at their own sizes because that is what the content
+// has: this install's sky_well_01dn.vtf is 1x1 while its five siblings are
+// 512x256 and 512x512. A cube needs six equal squares, so the resample is the
+// uploader's job and the fact that it happened is a reading, not a detail --
+// hence `reason`.
+struct WorldSkyFaceCapture {
+  std::array<WorldSkyFace, 6> faces{};
+  int facesDecoded = 0;
+  std::string skyName;
+  // Named whenever the capture is short of six, and "the bsp declares no
+  // skyname" is a different fallback from "3 of 6 sides decoded".
+  std::string reason;
+};
+
+WorldSkyFaceCapture captureSkyFaces(const BspMap& map,
+  const std::function<std::vector<std::uint8_t>(const std::string&)>& read);
+
 enum class WorldVisClipState { Unavailable, Disabled, Active };
 const char* worldVisClipStateName(WorldVisClipState state);
 
@@ -393,9 +423,16 @@ struct WorldVisClipReading {
 
 // Per-triangle PVS clip. The PVS is a cluster-to-cluster bitmap, so a triangle
 // is hidden when its cluster exists and the camera's cluster cannot see it.
+//
+// `keptIndices` is optional and, when given, receives the input indices of the
+// triangles that survived, in order. It exists so a caller that already owns a
+// vertex buffer can build a draw list without re-deriving the decision: the
+// alternative -- a second function that reports visibility -- would be a second
+// implementation of the clip, and a gate that tests that one can pass while
+// this one is wrong.
 WorldVisClipReading clipWorldTrianglesByVis(const BspMap& map,
   const std::vector<BspTriangle>& input, const WorldVisClipRequest& request,
-  std::vector<BspTriangle>& output);
+  std::vector<BspTriangle>& output, std::vector<std::size_t>* keptIndices = nullptr);
 
 // ---------------------------------------------------------------------------
 // 6. VIS clipping

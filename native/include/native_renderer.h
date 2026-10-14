@@ -16,6 +16,7 @@
 #include "bsp_map.h"
 #include "model_loader.h"
 #include "demo_header.h"
+#include "world_material.h"
 
 namespace tf2::native {
 
@@ -222,6 +223,49 @@ struct WorldMaterialSampleState {
   // map draws them".
   std::uint32_t displacedTriangles = 0;
   std::uint32_t waterTriangles = 0;
+  // ---- T1 (2026-10-13): skybox geometry and the pvs clip -------------------
+  // The skybox used to be a resource reading only: six vmts found, six textures
+  // decoded, no vertex of it ever built. `worldSkyVertexCount` is the number of
+  // vertices the sky pass actually draws, and `worldSkyState` is the word the
+  // frozen capability layer gives it -- so "active" now means "36 vertices are
+  // in a buffer and the pass draws them", not "the files are on disk".
+  WorldSkyState worldSkyState = WorldSkyState::Unavailable;
+  std::uint32_t worldSkyVertexCount = 0;
+  std::uint32_t worldSkyTriangles = 0;
+  std::uint32_t worldSkyFaces = 0;
+  std::uint32_t worldSkyDraws = 0;
+  std::uint32_t worldSkySide = 0;
+  bool worldSkyResampled = false;
+  std::string worldSkyReason;
+  // The clip, as a fact about the last draw rather than a setting. `hidden` is
+  // how many of the uploaded triangles the pvs refused; `drawn` is how many the
+  // draw call was actually given. The difference between the two and the total
+  // is what makes "the pvs hides 26936 triangles" and "26936 triangles are not
+  // drawn" the same reading.
+  WorldVisClipState worldVisClipState = WorldVisClipState::Unavailable;
+  bool worldVisClipApplied = false;
+  std::size_t worldVisDrawnTriangles = 0;
+  std::size_t worldVisHiddenTriangles = 0;
+  std::size_t worldVisTrianglesWithoutCluster = 0;
+  std::size_t worldVisInputTriangles = 0;
+  int worldVisCameraCluster = -1;
+  std::string worldVisClipReason;
+};
+
+// What a per-triangle pvs clip decided, handed to the renderer by the caller
+// that owns the BSP. The renderer stores no map: main.cpp runs the frozen
+// clipWorldTrianglesByVis and passes the verdict, so the decision has one
+// implementation and the draw list cannot disagree with it.
+struct WorldVisDrawList {
+  std::vector<std::uint32_t> indices;
+  WorldVisClipState state = WorldVisClipState::Unavailable;
+  bool applied = false;
+  std::size_t inputTriangles = 0;
+  std::size_t outputTriangles = 0;
+  std::size_t hiddenTriangles = 0;
+  std::size_t trianglesWithoutCluster = 0;
+  int cameraCluster = -1;
+  std::string reason;
 };
 
 enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
@@ -282,6 +326,28 @@ public:
   // black, which would sample as "the map is dark in that direction".
   bool uploadWorldCubemap(const std::array<std::vector<std::uint8_t>, 6>& faces,
     UINT side, std::string* error = nullptr);
+  // ---- T1 (2026-10-13): the skybox as geometry -----------------------------
+  // Six sides at their own sizes. A cube needs six equal squares and the content
+  // does not have them (this install's sky_well_01dn.vtf is 1x1 beside five
+  // 512x256/512x512 siblings), so the uploader picks the smallest power of two
+  // that covers every decoded side and resamples to it -- and reports that it
+  // did, because "the sky is drawn" and "the sky is drawn at its own pixels"
+  // are different claims and only the second one is a sky.
+  //
+  // Fewer than six sides is refused rather than padded with black: a black side
+  // would sample as "the map is dark in that direction", which is a lie about
+  // the content rather than an admission about the upload.
+  bool uploadWorldSky(const std::array<WorldSkyFace, 6>& faces, std::string* error = nullptr);
+  // The box, 6 vertices per side in D3D11 cube order, built by
+  // evaluateSkyDrawRequest -- the same pure function the probe asserts, so the
+  // vertices the product draws are the vertices the gate counted.
+  bool uploadWorldSkyGeometry(const std::vector<WorldSkyVertex>& vertices);
+  void setWorldSkyEnabled(bool enabled) { worldSkyEnabled_ = enabled; }
+  // The pvs verdict for the current camera cluster. An empty index list means
+  // "draw everything"; a non-empty one is drawn indexed, so the hidden
+  // triangles leave the rasteriser as well as the reading.
+  void setWorldVisClipEnabled(bool enabled);
+  bool setWorldVisDrawList(const WorldVisDrawList& drawList);
   bool uploadProjectileLines(const std::vector<ProjectileLine>& lines);
   bool uploadBindPoseModel(const std::vector<ModelDrawVertex>& vertices);
   bool uploadBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices, bool enableSkinning);
@@ -460,6 +526,11 @@ private:
   bool createTarget(UINT width, UINT height);
   bool createPipeline();
   bool writeBackBufferToFile(const std::wstring& path);
+  // The six-array-slice cube, shared by the environment cube and the sky: one
+  // implementation, so the cube cannot be right for one and wrong for the other.
+  bool createCubeTexture(const std::array<std::vector<std::uint8_t>, 6>& faces, UINT side,
+    Microsoft::WRL::ComPtr<ID3D11Texture2D>& outTexture,
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& outView, std::string* error);
 
   HWND window_ = nullptr;
   UINT width_ = 0;
@@ -625,6 +696,49 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Texture2D> worldCubemapTexture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldCubemapView_;
   UINT worldCubemapSize_ = 0;
+  // ---- T1 (2026-10-13) ----------------------------------------------------
+  // The sky box: its own cube, its own vertex buffer, its own constant buffer
+  // (the mvp has no translation, because the box follows the camera) and its
+  // own rasterizer state (the box is seen from inside, so back-face culling
+  // would remove every side of it).
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> worldSkyTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldSkyView_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyVertexBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyConstants_;
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldSkyRasterizerState_;
+  UINT worldSkyVertexCount_ = 0;
+  UINT worldSkySide_ = 0;
+  UINT worldSkyIndexCapacity_ = 0;
+  bool worldSkyResampled_ = false;
+  bool worldSkyEnabled_ = true;
+  // Set by the sky draw itself, not recomputed from the same condition the draw
+  // tests. The first version of this reading recomputed the guard inside
+  // worldMaterialSampleState, and a mutation that deleted the draw still
+  // reported draws=1 -- the reading described its own copy of the condition
+  // rather than the pass. This field can only be true if the Draw call ran.
+  bool worldSkyDrewThisFrame_ = false;
+  WorldSkyState worldSkyState_ = WorldSkyState::Unavailable;
+  std::string worldSkyReason_ = "no sky box was uploaded";
+  // The pvs draw list: an index buffer over the world vertex buffer, rebuilt
+  // (main.cpp decides, this only stores) whenever the camera's cluster changes.
+  // Dynamic because that can happen several times a second in a demo and the
+  // buffer is 3 x triangleCount x 4 bytes.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldIndexBuffer_;
+  UINT worldIndexCapacity_ = 0;
+  UINT worldIndexCount_ = 0;
+  // Set by the draw itself: true only if the pass took the indexed branch. A
+  // reading composed from the clip's own decision would report "clipped" for a
+  // draw that handed the whole buffer to the rasteriser.
+  bool worldVisDrewIndexed_ = false;
+  bool worldVisClipEnabled_ = true;
+  bool worldVisClipApplied_ = false;
+  std::size_t worldVisDrawnTriangles_ = 0;
+  std::size_t worldVisHiddenTriangles_ = 0;
+  std::size_t worldVisTrianglesWithoutCluster_ = 0;
+  std::size_t worldVisInputTriangles_ = 0;
+  int worldVisCameraCluster_ = -1;
+  WorldVisClipState worldVisClipState_ = WorldVisClipState::Unavailable;
+  std::string worldVisClipReason_ = "no pvs draw list was handed to the renderer";
   UINT worldDisplacedTriangleCount_ = 0;
   UINT worldWaterTriangleCount_ = 0;
   RenderSettings settings_{};

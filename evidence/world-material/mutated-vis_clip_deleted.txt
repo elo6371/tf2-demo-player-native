@@ -1,0 +1,1 @@
+gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=2940 clusteredTriangles=0 hiddenTriangles=0 withoutCluster=0 inputTriangles=0 drawnTriangles=200000 clipApplied=0 state=disabled reason=vis clip disabled by the caller

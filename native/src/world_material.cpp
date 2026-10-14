@@ -126,6 +126,9 @@ WorldLightmapReading measureLightmap(const BspMap& map) {
   reading.atlasBytes = map.lightmapAtlas.size();
   reading.atlasWidth = map.lightmapAtlasWidth;
   reading.atlasHeight = map.lightmapAtlasHeight;
+  reading.atlasMaxWidth = map.lightmapAtlasMaxWidth;
+  reading.atlasGrown = map.lightmapAtlasGrown;
+  reading.atlasReason = map.lightmapAtlasReason;
   for (const auto& triangle : map.triangles) {
     if (!triangle.lightmapped) continue;
     ++reading.trianglesWithLightUv;
@@ -415,6 +418,63 @@ WorldCubemapReading measureCubemaps(const BspMap& map, const std::string& mapNam
 // 3. Skybox
 // ---------------------------------------------------------------------------
 
+// One sky side, resolved and decoded. Shared by `measureSky` (which counts) and
+// `captureSkyFaces` (which keeps the pixels), because a reading that counted six
+// sides and an uploader that decoded five would be two programs disagreeing
+// about the same install. Every field the counter version needs is here, so the
+// refactor cannot leave the counts behind.
+struct SkyFaceLoad {
+  bool pathOk = false;
+  bool vmtFound = false;
+  bool textureResolved = false;
+  bool decoded = false;
+  std::vector<std::uint8_t> rgba;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  std::string missing;
+  std::string problem;
+};
+
+SkyFaceLoad loadSkyFace(const std::string& skyName, int face, const WorldResourceProbe& probe) {
+  SkyFaceLoad load;
+  std::string path;
+  if (!BspParser::skyMaterialPath(skyName, face, path)) {
+    load.missing = "sky path rejected";
+    return load;
+  }
+  load.pathOk = true;
+  if (!probe.reachable(path)) { load.missing = path; return load; }
+  load.vmtFound = true;
+  const auto vmtBytes = probe.read(path);
+  if (vmtBytes.empty()) { load.problem = "vmt unreadable: " + path; return load; }
+  VmtMaterial material;
+  if (!VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material)) {
+    load.problem = "vmt did not parse: " + path;
+    return load;
+  }
+  if (material.baseTexture.empty()) {
+    load.problem = "vmt declares no $basetexture: " + path;
+    return load;
+  }
+  const auto texturePath = VmtParser::resourcePath(material.baseTexture, ".vtf");
+  const auto textureBytes = probe.read(texturePath);
+  if (textureBytes.empty()) { load.problem = "texture unreadable: " + texturePath; return load; }
+  load.textureResolved = true;
+  VtfTexture texture;
+  std::string error;
+  if (!texture.parse(textureBytes, &error) || texture.header().isCubemap()) {
+    load.problem = texturePath + (error.empty()
+      ? ": is a cubemap, which a sky face is not" : ": " + error);
+    return load;
+  }
+  load.rgba = texture.decodeRgba(textureBytes, &error);
+  if (load.rgba.empty()) { load.problem = texturePath + ": " + error; return load; }
+  load.decoded = true;
+  load.width = texture.header().width;
+  load.height = texture.header().height;
+  return load;
+}
+
 WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe) {
   WorldSkyReading reading;
   reading.declared = !map.skyName.empty();
@@ -422,68 +482,260 @@ WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe) {
   reading.skyFaces = map.skyFaces;
   if (!reading.declared) return reading;
   for (int face = 0; face < 6; ++face) {
-    std::string path;
-    if (!BspParser::skyMaterialPath(map.skyName, face, path)) {
-      if (reading.firstMissing.empty()) reading.firstMissing = "sky path rejected";
-      continue;
-    }
-    if (!probe.reachable(path)) {
-      if (reading.firstMissing.empty()) reading.firstMissing = path;
+    const auto load = loadSkyFace(map.skyName, face, probe);
+    if (!load.vmtFound) {
+      if (reading.firstMissing.empty()) reading.firstMissing = load.missing;
       continue;
     }
     ++reading.vmtFound;
-    // The VMT is there; resolve what it draws with. This is the step that turns
-    // "six files exist" into "six textures decode", and it is done with the same
-    // VmtParser and VtfTexture the renderer will use, so a reading here and a
-    // picture there cannot disagree about which file they loaded.
-    const auto vmtBytes = probe.read(path);
-    if (vmtBytes.empty()) {
-      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "vmt unreadable: " + path;
-      continue;
-    }
-    VmtMaterial material;
-    if (!VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material)) {
-      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "vmt did not parse: " + path;
-      continue;
-    }
-    if (material.baseTexture.empty()) {
-      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "vmt declares no $basetexture: " + path;
-      continue;
-    }
-    const auto texturePath = VmtParser::resourcePath(material.baseTexture, ".vtf");
-    const auto textureBytes = probe.read(texturePath);
-    if (textureBytes.empty()) {
-      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = "texture unreadable: " + texturePath;
-      continue;
-    }
-    ++reading.texturesResolved;
-    VtfTexture texture;
-    std::string error;
-    if (!texture.parse(textureBytes, &error) || texture.header().isCubemap()) {
-      if (reading.firstTextureProblem.empty()) {
-        reading.firstTextureProblem = texturePath + (error.empty()
-          ? ": is a cubemap, which a sky face is not" : ": " + error);
-      }
-      continue;
-    }
-    const auto rgba = texture.decodeRgba(textureBytes, &error);
-    if (rgba.empty()) {
-      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = texturePath + ": " + error;
+    if (load.textureResolved) ++reading.texturesResolved;
+    if (!load.decoded) {
+      if (reading.firstTextureProblem.empty()) reading.firstTextureProblem = load.problem;
       continue;
     }
     ++reading.texturesDecoded;
-    reading.decodedBytes += rgba.size();
+    reading.decodedBytes += load.rgba.size();
     if (reading.firstWidth == 0) {
-      reading.firstWidth = texture.header().width;
-      reading.firstHeight = texture.header().height;
+      reading.firstWidth = load.width;
+      reading.firstHeight = load.height;
     }
     if (reading.smallestWidth == 0
-        || static_cast<std::uint64_t>(texture.header().width) * texture.header().height
+        || static_cast<std::uint64_t>(load.width) * load.height
           < static_cast<std::uint64_t>(reading.smallestWidth) * reading.smallestHeight) {
-      reading.smallestWidth = texture.header().width;
-      reading.smallestHeight = texture.header().height;
+      reading.smallestWidth = load.width;
+      reading.smallestHeight = load.height;
     }
   }
+  return reading;
+}
+
+// ---------------------------------------------------------------------------
+// 3b. T1 (2026-10-13): the skybox is drawn, and the pvs clips triangles
+// ---------------------------------------------------------------------------
+// Until this the skybox existed as a resource reading (six vmts, six textures,
+// a byte total) and as nothing else: no vertex of it was ever built, so "the
+// sky is active" meant "the files are there". `clipApplied` was the literal 0
+// in main.cpp's trace, which is a fact about the code and not about the map.
+// Both entry points below are pure and are what the probe, the product and the
+// gate all call, so the drawing and the clipping are the same code in all three.
+
+const char* worldSkyStateName(WorldSkyState state) {
+  switch (state) {
+    case WorldSkyState::Unavailable: return "unavailable";
+    case WorldSkyState::Fallback: return "fallback";
+    case WorldSkyState::Active: return "active";
+  }
+  return "unknown";
+}
+
+// A probe that answers "reachable" by reading is wasteful on a VPK (every path
+// would be read twice), so the answer is cached. The cache is per-capture,
+// which is the only lifetime it needs.
+class CallableResourceProbe : public WorldResourceProbe {
+public:
+  explicit CallableResourceProbe(
+      std::function<std::vector<std::uint8_t>(const std::string&)> read)
+    : read_(std::move(read)) {}
+  bool reachable(const std::string& resourcePath) const override {
+    auto& slot = cache_[resourcePath];
+    if (!slot.filled) { slot.bytes = read_(resourcePath); slot.filled = true; }
+    return !slot.bytes.empty();
+  }
+  std::vector<std::uint8_t> read(const std::string& resourcePath) const override {
+    auto& slot = cache_[resourcePath];
+    if (!slot.filled) { slot.bytes = read_(resourcePath); slot.filled = true; }
+    return slot.bytes;
+  }
+private:
+  struct Slot { std::vector<std::uint8_t> bytes; bool filled = false; };
+  std::function<std::vector<std::uint8_t>(const std::string&)> read_;
+  mutable std::map<std::string, Slot> cache_;
+};
+
+WorldSkyFaceCapture captureSkyFaces(const BspMap& map,
+    const std::function<std::vector<std::uint8_t>(const std::string&)>& read) {
+  WorldSkyFaceCapture capture;
+  capture.skyName = map.skyName;
+  if (map.skyName.empty()) {
+    capture.reason = "the bsp declares no skyname";
+    return capture;
+  }
+  CallableResourceProbe probe(read);
+  std::string firstProblem;
+  for (int face = 0; face < 6; ++face) {
+    const auto load = loadSkyFace(map.skyName, face, probe);
+    if (!load.decoded) {
+      if (firstProblem.empty()) firstProblem = load.missing.empty() ? load.problem : load.missing;
+      continue;
+    }
+    capture.faces[static_cast<std::size_t>(face)].rgba = std::move(load.rgba);
+    capture.faces[static_cast<std::size_t>(face)].width = load.width;
+    capture.faces[static_cast<std::size_t>(face)].height = load.height;
+    ++capture.facesDecoded;
+  }
+  if (capture.facesDecoded == 6) {
+    capture.reason = "all six sides decoded";
+  } else if (capture.facesDecoded == 0) {
+    capture.reason = map.skyName + ": no side decoded (" + firstProblem + ")";
+  } else {
+    capture.reason = std::to_string(capture.facesDecoded) + " of 6 sides decoded; "
+      + firstProblem;
+  }
+  return capture;
+}
+
+// The six sides in D3D11 cube order, as (direction, u axis, v axis). The box is
+// built in this order so the face an uploader binds at index f is the face the
+// geometry at [f*6, f*6+6) shows -- the same order worldCubemapFaceSuffix and
+// BspParser::skyMaterialPath already use, which is what lets the probe, the
+// renderer and the parser name a side the same way.
+struct SkyFaceBasis { float dx, dy, dz; float ux, uy, uz; float vx, vy, vz; };
+
+const SkyFaceBasis kSkyFaceBasis[6] = {
+  { 1,  0,  0,   0,  0, -1,   0, -1,  0},  // +X, "rt"
+  {-1,  0,  0,   0,  0,  1,   0, -1,  0},  // -X, "lf"
+  { 0,  1,  0,   1,  0,  0,   0,  0,  1},  // +Y, "up"
+  { 0, -1,  0,   1,  0,  0,   0,  0, -1},  // -Y, "dn"
+  { 0,  0,  1,   1,  0,  0,   0, -1,  0},  // +Z, "bk"
+  { 0,  0, -1,  -1,  0,  0,   0, -1,  0},  // -Z, "ft"
+};
+
+WorldSkyDrawReading evaluateSkyDrawRequest(const WorldSkyDrawRequest& request,
+    std::vector<WorldSkyVertex>& outVertices) {
+  WorldSkyDrawReading reading;
+  outVertices.clear();
+  if (!request.enabled) {
+    reading.state = WorldSkyState::Unavailable;
+    reading.reason = "skybox draw disabled by the caller";
+    return reading;
+  }
+  if (!(request.halfExtent > 0.0f)) {
+    reading.state = WorldSkyState::Unavailable;
+    reading.reason = "the sky box has a non-positive half-extent";
+    return reading;
+  }
+  int decoded = 0;
+  for (const auto& face : request.faces) {
+    if (face.width > 0 && face.height > 0
+        && face.rgba.size() == static_cast<std::size_t>(face.width) * face.height * 4u) {
+      ++decoded;
+    }
+  }
+  reading.skyboxFaces = static_cast<std::uint32_t>(decoded);
+  if (decoded == 0) {
+    reading.state = WorldSkyState::Unavailable;
+    reading.reason = "no sky side decoded, so there is no box to draw";
+    return reading;
+  }
+  // A partial sky is drawn as the sides that exist rather than refused: five
+  // sides of a skybox still cover five sixths of what the map would otherwise
+  // show as clear colour, and the reading says which is which.
+  for (int face = 0; face < 6; ++face) {
+    const auto& side = request.faces[static_cast<std::size_t>(face)];
+    if (side.width == 0 || side.height == 0
+        || side.rgba.size() != static_cast<std::size_t>(side.width) * side.height * 4u) continue;
+    const auto& basis = kSkyFaceBasis[face];
+    const float corner[4][2] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
+    const int order[6] = {0, 1, 2, 0, 2, 3};
+    for (int cornerIndex = 0; cornerIndex < 6; ++cornerIndex) {
+      const float su = corner[order[cornerIndex]][0];
+      const float sv = corner[order[cornerIndex]][1];
+      const float a = 2.0f * su - 1.0f;
+      const float b = 2.0f * sv - 1.0f;
+      WorldSkyVertex vertex;
+      vertex.x = request.halfExtent * (basis.dx + a * basis.ux + b * basis.vx);
+      vertex.y = request.halfExtent * (basis.dy + a * basis.uy + b * basis.vy);
+      vertex.z = request.halfExtent * (basis.dz + a * basis.uz + b * basis.vz);
+      vertex.u = su;
+      vertex.v = sv;
+      outVertices.push_back(vertex);
+    }
+  }
+  reading.skyboxVertices = static_cast<std::uint32_t>(outVertices.size());
+  reading.skyboxTriangles = reading.skyboxVertices / 3u;
+  reading.skyboxDraws = reading.skyboxVertices > 0 ? 1u : 0u;
+  reading.state = decoded == 6 ? WorldSkyState::Active : WorldSkyState::Fallback;
+  reading.reason = decoded == 6
+    ? "six sides, " + std::to_string(reading.skyboxVertices) + " vertices"
+    : std::to_string(decoded) + " of 6 sides, " + std::to_string(reading.skyboxVertices)
+      + " vertices";
+  return reading;
+}
+
+const char* worldVisClipStateName(WorldVisClipState state) {
+  switch (state) {
+    case WorldVisClipState::Unavailable: return "unavailable";
+    case WorldVisClipState::Disabled: return "disabled";
+    case WorldVisClipState::Active: return "active";
+  }
+  return "unknown";
+}
+
+WorldVisClipReading clipWorldTrianglesByVis(const BspMap& map,
+    const std::vector<BspTriangle>& input, const WorldVisClipRequest& request,
+    std::vector<BspTriangle>& output, std::vector<std::size_t>* keptIndices) {
+  WorldVisClipReading reading;
+  output.clear();
+  if (keptIndices) keptIndices->clear();
+  reading.inputTriangles = input.size();
+  reading.cameraCluster = request.cameraCluster;
+  // Every early return copies the input through, because each of them means the
+  // clip did not run and a caller that draws what it was given then draws the
+  // whole map -- which is the behaviour the pass had before the clip existed.
+  const auto keepEverything = [&]() {
+    output = input;
+    if (keptIndices) {
+      keptIndices->reserve(input.size());
+      for (std::size_t index = 0; index < input.size(); ++index) keptIndices->push_back(index);
+    }
+    reading.outputTriangles = output.size();
+    return reading;
+  };
+  if (!request.enabled) {
+    // Disabled and unavailable are different facts and get different words: the
+    // first says the caller turned the clip off, the second says the map cannot
+    // answer. Copying the input through is what "off" means -- the renderer
+    // draws everything, which is exactly what it did before this existed.
+    reading.state = WorldVisClipState::Disabled;
+    reading.reason = "vis clip disabled by the caller";
+    return keepEverything();
+  }
+  if (map.visMode != BspVisMode::ClusterPvs) {
+    reading.state = WorldVisClipState::Unavailable;
+    reading.reason = "the bsp carries no cluster pvs";
+    return keepEverything();
+  }
+  if (request.cameraCluster < 0 || request.cameraCluster >= map.visClusterCount) {
+    reading.state = WorldVisClipState::Unavailable;
+    reading.reason = "the camera is in no named cluster, so nothing can be hidden";
+    return keepEverything();
+  }
+  output.reserve(input.size());
+  if (keptIndices) keptIndices->reserve(input.size());
+  for (std::size_t index = 0; index < input.size(); ++index) {
+    const auto& triangle = input[index];
+    if (triangle.cluster < 0) {
+      // No cluster means the pvs has no bit for this triangle, and hiding it
+      // would be a claim the data does not support. Kept, and counted, so the
+      // reading cannot inflate how much the clip actually did.
+      ++reading.trianglesWithoutCluster;
+      output.push_back(triangle);
+      if (keptIndices) keptIndices->push_back(index);
+      continue;
+    }
+    if (BspParser::clusterVisible(map, request.cameraCluster, triangle.cluster)) {
+      output.push_back(triangle);
+      if (keptIndices) keptIndices->push_back(index);
+    } else {
+      ++reading.hiddenTriangles;
+    }
+  }
+  reading.state = WorldVisClipState::Active;
+  reading.clipApplied = true;
+  reading.outputTriangles = output.size();
+  reading.reason = "hid " + std::to_string(reading.hiddenTriangles) + " of "
+    + std::to_string(reading.inputTriangles) + " triangles from cluster "
+    + std::to_string(request.cameraCluster);
   return reading;
 }
 

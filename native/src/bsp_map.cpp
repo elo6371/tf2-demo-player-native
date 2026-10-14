@@ -105,7 +105,8 @@ void writeLuxel(std::uint8_t* dest, const std::uint8_t* sample, std::uint64_t& t
 }
 }
 
-bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::size_t triangleLimit) {
+bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
+    std::size_t triangleLimit, int atlasMaxWidth) {
   map = {}; auto fail = [&](const char* message) { map.error = message; return false; };
   if (bytes.size() < kHeaderSize || read<std::uint32_t>(bytes, 0) != 0x50534256u) return fail("BSP header is invalid");
   map.version = read<std::int32_t>(bytes, 4); map.revision = read<std::int32_t>(bytes, 8 + 64 * 16);
@@ -209,7 +210,54 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
   const auto firstFace = read<std::int32_t>(models, 40), faceCount = read<std::int32_t>(models, 44); if (firstFace < 0 || faceCount < 0 || static_cast<std::size_t>(firstFace) + static_cast<std::size_t>(faceCount) > faces.size() / 56) return fail("BSP world face range is invalid"); map.faceCount = static_cast<std::size_t>(faceCount);
   std::unordered_map<std::int32_t, std::string> names; for (std::size_t i = 0; i < texData.size() / 32; ++i) { const auto id = read<std::int32_t>(texData, i * 32 + 12); if (id >= 0 && static_cast<std::size_t>(id) < stringTable.size() / 4) names[static_cast<std::int32_t>(i)] = readString(stringData, read<std::int32_t>(stringTable, static_cast<std::size_t>(id) * 4)); }
   const auto vertexCount = vertices.size() / 12, edgeCount = edges.size() / 4, surfEdgeCount = surfEdges.size() / 4;
-  constexpr int kAtlas = 2048;
+  // T1 (2026-10-13): the shelf packer used to be hard-coded to 2048 and a face
+  // that did not fit was dropped silently. The atlas size is now chosen, and
+  // the choice is deliberately conservative: the candidate list starts at the
+  // historical 2048 so every map whose lightmaps already fit keeps the atlas
+  // dimensions and the packed count its readings are pinned on, and it only
+  // grows for a caller that asked for more room (atlasMaxWidth > 2048). A map
+  // that still loses faces at the largest allowed size reports the number and
+  // the reason rather than a count nobody explains.
+  const auto chooseAtlasSize = [&](int maxWidth) {
+    // Dry run of the same shelf packer over the same face range: rows of
+    // decreasing height, wrapping when a face would cross the right edge. It
+    // reads only the two sample counts, so it costs one pass over the lump and
+    // no polygon work, and it is the same arithmetic the real pass below uses,
+    // which is why the answer cannot disagree with what the pass then does.
+    const auto fits = [&](int size) {
+      int cursorX = 0, cursorY = 0, rowHeight = 0;
+      for (std::int32_t faceIndex = firstFace; faceIndex < firstFace + faceCount; ++faceIndex) {
+        const auto base = static_cast<std::size_t>(faceIndex) * 56;
+        const auto infoIndex = read<std::int16_t>(faces, base + 10);
+        if (infoIndex < 0 || static_cast<std::size_t>(infoIndex) >= texInfo.size() / 72) continue;
+        const auto flags = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 64);
+        if ((flags & (2 | 4 | 64 | 128)) != 0) continue;
+        const auto lightOffset = read<std::int32_t>(faces, base + 20);
+        const auto samplesW = read<std::int32_t>(faces, base + 36) + 1;
+        const auto samplesH = read<std::int32_t>(faces, base + 40) + 1;
+        const auto styles0 = faces[base + 16];
+        const auto lightBytes = samplesW > 0 && samplesH > 0 && samplesW <= 512 && samplesH <= 512
+          ? static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 4u : 0u;
+        if (styles0 == 255 || lightOffset < 0 || lightBytes == 0
+            || static_cast<std::uint64_t>(lightOffset) + lightBytes > lighting.size()) continue;
+        if (samplesW > size || samplesH > size) return false;
+        if (cursorX + samplesW > size) { cursorX = 0; cursorY += rowHeight; rowHeight = 0; }
+        if (cursorY + samplesH > size) return false;
+        cursorX += samplesW;
+        rowHeight = std::max(rowHeight, samplesH);
+      }
+      return true;
+    };
+    const int candidates[3] = { 2048, 4096, 8192 };
+    for (const int size : candidates) {
+      if (size > maxWidth) break;
+      if (fits(size)) return size;
+    }
+    return maxWidth >= 2048 ? maxWidth : 2048;
+  };
+  const int kAtlas = chooseAtlasSize(atlasMaxWidth);
+  map.lightmapAtlasMaxWidth = kAtlas;
+  map.lightmapAtlasGrown = kAtlas > 2048;
   std::vector<std::uint8_t> atlas;
   int atlasHeight = 0, cursorX = 0, cursorY = 0, rowHeight = 0;
   std::uint64_t toneSum = 0;
@@ -397,6 +445,24 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::
     for (const auto value : lighting) sum += value;
     map.lightmapIntensity = static_cast<float>(std::clamp((static_cast<double>(sum) / static_cast<double>(lighting.size())) / 128.0, 0.15, 2.0));
     map.lightmapMode = BspLightmapMode::AverageIntensity;
+  }
+  // What the packer left behind, named. Before this the only trace of a face
+  // that missed the atlas was the gap between `lightmapFaceCount` and
+  // `lightmapPackedFaces`, and a gap nobody prints is a gap nobody fixes: the
+  // drop is now a number with a sentence, and the sentence says how wide the
+  // shelf was, so "abbey loses faces" and "the atlas is too narrow for abbey"
+  // are the same reading instead of two.
+  map.lightmapAtlasDroppedFaces = map.lightmapFaceCount >= map.lightmapPackedFaces
+    ? map.lightmapFaceCount - map.lightmapPackedFaces : 0;
+  if (map.lightmapFaceCount == 0) {
+    map.lightmapAtlasReason = "the bsp declares no lightmap faces";
+  } else if (map.lightmapAtlasDroppedFaces == 0) {
+    map.lightmapAtlasReason = "all " + std::to_string(map.lightmapFaceCount) + " faces fit the "
+      + std::to_string(kAtlas) + "-wide atlas";
+  } else {
+    map.lightmapAtlasReason = std::to_string(map.lightmapAtlasDroppedFaces) + " of "
+      + std::to_string(map.lightmapFaceCount) + " faces did not fit the "
+      + std::to_string(kAtlas) + "-wide atlas";
   }
   map.waterReflection = false;
   map.waterRefraction = false;

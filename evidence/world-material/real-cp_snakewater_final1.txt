@@ -1,4 +1,4 @@
-{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":11527,"lightmapPackedFaces":11512,"lightmapLuxelFits":11513,"lightmapTriangles":199263,"atlas":"2048x2047","sky":"sky_well_01","skyFaces":690,"displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":11527,"lightmapPackedFaces":11527,"lightmapLuxelFits":11513,"lightmapTriangles":199922,"atlas":"4096x1156","sky":"sky_well_01","skyFaces":690,"displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
 {"reading":"cubemap.facesBeyondSix","value":"33"}
 {"reading":"cubemap.facesDecoded","value":"198"}
 {"reading":"cubemap.firstDeclaredFaces","value":"6"}
@@ -19,14 +19,17 @@
 {"reading":"displacement.state","value":"fallback"}
 {"reading":"displacement.triangles","value":"165376"}
 {"reading":"displacement.trianglesTagged","value":"165376"}
-{"reading":"lightmap.atlas","value":"2048x2047"}
-{"reading":"lightmap.facesDropped","value":"15"}
-{"reading":"lightmap.facesPacked","value":"11512"}
+{"reading":"lightmap.atlas","value":"4096x1156"}
+{"reading":"lightmap.atlasGrown","value":"true"}
+{"reading":"lightmap.atlasMaxWidth","value":"4096"}
+{"reading":"lightmap.atlasReason","value":"all 11527 faces fit the 4096-wide atlas"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"11527"}
 {"reading":"lightmap.facesWithLightmap","value":"11527"}
-{"reading":"lightmap.reason","value":"rgbexp32 atlas 2048x2047 packs 11512 of 11527 faces; 199263 of 200000 triangles carry a per-face light uv; 15 faces dropped by the packer"}
+{"reading":"lightmap.reason","value":"rgbexp32 atlas 4096x1156 packs 11527 of 11527 faces; 199922 of 200000 triangles carry a per-face light uv"}
 {"reading":"lightmap.state","value":"active"}
 {"reading":"lightmap.triangles","value":"200000"}
-{"reading":"lightmap.trianglesWithLightUv","value":"199263"}
+{"reading":"lightmap.trianglesWithLightUv","value":"199922"}
 {"reading":"lightmap.uvAllInRange","value":"true"}
 {"reading":"sky.decodedBytes","value":"3145732"}
 {"reading":"sky.faces","value":"690"}

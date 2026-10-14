@@ -263,6 +263,15 @@ float3 safeNormalize(float3 value) {
   return value * rsqrt(lengthSquared);
 }
 float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3) : SV_TARGET {
+  // Mode 3 is the sky box, and it short-circuits: the box is lit by nothing,
+  // carries no lightmap uv and has no meaningful normal, so running the
+  // lighting half of this shader over it would be inventing a direction to
+  // shade by. The direction a texel of the box looks up is the direction from
+  // the camera to it, which is why the box's vertices are built around the
+  // origin and the pass drops the view matrix's translation.
+  if (envFeatures.x > 2.5) {
+    return float4(envCube.Sample(sampler0, safeNormalize(worldPosition)).rgb, 1.0);
+  }
   float3 sampled = texture0.Sample(sampler0, uv).rgb;
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
@@ -734,6 +743,15 @@ float4 main(Input input) : SV_TARGET {
   rasterDescription.FrontCounterClockwise = FALSE;
   rasterDescription.DepthClipEnable = TRUE;
   if (FAILED(device_->CreateRasterizerState(&rasterDescription, rasterizerState_.GetAddressOf()))) return false;
+  // The sky box is drawn from the inside, so the world's back-face culling
+  // would remove all six of its sides and the sky would be a no-op that
+  // reported itself as drawn. Culling off for that one pass is the honest fix;
+  // winding the box inward would work too and would fail silently the first
+  // time somebody changed the box.
+  D3D11_RASTERIZER_DESC skyRasterDescription = rasterDescription;
+  skyRasterDescription.CullMode = D3D11_CULL_NONE;
+  if (FAILED(device_->CreateRasterizerState(&skyRasterDescription,
+      worldSkyRasterizerState_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC constantsDescription{};
   // Must cover every field of WorldConstantsData in drawFrame(): mvp (64 bytes)
   // plus five float4 blocks (80) is 144, rounded up to 160 so the next block
@@ -745,6 +763,11 @@ float4 main(Input input) : SV_TARGET {
   constantsDescription.Usage = D3D11_USAGE_DEFAULT;
   constantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldConstants_.GetAddressOf()))) return false;
+  // The sky's own copy of the same layout, because the sky draw needs a
+  // different mvp (translation removed) from the one the world draw is using in
+  // the same frame, and two UpdateSubresource calls into one buffer would make
+  // whichever ran second the truth for both passes.
+  if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldSkyConstants_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC modelConstantsDescription{};
   modelConstantsDescription.ByteWidth = 8208;
   modelConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
@@ -1079,6 +1102,21 @@ bool Renderer::uploadWorldCubemap(const std::array<std::vector<std::uint8_t>, 6>
       return fail("a cubemap face is missing or not side*side*4 bytes");
     }
   }
+  return createCubeTexture(faces, side, worldCubemapTexture_, worldCubemapView_, error)
+    ? (worldCubemapSize_ = side, true)
+    : false;
+}
+
+// The six-array-slice cube, used by both the map's environment and the sky. One
+// implementation because a cube built two ways is a cube that can be right for
+// the env pass and wrong for the sky.
+bool Renderer::createCubeTexture(const std::array<std::vector<std::uint8_t>, 6>& faces,
+    UINT side, Microsoft::WRL::ComPtr<ID3D11Texture2D>& outTexture,
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& outView, std::string* error) {
+  const auto fail = [&](const char* message) {
+    if (error) *error = message;
+    return false;
+  };
   D3D11_TEXTURE2D_DESC description{};
   description.Width = side;
   description.Height = side;
@@ -1110,9 +1148,173 @@ bool Renderer::uploadWorldCubemap(const std::array<std::vector<std::uint8_t>, 6>
   if (FAILED(device_->CreateShaderResourceView(texture.Get(), &view, resourceView.GetAddressOf()))) {
     return fail("CreateShaderResourceView refused the cube");
   }
-  worldCubemapTexture_ = std::move(texture);
-  worldCubemapView_ = std::move(resourceView);
-  worldCubemapSize_ = side;
+  outTexture = std::move(texture);
+  outView = std::move(resourceView);
+  return true;
+}
+
+bool Renderer::uploadWorldSky(const std::array<WorldSkyFace, 6>& faces, std::string* error) {
+  worldSkyTexture_.Reset();
+  worldSkyView_.Reset();
+  worldSkySide_ = 0;
+  worldSkyResampled_ = false;
+  worldSkyState_ = WorldSkyState::Unavailable;
+  const auto fail = [&](const char* message) {
+    worldSkyReason_ = message;
+    if (error) *error = message;
+    return false;
+  };
+  int decoded = 0;
+  std::uint32_t largest = 0;
+  bool uniform = true;
+  for (const auto& face : faces) {
+    if (face.width == 0 || face.height == 0
+        || face.rgba.size() != static_cast<std::size_t>(face.width) * face.height * 4u) continue;
+    ++decoded;
+    largest = std::max(largest, std::max(face.width, face.height));
+    if (face.width != face.height || face.width != largest) uniform = false;
+  }
+  if (decoded == 0) return fail("no sky side decoded");
+  if (decoded < 6) {
+    // Not padded with black, and not sampled as if it were whole: five sides of
+    // sky still cover five sixths of the view, but the pass has to say which
+    // five, so the caller decides whether to draw at all.
+    return fail("fewer than six sides decoded, so no cube can be built");
+  }
+  // Smallest power of two that covers every side, capped because a sky is not
+  // worth a hundred megabytes of texture.
+  std::uint32_t side = 1;
+  while (side < largest && side < 1024u) side <<= 1;
+  if (side > 1024u) side = 1024u;
+  const std::size_t expected = static_cast<std::size_t>(side) * side * 4u;
+  std::array<std::vector<std::uint8_t>, 6> cube;
+  bool resampled = !uniform || side != largest;
+  for (std::size_t face = 0; face < 6; ++face) {
+    const auto& source = faces[face];
+    cube[face].assign(expected, 0u);
+    for (std::uint32_t y = 0; y < side; ++y) {
+      const std::uint32_t sourceY = source.height == 0 ? 0
+        : std::min<std::uint32_t>(source.height - 1, y * source.height / side);
+      for (std::uint32_t x = 0; x < side; ++x) {
+        const std::uint32_t sourceX = source.width == 0 ? 0
+          : std::min<std::uint32_t>(source.width - 1, x * source.width / side);
+        const auto from = (static_cast<std::size_t>(sourceY) * source.width + sourceX) * 4u;
+        const auto to = (static_cast<std::size_t>(y) * side + x) * 4u;
+        std::memcpy(cube[face].data() + to, source.rgba.data() + from, 4u);
+      }
+    }
+  }
+  std::array<std::vector<std::uint8_t>, 6> raw{};
+  for (std::size_t face = 0; face < 6; ++face) raw[face] = std::move(cube[face]);
+  if (!createCubeTexture(raw, static_cast<UINT>(side), worldSkyTexture_, worldSkyView_, error)) {
+    worldSkyReason_ = error && !error->empty() ? *error : "CreateTexture2D refused the sky cube";
+    return false;
+  }
+  worldSkyReason_ = resampled
+    ? "six sides resampled to a " + std::to_string(side) + "x" + std::to_string(side) + " cube"
+    : "six sides at their own " + std::to_string(side) + "x" + std::to_string(side) + " size";
+  worldSkyResampled_ = resampled;
+  worldSkySide_ = side;
+  worldSkyState_ = WorldSkyState::Active;
+  return true;
+}
+
+bool Renderer::uploadWorldSkyGeometry(const std::vector<WorldSkyVertex>& vertices) {
+  worldSkyVertexBuffer_.Reset();
+  worldSkyVertexCount_ = 0;
+  if (vertices.empty()) {
+    worldSkyReason_ = "no sky vertices were built";
+    return true;
+  }
+  if (vertices.size() > (std::numeric_limits<UINT>::max)() / sizeof(WorldVertex)) {
+    worldSkyReason_ = "the sky box is too large to upload";
+    return false;
+  }
+  // Uploaded as WorldVertex, not as a sky-specific layout: the pass reuses the
+  // world shader and its input layout, and a second vertex layout for six quads
+  // would be one more thing to keep in step with the shader. The fields the sky
+  // does not use are left at the values the shader ignores in sky mode.
+  std::vector<WorldVertex> gpu;
+  gpu.reserve(vertices.size());
+  for (const auto& vertex : vertices) {
+    WorldVertex converted{};
+    converted.x = vertex.x; converted.y = vertex.y; converted.z = vertex.z;
+    converted.r = 1.0f; converted.g = 1.0f; converted.b = 1.0f; converted.a = 0.0f;
+    converted.u = vertex.u; converted.v = vertex.v;
+    converted.nx = 0.0f; converted.ny = 0.0f; converted.nz = 0.0f;
+    converted.lu = -1.0f; converted.lv = -1.0f;
+    gpu.push_back(converted);
+  }
+  D3D11_BUFFER_DESC description{};
+  description.ByteWidth = static_cast<UINT>(gpu.size() * sizeof(WorldVertex));
+  description.Usage = D3D11_USAGE_DEFAULT;
+  description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+  D3D11_SUBRESOURCE_DATA initial{};
+  initial.pSysMem = gpu.data();
+  Microsoft::WRL::ComPtr<ID3D11Buffer> buffer;
+  if (FAILED(device_->CreateBuffer(&description, &initial, buffer.GetAddressOf()))) {
+    worldSkyReason_ = "CreateBuffer refused the sky box";
+    return false;
+  }
+  worldSkyVertexBuffer_ = std::move(buffer);
+  worldSkyVertexCount_ = static_cast<UINT>(gpu.size());
+  return true;
+}
+
+void Renderer::setWorldVisClipEnabled(bool enabled) {
+  worldVisClipEnabled_ = enabled;
+  if (!enabled) {
+    worldVisClipApplied_ = false;
+    worldVisClipState_ = WorldVisClipState::Disabled;
+    worldVisClipReason_ = "vis clip disabled by the caller";
+  }
+}
+
+bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
+  worldVisClipState_ = drawList.state;
+  worldVisHiddenTriangles_ = drawList.hiddenTriangles;
+  worldVisTrianglesWithoutCluster_ = drawList.trianglesWithoutCluster;
+  worldVisInputTriangles_ = drawList.inputTriangles;
+  worldVisCameraCluster_ = drawList.cameraCluster;
+  worldVisClipReason_ = drawList.reason;
+  if (!worldVisClipEnabled_ || !drawList.applied || drawList.indices.empty()) {
+    // Everything is drawn, which is what the pass did before the clip existed.
+    // The reason word still says why, so "off" and "the pvs could not answer"
+    // are not the same line.
+    worldVisClipApplied_ = false;
+    worldVisDrawnTriangles_ = worldVertexCount_ / 3u;
+    return true;
+  }
+  const UINT needed = static_cast<UINT>(drawList.indices.size());
+  if (needed > worldIndexCapacity_ || !worldIndexBuffer_) {
+    D3D11_BUFFER_DESC description{};
+    description.ByteWidth = static_cast<UINT>(drawList.indices.size() * sizeof(std::uint32_t));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> buffer;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, buffer.GetAddressOf()))) {
+      worldVisClipApplied_ = false;
+      worldVisClipReason_ = "CreateBuffer refused the pvs index buffer";
+      worldVisDrawnTriangles_ = worldVertexCount_ / 3u;
+      return false;
+    }
+    worldIndexBuffer_ = std::move(buffer);
+    worldIndexCapacity_ = needed;
+  }
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(context_->Map(worldIndexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+    worldVisClipApplied_ = false;
+    worldVisClipReason_ = "Map refused the pvs index buffer";
+    worldVisDrawnTriangles_ = worldVertexCount_ / 3u;
+    return false;
+  }
+  std::memcpy(mapped.pData, drawList.indices.data(),
+    static_cast<std::size_t>(needed) * sizeof(std::uint32_t));
+  context_->Unmap(worldIndexBuffer_.Get(), 0);
+  worldIndexCount_ = needed;
+  worldVisClipApplied_ = true;
+  worldVisDrawnTriangles_ = drawList.outputTriangles;
   return true;
 }
 
@@ -1324,6 +1526,31 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.envMode = worldEnvMode();
   state.displacedTriangles = worldDisplacedTriangleCount_;
   state.waterTriangles = worldWaterTriangleCount_;
+  // The skybox, as geometry rather than as files: `worldSkyVertexCount` is what
+  // the pass draws, and `worldSkyDraws` is whether the Draw call ran this frame
+  // -- not whether it would have, which is a condition the reading can restate
+  // and a draw that was deleted cannot satisfy.
+  state.worldSkyState = worldSkyEnabled_ ? worldSkyState_ : WorldSkyState::Unavailable;
+  state.worldSkyVertexCount = worldSkyVertexCount_;
+  state.worldSkyTriangles = worldSkyVertexCount_ / 3u;
+  state.worldSkyFaces = worldSkyVertexCount_ / 6u;
+  state.worldSkyDraws = (worldSkyEnabled_ && worldSkyDrewThisFrame_) ? 1u : 0u;
+  state.worldSkySide = worldSkySide_;
+  state.worldSkyResampled = worldSkyResampled_;
+  state.worldSkyReason = worldSkyEnabled_ ? worldSkyReason_ : "skybox draw disabled by the caller";
+  // The pvs clip: the state, whether the last draw took the indexed branch, and
+  // how many triangles that branch withheld. `worldVisDrawnTriangles` is the
+  // number the draw call saw, which is the number that has to move when the
+  // clip is switched off or when the indexed branch is removed.
+  state.worldVisClipState = worldVisClipEnabled_ ? worldVisClipState_ : WorldVisClipState::Disabled;
+  state.worldVisClipApplied = worldVisClipEnabled_ && worldVisDrewIndexed_;
+  state.worldVisDrawnTriangles = state.worldVisClipApplied
+    ? worldVisDrawnTriangles_ : static_cast<std::size_t>(worldVertexCount_ / 3u);
+  state.worldVisHiddenTriangles = state.worldVisClipApplied ? worldVisHiddenTriangles_ : 0u;
+  state.worldVisTrianglesWithoutCluster = state.worldVisClipApplied ? worldVisTrianglesWithoutCluster_ : 0u;
+  state.worldVisInputTriangles = worldVisInputTriangles_;
+  state.worldVisCameraCluster = worldVisCameraCluster_;
+  state.worldVisClipReason = worldVisClipEnabled_ ? worldVisClipReason_ : "vis clip disabled by the caller";
   return state;
 }
 
@@ -2412,6 +2639,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   framePassOrdinal_ = 0;
   viewModelWorldPassOrdinal_ = 0;
+  // Both readings below are written by the draw calls themselves and read back
+  // by worldMaterialSampleState(). They are reset here, once per frame, so that
+  // "the sky drew" and "the world drew indexed" are statements about this frame
+  // and cannot survive on a frame where the corresponding call did not run.
+  worldSkyDrewThisFrame_ = false;
+  worldVisDrewIndexed_ = false;
   // Defaults for the case where worldConstants_ is missing: a Z-up camera
   // looking down +X, so the ViewModel pass always has a camera to place against.
   frameView_ = {};
@@ -2486,7 +2719,52 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // only builds it when all six faces decoded.
     constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f, 0.0f, 0.0f);
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
+    // The sky box, first and with its own mvp: the same view and projection with
+    // the translation removed, so the box stays centred on the camera and a
+    // vertex's own direction is the direction the cube is sampled at. Drawn
+    // before the world because it is the farthest thing in the frame, and under
+    // the sky's rasterizer state because the box is seen from the inside.
+    const bool hasSkyBox = worldSkyEnabled_ && worldSkyVertexBuffer_ && worldSkyVertexCount_ > 0
+      && worldSkyView_ && worldSkyConstants_ && worldSkyRasterizerState_;
+    if (hasSkyBox) {
+      struct SkyConstantsData {
+        XMFLOAT4X4 mvp;
+        XMFLOAT4 lightDirectionAndMode;
+        XMFLOAT4 cameraPositionAndSpecular;
+        XMFLOAT4 materialFeatures;
+        XMFLOAT4 lightmapFeatures;
+        XMFLOAT4 envFeatures;
+      } skyConstants{};
+      XMMATRIX skyView = view;
+      skyView.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+      XMStoreFloat4x4(&skyConstants.mvp, skyView * projection);
+      // Mode 3 is the sky branch in the pixel shader, and it is the only field
+      // the branch reads: the box is lit by nothing and carries no lightmap uv.
+      skyConstants.envFeatures = XMFLOAT4(3.0f, 0.0f, 0.0f, 0.0f);
+      context_->UpdateSubresource(worldSkyConstants_.Get(), 0, nullptr, &skyConstants, 0, 0);
+      const UINT skyStride = sizeof(WorldVertex), skyOffset = 0;
+      auto* skyBuffer = worldSkyVertexBuffer_.Get();
+      auto* skyCube = worldSkyView_.Get();
+      auto* skyConstantsBuffer = worldSkyConstants_.Get();
+      context_->RSSetState(worldSkyRasterizerState_.Get());
+      context_->IASetInputLayout(worldInputLayout_.Get());
+      context_->IASetVertexBuffers(0, 1, &skyBuffer, &skyStride, &skyOffset);
+      context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
+      context_->VSSetConstantBuffers(0, 1, &skyConstantsBuffer);
+      context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+      context_->PSSetConstantBuffers(0, 1, &skyConstantsBuffer);
+      context_->PSSetShaderResources(5, 1, &skyCube);
+      context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+      context_->Draw(worldSkyVertexCount_, 0);
+      worldSkyDrewThisFrame_ = true;
+      // The world pass below must not inherit the sky's cube or its cull state.
+      context_->RSSetState(rasterizerState_.Get());
+      ID3D11ShaderResourceView* noSky = nullptr;
+      context_->PSSetShaderResources(5, 1, &noSky);
+    }
   }
+  // The sky box is drawn inside the constants block above, before the world:
+  // it is the farthest thing in the frame, so it is the first thing drawn.
   auto* lightView = worldLightmapTexture_.view();
   context_->PSSetShaderResources(3, 1, &lightView);
   const bool hasWorldGeometry = worldVertexBuffer_ && worldVertexCount_ > 0;
@@ -2509,7 +2787,21 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(2, 1, &envView);
     context_->PSSetShaderResources(5, 1, &cubeView);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
-    context_->Draw(worldVertexCount_, 0);
+    // The pvs clip, where it can be seen: with a draw list the pass draws
+    // indexed, so the triangles the pvs hid are not rasterised at all. Without
+    // one it draws the whole buffer, which is what it did before the clip
+    // existed -- and `worldVisClipApplied_` says which of the two happened, so
+    // a clip that silently stops being handed a list reads as off rather than
+    // as working.
+    if (worldVisClipApplied_ && worldIndexBuffer_ && worldIndexCount_ > 0) {
+      context_->IASetIndexBuffer(worldIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
+      context_->DrawIndexed(worldIndexCount_, 0, 0);
+      worldVisDrewIndexed_ = true;
+      ID3D11Buffer* noIndex = nullptr;
+      context_->IASetIndexBuffer(noIndex, DXGI_FORMAT_R32_UINT, 0);
+    } else {
+      context_->Draw(worldVertexCount_, 0);
+    }
   } else {
     context_->IASetInputLayout(nullptr);
     context_->VSSetShader(vertexShader_.Get(), nullptr, 0);
@@ -2648,6 +2940,30 @@ void Renderer::shutdown() {
   worldCubemapTexture_.Reset();
   worldCubemapView_.Reset();
   worldCubemapSize_ = 0;
+  worldSkyTexture_.Reset();
+  worldSkyView_.Reset();
+  worldSkyVertexBuffer_.Reset();
+  worldSkyConstants_.Reset();
+  worldSkyRasterizerState_.Reset();
+  worldSkyVertexCount_ = 0;
+  worldSkySide_ = 0;
+  worldSkyIndexCapacity_ = 0;
+  worldSkyResampled_ = false;
+  worldSkyState_ = WorldSkyState::Unavailable;
+  worldSkyReason_ = "no sky box was uploaded";
+  worldSkyDrewThisFrame_ = false;
+  worldIndexBuffer_.Reset();
+  worldIndexCapacity_ = 0;
+  worldIndexCount_ = 0;
+  worldVisClipApplied_ = false;
+  worldVisDrawnTriangles_ = 0;
+  worldVisHiddenTriangles_ = 0;
+  worldVisTrianglesWithoutCluster_ = 0;
+  worldVisInputTriangles_ = 0;
+  worldVisCameraCluster_ = -1;
+  worldVisClipState_ = WorldVisClipState::Unavailable;
+  worldVisClipReason_ = "no pvs draw list was handed to the renderer";
+  worldVisDrewIndexed_ = false;
   worldDisplacedTriangleCount_ = 0;
   worldWaterTriangleCount_ = 0;
   worldVertexBuffer_.Reset();

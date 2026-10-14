@@ -82,7 +82,8 @@ struct BspMap {
 
 class BspParser {
 public:
-  static bool parse(const std::vector<std::uint8_t>& bytes, BspMap& map, std::size_t triangleLimit = 200000);
+  static bool parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
+    std::size_t triangleLimit = 200000, int atlasMaxWidth = 4096);
   static const char* lightmapModeName(BspLightmapMode mode);
   static bool skyMaterialPath(const std::string& skyName, int face, std::string& out);
   static bool clusterVisible(const BspMap& map, int fromCluster, int toCluster);

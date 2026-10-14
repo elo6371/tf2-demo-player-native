@@ -866,6 +866,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // product's own choice stays material-driven; this only says "run it anyway
   // and print the mode", and the mode is reported either way.
   bool forceWorldEnv = false;
+  // T1 (2026-10-13): the skybox and the pvs clip are on by default because both
+  // are things the world pass should be doing, and both have an explicit off
+  // switch because a gate has to be able to see the two states side by side --
+  // "the clip is applied" is only a reading if "the clip is not applied" prints
+  // something different.
+  bool worldSkyRequested = true;
+  bool worldSkyGiven = false;
+  bool worldVisClipRequested = true;
+  bool worldVisClipGiven = false;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -882,6 +891,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         persistent.render.vsync = false;
       } else if (wcscmp(arguments[i], L"--world-env-force") == 0) {
         forceWorldEnv = true;
+      } else if (wcscmp(arguments[i], L"--world-sky") == 0) {
+        worldSkyRequested = true; worldSkyGiven = true;
+      } else if (wcscmp(arguments[i], L"--no-world-sky") == 0) {
+        worldSkyRequested = false; worldSkyGiven = true;
+      } else if (wcscmp(arguments[i], L"--world-vis-clip") == 0) {
+        worldVisClipRequested = true; worldVisClipGiven = true;
+      } else if (wcscmp(arguments[i], L"--no-world-vis-clip") == 0) {
+        worldVisClipRequested = false; worldVisClipGiven = true;
       } else if (wcscmp(arguments[i], L"--tf-root") == 0 && i + 1 < argumentCount) {
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
@@ -1485,6 +1502,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   UINT mapCubemapSize = 0;
   std::string mapCubemapSource;
   std::string mapCubemapReason = "no env_cubemap sample decoded all six faces";
+  // T1 (2026-10-13): the skybox's own reason, kept apart from the cubemap's
+  // because "the sky has no sides" and "the map has no cube" are two different
+  // absences and a shared string would let the gate read one for the other.
+  std::string worldSkyReason = "no sky box was uploaded";
+  float worldVisCameraEye[3] = {0.0f, 0.0f, 0.0f};
   bool mapBaseTexture2Found = false;
   bool mapBumpMapFound = false;
   bool mapBaseTexture2Declared = false;
@@ -2438,6 +2460,40 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (!renderer.uploadWorldCubemap(mapCubemapFaces, mapCubemapSize, &cubemapUploadError)) {
       mapCubemapReason = "upload refused: " + cubemapUploadError;
     }
+    // T1 (2026-10-13): the skybox as geometry. The bytes come from
+    // captureSkyFaces, which is the same resolve-and-decode walk measureSky
+    // counts, so the sides the renderer uploads are the sides the probe reads.
+    // The box is built by evaluateSkyDrawRequest -- a pure function with no GPU
+    // and no file I/O, which is why the gate can assert the vertex count the
+    // product drew.
+    {
+      const bool skyEnabled = worldSkyGiven ? worldSkyRequested
+        : persistent.render.skybox;
+      const auto skyCapture = tf2::native::captureSkyFaces(displayMap, readMaterialVtf);
+      std::vector<tf2::native::WorldSkyVertex> skyVertices;
+      tf2::native::WorldSkyDrawRequest skyRequest;
+      skyRequest.enabled = skyEnabled;
+      skyRequest.faces = skyCapture.faces;
+      const auto skyDraw = tf2::native::evaluateSkyDrawRequest(skyRequest, skyVertices);
+      std::string skyUploadError;
+      const bool skyTextureUploaded = renderer.uploadWorldSky(skyCapture.faces, &skyUploadError);
+      const bool skyGeometryUploaded = renderer.uploadWorldSkyGeometry(skyVertices);
+      renderer.setWorldSkyEnabled(skyEnabled && skyTextureUploaded && skyGeometryUploaded);
+      worldSkyReason = skyEnabled ? (skyUploadError.empty() ? skyDraw.reason : skyUploadError)
+        : "skybox draw disabled by the caller";
+      const auto skySample = renderer.worldMaterialSampleState();
+      // Upload facts only: what the box is made of and why it is not drawn when
+      // it is not. The draw count is deliberately absent -- this line is emitted
+      // before the first frame, so a `draws=` here would be a zero that says
+      // nothing about the renderer. The reading the gate asserts is the one
+      // traceWorldDraw emits after the frame it describes.
+      traceFmt("gpu: world sky-upload state=%s vertices=%u triangles=%u faces=%u side=%u"
+        " resampled=%d reason=%s",
+        tf2::native::worldSkyStateName(skySample.worldSkyState),
+        skySample.worldSkyVertexCount, skySample.worldSkyTriangles, skySample.worldSkyFaces,
+        skySample.worldSkySide, skySample.worldSkyResampled ? 1 : 0,
+        worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
+    }
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
     // The lightmap pass, read back from the renderer rather than assumed from
@@ -2464,13 +2520,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // pixel shader branches on, and 'bound' alone cannot tell them apart.
     traceFmt("gpu: world geometry displacedTriangles=%u waterTriangles=%u",
       worldSample.displacedTriangles, worldSample.waterTriangles);
-    // The VIS capability, read where it can be: the renderer uploads the map as
-    // one buffer and tests no triangle against the pvs, so this measures the
-    // price of that rather than claiming a clip. The observer's own cluster is
-    // the one a clip would query; the rest comes from the parser's cluster table
-    // and the same bit test BspParser::clusterVisible gives the probe, so the
-    // product and the gate cannot disagree about what the pvs hides.
     {
+      // T1 (2026-10-13): the pvs clip no longer measures the price of not
+      // clipping -- it clips. The decision is made by clipWorldTrianglesByVis,
+      // the same pure function the probe asserts, and the renderer is handed the
+      // surviving triangle indices, so the triangles the pvs hid leave the
+      // rasteriser as well as the reading. The trace line is emitted from the
+      // frame loop instead, once the first clip has run, because a reading about
+      // a draw has to be taken from the frame that drew.
       float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
       if (!renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
         // No observer yet: the first triangle's own vertex is a point the map
@@ -2480,23 +2537,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         eyeY = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.y;
         eyeZ = displayMap.triangles.empty() ? 0.0f : displayMap.triangles.front().a.z;
       }
-      const int cameraCluster = tf2::native::BspParser::clusterAt(displayMap, eyeX, eyeY, eyeZ);
-      std::size_t hidden = 0;
-      std::size_t clustered = 0;
-      for (const auto& triangle : displayMap.triangles) {
-        if (triangle.cluster < 0) continue;
-        ++clustered;
-        if (cameraCluster >= 0
-            && !tf2::native::BspParser::clusterVisible(displayMap, cameraCluster, triangle.cluster)) {
-          ++hidden;
-        }
-      }
-      traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
-        " clusteredTriangles=%zu hiddenTriangles=%zu clipApplied=0",
-        cameraCluster,
-        cameraCluster >= 0
-          ? tf2::native::BspParser::countVisibleClusters(displayMap, cameraCluster) : -1,
-        displayMap.visClusterCount, clustered, hidden);
+      worldVisCameraEye[0] = eyeX; worldVisCameraEye[1] = eyeY; worldVisCameraEye[2] = eyeZ;
     }
     traceFmt("gpu: world cubemap status=%s mode=%u preset=%s declared=%d faces=%u size=%u source=%s reason=%s",
       tf2::native::worldCubemapStatusName(worldSample.cubemapStatus), worldSample.envMode,
@@ -2699,6 +2740,99 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     DestroyWindow(window);
     return 14;
   }
+  // ---- T1 (2026-10-13): the per-frame pvs clip ----------------------------
+  // The clip has to follow the camera, not the load: a clip decided once at
+  // upload would hide triangles for the whole run and the map would lose
+  // whatever the observer walked towards. So the decision is re-made whenever
+  // the camera's cluster changes, and the frame that draws is the frame that
+  // decided -- the reading below is emitted from there for the same reason.
+  std::vector<tf2::native::BspTriangle> worldVisKept;
+  std::vector<std::size_t> worldVisKeptIndices;
+  // A cluster-only projection of map.triangles, index-aligned with it. The clip
+  // reads nothing but `cluster`, and handing it the real triangles would copy
+  // 200k materials (and their strings) every time the observer crossed a leaf.
+  // Built once, and asserted below to be the same length as the geometry it
+  // stands for.
+  std::vector<tf2::native::BspTriangle> worldVisProbe;
+  worldVisProbe.resize(displayMap.triangles.size());
+  for (std::size_t index = 0; index < displayMap.triangles.size(); ++index) {
+    worldVisProbe[index].cluster = displayMap.triangles[index].cluster;
+  }
+  int worldVisAppliedCluster = -2;
+  bool worldDrawTraceEmitted = false;
+  tf2::native::WorldVisClipReading worldVisReading;
+  const auto applyWorldVisClip = [&]() {
+    const bool enabled = worldVisClipGiven ? worldVisClipRequested : true;
+    renderer.setWorldVisClipEnabled(enabled);
+    if (!enabled) {
+      worldVisReading = tf2::native::WorldVisClipReading{};
+      worldVisReading.state = tf2::native::WorldVisClipState::Disabled;
+      worldVisReading.reason = "vis clip disabled by the caller";
+      return;
+    }
+    float eyeX = worldVisCameraEye[0], eyeY = worldVisCameraEye[1], eyeZ = worldVisCameraEye[2];
+    if (renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
+      worldVisCameraEye[0] = eyeX; worldVisCameraEye[1] = eyeY; worldVisCameraEye[2] = eyeZ;
+    }
+    const int cameraCluster = tf2::native::BspParser::clusterAt(displayMap, eyeX, eyeY, eyeZ);
+    if (cameraCluster == worldVisAppliedCluster) return;
+    worldVisAppliedCluster = cameraCluster;
+    tf2::native::WorldVisClipRequest request;
+    request.enabled = true;
+    request.cameraCluster = cameraCluster;
+    worldVisKeptIndices.clear();
+    worldVisReading = tf2::native::clipWorldTrianglesByVis(displayMap, worldVisProbe,
+      request, worldVisKept, &worldVisKeptIndices);
+    tf2::native::WorldVisDrawList list;
+    list.state = worldVisReading.state;
+    list.applied = worldVisReading.clipApplied;
+    list.inputTriangles = worldVisReading.inputTriangles;
+    list.outputTriangles = worldVisReading.outputTriangles;
+    list.hiddenTriangles = worldVisReading.hiddenTriangles;
+    list.trianglesWithoutCluster = worldVisReading.trianglesWithoutCluster;
+    list.cameraCluster = worldVisReading.cameraCluster;
+    list.reason = worldVisReading.reason;
+    // Three indices per surviving triangle: the renderer's vertex buffer is
+    // three vertices per triangle in map.triangles order, so index 3i+j is
+    // triangle i's j-th vertex.
+    list.indices.reserve(worldVisKeptIndices.size() * 3u);
+    for (const std::size_t triangle : worldVisKeptIndices) {
+      const auto base = static_cast<std::uint32_t>(triangle * 3u);
+      list.indices.push_back(base);
+      list.indices.push_back(base + 1u);
+      list.indices.push_back(base + 2u);
+    }
+    renderer.setWorldVisDrawList(list);
+  };
+  // Both of the readings below are taken from flags the draw calls set inside
+  // themselves, so the only honest moment to read them is after a frame has
+  // actually been drawn. Emitted once: the first frame is the one the passes
+  // were configured for, and a per-frame line would bury it.
+  const auto traceWorldDraw = [&]() {
+    if (worldDrawTraceEmitted) return;
+    worldDrawTraceEmitted = true;
+    const auto sample = renderer.worldMaterialSampleState();
+    traceFmt("gpu: world sky state=%s vertices=%u triangles=%u faces=%u draws=%u side=%u"
+      " resampled=%d reason=%s",
+      tf2::native::worldSkyStateName(sample.worldSkyState),
+      sample.worldSkyVertexCount, sample.worldSkyTriangles, sample.worldSkyFaces,
+      sample.worldSkyDraws, sample.worldSkySide, sample.worldSkyResampled ? 1 : 0,
+      worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
+    const int cameraCluster = sample.worldVisCameraCluster;
+    traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
+      " clusteredTriangles=%zu hiddenTriangles=%zu withoutCluster=%zu"
+      " inputTriangles=%zu drawnTriangles=%zu clipApplied=%d state=%s reason=%s",
+      cameraCluster,
+      cameraCluster >= 0
+        ? tf2::native::BspParser::countVisibleClusters(displayMap, cameraCluster) : -1,
+      displayMap.visClusterCount,
+      sample.worldVisInputTriangles - sample.worldVisTrianglesWithoutCluster,
+      sample.worldVisHiddenTriangles, sample.worldVisTrianglesWithoutCluster,
+      sample.worldVisInputTriangles, sample.worldVisDrawnTriangles,
+      sample.worldVisClipApplied ? 1 : 0,
+      tf2::native::worldVisClipStateName(sample.worldVisClipState),
+      sample.worldVisClipReason.empty() ? "-" : sample.worldVisClipReason.c_str());
+  };
   // The paint ledger: one row per prepared model, written after the GPU upload
   // so `uploaded` reflects what the renderer actually accepted. This is the
   // per-model account behind the two window-title counters, and it is the only
@@ -3881,7 +4015,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         captureArmed = false;
         captureRequested = true;
       }
-      if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) ++renderedFrames;
+      if (g_renderer) {
+        // The clip is decided before the draw it governs, so the frame that is
+        // captured is a frame that was clipped.
+        applyWorldVisClip();
+      }
+      if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) {
+        ++renderedFrames;
+        // After the draw, not before it: both readings count calls the passes
+        // made, and a pass that has not run yet counts as zero. Taken here, the
+        // line describes a frame that exists.
+        traceWorldDraw();
+      }
       // Emitted on the frame the capture was requested for, so the readings and
       // the bitmap on disk describe the same frame.
       if (captureRequested) writeViewModelReading();
