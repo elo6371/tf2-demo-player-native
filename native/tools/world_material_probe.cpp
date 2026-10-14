@@ -1392,6 +1392,267 @@ bool capabilitySelfTest() {
 }
 
 // ---------------------------------------------------------------------------
+// T2 (2026-10-14): the water surface, as geometry
+// ---------------------------------------------------------------------------
+// The three properties the task asks of the warp are properties rather than
+// values, so they are asserted as properties: bounded, NaN-free, and repeatable
+// at a fixed phase with a different answer at a different one. The draw-request
+// states are then asserted on the same function the renderer calls, so a green
+// line here is a statement about the water pass and not about a second
+// implementation written to be tested.
+bool waterSelfTest() {
+  using tf2::native::WorldWaterDrawRequest;
+  using tf2::native::WorldWaterDrawReading;
+  using tf2::native::WorldWaterParams;
+  using tf2::native::WorldWaterSurfaceState;
+  using tf2::native::WorldWaterVertex;
+
+  // Bounded: for every phase and every input in [0,1], the warp may not move a
+  // uv by more than the amplitude. Measured over a grid rather than at one
+  // point, because a bound that holds at u=0.5 and not at u=0.97 is not a bound.
+  const float amplitude = 0.02f;
+  bool bounded = true, finite = true;
+  float maxDelta = 0.0f;
+  for (double phase = 0.0; phase < 6.4; phase += 0.37) {
+    for (int i = 0; i <= 40; ++i) {
+      const float u = static_cast<float>(i) / 40.0f;
+      const float v = 1.0f - u;
+      float ou = 0.0f, ov = 0.0f;
+      tf2::native::worldWaterWarpUv(u, v, phase, amplitude, ou, ov);
+      if (!std::isfinite(ou) || !std::isfinite(ov)) { finite = false; break; }
+      maxDelta = std::max(maxDelta, std::fabs(ou - u));
+      maxDelta = std::max(maxDelta, std::fabs(ov - v));
+      if (std::fabs(ou - u) > amplitude + 1e-6f || std::fabs(ov - v) > amplitude + 1e-6f) {
+        bounded = false;
+      }
+    }
+  }
+  // NaN-free: a non-finite input or amplitude is passed through unchanged, so a
+  // bad uv poisons one sample rather than the whole surface.
+  float nu = 0.0f, nv = 0.0f;
+  tf2::native::worldWaterWarpUv(NAN, 0.5f, 1.0, amplitude, nu, nv);
+  const bool nanIn = std::isnan(nu) && nv == 0.5f;
+  tf2::native::worldWaterWarpUv(0.5f, 0.5f, 1.0, NAN, nu, nv);
+  const bool nanAmplitude = nu == 0.5f && nv == 0.5f;
+  tf2::native::worldWaterWarpUv(0.5f, 0.5f, 1.0, -1.0f, nu, nv);
+  const bool negativeAmplitude = nu == 0.5f && nv == 0.5f;
+  // Repeatable at a fixed phase, and different at a different one. The second
+  // half is what makes `water-on == water-repeat` a statement about the warp
+  // rather than about a constant.
+  float a1u = 0.0f, a1v = 0.0f, a2u = 0.0f, a2v = 0.0f, b1u = 0.0f, b1v = 0.0f;
+  tf2::native::worldWaterWarpUv(0.3f, 0.7f, 0.0, amplitude, a1u, a1v);
+  tf2::native::worldWaterWarpUv(0.3f, 0.7f, 0.0, amplitude, a2u, a2v);
+  tf2::native::worldWaterWarpUv(0.3f, 0.7f, 0.37, amplitude, b1u, b1v);
+  const bool repeatable = a1u == a2u && a1v == a2v;
+  const bool phaseMoves = a1u != b1u || a1v != b1v;
+  // Zero amplitude is the identity: the switch that turns the warp off must
+  // leave the uvs alone rather than warping by zero in a way that is not zero.
+  float zu = 0.0f, zv = 0.0f;
+  tf2::native::worldWaterWarpUv(0.3f, 0.7f, 1.0, 0.0f, zu, zv);
+  const bool zeroIsIdentity = zu == 0.3f && zv == 0.7f;
+
+  // The draw request states.
+  const auto quad = [](int count) {
+    std::vector<WorldWaterVertex> vertices;
+    for (int i = 0; i < count; ++i) {
+      WorldWaterVertex v;
+      v.u = 0.25f * static_cast<float>(i % 3);
+      v.v = 0.5f;
+      vertices.push_back(v);
+    }
+    return vertices;
+  };
+  WorldWaterParams params;
+  params.declared = true;
+  params.reason = "fixture";
+
+  WorldWaterDrawRequest off;
+  off.enabled = false;
+  off.vertices = quad(6);
+  off.params = params;
+  off.textureResolved = true;
+  std::vector<WorldWaterVertex> out;
+  const auto offReading = tf2::native::evaluateWaterDrawRequest(off, out);
+  const bool offState = offReading.state == WorldWaterSurfaceState::Unavailable
+    && offReading.waterDrawCalls == 0 && out.empty()
+    && offReading.reason.find("disabled by the caller") != std::string::npos;
+
+  WorldWaterDrawRequest empty;
+  empty.enabled = true;
+  empty.params = params;
+  std::vector<WorldWaterVertex> emptyOut;
+  const auto emptyReading = tf2::native::evaluateWaterDrawRequest(empty, emptyOut);
+  const bool emptyState = emptyReading.state == WorldWaterSurfaceState::Unavailable
+    && emptyReading.waterTriangles == 0
+    && emptyReading.reason.find("no water geometry") != std::string::npos;
+
+  WorldWaterDrawRequest partial;
+  partial.enabled = true;
+  partial.vertices = quad(4);
+  partial.params = params;
+  partial.textureResolved = true;
+  std::vector<WorldWaterVertex> partialOut;
+  const auto partialReading = tf2::native::evaluateWaterDrawRequest(partial, partialOut);
+  const bool partialState = partialReading.state == WorldWaterSurfaceState::Unavailable
+    && partialReading.reason.find("whole number of triangles") != std::string::npos;
+
+  WorldWaterDrawRequest noMaterial;
+  noMaterial.enabled = true;
+  noMaterial.vertices = quad(6);
+  noMaterial.textureResolved = false;
+  std::vector<WorldWaterVertex> noMaterialOut;
+  const auto noMaterialReading = tf2::native::evaluateWaterDrawRequest(noMaterial, noMaterialOut);
+  // Six vertices is one BSP face (two triangles), which is the arithmetic the
+  // real map confirms. The fallback is a DRAWN state: the surface is in the
+  // picture with the flat shade, which is a different fact from "nothing was
+  // drawn".
+  const bool fallbackState = noMaterialReading.state == WorldWaterSurfaceState::Fallback
+    && noMaterialReading.waterFallback && noMaterialReading.waterDrawCalls == 1
+    && noMaterialReading.waterVisible && noMaterialReading.waterFaces == 1
+    && noMaterialReading.waterTriangles == 2;
+
+  WorldWaterDrawRequest good;
+  good.enabled = true;
+  good.vertices = quad(6);
+  good.params = params;
+  good.textureResolved = true;
+  good.warpAmplitude = amplitude;
+  good.warpPhase = 0.37;
+  std::vector<WorldWaterVertex> goodOut;
+  const auto goodReading = tf2::native::evaluateWaterDrawRequest(good, goodOut);
+  // One face and two triangles from six vertices, the warp applied, and the
+  // vertices handed out are the warped ones -- the renderer uploads what this
+  // function counted.
+  bool warpedInOutput = false;
+  for (std::size_t i = 0; i < goodOut.size() && i < good.vertices.size(); ++i) {
+    if (goodOut[i].u != good.vertices[i].u || goodOut[i].v != good.vertices[i].v) {
+      warpedInOutput = true;
+      break;
+    }
+  }
+  const bool activeState = goodReading.state == WorldWaterSurfaceState::Active
+    && goodReading.waterWarpApplied && goodReading.waterFaces == 1
+    && goodReading.waterTriangles == 2 && goodReading.waterDrawCalls == 1
+    && !goodReading.waterFallback && warpedInOutput
+    && goodReading.waterReflectionState == WorldWaterSurfaceState::Unavailable
+    && goodReading.waterRefractionState == WorldWaterSurfaceState::Unavailable;
+
+  // The material reader, on the text a TF2 water material actually carries.
+  const std::string waterVmt =
+    "Water\n{\n"
+    "  \"$abovewater\" \"0\"\n"
+    "  \"$bumpmap\" \"water/test_water_normal\"\n"
+    "  \"$bottommaterial\" \"water/test_beneath\"\n"
+    "  \"$reflectivity\" \"[0.6 0.6 0.6]\"\n"
+    "}\n";
+  const auto waterParams = tf2::native::measureWaterParams(waterVmt, "water/test_water.vmt");
+  const bool paramsOk = waterParams.declared
+    && waterParams.bumpMap == "water/test_water_normal"
+    && waterParams.bottomMaterial == "water/test_beneath"
+    && std::fabs(waterParams.reflectivity - 0.6f) < 1e-4f
+    && waterParams.reason.find("parsed") != std::string::npos;
+  const auto badParams = tf2::native::measureWaterParams("Water\n{\n", "broken.vmt");
+  const bool badParamsOk = !badParams.declared
+    && badParams.reason.find("did not parse") != std::string::npos;
+
+  const bool ok = bounded && finite && nanIn && nanAmplitude && negativeAmplitude
+    && repeatable && phaseMoves && zeroIsIdentity && offState && emptyState
+    && partialState && fallbackState && activeState && paramsOk && badParamsOk;
+  std::cout << "{\"waterSelfTest\":" << (ok ? "true" : "false")
+    << ",\"warpBounded\":" << (bounded ? "true" : "false")
+    << ",\"warpFinite\":" << (finite ? "true" : "false")
+    << ",\"warpMaxDelta\":" << maxDelta
+    << ",\"warpNanIn\":" << (nanIn ? "true" : "false")
+    << ",\"warpNanAmplitude\":" << (nanAmplitude ? "true" : "false")
+    << ",\"warpNegativeAmplitude\":" << (negativeAmplitude ? "true" : "false")
+    << ",\"warpRepeatable\":" << (repeatable ? "true" : "false")
+    << ",\"warpPhaseMoves\":" << (phaseMoves ? "true" : "false")
+    << ",\"warpZeroIdentity\":" << (zeroIsIdentity ? "true" : "false")
+    << ",\"waterOffState\":" << (offState ? "true" : "false")
+    << ",\"waterEmptyState\":" << (emptyState ? "true" : "false")
+    << ",\"waterPartialState\":" << (partialState ? "true" : "false")
+    << ",\"waterFallbackState\":" << (fallbackState ? "true" : "false")
+    << ",\"waterActiveState\":" << (activeState ? "true" : "false")
+    << ",\"waterParams\":" << (paramsOk ? "true" : "false")
+    << ",\"waterParamsBad\":" << (badParamsOk ? "true" : "false") << "}\n";
+  return ok;
+}
+
+// The water fixtures, in the same flat key space the capability fixtures use so
+// the gate asserts one vocabulary. A positive case resolves; the negative cases
+// are the ones the task names: no material, a partial buffer, a switch that was
+// turned off, and a malformed water VMT.
+struct WaterFixtureCase {
+  std::string name;
+  bool enabled = true;
+  int vertices = 6;
+  bool textureResolved = true;
+  bool materialDeclared = true;
+  std::string expectState;
+  std::size_t expectFaces = 0;
+  std::size_t expectTriangles = 0;
+  std::size_t expectDraws = 0;
+  bool expectFallback = false;
+  bool expectWarp = false;
+};
+
+int runWaterFixtures() {
+  // A "face" is one BSP face = two triangles = six vertices, which is the
+  // arithmetic the real map confirms (36 triangles from 18 faces on
+  // cp_snakewater_final1). Twelve vertices is therefore two faces and four
+  // triangles, and the three numbers cannot be confused for one another.
+  const std::vector<WaterFixtureCase> cases = {
+    {"resolved",            true,  12, true,  true,  "active",      2, 4, 1, false, true},
+    {"no-material",         true,  12, false, false, "fallback",    2, 4, 1, true,  false},
+    {"texture-unresolved",  true,  12, false, true,  "fallback",    2, 4, 1, true,  false},
+    {"partial-buffer",      true,  4,  true,  true,  "unavailable", 0, 0, 0, false, false},
+    {"no-geometry",         true,  0,  true,  true,  "unavailable", 0, 0, 0, false, false},
+    {"switch-off",          false, 12, true,  true,  "unavailable", 0, 0, 0, false, false},
+  };
+  std::size_t checks = 0, bad = 0;
+  for (const auto& c : cases) {
+    tf2::native::WorldWaterDrawRequest request;
+    request.enabled = c.enabled;
+    request.textureResolved = c.textureResolved;
+    request.params.declared = c.materialDeclared;
+    request.params.reason = "fixture";
+    request.warpAmplitude = 0.02f;
+    request.warpPhase = 0.0;
+    for (int i = 0; i < c.vertices; ++i) {
+      tf2::native::WorldWaterVertex v;
+      v.u = 0.25f * static_cast<float>(i % 3);
+      v.v = 0.5f;
+      request.vertices.push_back(v);
+    }
+    std::vector<tf2::native::WorldWaterVertex> out;
+    const auto reading = tf2::native::evaluateWaterDrawRequest(request, out);
+    const auto expect = [&](const char* key, const std::string& got, const std::string& want) {
+      ++checks;
+      if (got != want) {
+        std::cout << "{\"waterFixture\":\"" << c.name << "\",\"check\":\"" << key
+          << "\",\"got\":\"" << got << "\",\"want\":\"" << want << "\"}\n";
+        ++bad;
+      }
+    };
+    expect("state", tf2::native::worldWaterSurfaceStateName(reading.state), c.expectState);
+    expect("faces", std::to_string(reading.waterFaces), std::to_string(c.expectFaces));
+    expect("triangles", std::to_string(reading.waterTriangles),
+      std::to_string(c.expectTriangles));
+    expect("drawCalls", std::to_string(reading.waterDrawCalls), std::to_string(c.expectDraws));
+    expect("fallback", reading.waterFallback ? "1" : "0", c.expectFallback ? "1" : "0");
+    expect("warpApplied", reading.waterWarpApplied ? "1" : "0", c.expectWarp ? "1" : "0");
+    // The output buffer is the contract the renderer relies on: it must hold
+    // exactly the triangles the reading counted, or the pass draws something the
+    // gate never measured.
+    expect("outputVertices", std::to_string(out.size()),
+      std::to_string(c.expectTriangles * 3u));
+  }
+  std::cout << "{\"waterFixtures\":" << cases.size() << ",\"checks\":" << checks
+    << ",\"bad\":" << bad << "}\n";
+  return bad == 0 ? 0 : 1;
+}
+
+// ---------------------------------------------------------------------------
 // The third self-test line: the skybox as geometry, and the pvs clip
 // ---------------------------------------------------------------------------
 // Both entry points are the ones the product calls -- evaluateSkyDrawRequest
@@ -1606,6 +1867,7 @@ bool worldDrawSelfTest() {
 int main(int argc, char** argv) {
   bool runSelf = argc <= 1;
   bool runFixturesFlag = false;
+  bool runWaterFixturesFlag = false;
   bool withMutation = false;
   std::vector<std::filesystem::path> bspPaths;
   std::filesystem::path tfRoot;
@@ -1614,6 +1876,7 @@ int main(int argc, char** argv) {
     const std::string_view arg = argv[i];
     if (arg == "--self-test") { runSelf = true; continue; }
     if (arg == "--fixture") { runFixturesFlag = true; continue; }
+    if (arg == "--water-fixture") { runWaterFixturesFlag = true; continue; }
     if (arg == "--mutation") { withMutation = true; continue; }
     if (arg == "--bsp" && i + 1 < argc) {
       bspPaths.push_back(std::filesystem::u8path(argv[++i]));
@@ -1636,9 +1899,13 @@ int main(int argc, char** argv) {
     if (!selfTest()) status = 1;
     if (!capabilitySelfTest()) status = 1;
     if (!worldDrawSelfTest()) status = 1;
+    if (!waterSelfTest()) status = 1;
   }
   if (runFixturesFlag) {
     if (runFixtures(withMutation) != 0) status = 1;
+  }
+  if (runWaterFixturesFlag) {
+    if (runWaterFixtures() != 0) status = 1;
   }
   for (const auto& path : bspPaths) {
     const auto bytes = readFile(path);

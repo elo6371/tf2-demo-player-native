@@ -820,6 +820,44 @@ bool waterNumber(const std::string& text, float& out) {
   return true;
 }
 
+// `$refractivity` and `$reflectivity` are three-component vectors in Source
+// (`"[0.6 0.6 0.6]"`), which is what every shipped water material carries. The
+// reading keeps one number because that is what a Fresnel coefficient is; the
+// component used is the first, and the reason names the vector it came from so
+// a reader can see a non-uniform vector was flattened rather than averaged.
+// A plain scalar is also accepted, because hand-written materials use that form.
+bool waterScalarOrVector(const std::string& text, float& out, int& components) {
+  components = 0;
+  if (text.empty()) return false;
+  std::string body = text;
+  const std::size_t open = body.find('[');
+  if (open != std::string::npos) {
+    const std::size_t close = body.find(']', open);
+    if (close == std::string::npos) return false;
+    body = body.substr(open + 1, close - open - 1);
+  }
+  std::size_t cursor = 0;
+  int count = 0;
+  float first = 0.0f;
+  while (cursor < body.size()) {
+    while (cursor < body.size()
+        && std::isspace(static_cast<unsigned char>(body[cursor]))) ++cursor;
+    if (cursor >= body.size()) break;
+    std::size_t end = cursor;
+    while (end < body.size()
+        && !std::isspace(static_cast<unsigned char>(body[end]))) ++end;
+    float value = 0.0f;
+    if (!waterNumber(body.substr(cursor, end - cursor), value)) return false;
+    if (count == 0) first = value;
+    ++count;
+    cursor = end;
+  }
+  if (count == 0) return false;
+  out = first;
+  components = count;
+  return true;
+}
+
 } // namespace
 
 WorldWaterParams measureWaterParams(const std::string& materialText,
@@ -842,20 +880,34 @@ WorldWaterParams measureWaterParams(const std::string& materialText,
     || waterField(material, "$cheap") == "true";
   params.bumpMap = material.bumpMap;
   params.normalMap = waterField(material, "$normalmap");
-  // The two Fresnel coefficients are optional in every shipped water material.
-  // A present-but-malformed one is reported through `reason` and left at its
-  // default rather than silently clamped from a garbage parse.
+  // The two Fresnel coefficients are optional in every shipped water material
+  // and both are three-component vectors. A present-but-malformed one is
+  // reported through `reason` and left at its default rather than silently
+  // clamped from a garbage parse.
   float value = 0.0f;
-  if (waterNumber(waterField(material, "$refractivity"), value)) {
+  int components = 0;
+  std::string fresnelNote;
+  if (waterScalarOrVector(waterField(material, "$refractivity"), value, components)) {
     params.refractivity = std::clamp(value, 0.0f, 1.0f);
+    fresnelNote += "; $refractivity=" + std::to_string(params.refractivity)
+      + " (" + std::to_string(components) + " components)";
+  } else if (!waterField(material, "$refractivity").empty()) {
+    fresnelNote += "; $refractivity=\"" + waterField(material, "$refractivity")
+      + "\" is not a number or a vector";
   }
-  if (waterNumber(waterField(material, "$reflectivity"), value)) {
+  if (waterScalarOrVector(waterField(material, "$reflectivity"), value, components)) {
     params.reflectivity = std::clamp(value, 0.0f, 1.0f);
+    fresnelNote += "; $reflectivity=" + std::to_string(params.reflectivity)
+      + " (" + std::to_string(components) + " components)";
+  } else if (!waterField(material, "$reflectivity").empty()) {
+    fresnelNote += "; $reflectivity=\"" + waterField(material, "$reflectivity")
+      + "\" is not a number or a vector";
   }
   params.reason = "water material parsed"
     + (params.bottomMaterial.empty() ? std::string() : "; $bottommaterial=" + params.bottomMaterial)
     + (params.normalMap.empty() ? std::string() : "; $normalmap=" + params.normalMap)
-    + (params.bumpMap.empty() ? std::string() : "; $bumpmap=" + params.bumpMap);
+    + (params.bumpMap.empty() ? std::string() : "; $bumpmap=" + params.bumpMap)
+    + fresnelNote;
   return params;
 }
 
