@@ -1,5 +1,11 @@
 # TF2_Native_Test
 
+## 当前整合状态（2026-10-14）
+
+GitHub 默认展示分支为 `p0-entity-protocol`。当前整合基线为 `3c92f7d`：已包含 T3 世界材质与光照、抓帧确定性修复、Animation 门禁吞吐修复及 T4 相机/HUD/UI；`verify-fast.sh`、`world-material-check.sh`、`camera-ui-check.sh` 均已通过，T4 mutation 为 8/8 捕获。完整 `verify-all.sh` 尚未运行。
+
+T3 人工验收与真实输入已在 `task/manual-followup@8736881` 完成交付并推送：`verify-fast.sh` 43/43、`camera-ui-check.sh` PASS，58 项证据文件与报告齐全。该分支是独立证据交付，尚未合并进 `p0-entity-protocol`；未确认项见 `T3-MANUAL-FOLLOWUP-2026-10-14.md`，包括武器切换、真实 ViewModel 动画、水面/天空盒画面、其他 DPI 档和声音可听性。
+
 ## 2026-10-13 整合状态覆盖
 
 当前主线已整合 `task/world-material-lighting@b55e8e5`（整合提交 `b7d8035`）、`task/capture-determinism@a259b52`（整合提交 `1c69f08`）和 T4 `task/camera-ui@ca21a50`（整合提交 `bf0d268`）。T4 门禁首次暴露标题旧编码导致的解析假红，已由 `camera-ui-check.sh` 的 `LC_ALL=C` 字节匹配修复；正向 18 条探针/e2e 断言和 8/8 mutation 均通过。T3 世界材质专项在 T4 合并后仍通过。完整总链仍按约束不运行；T3 未验证真实 GPU 性能、天空盒/水面实际绘制、VIS 裁剪和人工画面对照。
