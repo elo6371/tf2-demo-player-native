@@ -66,10 +66,26 @@ bool checkMap(const tf2::native::BspMap& map, const std::filesystem::path& path,
   if (!map.valid) { error = map.error.empty() ? "parse failed" : map.error; return false; }
   if (map.lightmapMode == tf2::native::BspLightmapMode::RgbExp32) {
     if (map.lightmapPackedFaces == 0 || map.lightmapTriangleCount == 0) { error = "rgbexp32 without packed faces"; return false; }
-    if (map.lightmapAtlasWidth != 2048 || map.lightmapAtlasHeight <= 0) { error = "atlas size"; return false; }
+    // The atlas width is chosen now (T1, 2026-10-13): the historical 2048 for
+    // every map whose lightmaps fit it, 4096 for the ones that do not. Pinning
+    // the single value 2048 would go red on exactly the maps this change
+    // exists for, so what is asserted is the contract: one of the two widths,
+    // a non-empty height that is not taller than the atlas is wide, and a
+    // byte count that matches.
+    const int atlasWidth = map.lightmapAtlasWidth;
+    if ((atlasWidth != 2048 && atlasWidth != 4096) || map.lightmapAtlasHeight <= 0
+        || map.lightmapAtlasHeight > atlasWidth) { error = "atlas size"; return false; }
     const auto bytes = static_cast<std::size_t>(map.lightmapAtlasWidth) * static_cast<std::size_t>(map.lightmapAtlasHeight) * 4u;
     if (map.lightmapAtlas.size() != bytes) { error = "atlas bytes"; return false; }
     if (map.lightmapLuxelFits == 0) { error = "no luxel fits"; return false; }
+    // And the drop is reported either way: zero faces lost with a reason that
+    // says so, or a named count. A reason that is empty is a map whose atlas
+    // outcome nobody recorded, which is the state this field was added to end.
+    if (map.lightmapAtlasReason.empty()) { error = "atlas reason is empty"; return false; }
+    if ((map.lightmapAtlasDroppedFaces == 0) != (map.lightmapAtlasReason.find("did not fit") == std::string::npos)) {
+      error = "atlas reason disagrees with the drop count";
+      return false;
+    }
   } else if (map.lightmapMode == tf2::native::BspLightmapMode::AverageIntensity) {
     if (map.lightmapSampleCount == 0 || !map.lightmapAtlas.empty()) { error = "average-intensity fallback shape"; return false; }
   } else if (map.lightmapSampleCount != 0 || map.lightmapIntensity != 1.0f) {
@@ -501,6 +517,11 @@ struct FixtureCase {
   // The triangle limit handed to BspParser::parse. 200000 is what the product
   // uses; a case that needs the walk to stop early sets it lower.
   std::size_t triangleLimit = 200000;
+  // The widest atlas the parser may choose. 4096 is the product's cap (T1,
+  // 2026-10-13); a case that means to test the packer's drop path sets it to the
+  // historical 2048, because at 4096 the faces that used to drop now fit -- which
+  // is the whole point of the change and would otherwise erase the fixture.
+  int atlasMaxWidth = 4096;
   CaseBody straight;
   CaseMutate mutate;
   CaseBody mutated;
@@ -528,6 +549,14 @@ std::map<std::string, std::string> flattenReadings(
   out["lightmap.triangles"] = std::to_string(readings.lightmap.triangles);
   out["lightmap.atlas"] = std::to_string(readings.lightmap.atlasWidth) + "x"
     + std::to_string(readings.lightmap.atlasHeight);
+  // The shelf width the packer chose, whether it grew to get there, and the
+  // sentence that says what happened to the faces that did not fit -- so "this
+  // map loses faces to the atlas" is a reading with a cause rather than a
+  // subtraction a reader has to notice.
+  out["lightmap.atlasMaxWidth"] = std::to_string(readings.lightmap.atlasMaxWidth);
+  out["lightmap.atlasGrown"] = readings.lightmap.atlasGrown ? "true" : "false";
+  out["lightmap.atlasReason"] = readings.lightmap.atlasReason.empty()
+    ? std::string("no atlas") : readings.lightmap.atlasReason;
   out["lightmap.uvAllInRange"] = readings.lightmap.uvAllInRange ? "true" : "false";
 
   out["cubemap.state"] = worldCapabilityStateName(cubemap.state);
@@ -670,19 +699,23 @@ std::vector<FixtureCase> buildCases() {
       checks.push_back(checkStr("atlasPixel10", atlasPixelAt(map, 1, 0),
         atlasPixelText(expectedAtlasPixel(10, 20, 30, 1))));
       const auto& triangle = map.triangles.front();
-      // The parser rescales v when the trimmed atlas is shorter than 2048, so
-      // the expectation carries the same factor; both sides go through the same
-      // derivation and cannot drift apart silently.
-      const double vScale = map.lightmapAtlasHeight != 2048
-        ? 2048.0 / static_cast<double>(map.lightmapAtlasHeight) : 1.0;
+      // The parser rescales v when the trimmed atlas is shorter than the shelf
+      // width, so the expectation carries the same factor; both sides go through
+      // the same derivation and cannot drift apart silently. The width comes
+      // from the map rather than from the literal 2048 it used to be: the shelf
+      // is chosen now, and a fixture that kept the old literal would assert the
+      // right uv for the wrong atlas.
+      const int atlasWidth = map.lightmapAtlasWidth;
+      const double vScale = map.lightmapAtlasHeight != atlasWidth
+        ? static_cast<double>(atlasWidth) / static_cast<double>(map.lightmapAtlasHeight) : 1.0;
       checks.push_back(checkNear("lightUv.a.u", triangle.alu,
-        expectedLightUv(0, 1, 2, 0, 0, 2048), 1e-9));
+        expectedLightUv(0, 1, 2, 0, 0, atlasWidth), 1e-9));
       checks.push_back(checkNear("lightUv.a.v", triangle.alv,
-        expectedLightUv(0, 1, 2, 0, 0, 2048) * vScale, 1e-9));
+        expectedLightUv(0, 1, 2, 0, 0, atlasWidth) * vScale, 1e-9));
       checks.push_back(checkNear("lightUv.b.u", triangle.blu,
-        expectedLightUv(1, 1, 2, 0, 0, 2048), 1e-9));
+        expectedLightUv(1, 1, 2, 0, 0, atlasWidth), 1e-9));
       checks.push_back(checkNear("lightUv.c.v", triangle.clv,
-        expectedLightUv(1, 1, 2, 0, 0, 2048) * vScale, 1e-9));
+        expectedLightUv(1, 1, 2, 0, 0, atlasWidth) * vScale, 1e-9));
       return checks;
     };
     item.straight = body;
@@ -708,6 +741,12 @@ std::vector<FixtureCase> buildCases() {
   {
     FixtureCase item;
     item.name = "lightmap-atlas-capacity";
+    // Pinned to the historical width on purpose: at the product's 4096 cap the
+    // seventeenth face fits and nothing drops, so the drop path can only be
+    // exercised at 2048. The pair of readings that makes this a check rather
+    // than a description is the self-test's -- same seventeen faces, dropped 1
+    // at 2048 and dropped 0 at 4096.
+    item.atlasMaxWidth = 2048;
     // One lighting slice shared by every face. The parser reads each face's
     // box out of the same bytes, which is what makes a 1 MB fixture able to
     // carry seventeen 512x512 lightmaps.
@@ -1155,7 +1194,7 @@ CaseOutcome runCase(const FixtureCase& item, bool withMutation) {
       const std::vector<tf2::native::FixedResource>& resources, const CaseBody& body) {
     const auto bytes = tf2::native::buildFixtureBsp(fixture);
     tf2::native::BspMap map;
-    tf2::native::BspParser::parse(bytes, map, item.triangleLimit);
+    tf2::native::BspParser::parse(bytes, map, item.triangleLimit, item.atlasMaxWidth);
     tf2::native::FixedResourceProbe probe(resources);
     const auto readings = tf2::native::measureWorldCapabilities(map, fixture.mapName, probe,
       false, false, item.waterMaterialDeclared, item.waterTextureReachable, bytes, item.triangleLimit);
@@ -1352,6 +1391,216 @@ bool capabilitySelfTest() {
   return ok;
 }
 
+// ---------------------------------------------------------------------------
+// The third self-test line: the skybox as geometry, and the pvs clip
+// ---------------------------------------------------------------------------
+// Both entry points are the ones the product calls -- evaluateSkyDrawRequest
+// builds the box the renderer uploads, clipWorldTrianglesByVis decides the
+// indices the renderer draws -- so a green line here is a statement about the
+// drawing and not about a second implementation of it written to be tested.
+bool worldDrawSelfTest() {
+  using tf2::native::WorldSkyDrawRequest;
+  using tf2::native::WorldSkyFace;
+  using tf2::native::WorldSkyState;
+  using tf2::native::WorldSkyVertex;
+  using tf2::native::WorldVisClipRequest;
+  using tf2::native::WorldVisClipState;
+  using tf2::native::BspTriangle;
+  using tf2::native::BspMap;
+
+  const auto side = [](std::uint32_t width, std::uint32_t height) {
+    WorldSkyFace face;
+    face.width = width;
+    face.height = height;
+    face.rgba.assign(static_cast<std::size_t>(width) * height * 4u, 0xC0u);
+    return face;
+  };
+  WorldSkyDrawRequest full;
+  full.enabled = true;
+  for (auto& face : full.faces) face = side(8, 8);
+  std::vector<WorldSkyVertex> vertices;
+  const auto fullReading = tf2::native::evaluateSkyDrawRequest(full, vertices);
+  // A box is 36 vertices and 12 triangles, six per side, and the sides are the
+  // ones the cube order names: side 0 is +X (rt), side 1 is -X (lf).
+  const bool box = fullReading.state == WorldSkyState::Active
+    && fullReading.skyboxVertices == 36 && fullReading.skyboxTriangles == 12
+    && fullReading.skyboxFaces == 6 && fullReading.skyboxDraws == 1
+    && vertices.size() == 36;
+  bool planes = true;
+  for (int index = 0; index < 6; ++index) {
+    planes = planes && std::fabs(vertices[static_cast<std::size_t>(index)].x - full.halfExtent) < 1e-4f;
+    planes = planes && std::fabs(vertices[static_cast<std::size_t>(6 + index)].x + full.halfExtent) < 1e-4f;
+  }
+  bool uvs = true;
+  for (int face = 0; face < 6; ++face) {
+    const auto base = static_cast<std::size_t>(face) * 6u;
+    uvs = uvs && vertices[base + 0].u == 0.0f && vertices[base + 0].v == 0.0f
+      && vertices[base + 1].u == 1.0f && vertices[base + 1].v == 0.0f
+      && vertices[base + 2].u == 1.0f && vertices[base + 2].v == 1.0f
+      && vertices[base + 3].u == 0.0f && vertices[base + 3].v == 0.0f
+      && vertices[base + 4].u == 1.0f && vertices[base + 4].v == 1.0f
+      && vertices[base + 5].u == 0.0f && vertices[base + 5].v == 1.0f;
+  }
+  WorldSkyDrawRequest partial = full;
+  partial.faces[1] = WorldSkyFace{};
+  partial.faces[3] = WorldSkyFace{};
+  std::vector<WorldSkyVertex> partialVertices;
+  const auto partialReading = tf2::native::evaluateSkyDrawRequest(partial, partialVertices);
+  // A partial sky is drawn as the sides that exist, and the reason names how
+  // many: "4 of 6" is the fallback, and a gate that could only read "fallback"
+  // would not be able to tell four sides from one.
+  const bool partialFallback = partialReading.state == WorldSkyState::Fallback
+    && partialReading.skyboxVertices == 24 && partialReading.skyboxFaces == 4
+    && partialReading.reason.find("4 of 6") != std::string::npos;
+  WorldSkyDrawRequest empty = full;
+  for (auto& face : empty.faces) face = WorldSkyFace{};
+  std::vector<WorldSkyVertex> emptyVertices;
+  const auto emptyReading = tf2::native::evaluateSkyDrawRequest(empty, emptyVertices);
+  const bool noSides = emptyReading.state == WorldSkyState::Unavailable
+    && emptyReading.skyboxVertices == 0 && emptyReading.skyboxDraws == 0
+    && emptyReading.reason.find("no sky side decoded") != std::string::npos;
+  WorldSkyDrawRequest off = full;
+  off.enabled = false;
+  std::vector<WorldSkyVertex> offVertices;
+  const auto offReading = tf2::native::evaluateSkyDrawRequest(off, offVertices);
+  const bool disabled = offReading.state == WorldSkyState::Unavailable
+    && offReading.skyboxVertices == 0
+    && offReading.reason.find("disabled by the caller") != std::string::npos;
+
+  // The clip, on a fixture whose three faces sit in three clusters and whose
+  // vis lump says cluster 0 sees clusters 0 and 1 only. The numbers below are
+  // therefore derived from the pvs and not from the triangle count alone: two
+  // of six triangles survive the clip at cluster 0, and four at cluster 2.
+  tf2::native::BspFixture clipFixture;
+  clipFixture.clusterCount = 3;
+  clipFixture.visBits = {3u, 3u, 4u};
+  // The four luxels every face's 2x2 box reads, so the faces really are
+  // lightmapped and the parse below also has an atlas to report on.
+  tf2::native::appendLuxel(clipFixture.lighting, 200, 100, 50, 0);
+  tf2::native::appendLuxel(clipFixture.lighting, 10, 20, 30, 1);
+  tf2::native::appendLuxel(clipFixture.lighting, 255, 255, 255, 0);
+  tf2::native::appendLuxel(clipFixture.lighting, 0, 0, 0, 0);
+  clipFixture.faces.push_back(lightmapQuad());
+  clipFixture.faces.push_back(lightmapQuad());
+  clipFixture.faces.push_back(lightmapQuad());
+  clipFixture.leaves.push_back(tf2::native::BspFixture::Leaf{0, {0}});
+  clipFixture.leaves.push_back(tf2::native::BspFixture::Leaf{1, {1}});
+  clipFixture.leaves.push_back(tf2::native::BspFixture::Leaf{2, {2}});
+  const auto clipBytes = tf2::native::buildFixtureBsp(clipFixture);
+  BspMap clipMap;
+  tf2::native::BspParser::parse(clipBytes, clipMap);
+  std::vector<BspTriangle> kept;
+  std::vector<std::size_t> keptIndices;
+  WorldVisClipRequest clipRequest;
+  clipRequest.enabled = true;
+  clipRequest.cameraCluster = 0;
+  const auto clip = tf2::native::clipWorldTrianglesByVis(clipMap, clipMap.triangles,
+    clipRequest, kept, &keptIndices);
+  const bool clipHides = clip.state == WorldVisClipState::Active && clip.clipApplied
+    && clip.inputTriangles == 6 && clip.outputTriangles == 4 && clip.hiddenTriangles == 2
+    && clip.trianglesWithoutCluster == 0 && clip.cameraCluster == 0;
+  // The indices are what the renderer turns into a draw list, so they are the
+  // half of this that can be wrong while the counts are right.
+  const bool clipIndices = keptIndices.size() == kept.size() && keptIndices.size() == 4
+    && keptIndices[0] == 0 && keptIndices[1] == 1 && keptIndices[2] == 2 && keptIndices[3] == 3;
+  clipRequest.cameraCluster = 2;
+  std::vector<BspTriangle> keptFromTwo;
+  const auto clipFromTwo = tf2::native::clipWorldTrianglesByVis(clipMap, clipMap.triangles,
+    clipRequest, keptFromTwo);
+  const bool clipFollowsCamera = clipFromTwo.state == WorldVisClipState::Active
+    && clipFromTwo.outputTriangles == 2 && clipFromTwo.hiddenTriangles == 4;
+  clipRequest.enabled = false;
+  std::vector<BspTriangle> keptWhenOff;
+  std::vector<std::size_t> indicesWhenOff;
+  const auto clipOff = tf2::native::clipWorldTrianglesByVis(clipMap, clipMap.triangles,
+    clipRequest, keptWhenOff, &indicesWhenOff);
+  const bool clipDisabled = clipOff.state == WorldVisClipState::Disabled
+    && !clipOff.clipApplied && clipOff.outputTriangles == 6 && keptWhenOff.size() == 6
+    && indicesWhenOff.size() == 6;
+  clipRequest.enabled = true;
+  clipRequest.cameraCluster = -1;
+  std::vector<BspTriangle> keptNoCamera;
+  const auto clipNoCamera = tf2::native::clipWorldTrianglesByVis(clipMap, clipMap.triangles,
+    clipRequest, keptNoCamera);
+  const bool clipNeedsCamera = clipNoCamera.state == WorldVisClipState::Unavailable
+    && !clipNoCamera.clipApplied && clipNoCamera.outputTriangles == 6
+    && clipNoCamera.reason.find("no named cluster") != std::string::npos;
+  tf2::native::BspFixture noVisFixture;
+  noVisFixture.faces.push_back(lightmapQuad());
+  const auto noVisBytes = tf2::native::buildFixtureBsp(noVisFixture);
+  BspMap noVisMap;
+  tf2::native::BspParser::parse(noVisBytes, noVisMap);
+  std::vector<BspTriangle> keptNoPvs;
+  const auto clipNoPvs = tf2::native::clipWorldTrianglesByVis(noVisMap, noVisMap.triangles,
+    clipRequest, keptNoPvs);
+  const bool clipWithoutPvs = clipNoPvs.state == WorldVisClipState::Unavailable
+    && !clipNoPvs.clipApplied && clipNoPvs.outputTriangles == noVisMap.triangles.size()
+    && clipNoPvs.reason.find("no cluster pvs") != std::string::npos;
+
+  // The atlas: the shelf width is chosen now, and the choice is what turns "this
+  // map loses faces" from a subtraction into a behaviour. The same seventeen
+  // 512x512 faces are parsed twice, at the historical 2048 cap and at the
+  // product's 4096 -- one drops a face and names it, the other fits all
+  // seventeen and says so. A single parse could not tell a fixed packer from one
+  // that never had anything to drop.
+  const auto bigFace = []() {
+    tf2::native::BspFixtureFace face;
+    const float corners[4][3] = {{0.0f, 0.0f, 0.0f}, {511.0f, 0.0f, 0.0f},
+      {511.0f, 511.0f, 0.0f}, {0.0f, 511.0f, 0.0f}};
+    for (int index = 0; index < 4; ++index) {
+      for (int axis = 0; axis < 3; ++axis) face.corners[index][axis] = corners[index][axis];
+    }
+    face.minsU = 0;
+    face.minsV = 0;
+    face.samplesW = 511;  // stored as value-1, so the box is 512x512
+    face.samplesH = 511;
+    face.lightOffset = 0;
+    face.style0 = 0;
+    return face;
+  };
+  tf2::native::BspFixture capacity;
+  capacity.lighting.assign(512u * 512u * 4u, 0x40);
+  for (int index = 0; index < 17; ++index) capacity.faces.push_back(bigFace());
+  const auto capacityBytes = tf2::native::buildFixtureBsp(capacity);
+  BspMap atlasAt2048;
+  tf2::native::BspParser::parse(capacityBytes, atlasAt2048, 200000, 2048);
+  BspMap atlasAt4096;
+  tf2::native::BspParser::parse(capacityBytes, atlasAt4096, 200000, 4096);
+  const bool atlasGrows = atlasAt2048.lightmapAtlasWidth == 2048
+    && atlasAt2048.lightmapAtlasHeight == 2048
+    && atlasAt2048.lightmapPackedFaces == 16 && atlasAt2048.lightmapAtlasDroppedFaces == 1
+    && atlasAt2048.lightmapAtlasReason == "1 of 17 faces did not fit the 2048-wide atlas"
+    && atlasAt4096.lightmapAtlasWidth == 4096 && atlasAt4096.lightmapAtlasHeight == 1536
+    && atlasAt4096.lightmapPackedFaces == 17 && atlasAt4096.lightmapAtlasDroppedFaces == 0
+    && atlasAt4096.lightmapAtlasGrown
+    && atlasAt4096.lightmapAtlasReason == "all 17 faces fit the 4096-wide atlas";
+  const bool atlasReason = tf2::native::BspParser::parse(clipBytes, clipMap, 200000, 2048)
+    && clipMap.lightmapAtlasDroppedFaces == 0
+    && clipMap.lightmapAtlasReason.find("did not fit") == std::string::npos
+    && !clipMap.lightmapAtlasGrown
+    && clipMap.lightmapAtlasWidth == 2048;
+
+  const bool ok = box && planes && uvs && partialFallback && noSides && disabled
+    && clipHides && clipIndices && clipFollowsCamera && clipDisabled && clipNeedsCamera
+    && clipWithoutPvs && atlasReason && atlasGrows;
+  std::cout << "{\"worldDrawSelfTest\":" << (ok ? "true" : "false")
+    << ",\"skyBoxVertices\":" << (box ? "true" : "false")
+    << ",\"skyBoxPlanes\":" << (planes ? "true" : "false")
+    << ",\"skyBoxUvs\":" << (uvs ? "true" : "false")
+    << ",\"skyPartialFallback\":" << (partialFallback ? "true" : "false")
+    << ",\"skyNoSidesReason\":" << (noSides ? "true" : "false")
+    << ",\"skyDisabledReason\":" << (disabled ? "true" : "false")
+    << ",\"visClipHides\":" << (clipHides ? "true" : "false")
+    << ",\"visClipIndices\":" << (clipIndices ? "true" : "false")
+    << ",\"visClipFollowsCamera\":" << (clipFollowsCamera ? "true" : "false")
+    << ",\"visClipDisabled\":" << (clipDisabled ? "true" : "false")
+    << ",\"visClipNeedsCamera\":" << (clipNeedsCamera ? "true" : "false")
+    << ",\"visClipWithoutPvs\":" << (clipWithoutPvs ? "true" : "false")
+    << ",\"atlasFitsAt2048\":" << (atlasReason ? "true" : "false")
+    << ",\"atlasGrowsWhenFull\":" << (atlasGrows ? "true" : "false") << "}\n";
+  return ok;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1386,6 +1635,7 @@ int main(int argc, char** argv) {
   if (runSelf) {
     if (!selfTest()) status = 1;
     if (!capabilitySelfTest()) status = 1;
+    if (!worldDrawSelfTest()) status = 1;
   }
   if (runFixturesFlag) {
     if (runFixtures(withMutation) != 0) status = 1;
