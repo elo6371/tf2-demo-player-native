@@ -694,15 +694,31 @@ assert_eq "uploads do not grow with the frame count" \
      && echo yes || echo no)" "yes"
 assert_eq "binds track the frames drawn" \
   "$([ "$(rval "$READINGS" texturesReused)" -ge $(( ${FRAMES:-0} - 1 )) ] && echo yes || echo no)" "yes"
-# The declared-versus-applied split. `phongSlots=3` and `bumpSlots=3` are what the
-# VMTs declare; the shader reads neither, and `*AppliedRanges=0` is that fact on
-# the same line. A reader who took the declaration counts for support would be
-# reading a number this gate would not have caught -- which is why both are here.
+# The declared-versus-applied split, at phase 2 (T2, 2026-10-14).
+#
+# Phase 1 asserted `*AppliedRanges=0` here, and that was the honest reading then:
+# the VMTs declared Phong, bump and selfillum and the pixel shader read none of
+# them. T2 made the shader read them, so the assertion moved with the product --
+# and it moved to a STRONGER claim, not a weaker one. Phase 1 only required the
+# three counts to be zero, which a pass that never drew at all would also have
+# satisfied. Phase 2 requires the declaration count to be non-zero AND the applied
+# count to be non-zero, so a pass that stopped binding, stopped drawing or
+# stopped compiling goes red here rather than reading as "phase 1 again".
+#
+# The claim that matters is the pair: `phongSlots >= 1` with `phongAppliedRanges
+# >= 1` says the material asked for the effect and a range drew with it. Either
+# half alone is satisfiable by a broken pass.
 assert_ge "phong declared by the drawn model" "$(rval "$READINGS" phongSlots)" 1
 assert_ge "bump declared by the drawn model" "$(rval "$READINGS" bumpSlots)" 1
-assert_eq "phong is NOT applied (phase 1)" "$(rval "$READINGS" phongAppliedRanges)" "0"
-assert_eq "bump is NOT applied (phase 1)" "$(rval "$READINGS" bumpAppliedRanges)" "0"
-assert_eq "selfillum is NOT applied (phase 1)" "$(rval "$READINGS" selfillumAppliedRanges)" "0"
+assert_ge "phong applied by a drawn range (phase 2)" "$(rval "$READINGS" phongAppliedRanges)" 1
+assert_ge "bump applied by a drawn range (phase 2)" "$(rval "$READINGS" bumpAppliedRanges)" 1
+# Selfillum is the one the drawn model does NOT declare -- measured, not assumed:
+# v_sapper_spy's material carries no `$selfillum` -- so the honest reading is 0
+# declared and 0 applied on this run. The effect itself is asserted by
+# world-material-effects-check.sh, which forces it on a material that lacks it and
+# requires the forced frame to differ from the natural one.
+assert_eq "selfillum is not declared by this material" "$(rval "$READINGS" selfillumSlots)" "0"
+assert_eq "selfillum is therefore not applied here" "$(rval "$READINGS" selfillumAppliedRanges)" "0"
 # Which slot the range names, and on whose authority. `drawnSlot=0` from the MDL's
 # own mesh table is what makes the bound slot a property of the model rather than
 # of the pass's default -- and it is what makes the slot the pass binds the one the

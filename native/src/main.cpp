@@ -2839,15 +2839,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       const bool waterTextureUploaded = renderer.uploadWorldWaterTexture(waterRgba, waterWidth, waterHeight);
       renderer.setWorldWaterWarp(waterRequest.warpPhase, waterRequest.warpAmplitude);
       renderer.setWorldWaterEnabled(waterEnabled && waterGeometryUploaded);
+      // The judge's verdict, handed to the renderer rather than recomputed
+      // there: the state is a judgement about the request and the draw count is
+      // a fact about the pass, and the two have to be able to move separately
+      // for the mutation that deletes the Draw call to be visible.
+      renderer.setWorldWaterReading(waterReading.state, waterReading.waterReflectionState,
+        waterReading.waterRefractionState, waterReading.reason);
       waterSurfaceReason = waterReading.reason;
       waterFacesInMap_ = waterFacesInMap;
       waterMaterialResolved_ = waterTextureResolved;
       waterMaterialParams_ = waterParams;
-      traceFmt("gpu: world water state=%s faces=%zu triangles=%zu draws=%zu visible=%d"
-        " warp=%d textureBound=%d fallback=%d reflection=%s refraction=%s reason=%s",
+      // UPLOAD FACTS ONLY, and the name says so. `draws` is deliberately
+      // absent: this line is emitted before the first frame, so a draw count
+      // here would be the number the request WOULD produce -- a reading that
+      // describes its own copy of the guard rather than the pass. Measured:/n      // the first version of this line carried `draws=` from the request and a
+      // mutation that deleted the Draw call still read draws=1, so the gate
+      // could not have caught it. The reading the gate asserts is the one
+      // traceWorldDraw emits after the frame it describes.
+      traceFmt("gpu: world water-upload state=%s faces=%zu triangles=%zu"
+        " warpPlanned=%d textureBound=%d fallback=%d reflection=%s refraction=%s reason=%s",
         tf2::native::worldWaterSurfaceStateName(waterReading.state),
-        waterReading.waterFaces, waterReading.waterTriangles, waterReading.waterDrawCalls,
-        waterReading.waterVisible ? 1 : 0, waterReading.waterWarpApplied ? 1 : 0,
+        waterReading.waterFaces, waterReading.waterTriangles,
+        waterReading.waterWarpApplied ? 1 : 0,
         waterTextureUploaded ? 1 : 0, waterReading.waterFallback ? 1 : 0,
         tf2::native::worldWaterSurfaceStateName(waterReading.waterReflectionState),
         tf2::native::worldWaterSurfaceStateName(waterReading.waterRefractionState),
@@ -3175,6 +3188,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldSkyVertexCount, sample.worldSkyTriangles, sample.worldSkyFaces,
       sample.worldSkyDraws, sample.worldSkySide, sample.worldSkyResampled ? 1 : 0,
       worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
+    // T2 (2026-10-14): the water surface as a DRAW, read from the renderer
+    // after the frame -- the same discipline the sky and vis lines above use.
+    // `draws` is set inside the pass itself, so a mutation that deletes the
+    // Draw call moves it; the upload line cannot, because it runs first.
+    {
+      const auto water = renderer.waterSurfaceSampleState();
+      traceFmt("gpu: world water state=%s faces=%u triangles=%u draws=%u visible=%d"
+        " warp=%d textureBound=%d fallback=%d reflection=%s refraction=%s reason=%s",
+        tf2::native::worldWaterSurfaceStateName(water.state),
+        water.waterFaces, water.waterTriangles, water.waterDrawCalls,
+        water.waterVisible ? 1 : 0, water.waterWarpApplied ? 1 : 0,
+        water.waterTextureBound ? 1 : 0, water.waterFallback ? 1 : 0,
+        tf2::native::worldWaterSurfaceStateName(water.reflectionState),
+        tf2::native::worldWaterSurfaceStateName(water.refractionState),
+        water.reason.empty() ? "-" : water.reason.c_str());
+    }
     const int cameraCluster = sample.worldVisCameraCluster;
     traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
       " clusteredTriangles=%zu hiddenTriangles=%zu withoutCluster=%zu"
@@ -3383,39 +3412,60 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       const auto fx = renderer.viewModelMaterialSampleState();
       traceFmt("gpu: viewmodel effects slot=%d parsed=%d"
         " phongState=%s phongDeclared=%d phongParsed=%d phongUploaded=%d phongApplied=%d"
-        " phongAppliedRanges=%u phongFallback=%d phongExponent=%.3f phongBoost=%.3f"
-        " phongFresnel=%.3f..%.3f"
+        " phongAppliedRanges=%u phongExponent=%.3f phongBoost=%.3f phongFresnel=%.3f..%.3f"
         " bumpState=%s bumpDeclared=%d bumpParsed=%d bumpUploaded=%d bumpApplied=%d"
-        " bumpAppliedRanges=%u bumpFallback=%d bumpTextureResolved=%d bumpTextureUploaded=%d"
-        " bumpTextureReused=%d bumpUploads=%u"
+        " bumpAppliedRanges=%u"
         " selfillumState=%s selfillumDeclared=%d selfillumParsed=%d selfillumUploaded=%d"
-        " selfillumApplied=%d selfillumAppliedRanges=%u selfillumFallback=%d"
-        " selfillumMaskDeclared=%d selfillumMaskBound=%d"
-        " phongSwitch=%s bumpSwitch=%s selfillumSwitch=%s texturesUploaded=%u texturesReused=%u",
+        " selfillumApplied=%d selfillumAppliedRanges=%u"
+        " selfillumMaskDeclared=%d selfillumMaskBound=%d",
         viewModelEffectsSlot, viewModelEffectsMaterialParsed ? 1 : 0,
         tf2::native::viewModelEffectStateName(fx.phongState),
         fx.phongDeclared ? 1 : 0, fx.phongParsed ? 1 : 0, fx.phongUploaded ? 1 : 0,
-        fx.phongApplied ? 1 : 0, fx.phongAppliedRanges, fx.phongFallback ? 1 : 0,
+        fx.phongApplied ? 1 : 0, fx.phongAppliedRanges,
         fx.phongExponent, fx.phongBoost, fx.phongFresnelMin, fx.phongFresnelMax,
         tf2::native::viewModelEffectStateName(fx.bumpState),
         fx.bumpDeclared ? 1 : 0, fx.bumpParsed ? 1 : 0, fx.bumpUploaded ? 1 : 0,
-        fx.bumpApplied ? 1 : 0, fx.bumpAppliedRanges, fx.bumpFallback ? 1 : 0,
-        fx.bumpTextureResolved ? 1 : 0, fx.bumpTextureUploaded ? 1 : 0,
-        fx.bumpTextureReused ? 1 : 0, renderer.viewModelBumpTextureUploads(),
+        fx.bumpApplied ? 1 : 0, fx.bumpAppliedRanges,
         tf2::native::viewModelEffectStateName(fx.selfillumState),
         fx.selfillumDeclared ? 1 : 0, fx.selfillumParsed ? 1 : 0,
         fx.selfillumUploaded ? 1 : 0, fx.selfillumApplied ? 1 : 0,
-        fx.selfillumAppliedRanges, fx.selfillumFallback ? 1 : 0,
-        fx.selfillumMaskDeclared ? 1 : 0, fx.selfillumMaskBound ? 1 : 0,
+        fx.selfillumAppliedRanges,
+        fx.selfillumMaskDeclared ? 1 : 0, fx.selfillumMaskBound ? 1 : 0);
+      // The texture readings and the three fallback flags get their own line.
+      // Measured: the counters line above is 519 bytes with them on it and
+      // traceFmt's buffer is 512, so `selfillumAppliedRanges` was being cut in
+      // half -- the same silent truncation twice over, which is why the line is
+      // now split into three rather than two.
+      traceFmt("gpu: viewmodel effects-texture"
+        " phongFallback=%d bumpFallback=%d selfillumFallback=%d"
+        " bumpTextureResolved=%d bumpTextureUploaded=%d bumpTextureReused=%d"
+        " bumpUploads=%u",
+        fx.phongFallback ? 1 : 0, fx.bumpFallback ? 1 : 0,
+        fx.selfillumFallback ? 1 : 0,
+        fx.bumpTextureResolved ? 1 : 0, fx.bumpTextureUploaded ? 1 : 0,
+        fx.bumpTextureReused ? 1 : 0, renderer.viewModelBumpTextureUploads());
+      // The switches and the two whole-run texture counters go on the second
+      // line with the prose. Measured: with them on the first line the whole
+      // thing ran past traceFmt's 512-byte buffer and the last three fields
+      // were silently dropped, which is the same silent truncation that hid
+      // the reason strings before it was split.
+      // The switches get their own line. Measured: the reasons line runs past
+      // traceFmt's 512-byte buffer on the forced-selfillum run, where all three
+      // reason strings are at their longest, and the switch fields at the end
+      // were the ones dropped -- so a gate reading them saw an empty string and
+      // reported "the switch is not off" for a run where it was. Four lines is
+      // one more than is pretty and one fewer than a silent truncation.
+      traceFmt("gpu: viewmodel effects-switch selfillumForce=%d phongSwitch=%s"
+        " bumpSwitch=%s selfillumSwitch=%s texturesUploaded=%u texturesReused=%u",
+        viewModelSelfillumForce ? 1 : 0,
         viewModelPhongGiven ? (viewModelPhongRequested ? "on" : "off") : "material",
         viewModelBumpGiven ? (viewModelBumpRequested ? "on" : "off") : "material",
         viewModelSelfillumGiven ? (viewModelSelfillumRequested ? "on" : "off") : "material",
         fx.texturesUploaded, fx.texturesReused);
-      traceFmt("gpu: viewmodel effects-reason phong=%s bump=%s selfillum=%s selfillumForce=%d",
+      traceFmt("gpu: viewmodel effects-reason phong=%s bump=%s selfillum=%s",
         fx.phongReason.empty() ? "-" : fx.phongReason.c_str(),
         fx.bumpReason.empty() ? "-" : fx.bumpReason.c_str(),
-        fx.selfillumReason.empty() ? "-" : fx.selfillumReason.c_str(),
-        viewModelSelfillumForce ? 1 : 0);
+        fx.selfillumReason.empty() ? "-" : fx.selfillumReason.c_str());
     }
     // The draw-order reading: the world pass is ordinal 1 and the ViewModel pass
     // must be later. Without this, "world then ViewModel" would only be a claim

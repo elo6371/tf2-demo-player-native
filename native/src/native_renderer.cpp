@@ -1501,6 +1501,15 @@ bool Renderer::uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UI
   return worldWaterTextureBound_;
 }
 
+void Renderer::setWorldWaterReading(WorldWaterSurfaceState state,
+    WorldWaterSurfaceState reflection, WorldWaterSurfaceState refraction,
+    const std::string& reason) {
+  worldWaterState_ = state;
+  worldWaterReflectionState_ = reflection;
+  worldWaterRefractionState_ = refraction;
+  worldWaterReason_ = reason;
+}
+
 void Renderer::setWorldWaterWarp(double phase, float amplitude) {
   worldWaterPhase_ = phase;
   worldWaterAmplitude_ = amplitude;

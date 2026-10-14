@@ -453,6 +453,17 @@ public:
   // failure: the pass then draws the flat shade and says so.
   bool uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setWorldWaterEnabled(bool enabled) { worldWaterEnabled_ = enabled; }
+  // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
+  // was never set on the success path of uploadWorldWaterGeometry, so
+  // waterSurfaceSampleState() reported `unavailable` for a surface that drew --
+  // measured, and it is the reason the mutation that deletes the Draw call first
+  // read `draws=0 state=unavailable` instead of the intended `draws=0
+  // state=active`. The state is a judgement about the request, the draw count is
+  // a fact about the pass, and keeping them in one place made the second one
+  // unable to move on its own.
+  void setWorldWaterReading(tf2::native::WorldWaterSurfaceState state,
+    tf2::native::WorldWaterSurfaceState reflection,
+    tf2::native::WorldWaterSurfaceState refraction, const std::string& reason);
   // The warp phase, in seconds, derived from the playback tick by the caller.
   // A paused tick is a fixed phase, which is what makes the repeat frame
   // byte-identical rather than "the same wave at a different time".
