@@ -1,5 +1,14 @@
 # 更新日志
 
+## 2026-10-14
+
+### T1 世界渲染能力补全（已整合）
+
+- 整合 `task/world-render-followup@e50b585`，主线合并提交 `be27383`；skybox 几何真实绘制，VIS 进行逐三角形 PVS 裁剪，atlas 按宽度选择，缺失 sky/PVS/相机簇均输出具名回退。
+- `world-material-check.sh` 正向 `117/117`，mutation 全部捕获；`verify-fast.sh` `43/43`。门禁同时修复了 stale evidence 和 mutation 分支无条件 `exit 0` 两个真实缺陷。
+- 未验证仍包括人工画面对照、真实 GPU FPS/soak、跨机器抓帧、4096 以上 atlas 和频繁切图；`vis_clip_deleted` 与用户主动关闭裁剪的读数等价，报告未将其写成特异性证明。
+- T2 水面与高级材质任务的新基线为 `p0-entity-protocol@be27383`。
+
 ## 2026-10-13
 
 ### T4：相机、观察者模式、HUD/UI（已整合）

@@ -2,7 +2,9 @@
 
 ## 当前整合状态（2026-10-14）
 
-GitHub 默认展示分支为 `p0-entity-protocol`。当前整合基线为 `3c92f7d`：已包含 T3 世界材质与光照、抓帧确定性修复、Animation 门禁吞吐修复及 T4 相机/HUD/UI；`verify-fast.sh`、`world-material-check.sh`、`camera-ui-check.sh` 均已通过，T4 mutation 为 8/8 捕获。完整 `verify-all.sh` 尚未运行。
+GitHub 默认展示分支为 `p0-entity-protocol`。当前整合基线为 `be27383`（合并 `task/world-render-followup@e50b585`）：已加入 skybox 几何绘制、VIS 逐三角形裁剪、atlas 宽度选择和对应门禁修复；`world-material-check.sh` 正向 117/117、mutation 全部捕获，`verify-fast.sh` 43/43。完整 `verify-all.sh` 尚未运行。
+
+T1 世界渲染补全已完成整合。已知限制保留为：VIS 删除变异与用户主动关闭裁剪的读数相同、人工画面对照/真实 GPU FPS/跨机器验证未完成、4096 以上 atlas 和频繁切图场景未验证。下一项 T2 水面与高级材质应以 `be27383` 为基线，不得回退 skybox/VIS 接口。
 
 T3 人工验收与真实输入已在 `task/manual-followup@8736881` 完成交付并推送：`verify-fast.sh` 43/43、`camera-ui-check.sh` PASS，58 项证据文件与报告齐全。该分支是独立证据交付，尚未合并进 `p0-entity-protocol`；未确认项见 `T3-MANUAL-FOLLOWUP-2026-10-14.md`，包括武器切换、真实 ViewModel 动画、水面/天空盒画面、其他 DPI 档和声音可听性。
 

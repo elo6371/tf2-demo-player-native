@@ -4,9 +4,11 @@ T3 世界材质与光照已合入主线 `b7d8035`，共享抓帧修复已合入 
 
 # TF2 Demo Player Native 实现任务与验收计划
 
-更新时间：2026-10-13
+更新时间：2026-10-14
 产品整合基线：`origin/integration/entity-material@1a96adb`（实体材质已整合）
-当前验收与诊断基线：`p0-entity-protocol@8d5c8cd`（已整合 T0、实体材质、T1 动画接线、T2 ViewModel、T2.5 输入契约、清单一 companion 绘制、五层映射调查、静默抓帧测试、ViewModel 材质资源链与产品接入、T2 静态武器本体、清单四音频调度契约和 T3 音频主程序接线；当前完整总链尚未重跑，不是产品发布分支）
+当前验收与诊断基线：`p0-entity-protocol@be27383`（已整合 T1 世界渲染补全；当前完整总链尚未重跑，不是产品发布分支）
+
+T1 世界渲染补全已进入主线：skybox 几何真实绘制、VIS 三角形裁剪、atlas 宽度选择和对应门禁修复均已完成；`world-material-check.sh` 117/117、mutation 全部捕获，`verify-fast.sh` 43/43。T2 水面与高级材质必须复用已冻结接口，不得回退 skybox/VIS 行为。
 
 ## 2026-10-13 T1 当前渲染档复核
 
