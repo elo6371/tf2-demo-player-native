@@ -5,6 +5,7 @@
 #include "vtf_texture.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -774,6 +775,193 @@ WorldWaterReading measureWater(const BspMap& map, bool reflectionDeclaredBySetti
   for (const auto& triangle : map.triangles) {
     if (triangle.water) ++reading.trianglesTagged;
   }
+  return reading;
+}
+
+// ---------------------------------------------------------------------------
+// T2: the water surface
+// ---------------------------------------------------------------------------
+
+const char* worldWaterSurfaceStateName(WorldWaterSurfaceState state) {
+  switch (state) {
+    case WorldWaterSurfaceState::Unavailable: return "unavailable";
+    case WorldWaterSurfaceState::Declared: return "declared";
+    case WorldWaterSurfaceState::Parsed: return "parsed";
+    case WorldWaterSurfaceState::Active: return "active";
+    case WorldWaterSurfaceState::Fallback: return "fallback";
+  }
+  return "unknown";
+}
+
+namespace {
+
+// A scalar out of the VMT's own field map, which carries every non-object key
+// verbatim. Reading `$refractivity` this way rather than adding a member to
+// VmtMaterial keeps vmt_material.h frozen for the other tracks that include it.
+std::string waterField(const VmtMaterial& material, const char* key) {
+  const auto it = material.fields.find(key);
+  return it != material.fields.end() ? it->second : std::string{};
+}
+
+// Source's own parser accepts plain ints, decimals, and the bracketed vector
+// form `[0 1 0]`. Anything else is refused BY NAME rather than read as zero,
+// because a `$refractivity` of `abc` read as 0.0 is a water surface that
+// refracts nothing and a reading that cannot say so.
+bool waterNumber(const std::string& text, float& out) {
+  if (text.empty()) return false;
+  const std::string trimmed = text;
+  const char* begin = trimmed.c_str();
+  char* end = nullptr;
+  errno = 0;
+  const double value = std::strtod(begin, &end);
+  if (end == begin || (end && *end != '\0')) return false;
+  if (!std::isfinite(value)) return false;
+  out = static_cast<float>(value);
+  return true;
+}
+
+} // namespace
+
+WorldWaterParams measureWaterParams(const std::string& materialText,
+    const std::string& materialPath) {
+  WorldWaterParams params;
+  params.materialPath = materialPath;
+  VmtMaterial material;
+  std::string error;
+  if (materialText.empty() || !VmtParser::parse(materialText, material)) {
+    params.reason = materialText.empty()
+      ? "no water material text was supplied"
+      : ("the water material did not parse: " + material.error);
+    return params;
+  }
+  params.declared = true;
+  params.bottomMaterial = material.waterBottomMaterial;
+  params.underwaterOverlay = material.underwaterOverlay;
+  params.aboveWater = material.aboveWater;
+  params.cheap = waterField(material, "$cheap") == "1"
+    || waterField(material, "$cheap") == "true";
+  params.bumpMap = material.bumpMap;
+  params.normalMap = waterField(material, "$normalmap");
+  // The two Fresnel coefficients are optional in every shipped water material.
+  // A present-but-malformed one is reported through `reason` and left at its
+  // default rather than silently clamped from a garbage parse.
+  float value = 0.0f;
+  if (waterNumber(waterField(material, "$refractivity"), value)) {
+    params.refractivity = std::clamp(value, 0.0f, 1.0f);
+  }
+  if (waterNumber(waterField(material, "$reflectivity"), value)) {
+    params.reflectivity = std::clamp(value, 0.0f, 1.0f);
+  }
+  params.reason = "water material parsed"
+    + (params.bottomMaterial.empty() ? std::string() : "; $bottommaterial=" + params.bottomMaterial)
+    + (params.normalMap.empty() ? std::string() : "; $normalmap=" + params.normalMap)
+    + (params.bumpMap.empty() ? std::string() : "; $bumpmap=" + params.bumpMap);
+  return params;
+}
+
+void worldWaterWarpUv(float u, float v, double phase, float amplitude,
+    float& outU, float& outV) {
+  // Property 1: NaN-free. A non-finite input is passed through unchanged, so a
+  // bad UV poisons one sample rather than the whole surface.
+  if (!std::isfinite(u) || !std::isfinite(v)) { outU = u; outV = v; return; }
+  if (!std::isfinite(amplitude) || amplitude < 0.0f) { outU = u; outV = v; return; }
+  // Property 2: bounded. Two terms, each a sine of the input times a frequency
+  // plus the caller's phase, each scaled by the amplitude. The sine is in
+  // [-1,1] so each term is inside [-amplitude, amplitude] and the sum is inside
+  // [-2*amplitude, 2*amplitude]; the caller's amplitude is already half the
+  // bound it wants, and the clamp below makes the bound exact rather than
+  // analytic, which is what the fixture asserts.
+  const double pu = static_cast<double>(u), pv = static_cast<double>(v);
+  const double du = 0.85 * std::sin(pu * 9.0 + phase * 1.30)
+    + 0.45 * std::sin(pu * 23.0 - phase * 2.10 + 1.7);
+  const double dv = 0.85 * std::sin(pv * 9.0 + phase * 1.45)
+    + 0.45 * std::sin(pv * 21.0 - phase * 1.80 + 0.9);
+  double nu = pu + du * amplitude;
+  double nv = pv + dv * amplitude;
+  // The exact bound, applied after the arithmetic so a compiler's reassociation
+  // cannot widen it: the warp may never move a uv by more than the amplitude in
+  // either axis. This is the line the fixture's `warpBounded` check measures.
+  const double limit = static_cast<double>(amplitude);
+  nu = std::clamp(nu, pu - limit, pu + limit);
+  nv = std::clamp(nv, pv - limit, pv + limit);
+  outU = static_cast<float>(nu);
+  outV = static_cast<float>(nv);
+}
+
+WorldWaterDrawReading evaluateWaterDrawRequest(const WorldWaterDrawRequest& request,
+    std::vector<WorldWaterVertex>& outVertices) {
+  WorldWaterDrawReading reading;
+  outVertices.clear();
+
+  // The two render targets. Both are Unavailable and the reason names which
+  // half is missing, because "reflection is unimplemented" and "refraction is
+  // unimplemented" are different sentences and a single word would hide one.
+  reading.waterReflectionState = WorldWaterSurfaceState::Unavailable;
+  reading.waterRefractionState = WorldWaterSurfaceState::Unavailable;
+
+  if (!request.enabled) {
+    reading.state = WorldWaterSurfaceState::Unavailable;
+    reading.reason = "water draw disabled by the caller";
+    return reading;
+  }
+  if (request.vertices.empty()) {
+    reading.state = WorldWaterSurfaceState::Unavailable;
+    reading.reason = "the map declared no water geometry";
+    return reading;
+  }
+  if (request.vertices.size() % 3u != 0u) {
+    // A partial triangle is a corrupted buffer, not water. Refusing by name is
+    // what stops a truncated upload from drawing half a surface.
+    reading.state = WorldWaterSurfaceState::Unavailable;
+    reading.reason = "the water buffer holds " + std::to_string(request.vertices.size())
+      + " vertices, which is not a whole number of triangles";
+    return reading;
+  }
+
+  reading.waterFaces = request.vertices.size() / 6u;
+  reading.waterTriangles = request.vertices.size() / 3u;
+
+  if (!request.params.declared) {
+    // Faces exist and no material named them. The surface still draws -- with
+    // the flat shade -- and the reading says the material was never found
+    // rather than that the map has no water.
+    reading.state = WorldWaterSurfaceState::Fallback;
+    reading.waterFallback = true;
+    reading.waterDrawCalls = 1;
+    reading.waterVisible = true;
+    outVertices = request.vertices;
+    reading.reason = std::to_string(reading.waterTriangles)
+      + " water triangles from " + std::to_string(reading.waterFaces)
+      + " faces; no water material resolved so the surface draws the flat shade";
+    return reading;
+  }
+
+  reading.state = request.textureResolved
+    ? WorldWaterSurfaceState::Active
+    : WorldWaterSurfaceState::Fallback;
+  reading.waterFallback = !request.textureResolved;
+  reading.waterDrawCalls = 1;
+  reading.waterVisible = true;
+  // The warp is applied here, once, on the CPU, so what the renderer uploads is
+  // what this function counted. Applying it again in a shader would be a second
+  // implementation, and a gate that tested this one could pass while the other
+  // one drew an unwarped surface.
+  reading.waterWarpApplied = request.textureResolved && request.warpAmplitude > 0.0f;
+  outVertices.reserve(request.vertices.size());
+  for (const auto& vertex : request.vertices) {
+    WorldWaterVertex warped = vertex;
+    if (reading.waterWarpApplied) {
+      worldWaterWarpUv(vertex.u, vertex.v, request.warpPhase, request.warpAmplitude,
+        warped.u, warped.v);
+    }
+    outVertices.push_back(warped);
+  }
+  reading.reason = std::to_string(reading.waterTriangles)
+    + " water triangles from " + std::to_string(reading.waterFaces) + " faces; "
+    + (reading.waterWarpApplied ? "approximate warp applied" : "no warp applied")
+    + ", " + (request.textureResolved ? "water texture bound"
+                                     : "water texture unresolved so the flat shade is drawn")
+    + "; reflection and refraction have no render target";
   return reading;
 }
 

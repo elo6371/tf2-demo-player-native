@@ -19,6 +19,16 @@ namespace tf2::native {
 
 namespace {
 struct WorldVertex { float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz; float lu = -1.0f; float lv = -1.0f; };
+// T2 (2026-10-14): the water pass reuses the world's input layout and vertex
+// shader, which is only sound while the two vertex structs agree field for
+// field. This is the assertion that says so at compile time rather than at the
+// first blurred frame.
+static_assert(sizeof(WorldWaterVertex) == sizeof(WorldVertex),
+  "the water pass shares the world input layout, so the vertex structs must match");
+static_assert(offsetof(WorldWaterVertex, u) == offsetof(WorldVertex, u)
+  && offsetof(WorldWaterVertex, nx) == offsetof(WorldVertex, nx)
+  && offsetof(WorldWaterVertex, lu) == offsetof(WorldVertex, lu),
+  "the water vertex's uv, normal and light-uv offsets must match the world's");
 struct EntityModelGpuVertex {
   float x, y, z;
   float nx, ny, nz;
@@ -63,8 +73,31 @@ struct ViewModelConstantsData {
   // fallback. y = 1 when the material's own `$alphatest` says to discard below
   // 0.5. z and w are unused and kept so the buffer stays a multiple of 16.
   DirectX::XMFLOAT4 material;
+  // ---- T2 (2026-10-14): the advanced materials ----------------------------
+  // The view matrix, so the vertex shader can hand the pixel shader a
+  // view-space position and normal. Phong needs both: a specular lobe is a
+  // function of the half-vector between the light and the eye, and computing it
+  // from a world-space position would need a second matrix the pass does not
+  // otherwise carry. The view matrix is uploaded once per draw and is the one
+  // `mvp` was already built from, so the two cannot disagree about the camera.
+  DirectX::XMFLOAT4X4 viewMatrix;
+  // x = $phongexponent, y = $phongboost, z/w = $phongfresnelranges.
+  DirectX::XMFLOAT4 phongParams;
+  // $phongtint, or the engine default white when the key was absent.
+  DirectX::XMFLOAT4 phongTint;
+  // x = 1 when the phong branch should run, y = 0/1 for "no tint declared"
+  // (so an absent tint is not applied as black), z/w unused.
+  DirectX::XMFLOAT4 phongFeatures;
+  // x = 1 when the bump branch should run, y = 1 when the material asked for
+  // `$normalmapalphaenvmapmask`, z/w unused.
+  DirectX::XMFLOAT4 bumpFeatures;
+  // x = 1 when the selfillum branch should run, y = 1 when the mask is the
+  // albedo's alpha rather than a separate texture, z/w unused.
+  DirectX::XMFLOAT4 selfillumFeatures;
+  // $selfillumtint, or the engine default white.
+  DirectX::XMFLOAT4 selfillumTint;
 };
-static_assert(sizeof(ViewModelConstantsData) == 112, "viewmodel constant buffer size");
+static_assert(sizeof(ViewModelConstantsData) == 272, "viewmodel constant buffer size");
 struct ModelGpuVertex {
   float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz;
   float weights[3]; std::uint8_t boneIndices[3]; std::uint8_t boneCount; std::uint8_t padding[1];
@@ -110,6 +143,7 @@ RenderSettings RenderSettings::fromPreset(QualityPreset preset) {
     settings.specular = true;
     settings.waterReflection = true;
     settings.waterRefraction = true;
+    settings.waterSurface = true;
     settings.skybox = true;
     settings.modelLod = 0;
   }
@@ -437,6 +471,13 @@ cbuffer ViewModelConstants : register(b0) {
   float4 tint;
   float4 skinInfo;
   float4 material;
+  row_major float4x4 viewMatrix;
+  float4 phongParams;
+  float4 phongTint;
+  float4 phongFeatures;
+  float4 bumpFeatures;
+  float4 selfillumFeatures;
+  float4 selfillumTint;
 };
 StructuredBuffer<float4x4> viewModelBones : register(t4);
 struct Input {
@@ -451,6 +492,12 @@ struct Output {
   float3 normal : NORMAL0;
   float2 uv : TEXCOORD0;
   float4 colour : COLOR0;
+  // T2 (2026-10-14): the view-space position and normal, which is what the
+  // Phong half-vector needs. Both are computed from the same `viewMatrix` the
+  // pass uploads, so the highlight is a function of the camera that actually
+  // drew the frame rather than of a second camera reconstructed in the shader.
+  float3 viewPosition : TEXCOORD1;
+  float3 viewNormal : TEXCOORD2;
 };
 Output main(Input input) {
   Output output;
@@ -479,6 +526,12 @@ Output main(Input input) {
   // the hand mirror is applied once, here, and never to the world skeleton.
   output.position = mul(local, mvp);
   output.normal = normalLocal;
+  // The view-space pair, from the same view matrix `mvp` was built with. A
+  // non-finite or zero view matrix (the pass uploads identity when it has none)
+  // leaves both at a value the pixel shader's safe-normalise refuses, so the
+  // highlight degrades rather than producing a NaN that paints the whole model.
+  output.viewPosition = mul(local, viewMatrix).xyz;
+  output.viewNormal = mul(float4(normalLocal, 0.0), viewMatrix).xyz;
   // The mesh's own TEXCOORD0. It was decoded from the VVD from the first
   // version of this pass and thrown away here, because the pixel shader had no
   // texture to sample; the material chain is what made it worth carrying.
@@ -504,19 +557,111 @@ cbuffer ViewModelConstants : register(b0) {
   float4 tint;
   float4 skinInfo;
   float4 material;
+  row_major float4x4 viewMatrix;
+  float4 phongParams;
+  float4 phongTint;
+  float4 phongFeatures;
+  float4 bumpFeatures;
+  float4 selfillumFeatures;
+  float4 selfillumTint;
 };
 Texture2D albedo : register(t0);
+// t1 is the normal map and t2 the selfillum mask. They are separate slots from
+// the albedo on purpose: the T2 rule is that a normal map must never be
+// uploaded as the base texture, and one shared slot is exactly how that
+// happens. The mask is a third slot for the same reason.
+Texture2D bumpTexture : register(t1);
+Texture2D selfillumMask : register(t2);
 SamplerState albedoSampler : register(s0);
-struct Input { float4 position : SV_POSITION; float3 normal : NORMAL0; float2 uv : TEXCOORD0; float4 colour : COLOR0; };
+struct Input {
+  float4 position : SV_POSITION;
+  float3 normal : NORMAL0;
+  float2 uv : TEXCOORD0;
+  float4 colour : COLOR0;
+  float3 viewPosition : TEXCOORD1;
+  float3 viewNormal : TEXCOORD2;
+};
+float3 safeNormalize(float3 value) {
+  float lengthSquared = dot(value, value);
+  if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
+  return value * rsqrt(lengthSquared);
+}
 float4 main(Input input) : SV_TARGET {
+  // The world-space-ish normal the pass has always shaded by, kept as the
+  // fallback so a frame with no advanced material draws exactly what it drew
+  // before this round.
   float3 normal = normalize(input.normal);
-  float diffuse = saturate(dot(normal, normalize(float3(-0.30, 0.42, 0.86))));
+  float3 lightDirection = normalize(float3(-0.30, 0.42, 0.86));
+  float diffuse = saturate(dot(normal, lightDirection));
   float lighting = 0.55 + 0.45 * diffuse;
   if (material.x > 0.5) {
     float4 texel = albedo.Sample(albedoSampler, input.uv);
     // `$alphatest`: the material's own key, not a threshold invented here.
     if (material.y > 0.5 && texel.a < 0.5) discard;
-    return float4(texel.rgb * lighting, texel.a * input.colour.a);
+    float3 albedoRgb = texel.rgb;
+
+    // ---- Bump ----------------------------------------------------------
+    // The normal map is sampled in tangent space and rotated into view space by
+    // the interpolated view normal. There is no tangent basis in the mesh, so
+    // the rotation is approximate -- and the approximation is stated rather
+    // than dressed up: the branch changes the lighting, which is what makes it
+    // falsifiable, but it is not a full TBN transform and the reading says so.
+    float3 shadedNormal = safeNormalize(input.viewNormal);
+    if (bumpFeatures.x > 0.5) {
+      float3 tangentNormal = bumpTexture.Sample(albedoSampler, input.uv).xyz * 2.0 - 1.0;
+      // The perturbed normal: the interpolated normal tilted by the map. The
+      // magnitude is bounded so a garbage normal map cannot flip the surface.
+      shadedNormal = safeNormalize(shadedNormal + tangentNormal * 0.5);
+      if (dot(shadedNormal, shadedNormal) < 1e-6) shadedNormal = safeNormalize(input.viewNormal);
+    }
+    float3 viewLight = safeNormalize(mul(float4(lightDirection, 0.0), viewMatrix).xyz);
+    float bumpDiffuse = saturate(dot(shadedNormal, viewLight));
+    float bumpLighting = 0.55 + 0.45 * bumpDiffuse;
+
+    // ---- Phong ---------------------------------------------------------
+    // A specular lobe on the same view-space normal, using the half-vector
+    // between the light and the eye. The exponent is the material's own and the
+    // fresnel range scales it, so the two parameters are what the picture is a
+    // function of: changing either moves the highlight, which is what the
+    // fixture's exponent mutation measures.
+    float3 specular = float3(0.0, 0.0, 0.0);
+    if (phongFeatures.x > 0.5) {
+      float3 viewDirection = safeNormalize(-input.viewPosition);
+      float3 halfDirection = safeNormalize(viewLight + viewDirection);
+      float exponent = max(phongParams.x, 1.0);
+      float specularTerm = pow(saturate(dot(shadedNormal, halfDirection)), exponent);
+      // The Fresnel range gates the lobe by the view angle: a surface seen
+      // face-on gets the low end, one seen edge-on the high end. A range whose
+      // min exceeds its max was refused at parse time, so this is always a
+      // well-ordered pair.
+      float fresnelBase = saturate(1.0 - saturate(dot(shadedNormal, viewDirection)));
+      float fresnel = lerp(phongParams.z, phongParams.w, fresnelBase);
+      float strength = specularTerm * phongParams.y * fresnel;
+      // `phongFeatures.y == 0` means the material declared no $phongtint, and
+      // an absent tint is the engine's white rather than black -- applying
+      // black would delete the highlight and look like a working shader.
+      float3 tintColour = phongFeatures.y > 0.5 ? phongTint.rgb : float3(1.0, 1.0, 1.0);
+      specular = tintColour * strength;
+    }
+
+    // ---- Selfillum -----------------------------------------------------
+    // The mask is a separate texture when the material named one, and the
+    // albedo's alpha when it did not -- Source's own default, stated rather
+    // than left to a missing file read as zero. The result is added to the
+    // shaded colour so a self-illuminated surface is bright where the mask is
+    // bright, which is the whole point of the effect.
+    float3 emission = float3(0.0, 0.0, 0.0);
+    if (selfillumFeatures.x > 0.5) {
+      float mask = selfillumFeatures.y > 0.5
+        ? texel.a
+        : selfillumMask.Sample(albedoSampler, input.uv).r;
+      emission = albedoRgb * selfillumTint.rgb * saturate(mask);
+    }
+
+    float3 lit = albedoRgb * bumpLighting;
+    lit += specular * albedoRgb;
+    lit += emission;
+    return float4(lit, texel.a * input.colour.a);
   }
   return float4(input.colour.rgb * lighting, input.colour.a);
 }
@@ -752,6 +897,18 @@ float4 main(Input input) : SV_TARGET {
   skyRasterDescription.CullMode = D3D11_CULL_NONE;
   if (FAILED(device_->CreateRasterizerState(&skyRasterDescription,
       worldSkyRasterizerState_.GetAddressOf()))) return false;
+  // The water pass draws the same triangles the world pass already drew, so a
+  // coplanar surface would z-fight and the frame would speckle instead of
+  // showing water. The bias pulls the water toward the camera; it is stated
+  // rather than left to the driver because a bias that is too small produces a
+  // plausible-looking noisy picture and one that is too large pulls water over
+  // geometry that should be in front of it. Both values are pinned constants and
+  // the pixel comparison would redden if they changed.
+  D3D11_RASTERIZER_DESC waterRasterDescription = rasterDescription;
+  waterRasterDescription.DepthBias = -256;
+  waterRasterDescription.SlopeScaledDepthBias = -2.0f;
+  if (FAILED(device_->CreateRasterizerState(&waterRasterDescription,
+      worldWaterRasterizerState_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC constantsDescription{};
   // Must cover every field of WorldConstantsData in drawFrame(): mvp (64 bytes)
   // plus five float4 blocks (80) is 144, rounded up to 160 so the next block
@@ -1268,6 +1425,109 @@ void Renderer::setWorldVisClipEnabled(bool enabled) {
     worldVisClipState_ = WorldVisClipState::Disabled;
     worldVisClipReason_ = "vis clip disabled by the caller";
   }
+}
+
+// ---------------------------------------------------------------------------
+// T2 (2026-10-14): the water surface
+// ---------------------------------------------------------------------------
+// A second world buffer holding only the water triangles, in the same converted
+// space and the same vertex layout as the world buffer. The layout is shared on
+// purpose (see the static_assert at the top of this file) and the buffer is
+// separate on purpose: the water pass draws its own subset, so switching it off
+// cannot change a single triangle the world pass draws and cannot move the pvs
+// clip's `drawn + hidden == input` identity.
+
+bool Renderer::uploadWorldWaterGeometry(const std::vector<WorldWaterVertex>& vertices) {
+  worldWaterVertexBuffer_.Reset();
+  worldWaterVertexCount_ = 0;
+  worldWaterDrewThisFrame_ = false;
+  if (vertices.empty()) {
+    worldWaterState_ = WorldWaterSurfaceState::Unavailable;
+    worldWaterReason_ = "no water geometry was built";
+    return true;
+  }
+  // Not a whole number of triangles is a corrupted buffer, not water. Refusing
+  // by name is what stops a truncated upload from drawing half a surface and
+  // still counting as a face.
+  if (vertices.size() % 3u != 0u || vertices.size() % 2u != 0u) {
+    worldWaterState_ = WorldWaterSurfaceState::Unavailable;
+    worldWaterReason_ = "the water buffer holds " + std::to_string(vertices.size())
+      + " vertices, which is not a whole number of faces";
+    return false;
+  }
+  if (vertices.size() > (std::numeric_limits<UINT>::max)() / sizeof(WorldVertex)) {
+    worldWaterState_ = WorldWaterSurfaceState::Unavailable;
+    worldWaterReason_ = "the water surface is too large to upload";
+    return false;
+  }
+  D3D11_BUFFER_DESC description{};
+  description.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(WorldVertex));
+  description.Usage = D3D11_USAGE_DEFAULT;
+  description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+  D3D11_SUBRESOURCE_DATA initial{};
+  initial.pSysMem = vertices.data();
+  Microsoft::WRL::ComPtr<ID3D11Buffer> buffer;
+  if (FAILED(device_->CreateBuffer(&description, &initial, buffer.GetAddressOf()))) {
+    worldWaterState_ = WorldWaterSurfaceState::Unavailable;
+    worldWaterReason_ = "CreateBuffer refused the water surface";
+    return false;
+  }
+  worldWaterVertexBuffer_ = std::move(buffer);
+  worldWaterVertexCount_ = static_cast<UINT>(vertices.size());
+  return true;
+}
+
+bool Renderer::uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+  worldWaterTexture_.reset();
+  worldWaterTextureBound_ = false;
+  worldWaterTextureSide_ = 0;
+  // An empty buffer is a fallback, not a failure. The pass then draws the flat
+  // shade and says so, which is a different row from "the texture failed to
+  // upload" -- and a caller that has no water material at all should still be
+  // able to draw the surface.
+  if (rgba.empty() || width == 0 || height == 0) return true;
+  const std::size_t expected = static_cast<std::size_t>(width) * height * 4u;
+  if (rgba.size() < expected) {
+    OutputDebugStringA("TF2 Demo Player: water texture is smaller than its dimensions claim.\n");
+    return false;
+  }
+  std::string error;
+  if (!worldWaterTexture_.create(device_.Get(), rgba, width, height, &error)) {
+    OutputDebugStringA(("Water texture upload failed: " + error + "\n").c_str());
+    return false;
+  }
+  worldWaterTextureBound_ = worldWaterTexture_.view() != nullptr;
+  worldWaterTextureSide_ = width;
+  return worldWaterTextureBound_;
+}
+
+void Renderer::setWorldWaterWarp(double phase, float amplitude) {
+  worldWaterPhase_ = phase;
+  worldWaterAmplitude_ = amplitude;
+}
+
+WaterSurfaceSampleState Renderer::waterSurfaceSampleState() const {
+  // Built fresh on each read rather than cached, so a mutation that deletes the
+  // draw changes what this returns rather than what a stale copy holds. That is
+  // the same discipline the sky and vis readings use.
+  WaterSurfaceSampleState sample{};
+  sample.state = worldWaterEnabled_ ? worldWaterState_ : WorldWaterSurfaceState::Unavailable;
+  sample.waterTriangles = worldWaterVertexCount_ / 3u;
+  sample.waterFaces = worldWaterVertexCount_ / 6u;
+  // Whether the Draw call ran. Set inside the pass, never recomputed from the
+  // same condition the pass tests: a reading composed from its own copy of the
+  // guard reports a draw that was deleted.
+  sample.waterDrawCalls = worldWaterDrewThisFrame_ ? 1u : 0u;
+  sample.waterVisible = worldWaterDrewThisFrame_;
+  sample.waterTextureBound = worldWaterTextureBound_;
+  sample.waterWarpApplied = worldWaterDrewThisFrame_
+    && worldWaterTextureBound_ && worldWaterAmplitude_ > 0.0f;
+  sample.waterFallback = worldWaterDrewThisFrame_ && !worldWaterTextureBound_;
+  sample.reflectionState = worldWaterReflectionState_;
+  sample.refractionState = worldWaterRefractionState_;
+  sample.reason = worldWaterEnabled_ ? worldWaterReason_
+                                      : "water draw disabled by the caller";
+  return sample;
 }
 
 bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
@@ -2100,6 +2360,188 @@ void Renderer::clearViewModelMaterials() {
   // per-frame recreation read as a small number that keeps starting over.
 }
 
+// ---------------------------------------------------------------------------
+// T2 (2026-10-14): the ViewModel's advanced materials
+// ---------------------------------------------------------------------------
+// Three effects, three separate texture slots, and one rule that the whole
+// section exists to enforce: a normal map is never uploaded as the albedo. The
+// albedo cache is keyed by the slot's own normalized vtf path and the normal map
+// has its own single texture, so the two cannot collide by construction rather
+// than by a check somebody has to remember.
+
+bool Renderer::uploadViewModelBumpTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+  viewModelBumpTexture_.Reset();
+  viewModelBumpView_.Reset();
+  viewModelBumpBound_ = false;
+  // Empty is the material's own "no normal map": the pass draws plain lighting
+  // and the reading says so. It is not a failure.
+  if (rgba.empty() || width == 0 || height == 0) return true;
+  const std::size_t expected = static_cast<std::size_t>(width) * height * 4u;
+  if (rgba.size() < expected) { lastError_ = E_INVALIDARG; return false; }
+  D3D11_TEXTURE2D_DESC description{};
+  description.Width = width;
+  description.Height = height;
+  description.MipLevels = 1;
+  description.ArraySize = 1;
+  description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  description.SampleDesc.Count = 1;
+  description.Usage = D3D11_USAGE_IMMUTABLE;
+  description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+  D3D11_SUBRESOURCE_DATA data{};
+  data.pSysMem = rgba.data();
+  data.SysMemPitch = width * 4u;
+  if (FAILED(device_->CreateTexture2D(&description, &data, viewModelBumpTexture_.GetAddressOf()))) {
+    lastError_ = E_FAIL;
+    return false;
+  }
+  if (FAILED(device_->CreateShaderResourceView(viewModelBumpTexture_.Get(), nullptr,
+      viewModelBumpView_.GetAddressOf()))) {
+    viewModelBumpTexture_.Reset();
+    lastError_ = E_FAIL;
+    return false;
+  }
+  viewModelBumpBound_ = true;
+  // Cumulative and never reset: the reading that catches a pass which rebuilds
+  // its normal map every frame. A per-frame reset would make that look constant.
+  ++viewModelBumpTexturesUploaded_;
+  return true;
+}
+
+bool Renderer::uploadViewModelSelfillumMask(const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+  viewModelSelfillumMaskTexture_.Reset();
+  viewModelSelfillumMaskView_.Reset();
+  viewModelSelfillumMaskBound_ = false;
+  if (rgba.empty() || width == 0 || height == 0) return true;
+  const std::size_t expected = static_cast<std::size_t>(width) * height * 4u;
+  if (rgba.size() < expected) { lastError_ = E_INVALIDARG; return false; }
+  D3D11_TEXTURE2D_DESC description{};
+  description.Width = width;
+  description.Height = height;
+  description.MipLevels = 1;
+  description.ArraySize = 1;
+  description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  description.SampleDesc.Count = 1;
+  description.Usage = D3D11_USAGE_IMMUTABLE;
+  description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+  D3D11_SUBRESOURCE_DATA data{};
+  data.pSysMem = rgba.data();
+  data.SysMemPitch = width * 4u;
+  if (FAILED(device_->CreateTexture2D(&description, &data,
+      viewModelSelfillumMaskTexture_.GetAddressOf()))) {
+    lastError_ = E_FAIL;
+    return false;
+  }
+  if (FAILED(device_->CreateShaderResourceView(viewModelSelfillumMaskTexture_.Get(), nullptr,
+      viewModelSelfillumMaskView_.GetAddressOf()))) {
+    viewModelSelfillumMaskTexture_.Reset();
+    lastError_ = E_FAIL;
+    return false;
+  }
+  viewModelSelfillumMaskBound_ = true;
+  return true;
+}
+
+void Renderer::setViewModelMaterialEffects(const ViewModelMaterialEffects& effects) {
+  viewModelMaterialEffects_ = effects;
+  viewModelMaterialEffectsSet_ = true;
+}
+
+ViewModelMaterialSampleState Renderer::viewModelMaterialSampleState() const {
+  // Assembled from the stored effects plus the per-frame range counters the draw
+  // itself incremented. The counters are what makes `applied` a fact about a
+  // frame rather than about a declaration: a material can declare Phong and be
+  // drawn by a range whose texture never resolved, and that is a different row.
+  ViewModelMaterialSampleState sample{};
+  const auto& fx = viewModelMaterialEffects_;
+
+  // ---- Phong ----
+  sample.phongDeclared = fx.phong.declared;
+  sample.phongParsed = fx.phong.parsed;
+  sample.phongUploaded = fx.phong.parsed && fx.shaderReady;
+  sample.phongApplied = viewModelPhongAppliedRanges_ > 0;
+  sample.phongAppliedRanges = viewModelPhongAppliedRanges_;
+  sample.phongFallback = fx.phong.declared
+    && (!fx.phong.parsed || viewModelPhongAppliedRanges_ == 0);
+  sample.phongExponent = fx.phong.exponent;
+  sample.phongBoost = fx.phong.boost;
+  sample.phongFresnelMin = fx.phong.fresnel[0];
+  sample.phongFresnelMax = fx.phong.fresnel[1];
+  for (int i = 0; i < 3; ++i) sample.phongTint[i] = fx.phong.tint[i];
+  if (!fx.phong.declared) {
+    sample.phongState = ViewModelEffectState::Unavailable;
+  } else if (!fx.phong.parsed) {
+    sample.phongState = ViewModelEffectState::Declared;
+  } else if (viewModelPhongAppliedRanges_ > 0) {
+    sample.phongState = ViewModelEffectState::Active;
+  } else {
+    sample.phongState = ViewModelEffectState::Fallback;
+  }
+  sample.phongReason = !fx.shaderReady
+    ? std::string("the viewmodel pixel shader is not ready")
+    : (fx.phong.reason.empty() ? std::string("no phong was read") : fx.phong.reason);
+
+  // ---- Bump ----
+  sample.bumpDeclared = fx.bump.declared;
+  sample.bumpParsed = fx.bump.parsed;
+  sample.bumpTexturePath = fx.bump.boundPath;
+  sample.bumpTextureResolved = fx.bump.parsed && !fx.bump.boundPath.empty();
+  sample.bumpTextureUploaded = viewModelBumpBound_;
+  // A bind served out of the existing texture rather than a fresh upload. Read
+  // together with bumpTexturesUploaded staying at 1 over many frames, this is
+  // the per-frame-recreation reading.
+  sample.bumpTextureReused = viewModelBumpBound_
+    && viewModelBumpTexturesUploaded_ > 0 && viewModelBumpAppliedRanges_ > 0;
+  sample.bumpUploaded = viewModelBumpBound_;
+  sample.bumpApplied = viewModelBumpAppliedRanges_ > 0;
+  sample.bumpAppliedRanges = viewModelBumpAppliedRanges_;
+  sample.bumpFallback = fx.bump.declared
+    && (!fx.bump.parsed || !viewModelBumpBound_ || viewModelBumpAppliedRanges_ == 0);
+  if (!fx.bump.declared) {
+    sample.bumpState = ViewModelEffectState::Unavailable;
+  } else if (!fx.bump.parsed) {
+    sample.bumpState = ViewModelEffectState::Declared;
+  } else if (viewModelBumpAppliedRanges_ > 0) {
+    sample.bumpState = ViewModelEffectState::Active;
+  } else {
+    sample.bumpState = ViewModelEffectState::Fallback;
+  }
+  sample.bumpReason = !fx.shaderReady
+    ? std::string("the viewmodel pixel shader is not ready")
+    : (fx.bump.reason.empty() ? std::string("no normal map was read") : fx.bump.reason);
+
+  // ---- Selfillum ----
+  sample.selfillumDeclared = fx.selfillum.declared;
+  sample.selfillumParsed = fx.selfillum.parsed;
+  sample.selfillumMaskDeclared = fx.selfillum.maskDeclared;
+  sample.selfillumMaskBound = viewModelSelfillumMaskBound_;
+  for (int i = 0; i < 3; ++i) {
+    sample.selfillumTint[i] = fx.selfillum.tint[i];
+  }
+  sample.selfillumUploaded = fx.selfillum.parsed
+    && (viewModelSelfillumMaskBound_ || fx.selfillum.maskFromAlpha);
+  sample.selfillumApplied = viewModelSelfillumAppliedRanges_ > 0;
+  sample.selfillumAppliedRanges = viewModelSelfillumAppliedRanges_;
+  sample.selfillumFallback = fx.selfillum.declared
+    && (!fx.selfillum.parsed || viewModelSelfillumAppliedRanges_ == 0);
+  if (!fx.selfillum.declared) {
+    sample.selfillumState = ViewModelEffectState::Unavailable;
+  } else if (!fx.selfillum.parsed) {
+    sample.selfillumState = ViewModelEffectState::Declared;
+  } else if (viewModelSelfillumAppliedRanges_ > 0) {
+    sample.selfillumState = ViewModelEffectState::Active;
+  } else {
+    sample.selfillumState = ViewModelEffectState::Fallback;
+  }
+  sample.selfillumReason = !fx.shaderReady
+    ? std::string("the viewmodel pixel shader is not ready")
+    : (fx.selfillum.reason.empty() ? std::string("no selfillum was read")
+                                   : fx.selfillum.reason);
+
+  sample.texturesUploaded = viewModelTexturesUploaded_;
+  sample.texturesReused = viewModelTexturesReused_;
+  return sample;
+}
+
 bool Renderer::uploadViewModelBones(const std::vector<std::array<float, 16>>& boneMatrices) {
   viewModelBoneUploadCount_ = 0;
   if (boneMatrices.empty() || !device_ || !context_) return false;
@@ -2291,7 +2733,44 @@ bool Renderer::drawViewModel() {
   constants.tint = XMFLOAT4(viewModelState_.tint[0], viewModelState_.tint[1],
     viewModelState_.tint[2], viewModelState_.tint[3]);
   constants.skinInfo = XMFLOAT4(static_cast<float>(effectiveBoneCount), 0.0f, 0.0f, 0.0f);
+  // ---- T2 (2026-10-14): the advanced-material constants --------------------
+  // The same `view` the mvp was built from, so the shader's view-space normal
+  // and the highlight derived from it belong to the camera that drew this frame
+  // rather than to a second camera reconstructed in the shader.
+  XMStoreFloat4x4(&constants.viewMatrix, view);
+  const auto& effects = viewModelMaterialEffects_;
+  // A branch runs only when the material parsed AND the shader compiled. The
+  // shaderReady flag is the caller's answer to "did the pixel shader build",
+  // which is the one fact this function cannot see: a shader that failed to
+  // compile is a fallback for all three effects at once.
+  const bool phongOn = effects.shaderReady && effects.phong.declared && effects.phong.parsed;
+  const bool bumpOn = effects.shaderReady && effects.bump.declared && effects.bump.parsed
+    && viewModelBumpBound_;
+  const bool selfillumOn = effects.shaderReady && effects.selfillum.declared
+    && effects.selfillum.parsed;
+  constants.phongParams = XMFLOAT4(effects.phong.exponent, effects.phong.boost,
+    effects.phong.fresnel[0], effects.phong.fresnel[1]);
+  constants.phongTint = XMFLOAT4(effects.phong.tint[0], effects.phong.tint[1],
+    effects.phong.tint[2], 1.0f);
+  constants.phongFeatures = XMFLOAT4(phongOn ? 1.0f : 0.0f,
+    effects.phong.tintDeclared ? 1.0f : 0.0f, 0.0f, 0.0f);
+  constants.bumpFeatures = XMFLOAT4(bumpOn ? 1.0f : 0.0f,
+    effects.bump.alphaEnvMapMask ? 1.0f : 0.0f, 0.0f, 0.0f);
+  constants.selfillumFeatures = XMFLOAT4(selfillumOn ? 1.0f : 0.0f,
+    effects.selfillum.maskFromAlpha ? 1.0f : 0.0f, 0.0f, 0.0f);
+  constants.selfillumTint = XMFLOAT4(effects.selfillum.tint[0], effects.selfillum.tint[1],
+    effects.selfillum.tint[2], 1.0f);
   XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(viewModelMvp_.data()), mvp);
+  // The three per-range counters are reset here, at the top of the pass, so a
+  // frame that draws nothing cannot inherit the previous frame's counts. The
+  // texture-upload counter above is deliberately NOT reset: it is a whole-run
+  // reading and a per-frame reset would hide a pass that rebuilds every frame.
+  viewModelPhongAppliedRanges_ = 0;
+  viewModelBumpAppliedRanges_ = 0;
+  viewModelSelfillumAppliedRanges_ = 0;
+  viewModelPhongFallbackRanges_ = 0;
+  viewModelBumpFallbackRanges_ = 0;
+  viewModelSelfillumFallbackRanges_ = 0;
 
   // The pass's own depth policy. Depth is cleared first, so the weapon is drawn
   // over the map it is standing in rather than being clipped by it -- the world
@@ -2316,6 +2795,17 @@ bool Renderer::drawViewModel() {
   // buffer is read as garbage, not as zeros.
   auto* boneView = viewModelBoneView_.Get();
   context_->VSSetShaderResources(4, 1, &boneView);
+  // t1 and t2 are bound unconditionally too, for the same reason t4 is: the
+  // shader's branch is what decides whether they are sampled, and an unbound
+  // sampler slot is read as garbage rather than as white. A null view here is
+  // the honest "this material has no normal map", and `bumpFeatures.x` is the
+  // flag that stops the branch from sampling it.
+  {
+    auto* bumpView = viewModelBumpView_.Get();
+    auto* maskView = viewModelSelfillumMaskView_.Get();
+    context_->PSSetShaderResources(1, 1, &bumpView);
+    context_->PSSetShaderResources(2, 1, &maskView);
+  }
 
   // One draw per material range. A range with no cached texture for its slot is
   // the fallback: `material.x = 0` and the flat colour, which is why the
@@ -2360,16 +2850,34 @@ bool Renderer::drawViewModel() {
         if (std::find(boundSlots.begin(), boundSlots.end(), range.slot) == boundSlots.end()) {
           boundSlots.push_back(range.slot);
         }
+        // T2 (2026-10-14): the per-range effect counts. Counted here, on the
+        // range that is about to draw with a texture bound, so `applied` is a
+        // fact about this frame's draw and not about the material's own
+        // declaration. A material whose slot resolved but whose range was never
+        // drawn increments nothing, which is the row the task's
+        // "declared is not applied" rule exists for.
+        if (phongOn) ++viewModelPhongAppliedRanges_;
+        if (bumpOn) ++viewModelBumpAppliedRanges_;
+        if (selfillumOn) ++viewModelSelfillumAppliedRanges_;
       } else {
         context_->PSSetShaderResources(0, 1, &nullView);
         context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
         ++viewModelFallbackRanges_;
+        // The flat-colour range: every advanced branch is off for it, and the
+        // fallback counters are what say so rather than leaving a reader to
+        // infer it from an applied count of zero.
+        if (effects.phong.declared) ++viewModelPhongFallbackRanges_;
+        if (effects.bump.declared) ++viewModelBumpFallbackRanges_;
+        if (effects.selfillum.declared) ++viewModelSelfillumFallbackRanges_;
       }
       context_->Draw(range.vertexCount, range.firstVertex);
     }
     viewModelBoundSlots_ = boundSlots.size();
   }
   context_->PSSetShaderResources(0, 1, &nullView);
+  ID3D11ShaderResourceView* noAux = nullptr;
+  context_->PSSetShaderResources(1, 1, &noAux);
+  context_->PSSetShaderResources(2, 1, &noAux);
   context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
 
   ++viewModelDrawCount_;
@@ -2443,6 +2951,19 @@ bool Renderer::drawViewModel() {
     // this last update, so it has to be zeroed rather than left at the arms'
     // count -- otherwise the body would be skinned by the arms' matrices.
     weaponConstants.skinInfo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+    // T2 (2026-10-14): the same advanced-material state as the arms. The body is
+    // a separate mesh slot but the same first-person composite, so a weapon whose
+    // material declares Phong should highlight and one that declares selfillum
+    // should glow; leaving these zeroed would make the two halves of one
+    // composite disagree about the same material. The `view` is the same matrix
+    // the arms' mvp was built from, for the same reason as above.
+    XMStoreFloat4x4(&weaponConstants.viewMatrix, view);
+    weaponConstants.phongParams = constants.phongParams;
+    weaponConstants.phongTint = constants.phongTint;
+    weaponConstants.phongFeatures = constants.phongFeatures;
+    weaponConstants.bumpFeatures = constants.bumpFeatures;
+    weaponConstants.selfillumFeatures = constants.selfillumFeatures;
+    weaponConstants.selfillumTint = constants.selfillumTint;
     context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &weaponConstants, 0, 0);
     auto* weaponBuffer = viewModelWeaponVertexBuffer_.Get();
     context_->IASetVertexBuffers(0, 1, &weaponBuffer, &stride, &offset);
@@ -2815,6 +3336,60 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // the passes below, so "the weapon draws after the world" is a number the
   // runtime can print rather than a claim about the order of these statements.
   viewModelWorldPassOrdinal_ = ++framePassOrdinal_;
+
+  // ---- T2 (2026-10-14): the water surface, as its own pass ----------------
+  // Drawn immediately after the world pass, over the same triangles, with its
+  // own biased rasterizer state and its own texture at t0. It reuses the world's
+  // vertex shader, input layout and constant buffer deliberately: the mvp and
+  // the light direction the world pass just uploaded are the ones the water
+  // should be drawn with, and a second copy of either would be a second thing
+  // that could disagree.
+  //
+  // What this pass must NOT do is change what the world pass drew. It reads its
+  // own vertex buffer and its own texture, and the only state it writes is its
+  // own draw flag -- so `worldVisDrawnTriangles_` and `worldLightmappedVertexCount_`
+  // are untouched by switching water on or off, which is the property that keeps
+  // T1's VIS identity and this round's water switch independent.
+  worldWaterDrewThisFrame_ = false;
+  if (worldWaterEnabled_ && worldWaterVertexBuffer_ && worldWaterVertexCount_ > 0
+      && worldVertexShader_ && worldPixelShader_ && worldInputLayout_
+      && worldWaterRasterizerState_) {
+    const UINT waterStride = sizeof(WorldVertex), waterOffset = 0;
+    auto* waterBuffer = worldWaterVertexBuffer_.Get();
+    auto* waterConstants = worldConstants_.Get();
+    // No bump, no env texture and no cube: the water's own material decides
+    // those, and leaving the world's bound would sample the map's textures with
+    // the water's uv and call the result water.
+    ID3D11ShaderResourceView* waterTexture = worldWaterTexture_.view();
+    ID3D11ShaderResourceView* noBump = nullptr;
+    ID3D11ShaderResourceView* noEnv = nullptr;
+    ID3D11ShaderResourceView* noCube = nullptr;
+    ID3D11ShaderResourceView* noLightmap = nullptr;
+    context_->RSSetState(worldWaterRasterizerState_.Get());
+    context_->IASetInputLayout(worldInputLayout_.Get());
+    context_->IASetVertexBuffers(0, 1, &waterBuffer, &waterStride, &waterOffset);
+    context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
+    context_->VSSetConstantBuffers(0, 1, &waterConstants);
+    context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+    context_->PSSetConstantBuffers(0, 1, &waterConstants);
+    context_->PSSetShaderResources(0, 1, &waterTexture);
+    context_->PSSetShaderResources(1, 1, &noBump);
+    context_->PSSetShaderResources(2, 1, &noEnv);
+    context_->PSSetShaderResources(3, 1, &noLightmap);
+    context_->PSSetShaderResources(5, 1, &noCube);
+    context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    context_->Draw(worldWaterVertexCount_, 0);
+    worldWaterDrewThisFrame_ = true;
+    // The passes below must not inherit the water's bias or its texture.
+    context_->RSSetState(rasterizerState_.Get());
+    ID3D11ShaderResourceView* noWater = nullptr;
+    context_->PSSetShaderResources(0, 1, &noWater);
+    context_->PSSetShaderResources(1, 1, &noBump);
+    context_->PSSetShaderResources(2, 1, &noEnv);
+    context_->PSSetShaderResources(3, 1, &noLightmap);
+    context_->PSSetShaderResources(5, 1, &noCube);
+  }
+
   if (entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0
       && worldVertexShader_ && worldPixelShader_ && worldInputLayout_ && worldConstants_) {
     const UINT markerStride = sizeof(WorldVertex), markerOffset = 0;
@@ -2952,6 +3527,33 @@ void Renderer::shutdown() {
   worldSkyState_ = WorldSkyState::Unavailable;
   worldSkyReason_ = "no sky box was uploaded";
   worldSkyDrewThisFrame_ = false;
+  // ---- T2 (2026-10-14): the water surface --------------------------------
+  // Reset with the rest of the world's GPU state so a new map starts from
+  // "no water was uploaded" rather than from the previous map's surface.
+  worldWaterVertexBuffer_.Reset();
+  worldWaterTexture_.reset();
+  worldWaterRasterizerState_.Reset();
+  worldWaterVertexCount_ = 0;
+  worldWaterTextureSide_ = 0;
+  worldWaterTextureBound_ = false;
+  worldWaterDrewThisFrame_ = false;
+  worldWaterState_ = WorldWaterSurfaceState::Unavailable;
+  worldWaterReflectionState_ = WorldWaterSurfaceState::Unavailable;
+  worldWaterRefractionState_ = WorldWaterSurfaceState::Unavailable;
+  worldWaterReason_ = "no water geometry was uploaded";
+  waterSurfaceSample_ = WaterSurfaceSampleState{};
+  // T2 (2026-10-14): the ViewModel's advanced-material GPU state. The counters
+  // go back to zero with the resources they describe; the cumulative upload
+  // counter does not, because it is a whole-run reading.
+  viewModelBumpTexture_.Reset();
+  viewModelBumpView_.Reset();
+  viewModelSelfillumMaskTexture_.Reset();
+  viewModelSelfillumMaskView_.Reset();
+  viewModelBumpBound_ = false;
+  viewModelSelfillumMaskBound_ = false;
+  viewModelMaterialEffects_ = ViewModelMaterialEffects{};
+  viewModelMaterialEffectsSet_ = false;
+  viewModelMaterialSample_ = ViewModelMaterialSampleState{};
   worldIndexBuffer_.Reset();
   worldIndexCapacity_ = 0;
   worldIndexCount_ = 0;
