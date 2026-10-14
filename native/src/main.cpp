@@ -857,6 +857,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // and "the fallback is stable" as two separate claims about two separate code
   // paths. Here they are the same code path, measured twice.
   bool viewModelFlatColor = false;
+  // ---- T2 (2026-10-14): the three advanced-material switches --------------
+  // Each effect gets its own on|off pair, and the reason is the pixel claim: a
+  // `phong-off` frame and a `phong-on` frame have to differ in exactly one
+  // input, and a single combined switch could not tell which of the three moved
+  // the picture. `given` is tracked separately from `requested` so an explicit
+  // `on` is distinguishable from the material's own answer, exactly as the sky
+  // and water switches do.
+  bool viewModelPhongGiven = false;
+  bool viewModelPhongRequested = true;
+  bool viewModelBumpGiven = false;
+  bool viewModelBumpRequested = true;
+  bool viewModelSelfillumGiven = false;
+  bool viewModelSelfillumRequested = true;
+  // Diagnostic: treat the drawn ViewModel material as if it declared `$selfillum
+  // 1` with a tint, so the selfillum branch is executable on content that does
+  // not ask for it. The same shape and the same justification as
+  // `--world-env-force`: no ViewModel material on this install was found to
+  // declare `$selfillum`, so without this the branch would be compiled, wired,
+  // counted and never run -- which is exactly the state the task's rule about
+  // "declared is not applied" exists to make visible. Every reading line names
+  // the force, so a forced run cannot be mistaken for a natural one.
+  bool viewModelSelfillumForce = false;
+  // Counted rather than defaulted: an unrecognised value must fail the run,
+  // because a gate that asked for `phong off` and got `phong on` would compare
+  // a frame with itself and report a difference of zero as a pass.
+  int invalidViewModelEffectArgument = 0;
   bool viewModelArgumentRejected = false;
   // Diagnostic: treat the world material as if it declared an env map, so the
   // six-face sampling branch can be run on content that does not ask for it.
@@ -875,6 +901,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool worldSkyGiven = false;
   bool worldVisClipRequested = true;
   bool worldVisClipGiven = false;
+  // T2 (2026-10-14): the water surface follows the same shape as T1's two
+  // switches -- on by default, with an explicit off switch -- for the same
+  // reason: "the water is drawn" is only a reading if "the water is not drawn"
+  // prints something different, and the pixel claim in
+  // world-material-effects-check.sh compares those two frames.
+  bool worldWaterRequested = true;
+  bool worldWaterGiven = false;
+  // Counted rather than guessed at: `--world-water` with no value or with an
+  // unrecognised one must fail the run instead of falling back to the default,
+  // because a gate that asks for water-off and gets water-on has compared the
+  // same frame twice and called it a difference.
+  int invalidWorldWaterArgument = 0;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -899,6 +937,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         worldVisClipRequested = true; worldVisClipGiven = true;
       } else if (wcscmp(arguments[i], L"--no-world-vis-clip") == 0) {
         worldVisClipRequested = false; worldVisClipGiven = true;
+      } else if (wcscmp(arguments[i], L"--world-water") == 0 && i + 1 < argumentCount) {
+        // on|off, and nothing else: a switch that accepts any string is a switch
+        // that silently does nothing on a typo.
+        if (wcscmp(arguments[++i], L"on") == 0) { worldWaterRequested = true; worldWaterGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldWaterRequested = false; worldWaterGiven = true; }
+        else {
+          ++invalidWorldWaterArgument;
+        }
+      } else if (wcscmp(arguments[i], L"--world-water") == 0) {
+        ++invalidWorldWaterArgument;
       } else if (wcscmp(arguments[i], L"--tf-root") == 0 && i + 1 < argumentCount) {
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
@@ -1044,6 +1092,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // existed. Without it "the texture is bound" and "the texture changed the
         // picture in a way nobody measured" are the same observation.
         viewModelFlatColor = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-phong") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { viewModelPhongRequested = true; viewModelPhongGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { viewModelPhongRequested = false; viewModelPhongGiven = true; }
+        else ++invalidViewModelEffectArgument;
+      } else if (wcscmp(arguments[i], L"--viewmodel-phong") == 0) {
+        ++invalidViewModelEffectArgument;
+      } else if (wcscmp(arguments[i], L"--viewmodel-bump") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { viewModelBumpRequested = true; viewModelBumpGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { viewModelBumpRequested = false; viewModelBumpGiven = true; }
+        else ++invalidViewModelEffectArgument;
+      } else if (wcscmp(arguments[i], L"--viewmodel-bump") == 0) {
+        ++invalidViewModelEffectArgument;
+      } else if (wcscmp(arguments[i], L"--viewmodel-selfillum") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { viewModelSelfillumRequested = true; viewModelSelfillumGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { viewModelSelfillumRequested = false; viewModelSelfillumGiven = true; }
+        else ++invalidViewModelEffectArgument;
+      } else if (wcscmp(arguments[i], L"--viewmodel-selfillum") == 0) {
+        ++invalidViewModelEffectArgument;
+      } else if (wcscmp(arguments[i], L"--viewmodel-selfillum-force") == 0) {
+        viewModelSelfillumForce = true;
       } else if (wcscmp(arguments[i], L"--audio-device") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const unsigned long parsed = std::wcstoul(arguments[++i], &end, 10);
@@ -1088,6 +1156,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   if (viewModelArgumentRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov/--viewmodel-render/--viewmodel-weapon-body/--viewmodel-sequence; refusing to guess.\n");
+    return 13;
+  }
+  if (invalidWorldWaterArgument) {
+    // T2 (2026-10-14): `--world-water` takes on|off and nothing else. Refusing
+    // rather than defaulting matters because the pixel claim compares a water-on
+    // frame against a water-off frame; a run that was asked for off and drew on
+    // would compare a frame with itself and report no difference.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-water; it takes on or off and nothing else.\n");
+    return 13;
+  }
+  if (invalidViewModelEffectArgument) {
+    // T2 (2026-10-14): same rule for the three advanced-material switches.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel-phong/--viewmodel-bump/--viewmodel-selfillum; each takes on or off.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
@@ -1507,6 +1588,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // absences and a shared string would let the gate read one for the other.
   std::string worldSkyReason = "no sky box was uploaded";
   float worldVisCameraEye[3] = {0.0f, 0.0f, 0.0f};
+  // ---- T2 (2026-10-14): the water surface ---------------------------------
+  // The warp's amplitude in uv units and the tick its phase is derived from.
+  // Both are stated here rather than inlined at the call so the gate's fixture
+  // can move them and a reader can see which values were used.
+  //
+  // The amplitude is 0.02 because the bound the task asks for is a *bounded*
+  // warp, and a bound only means something next to the number that bounds it:
+  // 0.02 is one twentieth of a texture's uv span, which is large enough to move
+  // the picture and small enough that a warp that escaped its bound would show
+  // up as a texture visibly sliding rather than as a subtle artefact.
+  float waterVertexWarpAmplitude = 0.02f;
+  // A paused launch is at tick 0, so the phase is 0 and the repeat frame is
+  // byte-identical. A demo run advances it, which is what makes `water-on` and
+  // `water-repeat` a statement about the warp rather than about a constant.
+  std::int64_t waterWarpTick = 0;
+  bool waterMaterialResolved_ = false;
+  std::size_t waterFacesInMap_ = 0;
+  std::string waterSurfaceReason = "no water geometry was built";
+  tf2::native::WorldWaterParams waterMaterialParams_;
   bool mapBaseTexture2Found = false;
   bool mapBumpMapFound = false;
   bool mapBaseTexture2Declared = false;
@@ -2294,6 +2394,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     bool materialPassRan = false;
   } viewModelMaterialReadings;
 
+  // T2 (2026-10-14): the three advanced-material readings, for the slot the
+  // picture actually uses. Kept as its own value rather than folded into the
+  // struct above so the existing trace line's fields keep their meaning and the
+  // new line is a strict superset -- a gate needle that matched the old line
+  // still matches it.
+  tf2::native::Renderer::ViewModelMaterialEffects viewModelEffectsReadings;
+  std::int32_t viewModelEffectsSlot = -1;
+  bool viewModelEffectsMaterialParsed = false;
+
   // The ranges the pass draws, from the resolved table. One range today, because
   // the ViewModel mesh is built from one VTX index descriptor; the plumbing is a
   // list because the material chain is per-slot, and a second descriptor would
@@ -2381,6 +2490,110 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         ? (request.materials.drawnSlotReason.empty() ? "-" : request.materials.drawnSlotReason.c_str())
         : summary.firstFailure.c_str());
     const auto ranges = viewModelDrawRangesFor(request);
+    // ---- T2 (2026-10-14): the advanced materials ---------------------------
+    // Read for the slot the picture actually uses, re-parsed from the VMT the
+    // slot resolved. The readers are pure and shared with the probe, so a
+    // reading about this material and a fixture's reading about the same text
+    // cannot disagree.
+    //
+    // The three switches force an effect off for the pixel claim: `phong-off`
+    // and `phong-on` differ in exactly one input, which is what makes the frame
+    // difference attributable to Phong rather than to the material changing.
+    {
+      tf2::native::Renderer::ViewModelMaterialEffects effects;
+      effects.shaderReady = true;
+      const std::int32_t effectSlot = ranges.empty() ? -1 : ranges.front().slot;
+      const bool effectSlotValid = effectSlot >= 0
+        && static_cast<std::size_t>(effectSlot) < request.materials.slots.size()
+        && request.materials.slots[static_cast<std::size_t>(effectSlot)].pixelsDecoded;
+      tf2::native::VmtMaterial effectMaterial;
+      bool effectMaterialParsed = false;
+      if (effectSlotValid) {
+        const auto& slot = request.materials.slots[static_cast<std::size_t>(effectSlot)];
+        const auto read = tf2::native::readViewModelResource(assets, slot.vmtPath);
+        if (!read.bytes.empty()) {
+          effectMaterialParsed = tf2::native::VmtParser::parse(
+            std::string(read.bytes.begin(), read.bytes.end()), effectMaterial);
+        }
+      }
+      if (effectMaterialParsed) {
+        effects.phong = tf2::native::readViewModelPhong(effectMaterial);
+        effects.bump = tf2::native::readViewModelBump(effectMaterial);
+        effects.selfillum = tf2::native::readViewModelSelfillum(effectMaterial);
+      }
+      // The selfillum force, before the switches so an explicit `off` still
+      // wins: a run that asked for selfillum off must not be forced back on.
+      if (viewModelSelfillumForce && effectSlotValid) {
+        effects.selfillum.declared = true;
+        effects.selfillum.parsed = true;
+        effects.selfillum.maskFromAlpha = true;
+        effects.selfillum.tint[0] = 0.35f;
+        effects.selfillum.tint[1] = 0.45f;
+        effects.selfillum.tint[2] = 0.95f;
+        effects.selfillum.reason += "; forced on by --viewmodel-selfillum-force"
+          " (the albedo alpha masks)";
+      }
+      // The switches, applied after the readers so the reading still says what
+      // the material asked for and the forced-off state is visibly the caller's
+      // doing rather than a material that declares nothing.
+      if (viewModelPhongGiven && !viewModelPhongRequested) {
+        effects.phong.parsed = false;
+        effects.phong.reason += "; forced off by --viewmodel-phong off";
+      }
+      if (viewModelBumpGiven && !viewModelBumpRequested) {
+        effects.bump.parsed = false;
+        effects.bump.reason += "; forced off by --viewmodel-bump off";
+      }
+      if (viewModelSelfillumGiven && !viewModelSelfillumRequested) {
+        effects.selfillum.parsed = false;
+        effects.selfillum.reason += "; forced off by --viewmodel-selfillum off";
+      }
+      // The normal map, decoded and uploaded through its own slot. `$bumpmap`
+      // and `$normalmap` both name a VTF and both go here; the albedo cache is
+      // keyed by the slot's own path, so this cannot overwrite it.
+      if (effects.bump.parsed && !effects.bump.boundPath.empty() && !viewModelFlatColor) {
+        const std::string bumpVtfPath =
+          tf2::native::VmtParser::resourcePath(effects.bump.boundPath, ".vtf");
+        const auto bumpRead = tf2::native::readViewModelResource(assets, bumpVtfPath);
+        tf2::native::VtfTexture bumpTexture;
+        std::vector<std::uint8_t> bumpRgba;
+        if (!bumpRead.bytes.empty() && bumpTexture.parse(bumpRead.bytes)
+            && !(bumpRgba = bumpTexture.decodeRgba(bumpRead.bytes)).empty()) {
+          renderer.uploadViewModelBumpTexture(bumpRgba,
+            bumpTexture.header().width, bumpTexture.header().height);
+          effects.bump.uploaded = true;
+        } else {
+          // A named normal map that did not resolve is a fallback, not a
+          // failure: the pass draws plain lighting and the reading names it.
+          effects.bump.fallback = true;
+          effects.bump.reason += "; the normal map did not decode";
+        }
+      }
+      // The selfillum mask. A material with `$selfillum 1` and no mask uses the
+      // albedo's alpha, which is Source's own default and is reported as such
+      // rather than as a missing file.
+      if (effects.selfillum.parsed && effects.selfillum.maskDeclared && !viewModelFlatColor) {
+        const std::string maskVtfPath =
+          tf2::native::VmtParser::resourcePath(effects.selfillum.maskPath, ".vtf");
+        const auto maskRead = tf2::native::readViewModelResource(assets, maskVtfPath);
+        tf2::native::VtfTexture maskTexture;
+        std::vector<std::uint8_t> maskRgba;
+        if (!maskRead.bytes.empty() && maskTexture.parse(maskRead.bytes)
+            && !(maskRgba = maskTexture.decodeRgba(maskRead.bytes)).empty()) {
+          renderer.uploadViewModelSelfillumMask(maskRgba,
+            maskTexture.header().width, maskTexture.header().height);
+          effects.selfillum.uploaded = true;
+        } else {
+          effects.selfillum.maskDeclared = false;
+          effects.selfillum.maskFromAlpha = true;
+          effects.selfillum.reason += "; the mask did not decode so the albedo alpha masks";
+        }
+      }
+      renderer.setViewModelMaterialEffects(effects);
+      viewModelEffectsReadings = effects;
+      viewModelEffectsSlot = effectSlot;
+      viewModelEffectsMaterialParsed = effectMaterialParsed;
+    }
     const bool uploaded = renderer.uploadViewModelMesh(request.mesh.vertices, ranges);
     viewModelMeshBufferPath = uploaded ? path : std::string();
     traceFmt("gpu: viewmodel ranges path=%s ranges=%zu firstRange=(slot %d, %u vertices, textured=%d translucent=%d alphatest=%d) uploaded=%d",
@@ -2496,6 +2709,163 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
+    // ---- T2 (2026-10-14): the water surface --------------------------------
+    // The water triangles are taken out of the world buffer and uploaded as
+    // their own draw. This is deliberately NOT a split of the world buffer: the
+    // world pass still draws every triangle it was given, and the pvs clip's
+    // `drawn + hidden == input` identity is untouched by this pass being on or
+    // off. What the water pass adds is the surface -- its own texture, its own
+    // warped uvs and its own switch -- over the flat shade the world pass draws.
+    //
+    // The material is the map's own, found by walking the map's water triangles
+    // for the first material name they carry rather than by guessing a path:
+    // TF2 names it in the BSP like any other face material.
+    {
+      const bool waterEnabled = worldWaterGiven ? worldWaterRequested
+        : persistent.render.waterSurface;
+      // Which material the water faces carry, counted while the buffer is built
+      // so the count is of the triangles actually uploaded.
+      std::string waterMaterialName;
+      std::size_t waterFacesInMap = 0;
+      for (const auto& triangle : displayMap.triangles) {
+        if (!triangle.water) continue;
+        ++waterFacesInMap;
+        if (waterMaterialName.empty() && !triangle.material.empty()) {
+          waterMaterialName = triangle.material;
+        }
+      }
+      // The material's own parameters, read through the same parser the rest of
+      // the material chain uses, so a reading about the water material cannot
+      // disagree with a reading about the map's other materials.
+      std::string waterVmtText;
+      tf2::native::WorldWaterParams waterParams;
+      if (!waterMaterialName.empty()) {
+        const std::string waterVmtPath = tf2::native::VmtParser::resourcePath(waterMaterialName, ".vmt");
+        std::vector<std::uint8_t> waterVmtBytes = readFile(assets.tfDirectory / std::filesystem::path(waterVmtPath));
+        for (const auto& archive : soundArchives) {
+          if (!waterVmtBytes.empty()) break;
+          waterVmtBytes = archive->read(waterVmtPath);
+        }
+        if (waterVmtBytes.empty()) waterVmtBytes = readMaterialVtf(waterVmtPath);
+        waterVmtText.assign(waterVmtBytes.begin(), waterVmtBytes.end());
+        waterParams = tf2::native::measureWaterParams(waterVmtText, waterVmtPath);
+      } else {
+        waterParams.reason = "the map's water triangles name no material";
+      }
+      // The texture, if the material named one that resolved. `$bumpmap` and
+      // `$normalmap` are the two keys TF2's water shaders use; a plain water
+      // material with neither is a real material and falls back to the flat
+      // shade rather than being reported as a failure.
+      std::vector<std::uint8_t> waterRgba;
+      UINT waterWidth = 0, waterHeight = 0;
+      const std::string& waterTextureName = !waterParams.normalMap.empty()
+        ? waterParams.normalMap : waterParams.bumpMap;
+      if (!waterTextureName.empty()) {
+        const std::string waterVtfPath = tf2::native::VmtParser::resourcePath(waterTextureName, ".vtf");
+        const auto& waterVtf = readMaterialVtf(waterVtfPath);
+        tf2::native::VtfTexture waterTexture;
+        if (!waterVtf.empty() && waterTexture.parse(waterVtf)) {
+          waterRgba = waterTexture.decodeRgba(waterVtf);
+          if (!waterRgba.empty()) {
+            waterWidth = waterTexture.header().width;
+            waterHeight = waterTexture.header().height;
+          }
+        }
+      }
+      const bool waterTextureResolved = !waterRgba.empty() && waterWidth > 0 && waterHeight > 0;
+      // The vertices, in the same converted space uploadWorldGeometry produces,
+      // with the same per-triangle shade so the fallback is visibly water-shaped.
+      //
+      // The build is guarded on worldBoundsValid() rather than on the transform
+      // values: the initial transform is centre 0 / scale 1, which is a
+      // legitimate transform, so a water pass that read it before the world
+      // upload would place 36 triangles in raw map coordinates, draw them
+      // somewhere off screen and report draws=1 with no pixel changed. That is
+      // the exact defect this guard exists to make unreachable.
+      std::vector<tf2::native::WorldWaterVertex> waterVertices;
+      if (waterEnabled && renderer.worldBoundsValid()) {
+        const float waterShade = 0.55f;
+        for (const auto& triangle : displayMap.triangles) {
+          if (!triangle.water) continue;
+          // The same centring and scaling the world pass applies, read back from
+          // the renderer that applied it, so the water surface lands on the water
+          // the world pass already drew. A second transform computed here would
+          // draw water in a different place from water.
+          const auto toWorld = [&](const tf2::native::BspVertex& point) {
+            tf2::native::WorldWaterVertex vertex{};
+            vertex.x = (point.x - renderer.worldCenterX()) * renderer.worldHorizontalScale();
+            vertex.y = (point.y - renderer.worldCenterY()) * renderer.worldHorizontalScale();
+            vertex.z = (point.z - renderer.worldMinZ()) / renderer.worldSpanZ() * 0.8f + 0.1f;
+            vertex.r = waterShade; vertex.g = waterShade; vertex.b = 0.72f; vertex.a = 1.0f;
+            return vertex;
+          };
+          const auto ab = tf2::native::BspVertex{triangle.b.x - triangle.a.x, triangle.b.y - triangle.a.y, triangle.b.z - triangle.a.z};
+          const auto ac = tf2::native::BspVertex{triangle.c.x - triangle.a.x, triangle.c.y - triangle.a.y, triangle.c.z - triangle.a.z};
+          const auto nx = ab.y * ac.z - ab.z * ac.y;
+          const auto ny = ab.z * ac.x - ab.x * ac.z;
+          const auto nz = ab.x * ac.y - ab.y * ac.x;
+          const auto normalLength = std::sqrt(nx * nx + ny * ny + nz * nz);
+          const float invNormal = normalLength > 1e-6f ? 1.0f / normalLength : 0.0f;
+          auto a = toWorld(triangle.a), b = toWorld(triangle.b), c = toWorld(triangle.c);
+          a.nx = static_cast<float>(nx * invNormal); a.ny = static_cast<float>(ny * invNormal); a.nz = static_cast<float>(nz * invNormal);
+          b.nx = a.nx; b.ny = a.ny; b.nz = a.nz;
+          c.nx = a.nx; c.ny = a.ny; c.nz = a.nz;
+          // Normalised into [0,1] by the texture's own dimensions, so the warp's
+          // amplitude means the same thing whatever the texture's side is.
+          const float invWidth = waterWidth > 0 ? 1.0f / static_cast<float>(waterWidth) : 0.0f;
+          const float invHeight = waterHeight > 0 ? 1.0f / static_cast<float>(waterHeight) : 0.0f;
+          a.u = triangle.au * invWidth; a.v = triangle.av * invHeight;
+          b.u = triangle.bu * invWidth; b.v = triangle.bv * invHeight;
+          c.u = triangle.cu * invWidth; c.v = triangle.cv * invHeight;
+          waterVertices.push_back(a); waterVertices.push_back(b); waterVertices.push_back(c);
+        }
+      }
+      tf2::native::WorldWaterDrawRequest waterRequest;
+      waterRequest.enabled = waterEnabled;
+      waterRequest.vertices = waterVertices;
+      waterRequest.textureResolved = waterTextureResolved;
+      waterRequest.params = waterParams;
+      // The amplitude is the material's own when it declared one and the engine
+      // default otherwise, and it is stated rather than hard-coded so a fixture
+      // can move it.
+      waterRequest.warpAmplitude = waterEnabled ? waterVertexWarpAmplitude : 0.0f;
+      // The phase comes from the playback tick. A paused tick is a fixed phase,
+      // which is what makes the repeat frame byte-identical rather than the same
+      // wave at a different time.
+      waterRequest.warpPhase = static_cast<double>(waterWarpTick) * (1.0 / 66.0);
+      std::vector<tf2::native::WorldWaterVertex> warpedVertices;
+      const auto waterReading = tf2::native::evaluateWaterDrawRequest(waterRequest, warpedVertices);
+      const bool waterGeometryUploaded = renderer.uploadWorldWaterGeometry(warpedVertices);
+      const bool waterTextureUploaded = renderer.uploadWorldWaterTexture(waterRgba, waterWidth, waterHeight);
+      renderer.setWorldWaterWarp(waterRequest.warpPhase, waterRequest.warpAmplitude);
+      renderer.setWorldWaterEnabled(waterEnabled && waterGeometryUploaded);
+      // The judge's verdict, handed to the renderer rather than recomputed
+      // there: the state is a judgement about the request and the draw count is
+      // a fact about the pass, and the two have to be able to move separately
+      // for the mutation that deletes the Draw call to be visible.
+      renderer.setWorldWaterReading(waterReading.state, waterReading.waterReflectionState,
+        waterReading.waterRefractionState, waterReading.reason);
+      waterSurfaceReason = waterReading.reason;
+      waterFacesInMap_ = waterFacesInMap;
+      waterMaterialResolved_ = waterTextureResolved;
+      waterMaterialParams_ = waterParams;
+      // UPLOAD FACTS ONLY, and the name says so. `draws` is deliberately
+      // absent: this line is emitted before the first frame, so a draw count
+      // here would be the number the request WOULD produce -- a reading that
+      // describes its own copy of the guard rather than the pass. Measured:/n      // the first version of this line carried `draws=` from the request and a
+      // mutation that deleted the Draw call still read draws=1, so the gate
+      // could not have caught it. The reading the gate asserts is the one
+      // traceWorldDraw emits after the frame it describes.
+      traceFmt("gpu: world water-upload state=%s faces=%zu triangles=%zu"
+        " warpPlanned=%d textureBound=%d fallback=%d reflection=%s refraction=%s reason=%s",
+        tf2::native::worldWaterSurfaceStateName(waterReading.state),
+        waterReading.waterFaces, waterReading.waterTriangles,
+        waterReading.waterWarpApplied ? 1 : 0,
+        waterTextureUploaded ? 1 : 0, waterReading.waterFallback ? 1 : 0,
+        tf2::native::worldWaterSurfaceStateName(waterReading.waterReflectionState),
+        tf2::native::worldWaterSurfaceStateName(waterReading.waterRefractionState),
+        waterSurfaceReason.empty() ? "-" : waterSurfaceReason.c_str());
+    }
     // The lightmap pass, read back from the renderer rather than assumed from
     // the parse. The window title already carries the BSP-side numbers; this is
     // the GPU-side pair (vertices carrying a per-face light uv / vertices
@@ -2818,6 +3188,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldSkyVertexCount, sample.worldSkyTriangles, sample.worldSkyFaces,
       sample.worldSkyDraws, sample.worldSkySide, sample.worldSkyResampled ? 1 : 0,
       worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
+    // T2 (2026-10-14): the water surface as a DRAW, read from the renderer
+    // after the frame -- the same discipline the sky and vis lines above use.
+    // `draws` is set inside the pass itself, so a mutation that deletes the
+    // Draw call moves it; the upload line cannot, because it runs first.
+    {
+      const auto water = renderer.waterSurfaceSampleState();
+      traceFmt("gpu: world water state=%s faces=%u triangles=%u draws=%u visible=%d"
+        " warp=%d textureBound=%d fallback=%d reflection=%s refraction=%s reason=%s",
+        tf2::native::worldWaterSurfaceStateName(water.state),
+        water.waterFaces, water.waterTriangles, water.waterDrawCalls,
+        water.waterVisible ? 1 : 0, water.waterWarpApplied ? 1 : 0,
+        water.waterTextureBound ? 1 : 0, water.waterFallback ? 1 : 0,
+        tf2::native::worldWaterSurfaceStateName(water.reflectionState),
+        tf2::native::worldWaterSurfaceStateName(water.refractionState),
+        water.reason.empty() ? "-" : water.reason.c_str());
+    }
     const int cameraCluster = sample.worldVisCameraCluster;
     traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
       " clusteredTriangles=%zu hiddenTriangles=%zu withoutCluster=%zu"
@@ -2980,7 +3366,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // NOT implemented, and this line says so on every frame rather than leaving
     // it to a document.
     const auto& materialTable = viewModelMaterialReadings.table;
-    traceFmt("gpu: viewmodel materialReadings passRan=%d materialSlots=%zu materialResolved=%zu texturesUploaded=%zu texturesReused=%zu fallbackSlots=%zu alphaSlots=%zu alphaAppliedRanges=%zu phongSlots=%zu phongAppliedRanges=0 bumpSlots=%zu bumpAppliedRanges=0 selfillumSlots=%zu selfillumAppliedRanges=0 decodedSlots=%zu drawRanges=%zu fallbackRanges=%zu boundSlots=%zu blendedRanges=%zu alphaTestedRanges=%zu flatColor=%d slotOverride=%d missingSlotInjected=%d decodeFailure=%s",
+    traceFmt("gpu: viewmodel materialReadings passRan=%d materialSlots=%zu materialResolved=%zu texturesUploaded=%zu texturesReused=%zu fallbackSlots=%zu alphaSlots=%zu alphaAppliedRanges=%zu phongSlots=%zu phongAppliedRanges=%u bumpSlots=%zu bumpAppliedRanges=%u selfillumSlots=%zu selfillumAppliedRanges=%u decodedSlots=%zu drawRanges=%zu fallbackRanges=%zu boundSlots=%zu blendedRanges=%zu alphaTestedRanges=%zu flatColor=%d slotOverride=%d missingSlotInjected=%d decodeFailure=%s",
       viewModelMaterialReadings.materialPassRan ? 1 : 0,
       materialTable ? materialTable->materialSlots() : 0u,
       materialTable ? materialTable->materialResolved() : 0u,
@@ -2990,8 +3376,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       materialTable ? materialTable->alphaSlots() : 0u,
       renderer.viewModelBlendedRanges() + renderer.viewModelAlphaTestedRanges(),
       materialTable ? materialTable->phongSlots() : 0u,
+      // T2 (2026-10-14): these three were the literal 0 in phase 1, because
+      // nothing applied them. They are now the per-frame range counts the draw
+      // itself incremented, and that change is the point of this round: the
+      // declared-versus-applied split is only a reading if the applied half can
+      // be non-zero. viewmodel-material-check.sh's three "NOT applied (phase 1)"
+      // assertions are updated to match, and the report records the change.
+      renderer.viewModelMaterialSampleState().phongAppliedRanges,
       materialTable ? materialTable->bumpSlots() : 0u,
+      renderer.viewModelMaterialSampleState().bumpAppliedRanges,
       materialTable ? materialTable->selfillumSlots() : 0u,
+      renderer.viewModelMaterialSampleState().selfillumAppliedRanges,
       viewModelMaterialReadings.decodedSlots,
       renderer.viewModelDrawRangeCount(),
       renderer.viewModelFallbackRanges(),
@@ -3003,6 +3398,75 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       viewModelMaterialReadings.missingSlotInjected,
       viewModelMaterialReadings.decodeFailure.empty()
         ? "-" : viewModelMaterialReadings.decodeFailure.c_str());
+    // T2 (2026-10-14): the advanced-material line. A separate line rather than
+    // more fields on the one above, so the T2.5 needles that match that line
+    // keep matching it byte for byte.
+    //
+    // Split into two lines on purpose. traceFmt writes through a 512-byte buffer
+    // and `vsnprintf` truncates silently, and this reading plus three material
+    // reason strings runs past that -- measured, the first version ended mid
+    // sentence at `selfillumApplied=0` and the reasons never appeared at all.
+    // The counters go on one line and the prose on the next, so neither can
+    // push the other off the end.
+    {
+      const auto fx = renderer.viewModelMaterialSampleState();
+      traceFmt("gpu: viewmodel effects slot=%d parsed=%d"
+        " phongState=%s phongDeclared=%d phongParsed=%d phongUploaded=%d phongApplied=%d"
+        " phongAppliedRanges=%u phongExponent=%.3f phongBoost=%.3f phongFresnel=%.3f..%.3f"
+        " bumpState=%s bumpDeclared=%d bumpParsed=%d bumpUploaded=%d bumpApplied=%d"
+        " bumpAppliedRanges=%u"
+        " selfillumState=%s selfillumDeclared=%d selfillumParsed=%d selfillumUploaded=%d"
+        " selfillumApplied=%d selfillumAppliedRanges=%u"
+        " selfillumMaskDeclared=%d selfillumMaskBound=%d",
+        viewModelEffectsSlot, viewModelEffectsMaterialParsed ? 1 : 0,
+        tf2::native::viewModelEffectStateName(fx.phongState),
+        fx.phongDeclared ? 1 : 0, fx.phongParsed ? 1 : 0, fx.phongUploaded ? 1 : 0,
+        fx.phongApplied ? 1 : 0, fx.phongAppliedRanges,
+        fx.phongExponent, fx.phongBoost, fx.phongFresnelMin, fx.phongFresnelMax,
+        tf2::native::viewModelEffectStateName(fx.bumpState),
+        fx.bumpDeclared ? 1 : 0, fx.bumpParsed ? 1 : 0, fx.bumpUploaded ? 1 : 0,
+        fx.bumpApplied ? 1 : 0, fx.bumpAppliedRanges,
+        tf2::native::viewModelEffectStateName(fx.selfillumState),
+        fx.selfillumDeclared ? 1 : 0, fx.selfillumParsed ? 1 : 0,
+        fx.selfillumUploaded ? 1 : 0, fx.selfillumApplied ? 1 : 0,
+        fx.selfillumAppliedRanges,
+        fx.selfillumMaskDeclared ? 1 : 0, fx.selfillumMaskBound ? 1 : 0);
+      // The texture readings and the three fallback flags get their own line.
+      // Measured: the counters line above is 519 bytes with them on it and
+      // traceFmt's buffer is 512, so `selfillumAppliedRanges` was being cut in
+      // half -- the same silent truncation twice over, which is why the line is
+      // now split into three rather than two.
+      traceFmt("gpu: viewmodel effects-texture"
+        " phongFallback=%d bumpFallback=%d selfillumFallback=%d"
+        " bumpTextureResolved=%d bumpTextureUploaded=%d bumpTextureReused=%d"
+        " bumpUploads=%u",
+        fx.phongFallback ? 1 : 0, fx.bumpFallback ? 1 : 0,
+        fx.selfillumFallback ? 1 : 0,
+        fx.bumpTextureResolved ? 1 : 0, fx.bumpTextureUploaded ? 1 : 0,
+        fx.bumpTextureReused ? 1 : 0, renderer.viewModelBumpTextureUploads());
+      // The switches and the two whole-run texture counters go on the second
+      // line with the prose. Measured: with them on the first line the whole
+      // thing ran past traceFmt's 512-byte buffer and the last three fields
+      // were silently dropped, which is the same silent truncation that hid
+      // the reason strings before it was split.
+      // The switches get their own line. Measured: the reasons line runs past
+      // traceFmt's 512-byte buffer on the forced-selfillum run, where all three
+      // reason strings are at their longest, and the switch fields at the end
+      // were the ones dropped -- so a gate reading them saw an empty string and
+      // reported "the switch is not off" for a run where it was. Four lines is
+      // one more than is pretty and one fewer than a silent truncation.
+      traceFmt("gpu: viewmodel effects-switch selfillumForce=%d phongSwitch=%s"
+        " bumpSwitch=%s selfillumSwitch=%s texturesUploaded=%u texturesReused=%u",
+        viewModelSelfillumForce ? 1 : 0,
+        viewModelPhongGiven ? (viewModelPhongRequested ? "on" : "off") : "material",
+        viewModelBumpGiven ? (viewModelBumpRequested ? "on" : "off") : "material",
+        viewModelSelfillumGiven ? (viewModelSelfillumRequested ? "on" : "off") : "material",
+        fx.texturesUploaded, fx.texturesReused);
+      traceFmt("gpu: viewmodel effects-reason phong=%s bump=%s selfillum=%s",
+        fx.phongReason.empty() ? "-" : fx.phongReason.c_str(),
+        fx.bumpReason.empty() ? "-" : fx.bumpReason.c_str(),
+        fx.selfillumReason.empty() ? "-" : fx.selfillumReason.c_str());
+    }
     // The draw-order reading: the world pass is ordinal 1 and the ViewModel pass
     // must be later. Without this, "world then ViewModel" would only be a claim
     // about the order of two statements in draw().

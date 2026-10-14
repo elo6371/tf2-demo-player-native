@@ -2,4 +2,6 @@
 the range is not a fallback: 1 != 0
 the range has a texture bound: 0 != 1
 binds track the frames drawn: no != yes
-the range is textured: 25871.8 gpu: viewmodel ranges path=models/weapons/c_models/c_sniper_arms.mdl ranges=1 firstRange=(slot 0, 600 vertices, textured=0 translucent=0 alphatest=0) uploaded=1 does not contain textured=1
+phong applied by a drawn range (phase 2): 0 < 1
+bump applied by a drawn range (phase 2): 0 < 1
+the range is textured: 16857.4 gpu: viewmodel ranges path=models/weapons/c_models/c_sniper_arms.mdl ranges=1 firstRange=(slot 0, 600 vertices, textured=0 translucent=0 alphatest=0) uploaded=1 does not contain textured=1

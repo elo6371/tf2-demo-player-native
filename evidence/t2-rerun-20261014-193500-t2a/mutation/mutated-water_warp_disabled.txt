@@ -1,0 +1,1 @@
+gpu: world water state=active faces=18 triangles=36 draws=1 visible=1 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=36 water triangles from 18 faces; no warp applied, water texture bound; reflection and refraction have no render target

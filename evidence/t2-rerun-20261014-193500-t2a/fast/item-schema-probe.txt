@@ -1,0 +1,1 @@
+wire_self_test truncated_varint=1 truncated_length=1 valid=1 status=pass

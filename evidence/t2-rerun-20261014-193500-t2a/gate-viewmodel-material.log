@@ -1,0 +1,275 @@
+=== 1/9 the fixture bytes are reproducible ===
+  OK   the committed fixtures are identical to a fresh generation
+
+=== 2/9 the real install: four ViewModel model families ===
+  OK   real install probe rc (all four models complete) = 0
+  models/weapons/c_models/c_sniper_arms.mdl
+    {"model":"models/weapons/c_models/c_sniper_arms.mdl","resolution":"found-vpk","mdlReadable":true,"cdmaterials":"models/player/sniper/|","material_count":3,"vmt_resolved":3,"vtf_resolved":3,"pixels_decoded":3,"missing_materials":0,"missing_textures":0,"invalid_paths":0,"oversized_textures":0,"decoded_bytes":8388608,"texture_slot":0,"texture_width":1024,"texture_height":512,"texture_format":13,"has_texture":true,"has_alpha":false,"has_bumpmap":true,"has_phong":true,"has_selfillum":false,"complete":true,"mesh_table":true,"model_stride":0,"mesh_stride":116,"model_stride_source":"unexercised","model_stride_exercised":false,"mesh_stride_exercised":true,"mesh_count":2,"descriptors_validated":2,"drawn_slot":0,"drawn_bodypart":0,"drawn_model":0,"drawn_mesh":0,"drawn_lod":0,"mesh_table_reason":"","reason":""}
+  OK   real models/weapons/c_models/c_sniper_arms.mdl resolution = found-vpk
+  OK   real models/weapons/c_models/c_sniper_arms.mdl material_count = 3
+  OK   real models/weapons/c_models/c_sniper_arms.mdl vmt_resolved = 3
+  OK   real models/weapons/c_models/c_sniper_arms.mdl vtf_resolved = 3
+  OK   real models/weapons/c_models/c_sniper_arms.mdl pixels_decoded = 3
+  OK   real models/weapons/c_models/c_sniper_arms.mdl missing_materials = 0
+  OK   real models/weapons/c_models/c_sniper_arms.mdl missing_textures = 0
+  OK   real models/weapons/c_models/c_sniper_arms.mdl invalid_paths = 0
+  OK   real models/weapons/c_models/c_sniper_arms.mdl oversized_textures = 0
+  OK   real models/weapons/c_models/c_sniper_arms.mdl complete = true
+  OK   real models/weapons/c_models/c_sniper_arms.mdl cdmaterials = models/player/sniper/|
+  OK   real models/weapons/c_models/c_sniper_arms.mdl texture_width = 1024
+  OK   real models/weapons/c_models/c_sniper_arms.mdl texture_height = 512
+  OK   real models/weapons/c_models/c_sniper_arms.mdl texture_format = 13
+  OK   real models/weapons/c_models/c_sniper_arms.mdl has_alpha = false
+  OK   real models/weapons/c_models/c_sniper_arms.mdl has_bumpmap = true
+  OK   real models/weapons/c_models/c_sniper_arms.mdl has_phong = true
+  OK   real models/weapons/c_models/c_sniper_arms.mdl has_selfillum = false
+  OK   real models/weapons/c_models/c_sniper_arms.mdl decoded_bytes = 8388608
+  models/weapons/c_models/c_scattergun.mdl
+    {"model":"models/weapons/c_models/c_scattergun.mdl","resolution":"found-vpk","mdlReadable":true,"cdmaterials":"models/weapons/c_models/c_scattergun/|","material_count":2,"vmt_resolved":2,"vtf_resolved":2,"pixels_decoded":2,"missing_materials":0,"missing_textures":0,"invalid_paths":0,"oversized_textures":0,"decoded_bytes":33554432,"texture_slot":0,"texture_width":2048,"texture_height":2048,"texture_format":15,"has_texture":true,"has_alpha":true,"has_bumpmap":false,"has_phong":true,"has_selfillum":false,"complete":true,"mesh_table":true,"model_stride":0,"mesh_stride":116,"model_stride_source":"unexercised","model_stride_exercised":false,"mesh_stride_exercised":false,"mesh_count":1,"descriptors_validated":4,"drawn_slot":0,"drawn_bodypart":0,"drawn_model":0,"drawn_mesh":0,"drawn_lod":0,"mesh_table_reason":"","reason":""}
+  OK   real models/weapons/c_models/c_scattergun.mdl resolution = found-vpk
+  OK   real models/weapons/c_models/c_scattergun.mdl material_count = 2
+  OK   real models/weapons/c_models/c_scattergun.mdl vmt_resolved = 2
+  OK   real models/weapons/c_models/c_scattergun.mdl vtf_resolved = 2
+  OK   real models/weapons/c_models/c_scattergun.mdl pixels_decoded = 2
+  OK   real models/weapons/c_models/c_scattergun.mdl missing_materials = 0
+  OK   real models/weapons/c_models/c_scattergun.mdl missing_textures = 0
+  OK   real models/weapons/c_models/c_scattergun.mdl invalid_paths = 0
+  OK   real models/weapons/c_models/c_scattergun.mdl oversized_textures = 0
+  OK   real models/weapons/c_models/c_scattergun.mdl complete = true
+  OK   real models/weapons/c_models/c_scattergun.mdl cdmaterials = models/weapons/c_models/c_scattergun/|
+  OK   real models/weapons/c_models/c_scattergun.mdl texture_width = 2048
+  OK   real models/weapons/c_models/c_scattergun.mdl texture_height = 2048
+  OK   real models/weapons/c_models/c_scattergun.mdl texture_format = 15
+  OK   real models/weapons/c_models/c_scattergun.mdl has_alpha = true
+  OK   real models/weapons/c_models/c_scattergun.mdl has_bumpmap = false
+  OK   real models/weapons/c_models/c_scattergun.mdl has_phong = true
+  OK   real models/weapons/c_models/c_scattergun.mdl has_selfillum = false
+  OK   real models/weapons/c_models/c_scattergun.mdl decoded_bytes = 33554432
+  models/weapons/v_models/v_scattergun_scout.mdl
+    {"model":"models/weapons/v_models/v_scattergun_scout.mdl","resolution":"found-vpk","mdlReadable":true,"cdmaterials":"/models/weapons/v_scattergun/|","material_count":3,"vmt_resolved":3,"vtf_resolved":3,"pixels_decoded":3,"missing_materials":0,"missing_textures":0,"invalid_paths":0,"oversized_textures":0,"decoded_bytes":12582912,"texture_slot":0,"texture_width":1024,"texture_height":1024,"texture_format":15,"has_texture":true,"has_alpha":true,"has_bumpmap":false,"has_phong":true,"has_selfillum":false,"complete":true,"mesh_table":true,"model_stride":0,"mesh_stride":116,"model_stride_source":"unexercised","model_stride_exercised":false,"mesh_stride_exercised":true,"mesh_count":2,"descriptors_validated":2,"drawn_slot":0,"drawn_bodypart":0,"drawn_model":0,"drawn_mesh":0,"drawn_lod":0,"mesh_table_reason":"","reason":""}
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl resolution = found-vpk
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl material_count = 3
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl vmt_resolved = 3
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl vtf_resolved = 3
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl pixels_decoded = 3
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl missing_materials = 0
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl missing_textures = 0
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl invalid_paths = 0
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl oversized_textures = 0
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl complete = true
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl cdmaterials = /models/weapons/v_scattergun/|
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl texture_width = 1024
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl texture_height = 1024
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl texture_format = 15
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl has_alpha = true
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl has_bumpmap = false
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl has_phong = true
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl has_selfillum = false
+  OK   real models/weapons/v_models/v_scattergun_scout.mdl decoded_bytes = 12582912
+  models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl
+    {"model":"models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl","resolution":"found-vpk","mdlReadable":true,"cdmaterials":"","material_count":2,"vmt_resolved":2,"vtf_resolved":2,"pixels_decoded":2,"missing_materials":0,"missing_textures":0,"invalid_paths":0,"oversized_textures":0,"decoded_bytes":8388608,"texture_slot":0,"texture_width":1024,"texture_height":1024,"texture_format":15,"has_texture":true,"has_alpha":true,"has_bumpmap":false,"has_phong":true,"has_selfillum":false,"complete":true,"mesh_table":true,"model_stride":0,"mesh_stride":116,"model_stride_source":"unexercised","model_stride_exercised":false,"mesh_stride_exercised":true,"mesh_count":2,"descriptors_validated":2,"drawn_slot":0,"drawn_bodypart":0,"drawn_model":0,"drawn_mesh":0,"drawn_lod":0,"mesh_table_reason":"","reason":""}
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl resolution = found-vpk
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl material_count = 2
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl vmt_resolved = 2
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl vtf_resolved = 2
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl pixels_decoded = 2
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl missing_materials = 0
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl missing_textures = 0
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl invalid_paths = 0
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl oversized_textures = 0
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl complete = true
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl cdmaterials = 
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl texture_width = 1024
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl texture_height = 1024
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl texture_format = 15
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl has_alpha = true
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl has_bumpmap = false
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl has_phong = true
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl has_selfillum = false
+  OK   real models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl decoded_bytes = 8388608
+  OK   real install slots read from a VPK = 10
+  OK   real v_scattergun took the backslash $basetexture contains base=models\weapons\v_scattergun\v_scattergun
+  OK   real c_scattergun is exactly at the 2048 cap and not oversized = 2048
+
+=== 3/9 the fixtures: ten defect classes ===
+  OK   fixture set probe rc (the set is not all-resolvable) = 1
+-- the positive control --
+  OK   fixture vmfix_ok material_count = 1
+  OK   fixture vmfix_ok materialResolved = 1
+  OK   fixture vmfix_ok textureResolved = 1
+  OK   fixture vmfix_ok pixelsDecoded = 1
+  OK   fixture vmfix_ok missing_materials = 0
+  OK   fixture vmfix_ok missing_textures = 0
+  OK   fixture vmfix_ok invalid_paths = 0
+  OK   fixture vmfix_ok oversized_textures = 0
+  OK   fixture vmfix_ok complete = true
+  OK   fixture vmfix_ok texture_width = 64
+  OK   fixture vmfix_ok texture_height = 64
+  OK   fixture vmfix_ok texture_format = 13
+  OK   fixture vmfix_ok has_alpha = false
+  OK   fixture vmfix_ok has_bumpmap = true
+  OK   fixture vmfix_ok has_phong = true
+  OK   fixture vmfix_ok has_selfillum = false
+-- the VMT is absent --
+  OK   fixture vmfix_no_vmt materialResolved = 0
+  OK   fixture vmfix_no_vmt pixelsDecoded = 0
+  OK   fixture vmfix_no_vmt missing_materials = 1
+  OK   fixture vmfix_no_vmt complete = false
+-- the VTF is absent --
+  OK   fixture vmfix_no_vtf materialResolved = 1
+  OK   fixture vmfix_no_vtf textureResolved = 0
+  OK   fixture vmfix_no_vtf missing_textures = 1
+  OK   fixture vmfix_no_vtf pixelsDecoded = 0
+  OK   fixture vmfix_no_vtf complete = false
+-- $cdmaterials points at the wrong directory --
+  OK   fixture vmfix_bad_cdmaterials cdmaterials = models/wrong/dir/
+  OK   fixture vmfix_bad_cdmaterials materialResolved = 0
+  OK   fixture vmfix_bad_cdmaterials missing_materials = 1
+  OK   fixture vmfix_bad_cdmaterials complete = false
+-- the VMT's $basetexture uses backslash separators --
+  OK   fixture vmfix_backslash materialResolved = 1
+  OK   fixture vmfix_backslash textureResolved = 1
+  OK   fixture vmfix_backslash pixelsDecoded = 1
+  OK   fixture vmfix_backslash texture_width = 64
+  OK   fixture vmfix_backslash complete = true
+  OK   fixture vmfix_backslash stderr names the backslash base contains base=models\weapons\v_models\vmfix\vmfix_backslash
+-- the BC3 decode sample --
+  OK   fixture vmfix_dxt5 texture_format = 15
+  OK   fixture vmfix_dxt5 pixelsDecoded = 1
+  OK   fixture vmfix_dxt5 has_alpha = true
+  OK   fixture vmfix_dxt5 has_selfillum = true
+  OK   fixture vmfix_dxt5 has_phong = false
+  OK   fixture vmfix_dxt5 complete = true
+-- the texture exceeds the side cap --
+  OK   fixture vmfix_oversized textureResolved = 1
+  OK   fixture vmfix_oversized pixelsDecoded = 1
+  OK   fixture vmfix_oversized texture_width = 4096
+  OK   fixture vmfix_oversized oversized_textures = 1
+  OK   fixture vmfix_oversized complete = false
+  OK   fixture vmfix_oversized reason names the cap contains 2048
+-- the slot has no candidate path at all --
+  OK   fixture vmfix_bare cdmaterials = 
+  OK   fixture vmfix_bare invalid_paths = 1
+  OK   fixture vmfix_bare missing_materials = 0
+  OK   fixture vmfix_bare complete = false
+  OK   fixture vmfix_bare reason names the missing path contains no candidate
+-- the texture path escapes the asset root --
+  OK   fixture vmfix_escape materialResolved = 1
+  OK   fixture vmfix_escape textureResolved = 0
+  OK   fixture vmfix_escape invalid_paths = 1
+  OK   fixture vmfix_escape complete = false
+  OK   fixture vmfix_escape reason names the boundary contains outside the asset root
+-- the VTF parses and refuses to decode as 2D --
+  OK   fixture vmfix_cubemap textureResolved = 1
+  OK   fixture vmfix_cubemap pixelsDecoded = 0
+  OK   fixture vmfix_cubemap missing_textures = 1
+  OK   fixture vmfix_cubemap complete = false
+  OK   fixture vmfix_cubemap reason names the decoder refusal contains cubemap
+
+=== 4/9 workload counts ===
+  OK   fixture summary models = 10
+  OK   fixture summary complete = 3
+  OK   fixture summary slots = 10
+  OK   fixture summary vmt_resolved = 7
+  OK   fixture summary vtf_resolved = 5
+  OK   fixture summary pixels_decoded = 4
+  OK   fixture summary missing_materials = 2
+  OK   fixture summary missing_textures = 2
+  OK   fixture summary invalid_paths = 2
+  OK   fixture summary oversized_textures = 1
+
+=== 5/9 a missing model is refused ===
+  OK   missing model probe rc = 1
+  OK   missing model resolution = missing
+  OK   missing model complete = false
+  OK   missing model reason names the absence contains not in the loose files or any archive
+  OK   missing model summary complete = 0
+
+=== 6/9 the resolved material reaches the ViewModel pass ===
+  OK   material run rc = 0
+  OK   the material pass ran = 1
+  OK   slots on the drawn model = 3
+  OK   every slot resolved = 3
+  OK   no slot fell back = 0
+  OK   the pass built one range = 1
+  OK   the range is not a fallback = 0
+  OK   the range has a texture bound = 1
+  OK   this is a natural run (no slot override) = -1
+  OK   this is a natural run (flat colour not forced) = 0
+  OK   this is a natural run (no injected fault) = -1
+  OK   no slot failed to decode = -
+  OK   captures at least 100 frames = yes
+  OK   uploads do not grow with the frame count = yes
+  OK   binds track the frames drawn = yes
+  OK   phong declared by the drawn model = 3 (>= 1)
+  OK   bump declared by the drawn model = 3 (>= 1)
+  OK   phong applied by a drawn range (phase 2) = 1 (>= 1)
+  OK   bump applied by a drawn range (phase 2) = 1 (>= 1)
+  OK   selfillum is not declared by this material = 0
+  OK   selfillum is therefore not applied here = 0
+  OK   the drawn slot comes from the MDL mesh table contains drawnSlot=0 source=mdl-mesh-table
+  OK   the mesh stride was exercised, not assumed contains meshStrideExercised=1
+  OK   the range is textured contains textured=1
+  OK   the bound model is the one the entity named contains drawnModel=models/weapons/c_models/c_sniper_arms.mdl
+  OK   the drawn model is the entity's own contains entityModelMatchesDrawn=1
+
+=== 7/9 the binding is what changes the picture ===
+  OK   the textured frame is a frozen-world frame = yes
+  OK   the control frame is a frozen-world frame = yes
+  OK   flat control forced = 1
+  OK   flat control binds nothing = 0
+  OK   flat control draws the fallback = 1
+  OK   flat control uploads no texture = 0
+  OK   flat control reuses no texture = 0
+  ..   ptex/ptex2/palt/pflat/pflat2 captured paused at tick 0
+  BMP-DIFF differing=35702 total=2582352 percent=1.3825 max_delta=185 extent=1264x681x24 status=PASS
+  OK   the material binding changes the ViewModel's pixels
+  BMP-DIFF whole differing=35702 total=2582352 percent=1.3825 max_delta=185 extent=1264x681x24
+  BMP-DIFF region=0,0,420,681 differing=0 total=858060 percent=0.0000 max_delta=0 share=0.0000
+  BMP-DIFF region=844,0,420,681 differing=0 total=858060 percent=0.0000 max_delta=0 share=0.0000
+  BMP-DIFF region=0,0,1264,250 differing=0 total=948000 percent=0.0000 max_delta=0 share=0.0000
+  BMP-DIFF status=PASS
+  OK   the change is confined to the ViewModel, not the world
+  BMP-DIFF differing=35284 total=2582352 percent=1.3664 max_delta=142 extent=1264x681x24 status=PASS
+  OK   a second texture changes the same frame too
+  BMP-DIFF whole differing=35284 total=2582352 percent=1.3664 max_delta=142 extent=1264x681x24
+  BMP-DIFF region=0,0,420,681 differing=0 total=858060 percent=0.0000 max_delta=0 share=0.0000
+  BMP-DIFF region=844,0,420,681 differing=0 total=858060 percent=0.0000 max_delta=0 share=0.0000
+  BMP-DIFF region=0,0,1264,250 differing=0 total=948000 percent=0.0000 max_delta=0 share=0.0000
+  BMP-DIFF status=PASS
+  OK   a texture change is confined to the ViewModel as well
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   two runs of the flat control are byte-identical
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   two runs of the textured pass are byte-identical
+
+=== 8/9 a slot that does not resolve falls back, and says so ===
+  OK   injected run rc = 0
+  OK   the injection is reported = 0
+  OK   the injected slot is no longer resolved = 3
+  OK   the injected slot is counted as a fallback = 1
+  OK   nothing is bound = 0
+  OK   the range is a fallback range = 1
+  OK   no texture was uploaded for it = 0
+  OK   no texture bind happened = 0
+  OK   the pass still draws the geometry = 1
+  OK   the injected frame is a frozen-world frame = yes
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   the fallback frame is exactly the flat control frame
+
+=== 9/9 the alpha path is reachable, and alpha is all that is applied ===
+  OK   alpha run rc = 0
+  OK   the slot override is reported = 2
+  OK   this run is not the flat control = 0
+  OK   the drawn model's slots all resolved = 4
+  OK   a texture is bound = 1
+  OK   the model declares alpha-bearing slots = 2 (>= 1)
+  OK   one range uses the alpha blend state = 1
+  OK   no range uses alpha test (this slot is $translucent) = 0
+  OK   alpha is the only blend path applied = 1
+  OK   the range carries the translucent flag contains translucent=1
+  OK   the bound slot is the glass one contains uploadSlot=2
+  OK   the override did not change the drawn geometry contains 11640 vertices
+
+assertions_ok=221
+VIEWMODEL-MATERIAL=PASS

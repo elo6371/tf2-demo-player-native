@@ -58,10 +58,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -534,7 +536,446 @@ const char* kFixtureModels[] = {
 
 void usage() {
   std::cerr << "usage: viewmodel_material_probe --tf-root <tf> --model <path.mdl> [--model <path.mdl> ...]\n"
-               "       viewmodel_material_probe --fixture-root <root>\n";
+               "       viewmodel_material_probe --fixture-root <root>\n"
+               "       viewmodel_material_probe --effects-fixture [--mutation]\n";
+}
+
+// ---------------------------------------------------------------------------
+// T2 (2026-10-14): the advanced-material readers, as fixtures
+// ---------------------------------------------------------------------------
+// The readers are pure functions over a VMT's text, so a fixture is a string.
+// That is the whole reason they were written that way: a positive case for
+// "`$phong 1` with an exponent reaches the shader" has to be a material that
+// declares exactly that, and a negative case for "a malformed exponent is
+// refused by name" has to be a material that declares a malformed one. Neither
+// needs the install, a VPK or a GPU.
+//
+// The negative cases the task names are all here: a malformed VMT, an invalid
+// numeric parameter, a missing shader input (a material that declares the
+// effect with no base texture at all), and a zero-sized input (an empty text).
+// "Unsupported texture format" is a decode-side defect and lives in the
+// viewmodel-material gate's existing fixtures rather than being duplicated here,
+// where there is no decoder to refuse anything.
+struct EffectFixtureCase {
+  std::string name;
+  std::string vmt;
+  // What the three readers must report. Checked field by field rather than as a
+  // single verdict, so a case that fails says which reader disagreed.
+  bool expectPhongDeclared = false;
+  bool expectPhongParsed = false;
+  bool expectPhongExponentDefault = false;
+  // Whether the numeric parameters are asserted at all. A case that is about
+  // "the tint failed to parse" must not also be asserting the exponent, or a
+  // wrong default in the case would be reported as a wrong exponent in the
+  // reader.
+  bool expectPhongNumbers = false;
+  float expectPhongExponent = 0.0f;
+  float expectPhongFresnel[2] = {0.0f, 0.0f};
+  bool expectBumpDeclared = false;
+  bool expectBumpParsed = false;
+  std::string expectBumpPath;
+  bool expectBumpAlphaMask = false;
+  bool expectSelfillumDeclared = false;
+  bool expectSelfillumParsed = false;
+  bool expectSelfillumMaskFromAlpha = false;
+  float expectSelfillumTint[3] = {0.0f, 0.0f, 0.0f};
+  // A mutation of the same material, and the check it must move. A fixture whose
+  // mutation changes nothing is a fixture that asserted a constant.
+  std::string mutation;
+  std::string mutationMovedCheck;
+};
+
+const char* kPhongPositive =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$phong\" \"1\"\n"
+  "  \"$phongexponent\" \"24\"\n"
+  "  \"$phongboost\" \"2.5\"\n"
+  "  \"$phongfresnelranges\" \"[0 0.5 1]\"\n"
+  "  \"$phongtint\" \"[1 0.85 0.7]\"\n"
+  "}\n";
+
+const char* kPhongNoExponent =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$phong\" \"1\"\n"
+  "}\n";
+
+const char* kPhongBadExponent =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$phong\" \"1\"\n"
+  "  \"$phongexponent\" \"notanumber\"\n"
+  "}\n";
+
+const char* kPhongBadTint =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$phong\" \"1\"\n"
+  "  \"$phongtint\" \"[1 0.5]\"\n"
+  "}\n";
+
+const char* kBumpPositive =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$bumpmap\" \"models/weapons/v_test/base_normal\"\n"
+  "  \"$normalmapalphaenvmapmask\" \"1\"\n"
+  "}\n";
+
+const char* kBumpNormalmapKey =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$normalmap\" \"models/weapons/v_test/base_nm\"\n"
+  "}\n";
+
+const char* kBumpBothKeys =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$bumpmap\" \"models/weapons/v_test/legacy\"\n"
+  "  \"$normalmap\" \"models/weapons/v_test/current\"\n"
+  "}\n";
+
+const char* kSelfillumMask =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$selfillum\" \"1\"\n"
+  "  \"$selfillummask\" \"models/weapons/v_test/base_glow\"\n"
+  "  \"$selfillumtint\" \"[0.4 0.6 1]\"\n"
+  "}\n";
+
+const char* kSelfillumNoMask =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$selfillum\" \"1\"\n"
+  "}\n";
+
+const char* kSelfillumBadTint =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "  \"$selfillum\" \"1\"\n"
+  "  \"$selfillumtint\" \"blueish\"\n"
+  "}\n";
+
+const char* kPlainMaterial =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+  "}\n";
+
+const char* kMalformedVmt =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$basetexture\" \"models/weapons/v_test/base\"\n";
+
+const char* kNoShaderInput =
+  "VertexLitGeneric\n"
+  "{\n"
+  "  \"$phong\" \"1\"\n"
+  "}\n";
+
+std::vector<EffectFixtureCase> effectFixtureCases() {
+  std::vector<EffectFixtureCase> cases;
+  {
+    EffectFixtureCase c;
+    c.name = "phong-positive";
+    c.vmt = kPhongPositive;
+    c.expectPhongDeclared = true;
+    c.expectPhongParsed = true;
+    c.expectPhongNumbers = true;
+    c.expectPhongExponent = 24.0f;
+    c.expectPhongFresnel[0] = 0.0f;
+    c.expectPhongFresnel[1] = 1.0f;
+    // The mutation removes the exponent, which must move `parsed` from true to
+    // true-with-default. That is a real movement: a reader that always reported
+    // the default would pass the positive case and fail this one.
+    c.mutation = "VertexLitGeneric\n{\n  \"$basetexture\" \"models/weapons/v_test/base\"\n"
+      "  \"$phong\" \"1\"\n}\n";
+    c.mutationMovedCheck = "phong.exponent";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "phong-no-exponent";
+    c.vmt = kPhongNoExponent;
+    c.expectPhongDeclared = true;
+    c.expectPhongParsed = true;
+    c.expectPhongExponentDefault = true;
+    c.expectPhongNumbers = true;
+    c.expectPhongExponent = 5.0f;
+    c.expectPhongFresnel[0] = 0.0f;
+    c.expectPhongFresnel[1] = 0.4f;
+    c.mutation = kPhongBadExponent;
+    c.mutationMovedCheck = "phong.parsed";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "phong-bad-exponent";
+    c.vmt = kPhongBadExponent;
+    c.expectPhongDeclared = true;
+    c.expectPhongParsed = false;
+    c.mutation = kPhongPositive;
+    c.mutationMovedCheck = "phong.parsed";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "phong-bad-tint";
+    c.vmt = kPhongBadTint;
+    c.expectPhongDeclared = true;
+    c.expectPhongParsed = false;
+    c.mutation = kPhongPositive;
+    c.mutationMovedCheck = "phong.parsed";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "bump-positive";
+    c.vmt = kBumpPositive;
+    c.expectBumpDeclared = true;
+    c.expectBumpParsed = true;
+    c.expectBumpPath = "models/weapons/v_test/base_normal";
+    c.expectBumpAlphaMask = true;
+    c.mutation = kBumpBothKeys;
+    c.mutationMovedCheck = "bump.boundPath";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "bump-normalmap-key";
+    c.vmt = kBumpNormalmapKey;
+    c.expectBumpDeclared = true;
+    c.expectBumpParsed = true;
+    c.expectBumpPath = "models/weapons/v_test/base_nm";
+    c.mutation = "VertexLitGeneric\n{\n  \"$basetexture\" \"x\"\n}\n";
+    c.mutationMovedCheck = "bump.declared";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "bump-both-keys";
+    c.vmt = kBumpBothKeys;
+    c.expectBumpDeclared = true;
+    c.expectBumpParsed = true;
+    // The current key wins, and which one won is a reading -- a reader that
+    // picked the legacy key would still report declared and parsed.
+    c.expectBumpPath = "models/weapons/v_test/current";
+    c.mutation = kBumpPositive;
+    c.mutationMovedCheck = "bump.boundPath";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "bump-no-declaration";
+    c.vmt = kPlainMaterial;
+    c.mutation = kBumpPositive;
+    c.mutationMovedCheck = "bump.declared";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "selfillum-mask";
+    c.vmt = kSelfillumMask;
+    c.expectSelfillumDeclared = true;
+    c.expectSelfillumParsed = true;
+    c.expectSelfillumMaskFromAlpha = false;
+    c.expectSelfillumTint[0] = 0.4f;
+    c.expectSelfillumTint[1] = 0.6f;
+    c.expectSelfillumTint[2] = 1.0f;
+    c.mutation = kSelfillumNoMask;
+    c.mutationMovedCheck = "selfillum.maskFromAlpha";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "selfillum-no-mask";
+    c.vmt = kSelfillumNoMask;
+    c.expectSelfillumDeclared = true;
+    c.expectSelfillumParsed = true;
+    // Source's own default: the albedo's alpha masks. Stated, not inferred.
+    c.expectSelfillumMaskFromAlpha = true;
+    c.mutation = kSelfillumMask;
+    c.mutationMovedCheck = "selfillum.maskFromAlpha";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "selfillum-bad-tint";
+    c.vmt = kSelfillumBadTint;
+    c.expectSelfillumDeclared = true;
+    c.expectSelfillumParsed = false;
+    // The tint failed, but the mask decision is independent of it: no
+    // $selfillummask means the albedo alpha masks, which is Source's default.
+    c.expectSelfillumMaskFromAlpha = true;
+    c.mutation = kSelfillumNoMask;
+    c.mutationMovedCheck = "selfillum.parsed";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "malformed-vmt";
+    c.vmt = kMalformedVmt;
+    c.mutation = kPhongPositive;
+    c.mutationMovedCheck = "phong.declared";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "zero-sized-input";
+    c.vmt = "";
+    c.mutation = kPhongPositive;
+    c.mutationMovedCheck = "phong.declared";
+    cases.push_back(c);
+  }
+  {
+    EffectFixtureCase c;
+    c.name = "missing-shader-input";
+    c.vmt = kNoShaderInput;
+    // The effect is declared and there is no base texture at all: the reader
+    // reports Phong as parsed and the DRAW cannot apply it, which is the
+    // declared-versus-applied split this round is about. The range judge is what
+    // catches it, and the fixture asserts that too.
+    c.expectPhongDeclared = true;
+    c.expectPhongParsed = true;
+    c.mutation = kPhongBadExponent;
+    c.mutationMovedCheck = "phong.parsed";
+    cases.push_back(c);
+  }
+  return cases;
+}
+
+// One case's readings, in the flat key space the gate asserts on.
+std::map<std::string, std::string> flattenEffects(const std::string& vmt) {
+  std::map<std::string, std::string> out;
+  tf2::native::VmtMaterial material;
+  const bool parsed = tf2::native::VmtParser::parse(vmt, material);
+  const auto phong = tf2::native::readViewModelPhong(material);
+  const auto bump = tf2::native::readViewModelBump(material);
+  const auto selfillum = tf2::native::readViewModelSelfillum(material);
+  const auto range = tf2::native::evaluateViewModelRangeEffects(phong, bump, selfillum,
+    true, true);
+  out["vmt.parsed"] = parsed ? "1" : "0";
+  out["phong.declared"] = phong.declared ? "1" : "0";
+  out["phong.parsed"] = phong.parsed ? "1" : "0";
+  out["phong.exponent"] = std::to_string(phong.exponent);
+  out["phong.boost"] = std::to_string(phong.boost);
+  out["phong.fresnelMin"] = std::to_string(phong.fresnel[0]);
+  out["phong.fresnelMax"] = std::to_string(phong.fresnel[1]);
+  out["phong.tintDeclared"] = phong.tintDeclared ? "1" : "0";
+  out["phong.state"] = tf2::native::viewModelEffectStateName(phong.state);
+  out["bump.declared"] = bump.declared ? "1" : "0";
+  out["bump.parsed"] = bump.parsed ? "1" : "0";
+  out["bump.boundPath"] = bump.boundPath;
+  out["bump.alphaEnvMapMask"] = bump.alphaEnvMapMask ? "1" : "0";
+  out["bump.state"] = tf2::native::viewModelEffectStateName(bump.state);
+  out["selfillum.declared"] = selfillum.declared ? "1" : "0";
+  out["selfillum.parsed"] = selfillum.parsed ? "1" : "0";
+  out["selfillum.maskDeclared"] = selfillum.maskDeclared ? "1" : "0";
+  out["selfillum.maskFromAlpha"] = selfillum.maskFromAlpha ? "1" : "0";
+  out["selfillum.maskPath"] = selfillum.maskPath;
+  out["selfillum.tintR"] = std::to_string(selfillum.tint[0]);
+  out["selfillum.state"] = tf2::native::viewModelEffectStateName(selfillum.state);
+  out["range.phongApplied"] = range.phongApplied ? "1" : "0";
+  out["range.bumpApplied"] = range.bumpApplied ? "1" : "0";
+  out["range.selfillumApplied"] = range.selfillumApplied ? "1" : "0";
+  // The reader's own reason, kept so a failing case can be diagnosed from the
+  // probe output rather than from a debugger.
+  out["phong.reason"] = phong.reason;
+  out["bump.reason"] = bump.reason;
+  out["selfillum.reason"] = selfillum.reason;
+  return out;
+}
+
+int runEffectsFixtures(bool withMutation) {
+  const auto cases = effectFixtureCases();
+  std::size_t checks = 0, bad = 0, mutations = 0, mutationsBad = 0;
+  for (const auto& c : cases) {
+    const auto readings = flattenEffects(c.vmt);
+    const auto expect = [&](const char* key, const std::string& want) {
+      ++checks;
+      const auto it = readings.find(key);
+      const std::string got = it == readings.end() ? std::string("<absent>") : it->second;
+      if (got != want) {
+        std::cout << "{\"effectsFixture\":\"" << c.name << "\",\"check\":\"" << key
+          << "\",\"got\":\"" << got << "\",\"want\":\"" << want << "\"}\n";
+        ++bad;
+      }
+    };
+    const auto expectNum = [&](const char* key, float want) {
+      ++checks;
+      const auto it = readings.find(key);
+      const float got = it == readings.end() ? 0.0f : std::stof(it->second);
+      if (std::fabs(got - want) > 1e-4f) {
+        std::cout << "{\"effectsFixture\":\"" << c.name << "\",\"check\":\"" << key
+          << "\",\"got\":\"" << got << "\",\"want\":\"" << want << "\"}\n";
+        ++bad;
+      }
+    };
+    expect("phong.declared", c.expectPhongDeclared ? "1" : "0");
+    if (c.expectPhongDeclared) {
+      expect("phong.parsed", c.expectPhongParsed ? "1" : "0");
+      if (c.expectPhongNumbers) {
+        expectNum("phong.exponent", c.expectPhongExponent);
+        expectNum("phong.fresnelMin", c.expectPhongFresnel[0]);
+        expectNum("phong.fresnelMax", c.expectPhongFresnel[1]);
+      }
+    }
+    expect("bump.declared", c.expectBumpDeclared ? "1" : "0");
+    if (c.expectBumpDeclared) {
+      expect("bump.parsed", c.expectBumpParsed ? "1" : "0");
+      expect("bump.boundPath", c.expectBumpPath);
+      expect("bump.alphaEnvMapMask", c.expectBumpAlphaMask ? "1" : "0");
+    }
+    expect("selfillum.declared", c.expectSelfillumDeclared ? "1" : "0");
+    if (c.expectSelfillumDeclared) {
+      expect("selfillum.parsed", c.expectSelfillumParsed ? "1" : "0");
+      expect("selfillum.maskFromAlpha", c.expectSelfillumMaskFromAlpha ? "1" : "0");
+      if (c.expectSelfillumTint[0] != 0.0f) expectNum("selfillum.tintR", c.expectSelfillumTint[0]);
+    }
+    // The applied half. A range whose texture resolved and whose shader is
+    // ready applies exactly the effects the material declared AND parsed, which
+    // is the identity that makes the two halves comparable.
+    expect("range.phongApplied",
+      (c.expectPhongDeclared && c.expectPhongParsed) ? "1" : "0");
+    expect("range.bumpApplied",
+      (c.expectBumpDeclared && c.expectBumpParsed) ? "1" : "0");
+    expect("range.selfillumApplied",
+      (c.expectSelfillumDeclared && c.expectSelfillumParsed) ? "1" : "0");
+
+    if (withMutation && !c.mutation.empty()) {
+      ++mutations;
+      const auto mutated = flattenEffects(c.mutation);
+      const auto a = readings.find(c.mutationMovedCheck);
+      const auto b = mutated.find(c.mutationMovedCheck);
+      const std::string before = a == readings.end() ? "<absent>" : a->second;
+      const std::string after = b == mutated.end() ? "<absent>" : b->second;
+      ++checks;
+      if (before == after) {
+        std::cout << "{\"effectsFixture\":\"" << c.name << "\",\"mutation\":\""
+          << c.mutationMovedCheck << "\",\"moved\":false,\"value\":\"" << before << "\"}\n";
+        ++mutationsBad;
+        ++bad;
+      }
+    }
+  }
+  std::cout << "{\"effectsFixtures\":" << cases.size() << ",\"checks\":" << checks
+    << ",\"bad\":" << bad << ",\"mutations\":" << mutations
+    << ",\"mutationBad\":" << mutationsBad << "}\n";
+  if (withMutation && mutations == 0) {
+    std::cerr << "FATAL: --effects-fixture --mutation executed no mutation\n";
+    return 1;
+  }
+  return bad == 0 ? 0 : 1;
 }
 
 }  // namespace
@@ -543,6 +984,8 @@ int main(int argc, char** argv) {
   std::filesystem::path tfRoot;
   std::filesystem::path fixtureRoot;
   std::vector<std::string> models;
+  bool effectsFixture = false;
+  bool effectsMutation = false;
   for (int index = 1; index < argc; ++index) {
     const std::string argument = argv[index];
     if (argument == "--tf-root" && index + 1 < argc) {
@@ -551,10 +994,28 @@ int main(int argc, char** argv) {
       fixtureRoot = std::filesystem::u8path(argv[++index]);
     } else if (argument == "--model" && index + 1 < argc) {
       models.emplace_back(argv[++index]);
+    } else if (argument == "--effects-fixture") {
+      effectsFixture = true;
+    } else if (argument == "--mutation") {
+      effectsMutation = true;
     } else {
       usage();
       return 2;
     }
+  }
+  // T2 (2026-10-14): the advanced-material fixtures, before the install is even
+  // looked at. They need no asset root, so a machine with no TF2 installed can
+  // still assert that a malformed exponent is refused by name.
+  if (effectsFixture) {
+    if (!tfRoot.empty() || !fixtureRoot.empty() || !models.empty()) {
+      usage();
+      return 2;
+    }
+    return runEffectsFixtures(effectsMutation);
+  }
+  if (effectsMutation) {
+    std::cerr << "FATAL: --mutation needs --effects-fixture\n";
+    return 2;
   }
   std::vector<std::string> requested;
   std::filesystem::path root;

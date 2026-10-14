@@ -17,6 +17,7 @@
 #include "model_loader.h"
 #include "demo_header.h"
 #include "world_material.h"
+#include "viewmodel_material.h"
 
 namespace tf2::native {
 
@@ -40,6 +41,12 @@ struct RenderSettings {
   bool specular = false;
   bool waterReflection = false;
   bool waterRefraction = true;
+  // T2 (2026-10-14): the water surface pass itself, separate from the two
+  // Fresnel coefficients above. Those two say what the material's own keys
+  // asked for; this says whether the surface is drawn at all, which is the
+  // switch `--world-water on|off` overrides. Additive on purpose: the struct's
+  // existing fields keep their meaning and the settings file keeps loading.
+  bool waterSurface = false;
   bool skybox = false;
   int modelLod = 4;
   float renderScale = 1.0f;
@@ -268,6 +275,88 @@ struct WorldVisDrawList {
   std::string reason;
 };
 
+// ---------------------------------------------------------------------------
+// T2 (2026-10-14): the water surface and the ViewModel's advanced materials
+// ---------------------------------------------------------------------------
+// A second sample state, deliberately NOT an extension of
+// WorldMaterialSampleState. T1 froze that struct and world-material-check.sh
+// pins its fields, so a field added here could not move one T1 pinned; a struct
+// added next to it cannot either. The getter is new for the same reason: the
+// water pass and the ViewModel material effects are read back through
+// viewModelMaterialSampleState() and worldMaterialSampleState() still returns
+// exactly what it returned before.
+
+// The water surface as a draw: how many triangles were handed to it, whether
+// the Draw call ran, whether the warp reached the samples, and the state of the
+// two render targets nobody has built.
+struct WaterSurfaceSampleState {
+  tf2::native::WorldWaterSurfaceState state = tf2::native::WorldWaterSurfaceState::Unavailable;
+  std::uint32_t waterFaces = 0;
+  std::uint32_t waterTriangles = 0;
+  std::uint32_t waterDrawCalls = 0;
+  // Whether the water is in the picture this frame. A buffer that exists and a
+  // pass that drew are different facts and only the second changes pixels.
+  bool waterVisible = false;
+  bool waterWarpApplied = false;
+  bool waterTextureBound = false;
+  bool waterFallback = false;
+  tf2::native::WorldWaterSurfaceState reflectionState = tf2::native::WorldWaterSurfaceState::Unavailable;
+  tf2::native::WorldWaterSurfaceState refractionState = tf2::native::WorldWaterSurfaceState::Unavailable;
+  std::string reason;
+};
+
+// Per-effect, per-frame: what the material declared, what the pass uploaded and
+// how many ranges the effect actually reached. `*AppliedRanges` is the reading
+// the task asks for by name, and it is counted from the ranges that drew rather
+// than from the ranges that exist -- a material on a range whose texture never
+// resolved declares Phong and applies none of it.
+struct ViewModelMaterialSampleState {
+  // Phong
+  tf2::native::ViewModelEffectState phongState = tf2::native::ViewModelEffectState::Unavailable;
+  bool phongDeclared = false;
+  bool phongParsed = false;
+  bool phongUploaded = false;
+  bool phongApplied = false;
+  std::uint32_t phongAppliedRanges = 0;
+  bool phongFallback = false;
+  std::string phongReason;
+  float phongExponent = 0.0f;
+  float phongBoost = 0.0f;
+  float phongFresnelMin = 0.0f;
+  float phongFresnelMax = 0.0f;
+  float phongTint[3] = {0.0f, 0.0f, 0.0f};
+  // Bump
+  tf2::native::ViewModelEffectState bumpState = tf2::native::ViewModelEffectState::Unavailable;
+  bool bumpDeclared = false;
+  bool bumpParsed = false;
+  bool bumpUploaded = false;
+  bool bumpApplied = false;
+  std::uint32_t bumpAppliedRanges = 0;
+  bool bumpFallback = false;
+  std::string bumpReason;
+  std::string bumpTexturePath;
+  bool bumpTextureResolved = false;
+  bool bumpTextureUploaded = false;
+  bool bumpTextureReused = false;
+  // Selfillum
+  tf2::native::ViewModelEffectState selfillumState = tf2::native::ViewModelEffectState::Unavailable;
+  bool selfillumDeclared = false;
+  bool selfillumParsed = false;
+  bool selfillumUploaded = false;
+  bool selfillumApplied = false;
+  std::uint32_t selfillumAppliedRanges = 0;
+  bool selfillumFallback = false;
+  std::string selfillumReason;
+  bool selfillumMaskDeclared = false;
+  bool selfillumMaskBound = false;
+  float selfillumTint[3] = {0.0f, 0.0f, 0.0f};
+  // The whole-run texture bookkeeping. `texturesUploaded` is cumulative and is
+  // NOT reset per frame: that is the reading that catches a pass which rebuilds
+  // its textures every frame, because the number keeps climbing.
+  std::uint32_t texturesUploaded = 0;
+  std::uint32_t texturesReused = 0;
+};
+
 enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
 
 
@@ -348,6 +437,93 @@ public:
   // triangles leave the rasteriser as well as the reading.
   void setWorldVisClipEnabled(bool enabled);
   bool setWorldVisDrawList(const WorldVisDrawList& drawList);
+  // ---- T2 (2026-10-14): the water surface as its own pass ----------------
+  // A second world buffer holding only the water triangles, its own texture and
+  // its own constants. It is a separate pass over a separate buffer precisely so
+  // that turning it off cannot change what the world pass draws: the world
+  // vertex buffer, the pvs clip and the sky pass are untouched, and
+  // `drawnTriangles + hiddenTriangles == inputTriangles` still holds on the
+  // world pass with the water on, off, or absent.
+  //
+  // The vertices it takes are the ones `evaluateWaterDrawRequest` already
+  // warped, so the warp has one implementation and the reading that counted the
+  // triangles counted the ones that were uploaded.
+  bool uploadWorldWaterGeometry(const std::vector<WorldWaterVertex>& vertices);
+  // The water material's own texture. An empty buffer is a fallback, not a
+  // failure: the pass then draws the flat shade and says so.
+  bool uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  void setWorldWaterEnabled(bool enabled) { worldWaterEnabled_ = enabled; }
+  // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
+  // was never set on the success path of uploadWorldWaterGeometry, so
+  // waterSurfaceSampleState() reported `unavailable` for a surface that drew --
+  // measured, and it is the reason the mutation that deletes the Draw call first
+  // read `draws=0 state=unavailable` instead of the intended `draws=0
+  // state=active`. The state is a judgement about the request, the draw count is
+  // a fact about the pass, and keeping them in one place made the second one
+  // unable to move on its own.
+  void setWorldWaterReading(tf2::native::WorldWaterSurfaceState state,
+    tf2::native::WorldWaterSurfaceState reflection,
+    tf2::native::WorldWaterSurfaceState refraction, const std::string& reason);
+  // The warp phase, in seconds, derived from the playback tick by the caller.
+  // A paused tick is a fixed phase, which is what makes the repeat frame
+  // byte-identical rather than "the same wave at a different time".
+  void setWorldWaterWarp(double phase, float amplitude);
+  // Built fresh on each call rather than cached, so a mutation that deletes the
+  // draw changes what this returns rather than what a stale copy holds. That is
+  // the same discipline the sky and vis readings use. Returned by value because
+  // a reading assembled from the current fields is not a stored fact: a
+  // reference would let two callers in one frame see different water.
+  WaterSurfaceSampleState waterSurfaceSampleState() const;
+  // The world transform uploadWorldGeometry applied, published because the T2
+  // water pass has to place its own vertices in exactly that space. Reading it
+  // back here rather than recomputing it in main.cpp is what stops the water
+  // from being drawn in a different place from the water the world pass already
+  // drew -- a second transform is a second thing that can disagree with the
+  // first.
+  float worldCenterX() const { return worldCenterX_; }
+  float worldCenterY() const { return worldCenterY_; }
+  float worldMinZ() const { return worldMinZ_; }
+  float worldSpanZ() const { return worldSpanZ_; }
+  float worldHorizontalScale() const { return worldHorizontalScale_; }
+  // Whether those five numbers describe an upload that happened. The initial
+  // values (centre 0, scale 1) are also legitimate values for a map that needs
+  // no scaling, so they cannot be used as a sentinel -- which is exactly the
+  // mistake the T2 water pass made on its first run: it read the transform
+  // before uploadWorldGeometry had set it, built its vertices in raw map
+  // coordinates, drew 36 triangles at the wrong scale and changed no pixel while
+  // reporting draws=1. This flag is the guard that makes that unreachable.
+  bool worldBoundsValid() const { return worldBoundsValid_; }
+  // ---- T2 (2026-10-14): the ViewModel's advanced materials ----------------
+  // One call per frame carrying the three parsed readings and the material's own
+  // parameters. It is a struct rather than three setters because the three
+  // effects are uploaded together and a partially-applied set (Phong on, Bump
+  // off, last frame's Selfillum still bound) is exactly the stale-state defect
+  // this round is meant to make impossible.
+  struct ViewModelMaterialEffects {
+    tf2::native::ViewModelPhongReading phong;
+    tf2::native::ViewModelBumpReading bump;
+    tf2::native::ViewModelSelfillumReading selfillum;
+    // True when the shader branches for all three compiled. A branch that did
+    // not compile is a fallback for every effect, not for one of them, because
+    // the three share one pixel shader.
+    bool shaderReady = false;
+  };
+  void setViewModelMaterialEffects(const ViewModelMaterialEffects& effects);
+  // The normal map, keyed separately from the albedo cache so a bump texture
+  // can never be uploaded as a base texture and the albedo key stays a
+  // one-texture-one-key mapping.
+  bool uploadViewModelBumpTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // The selfillum mask. Empty is the material's own default (Source masks by
+  // the albedo's alpha when no `$selfillummask` is given), so the pass reports
+  // `maskFromAlpha` rather than treating a missing file as black.
+  bool uploadViewModelSelfillumMask(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // GPU normal-map textures created over the whole run. Monotone, and never reset
+  // per frame: read across two frames, a constant value with a growing reuse
+  // count is a cache and a growing value is a per-frame rebuild.
+  std::uint32_t viewModelBumpTextureUploads() const { return viewModelBumpTexturesUploaded_; }
+  // Built fresh on each call, like the water reading, so a mutation that deletes
+  // a branch changes what this returns rather than what a stale copy holds.
+  ViewModelMaterialSampleState viewModelMaterialSampleState() const;
   bool uploadProjectileLines(const std::vector<ProjectileLine>& lines);
   bool uploadBindPoseModel(const std::vector<ModelDrawVertex>& vertices);
   bool uploadBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices, bool enableSkinning);
@@ -706,6 +882,11 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyConstants_;
   Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldSkyRasterizerState_;
+  // The water pass is coplanar with the world's own water triangles, so it needs
+  // a depth bias to avoid z-fighting. Its own state rather than a tweak to the
+  // world's: the world pass must keep drawing with the depth policy its gate
+  // pins.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldWaterRasterizerState_;
   UINT worldSkyVertexCount_ = 0;
   UINT worldSkySide_ = 0;
   UINT worldSkyIndexCapacity_ = 0;
@@ -739,6 +920,48 @@ private:
   int worldVisCameraCluster_ = -1;
   WorldVisClipState worldVisClipState_ = WorldVisClipState::Unavailable;
   std::string worldVisClipReason_ = "no pvs draw list was handed to the renderer";
+  // ---- T2 (2026-10-14): the water surface ---------------------------------
+  // Its own vertex buffer (water triangles only, already warped) and its own
+  // texture. Nothing here is shared with the world pass, so the water switch
+  // cannot move the world's readings.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldWaterVertexBuffer_;
+  Texture2D worldWaterTexture_;
+  UINT worldWaterVertexCount_ = 0;
+  UINT worldWaterTextureSide_ = 0;
+  bool worldWaterEnabled_ = true;
+  bool worldWaterTextureBound_ = false;
+  bool worldWaterDrewThisFrame_ = false;
+  double worldWaterPhase_ = 0.0;
+  float worldWaterAmplitude_ = 0.02f;
+  WorldWaterSurfaceState worldWaterState_ = WorldWaterSurfaceState::Unavailable;
+  WorldWaterSurfaceState worldWaterReflectionState_ = WorldWaterSurfaceState::Unavailable;
+  WorldWaterSurfaceState worldWaterRefractionState_ = WorldWaterSurfaceState::Unavailable;
+  std::string worldWaterReason_ = "no water geometry was uploaded";
+  WaterSurfaceSampleState waterSurfaceSample_{};
+  // ---- T2 (2026-10-14): the ViewModel's advanced materials ----------------
+  // The three readings as handed in, plus the per-frame facts about what the
+  // last draw did with them. `viewModelPhongAppliedRanges_` and its two
+  // siblings are counted inside drawViewModel from the ranges that actually
+  // drew, so a material on a range whose texture never resolved is declared and
+  // not applied -- which is the pair the task asks to be able to tell apart.
+  ViewModelMaterialEffects viewModelMaterialEffects_{};
+  bool viewModelMaterialEffectsSet_ = false;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> viewModelBumpTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelBumpView_;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> viewModelSelfillumMaskTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelSelfillumMaskView_;
+  bool viewModelBumpBound_ = false;
+  bool viewModelSelfillumMaskBound_ = false;
+  std::uint32_t viewModelPhongAppliedRanges_ = 0;
+  std::uint32_t viewModelBumpAppliedRanges_ = 0;
+  std::uint32_t viewModelSelfillumAppliedRanges_ = 0;
+  std::uint32_t viewModelPhongFallbackRanges_ = 0;
+  std::uint32_t viewModelBumpFallbackRanges_ = 0;
+  std::uint32_t viewModelSelfillumFallbackRanges_ = 0;
+  // Cumulative, never reset per frame: the reading that catches a pass which
+  // rebuilds a texture every frame, because the number would keep climbing.
+  std::uint32_t viewModelBumpTexturesUploaded_ = 0;
+  ViewModelMaterialSampleState viewModelMaterialSample_{};
   UINT worldDisplacedTriangleCount_ = 0;
   UINT worldWaterTriangleCount_ = 0;
   RenderSettings settings_{};

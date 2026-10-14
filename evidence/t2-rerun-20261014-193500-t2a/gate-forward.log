@@ -1,0 +1,120 @@
+=== 1/6 the probe's self-tests, including the water warp's properties ===
+  OK   selfTest = true
+  OK   capabilitySelfTest = true
+  OK   worldDrawSelfTest = true
+  OK   waterSelfTest = true
+  OK   warp bounded = true
+  OK   warp finite = true
+  OK   warp NaN input = true
+  OK   warp NaN amplitude = true
+  OK   warp negative amplitude = true
+  OK   warp repeatable = true
+  OK   warp moves with phase = true
+  OK   zero amplitude is identity = true
+  OK   warp max delta = 0.02 (inside the 0.02 bound and not zero)
+  OK   waterOffState = true
+  OK   waterEmptyState = true
+  OK   waterPartialState = true
+  OK   waterFallbackState = true
+  OK   waterActiveState = true
+  OK   waterParams = true
+  OK   waterParamsBad = true
+
+=== 2/6 the water fixtures, and the water draw on the real map ===
+  OK   water fixtures = 6
+  OK   water fixture checks = 42
+  OK   water fixture failures = 0
+  OK   capability fixtures = 9
+  OK   capability fixture failures = 0
+  OK   water faces = 18
+  OK   water triangles = 36
+
+=== 3/6 the effect readers, positive and negative, with their mutations ===
+  OK   effect fixtures = 14
+  OK   effect fixture checks = 111
+  OK   effect fixture failures = 0
+  OK   effect mutations executed = 14
+  OK   effect mutations not moving a reading = 0
+  OK   effect checks with mutations = 125
+  OK   effect failures with mutations = 0
+
+=== 4/6 the water surface: off != on, on == repeat ===
+  OK   water off run rc = 0
+  OK   water on run rc = 0
+  OK   water repeat run rc = 0
+  OK   water off state = unavailable
+  OK   water off draws = 0
+  OK   water off visible = 0
+  OK   water on state = active
+  OK   water on draws = 1
+  OK   water on visible = 1
+  OK   water on warp applied = 1
+  OK   water on texture bound = 1
+  OK   water on faces = 18
+  OK   water on triangles = 36
+  OK   water reflection = unavailable
+  OK   water refraction = unavailable
+  water off-vs-on differing bytes: 5571
+  OK   water-off != water-on (5571 bytes differ)
+  OK   water on == water repeat = 0
+
+=== 5/6 the ViewModel effects: declared AND applied, and each moves the frame ===
+  OK   viewmodel natural run rc = 0
+  OK   effects slot = 0
+  OK   phong state = active
+  OK   phong declared = 1
+  OK   phong parsed = 1
+  OK   phong uploaded = 1
+  OK   phong applied = 1
+  OK   phong applied ranges = 1
+  OK   phong fallback = 0
+  OK   phong switch is the material's = material
+  OK   bump switch is the material's = material
+  OK   selfillum switch is the material's = material
+  OK   selfillum force named = 0
+  OK   bump state = active
+  OK   bump declared = 1
+  OK   bump parsed = 1
+  OK   bump uploaded = 1
+  OK   bump applied = 1
+  OK   bump applied ranges = 1
+  OK   bump fallback = 0
+  OK   bump texture resolved = 1
+  OK   bump texture uploaded = 1
+  OK   bump texture reused = 1
+  OK   bump texture uploads = 1
+  OK   selfillum state (natural) = unavailable
+  OK   selfillum declared (natural) = 0
+  OK   selfillum applied (natural) = 0
+  OK   selfillum state (forced) = active
+  OK   selfillum declared (forced) = 1
+  OK   selfillum applied (forced) = 1
+  OK   selfillum applied ranges (forced) = 1
+  OK   selfillum force named (forced run) = 1
+  OK   selfillum switch forced off = off
+  OK   selfillum state (forced then off) = declared
+  OK   selfillum applied (forced then off) = 0
+  phong  off-vs-on: 5250 bytes
+  bump   off-vs-on: 12518 bytes
+  selfillum off-vs-on: 35646 bytes
+  selfillum forced-then-off vs natural: 0 bytes
+  OK   phong-off != phong-on (5250 bytes differ)
+  OK   bump-off != bump-on (12518 bytes differ)
+  OK   selfillum-off != selfillum-on (35646 bytes differ)
+  OK   selfillum force off == natural = 0
+  OK   viewmodel natural == repeat = 0
+
+=== 6/6 T1 did not regress: the skybox and the pvs clip, re-run unchanged ===
+  OK   sky state = active
+  OK   sky vertices = 36
+  OK   sky triangles = 12
+  OK   sky faces = 6
+  OK   sky draws = 1
+  OK   vis clip applied = 1
+  OK   vis input triangles = 200000
+  OK   vis drawn triangles = 170244
+  OK   vis hidden triangles = 29756
+  OK   vis drawn + hidden = input (170244 + 29756 = 200000)
+
+
+WORLD-MATERIAL-EFFECTS=PASS

@@ -1,0 +1,12 @@
+exe_sha256=cfaffb1656d6828aa24c8360dd51f3be4b96fcaa92f4c6bc0065da39b74c0a7a
+exe_size=1561088
+exe_mtime=2026-10-14 19:24:08
+preserved=no
+provenance=already on disk when this task started; NOT built by this task's step 2.
+  `bash build-target.sh tf2_demo_native world_material_probe viewmodel_material_probe`
+  compiled and linked nothing (grep -c "Building|Linking" build.log == 0), so the
+  binary the forward pass and the four mutations measured predates the task and was
+  simply left in place by the incremental build.
+lost=the file was overwritten by the mutation cycle's own rebuild before its identity
+  was recorded as mattering. The hash above was captured from the running tree at
+  20:26, before the forward pass. See binaries/README.txt.

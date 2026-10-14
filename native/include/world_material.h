@@ -309,6 +309,159 @@ WorldWaterReading measureWater(const BspMap& map, bool reflectionDeclaredBySetti
   bool refractionDeclaredBySettings, bool waterMaterialDeclared, bool waterTextureReachable);
 
 // ---------------------------------------------------------------------------
+// T2 interface freeze (2026-10-14): the water surface, as geometry
+// ---------------------------------------------------------------------------
+//
+// `measureWater` above counts what the map declares. This half is what the
+// renderer draws, and it exists because the counting is not the claim the task
+// makes: a map with 18 water faces and no water pass has the same
+// `waterFaces` as one with 18 water faces and a pass that draws them, and only
+// one of those pictures changes when the switch is thrown.
+//
+// Everything here is pure. The renderer calls evaluateWaterDrawRequest to
+// decide, and worldWaterWarpUv to perturb; the probe drives both so a gate that
+// tests a second implementation of either is a gate that can pass while the
+// product is wrong.
+
+// Five words, not three. `Declared` and `Parsed` are different facts and the
+// difference is the one the task's "declared is not applied" rule is about: a
+// water VMT that exists is declared, one that exists and named a texture that
+// resolved is parsed, and a pass that drew triangles is Active.
+enum class WorldWaterSurfaceState { Unavailable, Declared, Parsed, Active, Fallback };
+const char* worldWaterSurfaceStateName(WorldWaterSurfaceState state);
+
+// One water vertex. The field order and count deliberately mirror the world
+// pass's own WorldVertex, so the water pass reuses the world's input layout and
+// vertex shader instead of owning a second copy of both -- a second layout would
+// be a second thing that has to agree with the first about what a vertex is, and
+// the water pass has nothing to say that the world shader does not already
+// output. The `static_assert` in native_renderer.cpp is what keeps the two in
+// step: if WorldVertex moves, the water pass stops compiling rather than
+// silently reading the wrong floats.
+struct WorldWaterVertex {
+  float x = 0.0f;
+  float y = 0.0f;
+  float z = 0.0f;
+  // Per-triangle shade. This is what the flat fallback draws, so a water surface
+  // whose texture never resolved is visibly water-shaped rather than black.
+  float r = 0.0f;
+  float g = 0.0f;
+  float b = 0.0f;
+  float a = 1.0f;
+  // Normalised into [0,1] at upload time. The warp is applied to these by
+  // evaluateWaterDrawRequest, on the CPU, from the caller's phase -- so a fixed
+  // tick gives a fixed picture and the repeat comparison has something real to
+  // compare.
+  float u = 0.0f;
+  float v = 0.0f;
+  float nx = 0.0f;
+  float ny = 0.0f;
+  float nz = 1.0f;
+  // Deliberately -1: the water pass draws no lightmap, and the world pixel
+  // shader only samples the atlas for a vertex whose light uv is >= 0. Keeping
+  // the fields at -1 is what stops water from being lit by the map's lightmap.
+  float lu = -1.0f;
+  float lv = -1.0f;
+};
+
+// The water material's parsed parameters. TF2's water shaders carry the two
+// neighbour materials, the two Fresnel coefficients and the cheap/above-water
+// switches; none of them is a reflection, which is why none of them is used to
+// claim one.
+struct WorldWaterParams {
+  bool declared = false;
+  std::string reason;
+  std::string materialPath;
+  std::string bottomMaterial;
+  std::string underwaterOverlay;
+  bool aboveWater = false;
+  bool cheap = false;
+  float refractivity = 0.0f;
+  float reflectivity = 0.0f;
+  // The normal/bump texture the material names, if any. `bumpMap` is the
+  // legacy key and `normalMap` the current one; a material carrying both is
+  // reported with both rather than one silently winning.
+  std::string bumpMap;
+  std::string normalMap;
+};
+
+// Reads the parameters out of a water VMT's text. Pure: the caller supplies the
+// bytes so the probe and the product read the same file.
+WorldWaterParams measureWaterParams(const std::string& materialText,
+  const std::string& materialPath = {});
+
+struct WorldWaterDrawRequest {
+  // The caller's switch. Off means "do not draw", and the reading then names the
+  // caller rather than reporting a map with no water.
+  bool enabled = false;
+  // The water triangles, already converted into the world's scaled space. Empty
+  // means the map declared no water geometry, which is a different fact from a
+  // switch that was turned off.
+  std::vector<WorldWaterVertex> vertices;
+  // Whether a water texture resolved. A declared texture is not a resolved one:
+  // the pass falls back to the flat shade when this is false, and the reading
+  // says so instead of drawing an untextured surface and calling it water.
+  bool textureResolved = false;
+  WorldWaterParams params;
+  // Warp amplitude in uv units, and the phase derived from the playback tick.
+  // `warpPhase` is a double so a tick counter can drive it without losing the
+  // low bits over a long recording.
+  float warpAmplitude = 0.02f;
+  double warpPhase = 0.0;
+};
+
+struct WorldWaterDrawReading {
+  WorldWaterSurfaceState state = WorldWaterSurfaceState::Unavailable;
+  // What the pass was given, counted from the request rather than trusted from
+  // the parse: `faces` is derived from the vertex count the same way the sky
+  // pass derives its own, so the two cannot disagree about what a face is.
+  std::size_t waterFaces = 0;
+  std::size_t waterTriangles = 0;
+  std::size_t waterDrawCalls = 0;
+  // Whether the surface is in the picture at all. A pass that uploaded a buffer
+  // and drew nothing reports visible=false with draws=0, which is the pair that
+  // separates "the buffer exists" from "the water is on screen".
+  bool waterVisible = false;
+  bool waterWarpApplied = false;
+  // The two render targets. Unavailable is the honest answer until one exists;
+  // the reason names which half is missing so a reader is not left to guess
+  // whether reflection, refraction or both are absent.
+  WorldWaterSurfaceState waterReflectionState = WorldWaterSurfaceState::Unavailable;
+  WorldWaterSurfaceState waterRefractionState = WorldWaterSurfaceState::Unavailable;
+  // True when the pass ran without a resolved texture, i.e. drew the flat shade.
+  bool waterFallback = false;
+  std::string reason;
+};
+
+// Builds the draw list and judges the request. `outVertices` receives the
+// warped vertices when the request is drawable, so the renderer uploads exactly
+// what the reading counted rather than warping a second time with a second
+// implementation.
+//
+// The output mirrors WorldVertex's layout field for field (see the comment on
+// WorldWaterVertex), which is what lets the water pass reuse the world's input
+// layout and vertex shader rather than owning a second copy of both.
+WorldWaterDrawReading evaluateWaterDrawRequest(const WorldWaterDrawRequest& request,
+  std::vector<WorldWaterVertex>& outVertices);
+
+// The approximate UV warp, as a property rather than as a value:
+//
+//   * bounded      -- outU is inside [u - amplitude, u + amplitude] for every
+//                     phase and every input in [0,1]
+//   * NaN-free     -- a non-finite input or amplitude is passed through
+//                     unchanged instead of poisoning the sample
+//   * repeatable   -- f(u,v,p) == f(u,v,p), and f(u,v,0) != f(u,v,0.37) for the
+//                     phases the product uses, which is what makes
+//                     water-on == water-repeat a statement about the warp
+//
+// The formula is the two-term sinusoid the water shaders use: a slow drift plus
+// a faster ripple, each scaled by the amplitude and each a function of the
+// caller's phase. It is approximate on purpose and is never reported as a
+// normal map.
+void worldWaterWarpUv(float u, float v, double phase, float amplitude,
+  float& outU, float& outV);
+
+// ---------------------------------------------------------------------------
 // T1 interface freeze (2026-10-13): skybox geometry and VIS clipping
 // ---------------------------------------------------------------------------
 //
