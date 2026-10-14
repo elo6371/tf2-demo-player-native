@@ -1,0 +1,1 @@
+{"constants":true,"clampsAgree":true,"boundaries":true,"nanPreserved":true,"legacyEightyMigrates":true,"defaultIsNinety":true,"explicitClamped":true,"probeValues":9,"defaultFov":90,"fovLow":40,"fovHigh":120,"legacyFovDefault":80,"contractOk":true}

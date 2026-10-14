@@ -12,6 +12,12 @@ Selfillum              : PASS (forced — see §10)
 T1 skybox / VIS        : PASS (unchanged)
 ```
 
+Re-verified on 2026-10-14 after this report was first written, in an isolated
+rerun with fresh evidence under `evidence/t2-rerun-20261014-193500-t2a/` and a
+second pass against a different binary under
+`evidence/t2-rerun-20261014-215000-t2b/`: both `WORLD-MATERIAL-EFFECTS=PASS`,
+assertion for assertion identical to the numbers below. See §17.
+
 ---
 
 ## 1. Branch, worktree, baseline, final commit
@@ -21,7 +27,7 @@ T1 skybox / VIS        : PASS (unchanged)
 | Branch | `task/world-material-effects` |
 | Worktree | `D:\TF2_Native_Worktrees\world-material-effects` |
 | Baseline | `origin/p0-entity-protocol` @ `7c24bda` |
-| Commits | `2092429` interface freeze → `731dac4` water + advanced materials → `7cbdf13` probe fixtures → *(final commit: gate + report)* |
+| Commits | `2092429` interface freeze → `731dac4` water + advanced materials → `7cbdf13` probe fixtures → `4c1012e` gate + the water reading it corrected → *(final: report)* |
 | Upstream repo | `git@github.com:elo6371/tf2-demo-player-native.git` |
 
 Baseline confirmed before any T2 code was written:
@@ -434,6 +440,10 @@ All from one gate run (`RUN_TAG 20261014143810-788`), `--hidden-window
 the water off, and `vm-selfillum-off` is the natural launch with a force that was
 switched back off.
 
+The rerun re-measured all ten frames from scratch against a **different binary**
+and every hash is identical (§17d). The table above is therefore the rerun's
+table too, not a historical artefact.
+
 Region analysis: the water pass draws 36 triangles, and the differing pixels are
 confined to those triangles — the comparison is a whole-frame byte count here
 because the gate also asserts the non-water readings (§12's identity) are
@@ -522,6 +532,17 @@ Stated plainly rather than omitted.
    `worldPixelShader_` with its own texture and no lightmap; a water surface with
    a lightmap is not possible in this implementation, which is a limitation
    rather than a defect but is not measured either way.
+9. **The build is not byte-reproducible.** Three binaries from byte-identical
+   source, all the same size, all different (§17d). Consequence: no evidence in
+   this report can be re-derived by rebuilding, only by re-running the gate.
+   What is established instead is that the *readings* are stable across binaries
+   — two different binaries, identical assertions and identical frames.
+10. **The t2a run's binary was not preserved** (§17d). Its hash was recorded
+    before the run; the file was overwritten by the mutation cycle's rebuild.
+    Recorded as a defect in evidence handling, not papered over.
+11. **The rerun still exercised one map, one ViewModel model and one slot.**
+    `cp_snakewater_final1`, `v_sapper_spy` slot 0 — the same two inputs as the
+    first round. A rerun with fresh evidence is not fresh coverage.
 
 ## 16. Worktree state
 
@@ -540,10 +561,175 @@ under `evidence/world-material/` and `evidence/viewmodel/` are **regenerated
 output** from re-running the two existing gates unchanged; their content is what
 those gates produced on a passing run.
 
+### After the rerun (§17)
+
+```
+git diff --check                      -> clean
+git diff -- native/                   -> empty (no source change in the rerun)
+git status --short
+ M T2-WORLD-MATERIAL-EFFECTS-2026-10-14.md        (this section, and the rerun)
+ M evidence/viewmodel/material-mutation-failure-range-key-dropped.txt
+?? evidence/t2-rerun-20261014-193500-t2a/
+?? evidence/t2-rerun-20261014-215000-t2b/
+?? evidence/world-material-effects/00-SUPERSEDED-2026-10-14.md
+?? evidence/world-material/00-SUPERSEDED-2026-10-14.md
+?? evidence/viewmodel/00-SUPERSEDED-2026-10-14.md
+?? evidence/fast/00-SUPERSEDED-2026-10-14.md
+?? evidence/viewmodel/fixtures/vmfix-tf/.../vmfix_ok.vmt    (the fresh-checkout fix)
+```
+
+`TASK-T2-RESUME.md` is left untracked: it is the instruction this rerun ran
+under, not a deliverable.
+
+The other `M` entries in `git status` (the `vmfix-tf` fixture `.vmt` files, the
+`.gitkeep` files and the older `material-mutation-failure-*.txt`) have **empty**
+diffs — `git diff --stat` lists only the two files above. They are line-ending
+stat noise from `core.autocrlf=true`, not content changes.
+
 No merge to the mainline was performed. `verify-all.sh` was **not** run, as the
 task requires.
 
-## 17. GitHub branch address
+## 17. The rerun — 2026-10-14, isolated evidence
+
+Everything in §§1–16 was measured in the first round. This section records the
+rerun demanded afterwards, which used **only** `.scratch/t2-rerun-<run-tag>/`
+and `evidence/t2-rerun-<run-tag>/`, never read an earlier evidence file as proof,
+and never touched `D:\TF2_Native_Test`, `D:\TF2_Demo_Player`, the
+`stability-release` worktree or `verify-all.sh`.
+
+Two run tags, both under `evidence/t2-rerun-*`:
+
+* `20261014-193500-t2a` — the primary run: build, forward gate, the three
+  dependent gates, and the mutation pass.
+* `20261014-215000-t2b` — the verification run: the forward gate again, against
+  a **different binary**.
+
+### 17a. Commands and exit codes
+
+| Step | Command | rc |
+|---|---|---|
+| build | `bash build-target.sh tf2_demo_native world_material_probe viewmodel_material_probe` | 0 |
+| forward | `WORLD_MATERIAL_EFFECTS_SCRATCH=".scratch/t2-rerun-20261014-193500-t2a" WORLD_MATERIAL_EFFECTS_OUT="evidence/t2-rerun-20261014-193500-t2a/world-material-effects" bash world-material-effects-check.sh` | 0 |
+| dependent 1 | `WORLD_MATERIAL_SCRATCH=… WORLD_MATERIAL_OUT=… bash world-material-check.sh` | 0 |
+| dependent 2 | `VIEWMODEL_MATERIAL_OUT=… VIEWMODEL_MATERIAL_TRACE_DIR=… bash viewmodel-material-check.sh` | 0 |
+| dependent 3 | `VERIFY_FAST_OUT=… bash verify-fast.sh` | 0 |
+| mutation | `WORLD_MATERIAL_EFFECTS_SCRATCH=".scratch/t2-rerun-20261014-193500-t2a-mut" WORLD_MATERIAL_EFFECTS_OUT="evidence/t2-rerun-20261014-193500-t2a/mutation" bash world-material-effects-check.sh --mutation` | 0 |
+| verify run | same forward command with `RUN_TAG=20261014-215000-t2b` | 0 |
+
+`verify-fast.sh` was pointed at the new run with `VERIFY_FAST_OUT` rather than
+run bare, so its output landed under the new tag instead of dirtying the
+superseded `evidence/fast/`.
+
+### 17b. Forward result, measured not inherited
+
+```
+WORLD-MATERIAL-EFFECTS=PASS        101 OK / 0 FAIL
+WORLD-MATERIAL=PASS                117 OK / 0 FAIL
+VIEWMODEL-MATERIAL=PASS            221 OK / 0 FAIL
+VERIFY-FAST=PASS (assertions_ok=43)
+```
+
+Every number in §§4–13 was **re-measured** in this rerun, and every one is
+unchanged. The byte counts below are the rerun's own measurements, not the
+historical values carried forward:
+
+| Comparison | Differing bytes |
+|---|---|
+| water-off vs water-on | 5571 |
+| water-on vs water-repeat | 0 |
+| vm-natural vs vm-phong-off | 5250 |
+| vm-natural vs vm-bump-off | 12518 |
+| vm-natural vs vm-selfillum-on | 35646 |
+| vm-selfillum-off vs vm-natural | 0 |
+| vm-natural vs vm-natural-repeat | 0 |
+
+The T1 regression readings came back the same too: sky `vertices=36
+triangles=12 faces=6 draws=1`, vis `input=200000 drawn=170244 hidden=29756
+clipApplied=1`.
+
+### 17c. Mutation result
+
+`--mutation` exited 0. All four product mutations were caught, each on its
+**named** reading with its control preserved, and the five wrong expectations
+did not match. The readings, verbatim from
+`evidence/t2-rerun-20261014-193500-t2a/mutation/`:
+
+| Mutation | Target reading after mutation | Control held |
+|---|---|---|
+| water draw deleted | `draws=0 visible=0` while `state=active` | yes |
+| warp disabled | `warp=0` while `draws=1 visible=1` | yes |
+| Phong upload deleted | `phongApplied=0 phongAppliedRanges=0` while `phongDeclared=1` | yes |
+| bump bind deleted | `bumpApplied=0 bumpAppliedRanges=0` while `bumpUploaded=1` and Phong still applied | yes |
+
+Source restoration and recovery builds: every mutated file came back
+**byte-identical** (`cmp -s`, asserted by the gate) and every recovery build
+exited 0. The four restore builds are in
+`.scratch/t2-rerun-20261014-193500-t2a-mut/restore-*.build`
+
+One naming caveat, unchanged from §5 and still true: mutation 3 sets
+`phongOn = false` (the constant upload and the shader branch), while the reading
+called `phongUploaded` means *the material's texture was uploaded*. So
+`phongUploaded` stays 1 across that mutation and the red reading is
+`phongApplied`. The gate's comment says so; the mutation's name reads otherwise.
+
+### 17d. Two findings this rerun produced
+
+**1. The build is not byte-reproducible on this machine.** Three binaries were
+produced from byte-identical source, all the same size, all different:
+
+| sha256 | produced by | role |
+|---|---|---|
+| `cfaffb16…` | on disk at 19:24, before the rerun; the rerun's `build-target.sh` compiled and linked **nothing** | the binary the t2a forward pass and the four mutations measured |
+| `c0c7bb08…` | `build-target.sh` after the mutation cycle's byte-restoration | the recovery rebuild |
+| `2729dc80…` | `build-cmake.sh` clean (7 min 9 s, rc=0, 31 exes) | the binary the t2b forward pass measured |
+
+The discovery was accidental and is recorded as a defect in this run's evidence
+handling: step 2's build was a **no-op**, so nobody noticed that the binary the
+gate was about to measure had been sitting on disk for an hour. The binary was
+not preserved either — the mutation cycle overwrote `cfaffb16` before its
+identity was recorded as mattering. `evidence/t2-rerun-20261014-193500-t2a/`
+carries `exe-identity.txt` with `preserved=no` rather than a claim it cannot
+support.
+
+What closes the gap is t2b: it ran against `2729dc80`, a different binary, and
+`diff` of the two forward logs' 101 assertions and every measured byte count is
+**empty**, with all ten frames byte-identical. Two different binaries of the
+same source give identical readings and identical frames, so the differing
+bytes are not in any path these readings observe. That is the reading that lets
+the verdict stand despite the missing binary — and it is a stronger statement
+than "the build reproduced", which would have been false.
+
+**2. A fresh checkout would have failed `viewmodel-material-check.sh` §1.**
+`evidence/viewmodel/fixtures/vmfix-tf/materials/models/weapons/v_models/vmfix/vmfix_ok.vmt`
+is produced by the committed generator `viewmodel-material-fixture-gen.py`
+(`OK_STEM = "vmfix_ok"`), its `.vtf` **was** committed, and the `.vmt` was not.
+Section 1 of the gate regenerates the tree and diffs it against the committed
+one, so a fresh clone reported `Only in regen: vmfix_ok.vmt` and failed. The
+rerun passed only because the file happened to be sitting untracked in the
+working tree — the same failure mode as the T4 gate's stale-binary gap. The file
+is committed with this run; nothing else changed.
+
+### 17e. Old evidence marked, not reused
+
+Four directories from earlier rounds are now marked rather than silently
+trusted, because none of them recorded the identity of the binary that produced
+them:
+
+| Directory | Marker |
+|---|---|
+| `evidence/world-material-effects/` | `00-SUPERSEDED-2026-10-14.md` |
+| `evidence/world-material/` | `00-SUPERSEDED-2026-10-14.md` |
+| `evidence/viewmodel/` | `00-SUPERSEDED-2026-10-14.md` |
+| `evidence/fast/` | `00-SUPERSEDED-2026-10-14.md` |
+
+`evidence/viewmodel/fixtures/` is explicitly **not** marked: it is an input the
+gate re-derives, not a record of a run, and marking it would have been the
+opposite of the truth.
+
+Nothing was deleted. `git diff --check` is clean, `git diff -- native/` is empty,
+and no `tf2_demo_native` process was left running.
+
+## 18. GitHub branch address
 
 ```
 https://github.com/elo6371/tf2-demo-player-native/tree/task/world-material-effects

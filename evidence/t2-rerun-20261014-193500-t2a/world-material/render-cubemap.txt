@@ -1,0 +1,2 @@
+gpu: world cubemap status=six-face mode=0 preset=standard declared=0 faces=6 size=32 source=materials/maps/2koth_abbey/c1316_-1018_238.vtf reason=all six faces decoded
+gpu: world cubemap status=six-face mode=2 preset=standard declared=1 faces=6 size=32 source=materials/maps/2koth_abbey/c1316_-1018_238.vtf reason=all six faces decoded

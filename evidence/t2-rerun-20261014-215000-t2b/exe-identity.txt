@@ -1,0 +1,2 @@
+2729dc80ac305ad9ccbcae3b491f659b6eff37d34a4da7d8d6dc4ebdd58d4b3d *native/build-nmake/tf2_demo_native.exe
+built_by=build-cmake.sh (clean) after the t2a mutation cycle

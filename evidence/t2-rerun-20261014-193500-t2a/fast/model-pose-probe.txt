@@ -1,0 +1,1 @@
+{"attachmentOutOfBoundsRejected":true,"bodyPartOutOfBoundsRejected":true,"boneTableOutOfBoundsRejected":true,"bindPoseMutationRejected":true,"cpuSkinWeightMutationRejected":true,"sequenceTableOutOfBoundsRejected":true,"corruptPosePreflight":false}
