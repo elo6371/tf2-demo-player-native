@@ -876,8 +876,13 @@ if [ "$MUTATION" -eq 1 ]; then
     mrc=1
   fi
 
-  # The device acceptance readings, only when --device produced captures.
-  if [ -s "$DEV_NULL_TRACE" ] && [ -s "$DEV6_TRACE" ]; then
+  # The device acceptance readings, only when this run is the one that captured
+  # them. The guard is `--device`, not file existence: captures survive between
+  # runs in $OUT, and a plain --mutation once mutated last run's device traces
+  # (caught=23 where this file documents 21) -- validating a stale capture is
+  # exactly "PASS read from the wrong bytes", so the condition is the flag that
+  # guarantees a fresh capture.
+  if [ "$DEVICE" -eq 1 ] && [ -s "$DEV_NULL_TRACE" ] && [ -s "$DEV6_TRACE" ]; then
     dev6_line=$(grep -a 'mode: summary' "$DEV6_TRACE" | tail -1)
     dev6_ok=$(printf '%s' "$dev6_line" | grep -o 'audio_device_opens_ok=[0-9]*' | cut -d= -f2)
     mutate_checks device-null-attempts "$DEV_NULL_TRACE" 's/audio_device_open_attempts=0/audio_device_open_attempts=1/' device-null
