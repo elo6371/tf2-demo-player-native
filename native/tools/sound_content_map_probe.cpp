@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
   // ---- one status per scheduled event, counted ----------------------------
   std::size_t statusCounts[6] = {};  // indexed by SoundResolveStatus
   std::size_t maxResolvedSeconds = 0;
-  std::size_t markerEvents = 0, markerEventsResolved = 0, markerEventsMissing = 0;
+  std::size_t markerEvents = 0, markerEventsResolved = 0, markerEventsMissing = 0, markerEventsOther = 0;
   std::unordered_map<std::uint32_t, std::size_t> distinctIndices;
   for (const auto& event : timeline.events()) {
     const auto& answer = answerFor(event.soundIndex);
@@ -260,11 +260,16 @@ int main(int argc, char** argv) {
     // The marked entries: names that carry one or two Source sound characters
     // in front of the file. Counted apart, because "a marked name resolved" is
     // the reading that shows the strip is applied, and "a marked name is still
-    // missing" is server-custom content the strip cannot help.
+    // missing" is server-custom content the strip cannot help. `other` keeps
+    // the three-way split exact -- a marked name can also end in
+    // unsupported_format (an MP3) or invalid_wav, so the gate asserts
+    // resolved + missing + other == total instead of pretending only two
+    // outcomes exist.
     if (tf2::native::leadingSoundCharacterCount(event.name) > 0) {
       ++markerEvents;
       if (answer.status == tf2::native::SoundResolveStatus::Resolved) ++markerEventsResolved;
       else if (answer.status == tf2::native::SoundResolveStatus::MissingWav) ++markerEventsMissing;
+      else ++markerEventsOther;
     }
     if (answer.status == tf2::native::SoundResolveStatus::Resolved && answer.seconds > 0.0) {
       maxResolvedSeconds = std::max(maxResolvedSeconds,
@@ -428,6 +433,7 @@ int main(int argc, char** argv) {
             << ",\"markerEvents\":" << markerEvents
             << ",\"markerEventsResolved\":" << markerEventsResolved
             << ",\"markerEventsMissing\":" << markerEventsMissing
+            << ",\"markerEventsOther\":" << markerEventsOther
             << ",\"seenEvents\":" << fullStats.eventsSeen
             << ",\"playedEvents\":" << fullStats.eventsPlayed
             << ",\"skippedVoiceEvents\":" << fullStats.eventsSkippedVoice

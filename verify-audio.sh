@@ -416,18 +416,22 @@ content_checks() { # content_checks <label> <json-file> <map-file>
     bad=$((bad + 1)); printf '  FAIL %s (cap tripped: excessive=%s maxSeconds=%s)\n' "$label" "${exc:-<unparsed>}" "${dur:-<unparsed>}"
   fi
 
-  # 9. Names behind Source sound characters: every marked event either resolved
-  # or is named as still missing (server-custom content), and at least one
-  # marked event exists so the strip is exercised by real data.
-  local me mer mem
+  # 9. Names behind Source sound characters: every marked event lands in one of
+  # the three buckets (resolved / still missing / other named statuses such as
+  # an MP3's unsupported_format -- measured on a scanned recording whose marked
+  # events include ten of those), the buckets sum to the total, and at least
+  # one marked event resolved so the strip is exercised by real data.
+  local me mer mem mo
   me=$(jval "$json" markerEvents)
   mer=$(jval "$json" markerEventsResolved)
   mem=$(jval "$json" markerEventsMissing)
-  if [ -n "$me" ] && [ "$me" -ge 1 ] && [ "$mer" -eq $((me - mem)) ]; then
-    ok=$((ok + 1)); printf '  OK   %s (marked names: %s events, %s resolved, %s still missing)\n' "$label" "$me" "$mer" "$mem"
+  mo=$(jval "$json" markerEventsOther)
+  if [ -n "$me" ] && [ "$me" -ge 1 ] && [ -n "$mo" ] \
+     && [ "$mer" -ge 1 ] && [ "$me" -eq $((mer + mem + mo)) ]; then
+    ok=$((ok + 1)); printf '  OK   %s (marked names: %s events = %s resolved + %s missing + %s other)\n' "$label" "$me" "$mer" "$mem" "$mo"
   else
-    bad=$((bad + 1)); printf '  FAIL %s (marked names: events=%s resolved=%s missing=%s)\n' \
-      "$label" "${me:-<unparsed>}" "${mer:-<unparsed>}" "${mem:-<unparsed>}"
+    bad=$((bad + 1)); printf '  FAIL %s (marked names: events=%s resolved=%s missing=%s other=%s)\n' \
+      "$label" "${me:-<unparsed>}" "${mer:-<unparsed>}" "${mem:-<unparsed>}" "${mo:-<unparsed>}"
   fi
 }
 
