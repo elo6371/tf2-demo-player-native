@@ -1,0 +1,11 @@
+﻿"D:\TF2_Native_Worktrees\stability-release\native\build-nmake\tf2_demo_native.exe"
+--tf-root
+"D:\SteamLibrary\steamapps\common\Team Fortress 2\tf"
+--demo
+D:\TF2_Demo_Player\testdata\demos\4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem
+--hidden-window
+--audio-disabled
+--metrics-file
+D:\TF2_Native_Worktrees\stability-release\.scratch\t4-rerun-20261014-193500-t4a\run-03\res-missing-bsp\metrics.csv
+--settings-file
+D:\TF2_Native_Worktrees\stability-release\.scratch\t4-rerun-20261014-193500-t4a\run-03\res-missing-bsp\settings.ini

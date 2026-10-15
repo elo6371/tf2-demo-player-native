@@ -1,0 +1,40 @@
+﻿recorded_at=2026-10-15T01:25:41.3696047+08:00
+machine=DESKTOP-9U1GAU8
+
+=== video controllers ===
+controller name=MuMu Virtual Display Adapter driver_version=20.36.41.498 status=OK video_processor= adapter_ram_mb=unknown config_manager_error=0
+  current_mode= min_refresh= max_refresh=
+controller name=GameViewer Virtual Display Adapter driver_version=15.6.5.199 status=OK video_processor= adapter_ram_mb=unknown config_manager_error=0
+  current_mode= min_refresh= max_refresh=
+controller name=Todesk Virtual Display Adapter driver_version=16.44.2.509 status=OK video_processor= adapter_ram_mb=unknown config_manager_error=0
+  current_mode= min_refresh= max_refresh=
+controller name=NVIDIA GeForce RTX 4060 Laptop GPU driver_version=32.0.16.1664 status=OK video_processor=NVIDIA GeForce RTX 4060 Laptop GPU adapter_ram_mb=4095 config_manager_error=0
+  current_mode=2560 min_refresh=59 max_refresh=319
+controller name=Intel(R) UHD Graphics driver_version=32.0.101.7026 status=OK video_processor=Intel(R) RaptorLake-S Mobile Graphics Controller adapter_ram_mb=2048 config_manager_error=0
+  current_mode= min_refresh= max_refresh=
+
+=== session ===
+session_id=1
+session_name=Console
+session_protocol_note=Console means the physical desktop; RDP-Tcp means a remote session
+
+=== cpu / memory ===
+cpu name=13th Gen Intel(R) Core(TM) i9-13980HX cores=24 threads=32 max_mhz=2200
+total_memory_mb=32382 free_memory_mb=18468
+os=Microsoft Windows 11 家庭中文版 version=10.0.22631 build=22631
+
+=== audio output devices (waveOut enumeration) ===
+  mode=list_devices device_count=13
+  device=0 query=0 name=耳机 (Realtek(R) Audio)
+  device=1 query=0 name=Voicemeeter VAIO3 Input (VB-Aud
+  device=2 query=0 name=Voicemeeter In 4 (VB-Audio Voic
+  device=3 query=0 name=Voicemeeter In 1 (VB-Audio Voic
+  device=4 query=0 name=Voicemeeter In 5 (VB-Audio Voic
+  device=5 query=0 name=Voicemeeter In 2 (VB-Audio Voic
+  device=6 query=0 name=耳机 (xduoo audio)
+  device=7 query=0 name=27G7K (NVIDIA High Definition A
+  device=8 query=0 name=Voicemeeter In 3 (VB-Audio Voic
+  device=9 query=0 name=Voicemeeter Input (VB-Audio Voi
+  device=10 query=0 name=扬声器 (Realtek(R) Audio)
+  device=11 query=0 name=扬声器 (PD200X Podcast Micropho
+  device=12 query=0 name=Voicemeeter AUX Input (VB-Audio

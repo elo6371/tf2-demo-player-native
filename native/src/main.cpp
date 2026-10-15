@@ -1084,9 +1084,35 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   if (!commandTfRoot.empty()) {
     // An explicit command-line root is an operator decision. Do not silently
     // switch to another Steam installation when that path is moved or missing.
+    // The Steam-library candidates below are therefore NOT appended in this
+    // branch: with them in the list, findInstalled silently connects the
+    // D:\SteamLibrary install whenever the operator's path is missing or
+    // moved -- the wrong-path use this comment promises not to do. T4
+    // reproduced exactly that: --tf-root pointing at a nonexistent directory
+    // still started with the Steam install connected, and the window title
+    // read as if the TF2 resources were fine. A valid explicit root is
+    // unaffected: it is the only candidate here, so findInstalled either
+    // returns it or the program reports the root as missing.
     candidates = {commandTfRoot};
-  } else if (!persistent.tfRoot.empty()) {
-    candidates.insert(candidates.begin(), persistent.tfRoot);
+  } else {
+    if (!persistent.tfRoot.empty()) {
+      candidates.insert(candidates.begin(), persistent.tfRoot);
+    }
+    wchar_t* steamRoot = nullptr;
+    size_t steamRootLength = 0;
+    if (_wdupenv_s(&steamRoot, &steamRootLength, L"STEAM_DIR") == 0 && steamRoot) {
+      candidates.emplace_back(std::filesystem::path(steamRoot)
+        / L"steamapps\\common\\Team Fortress 2\\tf");
+      free(steamRoot);
+    }
+    std::vector<std::filesystem::path> steamRoots = {
+      L"C:\\Program Files (x86)\\Steam",
+      L"C:\\Program Files\\Steam",
+      L"D:\\SteamLibrary",
+    };
+    addSteamRegistryRoots(steamRoots);
+    const auto steamCandidates = tf2::native::AssetRoot::steamLibraryCandidates(steamRoots);
+    candidates.insert(candidates.end(), steamCandidates.begin(), steamCandidates.end());
   }
   if (arguments) LocalFree(arguments);
   if (!commandDemo.empty()) {
@@ -1095,21 +1121,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       nativeUi.confirmImport();
     }
   }
-  wchar_t* steamRoot = nullptr;
-  size_t steamRootLength = 0;
-  if (_wdupenv_s(&steamRoot, &steamRootLength, L"STEAM_DIR") == 0 && steamRoot) {
-    candidates.emplace_back(std::filesystem::path(steamRoot)
-      / L"steamapps\\common\\Team Fortress 2\\tf");
-    free(steamRoot);
-  }
-  std::vector<std::filesystem::path> steamRoots = {
-    L"C:\\Program Files (x86)\\Steam",
-    L"C:\\Program Files\\Steam",
-    L"D:\\SteamLibrary",
-  };
-  addSteamRegistryRoots(steamRoots);
-  const auto steamCandidates = tf2::native::AssetRoot::steamLibraryCandidates(steamRoots);
-  candidates.insert(candidates.end(), steamCandidates.begin(), steamCandidates.end());
   const auto assets = tf2::native::AssetRoot::findInstalled(candidates);
   nativeUi.setTfRoot(assets.valid() ? assets.tfDirectory : persistent.tfRoot);
   std::string cacheStatus;

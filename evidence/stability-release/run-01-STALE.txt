@@ -1,0 +1,15 @@
+run-01 is STALE / MISMATCHED -- do not use it as release evidence.
+
+Reason: run-01 was executed with a binary whose identity does not match the
+recorded build identity for this task (the exe ran before the explicit
+--tf-root fix in native/src/main.cpp was built in, and its run manifest
+carries no exe_sha256/exe_size line to reconcile against). Per the T4 task
+brief, run-01 may only be marked stale; it cannot serve as final evidence.
+
+Final evidence is run-03 only:
+  exe_sha256 = fe9c9e55b36236b318a1360e399ffb98f93ebb3e66d24ae09f0bd0fe7035e1f6
+  exe_size   = 1446400
+  built      = 2026-10-14 17:14:56 +0800 (includes the explicit-root fix)
+  scratch    = .scratch/t4-rerun-20261014-193500-t4a/run-03
+
+Marked at: 2026-10-15
