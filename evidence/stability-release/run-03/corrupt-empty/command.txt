@@ -1,0 +1,11 @@
+﻿"D:\TF2_Native_Worktrees\stability-release\native\build-nmake\tf2_demo_native.exe"
+--tf-root
+"D:\SteamLibrary\steamapps\common\Team Fortress 2\tf"
+--demo
+.scratch\t4-rerun-20261014-193500-t4a\run-03\fixtures\empty.dem
+--hidden-window
+--audio-disabled
+--metrics-file
+D:\TF2_Native_Worktrees\stability-release\.scratch\t4-rerun-20261014-193500-t4a\run-03\corrupt-empty\metrics.csv
+--settings-file
+D:\TF2_Native_Worktrees\stability-release\.scratch\t4-rerun-20261014-193500-t4a\run-03\corrupt-empty\settings.ini

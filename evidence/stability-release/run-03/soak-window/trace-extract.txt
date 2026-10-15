@@ -1,0 +1,73 @@
+﻿# trace extract (the raw trace was 54.5 MB, over the 8 MB commit limit)
+# raw_sha256=50da01812b56e305d53844c649bf4db0fe37713c9218797b76b9ceb0cda73edb
+# raw_line_count=852266
+
+# --- verdict-bearing lines ---
+0.0 trace open
+661804.4 mode: summary window_created=0 window_visible=0 audio_mode=device audio_device_opened=597 events_seen=5229 events_played=597 events_skipped=637 events_missing=3995 drawn=49764 capture_written=0 metrics_written=1 exit=0
+661804.4 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=597 soundEventsSkippedVoice=637 soundEventsMissingResource=3995 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=52402
+661804.4 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=53839 holdsNoTarget=0 freezeFrames=0
+
+# --- first 30 lines ---
+0.0 trace open
+17502.4 audio: timeline firstPacketTick=10252 soundOriginTick=1 originFound=1 read=5292 scheduled=5229 unresolved=63 unplaceable=0 refused=0 kinds=w2953/f5/u14/o1620/v633/a4/m0
+17820.7 gpu: reload begin
+17904.4 gpu: world lightmap status=active intensity=0.437 atlas=1 bump=0 env=0 vertices=600000 lightmapped=597789
+17904.5 gpu: world geometry displacedTriangles=165376 waterTriangles=36
+17907.6 gpu: world vis cameraCluster=563 visibleFromCamera=850 clusters=2940 clusteredTriangles=34517 hiddenTriangles=26936 clipApplied=0
+17907.7 gpu: world cubemap status=six-face mode=0 preset=performance declared=0 faces=6 size=32 source=materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf reason=all six faces decoded
+17911.5 gpu: model 0/59 1024x1024 3.7ms uploaded=1
+17918.7 gpu: model 1/59 1024x1024 7.0ms uploaded=1
+17919.3 gpu: model 2/59 128x128 0.3ms uploaded=1
+17920.4 gpu: model 3/59 512x512 1.1ms uploaded=1
+17933.1 gpu: model 4/59 2048x2048 12.7ms uploaded=1
+17963.3 gpu: model 5/59 2048x2048 29.1ms uploaded=1
+17965.8 gpu: model 6/59 512x512 1.5ms uploaded=1
+17967.9 gpu: model 7/59 512x512 2.0ms uploaded=1
+17970.3 gpu: model 8/59 512x512 2.3ms uploaded=1
+17974.2 gpu: model 9/59 1024x1024 3.9ms uploaded=1
+17977.7 gpu: model 10/59 1024x1024 3.3ms uploaded=1
+17981.4 gpu: model 11/59 1024x1024 3.6ms uploaded=1
+17989.3 gpu: model 12/59 1024x1024 7.7ms uploaded=1
+18018.9 gpu: model 13/59 2048x2048 29.3ms uploaded=1
+18050.1 gpu: model 14/59 2048x2048 30.3ms uploaded=1
+18053.1 gpu: model 15/59 512x512 2.1ms uploaded=1
+18061.6 gpu: model 16/59 1024x1024 8.2ms uploaded=1
+18065.4 gpu: model 17/59 1024x1024 3.6ms uploaded=1
+18073.5 gpu: model 18/59 1024x1024 7.8ms uploaded=1
+18081.6 gpu: model 19/59 1024x1024 7.8ms uploaded=1
+18089.4 gpu: model 20/59 1024x1024 7.6ms uploaded=1
+18093.0 gpu: model 21/59 1024x1024 3.3ms uploaded=1
+18099.7 gpu: model 22/59 2048x1024 6.4ms uploaded=1
+
+# --- last 30 lines ---
+661781.5 scene: buildInstances=256
+661781.9 scene: setInstances draws=96 markers=32
+661782.0 scene: anim skinned=62 bindPose=34 matrices=178 gpuSkin=61/178 boneMismatch=0 poseChanges=2675 targetInstances=2 targetPose=0 advances=2672 targetAdv=0 cycle=229697/0 tick=68401 status=sample-failed reason=animation bone index is outside the skeleton
+661782.0 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=80/100 lf=80/0 poseChanges=85 seen=52798 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+661782.0 scene: instances set
+661782.0 scene: done
+661782.8 loop n=106239 tick=58438
+661784.1 audio: advance tick=58439 cursor=58439 seen=5229 played=597 skippedVoice=637 missing=3995 dup=52400
+661784.1 scene: begin tick=58439 sceneTick=68691
+661788.3 scene: snapshot status=1 stale=290 states=2048
+661788.3 scene: camera mode=first-person target=1 follows=53839 holds=0 freeze=0
+661788.3 scene: observer done
+661788.3 scene: hud fxDue=2029 drawable=1
+661790.0 scene: buildInstances=256
+661790.5 scene: setInstances draws=96 markers=32
+661790.6 scene: anim skinned=62 bindPose=34 matrices=178 gpuSkin=61/178 boneMismatch=0 poseChanges=2675 targetInstances=2 targetPose=0 advances=2672 targetAdv=0 cycle=229701/0 tick=68401 status=sample-failed reason=animation bone index is outside the skeleton
+661790.6 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=80/100 lf=80/0 poseChanges=85 seen=52799 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+661790.6 scene: instances set
+661790.7 scene: done
+661791.1 draw: begin tick=58439 frames=49762
+661791.3 draw: end frames=49763 pending=0
+661791.3 loop n=106240 tick=58439
+661793.0 draw: begin tick=58439 frames=49763
+661793.1 draw: end frames=49764 pending=0
+661793.1 loop n=106241 tick=58439
+661794.5 loop n=106242 tick=58439
+661804.4 metrics t=643.34 tick=58439 iter=106242
+661804.4 mode: summary window_created=0 window_visible=0 audio_mode=device audio_device_opened=597 events_seen=5229 events_played=597 events_skipped=637 events_missing=3995 drawn=49764 capture_written=0 metrics_written=1 exit=0
+661804.4 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=597 soundEventsSkippedVoice=637 soundEventsMissingResource=3995 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=52402
+661804.4 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=53839 holdsNoTarget=0 freezeFrames=0

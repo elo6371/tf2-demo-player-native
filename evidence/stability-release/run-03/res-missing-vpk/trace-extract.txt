@@ -1,0 +1,73 @@
+﻿# trace extract (the raw trace was 10.3 MB, over the 8 MB commit limit)
+# raw_sha256=1c2aa436b7ec770876a5da16747483b2e209ad7f5d4c76cdab592e35bb58bf06
+# raw_line_count=170217
+
+# --- verdict-bearing lines ---
+0.0 trace open
+150866.9 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=2763 events_played=0 events_skipped=348 events_missing=2415 drawn=8510 capture_written=0 metrics_written=1 exit=0
+150866.9 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=348 soundEventsMissingResource=2415 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=5492
+150866.9 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=11376 holdsNoTarget=0 freezeFrames=0
+
+# --- first 30 lines ---
+0.0 trace open
+17019.5 audio: timeline firstPacketTick=10252 soundOriginTick=1 originFound=1 read=5292 scheduled=5229 unresolved=63 unplaceable=0 refused=0 kinds=w2953/f5/u14/o1620/v633/a4/m0
+17373.0 gpu: reload begin
+17373.1 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0
+17373.1 gpu: world geometry displacedTriangles=0 waterTriangles=0
+17373.1 gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=0 clusteredTriangles=0 hiddenTriangles=0 clipApplied=0
+17373.1 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+17373.1 gpu: models done 0 uploaded=0
+17373.1 gpu: reload end
+17373.7 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+17374.3 loop n=1 tick=0
+17374.3 audio: advance tick=0 cursor=0 seen=0 played=0 skippedVoice=0 missing=0 dup=0
+17374.3 scene: begin tick=0 sceneTick=10252
+17374.3 scene: snapshot status=3 stale=0 states=0
+17374.3 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0
+17374.3 scene: observer done
+17374.3 scene: hud fxDue=0 drawable=0
+17374.4 scene: done
+17383.4 loop n=2 tick=0
+17383.5 draw: begin tick=0 frames=0
+17385.3 draw: end frames=1 pending=0
+17385.3 loop n=3 tick=0
+17399.5 loop n=4 tick=0
+17399.5 audio: advance tick=1 cursor=1 seen=0 played=0 skippedVoice=0 missing=0 dup=2
+17399.5 scene: begin tick=1 sceneTick=10253
+17399.5 scene: snapshot status=3 stale=0 states=0
+17399.5 scene: camera mode=first-person target=1 follows=2 holds=0 freeze=0
+17399.5 scene: observer done
+17399.5 scene: hud fxDue=0 drawable=0
+17399.5 scene: done
+
+# --- last 30 lines ---
+150846.4 scene: buildInstances=14
+150846.7 scene: setInstances draws=14 markers=0
+150846.7 scene: anim skinned=0 bindPose=14 matrices=0 gpuSkin=0/0 boneMismatch=0 poseChanges=0 targetInstances=0 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=21679 status=model-missing reason=no asset root
+150846.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+150846.7 scene: instances set
+150846.8 scene: done
+150846.9 draw: begin tick=11879 frames=8508
+150847.0 draw: end frames=8509 pending=0
+150847.0 loop n=16866 tick=11879
+150857.6 loop n=16867 tick=11879
+150857.6 audio: advance tick=11880 cursor=11880 seen=2763 played=0 skippedVoice=348 missing=2415 dup=5491
+150857.6 scene: begin tick=11880 sceneTick=22132
+150861.3 scene: snapshot status=1 stale=453 states=2048
+150861.4 scene: camera mode=first-person target=1 follows=11376 holds=0 freeze=0
+150861.4 scene: observer done
+150861.4 scene: hud fxDue=507 drawable=1
+150863.0 scene: buildInstances=14
+150863.5 scene: setInstances draws=14 markers=0
+150863.5 scene: anim skinned=0 bindPose=14 matrices=0 gpuSkin=0/0 boneMismatch=0 poseChanges=0 targetInstances=0 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=21679 status=model-missing reason=no asset root
+150863.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+150863.5 scene: instances set
+150863.5 scene: done
+150863.9 draw: begin tick=11880 frames=8509
+150864.0 draw: end frames=8510 pending=0
+150864.0 loop n=16868 tick=11880
+150864.9 loop n=16869 tick=11880
+150866.9 metrics t=133.49 tick=11880 iter=16869
+150866.9 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=2763 events_played=0 events_skipped=348 events_missing=2415 drawn=8510 capture_written=0 metrics_written=1 exit=0
+150866.9 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=348 soundEventsMissingResource=2415 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=5492
+150866.9 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=11376 holdsNoTarget=0 freezeFrames=0

@@ -1,0 +1,3 @@
+﻿# demo_open_probe.exe (the repo's own header/index parser) on the same bytes
+# this is the PARSER's verdict, not the exe's; the exe run is in this directory
+path=<wide-path> header=0 header_error=missing HL2DEMO signature index=0 index_error= recording=unknown map= malformed_offset=0 commands=0 packets=0
