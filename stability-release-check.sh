@@ -167,8 +167,8 @@ load_readings() { # <case dir> -> R
 load_title() { # <case dir> -> T
   T=(); [ -f "$1/title-last.txt" ] || return 1
   local out
-  out="$(grep -o -e 'TF2 .*已连接: [^[]*' -e 'VPK entries: [^,]*' -e 'BSP: [^,]*' \
-                     -e 'maptex: [^]]*' -e 'SourceTV ticks=[0-9]*' "$1/title-last.txt" 2>/dev/null)"
+  out="$(grep -oP 'TF2 [^:]*: [A-Za-z]:\\[^\[]*|VPK entries: [^,]*|BSP: [^,]*|maptex: [^]]*|SourceTV ticks=[0-9]*' \
+                     "$1/title-last.txt" 2>/dev/null)"
   while IFS= read -r line; do
     # The title's "root [" separator leaves a trailing space on the value, and
     # command.txt quotes any value containing whitespace. Both are presentation,
