@@ -20,7 +20,6 @@
 - 画面观察（查看抓帧）：ViewModel+武器本体可见且可开关（`--viewmodel-weapon-body off` 后灰色步枪消失）；天空为纯色（无天空盒纹理）；水面未入画 → 未确认。HUD 行已按门禁读法引到（45 s 内 231 次标题、216 个版本）。
 - 声音分开记录：真实设备 `--audio-device 6`（`audio_mode=device`、`events_seen=1037 played=601 skipped=48 missing=388`）与 null sink `--audio-disabled`（`played=0`、`skipped=649`）两组独立读数；可听性未确认。
 - 验收：`bash verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)` rc=0；`bash camera-ui-check.sh` = `CAMERA-UI=PASS` rc=0。详见 `T3-MANUAL-FOLLOWUP-2026-10-14.md`（含 10 条未确认项）。
->>>>>>> 95291f3 (docs: add T3 manual follow-up report and sync status docs)
 
 ## 2026-10-13
 
