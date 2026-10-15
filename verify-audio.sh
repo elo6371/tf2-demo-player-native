@@ -552,14 +552,33 @@ player_checks() { # player_checks <label> <trace-file> <census-json-file>
   else
     bad=$((bad + 1)); printf '  FAIL %s (soundEventsSkippedVoice=%s: a counter that can only read 0 is not a reading)\n' "$label" "${sv:-<unparsed>}"
   fi
-  # The same-tick guard must have fired: the player advances once per rendered
-  # frame while the timeline moves at the demo tick rate.
-  local dt
+  # The same-tick guard's *behaviour* is proven deterministically in the census
+  # and content sections (re-present a consumed tick; nothing may replay, and
+  # the guard's own counter must move). At the player level only the count is
+  # readable, and that count is frame-rate dependent: it moves only when at
+  # least one rendered frame advanced zero ticks, so a run whose frames are all
+  # slower than the demo's tick rate (66.7 Hz) reads 0. Measured 2026-10-15:
+  # this assertion false-reded on a healthy run while three parallel task
+  # sessions shared the machine -- asserting >=1 here would make the gate's
+  # verdict depend on machine load, not on the product.
+  #
+  # What the player run must satisfy instead is its own accounting identity --
+  # every event it saw was played, skipped or missing, exactly once -- which
+  # holds no matter how the frame clock ran. `duplicateTicks` stays printed for
+  # the record.
+  local seen2 played2 skipped2 missing2 dt
+  seen2=$(printf '%s' "$mode_line" | grep -o 'events_seen=[0-9]*' | cut -d= -f2)
+  played2=$(printf '%s' "$mode_line" | grep -o 'events_played=[0-9]*' | cut -d= -f2)
+  skipped2=$(printf '%s' "$mode_line" | grep -o 'events_skipped=[0-9]*' | cut -d= -f2)
+  missing2=$(printf '%s' "$mode_line" | grep -o 'events_missing=[0-9]*' | cut -d= -f2)
   dt=$(printf '%s' "$summary" | grep -o 'duplicateTicks=[0-9]*' | cut -d= -f2)
-  if [ "${dt:-0}" -ge 1 ]; then
-    ok=$((ok + 1)); printf '  OK   %s (duplicateTicks=%s: the same-tick guard fired)\n' "$label" "$dt"
+  if [ -n "$seen2" ] && [ -n "$played2" ] && [ -n "$skipped2" ] && [ -n "$missing2" ] \
+     && [ "$seen2" -eq $((played2 + skipped2 + missing2)) ]; then
+    ok=$((ok + 1)); printf '  OK   %s (events_seen=%s = played %s + skipped %s + missing %s; duplicateTicks=%s)\n' \
+      "$label" "$seen2" "$played2" "$skipped2" "$missing2" "${dt:-<unparsed>}"
   else
-    bad=$((bad + 1)); printf '  FAIL %s (duplicateTicks=%s: the guard was never exercised)\n' "$label" "${dt:-<unparsed>}"
+    bad=$((bad + 1)); printf '  FAIL %s (accounting: seen=%s played=%s skipped=%s missing=%s)\n' \
+      "$label" "${seen2:-<unparsed>}" "${played2:-<unparsed>}" "${skipped2:-<unparsed>}" "${missing2:-<unparsed>}"
   fi
   # A forward run must not report a backwards recovery.
   if printf '%s' "$summary" | grep -qF 'reverseRecoveries=0'; then
@@ -826,6 +845,11 @@ if [ "$MUTATION" -eq 1 ]; then
     # The origin must be the packet origin, not the signon tick.
     mutate_checks player-origin  "$OUT/player-trace.txt" 's/soundOriginTick=0/soundOriginTick=29368/' player
     mutate_checks player-read    "$OUT/player-trace.txt" 's/read=5563/read=5564/' player
+    # The accounting identity must be live: one more seen than accounted for has
+    # to fail. The value is read from the capture so a moved window cannot turn
+    # this into a no-op.
+    seen_now=$(grep -a 'mode: summary' "$OUT/player-trace.txt" | tail -1 | grep -o 'events_seen=[0-9]*' | cut -d= -f2)
+    mutate_checks player-accounting "$OUT/player-trace.txt" "s/events_seen=$seen_now/events_seen=$((seen_now + 1))/" player
   else
     echo "  MUTATION-SETUP=FAIL (no player trace: the player mutations cannot run)"
     mrc=1
