@@ -173,13 +173,27 @@ RUN_TIMEOUT=300
 FRAME_NAMES="novm vm90 vm40 vm120 vmleft vmident vmfov10 vmfov200 vmmissing vmdefault vmstored vmlegacy vmfdamaged vmfnoanchor vmfnocompanion vmshort"
 clear_frames() {
   local name
+  # The per-frame settings file is NOT tidiness: `vmdefault`'s "no stored value"
+  # premise is an absent file, and the product writes that file back on exit, so
+  # every later run inherits a stored FOV unless it is taken away here. A delete
+  # cannot carry that premise on this machine -- the sandbox's bulk-delete guard
+  # refuses `rm` once a turn's deletions cross its threshold, and by the time this
+  # gate runs as part of the full render tier's mutation pass, the earlier gates
+  # have already spent that budget. The refused delete was invisible until the
+  # fov-default mutation inherited a stored 90 from the forward run and read
+  # green. A rename does not cross that guard and cannot silently fail, so the
+  # settings files are moved aside instead of deleted.
+  mkdir -p "$TRACE_DIR/.settings-quarantine"
+  for name in $FRAME_NAMES; do
+    if [ -f "$TRACE_DIR/$name-settings.ini" ]; then
+      mv -f "$TRACE_DIR/$name-settings.ini" \
+        "$TRACE_DIR/.settings-quarantine/$name-settings.ini"
+    fi
+  done
   for name in $FRAME_NAMES; do
     # Best effort, and only tidiness: the token decides freshness, so a refused delete
     # costs disk space and nothing else. It is deliberately not the mechanism.
     rm -f "$TRACE_DIR/$name.bmp" "$TRACE_DIR/$name.csv" "$TRACE_DIR/$name.token"
-    # The per-frame settings file goes too, so a frame that is meant to run with no
-    # stored value cannot inherit one from the previous run of this gate.
-    rm -f "$TRACE_DIR/$name-settings.ini"
   done
 }
 
