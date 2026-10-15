@@ -26,7 +26,7 @@
 #   loses a fixture, or a key that quietly disappears, reads red.
 #
 #   The counts are pinned as deliberate edits, the same convention as
-#   verify-all.sh's `exe_count=23` and `fixture_pass_count=58`. When a fixture
+#   verify-all.sh's `exe_count=31` and `fixture_pass_count=58`. When a fixture
 #   legitimately grows, this list is updated on purpose and the diff says so.
 #
 # THE ARGUMENT-PARSING TRAP THIS SCRIPT DOCUMENTS
