@@ -157,6 +157,16 @@ All eight sections green; the numbers this round reads:
   (unavailable PVS -> named refusal), `atlasFitsAt2048` / `atlasGrowsWhenFull`.
 - fixtures: 9 fixtures / 90 checks / 0 failures; with mutations: 120 checks /
   7 mutations / 0 failures.
+- negative fixtures for the five cases the task names, each with a named
+  fallback or refusal reading (all from this run's fixture outputs):
+
+| case | fixture / check | reading |
+|---|---|---|
+| missing sky faces | `skybox-six-vmt` mutation: the down-face texture is erased | `sky.state=fallback`, `texturesResolved=5` of 6, reason names `sky_fixture_01dn.vtf`; plus the self-test's "4 of 6" partial fallback |
+| missing cubemap | `cubemap-six-face` mutation: the loose file is gone and the pakfile file is cut to three face chains | `cubemap.state=fallback`, `samplesComplete=0`, `facesDecoded=3`, reason names the missing path and "face 3 did not decode" |
+| missing water resources | water fixtures `no-material` / `texture-unresolved` (fallback), `partial-buffer` / `no-geometry` (unavailable) | `state=fallback` with `fallback=1`, or `state=unavailable` with a named reason |
+| unavailable PVS | self-test `visClipWithoutPvs` / `visClipNeedsCamera`; fixture `vis-camera-cluster` pins `clusterAt` (NaN -> -1, the camera-has-no-cluster case) | named refusal, not a silent no-op |
+| missing BSP data | the bagel negative control (below) | every capability `unavailable`, each with its own reason |
 - real map (`cp_snakewater_final1`), the six capabilities pinned:
   - lightmap `active`: 11527 faces with lightmaps, 11527 packed, **0 dropped**,
     199922 triangles with light uv, atlas **4096x1156**, `atlasGrew=true`,
