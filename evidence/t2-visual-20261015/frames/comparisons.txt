@@ -1,0 +1,7 @@
+on vs sky-off  : BMP-DIFF differing=2005722 total=2582352 percent=77.6704 max_delta=149 extent=1264x681x24 status=PASS
+on vs vis-off  : BMP-DIFF differing=347102 total=2582352 percent=13.4413 max_delta=250 extent=1264x681x24 status=PASS
+on vs water-off: BMP-DIFF differing=5571 total=2582352 percent=0.2157 max_delta=79 extent=1264x681x24 status=PASS
+on vs repeat   : BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+region sky-off: differing_pixels=668574 bbox=(x=0..1263, y=0..680) w=1264 h=681
+region vis-off: differing_pixels=116515 bbox=(x=0..1218, y=123..539) w=1219 h=417
+region water-off: differing_pixels=1857 bbox=(x=646..846, y=396..405) w=201 h=10

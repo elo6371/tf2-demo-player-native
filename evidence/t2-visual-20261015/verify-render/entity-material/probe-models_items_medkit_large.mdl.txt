@@ -1,0 +1,8 @@
+model-textures path=models/items/medkit_large.mdl declared=1 read=1
+model-cdtextures count=1 [/models/items/]
+  texture[0] models/items/medkit
+  texture-candidates[0] [models/items/medkit]
+model-material name=models/items/medkit vmt=materials/models/items/medkit.vmt vmtBytes=389 parsed=1 shader=VertexLitGeneric base=models\items/medkit vtf=materials/models/items/medkit.vtf vtfBytes=1398368 size=1024x1024 decodedBytes=4194304 complete=1
+model-material summary slots=1 resolved=1
+model-header words offset:value 188:1 192:1632 196:0 200:0 204:1 208:2140 212:1 216:2204 220:1 224:1 228:2208 232:1 236:1860 240:0 244:1312 248:0 252:1860 fileBytes=2288
+{"ok":true,"selfTest":false,"uniqueRenderable":4,"vpkRenderable":4,"inspections":3,"inspectionCacheHits":1,"scoutVertices":12000,"scoutChecksum":1098120898,"scoutKey":"models/player/scout.mdl#1098120898","duplicateStable":true,"instanceCount":6,"playerFallbacks":1}

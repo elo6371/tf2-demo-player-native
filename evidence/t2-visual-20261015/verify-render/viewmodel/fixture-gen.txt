@@ -1,0 +1,4 @@
+wrote evidence/t2-visual-20261015/verify-render/viewmodel/fixture-regen/tf/models/weapons/v_models/v_fixture_ok.mdl (648 bytes, companions=1)
+wrote evidence/t2-visual-20261015/verify-render/viewmodel/fixture-regen/tf/models/weapons/v_models/v_fixture_damaged.mdl (648 bytes, companions=1)
+wrote evidence/t2-visual-20261015/verify-render/viewmodel/fixture-regen/tf/models/weapons/v_models/v_fixture_noanchor.mdl (643 bytes, companions=1)
+wrote evidence/t2-visual-20261015/verify-render/viewmodel/fixture-regen/tf/models/weapons/v_models/v_fixture_nocompanion.mdl (648 bytes, companions=0)

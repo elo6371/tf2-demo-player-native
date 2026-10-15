@@ -1,0 +1,1 @@
+gpu: world sky state=active vertices=36 triangles=12 faces=6 draws=0 side=512 resampled=1 reason=six sides, 36 vertices

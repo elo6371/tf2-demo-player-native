@@ -1,0 +1,5 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\world-material-visual\native\src\native_renderer.cpp(2549): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\world-material-visual\native\src\native_renderer.cpp(2550): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\world-material-visual\native\src\native_renderer.cpp(2848): warning C4456: “view”的声明隐藏了上一个本地声明
+rc=0
