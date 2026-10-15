@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cctype>
+#include <cstdio>
 #include <limits>
 #include <utility>
 
@@ -116,6 +117,7 @@ const char* soundResolveStatusName(SoundResolveStatus status) {
   case SoundResolveStatus::MissingWav: return "missing_wav";
   case SoundResolveStatus::InvalidWav: return "invalid_wav";
   case SoundResolveStatus::UnsupportedFormat: return "unsupported_format";
+  case SoundResolveStatus::ExcessiveDuration: return "excessive_duration";
   default: return "unknown";
   }
 }
@@ -218,6 +220,15 @@ bool readSoundResource(const VpkArchive& archive, const std::string& name,
     if (ext == "wav") {
       out.codec = SoundCodec::Wav;
       if (!parseWav(bytes, out.wav)) { out.error = out.wav.error; return false; }
+      // A parsed WAV can still be one the output path must not accept: this
+      // reader feeds the product's scheduler, and a single buffer holds a voice
+      // slot until it drains. The same cap the named chain reports as
+      // ExcessiveDuration is applied here so the two entry points cannot
+      // disagree about which resources are sound to play.
+      if (!wavWithinDurationCap(out.wav)) {
+        out.error = "sound duration exceeds the playback cap";
+        return false;
+      }
     } else if (ext == "mp3") {
       out.codec = SoundCodec::Mp3;
       if (!hasMp3Frame(bytes)) { out.error = "MP3 frame signature is missing"; return false; }
@@ -365,27 +376,64 @@ SoundResolveStatus resolveSoundIndexResource(const SoundIndexTable& table,
     if (!readError.empty()) detail += ": " + readError;
     return SoundResolveStatus::MissingWav;
   }
-  out.archivePath = present;
+  // Everything after the read is shared with the crafted-bytes path, so the
+  // named chain and a probe driving the classifier directly answer the same
+  // question with the same code.
+  return classifySoundResourceBytes(bytes, present, out, detail);
+}
+
+double wavDurationSeconds(const WavPcmData& wav) {
+  if (!wav.valid) return std::numeric_limits<double>::infinity();
+  const double rate = static_cast<double>(wav.blockAlign) * static_cast<double>(wav.sampleRate);
+  if (!(rate > 0.0) || !std::isfinite(rate)) return std::numeric_limits<double>::infinity();
+  return static_cast<double>(wav.pcm.size()) / rate;
+}
+
+bool wavWithinDurationCap(const WavPcmData& wav, double capSeconds) {
+  if (!std::isfinite(capSeconds) || capSeconds <= 0.0) return false;
+  return wavDurationSeconds(wav) <= capSeconds;
+}
+
+SoundResolveStatus classifySoundResourceBytes(const std::vector<std::uint8_t>& bytes,
+    const std::string& archivePath, SoundResource& out, std::string& detail) {
+  out = {};
+  detail.clear();
+  if (bytes.empty()) {
+    // Defensive: a caller that read its own bytes found nothing to classify.
+    // Named as the read failure it is, not folded into invalid_wav.
+    detail = "resource '" + archivePath + "' yielded no bytes";
+    return SoundResolveStatus::MissingWav;
+  }
+  out.archivePath = archivePath;
   out.bytes = bytes;
-  const auto ext = present.substr(present.find_last_of('.') + 1);
+  const auto dot = archivePath.find_last_of('.');
+  const auto ext = dot == std::string::npos ? std::string() : archivePath.substr(dot + 1);
   if (ext == "wav") {
     out.codec = SoundCodec::Wav;
     if (!parseWav(bytes, out.wav)) {
       out.error = out.wav.error;
-      detail = "WAV '" + present + "' does not parse: " + out.wav.error;
+      detail = "WAV '" + archivePath + "' does not parse: " + out.wav.error;
       return SoundResolveStatus::InvalidWav;
+    }
+    if (!wavWithinDurationCap(out.wav)) {
+      char seconds[64]{};
+      std::snprintf(seconds, sizeof(seconds), "%.1f", wavDurationSeconds(out.wav));
+      out.error = "sound duration exceeds the playback cap";
+      detail = "WAV '" + archivePath + "' would play for " + seconds + "s, above the "
+        + std::to_string(static_cast<long long>(kSoundDurationCapSeconds)) + "s cap";
+      return SoundResolveStatus::ExcessiveDuration;
     }
   } else if (ext == "mp3") {
     out.codec = SoundCodec::Mp3;
     if (!hasMp3Frame(bytes)) {
       out.error = "MP3 frame signature is missing";
-      detail = "MP3 '" + present + "' carries no decodable frame signature";
+      detail = "MP3 '" + archivePath + "' carries no decodable frame signature";
       return SoundResolveStatus::InvalidWav;
     }
   } else {
     out.codec = SoundCodec::Unknown;
     out.error = "unsupported sound extension";
-    detail = "sound '" + present + "' is neither WAV nor MP3";
+    detail = "sound '" + archivePath + "' is neither WAV nor MP3";
     return SoundResolveStatus::UnsupportedFormat;
   }
   // Found and parsed, but not playable: an MP3 has no PCM decode in this
@@ -395,11 +443,11 @@ SoundResolveStatus resolveSoundIndexResource(const SoundIndexTable& table,
     out.error = out.codec == SoundCodec::Mp3
       ? "MP3 is not decoded by the native PCM output path"
       : "parsed WAV is not playable by the native PCM output path";
-    detail = out.error + " (" + present + ")";
+    detail = out.error + " (" + archivePath + ")";
     return SoundResolveStatus::UnsupportedFormat;
   }
   out.valid = true;
-  detail = "resolved '" + present + "' channels=" + std::to_string(out.wav.channels)
+  detail = "resolved '" + archivePath + "' channels=" + std::to_string(out.wav.channels)
     + " rate=" + std::to_string(out.wav.sampleRate)
     + " bits=" + std::to_string(out.wav.bitsPerSample)
     + " bytes=" + std::to_string(out.wav.pcm.size());

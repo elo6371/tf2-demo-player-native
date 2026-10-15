@@ -45,6 +45,13 @@ enum class SoundResolveStatus : std::uint8_t {
   MissingWav,
   InvalidWav,
   UnsupportedFormat,
+  // Parsed, playable shape, and still not a sound to hand to the output path:
+  // the buffer would occupy one of the eight voice slots for longer than the
+  // cap below. Its own reason rather than a flavour of unsupported_format,
+  // because the two negative cases must stay distinguishable in a reading --
+  // a format problem is bytes the parser cannot read, a duration problem is
+  // bytes that parse perfectly and would still play for days.
+  ExcessiveDuration,
 };
 
 const char* soundResolveStatusName(SoundResolveStatus status);
@@ -200,6 +207,32 @@ bool readSoundResource(const VpkArchive& archive, const std::string& name,
 SoundResolveStatus resolveSoundIndexResource(const SoundIndexTable& table,
   const VpkArchive& archive, std::uint32_t soundIndex,
   SoundResource& out, std::string& detail);
+
+// The playback-duration cap, in seconds. A single WinMM buffer holds a voice
+// slot until it drains, so a resource that parses perfectly can still be one
+// the output path must not accept. Measured max duration across every WAV the
+// two pinned recordings resolve is well under a minute (verify-audio.sh pins
+// the reading), so this cap refuses crafted multi-day buffers without ever
+// touching real content.
+constexpr double kSoundDurationCapSeconds = 600.0;
+
+// How long a parsed WAV's buffer occupies the output path: pcm.size() divided
+// by the rate the device actually consumes (blockAlign * sampleRate -- the
+// rate AudioPlayer::play builds its WAVEFORMATEX from, not the byteRate the
+// file claims). Returns positive infinity for data whose rate cannot be
+// measured, so the cap below refuses it instead of dividing by zero.
+double wavDurationSeconds(const WavPcmData& wav);
+bool wavWithinDurationCap(const WavPcmData& wav,
+  double capSeconds = kSoundDurationCapSeconds);
+
+// The bytes half of the named chain: classify resource bytes that were already
+// read from an archive, exactly the way the output path sees them. This is the
+// single implementation resolveSoundIndexResource delegates to after reading
+// its entry, so a probe can drive the same classifier with crafted bytes (a
+// multi-day WAV, an ADPCM header) and the two can never disagree about what
+// "resolved" means.
+SoundResolveStatus classifySoundResourceBytes(const std::vector<std::uint8_t>& bytes,
+  const std::string& archivePath, SoundResource& out, std::string& detail);
 
 // True when a parsed WAV is one the WinMM output path can play as-is: PCM
 // encoding, 8 or 16 bits, 1 or 2 channels, non-empty data aligned to the

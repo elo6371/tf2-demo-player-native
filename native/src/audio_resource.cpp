@@ -33,7 +33,38 @@ std::string lower(std::string value) {
   return value;
 }
 
+// Source "sound characters" (src/public/soundchars.h): a wave path in a
+// soundscript may carry one or two of them in front of the file name --
+// `*` CHAR_STREAM, `#` CHAR_DRYMIX, `@` CHAR_OMNI, `>` CHAR_DOPPLER,
+// `<` CHAR_DIRECTIONAL, `^` CHAR_DISTVARIANT, `)` CHAR_SPATIALSTEREO,
+// `}` CHAR_FAST_PITCH, `!` CHAR_SENTENCE, `?` CHAR_USERVOX. The characters are
+// playback metadata (stream from disc, bypass DSP, spatialize channels, ...),
+// not part of the file name, and TF2's soundprecache stores the name exactly
+// as written, so the run reaches this layer intact.
+bool isSoundCharacter(char c) {
+  switch (c) {
+  case '*': case '#': case '@': case '>': case '<': case '^':
+  case ')': case '}': case '!': case '?':
+    return true;
+  default:
+    return false;
+  }
+}
+
 } // namespace
+
+std::size_t leadingSoundCharacterCount(const std::string& name) {
+  // One or two characters, per the Soundscripts documentation ("All file paths
+  // can be preceded with one or two sound characters"); the stacked cases
+  // measured on real recordings are `)*`, `*#` and `#*`. A longer run is not a
+  // case the documentation describes and is left alone, so it reads as a miss
+  // instead of being silently over-stripped; a name made only of sound
+  // characters has no file path left and is left whole for the same reason.
+  std::size_t count = 0;
+  while (count < 2 && count < name.size() && isSoundCharacter(name[count])) ++count;
+  if (count == name.size()) return 0;
+  return count;
+}
 
 bool parseWav(const std::vector<std::uint8_t>& bytes, WavPcmData& out) {
   out = {};
@@ -89,7 +120,15 @@ bool parseWav(const std::vector<std::uint8_t>& bytes, WavPcmData& out) {
 }
 
 std::string normalizeSoundPath(const std::string& name, const char* extension) {
-  std::string path = name;
+  // The sound characters are entry metadata, not part of the file path: no
+  // shipped archive entry starts with one. Measured on the pinned pivotal
+  // recording (2026-10-15): of 698 marked precache entries, 684 resolve to
+  // shipped files once the marker run is dropped, and only 14 are missing
+  // either way (server-custom content). Without the drop, all 698 -- including
+  // stock sounds like weapons/shotgun_shoot.wav,
+  // weapons/weapon_crit_charged_on.wav and the round-end music -- read as
+  // missing and never play.
+  std::string path = name.substr(leadingSoundCharacterCount(name));
   std::replace(path.begin(), path.end(), '\\', '/');
   while (!path.empty() && path.front() == '/') path.erase(path.begin());
   path = lower(path);
