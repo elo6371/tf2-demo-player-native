@@ -47,7 +47,8 @@ gate, no `native/` source, and no `verify-all.sh` step was modified.
 base     : 917b0122376419ae0a9de5be35d932a9fa487be3  (p0-entity-protocol)
            "docs: record final chain pin status and task plan"
 commit A : f18da1134ea596d8606d03f42110ee67489c76e5  "test(t2): the world visual frame matrix, and the tools it needs"
-final    : the commit carrying this report (its parent is f18da113); `git log -2` on the branch
+commit B : e60017dc66dabc84a2a02d5ce98a18e137d0c1dd  "test(t2): record the world visual acceptance evidence and its report"
+final    : 5a6ce59063843bfb42935439325352be07c19c04  "docs(t2): name the five negative fixture cases in the report" (amends this report; `git log -3`)
 ```
 
 ## 3. Files changed, and why
