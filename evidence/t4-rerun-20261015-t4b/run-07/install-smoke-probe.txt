@@ -1,0 +1,3 @@
+﻿exit_code=0
+install_executable=1 tf_root_missing_prompt=1 warp_fallback=1 feature_level=b100
+working_directory=D:\TF2_Native_Worktrees\stability-release-head\.scratch\t4-rerun-20261015-t4b\run-07\install-copy

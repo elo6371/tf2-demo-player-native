@@ -1,0 +1,2 @@
+﻿exit_code=3
+trace_crash_marker=False

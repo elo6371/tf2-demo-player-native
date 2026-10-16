@@ -1,0 +1,73 @@
+﻿# trace extract (the raw trace was 36.3 MB, over the 8 MB commit limit)
+# raw_sha256=a6a38e1ce2afa86e64c9ad02be672779d02b74ecbc99983ac0be5b615e4de27b
+# raw_line_count=580581
+
+# --- verdict-bearing lines ---
+0.0 trace open
+661857.4 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=5051 events_played=0 events_skipped=1389 events_missing=3662 drawn=43203 capture_written=0 metrics_written=1 exit=0
+661857.4 audio: summary soundEventsRead=5120 soundEventsScheduled=5051 soundEventsPlayed=0 soundEventsSkippedVoice=824 soundEventsMissingResource=3662 firstPacketTick=15277 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=28469
+661857.4 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=35796 holdsNoTarget=0 freezeFrames=0
+
+# --- first 30 lines ---
+0.0 trace open
+46921.6 audio: timeline firstPacketTick=15277 soundOriginTick=1 originFound=1 read=5120 scheduled=5051 unresolved=69 unplaceable=0 refused=0 kinds=w2775/f32/u36/o1384/v822/a2/m0
+47428.1 gpu: reload begin
+47441.2 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+47484.9 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+47484.9 gpu: world lightmap status=active intensity=0.731 atlas=1 bump=0 env=0 vertices=229515 lightmapped=229101
+47484.9 gpu: world geometry displacedTriangles=24832 waterTriangles=8
+47485.1 gpu: world cubemap status=six-face mode=0 preset=performance declared=0 faces=6 size=32 source=materials/maps/cp_reckoner/c29_20_159.vtf reason=all six faces decoded
+47489.4 gpu: model 0/50 1024x1024 4.3ms uploaded=1
+47490.9 gpu: model 1/50 512x512 1.3ms uploaded=1
+47495.2 gpu: model 2/50 1024x1024 4.2ms uploaded=1
+47503.9 gpu: model 3/50 1024x1024 8.5ms uploaded=1
+47508.4 gpu: model 4/50 1024x1024 4.3ms uploaded=1
+47509.9 gpu: model 5/50 512x512 1.3ms uploaded=1
+47512.1 gpu: model 6/50 512x512 2.1ms uploaded=1
+47513.8 gpu: model 7/50 512x512 1.7ms uploaded=1
+47522.2 gpu: model 8/50 1024x1024 8.3ms uploaded=1
+47530.0 gpu: model 9/50 1024x1024 7.6ms uploaded=1
+47538.6 gpu: model 10/50 1024x1024 8.4ms uploaded=1
+47548.4 gpu: model 11/50 1024x1024 9.6ms uploaded=1
+47550.1 gpu: model 12/50 512x512 1.5ms uploaded=1
+47552.4 gpu: model 13/50 1024x512 2.3ms uploaded=1
+47560.8 gpu: model 14/50 1024x1024 8.2ms uploaded=1
+47568.9 gpu: model 15/50 1024x1024 7.9ms uploaded=1
+47603.2 gpu: model 16/50 2048x2048 34.0ms uploaded=1
+47639.1 gpu: model 17/50 2048x2048 35.1ms uploaded=1
+47642.0 gpu: model 18/50 512x512 2.2ms uploaded=1
+47646.3 gpu: model 19/50 1024x1024 4.2ms uploaded=1
+47679.2 gpu: model 20/50 2048x2048 32.6ms uploaded=1
+47691.1 gpu: model 21/50 1024x1024 11.2ms uploaded=1
+
+# --- last 30 lines ---
+661836.3 scene: hud fxDue=1924 drawable=1
+661838.5 scene: buildInstances=256
+661838.9 scene: setInstances draws=56 markers=32
+661838.9 scene: anim skinned=38 bindPose=18 matrices=107 gpuSkin=38/107 boneMismatch=0 poseChanges=764 targetInstances=1 targetPose=0 advances=763 targetAdv=0 cycle=51770/0 tick=60640 status=ok reason=idle
+661838.9 scene: animwitness any=models/items/ammopack_small.mdl ent=168 seq=0 frame=12/31 lf=12/0 poseChanges=34 seen=34879 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+661838.9 scene: instances set
+661839.0 scene: done
+661839.2 draw: begin tick=46081 frames=43201
+661839.3 draw: end frames=43202 pending=0
+661839.4 loop n=64264 tick=46081
+661839.4 audio: advance tick=46082 cursor=46082 seen=5051 played=0 skippedVoice=824 missing=3662 dup=28468
+661839.4 scene: begin tick=46082 sceneTick=61359
+661844.1 scene: snapshot status=1 stale=719 states=2048
+661844.2 scene: camera mode=first-person target=1 follows=35796 holds=0 freeze=0
+661844.2 scene: observer done
+661844.2 scene: hud fxDue=1924 drawable=1
+661845.3 scene: buildInstances=256
+661845.7 scene: setInstances draws=56 markers=32
+661845.9 scene: anim skinned=38 bindPose=18 matrices=107 gpuSkin=38/107 boneMismatch=0 poseChanges=764 targetInstances=1 targetPose=0 advances=763 targetAdv=0 cycle=51773/0 tick=60640 status=ok reason=idle
+661846.0 scene: animwitness any=models/items/ammopack_small.mdl ent=168 seq=0 frame=12/31 lf=12/0 poseChanges=34 seen=34880 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+661846.0 scene: instances set
+661846.0 scene: done
+661846.9 draw: begin tick=46082 frames=43202
+661846.9 draw: end frames=43203 pending=0
+661846.9 loop n=64265 tick=46082
+661853.7 loop n=64266 tick=46082
+661857.4 metrics t=613.85 tick=46082 iter=64266
+661857.4 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=5051 events_played=0 events_skipped=1389 events_missing=3662 drawn=43203 capture_written=0 metrics_written=1 exit=0
+661857.4 audio: summary soundEventsRead=5120 soundEventsScheduled=5051 soundEventsPlayed=0 soundEventsSkippedVoice=824 soundEventsMissingResource=3662 firstPacketTick=15277 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=28469
+661857.4 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=35796 holdsNoTarget=0 freezeFrames=0

@@ -1,0 +1,19 @@
+﻿Two graphics environments cannot be produced on this machine without changing
+the product, and are recorded as blocked rather than skipped:
+
+1. WARP software device
+   The renderer creates a hardware device first and falls back to WARP when
+   that fails (native_renderer.cpp:182-188), but no command-line switch or
+   environment variable selects the driver type, so a gate cannot drive the
+   exe onto WARP without editing product source -- which this task forbids.
+   What *is* recorded: the machine can create a WARP device, proven by the
+   repo's own native_install_smoke_probe.exe (install-smoke-probe.txt in this
+   run directory: warp_fallback=1 with the feature level it selected). The
+   product's HW->WARP fallback path itself is therefore NOT VERIFIED here.
+
+2. Device without the required feature level
+   Simulating it needs either a second adapter that lacks FL 11_0 or a driver
+   downgrade; neither exists on this machine. What is recorded: dxdiag.txt
+   carries this system GPU's feature levels, and the soak-window frame count
+   is the positive control that a capable device renders. The refusal path for
+   a device without FL 11_0 is therefore NOT VERIFIED here.

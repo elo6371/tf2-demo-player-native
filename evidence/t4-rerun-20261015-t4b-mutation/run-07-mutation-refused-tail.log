@@ -1,0 +1,30 @@
+  OK   roots refused without a substitution = 6
+  RECORD 1 of 7 resource cases connects a root (the real one); the other 6 report
+         'no root found' instead of silently substituting the auto-detected root -- that
+         substitution was the defect the explicit-root fix removed, and the
+         did-not-silently-connect assertions above go red on it
+
+=== 8/8 the audio cases, and the environments recorded as blocked rather than skipped ===
+  OK   audio-invalid-device verdict = EARLY_EXIT
+  OK   audio-invalid-device exit code = 13
+  OK   audio-invalid-device was not closed (no window existed) = false
+  OK   audio-invalid-device crash marker = false
+  OK   audio-invalid-device residual processes = none
+  OK   audio-invalid-device leftover files = none
+  OK   audio-missing-resource verdict = COMPLETED
+  OK   audio-missing-resource exit code = 0
+  FAIL audio-missing-resource connected no root = D:\TF2_Native_Worktrees\stability-release-head\.scratch\t4-rerun-20261015-t4b\run-07\roots\empty-root-a, expected empty
+  OK   audio-missing-resource did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   audio-missing-resource residual processes = none
+  OK   blocked-inputs.txt is recorded = yes
+  OK   the WARP environment is recorded as blocked = 6 (>= 1)
+  OK   the feature-level environment is recorded as blocked = 3 (>= 1)
+  OK   the blocked entries say what was NOT verified = 2 (>= 2)
+  OK   install-blocked.txt is recorded = yes
+  OK   the absent installer is recorded as blocked = 1 (>= 1)
+
+STABILITY-RELEASE=FAIL
+
+=== MUTATION: the judgments above must be able to go red ===
+  MUTATION-SETUP=FAIL (the forward run is already red; fix it before mutating)
+STABILITY-RELEASE-MUTATION=FAIL

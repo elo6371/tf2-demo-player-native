@@ -1,0 +1,73 @@
+﻿# trace extract (the raw trace was 66.1 MB, over the 8 MB commit limit)
+# raw_sha256=f43512a7d0692f0f744987b976cce3c80e6f517effefd669b0b967c0d09f16da
+# raw_line_count=1045239
+
+# --- verdict-bearing lines ---
+0.0 trace open
+661705.8 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=5229 events_played=0 events_skipped=1234 events_missing=3995 drawn=65753 capture_written=0 metrics_written=1 exit=0
+661705.8 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=637 soundEventsMissingResource=3995 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=76777
+661705.8 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=64352 holdsNoTarget=0 freezeFrames=0
+
+# --- first 30 lines ---
+0.0 trace open
+16651.8 audio: timeline firstPacketTick=10252 soundOriginTick=1 originFound=1 read=5292 scheduled=5229 unresolved=63 unplaceable=0 refused=0 kinds=w2953/f5/u14/o1620/v633/a4/m0
+16956.6 gpu: reload begin
+16980.4 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+17024.6 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+17024.6 gpu: world lightmap status=active intensity=0.439 atlas=1 bump=0 env=0 vertices=600000 lightmapped=599766
+17024.6 gpu: world geometry displacedTriangles=165376 waterTriangles=36
+17024.8 gpu: world cubemap status=six-face mode=0 preset=performance declared=0 faces=6 size=32 source=materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf reason=all six faces decoded
+17027.8 gpu: model 0/59 1024x1024 3.0ms uploaded=1
+17034.7 gpu: model 1/59 1024x1024 6.8ms uploaded=1
+17035.1 gpu: model 2/59 128x128 0.3ms uploaded=1
+17036.0 gpu: model 3/59 512x512 0.9ms uploaded=1
+17047.3 gpu: model 4/59 2048x2048 11.2ms uploaded=1
+17074.1 gpu: model 5/59 2048x2048 26.1ms uploaded=1
+17076.1 gpu: model 6/59 512x512 1.3ms uploaded=1
+17077.9 gpu: model 7/59 512x512 1.8ms uploaded=1
+17079.6 gpu: model 8/59 512x512 1.7ms uploaded=1
+17082.4 gpu: model 9/59 1024x1024 2.8ms uploaded=1
+17085.2 gpu: model 10/59 1024x1024 2.7ms uploaded=1
+17088.0 gpu: model 11/59 1024x1024 2.6ms uploaded=1
+17095.1 gpu: model 12/59 1024x1024 6.8ms uploaded=1
+17121.2 gpu: model 13/59 2048x2048 26.0ms uploaded=1
+17148.4 gpu: model 14/59 2048x2048 26.4ms uploaded=1
+17151.1 gpu: model 15/59 512x512 2.1ms uploaded=1
+17157.7 gpu: model 16/59 1024x1024 6.6ms uploaded=1
+17160.7 gpu: model 17/59 1024x1024 2.8ms uploaded=1
+17167.5 gpu: model 18/59 1024x1024 6.6ms uploaded=1
+17174.4 gpu: model 19/59 1024x1024 6.7ms uploaded=1
+17181.4 gpu: model 20/59 1024x1024 6.8ms uploaded=1
+17184.3 gpu: model 21/59 1024x1024 2.8ms uploaded=1
+
+# --- last 30 lines ---
+661640.7 loop n=141117 tick=64352
+661650.3 loop n=141118 tick=64352
+661650.3 draw: begin tick=64352 frames=65747
+661650.4 draw: end frames=65748 pending=0
+661650.4 loop n=141119 tick=64352
+661659.4 loop n=141120 tick=64352
+661659.5 draw: begin tick=64352 frames=65748
+661659.6 draw: end frames=65749 pending=0
+661659.6 loop n=141121 tick=64352
+661669.0 loop n=141122 tick=64352
+661669.2 draw: begin tick=64352 frames=65749
+661669.2 draw: end frames=65750 pending=0
+661669.2 loop n=141123 tick=64352
+661678.2 loop n=141124 tick=64352
+661678.2 draw: begin tick=64352 frames=65750
+661678.3 draw: end frames=65751 pending=0
+661678.3 loop n=141125 tick=64352
+661687.3 loop n=141126 tick=64352
+661687.4 draw: begin tick=64352 frames=65751
+661687.4 draw: end frames=65752 pending=0
+661687.4 loop n=141127 tick=64352
+661696.9 loop n=141128 tick=64352
+661697.0 draw: begin tick=64352 frames=65752
+661697.1 draw: end frames=65753 pending=0
+661697.1 loop n=141129 tick=64352
+661704.3 loop n=141130 tick=64352
+661705.8 metrics t=644.24 tick=64352 iter=141130
+661705.8 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=5229 events_played=0 events_skipped=1234 events_missing=3995 drawn=65753 capture_written=0 metrics_written=1 exit=0
+661705.8 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=637 soundEventsMissingResource=3995 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=76777
+661705.8 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=64352 holdsNoTarget=0 freezeFrames=0
