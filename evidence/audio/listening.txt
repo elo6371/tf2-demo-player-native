@@ -1,0 +1,32 @@
+# T3 human listening confirmation (recorded apart from every automated count)
+#
+# WHAT WAS ASKED
+#   During the device acceptance the machine played real demo audio through
+#   output device 6 ("耳机 (xduoo audio)", confirmed by --list-devices on the
+#   run date). The user was asked, verbatim: "正在你的设备「耳机 (xduoo audio)」
+#   上播放约 30 秒的真实 demo 声音（pl_odyssey POV，脚步/枪声/环境音）。请听一下：
+#   你听到声音了吗？"
+#
+# THE ANSWER (a human statement, not an instrument reading)
+#   听到了声音  -- "I heard the sound."
+#   Answered 2026-10-15, local time ~22:42, while the run below was playing.
+#
+# THE RUN THE ANSWER IS ABOUT
+#   TF2_NATIVE_TRACE=.scratch/t3/listen.trace native/build-nmake/tf2_demo_native.exe \
+#     --demo "$TF/demos/autorecord_2026-07-02_13-26-46.dem" --audio-device 6 \
+#     --capture-tick 2000 --capture-frame .scratch/t3/listen.bmp
+#   rc=0, about 30 s of audible playback (tick 0..2000 at 1x).
+#   Automated readings from the same run:
+#     mode: summary ... audio_mode=device audio_device_opened=742
+#       audio_device_open_attempts=742 audio_device_opens_ok=742
+#       events_seen=1037 events_played=742 events_skipped=48 events_missing=247
+#     audio: summary soundEventsRead=5563 soundEventsScheduled=5323
+#       soundEventsPlayed=742 soundEventsSkippedVoice=48
+#       soundEventsMissingResource=247 firstPacketTick=29368 soundOriginTick=0
+#
+# BOUNDARY (what this record does NOT claim)
+#   * The counters above do not prove anyone heard anything; the user's answer
+#     does not prove the sound was the correct content.
+#   * Content correctness, volume, latency and spatialisation were not
+#     compared against a reference -> NOT VERIFIED (see the delivery report S9).
+#   * One listener, one device, one recording, one tick window.

@@ -3,7 +3,9 @@
 // WHAT THIS PROVES
 //   1. The sound index chain -- precache name -> VPK entry -> parsed WAV ->
 //      playable PCM -- reports a named reason at each failure point:
-//      missing_precache, missing_wav, invalid_wav, unsupported_format.
+//      missing_precache, missing_wav, invalid_wav, unsupported_format,
+//      excessive_duration. A name carrying one or two Source sound characters
+//      (')weapons/shotgun_shoot.wav') still resolves to the file it names.
 //   2. The scheduler's tick cursor: one advance per tick with no replay, no
 //      duplicate events forward, reset re-seeds the cursor so reverse and seek
 //      can replay, delay converts to ticks with round-half-away-from-zero, and
@@ -35,7 +37,7 @@
 //   cannot hit a diagnostic line instead of the readings line.
 //
 // MUTATIONS
-//   Six defects, one flip each. Every flip is computed from a real defective
+//   Eight defects, one flip each. Every flip is computed from a real defective
 //   computation -- a replica of the broken code path walking the same library
 //   timeline, or the real scheduler driven into the defect shape -- and then
 //   overwrites only the readings that flip moves. The normal run fails unless
@@ -47,7 +49,8 @@
 // Usage: audio_scheduler_probe [--self-test] [--mutation <case>]
 //   --self-test        the normal contract run (default)
 //   --mutation <case>  tick_dedup | reverse_reset | voice_filter |
-//                      delay_rounding | missing_as_played | null_sink_device
+//                      delay_rounding | missing_as_played | null_sink_device |
+//                      duration_cap | marker_strip
 //   Exit: 0 = contract held (or, under --mutation, the flip was caught);
 //         1 = a check, the contract, or a mutation's discrimination failed;
 //         2 = usage error.
@@ -120,6 +123,10 @@ const std::vector<std::pair<std::string, std::string>>& pinnedContract() {
     {"kindAnnouncer", "1"}, {"kindMusic", "1"}, {"kindWorld", "1"},
     {"realTempEntity", "0"}, {"realPcf", "0"},
     {"delayHalf", "15"}, {"delayClamp", "0"}, {"delayRound", "5"}, {"delayZeroRate", "-1"},
+    {"indexExcessiveDuration", "1"}, {"durationOverCapSeconds", "4194304"},
+    {"durationUnderCapSeconds", "524"},
+    {"indexMarkedResolved", "2"}, {"indexMarkedPath", "sound/weapons/shotgun_shoot.wav"},
+    {"readMarkedPath", "sound/weapons/shotgun_shoot.wav"},
   };
   return pinned;
 }
@@ -150,6 +157,44 @@ WavPcmData fixtureWav() {
   wav.byteRate = 11025;
   wav.pcm = {128, 128, 128, 128};
   return wav;
+}
+
+// A minimal PCM WAV built byte by byte: RIFF header, fmt chunk (PCM, mono,
+// 8 bits), data chunk of `dataBytes` zeroed samples. The caller picks the
+// rates, so the same generator produces the multi-day buffer (rate 1) and its
+// playable-rate control (rate 8000) from identical bytes apart from the rate
+// fields.
+std::vector<std::uint8_t> craftWav(std::uint32_t sampleRate, std::uint16_t blockAlign,
+    std::uint32_t byteRate, std::size_t dataBytes) {
+  std::vector<std::uint8_t> bytes;
+  const auto u16 = [&bytes](std::uint16_t value) {
+    bytes.push_back(static_cast<std::uint8_t>(value & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xff));
+  };
+  const auto u32 = [&bytes](std::uint32_t value) {
+    bytes.push_back(static_cast<std::uint8_t>(value & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 16) & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xff));
+  };
+  const auto text = [&bytes](const char* four) {
+    for (int i = 0; i < 4; ++i) bytes.push_back(static_cast<std::uint8_t>(four[i]));
+  };
+  text("RIFF");
+  u32(static_cast<std::uint32_t>(36 + dataBytes));
+  text("WAVE");
+  text("fmt ");
+  u32(16);
+  u16(1);
+  u16(1);
+  u32(sampleRate);
+  u32(byteRate);
+  u16(blockAlign);
+  u16(8);
+  text("data");
+  u32(static_cast<std::uint32_t>(dataBytes));
+  bytes.resize(bytes.size() + dataBytes, 128u);
+  return bytes;
 }
 
 SoundPlaybackEvent eventAt(std::int32_t tick, std::uint32_t index, const char* name) {
@@ -210,6 +255,39 @@ void runContract(ContractRun& run) {
   run.readings.set("wavMalformed", static_cast<long long>(malformed));
   check(run, "three malformed WAVs were rejected with named errors", malformed == 3);
 
+  // -- 1b. Excessive duration is its own named refusal ----------------------
+  // A WAV can be byte-legal and playable-shaped and still not be a sound: at
+  // one byte per second a 4 MiB buffer would hold one of the eight voice slots
+  // for 48 days. The identical bytes at 8000 samples/second are 524 s and must
+  // resolve -- that control is what proves the refusal came from the duration
+  // and not from the shape. Both go through the same classifier the index
+  // chain runs on real archive bytes.
+  SoundResource slowResource;
+  std::string slowDetail;
+  const auto slowStatus = classifySoundResourceBytes(craftWav(1, 1, 1, 4u * 1024u * 1024u),
+    "sound/probe_forever.wav", slowResource, slowDetail);
+  SoundResource fastResource;
+  std::string fastDetail;
+  const auto fastStatus = classifySoundResourceBytes(craftWav(8000, 1, 8000, 4u * 1024u * 1024u),
+    "sound/probe_forever.wav", fastResource, fastDetail);
+  std::cerr << "duration_map slow=" << soundResolveStatusName(slowStatus)
+            << " fast=" << soundResolveStatusName(fastStatus) << '\n'
+            << "duration_detail slow=\"" << slowDetail << "\" fast=\"" << fastDetail << "\"\n";
+  run.readings.set("indexExcessiveDuration",
+    static_cast<long long>(slowStatus == SoundResolveStatus::ExcessiveDuration ? 1 : 0));
+  run.readings.set("durationOverCapSeconds",
+    static_cast<long long>(wavDurationSeconds(slowResource.wav)));
+  run.readings.set("durationUnderCapSeconds",
+    static_cast<long long>(wavDurationSeconds(fastResource.wav)));
+  check(run, "a byte-legal WAV whose buffer would play for days is refused by duration, not shape",
+    slowStatus == SoundResolveStatus::ExcessiveDuration
+      && fastStatus == SoundResolveStatus::Resolved
+      && slowResource.wav.valid && fastResource.wav.valid);
+  check(run, "the duration refusal names the seconds and the cap",
+    slowDetail.find("4194304.0") != std::string::npos
+      && slowDetail.find(std::to_string(static_cast<long long>(kSoundDurationCapSeconds)))
+           != std::string::npos);
+
   // -- 2. Sound index -> precache name -> VPK WAV -> parsed WAV -------------
   // Real archive entries for every reachable outcome: a playable PCM WAV, a
   // name with no entry, an ADPCM WAV the parser rejects (invalid_wav), and a
@@ -262,6 +340,41 @@ void runContract(ContractRun& run) {
     && !readSoundResource(archive, "weapons/probe_missing.wav", productResource)
     && !readSoundResource(archive, "player/medic_charged_death.wav", productResource);
   check(run, "readSoundResource agrees with the named chain on the real WAV", productAgrees);
+
+  // -- 2b. Sound characters in front of a name are entry metadata -----------
+  // TF2's soundprecache stores some names with one or two Source sound
+  // characters (src/public/soundchars.h) in front of the file:
+  // ')weapons/shotgun_shoot.wav' is a stock file with spatial-stereo metadata,
+  // '*#mvm/mvm_tank_start.wav' is a stream+drymix pair. The name -> archive
+  // path translation has to drop the run, or every marked stock sound reads as
+  // missing and never plays. Both a single and a stacked case, against the
+  // real VPK, so the reading is a file that actually ships.
+  SoundIndexTable markedTable;
+  markedTable.set(6, ")weapons/shotgun_shoot.wav");
+  markedTable.set(7, "*#mvm/mvm_tank_start.wav");
+  std::size_t markedResolved = 0;
+  std::string markedPath;
+  for (const std::uint32_t markedIndex : {6u, 7u}) {
+    SoundResource markedResource;
+    std::string markedDetail;
+    const auto markedStatus = resolveSoundIndexResource(markedTable, archive, markedIndex, markedResource, markedDetail);
+    std::cerr << "marked_map index=" << markedIndex << " status=" << soundResolveStatusName(markedStatus)
+              << " detail=" << markedDetail << '\n';
+    if (markedStatus == SoundResolveStatus::Resolved) {
+      ++markedResolved;
+      if (markedIndex == 6) markedPath = markedResource.archivePath;
+    }
+  }
+  run.readings.set("indexMarkedResolved", static_cast<long long>(markedResolved));
+  run.readings.set("indexMarkedPath", markedPath.empty() ? "-" : markedPath);
+  // The product's own reader resolves the same marked name to the same file:
+  // this is the call main.cpp's scheduler resolver makes.
+  SoundResource markedProduct;
+  const bool markedProductOk = readSoundResource(archive, ")weapons/shotgun_shoot.wav", markedProduct)
+    && markedProduct.valid && markedProduct.archivePath == "sound/weapons/shotgun_shoot.wav";
+  run.readings.set("readMarkedPath", markedProductOk ? markedProduct.archivePath : "-");
+  check(run, "a sound character in front of the name does not hide the file",
+    markedResolved == 2 && markedPath == "sound/weapons/shotgun_shoot.wav" && markedProductOk);
 
   // -- 3. Tick semantics: dedup, forward, reverse, seek ---------------------
   run.tickTimeline.add(eventAt(2, 1, "weapons/probe.wav"));
@@ -484,7 +597,8 @@ void runContract(ContractRun& run) {
 const std::vector<const char*>& mutationCases() {
   static const std::vector<const char*> cases = {
     "tick_dedup", "reverse_reset", "voice_filter",
-    "delay_rounding", "missing_as_played", "null_sink_device"};
+    "delay_rounding", "missing_as_played", "null_sink_device", "duration_cap",
+    "marker_strip"};
   return cases;
 }
 
@@ -521,6 +635,16 @@ void applyMutation(const char* name, const ContractRun& run, Readings& defective
     // sound with no bytes is reported as audible.
     defective.set("missingResource", 0);
     defective.set("missingPlayed", static_cast<long long>(run.missingEvents));
+  } else if (which == "duration_cap") {
+    // The duration guard is removed, so a byte-legal playable WAV whose buffer
+    // would run for 48 days classifies as resolved like any other resource.
+    defective.set("indexExcessiveDuration", 0);
+  } else if (which == "marker_strip") {
+    // The sound-character strip is removed, so a marked stock name stays glued
+    // to its metadata run and resolves to nothing.
+    defective.set("indexMarkedResolved", 0);
+    defective.set("indexMarkedPath", "-");
+    defective.set("readMarkedPath", "-");
   } else if (which == "null_sink_device") {
     // The injected sink is ignored and playback goes to a real AudioPlayer.
     // The device id is the device count itself, which is out of range on every

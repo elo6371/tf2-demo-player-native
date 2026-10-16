@@ -1,0 +1,60 @@
+# Sound-character reach measurement (defect evidence for the fix in commit 8e06aba)
+#
+# WHAT THIS IS
+#   For every name in the pov recording's soundprecache table (decoded by the demo
+#   reader; the table dump is sound_content_map_probe --table-out), this compares
+#   resolving the name under two name->path translations, using the same four
+#   archives the product opens:
+#     resolved_old -- the pre-fix translation: the stored name used verbatim.
+#     resolved_now -- the current translation: a leading run of one or two Source
+#                     sound characters (src/public/soundchars.h) is dropped first.
+#   The old translation is emulated inside the measuring tool so both sides come
+#   from one binary and one archive set; the product itself only has the new one.
+#
+# PROVENANCE
+#   Measured 2026-10-15 with a one-off scratch tool (not a committed target); its
+#   whole stdout is below. The committed, re-runnable readings for the same fix
+#   are sound_content_map_probe's markerEvents / markerEventsResolved and
+#   audio_scheduler_probe's indexMarkedResolved pair -- verify-audio.sh pins both.
+#
+# READING
+#   6720 table names; 713 carry a sound-character run; the old translation
+#   resolved 0 of them; the new one resolves 696; 17 are server-custom content
+#   missing under either translation (also 376 marker-free names are missing:
+#   physics sounds the game synthesizes and custom content).
+#
+total=6720 resolved_now=6327 resolved_old=5631 both_miss=393
+marker_total=713 marker_resolved_now=696 marker_resolved_old=0 marker_miss_both=17
+marker=# total=15 resolved_now=12 resolved_old=0 miss_both=3
+marker=) total=685 resolved_now=671 resolved_old=0 miss_both=14
+marker=* total=6 resolved_now=6 resolved_old=0 miss_both=0
+marker=<alnum> total=0 resolved_now=5631 resolved_old=5631 miss_both=376
+marker=> total=6 resolved_now=6 resolved_old=0 miss_both=0
+marker=^ total=1 resolved_now=1 resolved_old=0 miss_both=0
+
+-- examples: resolvable now, not before the strip --
+)weapons\ball_buster_bounce_01.wav
+)weapons\ball_buster_bounce_02.wav
+)weapons\ball_buster_bounce_03.wav
+)weapons\ball_buster_bounce_04.wav
+)weapons\ball_buster_bounce_05.wav
+)weapons\ball_buster_bounce_06.wav
+)player/resistance_light1.wav
+)player/resistance_light2.wav
+)player/resistance_light3.wav
+)player/resistance_light4.wav
+)player/resistance_medium1.wav
+)player/resistance_medium2.wav
+)player/resistance_medium3.wav
+)player/resistance_medium4.wav
+)player/resistance_heavy1.wav
+)player/resistance_heavy2.wav
+)player/resistance_heavy3.wav
+)player/resistance_heavy4.wav
+)player/flow.wav
+)player/flame_out.wav
+)weapons/weapon_crit_charged_on.wav
+)weapons/weapon_crit_charged_off.wav
+)player\doubledonk.wav
+)player/taunt_eng_gunslinger.wav
+)player/taunt_eng_swoosh.wav

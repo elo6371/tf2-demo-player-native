@@ -48,7 +48,20 @@ bool parseWav(const std::vector<std::uint8_t>& bytes, WavPcmData& out);
 
 // Normalize a Source sound name to the archive path used by TF2 VPKs.
 // Inputs may be "weapons/rocket1.wav", "sound/weapons/rocket1", or use '\\'.
+//
+// A name may be preceded by one or two Source "sound characters"
+// (src/public/soundchars.h): ')weapons/shotgun_shoot.wav' is a stock file with
+// spatial-stereo metadata in front of it. TF2's soundprecache stores the name
+// as written, so those characters are dropped here -- at the single point
+// where an entry name becomes an archive path -- and kept in the name itself
+// so the traceable content map can still report what the recording stored.
 std::string normalizeSoundPath(const std::string& name, const char* extension = ".wav");
+
+// The length of the leading sound-character run on a name, capped at the "one
+// or two" the Soundscripts documentation describes. Exposed so probes can
+// count marked entries (and their resolve outcome) without re-deriving the
+// character set.
+std::size_t leadingSoundCharacterCount(const std::string& name);
 
 // Resolve and parse a sound directly from a VPK archive. This deliberately
 // accepts only WAV for deterministic native playback; MP3/other codecs are

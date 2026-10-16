@@ -4561,11 +4561,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   {
     const bool windowAlive = window && IsWindow(window) != 0;
     const auto& audioStats = soundScheduler.stats();
-    traceFmt("mode: summary window_created=%d window_visible=%d audio_mode=%s audio_device_opened=%zu events_seen=%zu events_played=%zu events_skipped=%zu events_missing=%zu drawn=%llu capture_written=%d metrics_written=%d exit=%d",
+    // `audio_device_opened` is the historical field (every waveOutOpen call, so
+    // a failed attempt moves it too); the T3 acceptance added the attempts /
+    // successes pair so "the device was asked for N times and N opened" and
+    // "N attempts, not one succeeded" are different readings. Under
+    // --audio-disabled all three are 0.
+    traceFmt("mode: summary window_created=%d window_visible=%d audio_mode=%s audio_device_opened=%zu"
+      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_missing=%zu drawn=%llu capture_written=%d metrics_written=%d exit=%d",
       windowAlive ? 1 : 0,
       (windowAlive && IsWindowVisible(window)) ? 1 : 0,
       audioDisabled ? "disabled" : "device",
       tf2::native::waveOutOpenCalls(),
+      tf2::native::audioDeviceOpenAttempts(),
+      tf2::native::audioDeviceOpenedCount(),
       audioStats.eventsSeen, audioStats.eventsPlayed,
       audioStats.eventsSkippedVoice + audioStats.eventsSkippedDisabled,
       audioStats.eventsMissingResource,

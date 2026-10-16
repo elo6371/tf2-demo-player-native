@@ -295,6 +295,25 @@ target_compile_definitions(sound_timeline_census_probe PRIVATE NOMINMAX WIN32_LE
 target_link_libraries(sound_timeline_census_probe PRIVATE winmm)
 set_target_properties(sound_timeline_census_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# The traceable content map: one line per scheduled event from the demo's own
+# soundprecache table through the product's archive chain to a named decode
+# status, plus the per-kind / per-status counts a gate asserts against. Links
+# the same four sources the census links, and winmm only for AudioPlayer's
+# declarations -- the scheduler is driven with an injected sink, so no device is
+# opened.
+add_executable(sound_content_map_probe
+  tools/sound_content_map_probe.cpp
+  src/audio_player.cpp
+  src/audio_timeline.cpp
+  src/audio_resource.cpp
+  src/demo_header.cpp
+  src/vpk_archive.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(sound_content_map_probe PRIVATE include third_party/lzma)
+target_compile_definitions(sound_content_map_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(sound_content_map_probe PRIVATE winmm)
+set_target_properties(sound_content_map_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(winmm_sink_probe tools/winmm_sink_probe.cpp)
 target_compile_definitions(winmm_sink_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(winmm_sink_probe PRIVATE winmm)

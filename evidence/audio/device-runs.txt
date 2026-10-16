@@ -1,0 +1,104 @@
+# T3 device acceptance -- the two runs, their commands and their readings
+#
+# WHAT THIS IS
+#   The one section of this repo's audio gate that touches a real audio device.
+#   Everything else in verify-audio.sh runs --audio-disabled (null sink), so
+#   this file is the record that separates "the pipeline schedules sounds" from
+#   "the pipeline puts sound on a device". It has three parts:
+#     1. a controlled single open/prepare/write/reset/close on device 6
+#     2. a player run with --audio-disabled --audio-device 6   (null sink)
+#     3. a player run with --audio-device 6                    (device, AUDIBLE)
+#   Parts 2 and 3 are the same demo, the same tick window and the same flags
+#   except for --audio-disabled, so every difference between them is the audio
+#   path and nothing else.
+#
+# MEASURED 2026-10-15 on the committed tree (f745bcd), via
+#   bash verify-audio.sh --device --mutation --no-build
+# Full log: verify-audio-device.txt (assertions_ok=134, mutations 23/23 caught).
+#
+# WHY device 6
+#   It is an index into this machine's WinMM output list; winmm_sink_probe
+#   reports device_count=13 for it. The index is machine-local, which is why the
+#   acceptance is opt-in (--device) rather than part of the default gate: on a
+#   machine with a different device list, device 6 is a different device or does
+#   not exist, and a red default gate on someone else's hardware is a false red.
+
+# ---------------------------------------------------------------------------
+# 1. Controlled open/write/reset/close (silent buffer)
+# ---------------------------------------------------------------------------
+# Command:
+#   native/build-nmake/winmm_sink_probe.exe --device 6
+#
+# Output, verbatim:
+mode=explicit device=6 device_count=13 device_opened=1 playback_written=1 prepared=1 reset_called=1 reset_ok=1 unprepare_called=1 unprepare_ok=1 close_called=1 close_ok=1 open_result=0 prepare_result=0 write_result=0 reset_result=0 unprepare_result=0 close_result=0 status=pass
+
+# Read: one open, one prepare, one write, reset, unprepare and close all
+# returned 0 (no WinMM error). The buffer written is silence -- this proves the
+# device accepts the path, not that anything was heard. Hearing is recorded
+# separately in listening.txt.
+
+# ---------------------------------------------------------------------------
+# 2. Player, null sink (--audio-disabled --audio-device 6)
+# ---------------------------------------------------------------------------
+# Command:
+#   TF2_NATIVE_TRACE=<out>/device-null-trace.txt \
+#   native/build-nmake/tf2_demo_native.exe --demo <pov> \
+#     --audio-disabled --audio-device 6 --capture-tick 2000 \
+#     --capture-frame <out>/device-null.bmp
+#
+# Summary line, verbatim:
+36294.9 mode: summary window_created=1 window_visible=1 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=1037 events_played=0 events_skipped=790 events_missing=247 drawn=1459 capture_written=1 metrics_written=0 exit=0
+
+# Read: audio_mode=disabled, zero attempts, zero opens, zero played. The 790
+# skipped events are the filtered kinds (voice/announcer) that are skipped
+# before any device is involved.
+
+# ---------------------------------------------------------------------------
+# 3. Player, device 6 (--audio-device 6) -- AUDIBLE
+# ---------------------------------------------------------------------------
+# Command:
+#   TF2_NATIVE_TRACE=<out>/device-6-trace.txt \
+#   native/build-nmake/tf2_demo_native.exe --demo <pov> \
+#     --audio-device 6 --capture-tick 2000 \
+#     --capture-frame <out>/device-6.bmp
+#
+# Summary line, verbatim:
+43090.2 mode: summary window_created=1 window_visible=1 audio_mode=device audio_device_opened=742 audio_device_open_attempts=742 audio_device_opens_ok=742 events_seen=1037 events_played=742 events_skipped=48 events_missing=247 drawn=1456 capture_written=1 metrics_written=0 exit=0
+
+# Read: audio_mode=device, 742 attempts / 742 opens_ok / 742 played -- every
+# open succeeded, and events_played equals the opens. The skipped count drops
+# from 790 to 48 because the voice/announcer events are skipped in both runs,
+# but in the null-sink run every remaining event is "skipped" (nothing to play
+# on) while on the device they are played. events_missing=247 is identical in
+# both runs: it is content resolution, not the device, which is the point of
+# holding the demo and the window fixed.
+
+# ---------------------------------------------------------------------------
+# The contrast the gate asserts
+# ---------------------------------------------------------------------------
+#   reading                     null sink    device 6
+#   audio_device_open_attempts      0            742
+#   audio_device_opens_ok           0            742
+#   events_played                   0            742
+#
+# Attempts == opens_ok == played on device 6, and all three are 0 on the null
+# sink. Before the sound-character fix this same window read played=601 /
+# missing=388 (T3-MANUAL-FOLLOWUP-2026-10-14.md); the 742/247 here is the
+# post-fix measurement of the same demo and window.
+#
+# The two device mutations (device-null-attempts, device6-opens) perturb these
+# captures and require the corresponding assertion to go red; they are gated on
+# the --device flag so a plain --mutation run cannot validate a stale capture
+# left in the output directory by an earlier run.
+
+# ---------------------------------------------------------------------------
+# What this does NOT establish
+# ---------------------------------------------------------------------------
+#   - One device on one machine. No second device was tried; device_count=13
+#     says twelve others exist and none was characterized.
+#   - The BMP frames (device-null.bmp / device-6.bmp, ~2.5 MB each) are kept
+#     out of the repo: they show a rendered frame, not audio, and are
+#     regenerated by the commands above.
+#   - "742 events played" is a count, not a judgement that the right sound came
+#     out at the right moment. The only statement about what was heard is the
+#     human one in listening.txt.

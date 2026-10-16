@@ -1,0 +1,39 @@
+# The recordings verify-audio.sh reads for the content-map section, pinned by
+# size and sha256.
+#
+# WHY A PINNED FILE AND NOT A GLOB
+#   The Steam demos directory is LIVE -- recordings land in it while a round is
+#   played. A gate that globbed it would compare a different set on every
+#   machine and on every day; step 9 of the acceptance chain already went red
+#   for exactly that reason (2026-10-08). The same rule applies here, and the
+#   section asserts size and hash separately so "the input is not here" and
+#   "the input is clean" do not read the same.
+#
+# WHY THESE THREE
+#   Selected 2026-10-15 by scanning 11 candidate recordings with
+#   sound_content_map_probe (all of them on this machine; the other eight were
+#   checked and their numbers are in T3-CONTENT-AND-DEVICE-2026-10-15.md):
+#     pov    (steam)    pl_odyssey POV, the timeline-origin recording. Kinds
+#                       w888/f2263/u14/o1647/v504/a7/m0; 745 scheduled events
+#                       carry a leading Source sound character; 5323 scheduled.
+#     matcha (testdata) cp_snakewater_final1, the second recording the origin
+#                       round used so pov numbers cannot be read as a general
+#                       rule. Kinds w2953/f5/u14/o1620/v633/a4/m0; 1460 marked
+#                       events; 5229 scheduled; carries one invalid WAV entry.
+#     well   (steam)    cp_well, footstep-dominant contrast (f3003 of 4989),
+#                       uber=7, announcer=2; 723 marked events.
+#   Coverage: weapon / footstep / uber / world / voice / announcer are present
+#   in real events. temp_entity and pcf stay at zero -- no shipped sound name
+#   carries those tokens (audio_scheduler_probe measures realTempEntity=0,
+#   realPcf=0 over both sound archives rather than assuming it). music: no
+#   scanned recording plays one, but every recording's soundprecache table
+#   carries 13..15 music-kind candidates (taunt / MvM / round-end), which the
+#   probe reports as tableKindMusic; a music EVENT therefore has no input in
+#   this corpus and stays NOT VERIFIED.
+#
+# FORMAT: size  sha256  root  name
+#   root = steam    -> $TF/demos
+#   root = testdata -> D:/TF2_Demo_Player/testdata/demos
+21856667  c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e  steam     autorecord_2026-07-02_13-26-46.dem
+51834617  308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f  testdata  bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+5509069   5e0b1fe8d97247ee327c9dc575e492af875c0c2554a42f8097619a8d7ed81cbd  steam     autorecord_2026-07-16_12-41-25.dem

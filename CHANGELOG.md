@@ -1,5 +1,19 @@
 # 更新日志
 
+## 2026-10-15
+
+### T3（第三轮）：音频内容类别与真实设备验收（`task/audio-content-device`：产品/门禁 `8e06aba`，门禁自身修复 `9864a93` / `d063747` / `f745bcd`，pin `270d5b4`，附带 `dc52027`，**尚未整合**）
+
+- 新发现并修复**声音字符缺陷**：TF2 soundprecache 把 Source 声音字符（`src/public/soundchars.h`：`*` STREAM / `#` DRYMIX / `)` SPATIALSTEREO / `>` DOPPLER / `^` DISTVARIANCE，可叠两个）写在文件名前面，旧的名字→路径转换按原文使用，带标记的库存声音因此全部解析失败、永不播放。pov 表 6720 条名字中 713 条带标记，旧转换解析 **0** 条；修复后 696 条解出（17 条自定义内容两种转换都缺）。
+- 读数对照（同一批 pinned 输入）：时间线 pov `resolved 2819→3564`、`missingWav 1993→1248`；matcha `2048/2543→3508/1083`；well `3648/1149→4371/426`。播放器 pov 前 750 事件 `events_missing 283→185`；真实设备（device 6）tick 2000 窗口 `played 601→742`、`missing 388→247`。
+- 新增 `sound_content_map_probe`：逐事件可追溯映射（tick/index/kind/status/seconds/srctable/path/name/detail，`--map-out` 全量 + `--table-out` 整表）；`verify-audio.sh` 新增 4/5 内容节（3 份 pinned 录制、身份等式 + 逐项 pin）。
+- 负例补齐：`excessive_duration` 命名状态（构造 48 天 WAV 被拒；同一字节在 8000 Hz/524 s 正常解析作对照）；`mode: summary` 新增 `audio_device_open_attempts`/`audio_device_opens_ok`；`--device` 可选节跑 null sink 与 device 6 两次运行（`0/0/0` vs `742/742/742`，含单次受控 open/write/reset/close）。
+- **人耳确认（与自动计数分开记录）**：用户确认「听到了声音」（device 6、pov、tick 2000 窗口）；`evidence/audio/listening.txt`。
+- 门禁：`verify-audio.sh` 48→**129 条断言**、变异 12→**21 个**（`--device` 时 23），全部捕获；`audio_scheduler_probe` 内部翻转 6→8。`verify-all.sh` 的 `exe_count` pin 31→32（新增探针目标；全量构建实测 `exe_count=32`）。
+- 未验证：music 事件（11 份扫描全 0，表内候选 13–15 条/份）、TempEntity/PCF 事件、MP3 设备播放、听到内容的正确性、其余语料、多设备。详见 `T3-CONTENT-AND-DEVICE-2026-10-15.md`。
+- 门禁自身的三个缺陷（同轮修掉，各一条提交，详见报告 §7）：① `duplicateTicks>=1` 是随机器负载的判据——三任务并行时帧率低于 demo tick 率，守卫不可能触发，健康运行被判红（`d063747`，改为与帧率无关的 `seen == played + skipped + missing` 恒等式）；② 带标记名字的断言只认「解出/缺失」两态，第 11 份扫描（cp_aquarius）给出第三态 10 个其他具名状态，判据过窄（`9864a93`，改四项恒等式）；③ 设备变异以「捕获文件存在」为条件，于是普通 `--mutation` 会去变异上一次 `--device` 留下的旧字节并报 23 捕获（`f745bcd`，改以 `--device` 标志为条件）。
+- 附带修复（可单独回退）：删除 `CHANGELOG.md` 自 `95291f3` 起遗留的一行冲突标记 `>>>>>>> 95291f3 (…)`（`dc52027`）。
+
 ## 2026-10-14
 
 ### T1 世界渲染能力补全（已整合）
@@ -20,7 +34,6 @@
 - 画面观察（查看抓帧）：ViewModel+武器本体可见且可开关（`--viewmodel-weapon-body off` 后灰色步枪消失）；天空为纯色（无天空盒纹理）；水面未入画 → 未确认。HUD 行已按门禁读法引到（45 s 内 231 次标题、216 个版本）。
 - 声音分开记录：真实设备 `--audio-device 6`（`audio_mode=device`、`events_seen=1037 played=601 skipped=48 missing=388`）与 null sink `--audio-disabled`（`played=0`、`skipped=649`）两组独立读数；可听性未确认。
 - 验收：`bash verify-fast.sh` = `VERIFY-FAST=PASS (assertions_ok=43)` rc=0；`bash camera-ui-check.sh` = `CAMERA-UI=PASS` rc=0。详见 `T3-MANUAL-FOLLOWUP-2026-10-14.md`（含 10 条未确认项）。
->>>>>>> 95291f3 (docs: add T3 manual follow-up report and sync status docs)
 
 ## 2026-10-13
 
