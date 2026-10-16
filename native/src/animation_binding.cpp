@@ -167,15 +167,32 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
   // model's own include list. Route 3: the conventional <stem>_animations.mdl.
   // The include list is consulted first because it is what the model declares;
   // the convention is the fallback for files whose include list is empty.
+  //
+  // Measured 2026-10-16 (T6): route 1's "the model animates itself" test is
+  // `animations.empty()`, and a TF2 arms/player model carries a STUB anim table
+  // -- c_sniper_arms.mdl has one 1-frame animation (`@ref`) and 43 sequences of
+  // which exactly one (index 0, `ref`) has an animdesc; scout.mdl has two of
+  // 306. So route 1 answered "yes" for a model whose own table cannot pose any
+  // of the sequences the entity actually plays (the demo's CTFViewModel carries
+  // m_nSequence 1..30), and the include that carries the real data
+  // (c_sniper_animations.mdl: 88 animations, 76 sequences all bound, the same
+  // 58 bones) was never read. The fix below keeps route 1's precedence unless
+  // the declared companion binds STRICTLY MORE of the model's own sequences by
+  // the sequence NAME -- the name is the deliberate link between the two
+  // tables; the index is not (the base table carries one extra sequence at
+  // index 0, so index 30 and index 29 name different sequences in the two
+  // files). A companion that does not strictly improve the binding is not used,
+  // so a model whose own table is real keeps it byte for byte.
   AnimationModel anims;
   std::string animPath = modelPath;
+  std::string companionCandidate;
+  for (const auto& include : model.includes) {
+    if (include.find("_animations.mdl") != std::string::npos) { companionCandidate = include; break; }
+  }
+  if (companionCandidate.empty()) companionCandidate = companionPath(modelPath);
   if (decodeAnimationModel(modelBytes.data(), modelBytes.size(), anims) != AnimationStatus::Ok
       || anims.animations.empty()) {
-    std::string candidate;
-    for (const auto& include : model.includes) {
-      if (include.find("_animations.mdl") != std::string::npos) { candidate = include; break; }
-    }
-    if (candidate.empty()) candidate = companionPath(modelPath);
+    std::string candidate = companionCandidate;
     bool loaded = false;
     if (!candidate.empty()) {
       ++archiveReads_;
@@ -201,6 +218,62 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
           "animation companion is absent: " + candidate);
       }
       return finish(false, AnimationInputStatus::ModelHasNoAnimation, "model carries no animation data");
+    }
+  } else if (!companionCandidate.empty() && companionCandidate != modelPath) {
+    // Route 1 answered, but the answer can still be a stub. Ask the declared
+    // companion whether it binds more of the same sequences by name.
+    const auto boundInBase = [](const AnimationModel& source) {
+      std::size_t bound = 0;
+      for (const auto& sequence : source.sequences) {
+        if (sequence.animDesc >= 0
+            && static_cast<std::size_t>(sequence.animDesc) < source.animations.size()) {
+          ++bound;
+        }
+      }
+      return bound;
+    };
+    ++archiveReads_;
+    const auto companionBytes = readAsset(*root_, companionCandidate);
+    AnimationModel decoded;
+    if (!companionBytes.empty()
+        && decodeAnimationModel(companionBytes.data(), companionBytes.size(), decoded) == AnimationStatus::Ok
+        && !decoded.animations.empty()) {
+      std::size_t nameBound = 0;
+      for (const auto& baseSequence : model.sequences) {
+        for (const auto& candidateSequence : decoded.sequences) {
+          if (candidateSequence.label != baseSequence.label) continue;
+          if (candidateSequence.animDesc >= 0
+              && static_cast<std::size_t>(candidateSequence.animDesc) < decoded.animations.size()) {
+            ++nameBound;
+          }
+          break;
+        }
+      }
+      if (nameBound > boundInBase(anims)) {
+        // Adopt the companion's animation data, but keep the base model's
+        // sequence table as the index space: the entity's m_nSequence is an
+        // index into the model it named, and the two tables are not index
+        // compatible. Every sequence is resolved by name against the companion;
+        // one that has no same-named companion sequence is left unbound and
+        // refuses with the decoder's existing words rather than playing a
+        // neighbour's clip.
+        std::vector<AnimationSequence> merged = model.sequences;
+        for (auto& sequence : merged) {
+          sequence.animDesc = -1;
+          for (const auto& candidateSequence : decoded.sequences) {
+            if (candidateSequence.label != sequence.label) continue;
+            if (candidateSequence.animDesc >= 0
+                && static_cast<std::size_t>(candidateSequence.animDesc) < decoded.animations.size()) {
+              sequence.animDesc = candidateSequence.animDesc;
+            }
+            break;
+          }
+        }
+        anims = std::move(decoded);
+        anims.sequences = std::move(merged);
+        animPath = companionCandidate;
+        entry.binding.separateAnimSource = true;
+      }
     }
   }
   if (anims.animations.empty()) {
@@ -242,22 +315,40 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
     return finish(false, AnimationInputStatus::TooManyBones, "render skeleton is larger than the skinning buffer");
   }
 
-  entry.binding.animToModel.assign(anims.bones.size(), -1);
-  std::size_t mapped = 0;
-  for (std::size_t i = 0; i < anims.bones.size(); ++i) {
-    for (std::size_t j = 0; j < inspection.metadata.bones.size(); ++j) {
-      if (inspection.metadata.bones[j].name != anims.bones[i].name) continue;
-      if (inspection.metadata.bones[j].parent != anims.bones[i].parent) continue;
-      entry.binding.animToModel[i] = static_cast<std::int32_t>(j);
-      ++mapped;
-      break;
+  // The same "do not replace a working answer" rule as the sequence tables: a
+  // companion that cannot place every one of its bones on the render skeleton
+  // would turn a model that at least refused per sequence into one that refuses
+  // wholesale, so the model's own table is retried before giving up.
+  const auto mapBones = [&](const AnimationModel& source) {
+    entry.binding.animToModel.assign(source.bones.size(), -1);
+    std::size_t mapped = 0;
+    for (std::size_t i = 0; i < source.bones.size(); ++i) {
+      for (std::size_t j = 0; j < inspection.metadata.bones.size(); ++j) {
+        if (inspection.metadata.bones[j].name != source.bones[i].name) continue;
+        if (inspection.metadata.bones[j].parent != source.bones[i].parent) continue;
+        entry.binding.animToModel[i] = static_cast<std::int32_t>(j);
+        ++mapped;
+        break;
+      }
+    }
+    // Every animation bone has to land. The render skeleton is allowed to be
+    // larger -- the tail is helper bones with no channel, and they keep their bind
+    // transform -- but an animation bone with nowhere to go would silently drop
+    // part of the pose.
+    return mapped == source.bones.size();
+  };
+  bool bonesMapped = mapBones(anims);
+  if (!bonesMapped && entry.binding.separateAnimSource) {
+    AnimationModel ownModel;
+    if (decodeAnimationModel(modelBytes.data(), modelBytes.size(), ownModel) == AnimationStatus::Ok
+        && !ownModel.animations.empty()) {
+      anims = std::move(ownModel);
+      animPath = modelPath;
+      entry.binding.separateAnimSource = false;
+      bonesMapped = mapBones(anims);
     }
   }
-  // Every animation bone has to land. The render skeleton is allowed to be
-  // larger -- the tail is helper bones with no channel, and they keep their bind
-  // transform -- but an animation bone with nowhere to go would silently drop
-  // part of the pose.
-  if (mapped != anims.bones.size()) {
+  if (!bonesMapped) {
     return finish(false, AnimationInputStatus::BoneMismatch,
       "animation bone did not line up with the render skeleton");
   }
