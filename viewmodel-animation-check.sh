@@ -422,12 +422,13 @@ SELFTEST_NOTES=$(grep -c 'NOTE the product cross-check did not run' "$SELFTEST_T
 # probe says so out loud -- this asserts it did not have to.
 if [ "$MUTATION" -eq 1 ]; then
   assert_eq "self-test rc" "$SELFTEST_RC" "1"
-  # Measured, not derived: neutering the companion proof turns exactly five of the
-  # battery's checks red -- the model-mismatch fixture's five claims (the status,
-  # the bind pose, the absent-match reading, the never-reached range question, and
-  # the reason naming both models). A mutated build must also SAY so in its exit
-  # code, which is why `rc` is asserted in both modes.
-  assert_eq "self-test failures" "$SELFTEST_FAIL" "5"
+  # Measured, not derived: the two neutered proofs turn 18 of the battery's
+  # checks red -- the model-mismatch fixture's five claims plus the adoption's
+  # thirteen (the companion shape 53/52/89 reverts to 1/0/1, the by-name fixtures
+  # revert, and two checks are skipped because the motion witness disappears).
+  # A mutated build must also SAY so in its exit code, which is why `rc` is
+  # asserted in both modes.
+  assert_eq "self-test failures" "$SELFTEST_FAIL" "18"
 else
   assert_eq "self-test rc" "$SELFTEST_RC" "0"
   assert_eq "self-test failures" "$SELFTEST_FAIL" "0"
@@ -446,11 +447,14 @@ fi
 # Two DIFFERENT quantities, which is why there are two assertions and not one
 # written twice: how many checks held, and how many checks the battery ran at all.
 # The second is pinned in both modes to the same 96, and that is the point -- a
-# mutation that made the battery stop halfway would move it, while 91 + 5 in
-# mutation mode says the other 91 checks still ran and still held.
+# mutation that made the battery stop halfway would move it, while 76 + 18 in
+# mutation mode says the other 76 checks still ran and still held -- and 94 (not
+# 96) ran, because the adoption's disappearance takes the motion witness's two
+# checks with it. That is a reading about the mutation, not a moved pin: the two
+# skipped checks are named in the same battery.
 if [ "$MUTATION" -eq 1 ]; then
-  assert_eq "self-test assertions" "$SELFTEST_OK" "91"
-  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "96"
+  assert_eq "self-test assertions" "$SELFTEST_OK" "76"
+  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "94"
 else
   assert_eq "self-test assertions" "$SELFTEST_OK" "96"
   assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "96"
@@ -544,10 +548,20 @@ assert_eq "entity model resolved" "$(rfield "$ENTITY_TXT" modelseq readable)" "1
 # below is the sequences bound BY NAME through that declared companion -- 38 of
 # 43. The five that stay unbound are named in the report rather than folded into
 # the count: `ref` (the stub's own label) and the four `rifolver_*` overlays.
-assert_eq "entity model sequences that reach a descriptor" \
-  "$(rfield "$ENTITY_TXT" modelseq animated)" "38"
-assert_eq "entity model's first posable sequence" \
-  "$(rfield "$ENTITY_TXT" modelseq firstAnimated)" "1"
+# Under --mutation the adoption is neutered, so the numbers revert to the stub
+# table's own answer (1 and 0) -- asserted as the mutation-mode truth rather
+# than branched away, because these are the readings the adoption moved.
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "entity model sequences that reach a descriptor" \
+    "$(rfield "$ENTITY_TXT" modelseq animated)" "1"
+  assert_eq "entity model's first posable sequence" \
+    "$(rfield "$ENTITY_TXT" modelseq firstAnimated)" "0"
+else
+  assert_eq "entity model sequences that reach a descriptor" \
+    "$(rfield "$ENTITY_TXT" modelseq animated)" "38"
+  assert_eq "entity model's first posable sequence" \
+    "$(rfield "$ENTITY_TXT" modelseq firstAnimated)" "1"
+fi
 assert_gt "the entity's table is larger than the drawn one" \
   "$(rfield "$ENTITY_TXT" modelseq sequences)" "$(rfield "$DRAWN_TXT" modelseq sequences)"
 assert_gt "the observed sequences run past the drawn table" \
@@ -737,7 +751,11 @@ assert_eq "pov companion entity model matches the drawn model" \
   "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "1"
 assert_eq "pov companion sequence inside the entity's own table" \
   "$(field "$LAST_ORDER" sequenceInRange)" "1"
-assert_eq "pov companion status" "$(field "$LAST_ORDER" vmAnimInput)" "ok"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov companion status" "$(field "$LAST_ORDER" vmAnimInput)" "missing"
+else
+  assert_eq "pov companion status" "$(field "$LAST_ORDER" vmAnimInput)" "ok"
+fi
 assert_eq "pov companion no override was in force" "$(field "$LAST_ORDER" sequenceOverride)" "-1"
 assert_eq "pov companion no model mismatch" "$(field "$LAST_SUMMARY" modelMismatch)" "0"
 assert_eq "pov companion every observation matched" \
@@ -749,9 +767,15 @@ assert_eq "pov companion refused nothing for a range reason" "$(field "$LAST_SUM
 # name to the companion's own clip for that label, 51 frames long. The base
 # model's stub table could pose nothing here, so the frame count is the reading
 # that says the adoption happened and reached a real clip.
-assert_eq "pov companion pose is available" "$(field "$LAST_VMANIM" poseAvailable)" "1"
-assert_eq "pov companion frame count is the companion's" \
-  "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "51"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov companion pose is available" "$(field "$LAST_VMANIM" poseAvailable)" "0"
+  assert_eq "pov companion frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+else
+  assert_eq "pov companion pose is available" "$(field "$LAST_VMANIM" poseAvailable)" "1"
+  assert_eq "pov companion frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "51"
+fi
 # Opt-in, in both fields: the resolver accepted and the pass applied nothing.
 assert_eq "pov companion applies nothing by default" "$(field "$LAST_VMANIM" applied)" "0"
 assert_eq "pov companion skins nothing by default" "$(field "$LAST_ORDER" skinning)" "0"
@@ -802,9 +826,15 @@ assert_eq "pov history draws the entity's own model" "$(field "$LAST_ORDER" draw
 # history, a sequence change, and distinct sequence values; do not turn a machine
 # speed sample into a correctness threshold.
 assert_ge "pov history observations" "$(field "$LAST_SUMMARY" observations)" 1
-assert_eq "pov history accepted every observation" \
-  "$(field "$LAST_SUMMARY" ok)" "$(field "$LAST_SUMMARY" observations)"
-assert_eq "pov history refused nothing" "$(field "$LAST_SUMMARY" missing)" "0"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov history accepted every observation" "$(field "$LAST_SUMMARY" ok)" "0"
+  assert_eq "pov history refused nothing" \
+    "$(field "$LAST_SUMMARY" missing)" "$(field "$LAST_SUMMARY" observations)"
+else
+  assert_eq "pov history accepted every observation" \
+    "$(field "$LAST_SUMMARY" ok)" "$(field "$LAST_SUMMARY" observations)"
+  assert_eq "pov history refused nothing" "$(field "$LAST_SUMMARY" missing)" "0"
+fi
 assert_eq "pov history matched every observation" \
   "$(field "$LAST_SUMMARY" modelMatches)" "$(field "$LAST_SUMMARY" observations)"
 assert_eq "pov history measured every sequence inside the entity's own table" \
@@ -817,8 +847,13 @@ assert_ge "pov history sequence changes" "$(field "$LAST_SUMMARY" changes)" 1
 # The number the acceptance rests on: the last observed sequence's animation.
 # Sequence 30 binds BY NAME to the companion's 61-frame clip; the stub table the
 # model carries itself could pose nothing here.
-assert_eq "pov history frame count is the companion's" \
-  "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov history frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+else
+  assert_eq "pov history frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+fi
 # Mutations snapshot, taken here while LAST_SUMMARY is the history run: under the
 # adoption-neutered mutation every natural observation goes back to refused, so
 # this reading moves from observations to 0 while the model proof (a matching
@@ -834,9 +869,19 @@ run_product pov-stub "$DEMO_POV" 0 --viewmodel-sequence 0
 assert_eq "stub sequence: rc" "$LAST_RC" "0"
 assert_eq "stub sequence: inside the entity's own table" \
   "$(field "$LAST_ORDER" sequenceInRange)" "1"
-assert_eq "stub sequence: refused" "$(field "$LAST_ORDER" vmAnimInput)" "missing"
-assert_contains "stub sequence: refused by name" "$LAST_VMANIM" "sequence has no animation binding"
-assert_eq "stub sequence: no pose" "$(field "$LAST_VMANIM" poseAvailable)" "0"
+if [ "$MUTATION" -eq 1 ]; then
+  # With the adoption neutered the stub's own one-frame binding is the only one
+  # left, so the stub becomes accepted -- the pre-T6 world, asserted rather than
+  # hidden.
+  assert_eq "stub sequence: refused" "$(field "$LAST_ORDER" vmAnimInput)" "ok"
+  assert_eq "stub sequence: no pose" "$(field "$LAST_VMANIM" poseAvailable)" "1"
+  assert_eq "stub sequence: frame count" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "1"
+else
+  assert_eq "stub sequence: refused" "$(field "$LAST_ORDER" vmAnimInput)" "missing"
+  assert_contains "stub sequence: refused by name" "$LAST_VMANIM" "sequence has no animation binding"
+  assert_eq "stub sequence: no pose" "$(field "$LAST_VMANIM" poseAvailable)" "0"
+fi
 assert_eq "stub sequence: applied" "$(field "$LAST_VMANIM" applied)" "0"
 assert_eq "stub sequence: the override is reported" \
   "$(field "$LAST_ORDER" sequenceOverride)" "0"
@@ -845,8 +890,15 @@ assert_eq "stub sequence: the override is reported" \
 # written here, is now the first one the companion binds by name (`r_handposes`
 # -> the companion's one-frame `saxxy_pose`).
 POSE_SEQUENCE=$(rfield "$ENTITY_TXT" modelseq firstAnimated)
-assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "1"
-assert_eq "and the recording carries it" "${POV_RANGE%%..*}" "$POSE_SEQUENCE"
+if [ "$MUTATION" -eq 1 ]; then
+  # Neutered: the only posable sequence is the stub's own index, which the
+  # recording does not carry.
+  assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "0"
+  assert_ne "and the recording does not carry it" "$POV_RANGE" "0..30"
+else
+  assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "1"
+  assert_eq "and the recording carries it" "${POV_RANGE%%..*}" "$POSE_SEQUENCE"
+fi
 
 run_product pov-pose-bind "$DEMO_POV" 0 --viewmodel-sequence "$POSE_SEQUENCE"
 assert_eq "accepted pose, default: rc" "$LAST_RC" "0"
@@ -901,14 +953,26 @@ echo "  ..   pov-pose-bind vs pov-pose-apply: $POSE_DIFF byte positions differ (
 # to be drawn.
 run_product pov-motion-apply "$DEMO_POV" 2000 --viewmodel-sequence 30 --viewmodel-apply-animation
 assert_eq "real motion, applied: rc" "$LAST_RC" "0"
-assert_eq "real motion, applied: vmAnimApplied" "$(field "$LAST_ORDER" vmAnimApplied)" "1"
-assert_eq "real motion, applied: skinning" "$(field "$LAST_ORDER" skinning)" "1"
-assert_eq "real motion, applied: frame count" "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "real motion, applied: vmAnimApplied" "$(field "$LAST_ORDER" vmAnimApplied)" "0"
+  assert_eq "real motion, applied: skinning" "$(field "$LAST_ORDER" skinning)" "0"
+  assert_eq "real motion, applied: frame count" "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+else
+  assert_eq "real motion, applied: vmAnimApplied" "$(field "$LAST_ORDER" vmAnimApplied)" "1"
+  assert_eq "real motion, applied: skinning" "$(field "$LAST_ORDER" skinning)" "1"
+  assert_eq "real motion, applied: frame count" "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+fi
 MOTION_COVERAGE=$(field "$LAST_ORDER" boneTableCoverage)
 assert_eq "real motion, applied: the table covers the whole skeleton" \
   "${MOTION_COVERAGE%%/*}" "${MOTION_COVERAGE##*/}"
 MOTION_DIFF=$(byte_diff "$TRACE_DIR/pov-history.bmp" "$TRACE_DIR/pov-motion-apply.bmp")
-assert_gt "the applied real animation changes the frame" "$MOTION_DIFF" 0
+if [ "$MUTATION" -eq 1 ]; then
+  # Neutered: both runs refuse, both draw the bind pose, and the diff is 0 --
+  # the reading that says the picture movement depends on the adoption.
+  assert_eq "the applied real animation changes the frame" "$MOTION_DIFF" "0"
+else
+  assert_gt "the applied real animation changes the frame" "$MOTION_DIFF" 0
+fi
 echo "  ..   pov-history vs pov-motion-apply: $MOTION_DIFF byte positions differ"
 
 # ---------------------------------------------------------------------------
