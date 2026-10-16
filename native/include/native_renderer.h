@@ -671,6 +671,16 @@ public:
   void setSettings(const RenderSettings& settings) { settings_ = settings; settings_.normalize(); }
   const RenderSettings& settings() const { return settings_; }
   HRESULT lastError() const { return lastError_; }
+  // T8 (2026-10-16): clear the recorded error. The device-error policy at the
+  // bottom of the main loop used to read `lastError()` without asking what set
+  // it, so a resource upload that the load deliberately degraded (a cubemap or
+  // texture it could not upload) still reached the policy and ended the program
+  // with exit code 3 -- a verdict that reads as "the device failed" although
+  // nothing had drawn yet. Clearing it once the load has succeeded is what makes
+  // the policy judge the device: after this point the only thing that can set it
+  // is this frame's own Present, so a genuine device failure still reports
+  // through exactly the same arms (4/2 for device removed or reset, 3 otherwise).
+  void clearLastError() { lastError_ = S_OK; }
   // Which step of initialize() refused, as a stable name. Every failure path in
   // there returned the same E_FAIL, so "the renderer did not start" carried no
   // information at all -- and a shader is compiled at run time, which makes a

@@ -2671,10 +2671,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     bool uploadedTexture = mapRgba.empty() && displayRgba.empty();
     if (!mapRgba.empty()) uploadedTexture = renderer.uploadTexture(mapRgba, mapWidth, mapHeight);
     else if (!displayRgba.empty()) uploadedTexture = renderer.uploadTexture(displayRgba, displayWidth, displayHeight);
+    traceFmt("gpu: reload-stage stage=texture lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedWorld = displayMap.triangles.empty();
     if (!renderer.uploadWorldAuxTextures(mapBumpRgba, mapBumpWidth, mapBumpHeight, mapEnvRgba, mapEnvWidth, mapEnvHeight)) return false;
+    traceFmt("gpu: reload-stage stage=aux lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     if (!renderer.uploadWorldLightmap(displayMap.lightmapAtlas,
         static_cast<UINT>(displayMap.lightmapAtlasWidth), static_cast<UINT>(displayMap.lightmapAtlasHeight))) return false;
+    traceFmt("gpu: reload-stage stage=lightmap lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     // A cube that cannot be built is a capability this map does not get, not a
     // reason to lose the world: reloadGpuResources returning false ends the
     // program (main returns 14), and "this map's cubemap is malformed" has to
@@ -2684,6 +2687,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (!renderer.uploadWorldCubemap(mapCubemapFaces, mapCubemapSize, &cubemapUploadError)) {
       mapCubemapReason = "upload refused: " + cubemapUploadError;
     }
+    traceFmt("gpu: reload-stage stage=cubemap lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     // T1 (2026-10-13): the skybox as geometry. The bytes come from
     // captureSkyFaces, which is the same resolve-and-decode walk measureSky
     // counts, so the sides the renderer uploads are the sides the probe reads.
@@ -2702,6 +2706,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       std::string skyUploadError;
       const bool skyTextureUploaded = renderer.uploadWorldSky(skyCapture.faces, &skyUploadError);
       const bool skyGeometryUploaded = renderer.uploadWorldSkyGeometry(skyVertices);
+    traceFmt("gpu: reload-stage stage=sky lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
       renderer.setWorldSkyEnabled(skyEnabled && skyTextureUploaded && skyGeometryUploaded);
       worldSkyReason = skyEnabled ? (skyUploadError.empty() ? skyDraw.reason : skyUploadError)
         : "skybox draw disabled by the caller";
@@ -2847,6 +2852,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       std::vector<tf2::native::WorldWaterVertex> warpedVertices;
       const auto waterReading = tf2::native::evaluateWaterDrawRequest(waterRequest, warpedVertices);
       const bool waterGeometryUploaded = renderer.uploadWorldWaterGeometry(warpedVertices);
+    traceFmt("gpu: reload-stage stage=water lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
       const bool waterTextureUploaded = renderer.uploadWorldWaterTexture(waterRgba, waterWidth, waterHeight);
       renderer.setWorldWaterWarp(waterRequest.warpPhase, waterRequest.warpAmplitude);
       renderer.setWorldWaterEnabled(waterEnabled && waterGeometryUploaded);
@@ -2960,6 +2966,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     traceFmt("gpu: models done %zu uploaded=%zu", preparedEntityMeshes.size(),
       entityMaterialUploadedModels);
+    traceFmt("gpu: reload-stage stage=models lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedBones = true;
     modelSkinSource = "none";
     modelSkinReason.clear();
@@ -3121,6 +3128,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     DestroyWindow(window);
     return 14;
   }
+  // T8 (2026-10-16) diagnostic: the device-error policy at the bottom of the
+  // loop reads `lastError()` without asking what set it. A load-time refusal that
+  // the product deliberately degraded (a cubemap or texture it could not upload)
+  // therefore still reaches the policy and ends the program with code 3, which
+  // reads as "the device failed" when nothing has drawn yet. Print the error
+  // here -- after the load, before any draw -- so "already set when the loop
+  // began" and "returned by Present" are two different readings.
+  traceFmt("gpu: post-reload lastError=0x%08lX",
+    static_cast<unsigned long>(renderer.lastError()));
+  renderer.clearLastError();
   // ---- T1 (2026-10-13): the per-frame pvs clip ----------------------------
   // The clip has to follow the camera, not the load: a clip decided once at
   // upload would hide triangles for the whole run and the map would lose
@@ -4495,6 +4512,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // captured is a frame that was clipped.
         applyWorldVisClip();
       }
+      // T8 (2026-10-16) diagnostic, the second half of the pair above: if this
+      // fires the error was already set when the frame began, so it came from a
+      // load-time upload and the policy is about to kill the program for a
+      // resource it had already refused. If the arm above fires but this one
+      // never does, Present itself returned the failure.
+      if (g_renderer && renderer.lastError() != S_OK) {
+        traceFmt("gpu: pre-draw error hresult=0x%08lX drawn=%llu",
+          static_cast<unsigned long>(renderer.lastError()),
+          static_cast<unsigned long long>(renderedFrames));
+      }
       if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) {
         ++renderedFrames;
         // After the draw, not before it: both readings count calls the passes
@@ -4534,6 +4561,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
 
     if (g_renderer && renderer.lastError() != S_OK) {
       const HRESULT error = renderer.lastError();
+      // T8 (2026-10-16) diagnostic: the policy above can only report which arm
+      // it took, so a run that dies here has been naming the branch and never the
+      // error. Print the HRESULT itself -- DEVICE_HUNG (0x887A0006) is a device
+      // loss the policy does not classify as one, DXGI_ERROR_INVALID_CALL
+      // (0x887A0001) is a renderer state bug, and E_INVALIDARG / E_FAIL come
+      // from a resource upload or the swap-chain target. `drawn` says whether
+      // the failure is the first frame's or a later one's.
+      traceFmt("gpu: device-error-policy hresult=0x%08lX drawn=%llu",
+        static_cast<unsigned long>(error),
+        static_cast<unsigned long long>(renderedFrames));
       if (error == DXGI_ERROR_DEVICE_REMOVED || error == DXGI_ERROR_DEVICE_RESET) {
         if (deviceRecoveryAttempts++ >= 1) {
           PostQuitMessage(4);
