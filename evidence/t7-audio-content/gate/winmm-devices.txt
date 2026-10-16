@@ -1,0 +1,14 @@
+mode=list_devices device_count=13
+device=0 query=0 name=¶ú»ú (Realtek(R) Audio)
+device=1 query=0 name=Voicemeeter VAIO3 Input (VB-Aud
+device=2 query=0 name=Voicemeeter In 4 (VB-Audio Voic
+device=3 query=0 name=Voicemeeter In 1 (VB-Audio Voic
+device=4 query=0 name=Voicemeeter In 5 (VB-Audio Voic
+device=5 query=0 name=Voicemeeter In 2 (VB-Audio Voic
+device=6 query=0 name=¶ú»ú (xduoo audio)
+device=7 query=0 name=27G7K (NVIDIA High Definition A
+device=8 query=0 name=Voicemeeter In 3 (VB-Audio Voic
+device=9 query=0 name=Voicemeeter Input (VB-Audio Voi
+device=10 query=0 name=ÑïÉùÆ÷ (Realtek(R) Audio)
+device=11 query=0 name=ÑïÉùÆ÷ (PD200X Podcast Micropho
+device=12 query=0 name=Voicemeeter AUX Input (VB-Audio

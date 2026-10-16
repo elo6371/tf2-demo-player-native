@@ -1,0 +1,4 @@
+  OK   corpus[mutated] (recording scanned)
+  FAIL corpus[mutated] (accounting: read=4193 scheduled=4130 unresolved=64 unplaceable=0 refused=0)
+  FAIL corpus[mutated] (kind sum 4129 != timeline 4130)
+  OK   corpus[mutated] (the soundprecache kinds sum to its 6758 entries)

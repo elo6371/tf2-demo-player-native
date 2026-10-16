@@ -1,0 +1,4 @@
+  OK   census[mutated] (no event precedes the playback origin)
+  OK   census[mutated] (scheduler forward pass == census histogram: 746,750,750,750,750,750,759,930,1452)
+  FAIL census[mutated] (repeated tick: before=1452 after=1453 guard=1)
+  OK   census[mutated] (reverse replayed exactly the window: 693 events, recoveries 1)

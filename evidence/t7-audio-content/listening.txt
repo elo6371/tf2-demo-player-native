@@ -1,0 +1,71 @@
+T7 human listening confirmation (2026-10-17, local time)
+========================================================
+This file records a HUMAN STATEMENT. It is deliberately kept in its own file,
+separate from every product counter, because T7 requires the listening
+confirmation to be recorded independently and forbids inferring audibility from
+counters.
+
+WHAT THE USER SAID
+------------------
+Asked, in their own words, what they actually heard on device 6 during the
+playback below, the user answered:
+
+    "听到了声音，听起来正常"
+    (heard sound; it sounded normal)
+
+That is the entire content of the human observation. It is not extended into
+claims the statement does not support.
+
+WHEN, WHERE, HOW
+----------------
+- Local date/time: 2026-10-17, immediately after the --device --mutation gate
+  finished (gate duration 19m37s).
+- Device: 6, name "耳机 (xduoo audio)"  [gate/winmm-devices.txt: device=6]
+- The user was asked before playback and chose to listen
+  ("能听，跑完就播").
+
+Command actually run for the listening check:
+
+  TF2_NATIVE_TRACE=.scratch/t7/listen.trace \
+    native/build-nmake/tf2_demo_native.exe \
+      --demo "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem" \
+      --audio-device 6 --capture-tick 2000 --capture-frame .scratch/t7/listen.bmp
+
+  exit=0
+  audio_mode=device audio_device_opened=742 audio_device_open_attempts=742
+    audio_device_opens_ok=742
+  events_seen=1037 events_played=742 events_skipped=48 events_missing=247
+  soundEventsRead=5563 soundEventsScheduled=5323 soundEventsPlayed=742
+    soundEventsSkippedVoice=48 soundEventsMissingResource=247
+  firstPacketTick=29368 soundOriginTick=0 reverseRecoveries=0
+  duplicateTicks=1822
+                                                     [trace: .scratch/t7/listen.trace]
+
+The window is the same one the gate's device-6 run uses (pov, tick 2000, ~30 s at
+1x), so the audible check and the gate's device reading describe the same
+playback shape.
+
+WHAT IS AND IS NOT ESTABLISHED
+------------------------------
+ESTABLISHED by the user's statement:
+- Real audio was audible on device 6.
+- To the user's ear it was not obviously wrong (not broken up, not silent, no
+  obvious glitching was reported).
+
+NOT ESTABLISHED, and not claimed:
+- That the audio content was the CORRECT content. Nothing here showed which
+  sounds were audible, whether the track/mix was right, or whether every one of
+  the 742 played events was actually heard. "Sounds normal" is a coarse
+  judgement, not a content check.
+- That the audible result matches the demo's own soundtrack. No reference
+  listening pass was done against a known-good player.
+- Anything about timing/latency correctness.
+- Anything about devices other than 6.
+- That audibility holds under load. Note for honesty: during the gate run this
+  machine also hosted another task's process (viewmodel_contract_probe.exe,
+  PID 12788), and the listening playback overlapped with no other audio job of
+  this task's own; a glitch caused by external load would not have been detected
+  by the counters, and "sounds normal" was reported once, not repeatedly.
+
+The counters in device-runs.txt describe what the program did. This file
+describes what a person heard. Neither one back-certifies the other.

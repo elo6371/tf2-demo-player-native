@@ -1,0 +1,1 @@
+{"selfTest":true,"delay":true,"kinds":true,"voiceFiltered":true,"spatial":false,"schedulerSink":true,"missingKept":true,"hud":true,"particle":true,"pcf":true,"pcfCorrupt":true,"realPcf":"skipped","realOperators":0,"realCommon":0,"realFunction":"","device":"sink"}

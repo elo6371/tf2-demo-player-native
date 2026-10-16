@@ -1,0 +1,33 @@
+  OK   scheduler: nothing was sent to a device
+  OK   scheduler: the injected sink received the work
+  OK   scheduler: one PCM buffer was queued
+  OK   scheduler: the queue limit accepted 8 and rejected 1
+  OK   scheduler: one real WAV resolved out of the VPK
+  OK   scheduler: three malformed WAVs were rejected
+  OK   scheduler: a multi-day WAV is refused by duration, not shape
+  OK   scheduler: the refused buffer names its seconds
+  OK   scheduler: the same bytes at a playable rate resolve
+  FAIL scheduler: names behind a sound character still resolve (wanted: indexMarkedResolved=2)
+  OK   scheduler: the marked name resolves to the shipped file
+  OK   scheduler: the product reader resolves the same marked name
+  OK   scheduler: the index chain resolved two resources
+  OK   scheduler: exactly one of them is a WAV
+  OK   scheduler: exactly one of them is an MP3
+  OK   scheduler: the resolved MP3 is the shipped file
+  OK   scheduler: the MP3 decoded to PCM bytes
+  OK   scheduler: the decoded MP3 carries its own rate and channel count
+  OK   scheduler: the decoded MP3 has a real duration
+  OK   scheduler: the product reader agrees with the named chain on the MP3
+  OK   scheduler: the MP3 a pinned recording sends resolves instead of being refused
+  OK   scheduler: that event is the water splash the recording names
+  OK   scheduler: it decodes to PCM bytes
+  OK   scheduler: it is 44.1 kHz mono, not a guessed shape
+  OK   scheduler: this machine has the MPEG Layer-3 ACM codec
+  OK   scheduler: MP3-shaped bytes with no frame are invalid
+  OK   scheduler: a stream that decodes to zero PCM is refused
+  OK   scheduler: a Layer II stream is refused by name
+  OK   scheduler: a machine with no codec reports a capability gap
+  OK   scheduler: two timeline jumps exercised the scheduler
+  OK   scheduler: two recoveries
+  OK   scheduler: a missing sound was never played
+  OK   scheduler: every internal flip toggles a pinned reading

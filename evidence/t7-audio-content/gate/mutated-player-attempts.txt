@@ -1,0 +1,1784 @@
+0.0 trace open
+18899.0 audio: timeline firstPacketTick=29368 soundOriginTick=0 originFound=1 read=5563 scheduled=5323 unresolved=240 unplaceable=0 refused=0 kinds=w888/f2263/u14/o1647/v504/a7/m0
+19345.0 gpu: reload begin
+19370.4 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+19413.1 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+19413.1 gpu: world lightmap status=active intensity=0.898 atlas=1 bump=0 env=0 vertices=298836 lightmapped=297390
+19413.1 gpu: world geometry displacedTriangles=47232 waterTriangles=300
+19413.3 gpu: world cubemap status=six-face mode=0 preset=standard declared=0 faces=6 size=32 source=materials/maps/pl_odyssey/c592_880_-256.vtf reason=all six faces decoded
+19414.6 gpu: model 0/64 512x512 1.3ms uploaded=1
+19415.3 gpu: model 1/64 256x256 0.6ms uploaded=1
+19419.2 gpu: model 2/64 1024x1024 3.9ms uploaded=1
+19428.5 gpu: model 3/64 1024x1024 9.0ms uploaded=1
+19458.7 gpu: model 4/64 2048x2048 30.1ms uploaded=1
+19466.9 gpu: model 5/64 1024x1024 7.5ms uploaded=1
+19474.4 gpu: model 6/64 1024x1024 7.3ms uploaded=1
+19481.7 gpu: model 7/64 1024x1024 7.2ms uploaded=1
+19483.3 gpu: model 8/64 512x512 1.3ms uploaded=1
+19484.5 gpu: model 9/64 512x512 1.2ms uploaded=1
+19488.4 gpu: model 10/64 1024x512 3.8ms uploaded=1
+19517.3 gpu: model 11/64 2048x2048 28.8ms uploaded=1
+19547.4 gpu: model 12/64 2048x2048 29.5ms uploaded=1
+19577.7 gpu: model 13/64 2048x2048 29.5ms uploaded=1
+19580.5 gpu: model 14/64 512x512 2.1ms uploaded=1
+19582.6 gpu: model 15/64 512x512 2.0ms uploaded=1
+19590.3 gpu: model 16/64 1024x1024 7.7ms uploaded=1
+19605.0 gpu: model 17/64 2048x1024 14.4ms uploaded=1
+19606.2 gpu: model 18/64 256x256 0.8ms uploaded=1
+19614.1 gpu: model 19/64 1024x1024 7.9ms uploaded=1
+19644.6 gpu: model 20/64 2048x2048 30.3ms uploaded=1
+19649.7 gpu: model 21/64 1024x1024 4.4ms uploaded=1
+19652.0 gpu: model 22/64 512x512 2.1ms uploaded=1
+19659.7 gpu: model 23/64 1024x1024 7.7ms uploaded=1
+19689.0 gpu: model 24/64 2048x2048 29.1ms uploaded=1
+19693.9 gpu: model 25/64 1024x1024 4.3ms uploaded=1
+19723.4 gpu: model 26/64 2048x2048 29.4ms uploaded=1
+19757.2 gpu: model 27/64 2048x2048 33.0ms uploaded=1
+19786.6 gpu: model 28/64 2048x2048 28.7ms uploaded=1
+19816.9 gpu: model 29/64 2048x2048 29.5ms uploaded=1
+19847.4 gpu: model 30/64 2048x2048 29.8ms uploaded=1
+19857.4 gpu: model 31/64 2048x1024 9.2ms uploaded=1
+19859.8 gpu: model 32/64 512x512 1.8ms uploaded=1
+19867.5 gpu: model 33/64 1024x1024 7.7ms uploaded=1
+19875.3 gpu: model 34/64 1024x1024 7.6ms uploaded=1
+19906.1 gpu: model 35/64 2048x2048 30.7ms uploaded=1
+19914.4 gpu: model 36/64 1024x1024 7.7ms uploaded=1
+19922.1 gpu: model 37/64 1024x1024 7.4ms uploaded=1
+19942.1 gpu: model 38/64 2048x2048 19.8ms uploaded=1
+19974.3 gpu: model 39/64 2048x2048 31.1ms uploaded=1
+19985.8 gpu: model 40/64 1024x1024 10.9ms uploaded=1
+19993.0 gpu: model 41/64 1024x1024 7.1ms uploaded=1
+20022.7 gpu: model 42/64 2048x2048 29.4ms uploaded=1
+20025.6 gpu: model 43/64 1024x512 2.4ms uploaded=1
+20029.9 gpu: model 44/64 1024x1024 4.1ms uploaded=1
+20032.2 gpu: model 45/64 512x512 2.2ms uploaded=1
+20034.2 gpu: model 46/64 512x512 2.0ms uploaded=1
+20041.8 gpu: model 47/64 1024x1024 7.5ms uploaded=1
+20049.7 gpu: model 48/64 1024x1024 7.6ms uploaded=1
+20050.2 gpu: model 49/64 128x128 0.4ms uploaded=1
+20052.3 gpu: model 50/64 512x512 2.0ms uploaded=1
+20082.6 gpu: model 51/64 2048x2048 30.3ms uploaded=1
+20084.8 gpu: model 52/64 512x512 1.3ms uploaded=1
+20088.9 gpu: model 53/64 1024x1024 4.1ms uploaded=1
+20096.7 gpu: model 54/64 1024x1024 7.6ms uploaded=1
+20104.0 gpu: model 55/64 1024x1024 7.2ms uploaded=1
+20133.2 gpu: model 56/64 2048x2048 28.9ms uploaded=1
+20137.6 gpu: model 57/64 1024x512 3.7ms uploaded=1
+20139.9 gpu: model 58/64 512x512 2.2ms uploaded=1
+20143.9 gpu: model 59/64 1024x512 4.0ms uploaded=1
+20174.4 gpu: model 60/64 2048x2048 30.3ms uploaded=1
+20182.6 gpu: model 61/64 1024x1024 7.4ms uploaded=1
+20190.8 gpu: model 62/64 1024x1024 8.0ms uploaded=1
+20192.5 gpu: model 63/64 512x512 1.5ms uploaded=1
+20192.5 gpu: models done 64 uploaded=64
+20192.5 gpu: reload end
+20227.0 mode: window_created=1 window_visible=1 hidden=0 audio_mode=disabled
+20227.0 loop n=1 tick=0
+20257.3 audio: advance tick=0 cursor=0 seen=746 played=0 skippedVoice=34 missing=185 dup=0
+20257.3 scene: begin tick=0 sceneTick=29368
+20264.8 scene: snapshot status=1 stale=106 states=2048
+20264.9 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0
+20264.9 scene: observer done
+20264.9 scene: hud fxDue=1198 drawable=1
+20266.2 scene: buildInstances=256
+20309.8 scene: setInstances draws=94 markers=32
+20310.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=4/0 tick=29262 status=ok reason=idle
+20310.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20310.2 scene: instances set
+20310.2 scene: done
+20318.3 loop n=2 tick=0
+20322.4 audio: advance tick=6 cursor=6 seen=750 played=0 skippedVoice=34 missing=185 dup=0
+20322.4 scene: begin tick=6 sceneTick=29374
+20325.7 scene: snapshot status=1 stale=112 states=2048
+20325.7 scene: camera mode=first-person target=1 follows=2 holds=0 freeze=0
+20325.7 scene: observer done
+20325.8 scene: hud fxDue=1200 drawable=1
+20327.1 scene: buildInstances=256
+20327.4 scene: setInstances draws=94 markers=32
+20327.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=8/0 tick=29262 status=ok reason=idle
+20327.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20327.7 scene: instances set
+20327.7 scene: done
+20327.9 draw: begin tick=6 frames=0
+20333.1 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+20333.1 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+20333.2 gpu: world vis cameraCluster=2017 visibleFromCamera=352 clusters=2938 clusteredTriangles=52380 hiddenTriangles=41500 withoutCluster=47232 inputTriangles=99612 drawnTriangles=58112 clipApplied=1 state=active reason=hid 41500 of 99612 triangles from cluster 2017
+20333.2 draw: end frames=1 pending=0
+20333.2 loop n=3 tick=6
+20334.3 audio: advance tick=7 cursor=7 seen=750 played=0 skippedVoice=34 missing=185 dup=0
+20334.3 scene: begin tick=7 sceneTick=29375
+20337.3 scene: snapshot status=1 stale=113 states=2048
+20337.3 scene: camera mode=first-person target=1 follows=3 holds=0 freeze=0
+20337.3 scene: observer done
+20337.4 scene: hud fxDue=1200 drawable=1
+20338.7 scene: buildInstances=256
+20339.0 scene: setInstances draws=94 markers=32
+20339.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=12/0 tick=29262 status=ok reason=idle
+20339.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20339.1 scene: instances set
+20339.1 scene: done
+20339.3 draw: begin tick=7 frames=1
+20339.8 draw: end frames=2 pending=0
+20339.9 loop n=4 tick=7
+20342.6 loop n=5 tick=7
+20342.6 audio: advance tick=8 cursor=8 seen=750 played=0 skippedVoice=34 missing=185 dup=1
+20342.7 scene: begin tick=8 sceneTick=29376
+20345.9 scene: snapshot status=1 stale=114 states=2048
+20345.9 scene: camera mode=first-person target=1 follows=4 holds=0 freeze=0
+20345.9 scene: observer done
+20345.9 scene: hud fxDue=1200 drawable=1
+20347.3 scene: buildInstances=256
+20347.6 scene: setInstances draws=94 markers=32
+20347.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=16/0 tick=29262 status=ok reason=idle
+20347.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20347.7 scene: instances set
+20347.8 scene: done
+20348.0 draw: begin tick=8 frames=2
+20348.2 draw: end frames=3 pending=0
+20348.2 loop n=6 tick=8
+20357.6 loop n=7 tick=8
+20357.6 audio: advance tick=9 cursor=9 seen=750 played=0 skippedVoice=34 missing=185 dup=2
+20357.6 scene: begin tick=9 sceneTick=29377
+20360.8 scene: snapshot status=1 stale=115 states=2048
+20360.8 scene: camera mode=first-person target=1 follows=5 holds=0 freeze=0
+20360.8 scene: observer done
+20360.9 scene: hud fxDue=1200 drawable=1
+20362.2 scene: buildInstances=256
+20362.6 scene: setInstances draws=94 markers=32
+20362.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=20/0 tick=29262 status=ok reason=idle
+20362.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20362.6 scene: instances set
+20362.7 scene: done
+20362.9 draw: begin tick=9 frames=3
+20363.0 draw: end frames=4 pending=0
+20363.0 loop n=8 tick=9
+20364.3 audio: advance tick=10 cursor=10 seen=750 played=0 skippedVoice=34 missing=185 dup=2
+20364.3 scene: begin tick=10 sceneTick=29378
+20367.2 scene: snapshot status=1 stale=116 states=2048
+20367.2 scene: camera mode=first-person target=1 follows=6 holds=0 freeze=0
+20367.2 scene: observer done
+20367.3 scene: hud fxDue=1200 drawable=1
+20368.5 scene: buildInstances=256
+20368.8 scene: setInstances draws=94 markers=32
+20368.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=24/0 tick=29262 status=ok reason=idle
+20368.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20368.9 scene: instances set
+20368.9 scene: done
+20369.2 loop n=9 tick=10
+20370.4 audio: advance tick=11 cursor=11 seen=750 played=0 skippedVoice=34 missing=185 dup=2
+20370.4 scene: begin tick=11 sceneTick=29379
+20373.6 scene: snapshot status=1 stale=117 states=2048
+20373.6 scene: camera mode=first-person target=1 follows=7 holds=0 freeze=0
+20373.6 scene: observer done
+20373.6 scene: hud fxDue=1200 drawable=1
+20374.9 scene: buildInstances=256
+20375.2 scene: setInstances draws=94 markers=32
+20375.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=28/0 tick=29262 status=ok reason=idle
+20375.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20375.3 scene: instances set
+20375.3 scene: done
+20375.5 draw: begin tick=11 frames=4
+20375.7 draw: end frames=5 pending=0
+20375.7 loop n=10 tick=11
+20387.8 loop n=11 tick=11
+20387.8 audio: advance tick=12 cursor=12 seen=750 played=0 skippedVoice=34 missing=185 dup=3
+20387.8 scene: begin tick=12 sceneTick=29380
+20390.9 scene: snapshot status=1 stale=118 states=2048
+20390.9 scene: camera mode=first-person target=1 follows=8 holds=0 freeze=0
+20390.9 scene: observer done
+20390.9 scene: hud fxDue=1200 drawable=1
+20392.3 scene: buildInstances=256
+20392.7 scene: setInstances draws=94 markers=32
+20392.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=32/0 tick=29262 status=ok reason=idle
+20392.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20392.8 scene: instances set
+20392.8 scene: done
+20393.1 draw: begin tick=12 frames=5
+20393.2 draw: end frames=6 pending=0
+20393.2 loop n=12 tick=12
+20394.9 audio: advance tick=13 cursor=13 seen=750 played=0 skippedVoice=34 missing=185 dup=3
+20394.9 scene: begin tick=13 sceneTick=29381
+20397.9 scene: snapshot status=1 stale=119 states=2048
+20397.9 scene: camera mode=first-person target=1 follows=9 holds=0 freeze=0
+20397.9 scene: observer done
+20398.0 scene: hud fxDue=1200 drawable=1
+20399.4 scene: buildInstances=256
+20399.8 scene: setInstances draws=94 markers=32
+20399.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=36/0 tick=29262 status=ok reason=idle
+20399.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20399.8 scene: instances set
+20399.9 scene: done
+20400.2 loop n=13 tick=13
+20401.4 audio: advance tick=14 cursor=14 seen=750 played=0 skippedVoice=34 missing=185 dup=3
+20401.5 scene: begin tick=14 sceneTick=29382
+20404.6 scene: snapshot status=1 stale=120 states=2048
+20404.6 scene: camera mode=first-person target=1 follows=10 holds=0 freeze=0
+20404.6 scene: observer done
+20404.6 scene: hud fxDue=1201 drawable=1
+20405.9 scene: buildInstances=256
+20406.2 scene: setInstances draws=94 markers=32
+20406.4 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=40/0 tick=29262 status=ok reason=idle
+20406.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20406.4 scene: instances set
+20406.4 scene: done
+20406.6 draw: begin tick=14 frames=6
+20406.7 draw: end frames=7 pending=0
+20406.7 loop n=14 tick=14
+20415.1 loop n=15 tick=14
+20415.1 audio: advance tick=15 cursor=15 seen=750 played=0 skippedVoice=34 missing=185 dup=4
+20415.1 scene: begin tick=15 sceneTick=29383
+20418.1 scene: snapshot status=1 stale=121 states=2048
+20418.1 scene: camera mode=first-person target=1 follows=11 holds=0 freeze=0
+20418.1 scene: observer done
+20418.1 scene: hud fxDue=1202 drawable=1
+20419.5 scene: buildInstances=256
+20419.8 scene: setInstances draws=94 markers=32
+20419.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=44/0 tick=29262 status=ok reason=idle
+20419.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20419.9 scene: instances set
+20419.9 scene: done
+20420.4 draw: begin tick=15 frames=7
+20420.5 draw: end frames=8 pending=0
+20420.5 loop n=16 tick=15
+20423.3 audio: advance tick=16 cursor=16 seen=750 played=0 skippedVoice=34 missing=185 dup=4
+20423.3 scene: begin tick=16 sceneTick=29384
+20426.4 scene: snapshot status=1 stale=122 states=2048
+20426.4 scene: camera mode=first-person target=1 follows=12 holds=0 freeze=0
+20426.4 scene: observer done
+20426.5 scene: hud fxDue=1202 drawable=1
+20427.8 scene: buildInstances=256
+20428.2 scene: setInstances draws=94 markers=32
+20428.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=48/0 tick=29262 status=ok reason=idle
+20428.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20428.2 scene: instances set
+20428.3 scene: done
+20428.6 loop n=17 tick=16
+20430.5 audio: advance tick=17 cursor=17 seen=750 played=0 skippedVoice=34 missing=185 dup=4
+20430.5 scene: begin tick=17 sceneTick=29385
+20433.5 scene: snapshot status=1 stale=123 states=2048
+20433.5 scene: camera mode=first-person target=1 follows=13 holds=0 freeze=0
+20433.5 scene: observer done
+20433.5 scene: hud fxDue=1203 drawable=1
+20434.9 scene: buildInstances=256
+20435.3 scene: setInstances draws=94 markers=32
+20435.4 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=52/0 tick=29262 status=ok reason=idle
+20435.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20435.4 scene: instances set
+20435.5 scene: done
+20435.9 draw: begin tick=17 frames=8
+20436.0 draw: end frames=9 pending=0
+20436.0 loop n=18 tick=17
+20438.8 loop n=19 tick=17
+20438.8 audio: advance tick=18 cursor=18 seen=750 played=0 skippedVoice=34 missing=185 dup=5
+20438.8 scene: begin tick=18 sceneTick=29386
+20441.8 scene: snapshot status=1 stale=124 states=2048
+20441.9 scene: camera mode=first-person target=1 follows=14 holds=0 freeze=0
+20441.9 scene: observer done
+20441.9 scene: hud fxDue=1203 drawable=1
+20443.2 scene: buildInstances=256
+20443.6 scene: setInstances draws=94 markers=32
+20443.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=56/0 tick=29262 status=ok reason=idle
+20443.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20443.6 scene: instances set
+20443.7 scene: done
+20443.9 draw: begin tick=18 frames=9
+20444.0 draw: end frames=10 pending=0
+20444.0 loop n=20 tick=18
+20447.1 loop n=21 tick=18
+20447.1 audio: advance tick=19 cursor=19 seen=750 played=0 skippedVoice=34 missing=185 dup=6
+20447.1 scene: begin tick=19 sceneTick=29387
+20450.1 scene: snapshot status=1 stale=125 states=2048
+20450.1 scene: camera mode=first-person target=1 follows=15 holds=0 freeze=0
+20450.1 scene: observer done
+20450.2 scene: hud fxDue=1203 drawable=1
+20451.4 scene: buildInstances=256
+20451.8 scene: setInstances draws=94 markers=32
+20451.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=60/0 tick=29262 status=ok reason=idle
+20451.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20451.8 scene: instances set
+20451.9 scene: done
+20452.1 loop n=22 tick=19
+20454.3 audio: advance tick=20 cursor=20 seen=750 played=0 skippedVoice=34 missing=185 dup=6
+20454.3 scene: begin tick=20 sceneTick=29388
+20457.3 scene: snapshot status=1 stale=126 states=2048
+20457.4 scene: camera mode=first-person target=1 follows=16 holds=0 freeze=0
+20457.4 scene: observer done
+20457.4 scene: hud fxDue=1204 drawable=1
+20458.7 scene: buildInstances=256
+20459.0 scene: setInstances draws=94 markers=32
+20459.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=64/0 tick=29262 status=ok reason=idle
+20459.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20459.1 scene: instances set
+20459.1 scene: done
+20459.4 draw: begin tick=20 frames=10
+20459.5 draw: end frames=11 pending=0
+20459.5 loop n=23 tick=20
+20463.1 loop n=24 tick=20
+20463.1 audio: advance tick=21 cursor=21 seen=750 played=0 skippedVoice=34 missing=185 dup=7
+20463.1 scene: begin tick=21 sceneTick=29389
+20466.1 scene: snapshot status=1 stale=127 states=2048
+20466.1 scene: camera mode=first-person target=1 follows=17 holds=0 freeze=0
+20466.1 scene: observer done
+20466.1 scene: hud fxDue=1204 drawable=1
+20467.4 scene: buildInstances=256
+20467.8 scene: setInstances draws=94 markers=32
+20467.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=68/0 tick=29262 status=ok reason=idle
+20467.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20467.8 scene: instances set
+20467.9 scene: done
+20468.1 draw: begin tick=21 frames=11
+20468.2 draw: end frames=12 pending=0
+20468.2 loop n=25 tick=21
+20470.8 loop n=26 tick=21
+20470.9 audio: advance tick=22 cursor=22 seen=750 played=0 skippedVoice=34 missing=185 dup=8
+20470.9 scene: begin tick=22 sceneTick=29390
+20473.9 scene: snapshot status=1 stale=128 states=2048
+20473.9 scene: camera mode=first-person target=1 follows=18 holds=0 freeze=0
+20473.9 scene: observer done
+20473.9 scene: hud fxDue=1204 drawable=1
+20475.2 scene: buildInstances=256
+20475.5 scene: setInstances draws=94 markers=32
+20475.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=72/0 tick=29262 status=ok reason=idle
+20475.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20475.6 scene: instances set
+20475.6 scene: done
+20476.0 loop n=27 tick=22
+20478.4 audio: advance tick=23 cursor=23 seen=750 played=0 skippedVoice=34 missing=185 dup=8
+20478.4 scene: begin tick=23 sceneTick=29391
+20481.8 scene: snapshot status=1 stale=129 states=2048
+20481.8 scene: camera mode=first-person target=1 follows=19 holds=0 freeze=0
+20481.8 scene: observer done
+20481.9 scene: hud fxDue=1204 drawable=1
+20483.3 scene: buildInstances=256
+20483.7 scene: setInstances draws=94 markers=32
+20483.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=76/0 tick=29262 status=ok reason=idle
+20483.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20483.7 scene: instances set
+20483.8 scene: done
+20484.1 draw: begin tick=23 frames=12
+20484.2 draw: end frames=13 pending=0
+20484.2 loop n=28 tick=23
+20486.3 audio: advance tick=24 cursor=24 seen=750 played=0 skippedVoice=34 missing=185 dup=8
+20486.3 scene: begin tick=24 sceneTick=29392
+20489.3 scene: snapshot status=1 stale=130 states=2048
+20489.3 scene: camera mode=first-person target=1 follows=20 holds=0 freeze=0
+20489.3 scene: observer done
+20489.3 scene: hud fxDue=1204 drawable=1
+20490.7 scene: buildInstances=256
+20491.0 scene: setInstances draws=94 markers=32
+20491.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=80/0 tick=29262 status=ok reason=idle
+20491.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20491.1 scene: instances set
+20491.1 scene: done
+20491.4 loop n=29 tick=24
+20493.7 audio: advance tick=25 cursor=25 seen=750 played=0 skippedVoice=34 missing=185 dup=8
+20493.7 scene: begin tick=25 sceneTick=29393
+20496.7 scene: snapshot status=1 stale=131 states=2048
+20496.8 scene: camera mode=first-person target=1 follows=21 holds=0 freeze=0
+20496.8 scene: observer done
+20496.8 scene: hud fxDue=1204 drawable=1
+20498.1 scene: buildInstances=256
+20498.4 scene: setInstances draws=94 markers=32
+20498.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=84/0 tick=29262 status=ok reason=idle
+20498.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20498.5 scene: instances set
+20498.5 scene: done
+20498.8 draw: begin tick=25 frames=13
+20498.9 draw: end frames=14 pending=0
+20498.9 loop n=30 tick=25
+20501.6 loop n=31 tick=25
+20501.7 audio: advance tick=26 cursor=26 seen=750 played=0 skippedVoice=34 missing=185 dup=9
+20501.7 scene: begin tick=26 sceneTick=29394
+20504.7 scene: snapshot status=1 stale=132 states=2048
+20504.7 scene: camera mode=first-person target=1 follows=22 holds=0 freeze=0
+20504.7 scene: observer done
+20504.8 scene: hud fxDue=1204 drawable=1
+20506.1 scene: buildInstances=256
+20506.4 scene: setInstances draws=94 markers=32
+20506.4 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=88/0 tick=29262 status=ok reason=idle
+20506.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20506.4 scene: instances set
+20506.5 scene: done
+20506.8 loop n=32 tick=26
+20509.0 audio: advance tick=27 cursor=27 seen=750 played=0 skippedVoice=34 missing=185 dup=9
+20509.0 scene: begin tick=27 sceneTick=29395
+20512.0 scene: snapshot status=1 stale=133 states=2048
+20512.0 scene: camera mode=first-person target=1 follows=23 holds=0 freeze=0
+20512.0 scene: observer done
+20512.0 scene: hud fxDue=1204 drawable=1
+20513.3 scene: buildInstances=256
+20513.6 scene: setInstances draws=94 markers=32
+20513.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=92/0 tick=29262 status=ok reason=idle
+20513.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20513.7 scene: instances set
+20513.7 scene: done
+20514.0 draw: begin tick=27 frames=14
+20514.1 draw: end frames=15 pending=0
+20514.1 loop n=33 tick=27
+20517.0 loop n=34 tick=27
+20517.1 audio: advance tick=28 cursor=28 seen=750 played=0 skippedVoice=34 missing=185 dup=10
+20517.1 scene: begin tick=28 sceneTick=29396
+20520.0 scene: snapshot status=1 stale=134 states=2048
+20520.0 scene: camera mode=first-person target=1 follows=24 holds=0 freeze=0
+20520.0 scene: observer done
+20520.0 scene: hud fxDue=1206 drawable=1
+20521.3 scene: buildInstances=256
+20521.7 scene: setInstances draws=94 markers=32
+20521.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=96/0 tick=29262 status=ok reason=idle
+20521.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20521.7 scene: instances set
+20521.8 scene: done
+20522.1 loop n=35 tick=28
+20524.1 audio: advance tick=29 cursor=29 seen=750 played=0 skippedVoice=34 missing=185 dup=10
+20524.1 scene: begin tick=29 sceneTick=29397
+20527.2 scene: snapshot status=1 stale=135 states=2048
+20527.2 scene: camera mode=first-person target=1 follows=25 holds=0 freeze=0
+20527.2 scene: observer done
+20527.2 scene: hud fxDue=1206 drawable=1
+20528.5 scene: buildInstances=256
+20528.9 scene: setInstances draws=94 markers=32
+20529.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=100/0 tick=29262 status=ok reason=idle
+20529.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20529.0 scene: instances set
+20529.0 scene: done
+20529.3 draw: begin tick=29 frames=15
+20529.4 draw: end frames=16 pending=0
+20529.4 loop n=36 tick=29
+20541.2 loop n=37 tick=29
+20541.3 audio: advance tick=30 cursor=30 seen=750 played=0 skippedVoice=34 missing=185 dup=11
+20541.3 scene: begin tick=30 sceneTick=29398
+20544.3 scene: snapshot status=1 stale=136 states=2048
+20544.3 scene: camera mode=first-person target=1 follows=26 holds=0 freeze=0
+20544.3 scene: observer done
+20544.4 scene: hud fxDue=1206 drawable=1
+20545.7 scene: buildInstances=256
+20546.0 scene: setInstances draws=94 markers=32
+20546.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=104/0 tick=29262 status=ok reason=idle
+20546.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20546.1 scene: instances set
+20546.1 scene: done
+20546.4 draw: begin tick=30 frames=16
+20546.5 draw: end frames=17 pending=0
+20546.5 loop n=38 tick=30
+20547.8 audio: advance tick=31 cursor=31 seen=750 played=0 skippedVoice=34 missing=185 dup=11
+20547.8 scene: begin tick=31 sceneTick=29399
+20550.7 scene: snapshot status=1 stale=137 states=2048
+20550.7 scene: camera mode=first-person target=1 follows=27 holds=0 freeze=0
+20550.7 scene: observer done
+20550.7 scene: hud fxDue=1206 drawable=1
+20551.9 scene: buildInstances=256
+20552.3 scene: setInstances draws=94 markers=32
+20552.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=108/0 tick=29262 status=ok reason=idle
+20552.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20552.3 scene: instances set
+20552.4 scene: done
+20552.7 loop n=39 tick=31
+20554.2 audio: advance tick=32 cursor=32 seen=750 played=0 skippedVoice=34 missing=185 dup=11
+20554.2 scene: begin tick=32 sceneTick=29400
+20557.2 scene: snapshot status=1 stale=138 states=2048
+20557.2 scene: camera mode=first-person target=1 follows=28 holds=0 freeze=0
+20557.2 scene: observer done
+20557.3 scene: hud fxDue=1206 drawable=1
+20558.5 scene: buildInstances=256
+20558.8 scene: setInstances draws=94 markers=32
+20558.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=112/0 tick=29262 status=ok reason=idle
+20558.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20558.9 scene: instances set
+20558.9 scene: done
+20559.4 draw: begin tick=32 frames=17
+20559.5 draw: end frames=18 pending=0
+20559.5 loop n=40 tick=32
+20571.5 loop n=41 tick=32
+20571.6 audio: advance tick=33 cursor=33 seen=750 played=0 skippedVoice=34 missing=185 dup=12
+20571.6 scene: begin tick=33 sceneTick=29401
+20574.5 scene: snapshot status=1 stale=139 states=2048
+20574.5 scene: camera mode=first-person target=1 follows=29 holds=0 freeze=0
+20574.5 scene: observer done
+20574.6 scene: hud fxDue=1206 drawable=1
+20575.8 scene: buildInstances=256
+20576.2 scene: setInstances draws=94 markers=32
+20576.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=116/0 tick=29262 status=ok reason=idle
+20576.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20576.2 scene: instances set
+20576.3 scene: done
+20576.6 draw: begin tick=33 frames=18
+20576.6 draw: end frames=19 pending=0
+20576.6 loop n=42 tick=33
+20578.1 audio: advance tick=34 cursor=34 seen=750 played=0 skippedVoice=34 missing=185 dup=12
+20578.1 scene: begin tick=34 sceneTick=29402
+20581.0 scene: snapshot status=1 stale=140 states=2048
+20581.0 scene: camera mode=first-person target=1 follows=30 holds=0 freeze=0
+20581.0 scene: observer done
+20581.0 scene: hud fxDue=1207 drawable=1
+20582.2 scene: buildInstances=256
+20582.5 scene: setInstances draws=94 markers=32
+20582.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=120/0 tick=29262 status=ok reason=idle
+20582.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20582.6 scene: instances set
+20582.6 scene: done
+20583.0 loop n=43 tick=34
+20584.4 draw: begin tick=34 frames=19
+20584.5 draw: end frames=20 pending=0
+20584.5 loop n=44 tick=34
+20603.5 loop n=45 tick=34
+20603.5 audio: advance tick=36 cursor=36 seen=750 played=0 skippedVoice=34 missing=185 dup=14
+20603.5 scene: begin tick=36 sceneTick=29404
+20606.7 scene: snapshot status=1 stale=142 states=2048
+20606.7 scene: camera mode=first-person target=1 follows=31 holds=0 freeze=0
+20606.7 scene: observer done
+20606.8 scene: hud fxDue=1208 drawable=1
+20608.1 scene: buildInstances=256
+20608.5 scene: setInstances draws=94 markers=32
+20608.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=124/0 tick=29262 status=ok reason=idle
+20608.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20608.6 scene: instances set
+20608.7 scene: done
+20609.0 draw: begin tick=36 frames=20
+20609.1 draw: end frames=21 pending=0
+20609.1 loop n=46 tick=36
+20619.5 loop n=47 tick=36
+20619.5 audio: advance tick=37 cursor=37 seen=750 played=0 skippedVoice=34 missing=185 dup=15
+20619.5 scene: begin tick=37 sceneTick=29405
+20622.5 scene: snapshot status=1 stale=143 states=2048
+20622.6 scene: camera mode=first-person target=1 follows=32 holds=0 freeze=0
+20622.6 scene: observer done
+20622.6 scene: hud fxDue=1208 drawable=1
+20623.9 scene: buildInstances=256
+20624.3 scene: setInstances draws=94 markers=32
+20624.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=128/0 tick=29262 status=ok reason=idle
+20624.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20624.3 scene: instances set
+20624.4 scene: done
+20624.7 draw: begin tick=37 frames=21
+20624.7 draw: end frames=22 pending=0
+20624.7 loop n=48 tick=37
+20625.9 audio: advance tick=38 cursor=38 seen=750 played=0 skippedVoice=34 missing=185 dup=15
+20625.9 scene: begin tick=38 sceneTick=29406
+20628.9 scene: snapshot status=1 stale=144 states=2048
+20628.9 scene: camera mode=first-person target=1 follows=33 holds=0 freeze=0
+20628.9 scene: observer done
+20629.0 scene: hud fxDue=1208 drawable=1
+20630.3 scene: buildInstances=256
+20630.6 scene: setInstances draws=94 markers=32
+20630.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=132/0 tick=29262 status=ok reason=idle
+20630.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20630.6 scene: instances set
+20630.7 scene: done
+20631.0 loop n=49 tick=38
+20632.2 audio: advance tick=39 cursor=39 seen=750 played=0 skippedVoice=34 missing=185 dup=15
+20632.2 scene: begin tick=39 sceneTick=29407
+20635.3 scene: snapshot status=1 stale=145 states=2048
+20635.3 scene: camera mode=first-person target=1 follows=34 holds=0 freeze=0
+20635.3 scene: observer done
+20635.4 scene: hud fxDue=1209 drawable=1
+20636.6 scene: buildInstances=256
+20637.0 scene: setInstances draws=94 markers=32
+20637.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=136/0 tick=29262 status=ok reason=idle
+20637.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20637.0 scene: instances set
+20637.0 scene: done
+20637.3 draw: begin tick=39 frames=22
+20637.4 draw: end frames=23 pending=0
+20637.4 loop n=50 tick=39
+20640.4 loop n=51 tick=39
+20640.5 audio: advance tick=40 cursor=40 seen=750 played=0 skippedVoice=34 missing=185 dup=16
+20640.5 scene: begin tick=40 sceneTick=29408
+20643.5 scene: snapshot status=1 stale=146 states=2048
+20643.5 scene: camera mode=first-person target=1 follows=35 holds=0 freeze=0
+20643.5 scene: observer done
+20643.6 scene: hud fxDue=1209 drawable=1
+20644.8 scene: buildInstances=256
+20645.2 scene: setInstances draws=94 markers=32
+20645.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=140/0 tick=29262 status=ok reason=idle
+20645.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20645.2 scene: instances set
+20645.3 scene: done
+20645.6 loop n=52 tick=40
+20647.4 audio: advance tick=41 cursor=41 seen=750 played=0 skippedVoice=34 missing=185 dup=16
+20647.4 scene: begin tick=41 sceneTick=29409
+20650.4 scene: snapshot status=1 stale=147 states=2048
+20650.4 scene: camera mode=first-person target=1 follows=36 holds=0 freeze=0
+20650.4 scene: observer done
+20650.4 scene: hud fxDue=1209 drawable=1
+20651.6 scene: buildInstances=256
+20651.9 scene: setInstances draws=94 markers=32
+20652.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=144/0 tick=29262 status=ok reason=idle
+20652.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20652.0 scene: instances set
+20652.0 scene: done
+20652.3 draw: begin tick=41 frames=23
+20652.3 draw: end frames=24 pending=0
+20652.4 loop n=53 tick=41
+20655.0 loop n=54 tick=41
+20655.1 audio: advance tick=42 cursor=42 seen=750 played=0 skippedVoice=34 missing=185 dup=17
+20655.1 scene: begin tick=42 sceneTick=29410
+20657.9 scene: snapshot status=1 stale=148 states=2048
+20657.9 scene: camera mode=first-person target=1 follows=37 holds=0 freeze=0
+20657.9 scene: observer done
+20657.9 scene: hud fxDue=1209 drawable=1
+20659.1 scene: buildInstances=256
+20659.4 scene: setInstances draws=94 markers=32
+20659.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=148/0 tick=29262 status=ok reason=idle
+20659.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20659.5 scene: instances set
+20659.5 scene: done
+20659.8 loop n=55 tick=42
+20661.9 audio: advance tick=43 cursor=43 seen=750 played=0 skippedVoice=34 missing=185 dup=17
+20661.9 scene: begin tick=43 sceneTick=29411
+20664.8 scene: snapshot status=1 stale=149 states=2048
+20664.8 scene: camera mode=first-person target=1 follows=38 holds=0 freeze=0
+20664.8 scene: observer done
+20664.9 scene: hud fxDue=1209 drawable=1
+20666.1 scene: buildInstances=256
+20666.5 scene: setInstances draws=94 markers=32
+20666.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=152/0 tick=29262 status=ok reason=idle
+20666.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20666.5 scene: instances set
+20666.6 scene: done
+20666.8 draw: begin tick=43 frames=24
+20666.9 draw: end frames=25 pending=0
+20666.9 loop n=56 tick=43
+20669.5 loop n=57 tick=43
+20669.5 audio: advance tick=44 cursor=44 seen=750 played=0 skippedVoice=34 missing=185 dup=18
+20669.5 scene: begin tick=44 sceneTick=29412
+20672.4 scene: snapshot status=1 stale=150 states=2048
+20672.5 scene: camera mode=first-person target=1 follows=39 holds=0 freeze=0
+20672.5 scene: observer done
+20672.5 scene: hud fxDue=1210 drawable=1
+20673.7 scene: buildInstances=256
+20674.0 scene: setInstances draws=94 markers=32
+20674.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=156/0 tick=29262 status=ok reason=idle
+20674.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20674.1 scene: instances set
+20674.1 scene: done
+20674.5 loop n=58 tick=44
+20676.3 draw: begin tick=44 frames=25
+20676.4 draw: end frames=26 pending=0
+20676.4 loop n=59 tick=44
+20677.3 loop n=60 tick=44
+20677.4 audio: advance tick=45 cursor=45 seen=750 played=0 skippedVoice=34 missing=185 dup=20
+20677.4 scene: begin tick=45 sceneTick=29413
+20680.5 scene: snapshot status=1 stale=151 states=2048
+20680.5 scene: camera mode=first-person target=1 follows=40 holds=0 freeze=0
+20680.5 scene: observer done
+20680.5 scene: hud fxDue=1210 drawable=1
+20681.8 scene: buildInstances=256
+20682.1 scene: setInstances draws=94 markers=32
+20682.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=160/0 tick=29262 status=ok reason=idle
+20682.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20682.2 scene: instances set
+20682.2 scene: done
+20682.6 loop n=61 tick=45
+20684.9 draw: begin tick=45 frames=26
+20685.0 draw: end frames=27 pending=0
+20685.0 loop n=62 tick=45
+20685.3 loop n=63 tick=45
+20685.4 loop n=64 tick=45
+20685.5 loop n=65 tick=45
+20695.1 loop n=66 tick=45
+20695.1 audio: advance tick=46 cursor=46 seen=750 played=0 skippedVoice=34 missing=185 dup=25
+20695.1 scene: begin tick=46 sceneTick=29414
+20698.1 scene: snapshot status=1 stale=152 states=2048
+20698.1 scene: camera mode=first-person target=1 follows=41 holds=0 freeze=0
+20698.1 scene: observer done
+20698.2 scene: hud fxDue=1210 drawable=1
+20699.5 scene: buildInstances=256
+20699.8 scene: setInstances draws=94 markers=32
+20699.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=164/0 tick=29262 status=ok reason=idle
+20699.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20699.9 scene: instances set
+20699.9 scene: done
+20700.2 draw: begin tick=46 frames=27
+20700.3 draw: end frames=28 pending=0
+20700.3 loop n=67 tick=46
+20710.7 loop n=68 tick=46
+20711.1 audio: advance tick=47 cursor=47 seen=750 played=0 skippedVoice=34 missing=185 dup=26
+20711.1 scene: begin tick=47 sceneTick=29415
+20714.1 scene: snapshot status=1 stale=153 states=2048
+20714.2 scene: camera mode=first-person target=1 follows=42 holds=0 freeze=0
+20714.2 scene: observer done
+20714.2 scene: hud fxDue=1211 drawable=1
+20715.5 scene: buildInstances=256
+20715.8 scene: setInstances draws=94 markers=32
+20715.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=168/0 tick=29262 status=ok reason=idle
+20715.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20715.9 scene: instances set
+20715.9 scene: done
+20716.2 draw: begin tick=47 frames=28
+20716.2 draw: end frames=29 pending=0
+20716.2 loop n=69 tick=47
+20717.7 audio: advance tick=48 cursor=48 seen=750 played=0 skippedVoice=34 missing=185 dup=26
+20717.7 scene: begin tick=48 sceneTick=29416
+20720.5 scene: snapshot status=1 stale=154 states=2048
+20720.5 scene: camera mode=first-person target=1 follows=43 holds=0 freeze=0
+20720.5 scene: observer done
+20720.6 scene: hud fxDue=1211 drawable=1
+20721.8 scene: buildInstances=256
+20722.1 scene: setInstances draws=94 markers=32
+20722.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=172/0 tick=29262 status=ok reason=idle
+20722.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20722.1 scene: instances set
+20722.2 scene: done
+20722.5 loop n=70 tick=48
+20723.6 audio: advance tick=49 cursor=49 seen=750 played=0 skippedVoice=34 missing=185 dup=26
+20723.6 scene: begin tick=49 sceneTick=29417
+20726.5 scene: snapshot status=1 stale=155 states=2048
+20726.5 scene: camera mode=first-person target=1 follows=44 holds=0 freeze=0
+20726.5 scene: observer done
+20726.5 scene: hud fxDue=1211 drawable=1
+20727.7 scene: buildInstances=256
+20728.0 scene: setInstances draws=94 markers=32
+20728.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=176/0 tick=29262 status=ok reason=idle
+20728.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20728.0 scene: instances set
+20728.1 scene: done
+20728.3 draw: begin tick=49 frames=29
+20728.4 draw: end frames=30 pending=0
+20728.4 loop n=71 tick=49
+20741.4 loop n=72 tick=49
+20741.5 audio: advance tick=50 cursor=50 seen=750 played=0 skippedVoice=34 missing=185 dup=27
+20741.5 scene: begin tick=50 sceneTick=29418
+20744.5 scene: snapshot status=1 stale=156 states=2048
+20744.5 scene: camera mode=first-person target=1 follows=45 holds=0 freeze=0
+20744.5 scene: observer done
+20744.6 scene: hud fxDue=1211 drawable=1
+20745.9 scene: buildInstances=256
+20746.3 scene: setInstances draws=94 markers=32
+20746.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=180/0 tick=29262 status=ok reason=idle
+20746.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20746.3 scene: instances set
+20746.4 scene: done
+20746.7 draw: begin tick=50 frames=30
+20746.7 draw: end frames=31 pending=0
+20746.8 loop n=73 tick=50
+20748.9 audio: advance tick=51 cursor=51 seen=750 played=0 skippedVoice=34 missing=185 dup=27
+20748.9 scene: begin tick=51 sceneTick=29419
+20751.9 scene: snapshot status=1 stale=157 states=2048
+20751.9 scene: camera mode=first-person target=1 follows=46 holds=0 freeze=0
+20751.9 scene: observer done
+20751.9 scene: hud fxDue=1211 drawable=1
+20753.2 scene: buildInstances=256
+20753.5 scene: setInstances draws=94 markers=32
+20753.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=184/0 tick=29262 status=ok reason=idle
+20753.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20753.6 scene: instances set
+20753.6 scene: done
+20753.9 loop n=74 tick=51
+20755.9 audio: advance tick=52 cursor=52 seen=750 played=0 skippedVoice=34 missing=185 dup=27
+20755.9 scene: begin tick=52 sceneTick=29420
+20758.9 scene: snapshot status=1 stale=158 states=2048
+20758.9 scene: camera mode=first-person target=1 follows=47 holds=0 freeze=0
+20758.9 scene: observer done
+20758.9 scene: hud fxDue=1212 drawable=1
+20760.1 scene: buildInstances=256
+20760.4 scene: setInstances draws=94 markers=32
+20760.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=188/0 tick=29262 status=ok reason=idle
+20760.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20760.5 scene: instances set
+20760.5 scene: done
+20760.9 draw: begin tick=52 frames=31
+20761.0 draw: end frames=32 pending=0
+20761.0 loop n=75 tick=52
+20764.0 loop n=76 tick=52
+20764.0 audio: advance tick=53 cursor=53 seen=750 played=0 skippedVoice=34 missing=185 dup=28
+20764.0 scene: begin tick=53 sceneTick=29421
+20767.2 scene: snapshot status=1 stale=159 states=2048
+20767.2 scene: camera mode=first-person target=1 follows=48 holds=0 freeze=0
+20767.2 scene: observer done
+20767.3 scene: hud fxDue=1212 drawable=1
+20768.6 scene: buildInstances=256
+20768.9 scene: setInstances draws=94 markers=32
+20769.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=192/0 tick=29262 status=ok reason=idle
+20769.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20769.0 scene: instances set
+20769.0 scene: done
+20769.4 loop n=77 tick=53
+20771.8 audio: advance tick=54 cursor=54 seen=750 played=0 skippedVoice=34 missing=185 dup=28
+20771.8 scene: begin tick=54 sceneTick=29422
+20775.0 scene: snapshot status=1 stale=160 states=2048
+20775.0 scene: camera mode=first-person target=1 follows=49 holds=0 freeze=0
+20775.0 scene: observer done
+20775.0 scene: hud fxDue=1213 drawable=1
+20776.4 scene: buildInstances=256
+20776.7 scene: setInstances draws=94 markers=32
+20776.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=196/0 tick=29262 status=ok reason=idle
+20776.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20776.8 scene: instances set
+20776.8 scene: done
+20777.1 draw: begin tick=54 frames=32
+20777.2 draw: end frames=33 pending=0
+20777.2 loop n=78 tick=54
+20781.1 loop n=79 tick=54
+20781.1 audio: advance tick=55 cursor=55 seen=750 played=0 skippedVoice=34 missing=185 dup=29
+20781.1 scene: begin tick=55 sceneTick=29423
+20784.1 scene: snapshot status=1 stale=161 states=2048
+20784.1 scene: camera mode=first-person target=1 follows=50 holds=0 freeze=0
+20784.2 scene: observer done
+20784.2 scene: hud fxDue=1213 drawable=1
+20785.5 scene: buildInstances=256
+20785.9 scene: setInstances draws=94 markers=32
+20785.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=200/0 tick=29262 status=ok reason=idle
+20785.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20785.9 scene: instances set
+20786.0 scene: done
+20786.3 draw: begin tick=55 frames=33
+20786.4 draw: end frames=34 pending=0
+20786.4 loop n=80 tick=55
+20789.2 loop n=81 tick=55
+20789.2 audio: advance tick=56 cursor=56 seen=750 played=0 skippedVoice=34 missing=185 dup=30
+20789.2 scene: begin tick=56 sceneTick=29424
+20792.2 scene: snapshot status=1 stale=162 states=2048
+20792.2 scene: camera mode=first-person target=1 follows=51 holds=0 freeze=0
+20792.2 scene: observer done
+20792.3 scene: hud fxDue=1213 drawable=1
+20793.6 scene: buildInstances=256
+20793.9 scene: setInstances draws=94 markers=32
+20793.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=204/0 tick=29262 status=ok reason=idle
+20793.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20793.9 scene: instances set
+20794.0 scene: done
+20794.3 loop n=82 tick=56
+20796.6 audio: advance tick=57 cursor=57 seen=750 played=0 skippedVoice=34 missing=185 dup=30
+20796.6 scene: begin tick=57 sceneTick=29425
+20799.4 scene: snapshot status=1 stale=163 states=2048
+20799.4 scene: camera mode=first-person target=1 follows=52 holds=0 freeze=0
+20799.4 scene: observer done
+20799.5 scene: hud fxDue=1213 drawable=1
+20800.6 scene: buildInstances=256
+20800.9 scene: setInstances draws=94 markers=32
+20800.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=208/0 tick=29262 status=ok reason=idle
+20800.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20800.9 scene: instances set
+20801.0 scene: done
+20801.2 draw: begin tick=57 frames=34
+20801.3 draw: end frames=35 pending=0
+20801.3 loop n=83 tick=57
+20803.8 audio: advance tick=58 cursor=58 seen=750 played=0 skippedVoice=34 missing=185 dup=30
+20803.8 scene: begin tick=58 sceneTick=29426
+20806.9 scene: snapshot status=1 stale=164 states=2048
+20806.9 scene: camera mode=first-person target=1 follows=53 holds=0 freeze=0
+20806.9 scene: observer done
+20806.9 scene: hud fxDue=1213 drawable=1
+20808.2 scene: buildInstances=256
+20808.5 scene: setInstances draws=94 markers=32
+20808.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=212/0 tick=29262 status=ok reason=idle
+20808.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20808.5 scene: instances set
+20808.6 scene: done
+20809.0 loop n=84 tick=58
+20810.9 draw: begin tick=58 frames=35
+20811.0 draw: end frames=36 pending=0
+20811.0 loop n=85 tick=58
+20811.0 audio: advance tick=59 cursor=59 seen=750 played=0 skippedVoice=34 missing=185 dup=31
+20811.0 scene: begin tick=59 sceneTick=29427
+20814.0 scene: snapshot status=1 stale=165 states=2048
+20814.0 scene: camera mode=first-person target=1 follows=54 holds=0 freeze=0
+20814.0 scene: observer done
+20814.1 scene: hud fxDue=1214 drawable=1
+20815.3 scene: buildInstances=256
+20815.6 scene: setInstances draws=94 markers=32
+20815.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=216/0 tick=29262 status=ok reason=idle
+20815.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20815.7 scene: instances set
+20815.7 scene: done
+20816.1 loop n=86 tick=59
+20819.1 loop n=87 tick=59
+20819.2 audio: advance tick=60 cursor=60 seen=750 played=0 skippedVoice=34 missing=185 dup=32
+20819.2 scene: begin tick=60 sceneTick=29428
+20822.4 scene: snapshot status=1 stale=166 states=2048
+20822.4 scene: camera mode=first-person target=1 follows=55 holds=0 freeze=0
+20822.4 scene: observer done
+20822.4 scene: hud fxDue=1215 drawable=1
+20823.7 scene: buildInstances=256
+20824.1 scene: setInstances draws=94 markers=32
+20824.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=220/0 tick=29262 status=ok reason=idle
+20824.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20824.1 scene: instances set
+20824.2 scene: done
+20824.5 loop n=88 tick=60
+20826.4 audio: advance tick=61 cursor=61 seen=750 played=0 skippedVoice=34 missing=185 dup=32
+20826.4 scene: begin tick=61 sceneTick=29429
+20832.5 scene: snapshot status=1 stale=167 states=2048
+20832.5 scene: camera mode=first-person target=1 follows=56 holds=0 freeze=0
+20832.5 scene: observer done
+20832.5 scene: hud fxDue=1215 drawable=1
+20834.5 scene: buildInstances=256
+20834.9 scene: setInstances draws=94 markers=32
+20834.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=224/0 tick=29262 status=ok reason=idle
+20834.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20834.9 scene: instances set
+20835.0 scene: done
+20835.4 draw: begin tick=61 frames=36
+20835.4 draw: end frames=37 pending=0
+20835.5 loop n=89 tick=61
+20837.7 draw: begin tick=61 frames=37
+20837.8 draw: end frames=38 pending=0
+20837.8 loop n=90 tick=61
+20838.5 loop n=91 tick=61
+20838.6 loop n=92 tick=61
+20838.7 loop n=93 tick=61
+20838.8 audio: advance tick=62 cursor=62 seen=750 played=0 skippedVoice=34 missing=185 dup=36
+20838.8 scene: begin tick=62 sceneTick=29430
+20841.7 scene: snapshot status=1 stale=168 states=2048
+20841.7 scene: camera mode=first-person target=1 follows=57 holds=0 freeze=0
+20841.7 scene: observer done
+20841.8 scene: hud fxDue=1215 drawable=1
+20843.1 scene: buildInstances=256
+20843.4 scene: setInstances draws=94 markers=32
+20843.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=228/0 tick=29262 status=ok reason=idle
+20843.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20843.5 scene: instances set
+20843.5 scene: done
+20843.8 loop n=94 tick=62
+20849.7 loop n=95 tick=62
+20849.7 audio: advance tick=63 cursor=63 seen=750 played=0 skippedVoice=34 missing=185 dup=37
+20849.7 scene: begin tick=63 sceneTick=29431
+20852.6 scene: snapshot status=1 stale=169 states=2048
+20852.6 scene: camera mode=first-person target=1 follows=58 holds=0 freeze=0
+20852.6 scene: observer done
+20852.6 scene: hud fxDue=1215 drawable=1
+20853.8 scene: buildInstances=256
+20854.1 scene: setInstances draws=94 markers=32
+20854.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=232/0 tick=29262 status=ok reason=idle
+20854.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20854.2 scene: instances set
+20854.2 scene: done
+20854.7 draw: begin tick=63 frames=38
+20854.7 draw: end frames=39 pending=0
+20854.7 loop n=96 tick=63
+20857.4 loop n=97 tick=63
+20857.6 audio: advance tick=64 cursor=64 seen=750 played=0 skippedVoice=34 missing=185 dup=38
+20857.6 scene: begin tick=64 sceneTick=29432
+20860.4 scene: snapshot status=1 stale=170 states=2048
+20860.5 scene: camera mode=first-person target=1 follows=59 holds=0 freeze=0
+20860.5 scene: observer done
+20860.5 scene: hud fxDue=1215 drawable=1
+20861.6 scene: buildInstances=256
+20861.9 scene: setInstances draws=94 markers=32
+20862.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=236/0 tick=29262 status=ok reason=idle
+20862.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20862.0 scene: instances set
+20862.0 scene: done
+20862.5 loop n=98 tick=64
+20864.2 audio: advance tick=65 cursor=65 seen=750 played=0 skippedVoice=34 missing=185 dup=38
+20864.2 scene: begin tick=65 sceneTick=29433
+20867.1 scene: snapshot status=1 stale=171 states=2048
+20867.1 scene: camera mode=first-person target=1 follows=60 holds=0 freeze=0
+20867.1 scene: observer done
+20867.1 scene: hud fxDue=1215 drawable=1
+20868.3 scene: buildInstances=256
+20868.6 scene: setInstances draws=94 markers=32
+20868.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=240/0 tick=29262 status=ok reason=idle
+20868.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20868.7 scene: instances set
+20868.7 scene: done
+20869.0 draw: begin tick=65 frames=39
+20869.0 draw: end frames=40 pending=0
+20869.1 loop n=99 tick=65
+20871.9 loop n=100 tick=65
+20872.0 audio: advance tick=66 cursor=66 seen=750 played=0 skippedVoice=34 missing=185 dup=39
+20872.0 scene: begin tick=66 sceneTick=29434
+20874.8 scene: snapshot status=1 stale=172 states=2048
+20874.8 scene: camera mode=first-person target=1 follows=61 holds=0 freeze=0
+20874.8 scene: observer done
+20874.8 scene: hud fxDue=1215 drawable=1
+20876.0 scene: buildInstances=256
+20876.3 scene: setInstances draws=94 markers=32
+20876.4 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=244/0 tick=29262 status=ok reason=idle
+20876.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20876.4 scene: instances set
+20876.4 scene: done
+20876.7 loop n=101 tick=66
+20878.4 audio: advance tick=67 cursor=67 seen=750 played=0 skippedVoice=34 missing=185 dup=39
+20878.5 scene: begin tick=67 sceneTick=29435
+20881.4 scene: snapshot status=1 stale=173 states=2048
+20881.4 scene: camera mode=first-person target=1 follows=62 holds=0 freeze=0
+20881.4 scene: observer done
+20881.4 scene: hud fxDue=1216 drawable=1
+20882.5 scene: buildInstances=256
+20882.8 scene: setInstances draws=94 markers=32
+20882.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=248/0 tick=29262 status=ok reason=idle
+20882.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20882.9 scene: instances set
+20882.9 scene: done
+20883.2 draw: begin tick=67 frames=40
+20883.2 draw: end frames=41 pending=0
+20883.2 loop n=102 tick=67
+20886.2 loop n=103 tick=67
+20886.3 audio: advance tick=68 cursor=68 seen=750 played=0 skippedVoice=34 missing=185 dup=40
+20886.3 scene: begin tick=68 sceneTick=29436
+20889.2 scene: snapshot status=1 stale=174 states=2048
+20889.2 scene: camera mode=first-person target=1 follows=63 holds=0 freeze=0
+20889.2 scene: observer done
+20889.2 scene: hud fxDue=1217 drawable=1
+20890.4 scene: buildInstances=256
+20890.7 scene: setInstances draws=94 markers=32
+20890.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=252/0 tick=29262 status=ok reason=idle
+20890.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20890.8 scene: instances set
+20890.8 scene: done
+20891.2 loop n=104 tick=68
+20893.1 audio: advance tick=69 cursor=69 seen=750 played=0 skippedVoice=34 missing=185 dup=40
+20893.1 scene: begin tick=69 sceneTick=29437
+20896.1 scene: snapshot status=1 stale=175 states=2048
+20896.1 scene: camera mode=first-person target=1 follows=64 holds=0 freeze=0
+20896.1 scene: observer done
+20896.1 scene: hud fxDue=1217 drawable=1
+20897.4 scene: buildInstances=256
+20897.7 scene: setInstances draws=94 markers=32
+20897.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=256/0 tick=29262 status=ok reason=idle
+20897.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20897.7 scene: instances set
+20897.7 scene: done
+20898.0 draw: begin tick=69 frames=41
+20898.1 draw: end frames=42 pending=0
+20898.1 loop n=105 tick=69
+20901.1 loop n=106 tick=69
+20901.1 audio: advance tick=70 cursor=70 seen=750 played=0 skippedVoice=34 missing=185 dup=41
+20901.1 scene: begin tick=70 sceneTick=29438
+20904.0 scene: snapshot status=1 stale=176 states=2048
+20904.0 scene: camera mode=first-person target=1 follows=65 holds=0 freeze=0
+20904.0 scene: observer done
+20904.1 scene: hud fxDue=1217 drawable=1
+20905.3 scene: buildInstances=256
+20905.6 scene: setInstances draws=94 markers=32
+20905.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=260/0 tick=29262 status=ok reason=idle
+20905.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20905.7 scene: instances set
+20905.7 scene: done
+20906.0 loop n=107 tick=70
+20907.5 audio: advance tick=71 cursor=71 seen=750 played=0 skippedVoice=34 missing=185 dup=41
+20907.5 scene: begin tick=71 sceneTick=29439
+20910.4 scene: snapshot status=1 stale=177 states=2048
+20910.4 scene: camera mode=first-person target=1 follows=66 holds=0 freeze=0
+20910.4 scene: observer done
+20910.4 scene: hud fxDue=1217 drawable=1
+20911.6 scene: buildInstances=256
+20911.8 scene: setInstances draws=94 markers=32
+20911.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=264/0 tick=29262 status=ok reason=idle
+20911.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20911.9 scene: instances set
+20911.9 scene: done
+20912.2 draw: begin tick=71 frames=42
+20912.3 draw: end frames=43 pending=0
+20912.3 loop n=108 tick=71
+20915.7 loop n=109 tick=71
+20915.8 audio: advance tick=72 cursor=72 seen=750 played=0 skippedVoice=34 missing=185 dup=42
+20915.8 scene: begin tick=72 sceneTick=29440
+20918.9 scene: snapshot status=1 stale=178 states=2048
+20918.9 scene: camera mode=first-person target=1 follows=67 holds=0 freeze=0
+20918.9 scene: observer done
+20918.9 scene: hud fxDue=1217 drawable=1
+20920.1 scene: buildInstances=256
+20920.4 scene: setInstances draws=94 markers=32
+20920.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=268/0 tick=29262 status=ok reason=idle
+20920.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20920.5 scene: instances set
+20920.6 scene: done
+20920.9 loop n=110 tick=72
+20922.6 audio: advance tick=73 cursor=73 seen=750 played=0 skippedVoice=34 missing=185 dup=42
+20922.6 scene: begin tick=73 sceneTick=29441
+20925.4 scene: snapshot status=1 stale=179 states=2048
+20925.4 scene: camera mode=first-person target=1 follows=68 holds=0 freeze=0
+20925.4 scene: observer done
+20925.4 scene: hud fxDue=1217 drawable=1
+20926.6 scene: buildInstances=256
+20927.0 scene: setInstances draws=94 markers=32
+20927.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=272/0 tick=29262 status=ok reason=idle
+20927.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20927.1 scene: instances set
+20927.2 scene: done
+20927.5 draw: begin tick=73 frames=43
+20927.6 draw: end frames=44 pending=0
+20927.6 loop n=111 tick=73
+20930.5 loop n=112 tick=73
+20930.5 audio: advance tick=74 cursor=74 seen=750 played=0 skippedVoice=34 missing=185 dup=43
+20930.5 scene: begin tick=74 sceneTick=29442
+20933.5 scene: snapshot status=1 stale=180 states=2048
+20933.5 scene: camera mode=first-person target=1 follows=69 holds=0 freeze=0
+20933.5 scene: observer done
+20933.6 scene: hud fxDue=1217 drawable=1
+20934.8 scene: buildInstances=256
+20935.2 scene: setInstances draws=94 markers=32
+20935.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=276/0 tick=29262 status=ok reason=idle
+20935.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20935.2 scene: instances set
+20935.3 scene: done
+20935.6 loop n=113 tick=74
+20937.9 audio: advance tick=75 cursor=75 seen=750 played=0 skippedVoice=34 missing=185 dup=43
+20938.0 scene: begin tick=75 sceneTick=29443
+20941.2 scene: snapshot status=1 stale=181 states=2048
+20941.2 scene: camera mode=first-person target=1 follows=70 holds=0 freeze=0
+20941.2 scene: observer done
+20941.2 scene: hud fxDue=1220 drawable=1
+20942.8 scene: buildInstances=256
+20943.3 scene: setInstances draws=94 markers=32
+20943.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=280/0 tick=29262 status=ok reason=idle
+20943.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20943.3 scene: instances set
+20943.4 scene: done
+20943.7 draw: begin tick=75 frames=44
+20943.8 draw: end frames=45 pending=0
+20943.8 loop n=114 tick=75
+20947.0 loop n=115 tick=75
+20947.0 audio: advance tick=76 cursor=76 seen=750 played=0 skippedVoice=34 missing=185 dup=44
+20947.0 scene: begin tick=76 sceneTick=29444
+20950.2 scene: snapshot status=1 stale=182 states=2048
+20950.2 scene: camera mode=first-person target=1 follows=71 holds=0 freeze=0
+20950.2 scene: observer done
+20950.3 scene: hud fxDue=1220 drawable=1
+20951.6 scene: buildInstances=256
+20952.0 scene: setInstances draws=94 markers=32
+20952.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=284/0 tick=29262 status=ok reason=idle
+20952.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20952.0 scene: instances set
+20952.0 scene: done
+20952.4 draw: begin tick=76 frames=45
+20952.5 draw: end frames=46 pending=0
+20952.5 loop n=116 tick=76
+20955.5 loop n=117 tick=76
+20955.5 audio: advance tick=77 cursor=77 seen=750 played=0 skippedVoice=34 missing=185 dup=45
+20955.5 scene: begin tick=77 sceneTick=29445
+20958.4 scene: snapshot status=1 stale=183 states=2048
+20958.5 scene: camera mode=first-person target=1 follows=72 holds=0 freeze=0
+20958.5 scene: observer done
+20958.5 scene: hud fxDue=1220 drawable=1
+20959.7 scene: buildInstances=256
+20960.0 scene: setInstances draws=94 markers=32
+20960.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=288/0 tick=29262 status=ok reason=idle
+20960.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20960.1 scene: instances set
+20960.1 scene: done
+20960.4 draw: begin tick=77 frames=46
+20960.4 draw: end frames=47 pending=0
+20960.5 loop n=118 tick=77
+20964.1 loop n=119 tick=77
+20964.2 audio: advance tick=78 cursor=78 seen=750 played=0 skippedVoice=34 missing=185 dup=46
+20964.2 scene: begin tick=78 sceneTick=29446
+20967.0 scene: snapshot status=1 stale=184 states=2048
+20967.0 scene: camera mode=first-person target=1 follows=73 holds=0 freeze=0
+20967.0 scene: observer done
+20967.1 scene: hud fxDue=1220 drawable=1
+20968.3 scene: buildInstances=256
+20968.6 scene: setInstances draws=94 markers=32
+20968.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=292/0 tick=29262 status=ok reason=idle
+20968.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20968.7 scene: instances set
+20968.7 scene: done
+20968.9 draw: begin tick=78 frames=47
+20969.0 draw: end frames=48 pending=0
+20969.0 loop n=120 tick=78
+20971.8 loop n=121 tick=78
+20971.8 audio: advance tick=79 cursor=79 seen=750 played=0 skippedVoice=34 missing=185 dup=47
+20971.8 scene: begin tick=79 sceneTick=29447
+20974.9 scene: snapshot status=1 stale=185 states=2048
+20974.9 scene: camera mode=first-person target=1 follows=74 holds=0 freeze=0
+20974.9 scene: observer done
+20974.9 scene: hud fxDue=1220 drawable=1
+20976.1 scene: buildInstances=256
+20976.4 scene: setInstances draws=94 markers=32
+20976.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=296/0 tick=29262 status=ok reason=idle
+20976.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20976.5 scene: instances set
+20976.5 scene: done
+20977.0 loop n=122 tick=79
+20980.0 audio: advance tick=80 cursor=80 seen=750 played=0 skippedVoice=34 missing=185 dup=47
+20980.1 scene: begin tick=80 sceneTick=29448
+20983.0 scene: snapshot status=1 stale=186 states=2048
+20983.0 scene: camera mode=first-person target=1 follows=75 holds=0 freeze=0
+20983.0 scene: observer done
+20983.1 scene: hud fxDue=1220 drawable=1
+20984.3 scene: buildInstances=256
+20984.6 scene: setInstances draws=94 markers=32
+20984.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=300/0 tick=29262 status=ok reason=idle
+20984.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20984.6 scene: instances set
+20984.7 scene: done
+20985.0 draw: begin tick=80 frames=48
+20985.1 draw: end frames=49 pending=0
+20985.1 loop n=123 tick=80
+20987.8 loop n=124 tick=80
+20987.9 audio: advance tick=81 cursor=81 seen=750 played=0 skippedVoice=34 missing=185 dup=48
+20987.9 scene: begin tick=81 sceneTick=29449
+20990.9 scene: snapshot status=1 stale=187 states=2048
+20990.9 scene: camera mode=first-person target=1 follows=76 holds=0 freeze=0
+20990.9 scene: observer done
+20990.9 scene: hud fxDue=1220 drawable=1
+20992.2 scene: buildInstances=256
+20992.5 scene: setInstances draws=94 markers=32
+20992.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=304/0 tick=29262 status=ok reason=idle
+20992.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20992.6 scene: instances set
+20992.7 scene: done
+20993.0 loop n=125 tick=81
+20995.1 audio: advance tick=82 cursor=82 seen=750 played=0 skippedVoice=34 missing=185 dup=48
+20995.2 scene: begin tick=82 sceneTick=29450
+20998.0 scene: snapshot status=1 stale=188 states=2048
+20998.0 scene: camera mode=first-person target=1 follows=77 holds=0 freeze=0
+20998.0 scene: observer done
+20998.0 scene: hud fxDue=1221 drawable=1
+20999.2 scene: buildInstances=256
+20999.5 scene: setInstances draws=94 markers=32
+20999.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=308/0 tick=29262 status=ok reason=idle
+20999.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+20999.6 scene: instances set
+20999.6 scene: done
+20999.8 draw: begin tick=82 frames=49
+20999.9 draw: end frames=50 pending=0
+20999.9 loop n=126 tick=82
+21002.9 loop n=127 tick=82
+21003.0 audio: advance tick=83 cursor=83 seen=750 played=0 skippedVoice=34 missing=185 dup=49
+21003.0 scene: begin tick=83 sceneTick=29451
+21005.9 scene: snapshot status=1 stale=189 states=2048
+21005.9 scene: camera mode=first-person target=1 follows=78 holds=0 freeze=0
+21005.9 scene: observer done
+21006.0 scene: hud fxDue=1222 drawable=1
+21007.2 scene: buildInstances=256
+21007.5 scene: setInstances draws=94 markers=32
+21007.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=312/0 tick=29262 status=ok reason=idle
+21007.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21007.5 scene: instances set
+21007.6 scene: done
+21007.9 loop n=128 tick=83
+21010.1 audio: advance tick=84 cursor=84 seen=750 played=0 skippedVoice=34 missing=185 dup=49
+21010.1 scene: begin tick=84 sceneTick=29452
+21013.0 scene: snapshot status=1 stale=190 states=2048
+21013.0 scene: camera mode=first-person target=1 follows=79 holds=0 freeze=0
+21013.0 scene: observer done
+21013.0 scene: hud fxDue=1223 drawable=1
+21014.2 scene: buildInstances=256
+21014.5 scene: setInstances draws=94 markers=32
+21014.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=316/0 tick=29262 status=ok reason=idle
+21014.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21014.5 scene: instances set
+21014.6 scene: done
+21014.9 draw: begin tick=84 frames=50
+21015.0 draw: end frames=51 pending=0
+21015.0 loop n=129 tick=84
+21017.8 loop n=130 tick=84
+21017.8 audio: advance tick=85 cursor=85 seen=750 played=0 skippedVoice=34 missing=185 dup=50
+21017.8 scene: begin tick=85 sceneTick=29453
+21020.9 scene: snapshot status=1 stale=191 states=2048
+21020.9 scene: camera mode=first-person target=1 follows=80 holds=0 freeze=0
+21020.9 scene: observer done
+21020.9 scene: hud fxDue=1223 drawable=1
+21022.2 scene: buildInstances=256
+21022.6 scene: setInstances draws=94 markers=32
+21022.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=320/0 tick=29262 status=ok reason=idle
+21022.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21022.6 scene: instances set
+21022.7 scene: done
+21023.0 loop n=131 tick=85
+21025.3 audio: advance tick=86 cursor=86 seen=750 played=0 skippedVoice=34 missing=185 dup=50
+21025.3 scene: begin tick=86 sceneTick=29454
+21028.2 scene: snapshot status=1 stale=192 states=2048
+21028.2 scene: camera mode=first-person target=1 follows=81 holds=0 freeze=0
+21028.2 scene: observer done
+21028.2 scene: hud fxDue=1223 drawable=1
+21029.4 scene: buildInstances=256
+21029.7 scene: setInstances draws=94 markers=32
+21029.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=324/0 tick=29262 status=ok reason=idle
+21029.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21029.7 scene: instances set
+21029.8 scene: done
+21030.0 draw: begin tick=86 frames=51
+21030.1 draw: end frames=52 pending=0
+21030.1 loop n=132 tick=86
+21032.6 loop n=133 tick=86
+21032.6 audio: advance tick=87 cursor=87 seen=750 played=0 skippedVoice=34 missing=185 dup=51
+21032.6 scene: begin tick=87 sceneTick=29455
+21035.5 scene: snapshot status=1 stale=193 states=2048
+21035.6 scene: camera mode=first-person target=1 follows=82 holds=0 freeze=0
+21035.6 scene: observer done
+21035.6 scene: hud fxDue=1223 drawable=1
+21036.8 scene: buildInstances=256
+21037.1 scene: setInstances draws=94 markers=32
+21037.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=328/0 tick=29262 status=ok reason=idle
+21037.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21037.1 scene: instances set
+21037.2 scene: done
+21037.5 loop n=134 tick=87
+21040.0 audio: advance tick=88 cursor=88 seen=750 played=0 skippedVoice=34 missing=185 dup=51
+21040.0 scene: begin tick=88 sceneTick=29456
+21043.4 scene: snapshot status=1 stale=194 states=2048
+21043.4 scene: camera mode=first-person target=1 follows=83 holds=0 freeze=0
+21043.4 scene: observer done
+21043.4 scene: hud fxDue=1225 drawable=1
+21044.7 scene: buildInstances=256
+21045.1 scene: setInstances draws=94 markers=32
+21045.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=332/0 tick=29262 status=ok reason=idle
+21045.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21045.2 scene: instances set
+21045.2 scene: done
+21045.5 draw: begin tick=88 frames=52
+21045.6 draw: end frames=53 pending=0
+21045.6 loop n=135 tick=88
+21048.7 loop n=136 tick=88
+21048.8 audio: advance tick=89 cursor=89 seen=750 played=0 skippedVoice=34 missing=185 dup=52
+21048.8 scene: begin tick=89 sceneTick=29457
+21052.0 scene: snapshot status=1 stale=195 states=2048
+21052.0 scene: camera mode=first-person target=1 follows=84 holds=0 freeze=0
+21052.0 scene: observer done
+21052.1 scene: hud fxDue=1225 drawable=1
+21053.4 scene: buildInstances=256
+21053.8 scene: setInstances draws=94 markers=32
+21053.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=336/0 tick=29262 status=ok reason=idle
+21053.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21053.9 scene: instances set
+21053.9 scene: done
+21054.3 draw: begin tick=89 frames=53
+21054.4 draw: end frames=54 pending=0
+21054.4 loop n=137 tick=89
+21057.2 audio: advance tick=90 cursor=90 seen=750 played=0 skippedVoice=34 missing=185 dup=52
+21057.2 scene: begin tick=90 sceneTick=29458
+21060.3 scene: snapshot status=1 stale=196 states=2048
+21060.3 scene: camera mode=first-person target=1 follows=85 holds=0 freeze=0
+21060.3 scene: observer done
+21060.3 scene: hud fxDue=1225 drawable=1
+21061.7 scene: buildInstances=256
+21062.1 scene: setInstances draws=94 markers=32
+21062.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=340/0 tick=29262 status=ok reason=idle
+21062.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21062.1 scene: instances set
+21062.2 scene: done
+21062.4 draw: begin tick=90 frames=54
+21062.6 draw: end frames=55 pending=0
+21062.6 loop n=138 tick=90
+21065.9 loop n=139 tick=90
+21065.9 audio: advance tick=91 cursor=91 seen=750 played=0 skippedVoice=34 missing=185 dup=53
+21065.9 scene: begin tick=91 sceneTick=29459
+21068.9 scene: snapshot status=1 stale=197 states=2048
+21069.0 scene: camera mode=first-person target=1 follows=86 holds=0 freeze=0
+21069.0 scene: observer done
+21069.0 scene: hud fxDue=1225 drawable=1
+21070.3 scene: buildInstances=256
+21070.7 scene: setInstances draws=94 markers=32
+21070.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=344/0 tick=29262 status=ok reason=idle
+21070.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21070.8 scene: instances set
+21070.8 scene: done
+21071.1 draw: begin tick=91 frames=55
+21071.2 draw: end frames=56 pending=0
+21071.2 loop n=140 tick=91
+21074.5 loop n=141 tick=91
+21074.5 audio: advance tick=92 cursor=92 seen=750 played=0 skippedVoice=34 missing=185 dup=54
+21074.6 scene: begin tick=92 sceneTick=29460
+21078.2 scene: snapshot status=1 stale=198 states=2048
+21078.2 scene: camera mode=first-person target=1 follows=87 holds=0 freeze=0
+21078.2 scene: observer done
+21078.2 scene: hud fxDue=1226 drawable=1
+21079.6 scene: buildInstances=256
+21079.9 scene: setInstances draws=94 markers=32
+21080.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=348/0 tick=29262 status=ok reason=idle
+21080.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21080.0 scene: instances set
+21080.0 scene: done
+21080.3 draw: begin tick=92 frames=56
+21080.4 draw: end frames=57 pending=0
+21080.4 loop n=142 tick=92
+21083.0 loop n=143 tick=92
+21083.0 audio: advance tick=93 cursor=93 seen=750 played=0 skippedVoice=34 missing=185 dup=55
+21083.0 scene: begin tick=93 sceneTick=29461
+21086.0 scene: snapshot status=1 stale=199 states=2048
+21086.0 scene: camera mode=first-person target=1 follows=88 holds=0 freeze=0
+21086.0 scene: observer done
+21086.0 scene: hud fxDue=1226 drawable=1
+21087.3 scene: buildInstances=256
+21087.6 scene: setInstances draws=94 markers=32
+21087.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=352/0 tick=29262 status=ok reason=idle
+21087.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21087.6 scene: instances set
+21087.7 scene: done
+21087.9 draw: begin tick=93 frames=57
+21088.0 draw: end frames=58 pending=0
+21088.0 loop n=144 tick=93
+21091.3 loop n=145 tick=93
+21091.3 audio: advance tick=94 cursor=94 seen=750 played=0 skippedVoice=34 missing=185 dup=56
+21091.3 scene: begin tick=94 sceneTick=29462
+21094.2 scene: snapshot status=1 stale=200 states=2048
+21094.2 scene: camera mode=first-person target=1 follows=89 holds=0 freeze=0
+21094.2 scene: observer done
+21094.2 scene: hud fxDue=1226 drawable=1
+21095.4 scene: buildInstances=256
+21095.7 scene: setInstances draws=94 markers=32
+21095.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=356/0 tick=29262 status=ok reason=idle
+21095.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21095.8 scene: instances set
+21095.8 scene: done
+21096.2 loop n=146 tick=94
+21098.4 audio: advance tick=95 cursor=95 seen=750 played=0 skippedVoice=34 missing=185 dup=56
+21098.4 scene: begin tick=95 sceneTick=29463
+21101.3 scene: snapshot status=1 stale=201 states=2048
+21101.3 scene: camera mode=first-person target=1 follows=90 holds=0 freeze=0
+21101.3 scene: observer done
+21101.3 scene: hud fxDue=1226 drawable=1
+21102.5 scene: buildInstances=256
+21102.8 scene: setInstances draws=94 markers=32
+21102.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=360/0 tick=29262 status=ok reason=idle
+21102.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21102.9 scene: instances set
+21102.9 scene: done
+21103.2 draw: begin tick=95 frames=58
+21103.2 draw: end frames=59 pending=0
+21103.2 loop n=147 tick=95
+21106.2 loop n=148 tick=95
+21106.2 audio: advance tick=96 cursor=96 seen=750 played=0 skippedVoice=34 missing=185 dup=57
+21106.2 scene: begin tick=96 sceneTick=29464
+21109.1 scene: snapshot status=1 stale=202 states=2048
+21109.1 scene: camera mode=first-person target=1 follows=91 holds=0 freeze=0
+21109.1 scene: observer done
+21109.1 scene: hud fxDue=1227 drawable=1
+21110.3 scene: buildInstances=256
+21110.6 scene: setInstances draws=94 markers=32
+21110.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=364/0 tick=29262 status=ok reason=idle
+21110.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21110.6 scene: instances set
+21110.7 scene: done
+21111.3 loop n=149 tick=96
+21112.9 audio: advance tick=97 cursor=97 seen=750 played=0 skippedVoice=34 missing=185 dup=57
+21113.0 scene: begin tick=97 sceneTick=29465
+21115.8 scene: snapshot status=1 stale=203 states=2048
+21115.8 scene: camera mode=first-person target=1 follows=92 holds=0 freeze=0
+21115.8 scene: observer done
+21115.9 scene: hud fxDue=1227 drawable=1
+21117.0 scene: buildInstances=256
+21117.4 scene: setInstances draws=94 markers=32
+21117.4 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=368/0 tick=29262 status=ok reason=idle
+21117.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21117.4 scene: instances set
+21117.4 scene: done
+21117.7 draw: begin tick=97 frames=59
+21117.8 draw: end frames=60 pending=0
+21117.8 loop n=150 tick=97
+21121.1 loop n=151 tick=97
+21121.1 audio: advance tick=98 cursor=98 seen=750 played=0 skippedVoice=34 missing=185 dup=58
+21121.2 scene: begin tick=98 sceneTick=29466
+21125.2 scene: snapshot status=1 stale=204 states=2048
+21125.2 scene: camera mode=first-person target=1 follows=93 holds=0 freeze=0
+21125.2 scene: observer done
+21125.2 scene: hud fxDue=1227 drawable=1
+21126.5 scene: buildInstances=256
+21126.8 scene: setInstances draws=94 markers=32
+21126.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=372/0 tick=29262 status=ok reason=idle
+21126.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21126.8 scene: instances set
+21126.9 scene: done
+21127.2 loop n=152 tick=98
+21128.9 audio: advance tick=99 cursor=99 seen=750 played=0 skippedVoice=34 missing=185 dup=58
+21128.9 scene: begin tick=99 sceneTick=29467
+21131.9 scene: snapshot status=1 stale=205 states=2048
+21131.9 scene: camera mode=first-person target=1 follows=94 holds=0 freeze=0
+21131.9 scene: observer done
+21131.9 scene: hud fxDue=1227 drawable=1
+21133.1 scene: buildInstances=256
+21133.4 scene: setInstances draws=94 markers=32
+21133.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=376/0 tick=29262 status=ok reason=idle
+21133.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21133.5 scene: instances set
+21133.5 scene: done
+21133.8 draw: begin tick=99 frames=60
+21133.8 draw: end frames=61 pending=0
+21133.9 loop n=153 tick=99
+21136.5 loop n=154 tick=99
+21136.5 audio: advance tick=100 cursor=100 seen=750 played=0 skippedVoice=34 missing=185 dup=59
+21136.5 scene: begin tick=100 sceneTick=29468
+21139.7 scene: snapshot status=1 stale=206 states=2048
+21139.7 scene: camera mode=first-person target=1 follows=95 holds=0 freeze=0
+21139.7 scene: observer done
+21139.7 scene: hud fxDue=1228 drawable=1
+21141.0 scene: buildInstances=256
+21141.3 scene: setInstances draws=94 markers=32
+21141.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=380/0 tick=29262 status=ok reason=idle
+21141.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21141.3 scene: instances set
+21141.4 scene: done
+21141.7 loop n=155 tick=100
+21143.6 audio: advance tick=101 cursor=101 seen=750 played=0 skippedVoice=34 missing=185 dup=59
+21143.7 scene: begin tick=101 sceneTick=29469
+21146.6 scene: snapshot status=1 stale=207 states=2048
+21146.6 scene: camera mode=first-person target=1 follows=96 holds=0 freeze=0
+21146.6 scene: observer done
+21146.6 scene: hud fxDue=1228 drawable=1
+21147.8 scene: buildInstances=256
+21148.1 scene: setInstances draws=94 markers=32
+21148.2 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=384/0 tick=29262 status=ok reason=idle
+21148.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21148.2 scene: instances set
+21148.2 scene: done
+21149.2 draw: begin tick=101 frames=61
+21149.2 draw: end frames=62 pending=0
+21149.2 loop n=156 tick=101
+21151.8 loop n=157 tick=101
+21151.9 audio: advance tick=102 cursor=102 seen=750 played=0 skippedVoice=34 missing=185 dup=60
+21151.9 scene: begin tick=102 sceneTick=29470
+21155.0 scene: snapshot status=1 stale=208 states=2048
+21155.0 scene: camera mode=first-person target=1 follows=97 holds=0 freeze=0
+21155.0 scene: observer done
+21155.1 scene: hud fxDue=1229 drawable=1
+21156.4 scene: buildInstances=256
+21156.7 scene: setInstances draws=94 markers=32
+21156.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=388/0 tick=29262 status=ok reason=idle
+21156.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21156.8 scene: instances set
+21156.8 scene: done
+21157.1 loop n=158 tick=102
+21159.3 audio: advance tick=103 cursor=103 seen=750 played=0 skippedVoice=34 missing=185 dup=60
+21159.3 scene: begin tick=103 sceneTick=29471
+21162.3 scene: snapshot status=1 stale=209 states=2048
+21162.3 scene: camera mode=first-person target=1 follows=98 holds=0 freeze=0
+21162.3 scene: observer done
+21162.3 scene: hud fxDue=1229 drawable=1
+21163.6 scene: buildInstances=256
+21163.9 scene: setInstances draws=94 markers=32
+21164.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=392/0 tick=29262 status=ok reason=idle
+21164.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21164.0 scene: instances set
+21164.0 scene: done
+21164.3 draw: begin tick=103 frames=62
+21164.3 draw: end frames=63 pending=0
+21164.3 loop n=159 tick=103
+21167.2 loop n=160 tick=103
+21167.2 audio: advance tick=104 cursor=104 seen=750 played=0 skippedVoice=34 missing=185 dup=61
+21167.2 scene: begin tick=104 sceneTick=29472
+21169.9 scene: snapshot status=1 stale=210 states=2048
+21170.0 scene: camera mode=first-person target=1 follows=99 holds=0 freeze=0
+21170.0 scene: observer done
+21170.0 scene: hud fxDue=1229 drawable=1
+21171.2 scene: buildInstances=256
+21171.5 scene: setInstances draws=94 markers=32
+21171.5 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=396/0 tick=29262 status=ok reason=idle
+21171.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21171.5 scene: instances set
+21171.6 scene: done
+21171.9 loop n=161 tick=104
+21173.7 audio: advance tick=105 cursor=105 seen=750 played=0 skippedVoice=34 missing=185 dup=61
+21173.7 scene: begin tick=105 sceneTick=29473
+21176.5 scene: snapshot status=1 stale=211 states=2048
+21176.6 scene: camera mode=first-person target=1 follows=100 holds=0 freeze=0
+21176.6 scene: observer done
+21176.6 scene: hud fxDue=1229 drawable=1
+21177.7 scene: buildInstances=256
+21178.0 scene: setInstances draws=94 markers=32
+21178.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=400/0 tick=29262 status=ok reason=idle
+21178.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21178.1 scene: instances set
+21178.1 scene: done
+21178.3 draw: begin tick=105 frames=63
+21178.4 draw: end frames=64 pending=0
+21178.4 loop n=162 tick=105
+21193.3 loop n=163 tick=105
+21193.3 audio: advance tick=107 cursor=107 seen=750 played=0 skippedVoice=34 missing=185 dup=62
+21193.3 scene: begin tick=107 sceneTick=29475
+21196.5 scene: snapshot status=1 stale=213 states=2048
+21196.5 scene: camera mode=first-person target=1 follows=101 holds=0 freeze=0
+21196.5 scene: observer done
+21196.5 scene: hud fxDue=1229 drawable=1
+21197.9 scene: buildInstances=256
+21198.3 scene: setInstances draws=94 markers=32
+21198.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=404/0 tick=29262 status=ok reason=idle
+21198.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21198.3 scene: instances set
+21198.4 scene: done
+21198.7 draw: begin tick=107 frames=64
+21198.8 draw: end frames=65 pending=0
+21198.8 loop n=164 tick=107
+21208.5 loop n=165 tick=107
+21208.5 audio: advance tick=108 cursor=108 seen=750 played=0 skippedVoice=34 missing=185 dup=63
+21208.5 scene: begin tick=108 sceneTick=29476
+21211.9 scene: snapshot status=1 stale=214 states=2048
+21211.9 scene: camera mode=first-person target=1 follows=102 holds=0 freeze=0
+21211.9 scene: observer done
+21211.9 scene: hud fxDue=1229 drawable=1
+21213.3 scene: buildInstances=256
+21213.7 scene: setInstances draws=94 markers=32
+21213.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=408/0 tick=29262 status=ok reason=idle
+21213.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21213.8 scene: instances set
+21213.9 scene: done
+21214.2 draw: begin tick=108 frames=65
+21214.2 draw: end frames=66 pending=0
+21214.2 loop n=166 tick=108
+21215.8 audio: advance tick=109 cursor=109 seen=750 played=0 skippedVoice=34 missing=185 dup=63
+21215.8 scene: begin tick=109 sceneTick=29477
+21218.7 scene: snapshot status=1 stale=215 states=2048
+21218.8 scene: camera mode=first-person target=1 follows=103 holds=0 freeze=0
+21218.8 scene: observer done
+21218.8 scene: hud fxDue=1231 drawable=1
+21220.0 scene: buildInstances=256
+21220.3 scene: setInstances draws=94 markers=32
+21220.4 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=412/0 tick=29262 status=ok reason=idle
+21220.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21220.4 scene: instances set
+21220.4 scene: done
+21220.7 loop n=167 tick=109
+21222.1 audio: advance tick=110 cursor=110 seen=750 played=0 skippedVoice=34 missing=185 dup=63
+21222.1 scene: begin tick=110 sceneTick=29478
+21225.0 scene: snapshot status=1 stale=216 states=2048
+21225.0 scene: camera mode=first-person target=1 follows=104 holds=0 freeze=0
+21225.0 scene: observer done
+21225.1 scene: hud fxDue=1231 drawable=1
+21226.3 scene: buildInstances=256
+21226.6 scene: setInstances draws=94 markers=32
+21226.6 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=416/0 tick=29262 status=ok reason=idle
+21226.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21226.6 scene: instances set
+21226.7 scene: done
+21226.9 draw: begin tick=110 frames=66
+21227.0 draw: end frames=67 pending=0
+21227.0 loop n=168 tick=110
+21228.2 metrics t=1.00 tick=110 iter=168
+21239.4 loop n=169 tick=110
+21239.4 audio: advance tick=111 cursor=111 seen=750 played=0 skippedVoice=34 missing=185 dup=64
+21239.5 scene: begin tick=111 sceneTick=29479
+21242.3 scene: snapshot status=1 stale=217 states=2048
+21242.3 scene: camera mode=first-person target=1 follows=105 holds=0 freeze=0
+21242.3 scene: observer done
+21242.4 scene: hud fxDue=1231 drawable=1
+21243.7 scene: buildInstances=256
+21244.1 scene: setInstances draws=94 markers=32
+21244.1 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=420/0 tick=29262 status=ok reason=idle
+21244.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21244.1 scene: instances set
+21244.1 scene: done
+21244.4 draw: begin tick=111 frames=67
+21244.5 draw: end frames=68 pending=0
+21244.5 loop n=170 tick=111
+21246.1 audio: advance tick=112 cursor=112 seen=750 played=0 skippedVoice=34 missing=185 dup=64
+21246.1 scene: begin tick=112 sceneTick=29480
+21249.3 scene: snapshot status=1 stale=218 states=2048
+21249.3 scene: camera mode=first-person target=1 follows=106 holds=0 freeze=0
+21249.3 scene: observer done
+21249.3 scene: hud fxDue=1231 drawable=1
+21250.5 scene: buildInstances=256
+21250.9 scene: setInstances draws=94 markers=32
+21250.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=424/0 tick=29262 status=ok reason=idle
+21250.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21250.9 scene: instances set
+21250.9 scene: done
+21251.6 loop n=171 tick=112
+21253.3 audio: advance tick=113 cursor=113 seen=750 played=0 skippedVoice=34 missing=185 dup=64
+21253.3 scene: begin tick=113 sceneTick=29481
+21256.2 scene: snapshot status=1 stale=219 states=2048
+21256.2 scene: camera mode=first-person target=1 follows=107 holds=0 freeze=0
+21256.2 scene: observer done
+21256.3 scene: hud fxDue=1231 drawable=1
+21257.4 scene: buildInstances=256
+21257.7 scene: setInstances draws=94 markers=32
+21257.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=428/0 tick=29262 status=ok reason=idle
+21257.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21257.7 scene: instances set
+21257.8 scene: done
+21258.4 draw: begin tick=113 frames=68
+21258.5 draw: end frames=69 pending=0
+21258.5 loop n=172 tick=113
+21270.1 loop n=173 tick=113
+21270.1 audio: advance tick=114 cursor=114 seen=750 played=0 skippedVoice=34 missing=185 dup=65
+21270.1 scene: begin tick=114 sceneTick=29482
+21274.0 scene: snapshot status=1 stale=220 states=2048
+21274.0 scene: camera mode=first-person target=1 follows=108 holds=0 freeze=0
+21274.0 scene: observer done
+21274.1 scene: hud fxDue=1231 drawable=1
+21275.8 scene: buildInstances=256
+21276.3 scene: setInstances draws=94 markers=32
+21276.3 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=432/0 tick=29262 status=ok reason=idle
+21276.3 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21276.3 scene: instances set
+21276.4 scene: done
+21276.7 draw: begin tick=114 frames=69
+21276.8 draw: end frames=70 pending=0
+21276.8 loop n=174 tick=114
+21278.6 audio: advance tick=115 cursor=115 seen=750 played=0 skippedVoice=34 missing=185 dup=65
+21278.6 scene: begin tick=115 sceneTick=29483
+21281.5 scene: snapshot status=1 stale=221 states=2048
+21281.5 scene: camera mode=first-person target=1 follows=109 holds=0 freeze=0
+21281.5 scene: observer done
+21281.5 scene: hud fxDue=1232 drawable=1
+21282.7 scene: buildInstances=256
+21283.0 scene: setInstances draws=94 markers=32
+21283.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=436/0 tick=29262 status=ok reason=idle
+21283.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21283.0 scene: instances set
+21283.0 scene: done
+21283.3 draw: begin tick=115 frames=70
+21283.3 draw: end frames=71 pending=0
+21283.3 loop n=175 tick=115
+21300.9 loop n=176 tick=115
+21300.9 audio: advance tick=117 cursor=117 seen=750 played=0 skippedVoice=34 missing=185 dup=66
+21300.9 scene: begin tick=117 sceneTick=29485
+21304.0 scene: snapshot status=1 stale=223 states=2048
+21304.0 scene: camera mode=first-person target=1 follows=110 holds=0 freeze=0
+21304.0 scene: observer done
+21304.1 scene: hud fxDue=1233 drawable=1
+21305.5 scene: buildInstances=256
+21305.8 scene: setInstances draws=94 markers=32
+21305.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=440/0 tick=29262 status=ok reason=idle
+21305.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21305.9 scene: instances set
+21305.9 scene: done
+21306.2 draw: begin tick=117 frames=71
+21306.3 draw: end frames=72 pending=0
+21306.3 loop n=177 tick=117
+21309.3 loop n=178 tick=117
+21309.4 audio: advance tick=118 cursor=118 seen=750 played=0 skippedVoice=34 missing=185 dup=67
+21309.4 scene: begin tick=118 sceneTick=29486
+21312.3 scene: snapshot status=1 stale=224 states=2048
+21312.3 scene: camera mode=first-person target=1 follows=111 holds=0 freeze=0
+21312.3 scene: observer done
+21312.3 scene: hud fxDue=1233 drawable=1
+21313.5 scene: buildInstances=256
+21313.8 scene: setInstances draws=94 markers=32
+21313.9 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=444/0 tick=29262 status=ok reason=idle
+21313.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21313.9 scene: instances set
+21313.9 scene: done
+21314.2 draw: begin tick=118 frames=72
+21314.3 draw: end frames=73 pending=0
+21314.3 loop n=179 tick=118
+21318.0 loop n=180 tick=118
+21318.1 audio: advance tick=119 cursor=119 seen=750 played=0 skippedVoice=34 missing=185 dup=68
+21318.1 scene: begin tick=119 sceneTick=29487
+21321.0 scene: snapshot status=1 stale=225 states=2048
+21321.0 scene: camera mode=first-person target=1 follows=112 holds=0 freeze=0
+21321.0 scene: observer done
+21321.0 scene: hud fxDue=1233 drawable=1
+21322.3 scene: buildInstances=256
+21322.6 scene: setInstances draws=94 markers=32
+21322.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=448/0 tick=29262 status=ok reason=idle
+21322.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21322.7 scene: instances set
+21322.7 scene: done
+21322.9 draw: begin tick=119 frames=73
+21323.0 draw: end frames=74 pending=0
+21323.0 loop n=181 tick=119
+21326.0 loop n=182 tick=119
+21326.0 audio: advance tick=120 cursor=120 seen=750 played=0 skippedVoice=34 missing=185 dup=69
+21326.0 scene: begin tick=120 sceneTick=29488
+21328.9 scene: snapshot status=1 stale=226 states=2048
+21328.9 scene: camera mode=first-person target=1 follows=113 holds=0 freeze=0
+21328.9 scene: observer done
+21328.9 scene: hud fxDue=1233 drawable=1
+21330.1 scene: buildInstances=256
+21330.4 scene: setInstances draws=94 markers=32
+21330.4 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=452/0 tick=29262 status=ok reason=idle
+21330.4 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21330.4 scene: instances set
+21330.4 scene: done
+21330.8 loop n=183 tick=120
+21333.4 audio: advance tick=121 cursor=121 seen=750 played=0 skippedVoice=34 missing=185 dup=69
+21333.4 scene: begin tick=121 sceneTick=29489
+21336.4 scene: snapshot status=1 stale=227 states=2048
+21336.4 scene: camera mode=first-person target=1 follows=114 holds=0 freeze=0
+21336.4 scene: observer done
+21336.4 scene: hud fxDue=1233 drawable=1
+21337.6 scene: buildInstances=256
+21337.9 scene: setInstances draws=94 markers=32
+21338.0 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=456/0 tick=29262 status=ok reason=idle
+21338.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+21338.0 scene: instances set
+21338.0 scene: done
+21338.2 draw: begin tick=121 frames=74
+21344.0 draw: end frames=75 pending=0
+21344.0 loop n=184 tick=121
+21344.0 mode: summary window_created=1 window_visible=1 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=1 audio_device_opens_ok=0 events_seen=750 events_played=0 events_skipped=565 events_missing=185 drawn=75 capture_written=1 metrics_written=0 exit=0
+21344.0 audio: summary soundEventsRead=5563 soundEventsScheduled=5323 soundEventsPlayed=0 soundEventsSkippedVoice=34 soundEventsMissingResource=185 firstPacketTick=29368 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=69
+21344.0 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=114 holdsNoTarget=0 freezeFrames=0

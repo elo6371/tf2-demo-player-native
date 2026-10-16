@@ -1,0 +1,8 @@
+  OK   player[mutated] (read=5563 scheduled=5323 match the census)
+  OK   player[mutated] (firstPacketTick=29368 soundOriginTick=0 match the census)
+  FAIL player[mutated] (silent mode: 21344.0 audio: summary soundEventsRead=5563 soundEventsScheduled=5323 soundEventsPlayed=3 soundEventsSkippedVoice=34 soundEventsMissingResource=185 firstPacketTick=29368 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=69 | 21344.0 mode: summary window_created=1 window_visible=1 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=750 events_played=0 events_skipped=565 events_missing=185 drawn=75 capture_written=1 metrics_written=0 exit=0)
+  OK   player[mutated] (soundEventsSkippedVoice=34: the voice counter is live)
+  OK   player[mutated] (events_seen=750 = played 0 + skipped 565 + missing 185; duplicateTicks=69)
+  OK   player[mutated] (reverseRecoveries=0 on a forward run)
+  OK   player[mutated] (events_seen=750 over the run)
+  OK   player[mutated] (silent run: device_open_attempts=0 opens_ok=0)

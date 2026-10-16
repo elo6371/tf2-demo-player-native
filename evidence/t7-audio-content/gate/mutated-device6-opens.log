@@ -1,0 +1,1 @@
+  FAIL device-6[mutated] (device run: 44946.5 mode: summary window_created=1 window_visible=1 audio_mode=device audio_device_opened=742 audio_device_open_attempts=742 audio_device_opens_ok=0 events_seen=1037 events_played=742 events_skipped=48 events_missing=247 drawn=1268 capture_written=1 metrics_written=0 exit=0)

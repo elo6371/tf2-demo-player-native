@@ -1,0 +1,80 @@
+# How the 55 recordings in corpus-scan-55.jsonl were selected (2026-10-16)
+#
+# The corpus is \/demos: 1687 *.dem files, 44 163 051 737 bytes (41.13 GiB),
+# including two recordings the T3 round already pinned.
+#
+# A whole-corpus pass was started and abandoned, and the rate is the reason. The
+# 55-recording run below covers 1 134 705 010 bytes (1082.14 MiB, mean 19.7 MiB
+# per recording) and took about 20 min 20 s of wall clock, i.e. roughly 0.89
+# MiB/s. At that measured rate the whole corpus extrapolates to about 13 hours
+# -- and the first attempt at it produced no flushed per-demo record in three
+# minutes, which is consistent with that. A gate cannot run for 13 hours, and
+# T7 asks which inputs contain a category, not for an exhaustive count, so the
+# selection rule below replaces the exhaustive pass. The extrapolation is an
+# extrapolation: it is quoted as a feasibility argument, never as a count.
+# Every number that is used as evidence comes from the 55 recordings actually
+# scanned, and each of those is bound to its own size and sha256.
+#
+# The rule, applied to every *.dem header in the corpus (1687 headers parsed, 136
+# distinct maps): keep every recording whose map name contains one of
+# 'event' / 'mvm' / 'circus' / 'asteroid' / 'doomsday'. That is the whole
+# non-standard game mode population -- the Halloween maps, MvM, and the two maps
+# that carry round-end music -- which is where a music event could plausibly be
+# emitted through SVC_Sounds. 22 maps, 55 recordings.
+#
+# The list below is the exact input, in the probe's --manifest order:
+  steam  autorecord_2026-05-18_23-38-42.dem
+  steam  autorecord_2026-06-06_13-36-19.dem
+  steam  autorecord_2026-06-06_14-18-39.dem
+  steam  autorecord_2026-06-06_14-57-20.dem
+  steam  autorecord_2026-06-06_15-43-03.dem
+  steam  autorecord_2026-06-09_20-04-47.dem
+  steam  autorecord_2026-07-18_23-32-50.dem
+  steam  autorecord_2026-08-03_23-04-09.dem
+  steam  autorecord_2026-09-12_18-51-31.dem
+  steam  autorecord_2026-09-12_19-08-47.dem
+  steam  autorecord_2026-09-25_11-52-27.dem
+  steam  autorecord_2026-09-25_14-24-19.dem
+  steam  autorecord_2026-10-02_12-51-50.dem
+  steam  autorecord_2026-10-02_13-01-25.dem
+  steam  autorecord_2026-10-02_13-20-12.dem
+  steam  autorecord_2026-10-02_13-24-36.dem
+  steam  autorecord_2026-10-02_14-26-03.dem
+  steam  autorecord_2026-10-02_14-37-04.dem
+  steam  autorecord_2026-10-02_14-37-27.dem
+  steam  autorecord_2026-10-02_15-12-01.dem
+  steam  autorecord_2026-10-02_15-22-49.dem
+  steam  autorecord_2026-10-03_12-34-00.dem
+  steam  autorecord_2026-10-03_12-48-44.dem
+  steam  autorecord_2026-10-03_13-07-58.dem
+  steam  autorecord_2026-10-03_16-43-31.dem
+  steam  autorecord_2026-10-03_17-20-06.dem
+  steam  autorecord_2026-10-03_18-05-13.dem
+  steam  autorecord_2026-10-03_18-22-09.dem
+  steam  autorecord_2026-10-03_18-35-25.dem
+  steam  autorecord_2026-10-03_18-52-29.dem
+  steam  autorecord_2026-10-04_12-08-10.dem
+  steam  autorecord_2026-10-05_12-43-07.dem
+  steam  autorecord_2026-10-05_13-03-53.dem
+  steam  autorecord_2026-10-05_13-10-02.dem
+  steam  autorecord_2026-10-05_13-29-41.dem
+  steam  autorecord_2026-10-06_13-54-10.dem
+  steam  autorecord_2026-10-06_13-57-43.dem
+  steam  autorecord_2026-10-07_11-17-06.dem
+  steam  autorecord_2026-10-07_11-46-46.dem
+  steam  autorecord_2026-10-07_11-50-00.dem
+  steam  autorecord_2026-10-07_12-05-39.dem
+  steam  autorecord_2026-10-07_12-15-51.dem
+  steam  autorecord_2026-10-07_12-23-10.dem
+  steam  autorecord_2026-10-07_12-33-27.dem
+  steam  autorecord_2026-10-07_12-49-16.dem
+  steam  autorecord_2026-10-07_13-09-24.dem
+  steam  autorecord_2026-10-12_15-54-03.dem
+  steam  autorecord_2026-10-12_16-00-31.dem
+  steam  autorecord_2026-10-12_16-11-13.dem
+  steam  autorecord_2026-10-12_16-30-43.dem
+  steam  autorecord_2026-10-12_16-32-37.dem
+  steam  autorecord_2026-10-12_16-33-31.dem
+  steam  autorecord_2026-10-12_16-44-57.dem
+  steam  autorecord_2026-10-12_16-45-27.dem
+  steam  autorecord_2026-10-12_16-47-40.dem

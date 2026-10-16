@@ -1,0 +1,290 @@
+=== 1/6 incremental build ===
+=== build audio_effects_probe audio_scheduler_probe winmm_sink_probe sound_timeline_census_probe sound_content_map_probe sound_corpus_scan_probe tf2_demo_native ===
+rc=0
+build_rc=0
+
+=== 2/6 the probes, dry ===
+-- audio_effects_probe
+  OK   effects: the self-test ran
+  OK   effects: delay line
+  OK   effects: effect kinds
+  OK   effects: voice filtering
+  OK   effects: spatialisation
+  OK   effects: scheduling reaches the injected sink
+  OK   effects: a missing asset is kept, not dropped
+  OK   effects: HUD
+  OK   effects: particle
+  OK   effects: PCF operators
+  OK   effects: a corrupt PCF is rejected
+  OK   effects: no real device was requested
+-- audio_scheduler_probe
+  OK   scheduler: nothing was sent to a device
+  OK   scheduler: the injected sink received the work
+  OK   scheduler: one PCM buffer was queued
+  OK   scheduler: the queue limit accepted 8 and rejected 1
+  OK   scheduler: one real WAV resolved out of the VPK
+  OK   scheduler: three malformed WAVs were rejected
+  OK   scheduler: a multi-day WAV is refused by duration, not shape
+  OK   scheduler: the refused buffer names its seconds
+  OK   scheduler: the same bytes at a playable rate resolve
+  OK   scheduler: names behind a sound character still resolve
+  OK   scheduler: the marked name resolves to the shipped file
+  OK   scheduler: the product reader resolves the same marked name
+  OK   scheduler: the index chain resolved two resources
+  OK   scheduler: exactly one of them is a WAV
+  OK   scheduler: exactly one of them is an MP3
+  OK   scheduler: the resolved MP3 is the shipped file
+  OK   scheduler: the MP3 decoded to PCM bytes
+  OK   scheduler: the decoded MP3 carries its own rate and channel count
+  OK   scheduler: the decoded MP3 has a real duration
+  OK   scheduler: the product reader agrees with the named chain on the MP3
+  OK   scheduler: the MP3 a pinned recording sends resolves instead of being refused
+  OK   scheduler: that event is the water splash the recording names
+  OK   scheduler: it decodes to PCM bytes
+  OK   scheduler: it is 44.1 kHz mono, not a guessed shape
+  OK   scheduler: this machine has the MPEG Layer-3 ACM codec
+  OK   scheduler: MP3-shaped bytes with no frame are invalid
+  OK   scheduler: a stream that decodes to zero PCM is refused
+  OK   scheduler: a Layer II stream is refused by name
+  OK   scheduler: a machine with no codec reports a capability gap
+  OK   scheduler: two timeline jumps exercised the scheduler
+  OK   scheduler: two recoveries
+  OK   scheduler: a missing sound was never played
+  OK   scheduler: every internal flip toggles a pinned reading
+-- winmm_sink_probe (no arguments = dry run)
+  OK   sink: the dry-run mode was selected
+  OK   sink: no device was opened
+  OK   sink: nothing was written for playback
+  OK   sink: the dry-run verdict
+-- winmm_sink_probe --list-devices
+  OK   devices: enumeration ran and found 13
+  OK   devices: 13 per-device lines match device_count=13
+  OK   devices: at least one device exists on this machine
+
+=== 3/6 the timeline census on the pinned recordings ===
+  OK   census[autorecord_2026-07-02_13-26-] (pinned input verified: size 21856667, sha256 c8a58501d222...)
+  OK   census[autorecord_2026-07-02_13-26-] (census ran)
+  OK   census[autorecord_2026-07-02_13-26-] (no event precedes the playback origin)
+  OK   census[autorecord_2026-07-02_13-26-] (scheduler forward pass == census histogram: 746,750,750,750,750,750,759,930,1452)
+  OK   census[autorecord_2026-07-02_13-26-] (a repeated tick replayed 0 events, guard fired 1 time(s))
+  OK   census[autorecord_2026-07-02_13-26-] (reverse replayed exactly the window: 693 events, recoveries 1)
+  OK   census[bb841c6d379ff7c40d0c8baf99f5] (pinned input verified: size 51834617, sha256 308cc1453672...)
+  OK   census[bb841c6d379ff7c40d0c8baf99f5] (census ran)
+  OK   census[bb841c6d379ff7c40d0c8baf99f5] (no event precedes the playback origin)
+  OK   census[bb841c6d379ff7c40d0c8baf99f5] (scheduler forward pass == census histogram: 0,1,2,21,53,80,213,285,715)
+  OK   census[bb841c6d379ff7c40d0c8baf99f5] (a repeated tick replayed 0 events, guard fired 1 time(s))
+  OK   census[bb841c6d379ff7c40d0c8baf99f5] (reverse replayed exactly the window: 502 events, recoveries 1)
+
+=== 4/6 the content map on the pinned recordings ===
+  OK   content[autorecord_2026-07-02_13-26-] (pinned input verified: size 21856667, sha256 c8a58501d222...)
+  OK   content[autorecord_2026-07-02_13-26-] (content map ran, 5323 lines)
+  OK   content[autorecord_2026-07-02_13-26-] (read=5563 = scheduled=5323 + rejected=240)
+  OK   content[autorecord_2026-07-02_13-26-] (mapping lines == scheduled == 5323)
+  OK   content[autorecord_2026-07-02_13-26-] (six decode statuses sum to 5323)
+  OK   content[autorecord_2026-07-02_13-26-] (seen=5323 = played=3564 + voice=511 + missing=1248)
+  OK   content[autorecord_2026-07-02_13-26-] (played == resolved - resolvedFiltered == 3564; missing == not-resolved - unresolvedFiltered)
+  OK   content[autorecord_2026-07-02_13-26-] (a repeated tick replayed 0 events, guard fired 1 time(s))
+  OK   content[autorecord_2026-07-02_13-26-] (reverse replayed exactly the window: 1344 events, recoveries 1)
+  OK   content[autorecord_2026-07-02_13-26-] (filtered=511 = voice+announcer+music; kinds sum to 5323)
+  OK   content[autorecord_2026-07-02_13-26-] (no real sound trips the duration cap; max resolved 10s)
+  OK   content[autorecord_2026-07-02_13-26-] (marked names: 745 events = 745 resolved + 0 missing + 0 other)
+  OK   content[autorecord_2026-07-02_13-26-] (scheduled=5323)
+  OK   content[autorecord_2026-07-02_13-26-] (statusResolved=4075)
+  OK   content[autorecord_2026-07-02_13-26-] (statusMissingWav=1248)
+  OK   content[autorecord_2026-07-02_13-26-] (statusUnsupportedFormat=0)
+  OK   content[autorecord_2026-07-02_13-26-] (resolvedFiltered=511)
+  OK   content[autorecord_2026-07-02_13-26-] (unresolvedFiltered=0)
+  OK   content[autorecord_2026-07-02_13-26-] (playedEvents=3564)
+  OK   content[autorecord_2026-07-02_13-26-] (markerEvents=745)
+  OK   content[autorecord_2026-07-02_13-26-] (markerEventsResolved=745)
+  OK   content[autorecord_2026-07-02_13-26-] (kindWeapon=888)
+  OK   content[autorecord_2026-07-02_13-26-] (kindFootstep=2263)
+  OK   content[autorecord_2026-07-02_13-26-] (kindUber=14)
+  OK   content[autorecord_2026-07-02_13-26-] (kindVoice=504)
+  OK   content[autorecord_2026-07-02_13-26-] (kindAnnouncer=7)
+  OK   content[autorecord_2026-07-02_13-26-] (kindMusic=0)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (pinned input verified: size 51834617, sha256 308cc1453672...)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (content map ran, 5229 lines)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (read=5292 = scheduled=5229 + rejected=63)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (mapping lines == scheduled == 5229)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (six decode statuses sum to 5229)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (seen=5229 = played=3508 + voice=637 + missing=1084)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (played == resolved - resolvedFiltered == 3508; missing == not-resolved - unresolvedFiltered)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (a repeated tick replayed 0 events, guard fired 1 time(s))
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (reverse replayed exactly the window: 3972 events, recoveries 1)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (filtered=637 = voice+announcer+music; kinds sum to 5229)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (no real sound trips the duration cap; max resolved 8s)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (marked names: 1460 events = 1460 resolved + 0 missing + 0 other)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (scheduled=5229)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (statusResolved=4145)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (statusMissingWav=1083)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (statusInvalidWav=1)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (statusUnsupportedFormat=0)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (resolvedFiltered=637)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (unresolvedFiltered=0)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (playedEvents=3508)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (markerEvents=1460)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (markerEventsResolved=1460)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (kindWeapon=2953)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (kindFootstep=5)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (kindUber=14)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (kindVoice=633)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (kindAnnouncer=4)
+  OK   content[bb841c6d379ff7c40d0c8baf99f5] (kindMusic=0)
+  OK   content[autorecord_2026-07-16_12-41-] (pinned input verified: size 5509069, sha256 5e0b1fe8d972...)
+  OK   content[autorecord_2026-07-16_12-41-] (content map ran, 4989 lines)
+  OK   content[autorecord_2026-07-16_12-41-] (read=5080 = scheduled=4989 + rejected=91)
+  OK   content[autorecord_2026-07-16_12-41-] (mapping lines == scheduled == 4989)
+  OK   content[autorecord_2026-07-16_12-41-] (six decode statuses sum to 4989)
+  OK   content[autorecord_2026-07-16_12-41-] (seen=4989 = played=4373 + voice=190 + missing=426)
+  OK   content[autorecord_2026-07-16_12-41-] (played == resolved - resolvedFiltered == 4373; missing == not-resolved - unresolvedFiltered)
+  OK   content[autorecord_2026-07-16_12-41-] (a repeated tick replayed 0 events, guard fired 1 time(s))
+  OK   content[autorecord_2026-07-16_12-41-] (reverse replayed exactly the window: 20 events, recoveries 1)
+  OK   content[autorecord_2026-07-16_12-41-] (filtered=190 = voice+announcer+music; kinds sum to 4989)
+  OK   content[autorecord_2026-07-16_12-41-] (no real sound trips the duration cap; max resolved 8s)
+  OK   content[autorecord_2026-07-16_12-41-] (marked names: 723 events = 723 resolved + 0 missing + 0 other)
+  OK   content[autorecord_2026-07-16_12-41-] (scheduled=4989)
+  OK   content[autorecord_2026-07-16_12-41-] (statusResolved=4563)
+  OK   content[autorecord_2026-07-16_12-41-] (statusMissingWav=426)
+  OK   content[autorecord_2026-07-16_12-41-] (statusUnsupportedFormat=0)
+  OK   content[autorecord_2026-07-16_12-41-] (resolvedFiltered=190)
+  OK   content[autorecord_2026-07-16_12-41-] (unresolvedFiltered=0)
+  OK   content[autorecord_2026-07-16_12-41-] (playedEvents=4373)
+  OK   content[autorecord_2026-07-16_12-41-] (markerEvents=723)
+  OK   content[autorecord_2026-07-16_12-41-] (markerEventsResolved=723)
+  OK   content[autorecord_2026-07-16_12-41-] (kindWeapon=675)
+  OK   content[autorecord_2026-07-16_12-41-] (kindFootstep=3003)
+  OK   content[autorecord_2026-07-16_12-41-] (kindUber=7)
+  OK   content[autorecord_2026-07-16_12-41-] (kindVoice=188)
+  OK   content[autorecord_2026-07-16_12-41-] (kindAnnouncer=2)
+  OK   content[autorecord_2026-07-16_12-41-] (kindMusic=0)
+
+=== 5/6 the corpus category slice ===
+  OK   corpus[autorecord_2026-10-04_12-08-] (pinned input verified: size 30271844, sha256 fe0eccffc960...)
+  OK   corpus[autorecord_2026-10-04_12-08-] (recording scanned)
+  OK   corpus[autorecord_2026-10-04_12-08-] (read=5001 = scheduled=4930 + rejected=71)
+  OK   corpus[autorecord_2026-10-04_12-08-] (the ten kind counts sum to the timeline, 4930)
+  OK   corpus[autorecord_2026-10-04_12-08-] (the soundprecache kinds sum to its 6975 entries)
+  OK   corpus[autorecord_2026-10-04_12-08-] (timeline=4930)
+  OK   corpus[autorecord_2026-10-04_12-08-] (build:read=5001)
+  OK   corpus[autorecord_2026-10-04_12-08-] (kinds:music=3)
+  OK   corpus[autorecord_2026-10-04_12-08-] (kinds:weapon=1072)
+  OK   corpus[autorecord_2026-10-04_12-08-] (kinds:world=2355)
+  OK   corpus[autorecord_2026-10-04_12-08-] (kinds:voice=272)
+  OK   corpus[autorecord_2026-10-04_12-08-] (table:music=15)
+  OK   corpus[autorecord_2026-10-04_12-08-] (table:entries=6975)
+  OK   corpus[autorecord_2026-10-04_12-08-] (svc:tempEntities=9494)
+  OK   corpus[autorecord_2026-10-04_12-08-] (svc:voiceData=0)
+  OK   corpus[autorecord_2026-10-02_14-26-] (pinned input verified: size 18553189, sha256 758bb294726b...)
+  OK   corpus[autorecord_2026-10-02_14-26-] (recording scanned)
+  OK   corpus[autorecord_2026-10-02_14-26-] (read=4878 = scheduled=4306 + rejected=572)
+  OK   corpus[autorecord_2026-10-02_14-26-] (the ten kind counts sum to the timeline, 4306)
+  OK   corpus[autorecord_2026-10-02_14-26-] (the soundprecache kinds sum to its 6792 entries)
+  OK   corpus[autorecord_2026-10-02_14-26-] (timeline=4306)
+  OK   corpus[autorecord_2026-10-02_14-26-] (build:read=4878)
+  OK   corpus[autorecord_2026-10-02_14-26-] (kinds:music=1)
+  OK   corpus[autorecord_2026-10-02_14-26-] (kinds:weapon=1015)
+  OK   corpus[autorecord_2026-10-02_14-26-] (kinds:world=1400)
+  OK   corpus[autorecord_2026-10-02_14-26-] (kinds:voice=479)
+  OK   corpus[autorecord_2026-10-02_14-26-] (table:music=13)
+  OK   corpus[autorecord_2026-10-02_14-26-] (table:entries=6792)
+  OK   corpus[autorecord_2026-10-02_14-26-] (svc:tempEntities=5608)
+  OK   corpus[autorecord_2026-10-02_14-26-] (svc:voiceData=41)
+  OK   corpus[autorecord_2026-07-02_13-26-] (pinned input verified: size 21856667, sha256 c8a58501d222...)
+  OK   corpus[autorecord_2026-07-02_13-26-] (recording scanned)
+  OK   corpus[autorecord_2026-07-02_13-26-] (read=5563 = scheduled=5323 + rejected=240)
+  OK   corpus[autorecord_2026-07-02_13-26-] (the ten kind counts sum to the timeline, 5323)
+  OK   corpus[autorecord_2026-07-02_13-26-] (the soundprecache kinds sum to its 6720 entries)
+  OK   corpus[autorecord_2026-07-02_13-26-] (timeline=5323)
+  OK   corpus[autorecord_2026-07-02_13-26-] (build:read=5563)
+  OK   corpus[autorecord_2026-07-02_13-26-] (kinds:music=0)
+  OK   corpus[autorecord_2026-07-02_13-26-] (kinds:weapon=888)
+  OK   corpus[autorecord_2026-07-02_13-26-] (kinds:world=1647)
+  OK   corpus[autorecord_2026-07-02_13-26-] (kinds:voice=504)
+  OK   corpus[autorecord_2026-07-02_13-26-] (table:music=13)
+  OK   corpus[autorecord_2026-07-02_13-26-] (table:entries=6720)
+  OK   corpus[autorecord_2026-07-02_13-26-] (svc:tempEntities=12321)
+  OK   corpus[autorecord_2026-07-02_13-26-] (svc:voiceData=0)
+  OK   corpus[autorecord_2026-10-02_13-20-] (pinned input verified: size 7728247, sha256 05249c1e5b42...)
+  OK   corpus[autorecord_2026-10-02_13-20-] (recording scanned)
+  OK   corpus[autorecord_2026-10-02_13-20-] (read=5709 = scheduled=5669 + rejected=40)
+  OK   corpus[autorecord_2026-10-02_13-20-] (the ten kind counts sum to the timeline, 5669)
+  OK   corpus[autorecord_2026-10-02_13-20-] (the soundprecache kinds sum to its 6897 entries)
+  OK   corpus[autorecord_2026-10-02_13-20-] (timeline=5669)
+  OK   corpus[autorecord_2026-10-02_13-20-] (build:read=5709)
+  OK   corpus[autorecord_2026-10-02_13-20-] (kinds:music=0)
+  OK   corpus[autorecord_2026-10-02_13-20-] (kinds:weapon=316)
+  OK   corpus[autorecord_2026-10-02_13-20-] (kinds:world=1101)
+  OK   corpus[autorecord_2026-10-02_13-20-] (kinds:voice=229)
+  OK   corpus[autorecord_2026-10-02_13-20-] (table:music=13)
+  OK   corpus[autorecord_2026-10-02_13-20-] (table:entries=6897)
+  OK   corpus[autorecord_2026-10-02_13-20-] (svc:tempEntities=3882)
+  OK   corpus[autorecord_2026-10-02_13-20-] (svc:voiceData=70)
+  OK   corpus[autorecord_2026-10-12_16-47-] (pinned input verified: size 5156901, sha256 9b88815c83d4...)
+  OK   corpus[autorecord_2026-10-12_16-47-] (recording scanned)
+  OK   corpus[autorecord_2026-10-12_16-47-] (read=4193 = scheduled=4129 + rejected=64)
+  OK   corpus[autorecord_2026-10-12_16-47-] (the ten kind counts sum to the timeline, 4129)
+  OK   corpus[autorecord_2026-10-12_16-47-] (the soundprecache kinds sum to its 6758 entries)
+  OK   corpus[autorecord_2026-10-12_16-47-] (timeline=4129)
+  OK   corpus[autorecord_2026-10-12_16-47-] (build:read=4193)
+  OK   corpus[autorecord_2026-10-12_16-47-] (kinds:music=2)
+  OK   corpus[autorecord_2026-10-12_16-47-] (kinds:weapon=836)
+  OK   corpus[autorecord_2026-10-12_16-47-] (kinds:world=1579)
+  OK   corpus[autorecord_2026-10-12_16-47-] (kinds:voice=359)
+  OK   corpus[autorecord_2026-10-12_16-47-] (table:music=13)
+  OK   corpus[autorecord_2026-10-12_16-47-] (table:entries=6758)
+  OK   corpus[autorecord_2026-10-12_16-47-] (svc:tempEntities=2040)
+  OK   corpus[autorecord_2026-10-12_16-47-] (svc:voiceData=0)
+  -- corpus coverage over 5 pinned recording(s), 24357 scheduled events: music events in 3, temp_entity events in 0, pcf events in 0, svc_VoiceData in 2, svc_TempEntities in 5; music-kind names in tables: 67 (of which recordings with names but no music event: 2)
+  OK   corpus: the pinned set was scanned (5 recording(s))
+  OK   corpus: a pinned recording carries a music-kind EVENT (3 of the pinned recordings)
+  OK   corpus: a pinned recording carries svc_VoiceData payload (2 of the pinned recordings)
+  OK   corpus: a pinned recording carries svc_TempEntities (5 of the pinned recordings)
+  OK   corpus: a pinned recording precaches music names and sends no music event (2 of the pinned recordings)
+  -- corpus categories with no input in the pinned set: temp_entity events 0, pcf events 0. Both are also absent from all 55 scanned recordings, and no shipped sound name carries either token (audio_scheduler_probe measures realTempEntity=0 realPcf=0 over both sound archives), so these stay NOT VERIFIED as sound events rather than being asserted away.
+
+=== 6/6 the player on a real recording, still --audio-disabled ===
+  OK   player: the run produced a trace (rc=0)
+  OK   player (read=5563 scheduled=5323 match the census)
+  OK   player (firstPacketTick=29368 soundOriginTick=0 match the census)
+  OK   player (--audio-disabled played nothing and opened no device)
+  OK   player (soundEventsSkippedVoice=34: the voice counter is live)
+  OK   player (events_seen=750 = played 0 + skipped 565 + missing 185; duplicateTicks=99)
+  OK   player (reverseRecoveries=0 on a forward run)
+  OK   player (events_seen=750 over the run)
+  OK   player (silent run: device_open_attempts=0 opens_ok=0)
+
+=== device acceptance (skipped: pass --device to run the audible device-6 acceptance) ===
+
+assertions_ok=235 assertions_bad=0
+
+=== mutation: perturb each capture and require its assertions to go red ===
+  MUTATION-CAUGHT=PASS (effects: 1 of 12 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler: 1 of 33 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-duration: 1 of 33 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-marker: 1 of 33 assertions went red)
+  MUTATION-CAUGHT=PASS (sink: 1 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (census-origin: 1 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (census-forward: 1 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (census-duplicate: 1 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (census-reverse: 1 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (player-played: 1 of 8 assertions went red)
+  MUTATION-CAUGHT=PASS (player-device: 1 of 8 assertions went red)
+  MUTATION-CAUGHT=PASS (player-attempts: 1 of 8 assertions went red)
+  MUTATION-CAUGHT=PASS (player-voice: 1 of 8 assertions went red)
+  MUTATION-CAUGHT=PASS (player-origin: 1 of 8 assertions went red)
+  MUTATION-CAUGHT=PASS (player-read: 1 of 8 assertions went red)
+  MUTATION-CAUGHT=PASS (player-accounting: 1 of 8 assertions went red)
+  MUTATION-CAUGHT=PASS (content-status: 2 of 10 assertions went red)
+  MUTATION-CAUGHT=PASS (content-maplines: 1 of 10 assertions went red)
+  MUTATION-CAUGHT=PASS (content-marker: 1 of 10 assertions went red)
+  MUTATION-CAUGHT=PASS (content-duplicate: 1 of 10 assertions went red)
+  MUTATION-CAUGHT=PASS (content-reverse: 1 of 10 assertions went red)
+  MUTATION-CAUGHT=PASS (corpus-accounting: 1 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (corpus-kinds: 2 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (corpus-table: 1 of 4 assertions went red)
+  MUTATION-CAUGHT=PASS (corpus-pin: 9 of 10 assertions went red)
+  (device mutations skipped: run with --device to capture them)
+VERIFY-AUDIO-MUTATION=PASS (all expectation lists and checkers can go red)
+
+VERIFY-AUDIO=PASS (assertions_ok=235)

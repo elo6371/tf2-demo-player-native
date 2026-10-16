@@ -1,0 +1,4 @@
+  FAIL census[mutated] (events precede the origin: "unplaceablePacketOrigin":7)
+  OK   census[mutated] (scheduler forward pass == census histogram: 746,750,750,750,750,750,759,930,1452)
+  OK   census[mutated] (a repeated tick replayed 0 events, guard fired 1 time(s))
+  OK   census[mutated] (reverse replayed exactly the window: 693 events, recoveries 1)

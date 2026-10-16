@@ -1,0 +1,52 @@
+duration_map slow=excessive_duration fast=resolved
+duration_detail slow="WAV 'sound/probe_forever.wav' would play for 4194304.0s, above the 600s cap" fast="resolved 'sound/probe_forever.wav' channels=1 rate=8000 bits=8 bytes=4194304"
+index_map index=1 status=resolved detail=resolved 'sound/weapons/stickybomblauncher_det.wav' channels=2 rate=44100 bits=16 bytes=28096
+index_map index=2 status=missing_wav detail=no WAV/MP3 entry for precache name 'weapons/probe_missing.wav'
+index_map index=3 status=invalid_wav detail=WAV 'sound/player/medic_charged_death.wav' does not parse: WAV compression format is unsupported
+index_map index=4 status=resolved detail=decoded 'sound/ambient_mp3/lair/rolling_thunder1.mp3' channels=2 rate=44100 bits=16 bytes=1437696
+index_map index=5 status=missing_precache detail=sound index 5 has no precache entry
+marked_map index=6 status=resolved detail=resolved 'sound/weapons/shotgun_shoot.wav' channels=2 rate=44100 bits=16 bytes=289792
+marked_map index=7 status=resolved detail=resolved 'sound/mvm/mvm_tank_start.wav' channels=2 rate=44100 bits=16 bytes=723692
+ok   the sound VPK opened
+ok   three malformed WAVs were rejected with named errors
+ok   a byte-legal WAV whose buffer would play for days is refused by duration, not shape
+ok   the duration refusal names the seconds and the cap
+ok   each failure point of the index chain got its named reason
+ok   the resolved WAV is playable PCM from the archive
+ok   the real MP3 in the archives resolves to playable PCM
+ok   readSoundResource agrees with the named chain on the real WAV
+ok   readSoundResource agrees with the named chain on the real MP3
+ok   a sound character in front of the name does not hide the file
+ok   the MP3 a pinned recording actually sends decodes to playable PCM
+ok   MP3 bytes with no frame are invalid, not silently resolvable
+ok   an MP3-shaped stream that decodes to zero PCM is refused
+ok   a Layer II stream is refused by name, before the codec sees it
+ok   a machine with no MP3 codec reports a capability gap, not bad bytes
+ok   the timeline holds four weapon events
+ok   an advance sees exactly the events in its window
+ok   stop freezes the cursor
+ok   a repeated advance at the same tick replays nothing
+ok   a reset at the current tick replays nothing
+ok   a reset at an earlier tick replays the window
+ok   a sound with no resource is never counted as played
+ok   the injected sink received exactly one real PCM buffer
+ok   the queue limit accepted 8 and rejected 1
+ok   the nine kinds are distinguished and counted
+ok   voice, announcer and music are skipped, never resolved
+ok   the resolver saw each playable event once, in tick order
+ok   delay converts with round-half-away-from-zero and clamps
+ok   the reserved temp-entity and PCF tokens carry no real sound name
+ok   the filtered kinds have real coverage
+ok   no audio device was opened by any contract scenario
+mutation tick_dedup: caught (broke repeatedSeen)
+mutation reverse_reset: caught (broke recoveredSeen)
+mutation voice_filter: caught (broke eventsPlayed eventsSkippedVoice)
+mutation delay_rounding: caught (broke delayRound)
+mutation missing_as_played: caught (broke missingPlayed missingResource)
+mutation_detail null_sink_device open_attempts=6 opens_that_succeeded=0
+mutation null_sink_device: caught (broke device_open_attempts)
+mutation duration_cap: caught (broke indexExcessiveDuration)
+mutation marker_strip: caught (broke indexMarkedResolved indexMarkedPath readMarkedPath)
+mutation mp3_decode: caught (broke indexResolved indexUnsupportedFormat indexMp3PcmBytes mp3EventStatus mp3EventPcmBytes)
+mutation mp3_silent_accept: caught (broke mp3SilentStatus)
+wavMalformed=3 indexExcessiveDuration=0 durationOverCapSeconds=4194304 durationUnderCapSeconds=524 indexResolved=2 indexResolvedWav=1 indexResolvedMp3=1 indexMissingPrecache=1 indexMissingWav=1 indexInvalidWav=1 indexUnsupportedFormat=0 indexMp3Path=sound/ambient_mp3/lair/rolling_thunder1.mp3 indexMp3PcmBytes=1437696 indexMp3Rate=44100 indexMp3Channels=2 indexMp3Seconds=8.15 readMp3PcmBytes=1437696 indexMarkedResolved=2 indexMarkedPath=sound/weapons/shotgun_shoot.wav readMarkedPath=sound/weapons/shotgun_shoot.wav mp3EventPath=sound/ambient_mp3/water/water_splash1.mp3 mp3EventStatus=resolved mp3EventPcmBytes=122112 mp3EventSeconds=1.38 mp3EventRate=44100 mp3EventChannels=1 mp3DecoderAvailable=1 mp3NoFrameStatus=invalid_wav mp3SilentStatus=invalid_wav mp3Layer2Status=unsupported_format mp3MapNoDecoderStatus=unsupported_format mp3MapRefusedFormatStatus=unsupported_format mp3MapDecodedStatus=resolved jumpSeen=2 pausedSeen=2 resumeSeen=2 repeatedSeen=2 reverseSeen=0 recoveredSeen=2 missingPlayed=0 missingResource=2 sinkCalls=1 queuedPcm=1 vpkWav=1 sinkQueueLimit=8 accepted=8 rejected=1 kindWeapon=2 kindFootstep=1 kindUber=1 kindTempEntity=1 kindPcf=1 kindVoice=1 kindAnnouncer=1 kindMusic=1 kindWorld=1 eventsSeen=10 eventsPlayed=6 eventsSkippedVoice=3 eventsMissingResource=1 lastTick=10 activeVoiceCount=0 delayHalf=15 delayClamp=0 delayRound=5 delayZeroRate=-1 realEntries=15958 realVoice=12335 realAnnouncer=442 realMusic=59 realTempEntity=0 realPcf=0 device=0 playbackCalls=0 device_opened=0 device_open_attempts=0 mutationsCaught=10 mutationsTotal=10

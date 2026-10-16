@@ -1,0 +1,1 @@
+mode=explicit device=6 device_count=13 device_opened=1 playback_written=1 prepared=1 reset_called=1 reset_ok=1 unprepare_called=1 unprepare_ok=1 close_called=1 close_ok=1 open_result=0 prepare_result=0 write_result=0 reset_result=0 unprepare_result=0 close_result=0 status=pass
