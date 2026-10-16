@@ -18,8 +18,13 @@
 //     resolved / missing_precache / missing_wav / invalid_wav /
 //     unsupported_format / excessive_duration = one named decode status per
 //       scheduled event, so the six counts must sum to the timeline size
-//     filtered = voice + announcer + music (scheduled, never resolved, never
-//       played)
+//     filtered = voice + announcer + music (scheduled, never played). The names
+//       said "never resolved" until the MP3 decode landed: a voice clip that
+//       decodes now reports `resolved` like any other resource, which is a fact
+//       about its bytes and not about playback. resolvedFiltered /
+//       unresolvedFiltered split `resolved` by this property, so
+//       played = resolved - resolvedFiltered is an identity rather than an
+//       approximation, and filtered = resolvedFiltered + unresolvedFiltered.
 //     played = the device-free sink accepted this many real PCM buffers
 //     rejected = read but never scheduled (unresolved + unplaceable + refused)
 //     duplicate / reverse = the same-tick guard and the backward reset, driven
@@ -252,11 +257,27 @@ int main(int argc, char** argv) {
   std::size_t statusCounts[6] = {};  // indexed by SoundResolveStatus
   std::size_t maxResolvedSeconds = 0;
   std::size_t markerEvents = 0, markerEventsResolved = 0, markerEventsMissing = 0, markerEventsOther = 0;
+  // The filtered kinds are scheduled and classified but never resolved for
+  // playback. Splitting `statusResolved` by that property is what keeps the two
+  // instruments' relationship exact: the identity the gate asserts used to be
+  // `played == resolved`, and it held only while no filtered event could resolve
+  // at all. Once MP3 voice clips began decoding, every voice event in a
+  // recording reported `resolved` -- which is a true statement about its bytes
+  // and a false one about playback -- so the single count mixed "this decodes"
+  // with "this would be played". These two counters keep them apart.
+  std::size_t resolvedFiltered = 0, unresolvedFiltered = 0;
   std::unordered_map<std::uint32_t, std::size_t> distinctIndices;
   for (const auto& event : timeline.events()) {
     const auto& answer = answerFor(event.soundIndex);
     ++statusCounts[static_cast<std::size_t>(answer.status)];
     ++distinctIndices[event.soundIndex];
+    const auto kind = tf2::native::classifySoundEvent(event.name);
+    if (kind == tf2::native::SoundEventKind::Voice
+        || kind == tf2::native::SoundEventKind::Announcer
+        || kind == tf2::native::SoundEventKind::Music) {
+      if (answer.status == tf2::native::SoundResolveStatus::Resolved) ++resolvedFiltered;
+      else ++unresolvedFiltered;
+    }
     // The marked entries: names that carry one or two Source sound characters
     // in front of the file. Counted apart, because "a marked name resolved" is
     // the reading that shows the strip is applied, and "a marked name is still
@@ -323,8 +344,16 @@ int main(int argc, char** argv) {
     if (cached != wavCache.end()) { out = cached->second; return true; }
     for (const auto& archive : archives) {
       tf2::native::SoundResource resource;
+      // Same condition as the product's own resolver in main.cpp, including the
+      // part that matters here: the pre-T7 `codec == SoundCodec::Wav` test is
+      // replaced by the playability of the decoded buffer, because
+      // readSoundResource now returns decoded PCM for MP3 too. If this probe
+      // kept the codec test while the product dropped it, the two would disagree
+      // about whether an MP3 event is playable -- and the disagreement would look
+      // like an identity failure in this file rather than like the wiring bug it
+      // would be.
       if (tf2::native::readSoundResource(*archive, name, resource)
-          && resource.codec == tf2::native::SoundCodec::Wav && resource.wav.valid) {
+          && resource.wav.valid && tf2::native::wavPcmIsPlayable(resource.wav)) {
         wavCache.emplace(name, resource.wav);
         out = resource.wav;
         return true;
@@ -418,6 +447,8 @@ int main(int argc, char** argv) {
             << ",\"kindMusic\":" << kindCounts.music
             << ",\"filtered\":"
             << (kindCounts.voice + kindCounts.announcer + kindCounts.music)
+            << ",\"resolvedFiltered\":" << resolvedFiltered
+            << ",\"unresolvedFiltered\":" << unresolvedFiltered
             << ",\"statusResolved\":"
             << statusCounts[static_cast<std::size_t>(tf2::native::SoundResolveStatus::Resolved)]
             << ",\"statusMissingPrecache\":"

@@ -234,6 +234,18 @@ bool wavWithinDurationCap(const WavPcmData& wav,
 SoundResolveStatus classifySoundResourceBytes(const std::vector<std::uint8_t>& bytes,
   const std::string& archivePath, SoundResource& out, std::string& detail);
 
+// How an MP3 decode outcome becomes a named resolve status: decoded bytes are
+// the only Resolved, a machine without an MP3 codec and a stream the codec
+// refuses are both UnsupportedFormat (the bytes are not the thing that is
+// missing), and a stream that yields no audio is InvalidWav.
+//
+// Split out as a pure function because one of its four inputs -- a machine with
+// no ACM MP3 codec -- cannot be produced on a machine that has one, and a
+// mapping that is only exercised through machine state is a mapping nobody can
+// assert. Probes call this directly for that case and report the machine's own
+// codec presence separately.
+SoundResolveStatus soundResolveStatusForMp3Decode(Mp3DecodeStatus status);
+
 // True when a parsed WAV is one the WinMM output path can play as-is: PCM
 // encoding, 8 or 16 bits, 1 or 2 channels, non-empty data aligned to the
 // block. Anything else is a resource the caller must count, not bytes to hand

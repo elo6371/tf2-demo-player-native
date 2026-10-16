@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <unordered_map>
 
+#include "audio_timeline.h"
+
 namespace tf2::native {
 
 enum class DemoRecordingType { Unknown, SourceTv, PovHeuristic };
@@ -133,6 +135,28 @@ struct DecodedSoundEvent {
   bool valid = false;
   std::string resourceName;
 };
+
+// What one pass over a recording's decoded sound events produced. Every decoded
+// event lands in exactly one bucket, so read == scheduled + unresolved +
+// unplaceable + refused and nothing can vanish between the demo and the
+// timeline.
+struct SoundTimelineBuildCounts {
+  std::size_t read = 0;        // decoded sound events the demo delivered
+  std::size_t unresolved = 0;  // no precache entry, so no name to resolve
+  std::size_t unplaceable = 0; // no usable origin, or the event precedes it
+  std::size_t refused = 0;     // classified and placed, then refused by the scheduler
+};
+
+// Places a recording's decoded sound events on the playback-relative timeline
+// exactly the way the product does: drop the nameless, subtract the
+// packet-entry origin (a refusal when the subtraction is not possible), then
+// scheduleSoundEvent so the filtered kinds stay in the timeline flagged as
+// skipped rather than being silently dropped. This is the product's own
+// placement, extracted so a probe cannot answer "what would the product
+// schedule" with a re-implementation that disagrees. Returns the bucket counts;
+// `timeline` is cleared first.
+SoundTimelineBuildCounts buildSoundTimeline(const std::vector<DecodedSoundEvent>& events,
+    bool originFound, std::int32_t originTick, double tickRate, SoundEventTimeline& timeline);
 
 struct TempEntityEvent {
   std::int32_t tick = 0;
@@ -670,6 +694,17 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
 // every event at its absolute tick and never play anything, which looks exactly
 // like "this recording has no sounds".
 std::int32_t firstRecordedPacketTick(const DemoIndex& index, bool& found);
+
+// The tick rate the recording runs at: the header's own ticks/playbackTime when
+// both are present, clamped to the range a real server uses, and TF2's 66.666...
+// when the header cannot supply one. Measured on autorecord_2026-07-02: 66.7.
+//
+// Declared here rather than left inline in each caller because four callers
+// already had their own copy (main.cpp, the census probe, the content-map probe,
+// and the corpus scan) and a fifth was about to be written; the delay fold
+// `applySoundDelayTicks` is tickRate-sensitive, so two copies that disagree put
+// the same event on different ticks.
+double demoTickRate(const DemoHeader& header);
 
 bool buildAssetReferenceList(DemoNetworkSummary& summary, std::vector<AssetReference>& references);
 bool findEntitySnapshotAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick,

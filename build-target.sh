@@ -68,8 +68,34 @@ BUILD=native/build-nmake
 LOG=.scratch/build-target.log
 mkdir -p .scratch
 
+# A BRAND-NEW TARGET IS NOT PICKED UP BY `cmake --build` -- CONFIGURE FIRST
+#   The note above says CMake's NMake files re-run cmake when CMakeLists.txt
+#   changes, so a new target needs nothing extra. That is true for the targets
+#   the *last* configure emitted: each of them has a `name: cmake_check_build_system`
+#   rule in the generated Makefile, so invoking it regenerates first. A target
+#   that did not exist at configure time has no rule at all, and `nmake name`
+#   then dies on
+#     NMAKE : fatal error U1073: 不知道如何生成目标 "name"
+#   before any check rule can fire. Reproduced on 2026-10-16 while adding
+#   sound_corpus_scan_probe: `bash build-target.sh sound_corpus_scan_probe`
+#   exited 2 with that message against an up-to-date tree.
+#   So: if any requested target has no rule in the build tree, configure once
+#   here. The rule is looked up in the generated Makefile rather than inferred
+#   from CMakeLists.txt so the check reads the same artifact nmake reads.
+NEED_CONFIGURE=0
 if [ ! -f "$BUILD/CMakeCache.txt" ]; then
-  echo "=== configure (no build tree yet) ==="
+  NEED_CONFIGURE=1
+else
+  for _t in "$@"; do
+    if ! grep -q "^${_t}:" "$BUILD/Makefile" 2>/dev/null; then
+      echo "note: target '$_t' has no rule in $BUILD/Makefile; configuring"
+      NEED_CONFIGURE=1
+      break
+    fi
+  done
+fi
+if [ "$NEED_CONFIGURE" -eq 1 ]; then
+  echo "=== configure ==="
   cmake -S native -B "$BUILD" -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl > "$LOG" 2>&1
   if [ $? -ne 0 ]; then

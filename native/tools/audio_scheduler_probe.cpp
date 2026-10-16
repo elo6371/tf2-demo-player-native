@@ -116,8 +116,20 @@ const std::vector<std::pair<std::string, std::string>>& pinnedContract() {
     {"eventsSeen", "10"}, {"eventsPlayed", "6"}, {"eventsSkippedVoice", "3"},
     {"eventsMissingResource", "1"}, {"lastTick", "10"}, {"activeVoiceCount", "0"},
     {"device_opened", "0"}, {"device_open_attempts", "0"},
-    {"indexResolved", "1"}, {"indexMissingPrecache", "1"}, {"indexMissingWav", "1"},
-    {"indexInvalidWav", "1"}, {"indexUnsupportedFormat", "1"},
+    {"indexResolved", "2"}, {"indexResolvedWav", "1"}, {"indexResolvedMp3", "1"},
+    {"indexMissingPrecache", "1"}, {"indexMissingWav", "1"},
+    {"indexInvalidWav", "1"}, {"indexUnsupportedFormat", "0"},
+    {"indexMp3Path", "sound/ambient_mp3/lair/rolling_thunder1.mp3"},
+    {"indexMp3PcmBytes", "1437696"}, {"indexMp3Rate", "44100"}, {"indexMp3Channels", "2"},
+    {"indexMp3Seconds", "8.15"},
+    {"mp3EventPath", "sound/ambient_mp3/water/water_splash1.mp3"},
+    {"mp3EventStatus", "resolved"}, {"mp3EventPcmBytes", "122112"},
+    {"mp3EventSeconds", "1.38"}, {"mp3EventRate", "44100"}, {"mp3EventChannels", "1"},
+    {"mp3DecoderAvailable", "1"},
+    {"mp3NoFrameStatus", "invalid_wav"}, {"mp3SilentStatus", "invalid_wav"},
+    {"mp3Layer2Status", "unsupported_format"},
+    {"mp3MapNoDecoderStatus", "unsupported_format"},
+    {"mp3MapRefusedFormatStatus", "unsupported_format"}, {"mp3MapDecodedStatus", "resolved"},
     {"kindWeapon", "2"}, {"kindFootstep", "1"}, {"kindUber", "1"},
     {"kindTempEntity", "1"}, {"kindPcf", "1"}, {"kindVoice", "1"},
     {"kindAnnouncer", "1"}, {"kindMusic", "1"}, {"kindWorld", "1"},
@@ -194,6 +206,43 @@ std::vector<std::uint8_t> craftWav(std::uint32_t sampleRate, std::uint16_t block
   text("data");
   u32(static_cast<std::uint32_t>(dataBytes));
   bytes.resize(bytes.size() + dataBytes, 128u);
+  return bytes;
+}
+
+// Crafted MPEG streams for the three MP3 refusals. Each is the smallest byte
+// sequence that reaches the failure it names, so the assertion is about the
+// decoder's contract rather than about a file that happens to ship.
+//
+// No valid frame at all: an ID3v2 header that declares an empty tag, then
+// nothing. The signature check must not fall back to "contains 0xFF".
+std::vector<std::uint8_t> craftMp3NoFrame() {
+  std::vector<std::uint8_t> bytes = {'I', 'D', '3', 3, 0, 0, 0, 0, 0, 0};
+  bytes.resize(bytes.size() + 64u, 0u);
+  return bytes;
+}
+
+// Sync-shaped bytes with no audio behind them: MPEG-1 Layer III, 128 kbps,
+// 44.1 kHz, stereo -- every header field valid -- repeated 200 times with no
+// frame payload. Measured 2026-10-16: ACM opens this stream, consumes 800 bytes
+// and produces 0 PCM bytes. That must be a refusal, not a zero-length buffer
+// handed to the output path.
+std::vector<std::uint8_t> craftMp3SyncOnly() {
+  std::vector<std::uint8_t> bytes;
+  for (int i = 0; i < 200; ++i) {
+    bytes.push_back(0xffu);
+    bytes.push_back(0xfbu);   // MPEG-1, Layer III, no CRC
+    bytes.push_back(0x90u);   // bitrate index 9 = 128 kbps, rate index 0 = 44100
+    bytes.push_back(0x00u);   // stereo
+  }
+  return bytes;
+}
+
+// A Layer II header: version 1, layer 2 (0b10). The product's decoder is
+// Layer III only, and this is the stream that says so by name instead of
+// feeding a Layer II frame to a Layer III codec.
+std::vector<std::uint8_t> craftMp3Layer2() {
+  std::vector<std::uint8_t> bytes = {0xffu, 0xfdu, 0x90u, 0x00u};
+  bytes.resize(bytes.size() + 256u, 0u);
   return bytes;
 }
 
@@ -288,19 +337,28 @@ void runContract(ContractRun& run) {
       && slowDetail.find(std::to_string(static_cast<long long>(kSoundDurationCapSeconds)))
            != std::string::npos);
 
-  // -- 2. Sound index -> precache name -> VPK WAV -> parsed WAV -------------
-  // Real archive entries for every reachable outcome: a playable PCM WAV, a
-  // name with no entry, an ADPCM WAV the parser rejects (invalid_wav), and a
-  // real MP3 the native PCM path cannot play (unsupported_format). Index 5 is
+  // -- 2. Sound index -> precache name -> VPK resource -> playable PCM ------
+  // Real archive entries for the reachable outcomes: a playable PCM WAV, a name
+  // with no entry, an ADPCM WAV the parser rejects (invalid_wav), and -- since
+  // the MP3 decode landed -- a real MP3 that resolves to PCM. Index 5 is
   // deliberately absent from the table (missing_precache).
+  //
+  // `indexUnsupportedFormat` is pinned at 0 here, and that is a reading rather
+  // than an omission: every resource this chain can reach is WAV or MP3, both
+  // of which now either yield PCM or fail by name earlier in the chain, so a
+  // non-zero count would mean a resource had a third extension or a decoder had
+  // refused one. The status stays reachable and is exercised below with crafted
+  // bytes.
   SoundIndexTable table;
   table.set(1, "weapons/stickybomblauncher_det.wav");
   table.set(2, "weapons/probe_missing.wav");
   table.set(3, "player/medic_charged_death.wav");
   table.set(4, "ambient_mp3/lair/rolling_thunder1.mp3");
-  std::size_t indexResolved = 0, indexMissingPrecache = 0, indexMissingWav = 0,
+  std::size_t indexResolved = 0, indexResolvedWav = 0, indexResolvedMp3 = 0,
+    indexMissingPrecache = 0, indexMissingWav = 0,
     indexInvalidWav = 0, indexUnsupportedFormat = 0;
   SoundResource resolved;
+  SoundResource resolvedMp3;
   for (std::uint32_t index = 1; index <= 5; ++index) {
     SoundResource resource;
     std::string detail;
@@ -308,30 +366,59 @@ void runContract(ContractRun& run) {
     std::cerr << "index_map index=" << index << " status=" << soundResolveStatusName(status)
               << " detail=" << detail << '\n';
     switch (status) {
-    case SoundResolveStatus::Resolved: ++indexResolved; if (index == 1) resolved = resource; break;
+    case SoundResolveStatus::Resolved:
+      ++indexResolved;
+      if (resource.codec == SoundCodec::Mp3) ++indexResolvedMp3; else ++indexResolvedWav;
+      if (index == 1) resolved = resource;
+      if (index == 4) resolvedMp3 = resource;
+      break;
     case SoundResolveStatus::MissingPrecache: ++indexMissingPrecache; break;
     case SoundResolveStatus::MissingWav: ++indexMissingWav; break;
     case SoundResolveStatus::InvalidWav: ++indexInvalidWav; break;
     case SoundResolveStatus::UnsupportedFormat: ++indexUnsupportedFormat; break;
+    case SoundResolveStatus::ExcessiveDuration: break;
     }
   }
   run.readings.set("indexResolved", static_cast<long long>(indexResolved));
+  // The resolved total is split by codec rather than reported as one number.
+  // `vpkWav` used to be `indexResolved` itself, which was the same count only
+  // while the chain could resolve nothing but WAV; with the MP3 in the chain the
+  // same expression would print vpkWav=2 and make the name mean "resources",
+  // not "WAVs". Splitting keeps vpkWav about WAVs and gives the MP3 resolution
+  // its own reading.
+  run.readings.set("indexResolvedWav", static_cast<long long>(indexResolvedWav));
+  run.readings.set("indexResolvedMp3", static_cast<long long>(indexResolvedMp3));
   run.readings.set("indexMissingPrecache", static_cast<long long>(indexMissingPrecache));
   run.readings.set("indexMissingWav", static_cast<long long>(indexMissingWav));
   run.readings.set("indexInvalidWav", static_cast<long long>(indexInvalidWav));
   run.readings.set("indexUnsupportedFormat", static_cast<long long>(indexUnsupportedFormat));
+  run.readings.set("indexMp3Path", resolvedMp3.valid ? resolvedMp3.archivePath : "-");
+  run.readings.set("indexMp3PcmBytes", static_cast<long long>(resolvedMp3.wav.pcm.size()));
+  run.readings.set("indexMp3Rate", static_cast<long long>(resolvedMp3.wav.sampleRate));
+  run.readings.set("indexMp3Channels", static_cast<long long>(resolvedMp3.wav.channels));
+  {
+    char seconds[32]{};
+    std::snprintf(seconds, sizeof(seconds), "%.2f", wavDurationSeconds(resolvedMp3.wav));
+    run.readings.set("indexMp3Seconds", seconds);
+  }
   check(run, "each failure point of the index chain got its named reason",
-    indexResolved == 1 && indexMissingPrecache == 1 && indexMissingWav == 1
-      && indexInvalidWav == 1 && indexUnsupportedFormat == 1);
+    indexResolved == 2 && indexMissingPrecache == 1 && indexMissingWav == 1
+      && indexInvalidWav == 1 && indexUnsupportedFormat == 0);
   check(run, "the resolved WAV is playable PCM from the archive",
     resolved.valid && resolved.codec == SoundCodec::Wav && wavPcmIsPlayable(resolved.wav)
       && resolved.archivePath == "sound/weapons/stickybomblauncher_det.wav"
       && !resolved.wav.pcm.empty());
-  // Cross-check against the product's own resolver: the two implementations
-  // must agree on the real WAV and on the two byte-level failures. The MP3 is
-  // excluded on purpose -- readSoundResource accepts it as a valid resource
-  // while the named chain reports unsupported_format, which is exactly the
-  // distinction the named statuses exist to make.
+  check(run, "the real MP3 in the archives resolves to playable PCM",
+    resolvedMp3.valid && resolvedMp3.codec == SoundCodec::Mp3 && wavPcmIsPlayable(resolvedMp3.wav)
+      && resolvedMp3.archivePath == "sound/ambient_mp3/lair/rolling_thunder1.mp3"
+      && resolvedMp3.wav.pcm.size() > 0 && resolvedMp3.wav.bitsPerSample == 16);
+  // Cross-check against the product's own resolver: the two implementations must
+  // agree on the real WAV, on the real MP3 (same decoded byte count), and on the
+  // two byte-level failures. Before the MP3 decode this cross-check had to
+  // exclude the MP3, because readSoundResource accepted it as a valid resource
+  // while the named chain reported unsupported_format -- the divergence the
+  // named statuses existed to make visible. There is no divergence left to
+  // exempt, so the MP3 is in the check.
   SoundResource productResource;
   const bool productAgrees = readSoundResource(archive, "weapons/stickybomblauncher_det.wav", productResource)
     && productResource.valid && productResource.codec == SoundCodec::Wav
@@ -339,7 +426,16 @@ void runContract(ContractRun& run) {
     && productResource.wav.pcm.size() == resolved.wav.pcm.size()
     && !readSoundResource(archive, "weapons/probe_missing.wav", productResource)
     && !readSoundResource(archive, "player/medic_charged_death.wav", productResource);
-  check(run, "readSoundResource agrees with the named chain on the real WAV", productAgrees);
+  {
+    SoundResource productMp3;
+    const bool mp3Agrees = readSoundResource(archive, "ambient_mp3/lair/rolling_thunder1.mp3", productMp3)
+      && productMp3.valid && productMp3.codec == SoundCodec::Mp3
+      && productMp3.archivePath == resolvedMp3.archivePath
+      && productMp3.wav.pcm.size() == resolvedMp3.wav.pcm.size();
+    run.readings.set("readMp3PcmBytes", static_cast<long long>(productMp3.wav.pcm.size()));
+    check(run, "readSoundResource agrees with the named chain on the real WAV", productAgrees);
+    check(run, "readSoundResource agrees with the named chain on the real MP3", mp3Agrees);
+  }
 
   // -- 2b. Sound characters in front of a name are entry metadata -----------
   // TF2's soundprecache stores some names with one or two Source sound
@@ -375,6 +471,69 @@ void runContract(ContractRun& run) {
   run.readings.set("readMarkedPath", markedProductOk ? markedProduct.archivePath : "-");
   check(run, "a sound character in front of the name does not hide the file",
     markedResolved == 2 && markedPath == "sound/weapons/shotgun_shoot.wav" && markedProductOk);
+
+  // -- 2c. MP3 decode: the one positive, the three refusals ------------------
+  // The positive case is a file the corpus actually sends: measured on the
+  // pinned cp_well recording, the scheduler resolves
+  // ambient_mp3/water/water_splash1.mp3 and water_splash2.mp3 as world-kind
+  // events (ticks 4650 and 7675), i.e. sounds the output path is asked to play.
+  // Before this round both reported unsupported_format and neither could play.
+  {
+    SoundResource splash;
+    std::string splashDetail;
+    SoundIndexTable splashTable;
+    splashTable.set(11, "ambient_mp3/water/water_splash1.mp3");
+    const auto splashStatus = resolveSoundIndexResource(splashTable, archive, 11, splash, splashDetail);
+    char seconds[32]{};
+    std::snprintf(seconds, sizeof(seconds), "%.2f", wavDurationSeconds(splash.wav));
+    run.readings.set("mp3EventPath", splash.valid ? splash.archivePath : "-");
+    run.readings.set("mp3EventStatus", soundResolveStatusName(splashStatus));
+    run.readings.set("mp3EventPcmBytes", static_cast<long long>(splash.wav.pcm.size()));
+    run.readings.set("mp3EventSeconds", seconds);
+    run.readings.set("mp3EventRate", static_cast<long long>(splash.wav.sampleRate));
+    run.readings.set("mp3EventChannels", static_cast<long long>(splash.wav.channels));
+    check(run, "the MP3 a pinned recording actually sends decodes to playable PCM",
+      splashStatus == SoundResolveStatus::Resolved && splash.valid
+        && splash.archivePath == "sound/ambient_mp3/water/water_splash1.mp3"
+        && wavPcmIsPlayable(splash.wav) && splash.wav.pcm.size() > 0
+        && splash.wav.sampleRate == 44100 && splash.wav.bitsPerSample == 16);
+  }
+  // The machine's own capability, reported separately from any stream: the
+  // refusal it produces cannot be produced on a machine that has the codec.
+  run.readings.set("mp3DecoderAvailable", mp3DecoderAvailable() ? "1" : "0");
+
+  // The three refusals, each through the same classifySoundResourceBytes the
+  // named chain uses.
+  {
+    SoundResource resource;
+    std::string detail;
+    const auto noFrame = classifySoundResourceBytes(craftMp3NoFrame(), "sound/probe_no_frame.mp3", resource, detail);
+    run.readings.set("mp3NoFrameStatus", soundResolveStatusName(noFrame));
+    const auto silent = classifySoundResourceBytes(craftMp3SyncOnly(), "sound/probe_sync_only.mp3", resource, detail);
+    run.readings.set("mp3SilentStatus", soundResolveStatusName(silent));
+    const auto layer2 = classifySoundResourceBytes(craftMp3Layer2(), "sound/probe_layer2.mp3", resource, detail);
+    run.readings.set("mp3Layer2Status", soundResolveStatusName(layer2));
+    check(run, "MP3 bytes with no frame are invalid, not silently resolvable",
+      noFrame == SoundResolveStatus::InvalidWav);
+    check(run, "an MP3-shaped stream that decodes to zero PCM is refused",
+      silent == SoundResolveStatus::InvalidWav);
+    check(run, "a Layer II stream is refused by name, before the codec sees it",
+      layer2 == SoundResolveStatus::UnsupportedFormat);
+  }
+  // The status a machine without an MP3 codec produces. This machine has one,
+  // so the mapping is asserted directly instead of pretending to remove the
+  // codec -- and it is asserted because the gap path is the one a bare machine
+  // will take.
+  run.readings.set("mp3MapNoDecoderStatus",
+    soundResolveStatusName(soundResolveStatusForMp3Decode(Mp3DecodeStatus::NoDecoderInstalled)));
+  run.readings.set("mp3MapRefusedFormatStatus",
+    soundResolveStatusName(soundResolveStatusForMp3Decode(Mp3DecodeStatus::UnsupportedFormat)));
+  run.readings.set("mp3MapDecodedStatus",
+    soundResolveStatusName(soundResolveStatusForMp3Decode(Mp3DecodeStatus::Decoded)));
+  check(run, "a machine with no MP3 codec reports a capability gap, not bad bytes",
+    soundResolveStatusForMp3Decode(Mp3DecodeStatus::NoDecoderInstalled) == SoundResolveStatus::UnsupportedFormat
+      && soundResolveStatusForMp3Decode(Mp3DecodeStatus::Decoded) == SoundResolveStatus::Resolved
+      && soundResolveStatusForMp3Decode(Mp3DecodeStatus::InvalidStream) == SoundResolveStatus::InvalidWav);
 
   // -- 3. Tick semantics: dedup, forward, reverse, seek ---------------------
   run.tickTimeline.add(eventAt(2, 1, "weapons/probe.wav"));
@@ -445,7 +604,7 @@ void runContract(ContractRun& run) {
   const auto queued = injected.advance(realTimeline, 2);
   run.readings.set("sinkCalls", static_cast<long long>(sinkCalls));
   run.readings.set("queuedPcm", static_cast<long long>(queued.eventsPlayed));
-  run.readings.set("vpkWav", static_cast<long long>(indexResolved));
+  run.readings.set("vpkWav", static_cast<long long>(indexResolvedWav));
   check(run, "the injected sink received exactly one real PCM buffer",
     queued.eventsPlayed == 1 && sinkCalls == 1 && queuedBytes == resolved.wav.pcm.size());
 
@@ -598,7 +757,7 @@ const std::vector<const char*>& mutationCases() {
   static const std::vector<const char*> cases = {
     "tick_dedup", "reverse_reset", "voice_filter",
     "delay_rounding", "missing_as_played", "null_sink_device", "duration_cap",
-    "marker_strip"};
+    "marker_strip", "mp3_decode", "mp3_silent_accept"};
   return cases;
 }
 
@@ -645,6 +804,21 @@ void applyMutation(const char* name, const ContractRun& run, Readings& defective
     defective.set("indexMarkedResolved", 0);
     defective.set("indexMarkedPath", "-");
     defective.set("readMarkedPath", "-");
+  } else if (which == "mp3_decode") {
+    // The decoder is gone again: MP3 resources are signature-checked and
+    // refused as unsupported_format (the pre-T7 behaviour), so the file that
+    // ships and the file the corpus sends both stop resolving.
+    defective.set("indexResolved", 1);
+    defective.set("indexUnsupportedFormat", 1);
+    defective.set("indexMp3PcmBytes", 0);
+    defective.set("mp3EventStatus", "unsupported_format");
+    defective.set("mp3EventPcmBytes", 0);
+    defective.set("readMp3PcmBytes", 0);
+  } else if (which == "mp3_silent_accept") {
+    // A decode that produced no PCM is accepted as a resolution, so a stream
+    // with sync-shaped bytes and no audio would be handed to the output path as
+    // a zero-length buffer.
+    defective.set("mp3SilentStatus", "resolved");
   } else if (which == "null_sink_device") {
     // The injected sink is ignored and playback goes to a real AudioPlayer.
     // The device id is the device count itself, which is out of range on every
@@ -756,7 +930,19 @@ int main(int argc, char** argv) {
   }
   const auto breaches = contractBreaches(run.readings);
   if (!allChecks) std::cerr << "status=fail (a check failed)\n";
-  for (const auto& key : breaches) std::cerr << "FAIL contract key " << key << '\n';
+  for (const auto& key : breaches) {
+    // The expected and actual values are printed with the breach. A bare
+    // "FAIL contract key X" leaves the reader to re-run the probe by hand to
+    // learn what X became, and the cheap way out of that is to overwrite the pin
+    // with whatever the tree prints now.
+    const std::string* actual = run.readings.find(key);
+    std::string expected;
+    for (const auto& [name, value] : pinnedContract()) {
+      if (name == key) expected = value;
+    }
+    std::cerr << "FAIL contract key " << key << ": expected '" << expected << "', got '"
+              << (actual != nullptr ? *actual : std::string("<missing>")) << "'\n";
+  }
   if (caught != mutationCases().size()) {
     std::cerr << "status=fail (" << (mutationCases().size() - caught)
               << " mutation(s) left the contract green)\n";
