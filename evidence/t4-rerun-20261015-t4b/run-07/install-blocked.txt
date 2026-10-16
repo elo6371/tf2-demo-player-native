@@ -1,0 +1,7 @@
+﻿No installer or release package exists in this repository: there is no Inno
+Setup / WiX / MSI / self-extracting archive, and no packaging script, anywhere
+in the tree (searched for *.iss, *.wxs, *.msi, setup*, package* at the repo
+root and under scripts/). The "install to a fresh directory, start, demo,
+close, restart, uninstall" acceptance is therefore NOT VERIFIED. Building a
+development directory into a temporary release package would not be an
+install-package acceptance and is not claimed as one.

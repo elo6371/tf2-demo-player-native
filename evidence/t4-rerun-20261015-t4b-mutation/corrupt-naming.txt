@@ -1,0 +1,9 @@
+product_named=3
+probe_named=4
+corrupt-empty product_error=demo header is truncated probe_error=demo header is truncated
+corrupt-truncated-header product_error=demo header is truncated probe_error=demo header is truncated
+corrupt-truncated-packet product_error= probe_error=command payload exceeds file
+corrupt-bad-magic product_error=missing HL2DEMO signature probe_error=missing HL2DEMO signature
+corrupt-bad-version product_error= probe_error=command payload exceeds file
+corrupt-incomplete-netmsg product_error= probe_error=command payload exceeds file
+corrupt-mid-truncated product_error= probe_error=command payload exceeds file

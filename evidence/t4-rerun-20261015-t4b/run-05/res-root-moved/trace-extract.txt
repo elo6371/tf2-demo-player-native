@@ -1,0 +1,73 @@
+﻿# trace extract (the raw trace was 11.9 MB, over the 8 MB commit limit)
+# raw_sha256=75fed557ae6180e7a09ccbeefddada5f417a92f86eb3a75164e6e5ca7d479917
+# raw_line_count=202605
+
+# --- verdict-bearing lines ---
+0.0 trace open
+150257.5 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=3031 events_played=0 events_skipped=392 events_missing=2639 drawn=12963 capture_written=0 metrics_written=1 exit=0
+150257.5 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=392 soundEventsMissingResource=2639 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=12197
+150257.5 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=12667 holdsNoTarget=0 freezeFrames=0
+
+# --- first 30 lines ---
+0.0 trace open
+16849.5 audio: timeline firstPacketTick=10252 soundOriginTick=1 originFound=1 read=5292 scheduled=5229 unresolved=63 unplaceable=0 refused=0 kinds=w2953/f5/u14/o1620/v633/a4/m0
+17217.7 gpu: reload begin
+17217.7 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+17217.8 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+17217.8 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0
+17217.8 gpu: world geometry displacedTriangles=0 waterTriangles=0
+17217.9 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+17217.9 gpu: models done 0 uploaded=0
+17217.9 gpu: reload end
+17217.9 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+17218.5 loop n=1 tick=0
+17218.5 audio: advance tick=0 cursor=0 seen=0 played=0 skippedVoice=0 missing=0 dup=0
+17218.5 scene: begin tick=0 sceneTick=10252
+17218.5 scene: snapshot status=3 stale=0 states=0
+17218.5 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0
+17218.5 scene: observer done
+17218.5 scene: hud fxDue=0 drawable=0
+17218.5 scene: done
+17226.1 loop n=2 tick=0
+17228.3 loop n=3 tick=0
+17228.3 audio: advance tick=1 cursor=1 seen=0 played=0 skippedVoice=0 missing=0 dup=1
+17228.3 scene: begin tick=1 sceneTick=10253
+17228.3 scene: snapshot status=3 stale=0 states=0
+17228.3 scene: camera mode=first-person target=1 follows=2 holds=0 freeze=0
+17228.4 scene: observer done
+17228.4 scene: hud fxDue=0 drawable=0
+17228.4 scene: done
+17228.8 draw: begin tick=1 frames=0
+17230.4 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+
+# --- last 30 lines ---
+150246.3 scene: snapshot status=1 stale=579 states=2048
+150246.3 scene: camera mode=first-person target=1 follows=12666 holds=0 freeze=0
+150246.3 scene: observer done
+150246.3 scene: hud fxDue=591 drawable=1
+150247.6 scene: buildInstances=14
+150247.9 scene: setInstances draws=14 markers=0
+150247.9 scene: anim skinned=0 bindPose=14 matrices=0 gpuSkin=0/0 boneMismatch=0 poseChanges=0 targetInstances=0 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=22338 status=model-missing reason=no asset root
+150247.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+150247.9 scene: instances set
+150248.0 scene: done
+150248.9 loop n=24864 tick=12665
+150248.9 audio: advance tick=12666 cursor=12666 seen=3031 played=0 skippedVoice=392 missing=2639 dup=12197
+150248.9 scene: begin tick=12666 sceneTick=22918
+150252.9 scene: snapshot status=1 stale=580 states=2048
+150252.9 scene: camera mode=first-person target=1 follows=12667 holds=0 freeze=0
+150252.9 scene: observer done
+150253.0 scene: hud fxDue=591 drawable=1
+150255.3 scene: buildInstances=14
+150255.7 scene: setInstances draws=14 markers=0
+150255.8 scene: anim skinned=0 bindPose=14 matrices=0 gpuSkin=0/0 boneMismatch=0 poseChanges=0 targetInstances=0 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=22338 status=model-missing reason=no asset root
+150255.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+150255.8 scene: instances set
+150255.8 scene: done
+150256.0 draw: begin tick=12666 frames=12962
+150256.2 draw: end frames=12963 pending=0
+150256.2 loop n=24865 tick=12666
+150257.5 metrics t=133.04 tick=12666 iter=24865
+150257.5 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=3031 events_played=0 events_skipped=392 events_missing=2639 drawn=12963 capture_written=0 metrics_written=1 exit=0
+150257.5 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=392 soundEventsMissingResource=2639 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=12197
+150257.5 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=12667 holdsNoTarget=0 freezeFrames=0

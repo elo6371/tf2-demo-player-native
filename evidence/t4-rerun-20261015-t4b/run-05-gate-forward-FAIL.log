@@ -1,0 +1,250 @@
+stability-release-check.sh
+  run dir : .scratch/t4-rerun-20261015-t4b/run-05
+  evidence: evidence/t4-rerun-20261015-t4b
+
+=== 1/8 the instrument, and the run directory ===
+  OK   stability-run-matrix.ps1 exists = yes
+  OK   stability-run-matrix.ps1 finished the run (finished_at= written) = 1
+  OK   stability-run-case.ps1 exists = yes
+  OK   stability-run-case.ps1 ran every case (case_done lines) = 19
+  OK   every case's runner exited 0 = 0
+  OK   stability-make-inputs.ps1 exists = yes
+  OK   stability-make-inputs.ps1 built the fixture index = yes
+  OK   stability-device-info.ps1 exists = yes
+  OK   stability-device-info.ps1 recorded the device environment = yes
+  OK   the product exists = yes
+  RECORD exe sha256=6f5d44845b6088807ff3f5fae8e3dbe2703112f1b5c720f43fe8ca9a9cdf3a8f size=1561088
+  OK   the manifest's exe sha256 matches this worktree's exe
+  OK   the manifest records run_id != 
+  OK   the manifest records started_at != 
+  OK   the manifest records finished_at != 
+  OK   the manifest records exe != 
+  OK   the manifest records snake_demo != 
+  OK   the manifest records tf_root != 
+  OK   the manifest's exe is this worktree's exe = D:/TF2_Native_Worktrees/stability-release-head/native/build-nmake/tf2_demo_native.exe
+
+=== 2/8 the environment the matrix was read against ===
+  OK   device-info.txt exists = yes
+  OK   video controllers recorded = 5 (>= 1)
+  OK   the session type is recorded = 1
+  OK   audio output devices enumerated = 13 (>= 1)
+  OK   device 6 (the pinned audio device) is in the record = 1 (>= 1)
+  OK   dxdiag.txt exists = yes
+  OK   install-smoke-probe.txt exists = yes
+  OK   the install smoke probe produced an executable = 1
+  OK   a missing tf root produces a prompt = 1
+  OK   this machine can create a WARP device = 1
+
+=== 3/8 every case wrote the evidence it claims to write ===
+  OK   smoke-hidden wrote all 15 named files
+  OK   soak-hidden wrote all 15 named files
+  OK   soak-window wrote all 15 named files
+  OK   corrupt-empty wrote all 15 named files
+  OK   corrupt-truncated-header wrote all 15 named files
+  OK   corrupt-truncated-packet wrote all 15 named files
+  OK   corrupt-bad-magic wrote all 15 named files
+  OK   corrupt-bad-version wrote all 15 named files
+  OK   corrupt-incomplete-netmsg wrote all 15 named files
+  OK   corrupt-mid-truncated wrote all 15 named files
+  OK   res-missing-root wrote all 15 named files
+  OK   res-missing-vpk wrote all 15 named files
+  OK   res-missing-model wrote all 15 named files
+  OK   res-missing-bsp wrote all 15 named files
+  OK   res-root-moved wrote all 15 named files
+  OK   res-root-stale-path wrote all 15 named files
+  OK   res-unreadable-root wrote all 15 named files
+  OK   audio-invalid-device wrote all 13 named files (argument refused before the loop: exit 13, so metrics.csv and settings.ini are expected-absent)
+  OK   audio-missing-resource wrote all 15 named files
+
+=== 4/8 the smoke: the harness must prove itself before the soak is believed ===
+  OK   smoke-hidden verdict = COMPLETED
+  OK   smoke-hidden exit code = 0
+  OK   smoke-hidden process state = NORMAL_EXIT
+  OK   smoke-hidden closed by the harness's post = (empty)
+  OK   smoke-hidden crash marker = false
+  OK   smoke-hidden threw marker = false
+  OK   smoke-hidden residual processes = none
+  OK   smoke-hidden leftover files = none
+  OK   smoke-hidden samples = 72 (>= 30)
+  OK   smoke-hidden rendered frames advanced (sample series) = 13243 (>= 1000)
+  OK   smoke-hidden last rendered frame count (readings.json) = 13644 (>= 1000)
+  OK   smoke-hidden hung samples (rows with a frame counter) = 0
+
+=== 5/8 the soak: an 11-minute run that neither leaked nor stopped drawing ===
+  -- soak-hidden --
+  OK   soak-hidden verdict = COMPLETED
+  OK   soak-hidden exit code = 0
+  OK   soak-hidden crash marker = false
+  OK   soak-hidden threw marker = false
+  OK   soak-hidden residual processes = none
+  OK   soak-hidden leftover files = none
+  OK   soak-hidden ran the requested window = 675.1 (>= 660)
+  OK   soak-hidden rendered frames advanced (sample series) = 65394 (>= 10000)
+  OK   soak-hidden last rendered frame count (readings.json) = 65753 (>= 10000)
+  FAIL soak-hidden last tick is short of the demo's end tick = 0, expected >= 1
+  OK   soak-hidden stall samples = 0
+  OK   soak-hidden hung samples (rows with a frame counter) = 0
+  OK   soak-hidden working set growth, second half = 0.0 (<= 32)
+  OK   soak-hidden private bytes growth, second half = 0.0 (<= 32)
+  OK   soak-hidden thread growth, second half (absolute) = 0.0 (<= 8)
+  OK   soak-hidden peak working set = 1698.1 (<= 2048)
+  OK   soak-hidden peak private bytes = 2184.5 (<= 3072)
+  -- soak-window --
+  OK   soak-window verdict = COMPLETED
+  OK   soak-window exit code = 0
+  OK   soak-window crash marker = false
+  OK   soak-window threw marker = false
+  OK   soak-window residual processes = none
+  OK   soak-window leftover files = none
+  OK   soak-window ran the requested window = 674.3 (>= 660)
+  OK   soak-window rendered frames advanced (sample series) = 54527 (>= 10000)
+  OK   soak-window last rendered frame count (readings.json) = 54860 (>= 10000)
+  FAIL soak-window last tick is short of the demo's end tick = 0, expected >= 1
+  OK   soak-window stall samples = 0
+  OK   soak-window hung samples (rows with a frame counter) = 0
+  OK   soak-window working set growth, second half = 0.1 (<= 32)
+  OK   soak-window private bytes growth, second half = 0.0 (<= 32)
+  OK   soak-window thread growth, second half (absolute) = 0.0 (<= 8)
+  OK   soak-window peak working set = 1711.3 (<= 2048)
+  OK   soak-window peak private bytes = 2192.9 (<= 3072)
+
+=== 6/8 the corrupt-input matrix: a refusal must be named, and must not be a crash ===
+  OK   corrupt-empty verdict = COMPLETED
+  OK   corrupt-empty exit code = 0
+  OK   corrupt-empty crash marker = false
+  OK   corrupt-empty threw marker = false
+  OK   corrupt-empty residual processes = none
+  OK   corrupt-empty leftover files = none
+  OK   corrupt-empty refusal named by product: demo file cannot be opened
+  OK   corrupt-truncated-header verdict = COMPLETED
+  OK   corrupt-truncated-header exit code = 0
+  OK   corrupt-truncated-header crash marker = false
+  OK   corrupt-truncated-header threw marker = false
+  OK   corrupt-truncated-header residual processes = none
+  OK   corrupt-truncated-header leftover files = none
+  OK   corrupt-truncated-header refusal named by product: demo file cannot be opened
+  OK   corrupt-truncated-packet verdict = COMPLETED
+  OK   corrupt-truncated-packet exit code = 0
+  OK   corrupt-truncated-packet crash marker = false
+  OK   corrupt-truncated-packet threw marker = false
+  OK   corrupt-truncated-packet residual processes = none
+  OK   corrupt-truncated-packet leftover files = none
+  OK   corrupt-truncated-packet refusal named by product: demo file cannot be opened
+  OK   corrupt-bad-magic verdict = COMPLETED
+  OK   corrupt-bad-magic exit code = 0
+  OK   corrupt-bad-magic crash marker = false
+  OK   corrupt-bad-magic threw marker = false
+  OK   corrupt-bad-magic residual processes = none
+  OK   corrupt-bad-magic leftover files = none
+  OK   corrupt-bad-magic refusal named by product: demo file cannot be opened
+  OK   corrupt-bad-version verdict = COMPLETED
+  OK   corrupt-bad-version exit code = 0
+  OK   corrupt-bad-version crash marker = false
+  OK   corrupt-bad-version threw marker = false
+  OK   corrupt-bad-version residual processes = none
+  OK   corrupt-bad-version leftover files = none
+  OK   corrupt-bad-version refusal named by product: demo file cannot be opened
+  OK   corrupt-incomplete-netmsg verdict = COMPLETED
+  OK   corrupt-incomplete-netmsg exit code = 0
+  OK   corrupt-incomplete-netmsg crash marker = false
+  OK   corrupt-incomplete-netmsg threw marker = false
+  OK   corrupt-incomplete-netmsg residual processes = none
+  OK   corrupt-incomplete-netmsg leftover files = none
+  OK   corrupt-incomplete-netmsg refusal named by product: demo file cannot be opened
+  OK   corrupt-mid-truncated verdict = COMPLETED
+  OK   corrupt-mid-truncated exit code = 0
+  OK   corrupt-mid-truncated crash marker = false
+  OK   corrupt-mid-truncated threw marker = false
+  OK   corrupt-mid-truncated residual processes = none
+  OK   corrupt-mid-truncated leftover files = none
+  OK   corrupt-mid-truncated refusal named by product: demo file cannot be opened
+  OK   every corrupt case's refusal is named somewhere = none
+  RECORD the product itself named 7 of 7; the repo's parser probe named the other 0
+  RECORD the split is a finding, not a pass: for the probe-named cases the exe's own
+         record is 'ran to the end of the window, exit 0, no message'
+
+=== 7/8 the resource environments: an explicit root is the ONLY candidate -- refusal is the corrected behavior, silent substitution is the defect ===
+  OK   res-missing-root verdict = COMPLETED
+  OK   res-missing-root exit code = 0
+  OK   res-missing-root crash marker = false
+  OK   res-missing-root residual processes = none
+  OK   res-missing-root leftover files = none
+  OK   res-missing-root was given a tf root != 
+  OK   res-missing-root connected no root = (empty)
+  OK   res-missing-root did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   res-missing-vpk verdict = COMPLETED
+  OK   res-missing-vpk exit code = 0
+  OK   res-missing-vpk crash marker = false
+  OK   res-missing-vpk residual processes = none
+  OK   res-missing-vpk leftover files = none
+  OK   res-missing-vpk was given a tf root != 
+  OK   res-missing-vpk connected no root = (empty)
+  OK   res-missing-vpk did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   res-missing-model verdict = COMPLETED
+  OK   res-missing-model exit code = 0
+  OK   res-missing-model crash marker = false
+  OK   res-missing-model residual processes = none
+  OK   res-missing-model leftover files = none
+  OK   res-missing-model was given a tf root != 
+  OK   res-missing-model connected no root = (empty)
+  OK   res-missing-model did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   res-missing-bsp verdict = COMPLETED
+  OK   res-missing-bsp exit code = 0
+  OK   res-missing-bsp crash marker = false
+  OK   res-missing-bsp residual processes = none
+  OK   res-missing-bsp leftover files = none
+  OK   res-missing-bsp was given a tf root != 
+  OK   res-missing-bsp used the root it was given = D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   res-missing-bsp VPK entries (the real root) = 104137
+  OK   res-missing-bsp BSP state = invalid/BSP header is invalid
+  OK   res-root-moved verdict = COMPLETED
+  OK   res-root-moved exit code = 0
+  OK   res-root-moved crash marker = false
+  OK   res-root-moved residual processes = none
+  OK   res-root-moved leftover files = none
+  OK   res-root-moved was given a tf root != 
+  OK   res-root-moved connected no root = (empty)
+  OK   res-root-moved did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   res-root-stale-path verdict = COMPLETED
+  OK   res-root-stale-path exit code = 0
+  OK   res-root-stale-path crash marker = false
+  OK   res-root-stale-path residual processes = none
+  OK   res-root-stale-path leftover files = none
+  OK   res-root-stale-path was given a tf root != 
+  OK   res-root-stale-path connected no root = (empty)
+  OK   res-root-stale-path did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   res-unreadable-root verdict = COMPLETED
+  OK   res-unreadable-root exit code = 0
+  OK   res-unreadable-root crash marker = false
+  OK   res-unreadable-root residual processes = none
+  OK   res-unreadable-root leftover files = none
+  OK   res-unreadable-root was given a tf root != 
+  OK   res-unreadable-root connected no root = (empty)
+  OK   res-unreadable-root did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   roots honoured as requested = 1
+  OK   roots refused without a substitution = 6
+  RECORD 1 of 7 resource cases connects a root (the real one); the other 6 report
+         'no root found' instead of silently substituting the auto-detected root -- that
+         substitution was the defect the explicit-root fix removed, and the
+         did-not-silently-connect assertions above go red on it
+
+=== 8/8 the audio cases, and the environments recorded as blocked rather than skipped ===
+  OK   audio-invalid-device verdict = EARLY_EXIT
+  OK   audio-invalid-device exit code = 13
+  OK   audio-invalid-device was not closed (no window existed) = false
+  OK   audio-invalid-device crash marker = false
+  OK   audio-invalid-device residual processes = none
+  OK   audio-invalid-device leftover files = none
+  OK   audio-missing-resource verdict = COMPLETED
+  OK   audio-missing-resource exit code = 0
+  OK   audio-missing-resource connected no root = (empty)
+  OK   audio-missing-resource did not silently connect the auto-detected root != D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+  OK   audio-missing-resource residual processes = none
+  OK   blocked-inputs.txt is recorded = yes
+  OK   the WARP environment is recorded as blocked = 6 (>= 1)
+  OK   the feature-level environment is recorded as blocked = 3 (>= 1)
+  OK   the blocked entries say what was NOT verified = 2 (>= 2)
+  OK   install-blocked.txt is recorded = yes
+  OK   the absent installer is recorded as blocked = 1 (>= 1)
+
+STABILITY-RELEASE=FAIL

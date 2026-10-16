@@ -1,0 +1,11 @@
+﻿"D:\TF2_Native_Worktrees\stability-release-head\native\build-nmake\tf2_demo_native.exe"
+--tf-root
+"D:\SteamLibrary\steamapps\common\Team Fortress 2\tf"
+--demo
+D:\TF2_Native_Worktrees\stability-release-head\.scratch\t4-rerun-20261015-t4b\run-07\fixtures\truncated-packet.dem
+--hidden-window
+--audio-disabled
+--metrics-file
+D:\TF2_Native_Worktrees\stability-release-head\.scratch\t4-rerun-20261015-t4b\run-07\corrupt-truncated-packet\metrics.csv
+--settings-file
+D:\TF2_Native_Worktrees\stability-release-head\.scratch\t4-rerun-20261015-t4b\run-07\corrupt-truncated-packet\settings.ini

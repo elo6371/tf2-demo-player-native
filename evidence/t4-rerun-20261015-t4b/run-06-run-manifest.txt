@@ -1,0 +1,55 @@
+﻿run_id=run-06
+started_at=2026-10-16T11:48:53.4455873+08:00
+exe=D:\TF2_Native_Worktrees\stability-release-head\native\build-nmake\tf2_demo_native.exe
+exe_sha256=6f5d44845b6088807ff3f5fae8e3dbe2703112f1b5c720f43fe8ca9a9cdf3a8f
+exe_size=1561088
+snake_demo=D:\TF2_Demo_Player\testdata\demos\bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+soak_demo=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf\demos\SUNSHINE.dem
+soak_demo_sha256=7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08
+soak_demo_size=82759239
+tf_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+case CASE=smoke-hidden STATE=NORMAL_EXIT EXIT=0 SAMPLES=71 CLOSE_REASON=
+case_done name=smoke-hidden runner_rc=0 at=2026-10-16T11:51:30.9500144+08:00
+case CASE=soak-hidden STATE=CRASH EXIT=3 SAMPLES=10 CLOSE_REASON=
+case_done name=soak-hidden runner_rc=0 at=2026-10-16T11:52:05.2929359+08:00
+case CASE=soak-window STATE=CRASH EXIT=3 SAMPLES=10 CLOSE_REASON=
+case_done name=soak-window runner_rc=0 at=2026-10-16T11:52:39.5613900+08:00
+case CASE=corrupt-bad-magic STATE=NORMAL_EXIT EXIT=0 SAMPLES=30 CLOSE_REASON=
+case_done name=corrupt-bad-magic runner_rc=0 at=2026-10-16T11:53:42.1830421+08:00
+case CASE=corrupt-bad-version STATE=NORMAL_EXIT EXIT=0 SAMPLES=30 CLOSE_REASON=
+case_done name=corrupt-bad-version runner_rc=0 at=2026-10-16T11:54:44.6771099+08:00
+case CASE=corrupt-empty STATE=NORMAL_EXIT EXIT=0 SAMPLES=30 CLOSE_REASON=
+case_done name=corrupt-empty runner_rc=0 at=2026-10-16T11:55:47.2178647+08:00
+case CASE=corrupt-incomplete-netmsg STATE=NORMAL_EXIT EXIT=0 SAMPLES=30 CLOSE_REASON=
+case_done name=corrupt-incomplete-netmsg runner_rc=0 at=2026-10-16T11:56:49.7148004+08:00
+case CASE=corrupt-mid-truncated STATE=NORMAL_EXIT EXIT=0 SAMPLES=30 CLOSE_REASON=
+case_done name=corrupt-mid-truncated runner_rc=0 at=2026-10-16T11:57:52.1359458+08:00
+case CASE=corrupt-truncated-header STATE=NORMAL_EXIT EXIT=0 SAMPLES=30 CLOSE_REASON=
+case_done name=corrupt-truncated-header runner_rc=0 at=2026-10-16T11:58:54.3579098+08:00
+case CASE=corrupt-truncated-packet STATE=NORMAL_EXIT EXIT=0 SAMPLES=30 CLOSE_REASON=
+case_done name=corrupt-truncated-packet runner_rc=0 at=2026-10-16T11:59:56.7706304+08:00
+case CASE=res-missing-root STATE=NORMAL_EXIT EXIT=0 SAMPLES=71 CLOSE_REASON=
+case_done name=res-missing-root runner_rc=0 at=2026-10-16T12:02:33.6966838+08:00
+case CASE=res-missing-vpk STATE=NORMAL_EXIT EXIT=0 SAMPLES=70 CLOSE_REASON=
+case_done name=res-missing-vpk runner_rc=0 at=2026-10-16T12:05:08.5614105+08:00
+case CASE=res-missing-model STATE=NORMAL_EXIT EXIT=0 SAMPLES=71 CLOSE_REASON=
+case_done name=res-missing-model runner_rc=0 at=2026-10-16T12:07:43.6519973+08:00
+case CASE=res-missing-bsp STATE=NORMAL_EXIT EXIT=0 SAMPLES=71 CLOSE_REASON=
+case_done name=res-missing-bsp runner_rc=0 at=2026-10-16T12:10:18.2639451+08:00
+case CASE=res-root-moved STATE=NORMAL_EXIT EXIT=0 SAMPLES=72 CLOSE_REASON=
+case_done name=res-root-moved runner_rc=0 at=2026-10-16T12:12:53.6336858+08:00
+case CASE=res-root-stale-path STATE=NORMAL_EXIT EXIT=0 SAMPLES=72 CLOSE_REASON=
+case_done name=res-root-stale-path runner_rc=0 at=2026-10-16T12:15:29.5329038+08:00
+icacls_deny_rc=0
+icacls 已处理的文件: .scratch\t4-rerun-20261015-t4b\run-06\roots\unreadable-root
+icacls 已成功处理 1 个文件; 处理 0 个文件时失败
+case CASE=res-unreadable-root STATE=NORMAL_EXIT EXIT=0 SAMPLES=72 CLOSE_REASON=
+case_done name=res-unreadable-root runner_rc=0 at=2026-10-16T12:18:05.1960032+08:00
+icacls_reset_rc=0
+icacls_reset 已处理的文件: .scratch\t4-rerun-20261015-t4b\run-06\roots\unreadable-root
+icacls_reset 已成功处理 1 个文件; 处理 0 个文件时失败
+case CASE=audio-invalid-device STATE=EARLY_EXIT EXIT=13 SAMPLES=1 CLOSE_REASON=
+case_done name=audio-invalid-device runner_rc=0 at=2026-10-16T12:18:08.4309640+08:00
+case CASE=audio-missing-resource STATE=NORMAL_EXIT EXIT=0 SAMPLES=72 CLOSE_REASON=
+case_done name=audio-missing-resource runner_rc=0 at=2026-10-16T12:20:43.5267507+08:00
+finished_at=2026-10-16T12:21:02.1137316+08:00

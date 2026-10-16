@@ -1,0 +1,5 @@
+﻿file=trace.txt
+bytes=13324998
+lines=216749
+sha256=2d0c22744125f0af19136ead3a87f5101d0290cd8050dbf319914f47b7f669fc
+committed=trace-extract.txt (over the size limit)

@@ -42,7 +42,40 @@ if (-not (Test-Path -LiteralPath $exe)) { throw "exe not built: $exe (run build-
 $snake = 'D:\TF2_Demo_Player\testdata\demos\bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem'
 $bagel = 'D:\TF2_Demo_Player\testdata\demos\4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem'
 $tfRoot = 'D:\SteamLibrary\steamapps\common\Team Fortress 2\tf'
-foreach ($p in @($snake, $tfRoot)) {
+# The soak input must OUTLIVE the soak window. The gate asserts that a soak's
+# last tick is still short of the demo's end tick, which is what makes its
+# stall_samples=0 reading mean "never stopped drawing" rather than "finished
+# and idled". On the snakewater SourceTV recording that premise is no longer
+# reachable: measured on the 2026-10-16 current-HEAD build (matrix run-05),
+# snakewater's 64352 ticks finished at t=637.7s (soak-hidden) and t=531s
+# (soak-window) -- playback rate rose ~11% against the 2026-10-14 build --
+# while the gate floor for a soak is observed >= 660 s. No window length
+# satisfies both, so the soaks need a longer input on a map the root serves.
+# SUNSHINE.dem (SourceTV, cp_sunshine, 128432 ticks) was tried first and is
+# disqualified by a product finding: on this build both soak cases died ~31 s
+# in (matrix run-06) through the renderer's device-error policy
+# (PostQuitMessage(3) on a lastError other than DEVICE_REMOVED/RESET),
+# deterministically, while the same build plays snakewater for the full
+# window. The POV recording of the SAME map (cp_snakewater_final1,
+# 490182 commands) was tried next and plays cleanly -- 160 s pretest: BSP
+# source-equivalent, COMPLETED -- but the product titles POV demos with a
+# "POV ticks=" prefix while the release gate's load_title only parses
+# "SourceTV ticks="; the soak end-tick assertion would then read 0 and fail
+# unconditionally. Extending the gate's parser to accept the POV prefix was
+# rejected: it is the judgement layer, and this task does not edit it to make
+# a run pass. gullyscout.dem / processdemo.dem (SourceTV, 120933 commands)
+# were rejected because their maps' BSPs live in tf\download\maps\ while the
+# product resolves the map only under tf\maps (main.cpp: assets.tfDirectory /
+# "maps"), so both played with "BSP: invalid/BSP header is invalid" and a
+# fallback material path -- a soak there would certify a render pipeline that
+# never ran the real BSP. review12.dem (SourceTV, cp_reckoner) is the input:
+# its map is served by the official tf\maps\cp_reckoner.bsp, the title reads
+# "SourceTV ticks=120936" (~1814 s of content, ~3.2x the window at the
+# measured 58.3 ticks/s), and the 160 s pretest completed with BSP 76505 tris
+# and lightmap state=source-equivalent. smoke and the corrupt fixtures stay on
+# the SourceTV snakewater recording.
+$soakDemo = 'D:\SteamLibrary\steamapps\common\Team Fortress 2\tf\demos\review12.dem'
+foreach ($p in @($snake, $soakDemo, $tfRoot)) {
   if (-not (Test-Path -LiteralPath $p)) { throw "missing input: $p" }
 }
 
@@ -60,6 +93,9 @@ $exeSha = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower()
 $manifest.Add(("exe_sha256={0}" -f $exeSha))
 $manifest.Add(("exe_size={0}" -f (Get-Item -LiteralPath $exe).Length))
 $manifest.Add(("snake_demo={0}" -f $snake))
+$manifest.Add(("soak_demo={0}" -f $soakDemo))
+$manifest.Add(("soak_demo_sha256={0}" -f (Get-FileHash -LiteralPath $soakDemo -Algorithm SHA256).Hash.ToLower()))
+$manifest.Add(("soak_demo_size={0}" -f (Get-Item -LiteralPath $soakDemo).Length))
 $manifest.Add(("tf_root={0}" -f $tfRoot))
 
 function Invoke-Case {
@@ -149,8 +185,8 @@ if ($sets -contains 'smoke') {
 
 if ($sets -contains 'soak') {
   Write-Output '=== soak runs ==='
-  Invoke-Case -Name 'soak-hidden' -Seconds $SoakSeconds -Demo $snake -Hidden -AudioDisabled
-  Invoke-Case -Name 'soak-window' -Seconds $SoakSeconds -Demo $snake -AudioDevice 6
+  Invoke-Case -Name 'soak-hidden' -Seconds $SoakSeconds -Demo $soakDemo -Hidden -AudioDisabled
+  Invoke-Case -Name 'soak-window' -Seconds $SoakSeconds -Demo $soakDemo -AudioDevice 6
 }
 
 if ($sets -contains 'corrupt') {
