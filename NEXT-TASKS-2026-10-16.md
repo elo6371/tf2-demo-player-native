@@ -2,7 +2,7 @@
 
 Date: 2026-10-16
 Integration branch: `p0-entity-protocol`
-Current integration commit: `616fef3` before the F6 fix commit
+Current integration commit: `339ef77`
 
 ## Project state
 
@@ -40,6 +40,7 @@ Verification already completed:
 ```text
 build-target.sh tf2_demo_native                 rc=0
 stability-root-check.ps1                        ROOT-CONTRACT=PASS
+verify-fast.sh                                   VERIFY-FAST=PASS (43/43)
 explicit-valid-root                             VPK entries=104137
 explicit-missing-root                           connected_root=<empty>
 explicit-empty-root                             connected_root=<empty>
