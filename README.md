@@ -48,7 +48,9 @@ T2.5 五层调查已完成并记录在 `T2.5-MAPPING-RECON-2026-10-12.md`：默�
 
 清单四已整合（`28007af`）：音频按 demo tick 调度，支持 tick 去重与倒放恢复、延时取整/下限、声音分类和资源解析失败原因，并保留 `--audio-disabled` 的 OutcomeSink。整合当时 `verify-audio.sh` 为 `VERIFY-AUDIO=PASS (assertions_ok=28)`，`--mutation` 的 6 个专项变异全部捕获；设备尝试和成功计数均可被门禁读取。
 
-T3 音频主程序接线已在 `task/audio-main-wiring` 完成（产品 `baf93e7`，门禁/证据 `61260a0`），**尚未整合**。demo 的声音事件现在落在**录制自己的 tick 原点**上：`readSounds()` 按到达的 entry 打 tick，而一份 demo 有两套 tick 空间（signon entry 带服务器绝对 tick，packet entry 带 demo 自己的 0 基计数），旧原点取的是 signon，于是 `max(0, tick - origin)` 把整段录制折到相对 tick 0（POV `clampedToZero=5555/5563`）。新原点取第一条 command-2 entry，并把相对 tick 计算成 `int64` 后**拒绝**而不是夹取。`verify-audio.sh` 扩到 **48 条断言 / 12 个变异**（全捕获）。仍**未**接真实设备播放：门禁一律 `--audio-disabled`。整个音频子系统仍未验证真实设备播放、真实 MP3/ADPCM 设备播放、长时间压力和非 Windows 平台。
+T3 音频主程序接线已在 `task/audio-main-wiring` 完成（产品 `baf93e7`，门禁/证据 `61260a0`），已整合。demo 的声音事件现在落在**录制自己的 tick 原点**上：`readSounds()` 按到达的 entry 打 tick，而一份 demo 有两套 tick 空间（signon entry 带服务器绝对 tick，packet entry 带 demo 自己的 0 基计数），旧原点取的是 signon，于是 `max(0, tick - origin)` 把整段录制折到相对 tick 0（POV `clampedToZero=5555/5563`）。新原点取第一条 command-2 entry，并把相对 tick 计算成 `int64` 后**拒绝**而不是夹取。当时 `verify-audio.sh` 为 48 条断言 / 12 个变异（全捕获）。
+
+T3 内容与真实设备验收在 `task/audio-content-device` 完成（产品/门禁 `8e06aba`；门禁自身修复 `9864a93` / `d063747` / `f745bcd`；`exe_count` pin `270d5b4`；**尚未整合**）：修复了**声音字符缺陷**——TF2 soundprecache 把 Source 声音字符（`src/public/soundchars.h`：`*` STREAM / `#` DRYMIX / `)` SPATIALSTEREO / `>` DOPPLER / `^` DISTVARIANCE，可叠两个）写在文件名前面，旧的名字→路径转换按原文使用，pov 表 6720 条名字里的 713 条带标记名字因此全部解析失败（旧转换解析 0 条）。修复后 696 条解出（其余 17 条是服务器自定义内容，两种转换都缺）；时间线读数 pov `resolved 2819→3564`、`missingWav 1993→1248`，matcha `2048/2543→3508/1083`，well `3648/1149→4371/426`；真实设备（device 6）同一 tick 窗口 `played 601→742`、`missing 388→247`。新增：`sound_content_map_probe` 逐事件可追溯映射（tick/index/kind/status/seconds/srctable/path/name/detail + `--table-out` 整表导出）、`excessive_duration` 命名拒绝（构造 48 天 WAV 被拒；同字节 524 s 正常解析作对照）、`mode: summary` 的 `audio_device_open_attempts/audio_device_opens_ok` 读数、`verify-audio.sh` 内容节（3 份 pinned 录制）与 `--device` 设备验收节（null sink vs device 6：`0/0/0` vs `742/742/742`，可听）。`verify-audio.sh` 扩到 **129 条断言 / 21 个变异**（`--device` 时 23 个，全部捕获）；`verify-all.sh` 的 `exe_count` pin 31→32（新增探针目标，全量构建实测 `exe_count=32`）。**人耳确认已做**：用户确认听到 device 6 播放的 demo 声音，与自动计数分开记录在 `evidence/audio/listening.txt`。仍未验证：music 事件（扫描 11 份录制全为 0，表内候选 13–15 条/份）、TempEntity/PCF 事件（无发放名字携带该 token）、真实 MP3/ADPCM 设备播放、听到内容的正确性、其余语料与多设备。详见 `T3-CONTENT-AND-DEVICE-2026-10-15.md`。
 
 清单三已整合（`e584052`）：新增 `viewmodel_material_probe` 和 `viewmodel-material-check.sh`，复用产品 MDL/VMT/VTF/VPK 解析器，覆盖 `$cdmaterials`、反斜杠 `$basetexture`、BC1/BC3、2048² 上限、cubemap 解码拒绝和资源缺失。真实安装的 4 个模型共 10/10 材质槽解析并解出像素；专项门禁为 159 条断言通过，分支验收的 6/6 mutation 和 `verify-render.sh` 8/8 均通过。该项只完成资源解析与像素解码，尚未接入产品 ViewModel 绘制，也未完成人工画面对照。
 
@@ -457,7 +459,7 @@ oracle、扫全部 SourceTV、抓帧或做变异；它们**看不见**「刚改�
 | 1 | `bash verify-fast.sh` | 33–37 s（两次实测） | **每次小改动**：增量构建主程序 + 五个自检探针，跑各自 `--self-test`（36 条断言） |
 | 2 实体 | `bash verify-entity.sh` | 10m59s（实测） | 实体解码 / 摆放这一块做完（5 个门禁 + 58 真相干 + 单份真 demo 的 oracle 对照 = 8 项） |
 | 2 渲染 | `bash verify-render.sh` | 5m27s（实测） | 材质 / VTF / BSP / 画面这一块做完（3 门禁 + 合成层 + 证据树不变断言 = 5 项） |
-| 2 音频 | `bash verify-audio.sh` | 约 1m54s（含构建；`--no-build` 约 1m） | 音频这一块做完（48 条断言 + 12 个变异；探针全走注入 sink，产品跑真 demo 但 `--audio-disabled`，不开真设备） |
+| 2 音频 | `bash verify-audio.sh` | 6m35s（含构建；实测） | 音频这一块做完（129 条断言 + 20 个变异；探针全走注入 sink，产品跑真 demo 但 `--audio-disabled`，不开真设备。设备验收是可选 `--device`（可听，+5 条断言与 2 个变异）） |
 | 3 | `bash verify-all.sh` | ~85 min | **合并主线、发版、改核心协议**，且必须在**已提交的干净树**上 |
 
 单项门禁也可以直接跑（改哪儿跑哪儿）：

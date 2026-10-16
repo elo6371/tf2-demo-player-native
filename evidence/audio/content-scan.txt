@@ -1,0 +1,27 @@
+# T3 content scan -- 11 candidate recordings, one pass each
+#
+# Tool: sound_content_map_probe --demo <file>   (2026-10-15, commit 9864a93's tree;
+#       the aquarius row is from the re-run that added markerEventsOther)
+# Columns: scheduled / resolved / missing_wav / unsupported / kinds w.f.u.o.t.p.v.a.m /
+#          table_music (music-kind names in the recording's soundprecache) /
+#          marker_events (events whose name carries Source sound-characters), split
+#          resolved+missing+other.
+#
+demo       scheduled resolved miss_wav unsupp  kinds w/f/u/o/t/p/v/a/m  tbl_music   marker e=r+m+o  file
+pov             5323     3564     1248    511  888/2263/14/1647/0/0/504/7/0        13     745=745+0+0  autorecord_2026-07-02_13-26-46.dem ($TF/demos)
+matcha          5229     3508     1083    637  2953/5/14/1620/0/0/633/4/0        13    1460=1460+0+0  bb841c6d...cp_snakewater_final1.dem (D:/TF2_Demo_Player/testdata/demos)
+well            4989     4371      426    192  675/3003/7/1114/0/0/188/2/0        13     723=723+0+0  autorecord_2026-07-16_12-41-25.dem ($TF/demos)
+harvest         5310     4094      874    342  2078/1343/0/1547/0/0/342/0/0        15    1417=1417+0+0  autorecord_2026-08-20_11-26-24.dem ($TF/demos)
+citadel         5647     3722     1424    501  1696/1734/0/1737/0/0/478/2/0        13     806=806+0+0  autorecord_2026-06-24_18-06-50.dem ($TF/demos)
+embargo         2477     1826      446    205  475/1060/9/728/0/0/205/0/0        13     235=228+7+0  autorecord_2026-07-19_11-29-36.dem ($TF/demos)
+goldrush         315      287        4     24  82/195/0/14/0/0/24/0/0          13      46=46+0+0  autorecord_2026-08-26_18-32-11.dem ($TF/demos)
+dustbowl         329      253       33     43  17/98/0/171/0/0/43/0/0          13     108=108+0+0  autorecord_2026-08-02_21-51-29.dem ($TF/demos)
+barnblitz        558      396       88     74  95/197/0/192/0/0/74/0/0         13      71=71+0+0  autorecord_2026-08-31_22-46-57.dem ($TF/demos)
+aquarius         936      768       42    115  145/525/0/156/0/0/110/0/0        13     150=140+0+10  autorecord_2026-06-16_12-55-07.dem ($TF/demos)
+swiftwater       360      292       55     13  173/100/0/74/0/0/13/0/0         15     112=112+0+0  autorecord_2026-05-18_23-53-06.dem ($TF/demos)
+
+# Coverage read: weapon/footstep/uber/world/voice/announcer have real events everywhere
+# they appear; temp_entity and pcf are zero in every recording (no shipped sound name
+# carries those tokens -- audio_scheduler_probe measures realTempEntity=0 realPcf=0
+# over both sound archives). music events are zero in all 11, while every recording's
+# soundprecache carries 13..15 music-kind candidates (taunt / MvM / round-end).
