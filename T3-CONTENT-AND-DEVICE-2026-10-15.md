@@ -59,14 +59,15 @@ tick 窗口的 `events_played` 601→**742**。同轮补齐：时长上限命名
 | autorecord_2026-06-24 | pl_citadel | 1696 | 1734 | 0 | 1737 | 0 | 0 | 478 | 2 | 0 | 13 | 806 |
 | autorecord_2026-07-19 | pl_embargo | 475 | 1060 | 9 | 728 | 0 | 0 | 205 | 0 | 0 | 13 | 235（228 解出，7 条自定义） |
 | autorecord_2026-08-26 | pl_goldrush | 82 | 195 | 0 | 14 | 0 | 0 | 24 | 0 | 0 | 13 | 46 |
-| autorecord_2026-08-02 | cp_dustbowl | 17 | 98 | 0 | 171 | 0 | 0 | 43 | 0 | 0 | — | — |
-| autorecord_2026-08-31 | pl_barnblitz | 95 | 197 | 0 | 192 | 0 | 0 | 74 | 0 | 0 | — | — |
-| autorecord_2026-06-16 | pl_aquarius | 145 | 525 | 0 | 156 | 0 | 0 | 110 | 0 | 0 | — | — |
-| autorecord_2026-05-18 | pl_swiftwater | 173 | 100 | 0 | 74 | 0 | 0 | 13 | 0 | 0 | — | — |
+| autorecord_2026-08-02 | cp_dustbowl | 17 | 98 | 0 | 171 | 0 | 0 | 43 | 0 | 0 | 13 | 108（108 解出） |
+| autorecord_2026-08-31 | pl_barnblitz | 95 | 197 | 0 | 192 | 0 | 0 | 74 | 0 | 0 | 13 | 71（71 解出） |
+| autorecord_2026-06-16 | pl_aquarius | 145 | 525 | 0 | 156 | 0 | 0 | 110 | 0 | 0 | 13 | 150（140 解出 + 10 其他具名状态，见 §7.1 第 2 条） |
+| autorecord_2026-05-18 | pl_swiftwater | 173 | 100 | 0 | 74 | 0 | 0 | 13 | 0 | 0 | 15 | 112（112 解出） |
 
 （"表内 music 候选"= 该录制 soundprecache 表里 `music/` 类名字的数量，`tableKindMusic` 读数；
-"marker 事件"= 名字带声音字符的已入时间线事件数，修复后计数。最后三份的 marker 列未逐份记录——
-它们只用于证明类别覆盖不是 pov/matcha 的特例。）
+"marker 事件"= 名字带声音字符的已入时间线事件数，修复后计数。11 份逐份读数见
+`evidence/audio/content-scan.txt`——后四份在这里补上，是为了让"类别覆盖不是 pov/matcha 的特例"
+这句话自己有数据支撑，而不是只在前七份成立。）
 
 选定 pin 住的三份：**pov**（原点缺陷的那份 + 类别最全）、**matcha**（防止 pov 数字被读成一般
 规律）、**well**（footstep 主导 + uber/announcer 的对照密度）。pin 清单：
@@ -318,8 +319,10 @@ playback_written=1 … status=pass`（rc=0）。
 
 - **「请求被构造、事件被定位、tick 被推进」≠「听见了声音」**。device 6 的 `played=742` 是产品
   自己的计数；人耳确认另记（本次为肯定）。
-- **`duplicateTicks` 是计数不是常量**（帧时序相关，实测 33–1637 之间随窗口变化）；门禁只断言
-  `>=1`。
+- **两个同 tick 读数要分开看**：播放器级的 `duplicateTicks` 是**帧时序相关**的计数（实测 33–1637
+  随窗口变化，且机器负载重时会合法读 0），本轮起**只打印不断言**（§7.1 第 1 条）；census 与内容节
+  的 `duplicateTicksAfter` 是进程内"重放同一 tick"的计数，与帧钟无关，门禁断言 `>=1` 且重放 0 事件。
+  守卫行为由后者承担，不是由机器负载承担。
 - **`unsupported_format` 对 voice/announcer 的 511 条是真实解码事实**，不是解析失败：它们都是
   MP3，且作为 filtered kinds 不会被调度器解析/播放。
 - **声音字符剥离只影响「名字→路径」**；名字本身（映射的 `name` 列）保持录制原文，便于追溯。
@@ -333,3 +336,35 @@ playback_written=1 … status=pass`（rc=0）。
   真实 demo 端到端）。
 - SHA256SUMS 的 CR 注意事项沿用 `T3-MANUAL-FOLLOWUP` §11 的既有先例：本仓库 core.autocrlf=true，
   fresh checkout 用 `tr -d '\r' < SHA256SUMS | sha256sum -c -` 复核。
+
+## 12. 未提交文件与证据来源（`WORKTREE-WORKFLOW.md` 规则 6）
+
+**已提交源码/报告/证据之外的产物**（全部被 `.gitignore` 忽略，全部可由已提交脚本重新生成；
+任务结束前已确认本任务没有残留的 `tf2_demo_native.exe` 或脚本进程——其它 worktree 的进程不属于
+本任务，规则 5/6）：
+
+| 目录 | 体量 | 内容 |
+|---|---|---|
+| `.scratch/t3/` | 15 MB / 37 项 | 门禁中间日志、变异用的捕获副本、before/after 对照（`before-*`/`after-*`）、`cl.log`、以及 `marker-reach.txt` 原始数据的一次性测量工具输出 |
+| `evidence/fast/audio/` | 19 MB / 68 项 | `verify-audio.sh` 的输出目录（`VERIFY_AUDIO_OUT` 默认）：三份内容映射、census/调度器读数、device 两次运行的 trace 与两张 2.5 MB BMP |
+| `native/build-nmake/` | 235 MB | 构建产物（exe / obj / lib） |
+| `evidence/cmake-build.log` | — | 全量构建日志 |
+
+**证据来源**，按本报告引用顺序：
+
+1. §2/§3 的**修复后**读数、§5 的三条运行日志、§8 的全部文件 → 已提交 `evidence/audio/`，
+   `SHA256SUMS` 可复核。
+2. §3 的**修复前**读数（`resolved 2819` / `missingWav 1993`、旧转换解出 0/713 等）→ 用提交 A 的
+   父提交 `917b012` 建树重跑同一批 pinned 输入得到，原始输出只留在 `.scratch/t3/before-*` 与
+   `reach-pov.txt`；复现方式：`git checkout 917b012` → 构建 → 跑
+   `sound_content_map_probe --demo <同一份文件>`（输入清单见 `evidence/audio/content-inputs.txt`）。
+   数字同时写进了提交 A 的提交信息，不依赖 scratch。
+3. device 6 的**修复前** `played=601 / missing=388` → 已提交文档
+   `T3-MANUAL-FOLLOWUP-2026-10-14.md`（上一轮同一 demo、同一 tick 窗口的实测），是本仓库自己的
+   记录，不是别处抄来的。
+4. §2.1 的 11 份扫描 → 已提交 `evidence/audio/content-scan.txt`；三份 pinned 录制的
+   size+sha256 在 `evidence/audio/content-inputs.txt`，缺文件/错大小/错哈希门禁分别报错。
+5. 未引用其它任务 worktree 的任何输出；未读取别的任务的 `.scratch`（规则 5）。
+
+**人耳确认**（§2 第 6 项、`listening.txt`）是唯一不属于上述任何一类的证据：它是人的陈述，
+不是命令输出，因此单独存放、不与任何计数互相印证。
