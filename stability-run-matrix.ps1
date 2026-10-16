@@ -143,9 +143,10 @@ $fixtureIndex = Join-Path $fixtureDir 'fixture-index.txt'
 if (-not (Test-Path -LiteralPath $fixtureIndex)) { throw "fixture generation failed" }
 
 # Fake roots for the resource cases: two empty roots that must be rejected.
-# AssetRoot::valid requires a servable *_dir.vpk plus the expected asset stores;
-# these trees deliberately contain only empty directories so the product reports
-# a missing explicit root instead of connecting with zero VPK entries.
+# AssetRoot::valid requires each asset store to contain loose files or a matching
+# *_dir.vpk archive; these trees deliberately contain only empty directories so
+# the product reports a missing explicit root instead of connecting with zero VPK
+# entries.
 $emptyRootA = Join-Path $runDir 'roots\empty-root-a'
 $emptyRootB = Join-Path $runDir 'roots\empty-root-b'
 $movedRoot = Join-Path $runDir 'roots\moved-root'
