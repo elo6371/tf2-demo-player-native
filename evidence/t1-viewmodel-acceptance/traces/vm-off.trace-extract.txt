@@ -1,0 +1,4 @@
+# vm-off -- readings lines, last of each; raw trace sha256 in vm-off.trace.sha256
+49061.9 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=1037 events_played=0 events_skipped=649 events_missing=388 drawn=1850 capture_written=1 metrics_written=0 exit=0
+# landing (last draw): 49054.4 draw: begin tick=2000 frames=1849
+# draws: 1850

@@ -1,0 +1,99 @@
+demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem
+tick=2000
+================ case: vm-off ================
+args: 
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on 2001, wanted 2000 (attempt 2)
+  ..  landed on tick 2000 (attempt 3)
+================ case: vm-companion ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: vm-companion2 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: vm-command ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render command
+target tick: 2000
+  ..  landed on 2002, wanted 2000 (attempt 1)
+  ..  landed on 2002, wanted 2000 (attempt 2)
+  ..  landed on tick 2000 (attempt 3)
+================ case: body-on ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-weapon-body on
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on tick 2000 (attempt 2)
+================ case: body-off ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-weapon-body off
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: hand-left ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-hand left
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: hand-right ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-hand right
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: fov-40 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-fov 40
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on 2001, wanted 2000 (attempt 2)
+  ..  landed on tick 2000 (attempt 3)
+================ case: fov-90 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-fov 90
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: fov-120 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-fov 120
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: mat-flat ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-flat-color
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on 2001, wanted 2000 (attempt 2)
+  ..  landed on tick 2000 (attempt 3)
+================ case: anim-on ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-apply-animation
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: anim-seq0 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-apply-animation --viewmodel-sequence 0
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: switch-rifle ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 21500
+  ..  landed on tick 21500 (attempt 1)
+================ case: switch-club ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 21600
+  ..  landed on tick 21600 (attempt 1)
+================ case: switch-back ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 22100
+  ..  landed on tick 22100 (attempt 1)
+
+=== landings ===
+vm-off       attempts=3 landing=2000 sha256=7fb40d0c1ed8bb40ce6b467c2306d49b049376964520818dfa2498614f0e87fa
+vm-companion attempts=1 landing=2000 sha256=d1562a5b639e587e81ff571489961230d645ffcf62f63a131df457d06b9c9598
+vm-companion2 attempts=1 landing=2000 sha256=d1562a5b639e587e81ff571489961230d645ffcf62f63a131df457d06b9c9598
+vm-command   attempts=3 landing=2000 sha256=f7c265e45317c74d62e3563297f696785755f462ce3823b4ffeb08554d02b2f5
+body-on      attempts=2 landing=2000 sha256=d1562a5b639e587e81ff571489961230d645ffcf62f63a131df457d06b9c9598
+body-off     attempts=1 landing=2000 sha256=6f28f68cf82b73b1cccf7bb726f2f2219ed88f7f4d98d1d0a1edb6b0a8d457d1
+hand-left    attempts=1 landing=2000 sha256=7c106ef741879f18798ee4a9f0d4e0112ea55047c890624db2f61dc88906384a
+hand-right   attempts=1 landing=2000 sha256=d1562a5b639e587e81ff571489961230d645ffcf62f63a131df457d06b9c9598
+fov-40       attempts=3 landing=2000 sha256=20e87cde3ebeefabc389db5eeaefa3032a7abd0198c2ece4e05071d131ba1f51
+fov-90       attempts=1 landing=2000 sha256=d1562a5b639e587e81ff571489961230d645ffcf62f63a131df457d06b9c9598
+fov-120      attempts=1 landing=2000 sha256=8e6ab98e19a7da029900d10a87a538a821b26d05b2256ddc398a46df7ebc16a0
+mat-flat     attempts=3 landing=2000 sha256=7dd32a0afd247ce66a837d485822b4ba953206425f8ffd430e1ae8030bd675d2
+anim-on      attempts=1 landing=2000 sha256=d1562a5b639e587e81ff571489961230d645ffcf62f63a131df457d06b9c9598
+anim-seq0    attempts=1 landing=2000 sha256=8042c81d6cd025360517be91f209ac2d344a14d3b43275f030b4e0e3bfcd36b6
+switch-rifle attempts=1 landing=21500 sha256=abf5f559a12840736f48666c07a7a3d77ec8d8c01a8f08a39e1542feceb1b862
+switch-club  attempts=1 landing=21600 sha256=2329ed9c0736ece47d06b8fa084901ce3c6f0b853bc5912335b98fbf2051aa07
+switch-back  attempts=1 landing=22100 sha256=d7f1ee399326cdfdb96b654d861d18b9b32d287816ebc926f1ae9d16150c309f
+done

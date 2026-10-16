@@ -1,0 +1,72 @@
+demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem
+tick=2000
+================ case: vm-off ================
+args: 
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: vm-companion ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on 2002, wanted 2000 (attempt 2)
+  ..  landed on tick 2000 (attempt 3)
+================ case: vm-companion2 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: vm-command ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render command
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: body-on ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-weapon-body on
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on tick 2000 (attempt 2)
+================ case: body-off ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-weapon-body off
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: hand-left ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-hand left
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: hand-right ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-hand right
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: fov-40 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-fov 40
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on tick 2000 (attempt 2)
+================ case: fov-90 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-fov 90
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on tick 2000 (attempt 2)
+================ case: fov-120 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-fov 120
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on tick 2000 (attempt 2)
+================ case: mat-flat ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-flat-color
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: anim-on ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-apply-animation
+target tick: 2000
+  ..  landed on 2001, wanted 2000 (attempt 1)
+  ..  landed on tick 2000 (attempt 2)
+================ case: anim-seq0 ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion --viewmodel-apply-animation --viewmodel-sequence 0
+target tick: 2000
+  ..  landed on tick 2000 (attempt 1)
+================ case: switch-rifle ================
+args: --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+target tick: 21500
+  ..  landed on 19882, wanted 21500 (attempt 1)
+  ..  landed on 20218, wanted 21500 (attempt 2)
+  ..  landed on 19423, wanted 21500 (attempt 3)
+  ..  landed on 20062, wanted 21500 (attempt 4)

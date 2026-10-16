@@ -1,0 +1,13 @@
+# the distinct weapon-body observations over the whole recording (one run)
+scene: weaponBody entity=1008 class=CTFSniperRifle worldModelIndex=533
+scene: weaponBody entity=1110 class=CTFClub worldModelIndex=558
+# the distinct viewmodel sequences observed (natural changes, no binding)
+scene: vmAnim entity=1077 sequence=1 scene: vmAnim entity=1077 sequence=12 scene: vmAnim entity=1077 sequence=28 scene: vmAnim entity=1077 sequence=29 scene: vmAnim entity=1077 sequence=30 
+# the first club observation and the rifle observation before it
+267752:331673.0 scene: weaponBody entity=1110 class=CTFClub worldModelIndex=558 path=models/workshop_partner/weapons/c_models/c_tw_eagle/c_tw_eagle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=14615 named=14615 present=14615 refusals=none:14615
+267730:331438.7 scene: weaponBody entity=1008 class=CTFSniperRifle worldModelIndex=533 path=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=14614 named=14614 present=14614 refusals=none:14614
+# the first rifle observation after the club period (the switch back)
+270609:337823.3 scene: weaponBody entity=1008 class=CTFSniperRifle worldModelIndex=533 path=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=14773 named=14773 present=14773 refusals=none:14773
+# summaries
+592725.4 scene: vmAnim summary observations=25249 entities=25249 sequences=25249 cycles=0 ok=0 applied=0 outOfRange=0 boneMismatch=0 missing=25249 changes=32 range=1..30 lastEntity=1077 lastStatus=missing modelMismatch=0 modelMatches=25249 sequenceInRange=25249 companionFrames=25249 lastDrawnModel=models/weapons/c_models/c_sniper_arms.mdl
+592813.6 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=5323 events_played=0 events_skipped=1547 events_missing=3776 drawn=25874 capture_written=1 metrics_written=0 exit=0

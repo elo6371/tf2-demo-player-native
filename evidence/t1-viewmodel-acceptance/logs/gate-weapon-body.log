@@ -1,0 +1,89 @@
+=== 0/6 pinned input ===
+  OK   the recording's size = 21856667
+  OK   the recording's sha256 = c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e
+
+=== 1/6 the refusals, one at a time ===
+  selftest rc=0 checks_ok=57 checks_failed=0
+  OK   the probe's self-test rc = 0
+  OK   the self-test reports ok = true
+  OK   the self-test reports itself as such = true
+  OK   checks that ran (the battery is pinned) = 57
+  OK   checks that failed = 0
+  OK   the self-test constructed the refusal contains none:
+  OK   the self-test constructed the refusal contains worldModelIndexZero:
+  OK   the self-test constructed the refusal contains worldModelNotDeclared:
+  OK   the self-test constructed the refusal contains worldModelIndexOutOfRange:
+  OK   the self-test constructed the refusal contains worldModelIsArms:
+  OK   the self-test constructed the refusal contains weaponAbsent:
+  OK   the self-test constructed the refusal contains weaponPastSnapshot:
+  OK   the self-test constructed the refusal contains noWeaponSlot:
+  OK   the self-test constructed the refusal contains emptyWeaponHandle:
+  OK   the self-test constructed the refusal contains noViewModelEntity:
+  OK   the self-test constructed the refusal contains viewModelEntityAbsent:
+  OK   the self-test constructed the refusal contains noWorldModelSlot:
+
+=== 2/6 the chain on the game's own files ===
+  real rc=0 checks_ok=117 checks_failed=0
+  OK   the probe's real-file rc = 0
+  OK   three weapon-side models resolved = 3
+  OK   and every one of their material slots reached a texture = 8
+  OK   work count -- material slots walked = 8 (>= 3)
+  OK   the recording's own ViewModel entity was selected = 1077
+  OK   its m_hWeapon names the weapon entity = 1008
+  OK   the weapon entity's class was resolved from the schema = CTFSniperRifle
+  OK   the index that produced the path is the weapon's own m_iWorldModelIndex = 533
+  OK   and it resolves to the weapon body = models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl
+  OK   no refusal fired on the recording = none
+
+=== 3/6 the product's two draw requests ===
+  body-on rc=0 bmp=2582406
+  ..   body-on: frame landed on tick 2000 (attempt 1)
+  OK   body-on rc = 0
+  OK   the benchmark frame landed on the requested tick = 2000
+  OK   work count -- the arms were drawn = 1811 (>= 1)
+  OK   work count -- the body was drawn = 1811 (>= 1)
+  OK   the body's draw call count matches the arms' (one each per frame) = 1811
+  OK   the reading names the index the body came from = 533
+  OK   and the path it resolved to = models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl
+  OK   the body's model is not the arms composite does not contain _arms.mdl
+  OK   the body's weapon entity is reported alongside it = 1008
+  OK   the body's weapon class is reported alongside it = CTFSniperRifle
+  OK   no fallback fired = -
+  OK   the pass reports its own draw reason = drawn
+  OK   the body's centre lands on screen = 1
+  OK   work count -- the body's mesh has vertices = 12357 (> 0)
+  OK   the body's mesh has a measured radius of its own = 27.53 (> 0)
+  body-off rc=0 bmp=2582406
+  ..   body-off: frame landed on tick 2000 (attempt 1)
+  OK   the body-off frame was taken at the same tick as the benchmark = 2000
+  OK   body-off rc = 0
+  OK   with the body switched off, its draw call count is zero = 0
+  OK   control -- the arms are still drawn with the body off = 1849 (>= 1)
+  OK   and the reading names the switch rather than a lookup failure = off
+  OK   the off run reports no model index it never looked for = 0
+
+=== 4/6 the picture ===
+  body-on-repeat rc=0 bmp=2582406
+  ..   body-on-repeat: frame landed on tick 2000 (attempt 1)
+  OK   the repeat frame was taken at the same tick = 2000
+  OK   the repeat run rc = 0
+  OK   two runs of the same configuration, at the same tick, are byte-identical = 0
+  body-on-visible rc=0 bmp=2582406
+  ..   body-on-visible: frame landed on tick 2000 (attempt 1)
+  OK   the visible-window control run rc = 0
+  OK   the visible frame was taken at the same tick = 2000
+  OK   a visible run produces the same picture as a hidden one = 0
+  OK   switching the body off changes the picture = 42138 (> 0)
+  OK   and by more than a rounding difference = 42138 (>= 1000)
+  ..   byte_diff(on, off)=42138 byte_diff(on, on-repeat)=0
+
+=== 5/6 the body is not rebuilt per frame ===
+  OK   the body's MDL was parsed and its mesh uploaded exactly once = 1
+  OK   work count -- scene updates that resolved the chain = 1986 (>= 1)
+  OK   control -- the arms' model was built exactly once too = 1
+
+=== 6/6 the readings can go red ===
+  ..   skipped: the four source mutations run under --mutation
+
+WEAPON-BODY=PASS (two draw requests, the body from the entity's own index,
+                 the picture attributable to it, and one build per model)

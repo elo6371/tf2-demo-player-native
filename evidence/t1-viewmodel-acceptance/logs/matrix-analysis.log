@@ -1,0 +1,26 @@
+=== whole-frame claims (the pair must move pixels) ===
+  OK   the ViewModel off/on switch changes the picture
+  OK   the same flags twice are byte-identical
+  OK   companion vs command model changes the picture
+  OK   the weapon body on/off switch changes the picture
+  OK   the hand mirror changes the picture
+  OK   fov 40 vs 90 changes the picture
+  OK   fov 90 vs 120 changes the picture
+  OK   fov 40 vs 120 is a large change
+  OK   material vs flat colour changes the picture
+  OK   apply-animation with no binding changes nothing
+  OK   the constructed sequence 0 changes the picture
+
+=== confinement: the difference stays out of the world strips ===
+  OK   ViewModel off/on is confined to the ViewModel area
+  OK   companion vs command is confined to the ViewModel area
+  OK   weapon body on/off is confined to the ViewModel area
+  OK   the hand mirror is confined to the ViewModel area
+  OK   the fov change is confined to the ViewModel area
+  OK   material vs flat colour is confined to the ViewModel area
+  OK   the constructed sequence is confined to the ViewModel area
+
+=== per-case readings (from the product's own trace) ===
+
+MATRIX-ANALYSIS: ok=18 bad=0
+T1-MATRIX=PASS

@@ -1,0 +1,58 @@
+=== 1/2 incremental build ===
+=== build tf2_demo_native presentation_probe entity_model_probe world_material_probe model_pose_probe item_schema_probe viewmodel_fov_probe ===
+rc=0
+build_rc=0
+
+=== 2/2 probe self-tests ===
+-- presentation_probe --self-test
+  OK   presentation: the self-test ran
+  OK   presentation: view math
+  OK   presentation: recording classification
+  OK   presentation: projectile fields
+  OK   presentation: full-span seek
+  OK   presentation: history coverage
+  OK   presentation: worst gap is a measured 4096, not a default
+  OK   presentation: pigeonhole floor is a measured 3565
+  OK   presentation: camera formula is the Source one
+  OK   presentation: out-of-window seek answers Checkpoint
+-- entity_model_probe --self-test
+  OK   entity_model: weapon fixture saw 11 references
+  OK   entity_model: the fixture still contains one weapon-naming-its-arms witness
+  OK   entity_model: observer fixture ran 11 cases
+  OK   entity_model: observer fixture resolved 2 follows, serial 867
+  OK   entity_model: slot fixture ran 4 shapes, 2 fresh chosen
+  OK   entity_model: slot fixture round-tripped 4 ticks
+  OK   entity_model: the self-test verdict
+  OK   entity_model: the self-test ran
+-- world_material_probe --self-test
+  OK   world_material: the self-test ran
+  OK   world_material: an empty BSP is rejected
+  OK   world_material: no-lighting is the default
+  OK   world_material: lightmap naming
+  OK   world_material: sky path
+  OK   world_material: unavailable VIS is reported, not fatal
+  OK   world_material: cubemap mode is the honest 2d approximation
+-- model_pose_probe --self-test
+  OK   model_pose: out-of-bounds attachment rejected
+  OK   model_pose: out-of-bounds body part rejected
+  OK   model_pose: out-of-bounds bone table rejected
+  OK   model_pose: bind-pose mutation rejected
+  OK   model_pose: CPU skin-weight mutation rejected
+  OK   model_pose: out-of-bounds sequence table rejected
+  OK   model_pose: the corrupt pose did NOT pass the preflight
+-- item_schema_probe --wire-self-test
+  OK   item_schema: one truncated-varint case ran
+  OK   item_schema: one truncated-length case ran
+  OK   item_schema: one valid case ran
+  OK   item_schema: the wire self-test verdict
+-- viewmodel_fov_probe
+  OK   viewmodel_fov: the FOV contract holds
+  OK   viewmodel_fov: the default ViewModel FOV is 90
+  OK   viewmodel_fov: an old 80 migrates to 90
+  OK   viewmodel_fov: the legacy default is still 80, so the migration is a real edit
+  OK   viewmodel_fov: the low clamp is 40
+  OK   viewmodel_fov: the high clamp is 120
+  OK   viewmodel_fov: nine probe values were compared, not one
+assertions_ok=43 assertions_bad=0
+
+VERIFY-FAST=PASS (assertions_ok=43)
