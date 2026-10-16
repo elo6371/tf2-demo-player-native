@@ -1,0 +1,5 @@
+# scan-small and scan-short-2024: no ViewModel entity was observed in either
+# (vmAnim rows: 0 / 0)
+# last draw tick in each (the recordings are shorter than the requested capture tick):
+# scan-small: 180058.5 draw: begin tick=115 frames=9567
+# scan-short-2024: 180087.3 draw: begin tick=175 frames=9303
