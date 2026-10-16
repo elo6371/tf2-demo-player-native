@@ -405,7 +405,17 @@ reset_ok=1 unprepare_ok=1 close_ok=1 … status=pass`（rc=0）。
   → `evidence/t7-audio-content/gate/SHA256SUMS.src-before.txt`；
 - 运行结束后抓同样的 14 个 → `SHA256SUMS.src-after.txt`；
 - `diff` 两文件**为空**：14/14 逐字节一致。
-- 最终树上再抓一对（`SHA256SUMS.src-before-device.txt` / `-after-device.txt`），同样为空。
+- `--device --mutation` 那一跑前后同样抓一对
+  （`SHA256SUMS.src-before-device.txt` / `-after-device.txt`），`diff` 同样为空。
+
+**覆盖区间要说准**：这两对清单覆盖的是**各自那一跑的运行区间**
+（即"变异段有没有写源码"），取的时候工作副本还是 LF。
+那之后做了 §9.4 所述的行尾归一化（只改行尾、不改提交内容），
+所以再补一份 `gate/SHA256SUMS.src-at-C.txt` 钉住**被提交的那份状态**，
+同时给两列读数：工作副本形态的 sha256，与 index blob 的 sha1。
+判"提交 == 被测"用 blob 列（`git rev-parse HEAD:<path>`），
+判"工作副本 == 提交内容"用 sha256 列（规范化行尾后）。
+两份清单的用途不同，不要互相代替。
 
 ## 9. 哈希
 
@@ -461,16 +471,21 @@ sha256sum -c /tmp/t7.sums            # 实测：9/9 OK
 > 因此**不**进 `SHA256SUMS`；它们的作用是"断言当时读的就是这些字节"，
 > 而 §9.3 的源码哈希对才是复原证明。
 
-### 9.3 源码逐字节复原（§8.2 的四个清单）
+### 9.3 源码逐字节复原（§8.2 的五个清单）
 
-| 清单 | 覆盖区间 |
-|---|---|
-| `gate/SHA256SUMS.src-before.txt` | `--mutation` 跑：5/6 节之后、变异段之前 |
-| `gate/SHA256SUMS.src-after.txt` | `--mutation` 跑：运行结束 |
-| `gate/SHA256SUMS.src-before-device.txt` | `--device --mutation` 跑：运行前（最终树） |
-| `gate/SHA256SUMS.src-after-device.txt` | `--device --mutation` 跑：运行后 |
+| 清单 | 覆盖区间 | `diff` 结果 |
+|---|---|---|
+| `gate/SHA256SUMS.src-before.txt` | `--mutation` 跑：5/6 节之后、变异段之前 | — |
+| `gate/SHA256SUMS.src-after.txt` | `--mutation` 跑：运行结束 | **空** vs before |
+| `gate/SHA256SUMS.src-before-device.txt` | `--device --mutation` 跑：运行前 | — |
+| `gate/SHA256SUMS.src-after-device.txt` | `--device --mutation` 跑：运行后 | **空** vs before |
+| `gate/SHA256SUMS.src-at-C.txt` | **提交 C**：两列（工作副本 sha256 + index blob sha1） | 见 §8.2 的覆盖区间说明 |
 
-两组 `diff` 均为**空**：14/14 文件逐字节一致。
+覆盖的 14 个文件：`build-target.sh`、`native/CMakeLists.txt`、
+`native/include/{audio_resource,audio_timeline,demo_header}.h`、
+`native/src/{audio_resource,audio_timeline,demo_header,main}.cpp`、
+`native/tools/{audio_scheduler_probe,sound_content_map_probe,sound_corpus_scan_probe}.cpp`、
+`verify-all.sh`、`verify-audio.sh`。
 
 ### 9.4 提交内容的哈希证明（行尾插曲）
 

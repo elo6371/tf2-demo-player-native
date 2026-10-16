@@ -21,15 +21,34 @@ Base:  4360403aee7e606768cf7cadcdd288d635700cc8  (p0-entity-protocol, planning b
      Evidence + delivery report. 97 files:
        evidence/t7-audio-content/** and T7-AUDIO-CONTENT-COVERAGE-2026-10-16.md
 
-  C  THIS COMMIT (branch tip; read it with `git log -1 --format=%H`)
+  C  57a6352dd551cce9ec938909df1306547b301f29
      docs: pin the T7 delivery commit chain
-     Contains only this file.
+     Added only this file. (C is NOT the tip: D follows, because the delivery
+     report section 8.2 needed a precision fix plus the committed-state source
+     manifest, see below.)
 
-WHY THREE COMMITS RATHER THAN TWO
----------------------------------
+  D  THE TIP -- read it with `git log -1 --format=%H`
+     docs: pin the committed source state and tighten the restoration claim
+     Adds evidence/t7-audio-content/gate/SHA256SUMS.src-at-C.txt (the 14 files
+     in committed form: working-copy sha256 + index blob sha1) and corrects the
+     wording of report section 8.2 so that the interval each manifest covers is
+     stated exactly: the two before/after pairs bracket their own gate run (that
+     is what proves the mutation passes never wrote source), while src-at-C.txt
+     pins the state that was committed, after the line-ending normalization.
+
+WHY THREE COMMITS BEFORE D RATHER THAN TWO
+------------------------------------------
 The delivery report has to pin "the final commit", but a file committed in X
-cannot contain X's own sha (self-reference). This file breaks that loop: A and B
-are pinned above byte-exactly, and C's identity is whatever the branch tip is.
+cannot contain X's own sha (self-reference). This file breaks that loop: A, B
+and C are pinned above byte-exactly, and the tip's identity is whatever
+`git log -1` says it is.
+
+THE MERGE TARGET IS A, NOT THE TIP
+----------------------------------
+Per WORKTREE-WORKFLOW.md rule 7 the integrator merges committed commits, and the
+commit that carries the product change is A. B, C and D carry evidence, the
+report and this pin file. If the integrator prefers a single commit, A alone is
+the code change; nothing in B/C/D touches a build input.
 
 VERIFICATION STATE AT C
 -----------------------
