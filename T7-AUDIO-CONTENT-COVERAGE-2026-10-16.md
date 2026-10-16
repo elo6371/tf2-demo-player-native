@@ -4,18 +4,22 @@
 - 分支：`task/audio-content-coverage`
 - 工作树：`D:/TF2_Native_Worktrees/audio-content-coverage`
 - 基线提交：`4360403aee7e606768cf7cadcdd288d635700cc8`（`p0-entity-protocol`，2026-10-16 19:18:21 +0800）
-- 最终提交：本分支 tip，分三个提交，链式记录在
-  `evidence/t7-audio-content/COMMITS.txt`：
+- 最终提交：本分支 tip。**提交链的权威清单是
+  `evidence/t7-audio-content/COMMITS.txt`**——它逐字钉住每一个提交并指明 tip；
+  本节只记两个不会变的锚点：
+
   | 提交 | sha | 内容 |
   |---|---|---|
-  | **A** | `0a01873cbc38a10ea5e407c6f0a075b4b75e38b3` | 产品、探针与门禁（`build-target.sh`、`native/**`、`verify-all.sh`、`verify-audio.sh`） |
-  | **B** | 见 `COMMITS.txt` | 证据与本文档（`evidence/t7-audio-content/**`、本文件） |
-  | **C** | `git log -1` | 仅 `COMMITS.txt`，把 A 与 B 的 sha 钉死 |
+  | **A** | `0a01873cbc38a10ea5e407c6f0a075b4b75e38b3` | 产品、探针与门禁（`build-target.sh`、`native/**`、`verify-all.sh`、`verify-audio.sh`），**合并目标** |
+  | **B** | `5fe4a5f52e4e6fde9e34554941fe37d0cdb5aa39` | 证据与本文档（`evidence/t7-audio-content/**`、本文件） |
 
-  **A 是合并目标**（`WORKTREE-WORKFLOW.md` 规则 7：整合者只从已提交 commit 合并）。
-  为什么是三个：本文档要钉"最终提交"，而文档自身所在的提交无法在文档内部写出自己的 sha
-  （自引用）。C 用一个只含提交清单的文件打破这个循环——A 与 B 都被逐字钉住，
-  C 的身份由分支 tip 取得。
+  A 之后还有若干个只含文档与证据的提交（C…tip），它们**不触碰任何构建输入**；
+  为什么不把 A 与 B 合成一个、以及 tip 是谁，写在 `COMMITS.txt` 里。
+  之所以不把 tip 的 sha 抄进本表：本文件自身在 B 里，无法在写出时知道后续提交的 sha
+  （自引用），抄进来就会立刻过期。**要看最终提交就读 `git log -1` 或 `COMMITS.txt`。**
+
+  **A 是合并目标**（`WORKTREE-WORKFLOW.md` 规则 7：整合者只从已提交 commit 合并）；
+  A 之后的所有提交都只增删文档与证据，因此按 A 合并即等价于按 tip 合并产品代码。
 
 ## 0. 一句话结论
 

@@ -23,11 +23,9 @@ Base:  4360403aee7e606768cf7cadcdd288d635700cc8  (p0-entity-protocol, planning b
 
   C  57a6352dd551cce9ec938909df1306547b301f29
      docs: pin the T7 delivery commit chain
-     Added only this file. (C is NOT the tip: D follows, because the delivery
-     report section 8.2 needed a precision fix plus the committed-state source
-     manifest, see below.)
+     Added only this file.
 
-  D  THE TIP -- read it with `git log -1 --format=%H`
+  D  df9fc13933e5948a074e9a9228e160ccb08ad17b
      docs: pin the committed source state and tighten the restoration claim
      Adds evidence/t7-audio-content/gate/SHA256SUMS.src-at-C.txt (the 14 files
      in committed form: working-copy sha256 + index blob sha1) and corrects the
@@ -36,19 +34,27 @@ Base:  4360403aee7e606768cf7cadcdd288d635700cc8  (p0-entity-protocol, planning b
      is what proves the mutation passes never wrote source), while src-at-C.txt
      pins the state that was committed, after the line-ending normalization.
 
-WHY THREE COMMITS BEFORE D RATHER THAN TWO
-------------------------------------------
+  E...?  THE TIP IS WHATEVER `git log -1 --format=%H` REPORTS.
+     Any commit after D touches documentation and evidence only -- this file's
+     own history is the proof of that claim, since a commit whose only content
+     is this file cannot have changed a build input. Deliberately not pinned
+     here: a file cannot contain the sha of the commit that contains it.
+
+WHY THIS FILE EXISTS RATHER THAN PUTTING THE TIP SHA IN THE REPORT
+-----------------------------------------------------------------
 The delivery report has to pin "the final commit", but a file committed in X
-cannot contain X's own sha (self-reference). This file breaks that loop: A, B
-and C are pinned above byte-exactly, and the tip's identity is whatever
-`git log -1` says it is.
+cannot contain X's own sha (self-reference), and any tip sha written today goes
+stale the moment one more doc commit lands. So the report pins the two anchors
+that never move (A = product, B = evidence+report) and delegates the tip to
+`git log -1`, i.e. to Git itself. The invariant that makes this safe is stated
+above: everything after A is documentation and evidence only.
 
 THE MERGE TARGET IS A, NOT THE TIP
 ----------------------------------
 Per WORKTREE-WORKFLOW.md rule 7 the integrator merges committed commits, and the
-commit that carries the product change is A. B, C and D carry evidence, the
-report and this pin file. If the integrator prefers a single commit, A alone is
-the code change; nothing in B/C/D touches a build input.
+commit that carries the product change is A. B onward carries evidence, the
+report and this pin file. Merging A alone is equivalent to merging the product
+code at the tip; nothing after A touches a build input.
 
 VERIFICATION STATE AT C
 -----------------------
