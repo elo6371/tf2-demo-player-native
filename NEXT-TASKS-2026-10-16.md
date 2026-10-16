@@ -2,7 +2,7 @@
 
 Date: 2026-10-16
 Integration branch: `p0-entity-protocol`
-F6 fix and integration commit: `7422655` (the current HEAD is a docs-only plan update)
+F6 fix commit: `15c5740` (the current HEAD also includes this task plan)
 
 ## Project state
 
@@ -26,14 +26,18 @@ checks below are complete.
 T4 found a real root-contract defect: an existing directory containing empty
 `materials`, `models`, and `maps` directories was accepted as a valid TF root,
 then reported as connected with zero VPK entries. `AssetRoot::valid()` now
-requires at least one `*_dir.vpk` archive in the root before accepting it.
+requires each asset store to contain loose files or a matching `*_dir.vpk`
+archive; empty directories are rejected while synthetic loose-file fixtures stay
+valid.
 
 Changed files:
 
-- `native/src/asset_root.cpp`: reject roots without a VPK archive.
+- `native/src/asset_root.cpp`: reject empty asset stores while preserving loose
+  fixture roots and VPK-backed installs.
 - `stability-run-matrix.ps1`: update fixture comments to describe empty roots
   as intentional rejection cases.
-- `stability-root-check.ps1`: add an explicit existing-but-empty root case.
+- `stability-root-check.ps1`: add an explicit existing-but-empty root case
+  (already present in the integration history).
 
 Verification already completed:
 
