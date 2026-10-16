@@ -1,0 +1,45 @@
+0.0 trace open
+92.4 audio: timeline firstPacketTick=0 soundOriginTick=0 originFound=0 read=0 scheduled=0 unresolved=0 unplaceable=0 refused=0 kinds=w0/f0/u0/o0/v0/a0/m0
+505.7 gpu: viewmodel request path=models/weapons/v_models/v_fixture_noanchor.mdl status=ok resolution=2 companions=1 meshReady=0 attachments=1 valid=1 partial=0 invalid=0 alignment=- fov=90.0 hand=right reason=-
+505.7 gpu: reload begin
+505.8 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+505.8 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+505.9 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0
+505.9 gpu: world geometry displacedTriangles=0 waterTriangles=0
+505.9 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+505.9 gpu: models done 0 uploaded=0
+505.9 gpu: viewmodel upload mesh=0 vertices=0 bones=1 alignment=- enabled=0 reason=the viewmodel request produced no mesh
+505.9 gpu: reload end
+505.9 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+506.5 loop n=1 tick=0
+523.6 loop n=2 tick=0
+523.7 draw: begin tick=0 frames=0
+532.6 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+532.6 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=0 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+532.6 gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=0 clusteredTriangles=0 hiddenTriangles=0 withoutCluster=0 inputTriangles=0 drawnTriangles=0 clipApplied=0 state=unavailable reason=the bsp carries no cluster pvs
+532.6 viewModelPath=models/weapons/v_models/v_fixture_noanchor.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=ok(valid=1,partial=0,invalid=0,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+532.6 gpu: viewmodel materialReadings passRan=0 materialSlots=0 materialResolved=0 texturesUploaded=0 texturesReused=0 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=0 phongAppliedRanges=0 bumpSlots=0 bumpAppliedRanges=0 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=0 drawRanges=0 fallbackRanges=0 boundSlots=0 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+532.6 gpu: viewmodel effects slot=-1 parsed=0 phongState=unavailable phongDeclared=0 phongParsed=0 phongUploaded=0 phongApplied=0 phongAppliedRanges=0 phongExponent=5.000 phongBoost=1.000 phongFresnel=0.000..0.400 bumpState=unavailable bumpDeclared=0 bumpParsed=0 bumpUploaded=0 bumpApplied=0 bumpAppliedRanges=0 selfillumState=unavailable selfillumDeclared=0 selfillumParsed=0 selfillumUploaded=0 selfillumApplied=0 selfillumAppliedRanges=0 selfillumMaskDeclared=0 selfillumMaskBound=0
+532.6 gpu: viewmodel effects-texture phongFallback=0 bumpFallback=0 selfillumFallback=0 bumpTextureResolved=0 bumpTextureUploaded=0 bumpTextureReused=0 bumpUploads=0
+532.6 gpu: viewmodel effects-switch selfillumForce=0 phongSwitch=material bumpSwitch=material selfillumSwitch=material texturesUploaded=0 texturesReused=0
+532.6 gpu: viewmodel effects-reason phong=the viewmodel pixel shader is not ready bump=the viewmodel pixel shader is not ready selfillum=the viewmodel pixel shader is not ready
+532.7 gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+532.7 gpu: viewmodel frame eye=(1.54,0.00,1.08) forward=(-0.936,0.000,-0.352) placement=(0.00,0.00,0.00)
+532.7 gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0
+532.7 gpu: viewmodel weaponBodyReading armDrawCalls=0 weaponDrawCalls=0 weaponModelIndex=0 weaponModelPath=- weaponMaterials=0/0/0/0 weaponFallback= weaponVisible=0 weaponReason=the pass did not draw weaponEntity=-1 weaponClass=- weaponMeshRadius=0.00 weaponVertices=0 weaponClip=(0.000,0.000,0.000,0.000) weaponMaterialsFailure=-
+532.7 draw: end frames=1 pending=0
+532.7 loop n=3 tick=0
+532.7 metrics t=0.03 tick=0 iter=3
+532.7 viewModelPath=models/weapons/v_models/v_fixture_noanchor.mdl resourceStatus=incomplete(mdl=1,vvd=1,vtx=1,mesh=0) attachmentStatus=ok(valid=1,partial=0,invalid=0,total=1) sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the viewmodel request produced no mesh
+532.8 gpu: viewmodel materialReadings passRan=0 materialSlots=0 materialResolved=0 texturesUploaded=0 texturesReused=0 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=0 phongAppliedRanges=0 bumpSlots=0 bumpAppliedRanges=0 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=0 drawRanges=0 fallbackRanges=0 boundSlots=0 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+532.8 gpu: viewmodel effects slot=-1 parsed=0 phongState=unavailable phongDeclared=0 phongParsed=0 phongUploaded=0 phongApplied=0 phongAppliedRanges=0 phongExponent=5.000 phongBoost=1.000 phongFresnel=0.000..0.400 bumpState=unavailable bumpDeclared=0 bumpParsed=0 bumpUploaded=0 bumpApplied=0 bumpAppliedRanges=0 selfillumState=unavailable selfillumDeclared=0 selfillumParsed=0 selfillumUploaded=0 selfillumApplied=0 selfillumAppliedRanges=0 selfillumMaskDeclared=0 selfillumMaskBound=0
+532.8 gpu: viewmodel effects-texture phongFallback=0 bumpFallback=0 selfillumFallback=0 bumpTextureResolved=0 bumpTextureUploaded=0 bumpTextureReused=0 bumpUploads=0
+532.8 gpu: viewmodel effects-switch selfillumForce=0 phongSwitch=material bumpSwitch=material selfillumSwitch=material texturesUploaded=0 texturesReused=0
+532.8 gpu: viewmodel effects-reason phong=the viewmodel pixel shader is not ready bump=the viewmodel pixel shader is not ready selfillum=the viewmodel pixel shader is not ready
+532.8 gpu: viewmodel pass order worldPass=1 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=0 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=0.00 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=- entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1
+532.8 gpu: viewmodel frame eye=(1.54,0.00,1.08) forward=(-0.936,0.000,-0.352) placement=(0.00,0.00,0.00)
+532.8 gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0
+532.8 gpu: viewmodel weaponBodyReading armDrawCalls=0 weaponDrawCalls=0 weaponModelIndex=0 weaponModelPath=- weaponMaterials=0/0/0/0 weaponFallback= weaponVisible=0 weaponReason=the pass did not draw weaponEntity=-1 weaponClass=- weaponMeshRadius=0.00 weaponVertices=0 weaponClip=(0.000,0.000,0.000,0.000) weaponMaterialsFailure=-
+532.8 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=1 capture_written=1 metrics_written=1 exit=0
+532.8 audio: summary soundEventsRead=0 soundEventsScheduled=0 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=0 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=0
+532.8 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=0 freezeFrames=0

@@ -1,0 +1,44 @@
+T2 world visual acceptance -- inputs and identities (2026-10-15)
+================================================================
+
+Repository / commit
+  repo            D:/TF2_Native_Test (git@github.com:elo6371/tf2-demo-player-native.git)
+  base commit     917b0122376419ae0a9de5be35d932a9fa487be3   (p0-entity-protocol)
+  branch          task/world-material-visual
+  worktree        D:/TF2_Native_Worktrees/world-material-visual
+  OS              Windows, MSVC 19.44.35.2xx toolchain via env-msvc.sh
+
+Demo (primary, all committed frames)
+  path    D:/TF2_Demo_Player/testdata/demos/
+          bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+  bytes   51834617
+  sha256  308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f
+
+Map
+  path    D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/cp_snakewater_final1.bsp
+  bytes   59590420
+  sha256  f09d406d2bbe397c8f9df9ca17f11b36b53d40fcf57e3f1532ec9af811b2a1eb
+  note    install-dependent input; the gates pin readings that hold for this
+          install and go red on a changed one by design
+
+Demo (supplementary POV, live ticks)
+  path    D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-16_17-16-17.dem
+  bytes   20861793
+  sha256  5f9344d5206e4aa73db003220c2c3d4ffa556cf764a25e3bbc2e11d4589d39c5
+  note    the Steam demos directory is a live corpus (files rotate); the hash is
+          the identity, not the path
+
+Product and probes (built in the worktree; see exe-identity.txt for the hashes
+recorded after the final build)
+  native/build-nmake/tf2_demo_native.exe
+  native/build-nmake/world_material_probe.exe
+  native/build-nmake/viewmodel_material_probe.exe
+
+Tooling
+  python  C:/Users/Administrator/.workbuddy/binaries/python/versions/3.13.12/python.exe
+  frame comparisons: bmp-pixel-diff.py (committed), bmp-diff-bbox.py (committed
+          this round), bmp-to-png.py (committed this round)
+  TF2_NATIVE_TRACE is set per run to a RUN_TAG'd path under .scratch/t2-visual/
+
+Every product launch in this round: --hidden-window --audio-disabled.
+Mutations ran with no other build or mutation active (checked before and after).

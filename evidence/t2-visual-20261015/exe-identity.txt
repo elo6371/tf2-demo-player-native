@@ -1,0 +1,16 @@
+T2 world visual acceptance -- product/probe identity at the delivered tree
+=========================================================================
+recorded 2026-10-15 23:39 (+08), after the final rebuild
+(evidence/t2-visual-20261015/logs/build.log, rc=0)
+
+771b17174e6c089df9ddb8dd45a461920678994132ce11839592b14d3de2f77e  native/build-nmake/tf2_demo_native.exe   1561088 bytes
+280b2e52fe136488936821ea9496a8bb5a34e582355fd8350e7137a922c8e792  native/build-nmake/world_material_probe.exe   712704 bytes
+da92d2e723c14ee139b757bc4caf0938e3f23c81bc065181bda72e4555b4973b  native/build-nmake/viewmodel_material_probe.exe   568320 bytes
+
+note: MSVC rebuilds are not byte-reproducible on this machine (measured and
+recorded by the T2-effects round: three binaries from byte-identical source,
+same size, different hashes). tf2_demo_native.exe was rebuilt once more by the
+mutation cycle's restore build, so its hash here differs from the one the
+forward runs used (`73c65b9b...`, recorded before the mutation cycle; both are
+1,561,088 bytes). The identity anchor is the source commit (inputs.txt), not
+these hashes.

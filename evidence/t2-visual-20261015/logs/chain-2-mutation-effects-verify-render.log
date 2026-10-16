@@ -1,0 +1,301 @@
+=== STEP 3: wm mutation 22:27:47 ===
+=== 1/8 the probe's self-tests pass ===
+  OK   selfTest = true
+  OK   capabilitySelfTest = true
+  OK   cubeAxes = true
+  OK   cubeZeroRefused = true
+  OK   cubeSamplePath = true
+  OK   emptyBspAllUnavailable = true
+  OK   worldDrawSelfTest = true
+  OK   skyBoxVertices = true
+  OK   skyBoxPlanes = true
+  OK   skyBoxUvs = true
+  OK   skyPartialFallback = true
+  OK   skyNoSidesReason = true
+  OK   skyDisabledReason = true
+  OK   visClipHides = true
+  OK   visClipIndices = true
+  OK   visClipFollowsCamera = true
+  OK   visClipDisabled = true
+  OK   visClipNeedsCamera = true
+  OK   visClipWithoutPvs = true
+  OK   atlasFitsAt2048 = true
+  OK   atlasGrowsWhenFull = true
+
+=== 2/8 every synthetic fixture passes ===
+  OK   fixtures = 9
+  OK   fixture checks = 90
+  OK   fixture failures = 0
+
+=== 3/8 every fixture mutation moves its reading ===
+  OK   mutations executed = 7
+  OK   mutation failures = 0
+  OK   total failures with mutations = 0
+  OK   assertions with mutations = 120
+
+=== 4/8 the real map's six capabilities, pinned ===
+  OK   lightmap state = active
+  OK   lightmap faces = 11527
+  OK   lightmap packed = 11527
+  OK   lightmap dropped = 0
+  OK   lightmap triangles = 199922
+  OK   lightmap atlas = 4096x1156
+  OK   lightmap atlas cap = 4096
+  OK   lightmap atlas grew = true
+  OK   lightmap atlas reason = all 11527 faces fit the 4096-wide atlas
+  OK   lightmap uv in range = true
+  OK   cubemap state = active
+  OK   cubemap samples = 33
+  OK   cubemap complete = 33
+  OK   cubemap faces decoded = 198
+  OK   cubemap from pakfile = 33
+  OK   cubemap first path = materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf
+  OK   cubemap faces in file = 7
+  OK   cubemap declared faces = 6
+  OK   cubemap beyond six = 33
+  OK   cubemap face means = 62,45,56,58,51,54
+  OK   cubemap face checksums = 300ee24d,c9beee88,ed1d429a,02bc6fd5,5ecd73ed,ed94acc3
+  OK   sky state = active
+  OK   sky name = sky_well_01
+  OK   sky vmts found = 6
+  OK   sky textures resolved = 6
+  OK   sky textures decoded = 6
+  OK   sky largest face = 512x256
+  OK   sky smallest face = 1x1
+  OK   sky decoded bytes = 3145732
+  OK   displacement faces = 1316
+  OK   displacement triangles = 165376
+  OK   displacement corners = 1316
+  OK   water faces = 18
+  OK   water triangles = 36
+  OK   vis mode = cluster-pvs
+  OK   vis clusters = 2940
+  OK   vis visible from 0 = 384
+
+=== 5/8 the negative control: no BSP, so nothing is available ===
+  OK   koth_bagel_rc13.bsp is not installed here, so the run reads an empty map
+  OK   bagel lightmap = unavailable
+  OK   bagel cubemap = unavailable
+  OK   bagel sky = unavailable
+  OK   bagel displacement = unavailable
+  OK   bagel water = unavailable
+  OK   bagel vis = unavailable
+  OK   bagel lightmap reason = the bsp declares no lightmap faces
+
+=== 6/8 the render side lights what the parse side measured ===
+product run rc=0 trace=6263
+  OK   product run rc = 0
+  OK   render lightmap status = active
+  OK   render atlas bound = 1
+  OK   render vertices = 600000
+  OK   render lightmapped = 3 x parse triangles = 599766
+  OK   render displaced = parse displacement triangles = 165376
+  OK   render water = parse water triangles = 36
+  OK   render vis camera cluster = 2287
+  OK   render vis visible from camera = 585
+  OK   render vis clustered triangles = 34517
+  OK   render vis hidden triangles = 29756
+  OK   render vis clip applied = 1
+  OK   render vis clip state = active
+  OK   render vis input triangles = 200000
+  OK   render vis drawn triangles = 170244
+  OK   render vis drawn + hidden = input (170244 + 29756 = 200000)
+  OK   render sky state = active
+  OK   render sky vertices = 36
+  OK   render sky triangles = 12
+  OK   render sky faces = 6
+  OK   render sky draws = 1
+  OK   render sky cube side = 512
+  OK   render lightmapped < vertices (599766 < 600000)
+=== 7/8 the product builds the map's cubemap and the env pass selects it ===
+  OK   cubemap run rc = 0
+  OK   cubemap forced run rc = 0
+  OK   cubemap status = six-face
+  OK   cubemap faces = 6
+  OK   cubemap size = 32
+  OK   cubemap source = materials/maps/2koth_abbey/c1316_-1018_238.vtf
+  OK   cubemap reason = all
+  OK   cubemap plain mode = 0
+  OK   cubemap plain declared = 0
+  OK   cubemap forced mode = 2
+  OK   cubemap forced declared = 1
+  OK   the forced env mode moved the frame (45468 bytes differ)
+
+=== 8/8 the two switches, off: the sky is not drawn and the clip does not run ===
+  OK   switches-off run rc = 0
+  OK   sky off state = unavailable
+  OK   sky off vertices = 0
+  OK   sky off draws = 0
+  OK   sky off reason names the caller's switch
+  OK   clip off state = disabled
+  OK   clip off applied = 0
+  OK   clip off drawn = uploaded = 200000
+  OK   the clip changes the geometry the world pass is given (170244 < 200000)
+
+=== mutation: wrong expectations first, then two product mutations ===
+  MUTATION-CAUGHT=PASS (sky_draw_deleted: draws=0 while the state still reads active)
+  MUTATION-CAUGHT=PASS (vis_clip_deleted: clipApplied=0, drawn=200000 = the whole buffer)
+MUTATION-CAUGHT=PASS (six wrong expectations, the deleted sky draw and the
+  deleted pvs clip each go red; both sources came back byte-identical)
+wm_mut_rc=0
+
+=== STEP 4: effects forward 22:34:41 ===
+=== 1/6 the probe's self-tests, including the water warp's properties ===
+  OK   selfTest = true
+  OK   capabilitySelfTest = true
+  OK   worldDrawSelfTest = true
+  OK   waterSelfTest = true
+  OK   warp bounded = true
+  OK   warp finite = true
+  OK   warp NaN input = true
+  OK   warp NaN amplitude = true
+  OK   warp negative amplitude = true
+  OK   warp repeatable = true
+  OK   warp moves with phase = true
+  OK   zero amplitude is identity = true
+  OK   warp max delta = 0.02 (inside the 0.02 bound and not zero)
+  OK   waterOffState = true
+  OK   waterEmptyState = true
+  OK   waterPartialState = true
+  OK   waterFallbackState = true
+  OK   waterActiveState = true
+  OK   waterParams = true
+  OK   waterParamsBad = true
+
+=== 2/6 the water fixtures, and the water draw on the real map ===
+  OK   water fixtures = 6
+  OK   water fixture checks = 42
+  OK   water fixture failures = 0
+  OK   capability fixtures = 9
+  OK   capability fixture failures = 0
+  OK   water faces = 18
+  OK   water triangles = 36
+
+=== 3/6 the effect readers, positive and negative, with their mutations ===
+  OK   effect fixtures = 14
+  OK   effect fixture checks = 111
+  OK   effect fixture failures = 0
+  OK   effect mutations executed = 14
+  OK   effect mutations not moving a reading = 0
+  OK   effect checks with mutations = 125
+  OK   effect failures with mutations = 0
+
+=== 4/6 the water surface: off != on, on == repeat ===
+  OK   water off run rc = 0
+  OK   water on run rc = 0
+  OK   water repeat run rc = 0
+  OK   water off state = unavailable
+  OK   water off draws = 0
+  OK   water off visible = 0
+  OK   water on state = active
+  OK   water on draws = 1
+  OK   water on visible = 1
+  OK   water on warp applied = 1
+  OK   water on texture bound = 1
+  OK   water on faces = 18
+  OK   water on triangles = 36
+  OK   water reflection = unavailable
+  OK   water refraction = unavailable
+  water off-vs-on differing bytes: 5571
+  OK   water-off != water-on (5571 bytes differ)
+  OK   water on == water repeat = 0
+
+=== 5/6 the ViewModel effects: declared AND applied, and each moves the frame ===
+  OK   viewmodel natural run rc = 0
+  OK   effects slot = 0
+  OK   phong state = active
+  OK   phong declared = 1
+  OK   phong parsed = 1
+  OK   phong uploaded = 1
+  OK   phong applied = 1
+  OK   phong applied ranges = 1
+  OK   phong fallback = 0
+  OK   phong switch is the material's = material
+  OK   bump switch is the material's = material
+  OK   selfillum switch is the material's = material
+  OK   selfillum force named = 0
+  OK   bump state = active
+  OK   bump declared = 1
+  OK   bump parsed = 1
+  OK   bump uploaded = 1
+  OK   bump applied = 1
+  OK   bump applied ranges = 1
+  OK   bump fallback = 0
+  OK   bump texture resolved = 1
+  OK   bump texture uploaded = 1
+  OK   bump texture reused = 1
+  OK   bump texture uploads = 1
+  OK   selfillum state (natural) = unavailable
+  OK   selfillum declared (natural) = 0
+  OK   selfillum applied (natural) = 0
+  OK   selfillum state (forced) = active
+  OK   selfillum declared (forced) = 1
+  OK   selfillum applied (forced) = 1
+  OK   selfillum applied ranges (forced) = 1
+  OK   selfillum force named (forced run) = 1
+  OK   selfillum switch forced off = off
+  OK   selfillum state (forced then off) = declared
+  OK   selfillum applied (forced then off) = 0
+  phong  off-vs-on: 5250 bytes
+  bump   off-vs-on: 12518 bytes
+  selfillum off-vs-on: 35646 bytes
+  selfillum forced-then-off vs natural: 0 bytes
+  OK   phong-off != phong-on (5250 bytes differ)
+  OK   bump-off != bump-on (12518 bytes differ)
+  OK   selfillum-off != selfillum-on (35646 bytes differ)
+  OK   selfillum force off == natural = 0
+  OK   viewmodel natural == repeat = 0
+
+=== 6/6 T1 did not regress: the skybox and the pvs clip, re-run unchanged ===
+  OK   sky state = active
+  OK   sky vertices = 36
+  OK   sky triangles = 12
+  OK   sky faces = 6
+  OK   sky draws = 1
+  OK   vis clip applied = 1
+  OK   vis input triangles = 200000
+  OK   vis drawn triangles = 170244
+  OK   vis hidden triangles = 29756
+  OK   vis drawn + hidden = input (170244 + 29756 = 200000)
+
+
+WORLD-MATERIAL-EFFECTS=PASS
+wme_rc=0
+
+=== STEP 5: verify-render 22:42:26 ===
+=== 1/4 incremental build ===
+=== build tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe viewmodel_animation_probe ===
+rc=0
+build_rc=0
+
+=== 2/4 the gates ===
+  OK   resource-reachability  RESOURCE-REACHABILITY=PASS
+  OK   frame-capture          FRAME-CAPTURE=PASS
+  OK   entity-material        ENTITY-MATERIAL=PASS
+  OK   weapon-animation       WEAPON-ANIMATION=PASS
+  OK   viewmodel-contract     VIEWMODEL-CONTRACT=PASS
+  OK   viewmodel-animation    VIEWMODEL-ANIMATION=PASS
+  OK   viewmodel-companion    VIEWMODEL-COMPANION=PASS
+
+=== 3/4 the material chain's synthetic layer ===
+  OK   an empty VTF is rejected
+  OK   a corrupt VTF is rejected
+  OK   a >64 MB VTF is rejected before allocation
+  OK   a cubemap is refused by the 2d decode path
+  OK   a depth-6 cubemap header parses
+  OK   cubemap face data is ordered
+  OK   an empty BSP is rejected
+  OK   no-lighting is the default
+  OK   VMT shader features map
+  OK   water shader features map
+  OK   cubemap mode is the honest 2d approximation
+  OK   lightmap mode is documented as an average
+  ->   material-chain         12/12 synthetic keys held
+
+=== 4/4 the committed evidence tree must be untouched ===
+  OK   evidence-tree          nothing under evidence/ moved (tier output stayed in evidence/t2-visual-20261015/verify-render)
+
+gates_ok=9 gates_bad=0
+VERIFY-RENDER=PASS (9/9 gates, mutation=0)
+vr_rc=0
+CHAIN2_DONE

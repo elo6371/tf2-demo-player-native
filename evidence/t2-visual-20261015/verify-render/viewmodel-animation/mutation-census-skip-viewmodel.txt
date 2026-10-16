@@ -1,0 +1,12 @@
+vmfield class=CTFViewModel id=320 sequence=1 cycle=0 rate=1 pose=1
+vmfield class=CBaseViewModel id=18 sequence=1 cycle=0 rate=1 pose=1
+vmfield class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0
+vmfield-summary classesWithSequence=197 classesWithCycle=195 classesWithRate=197 targetClasses=3 targetClassesFound=3
+vmcensus class=CTFViewModel id=320 entities=0 ticks=101
+vmcensus class=CBaseViewModel id=18 entities=0 ticks=101
+vmcensus class=CTFPlayer id=247 entities=24 ticks=101
+vmcensus-summary ticksQueried=140 ticksWithSnapshot=101 classesSeen=119 entitiesSeen=2100
+vmlocal setViewCount=1 viewEntity=18 viewModelObservations=0 ownedByViewEntity=0 entitiesOwnedByViewEntity=0
+vmanim-summary observations=0 changes=0 series=0 entities=0 distinctSequences=0 minSequence=0 maxSequence=0 distinctRates=0 modelPaths=0 vStarModels=0
+vmmapping-summary drawnModel=models/weapons/v_models/v_scattergun_scout.mdl drawnSequenceCount=7 observations=0 inRange=0 outOfRange=0 entityModelMatchesDrawn=0 indexSpace=mismatch
+vmselfsum observations=0 measured=0 unmeasured=0 inRange=0 outOfRange=0 modelsQueried=0

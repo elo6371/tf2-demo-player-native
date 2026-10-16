@@ -1,0 +1,56 @@
+model-textures path=models/player/scout.mdl declared=17 read=17
+model-cdtextures count=2 [models/player/scout/] []
+  texture[0] models/player/scout/scout_red
+  texture[1] models/player/scout/scout_head_red
+  texture[2] models/player/scout/eyeball_l
+  texture[3] models/player/scout/eyeball_r
+  texture[4] models/player/scout/scout_blue
+  texture[5] models/player/scout/scout_head_blue
+  texture[6] models/player/scout/scout_red_invun
+  texture[7] models/player/scout/scout_head_red_invun
+  texture[8] models/player/scout/eyeball_invun
+  texture[9] models/player/scout/scout_blue_invun
+  texture[10] models/player/scout/scout_head_blue_invun
+  texture[11] models/player/scout/scout_red_zombie_alphatest
+  texture[12] models/player/scout/scout_head_zombie
+  texture[13] models/player/scout/eyeball_zombie
+  texture[14] models/player/scout/scout_blue_zombie_alphatest
+  texture[15] models/player/scout/scout_red_invun_zombie
+  texture[16] models/player/scout/scout_blue_invun_zombie
+  texture-candidates[0] [models/player/scout/scout_red]
+  texture-candidates[1] [models/player/scout/scout_head_red]
+  texture-candidates[2] [models/player/scout/eyeball_l]
+  texture-candidates[3] [models/player/scout/eyeball_r]
+  texture-candidates[4] [models/player/scout/scout_blue]
+  texture-candidates[5] [models/player/scout/scout_head_blue]
+  texture-candidates[6] [models/player/scout/scout_red_invun]
+  texture-candidates[7] [models/player/scout/scout_head_red_invun]
+  texture-candidates[8] [models/player/scout/eyeball_invun]
+  texture-candidates[9] [models/player/scout/scout_blue_invun]
+  texture-candidates[10] [models/player/scout/scout_head_blue_invun]
+  texture-candidates[11] [models/player/scout/scout_red_zombie_alphatest]
+  texture-candidates[12] [models/player/scout/scout_head_zombie]
+  texture-candidates[13] [models/player/scout/eyeball_zombie]
+  texture-candidates[14] [models/player/scout/scout_blue_zombie_alphatest]
+  texture-candidates[15] [models/player/scout/scout_red_invun_zombie]
+  texture-candidates[16] [models/player/scout/scout_blue_invun_zombie]
+model-material name=models/player/scout/scout_red vmt=materials/models/player/scout/scout_red.vmt vmtBytes=1224 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_red vtf=materials/models/player/scout/scout_red.vtf vtfBytes=1398296 size=2048x1024 decodedBytes=8388608 complete=1
+model-material name=models/player/scout/scout_head_red vmt=materials/models/player/scout/scout_head_red.vmt vmtBytes=1334 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_head vtf=materials/models/player/scout/scout_head.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/scout/eyeball_l vmt=materials/models/player/scout/eyeball_l.vmt vmtBytes=1498 parsed=1 complete=0
+model-material name=models/player/scout/eyeball_r vmt=materials/models/player/scout/eyeball_r.vmt vmtBytes=1498 parsed=1 complete=0
+model-material name=models/player/scout/scout_blue vmt=materials/models/player/scout/scout_blue.vmt vmtBytes=1225 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_blue vtf=materials/models/player/scout/scout_blue.vtf vtfBytes=1398296 size=2048x1024 decodedBytes=8388608 complete=1
+model-material name=models/player/scout/scout_head_blue vmt=materials/models/player/scout/scout_head_blue.vmt vmtBytes=1332 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_head vtf=materials/models/player/scout/scout_head.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/scout/scout_red_invun vmt=materials/models/player/scout/scout_red_invun.vmt vmtBytes=2635 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_red_invun vtf=materials/models/player/scout/scout_red_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/player/scout/scout_head_red_invun vmt=materials/models/player/scout/scout_head_red_invun.vmt vmtBytes=2671 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_head_red_invun vtf=materials/models/player/scout/scout_head_red_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/player/scout/eyeball_invun vmt=materials/models/player/scout/eyeball_invun.vmt vmtBytes=416 parsed=1 shader=VertexLitGeneric base=models/player/shared/eyeball_invun vtf=materials/models/player/shared/eyeball_invun.vtf vtfBytes=1552 size=64x32 decodedBytes=8192 complete=1
+model-material name=models/player/scout/scout_blue_invun vmt=materials/models/player/scout/scout_blue_invun.vmt vmtBytes=2637 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_blue_invun vtf=materials/models/player/scout/scout_blue_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/player/scout/scout_head_blue_invun vmt=materials/models/player/scout/scout_head_blue_invun.vmt vmtBytes=2642 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_head_blue_invun vtf=materials/models/player/scout/scout_head_blue_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/player/scout/scout_red_zombie_alphatest vmt=materials/models/player/scout/scout_red_zombie_alphatest.vmt vmtBytes=1272 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_red_zombie vtf=materials/models/player/scout/scout_red_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material name=models/player/scout/scout_head_zombie vmt=materials/models/player/scout/scout_head_zombie.vmt vmtBytes=1344 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_head_zombie vtf=materials/models/player/scout/scout_head_zombie.vtf vtfBytes=699296 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/scout/eyeball_zombie vmt=materials/models/player/scout/eyeball_zombie.vmt vmtBytes=416 parsed=1 shader=VertexLitGeneric base=models/player/shared/eyeball_invun vtf=materials/models/player/shared/eyeball_invun.vtf vtfBytes=1552 size=64x32 decodedBytes=8192 complete=1
+model-material name=models/player/scout/scout_blue_zombie_alphatest vmt=materials/models/player/scout/scout_blue_zombie_alphatest.vmt vmtBytes=1270 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_blue_zombie vtf=materials/models/player/scout/scout_blue_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material name=models/player/scout/scout_red_invun_zombie vmt=materials/models/player/scout/scout_red_invun_zombie.vmt vmtBytes=2661 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_red_zombie vtf=materials/models/player/scout/scout_red_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material name=models/player/scout/scout_blue_invun_zombie vmt=materials/models/player/scout/scout_blue_invun_zombie.vmt vmtBytes=2663 parsed=1 shader=VertexLitGeneric base=models/player/scout/scout_blue_zombie vtf=materials/models/player/scout/scout_blue_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material summary slots=17 resolved=15
+model-header words offset:value 188:306 192:23352 196:0 200:0 204:17 208:589552 212:2 216:590640 220:17 224:8 228:590648 232:5 236:88856 240:29 244:17824 248:0 252:88856 fileBytes=611668
+{"ok":true,"selfTest":false,"uniqueRenderable":4,"vpkRenderable":4,"inspections":3,"inspectionCacheHits":1,"scoutVertices":12000,"scoutChecksum":1098120898,"scoutKey":"models/player/scout.mdl#1098120898","duplicateStable":true,"instanceCount":6,"playerFallbacks":1}

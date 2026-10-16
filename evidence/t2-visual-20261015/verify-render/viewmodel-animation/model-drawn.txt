@@ -1,0 +1,1 @@
+modelseq path=models/weapons/v_models/v_scattergun_scout.mdl resolution=3 readable=1 sequences=7 bones=45 reason=- animated=7 multiFrame=6 maxFrames=57 firstAnimated=0 binding=ok

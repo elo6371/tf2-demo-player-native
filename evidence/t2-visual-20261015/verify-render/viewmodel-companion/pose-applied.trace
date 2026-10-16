@@ -1,0 +1,156 @@
+0.0 trace open
+29229.9 audio: timeline firstPacketTick=29368 soundOriginTick=0 originFound=1 read=5563 scheduled=5323 unresolved=240 unplaceable=0 refused=0 kinds=w888/f2263/u14/o1647/v504/a7/m0
+30220.3 gpu: viewmodel request path=models/weapons/v_models/v_scattergun_scout.mdl status=ok resolution=3 companions=1 meshReady=1 attachments=5 valid=5 partial=0 invalid=0 alignment=weapon_bone fov=90.0 hand=right reason=-
+30220.4 gpu: reload begin
+30251.1 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+30298.6 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+30298.8 gpu: world lightmap status=active intensity=0.898 atlas=1 bump=0 env=0 vertices=298836 lightmapped=297390
+30298.8 gpu: world geometry displacedTriangles=47232 waterTriangles=300
+30298.8 gpu: world cubemap status=six-face mode=0 preset=performance declared=0 faces=6 size=32 source=materials/maps/pl_odyssey/c592_880_-256.vtf reason=all six faces decoded
+30300.2 gpu: model 0/64 512x512 1.4ms uploaded=1
+30301.2 gpu: model 1/64 256x256 0.9ms uploaded=1
+30306.0 gpu: model 2/64 1024x1024 4.8ms uploaded=1
+30315.0 gpu: model 3/64 1024x1024 8.8ms uploaded=1
+30350.4 gpu: model 4/64 2048x2048 35.1ms uploaded=1
+30359.5 gpu: model 5/64 1024x1024 8.2ms uploaded=1
+30368.0 gpu: model 6/64 1024x1024 8.3ms uploaded=1
+30384.2 gpu: model 7/64 1024x1024 16.0ms uploaded=1
+30386.1 gpu: model 8/64 512x512 1.7ms uploaded=1
+30388.0 gpu: model 9/64 512x512 1.7ms uploaded=1
+30392.4 gpu: model 10/64 1024x512 4.3ms uploaded=1
+30424.7 gpu: model 11/64 2048x2048 32.1ms uploaded=1
+30458.9 gpu: model 12/64 2048x2048 33.3ms uploaded=1
+30498.9 gpu: model 13/64 2048x2048 39.2ms uploaded=1
+30502.5 gpu: model 14/64 512x512 2.7ms uploaded=1
+30504.9 gpu: model 15/64 512x512 2.3ms uploaded=1
+30513.0 gpu: model 16/64 1024x1024 8.1ms uploaded=1
+30530.3 gpu: model 17/64 2048x1024 17.0ms uploaded=1
+30531.8 gpu: model 18/64 256x256 1.1ms uploaded=1
+30540.0 gpu: model 19/64 1024x1024 8.1ms uploaded=1
+30573.0 gpu: model 20/64 2048x2048 32.8ms uploaded=1
+30577.4 gpu: model 21/64 1024x1024 3.7ms uploaded=1
+30580.6 gpu: model 22/64 512x512 2.8ms uploaded=1
+30588.1 gpu: model 23/64 1024x1024 7.4ms uploaded=1
+30620.3 gpu: model 24/64 2048x2048 32.0ms uploaded=1
+30625.5 gpu: model 25/64 1024x1024 4.4ms uploaded=1
+30657.8 gpu: model 26/64 2048x2048 32.1ms uploaded=1
+30692.0 gpu: model 27/64 2048x2048 33.4ms uploaded=1
+30726.0 gpu: model 28/64 2048x2048 33.1ms uploaded=1
+30761.6 gpu: model 29/64 2048x2048 34.8ms uploaded=1
+30795.9 gpu: model 30/64 2048x2048 33.7ms uploaded=1
+30805.7 gpu: model 31/64 2048x1024 9.2ms uploaded=1
+30807.6 gpu: model 32/64 512x512 1.5ms uploaded=1
+30839.3 gpu: model 33/64 1024x1024 31.7ms uploaded=1
+30848.0 gpu: model 34/64 1024x1024 8.5ms uploaded=1
+30879.8 gpu: model 35/64 2048x2048 31.5ms uploaded=1
+30889.4 gpu: model 36/64 1024x1024 8.8ms uploaded=1
+30898.9 gpu: model 37/64 1024x1024 9.2ms uploaded=1
+30916.2 gpu: model 38/64 2048x2048 17.1ms uploaded=1
+30957.4 gpu: model 39/64 2048x2048 40.4ms uploaded=1
+30966.5 gpu: model 40/64 1024x1024 8.4ms uploaded=1
+30975.1 gpu: model 41/64 1024x1024 8.1ms uploaded=1
+31006.9 gpu: model 42/64 2048x2048 31.5ms uploaded=1
+31010.0 gpu: model 43/64 1024x512 2.3ms uploaded=1
+31014.5 gpu: model 44/64 1024x1024 4.4ms uploaded=1
+31017.2 gpu: model 45/64 512x512 2.4ms uploaded=1
+31019.6 gpu: model 46/64 512x512 2.3ms uploaded=1
+31051.4 gpu: model 47/64 1024x1024 31.7ms uploaded=1
+31060.0 gpu: model 48/64 1024x1024 8.4ms uploaded=1
+31060.7 gpu: model 49/64 128x128 0.5ms uploaded=1
+31063.5 gpu: model 50/64 512x512 2.7ms uploaded=1
+31096.2 gpu: model 51/64 2048x2048 32.7ms uploaded=1
+31098.6 gpu: model 52/64 512x512 1.6ms uploaded=1
+31103.1 gpu: model 53/64 1024x1024 4.4ms uploaded=1
+31111.9 gpu: model 54/64 1024x1024 8.5ms uploaded=1
+31121.3 gpu: model 55/64 1024x1024 9.2ms uploaded=1
+31154.4 gpu: model 56/64 2048x2048 32.8ms uploaded=1
+31159.9 gpu: model 57/64 1024x512 4.5ms uploaded=1
+31162.9 gpu: model 58/64 512x512 2.8ms uploaded=1
+31167.1 gpu: model 59/64 1024x512 4.1ms uploaded=1
+31200.8 gpu: model 60/64 2048x2048 33.6ms uploaded=1
+31209.5 gpu: model 61/64 1024x1024 8.0ms uploaded=1
+31218.6 gpu: model 62/64 1024x1024 8.8ms uploaded=1
+31220.2 gpu: model 63/64 512x512 1.5ms uploaded=1
+31220.3 gpu: models done 64 uploaded=64
+31239.8 gpu: viewmodel materials path=models/weapons/v_models/v_scattergun_scout.mdl slots=3 resolved=3 decoded=3 decodeFailed=0 uploadSlot=0 uploads=1 cache=1 drawnSlot=0 source=mdl-mesh-table meshTable=1 meshStride=116 meshStrideExercised=1 meshCount=2 descriptorsValidated=2 strideSource=unexercised reason=-
+31240.8 gpu: viewmodel ranges path=models/weapons/v_models/v_scattergun_scout.mdl ranges=1 firstRange=(slot 0, 9723 vertices, textured=1 translucent=0 alphatest=0) uploaded=1
+31240.8 gpu: viewmodel upload mesh=1 vertices=9723 bones=45 alignment=weapon_bone enabled=1 reason=-
+31240.8 gpu: reload end
+31273.1 mode: window_created=1 window_visible=1 hidden=0 audio_mode=device
+31273.7 loop n=1 tick=0
+36312.9 audio: advance tick=0 cursor=0 seen=746 played=429 skippedVoice=34 missing=283 dup=0
+36312.9 scene: begin tick=0 sceneTick=29368
+36321.5 scene: snapshot status=1 stale=106 states=2048
+36321.5 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0
+36321.5 scene: observer done
+36321.6 scene: hud fxDue=1198 drawable=1
+36323.4 scene: buildInstances=256
+36386.3 scene: setInstances draws=94 markers=32
+36386.8 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=4/0 tick=29262 status=ok reason=idle
+36386.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+36386.8 scene: instances set
+36612.3 gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+36828.5 gpu: viewmodel weaponBody model=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl class=CTFSniperRifle entity=1008 worldModelIndex=533 path=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl status=ok meshReady=1 sequences=1 bones=1 vertices=12357 materials=2/2/2/2 attachment=- reason=-
+36828.8 scene: weaponBody entity=1008 class=CTFSniperRifle worldModelIndex=533 path=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1 named=1 present=1 refusals=none:1
+36834.6 gpu: viewmodel materials path=models/weapons/c_models/c_sniper_arms.mdl slots=3 resolved=3 decoded=3 decodeFailed=0 uploadSlot=0 uploads=1 cache=2 drawnSlot=0 source=mdl-mesh-table meshTable=1 meshStride=116 meshStrideExercised=1 meshCount=2 descriptorsValidated=2 strideSource=unexercised reason=-
+36836.6 gpu: viewmodel ranges path=models/weapons/c_models/c_sniper_arms.mdl ranges=1 firstRange=(slot 0, 600 vertices, textured=1 translucent=0 alphatest=0) uploaded=1
+36837.8 scene: vmAnim entity=1077 sequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=0/1 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=0
+36837.8 scene: vmAnim summary observations=1 entities=1 sequences=1 cycles=0 ok=1 applied=1 outOfRange=0 boneMismatch=0 missing=0 changes=0 range=29..29 lastEntity=1077 lastStatus=ok modelMismatch=0 modelMatches=1 sequenceInRange=1 companionFrames=1 lastDrawnModel=models/weapons/c_models/c_sniper_arms.mdl
+36837.8 scene: done
+36844.6 loop n=2 tick=0
+36902.9 audio: advance tick=16 cursor=16 seen=750 played=433 skippedVoice=34 missing=283 dup=0
+36902.9 scene: begin tick=16 sceneTick=29384
+36908.3 scene: snapshot status=1 stale=122 states=2048
+36908.3 scene: camera mode=first-person target=1 follows=2 holds=0 freeze=0
+36908.3 scene: observer done
+36908.4 scene: hud fxDue=1202 drawable=1
+36910.2 scene: buildInstances=256
+36910.6 scene: setInstances draws=94 markers=32
+36910.7 scene: anim skinned=26 bindPose=68 matrices=77 gpuSkin=26/77 boneMismatch=0 poseChanges=0 targetInstances=6 targetPose=0 advances=0 targetAdv=0 cycle=8/0 tick=29262 status=ok reason=idle
+36910.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+36910.7 scene: instances set
+36910.8 scene: weaponBody entity=1008 class=CTFSniperRifle worldModelIndex=533 path=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=2 named=2 present=2 refusals=none:2
+36910.8 scene: vmAnim entity=1077 sequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=0/1 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=0
+36910.8 scene: vmAnim summary observations=2 entities=2 sequences=2 cycles=0 ok=2 applied=2 outOfRange=0 boneMismatch=0 missing=0 changes=0 range=29..29 lastEntity=1077 lastStatus=ok modelMismatch=0 modelMatches=2 sequenceInRange=2 companionFrames=2 lastDrawnModel=models/weapons/c_models/c_sniper_arms.mdl
+36910.8 scene: done
+36911.2 metrics t=5.57 tick=16 iter=2
+36911.2 viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=the pass never ran
+36911.3 gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=2 texturesReused=0 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=0 bumpSlots=3 bumpAppliedRanges=0 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=1 fallbackRanges=0 boundSlots=0 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+36911.3 gpu: viewmodel effects slot=0 parsed=1 phongState=fallback phongDeclared=1 phongParsed=1 phongUploaded=1 phongApplied=0 phongAppliedRanges=0 phongExponent=20.000 phongBoost=0.300 phongFresnel=0.300..1.000 bumpState=fallback bumpDeclared=1 bumpParsed=1 bumpUploaded=1 bumpApplied=0 bumpAppliedRanges=0 selfillumState=unavailable selfillumDeclared=0 selfillumParsed=0 selfillumUploaded=0 selfillumApplied=0 selfillumAppliedRanges=0 selfillumMaskDeclared=0 selfillumMaskBound=0
+36911.3 gpu: viewmodel effects-texture phongFallback=1 bumpFallback=1 selfillumFallback=0 bumpTextureResolved=1 bumpTextureUploaded=1 bumpTextureReused=0 bumpUploads=1
+36911.3 gpu: viewmodel effects-switch selfillumForce=0 phongSwitch=material bumpSwitch=material selfillumSwitch=material texturesUploaded=2 texturesReused=0
+36911.3 gpu: viewmodel effects-reason phong=the material declares $phong; $phongexponent=20.000000; $phongboost=0.300000; $phongfresnelranges=0.300000..1.000000 (3 components); every present parameter parsed bump=normal map models/player/sniper/sniper_normal named by $bumpmap; no env mask from the normal map's alpha selfillum=the material declares no $selfillum
+36911.3 gpu: viewmodel pass order worldPass=0 viewModelPass=0 afterWorld=0 drawCalls=0 vertices=600 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=58/58 animationInput=ok meshRadius=19.91 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=0 modelMismatch=0 boneMismatch=0 bindPose=0
+36911.3 gpu: viewmodel frame eye=(0.00,0.00,0.00) forward=(0.000,0.000,0.000) placement=(0.00,0.00,0.00)
+36911.3 gpu: viewmodel centre viewSpace=(0.00,0.00,0.00) clip=(0.000,0.000,0.000,0.000) ndc=(0.000,0.000) onScreen=0
+36911.3 gpu: viewmodel weaponBodyReading armDrawCalls=0 weaponDrawCalls=0 weaponModelIndex=533 weaponModelPath=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl weaponMaterials=2/2/2/2 weaponFallback=- weaponVisible=0 weaponReason=the weapon body pass never ran weaponEntity=1008 weaponClass=CTFSniperRifle weaponMeshRadius=27.53 weaponVertices=12357 weaponClip=(0.000,0.000,0.000,0.000) weaponMaterialsFailure=-
+36911.3 draw: begin tick=16 frames=0
+36948.9 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+36948.9 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+36949.0 gpu: world vis cameraCluster=2017 visibleFromCamera=352 clusters=2938 clusteredTriangles=52380 hiddenTriangles=41500 withoutCluster=47232 inputTriangles=99612 drawnTriangles=58112 clipApplied=1 state=active reason=hid 41500 of 99612 triangles from cluster 2017
+36949.0 viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+36949.0 gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=2 texturesReused=1 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=1 bumpSlots=3 bumpAppliedRanges=1 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=1 fallbackRanges=0 boundSlots=1 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+36949.0 gpu: viewmodel effects slot=0 parsed=1 phongState=active phongDeclared=1 phongParsed=1 phongUploaded=1 phongApplied=1 phongAppliedRanges=1 phongExponent=20.000 phongBoost=0.300 phongFresnel=0.300..1.000 bumpState=active bumpDeclared=1 bumpParsed=1 bumpUploaded=1 bumpApplied=1 bumpAppliedRanges=1 selfillumState=unavailable selfillumDeclared=0 selfillumParsed=0 selfillumUploaded=0 selfillumApplied=0 selfillumAppliedRanges=0 selfillumMaskDeclared=0 selfillumMaskBound=0
+36949.0 gpu: viewmodel effects-texture phongFallback=0 bumpFallback=0 selfillumFallback=0 bumpTextureResolved=1 bumpTextureUploaded=1 bumpTextureReused=1 bumpUploads=1
+36949.0 gpu: viewmodel effects-switch selfillumForce=0 phongSwitch=material bumpSwitch=material selfillumSwitch=material texturesUploaded=2 texturesReused=1
+36949.0 gpu: viewmodel effects-reason phong=the material declares $phong; $phongexponent=20.000000; $phongboost=0.300000; $phongfresnelranges=0.300000..1.000000 (3 components); every present parameter parsed bump=normal map models/player/sniper/sniper_normal named by $bumpmap; no env mask from the normal map's alpha selfillum=the material declares no $selfillum
+36949.0 gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=600 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=19.91 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=0 modelMismatch=0 boneMismatch=0 bindPose=0
+36949.1 gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.299,0.942,0.153) placement=(-18.89,39.65,3.02)
+36949.1 gpu: viewmodel centre viewSpace=(5.97,-4.33,43.12) clip=(3.217,-4.328,42.471,43.124) ndc=(0.075,-0.100) onScreen=1
+36949.1 gpu: viewmodel weaponBodyReading armDrawCalls=1 weaponDrawCalls=1 weaponModelIndex=533 weaponModelPath=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl weaponMaterials=2/2/2/2 weaponFallback=- weaponVisible=1 weaponReason=drawn weaponEntity=1008 weaponClass=CTFSniperRifle weaponMeshRadius=27.53 weaponVertices=12357 weaponClip=(3.217,-4.328,42.125,43.124) weaponMaterialsFailure=-
+36949.1 draw: end frames=1 pending=0
+36949.1 loop n=3 tick=16
+36949.1 metrics t=5.68 tick=16 iter=3
+36949.1 viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+36949.1 gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=2 texturesReused=1 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=1 bumpSlots=3 bumpAppliedRanges=1 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=1 fallbackRanges=0 boundSlots=1 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+36949.2 gpu: viewmodel effects slot=0 parsed=1 phongState=active phongDeclared=1 phongParsed=1 phongUploaded=1 phongApplied=1 phongAppliedRanges=1 phongExponent=20.000 phongBoost=0.300 phongFresnel=0.300..1.000 bumpState=active bumpDeclared=1 bumpParsed=1 bumpUploaded=1 bumpApplied=1 bumpAppliedRanges=1 selfillumState=unavailable selfillumDeclared=0 selfillumParsed=0 selfillumUploaded=0 selfillumApplied=0 selfillumAppliedRanges=0 selfillumMaskDeclared=0 selfillumMaskBound=0
+36949.2 gpu: viewmodel effects-texture phongFallback=0 bumpFallback=0 selfillumFallback=0 bumpTextureResolved=1 bumpTextureUploaded=1 bumpTextureReused=1 bumpUploads=1
+36949.2 gpu: viewmodel effects-switch selfillumForce=0 phongSwitch=material bumpSwitch=material selfillumSwitch=material texturesUploaded=2 texturesReused=1
+36949.2 gpu: viewmodel effects-reason phong=the material declares $phong; $phongexponent=20.000000; $phongboost=0.300000; $phongfresnelranges=0.300000..1.000000 (3 components); every present parameter parsed bump=normal map models/player/sniper/sniper_normal named by $bumpmap; no env mask from the normal map's alpha selfillum=the material declares no $selfillum
+36949.2 gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=600 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=19.91 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=0 modelMismatch=0 boneMismatch=0 bindPose=0
+36949.2 gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.299,0.942,0.153) placement=(-18.89,39.65,3.02)
+36949.2 gpu: viewmodel centre viewSpace=(5.97,-4.33,43.12) clip=(3.217,-4.328,42.471,43.124) ndc=(0.075,-0.100) onScreen=1
+36949.2 gpu: viewmodel weaponBodyReading armDrawCalls=1 weaponDrawCalls=1 weaponModelIndex=533 weaponModelPath=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl weaponMaterials=2/2/2/2 weaponFallback=- weaponVisible=1 weaponReason=drawn weaponEntity=1008 weaponClass=CTFSniperRifle weaponMeshRadius=27.53 weaponVertices=12357 weaponClip=(3.217,-4.328,42.125,43.124) weaponMaterialsFailure=-
+36949.2 mode: summary window_created=1 window_visible=1 audio_mode=device audio_device_opened=433 events_seen=750 events_played=433 events_skipped=34 events_missing=283 drawn=1 capture_written=1 metrics_written=1 exit=0
+36949.2 audio: summary soundEventsRead=5563 soundEventsScheduled=5323 soundEventsPlayed=433 soundEventsSkippedVoice=34 soundEventsMissingResource=283 firstPacketTick=29368 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=0
+36949.2 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=2 holdsNoTarget=0 freezeFrames=0

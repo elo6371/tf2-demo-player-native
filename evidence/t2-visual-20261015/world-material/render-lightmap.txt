@@ -1,0 +1,4 @@
+gpu: world lightmap status=active intensity=0.439 atlas=1 bump=0 env=0 vertices=600000 lightmapped=599766
+gpu: world geometry displacedTriangles=165376 waterTriangles=36
+gpu: world vis cameraCluster=2287 visibleFromCamera=585 clusters=2940 clusteredTriangles=34517 hiddenTriangles=29756 withoutCluster=165483 inputTriangles=200000 drawnTriangles=170244 clipApplied=1 state=active reason=hid 29756 of 200000 triangles from cluster 2287
+gpu: world sky state=active vertices=36 triangles=12 faces=6 draws=1 side=512 resampled=1 reason=six sides, 36 vertices

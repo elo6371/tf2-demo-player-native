@@ -1,0 +1,1 @@
+modelseq path=models/weapons/c_models/c_sniper_arms.mdl resolution=3 readable=1 sequences=43 bones=58 reason=- animated=1 multiFrame=0 maxFrames=1 firstAnimated=0 binding=ok

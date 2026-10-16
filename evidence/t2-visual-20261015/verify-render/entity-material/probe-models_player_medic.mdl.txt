@@ -1,0 +1,70 @@
+model-textures path=models/player/medic.mdl declared=21 read=21
+model-cdtextures count=2 [models/player/medic/] [models/player/items/all_class/]
+  texture[0] models/player/medic/medic_red
+  texture[1] models/player/medic/medic_head_red
+  texture[2] models/player/medic/eyeball_r
+  texture[3] models/player/medic/eyeball_l
+  texture[4] models/player/medic/medic_backpack_red
+  texture[5] models/player/medic/medic_blue
+  texture[6] models/player/medic/medic_head_blue
+  texture[7] models/player/medic/medic_backpack_blue
+  texture[8] models/player/medic/medic_red_invun
+  texture[9] models/player/medic/medic_head_red_invun
+  texture[10] models/player/medic/eyeball_invun
+  texture[11] models/effects/invulnfx_red
+  texture[12] models/player/medic/medic_blue_invun
+  texture[13] models/player/medic/medic_head_blue_invun
+  texture[14] models/effects/invulnfx_blue
+  texture[15] models/player/medic/medic_red_zombie_alphatest
+  texture[16] models/player/medic/medic_head_zombie
+  texture[17] models/player/medic/eyeball_zombie
+  texture[18] models/player/medic/medic_blue_zombie_alphatest
+  texture[19] models/player/medic/medic_red_zombie_invun
+  texture[20] models/player/medic/medic_blue_zombie_invun
+  texture-candidates[0] [models/player/medic/medic_red] [models/player/items/all_class/medic_red]
+  texture-candidates[1] [models/player/medic/medic_head_red] [models/player/items/all_class/medic_head_red]
+  texture-candidates[2] [models/player/medic/eyeball_r] [models/player/items/all_class/eyeball_r]
+  texture-candidates[3] [models/player/medic/eyeball_l] [models/player/items/all_class/eyeball_l]
+  texture-candidates[4] [models/player/medic/medic_backpack_red] [models/player/items/all_class/medic_backpack_red]
+  texture-candidates[5] [models/player/medic/medic_blue] [models/player/items/all_class/medic_blue]
+  texture-candidates[6] [models/player/medic/medic_head_blue] [models/player/items/all_class/medic_head_blue]
+  texture-candidates[7] [models/player/medic/medic_backpack_blue] [models/player/items/all_class/medic_backpack_blue]
+  texture-candidates[8] [models/player/medic/medic_red_invun] [models/player/items/all_class/medic_red_invun]
+  texture-candidates[9] [models/player/medic/medic_head_red_invun] [models/player/items/all_class/medic_head_red_invun]
+  texture-candidates[10] [models/player/medic/eyeball_invun] [models/player/items/all_class/eyeball_invun]
+  texture-candidates[11] [models/effects/invulnfx_red] [models/player/effects/invulnfx_red]
+  texture-candidates[12] [models/player/medic/medic_blue_invun] [models/player/items/all_class/medic_blue_invun]
+  texture-candidates[13] [models/player/medic/medic_head_blue_invun] [models/player/items/all_class/medic_head_blue_invun]
+  texture-candidates[14] [models/effects/invulnfx_blue] [models/player/effects/invulnfx_blue]
+  texture-candidates[15] [models/player/medic/medic_red_zombie_alphatest] [models/player/items/all_class/medic_red_zombie_alphatest]
+  texture-candidates[16] [models/player/medic/medic_head_zombie] [models/player/items/all_class/medic_head_zombie]
+  texture-candidates[17] [models/player/medic/eyeball_zombie] [models/player/items/all_class/eyeball_zombie]
+  texture-candidates[18] [models/player/medic/medic_blue_zombie_alphatest] [models/player/items/all_class/medic_blue_zombie_alphatest]
+  texture-candidates[19] [models/player/medic/medic_red_zombie_invun] [models/player/items/all_class/medic_red_zombie_invun]
+  texture-candidates[20] [models/player/medic/medic_blue_zombie_invun] [models/player/items/all_class/medic_blue_zombie_invun]
+model-material name=models/player/medic/medic_red vmt=materials/models/player/medic/medic_red.vmt vmtBytes=1260 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_red vtf=materials/models/player/medic/medic_red.vtf vtfBytes=1398296 size=2048x1024 decodedBytes=8388608 complete=1
+model-material name=models/player/medic/medic_head_red vmt=materials/models/player/medic/medic_head_red.vmt vmtBytes=1238 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_head vtf=materials/models/player/medic/medic_head.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/medic/eyeball_r vmt=materials/models/player/medic/eyeball_r.vmt vmtBytes=1516 parsed=1 complete=0
+model-material name=models/player/items/all_class/eyeball_r vmt=materials/models/player/items/all_class/eyeball_r.vmt vmtBytes=0 parsed=0 complete=0
+model-material name=models/player/medic/eyeball_l vmt=materials/models/player/medic/eyeball_l.vmt vmtBytes=1516 parsed=1 complete=0
+model-material name=models/player/items/all_class/eyeball_l vmt=materials/models/player/items/all_class/eyeball_l.vmt vmtBytes=0 parsed=0 complete=0
+model-material name=models/player/medic/medic_backpack_red vmt=materials/models/player/medic/medic_backpack_red.vmt vmtBytes=1367 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_backpack_red vtf=materials/models/player/medic/medic_backpack_red.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/medic/medic_blue vmt=materials/models/player/medic/medic_blue.vmt vmtBytes=1269 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_blue vtf=materials/models/player/medic/medic_blue.vtf vtfBytes=1398296 size=2048x1024 decodedBytes=8388608 complete=1
+model-material name=models/player/medic/medic_head_blue vmt=materials/models/player/medic/medic_head_blue.vmt vmtBytes=1237 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_head vtf=materials/models/player/medic/medic_head.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/medic/medic_backpack_blue vmt=materials/models/player/medic/medic_backpack_blue.vmt vmtBytes=1369 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_backpack_blue vtf=materials/models/player/medic/medic_backpack_blue.vtf vtfBytes=699304 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/medic/medic_red_invun vmt=materials/models/player/medic/medic_red_invun.vmt vmtBytes=2731 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_red_invun vtf=materials/models/player/medic/medic_red_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/player/medic/medic_head_red_invun vmt=materials/models/player/medic/medic_head_red_invun.vmt vmtBytes=2671 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_head_red_invun vtf=materials/models/player/medic/medic_head_red_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/player/medic/eyeball_invun vmt=materials/models/player/medic/eyeball_invun.vmt vmtBytes=416 parsed=1 shader=VertexLitGeneric base=models/player/shared/eyeball_invun vtf=materials/models/player/shared/eyeball_invun.vtf vtfBytes=1552 size=64x32 decodedBytes=8192 complete=1
+model-material name=models/effects/invulnfx_red vmt=materials/models/effects/invulnfx_red.vmt vmtBytes=2665 parsed=1 shader=VertexLitGeneric base=effects/red vtf=materials/effects/red.vtf vtfBytes=600 size=16x16 decodedBytes=1024 complete=1
+model-material name=models/player/medic/medic_blue_invun vmt=materials/models/player/medic/medic_blue_invun.vmt vmtBytes=2637 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_blue_invun vtf=materials/models/player/medic/medic_blue_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/player/medic/medic_head_blue_invun vmt=materials/models/player/medic/medic_head_blue_invun.vmt vmtBytes=2642 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_head_blue_invun vtf=materials/models/player/medic/medic_head_blue_invun.vtf vtfBytes=43944 size=256x256 decodedBytes=262144 complete=1
+model-material name=models/effects/invulnfx_blue vmt=materials/models/effects/invulnfx_blue.vmt vmtBytes=2667 parsed=1 shader=VertexLitGeneric base=effects/blue vtf=materials/effects/blue.vtf vtfBytes=600 size=16x16 decodedBytes=1024 complete=1
+model-material name=models/player/medic/medic_red_zombie_alphatest vmt=materials/models/player/medic/medic_red_zombie_alphatest.vmt vmtBytes=1271 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_red_zombie vtf=materials/models/player/medic/medic_red_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material name=models/player/medic/medic_head_zombie vmt=materials/models/player/medic/medic_head_zombie.vmt vmtBytes=1346 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_head_zombie vtf=materials/models/player/medic/medic_head_zombie.vtf vtfBytes=699296 size=1024x1024 decodedBytes=4194304 complete=1
+model-material name=models/player/medic/eyeball_zombie vmt=materials/models/player/medic/eyeball_zombie.vmt vmtBytes=416 parsed=1 shader=VertexLitGeneric base=models/player/shared/eyeball_invun vtf=materials/models/player/shared/eyeball_invun.vtf vtfBytes=1552 size=64x32 decodedBytes=8192 complete=1
+model-material name=models/player/medic/medic_blue_zombie_alphatest vmt=materials/models/player/medic/medic_blue_zombie_alphatest.vmt vmtBytes=1272 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_blue_zombie vtf=materials/models/player/medic/medic_blue_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material name=models/player/medic/medic_red_zombie_invun vmt=materials/models/player/medic/medic_red_zombie_invun.vmt vmtBytes=2757 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_red_zombie vtf=materials/models/player/medic/medic_red_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material name=models/player/medic/medic_blue_zombie_invun vmt=materials/models/player/medic/medic_blue_zombie_invun.vmt vmtBytes=2663 parsed=1 shader=VertexLitGeneric base=models/player/medic/medic_blue_zombie vtf=materials/models/player/medic/medic_blue_zombie.vtf vtfBytes=699256 size=1024x512 decodedBytes=2097152 complete=1
+model-material summary slots=21 resolved=19
+model-header words offset:value 188:213 192:25472 196:0 200:0 204:21 208:942216 212:2 216:943560 220:21 224:8 228:943568 232:2 236:71372 240:20 244:20536 248:0 252:71372 fileBytes=964852
+{"ok":true,"selfTest":false,"uniqueRenderable":4,"vpkRenderable":4,"inspections":3,"inspectionCacheHits":1,"scoutVertices":12000,"scoutChecksum":1098120898,"scoutKey":"models/player/scout.mdl#1098120898","duplicateStable":true,"instanceCount":6,"playerFallbacks":1}

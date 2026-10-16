@@ -1,0 +1,158 @@
+vmfield class=CTFViewModel id=320 sequence=1 cycle=0 rate=1 pose=1
+vmfield class=CBaseViewModel id=18 sequence=1 cycle=0 rate=1 pose=1
+vmfield class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0
+vmfield-summary classesWithSequence=197 classesWithCycle=195 classesWithRate=197 targetClasses=3 targetClassesFound=3
+vmcensus class=CTFViewModel id=320 entities=18 ticks=101
+vmcensus class=CBaseViewModel id=18 entities=0 ticks=101
+vmcensus class=CTFPlayer id=247 entities=24 ticks=101
+vmcensus-summary ticksQueried=140 ticksWithSnapshot=101 classesSeen=119 entitiesSeen=2118
+vmlocal setViewCount=1 viewEntity=18 viewModelObservations=1047 ownedByViewEntity=202 entitiesOwnedByViewEntity=2
+vmanim tick=16306 entity=1077 sequence=28 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=16306 entity=1085 sequence=0 rate=1.31 modelIndex=0 model=- owner=1509394 weapon=2097151
+vmanim tick=16832 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=17120 entity=1077 sequence=28 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=17120 entity=1102 sequence=0 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=18055 entity=1077 sequence=1 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=18888 entity=1077 sequence=12 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=1936470
+vmanim tick=18888 entity=1084 sequence=3 rate=0.88 modelIndex=1024 model=models/weapons/c_models/v_c_scout_arms.mdl owner=944151 weapon=89243
+vmanim tick=18888 entity=1088 sequence=0 rate=0.88 modelIndex=0 model=- owner=944151 weapon=2097151
+vmanim tick=18888 entity=1102 sequence=2 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=19294 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=19794 entity=1102 sequence=16 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=20489 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=20489 entity=1102 sequence=3 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=20873 entity=1102 sequence=4 rate=1.31 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=21388 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=21388 entity=1102 sequence=3 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=21647 entity=1102 sequence=7 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=22035 entity=1102 sequence=3 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=22330 entity=1102 sequence=0 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=22709 entity=1102 sequence=6 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=23771 entity=1102 sequence=0 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=24684 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=24684 entity=1102 sequence=7 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=25100 entity=1102 sequence=18 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=802028
+vmanim tick=25682 entity=1077 sequence=1 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=25682 entity=1102 sequence=15 rate=1.31 modelIndex=0 model=- owner=1652738 weapon=802028
+vmanim tick=25682 entity=1120 sequence=27 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1013766 weapon=40080
+vmanim tick=25682 entity=1124 sequence=0 rate=0.75 modelIndex=0 model=- owner=1013766 weapon=2097151
+vmanim tick=26135 entity=1102 sequence=6 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=26135 entity=1120 sequence=26 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1013766 weapon=40080
+vmanim tick=26593 entity=1077 sequence=28 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=26593 entity=1102 sequence=3 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=26593 entity=1120 sequence=29 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1013766 weapon=40080
+vmanim tick=26852 entity=1102 sequence=2 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=27256 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=27256 entity=1102 sequence=7 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=27720 entity=1102 sequence=15 rate=1.31 modelIndex=0 model=- owner=1652738 weapon=802028
+vmanim tick=28229 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=28229 entity=1102 sequence=18 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=802028
+vmanim tick=28829 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=28829 entity=1102 sequence=1 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=29707 entity=1102 sequence=2 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=30182 entity=1077 sequence=1 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=30182 entity=1102 sequence=4 rate=1.31 modelIndex=0 model=- owner=1652738 weapon=1874900
+vmanim tick=30618 entity=977 sequence=17 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=65547 weapon=1227988
+vmanim tick=30618 entity=1107 sequence=0 rate=1.00 modelIndex=0 model=- owner=65547 weapon=2097151
+vmanim tick=31065 entity=977 sequence=18 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=65547 weapon=1227988
+vmanim tick=31065 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=31065 entity=1102 sequence=34 rate=1.31 modelIndex=1097 model=models/weapons/c_models/v_c_engineer_arms.mdl owner=1652738 weapon=304034
+vmanim tick=31433 entity=1077 sequence=28 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=31433 entity=1102 sequence=9 rate=1.00 modelIndex=1097 model=models/weapons/c_models/v_c_engineer_arms.mdl owner=1652738 weapon=306076
+vmanim tick=31969 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=35914 entity=1012 sequence=18 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1943562 weapon=2021562
+vmanim tick=36722 entity=1012 sequence=26 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1943562 weapon=1736887
+vmanim tick=36722 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=37133 entity=1012 sequence=18 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1943562 weapon=2021562
+vmanim tick=37133 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=37451 entity=1012 sequence=22 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1943562 weapon=2021562
+vmanim tick=37451 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=38004 entity=1012 sequence=29 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=38392 entity=1012 sequence=18 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=38392 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=38896 entity=1012 sequence=22 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=38896 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=39139 entity=1012 sequence=20 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=39601 entity=1012 sequence=0 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=40036 entity=1012 sequence=29 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=40280 entity=1012 sequence=22 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=40280 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=40768 entity=1012 sequence=18 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=41236 entity=1012 sequence=22 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=41236 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=41712 entity=1012 sequence=24 rate=1.31 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=42137 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=42612 entity=1012 sequence=22 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=42612 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=43105 entity=1012 sequence=18 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=43105 entity=1077 sequence=1 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=43105 entity=1120 sequence=28 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1013766 weapon=40080
+vmanim tick=43581 entity=1012 sequence=0 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=43581 entity=1059 sequence=22 rate=1.00 modelIndex=970 model=models\weapons\c_models\v_c_engineer_gunslinger.mdl owner=743431 weapon=1379305
+vmanim tick=43581 entity=1060 sequence=0 rate=1.31 modelIndex=0 model=- owner=743431 weapon=2097151
+vmanim tick=43581 entity=1102 sequence=6 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=43581 entity=1103 sequence=0 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=43581 entity=1120 sequence=1 rate=1.00 modelIndex=1050 model=models/weapons/c_models/v_c_demo_arms.mdl owner=1013766 weapon=40080
+vmanim tick=43965 entity=1012 sequence=18 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=43965 entity=1055 sequence=0 rate=1.00 modelIndex=0 model=- owner=1943562 weapon=2097151
+vmanim tick=43965 entity=1059 sequence=20 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=43965 entity=1077 sequence=28 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=43965 entity=1102 sequence=9 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=697241
+vmanim tick=44343 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=44909 entity=1012 sequence=29 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=44909 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=45350 entity=1012 sequence=22 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=45599 entity=1012 sequence=26 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=45599 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=46027 entity=1012 sequence=29 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=46027 entity=1184 sequence=26 rate=1.00 modelIndex=1024 model=models/weapons/c_models/v_c_scout_arms.mdl owner=1775619 weapon=287847
+vmanim tick=46482 entity=1012 sequence=28 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=46482 entity=1077 sequence=1 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=46482 entity=1185 sequence=0 rate=1.31 modelIndex=0 model=- owner=1775619 weapon=2097151
+vmanim tick=46953 entity=1012 sequence=22 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2097151
+vmanim tick=46953 entity=1184 sequence=27 rate=1.00 modelIndex=1024 model=models/weapons/c_models/v_c_scout_arms.mdl owner=1775619 weapon=287847
+vmanim tick=47415 entity=1012 sequence=20 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=47415 entity=1077 sequence=28 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=47415 entity=1184 sequence=1 rate=1.00 modelIndex=1024 model=models/weapons/c_models/v_c_scout_arms.mdl owner=1775619 weapon=287847
+vmanim tick=47831 entity=1012 sequence=22 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=47831 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=48291 entity=1012 sequence=24 rate=1.31 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=48291 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=48724 entity=1012 sequence=18 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=48724 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=49589 entity=1077 sequence=1 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=50057 entity=1012 sequence=28 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=50057 entity=1121 sequence=29 rate=1.00 modelIndex=1024 model=models/weapons/c_models/v_c_scout_arms.mdl owner=763924 weapon=1502303
+vmanim tick=50057 entity=1122 sequence=0 rate=1.00 modelIndex=0 model=- owner=763924 weapon=2097151
+vmanim tick=50521 entity=1012 sequence=29 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=50521 entity=1121 sequence=33 rate=1.00 modelIndex=1024 model=models/weapons/c_models/v_c_scout_arms.mdl owner=763924 weapon=203882
+vmanim tick=50901 entity=1012 sequence=22 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=50901 entity=1077 sequence=12 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=1936470
+vmanim tick=50901 entity=1121 sequence=27 rate=1.00 modelIndex=1024 model=models/weapons/c_models/v_c_scout_arms.mdl owner=763924 weapon=1502303
+vmanim tick=51312 entity=1012 sequence=20 rate=0.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=51312 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=51742 entity=1077 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=52240 entity=1012 sequence=21 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=52681 entity=1012 sequence=19 rate=1.31 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=52681 entity=1077 sequence=12 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=1936470
+vmanim tick=53075 entity=1012 sequence=21 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=53075 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=53539 entity=1012 sequence=28 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=1736887
+vmanim tick=53539 entity=1077 sequence=1 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=53539 entity=1184 sequence=29 rate=0.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1652738 weapon=236683
+vmanim tick=53976 entity=1012 sequence=18 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=53976 entity=1184 sequence=16 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1652738 weapon=699537
+vmanim tick=54416 entity=1012 sequence=22 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=54416 entity=1184 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1652738 weapon=236683
+vmanim tick=54747 entity=1012 sequence=18 rate=1.00 modelIndex=0 model=- owner=1652738 weapon=2021562
+vmanim tick=54747 entity=1077 sequence=28 rate=1.31 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim tick=54747 entity=1184 sequence=29 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1652738 weapon=236683
+vmanim tick=55400 entity=1077 sequence=30 rate=1.00 modelIndex=1032 model=models/weapons/c_models/v_c_sniper_arms.mdl owner=1509394 weapon=2022384
+vmanim-summary observations=1047 changes=141 series=141 entities=18 distinctSequences=25 minSequence=0 maxSequence=34 distinctRates=5 modelPaths=5 vStarModels=5
+vmmapping-summary drawnModel=models/weapons/v_models/v_scattergun_scout.mdl drawnSequenceCount=7 observations=141 inRange=37 outOfRange=104 entityModelMatchesDrawn=0 indexSpace=mismatch
+vmselfsum observations=141 measured=0 unmeasured=141 inRange=0 outOfRange=0 modelsQueried=5
+vmself model=models/weapons/c_models/v_c_demo_arms.mdl sequences=-1 (the entity's own model did not resolve)
+vmself model=models/weapons/c_models/v_c_engineer_arms.mdl sequences=-1 (the entity's own model did not resolve)
+vmself model=models/weapons/c_models/v_c_scout_arms.mdl sequences=-1 (the entity's own model did not resolve)
+vmself model=models/weapons/c_models/v_c_sniper_arms.mdl sequences=-1 (the entity's own model did not resolve)
+vmself model=models\weapons\c_models\v_c_engineer_gunslinger.mdl sequences=-1 (the entity's own model did not resolve)

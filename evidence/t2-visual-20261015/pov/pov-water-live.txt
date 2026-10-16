@@ -1,0 +1,56 @@
+# T2 supplementary input: a player POV recording at live ticks
+#
+# WHY: the committed matrix (t2-visual-matrix.sh) is one demo at tick 0 paused.
+# This file records a SECOND real input -- a player POV recording on the same
+# map -- where the water surface is visible at a live playback tick, and the
+# control that a naive reading of the first attempt would have missed.
+#
+# Demo: autorecord_2026-05-16_17-16-17.dem  (cp_snakewater_final1, player POV)
+#   The file lives under the live Steam demos directory
+#   (D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/), which rotates
+#   files; the hash, not the path, is the identity recorded here.
+#   bytes 20861793
+#   sha256 5f9344d5206e4aa73db003220c2c3d4ffa556cf764a25e3bbc2e11d4589d39c5
+#
+# Runs: product with --hidden-window --audio-disabled --demo <above> --world-sky
+#   --capture-tick <tick> --capture-frame <bmp> --metrics-file <csv>, once per
+#   side; frames under .scratch/t2-visual/explore/ (not committed as BMP; the
+#   PNG conversions are committed beside this file).
+#
+# ---- tick 1500: the water surface is visible, and the tick is reproducible ---
+#   reaching run   tick=1500  frame pov-water-on-1500.bmp
+#     sha256 8c1c7614b660aac367103934411afca935aa61ec8eba0c7953ca00b94d33a4a2
+#   water-off run  tick=1500  frame pov-water-off-1500.bmp
+#     sha256 b3a58c677b234709773a20514a3dc544384a25ad89e96e9d92ff0a6dc9c3ca06
+#   repeat (same switches as "on") tick=1500  frame pov-on-repeat-1500.bmp
+#     sha256 8c1c7614b660aac367103934411afca935aa61ec8eba0c7953ca00b94d33a4a2
+#   comparison on vs off:
+#     BMP-DIFF differing=5524 total=2582352 percent=0.2139 max_delta=223
+#     differing_pixels=1842 bbox=(x=0..250, y=381..397) w=251 h=17
+#   comparison on vs repeat (the control):
+#     BMP-DIFF differing=0
+#   -> the control is byte-identical at this tick, so the 1842 pixels in the
+#      left strip are the water switch's own contribution: the water surface is
+#      in frame at tick 1500 of this recording.
+#
+# ---- tick 3500: the control refutes the naive reading -----------------------
+#   reaching run   tick=3500  frame pov-water-on-3500.bmp
+#     sha256 b5dd1762202956de4472ffb52a31bc0cffe02b20c80b752edc76bc1b061e6408
+#   water-off run  tick=3500  frame pov-water-off-3500.bmp
+#     sha256 47ad7d40f221d8c6f37b2527b3ad2bfc3f957f9ff83e927aa27ec230ba2bce55
+#   repeat (same switches as "on") tick=3500  frame pov-on-repeat-3500.bmp
+#     sha256 227aca2377da3c26c230063b4725b62fbc3492958e388c8b0a8872390d6e8eb0
+#   comparison on vs off:
+#     BMP-DIFF differing=1126937 total=2582352 percent=43.6399 max_delta=250
+#   comparison on vs repeat (the control):
+#     BMP-DIFF differing=1126909 total=2582352 percent=43.6389 max_delta=250
+#   -> the two comparisons agree to 28 bytes. The 43.6% frame difference is the
+#      RUN-TO-RUN camera state at a live tick of a POV recording (the smoothed
+#      camera integrates differently depending on frame timing), not the water
+#      switch. The switch's own contribution here is not measurable, and no
+#      water claim is made at tick 3500. Without the control this file would
+#      have claimed "the water switch changes 43.6% of the frame".
+#
+# This is why the committed matrix asserts at tick 0 --start-paused only: there
+# the captured frame is the first frame and the paused world makes repeats
+# byte-exact (the matrix asserts on vs repeat == 0 bytes on its own run).

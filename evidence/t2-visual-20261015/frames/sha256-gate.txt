@@ -1,0 +1,16 @@
+# frames from the world-material gate's own runs (not t2-visual-matrix.sh)
+# produced by: bash world-material-check.sh (forward, RUN_TAG 20261015222256-2473)
+
+fdefb876840850b8db13415bbe40d727fea1348f6e0ddabb65a9cb7c71df8781 world-lightmapped.bmp 2582406
+2d7781bf6fc353f96dab4a0010c528f970d7a07ca3dc65676a3669c08472a5ff cubemap-plain.bmp 2582406
+8853e5f1e36da05587299ae3304748d4a1b153b6c32f63d5592b45d294cfb4c9 cubemap-forced.bmp 2582406
+
+# world-lightmapped: the section-6 launch (--world-sky, tick 0, not paused).
+#   Its water is OFF by the settings default (--world-water was not given and
+#   no --quality standard set, so render.waterSurface stays false); its own
+#   trace line reads water state=unavailable reason="water draw disabled by
+#   the caller". Its hash equals the matrix's water-off frame and the effects
+#   round's t1-sky frame -- the same first frame at tick 0.
+# cubemap-plain vs cubemap-forced (2koth_abbey, no demo):
+#   BMP-DIFF differing=45468 total=2582352 percent=1.7607 max_delta=38 status=PASS
+#   (the gate asserts a moved frame, >= 1000 bytes)

@@ -1,0 +1,38 @@
+# T2 input selection: which demos and ticks were shown to contain the geometry
+#
+# The task asks for real demos and ticks that contain skybox geometry and
+# visible water. This file records how the ticks were selected and what the
+# water's own switch measured on each one.
+#
+# ---- primary demo (the committed matrix's input) ---------------------------
+#   bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+#   bytes 51834617
+#   sha256 308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f
+#   (D:/TF2_Demo_Player/testdata/demos/, the repository-external pinned corpus
+#    the existing gates already use)
+#
+#   Water pairs: two product runs per tick (--world-water on / off), frames
+#   compared byte-for-byte; --start-paused at tick 0, live at the others.
+#
+#   tick 0    : on landed 0     off landed 0     differing=5571  bbox x=646..846 y=396..405
+#   tick 3000 : on landed 3003  off landed 3000  differing=5571  bbox x=646..846 y=396..405
+#   tick 6000 : on landed 6001  off landed 6000  differing=5571  bbox x=646..846 y=396..405
+#
+#   The water strip is visible at all three ticks; the identical 5571 bytes and
+#   the identical region show it is the same water at the same screen position
+#   (the spectator camera is static across this range). The 3000/6000 landings
+#   differ by a few ticks between the two sides; the committed matrix therefore
+#   asserts only at tick 0, where both sides report the same measured tick by
+#   construction. The three-tick numbers here are the selection's evidence.
+#
+#   The sky is visible in the same frames: the sky switch's own comparison at
+#   tick 0 differs by 2005722 bytes (77.67% of the frame), the sky filling the
+#   background; see frames/ in this directory.
+#
+# ---- the map's water and sky, as the capability layer measures them ---------
+#   cp_snakewater_final1.bsp  bytes 59590420
+#   sha256 f09d406d2bbe397c8f9df9ca17f11b36b53d40fcf57e3f1532ec9af811b2a1eb
+#   water: 18 faces / 36 triangles (world_material_probe --bsp, pinned by
+#   world-material-check.sh section 4). sky: sky_well_01, six faces decoded.
+#
+# ---- POV demo (supplementary, live ticks): see pov/pov-water-live.txt -------

@@ -1,0 +1,135 @@
+=== 0/6 pinned inputs ===
+  OK   autorecord_2026-07-02_13-26-46.dem pinned (21856667 bytes, c8a58501d222bdd9...)
+  OK   bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem pinned (51834617 bytes, 308cc1453672b26d...)
+  OK   pinned recordings verified = 2 (>= 1)
+  ..   the POV recording is D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem
+
+=== 1/6 the instrument: the probe's self-test ===
+  OK   selftest rc = 0
+  OK   selftest failures = 0
+  OK   selftest assertions that held = 92
+  OK   selftest checks that ran = 92
+  OK   companion fixtures recorded = 19
+  OK   self-test ran the product cross-check = 0
+  OK   the companion model is the entity's own contains c_soldier_arms.mdl
+  OK   companion sequences = 54
+  OK   companion animation descriptors = 1
+  OK   companion sequences that reach a descriptor = 1
+  OK   companion sequences with more than one frame = 0
+  OK   companion widest binding = 1
+  OK   raw header animation count = 1
+  OK   raw header sequence count = 54
+  OK   raw sequence descriptors with no blend block = 53
+  OK   control model sequences = 7
+  OK   control model multi-frame sequences = 6
+  OK   control widest binding = 57
+  OK   the cycle witness has a live sequence = 1 (>= 0)
+
+=== 2/6 the pass draws the entity's own model ===
+  history rc=0 bmp=2582406
+  OK   history rc = 0
+  OK   history observations = 1743 (>= 1000)
+  OK   history distinct sequences = 3
+  OK   history sequence range = 1..30
+  OK   witness ticks derived = 3
+  ..   derived witness ticks: 0 814 1697
+  witness-a rc=0 bmp=2582406
+  OK   witness-a rc = 0
+  OK   witness-a drawn model = models/weapons/c_models/c_sniper_arms.mdl
+  OK   witness-a entity model matches the drawn model = 1
+  OK   witness-a sequence inside the entity's own table = 1
+  OK   witness-a model mismatches = 0
+  OK   witness-a bone mismatches = 0
+  OK   witness-a the pass drew = 1
+  OK   witness-a vertices = 600
+  OK   witness-a sequence = 29
+  OK   witness-a owner is the view entity = 18
+  OK   witness-a model index is the entity's own = 1032
+  OK   witness-a names the entity's own model contains c_sniper_arms.mdl
+  OK   witness-a model matches, counted = 2
+  OK   witness-a model mismatches, counted = 0
+  OK   witness-a sequences in range, counted = 2
+  witness-b rc=0 bmp=2582406
+  OK   witness-b rc = 0
+  OK   witness-b sequence = 1
+  OK   witness-b entity model matches the drawn model = 1
+  OK   witness-b model mismatches, counted = 0
+  OK   witness-b sequences in range, counted = 684
+  OK   witness-b observations exceed witness-a's = 684 (> 2)
+  OK   witness-b sequence changes = 1 (>= 1)
+  witness-c rc=0 bmp=2582406
+  OK   witness-c rc = 0
+  OK   witness-c sequence = 30
+  OK   witness-c entity model matches the drawn model = 1
+  OK   witness-c model mismatches, counted = 0
+  OK   witness-c sequence changes = 2 (>= 2)
+  OK   witness-c sequence range over the run = 1..30
+  OK   no natural run accepted a pose = 0
+  OK   and every one was refused for the same measured reason = 1488
+  OK   no override was in force = -1
+  OK   the frames of ticks a and b differ = 1960692 (> 0)
+  OK   the frames of ticks b and c differ = 1959767 (> 0)
+  OK   the frames of ticks a and c differ = 2080021 (> 0)
+  ..   witness frames differ by 1960692 / 1959767 / 2080021 byte positions
+
+=== 3/6 the accepted pose, on the entity's own model ===
+  OK   entity model rc = 0
+  OK   entity model sequences = 43
+  OK   entity model bones = 58
+  OK   entity model sequences that reach a descriptor = 1
+  OK   the only sequence the entity's own model can pose = 0
+  OK   and the recording never carries it = 1..30 (!= 0..30)
+  pose-accepted rc=0 bmp=2582406
+  OK   pose-accepted rc = 0
+  OK   pose-accepted status = ok
+  OK   pose-accepted entity model matches the drawn model = 1
+  OK   pose-accepted sequence inside the entity's own table = 1
+  OK   pose-accepted sequence accepted = 1
+  OK   pose-accepted leaves the bind pose = 0
+  OK   pose-accepted poseAvailable = 1
+  OK   pose-accepted frame count is the model's own = 0/1
+  OK   pose-accepted names the override = 0
+  OK   pose-accepted applied nothing by default = 0
+  OK   pose-accepted skinned nothing by default = 0
+  OK   pose-accepted uploaded no table by default = 0/0
+  pose-applied rc=0 bmp=2582406
+  OK   pose-applied rc = 0
+  OK   pose-applied applied = 1
+  OK   pose-applied skinned = 1
+  OK   pose-applied bone table covers the whole skeleton = 58
+  OK   pose-applied bone table size is the model's own bone count = 58
+  OK   pose-applied every accepted pose was applied = 2
+  OK   pose-applied every observation was accepted = 2 (> 0)
+  OK   pose-applied refused nothing = 0
+  OK   the applied pose changes the frame = 32724 (> 0)
+  ..   pose-accepted vs pose-applied: 32724 byte positions differ
+
+=== 4/6 the mismatch is still refused, and the pose is still bind ===
+  refusal rc=0 bmp=2582406
+  OK   refusal rc = 0
+  OK   refusal status = modelMismatch
+  OK   refusal draws the model it was told to draw = models/weapons/v_models/v_scattergun_scout.mdl
+  OK   refusal the entity's model does not match the drawn one = 0
+  OK   refusal the range question was never reached = 0
+  OK   refusal mismatches, counted = 1
+  OK   refusal matches, counted = 0
+  OK   refusal leaves the bind pose = 1
+  OK   refusal applies nothing = 0
+  OK   refusal skins nothing = 0
+  OK   refusal has no bone table = 0/0
+  OK   refusal poseAvailable = 0
+  OK   refusal names the drawn model contains models/weapons/v_models/v_scattergun_scout.mdl
+  OK   refusal names the entity's own model contains models/weapons/c_models/c_sniper_arms.mdl
+
+=== 5/6 the control model, and why one index decides the round ===
+  OK   control model rc = 0
+  OK   control model sequences = 7
+  OK   control model sequences that reach a descriptor = 7
+  OK   control model bone count = 45
+  OK   the control's posable sequence is the same index = 0
+  OK   the two models do not share a table size = 7 (!= 43)
+
+=== 6/6 the readings can go red ===
+  ..   skipped: the six source mutations run under --mutation
+
+VIEWMODEL-COMPANION=PASS

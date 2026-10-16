@@ -1,0 +1,6 @@
+gpu: world sky state=active vertices=36 triangles=12 faces=6 draws=1 side=512 resampled=1 reason=six sides, 36 vertices
+gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+gpu: world vis cameraCluster=2287 visibleFromCamera=585 clusters=2940 clusteredTriangles=34517 hiddenTriangles=29756 withoutCluster=165483 inputTriangles=200000 drawnTriangles=170244 clipApplied=1 state=active reason=hid 29756 of 200000 triangles from cluster 2287
+gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=2940 clusteredTriangles=0 hiddenTriangles=0 withoutCluster=0 inputTriangles=0 drawnTriangles=200000 clipApplied=0 state=disabled reason=vis clip disabled by the caller
+gpu: world water state=active faces=18 triangles=36 draws=1 visible=1 warp=1 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=36 water triangles from 18 faces; approximate warp applied, water texture bound; reflection and refraction have no render target
+gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
