@@ -2,7 +2,7 @@
 
 Date: 2026-10-16
 Integration branch: `p0-entity-protocol`
-Current integration commit: `339ef77`
+Current integration commit: `7422655`
 
 ## Project state
 
