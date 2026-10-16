@@ -55,7 +55,9 @@ Status: DELIVERED (evidence committed; see section 0)
 - Base commit: `917b0122376419ae0a9de5be35d932a9fa487be3` (`917b012`,
   `p0-entity-protocol` HEAD at task start: "docs: record final chain pin status
   and task plan").
-- Final commit: `<<PENDING-FINAL-COMMIT>>`.
+- Final commit: `56ad061` on `task/stability-release-head` (pushed to
+  origin; 962 files: the matrix script edit, this report, and the
+  run-05/run-06/run-07 evidence trees).
 
 ## 3. Changed files and why each changed
 
@@ -262,7 +264,12 @@ readings.json under `evidence/t4-rerun-20261015-t4b/run-07/`).
   run-07 and is part of the delivery. Source restoration reduces to:
   `git status` clean
   apart from the new report/evidence files and the script edit, and
-  `git diff --check` clean. Final audit output: `<<PENDING-AUDIT>>`.
+  `git diff --check` clean (whitespace clean on the delivery commit).
+  Final audit output: `git status` clean apart from this report's own
+  final-commit edit; `git diff --check` CLEAN; no `tf2_demo_native`/
+  `nmake`/gate processes alive after the run (checked immediately before
+  the delivery commit); worktree = `D:\TF2_Native_Worktrees\stability-release-head`
+  on branch `task/stability-release-head`, pushed to origin.
 
 ## 8. Evidence paths and hashes
 
@@ -312,7 +319,12 @@ readings.json under `evidence/t4-rerun-20261015-t4b/run-07/`).
 
 ## 10. Clean-worktree and runnable status
 
-- `<<PENDING-CLEAN-STATUS>>`
+- Delivered on branch `task/stability-release-head` @ `56ad061` (pushed);
+  the worktree builds and runs from a clean tree (`build-cmake.sh`
+  rc=0/errors=0 was executed on exactly this tree state, and run-07's
+  manifest pins the binary it produced). After the delivery commit the
+  working tree holds only this report's final-commit edit, which the
+  closing commit removes.
 
 ## Findings
 
