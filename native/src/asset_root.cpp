@@ -41,6 +41,25 @@ bool hasVpkArchive(const std::filesystem::path& root, const wchar_t* directory) 
   return false;
 }
 
+bool hasAnyVpkArchive(const std::filesystem::path& root) {
+  std::error_code error;
+  if (!std::filesystem::is_directory(root, error) || error) return false;
+  for (const auto& entry : std::filesystem::directory_iterator(root, error)) {
+    if (error) return false;
+    if (!entry.is_regular_file(error) || error) continue;
+    auto name = entry.path().filename().wstring();
+    std::transform(name.begin(), name.end(), name.begin(), [](wchar_t character) {
+      return static_cast<wchar_t>(std::towlower(character));
+    });
+    constexpr std::wstring_view suffix = L"_dir.vpk";
+    if (name.size() > suffix.size()
+        && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool hasAssetStore(const std::filesystem::path& root, const wchar_t* directory) {
   std::error_code error;
   if (std::filesystem::is_directory(root / directory, error) && !error) return true;
@@ -109,6 +128,7 @@ std::vector<std::filesystem::path> AssetRoot::steamLibraryCandidates(
 bool AssetRoot::valid() const {
   std::error_code error;
   if (!std::filesystem::is_directory(tfDirectory, error) || error) return false;
+  if (!hasAnyVpkArchive(tfDirectory)) return false;
   return hasAssetStore(tfDirectory, L"materials")
     && hasAssetStore(tfDirectory, L"models")
     && hasAssetStore(tfDirectory, L"maps");

@@ -61,6 +61,11 @@ if (-not (Test-Path -LiteralPath $steamRoot)) { throw "the reference install is 
 # hermetic and nothing outside the tree is touched.
 $missingRoot = Join-Path $OutDir 'roots\missing-root'
 if (Test-Path -LiteralPath $missingRoot) { Remove-Item -LiteralPath $missingRoot -Recurse -Force }
+$emptyRoot = Join-Path $OutDir 'roots\empty-root'
+if (Test-Path -LiteralPath $emptyRoot) { Remove-Item -LiteralPath $emptyRoot -Recurse -Force }
+foreach ($directory in @('materials', 'models', 'maps')) {
+  New-Item -ItemType Directory -Path (Join-Path $emptyRoot $directory) -Force | Out-Null
+}
 
 $demo = 'D:\TF2_Demo_Player\testdata\demos\4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem'
 if (-not (Test-Path -LiteralPath $demo)) { throw "missing input: $demo" }
@@ -211,6 +216,7 @@ function Invoke-Row {
 $rows = New-Object System.Collections.Generic.List[object]
 $rows.Add((Invoke-Row -Name 'explicit-valid-root'   -ProductArgs @('--tf-root', $steamRoot)))
 $rows.Add((Invoke-Row -Name 'explicit-missing-root' -ProductArgs @('--tf-root', $missingRoot)))
+$rows.Add((Invoke-Row -Name 'explicit-empty-root'   -ProductArgs @('--tf-root', $emptyRoot)))
 $rows.Add((Invoke-Row -Name 'no-root-auto-search'   -ProductArgs @()))
 
 # ------------------------------------------------------------------ judging
@@ -267,6 +273,7 @@ foreach ($r in $rows) {
 
 $valid = $rows | Where-Object { $_.Name -eq 'explicit-valid-root' }
 $missing = $rows | Where-Object { $_.Name -eq 'explicit-missing-root' }
+$empty = $rows | Where-Object { $_.Name -eq 'explicit-empty-root' }
 $auto = $rows | Where-Object { $_.Name -eq 'no-root-auto-search' }
 
 # Row 1: the explicit valid root is the ONLY candidate, so it must be the one
@@ -283,7 +290,13 @@ $c = Get-ConnectedRoot -Title $missing.Title
 Add-Check 'missing root did not connect Steam' ($c -ne $steamRoot -and $c -eq '') ("connected='$c'")
 Add-Check 'missing root did not connect the reference install either' ($c -ne $steamRoot) ("connected='$c'")
 
-# Row 3: with no flag the auto-search must still work, or rows 1 and 2 could be
+# Row 3: an existing directory without a VPK is not a usable TF root and must
+# be refused just like a path that does not exist.
+$c = Get-ConnectedRoot -Title $empty.Title
+Add-Check 'empty root did not connect Steam' ($c -ne $steamRoot -and $c -eq '') ("connected='$c'")
+Add-Check 'empty root did not connect the reference install either' ($c -ne $steamRoot) ("connected='$c'")
+
+# Row 4: with no flag the auto-search must still work, or rows 1-3 could be
 # passed by a product that ignores --tf-root entirely.
 $c = Get-ConnectedRoot -Title $auto.Title
 $v = Get-VpkEntries -Title $auto.Title

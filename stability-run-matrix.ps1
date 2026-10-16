@@ -142,11 +142,10 @@ $fixtureDir = Join-Path $runDir 'fixtures'
 $fixtureIndex = Join-Path $fixtureDir 'fixture-index.txt'
 if (-not (Test-Path -LiteralPath $fixtureIndex)) { throw "fixture generation failed" }
 
-# Fake roots for the resource cases: two empty-but-valid roots. AssetRoot::valid
-# requires materials/ models/ maps/ to exist (loose files or *_dir.vpk inside),
-# so an empty tree is a *valid* root with no assets at all -- the named
-# fallback readings (VPK entries=0, BSP invalid/..., VMT unparsed, VTF
-# fallback) come from the product, not from the harness refusing to start.
+# Fake roots for the resource cases: two empty roots that must be rejected.
+# AssetRoot::valid requires a servable *_dir.vpk plus the expected asset stores;
+# these trees deliberately contain only empty directories so the product reports
+# a missing explicit root instead of connecting with zero VPK entries.
 $emptyRootA = Join-Path $runDir 'roots\empty-root-a'
 $emptyRootB = Join-Path $runDir 'roots\empty-root-b'
 $movedRoot = Join-Path $runDir 'roots\moved-root'
