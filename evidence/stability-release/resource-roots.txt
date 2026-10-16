@@ -1,7 +1,7 @@
-res-missing-root given=.scratch\t4-rerun-20261014-193500-t4a\run-03\roots\__no_such_dir__ used= vpk= bsp=
-res-missing-vpk given=.scratch\t4-rerun-20261014-193500-t4a\run-03\roots\empty-root-a used= vpk= bsp=
-res-missing-model given=.scratch\t4-rerun-20261014-193500-t4a\run-03\roots\empty-root-b used= vpk= bsp=
+res-missing-root given=D:\TF2_Native_Test\.scratch\stability-release\run-09\roots\__no_such_dir__ used= vpk= bsp=
+res-missing-vpk given=D:\TF2_Native_Test\.scratch\stability-release\run-09\roots\empty-root-a used= vpk= bsp=
+res-missing-model given=D:\TF2_Native_Test\.scratch\stability-release\run-09\roots\empty-root-b used= vpk= bsp=
 res-missing-bsp given=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf used=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf vpk=104137 bsp=invalid/BSP header is invalid
-res-root-moved given=.scratch\t4-rerun-20261014-193500-t4a\run-03\roots\moved-root-original used= vpk= bsp=
-res-root-stale-path given=.scratch\t4-rerun-20261014-193500-t4a\run-03\roots\moved-root used= vpk= bsp=
-res-unreadable-root given=.scratch\t4-rerun-20261014-193500-t4a\run-03\roots\unreadable-root used= vpk= bsp=
+res-root-moved given=D:\TF2_Native_Test\.scratch\stability-release\run-09\roots\moved-root-original used= vpk= bsp=
+res-root-stale-path given=D:\TF2_Native_Test\.scratch\stability-release\run-09\roots\moved-root used= vpk= bsp=
+res-unreadable-root given=D:\TF2_Native_Test\.scratch\stability-release\run-09\roots\unreadable-root used= vpk= bsp=

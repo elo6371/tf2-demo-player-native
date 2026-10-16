@@ -1,0 +1,6 @@
+named_refusal_removed target=corrupt-truncated-packet refuses the input without naming a reason control=corrupt-truncated-header refusal named by product rc=1 moved=yes control_preserved=yes
+crash_reported_as_completed target=corrupt-empty crash marker control=corrupt-empty verdict rc=1 moved=yes control_preserved=yes
+soak_frames_frozen target=soak-hidden rendered frames advanced (sample series) control=soak-hidden exit code rc=1 moved=yes control_preserved=yes
+residual_process_hidden target=soak-window residual processes control=soak-window exit code rc=1 moved=yes control_preserved=yes
+steady_state_leak target=soak-window working set growth, second half control=soak-window verdict rc=1 moved=yes control_preserved=yes
+blocked_inputs_removed target=blocked-inputs.txt is recorded control=install-blocked.txt is recorded rc=1 moved=yes control_preserved=yes
