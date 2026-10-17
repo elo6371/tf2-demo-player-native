@@ -1,0 +1,17 @@
+=== 1/3 reliability input: SUNSHINE.dem (cp_sunshine) ===
+input=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem
+sha256=7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08
+exit_code=0
+  OK   sunshine is not a device-error exit (3) = no
+  OK   sunshine frame written = yes
+  OK   sunshine frames drawn >= 1 = yes
+  OK   cause reading present: load recorded stale E_FAIL (0x80004005)
+
+=== 2/3 control input: snakewater (the demo that always played) ===
+exit_code=0
+  OK   control exit code = 0
+  OK   control frame written = yes
+
+=== 3/3 verdict ===
+checks=6 fail=0
+WORLD-RENDER-RELIABILITY=PASS

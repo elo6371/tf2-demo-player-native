@@ -1,0 +1,86 @@
+0.0 trace open
+30346.6 audio: timeline firstPacketTick=24389 soundOriginTick=1 originFound=1 read=5249 scheduled=5189 unresolved=60 unplaceable=0 refused=0 kinds=w2768/f0/u40/o1720/v653/a8/m0
+30732.3 gpu: reload begin
+30734.8 gpu: reload-stage stage=texture lastError=0x00000000
+30734.8 gpu: reload-stage stage=aux lastError=0x00000000
+30741.2 gpu: reload-stage stage=lightmap lastError=0x00000000
+30741.3 gpu: reload-stage stage=cubemap lastError=0x00000000
+30751.1 gpu: reload-stage stage=sky lastError=0x00000000
+30751.1 gpu: world sky-upload state=active vertices=36 triangles=12 faces=6 side=512 resampled=1 reason=six sides, 36 vertices
+30751.1 gpu: world sky-face index=0 dir=+X suffix=rt vmt=materials/skybox/sky_tf2_04rt.vmt vtf=materials/skybox/sky_tf2_04side.vtf rgba=117,162,194,255
+30751.2 gpu: world sky-face index=1 dir=-X suffix=lf vmt=materials/skybox/sky_tf2_04lf.vmt vtf=materials/skybox/sky_tf2_04side.vtf rgba=117,162,194,255
+30751.3 gpu: world sky-face index=2 dir=+Y suffix=bk vmt=materials/skybox/sky_tf2_04bk.vmt vtf=materials/skybox/sky_tf2_04side.vtf rgba=117,162,194,255
+30751.3 gpu: world sky-face index=3 dir=-Y suffix=ft vmt=materials/skybox/sky_tf2_04ft.vmt vtf=materials/skybox/sky_tf2_04side.vtf rgba=117,162,194,255
+30751.3 gpu: world sky-face index=4 dir=+Z suffix=up vmt=materials/skybox/sky_tf2_04up.vmt vtf=materials/skybox/sky_tf2_04up.vtf rgba=101,149,187,255
+30751.3 gpu: world sky-face index=5 dir=-Z suffix=dn vmt=materials/skybox/sky_tf2_04dn.vmt vtf=materials/skybox/sky_tf2_04dn.vtf rgba=220,220,189,255
+30789.5 gpu: reload-stage stage=water lastError=0x80004005
+30789.7 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+30789.8 gpu: world lightmap status=active intensity=0.645 atlas=1 bump=0 env=0 vertices=225678 lightmapped=224139
+30789.8 gpu: world geometry displacedTriangles=24000 waterTriangles=410
+30789.8 gpu: world cubemap status=six-face mode=0 preset=standard declared=0 faces=6 size=32 source=materials/maps/cp_sunshine/c-3624_486_-48.vtf reason=all six faces decoded
+30793.0 gpu: model 0/43 1024x1024 3.2ms uploaded=1
+30800.9 gpu: model 1/43 1024x1024 7.8ms uploaded=1
+30808.8 gpu: model 2/43 1024x1024 7.7ms uploaded=1
+30809.9 gpu: model 3/43 512x512 1.0ms uploaded=1
+30816.6 gpu: model 4/43 1024x1024 6.6ms uploaded=1
+30823.4 gpu: model 5/43 1024x1024 6.6ms uploaded=1
+30824.9 gpu: model 6/43 512x512 1.4ms uploaded=1
+30828.7 gpu: model 7/43 1024x1024 3.7ms uploaded=1
+30829.7 gpu: model 8/43 512x512 0.9ms uploaded=1
+30833.9 gpu: model 9/43 1024x1024 4.1ms uploaded=1
+30836.4 gpu: model 10/43 512x512 2.3ms uploaded=1
+30844.1 gpu: model 11/43 1024x1024 7.5ms uploaded=1
+30872.5 gpu: model 12/43 2048x2048 28.1ms uploaded=1
+30907.5 gpu: model 13/43 2048x2048 34.4ms uploaded=1
+30916.1 gpu: model 14/43 1024x1024 7.9ms uploaded=1
+30919.6 gpu: model 15/43 1024x1024 3.3ms uploaded=1
+30920.6 gpu: model 16/43 512x256 0.9ms uploaded=1
+30928.1 gpu: model 17/43 1024x1024 7.4ms uploaded=1
+30930.1 gpu: model 18/43 512x512 1.9ms uploaded=1
+30960.0 gpu: model 19/43 2048x2048 29.8ms uploaded=1
+30962.5 gpu: model 20/43 512x512 1.9ms uploaded=1
+30989.7 gpu: model 21/43 2048x2048 27.1ms uploaded=1
+30998.0 gpu: model 22/43 1024x1024 7.8ms uploaded=1
+31001.4 gpu: model 23/43 1024x1024 3.2ms uploaded=1
+31005.4 gpu: model 24/43 1024x1024 3.9ms uploaded=1
+31012.6 gpu: model 25/43 2048x1024 6.9ms uploaded=1
+31041.1 gpu: model 26/43 2048x2048 28.0ms uploaded=1
+31045.7 gpu: model 27/43 1024x1024 4.0ms uploaded=1
+31048.1 gpu: model 28/43 512x512 2.2ms uploaded=1
+31076.9 gpu: model 29/43 2048x2048 28.8ms uploaded=1
+31079.8 gpu: model 30/43 512x512 2.2ms uploaded=1
+31086.6 gpu: model 31/43 1024x1024 6.8ms uploaded=1
+31088.8 gpu: model 32/43 512x512 2.0ms uploaded=1
+31090.8 gpu: model 33/43 512x512 2.0ms uploaded=1
+31096.6 gpu: model 34/43 2048x1024 5.8ms uploaded=1
+31098.8 gpu: model 35/43 1024x512 1.8ms uploaded=1
+31101.1 gpu: model 36/43 1024x512 2.3ms uploaded=1
+31103.1 gpu: model 37/43 1024x512 1.8ms uploaded=1
+31110.2 gpu: model 38/43 2048x1024 7.0ms uploaded=1
+31114.0 gpu: model 39/43 1024x1024 3.4ms uploaded=1
+31122.5 gpu: model 40/43 2048x1024 8.3ms uploaded=1
+31127.7 gpu: model 41/43 1024x1024 4.7ms uploaded=1
+31135.4 gpu: model 42/43 2048x1024 7.6ms uploaded=1
+31135.9 gpu: models done 43 uploaded=43
+31135.9 gpu: reload-stage stage=models lastError=0x80004005
+31135.9 gpu: reload end
+31135.9 gpu: post-reload lastError=0x80004005
+31138.4 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+31139.0 loop n=1 tick=0
+31139.0 scene: begin tick=0 sceneTick=24389
+31139.0 scene: snapshot status=3 stale=0 states=0
+31139.1 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0
+31139.1 scene: observer done
+31139.1 scene: hud fxDue=0 drawable=0
+31139.1 scene: done
+31151.2 loop n=2 tick=0
+31151.3 draw: begin tick=0 frames=0
+31161.9 gpu: world sky state=active vertices=36 triangles=12 faces=6 draws=1 side=512 resampled=1 reason=six sides, 36 vertices
+31161.9 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+31161.9 gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=1844 clusteredTriangles=75226 hiddenTriangles=0 withoutCluster=0 inputTriangles=75226 drawnTriangles=75226 clipApplied=0 state=unavailable reason=the camera is in no named cluster, so nothing can be hidden
+31161.9 draw: end frames=1 pending=0
+31161.9 loop n=3 tick=0
+31162.0 metrics t=0.02 tick=0 iter=3
+31162.0 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=1 capture_written=1 metrics_written=1 exit=0
+31162.0 audio: summary soundEventsRead=5249 soundEventsScheduled=5189 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=24389 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=0
+31162.0 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=1 holdsNoTarget=0 freezeFrames=0
