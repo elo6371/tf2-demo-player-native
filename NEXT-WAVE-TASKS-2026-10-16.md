@@ -30,7 +30,7 @@ queue, and they may not merge until T5 establishes the release baseline.
 | T6 ViewModel animation binding | done / merged | Entity animation binding and ViewModel sequence selection | complete | complete |
 | T7 Audio content coverage | done / merged | Music, TempEntity/PCF, voice, and MP3 paths | complete | complete |
 | T8 World rendering reliability | done / merged | SUNSHINE device failure and world material fallbacks | complete | complete |
-| T9 Resource discovery and startup | next | Download-map lookup, title parser compatibility, startup packaging facts | Yes | Yes |
+| T9 Resource discovery and startup | done / pushed | Download-map lookup, title parser compatibility, startup packaging facts | complete | complete |
 | T10 Visual correctness baseline | next | World, player entity, hands, weapon, and ViewModel screenshot correctness | Yes | Yes |
 
 Parallel development means code and static inspection in independent worktrees.
@@ -53,6 +53,35 @@ the owner must state the exact command, expected evidence directory, and
 whether it needs a build, capture, device, or soak slot. No task may mutate
 shared evidence, build outputs, locks, or another task's worktree while a
 queued check is running.
+
+## Integration Quality Gate
+
+Passing a focused script is not sufficient for merge. The coordinator must
+review the product diff for ownership, lifetime, fallback, error propagation,
+coordinate-space, material binding, draw ordering, and cleanup behavior. The
+review must trace the changed path from real input to draw/audio output and
+check that counters are not being used as a substitute for the user-visible
+result.
+
+Every rendering change must include a human-readable reference frame from a
+real input, a before/after comparison, and a named explanation for every major
+visible region. A non-flat frame, changed hash, positive draw count, or decoded
+texture count does not prove that the map, player, hands, weapon, or ViewModel
+is correct. If the frame still shows broken materials, missing entities, or
+incorrect placement, the change is rejected or marked `NOT VERIFIED` even when
+the automated gate is green.
+
+Before merging a task, record:
+
+1. Code-review findings and their disposition.
+2. The exact executable used for the visual evidence and its source commit.
+3. Region-level visual results for world, player, hands, weapon, and HUD.
+4. Any known fallback or placeholder path that remains active.
+5. A merge decision of `ACCEPT`, `ACCEPT WITH LIMITATIONS`, or `REJECT`.
+
+The previous world-material work did not satisfy this standard because its
+resource and counter evidence did not establish correct map appearance. T10
+must close that gap before any release claim.
 
 ## Shared Project Context
 
