@@ -146,8 +146,15 @@ echo "=== 2/8 every synthetic fixture passes ==="
 # green run is a statement about the parser and the capability layer together.
 FIX=$("$EXE" --fixture 2>&1)
 echo "$FIX" > "$OUT/fixture-straight.txt"
-assert_eq "fixtures" "$(count "$FIX" fixtures)" "9"
-assert_eq "fixture checks" "$(count "$FIX" checks)" "90"
+# T8 (2026-10-16): 10 fixtures and 127 checks. The tenth is `skybox-six-distinct`,
+# which gives each of the six sides its own flat colour and then asserts, per cube
+# index, the direction, the suffix, both paths and one sampled pixel. It adds 37
+# checks (6 x 6 + one "six different images") and is the only case in this file
+# that can tell rt from dn: every counter below it -- vmtFound, texturesResolved,
+# texturesDecoded, sizes, decodedBytes -- is unchanged by two suffixes trading
+# places.
+assert_eq "fixtures" "$(count "$FIX" fixtures)" "10"
+assert_eq "fixture checks" "$(count "$FIX" checks)" "127"
 assert_eq "fixture failures" "$(count "$FIX" bad)" "0"
 
 echo
@@ -159,9 +166,12 @@ echo "$MUT" > "$OUT/fixture-mutation.txt"
 assert_eq "mutations executed" "$(count "$MUT" mutations)" "7"
 assert_eq "mutation failures" "$(count "$MUT" mutationBad)" "0"
 assert_eq "total failures with mutations" "$(count "$MUT" bad)" "0"
-# Straight plus mutated assertions: 90 + 30. Pinned so a fixture that quietly
-# stops asserting anything cannot pass by shrinking.
-assert_eq "assertions with mutations" "$(count "$MUT" checks)" "120"
+# Straight plus mutated assertions: 127 + 30. Pinned so a fixture that quietly
+# stops asserting anything cannot pass by shrinking. The mutation count is still
+# 7: `skybox-six-distinct` has no data mutation, because the defect it catches is
+# a swap in the product's suffix table, which is a source mutation -- applied by
+# world-render-reliability-check.sh, not by this file.
+assert_eq "assertions with mutations" "$(count "$MUT" checks)" "157"
 
 echo
 echo "=== 4/8 the real map's six capabilities, pinned ==="
@@ -229,6 +239,23 @@ assert_eq "sky textures decoded"  "$(field "$REAL" sky.texturesDecoded)"  "6"
 assert_eq "sky largest face"      "$(field "$REAL" sky.firstSize)"        "512x256"
 assert_eq "sky smallest face"     "$(field "$REAL" sky.smallestSize)"     "1x1"
 assert_eq "sky decoded bytes"     "$(field "$REAL" sky.decodedBytes)"     "3145732"
+# T8 (2026-10-16): the six-way pairing, on real content. Six vmts and six
+# textures do not say which one is on which side of the box, and two suffixes
+# trading places would leave every number above untouched. Measured on this
+# install 2026-10-16: sky_well_01's centre pixels give four distinct values
+# (rt 107, lf/bk/ft 104, up 89, dn 29 -- dn is the 1x1 stub this map ships).
+for f in 0 1 2 3 4 5; do
+  assert_eq "sky face $f suffix" "$(field "$REAL" sky.face$f.suffix)" \
+    "$(printf '%s' "rt lf bk ft up dn" | cut -d' ' -f$((f+1)))"
+  assert_eq "sky face $f direction" "$(field "$REAL" sky.face$f.dir)" \
+    "$(printf '%s' "+X -X +Y -Y +Z -Z" | cut -d' ' -f$((f+1)))"
+  assert_eq "sky face $f vmt" "$(field "$REAL" sky.face$f.vmt)" \
+    "materials/skybox/sky_well_01$(printf '%s' "rt lf bk ft up dn" | cut -d' ' -f$((f+1))).vmt"
+  assert_eq "sky face $f decoded" "$(field "$REAL" sky.face$f.decoded)" "true"
+done
+assert_eq "sky face 0 pixel" "$(field "$REAL" sky.face0.rgba)" "107,95,121,255"
+assert_eq "sky face 4 pixel" "$(field "$REAL" sky.face4.rgba)" "89,91,137,255"
+assert_eq "sky face 5 pixel" "$(field "$REAL" sky.face5.rgba)" "29,57,90,255"
 assert_eq "displacement faces"    "$(field "$REAL" displacement.faces)"    "1316"
 assert_eq "displacement triangles" "$(field "$REAL" displacement.triangles)" "165376"
 assert_eq "displacement corners"  "$(field "$REAL" displacement.cornerMatches)" "1316"
@@ -541,6 +568,27 @@ if [ "$MUTATION" -eq 1 ]; then
   fi
   if [ "$(ofield drawnTriangles)" != "$(( $(vfield inputTriangles) ))" ]; then
     echo "  FAIL the switches-off run did not draw the whole buffer"
+    exit 1
+  fi
+  # T8: the per-face sky pairing. "up" on the +Z face is the claim; "dn" there is
+  # the swapped table this section's second product mutation installs, and the
+  # pixel is dn's, so both readings have to refuse the values they would carry
+  # under that swap. A gate that pinned only the suffixes would still be reading
+  # the table it is checking.
+  if [ "$(field "$REAL" sky.face4.suffix)" = "dn" ]; then
+    echo "  FAIL the +Z face matched the swapped suffix it should not have"
+    exit 1
+  fi
+  if [ "$(field "$REAL" sky.face5.suffix)" = "up" ]; then
+    echo "  FAIL the -Z face matched the swapped suffix it should not have"
+    exit 1
+  fi
+  if [ "$(field "$REAL" sky.face4.rgba)" = "29,57,90,255" ]; then
+    echo "  FAIL the +Z face sampled the down texture's pixel"
+    exit 1
+  fi
+  if [ "$(field "$REAL" sky.face0.dir)" = "-" ] || [ "$(field "$REAL" sky.face0.suffix)" = "-" ]; then
+    echo "  FAIL the sky-face pairing fell back to a placeholder"
     exit 1
   fi
 

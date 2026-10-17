@@ -3,8 +3,9 @@
 {"fixture":"lightmap-triangle-limit","checks":6,"bad":0,"mutationRan":false,"mutationChecks":0,"mutationBad":0}
 {"fixture":"cubemap-six-face","checks":36,"bad":0,"mutationRan":true,"mutationChecks":9,"mutationBad":0}
 {"fixture":"skybox-six-vmt","checks":8,"bad":0,"mutationRan":true,"mutationChecks":5,"mutationBad":0}
+{"fixture":"skybox-six-distinct","checks":37,"bad":0,"mutationRan":false,"mutationChecks":0,"mutationBad":0}
 {"fixture":"displacement-flat-grid","checks":6,"bad":0,"mutationRan":true,"mutationChecks":4,"mutationBad":0}
 {"fixture":"water-capability","checks":4,"bad":0,"mutationRan":true,"mutationChecks":3,"mutationBad":0}
 {"fixture":"vis-cluster-clip","checks":5,"bad":0,"mutationRan":true,"mutationChecks":2,"mutationBad":0}
 {"fixture":"vis-camera-cluster","checks":4,"bad":0,"mutationRan":false,"mutationChecks":0,"mutationBad":0}
-{"fixtures":9,"checks":120,"bad":0,"mutations":7,"mutationBad":0}
+{"fixtures":10,"checks":157,"bad":0,"mutations":7,"mutationBad":0}

@@ -1,0 +1,134 @@
+=== 1/8 the probe's self-tests pass ===
+  OK   selfTest = true
+  OK   capabilitySelfTest = true
+  OK   cubeAxes = true
+  OK   cubeZeroRefused = true
+  OK   cubeSamplePath = true
+  OK   emptyBspAllUnavailable = true
+  OK   worldDrawSelfTest = true
+  OK   skyBoxVertices = true
+  OK   skyBoxPlanes = true
+  OK   skyBoxUvs = true
+  OK   skyPartialFallback = true
+  OK   skyNoSidesReason = true
+  OK   skyDisabledReason = true
+  OK   visClipHides = true
+  OK   visClipIndices = true
+  OK   visClipFollowsCamera = true
+  OK   visClipDisabled = true
+  OK   visClipNeedsCamera = true
+  OK   visClipWithoutPvs = true
+  OK   atlasFitsAt2048 = true
+  OK   atlasGrowsWhenFull = true
+
+=== 2/8 every synthetic fixture passes ===
+  OK   fixtures = 9
+  OK   fixture checks = 90
+  OK   fixture failures = 0
+
+=== 3/8 every fixture mutation moves its reading ===
+  OK   mutations executed = 7
+  OK   mutation failures = 0
+  OK   total failures with mutations = 0
+  OK   assertions with mutations = 120
+
+=== 4/8 the real map's six capabilities, pinned ===
+  OK   lightmap state = active
+  OK   lightmap faces = 11527
+  OK   lightmap packed = 11527
+  OK   lightmap dropped = 0
+  OK   lightmap triangles = 199922
+  OK   lightmap atlas = 4096x1156
+  OK   lightmap atlas cap = 4096
+  OK   lightmap atlas grew = true
+  OK   lightmap atlas reason = all 11527 faces fit the 4096-wide atlas
+  OK   lightmap uv in range = true
+  OK   cubemap state = active
+  OK   cubemap samples = 33
+  OK   cubemap complete = 33
+  OK   cubemap faces decoded = 198
+  OK   cubemap from pakfile = 33
+  OK   cubemap first path = materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf
+  OK   cubemap faces in file = 7
+  OK   cubemap declared faces = 6
+  OK   cubemap beyond six = 33
+  OK   cubemap face means = 62,45,56,58,51,54
+  OK   cubemap face checksums = 300ee24d,c9beee88,ed1d429a,02bc6fd5,5ecd73ed,ed94acc3
+  OK   sky state = active
+  OK   sky name = sky_well_01
+  OK   sky vmts found = 6
+  OK   sky textures resolved = 6
+  OK   sky textures decoded = 6
+  OK   sky largest face = 512x256
+  OK   sky smallest face = 1x1
+  OK   sky decoded bytes = 3145732
+  OK   displacement faces = 1316
+  OK   displacement triangles = 165376
+  OK   displacement corners = 1316
+  OK   water faces = 18
+  OK   water triangles = 36
+  OK   vis mode = cluster-pvs
+  OK   vis clusters = 2940
+  OK   vis visible from 0 = 384
+
+=== 5/8 the negative control: no BSP, so nothing is available ===
+  OK   koth_bagel_rc13.bsp is not installed here, so the run reads an empty map
+  OK   bagel lightmap = unavailable
+  OK   bagel cubemap = unavailable
+  OK   bagel sky = unavailable
+  OK   bagel displacement = unavailable
+  OK   bagel water = unavailable
+  OK   bagel vis = unavailable
+  OK   bagel lightmap reason = the bsp declares no lightmap faces
+
+=== 6/8 the render side lights what the parse side measured ===
+product run rc=0 trace=6788
+  OK   product run rc = 0
+  OK   render lightmap status = active
+  OK   render atlas bound = 1
+  OK   render vertices = 600000
+  OK   render lightmapped = 3 x parse triangles = 599766
+  OK   render displaced = parse displacement triangles = 165376
+  OK   render water = parse water triangles = 36
+  OK   render vis camera cluster = 2287
+  OK   render vis visible from camera = 585
+  OK   render vis clustered triangles = 34517
+  OK   render vis hidden triangles = 29756
+  OK   render vis clip applied = 1
+  OK   render vis clip state = active
+  OK   render vis input triangles = 200000
+  OK   render vis drawn triangles = 170244
+  OK   render vis drawn + hidden = input (170244 + 29756 = 200000)
+  OK   render sky state = active
+  OK   render sky vertices = 36
+  OK   render sky triangles = 12
+  OK   render sky faces = 6
+  OK   render sky draws = 1
+  OK   render sky cube side = 512
+  OK   render lightmapped < vertices (599766 < 600000)
+=== 7/8 the product builds the map's cubemap and the env pass selects it ===
+  OK   cubemap run rc = 0
+  OK   cubemap forced run rc = 0
+  OK   cubemap status = six-face
+  OK   cubemap faces = 6
+  OK   cubemap size = 32
+  OK   cubemap source = materials/maps/2koth_abbey/c1316_-1018_238.vtf
+  OK   cubemap reason = all
+  OK   cubemap plain mode = 0
+  OK   cubemap plain declared = 0
+  OK   cubemap forced mode = 2
+  OK   cubemap forced declared = 1
+  OK   the forced env mode moved the frame (45468 bytes differ)
+
+=== 8/8 the two switches, off: the sky is not drawn and the clip does not run ===
+  OK   switches-off run rc = 0
+  OK   sky off state = unavailable
+  OK   sky off vertices = 0
+  OK   sky off draws = 0
+  OK   sky off reason names the caller's switch
+  OK   clip off state = disabled
+  OK   clip off applied = 0
+  OK   clip off drawn = uploaded = 200000
+  OK   the clip changes the geometry the world pass is given (170244 < 200000)
+
+WORLD-MATERIAL=PASS

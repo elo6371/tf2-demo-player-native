@@ -610,6 +610,20 @@ std::map<std::string, std::string> flattenReadings(
   out["sky.smallestSize"] = std::to_string(readings.sky.smallestWidth) + "x"
     + std::to_string(readings.sky.smallestHeight);
   out["sky.decodedBytes"] = std::to_string(readings.sky.decodedBytes);
+  // T8 (2026-10-16): the six-way pairing, one group of keys per cube face.
+  // `sky.texturesDecoded == 6` says six files decoded; these say which side of
+  // the box each one is on, which is a different claim and the one a swapped
+  // suffix table would break while leaving every counter above unchanged.
+  for (int face = 0; face < 6; ++face) {
+    const auto& origin = readings.sky.origins[static_cast<std::size_t>(face)];
+    const std::string key = "sky.face" + std::to_string(face) + ".";
+    out[key + "dir"] = origin.direction;
+    out[key + "suffix"] = origin.suffix;
+    out[key + "vmt"] = origin.materialPath;
+    out[key + "vtf"] = origin.texturePath;
+    out[key + "rgba"] = origin.sampleRgba;
+    out[key + "decoded"] = origin.decoded ? "true" : "false";
+  }
 
   out["displacement.state"] = worldCapabilityStateName(displacement.state);
   out["displacement.reason"] = displacement.reason;
@@ -640,6 +654,49 @@ std::vector<Check> readingChecks(const tf2::native::WorldCapabilityReadings& rea
     const auto at = flat.find(key);
     checks.push_back(checkStr(key, at == flat.end() ? "<absent>" : at->second, expected));
   }
+  return checks;
+}
+
+// T8 (2026-10-16): the six sky sides have to land on the six cube directions
+// they belong to, and the box has to be carrying six different decoded images
+// rather than one flat colour. Both are asserted per face, and `expectations` is
+// written out by the caller instead of being derived from the product's own
+// tables -- a check built from the table it is checking is a tautology.
+struct SkyFaceExpectation {
+  const char* suffix;
+  const char* direction;
+  const char* rgba;
+};
+
+std::vector<Check> skyFaceMappingChecks(const tf2::native::WorldCapabilityReadings& readings,
+    const std::vector<SkyFaceExpectation>& expect) {
+  const auto flat = flattenReadings(readings);
+  std::vector<Check> checks;
+  std::vector<std::string> samples;
+  for (std::size_t face = 0; face < expect.size(); ++face) {
+    const std::string key = "sky.face" + std::to_string(face) + ".";
+    const auto& wanted = expect[face];
+    const auto get = [&](const std::string& tail) {
+      const auto at = flat.find(key + tail);
+      return at == flat.end() ? std::string("<absent>") : at->second;
+    };
+    checks.push_back(checkStr(key + "suffix", get("suffix"), wanted.suffix));
+    checks.push_back(checkStr(key + "dir", get("dir"), wanted.direction));
+    checks.push_back(checkStr(key + "rgba", get("rgba"), wanted.rgba));
+    checks.push_back(checkStr(key + "vmt", get("vmt"),
+      "materials/skybox/" + readings.sky.name + wanted.suffix + ".vmt"));
+    checks.push_back(checkStr(key + "vtf", get("vtf"),
+      "materials/skybox/" + readings.sky.name + wanted.suffix + ".vtf"));
+    checks.push_back(checkStr(key + "decoded", get("decoded"), "true"));
+    samples.push_back(get("rgba"));
+  }
+  // Six sides, six different pixels. A sky that sampled one constant would keep
+  // every counter above at six and show the same thing in every direction, which
+  // is the failure this line is here to make visible.
+  std::vector<std::string> sorted = samples;
+  std::sort(sorted.begin(), sorted.end());
+  sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+  checks.push_back(checkNum("sky.distinctSamples", sorted.size(), samples.size()));
   return checks;
 }
 
@@ -1004,6 +1061,53 @@ std::vector<FixtureCase> buildCases() {
         reason.find("sky_fixture_01dn.vtf") == std::string::npos ? "not-named" : "named", "named"));
       return checks;
     };
+    cases.push_back(std::move(item));
+  }
+
+  // ---- 4b. T8 (2026-10-16): the six sky sides land on the six directions ----
+  // `skybox-six-vmt` gives all six sides the SAME colour, so it can prove six
+  // files decode and cannot prove which one the renderer put on +Z. This case
+  // gives each side a different flat colour and then asserts, per cube index,
+  // the direction, the suffix, the two paths and one sampled pixel.
+  //
+  // The expected suffix and direction per index are written out literally below
+  // rather than read back through `worldCubemapFaceSuffix` / `worldSkyFaceDirection`:
+  // an assertion built from the table it is meant to check is a tautology. These
+  // six pairs are the Source convention (rt=+X, lf=-X, bk=+Y, ft=-Y, up=+Z,
+  // dn=-Z), stated here as the thing the product has to agree with.
+  {
+    FixtureCase item;
+    item.name = "skybox-six-distinct";
+    item.fixture.entities = "\"skyname\" \"sky_distinct_01\"\n";
+    item.fixture.faces.push_back(lightmapQuad());
+    static const char* expectedSuffixes[6] = {"rt", "lf", "bk", "ft", "up", "dn"};
+    static const std::array<std::uint8_t, 3> expectedColours[6] = {
+      {{255, 0, 0}}, {{0, 255, 0}}, {{0, 0, 255}},
+      {{255, 255, 0}}, {{255, 0, 255}}, {{0, 255, 255}},
+    };
+    for (int face = 0; face < 6; ++face) {
+      const std::string suffix = expectedSuffixes[face];
+      const std::string stem = "materials/skybox/sky_distinct_01" + suffix;
+      const std::string vmtText = "UnlitGeneric\n{\n\t\"$basetexture\" \"skybox/sky_distinct_01"
+        + suffix + "\"\n}\n";
+      item.resources.push_back({stem + ".vmt",
+        std::vector<std::uint8_t>(vmtText.begin(), vmtText.end())});
+      item.resources.push_back({stem + ".vtf",
+        syntheticFlatVtf(8, 4, expectedColours[face])});
+    }
+    item.straight = [](const tf2::native::BspMap&,
+        const tf2::native::WorldCapabilityReadings& readings) {
+      return skyFaceMappingChecks(readings, {
+        {"rt", "+X", "255,0,0,255"}, {"lf", "-X", "0,255,0,255"},
+        {"bk", "+Y", "0,0,255,255"}, {"ft", "-Y", "255,255,0,255"},
+        {"up", "+Z", "255,0,255,255"}, {"dn", "-Z", "0,255,255,255"},
+      });
+    };
+    // No probe-level mutation: the defect this case catches is a swap in the
+    // product's own suffix table, which is a source mutation. The gate applies it
+    // with sed, rebuilds, and asserts these per-face colours go red -- a fixture
+    // data mutation cannot, because the table lives in native/src, not in the
+    // fixture's resource list.
     cases.push_back(std::move(item));
   }
 

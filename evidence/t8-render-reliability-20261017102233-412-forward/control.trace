@@ -1,0 +1,102 @@
+0.0 trace open
+30305.9 audio: timeline firstPacketTick=10252 soundOriginTick=1 originFound=1 read=5292 scheduled=5229 unresolved=63 unplaceable=0 refused=0 kinds=w2953/f5/u14/o1620/v633/a4/m0
+30845.7 gpu: reload begin
+30850.6 gpu: reload-stage stage=texture lastError=0x00000000
+30850.6 gpu: reload-stage stage=aux lastError=0x00000000
+30857.8 gpu: reload-stage stage=lightmap lastError=0x00000000
+30858.0 gpu: reload-stage stage=cubemap lastError=0x00000000
+30890.6 gpu: reload-stage stage=sky lastError=0x00000000
+30890.7 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+30890.7 gpu: world sky-face index=0 dir=+X suffix=rt vmt=materials/skybox/sky_well_01rt.vmt vtf=materials/skybox/sky_well_01rt.vtf rgba=107,95,121,255
+30891.0 gpu: world sky-face index=1 dir=-X suffix=lf vmt=materials/skybox/sky_well_01lf.vmt vtf=materials/skybox/sky_well_01lf.vtf rgba=104,100,135,255
+30891.0 gpu: world sky-face index=2 dir=+Y suffix=bk vmt=materials/skybox/sky_well_01bk.vmt vtf=materials/skybox/sky_well_01bk.vtf rgba=104,100,135,255
+30891.0 gpu: world sky-face index=3 dir=-Y suffix=ft vmt=materials/skybox/sky_well_01ft.vmt vtf=materials/skybox/sky_well_01ft.vtf rgba=104,100,135,255
+30891.0 gpu: world sky-face index=4 dir=+Z suffix=up vmt=materials/skybox/sky_well_01up.vmt vtf=materials/skybox/sky_well_01up.vtf rgba=89,91,137,255
+30891.0 gpu: world sky-face index=5 dir=-Z suffix=dn vmt=materials/skybox/sky_well_01dn.vmt vtf=materials/skybox/sky_well_01dn.vtf rgba=29,57,90,255
+30961.9 gpu: reload-stage stage=water lastError=0x00000000
+30962.3 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+30962.4 gpu: world lightmap status=active intensity=0.439 atlas=1 bump=0 env=0 vertices=600000 lightmapped=599766
+30962.4 gpu: world geometry displacedTriangles=165376 waterTriangles=36
+30962.4 gpu: world cubemap status=six-face mode=0 preset=standard declared=0 faces=6 size=32 source=materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf reason=all six faces decoded
+30968.9 gpu: model 0/59 1024x1024 6.5ms uploaded=1
+30980.1 gpu: model 1/59 1024x1024 10.9ms uploaded=1
+30980.8 gpu: model 2/59 128x128 0.5ms uploaded=1
+30982.2 gpu: model 3/59 512x512 1.4ms uploaded=1
+31003.5 gpu: model 4/59 2048x2048 21.2ms uploaded=1
+31044.1 gpu: model 5/59 2048x2048 39.4ms uploaded=1
+31046.8 gpu: model 6/59 512x512 1.8ms uploaded=1
+31049.2 gpu: model 7/59 512x512 2.3ms uploaded=1
+31052.8 gpu: model 8/59 512x512 3.5ms uploaded=1
+31057.9 gpu: model 9/59 1024x1024 5.0ms uploaded=1
+31062.9 gpu: model 10/59 1024x1024 4.8ms uploaded=1
+31069.4 gpu: model 11/59 1024x1024 6.1ms uploaded=1
+31079.3 gpu: model 12/59 1024x1024 9.6ms uploaded=1
+31127.6 gpu: model 13/59 2048x2048 48.0ms uploaded=1
+31171.2 gpu: model 14/59 2048x2048 42.6ms uploaded=1
+31175.4 gpu: model 15/59 512x512 3.3ms uploaded=1
+31187.6 gpu: model 16/59 1024x1024 12.1ms uploaded=1
+31193.9 gpu: model 17/59 1024x1024 6.1ms uploaded=1
+31204.1 gpu: model 18/59 1024x1024 10.0ms uploaded=1
+31214.0 gpu: model 19/59 1024x1024 9.6ms uploaded=1
+31224.4 gpu: model 20/59 1024x1024 10.1ms uploaded=1
+31230.7 gpu: model 21/59 1024x1024 6.1ms uploaded=1
+31243.2 gpu: model 22/59 2048x1024 12.2ms uploaded=1
+31253.9 gpu: model 23/59 1024x1024 10.2ms uploaded=1
+31263.7 gpu: model 24/59 1024x1024 9.5ms uploaded=1
+31273.6 gpu: model 25/59 1024x1024 9.7ms uploaded=1
+31279.1 gpu: model 26/59 1024x1024 5.2ms uploaded=1
+31281.0 gpu: model 27/59 512x512 1.7ms uploaded=1
+31286.2 gpu: model 28/59 1024x1024 5.1ms uploaded=1
+31296.0 gpu: model 29/59 1024x1024 9.6ms uploaded=1
+31301.1 gpu: model 30/59 1024x512 4.9ms uploaded=1
+31303.0 gpu: model 31/59 512x512 1.5ms uploaded=1
+31312.6 gpu: model 32/59 1024x1024 9.6ms uploaded=1
+31313.8 gpu: model 33/59 256x256 0.9ms uploaded=1
+31316.4 gpu: model 34/59 512x512 2.5ms uploaded=1
+31360.0 gpu: model 35/59 2048x2048 43.5ms uploaded=1
+31370.7 gpu: model 36/59 1024x1024 9.8ms uploaded=1
+31381.4 gpu: model 37/59 1024x1024 10.4ms uploaded=1
+31422.9 gpu: model 38/59 2048x2048 41.2ms uploaded=1
+31435.5 gpu: model 39/59 1024x1024 11.8ms uploaded=1
+31438.9 gpu: model 40/59 512x512 3.2ms uploaded=1
+31480.0 gpu: model 41/59 2048x2048 41.0ms uploaded=1
+31484.0 gpu: model 42/59 512x512 3.0ms uploaded=1
+31526.6 gpu: model 43/59 2048x2048 42.5ms uploaded=1
+31567.1 gpu: model 44/59 2048x2048 39.7ms uploaded=1
+31569.5 gpu: model 45/59 512x256 1.6ms uploaded=1
+31572.2 gpu: model 46/59 512x512 2.6ms uploaded=1
+31574.9 gpu: model 47/59 512x512 2.7ms uploaded=1
+31577.6 gpu: model 48/59 512x512 2.6ms uploaded=1
+31583.0 gpu: model 49/59 1024x1024 5.2ms uploaded=1
+31593.3 gpu: model 50/59 2048x1024 10.0ms uploaded=1
+31596.7 gpu: model 51/59 1024x512 2.9ms uploaded=1
+31599.8 gpu: model 52/59 1024x512 3.0ms uploaded=1
+31603.4 gpu: model 53/59 1024x512 3.4ms uploaded=1
+31614.8 gpu: model 54/59 2048x1024 11.2ms uploaded=1
+31621.2 gpu: model 55/59 1024x1024 5.8ms uploaded=1
+31631.3 gpu: model 56/59 2048x1024 9.9ms uploaded=1
+31637.6 gpu: model 57/59 1024x1024 5.7ms uploaded=1
+31647.8 gpu: model 58/59 2048x1024 10.0ms uploaded=1
+31648.3 gpu: models done 59 uploaded=59
+31648.3 gpu: reload-stage stage=models lastError=0x00000000
+31648.3 gpu: reload end
+31648.3 gpu: post-reload lastError=0x00000000
+31661.1 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+31662.2 loop n=1 tick=0
+31662.2 scene: begin tick=0 sceneTick=10252
+31662.2 scene: snapshot status=3 stale=0 states=0
+31662.2 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0
+31662.3 scene: observer done
+31662.3 scene: hud fxDue=0 drawable=0
+31662.4 scene: done
+31681.2 loop n=2 tick=0
+31681.2 draw: begin tick=0 frames=0
+31717.6 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+31717.6 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+31717.9 gpu: world vis cameraCluster=2287 visibleFromCamera=585 clusters=2940 clusteredTriangles=34517 hiddenTriangles=29756 withoutCluster=165483 inputTriangles=200000 drawnTriangles=170244 clipApplied=1 state=active reason=hid 29756 of 200000 triangles from cluster 2287
+31718.0 draw: end frames=1 pending=0
+31718.0 loop n=3 tick=0
+31718.1 metrics t=0.06 tick=0 iter=3
+31718.1 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=1 capture_written=1 metrics_written=1 exit=0
+31718.1 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=10252 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=0
+31718.1 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=1 holdsNoTarget=0 freezeFrames=0

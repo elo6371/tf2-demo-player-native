@@ -238,6 +238,29 @@ WorldCubemapReading measureCubemaps(const BspMap& map, const std::string& mapNam
 // 3. Skybox
 // ---------------------------------------------------------------------------
 
+// Where one cube face's pixels came from. `measureSky` counts the six resources
+// and `captureSkyFaces` keeps their bytes, but until this existed neither said
+// which file landed on which side of the box -- so "six sides decode" and "the
+// six sides are on the six directions they belong to" read the same. They do
+// not: two entries swapped in the suffix table still decode six textures, they
+// just show the sky rotated, which is a defect no count would catch.
+//
+// `sampleRgba` is the centre pixel of the decoded side. It is what makes the
+// mapping check non-circular: the fixture puts a different colour in each file,
+// and the gate then asks which cube index is holding it -- so the answer comes
+// from the pixels rather than from a second copy of the table being checked.
+struct WorldSkyFaceOrigin {
+  int face = 0;
+  std::string suffix;        // "rt" .. "dn", from worldCubemapFaceSuffix
+  std::string direction;     // "+X" .. "-Z", derived from the geometry basis
+  std::string materialPath;  // the .vmt this index resolved, or "-"
+  std::string texturePath;   // the .vtf its $basetexture named, or "-"
+  std::string sampleRgba;    // "r,g,b,a" centre pixel, or "not-decoded"
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  bool decoded = false;
+};
+
 struct WorldSkyReading {
   bool declared = false;
   std::string name;
@@ -261,6 +284,11 @@ struct WorldSkyReading {
   std::uint32_t smallestHeight = 0;
   std::size_t decodedBytes = 0;
   std::string firstTextureProblem;
+  // T8 (2026-10-16): the per-face provenance, filled by the same walk that
+  // produced the counters above. Kept here rather than only on the capture so
+  // `measureSky` and `captureSkyFaces` cannot disagree about which file is on
+  // which side -- they share skyFaceOrigin().
+  std::array<WorldSkyFaceOrigin, 6> origins{};
 };
 
 WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe);
@@ -496,6 +524,12 @@ struct WorldSkyFace {
 enum class WorldSkyState { Unavailable, Fallback, Active };
 const char* worldSkyStateName(WorldSkyState state);
 
+// The cube direction a face index is drawn on, as "+X", "-X", "+Y", "-Y", "+Z",
+// "-Z" -- read off the same basis the geometry is built from, so the name a gate
+// asserts cannot drift from the direction the box actually uses. Nullptr outside
+// [0,6), which is how the caller says "there is no such face".
+const char* worldSkyFaceDirection(int face);
+
 struct WorldSkyDrawRequest {
   // The caller's switch. Off means "do not draw", and the reading then says
   // Disabled-by-caller rather than "no sky", which are different facts.
@@ -537,6 +571,8 @@ WorldSkyDrawReading evaluateSkyDrawRequest(const WorldSkyDrawRequest& request,
 // hence `reason`.
 struct WorldSkyFaceCapture {
   std::array<WorldSkyFace, 6> faces{};
+  // Parallel to `faces`: index f describes the resource behind faces[f].
+  std::array<WorldSkyFaceOrigin, 6> origins{};
   int facesDecoded = 0;
   std::string skyName;
   // Named whenever the capture is short of six, and "the bsp declares no
