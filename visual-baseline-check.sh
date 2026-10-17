@@ -1,22 +1,29 @@
 #!/usr/bin/env bash
-# visual-baseline-check.sh -- T10: the visual correctness baseline gate.
+# visual-baseline-check.sh -- T10/T11: the visual correctness baseline gate.
 #
 # WHY THIS FILE EXISTS
 # --------------------
 # The release blocker was visual: the reference POV frame showed broken
 # material blocks, a partial ViewModel and a world that never became a place.
-# T10's staged diagnosis found and fixed two root causes in the world region:
+# T10 fixed two root causes in the world region (the pvs clip clustering the
+# observer's NORMALIZED point as map coordinates, and the --debug-camera
+# diagnostic being cleared by the first frame's camera-mode transition).
+# T11's flat-colour and depth-only captures then separated triangulation,
+# displacement, camera and depth ordering, and fixed two more:
 #
-#   A. the pvs clip asked `clusterAt` for the cluster of the observer's
-#      NORMALIZED unit-box point as if it were MAP coordinates, so every
-#      camera read as one fixed cluster (2017 on pl_odyssey) and the clip hid
-#      an arbitrary half of the map from a place nobody was looking at. The
-#      fix is Renderer::observerFocusMapWorld -- the exact inverse of
-#      setObserverFocusWorld, living next to it.
-#   B. the --debug-camera diagnostic was applied once after the world upload
-#      and then cleared by the first frame's camera-mode transition, so every
-#      "top-down" reading this task had taken before the fix was the default
-#      orbit camera. The fix applies the diagnostic camera every frame.
+#   A. the pvs row table was read with one stride-8 offset table -- a
+#      different cluster's row -- and decoded with a run-length walk over rows
+#      this map stores uncompressed. Cluster 1032's pvs answered 1021 visible
+#      clusters (garbage); the corrected reader answers 1692, which an
+#      independent python decode of the vis lump reproduces. The clip was
+#      hiding faces that were plainly in front of the camera.
+#   B. the shipped winding is mixed and the two emission paths disagree:
+#      displacement grids and brush fans store opposite conventions, so every
+#      single global flip left half the map culled as back faces. Every
+#      emitted triangle is now oriented against its face's own plane, with the
+#      class side measured (47252 of 99312 triangles reversed); the flat frame
+#      went from ~35% coverage to ~95%, and the residual clear-colour gap
+#      matches the one hole the no-cull frame also has.
 #
 # What this gate asserts, in order:
 #   1. the geometry probe's census of the reference map, pinned: triangle
@@ -35,10 +42,10 @@
 #
 # mutation: two source mutations, each of which must turn the forward pins
 #   red, and each source must come back byte-identical:
-#   M1 reverts the eye-space fix (observerFocusMapWorld returns the normalized
-#      point again) -- the vis line's eyeMap and cluster pins must break,
-#   M2 flips the world pass's back-face cull default off -- the cull line must
-#      read backfaces=0.
+#   M1 reverts the pvs row-table fix (the stride-8 single-table read) -- the
+#      probe's visClusters pin must fall back off 1692,
+#   M2 flips the per-class winding sign -- the flip census must move off
+#      47252, and with it what the cull mode removes.
 #
 # The reference capture deliberately does NOT pass --hidden-window: the pinned
 # region numbers below were measured on a visible-window capture at
@@ -109,14 +116,19 @@ PROBE_TXT="$SCRATCH/probe.$RUN_TAG.txt"
 echo "$PROBE_TXT" > "$OUT/probe-path.txt"
 cp "$PROBE_TXT" "$OUT/probe.txt"
 assert_eq "probe status" "$(grep -oE 'status=[a-z]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "ok"
-assert_eq "probe triangles" "$(grep -oE 'triangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "99612"
-assert_eq "probe displaced" "$(grep -oE ' displaced=[0-9]+' "$PROBE_TXT" | head -1 | tr -d ' ' | cut -d= -f2)" "47232"
+assert_eq "probe triangles" "$(grep -oE 'triangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "99312"
+assert_eq "probe displaced" "$(grep -oE ' displaced=[0-9]+' "$PROBE_TXT" | head -1 | tr -d ' ' | cut -d= -f2)" "46912"
 assert_eq "probe degenerate" "$(grep -oE 'degenerate=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "4790"
-assert_eq "probe materials covered by atlas cap" "$(grep -oE 'trianglesCoveredByCap=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "98311"
+assert_eq "probe materials covered by atlas cap" "$(grep -oE 'trianglesCoveredByCap=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "98011"
 # The eye the product's vis line reports must be the cluster the probe
 # computes from the same map coordinates: one number, two instruments.
 assert_eq "probe eye cluster" "$(trace_field "$PROBE_TXT" 'geometry eye' 'cluster')" "1032"
-assert_eq "probe eye pvs popcount" "$(trace_field "$PROBE_TXT" 'geometry eye' visClusters)" "1021"
+assert_eq "probe eye pvs popcount" "$(trace_field "$PROBE_TXT" 'geometry eye' visClusters)" "1692"
+# T11: the PVS row table fix. The count of triangles the emitter reversed to
+# put each class on the side its own stored data uses. 47252 of 99312 is the
+# measured split: displacement grids and brush faces ship opposite winding
+# conventions, which is why every single global flip left half the map culled.
+assert_eq "probe winding flip census" "$(grep -oE 'flippedTriangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "47252"
 
 # ---------------------------------------------------------------------------
 # 2. the product's reference capture and its trace
@@ -141,9 +153,14 @@ VISLINE=$(grep -o "gpu: world vis .*" "$REF_TRACE" | head -1)
 echo "  vis: $VISLINE"
 assert_eq "vis clip applied" "$(printf '%s' "$VISLINE" | grep -oE 'clipApplied=[0-9]+' | cut -d= -f2)" "1"
 assert_eq "vis camera cluster" "$(printf '%s' "$VISLINE" | grep -oE 'cameraCluster=[0-9-]+' | cut -d= -f2)" "1032"
-assert_eq "vis pvs popcount" "$(printf '%s' "$VISLINE" | grep -oE 'visibleFromCamera=[0-9]+' | cut -d= -f2)" "1021"
-assert_eq "vis hidden triangles" "$(printf '%s' "$VISLINE" | grep -oE 'hiddenTriangles=[0-9]+' | cut -d= -f2)" "36298"
-assert_eq "vis drawn triangles" "$(printf '%s' "$VISLINE" | grep -oE 'drawnTriangles=[0-9]+' | cut -d= -f2)" "63314"
+# T11: 1692 is the corrected PVS row for cluster 1032 -- the same number the
+# probe computes from the same eye, and the same number an independent python
+# decode of the vis lump produces. The pre-fix reader answered 1021 because it
+# stepped the compressed offset table by 8 bytes (bitofs[0][2c]) and ran a
+# run-length walk over rows this map stores uncompressed.
+assert_eq "vis pvs popcount" "$(printf '%s' "$VISLINE" | grep -oE 'visibleFromCamera=[0-9]+' | cut -d= -f2)" "1692"
+assert_eq "vis hidden triangles" "$(printf '%s' "$VISLINE" | grep -oE 'hiddenTriangles=[0-9]+' | cut -d= -f2)" "22968"
+assert_eq "vis drawn triangles" "$(printf '%s' "$VISLINE" | grep -oE 'drawnTriangles=[0-9]+' | cut -d= -f2)" "76344"
 # The eye pin is THE fix's fingerprint: a map-scale position, three instruments
 # agreeing (renderer inverse, clusterAt, probe). The mutation reverts it to a
 # normalized point near the origin, which cannot match this line.
@@ -155,7 +172,7 @@ CULLLINE=$(grep -o "gpu: world cull .*" "$REF_TRACE" | head -1)
 assert_eq "world cull line" "$CULLLINE" "gpu: world cull backfaces=1 mode=cull-back"
 
 GEOM=$(grep -o "gpu: world geometry .*" "$REF_TRACE" | head -1)
-assert_eq "gpu displaced triangles" "$(printf '%s' "$GEOM" | grep -oE 'displacedTriangles=[0-9]+' | cut -d= -f2)" "47232"
+assert_eq "gpu displaced triangles" "$(printf '%s' "$GEOM" | grep -oE 'displacedTriangles=[0-9]+' | cut -d= -f2)" "46912"
 assert_eq "gpu water triangles" "$(printf '%s' "$GEOM" | grep -oE 'waterTriangles=[0-9]+' | cut -d= -f2)" "300"
 
 # ---------------------------------------------------------------------------
@@ -179,10 +196,16 @@ regfield() { # regfield <region-line-key> <field>
 # regions mostly background in the shipped state. They are pinned to today's
 # readings so any reshuffle of what the world pass draws -- a vis, cull or
 # winding regression -- moves them and fails here.
-for spec in "x=0,y=0 51 86 48 89 0.27 9.2 19.1" \
-            "x=0,y=560 48 86 49 90 0.72 2.8 5.6" \
-            "x=1100,y=100 13 26 10 18 0.93 0.8 1.5" \
-            "x=600,y=0 42 70 43 80 0.34 14.3 28.5"; do
+# T11 moved every one of these: with the pvs row table and the per-class
+# winding fixed, the clear-colour fraction collapses to ~0 in all four
+# regions (nearBackground is the geometry-presence number now), and W2/W3/W4
+# are dark because their materials draw black -- the terrain/blend-material
+# defect that belongs to its own task. The pins therefore guard coverage and
+# texture spread, not brightness.
+for spec in "x=0,y=0 46 77 52 88 0.10 7.9 13.7" \
+            "x=0,y=560 16 29 10 18 0.10 0.6 1.1" \
+            "x=1100,y=100 29 50 26 49 0.10 0.5 0.95" \
+            "x=600,y=0 7 14 25 46 0.05 3.5 7.5"; do
   set -- $spec; KEY="$1"; shift
   mean=$(regfield "$KEY" meanLum); std=$(regfield "$KEY" stdLum)
   nearbg=$(regfield "$KEY" nearBackground); grad=$(regfield "$KEY" meanGradient)
@@ -205,77 +228,65 @@ fi
 # ---------------------------------------------------------------------------
 echo "== mutation mode =="
 mfail=0
-SRC_RENDER="native/src/native_renderer.cpp"
-SAVE_RENDER="$SCRATCH/native_renderer.cpp.save"
-cp "$SRC_RENDER" "$SAVE_RENDER"
+SRC_MAP="native/src/bsp_map.cpp"
+SAVE_MAP="$SCRATCH/bsp_map.cpp.save"
+cp "$SRC_MAP" "$SAVE_MAP"
 
-# M1: revert the eye-space fix -- observerFocusMapWorld hands back the
-# normalized point, which is the defect the fix removed.
-echo "-- M1: observerFocusMapWorld returns the normalized focus --"
-"$PYTHON" - "$SRC_RENDER" <<'PYEOF'
+# M1: revert the PVS row-table fix -- read one offset table with the old
+# stride of 8 bytes (bitofs[0][2c]) and let the uncompressed rows go unused.
+echo "-- M1: the vis offset table goes back to the stride-8 single-table read --"
+"$PYTHON" - "$SRC_MAP" <<'PYEOF_INNER'
 import sys
 path = sys.argv[1]
 src = open(path, encoding='utf-8').read()
-old = (
-  "  x = (observerFocusX_ - 0.0f) / worldHorizontalScale_ + worldCenterX_;\n"
-  "  y = (observerFocusY_ - 0.0f) / worldHorizontalScale_ + worldCenterY_;\n"
-  "  z = (observerFocusZ_ - 0.1f) / 0.8f * worldSpanZ_ + worldMinZ_;\n")
-new = (
-  "  x = observerFocusX_;\n"
-  "  y = observerFocusY_;\n"
-  "  z = observerFocusZ_;\n")
+old = """        const auto compressedOffset = read<std::int32_t>(vis, 4 + static_cast<std::size_t>(cluster) * 4u);
+        const auto rawOffset = read<std::int32_t>(vis,
+          4 + static_cast<std::size_t>(clusters) * 4u + static_cast<std::size_t>(cluster) * 4u);
+        if (rawOffset < 0 && (compressedOffset < 0 || static_cast<std::size_t>(compressedOffset) >= vis.size())) offsetsOk = false;
+        if (rawOffset >= 0 && static_cast<std::size_t>(rawOffset) >= vis.size()) offsetsOk = false;
+        map.visOffsets[static_cast<std::size_t>(cluster)] = compressedOffset;
+        map.visRawOffsets[static_cast<std::size_t>(cluster)] = rawOffset;"""
+new = """        const auto compressedOffset = read<std::int32_t>(vis, 4 + static_cast<std::size_t>(cluster) * 8u);
+        if (compressedOffset < 0 || static_cast<std::size_t>(compressedOffset) >= vis.size()) offsetsOk = false;
+        map.visOffsets[static_cast<std::size_t>(cluster)] = compressedOffset;
+        map.visRawOffsets[static_cast<std::size_t>(cluster)] = -1;"""
 assert old in src, "M1 patch site not found"
 open(path, 'w', encoding='utf-8', newline='').write(src.replace(old, new))
-PYEOF
+PYEOF_INNER
 if [ $? != 0 ]; then echo "  FAIL M1 could not patch the source"; fail=1; fi
-bash build-target.sh tf2_demo_native > "$SCRATCH/m1.$RUN_TAG.build" 2>&1
-M1_BMP="$SCRATCH/m1.$RUN_TAG.bmp"; M1_TRACE="$SCRATCH/m1.$RUN_TAG.trace"
-capture "$M1_BMP" "$M1_TRACE"
-M1_RC=$?
-if [ "$M1_RC" != "0" ]; then echo "  M1: the mutated build could not run (rc=$M1_RC) -- red as required"; else
-  M1_EYE=$(grep -o "gpu: world vis .*" "$M1_TRACE" | head -1 | grep -oE 'eyeMap=\(-?[0-9.]+,-?[0-9.]+,-?[0-9.]+\)' | head -1)
-  M1_CLUSTER=$(printf '%s' "$(grep -o "gpu: world vis .*" "$M1_TRACE" | head -1)" | grep -oE 'cameraCluster=[0-9-]+' | cut -d= -f2)
-  if [ "$M1_EYE" = "eyeMap=(-2423.6,5566.0,-1280.0)" ] || [ "$M1_CLUSTER" = "1032" ]; then
-    echo "  NOT-RED M1: the mutated eye/cluster pins still hold (eye='$M1_EYE' cluster=$M1_CLUSTER)"
+bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m1.$RUN_TAG.build" 2>&1
+M1_PVS=$("$PROBE" --tf-root "$TF" --map "$MAP" --eye "-2423.6,5566.0,-1280.0" 2>/dev/null | grep -oE 'visClusters=[0-9]+' | cut -d= -f2)
+if [ "$M1_PVS" = "1692" ]; then
+  echo "  NOT-RED M1: the mutated pvs popcount still reads 1692"
+  mfail=1
+else
+  echo "  RED M1 as required: pvs popcount = $M1_PVS (the stride-8 read answers another cluster's row)"
+fi
+cp "$SAVE_MAP" "$SRC_MAP"
+if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M1 source byte-identical)"; else
+  echo "  RESTORE=FAIL (M1: the source did not come back byte-identical)"; fail=1; fi
+bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m1-restore.$RUN_TAG.build" 2>&1
+
+# M2: flip the per-class winding sign -- the displacement/brush split goes
+# back to one side, which is the state that left half the map culled.
+echo "-- M2: the per-class winding sign flips --"
+sed -i 's/const float classSign = displacement ? 1.0f : -1.0f;/const float classSign = displacement ? -1.0f : 1.0f;/' "$SRC_MAP"
+if grep -q "const float classSign = displacement ? -1.0f : 1.0f;" "$SRC_MAP"; then
+  bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m2.$RUN_TAG.build" 2>&1
+  M2_FLIP=$("$PROBE" --tf-root "$TF" --map "$MAP" 2>/dev/null | grep -oE 'flippedTriangles=[0-9]+' | head -1 | cut -d= -f2)
+  if [ "$M2_FLIP" = "47252" ]; then
+    echo "  NOT-RED M2: the mutated flip census still reads 47252"
     mfail=1
   else
-    echo "  RED M1 as required: eye='$M1_EYE' cluster=$M1_CLUSTER"
-  fi
-fi
-cp "$SAVE_RENDER" "$SRC_RENDER"
-if cmp -s "$SAVE_RENDER" "$SRC_RENDER"; then echo "  RESTORE=OK (M1 source byte-identical)"; else
-  echo "  RESTORE=FAIL (M1: the source did not come back byte-identical)"; fail=1; fi
-bash build-target.sh tf2_demo_native > "$SCRATCH/m1-restore.$RUN_TAG.build" 2>&1
-
-# M2: flip the world pass's back-face cull default off. The governing default
-# is the caller's apply-site expression (main.cpp re-states it every frame,
-# which is what makes the member default unreachable), so that is the line the
-# mutation moves.
-echo "-- M2: the world cull apply-site default flips to false --"
-SAVE_MAIN="$SCRATCH/main.cpp.save"
-cp native/src/main.cpp "$SAVE_MAIN"
-sed -i 's/renderer.setWorldBackfaceCull(worldCullGiven ? worldCullRequested : true)/renderer.setWorldBackfaceCull(worldCullGiven ? worldCullRequested : false)/' native/src/main.cpp
-if grep -q "renderer.setWorldBackfaceCull(worldCullGiven ? worldCullRequested : false)" native/src/main.cpp; then
-  bash build-target.sh tf2_demo_native > "$SCRATCH/m2.$RUN_TAG.build" 2>&1
-  M2_BMP="$SCRATCH/m2.$RUN_TAG.bmp"; M2_TRACE="$SCRATCH/m2.$RUN_TAG.trace"
-  capture "$M2_BMP" "$M2_TRACE"
-  M2_RC=$?
-  if [ "$M2_RC" != "0" ]; then echo "  M2: the mutated build could not run (rc=$M2_RC) -- red as required"; else
-    M2_CULL=$(grep -o "gpu: world cull .*" "$M2_TRACE" | head -1)
-    if [ "$M2_CULL" = "gpu: world cull backfaces=1 mode=cull-back" ]; then
-      echo "  NOT-RED M2: the cull line still reads backfaces=1"
-      mfail=1
-    else
-      echo "  RED M2 as required: $M2_CULL"
-    fi
+    echo "  RED M2 as required: flip census = $M2_FLIP (was 47252)"
   fi
 else
   echo "  FAIL M2 could not patch the source"; mfail=1
 fi
-cp "$SAVE_MAIN" native/src/main.cpp
-if cmp -s "$SAVE_MAIN" native/src/main.cpp; then echo "  RESTORE=OK (M2 source byte-identical)"; else
+cp "$SAVE_MAP" "$SRC_MAP"
+if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M2 source byte-identical)"; else
   echo "  RESTORE=FAIL (M2: the source did not come back byte-identical)"; fail=1; fi
-bash build-target.sh tf2_demo_native > "$SCRATCH/m2-restore.$RUN_TAG.build" 2>&1
+bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m2-restore.$RUN_TAG.build" 2>&1
 
 echo "== verdict =="
 if [ "$fail" = 0 ] && [ "$mfail" = 0 ]; then

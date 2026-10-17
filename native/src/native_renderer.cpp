@@ -303,8 +303,19 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // shade by. The direction a texel of the box looks up is the direction from
   // the camera to it, which is why the box's vertices are built around the
   // origin and the pass drops the view matrix's translation.
-  if (envFeatures.x > 2.5) {
+  if (envFeatures.x > 2.5 && envFeatures.x < 3.5) {
     return float4(envCube.Sample(sampler0, safeNormalize(worldPosition)).rgb, 1.0);
+  }
+  // T11 diagnostic modes. 4 = one flat colour with no texture, no lightmap,
+  // no bump and no env sample -- geometry and nothing else, so a hole in the
+  // frame is a triangle that is not there rather than a triangle that is dark.
+  // 5 = the interpolated depth as grey -- the same geometry through the same
+  // matrices with only the depth question visible. Neither mode exists on the
+  // product path; the renderer states which one it is and the trace prints it.
+  if (envFeatures.x > 3.5) {
+    float depthZ = position.z / max(position.w, 1.0e-4);
+    if (envFeatures.x > 4.5) return float4(depthZ, depthZ, depthZ, 1.0);
+    return float4(0.35, 0.62, 0.38, 1.0);
   }
   float3 sampled = texture0.Sample(sampler0, uv).rgb;
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
@@ -1872,6 +1883,7 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   // T10 diagnostic: what the last world rasterisation actually ran with, so a
   // no-cull capture carries its own confession.
   state.worldCullBackfaces = worldBackfaceCull_;
+  state.worldDebugView = worldDebugView_;
   return state;
 }
 
@@ -3239,6 +3251,20 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   frameForward_[0] = 1.0f; frameForward_[1] = 0.0f; frameForward_[2] = 0.0f;
   frameUp_[0] = 0.0f; frameUp_[1] = 0.0f; frameUp_[2] = 1.0f;
   frameRight_[0] = 0.0f; frameRight_[1] = 1.0f; frameRight_[2] = 0.0f;
+  // T11 diagnostic: the frame's world constants live outside the
+  // `worldConstants_` block so the world draw (which is outside it) can
+  // re-upload a debug variant and put the frame's own values back afterwards.
+  // The struct is spelled once, here, so the upload sites cannot drift apart.
+  struct WorldConstantsData {
+    DirectX::XMFLOAT4X4 mvp;
+    DirectX::XMFLOAT4 lightDirectionAndMode;
+    DirectX::XMFLOAT4 cameraPositionAndSpecular;
+    DirectX::XMFLOAT4 materialFeatures;
+    DirectX::XMFLOAT4 lightmapFeatures;
+    DirectX::XMFLOAT4 envFeatures;
+  };
+  WorldConstantsData frameConstants{};
+  bool frameConstantsValid = false;
   if (worldConstants_) {
     using namespace DirectX;
     XMVECTOR target = XMVectorSet(
@@ -3285,14 +3311,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
     const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, 0.05f, 100.0f);
     const XMMATRIX mvp = view * projection;
-    struct WorldConstantsData {
-      XMFLOAT4X4 mvp;
-      XMFLOAT4 lightDirectionAndMode;
-      XMFLOAT4 cameraPositionAndSpecular;
-      XMFLOAT4 materialFeatures;
-      XMFLOAT4 lightmapFeatures;
-      XMFLOAT4 envFeatures;
-    } constants{};
+    WorldConstantsData& constants = frameConstants;
     XMStoreFloat4x4(&constants.mvp, mvp);
     const bool standardLighting = settings_.preset == QualityPreset::Standard && settings_.dynamicLighting;
     const bool standardSpecular = settings_.preset == QualityPreset::Standard && settings_.specular;
@@ -3315,6 +3334,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // only builds it when all six faces decoded.
     constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f, 0.0f, 0.0f);
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
+    frameConstantsValid = true;
     // The sky box, first and with its own mvp: the same view and projection with
     // the translation removed, so the box stays centred on the camera and a
     // vertex's own direction is the direction the cube is sampled at. Drawn
@@ -3396,6 +3416,17 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // existed -- and `worldVisClipApplied_` says which of the two happened, so
     // a clip that silently stops being handed a list reads as off rather than
     // as working.
+    // T11 diagnostic: the debug view is a property of THIS draw only. The
+    // constants buffer is shared with the water and entity passes, so the
+    // override is written for the world draw and the frame's own mode is
+    // restored immediately after it -- otherwise a flat capture would also
+    // flatten the water and the markers and the diagnosis would be about the
+    // wrong pass.
+    if (worldDebugView_ != 0 && frameConstantsValid) {
+      WorldConstantsData debugConstants = frameConstants;
+      debugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f : 4.0f;
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &debugConstants, 0, 0);
+    }
     if (worldVisClipApplied_ && worldIndexBuffer_ && worldIndexCount_ > 0) {
       context_->IASetIndexBuffer(worldIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
       context_->DrawIndexed(worldIndexCount_, 0, 0);
@@ -3404,6 +3435,9 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->IASetIndexBuffer(noIndex, DXGI_FORMAT_R32_UINT, 0);
     } else {
       context_->Draw(worldVertexCount_, 0);
+    }
+    if (worldDebugView_ != 0 && frameConstantsValid) {
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
   } else {
     context_->IASetInputLayout(nullptr);

@@ -1,0 +1,13 @@
+executable sha256
+13c9c35e0e638e7a59b7bf8f0b5cfa10eeacd63a8c4021023643eb3e281d780f *native/build-nmake/tf2_demo_native.exe
+
+frame sha256
+21b5e0b3c16e06a18be417f3f3008e94bc8caf79a9b849ad790b60b5d30b355e *evidence/t11-world-geometry/frames/frame-cls-pov-flat.png
+25aa5d7d922317837240905a0dab511e9726eb3a00dea00a7429390b2dc4bda4 *evidence/t11-world-geometry/frames/frame-cls-pov-normal.png
+066a597e5bd39868ec7f8354b69e0054bd6468fb8cd3cd0c00c8069e17638b5d *evidence/t11-world-geometry/frames/frame-cls-top-flat.png
+33bae97d4e2ebdd61ca7e9faa09897e84aa7be80fa9987b7b5572ea4a50ab417 *evidence/t11-world-geometry/frames/frame-pov-depth.png
+93ada63f9cfa89c00bc906b00cc8dd0b51ae932fce9b2cda6bc813add411bc0e *evidence/t11-world-geometry/frames/frame-pov-flat-all.png
+e2807848545ee27cbed9cb950c617bd5814a5d55bd8ff644dafce4cd6167c6cf *evidence/t11-world-geometry/frames/frame-pov-flat.png
+d6552a60265741769d6f28d8d0a5a0fe27021e150c5f4e30691cdd82a2b4cd3d *evidence/t11-world-geometry/frames/frame-top-flat-all.png
+2486b77acc3655d7cf6cfa34f172c7064a9982d607c54ebcf0447b7ad34fad1f *.scratch/t11/frame-rep1.bmp
+2486b77acc3655d7cf6cfa34f172c7064a9982d607c54ebcf0447b7ad34fad1f *.scratch/t11/frame-rep2.bmp

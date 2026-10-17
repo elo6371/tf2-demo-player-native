@@ -912,6 +912,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // winding. Same given/requested shape as the sky and vis switches above.
   bool worldCullRequested = true;
   bool worldCullGiven = false;
+  // T11 diagnostic: --world-flat draws the world pass as one flat colour with
+  // no texture/lightmap/bump/env sampling, --world-depth draws it as greyscale
+  // depth. They separate "the triangle is not there" from "the triangle is
+  // there but shaded wrong". Diagnostic only; the product's default is the
+  // textured path, and giving both modes is refused rather than silently
+  // resolved.
+  int worldDebugView = 0;
+  int worldDebugViewGiven = 0;
+  int invalidWorldDebugArgument = 0;
   // T2 (2026-10-14): the water surface follows the same shape as T1's two
   // switches -- on by default, with an explicit off switch -- for the same
   // reason: "the water is drawn" is only a reading if "the water is not drawn"
@@ -962,6 +971,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         worldCullRequested = true; worldCullGiven = true;
       } else if (wcscmp(arguments[i], L"--no-world-cull") == 0) {
         worldCullRequested = false; worldCullGiven = true;
+      } else if (wcscmp(arguments[i], L"--world-flat") == 0) {
+        ++worldDebugViewGiven; worldDebugView = 1;
+      } else if (wcscmp(arguments[i], L"--world-depth") == 0) {
+        ++worldDebugViewGiven; worldDebugView = 2;
       } else if (wcscmp(arguments[i], L"--world-water") == 0 && i + 1 < argumentCount) {
         // on|off, and nothing else: a switch that accepts any string is a switch
         // that silently does nothing on a typo.
@@ -1167,6 +1180,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     persistent.render.normalize();
   }
+  if (worldDebugViewGiven > 1) ++invalidWorldDebugArgument;
   if (audioDeviceRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --audio-device; default device not used.\n");
     return 13;
@@ -1189,6 +1203,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // frame against a water-off frame; a run that was asked for off and drew on
     // would compare a frame with itself and report no difference.
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-water; it takes on or off and nothing else.\n");
+    return 13;
+  }
+  if (invalidWorldDebugArgument) {
+    // T11 diagnostic: --world-flat and --world-depth are two answers to the
+    // same question and a run may state one. Asking for both would make the
+    // capture's meaning depend on argument order, so it is refused.
+    OutputDebugStringW(L"TF2 Demo Player: --world-flat and --world-depth cannot be combined.\n");
     return 13;
   }
   if (invalidViewModelEffectArgument) {
@@ -3476,6 +3497,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     traceFmt("gpu: world cull backfaces=%d mode=%s",
       sample.worldCullBackfaces ? 1 : 0,
       sample.worldCullBackfaces ? "cull-back" : "cull-none");
+    traceFmt("gpu: world debug view=%s",
+      sample.worldDebugView == 2 ? "depth" : sample.worldDebugView == 1 ? "flat" : "textured");
   };
   // The paint ledger: one row per prepared model, written after the GPU upload
   // so `uploaded` reflects what the renderer actually accepted. This is the
@@ -4762,6 +4785,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // (re)stated with the clip -- idempotent, and the reading the trace
         // prints comes from the renderer after the draw, not from this flag.
         renderer.setWorldBackfaceCull(worldCullGiven ? worldCullRequested : true);
+        // T11 diagnostic: same shape for the flat/depth view; the reading is
+        // taken from the renderer after the draw.
+        renderer.setWorldDebugView(worldDebugView);
       }
       // T8 (2026-10-16) diagnostic, the second half of the pair above: if this
       // fires the error was already set when the frame began, so it came from a

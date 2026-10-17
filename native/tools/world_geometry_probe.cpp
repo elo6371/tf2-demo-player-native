@@ -173,6 +173,14 @@ int main(int argc, char** argv) {
               map.windingAgreeCount, map.windingFaceCount,
               map.windingFaceCount == 0 ? 0.0 : 100.0 * static_cast<double>(map.windingAgreeCount)
                 / static_cast<double>(map.windingFaceCount));
+  // T11: the emission-time orientation. Every emitted triangle is tested
+  // against its face's own front normal and reversed when it points the wrong
+  // way; the count is what the cull mode would otherwise have removed. A map
+  // whose source winding were uniform would read 0 here on one side and all of
+  // them on the other; pl_odyssey reads a mixed split, which is the data-level
+  // reason a single global flip could never have worked.
+  std::printf("geometry winding flippedTriangles=%zu of %zu\n",
+              map.windingFlippedTriangles, map.triangles.size());
   // How many materials the map asks for. The renderer's world atlas holds at
   // most 64 tiles, so a map with more distinct materials than that draws the
   // remainder flat-shaded -- a number that has to be printed somewhere or the
