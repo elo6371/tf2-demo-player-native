@@ -1,0 +1,14 @@
+geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=99612 faces=18052 displaced=47232 water=300 lightmapped=37000 degenerate=4790 maxEdge=1559.8 over256=13412 over1024=337 over4096=0 bounds=(-5314,-13264,-2640)..(4048,8704,1544)
+geometry displacement faces=1392 triangles=47232 cornerMatches=1392
+geometry winding agree=5416 of 16136 faces (33.6% agree with the bsp plane normals)
+geometry materials distinct=108 atlasCap=64 trianglesCoveredByCap=98311 of 99612 (98.7%)
+geometry material rank=0 triangles=15340 name=WOOD/WALL007A
+geometry material rank=1 triangles=6880 name=NATURE/BLENDCLIFFTOGRASS_ODYSSEY
+geometry material rank=2 triangles=6390 name=GREEK/GREEK_GROUND03B
+geometry material rank=3 triangles=6048 name=NATURE/BLENDGROUNDTOMARBLE01
+geometry material rank=4 triangles=5664 name=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry material rank=5 triangles=5026 name=METAL/IBEAM002
+geometry material rank=6 triangles=4984 name=SWAMP/PROPS/FISHINGNET002
+geometry material rank=7 triangles=4223 name=GREEK/GREEK_GROUND03D
+geometry eye=(-2423.6,5566.0,-1280.0) cluster=1032 visClusters=1021 bounds=(-5314,-13264,-2640)..(4048,8704,1544)
+geometry facing pvsKept front=7647 back=8435 pvsHidden front=12505 back=23793 noCluster front=20151 back=27081

@@ -1,0 +1,5 @@
+frame path=.scratch/visual-baseline.20261017132005-213/ref.20261017132005-213.bmp size=1264x681 background=(14,18,22) backgroundLum=17.3
+region x=0,y=0,w=420,h=200 pixels=84000 meanLum=68.4 stdLum=68.19 nearBackground=0.1521 nearBlack=0.2502 nearWhite=0.0107 meanGradient=14.15 neutralGrey=6512
+region x=0,y=560,w=420,h=121 pixels=50820 meanLum=64.4 stdLum=69.53 nearBackground=0.5970 nearBlack=0.0007 nearWhite=0.0715 meanGradient=4.28 neutralGrey=983
+region x=1100,y=100,w=164,h=200 pixels=32800 meanLum=17.6 stdLum=14.10 nearBackground=0.8556 nearBlack=0.1104 nearWhite=0.0000 meanGradient=1.17 neutralGrey=95
+region x=600,y=0,w=64,h=60 pixels=3840 meanLum=56.1 stdLum=61.43 nearBackground=0.2583 nearBlack=0.2539 nearWhite=0.0081 meanGradient=21.92 neutralGrey=105
