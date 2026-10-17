@@ -72,6 +72,11 @@ struct BspMap {
   // counts.
   std::size_t windingFaceCount = 0;
   std::size_t windingAgreeCount = 0;
+  // T11: how many emitted triangles were reversed at emission so their winding
+  // normal points along their face's own front side. A triangle is either
+  // stored the way the cull mode wants or it is reversed; this count is the
+  // number that had to move, and the gate pins it.
+  std::size_t windingFlippedTriangles = 0;
   std::size_t waterFaces = 0;
   bool waterReflection = false;
   bool waterRefraction = false;
@@ -80,6 +85,11 @@ struct BspMap {
   BspVisMode visMode = BspVisMode::Unavailable;
   int visClusterCount = 0;
   std::vector<int> visOffsets;
+  // T11: dvis_t carries TWO offset tables -- [0] for the 0x80-run compressed
+  // rows, [1] for the plain-bit rows, with -1 in whichever table the map did
+  // not use. Reading only [0] with a stride of 8 asked for bitofs[0][2c]: a
+  // different cluster's row. This vector is [1] and takes precedence.
+  std::vector<int> visRawOffsets;
   std::vector<std::uint8_t> visBits;
   std::vector<BspPlane> planes;
   std::vector<BspNode> nodes;

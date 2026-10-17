@@ -1616,20 +1616,26 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
   }
 
   // ---- vis ----------------------------------------------------------------
-  // int32 cluster count, then one int32 offset per cluster, then the bits. Each
-  // cluster's mask starts at its own offset so a mutation of one cluster's byte
-  // cannot be mistaken for another's.
+  // dvis_t: int32 cluster count, then bitofs[0][c] (compressed rows) and
+  // bitofs[1][c] (uncompressed rows) as two contiguous tables, then the rows.
+  // T11: the fixture used to interleave one offset per 8 bytes -- the same
+  // misreading the parser had -- so a fixture that "passed" was a fixture that
+  // agreed with the bug. It now states the format: bitofs[0] is -1 (these rows
+  // are uncompressed) and bitofs[1] points at each row of (clusters+7)/8 bytes.
   std::vector<std::uint8_t> vis;
   if (fixture.clusterCount > 0) {
     const auto clusters = static_cast<std::size_t>(fixture.clusterCount);
-    vis.resize(4 + clusters * 8 + clusters, 0);
+    const auto rowBytes = (clusters + 7) / 8;
+    vis.resize(4 + clusters * 8 + clusters * rowBytes, 0);
     put32(vis, 0, fixture.clusterCount);
     for (std::size_t i = 0; i < clusters; ++i) {
-      const auto offset = static_cast<std::int32_t>(4 + clusters * 8 + i);
-      put32(vis, 4 + i * 8, i < fixture.visOffsets.size() ? fixture.visOffsets[i] : offset);
+      const auto rowOffset = static_cast<std::int32_t>(4 + clusters * 8 + i * rowBytes);
+      put32(vis, 4 + i * 4, -1);
+      put32(vis, 4 + clusters * 4 + i * 4,
+        i < fixture.visOffsets.size() ? fixture.visOffsets[i] : rowOffset);
     }
     for (std::size_t i = 0; i < clusters && i < fixture.visBits.size(); ++i) {
-      vis[4 + clusters * 8 + i] = fixture.visBits[i];
+      vis[4 + clusters * 8 + i * rowBytes] = fixture.visBits[i];
     }
   }
 
