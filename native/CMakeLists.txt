@@ -6,9 +6,32 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_WIN32_EXECUTABLE ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+# T9 (2026-10-16): build-graph repair, no behaviour change.
+#
+# The audio layer moved buildSoundTimeline into demo_header.cpp, where it calls
+# into audio_timeline.cpp, which in turn needs audio_resource.cpp (WAV/MP3
+# classification) and the winmm/msacm32 libraries that file links against. Any
+# target that compiles demo_header.cpp therefore needs all of that, and fourteen
+# of them did not have it, so `cmake --build` stopped at the first one
+# (LNK1120 on demo_open_probe, four symbols; then three more one layer down,
+# then two more in presentation_probe, then four in viewmodel_fov_probe).
+#
+# Reproducible at the T9 base commit with demo_header.cpp byte-identical to the
+# base and every one of those target blocks untouched, so this is a merge break
+# that predates T9 and blocked every build, not a T9 change. Listed once here
+# because this same list was already silently short in fourteen places; a
+# fifteenth copy of it is how it got that way.
+set(TF2_DEMO_HEADER_SOURCES src/demo_header.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+set(TF2_DEMO_HEADER_LIBS winmm msacm32)
+# audio_resource.cpp calls std::min on values from <windows.h>, so a target that
+# compiles it without NOMINMAX fails at `std::min` (C2589 "illegal token on right
+# side of ::", because the min macro eats the call). The product target already
+# carried these two; the probe copies did not.
+set(TF2_DEMO_HEADER_DEFINES NOMINMAX WIN32_LEAN_AND_MEAN)
+
 add_executable(tf2_demo_native WIN32
   src/main.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
   src/asset_root.cpp
   # T9 (2026-10-16): the map search order, shared with map_lookup_probe. In the
@@ -64,8 +87,10 @@ set_target_properties(temp_effect_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(temp_entities_fixture_probe tools/temp_entities_fixture_probe.cpp)
 set_target_properties(temp_entities_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(demo_open_probe tools/demo_open_probe.cpp src/demo_header.cpp src/proto_wire.cpp src/item_schema.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+add_executable(demo_open_probe tools/demo_open_probe.cpp ${TF2_DEMO_HEADER_SOURCES} src/proto_wire.cpp src/item_schema.cpp)
 target_include_directories(demo_open_probe PRIVATE include third_party/lzma)
+target_link_libraries(demo_open_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(demo_open_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(demo_open_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(pcf_capability_probe tools/pcf_capability_probe.cpp src/vpk_archive.cpp)
@@ -93,8 +118,10 @@ add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.c
 target_include_directories(world_material_probe PRIVATE include third_party/lzma)
 set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(presentation_probe tools/presentation_probe.cpp src/demo_header.cpp third_party/lzma/LzmaDec.c)
+add_executable(presentation_probe tools/presentation_probe.cpp ${TF2_DEMO_HEADER_SOURCES})
 target_include_directories(presentation_probe PRIVATE include third_party/lzma)
+target_link_libraries(presentation_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(presentation_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(presentation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # T9 (2026-10-16): the map search order. Pure: it links only map_lookup.cpp, so
@@ -109,11 +136,15 @@ target_include_directories(texture_quad_probe PRIVATE include)
 target_link_libraries(texture_quad_probe PRIVATE d3d11 d3dcompiler)
 set_target_properties(texture_quad_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(model_pose_probe tools/model_pose_probe.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp)
+add_executable(model_pose_probe tools/model_pose_probe.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp)
+target_link_libraries(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(model_pose_probe PRIVATE include)
 set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp src/vpk_archive.cpp src/demo_header.cpp src/item_schema.cpp src/vmt_material.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
+add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp src/vmt_material.cpp src/vtf_texture.cpp)
+target_link_libraries(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(entity_model_probe PRIVATE include third_party/lzma)
 set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
@@ -134,17 +165,17 @@ add_executable(viewmodel_fov_probe
   src/vtf_texture.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/item_schema.cpp
   src/proto_wire.cpp
   # viewmodel.cpp also resolves the model's material chain (MDL texture slot ->
   # $cdmaterials -> .vmt -> $basetexture -> .vtf), so VmtParser is a link
   # dependency of every target that compiles it. Same failure mode as the
   # animation layer above: left out, the link fails and NMAKE stops.
-  src/vmt_material.cpp
-  third_party/lzma/LzmaDec.c)
+  src/vmt_material.cpp)
 target_include_directories(viewmodel_fov_probe PRIVATE include third_party/lzma)
+target_link_libraries(viewmodel_fov_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(viewmodel_fov_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(viewmodel_contract_probe
@@ -159,13 +190,13 @@ add_executable(viewmodel_contract_probe
   src/vtf_texture.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/item_schema.cpp
   src/proto_wire.cpp
-  src/vmt_material.cpp
-  third_party/lzma/LzmaDec.c)
+  src/vmt_material.cpp)
 target_include_directories(viewmodel_contract_probe PRIVATE include third_party/lzma)
+target_link_libraries(viewmodel_contract_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(viewmodel_contract_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # Answers the question T2 left open and T1 answered "no" for players: does the
@@ -186,13 +217,13 @@ add_executable(viewmodel_animation_probe
   src/entity_model.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/item_schema.cpp
   src/proto_wire.cpp
-  src/vmt_material.cpp
-  third_party/lzma/LzmaDec.c)
+  src/vmt_material.cpp)
 target_include_directories(viewmodel_animation_probe PRIVATE include third_party/lzma)
+target_link_libraries(viewmodel_animation_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(viewmodel_animation_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # The static weapon body: the second half of the first-person composite the
@@ -213,14 +244,14 @@ add_executable(weapon_body_probe
   src/entity_model.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
   src/vmt_material.cpp
   src/vtf_texture.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/item_schema.cpp
-  src/proto_wire.cpp
-  third_party/lzma/LzmaDec.c)
+  src/proto_wire.cpp)
 target_include_directories(weapon_body_probe PRIVATE include third_party/lzma)
+target_link_libraries(weapon_body_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(weapon_body_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(weapon_body_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(animation_viewmodel_probe
@@ -235,11 +266,12 @@ add_executable(animation_viewmodel_probe
   src/vtf_texture.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/item_schema.cpp
   src/vmt_material.cpp)
 target_include_directories(animation_viewmodel_probe PRIVATE include)
+target_link_libraries(animation_viewmodel_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(animation_viewmodel_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(animation_viewmodel_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # Proves the skinning contract (poseToBone is the inverse bind; skin is
@@ -250,13 +282,13 @@ add_executable(skeleton_skin_probe
   src/animation_decoder.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
   src/item_schema.cpp
   src/proto_wire.cpp
-  src/demo_header.cpp
-  third_party/lzma/LzmaDec.c)
+  ${TF2_DEMO_HEADER_SOURCES})
 target_include_directories(skeleton_skin_probe PRIVATE include third_party/lzma)
 target_compile_definitions(skeleton_skin_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(skeleton_skin_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(skeleton_skin_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(skeleton_skin_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # The half skeleton_skin_probe does not cover: an entity's own m_nSequence, read
@@ -268,13 +300,13 @@ add_executable(weapon_animation_probe
   src/animation_decoder.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
   src/item_schema.cpp
   src/proto_wire.cpp
-  src/demo_header.cpp
-  third_party/lzma/LzmaDec.c)
+  ${TF2_DEMO_HEADER_SOURCES})
 target_include_directories(weapon_animation_probe PRIVATE include third_party/lzma)
 target_compile_definitions(weapon_animation_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(weapon_animation_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(weapon_animation_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(weapon_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(audio_effects_probe tools/audio_effects_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/effects_timeline.cpp src/pcf_operators.cpp src/playback_hud.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
@@ -296,17 +328,15 @@ set_target_properties(audio_scheduler_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(sound_timeline_census_probe
   tools/sound_timeline_census_probe.cpp
   src/audio_player.cpp
-  src/audio_timeline.cpp
-  src/audio_resource.cpp
-  src/demo_header.cpp
-  src/vpk_archive.cpp
-  third_party/lzma/LzmaDec.c)
+  ${TF2_DEMO_HEADER_SOURCES})
 target_include_directories(sound_timeline_census_probe PRIVATE include third_party/lzma)
 target_compile_definitions(sound_timeline_census_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 # winmm for AudioPlayer's declarations; the probe injects an outcome sink, so no
 # device is opened even though the backend is linked. msacm32 for the MPEG
 # Layer III decode path in audio_resource.cpp.
 target_link_libraries(sound_timeline_census_probe PRIVATE winmm msacm32)
+target_link_libraries(sound_timeline_census_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(sound_timeline_census_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(sound_timeline_census_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # The traceable content map: one line per scheduled event from the demo's own
@@ -318,14 +348,12 @@ set_target_properties(sound_timeline_census_probe PROPERTIES WIN32_EXECUTABLE OF
 add_executable(sound_content_map_probe
   tools/sound_content_map_probe.cpp
   src/audio_player.cpp
-  src/audio_timeline.cpp
-  src/audio_resource.cpp
-  src/demo_header.cpp
-  src/vpk_archive.cpp
-  third_party/lzma/LzmaDec.c)
+  ${TF2_DEMO_HEADER_SOURCES})
 target_include_directories(sound_content_map_probe PRIVATE include third_party/lzma)
 target_compile_definitions(sound_content_map_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(sound_content_map_probe PRIVATE winmm msacm32)
+target_link_libraries(sound_content_map_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(sound_content_map_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(sound_content_map_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # Walks a corpus of real recordings and reports, per demo, which sound event
@@ -339,14 +367,12 @@ set_target_properties(sound_content_map_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(sound_corpus_scan_probe
   tools/sound_corpus_scan_probe.cpp
   src/audio_player.cpp
-  src/audio_timeline.cpp
-  src/audio_resource.cpp
-  src/demo_header.cpp
-  src/vpk_archive.cpp
-  third_party/lzma/LzmaDec.c)
+  ${TF2_DEMO_HEADER_SOURCES})
 target_include_directories(sound_corpus_scan_probe PRIVATE include third_party/lzma)
 target_compile_definitions(sound_corpus_scan_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(sound_corpus_scan_probe PRIVATE winmm msacm32)
+target_link_libraries(sound_corpus_scan_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(sound_corpus_scan_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(sound_corpus_scan_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(winmm_sink_probe tools/winmm_sink_probe.cpp)
@@ -364,7 +390,9 @@ target_compile_definitions(native_install_smoke_probe PRIVATE NOMINMAX WIN32_LEA
 target_link_libraries(native_install_smoke_probe PRIVATE d3d11 dxgi)
 set_target_properties(native_install_smoke_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp src/demo_header.cpp src/proto_wire.cpp src/item_schema.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp ${TF2_DEMO_HEADER_SOURCES} src/proto_wire.cpp src/item_schema.cpp)
+target_link_libraries(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(native_ui_probe PRIVATE include third_party/lzma)
 set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
@@ -373,20 +401,24 @@ set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # break the product cannot hide behind a lenient probe build.
 add_executable(entity_protocol_probe
   tools/entity_protocol_probe.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/proto_wire.cpp
 )
 target_include_directories(entity_protocol_probe PRIVATE include)
+target_link_libraries(entity_protocol_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(entity_protocol_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(entity_protocol_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # Synthetic wire fixtures for the message decoders. Same sources and same
 # strictness as the product target so a layout regression cannot hide here.
 add_executable(entity_message_fixture_probe
   tools/entity_message_fixture_probe.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/proto_wire.cpp
 )
 target_include_directories(entity_message_fixture_probe PRIVATE include)
+target_link_libraries(entity_message_fixture_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(entity_message_fixture_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(entity_message_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # The quiet-capture reader: compares one normal-mode run and one
@@ -407,15 +439,15 @@ add_executable(viewmodel_material_probe
   tools/viewmodel_material_probe.cpp
   src/model_loader.cpp
   src/asset_root.cpp
-  src/vpk_archive.cpp
   src/vmt_material.cpp
   src/vtf_texture.cpp
   src/viewmodel_material.cpp
-  src/demo_header.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
   src/item_schema.cpp
-  src/proto_wire.cpp
-  third_party/lzma/LzmaDec.c)
+  src/proto_wire.cpp)
 target_include_directories(viewmodel_material_probe PRIVATE include third_party/lzma)
+target_link_libraries(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 install(TARGETS tf2_demo_native native_install_smoke_probe
