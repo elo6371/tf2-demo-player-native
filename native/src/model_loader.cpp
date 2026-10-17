@@ -1104,17 +1104,46 @@ bool ModelLoader::buildModelMeshDataAll(const ModelInspection& inspection,
     error = "model inspection has no renderable descriptors";
     return false;
   }
-  bool haveLod0 = false;
+  // THE LOD TO DRAW IS THE LOWEST ONE THE FILE DECLARES.
+  //   This used to be "0 if any descriptor says 0, otherwise every descriptor",
+  //   and the otherwise-branch concatenated LOD 1..3 of the same mesh into one
+  //   vertex buffer -- the same geometry at three detail levels, drawn on top of
+  //   itself. A model whose descriptors start at 1 is unusual but not impossible,
+  //   and the failure is silent. Taking the minimum is the same answer for every
+  //   model that has a LOD 0 and a defined answer for the ones that do not.
+  std::uint32_t targetLod = inspection.metadata.indices.front().lod;
   for (const auto& descriptor : inspection.metadata.indices) {
-    if (descriptor.lod == 0) { haveLod0 = true; break; }
+    targetLod = std::min(targetLod, descriptor.lod);
   }
+  std::size_t wanted = 0;
+  for (const auto& descriptor : inspection.metadata.indices) {
+    if (descriptor.lod == targetLod) ++wanted;
+  }
+
   std::size_t firstDescriptor = inspection.metadata.indices.size();
   for (std::size_t index = 0; index < inspection.metadata.indices.size(); ++index) {
     const auto& descriptor = inspection.metadata.indices[index];
-    if (haveLod0 && descriptor.lod != 0) continue;
+    if (descriptor.lod != targetLod) continue;
     ModelMeshData part;
     std::string partError;
-    if (!buildModelMeshData(inspection, index, part, partError)) continue;
+    if (!buildModelMeshData(inspection, index, part, partError)) {
+      // A PARTIAL RANGE SET IS NOT DRAWN.
+      //   `continue` used to skip the descriptor and keep the rest, so a model
+      //   whose second mesh was malformed drew its first mesh and reported
+      //   success -- hands without sleeves, or one arm. The picture is then
+      //   wrong in a way no counter shows, because every count it produces is
+      //   true of the part that survived. The whole mesh is refused instead, and
+      //   the reason names the descriptor: "the second range failed" and "the
+      //   model has one range" are different repairs, and only one of them is
+      //   about the model's content.
+      error = "descriptor " + std::to_string(index) + " (bodyPart "
+        + std::to_string(descriptor.bodyPart) + " model " + std::to_string(descriptor.model)
+        + " mesh " + std::to_string(descriptor.mesh) + " lod " + std::to_string(descriptor.lod)
+        + ") was refused: " + (partError.empty() ? std::string("no reason recorded") : partError)
+        + "; the mesh is not built from a partial range set";
+      mesh = {};
+      return false;
+    }
     if (firstDescriptor == inspection.metadata.indices.size()) firstDescriptor = index;
     const auto first = static_cast<std::uint32_t>(mesh.vertices.size());
     mesh.vertices.insert(mesh.vertices.end(), part.vertices.begin(), part.vertices.end());
@@ -1124,6 +1153,16 @@ bool ModelLoader::buildModelMeshDataAll(const ModelInspection& inspection,
   }
   if (mesh.vertices.size() < 3 || mesh.ranges.empty()) {
     error = "no valid LOD mesh descriptors";
+    mesh = {};
+    return false;
+  }
+  // Post-condition, not a branch that can be reached by a well-formed model: the
+  // loop above refuses on the first failure, so a short range list here would
+  // mean the descriptor scan and the build disagreed about which LOD is drawn.
+  if (mesh.ranges.size() != wanted) {
+    error = "the range table has " + std::to_string(mesh.ranges.size()) + " of "
+      + std::to_string(wanted) + " descriptors at lod " + std::to_string(targetLod)
+      + "; the mesh is not built from a partial range set";
     mesh = {};
     return false;
   }

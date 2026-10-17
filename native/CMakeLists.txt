@@ -145,6 +145,16 @@ target_compile_definitions(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(model_pose_probe PRIVATE include)
 set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T13: prints the descriptor table and the built range table for one model, so
+# "only one 600-vertex range" can be attributed to a cause instead of inferred
+# from the pass's own vertex count. Links only the loader: the readings are the
+# parser's, and a probe that drew would need a device the gate does not have.
+add_executable(viewmodel_range_probe tools/viewmodel_range_probe.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp)
+target_link_libraries(viewmodel_range_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(viewmodel_range_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+target_include_directories(viewmodel_range_probe PRIVATE include)
+set_target_properties(viewmodel_range_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp src/vmt_material.cpp src/vtf_texture.cpp)
 target_link_libraries(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
