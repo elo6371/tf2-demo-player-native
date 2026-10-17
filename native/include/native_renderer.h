@@ -758,6 +758,7 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Texture2D> depthTexture_;
   Microsoft::WRL::ComPtr<ID3D11DepthStencilView> depthStencilView_;
   Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depthStencilState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> worldSkyDepthStencilState_;
   Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizerState_;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader_;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> worldVertexShader_;

@@ -882,6 +882,10 @@ float4 main(Input input) : SV_TARGET {
   depthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
   depthDescription.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
   if (FAILED(device_->CreateDepthStencilState(&depthDescription, depthStencilState_.GetAddressOf()))) return false;
+  D3D11_DEPTH_STENCIL_DESC skyDepthDescription = depthDescription;
+  skyDepthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+  if (FAILED(device_->CreateDepthStencilState(&skyDepthDescription,
+      worldSkyDepthStencilState_.GetAddressOf()))) return false;
   D3D11_RASTERIZER_DESC rasterDescription{};
   rasterDescription.FillMode = D3D11_FILL_SOLID;
   rasterDescription.CullMode = D3D11_CULL_BACK;
@@ -3339,6 +3343,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       auto* skyCube = worldSkyView_.Get();
       auto* skyConstantsBuffer = worldSkyConstants_.Get();
       context_->RSSetState(worldSkyRasterizerState_.Get());
+      context_->OMSetDepthStencilState(worldSkyDepthStencilState_.Get(), 0);
       context_->IASetInputLayout(worldInputLayout_.Get());
       context_->IASetVertexBuffers(0, 1, &skyBuffer, &skyStride, &skyOffset);
       context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
@@ -3356,6 +3361,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // not.
       context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                               : worldNoCullRasterizerState_.Get());
+      context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
       ID3D11ShaderResourceView* noSky = nullptr;
       context_->PSSetShaderResources(5, 1, &noSky);
     }
@@ -3725,6 +3731,7 @@ void Renderer::shutdown() {
   modelVertexCount_ = 0;
   sampler_.Reset();
   depthStencilState_.Reset();
+  worldSkyDepthStencilState_.Reset();
   rasterizerState_.Reset();
   pixelShader_.Reset();
   vertexShader_.Reset();
