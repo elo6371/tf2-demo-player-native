@@ -402,8 +402,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
             const auto before = map.triangles.size();
             for (int y = 0; y < size - 1; ++y) for (int x = 0; x < size - 1; ++x) {
               const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gy * size + gx)]; };
-              pushTriangle(at(x, y), at(x + 1, y), at(x + 1, y + 1), true);
-              pushTriangle(at(x, y), at(x + 1, y + 1), at(x, y + 1), true);
+              // T10 winding experiment: the triangles below swap (b, c) relative
+              // to the static-face fan, so both paths test the same hypothesis
+              // in one build.
+              pushTriangle(at(x, y), at(x + 1, y + 1), at(x + 1, y), true);
+              pushTriangle(at(x, y), at(x, y + 1), at(x + 1, y + 1), true);
             }
             emittedDisp = map.triangles.size() > before;
             if (emittedDisp) {
@@ -416,7 +419,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       }
     }
     if (!emittedDisp) {
-      for (std::size_t i = 1; i + 1 < polygon.size() && map.triangles.size() < triangleLimit; ++i) pushTriangle(polygon[0], polygon[i], polygon[i + 1], false);
+      for (std::size_t i = 1; i + 1 < polygon.size() && map.triangles.size() < triangleLimit; ++i) pushTriangle(polygon[0], polygon[i + 1], polygon[i], false);
     }
     if (water) ++map.waterFaces;
     ++map.renderedFaceCount;
