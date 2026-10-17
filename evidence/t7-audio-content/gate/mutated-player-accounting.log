@@ -1,0 +1,8 @@
+  OK   player[mutated] (read=5563 scheduled=5323 match the census)
+  OK   player[mutated] (firstPacketTick=29368 soundOriginTick=0 match the census)
+  OK   player[mutated] (--audio-disabled played nothing and opened no device)
+  OK   player[mutated] (soundEventsSkippedVoice=34: the voice counter is live)
+  FAIL player[mutated] (accounting: seen=751 played=0 skipped=565 missing=185)
+  OK   player[mutated] (reverseRecoveries=0 on a forward run)
+  OK   player[mutated] (events_seen=751 over the run)
+  OK   player[mutated] (silent run: device_open_attempts=0 opens_ok=0)

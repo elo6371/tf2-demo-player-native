@@ -60,25 +60,6 @@ bool hasSubstring(const std::string& name, const char* token) {
   return lowerName.find(token) != std::string::npos;
 }
 
-bool hasMp3Frame(const std::vector<std::uint8_t>& bytes) {
-  std::size_t start = 0;
-  if (bytes.size() >= 10 && bytes[0] == 'I' && bytes[1] == 'D' && bytes[2] == '3') {
-    const std::uint32_t tagSize = ((bytes[6] & 0x7fu) << 21) | ((bytes[7] & 0x7fu) << 14)
-      | ((bytes[8] & 0x7fu) << 7) | (bytes[9] & 0x7fu);
-    if (tagSize > bytes.size() - 10) return false;
-    start = 10 + tagSize;
-  }
-  const std::size_t end = std::min(bytes.size(), start + 4096u);
-  for (std::size_t i = start; i + 1 < end; ++i) {
-    if (bytes[i] != 0xff || (bytes[i + 1] & 0xe0u) != 0xe0u) continue;
-    const std::uint8_t layer = static_cast<std::uint8_t>((bytes[i + 1] >> 1) & 3u);
-    const std::uint8_t bitrate = static_cast<std::uint8_t>((bytes[i + 2] >> 4) & 15u);
-    const std::uint8_t sampleRate = static_cast<std::uint8_t>((bytes[i + 2] >> 2) & 3u);
-    if (layer != 0 && bitrate != 0 && bitrate != 15 && sampleRate != 3) return true;
-  }
-  return false;
-}
-
 // The candidate archive paths for one precache name, mirroring
 // readSoundResource: a name that already carries an extension is used as-is,
 // otherwise .wav is tried before .mp3.
@@ -231,7 +212,16 @@ bool readSoundResource(const VpkArchive& archive, const std::string& name,
       }
     } else if (ext == "mp3") {
       out.codec = SoundCodec::Mp3;
-      if (!hasMp3Frame(bytes)) { out.error = "MP3 frame signature is missing"; return false; }
+      // The bytes are decoded here rather than accepted as "valid because MP3"
+      // so this reader and the named chain agree on what the output path can
+      // actually play: a caller that got `valid` must have PCM in hand.
+      std::string decodeDetail;
+      const Mp3DecodeStatus decoded = decodeMp3ToPcm(bytes, out.wav, decodeDetail);
+      if (decoded != Mp3DecodeStatus::Decoded) { out.error = decodeDetail; return false; }
+      if (!wavWithinDurationCap(out.wav)) {
+        out.error = "sound duration exceeds the playback cap";
+        return false;
+      }
     } else {
       out.error = "unsupported sound extension";
       return false;
@@ -394,6 +384,17 @@ bool wavWithinDurationCap(const WavPcmData& wav, double capSeconds) {
   return wavDurationSeconds(wav) <= capSeconds;
 }
 
+SoundResolveStatus soundResolveStatusForMp3Decode(Mp3DecodeStatus status) {
+  switch (status) {
+  case Mp3DecodeStatus::Decoded: return SoundResolveStatus::Resolved;
+  case Mp3DecodeStatus::InvalidStream: return SoundResolveStatus::InvalidWav;
+  case Mp3DecodeStatus::NoDecoderInstalled:
+  case Mp3DecodeStatus::UnsupportedFormat:
+    return SoundResolveStatus::UnsupportedFormat;
+  }
+  return SoundResolveStatus::UnsupportedFormat;
+}
+
 SoundResolveStatus classifySoundResourceBytes(const std::vector<std::uint8_t>& bytes,
     const std::string& archivePath, SoundResource& out, std::string& detail) {
   out = {};
@@ -425,10 +426,30 @@ SoundResolveStatus classifySoundResourceBytes(const std::vector<std::uint8_t>& b
     }
   } else if (ext == "mp3") {
     out.codec = SoundCodec::Mp3;
-    if (!hasMp3Frame(bytes)) {
-      out.error = "MP3 frame signature is missing";
-      detail = "MP3 '" + archivePath + "' carries no decodable frame signature";
-      return SoundResolveStatus::InvalidWav;
+    // MP3 bytes are decoded, not merely signature-checked. Before this, every
+    // MP3 in the archives reported unsupported_format and none could play --
+    // including the ones that are not filtered kinds: measured on the pinned
+    // cp_well recording, ambient_mp3/water/water_splash{1,2}.mp3 arrive as two
+    // world-kind events the scheduler does try to resolve and play.
+    std::string decodeDetail;
+    const Mp3DecodeStatus decoded = decodeMp3ToPcm(bytes, out.wav, decodeDetail);
+    if (decoded != Mp3DecodeStatus::Decoded) {
+      out.error = decodeDetail;
+      detail = "MP3 '" + archivePath + "': " + decodeDetail;
+      // A machine with no MP3 codec is the capability gap it says it is;
+      // nothing about these bytes is broken. A stream the codec refuses or
+      // decodes to silence is a data fact. The two must not read the same --
+      // the mapping lives in one place, soundResolveStatusForMp3Decode, so this
+      // call site and the derived readings a gate pins cannot disagree.
+      return soundResolveStatusForMp3Decode(decoded);
+    }
+    if (!wavWithinDurationCap(out.wav)) {
+      char seconds[64]{};
+      std::snprintf(seconds, sizeof(seconds), "%.1f", wavDurationSeconds(out.wav));
+      out.error = "sound duration exceeds the playback cap";
+      detail = "MP3 '" + archivePath + "' would play for " + seconds + "s, above the "
+        + std::to_string(static_cast<long long>(kSoundDurationCapSeconds)) + "s cap";
+      return SoundResolveStatus::ExcessiveDuration;
     }
   } else {
     out.codec = SoundCodec::Unknown;
@@ -436,18 +457,18 @@ SoundResolveStatus classifySoundResourceBytes(const std::vector<std::uint8_t>& b
     detail = "sound '" + archivePath + "' is neither WAV nor MP3";
     return SoundResolveStatus::UnsupportedFormat;
   }
-  // Found and parsed, but not playable: an MP3 has no PCM decode in this
-  // backend, and a WAV whose shape the output path rejects is just as
-  // unplayable. Both are resource facts, not byte corruption.
+  // Found and decoded, but still not playable: a WAV or decoded MP3 whose shape
+  // the output path rejects is a resource fact, not byte corruption. (Both
+  // codecs reach here able to fill out.wav; an MP3 that could not be decoded
+  // returned above, so this check is about the PCM shape, not the codec.)
   if (!wavPcmIsPlayable(out.wav)) {
-    out.error = out.codec == SoundCodec::Mp3
-      ? "MP3 is not decoded by the native PCM output path"
-      : "parsed WAV is not playable by the native PCM output path";
+    out.error = "decoded audio is not playable by the native PCM output path";
     detail = out.error + " (" + archivePath + ")";
     return SoundResolveStatus::UnsupportedFormat;
   }
   out.valid = true;
-  detail = "resolved '" + archivePath + "' channels=" + std::to_string(out.wav.channels)
+  detail = std::string(out.codec == SoundCodec::Mp3 ? "decoded '" : "resolved '") + archivePath
+    + "' channels=" + std::to_string(out.wav.channels)
     + " rate=" + std::to_string(out.wav.sampleRate)
     + " bits=" + std::to_string(out.wav.bitsPerSample)
     + " bytes=" + std::to_string(out.wav.pcm.size());

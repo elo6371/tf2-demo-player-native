@@ -1,0 +1,4 @@
+  FAIL sink: the dry-run mode was selected (wanted: mode=dry_run)
+  OK   sink: no device was opened
+  OK   sink: nothing was written for playback
+  OK   sink: the dry-run verdict

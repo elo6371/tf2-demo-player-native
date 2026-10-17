@@ -1,0 +1,12 @@
+  OK   effects: the self-test ran
+  OK   effects: delay line
+  OK   effects: effect kinds
+  OK   effects: voice filtering
+  FAIL effects: spatialisation (wanted: "spatial":true)
+  OK   effects: scheduling reaches the injected sink
+  OK   effects: a missing asset is kept, not dropped
+  OK   effects: HUD
+  OK   effects: particle
+  OK   effects: PCF operators
+  OK   effects: a corrupt PCF is rejected
+  OK   effects: no real device was requested

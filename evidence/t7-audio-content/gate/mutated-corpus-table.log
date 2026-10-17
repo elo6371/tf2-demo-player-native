@@ -1,0 +1,4 @@
+  OK   corpus[mutated] (recording scanned)
+  OK   corpus[mutated] (read=4193 = scheduled=4129 + rejected=64)
+  OK   corpus[mutated] (the ten kind counts sum to the timeline, 4129)
+  FAIL corpus[mutated] (table sum 6758 != entries 6759)

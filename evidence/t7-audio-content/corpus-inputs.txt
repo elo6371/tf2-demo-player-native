@@ -1,0 +1,66 @@
+# The recordings verify-audio.sh section 5/6 scans for audio event categories,
+# pinned by size and sha256.
+#
+# WHY A PINNED FILE AND NOT A GLOB
+#   Same reason as content-inputs.txt: the Steam demos directory is LIVE, so a
+#   glob would compare a different set on every machine and every day. Size and
+#   hash are asserted separately so "the input is not here" and "the input is
+#   clean" do not read the same.
+#
+# WHY THESE FOUR
+#   T3 selected its three recordings for the *content map* (what does one event
+#   become) and recorded the consequence in content-inputs.txt: `kindMusic=0` on
+#   all three, and music filed NOT VERIFIED against an eleven-recording scan
+#   (T3-CONTENT-AND-DEVICE-2026-10-15.md section 4). The four here were chosen by
+#   scanning 55 recordings -- every non-standard game mode in the corpus (the
+#   *_event/Halloween maps, MvM, pd_circus, sd_doomsday) -- for exactly the
+#   categories that scan was too narrow to find. The full per-recording scan
+#   output is corpus-scan-55.jsonl next to this file; the summary is in
+#   corpus-scan-55-summary.json.
+#
+#   pd_circus    (steam) the music carrier: 3 music-kind events, all
+#                `music/bump_in_the_night.wav`, resolving to real PCM
+#                (11306808 bytes, 64.1 s). Also carries a temp-entity channel
+#                with 2.9 Mbit of payload.
+#   manor_event  (steam) a second, distinct music name: 1 music-kind event,
+#                `ui/mm_round_end_red_win_music.wav`, 2645676 bytes / 15.0 s --
+#                classified by the `music` token sitting on a path boundary
+#                rather than by a directory, which is the boundary rule doing
+#                something a `music/` prefix test would not. Also the voice-payload
+#                carrier: 41 svc_VoiceData messages, 72416 payload bits.
+#   pov          (steam) the recording sections 3/6 and 4/6 already pin, repeated
+#                here so the two instruments are pinned to agree on the same
+#                bytes (kinds w888/f2263/u14/o1647/v504/a7/m0, timeline 5323).
+#                An agreement assertion is only worth having if both sides name
+#                the same input.
+#   wildcat      (steam) the contrast T3 could not state: 13 music-kind names in
+#                the soundprecache table and 0 music events. This is the reading
+#                that keeps "a music name was precached" from being mistaken for
+#                "music was sent", which is the inference the NOT VERIFIED line
+#                was about. Smallest input of the four (7.4 MB).
+#   hightower    (steam) a third music carrier on a fourth map, and the cheapest
+#                one (4.9 MB): 2 music-kind events of `music/taunt_bongos.wav`,
+#                2116800 bytes / 12.0 s. Included so the music claim rests on more
+#                than one map's quirk -- the four carriers found by the 55
+#                recording scan are on four different maps, and the pinned set
+#                should show that rather than one representative.
+#
+# WHAT IS STILL NOT COVERED, AND WHY IT IS NOT A GAP IN THE INPUTS
+#   temp_entity and pcf events are 0 in all 55 scanned recordings, and 0 in every
+#   recording these sections pin. That is not a sampling failure: no name in
+#   either shipped sound archive carries those tokens, measured rather than
+#   assumed by audio_scheduler_probe (`realTempEntity=0 realPcf=0` over 15958
+#   entries). A *sound event* of those kinds therefore has no input that could
+#   exist, and the categories stay NOT VERIFIED as sound events. What is verified
+#   instead is the channel they were confused with: svc_TempEntities carries real
+#   payload in every scanned recording (pinned per recording here), and the PCF
+#   operator path is exercised against a real PCF by audio_effects_probe.
+#
+# FORMAT: size  sha256  root  name
+#   root = steam    -> $TF/demos
+#   root = testdata -> D:/TF2_Demo_Player/testdata/demos
+30271844  fe0eccffc960082a27211f9bc7a188e963b909c4e198df3d783cb9d1c233f76a  steam     autorecord_2026-10-04_12-08-10.dem
+18553189  758bb294726b53f937b0aaa3604cdea49bea07db6d10cfc70aa7e8faa9912001  steam     autorecord_2026-10-02_14-26-03.dem
+21856667  c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e  steam     autorecord_2026-07-02_13-26-46.dem
+7728247   05249c1e5b423368684d9c8a83ef00a3e46e0c9ae569df016f2ffdf9ea4709ae  steam     autorecord_2026-10-02_13-20-12.dem
+5156901   9b88815c83d404d8e890b87e632b12ffcb22a5a86199b1b69f817a5d3c921845  steam     autorecord_2026-10-12_16-47-40.dem

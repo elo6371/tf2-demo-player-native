@@ -1851,9 +1851,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   g_playback.tick = 0;
   g_playback.paused = startPaused;
   g_playback.reverse = false;
-  g_playback.tickRate = (demoHeader.playbackTime > 0.0f && demoHeader.ticks > 0)
-    ? std::clamp(static_cast<double>(demoHeader.ticks) / static_cast<double>(demoHeader.playbackTime), 30.0, 128.0)
-    : 66.6666667;
+  g_playback.tickRate = tf2::native::demoTickRate(demoHeader);
   tf2::native::SoundEventTimeline soundTimeline;
   // TWO ORIGINS, because a demo carries two tick spaces and they are not the
   // same number:
@@ -1876,43 +1874,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   if (firstPacket != demoIndex.entries.end()) firstPacketTick = firstPacket->tick;
   bool soundOriginFound = false;
   const std::int32_t soundOriginTick = tf2::native::firstRecordedPacketTick(demoIndex, soundOriginFound);
-  const std::size_t soundEventsRead = demoNetworkSummary.decodedSoundEvents.size();
-  std::size_t soundEventsUnresolved = 0;
-  std::size_t soundEventsUnplaceable = 0;
-  std::size_t soundEventsRefused = 0;
-  for (const auto& source : demoNetworkSummary.decodedSoundEvents) {
-    // A decoded event with no precache entry has no name to resolve, so there is
-    // nothing to schedule. Counted, not silently dropped: it is one of the four
-    // named failure points the resolver reports.
-    if (source.resourceName.empty()) { ++soundEventsUnresolved; continue; }
-    // No origin at all means the recording's own tick counter is unknown. Every
-    // event is then unplaceable; refusing them keeps the failure countable
-    // instead of scheduling them at their absolute ticks, which would never play
-    // and would read exactly like "this recording has no sounds".
-    std::int32_t relativeTick = 0;
-    if (!soundOriginFound
-        || !tf2::native::soundEventRelativeTick(source.tick, soundOriginTick, relativeTick)) {
-      ++soundEventsUnplaceable;
-      continue;
-    }
-    tf2::native::ScheduledSound sound;
-    sound.tick = relativeTick;
-    sound.soundIndex = source.soundIndex;
-    sound.name = source.resourceName;
-    sound.volume = source.volume;
-    sound.delaySeconds = source.delaySeconds;
-    sound.origin[0] = source.origin[0];
-    sound.origin[1] = source.origin[1];
-    sound.origin[2] = source.origin[2];
-    // scheduleSoundEvent rather than scheduleGameplaySound: voice, announcer and
-    // music stay in the timeline flagged as skipped so the scheduler's
-    // eventsSkippedVoice counter is a reading that can move. They are still never
-    // resolved and never played.
-    if (!tf2::native::scheduleSoundEvent(soundTimeline, std::move(sound), g_playback.tickRate)) {
-      ++soundEventsRefused;
-    }
-  }
-  soundTimeline.sortByTick();
+  // The placement itself (nameless drop, origin subtraction, scheduling) lives in
+  // buildSoundTimeline so the probes that answer "what would the product
+  // schedule" cannot re-implement it and disagree; see demo_header.h.
+  const tf2::native::SoundTimelineBuildCounts soundBuild = tf2::native::buildSoundTimeline(
+    demoNetworkSummary.decodedSoundEvents, soundOriginFound, soundOriginTick, g_playback.tickRate,
+    soundTimeline);
+  const std::size_t soundEventsRead = soundBuild.read;
+  const std::size_t soundEventsUnresolved = soundBuild.unresolved;
+  const std::size_t soundEventsUnplaceable = soundBuild.unplaceable;
+  const std::size_t soundEventsRefused = soundBuild.refused;
   const tf2::native::SoundKindCounts soundKindCounts = tf2::native::countSoundKinds(soundTimeline);
   // The timeline build, reported before playback starts. Kept separate from the
   // exit summary because a run that is cut short (--capture-frame, a gate
@@ -1953,8 +1924,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (cached != soundCache.end()) { out = cached->second; return true; }
     for (const auto& archive : soundArchives) {
       tf2::native::SoundResource resource;
-      if (tf2::native::readSoundResource(*archive, name, resource) && resource.codec == tf2::native::SoundCodec::Wav) {
-        if (!resource.wav.valid) return false;
+      // The pre-T7 form of this condition also required `codec ==
+      // SoundCodec::Wav`, and that test was how "this is audio the output path
+      // can play" was spelled while the reader could only turn WAV bytes into
+      // PCM. readSoundResource now hands back decoded PCM for MP3 as well, so
+      // the same requirement is expressed as what it was always about: the
+      // decoded buffer is playable at a rate the output path accepts. Keeping
+      // the codec test here would have left this resolver refusing every event
+      // the decode had just made playable -- the content map would read
+      // `resolved` while the scheduler counted the same event as a missing
+      // resource, and nothing would reach the sink.
+      if (tf2::native::readSoundResource(*archive, name, resource)
+          && resource.wav.valid && tf2::native::wavPcmIsPlayable(resource.wav)) {
         const std::size_t pcmBytes = resource.wav.pcm.size();
         if (soundCache.size() < kSoundCacheEntryLimit && pcmBytes <= kSoundCacheLimit - soundCacheBytes) {
           auto inserted = soundCache.emplace(name, std::move(resource.wav));

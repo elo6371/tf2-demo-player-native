@@ -2294,6 +2294,55 @@ std::int32_t firstRecordedPacketTick(const DemoIndex& index, bool& found) {
   return 0;
 }
 
+double demoTickRate(const DemoHeader& header) {
+  // The bounds are the ones the player has always used: 30 is the slowest
+  // server tick rate in the shipped game, 128 the fastest, and a header whose
+  // playbackTime or ticks is unusable falls back rather than dividing by zero.
+  if (header.playbackTime > 0.0f && header.ticks > 0) {
+    return std::clamp(static_cast<double>(header.ticks)
+      / static_cast<double>(header.playbackTime), 30.0, 128.0);
+  }
+  return 66.6666667;
+}
+
+SoundTimelineBuildCounts buildSoundTimeline(const std::vector<DecodedSoundEvent>& events,
+    bool originFound, std::int32_t originTick, double tickRate, SoundEventTimeline& timeline) {
+  SoundTimelineBuildCounts counts;
+  timeline.clear();
+  counts.read = events.size();
+  for (const auto& source : events) {
+    // A decoded event with no precache entry has no name to resolve, so there is
+    // nothing to schedule. Counted, not silently dropped: it is one of the named
+    // failure points the resolver reports.
+    if (source.resourceName.empty()) { ++counts.unresolved; continue; }
+    // No origin at all means the recording's own tick counter is unknown. Every
+    // event is then unplaceable; refusing them keeps the failure countable
+    // instead of scheduling them at their absolute ticks, which would never play
+    // and would read exactly like "this recording has no sounds".
+    std::int32_t relativeTick = 0;
+    if (!originFound || !soundEventRelativeTick(source.tick, originTick, relativeTick)) {
+      ++counts.unplaceable;
+      continue;
+    }
+    ScheduledSound sound;
+    sound.tick = relativeTick;
+    sound.soundIndex = source.soundIndex;
+    sound.name = source.resourceName;
+    sound.volume = source.volume;
+    sound.delaySeconds = source.delaySeconds;
+    sound.origin[0] = source.origin[0];
+    sound.origin[1] = source.origin[1];
+    sound.origin[2] = source.origin[2];
+    // scheduleSoundEvent rather than scheduleGameplaySound: voice, announcer and
+    // music stay in the timeline flagged as skipped so the scheduler's
+    // eventsSkippedVoice counter is a reading that can move. They are still never
+    // resolved and never played.
+    if (!scheduleSoundEvent(timeline, std::move(sound), tickRate)) ++counts.refused;
+  }
+  timeline.sortByTick();
+  return counts;
+}
+
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
     std::int32_t* resolvedTick) {

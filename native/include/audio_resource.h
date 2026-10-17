@@ -20,6 +20,37 @@ enum class WavEncoding : std::uint16_t {
   IeeeFloat = 3,
 };
 
+// Parseable MPEG audio frame header fields. `frameOffset` is the first byte of
+// the frame (after any ID3v2 tag), which is where a decoder has to start.
+struct Mp3FrameInfo {
+  std::size_t frameOffset = 0;
+  std::uint32_t sampleRate = 0;
+  std::uint16_t channels = 0;
+  std::uint32_t bitrateKbps = 0;
+  std::uint8_t mpegVersion = 0;   // 1 = MPEG-1, 2 = MPEG-2, 25 = MPEG-2.5
+  bool layer3 = false;
+  bool valid = false;
+};
+
+// Find the first frame whose header fields are self-consistent (a sync-shaped
+// pair of bytes with a defined bitrate and sample rate is not enough -- the
+// version/layer/bitrate/sample-rate combinations encode a real format or they
+// do not). Skips an ID3v2 tag when present. Used by both the MP3 signature check
+// and the decoder, so "looks like an MP3" and "can be decoded as an MP3" start
+// from the same parse.
+Mp3FrameInfo findMp3FrameHeader(const std::vector<std::uint8_t>& bytes);
+
+// Outcome of an MP3 decode attempt. The four answers are separate because the
+// caller has to name them differently: a machine without a decoder is a
+// capability gap, a codec that refuses the stream is a format fact, and bytes
+// that parse to no audio are a data fact.
+enum class Mp3DecodeStatus : std::uint8_t {
+  Decoded = 0,
+  NoDecoderInstalled,
+  UnsupportedFormat,
+  InvalidStream,
+};
+
 struct WavPcmData {
   WavEncoding encoding = WavEncoding::Unknown;
   std::uint16_t channels = 0;
@@ -31,6 +62,25 @@ struct WavPcmData {
   bool valid = false;
   std::string error;
 };
+
+// Decode MP3 bytes to 16-bit PCM through the platform ACM codec (the MPEG
+// Layer-3 ACM that ships with Windows). `out` is filled the same way parseWav
+// fills it, so a decoded MP3 flows through the same playability check, the same
+// duration cap and the same WinMM output path as a WAV. `detail` always names
+// the failure when the status is not Decoded.
+//
+// Why ACM rather than a bundled decoder: the product's output path is WinMM, so
+// the codec that pairs with it is the system's ACM codec, and the alternative --
+// a vendored MP3 implementation -- would be a codec to maintain inside a demo
+// player. The cost of the choice is that MP3 playback depends on a codec being
+// installed, which is why NoDecoderInstalled is its own status instead of being
+// folded into InvalidStream.
+Mp3DecodeStatus decodeMp3ToPcm(const std::vector<std::uint8_t>& bytes,
+  WavPcmData& out, std::string& detail);
+
+// True when this machine has an ACM MPEG Layer-3 decoder installed. Exposed so a
+// probe can report the machine's capability separately from a stream's bytes.
+bool mp3DecoderAvailable();
 
 struct SoundResource {
   SoundCodec codec = SoundCodec::Unknown;

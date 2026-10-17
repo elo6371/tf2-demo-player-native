@@ -39,6 +39,19 @@
 #   device-6 run separately, and its readings are mutated like every other
 #   section's when --mutation is also given.
 #
+# THE CORPUS CATEGORY SLICE (5/6)
+#   Sections 3/6 and 4/6 report what happens to the events a recording sends;
+#   neither can say anything about a category no pinned recording sends. T3 left
+#   `music` in exactly that state -- `kindMusic=0` on all three of its pinned
+#   recordings, filed NOT VERIFIED against an eleven-recording scan. Section 5/6
+#   scans recordings chosen for the categories under question and pins, per
+#   recording, three separate facts: the event kinds (what the product schedules),
+#   the precache-name kinds (what the recording could send) and the message-level
+#   channels (svc_VoiceData, svc_TempEntities, ...). It then prints the coverage
+#   accumulator, so the half of the claim that is "no pinned input carries this"
+#   is a printed reading rather than an absent assertion. Like every other
+#   section it never opens a VPK and never opens a device: it reads demo bytes.
+#
 # Usage: bash verify-audio.sh [--mutation] [--no-build] [--device]
 #   --mutation perturbs each captured output and requires the assertions to go
 #   red, so the lists are known to discriminate rather than assumed to.
@@ -65,17 +78,17 @@ done
 B=native/build-nmake
 
 if [ "$BUILD" -eq 1 ]; then
-  echo "=== 1/5 incremental build ==="
-  bash build-target.sh audio_effects_probe audio_scheduler_probe winmm_sink_probe sound_timeline_census_probe sound_content_map_probe tf2_demo_native
+  echo "=== 1/6 incremental build ==="
+  bash build-target.sh audio_effects_probe audio_scheduler_probe winmm_sink_probe sound_timeline_census_probe sound_content_map_probe sound_corpus_scan_probe tf2_demo_native
   rc_build=$?
   echo "build_rc=$rc_build"
   [ "$rc_build" -eq 0 ] || { echo "VERIFY-AUDIO=FAIL (build)"; exit 1; }
 else
-  echo "=== 1/5 incremental build (skipped: --no-build) ==="
+  echo "=== 1/6 incremental build (skipped: --no-build) ==="
 fi
 
 echo
-echo "=== 2/5 the probes, dry ==="
+echo "=== 2/6 the probes, dry ==="
 
 ok=0
 bad=0
@@ -126,10 +139,31 @@ E_SCHEDULER=(
   'indexMarkedResolved=2|scheduler: names behind a sound character still resolve'
   'indexMarkedPath=sound/weapons/shotgun_shoot.wav|scheduler: the marked name resolves to the shipped file'
   'readMarkedPath=sound/weapons/shotgun_shoot.wav|scheduler: the product reader resolves the same marked name'
+  # The MP3 decode. The chain resolves two resources, one per codec, and the
+  # split is pinned separately so "the MP3 stopped resolving" cannot hide inside
+  # a still-green total. The three refusals are pinned by name because a decoder
+  # that accepts any sync-shaped bytes would leave the positive readings intact.
+  'indexResolved=2|scheduler: the index chain resolved two resources'
+  'indexResolvedWav=1|scheduler: exactly one of them is a WAV'
+  'indexResolvedMp3=1|scheduler: exactly one of them is an MP3'
+  'indexMp3Path=sound/ambient_mp3/lair/rolling_thunder1.mp3|scheduler: the resolved MP3 is the shipped file'
+  'indexMp3PcmBytes=1437696|scheduler: the MP3 decoded to PCM bytes'
+  'indexMp3Rate=44100 indexMp3Channels=2|scheduler: the decoded MP3 carries its own rate and channel count'
+  'indexMp3Seconds=8.15|scheduler: the decoded MP3 has a real duration'
+  'readMp3PcmBytes=1437696|scheduler: the product reader agrees with the named chain on the MP3'
+  'mp3EventStatus=resolved|scheduler: the MP3 a pinned recording sends resolves instead of being refused'
+  'mp3EventPath=sound/ambient_mp3/water/water_splash1.mp3|scheduler: that event is the water splash the recording names'
+  'mp3EventPcmBytes=122112|scheduler: it decodes to PCM bytes'
+  'mp3EventRate=44100 mp3EventChannels=1|scheduler: it is 44.1 kHz mono, not a guessed shape'
+  'mp3DecoderAvailable=1|scheduler: this machine has the MPEG Layer-3 ACM codec'
+  'mp3NoFrameStatus=invalid_wav|scheduler: MP3-shaped bytes with no frame are invalid'
+  'mp3SilentStatus=invalid_wav|scheduler: a stream that decodes to zero PCM is refused'
+  'mp3Layer2Status=unsupported_format|scheduler: a Layer II stream is refused by name'
+  'mp3MapNoDecoderStatus=unsupported_format|scheduler: a machine with no codec reports a capability gap'
   'jumpSeen=2|scheduler: two timeline jumps exercised the scheduler'
   'recoveredSeen=2|scheduler: two recoveries'
   'missingPlayed=0|scheduler: a missing sound was never played'
-  'mutationsCaught=8 mutationsTotal=8|scheduler: every internal flip toggles a pinned reading'
+  'mutationsCaught=10 mutationsTotal=10|scheduler: every internal flip toggles a pinned reading'
 )
 
 E_SINK=(
@@ -184,7 +218,7 @@ fi
 
 
 echo
-echo "=== 3/5 the timeline census on the pinned recordings ==="
+echo "=== 3/6 the timeline census on the pinned recordings ==="
 # The player reports `events_seen`, `soundEventsRead` and `soundEventsScheduled`.
 # This section reports what those numbers have to be, from an instrument that
 # never opens a device and never touches the running player. Two independent
@@ -281,7 +315,7 @@ else
 fi
 
 echo
-echo "=== 4/5 the content map on the pinned recordings ==="
+echo "=== 4/6 the content map on the pinned recordings ==="
 # The census proves WHERE the events sit; this section proves WHAT they become.
 # Every scheduled event must have exactly one mapping line and exactly one named
 # decode status, the six status counts must sum to the timeline size, and the
@@ -358,14 +392,34 @@ content_checks() { # content_checks <label> <json-file> <map-file>
   # 5. The two instruments agree: every decode-resolved event reached the sink,
   # and the scheduler's missing count is the decode failures minus the filtered
   # kinds (voice/announcer/music are never resolved for playback).
-  local notResolved
+  #
+  # The form of this identity changed with the MP3 decode, and that is worth
+  # spelling out because the old form was silently wrong afterwards. It used to
+  # be `played == resolved`, which held only while no filtered event could
+  # resolve: every filtered event in the pinned recordings is an MP3 voice or
+  # announcer clip, so while MP3 was refused the two counts coincided. Once the
+  # clips decode, `resolved` counts them and `played` still does not -- correctly,
+  # because the scheduler skips those kinds by design -- and the old identity
+  # would have failed on a *correct* product. The split is now read from the same
+  # capture (`resolvedFiltered` / `unresolvedFiltered`, both printed by the
+  # probe) instead of being assumed to be zero, so the assertion still says
+  # "nothing resolved went unplayed" without also asserting "no filtered event
+  # decodes".
+  local notResolved resolvedFiltered unresolvedFiltered filtered
+  resolvedFiltered=$(jval "$json" resolvedFiltered)
+  unresolvedFiltered=$(jval "$json" unresolvedFiltered)
+  filtered=$(jval "$json" filtered)
   notResolved=$((${scheduled:-0} - ${resolved:-0}))
-  if [ -n "$played" ] && [ "$played" -eq "$resolved" ] \
-     && [ -n "$missing" ] && [ "$missing" -eq $((notResolved - ${voice:-0})) ]; then
-    ok=$((ok + 1)); printf '  OK   %s (played == resolved == %s; missing == not-resolved - filtered)\n' "$label" "$played"
+  if [ -n "$played" ] && [ -n "$missing" ] \
+     && [ -n "$resolvedFiltered" ] && [ -n "$unresolvedFiltered" ] && [ -n "$filtered" ] \
+     && [ "$filtered" -eq $((resolvedFiltered + unresolvedFiltered)) ] \
+     && [ "$played" -eq "$((${resolved:-0} - resolvedFiltered))" ] \
+     && [ "$missing" -eq "$((notResolved - unresolvedFiltered))" ]; then
+    ok=$((ok + 1)); printf '  OK   %s (played == resolved - resolvedFiltered == %s; missing == not-resolved - unresolvedFiltered)\n' "$label" "$played"
   else
-    bad=$((bad + 1)); printf '  FAIL %s (played=%s resolved=%s missing=%s notResolved=%s voice=%s)\n' \
-      "$label" "${played:-<unparsed>}" "${resolved:-<unparsed>}" "${missing:-<unparsed>}" "$notResolved" "${voice:-<unparsed>}"
+    bad=$((bad + 1)); printf '  FAIL %s (played=%s resolved=%s resolvedFiltered=%s unresolvedFiltered=%s filtered=%s missing=%s notResolved=%s)\n' \
+      "$label" "${played:-<unparsed>}" "${resolved:-<unparsed>}" "${resolvedFiltered:-<unparsed>}" \
+      "${unresolvedFiltered:-<unparsed>}" "${filtered:-<unparsed>}" "${missing:-<unparsed>}" "$notResolved"
   fi
 
   # 6. Duplicate tick + backward playback, on the real timeline with the real
@@ -474,13 +528,24 @@ else
     # the numbers the pinned input itself produces; the kind counts are the
     # category coverage the recording was selected for. A moved value fails
     # here instead of being absorbed by the identities above.
+    #
+    # Two of these pins moved with the MP3 decode, in every recording, and the
+    # move is the measurement T7 rests on: `statusUnsupportedFormat` was 511 /
+    # 637 / 192 and is now 0, and `statusResolved` rose by exactly that amount.
+    # The three recordings together carried 1340 MP3 events that were refused as
+    # an unsupported format and now decode. What they are matters as much as how
+    # many: on the pov and matcha recordings every one of those is a voice or
+    # announcer clip (filtered, so it is classified and never played), while on
+    # the well recording two of them are world-kind -- the water_splash events,
+    # the only MP3 events in this pinned set that the output path is asked to
+    # play, which is why `playedEvents` moves by 2 there and by 0 on the others.
     case "$want_name" in
       autorecord_2026-07-02*)
-        pins="scheduled=5323 statusResolved=3564 statusMissingWav=1248 statusUnsupportedFormat=511 markerEvents=745 markerEventsResolved=745 kindWeapon=888 kindFootstep=2263 kindUber=14 kindVoice=504 kindAnnouncer=7 kindMusic=0" ;;
+        pins="scheduled=5323 statusResolved=4075 statusMissingWav=1248 statusUnsupportedFormat=0 resolvedFiltered=511 unresolvedFiltered=0 playedEvents=3564 markerEvents=745 markerEventsResolved=745 kindWeapon=888 kindFootstep=2263 kindUber=14 kindVoice=504 kindAnnouncer=7 kindMusic=0" ;;
       bb841c6d*)
-        pins="scheduled=5229 statusResolved=3508 statusMissingWav=1083 statusInvalidWav=1 statusUnsupportedFormat=637 markerEvents=1460 markerEventsResolved=1460 kindWeapon=2953 kindFootstep=5 kindUber=14 kindVoice=633 kindAnnouncer=4 kindMusic=0" ;;
+        pins="scheduled=5229 statusResolved=4145 statusMissingWav=1083 statusInvalidWav=1 statusUnsupportedFormat=0 resolvedFiltered=637 unresolvedFiltered=0 playedEvents=3508 markerEvents=1460 markerEventsResolved=1460 kindWeapon=2953 kindFootstep=5 kindUber=14 kindVoice=633 kindAnnouncer=4 kindMusic=0" ;;
       autorecord_2026-07-16*)
-        pins="scheduled=4989 statusResolved=4371 statusMissingWav=426 statusUnsupportedFormat=192 markerEvents=723 markerEventsResolved=723 kindWeapon=675 kindFootstep=3003 kindUber=7 kindVoice=188 kindAnnouncer=2 kindMusic=0" ;;
+        pins="scheduled=4989 statusResolved=4563 statusMissingWav=426 statusUnsupportedFormat=0 resolvedFiltered=190 unresolvedFiltered=0 playedEvents=4373 markerEvents=723 markerEventsResolved=723 kindWeapon=675 kindFootstep=3003 kindUber=7 kindVoice=188 kindAnnouncer=2 kindMusic=0" ;;
       *)
         pins="scheduled=$(jval "$content_out" scheduled)" ;;
     esac
@@ -497,7 +562,288 @@ else
 fi
 
 echo
-echo "=== 5/5 the player on a real recording, still --audio-disabled ==="
+echo "=== 5/6 the corpus category slice ==="
+# WHAT THIS SECTION IS FOR
+#   The two sections above prove what happens to the events a recording *does*
+#   send. They say nothing about the categories a recording does not send, and
+#   T3's content-inputs.txt records the consequence: `kindMusic=0` on all three
+#   pinned recordings, so "music events are handled" had no input at all and the
+#   category was filed NOT VERIFIED against an 11-recording scan.
+#
+#   This section answers that question with recordings chosen for it, and it
+#   reports three different things per recording instead of one, because they are
+#   three different facts:
+#     * `kinds`    -- what the product's own timeline build classified the
+#                     scheduled events as. This is the number a coverage claim is
+#                     about.
+#     * `table`    -- what the recording's soundprecache *names* classify as. A
+#                     music name in the table with no music event means the sound
+#                     was precached and never sent, which is not the same as "no
+#                     music exists" and not the same as "music plays".
+#     * `svc`      -- the message-level channels (svc_VoiceInit, svc_VoiceData,
+#                     svc_TempEntities, svc_UserMessage, svc_EntityMessage). A
+#                     category can be absent from SVC_Sounds and still be present
+#                     in the stream as another channel, so a claim about voice or
+#                     temp entities has to name which channel it is about.
+#
+#   The pins below are the numbers these recordings produce; the section also
+#   computes the coverage claim itself from the captures (see the accumulator
+#   after the loop), so "at least one pinned input carries a music event" is
+#   derived from the same bytes it pins rather than typed twice.
+#
+# WHAT THIS SECTION DOES NOT DO
+#   It never opens a VPK, never resolves a resource and never opens a device: the
+#   probe reads demo bytes and counts. That is deliberate -- resolving every event
+#   against the archives is what section 4/6 already does on three recordings,
+#   and repeating it for a category survey would spend the whole budget decoding
+#   resources the question does not touch.
+INPUTS_CORPUS=evidence/t7-audio-content/corpus-inputs.txt
+
+# One object out of the probe's one-line record. The probe prints `kinds` and
+# `table` with the same key names (`music`, `voice`, `weapon`, ...), so a lookup
+# that is not scoped to its object reads whichever came first -- which is exactly
+# how a "music event = 13" reading would be produced from a *table* count. The
+# object name is therefore mandatory in the spec.
+corpus_field() { # corpus_field <record-line> <object:key|key> -> value or empty
+  local line="$1" spec="$2" obj="${2%%:*}" key="${2##*:}"
+  if [ "$obj" = "$key" ]; then
+    printf '%s' "$line" | grep -o "\"$key\":[0-9]*" | head -1 | cut -d: -f2
+  else
+    printf '%s' "$line" | grep -o "\"$obj\":{[^}]*}" | grep -o "\"$key\":[0-9]*" | head -1 | cut -d: -f2
+  fi
+}
+
+corpus_accumulator_reset() {
+  CORPUS_DEMOS=0; CORPUS_SEEN=0
+  CORPUS_WITH_MUSIC=0; CORPUS_WITH_TEMP_ENTITY=0; CORPUS_WITH_PCF=0
+  CORPUS_WITH_VOICE_DATA=0; CORPUS_WITH_TEMP_MSG=0
+  CORPUS_TABLE_MUSIC=0
+  CORPUS_MUSIC_NAMES_WITHOUT_EVENT=0
+  CORPUS_DEMOS_WITH_MUSIC_EVENT=""
+}
+
+corpus_checks() { # corpus_checks <label> <scan-output> [<accumulate 0|1>]
+  local label="$1" out="$2" accumulate="${3:-0}"
+  local line timeline read unresolved unplaceable refused sum kind_value key
+  line=$(head -1 "$out")
+  if ! printf '%s' "$line" | grep -qF '"status":"ok"'; then
+    bad=$((bad + 1)); printf '  FAIL %s (probe did not report a scanned recording)\n' "$label"; return
+  fi
+  ok=$((ok + 1)); printf '  OK   %s (recording scanned)\n' "$label"
+
+  timeline=$(corpus_field "$line" timeline)
+  read=$(corpus_field "$line" build:read)
+  unresolved=$(corpus_field "$line" build:unresolved)
+  unplaceable=$(corpus_field "$line" build:unplaceable)
+  refused=$(corpus_field "$line" build:refused)
+
+  # 1. The build accounting, the same identity section 4/6 asserts: every decoded
+  # event is either scheduled or rejected for one of the three named reasons.
+  if [ -n "$read" ] && [ -n "$timeline" ] \
+     && [ "$read" -eq $((timeline + unresolved + unplaceable + refused)) ]; then
+    ok=$((ok + 1)); printf '  OK   %s (read=%s = scheduled=%s + rejected=%s)\n' \
+      "$label" "$read" "$timeline" "$((unresolved + unplaceable + refused))"
+  else
+    bad=$((bad + 1)); printf '  FAIL %s (accounting: read=%s scheduled=%s unresolved=%s unplaceable=%s refused=%s)\n' \
+      "$label" "${read:-<unparsed>}" "${timeline:-<unparsed>}" "${unresolved:-<unparsed>}" "${unplaceable:-<unparsed>}" "${refused:-<unparsed>}"
+  fi
+
+  # 2. The kind histogram is a partition of the timeline: every scheduled event
+  # landed in exactly one kind, or the per-kind counts are not a census of it.
+  sum=0
+  for key in unknown weapon footstep uber world temp_entity pcf voice announcer music; do
+    kind_value=$(corpus_field "$line" "kinds:$key")
+    sum=$((sum + ${kind_value:--1000000}))
+  done
+  if [ -n "$timeline" ] && [ "$sum" -eq "$timeline" ]; then
+    ok=$((ok + 1)); printf '  OK   %s (the ten kind counts sum to the timeline, %s)\n' "$label" "$timeline"
+  else
+    bad=$((bad + 1)); printf '  FAIL %s (kind sum %s != timeline %s)\n' "$label" "$sum" "${timeline:-<unparsed>}"
+  fi
+
+  # 3. The table histogram is likewise a partition of the table, which is what
+  # makes `table:music` readable as "music names were precached here" rather than
+  # as a leftover count.
+  local entries table_sum=0
+  entries=$(corpus_field "$line" table:entries)
+  for key in unknown weapon footstep uber world temp_entity pcf voice announcer music; do
+    kind_value=$(corpus_field "$line" "table:$key")
+    table_sum=$((table_sum + ${kind_value:-0}))
+  done
+  if [ -n "$entries" ] && [ "$table_sum" -eq "$entries" ]; then
+    ok=$((ok + 1)); printf '  OK   %s (the soundprecache kinds sum to its %s entries)\n' "$label" "$entries"
+  else
+    bad=$((bad + 1)); printf '  FAIL %s (table sum %s != entries %s)\n' "$label" "$table_sum" "${entries:-<unparsed>}"
+  fi
+
+  if [ "$accumulate" = "1" ]; then
+    # Each field is defaulted before it is used: with an unparsed key the
+    # arithmetic would either error out or, worse, add 0 and make the coverage
+    # line read "0 recordings carry music" for a capture that never carried the
+    # key at all. The one-demo counts are accumulated separately from the
+    # coverage claim so a missing key cannot be confused with a zero count.
+    local f_music f_temp f_pcf f_vdata f_tempmsg f_tmusic
+    f_music=$(corpus_field "$line" kinds:music)
+    f_temp=$(corpus_field "$line" kinds:temp_entity)
+    f_pcf=$(corpus_field "$line" kinds:pcf)
+    f_vdata=$(corpus_field "$line" svc:voiceData)
+    f_tempmsg=$(corpus_field "$line" svc:tempEntities)
+    f_tmusic=$(corpus_field "$line" table:music)
+    for probe_key in kinds:music kinds:temp_entity kinds:pcf svc:voiceData svc:tempEntities table:music; do
+      if [ -z "$(corpus_field "$line" "$probe_key")" ]; then
+        bad=$((bad + 1)); printf '  FAIL %s (coverage key %s is missing from the capture; an absent key and a zero count are different facts)\n' "$label" "$probe_key"
+        return
+      fi
+    done
+    CORPUS_DEMOS=$((CORPUS_DEMOS + 1))
+    CORPUS_SEEN=$((CORPUS_SEEN + ${timeline:-0}))
+    CORPUS_TABLE_MUSIC=$((CORPUS_TABLE_MUSIC + f_tmusic))
+    [ "$f_music" -gt 0 ] && { CORPUS_WITH_MUSIC=$((CORPUS_WITH_MUSIC + 1)); CORPUS_DEMOS_WITH_MUSIC_EVENT="$CORPUS_DEMOS_WITH_MUSIC_EVENT $label"; }
+    # A recording whose table carries music names and whose timeline has no
+    # music event. T3's NOT VERIFIED line turned on exactly this distinction, so
+    # the pinned set has to contain at least one recording that exhibits it --
+    # otherwise "13 music candidates in the table" could be read as covering the
+    # category, which is the inference the line existed to prevent.
+    [ "$f_tmusic" -gt 0 ] && [ "$f_music" -eq 0 ] && CORPUS_MUSIC_NAMES_WITHOUT_EVENT=$((CORPUS_MUSIC_NAMES_WITHOUT_EVENT + 1))
+    [ "$f_temp" -gt 0 ] && CORPUS_WITH_TEMP_ENTITY=$((CORPUS_WITH_TEMP_ENTITY + 1))
+    [ "$f_pcf" -gt 0 ] && CORPUS_WITH_PCF=$((CORPUS_WITH_PCF + 1))
+    [ "$f_vdata" -gt 0 ] && CORPUS_WITH_VOICE_DATA=$((CORPUS_WITH_VOICE_DATA + 1))
+    [ "$f_tempmsg" -gt 0 ] && CORPUS_WITH_TEMP_MSG=$((CORPUS_WITH_TEMP_MSG + 1))
+    : # the last `&&` must not become the function's exit status
+  fi
+}
+
+# The pinned values for one recording, in their own function so the mutation pass
+# can perturb a capture and require these to go red. A pin list is `key=value`
+# pairs over the same `object:key` namespace corpus_field uses.
+#
+# There is deliberately no default that reads the pins out of the capture.
+# Section 4/6 has one (`pins="scheduled=$(jval ...)"`), and it is a tautology: a
+# pin computed from the file it is compared against cannot fail. Here a recording
+# with no explicit pin line is an error, so adding another input without deciding
+# what it must produce is red instead of green.
+corpus_pins() { # corpus_pins <label> <scan-output> <pins>
+  local label="$1" out="$2" pins="$3" pin pin_key pin_value pin_got
+  local line
+  line=$(head -1 "$out")
+  if [ -z "$pins" ]; then
+    bad=$((bad + 1)); printf '  FAIL %s (no pinned values for this recording: pinning it without saying what it must produce would check nothing)\n' "$label"; return
+  fi
+  for pin in $pins; do
+    pin_key=${pin%%=*}; pin_value=${pin#*=}
+    pin_got=$(corpus_field "$line" "$pin_key")
+    if [ "$pin_got" = "$pin_value" ]; then
+      ok=$((ok + 1)); printf '  OK   %s (%s=%s)\n' "$label" "$pin_key" "$pin_got"
+    else
+      bad=$((bad + 1)); printf '  FAIL %s (%s=%s, pinned %s)\n' "$label" "$pin_key" "${pin_got:-<unparsed>}" "$pin_value"
+    fi
+  done
+}
+
+corpus_accumulator_reset
+
+if [ ! -s "$INPUTS_CORPUS" ]; then
+  bad=$((bad + 1)); printf '  FAIL %s\n' "corpus: $INPUTS_CORPUS is missing (the chosen recordings are the input, not a convenience)"
+else
+  while read -r want_size want_hash want_root want_name; do
+    case "$want_size" in ''|'#'*) continue ;; esac
+    want_name=${want_name%$'\r'}
+    if [ "$want_root" = "steam" ]; then demo_path="$TF_DIR/demos/$want_name"
+    else demo_path="D:/TF2_Demo_Player/testdata/demos/$want_name"; fi
+    label="corpus[$(printf '%s' "$want_name" | cut -c1-28)]"
+    if [ ! -f "$demo_path" ]; then
+      bad=$((bad + 1)); printf '  FAIL %s (absent: %s)\n' "$label" "$demo_path"; continue
+    fi
+    got_size=$(stat -c %s "$demo_path" 2>/dev/null || echo 0)
+    if [ "$got_size" != "$want_size" ]; then
+      bad=$((bad + 1)); printf '  FAIL %s (wrong size: %s, pinned %s)\n' "$label" "$got_size" "$want_size"; continue
+    fi
+    got_hash=$(sha256sum "$demo_path" | cut -d' ' -f1)
+    if [ "$got_hash" != "$want_hash" ]; then
+      bad=$((bad + 1)); printf '  FAIL %s (wrong hash: %s)\n' "$label" "$got_hash"; continue
+    fi
+    ok=$((ok + 1)); printf '  OK   %s (pinned input verified: size %s, sha256 %s...)\n' "$label" "$want_size" "${want_hash:0:12}"
+
+    corpus_key=$(printf '%s' "$want_name" | tr -c 'a-z0-9' '_' | cut -c1-30)
+    corpus_out="$OUT/corpus-$corpus_key.txt"
+    "$B/sound_corpus_scan_probe.exe" --demo "$demo_path" > "$corpus_out" 2>&1
+    rc_corpus=$?
+    if [ "$rc_corpus" -ne 0 ] || ! grep -qF '"status":"ok"' "$corpus_out"; then
+      bad=$((bad + 1)); printf '  FAIL %s (corpus probe rc=%s)\n' "$label" "$rc_corpus"; continue
+    fi
+    corpus_checks "$label" "$corpus_out" 1
+
+    # The pinned values for this recording. `kinds:` and `table:` are separate
+    # namespaces on purpose (see corpus_field): the whole point of pinning both is
+    # that a recording can carry music names in its table and no music event, and
+    # the pins have to be able to say that.
+    #
+    # `svc:tempEntities` and `svc:voiceData` are pinned as well as counted,
+    # although only the coverage accumulator reads them: a pin on a key no
+    # identity uses is the only kind the mutation pass can move *alone*, so its
+    # presence is what shows the pin table itself is live.
+    case "$want_name" in
+      autorecord_2026-10-04*)
+        # pd_circus: the music carrier, and the mutation reference recording
+        # (first line of corpus-inputs.txt). `svc:tempEntities` is pinned here
+        # because no identity reads it -- see the comment above.
+        pins="timeline=4930 build:read=5001 kinds:music=3 kinds:weapon=1072 kinds:world=2355 kinds:voice=272 table:music=15 table:entries=6975 svc:tempEntities=9494 svc:voiceData=0" ;;
+      autorecord_2026-10-02_14-26-03*)
+        pins="timeline=4306 build:read=4878 kinds:music=1 kinds:weapon=1015 kinds:world=1400 kinds:voice=479 table:music=13 table:entries=6792 svc:tempEntities=5608 svc:voiceData=41" ;;
+      autorecord_2026-07-02*)
+        pins="timeline=5323 build:read=5563 kinds:music=0 kinds:weapon=888 kinds:world=1647 kinds:voice=504 table:music=13 table:entries=6720 svc:tempEntities=12321 svc:voiceData=0" ;;
+      autorecord_2026-10-02_13-20-12*)
+        pins="timeline=5669 build:read=5709 kinds:music=0 kinds:weapon=316 kinds:world=1101 kinds:voice=229 table:music=13 table:entries=6897 svc:tempEntities=3882 svc:voiceData=70" ;;
+      autorecord_2026-10-12_16-47-40*)
+        pins="timeline=4129 build:read=4193 kinds:music=2 kinds:weapon=836 kinds:world=1579 kinds:voice=359 table:music=13 table:entries=6758 svc:tempEntities=2040 svc:voiceData=0" ;;
+      *)
+        pins="" ;;
+    esac
+    corpus_pins "$label" "$corpus_out" "$pins"
+    [ -n "${CORPUS_REF_JSON:-}" ] || CORPUS_REF_PINS="$pins"
+    CORPUS_REF_JSON="$corpus_out"
+  done < "$INPUTS_CORPUS"
+
+  # The coverage claim, computed from the pinned captures rather than typed: a
+  # category is covered here only when a pinned recording itself carries an event
+  # of that kind. Printing the accumulator makes the "and which categories are
+  # NOT covered" half of the claim a reading too, instead of leaving a reader to
+  # notice an absent assertion.
+  printf '  -- corpus coverage over %s pinned recording(s), %s scheduled events: music events in %s, temp_entity events in %s, pcf events in %s, svc_VoiceData in %s, svc_TempEntities in %s; music-kind names in tables: %s (of which recordings with names but no music event: %s)\n' \
+    "$CORPUS_DEMOS" "$CORPUS_SEEN" "$CORPUS_WITH_MUSIC" "$CORPUS_WITH_TEMP_ENTITY" "$CORPUS_WITH_PCF" \
+    "$CORPUS_WITH_VOICE_DATA" "$CORPUS_WITH_TEMP_MSG" "$CORPUS_TABLE_MUSIC" "$CORPUS_MUSIC_NAMES_WITHOUT_EVENT"
+  corpus_assert_count() { # corpus_assert_count <what> <got> <min>
+    if [ "${2:-0}" -ge "$3" ]; then
+      ok=$((ok + 1)); printf '  OK   %s (%s of the pinned recordings)\n' "$1" "${2:-0}"
+    else
+      bad=$((bad + 1)); printf '  FAIL %s (%s of the pinned recordings, wanted at least %s)\n' "$1" "${2:-0}" "$3"
+    fi
+  }
+  if [ "${CORPUS_DEMOS:-0}" -ge 1 ]; then
+    ok=$((ok + 1)); printf '  OK   %s\n' "corpus: the pinned set was scanned ($CORPUS_DEMOS recording(s))"
+  else
+    bad=$((bad + 1)); printf '  FAIL %s\n' "corpus: no pinned recording was scanned"
+  fi
+  # The positive claims, one per category that has an input. These are the
+  # assertions T7 exists to make possible: before this round the music line could
+  # not be written at all, and the other two name channels (not sound kinds) that
+  # no earlier section read.
+  corpus_assert_count "corpus: a pinned recording carries a music-kind EVENT" "$CORPUS_WITH_MUSIC" 1
+  corpus_assert_count "corpus: a pinned recording carries svc_VoiceData payload" "$CORPUS_WITH_VOICE_DATA" 1
+  corpus_assert_count "corpus: a pinned recording carries svc_TempEntities" "$CORPUS_WITH_TEMP_MSG" 1
+  # The distinction the absence line rests on, kept honest by requiring the pinned
+  # set to actually contain an example of it: music names precached, no music sent.
+  corpus_assert_count "corpus: a pinned recording precaches music names and sends no music event" "$CORPUS_MUSIC_NAMES_WITHOUT_EVENT" 1
+  # And the categories with no input, printed rather than asserted. Asserting
+  # "zero" would turn a future recording that *does* carry a temp-entity sound
+  # event into a red gate, which is a corpus change and not a defect; what has to
+  # be auditable is the claim, and the claim is this line.
+  printf '  -- corpus categories with no input in the pinned set: temp_entity events %s, pcf events %s. Both are also absent from all 55 scanned recordings, and no shipped sound name carries either token (audio_scheduler_probe measures realTempEntity=0 realPcf=0 over both sound archives), so these stay NOT VERIFIED as sound events rather than being asserted away.\n' \
+    "$CORPUS_WITH_TEMP_ENTITY" "$CORPUS_WITH_PCF"
+fi
+
+echo
+echo "=== 6/6 the player on a real recording, still --audio-disabled ==="
 # The wiring end to end. The demo is real, the sink is device-free, and the
 # numbers the player prints are cross-checked against the census above rather
 # than pinned by hand -- a hand-typed expectation would still read green if the
@@ -804,6 +1150,8 @@ if [ "$MUTATION" -eq 1 ]; then
       census) census_checks "census[mutated]" "$copy" > "$OUT/mutated-$name.log" 2>&1 ;;
       player) player_checks "player[mutated]" "$copy" "$CENSUS_POV" > "$OUT/mutated-$name.log" 2>&1 ;;
       content) content_checks "content[mutated]" "$copy" "$CONTENT_REF_MAP" > "$OUT/mutated-$name.log" 2>&1 ;;
+      corpus) corpus_checks "corpus[mutated]" "$copy" > "$OUT/mutated-$name.log" 2>&1 ;;
+      corpus-pins) corpus_pins "corpus[mutated]" "$copy" "$CORPUS_REF_PINS" > "$OUT/mutated-$name.log" 2>&1 ;;
       device-null) device_checks "device-null[mutated]" "$copy" null > "$OUT/mutated-$name.log" 2>&1 ;;
       device-6) device_checks "device-6[mutated]" "$copy" device > "$OUT/mutated-$name.log" 2>&1 ;;
       *) echo "  MUTATION-SETUP=FAIL ($name: unknown checker '$kind')"; mrc=1; ok=$saved_ok; bad=$saved_bad; return ;;
@@ -873,6 +1221,34 @@ if [ "$MUTATION" -eq 1 ]; then
     mutate_checks content-reverse   "$CONTENT_REF_JSON" 's/"replaySeen":[0-9]*/"replaySeen":0/' content
   else
     echo "  MUTATION-SETUP=FAIL (no content capture: the content mutations cannot run)"
+    mrc=1
+  fi
+
+  # The corpus category slice: three perturbations of the three identities the
+  # section asserts (the build accounting, the kind partition, the precache-table
+  # partition) plus one of a pinned value that no identity reads, which is what
+  # shows the pin table is live rather than decorative. The replacements are read
+  # out of the capture for the same reason the content mutations read theirs out
+  # of theirs: a hand-typed literal silently mutates the wrong bytes once the
+  # recordings move.
+  #
+  # The guard includes CORPUS_REF_PINS: with an empty pin list, corpus_pins
+  # reports FAIL for *every* input, so the corpus-pin case would report
+  # MUTATION-CAUGHT=PASS while discriminating nothing. A mutation whose checker
+  # cannot fail for the reason it names is the "PASS while checking nothing"
+  # failure this whole pass exists to find, and the fix is to not run it.
+  if [ -n "${CORPUS_REF_JSON:-}" ] && [ -s "$CORPUS_REF_JSON" ] && [ -n "${CORPUS_REF_PINS:-}" ]; then
+    c_line=$(head -1 "$CORPUS_REF_JSON")
+    c_read=$(corpus_field "$c_line" build:read)
+    c_tl=$(corpus_field "$c_line" timeline)
+    c_ent=$(corpus_field "$c_line" table:entries)
+    c_tent=$(corpus_field "$c_line" svc:tempEntities)
+    mutate_checks corpus-accounting "$CORPUS_REF_JSON" "s/\"read\":$c_read/\"read\":$((c_read + 1))/" corpus
+    mutate_checks corpus-kinds      "$CORPUS_REF_JSON" "s/\"timeline\":$c_tl/\"timeline\":$((c_tl + 1))/" corpus
+    mutate_checks corpus-table      "$CORPUS_REF_JSON" "s/\"entries\":$c_ent/\"entries\":$((c_ent + 1))/" corpus
+    mutate_checks corpus-pin        "$CORPUS_REF_JSON" "s/\"tempEntities\":$c_tent/\"tempEntities\":$((c_tent + 1))/" corpus-pins
+  else
+    echo "  MUTATION-SETUP=FAIL (no corpus capture: the corpus mutations cannot run)"
     mrc=1
   fi
 

@@ -45,7 +45,9 @@ add_executable(tf2_demo_native WIN32
 
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
 target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm bcrypt psapi comctl32 comdlg32)
+# msacm32 supplies the ACM stream API audio_resource.cpp uses to turn MPEG
+# Layer III resources into PCM; without it the link fails on acmStreamOpen.
+target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32)
 
 add_executable(item_schema_probe tools/item_schema_probe.cpp src/item_schema.cpp src/proto_wire.cpp)
 target_include_directories(item_schema_probe PRIVATE include)
@@ -267,13 +269,13 @@ set_target_properties(weapon_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(audio_effects_probe tools/audio_effects_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/effects_timeline.cpp src/pcf_operators.cpp src/playback_hud.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(audio_effects_probe PRIVATE include third_party/lzma)
 target_compile_definitions(audio_effects_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(audio_effects_probe PRIVATE winmm)
+target_link_libraries(audio_effects_probe PRIVATE winmm msacm32)
 set_target_properties(audio_effects_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(audio_scheduler_probe tools/audio_scheduler_probe.cpp src/audio_player.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp)
 target_include_directories(audio_scheduler_probe PRIVATE include)
 target_compile_definitions(audio_scheduler_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(audio_scheduler_probe PRIVATE winmm)
+target_link_libraries(audio_scheduler_probe PRIVATE winmm msacm32)
 set_target_properties(audio_scheduler_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # Reads a real demo and reports where its decoded sound events sit relative to
@@ -291,8 +293,9 @@ add_executable(sound_timeline_census_probe
 target_include_directories(sound_timeline_census_probe PRIVATE include third_party/lzma)
 target_compile_definitions(sound_timeline_census_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 # winmm for AudioPlayer's declarations; the probe injects an outcome sink, so no
-# device is opened even though the backend is linked.
-target_link_libraries(sound_timeline_census_probe PRIVATE winmm)
+# device is opened even though the backend is linked. msacm32 for the MPEG
+# Layer III decode path in audio_resource.cpp.
+target_link_libraries(sound_timeline_census_probe PRIVATE winmm msacm32)
 set_target_properties(sound_timeline_census_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # The traceable content map: one line per scheduled event from the demo's own
@@ -311,8 +314,29 @@ add_executable(sound_content_map_probe
   third_party/lzma/LzmaDec.c)
 target_include_directories(sound_content_map_probe PRIVATE include third_party/lzma)
 target_compile_definitions(sound_content_map_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(sound_content_map_probe PRIVATE winmm)
+target_link_libraries(sound_content_map_probe PRIVATE winmm msacm32)
 set_target_properties(sound_content_map_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# Walks a corpus of real recordings and reports, per demo, which sound event
+# kinds the demo actually carries: the decoded event kinds, the resolved-name
+# kinds, and the raw svc_voice_*/svc_temp_entities message presence. Exists so
+# a claim of the form "music events are covered by a real input" can point at a
+# named recording instead of at the classifier's ability to name the kind.
+# Links the same sources the content map links plus demo_header.cpp's decode
+# entry points, and drives the scheduler with an injected sink so no device is
+# opened.
+add_executable(sound_corpus_scan_probe
+  tools/sound_corpus_scan_probe.cpp
+  src/audio_player.cpp
+  src/audio_timeline.cpp
+  src/audio_resource.cpp
+  src/demo_header.cpp
+  src/vpk_archive.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(sound_corpus_scan_probe PRIVATE include third_party/lzma)
+target_compile_definitions(sound_corpus_scan_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(sound_corpus_scan_probe PRIVATE winmm msacm32)
+set_target_properties(sound_corpus_scan_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(winmm_sink_probe tools/winmm_sink_probe.cpp)
 target_compile_definitions(winmm_sink_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

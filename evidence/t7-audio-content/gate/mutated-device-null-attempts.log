@@ -1,0 +1,1 @@
+  FAIL device-null[mutated] (null sink: 36787.0 mode: summary window_created=1 window_visible=1 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=1 audio_device_opens_ok=0 events_seen=1037 events_played=0 events_skipped=790 events_missing=247 drawn=1247 capture_written=1 metrics_written=0 exit=0)

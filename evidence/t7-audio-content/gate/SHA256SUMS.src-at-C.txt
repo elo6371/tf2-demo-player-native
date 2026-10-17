@@ -1,0 +1,27 @@
+# sha256 of the 14 files the T7 change touches, in the committed working-tree form, plus
+# the index blob sha1 for the same path. Both columns are needed: working copy and commit
+# differ only by line ending, and core.autocrlf makes the blob the canonical content.
+# Taken at commit C, i.e. AFTER both gate runs and AFTER the line-ending normalization.
+#
+# How to read this file:/n#   - The "restoration" claim (report section 8.2) rests on the two before/after pairs
+#     SHA256SUMS.src-{before,after}[-device].txt, whose diffs are empty. Those were taken
+#     in the LF working state the gate ran in.
+#   - THIS file pins the state that was committed. Compare its sha256 column against
+#     `git cat-file -p HEAD:<path> | sha256sum` only after line-ending normalization;
+#     for an exact comparison use the blob sha1 column against `git rev-parse HEAD:<path>`.
+#
+# sha256                                                           blob-sha1                                 path
+bddafda566b2accb44eaa075cafdd6d4fbb6343013a105d5480fc8838d93979c  6f530256810d5cc8f6eccfe8b99b892217ca5e8c  build-target.sh
+385e0986bf2c24893c28ffee4b0189c2e4915b7c32244ac40fc10fd65c95aedf  5cdd82952e3d5be1f4905408cc1a5569c7473898  native/CMakeLists.txt
+c2230d07b45a5dcceb2fedfbcce46b0ef475aad32e7f1e3fcbd7389e0a1884e5  ff5663a33e83c19c3c1f27c6a000890a7949e490  native/include/audio_resource.h
+5cffe048cbd9063065af1869400058b4e2bb914948d239a1d8eee29eaa0364a5  38e53d26caf2b48f90b3b3d90e4a0781db9d7806  native/include/audio_timeline.h
+b7005e6144dd8a3c26e467a0165870cd000d40696bfa1413ec8a88eea1dc946f  e15bf3a2bab00771fd8ff3617b3075211543b69e  native/include/demo_header.h
+424e0291d1f1ce974f60ad599f2f90a417c2872691647b4f359ec99e8f931309  4f224b7bbe44bda95aff69e2641e00dc9bdfbae6  native/src/audio_resource.cpp
+2c3fdaef99ffa0e19323cdc7ac2a2a368046a36677e342690ce9d542769d140b  d396de957f05ef657fe3f90f10d9f26fb3dabe97  native/src/audio_timeline.cpp
+d69bf26bc98dfed602fa11b51ed36fe724822c0bf9377c85957022d271d38824  13682811f8199bd799f0d0be20a67e933721e5fb  native/src/demo_header.cpp
+edc77b08a34a83bb286275e1a629324c6460695c52a2ca127a32264beb12a932  68b85e4d1a9bb76ef0dafd7b1da31f17b7678962  native/src/main.cpp
+272f3a62eafaf73cb6dfbbe7b747a45e44aabf01e4b91b09288fffd095ec8824  5928146b18c58a1af666e08fb47b2d20672e3319  native/tools/audio_scheduler_probe.cpp
+5455f713e87ec4b7f3c99926f6a946138bf438e017bd47ee4c4eddfa0f1ba7c1  4cdc94ddc5e001340efc88df066a9f3fa99d6168  native/tools/sound_content_map_probe.cpp
+80bfbfda64153eeb7baa815367e8f1cf8ccb067e477d79cf6f192546cec1937d  80303968aad2f5f4ce43d24f5132a129bb05ba74  native/tools/sound_corpus_scan_probe.cpp
+11c80e9f8847efc143b0ff5c1f420e1767859c6ac855a434df47b82645844b8e  5cf856491ad57a6d215f4656e09b2bd01ad64b77  verify-all.sh
+ad54445f0e5c51569c5ad0ce2ad89ba2baa16c959824420e426444a1ebf21a41  8cc21248114754c0f6101bb2ab469bd572ce7113  verify-audio.sh

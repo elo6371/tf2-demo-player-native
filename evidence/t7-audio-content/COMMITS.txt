@@ -1,0 +1,68 @@
+T7 delivery commit chain (branch task/audio-content-coverage)
+=============================================================
+Base:  4360403aee7e606768cf7cadcdd288d635700cc8  (p0-entity-protocol, planning baseline)
+
+  A  0a01873cbc38a10ea5e407c6f0a075b4b75e38b3
+     fix: decode MP3 sound resources through ACM and wire them into playback
+     Product + probes + gates. 14 files:
+       build-target.sh, native/CMakeLists.txt, native/include/audio_resource.h,
+       native/include/audio_timeline.h, native/include/demo_header.h,
+       native/src/audio_resource.cpp, native/src/audio_timeline.cpp,
+       native/src/demo_header.cpp, native/src/main.cpp,
+       native/tools/audio_scheduler_probe.cpp,
+       native/tools/sound_content_map_probe.cpp,
+       native/tools/sound_corpus_scan_probe.cpp (new), verify-all.sh,
+       verify-audio.sh
+     ==> A IS THE MERGE TARGET (WORKTREE-WORKFLOW.md rule 7: the integrator
+         merges committed commits only).
+
+  B  5fe4a5f52e4e6fde9e34554941fe37d0cdb5aa39
+     test: record T7 audio content coverage evidence and delivery report
+     Evidence + delivery report. 97 files:
+       evidence/t7-audio-content/** and T7-AUDIO-CONTENT-COVERAGE-2026-10-16.md
+
+  C  57a6352dd551cce9ec938909df1306547b301f29
+     docs: pin the T7 delivery commit chain
+     Added only this file.
+
+  D  df9fc13933e5948a074e9a9228e160ccb08ad17b
+     docs: pin the committed source state and tighten the restoration claim
+     Adds evidence/t7-audio-content/gate/SHA256SUMS.src-at-C.txt (the 14 files
+     in committed form: working-copy sha256 + index blob sha1) and corrects the
+     wording of report section 8.2 so that the interval each manifest covers is
+     stated exactly: the two before/after pairs bracket their own gate run (that
+     is what proves the mutation passes never wrote source), while src-at-C.txt
+     pins the state that was committed, after the line-ending normalization.
+
+  E...?  THE TIP IS WHATEVER `git log -1 --format=%H` REPORTS.
+     Any commit after D touches documentation and evidence only -- this file's
+     own history is the proof of that claim, since a commit whose only content
+     is this file cannot have changed a build input. Deliberately not pinned
+     here: a file cannot contain the sha of the commit that contains it.
+
+WHY THIS FILE EXISTS RATHER THAN PUTTING THE TIP SHA IN THE REPORT
+-----------------------------------------------------------------
+The delivery report has to pin "the final commit", but a file committed in X
+cannot contain X's own sha (self-reference), and any tip sha written today goes
+stale the moment one more doc commit lands. So the report pins the two anchors
+that never move (A = product, B = evidence+report) and delegates the tip to
+`git log -1`, i.e. to Git itself. The invariant that makes this safe is stated
+above: everything after A is documentation and evidence only.
+
+THE MERGE TARGET IS A, NOT THE TIP
+----------------------------------
+Per WORKTREE-WORKFLOW.md rule 7 the integrator merges committed commits, and the
+commit that carries the product change is A. B onward carries evidence, the
+report and this pin file. Merging A alone is equivalent to merging the product
+code at the tip; nothing after A touches a build input.
+
+VERIFICATION STATE AT C
+-----------------------
+- git status --porcelain  -> empty (clean worktree)
+- No process references this worktree path (checked by command line, not by
+  process name; see the delivery report section 13).
+- native/build-nmake holds 33 exes, matching `grep -c '^add_executable('`.
+- verify-audio.sh --mutation           -> exit 0, assertions_ok=235, 25/25 caught
+- verify-audio.sh --device --mutation  -> exit 0, assertions_ok=240, 27/27 caught
+- Source restoration: two before/after sha256 manifests over the 14 changed
+  files, both diffs empty.
