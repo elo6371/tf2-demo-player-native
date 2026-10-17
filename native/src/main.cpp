@@ -1816,8 +1816,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             }
           }
         }
-        if (!mapVmt.empty() && mapMaterial.valid && !mapMaterial.baseTexture.empty()) {
-          mapTexturePath = tf2::native::VmtParser::resourcePath(mapMaterial.baseTexture, ".vtf");
+        if (!mapVmt.empty() && mapMaterial.valid
+            && (!mapMaterial.baseTexture.empty() || !mapMaterial.baseTexture2.empty())) {
+          const auto& displayBase = mapMaterial.baseTexture.empty()
+            ? mapMaterial.baseTexture2 : mapMaterial.baseTexture;
+          mapTexturePath = tf2::native::VmtParser::resourcePath(displayBase, ".vtf");
           const auto& mapVtf = readMaterialVtf(mapTexturePath);
           tf2::native::VtfTexture mapTexture;
           if (!mapVtf.empty() && mapTexture.parse(mapVtf) && !(mapRgba = mapTexture.decodeRgba(mapVtf)).empty()) { mapWidth = mapTexture.header().width; mapHeight = mapTexture.header().height; }
@@ -1940,15 +1943,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         tf2::native::VmtMaterial material;
         if (materialBytes.empty()) { ++fetchVmtMissing; continue; }
         if (!tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)
-            || material.baseTexture.empty()) { ++fetchVmtNoBase; continue; }
-        const auto texturePath = tf2::native::VmtParser::resourcePath(material.baseTexture, ".vtf");
-        auto textureBytes = readFile(assets.tfDirectory / std::filesystem::path(texturePath));
-        if (textureBytes.empty()) for (const auto& archive : soundArchives) {
-          textureBytes = archive->read(texturePath); if (!textureBytes.empty()) break;
+            || (material.baseTexture.empty() && material.baseTexture2.empty())) {
+          ++fetchVmtNoBase; continue;
         }
-        if (textureBytes.empty() && !mapBytes.empty()) {
-          std::string pakReason;
-          if (tf2::native::bspPakfileEntry(mapBytes, texturePath, textureBytes, &pakReason)) ++fetchFromPakfile;
+        std::string texturePath;
+        std::vector<std::uint8_t> textureBytes;
+        const std::array<std::string, 2> textureCandidates = {material.baseTexture, material.baseTexture2};
+        for (const auto& candidateTexture : textureCandidates) {
+          if (candidateTexture.empty()) continue;
+          const auto candidatePath = tf2::native::VmtParser::resourcePath(candidateTexture, ".vtf");
+          auto candidateBytes = readFile(assets.tfDirectory / std::filesystem::path(candidatePath));
+          if (candidateBytes.empty()) for (const auto& archive : soundArchives) {
+            candidateBytes = archive->read(candidatePath); if (!candidateBytes.empty()) break;
+          }
+          if (candidateBytes.empty() && !mapBytes.empty()) {
+            std::string pakReason;
+            if (tf2::native::bspPakfileEntry(mapBytes, candidatePath, candidateBytes, &pakReason)
+                && !candidateBytes.empty()) ++fetchFromPakfile;
+          }
+          if (!candidateBytes.empty()) { texturePath = candidatePath; textureBytes = std::move(candidateBytes); break; }
         }
         tf2::native::VtfTexture texture;
         if (textureBytes.empty() || !texture.parse(textureBytes)) { ++fetchVtfMissing; continue; }
@@ -1961,6 +1974,39 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         UINT tiledWidth = texture.header().width, tiledHeight = texture.header().height;
         if (!boxDownscale(rgba, texture.header().width, texture.header().height, 512,
                           tiledPixels, tiledWidth, tiledHeight)) { ++fetchDecodeEmpty; continue; }
+        // LightmappedGeneric blend materials carry the terrain albedo in
+        // `$basetexture2`; the first texture's alpha is the blend mask. Fold
+        // that second layer into the same tile so the world shader, which has
+        // one albedo sampler, renders terrain instead of a flat base layer.
+        if (!material.baseTexture2.empty() && material.baseTexture2 != material.baseTexture) {
+          const auto blendPath = tf2::native::VmtParser::resourcePath(material.baseTexture2, ".vtf");
+          auto blendBytes = readFile(assets.tfDirectory / std::filesystem::path(blendPath));
+          if (blendBytes.empty()) for (const auto& archive : soundArchives) {
+            blendBytes = archive->read(blendPath); if (!blendBytes.empty()) break;
+          }
+          if (blendBytes.empty() && !mapBytes.empty()) {
+            std::string blendReason;
+            tf2::native::bspPakfileEntry(mapBytes, blendPath, blendBytes, &blendReason);
+          }
+          tf2::native::VtfTexture blendTexture;
+          if (!blendBytes.empty() && blendTexture.parse(blendBytes)) {
+            auto blendRgba = blendTexture.decodeRgba(blendBytes);
+            std::vector<std::uint8_t> blendPixels;
+            UINT blendWidth = blendTexture.header().width, blendHeight = blendTexture.header().height;
+            if (boxDownscale(blendRgba, blendWidth, blendHeight, 512,
+                blendPixels, blendWidth, blendHeight)
+                && blendWidth == tiledWidth && blendHeight == tiledHeight) {
+              for (std::size_t p = 0; p + 3 < tiledPixels.size(); p += 4) {
+                const float mask = static_cast<float>(tiledPixels[p + 3]) / 255.0f;
+                for (int channel = 0; channel < 3; ++channel) {
+                  tiledPixels[p + static_cast<std::size_t>(channel)] = static_cast<std::uint8_t>(
+                    std::lround(tiledPixels[p + static_cast<std::size_t>(channel)] * (1.0f - mask)
+                      + blendPixels[p + static_cast<std::size_t>(channel)] * mask));
+                }
+              }
+            }
+          }
+        }
         if (tiledWidth != texture.header().width || tiledHeight != texture.header().height) ++fetchDownscaled;
         ++fetchTiled;
         worldTextures.push_back({materialName, std::move(tiledPixels), tiledWidth, tiledHeight});
@@ -2552,10 +2598,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::int32_t viewModelEffectsSlot = -1;
   bool viewModelEffectsMaterialParsed = false;
 
-  // The ranges the pass draws, from the resolved table. One range today, because
-  // the ViewModel mesh is built from one VTX index descriptor; the plumbing is a
-  // list because the material chain is per-slot, and a second descriptor would
-  // otherwise have to re-derive which slot it belongs to.
+  // The ranges the pass draws, from every valid LOD0 VTX descriptor. Each run
+  // keeps its own material slot so multi-mesh arms do not collapse to mesh 0.
   //
   // `--viewmodel-flat-color` empties the key on purpose: it is the control the
   // pixel claim is measured against, and it is the same state a slot that failed
@@ -2563,22 +2607,24 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   const auto viewModelDrawRangesFor = [&](const tf2::native::ViewModelRequest& request) {
     std::vector<tf2::native::ViewModelDrawRange> ranges;
     if (!request.resources.meshReady || request.mesh.vertices.size() < 3) return ranges;
-    tf2::native::ViewModelDrawRange range;
-    range.firstVertex = 0;
-    range.vertexCount = static_cast<std::uint32_t>(request.mesh.vertices.size());
-    const std::int32_t slot = viewModelMaterialSlotOverride >= 0
-      ? viewModelMaterialSlotOverride : request.materials.drawnSlot;
-    if (!viewModelFlatColor && slot >= 0
-        && static_cast<std::size_t>(slot) < request.materials.slots.size()) {
-      const auto& materialSlot = request.materials.slots[static_cast<std::size_t>(slot)];
-      if (materialSlot.pixelsDecoded && !materialSlot.vtfPath.empty()) {
-        range.slot = slot;
-        range.materialKey = materialSlot.vtfPath;
-        range.translucent = materialSlot.translucent;
-        range.alphaTest = materialSlot.alphaTest;
+    for (const auto& source : request.mesh.ranges) {
+      tf2::native::ViewModelDrawRange range;
+      range.firstVertex = source.firstVertex;
+      range.vertexCount = source.vertexCount;
+      const std::int32_t slot = viewModelMaterialSlotOverride >= 0
+        ? viewModelMaterialSlotOverride : source.materialSlot;
+      if (!viewModelFlatColor && slot >= 0
+          && static_cast<std::size_t>(slot) < request.materials.slots.size()) {
+        const auto& materialSlot = request.materials.slots[static_cast<std::size_t>(slot)];
+        if (materialSlot.pixelsDecoded && !materialSlot.vtfPath.empty()) {
+          range.slot = slot;
+          range.materialKey = materialSlot.vtfPath;
+          range.translucent = materialSlot.translucent;
+          range.alphaTest = materialSlot.alphaTest;
+        }
       }
+      ranges.push_back(std::move(range));
     }
-    ranges.push_back(std::move(range));
     return ranges;
   };
   const auto ensureViewModelMesh = [&](const std::string& path,
@@ -2609,13 +2655,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // The material pass first: the ranges are derived from what the decoder
     // produced, so running it after the upload would build ranges against a table
     // whose `pixelsDecoded` flags are all still false and bind nothing.
-    const std::int32_t uploadSlot = viewModelFlatColor ? -1
-      : (viewModelMaterialSlotOverride >= 0 ? viewModelMaterialSlotOverride : request.materials.drawnSlot);
-    const auto summary = tf2::native::decodeViewModelMaterialSlots(request.materials, uploadSlot,
-      [&](const std::string& key, std::uint32_t width, std::uint32_t height,
-          const std::vector<std::uint8_t>& rgba) {
-        return renderer.uploadViewModelMaterialTexture(key, rgba, width, height);
-      });
+    const auto uploader = [&](const std::string& key, std::uint32_t width, std::uint32_t height,
+        const std::vector<std::uint8_t>& rgba) {
+      return renderer.uploadViewModelMaterialTexture(key, rgba, width, height);
+    };
+    auto summary = tf2::native::decodeViewModelMaterialSlots(request.materials,
+      viewModelFlatColor ? -1 : -2, uploader);
+    const std::int32_t uploadSlot = viewModelFlatColor ? -1 : -2;
     tf2::native::applyViewModelMaterialResult(request);
     viewModelMaterialReadings.table = &request.materials;
     viewModelMaterialReadings.request = &request;
@@ -2775,10 +2821,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // per-frame model or texture reload" line names, and a counter that
   // incremented on every no-op call would hide it.
   const auto ensureViewModelWeaponMesh = [&](const std::string& path,
+      tf2::native::ViewModelRequest& request,
       const std::vector<tf2::native::ModelDrawVertex>& vertices, bool& uploaded) {
     uploaded = false;
     if (!path.empty() && viewModelWeaponMeshBufferPath == path) return true;
     uploaded = renderer.uploadViewModelWeaponMesh(vertices);
+    if (uploaded && request.materials.drawnSlot >= 0
+        && static_cast<std::size_t>(request.materials.drawnSlot) < request.materials.slots.size()) {
+      const auto slot = request.materials.drawnSlot;
+      tf2::native::decodeViewModelMaterialSlots(request.materials, slot,
+        [&](const std::string& key, std::uint32_t width, std::uint32_t height,
+            const std::vector<std::uint8_t>& rgba) {
+          return renderer.uploadViewModelMaterialTexture(key, rgba, width, height);
+        });
+      const auto& material = request.materials.slots[static_cast<std::size_t>(slot)];
+      if (material.pixelsDecoded) {
+        viewModelWeaponBody.baseState.materialKey = material.vtfPath;
+        viewModelWeaponBody.baseState.materialTranslucent = material.translucent;
+        viewModelWeaponBody.baseState.materialAlphaTest = material.alphaTest;
+      }
+    }
     viewModelWeaponMeshBufferPath = uploaded ? path : std::string();
     return uploaded;
   };
@@ -4473,7 +4535,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             const bool inSlot = viewModelWeaponBody.request.status == tf2::native::ViewModelStatus::Ok
               && viewModelWeaponBody.request.resources.meshReady
               && ensureViewModelWeaponMesh(viewModelWeaponBody.request.path,
-                   viewModelWeaponBody.request.mesh.vertices, uploadedNow);
+                   viewModelWeaponBody.request, viewModelWeaponBody.request.mesh.vertices, uploadedNow);
             if (uploadedNow) ++viewModelWeaponStats.bodiesUploaded;
             if (inSlot) {
               // `enabled` means "this state's mesh is the one in the weapon

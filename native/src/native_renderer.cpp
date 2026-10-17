@@ -3008,23 +3008,26 @@ bool Renderer::drawViewModel() {
     // this last update, so it has to be zeroed rather than left at the arms'
     // count -- otherwise the body would be skinned by the arms' matrices.
     weaponConstants.skinInfo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-    // T2 (2026-10-14): the same advanced-material state as the arms. The body is
-    // a separate mesh slot but the same first-person composite, so a weapon whose
-    // material declares Phong should highlight and one that declares selfillum
-    // should glow; leaving these zeroed would make the two halves of one
-    // composite disagree about the same material. The `view` is the same matrix
-    // the arms' mvp was built from, for the same reason as above.
+    // The weapon has its own albedo and intentionally does not inherit the
+    // arms' advanced effects.
     XMStoreFloat4x4(&weaponConstants.viewMatrix, view);
-    weaponConstants.phongParams = constants.phongParams;
-    weaponConstants.phongTint = constants.phongTint;
-    weaponConstants.phongFeatures = constants.phongFeatures;
-    weaponConstants.bumpFeatures = constants.bumpFeatures;
-    weaponConstants.selfillumFeatures = constants.selfillumFeatures;
-    weaponConstants.selfillumTint = constants.selfillumTint;
+    weaponConstants.phongFeatures = XMFLOAT4(0, 0, 0, 0);
+    weaponConstants.bumpFeatures = XMFLOAT4(0, 0, 0, 0);
+    weaponConstants.selfillumFeatures = XMFLOAT4(0, 0, 0, 0);
+    const auto weaponTexture = viewModelMaterialTextures_.find(viewModelWeaponState_.materialKey);
+    const bool hasWeaponTexture = weaponTexture != viewModelMaterialTextures_.end();
+    weaponConstants.material = XMFLOAT4(hasWeaponTexture ? 1.0f : 0.0f,
+      viewModelWeaponState_.materialAlphaTest ? 1.0f : 0.0f, 0, 0);
     context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &weaponConstants, 0, 0);
+    ID3D11ShaderResourceView* weaponAlbedo = hasWeaponTexture ? weaponTexture->second.Get() : nullptr;
+    context_->PSSetShaderResources(0, 1, &weaponAlbedo);
+    context_->OMSetBlendState(viewModelWeaponState_.materialTranslucent
+      ? viewModelAlphaBlendState_.Get() : nullptr, nullptr, 0xffffffffu);
     auto* weaponBuffer = viewModelWeaponVertexBuffer_.Get();
     context_->IASetVertexBuffers(0, 1, &weaponBuffer, &stride, &offset);
     context_->Draw(viewModelWeaponVertexCount_, 0);
+    context_->PSSetShaderResources(0, 1, &nullView);
+    context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
     ++viewModelWeaponDrawCallCount_;
     viewModelWeaponDrawReason_ = "drawn";
   }
@@ -3244,7 +3247,17 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       float forward[3] = {};
       demoViewForward(observerDemoPitchDeg_, observerDemoYawDeg_, forward);
       eye = XMVectorSet(observerDemoEyeX_, observerDemoEyeY_, observerDemoEyeZ_, 1.0f);
-      target = XMVectorSet(observerDemoEyeX_ + forward[0], observerDemoEyeY_ + forward[1], observerDemoEyeZ_ + forward[2], 1.0f);
+      // The debug eye is stored in the same normalized unit box as the world
+      // vertex buffer. Its angles are authored in map units, so the direction
+      // must pass through the same map-to-buffer scale as the eye; adding a
+      // raw one-unit map vector here makes the camera look almost parallel to
+      // the map and turns otherwise ordinary faces into giant screen shards.
+      const float normalizedForwardX = forward[0] * worldHorizontalScale_;
+      const float normalizedForwardY = forward[1] * worldHorizontalScale_;
+      const float normalizedForwardZ = forward[2] * (0.8f / std::max(worldSpanZ_, 1.0e-6f));
+      target = XMVectorSet(observerDemoEyeX_ + normalizedForwardX,
+        observerDemoEyeY_ + normalizedForwardY,
+        observerDemoEyeZ_ + normalizedForwardZ, 1.0f);
       if (std::fabs(forward[2]) > 0.95f) up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     } else {
       const float horizontal = std::cos(cameraPitch_) * cameraDistance_;

@@ -1088,6 +1088,48 @@ bool ModelLoader::buildModelMeshData(const ModelInspection& inspection, std::siz
   mesh.vertices = std::move(metadata.bindPoseVertices);
   mesh.indices.resize(mesh.vertices.size());
   for (std::size_t i = 0; i < mesh.indices.size(); ++i) mesh.indices[i] = static_cast<std::uint32_t>(i);
+  mesh.ranges.push_back(ModelMeshData::Range{
+    descriptorIndex, 0u, static_cast<std::uint32_t>(mesh.vertices.size()),
+    inspection.metadata.meshMaterials.available
+      ? inspection.metadata.meshMaterials.slotFor(descriptor.bodyPart, descriptor.model, descriptor.mesh) : -1});
+  mesh.triangleList = true;
+  return true;
+}
+
+bool ModelLoader::buildModelMeshDataAll(const ModelInspection& inspection,
+    ModelMeshData& mesh, std::string& error) {
+  mesh = {};
+  error.clear();
+  if (!inspection.renderableResourceSet || inspection.metadata.indices.empty()) {
+    error = "model inspection has no renderable descriptors";
+    return false;
+  }
+  bool haveLod0 = false;
+  for (const auto& descriptor : inspection.metadata.indices) {
+    if (descriptor.lod == 0) { haveLod0 = true; break; }
+  }
+  std::size_t firstDescriptor = inspection.metadata.indices.size();
+  for (std::size_t index = 0; index < inspection.metadata.indices.size(); ++index) {
+    const auto& descriptor = inspection.metadata.indices[index];
+    if (haveLod0 && descriptor.lod != 0) continue;
+    ModelMeshData part;
+    std::string partError;
+    if (!buildModelMeshData(inspection, index, part, partError)) continue;
+    if (firstDescriptor == inspection.metadata.indices.size()) firstDescriptor = index;
+    const auto first = static_cast<std::uint32_t>(mesh.vertices.size());
+    mesh.vertices.insert(mesh.vertices.end(), part.vertices.begin(), part.vertices.end());
+    const auto material = part.ranges.empty() ? -1 : part.ranges.front().materialSlot;
+    mesh.ranges.push_back(ModelMeshData::Range{
+      index, first, static_cast<std::uint32_t>(part.vertices.size()), material});
+  }
+  if (mesh.vertices.size() < 3 || mesh.ranges.empty()) {
+    error = "no valid LOD mesh descriptors";
+    mesh = {};
+    return false;
+  }
+  mesh.descriptorIndex = firstDescriptor;
+  mesh.indices.resize(mesh.vertices.size());
+  for (std::size_t i = 0; i < mesh.indices.size(); ++i) mesh.indices[i] = static_cast<std::uint32_t>(i);
   mesh.triangleList = true;
   return true;
 }

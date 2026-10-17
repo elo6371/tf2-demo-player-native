@@ -108,7 +108,10 @@ fi
 echo "=== build $* ==="
 : > "$LOG"
 STAMP="$BUILD/.headers-stamp"
-if [ -n "$(find native/include native/src native/tools third_party \
+if [ ! -f "$STAMP" ]; then
+  echo "note: header stamp is missing; forcing requested source rebuild"
+  touch native/src/*.cpp native/tools/*.cpp
+elif [ -n "$(find native/include native/src native/tools native/third_party \
     \( -name '*.h' -o -name '*.hpp' \) -newer "$STAMP" -print -quit 2>/dev/null)" ]; then
   echo "note: a header is newer than $STAMP; touching sources (header deps are untracked)"
   touch native/src/*.cpp native/tools/*.cpp

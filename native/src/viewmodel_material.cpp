@@ -362,7 +362,8 @@ ViewModelMaterialDecodeSummary decodeViewModelMaterialSlots(ViewModelMaterialTab
     slot.pixelsDecoded = true;
     ++summary.decoded;
     summary.decodedBytes += rgba.size();
-    if (uploader && uploadSlot >= 0 && static_cast<std::size_t>(uploadSlot) == slot.slot) {
+    if (uploader && (uploadSlot == -2 || (uploadSlot >= 0
+        && static_cast<std::size_t>(uploadSlot) == slot.slot))) {
       if (uploader(slot.vtfPath, slot.width, slot.height, rgba)) ++summary.uploaded;
     }
   }

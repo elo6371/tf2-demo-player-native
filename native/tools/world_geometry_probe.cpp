@@ -124,6 +124,9 @@ int main(int argc, char** argv) {
   std::size_t displaced = 0, water = 0, lightmapped = 0, degenerate = 0;
   std::size_t over256 = 0, over1024 = 0, over4096 = 0;
   float maxEdge = 0.0f;
+  float staticMaxEdge = 0.0f, displacedMaxEdge = 0.0f;
+  std::size_t staticOver1024 = 0, displacedOver1024 = 0;
+  std::size_t staticMaterialOver1024 = 0;
   std::vector<std::size_t> offenders;      // sorted by longest edge, descending
   std::vector<float> longest(map.triangles.size(), 0.0f);
   float minX = 1e30f, minY = 1e30f, minZ = 1e30f, maxX = -1e30f, maxY = -1e30f, maxZ = -1e30f;
@@ -138,12 +141,20 @@ int main(int argc, char** argv) {
     if (e > 256.0f) ++over256;
     if (e > 1024.0f) ++over1024;
     if (e > 4096.0f) ++over4096;
+    if (t.displacement) {
+      displacedMaxEdge = std::max(displacedMaxEdge, e);
+      if (e > 1024.0f) ++displacedOver1024;
+    } else {
+      staticMaxEdge = std::max(staticMaxEdge, e);
+      if (e > 1024.0f) ++staticOver1024;
+      if (e > 1024.0f && (t.material.find("NATURE/") == 0 || t.material.find("BLEND") != std::string::npos)) ++staticMaterialOver1024;
+    }
     if (triangleArea(t) < 1.0e-4f) ++degenerate;
     for (const auto& v : {t.a, t.b, t.c}) {
       minX = std::min(minX, v.x); minY = std::min(minY, v.y); minZ = std::min(minZ, v.z);
       maxX = std::max(maxX, v.x); maxY = std::max(maxY, v.y); maxZ = std::max(maxZ, v.z);
     }
-    if (e > 4096.0f) offenders.push_back(i);
+    if (e > 1024.0f) offenders.push_back(i);
   }
   std::sort(offenders.begin(), offenders.end(),
     [&](std::size_t l, std::size_t r) { return longest[l] > longest[r]; });
@@ -154,6 +165,8 @@ int main(int argc, char** argv) {
               mapPath.c_str(), map.version, map.triangles.size(), map.faceCount,
               displaced, water, lightmapped, degenerate, maxEdge, over256, over1024, over4096,
               minX, minY, minZ, maxX, maxY, maxZ);
+  std::printf("geometry edge-groups staticMaxEdge=%.1f staticOver1024=%zu staticMaterialOver1024=%zu displacedMaxEdge=%.1f displacedOver1024=%zu\n",
+              staticMaxEdge, staticOver1024, staticMaterialOver1024, displacedMaxEdge, displacedOver1024);
   std::printf("geometry displacement faces=%zu triangles=%zu cornerMatches=%zu\n",
               map.displacementFaces, map.displacementTriangles, map.displacementCornerMatches);
   std::printf("geometry winding agree=%zu of %zu faces (%.1f%% agree with the bsp plane normals)\n",

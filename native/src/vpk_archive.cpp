@@ -89,6 +89,7 @@ bool VpkArchive::open(const std::filesystem::path& directoryFile, std::string* e
     ++cursor;
     return true;
   };
+  bool sawExtensionTerminator = false;
   auto baseName = directoryFile.filename().wstring();
   constexpr std::wstring_view directorySuffix = L"_dir.vpk";
   if (baseName.size() >= directorySuffix.size()
@@ -98,13 +99,28 @@ bool VpkArchive::open(const std::filesystem::path& directoryFile, std::string* e
   }
   while (cursor < treeEnd) {
     std::string extension;
-    if (!readString(extension) || extension.empty()) break;
+    if (!readString(extension)) {
+      if (error) *error = "truncated VPK extension table";
+      entries_.clear();
+      return false;
+    }
+    if (extension.empty()) { sawExtensionTerminator = true; break; }
     while (cursor < treeEnd) {
       std::string path;
-      if (!readString(path) || path.empty()) break;
+      if (!readString(path)) {
+        if (error) *error = "truncated VPK path table";
+        entries_.clear();
+        return false;
+      }
+      if (path.empty()) break;
       while (cursor < treeEnd) {
         std::string filename;
-        if (!readString(filename) || filename.empty()) break;
+        if (!readString(filename)) {
+          if (error) *error = "truncated VPK filename table";
+          entries_.clear();
+          return false;
+        }
+        if (filename.empty()) break;
         if (cursor + 18 > treeEnd) {
           if (error) *error = "truncated VPK entry";
           entries_.clear();
@@ -115,14 +131,15 @@ bool VpkArchive::open(const std::filesystem::path& directoryFile, std::string* e
         std::uint16_t archiveIndex = 0;
         std::uint32_t offset = 0;
         std::uint32_t length = 0;
-        if (!readValue(bytes, cursor, preloadLength)) return false; cursor += 2;
-        if (!readValue(bytes, cursor, archiveIndex)) return false; cursor += 2;
-        if (!readValue(bytes, cursor, offset)) return false; cursor += 4;
-        if (!readValue(bytes, cursor, length)) return false; cursor += 4;
+        if (!readValue(bytes, cursor, preloadLength)) { if (error) *error = "truncated VPK preload length"; entries_.clear(); return false; } cursor += 2;
+        if (!readValue(bytes, cursor, archiveIndex)) { if (error) *error = "truncated VPK archive index"; entries_.clear(); return false; } cursor += 2;
+        if (!readValue(bytes, cursor, offset)) { if (error) *error = "truncated VPK entry offset"; entries_.clear(); return false; } cursor += 4;
+        if (!readValue(bytes, cursor, length)) { if (error) *error = "truncated VPK entry length"; entries_.clear(); return false; } cursor += 4;
         std::uint16_t terminator = 0;
-        if (!readValue(bytes, cursor, terminator) || terminator != 0xffff) return false;
+        if (!readValue(bytes, cursor, terminator)) { if (error) *error = "truncated VPK entry terminator"; entries_.clear(); return false; }
+        if (terminator != 0xffff) { if (error) *error = "invalid VPK entry terminator"; entries_.clear(); return false; }
         cursor += 2;
-        if (cursor + preloadLength > treeEnd) return false;
+        if (cursor + preloadLength > treeEnd) { if (error) *error = "truncated VPK preload data"; entries_.clear(); return false; }
         Entry entry{};
         entry.offset = offset;
         entry.length = length;
@@ -142,6 +159,11 @@ bool VpkArchive::open(const std::filesystem::path& directoryFile, std::string* e
         if (validPath(key)) entries_.emplace(key, std::move(entry));
       }
     }
+  }
+  if (!sawExtensionTerminator) {
+    if (error) *error = "VPK directory tree has no terminal extension";
+    entries_.clear();
+    return false;
   }
   directoryFile_ = directoryFile;
   dataBase_ = treeEnd;

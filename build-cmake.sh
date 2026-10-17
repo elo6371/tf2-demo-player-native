@@ -52,6 +52,8 @@ case "${1:-all}" in
     # build tree in place, turning the next "clean" build into an incremental
     # one whose warning count reads 0 for the wrong reason.
     cmake --build "$BUILD" --target clean >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ]; then echo "clean FAILED (rc=$rc)" >&2; exit "$rc"; fi
     echo "cleaned $BUILD"; exit 0 ;;
   configure)
     cmake -S native -B "$BUILD" -G "NMake Makefiles" \
@@ -61,7 +63,7 @@ case "${1:-all}" in
 esac
 
 if [ "${1:-all}" = "all" ] && [ -f "$BUILD/CMakeCache.txt" ]; then
-  cmake --build "$BUILD" --target clean >/dev/null 2>&1
+  cmake --build "$BUILD" --target clean >/dev/null 2>&1 || exit $?
 fi
 
 if [ ! -f "$BUILD/CMakeCache.txt" ]; then

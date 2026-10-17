@@ -289,22 +289,38 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       ? static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 4u : 0u;
     const bool hasLightmap = styles0 != 255 && lightOffset >= 0 && lightBytes > 0
       && static_cast<std::uint64_t>(lightOffset) + lightBytes <= lighting.size();
-    std::vector<BspVertex> polygon; polygon.reserve(static_cast<std::size_t>(count)); bool validFace = true;
-    for (std::int16_t i = 0; i < count; ++i) { const auto surf = read<std::int32_t>(surfEdges, (static_cast<std::size_t>(firstEdge) + i) * 4); const auto edge = surf < 0 ? -surf : surf; if (edge < 0 || static_cast<std::size_t>(edge) >= edgeCount) { validFace = false; break; } const auto vertexIndex = read<std::uint16_t>(edges, static_cast<std::size_t>(edge) * 4 + (surf < 0 ? 2 : 0)); if (vertexIndex >= vertexCount) { validFace = false; break; } polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12)); }
+    std::vector<BspVertex> polygon; polygon.reserve(static_cast<std::size_t>(count));
+    bool validFace = true;
+    for (std::int16_t i = 0; i < count; ++i) {
+      const auto surf = read<std::int32_t>(surfEdges,
+        (static_cast<std::size_t>(firstEdge) + i) * 4);
+      // A negative surfedge names the same edge with its endpoints reversed.
+      // Source stores the edge number as the absolute value; the sign only
+      // selects which endpoint is read first.
+      const auto edge = surf < 0 ? -surf : surf;
+      if (edge < 0 || static_cast<std::size_t>(edge) >= edgeCount) {
+        validFace = false;
+        break;
+      }
+      const auto vertexIndex = read<std::uint16_t>(edges,
+        static_cast<std::size_t>(edge) * 4 + (surf < 0 ? 2 : 0));
+      if (vertexIndex >= vertexCount) {
+        validFace = false;
+        break;
+      }
+      polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12));
+    }
     if (!validFace || polygon.size() < 3) continue;
     // T10 winding census, read-only: the polygon's normal (from its own
     // winding) against the face's BSP plane. dface_t: planenum is a uint16 at
-    // +0, the back-side flag a byte at +2. A side=1 face is meant to be seen
-    // from the plane's back, so its winding "agrees" when the polygon normal
-    // points AGAINST the stored plane normal. This counts; it never reorders
-    // -- the shipped winding is the shipped winding until the completeness
-    // defect's own task changes it on evidence.
-    if (!planes.empty() && planes.size() % 20 == 0) {
-      const std::uint32_t planenum = read<std::uint16_t>(faces, base);
-      const std::uint8_t planeSide = faces[base + 2];
-      if (static_cast<std::size_t>(planenum) < planes.size() / 20) {
-        const std::size_t planeAt = static_cast<std::size_t>(planenum) * 20;
-        const float pnx = read<float>(planes, planeAt), pny = read<float>(planes, planeAt + 4), pnz = read<float>(planes, planeAt + 8);
+    // +0, the back-side flag a byte at +2. This counts the source winding; the
+    // renderer keeps the explicit winding chosen by the world render path.
+    const std::uint32_t facePlaneNumber = read<std::uint16_t>(faces, base);
+    const std::uint8_t facePlaneSide = faces[base + 2];
+    if (!map.planes.empty()) {
+      if (static_cast<std::size_t>(facePlaneNumber) < map.planes.size()) {
+        const auto& plane = map.planes[static_cast<std::size_t>(facePlaneNumber)];
+        const float pnx = plane.normal[0], pny = plane.normal[1], pnz = plane.normal[2];
         const float ux = polygon[1].x - polygon[0].x, uy = polygon[1].y - polygon[0].y, uz = polygon[1].z - polygon[0].z;
         const float vx = polygon[2].x - polygon[0].x, vy = polygon[2].y - polygon[0].y, vz = polygon[2].z - polygon[0].z;
         const float cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
@@ -313,7 +329,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         if (len > 1e-6f && plen > 1e-6f && std::isfinite(pnx) && std::isfinite(pny) && std::isfinite(pnz)) {
           ++map.windingFaceCount;
           const bool pointsAlong = (cx * pnx + cy * pny + cz * pnz) > 0.0f;
-          if (pointsAlong != (planeSide != 0)) ++map.windingAgreeCount;
+          if (pointsAlong == (facePlaneSide == 0)) ++map.windingAgreeCount;
         }
       }
     }
@@ -407,7 +423,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         }
         if (best <= 1.0f) {
           BspVertex quad[4];
-          for (int i = 0; i < 4; ++i) quad[i] = polygon[static_cast<std::size_t>((corner + i) % 4)];
+          // The displacement vertex rows are stored in the face's canonical
+          // corner order. The face-side bit affects the emitted winding below,
+          // not the row/column correspondence of the displacement grid.
+          constexpr int step = 1;
+          for (int i = 0; i < 4; ++i) {
+            const int index = (corner + step * i + 8) % 4;
+            quad[i] = polygon[static_cast<std::size_t>(index)];
+          }
           std::vector<BspVertex> grid(static_cast<std::size_t>(size) * static_cast<std::size_t>(size));
           bool finite = true;
           for (int y = 0; y < size && finite; ++y) {
@@ -423,17 +446,33 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               grid[static_cast<std::size_t>(y * size + x)] = {flat.x + vx * dist, flat.y + vy * dist, flat.z + vz * dist};
             }
           }
+          bool displacementComplete = finite;
+          const auto usable = [](const BspVertex& a, const BspVertex& b, const BspVertex& c) {
+            const float abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+            const float acx = c.x - a.x, acy = c.y - a.y, acz = c.z - a.z;
+            const float bcx = c.x - b.x, bcy = c.y - b.y, bcz = c.z - b.z;
+            const float ab2 = abx * abx + aby * aby + abz * abz;
+            const float ac2 = acx * acx + acy * acy + acz * acz;
+            const float bc2 = bcx * bcx + bcy * bcy + bcz * bcz;
+            const float nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
+            const float area2 = nx * nx + ny * ny + nz * nz;
+            return std::isfinite(area2) && area2 > 1.0e-8f
+              && ab2 <= 262144.0f && ac2 <= 262144.0f && bc2 <= 262144.0f;
+          };
           if (finite && map.triangles.size() + static_cast<std::size_t>(size - 1) * static_cast<std::size_t>(size - 1) * 2u <= triangleLimit) {
             const auto before = map.triangles.size();
             for (int y = 0; y < size - 1; ++y) for (int x = 0; x < size - 1; ++x) {
               const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gy * size + gx)]; };
-              // T10 winding experiment: the triangles below swap (b, c) relative
-              // to the static-face fan, so both paths test the same hypothesis
-              // in one build.
+              const auto p00 = at(x, y), p10 = at(x + 1, y), p11 = at(x + 1, y + 1), p01 = at(x, y + 1);
+              if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) { displacementComplete = false; continue; }
               pushTriangle(at(x, y), at(x + 1, y + 1), at(x + 1, y), true);
               pushTriangle(at(x, y), at(x, y + 1), at(x + 1, y + 1), true);
             }
             emittedDisp = map.triangles.size() > before;
+            if (!displacementComplete) {
+              map.triangles.resize(before);
+              emittedDisp = false;
+            }
             if (emittedDisp) {
               ++map.displacementFaces;
               ++map.displacementCornerMatches;
@@ -444,7 +483,9 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       }
     }
     if (!emittedDisp) {
-      for (std::size_t i = 1; i + 1 < polygon.size() && map.triangles.size() < triangleLimit; ++i) pushTriangle(polygon[0], polygon[i + 1], polygon[i], false);
+      for (std::size_t i = 1; i + 1 < polygon.size() && map.triangles.size() < triangleLimit; ++i) {
+        pushTriangle(polygon[0], polygon[i + 1], polygon[i], false);
+      }
     }
     if (water) ++map.waterFaces;
     ++map.renderedFaceCount;

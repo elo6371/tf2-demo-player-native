@@ -308,9 +308,16 @@ struct ModelInspection {
 };
 
 struct ModelMeshData {
+  struct Range {
+    std::size_t descriptorIndex = 0;
+    std::uint32_t firstVertex = 0;
+    std::uint32_t vertexCount = 0;
+    std::int32_t materialSlot = -1;
+  };
   std::size_t descriptorIndex = 0;
   std::vector<ModelDrawVertex> vertices;
   std::vector<std::uint32_t> indices;
+  std::vector<Range> ranges;
   bool triangleList = false;
 };
 
@@ -358,6 +365,8 @@ public:
   static ModelInspection inspect(const ModelResourcePaths& paths);
   static ModelInspection inspectVpk(const VpkArchive& archive, const std::string& modelPath);
   static bool buildModelMeshData(const ModelInspection& inspection, std::size_t descriptorIndex,
+    ModelMeshData& mesh, std::string& error);
+  static bool buildModelMeshDataAll(const ModelInspection& inspection,
     ModelMeshData& mesh, std::string& error);
   static bool buildBindPoseMesh(ModelMetadata& metadata, std::size_t descriptorIndex, std::string& error);
   static bool buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error, std::size_t maxVertices = 12000);

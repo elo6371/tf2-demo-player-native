@@ -360,16 +360,9 @@ ViewModelRequest buildRequest(const AssetRoot& root, const std::string& path,
     return request;
   }
   // Build the mesh once here so the draw path never decodes a VTX per frame.
-  std::size_t descriptor = inspection.metadata.meshes.size();
-  for (std::size_t index = 0; index < inspection.metadata.meshes.size(); ++index) {
-    if (inspection.metadata.meshes[index].indexStatus == ModelMeshIndexStatus::Available) {
-      descriptor = index;
-      break;
-    }
-  }
-  if (descriptor < inspection.metadata.meshes.size()) {
+  if (!inspection.metadata.indices.empty()) {
     std::string error;
-    if (ModelLoader::buildModelMeshData(inspection, descriptor, request.mesh, error)) {
+    if (ModelLoader::buildModelMeshDataAll(inspection, request.mesh, error)) {
       request.resources.meshReady = true;
     } else {
       request.resources.meshReason = error.empty() ? "viewmodel mesh did not build" : error;

@@ -131,6 +131,9 @@ struct ViewModelDrawState {
   std::array<float, 12> handTransform{};
   std::array<float, 12> attachmentTransform{};
   bool attachmentValid = false;
+  std::string materialKey;
+  bool materialTranslucent = false;
+  bool materialAlphaTest = false;
   std::string attachmentName;
   // Bind pose is `skinningEnabled = false`: the mesh is drawn through the
   // unskinned path rather than being skinned with a matrix table the caller

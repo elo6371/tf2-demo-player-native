@@ -166,8 +166,9 @@ struct ViewModelMaterialDecodeSummary {
 //     `v_medigun_medic`'s seven slots, for a table whose only job is to be
 //     counted.
 //
-// `uploadSlot` names the one slot whose pixels go to the GPU (the drawn slot, or
-// -1 to upload none). The rest are decoded and discarded. That asymmetry is the
+// `uploadSlot` names the one slot whose pixels go to the GPU (the drawn slot),
+// -2 uploads every decoded slot used by a multi-range mesh, and -1 uploads none.
+// The rest are decoded and discarded. That asymmetry is the
 // whole reason `texturesUploaded` and `materialResolved` are separate readings.
 ViewModelMaterialDecodeSummary decodeViewModelMaterialSlots(ViewModelMaterialTable& table,
   std::int32_t uploadSlot, const ViewModelMaterialUploader& uploader);
