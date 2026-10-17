@@ -434,7 +434,28 @@ struct SkyFaceLoad {
   std::uint32_t height = 0;
   std::string missing;
   std::string problem;
+  // T8 (2026-10-16): which files this side came from. `captureSkyFaces` used
+  // to keep only the pixels, so the six-way pairing between a suffix and a cube
+  // direction existed in the code and nowhere in the readings.
+  std::string materialPath;
+  std::string texturePath;
 };
+
+// One pixel of a decoded side, as "r,g,b,a". The centre pixel is chosen because
+// it is the one point of a face that no resample can drop or average away, so it
+// survives the uploader's resize and still names its source file at the other
+// end. Empty or short buffers answer "not-decoded" rather than throwing: a
+// reading that aborts the probe on a missing sky says nothing about the sky.
+std::string skyFaceSampleRgba(const std::vector<std::uint8_t>& rgba,
+    std::uint32_t width, std::uint32_t height) {
+  if (width == 0 || height == 0) return "not-decoded";
+  const std::size_t pixel = (static_cast<std::size_t>(height) / 2u)
+    * static_cast<std::size_t>(width) + (static_cast<std::size_t>(width) / 2u);
+  const std::size_t at = pixel * 4u;
+  if (at + 4u > rgba.size()) return "not-decoded";
+  return std::to_string(rgba[at]) + "," + std::to_string(rgba[at + 1]) + ","
+    + std::to_string(rgba[at + 2]) + "," + std::to_string(rgba[at + 3]);
+}
 
 SkyFaceLoad loadSkyFace(const std::string& skyName, int face, const WorldResourceProbe& probe) {
   SkyFaceLoad load;
@@ -444,6 +465,7 @@ SkyFaceLoad loadSkyFace(const std::string& skyName, int face, const WorldResourc
     return load;
   }
   load.pathOk = true;
+  load.materialPath = path;
   if (!probe.reachable(path)) { load.missing = path; return load; }
   load.vmtFound = true;
   const auto vmtBytes = probe.read(path);
@@ -461,6 +483,7 @@ SkyFaceLoad loadSkyFace(const std::string& skyName, int face, const WorldResourc
   const auto textureBytes = probe.read(texturePath);
   if (textureBytes.empty()) { load.problem = "texture unreadable: " + texturePath; return load; }
   load.textureResolved = true;
+  load.texturePath = texturePath;
   VtfTexture texture;
   std::string error;
   if (!texture.parse(textureBytes, &error) || texture.header().isCubemap()) {
@@ -476,6 +499,28 @@ SkyFaceLoad loadSkyFace(const std::string& skyName, int face, const WorldResourc
   return load;
 }
 
+// One face's provenance, built from the load that resolved it. Shared by
+// `measureSky` and `captureSkyFaces` on purpose: those two are the counting
+// walk and the pixel walk over the same six files, and giving them separate
+// ideas of which file is on which side is exactly the drift this reading exists
+// to make visible.
+WorldSkyFaceOrigin skyFaceOrigin(int face, const SkyFaceLoad& load) {
+  WorldSkyFaceOrigin origin;
+  origin.face = face;
+  const char* suffix = worldCubemapFaceSuffix(face);
+  const char* direction = worldSkyFaceDirection(face);
+  origin.suffix = suffix ? suffix : std::string("-");
+  origin.direction = direction ? direction : std::string("-");
+  origin.materialPath = load.materialPath.empty() ? std::string("-") : load.materialPath;
+  origin.texturePath = load.texturePath.empty() ? std::string("-") : load.texturePath;
+  origin.decoded = load.decoded;
+  origin.width = load.width;
+  origin.height = load.height;
+  origin.sampleRgba = load.decoded
+    ? skyFaceSampleRgba(load.rgba, load.width, load.height) : std::string("not-decoded");
+  return origin;
+}
+
 WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe) {
   WorldSkyReading reading;
   reading.declared = !map.skyName.empty();
@@ -484,6 +529,10 @@ WorldSkyReading measureSky(const BspMap& map, const WorldResourceProbe& probe) {
   if (!reading.declared) return reading;
   for (int face = 0; face < 6; ++face) {
     const auto load = loadSkyFace(map.skyName, face, probe);
+    // Filled for every face, decoded or not: the pairing between a suffix and a
+    // cube direction is a fact about the naming convention, not about whether
+    // this install happens to have the files.
+    reading.origins[static_cast<std::size_t>(face)] = skyFaceOrigin(face, load);
     if (!load.vmtFound) {
       if (reading.firstMissing.empty()) reading.firstMissing = load.missing;
       continue;
@@ -565,6 +614,9 @@ WorldSkyFaceCapture captureSkyFaces(const BspMap& map,
   std::string firstProblem;
   for (int face = 0; face < 6; ++face) {
     const auto load = loadSkyFace(map.skyName, face, probe);
+    // Same helper the counting walk uses, so the capture's provenance and the
+    // reading's provenance are one answer rather than two that can drift.
+    capture.origins[static_cast<std::size_t>(face)] = skyFaceOrigin(face, load);
     if (!load.decoded) {
       if (firstProblem.empty()) firstProblem = load.missing.empty() ? load.problem : load.missing;
       continue;
@@ -590,16 +642,38 @@ WorldSkyFaceCapture captureSkyFaces(const BspMap& map,
 // geometry at [f*6, f*6+6) shows -- the same order worldCubemapFaceSuffix and
 // BspParser::skyMaterialPath already use, which is what lets the probe, the
 // renderer and the parser name a side the same way.
+//
+// T8 (2026-10-16): the suffix labels in the comments below used to be wrong --
+// index 2 (+Y) was labelled "up" and index 4 (+Z) was labelled "bk". The
+// geometry was right and so was the file table; only the prose contradicted it.
+// That matters because the sentence above claims the two agree, so a reader who
+// trusted the comments would conclude the sky is rotated a quarter turn, and a
+// reader who distrusted them had no way to tell. The labels now match
+// worldCubemapFaceSuffix, and the gate's sky-face mapping section checks the
+// pairing against the fixture's pixels instead of against anyone's prose.
 struct SkyFaceBasis { float dx, dy, dz; float ux, uy, uz; float vx, vy, vz; };
 
 const SkyFaceBasis kSkyFaceBasis[6] = {
   { 1,  0,  0,   0,  0, -1,   0, -1,  0},  // +X, "rt"
   {-1,  0,  0,   0,  0,  1,   0, -1,  0},  // -X, "lf"
-  { 0,  1,  0,   1,  0,  0,   0,  0,  1},  // +Y, "up"
-  { 0, -1,  0,   1,  0,  0,   0,  0, -1},  // -Y, "dn"
-  { 0,  0,  1,   1,  0,  0,   0, -1,  0},  // +Z, "bk"
-  { 0,  0, -1,  -1,  0,  0,   0, -1,  0},  // -Z, "ft"
+  { 0,  1,  0,   1,  0,  0,   0,  0,  1},  // +Y, "bk"
+  { 0, -1,  0,   1,  0,  0,   0,  0, -1},  // -Y, "ft"
+  { 0,  0,  1,   1,  0,  0,   0, -1,  0},  // +Z, "up"
+  { 0,  0, -1,  -1,  0,  0,   0, -1,  0},  // -Z, "dn"
 };
+
+const char* worldSkyFaceDirection(int face) {
+  if (face < 0 || face >= static_cast<int>(std::size(kSkyFaceBasis))) return nullptr;
+  const auto& basis = kSkyFaceBasis[face];
+  // Named from the direction vector itself, so the string and the geometry are
+  // one fact. Ties are not possible: every basis has exactly one non-zero axis.
+  if (basis.dx > 0) return "+X";
+  if (basis.dx < 0) return "-X";
+  if (basis.dy > 0) return "+Y";
+  if (basis.dy < 0) return "-Y";
+  if (basis.dz > 0) return "+Z";
+  return "-Z";
+}
 
 WorldSkyDrawReading evaluateSkyDrawRequest(const WorldSkyDrawRequest& request,
     std::vector<WorldSkyVertex>& outVertices) {

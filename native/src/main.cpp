@@ -2722,6 +2722,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         skySample.worldSkyVertexCount, skySample.worldSkyTriangles, skySample.worldSkyFaces,
         skySample.worldSkySide, skySample.worldSkyResampled ? 1 : 0,
         worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
+      // ---- T8 (2026-10-16): which sky file is on which side of the box ----
+      // Six lines, one per cube face, each naming the direction the geometry
+      // uses, the suffix the naming convention gives that index, the .vmt and
+      // .vtf that index resolved, and one sampled pixel. The pixel is the point:
+      // the counts above cannot tell `up` from `dn` -- both decode, both upload,
+      // both are 512x256 -- so a table with two entries swapped would pass every
+      // assertion this file had. Sampled colour can, because the fixture puts a
+      // different colour in each file and the gate then asks which index is
+      // holding it.
+      for (int skyFace = 0; skyFace < 6; ++skyFace) {
+        const auto& origin = skyCapture.origins[static_cast<std::size_t>(skyFace)];
+        traceFmt("gpu: world sky-face index=%d dir=%s suffix=%s vmt=%s vtf=%s rgba=%s",
+          origin.face, origin.direction.c_str(), origin.suffix.c_str(),
+          origin.materialPath.c_str(), origin.texturePath.c_str(), origin.sampleRgba.c_str());
+      }
     }
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
