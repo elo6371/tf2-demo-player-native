@@ -11,6 +11,10 @@ add_executable(tf2_demo_native WIN32
   src/demo_header.cpp
   src/native_renderer.cpp
   src/asset_root.cpp
+  # T9 (2026-10-16): the map search order, shared with map_lookup_probe. In the
+  # product rather than inlined into main.cpp because the gate has to assert the
+  # order the product actually walks, not a second copy of it.
+  src/map_lookup.cpp
   src/vpk_archive.cpp
   src/vtf_texture.cpp
   src/model_loader.cpp
@@ -92,6 +96,13 @@ set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(presentation_probe tools/presentation_probe.cpp src/demo_header.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(presentation_probe PRIVATE include third_party/lzma)
 set_target_properties(presentation_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# T9 (2026-10-16): the map search order. Pure: it links only map_lookup.cpp, so
+# a green run is a statement about the order and the name rules and cannot be
+# helped by any installed content.
+add_executable(map_lookup_probe tools/map_lookup_probe.cpp src/map_lookup.cpp)
+target_include_directories(map_lookup_probe PRIVATE include)
+set_target_properties(map_lookup_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(texture_quad_probe tools/texture_quad_probe.cpp src/vtf_texture.cpp)
 target_include_directories(texture_quad_probe PRIVATE include)
