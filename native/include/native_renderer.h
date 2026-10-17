@@ -263,6 +263,11 @@ struct WorldMaterialSampleState {
   std::size_t worldVisInputTriangles = 0;
   int worldVisCameraCluster = -1;
   std::string worldVisClipReason;
+  // T10 diagnostic: whether the world pass rasterised with back-face culling
+  // on. Read from the renderer after the draw, like the vis line above, so a
+  // frame captured with --no-world-cull cannot be mistaken for one drawn with
+  // the product's own cull mode.
+  bool worldCullBackfaces = true;
 };
 
 // What a per-triangle pvs clip decided, handed to the renderer by the caller
@@ -377,6 +382,15 @@ public:
   void setObserverDemoViewWorld(float x, float y, float z, float pitchDegrees, float yawDegrees);
   void clearObserverDemoView();
   bool observerFocusWorld(float& x, float& y, float& z) const;
+  // T10 fix: the observer focus converted BACK to map coordinates. The pvs
+  // clip asks the BSP which cluster a point sits in, and the BSP speaks map
+  // units; observerFocusWorld() speaks the normalized unit-box the world
+  // buffer was scaled into. Handing the normalized point to clusterAt asked
+  // "which leaf contains (±0.4, ±0.9, 0.1..0.9) in map units" -- a fixed spot
+  // near the map origin, so every camera read as one cluster and the clip hid
+  // an arbitrary half of the map. The inverse lives here, next to the forward
+  // conversion and its constants, so the two cannot drift apart.
+  bool observerFocusMapWorld(float& x, float& y, float& z) const;
   void setWorldMaterialParams(const WorldMaterialParams& params);
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
@@ -442,6 +456,10 @@ public:
   // "draw everything"; a non-empty one is drawn indexed, so the hidden
   // triangles leave the rasteriser as well as the reading.
   void setWorldVisClipEnabled(bool enabled);
+  // T10 diagnostic: rasterise the world pass without back-face culling, so the
+  // same frame can be drawn culled and unculled and the difference attributed
+  // to the winding. Diagnostic only; the product's default stays cull-back.
+  void setWorldBackfaceCull(bool enabled) { worldBackfaceCull_ = enabled; }
   bool setWorldVisDrawList(const WorldVisDrawList& drawList);
   // ---- T2 (2026-10-14): the water surface as its own pass ----------------
   // A second world buffer holding only the water triangles, its own texture and
@@ -900,6 +918,9 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyConstants_;
   Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldSkyRasterizerState_;
+  // T10 diagnostic: the world rasterizer with CULL_NONE, bound only while
+  // worldBackfaceCull_ is false.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldNoCullRasterizerState_;
   // The water pass is coplanar with the world's own water triangles, so it needs
   // a depth bias to avoid z-fighting. Its own state rather than a tweak to the
   // world's: the world pass must keep drawing with the depth policy its gate
@@ -930,6 +951,7 @@ private:
   // draw that handed the whole buffer to the rasteriser.
   bool worldVisDrewIndexed_ = false;
   bool worldVisClipEnabled_ = true;
+  bool worldBackfaceCull_ = true;
   bool worldVisClipApplied_ = false;
   std::size_t worldVisDrawnTriangles_ = 0;
   std::size_t worldVisHiddenTriangles_ = 0;

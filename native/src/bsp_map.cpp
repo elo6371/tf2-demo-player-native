@@ -292,6 +292,31 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     std::vector<BspVertex> polygon; polygon.reserve(static_cast<std::size_t>(count)); bool validFace = true;
     for (std::int16_t i = 0; i < count; ++i) { const auto surf = read<std::int32_t>(surfEdges, (static_cast<std::size_t>(firstEdge) + i) * 4); const auto edge = surf < 0 ? -surf : surf; if (edge < 0 || static_cast<std::size_t>(edge) >= edgeCount) { validFace = false; break; } const auto vertexIndex = read<std::uint16_t>(edges, static_cast<std::size_t>(edge) * 4 + (surf < 0 ? 2 : 0)); if (vertexIndex >= vertexCount) { validFace = false; break; } polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12)); }
     if (!validFace || polygon.size() < 3) continue;
+    // T10 winding census, read-only: the polygon's normal (from its own
+    // winding) against the face's BSP plane. dface_t: planenum is a uint16 at
+    // +0, the back-side flag a byte at +2. A side=1 face is meant to be seen
+    // from the plane's back, so its winding "agrees" when the polygon normal
+    // points AGAINST the stored plane normal. This counts; it never reorders
+    // -- the shipped winding is the shipped winding until the completeness
+    // defect's own task changes it on evidence.
+    if (!planes.empty() && planes.size() % 20 == 0) {
+      const std::uint32_t planenum = read<std::uint16_t>(faces, base);
+      const std::uint8_t planeSide = faces[base + 2];
+      if (static_cast<std::size_t>(planenum) < planes.size() / 20) {
+        const std::size_t planeAt = static_cast<std::size_t>(planenum) * 20;
+        const float pnx = read<float>(planes, planeAt), pny = read<float>(planes, planeAt + 4), pnz = read<float>(planes, planeAt + 8);
+        const float ux = polygon[1].x - polygon[0].x, uy = polygon[1].y - polygon[0].y, uz = polygon[1].z - polygon[0].z;
+        const float vx = polygon[2].x - polygon[0].x, vy = polygon[2].y - polygon[0].y, vz = polygon[2].z - polygon[0].z;
+        const float cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+        const float len = std::sqrt(cx * cx + cy * cy + cz * cz);
+        const float plen = std::sqrt(pnx * pnx + pny * pny + pnz * pnz);
+        if (len > 1e-6f && plen > 1e-6f && std::isfinite(pnx) && std::isfinite(pny) && std::isfinite(pnz)) {
+          ++map.windingFaceCount;
+          const bool pointsAlong = (cx * pnx + cy * pny + cz * pnz) > 0.0f;
+          if (pointsAlong != (planeSide != 0)) ++map.windingAgreeCount;
+        }
+      }
+    }
     if (hasLightmap) {
       ++map.lightmapFaceCount;
       map.lightmapBytes += static_cast<std::size_t>(lightBytes);

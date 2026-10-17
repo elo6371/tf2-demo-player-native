@@ -147,7 +147,6 @@ bool g_debugCamera = false;
 float g_debugCameraEye[3] = {0.0f, 0.0f, 0.0f};
 float g_debugCameraPitch = 0.0f;
 float g_debugCameraYaw = 0.0f;
-bool g_debugCameraApplied = false;
 tf2::native::PauseKeyController g_pauseKey;
 tf2::native::CameraMode g_lastAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
@@ -906,6 +905,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool worldSkyGiven = false;
   bool worldVisClipRequested = true;
   bool worldVisClipGiven = false;
+  // T10 diagnostic: the world pass rasterises with back-face culling by
+  // default; --no-world-cull turns it off for one capture so the same frame can
+  // be drawn culled and unculled and the missing faces attributed to the
+  // winding. Same given/requested shape as the sky and vis switches above.
+  bool worldCullRequested = true;
+  bool worldCullGiven = false;
   // T2 (2026-10-14): the water surface follows the same shape as T1's two
   // switches -- on by default, with an explicit off switch -- for the same
   // reason: "the water is drawn" is only a reading if "the water is not drawn"
@@ -952,6 +957,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         g_debugCameraYaw = _wtof(arguments[++i]);
       } else if (wcscmp(arguments[i], L"--no-world-vis-clip") == 0) {
         worldVisClipRequested = false; worldVisClipGiven = true;
+      } else if (wcscmp(arguments[i], L"--world-cull") == 0) {
+        worldCullRequested = true; worldCullGiven = true;
+      } else if (wcscmp(arguments[i], L"--no-world-cull") == 0) {
+        worldCullRequested = false; worldCullGiven = true;
       } else if (wcscmp(arguments[i], L"--world-water") == 0 && i + 1 < argumentCount) {
         // on|off, and nothing else: a switch that accepts any string is a switch
         // that silently does nothing on a typo.
@@ -2822,11 +2831,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
     if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
-    if (g_debugCamera && !g_debugCameraApplied && uploadedWorld) {
-      renderer.setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1], g_debugCameraEye[2],
-        g_debugCameraPitch, g_debugCameraYaw);
-      g_debugCameraApplied = true;
-    }
     if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
     // ---- T2 (2026-10-14): the water surface --------------------------------
     // The water triangles are taken out of the world buffer and uploaded as
@@ -3021,7 +3025,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // frame loop instead, once the first clip has run, because a reading about
       // a draw has to be taken from the frame that drew.
       float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
-      if (!renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
+      // T10 fix: the MAP-space eye. observerFocusWorld() hands back the
+      // normalized unit-box point the renderer cameras against; clusterAt
+      // walks leaves in map units. Feeding it the normalized point pinned the
+      // pvs to whatever leaf covers (±0.4, ±0.9, 0.1..0.9) in map coordinates
+      // -- cluster 2017 for every camera position this task measured -- and
+      // the clip hid an arbitrary half of the map from a place nobody was
+      // looking at.
+      if (!renderer.observerFocusMapWorld(eyeX, eyeY, eyeZ)) {
         // No observer yet: the first triangle's own vertex is a point the map
         // certainly contains, and clusterAt answers -1 for a point in no leaf,
         // which the line then reports rather than hides.
@@ -3274,7 +3285,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       return;
     }
     float eyeX = worldVisCameraEye[0], eyeY = worldVisCameraEye[1], eyeZ = worldVisCameraEye[2];
-    if (renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
+    // T10 fix: map-space eye for a map-space cluster query (see the fill above).
+    if (renderer.observerFocusMapWorld(eyeX, eyeY, eyeZ)) {
       worldVisCameraEye[0] = eyeX; worldVisCameraEye[1] = eyeY; worldVisCameraEye[2] = eyeZ;
     }
     const int cameraCluster = tf2::native::BspParser::clusterAt(displayMap, eyeX, eyeY, eyeZ);
@@ -3340,7 +3352,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     const int cameraCluster = sample.worldVisCameraCluster;
     traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
       " clusteredTriangles=%zu hiddenTriangles=%zu withoutCluster=%zu"
-      " inputTriangles=%zu drawnTriangles=%zu clipApplied=%d state=%s reason=%s",
+      " inputTriangles=%zu drawnTriangles=%zu clipApplied=%d state=%s"
+      " eyeMap=(%.1f,%.1f,%.1f) reason=%s",
       cameraCluster,
       cameraCluster >= 0
         ? tf2::native::BspParser::countVisibleClusters(displayMap, cameraCluster) : -1,
@@ -3350,7 +3363,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldVisInputTriangles, sample.worldVisDrawnTriangles,
       sample.worldVisClipApplied ? 1 : 0,
       tf2::native::worldVisClipStateName(sample.worldVisClipState),
+      worldVisCameraEye[0], worldVisCameraEye[1], worldVisCameraEye[2],
       sample.worldVisClipReason.empty() ? "-" : sample.worldVisClipReason.c_str());
+    traceFmt("gpu: world cull backfaces=%d mode=%s",
+      sample.worldCullBackfaces ? 1 : 0,
+      sample.worldCullBackfaces ? "cull-back" : "cull-none");
   };
   // The paint ledger: one row per prepared model, written after the GPU upload
   // so `uploaded` reflects what the renderer actually accepted. This is the
@@ -3826,7 +3843,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       const tf2::native::CameraMode cameraMode = g_debugCamera
         ? tf2::native::CameraMode::FreeLook : g_cameraMode.mode();
       if (cameraMode != g_lastAppliedCameraMode) {
-        if (cameraMode != tf2::native::CameraMode::FirstPerson) {
+        // T10 fix: the diagnostic debug camera IS a demo view -- it is set once
+        // after the world upload and must survive this transition, or the first
+        // frame clears it and the capture silently falls back to the orbit
+        // camera (which is how two different --debug-camera positions produced
+        // pixel-identical frames).
+        if (cameraMode != tf2::native::CameraMode::FirstPerson && !g_debugCamera) {
           renderer.clearObserverDemoView();
         }
         g_lastAppliedCameraMode = cameraMode;
@@ -3852,6 +3874,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           // camera stays exactly where the user's orbit left it.
           ++g_cameraFreezeFrames;
           break;
+      }
+      // T10 diagnostic camera, applied EVERY frame rather than once: the
+      // one-shot apply after the world upload lost to an ordering this file
+      // could not see -- three different --debug-camera positions captured
+      // byte-identical default-orbit frames. Idempotent per frame, like the
+      // vis clip above: the same numbers every frame cannot drift, and a
+      // capture at tick 2000 is thousands of frames past the upload that
+      // validates the conversion constants.
+      if (g_debugCamera) {
+        renderer.setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1],
+          g_debugCameraEye[2], g_debugCameraPitch, g_debugCameraYaw);
       }
       traceFmt("scene: camera mode=%s target=%d follows=%u holds=%u freeze=%u",
         tf2::native::cameraModeName(cameraMode), haveObserverView ? 1 : 0,
@@ -4617,6 +4650,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // The clip is decided before the draw it governs, so the frame that is
         // captured is a frame that was clipped.
         applyWorldVisClip();
+        // T10 diagnostic: the cull mode is a property of the capture, so it is
+        // (re)stated with the clip -- idempotent, and the reading the trace
+        // prints comes from the renderer after the draw, not from this flag.
+        renderer.setWorldBackfaceCull(worldCullGiven ? worldCullRequested : true);
       }
       // T8 (2026-10-16) diagnostic, the second half of the pair above: if this
       // fires the error was already set when the frame began, so it came from a

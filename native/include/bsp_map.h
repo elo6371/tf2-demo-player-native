@@ -63,6 +63,15 @@ struct BspMap {
   std::size_t displacementFaces = 0;
   std::size_t displacementTriangles = 0;
   std::size_t displacementCornerMatches = 0;
+  // T10 winding census, read-only: how many face polygons wind along the side
+  // of their own BSP plane the face is meant to be seen from (planeSide 1
+  // faces count as agreeing when the winding normal points AGAINST the stored
+  // plane normal). The plane lump is ground truth, so agree/total measures the
+  // winding the renderer will cull against without depending on how the
+  // triangle soup was emitted. No polygon is reordered here: the census only
+  // counts.
+  std::size_t windingFaceCount = 0;
+  std::size_t windingAgreeCount = 0;
   std::size_t waterFaces = 0;
   bool waterReflection = false;
   bool waterRefraction = false;

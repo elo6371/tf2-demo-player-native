@@ -897,6 +897,14 @@ float4 main(Input input) : SV_TARGET {
   skyRasterDescription.CullMode = D3D11_CULL_NONE;
   if (FAILED(device_->CreateRasterizerState(&skyRasterDescription,
       worldSkyRasterizerState_.GetAddressOf()))) return false;
+  // T10 diagnostic: the world rasterizer with culling off, so one capture can
+  // draw the frame both ways and the missing faces get attributed to the
+  // winding instead of guessed at. The product's own draws keep cull-back;
+  // only a caller that turned the diagnostic on reaches this state.
+  D3D11_RASTERIZER_DESC worldNoCullDescription = rasterDescription;
+  worldNoCullDescription.CullMode = D3D11_CULL_NONE;
+  if (FAILED(device_->CreateRasterizerState(&worldNoCullDescription,
+      worldNoCullRasterizerState_.GetAddressOf()))) return false;
   // The water pass draws the same triangles the world pass already drew, so a
   // coplanar surface would z-fight and the frame would speckle instead of
   // showing water. The bias pulls the water toward the camera; it is stated
@@ -1771,6 +1779,23 @@ bool Renderer::observerFocusWorld(float& x, float& y, float& z) const {
   return true;
 }
 
+bool Renderer::observerFocusMapWorld(float& x, float& y, float& z) const {
+  if (!observerFocusValid_) return false;
+  if (!std::isfinite(worldMinZ_) || !std::isfinite(worldSpanZ_)
+      || !std::isfinite(worldHorizontalScale_) || worldSpanZ_ <= 0.0f
+      || worldHorizontalScale_ <= 0.0f) return false;
+  // The exact inverse of setObserverFocusWorld's three lines, in the same
+  // order a reader of that function meets them. A division instead of the
+  // forward multiplication, and the z bias unwound before the span: getting
+  // either backwards would hand the pvs a point that is not where the camera
+  // is, which is the defect this exists to fix.
+  x = (observerFocusX_ - 0.0f) / worldHorizontalScale_ + worldCenterX_;
+  y = (observerFocusY_ - 0.0f) / worldHorizontalScale_ + worldCenterY_;
+  z = (observerFocusZ_ - 0.1f) / 0.8f * worldSpanZ_ + worldMinZ_;
+  if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
+  return true;
+}
+
 void Renderer::clearObserverDemoView() { observerDemoView_ = false; }
 
 void Renderer::setObserverDemoViewWorld(float x, float y, float z, float pitchDegrees, float yawDegrees) {
@@ -1840,6 +1865,9 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.worldVisInputTriangles = worldVisInputTriangles_;
   state.worldVisCameraCluster = worldVisCameraCluster_;
   state.worldVisClipReason = worldVisClipEnabled_ ? worldVisClipReason_ : "vis clip disabled by the caller";
+  // T10 diagnostic: what the last world rasterisation actually ran with, so a
+  // no-cull capture carries its own confession.
+  state.worldCullBackfaces = worldBackfaceCull_;
   return state;
 }
 
@@ -3179,7 +3207,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   context_->ClearRenderTargetView(target_.Get(), colour);
   if (depthStencilView_) context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
-  context_->RSSetState(rasterizerState_.Get());
+  context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
+                                          : worldNoCullRasterizerState_.Get());
   D3D11_VIEWPORT viewport{};
   viewport.Width = static_cast<float>(width_);
   viewport.Height = static_cast<float>(height_);
@@ -3308,7 +3337,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->Draw(worldSkyVertexCount_, 0);
       worldSkyDrewThisFrame_ = true;
       // The world pass below must not inherit the sky's cube or its cull state.
-      context_->RSSetState(rasterizerState_.Get());
+      // T10: "the world's cull state" is the one the caller configured -- the
+      // no-cull diagnostic must survive the sky's restore, or the capture's
+      // world triangles would rasterise culled while the reading says they did
+      // not.
+      context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
+                                              : worldNoCullRasterizerState_.Get());
       ID3D11ShaderResourceView* noSky = nullptr;
       context_->PSSetShaderResources(5, 1, &noSky);
     }
@@ -3409,8 +3443,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(worldWaterVertexCount_, 0);
     worldWaterDrewThisFrame_ = true;
-    // The passes below must not inherit the water's bias or its texture.
-    context_->RSSetState(rasterizerState_.Get());
+    // The passes below must not inherit the water's bias or its texture. Same
+    // T10 rule as the sky's restore: the diagnostic cull state survives.
+    context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
+                                            : worldNoCullRasterizerState_.Get());
     ID3D11ShaderResourceView* noWater = nullptr;
     context_->PSSetShaderResources(0, 1, &noWater);
     context_->PSSetShaderResources(1, 1, &noBump);
@@ -3549,6 +3585,7 @@ void Renderer::shutdown() {
   worldSkyVertexBuffer_.Reset();
   worldSkyConstants_.Reset();
   worldSkyRasterizerState_.Reset();
+  worldNoCullRasterizerState_.Reset();
   worldSkyVertexCount_ = 0;
   worldSkySide_ = 0;
   worldSkyIndexCapacity_ = 0;
