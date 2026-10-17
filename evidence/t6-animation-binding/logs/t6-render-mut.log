@@ -1,0 +1,9 @@
+=== 1/4 incremental build ===
+=== build tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe viewmodel_animation_probe ===
+rc=0
+build_rc=0
+
+=== 2/4 the gates ===
+  OK   resource-reachability  MUTATION-CAUGHT=PASS
+  OK   frame-capture          MUTATION-CAUGHT=PASS
+  OK   entity-material        MUTATION-CAUGHT=PASS

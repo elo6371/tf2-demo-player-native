@@ -1,0 +1,103 @@
+# .scratch/extract/c_sniper_arms.mdl  <-  .scratch/extract/c_sniper_animations.mdl
+  seq[ 0] ref                          own-bound    -> NO same-named companion sequence (stays refused by name)
+  seq[ 1] r_handposes                  own-unbound  -> companion seq -> saxxy_pose                   frames=1
+  seq[ 2] smg_draw                     own-unbound  -> companion seq -> @smg_draw                    frames=30
+  seq[ 3] smg_idle                     own-unbound  -> companion seq -> @smg_idle                    frames=51
+  seq[ 4] smg_fire                     own-unbound  -> companion seq -> @smg_fire                    frames=4
+  seq[ 5] smg_reload                   own-unbound  -> companion seq -> @smg_reload                  frames=38
+  seq[ 6] m_idle                       own-unbound  -> companion seq -> @m_idle                      frames=60
+  seq[ 7] m_draw                       own-unbound  -> companion seq -> @m_draw                      frames=51
+  seq[ 8] m_swing_a                    own-unbound  -> companion seq -> @m_swing_a                   frames=31
+  seq[ 9] m_swing_b                    own-unbound  -> companion seq -> @m_swing_b                   frames=31
+  seq[10] m_swing_c                    own-unbound  -> companion seq -> @m_swing_c                   frames=31
+  seq[11] melee_allclass_idle          own-unbound  -> companion seq -> @melee_allclass_idle         frames=60
+  seq[12] melee_allclass_draw          own-unbound  -> companion seq -> @melee_allclass_draw         frames=51
+  seq[13] melee_allclass_swing_a       own-unbound  -> companion seq -> @melee_allclass_swing_a      frames=31
+  seq[14] melee_allclass_swing_b       own-unbound  -> companion seq -> @melee_allclass_swing_b      frames=31
+  seq[15] melee_allclass_swing_c       own-unbound  -> companion seq -> @melee_allclass_swing_c      frames=31
+  seq[16] pj_draw                      own-unbound  -> companion seq -> @pj_draw                     frames=51
+  seq[17] pj_idle                      own-unbound  -> companion seq -> @pj_idle                     frames=60
+  seq[18] pj_fire                      own-unbound  -> companion seq -> @pj_fire                     frames=30
+  seq[19] bw_draw                      own-unbound  -> companion seq -> @bw_draw                     frames=51
+  seq[20] bw_idle                      own-unbound  -> companion seq -> @bw_idle                     frames=60
+  seq[21] bw_charge                    own-unbound  -> companion seq -> @bw_charge                   frames=31
+  seq[22] bw_idle2                     own-unbound  -> companion seq -> @bw_idle2                    frames=60
+  seq[23] bw_fire                      own-unbound  -> companion seq -> @bw_fire                     frames=61
+  seq[24] bw_noammo                    own-unbound  -> companion seq -> @bw_noammo                   frames=10
+  seq[25] bw_idle3                     own-unbound  -> companion seq -> @bw_idle3                    frames=60
+  seq[26] bw_shake                     own-unbound  -> companion seq -> @bw_shake                    frames=61
+  seq[27] bw_dryfire                   own-unbound  -> companion seq -> @bw_dryfire                  frames=26
+  seq[28] draw                         own-unbound  -> companion seq -> @draw                        frames=31
+  seq[29] fire                         own-unbound  -> companion seq -> @fire                        frames=51
+  seq[30] idle                         own-unbound  -> companion seq -> @idle                        frames=61
+  seq[31] throw_draw                   own-unbound  -> companion seq -> @throw_draw                  frames=52
+  seq[32] throw_idle                   own-unbound  -> companion seq -> @throw_idle                  frames=60
+  seq[33] throw_fire                   own-unbound  -> companion seq -> @throw_fire                  frames=20
+  seq[34] spell_draw                   own-unbound  -> companion seq -> @spell_draw                  frames=26
+  seq[35] spell_fire                   own-unbound  -> companion seq -> @spell_fire                  frames=11
+  seq[36] bm_fire                      own-unbound  -> companion seq -> @bm_fire                     frames=16
+  seq[37] bm_draw                      own-unbound  -> companion seq -> @bm_draw                     frames=51
+  seq[38] bm_idle                      own-unbound  -> companion seq -> @bm_idle                     frames=150
+  seq[39] rifolver_draw                own-unbound  -> NO same-named companion sequence (stays refused by name)
+  seq[40] rifolver_fire                own-unbound  -> NO same-named companion sequence (stays refused by name)
+  seq[41] rifolver_fire_reload         own-unbound  -> NO same-named companion sequence (stays refused by name)
+  seq[42] rifolver_idle                own-unbound  -> NO same-named companion sequence (stays refused by name)
+# base sequences=43  matched by name=38  multi-frame=37  max frames=150
+
+# .scratch/extract/c_soldier_arms.mdl  <-  .scratch/extract/c_soldier_animations.mdl
+  seq[ 0] c_soldier_arms               own-bound    -> NO same-named companion sequence (stays refused by name)
+  seq[ 1] r_handposes                  own-unbound  -> companion seq -> saxxy_pose                   frames=1
+  seq[ 2] dh_idle                      own-unbound  -> companion seq -> @dh_idle                     frames=41
+  seq[ 3] dh_fire                      own-unbound  -> companion seq -> @dh_fire                     frames=31
+  seq[ 4] dh_draw                      own-unbound  -> companion seq -> @dh_draw                     frames=25
+  seq[ 5] dh_reload_start              own-unbound  -> companion seq -> @dh_reload_start             frames=16
+  seq[ 6] dh_reload_loop               own-unbound  -> companion seq -> @dh_reload_loop              frames=25
+  seq[ 7] dh_reload_finish             own-unbound  -> companion seq -> @dh_reload_finish            frames=24
+  seq[ 8] dh_reload_start_alt          own-unbound  -> companion seq -> @dh_reload_start_alt         frames=16
+  seq[ 9] dh_reload_loop_alt           own-unbound  -> companion seq -> @dh_reload_loop_alt          frames=25
+  seq[10] dh_reload_finish_alt         own-unbound  -> companion seq -> @dh_reload_finish_alt        frames=24
+  seq[11] mangler_fire_super           own-unbound  -> companion seq -> @mangler_fire_super          frames=89
+  seq[12] mangler_reload_start         own-unbound  -> companion seq -> @mangler_reload_start        frames=16
+  seq[13] mangler_reload_loop          own-unbound  -> companion seq -> @mangler_reload_loop         frames=25
+  seq[14] mangler_reload_finish        own-unbound  -> companion seq -> @mangler_reload_finish       frames=24
+  seq[15] s_draw                       own-unbound  -> companion seq -> @s_draw                      frames=26
+  seq[16] s_idle                       own-unbound  -> companion seq -> @s_idle                      frames=51
+  seq[17] s_swing_a                    own-unbound  -> companion seq -> @s_swing_a                   frames=26
+  seq[18] s_swing_b                    own-unbound  -> companion seq -> @s_swing_b                   frames=26
+  seq[19] s_swing_c                    own-unbound  -> companion seq -> @s_swing_c                   frames=26
+  seq[20] bb_draw                      own-unbound  -> companion seq -> @bb_draw                     frames=26
+  seq[21] bb_idle                      own-unbound  -> companion seq -> @bb_idle                     frames=51
+  seq[22] bb_fire_red                  own-unbound  -> companion seq -> @bb_fire_red                 frames=61
+  seq[23] bb_fire_blue                 own-unbound  -> companion seq -> @bb_fire_blue                frames=81
+  seq[24] wh_draw                      own-unbound  -> companion seq -> @wh_draw                     frames=26
+  seq[25] wh_idle                      own-unbound  -> companion seq -> @wh_idle                     frames=51
+  seq[26] wh_fire_red                  own-unbound  -> companion seq -> @wh_fire_red                 frames=81
+  seq[27] wh_fire_blue                 own-unbound  -> companion seq -> @wh_fire_blue                frames=81
+  seq[28] draw                         own-unbound  -> companion seq -> @draw                        frames=26
+  seq[29] idle                         own-unbound  -> companion seq -> @idle                        frames=26
+  seq[30] fire                         own-unbound  -> companion seq -> @fire                        frames=26
+  seq[31] reload_start                 own-unbound  -> companion seq -> @reload_start                frames=15
+  seq[32] reload_loop                  own-unbound  -> companion seq -> @reload_loop                 frames=16
+  seq[33] reload_end                   own-unbound  -> companion seq -> @reload_end                  frames=22
+  seq[34] melee_allclass_draw          own-unbound  -> companion seq -> @melee_allclass_draw         frames=26
+  seq[35] melee_allclass_idle          own-unbound  -> companion seq -> @melee_allclass_idle         frames=51
+  seq[36] melee_allclass_swing         own-unbound  -> companion seq -> @melee_allclass_swing        frames=26
+  seq[37] bison_draw                   own-unbound  -> companion seq -> @bison_draw                  frames=26
+  seq[38] bison_idle                   own-unbound  -> companion seq -> @bison_idle                  frames=26
+  seq[39] bison_fire                   own-unbound  -> companion seq -> @bison_fire                  frames=26
+  seq[40] bison_reload_start           own-unbound  -> companion seq -> @bison_reload_start          frames=18
+  seq[41] bison_reload_loop            own-unbound  -> companion seq -> @bison_reload_loop           frames=11
+  seq[42] bison_reload_end             own-unbound  -> companion seq -> @bison_reload_end            frames=25
+  seq[43] bet_idle                     own-unbound  -> companion seq -> @bet_idle                    frames=41
+  seq[44] bet_fire                     own-unbound  -> companion seq -> @bet_fire                    frames=31
+  seq[45] bet_draw                     own-unbound  -> companion seq -> @bet_draw                    frames=25
+  seq[46] bet_reload_start             own-unbound  -> companion seq -> @bet_reload_start            frames=16
+  seq[47] bet_reload_loop              own-unbound  -> companion seq -> @bet_reload_loop             frames=26
+  seq[48] bet_reload_finish            own-unbound  -> companion seq -> @bet_reload_finish           frames=24
+  seq[49] throw_draw                   own-unbound  -> companion seq -> @throw_draw                  frames=52
+  seq[50] throw_idle                   own-unbound  -> companion seq -> @throw_idle                  frames=60
+  seq[51] throw_fire                   own-unbound  -> companion seq -> @throw_fire                  frames=20
+  seq[52] spell_draw                   own-unbound  -> companion seq -> @spell_draw                  frames=26
+  seq[53] spell_fire                   own-unbound  -> companion seq -> @spell_fire                  frames=11
+# base sequences=54  matched by name=53  multi-frame=52  max frames=89
+

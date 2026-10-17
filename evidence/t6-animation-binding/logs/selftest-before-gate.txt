@@ -1,0 +1,120 @@
+  OK   v_ file name is a viewmodel
+  OK   c_ file name is not a viewmodel
+  OK   the directory does not decide it
+  OK   extension is part of the rule
+  OK   0 is inside a 7-sequence table
+  OK   the last index is inside
+  OK   one past the end is outside
+  OK   16 is outside a 7-sequence table
+  OK   an unknown table is not 'in range'
+  OK   four samples were seen
+  OK   a constant sequence is one change
+  OK   a constant sequence has one distinct value
+  OK   the observed series has seven changes
+  OK   the observed series has six distinct values
+  OK   the observed range is 0..16
+  OK   each entity contributes its own first sample
+  OK   two entities were tracked
+  OK   the sequence slot is counted through its prefix
+  OK   the rate slot is counted through its prefix
+  OK   an absent slot counts zero, not one
+  OK   the product rejects a c_*_arms path with exactly that reason
+  OK   the product does not reject a v_* path
+  OK   this probe's copy of the rule agrees with the product on both
+  OK   the product resolves the entity's own model
+  OK   the drawn model has a sequence table to be in or out of
+  OK   the drawn model has a skeleton
+  OK   the companion entry point parses the file the same way twice
+  OK   the --viewmodel entry point still refuses the same c_*_arms path
+  OK   a companion whose file is absent does not resolve
+  OK   the missing companion says why, rather than resolving to an empty model
+  OK   the product resolves the v_* model as well
+  OK   both the companion and the v_* model have an animation binding
+  OK   the two models are two cache entries, not one
+  OK   the binding's render skeleton is the drawn model's skeleton
+vmproof fixture=no-entity status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=no viewmodel entity owned by the view entity
+  OK   no owning entity resolves to missing
+  OK   missing leaves the bind pose
+  OK   missing names which of the two absences it was
+vmproof fixture=no-owner status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=-1 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=the viewmodel entity at index 7 carries no m_hOwner
+  OK   an entity with no m_hOwner resolves to missing
+  OK   the absent owner is named
+vmproof fixture=wrong-owner status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=43 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=the viewmodel entity at index 7 is owned by entity 43, not by the view entity 42
+  OK   an entity owned by another entity resolves to missing
+  OK   a wrong owner leaves the bind pose
+  OK   the wrong owner names both entities
+vmproof fixture=no-model-index status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=-1 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=the viewmodel entity at index 7 carries no m_nModelIndex
+  OK   an entity with no m_nModelIndex resolves to missing
+  OK   the absent model index is named
+vmproof fixture=model-index-zero status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=0 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=m_nModelIndex is 0, which names no model
+  OK   m_nModelIndex 0 resolves to missing, not to a model
+  OK   model index 0 is refused as naming no model
+vmproof fixture=model-unresolved status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=4095 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=m_nModelIndex 4095 is not in the demo's model_precache
+  OK   an index the precache does not carry resolves to missing
+  OK   the unresolved index names the precache
+vmproof fixture=model-mismatch status=modelMismatch modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=45 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/v_models/v_scattergun_scout.mdl reason=the pass draws models/weapons/v_models/v_scattergun_scout.mdl but the entity's own m_nModelIndex names models/weapons/c_models/c_soldier_arms.mdl
+  OK   a drawn model that is not the entity's own resolves to modelMismatch
+  OK   a model mismatch leaves the bind pose
+  OK   the mismatch reading is reported as false
+  OK   a model mismatch never reaches the range question, so it is not in range
+  OK   the mismatch names both models
+vmproof fixture=drawn-matched status=ok modelMatch=1 inRange=1 bindPose=0 matrices=45 bones=45 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/v_models/v_scattergun_scout.mdl reason=-
+  OK   the same input against a matching drawn model resolves to ok
+vmproof fixture=path-separator status=ok modelMatch=1 inRange=1 bindPose=0 matrices=67 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=-
+  OK   a backslash-separated entity path resolves to ok
+  OK   the normalised comparison reports a match
+vmproof fixture=no-sequence status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=the viewmodel entity at index 7 carries no m_nSequence
+  OK   an entity with no m_nSequence resolves to missing, not to sequence 0
+  OK   the absent sequence is named
+vmproof fixture=negative-sequence status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=m_nSequence is negative
+  OK   a negative sequence resolves to missing
+  OK   the negative sequence is named as negative
+vmproof fixture=sequence-past-own-table status=sequenceOutOfRange modelMatch=1 inRange=0 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=m_nSequence 54 is past the entity's own model's 54 sequences
+  OK   one past the entity's own table resolves to sequenceOutOfRange
+  OK   an out-of-range sequence is not reported as in range
+  OK   an out-of-range sequence leaves the bind pose
+  OK   the refusal names the entity's own table's size
+  OK   the entity's own table and the v_* table are different sizes
+vmproof fixture=sequence-in-range-unbound status=missing modelMatch=1 inRange=1 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=sequence has no animation binding
+  OK   a sequence inside the entity's own table reads as in range
+  OK   and still resolves to missing, because its name has no companion binding
+  OK   an entry with no pose leaves the bind pose
+  OK   the model proof is unaffected by the pose being absent
+vmproof fixture=accepted status=ok modelMatch=1 inRange=1 bindPose=0 matrices=67 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=-
+  OK   sequence 1 (r_handposes, bound by name) resolves to ok
+  OK   the accepted pose carries the entity's own sequence label
+  OK   ok does not leave the bind pose
+  OK   ok reports the model match
+  OK   ok reports the sequence as inside the entity's own table
+  OK   the accepted pose covers the drawn skeleton exactly
+vmproof fixture=bone-mismatch status=boneMismatch modelMatch=1 inRange=1 bindPose=1 matrices=0 bones=68 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=the pose covers 67 bones but the drawn model has 68
+  OK   a skeleton one bone longer resolves to boneMismatch
+  OK   a bone mismatch leaves the bind pose
+vmproof fixture=no-binding status=missing modelMatch=1 inRange=1 bindPose=1 matrices=0 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=the drawn model carries no animation data
+  OK   a drawn model with no animation data resolves to missing
+vmproof fixture=unresolved-drawn status=missing modelMatch=0 inRange=0 bindPose=1 matrices=0 bones=0 owner=42 viewEntity=42 modelIndex=100 drawn=- reason=the drawn model was not resolved: viewmodel was not found
+  OK   an unresolved drawn model resolves to missing, not sequenceOutOfRange
+  OK   the unresolved reason is carried through
+vmproof-companion path=models/weapons/c_models/c_soldier_arms.mdl animPath=models/weapons/c_models/c_soldier_animations.mdl separate=1 includes=0 sequences=54 animations=109 animated=53 multiFrame=52 maxFrames=89
+vmproof-control path=models/weapons/v_models/v_scattergun_scout.mdl sequences=7 animations=7 animated=7 multiFrame=6 maxFrames=57 witness=1 witnessFrames=31
+  OK   53 of the model's 54 sequences reach an animation descriptor, by name, through its declared companion
+  OK   and 52 of those carry more than one frame
+  OK   the longest of them is 89 frames
+  OK   the binding adopted the declared animations companion
+vmproof fixture=companion-motion status=ok modelMatch=1 inRange=1 bindPose=0 matrices=67 bones=67 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/c_models/c_soldier_arms.mdl reason=-
+  OK   the first multi-frame sequence bound by name resolves to ok
+  OK   and reports the multi-frame count its companion animation carries
+  OK   the v_* control model has a sequence with more than one frame
+vmproof fixture=cycle-witness status=ok modelMatch=1 inRange=1 bindPose=0 matrices=45 bones=45 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/v_models/v_scattergun_scout.mdl reason=-
+  OK   the witness sequence is accepted, so the cycle reading is on a live branch
+  OK   the witness runs on a proven pair, not on a mismatched one
+  OK   the witness sequence reports the frame count its animation carries
+  OK   the witness sequence has more than one frame
+vmproof fixture=cycle-applied status=ok modelMatch=1 inRange=1 bindPose=0 matrices=45 bones=45 owner=42 viewEntity=42 modelIndex=100 drawn=models/weapons/v_models/v_scattergun_scout.mdl reason=-
+  OK   a supplied cycle does not change the status
+  OK   a supplied cycle moves the sampled frame
+  OK   the cycle witness covers the control's skeleton exactly
+  OK   the by-name accepted pose reports the one frame that sequence carries
+  OK   every fixture in the companion battery has a name in the report
+vmproof-summary fixtures=20 accepted=6 missing=11 modelMismatch=1 outOfRange=1 boneMismatch=1
+self-test failures=0
