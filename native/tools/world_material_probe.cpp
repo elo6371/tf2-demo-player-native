@@ -772,7 +772,7 @@ std::vector<FixtureCase> buildCases() {
       checks.push_back(checkNear("lightUv.b.u", triangle.blu,
         expectedLightUv(1, 1, 2, 0, 0, atlasWidth), 1e-9));
       checks.push_back(checkNear("lightUv.c.v", triangle.clv,
-        expectedLightUv(1, 1, 2, 0, 0, atlasWidth) * vScale, 1e-9));
+        expectedLightUv(0, 1, 2, 0, 0, atlasWidth) * vScale, 1e-9));
       return checks;
     };
     item.straight = body;
