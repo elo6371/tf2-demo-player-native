@@ -2,7 +2,8 @@
 
 Date: 2026-10-16
 Planning baseline: `p0-entity-protocol@4360403`
-T5 status: integration and release checks are complete for scheduling. The
+T5 status: integration and release checks are complete for scheduling. T6-T8
+are now merged into the integration branch. The
 coordinator stopped `verify-all.sh --quick` after step 21/24; steps 22-24 are
 provisionally accepted for task scheduling but remain unverified in the final
 release record.
@@ -10,9 +11,10 @@ release record.
 ## Purpose
 
 T1-T4 delivered the current rendering, audio, manual acceptance, and stability
-evidence. T5 integrated those deliveries and established the current working
+evidence. T5 integrated those deliveries and T6-T8 extended animation, audio
+content, and renderer reliability on top of the current working
 baseline. Its final total-chain run was intentionally stopped after step 21;
-do not start another total-chain run inside T6-T9.
+do not start another total-chain run during task development.
 
 Start the four tasks below now in separate worktrees. Each AI owns one task from
 inspection through implementation, focused verification, evidence, and a
@@ -25,10 +27,11 @@ queue, and they may not merge until T5 establishes the release baseline.
 
 | Task | Owner | Main area | Can code in parallel? | Must wait to run product checks? |
 | --- | --- | --- | --- | --- |
-| T6 ViewModel animation binding | AI-A | Entity animation binding and ViewModel sequence selection | Yes | Yes |
-| T7 Audio content coverage | AI-B | Music, TempEntity/PCF, voice, and MP3 paths | Yes | Yes |
-| T8 World rendering reliability | AI-C | SUNSHINE device failure and world material fallbacks | Yes | Yes |
-| T9 Resource discovery and startup | AI-D | Download-map lookup, title parser compatibility, startup packaging facts | Yes | Yes |
+| T6 ViewModel animation binding | done / merged | Entity animation binding and ViewModel sequence selection | complete | complete |
+| T7 Audio content coverage | done / merged | Music, TempEntity/PCF, voice, and MP3 paths | complete | complete |
+| T8 World rendering reliability | done / merged | SUNSHINE device failure and world material fallbacks | complete | complete |
+| T9 Resource discovery and startup | next | Download-map lookup, title parser compatibility, startup packaging facts | Yes | Yes |
+| T10 Visual correctness baseline | next | World, player entity, hands, weapon, and ViewModel screenshot correctness | Yes | Yes |
 
 Parallel development means code and static inspection in independent worktrees.
 Builds, product launches, captures, mutation suites, real-device runs, and soak
@@ -70,7 +73,7 @@ Do not edit `D:\TF2_Demo_Player`. Use a fresh worktree per task. Do not use
 destructive Git cleanup commands. New paths and source text must be ASCII.
 Keep old evidence immutable; create a new evidence directory for every run.
 
-## T6 - ViewModel Animation Binding (AI-A)
+## T6 - ViewModel Animation Binding (AI-A) - COMPLETE
 
 ### Goal
 
@@ -113,7 +116,7 @@ no usable binding; constructed sequence 0 is not a real-animation result.
 - A meaningful mutation makes the animation-specific assertion fail.
 - The report separates real animation from synthetic probe coverage.
 
-## T7 - Audio Content Coverage (AI-B)
+## T7 - Audio Content Coverage (AI-B) - COMPLETE
 
 ### Goal
 
@@ -152,7 +155,7 @@ events, MP3 device playback, and broader device/input coverage remain unverified
 - Null sink does not open a device; device runs use a pinned device id.
 - Relevant mutation cases are caught and source restoration is verified.
 
-## T8 - World Rendering Reliability (AI-C)
+## T8 - World Rendering Reliability (AI-C) - COMPLETE
 
 ### Goal
 
@@ -242,9 +245,59 @@ behavior must not be reported as tested.
   localized status string.
 - Installer availability is reported as `NOT VERIFIED` until a package exists.
 
+## T10 - Visual Correctness Baseline (AI-E)
+
+### Goal
+
+Resolve the user-observed release blocker: the current window shows no usable
+map, broken material blocks, no complete player, and only partial ViewModel
+sleeves. Establish a real screenshot baseline first, then fix the smallest
+reproduced cause for world, player entity, hands, weapon, and ViewModel draws.
+
+### Steps
+
+1. Start from the merged T6-T8 head and capture a visible-window reference on
+   one pinned POV demo at a pinned tick. Save the BMP, trace, executable hash,
+   GPU adapter, feature level, and all render counters in a new evidence tree.
+2. Inspect the frame in the four required regions: world geometry/materials,
+   world player entity, ViewModel hands, and ViewModel weapon. Name each absent
+   or corrupted region with the responsible draw request, model path, material
+   path, transform, and rejection reason.
+3. Reproduce each defect with a focused switch or probe. A counter changing is
+   insufficient; each fix needs a before/after screenshot and a region diff.
+4. Fix world atlas/material binding and entity/ViewModel model selection only
+   where the reference frame proves the cause. Preserve explicit refusal and
+   fallback readings for missing resources.
+5. Verify skinning, attachment transforms, hand model selection, weapon model
+   selection, depth/culling, and camera placement on the same pinned tick.
+6. Add a visual gate requiring non-empty world geometry, a visible player
+   entity, visible hands, and a visible weapon where the input contains them;
+   include negative controls for demos without those entities.
+7. Run only the focused visual gate, affected render gates, and their mutation.
+   Do not run the full 24-step chain from this task worktree.
+
+### Boundaries
+
+- Do not accept a frame because it is non-flat or because a switch changes
+  pixels; the expected object must be visible in the correct region.
+- Do not replace real models with placeholder geometry or synthetic textures.
+- Do not hide missing entities by weakening assertions or changing capture
+  thresholds.
+- Do not broaden into a renderer rewrite, installer, or audio task.
+
+### Acceptance
+
+- A human-readable reference frame shows the world, player, hands, and weapon
+  for an input that contains them, or each absent item has a measured named
+  reason.
+- World and model materials are visibly bound to the intended resources.
+- Before/after screenshots, region hashes, traces, and mutation evidence are
+  tied to the final executable.
+- No release claim is made until this gate passes on the merged head.
+
 ## Integration Order After Task Delivery
 
-1. AI-A through AI-D start in separate worktrees from `4360403`. Code and
+1. T9 and T10 start in separate worktrees from the merged T6-T8 head. Code and
    static inspection may proceed in parallel immediately.
 2. Product builds, renderer launches, audio device checks, mutations, and soak
    tests are queued one at a time by the coordinator; none may overlap another

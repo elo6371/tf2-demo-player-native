@@ -1,5 +1,26 @@
 # TF2_Native_Test
 
+## Current integration status (2026-10-17)
+
+The integration branch now includes T6 ViewModel animation binding, T7 audio
+content coverage, and T8 world-render reliability. T6 and T7 focused gates
+passed on their delivery commits; T8 forward reliability and world-material
+checks passed, while T6/T8 render-tier mutation checks were intentionally not
+rerun after delivery. The full 24-step chain is not a per-task gate and has not
+been rerun after these merges.
+
+The release blocker is visual correctness, not counters: the current user
+visible frame still needs a real screenshot review for world materials, player
+entities, hands, weapons, and ViewModel placement. T10 is assigned to create
+that baseline and add region-level visual assertions. Until T10 passes on the
+merged head, the product is a validation prototype and is not a release.
+
+T9 resource discovery/startup and T10 visual correctness may be developed in
+parallel in separate worktrees. Builds, captures, mutations, device checks,
+and soak runs remain serial. Task branches must run focused gates only; the
+full `verify-all.sh --quick` chain is reserved for the post-merge release
+boundary.
+
 ## 当前整合状态（2026-10-14）
 
 GitHub 默认展示分支为 `p0-entity-protocol`。当前整合基线为 `be27383`（合并 `task/world-render-followup@e50b585`）：已加入 skybox 几何绘制、VIS 逐三角形裁剪、atlas 宽度选择和对应门禁修复；`world-material-check.sh` 正向 117/117、mutation 全部捕获，`verify-fast.sh` 43/43。完整 `verify-all.sh` 尚未运行。
