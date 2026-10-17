@@ -30,8 +30,8 @@ queue, and they may not merge until T5 establishes the release baseline.
 | T6 ViewModel animation binding | done / merged | Entity animation binding and ViewModel sequence selection | complete | complete |
 | T7 Audio content coverage | done / merged | Music, TempEntity/PCF, voice, and MP3 paths | complete | complete |
 | T8 World rendering reliability | done / merged | SUNSHINE device failure and world material fallbacks | complete | complete |
-| T9 Resource discovery and startup | done / pushed | Download-map lookup, title parser compatibility, startup packaging facts | complete | complete |
-| T10 Visual correctness baseline | next | World, player entity, hands, weapon, and ViewModel screenshot correctness | Yes | Yes |
+| T9 Resource discovery and startup | merged | Download-map lookup, title parser compatibility, startup packaging facts | complete | complete |
+| T10 Visual correctness baseline | merged with limitations | World, player entity, hands, weapon, and ViewModel screenshot correctness | F1/F2/F3 remain open | complete |
 
 Parallel development means code and static inspection in independent worktrees.
 Builds, product launches, captures, mutation suites, real-device runs, and soak
@@ -347,6 +347,46 @@ reproduced cause for world, player entity, hands, weapon, and ViewModel draws.
 - Before/after screenshots, region hashes, traces, and mutation evidence are
   tied to the final executable.
 - No release claim is made until this gate passes on the merged head.
+
+### Delivery (2026-10-17, branch task/visual-baseline)
+
+Delivered per the staged-diagnosis update (c4fb5e4), reference
+`tf/demos/autorecord_2026-07-02_13-26-46.dem`, map `pl_odyssey.bsp`,
+first-person, tick 2000. Full narrative and numbers:
+`evidence/visual-baseline/DIAGNOSIS.md`.
+
+- Fixed (world region, first root cause): the pvs clip clustered the
+  NORMALIZED observer point as if it were map coordinates -- every camera read
+  as one fixed cluster (2017) and the clip hid an arbitrary 41500 of 99612
+  triangles. Fix: `Renderer::observerFocusMapWorld`, the inverse of the world
+  conversion, plus an `eyeMap=` field on the vis trace line. Verified: cluster
+  2017 -> 1032 (probe agrees: 1032/1021), hidden 41500 -> 36298.
+- Fixed (diagnostic): `--debug-camera` was cleared by the first frame's
+  camera-mode transition and never worked; every earlier "top-down" reading
+  was the default orbit camera. Fix: per-frame idempotent apply. Three
+  positions now produce three views (was: byte-identical frames).
+- Counters on file (task step 3): geometry census (99612 triangles, 47232
+  displacement, 4790 degenerate, maxEdge 1559.8), material lookup
+  (distinct=108 tiled=57 vmtMissing=29 vtfTooLarge=43 downscaled=43
+  fromPakfile=23), atlas coverage 98.7%, vis drawn 63314/99612. The 512 cap
+  was NOT changed; its rejection counts are now measured.
+- Gate: `visual-baseline-check.sh` pins the probe census, the trace (material
+  fetch, vis line with eyeMap, cull line) and measurable object presence in
+  four world regions; mutations M1 (eye-space revert) and M2 (world cull
+  default) both redden it and restore byte-identical. Forward + mutation run:
+  PASS.
+- Open, split out as follow-ups (per step 7):
+  - **F1 world completeness / displacement terrain**: with vis and culling
+    off, large clear-colour voids remain and terrain albedo is absent
+    (NATURE/BLEND materials render flat). Displacement decode arithmetic
+    verified consistent (727360 = 36368 verts x 20 bytes exactly); winding is
+    ~97% uniform so no global flip explains it; both net winding conventions
+    rendered, neither completes the world. The winding-orientation experiment
+    was REMOVED from the delivery; shipped winding is byte-identical to HEAD.
+  - **F2 hands/arms mesh decode** (carried from the animation-binding task):
+    c_sniper_arms decodes one 600-vertex range; hands do not draw.
+  - **F3 pl_odyssey sky reading**: `state=unavailable ... reason=skybox draw
+    disabled by the caller` although the caller passed no sky flag.
 
 ## Integration Order After Task Delivery
 

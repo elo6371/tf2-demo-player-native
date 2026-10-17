@@ -1,5 +1,8 @@
 #include "native_ui.h"
 
+#include "asset_root.h"
+#include "map_lookup.h"
+#include "vpk_archive.h"
 #include "viewmodel.h"
 
 #include <Windows.h>
@@ -383,9 +386,25 @@ void NativeUiController::refreshResourceState() {
   bspAvailable_ = false;
   missingResourceCount_ = 0;
   if (!hasLoadedDemo()) return;
-  const auto mapPath = settings_.tfRoot / L"maps" /
-    std::filesystem::path(std::wstring(header_.mapName.begin(), header_.mapName.end()) + L".bsp");
-  bspAvailable_ = pathExists(mapPath);
+  const auto plan = planMapLookup(header_.mapName);
+  if (plan.nameUsable) {
+    const auto root = AssetRoot::fromPath(settings_.tfRoot);
+    for (const auto& candidate : plan.candidates) {
+      if (!candidate.packed) {
+        if (pathExists(settings_.tfRoot / std::filesystem::path(candidate.relativePath))) {
+          bspAvailable_ = true;
+          break;
+        }
+        continue;
+      }
+      std::vector<std::filesystem::path> archives;
+      root.archives().collectContaining(candidate.relativePath, archives);
+      if (!archives.empty()) {
+        bspAvailable_ = true;
+        break;
+      }
+    }
+  }
   if (!tfRootAvailable_) ++missingResourceCount_;
   if (!bspAvailable_) ++missingResourceCount_;
 }

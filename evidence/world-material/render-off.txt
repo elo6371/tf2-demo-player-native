@@ -1,2 +1,2 @@
 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller
-gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=2940 clusteredTriangles=0 hiddenTriangles=0 withoutCluster=0 inputTriangles=0 drawnTriangles=200000 clipApplied=0 state=disabled reason=vis clip disabled by the caller
+gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=2940 clusteredTriangles=0 hiddenTriangles=0 withoutCluster=0 inputTriangles=0 drawnTriangles=200000 clipApplied=0 state=disabled eyeMap=(368.0,372.0,344.0) reason=vis clip disabled by the caller

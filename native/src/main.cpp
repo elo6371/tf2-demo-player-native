@@ -144,6 +144,10 @@ POINT g_lastMouse{};
 // decideCameraSceneAction and the counters below are what the trace reports
 // and camera-ui-check.sh pins.
 tf2::native::CameraModeController g_cameraMode;
+bool g_debugCamera = false;
+float g_debugCameraEye[3] = {0.0f, 0.0f, 0.0f};
+float g_debugCameraPitch = 0.0f;
+float g_debugCameraYaw = 0.0f;
 tf2::native::PauseKeyController g_pauseKey;
 tf2::native::CameraMode g_lastAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
@@ -902,6 +906,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool worldSkyGiven = false;
   bool worldVisClipRequested = true;
   bool worldVisClipGiven = false;
+  // T10 diagnostic: the world pass rasterises with back-face culling by
+  // default; --no-world-cull turns it off for one capture so the same frame can
+  // be drawn culled and unculled and the missing faces attributed to the
+  // winding. Same given/requested shape as the sky and vis switches above.
+  bool worldCullRequested = true;
+  bool worldCullGiven = false;
   // T2 (2026-10-14): the water surface follows the same shape as T1's two
   // switches -- on by default, with an explicit off switch -- for the same
   // reason: "the water is drawn" is only a reading if "the water is not drawn"
@@ -936,8 +946,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         worldSkyRequested = false; worldSkyGiven = true;
       } else if (wcscmp(arguments[i], L"--world-vis-clip") == 0) {
         worldVisClipRequested = true; worldVisClipGiven = true;
+      } else if (wcscmp(arguments[i], L"--debug-camera") == 0 && i + 5 < argumentCount) {
+        // T10 diagnostic: a fixed camera in MAP coordinates, north-up. Freezes
+        // the per-frame camera so a frame can be compared across builds without
+        // the observer view moving underneath it.
+        g_debugCamera = true;
+        g_debugCameraEye[0] = _wtof(arguments[++i]);
+        g_debugCameraEye[1] = _wtof(arguments[++i]);
+        g_debugCameraEye[2] = _wtof(arguments[++i]);
+        g_debugCameraPitch = _wtof(arguments[++i]);
+        g_debugCameraYaw = _wtof(arguments[++i]);
       } else if (wcscmp(arguments[i], L"--no-world-vis-clip") == 0) {
         worldVisClipRequested = false; worldVisClipGiven = true;
+      } else if (wcscmp(arguments[i], L"--world-cull") == 0) {
+        worldCullRequested = true; worldCullGiven = true;
+      } else if (wcscmp(arguments[i], L"--no-world-cull") == 0) {
+        worldCullRequested = false; worldCullGiven = true;
       } else if (wcscmp(arguments[i], L"--world-water") == 0 && i + 1 < argumentCount) {
         // on|off, and nothing else: a switch that accepts any string is a switch
         // that silently does nothing on a typo.
@@ -1836,27 +1860,114 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
     if (displayMap.valid) {
-      std::unordered_set<std::string> seenMaterials;
-      for (const auto& triangle : displayMap.triangles) {
-        if (worldTextures.size() >= 64u || triangle.material.empty() || !seenMaterials.insert(triangle.material).second) continue;
-        const auto materialPath = tf2::native::VmtParser::resourcePath(triangle.material, ".vmt");
+      // T10: what the texture fetch actually did. The reference frame shows
+      // whole surfaces flat, and this loop is where a material leaves the
+      // textured path silently -- capped, unreadable, no $basetexture, VTF
+      // unreadable, or larger than the 512-texel tile. Each exit is counted, and
+      // the counts are printed, so "the map drew flat" becomes a number with a
+      // reason instead of a look.
+      std::size_t fetchDistinct = 0, fetchCapped = 0, fetchVmtMissing = 0, fetchVmtNoBase = 0;
+      std::size_t fetchVtfMissing = 0, fetchVtfTooLarge = 0, fetchDecodeEmpty = 0, fetchTiled = 0;
+      std::size_t fetchMaxWidth = 0, fetchMaxHeight = 0;
+      std::size_t fetchFromPakfile = 0, fetchDownscaled = 0;
+      // The atlas is a 64-tile grid, so a map with more materials than that
+      // draws the remainder flat. Which 64 matters: choosing them in triangle
+      // order (the previous behaviour) left the biggest surfaces flat while a
+      // one-triangle trim got a tile. Order the materials by the triangles they
+      // cover, largest first, and cut there.
+      std::vector<std::pair<std::size_t, std::string>> materialOrder;
+      {
+        std::unordered_map<std::string, std::size_t> coverage;
+        for (const auto& triangle : displayMap.triangles) {
+          if (triangle.material.empty()) continue;
+          ++coverage[triangle.material];
+        }
+        materialOrder.reserve(coverage.size());
+        for (const auto& entry : coverage) materialOrder.emplace_back(entry.second, entry.first);
+        std::sort(materialOrder.begin(), materialOrder.end(), [](const auto& l, const auto& r) {
+          return l.second != r.second ? l.second > r.second : l.first < r.first;
+        });
+      }
+      // A VTF larger than the tile is downscaled to the tile instead of being
+      // dropped: measured on pl_odyssey, 42 of 108 materials shipped
+      // 1024-wide/2048-tall textures and every one of them drew flat.
+      const auto boxDownscale = [](const std::vector<std::uint8_t>& source, UINT width, UINT height,
+                                   UINT limit, std::vector<std::uint8_t>& out, UINT& outWidth, UINT& outHeight) {
+        if (width <= limit && height <= limit) {
+          out = source; outWidth = width; outHeight = height;
+          return true;
+        }
+        const float scale = static_cast<float>(limit) / static_cast<float>(std::max(width, height));
+        outWidth = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(width) * scale));
+        outHeight = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(height) * scale));
+        if (outWidth == 0 || outHeight == 0) return false;
+        out.assign(static_cast<std::size_t>(outWidth) * outHeight * 4u, 0);
+        for (UINT y = 0; y < outHeight; ++y) {
+          const UINT sy0 = static_cast<UINT>(static_cast<std::uint64_t>(y) * height / outHeight);
+          const UINT sy1 = std::max<UINT>(sy0 + 1, static_cast<UINT>(static_cast<std::uint64_t>(y + 1) * height / outHeight));
+          for (UINT x = 0; x < outWidth; ++x) {
+            const UINT sx0 = static_cast<UINT>(static_cast<std::uint64_t>(x) * width / outWidth);
+            const UINT sx1 = std::max<UINT>(sx0 + 1, static_cast<UINT>(static_cast<std::uint64_t>(x + 1) * width / outWidth));
+            std::size_t sum[4] = {0, 0, 0, 0};
+            UINT count = 0;
+            for (UINT sy = sy0; sy < sy1 && sy < height; ++sy) {
+              for (UINT sx = sx0; sx < sx1 && sx < width; ++sx) {
+                const std::size_t at = (static_cast<std::size_t>(sy) * width + sx) * 4u;
+                for (int c = 0; c < 4; ++c) sum[c] += source[at + static_cast<std::size_t>(c)];
+                ++count;
+              }
+            }
+            if (count == 0) count = 1;
+            const std::size_t at = (static_cast<std::size_t>(y) * outWidth + x) * 4u;
+            for (int c = 0; c < 4; ++c) out[at + static_cast<std::size_t>(c)] = static_cast<std::uint8_t>(sum[c] / count);
+          }
+        }
+        return true;
+      };
+      for (const auto& entry : materialOrder) {
+        const std::string& materialName = entry.second;
+        ++fetchDistinct;
+        if (worldTextures.size() >= 64u) { ++fetchCapped; continue; }
+        const auto materialPath = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
         auto materialBytes = readFile(assets.tfDirectory / std::filesystem::path(materialPath));
         if (materialBytes.empty()) for (const auto& archive : soundArchives) {
           materialBytes = archive->read(materialPath); if (!materialBytes.empty()) break;
         }
+        if (materialBytes.empty() && !mapBytes.empty()) {
+          std::string pakReason;
+          if (tf2::native::bspPakfileEntry(mapBytes, materialPath, materialBytes, &pakReason)) ++fetchFromPakfile;
+        }
         tf2::native::VmtMaterial material;
-        if (materialBytes.empty() || !tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)
-            || material.baseTexture.empty()) continue;
+        if (materialBytes.empty()) { ++fetchVmtMissing; continue; }
+        if (!tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)
+            || material.baseTexture.empty()) { ++fetchVmtNoBase; continue; }
         const auto texturePath = tf2::native::VmtParser::resourcePath(material.baseTexture, ".vtf");
         auto textureBytes = readFile(assets.tfDirectory / std::filesystem::path(texturePath));
         if (textureBytes.empty()) for (const auto& archive : soundArchives) {
           textureBytes = archive->read(texturePath); if (!textureBytes.empty()) break;
         }
+        if (textureBytes.empty() && !mapBytes.empty()) {
+          std::string pakReason;
+          if (tf2::native::bspPakfileEntry(mapBytes, texturePath, textureBytes, &pakReason)) ++fetchFromPakfile;
+        }
         tf2::native::VtfTexture texture;
-        if (textureBytes.empty() || !texture.parse(textureBytes) || texture.header().width > 512 || texture.header().height > 512) continue;
+        if (textureBytes.empty() || !texture.parse(textureBytes)) { ++fetchVtfMissing; continue; }
+        if (texture.header().width > fetchMaxWidth) fetchMaxWidth = texture.header().width;
+        if (texture.header().height > fetchMaxHeight) fetchMaxHeight = texture.header().height;
+        if (texture.header().width > 512 || texture.header().height > 512) ++fetchVtfTooLarge;
         auto rgba = texture.decodeRgba(textureBytes);
-        if (!rgba.empty()) worldTextures.push_back({triangle.material, std::move(rgba), texture.header().width, texture.header().height});
+        if (rgba.empty()) { ++fetchDecodeEmpty; continue; }
+        std::vector<std::uint8_t> tiledPixels;
+        UINT tiledWidth = texture.header().width, tiledHeight = texture.header().height;
+        if (!boxDownscale(rgba, texture.header().width, texture.header().height, 512,
+                          tiledPixels, tiledWidth, tiledHeight)) { ++fetchDecodeEmpty; continue; }
+        if (tiledWidth != texture.header().width || tiledHeight != texture.header().height) ++fetchDownscaled;
+        ++fetchTiled;
+        worldTextures.push_back({materialName, std::move(tiledPixels), tiledWidth, tiledHeight});
       }
+      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu",
+        fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
+        fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled);
     }
     if (!displayVtf.empty()) {
       tf2::native::VtfTexture texture;
@@ -2734,9 +2845,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       const bool skyTextureUploaded = renderer.uploadWorldSky(skyCapture.faces, &skyUploadError);
       const bool skyGeometryUploaded = renderer.uploadWorldSkyGeometry(skyVertices);
     traceFmt("gpu: reload-stage stage=sky lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
-      renderer.setWorldSkyEnabled(skyEnabled && skyTextureUploaded && skyGeometryUploaded);
       worldSkyReason = skyEnabled ? (skyUploadError.empty() ? skyDraw.reason : skyUploadError)
         : "skybox draw disabled by the caller";
+      renderer.setWorldSkyEnabled(skyEnabled && skyTextureUploaded && skyGeometryUploaded, worldSkyReason);
       const auto skySample = renderer.worldMaterialSampleState();
       // Upload facts only: what the box is made of and why it is not drawn when
       // it is not. The draw count is deliberately absent -- this line is emitted
@@ -2939,11 +3050,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         case tf2::native::WorldLightmapStatus::FallbackUnlit: lightmapStatusName = "fallback-unlit"; break;
         case tf2::native::WorldLightmapStatus::Active: lightmapStatusName = "active"; break;
       }
-      traceFmt("gpu: world lightmap status=%s intensity=%.3f atlas=%d bump=%d env=%d vertices=%u lightmapped=%u",
+      traceFmt("gpu: world lightmap status=%s intensity=%.3f atlas=%d bump=%d env=%d vertices=%u lightmapped=%u bounds=(%.2f,%.2f,%.2f)..(%.2f,%.2f,%.2f)",
         lightmapStatusName, worldSample.lightmapIntensity,
         worldSample.lightmapAtlasBound ? 1 : 0, worldSample.bumpTextureBound ? 1 : 0,
         worldSample.envTextureBound ? 1 : 0, worldSample.worldVertexCount,
-        worldSample.lightmappedVertexCount);
+        worldSample.lightmappedVertexCount,
+        worldSample.convertedMin[0], worldSample.convertedMin[1], worldSample.convertedMin[2],
+        worldSample.convertedMax[0], worldSample.convertedMax[1], worldSample.convertedMax[2]);
     // The env pass reads back as a mode rather than as a bound flag: approximate-2d
     // with a texture bound and six-face with a cube bound are the two states the
     // pixel shader branches on, and 'bound' alone cannot tell them apart.
@@ -2958,7 +3071,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // frame loop instead, once the first clip has run, because a reading about
       // a draw has to be taken from the frame that drew.
       float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
-      if (!renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
+      // T10 fix: the MAP-space eye. observerFocusWorld() hands back the
+      // normalized unit-box point the renderer cameras against; clusterAt
+      // walks leaves in map units. Feeding it the normalized point pinned the
+      // pvs to whatever leaf covers (±0.4, ±0.9, 0.1..0.9) in map coordinates
+      // -- cluster 2017 for every camera position this task measured -- and
+      // the clip hid an arbitrary half of the map from a place nobody was
+      // looking at.
+      if (!renderer.observerFocusMapWorld(eyeX, eyeY, eyeZ)) {
         // No observer yet: the first triangle's own vertex is a point the map
         // certainly contains, and clusterAt answers -1 for a point in no leaf,
         // which the line then reports rather than hides.
@@ -3211,7 +3331,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       return;
     }
     float eyeX = worldVisCameraEye[0], eyeY = worldVisCameraEye[1], eyeZ = worldVisCameraEye[2];
-    if (renderer.observerFocusWorld(eyeX, eyeY, eyeZ)) {
+    // T10 fix: map-space eye for a map-space cluster query (see the fill above).
+    if (renderer.observerFocusMapWorld(eyeX, eyeY, eyeZ)) {
       worldVisCameraEye[0] = eyeX; worldVisCameraEye[1] = eyeY; worldVisCameraEye[2] = eyeZ;
     }
     const int cameraCluster = tf2::native::BspParser::clusterAt(displayMap, eyeX, eyeY, eyeZ);
@@ -3277,7 +3398,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     const int cameraCluster = sample.worldVisCameraCluster;
     traceFmt("gpu: world vis cameraCluster=%d visibleFromCamera=%d clusters=%d"
       " clusteredTriangles=%zu hiddenTriangles=%zu withoutCluster=%zu"
-      " inputTriangles=%zu drawnTriangles=%zu clipApplied=%d state=%s reason=%s",
+      " inputTriangles=%zu drawnTriangles=%zu clipApplied=%d state=%s"
+      " eyeMap=(%.1f,%.1f,%.1f) reason=%s",
       cameraCluster,
       cameraCluster >= 0
         ? tf2::native::BspParser::countVisibleClusters(displayMap, cameraCluster) : -1,
@@ -3287,7 +3409,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldVisInputTriangles, sample.worldVisDrawnTriangles,
       sample.worldVisClipApplied ? 1 : 0,
       tf2::native::worldVisClipStateName(sample.worldVisClipState),
+      worldVisCameraEye[0], worldVisCameraEye[1], worldVisCameraEye[2],
       sample.worldVisClipReason.empty() ? "-" : sample.worldVisClipReason.c_str());
+    traceFmt("gpu: world cull backfaces=%d mode=%s",
+      sample.worldCullBackfaces ? 1 : 0,
+      sample.worldCullBackfaces ? "cull-back" : "cull-none");
   };
   // The paint ledger: one row per prepared model, written after the GPU upload
   // so `uploaded` reflects what the renderer actually accepted. This is the
@@ -3760,9 +3886,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // behaviour -- clearing the demo view whenever a tick had no observe
       // target -- is exactly the "moved the camera without a target" defect
       // the task names, and HoldCurrent is what replaces it.
-      const tf2::native::CameraMode cameraMode = g_cameraMode.mode();
+      const tf2::native::CameraMode cameraMode = g_debugCamera
+        ? tf2::native::CameraMode::FreeLook : g_cameraMode.mode();
       if (cameraMode != g_lastAppliedCameraMode) {
-        if (cameraMode != tf2::native::CameraMode::FirstPerson) {
+        // T10 fix: the diagnostic debug camera IS a demo view -- it is set once
+        // after the world upload and must survive this transition, or the first
+        // frame clears it and the capture silently falls back to the orbit
+        // camera (which is how two different --debug-camera positions produced
+        // pixel-identical frames).
+        if (cameraMode != tf2::native::CameraMode::FirstPerson && !g_debugCamera) {
           renderer.clearObserverDemoView();
         }
         g_lastAppliedCameraMode = cameraMode;
@@ -3788,6 +3920,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           // camera stays exactly where the user's orbit left it.
           ++g_cameraFreezeFrames;
           break;
+      }
+      // T10 diagnostic camera, applied EVERY frame rather than once: the
+      // one-shot apply after the world upload lost to an ordering this file
+      // could not see -- three different --debug-camera positions captured
+      // byte-identical default-orbit frames. Idempotent per frame, like the
+      // vis clip above: the same numbers every frame cannot drift, and a
+      // capture at tick 2000 is thousands of frames past the upload that
+      // validates the conversion constants.
+      if (g_debugCamera) {
+        renderer.setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1],
+          g_debugCameraEye[2], g_debugCameraPitch, g_debugCameraYaw);
       }
       traceFmt("scene: camera mode=%s target=%d follows=%u holds=%u freeze=%u",
         tf2::native::cameraModeName(cameraMode), haveObserverView ? 1 : 0,
@@ -4553,6 +4696,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // The clip is decided before the draw it governs, so the frame that is
         // captured is a frame that was clipped.
         applyWorldVisClip();
+        // T10 diagnostic: the cull mode is a property of the capture, so it is
+        // (re)stated with the clip -- idempotent, and the reading the trace
+        // prints comes from the renderer after the draw, not from this flag.
+        renderer.setWorldBackfaceCull(worldCullGiven ? worldCullRequested : true);
       }
       // T8 (2026-10-16) diagnostic, the second half of the pair above: if this
       // fires the error was already set when the frame began, so it came from a

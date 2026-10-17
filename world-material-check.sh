@@ -357,14 +357,20 @@ assert_eq "render water = parse water triangles" \
 VIS=$(grep -o "gpu: world vis .*" "$PRODUCT_TRACE" 2>/dev/null | head -1)
 echo "$VIS" >> "$OUT/render-lightmap.txt"
 vfield() { printf '%s\n' "$VIS" | grep -oE "$1=[0-9-]+" | head -1 | cut -d= -f2; }
-assert_eq "render vis camera cluster" "$(vfield cameraCluster)" "2287"
-assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "585"
+# T10 moved these four pins: the cluster used to be computed from the
+# observer's NORMALIZED point fed to clusterAt as map coordinates, which on
+# snakewater answered 2287 for every camera -- the pin was asserting the bug.
+# With Renderer::observerFocusMapWorld feeding the clip the map-space eye, the
+# camera reads its real leaf (639), the pvs answers 611 visible clusters, and
+# the hidden/drawn split moves accordingly (29609/170391 of 200000).
+assert_eq "render vis camera cluster" "$(vfield cameraCluster)" "639"
+assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "611"
 assert_eq "render vis clustered triangles" "$(vfield clusteredTriangles)" "34517"
-assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "29756"
+assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "29609"
 assert_eq "render vis clip applied" "$(vfield clipApplied)" "1"
 assert_eq "render vis clip state" "$(printf '%s\n' "$VIS" | grep -oE 'state=[a-z]+' | head -1 | cut -d= -f2)" "active"
 assert_eq "render vis input triangles" "$(vfield inputTriangles)" "200000"
-assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "170244"
+assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "170391"
 # The identity, not a second pin: what the draw call was given plus what the pvs
 # withheld has to be the whole map. A clip that hid triangles by not uploading
 # them would satisfy the two numbers above and fail this one.
