@@ -1,15 +1,18 @@
 # TF2 Native Demo Player - Next Parallel Task Wave
 
 Date: 2026-10-16
-Planning baseline: `p0-entity-protocol@c9e0cc2`
-Merge prerequisite: T5 must establish the release baseline before T6-T9 merge.
+Planning baseline: `p0-entity-protocol@4360403`
+T5 status: integration and release checks are complete for scheduling. The
+coordinator stopped `verify-all.sh --quick` after step 21/24; steps 22-24 are
+provisionally accepted for task scheduling but remain unverified in the final
+release record.
 
 ## Purpose
 
 T1-T4 delivered the current rendering, audio, manual acceptance, and stability
-evidence. T5 is the current serial task: integrate those deliveries, rerun the
-release checks, and establish a stable baseline. R1-R5 are steps inside T5;
-they are not separate AI assignments.
+evidence. T5 integrated those deliveries and established the current working
+baseline. Its final total-chain run was intentionally stopped after step 21;
+do not start another total-chain run inside T6-T9.
 
 Start the four tasks below now in separate worktrees. Each AI owns one task from
 inspection through implementation, focused verification, evidence, and a
@@ -31,6 +34,22 @@ Parallel development means code and static inspection in independent worktrees.
 Builds, product launches, captures, mutation suites, real-device runs, and soak
 tests share machine resources and must use the single validation queue. Do not
 run them concurrently.
+
+## Validation Cost Rule
+
+T6-T9 must not run `verify-all.sh`, `verify-all.sh --quick`, or any other full
+24-step release chain in their task worktrees. Each owner runs only the focused
+probe, affected gate, and relevant mutation required by that task. A full chain
+is reserved for one release-boundary run after all selected tasks are merged;
+it is never a per-task completion requirement. If a task owner starts a full
+chain accidentally, stop it and preserve the partial log as an interrupted
+run; do not treat the partial result as a task failure or as a release pass.
+
+The coordinator owns the validation queue. Before launching any product check,
+the owner must state the exact command, expected evidence directory, and
+whether it needs a build, capture, device, or soak slot. No task may mutate
+shared evidence, build outputs, locks, or another task's worktree while a
+queued check is running.
 
 ## Shared Project Context
 
@@ -225,17 +244,19 @@ behavior must not be reported as tested.
 
 ## Integration Order After Task Delivery
 
-1. AI-A through AI-D start in separate worktrees from the stated planning
-   baseline. Code and static inspection may proceed while T5 runs.
+1. AI-A through AI-D start in separate worktrees from `4360403`. Code and
+   static inspection may proceed in parallel immediately.
 2. Product builds, renderer launches, audio device checks, mutations, and soak
-   tests are queued one at a time by the coordinator; none may overlap T5's
-   product validation.
-3. T5 establishes and publishes its release baseline before any T6-T9 merge.
-4. Review each task's diff and evidence against its own acceptance criteria.
-5. Merge product changes one task at a time. Resolve shared-file conflicts by
+   tests are queued one at a time by the coordinator; none may overlap another
+   task's runtime validation.
+3. Review each task's diff and evidence against its own acceptance criteria
+   before merge. The interrupted total-chain tail is not replaced by old
+   evidence.
+4. Merge product changes one task at a time. Resolve shared-file conflicts by
    function-level edits; never replace `main.cpp` or renderer files wholesale.
-6. Run affected gates after each merge. Run the full `verify-all.sh --quick`
-   once at the next release boundary, not once per task branch.
+5. Run only affected gates after each merge. Run the full `verify-all.sh --quick`
+   once at the next release boundary, not once per task branch. Do not use an
+   interrupted or provisional chain tail as a substitute for that release run.
 
 ## Delivery Format For Every Owner
 
