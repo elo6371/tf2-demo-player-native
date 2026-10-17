@@ -375,7 +375,14 @@ assert_eq "witness-a sequence inside the entity's own table" "$(field "$LAST_ORD
 assert_eq "witness-a model mismatches" "$(field "$LAST_ORDER" modelMismatch)" "0"
 assert_eq "witness-a bone mismatches" "$(field "$LAST_ORDER" boneMismatch)" "0"
 assert_eq "witness-a the pass drew" "$(field "$LAST_ORDER" drawCalls)" "1"
-assert_eq "witness-a vertices" "$(field "$LAST_ORDER" vertices)" "600"
+# 9996, not 600: `952ddf2` taught the mesh builder to decode every LOD-0
+# descriptor, and this model has two -- a 600-index sleeve on material slot 0 and
+# the 9396-index hands on slot 1. The pin below is the number the pass uploaded;
+# `viewmodel-range-check.sh` is the gate that proves the two ranges and their two
+# material slots are separate, because a single vertex count cannot say that.
+assert_eq "witness-a vertices" "$(field "$LAST_ORDER" vertices)" "9996"
+assert_eq "witness-a ranges" "$(field "$LAST_ORDER" ranges)" "2"
+assert_eq "witness-a distinct material slots bound" "$(field "$LAST_ORDER" boundSlots)" "2"
 assert_eq "witness-a sequence" "$(field "$LAST_VMANIM" sequence)" "29"
 assert_eq "witness-a owner is the view entity" "$(field "$LAST_VMANIM" owner)" "$(field "$LAST_VMANIM" viewEntity)"
 assert_eq "witness-a model index is the entity's own" "$(field "$LAST_VMANIM" modelIndex)" "1032"
@@ -749,7 +756,7 @@ if [ "$MUTATION" -eq 1 ]; then
         # issues no draw call at all. The vertex buffer holds the mesh the
         # companion path uploaded, the request now names the v_* path, and the
         # pass's own "is this state's mesh the one in the buffer" check turns it
-        # off -- so `vertices` still reads the BUFFER's 600 and not a drawn count.
+        # off -- so `vertices` still reads the BUFFER's 9996 and not a drawn count.
         # A mutation whose only trace was a label would be proof of nothing, which
         # is why the absent draw call is a reading here.
         assert_eq "$name: and the mutated pass issues no draw call at all" \

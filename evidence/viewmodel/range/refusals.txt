@@ -1,0 +1,5 @@
+fixture=none rc=0 built=1 ranges=2 error=-
+fixture=descriptor-not-triangles rc=1 built=0 ranges=0 error=descriptor 0 (bodyPart 0 model 0 mesh 0 lod 0) was refused: descriptor is not a bounded triangle list; the mesh is not built from a partial range set
+fixture=descriptor-out-of-bounds rc=1 built=0 ranges=0 error=descriptor 0 (bodyPart 0 model 0 mesh 0 lod 0) was refused: descriptor is not a bounded triangle list; the mesh is not built from a partial range set
+fixture=bone-out-of-range rc=1 built=0 ranges=0 error=descriptor 0 (bodyPart 0 model 0 mesh 0 lod 0) was refused: bind-pose vertex has an out-of-range bone index; the mesh is not built from a partial range set
+fixture=no-descriptors rc=1 built=0 ranges=0 error=model inspection has no renderable descriptors

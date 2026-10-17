@@ -1,0 +1,9 @@
+c_scout_arms.mdl descriptors=1 ranges=1 vertices=13446 built=1
+c_soldier_arms.mdl descriptors=3 ranges=3 vertices=13074 built=1
+c_pyro_arms.mdl descriptors=3 ranges=3 vertices=8412 built=1
+c_demo_arms.mdl descriptors=2 ranges=2 vertices=10086 built=1
+c_heavy_arms.mdl descriptors=2 ranges=2 vertices=15732 built=1
+c_engineer_arms.mdl descriptors=4 ranges=4 vertices=11736 built=1
+c_medic_arms.mdl descriptors=2 ranges=2 vertices=8640 built=1
+c_sniper_arms.mdl descriptors=2 ranges=2 vertices=9996 built=1
+c_spy_arms.mdl descriptors=1 ranges=1 vertices=11640 built=1

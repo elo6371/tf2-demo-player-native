@@ -1,0 +1,3 @@
+range model=models/weapons/c_models/c_sniper_arms.mdl resolution=found-vpk fixture=none bodyParts=1 bones=58 vvdVertices=2215 vtxDescriptors=2 vtxOutOfBounds=0 targetLod=0 targetDescriptors=2 targetIndices=9996 meshBuilt=1 meshRanges=2 meshVertices=9996 materialTable=available error=-
+range built descriptor=0 first=0 count=600 material=0 name=models/player/sniper/sniper_red maxBone=6 badWeights=0
+range built descriptor=1 first=600 count=9396 material=1 name=models/player/sniper/sniper_handL_red maxBone=57 badWeights=0

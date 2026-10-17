@@ -82,6 +82,15 @@
 #      different sequences with three pairwise-different witness frames; keeps
 #      gate 7's refusal in place and still red; and is honest about the one thing
 #      it cannot show -- see below.
+#   9. viewmodel range -- gate 8 proves the pass draws the entity's model; it does
+#      not ask whether every range of that model is in the buffer. The arms model
+#      is a composite: `c_sniper_arms.mdl` is a 600-index sleeve on material slot 0
+#      and a 9396-index pair of hands on slot 1, and the blocker list's "only one
+#      600-vertex range" is the sleeve alone. This gate pins the descriptor table,
+#      the per-range material slots and bone indices, the four ways a descriptor
+#      can be malformed (each must refuse the model, not draw the part that
+#      survived), the per-frame `ranges`/`boundSlots` readings, and a repeat
+#      capture whose hash must match.
 #
 # WHAT GATE 8 DOES NOT SAY, AND WHY THE HONESTY MATTERS
 #   On both pinned recordings the entity carries sequences 1, 29 and 30, and the
@@ -147,6 +156,11 @@ export VIEWMODEL_ANIMATION_TRACE_DIR="$OUT/viewmodel-animation"
 # out of the committed tree; naming it here keeps the tier's one claim -- that
 # everything this run produces lands in $OUT -- literally true.
 export VIEWMODEL_COMPANION_TRACE_DIR="$OUT/viewmodel-companion"
+# viewmodel-range writes two captured frames, four probe dumps and the product's
+# reading lines, and its default is the committed `evidence/viewmodel/range/`.
+# Redirected for the same reason as the three above: a tier run must not rewrite a
+# committed record.
+export VIEWMODEL_RANGE_EVIDENCE_DIR="$OUT/viewmodel-range"
 
 MUTATION=0
 BUILD=1
@@ -181,7 +195,7 @@ if [ "$BUILD" -eq 1 ]; then
   # (Measured 2026-10-11: without them gate 6 exits on its preflight's
   # `FATAL: missing input: native/build-nmake/viewmodel_contract_probe.exe` on a
   # tree where verify-fast had not run.)
-  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe viewmodel_animation_probe
+  bash build-target.sh tf2_demo_native entity_model_probe resource_reachability_probe world_material_probe material_chain_probe weapon_animation_probe viewmodel_contract_probe viewmodel_fov_probe viewmodel_animation_probe viewmodel_range_probe
   rc_build=$?
   echo "build_rc=$rc_build"
   [ "$rc_build" -eq 0 ] || { echo "VERIFY-RENDER=FAIL (build)"; exit 1; }
@@ -224,6 +238,7 @@ gate weapon-animation      weapon-animation-check.sh      'WEAPON-ANIMATION=(PAS
 gate viewmodel-contract    viewmodel-contract-check.sh    'VIEWMODEL-CONTRACT=(PASS|FAIL)'    VIEWMODEL_CONTRACT_OUT
 gate viewmodel-animation   viewmodel-animation-check.sh   'VIEWMODEL-ANIMATION=(PASS|FAIL)'   VIEWMODEL_ANIMATION_TRACE_DIR
 gate viewmodel-companion   viewmodel-companion-check.sh   'VIEWMODEL-COMPANION=(PASS|FAIL)'   VIEWMODEL_COMPANION_TRACE_DIR
+gate viewmodel-range       viewmodel-range-check.sh       'VIEWMODEL-RANGE=(PASS|FAIL)'       VIEWMODEL_RANGE_EVIDENCE_DIR
 
 echo
 echo "=== 3/4 the material chain's synthetic layer ==="
@@ -280,7 +295,7 @@ fi
 echo
 echo "gates_ok=$ok gates_bad=$bad"
 if [ "$bad" -eq 0 ]; then
-  echo "VERIFY-RENDER=PASS ($ok/9 gates, mutation=$MUTATION)"
+  echo "VERIFY-RENDER=PASS ($ok/10 gates, mutation=$MUTATION)"
   exit 0
 fi
 echo "VERIFY-RENDER=FAIL ($bad red)"
