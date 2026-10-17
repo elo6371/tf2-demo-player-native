@@ -51,6 +51,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <map>
 #include <set>
@@ -913,16 +915,38 @@ int selfTest(const tf2::native::AssetRoot* root) {
       otherBinding != nullptr ? otherBinding->anims.animations.size() : 0,
       controlShape.animated, controlShape.multiFrame, controlShape.maxFrames,
       witnessSequence, witnessFrames);
-    // The raw file, word for word, read from the bytes this decoder just parsed
-    // rather than from the fields it decoded out of them. This runs only when
-    // the sequence table and the bytes are ONE file (the model animates itself):
-    // once the binding adopts a declared companion, `anims.sequences` is the base
-    // model's list while `anims.bytes` is the companion's, so per-sequence word
-    // offsets into those bytes would describe the wrong table. The adopted case's
-    // raw numbers are printed by `vmproof-companion`/`vmproof-control` from the
-    // decoded fields instead.
-    if (binding != nullptr && binding->anims.bytes.size() > 400 && !binding->separateAnimSource) {
-      const auto& raw = binding->anims.bytes;
+    // The drawn model's OWN bytes, read through the same VPK route the loader
+    // uses. The sequence table this binding hands out belongs to that file even
+    // when the animation data comes from a declared companion (T6), so the raw
+    // words below are taken from the DRAWN file -- otherwise "the file's own
+    // words" would describe the companion while the table they are compared
+    // against came from the base. For a model that animates itself this is the
+    // same file the binding holds, and the readings do not move.
+    const auto readDrawnBytes = [&](const std::string& path) {
+      std::vector<std::uint8_t> out;
+      const auto candidate = tf2::native::ModelLoader::resolveAsset(*root, path);
+      const auto& archives = root->archives();
+      for (const auto& archivePath : candidate.vpkArchives) {
+        const auto* archive = archives.find(archivePath);
+        if (archive == nullptr || !archive->contains(path)) continue;
+        std::string error;
+        out = archive->read(path, &error);
+        if (!out.empty()) return out;
+      }
+      std::error_code fileError;
+      const auto loose = root->resolve(path);
+      if (std::filesystem::is_regular_file(loose, fileError) && !fileError) {
+        std::ifstream stream(loose, std::ios::binary);
+        if (stream) {
+          out.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+        }
+      }
+      return out;
+    };
+    const auto drawnRawBytes = binding != nullptr
+      ? readDrawnBytes(drawn.path) : std::vector<std::uint8_t>{};
+    if (!drawnRawBytes.empty() && drawnRawBytes.size() > 400) {
+      const auto& raw = drawnRawBytes;
       const std::int32_t rawAnimCount = rawWord(raw, 180);
       const std::int32_t rawAnimIndex = rawWord(raw, 184);
       const std::int32_t rawSeqCount = rawWord(raw, 188);
