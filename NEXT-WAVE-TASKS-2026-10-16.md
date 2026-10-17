@@ -259,27 +259,51 @@ reproduced cause for world, player entity, hands, weapon, and ViewModel draws.
 1. Start from the merged T6-T8 head and capture a visible-window reference on
    one pinned POV demo at a pinned tick. Save the BMP, trace, executable hash,
    GPU adapter, feature level, and all render counters in a new evidence tree.
-2. Inspect the frame in the four required regions: world geometry/materials,
+2. Add a diagnostic-only camera mode (CLI or probe flag) that places the camera
+   above the map with a deterministic target and projection. Capture the same
+   world with the player camera and this top-down camera. This is an experiment,
+   not a release UI feature; do not use it to hide a bad player camera.
+3. Add named counters before changing the material path: input/drawn/degenerate
+   triangles, visible bounds, VMT missing, VTF missing, VTF over-512 rejection,
+   atlas insertion, atlas draw ranges, and material fallback. Measure the
+   current 512 filter on the exact pinned frame instead of inferring it from
+   the image.
+4. Run a flat-color or lightmap-only diagnostic using the same world geometry.
+   Classify the result with this decision table:
+   - top-down flat frame is blank or clipped: geometry upload, winding, bounds,
+     depth, or camera matrix is the root class;
+   - top-down flat frame is visible but textured frame is broken: material/VTF/
+     atlas binding is the root class;
+   - world is correct but the player is absent: entity model selection,
+     transform, culling, or depth ordering is the root class;
+   - world and player are correct but hands/weapon are absent: ViewModel
+     attachment, model selection, or projection is the root class.
+5. Inspect the frame in the four required regions: world geometry/materials,
    world player entity, ViewModel hands, and ViewModel weapon. Name each absent
    or corrupted region with the responsible draw request, model path, material
    path, transform, and rejection reason.
-3. Reproduce each defect with a focused switch or probe. A counter changing is
+6. Reproduce each classified defect with a focused switch or probe. A counter changing is
    insufficient; each fix needs a before/after screenshot and a region diff.
-4. Fix world atlas/material binding and entity/ViewModel model selection only
-   where the reference frame proves the cause. Preserve explicit refusal and
-   fallback readings for missing resources.
-5. Verify skinning, attachment transforms, hand model selection, weapon model
+7. Fix only the first demonstrated root cause. Do not implement multi-atlas,
+   entity rendering, and ViewModel placement changes in one speculative patch.
+   If the experiment proves independent root causes, stop after the diagnostic
+   evidence and open a follow-up task with the exact failing region and input.
+   Preserve explicit refusal and fallback readings for missing resources.
+8. Verify skinning, attachment transforms, hand model selection, weapon model
    selection, depth/culling, and camera placement on the same pinned tick.
-6. Add a visual gate requiring non-empty world geometry, a visible player
+9. Add a visual gate requiring non-empty world geometry, a visible player
    entity, visible hands, and a visible weapon where the input contains them;
    include negative controls for demos without those entities.
-7. Run only the focused visual gate, affected render gates, and their mutation.
+10. Run only the focused visual gate, affected render gates, and their mutation.
    Do not run the full 24-step chain from this task worktree.
 
 ### Boundaries
 
 - Do not accept a frame because it is non-flat or because a switch changes
   pixels; the expected object must be visible in the correct region.
+- Do not implement the 512 texture cap change until the new rejection counter
+  proves it is material to the pinned frame; the current top-64 coverage number
+  alone does not identify the loss mechanism.
 - Do not replace real models with placeholder geometry or synthetic textures.
 - Do not hide missing entities by weakening assertions or changing capture
   thresholds.
