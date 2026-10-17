@@ -51,6 +51,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <map>
 #include <set>
@@ -486,7 +488,8 @@ int selfTest(const tf2::native::AssetRoot* root) {
     "model-unresolved", "model-mismatch", "drawn-matched", "path-separator",
     "no-sequence", "negative-sequence", "sequence-past-own-table", "sequence-in-range-unbound",
     "accepted",
-    "bone-mismatch", "no-binding", "unresolved-drawn", "cycle-witness", "cycle-applied",
+    "bone-mismatch", "no-binding", "unresolved-drawn", "companion-motion", "cycle-witness",
+    "cycle-applied",
   };
   constexpr std::size_t fixtureNameCount = sizeof(fixtureNames) / sizeof(fixtureNames[0]);
   ProofReport report;
@@ -607,7 +610,11 @@ int selfTest(const tf2::native::AssetRoot* root) {
       return outcome;
     };
 
-    // The accepting input. Every fixture below is this, one field changed.
+    // The accepting input. Every fixture below is this, one field changed. The
+    // sequence is the first one the model's DECLARED animations companion binds
+    // BY NAME (`r_handposes`); sequence 0 names the model's own one-frame stub
+    // and has no same-named companion sequence, which is why it is the no-pose
+    // fixture below rather than the accepting one.
     tf2::native::ViewModelAnimationInput input;
     input.entityPresent = true;
     input.entityIndex = 7;
@@ -618,7 +625,7 @@ int selfTest(const tf2::native::AssetRoot* root) {
     input.modelIndex = 100;          // a demo precache slot
     input.entityModelPath = drawn.path;
     input.hasSequence = true;
-    input.sequence = 0;
+    input.sequence = 1;
 
     // (a) the two absences, kept apart: no entity at all, and an entity whose
     //     owner is somebody else.
@@ -763,31 +770,34 @@ int selfTest(const tf2::native::AssetRoot* root) {
             "the entity's own table and the v_* table are different sizes");
     }
     // (e) inside the entity's own table and still naming no pose -- the shape the
-    //     pinned recordings actually show. Sequence 1 sits inside the companion
-    //     model's own table and reaches no animation descriptor at all
-    //     (`vmproof-rawblend` counts 53 of the 54 entries with no blend block), so
-    //     the range question and the pose question must be able to answer
-    //     differently. Folded into one reading, the recording's own state would be
-    //     indistinguishable from an index defect, and a defect is what this
+    //     pinned recordings actually show. Sequence 0 carries the model's own
+    //     stub label (`c_soldier_arms`), which none of the companion's 97
+    //     sequences carries, so the range question and the pose question must be
+    //     able to answer differently. Folded into one reading, a real state would
+    //     be indistinguishable from an index defect, and a defect is what this
     //     round is supposed to catch.
     {
       auto fixture = input;
-      fixture.sequence = 1;
+      fixture.sequence = 0;
       const auto outcome = resolve(fixture, drawn, binding);
       check(outcome.sequenceInRange,
             "a sequence inside the entity's own table reads as in range");
       check(outcome.status == tf2::native::ViewModelAnimationStatus::Missing,
-            "and still resolves to missing, because that entry names no pose");
+            "and still resolves to missing, because its name has no companion binding");
       check(outcome.bindPose, "an entry with no pose leaves the bind pose");
       check(outcome.entityModelMatchesDrawn,
             "the model proof is unaffected by the pose being absent");
     }
     // (f) in range -- the acceptance branch, which has to be reachable or (d) is
-    //     a constant with extra steps
-    input.sequence = 0;
+    //     a constant with extra steps. The accepted sequence is the by-name one:
+    //     the label is asserted, because "accepted" is only meaningful if the
+    //     binding landed on the sequence the entity's own table names.
+    input.sequence = 1;
     const auto outcomeInRange = resolve(input, drawn, binding);
     check(outcomeInRange.status == tf2::native::ViewModelAnimationStatus::Ok,
-          "sequence 0 resolves to ok");
+          "sequence 1 (r_handposes, bound by name) resolves to ok");
+    check(outcomeInRange.sequenceLabel == "r_handposes",
+          "the accepted pose carries the entity's own sequence label");
     check(!outcomeInRange.bindPose, "ok does not leave the bind pose");
     check(outcomeInRange.entityModelMatchesDrawn, "ok reports the model match");
     check(outcomeInRange.sequenceInRange, "ok reports the sequence as inside the entity's own table");
@@ -834,14 +844,15 @@ int selfTest(const tf2::native::AssetRoot* root) {
     //     carries no animation binding at all -- hardcoding either one would turn
     //     the witness into a fact about a file instead of a fact about the
     //     decoder, and the failure would surface as "the cycle is ignored".
-    // What either model's own table offers, COUNTED rather than sampled. This is
-    // the premise the cycle witness needs, and it is reported instead of assumed
-    // because the two models do not answer it the same way: the `v_*` file is a
-    // multi-frame animation set, and the composite arms file is a table of
-    // one-frame poses -- one per weapon configuration. A witness hardcoded to the
-    // `v_*` answer would read as "the cycle is ignored" on the model this round
-    // actually draws, and a witness hardcoded to the companion's answer would
-    // stop covering the branch that samples a frame at all.
+    // What the binding's table offers, COUNTED rather than sampled. This is the
+    // premise the cycle witness needs, and it is reported instead of assumed
+    // because the two bindings answer it differently: the `v_*` control is a
+    // multi-frame animation set of its own, while the composite arms model
+    // reaches multi-frame data only through the companion it declares -- the base
+    // model's own stub table has a single one-frame animation. A witness
+    // hardcoded to the `v_*` answer would read as "the cycle is ignored" on the
+    // model this round actually draws; a witness hardcoded to the base stub's
+    // answer would stop covering the branch that samples a frame at all.
     struct TableShape {
       std::size_t sequences = 0;
       std::size_t animated = 0;    // sequences that reach an animation descriptor
@@ -904,17 +915,38 @@ int selfTest(const tf2::native::AssetRoot* root) {
       otherBinding != nullptr ? otherBinding->anims.animations.size() : 0,
       controlShape.animated, controlShape.multiFrame, controlShape.maxFrames,
       witnessSequence, witnessFrames);
-    // The raw file, word for word, read from the bytes this decoder just parsed
-    // rather than from the fields it decoded out of them. "One animation, and
-    // every sequence but one carrying no binding" is a large claim about a model
-    // the task is about to draw, and it is the kind of claim a reader cannot
-    // check by rerunning the same decoder -- so the header's own counters, the
-    // sequence table's own words and the strings they point at are printed
-    // beside it. The offsets named here are the v44+ layout this decoder
-    // assumes; if that assumption were wrong, these words would not spell a
-    // sequence label.
-    if (binding != nullptr && binding->anims.bytes.size() > 400) {
-      const auto& raw = binding->anims.bytes;
+    // The drawn model's OWN bytes, read through the same VPK route the loader
+    // uses. The sequence table this binding hands out belongs to that file even
+    // when the animation data comes from a declared companion (T6), so the raw
+    // words below are taken from the DRAWN file -- otherwise "the file's own
+    // words" would describe the companion while the table they are compared
+    // against came from the base. For a model that animates itself this is the
+    // same file the binding holds, and the readings do not move.
+    const auto readDrawnBytes = [&](const std::string& path) {
+      std::vector<std::uint8_t> out;
+      const auto candidate = tf2::native::ModelLoader::resolveAsset(*root, path);
+      const auto& archives = root->archives();
+      for (const auto& archivePath : candidate.vpkArchives) {
+        const auto* archive = archives.find(archivePath);
+        if (archive == nullptr || !archive->contains(path)) continue;
+        std::string error;
+        out = archive->read(path, &error);
+        if (!out.empty()) return out;
+      }
+      std::error_code fileError;
+      const auto loose = root->resolve(path);
+      if (std::filesystem::is_regular_file(loose, fileError) && !fileError) {
+        std::ifstream stream(loose, std::ios::binary);
+        if (stream) {
+          out.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+        }
+      }
+      return out;
+    };
+    const auto drawnRawBytes = binding != nullptr
+      ? readDrawnBytes(drawn.path) : std::vector<std::uint8_t>{};
+    if (!drawnRawBytes.empty() && drawnRawBytes.size() > 400) {
+      const auto& raw = drawnRawBytes;
       const std::int32_t rawAnimCount = rawWord(raw, 180);
       const std::int32_t rawAnimIndex = rawWord(raw, 184);
       const std::int32_t rawSeqCount = rawWord(raw, 188);
@@ -953,17 +985,42 @@ int selfTest(const tf2::native::AssetRoot* root) {
     // is no motion inside a companion sequence to witness, and the honest thing to
     // pin is that fact -- a witness that cannot exist must not be replaced by a
     // witness that reports nothing.
-    check(companionShape.animated == 1,
-          "exactly one of the companion model's sequences reaches an animation descriptor");
-    check(companionShape.multiFrame == 0,
-          "no companion sequence carries more than one frame");
-    check(companionShape.maxFrames == 1,
-          "the companion's single binding is a one-frame pose");
-    // The cycle witness therefore runs on the `v_*` control, which IS a
-    // multi-frame set: the branch that samples a frame from a supplied cycle
-    // stays covered by a live witness even though the model this round draws
-    // cannot exercise it. Which model the witness ran on is printed, so the two
-    // models cannot be confused for one another in the log.
+    // The companion's table, asserted as DATA. Measured on this tree, and printed
+    // raw above: c_soldier_arms.mdl carries a stub of its own (one animation,
+    // `@c_soldier_arms`, one frame) and declares
+    // models/weapons/c_models/c_soldier_animations.mdl, which carries the real
+    // set (109 animations, 97 sequences). The binding now adopts the companion
+    // because it binds STRICTLY MORE of the entity's own sequences by name -- 53
+    // of 54, against the 1 the model's own table can pose -- and the sequence
+    // table stays the entity's own, so the index space does not move. The one
+    // unbound sequence is the stub label itself, asserted as the no-pose case in
+    // (e) above.
+    check(companionShape.animated == 53,
+          "53 of the model's 54 sequences reach an animation descriptor, by name, through its declared companion");
+    check(companionShape.multiFrame == 52,
+          "and 52 of those carry more than one frame");
+    check(companionShape.maxFrames == 89,
+          "the longest of them is 89 frames");
+    check(binding != nullptr && binding->separateAnimSource
+            && binding->animPath.find("c_soldier_animations.mdl") != std::string::npos,
+          "the binding adopted the declared animations companion");
+    // The real motion the adoption buys, resolved the same way the entity's own
+    // sequence would be: inside the entity's table, bound by name, more than one
+    // frame. Without this the adoption could be real and still not reachable.
+    if (companionShape.firstMultiFrame >= 0) {
+      auto motionFixture = input;
+      motionFixture.sequence = companionShape.firstMultiFrame;
+      const auto motion = resolve(motionFixture, drawn, binding);
+      check(motion.status == tf2::native::ViewModelAnimationStatus::Ok,
+            "the first multi-frame sequence bound by name resolves to ok");
+      check(motion.frameCount == companionShape.firstMultiFrameFrames && motion.frameCount > 1,
+            "and reports the multi-frame count its companion animation carries");
+    }
+    // The cycle witness runs on the `v_*` control, which is a multi-frame set of
+    // its own: the branch that samples a frame from a supplied cycle stays
+    // covered by a live witness, and the adopted companion's own multi-frame
+    // reachability is asserted above in its own right. Which model the witness
+    // ran on is printed, so the two cannot be confused for one another in the log.
     check(witnessSequence >= 0,
           "the v_* control model has a sequence with more than one frame");
     if (witnessSequence >= 0) {
@@ -989,11 +1046,12 @@ int selfTest(const tf2::native::AssetRoot* root) {
             "the cycle witness covers the control's skeleton exactly");
     }
     // The companion's accepted pose, read once more for the reading it carries:
-    // the sampling path ran on the model this round draws, and what it can report
-    // is the one frame that model has. Without this the companion's accepted path
-    // would only be read with the frame count unasserted.
-    check(acceptedOutcome.frameCount == companionMaxFrames,
-          "the companion's accepted sequence reports the single frame it carries");
+    // `r_handposes` binds by name to the companion's `saxxy_pose`, which is a
+    // one-frame pose -- the frame count is a reading about that animation, and
+    // the real-motion case above is what keeps "accepted" from always meaning
+    // "one frame".
+    check(acceptedOutcome.frameCount == 1,
+          "the by-name accepted pose reports the one frame that sequence carries");
   } else {
     std::fprintf(stderr,
                  "  NOTE the product cross-check did not run: no --tf-root was given, so\n"

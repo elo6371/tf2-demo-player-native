@@ -20,34 +20,45 @@
 #              c_<class>_arms.mdl (43 sequences, 58 bones for the sniper) and the
 #              pass draws v_<weapon>.mdl (7 sequences, 45 bones for the
 #              scattergun). Measured, not assumed -- and the counts are read from
-#              the models themselves.
+#              the models themselves. T6: the entity's own model declares
+#              c_sniper_animations.mdl and 38 of its 43 sequences reach an
+#              animation descriptor through it BY NAME (the five that do not:
+#              `ref` and the four `rifolver_*` overlays); the base model's own
+#              stub table can pose exactly one sequence.
 #   Section 4  the pairing is READ, not guessed. svc_SetView names the view entity
 #              and m_hOwner pairs it to a ViewModel entity. On the POV recording
 #              that resolves (two entities); on the matcha recording it does NOT
 #              (zero). Both are asserted, because "the pairing works" is true of
 #              one recording rather than in general.
-#   Section 5  the refusals, at the product level, from two directions. (a) The
-#              pass is TOLD to draw the model on its own command line -- what T2
-#              always did -- while the entity names a different model: the proof
-#              refuses, names BOTH paths, and leaves the bind pose. (b) The same
-#              recording in the shipped mode: the model matches, the sequence is
-#              inside the entity's own table, and the POSE is still refused, for a
-#              different and measurable reason. The pair is the round -- the right
-#              model is drawn AND the input is understood, and neither statement
-#              is bought with the other.
-#   Section 6  the accepted pose is REACHABLE and OPT-IN, and on this recording it
-#              is reachable only by CONSTRUCTING the input: the entity carries
-#              sequences 1, 29 and 30 and its model can pose sequence 0 and
-#              nothing else. The index is read out of the model (`firstAnimated`),
-#              named on the command line, and reported on every reading line as
-#              `sequenceOverride=`. The natural run is asserted to accept nothing
-#              at all, so the constructed run is the only acceptance and it is
-#              labelled as constructed.
+#   Section 5  the refusals and the acceptance, at the product level, from two
+#              directions. (a) The pass is TOLD to draw the model on its own
+#              command line -- what T2 always did -- while the entity names a
+#              different model: the proof refuses, names BOTH paths, and leaves
+#              the bind pose. (b) The same recording in the shipped mode: the
+#              model matches, the sequence is inside the entity's own table, and
+#              the pose RESOLVES through the animations companion the model
+#              declares (T6) -- opt-in, so the default run resolves and applies
+#              nothing. The pair is the contract: the right model is drawn AND
+#              the input is understood, and neither statement is bought with the
+#              other.
+#   Section 6  the accepted pose, on real animation, with the stub kept as the
+#              negative. T6 measured why the old round had to CONSTRUCT its
+#              acceptance: the arms/player models carry a stub animation table
+#              (c_sniper_arms: one 1-frame animation) and declare a
+#              *_animations.mdl companion holding the real set (88 animations, 76
+#              sequences), and the resolver now adopts the companion when it
+#              binds STRICTLY MORE of the model's own sequences by name. The
+#              natural run therefore accepts, and three constructed runs pin the
+#              pieces apart: sequence 30 (61 frames) is the real animation,
+#              sequence 0 (`ref`) is the stub with no companion binding and is
+#              still refused by name, and the opt-in boundary is asserted in both
+#              directions. Every override is reported as `sequenceOverride=`.
 #   Section 7  five probe mutations, each with a named assertion that must go red
 #              AND a control that must not move. These are runtime switches inside
 #              the probe, so they cost nothing and run on every invocation; the
 #              rebuilt, source-level half is `--mutation`, which neuters the
-#              round's own proof in the product's own source.
+#              round's own model proof in the product's own source (T6 extended
+#              it with a second patch that neuters the companion adoption).
 #
 # Usage: bash viewmodel-animation-check.sh [--mutation]
 #   --mutation reintroduces the defect this round exists to remove -- the proof
@@ -133,18 +144,30 @@ fi
 # that links viewmodel.cpp -- leaving even one of them mutated would hand a
 # later gate a binary that disagrees with the tree it was built from.
 MUTATION_SRC=native/src/viewmodel.cpp
+# T6's second patch: the companion adoption lives in animation_binding.cpp, and
+# the mutation neuters it too -- a mutation that only touched the model proof
+# would leave the new binding unwatched.
+MUTATION_SRC2=native/src/animation_binding.cpp
 BUILD_LOCK_OWNED=0
 PARENT_LOCK_HELD=0
 MUTATION_ACTIVE=0
 MUTATION_ORIGINAL_SHA=""
+MUTATION_ORIGINAL_SHA2=""
 restore_mutation() {
   [ "$MUTATION_ACTIVE" -eq 1 ] || return 0
   local rc=0
-  git checkout -- "$MUTATION_SRC" >/dev/null 2>&1
+  git checkout -- "$MUTATION_SRC" "$MUTATION_SRC2" >/dev/null 2>&1
   if [ -n "$MUTATION_ORIGINAL_SHA" ]; then
     restored_sha=$(git hash-object "$MUTATION_SRC" 2>/dev/null || true)
     if [ "$restored_sha" != "$MUTATION_ORIGINAL_SHA" ]; then
       echo "FATAL: mutation source was not restored byte-for-byte"
+      rc=1
+    fi
+  fi
+  if [ -n "$MUTATION_ORIGINAL_SHA2" ]; then
+    restored_sha2=$(git hash-object "$MUTATION_SRC2" 2>/dev/null || true)
+    if [ "$restored_sha2" != "$MUTATION_ORIGINAL_SHA2" ]; then
+      echo "FATAL: the second mutation source was not restored byte-for-byte"
       rc=1
     fi
   fi
@@ -224,23 +247,32 @@ if [ "$MUTATION" -eq 1 ]; then
     PARENT_LOCK_HELD=1
   fi
   MUTATION_ORIGINAL_SHA=$(git hash-object "$MUTATION_SRC")
-  "$PY" - "$MUTATION_SRC" <<'PYEOF' || { echo "FATAL: the mutation did not land"; exit 1; }
+  MUTATION_ORIGINAL_SHA2=$(git hash-object "$MUTATION_SRC2")
+  "$PY" - "$MUTATION_SRC" "$MUTATION_SRC2" <<'PYEOF' || { echo "FATAL: the mutation did not land"; exit 1; }
 import io, sys
-path = sys.argv[1]
-find = "  if (!entityModelMatches) {"
-repl = ("  // MUTATION: the companion proof never fires, so the pass may draw a model\n"
-        "  // the entity did not name and measure the entity's sequence against it.\n"
-        "  if (false && !entityModelMatches) {")
-raw = io.open(path, 'rb').read()
-crlf = b'\r\n' in raw
-data = raw.decode('utf-8')
-if crlf:
-    find = find.replace('\n', '\r\n')
-    repl = repl.replace('\n', '\r\n')
-hits = data.count(find)
-if hits != 1:
-    sys.exit('the mutation anchor matched %d times, expected exactly 1' % hits)
-io.open(path, 'wb').write(data.replace(find, repl, 1).encode('utf-8'))
+patches = [
+  (sys.argv[1],
+   "  if (!entityModelMatches) {",
+   "  // MUTATION: the companion proof never fires, so the pass may draw a model\n"
+   "  // the entity did not name and measure the entity's sequence against it.\n"
+   "  if (false && !entityModelMatches) {"),
+  (sys.argv[2],
+   "      if (nameBound > boundInBase(anims)) {",
+   "      // MUTATION: the declared companion is never adopted, so a model whose\n"
+   "      // own table is a stub keeps refusing every sequence it cannot pose.\n"
+   "      if (false && nameBound > boundInBase(anims)) {"),
+]
+for path, find, repl in patches:
+    raw = io.open(path, 'rb').read()
+    crlf = b'\r\n' in raw
+    data = raw.decode('utf-8')
+    if crlf:
+        find = find.replace('\n', '\r\n')
+        repl = repl.replace('\n', '\r\n')
+    hits = data.count(find)
+    if hits != 1:
+        sys.exit('the mutation anchor in %s matched %d times, expected exactly 1' % (path, hits))
+    io.open(path, 'wb').write(data.replace(find, repl, 1).encode('utf-8'))
 PYEOF
   MUTATION_ACTIVE=1
   if ! bash build-target.sh tf2_demo_native viewmodel_fov_probe viewmodel_contract_probe \
@@ -248,7 +280,7 @@ PYEOF
     echo "FATAL: the mutated build failed; see .scratch/vm-anim-mutation.log"
     exit 1
   fi
-  echo "mutation: the resolver's companion proof is neutered (rebuilt)"
+  echo "mutation: the companion proof AND the companion adoption are neutered (rebuilt)"
 fi
 
 # Audio: the device is opened during startup and pausing does not stop it, so
@@ -390,37 +422,42 @@ SELFTEST_NOTES=$(grep -c 'NOTE the product cross-check did not run' "$SELFTEST_T
 # probe says so out loud -- this asserts it did not have to.
 if [ "$MUTATION" -eq 1 ]; then
   assert_eq "self-test rc" "$SELFTEST_RC" "1"
-  # Measured, not derived: neutering the companion proof turns exactly five of the
-  # battery's checks red -- the model-mismatch fixture's five claims (the status,
-  # the bind pose, the absent-match reading, the never-reached range question, and
-  # the reason naming both models). A mutated build must also SAY so in its exit
-  # code, which is why `rc` is asserted in both modes.
-  assert_eq "self-test failures" "$SELFTEST_FAIL" "5"
+  # Measured, not derived: the two neutered proofs turn 18 of the battery's
+  # checks red -- the model-mismatch fixture's five claims plus the adoption's
+  # thirteen (the companion shape 53/52/89 reverts to 1/0/1, the by-name fixtures
+  # revert, and two checks are skipped because the motion witness disappears).
+  # A mutated build must also SAY so in its exit code, which is why `rc` is
+  # asserted in both modes.
+  assert_eq "self-test failures" "$SELFTEST_FAIL" "18"
 else
   assert_eq "self-test rc" "$SELFTEST_RC" "0"
   assert_eq "self-test failures" "$SELFTEST_FAIL" "0"
 fi
 # Pinned, because a gate that prints PASS while its assertions quietly disappear
-# is not a gate. 92 checks in a healthy build: the T2.5 instrument's own readings
+# is not a gate. 96 checks in a healthy build: the T2.5 instrument's own readings
 # (the path rule, the three-outcome range classifier, the series counters, the
 # field-supply counter, and the product cross-check), the resolver contract branch
-# by branch -- missing (3), absent sequence (2), out of range (4), accepted (4),
-# bone mismatch (2), no animation data (1), unresolved drawn model (2) -- the
-# companion proof's ten fixtures, the two models' measured shapes with the raw
-# words they were read from, and the cycle witness, which runs on the `v_*`
-# control because the model this round draws carries one-frame poses.
+# by branch -- missing (3), absent sequence (2), out of range (4), accepted (5,
+# including the by-name sequence label), bone mismatch (2), no animation data (1),
+# unresolved drawn model (2) -- the companion proof's fixtures, the adopted
+# companion's measured shape and reachability (T6: 53 of 54 sequences bound by
+# name, 52 multi-frame, the longest 89 frames), and the cycle witness, which runs
+# on the `v_*` control.
 #
 # Two DIFFERENT quantities, which is why there are two assertions and not one
 # written twice: how many checks held, and how many checks the battery ran at all.
-# The second is pinned in both modes to the same 92, and that is the point -- a
-# mutation that made the battery stop halfway would move it, while 87 + 5 in
-# mutation mode says the other 87 checks still ran and still held.
+# The second is pinned in both modes to the same 96, and that is the point -- a
+# mutation that made the battery stop halfway would move it, while 76 + 18 in
+# mutation mode says the other 76 checks still ran and still held -- and 94 (not
+# 96) ran, because the adoption's disappearance takes the motion witness's two
+# checks with it. That is a reading about the mutation, not a moved pin: the two
+# skipped checks are named in the same battery.
 if [ "$MUTATION" -eq 1 ]; then
-  assert_eq "self-test assertions" "$SELFTEST_OK" "87"
-  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "92"
+  assert_eq "self-test assertions" "$SELFTEST_OK" "76"
+  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "94"
 else
-  assert_eq "self-test assertions" "$SELFTEST_OK" "92"
-  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "92"
+  assert_eq "self-test assertions" "$SELFTEST_OK" "96"
+  assert_eq "self-test checks that ran" "$((SELFTEST_OK + SELFTEST_FAIL))" "96"
 fi
 assert_eq "self-test ran the product cross-check" "$SELFTEST_NOTES" "0"
 # A work count for the contract half specifically: the self-test has to
@@ -505,13 +542,26 @@ timeout "$RUN_TIMEOUT" "$PROBE" --tf-root "$TF" --model-sequences "$ENTITY_MODEL
 assert_eq "entity model sequence count" "$(rfield "$ENTITY_TXT" modelseq sequences)" "43"
 assert_eq "entity model bone count" "$(rfield "$ENTITY_TXT" modelseq bones)" "58"
 assert_eq "entity model resolved" "$(rfield "$ENTITY_TXT" modelseq readable)" "1"
-# How many of those 43 sequences can actually produce a pose -- one -- and which
-# one. Both are read here because section 6 builds its input out of them, and a
-# number that a later section depends on should be asserted where it is read.
-assert_eq "entity model sequences that reach a descriptor" \
-  "$(rfield "$ENTITY_TXT" modelseq animated)" "1"
-assert_eq "entity model's only posable sequence" \
-  "$(rfield "$ENTITY_TXT" modelseq firstAnimated)" "0"
+# How many of those 43 sequences can actually produce a pose, and which one is
+# first. T6 moved both numbers: the entity's own model carries a stub table (one
+# 1-frame animation, `@ref`) and declares c_sniper_animations.mdl, so the count
+# below is the sequences bound BY NAME through that declared companion -- 38 of
+# 43. The five that stay unbound are named in the report rather than folded into
+# the count: `ref` (the stub's own label) and the four `rifolver_*` overlays.
+# Under --mutation the adoption is neutered, so the numbers revert to the stub
+# table's own answer (1 and 0) -- asserted as the mutation-mode truth rather
+# than branched away, because these are the readings the adoption moved.
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "entity model sequences that reach a descriptor" \
+    "$(rfield "$ENTITY_TXT" modelseq animated)" "1"
+  assert_eq "entity model's first posable sequence" \
+    "$(rfield "$ENTITY_TXT" modelseq firstAnimated)" "0"
+else
+  assert_eq "entity model sequences that reach a descriptor" \
+    "$(rfield "$ENTITY_TXT" modelseq animated)" "38"
+  assert_eq "entity model's first posable sequence" \
+    "$(rfield "$ENTITY_TXT" modelseq firstAnimated)" "1"
+fi
 assert_gt "the entity's table is larger than the drawn one" \
   "$(rfield "$ENTITY_TXT" modelseq sequences)" "$(rfield "$DRAWN_TXT" modelseq sequences)"
 assert_gt "the observed sequences run past the drawn table" \
@@ -691,9 +741,9 @@ MUT_POV_LINE="$LAST_VMANIM"
 
 # (b) The same recording in the shipped mode. The pass draws the entity's own
 #     model, the sequence is measured against that model's own table, and the
-#     pose is still refused -- with a different, measurable reason. The pair (a)
-#     and (b) is the whole round: the input is understood AND the right model is
-#     drawn, and neither statement is bought with the other.
+#     pose RESOLVES -- by name, through the animations companion the model
+#     declares (T6). Nothing is applied: the default run resolves and keeps the
+#     bind pose, which is what the opt-in boundary means.
 run_product pov-companion "$DEMO_POV" 0
 assert_eq "pov companion rc" "$LAST_RC" "0"
 assert_eq "pov companion draws the entity's own model" "$(field "$LAST_ORDER" drawnModel)" "$ENTITY_MODEL"
@@ -701,7 +751,11 @@ assert_eq "pov companion entity model matches the drawn model" \
   "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "1"
 assert_eq "pov companion sequence inside the entity's own table" \
   "$(field "$LAST_ORDER" sequenceInRange)" "1"
-assert_eq "pov companion status" "$(field "$LAST_ORDER" vmAnimInput)" "missing"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov companion status" "$(field "$LAST_ORDER" vmAnimInput)" "missing"
+else
+  assert_eq "pov companion status" "$(field "$LAST_ORDER" vmAnimInput)" "ok"
+fi
 assert_eq "pov companion no override was in force" "$(field "$LAST_ORDER" sequenceOverride)" "-1"
 assert_eq "pov companion no model mismatch" "$(field "$LAST_SUMMARY" modelMismatch)" "0"
 assert_eq "pov companion every observation matched" \
@@ -709,8 +763,22 @@ assert_eq "pov companion every observation matched" \
 assert_eq "pov companion every sequence was in range" \
   "$(field "$LAST_SUMMARY" sequenceInRange)" "$(field "$LAST_SUMMARY" observations)"
 assert_eq "pov companion refused nothing for a range reason" "$(field "$LAST_SUMMARY" outOfRange)" "0"
-assert_contains "pov companion says what it could not find" "$LAST_VMANIM" "sequence has no animation binding"
-assert_eq "pov companion leaves the bind pose" "$(field "$LAST_ORDER" bindPose)" "1"
+# The pose the entity carried resolves to a real animation: sequence 29 binds by
+# name to the companion's own clip for that label, 51 frames long. The base
+# model's stub table could pose nothing here, so the frame count is the reading
+# that says the adoption happened and reached a real clip.
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov companion pose is available" "$(field "$LAST_VMANIM" poseAvailable)" "0"
+  assert_eq "pov companion frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+else
+  assert_eq "pov companion pose is available" "$(field "$LAST_VMANIM" poseAvailable)" "1"
+  assert_eq "pov companion frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "51"
+fi
+# Opt-in, in both fields: the resolver accepted and the pass applied nothing.
+assert_eq "pov companion applies nothing by default" "$(field "$LAST_VMANIM" applied)" "0"
+assert_eq "pov companion skins nothing by default" "$(field "$LAST_ORDER" skinning)" "0"
 # Control for the --mutation verdict: the proof never fires on a matching pair, so
 # neutering it must leave this count exactly where it was.
 MUT_COMPANION_MATCHES=$(field "$LAST_SUMMARY" modelMatches)
@@ -734,24 +802,22 @@ assert_eq "matcha pairing missing count" "$(field "$LAST_SUMMARY" missing)" "$(f
 MUT_MATCHA_ENTITY=$(field "$LAST_VMANIM" entity)
 
 # ---------------------------------------------------------------------------
-# Section 6 -- the accepted pose, reached by constructing the input
+# Section 6 -- the accepted pose, on real animation, with the stub as the negative
 # ---------------------------------------------------------------------------
 echo
-echo "=== 6/7 the accepted pose is reachable, opt-in, and on the entity's own model ==="
-# WHY THE INPUT IS CONSTRUCTED. The pass now draws the model the entity names and
-# measures the entity's own sequence against that model's own table -- which IS
-# the fix. The consequence is that this recording produces no accepted pose at
-# all: the entity carries sequences 1, 29 and 30, and its model can pose sequence
-# 0 and nothing else (`--model-sequences` reports it as `firstAnimated`, and that
-# reading is the number used below rather than a number written here). A gate that
-# waited for a tick would wait forever; a gate that asserted `accepted` from a
-# value that merely happened to land in some table is what the old section 6 did,
-# and it is the coincidence this round removed.
-#
-# So the sequence is NAMED on the command line, and every reading line reports it
-# as `sequenceOverride=`. Both halves are asserted, because only the pair says
-# anything: the natural run refuses all 1713 of its scene updates for one measured
-# reason, and the constructed run is accepted, skins, and moves the picture.
+echo "=== 6/7 the accepted pose is on a real animation; the stub is the negative ==="
+# WHAT CHANGED, AND WHY THIS SECTION IS SHAPED THIS WAY. Before T6 the model the
+# entity names could pose sequence 0 -- a one-frame stub -- and nothing else, so
+# an acceptance could only be CONSTRUCTED, and the natural run was asserted to
+# accept nothing at all. T6 measured why: the arms/player models carry a stub
+# animation table and declare a *_animations.mdl companion that holds the real
+# set, and the resolver now adopts the companion when it binds STRICTLY MORE of
+# the model's own sequences by name. So the natural run accepts, and the pieces
+# are pinned apart instead of folded together: the natural history (all of its
+# observations accepted, on the entity's own table), the real animation behind
+# one specific sequence (30 -> 61 frames), the stub kept as its own refusal
+# (sequence 0, `ref`, no companion binding), and the opt-in boundary asserted in
+# both directions.
 run_product pov-history "$DEMO_POV" 2000
 assert_eq "pov history rc" "$LAST_RC" "0"
 assert_eq "pov history draws the entity's own model" "$(field "$LAST_ORDER" drawnModel)" "$ENTITY_MODEL"
@@ -760,9 +826,15 @@ assert_eq "pov history draws the entity's own model" "$(field "$LAST_ORDER" draw
 # history, a sequence change, and distinct sequence values; do not turn a machine
 # speed sample into a correctness threshold.
 assert_ge "pov history observations" "$(field "$LAST_SUMMARY" observations)" 1
-assert_eq "pov history accepted nothing" "$(field "$LAST_SUMMARY" ok)" "0"
-assert_eq "pov history refused every observation" \
-  "$(field "$LAST_SUMMARY" missing)" "$(field "$LAST_SUMMARY" observations)"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov history accepted every observation" "$(field "$LAST_SUMMARY" ok)" "0"
+  assert_eq "pov history refused nothing" \
+    "$(field "$LAST_SUMMARY" missing)" "$(field "$LAST_SUMMARY" observations)"
+else
+  assert_eq "pov history accepted every observation" \
+    "$(field "$LAST_SUMMARY" ok)" "$(field "$LAST_SUMMARY" observations)"
+  assert_eq "pov history refused nothing" "$(field "$LAST_SUMMARY" missing)" "0"
+fi
 assert_eq "pov history matched every observation" \
   "$(field "$LAST_SUMMARY" modelMatches)" "$(field "$LAST_SUMMARY" observations)"
 assert_eq "pov history measured every sequence inside the entity's own table" \
@@ -772,13 +844,61 @@ assert_eq "pov history applied nothing without the flag" "$(field "$LAST_SUMMARY
 POV_RANGE=$(field "$LAST_SUMMARY" range)
 assert_eq "pov history sequence range" "$POV_RANGE" "1..30"
 assert_ge "pov history sequence changes" "$(field "$LAST_SUMMARY" changes)" 1
-# The one index that CAN pose, read out of the model. Asserted rather than
-# assumed: if the model ever gains a posable sequence earlier than this one, the
-# assertion says so before the pose run below reads `ok` for a reason nobody
-# chose.
+# The number the acceptance rests on: the last observed sequence's animation.
+# Sequence 30 binds BY NAME to the companion's 61-frame clip; the stub table the
+# model carries itself could pose nothing here.
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "pov history frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+else
+  assert_eq "pov history frame count is the companion's" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+fi
+# Mutations snapshot, taken here while LAST_SUMMARY is the history run: under the
+# adoption-neutered mutation every natural observation goes back to refused, so
+# this reading moves from observations to 0 while the model proof (a matching
+# pair) is untouched.
+MUT_HISTORY_OK=$(field "$LAST_SUMMARY" ok)
+MUT_HISTORY_OBS=$(field "$LAST_SUMMARY" observations)
+
+# The stub, kept as the negative the adoption must not paper over: sequence 0
+# names the base model's own one-frame animation and no companion sequence
+# carries that label, so the range question and the pose question answer
+# differently -- in range, and refused by name.
+run_product pov-stub "$DEMO_POV" 0 --viewmodel-sequence 0
+assert_eq "stub sequence: rc" "$LAST_RC" "0"
+assert_eq "stub sequence: inside the entity's own table" \
+  "$(field "$LAST_ORDER" sequenceInRange)" "1"
+if [ "$MUTATION" -eq 1 ]; then
+  # With the adoption neutered the stub's own one-frame binding is the only one
+  # left, so the stub becomes accepted -- the pre-T6 world, asserted rather than
+  # hidden.
+  assert_eq "stub sequence: refused" "$(field "$LAST_ORDER" vmAnimInput)" "ok"
+  assert_eq "stub sequence: no pose" "$(field "$LAST_VMANIM" poseAvailable)" "1"
+  assert_eq "stub sequence: frame count" \
+    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "1"
+else
+  assert_eq "stub sequence: refused" "$(field "$LAST_ORDER" vmAnimInput)" "missing"
+  assert_contains "stub sequence: refused by name" "$LAST_VMANIM" "sequence has no animation binding"
+  assert_eq "stub sequence: no pose" "$(field "$LAST_VMANIM" poseAvailable)" "0"
+fi
+assert_eq "stub sequence: applied" "$(field "$LAST_VMANIM" applied)" "0"
+assert_eq "stub sequence: the override is reported" \
+  "$(field "$LAST_ORDER" sequenceOverride)" "0"
+
+# The first sequence the model can pose, read out of the model rather than
+# written here, is now the first one the companion binds by name (`r_handposes`
+# -> the companion's one-frame `saxxy_pose`).
 POSE_SEQUENCE=$(rfield "$ENTITY_TXT" modelseq firstAnimated)
-assert_eq "the one sequence the entity's own model can pose" "$POSE_SEQUENCE" "0"
-assert_ne "and the recording never carries it" "$POV_RANGE" "0..30"
+if [ "$MUTATION" -eq 1 ]; then
+  # Neutered: the only posable sequence is the stub's own index, which the
+  # recording does not carry.
+  assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "0"
+  assert_ne "and the recording does not carry it" "$POV_RANGE" "0..30"
+else
+  assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "1"
+  assert_eq "and the recording carries it" "${POV_RANGE%%..*}" "$POSE_SEQUENCE"
+fi
 
 run_product pov-pose-bind "$DEMO_POV" 0 --viewmodel-sequence "$POSE_SEQUENCE"
 assert_eq "accepted pose, default: rc" "$LAST_RC" "0"
@@ -794,8 +914,8 @@ assert_eq "accepted pose, default: skinning" "$(field "$LAST_ORDER" skinning)" "
 assert_eq "accepted pose, default: boneTableCoverage" "$(field "$LAST_ORDER" boneTableCoverage)" "0/0"
 assert_eq "accepted pose, default: poseAvailable" "$(field "$LAST_VMANIM" poseAvailable)" "1"
 assert_eq "accepted pose, default: applied" "$(field "$LAST_VMANIM" applied)" "0"
-# The pose this model offers is a one-frame pose, so the frame count is a reading
-# about the model rather than about the tick.
+# This sequence binds by name to the companion's one-frame `saxxy_pose`, so the
+# frame count is a reading about that animation rather than about the tick.
 assert_eq "accepted pose, default: frame count" "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "1"
 
 run_product pov-pose-apply "$DEMO_POV" 0 --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-apply-animation
@@ -819,11 +939,41 @@ assert_eq "accepted pose, applied: the table is the model's own bone count" \
   "${COVERAGE%%/*}" "$(rfield "$ENTITY_TXT" modelseq bones)"
 assert_eq "accepted pose, applied: every accepted pose was applied" \
   "$(field "$LAST_SUMMARY" applied)" "$(field "$LAST_SUMMARY" ok)"
-# And the picture moves. Without this the flag would be a string, and "the pose
-# was applied" would rest on a counter the caller wrote itself.
-APPLY_DIFF=$(byte_diff "$TRACE_DIR/pov-pose-bind.bmp" "$TRACE_DIR/pov-pose-apply.bmp")
-assert_gt "the applied pose changes the frame" "$APPLY_DIFF" 0
-echo "  ..   pov-pose-bind vs pov-pose-apply: $APPLY_DIFF byte positions differ"
+# The one-frame reference pose renders identical to the bind pose (measured: 0
+# bytes differ). That is a reading about THE POSE, not about the flag -- so it is
+# recorded rather than asserted, and the flag's effect is measured on the motion
+# pair below, where the pose and the bind are different pictures.
+POSE_DIFF=$(byte_diff "$TRACE_DIR/pov-pose-bind.bmp" "$TRACE_DIR/pov-pose-apply.bmp")
+echo "  ..   pov-pose-bind vs pov-pose-apply: $POSE_DIFF byte positions differ (the reference pose equals the bind pose)"
+
+# The real motion, end to end: sequence 30 (the last sequence the recording
+# carries) binds by name to a 61-frame clip. The natural run above already
+# captured it unapplied; this run applies it, and the pair must move the picture
+# -- the assertion the old round could not make, because this pose did not exist
+# to be drawn.
+run_product pov-motion-apply "$DEMO_POV" 2000 --viewmodel-sequence 30 --viewmodel-apply-animation
+assert_eq "real motion, applied: rc" "$LAST_RC" "0"
+if [ "$MUTATION" -eq 1 ]; then
+  assert_eq "real motion, applied: vmAnimApplied" "$(field "$LAST_ORDER" vmAnimApplied)" "0"
+  assert_eq "real motion, applied: skinning" "$(field "$LAST_ORDER" skinning)" "0"
+  assert_eq "real motion, applied: frame count" "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+else
+  assert_eq "real motion, applied: vmAnimApplied" "$(field "$LAST_ORDER" vmAnimApplied)" "1"
+  assert_eq "real motion, applied: skinning" "$(field "$LAST_ORDER" skinning)" "1"
+  assert_eq "real motion, applied: frame count" "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+fi
+MOTION_COVERAGE=$(field "$LAST_ORDER" boneTableCoverage)
+assert_eq "real motion, applied: the table covers the whole skeleton" \
+  "${MOTION_COVERAGE%%/*}" "${MOTION_COVERAGE##*/}"
+MOTION_DIFF=$(byte_diff "$TRACE_DIR/pov-history.bmp" "$TRACE_DIR/pov-motion-apply.bmp")
+if [ "$MUTATION" -eq 1 ]; then
+  # Neutered: both runs refuse, both draw the bind pose, and the diff is 0 --
+  # the reading that says the picture movement depends on the adoption.
+  assert_eq "the applied real animation changes the frame" "$MOTION_DIFF" "0"
+else
+  assert_gt "the applied real animation changes the frame" "$MOTION_DIFF" 0
+fi
+echo "  ..   pov-history vs pov-motion-apply: $MOTION_DIFF byte positions differ"
 
 # ---------------------------------------------------------------------------
 # Section 7 -- the probe's mutations, paired
@@ -900,9 +1050,11 @@ assert_eq "probe mutation controls that held" "$MUTATION_HELD" "5"
 # Under --mutation the sections are *supposed* to be red, so the ordinary verdict
 # would be wrong in both directions: `VIEWMODEL-ANIMATION=FAIL` would read as a
 # broken gate, and `PASS` would mean the mutation did nothing. The mutation is
-# caught only when the three named readings moved AND both controls held, so a
-# mutation that collapsed the run -- making everything red for the wrong reason --
-# cannot be counted as a detection.
+# caught only when the named readings moved AND the controls held, so a mutation
+# that collapsed the run -- making everything red for the wrong reason -- cannot
+# be counted as a detection. Two coherent edits make the mutation: the model
+# proof is neutered (viewmodel.cpp) and the companion adoption is neutered
+# (animation_binding.cpp, T6), so the moved readings cover both.
 echo
 if [ "$MUTATION" -eq 1 ]; then
   mut_red=0
@@ -920,6 +1072,8 @@ if [ "$MUTATION" -eq 1 ]; then
   printf '  refusal reason names both paths = %s (fixed build: 1)\n' "$mut_labelled"
   printf '  refusal modelMismatch = %s of %s observations (fixed build: all of them)\n' \
     "${MUT_POV_MISMATCH:-<none>}" "${MUT_POV_OBS:-<none>}"
+  printf '  history ok           = %s of %s (fixed build: all of them; neutered: 0)\n' \
+    "${MUT_HISTORY_OK:-<none>}" "${MUT_HISTORY_OBS:-<none>}"
   printf '  control poseAvailable   = %s (must stay 0: still a refusal, only mislabelled)\n' "${MUT_POV_POSE:-<none>}"
   printf '  control companion match = %s of %s (must not move: the proof cannot fire on a match)\n' \
     "${MUT_COMPANION_MATCHES:-<none>}" "${MUT_COMPANION_OBS:-<none>}"
@@ -930,26 +1084,29 @@ if [ "$MUTATION" -eq 1 ]; then
   if [ -n "${MUT_POV_OBS:-}" ] && [ "${MUT_POV_MISMATCH:-}" != "$MUT_POV_OBS" ]; then
     mut_red=$((mut_red + 1))
   fi
+  if [ -n "${MUT_HISTORY_OBS:-}" ] && [ "${MUT_HISTORY_OK:-}" != "$MUT_HISTORY_OBS" ]; then
+    mut_red=$((mut_red + 1))
+  fi
   [ "${MUT_POV_POSE:-x}" = "0" ] && mut_hold=$((mut_hold + 1))
   if [ -n "${MUT_COMPANION_OBS:-}" ] && [ "${MUT_COMPANION_MATCHES:-}" = "$MUT_COMPANION_OBS" ]; then
     mut_hold=$((mut_hold + 1))
   fi
   [ "${MUT_MATCHA_ENTITY:-}" = "-1" ] && mut_hold=$((mut_hold + 1))
   [ "${MUT_INDEXSPACE:-}" = "mismatch" ] && mut_hold=$((mut_hold + 1))
-  echo "mutation_red=$mut_red/3 hold=$mut_hold/4"
+  echo "mutation_red=$mut_red/4 hold=$mut_hold/4"
   # `fail` is part of the condition and not decoration. Every section under
   # --mutation asserts the value it is SUPPOSED to read in that mode (section 1
   # pins the mutated self-test counts, section 4 expects the degraded status), so
   # a section assertion going red here is a defect in the gate, not evidence about
   # the mutation -- and a verdict that ignored it would report a caught mutation
-  # on a run whose own checks did not hold. The three readings and the four
+  # on a run whose own checks did not hold. The four readings and the four
   # controls say the mutation was CAUGHT; `fail=0` says the instrument was still
   # measuring while it caught it.
-  if [ "$fail" -eq 0 ] && [ "$mut_red" -eq 3 ] && [ "$mut_hold" -eq 4 ]; then
-    echo "MUTATION-CAUGHT=PASS (the proof is what keeps the pass on the entity's own model; every control held)"
+  if [ "$fail" -eq 0 ] && [ "$mut_red" -eq 4 ] && [ "$mut_hold" -eq 4 ]; then
+    echo "MUTATION-CAUGHT=PASS (the model proof AND the companion adoption are what carry the animation readings; every control held)"
     exit 0
   fi
-  echo "MUTATION-CAUGHT=FAIL (red=$mut_red/3 hold=$mut_hold/4 fail=$fail)"
+  echo "MUTATION-CAUGHT=FAIL (red=$mut_red/4 hold=$mut_hold/4 fail=$fail)"
   if [ "$fail" -ne 0 ]; then
     printf 'failed assertions:\n'
     printf '  %s\n' "${FAIL_LINES[@]}"

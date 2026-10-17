@@ -1,0 +1,21 @@
+# extracted from tf2_misc_dir.vpk
+# wrote evidence/t6-animation-binding/.tmp\c_soldier_arms.mdl 43976 bytes
+header: magic=54534449 version=48 name=weapons/c_models/c_soldier_arms.mdl bones=67 anims=1 seqs=54 includes=1
+-- animations (stride 100) --
+  anim[0] name=@c_soldier_arms fps=30.000 frames=1 flags=0 block=0 index=112
+-- sequences (stride 212) --
+  seq[0] c_soldier_arms           flags=0 activity=-1 blends=1 ptr=11716 animdesc=0
+  seq[1] r_handposes              flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[2] dh_idle                  flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[3] dh_fire                  flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[4] dh_draw                  flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[5] dh_reload_start          flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[6] dh_reload_loop           flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[7] dh_reload_finish         flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[8] dh_reload_start_alt      flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[9] dh_reload_loop_alt       flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[10] dh_reload_finish_alt     flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[11] mangler_fire_super       flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+-- animated sequences: 1 of 54 --
+-- includes (stride 8) --
+  include[0] name=models/weapons/c_models/c_soldier_animations.mdl label=

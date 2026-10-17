@@ -1,0 +1,21 @@
+# extracted from tf2_misc_dir.vpk
+# wrote evidence/t6-animation-binding/.tmp\c_sniper_arms.mdl 36300 bytes
+header: magic=54534449 version=48 name=weapons/c_models/c_sniper_arms.mdl bones=58 anims=1 seqs=43 includes=1
+-- animations (stride 100) --
+  anim[0] name=@ref fps=30.000 frames=1 flags=0 block=0 index=112
+-- sequences (stride 212) --
+  seq[0] ref                      flags=0 activity=-1 blends=1 ptr=9348 animdesc=0
+  seq[1] r_handposes              flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[2] smg_draw                 flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[3] smg_idle                 flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[4] smg_fire                 flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[5] smg_reload               flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[6] m_idle                   flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[7] m_draw                   flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[8] m_swing_a                flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[9] m_swing_b                flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[10] m_swing_c                flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[11] melee_allclass_idle      flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+-- animated sequences: 1 of 43 --
+-- includes (stride 8) --
+  include[0] name=models/weapons/c_models/c_sniper_animations.mdl label=

@@ -274,9 +274,11 @@ assert_eq "selftest failures" "$SELFTEST_FAILS" "0"
 # that stopped running after the first check, so the OK count AND the number of
 # checks the battery ran are both pinned. The two together mean the same checks
 # ran and all of them held.
-assert_eq "selftest assertions that held" "$SELFTEST_OK" "92"
-assert_eq "selftest checks that ran" "$SELFTEST_TOTAL" "92"
-assert_eq "companion fixtures recorded" "$(field "$SELFTEST_SUMMARY" fixtures)" "19"
+# T6 grew the battery to 96 checks (the adoption fixtures) and one more
+# fixture in the report (companion-motion).
+assert_eq "selftest assertions that held" "$SELFTEST_OK" "96"
+assert_eq "selftest checks that ran" "$SELFTEST_TOTAL" "96"
+assert_eq "companion fixtures recorded" "$(field "$SELFTEST_SUMMARY" fixtures)" "20"
 assert_eq "self-test ran the product cross-check" \
   "$(grep -ac "NOTE the product cross-check did not run" "$LAST_SELFTEST" || true)" "0"
 
@@ -290,10 +292,15 @@ RAW_LINE=$(grep -a "^vmproof-rawhdr" "$LAST_SELFTEST" | tr -d '\r' | tail -1)
 RAW_BLEND=$(grep -a "^vmproof-rawblend" "$LAST_SELFTEST" | tr -d '\r' | tail -1)
 assert_contains "the companion model is the entity's own" "$COMPANION_LINE" "c_soldier_arms.mdl"
 assert_eq "companion sequences" "$(field "$COMPANION_LINE" sequences)" "54"
-assert_eq "companion animation descriptors" "$(field "$COMPANION_LINE" animations)" "1"
-assert_eq "companion sequences that reach a descriptor" "$(field "$COMPANION_LINE" animated)" "1"
-assert_eq "companion sequences with more than one frame" "$(field "$COMPANION_LINE" multiFrame)" "0"
-assert_eq "companion widest binding" "$(field "$COMPANION_LINE" maxFrames)" "1"
+# T6: the binding now adopts the declared c_soldier_animations.mdl, so this
+# line reports the ADOPTED table -- 109 animations, 53 of the model's 54
+# sequences bound by name, 52 of them multi-frame, the longest 89 frames. The
+# base file's own stub numbers (1 animation, 54 sequences, 53 without a blend
+# block) are still asserted below from the raw words of the drawn file.
+assert_eq "companion animation descriptors" "$(field "$COMPANION_LINE" animations)" "109"
+assert_eq "companion sequences that reach a descriptor" "$(field "$COMPANION_LINE" animated)" "53"
+assert_eq "companion sequences with more than one frame" "$(field "$COMPANION_LINE" multiFrame)" "52"
+assert_eq "companion widest binding" "$(field "$COMPANION_LINE" maxFrames)" "89"
 # The same reading taken from the file's own words, so the count above can be
 # checked without re-running the decoder that produced it.
 assert_eq "raw header animation count" "$(field "$RAW_LINE" animCount)" "1"
@@ -407,12 +414,13 @@ assert_ge "witness-c sequence changes" "$(field "$LAST_SUMMARY" changes)" 2
 WITNESS_RANGE=$(field "$LAST_SUMMARY" range)
 WITNESS_NATURAL_OK=$(field "$LAST_SUMMARY" ok)
 assert_eq "witness-c sequence range over the run" "$WITNESS_RANGE" "1..30"
-# No pose is accepted anywhere on the natural run, and that is a reading rather
-# than a gap: every scene update this run makes, each one inside the entity's own
-# model's table, and not one of them naming a sequence that model can pose.
-assert_eq "no natural run accepted a pose" "$WITNESS_NATURAL_OK" "0"
-assert_eq "and every one was refused for the same measured reason" \
-  "$(field "$LAST_SUMMARY" missing)" "$(field "$LAST_SUMMARY" observations)"
+# T6 moved this pair. With the declared animations companion adopted, every
+# natural observation binds BY NAME and is accepted; the pre-T6 readings (0
+# accepted, every one refused for the same reason) are what the adoption removed,
+# and the stub keeps its own refusal in section 4.
+assert_eq "every natural run observation was accepted" \
+  "$WITNESS_NATURAL_OK" "$(field "$LAST_SUMMARY" observations)"
+assert_eq "and none was refused" "$(field "$LAST_SUMMARY" missing)" "0"
 assert_eq "no override was in force" "$(field "$LAST_ORDER" sequenceOverride)" "-1"
 
 # Three frames, pairwise different. Without this "the reading moves across ticks"
@@ -449,14 +457,16 @@ run_model_sequences entity-model "$ENTITY_MODEL"
 assert_eq "entity model rc" "$LAST_MODELSEQ_RC" "0"
 assert_eq "entity model sequences" "$(field "$MODELSEQ_LINE" sequences)" "43"
 assert_eq "entity model bones" "$(field "$MODELSEQ_LINE" bones)" "58"
-assert_eq "entity model sequences that reach a descriptor" "$(field "$MODELSEQ_LINE" animated)" "1"
+# 38 of 43, by name through the declared companion; the five unbound are `ref`
+# and the four `rifolver_*` overlays (same figure the animation gate pins).
+assert_eq "entity model sequences that reach a descriptor" "$(field "$MODELSEQ_LINE" animated)" "38"
 POSE_SEQUENCE=$(field "$MODELSEQ_LINE" firstAnimated)
 # Asserted rather than used: the number this run is built around must be a
 # reading of the model, and if the model ever gets a posable sequence earlier
 # than the one named here the assertion says so before the pose run reads `ok`
 # for a reason nobody chose.
-assert_eq "the only sequence the entity's own model can pose" "$POSE_SEQUENCE" "0"
-assert_ne "and the recording never carries it" "$WITNESS_RANGE" "0..30"
+assert_eq "the first sequence the entity's own model can pose, by name" "$POSE_SEQUENCE" "1"
+assert_eq "and the natural run carries it" "${WITNESS_RANGE%%..*}" "$POSE_SEQUENCE"
 
 run_product pose-accepted "$DEMO_POV" "$T0" --viewmodel-sequence "$POSE_SEQUENCE"
 assert_eq "pose-accepted rc" "$LAST_RC" "0"
@@ -486,9 +496,20 @@ assert_eq "pose-applied every accepted pose was applied" \
   "$(field "$LAST_SUMMARY" applied)" "$(field "$LAST_SUMMARY" ok)"
 assert_gt "pose-applied every observation was accepted" "$(field "$LAST_SUMMARY" ok)" 0
 assert_eq "pose-applied refused nothing" "$(field "$LAST_SUMMARY" missing)" "0"
+# The one-frame reference pose renders identical to the bind pose -- measured,
+# and a reading about that pose rather than about the flag -- so movement is
+# measured on the real motion pair instead: the natural run above (sequence 30,
+# unapplied) against the same sequence applied.
 POSE_DIFF=$(byte_diff "$TRACE_DIR/pose-accepted.bmp" "$TRACE_DIR/pose-applied.bmp")
-assert_gt "the applied pose changes the frame" "$POSE_DIFF" 0
-echo "  ..   pose-accepted vs pose-applied: $POSE_DIFF byte positions differ"
+echo "  ..   pose-accepted vs pose-applied: $POSE_DIFF byte positions differ (the reference pose equals the bind pose)"
+run_product pose-motion "$DEMO_POV" 2000 --viewmodel-sequence 30 --viewmodel-apply-animation
+assert_eq "pose-motion rc" "$LAST_RC" "0"
+assert_eq "pose-motion applied" "$(field "$LAST_ORDER" vmAnimApplied)" "1"
+assert_eq "pose-motion skinned" "$(field "$LAST_ORDER" skinning)" "1"
+assert_eq "pose-motion frame count" "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+MOTION_DIFF=$(byte_diff "$TRACE_DIR/history.bmp" "$TRACE_DIR/pose-motion.bmp")
+assert_gt "the applied real animation changes the frame" "$MOTION_DIFF" 0
+echo "  ..   history vs pose-motion: $MOTION_DIFF byte positions differ"
 
 # ---------------------------------------------------------------------------
 # Section 3 -- the refusals are kept, not traded away
@@ -625,7 +646,7 @@ mutation_case() {
     fail=1; FAIL_LINES+=("$name: target red=$caught/2 control=$control_held")
   fi
   MUTATION_TOTAL=$((MUTATION_TOTAL + 1))
-  assert_eq "$name: the battery still ran every check" "$SELFTEST_TOTAL" "92"
+  assert_eq "$name: the battery still ran every check" "$SELFTEST_TOTAL" "96"
   end_mutation "$name" viewmodel_animation_probe
 }
 

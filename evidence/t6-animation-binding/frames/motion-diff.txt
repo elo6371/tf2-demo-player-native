@@ -1,0 +1,8 @@
+BMP-DIFF differing=61305 total=2582352 percent=2.3740 max_delta=229 extent=1264x681x24 status=PASS
+BMP-DIFF whole differing=61305 total=2582352 percent=2.3740 max_delta=229 extent=1264x681x24
+BMP-DIFF region=0,0,420,200 differing=0 total=252000 percent=0.0000 max_delta=0 share=0.0000
+BMP-DIFF region=0,560,420,121 differing=0 total=152460 percent=0.0000 max_delta=0 share=0.0000
+BMP-DIFF region=1100,100,164,200 differing=0 total=98400 percent=0.0000 max_delta=0 share=0.0000
+BMP-DIFF region=1064,600,200,81 differing=0 total=48600 percent=0.0000 max_delta=0 share=0.0000
+BMP-DIFF region=600,0,64,60 differing=0 total=11520 percent=0.0000 max_delta=0 share=0.0000
+BMP-DIFF status=PASS

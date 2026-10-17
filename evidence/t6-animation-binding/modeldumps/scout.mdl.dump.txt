@@ -1,0 +1,24 @@
+# extracted from tf2_misc_dir.vpk
+# wrote evidence/t6-animation-binding/.tmp\scout.mdl 611668 bytes
+header: magic=54534449 version=48 name=player/scout.mdl bones=78 anims=2 seqs=306 includes=3
+-- animations (stride 100) --
+  anim[0] name=@ref fps=30.000 frames=1 flags=0 block=0 index=204
+  anim[1] name=@ragdoll fps=30.000 frames=1 flags=0 block=0 index=744
+-- sequences (stride 212) --
+  seq[0] ref                      flags=0 activity=-1 blends=1 ptr=65184 animdesc=0
+  seq[1] ragdoll                  flags=0 activity=-1 blends=1 ptr=64976 animdesc=1
+  seq[2] user_ref                 flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[3] ragdollspawn             flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[4] r_handposes              flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[5] r_armposes               flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[6] PRIMARY_aimmatrix_idle   flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[7] PRIMARY_aimmatrix_run    flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[8] PRIMARY_aimmatrix_crouch_idle flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[9] AttackStand_PRIMARY      flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[10] AttackCrouch_PRIMARY     flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+  seq[11] AttackSwim_PRIMARY       flags=2048 activity=0 blends=0 ptr=0 animdesc=-1
+-- animated sequences: 2 of 306 --
+-- includes (stride 8) --
+  include[0] name=models/player/scout_user_animations.mdl label=
+  include[1] name=models/player/scout_animations.mdl label=
+  include[2] name=models/workshop/player/animations/scout_workshop_animations.mdl label=
