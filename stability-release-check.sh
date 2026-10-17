@@ -167,7 +167,7 @@ load_readings() { # <case dir> -> R
 load_title() { # <case dir> -> T
   T=(); [ -f "$1/title-last.txt" ] || return 1
   local out
-  out="$(grep -oP 'TF2 [^:]*: [A-Za-z]:\\[^\[]*|VPK entries: [^,]*|BSP: [^,]*|maptex: [^]]*|SourceTV ticks=[0-9]*' \
+  out="$(grep -oP 'TF2 [^:]*: [A-Za-z]:\\[^\[]*|VPK entries: [^,]*|BSP: [^,]*|maptex: [^]]*|Demo: [^|]*' \
                      "$1/title-last.txt" 2>/dev/null)"
   while IFS= read -r line; do
     # The title's "root [" separator leaves a trailing space on the value, and
@@ -180,9 +180,32 @@ load_title() { # <case dir> -> T
       "VPK entries: "*)  T[vpk]="${line#VPK entries: }" ;;
       "BSP: "*)          T[bsp]="${line#BSP: }" ;;
       "maptex: "*)       T[maptex]="${line#maptex: }" ;;
-      "SourceTV ticks="*) T[ticks]="${line#SourceTV ticks=}" ;;
+      # T9 (2026-10-16): the whole Demo segment, not just its tick count. The
+      # tick is parsed out of it below, by key.
+      "Demo: "*)         T[demo]="${line#Demo: }" ;;
     esac
   done <<< "$out"
+  # The demo's end tick, taken from the `ticks=` KEY inside the Demo segment
+  # instead of from the recording-type label in front of it.
+  #
+  # The label is one of "SourceTV", "POV", "POV (heuristic)" or "unknown"
+  # (classifyDemoRecording, demo_header.cpp). This function used to match the
+  # literal "SourceTV ticks=", so a POV recording produced no ticks at all --
+  # not a parse error, an ABSENT reading, which line 454 then read as 0 and the
+  # end-tick assertion compared against. Every POV case failed unconditionally
+  # and the failure looked like a stalled demo.
+  #
+  # The key is what the title guarantees: `demoSuffix` always writes
+  # " ticks=<n>" once, and the only other `ticks=` in any title state belongs to
+  # the import-review screen, which has no "Demo: " segment to be found in. So
+  # anchoring on the segment and then on the key removes the coupling without
+  # widening what can match.
+  T[ticks]=""
+  if [ -n "${T[demo]:-}" ]; then
+    if [[ "${T[demo]}" =~ (^|[[:space:]])ticks=([0-9]+)([[:space:]]|$) ]]; then
+      T[ticks]="${BASH_REMATCH[2]}"
+    fi
+  fi
   return 0
 }
 

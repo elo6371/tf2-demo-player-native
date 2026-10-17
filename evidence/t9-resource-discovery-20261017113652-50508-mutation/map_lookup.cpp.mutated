@@ -1,0 +1,80 @@
+#include "map_lookup.h"
+
+#include <cctype>
+
+namespace tf2::native {
+
+namespace {
+// A map name arrives from the demo header, which is a 260-byte field written by
+// whoever recorded the demo. It is not a path and must never be treated as one:
+// `..\..\somewhere` as a map name would make `<tf>/maps/..\..\somewhere.bsp`
+// resolve outside the root, and the caller would then be reading a file the
+// operator never pointed at. The allow-list is the character set TF2 map names
+// actually use, so refusing the rest costs nothing real.
+//
+// RELATIONSHIP TO validMapName (demo_header.cpp), stated because the two rules
+// look like one rule and are not:
+//   validMapName   alnum, '_' and '-' only, <= 128 bytes. Runs at header parse
+//                  and rejects the whole demo on failure, so a name with a
+//                  separator, a dot or a '..' never becomes demoHeader.mapName.
+//   this function  the above plus '.', with '..' and leading/trailing dots
+//                  refused separately so the reason can name which one it was.
+// Anything validMapName accepts, this accepts, so from the demo-header path
+// this refusal is unreachable: it is the second gate, not the first, and it
+// exists because planMapLookup is also called with names that did not come from
+// a header. Do not "fix" the difference by loosening validMapName.
+bool isAllowedMapNameCharacter(char character) {
+  const auto value = static_cast<unsigned char>(character);
+  if (std::isalnum(value)) return true;
+  return character == '_' || character == '-' || character == '.';
+}
+} // namespace
+
+bool mapNameIsUsable(const std::string& mapName, std::string* reason) {
+  if (mapName.empty()) {
+    if (reason) *reason = "the demo header names no map";
+    return false;
+  }
+  // A dot-dot segment and a path separator are refused by name rather than by
+  // sanitising them away: a caller that silently strips "../" from a name is a
+  // caller that hides an input it should report.
+  for (const char character : mapName) {
+    if (character == '/' || character == '\\' || character == ':') {
+      if (reason) *reason = "the map name contains a path separator";
+      return false;
+    }
+  }
+  if (mapName.find("..") != std::string::npos) {
+    if (reason) *reason = "the map name contains a parent-directory segment";
+    return false;
+  }
+  if (mapName.front() == '.' || mapName.back() == '.') {
+    if (reason) *reason = "the map name begins or ends with a dot";
+    return false;
+  }
+  for (const char character : mapName) {
+    if (!isAllowedMapNameCharacter(character)) {
+      if (reason) *reason = "the map name contains a character a map name cannot hold";
+      return false;
+    }
+  }
+  return true;
+}
+
+MapLookupPlan planMapLookup(const std::string& mapName) {
+  MapLookupPlan plan;
+  plan.mapName = mapName;
+  std::string reason;
+  plan.nameUsable = mapNameIsUsable(mapName, &reason);
+  plan.reason = reason;
+  if (!plan.nameUsable) return plan;
+  const std::string file = mapName + ".bsp";
+  // The three stores, in the order this file's header documents. Written out
+  // rather than looped over a table of prefixes because the VPK entry is not a
+  // filesystem path and folding it into the same loop would suggest it was.
+  plan.candidates.push_back({"maps/" + file, "maps", false});
+  plan.candidates.push_back({"maps/" + file, "vpk", true});
+  return plan;
+}
+
+} // namespace tf2::native

@@ -1,0 +1,40 @@
+0.0 trace open
+791.0 map: lookup map=2koth_abbey store=maps selected=maps/2koth_abbey.bsp bytes=74658895 reason=found
+1565.7 audio: timeline firstPacketTick=0 soundOriginTick=0 originFound=0 read=0 scheduled=0 unresolved=0 unplaceable=0 refused=0 kinds=w0/f0/u0/o0/v0/a0/m0
+1893.5 gpu: reload begin
+1893.7 gpu: reload-stage stage=texture lastError=0x00000000
+1893.7 gpu: reload-stage stage=aux lastError=0x00000000
+1902.0 gpu: reload-stage stage=lightmap lastError=0x00000000
+1902.2 gpu: reload-stage stage=cubemap lastError=0x00000000
+1902.3 gpu: reload-stage stage=sky lastError=0x00000000
+1902.3 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+1902.4 gpu: world sky-face index=0 dir=+X suffix=rt vmt=materials/skybox/sky_day02_05rt.vmt vtf=- rgba=not-decoded
+1902.5 gpu: world sky-face index=1 dir=-X suffix=lf vmt=materials/skybox/sky_day02_05lf.vmt vtf=- rgba=not-decoded
+1902.5 gpu: world sky-face index=2 dir=+Y suffix=bk vmt=materials/skybox/sky_day02_05bk.vmt vtf=- rgba=not-decoded
+1902.5 gpu: world sky-face index=3 dir=-Y suffix=ft vmt=materials/skybox/sky_day02_05ft.vmt vtf=- rgba=not-decoded
+1902.5 gpu: world sky-face index=4 dir=+Z suffix=up vmt=materials/skybox/sky_day02_05up.vmt vtf=- rgba=not-decoded
+1902.5 gpu: world sky-face index=5 dir=-Z suffix=dn vmt=materials/skybox/sky_day02_05dn.vmt vtf=- rgba=not-decoded
+1939.1 gpu: reload-stage stage=water lastError=0x00000000
+1939.3 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+1939.3 gpu: world lightmap status=active intensity=0.558 atlas=1 bump=0 env=0 vertices=541665 lightmapped=540141
+1939.3 gpu: world geometry displacedTriangles=115744 waterTriangles=160
+1939.3 gpu: world cubemap status=six-face mode=0 preset=performance declared=0 faces=6 size=32 source=materials/maps/2koth_abbey/c1316_-1018_238.vtf reason=all six faces decoded
+1944.9 gpu: model 0/9 2048x1024 5.5ms uploaded=1
+1946.9 gpu: model 1/9 1024x512 1.7ms uploaded=1
+1948.6 gpu: model 2/9 1024x512 1.6ms uploaded=1
+1950.4 gpu: model 3/9 1024x512 1.7ms uploaded=1
+1956.6 gpu: model 4/9 2048x1024 6.0ms uploaded=1
+1960.0 gpu: model 5/9 1024x1024 3.1ms uploaded=1
+1965.9 gpu: model 6/9 2048x1024 5.7ms uploaded=1
+1969.3 gpu: model 7/9 1024x1024 3.0ms uploaded=1
+1975.2 gpu: model 8/9 2048x1024 5.8ms uploaded=1
+1975.6 gpu: models done 9 uploaded=9
+1975.6 gpu: reload-stage stage=models lastError=0x00000000
+1975.6 gpu: reload end
+1975.6 gpu: post-reload lastError=0x00000000
+1981.3 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+1981.3 loop n=1 tick=0
+1983.4 metrics t=0.00 tick=0 iter=1
+1983.4 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=0 capture_written=0 metrics_written=0 exit=0
+1983.4 audio: summary soundEventsRead=0 soundEventsScheduled=0 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=0 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=0
+1983.4 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=0 freezeFrames=0

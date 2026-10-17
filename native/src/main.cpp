@@ -1,5 +1,6 @@
 #include "native_renderer.h"
 #include "asset_root.h"
+#include "map_lookup.h"
 #include "settings_store.h"
 #include "vpk_archive.h"
 #include "vtf_texture.h"
@@ -1637,21 +1638,66 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     return materialVtfCache.emplace(path, std::move(bytes)).first->second;
   };
   if (assets.valid()) {
-    std::filesystem::path mapPath = L"maps/2koth_abbey.bsp";
-    if (demoHeader.valid) mapPath = std::filesystem::path(L"maps") / std::filesystem::path(std::wstring(demoHeader.mapName.begin(), demoHeader.mapName.end()) + L".bsp");
+    // ---- T9 (2026-10-16): where the map came from -------------------------
+    // `demoHeader.mapName` is a NAME, not a path, and the three stores it may
+    // live in are walked in the order map_lookup.h documents. The store that
+    // answered is reported: "the map loaded" and "the map loaded from the copy
+    // a server pushed into download/maps" are different statements, and only
+    // the second one says anything about that directory.
+    //
+    // Before this the product built one path, `<tf>/maps/<map>.bsp`, and asked
+    // the VPKs for the same string. A demo whose map existed only under
+    // download/maps therefore played with `BSP: invalid/BSP header is invalid`
+    // and a fallback material path -- T4 recorded two.
+    const std::string requestedMap = demoHeader.valid
+      ? demoHeader.mapName : std::string("2koth_abbey");
+    const auto mapPlan = tf2::native::planMapLookup(requestedMap);
+    // The stem is what the cubemap path is built from, so it has to survive the
+    // not-found case too: `maps/<name>.bsp` is the name even when nothing has
+    // that name on disk.
+    std::filesystem::path mapPath = std::filesystem::path(L"maps")
+      / std::filesystem::path(requestedMap + ".bsp");
+    std::string mapLookupStore = "none";
+    std::string mapLookupSelected;
+    std::string mapLookupReason;
+    std::vector<std::uint8_t> mapBytes;
     for (const auto* name : { L"pak01_dir.vpk", L"tf2_misc_dir.vpk", L"tf2_textures_dir.vpk", L"tf2_sound_misc_dir.vpk", L"tf2_sound_vo_english_dir.vpk" }) {
       auto archive = std::make_shared<tf2::native::VpkArchive>();
       if (archive->open(assets.tfDirectory / name)) soundArchives.push_back(std::move(archive));
     }
-    auto mapBytes = readFile(assets.tfDirectory / mapPath);
-    if (mapBytes.empty()) {
-      const std::string mapResource =
-        std::filesystem::path(mapPath).generic_string();
-      for (const auto& archive : soundArchives) {
-        mapBytes = archive->read(mapResource);
-        if (!mapBytes.empty()) break;
+    if (!mapPlan.nameUsable) {
+      // Refused by name, before any store is touched. Reported as the refusal
+      // it is, not as "not found": a map called `..\..\x` was never searched
+      // for and saying so is the difference between a missing file and an
+      // input that cannot be honoured.
+      mapLookupReason = mapPlan.reason;
+    } else {
+      for (const auto& candidate : mapPlan.candidates) {
+        if (candidate.packed) {
+          for (const auto& archive : soundArchives) {
+            mapBytes = archive->read(candidate.relativePath);
+            if (!mapBytes.empty()) break;
+          }
+        } else {
+          mapBytes = readFile(assets.tfDirectory
+            / std::filesystem::path(candidate.relativePath));
+        }
+        if (!mapBytes.empty()) {
+          mapLookupStore = candidate.store;
+          mapLookupSelected = candidate.relativePath;
+          mapPath = std::filesystem::path(candidate.relativePath);
+          mapLookupReason = "found";
+          break;
+        }
+      }
+      if (mapBytes.empty()) {
+        mapLookupReason = "not found in maps, download/maps or a vpk";
       }
     }
+    traceFmt("map: lookup map=%s store=%s selected=%s bytes=%zu reason=%s",
+      requestedMap.c_str(), mapLookupStore.c_str(),
+      mapLookupSelected.empty() ? "-" : mapLookupSelected.c_str(),
+      mapBytes.size(), mapLookupReason.c_str());
     tf2::native::BspParser::parse(mapBytes, displayMap, 200000);
     // The map's cubemap, resolved the way the capability layer measures it: one
     // file per sample named after the sample's integer coordinates, in the tf

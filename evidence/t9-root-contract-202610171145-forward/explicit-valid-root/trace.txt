@@ -1,0 +1,83 @@
+0.0 trace open
+17373.4 map: lookup map=koth_bagel_rc13 store=none selected=- bytes=0 reason=not found in maps, download/maps or a vpk
+17471.2 audio: timeline firstPacketTick=-2147483648 soundOriginTick=1 originFound=1 read=5234 scheduled=5167 unresolved=52 unplaceable=15 refused=0 kinds=w2641/f4/u23/o1927/v571/a1/m0
+17790.2 gpu: reload begin
+17790.7 gpu: reload-stage stage=texture lastError=0x00000000
+17790.8 gpu: reload-stage stage=aux lastError=0x00000000
+17790.8 gpu: reload-stage stage=lightmap lastError=0x00000000
+17790.8 gpu: reload-stage stage=cubemap lastError=0x00000000
+17790.8 gpu: reload-stage stage=sky lastError=0x00000000
+17790.8 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+17791.0 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+17791.0 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+17791.0 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+17791.0 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+17791.0 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+17791.0 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+17791.0 gpu: reload-stage stage=water lastError=0x00000000
+17791.0 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+17791.0 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0
+17791.0 gpu: world geometry displacedTriangles=0 waterTriangles=0
+17791.0 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+17801.0 gpu: model 0/52 1024x1024 9.9ms uploaded=1
+17806.2 gpu: model 1/52 1024x1024 5.0ms uploaded=1
+17807.4 gpu: model 2/52 512x512 1.1ms uploaded=1
+17808.2 gpu: model 3/52 256x256 0.6ms uploaded=1
+17815.4 gpu: model 4/52 2048x1024 7.2ms uploaded=1
+17845.3 gpu: model 5/52 2048x2048 29.5ms uploaded=1
+17853.5 gpu: model 6/52 1024x1024 7.5ms uploaded=1
+17860.7 gpu: model 7/52 1024x1024 7.0ms uploaded=1
+17863.1 gpu: model 8/52 512x512 2.2ms uploaded=1
+17870.0 gpu: model 9/52 1024x1024 6.8ms uploaded=1
+17876.7 gpu: model 10/52 1024x1024 6.5ms uploaded=1
+17877.2 gpu: model 11/52 256x256 0.3ms uploaded=1
+17878.0 gpu: model 12/52 512x512 0.8ms uploaded=1
+17880.8 gpu: model 13/52 1024x1024 2.7ms uploaded=1
+17887.8 gpu: model 14/52 1024x1024 6.9ms uploaded=1
+17914.4 gpu: model 15/52 2048x2048 26.4ms uploaded=1
+17941.9 gpu: model 16/52 2048x2048 26.8ms uploaded=1
+17943.5 gpu: model 17/52 512x512 1.0ms uploaded=1
+17944.5 gpu: model 18/52 512x512 0.9ms uploaded=1
+17970.8 gpu: model 19/52 2048x2048 26.2ms uploaded=1
+17972.4 gpu: model 20/52 512x512 1.0ms uploaded=1
+17974.2 gpu: model 21/52 512x512 1.7ms uploaded=1
+17977.1 gpu: model 22/52 1024x1024 2.8ms uploaded=1
+18004.1 gpu: model 23/52 2048x2048 26.9ms uploaded=1
+18011.5 gpu: model 24/52 1024x1024 6.7ms uploaded=1
+18013.5 gpu: model 25/52 512x512 1.8ms uploaded=1
+18016.4 gpu: model 26/52 1024x1024 2.9ms uploaded=1
+18019.6 gpu: model 27/52 1024x1024 3.1ms uploaded=1
+18020.7 gpu: model 28/52 512x512 0.8ms uploaded=1
+18022.5 gpu: model 29/52 512x512 1.8ms uploaded=1
+18049.7 gpu: model 30/52 2048x2048 27.1ms uploaded=1
+18054.4 gpu: model 31/52 1024x512 4.0ms uploaded=1
+18056.3 gpu: model 32/52 512x512 1.8ms uploaded=1
+18058.4 gpu: model 33/52 512x512 2.0ms uploaded=1
+18085.8 gpu: model 34/52 2048x2048 27.4ms uploaded=1
+18113.9 gpu: model 35/52 2048x2048 27.3ms uploaded=1
+18117.3 gpu: model 36/52 1024x1024 2.9ms uploaded=1
+18124.3 gpu: model 37/52 1024x1024 6.8ms uploaded=1
+18126.5 gpu: model 38/52 512x512 2.0ms uploaded=1
+18133.7 gpu: model 39/52 1024x1024 7.1ms uploaded=1
+18135.7 gpu: model 40/52 512x512 1.8ms uploaded=1
+18137.6 gpu: model 41/52 512x512 1.9ms uploaded=1
+18139.5 gpu: model 42/52 512x512 1.8ms uploaded=1
+18145.3 gpu: model 43/52 2048x1024 5.7ms uploaded=1
+18147.2 gpu: model 44/52 1024x512 1.6ms uploaded=1
+18148.9 gpu: model 45/52 1024x512 1.6ms uploaded=1
+18150.6 gpu: model 46/52 1024x512 1.6ms uploaded=1
+18156.3 gpu: model 47/52 2048x1024 5.7ms uploaded=1
+18159.8 gpu: model 48/52 1024x1024 3.2ms uploaded=1
+18165.6 gpu: model 49/52 2048x1024 5.6ms uploaded=1
+18169.5 gpu: model 50/52 1024x1024 3.4ms uploaded=1
+18175.9 gpu: model 51/52 2048x1024 6.2ms uploaded=1
+18176.3 gpu: models done 52 uploaded=52
+18176.3 gpu: reload-stage stage=models lastError=0x00000000
+18176.3 gpu: reload end
+18176.3 gpu: post-reload lastError=0x00000000
+18176.3 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+18176.3 loop n=1 tick=0
+18177.7 metrics t=0.00 tick=0 iter=1
+18177.7 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=0 capture_written=0 metrics_written=0 exit=0
+18177.7 audio: summary soundEventsRead=5234 soundEventsScheduled=5167 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=-2147483648 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=0
+18177.7 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=0 freezeFrames=0

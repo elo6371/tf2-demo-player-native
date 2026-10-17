@@ -1,0 +1,2 @@
+﻿"D:\TF2_Native_Worktrees\resource-discovery-startup\native\build-nmake\tf2_demo_native.exe"
+--tf-root "D:\SteamLibrary\steamapps\common\Team Fortress 2\tf" --demo "D:\SteamLibrary\steamapps\common\Team Fortress 2\tf\demos\processdemo.dem" --hidden-window --audio-device 6 --audio-disabled --start-paused --settings-file D:\TF2_Native_Worktrees\resource-discovery-startup\evidence\t9-resource-discovery-20261017113652-50508-forward\download-process\settings.ini
