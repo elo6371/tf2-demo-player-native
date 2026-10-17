@@ -204,6 +204,12 @@ struct WorldMaterialSampleState {
   // 0/600000 would mean the atlas is bound and nothing samples it.
   std::uint32_t worldVertexCount = 0;
   std::uint32_t lightmappedVertexCount = 0;
+  // T10 diagnostic: the CONVERTED bounds of the uploaded world buffer. The
+  // camera and the entity models share one normalized space; if the world
+  // buffer's bounds are not the same box, the world pass is drawing somewhere
+  // the camera never looks, and this pair of triples says where.
+  float convertedMin[3] = {0.0f, 0.0f, 0.0f};
+  float convertedMax[3] = {0.0f, 0.0f, 0.0f};
   // Which of the three things the env path is doing, as a value the runtime can
   // read rather than a claim in a comment. `envTextureBound` alone could not
   // tell a map whose cubemap failed to decode from one that never had an env
@@ -868,6 +874,8 @@ private:
   // the view matrix the world pass used.
   DirectX::XMFLOAT4X4 frameView_{};
   float frameEye_[3] = {};
+  float worldConvertedMin_[3] = {};
+  float worldConvertedMax_[3] = {};
   float frameForward_[3] = {};
   float frameUp_[3] = {};
   float frameRight_[3] = {};

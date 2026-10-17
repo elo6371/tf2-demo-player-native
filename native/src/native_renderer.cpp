@@ -1022,6 +1022,15 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
+  {
+    float cx0 = 1e30f, cy0 = 1e30f, cz0 = 1e30f, cx1 = -1e30f, cy1 = -1e30f, cz1 = -1e30f;
+    for (const auto& v : vertices) {
+      cx0 = std::min(cx0, v.x); cy0 = std::min(cy0, v.y); cz0 = std::min(cz0, v.z);
+      cx1 = std::max(cx1, v.x); cy1 = std::max(cy1, v.y); cz1 = std::max(cz1, v.z);
+    }
+    worldConvertedMin_[0] = cx0; worldConvertedMin_[1] = cy0; worldConvertedMin_[2] = cz0;
+    worldConvertedMax_[0] = cx1; worldConvertedMax_[1] = cy1; worldConvertedMax_[2] = cz1;
+  }
   worldDisplacedTriangleCount_ = static_cast<UINT>(displacedTriangles);
   worldWaterTriangleCount_ = static_cast<UINT>(waterTriangles);
   worldMinX_ = minX; worldMinY_ = minY; worldMinZ_ = minZ;
@@ -1167,6 +1176,15 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
+  {
+    float cx0 = 1e30f, cy0 = 1e30f, cz0 = 1e30f, cx1 = -1e30f, cy1 = -1e30f, cz1 = -1e30f;
+    for (const auto& v : vertices) {
+      cx0 = std::min(cx0, v.x); cy0 = std::min(cy0, v.y); cz0 = std::min(cz0, v.z);
+      cx1 = std::max(cx1, v.x); cy1 = std::max(cy1, v.y); cz1 = std::max(cz1, v.z);
+    }
+    worldConvertedMin_[0] = cx0; worldConvertedMin_[1] = cy0; worldConvertedMin_[2] = cz0;
+    worldConvertedMax_[0] = cx1; worldConvertedMax_[1] = cy1; worldConvertedMax_[2] = cz1;
+  }
   worldDisplacedTriangleCount_ = static_cast<UINT>(displacedTriangles);
   worldWaterTriangleCount_ = static_cast<UINT>(waterTriangles);
   worldMinX_ = minX; worldMinY_ = minY; worldMinZ_ = minZ;
@@ -1786,6 +1804,8 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.lightmapAtlasBound = worldLightmapTexture_.view() != nullptr;
   state.selfIllumEnabled = worldMaterialParams_.selfIllum;
   state.worldVertexCount = worldVertexCount_;
+  state.convertedMin[0] = worldConvertedMin_[0]; state.convertedMin[1] = worldConvertedMin_[1]; state.convertedMin[2] = worldConvertedMin_[2];
+  state.convertedMax[0] = worldConvertedMax_[0]; state.convertedMax[1] = worldConvertedMax_[1]; state.convertedMax[2] = worldConvertedMax_[2];
   state.lightmappedVertexCount = worldLightmappedVertexCount_;
   state.cubemapStatus = worldCubemapView_ ? WorldCubemapStatus::SixFace
     : (worldEnvTexture_.view() ? WorldCubemapStatus::Approximate2d
