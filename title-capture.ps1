@@ -51,9 +51,33 @@ if (-not (Test-Path -LiteralPath $rootGate)) { throw "the root gate is absent: $
 $gateText = Get-Content -LiteralPath $rootGate -Raw
 $start = $gateText.IndexOf('Add-Type -TypeDefinition')
 if ($start -lt 0) { throw 'the root gate no longer contains the window scanner' }
-$end = $gateText.IndexOf("@'", $start)
-if ($end -lt 0) { throw 'the scanner block is not terminated' }
-Invoke-Expression $gateText.Substring($start, ($end + 2) - $start)
+# The here-string opens with @' and closes with '@. Searching for the opening
+# delimiter again would cut the block off at its own first line, which fails as
+# an unterminated string rather than as the missing-scanner error it is.
+$open = $gateText.IndexOf("@'", $start)
+if ($open -lt 0) { throw 'the scanner block does not open' }
+$close = $gateText.IndexOf("'@", $open + 2)
+if ($close -lt 0) { throw 'the scanner block is not terminated' }
+# Scan returns the first window of the class, and EnumWindows order is not
+# "the process I just started". A machine with another player instance on it --
+# which is what this host looks like while several tasks share one validation
+# queue -- puts that instance's window first, and a title read off it is a
+# reading about somebody else's run. Worse, closing it posts WM_CLOSE into a
+# process that was never mine.
+#
+# The enumeration stays the gate's, and an owner-filtered entry point is added
+# to the lifted text rather than as a second scanner: Scan(class) keeps its
+# exact behaviour, ScanOwned(class, pid) skips windows owned by anyone else.
+$scanner = $gateText.Substring($start, ($close + 2) - $start)
+$anchorSig = 'public static string Scan(string className) {'
+if ($scanner -notmatch [regex]::Escape($anchorSig)) { throw 'the scanner signature moved; the owner filter was not applied' }
+$scanner = $scanner.Replace($anchorSig,
+  'public static string Scan(string className) { return ScanOwned(className, 0); }' + "`r`n  " +
+  'public static string ScanOwned(string className, uint ownerPid) {')
+$anchorPid = 'GetWindowThreadProcessId(h, out o);'
+if ($scanner -notmatch [regex]::Escape($anchorPid)) { throw 'the scanner no longer reads the window owner; the filter was not applied' }
+$scanner = $scanner.Replace($anchorPid, $anchorPid + "`r`n      if (ownerPid != 0 && o != ownerPid) return true;")
+Invoke-Expression $scanner
 
 # ---- one launch ---------------------------------------------------------
 $settings = Join-Path $OutDir 'settings.ini'
@@ -92,25 +116,28 @@ $outTask = $proc.StandardOutput.ReadToEndAsync()
 $errTask = $proc.StandardError.ReadToEndAsync()
 
 $title = ''
+$ownedHwnd = [IntPtr]::Zero
+$foreignSeen = 0
 $deadline = (Get-Date).AddSeconds($Seconds)
 while ((Get-Date) -lt $deadline) {
   if ($proc.HasExited) { break }
-  $scan = [T4RootScan]::Scan($WindowClass)
+  $scan = [T4RootScan]::ScanOwned($WindowClass, [uint32]$proc.Id)
   if ($scan -ne '') {
     $parts = $scan -split "`t", 3
+    $ownedHwnd = [IntPtr][long]$parts[1]
     if ($parts[2].Length -gt 0) { $title = $parts[2] }
     # The VPK bracket exists only in a connected title, so it is the one thing
     # that says the title has finished settling.
     if ($title -match '\[VPK entries:') { break }
+  } else {
+    # Something of this class exists but is not mine. Recorded, never touched:
+    # another task's player is mid-run and posting to it would end that run.
+    if ([T4RootScan]::Scan($WindowClass) -ne '') { $foreignSeen++ }
   }
   Start-Sleep -Milliseconds 400
 }
-if (-not $proc.HasExited) {
-  $scan = [T4RootScan]::Scan($WindowClass)
-  if ($scan -ne '') {
-    $parts = $scan -split "`t", 3
-    [void][T4RootScan]::PostMessageW([IntPtr][long]$parts[1], [uint32]0x0010, [System.IntPtr]::Zero, [System.IntPtr]::Zero)
-  }
+if ((-not $proc.HasExited) -and ($ownedHwnd -ne [IntPtr]::Zero)) {
+  [void][T4RootScan]::PostMessageW($ownedHwnd, [uint32]0x0010, [System.IntPtr]::Zero, [System.IntPtr]::Zero)
 }
 if (-not $proc.WaitForExit(20000)) { $proc.Kill() }
 $proc.WaitForExit(5000) | Out-Null
@@ -119,7 +146,20 @@ Set-Content -LiteralPath (Join-Path $OutDir 'stdout.txt') -Value $outTask.Result
 Set-Content -LiteralPath (Join-Path $OutDir 'stderr.txt') -Value $errTask.Result -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $OutDir 'exit-code.txt') -Value "$($proc.ExitCode)" -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $OutDir 'title-last.txt') -Value $title -Encoding UTF8
+# The ownership proof travels with the evidence: a title without it cannot be
+# told apart from one read off another process's window, which is the failure
+# this harness had on its first run.
+Set-Content -LiteralPath (Join-Path $OutDir 'child-pid.txt') -Value "$($proc.Id)" -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $OutDir 'window-pid.txt') -Value "$(if ($ownedHwnd -ne [IntPtr]::Zero) { $proc.Id } else { 0 })" -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $OutDir 'foreign-windows-seen.txt') -Value "$foreignSeen" -Encoding UTF8
 
-if ([string]::IsNullOrEmpty($title)) { Write-Output 'TITLE-CAPTURE=FAIL (no window title)'; exit 1 }
+if ([string]::IsNullOrEmpty($title)) {
+  if ($foreignSeen -gt 0) {
+    Write-Output 'TITLE-CAPTURE=FAIL (no title from this process; a foreign window of this class was present and left untouched)'
+  } else {
+    Write-Output 'TITLE-CAPTURE=FAIL (no window title)'
+  }
+  exit 1
+}
 Write-Output ("TITLE-CAPTURE=PASS (len={0} brackets={1})" -f $title.Length, ($(if ($title -match '\[VPK entries:') { 'yes' } else { 'no' })))
 exit 0

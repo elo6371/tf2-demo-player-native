@@ -1,0 +1,49 @@
+0.0 trace open
+1418.1 map: lookup map=cp_t9_no_such_map store=none selected=- bytes=0 reason=not found in maps, download/maps or a vpk
+1434.7 audio: timeline firstPacketTick=260 soundOriginTick=0 originFound=1 read=2 scheduled=2 unresolved=0 unplaceable=0 refused=0 kinds=w0/f0/u0/o2/v0/a0/m0
+1771.5 gpu: reload begin
+1771.7 gpu: reload-stage stage=texture lastError=0x00000000
+1771.8 gpu: reload-stage stage=aux lastError=0x00000000
+1771.8 gpu: reload-stage stage=lightmap lastError=0x00000000
+1771.8 gpu: reload-stage stage=cubemap lastError=0x00000000
+1771.8 gpu: reload-stage stage=sky lastError=0x00000000
+1771.8 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+1771.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+1771.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+1771.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+1771.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+1771.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+1771.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+1771.9 gpu: reload-stage stage=water lastError=0x00000000
+1772.0 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+1772.0 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0
+1772.0 gpu: world geometry displacedTriangles=0 waterTriangles=0
+1772.0 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+1772.2 gpu: model 0/18 128x128 0.3ms uploaded=1
+1773.5 gpu: model 1/18 512x512 1.3ms uploaded=1
+1775.2 gpu: model 2/18 512x512 1.6ms uploaded=1
+1784.7 gpu: model 3/18 1024x1024 9.4ms uploaded=1
+1792.7 gpu: model 4/18 1024x1024 7.9ms uploaded=1
+1800.0 gpu: model 5/18 1024x1024 7.1ms uploaded=1
+1806.9 gpu: model 6/18 1024x1024 6.8ms uploaded=1
+1814.8 gpu: model 7/18 1024x1024 7.6ms uploaded=1
+1818.1 gpu: model 8/18 1024x1024 3.2ms uploaded=1
+1826.2 gpu: model 9/18 2048x1024 7.9ms uploaded=1
+1828.5 gpu: model 10/18 1024x512 2.0ms uploaded=1
+1830.4 gpu: model 11/18 1024x512 1.7ms uploaded=1
+1831.9 gpu: model 12/18 1024x512 1.5ms uploaded=1
+1838.8 gpu: model 13/18 2048x1024 6.8ms uploaded=1
+1842.3 gpu: model 14/18 1024x1024 3.1ms uploaded=1
+1848.4 gpu: model 15/18 2048x1024 5.9ms uploaded=1
+1852.0 gpu: model 16/18 1024x1024 3.3ms uploaded=1
+1858.6 gpu: model 17/18 2048x1024 6.5ms uploaded=1
+1859.2 gpu: models done 18 uploaded=18
+1859.2 gpu: reload-stage stage=models lastError=0x00000000
+1859.2 gpu: reload end
+1859.2 gpu: post-reload lastError=0x00000000
+1859.2 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+1859.2 loop n=1 tick=0
+1860.4 metrics t=0.00 tick=0 iter=1
+1860.4 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=0 capture_written=0 metrics_written=0 exit=0
+1860.4 audio: summary soundEventsRead=2 soundEventsScheduled=2 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=260 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=0
+1860.4 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=0 freezeFrames=0

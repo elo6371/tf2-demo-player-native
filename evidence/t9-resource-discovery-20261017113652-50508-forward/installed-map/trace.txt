@@ -1,0 +1,49 @@
+0.0 trace open
+1451.6 map: lookup map=cp_snakewater_final1 store=maps selected=maps/cp_snakewater_final1.bsp bytes=59590420 reason=found
+1609.2 audio: timeline firstPacketTick=260 soundOriginTick=0 originFound=1 read=2 scheduled=2 unresolved=0 unplaceable=0 refused=0 kinds=w0/f0/u0/o2/v0/a0/m0
+1927.4 gpu: reload begin
+1929.6 gpu: reload-stage stage=texture lastError=0x00000000
+1929.6 gpu: reload-stage stage=aux lastError=0x00000000
+1935.6 gpu: reload-stage stage=lightmap lastError=0x00000000
+1935.8 gpu: reload-stage stage=cubemap lastError=0x00000000
+1947.8 gpu: reload-stage stage=sky lastError=0x00000000
+1947.8 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+1948.1 gpu: world sky-face index=0 dir=+X suffix=rt vmt=materials/skybox/sky_well_01rt.vmt vtf=materials/skybox/sky_well_01rt.vtf rgba=107,95,121,255
+1948.1 gpu: world sky-face index=1 dir=-X suffix=lf vmt=materials/skybox/sky_well_01lf.vmt vtf=materials/skybox/sky_well_01lf.vtf rgba=104,100,135,255
+1948.1 gpu: world sky-face index=2 dir=+Y suffix=bk vmt=materials/skybox/sky_well_01bk.vmt vtf=materials/skybox/sky_well_01bk.vtf rgba=104,100,135,255
+1948.1 gpu: world sky-face index=3 dir=-Y suffix=ft vmt=materials/skybox/sky_well_01ft.vmt vtf=materials/skybox/sky_well_01ft.vtf rgba=104,100,135,255
+1948.1 gpu: world sky-face index=4 dir=+Z suffix=up vmt=materials/skybox/sky_well_01up.vmt vtf=materials/skybox/sky_well_01up.vtf rgba=89,91,137,255
+1948.1 gpu: world sky-face index=5 dir=-Z suffix=dn vmt=materials/skybox/sky_well_01dn.vmt vtf=materials/skybox/sky_well_01dn.vtf rgba=29,57,90,255
+1987.1 gpu: reload-stage stage=water lastError=0x00000000
+1987.3 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+1987.3 gpu: world lightmap status=active intensity=0.439 atlas=1 bump=0 env=0 vertices=600000 lightmapped=599766
+1987.3 gpu: world geometry displacedTriangles=165376 waterTriangles=36
+1987.3 gpu: world cubemap status=six-face mode=0 preset=performance declared=0 faces=6 size=32 source=materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf reason=all six faces decoded
+1987.6 gpu: model 0/18 128x128 0.3ms uploaded=1
+1988.5 gpu: model 1/18 512x512 0.9ms uploaded=1
+1989.4 gpu: model 2/18 512x512 0.9ms uploaded=1
+1996.4 gpu: model 3/18 1024x1024 6.9ms uploaded=1
+2003.1 gpu: model 4/18 1024x1024 6.5ms uploaded=1
+2009.9 gpu: model 5/18 1024x1024 6.6ms uploaded=1
+2016.6 gpu: model 6/18 1024x1024 6.5ms uploaded=1
+2023.7 gpu: model 7/18 1024x1024 7.0ms uploaded=1
+2027.3 gpu: model 8/18 1024x1024 3.2ms uploaded=1
+2033.1 gpu: model 9/18 2048x1024 5.6ms uploaded=1
+2034.8 gpu: model 10/18 1024x512 1.5ms uploaded=1
+2036.4 gpu: model 11/18 1024x512 1.5ms uploaded=1
+2037.9 gpu: model 12/18 1024x512 1.5ms uploaded=1
+2043.9 gpu: model 13/18 2048x1024 5.9ms uploaded=1
+2047.1 gpu: model 14/18 1024x1024 2.7ms uploaded=1
+2052.7 gpu: model 15/18 2048x1024 5.5ms uploaded=1
+2056.3 gpu: model 16/18 1024x1024 3.1ms uploaded=1
+2062.2 gpu: model 17/18 2048x1024 5.7ms uploaded=1
+2062.5 gpu: models done 18 uploaded=18
+2062.5 gpu: reload-stage stage=models lastError=0x00000000
+2062.6 gpu: reload end
+2062.6 gpu: post-reload lastError=0x00000000
+2068.6 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+2068.6 loop n=1 tick=0
+2071.3 metrics t=0.00 tick=0 iter=1
+2071.4 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=0 capture_written=0 metrics_written=0 exit=0
+2071.4 audio: summary soundEventsRead=2 soundEventsScheduled=2 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=260 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=0
+2071.4 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=0 freezeFrames=0

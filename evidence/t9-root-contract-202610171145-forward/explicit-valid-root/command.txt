@@ -1,0 +1,2 @@
+﻿"D:\TF2_Native_Worktrees\resource-discovery-startup\native\build-nmake\tf2_demo_native.exe"
+--tf-root "D:\SteamLibrary\steamapps\common\Team Fortress 2\tf" --demo D:\TF2_Demo_Player\testdata\demos\4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem --hidden-window --audio-device 6 --audio-disabled --start-paused --settings-file D:\TF2_Native_Worktrees\resource-discovery-startup\evidence\t9-root-contract-202610171145-forward\explicit-valid-root\settings.ini

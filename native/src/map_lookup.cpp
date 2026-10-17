@@ -11,6 +11,18 @@ namespace {
 // resolve outside the root, and the caller would then be reading a file the
 // operator never pointed at. The allow-list is the character set TF2 map names
 // actually use, so refusing the rest costs nothing real.
+//
+// RELATIONSHIP TO validMapName (demo_header.cpp), stated because the two rules
+// look like one rule and are not:
+//   validMapName   alnum, '_' and '-' only, <= 128 bytes. Runs at header parse
+//                  and rejects the whole demo on failure, so a name with a
+//                  separator, a dot or a '..' never becomes demoHeader.mapName.
+//   this function  the above plus '.', with '..' and leading/trailing dots
+//                  refused separately so the reason can name which one it was.
+// Anything validMapName accepts, this accepts, so from the demo-header path
+// this refusal is unreachable: it is the second gate, not the first, and it
+// exists because planMapLookup is also called with names that did not come from
+// a header. Do not "fix" the difference by loosening validMapName.
 bool isAllowedMapNameCharacter(char character) {
   const auto value = static_cast<unsigned char>(character);
   if (std::isalnum(value)) return true;

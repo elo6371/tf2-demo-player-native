@@ -1,0 +1,22 @@
+﻿row=explicit-valid-root exit=0 window_found=True window_pid=42528 child_pid=42528 connected_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf vpk_entries=104137
+row=explicit-missing-root exit=0 window_found=True window_pid=40600 child_pid=40600 connected_root= vpk_entries=-1
+row=explicit-empty-root exit=0 window_found=True window_pid=26376 child_pid=26376 connected_root= vpk_entries=-1
+row=no-root-auto-search exit=0 window_found=True window_pid=46276 child_pid=46276 connected_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf vpk_entries=104137
+
+PASS explicit-valid-root produced a window with a title (window_found=True title_len=3145)
+PASS explicit-missing-root produced a window with a title (window_found=True title_len=2849)
+PASS explicit-empty-root produced a window with a title (window_found=True title_len=2849)
+PASS no-root-auto-search produced a window with a title (window_found=True title_len=3145)
+PASS explicit-valid-root window belongs to its own child process (window_pid=42528 child_pid=42528)
+PASS explicit-missing-root window belongs to its own child process (window_pid=40600 child_pid=40600)
+PASS explicit-empty-root window belongs to its own child process (window_pid=26376 child_pid=26376)
+PASS no-root-auto-search window belongs to its own child process (window_pid=46276 child_pid=46276)
+PASS explicit valid root is the connected root (connected=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf)
+PASS explicit valid root really opened the install (vpk_entries=104137)
+PASS missing root did not connect Steam (connected='')
+PASS missing root did not connect the reference install either (connected='')
+PASS empty root did not connect Steam (connected='')
+PASS empty root did not connect the reference install either (connected='')
+PASS no flag still auto-searches and connects a root (connected=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf)
+PASS auto-search connected the install it found (vpk_entries=104137)
+verdict=ROOT-CONTRACT=PASS
