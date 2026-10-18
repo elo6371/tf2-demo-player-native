@@ -440,8 +440,8 @@ SHA-256 of the working file instead. Measured after the last mutation run, with
 
 `git status --porcelain -- native/` is empty. (The range log's
 `10c14ad8…`/`1b0c3c3b…` are SHA-256 of the CRLF working copy; the blob hashes
-above are the same bytes after the checkout filter, and they are what a reviewer
-can reproduce.)
+above are the same content after the checkout filter normalizes CRLF to LF, and
+they are what a reviewer can reproduce from the commit.)
 
 ### 6.5 Residual process and lock state
 
