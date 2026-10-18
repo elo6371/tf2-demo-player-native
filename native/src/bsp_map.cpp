@@ -626,15 +626,46 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           };
           if (finite && map.triangles.size() + static_cast<std::size_t>(size - 1) * static_cast<std::size_t>(size - 1) * 2u <= triangleLimit) {
             const auto before = map.triangles.size();
+            // T12 post-merge: the blend weight is a property of a grid cell, not
+            // of a slot in the triangle. `pushTriangle` reverses b and c to
+            // orient the triangle (T11), so the weights have to travel with
+            // them; this compares the emitted (position, weight) pairs against
+            // the cells the triangle was built from. Matching is by exact
+            // position, which is sound because the emitted vertices are copies
+            // of the grid vertices and nothing resamples them in between.
+            const auto checkPairing = [&](const BspVertex& pa, const BspVertex& pb, const BspVertex& pc,
+                                          float wa, float wb, float wc) {
+              if (map.triangles.empty()) return;
+              const BspTriangle& tri = map.triangles.back();
+              const BspVertex* wantPos[3] = {&pa, &pb, &pc};
+              const float wantAlpha[3] = {wa, wb, wc};
+              const BspVertex* gotPos[3] = {&tri.a, &tri.b, &tri.c};
+              const float gotAlpha[3] = {tri.aAlpha, tri.bAlpha, tri.cAlpha};
+              bool used[3] = {false, false, false};
+              int matched = 0;
+              for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                  if (used[j]) continue;
+                  if (gotPos[i]->x == wantPos[j]->x && gotPos[i]->y == wantPos[j]->y
+                      && gotPos[i]->z == wantPos[j]->z && gotAlpha[i] == wantAlpha[j]) {
+                    used[j] = true; ++matched; break;
+                  }
+                }
+              }
+              ++map.alphaPairingChecked;
+              if (matched != 3) ++map.alphaPairingDetached;
+            };
             for (int y = 0; y < size - 1; ++y) for (int x = 0; x < size - 1; ++x) {
               const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gy * size + gx)]; };
               const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gy * size + gx)]; };
               const auto p00 = at(x, y), p10 = at(x + 1, y), p11 = at(x + 1, y + 1), p01 = at(x, y + 1);
               if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) { displacementComplete = false; continue; }
-              pushTriangle(at(x, y), at(x + 1, y + 1), at(x + 1, y), true,
-                weightAt(x, y), weightAt(x + 1, y + 1), weightAt(x + 1, y));
-              pushTriangle(at(x, y), at(x, y + 1), at(x + 1, y + 1), true,
-                weightAt(x, y), weightAt(x, y + 1), weightAt(x + 1, y + 1));
+              const auto w00 = weightAt(x, y), w11 = weightAt(x + 1, y + 1), w10 = weightAt(x + 1, y);
+              const auto w01 = weightAt(x, y + 1);
+              pushTriangle(p00, p11, p10, true, w00, w11, w10);
+              checkPairing(p00, p11, p10, w00, w11, w10);
+              pushTriangle(p00, p01, p11, true, w00, w01, w11);
+              checkPairing(p00, p01, p11, w00, w01, w11);
             }
             emittedDisp = map.triangles.size() > before;
             if (!displacementComplete) {
