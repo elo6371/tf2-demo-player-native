@@ -1,0 +1,10 @@
+gpu: world material-fetch distinct=108 tiled=64 capped=21 vmtMissing=3 vmtNoBase=20 vtfMissing=0 vtfTooLarge=54 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=59 downscaled=54
+gpu: world blend-fetch declared=9 resolved=9 refused=0 disabled=0 resampled=9 modulateDeclared=9 modulateResolved=9 modulateRefused=0
+gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+gpu: world geometry=none state=empty reason=--world-geometry none
+gpu: world geometry=none blend=on
+gpu: world lightmap status=unavailable intensity=1.000 atlas=1 bump=0 env=0 vertices=0 lightmapped=0 bounds=(0.00,0.00,0.00)..(0.00,0.00,0.00) lightmapEnabled=1
+gpu: world geometry displacedTriangles=0 waterTriangles=0
+gpu: world blend enabled=1 terrainOnly=0 textures=0 layers=0 accepted=0 acceptedLayers=0 tiles=0 modulateTiles=0 malformedLayers=0 weightedVertices=0 modulatedVertices=0 weightMin=-1.000 weightMax=-1.000 distinctWeights=0
+gpu: world vis cameraCluster=2626 visibleFromCamera=1584 clusters=2938 clusteredTriangles=99312 hiddenTriangles=0 withoutCluster=0 inputTriangles=99312 drawnTriangles=0 clipApplied=0 state=active eyeMap=(-2436.0,644.0,444.0) reason=hid 19494 of 99312 triangles from cluster 2626
+gpu: world cull backfaces=1 mode=cull-back
