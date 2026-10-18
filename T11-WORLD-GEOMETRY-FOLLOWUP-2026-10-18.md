@@ -14,7 +14,7 @@ culls"**, and the question underneath it — is the winding rule right?
 | branch | `task/t11-world-geometry` |
 | worktree | `D:/TF2_Native_Worktrees/t11-world-geometry` |
 | base commit | `a6e0b74` (test: refresh the gate-run evidence from the T11 build) |
-| final commit | `HEAD` of the branch after this round (see §8) |
+| final source commit | `3cc6d5b` (the report itself lands in the docs commit after it) |
 | product scope | `native/include/bsp_map.h`, `native/src/bsp_map.cpp`, `native/tools/world_geometry_probe.cpp`, `visual-baseline-check.sh` |
 
 No file outside the T11 scope was touched. No `evidence/` directory belonging to
