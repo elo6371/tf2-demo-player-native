@@ -924,6 +924,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // because a gate that asks for water-off and gets water-on has compared the
   // same frame twice and called it a difference.
   int invalidWorldWaterArgument = 0;
+  // ---- T12 (2026-10-18): the terrain blend's two diagnostic switches ------
+  // The task asks for terrain on/off/repeat frames and for a proof that the
+  // difference lands in the terrain region rather than only in the counters.
+  // Neither half is measurable without a switch that turns the feature off and
+  // a frame that contains the terrain and nothing else, so both are switches
+  // here rather than edits to a temporary build.
+  bool worldBlendRequested = true;
+  bool worldBlendGiven = false;
+  int invalidWorldBlendArgument = 0;
+  // all | terrain | none. `none` is not a convenience: it is how the gate
+  // measures the background colour of its own camera instead of assuming one,
+  // and the terrain mask is `terrain` minus `none` pixel by pixel.
+  enum class WorldGeometryFilter { All, Terrain, None };
+  WorldGeometryFilter worldGeometry = WorldGeometryFilter::All;
+  int invalidWorldGeometryArgument = 0;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -972,6 +987,24 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         }
       } else if (wcscmp(arguments[i], L"--world-water") == 0) {
         ++invalidWorldWaterArgument;
+      } else if (wcscmp(arguments[i], L"--world-blend") == 0 && i + 1 < argumentCount) {
+        // on|off and nothing else, for the same reason --world-water takes only
+        // those two words: a switch that accepts a typo silently runs the
+        // default, and the gate then compares a frame against itself.
+        if (wcscmp(arguments[++i], L"on") == 0) { worldBlendRequested = true; worldBlendGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldBlendRequested = false; worldBlendGiven = true; }
+        else {
+          ++invalidWorldBlendArgument;
+        }
+      } else if (wcscmp(arguments[i], L"--world-blend") == 0) {
+        ++invalidWorldBlendArgument;
+      } else if (wcscmp(arguments[i], L"--world-geometry") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"all") == 0) worldGeometry = WorldGeometryFilter::All;
+        else if (wcscmp(arguments[i], L"terrain") == 0) worldGeometry = WorldGeometryFilter::Terrain;
+        else if (wcscmp(arguments[i], L"none") == 0) worldGeometry = WorldGeometryFilter::None;
+        else ++invalidWorldGeometryArgument;
+      } else if (wcscmp(arguments[i], L"--world-geometry") == 0) {
+        ++invalidWorldGeometryArgument;
       } else if (wcscmp(arguments[i], L"--tf-root") == 0 && i + 1 < argumentCount) {
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
@@ -1189,6 +1222,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // frame against a water-off frame; a run that was asked for off and drew on
     // would compare a frame with itself and report no difference.
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-water; it takes on or off and nothing else.\n");
+    return 13;
+  }
+  if (invalidWorldBlendArgument) {
+    // T12 (2026-10-18): same rule, same reason. The terrain on/off pair is the
+    // only evidence that the second layer reaches a pixel, so a typo that fell
+    // back to `on` would silently produce two identical frames and a gate that
+    // reported "no difference" as a pass.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-blend; it takes on or off and nothing else.\n");
+    return 13;
+  }
+  if (invalidWorldGeometryArgument) {
+    // T12: `all|terrain|none`. `terrain` and `none` are the two frames the
+    // region proof is computed from; a typo that fell back to `all` would make
+    // the mask the whole world and the containment claim vacuous.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-geometry; it takes all, terrain or none.\n");
     return 13;
   }
   if (invalidViewModelEffectArgument) {
@@ -1873,6 +1921,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       std::size_t fetchVtfMissing = 0, fetchVtfTooLarge = 0, fetchDecodeEmpty = 0, fetchTiled = 0;
       std::size_t fetchMaxWidth = 0, fetchMaxHeight = 0;
       std::size_t fetchFromPakfile = 0, fetchDownscaled = 0;
+      // T12: the blend path's own counts. Declared is what the VMTs asked for;
+      // resolved is what reached the atlas; refused is what did not, each with
+      // a named reason on its own trace line.
+      std::size_t fetchBlendDeclared = 0, fetchBlendResolved = 0, fetchBlendRefused = 0, fetchBlendResampled = 0;
+      // T12: a layer skipped because `--world-blend off` asked for it is not a
+      // refusal. Counting the two together would make the switch look like a
+      // resolution failure in the summary line, which is the reading a reader
+      // uses to decide whether the assets are there.
+      std::size_t fetchBlendDisabled = 0;
+      // T12: the switch's effective value, resolved once. `--world-blend` with
+      // no `--world-blend` argument keeps the default (on), which is what every
+      // existing gate relies on.
+      const bool blendEnabled = worldBlendGiven ? worldBlendRequested : true;
+      std::size_t fetchModulateDeclared = 0, fetchModulateResolved = 0, fetchModulateRefused = 0;
       // The atlas is a 64-tile grid, so a map with more materials than that
       // draws the remainder flat. Which 64 matters: choosing them in triangle
       // order (the previous behaviour) left the biggest surfaces flat while a
@@ -1894,16 +1956,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // A VTF larger than the tile is downscaled to the tile instead of being
       // dropped: measured on pl_odyssey, 42 of 108 materials shipped
       // 1024-wide/2048-tall textures and every one of them drew flat.
-      const auto boxDownscale = [](const std::vector<std::uint8_t>& source, UINT width, UINT height,
-                                   UINT limit, std::vector<std::uint8_t>& out, UINT& outWidth, UINT& outHeight) {
-        if (width <= limit && height <= limit) {
-          out = source; outWidth = width; outHeight = height;
-          return true;
-        }
-        const float scale = static_cast<float>(limit) / static_cast<float>(std::max(width, height));
-        outWidth = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(width) * scale));
-        outHeight = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(height) * scale));
-        if (outWidth == 0 || outHeight == 0) return false;
+      //
+      // T12: `resampleTo` takes the destination size explicitly, because a
+      // blend material's second layer has to land on the *same* pixel grid as
+      // its first: the world shader samples both with one uv, and that is only
+      // sound while both tiles are the same rectangle with the same texel
+      // count. `boxDownscale` keeps its old meaning (fit inside a limit) and is
+      // now a caller of it.
+      const auto resampleTo = [](const std::vector<std::uint8_t>& source, UINT width, UINT height,
+                                 UINT outWidth, UINT outHeight, std::vector<std::uint8_t>& out) {
+        if (width == 0 || height == 0 || outWidth == 0 || outHeight == 0) return false;
+        if (source.size() != static_cast<std::size_t>(width) * height * 4u) return false;
+        if (width == outWidth && height == outHeight) { out = source; return true; }
         out.assign(static_cast<std::size_t>(outWidth) * outHeight * 4u, 0);
         for (UINT y = 0; y < outHeight; ++y) {
           const UINT sy0 = static_cast<UINT>(static_cast<std::uint64_t>(y) * height / outHeight);
@@ -1927,6 +1991,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         }
         return true;
       };
+      const auto boxDownscale = [&](const std::vector<std::uint8_t>& source, UINT width, UINT height,
+                                    UINT limit, std::vector<std::uint8_t>& out, UINT& outWidth, UINT& outHeight) {
+        if (width <= limit && height <= limit) {
+          out = source; outWidth = width; outHeight = height;
+          return true;
+        }
+        const float scale = static_cast<float>(limit) / static_cast<float>(std::max(width, height));
+        outWidth = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(width) * scale));
+        outHeight = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(height) * scale));
+        if (outWidth == 0 || outHeight == 0) return false;
+        return resampleTo(source, width, height, outWidth, outHeight, out);
+      };
       for (const auto& entry : materialOrder) {
         const std::string& materialName = entry.second;
         ++fetchDistinct;
@@ -1946,22 +2022,51 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             || (material.baseTexture.empty() && material.baseTexture2.empty())) {
           ++fetchVmtNoBase; continue;
         }
-        std::string texturePath;
-        std::vector<std::uint8_t> textureBytes;
-        const std::array<std::string, 2> textureCandidates = {material.baseTexture, material.baseTexture2};
-        for (const auto& candidateTexture : textureCandidates) {
-          if (candidateTexture.empty()) continue;
-          const auto candidatePath = tf2::native::VmtParser::resourcePath(candidateTexture, ".vtf");
-          auto candidateBytes = readFile(assets.tfDirectory / std::filesystem::path(candidatePath));
-          if (candidateBytes.empty()) for (const auto& archive : soundArchives) {
-            candidateBytes = archive->read(candidatePath); if (!candidateBytes.empty()) break;
+        // T12: one lookup policy, written once and used for every resource a
+        // material names. Loose file, then the archives in the order this file
+        // opened them, then the map's own pakfile -- the same order for the
+        // first layer, the second layer and the blend mask, so a material
+        // cannot resolve one of them from a store the others were never
+        // offered.
+        const auto resolveTexture = [&](const std::string& name, std::string& path,
+                                        std::vector<std::uint8_t>& bytes) {
+          if (name.empty()) return false;
+          path = tf2::native::VmtParser::resourcePath(name, ".vtf");
+          bytes = readFile(assets.tfDirectory / std::filesystem::path(path));
+          for (const auto& archive : soundArchives) {
+            if (!bytes.empty()) break;
+            bytes = archive->read(path);
           }
-          if (candidateBytes.empty() && !mapBytes.empty()) {
+          if (bytes.empty() && !mapBytes.empty()) {
             std::string pakReason;
-            if (tf2::native::bspPakfileEntry(mapBytes, candidatePath, candidateBytes, &pakReason)
-                && !candidateBytes.empty()) ++fetchFromPakfile;
+            if (tf2::native::bspPakfileEntry(mapBytes, path, bytes, &pakReason) && !bytes.empty()) {
+              ++fetchFromPakfile;
+            }
           }
-          if (!candidateBytes.empty()) { texturePath = candidatePath; textureBytes = std::move(candidateBytes); break; }
+          return !bytes.empty();
+        };
+        std::string texturePath, secondPath, modulatePath;
+        std::vector<std::uint8_t> textureBytes, secondBytes, modulateBytes;
+        const bool baseResolved = resolveTexture(material.baseTexture, texturePath, textureBytes);
+        // A material is a blend material only when it names a *different*
+        // second layer. The comparison is on the declared name, not on the
+        // resolved path: `$basetexture` and `$basetexture2` naming the same
+        // texture is a single-layer material with a redundant declaration, and
+        // blending it toward itself would cost a sampler read and change
+        // nothing.
+        const bool secondDeclared = !material.baseTexture2.empty()
+          && material.baseTexture2 != material.baseTexture;
+        const bool secondResolved = secondDeclared && blendEnabled
+          && resolveTexture(material.baseTexture2, secondPath, secondBytes);
+        if (secondDeclared) ++fetchBlendDeclared;
+        if (!baseResolved) {
+          // The old behaviour, kept: a material whose `$basetexture` did not
+          // resolve but whose `$basetexture2` did is drawn with the layer it
+          // has. It cannot blend -- there is nothing to blend from -- and
+          // `blendRefused` below is what says so rather than leaving a reader
+          // to assume the second layer became the first.
+          if (!secondResolved) { ++fetchVtfMissing; continue; }
+          texturePath = secondPath; textureBytes = std::move(secondBytes);
         }
         tf2::native::VtfTexture texture;
         if (textureBytes.empty() || !texture.parse(textureBytes)) { ++fetchVtfMissing; continue; }
@@ -1974,46 +2079,117 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         UINT tiledWidth = texture.header().width, tiledHeight = texture.header().height;
         if (!boxDownscale(rgba, texture.header().width, texture.header().height, 512,
                           tiledPixels, tiledWidth, tiledHeight)) { ++fetchDecodeEmpty; continue; }
-        // LightmappedGeneric blend materials carry the terrain albedo in
-        // `$basetexture2`; the first texture's alpha is the blend mask. Fold
-        // that second layer into the same tile so the world shader, which has
-        // one albedo sampler, renders terrain instead of a flat base layer.
-        if (!material.baseTexture2.empty() && material.baseTexture2 != material.baseTexture) {
-          const auto blendPath = tf2::native::VmtParser::resourcePath(material.baseTexture2, ".vtf");
-          auto blendBytes = readFile(assets.tfDirectory / std::filesystem::path(blendPath));
-          if (blendBytes.empty()) for (const auto& archive : soundArchives) {
-            blendBytes = archive->read(blendPath); if (!blendBytes.empty()) break;
-          }
-          if (blendBytes.empty() && !mapBytes.empty()) {
-            std::string blendReason;
-            tf2::native::bspPakfileEntry(mapBytes, blendPath, blendBytes, &blendReason);
-          }
-          tf2::native::VtfTexture blendTexture;
-          if (!blendBytes.empty() && blendTexture.parse(blendBytes)) {
-            auto blendRgba = blendTexture.decodeRgba(blendBytes);
-            std::vector<std::uint8_t> blendPixels;
-            UINT blendWidth = blendTexture.header().width, blendHeight = blendTexture.header().height;
-            if (boxDownscale(blendRgba, blendWidth, blendHeight, 512,
-                blendPixels, blendWidth, blendHeight)
-                && blendWidth == tiledWidth && blendHeight == tiledHeight) {
-              for (std::size_t p = 0; p + 3 < tiledPixels.size(); p += 4) {
-                const float mask = static_cast<float>(tiledPixels[p + 3]) / 255.0f;
-                for (int channel = 0; channel < 3; ++channel) {
-                  tiledPixels[p + static_cast<std::size_t>(channel)] = static_cast<std::uint8_t>(
-                    std::lround(tiledPixels[p + static_cast<std::size_t>(channel)] * (1.0f - mask)
-                      + blendPixels[p + static_cast<std::size_t>(channel)] * mask));
-                }
+        // ---- T12: the second layer ------------------------------------------
+        // What used to happen here was a CPU fold that used the *first
+        // texture's alpha* as the blend mask. That is not what Source does and
+        // it is why the terrain read wrong: on the reference map both layers
+        // are opaque DXT1, so the mask was 1 everywhere and every displacement
+        // drew the second layer flat, ignoring the weight the map author
+        // painted into the displacement.
+        //
+        // The weight is per vertex (`CDispVert::m_flAlpha`), so it cannot be
+        // folded into a texture at all. The layer is resampled onto the first
+        // layer's tile grid and handed to the renderer, which blends it in the
+        // pixel shader by the vertex weight.
+        std::vector<std::uint8_t> blendPixels;
+        std::vector<std::uint8_t> modulatePixels;
+        std::string blendReason;
+        UINT blendSourceWidth = 0, blendSourceHeight = 0;
+        if (secondDeclared && !blendEnabled) {
+          // The switch was asked for, so the layer is not fetched and no
+          // reason is invented for it. The material keeps its first layer and
+          // its geometry; only the second layer and the per-vertex weight are
+          // withheld, which is what makes the two frames differ by the blend
+          // alone.
+          ++fetchBlendDisabled;
+          traceFmt("gpu: world blend material=%s second=%s status=off reason=--world-blend off",
+            materialName.c_str(), material.baseTexture2.c_str());
+        } else if (secondDeclared) {
+          if (!baseResolved) {
+            blendReason = "the first layer did not resolve, so there is nothing to blend from";
+          } else if (!secondResolved) {
+            blendReason = "the second layer " + secondPath + " did not resolve from loose, VPK or pakfile";
+          } else {
+            tf2::native::VtfTexture secondTexture;
+            if (!secondTexture.parse(secondBytes)) {
+              blendReason = "the second layer " + secondPath + " is not a readable VTF";
+            } else {
+              blendSourceWidth = secondTexture.header().width;
+              blendSourceHeight = secondTexture.header().height;
+              auto secondRgba = secondTexture.decodeRgba(secondBytes);
+              if (secondRgba.empty()) {
+                blendReason = "the second layer " + secondPath + " decoded to nothing";
+              } else if (!resampleTo(secondRgba, blendSourceWidth, blendSourceHeight,
+                                     tiledWidth, tiledHeight, blendPixels)) {
+                blendReason = "the second layer " + secondPath + " could not be resampled to the tile grid";
+              } else {
+                ++fetchBlendResolved;
+                if (blendSourceWidth != tiledWidth || blendSourceHeight != tiledHeight) ++fetchBlendResampled;
               }
+            }
+          }
+          if (!blendReason.empty()) {
+            ++fetchBlendRefused;
+            traceFmt("gpu: world blend material=%s second=%s status=refused reason=%s",
+              materialName.c_str(), secondPath.empty() ? material.baseTexture2.c_str() : secondPath.c_str(),
+              blendReason.c_str());
+          } else {
+            // The dimensions are the reading the task asks for: what the
+            // source layer was, and what it became on the tile grid.
+            traceFmt("gpu: world blend material=%s first=%s second=%s source=%zux%zu tile=%zux%zu modulate=%s",
+              materialName.c_str(), texturePath.c_str(), secondPath.c_str(),
+              static_cast<std::size_t>(blendSourceWidth), static_cast<std::size_t>(blendSourceHeight),
+              static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight),
+              material.blendModulateTexture.c_str());
+          }
+        }
+        // ---- T12: `$blendmodulatetexture` ------------------------------------
+        // Source reads it as `smoothstep(g - r, g + r, vertexAlpha)`, so it is a
+        // third texture on the same grid, not a tint. A material that declares
+        // one and is drawn without it gets a hard cut where the map author
+        // asked for a soft edge, which is the other half of "the terrain does
+        // not look like the terrain".
+        if (blendEnabled && !material.blendModulateTexture.empty()) {
+          ++fetchModulateDeclared;
+          if (blendPixels.empty()) {
+            traceFmt("gpu: world blend-modulate material=%s status=refused reason=%s",
+              materialName.c_str(), "the material has no usable second layer to modulate");
+          } else if (!resolveTexture(material.blendModulateTexture, modulatePath, modulateBytes)) {
+            ++fetchModulateRefused;
+            traceFmt("gpu: world blend-modulate material=%s path=%s status=refused reason=%s",
+              materialName.c_str(), modulatePath.c_str(), "did not resolve from loose, VPK or pakfile");
+          } else {
+            tf2::native::VtfTexture modulateTexture;
+            auto modulateRgba = modulateTexture.parse(modulateBytes) ? modulateTexture.decodeRgba(modulateBytes)
+                                                                     : std::vector<std::uint8_t>{};
+            const UINT modulateSourceWidth = modulateTexture.header().width;
+            const UINT modulateSourceHeight = modulateTexture.header().height;
+            if (modulateRgba.empty()
+                || !resampleTo(modulateRgba, modulateSourceWidth, modulateSourceHeight,
+                               tiledWidth, tiledHeight, modulatePixels)) {
+              ++fetchModulateRefused;
+              traceFmt("gpu: world blend-modulate material=%s path=%s status=refused reason=%s",
+                materialName.c_str(), modulatePath.c_str(), "decoded to nothing or could not be resampled");
+            } else {
+              ++fetchModulateResolved;
+              traceFmt("gpu: world blend-modulate material=%s path=%s source=%zux%zu tile=%zux%zu",
+                materialName.c_str(), modulatePath.c_str(),
+                static_cast<std::size_t>(modulateSourceWidth), static_cast<std::size_t>(modulateSourceHeight),
+                static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight));
             }
           }
         }
         if (tiledWidth != texture.header().width || tiledHeight != texture.header().height) ++fetchDownscaled;
         ++fetchTiled;
-        worldTextures.push_back({materialName, std::move(tiledPixels), tiledWidth, tiledHeight});
+        worldTextures.push_back({materialName, std::move(tiledPixels), tiledWidth, tiledHeight,
+                                 std::move(blendPixels), secondDeclared, std::move(modulatePixels)});
       }
       traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu",
         fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
         fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled);
+      traceFmt("gpu: world blend-fetch declared=%zu resolved=%zu refused=%zu disabled=%zu resampled=%zu modulateDeclared=%zu modulateResolved=%zu modulateRefused=%zu",
+        fetchBlendDeclared, fetchBlendResolved, fetchBlendRefused, fetchBlendDisabled, fetchBlendResampled,
+        fetchModulateDeclared, fetchModulateResolved, fetchModulateRefused);
     }
     if (!displayVtf.empty()) {
       tf2::native::VtfTexture texture;
@@ -2895,8 +3071,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // and no file I/O, which is why the gate can assert the vertex count the
     // product drew.
     {
-      const bool skyEnabled = worldSkyGiven ? worldSkyRequested
-        : persistent.render.skybox;
+      // T12: a terrain-only frame has to contain the terrain and nothing else,
+      // or the mask derived from it would include whatever else happened to be
+      // drawn. The sky and the water are their own passes, so both are forced
+      // off here rather than left to the caller's flags.
+      const bool skyEnabled = (worldSkyGiven ? worldSkyRequested
+        : persistent.render.skybox) && worldGeometry == WorldGeometryFilter::All;
       const auto skyCapture = tf2::native::captureSkyFaces(displayMap, readMaterialVtf);
       std::vector<tf2::native::WorldSkyVertex> skyVertices;
       tf2::native::WorldSkyDrawRequest skyRequest;
@@ -2938,8 +3118,33 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           origin.materialPath.c_str(), origin.texturePath.c_str(), origin.sampleRgba.c_str());
       }
     }
-    if (!uploadedWorld && !worldTextures.empty()) uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
-    if (!uploadedWorld) uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
+    // T12: the two switches reach the renderer before the world is uploaded,
+    // because both of them decide what the upload *contains* -- the second
+    // layer's tiles and, for `--world-geometry terrain`, which triangles are
+    // submitted at all. Setting them afterwards would change the draw without
+    // changing the buffer, and the reading would describe the flag rather than
+    // the picture.
+    renderer.setWorldBlendEnabled(worldBlendGiven ? worldBlendRequested : true);
+    renderer.setWorldTerrainOnly(worldGeometry == WorldGeometryFilter::Terrain);
+    renderer.setWorldDiagnosticIsolation(worldGeometry != WorldGeometryFilter::All);
+    if (worldGeometry == WorldGeometryFilter::None) {
+      // Nothing is uploaded, so no world vertex buffer exists and the world
+      // draw's own guard skips it. That frame is the background measurement the
+      // terrain mask is subtracted from; it is a control, not a feature.
+      traceFmt("gpu: world geometry=none state=empty reason=--world-geometry none");
+    } else if (!uploadedWorld && !worldTextures.empty()) {
+      uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
+    }
+    // The single-material overload is a fallback for an atlas that failed, not
+    // for a filter that was asked for. Falling back here in `terrain` mode
+    // would draw the whole world and call it the terrain mask.
+    if (!uploadedWorld && worldGeometry == WorldGeometryFilter::All) {
+      uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
+    }
+    traceFmt("gpu: world geometry=%s blend=%s",
+      worldGeometry == WorldGeometryFilter::Terrain ? "terrain"
+        : worldGeometry == WorldGeometryFilter::None ? "none" : "all",
+      (worldBlendGiven ? worldBlendRequested : true) ? "on" : "off");
     // ---- T2 (2026-10-14): the water surface --------------------------------
     // The water triangles are taken out of the world buffer and uploaded as
     // their own draw. This is deliberately NOT a split of the world buffer: the
@@ -2952,8 +3157,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // for the first material name they carry rather than by guessing a path:
     // TF2 names it in the BSP like any other face material.
     {
-      const bool waterEnabled = worldWaterGiven ? worldWaterRequested
-        : persistent.render.waterSurface;
+      const bool waterEnabled = (worldWaterGiven ? worldWaterRequested
+        : persistent.render.waterSurface) && worldGeometry == WorldGeometryFilter::All;
       // Which material the water faces carry, counted while the buffer is built
       // so the count is of the triangles actually uploaded.
       std::string waterMaterialName;
@@ -3124,6 +3329,27 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // pixel shader branches on, and 'bound' alone cannot tell them apart.
     traceFmt("gpu: world geometry displacedTriangles=%u waterTriangles=%u",
       worldSample.displacedTriangles, worldSample.waterTriangles);
+    {
+      // T12: what the blend path put on the GPU. `tiles` is materials with a
+      // second layer in the atlas; `weighted` is uploaded vertices that carry a
+      // real weight. A tile with no weighted vertex would mean the material
+      // reached the atlas and no geometry asked for it, which is the failure a
+      // count of materials alone cannot see.
+      const auto blendSample = renderer.worldBlendState();
+      traceFmt("gpu: world blend enabled=%d terrainOnly=%d textures=%zu layers=%zu accepted=%zu acceptedLayers=%zu tiles=%zu modulateTiles=%zu malformedLayers=%zu weightedVertices=%zu modulatedVertices=%zu weightMin=%.3f weightMax=%.3f distinctWeights=%zu",
+        blendSample.enabled ? 1 : 0, blendSample.terrainOnly ? 1 : 0,
+        blendSample.texturesSeen, blendSample.layersSeen, blendSample.accepted, blendSample.acceptedLayers,
+        blendSample.tiles, blendSample.modulateTiles, blendSample.malformedLayers,
+        blendSample.weightedVertices, blendSample.modulatedVertices,
+        static_cast<double>(blendSample.weightMin), static_cast<double>(blendSample.weightMax),
+        blendSample.distinctWeights);
+      // The atlas's own identity. A refused atlas is the difference between
+      // "the terrain material resolved" and "the terrain material is what the
+      // screen shows", and before this line the two read the same.
+      traceFmt("gpu: world atlas size=%zu bytes=%zu state=%s",
+        renderer.worldAtlasSize(), static_cast<std::size_t>(renderer.worldAtlasBytes()),
+        renderer.worldAtlasReason().c_str());
+    }
     {
       // T1 (2026-10-13): the pvs clip no longer measures the price of not
       // clipping -- it clips. The decision is made by clipWorldTrianglesByVis,
@@ -3344,7 +3570,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         viewModelState.reason.empty() ? "-" : viewModelState.reason.c_str());
     }
     traceCheckpoint("gpu: reload end");
-    return uploadedTexture && uploadedWorld && uploadedModel && uploadedBones;
+    // T12: `--world-geometry none` uploads no world on purpose, so its absence
+    // is not a reload failure. Every other mode still has to produce a world
+    // buffer, which is the invariant this line has always carried.
+    const bool worldRequired = worldGeometry != WorldGeometryFilter::None;
+    return uploadedTexture && (uploadedWorld || !worldRequired) && uploadedModel && uploadedBones;
   };
   if (!reloadGpuResources()) {
     renderer.shutdown();

@@ -17,6 +17,12 @@ struct VmtMaterial {
   std::unordered_map<std::string, std::string> fields;
   std::string baseTexture;
   std::string baseTexture2;
+  // T12: `$blendmodulatetexture` is the mask that reshapes the vertex-alpha
+  // blend between `$basetexture` and `$basetexture2`. In the SDK's
+  // LightmappedGeneric pixel shader it is read as `smoothstep(g - r, g + r,
+  // vertexAlpha)`, so a material that declares one and is drawn without it gets
+  // a hard alpha cut where the map author asked for a soft transition.
+  std::string blendModulateTexture;
   std::string bumpMap;
   std::string envMap;
   std::string selfIllumTint;

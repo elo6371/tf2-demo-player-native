@@ -14,11 +14,12 @@
 #include <limits>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace tf2::native {
 
 namespace {
-struct WorldVertex { float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz; float lu = -1.0f; float lv = -1.0f; };
+struct WorldVertex { float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz; float lu = -1.0f; float lv = -1.0f; float blend = -1.0f; float blendModulate = 0.0f; };
 // T2 (2026-10-14): the water pass reuses the world's input layout and vertex
 // shader, which is only sound while the two vertex structs agree field for
 // field. This is the assertion that says so at compile time rather than at the
@@ -27,8 +28,10 @@ static_assert(sizeof(WorldWaterVertex) == sizeof(WorldVertex),
   "the water pass shares the world input layout, so the vertex structs must match");
 static_assert(offsetof(WorldWaterVertex, u) == offsetof(WorldVertex, u)
   && offsetof(WorldWaterVertex, nx) == offsetof(WorldVertex, nx)
-  && offsetof(WorldWaterVertex, lu) == offsetof(WorldVertex, lu),
-  "the water vertex's uv, normal and light-uv offsets must match the world's");
+  && offsetof(WorldWaterVertex, lu) == offsetof(WorldVertex, lu)
+  && offsetof(WorldWaterVertex, blend) == offsetof(WorldVertex, blend)
+  && offsetof(WorldWaterVertex, blendModulate) == offsetof(WorldVertex, blendModulate),
+  "the water vertex's uv, normal, light-uv and blend offsets must match the world's");
 struct EntityModelGpuVertex {
   float x, y, z;
   float nx, ny, nz;
@@ -270,9 +273,9 @@ cbuffer WorldConstants : register(b0) {
   float4 lightmapFeatures;
   float4 envFeatures;
 };
-struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; };
-struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; };
-Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; return output; }
+struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; };
+struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; };
+Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; return output; }
 )HLSL";
   static constexpr char worldPixelSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
@@ -290,13 +293,18 @@ Texture2D lightmapTexture : register(t3);
 // t5, not t4: the model passes bind their bone buffer at t4 and a slot serving
 // two meanings in two passes is one slot too many to keep straight.
 TextureCube envCube : register(t5);
+// T12: the second layer of a WorldVertexTransition material and its
+// `$blendmodulatetexture`. Both atlases carry the base atlas's tile
+// rectangles, so the vertex's single uv addresses the same texel in all three.
+Texture2D blendTexture : register(t6);
+Texture2D blendModulateTexture : register(t7);
 SamplerState sampler0 : register(s0);
 float3 safeNormalize(float3 value) {
   float lengthSquared = dot(value, value);
   if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
   return value * rsqrt(lengthSquared);
 }
-float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3) : SV_TARGET {
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5) : SV_TARGET {
   // Mode 3 is the sky box, and it short-circuits: the box is lit by nothing,
   // carries no lightmap uv and has no meaningful normal, so running the
   // lighting half of this shader over it would be inventing a direction to
@@ -307,6 +315,27 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     return float4(envCube.Sample(sampler0, safeNormalize(worldPosition)).rgb, 1.0);
   }
   float3 sampled = texture0.Sample(sampler0, uv).rgb;
+  // T12: WorldVertexTransition. Source's LightmappedGeneric pixel shader picks
+  // between `$basetexture` and `$basetexture2` with the vertex alpha, and
+  // reshapes that weight with `smoothstep(g - r, g + r, w)` when the material
+  // declares `$blendmodulatetexture`
+  // (source-sdk-2013 src/materialsystem/stdshaders/lightmappedgeneric_ps2_3_x.h,
+  // `blendfactor` and the `FANCY_BLENDING` block). A negative weight is the
+  // sentinel for a single-layer vertex, so a material without a second layer
+  // never samples the blend atlas.
+  if (blend >= 0.0) {
+    float weight = blend;
+    if (blendModulate > 0.5) {
+      float4 mask = blendModulateTexture.Sample(sampler0, uv);
+      float lower = saturate(mask.g - mask.r);
+      float upper = saturate(mask.g + mask.r);
+      // smoothstep with a zero-width range is undefined in HLSL and would turn
+      // a mask texel into a NaN; the floor keeps the curve and keeps the frame
+      // a picture of the map.
+      weight = smoothstep(lower, lower + max(upper - lower, 1.0e-5), weight);
+    }
+    sampled = lerp(sampled, blendTexture.Sample(sampler0, uv).rgb, weight);
+  }
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
   float3 lightColour = float3(lightmapFactor, lightmapFactor, lightmapFactor);
@@ -714,9 +743,15 @@ float4 main(Input input) : SV_TARGET {
       {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      // T12: the terrain blend weight and the "this material has a modulate
+      // mask" flag. Both are per-vertex rather than per-draw because the whole
+      // world is one draw call over an atlas, so there is no per-material
+      // constant to put them in.
+      {"TEXCOORD", 4, DXGI_FORMAT_R32_FLOAT, 0, 56, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 5, DXGI_FORMAT_R32_FLOAT, 0, 60, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
     initStage_ = "layout.world";
-    const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 5, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
+    const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 7, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
     if (!layoutCreated) {
       worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
       lastError_ = E_FAIL;
@@ -969,6 +1004,11 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
     lastError_ = E_INVALIDARG;
     return false;
   }
+  // This overload draws the world with ONE material's texture. It is the
+  // fallback, not the product path, so it says so where a reader will see it.
+  worldAtlasReason_ = "the atlas overload was not used; the world was drawn with one material texture";
+  worldAtlasSize_ = 0;
+  worldAtlasBytes_ = 0;
   float minX = std::numeric_limits<float>::max(), maxX = std::numeric_limits<float>::lowest();
   float minY = std::numeric_limits<float>::max(), maxY = std::numeric_limits<float>::lowest();
   float minZ = std::numeric_limits<float>::max(), maxZ = std::numeric_limits<float>::lowest();
@@ -1067,6 +1107,9 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   std::unordered_map<std::string, Tile> tiles;
   std::vector<const WorldTexture*> accepted;
   accepted.reserve(kMaxTiles);
+  worldBlendTexturesSeen_ = textures.size();
+  worldBlendLayersSeen_ = 0;
+  for (const auto& source : textures) if (!source.blendRgba.empty()) ++worldBlendLayersSeen_;
   for (const auto& source : textures) {
     if (source.material.empty() || source.width == 0 || source.height == 0
         || source.width > kTileSize - 2 || source.height > kTileSize - 2
@@ -1075,28 +1118,80 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     accepted.push_back(&source);
     tiles.emplace(source.material, Tile{});
   }
+  worldBlendAccepted_ = accepted.size();
+  worldBlendAcceptedLayers_ = 0;
+  for (const auto* source : accepted) if (!source->blendRgba.empty()) ++worldBlendAcceptedLayers_;
   const std::size_t grid = accepted.size() <= 1 ? 1 : accepted.size() <= 4 ? 2 : accepted.size() <= 16 ? 4 : 8;
   const UINT atlasSize = static_cast<UINT>(grid * kTileSize);
   std::vector<std::uint8_t> atlas(static_cast<std::size_t>(atlasSize) * atlasSize * 4u, 88u);
+  // T12: the second and third atlases are laid out with the *same* tile
+  // rectangles as the first. That is what makes one uv enough for both layers:
+  // the uv a vertex carries is the material's texcoord in normalised space, and
+  // a tile that sits at the same rectangle in two atlases puts the same texel
+  // under that uv in both. They are allocated on first use, so a map with no
+  // blend materials pays nothing for them.
+  std::vector<std::uint8_t> blendAtlas;
+  std::vector<std::uint8_t> blendModulateAtlas;
+  std::unordered_set<std::string> blendedMaterials;
+  // T12: "this material is terrain" and "this material's second layer reached
+  // the atlas" are two different facts, and the terrain-only frame needs the
+  // first one even when the blend switch is off. `terrainMaterials` is filled
+  // from the layer the caller shipped, before the enable flag is consulted;
+  // `blendedMaterials` is filled only when the layer was actually accepted.
+  std::unordered_set<std::string> terrainMaterials;
+  std::unordered_set<std::string> modulatedMaterials;
+  std::size_t blendTiles = 0, blendModulateTiles = 0, malformedLayers = 0;
+  const auto blit = [&](std::vector<std::uint8_t>& target, UINT x, UINT y, UINT width, UINT height,
+                        const std::vector<std::uint8_t>& pixels) {
+    for (UINT row = 0; row < height; ++row) {
+      std::memcpy(target.data() + (static_cast<std::size_t>(y + row) * atlasSize + x) * 4u,
+        pixels.data() + static_cast<std::size_t>(row) * width * 4u,
+        static_cast<std::size_t>(width) * 4u);
+      std::memcpy(target.data() + (static_cast<std::size_t>(y + row) * atlasSize + x - 1) * 4u,
+        pixels.data() + static_cast<std::size_t>(row) * width * 4u, 4u);
+      std::memcpy(target.data() + (static_cast<std::size_t>(y + row) * atlasSize + x + width) * 4u,
+        pixels.data() + (static_cast<std::size_t>(row) * width + width - 1) * 4u, 4u);
+    }
+    std::memcpy(target.data() + (static_cast<std::size_t>(y - 1) * atlasSize + x - 1) * 4u,
+      target.data() + (static_cast<std::size_t>(y) * atlasSize + x - 1) * 4u,
+      static_cast<std::size_t>(width + 2) * 4u);
+    std::memcpy(target.data() + (static_cast<std::size_t>(y + height) * atlasSize + x - 1) * 4u,
+      target.data() + (static_cast<std::size_t>(y + height - 1) * atlasSize + x - 1) * 4u,
+      static_cast<std::size_t>(width + 2) * 4u);
+  };
   std::size_t tileIndex = 0;
   for (const auto* source : accepted) {
     const UINT x = static_cast<UINT>(tileIndex % grid) * kTileSize + 1;
     const UINT y = static_cast<UINT>(tileIndex / grid) * kTileSize + 1;
-    for (UINT row = 0; row < source->height; ++row) {
-      std::memcpy(atlas.data() + (static_cast<std::size_t>(y + row) * atlasSize + x) * 4u,
-        source->rgba.data() + static_cast<std::size_t>(row) * source->width * 4u,
-        static_cast<std::size_t>(source->width) * 4u);
-      std::memcpy(atlas.data() + (static_cast<std::size_t>(y + row) * atlasSize + x - 1) * 4u,
-        source->rgba.data() + static_cast<std::size_t>(row) * source->width * 4u, 4u);
-      std::memcpy(atlas.data() + (static_cast<std::size_t>(y + row) * atlasSize + x + source->width) * 4u,
-        source->rgba.data() + (static_cast<std::size_t>(row) * source->width + source->width - 1) * 4u, 4u);
+    blit(atlas, x, y, source->width, source->height, source->rgba);
+    const std::size_t expected = static_cast<std::size_t>(source->width) * source->height * 4u;
+    // A layer whose byte count does not match the tile is refused rather than
+    // sampled: reading past the end of it would paint whatever the allocator
+    // left there, and that picture would look like a finding.
+    //
+    // T12: `worldBlendEnabled_` is consulted here rather than in main.cpp
+    // because the *only* thing it may change is whether the second layer
+    // reaches the atlas. If main.cpp skipped the fetch instead, the atlas would
+    // hold a different set of tiles and a differing pixel could no longer be
+    // attributed to the shader branch.
+    const bool declaresBlend = source->blendDeclared;
+    if (declaresBlend) terrainMaterials.insert(source->material);
+    const bool hasBlend = worldBlendEnabled_ && !source->blendRgba.empty();
+    if (hasBlend && source->blendRgba.size() != expected) { ++malformedLayers; }
+    else if (hasBlend) {
+      if (blendAtlas.empty()) blendAtlas.assign(atlas.size(), 88u);
+      blit(blendAtlas, x, y, source->width, source->height, source->blendRgba);
+      blendedMaterials.insert(source->material);
+      ++blendTiles;
     }
-    std::memcpy(atlas.data() + (static_cast<std::size_t>(y - 1) * atlasSize + x - 1) * 4u,
-      atlas.data() + (static_cast<std::size_t>(y) * atlasSize + x - 1) * 4u,
-      static_cast<std::size_t>(source->width + 2) * 4u);
-    std::memcpy(atlas.data() + (static_cast<std::size_t>(y + source->height) * atlasSize + x - 1) * 4u,
-      atlas.data() + (static_cast<std::size_t>(y + source->height - 1) * atlasSize + x - 1) * 4u,
-      static_cast<std::size_t>(source->width + 2) * 4u);
+    const bool hasModulate = !source->blendModulateRgba.empty();
+    if (hasModulate && source->blendModulateRgba.size() != expected) { ++malformedLayers; }
+    else if (hasModulate && blendedMaterials.count(source->material)) {
+      if (blendModulateAtlas.empty()) blendModulateAtlas.assign(atlas.size(), 88u);
+      blit(blendModulateAtlas, x, y, source->width, source->height, source->blendModulateRgba);
+      modulatedMaterials.insert(source->material);
+      ++blendModulateTiles;
+    }
     tiles[source->material] = Tile{x, y, source->width, source->height, source->width, source->height};
     ++tileIndex;
   }
@@ -1104,9 +1199,52 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     lastError_ = HRESULT_FROM_WIN32(ERROR_NO_DATA);
     return false;
   }
-  if (!worldTexture_.create(device_.Get(), atlas, atlasSize, atlasSize)) {
+  // T12: the atlas is 67.6 MiB at 64 tiles of 512 texels, which is over the
+  // 64 MiB guard the ordinary textures use. The guard exists to catch a
+  // runaway allocation, not to refuse the size this pass is designed around, so
+  // the budget is stated here rather than left to a constant that was never
+  // meant for it. Before this, `create` refused the atlas and the caller
+  // silently fell back to a single material texture for the whole world -- a
+  // downgrade with no reading attached to it.
+  const std::uint64_t atlasBytes = static_cast<std::uint64_t>(atlasSize) * atlasSize * 4u;
+  const std::uint64_t atlasBudget = std::max<std::uint64_t>(64ull * 1024ull * 1024ull, atlasBytes);
+  worldAtlasSize_ = atlasSize;
+  worldAtlasBytes_ = atlasBytes;
+  std::string atlasError;
+  if (!worldTexture_.create(device_.Get(), atlas, atlasSize, atlasSize, &atlasError, atlasBudget)) {
+    worldAtlasReason_ = atlasError.empty() ? "the world atlas texture was refused" : atlasError;
     lastError_ = E_FAIL;
     return false;
+  }
+  worldAtlasReason_ = "bound";
+  worldBlendTiles_ = blendTiles;
+  worldBlendModulateTiles_ = blendModulateTiles;
+  worldBlendMalformedLayers_ = malformedLayers;
+  worldBlendVertices_ = 0;
+  worldBlendModulateVertices_ = 0;
+  // The second and third atlases are only created when a material needed them,
+  // and the count next to each is what a reader checks instead of trusting the
+  // absence of a bind error.
+  if (!blendAtlas.empty()) {
+    std::string blendError;
+    if (!worldBlendTexture_.create(device_.Get(), blendAtlas, atlasSize, atlasSize, &blendError, atlasBudget)) {
+      worldAtlasReason_ = blendError.empty() ? "the blend atlas texture was refused" : blendError;
+      lastError_ = E_FAIL;
+      return false;
+    }
+  } else {
+    worldBlendTexture_.reset();
+  }
+  if (!blendModulateAtlas.empty()) {
+    std::string modulateError;
+    if (!worldBlendModulateTexture_.create(device_.Get(), blendModulateAtlas, atlasSize, atlasSize,
+                                           &modulateError, atlasBudget)) {
+      worldAtlasReason_ = modulateError.empty() ? "the blend modulate atlas texture was refused" : modulateError;
+      lastError_ = E_FAIL;
+      return false;
+    }
+  } else {
+    worldBlendModulateTexture_.reset();
   }
 
   float minX = std::numeric_limits<float>::max(), maxX = std::numeric_limits<float>::lowest();
@@ -1122,6 +1260,9 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   const float centerX = (minX + maxX) * 0.5f, centerY = (minY + maxY) * 0.5f;
   std::vector<WorldVertex> vertices;
   vertices.reserve(map.triangles.size() * 3);
+  // T12: 256 buckets over [0,1]. The count of distinct buckets is what
+  // separates "the painted weights arrived" from "a constant was written".
+  std::vector<unsigned char> weightBuckets(256, 0);
   std::size_t lightmappedVertices = 0;
   std::size_t displacedTriangles = 0;
   std::size_t waterTriangles = 0;
@@ -1133,6 +1274,11 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     return (static_cast<float>(offset) + wrapped * static_cast<float>(extent) / sourceSize + 0.5f) / static_cast<float>(atlasSize);
   };
   for (const auto& triangle : map.triangles) {
+    // T12: the terrain-only frame. The bounds above were taken over every
+    // triangle on purpose, so filtering here leaves the terrain at exactly the
+    // position and scale it has in the full frame -- a mask taken from a
+    // re-centred world would not overlay the picture it is meant to bound.
+    if (worldTerrainOnly_ && terrainMaterials.count(triangle.material) == 0) continue;
     const auto ab = BspVertex{triangle.b.x - triangle.a.x, triangle.b.y - triangle.a.y, triangle.b.z - triangle.a.z};
     const auto ac = BspVertex{triangle.c.x - triangle.a.x, triangle.c.y - triangle.a.y, triangle.c.z - triangle.a.z};
     const float nx = ab.y * ac.z - ab.z * ac.y, ny = ab.z * ac.x - ab.x * ac.z, nz = ab.x * ac.y - ab.y * ac.x;
@@ -1147,6 +1293,28 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       a.u = atlasCoord(triangle.au, static_cast<float>(t.sourceWidth), t.x, t.width); a.v = atlasCoord(triangle.av, static_cast<float>(t.sourceHeight), t.y, t.height);
       b.u = atlasCoord(triangle.bu, static_cast<float>(t.sourceWidth), t.x, t.width); b.v = atlasCoord(triangle.bv, static_cast<float>(t.sourceHeight), t.y, t.height);
       c.u = atlasCoord(triangle.cu, static_cast<float>(t.sourceWidth), t.x, t.width); c.v = atlasCoord(triangle.cv, static_cast<float>(t.sourceHeight), t.y, t.height);
+      // T12: a weight is handed to the shader only for a material that shipped
+      // a second layer. A displacement whose VMT names one layer keeps the
+      // sentinel, because the blend atlas has no tile under its uv and the
+      // branch would sample the filler.
+      if (blendedMaterials.count(triangle.material)) {
+        a.blend = triangle.aAlpha; b.blend = triangle.bAlpha; c.blend = triangle.cAlpha;
+        const float modulate = modulatedMaterials.count(triangle.material) ? 1.0f : 0.0f;
+        a.blendModulate = b.blendModulate = c.blendModulate = modulate;
+      }
+      // T12: counted off the *vertex*, not off the triangle. The first version of
+      // this loop read `triangle.aAlpha` here, so a mutation that forced the
+      // vertex weight to a constant moved no reading at all -- measured, m3 read
+      // distinctWeights=9 with every uploaded weight at 1. What reaches the
+      // shader is the vertex, so the vertex is what is counted; the same rule the
+      // lightmap counter above states.
+      for (const float weight : {a.blend, b.blend, c.blend}) {
+        if (!(weight >= 0.0f)) continue;
+        ++worldBlendVertices_;
+        if (a.blendModulate > 0.5f) ++worldBlendModulateVertices_;
+        const float clamped = std::min(std::max(weight, 0.0f), 1.0f);
+        weightBuckets[static_cast<std::size_t>(clamped * 255.0f + 0.5f)] = 1;
+      }
       if (triangle.lightmapped) { a.lu = triangle.alu; a.lv = triangle.alv; b.lu = triangle.blu; b.lv = triangle.blv; c.lu = triangle.clu; c.lv = triangle.clv; }
     } else {
       const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(triangle.material));
@@ -1174,6 +1342,31 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     if (triangle.displacement) ++displacedTriangles;
     if (triangle.water) ++waterTriangles;
     vertices.push_back(a); vertices.push_back(b); vertices.push_back(c);
+  }
+  // T12: the weight distribution, summarised from the buckets the loop filled.
+  // Computed here rather than in the pixel shader because it is a fact about
+  // what was uploaded, and a shader-side counter would be a reading about the
+  // branch rather than about the geometry.
+  worldBlendWeightMin_ = -1.0f;
+  worldBlendWeightMax_ = -1.0f;
+  worldBlendDistinctWeights_ = 0;
+  for (std::size_t bucket = 0; bucket < weightBuckets.size(); ++bucket) {
+    if (!weightBuckets[bucket]) continue;
+    const float value = static_cast<float>(bucket) / 255.0f;
+    if (worldBlendWeightMin_ < 0.0f || value < worldBlendWeightMin_) worldBlendWeightMin_ = value;
+    if (value > worldBlendWeightMax_) worldBlendWeightMax_ = value;
+    ++worldBlendDistinctWeights_;
+  }
+  // T12: an empty filter result is a refusal, not a zero-triangle buffer.
+  // CreateBuffer with ByteWidth 0 fails on its own, but it fails with E_FAIL
+  // and no reason; the caller would then see `uploadedWorld == false` and,
+  // before the fallback was guarded, draw the whole world in `terrain` mode.
+  if (vertices.empty()) {
+    worldAtlasReason_ = worldTerrainOnly_
+      ? "the terrain filter kept no triangle, so nothing was uploaded"
+      : "the map produced no vertex, so nothing was uploaded";
+    lastError_ = HRESULT_FROM_WIN32(ERROR_NO_DATA);
+    return false;
   }
   D3D11_BUFFER_DESC description{};
   description.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(WorldVertex));
@@ -1822,6 +2015,25 @@ void Renderer::setWorldMaterialParams(const WorldMaterialParams& params) {
   worldMaterialParams_.selfIllumR = std::clamp(worldMaterialParams_.selfIllumR, 0.0f, 4.0f);
   worldMaterialParams_.selfIllumG = std::clamp(worldMaterialParams_.selfIllumG, 0.0f, 4.0f);
   worldMaterialParams_.selfIllumB = std::clamp(worldMaterialParams_.selfIllumB, 0.0f, 4.0f);
+}
+
+WorldBlendState Renderer::worldBlendState() const {
+  WorldBlendState state{};
+  state.enabled = worldBlendEnabled_;
+  state.terrainOnly = worldTerrainOnly_;
+  state.texturesSeen = worldBlendTexturesSeen_;
+  state.layersSeen = worldBlendLayersSeen_;
+  state.accepted = worldBlendAccepted_;
+  state.acceptedLayers = worldBlendAcceptedLayers_;
+  state.tiles = worldBlendTiles_;
+  state.modulateTiles = worldBlendModulateTiles_;
+  state.malformedLayers = worldBlendMalformedLayers_;
+  state.weightedVertices = worldBlendVertices_;
+  state.modulatedVertices = worldBlendModulateVertices_;
+  state.weightMin = worldBlendWeightMin_;
+  state.weightMax = worldBlendWeightMax_;
+  state.distinctWeights = worldBlendDistinctWeights_;
+  return state;
 }
 
 WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
@@ -3389,6 +3601,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(1, 1, &bumpView);
     context_->PSSetShaderResources(2, 1, &envView);
     context_->PSSetShaderResources(5, 1, &cubeView);
+    // T12: the second layer and its modulate mask. Both may be null (a map with
+    // no blend materials); the vertex's sentinel is what decides whether the
+    // shader ever samples them, so a null bind is not a missing resource here.
+    ID3D11ShaderResourceView* blendView = worldBlendTexture_.view();
+    ID3D11ShaderResourceView* blendModulateView = worldBlendModulateTexture_.view();
+    context_->PSSetShaderResources(6, 1, &blendView);
+    context_->PSSetShaderResources(7, 1, &blendModulateView);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     // The pvs clip, where it can be seen: with a draw list the pass draws
     // indexed, so the triangles the pvs hid are not rasterised at all. Without
@@ -3396,7 +3615,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // existed -- and `worldVisClipApplied_` says which of the two happened, so
     // a clip that silently stops being handed a list reads as off rather than
     // as working.
-    if (worldVisClipApplied_ && worldIndexBuffer_ && worldIndexCount_ > 0) {
+    if (!worldDiagnosticIsolation_ && worldVisClipApplied_ && worldIndexBuffer_ && worldIndexCount_ > 0) {
       context_->IASetIndexBuffer(worldIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
       context_->DrawIndexed(worldIndexCount_, 0, 0);
       worldVisDrewIndexed_ = true;
@@ -3405,7 +3624,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     } else {
       context_->Draw(worldVertexCount_, 0);
     }
-  } else {
+  } else if (!worldDiagnosticIsolation_) {
+    // T12: this placeholder is a full-screen textured quad, so a `none` frame
+    // drawn through it is a picture of the map's display texture rather than
+    // the background. The isolation switch skips it; the clear colour then is
+    // the whole frame, which is exactly the control the region proof needs.
     context_->IASetInputLayout(nullptr);
     context_->VSSetShader(vertexShader_.Get(), nullptr, 0);
     context_->PSSetShader(pixelShader_.Get(), nullptr, 0);
@@ -3459,6 +3682,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(2, 1, &noEnv);
     context_->PSSetShaderResources(3, 1, &noLightmap);
     context_->PSSetShaderResources(5, 1, &noCube);
+    // T12: water carries the blend sentinel, so these are never sampled; the
+    // bind is cleared so a stale terrain atlas cannot be read by a later pass
+    // that forgets to set its own.
+    context_->PSSetShaderResources(6, 1, &noBump);
+    context_->PSSetShaderResources(7, 1, &noBump);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(worldWaterVertexCount_, 0);
     worldWaterDrewThisFrame_ = true;
@@ -3474,7 +3702,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(5, 1, &noCube);
   }
 
-  if (entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0
+  if (!worldDiagnosticIsolation_ && entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0
       && worldVertexShader_ && worldPixelShader_ && worldInputLayout_ && worldConstants_) {
     const UINT markerStride = sizeof(WorldVertex), markerOffset = 0;
     auto* markerBuffer = entityMarkerVertexBuffer_.Get();
@@ -3497,7 +3725,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
   ++framePassOrdinal_;
-  if (!entityModelDrawRanges_.empty() && entityModelInstanceBuffer_ && entityModelInstanceCount_ > 0
+  // T12: entity instances are content, not background; a diagnostic frame has
+  // none of them, or the mask would include whatever model happened to be near
+  // the camera.
+  if (!worldDiagnosticIsolation_ && !entityModelDrawRanges_.empty() && entityModelInstanceBuffer_ && entityModelInstanceCount_ > 0
       && entityModelVertexShader_ && entityModelInputLayout_ && worldPixelShader_ && worldConstants_) {
     const UINT strides[2] = { sizeof(EntityModelGpuVertex), sizeof(EntityModelInstanceGpu) };
     const UINT offsets[2] = { 0, 0 };
@@ -3534,7 +3765,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     }
   }
   ++framePassOrdinal_;
-  if (projectileVertexBuffer_ && projectileVertexCount_ > 0 && worldVertexShader_ && worldPixelShader_
+  if (!worldDiagnosticIsolation_ && projectileVertexBuffer_ && projectileVertexCount_ > 0 && worldVertexShader_ && worldPixelShader_
       && worldInputLayout_ && worldConstants_) {
     const UINT projectileStride = sizeof(WorldVertex), projectileOffset = 0;
     auto* projectileBuffer = projectileVertexBuffer_.Get();
@@ -3557,7 +3788,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
   ++framePassOrdinal_;
-  if (modelVertexBuffer_ && modelVertexCount_ > 0 && modelVertexShader_ && modelPixelShader_ && modelInputLayout_) {
+  if (!worldDiagnosticIsolation_ && modelVertexBuffer_ && modelVertexCount_ > 0 && modelVertexShader_ && modelPixelShader_ && modelInputLayout_) {
     context_->IASetInputLayout(modelInputLayout_.Get());
     const UINT modelStride = sizeof(ModelGpuVertex), modelOffset = 0; auto* modelBuffer = modelVertexBuffer_.Get();
     context_->IASetVertexBuffers(0, 1, &modelBuffer, &modelStride, &modelOffset);
@@ -3599,6 +3830,8 @@ void Renderer::shutdown() {
   releaseTarget();
   texture_.reset();
   worldTexture_.reset();
+  worldBlendTexture_.reset();
+  worldBlendModulateTexture_.reset();
   worldBumpTexture_.reset();
   worldEnvTexture_.reset();
   worldLightmapTexture_.reset();

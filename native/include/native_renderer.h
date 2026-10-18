@@ -62,6 +62,56 @@ struct WorldTexture {
   std::vector<std::uint8_t> rgba;
   UINT width = 0;
   UINT height = 0;
+  // ---- T12 (2026-10-18): the second layer of a blend material ------------
+  // A WorldVertexTransition material names two albedo layers and blends them by
+  // the displacement's per-vertex alpha. `blendRgba` holds the second layer
+  // already resampled to this tile's own `width` x `height`, which is what lets
+  // both layers be sampled with one uv: the uv is the material's texcoord in
+  // normalised space, so two textures on the same pixel grid agree about where
+  // a texel is. Empty means the material declares no second layer.
+  std::vector<std::uint8_t> blendRgba;
+  // T12: whether the material *declares* a second layer, which is a fact about
+  // the VMT and not about this run. `blendRgba` being empty means the layer was
+  // not fetched (or did not resolve); `blendDeclared` being false means the
+  // material never had one. The terrain-only filter needs the second fact: with
+  // `--world-blend off` no layer is fetched at all, and keying the filter on
+  // the bytes made the terrain frame empty -- measured, exit 14.
+  bool blendDeclared = false;
+  // `$blendmodulatetexture`, same grid, r and g carrying the smoothstep range
+  // the SDK's shader uses. Empty means the blend is the raw vertex alpha.
+  std::vector<std::uint8_t> blendModulateRgba;
+};
+
+// T12: what the terrain blend path actually did, as counts a gate can read.
+// `tiles` is how many materials put a second layer into the blend atlas;
+// `weightedVertices` is how many uploaded vertices carry a real weight (a
+// displacement whose material names one layer carries the sentinel and is not
+// counted); `malformedLayers` is how many layers were refused for a byte count
+// that did not match the tile.
+struct WorldBlendState {
+  // T12: the two switches, carried on the reading rather than assumed by the
+  // reader. A gate that compares an "off" frame against another "off" frame has
+  // compared the same picture twice and called it a difference; this is the
+  // field that says which state the numbers below were taken in.
+  bool enabled = true;
+  bool terrainOnly = false;
+  std::size_t texturesSeen = 0;
+  std::size_t layersSeen = 0;
+  std::size_t accepted = 0;
+  std::size_t acceptedLayers = 0;
+  std::size_t tiles = 0;
+  std::size_t modulateTiles = 0;
+  std::size_t malformedLayers = 0;
+  std::size_t weightedVertices = 0;
+  std::size_t modulatedVertices = 0;
+  // T12: the *distribution* of the weights that reached the GPU. A count of
+  // weighted vertices cannot tell "the map's painted weights arrived" from "a
+  // constant was written into every vertex", and both draw a picture. These
+  // three readings can: a real terrain has several buckets and spans 0..1, a
+  // constant has one bucket at whatever value it was forced to.
+  float weightMin = -1.0f;
+  float weightMax = -1.0f;
+  std::size_t distinctWeights = 0;
 };
 
 struct ProjectileLine {
@@ -420,6 +470,14 @@ public:
   UINT worldEnvMode() const;
   WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
   WorldMaterialSampleState worldMaterialSampleState() const;
+  // T12: the counts behind the terrain blend path (see WorldBlendState).
+  WorldBlendState worldBlendState() const;
+  // T12: the atlas edge in pixels, its byte size, and the reason it is or is
+  // not bound. "bound" is the only value that means the atlas is what the
+  // world pass samples.
+  std::size_t worldAtlasSize() const { return worldAtlasSize_; }
+  std::uint64_t worldAtlasBytes() const { return worldAtlasBytes_; }
+  const std::string& worldAtlasReason() const { return worldAtlasReason_; }
   bool saveCameraPreset(std::size_t slot);
   bool applyCameraPreset(std::size_t slot);
   bool clearCameraPreset(std::size_t slot);
@@ -483,6 +541,29 @@ public:
   // failure: the pass then draws the flat shade and says so.
   bool uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setWorldWaterEnabled(bool enabled) { worldWaterEnabled_ = enabled; }
+  // ---- T12 (2026-10-18): the terrain blend's two diagnostic switches ------
+  // `setWorldBlendEnabled(false)` keeps the world geometry and the first layer
+  // exactly as they are and refuses the second layer, so the only difference
+  // between the two frames is the blend itself. That is the "off" half of the
+  // on/off/repeat triple the task asks for, and it has to be a renderer-side
+  // switch rather than a main.cpp-side one: dropping the layer in main.cpp
+  // would change the atlas contents as well, and then a differing pixel could
+  // be attributed to the atlas rather than to the shader branch.
+  void setWorldBlendEnabled(bool enabled) { worldBlendEnabled_ = enabled; }
+  // `setWorldTerrainOnly(true)` uploads only the triangles whose material is a
+  // blend material -- the displacement terrain -- and nothing else. It exists
+  // because "the change is in the terrain region" is a claim about *where* the
+  // pixels are, and the only honest way to bound that region without assuming a
+  // colour or a projection is to draw a frame that contains the terrain and
+  // nothing else, from the same camera and the same buffers.
+  void setWorldTerrainOnly(bool terrainOnly) { worldTerrainOnly_ = terrainOnly; }
+  // T12: `--world-geometry terrain|none` is a diagnostic frame, not a picture of
+  // the game, so every other pass has to leave it alone: the pvs index buffer
+  // (built from the full triangle list, so it would index past a filtered vertex
+  // buffer), the "no world" placeholder quad (a full-screen textured quad, which
+  // is what the `none` frame used to show instead of the background), and the
+  // entity, marker and projectile passes. Measured, all three.
+  void setWorldDiagnosticIsolation(bool isolated) { worldDiagnosticIsolation_ = isolated; }
   // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
   // was never set on the success path of uploadWorldWaterGeometry, so
   // waterSurfaceSampleState() reported `unavailable` for a surface that drew --
@@ -912,6 +993,26 @@ private:
   Texture2D worldBumpTexture_;
   Texture2D worldEnvTexture_;
   Texture2D worldLightmapTexture_;
+  // T12: the second and third atlases. They share the base atlas's tile
+  // rectangles, so a vertex carries one uv for all three. Both are optional and
+  // reset to nothing when no material asked for them.
+  Texture2D worldBlendTexture_;
+  Texture2D worldBlendModulateTexture_;
+  std::size_t worldBlendTiles_ = 0;
+  std::size_t worldBlendTexturesSeen_ = 0;
+  std::size_t worldBlendLayersSeen_ = 0;
+  std::size_t worldBlendAccepted_ = 0;
+  std::size_t worldBlendAcceptedLayers_ = 0;
+  std::size_t worldBlendModulateTiles_ = 0;
+  std::size_t worldBlendMalformedLayers_ = 0;
+  std::size_t worldBlendVertices_ = 0;
+  std::size_t worldBlendModulateVertices_ = 0;
+  // T12: the world atlas's own identity and the reason it is or is not bound.
+  // The atlas being refused used to be invisible -- the caller fell back to one
+  // material texture and every count stayed green.
+  std::size_t worldAtlasSize_ = 0;
+  std::uint64_t worldAtlasBytes_ = 0;
+  std::string worldAtlasReason_ = "no world atlas was uploaded";
   Microsoft::WRL::ComPtr<ID3D11Texture2D> worldCubemapTexture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldCubemapView_;
   UINT worldCubemapSize_ = 0;
@@ -978,6 +1079,17 @@ private:
   bool worldWaterEnabled_ = true;
   bool worldWaterTextureBound_ = false;
   bool worldWaterDrewThisFrame_ = false;
+  // ---- T12 (2026-10-18): the terrain blend ---------------------------------
+  // `worldBlendEnabled_` gates the second layer only; `worldTerrainOnly_`
+  // gates every triangle whose material is not a blend material. They are two
+  // flags rather than one because the gate needs all four combinations: all/on,
+  // all/off, terrain/on, terrain/off.
+  bool worldBlendEnabled_ = true;
+  bool worldTerrainOnly_ = false;
+  bool worldDiagnosticIsolation_ = false;
+  float worldBlendWeightMin_ = -1.0f;
+  float worldBlendWeightMax_ = -1.0f;
+  std::size_t worldBlendDistinctWeights_ = 0;
   double worldWaterPhase_ = 0.0;
   float worldWaterAmplitude_ = 0.02f;
   WorldWaterSurfaceState worldWaterState_ = WorldWaterSurfaceState::Unavailable;

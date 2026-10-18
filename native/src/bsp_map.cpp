@@ -383,11 +383,13 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         axis(lux[0], packed.storedW, packed.samplesW, packed.minsU, packed.x, kAtlas),
         axis(lux[1], packed.storedH, packed.samplesH, packed.minsV, packed.y, kAtlas)};
     };
-    const auto pushTriangle = [&](const BspVertex& a, const BspVertex& b, const BspVertex& c, bool displacement) {
+    const auto pushTriangle = [&](const BspVertex& a, const BspVertex& b, const BspVertex& c, bool displacement,
+                                  float aAlpha = -1.0f, float bAlpha = -1.0f, float cAlpha = -1.0f) {
       if (map.triangles.size() >= triangleLimit) return;
       const auto ta = texCoord(a), tb = texCoord(b), tc = texCoord(c);
       BspTriangle triangle;
       triangle.a = a; triangle.b = b; triangle.c = c;
+      triangle.aAlpha = aAlpha; triangle.bAlpha = bAlpha; triangle.cAlpha = cAlpha;
       triangle.au = ta[0]; triangle.av = ta[1]; triangle.bu = tb[0]; triangle.bv = tb[1]; triangle.cu = tc[0]; triangle.cv = tc[1];
       if (packed.ok) {
         const auto la = lightUv(a), lb = lightUv(b), lc = lightUv(c);
@@ -432,6 +434,13 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
             quad[i] = polygon[static_cast<std::size_t>(index)];
           }
           std::vector<BspVertex> grid(static_cast<std::size_t>(size) * static_cast<std::size_t>(size));
+          // The blend weight travels beside the position, on the same grid
+          // index, because the two are read from the same 20-byte displacement
+          // vertex. A weight that is not a finite number stays at the sentinel
+          // instead of failing the whole face: a surface with one unreadable
+          // weight is still a surface, and drawing it single-layer is the
+          // honest degradation.
+          std::vector<float> gridAlpha(static_cast<std::size_t>(size) * static_cast<std::size_t>(size), -1.0f);
           bool finite = true;
           for (int y = 0; y < size && finite; ++y) {
             const float fy = static_cast<float>(y) / static_cast<float>(size - 1);
@@ -442,8 +451,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               const auto flat = lerpVertex(left, right, fx);
               const auto vertAt = (static_cast<std::size_t>(vertStart) + static_cast<std::size_t>(y * size + x)) * 20u;
               const float vx = read<float>(dispVerts, vertAt), vy = read<float>(dispVerts, vertAt + 4), vz = read<float>(dispVerts, vertAt + 8), dist = read<float>(dispVerts, vertAt + 12);
+              const float alpha = read<float>(dispVerts, vertAt + 16);
               if (!std::isfinite(vx) || !std::isfinite(vy) || !std::isfinite(vz) || !std::isfinite(dist) || std::fabs(dist) > 4096.0f) { finite = false; break; }
               grid[static_cast<std::size_t>(y * size + x)] = {flat.x + vx * dist, flat.y + vy * dist, flat.z + vz * dist};
+              if (std::isfinite(alpha)) {
+                gridAlpha[static_cast<std::size_t>(y * size + x)] = std::clamp(alpha, 0.0f, 1.0f);
+              }
             }
           }
           bool displacementComplete = finite;
@@ -463,10 +476,13 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
             const auto before = map.triangles.size();
             for (int y = 0; y < size - 1; ++y) for (int x = 0; x < size - 1; ++x) {
               const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gy * size + gx)]; };
+              const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gy * size + gx)]; };
               const auto p00 = at(x, y), p10 = at(x + 1, y), p11 = at(x + 1, y + 1), p01 = at(x, y + 1);
               if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) { displacementComplete = false; continue; }
-              pushTriangle(at(x, y), at(x + 1, y + 1), at(x + 1, y), true);
-              pushTriangle(at(x, y), at(x, y + 1), at(x + 1, y + 1), true);
+              pushTriangle(at(x, y), at(x + 1, y + 1), at(x + 1, y), true,
+                weightAt(x, y), weightAt(x + 1, y + 1), weightAt(x + 1, y));
+              pushTriangle(at(x, y), at(x, y + 1), at(x + 1, y + 1), true,
+                weightAt(x, y), weightAt(x, y + 1), weightAt(x + 1, y + 1));
             }
             emittedDisp = map.triangles.size() > before;
             if (!displacementComplete) {

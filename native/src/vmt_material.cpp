@@ -99,6 +99,7 @@ bool VmtParser::parse(const std::string& text, VmtMaterial& material) {
   for (const auto& [key, value] : root) if (!value.object) material.fields[key] = value.text;
   material.baseTexture = scalar(root, "$basetexture");
   material.baseTexture2 = scalar(root, "$basetexture2");
+  material.blendModulateTexture = scalar(root, "$blendmodulatetexture");
   material.bumpMap = scalar(root, "$bumpmap");
   material.envMap = scalar(root, "$envmap");
   material.selfIllumTint = scalar(root, "$selfillumtint");

@@ -4,12 +4,8 @@
 
 namespace tf2::native {
 
-namespace {
-constexpr std::uint64_t kMaxTextureBytes = 64ull * 1024ull * 1024ull;
-}
-
 bool Texture2D::create(ID3D11Device* device, const std::vector<std::uint8_t>& rgba,
-    UINT width, UINT height, std::string* error) {
+    UINT width, UINT height, std::string* error, std::uint64_t maxBytes) {
   reset();
   const auto fail = [&](const char* message) {
     if (error) *error = message;
@@ -22,7 +18,7 @@ bool Texture2D::create(ID3D11Device* device, const std::vector<std::uint8_t>& rg
   if (rowBytes > std::numeric_limits<UINT>::max() || expected != rgba.size()) {
     return fail("RGBA texture buffer size does not match dimensions");
   }
-  if (expected > kMaxTextureBytes) return fail("RGBA texture exceeds 64 MiB limit");
+  if (expected > maxBytes) return fail("RGBA texture exceeds the caller's byte budget");
   D3D11_TEXTURE2D_DESC description{};
   description.Width = width;
   description.Height = height;
