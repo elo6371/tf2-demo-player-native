@@ -1,0 +1,37 @@
+geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=99312 faces=18052 displaced=46912 water=300 lightmapped=37000 degenerate=4790 maxEdge=2560.0 over256=13114 over1024=357 over4096=0 bounds=(-5266,-13264,-2593)..(4048,8704,1544)
+geometry edge-groups staticMaxEdge=2560.0 staticOver1024=357 staticMaterialOver1024=33 displacedMaxEdge=502.4 displacedOver1024=0
+geometry displacement faces=1382 triangles=46912 cornerMatches=1382
+geometry winding agree=5416 of 16136 faces (33.6% agree with the bsp plane normals)
+geometry materials distinct=108 atlasCap=64 trianglesCoveredByCap=98011 of 99312 (98.7%)
+geometry material rank=0 triangles=15340 name=WOOD/WALL007A
+geometry material rank=1 triangles=6850 name=NATURE/BLENDCLIFFTOGRASS_ODYSSEY
+geometry material rank=2 triangles=6390 name=GREEK/GREEK_GROUND03B
+geometry material rank=3 triangles=5928 name=NATURE/BLENDGROUNDTOMARBLE01
+geometry material rank=4 triangles=5514 name=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry material rank=5 triangles=5026 name=METAL/IBEAM002
+geometry material rank=6 triangles=4984 name=SWAMP/PROPS/FISHINGNET002
+geometry material rank=7 triangles=4223 name=GREEK/GREEK_GROUND03D
+geometry offender index=90049 longest=2560.0 area=1572864.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-2048.0, 5632.0, -2176.0)      b=(-2048.0, 7680.0, -2176.0)      c=(-3584.0, 7680.0, -2176.0)
+geometry offender index=90048 longest=2560.0 area=1572864.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-2048.0, 5632.0, -2176.0)      b=(-3584.0, 7680.0, -2176.0)      c=(-3584.0, 5632.0, -2176.0)
+geometry offender index=90051 longest=2415.1 area=1310720.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-768.0, 5632.0, -2176.0)      b=(-768.0, 7680.0, -2176.0)      c=(-2048.0, 7680.0, -2176.0)
+geometry offender index=90050 longest=2415.1 area=1310720.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-768.0, 5632.0, -2176.0)      b=(-2048.0, 7680.0, -2176.0)      c=(-2048.0, 5632.0, -2176.0)
+geometry offender index=99119 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, -1536.0, -2432.0)      b=(3456.0, -1536.0, -2560.0)      c=(3456.0, 512.0, -2560.0)
+geometry offender index=99117 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, 512.0, -2432.0)      b=(3456.0, 512.0, -2560.0)      c=(3456.0, 2560.0, -2560.0)
+geometry offender index=99116 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, 512.0, -2432.0)      b=(3456.0, 2560.0, -2560.0)      c=(2816.0, 2560.0, -2432.0)
+geometry offender index=99118 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, -1536.0, -2432.0)      b=(3456.0, 512.0, -2560.0)      c=(2816.0, 512.0, -2432.0)
+geometry offender index=99115 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, 512.0, -2176.0)      b=(2816.0, 512.0, -2432.0)      c=(2816.0, 2560.0, -2432.0)
+geometry offender index=99015 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, -1536.0, -2176.0)      b=(2816.0, -1536.0, -2432.0)      c=(2816.0, 512.0, -2432.0)
+geometry offender index=99014 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, -1536.0, -2176.0)      b=(2816.0, 512.0, -2432.0)      c=(2304.0, 512.0, -2176.0)
+geometry offender index=99114 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, 512.0, -2176.0)      b=(2816.0, 2560.0, -2432.0)      c=(2304.0, 2560.0, -2176.0)

@@ -271,6 +271,11 @@ struct WorldMaterialSampleState {
   // frame captured with --no-world-cull cannot be mistaken for one drawn with
   // the product's own cull mode.
   bool worldCullBackfaces = true;
+  // T11 diagnostic: which debug view the world pass drew. 0 = the product's
+  // textured/lightmapped path, 1 = flat colour with no sampling, 2 = depth as
+  // grey. Read from the renderer after the draw so a capture cannot claim a
+  // mode it did not use.
+  int worldDebugView = 0;
 };
 
 // What a per-triangle pvs clip decided, handed to the renderer by the caller
@@ -466,6 +471,9 @@ public:
   // same frame can be drawn culled and unculled and the difference attributed
   // to the winding. Diagnostic only; the product's default stays cull-back.
   void setWorldBackfaceCull(bool enabled) { worldBackfaceCull_ = enabled; }
+  // T11 diagnostic: 0 = textured (the product path), 1 = flat colour only,
+  // 2 = depth greyscale. Diagnostic only; the product's default stays 0.
+  void setWorldDebugView(int view) { worldDebugView_ = view; }
   bool setWorldVisDrawList(const WorldVisDrawList& drawList);
   // ---- T2 (2026-10-14): the water surface as its own pass ----------------
   // A second world buffer holding only the water triangles, its own texture and
@@ -959,6 +967,7 @@ private:
   bool worldVisDrewIndexed_ = false;
   bool worldVisClipEnabled_ = true;
   bool worldBackfaceCull_ = true;
+  int worldDebugView_ = 0;
   bool worldVisClipApplied_ = false;
   std::size_t worldVisDrawnTriangles_ = 0;
   std::size_t worldVisHiddenTriangles_ = 0;

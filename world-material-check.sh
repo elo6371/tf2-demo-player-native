@@ -263,7 +263,11 @@ assert_eq "water faces"           "$(field "$REAL" water.faces)"           "18"
 assert_eq "water triangles"       "$(field "$REAL" water.trianglesTagged)" "36"
 assert_eq "vis mode"              "$(field "$REAL" vis.mode)"              "cluster-pvs"
 assert_eq "vis clusters"          "$(field "$REAL" vis.clusters)"          "2940"
-assert_eq "vis visible from 0"    "$(field "$REAL" vis.visibleFromCluster0)" "384"
+# T11 moved this pin: it used to decode the pvs row table with one stride-8
+# offset table and a run-length walk over rows the map stores uncompressed.
+# With the corrected reader cluster 0 sees 1462 clusters, and an independent
+# python decode of the same lump reproduces the number.
+assert_eq "vis visible from 0"    "$(field "$REAL" vis.visibleFromCluster0)" "1462"
 
 echo
 echo "=== 5/8 the negative control: no BSP, so nothing is available ==="
@@ -364,13 +368,13 @@ vfield() { printf '%s\n' "$VIS" | grep -oE "$1=[0-9-]+" | head -1 | cut -d= -f2;
 # camera reads its real leaf (639), the pvs answers 611 visible clusters, and
 # the hidden/drawn split moves accordingly (29609/170391 of 200000).
 assert_eq "render vis camera cluster" "$(vfield cameraCluster)" "639"
-assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "611"
+assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "2150"
 assert_eq "render vis clustered triangles" "$(vfield clusteredTriangles)" "34517"
-assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "29609"
+assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "10872"
 assert_eq "render vis clip applied" "$(vfield clipApplied)" "1"
 assert_eq "render vis clip state" "$(printf '%s\n' "$VIS" | grep -oE 'state=[a-z]+' | head -1 | cut -d= -f2)" "active"
 assert_eq "render vis input triangles" "$(vfield inputTriangles)" "200000"
-assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "170391"
+assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "189128"
 # The identity, not a second pin: what the draw call was given plus what the pvs
 # withheld has to be the whole map. A clip that hid triangles by not uploading
 # them would satisfy the two numbers above and fail this one.

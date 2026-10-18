@@ -1,0 +1,58 @@
+T11 follow-up -- the winding rule matrix
+========================================
+
+Question: the shipped orientation rule (brush fans along their plane normal,
+displacement grids against it) makes each emission class consistent with itself,
+but it is not the same statement as "every triangle points the way its face is
+seen from". The probe's new side-aware census says so: 53724 of 99312 emitted
+triangles point away from the direction their own face's plane side bit calls its
+front. So which rule is right?
+
+Method: one build with the orientation rule selected at run time (TF2_T11_MODE),
+captured on the two fixed views of the T11 acceptance, at tick 2000, 1264x681,
+with --world-flat so a hole in the frame is a triangle that is not drawn rather
+than a triangle that is dark. Coverage is the fraction of the frame within 12
+levels of the flat colour (0.35,0.62,0.38). The no-cull reference for the same
+view and tick is the maximum a rule can reach: any triangle the cull removes
+would have drawn there.
+
+References (--no-world-cull, same camera, same tick):
+  POV  .9228        top-down (-2424,5566,-80, pitch 90, yaw 0)  .6742
+
+F = the face's own side-aware outward normal (plane normal, flipped by the
+dface_t side bit). "+pn" = the raw plane normal. "stored" = no reversal at all.
+
+  rule                                              POV     top     sum
+  shipped  brush +pn, displacement -pn              .8953   .4683   1.3636
+  all triangles  n.F >= 0                           .5492   .6181   1.1673
+  all triangles  n.F <= 0                           .8755   .3709   1.2464
+  brush n.F >= 0, displacement n.F <= 0             .7052   .4490   1.1542
+  brush n.F <= 0, displacement n.F >= 0             .7724   .5551   1.3275
+  stored order, no reversal                         .7414   .6668   1.4082
+  global reversal of every triangle                 .8974   .3705   1.2679
+  brush +pn, displacement left stored               .7286   .5991   1.3277
+  brush +pn, displacement n.F >= 0                  .7551   (not captured)
+
+What the matrix says
+--------------------
+1. No plane-derived rule draws both views. The best POV rule (global reversal,
+   .8974) leaves the top-down view at .3705 of its .6742 maximum; the best
+   top-down rule (stored order, .6668 = 98.9% of maximum) leaves the POV at
+   .7414 of .9228. Each rule buys one view with the other.
+2. The two views therefore see surfaces whose stored order disagrees, and the
+   plane lump cannot arbitrate between them: it is the same lump in both views.
+   The side-aware census (53724 of 99312) is the size of that disagreement, not
+   a hypothesis about it.
+3. The stored order is the only candidate that is coherent in the top-down view
+   (.6668 of .6742 -- culling removes 0.7%), which is why "the top-down right
+   side still culls" is restated in DIAGNOSIS.md section 7: under the shipped
+   rule that region is not a hole in the map, it is the same surfaces the
+   shipped rule removes.
+4. Both uniform rules were captured as images and both shatter the frame
+   (analysis/m2-pov.png, analysis/m6-top.png): a uniform sign is not a small
+   error, it is a screen full of wedges. That is the reason the shipped rule was
+   not changed on this evidence alone.
+
+Reproduce: TF2_T11_MODE=<n> on the diagnostic build, --world-flat, then
+count the flat colour. The mode switch was removed from the delivered source;
+the readings above are the record.

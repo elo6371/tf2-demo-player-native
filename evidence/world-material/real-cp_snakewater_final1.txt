@@ -1,4 +1,5 @@
-{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":11527,"lightmapPackedFaces":11527,"lightmapLuxelFits":11513,"lightmapTriangles":199922,"atlas":"4096x1156","sky":"sky_well_01","skyFaces":690,"displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":11527,"lightmapPackedFaces":11527,"lightmapLuxelFits":11513,"lightmapTriangles":200174,"atlas":"4096x1156","sky":"sky_well_01","skyFaces":690,"displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":1462}
+cp_snakewater_final1.bsp failed: lightmapped triangle count
 {"reading":"cubemap.facesBeyondSix","value":"33"}
 {"reading":"cubemap.facesDecoded","value":"198"}
 {"reading":"cubemap.firstDeclaredFaces","value":"6"}
@@ -79,10 +80,10 @@
 {"reading":"sky.vmtFound","value":"6"}
 {"reading":"vis.clusters","value":"2940"}
 {"reading":"vis.mode","value":"cluster-pvs"}
-{"reading":"vis.reason","value":"pvs hides 2556 of 2940 clusters; 34517 of 200000 triangles carry a cluster"}
+{"reading":"vis.reason","value":"pvs hides 1478 of 2940 clusters; 34517 of 200000 triangles carry a cluster"}
 {"reading":"vis.state","value":"active"}
 {"reading":"vis.trianglesWithCluster","value":"34517"}
-{"reading":"vis.visibleFromCluster0","value":"384"}
+{"reading":"vis.visibleFromCluster0","value":"1462"}
 {"reading":"water.faces","value":"18"}
 {"reading":"water.reason","value":"18 water faces resolve to a texture; reflection=off refraction=off, neither render target is implemented so the surface draws unlit"}
 {"reading":"water.state","value":"fallback"}

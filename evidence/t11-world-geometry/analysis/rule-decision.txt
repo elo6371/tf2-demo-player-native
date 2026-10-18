@@ -1,0 +1,115 @@
+T11 third round -- the winding decision, by first-hit oracle
+===========================================================
+
+The question this round answers
+-------------------------------
+Two rounds of winding work left a contradiction: the shipped rule (brush wound
+along its plane normal, displacement against it) draws the first-person frame at
+0.8953 of its no-cull maximum, and the top-down frame at 0.4683. Every one of the
+eleven rules captured in round two traded one view for the other, so the
+conclusion on file was "no plane-derived rule draws both views". That conclusion
+was true and useless: it did not say which rule to ship, and it left
+`misfaced=53724` as an unexplained open defect.
+
+What changed this round is the instrument, not the philosophy.
+
+1. The premise was wrong: the buffer ships one convention, not two
+-------------------------------------------------------------------
+Round two's class split was derived from the face POLYGON census. The buffer is
+not the polygon: the brush fan emits `pushTriangle(polygon[0], polygon[i + 1],
+polygon[i])`, the reverse of the polygon's own order. Measured on the emitted
+order, before any rule (`geometry pre-rule`):
+
+  class=brush         alongPlane=41624  againstPlane=396    (99.1% one way)
+  class=displacement  alongPlane=46856  againstPlane=142    (99.7% one way)
+
+Both classes ship the SAME convention. There was never a class split to
+reproduce, and the rule that reproduced one was flipping 38614 displacement
+triangles that did not need flipping.
+
+2. The oracle: the first surface along a ray must be the surface that is drawn
+------------------------------------------------------------------------------
+A back-face cull is correct exactly when, for every ray from the camera, the
+FIRST triangle that ray meets survives the cull. That is a statement about the
+data, not about any rule, and it needs no shading, no materials and no
+thresholds:
+
+  - from above (`--ray-down N`): a vertical ray per grid cell across the map
+    bounds; keep the topmost triangle at that (x, y); it must be drawn by a
+    camera looking down, i.e. its emitted winding must face up.
+  - from the eye (`--ray-eye x,y,z N`): a sphere of directions; keep the first
+    triangle each ray meets; it must be drawn, i.e. its emitted winding must face
+    the eye.
+
+Every triangle carries `windingFlipped`, so the census can recover the STORED
+winding and therefore score any rule without rebuilding it. Both oracles reduce
+to four cells -- (class, side) -- and a rule is a keep/flip choice per cell.
+
+3. The decision table (all sixteen rules, both views, one run)
+-------------------------------------------------------------
+`world_geometry_probe --ray-down 96 --ray-eye -2423.6,5566.0,-1280.0 24`
+prints `geometry rule-table ...` for all sixteen. Scores are the fraction of
+first hits the rule draws, 5381 cells from above and 594 directions from the eye:
+
+  mask  brush/s0 brush/s1 disp/s0 disp/s1    top    eye   worst
+  00    flip     flip     flip    flip     0.289  0.271  0.271
+  01    keep     flip     flip    flip     0.583  0.374  0.374
+  02    flip     keep     flip    flip     0.017  0.717  0.017
+  03    keep     keep     flip    flip     0.311  0.820  0.311   <- shipped
+  04    flip     flip     keep    flip     0.686  0.222  0.222
+  05    keep     flip     keep    flip     0.980  0.325  0.325
+  06    flip     keep     keep    flip     0.414  0.668  0.414
+  07    keep     keep     keep    flip     0.708  0.771  0.708   <- shipped now
+  08    flip     flip     flip    keep     0.292  0.229  0.229
+  09    keep     flip     flip    keep     0.586  0.332  0.332
+  10    flip     keep     flip    keep     0.020  0.675  0.020
+  11    keep     keep     flip    keep     0.314  0.778  0.314
+  12    flip     flip     keep    keep     0.689  0.180  0.180
+  13    keep     flip     keep    keep     0.983  0.283  0.283
+  14    flip     keep     keep    keep     0.417  0.626  0.417
+  15    keep     keep     keep    keep     0.711  0.729  0.711   <- stored order
+
+4. What the table says
+----------------------
+a. The shipped rule (mask 03) is the eye's optimum (0.820) and the top-down
+   view's near-worst (0.311). It is not a compromise; it is a choice of one
+   view.
+b. The stored order (mask 15) is the best max-min of the sixteen (0.711 /
+   0.729) and needs no rule at all -- the emission simply stops rewriting data
+   it cannot justify. It costs the eye nine points against the shipped rule.
+c. Mask 07 -- brush keeps the map's order, displacement is oriented to its
+   face's side-aware outward direction -- is within 0.003 of the max-min optimum
+   and keeps the eye within five points of its own optimum. It is the shipped
+   rule's smallest functional delta that recovers the top-down view.
+d. The two views disagree in exactly TWO cells: brush/side-1 and
+   displacement/side-0. Every point of the eye's score above 0.771 is bought by
+   flipping displacement/side-0, and every point of the top-down view above 0.708
+   is bought by flipping brush/side-1. No rule in this family escapes that
+   trade-off, and the two cells are the residual, named.
+
+5. Why the previous round's coverage numbers pointed the wrong way
+-----------------------------------------------------------------
+Flat-colour coverage counts a pixel as "world present" whether the surface drawn
+there is the near one or a far one seen through a culled near surface. A rule
+that culls the nearest surface therefore still scores: the frame fills with the
+surfaces behind it. The no-cull reference (0.9228) is the silhouette, not a
+correctness ceiling, and the shipped rule reached 0.8953 of it while drawing the
+wrong side for 18% of the eye's rays. Coverage was the wrong metric; the
+first-hit oracle is the right one, and it is why the shipped rule's 0.8953 and
+its 0.311 sit in the same sentence without contradicting each other.
+
+6. What ships
+-------------
+Mask 07, in `native/src/bsp_map.cpp` (one condition, no class sign, no side
+folding): brush triangles keep the order the map stores, displacement triangles
+are reversed when they point away from their face's side-aware outward
+direction. Readings move as the table predicts:
+
+  flippedTriangles   47252 -> 8514
+  misfaced           53724 -> 15126
+  displacedMisfaced  38614 -> 0
+  top-down first hits drawn   0.311 -> 0.708
+  eye first hits drawn        0.820 -> 0.771
+
+Reproduce: `world_geometry_probe --tf-root <tf> --map maps/pl_odyssey.bsp
+--eye -2423.6,5566.0,-1280.0 --ray-down 96 --ray-eye -2423.6,5566.0,-1280.0 24`

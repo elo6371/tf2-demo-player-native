@@ -183,11 +183,22 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     if (clusters > 0 && clusters < 1000000 && headerBytes <= vis.size()) {
       map.visClusterCount = clusters;
       map.visOffsets.resize(static_cast<std::size_t>(clusters));
+      map.visRawOffsets.assign(static_cast<std::size_t>(clusters), -1);
       bool offsetsOk = true;
       for (int cluster = 0; cluster < clusters; ++cluster) {
-        const auto offset = read<std::int32_t>(vis, 4 + static_cast<std::size_t>(cluster) * 8u);
-        if (offset < 0 || static_cast<std::size_t>(offset) >= vis.size()) offsetsOk = false;
-        map.visOffsets[static_cast<std::size_t>(cluster)] = offset;
+        // T11: dvis_t is { int numclusters; int bitofs[2][numclusters]; }. The
+        // two tables are contiguous, so [0][c] is at 4 + c*4 and [1][c] at
+        // 4 + numclusters*4 + c*4. The previous reader stepped bitofs[0] by 8
+        // bytes, which lands on [0][2c] -- every cluster decoded another
+        // cluster's row -- and then ran a run-length decoder over data that
+        // this map stores uncompressed ([1][c] >= 0 for all c, measured).
+        const auto compressedOffset = read<std::int32_t>(vis, 4 + static_cast<std::size_t>(cluster) * 4u);
+        const auto rawOffset = read<std::int32_t>(vis,
+          4 + static_cast<std::size_t>(clusters) * 4u + static_cast<std::size_t>(cluster) * 4u);
+        if (rawOffset < 0 && (compressedOffset < 0 || static_cast<std::size_t>(compressedOffset) >= vis.size())) offsetsOk = false;
+        if (rawOffset >= 0 && static_cast<std::size_t>(rawOffset) >= vis.size()) offsetsOk = false;
+        map.visOffsets[static_cast<std::size_t>(cluster)] = compressedOffset;
+        map.visRawOffsets[static_cast<std::size_t>(cluster)] = rawOffset;
       }
       if (offsetsOk) { map.visBits = vis; map.visMode = BspVisMode::ClusterPvs; }
       else { map.visOffsets.clear(); map.visClusterCount = 0; }
@@ -311,26 +322,61 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12));
     }
     if (!validFace || polygon.size() < 3) continue;
-    // T10 winding census, read-only: the polygon's normal (from its own
-    // winding) against the face's BSP plane. dface_t: planenum is a uint16 at
-    // +0, the back-side flag a byte at +2. This counts the source winding; the
-    // renderer keeps the explicit winding chosen by the world render path.
+    // T10 winding census: the polygon's normal (from its own winding) against
+    // the face's BSP plane. dface_t: planenum is a uint16 at +0, the back-side
+    // flag a byte at +2. This counts the SOURCE winding -- it is a measurement
+    // of the shipped data, not of what the renderer decides.
     const std::uint32_t facePlaneNumber = read<std::uint16_t>(faces, base);
     const std::uint8_t facePlaneSide = faces[base + 2];
-    if (!map.planes.empty()) {
-      if (static_cast<std::size_t>(facePlaneNumber) < map.planes.size()) {
-        const auto& plane = map.planes[static_cast<std::size_t>(facePlaneNumber)];
-        const float pnx = plane.normal[0], pny = plane.normal[1], pnz = plane.normal[2];
-        const float ux = polygon[1].x - polygon[0].x, uy = polygon[1].y - polygon[0].y, uz = polygon[1].z - polygon[0].z;
-        const float vx = polygon[2].x - polygon[0].x, vy = polygon[2].y - polygon[0].y, vz = polygon[2].z - polygon[0].z;
-        const float cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
-        const float len = std::sqrt(cx * cx + cy * cy + cz * cz);
-        const float plen = std::sqrt(pnx * pnx + pny * pny + pnz * pnz);
-        if (len > 1e-6f && plen > 1e-6f && std::isfinite(pnx) && std::isfinite(pny) && std::isfinite(pnz)) {
-          ++map.windingFaceCount;
-          const bool pointsAlong = (cx * pnx + cy * pny + cz * pnz) > 0.0f;
-          if (pointsAlong == (facePlaneSide == 0)) ++map.windingAgreeCount;
+    // T11 third round: the face class is a property of the dface_t itself, so it
+    // is read here rather than at the displacement branch below -- the winding
+    // census needs it while the plane is still in scope.
+    const auto dispIndex = read<std::int16_t>(faces, base + 12);
+    // T11: the face's own OUTWARD direction -- the direction a player looks
+    // along to see this face. `facePlaneSide` is the half-space the face is seen
+    // from, so the outward vector is +plane for side 0 and -plane for side 1.
+    // It is both the measurement axis and (for displacement, below) the
+    // orientation target; `misfaced` counts how far the emitted winding sits
+    // from it (15126 of 99312 after the third-round decision, all of them
+    // brush/side-1, with 5388 of 16136 faces authored on the back of their
+    // plane). Without a usable plane the emission keeps the stored order and the
+    // face is not counted.
+    float faceOutwardX = 0.0f, faceOutwardY = 0.0f, faceOutwardZ = 0.0f;
+    // The raw plane normal and the polygon's own winding normal, kept so the
+    // stored-winding census and the grid-vs-polygon census can both be taken
+    // without re-deriving them inside the emission lambda.
+    float facePlaneX = 0.0f, facePlaneY = 0.0f, facePlaneZ = 0.0f;
+    float facePolygonX = 0.0f, facePolygonY = 0.0f, facePolygonZ = 0.0f;
+    bool haveFaceOutward = false;
+    if (!map.planes.empty()
+        && static_cast<std::size_t>(facePlaneNumber) < map.planes.size()) {
+      const auto& plane = map.planes[static_cast<std::size_t>(facePlaneNumber)];
+      const float pnx = plane.normal[0], pny = plane.normal[1], pnz = plane.normal[2];
+      const float ux = polygon[1].x - polygon[0].x, uy = polygon[1].y - polygon[0].y, uz = polygon[1].z - polygon[0].z;
+      const float vx = polygon[2].x - polygon[0].x, vy = polygon[2].y - polygon[0].y, vz = polygon[2].z - polygon[0].z;
+      const float cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+      const float len = std::sqrt(cx * cx + cy * cy + cz * cz);
+      const float plen = std::sqrt(pnx * pnx + pny * pny + pnz * pnz);
+      if (len > 1e-6f && plen > 1e-6f && std::isfinite(pnx) && std::isfinite(pny) && std::isfinite(pnz)) {
+        ++map.windingFaceCount;
+        if (facePlaneSide != 0) ++map.windingSideOneFaces;
+        const bool pointsAlong = (cx * pnx + cy * pny + cz * pnz) > 0.0f;
+        if (pointsAlong == (facePlaneSide == 0)) ++map.windingAgreeCount;
+        // T11 third round: the same comparison, split by class and WITHOUT the
+        // side bit. This is the reading that says whether the shipped polygon
+        // order is a convention or a coin toss.
+        if (dispIndex >= 0) {
+          if (pointsAlong) ++map.windingStoredDispAlong; else ++map.windingStoredDispAgainst;
+        } else {
+          if (pointsAlong) ++map.windingStoredBrushAlong; else ++map.windingStoredBrushAgainst;
         }
+        const float sideSign = facePlaneSide == 0 ? 1.0f : -1.0f;
+        faceOutwardX = sideSign * pnx;
+        faceOutwardY = sideSign * pny;
+        faceOutwardZ = sideSign * pnz;
+        facePlaneX = pnx; facePlaneY = pny; facePlaneZ = pnz;
+        facePolygonX = cx; facePolygonY = cy; facePolygonZ = cz;
+        haveFaceOutward = true;
       }
     }
     if (hasLightmap) {
@@ -383,8 +429,111 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         axis(lux[0], packed.storedW, packed.samplesW, packed.minsU, packed.x, kAtlas),
         axis(lux[1], packed.storedH, packed.samplesH, packed.minsV, packed.y, kAtlas)};
     };
-    const auto pushTriangle = [&](const BspVertex& a, const BspVertex& b, const BspVertex& c, bool displacement) {
+    // T11 third round: the first grid triangle of a displacement face is
+    // compared against the polygon's own winding once per face, so a 32x32 grid
+    // cannot outvote a quad in the census.
+    bool gridCounted = false;
+    const auto pushTriangle = [&](BspVertex a, BspVertex b, BspVertex c, bool displacement) {
       if (map.triangles.size() >= triangleLimit) return;
+      bool flipped = false;
+      // T11 third round: does the displacement grid's parametrisation keep the
+      // polygon's own order? Taken on the FIRST triangle of the face and BEFORE
+      // the orientation rule below, so it measures the shipped parametrisation
+      // and not the rule that overwrites it.
+      if (displacement && !gridCounted && haveFaceOutward) {
+        gridCounted = true;
+        const float ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+        const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+        const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        const float dot = nx * facePolygonX + ny * facePolygonY + nz * facePolygonZ;
+        if (dot > 0.0f) ++map.windingGridKeepsPolygon;
+        else if (dot < 0.0f) ++map.windingGridReversesPolygon;
+      }
+      // T11: orient the emitted triangle against its face's own side bit.
+      //
+      // The history matters, because two earlier readings of the same data were
+      // both wrong. The first rule reversed every triangle to one global sign
+      // and culled half the map. The second split the sign by emission class
+      // (brush along its plane normal, displacement against it), on the
+      // evidence of the face POLYGON census -- and the census was reading the
+      // wrong thing: the brush fan emits (0, i+1, i), the reverse of the
+      // polygon's order, so the polygon's convention is not the buffer's. The
+      // buffer's own order is one convention for both classes (`geometry
+      // pre-rule`: brush 41624 along the plane normal against 396, displacement
+      // 46856 against 142), which leaves exactly one thing to say about a face:
+      // the side bit. Point the winding along it.
+      //
+      // The first-hit oracle derives the same rule without using the side bit at
+      // all: from above, 5301 of 5381 topmost surfaces are authored with the
+      // side-aware direction pointing at the sky (analysis/first-hit-oracle.txt).
+      if (haveFaceOutward) {
+        const float ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+        const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+        const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        // T11 third round: the buffer's own order, before any reversal. The
+        // brush fan emits (0, i+1, i) -- the reverse of the polygon's order --
+        // so this is the only place the fan's orientation can be read.
+        const float alongPlane = nx * facePlaneX + ny * facePlaneY + nz * facePlaneZ;
+        const float alongOutward = nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ;
+        if (displacement) {
+          if (alongPlane > 0.0f) ++map.windingPreDispAlongPlane; else if (alongPlane < 0.0f) ++map.windingPreDispAgainstPlane;
+          if (alongOutward > 0.0f) ++map.windingPreDispAlongOutward; else if (alongOutward < 0.0f) ++map.windingPreDispAgainstOutward;
+        } else {
+          if (alongPlane > 0.0f) ++map.windingPreBrushAlongPlane; else if (alongPlane < 0.0f) ++map.windingPreBrushAgainstPlane;
+          if (alongOutward > 0.0f) ++map.windingPreBrushAlongOutward; else if (alongOutward < 0.0f) ++map.windingPreBrushAgainstOutward;
+        }
+        // T11 third round: the buffer ships ONE convention, not two. Measured on
+        // the emitted order before this rule (`geometry pre-rule`): brush
+        // 41624 along the plane normal against 396, displacement 46856 against
+        // 142. The class split the previous rule was built on does not exist in
+        // the data -- it was an artifact of reading the face polygon instead of
+        // the buffer, and the brush fan emits (0, i+1, i), the reverse of the
+        // polygon's own order. With one convention there is one rule: point the
+        // winding along the direction the face's own side bit calls its front.
+        // That is also what the first-hit oracle derives on its own (see
+        // evidence/t11-world-geometry/analysis/first-hit-oracle.txt): from
+        // above, 5301 of 5381 topmost surfaces are authored with +F pointing at
+        // the sky, i.e. F is the side the surface is seen from.
+        // T11 third round: the buffer ships ONE convention, not two. Measured on
+        // the emitted order before this rule (`geometry pre-rule`): brush 41624
+        // along the plane normal against 396, displacement 46856 against 142.
+        // The class split the previous rule was built on does not exist in the
+        // buffer -- it came from reading the face POLYGON, and the brush fan
+        // emits (0, i+1, i), the reverse of the polygon's own order.
+        //
+        // What is left is not a choice of philosophy but a measured decision, and
+        // it is written out in full in analysis/rule-decision.txt: every rule is
+        // a keep/flip choice for four cells (class x side), both first-hit
+        // oracles score all sixteen without rendering, and the two views
+        // disagree in exactly two cells -- brush/side-1 and displacement/side-0.
+        // This is mask 07, the best compromise of the sixteen: brush keeps the
+        // map's own order (the POV is its primary consumer and the map's order is
+        // what it was authored against), displacement is oriented to the face's
+        // side-aware outward direction, which is the cell the previous round
+        // pinned as `displacedMisfaced=38614` and the cell that holds the
+        // top-down view's right half.
+        if (haveFaceOutward && displacement) {
+          if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
+            std::swap(b, c);
+            ++map.windingFlippedTriangles;
+            flipped = true;
+          }
+        }
+      }
+      // T11 follow-up: the residual, measured. After the reversal above the
+      // triangle has a winding normal; this counts the ones that still point
+      // away from the face's own side-aware outward direction, split so a
+      // displacement-only or brush-only regression cannot hide in the total. A
+      // buffer whose winding and plane lump agreed would read 0 here.
+      if (haveFaceOutward) {
+        const float ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+        const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+        const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
+          ++map.windingMisfacedTriangles;
+          if (displacement) ++map.windingMisfacedDisplaced;
+        }
+      }
       const auto ta = texCoord(a), tb = texCoord(b), tc = texCoord(c);
       BspTriangle triangle;
       triangle.a = a; triangle.b = b; triangle.c = c;
@@ -398,10 +547,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       triangle.material = material;
       triangle.water = water;
       triangle.displacement = displacement;
+      triangle.planeSide = facePlaneSide;
+      triangle.planeIndex = haveFaceOutward ? static_cast<std::int32_t>(facePlaneNumber) : -1;
+      triangle.windingFlipped = flipped ? 1 : 0;
       triangle.cluster = cluster;
       map.triangles.push_back(std::move(triangle));
     };
-    const auto dispIndex = read<std::int16_t>(faces, base + 12);
     bool emittedDisp = false;
     if (dispIndex >= 0 && dispInfoOk && dispVertsOk && polygon.size() == 4
         && static_cast<std::size_t>(dispIndex) < dispInfo.size() / 176) {
@@ -554,19 +705,44 @@ bool BspParser::skyMaterialPath(const std::string& skyName, int face, std::strin
 bool BspParser::clusterVisible(const BspMap& map, int fromCluster, int toCluster) {
   if (map.visMode != BspVisMode::ClusterPvs) return true;
   if (fromCluster < 0 || toCluster < 0 || fromCluster >= map.visClusterCount || toCluster >= map.visClusterCount) return false;
+  // T11: prefer the uncompressed row whenever the map carries one. The row is
+  // (numclusters + 7) / 8 plain bytes, bit i of byte k = cluster k*8 + i. The
+  // previous code always ran a run-length walk over the COMPRESSED offset
+  // table and answered with whatever the walk produced -- for pl_odyssey that
+  // was another cluster's row read as runs, which is why the clip hid faces
+  // that were plainly in front of the camera.
+  const auto rawOffset = static_cast<std::size_t>(fromCluster) < map.visRawOffsets.size()
+    ? map.visRawOffsets[static_cast<std::size_t>(fromCluster)] : -1;
+  if (rawOffset >= 0) {
+    const std::size_t byteIndex = static_cast<std::size_t>(rawOffset)
+      + static_cast<std::size_t>(toCluster) / 8u;
+    if (byteIndex >= map.visBits.size()) return false;
+    return (map.visBits[byteIndex] & (1u << (toCluster & 7))) != 0;
+  }
   const auto offset = map.visOffsets[static_cast<std::size_t>(fromCluster)];
   if (offset < 0 || static_cast<std::size_t>(offset) >= map.visBits.size()) return false;
+  // Compressed rows: a byte with the high bit set repeats the next byte
+  // (count = low 7 bits + 1); otherwise the byte copies that many + 1 bytes
+  // verbatim. Walked only as far as the queried cluster.
   std::size_t cursor = static_cast<std::size_t>(offset);
   int cluster = 0;
   while (cluster <= toCluster && cursor < map.visBits.size()) {
-    const auto bits = map.visBits[cursor++];
-    if (bits == 0) {
+    const auto run = map.visBits[cursor++];
+    if ((run & 0x80u) != 0u) {
+      const int count = static_cast<int>(run & 0x7fu) + 1;
       if (cursor >= map.visBits.size()) return false;
-      cluster += static_cast<int>(map.visBits[cursor++]) * 8;
-      continue;
+      const auto value = map.visBits[cursor++];
+      if (toCluster < cluster + count * 8) return (value & (1u << (toCluster - cluster))) != 0;
+      cluster += count * 8;
+    } else {
+      const int count = static_cast<int>(run) + 1;
+      for (int i = 0; i < count; ++i) {
+        if (cursor >= map.visBits.size()) return false;
+        const auto value = map.visBits[cursor++];
+        if (toCluster < cluster + 8) return (value & (1u << (toCluster - cluster))) != 0;
+        cluster += 8;
+      }
     }
-    if (toCluster >= cluster && toCluster < cluster + 8) return (bits & (1u << (toCluster - cluster))) != 0;
-    cluster += 8;
   }
   return false;
 }
