@@ -15,6 +15,14 @@ struct BspTriangle {
   bool lightmapped = false;
   bool water = false;
   bool displacement = false;
+  // T11: which side of its own BSP plane this face was authored on (dface_t
+  // `side`), so a diagnostic can ask a triangle "was the side you were seen from
+  // the side your own data says you are seen from" without re-parsing. It is
+  // also the bit the emission's orientation rule uses.
+  std::uint8_t planeSide = 0;
+  // The plane the face was authored on, so a diagnostic can rebuild the face's
+  // outward normal (plane normal, flipped by planeSide) from the map itself.
+  std::int32_t planeIndex = -1;
   int cluster = -1;
 };
 
@@ -77,6 +85,17 @@ struct BspMap {
   // stored the way the cull mode wants or it is reversed; this count is the
   // number that had to move, and the gate pins it.
   std::size_t windingFlippedTriangles = 0;
+  // T11 follow-up: the side bit is part of the ground truth. `windingAgreeCount`
+  // above already honours it, but the emission did not: a face whose plane side
+  // bit is 1 is seen from the plane's BACK, so the outward direction is -normal,
+  // and a rule that orients every face to +normal leaves those faces wound
+  // backwards. These two counters are the measurement that says how many faces
+  // are on that side and how many emitted triangles still point away from their
+  // own outward direction after emission. `misfaced` must read 0 on a coherent
+  // buffer; it is the number the cull mode would otherwise remove.
+  std::size_t windingSideOneFaces = 0;
+  std::size_t windingMisfacedTriangles = 0;
+  std::size_t windingMisfacedDisplaced = 0;
   std::size_t waterFaces = 0;
   bool waterReflection = false;
   bool waterRefraction = false;

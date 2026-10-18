@@ -328,16 +328,16 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // of the shipped data, not of what the renderer decides.
     const std::uint32_t facePlaneNumber = read<std::uint16_t>(faces, base);
     const std::uint8_t facePlaneSide = faces[base + 2];
-    // T11: the face's own front normal F -- the direction the face is seen
-    // from. side=0 faces are seen from the plane's front, side=1 from its
-    // back. Every triangle this face emits is oriented against F at emission
-    // (see pushTriangle), so the polygon's own winding, the fan start vertex
-    // and the displacement grid's parametrisation stop deciding which side
-    // the cull mode sees. Without a usable plane the emission keeps the stored
-    // order and the triangle is counted in windingFlippedTriangles's sibling
-    // reading (windingFaceCount counts the faces that were orientable).
-    float faceFrontX = 0.0f, faceFrontY = 0.0f, faceFrontZ = 0.0f;
-    bool haveFaceFront = false;
+    // T11: the face's own OUTWARD direction -- the direction a player looks
+    // along to see this face. `facePlaneSide` is the half-space the face is seen
+    // from, so the outward vector is +plane for side 0 and -plane for side 1.
+    // This vector is the MEASUREMENT axis, not the orientation rule: the rule
+    // below still works on the raw plane normal, and the census counts how far
+    // the two disagree (53724 of 99312 triangles, with 5388 of 16136 faces
+    // authored on the back of their plane). Without a usable plane the emission
+    // keeps the stored order and the face is not counted.
+    float faceOutwardX = 0.0f, faceOutwardY = 0.0f, faceOutwardZ = 0.0f;
+    bool haveFaceOutward = false;
     if (!map.planes.empty()
         && static_cast<std::size_t>(facePlaneNumber) < map.planes.size()) {
       const auto& plane = map.planes[static_cast<std::size_t>(facePlaneNumber)];
@@ -349,12 +349,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       const float plen = std::sqrt(pnx * pnx + pny * pny + pnz * pnz);
       if (len > 1e-6f && plen > 1e-6f && std::isfinite(pnx) && std::isfinite(pny) && std::isfinite(pnz)) {
         ++map.windingFaceCount;
+        if (facePlaneSide != 0) ++map.windingSideOneFaces;
         const bool pointsAlong = (cx * pnx + cy * pny + cz * pnz) > 0.0f;
         if (pointsAlong == (facePlaneSide == 0)) ++map.windingAgreeCount;
-        faceFrontX = -pnx;
-        faceFrontY = -pny;
-        faceFrontZ = -pnz;
-        haveFaceFront = true;
+        const float sideSign = facePlaneSide == 0 ? 1.0f : -1.0f;
+        faceOutwardX = sideSign * pnx;
+        faceOutwardY = sideSign * pny;
+        faceOutwardZ = sideSign * pnz;
+        haveFaceOutward = true;
       }
     }
     if (hasLightmap) {
@@ -409,32 +411,49 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     };
     const auto pushTriangle = [&](BspVertex a, BspVertex b, BspVertex c, bool displacement) {
       if (map.triangles.size() >= triangleLimit) return;
-      // T11: orient the emitted triangle against the face's own front normal.
-      // The face's stored winding is mixed (the census above reads roughly a
-      // third of the faces agreeing with their plane) and the displacement
-      // grid's winding is tied to the quad's parametrisation, so neither the
-      // polygon order nor a global flip can make every triangle face the
-      // camera side. The plane lump is ground truth; this test is per
-      // triangle, so the fan's start vertex and the grid's (x, y) mapping stop
-      // mattering. A degenerate triangle has no side to pick and keeps its
-      // order.
-      if (haveFaceFront) {
+      // T11: orient the emitted triangle against its face's plane. The two
+      // emission paths ship opposite conventions, so the sign is per class: a
+      // brush fan is wound along its plane normal, a displacement grid against
+      // it. Measured, not asserted -- see the `flippedTriangles` reading.
+      //
+      // T11 follow-up: this rule is NOT the same thing as "the side the face is
+      // seen from", and the difference is measured rather than argued. The
+      // side-aware census (`misfaced`, below) counts emitted triangles that
+      // point away from the direction the face's own plane side bit calls its
+      // front; on pl_odyssey it reads 53724 of 99312 under this rule, i.e. the
+      // plane lump and the shipped winding disagree for more than half the
+      // buffer. Eleven candidate rules were captured on both fixed views (see
+      // evidence/t11-world-geometry/DIAGNOSIS.md section 5b): every one of them
+      // trades one view for the other, and no plane-derived rule makes both
+      // views draw their surfaces. That is why the rule below is unchanged and
+      // the disagreement is a pinned reading instead of a silent guess.
+      if (haveFaceOutward) {
         const float ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
         const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
         const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-        // T11: the two emission paths ship opposite winding conventions. The
-        // top-down flat capture showed one half of the map drawing and the
-        // other half culling under a single uniform rule; the halves are the
-        // displacement grids and the brush faces. Each class is oriented to
-        // the side its own stored data uses: displacement grids point along
-        // the face normal, brush fans against it (faceFront is the stored
-        // plane normal, negated above for the brush side). The count is kept
-        // so the split is a reading, not a belief.
         const float classSign = displacement ? 1.0f : -1.0f;
-        const float dot = classSign * (nx * faceFrontX + ny * faceFrontY + nz * faceFrontZ);
-        if (dot < 0.0f) {
+        // faceOutward is the side-aware normal; the class rule was measured
+        // against the raw plane normal, which is -outward for side-0 faces.
+        const float px = facePlaneSide == 0 ? -faceOutwardX : faceOutwardX;
+        const float py = facePlaneSide == 0 ? -faceOutwardY : faceOutwardY;
+        const float pz = facePlaneSide == 0 ? -faceOutwardZ : faceOutwardZ;
+        if (classSign * (nx * px + ny * py + nz * pz) < 0.0f) {
           std::swap(b, c);
           ++map.windingFlippedTriangles;
+        }
+      }
+      // T11 follow-up: the residual, measured. After the reversal above the
+      // triangle has a winding normal; this counts the ones that still point
+      // away from the face's own side-aware outward direction, split so a
+      // displacement-only or brush-only regression cannot hide in the total. A
+      // buffer whose winding and plane lump agreed would read 0 here.
+      if (haveFaceOutward) {
+        const float ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+        const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+        const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
+          ++map.windingMisfacedTriangles;
+          if (displacement) ++map.windingMisfacedDisplaced;
         }
       }
       const auto ta = texCoord(a), tb = texCoord(b), tc = texCoord(c);
@@ -450,6 +469,8 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       triangle.material = material;
       triangle.water = water;
       triangle.displacement = displacement;
+      triangle.planeSide = facePlaneSide;
+      triangle.planeIndex = haveFaceOutward ? static_cast<std::int32_t>(facePlaneNumber) : -1;
       triangle.cluster = cluster;
       map.triangles.push_back(std::move(triangle));
     };

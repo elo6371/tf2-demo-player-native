@@ -1,4 +1,4 @@
-frame path=.scratch/visual-baseline.20261018010515-1445/ref.20261018010515-1445.bmp size=1264x681 background=(86,80,72) backgroundLum=81.2
+frame path=.scratch/visual-baseline.20261018111526-10135/ref.20261018111526-10135.bmp size=1264x681 background=(86,80,72) backgroundLum=81.2
 region x=0,y=0,w=420,h=200 pixels=84000 meanLum=61.3 stdLum=69.67 nearBackground=0.0048 nearBlack=0.3834 nearWhite=0.0054 meanGradient=10.53 neutralGrey=8499
 region x=0,y=560,w=420,h=121 pixels=50820 meanLum=22.1 stdLum=13.53 nearBackground=0.0000 nearBlack=0.4057 nearWhite=0.0000 meanGradient=0.83 neutralGrey=0
 region x=1100,y=100,w=164,h=200 pixels=32800 meanLum=39.3 stdLum=37.31 nearBackground=0.0000 nearBlack=0.4362 nearWhite=0.0000 meanGradient=0.72 neutralGrey=0

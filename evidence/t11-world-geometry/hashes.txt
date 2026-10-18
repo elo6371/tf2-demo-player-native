@@ -11,3 +11,30 @@ e2807848545ee27cbed9cb950c617bd5814a5d55bd8ff644dafce4cd6167c6cf *evidence/t11-w
 d6552a60265741769d6f28d8d0a5a0fe27021e150c5f4e30691cdd82a2b4cd3d *evidence/t11-world-geometry/frames/frame-top-flat-all.png
 2486b77acc3655d7cf6cfa34f172c7064a9982d607c54ebcf0447b7ad34fad1f *.scratch/t11/frame-rep1.bmp
 2486b77acc3655d7cf6cfa34f172c7064a9982d607c54ebcf0447b7ad34fad1f *.scratch/t11/frame-rep2.bmp
+
+# --- follow-up round (2026-10-18): the side-aware winding census ---
+executable sha256 (mutation-gate restore build)
+ff970c531213d24b194f32c906fe528d739c9a726ac3d52fcfd61552de552f2d *native/build-nmake/tf2_demo_native.exe
+061ff2d28e328a191183bdc1243f7c10b0673ae695b7ea3d2ebb007051f6461b *native/build-nmake/world_geometry_probe.exe
+
+frame bmp sha256 (the acceptance captures; bmp = exact pixels, png = the copy in frames-followup/)
+2486b77acc3655d7cf6cfa34f172c7064a9982d607c54ebcf0447b7ad34fad1f *fin-pov-normal.bmp
+9f3ec27f7dc18f02ac6e4a7261f4752bfd04ac5eec7e64316870566e37c53f86 *fin-pov-flat.bmp
+9f3ec27f7dc18f02ac6e4a7261f4752bfd04ac5eec7e64316870566e37c53f86 *fin-pov-flat-rep.bmp (repeat: identical)
+d6525468ed760a04dd2dfe295a6993e512951ac5f9f04195f4aff0ce0d5b3233 *fin-pov-depth.bmp
+0fbc62d7e0272560d541fe4b4ccd1baf093b1cd3c92ea608a64dc9559f95a926 *fin-top-flat.bmp
+8f5de9d2d48be468498943b000e17a4a3d4f8318064535bf9a246deccd6f7434 *fin-top-flat-all.bmp
+
+png sha256 (as committed under frames-followup/)
+ea290fb654d57371e45cb6a3a97006f44a2d42d7dd9874cca3af53a373e18240 *frames-followup/fin-pov-normal.png
+9bee4c2d07e034f9539c0d44ac426e02fc18360a0281f8b84d1529b4fb2b926d *frames-followup/fin-pov-flat.png
+b354962b7929bc2ba683373810d595f2cd538338036f9e02f4fc45be2235d9f8 *frames-followup/fin-pov-depth.png
+dc5b48227623b5a94f3fcce416b4101388baada61822ad601afe44990eaef178 *frames-followup/fin-top-flat.png
+a2686cff9a006e7c9884df577ee368eb6c733df8e6354305695eb7e6970f2906 *frames-followup/fin-top-flat-all.png
+
+world coverage of the flat frames (fraction of 1264x681 within 12 levels of the
+flat colour 0.35,0.62,0.38; the no-cull frame of the same view is the maximum)
+fin-pov-flat      0.8953   (no cull 0.9228)
+fin-pov-depth     n/a      (depth view)
+fin-top-flat      0.4683   (no cull 0.6742)
+fin-top-flat-all  0.6773   (no cull, no vis clip)

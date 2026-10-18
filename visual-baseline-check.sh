@@ -129,6 +129,24 @@ assert_eq "probe eye pvs popcount" "$(trace_field "$PROBE_TXT" 'geometry eye' vi
 # measured split: displacement grids and brush faces ship opposite winding
 # conventions, which is why every single global flip left half the map culled.
 assert_eq "probe winding flip census" "$(grep -oE 'flippedTriangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "47252"
+# T11 follow-up: the side-aware census. `misfaced` counts emitted triangles whose
+# winding points away from the direction the face's OWN plane side bit calls its
+# front -- i.e. the number the cull mode removes when the camera is on the side
+# the map is meant to be seen from. It is not zero, and that is the pin: the
+# shipped winding and the plane lump disagree for 53724 of 99312 triangles, and
+# no plane-derived rule was found that draws both fixed views (DIAGNOSIS.md 5b,
+# eight candidate rules measured on both). Pinned so the disagreement cannot
+# drift, and so the next attempt has a number to move.
+assert_eq "probe side-aware misfaced" "$(grep -oE 'misfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "53724"
+assert_eq "probe side-aware misfaced displaced" "$(grep -oE 'displacedMisfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "38614"
+assert_eq "probe faces on the back of their plane" "$(grep -oE 'sideOneFaces=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "5388"
+# The per-class split of that disagreement: how many PVS-kept triangles have the
+# eye on their outward side vs the other side. A class whose stored data agreed
+# with its own plane would read outward for almost all of them.
+assert_eq "census brush side0" "$(grep 'class=brush planeSide=0' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=10931 inward=5361"
+assert_eq "census brush side1" "$(grep 'class=brush planeSide=1' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=4670 inward=3851"
+assert_eq "census displacement side0" "$(grep 'class=displacement planeSide=0' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=23364 inward=15164"
+assert_eq "census displacement side1" "$(grep 'class=displacement planeSide=1' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=4256 inward=4128"
 
 # ---------------------------------------------------------------------------
 # 2. the product's reference capture and its trace
@@ -287,6 +305,34 @@ cp "$SAVE_MAP" "$SRC_MAP"
 if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M2 source byte-identical)"; else
   echo "  RESTORE=FAIL (M2: the source did not come back byte-identical)"; fail=1; fi
 bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m2-restore.$RUN_TAG.build" 2>&1
+
+# M3: the class split collapses -- both emission paths take the brush sign. The
+# side-aware census is the reading that has to move: it is the number this task
+# added, and a mutation that leaves it at 53724 would mean the census is not
+# wired to the rule it claims to measure.
+echo "-- M3: the displacement class takes the brush winding sign --"
+"$PYTHON" - "$SRC_MAP" <<'PYEOF_INNER'
+import sys
+path = sys.argv[1]
+src = open(path, encoding='utf-8').read()
+old = "        const float classSign = displacement ? 1.0f : -1.0f;"
+new = "        const float classSign = -1.0f;"
+assert old in src, "M3 patch site not found"
+open(path, 'w', encoding='utf-8', newline='').write(src.replace(old, new))
+PYEOF_INNER
+if [ $? != 0 ]; then echo "  FAIL M3 could not patch the source"; fail=1; fi
+bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m3.$RUN_TAG.build" 2>&1
+M3_MISFACED=$("$PROBE" --tf-root "$TF" --map "$MAP" 2>/dev/null | grep -oE 'misfaced=[0-9]+' | head -1 | cut -d= -f2)
+if [ "$M3_MISFACED" = "53724" ]; then
+  echo "  NOT-RED M3: the side-aware misfaced census still reads 53724"
+  mfail=1
+else
+  echo "  RED M3 as required: side-aware misfaced = $M3_MISFACED (was 53724)"
+fi
+cp "$SAVE_MAP" "$SRC_MAP"
+if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M3 source byte-identical)"; else
+  echo "  RESTORE=FAIL (M3: the source did not come back byte-identical)"; fail=1; fi
+bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m3-restore.$RUN_TAG.build" 2>&1
 
 echo "== verdict =="
 if [ "$fail" = 0 ] && [ "$mfail" = 0 ]; then

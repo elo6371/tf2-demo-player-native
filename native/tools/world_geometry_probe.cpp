@@ -77,6 +77,23 @@ float triangleArea(const BspTriangle& t) {
   return 0.5f * std::sqrt(cx * cx + cy * cy + cz * cz);
 }
 
+// A triangle's centroid, summed in a canonical vertex order so the reading does
+// not move when the emission rule swaps two vertices: the same three points must
+// produce the same sample point, or a census of boundary points would drift by a
+// triangle every time the winding changed.
+BspVertex canonicalCentroid(const BspTriangle& t) {
+  BspVertex v[3] = {t.a, t.b, t.c};
+  for (int i = 0; i < 2; ++i) for (int j = i + 1; j < 3; ++j) {
+    const bool swap = v[j].x < v[i].x
+      || (v[j].x == v[i].x && (v[j].y < v[i].y
+      || (v[j].y == v[i].y && v[j].z < v[i].z)));
+    if (swap) { const BspVertex tmp = v[i]; v[i] = v[j]; v[j] = tmp; }
+  }
+  return {(v[0].x + v[1].x + v[2].x) / 3.0f,
+          (v[0].y + v[1].y + v[2].y) / 3.0f,
+          (v[0].z + v[1].z + v[2].z) / 3.0f};
+}
+
 void dumpVertex(const char* name, const BspVertex& v) {
   std::printf("      %s=(%.1f, %.1f, %.1f)", name, v.x, v.y, v.z);
 }
@@ -181,6 +198,13 @@ int main(int argc, char** argv) {
   // reason a single global flip could never have worked.
   std::printf("geometry winding flippedTriangles=%zu of %zu\n",
               map.windingFlippedTriangles, map.triangles.size());
+  // T11 follow-up: how many emitted triangles still point away from their own
+  // face's side-aware outward direction. This is the residual the cull mode
+  // removes, split so a displacement-only or brush-only regression cannot hide
+  // in the total. A coherent buffer reads 0.
+  std::printf("geometry winding sideAware misfaced=%zu displacedMisfaced=%zu sideOneFaces=%zu of %zu\n",
+              map.windingMisfacedTriangles, map.windingMisfacedDisplaced,
+              map.windingSideOneFaces, map.windingFaceCount);
   // How many materials the map asks for. The renderer's world atlas holds at
   // most 64 tiles, so a map with more distinct materials than that draws the
   // remainder flat-shaded -- a number that has to be printed somewhere or the
@@ -254,6 +278,84 @@ int main(int argc, char** argv) {
     std::printf("geometry facing pvsKept front=%zu back=%zu pvsHidden front=%zu back=%zu"
                 " noCluster front=%zu back=%zu\n",
                 keptFront, keptBack, hiddenFront, hiddenBack, noClusterFront, noClusterBack);
+    // T11 follow-up: is the face's own outward direction the side the eye is on?
+    // For each emission class and each plane side, count PVS-kept triangles whose
+    // centroid has the eye on its outward side (`outward` column) or on the other
+    // side (`inward`). A face authored on the correct side of its plane reads
+    // `outward` for the surfaces the eye can actually see; a class that reads
+    // mostly `inward` is the class whose stored data disagrees with its own plane
+    // and is the one the cull mode removes.
+    {
+      struct Row { std::size_t outward = 0, inward = 0; };
+      Row rows[2][2]; // [displacement][planeSide]
+      for (const auto& t : map.triangles) {
+        if (t.planeIndex < 0 || static_cast<std::size_t>(t.planeIndex) >= map.planes.size()) continue;
+        const bool pvsKept = cameraCluster < 0 || t.cluster < 0
+          || tf2::native::BspParser::clusterVisible(map, cameraCluster, t.cluster);
+        if (!pvsKept) continue;
+        const auto& plane = map.planes[static_cast<std::size_t>(t.planeIndex)];
+        const float sideSign = t.planeSide == 0 ? 1.0f : -1.0f;
+        const float ox = sideSign * plane.normal[0], oy = sideSign * plane.normal[1], oz = sideSign * plane.normal[2];
+        const BspVertex centroid = canonicalCentroid(t);
+        const float cx = centroid.x - eyeX;
+        const float cy = centroid.y - eyeY;
+        const float cz = centroid.z - eyeZ;
+        // The eye is on the outward side when the vector from the triangle to
+        // the eye points along the outward normal.
+        auto& row = rows[t.displacement ? 1 : 0][t.planeSide != 0 ? 1 : 0];
+        if (ox * cx + oy * cy + oz * cz > 0.0f) ++row.outward; else ++row.inward;
+      }
+      for (int d = 0; d < 2; ++d) for (int s = 0; s < 2; ++s) {
+        std::printf("geometry side-census class=%s planeSide=%d outward=%zu inward=%zu\n",
+                    d ? "displacement" : "brush", s, rows[d][s].outward, rows[d][s].inward);
+      }
+    }
+    // T11 follow-up: the side bit is ground truth only if the BSP tree agrees
+    // with it. The tree is independent of the face lump: a point 2 units along
+    // the face's OUTWARD direction must land in an open leaf (a cluster), and a
+    // point 2 units the other way must land in the solid leaf (-1). This walks
+    // the nodes for every PVS-kept triangle and counts which way round it is, so
+    // "the side bit says front, the tree says solid" is a reading and not a
+    // guess.
+    {
+      std::size_t outwardOpen = 0, outwardSolid = 0, inwardOpen = 0, inwardSolid = 0, ambiguous = 0;
+      std::size_t bOutwardOpen = 0, bInwardOpen = 0, bAmbiguous = 0;
+      std::size_t dOutwardOpen = 0, dInwardOpen = 0, dAmbiguous = 0;
+      for (const auto& t : map.triangles) {
+        if (t.planeIndex < 0 || static_cast<std::size_t>(t.planeIndex) >= map.planes.size()) continue;
+        const bool pvsKept = cameraCluster < 0 || t.cluster < 0
+          || tf2::native::BspParser::clusterVisible(map, cameraCluster, t.cluster);
+        if (!pvsKept) continue;
+        const auto& plane = map.planes[static_cast<std::size_t>(t.planeIndex)];
+        const float sideSign = t.planeSide == 0 ? 1.0f : -1.0f;
+        const float ox = sideSign * plane.normal[0], oy = sideSign * plane.normal[1], oz = sideSign * plane.normal[2];
+        const BspVertex centroid = canonicalCentroid(t);
+        const float px = centroid.x;
+        const float py = centroid.y;
+        const float pz = centroid.z;
+        const int outCluster = tf2::native::BspParser::clusterAt(map, px + ox * 2.0f, py + oy * 2.0f, pz + oz * 2.0f);
+        const int inCluster = tf2::native::BspParser::clusterAt(map, px - ox * 2.0f, py - oy * 2.0f, pz - oz * 2.0f);
+        if (outCluster < 0 && inCluster < 0) ++ambiguous;
+        else if (outCluster >= 0 && inCluster >= 0) ++ambiguous;
+        else if (outCluster >= 0) ++outwardOpen;
+        else ++inwardOpen;
+        if (outCluster < 0 == inCluster < 0) {
+          if (t.displacement) ++dAmbiguous; else ++bAmbiguous;
+        } else if (outCluster >= 0) {
+          if (t.displacement) ++dOutwardOpen; else ++bOutwardOpen;
+        } else {
+          if (t.displacement) ++dInwardOpen; else ++bInwardOpen;
+        }
+        if (outCluster < 0 && inCluster >= 0) ++outwardSolid;
+        if (outCluster >= 0 && inCluster < 0) ++inwardSolid;
+      }
+      std::printf("geometry tree-side outwardOpen=%zu inwardOpen=%zu ambiguous=%zu\n",
+                  outwardOpen, inwardOpen, ambiguous);
+      std::printf("geometry tree-side brush outwardOpen=%zu inwardOpen=%zu ambiguous=%zu\n",
+                  bOutwardOpen, bInwardOpen, bAmbiguous);
+      std::printf("geometry tree-side displacement outwardOpen=%zu inwardOpen=%zu ambiguous=%zu\n",
+                  dOutwardOpen, dInwardOpen, dAmbiguous);
+    }
   }
   return 0;
 }

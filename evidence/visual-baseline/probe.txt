@@ -3,6 +3,7 @@ geometry edge-groups staticMaxEdge=2560.0 staticOver1024=357 staticMaterialOver1
 geometry displacement faces=1382 triangles=46912 cornerMatches=1382
 geometry winding agree=5416 of 16136 faces (33.6% agree with the bsp plane normals)
 geometry winding flippedTriangles=47252 of 99312
+geometry winding sideAware misfaced=53724 displacedMisfaced=38614 sideOneFaces=5388 of 16136
 geometry materials distinct=108 atlasCap=64 trianglesCoveredByCap=98011 of 99312 (98.7%)
 geometry material rank=0 triangles=15340 name=WOOD/WALL007A
 geometry material rank=1 triangles=6850 name=NATURE/BLENDCLIFFTOGRASS_ODYSSEY
@@ -38,3 +39,10 @@ geometry offender index=99114 longest=2126.5 area=586171.8 displacement=0 water=
       a=(2304.0, 512.0, -2176.0)      b=(2816.0, 2560.0, -2432.0)      c=(2304.0, 2560.0, -2176.0)
 geometry eye=(-2423.6,5566.0,-1280.0) cluster=1032 visClusters=1692 bounds=(-5266,-13264,-2593)..(4048,8704,1544)
 geometry facing pvsKept front=10802 back=18610 pvsHidden front=9428 back=13540 noCluster front=26889 back=20043
+geometry side-census class=brush planeSide=0 outward=10931 inward=5361
+geometry side-census class=brush planeSide=1 outward=4670 inward=3851
+geometry side-census class=displacement planeSide=0 outward=23364 inward=15164
+geometry side-census class=displacement planeSide=1 outward=4256 inward=4128
+geometry tree-side outwardOpen=9589 inwardOpen=4002 ambiguous=58134
+geometry tree-side brush outwardOpen=6493 inwardOpen=3421 ambiguous=14899
+geometry tree-side displacement outwardOpen=3096 inwardOpen=581 ambiguous=43235
