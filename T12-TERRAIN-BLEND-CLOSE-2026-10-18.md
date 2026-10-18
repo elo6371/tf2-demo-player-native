@@ -4,7 +4,7 @@
 - 分支：`task/t12-blend-close`
 - worktree：`D:\TF2_Native_Worktrees\t12-blend-close`
 - 基线：`p0-entity-protocol@4dbf396`（Merge T11 world geometry and T12 terrain blend）
-- 本轮提交：`aeea503`（产品）、`1a49e2d`（测试与证据）、文档提交见 `git log` 末条
+- 本轮提交：`aeea503`（产品）→ `1a49e2d`（测试与证据）→ 文档（分支尖端，`git log --oneline 4dbf396..HEAD`）
 - 推送状态：**未推送**，`task/t12-blend-close` 仅存在于本地 worktree
 - 日期：2026-10-18
 
@@ -79,9 +79,16 @@
 | 变异门禁 | `bash terrain-blend-check.sh --mutation` → **exit 0**，6 个 `MUTATION-CAUGHT=PASS` |
 | `tf2_demo_native.exe` | 1,640,448 B，10-18 19:17，`956af0e41e6c1a7d648a99755460d5e72de69074da0c2cceef1604e1a38bf42f` |
 | `terrain_blend_probe.exe` | 502,784 B，10-18 19:16，`3b44b6465e36f738f1f6ba2c6e9b73e080003504b38dcb9f6c646d7c6bb37ff4` |
-| `world_geometry_probe.exe` | 449,536 B，10-18 18:33，`5d80a7ab7c86d56012c3caf2814baa69b8b7554a45b7fe7a80ec71b6a0a57220` |
+| `world_geometry_probe.exe` | 449,536 B，10-18 19:22，`233cd0e2e248752c6301afb1048ad677e89894c48e63d641484f9171eff7af39` |
 
-两个被门禁使用的 exe 都晚于各自依赖的最后一次源码改动；变异段每次还在断言后
+三个 exe 现在都晚于各自依赖的最后一次源码改动。**`world_geometry_probe` 在收尾核对时是陈旧的**：
+它原先的二进制时间戳是 18:33，而它 `#include "bsp_map.h"` 并链接 `bsp_map.cpp`，后者在本轮
+19:15 才加入 alpha 配对校验。重建后哈希由 `5d80a7ab…` 变为 `233cd0e2…`，证明旧二进制确实
+来自不含校验的源码。该探针**不被 terrain-blend 门禁调用**（门禁只用 `tf2_demo_native` 与
+`terrain_blend_probe`），所以重建不需要重跑任何证据；冒烟运行输出与既有读数一致
+（148 材质、`atlasCap=64`、`displaced=165376`、`cornerMatches=1316`），rc=0。
+
+变异段每次还在断言后
 `cp` 回备份、重编、`cmp` 逐字节比对、删备份（六次还原全部通过，`ls .scratch/terrain-blend/*.backup` 为空）。
 
 本轮提交（三个逻辑单元，基线 `4dbf396`）：
