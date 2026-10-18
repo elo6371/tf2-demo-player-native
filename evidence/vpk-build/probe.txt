@@ -1,0 +1,81 @@
+{"reading":"vpk.valid.inline.open","value":"1"}
+{"reading":"vpk.valid.inline.bytes","value":"DIRECTORY-DATA"}
+{"reading":"vpk.valid.inline.store","value":"vpk-directory"}
+{"reading":"vpk.valid.inline.entries","value":"1"}
+{"reading":"vpk.valid.volume.open","value":"1"}
+{"reading":"vpk.valid.volume.bytes","value":"NUMBERED-VOLUME-DATA"}
+{"reading":"vpk.valid.volume.store","value":"vpk-volume"}
+{"reading":"vpk.valid.preload.open","value":"1"}
+{"reading":"vpk.valid.preload.bytes","value":"PRELOAD"}
+{"reading":"vpk.valid.preload.store","value":"preload"}
+{"reading":"vpk.reject.empty-file","value":"empty VPK file"}
+{"reading":"vpk.reject.empty-file.stage","value":"open"}
+{"reading":"vpk.reject.empty-file.bytes","value":"0"}
+{"reading":"vpk.reject.empty-file.hash","value":"14650fb0739d0383"}
+{"reading":"vpk.reject.empty-file.size","value":"0"}
+{"reading":"vpk.reject.truncated-header","value":"truncated VPK header"}
+{"reading":"vpk.reject.truncated-header.stage","value":"open"}
+{"reading":"vpk.reject.truncated-header.bytes","value":"0"}
+{"reading":"vpk.reject.truncated-header.hash","value":"17cf4f953a32ab29"}
+{"reading":"vpk.reject.truncated-header.size","value":"8"}
+{"reading":"vpk.reject.unsupported-signature","value":"unsupported VPK header"}
+{"reading":"vpk.reject.unsupported-signature.stage","value":"open"}
+{"reading":"vpk.reject.unsupported-signature.bytes","value":"0"}
+{"reading":"vpk.reject.unsupported-signature.hash","value":"8fc62c6c381edd00"}
+{"reading":"vpk.reject.unsupported-signature.size","value":"16"}
+{"reading":"vpk.reject.empty-tree","value":"empty VPK directory tree"}
+{"reading":"vpk.reject.empty-tree.stage","value":"open"}
+{"reading":"vpk.reject.empty-tree.bytes","value":"0"}
+{"reading":"vpk.reject.empty-tree.hash","value":"cfeea18861e20e39"}
+{"reading":"vpk.reject.empty-tree.size","value":"12"}
+{"reading":"vpk.reject.truncated-tree","value":"truncated VPK directory tree"}
+{"reading":"vpk.reject.truncated-tree.stage","value":"open"}
+{"reading":"vpk.reject.truncated-tree.bytes","value":"0"}
+{"reading":"vpk.reject.truncated-tree.hash","value":"55ad8e52acc7b58c"}
+{"reading":"vpk.reject.truncated-tree.size","value":"41"}
+{"reading":"vpk.reject.invalid-preload-length","value":"truncated VPK preload data"}
+{"reading":"vpk.reject.invalid-preload-length.stage","value":"open"}
+{"reading":"vpk.reject.invalid-preload-length.bytes","value":"0"}
+{"reading":"vpk.reject.invalid-preload-length.hash","value":"b430ad3deae27893"}
+{"reading":"vpk.reject.invalid-preload-length.size","value":"41"}
+{"reading":"vpk.reject.inline-offset-out-of-range","value":"VPK entry range outside directory archive"}
+{"reading":"vpk.reject.inline-offset-out-of-range.stage","value":"open"}
+{"reading":"vpk.reject.inline-offset-out-of-range.bytes","value":"0"}
+{"reading":"vpk.reject.inline-offset-out-of-range.hash","value":"3e6e94b88b5bc2b3"}
+{"reading":"vpk.reject.inline-offset-out-of-range.size","value":"41"}
+{"reading":"vpk.reject.inline-offset-wraps","value":"VPK entry range outside directory archive"}
+{"reading":"vpk.reject.inline-offset-wraps.stage","value":"open"}
+{"reading":"vpk.reject.inline-offset-wraps.bytes","value":"0"}
+{"reading":"vpk.reject.inline-offset-wraps.hash","value":"818a318522f90a4e"}
+{"reading":"vpk.reject.inline-offset-wraps.size","value":"41"}
+{"reading":"vpk.reject.missing-volume","value":"missing VPK data archive"}
+{"reading":"vpk.reject.missing-volume.stage","value":"read"}
+{"reading":"vpk.reject.missing-volume.bytes","value":"0"}
+{"reading":"vpk.reject.missing-volume.hash","value":"075a63b6b974e6bc"}
+{"reading":"vpk.reject.missing-volume.size","value":"41"}
+{"reading":"vpk.reject.volume-offset-out-of-range","value":"VPK entry range outside data archive"}
+{"reading":"vpk.reject.volume-offset-out-of-range.stage","value":"read"}
+{"reading":"vpk.reject.volume-offset-out-of-range.bytes","value":"0"}
+{"reading":"vpk.reject.volume-offset-out-of-range.hash","value":"b653e670cc900632"}
+{"reading":"vpk.reject.volume-offset-out-of-range.size","value":"41"}
+{"reading":"vpk.reject.cases","value":"10"}
+{"reading":"vpk.reject.named","value":"10"}
+{"reading":"vpk.reject.leaked","value":"0"}
+{"reading":"vpk.precedence.loose-wins","value":"loose"}
+{"reading":"vpk.precedence.loose-wins.origin","value":"loose"}
+{"reading":"vpk.precedence.loose-wins.bytes","value":"LOOSE-FILE"}
+{"reading":"vpk.precedence.directory-before-volume","value":"vpk-directory"}
+{"reading":"vpk.precedence.directory-before-volume.origin","value":"pak01_dir.vpk"}
+{"reading":"vpk.precedence.directory-before-volume.bytes","value":"DIRECTORY-DATA"}
+{"reading":"vpk.precedence.order-decides","value":"vpk-volume"}
+{"reading":"vpk.precedence.order-decides.origin","value":"pak02_dir.vpk"}
+{"reading":"vpk.precedence.order-decides.bytes","value":"NUMBERED-VOLUME-DATA"}
+{"reading":"vpk.precedence.volume-only","value":"vpk-volume"}
+{"reading":"vpk.precedence.volume-only.origin","value":"pak02_dir.vpk"}
+{"reading":"vpk.precedence.volume-only.bytes","value":"NUMBERED-VOLUME-DATA"}
+{"reading":"vpk.precedence.pakfile","value":"pakfile"}
+{"reading":"vpk.precedence.pakfile.bytes","value":"PAKFILE"}
+{"reading":"vpk.precedence.pakfile-shadowed","value":"loose"}
+{"reading":"vpk.precedence.absent","value":"none"}
+{"reading":"vpk.precedence.absent.reason","value":"pakfile has no such entry"}
+{"reading":"vpk.summary","value":"cases=10 named=10 leaked=0 failures=0"}

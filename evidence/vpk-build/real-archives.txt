@@ -1,0 +1,7 @@
+pak01_dir.vpk: OPEN FAILED
+tf2_misc_dir.vpk: 104137 entries, 26060 match 'materials' ext=vmt
+tf2_textures_dir.vpk: 29639 entries, 0 match 'materials' ext=vmt
+tf2_sound_misc_dir.vpk: 3230 entries, 0 match 'materials' ext=vmt
+tf2_sound_vo_english_dir.vpk: 12728 entries, 0 match 'materials' ext=vmt
+total matches: 26060
+discovered=materials/ambulance/amb_blu.vmt

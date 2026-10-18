@@ -1,0 +1,9 @@
+source=tf2_misc_dir.vpk bytes=208
+"vertexlitgeneric" {
+    "$basetexture" "ambulance/amb_blu"
+    "$envmapmask" "ambulance/amb_spec"
+    "$envmap" "env_cubemap"
+    "$envmaptint" "[ 0.5020 0.5020 0.5020 ]"
+    "$surfaceprop" "metal"
+}
+
