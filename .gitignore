@@ -67,3 +67,11 @@ merge-patches/
 # The mutated frame is regenerated from paused.bmp by frame-capture-check.sh --mutation;
 # it is a one-byte edit of a file already kept, so it carries no independent evidence.
 evidence/frame-capture/mutated.bmp
+
+# T14: one trace per run is ~3.7 MB of per-frame lines. What each assertion reads
+# is extracted into evidence/weapon-material/<run>.readings.txt by
+# weapon-material-archive.sh, and artifacts.sha256 records the hash of every trace
+# the extract came from, so the raw file is derivable and its absence is checkable.
+# The frames stay tracked: "two runs are byte-identical at tick 2000" is a claim
+# about bytes, and it is only checkable if the bytes are here.
+evidence/weapon-material/*.trace

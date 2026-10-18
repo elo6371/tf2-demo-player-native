@@ -26,6 +26,7 @@
 //
 // Exit codes: 0 all checks passed, 1 a check failed, 13 a bad argument.
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -735,6 +736,104 @@ MaterialTotals selfTestMaterials(const AssetRoot& root, Checks& checks,
 }
 
 // ---------------------------------------------------------------------------
+// Section 3b -- the range table's own materials, through the runtime resolver
+// ---------------------------------------------------------------------------
+// The section above answers "do this model's texture slots reach a VTF". It says
+// nothing about which slot each RANGE draws with, and that is the question T14
+// is about: `c_pro_rifle.mdl` draws two LOD-0 descriptors -- the rifle on slot 0
+// and its scope on slot 1 -- and a pass that binds one key for the whole buffer
+// paints one of them with the other one's albedo. The reading is taken through
+// `resolveViewModelMaterialTable`, the same function the product binds from, and
+// over `buildModelMeshDataAll`'s range table, the same table the product draws,
+// so "the probe says slot 1 is the scope" and "the product drew slot 1" are
+// statements about one implementation rather than two that agree by hand.
+struct RangeMaterialTotals {
+  std::size_t models = 0;
+  std::size_t ranges = 0;
+  std::size_t texturedRanges = 0;
+  std::size_t distinctTextures = 0;
+};
+
+RangeMaterialTotals selfTestRangeMaterials(const AssetRoot& root, Checks& checks,
+    const std::vector<std::string>& models) {
+  RangeMaterialTotals totals;
+  for (const auto& path : models) {
+    bool ok = false;
+    const auto inspection = inspectModel(root, path, ok);
+    const auto padded = std::string(" [") + path + "]";
+    checks.check(ok, ("the range table's model resolves and parses" + padded).c_str());
+    if (!ok) continue;
+
+    tf2::native::ModelMeshData mesh;
+    std::string error;
+    const bool built = tf2::native::ModelLoader::buildModelMeshDataAll(inspection, mesh, error);
+    checks.check(built, ("its LOD-0 mesh builds" + padded).c_str());
+    if (!built) continue;
+    ++totals.models;
+
+    const auto table = tf2::native::resolveViewModelMaterialTable(root, inspection.metadata,
+      static_cast<std::int32_t>(mesh.descriptorIndex));
+    checks.check(table.slots.size() == inspection.metadata.textureCandidates.size(),
+      ("the runtime table has one entry per MDL texture slot" + padded).c_str());
+    checks.check(!mesh.ranges.empty(),
+      ("the built mesh has at least one range" + padded).c_str());
+
+    std::vector<std::string> distinct;
+    for (const auto& range : mesh.ranges) {
+      ++totals.ranges;
+      const std::int32_t slot = range.materialSlot;
+      const bool inTable = slot >= 0
+        && static_cast<std::size_t>(slot) < table.slots.size();
+      checks.check(inTable,
+        ("range descriptor " + std::to_string(range.descriptorIndex)
+          + " names a material slot the MDL declares" + padded).c_str());
+      std::string slotName = "-";
+      std::string status = "-";
+      std::string vmt = "-";
+      std::string vtf = "-";
+      if (inTable) {
+        const auto& material = table.slots[static_cast<std::size_t>(slot)];
+        const auto pathParts = [](const std::string& value) {
+          return value.empty() ? std::string("-") : value;
+        };
+        slotName = pathParts(material.name);
+        status = tf2::native::viewModelMaterialStatusName(material.status);
+        vmt = pathParts(material.vmtPath);
+        vtf = pathParts(material.vtfPath);
+        const bool textured = material.status == tf2::native::ViewModelMaterialStatus::Resolved
+          && !material.vtfPath.empty();
+        if (textured) ++totals.texturedRanges;
+        if (textured && std::find(distinct.begin(), distinct.end(), material.vtfPath) == distinct.end()) {
+          distinct.push_back(material.vtfPath);
+        }
+      }
+      // One line per range: the slot, the resource, and where the chain stopped.
+      // Printed rather than only asserted, because the gate pins these strings --
+      // "slot 1 resolved to c_pro_rifle.vtf" is checkable against the VMT, while
+      // "two slots resolved" is not.
+      std::fprintf(stderr,
+        "  ..   range descriptor=%zu vertices=%u slot=%d slotName=%s status=%s vmt=%s vtf=%s\n",
+        range.descriptorIndex, range.vertexCount, slot, slotName.c_str(), status.c_str(),
+        vmt.c_str(), vtf.c_str());
+    }
+    totals.distinctTextures += distinct.size();
+    std::fprintf(stderr,
+      "  ..   rangeMaterials ranges=%zu textured=%zu distinctVtf=%zu slots=%zu%s\n",
+      mesh.ranges.size(),
+      static_cast<std::size_t>(std::count_if(mesh.ranges.begin(), mesh.ranges.end(),
+        [&](const tf2::native::ModelMeshData::Range& range) {
+          const auto slot = range.materialSlot;
+          return slot >= 0 && static_cast<std::size_t>(slot) < table.slots.size()
+            && table.slots[static_cast<std::size_t>(slot)].status
+              == tf2::native::ViewModelMaterialStatus::Resolved
+            && !table.slots[static_cast<std::size_t>(slot)].vtfPath.empty();
+        })),
+      distinct.size(), table.slots.size(), padded.c_str());
+  }
+  return totals;
+}
+
+// ---------------------------------------------------------------------------
 // Section 4 -- the chain on a real recording
 // ---------------------------------------------------------------------------
 struct DemoCase {
@@ -830,6 +929,7 @@ int main(int argc, char** argv) {
   std::size_t materialSlots = 0;
   std::size_t materialVmt = 0;
   std::size_t materialVtf = 0;
+  RangeMaterialTotals rangeMaterial;
   DemoCase demo;
 
   if (!tfRoot.empty()) {
@@ -841,6 +941,8 @@ int main(int argc, char** argv) {
       materialSlots = totals.slots;
       materialVmt = totals.vmt;
       materialVtf = totals.vtf;
+      std::fprintf(stderr, "=== 3b/3 the range materials ===\n");
+      rangeMaterial = selfTestRangeMaterials(assets, checks, materialsModels);
     }
     if (!demoPath.empty() && tick >= 0) {
       std::fprintf(stderr, "=== 3/3 the recording ===\n");
@@ -887,6 +989,10 @@ int main(int argc, char** argv) {
             << ",\"materialSlots\":" << materialSlots
             << ",\"materialVmtResolved\":" << materialVmt
             << ",\"materialVtfResolved\":" << materialVtf
+            << ",\"rangeModelsTested\":" << rangeMaterial.models
+            << ",\"rangeCount\":" << rangeMaterial.ranges
+            << ",\"rangeTextured\":" << rangeMaterial.texturedRanges
+            << ",\"rangeDistinctTextures\":" << rangeMaterial.distinctTextures
             << ",\"demo\":\"" << jsonEscape(demoPath) << "\""
             << ",\"tick\":" << tick
             << ",\"viewModelEntity\":" << demo.viewModelEntity

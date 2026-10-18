@@ -1,0 +1,168 @@
+=== 0/6 the input ===
+  OK   the recording's size = 21856667
+  OK   the recording's sha256 = c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e
+  OK   the product binary exists = yes
+  OK   the probe binary exists = yes
+
+=== 1/6 the chain (entity -> index -> MDL slot -> VMT -> VTF) ===
+  natural rc=0 checks_ok=87 checks_failed=0
+  OK   natural probe rc = 0
+  OK   natural probe self-test failures = 0
+  OK   the weapon entity the recording names = 1008
+  OK   its class = CTFSniperRifle
+  OK   its m_iWorldModelIndex = 533
+  OK   the path that index resolves to = models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl
+  OK   the natural body has two LOD-0 ranges = 2
+  OK   and its two slots resolve to one atlas = 1
+  OK   the rifle's range resolves to its own VMT contains vmt=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vmt
+  OK   and its own VTF contains vtf=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf
+  OK   the scope's range resolves to its own VMT contains vmt=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle_scope.vmt
+  OK   and the shared VTF behind it (the model's content, not a binding) contains vtf=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf
+  override rc=0 checks_ok=87 checks_failed=0
+  OK   override probe rc = 0
+  OK   override probe self-test failures = 0
+  OK   the override body has two LOD-0 ranges = 2
+  OK   and its two slots resolve to two different textures = 2
+  OK   the override body's first range resolves to its own VTF contains vtf=materials/models/weapons/c_items/c_tfc_sniperrifle.vtf
+  OK   the override body's second range resolves to its own VTF contains vtf=materials/models/weapons/c_items/c_sniperrifle_scope.vtf
+
+=== 2/6 the product, on the recording's body ===
+  natural-on rc=0 bmp=2582406
+  ..   natural-on: frame landed on tick 2000 (attempt 1)
+  OK   natural-on rc = 0
+  OK   the body's model is the one the entity named = models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl
+  OK   the body resolved its two material slots = 2/2/2/2
+  OK   the draw issued one call per LOD-0 range = 2
+  OK   both ranges bound a texture = 2
+  OK   no range fell back = 0
+  OK   two distinct slots were bound = 2
+  OK   both keys are the shared atlas, in range order = materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf,materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf
+  OK   no material was forced flat = 0
+  OK   the run is natural (no model override) = 0
+  OK   the body's draw count matches the arms' (one each per frame) = 1325
+  OK   the body's centre lands on screen = 1
+
+=== 3/6 the product, on a body with two albedos ===
+  override-on rc=0 bmp=2582406
+  ..   override-on: frame landed on tick 2000 (attempt 1)
+  OK   override-on rc = 0
+  OK   the body's model is the override = models/weapons/c_models/c_tfc_sniperrifle/c_tfc_sniperrifle.mdl
+  OK   the override body resolved its two slots = 2/2/2/2
+  OK   the draw issued one call per LOD-0 range = 2
+  OK   both ranges bound a texture = 2
+  OK   no range fell back = 0
+  OK   two distinct slots were bound = 2
+  OK   each range bound ITS OWN slot's texture, in range order = materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf
+  OK   the run reports its override = 1
+  OK   the body's draw count matches the arms' = 1341
+  OK   the body's centre lands on screen = 1
+
+=== 3b/6 a body that is not there ===
+  missing-body rc=0 bmp=2582406
+  ..   missing-body: frame landed on tick 2001, wanted 2000 (attempt 1)
+  missing-body rc=0 bmp=2582406
+  ..   missing-body: frame landed on tick 2000 (attempt 2)
+  OK   a body that does not exist still produces a frame = 0
+  ..   scene: weaponBody entity=1008 class=CTFSniperRifle worldModelIndex=533 path=models/weapons/c_models/t14_no_such_body.mdl refusal=none fallback=buildFailed reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1669 named=1669 present=1669 refusals=none:1669
+  OK   the refusal names the fallback it took contains fallback=buildFailed
+  OK   and says which path it could not build contains path=models/weapons/c_models/t14_no_such_body.mdl
+  OK   with a reason, not an empty field contains reason=the weapon entity's own m_iWorldModelIndex names the weapon body
+  OK   no body draw was issued = 0
+  OK   the reading names the path it could not open = models/weapons/c_models/t14_no_such_body.mdl
+  OK   the material row counts no range at all = 0
+  OK   and names no key = -
+
+=== 4/6 the picture ===
+  override-on-repeat rc=0 bmp=2582406
+  ..   override-on-repeat: frame landed on tick 2001, wanted 2000 (attempt 1)
+  override-on-repeat rc=0 bmp=2582406
+  ..   override-on-repeat: frame landed on tick 2000 (attempt 2)
+  OK   repeat rc = 0
+  OK   two runs of the same configuration, at the same tick, are byte-identical = 0
+  override-flat rc=0 bmp=2582406
+  ..   override-flat: frame landed on tick 2000 (attempt 1)
+  OK   flat rc = 0
+  OK   the flat control bound nothing = 0
+  OK   and every range fell back = 2
+  OK   the control is reported as forced = 1
+  override-off rc=0 bmp=2582406
+  ..   override-off: frame landed on tick 2001, wanted 2000 (attempt 1)
+  override-off rc=0 bmp=2582406
+  ..   override-off: frame landed on tick 2000 (attempt 2)
+  OK   body-off rc = 0
+  OK   with the body off, no range is drawn = 0
+  OK   and no draw call is issued = 0
+  OK   texturing the body changes the picture = 21570 (> 0)
+  OK   the body itself changes the picture when switched off = 20658 (> 0)
+  OK   the flat body also covers pixels the textured one may match = 21558 (> 0)
+  ..   byte_diff(on, flat)=21570 byte_diff(on, off)=20658 byte_diff(flat, off)=21558
+  OK   a body that is not there draws exactly what a switched-off body draws = 0
+  OK   control -- and that frame is not the one with a body in it = 11618 (> 0)
+  ..   BMP-MASK changed=7190 inside=7190 outside=0 mask_pixels=7190 bbox=(x=659..707, y=231..581) w=49 h=351 status=PASS
+  OK   the material difference is inside the body's own coverage = 0
+  OK   the mask report says so contains outside=0
+  OK   and the difference is not a rounding artefact contains status=PASS
+  ..   BMP-DIFF whole differing=21570 total=2582352 percent=0.8353 max_delta=214 extent=1264x681x24
+BMP-DIFF region=0,0,1264,220 differing=0 total=834240 percent=0.0000 max_delta=0 share=0.0000
+BMP-DIFF status=PASS
+  OK   the world strip above the composite did not change = 0
+
+=== 5/6 the body is not rebuilt per frame ===
+  OK   the body's MDL was parsed and its mesh uploaded exactly once = 1
+  OK   work count -- the material reading ran on every interval = 25 (>= 1)
+  OK   control -- the arms' model was built exactly once too = 1
+
+=== 6/6 the readings can go red ===
+  -- baseline
+  mutation-baseline rc=0 bmp=2582406
+  ..   mutation-baseline: frame landed on tick 2001, wanted 2000 (attempt 1)
+  mutation-baseline rc=0 bmp=2582406
+  ..   mutation-baseline: frame landed on tick 2000 (attempt 2)
+  OK   baseline rc = 0
+  OK   baseline keys = materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf
+
+  -- m1 wrong-slot binding
+  mutation-m1 rc=0 bmp=2582406
+  ..   mutation-m1: frame landed on tick 2000 (attempt 1)
+  OK   m1: the bound slot count collapses to one = 1
+  OK   m1: every range now names the rifle's atlas = materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_tfc_sniperrifle.vtf
+  OK   m1: control -- the draw still issues one call per range = 2
+  OK   m1: control -- both ranges still bound a texture = 2
+  OK   m1: the picture changes with the wrong slot = 1365 (> 0)
+  OK   m1: caught
+  OK   m1: source restored byte-for-byte (7f6217f72a67)
+  OK   m1: the restored tree rebuilt
+
+  -- m2 missing texture binding
+  mutation-m2 rc=0 bmp=2582406
+  ..   mutation-m2: frame landed on tick 2000 (attempt 1)
+  OK   m2: one range lost its texture = 1
+  OK   m2: and was counted as a fallback = 1
+  OK   m2: the key list lost the scope's texture = materials/models/weapons/c_items/c_tfc_sniperrifle.vtf
+  OK   m2: control -- both ranges were still drawn = 2
+  OK   m2: the picture changes where the texture went missing = 1368 (> 0)
+  OK   m2: caught
+  OK   m2: source restored byte-for-byte (e945fa69e7a5)
+  OK   m2: the restored tree rebuilt
+
+  -- m3 material-state leakage
+  mutation-m3 rc=0 bmp=2582406
+  ..   mutation-m3: frame landed on tick 2000 (attempt 1)
+  OK   m3: the body bound the sleeves' atlas twice = materials/models/player/sniper/sniper_red.vtf,materials/models/player/sniper/sniper_red.vtf
+  OK   m3: the body no longer binds its own scope key does not contain materials/models/weapons/c_items/c_sniperrifle_scope.vtf
+  OK   m3: control -- both ranges still bound a texture = 2
+  OK   m3: control -- both ranges were still drawn = 2
+  OK   m3: the picture changes when the hands' material leaks in = 20234 (> 0)
+  OK   m3: caught
+  OK   m3: source restored byte-for-byte (e945fa69e7a5)
+  OK   m3: the restored tree rebuilt
+  mutation-restored rc=0 bmp=2582406
+  ..   mutation-restored: frame landed on tick 2001, wanted 2000 (attempt 1)
+  mutation-restored rc=0 bmp=2582406
+  ..   mutation-restored: frame landed on tick 2000 (attempt 2)
+  OK   after every restore, the keys are the body's own again = materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf
+  OK   after every restore, the picture is the one the baseline produced = 0
+mutation summary: caught=3 of 3
+  OK   mutations that were caught = 3
+  OK   mutations that ran = 3
+MUTATION-CAUGHT=PASS (3 defects, each with its own named reading and control)

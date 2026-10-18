@@ -1,0 +1,98 @@
+=== 1/3 the refusals ===
+  OK   the shared path rule folds backslashes, case and a leading slash
+  OK   the shared path rule strips a leading separator
+  OK   the two spellings of one model compare equal
+  OK   the fixture's own chain (ViewModel -> m_hWeapon -> weapon -> m_iWorldModelIndex) resolves
+  OK   the resolved path is the one m_iWorldModelIndex names
+  OK   the resolved weapon entity is the one m_hWeapon points at
+  OK   the weapon entity is reported present
+  OK   the weapon entity's class is named (not just its index)
+  OK   the world model index that produced the path is reported
+  OK   the success reason names the rule that produced the path
+  OK   only the handle's low 11 bits are used as the entity index
+  OK   a weapon whose m_iWorldModelIndex is 0 refuses as a zero index
+  OK   a zero index resolves to no path
+  OK   the slot was read, so the refusal is not 'no slot'
+  OK   a zero index leaves no path behind
+  OK   an index modelprecache never declared refuses as undeclared
+  OK   an undeclared index resolves to no path
+  OK   the refusal names the index that was not declared
+  OK   a declared entry with no name refuses the same way (there is nothing to draw)
+  OK   an index past the 16-bit wire space refuses as out of range
+  OK   an out-of-range index resolves to no path
+  OK   a negative index refuses as out of range rather than wrapping
+  OK   a world index that resolves to the arms refuses as the arms
+  OK   the refusal does NOT hand back the arms path -- the invariant
+  OK   the refusal names the model it refused, so the trace is repairable
+  OK   the same input accepts once the arms path is something else (the refusal is not a constant)
+  OK   and then the path it reports is exactly the one the index gave
+  OK   a backslash-separated arms path is still recognised as the arms
+  OK   and so is an upper-case arms path on the other side of the comparison
+  OK   a world index naming another, real weapon body is accepted (the chain cannot judge the pairing)
+  OK   and the reading reports the substituted model, not the expected one
+  OK   the weapon's own class is still reported alongside it, so the pair can be compared
+  OK   a substitution that also becomes the arms model is refused
+  OK   a named weapon entity that is not in this snapshot refuses as absent
+  OK   the absent entity is still named by index, so the trace says which slot
+  OK   an absent entity is not reported present
+  OK   an absent entity yields no path
+  OK   a handle pointing past the snapshot refuses as past-the-end
+  OK   the out-of-range index is still reported
+  OK   a ViewModel entity with no m_hWeapon slot refuses as 'no slot'
+  OK   the missing slot is reported as missing
+  OK   the 0xffffffff handle sentinel refuses as empty
+  OK   the 2047 index also refuses as empty
+  OK   no selected ViewModel entity refuses without naming a weapon
+  OK   and no weapon entity index is invented
+  OK   a ViewModel entity index past the snapshot refuses the same way
+  OK   a selected slot holding no entity refuses as absent, not as 'no slot'
+  OK   an absent ViewModel entity is not reported present
+  OK   a weapon with no m_iWorldModelIndex slot refuses as 'no slot'
+  OK   the missing slot is reported as missing
+  OK   worldModelPath is non-empty exactly when the verdict is accepted, in every case
+=== 2/3 the enumeration ===
+  OK   every declared refusal has a name of its own
+  OK   no two refusals share a name
+  OK   value 0 is the accepted verdict
+  OK   the refusals exercised cover the whole enum (>= 12 distinct verdicts)
+  OK   the accepted verdict was exercised
+  OK   all eleven refusals were exercised
+=== 3/3 the material chain ===
+  OK   the model resolves and its MDL parses [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the model declares at least one texture slot [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  ..   models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl materials slots=2 named=2 vmt=2 vtf=2 failure=-
+  OK   the reading counts every slot the MDL declares [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   every slot of a shipped model names at least one candidate [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the chain's counts are monotone (vmt <= named, vtf <= vmt) [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   this model's materials resolve all the way to a texture [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   a tampered slot does not change the slot count [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the tampered slot still counts as named: it has a path, the path just holds nothing [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   a slot whose material is not installed lowers the vmt count by exactly one [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   and the texture count with it (no texture behind a missing material) [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the reading names the slot it stopped on instead of only reporting a number [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the failure names the resource that was not found [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   and says the resource was absent, not that it failed to parse [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   a slot with no candidate path is not counted as named [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   an unnamed slot is still a slot: the count does not silently shrink [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   an unnamed slot is named in the failure text [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the failure says the slot had no candidate at all, not that a file was missing [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the tampering worked on copies: the real inspection is unchanged [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+=== 3b/3 the range materials ===
+  OK   the range table's model resolves and parses [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   its LOD-0 mesh builds [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the runtime table has one entry per MDL texture slot [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   the built mesh has at least one range [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  OK   range descriptor 0 names a material slot the MDL declares [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  ..   range descriptor=0 vertices=12357 slot=0 slotName=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle status=resolved vmt=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vmt vtf=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf
+  OK   range descriptor 1 names a material slot the MDL declares [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+  ..   range descriptor=1 vertices=324 slot=1 slotName=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle_scope status=resolved vmt=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle_scope.vmt vtf=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf
+  ..   rangeMaterials ranges=2 textured=2 distinctVtf=1 slots=2 [models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl]
+=== 3/3 the recording ===
+  ..   demo viewModelEntity=1077 weaponEntity=1008 class=CTFSniperRifle worldModelIndex=533 path=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl refusal=none
+  OK   a snapshot was available at the requested tick
+  OK   a ViewModel entity was selected
+  OK   the ViewModel entity named a weapon entity
+  OK   the weapon entity's class resolved
+  OK   the weapon's own m_iWorldModelIndex resolved to a path
+  OK   the resolved path is not the arms composite
+self-test failures=0 passed=87

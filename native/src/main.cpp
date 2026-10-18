@@ -786,6 +786,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   //                             alone and exists so the two frames can be
   //                             subtracted, which is what makes "the body
   //                             changed the picture" a measurement.
+  //   --viewmodel-weapon-flat-color  draws the weapon body's ranges with no
+  //                             texture. It is the body's own control, separate
+  //                             from `--viewmodel-flat-color`: the material claim
+  //                             is about the body's region, and a control that
+  //                             also flattened the hands could not show that the
+  //                             hands did not move. Same state as a range whose
+  //                             slot failed to resolve, so a fallback and the
+  //                             control produce the same picture on purpose.
+  //   --viewmodel-weapon-model <path.mdl>  draw this model as the weapon body
+  //                             instead of the one the weapon entity names. An
+  //                             input override, reported as `override=` on the
+  //                             body's material line: the recording's own body
+  //                             has two slots on one atlas, so the per-range
+  //                             binding claim needs a body whose slots differ.
   //   --viewmodel-sequence <n>  an input OVERRIDE, not a feature: use sequence n
   //                             in place of the entity's own m_nSequence. It
   //                             exists because on both pinned recordings the
@@ -836,6 +850,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // as the A/B control that makes "the body changed the picture" a measured
   // statement instead of a claim. See the `--viewmodel-weapon-body` parse site.
   bool viewModelWeaponBodyEnabled = true;
+  // The weapon body's own flat-colour control. Separate from
+  // `--viewmodel-flat-color` on purpose: the T14 claim is "the material change is
+  // limited to the weapon body", and a switch that also flattened the hands would
+  // make the hands move and the claim untestable. Same state as a slot that
+  // failed to resolve, so the control and the fallback cannot diverge.
+  bool viewModelWeaponFlatColor = false;
+  // An INPUT OVERRIDE: draw this model as the body instead of the one the weapon
+  // entity's own `m_iWorldModelIndex` names. It exists because the recording's
+  // weapon (`c_pro_rifle.mdl`) names two material slots that resolve to the SAME
+  // atlas, so "each range uses its own albedo" has no picture to show on it --
+  // a gate could only assert a slot count. `c_tfc_sniperrifle.mdl` is a shipped
+  // weapon body of the same class whose two slots resolve to two different
+  // textures, which is what makes the wrong-slot and missing-texture mutations
+  // move pixels rather than only counters. Reported on every material line as
+  // `override=`, so an overridden run can never be read as a natural one.
+  std::filesystem::path commandWeaponModel;
 
   // Which material slot the pass binds. Negative = "the slot the drawn mesh
   // names", which is the only value a natural run has.
@@ -1095,6 +1125,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else if (wcscmp(arguments[i], L"off") == 0) viewModelWeaponBodyEnabled = false;
         else viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-weapon-body") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-weapon-flat-color") == 0) {
+        // No argument: the flag is the switch. A `--viewmodel-weapon-flat-color
+        // off` spelling would only invite a reader to think the default was on.
+        viewModelWeaponFlatColor = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-weapon-model") == 0 && i + 1 < argumentCount) {
+        commandWeaponModel = arguments[++i];
+        if (commandWeaponModel.empty()) viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-weapon-model") == 0) {
         viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-sequence") == 0 && i + 1 < argumentCount) {
         // An INPUT OVERRIDE, and named like one. The pinned recordings' ViewModel
@@ -1580,6 +1619,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // It is the field that turns `weaponMaterials=2/2/1/2` into a repairable
     // statement: the count says one material is missing, this says which.
     std::string lastMaterialFailure;
+    // T14: the runtime table's own failures, which are not the same question as
+    // the reachability counts above. A slot can reach its VTF and still fail to
+    // decode, and a slot that resolved but whose range was never drawn is not a
+    // drawing failure at all.
+    std::string lastRuntimeFailure;
+    // Why the first range drew flat colour: the slot's own reason (a missing VMT,
+    // a texture that did not decode), so `weaponFallbackRanges=1` is followed by
+    // a sentence rather than left as a count to interpret.
+    std::string lastUnboundReason;
   };
   ViewModelWeaponBodyStats viewModelWeaponStats;
   // The refusals that actually happened, in the order the enum declares them:
@@ -2801,16 +2849,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // `--viewmodel-flat-color` empties the key on purpose: it is the control the
   // pixel claim is measured against, and it is the same state a slot that failed
   // to resolve reaches, so the control and the fallback cannot diverge.
-  const auto viewModelDrawRangesFor = [&](const tf2::native::ViewModelRequest& request) {
+  const auto viewModelDrawRangesFor = [&](const tf2::native::ViewModelRequest& request,
+      bool flatColor, std::int32_t slotOverride) {
     std::vector<tf2::native::ViewModelDrawRange> ranges;
     if (!request.resources.meshReady || request.mesh.vertices.size() < 3) return ranges;
     for (const auto& source : request.mesh.ranges) {
       tf2::native::ViewModelDrawRange range;
       range.firstVertex = source.firstVertex;
       range.vertexCount = source.vertexCount;
-      const std::int32_t slot = viewModelMaterialSlotOverride >= 0
-        ? viewModelMaterialSlotOverride : source.materialSlot;
-      if (!viewModelFlatColor && slot >= 0
+      const std::int32_t slot = slotOverride >= 0
+        ? slotOverride : source.materialSlot;
+      if (!flatColor && slot >= 0
           && static_cast<std::size_t>(slot) < request.materials.slots.size()) {
         const auto& materialSlot = request.materials.slots[static_cast<std::size_t>(slot)];
         if (materialSlot.pixelsDecoded && !materialSlot.vtfPath.empty()) {
@@ -2881,7 +2930,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       summary.firstFailure.empty()
         ? (request.materials.drawnSlotReason.empty() ? "-" : request.materials.drawnSlotReason.c_str())
         : summary.firstFailure.c_str());
-    const auto ranges = viewModelDrawRangesFor(request);
+    const auto ranges = viewModelDrawRangesFor(request, viewModelFlatColor,
+      viewModelMaterialSlotOverride);
     // ---- T2 (2026-10-14): the advanced materials ---------------------------
     // Read for the slot the picture actually uses, re-parsed from the VMT the
     // slot resolved. The readers are pure and shared with the probe, so a
@@ -3030,6 +3080,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::string requestedPath;
     tf2::native::ViewModelRequest request;
     tf2::native::ViewModelDrawState baseState;
+    // The body's range table, built once per distinct path with the material
+    // table that was decoded on the same pass. It lives here rather than in the
+    // renderer because it is a property of the model the entity named, and a
+    // second weapon has its own slots.
+    std::vector<tf2::native::ViewModelDrawRange> ranges;
   };
   ViewModelWeaponBodyCache viewModelWeaponBody;
   std::string viewModelWeaponMeshBufferPath;
@@ -3043,22 +3098,47 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       const std::vector<tf2::native::ModelDrawVertex>& vertices, bool& uploaded) {
     uploaded = false;
     if (!path.empty() && viewModelWeaponMeshBufferPath == path) return true;
-    uploaded = renderer.uploadViewModelWeaponMesh(vertices);
-    if (uploaded && request.materials.drawnSlot >= 0
-        && static_cast<std::size_t>(request.materials.drawnSlot) < request.materials.slots.size()) {
-      const auto slot = request.materials.drawnSlot;
-      tf2::native::decodeViewModelMaterialSlots(request.materials, slot,
-        [&](const std::string& key, std::uint32_t width, std::uint32_t height,
-            const std::vector<std::uint8_t>& rgba) {
-          return renderer.uploadViewModelMaterialTexture(key, rgba, width, height);
-        });
-      const auto& material = request.materials.slots[static_cast<std::size_t>(slot)];
-      if (material.pixelsDecoded) {
-        viewModelWeaponBody.baseState.materialKey = material.vtfPath;
-        viewModelWeaponBody.baseState.materialTranslucent = material.translucent;
-        viewModelWeaponBody.baseState.materialAlphaTest = material.alphaTest;
+    // Every slot the body's ranges can name, not just `drawnSlot`.
+    //   `c_pro_rifle.mdl` draws two LOD-0 descriptors -- the rifle on slot 0 and
+    //   its scope on slot 1 -- and the old code decoded only the descriptor the
+    //   mesh table pointed at, so the scope's own albedo was never uploaded and
+    //   the whole body was painted with the rifle's. The arms' pass has decoded
+    //   every slot since T2.5; this is the body reaching the same rule.
+    const auto summary = tf2::native::decodeViewModelMaterialSlots(request.materials,
+      viewModelWeaponFlatColor ? -1 : -2,
+      [&](const std::string& key, std::uint32_t width, std::uint32_t height,
+          const std::vector<std::uint8_t>& rgba) {
+        return renderer.uploadViewModelMaterialTexture(key, rgba, width, height);
+      });
+    tf2::native::applyViewModelMaterialResult(request);
+    viewModelWeaponStats.lastRuntimeFailure = summary.firstFailure;
+    viewModelWeaponBody.ranges = viewModelDrawRangesFor(request, viewModelWeaponFlatColor, -1);
+    // The reason behind the first range that will draw flat colour. Read off the
+    // source range table, because a flat range's draw range carries no slot: the
+    // builder leaves `slot` unset when it could not resolve one, and reading the
+    // reason off the built range would then always answer "no slot" -- including
+    // for the forced flat control, which is not a failure at all.
+    viewModelWeaponStats.lastUnboundReason.clear();
+    if (!viewModelWeaponFlatColor) {
+      for (const auto& source : request.mesh.ranges) {
+        const auto slot = source.materialSlot;
+        const bool textured = slot >= 0
+          && static_cast<std::size_t>(slot) < request.materials.slots.size()
+          && request.materials.slots[static_cast<std::size_t>(slot)].pixelsDecoded
+          && !request.materials.slots[static_cast<std::size_t>(slot)].vtfPath.empty();
+        if (textured) continue;
+        if (slot >= 0 && static_cast<std::size_t>(slot) < request.materials.slots.size()) {
+          const auto& material = request.materials.slots[static_cast<std::size_t>(slot)];
+          viewModelWeaponStats.lastUnboundReason = "slot " + std::to_string(slot) + ": "
+            + (material.reason.empty() ? std::string("no reason recorded") : material.reason);
+        } else {
+          viewModelWeaponStats.lastUnboundReason =
+            "the range names no material slot the model declares";
+        }
+        break;
       }
     }
+    uploaded = renderer.uploadViewModelWeaponMesh(vertices, viewModelWeaponBody.ranges);
     viewModelWeaponMeshBufferPath = uploaded ? path : std::string();
     return uploaded;
   };
@@ -4096,6 +4176,31 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       weaponClip[0], weaponClip[1], weaponClip[2], weaponClip[3],
       viewModelWeaponStats.lastMaterialFailure.empty()
         ? "-" : viewModelWeaponStats.lastMaterialFailure.c_str());
+    // T14: what the draw did with the slots above, on its own line.
+    //   It is separate from the draw reading for a mechanical reason as well as
+    //   a conceptual one: `traceFmt` formats into a 512-byte buffer, and
+    //   appending these fields to the line above pushed it to 519 -- the last
+    //   field was silently cut mid-path. A reading that is truncated by its own
+    //   instrument is worse than no reading, and the existing line's fields are
+    //   what every earlier gate pins.
+    //
+    //   The reachability counts above cannot answer this question: a body whose
+    //   two slots both resolve and whose two ranges both bind one slot reads
+    //   2/2/2/2 and looks correct. `weaponBoundSlots` and the key list are the
+    //   readings that separate the two pictures.
+    traceFmt("gpu: viewmodel weaponBodyMaterial ranges=%zu texturedRanges=%zu fallbackRanges=%zu boundSlots=%zu keys=%s runtimeFailure=%s unboundReason=%s flatColor=%d override=%d",
+      renderer.viewModelWeaponDrawRangeCount(),
+      renderer.viewModelWeaponTexturedRanges(),
+      renderer.viewModelWeaponFallbackRanges(),
+      renderer.viewModelWeaponBoundSlots(),
+      renderer.viewModelWeaponMaterialKeys().empty()
+        ? "-" : renderer.viewModelWeaponMaterialKeys().c_str(),
+      viewModelWeaponStats.lastRuntimeFailure.empty()
+        ? "-" : viewModelWeaponStats.lastRuntimeFailure.c_str(),
+      viewModelWeaponStats.lastUnboundReason.empty()
+        ? "-" : viewModelWeaponStats.lastUnboundReason.c_str(),
+      viewModelWeaponFlatColor ? 1 : 0,
+      commandWeaponModel.empty() ? 0 : 1);
   };
   const auto writeMetrics = [&](LARGE_INTEGER sample, bool force) {
     if (!metricsFile) return;
@@ -4729,6 +4834,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           viewModelWeaponStats.lastMaterialVmt = 0;
           viewModelWeaponStats.lastMaterialVtf = 0;
           viewModelWeaponStats.lastMaterialFailure.clear();
+          // The runtime reasons describe a draw that is not happening; leaving
+          // them would let the `off` frame explain a material it never bound.
+          viewModelWeaponStats.lastRuntimeFailure.clear();
+          viewModelWeaponStats.lastUnboundReason.clear();
         } else {
           ++viewModelWeaponStats.observations;
           const auto weaponBody = tf2::native::findViewModelWeaponBodyInput(
@@ -4766,19 +4875,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             viewModelWeaponStats.lastMaterialVmt = 0;
             viewModelWeaponStats.lastMaterialVtf = 0;
             viewModelWeaponStats.lastMaterialFailure.clear();
+            viewModelWeaponStats.lastRuntimeFailure.clear();
+            viewModelWeaponStats.lastUnboundReason.clear();
           } else {
             // Built once per distinct path. Re-read on every scene update only
             // to compare the path: the MDL is parsed and the mesh uploaded at
             // most once per weapon, which is what keeps a weapon switch from
             // re-parsing per frame and a steady weapon from re-parsing at all.
-            if (viewModelWeaponBody.requestedPath != weaponBody.worldModelPath) {
-              viewModelWeaponBody.requestedPath = weaponBody.worldModelPath;
+            // The override replaces the PATH, not the lookup: a refused weapon
+            // entity still refuses, because an override that could draw a body
+            // where the chain found none would hide exactly the defect the
+            // refusal buckets exist for.
+            const std::string bodyPath = commandWeaponModel.empty()
+              ? weaponBody.worldModelPath
+              : normalizedModelPath(commandWeaponModel.string(), assets.tfDirectory);
+            if (viewModelWeaponBody.requestedPath != bodyPath) {
+              viewModelWeaponBody.requestedPath = bodyPath;
               viewModelWeaponBody.request = tf2::native::buildViewModelCompanionRequest(
-                assets, weaponBody.worldModelPath,
+                assets, bodyPath,
                 viewModelLeftHand ? tf2::native::ViewModelHand::Left : tf2::native::ViewModelHand::Right,
                 viewModelFovGiven ? viewModelFov : persistent.render.viewModelFov);
               viewModelWeaponBody.baseState = tf2::native::ViewModelDrawState{};
-              viewModelWeaponStats.lastPath = weaponBody.worldModelPath;
+              viewModelWeaponStats.lastPath = bodyPath;
               if (viewModelWeaponBody.request.status == tf2::native::ViewModelStatus::Ok) {
                 ++viewModelWeaponStats.bodiesBuilt;
                 viewModelWeaponBody.baseState =
@@ -4787,7 +4905,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
                 ++viewModelWeaponStats.buildFailed;
               }
               traceFmt("gpu: viewmodel weaponBody model=%s class=%s entity=%d worldModelIndex=%d path=%s status=%s meshReady=%d sequences=%zu bones=%zu vertices=%zu materials=%zu/%zu/%zu/%zu attachment=%s reason=%s",
-                weaponBody.worldModelPath.empty() ? "-" : weaponBody.worldModelPath.c_str(),
+                bodyPath.empty() ? "-" : bodyPath.c_str(),
                 weaponBody.weaponClassName.empty() ? "-" : weaponBody.weaponClassName.c_str(),
                 weaponBody.weaponEntityIndex, static_cast<int>(weaponBody.worldModelIndex),
                 viewModelWeaponBody.requestedPath.empty()

@@ -2,3 +2,10 @@
 # their bytes (core.autocrlf=true on this host would otherwise turn LF into
 # CRLF and make logs.sha256 fail against its own files).
 evidence/viewmodel/range/logs/** -text
+# core.autocrlf=true is on for this checkout, and it would rewrite the evidence
+# here on checkout: every line of artifacts.sha256 is `sha256 *<path>`, so a
+# trailing CR becomes part of the filename, and the .txt/.json/.csv extracts would
+# come back with different bytes than the ones that were hashed. Both failures
+# appear in exactly the situation the receipt exists for -- a fresh clone -- so
+# this directory is checked out byte for byte.
+evidence/weapon-material/** -text
