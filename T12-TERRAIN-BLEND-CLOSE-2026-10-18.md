@@ -41,7 +41,7 @@
 
 | T12 步骤 | 本轮结果 | 证据 |
 |---|---|---|
-| 1 从整合树构建三个目标 | `build-target.sh tf2_demo_native world_geometry_probe terrain_blend_probe` → rc=0 | §3 |
+| 1 从整合树构建三个目标 | `build-target.sh tf2_demo_native world_geometry_probe terrain_blend_probe` → rc=0；收尾核对发现 `world_geometry_probe` 早于 `bsp_map.cpp`，已重建（哈希变化见 §3） | §3 |
 | 2 串行跑前向与变异门禁 | 前向 exit 0；变异 exit 0（6/6 转红，源码逐字节还原） | `gate-forward.log`、`gate-mutation.log` |
 | 3 确认 T11 绕序交换同时交换混合权重 | 发射期配对检查 165628 次 / 0 脱离；m5 使其变 72 次脱离 | `probe-cp_snakewater_final1.txt`、`mutated-m5-detached-alpha.txt` |
 | 4 用整合后新帧复现并解释 470 | 470 / 3530 / 3060 / 3036 四组读数，归因为世界几何遮挡 | `region.txt`、§4.1 |
