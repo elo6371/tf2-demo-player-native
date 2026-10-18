@@ -1,0 +1,2 @@
+gpu: viewmodel weaponBodyReading armDrawCalls=1553 weaponDrawCalls=1553 weaponModelIndex=533 weaponModelPath=models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl weaponMaterials=2/2/2/2 weaponFallback=- weaponVisible=1 weaponReason=drawn weaponEntity=1008 weaponClass=CTFSniperRifle weaponMeshRadius=27.53 weaponVertices=12681 weaponClip=(4.829,-6.204,62.678,63.564) weaponMaterialsFailure=-
+capture_tick=2000

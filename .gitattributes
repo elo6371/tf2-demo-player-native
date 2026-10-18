@@ -1,0 +1,6 @@
+# core.autocrlf=true is on for this checkout, and it would rewrite
+# evidence/weapon-material/artifacts.sha256 with CRLF on checkout. Every line of
+# that file is `sha256 *<path>`, so a trailing CR becomes part of the filename and
+# `sha256sum -c` reports all 28 lines as "No such file" -- the receipt would be
+# uncheckable in exactly the situation it exists for (a fresh clone).
+evidence/weapon-material/artifacts.sha256 -text
