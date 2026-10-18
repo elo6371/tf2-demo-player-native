@@ -1,0 +1,4 @@
+# Archived gate logs and their manifest are evidence: checkout must not rewrite
+# their bytes (core.autocrlf=true on this host would otherwise turn LF into
+# CRLF and make logs.sha256 fail against its own files).
+evidence/viewmodel/range/logs/** -text

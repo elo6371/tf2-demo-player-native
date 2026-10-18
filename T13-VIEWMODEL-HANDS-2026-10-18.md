@@ -540,6 +540,7 @@ Counters and hashes are not eyes. Specifically:
 | `viewmodel-companion-check.sh` | stale `vertices=600` pin → `9996`; `ranges`/`boundSlots` assertions added |
 | `verify-render.sh` | registers the new gate as gate 9 of 10 |
 | `evidence/viewmodel/range/` | readings, both frames, three inspection PNGs, and the nine run logs with `logs.sha256` |
+| `.gitattributes` | `evidence/viewmodel/range/logs/** -text`, so `core.autocrlf=true` cannot rewrite the archived logs and break `logs.sha256` on the next checkout |
 | this file | delivery record |
 
 No file outside T13's scope was touched. The uncommitted changes in the main
