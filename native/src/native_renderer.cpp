@@ -2590,12 +2590,29 @@ bool Renderer::uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices,
   return true;
 }
 
-bool Renderer::uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& vertices) {
+bool Renderer::uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ViewModelDrawRange>& ranges) {
   if (!uploadViewModelMeshInto(device_.Get(), vertices, viewModelWeaponVertexBuffer_,
       viewModelWeaponVertexCount_, viewModelWeaponMeshCenter_, viewModelWeaponMeshRadius_)) {
     viewModelWeaponVertexCount_ = 0;
+    viewModelWeaponDrawRanges_.clear();
     lastError_ = E_INVALIDARG;
     return false;
+  }
+  // Same clamping rule as the arms' upload: a range is accepted only inside the
+  // buffer that was actually created, and a non-multiple-of-three count is
+  // truncated rather than turned into a partial triangle. A range that clamps to
+  // nothing is dropped, which is how "the MDL's second descriptor did not fit"
+  // reaches the readings as a smaller range count instead of as a Draw that
+  // reads past the buffer.
+  viewModelWeaponDrawRanges_.clear();
+  for (const auto& range : ranges) {
+    if (range.firstVertex >= viewModelWeaponVertexCount_) continue;
+    ViewModelDrawRange clamped = range;
+    const auto available = viewModelWeaponVertexCount_ - range.firstVertex;
+    clamped.vertexCount = std::min(range.vertexCount, available);
+    clamped.vertexCount -= clamped.vertexCount % 3u;
+    if (clamped.vertexCount != 0) viewModelWeaponDrawRanges_.push_back(std::move(clamped));
   }
   return true;
 }
@@ -3188,6 +3205,15 @@ bool Renderer::drawViewModel() {
   // Reaching this point means the arms draw already happened (every early
   // return above is the whole pass being off -- a first-person composite that
   // cannot draw its arms does not draw a floating weapon either).
+  // Reset before the branch, not inside the drawn branch: a body that is off or
+  // whose mesh is missing must report zero ranges and zero bound slots rather
+  // than the previous frame's, or the readings would describe a draw that did
+  // not happen this frame.
+  viewModelWeaponDrawnRanges_ = 0;
+  viewModelWeaponTexturedRanges_ = 0;
+  viewModelWeaponFallbackRanges_ = 0;
+  viewModelWeaponBoundSlots_ = 0;
+  viewModelWeaponMaterialKeys_.clear();
   if (!viewModelWeaponState_.enabled) {
     viewModelWeaponDrawReason_ = viewModelWeaponState_.reason.empty()
       ? std::string("no weapon body was requested") : viewModelWeaponState_.reason;
@@ -3244,16 +3270,73 @@ bool Renderer::drawViewModel() {
     weaponConstants.selfillumFeatures = XMFLOAT4(0, 0, 0, 0);
     const auto weaponTexture = viewModelMaterialTextures_.find(viewModelWeaponState_.materialKey);
     const bool hasWeaponTexture = weaponTexture != viewModelMaterialTextures_.end();
-    weaponConstants.material = XMFLOAT4(hasWeaponTexture ? 1.0f : 0.0f,
-      viewModelWeaponState_.materialAlphaTest ? 1.0f : 0.0f, 0, 0);
-    context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &weaponConstants, 0, 0);
-    ID3D11ShaderResourceView* weaponAlbedo = hasWeaponTexture ? weaponTexture->second.Get() : nullptr;
-    context_->PSSetShaderResources(0, 1, &weaponAlbedo);
-    context_->OMSetBlendState(viewModelWeaponState_.materialTranslucent
-      ? viewModelAlphaBlendState_.Get() : nullptr, nullptr, 0xffffffffu);
     auto* weaponBuffer = viewModelWeaponVertexBuffer_.Get();
     context_->IASetVertexBuffers(0, 1, &weaponBuffer, &stride, &offset);
-    context_->Draw(viewModelWeaponVertexCount_, 0);
+    if (viewModelWeaponDrawRanges_.empty()) {
+      // No range information: the whole-buffer draw this pass issued before
+      // T14, from the one material key on the state. Kept as that rather than
+      // synthesised into a one-range table, because the picture is the same and
+      // a caller that supplied no ranges cannot have wanted a range reading.
+      weaponConstants.material = XMFLOAT4(hasWeaponTexture ? 1.0f : 0.0f,
+        viewModelWeaponState_.materialAlphaTest ? 1.0f : 0.0f, 0, 0);
+      context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &weaponConstants, 0, 0);
+      ID3D11ShaderResourceView* weaponAlbedo = hasWeaponTexture ? weaponTexture->second.Get() : nullptr;
+      context_->PSSetShaderResources(0, 1, &weaponAlbedo);
+      context_->OMSetBlendState(viewModelWeaponState_.materialTranslucent
+        ? viewModelAlphaBlendState_.Get() : nullptr, nullptr, 0xffffffffu);
+      context_->Draw(viewModelWeaponVertexCount_, 0);
+      ++viewModelWeaponDrawnRanges_;
+      if (hasWeaponTexture) {
+        ++viewModelWeaponTexturedRanges_;
+        viewModelWeaponBoundSlots_ = 1;
+        viewModelWeaponMaterialKeys_ = weaponTexture->first;
+      } else {
+        ++viewModelWeaponFallbackRanges_;
+      }
+    } else {
+      // One draw per range, each with its own material. This is the T14 fix:
+      // the body's MDL names two slots for two meshes, and binding one texture
+      // for the whole buffer paints the scope with the rifle's albedo.
+      std::vector<std::int32_t> boundSlots;
+      for (const auto& range : viewModelWeaponDrawRanges_) {
+        auto cached = range.materialKey.empty()
+          ? viewModelMaterialTextures_.end()
+          : viewModelMaterialTextures_.find(range.materialKey);
+        const bool textured = cached != viewModelMaterialTextures_.end();
+        weaponConstants.material = XMFLOAT4(textured ? 1.0f : 0.0f,
+          range.alphaTest ? 1.0f : 0.0f, 0.0f, 0.0f);
+        context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &weaponConstants, 0, 0);
+        if (textured) {
+          auto* view = cached->second.Get();
+          context_->PSSetShaderResources(0, 1, &view);
+          context_->OMSetBlendState(range.translucent ? viewModelAlphaBlendState_.Get() : nullptr,
+            nullptr, 0xffffffffu);
+          ++viewModelWeaponTexturedRanges_;
+          if (std::find(boundSlots.begin(), boundSlots.end(), range.slot) == boundSlots.end()) {
+            boundSlots.push_back(range.slot);
+          }
+          if (!viewModelWeaponMaterialKeys_.empty()) viewModelWeaponMaterialKeys_ += ",";
+          // The key of the SRV that was actually bound -- NOT range.materialKey.
+          // These are the same string on a correct run, and the difference is the
+          // whole point: a reading built from what the range ASKED for cannot
+          // see a lookup that answered with something else. m3 in
+          // weapon-material-check.sh binds the hands' atlas here while the
+          // range's own key still reads correctly; only this line catches it.
+          viewModelWeaponMaterialKeys_ += cached->first;
+        } else {
+          // The range's slot did not resolve, or --weapon flat colour emptied
+          // its key. Flat colour is the control and this is the fallback; the
+          // two reach the same state on purpose, so a fallback can never be
+          // mistaken for a texture that happened to be white.
+          context_->PSSetShaderResources(0, 1, &nullView);
+          context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+          ++viewModelWeaponFallbackRanges_;
+        }
+        context_->Draw(range.vertexCount, range.firstVertex);
+        ++viewModelWeaponDrawnRanges_;
+      }
+      viewModelWeaponBoundSlots_ = boundSlots.size();
+    }
     context_->PSSetShaderResources(0, 1, &nullView);
     context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
     ++viewModelWeaponDrawCallCount_;

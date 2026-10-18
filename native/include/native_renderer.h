@@ -725,9 +725,30 @@ public:
   // pipeline objects (shaders, input layout, constants buffer, depth and
   // rasterizer states) and the depth clear -- clearing between them would erase
   // the arms the first draw just wrote.
-  bool uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& vertices);
+  //
+  // T14 (2026-10-18): the ranges are a parameter, for the same reason they are
+  // one on the arms' upload. `c_pro_rifle.mdl` draws two LOD-0 descriptors -- the
+  // rifle on material slot 0 and its scope on slot 1 -- and the pass used to
+  // draw both from `state.materialKey`, which is one slot. A weapon body whose
+  // second range is painted with the first range's albedo is wrong in a way no
+  // counter saw: the draw count, the vertex count and the material chain all
+  // read as correct. Each range now carries its own key and its own blend state.
+  bool uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ViewModelDrawRange>& ranges = {});
   void setViewModelWeaponState(const ViewModelDrawState& state);
   const ViewModelDrawState& viewModelWeaponState() const { return viewModelWeaponState_; }
+  // The weapon body's material readings. They are separate accessors from the
+  // arms' on purpose: the two draws share the texture cache but not their state,
+  // and "the arms bound two slots" must not be able to answer for the body.
+  std::size_t viewModelWeaponDrawRangeCount() const { return viewModelWeaponDrawnRanges_; }
+  std::size_t viewModelWeaponTexturedRanges() const { return viewModelWeaponTexturedRanges_; }
+  std::size_t viewModelWeaponFallbackRanges() const { return viewModelWeaponFallbackRanges_; }
+  std::size_t viewModelWeaponBoundSlots() const { return viewModelWeaponBoundSlots_; }
+  // The normalized VTF paths the body bound on the last draw, in range order,
+  // comma-separated. A count cannot tell "both ranges used the rifle's albedo"
+  // from "each range used its own"; the keys can, and they are the strings a
+  // reviewer can compare against the MDL's slot table.
+  const std::string& viewModelWeaponMaterialKeys() const { return viewModelWeaponMaterialKeys_; }
   // Per-pass draw-call counters, so `armDrawCalls` and `weaponDrawCalls` are
   // effects rather than claims: each increments at its own Draw. The
   // pre-existing viewModelDrawCount/viewModelDrawCallCount keep their T2 meaning
@@ -944,6 +965,18 @@ private:
   float viewModelWeaponMeshCenter_[3] = {};
   float viewModelWeaponMeshRadius_ = 0.0f;
   ViewModelDrawState viewModelWeaponState_{};
+  // The body's own range table, uploaded with its mesh. Empty means "no range
+  // information", which is the whole-buffer draw this pass issued before T14;
+  // it is kept as that rather than turned into a one-range fallback, because the
+  // two produce the same picture and saying so costs a branch.
+  std::vector<ViewModelDrawRange> viewModelWeaponDrawRanges_;
+  // Last-draw readings, reset at the top of the weapon section so a disabled or
+  // failed body cannot inherit the previous frame's counts.
+  std::size_t viewModelWeaponDrawnRanges_ = 0;
+  std::size_t viewModelWeaponTexturedRanges_ = 0;
+  std::size_t viewModelWeaponFallbackRanges_ = 0;
+  std::size_t viewModelWeaponBoundSlots_ = 0;
+  std::string viewModelWeaponMaterialKeys_;
   std::string viewModelWeaponDrawReason_ = "the weapon body pass never ran";
   std::array<float, 4> viewModelWeaponCenterClip_{};
   std::size_t viewModelArmDrawCallCount_ = 0;
