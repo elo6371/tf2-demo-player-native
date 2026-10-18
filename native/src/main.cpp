@@ -979,6 +979,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   enum class WorldGeometryFilter { All, Terrain, None };
   WorldGeometryFilter worldGeometry = WorldGeometryFilter::All;
   int invalidWorldGeometryArgument = 0;
+  // T17: the lightmap A/B. The product had no way to draw the world with the
+  // lightmap term removed, so "this surface is dark because its lightmap is
+  // dark" was not a measurable statement. The switch changes one constant, not
+  // the geometry or the materials.
+  bool worldLightmapGiven = false;
+  bool worldLightmapRequested = true;
+  int invalidWorldLightmapArgument = 0;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -1021,6 +1028,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         ++worldDebugViewGiven; worldDebugView = 1;
       } else if (wcscmp(arguments[i], L"--world-depth") == 0) {
         ++worldDebugViewGiven; worldDebugView = 2;
+      } else if (wcscmp(arguments[i], L"--world-lightmap") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { worldLightmapRequested = true; worldLightmapGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldLightmapRequested = false; worldLightmapGiven = true; }
+        else { ++invalidWorldLightmapArgument; }
+      } else if (wcscmp(arguments[i], L"--world-lightmap") == 0) {
+        ++invalidWorldLightmapArgument;
       } else if (wcscmp(arguments[i], L"--world-water") == 0 && i + 1 < argumentCount) {
         // on|off, and nothing else: a switch that accepts any string is a switch
         // that silently does nothing on a typo.
@@ -1291,6 +1304,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // back to `on` would silently produce two identical frames and a gate that
     // reported "no difference" as a pass.
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-blend; it takes on or off and nothing else.\n");
+    return 13;
+  }
+  if (invalidWorldLightmapArgument) {
+    // T17: same rule. A typo that fell back to `on` would make the lightmap A/B
+    // two copies of one frame and read as "the lightmap changes nothing".
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-lightmap; it takes on or off and nothing else.\n");
     return 13;
   }
   if (invalidWorldGeometryArgument) {
@@ -3247,6 +3266,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     renderer.setWorldBlendEnabled(worldBlendGiven ? worldBlendRequested : true);
     renderer.setWorldTerrainOnly(worldGeometry == WorldGeometryFilter::Terrain);
     renderer.setWorldDiagnosticIsolation(worldGeometry != WorldGeometryFilter::All);
+    // T17: this one changes a draw-time constant, not the upload. It is set here
+    // so the reading and the frames of one run describe one configuration.
+    renderer.setWorldLightmapEnabled(worldLightmapGiven ? worldLightmapRequested : true);
     if (worldGeometry == WorldGeometryFilter::None) {
       // Nothing is uploaded, so no world vertex buffer exists and the world
       // draw's own guard skips it. That frame is the background measurement the
@@ -3433,13 +3455,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         case tf2::native::WorldLightmapStatus::FallbackUnlit: lightmapStatusName = "fallback-unlit"; break;
         case tf2::native::WorldLightmapStatus::Active: lightmapStatusName = "active"; break;
       }
-      traceFmt("gpu: world lightmap status=%s intensity=%.3f atlas=%d bump=%d env=%d vertices=%u lightmapped=%u bounds=(%.2f,%.2f,%.2f)..(%.2f,%.2f,%.2f)",
+      traceFmt("gpu: world lightmap status=%s intensity=%.3f atlas=%d bump=%d env=%d vertices=%u lightmapped=%u bounds=(%.2f,%.2f,%.2f)..(%.2f,%.2f,%.2f) lightmapEnabled=%d",
         lightmapStatusName, worldSample.lightmapIntensity,
         worldSample.lightmapAtlasBound ? 1 : 0, worldSample.bumpTextureBound ? 1 : 0,
         worldSample.envTextureBound ? 1 : 0, worldSample.worldVertexCount,
         worldSample.lightmappedVertexCount,
         worldSample.convertedMin[0], worldSample.convertedMin[1], worldSample.convertedMin[2],
-        worldSample.convertedMax[0], worldSample.convertedMax[1], worldSample.convertedMax[2]);
+        worldSample.convertedMax[0], worldSample.convertedMax[1], worldSample.convertedMax[2],
+        worldLightmapGiven ? (worldLightmapRequested ? 1 : 0) : 1);
     // The env pass reads back as a mode rather than as a bound flag: approximate-2d
     // with a texture bound and six-face with a cube bound are the two states the
     // pixel shader branches on, and 'bound' alone cannot tell them apart.

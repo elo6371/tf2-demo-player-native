@@ -350,7 +350,23 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
   float3 lightColour = float3(lightmapFactor, lightmapFactor, lightmapFactor);
-  if (lightmapFeatures.w > 0.5 && lightUv.x >= 0.0) lightColour = lightmapTexture.Sample(sampler0, lightUv).rgb;
+  if (lightmapFeatures.w > 0.5 && lightUv.x >= 0.0) {
+    // T17: RGBExp32 is LINEAR radiance, and the text writes what it sampled, so
+    // the atlas holds the lightmap in linear space. Every other input here is
+    // display-referred: the albedo textures are raw sRGB bytes and the output
+    // target is an UNORM swap chain. Multiplying a display-space albedo by a
+    // linear light and writing the product straight out is the "everything is
+    // dark" failure: a shadowed wall whose lightmap is 0.1 lands at 25/255
+    // instead of the 89/255 the same 0.1 looks like on screen.
+    //
+    // pow(light, 1/2.2) is the sRGB encode. It is also exactly the
+    // gamma-correct composition: (albedo_linear * light_linear)^(1/2.2)
+    // = albedo_srgb * light_linear^(1/2.2), because the albedo is already
+    // display-encoded. So the albedo needs no second conversion, and the
+    // product is the same expression Source's output stage produces through its
+    // gamma ramp.
+    lightColour = pow(max(lightmapTexture.Sample(sampler0, lightUv).rgb, 0.0), 1.0 / 2.2);
+  }
   albedo *= lightColour;
   float3 n = safeNormalize(normal);
   if (lightmapFeatures.y > 0.5) {
@@ -3620,10 +3636,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       worldMaterialParams_.selfIllumB,
       standardSelfIllum ? 1.0f : 0.0f);
     constants.lightmapFeatures = XMFLOAT4(
-      worldLightmapStatus_ == WorldLightmapStatus::Unavailable ? 1.0f : worldLightmapIntensity_,
+      worldLightmapEnabled_
+        ? (worldLightmapStatus_ == WorldLightmapStatus::Unavailable ? 1.0f : worldLightmapIntensity_)
+        : 1.0f,
       settings_.preset == QualityPreset::Standard && worldMaterialParams_.bumpMapping && worldBumpTexture_.view() ? 1.0f : 0.0f,
       settings_.preset == QualityPreset::Standard && worldMaterialParams_.envMap && worldEnvTexture_.view() ? 1.0f : 0.0f,
-      worldLightmapTexture_.view() ? 1.0f : 0.0f);
+      worldLightmapEnabled_ && worldLightmapTexture_.view() ? 1.0f : 0.0f);
     // The cube wins when it is there: it is the map's own environment rather
     // than a 2D projection of whatever $envmap named, and the capability layer
     // only builds it when all six faces decoded.

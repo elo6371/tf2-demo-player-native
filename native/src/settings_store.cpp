@@ -55,11 +55,21 @@ std::filesystem::path settingsPath() {
 
 PersistentSettings loadSettings() {
   PersistentSettings result{};
-  result.render = RenderSettings::fromPreset(QualityPreset::Performance);
+  // T17: the file stores a preset, and a preset is a bundle of flags, not a
+  // label. This reader used to start from Performance and then copy only
+  // `preset` out of the file, so a settings file saying `preset=1` produced
+  // "standard" in every reading that asks the preset and the Performance value
+  // in every flag: `skybox=false` above all. The trace said both things at
+  // once -- `cubemap ... preset=standard` and `sky-upload state=unavailable
+  // reason=skybox draw disabled by the caller` -- and 20.2% of the reference
+  // frame was clear colour because the sky pass never ran. The preset is now
+  // applied as a preset, and the four keys the file actually persists are
+  // applied on top of it.
   const auto file = settingsPath();
+  const bool standardQuality = !file.empty() && readInt(file, L"preset", 0) == 1;
+  result.render = RenderSettings::fromPreset(
+    standardQuality ? QualityPreset::Standard : QualityPreset::Performance);
   if (file.empty()) return result;
-  result.render.preset = readInt(file, L"preset", 0) == 1
-    ? QualityPreset::Standard : QualityPreset::Performance;
   result.render.renderScale = static_cast<float>(readInt(file, L"renderScalePercent", 100)) / 100.0f;
   result.render.viewModelFov = static_cast<float>(
     migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));
