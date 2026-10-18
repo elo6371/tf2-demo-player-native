@@ -236,36 +236,47 @@ step "1/24 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
-# exes would otherwise read as a clean build. 33 is the count after the
-# entity-material round, the skeleton_skin_probe target, the T1 animation round's
-# weapon_animation_probe, the T2 round's viewmodel_contract_probe, the T2.5
-# round's viewmodel_animation_probe, the T3 audio content round's
-# sound_content_map_probe, and the T7 audio coverage round's
-# sound_corpus_scan_probe, so adding a target is an explicit edit here.
+# exes would otherwise read as a clean build.
+#
+# T15 (2026-10-18): the pin reads 38, and the value it replaced -- 33 -- had been
+# "correct" for three rounds without ever describing a complete build.
+#   `native_ui.cpp` calls `planMapLookup` and `AssetRoot::fromPath`, but
+#   native_ui_probe's source list never gained `map_lookup.cpp` or
+#   `asset_root.cpp`. After `--target clean` the link failed with three LNK2019s,
+#   NMAKE stopped, and the four targets ordered after it were never linked. The
+#   tree had 37 add_executable lines and the build produced exactly 33 exes, so
+#   the pin agreed with a TRUNCATED build. rc=0 would have caught it; the pin
+#   alone could not. This is the 2026-10-06 `exe_count=17` incident a second
+#   time, with the difference that the number happened to match.
+#   T15 fixed the link, added vpk_integrity_probe, and measured the result:
+#   `grep -c '^add_executable('` = 38, a clean full build printing
+#   cmake_build_rc=0 errors=0 exe_count=38.
+#
+# History of the number, kept so the next addition stays a deliberate edit:
+# 33 was the count after the entity-material round, the skeleton_skin_probe
+# target, the T1 animation round's weapon_animation_probe, the T2 round's
+# viewmodel_contract_probe, the T2.5 round's viewmodel_animation_probe, the T3
+# audio content round's sound_content_map_probe, and the T7 audio coverage
+# round's sound_corpus_scan_probe.
+# Then four more landed without the pin moving: the T9 round's map_lookup_probe,
+# the T10/T11 rounds' world_geometry_probe, the T12 round's terrain_blend_probe
+# and the T13 round's viewmodel_range_probe -- 37 lines, still pinned at 33.
 # T2 added exactly one target: viewmodel_fov_probe was already in the baseline's
 # 25 and only gained source files (measured 2026-10-11: `git show
 # 80c7949:native/CMakeLists.txt` has 25 add_executable lines and includes
 # viewmodel_fov_probe; the tree after T2 has 26 and the tree after T2.5 has 27).
-# The pin then read 27 while four more targets landed without it moving -- the
-# T0 capture round's quiet_capture_probe, the T1 render rounds'
-# viewmodel_material_probe and weapon_body_probe, and the T3 audio round's
-# sound_timeline_census_probe -- so the first post-merge chain run of 2026-10-15
-# reported BUILD=FAIL on an honest build (measured: 31 add_executable lines,
-# exe_count=31). The four are named here so the next addition is a deliberate
-# edit to this line, not a rediscovery. The 2026-10-15 T3 content round is the
-# next such addition: sound_content_map_probe, measured by `grep -c
-# '^add_executable('` = 32 and by a full build printing exe_count=32.
-# The 2026-10-16 T7 round adds sound_corpus_scan_probe, the corpus category
-# scan: measured by `grep -c '^add_executable('` = 33 and by a full build
-# printing exe_count=33.
+# The 2026-10-15 T3 content round is the next such addition: sound_content_map_probe,
+# measured by `grep -c '^add_executable('` = 32 and by a full build printing
+# exe_count=32. The 2026-10-16 T7 round added sound_corpus_scan_probe, measured
+# the same two ways as 33.
 # (The pin read 23 while the tree built 24 between 00b6033 and this line: the
 # probe target was added without the pin moving, so step 1 reported BUILD=FAIL on
 # every chain run in that window. The warning count is deliberately NOT asserted
-# -- the one C4457 in main.cpp predates all of this and only its line number
-# moves.)
+# -- the C4457 in main.cpp predates all of this and only its line number moves;
+# the 2026-10-18 build reports 9 warnings, all of them pre-existing.)
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=33$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=38$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1

@@ -1,0 +1,10 @@
+{"reading":"vpk.real.open.pak01_dir.vpk","value":"cannot read VPK directory file"}
+{"reading":"vpk.real.archives","value":"4"}
+{"reading":"vpk.real.sampled","value":"200"}
+{"reading":"vpk.real.resolved","value":"200"}
+{"reading":"vpk.real.empty","value":"0"}
+{"reading":"vpk.real.byLoose","value":"0"}
+{"reading":"vpk.real.byDirectory","value":"0"}
+{"reading":"vpk.real.byVolume","value":"200"}
+{"reading":"vpk.real.firstOrigin","value":"tf2_misc_dir.vpk"}
+{"reading":"vpk.real.verdict","value":"every sampled name resolved"}

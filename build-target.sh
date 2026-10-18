@@ -60,12 +60,17 @@ fi
 
 source ./env-msvc.sh
 
-BUILD=native/build-nmake
+BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
 # The build log is deliberately a fixed, repo-local path rather than mktemp:
 # mktemp returns a Windows-style %TEMP% path here, which the sandbox's safe-delete
 # wrapper refuses to remove, and a named log survives a failure so the compiler
 # errors can be re-read instead of the build being re-run.
-LOG=.scratch/build-target.log
+# T15: the log follows the build directory. A clean-directory build writes
+# somewhere else, and two builders sharing one log path truncate each other's
+# output -- which is the same "failure preserved, evidence lost" problem.
+LOG_SUFFIX=""
+if [ -n "${TF2_BUILD_DIR:-}" ]; then LOG_SUFFIX="-$(basename "$BUILD")"; fi
+LOG=".scratch/build-target${LOG_SUFFIX}.log"
 mkdir -p .scratch
 
 # A BRAND-NEW TARGET IS NOT PICKED UP BY `cmake --build` -- CONFIGURE FIRST
@@ -83,8 +88,17 @@ mkdir -p .scratch
 #   here. The rule is looked up in the generated Makefile rather than inferred
 #   from CMakeLists.txt so the check reads the same artifact nmake reads.
 NEED_CONFIGURE=0
+FRESH_TREE=0
 if [ ! -f "$BUILD/CMakeCache.txt" ]; then
   NEED_CONFIGURE=1
+  # A build tree that has never been configured has no objects to be stale, so
+  # every source compiles no matter what the timestamps say. The stamp guard
+  # below exists to defeat NMAKE's missing header dependencies in an INCREMENTAL
+  # tree; in a fresh one it has nothing to protect and one real side effect: it
+  # touches every source, which makes those sources newer than the binaries in
+  # every *other* build directory. T15 found this by running the clean-directory
+  # test and then discovering the main tree's exes were older than the sources.
+  FRESH_TREE=1
 else
   for _t in "$@"; do
     if ! grep -q "^${_t}:" "$BUILD/Makefile" 2>/dev/null; then
@@ -108,7 +122,10 @@ fi
 echo "=== build $* ==="
 : > "$LOG"
 STAMP="$BUILD/.headers-stamp"
-if [ ! -f "$STAMP" ]; then
+if [ "$FRESH_TREE" -eq 1 ]; then
+  # Nothing in this tree has been built yet, so nothing in it can be stale.
+  echo "note: fresh build tree; header stamp guard not needed"
+elif [ ! -f "$STAMP" ]; then
   echo "note: header stamp is missing; forcing requested source rebuild"
   touch native/src/*.cpp native/tools/*.cpp
 elif [ -n "$(find native/include native/src native/tools native/third_party \

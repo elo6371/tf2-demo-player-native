@@ -35,7 +35,10 @@ bool validPath(const std::string& path) {
 
 template <typename T>
 bool readValue(const std::vector<std::uint8_t>& bytes, std::size_t offset, T& value) {
-  if (offset + sizeof(T) > bytes.size()) return false;
+  // Subtraction rather than addition: `offset + sizeof(T)` wraps for an offset
+  // near SIZE_MAX, and a wrapped bound passes the comparison it was written to
+  // fail. This is the only guard between a directory-tree field and a read.
+  if (offset > bytes.size() || sizeof(T) > bytes.size() - offset) return false;
   value = 0;
   for (std::size_t i = 0; i < sizeof(T); ++i) {
     value |= static_cast<T>(bytes[offset + i]) << (i * 8);
@@ -67,15 +70,34 @@ bool VpkArchive::open(const std::filesystem::path& directoryFile, std::string* e
   std::uint32_t signature = 0;
   std::uint32_t version = 0;
   std::uint32_t treeSize = 0;
-  if (!readValue(bytes, 0, signature) || !readValue(bytes, 4, version)
-      || !readValue(bytes, 8, treeSize) || signature != kSignature
-      || (version != 1 && version != 2)) {
+  // Four distinct header outcomes, because they ask for four different fixes and
+  // the old single reason covered all of them:
+  //   empty file        -> the path is wrong or a fixture was never written
+  //   truncated header  -> fewer than 12 bytes, cannot even hold a v1 header
+  //   unsupported       -> present and long enough, but not a VPK we read
+  //   empty tree        -> a valid header that declares no entries at all
+  if (bytes.empty()) {
+    if (error) *error = "empty VPK file";
+    return false;
+  }
+  if (!readValue(bytes, 0, signature) || !readValue(bytes, 4, version)) {
+    if (error) *error = "truncated VPK header";
+    return false;
+  }
+  if (signature != kSignature || (version != 1 && version != 2)) {
     if (error) *error = "unsupported VPK header";
     return false;
   }
   const std::size_t headerSize = version == 2 ? 28u : 12u;
-  if (headerSize > bytes.size() || treeSize == 0
-      || headerSize + static_cast<std::size_t>(treeSize) > bytes.size()) {
+  if (headerSize > bytes.size() || !readValue(bytes, 8, treeSize)) {
+    if (error) *error = "truncated VPK header";
+    return false;
+  }
+  if (treeSize == 0) {
+    if (error) *error = "empty VPK directory tree";
+    return false;
+  }
+  if (headerSize + static_cast<std::size_t>(treeSize) > bytes.size()) {
     if (error) *error = "truncated VPK directory tree";
     return false;
   }
@@ -141,18 +163,31 @@ bool VpkArchive::open(const std::filesystem::path& directoryFile, std::string* e
         cursor += 2;
         if (cursor + preloadLength > treeEnd) { if (error) *error = "truncated VPK preload data"; entries_.clear(); return false; }
         Entry entry{};
-        entry.offset = offset;
         entry.length = length;
         entry.preload.assign(bytes.begin() + static_cast<std::ptrdiff_t>(cursor),
           bytes.begin() + static_cast<std::ptrdiff_t>(cursor + preloadLength));
         cursor += preloadLength;
         if (archiveIndex == kDirectoryArchive) {
           entry.archiveFile = directoryFile;
-          entry.offset = static_cast<std::uint32_t>(treeEnd + offset);
+          entry.inlineData = true;
+          // The old code stored `treeEnd + offset` in a uint32 and wrapped when
+          // the sum passed 4 GiB, so a tree could name an offset that reads from
+          // somewhere else entirely and still look like a success. Widened, then
+          // checked against the bytes we actually hold: an inline entry that
+          // points outside its own directory file is a self-contradicting tree.
+          const std::uint64_t absolute = static_cast<std::uint64_t>(treeEnd) + offset;
+          if (length != 0 && (absolute > bytes.size()
+              || length > bytes.size() - static_cast<std::size_t>(absolute))) {
+            if (error) *error = "VPK entry range outside directory archive";
+            entries_.clear();
+            return false;
+          }
+          entry.offset = absolute;
         } else {
           entry.archiveFile = directoryFile.parent_path()
             / (baseName + L"_" + (archiveIndex < 10 ? L"00" : archiveIndex < 100 ? L"0" : L"")
               + std::to_wstring(archiveIndex) + L".vpk");
+          entry.offset = static_cast<std::uint64_t>(offset);
         }
         const auto key = normalize(path == " " ? "" : path + "/")
           + normalize(filename) + (extension == " " ? "" : "." + normalize(extension));
@@ -201,25 +236,57 @@ std::vector<std::string> VpkArchive::list(const std::string& prefix,
   return result;
 }
 
-std::vector<std::uint8_t> VpkArchive::read(const std::string& path, std::string* error) const {
+VpkArchive::ReadResult VpkArchive::readEntry(const std::string& path) const {
+  ReadResult result;
   const auto found = entries_.find(normalize(path));
-  if (found == entries_.end()) return {};
+  // A name that is not in the tree is not a refusal -- it is the normal answer
+  // for a lookup that misses, and it must stay distinguishable from "the entry
+  // is here but its bytes are not readable".
+  if (found == entries_.end()) return result;
+  result.found = true;
   const Entry& entry = found->second;
-  std::vector<std::uint8_t> result = entry.preload;
-  if (entry.length == 0) return result;
+  result.bytes = entry.preload;
+  result.store = entry.inlineData ? Store::DirectoryData : Store::NumberedVolume;
+  if (entry.length == 0) {
+    result.store = Store::PreloadOnly;
+    return result;
+  }
   std::ifstream file(entry.archiveFile, std::ios::binary);
   if (!file) {
-    if (error) *error = "missing VPK data archive";
-    return {};
+    result.error = "missing VPK data archive";
+    return result;
+  }
+  // Bounded read. The tree decides both offset and length, so both are checked
+  // against the data file's real size *before* a buffer of `length` bytes is
+  // allocated: a 0xffffffff length would otherwise be a 4 GiB allocation, and an
+  // offset past EOF used to be reported as "truncated" when the accurate name is
+  // "out of range". Skipping this check is how a malformed archive turns into an
+  // out-of-range read that still returns bytes.
+  file.seekg(0, std::ios::end);
+  const auto fileSize = file.tellg();
+  if (fileSize < 0) {
+    result.error = "cannot size VPK data archive";
+    return result;
+  }
+  const std::uint64_t available = static_cast<std::uint64_t>(fileSize);
+  if (entry.offset > available || entry.length > available - entry.offset) {
+    result.error = "VPK entry range outside data archive";
+    return result;
   }
   file.seekg(static_cast<std::streamoff>(entry.offset));
   std::vector<std::uint8_t> tail(entry.length);
   if (!file.read(reinterpret_cast<char*>(tail.data()), static_cast<std::streamsize>(tail.size()))) {
-    if (error) *error = "truncated VPK data entry";
-    return {};
+    result.error = "truncated VPK data entry";
+    return result;
   }
-  result.insert(result.end(), tail.begin(), tail.end());
+  result.bytes.insert(result.bytes.end(), tail.begin(), tail.end());
   return result;
+}
+
+std::vector<std::uint8_t> VpkArchive::read(const std::string& path, std::string* error) const {
+  ReadResult result = readEntry(path);
+  if (error) *error = result.error;
+  return std::move(result.bytes);
 }
 
 VpkArchiveSet VpkArchiveSet::openDirectory(const std::filesystem::path& tfDirectory) {

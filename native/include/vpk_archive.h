@@ -10,6 +10,24 @@ namespace tf2::native {
 
 class VpkArchive {
 public:
+  // Which store answered a read. `PreloadOnly` means the bytes lived in the
+  // directory tree itself and no data file was touched at all -- a zero-length
+  // entry and a fully preloaded one look the same to a caller that only reads
+  // bytes, and they are not the same thing.
+  enum class Store { PreloadOnly, DirectoryData, NumberedVolume };
+
+  // read() used to answer with bytes alone, so "the volume is missing" and "the
+  // volume is there but the offset points past its end" both arrived as an empty
+  // vector. The caller could not tell a refusal from an empty file. ReadResult
+  // carries the reason and the store that produced the bytes.
+  struct ReadResult {
+    std::vector<std::uint8_t> bytes;
+    Store store = Store::PreloadOnly;
+    bool found = false;  // the name exists in this archive's tree
+    std::string error;   // named refusal; empty when the read succeeded
+    bool ok() const { return error.empty(); }
+  };
+
   bool open(const std::filesystem::path& directoryFile, std::string* error = nullptr);
   bool contains(const std::string& path) const;
   // Return normalized archive paths under an optional directory prefix and
@@ -18,13 +36,17 @@ public:
   std::vector<std::string> list(const std::string& prefix = {},
     const std::string& extension = {}) const;
   std::vector<std::uint8_t> read(const std::string& path, std::string* error = nullptr) const;
+  ReadResult readEntry(const std::string& path) const;
   std::size_t entryCount() const { return entries_.size(); }
 
 private:
   struct Entry {
     std::filesystem::path archiveFile;
-    std::uint32_t offset = 0;
+    // 64-bit on purpose: a 32-bit offset wrapped when the tree base was added to
+    // it, and a wrapped offset is an out-of-range read that still "succeeds".
+    std::uint64_t offset = 0;
     std::uint32_t length = 0;
+    bool inlineData = false;
     std::vector<std::uint8_t> preload;
   };
 

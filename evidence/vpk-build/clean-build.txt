@@ -1,0 +1,5 @@
+=== configure ===
+=== build vpk_integrity_probe vpk_query ===
+note: fresh build tree; header stamp guard not needed
+rc=0
+clean_build_dir=.scratch/vpk-build/clean-20261018-202707
