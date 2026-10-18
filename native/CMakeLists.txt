@@ -39,6 +39,11 @@ add_executable(tf2_demo_native WIN32
   # order the product actually walks, not a second copy of it.
   src/map_lookup.cpp
   src/vpk_archive.cpp
+  # T15: the loose / VPK-directory / numbered-volume / pakfile search order as
+  # one object. In the product because vpk_integrity_probe has to drive the same
+  # order the product uses; a probe with its own copy would only prove that two
+  # copies agree.
+  src/asset_lookup.cpp
   src/vtf_texture.cpp
   src/model_loader.cpp
   src/viewmodel.cpp
@@ -108,6 +113,14 @@ set_target_properties(resource_reachability_probe PROPERTIES WIN32_EXECUTABLE OF
 add_executable(vpk_query tools/vpk_query.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(vpk_query PRIVATE include third_party/lzma)
 set_target_properties(vpk_query PROPERTIES WIN32_EXECUTABLE OFF)
+
+# T15: malformed-archive rejection and store precedence. vpk_query above answers
+# questions about the real TF2 install; this one builds its own archives from
+# bytes the test controls, because "a corrupt VPK is refused" cannot be shown
+# against a shipped archive that is not corrupt.
+add_executable(vpk_integrity_probe tools/vpk_integrity_probe.cpp src/vpk_archive.cpp src/asset_lookup.cpp)
+target_include_directories(vpk_integrity_probe PRIVATE include third_party/lzma)
+set_target_properties(vpk_integrity_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # The world material and lighting capability layer. Shared with the product
 # (the renderer publishes its readings from it) rather than inlined into
@@ -410,7 +423,14 @@ target_compile_definitions(native_install_smoke_probe PRIVATE NOMINMAX WIN32_LEA
 target_link_libraries(native_install_smoke_probe PRIVATE d3d11 dxgi)
 set_target_properties(native_install_smoke_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp ${TF2_DEMO_HEADER_SOURCES} src/proto_wire.cpp src/item_schema.cpp)
+# T15: native_ui.cpp calls AssetRoot::fromPath and AssetRoot::archives (the
+# resource-state panel asks whether the tf root is usable) and planMapLookup
+# (it shows where the map was found). None of those three lived in this target's
+# source list, so the probe linked only while a previous build's objects were
+# still on disk; after `--target clean` the link fails with three LNK2019s and
+# NMAKE stops, which is what truncated the full build to 33 of 38 executables
+# and made the exe_count pin read "correct" for a build that never finished.
+add_executable(native_ui_probe tools/native_ui_probe.cpp src/native_ui.cpp src/asset_root.cpp src/map_lookup.cpp src/vpk_archive.cpp ${TF2_DEMO_HEADER_SOURCES} src/proto_wire.cpp src/item_schema.cpp)
 target_link_libraries(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(native_ui_probe PRIVATE include third_party/lzma)

@@ -3,6 +3,7 @@
 #include "map_lookup.h"
 #include "settings_store.h"
 #include "vpk_archive.h"
+#include "asset_lookup.h"
 #include "vtf_texture.h"
 #include "world_material.h"
 #include "vmt_material.h"
@@ -1719,16 +1720,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   tf2::native::WorldMaterialParams mapMaterialParams;
   std::vector<tf2::native::WorldTexture> worldTextures;
   std::vector<std::shared_ptr<tf2::native::VpkArchive>> soundArchives;
+  // The lookup policy as an object rather than as the six copied loops this
+  // file used to carry. Sound keeps using `soundArchives` directly -- it wants
+  // the archive objects, not a resolved byte range -- and the chain shares those
+  // same objects, so nothing is opened twice.
+  tf2::native::AssetStoreChain assetChain(assets.tfDirectory);
   std::unordered_map<std::string, std::vector<std::uint8_t>> materialVtfCache;
   const auto readMaterialVtf = [&](const std::string& path) -> const std::vector<std::uint8_t>& {
     auto found = materialVtfCache.find(path);
     if (found != materialVtfCache.end()) return found->second;
-    auto bytes = readFile(assets.tfDirectory / std::filesystem::path(path));
-    for (const auto& archive : soundArchives) {
-      if (!bytes.empty()) break;
-      bytes = archive->read(path);
-    }
-    return materialVtfCache.emplace(path, std::move(bytes)).first->second;
+    auto looked = assetChain.lookup(path);
+    return materialVtfCache.emplace(path, std::move(looked.bytes)).first->second;
   };
   if (assets.valid()) {
     // ---- T9 (2026-10-16): where the map came from -------------------------
@@ -1756,7 +1758,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::vector<std::uint8_t> mapBytes;
     for (const auto* name : { L"pak01_dir.vpk", L"tf2_misc_dir.vpk", L"tf2_textures_dir.vpk", L"tf2_sound_misc_dir.vpk", L"tf2_sound_vo_english_dir.vpk" }) {
       auto archive = std::make_shared<tf2::native::VpkArchive>();
-      if (archive->open(assets.tfDirectory / name)) soundArchives.push_back(std::move(archive));
+      if (archive->open(assets.tfDirectory / name)) {
+        assetChain.addArchive(archive, assets.tfDirectory / name);
+        soundArchives.push_back(std::move(archive));
+      }
     }
     if (!mapPlan.nameUsable) {
       // Refused by name, before any store is touched. Reported as the refusal
@@ -2024,19 +2029,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         if (outWidth == 0 || outHeight == 0) return false;
         return resampleTo(source, width, height, outWidth, outHeight, out);
       };
+      // The map's pakfile is the last store in the chain, and it only exists
+      // once the map bytes do. Registering it here keeps the order in
+      // AssetStoreChain rather than in each lookup.
+      if (!mapBytes.empty()) {
+        assetChain.setPakfileReader([&mapBytes](const std::string& assetPath,
+            std::vector<std::uint8_t>& bytes, std::string& reason) {
+          return tf2::native::bspPakfileEntry(mapBytes, assetPath, bytes, &reason);
+        });
+      }
       for (const auto& entry : materialOrder) {
         const std::string& materialName = entry.second;
         ++fetchDistinct;
         if (worldTextures.size() >= 64u) { ++fetchCapped; continue; }
         const auto materialPath = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
-        auto materialBytes = readFile(assets.tfDirectory / std::filesystem::path(materialPath));
-        if (materialBytes.empty()) for (const auto& archive : soundArchives) {
-          materialBytes = archive->read(materialPath); if (!materialBytes.empty()) break;
-        }
-        if (materialBytes.empty() && !mapBytes.empty()) {
-          std::string pakReason;
-          if (tf2::native::bspPakfileEntry(mapBytes, materialPath, materialBytes, &pakReason)) ++fetchFromPakfile;
-        }
+        const auto materialLookup = assetChain.lookup(materialPath);
+        auto materialBytes = materialLookup.bytes;
+        if (materialLookup.store == tf2::native::AssetStore::Pakfile) ++fetchFromPakfile;
         tf2::native::VmtMaterial material;
         if (materialBytes.empty()) { ++fetchVmtMissing; continue; }
         if (!tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)
@@ -2053,17 +2062,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
                                         std::vector<std::uint8_t>& bytes) {
           if (name.empty()) return false;
           path = tf2::native::VmtParser::resourcePath(name, ".vtf");
-          bytes = readFile(assets.tfDirectory / std::filesystem::path(path));
-          for (const auto& archive : soundArchives) {
-            if (!bytes.empty()) break;
-            bytes = archive->read(path);
-          }
-          if (bytes.empty() && !mapBytes.empty()) {
-            std::string pakReason;
-            if (tf2::native::bspPakfileEntry(mapBytes, path, bytes, &pakReason) && !bytes.empty()) {
-              ++fetchFromPakfile;
-            }
-          }
+          auto looked = assetChain.lookup(path);
+          if (looked.store == tf2::native::AssetStore::Pakfile) ++fetchFromPakfile;
+          bytes = std::move(looked.bytes);
           return !bytes.empty();
         };
         std::string texturePath, secondPath, modulatePath;
@@ -2228,10 +2229,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       for (const auto& candidate : prepared.materialCandidates) {
         if (candidate.empty()) continue;
         const std::string preparedVmtPath = tf2::native::VmtParser::resourcePath(candidate, ".vmt");
-        auto preparedVmt = readFile(assets.tfDirectory / std::filesystem::path(preparedVmtPath));
-        if (preparedVmt.empty()) for (const auto& archive : soundArchives) {
-          preparedVmt = archive->read(preparedVmtPath); if (!preparedVmt.empty()) break;
-        }
+        auto preparedVmt = assetChain.lookup(preparedVmtPath).bytes;
         if (preparedVmt.empty()) continue;
         tf2::native::VmtMaterial preparedMaterial;
         if (!tf2::native::VmtParser::parse(std::string(preparedVmt.begin(), preparedVmt.end()), preparedMaterial)
@@ -3219,11 +3217,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       tf2::native::WorldWaterParams waterParams;
       if (!waterMaterialName.empty()) {
         const std::string waterVmtPath = tf2::native::VmtParser::resourcePath(waterMaterialName, ".vmt");
-        std::vector<std::uint8_t> waterVmtBytes = readFile(assets.tfDirectory / std::filesystem::path(waterVmtPath));
-        for (const auto& archive : soundArchives) {
-          if (!waterVmtBytes.empty()) break;
-          waterVmtBytes = archive->read(waterVmtPath);
-        }
+        std::vector<std::uint8_t> waterVmtBytes = assetChain.lookup(waterVmtPath).bytes;
         if (waterVmtBytes.empty()) waterVmtBytes = readMaterialVtf(waterVmtPath);
         waterVmtText.assign(waterVmtBytes.begin(), waterVmtBytes.end());
         waterParams = tf2::native::measureWaterParams(waterVmtText, waterVmtPath);
