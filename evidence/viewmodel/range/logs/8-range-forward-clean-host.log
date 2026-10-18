@@ -1,0 +1,97 @@
+=== 0/5 the pinned recording ===
+  OK   autorecord_2026-07-02_13-26-46.dem pinned (21856667 bytes, c8a58501d222bdd9...)
+  OK   bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem pinned (51834617 bytes, 308cc1453672b26d...)
+  OK   pinned recordings verified = 2 (>= 1)
+  ..   the POV recording is D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem
+
+=== 1/5 every shipped arms model decodes every range ===
+  OK   scout: descriptors=1 ranges=1 vertices=13446
+  OK   soldier: descriptors=3 ranges=3 vertices=13074
+  OK   pyro: descriptors=3 ranges=3 vertices=8412
+  OK   demo: descriptors=2 ranges=2 vertices=10086
+  OK   heavy: descriptors=2 ranges=2 vertices=15732
+  OK   engineer: descriptors=4 ranges=4 vertices=11736
+  OK   medic: descriptors=2 ranges=2 vertices=8640
+  OK   sniper: descriptors=2 ranges=2 vertices=9996
+  OK   spy: descriptors=1 ranges=1 vertices=11640
+  OK   arms models that failed = 0
+
+=== 2/5 models/weapons/c_models/c_sniper_arms.mdl ===
+  OK   sniper probe rc = 0
+  OK   sniper target lod = 0
+  OK   sniper target descriptors = 2
+  OK   sniper target indices = 9996
+  OK   sniper mesh built = 1
+  OK   sniper ranges = 2
+  OK   sniper vertices = 9996
+  OK   sniper vertices match the descriptor indices = 9996
+  OK   sniper bones = 58
+  OK   range 0 vertices = 600
+  OK   range 0 material slot = 0
+  OK   range 0 material name contains sniper_red
+  OK   range 0 bad skin weights = 0
+  OK   range 1 vertices = 9396
+  OK   range 1 material slot = 1
+  OK   range 1 material name contains sniper_handL_red
+  OK   range 1 bad skin weights = 0
+  OK   range 1 highest bone index = 57
+  OK   range 0 highest bone index = 6
+
+=== 3/5 a malformed range refuses the model, and names itself ===
+  OK   control probe (unmodified model) rc = 0
+  OK   control mesh built = 1
+  OK   control ranges = 2
+  OK   fixture descriptor-not-triangles rc = 1
+  OK   fixture descriptor-not-triangles mesh built = 0
+  OK   fixture descriptor-not-triangles ranges = 0
+  OK   fixture descriptor-not-triangles names the refused descriptor contains was refused
+  OK   fixture descriptor-not-triangles names the cause contains not a bounded triangle list
+  OK   fixture descriptor-not-triangles refuses the whole mesh, not a part contains partial range set
+  OK   fixture descriptor-out-of-bounds rc = 1
+  OK   fixture descriptor-out-of-bounds mesh built = 0
+  OK   fixture descriptor-out-of-bounds ranges = 0
+  OK   fixture descriptor-out-of-bounds names the refused descriptor contains was refused
+  OK   fixture descriptor-out-of-bounds names the cause contains not a bounded triangle list
+  OK   fixture descriptor-out-of-bounds refuses the whole mesh, not a part contains partial range set
+  OK   fixture bone-out-of-range rc = 1
+  OK   fixture bone-out-of-range mesh built = 0
+  OK   fixture bone-out-of-range ranges = 0
+  OK   fixture bone-out-of-range names the refused descriptor contains was refused
+  OK   fixture bone-out-of-range names the cause contains out-of-range bone index
+  OK   fixture bone-out-of-range refuses the whole mesh, not a part contains partial range set
+  OK   fixture no-descriptors rc = 1
+  OK   fixture no-descriptors mesh built = 0
+  OK   fixture no-descriptors names the cause contains no renderable descriptors
+
+=== 4/5 the pass draws both ranges, with their own material slots ===
+  bind rc=0 bmp=2582406 bytes hash=a3d8a09a21418a8e...
+  OK   bind run rc = 0
+  OK   bind frame bytes = 2582406 (>= 1024)
+  OK   bind upload ranges = 2
+  OK   bind upload slots = 0,1
+  OK   bind upload vertices per range = 600,9396
+  OK   bind upload textured per range = 1,1
+  OK   bind pass drawn model = models/weapons/c_models/c_sniper_arms.mdl
+  OK   bind pass vertices = 9996
+  OK   bind pass ranges = 2
+  OK   bind pass distinct material slots = 2
+  OK   bind pass draw calls = 1
+  bind-repeat rc=0 bmp=2582406 bytes hash=a3d8a09a21418a8e...
+  OK   bind repeat run rc = 0
+  OK   bind repeat frame hash matches = a3d8a09a21418a8e03f57e7b2247925ec637235d50ac56d3613b85ff287fae9f
+  applied rc=0 bmp=2582406 bytes hash=c01a5ada75ce0ebc...
+  OK   applied run rc = 0
+  OK   applied pass vertices = 9996
+  OK   applied pass ranges = 2
+  OK   applied pass distinct material slots = 2
+  OK   applied pass skinned = 1
+  OK   applied pose was applied = 1
+  OK   applied frame differs from the bind frame = c01a5ada75ce0ebc3a23ddbfe8e0ca740b01fc053d24824b2718a8ed3b95ac39 (!= a3d8a09a21418a8e03f57e7b2247925ec637235d50ac56d3613b85ff287fae9f)
+
+=== 5/5 the readings can go red ===
+  ..   skipped: the two source mutations run under --mutation
+
+assertions: 74 held, 0 failed
+host_overlap=0 (a paused capture is insensitive to it; the repeat hash is the guard)
+VIEWMODEL-RANGE=PASS (74 OK, 0 FAIL)
+rc=0

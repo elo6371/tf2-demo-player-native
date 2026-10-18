@@ -1,0 +1,5 @@
+bind    rc=0 hash=a3d8a09a21418a8e03f57e7b2247925ec637235d50ac56d3613b85ff287fae9f bytes=2582406
+applied rc=0 hash=c01a5ada75ce0ebc3a23ddbfe8e0ca740b01fc053d24824b2718a8ed3b95ac39
+hostOverlap=0
+gpu: viewmodel ranges path=models/weapons/c_models/c_sniper_arms.mdl ranges=2 firstRange=(slot 0, 600 vertices, textured=1 translucent=0 alphatest=0) uploaded=1 rangeSlots=0,1 rangeVertices=600,9396 rangeTextured=1,1
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2

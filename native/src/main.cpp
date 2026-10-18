@@ -2988,14 +2988,35 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     const bool uploaded = renderer.uploadViewModelMesh(request.mesh.vertices, ranges);
     viewModelMeshBufferPath = uploaded ? path : std::string();
-    traceFmt("gpu: viewmodel ranges path=%s ranges=%zu firstRange=(slot %d, %u vertices, textured=%d translucent=%d alphatest=%d) uploaded=%d",
+    // Per-range readings, not just the first one. `firstRange` answers "did the
+    // first range bind a texture"; on a model with three ranges that is silent
+    // about the other two, and the whole point of T13 is that the arms model has
+    // more than one. The three lists are comma-separated in range order so a
+    // reader can see WHICH range lost its material, not only that one did.
+    std::string rangeSlots;
+    std::string rangeVertices;
+    std::string rangeTextured;
+    for (std::size_t index = 0; index < ranges.size(); ++index) {
+      if (index != 0) {
+        rangeSlots += ",";
+        rangeVertices += ",";
+        rangeTextured += ",";
+      }
+      rangeSlots += std::to_string(ranges[index].slot);
+      rangeVertices += std::to_string(ranges[index].vertexCount);
+      rangeTextured += ranges[index].materialKey.empty() ? "0" : "1";
+    }
+    traceFmt("gpu: viewmodel ranges path=%s ranges=%zu firstRange=(slot %d, %u vertices, textured=%d translucent=%d alphatest=%d) uploaded=%d rangeSlots=%s rangeVertices=%s rangeTextured=%s",
       request.path.empty() ? "-" : request.path.c_str(), ranges.size(),
       ranges.empty() ? -1 : ranges.front().slot,
       ranges.empty() ? 0u : ranges.front().vertexCount,
       (!ranges.empty() && !ranges.front().materialKey.empty()) ? 1 : 0,
       (!ranges.empty() && ranges.front().translucent) ? 1 : 0,
       (!ranges.empty() && ranges.front().alphaTest) ? 1 : 0,
-      uploaded ? 1 : 0);
+      uploaded ? 1 : 0,
+      rangeSlots.empty() ? "-" : rangeSlots.c_str(),
+      rangeVertices.empty() ? "-" : rangeVertices.c_str(),
+      rangeTextured.empty() ? "-" : rangeTextured.c_str());
     return uploaded;
   };
   // The weapon body's own slot, built once per distinct path for the same reason
@@ -3987,7 +4008,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // boneTableCoverage=0/0` is no table at all, and `skinning=1
     // boneTableCoverage=45/45` is a skinned draw. Without the pair, the refusal
     // and the no-table case are both just `skinning=0`.
-    traceFmt("gpu: viewmodel pass order worldPass=%zu viewModelPass=%zu afterWorld=%d drawCalls=%zu vertices=%zu depthWrite=%d depthFunc=%s skinning=%d boneTableCoverage=%zu/%zu animationInput=%s meshRadius=%.2f alignment=%s vmAnimInput=%s vmAnimApplied=%d drawnModel=%s entityModelMatchesDrawn=%d sequenceInRange=%d sequenceAccepted=%d sequenceOverride=%d modelMismatch=%zu boneMismatch=%zu bindPose=%d",
+    traceFmt("gpu: viewmodel pass order worldPass=%zu viewModelPass=%zu afterWorld=%d drawCalls=%zu vertices=%zu depthWrite=%d depthFunc=%s skinning=%d boneTableCoverage=%zu/%zu animationInput=%s meshRadius=%.2f alignment=%s vmAnimInput=%s vmAnimApplied=%d drawnModel=%s entityModelMatchesDrawn=%d sequenceInRange=%d sequenceAccepted=%d sequenceOverride=%d modelMismatch=%zu boneMismatch=%zu bindPose=%d ranges=%zu boundSlots=%zu",
       renderer.viewModelWorldPassOrdinal(), renderer.viewModelPassOrdinal(),
       renderer.viewModelPassOrdinal() > renderer.viewModelWorldPassOrdinal() ? 1 : 0,
       renderer.viewModelDrawCallCount(), renderer.viewModelVertexCount(),
@@ -4015,7 +4036,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       viewModelSequenceOverride,
       viewModelAnimationStats.modelMismatch,
       viewModelAnimationStats.boneMismatch,
-      viewModelAnimationStats.lastBindPose ? 1 : 0);
+      viewModelAnimationStats.lastBindPose ? 1 : 0,
+      // How many ranges the draw actually issued, and how many distinct material
+      // slots they bound. Two numbers because they answer different questions:
+      // `ranges=2 boundSlots=1` is a model that draws two pieces from one
+      // material, and `ranges=2 boundSlots=2` is the multi-material case T13 is
+      // about. Read on the pass's own line so a partial range set cannot hide
+      // behind an upload that counted all of them.
+      renderer.viewModelDrawRangeCount(), renderer.viewModelBoundSlots());
     const auto& clip = renderer.viewModelCenterClip();
     const auto& viewSpace = renderer.viewModelCenterViewSpace();
     const bool onScreen = clip[3] > 0.0f

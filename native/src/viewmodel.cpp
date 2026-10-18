@@ -410,15 +410,27 @@ ViewModelRequest buildViewModelCompanionRequest(const AssetRoot& root, const std
 
 void applyViewModelMaterialResult(ViewModelRequest& request) {
   request.resources.materialResolved = request.materials.materialResolved();
-  // The fallback reading is about the *drawn* range, not about the model: a
-  // ViewModel with three resolved slots and a fourth that failed still draws a
-  // texture for the mesh that was built, and calling that "flat colour fallback"
-  // would name the wrong thing. The drawn slot is the one the picture uses.
-  const auto drawn = request.materials.drawnSlot;
-  const bool drawnHasMaterial = drawn >= 0
-    && static_cast<std::size_t>(drawn) < request.materials.slots.size()
-    && request.materials.slots[static_cast<std::size_t>(drawn)].pixelsDecoded;
-  request.resources.flatColorFallback = !drawnHasMaterial;
+  // The fallback reading is about the *ranges the pass draws*, not about the
+  // model and not about one slot: a ViewModel with three resolved slots and a
+  // fourth that failed still draws a texture for the ranges that resolved, and
+  // calling that "flat colour fallback" would name the wrong thing.
+  //
+  // It used to be read off `materials.drawnSlot` alone, which was one slot when
+  // the mesh was one descriptor. `c_soldier_arms.mdl` draws three ranges on
+  // three slots and `c_engineer_arms.mdl` four, so a single slot cannot answer
+  // the question any more: a model whose first range resolved and whose second
+  // did not is neither "textured" nor "flat colour", and the honest reading is
+  // the count.
+  std::size_t texturedRanges = 0;
+  for (const auto& range : request.mesh.ranges) {
+    const auto slot = range.materialSlot;
+    if (slot >= 0 && static_cast<std::size_t>(slot) < request.materials.slots.size()
+        && request.materials.slots[static_cast<std::size_t>(slot)].pixelsDecoded) {
+      ++texturedRanges;
+    }
+  }
+  request.resources.flatColorFallback = request.mesh.ranges.empty()
+    || texturedRanges != request.mesh.ranges.size();
 }
 
 const char* viewModelAnimationStatusName(ViewModelAnimationStatus status) {

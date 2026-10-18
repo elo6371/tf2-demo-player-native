@@ -1,0 +1,106 @@
+T13 final verification
+started=2026-10-18T10:20:52Z
+worktree=/d/TF2_Native_Worktrees/t13-viewmodel-hands
+branch=task/t13-viewmodel-hands
+head=8bfce6825fefa599538fdf2de25c428d3b72fb20
+python=Python 3.13.14
+status_before:
+   M evidence/viewmodel/range/product-ranges.txt
+  ?? T13-VIEWMODEL-HANDS-2026-10-18.md
+=== 1 animation forward
+cmd: bash viewmodel-animation-check.sh
+exe_before=fc18151771504ba71215394891b622ec08fd1436a87ab0e7cb61a5b185655774
+range_probe_before=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+start=2026-10-18T10:21:00Z end=2026-10-18T10:32:29Z
+log=.scratch/t13-final/1-animation-forward.log
+rc=0
+verdict=VIEWMODEL-ANIMATION=PASS
+exe_after=fc18151771504ba71215394891b622ec08fd1436a87ab0e7cb61a5b185655774
+range_probe_after=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+=== 2 companion forward
+cmd: bash viewmodel-companion-check.sh
+exe_before=fc18151771504ba71215394891b622ec08fd1436a87ab0e7cb61a5b185655774
+range_probe_before=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+start=2026-10-18T10:32:37Z end=2026-10-18T10:42:12Z
+log=.scratch/t13-final/2-companion-forward.log
+rc=0
+verdict=VIEWMODEL-COMPANION=PASS
+exe_after=fc18151771504ba71215394891b622ec08fd1436a87ab0e7cb61a5b185655774
+range_probe_after=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+=== 3 companion mutation
+cmd: bash viewmodel-companion-check.sh --mutation
+exe_before=fc18151771504ba71215394891b622ec08fd1436a87ab0e7cb61a5b185655774
+range_probe_before=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+start=2026-10-18T10:42:22Z end=2026-10-18T10:58:25Z
+log=.scratch/t13-final/3-companion-mutation.log
+rc=0
+verdict=MUTATION-CAUGHT=PASS (6 defects, each with its own named reading and control)
+exe_after=fb05326afd7c4e8fcab27d4e9d75239c119da79823bd0593566964cd0524c1ce
+range_probe_after=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+=== 4a rebuild after companion mutation
+rc=0
+exe=fb05326afd7c4e8fcab27d4e9d75239c119da79823bd0593566964cd0524c1ce
+range_probe=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+tracked_changes_after_companion_restore:
+   M evidence/viewmodel/range/product-ranges.txt
+  ?? T13-VIEWMODEL-HANDS-2026-10-18.md
+=== 5 range forward
+cmd: bash viewmodel-range-check.sh
+exe_before=fb05326afd7c4e8fcab27d4e9d75239c119da79823bd0593566964cd0524c1ce
+range_probe_before=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+start=2026-10-18T10:58:50Z end=2026-10-18T11:02:45Z
+log=.scratch/t13-final/5-range-forward.log
+rc=0
+verdict=VIEWMODEL-RANGE=PASS (74 OK, 0 FAIL)
+exe_after=fb05326afd7c4e8fcab27d4e9d75239c119da79823bd0593566964cd0524c1ce
+range_probe_after=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+=== 6 range mutation
+cmd: bash viewmodel-range-check.sh --mutation
+exe_before=fb05326afd7c4e8fcab27d4e9d75239c119da79823bd0593566964cd0524c1ce
+range_probe_before=e3ce9a6b2efc355acdf77ca458f0add8c1ec3637c28d5e51b246d33fd5de3bbd
+start=2026-10-18T11:02:54Z end=2026-10-18T11:08:48Z
+log=.scratch/t13-final/6-range-mutation.log
+rc=0
+verdict=MUTATION-CAUGHT=PASS (2 of 2)
+exe_after=685e0c0f1f09fa031b5f70b575e775d85e840b46ba4147845c8d8f67b1bede7f
+range_probe_after=d685779e14b2bb66cfe4dea58c723df50bc64b7ea888664dba7493411c1b4b00
+=== 4b rebuild after range mutation
+rc=0
+=== 7 range forward after the final rebuild
+cmd: bash viewmodel-range-check.sh
+exe_before=685e0c0f1f09fa031b5f70b575e775d85e840b46ba4147845c8d8f67b1bede7f
+range_probe_before=d685779e14b2bb66cfe4dea58c723df50bc64b7ea888664dba7493411c1b4b00
+start=2026-10-18T11:09:05Z end=2026-10-18T11:12:57Z
+log=.scratch/t13-final/7-range-forward-post-rebuild.log
+rc=0
+verdict=VIEWMODEL-RANGE=PASS (74 OK, 0 FAIL)
+exe_after=685e0c0f1f09fa031b5f70b575e775d85e840b46ba4147845c8d8f67b1bede7f
+range_probe_after=d685779e14b2bb66cfe4dea58c723df50bc64b7ea888664dba7493411c1b4b00
+=== final state
+exe_sha256=685e0c0f1f09fa031b5f70b575e775d85e840b46ba4147845c8d8f67b1bede7f
+range_probe_sha256=d685779e14b2bb66cfe4dea58c723df50bc64b7ea888664dba7493411c1b4b00
+animation_probe_sha256=96535dd9539469156dfc900b4e9fb38ce54e19984bbb7ea3db7f05f0edb0a6ec
+frame_bind_sha256=a3d8a09a21418a8e03f57e7b2247925ec637235d50ac56d3613b85ff287fae9f
+frame_applied_sha256=c01a5ada75ce0ebc3a23ddbfe8e0ca740b01fc053d24824b2718a8ed3b95ac39
+source_hashes:
+  10c14ad8dc10afbca7f4fbd26e975ebd93d27d40203bfc48a08c49dbc0f64f35  native/src/model_loader.cpp
+  1b0c3c3b810cf4c0efe620ee4d5867e2c54fa1d6d41790781141e84c58706576  native/src/main.cpp
+  e17a85dcb1fd0ed0ba9b0b5f779cdf18f97fba409bf88b64689c67db0d42fb81  native/src/viewmodel.cpp
+  c4ed8f6ee028e88f789bb255b78ebcb6866e3fc6fb5e387fbc3c8b69a8dfb88f  native/tools/viewmodel_range_probe.cpp
+status_after:
+  ?? T13-VIEWMODEL-HANDS-2026-10-18.md
+tf2_processes_after:
+lock_dirs_after:
+  none
+completed=2026-10-18T11:13:19Z
+=== 8 range forward on a quiet host (replaces the committed evidence)
+cmd: bash viewmodel-range-check.sh
+log=evidence/viewmodel/range/logs/8-range-forward-clean-host.log
+completed=2026-10-18T19:20:06+08:00 duration=4m03s
+rc=0
+verdict=VIEWMODEL-RANGE=PASS (74 OK, 0 FAIL)
+host_overlap=0
+exe=685e0c0f1f09fa031b5f70b575e775d85e840b46ba4147845c8d8f67b1bede7f
+range_probe=d685779e14b2bb66cfe4dea58c723df50bc64b7ea888664dba7493411c1b4b00
+frame_bind=a3d8a09a21418a8e03f57e7b2247925ec637235d50ac56d3613b85ff287fae9f
+frame_applied=c01a5ada75ce0ebc3a23ddbfe8e0ca740b01fc053d24824b2718a8ed3b95ac39
