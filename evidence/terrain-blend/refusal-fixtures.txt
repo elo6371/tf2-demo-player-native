@@ -1,0 +1,22 @@
+{"reading":"refusal.layer-base-unresolved.reason","value":"the first layer did not resolve, so there is nothing to blend from"}
+{"reading":"refusal.layer-base-unresolved.refused","value":"1"}
+{"reading":"refusal.layer-second-unresolved.reason","value":"the second layer materials/fixture/missing.vtf did not resolve from loose, VPK or pakfile"}
+{"reading":"refusal.layer-second-unresolved.refused","value":"1"}
+{"reading":"refusal.layer-not-vtf.reason","value":"the second layer materials/fixture/broken.vtf is not a readable VTF"}
+{"reading":"refusal.layer-not-vtf.refused","value":"1"}
+{"reading":"refusal.layer-decode-empty.reason","value":"the second layer materials/fixture/cube.vtf decoded to nothing"}
+{"reading":"refusal.layer-decode-empty.refused","value":"1"}
+{"reading":"refusal.layer-resample-failed.reason","value":"the second layer materials/fixture/second.vtf could not be resampled to the tile grid"}
+{"reading":"refusal.layer-resample-failed.refused","value":"1"}
+{"reading":"refusal.modulate-no-second-layer.reason","value":"the material has no usable second layer to modulate"}
+{"reading":"refusal.modulate-no-second-layer.refused","value":"1"}
+{"reading":"refusal.modulate-unresolved.reason","value":"did not resolve from loose, VPK or pakfile"}
+{"reading":"refusal.modulate-unresolved.refused","value":"1"}
+{"reading":"refusal.modulate-decode-empty.reason","value":"decoded to nothing or could not be resampled"}
+{"reading":"refusal.modulate-decode-empty.refused","value":"1"}
+{"reading":"refusal.cases","value":"8"}
+{"reading":"refusal.refused","value":"8"}
+{"reading":"refusal.controlLayerResolved","value":"1"}
+{"reading":"refusal.controlModulateResolved","value":"1"}
+{"reading":"refusal.controlLayerPixels","value":"16384"}
+{"reading":"refusal.controlModulatePixels","value":"16384"}

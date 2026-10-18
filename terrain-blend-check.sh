@@ -17,18 +17,24 @@
 # WHAT IS ASSERTED, IN ORDER
 #   1. the probe's reading of the map's own blend resources: which shader, which
 #      two layers, which modulate, which of the three stores each came from, the
-#      source and destination dimensions of every downscale, and the weight
-#      distribution the parser extracted from `CDispVert::m_flAlpha`
+#      source and destination dimensions of every downscale, the weight
+#      distribution the parser extracted from `CDispVert::m_flAlpha`, and the
+#      (position, weight) pairing T11's winding swap must preserve
 #   2. the probe is deterministic: two runs over the same BSP agree byte for byte
-#   3. the product's own reading of the same map: the atlas is bound (not
+#   3. the refusal paths, executed: eight malformed fixtures and two controls,
+#      each failure carrying the reason the product itself would print
+#   4. the product's own reading of the same map: the atlas is bound (not
 #      silently refused), the blend tiles are in it, and the weights on the
 #      uploaded vertices are the map's weights and not a constant
-#   4. the pixels: terrain on != terrain off, terrain on == terrain repeat, and
+#   4b. the atlas coverage: all three blend materials fit ahead of the cap, and
+#      the texturable materials the cap still drops are counted, named and
+#      asked whether the demo camera can see them
+#   5. the pixels: terrain on != terrain off, terrain on == terrain repeat, and
 #      -- the part counters cannot give -- the differing pixels lie inside the
 #      terrain region. The region is measured, not assumed: one frame contains
 #      the terrain and nothing else, one contains the background and nothing
 #      else, and the region is their difference.
-#   5. the mutations: four defects, each of which must turn the gate red, each
+#   6. the mutations: four defects, each of which must turn the gate red, each
 #      restored and proved byte-identical before the next one.
 #
 # BUILD FIRST
@@ -110,7 +116,7 @@ rk() { printf '%s\n' "$1" | tr -d '\r' | sed -n "s/^$2=//p" | head -1; }
 # num <value> -> the integer part, so "0.000" can be compared as a number
 num() { printf '%s' "${1:-}" | sed -n 's/^\(-\{0,1\}[0-9][0-9]*\).*/\1/p'; }
 
-echo "=== 1/5 the blend resources, read off the map rather than off the VMTs ==="
+echo "=== 1/6 the blend resources, read off the map rather than off the VMTs ==="
 # The probe walks the BSP's own displacement faces, takes the materials they
 # name, and resolves each VMT's fields through the same loose -> VPK -> pakfile
 # order the product uses. `--expect-blend` makes it fail loudly if the material
@@ -173,9 +179,25 @@ assert_ge "weighted vertices" "$(kv "$REAL" disp.weightedVertices)" "100000"
 assert_eq "sentinel vertices" "$(kv "$REAL" disp.sentinelVertices)" "0"
 assert_ge "distinct weights" "$(kv "$REAL" disp.distinctWeights)" "2"
 assert_eq "weight range" "$(kv "$REAL" disp.weightRange)" "0.000..1.000"
+# T12 post-merge: the weight rides on a vertex, and T11 reverses b and c to
+# orient a displacement triangle. A swap that moves the positions without the
+# weights draws a blend whose mask is mirrored inside every quad -- a picture
+# that still blends, so no count above moves. `detached` is the only reading
+# that sees it.
+assert_ge "alpha pairings checked" "$(kv "$REAL" disp.alphaPairingChecked)" "100000"
+assert_eq "alpha pairings detached" "$(kv "$REAL" disp.alphaPairingDetached)" "0"
+# Kept for the mutation below: the count must not move when only the pairing
+# does, or the assertion would be satisfied by a build that stopped checking.
+FORWARD_ALPHA_PAIRS=$(kv "$REAL" disp.alphaPairingChecked)
+# T12 step 8: which of the three unimplemented Source fields the terrain's own
+# materials name. Measured rather than assumed, because the decision to leave
+# them out has to point at the references that would have needed them.
+assert_ge "materials declaring \$bumpmap2" "$(kv "$REAL" blend.bumpmap2Declared)" "1"
+assert_ge "materials declaring %detailtype" "$(kv "$REAL" blend.detailtypeDeclared)" "1"
+assert_ge "materials declaring \$ssbump" "$(kv "$REAL" blend.ssbumpDeclared)" "1"
 
 echo
-echo "=== 2/5 the probe is deterministic ==="
+echo "=== 2/6 the probe is deterministic ==="
 REAL2=$("$PROBE" --map "$TF/maps/$MAP.bsp" --tf-root "$TF" --expect-blend "$BLEND_MATERIAL" 2>&1)
 echo "$REAL2" > "$SCRATCH/probe-repeat.$RUN_TAG.txt"
 if cmp -s "$OUT/probe-$MAP.txt" "$SCRATCH/probe-repeat.$RUN_TAG.txt"; then
@@ -208,7 +230,48 @@ run_product() { # run_product <name> [extra args...]
 }
 
 echo
-echo "=== 3/5 the product's own reading of the same map ==="
+echo "=== 3/6 the refusal paths, executed on malformed fixtures ==="
+# A refusal counter of zero is not evidence that a refusal works. The reference
+# map reaches none of them -- every layer resolves -- so `refused=0` was a
+# reading about the map, not about the code. `--refusal-fixtures` hands the same
+# resolver the malformed inputs it claims to reject. It is the same code the
+# product runs: main.cpp calls resolveBlendLayer and resolveBlendModulate, so a
+# reason proved here is the reason a map with broken assets would print.
+REFUSAL=$("$PROBE" --refusal-fixtures 2>&1)
+REFUSAL_RC=$?
+echo "$REFUSAL" > "$OUT/refusal-fixtures.txt"
+assert_eq "refusal fixtures rc" "$REFUSAL_RC" "0"
+assert_eq "refusal cases" "$(kv "$REFUSAL" refusal.cases)" "8"
+assert_eq "refusal cases refused" "$(kv "$REFUSAL" refusal.refused)" "8"
+# Two controls. A fixture set in which everything is refused would satisfy the
+# counts above while proving only that the resolver refuses everything; the
+# controls say a well-formed layer and a well-formed modulate still resolve to
+# tile-sized pixels.
+assert_eq "control layer resolves" "$(kv "$REFUSAL" refusal.controlLayerResolved)" "1"
+assert_eq "control modulate resolves" "$(kv "$REFUSAL" refusal.controlModulateResolved)" "1"
+assert_eq "control layer pixels" "$(kv "$REFUSAL" refusal.controlLayerPixels)" "16384"
+# Each reason by the phrase that makes it specific. A resolver returning one
+# string for every failure would pass "refused=8" and fail this table.
+while IFS='|' read -r rcase expect; do
+  [ -z "$rcase" ] && continue
+  got=$(kv "$REFUSAL" "refusal.$rcase.reason")
+  case "$got" in
+    *"$expect"*) echo "  OK   $rcase -> $got" ;;
+    *) echo "  FAIL $rcase -> ${got:-<none>}, expected to contain: $expect"; fail=1 ;;
+  esac
+done <<'TABLE'
+layer-base-unresolved|the first layer did not resolve
+layer-second-unresolved|did not resolve from loose, VPK or pakfile
+layer-not-vtf|is not a readable VTF
+layer-decode-empty|decoded to nothing
+layer-resample-failed|could not be resampled
+modulate-no-second-layer|no usable second layer to modulate
+modulate-unresolved|did not resolve from loose, VPK or pakfile
+modulate-decode-empty|decoded to nothing or could not be resampled
+TABLE
+
+echo
+echo "=== 4/6 the product's own reading of the same map ==="
 run_product allon
 run_product alloff --world-blend off
 run_product allrep
@@ -230,10 +293,11 @@ GEOM_ON=$(grep -ao "gpu: world geometry=.*" "$TRACE_allon" 2>/dev/null | head -1
 GEOM_TER=$(grep -ao "gpu: world geometry=.*" "$TRACE_terron" 2>/dev/null | head -1)
 GEOM_NONE=$(grep -ao "gpu: world geometry=.*" "$TRACE_none" 2>/dev/null | head -1)
 VIS_ON=$(grep -ao "gpu: world vis .*" "$TRACE_allon" 2>/dev/null | head -1)
+MATFETCH=$(grep -ao "gpu: world material-fetch .*" "$TRACE_allon" 2>/dev/null | head -1)
 VIS_TER=$(grep -ao "gpu: world vis .*" "$TRACE_terron" 2>/dev/null | head -1)
 if [ -n "$BLEND_ON" ] && [ -n "$BLEND_OFF" ] && [ -n "$ATLAS" ]; then
-  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$BLEND_ON" "$BLEND_OFF" "$ATLAS" "$FETCH" \
-    "$GEOM_ON" "$GEOM_TER" "$GEOM_NONE" > "$OUT/product-readings.txt"
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$BLEND_ON" "$BLEND_OFF" "$ATLAS" "$FETCH" \
+    "$GEOM_ON" "$GEOM_TER" "$GEOM_NONE" "$MATFETCH" > "$OUT/product-readings.txt"
 else
   echo "  FAIL a product run produced no blend reading, so $OUT/product-readings.txt is left as it was"; fail=1
 fi
@@ -252,6 +316,15 @@ assert_ge "atlas bytes" "$(rval "$ATLAS" bytes)" "67000000"
 # vertex would mean the material reached the atlas and no geometry asked for it.
 assert_ge "blend tiles" "$(rval "$BLEND_ON" tiles)" "1"
   assert_ge "modulate tiles" "$(rval "$BLEND_ON" modulateTiles)" "1"
+  # The order, as the product counted it: three materials declare a second layer
+  # and were sorted ahead of the cap. The probe's census agrees, but this is the
+  # reading the product itself produced for this frame, and it is what m6 moves.
+  assert_eq "blend materials sorted first (product)" "$(rval "$MATFETCH" blendFirst)" "3"
+  # The ordering's outcome, which a triangle-count order cannot produce: every
+  # blend material is offered a tile before the cap cuts (rank <= 64, measured 3)
+  # and none is dropped (measured 0).
+  assert_le "last blend material's rank in the sort" "$(rval "$MATFETCH" blendLastRank)" "64"
+  assert_eq "blend materials dropped by the cap (product)" "$(rval "$MATFETCH" blendCapped)" "0"
   # The forward value, kept so the mutation's "this must not move" assertions can
   # compare against what this run measured rather than against a number typed
   # into the script.
@@ -290,7 +363,34 @@ assert_eq "none switch" "$(rval "$GEOM_NONE" geometry)" "none"
 assert_ge "all triangles" "$(rval "$VIS_ON" inputTriangles)" "100000"
 
 echo
-echo "=== 4/5 the pixels, and where they are ==="
+echo "=== 4b/6 the atlas coverage: which materials the cap drops ==="
+# The 64-tile atlas is a cap, and until this reading existed nobody had measured
+# which materials it drops. On the reference map 148 materials are used, 64 take
+# a tile, and the rest draw the fallback. Before this round the third blend
+# material -- the COALMINES terrain -- was one of them, so part of the map's
+# terrain was a flat foreign tile. The census reproduces the product's order
+# (blend materials first, then triangle count) and asks the product's own camera
+# cluster which of the dropped materials are in view, so `capped` here means the
+# set the frame actually dropped.
+COVER=$("$PROBE" --map "$TF/maps/$MAP.bsp" --tf-root "$TF" \
+  --cluster "$(rval "$VIS_ON" cameraCluster)" 2>&1)
+echo "$COVER" > "$OUT/atlas-coverage-$MAP.txt"
+assert_eq "atlas census uses the product's cluster" \
+  "$(kv "$COVER" atlas.eyeCluster)" "$(rval "$VIS_ON" cameraCluster)"
+# All three WorldVertexTransition materials the map's displacements carry fit
+# ahead of the cap. This is the reading that changed when the sort changed: the
+# pre-merge census had one of the three past it.
+assert_eq "blend materials ordered ahead of the cap" "$(kv "$COVER" atlas.blendFirst)" "3"
+assert_eq "blend materials past the cap" "$(kv "$COVER" atlas.cappedBlendMaterials)" "0"
+# The cap still drops texturable single-layer materials, and some are in view.
+# Both are recorded rather than asserted away: the decision in the report is
+# about these numbers (48 texturable, 41 in view on the pinned camera), and a
+# future batching change has to move them.
+assert_ge "texturable materials past the cap" "$(kv "$COVER" atlas.cappedTexturable)" "1"
+assert_ge "texturable capped materials in view" "$(kv "$COVER" atlas.cappedTexturableVisible)" "1"
+
+echo
+echo "=== 5/6 the pixels, and where they are ==="
 # The region, measured rather than assumed. `terroff` draws the terrain and
 # nothing else (the sky and water passes are forced off in that mode), `none`
 # draws nothing at all from the same camera, and the terrain region is the set
@@ -344,6 +444,24 @@ d_on_rep = sum(1 for i in range(total) if px['allon'][i] != px['allrep'][i])
 d_terrain = [i for i in range(total) if px['terron'][i] != px['terroff'][i]]
 inside = sum(1 for i in d_on_off if mask[i])
 inside_terrain = sum(1 for i in d_terrain if mask[i])
+# T12 post-merge: with the world drawn, a terrain pixel only shows its blend
+# difference if no other geometry covers it. Every pixel the blender changed
+# must therefore also be a pixel the terrain-only pair changed -- if the full
+# frame changes where the terrain alone does not, something outside the terrain
+# is being blended.
+in_terrain_pair = sum(1 for i in d_on_off if px['terron'][i] != px['terroff'][i])
+# And the shortfall itself, attributed: a terrain-only blend pixel that the
+# composed frame does not change, at a pixel where the world frame differs from
+# the terrain-only frame, is covered by world geometry. This is the reading that
+# explains 3530 -> 470 without appealing to "the blend got weaker".
+lost = 0
+occluded = 0
+for i in d_terrain:
+    if px['allon'][i] != px['alloff'][i]:
+        continue
+    lost += 1
+    if px['allon'][i] != px['terron'][i]:
+        occluded += 1
 print('frame=%dx%d' % (w, h))
 print('pixels=%d' % total)
 print('terrain_region=%d' % mask_count)
@@ -354,6 +472,9 @@ print('diff_on_off_out_region=%d' % (len(d_on_off) - inside))
 print('diff_on_repeat=%d' % d_on_rep)
 print('diff_terrain_pair=%d' % len(d_terrain))
 print('diff_terrain_pair_in_region=%d' % inside_terrain)
+print('diff_on_off_in_terrain_pair=%d' % in_terrain_pair)
+print('diff_terrain_pair_not_in_full=%d' % lost)
+print('diff_terrain_pair_occluded=%d' % occluded)
 PY
 )
 echo "$REGION" > "$OUT/region.txt"
@@ -366,8 +487,15 @@ printf '%s\n' "$REGION" | sed 's/^/  /'
 # submitting the terrain would read 0.
 assert_ge "terrain region pixels" "$(rk "$REGION" terrain_region)" "5000"
 assert_le "terrain region percent" "$(rk "$REGION" terrain_region_pct)" "95"
-# The change itself. Measured 1930 pixels on the pinned frame.
-assert_ge "pixels changed by the blend" "$(rk "$REGION" diff_on_off)" "500"
+# The change itself, on the full frame. Measured 470 pixels on the integrated
+# tree (post-T11), against 1930 on the pre-merge tree. The drop is not a blend
+# defect: with only the terrain drawn the same pair changes 3530 pixels, and
+# 3036 of the 3530 that disappear from the full frame are pixels where the world
+# pass now draws over the terrain -- T11 fixed the winding, so more geometry is
+# in front of the terrain band. The floor therefore guards "the blend still
+# changes the composed frame at all"; the sharper claim, and the one that
+# carries the blend correctness, is the terrain-only pair below at 3530.
+assert_ge "pixels changed by the blend" "$(rk "$REGION" diff_on_off)" "400"
 # And the claim the task actually asks for: the change is in the terrain.
 OUTSIDE=$(rk "$REGION" diff_on_off_out_region)
 INSIDE=$(rk "$REGION" diff_on_off_in_region)
@@ -384,10 +512,30 @@ else
   echo "  FAIL the region comparison did not report the containment counts"; fail=1
 fi
 # The same pair with the rest of the world removed: every pixel that changes is
-# terrain by construction, so this is the sharper of the two claims.
-assert_ge "pixels changed with only terrain drawn" "$(rk "$REGION" diff_terrain_pair)" "500"
+# terrain by construction, so this is the sharper of the two claims. Measured
+# 3530 on the integrated tree; the floor is 15% below that, which is where it
+# stops being a restatement of the measurement.
+assert_ge "pixels changed with only terrain drawn" "$(rk "$REGION" diff_terrain_pair)" "3000"
 assert_eq "terrain pair changes are all in the region" \
   "$(rk "$REGION" diff_terrain_pair_in_region)" "$(rk "$REGION" diff_terrain_pair)"
+# Every pixel the composed frame changes must be one the terrain-only pair also
+# changed. This is what turns "the shortfall is occlusion" from an explanation
+# into an assertion: a blend that leaked onto a wall would change a composed
+# pixel that the terrain pair never touched.
+assert_eq "composed blend changes are a subset of the terrain pair" \
+  "$(rk "$REGION" diff_on_off_in_terrain_pair)" "$(rk "$REGION" diff_on_off)"
+# The attribution of the shortfall, asserted rather than narrated: of the
+# terrain-only blend pixels the composed frame does not show, at least 90% must
+# be pixels where the world frame differs from the terrain-only frame, i.e.
+# geometry drawn in front. Measured 3036 of 3060 (99.2%). A blend that stopped
+# changing the terrain would push this ratio down while `lost` grew.
+LOST=$(rk "$REGION" diff_terrain_pair_not_in_full)
+OCCLUDED=$(rk "$REGION" diff_terrain_pair_occluded)
+if [ -n "$LOST" ] && [ -n "$OCCLUDED" ] && [ "$LOST" -gt 0 ] && [ "$OCCLUDED" -ge "$(( LOST * 90 / 100 ))" ]; then
+  echo "  OK   $OCCLUDED of $LOST terrain-pair pixels the frame does not show are covered by world geometry"
+else
+  echo "  FAIL only ${OCCLUDED:-<none>} of ${LOST:-<none>} missing terrain-pair pixels are covered by world geometry"; fail=1
+fi
 # And the repeat.
 assert_eq "all/on == all/repeat" "$(rk "$REGION" diff_on_repeat)" "0"
 
@@ -407,7 +555,7 @@ sed 's/^/  /' "$OUT/frames.sha256"
 
 echo
 if [ "$MUTATION" -eq 1 ]; then
-  echo "=== 5/5 the mutations: four defects, each of which must turn this gate red ==="
+  echo "=== 6/6 the mutations: six defects, each of which must turn this gate red ==="
   # The cheap half first: values the run must NOT produce.
   if [ "$(rval "$BLEND_ON" tiles)" = "0" ]; then
     echo "  FAIL the blend reached no tile while the switch was on"; exit 1
@@ -588,6 +736,81 @@ PY
   restore_source "$M4_BACKUP" native/src/native_renderer.cpp m4 tf2_demo_native || {
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
 
+  # ---- m5: the winding swaps the positions and not the weights ------------
+  # T11 reverses b and c to orient a displacement triangle. If the alphas do not
+  # travel with them, the author's mask is mirrored inside every quad: the blend
+  # still happens, and every count above still reads the same. Only
+  # `alphaPairingDetached` can see it, and this mutation is what makes that
+  # counter evidence instead of a zero.
+  echo "--- m5: the winding swap leaves the blend weights on the old corners"
+  M5_BACKUP="$SCRATCH/bsp_map.cpp.alphaswap.backup"
+  cp native/src/bsp_map.cpp "$M5_BACKUP"
+  patch_in native/src/bsp_map.cpp \
+    '            std::swap(bAlpha, cAlpha);' \
+    '            // mutation: the weights stay on the corners they were read on' || {
+      echo "  MUTATION-SETUP=FAIL (m5: the patch did not apply)"
+      cp "$M5_BACKUP" native/src/bsp_map.cpp; echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
+  if ! bash build-target.sh terrain_blend_probe > "$SCRATCH/m5.build" 2>&1; then
+    echo "  MUTATION-SETUP=FAIL (m5: the rebuild failed)"
+    restore_source "$M5_BACKUP" native/src/bsp_map.cpp m5 terrain_blend_probe || true
+    echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
+  fi
+  M5=$("$PROBE" --map "$TF/maps/$MAP.bsp" --tf-root "$TF" 2>&1)
+  M5_DETACHED=$(kv "$M5" disp.alphaPairingDetached)
+  M5_CHECKED=$(kv "$M5" disp.alphaPairingChecked)
+  # The count of checked pairs must not move: a build that stopped checking
+  # would report detached=0 and satisfy the forward assertion by doing nothing.
+  if [ "${M5_DETACHED:-0}" -gt 0 ] 2>/dev/null && [ "$M5_CHECKED" = "$FORWARD_ALPHA_PAIRS" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m5: detached=$M5_DETACHED of checked=$M5_CHECKED)"
+  else
+    echo "  MUTATION-CAUGHT=FAIL (m5: detached=$M5_DETACHED checked=$M5_CHECKED, forward checked=$FORWARD_ALPHA_PAIRS)"
+    restore_source "$M5_BACKUP" native/src/bsp_map.cpp m5 terrain_blend_probe || true
+    echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
+  fi
+  echo "$M5" > "$OUT/mutated-m5-detached-alpha.txt"
+  restore_source "$M5_BACKUP" native/src/bsp_map.cpp m5 terrain_blend_probe || {
+    echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
+
+  # ---- m6: the atlas order ignores the second layer ------------------------
+  # A blend material past the cap does not merely draw a foreign tile -- it
+  # loses its own second layer as well. The order is the fix, so the mutation
+  # removes it and reads the product's own `blendFirst` count. The probe's
+  # census is a separate implementation and cannot be used to prove this one.
+  echo "--- m6: the atlas order ignores \$basetexture2 again"
+  M6_BACKUP="$SCRATCH/main.cpp.blendfirst.backup"
+  cp native/src/main.cpp "$M6_BACKUP"
+  patch_in native/src/main.cpp \
+    '          if (lb != rb) return lb;' \
+    '          if (false) return lb;  // mutation: triangle count decides again' || {
+      echo "  MUTATION-SETUP=FAIL (m6: the patch did not apply)"
+      cp "$M6_BACKUP" native/src/main.cpp; echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
+  if ! bash build-target.sh tf2_demo_native > "$SCRATCH/m6.build" 2>&1; then
+    echo "  MUTATION-SETUP=FAIL (m6: the rebuild failed)"
+    restore_source "$M6_BACKUP" native/src/main.cpp m6 tf2_demo_native || true
+    echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
+  fi
+  run_product m6
+  M6_LINE=$(grep -ao "gpu: world material-fetch .*" "$TRACE_m6" 2>/dev/null | head -1)
+  M6_FIRST=$(rval "$M6_LINE" blendFirst)
+  M6_TILED=$(rval "$M6_LINE" tiled)
+  M6_CAPPED=$(rval "$M6_LINE" blendCapped)
+  M6_RANK=$(rval "$M6_LINE" blendLastRank)
+  # `blendFirst` does not move here -- it counts declarations, not positions,
+  # and that is why the first version of this mutation was not caught by it.
+  # The readings that describe the ordering are the rank the last blend material
+  # reached and whether the cap dropped one.
+  if [ "${M6_CAPPED:-0}" -ge 1 ] 2>/dev/null && [ "${M6_RANK:-0}" -gt 64 ] 2>/dev/null \
+     && [ "$M6_TILED" = "64" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m6: blendCapped=$M6_CAPPED at rank $M6_RANK of 148, tiled=$M6_TILED)"
+  else
+    echo "  MUTATION-CAUGHT=FAIL (m6: blendFirst=$M6_FIRST blendCapped=$M6_CAPPED rank=$M6_RANK tiled=$M6_TILED)"
+    restore_source "$M6_BACKUP" native/src/main.cpp m6 tf2_demo_native || true
+    echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
+  fi
+  echo "$M6_LINE" > "$OUT/mutated-m6-no-blend-priority.txt"
+  restore_source "$M6_BACKUP" native/src/main.cpp m6 tf2_demo_native || {
+    echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
+
   # The forward sections ran BEFORE the mutations, and both verdicts have to
   # hold: the four mutations going red, and the four sections above staying
   # green. A caught mutation over a red gate is not a pass.
@@ -597,8 +820,9 @@ PY
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
   fi
   echo "MUTATION-CAUGHT=PASS (the unread vertex alpha, the unparsed second layer,"
-  echo "  the constant weight and the dropped modulate each go red; every source"
-  echo "  came back byte-identical)"
+  echo "  the constant weight, the dropped modulate, the weights left behind by the"
+  echo "  winding swap and the unordered atlas each go red; every source came back"
+  echo "  byte-identical)"
   exit 0
 fi
 

@@ -1,4 +1,4 @@
-=== 1/5 the blend resources, read off the map rather than off the VMTs ===
+=== 1/6 the blend resources, read off the map rather than off the VMTs ===
   OK   probe rc = 0
   OK   map = cp_snakewater_final1
   OK   map truncated = 1
@@ -25,11 +25,32 @@
   OK   sentinel vertices = 0
   OK   distinct weights = 10 (>= 2)
   OK   weight range = 0.000..1.000
+  OK   alpha pairings checked = 165628 (>= 100000)
+  OK   alpha pairings detached = 0
+  OK   materials declaring $bumpmap2 = 1 (>= 1)
+  OK   materials declaring %detailtype = 1 (>= 1)
+  OK   materials declaring $ssbump = 3 (>= 1)
 
-=== 2/5 the probe is deterministic ===
+=== 2/6 the probe is deterministic ===
   OK   two probe runs agree byte for byte
 
-=== 3/5 the product's own reading of the same map ===
+=== 3/6 the refusal paths, executed on malformed fixtures ===
+  OK   refusal fixtures rc = 0
+  OK   refusal cases = 8
+  OK   refusal cases refused = 8
+  OK   control layer resolves = 1
+  OK   control modulate resolves = 1
+  OK   control layer pixels = 16384
+  OK   layer-base-unresolved -> the first layer did not resolve, so there is nothing to blend from
+  OK   layer-second-unresolved -> the second layer materials/fixture/missing.vtf did not resolve from loose, VPK or pakfile
+  OK   layer-not-vtf -> the second layer materials/fixture/broken.vtf is not a readable VTF
+  OK   layer-decode-empty -> the second layer materials/fixture/cube.vtf decoded to nothing
+  OK   layer-resample-failed -> the second layer materials/fixture/second.vtf could not be resampled to the tile grid
+  OK   modulate-no-second-layer -> the material has no usable second layer to modulate
+  OK   modulate-unresolved -> did not resolve from loose, VPK or pakfile
+  OK   modulate-decode-empty -> decoded to nothing or could not be resampled
+
+=== 4/6 the product's own reading of the same map ===
   OK   all/on rc = 0
   OK   all/off rc = 0
   OK   all/repeat rc = 0
@@ -42,10 +63,13 @@
   OK   atlas state = bound
   OK   atlas size = 4112
   OK   atlas bytes = 67634176 (>= 67000000)
-  OK   blend tiles = 2 (>= 1)
+  OK   blend tiles = 3 (>= 1)
   OK   modulate tiles = 2 (>= 1)
+  OK   blend materials sorted first (product) = 3
+  OK   last blend material's rank in the sort = 3 (<= 64)
+  OK   blend materials dropped by the cap (product) = 0
   OK   malformed layers = 0
-  OK   weighted vertices on the GPU = 30816 (>= 1000)
+  OK   weighted vertices on the GPU = 33888 (>= 1000)
   OK   modulated vertices on the GPU = 30816 (>= 1000)
   OK   distinct weights on the GPU = 9 (>= 2)
   OK   weight min on the GPU = 0
@@ -54,39 +78,51 @@
   OK   all/off tiles = 0
   OK   all/off weighted vertices = 0
   OK   all/off disabled layers = 0 (>= 0)
-  OK   all/off layers skipped by the switch = 2 (>= 1)
+  OK   all/off layers skipped by the switch = 3 (>= 1)
   OK   all/off layers resolved = 0
   OK   terrain-only switch = terrain
   OK   terrain-only isolates the frame = 1
-  OK   terrain-only weighted vertices = 30816 (>= 1000)
+  OK   terrain-only weighted vertices = 33888 (>= 1000)
   OK   none switch = none
   OK   all triangles = 200000 (>= 100000)
 
-=== 4/5 the pixels, and where they are ===
+=== 4b/6 the atlas coverage: which materials the cap drops ===
+  OK   atlas census uses the product's cluster = 639
+  OK   blend materials ordered ahead of the cap = 3
+  OK   blend materials past the cap = 0
+  OK   texturable materials past the cap = 48 (>= 1)
+  OK   texturable capped materials in view = 41 (>= 1)
+
+=== 5/6 the pixels, and where they are ===
   frame=1264x681
   pixels=860784
-  terrain_region=13714
+  terrain_region=13745
   terrain_region_pct=1
-  diff_on_off=1930
-  diff_on_off_in_region=1930
+  diff_on_off=470
+  diff_on_off_in_region=470
   diff_on_off_out_region=0
   diff_on_repeat=0
-  diff_terrain_pair=3535
-  diff_terrain_pair_in_region=3535
-  OK   terrain region pixels = 13714 (>= 5000)
+  diff_terrain_pair=3530
+  diff_terrain_pair_in_region=3530
+  diff_on_off_in_terrain_pair=470
+  diff_terrain_pair_not_in_full=3060
+  diff_terrain_pair_occluded=3036
+  OK   terrain region pixels = 13745 (>= 5000)
   OK   terrain region percent = 1 (<= 95)
-  OK   pixels changed by the blend = 1930 (>= 500)
-  OK   1930 of 1930 changed pixels are inside the terrain region
-  OK   pixels changed with only terrain drawn = 3535 (>= 500)
-  OK   terrain pair changes are all in the region = 3535
+  OK   pixels changed by the blend = 470 (>= 400)
+  OK   470 of 470 changed pixels are inside the terrain region
+  OK   pixels changed with only terrain drawn = 3530 (>= 3000)
+  OK   terrain pair changes are all in the region = 3530
+  OK   composed blend changes are a subset of the terrain pair = 470
+  OK   3036 of 3060 terrain-pair pixels the frame does not show are covered by world geometry
   OK   all/on == all/repeat = 0
 
-  a059c39744582bc70ab9ce5b74b830b1d46c2786e69e5ea0ba21e04786840bbd *./all-off.bmp
-  ba9676def721320c267ee1eefaee25fe55f0385586da611f1c9f49d5342e0d57 *./all-on.bmp
-  ba9676def721320c267ee1eefaee25fe55f0385586da611f1c9f49d5342e0d57 *./all-repeat.bmp
+  72761b509d8978e05b6ce41a647da2da4d7f80ae024091adedbaa87b3ffcb42a *./all-off.bmp
+  cc825e818def8a95a923b88556c7883b82073e1baccf6f722bdbc0fe7eac322b *./all-on.bmp
+  cc825e818def8a95a923b88556c7883b82073e1baccf6f722bdbc0fe7eac322b *./all-repeat.bmp
   c04021f716da86dc61d30c8115703ce97ad037f762c3e8f7b291b9b056cfecfc *./none.bmp
-  fccee3b78c0dca03616a16d17d6f32548b7dfe42546573563543ec55b62f6f31 *./terrain-off.bmp
-  56033aebb3986363c3d42ff63bb64e4f4746773ca9266c12da9db630c99ff688 *./terrain-on.bmp
+  863d81863e6324cff1962b71a795fd35088ee26eecf53b8b3afc54b11b8d5085 *./terrain-off.bmp
+  1183f97c077a066c917229a166c565a5cd9d066d831870870ef5dc47c983ba08 *./terrain-on.bmp
 
 
 TERRAIN-BLEND=PASS
