@@ -1,0 +1,7 @@
+gpu: world blend enabled=1 terrainOnly=0 textures=64 layers=2 accepted=64 acceptedLayers=2 tiles=2 modulateTiles=2 malformedLayers=0 weightedVertices=30816 modulatedVertices=30816 weightMin=0.000 weightMax=1.000 distinctWeights=9
+gpu: world blend enabled=0 terrainOnly=0 textures=64 layers=0 accepted=64 acceptedLayers=0 tiles=0 modulateTiles=0 malformedLayers=0 weightedVertices=0 modulatedVertices=0 weightMin=-1.000 weightMax=-1.000 distinctWeights=0
+gpu: world atlas size=4112 bytes=67634176 state=bound
+gpu: world blend-fetch declared=2 resolved=2 refused=0 disabled=0 resampled=2 modulateDeclared=2 modulateResolved=2 modulateRefused=0
+gpu: world geometry=all blend=on
+gpu: world geometry=terrain blend=on
+gpu: world geometry=none state=empty reason=--world-geometry none
