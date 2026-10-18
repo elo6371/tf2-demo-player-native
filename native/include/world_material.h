@@ -390,6 +390,12 @@ struct WorldWaterVertex {
   // the fields at -1 is what stops water from being lit by the map's lightmap.
   float lu = -1.0f;
   float lv = -1.0f;
+  // T12: the blend inputs the world pass carries for a terrain material. Water
+  // is not a blend material, so the sentinel (-1) is the whole of what this
+  // pass says about them -- but the fields have to exist here, because the two
+  // structs share one input layout.
+  float blend = -1.0f;
+  float blendModulate = 0.0f;
 };
 
 // The water material's parsed parameters. TF2's water shaders carry the two

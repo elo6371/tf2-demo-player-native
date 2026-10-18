@@ -15,14 +15,37 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-  if (argc < 3) { std::cerr << "usage: vpk_query <tfRoot> <prefix> [ext]\n"; return 2; }
+  if (argc < 3) { std::cerr << "usage: vpk_query <tfRoot> <prefix> [ext]\n"
+                               "       vpk_query <tfRoot> --dump <exact/path/in/archive>\n"; return 2; }
   const std::filesystem::path tfRoot = std::filesystem::u8path(argv[1]);
-  const std::string prefix = argv[2];
-  const std::string ext = argc > 3 ? argv[3] : "";
   const std::vector<std::wstring> names = {
     L"pak01_dir.vpk", L"tf2_misc_dir.vpk", L"tf2_textures_dir.vpk",
     L"tf2_sound_misc_dir.vpk", L"tf2_sound_vo_english_dir.vpk",
   };
+  // --dump exists because listing a name is not the same as reading the file
+  // that name points at. Enumerating the fields a material declares needs the
+  // bytes, and a VMT that lives only in an archive cannot be opened by path.
+  if (std::string(argv[2]) == "--dump") {
+    if (argc < 4) { std::cerr << "--dump needs an archive-relative path\n"; return 2; }
+    const std::string wanted = argv[3];
+    for (const auto& name : names) {
+      tf2::native::VpkArchive archive;
+      std::string error;
+      if (!archive.open(tfRoot / name, &error)) continue;
+      const auto bytes = archive.read(wanted);
+      if (bytes.empty()) continue;
+      std::cout << "source=" << std::filesystem::path(name).string()
+                << " bytes=" << bytes.size() << "\n";
+      std::cout.write(reinterpret_cast<const char*>(bytes.data()),
+                      static_cast<std::streamsize>(bytes.size()));
+      std::cout << "\n";
+      return 0;
+    }
+    std::cerr << "not found in any archive: " << wanted << "\n";
+    return 1;
+  }
+  const std::string prefix = argv[2];
+  const std::string ext = argc > 3 ? argv[3] : "";
   std::size_t grand = 0;
   for (const auto& name : names) {
     tf2::native::VpkArchive archive;

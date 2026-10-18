@@ -121,6 +121,13 @@ set_target_properties(world_geometry_probe PROPERTIES WIN32_EXECUTABLE OFF)
 target_include_directories(world_material_probe PRIVATE include third_party/lzma)
 set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T12: the terrain blend resources and the per-vertex weight. Links the same
+# parser, VMT reader and VPK reader the product uses, plus world_material.cpp
+# for `bspPakfileEntry` -- the third store the lookup policy has to reach.
+add_executable(terrain_blend_probe tools/terrain_blend_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(terrain_blend_probe PRIVATE include third_party/lzma)
+set_target_properties(terrain_blend_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(presentation_probe tools/presentation_probe.cpp ${TF2_DEMO_HEADER_SOURCES})
 target_include_directories(presentation_probe PRIVATE include third_party/lzma)
 target_link_libraries(presentation_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})

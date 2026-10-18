@@ -11,6 +11,21 @@ struct BspTriangle {
   BspVertex a; BspVertex b; BspVertex c;
   float au = 0; float av = 0; float bu = 0; float bv = 0; float cu = 0; float cv = 0;
   float alu = -1; float alv = -1; float blu = -1; float blv = -1; float clu = -1; float clv = -1;
+  // T12 (2026-10-18): the per-vertex blend weight, straight from
+  // `CDispVert::m_flAlpha` (bspfile.h, 20 bytes per vertex: vector, distance,
+  // alpha). WorldVertexTransition -- the shader every terrain material on the
+  // reference map uses -- picks between `$basetexture` and `$basetexture2` with
+  // exactly this number (`lightmappedgeneric_ps2_3_x.h`: `blendfactor =
+  // i.vertexBlendX_fogFactorW.r`), so without it the second layer has nothing
+  // to be weighted by and the surface can only be drawn as one of the two.
+  //
+  // -1 is "no weight", which is what a non-displacement triangle gets and what
+  // a displacement vertex gets when its alpha is unreadable. The renderer reads
+  // the sentinel as "this vertex has one layer", so a missing weight degrades
+  // to the single-layer picture instead of to a fabricated blend.
+  float aAlpha = -1.0f;
+  float bAlpha = -1.0f;
+  float cAlpha = -1.0f;
   std::string material;
   bool lightmapped = false;
   bool water = false;
