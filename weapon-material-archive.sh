@@ -72,16 +72,21 @@ for run in "${MUTATION_RUNS[@]}"; do
 done
 
 echo "=== hashes ==="
-# Frames first: they are the claim that two runs agree. The traces are hashed but
-# NOT committed -- they are ~3.7 MB each and reproducible from a run, so the hash
-# is the receipt and the committed readings file is the extract.
+# Two receipts, because they answer two different questions.
 #
-# Paths are spelled from the repo root and the prefix is stripped afterwards,
-# rather than cd-ing into $DIR: a `cd` inside the group would leave the shell
-# somewhere else, and the second run of this script would then write its hash
-# file inside the evidence directory it was hashing.
+#   artifacts.sha256  everything that is committed. `sha256sum -c` from a fresh
+#                     clone verifies it, which is why .gitattributes marks this
+#                     directory -text: core.autocrlf would otherwise re-encode the
+#                     .txt and .json here on checkout and every text line would
+#                     come back "computed checksum did NOT match".
+#   traces.sha256     the raw traces. ~3.4 MB each, excluded from git, derivable
+#                     from a run; their hash says which run an extract came from
+#                     without committing the file.
+#
+# Paths are repo-relative on purpose, so verification needs no cd. Stripping them
+# to basenames would look tidier and make the receipt useless.
 {
-  for pattern in bmp trace json txt; do
+  for pattern in bmp png json txt log ini csv; do
     for file in "$DIR"/*."$pattern"; do
       [ -f "$file" ] || continue
       case "$file" in *.readings.txt) continue ;; esac
@@ -89,15 +94,14 @@ echo "=== hashes ==="
     done
   done
 } > "$DIR/artifacts.sha256"
-# The paths are repo-relative on purpose: `sha256sum -c evidence/weapon-material/artifacts.sha256`
-# from the repo root verifies every artefact in place. Stripping them to basenames
-# would look tidier and would make the receipt uncheckable without a cd.
-if [ -s "$DIR/artifacts.sha256" ]; then
-  echo "  ..   $(wc -l < "$DIR/artifacts.sha256" | tr -d ' ') artefacts hashed"
-else
+sha256sum "$DIR"/*.trace 2>/dev/null > "$DIR/traces.sha256" || true
+
+if [ ! -s "$DIR/artifacts.sha256" ]; then
   echo "  FAIL nothing was hashed -- $DIR is empty"
   exit 1
 fi
+echo "  ..   $(wc -l < "$DIR/artifacts.sha256" | tr -d ' ') committed artefacts hashed"
+echo "  ..   $(wc -l < "$DIR/traces.sha256" | tr -d ' ') traces hashed (not committed)"
 
 if [ "$missing" -eq 1 ]; then
   echo "ARCHIVE=PARTIAL (a forward run is missing its trace)"
