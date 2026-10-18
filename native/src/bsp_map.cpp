@@ -328,15 +328,25 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // of the shipped data, not of what the renderer decides.
     const std::uint32_t facePlaneNumber = read<std::uint16_t>(faces, base);
     const std::uint8_t facePlaneSide = faces[base + 2];
+    // T11 third round: the face class is a property of the dface_t itself, so it
+    // is read here rather than at the displacement branch below -- the winding
+    // census needs it while the plane is still in scope.
+    const auto dispIndex = read<std::int16_t>(faces, base + 12);
     // T11: the face's own OUTWARD direction -- the direction a player looks
     // along to see this face. `facePlaneSide` is the half-space the face is seen
     // from, so the outward vector is +plane for side 0 and -plane for side 1.
-    // This vector is the MEASUREMENT axis, not the orientation rule: the rule
-    // below still works on the raw plane normal, and the census counts how far
-    // the two disagree (53724 of 99312 triangles, with 5388 of 16136 faces
-    // authored on the back of their plane). Without a usable plane the emission
-    // keeps the stored order and the face is not counted.
+    // It is both the measurement axis and (for displacement, below) the
+    // orientation target; `misfaced` counts how far the emitted winding sits
+    // from it (15126 of 99312 after the third-round decision, all of them
+    // brush/side-1, with 5388 of 16136 faces authored on the back of their
+    // plane). Without a usable plane the emission keeps the stored order and the
+    // face is not counted.
     float faceOutwardX = 0.0f, faceOutwardY = 0.0f, faceOutwardZ = 0.0f;
+    // The raw plane normal and the polygon's own winding normal, kept so the
+    // stored-winding census and the grid-vs-polygon census can both be taken
+    // without re-deriving them inside the emission lambda.
+    float facePlaneX = 0.0f, facePlaneY = 0.0f, facePlaneZ = 0.0f;
+    float facePolygonX = 0.0f, facePolygonY = 0.0f, facePolygonZ = 0.0f;
     bool haveFaceOutward = false;
     if (!map.planes.empty()
         && static_cast<std::size_t>(facePlaneNumber) < map.planes.size()) {
@@ -352,10 +362,20 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         if (facePlaneSide != 0) ++map.windingSideOneFaces;
         const bool pointsAlong = (cx * pnx + cy * pny + cz * pnz) > 0.0f;
         if (pointsAlong == (facePlaneSide == 0)) ++map.windingAgreeCount;
+        // T11 third round: the same comparison, split by class and WITHOUT the
+        // side bit. This is the reading that says whether the shipped polygon
+        // order is a convention or a coin toss.
+        if (dispIndex >= 0) {
+          if (pointsAlong) ++map.windingStoredDispAlong; else ++map.windingStoredDispAgainst;
+        } else {
+          if (pointsAlong) ++map.windingStoredBrushAlong; else ++map.windingStoredBrushAgainst;
+        }
         const float sideSign = facePlaneSide == 0 ? 1.0f : -1.0f;
         faceOutwardX = sideSign * pnx;
         faceOutwardY = sideSign * pny;
         faceOutwardZ = sideSign * pnz;
+        facePlaneX = pnx; facePlaneY = pny; facePlaneZ = pnz;
+        facePolygonX = cx; facePolygonY = cy; facePolygonZ = cz;
         haveFaceOutward = true;
       }
     }
@@ -409,37 +429,95 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         axis(lux[0], packed.storedW, packed.samplesW, packed.minsU, packed.x, kAtlas),
         axis(lux[1], packed.storedH, packed.samplesH, packed.minsV, packed.y, kAtlas)};
     };
+    // T11 third round: the first grid triangle of a displacement face is
+    // compared against the polygon's own winding once per face, so a 32x32 grid
+    // cannot outvote a quad in the census.
+    bool gridCounted = false;
     const auto pushTriangle = [&](BspVertex a, BspVertex b, BspVertex c, bool displacement) {
       if (map.triangles.size() >= triangleLimit) return;
-      // T11: orient the emitted triangle against its face's plane. The two
-      // emission paths ship opposite conventions, so the sign is per class: a
-      // brush fan is wound along its plane normal, a displacement grid against
-      // it. Measured, not asserted -- see the `flippedTriangles` reading.
+      bool flipped = false;
+      // T11 third round: does the displacement grid's parametrisation keep the
+      // polygon's own order? Taken on the FIRST triangle of the face and BEFORE
+      // the orientation rule below, so it measures the shipped parametrisation
+      // and not the rule that overwrites it.
+      if (displacement && !gridCounted && haveFaceOutward) {
+        gridCounted = true;
+        const float ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+        const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+        const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        const float dot = nx * facePolygonX + ny * facePolygonY + nz * facePolygonZ;
+        if (dot > 0.0f) ++map.windingGridKeepsPolygon;
+        else if (dot < 0.0f) ++map.windingGridReversesPolygon;
+      }
+      // T11: orient the emitted triangle against its face's own side bit.
       //
-      // T11 follow-up: this rule is NOT the same thing as "the side the face is
-      // seen from", and the difference is measured rather than argued. The
-      // side-aware census (`misfaced`, below) counts emitted triangles that
-      // point away from the direction the face's own plane side bit calls its
-      // front; on pl_odyssey it reads 53724 of 99312 under this rule, i.e. the
-      // plane lump and the shipped winding disagree for more than half the
-      // buffer. Eleven candidate rules were captured on both fixed views (see
-      // evidence/t11-world-geometry/DIAGNOSIS.md section 5b): every one of them
-      // trades one view for the other, and no plane-derived rule makes both
-      // views draw their surfaces. That is why the rule below is unchanged and
-      // the disagreement is a pinned reading instead of a silent guess.
+      // The history matters, because two earlier readings of the same data were
+      // both wrong. The first rule reversed every triangle to one global sign
+      // and culled half the map. The second split the sign by emission class
+      // (brush along its plane normal, displacement against it), on the
+      // evidence of the face POLYGON census -- and the census was reading the
+      // wrong thing: the brush fan emits (0, i+1, i), the reverse of the
+      // polygon's order, so the polygon's convention is not the buffer's. The
+      // buffer's own order is one convention for both classes (`geometry
+      // pre-rule`: brush 41624 along the plane normal against 396, displacement
+      // 46856 against 142), which leaves exactly one thing to say about a face:
+      // the side bit. Point the winding along it.
+      //
+      // The first-hit oracle derives the same rule without using the side bit at
+      // all: from above, 5301 of 5381 topmost surfaces are authored with the
+      // side-aware direction pointing at the sky (analysis/first-hit-oracle.txt).
       if (haveFaceOutward) {
         const float ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
         const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
         const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-        const float classSign = displacement ? 1.0f : -1.0f;
-        // faceOutward is the side-aware normal; the class rule was measured
-        // against the raw plane normal, which is -outward for side-0 faces.
-        const float px = facePlaneSide == 0 ? -faceOutwardX : faceOutwardX;
-        const float py = facePlaneSide == 0 ? -faceOutwardY : faceOutwardY;
-        const float pz = facePlaneSide == 0 ? -faceOutwardZ : faceOutwardZ;
-        if (classSign * (nx * px + ny * py + nz * pz) < 0.0f) {
-          std::swap(b, c);
-          ++map.windingFlippedTriangles;
+        // T11 third round: the buffer's own order, before any reversal. The
+        // brush fan emits (0, i+1, i) -- the reverse of the polygon's order --
+        // so this is the only place the fan's orientation can be read.
+        const float alongPlane = nx * facePlaneX + ny * facePlaneY + nz * facePlaneZ;
+        const float alongOutward = nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ;
+        if (displacement) {
+          if (alongPlane > 0.0f) ++map.windingPreDispAlongPlane; else if (alongPlane < 0.0f) ++map.windingPreDispAgainstPlane;
+          if (alongOutward > 0.0f) ++map.windingPreDispAlongOutward; else if (alongOutward < 0.0f) ++map.windingPreDispAgainstOutward;
+        } else {
+          if (alongPlane > 0.0f) ++map.windingPreBrushAlongPlane; else if (alongPlane < 0.0f) ++map.windingPreBrushAgainstPlane;
+          if (alongOutward > 0.0f) ++map.windingPreBrushAlongOutward; else if (alongOutward < 0.0f) ++map.windingPreBrushAgainstOutward;
+        }
+        // T11 third round: the buffer ships ONE convention, not two. Measured on
+        // the emitted order before this rule (`geometry pre-rule`): brush
+        // 41624 along the plane normal against 396, displacement 46856 against
+        // 142. The class split the previous rule was built on does not exist in
+        // the data -- it was an artifact of reading the face polygon instead of
+        // the buffer, and the brush fan emits (0, i+1, i), the reverse of the
+        // polygon's own order. With one convention there is one rule: point the
+        // winding along the direction the face's own side bit calls its front.
+        // That is also what the first-hit oracle derives on its own (see
+        // evidence/t11-world-geometry/analysis/first-hit-oracle.txt): from
+        // above, 5301 of 5381 topmost surfaces are authored with +F pointing at
+        // the sky, i.e. F is the side the surface is seen from.
+        // T11 third round: the buffer ships ONE convention, not two. Measured on
+        // the emitted order before this rule (`geometry pre-rule`): brush 41624
+        // along the plane normal against 396, displacement 46856 against 142.
+        // The class split the previous rule was built on does not exist in the
+        // buffer -- it came from reading the face POLYGON, and the brush fan
+        // emits (0, i+1, i), the reverse of the polygon's own order.
+        //
+        // What is left is not a choice of philosophy but a measured decision, and
+        // it is written out in full in analysis/rule-decision.txt: every rule is
+        // a keep/flip choice for four cells (class x side), both first-hit
+        // oracles score all sixteen without rendering, and the two views
+        // disagree in exactly two cells -- brush/side-1 and displacement/side-0.
+        // This is mask 07, the best compromise of the sixteen: brush keeps the
+        // map's own order (the POV is its primary consumer and the map's order is
+        // what it was authored against), displacement is oriented to the face's
+        // side-aware outward direction, which is the cell the previous round
+        // pinned as `displacedMisfaced=38614` and the cell that holds the
+        // top-down view's right half.
+        if (haveFaceOutward && displacement) {
+          if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
+            std::swap(b, c);
+            ++map.windingFlippedTriangles;
+            flipped = true;
+          }
         }
       }
       // T11 follow-up: the residual, measured. After the reversal above the
@@ -471,10 +549,10 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       triangle.displacement = displacement;
       triangle.planeSide = facePlaneSide;
       triangle.planeIndex = haveFaceOutward ? static_cast<std::int32_t>(facePlaneNumber) : -1;
+      triangle.windingFlipped = flipped ? 1 : 0;
       triangle.cluster = cluster;
       map.triangles.push_back(std::move(triangle));
     };
-    const auto dispIndex = read<std::int16_t>(faces, base + 12);
     bool emittedDisp = false;
     if (dispIndex >= 0 && dispInfoOk && dispVertsOk && polygon.size() == 4
         && static_cast<std::size_t>(dispIndex) < dispInfo.size() / 176) {

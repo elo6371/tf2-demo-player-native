@@ -40,12 +40,14 @@
 #      acceptance: a region that empties to the clear colour, goes flat, or
 #      loses its edges fails here, and "pixels changed" alone never passes.
 #
-# mutation: two source mutations, each of which must turn the forward pins
+# mutation: three source mutations, each of which must turn the forward pins
 #   red, and each source must come back byte-identical:
 #   M1 reverts the pvs row-table fix (the stride-8 single-table read) -- the
 #      probe's visClusters pin must fall back off 1692,
-#   M2 flips the per-class winding sign -- the flip census must move off
-#      47252, and with it what the cull mode removes.
+#   M2 orients brush to the outward direction as well (mask 05) -- the flip
+#      census and the eye first-hit oracle must both move,
+#   M3 inverts the split so only brush is oriented (mask 02) -- the top-down
+#      first-hit oracle must collapse.
 #
 # The reference capture deliberately does NOT pass --hidden-window: the pinned
 # region numbers below were measured on a visible-window capture at
@@ -112,7 +114,8 @@ trace_field() { # trace_field <trace> <line-prefix> <key>
 echo "== 1. geometry census (probe) =="
 PROBE_TXT="$SCRATCH/probe.$RUN_TAG.txt"
 "$PROBE" --tf-root "$TF" --map "$MAP" \
-  --eye "-2423.6,5566.0,-1280.0" > "$PROBE_TXT" 2>&1
+  --eye "-2423.6,5566.0,-1280.0" \
+  --ray-down 96 --ray-eye "-2423.6,5566.0,-1280.0" 24 > "$PROBE_TXT" 2>&1
 echo "$PROBE_TXT" > "$OUT/probe-path.txt"
 cp "$PROBE_TXT" "$OUT/probe.txt"
 assert_eq "probe status" "$(grep -oE 'status=[a-z]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "ok"
@@ -124,22 +127,34 @@ assert_eq "probe materials covered by atlas cap" "$(grep -oE 'trianglesCoveredBy
 # computes from the same map coordinates: one number, two instruments.
 assert_eq "probe eye cluster" "$(trace_field "$PROBE_TXT" 'geometry eye' 'cluster')" "1032"
 assert_eq "probe eye pvs popcount" "$(trace_field "$PROBE_TXT" 'geometry eye' visClusters)" "1692"
-# T11: the PVS row table fix. The count of triangles the emitter reversed to
-# put each class on the side its own stored data uses. 47252 of 99312 is the
-# measured split: displacement grids and brush faces ship opposite winding
-# conventions, which is why every single global flip left half the map culled.
-assert_eq "probe winding flip census" "$(grep -oE 'flippedTriangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "47252"
-# T11 follow-up: the side-aware census. `misfaced` counts emitted triangles whose
-# winding points away from the direction the face's OWN plane side bit calls its
-# front -- i.e. the number the cull mode removes when the camera is on the side
-# the map is meant to be seen from. It is not zero, and that is the pin: the
-# shipped winding and the plane lump disagree for 53724 of 99312 triangles, and
-# no plane-derived rule was found that draws both fixed views (DIAGNOSIS.md 5b,
-# eight candidate rules measured on both). Pinned so the disagreement cannot
-# drift, and so the next attempt has a number to move.
-assert_eq "probe side-aware misfaced" "$(grep -oE 'misfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "53724"
-assert_eq "probe side-aware misfaced displaced" "$(grep -oE 'displacedMisfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "38614"
+# T11 third round: the buffer ships ONE winding convention, not two, and the
+# rule is a keep/flip choice per (class, side) cell. The shipped rule is mask 07:
+# brush keeps the order the map stores, displacement is oriented to its face's
+# side-aware outward direction. The readings below are that decision, and each
+# one of them moves if the decision is undone -- see the mutations.
+assert_eq "probe winding flip census" "$(grep -oE 'flippedTriangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "8514"
+# `misfaced` counts emitted triangles whose winding points away from the
+# direction the face's OWN plane side bit calls its front. It reads 15126 now
+# instead of 53724 because the displacement class is oriented to that side
+# (`displacedMisfaced` 38614 -> 0); the remainder is brush/side-1, one of the
+# two cells the two first-hit oracles disagree about (analysis/rule-decision.txt).
+assert_eq "probe side-aware misfaced" "$(grep -oE 'misfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "15126"
+assert_eq "probe side-aware misfaced displaced" "$(grep -oE 'displacedMisfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "0"
 assert_eq "probe faces on the back of their plane" "$(grep -oE 'sideOneFaces=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "5388"
+# T11 third round: the two first-hit oracles. These are the numbers the rule was
+# chosen by, and they are the numbers a regression has to move: the fraction of
+# first-hit surfaces the shipped rule actually draws, from above (the top-down
+# diagnostic camera) and from the eye (the acceptance camera). Before this round
+# they read 0.311 and 0.820.
+assert_eq "oracle top-down first hits drawn" \
+  "$(grep 'geometry ray-down cells' "$PROBE_TXT" | grep -oE 'drawnByShippedRule=[0-9]+ of [0-9]+' | head -1)" \
+  "drawnByShippedRule=3809 of 5381"
+assert_eq "oracle eye first hits drawn" \
+  "$(grep 'geometry ray-eye dirs' "$PROBE_TXT" | grep -oE 'shippedRuleKeeps=[0-9]+ of [0-9]+' | head -1)" \
+  "shippedRuleKeeps=458 of 594"
+assert_eq "rule table mask 07" \
+  "$(grep 'geometry rule-table mask=07' "$PROBE_TXT" | grep -oE 'top=[0-9.]+ eye=[0-9.]+' | head -1)" \
+  "top=0.708 eye=0.771"
 # The per-class split of that disagreement: how many PVS-kept triangles have the
 # eye on their outward side vs the other side. A class whose stored data agreed
 # with its own plane would read outward for almost all of them.
@@ -220,10 +235,19 @@ regfield() { # regfield <region-line-key> <field>
 # are dark because their materials draw black -- the terrain/blend-material
 # defect that belongs to its own task. The pins therefore guard coverage and
 # texture spread, not brightness.
+#
+# T11 third round moved W3 and W4 again, and the direction is worth stating
+# because it looks like a regression and is not one: the winding decision
+# (DIAGNOSIS.md 5c) draws the surface that is actually nearest along the view
+# ray, so the bright panel that used to fill W3 is gone -- it was a displacement
+# surface drawn from behind. What is left there is the correct surface, and it is
+# dark and flat because the material/lightmap path draws terrain dark (F2/T12).
+# W4 gained contrast for the same reason. Both are re-pinned to today's readings;
+# when T12 lands, these two pins are expected to move again and upward.
 for spec in "x=0,y=0 46 77 52 88 0.10 7.9 13.7" \
             "x=0,y=560 16 29 10 18 0.10 0.6 1.1" \
-            "x=1100,y=100 29 50 26 49 0.10 0.5 0.95" \
-            "x=600,y=0 7 14 25 46 0.05 3.5 7.5"; do
+            "x=1100,y=100 8 14 6 11 0.10 0.05 0.20" \
+            "x=600,y=0 15 25 42 68 0.05 6.2 10.0"; do
   set -- $spec; KEY="$1"; shift
   mean=$(regfield "$KEY" meanLum); std=$(regfield "$KEY" stdLum)
   nearbg=$(regfield "$KEY" nearBackground); grad=$(regfield "$KEY" meanGradient)
@@ -285,49 +309,48 @@ if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M1 source byte-identi
   echo "  RESTORE=FAIL (M1: the source did not come back byte-identical)"; fail=1; fi
 bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m1-restore.$RUN_TAG.build" 2>&1
 
-# M2: flip the per-class winding sign -- the displacement/brush split goes
-# back to one side, which is the state that left half the map culled.
-echo "-- M2: the per-class winding sign flips --"
-sed -i 's/const float classSign = displacement ? 1.0f : -1.0f;/const float classSign = displacement ? -1.0f : 1.0f;/' "$SRC_MAP"
-if grep -q "const float classSign = displacement ? -1.0f : 1.0f;" "$SRC_MAP"; then
+# M2: the class split comes back -- brush is oriented to its face's side-aware
+# outward direction too. That is mask 05 of the sixteen, the rule that draws the
+# top-down view best (0.980) and the eye worst-but-one (0.325). The flip census
+# and the eye oracle both have to move.
+echo "-- M2: brush is oriented to the outward direction as well (mask 05) --"
+sed -i 's/if (haveFaceOutward \&\& displacement) {/if (haveFaceOutward) {/' "$SRC_MAP"
+if grep -q "haveFaceOutward && displacement" "$SRC_MAP"; then
+  echo "  FAIL M2 could not patch the source"; mfail=1
+else
   bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m2.$RUN_TAG.build" 2>&1
   M2_FLIP=$("$PROBE" --tf-root "$TF" --map "$MAP" 2>/dev/null | grep -oE 'flippedTriangles=[0-9]+' | head -1 | cut -d= -f2)
-  if [ "$M2_FLIP" = "47252" ]; then
-    echo "  NOT-RED M2: the mutated flip census still reads 47252"
+  M2_EYE=$("$PROBE" --tf-root "$TF" --map "$MAP" --ray-eye "-2423.6,5566.0,-1280.0" 24 2>/dev/null | grep -oE 'shippedRuleKeeps=[0-9]+ of [0-9]+' | head -1)
+  if [ "$M2_FLIP" = "8514" ]; then
+    echo "  NOT-RED M2: the mutated flip census still reads 8514"
     mfail=1
   else
-    echo "  RED M2 as required: flip census = $M2_FLIP (was 47252)"
+    echo "  RED M2 as required: flip census = $M2_FLIP (was 8514), eye oracle = $M2_EYE (was 458 of 594)"
   fi
-else
-  echo "  FAIL M2 could not patch the source"; mfail=1
 fi
 cp "$SAVE_MAP" "$SRC_MAP"
 if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M2 source byte-identical)"; else
   echo "  RESTORE=FAIL (M2: the source did not come back byte-identical)"; fail=1; fi
 bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m2-restore.$RUN_TAG.build" 2>&1
 
-# M3: the class split collapses -- both emission paths take the brush sign. The
-# side-aware census is the reading that has to move: it is the number this task
-# added, and a mutation that leaves it at 53724 would mean the census is not
-# wired to the rule it claims to measure.
-echo "-- M3: the displacement class takes the brush winding sign --"
-"$PYTHON" - "$SRC_MAP" <<'PYEOF_INNER'
-import sys
-path = sys.argv[1]
-src = open(path, encoding='utf-8').read()
-old = "        const float classSign = displacement ? 1.0f : -1.0f;"
-new = "        const float classSign = -1.0f;"
-assert old in src, "M3 patch site not found"
-open(path, 'w', encoding='utf-8', newline='').write(src.replace(old, new))
-PYEOF_INNER
-if [ $? != 0 ]; then echo "  FAIL M3 could not patch the source"; fail=1; fi
-bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m3.$RUN_TAG.build" 2>&1
-M3_MISFACED=$("$PROBE" --tf-root "$TF" --map "$MAP" 2>/dev/null | grep -oE 'misfaced=[0-9]+' | head -1 | cut -d= -f2)
-if [ "$M3_MISFACED" = "53724" ]; then
-  echo "  NOT-RED M3: the side-aware misfaced census still reads 53724"
-  mfail=1
+# M3: the class split inverts -- only brush is oriented, displacement keeps the
+# map's order. That is mask 02, which draws 0.017 of the top-down view's first
+# hits: the mutation that proves the top-down oracle is wired to the class the
+# rule names.
+echo "-- M3: only brush is oriented (mask 02) --"
+sed -i 's/if (haveFaceOutward \&\& displacement) {/if (haveFaceOutward \&\& !displacement) {/' "$SRC_MAP"
+if grep -q "if (haveFaceOutward && !displacement) {" "$SRC_MAP"; then
+  bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m3.$RUN_TAG.build" 2>&1
+  M3_TOP=$("$PROBE" --tf-root "$TF" --map "$MAP" --ray-down 96 2>/dev/null | grep -oE 'drawnByShippedRule=[0-9]+ of [0-9]+' | head -1)
+  M3_MISFACED=$("$PROBE" --tf-root "$TF" --map "$MAP" 2>/dev/null | grep -oE 'misfaced=[0-9]+' | head -1 | cut -d= -f2)
+  if [ "$M3_TOP" = "drawnByShippedRule=3809 of 5381" ]; then
+    echo "  NOT-RED M3: the top-down oracle still reads 3809 of 5381"
+    mfail=1
+  else
+    echo "  RED M3 as required: top-down oracle = $M3_TOP (was 3809 of 5381), misfaced = $M3_MISFACED (was 15126)"
+  fi
 else
-  echo "  RED M3 as required: side-aware misfaced = $M3_MISFACED (was 53724)"
+  echo "  FAIL M3 could not patch the source"; mfail=1
 fi
 cp "$SAVE_MAP" "$SRC_MAP"
 if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M3 source byte-identical)"; else

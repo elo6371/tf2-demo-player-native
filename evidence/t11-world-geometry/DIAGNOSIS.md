@@ -88,6 +88,12 @@ the map data at this camera position, not a culling artifact). The top-down
 flat frame now shows a connected surface with building silhouettes across the
 frame.
 
+**Superseded by section 5c**: the class split this fix is built on does not exist
+in the buffer (both classes ship the same convention) and the rule was replaced
+in the third round. The coverage gain credited to it here came from the pvs fix
+in section 4, which landed in the same round; coverage was the wrong metric.
+
+
 ## 5b. The residual winding question, measured (follow-up round)
 
 Section 5 makes each emission class consistent with itself. It does not make a
@@ -151,63 +157,143 @@ The instruments stay in the product: `misfaced` and the per-class census are
 printed by `world_geometry_probe` and pinned by the gate as open-defect readings,
 so the next attempt starts from a number rather than from a theory.
 
+## 5c. The winding question closed: first-hit oracle, sixteen rules, one choice
+
+Section 5b ended on a true but unusable conclusion ("no plane-derived rule draws
+both views") because its metric was flat-colour coverage, and coverage counts a
+pixel as "world present" whether the surface drawn there is the nearest one or a
+far one seen through a culled near surface. The right question is the one a
+back-face cull is defined by:
+
+> for every ray from the camera, the FIRST triangle the ray meets must survive
+> the cull.
+
+That is a property of the data, not of a rule, and it needs no shading, no
+materials and no thresholds. Two oracles implement it, both in the probe:
+
+- `--ray-down N` -- a vertical ray per grid cell across the map bounds; the
+  topmost triangle at that (x, y) is the surface a top-down camera draws, so its
+  emitted winding must face up.
+- `--ray-eye x,y,z N` -- a sphere of directions from the eye; the first triangle
+  each ray meets must face the eye.
+
+**The premise of section 5 was wrong.** The class split was derived from the face
+POLYGON census, and the buffer is not the polygon: the brush fan emits
+`pushTriangle(polygon[0], polygon[i + 1], polygon[i])`, the reverse of the
+polygon's own order. Measured on the emitted order before any rule
+(`geometry pre-rule`):
+
+```
+class=brush         alongPlane=41624  againstPlane=396     (99.1% one way)
+class=displacement  alongPlane=46856  againstPlane=142     (99.7% one way)
+```
+
+Both classes ship the SAME convention. There was never a class split to
+reproduce, and the shipped rule was reversing 38614 displacement triangles that
+did not need reversing.
+
+With one convention the rule space collapses to four cells (class x side) and a
+keep/flip choice in each: sixteen rules, all of them scored on both oracles in
+one run, no rebuild (`analysis/rule-decision.txt` has the full table):
+
+| mask | brush/s0 | brush/s1 | disp/s0 | disp/s1 | top | eye | worst |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 03 (was shipped) | keep | keep | flip | flip | 0.311 | 0.820 | 0.311 |
+| 05 | keep | flip | keep | flip | 0.980 | 0.325 | 0.325 |
+| 07 (**now shipped**) | keep | keep | keep | flip | 0.708 | 0.771 | 0.708 |
+| 15 (stored order) | keep | keep | keep | keep | 0.711 | 0.729 | 0.711 |
+
+`top`/`eye` are the fraction of first hits the rule draws, 5381 cells and 594
+directions.
+
+**Decision: mask 07** -- brush keeps the order the map stores, displacement is
+oriented to its face's side-aware outward direction. It is within 0.003 of the
+best max-min of the sixteen (mask 15, the stored order) and keeps the eye within
+five points of its own optimum, which mask 15 does not. It is the shipped rule's
+smallest functional delta that recovers the top-down view, and it is the cell the
+previous round had already pinned by name as `displacedMisfaced=38614`.
+
+Readings move exactly as the table predicts:
+
+```
+flippedTriangles   47252 -> 8514
+misfaced           53724 -> 15126
+displacedMisfaced  38614 -> 0
+top-down first hits drawn   0.311 -> 0.708
+eye first hits drawn        0.820 -> 0.771
+```
+
+The top-down flat frame fills in: the right half that section 7 used to explain
+away is drawn (`frames-third-round/top-flat-mask07.png` against
+`frames-followup/fin-top-flat.png`, same camera, same tick).
+
+**The residual is two named cells.** The two views disagree in exactly two of the
+four: brush/side-1 and displacement/side-0. Every point of the eye's score above
+0.771 is bought by flipping displacement/side-0, and every point of the top-down
+view above 0.708 is bought by flipping brush/side-1. No rule in this family
+escapes that, and the ceiling of the family is 0.820 (eye) / 0.983 (top) at
+different rules. That is now a property of the data with a number on each cell,
+not a mystery.
+
 ## 6. Acceptance
 `visual-baseline-check.sh` (repo root) pins the probe census (including
-`flippedTriangles=47252`, the side-aware `misfaced=53724` with its per-class
-split, and the corrected pvs popcount 1692 on two instruments), the product trace
-(material-fetch counters, the vis line with `eyeMap`, the cull line, the
-debug-view line), and measurable object presence in four world regions -- with
-the clear-colour fraction now ~0 in all four. Forward + mutation: **PASS**.
+`flippedTriangles=8514`, the side-aware `misfaced=15126` with its per-class
+split, the corrected pvs popcount 1692 on two instruments, and the two first-hit
+oracles: 3809 of 5381 top-down cells and 458 of 594 eye directions, plus the
+`rule-table mask=07` row they were chosen by), the product trace (material-fetch
+counters, the vis line with `eyeMap`, the cull line, the debug-view line), and
+measurable object presence in four world regions -- with the clear-colour
+fraction now ~0 in all four. Forward + mutation: **PASS**.
 
 Mutations, all measured red and restored byte-identical:
 
 - M1 reverts the pvs offset read to the stride-8 single-table form: the pvs
   popcount falls back to 478 (another wrong row).
-- M2 flips the per-class winding sign: the flip census moves to 41766.
-- M3 collapses the class split (both classes take the brush sign): the
-  side-aware census moves to 23494 -- proof that the new reading is wired to the
-  rule it claims to measure.
+- M2 orients brush to its outward direction as well (mask 05): the flip census
+  moves 8514 -> 23640 and the eye oracle 458 of 594 -> 204 of 594.
+- M3 inverts the split so only brush is oriented (mask 13): the top-down oracle
+  moves 3809 of 5381 -> 5297 of 5381 (that rule is the top-down optimum) and
+  `misfaced` 15126 -> 8514. Both mutations are rules the table scores, so the
+  oracles are shown to be wired to the rule they claim to measure.
 
-Determinism: two identical captures of the reference frame on the acceptance
-binary hash to `2486b77acc3655d7cf6cfa34f172c7064a9982d607c54ebcf0447b7ad34fad1f`
-(and the flat pair to `9f3ec27f7dc18f02ac6e4a7261f4752bfd04ac5eec7e64316870566e37c53f86`),
-which is byte-identical to the hash the pre-follow-up build produced -- the added
-instrumentation changed no pixel. The acceptance binary (the one the gate and the
-repeat pair ran on) is
-`0dbd320f63446da3f84e4fafcb8be21e1f8d854acccf68c98725e32ff1fb3baa`; the
-mutation gate's final restore rebuild of the same, byte-identical sources
-links to `ff970c531213d24b194f32c906fe528d739c9a726ac3d52fcfd61552de552f2d`
-(MSVC embeds a link timestamp; the source restoration, not the binary hash,
-is the restored-state proof, and it is recorded per mutation above).
+Determinism: two independent captures of the reference frame -- the forward run
+and the mutation run, separate processes, separate scratch trees -- hash to
+`059200862d98d39cd478d7c93b5cc8408b472a24e051c75969a5e43754a30720` and produce
+identical region readings. This frame is NOT the previous round's frame: the
+winding decision changes which surface is drawn at ~5% of the eye's rays, so the
+hash moving is the point, not a regression. The acceptance binaries are
+`4fb56cbe263514ea1a4175dd9739cb305bcb708f0ea03d0824ec203ccee315b0` (product) and
+`dd897699077ca6df643401d2ea70cef4b0b7141a9c8520f77d6ba69a8060a99c` (probe);
+MSVC embeds a link timestamp, so the source restoration, not the binary hash, is
+the restored-state proof, and it is recorded per mutation above.
 
 The affected render gate `world-material-check.sh --mutation` was re-run
 with its pins moved and passes with its own mutations. `frame-capture-check`
 is unaffected by this task's paths and was not re-run.
 
+
 ## 7. Named remaining limitations (not claimed fixed)
 
-- **The winding and the plane lump disagree for 53724 of 99312 triangles**
-  (follow-up, section 5b). This is the open geometry defect of this task. It is
-  now a pinned reading with a per-class split, and eight candidate rules were
-  measured on both fixed views without finding one that draws both: the POV is
-  best under the shipped rule / a global reversal (0.8953 / 0.8974 of a 0.9228
-  maximum) and the top-down view is best under the stored order (0.6668 of
-  0.6742). The next step is not another plane-derived rule -- it is a per-face
-  ground truth that does not come from the plane lump. The tree census is the
-  first candidate and is too ambiguous to use (58134 of 71725 PVS-kept triangles
-  sample the same solidity on both sides, because displacement surfaces are not
-  BSP splits).
-- **Top-down right side**: restated. Under the shipped rule that region is
-  `0.4683` of a `0.6742` no-cull maximum; under the stored order the same camera
-  reaches `0.6668`, i.e. culling removes 0.7%. So the region is not a hole in the
-  map and not missing geometry -- it is the same surfaces the shipped rule
-  removes. It is the visual face of the `misfaced` reading above, not a separate
-  defect, and it cannot be closed without closing that one.
+- **Two (class, side) cells cannot be oriented by any single rule** (section 5c).
+  The two first-hit oracles disagree about brush/side-1 and displacement/side-0,
+  so the family's ceiling is 0.820 (eye) or 0.983 (top-down) depending on which
+  one you buy, never both. The shipped mask 07 is the compromise: 0.771 eye /
+  0.708 top, with `misfaced=15126` (brush/side-1 only) as the pinned residual.
+  Closing it needs a per-face truth that neither the plane lump nor the side bit
+  supplies; the BSP-tree census was the first candidate and is too ambiguous to
+  use (58134 of 71725 PVS-kept triangles sample the same solidity on both sides,
+  because displacement surfaces are not BSP splits).
+- **Top-down right side**: fixed as far as a rule can fix it. The region is drawn
+  now (`frames-third-round/top-flat-mask07.png`); what remains there is the
+  brush/side-1 cell above, which costs the view 0.29 of its first hits.
 - **Dark world materials**: with the geometry now covering the frame, the
   POV still shows large near-black and flat blue/white regions. These are
   material/lightmap failures (the terrain/blend path), i.e. the F2/T12 defect;
   the geometry work does not claim to fix them. Region pins W2/W3/W4 are
-  pinned as dark-but-present for exactly this reason.
+  pinned as dark-but-present for exactly this reason, and W3 got darker this
+  round because the surface that is actually nearest there is a dark terrain
+  surface, not the bright panel that was being drawn from behind.
+
 - **Sky on pl_odyssey** reads `state=unavailable` with a reason word that
   says the caller disabled it; the caller passed no sky flag. Its own task.
 - 4790 degenerate triangles (zero area) remain in the buffer; they draw

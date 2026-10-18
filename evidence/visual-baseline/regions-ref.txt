@@ -1,5 +1,5 @@
-frame path=.scratch/visual-baseline.20261018111526-10135/ref.20261018111526-10135.bmp size=1264x681 background=(86,80,72) backgroundLum=81.2
-region x=0,y=0,w=420,h=200 pixels=84000 meanLum=61.3 stdLum=69.67 nearBackground=0.0048 nearBlack=0.3834 nearWhite=0.0054 meanGradient=10.53 neutralGrey=8499
-region x=0,y=560,w=420,h=121 pixels=50820 meanLum=22.1 stdLum=13.53 nearBackground=0.0000 nearBlack=0.4057 nearWhite=0.0000 meanGradient=0.83 neutralGrey=0
-region x=1100,y=100,w=164,h=200 pixels=32800 meanLum=39.3 stdLum=37.31 nearBackground=0.0000 nearBlack=0.4362 nearWhite=0.0000 meanGradient=0.72 neutralGrey=0
-region x=600,y=0,w=64,h=60 pixels=3840 meanLum=10.5 stdLum=35.19 nearBackground=0.0047 nearBlack=0.9039 nearWhite=0.0000 meanGradient=5.28 neutralGrey=21
+frame path=.scratch/visual-baseline.20261018124917-218/ref.20261018124917-218.bmp size=1264x681 background=(86,80,72) backgroundLum=81.2
+region x=0,y=0,w=420,h=200 pixels=84000 meanLum=59.9 stdLum=69.76 nearBackground=0.0048 nearBlack=0.3849 nearWhite=0.0055 meanGradient=10.28 neutralGrey=8521
+region x=0,y=560,w=420,h=121 pixels=50820 meanLum=21.8 stdLum=13.49 nearBackground=0.0000 nearBlack=0.4153 nearWhite=0.0000 meanGradient=0.65 neutralGrey=0
+region x=1100,y=100,w=164,h=200 pixels=32800 meanLum=10.6 stdLum=8.32 nearBackground=0.0000 nearBlack=0.3900 nearWhite=0.0000 meanGradient=0.10 neutralGrey=0
+region x=600,y=0,w=64,h=60 pixels=3840 meanLum=19.6 stdLum=54.76 nearBackground=0.0013 nearBlack=0.7052 nearWhite=0.0010 meanGradient=8.07 neutralGrey=35
