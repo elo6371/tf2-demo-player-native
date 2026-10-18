@@ -30,7 +30,7 @@ waiting and what it is expected to move.
 | --- | --- | --- |
 | `native/src/world_material.cpp` | `bspPakfileEntry` compares a normalized name (backslashes → slashes, no leading slash, lowercase) instead of `entryName == name` | pl_odyssey's pakfile stores `materials/nature/blendclifftograss_odyssey.vmt`; textdata names it `NATURE/BLENDCLIFFTOGRASS_ODYSSEY`. The VPK path already normalized, the pakfile path did not, so 29 of 108 world materials read `vmtMissing` — including all nine `WorldVertexTransition` terrain materials. `vmtMissing 29→3`, `vtfMissing 2→0`, `fromPakfile 23→59`, `blend-fetch declared 0→9`, `tiles 0→9`, `weightedVertices 0→85536`, `distinctWeights 0→34` |
 | `native/src/native_renderer.cpp` | the pixel shader encodes the lightmap sample: `pow(sample, 1/2.2)` | the albedo textures are sRGB bytes, the RGBExp32 lightmap is linear radiance, and the target is UNORM. Using the sample as a multiplier is the "everything is dark" failure. `--world-lightmap off` on the same tick puts the same pixels at 192–255 that the lit frame put below 32 |
-| `native/src/settings_store.cpp` | `loadSettings` starts from `fromPreset(preset)` instead of `fromPreset(Performance)` + copying the preset label | a preset is a bundle of flags: `settings.ini` says `preset=1`, so every reading that asks the preset said `standard` while every flag stayed at its Performance value — `skybox=false`. The trace printed both at once: `cubemap ... preset=standard` and `sky-upload state=unavailable reason=skybox draw disabled by the caller`. 20.2% of the reference frame was clear colour because the sky pass never ran; with the sky drawn it is 0.04% |
+| `native/src/settings_store.cpp` | `skybox` follows the file's `preset`; the other Standard flags are left where the reader put them | a settings file that says `preset=1` while every flag holds Performance's value is a contradiction the frame inherits. The trace printed both halves at once: `cubemap ... preset=standard` and `sky-upload state=unavailable reason=skybox draw disabled by the caller`. 20.2% of the reference frame was clear colour because the sky pass never ran; with the sky drawn it is 0.04%. Only the sky is taken from the preset — see §6 for why the shading flags are not |
 | `native/src/main.cpp` | `--world-lightmap on\|off`; `lightmapEnabled=` appended to the `world lightmap` trace line | there was no way to draw the world with the lightmap term removed, so "this surface is dark because its lightmap is dark" was not a measurable statement |
 | `native/include/native_renderer.h` | `setWorldLightmapEnabled` / `worldLightmapEnabled` | the switch above; the product path never calls it |
 | `native/include/bsp_map.h`, `native/src/bsp_map.cpp` | per-face tone histogram of what the packer wrote, the same histogram read out of lump 53 (HDR), `hasHdrLightmap` populated | the per-triangle histogram is taken through the uvs and therefore cannot separate "dark data" from "uv reading someone else's rectangle". The per-face histogram cannot be wrong about the data |
@@ -127,6 +127,17 @@ lighting and camera placement to be told apart. They now are:
   sky follows `preset`, which the file supplies. A machine whose file says
   `preset=0` will draw no sky and the pinned region numbers will not match.
   §8 pins the sky state so that dependency is visible instead of silent.
+- **Half a preset is still half a preset — for the shading.** `preset=standard`
+  now decides the sky, and it still does not decide `dynamicLighting`,
+  `specular`, `bumpMapping`, `shadows`, `waterReflection`, `textureMipBias`,
+  `anisotropicLevel` or `modelLod`: those stay at Performance's values, so a
+  standard-quality run currently draws with `lightDirectionAndMode.w = 0` (no
+  directional light term) and `cameraPositionAndSpecular.w = 0`. This is
+  deliberate, not an oversight: turning them on changes the shading of every
+  world draw, and this round measured no frame under that shading, so claiming
+  it here would be the kind of unmeasured change the task forbids. It is the
+  next round's measurement, and it is cheap: one capture with the flags on,
+  compared against `evidence/t17-world-visual/sky.bmp` on the same tick.
 
 ## 7. Evidence
 
@@ -147,9 +158,10 @@ Nothing below has been executed against `73ee6b9`.
 
 1. `bash build-target.sh tf2_demo_native world_geometry_probe` — expect `rc=0`.
 2. A default-path capture at tick 2000 and a `--world-sky` capture at the same
-   tick. **Expected**: byte-identical frames, because `skyEnabled` reads
-   `persistent.render.skybox`, which `fromPreset(Standard)` now sets. If they
-   differ, the loader fix is incomplete and the frame is not reproducible.
+   tick. **Expected**: byte-identical frames (`sky.bmp` is therefore the
+   default frame), because `skyEnabled` reads `persistent.render.skybox`, which
+   `loadSettings` now sets from the file's preset. If they differ, the loader
+   fix is incomplete and the frame is not reproducible.
 3. Two captures of the same settings — the determinism acceptance. Expected
    byte-identical (sha256).
 4. `bash visual-baseline-check.sh` — **expected to fail on pins, not on
