@@ -245,7 +245,10 @@ components to aim at, and a gate that will fail if the sliver population grows.
 `world-geometry-hole-check.sh [--mutation] [--reuse]` — forward run:
 
 ```
-0  source identity (clean native/, HEAD recorded into analysis/identity.txt)
+0  source identity (clean native/, HEAD recorded into analysis/identity.txt; the
+   hashes are of the working-tree bytes the compiler read, so a host that checks
+   out with core.autocrlf=false gets LF and will not reproduce them -- compare
+   with `sha256sum` in the checkout, not with `git show <sha>:<path>`)
 1  build tf2_demo_native + world_geometry_probe
 2  capture matrix, every frame refused unless it belongs to tick 2000
 3  stored frame hashes pinned; the binary this run built re-captures `textured`
