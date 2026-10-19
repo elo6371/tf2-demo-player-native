@@ -349,6 +349,14 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   }
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
+  // T21: mode 6 is the ALBEDO the material path produced -- both layers of a
+  // blend material already mixed, the flat branch for a material with no tile,
+  // and nothing else. Lighting, the lightmap and self-illum are deliberately
+  // NOT applied: this view exists so a gate can compare one screen pixel with
+  // one texel the CPU sampled from the same tile, which is the only way to tell
+  // "the wall is dark because the material is dark" from "the wall is dark
+  // because it sampled the wrong tile".
+  if (envFeatures.y > 0.5) return float4(albedo, 1.0);
   float3 lightColour = float3(lightmapFactor, lightmapFactor, lightmapFactor);
   if (lightmapFeatures.w > 0.5 && lightUv.x >= 0.0) {
     // T17: RGBExp32 is LINEAR radiance, and the text writes what it sampled, so
@@ -1212,6 +1220,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     request.material = source.material;
     request.width = source.width;
     request.height = source.height;
+    request.sourceWidth = source.sourceWidth > 0 ? source.sourceWidth : source.width;
+    request.sourceHeight = source.sourceHeight > 0 ? source.sourceHeight : source.height;
     request.rgbaBytes = source.rgba.size();
     request.blendDeclared = source.blendDeclared;
     // Only a layer that was fetched enters the plan. `blendRgba` is empty both
@@ -1240,6 +1250,15 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     reading.tile = plan.slots[index].tile;
     reading.width = static_cast<int>(plan.slots[index].width);
     reading.height = static_cast<int>(plan.slots[index].height);
+    reading.x = static_cast<int>(plan.slots[index].x);
+    reading.y = static_cast<int>(plan.slots[index].y);
+    reading.sourceWidth = static_cast<int>(plan.slots[index].sourceWidth);
+    reading.sourceHeight = static_cast<int>(plan.slots[index].sourceHeight);
+    if (plan.slots[index].batch >= 0) {
+      const auto& placed = plan.batches[static_cast<std::size_t>(plan.slots[index].batch)];
+      reading.atlasWidth = static_cast<int>(placed.width);
+      reading.atlasHeight = static_cast<int>(placed.height);
+    }
     reading.blend = plan.slots[index].blend;
     reading.modulate = plan.slots[index].modulate;
     reading.reason = plan.slots[index].batch >= 0
@@ -1451,13 +1470,17 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       a.a = b.a = c.a = 1.0f;
       // The uv is normalised by THIS batch's atlas: a batch of 20 tiles is
       // 5x4, so its v is divided by four tile heights and not by the width of
-      // the first atlas.
-      a.u = worldTileCoord(triangle.au, t.width, t.x, t.width, batch.width);
-      a.v = worldTileCoord(triangle.av, t.height, t.y, t.height, batch.height);
-      b.u = worldTileCoord(triangle.bu, t.width, t.x, t.width, batch.width);
-      b.v = worldTileCoord(triangle.bv, t.height, t.y, t.height, batch.height);
-      c.u = worldTileCoord(triangle.cu, t.width, t.x, t.width, batch.width);
-      c.v = worldTileCoord(triangle.cv, t.height, t.y, t.height, batch.height);
+      // the first atlas. T21: and it is normalised by the SOURCE size, not the
+      // tile size -- `worldTileCoord` scales the wrapped texcoord by
+      // extent/sourceSize, which is the downscale. Passing the tile size in
+      // both places collapsed that ratio to 1 and made every downscaled
+      // texture repeat: 70 of the 85 tiled materials on pl_odyssey.
+      a.u = worldTileCoord(triangle.au, t.sourceWidth, t.x, t.width, batch.width);
+      a.v = worldTileCoord(triangle.av, t.sourceHeight, t.y, t.height, batch.height);
+      b.u = worldTileCoord(triangle.bu, t.sourceWidth, t.x, t.width, batch.width);
+      b.v = worldTileCoord(triangle.bv, t.sourceHeight, t.y, t.height, batch.height);
+      c.u = worldTileCoord(triangle.cu, t.sourceWidth, t.x, t.width, batch.width);
+      c.v = worldTileCoord(triangle.cv, t.sourceHeight, t.y, t.height, batch.height);
       // T12: a weight is handed to the shader only for a material that shipped
       // a second layer. A displacement whose VMT names one layer keeps the
       // sentinel, because the blend atlas has no tile under its uv and the
@@ -2331,6 +2354,10 @@ bool Renderer::isWeaponMaterialView(const ID3D11ShaderResourceView* view) const 
     if (entry.second.Get() == view) return true;
   }
   return false;
+}
+
+WorldShaderConstants Renderer::worldShaderConstants() const {
+  return worldShaderConstants_;
 }
 
 WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
@@ -3830,7 +3857,91 @@ bool Renderer::writeBackBufferToFile(const std::wstring& path) {
     if (!ok) captureError_ = L"writing the output file failed";
   }
   context_->Unmap(readback.Get(), 0);
+  // The final depth, after the ViewModel pass cleared the world depth and drew
+  // the weapon. Kept separately from the world depth so the face trace can ask
+  // "did the world pixel survive the weapon pass" instead of assuming it.
+  captureDepthBuffer(true);
   return ok;
+}
+
+void Renderer::captureDepthBuffer(bool finalPass) {
+  // ---- T21: the depth of the world/water/entity passes -------------------
+  // The face trace picks a world triangle per screen point by projecting the
+  // map, so "the pixel belongs to that triangle" is an assumption until the
+  // depth buffer confirms it. A model, the water pass, or a nearer world
+  // triangle all invalidate it, and a colour comparison over such a pixel is a
+  // comparison with somebody else's surface. The D24S8 packing was READ, not
+  // assumed: the cleared depth of the first capture answered 0x00ffffff, i.e.
+  // depth 1.0 sits in the LOW 24 bits with the stencil byte above it, so this
+  // reader masks the low 24 bits. A format it does not know leaves the buffer
+  // empty, and `capturedDepthAt` then answers negative -- "not measured",
+  // never "matched".
+  std::vector<float>& target = finalPass ? capturedFinalDepth_ : capturedDepth_;
+  target.clear();
+  // The dimensions belong to the world readback; a failed final readback must
+  // not erase the size of a successful world one.
+  if (!finalPass) {
+    capturedDepthWidth_ = 0;
+    capturedDepthHeight_ = 0;
+  }
+  if (depthTexture_) {
+    D3D11_TEXTURE2D_DESC depthDesc{};
+    depthTexture_->GetDesc(&depthDesc);
+    if (depthDesc.Format == DXGI_FORMAT_D24_UNORM_S8_UINT) {
+      D3D11_TEXTURE2D_DESC stagingDepth = depthDesc;
+      stagingDepth.Usage = D3D11_USAGE_STAGING;
+      stagingDepth.BindFlags = 0;
+      stagingDepth.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+      stagingDepth.MiscFlags = 0;
+      stagingDepth.MipLevels = 1;
+      stagingDepth.ArraySize = 1;
+      Microsoft::WRL::ComPtr<ID3D11Texture2D> depthReadback;
+      if (SUCCEEDED(device_->CreateTexture2D(&stagingDepth, nullptr, depthReadback.GetAddressOf()))) {
+        context_->CopyResource(depthReadback.Get(), depthTexture_.Get());
+        D3D11_MAPPED_SUBRESOURCE depthMapped{};
+        if (SUCCEEDED(context_->Map(depthReadback.Get(), 0, D3D11_MAP_READ, 0, &depthMapped))) {
+          target.assign(static_cast<std::size_t>(depthDesc.Width) * depthDesc.Height, -1.0f);
+          if (!finalPass) capturedDepthRaw_.assign(static_cast<std::size_t>(depthDesc.Width) * depthDesc.Height, 0u);
+          capturedDepthWidth_ = static_cast<int>(depthDesc.Width);
+          capturedDepthHeight_ = static_cast<int>(depthDesc.Height);
+          const auto* rows = static_cast<const std::uint8_t*>(depthMapped.pData);
+          for (UINT y = 0; y < depthDesc.Height; ++y) {
+            const auto* row = reinterpret_cast<const std::uint32_t*>(
+              rows + static_cast<std::size_t>(y) * depthMapped.RowPitch);
+            for (UINT x = 0; x < depthDesc.Width; ++x) {
+              if (!finalPass) {
+                capturedDepthRaw_[static_cast<std::size_t>(y) * depthDesc.Width + x] = row[x];
+              }
+              target[static_cast<std::size_t>(y) * depthDesc.Width + x] =
+                static_cast<float>(row[x] & 0x00FFFFFFu) / 16777215.0f;
+            }
+          }
+          context_->Unmap(depthReadback.Get(), 0);
+        }
+      }
+    }
+  }
+}
+
+float Renderer::capturedDepthAt(int x, int y) const {
+  if (x < 0 || y < 0 || x >= capturedDepthWidth_ || y >= capturedDepthHeight_) return -1.0f;
+  const std::size_t at = static_cast<std::size_t>(y) * static_cast<std::size_t>(capturedDepthWidth_)
+    + static_cast<std::size_t>(x);
+  return at < capturedDepth_.size() ? capturedDepth_[at] : -1.0f;
+}
+
+float Renderer::capturedFinalDepthAt(int x, int y) const {
+  if (x < 0 || y < 0 || x >= capturedDepthWidth_ || y >= capturedDepthHeight_) return -1.0f;
+  const std::size_t at = static_cast<std::size_t>(y) * static_cast<std::size_t>(capturedDepthWidth_)
+    + static_cast<std::size_t>(x);
+  return at < capturedFinalDepth_.size() ? capturedFinalDepth_[at] : -1.0f;
+}
+
+std::uint32_t Renderer::capturedDepthRawAt(int x, int y) const {
+  if (x < 0 || y < 0 || x >= capturedDepthWidth_ || y >= capturedDepthHeight_) return 0u;
+  const std::size_t at = static_cast<std::size_t>(y) * static_cast<std::size_t>(capturedDepthWidth_)
+    + static_cast<std::size_t>(x);
+  return at < capturedDepthRaw_.size() ? capturedDepthRaw_[at] : 0u;
 }
 
 bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
@@ -3951,6 +4062,46 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f, 0.0f, 0.0f);
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
     frameConstantsValid = true;
+    // T21: publish the same numbers for the face trace. Copied field by field
+    // from the struct that was just uploaded, so the trace cannot describe a
+    // camera or a lighting mode the draw did not use.
+    worldShaderConstants_ = WorldShaderConstants{};
+    worldShaderConstants_.valid = true;
+    worldShaderConstants_.mvp[0] = constants.mvp.m[0][0];
+    worldShaderConstants_.mvp[1] = constants.mvp.m[0][1];
+    worldShaderConstants_.mvp[2] = constants.mvp.m[0][2];
+    worldShaderConstants_.mvp[3] = constants.mvp.m[0][3];
+    worldShaderConstants_.mvp[4] = constants.mvp.m[1][0];
+    worldShaderConstants_.mvp[5] = constants.mvp.m[1][1];
+    worldShaderConstants_.mvp[6] = constants.mvp.m[1][2];
+    worldShaderConstants_.mvp[7] = constants.mvp.m[1][3];
+    worldShaderConstants_.mvp[8] = constants.mvp.m[2][0];
+    worldShaderConstants_.mvp[9] = constants.mvp.m[2][1];
+    worldShaderConstants_.mvp[10] = constants.mvp.m[2][2];
+    worldShaderConstants_.mvp[11] = constants.mvp.m[2][3];
+    worldShaderConstants_.mvp[12] = constants.mvp.m[3][0];
+    worldShaderConstants_.mvp[13] = constants.mvp.m[3][1];
+    worldShaderConstants_.mvp[14] = constants.mvp.m[3][2];
+    worldShaderConstants_.mvp[15] = constants.mvp.m[3][3];
+    worldShaderConstants_.lightDirection[0] = constants.lightDirectionAndMode.x;
+    worldShaderConstants_.lightDirection[1] = constants.lightDirectionAndMode.y;
+    worldShaderConstants_.lightDirection[2] = constants.lightDirectionAndMode.z;
+    worldShaderConstants_.lightMode = constants.lightDirectionAndMode.w;
+    worldShaderConstants_.cameraPosition[0] = constants.cameraPositionAndSpecular.x;
+    worldShaderConstants_.cameraPosition[1] = constants.cameraPositionAndSpecular.y;
+    worldShaderConstants_.cameraPosition[2] = constants.cameraPositionAndSpecular.z;
+    worldShaderConstants_.specular = constants.cameraPositionAndSpecular.w > 0.5f;
+    worldShaderConstants_.selfIllumTint[0] = constants.materialFeatures.x;
+    worldShaderConstants_.selfIllumTint[1] = constants.materialFeatures.y;
+    worldShaderConstants_.selfIllumTint[2] = constants.materialFeatures.z;
+    worldShaderConstants_.selfIllum = constants.materialFeatures.w;
+    worldShaderConstants_.lightmapFactor = constants.lightmapFeatures.x;
+    worldShaderConstants_.bumpMode = constants.lightmapFeatures.y;
+    worldShaderConstants_.lightmapEnabled = constants.lightmapFeatures.w > 0.5f;
+    worldShaderConstants_.envMode = constants.envFeatures.x;
+    worldShaderConstants_.debugView = worldDebugView_;
+    worldShaderConstants_.width = static_cast<int>(width_);
+    worldShaderConstants_.height = static_cast<int>(height_);
     // The sky box, first and with its own mvp: the same view and projection with
     // the translation removed, so the box stays centred on the camera and a
     // vertex's own direction is the direction the cube is sampled at. Drawn
@@ -4038,7 +4189,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // wrong pass.
     if (worldDebugView_ != 0 && frameConstantsValid) {
       WorldConstantsData debugConstants = frameConstants;
-      debugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f : 4.0f;
+      // 1/2 are the flat/depth views and ride envFeatures.x (0 is the product
+      // path); the albedo view rides envFeatures.y because x > 3.5 is already
+      // claimed by the flat/depth block, and a mode 6 in x would be caught
+      // there first -- measured: the first albedo capture was a depth frame.
+      debugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
+        : worldDebugView_ == 3 ? 0.0f : 4.0f;
+      debugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &debugConstants, 0, 0);
     }
     // ---- T19: one draw per batch, each with its own atlas -----------------
@@ -4286,6 +4443,14 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->Draw(modelVertexCount_, 0);
   }
   ++framePassOrdinal_;
+  // T21: the depth the frame has after the world, water and entity passes and
+  // BEFORE the ViewModel pass clears it (the weapon's own pass clears depth so
+  // the weapon draws over the map). Read here because this is the last moment
+  // at which the depth buffer describes the world the face trace walked; after
+  // `drawViewModel()` every world pixel reads 1.0 -- measured, the first
+  // version of this readback was taken after the clear and answered 00ffffff
+  // at every point.
+  if (!capturePath_.empty()) captureDepthBuffer(false);
   // First person, after the world and entity passes and before the capture, so
   // the frame written to disk already contains the weapon. The pass restores the
   // world depth state it overrides, so a later HUD pass (T3) is unaffected.

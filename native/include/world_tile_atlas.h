@@ -59,10 +59,19 @@ const char* worldTileRefusalName(WorldTileRefusal reason);
 // One material the world pass wants a tile for. `blendBytes` / `modulateBytes`
 // are the second layer and the blend mask already resampled onto this tile's
 // own `width` x `height`; zero means the material did not ship one.
+//
+// `sourceWidth` / `sourceHeight` are the VTF's dimensions BEFORE the downscale
+// to `width` x `height`, and they are what the uv has to be normalised by: a
+// texcoord is in source texels, so a 1024-wide texture reduced to a 256-texel
+// tile covers a face once only if the tile coordinate is computed from 1024.
+// Zero means "the tile is the source", which is the truth for every texture
+// that already fit.
 struct WorldTileSource {
   std::string material;
   std::uint32_t width = 0;
   std::uint32_t height = 0;
+  std::uint32_t sourceWidth = 0;
+  std::uint32_t sourceHeight = 0;
   std::size_t rgbaBytes = 0;
   std::size_t blendBytes = 0;
   bool blendDeclared = false;
@@ -79,6 +88,10 @@ struct WorldTileSlot {
   std::uint32_t y = 0;
   std::uint32_t width = 0;
   std::uint32_t height = 0;
+  // T21: the pre-downscale dimensions the uv must be normalised by. Equal to
+  // `width` / `height` for a texture that fit the tile.
+  std::uint32_t sourceWidth = 0;
+  std::uint32_t sourceHeight = 0;
   bool blend = false;
   bool modulate = false;
 };
