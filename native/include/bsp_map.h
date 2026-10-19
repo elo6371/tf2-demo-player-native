@@ -45,6 +45,12 @@ struct BspTriangle {
   // overwrote it -- which is the difference between "the map is inconsistent"
   // and "the rule is".
   std::uint8_t windingFlipped = 0;
+  // T23: this triangle is the flat quad of a displacement face whose grid was
+  // refused. It is emitted through the brush path (no grid, no blend weights),
+  // so it carries the brush orientation rule -- which is exactly why it can be
+  // back-face culled where the grid it replaces would have been oriented. The
+  // flag lets a diagnostic count those triangles without re-parsing the face.
+  bool fallbackQuad = false;
   int cluster = -1;
 };
 
@@ -61,6 +67,16 @@ struct BspMap {
   int revision = 0;
   std::size_t faceCount = 0;
   std::size_t renderedFaceCount = 0;
+  // T23: faces the parser could not turn into a polygon at all (a surfedge or
+  // vertex index outside its lump, or fewer than three vertices). A non-zero
+  // count here is the other way geometry can be missing before any cull runs;
+  // it is counted rather than inferred from faceCount - renderedFaceCount,
+  // because a face can also be skipped by the triangle budget.
+  std::size_t facesSkippedInvalid = 0;
+  // Faces the map itself marks not-drawn (`SURF_NODRAW`/`SURF_HINT` bits
+  // 64/128). They are geometry the renderer is supposed to omit, so they must
+  // not be counted as missing surfaces.
+  std::size_t facesSkippedNoDraw = 0;
   std::size_t triangleCount = 0;
   std::size_t lightmapSampleCount = 0;
   std::size_t lightmapFaceCount = 0;
@@ -111,6 +127,30 @@ struct BspMap {
   std::size_t displacementFaces = 0;
   std::size_t displacementTriangles = 0;
   std::size_t displacementCornerMatches = 0;
+  // T23: not every face that carries a dispinfo becomes a displacement grid.
+  // A face whose grid cannot be built is emitted as its flat quad instead, so
+  // "the terrain is missing" and "the terrain is flat here" are different
+  // readings. `candidates` counts the faces that asked for a grid; `fallback`
+  // counts the ones that did not get one, split by the branch that refused it.
+  // A map whose candidate count equals `displacementFaces` has no fallback
+  // faces at all, and a hole cannot be blamed on this path.
+  std::size_t displacementFaceCandidates = 0;
+  std::size_t displacementFallbackFaces = 0;
+  std::size_t displacementFallbackLump = 0;       // no usable dispinfo/dispvert lump
+  std::size_t displacementFallbackPolygon = 0;    // face is not a quad
+  std::size_t displacementFallbackIndex = 0;      // dispinfo index out of range
+  std::size_t displacementFallbackPower = 0;      // power outside 2..4
+  std::size_t displacementFallbackRange = 0;      // vertex range outside the lump
+  std::size_t displacementFallbackCorner = 0;     // no polygon corner matches the start
+  std::size_t displacementFallbackNonFinite = 0;  // a grid vertex is not finite
+  std::size_t displacementFallbackCell = 0;       // a grid cell is degenerate/oversized
+  std::size_t displacementFallbackLimit = 0;      // the triangle budget truncated it
+  std::size_t displacementFallbackOther = 0;      // refused with no more specific reason
+  // The faces behind those counters, so a fallback is a place in the map and
+  // not only a number. Bounded by the number of candidates (1392 on the
+  // reference map); the probe prints the first few.
+  std::vector<std::int32_t> displacementFallbackFaceIndex;
+  std::vector<std::string> displacementFallbackMaterial;
   // T10 winding census, read-only: how many face polygons wind along the side
   // of their own BSP plane the face is meant to be seen from (planeSide 1
   // faces count as agreeing when the winding normal points AGAINST the stored

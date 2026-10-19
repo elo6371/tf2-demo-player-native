@@ -126,10 +126,19 @@ int main(int argc, char** argv) {
   // below is only about the product's page if this number matches it, so it is
   // an option rather than a constant.
   int atlasWidth = 4096;
+  // T23: score the fallback-quad defect without changing the product. A
+  // displacement face whose grid is refused is emitted as its flat quad through
+  // the brush path, so it keeps the brush winding rule; the proposed repair
+  // orients exactly those triangles to the face's own side-aware outward
+  // direction, which is the rule the grid would have used. With this flag the
+  // oracles treat them as repaired and print the first-hit delta the change
+  // would buy before a single pixel is drawn.
+  bool virtualFallbackOrient = false;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--tf-root") == 0 && i + 1 < argc) tfRoot = argv[++i];
     else if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc) mapPath = argv[++i];
     else if (std::strcmp(argv[i], "--atlas-width") == 0 && i + 1 < argc) atlasWidth = std::atoi(argv[++i]);
+    else if (std::strcmp(argv[i], "--fallback-orient") == 0) virtualFallbackOrient = true;
     else if (std::strcmp(argv[i], "--dump-lightmap") == 0 && i + 1 < argc) dumpLightmapPath = argv[++i];
     else if (std::strcmp(argv[i], "--triangle-limit") == 0 && i + 1 < argc) triangleLimit = static_cast<std::size_t>(std::stoull(argv[++i]));
     else if (std::strcmp(argv[i], "--ray-down") == 0 && i + 1 < argc) {
@@ -179,6 +188,30 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // T23: the facing test, with an optional virtual repair for the fallback
+  // quads. The normal passed in is the EMITTED winding normal; `view` is the
+  // direction from the eye (or +Z for the top-down oracle). The repair does not
+  // move any vertex -- it only says which side the triangle would face if the
+  // fallback fan were oriented the way its own face's side bit asks.
+  std::size_t virtualFlipEvaluated = 0, virtualFlipApplied = 0;
+  const auto orientedFacing = [&](const tf2::native::BspTriangle& triangle,
+                                  float nx, float ny, float nz,
+                                  float vx, float vy, float vz) {
+    float dot = nx * vx + ny * vy + nz * vz;
+    if (virtualFallbackOrient && triangle.fallbackQuad) {
+      ++virtualFlipEvaluated;
+      if (triangle.planeIndex >= 0
+          && static_cast<std::size_t>(triangle.planeIndex) < map.planes.size()) {
+        const auto& plane = map.planes[static_cast<std::size_t>(triangle.planeIndex)];
+        const float sideSign = triangle.planeSide == 0 ? 1.0f : -1.0f;
+        const float ox = sideSign * plane.normal[0];
+        const float oy = sideSign * plane.normal[1];
+        const float oz = sideSign * plane.normal[2];
+        if (nx * ox + ny * oy + nz * oz < 0.0f) { dot = -dot; ++virtualFlipApplied; }
+      }
+    }
+    return dot > 0.0f;
+  };
   std::size_t displaced = 0, water = 0, lightmapped = 0, degenerate = 0;
   std::size_t over256 = 0, over1024 = 0, over4096 = 0;
   float maxEdge = 0.0f;
@@ -223,6 +256,13 @@ int main(int argc, char** argv) {
               mapPath.c_str(), map.version, map.triangles.size(), map.faceCount,
               displaced, water, lightmapped, degenerate, maxEdge, over256, over1024, over4096,
               minX, minY, minZ, maxX, maxY, maxZ);
+  // T23: the face-level account. A face that never becomes a polygon is
+  // geometry that no winding rule, pvs row or cull mode can bring back, so it
+  // is separated from the faces that emitted and from the ones a displacement
+  // fallback substituted for.
+  std::printf("geometry faces total=%zu rendered=%zu sky=%zu skippedNoDraw=%zu skippedInvalid=%zu\n",
+              map.faceCount, map.renderedFaceCount, map.skyFaces,
+              map.facesSkippedNoDraw, map.facesSkippedInvalid);
   // T17: do the lightmap uvs address the texels the packer actually wrote?
   //
   // The atlas is a shelf pack of per-face rectangles on a 0-filled page whose
@@ -390,6 +430,30 @@ int main(int argc, char** argv) {
               staticMaxEdge, staticOver1024, staticMaterialOver1024, displacedMaxEdge, displacedOver1024);
   std::printf("geometry displacement faces=%zu triangles=%zu cornerMatches=%zu\n",
               map.displacementFaces, map.displacementTriangles, map.displacementCornerMatches);
+  // T23: terrain completeness at the face level. A candidate face that does not
+  // emit a grid is drawn as its flat quad, so it is not a hole -- but a map
+  // with fallbacks is a map whose terrain detail is missing at named faces, and
+  // the reason list says which branch refused them. `candidates == faces` with
+  // `fallback == 0` is the clean reading: every displacement face the bsp names
+  // was actually tessellated.
+  std::printf("geometry displacement coverage candidates=%zu emitted=%zu fallback=%zu"
+              " (lump=%zu polygon=%zu index=%zu power=%zu range=%zu corner=%zu"
+              " nonFinite=%zu cell=%zu limit=%zu other=%zu)\n",
+              map.displacementFaceCandidates, map.displacementFaces, map.displacementFallbackFaces,
+              map.displacementFallbackLump, map.displacementFallbackPolygon,
+              map.displacementFallbackIndex, map.displacementFallbackPower,
+              map.displacementFallbackRange, map.displacementFallbackCorner,
+              map.displacementFallbackNonFinite, map.displacementFallbackCell,
+              map.displacementFallbackLimit, map.displacementFallbackOther);
+  for (std::size_t i = 0; i < map.displacementFallbackFaceIndex.size() && i < 12; ++i) {
+    std::printf("geometry displacement fallback-face index=%d material=%s\n",
+                map.displacementFallbackFaceIndex[i], map.displacementFallbackMaterial[i].c_str());
+  }
+  {
+    std::size_t fallbackTriangles = 0;
+    for (const auto& triangle : map.triangles) if (triangle.fallbackQuad) ++fallbackTriangles;
+    std::printf("geometry displacement fallback-quads triangles=%zu\n", fallbackTriangles);
+  }
   std::printf("geometry winding agree=%zu of %zu faces (%.1f%% agree with the bsp plane normals)\n",
               map.windingAgreeCount, map.windingFaceCount,
               map.windingFaceCount == 0 ? 0.0 : 100.0 * static_cast<double>(map.windingAgreeCount)
@@ -490,7 +554,7 @@ int main(int argc, char** argv) {
         const float ux = t.b.x - t.a.x, uy = t.b.y - t.a.y, uz = t.b.z - t.a.z;
         const float vx = t.c.x - t.a.x, vy = t.c.y - t.a.y, vz = t.c.z - t.a.z;
         const float nz = ux * vy - uy * vx;             // emitted normal, z only
-        const bool emittedUp = nz > 0.0f;               // drawn by a camera above
+        const bool emittedUp = orientedFacing(t, 0.0f, 0.0f, nz, 0.0f, 0.0f, 1.0f);
         const bool storedUp = (t.windingFlipped != 0) ? !emittedUp : emittedUp;
         if (emittedUp) ++drawn;
         if (t.displacement) {
@@ -684,6 +748,48 @@ int main(int argc, char** argv) {
     std::size_t brushSide[2][2] = {{0, 0}, {0, 0}}; // [side][toward]
     std::size_t dispSide[2][2] = {{0, 0}, {0, 0}};
     std::size_t drawnShipped = 0;
+    // T23: the same directions, asked the question the product actually asks.
+    // The first surface along a direction can be rejected for two independent
+    // reasons -- the pvs does not carry its cluster, or the emitted winding
+    // faces away from the eye -- and the two are separable here because the
+    // triangle carries both its cluster and its emission flag. The counts below
+    // are therefore an account, not a verdict: drawn / vis-rejected /
+    // back-rejected / both-rejected, plus how many of the rejected directions
+    // still have SOME drawable surface behind them (the frame shows a farther
+    // surface) versus none at all (the frame shows sky or clear colour).
+    const int eyeCluster = tf2::native::BspParser::clusterAt(map, rayEyeX, rayEyeY, rayEyeZ);
+    std::size_t classDrawn = 0, classVis = 0, classBack = 0, classBoth = 0;
+    std::size_t brushDrawn = 0, brushRejected = 0, dispDrawn = 0, dispRejected = 0;
+    std::size_t fallbackDrawn = 0, fallbackRejected = 0;
+    std::size_t occludedWithBehind = 0, occludedWithNothing = 0;
+    std::size_t drawnDark = 0, drawnToned = 0;
+    // T23: a sphere of directions is not a frame. "No geometry" straight up is
+    // the sky and is fine; "no geometry" downwards is a hole in the terrain.
+    // The same split is applied to the directions whose first hit is rejected
+    // and has no drawable surface behind it -- those are the directions in
+    // which the frame would show sky where the eye expects a surface.
+    std::size_t missDown = 0, missHoriz = 0, missUp = 0;
+    std::size_t holeDown = 0, holeHoriz = 0, holeUp = 0;
+    std::size_t behindBrush = 0, behindDisp = 0;
+    std::size_t holesPrinted = 0;
+    const bool haveAtlas = map.lightmapAtlasWidth > 0 && map.lightmapAtlasHeight > 0
+      && !map.lightmapAtlas.empty();
+    const auto toneOf = [&](const BspTriangle& t) {
+      if (!haveAtlas || !t.lightmapped) return -1.0;
+      const float uv[3][2] = {{t.alu, t.alv}, {t.blu, t.blv}, {t.clu, t.clv}};
+      double sum = 0.0;
+      for (const auto& corner : uv) {
+        const int x = std::clamp(static_cast<int>(std::floor(corner[0] * static_cast<float>(map.lightmapAtlasWidth))),
+                                 0, map.lightmapAtlasWidth - 1);
+        const int y = std::clamp(static_cast<int>(std::floor(corner[1] * static_cast<float>(map.lightmapAtlasHeight))),
+                                 0, map.lightmapAtlasHeight - 1);
+        const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(map.lightmapAtlasWidth)
+          + static_cast<std::size_t>(x)) * 4u;
+        sum += (static_cast<double>(map.lightmapAtlas[at])
+          + map.lightmapAtlas[at + 1] + map.lightmapAtlas[at + 2]) / 3.0;
+      }
+      return sum / 3.0;
+    };
     constexpr float kPi = 3.14159265358979323846f;
     for (int polar = 0; polar < rayEyeCells; ++polar) {
       const float theta = kPi * (static_cast<float>(polar) + 0.5f) / static_cast<float>(rayEyeCells);
@@ -694,6 +800,11 @@ int main(int argc, char** argv) {
         const float dz = std::cos(theta);
         float bestT = 1.0e30f;
         std::size_t bestIndex = map.triangles.size();
+        // T23: nearest surface the product would actually draw along this ray.
+        // "Drawable" means exactly what the pass means: the triangle's cluster
+        // survives the camera's pvs, and its emitted winding faces the eye.
+        float bestDrawableT = 1.0e30f;
+        std::size_t bestDrawableIndex = map.triangles.size();
         for (std::size_t index = 0; index < map.triangles.size(); ++index) {
           const auto& t = map.triangles[index];
           const float e1x = t.b.x - t.a.x, e1y = t.b.y - t.a.y, e1z = t.b.z - t.a.z;
@@ -710,15 +821,30 @@ int main(int argc, char** argv) {
           if (v < 0.0f || u + v > 1.0f) continue;
           const float hit = (e2x * qx + e2y * qy + e2z * qz) * inv;
           if (hit > 1.0e-3f && hit < bestT) { bestT = hit; bestIndex = index; }
+          if (hit > 1.0e-3f && hit < bestDrawableT) {
+            const float ux = t.b.x - t.a.x, uy = t.b.y - t.a.y, uz = t.b.z - t.a.z;
+            const float vx = t.c.x - t.a.x, vy = t.c.y - t.a.y, vz = t.c.z - t.a.z;
+            const float nx2 = uy * vz - uz * vy, ny2 = uz * vx - ux * vz, nz2 = ux * vy - uy * vx;
+            if (orientedFacing(t, nx2, ny2, nz2, dx, dy, dz)) {
+              const bool pvs = eyeCluster < 0 || t.cluster < 0
+                || tf2::native::BspParser::clusterVisible(map, eyeCluster, t.cluster);
+              if (pvs) { bestDrawableT = hit; bestDrawableIndex = index; }
+            }
+          }
         }
-        if (bestIndex >= map.triangles.size()) { ++misses; continue; }
+        if (bestIndex >= map.triangles.size()) {
+          ++misses;
+          if (dz < -0.3f) ++missDown; else if (dz > 0.3f) ++missUp; else ++missHoriz;
+          continue;
+        }
         ++hits;
         const auto& t = map.triangles[bestIndex];
         const float ux = t.b.x - t.a.x, uy = t.b.y - t.a.y, uz = t.b.z - t.a.z;
         const float vx = t.c.x - t.a.x, vy = t.c.y - t.a.y, vz = t.c.z - t.a.z;
         float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
         // The emitted winding, as the rasteriser sees it.
-        const bool drawn = nx * dx + ny * dy + nz * dz > 0.0f;
+        const float enx = nx, eny = ny, enz = nz;
+        const bool drawn = orientedFacing(t, nx, ny, nz, dx, dy, dz);
         // Stored winding, recovered from the emission flag.
         if (t.windingFlipped != 0) { nx = -nx; ny = -ny; nz = -nz; }
         // The eye sees the side the stored normal points at.
@@ -737,6 +863,57 @@ int main(int argc, char** argv) {
         // What the shipped rule would leave in front of the eye: it reverses the
         // stored order for every triangle it can orient, so "toward" flips.
         if (drawn) ++drawnShipped;
+        const bool pvsKept = eyeCluster < 0 || t.cluster < 0
+          || tf2::native::BspParser::clusterVisible(map, eyeCluster, t.cluster);
+        if (drawn && pvsKept) {
+          ++classDrawn;
+          ++(t.displacement ? dispDrawn : brushDrawn);
+          if (t.fallbackQuad) ++fallbackDrawn;
+          const double tone = toneOf(t);
+          if (tone >= 0.0) {
+            ++drawnToned;
+            if (tone < 24.0) ++drawnDark;
+          }
+        } else {
+          ++(t.displacement ? dispRejected : brushRejected);
+          if (t.fallbackQuad) ++fallbackRejected;
+          if (drawn) ++classVis;        // the pvs hides a surface that faces the eye
+          else if (pvsKept) ++classBack; // the winding turns a visible surface away
+          else ++classBoth;
+        }
+        if (!(drawn && pvsKept)) {
+          if (bestDrawableIndex < map.triangles.size()) {
+            ++occludedWithBehind;
+            ++(t.displacement ? behindDisp : behindBrush);
+          } else {
+            ++occludedWithNothing;
+            if (dz < -0.3f) ++holeDown; else if (dz > 0.3f) ++holeUp; else ++holeHoriz;
+            // The directions that matter: geometry exists, the product draws
+            // none of it, and there is no farther drawable surface either.
+            // Named with the surface that was rejected, so the defect can be
+            // followed to a face instead of argued about.
+            if (holesPrinted < 80) {
+              float ox = 0.0f, oy = 0.0f, oz = 0.0f;
+              if (t.planeIndex >= 0
+                  && static_cast<std::size_t>(t.planeIndex) < map.planes.size()) {
+                const auto& plane = map.planes[static_cast<std::size_t>(t.planeIndex)];
+                const float sideSign = t.planeSide == 0 ? 1.0f : -1.0f;
+                ox = sideSign * plane.normal[0];
+                oy = sideSign * plane.normal[1];
+                oz = sideSign * plane.normal[2];
+              }
+              std::printf("geometry ray-eye hole dir=(%.3f,%.3f,%.3f) t=%.1f hit=(%.1f,%.1f,%.1f) class=%s reason=%s material=%s cluster=%d fallback=%d outward=(%.2f,%.2f,%.2f) outDotDir=%.3f n=(%.2f,%.2f,%.2f) nDotDir=%.3f\n",
+                          dx, dy, dz, bestT,
+                          rayEyeX + dx * bestT, rayEyeY + dy * bestT, rayEyeZ + dz * bestT,
+                          t.displacement ? "displacement" : "brush",
+                          (drawn && !pvsKept) ? "vis" : (!drawn && pvsKept) ? "back" : "both",
+                          t.material.c_str(), t.cluster, t.fallbackQuad ? 1 : 0,
+                          ox, oy, oz, ox * dx + oy * dy + oz * dz,
+                          enx, eny, enz, enx * dx + eny * dy + enz * dz);
+              ++holesPrinted;
+            }
+          }
+        }
       }
     }
     const std::size_t total = hits == 0 ? 1 : hits;
@@ -745,6 +922,23 @@ int main(int argc, char** argv) {
                 static_cast<double>(drawnShipped) / static_cast<double>(total));
     std::printf("geometry ray-eye first-hit class=brush storedTowardEye=%zu storedAway=%zu\n", brushToward, brushAway);
     std::printf("geometry ray-eye first-hit class=displacement storedTowardEye=%zu storedAway=%zu\n", dispToward, dispAway);
+    std::printf("geometry ray-eye classification drawn=%zu visRejected=%zu backRejected=%zu bothRejected=%zu noGeometry=%zu eyeCluster=%d\n",
+                classDrawn, classVis, classBack, classBoth, misses, eyeCluster);
+    std::printf("geometry ray-eye classification class=brush drawn=%zu rejected=%zu\n", brushDrawn, brushRejected);
+    std::printf("geometry ray-eye classification class=displacement drawn=%zu rejected=%zu\n", dispDrawn, dispRejected);
+    std::printf("geometry ray-eye classification fallbackQuad drawn=%zu rejected=%zu\n", fallbackDrawn, fallbackRejected);
+    std::printf("geometry ray-eye occlusion firstHitRejected=%zu drawableBehind=%zu nothingDrawable=%zu\n",
+                classVis + classBack + classBoth, occludedWithBehind, occludedWithNothing);
+    std::printf("geometry ray-eye occlusion drawableBehind class=brush %zu displacement %zu\n",
+                behindBrush, behindDisp);
+    std::printf("geometry ray-eye noGeometry down=%zu horizontal=%zu up=%zu\n",
+                missDown, missHoriz, missUp);
+    std::printf("geometry ray-eye holes down=%zu horizontal=%zu up=%zu\n",
+                holeDown, holeHoriz, holeUp);
+    std::printf("geometry ray-eye drawn-tone dark=%zu of %zu (%.3f) atlas=%dx%d\n",
+                drawnDark, drawnToned,
+                drawnToned == 0 ? 0.0 : static_cast<double>(drawnDark) / static_cast<double>(drawnToned),
+                map.lightmapAtlasWidth, map.lightmapAtlasHeight);
     for (int s = 0; s < 2; ++s) {
       std::printf("geometry ray-eye first-hit brush planeSide=%d towardEye=%zu away=%zu\n",
                   s, brushSide[s][1], brushSide[s][0]);
@@ -781,6 +975,10 @@ int main(int argc, char** argv) {
                   ((mask >> 2) & 1) ? "keep" : "flip", ((mask >> 3) & 1) ? "keep" : "flip",
                   topScore, eyeScore, std::min(topScore, eyeScore));
     }
+  }
+  if (virtualFallbackOrient) {
+    std::printf("geometry fallback-orient evaluated=%zu flipped=%zu\n",
+                virtualFlipEvaluated, virtualFlipApplied);
   }
   return 0;
 }
