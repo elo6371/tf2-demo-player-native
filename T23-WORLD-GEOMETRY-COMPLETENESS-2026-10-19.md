@@ -472,9 +472,22 @@ Analysis outputs:
 5a32e69c…  accounting-mask.bmp
 ```
 
-Worktree state: the three product/tool source files are modified; the two new
-tools and `evidence/t23-world-geometry/` are untracked. No file outside the T23
-scope was touched. The three diagnostic files under
+### 10.1 What is tracked and what is not
+
+`hashes.txt` is the manifest. The rule it follows is the repository's: **frames
+are witness bytes and stay tracked; per-frame trace lines are machine output and
+do not.**
+
+| path | state | why |
+| --- | --- | --- |
+| `captures/*.bmp` (13) | tracked | the account is a claim about these pixels |
+| `captures/traces/*.trace` (13, 25 MB) | ignored, kept on disk | the capture script already checks tick 2000 before it accepts a frame; the trace only proves that, and `hashes.txt` records its sha256 so a claim about one is still checkable |
+| `captures/*.log` | ignored | empty on success |
+| `captures/targeted/` | deleted | a `--debug-camera` excursion under the fallback quads; it produced a picture the report does not cite, so it is not evidence |
+| `analysis/`, `frames/`, `hashes.txt` | tracked | the reads and the lossless PNG copies of the frames |
+
+The three product/tool source files are modified; the two new tools are added.
+No file outside the T23 scope was touched. The three diagnostic files under
 `evidence/visual-baseline/` in the main worktree were not read into or written
 from this worktree.
 
