@@ -535,7 +535,28 @@ cbuffer ViewModelConstants : register(b0) {
   float4 selfillumFeatures;
   float4 selfillumTint;
 };
-StructuredBuffer<float4x4> viewModelBones : register(t4);
+// T18 (2026-10-19): the bone table is read as FLOAT4s, not as `float4x4`.
+//
+// `StructuredBuffer<float4x4>` was the original declaration and it was wrong in
+// a way no reading in this project could see. HLSL packs matrices column-major
+// by default (/Zpc), structured-buffer elements included, and `row_major` is
+// rejected on a buffer declaration. The matrices uploaded here come from
+// `toColumnMajor`, which stores the transpose of the Source `matrix3x4_t` so that
+// `mul(float4(p,1), M)` reproduces `M_source * p`. Read as column-major, the same
+// 16 floats describe the transpose of that matrix: the rotation is inverted and
+// the translation is read from the wrong four floats -- which are zero here.
+//
+// Nothing caught it because an identity matrix is its own transpose. The
+// identity-bones instrument uploads exactly that, so its byte-identical frame
+// pair proved the branch runs, not that it reads what the uploader wrote. What a
+// real pose does through the transposed read is rotate every vertex about the
+// MODEL origin instead of about its bone pivot: the arms model's bones sit ~50
+// units out, so vertices swing tens of units and the hand's triangles are
+// stretched across the whole frame.
+//
+// Four float4s per bone remove the question rather than answering it: `float4`
+// has one packing and indexing it by hand cannot disagree with the uploader.
+StructuredBuffer<float4> viewModelBones : register(t4);
 struct Input {
   float3 position : POSITION;
   float3 normal : NORMAL0;
@@ -555,6 +576,27 @@ struct Output {
   float3 viewPosition : TEXCOORD1;
   float3 viewNormal : TEXCOORD2;
 };
+// One bone's matrix, assembled from the four float4s the uploader wrote.
+// Column k of the Source `matrix3x4_t` is `viewModelBones[slot*4 + k].xyz`, and
+// its fourth component is that column's translation term -- the `toColumnMajor`
+// layout exactly, with no packing rule left to interpret.
+//
+// `point`, `base` and `line` are HLSL keywords (legacy geometry-shader primitive
+// types and the class-inheritance keyword); using one as a parameter name makes
+// the whole parameter list fail to parse, which surfaces as
+// "undeclared identifier" on the *next* line rather than at the mistake.
+float4 skinByBone(float3 vertexPosition, float weightW, uint boneSlot) {
+  uint first = boneSlot * 4;
+  float4 c0 = viewModelBones[first + 0];
+  float4 c1 = viewModelBones[first + 1];
+  float4 c2 = viewModelBones[first + 2];
+  float4 c3 = viewModelBones[first + 3];
+  return float4(
+    vertexPosition.x * c0.x + vertexPosition.y * c1.x + vertexPosition.z * c2.x + weightW * c3.x,
+    vertexPosition.x * c0.y + vertexPosition.y * c1.y + vertexPosition.z * c2.y + weightW * c3.y,
+    vertexPosition.x * c0.z + vertexPosition.y * c1.z + vertexPosition.z * c2.z + weightW * c3.z,
+    weightW);
+}
 Output main(Input input) {
   Output output;
   float4 local = float4(input.position, 1.0);
@@ -570,8 +612,8 @@ Output main(Input input) {
       float3 skinnedNormal = float3(0.0, 0.0, 0.0);
       for (uint i = 0; i < 3; ++i) {
         if (normalizedWeights[i] > 0.0 && input.boneIndices[i] < (uint)skinInfo.x) {
-          skinnedPos += mul(local, viewModelBones[input.boneIndices[i]]).xyz * normalizedWeights[i];
-          skinnedNormal += mul(float4(input.normal, 0.0), viewModelBones[input.boneIndices[i]]).xyz * normalizedWeights[i];
+          skinnedPos += skinByBone(input.position, 1.0, input.boneIndices[i]).xyz * normalizedWeights[i];
+          skinnedNormal += skinByBone(input.normal, 0.0, input.boneIndices[i]).xyz * normalizedWeights[i];
         }
       }
       local = float4(skinnedPos, 1.0);
@@ -2875,12 +2917,17 @@ bool Renderer::uploadViewModelBones(const std::vector<std::array<float, 16>>& bo
     viewModelBoneBuffer_.Reset();
     D3D11_BUFFER_DESC description{};
     const auto capacity = std::max(boneMatrices.size(), std::size_t{128});
+    // The shader reads this table as `StructuredBuffer<float4>` -- four elements
+    // per bone -- so the structure stride is one float4, not one matrix. The
+    // bytes are identical either way; only the stride tells the shader how to
+    // find bone N, and a 64-byte stride with a 16-byte element type would make
+    // every bone after the first one read the wrong 16 floats.
     description.ByteWidth = static_cast<UINT>(capacity * sizeof(std::array<float, 16>));
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     description.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    description.StructureByteStride = sizeof(std::array<float, 16>);
+    description.StructureByteStride = sizeof(float) * 4;
     if (FAILED(device_->CreateBuffer(&description, nullptr, viewModelBoneBuffer_.ReleaseAndGetAddressOf()))) {
       return false;
     }
@@ -2888,7 +2935,7 @@ bool Renderer::uploadViewModelBones(const std::vector<std::array<float, 16>>& bo
     view.Format = DXGI_FORMAT_UNKNOWN;
     view.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
     view.Buffer.FirstElement = 0;
-    view.Buffer.NumElements = static_cast<UINT>(capacity);
+    view.Buffer.NumElements = static_cast<UINT>(capacity * 4);
     if (FAILED(device_->CreateShaderResourceView(viewModelBoneBuffer_.Get(), &view,
         viewModelBoneView_.ReleaseAndGetAddressOf()))) {
       viewModelBoneBuffer_.Reset();
@@ -2930,6 +2977,9 @@ bool Renderer::drawViewModel() {
   // Cleared before every early return, so a refusal this frame cannot leave the
   // previous frame's count behind and read as "it skinned".
   viewModelEffectiveBoneCount_ = 0;
+  // Same rule for the framing numbers: a frame that did not draw must not report
+  // the last frame's distance as if it had solved for one.
+  viewModelFramePlanes_.fill(0.0f);
   // The weapon body's readings are reset together with the arms': an early
   // return below is the whole pass being off, and the body must not keep the
   // previous frame's reason (or centre) as if this frame had produced it.
@@ -3031,6 +3081,7 @@ bool Renderer::drawViewModel() {
   const XMMATRIX projection = XMMatrixPerspectiveFovLH(
     XMConvertToRadians(viewModelState_.fov), aspect, nearPlane, farPlane);
   const XMMATRIX mvp = worldMatrix * view * projection;
+  viewModelFramePlanes_ = { nearPlane, farPlane, distance, radius };
 
   // Where the *mesh centre* ends up, through the same matrix the shader is
   // handed. `drawn=1` alone cannot distinguish "on screen" from "issued a draw

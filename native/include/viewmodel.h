@@ -370,4 +370,52 @@ ViewModelAnimationOutcome resolveViewModelAnimationInput(
   const AnimationBinding* drawnBinding,
   const AnimationSampleRequest& timing);
 
+// The model-space box a mesh occupies before and after a pose, so "where does
+// the skinned mesh actually end up" is a number rather than an inference from
+// `skinning=1`.
+//
+// WHY THIS EXISTS. The ViewModel pass anchors the mesh by its *bind* bounding
+// box centre and sizes its own projection from the *bind* radius. A pose that
+// moves pixels is not the same thing as a pose that moves the box: the bind
+// frame's framing is a statement about geometry that is no longer there. T13
+// reported the applied frame as a camera-inside-model close-up and could not say
+// whether the camera had moved, because nothing measured the posed box. This
+// does, using the same three-weight rule the vertex shader applies -- including
+// the refusal to use an out-of-range bone index -- so the reading describes the
+// geometry the GPU is asked to draw rather than a second, softer model of it.
+struct ViewModelPoseExtent {
+  bool bindValid = false;
+  bool posedValid = false;
+  std::array<float, 3> bindMin{};
+  std::array<float, 3> bindMax{};
+  std::array<float, 3> bindCenter{};
+  float bindRadius = 0.0f;
+  std::array<float, 3> posedMin{};
+  std::array<float, 3> posedMax{};
+  std::array<float, 3> posedCenter{};
+  float posedRadius = 0.0f;
+  // |posedCentre - bindCentre|, the distance the pose moved the anchor the
+  // placement solve is built on.
+  float centerShift = 0.0f;
+  std::size_t vertices = 0;
+  // Vertices that at least one in-range bone actually transformed. A pose that
+  // is applied but leaves every vertex where it was is a different fault from
+  // one that moves the whole mesh, and the two are only separable with a count.
+  std::size_t posedVertices = 0;
+  // Vertices whose posed position is not finite. THIS IS THE READING A BOX CANNOT
+  // GIVE: `p < min` and `p > max` are both false for NaN, so a mesh that has been
+  // torn apart by NaN matrices produces a bounding box identical to the bind one.
+  // The first version of this measurement reported `posedRadius=29.887` against
+  // `bindRadius=29.880` on a frame where the ViewModel filled half the screen,
+  // and the box was not wrong -- it was blind.
+  std::size_t nonFinite = 0;
+  // The largest per-vertex displacement the pose produces, over finite vertices.
+  float maxDisplacement = 0.0f;
+  std::string reason;
+};
+
+ViewModelPoseExtent measureViewModelPoseExtent(const std::vector<ModelDrawVertex>& vertices,
+  const std::vector<std::array<float, 16>>& skinMatrices,
+  std::size_t boneCount);
+
 } // namespace tf2::native

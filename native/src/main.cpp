@@ -4148,9 +4148,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     const float* eye = renderer.frameEye();
     const float* forward = renderer.frameForward();
     const float* target = renderer.viewModelPlacementTarget();
-    traceFmt("gpu: viewmodel frame eye=(%.2f,%.2f,%.2f) forward=(%.3f,%.3f,%.3f) placement=(%.2f,%.2f,%.2f)",
+    const auto& planes = renderer.viewModelFramePlanes();
+    const auto& vmState = renderer.viewModelState();
+    traceFmt("gpu: viewmodel frame eye=(%.2f,%.2f,%.2f) forward=(%.3f,%.3f,%.3f) placement=(%.2f,%.2f,%.2f) "
+      "fov=%.2f near=%.4f far=%.4f distance=%.4f radius=%.4f hand=(%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f) attachment=%s",
       eye[0], eye[1], eye[2], forward[0], forward[1], forward[2],
-      target[0], target[1], target[2]);
+      target[0], target[1], target[2],
+      static_cast<double>(vmState.fov), static_cast<double>(planes[0]),
+      static_cast<double>(planes[1]), static_cast<double>(planes[2]),
+      static_cast<double>(planes[3]),
+      static_cast<double>(vmState.handTransform[0]), static_cast<double>(vmState.handTransform[1]),
+      static_cast<double>(vmState.handTransform[2]), static_cast<double>(vmState.handTransform[3]),
+      static_cast<double>(vmState.handTransform[4]), static_cast<double>(vmState.handTransform[5]),
+      static_cast<double>(vmState.handTransform[6]), static_cast<double>(vmState.handTransform[7]),
+      static_cast<double>(vmState.handTransform[8]), static_cast<double>(vmState.handTransform[9]),
+      static_cast<double>(vmState.handTransform[10]), static_cast<double>(vmState.handTransform[11]),
+      vmState.attachmentName.empty() ? "-" : vmState.attachmentName.c_str());
     traceFmt("gpu: viewmodel centre viewSpace=(%.2f,%.2f,%.2f) clip=(%.3f,%.3f,%.3f,%.3f) ndc=(%.3f,%.3f) onScreen=%d",
       viewSpace[0], viewSpace[1], viewSpace[2],
       clip[0], clip[1], clip[2], clip[3],
@@ -5068,6 +5081,31 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           state.animationApplied = false;
           renderer.clearViewModelBones();
         }
+        // WHERE THE POSE ACTUALLY PUTS THE MESH. The pass frames the model from
+        // the bounding box of the vertices that were uploaded, and that box
+        // describes the bind pose. Applying a pose does not move the box; it
+        // moves the geometry inside it, so a frame that looks framed in the
+        // bind pass can be a camera inside the mesh once the pose is applied.
+        // Measured here, on the same vertices and the same matrices that were
+        // just uploaded, so the number describes the draw rather than a second
+        // model of it.
+        tf2::native::ViewModelPoseExtent poseExtent;
+        if (state.animationApplied && state.skinningEnabled) {
+          poseExtent = tf2::native::measureViewModelPoseExtent(
+            drawnRequest.mesh.vertices, outcome.skinMatrices, state.boneCount);
+          traceFmt("gpu: viewmodel pose extent bindCenter=(%.3f,%.3f,%.3f) bindRadius=%.3f "
+            "posedCenter=(%.3f,%.3f,%.3f) posedRadius=%.3f centerShift=%.3f vertices=%zu posedVertices=%zu "
+            "nonFinite=%zu maxDisplacement=%.3f valid=%d reason=%s",
+            poseExtent.bindCenter[0], poseExtent.bindCenter[1], poseExtent.bindCenter[2],
+            static_cast<double>(poseExtent.bindRadius),
+            poseExtent.posedCenter[0], poseExtent.posedCenter[1], poseExtent.posedCenter[2],
+            static_cast<double>(poseExtent.posedRadius),
+            static_cast<double>(poseExtent.centerShift), poseExtent.vertices,
+            poseExtent.posedVertices, poseExtent.nonFinite,
+            static_cast<double>(poseExtent.maxDisplacement),
+            poseExtent.posedValid ? 1 : 0,
+            poseExtent.reason.empty() ? "-" : poseExtent.reason.c_str());
+        }
         renderer.setViewModelState(state);
         // The second draw request's state, set in the same breath as the arms'
         // so a frame can never draw the body with a stale state. Its `enabled`
@@ -5117,8 +5155,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           outcome.status == tf2::native::ViewModelAnimationStatus::Ok;
         viewModelAnimationStats.lastSequenceInRange = outcome.sequenceInRange;
         viewModelAnimationStats.lastDrawnModel = drawnRequest.path;
-        traceFmt("scene: vmAnim entity=%d sequence=%d rate=%.2f cyclePresent=%d model=%s status=%s poseAvailable=%d applied=%d frame=%d/%d entityRule=%s reason=%s owner=%d viewEntity=%d modelIndex=%d drawnModel=%s entityModelMatchesDrawn=%d sequenceInRange=%d bindPose=%d sequenceOverride=%d",
-          lookup.input.entityIndex, lookup.input.sequence,
+        traceFmt("scene: vmAnim entity=%d sequence=%d entitySequence=%d rate=%.2f cyclePresent=%d model=%s status=%s poseAvailable=%d applied=%d frame=%d/%d entityRule=%s reason=%s owner=%d viewEntity=%d modelIndex=%d drawnModel=%s entityModelMatchesDrawn=%d sequenceInRange=%d bindPose=%d sequenceOverride=%d",
+          lookup.input.entityIndex, animationInput.sequence, lookup.input.sequence,
           static_cast<double>(lookup.input.playbackRate), lookup.input.hasCycle ? 1 : 0,
           lookup.input.entityModelPath.empty() ? "-" : lookup.input.entityModelPath.c_str(),
           state.animationStatus.c_str(), poseAvailable ? 1 : 0, state.animationApplied ? 1 : 0,

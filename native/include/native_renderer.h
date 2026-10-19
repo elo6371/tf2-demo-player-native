@@ -811,6 +811,12 @@ public:
   const float* frameEye() const { return frameEye_; }
   const float* frameForward() const { return frameForward_; }
   const float* viewModelPlacementTarget() const { return viewModelPlacementTarget_.data(); }
+  // T18: the framing numbers the placement solve actually used -- the distance it
+  // put the mesh centre at, the model radius it derived that distance from, and
+  // the near/far planes of the pass's own projection. Published because "the
+  // camera is inside the model" is a claim about these four numbers and the mesh
+  // extent, and three of them were previously visible only as a local variable.
+  const std::array<float, 4>& viewModelFramePlanes() const { return viewModelFramePlanes_; }
   // The composed first-person matrix actually handed to the shader, row-major.
   // Exposed so the hand mirror can be shown to live in the final transform only.
   const std::array<float, 16>& viewModelMvp() const { return viewModelMvp_; }
@@ -1018,6 +1024,9 @@ private:
   // projection divides it.
   std::array<float, 3> viewModelCenterViewSpace_{};
   std::array<float, 3> viewModelPlacementTarget_{};
+  // {near, far, distance, radius} of the last ViewModel frame. Zeroed at the top
+  // of every draw so a frame that did not draw cannot report the last one's.
+  std::array<float, 4> viewModelFramePlanes_{};
   std::size_t viewModelDrawCount_ = 0;
   std::size_t viewModelDrawCallCount_ = 0;
   std::size_t viewModelPassOrdinal_ = 0;
