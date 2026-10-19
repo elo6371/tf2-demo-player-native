@@ -13,9 +13,10 @@ added: `world-geometry-completeness-capture.sh` and
 `world-geometry-accounting.py`.
 
 **Result in one paragraph.** On the reference POV, back-face rejection owns
-19.40% of the frame (16.1 points of it drawing nothing at all), missing geometry
-4.45% (36,015 of those pixels are the one top-edge sky opening), visibility at
-most 0.25%, and 28.0% of the pixels the product draws are lightmap-dark. The
+19.40% of the frame (136,413 pixels draw nothing at all and 30,617 draw a
+farther surface), missing geometry 4.45% (36,015 of those pixels are the one
+top-edge sky opening), visibility at most 0.25%, and 28.0% of the pixels the
+product draws are lightmap-dark. The
 world is complete at face level (18,052 faces, 731 sky, 0 invalid, 0 nodraw);
 1,382 of 1,392 displacement faces tessellate and the 10 that do not fall back
 to flat quads. No rendering rule was changed.
@@ -260,7 +261,8 @@ missing           38,328 = 860,784 - all-off fill 822,456
 
 Fill-level coverage is therefore 79.45% with the shipped switches and 95.55%
 with both off. **The 16.1-point gap is the back-face cull, not missing
-geometry**; the visibility clip accounts for 0.25 points at most (the `both`
+geometry** (136,413 back-face-empty pixels + the 2,149 both-switch pixels); the
+visibility clip accounts for 0.25 points at most (the `both`
 population). The vis clip changes exactly **2,149 pixels** in the depth frame,
 and they are the same 2,149 pixels `flat-novis` adds to `flat-base`: in all of
 them the product frame draws nothing, so there is no product surface whose
@@ -483,7 +485,7 @@ geometry. The frame's empty pixels divide as follows:
 
 | mechanism | share of the 1264x681 frame | evidence |
 | --- | ---: | --- |
-| back-face rejection | **19.40%** (16.1 points empty, 3.6 swapped) | four flat frames + four depth frames; 167,030 px |
+| back-face rejection | **19.40%** (136,413 empty + 30,617 swapped) | four flat frames + four depth frames; 167,030 px |
 | missing geometry | 4.45% (all but 0.27% is the top edge sky opening) | all-off frame; largest enclosed component 882 px |
 | visibility rejection | 0.00% standalone, 0.25% at most (both) | `flat-novis` vs `flat-base` = 2,149 px; with cull off, zero |
 | material darkness | **28.0% of drawn pixels** (21.25% of the frame) | `--world-lightmap off`: 182,903 of 182,944 brighten |
