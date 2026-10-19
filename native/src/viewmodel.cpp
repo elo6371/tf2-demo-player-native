@@ -577,4 +577,120 @@ ViewModelAnimationOutcome resolveViewModelAnimationInput(
   return outcome;
 }
 
+namespace {
+
+// The vertex shader's own rule, in the same order:
+//   * a non-positive weight sum leaves the vertex where the bind pose put it;
+//   * each of the three channels contributes only when its weight is positive
+//     AND its bone index is inside the table the pass uploaded;
+//   * the sum is weighted by the *unnormalised* weights and then implicitly
+//     normalised by the shader's `weights / totalWeight`.
+// A CPU mirror that normalised differently, or that accepted an out-of-range
+// index, would report a box the GPU never draws.
+std::array<float, 3> skinVertex(const ModelDrawVertex& vertex,
+    const std::vector<std::array<float, 16>>& matrices, std::size_t boneCount,
+    bool& moved) {
+  moved = false;
+  const float total = vertex.weights[0] + vertex.weights[1] + vertex.weights[2];
+  if (!(total > 0.0f) || matrices.empty()) return vertex.position;
+  std::array<float, 3> out{0.0f, 0.0f, 0.0f};
+  for (std::size_t i = 0; i < 3; ++i) {
+    const float weight = vertex.weights[i] / total;
+    const std::size_t bone = vertex.boneIndices[i];
+    if (!(weight > 0.0f) || bone >= boneCount || bone >= matrices.size()) continue;
+    const auto& m = matrices[bone];
+    // `mul(float4(p, 1), M)` with the column-major upload `toColumnMajor` writes:
+    // row i of the stored array is column i of the model matrix, so the
+    // translation lands at 12..14 and each output component is one row.
+    out[0] += weight * (vertex.position[0] * m[0] + vertex.position[1] * m[4]
+      + vertex.position[2] * m[8] + m[12]);
+    out[1] += weight * (vertex.position[0] * m[1] + vertex.position[1] * m[5]
+      + vertex.position[2] * m[9] + m[13]);
+    out[2] += weight * (vertex.position[0] * m[2] + vertex.position[1] * m[6]
+      + vertex.position[2] * m[10] + m[14]);
+    moved = true;
+  }
+  return moved ? out : vertex.position;
+}
+
+struct Box {
+  std::array<float, 3> min{};
+  std::array<float, 3> max{};
+  bool any = false;
+  void add(const std::array<float, 3>& point) {
+    for (std::size_t i = 0; i < 3; ++i) {
+      if (!any || point[i] < min[i]) min[i] = point[i];
+      if (!any || point[i] > max[i]) max[i] = point[i];
+    }
+    any = true;
+  }
+  std::array<float, 3> center() const {
+    return {(min[0] + max[0]) * 0.5f, (min[1] + max[1]) * 0.5f, (min[2] + max[2]) * 0.5f};
+  }
+  // The same half-diagonal measure `uploadViewModelMeshInto` uses, so the two
+  // radii are comparable numbers rather than two conventions.
+  float radius() const {
+    const float hx = 0.5f * (max[0] - min[0]);
+    const float hy = 0.5f * (max[1] - min[1]);
+    const float hz = 0.5f * (max[2] - min[2]);
+    return std::sqrt(hx * hx + hy * hy + hz * hz);
+  }
+};
+
+} // namespace
+
+ViewModelPoseExtent measureViewModelPoseExtent(const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<std::array<float, 16>>& skinMatrices, std::size_t boneCount) {
+  ViewModelPoseExtent extent;
+  extent.vertices = vertices.size();
+  if (vertices.empty()) {
+    extent.reason = "the mesh has no vertices";
+    return extent;
+  }
+  Box bindBox;
+  Box posedBox;
+  for (const auto& vertex : vertices) {
+    bindBox.add(vertex.position);
+    bool moved = false;
+    const auto posed = skinVertex(vertex, skinMatrices, boneCount, moved);
+    if (moved) ++extent.posedVertices;
+    // A non-finite vertex is counted, never added to the box: min/max comparisons
+    // against NaN are both false, so letting it in would silently leave the box at
+    // its previous value and report a healthy mesh.
+    const bool finite = std::isfinite(posed[0]) && std::isfinite(posed[1])
+      && std::isfinite(posed[2]);
+    if (!finite) {
+      ++extent.nonFinite;
+      continue;
+    }
+    posedBox.add(posed);
+    const float dx = posed[0] - vertex.position[0];
+    const float dy = posed[1] - vertex.position[1];
+    const float dz = posed[2] - vertex.position[2];
+    extent.maxDisplacement = std::max(extent.maxDisplacement,
+      std::sqrt(dx * dx + dy * dy + dz * dz));
+  }
+  if (posedBox.any) {
+    extent.posedMin = posedBox.min;
+    extent.posedMax = posedBox.max;
+    extent.posedCenter = posedBox.center();
+    extent.posedRadius = posedBox.radius();
+  }
+  extent.bindMin = bindBox.min;
+  extent.bindMax = bindBox.max;
+  extent.bindCenter = bindBox.center();
+  extent.bindRadius = bindBox.radius();
+  const float dx = extent.posedCenter[0] - extent.bindCenter[0];
+  const float dy = extent.posedCenter[1] - extent.bindCenter[1];
+  const float dz = extent.posedCenter[2] - extent.bindCenter[2];
+  extent.centerShift = std::sqrt(dx * dx + dy * dy + dz * dz);
+  extent.bindValid = true;
+  // A box is only a posed box when a bone moved something. Otherwise the pose
+  // was applied to a mesh that has no weights it could use, and reporting the
+  // bind box as "posed" would hide exactly that fault.
+  extent.posedValid = extent.posedVertices > 0;
+  if (!extent.posedValid) extent.reason = "no vertex carried an in-range skin weight";
+  return extent;
+}
+
 } // namespace tf2::native
