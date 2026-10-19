@@ -2,7 +2,14 @@
 
 Date: 2026-10-19
 Integration branch: `p0-entity-protocol`
-Current integration HEAD: `98766b5` (T12/T17/T21/T23/T24 merges plus T20 records; includes T11-T24 integration work)
+Current integration HEAD: `36d68b0` (T12/T17/T21/T23/T24 merges plus T20 records; includes T11-T24 integration work)
+
+## Workspace cleanup
+
+On 2026-10-19, clean completed-task worktrees were removed from
+`D:/TF2_Native_Worktrees` to reclaim disk space. Their Git branches and commits
+remain available. Worktrees with uncommitted changes were retained and must be
+reviewed before any later cleanup.
 
 ## Project state
 
@@ -149,71 +156,72 @@ Final T20 conclusion:
   reviewed re-baseline or a product fix explains W1/W2 and the changed fetch
   counts.
 
-## Follow-on tasks after T20
+## Completed T21-T24
 
-These are independent investigation/implementation tracks. They may be
-started now in separate worktrees against a committed base; their changes
-must be rebased or merged only after T16 and must pass T20 on the combined
-tree. Do not run builds,
-mutations, captures, or product processes concurrently on this host; coordinate
-those validation windows serially. Each task must use a current committed base
-and must not edit another task's worktree.
+T21, T22, T23, and T24 are integrated and have current-tree focused results.
+Their reports and commits remain the historical evidence; do not reassign these
+numbers or use them for new fixes.
 
-### T21 - World material coverage and visual correctness
+## Next tasks after T20
 
-- Reproduce the current W1/W2 and material-fetch deltas on the final tree.
-- Trace representative visible faces through BSP material name -> VMT -> VTF
-  -> atlas tile -> shader inputs, including pakfile and oversized-texture
-  cases.
-- Separate expected newly covered surfaces from incorrect material selection,
-  lighting, UV, or atlas sampling.
-- Deliver before/after captures at the same pinned demo/tick/camera, named
-  refusal counts, and a focused gate. Do not use aggregate tile counts as
-  proof of visual correctness.
+These tasks use separate worktrees and a committed base. Product launches,
+builds, captures, mutations, and audio-device runs remain serialized on this
+host. No task may edit another task's worktree or the integration branch while
+T25 is being integrated.
 
-### T22 - ViewModel and weapon presentation
+### T25 - Final visual baseline closure
 
-- Reassess the applied-animation camera/model framing issue and the T18
-  rendered pose on a real captured frame.
-- Confirm hand mesh ranges, weapon body material slots, and animation pose
-  placement independently; do not treat `skinning=1` or `drawCalls>0` as visual
-  acceptance.
-- Cover at least one model with multiple ranges and different albedo textures.
-- Deliver masked frame comparisons, control regions, and mutation checks for
-  any changed product logic.
+- Start from `36d68b0` and reproduce the hidden-window T17 baseline failure.
+- Attribute every changed reading: material-fetch 85/85/70, blend 10/10/10,
+  W1, and W2. Use T19/T21/T12 evidence to separate expected changes from a
+  rendering regression.
+- Produce reviewed final pins only when the same current-tree frame, trace,
+  and source identity support them. Otherwise keep the gate `NOT VERIFIED`.
+- Run forward and mutation forms of the affected baseline gate with hidden
+  captures and byte-identical source restoration.
+- Do not run `verify-all.sh` during T25.
 
-### T23 - World geometry completeness
+### T26 - World geometry completeness and visible holes
 
-- Continue the known F1 investigation: terrain/displacement coverage, holes,
-  and suspicious empty regions after T11 winding and T17 visibility fixes.
-- Use ray/triangle oracles and region-specific captures to distinguish missing
-  geometry, visibility rejection, backface rejection, and material darkness.
-- Do not change winding, culling, or PVS pins without a measured first-hit
-  comparison and a same-view visual control.
+- Use the T23 accounting matrix to isolate the 38,328 missing pixels and the
+  2,282 closed-hole component from the 36,015 top opening.
+- Trace representative missing regions back to BSP faces, displacement cells,
+  culling, depth, and material darkness.
+- Change geometry only when a first-hit oracle and same-view frame show a
+  measurable improvement without regressing T11 winding or T17 visibility.
+- Deliver a focused gate and mutation coverage for each changed geometry rule.
 
-### T24 - Lighting and shader semantics
+### T27 - Material semantics that affect visible output
 
-- Measure the currently unsupported or deferred material controls, including
-  `dynamicLighting`, specular, bump, `$bumpmap2`, `%detailtype`, and `$ssbump`.
-- Change one semantic at a time and compare deterministic captures before
-  deciding whether to implement it.
-- Keep unsupported features explicitly named until both parsing and rendered
-  behavior have evidence.
+- Prioritize features that can change the final image: `$bumpmap2`, `%detailtype`,
+  `$ssbump`, detail textures, specular, and dynamic lighting.
+- For each feature, prove the full chain VMT declaration -> resource lookup ->
+  shader input -> pixel delta. Keep unsupported features named when required
+  source resources or shader consumers are absent.
+- Use one semantic switch per capture and retain directional and deterministic
+  controls. Do not accept a counter-only implementation.
+
+### T28 - Release packaging and final acceptance
+
+- Verify clean-directory install layout, first launch, restart, uninstall,
+  explicit-root behavior, and resource migration on a clean test directory.
+- Review README, CHANGELOG, HANDOFF, and all `PASS`, `FAIL`, `NOT VERIFIED`,
+  `UNSUPPORTED`, and `BLOCKED` labels against current HEAD.
+- Run the 24-step `verify-all.sh --quick` chain only after T25-T27 are merged,
+  committed, and the host is idle. This is the release-boundary run.
+- Push the final integration commit and verify `git ls-remote` plus ahead/behind.
 
 ## Parallel schedule
 
-- T16 is the sole merge owner for T12 and must not overlap another integration
-  edit to `p0-entity-protocol`.
-- T21-T24 may inspect or develop now in isolated worktrees; avoid
-  overlapping ownership of shared renderer, BSP, VMT, or shader files unless
-  the owners agree on file boundaries first. Their product validation and
-  integration wait for T16 and T20.
+- T25 is the only active integration task now; T26 and T27 may develop in
+  isolated worktrees, but their validation and merge wait for T25.
+- T28 waits for T25-T27 and is the only task allowed to start the full release
+  chain.
 - Product builds, mutations, captures, audio-device runs, and any test that
   writes shared build/evidence paths are serialized, even when the code tasks
   themselves are parallel.
-- T20 runs after T16 and before claiming the combined T11-T19/T12 tree
-  validated. T21-T24 may continue independent code work after T20, but their
-  integration requires their own focused checks.
+- T20 focused work is complete except for the T17 visual baseline closure;
+  that closure is T25. T26-T28 require their own focused checks.
 - The 24-step full chain is not routine task validation. Run it only at a
   declared release boundary on a committed, clean, idle worktree.
 
@@ -226,5 +234,5 @@ and must not edit another task's worktree.
   correct.
 - Preserve original failures and superseded runs; label them rather than
   rewriting them as passes.
-- Do not publish a release claim while T21-T24 contain unresolved visual
+- Do not publish a release claim while T25-T27 contain unresolved visual
   blockers or while any required final-tree gate remains `NOT VERIFIED`.
