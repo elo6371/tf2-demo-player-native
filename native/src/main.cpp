@@ -7,6 +7,7 @@
 #include "vtf_texture.h"
 #include "world_material.h"
 #include "world_material_features.h"
+#include "world_lighting.h"
 #include "vmt_material.h"
 #include "bsp_map.h"
 #include "demo_header.h"
@@ -987,6 +988,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool worldLightmapGiven = false;
   bool worldLightmapRequested = true;
   int invalidWorldLightmapArgument = 0;
+  // ---- T24 (2026-10-19): one semantic at a time --------------------------
+  // The three pass-level lighting controls used to be reachable only through
+  // `--quality standard`, which flips eight fields at once (dynamic lighting,
+  // shadows, bump, specular, water reflection, skybox, mip bias, anisotropy).
+  // A capture from that switch cannot attribute a pixel to one semantic, so
+  // each of the three gets its own on/off pair. They set exactly one field and
+  // leave the preset label alone; the trace prints requested and effective
+  // separately, so a switch that was asked for and did not reach the constant
+  // buffer is a reading rather than a silent no-op.
+  bool worldDynamicLightGiven = false;
+  bool worldDynamicLightRequested = false;
+  bool worldSpecularGiven = false;
+  bool worldSpecularRequested = false;
+  bool worldBumpGiven = false;
+  bool worldBumpRequested = false;
+  // The bump branch's diagnostic texture. Not an on/off pair: the reference
+  // frame's slot owner declares no $bumpmap, so the only way to measure the
+  // branch's pixels is to name one. Empty means "whatever the material says".
+  std::wstring worldBumpTextureOverride;
+  int invalidWorldLightingArgument = 0;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
@@ -1035,6 +1056,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else { ++invalidWorldLightmapArgument; }
       } else if (wcscmp(arguments[i], L"--world-lightmap") == 0) {
         ++invalidWorldLightmapArgument;
+      } else if (wcscmp(arguments[i], L"--world-dynamic-light") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { worldDynamicLightRequested = true; worldDynamicLightGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldDynamicLightRequested = false; worldDynamicLightGiven = true; }
+        else { ++invalidWorldLightingArgument; }
+      } else if (wcscmp(arguments[i], L"--world-dynamic-light") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-specular") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { worldSpecularRequested = true; worldSpecularGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldSpecularRequested = false; worldSpecularGiven = true; }
+        else { ++invalidWorldLightingArgument; }
+      } else if (wcscmp(arguments[i], L"--world-specular") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-bump") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { worldBumpRequested = true; worldBumpGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldBumpRequested = false; worldBumpGiven = true; }
+        else { ++invalidWorldLightingArgument; }
+      } else if (wcscmp(arguments[i], L"--world-bump") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-bump-texture") == 0 && i + 1 < argumentCount) {
+        worldBumpTextureOverride = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--world-bump-texture") == 0) {
+        ++invalidWorldLightingArgument;
       } else if (wcscmp(arguments[i], L"--world-water") == 0 && i + 1 < argumentCount) {
         // on|off, and nothing else: a switch that accepts any string is a switch
         // that silently does nothing on a typo.
@@ -1313,6 +1356,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-lightmap; it takes on or off and nothing else.\n");
     return 13;
   }
+  if (invalidWorldLightingArgument) {
+    // T24: same rule, and here it decides whether the A/B means anything. A
+    // typo that fell back to `off` would produce two copies of the baseline and
+    // the gate would report "this semantic changes no pixel" as a measurement.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-dynamic-light/--world-specular/--world-bump;"
+      L" each takes on or off and nothing else.\n");
+    return 13;
+  }
+  // Applied after the argument loop and after normalize(), so an override is
+  // the last word on its own field and nothing else. `--quality standard`
+  // followed by `--world-bump off` is a valid A/B: the preset sets the other
+  // seven fields, the switch removes this one.
+  if (worldDynamicLightGiven) persistent.render.dynamicLighting = worldDynamicLightRequested;
+  if (worldSpecularGiven) persistent.render.specular = worldSpecularRequested;
+  if (worldBumpGiven) persistent.render.bumpMapping = worldBumpRequested;
   if (invalidWorldGeometryArgument) {
     // T12: `all|terrain|none`. `terrain` and `none` are the two frames the
     // region proof is computed from; a typo that fell back to `all` would make
@@ -1785,6 +1843,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool mapBumpMapFound = false;
   bool mapBaseTexture2Declared = false;
   bool mapBumpMapDeclared = false;
+  bool mapBumpTextureForced = false;
   tf2::native::WorldMaterialParams mapMaterialParams;
   std::vector<tf2::native::WorldTexture> worldTextures;
   // T19: every material VMT that parsed, kept for the feature scan. The scan
@@ -1798,6 +1857,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // the archive objects, not a resolved byte range -- and the chain shares those
   // same objects, so nothing is opened twice.
   tf2::native::AssetStoreChain assetChain(assets.tfDirectory);
+  // T24: the map's bytes must outlive the block that loads them. The pakfile
+  // reader registered on the chain is its last store and is called from the
+  // per-frame feature scan long after that block ends. Capturing `mapBytes` by
+  // reference made those lookups a read of freed memory: pl_odyssey's 9
+  // pakfile-only `$bumpmap` VTFs came back missing for exactly that reason,
+  // while a reader that owns the bytes (the probe) found all 44. The owner
+  // below is the fix; `mapPakfileBytes` is what the chain and the scan use.
+  std::shared_ptr<const std::vector<std::uint8_t>> mapPakfileBytes;
   std::unordered_map<std::string, std::vector<std::uint8_t>> materialVtfCache;
   const auto readMaterialVtf = [&](const std::string& path) -> const std::vector<std::uint8_t>& {
     auto found = materialVtfCache.find(path);
@@ -1870,6 +1937,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       mapLookupSelected.empty() ? "-" : mapLookupSelected.c_str(),
       mapBytes.size(), mapLookupReason.c_str());
     tf2::native::BspParser::parse(mapBytes, displayMap, 200000);
+    // T24: the bytes now live in an owner that survives this block, because the
+    // pakfile reader below is called from outside it. `mapBytesView` is the
+    // local name for the same bytes; `mapBytes` must not be used again.
+    mapPakfileBytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(mapBytes));
+    const auto& mapBytesView = *mapPakfileBytes;
     // The map's cubemap, resolved the way the capability layer measures it: one
     // file per sample named after the sample's integer coordinates, in the tf
     // tree or the VPKs, and -- for every TF2 map -- inside the BSP's own pakfile
@@ -1883,7 +1955,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       std::vector<std::uint8_t> cubemapBytes = readMaterialVtf(cubemapPath);
       std::string readReason;
       if (cubemapBytes.empty()
-          && !tf2::native::bspPakfileEntry(mapBytes, cubemapPath, cubemapBytes, &readReason)) {
+          && !tf2::native::bspPakfileEntry(mapBytesView, cubemapPath, cubemapBytes, &readReason)) {
         // The reader's own reason, not "missing": a pakfile entry stored with a
         // method this reader does not decode is not the same finding as a map
         // that has no cubemap, and the difference is the whole of this reading.
@@ -1986,6 +2058,45 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             mapBumpRgba = texture.decodeRgba(bytes);
             mapBumpWidth = texture.header().width; mapBumpHeight = texture.header().height;
             mapMaterialParams.bumpMapping = !mapBumpRgba.empty();
+          }
+        }
+        // T24: the diagnostic bump binding. The reference frame's first material
+        // (WOOD/WALL007A) declares no $bumpmap, so without this the bump branch
+        // has no texture to sample and an A/B of the switch measures nothing.
+        // The override binds exactly one named VTF for the whole world -- the
+        // same one-slot limitation the refusal names -- and the trace says the
+        // texture was forced rather than named by a material.
+        if (!worldBumpTextureOverride.empty()) {
+          const std::string overrideNarrow =
+            std::filesystem::path(worldBumpTextureOverride).u8string();
+          const std::string overridePath = tf2::native::VmtParser::resourcePath(
+            overrideNarrow, ".vtf");
+          const auto& bytes = readMaterialVtf(overridePath);
+          tf2::native::VtfTexture texture;
+          // The chain's pakfile reader is registered later in this block, so a
+          // pakfile-only VTF would read as missing here. The owner is already
+          // available, so ask it directly -- the same fallback the cubemap loop
+          // above uses, for the same reason.
+          std::vector<std::uint8_t> pakfileBytes;
+          const std::vector<std::uint8_t>* textureBytes = &bytes;
+          if (bytes.empty() && mapPakfileBytes
+              && tf2::native::bspPakfileEntry(*mapPakfileBytes, overridePath, pakfileBytes, nullptr)) {
+            textureBytes = &pakfileBytes;
+          }
+          if (!textureBytes->empty() && texture.parse(*textureBytes)
+              && !texture.header().isCubemap()) {
+            auto rgba = texture.decodeRgba(*textureBytes);
+            if (!rgba.empty()) {
+              mapBumpRgba = std::move(rgba);
+              mapBumpWidth = texture.header().width;
+              mapBumpHeight = texture.header().height;
+              mapBumpMapPath = overridePath;
+              mapMaterialParams.bumpMapping = true;
+              mapBumpTextureForced = true;
+            }
+          }
+          if (!mapBumpTextureForced) {
+            OutputDebugStringW(L"TF2 Demo Player: --world-bump-texture did not decode; the bump branch is unavailable.\n");
           }
         }
         if (forceWorldEnv) mapMaterialParams.envMap = true;
@@ -2119,10 +2230,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // The map's pakfile is the last store in the chain, and it only exists
       // once the map bytes do. Registering it here keeps the order in
       // AssetStoreChain rather than in each lookup.
-      if (!mapBytes.empty()) {
-        assetChain.setPakfileReader([&mapBytes](const std::string& assetPath,
+      if (mapPakfileBytes && !mapPakfileBytes->empty()) {
+        // Captured by value: the shared owner keeps the bytes alive for every
+        // lookup, including the ones that happen after this block (T24).
+        assetChain.setPakfileReader([mapPakfileBytes](const std::string& assetPath,
             std::vector<std::uint8_t>& bytes, std::string& reason) {
-          return tf2::native::bspPakfileEntry(mapBytes, assetPath, bytes, &reason);
+          return tf2::native::bspPakfileEntry(*mapPakfileBytes, assetPath, bytes, &reason);
         });
       }
       for (const auto& entry : materialOrder) {
@@ -3937,11 +4050,29 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         inputs.push_back(std::move(input));
       }
       tf2::native::WorldFeatureResolvers resolvers;
+      // T24: the scan's resource lookup must search the same stores the world
+      // material fetch does. It used to read only the AssetStoreChain (loose +
+      // global VPKs), while pl_odyssey ships 9 of its 44 `$bumpmap` VTFs in the
+      // map's own pakfile -- so the ledger reported `missing=9` for textures
+      // that are present, and the refusal sentence blamed absence instead of
+      // the one-slot limitation. Measured with
+      // `lighting_semantics_probe --list-bump`: chainMissing=9, pakfileOnly=9,
+      // absent=0.
+      const auto readFeatureResource = [&](const std::string& path) {
+        std::vector<std::uint8_t> bytes = assetChain.lookup(path).bytes;
+        if (bytes.empty() && mapPakfileBytes && !mapPakfileBytes->empty()) {
+          std::vector<std::uint8_t> packed;
+          if (tf2::native::bspPakfileEntry(*mapPakfileBytes, path, packed, nullptr)) {
+            bytes = std::move(packed);
+          }
+        }
+        return bytes;
+      };
       resolvers.resourceExists = [&](const std::string& path) {
-        return !readMaterialVtf(path).empty();
+        return !readFeatureResource(path).empty();
       };
       resolvers.readResource = [&](const std::string& path) {
-        return assetChain.lookup(path).bytes;
+        return readFeatureResource(path);
       };
       const auto features = tf2::native::scanWorldMaterialFeatures(inputs, resolvers);
       traceFmt("gpu: world features %s", features.summary.c_str());
@@ -3965,6 +4096,55 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       traceFmt("gpu: world feature-detail distinctBumpPaths=%zu detailTypesRead=%zu firstDetailType=%s",
         features.distinctBumpPaths, features.detailTypesRead,
         features.firstDetailType.empty() ? "-" : features.firstDetailType.c_str());
+      // ---- T24: the lighting controls, one row each -----------------------
+      // The four feature rows above say what the materials ask for. These six
+      // say what the pass does about it, including the three pass switches that
+      // have no VMT key (dynamicLighting, specular, bump) and the two values
+      // that decide whether a switch reached a constant: `requested` is the
+      // settings field, `effective` is the value the shader was given.
+      tf2::native::WorldLightingPassState passState;
+      // The sample is re-read here rather than carried from the draw block:
+      // `worldMaterialSampleState()` reports the constants the last draw
+      // uploaded, and this block is outside that block's scope. Reading it at
+      // the point of use is what keeps the trace's `effective` from being a
+      // copy of an earlier frame.
+      const auto lightingSample = renderer.worldMaterialSampleState();
+      passState.dynamicLightingRequested = renderer.settings().dynamicLighting;
+      passState.dynamicLightingEffective = lightingSample.dynamicLightingMode;
+      passState.specularRequested = renderer.settings().specular;
+      passState.specularEffective = lightingSample.specularMode;
+      passState.bumpRequested = renderer.settings().bumpMapping;
+      passState.bumpEffective = lightingSample.bumpMode;
+      passState.bumpOwnerDeclared = mapBumpMapDeclared;
+      passState.bumpOwnerMaterial = mapMaterialName;
+      passState.bumpOwnerTexture = mapBumpMapPath;
+      passState.bumpTextureSource = mapBumpMapPath.empty() ? "none"
+        : (mapBumpTextureForced ? "forced" : "material");
+      const auto lighting = tf2::native::scanWorldLightingSemantics(inputs, resolvers, passState);
+      traceFmt("gpu: world lighting dynamic=%d specular=%d bump=%d requestedDynamic=%d"
+        " requestedSpecular=%d requestedBump=%d bumpOwner=%s bumpTexture=%s bumpTextureSource=%s"
+        " bumpOwnerDeclared=%d",
+        lightingSample.dynamicLightingMode ? 1 : 0, lightingSample.specularMode ? 1 : 0,
+        lightingSample.bumpMode ? 1 : 0, renderer.settings().dynamicLighting ? 1 : 0,
+        renderer.settings().specular ? 1 : 0, renderer.settings().bumpMapping ? 1 : 0,
+        mapMaterialName.empty() ? "-" : mapMaterialName.c_str(),
+        mapBumpMapPath.empty() ? "-" : mapBumpMapPath.c_str(),
+        passState.bumpTextureSource.c_str(),
+        mapBumpMapDeclared ? 1 : 0);
+      traceFmt("gpu: world lighting-summary %s", lighting.summary.c_str());
+      for (const auto& control : lighting.controls) {
+        traceFmt("gpu: world lighting-control control=%s kind=%s state=%s declared=%zu visible=%zu"
+          " resolved=%zu missing=%zu materials=%zu triangles=%zu requested=%d effective=%d"
+          " parsed=%d first=%s resource=%s reason=%s",
+          control.name.c_str(), tf2::native::worldLightingKindName(control.kind),
+          tf2::native::worldLightingStateName(control.state), control.declared,
+          control.visibleDeclared, control.resolved, control.missing, control.visibleMaterials,
+          control.visibleTriangles, control.requested ? 1 : 0, control.effective ? 1 : 0,
+          control.parsed ? 1 : 0,
+          control.firstMaterial.empty() ? "-" : control.firstMaterial.c_str(),
+          control.firstResource.empty() ? "-" : control.firstResource.c_str(),
+          control.reason.empty() ? "-" : control.reason.c_str());
+      }
     }
   };
   // The paint ledger: one row per prepared model, written after the GPU upload

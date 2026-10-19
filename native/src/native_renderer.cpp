@@ -161,15 +161,30 @@ void RenderSettings::normalize() {
   modelLod = clampValue(modelLod, 0, 8);
   renderScale = clampValue(renderScale, 0.5f, 2.0f);
   viewModelFov = clampViewModelFov(viewModelFov);
-  if (preset == QualityPreset::Performance) {
-    dynamicLighting = false;
-    shadows = false;
-    bumpMapping = false;
-    specular = false;
-    waterReflection = false;
-    skybox = false;
-    anisotropicLevel = 1;
-  }
+  // T24 (2026-10-19): this block used to force the Performance preset's shading
+  // flags to false here as well as in fromPreset().
+  //
+  // Honest scope, because the capture environment hides it: the reference
+  // captures run with preset=Standard (the ini stores preset=1 while the
+  // shading flags are never persisted and stay false -- the T17 contradiction
+  // noted in settings_store.cpp), so this block did NOT fire for them and
+  // removing it changed nothing about A..F. It does fire for a caller that
+  // passes --quality performance, and that is where it killed the measurement:
+  // --world-specular on set the field and this function cleared it again, so the
+  // switch and its absence produced the same frame.
+  //
+  // Removing the duplication is safe because the flags have exactly two other
+  // writers and both already produce Performance's values: fromPreset()
+  // zero-initialises with `RenderSettings settings{}` and only assigns inside
+  // its Standard branch, and loadSettings() starts from `PersistentSettings{}`
+  // and reads only preset/renderScale/viewModelFov/vsync from the ini. The one
+  // caller that sets them outside fromPreset is main.cpp's three
+  // single-semantic switches. Measured: --quality performance still reads
+  // 0/0/0, and --quality performance --world-specular on reads specular=1.
+  //
+  // `dynamicLighting`, `specular` and `bumpMapping` are likewise read at the
+  // draw without the `preset == Standard` conjunct, for the same reason: the
+  // flag is the statement, and the caller that set it is what is measured.
 }
 
 bool Renderer::initialize(HWND window) {
@@ -2341,6 +2356,9 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.envTextureBound = worldEnvTexture_.view() != nullptr;
   state.lightmapAtlasBound = worldLightmapTexture_.view() != nullptr;
   state.selfIllumEnabled = worldMaterialParams_.selfIllum;
+  state.dynamicLightingMode = worldDynamicLightingEffective();
+  state.specularMode = worldSpecularEffective();
+  state.bumpMode = worldBumpEffective();
   state.worldVertexCount = worldVertexCount_;
   state.convertedMin[0] = worldConvertedMin_[0]; state.convertedMin[1] = worldConvertedMin_[1]; state.convertedMin[2] = worldConvertedMin_[2];
   state.convertedMax[0] = worldConvertedMax_[0]; state.convertedMax[1] = worldConvertedMax_[1]; state.convertedMax[2] = worldConvertedMax_[2];
@@ -3927,11 +3945,17 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     const XMMATRIX mvp = view * projection;
     WorldConstantsData& constants = frameConstants;
     XMStoreFloat4x4(&constants.mvp, mvp);
-    const bool standardLighting = settings_.preset == QualityPreset::Standard && settings_.dynamicLighting;
-    const bool standardSpecular = settings_.preset == QualityPreset::Standard && settings_.specular;
-    constants.lightDirectionAndMode = XMFLOAT4(0.35f, -0.45f, 0.82f, standardLighting ? 1.0f : 0.0f);
+    // T24: the `preset == Standard` conjunct is gone. The flag is the statement
+    // -- a caller that sets `dynamicLighting` (or `specular`, or `bumpMapping`)
+    // is the thing being measured, and gating it on a preset name meant the
+    // single-semantic switches produced no constant at all. The Performance
+    // preset still leaves all three false, because fromPreset() and
+    // loadSettings() zero-initialise before assigning.
+    constants.lightDirectionAndMode = XMFLOAT4(0.35f, -0.45f, 0.82f,
+      worldDynamicLightingEffective() ? 1.0f : 0.0f);
     constants.cameraPositionAndSpecular = XMFLOAT4(
-      XMVectorGetX(eye), XMVectorGetY(eye), XMVectorGetZ(eye), standardSpecular ? 1.0f : 0.0f);
+      XMVectorGetX(eye), XMVectorGetY(eye), XMVectorGetZ(eye),
+      worldSpecularEffective() ? 1.0f : 0.0f);
     const bool standardSelfIllum = settings_.preset == QualityPreset::Standard && worldMaterialParams_.selfIllum;
     constants.materialFeatures = XMFLOAT4(
       worldMaterialParams_.selfIllumR,
@@ -3942,7 +3966,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       worldLightmapEnabled_
         ? (worldLightmapStatus_ == WorldLightmapStatus::Unavailable ? 1.0f : worldLightmapIntensity_)
         : 1.0f,
-      settings_.preset == QualityPreset::Standard && worldMaterialParams_.bumpMapping && worldBumpTexture_.view() ? 1.0f : 0.0f,
+      worldBumpEffective() ? 1.0f : 0.0f,
       settings_.preset == QualityPreset::Standard && worldMaterialParams_.envMap && worldEnvTexture_.view() ? 1.0f : 0.0f,
       worldLightmapEnabled_ && worldLightmapTexture_.view() ? 1.0f : 0.0f);
     // The cube wins when it is there: it is the map's own environment rather
