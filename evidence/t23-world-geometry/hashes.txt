@@ -1,0 +1,28 @@
+# T23 identity and hashes (2026-10-19)
+base_commit 959149942bc21ff89c1eb7ffea90d02153976718
+branch task/t23-world-geometry
+
+# executables (final source build)
+42077a85412d7a4279629d5eb9ea49381477f13e64c69021b1474e2d61d559b0 *native/build-nmake/tf2_demo_native.exe
+6059adc8fbeb49fd847afa96433c89f36f2212a92735f7783458404c02c5bd69 *native/build-nmake/world_geometry_probe.exe
+
+# capture BMPs (intermediates; PNG copies in frames/)
+d4c2298ca9c7e3d04f2d8148864bdaba8af265fdcc49260ce097f9a08588d973 *evidence/t23-world-geometry/captures/depth-base.bmp
+e4dc03afb186d5f47362d3de63ba9cebf40a147decf0fdb0814070b38e1c65b7 *evidence/t23-world-geometry/captures/depth-nocull.bmp
+e4dc03afb186d5f47362d3de63ba9cebf40a147decf0fdb0814070b38e1c65b7 *evidence/t23-world-geometry/captures/depth-novis-nocull.bmp
+5a0235eac72366ffa72bb5a2685f9d7d8ca884ff69d47f0229b09a85f86d2a3b *evidence/t23-world-geometry/captures/depth-novis.bmp
+d4d31160c52a1c77d5b7c04c2080d784c4ee5f8e82236f861c7274c22be8d38b *evidence/t23-world-geometry/captures/flat-base.bmp
+fdecffffcb406f83ecb37ee1a98a23ba1365d5ffb59fa962d416be67956c9249 *evidence/t23-world-geometry/captures/flat-nocull.bmp
+fdecffffcb406f83ecb37ee1a98a23ba1365d5ffb59fa962d416be67956c9249 *evidence/t23-world-geometry/captures/flat-novis-nocull.bmp
+84fcb18f9622eae2ce40a162e60258a548e7dbef6e0e6c9af17a5ed488967c56 *evidence/t23-world-geometry/captures/flat-novis.bmp
+da3592a494c28b78a3ab27031fee4637c332524868ae18fcea7a1bdf2e0241e5 *evidence/t23-world-geometry/captures/lightmap-off.bmp
+c04021f716da86dc61d30c8115703ce97ad037f762c3e8f7b291b9b056cfecfc *evidence/t23-world-geometry/captures/none.bmp
+16a5c0b83e7c3bcc44f41d4973d69060ee4deb00e74a56be6f2d2c2ae18498d2 *evidence/t23-world-geometry/captures/ref.bmp
+efc74f8206c3822a398b9be6fc63cc0d633b753ccad22d90a6f71de6221a496c *evidence/t23-world-geometry/captures/terrain.bmp
+ba6b61db52851023cbe833b86c3e20174945b1636d45ae71af8363d8a96dfe20 *evidence/t23-world-geometry/captures/textured.bmp
+
+# analysis outputs
+569720f9d4d0b3e727e54faa3ac39b173496f4659bc4a5a6cb474f6c255c6f0d *evidence/t23-world-geometry/analysis/probe-current.txt
+22e09f4fa0dcfc9bbdde3d9edcf481d9073d4e3dafa08ed4751e3d3e313c2c4b *evidence/t23-world-geometry/analysis/probe-fallback-orient.txt
+46715830f9726ad67889b8429be127de8a31b85329f519b463cc236879bcc3a5 *evidence/t23-world-geometry/analysis/accounting.txt
+5a32e69c4930ce095c53b3627748b622f7e0abe84a14f4af934ccb1bb95db6be *evidence/t23-world-geometry/analysis/accounting-mask.bmp

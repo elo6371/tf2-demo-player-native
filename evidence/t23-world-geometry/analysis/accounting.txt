@@ -1,0 +1,35 @@
+ACCOUNTING status=ok dir=evidence/t23-world-geometry/captures size=1264x681 flat_colour=(97,158,89)
+ACCOUNTING background clear_colour=(22,18,14) overlay_pixels=0
+ACCOUNTING totals pixels=860784 drawn=653277 backface=167030 visibility=0 both=2149 missing=38328 other=0 overlay=0
+ACCOUNTING shares drawn=0.7589 backface=0.1940 visibility=0.0000 both=0.0025 missing=0.0445 other=0.0000 overlay=0.0000
+ACCOUNTING rejected backface_empty=136413 backface_swapped=30617 visibility_empty=0 visibility_swapped=0
+ACCOUNTING dark drawn_dark=182944 of 653277 (0.2800) lightmap_driven=182903 albedo_driven=41 limit=16
+ACCOUNTING region W1 x=0,y=0,w=420,h=200 pixels=84000 drawn=81988 backface=2012 visibility=0 both=0 missing=0 other=0 overlay=0 drawn_share=0.9760 missing_share=0.0000 dark=1865 dark_share=0.0222 dark_lightmap=1865 dark_albedo=0
+ACCOUNTING region W2 x=0,y=560,w=420,h=121 pixels=50820 drawn=46510 backface=4310 visibility=0 both=0 missing=0 other=0 overlay=0 drawn_share=0.9152 missing_share=0.0000 dark=9554 dark_share=0.1880 dark_lightmap=9554 dark_albedo=0
+ACCOUNTING region W3 x=1100,y=100,w=164,h=200 pixels=32800 drawn=27389 backface=5411 visibility=0 both=0 missing=0 other=0 overlay=0 drawn_share=0.8350 missing_share=0.0000 dark=3095 dark_share=0.0944 dark_lightmap=3095 dark_albedo=0
+ACCOUNTING region W4 x=600,y=0,w=64,h=60 pixels=3840 drawn=1033 backface=0 visibility=0 both=0 missing=2807 other=0 overlay=0 drawn_share=0.2690 missing_share=0.7310 dark=0 dark_share=0.0000 dark_lightmap=0 dark_albedo=0
+ACCOUNTING missing-component rank=0 area=35678 bbox=(x=430..701,y=0..193) edge=1 fill=0.676
+ACCOUNTING missing-component rank=1 area=882 bbox=(x=690..703,y=462..558) edge=0 fill=0.649
+ACCOUNTING missing-component rank=2 area=360 bbox=(x=478..494,y=461..520) edge=0 fill=0.353
+ACCOUNTING missing-component rank=3 area=337 bbox=(x=942..961,y=631..680) edge=1 fill=0.337
+ACCOUNTING missing-component rank=4 area=282 bbox=(x=574..590,y=476..575) edge=0 fill=0.166
+ACCOUNTING missing-component rank=5 area=191 bbox=(x=920..938,y=517..590) edge=0 fill=0.136
+ACCOUNTING missing-component rank=6 area=180 bbox=(x=602..616,y=459..481) edge=0 fill=0.522
+ACCOUNTING missing-component rank=7 area=71 bbox=(x=658..728,y=459..459) edge=0 fill=1.000
+ACCOUNTING missing-component rank=8 area=61 bbox=(x=595..598,y=553..578) edge=0 fill=0.587
+ACCOUNTING missing-component rank=9 area=57 bbox=(x=460..465,y=592..609) edge=0 fill=0.528
+ACCOUNTING missing-component rank=10 area=39 bbox=(x=573..578,y=459..472) edge=0 fill=0.464
+ACCOUNTING missing-component rank=11 area=35 bbox=(x=450..476,y=525..529) edge=0 fill=0.259
+ACCOUNTING missing-component rank=12 area=23 bbox=(x=473..475,y=542..554) edge=0 fill=0.590
+ACCOUNTING missing-component rank=13 area=20 bbox=(x=746..748,y=630..642) edge=0 fill=0.513
+ACCOUNTING missing-component rank=14 area=16 bbox=(x=804..809,y=613..618) edge=0 fill=0.444
+ACCOUNTING missing-component rank=15 area=13 bbox=(x=577..577,y=626..638) edge=0 fill=1.000
+ACCOUNTING missing-component rank=16 area=12 bbox=(x=525..536,y=521..521) edge=0 fill=1.000
+ACCOUNTING missing-component rank=17 area=10 bbox=(x=1130..1133,y=652..657) edge=0 fill=0.417
+ACCOUNTING missing-component rank=18 area=9 bbox=(x=1136..1138,y=662..667) edge=0 fill=0.500
+ACCOUNTING missing-component rank=19 area=6 bbox=(x=576..577,y=615..618) edge=0 fill=0.750
+ACCOUNTING missing-component rank=20 area=5 bbox=(x=542..546,y=520..520) edge=0 fill=1.000
+ACCOUNTING missing-component rank=21 area=4 bbox=(x=939..939,y=591..594) edge=0 fill=1.000
+ACCOUNTING missing-component rank=22 area=3 bbox=(x=940..940,y=596..598) edge=0 fill=1.000
+ACCOUNTING missing-component rank=23 area=3 bbox=(x=745..745,y=625..627) edge=0 fill=1.000
+ACCOUNTING mask=evidence/t23-world-geometry/analysis\accounting-mask.bmp
