@@ -1,0 +1,11 @@
+# T21 frame-to-frame deltas, same demo/tick/camera (autorecord_2026-07-02_13-26-46,
+# tick 2000, 1264x681, --world-water off, viewmodel v_scattergun_scout companion).
+
+## T17 baseline (0c43e3e) -> current tree, before the T21 uv fix
+BMP-DIFF differing=1063297 total=2582352 percent=41.1755 max_delta=160 extent=1264x681x24 status=PASS
+
+## current tree before the fix -> current tree after the fix
+BMP-DIFF differing=1459130 total=2582352 percent=56.5039 max_delta=123 extent=1264x681x24 status=PASS
+
+## T17 baseline -> current tree after the fix (net)
+BMP-DIFF differing=1524364 total=2582352 percent=59.0301 max_delta=157 extent=1264x681x24 status=PASS

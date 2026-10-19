@@ -1,0 +1,11 @@
+# T21 uv discrimination: the same 24 pixels, two predictions, two builds.
+# albedo      = the texcoord normalised by the SOURCE size (this task's fix)
+# albedo-old  = the texcoord normalised by the TILE size (what the tree did before)
+
+## build WITH the fix, albedo frame
+FACE-CHECK status=PASS mode=albedo compared=23 mismatched=0 skipped=4 depthSkipped=1 tolerance=3 worstDelta=1 worstPoint=930,390 points=28 tiled=24 untiled=0 blend=3 oversized=24 beyondOldCap=16 discriminating=24
+FACE-CHECK status=FAIL mode=albedo-old compared=23 mismatched=21 skipped=4 depthSkipped=1 tolerance=3 worstDelta=57 worstPoint=1140,70 points=28 tiled=24 untiled=0 blend=3 oversized=24 beyondOldCap=16 discriminating=24
+
+## build WITHOUT the fix (only the uv line reverted), albedo frame
+FACE-CHECK status=PASS mode=albedo-old compared=23 mismatched=0 skipped=4 depthSkipped=1 tolerance=3 worstDelta=1 worstPoint=510,550 points=28 tiled=24 untiled=0 blend=3 oversized=24 beyondOldCap=16 discriminating=24
+FACE-CHECK status=FAIL mode=albedo compared=23 mismatched=21 skipped=4 depthSkipped=1 tolerance=3 worstDelta=57 worstPoint=1140,70 points=28 tiled=24 untiled=0 blend=3 oversized=24 beyondOldCap=16 discriminating=24

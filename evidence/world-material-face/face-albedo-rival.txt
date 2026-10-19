@@ -1,0 +1,31 @@
+FACE-POINT point=90,70 status=MISMATCH material=GREEK/GREEK_GROUND03D tile=0/7 rect=3599,1 src=1024x1024 want=149,130,111 got=182,161,141 maxDelta=33
+FACE-POINT point=300,70 status=MISMATCH material=GREEK/GREEK_WALL04_WHITE tile=0/14 rect=3085,515 src=1024x1024 want=186,163,139 got=190,173,154 maxDelta=15
+FACE-POINT point=510,70 status=no-face reason=no-drawn-triangle
+FACE-POINT point=720,70 status=ok material=WOOD/WALL007A tile=0/0 rect=1,1 src=1024x1024 want=124,109,90 got=126,108,90 maxDelta=2
+FACE-POINT point=930,70 status=MISMATCH material=GREEK/GREEK_GROUND03B tile=0/2 rect=1029,1 src=1024x1024 want=158,141,122 got=181,164,143 maxDelta=23
+FACE-POINT point=1140,70 status=MISMATCH material=GREEK/GREEK_GROUND03B_COBBLE tile=0/15 rect=3599,515 src=1024x1024 want=220,209,193 got=167,152,141 maxDelta=57
+FACE-POINT point=90,230 status=MISMATCH material=GREEK/GREEK_GROUND03D tile=0/7 rect=3599,1 src=1024x1024 want=191,175,153 got=194,182,164 maxDelta=11
+FACE-POINT point=300,230 status=MISMATCH material=GREEK/GREEK_GROUND03B_COBBLE tile=0/15 rect=3599,515 src=1024x1024 want=180,163,141 got=182,173,159 maxDelta=18
+FACE-POINT point=510,230 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/15 rect=3599,515 src=1024x1024 want=177,159,140 got=177,157,143 maxDelta=3
+FACE-POINT point=720,230 status=MISMATCH material=GREEK/GREEK_GROUND03B_COBBLE tile=0/15 rect=3599,515 src=1024x1024 want=178,171,155 got=179,162,144 maxDelta=11
+FACE-POINT point=930,230 status=MISMATCH material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY tile=0/4 rect=2057,1 src=1024x1024 want=61,62,24 got=80,79,20 maxDelta=19
+FACE-POINT point=1140,230 status=MISMATCH material=METAL/WALL_ISLAND_HEAVY02C tile=0/31 rect=3599,1543 src=1024x1024 want=165,161,155 got=160,153,144 maxDelta=11
+FACE-POINT point=90,390 status=MISMATCH material=GREEK/GREEK_GROUND03D tile=0/7 rect=3599,1 src=1024x1024 want=194,179,156 got=182,165,145 maxDelta=14
+FACE-POINT point=300,390 status=MISMATCH material=GREEK/GREEK_GROUND03B tile=0/2 rect=1029,1 src=1024x1024 want=199,184,164 got=203,188,170 maxDelta=6
+FACE-POINT point=510,390 status=MISMATCH material=GREEK/GREEK_GROUND03B_COBBLE tile=0/15 rect=3599,515 src=1024x1024 want=195,180,162 got=175,164,152 maxDelta=20
+FACE-POINT point=720,390 status=not-this-face material=GREEK/GREEK_GROUND03B_COBBLE
+FACE-POINT point=930,390 status=MISMATCH material=GREEK/GREEK_GROUND03B_COBBLE tile=0/15 rect=3599,515 src=1024x1024 want=201,188,169 got=198,185,164 maxDelta=5
+FACE-POINT point=1140,390 status=MISMATCH material=GREEK/GREEK_GROUND03B tile=0/2 rect=1029,1 src=1024x1024 want=154,135,118 got=168,150,129 maxDelta=15
+FACE-POINT point=90,550 status=MISMATCH material=WOOD/WALL007A tile=0/0 rect=1,1 src=1024x1024 want=121,107,91 got=134,120,101 maxDelta=13
+FACE-POINT point=300,550 status=MISMATCH material=WOOD/GRAIN_ELEVATOR_FACADE_03 tile=0/48 rect=1,3085 src=1024x1024 want=214,186,133 got=218,204,164 maxDelta=31
+FACE-POINT point=510,550 status=MISMATCH material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY tile=0/1 rect=515,1 src=1024x1024 want=164,150,138 got=170,161,148 maxDelta=11
+FACE-POINT point=720,550 status=MISMATCH material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY tile=0/4 rect=2057,1 src=1024x1024 want=150,133,117 got=179,159,138 maxDelta=29
+FACE-POINT point=930,550 status=no-face reason=no-drawn-triangle
+FACE-POINT point=1140,550 status=no-face reason=no-drawn-triangle
+FACE-POINT point=200,120 status=MISMATCH material=GREEK/GREEK_GROUND03D tile=0/7 rect=3599,1 src=1024x1024 want=187,168,153 got=202,188,169 maxDelta=20
+FACE-POINT point=200,620 status=MISMATCH material=GREEK/GREEK_GROUND03B_COBBLE tile=0/15 rect=3599,515 src=1024x1024 want=159,143,123 got=158,143,130 maxDelta=7
+FACE-POINT point=1180,200 status=MISMATCH material=METAL/WALL_ISLAND_HEAVY02C tile=0/31 rect=3599,1543 src=1024x1024 want=158,155,147 got=154,149,139 maxDelta=8
+FACE-POINT point=630,30 status=no-face reason=no-drawn-triangle
+FACE-CHECK status=FAIL mode=albedo-old compared=23 mismatched=21 skipped=4 depthSkipped=1 tolerance=3 worstDelta=57 worstPoint=1140,70 points=28 tiled=24 untiled=0 blend=3 oversized=24 beyondOldCap=16 discriminating=24
+FACE-REFUSAL reason=no-basetexture materials=20 visibleTriangles=758
+FACE-REFUSAL reason=vmt-missing materials=3 visibleTriangles=144

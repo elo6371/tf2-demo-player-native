@@ -63,6 +63,11 @@ struct WorldTexture {
   std::vector<std::uint8_t> rgba;
   UINT width = 0;
   UINT height = 0;
+  // T21: the VTF's dimensions before the downscale to width x height. The
+  // vertex uv is normalised by these, because the BSP texcoord is in source
+  // texels; zero means the tile is the source (nothing was downscaled).
+  UINT sourceWidth = 0;
+  UINT sourceHeight = 0;
   // ---- T12 (2026-10-18): the second layer of a blend material ------------
   // A WorldVertexTransition material names two albedo layers and blends them by
   // the displacement's per-vertex alpha. `blendRgba` holds the second layer
@@ -252,9 +257,47 @@ struct WorldTileReading {
   int tile = -1;
   int width = 0;
   int height = 0;
+  // T21: the tile's first pixel inside its atlas (`slot.x`/`slot.y`) and the
+  // atlas' own size. A trace that says "material M is tile 7" cannot be
+  // checked against a screen pixel; a trace that says "M lives at (2057,1) in a
+  // 4112-wide atlas" can, because the uv is a function of exactly those
+  // numbers. Published here rather than recomputed by the caller: the grid
+  // rule lives in planWorldTiles and a second copy of it would be a second
+  // layout.
+  int x = 0;
+  int y = 0;
+  int atlasWidth = 0;
+  int atlasHeight = 0;
+  // T21: the pre-downscale dimensions the uv is normalised by. Equal to
+  // `width` / `height` for a texture that already fit the tile.
+  int sourceWidth = 0;
+  int sourceHeight = 0;
   bool blend = false;
   bool modulate = false;
   std::string reason;
+};
+
+// T21: the world constants the last frame was drawn with, so a diagnostic can
+// predict what the pixel shader should produce at a screen point without
+// re-deriving the camera, the projection or the lighting switches from
+// settings. Every field here is the value uploaded to the constant buffer for
+// the world pass; none of them is a preference.
+struct WorldShaderConstants {
+  bool valid = false;
+  float mvp[16] = {};              // row-major view * projection
+  float lightDirection[3] = {};    // lightDirectionAndMode.xyz
+  float lightMode = 0.0f;          // lightDirectionAndMode.w (diffuse term on)
+  float lightmapFactor = 1.0f;     // lightmapFeatures.x
+  bool lightmapEnabled = false;    // lightmapFeatures.w > 0.5
+  float bumpMode = 0.0f;           // lightmapFeatures.y
+  float envMode = 0.0f;            // envFeatures.x
+  float cameraPosition[3] = {};    // cameraPositionAndSpecular.xyz
+  bool specular = false;           // cameraPositionAndSpecular.w
+  float selfIllumTint[3] = {};     // materialFeatures.xyz
+  float selfIllum = 0.0f;          // materialFeatures.w
+  int debugView = 0;
+  int width = 0;
+  int height = 0;
 };
 
 struct WorldMaterialSampleState {
@@ -494,6 +537,28 @@ public:
   // an arbitrary half of the map. The inverse lives here, next to the forward
   // conversion and its constants, so the two cannot drift apart.
   bool observerFocusMapWorld(float& x, float& y, float& z) const;
+  // T21: the constants the last world draw uploaded. Read after a frame, like
+  // the vis and cull readings: a caller that predicts a pixel has to use the
+  // numbers the shader was given, not the settings that were meant to produce
+  // them.
+  WorldShaderConstants worldShaderConstants() const;
+  // T21: the depth the captured frame actually has at a pixel, read back with
+  // the colour buffer. It answers "is the pixel the face the trace picked?"
+  // without assuming it: a model, the water pass or another world triangle in
+  // front all write a different depth, and a colour comparison over such a
+  // pixel would be a comparison with somebody else's surface. Returns a
+  // negative value when no depth readback was taken.
+  float capturedDepthAt(int x, int y) const;
+  // The depth of the FINAL frame -- after the ViewModel pass cleared the world
+  // depth and drew the weapon over it. A pixel whose final depth is nearer than
+  // the world depth is not the world face any more, whatever its colour is.
+  float capturedFinalDepthAt(int x, int y) const;
+  void captureDepthBuffer(bool finalPass);
+  // The raw 32-bit texel behind capturedDepthAt, for diagnosing a driver whose
+  // D24S8 packing is not the one the decode assumes.
+  std::uint32_t capturedDepthRawAt(int x, int y) const;
+  int capturedDepthWidth() const { return capturedDepthWidth_; }
+  int capturedDepthHeight() const { return capturedDepthHeight_; }
   void setWorldMaterialParams(const WorldMaterialParams& params);
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
@@ -1137,6 +1202,14 @@ private:
   // no tile. Sized map.triangles.size() and used to regroup the pvs draw list.
   std::vector<std::int16_t> worldTriangleBatch_;
   std::vector<WorldTileReading> worldTileTable_;
+  // T21: the constants the last world pass uploaded, kept for the face trace.
+  WorldShaderConstants worldShaderConstants_;
+  // T21: the depth of the frame that was captured, one float per pixel.
+  std::vector<float> capturedDepth_;
+  std::vector<std::uint32_t> capturedDepthRaw_;
+  std::vector<float> capturedFinalDepth_;
+  int capturedDepthWidth_ = 0;
+  int capturedDepthHeight_ = 0;
   std::size_t worldTilesTiled_ = 0;
   std::size_t worldTilesRefused_ = 0;
   std::size_t worldTilesRefusedMalformed_ = 0;

@@ -159,6 +159,17 @@ WorldAtlasPlan planWorldTiles(const std::vector<WorldTileSource>& sources,
         + options.tileBorder;
       slot.width = sources[index].width;
       slot.height = sources[index].height;
+      // T21: the uv normaliser is the source size, not the tile size. A source
+      // that was downscaled to the tile keeps its own texcoord range, and
+      // handing worldTileCoord the tile size made every oversized texture wrap
+      // early -- measured on pl_odyssey: 70 of 85 tiled materials ship a
+      // texture larger than 512, and with the tile size in this field each of
+      // them repeated 2x2 (1024 source) or 4x4 (2048 source) across the face
+      // it belongs to.
+      slot.sourceWidth = sources[index].sourceWidth > 0
+        ? sources[index].sourceWidth : sources[index].width;
+      slot.sourceHeight = sources[index].sourceHeight > 0
+        ? sources[index].sourceHeight : sources[index].height;
       slot.blend = sources[index].blendBytes > 0;
       slot.modulate = sources[index].modulateBytes > 0;
       ++plan.accepted;

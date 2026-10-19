@@ -85,11 +85,24 @@ void traceFmt(const char* format, ...) {
   // names a model path, and TF2 model paths run past 60 characters, so the
   // reading was being silently truncated mid-field -- the worst shape for a
   // diagnostic: it looks like it answered.
-  char buffer[512];
+  //
+  // T21: 512 then did the same thing to the per-face trace. That line carries
+  // two VTF paths, a tile rectangle, an atlas uv, three sampled texels and four
+  // depths; measured on pl_odyssey it needs 540-odd bytes and lost its tail
+  // (`depthMatch`, `frameRaw`) without saying so, so a point was being compared
+  // with no depth verdict and read as "this face". The size is now generous and
+  // the truncation that remains is written down instead of hidden: a line that
+  // cannot be trusted says it cannot be trusted.
+  char buffer[2048];
   va_list args;
   va_start(args, format);
-  std::vsnprintf(buffer, sizeof(buffer), format, args);
+  const int written = std::vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
+  if (written < 0) return;
+  if (static_cast<std::size_t>(written) >= sizeof(buffer)) {
+    static const char kTail[] = "...[TRUNCATED]";
+    std::memcpy(buffer + sizeof(buffer) - sizeof(kTail), kTail, sizeof(kTail));
+  }
   traceCheckpoint(buffer);
 }
 
@@ -973,6 +986,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   int worldDebugView = 0;
   int worldDebugViewGiven = 0;
   int invalidWorldDebugArgument = 0;
+  // T21: emit one chain record per sampled screen point on the captured frame.
+  // Off by default: a per-face trace is a diagnostic, and a normal run's trace
+  // should not carry 24 lines nobody asked for.
+  bool worldFaceTraceRequested = false;
   // T2 (2026-10-14): the water surface follows the same shape as T1's two
   // switches -- on by default, with an explicit off switch -- for the same
   // reason: "the water is drawn" is only a reading if "the water is not drawn"
@@ -1049,6 +1066,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         ++worldDebugViewGiven; worldDebugView = 1;
       } else if (wcscmp(arguments[i], L"--world-depth") == 0) {
         ++worldDebugViewGiven; worldDebugView = 2;
+      } else if (wcscmp(arguments[i], L"--world-albedo") == 0) {
+        // T21: the material path's own output, before any lighting. A capture
+        // in this view is what a face trace can be compared against pixel for
+        // pixel; the textured frame cannot, because its pixels are albedo
+        // times a lightmap.
+        ++worldDebugViewGiven; worldDebugView = 3;
+      } else if (wcscmp(arguments[i], L"--world-face-trace") == 0) {
+        worldFaceTraceRequested = true;
       } else if (wcscmp(arguments[i], L"--world-lightmap") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"on") == 0) { worldLightmapRequested = true; worldLightmapGiven = true; }
         else if (wcscmp(arguments[i], L"off") == 0) { worldLightmapRequested = false; worldLightmapGiven = true; }
@@ -1826,6 +1851,40 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // pvs clip has run; keeping the parsed fields here is what lets it run then
   // without re-reading the archive.
   std::vector<std::pair<std::string, tf2::native::VmtMaterial>> worldFetchedMaterials;
+  // T21: the whole chain for every distinct material, in one table: which store
+  // answered for the VMT, which for the VTF, what the source texture was, what
+  // the atlas did with it, and -- for the materials the old 64-tile ceiling
+  // would have dropped -- the position the pre-T19 order would have given it.
+  // The face trace names a material per screen point and reads this table; a
+  // refusal that is not in here cannot be named by the trace, so every branch
+  // of the fetch below writes a reason.
+  struct WorldMaterialChainRecord {
+    std::string vmtPath;
+    std::string vmtStore = "none";
+    std::string vtfPath;
+    std::string vtfStore = "none";
+    std::string baseTexture;
+    int sourceWidth = 0;
+    int sourceHeight = 0;
+    int tileWidth = 0;
+    int tileHeight = 0;
+    int batch = -1;
+    int tile = -1;
+    int tileX = 0;
+    int tileY = 0;
+    int atlasWidth = 0;
+    int atlasHeight = 0;
+    bool blend = false;
+    std::size_t triangles = 0;
+    // The index the reverse-alphabetical (pre-T19) fetch order would have
+    // accepted this material at, counting only materials that resolve. 0 means
+    // "would not have been accepted at all"; 65 and up means "the old cap would
+    // have dropped it".
+    std::size_t oldOrderAccepted = 0;
+    bool beyondOldCap = false;
+    std::string reason = "not-reached";
+  };
+  std::unordered_map<std::string, WorldMaterialChainRecord> worldMaterialChain;
   std::vector<std::shared_ptr<tf2::native::VpkArchive>> soundArchives;
   // The lookup policy as an object rather than as the six copied loops this
   // file used to carry. Sound keeps using `soundArchives` directly -- it wants
@@ -2203,26 +2262,31 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       for (const auto& entry : materialOrder) {
         const std::string& materialName = entry.second;
         ++fetchDistinct;
+        auto& chain = worldMaterialChain[materialName];
+        chain.triangles = entry.first;
         if (worldTextures.size() >= kMaxWorldMaterials) {
           if (declaresBlend.count(materialName) && declaresBlend[materialName]) ++fetchBlendCapped;
           ++fetchCapped;
+          chain.reason = "world-material-cap";
           continue;
         }
         const auto materialPath = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
+        chain.vmtPath = materialPath;
         const auto materialLookup = assetChain.lookup(materialPath);
+        chain.vmtStore = tf2::native::assetStoreName(materialLookup.store);
         auto materialBytes = materialLookup.bytes;
         if (materialLookup.store == tf2::native::AssetStore::Pakfile) ++fetchFromPakfile;
         tf2::native::VmtMaterial material;
-        if (materialBytes.empty()) { ++fetchVmtMissing; continue; }
+        if (materialBytes.empty()) { ++fetchVmtMissing; chain.reason = "vmt-missing"; continue; }
         if (!tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)) {
-          ++fetchVmtNoBase; continue;
+          ++fetchVmtNoBase; chain.reason = "vmt-unparsable"; continue;
         }
         // Recorded before the base-texture check: a material with no
         // `$basetexture` still declares `$detail` or `$ssbump`, and the feature
         // scan's question is what the map's materials ask for.
         worldFetchedMaterials.emplace_back(materialName, material);
         if (material.baseTexture.empty() && material.baseTexture2.empty()) {
-          ++fetchVmtNoBase; continue;
+          ++fetchVmtNoBase; chain.reason = "no-basetexture"; continue;
         }
         // T12: one lookup policy, written once and used for every resource a
         // material names. Loose file, then the archives in the order this file
@@ -2231,17 +2295,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // cannot resolve one of them from a store the others were never
         // offered.
         const auto resolveTexture = [&](const std::string& name, std::string& path,
-                                        std::vector<std::uint8_t>& bytes) {
+                                        std::vector<std::uint8_t>& bytes,
+                                        std::string* storeOut = nullptr) {
           if (name.empty()) return false;
           path = tf2::native::VmtParser::resourcePath(name, ".vtf");
           auto looked = assetChain.lookup(path);
           if (looked.store == tf2::native::AssetStore::Pakfile) ++fetchFromPakfile;
+          if (storeOut) *storeOut = tf2::native::assetStoreName(looked.store);
           bytes = std::move(looked.bytes);
           return !bytes.empty();
         };
         std::string texturePath, secondPath, modulatePath;
         std::vector<std::uint8_t> textureBytes, secondBytes, modulateBytes;
-        const bool baseResolved = resolveTexture(material.baseTexture, texturePath, textureBytes);
+        chain.baseTexture = material.baseTexture.empty() ? material.baseTexture2 : material.baseTexture;
+        const bool baseResolved = resolveTexture(material.baseTexture, texturePath, textureBytes,
+          &chain.vtfStore);
+        chain.vtfPath = texturePath;
         // A material is a blend material only when it names a *different*
         // second layer. The comparison is on the declared name, not on the
         // resolved path: `$basetexture` and `$basetexture2` naming the same
@@ -2250,8 +2319,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // nothing.
         const bool secondDeclared = !material.baseTexture2.empty()
           && material.baseTexture2 != material.baseTexture;
+        std::string secondStore;
         const bool secondResolved = secondDeclared && blendEnabled
-          && resolveTexture(material.baseTexture2, secondPath, secondBytes);
+          && resolveTexture(material.baseTexture2, secondPath, secondBytes, &secondStore);
         if (secondDeclared) ++fetchBlendDeclared;
         if (!baseResolved) {
           // The old behaviour, kept: a material whose `$basetexture` did not
@@ -2259,20 +2329,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           // has. It cannot blend -- there is nothing to blend from -- and
           // `blendRefused` below is what says so rather than leaving a reader
           // to assume the second layer became the first.
-          if (!secondResolved) { ++fetchVtfMissing; continue; }
+          if (!secondResolved) { ++fetchVtfMissing; chain.reason = "vtf-missing"; continue; }
           texturePath = secondPath; textureBytes = std::move(secondBytes);
+          chain.vtfPath = secondPath;
+          chain.vtfStore = secondStore.empty() ? chain.vtfStore : secondStore;
         }
         tf2::native::VtfTexture texture;
-        if (textureBytes.empty() || !texture.parse(textureBytes)) { ++fetchVtfMissing; continue; }
+        if (textureBytes.empty() || !texture.parse(textureBytes)) {
+          ++fetchVtfMissing; chain.reason = "vtf-unreadable"; continue;
+        }
+        chain.sourceWidth = static_cast<int>(texture.header().width);
+        chain.sourceHeight = static_cast<int>(texture.header().height);
         if (texture.header().width > fetchMaxWidth) fetchMaxWidth = texture.header().width;
         if (texture.header().height > fetchMaxHeight) fetchMaxHeight = texture.header().height;
         if (texture.header().width > 512 || texture.header().height > 512) ++fetchVtfTooLarge;
         auto rgba = texture.decodeRgba(textureBytes);
-        if (rgba.empty()) { ++fetchDecodeEmpty; continue; }
+        if (rgba.empty()) { ++fetchDecodeEmpty; chain.reason = "decode-empty"; continue; }
         std::vector<std::uint8_t> tiledPixels;
         UINT tiledWidth = texture.header().width, tiledHeight = texture.header().height;
         if (!boxDownscale(rgba, texture.header().width, texture.header().height, 512,
-                          tiledPixels, tiledWidth, tiledHeight)) { ++fetchDecodeEmpty; continue; }
+                          tiledPixels, tiledWidth, tiledHeight)) {
+          ++fetchDecodeEmpty; chain.reason = "downscale-failed"; continue;
+        }
+        chain.tileWidth = static_cast<int>(tiledWidth);
+        chain.tileHeight = static_cast<int>(tiledHeight);
+        chain.blend = secondDeclared;
+        chain.reason = "tiled";
         // ---- T12: the second layer ------------------------------------------
         // What used to happen here was a CPU fold that used the *first
         // texture's alpha* as the blend mask. That is not what Source does and
@@ -2374,8 +2456,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         }
         if (tiledWidth != texture.header().width || tiledHeight != texture.header().height) ++fetchDownscaled;
         ++fetchTiled;
-        worldTextures.push_back({materialName, std::move(tiledPixels), tiledWidth, tiledHeight,
-                                 std::move(blendPixels), secondDeclared, std::move(modulatePixels)});
+        {
+          tf2::native::WorldTexture tiled;
+          tiled.material = materialName;
+          tiled.rgba = std::move(tiledPixels);
+          tiled.width = tiledWidth;
+          tiled.height = tiledHeight;
+          // T21: the uv normaliser. The tile was downscaled from these, and a
+          // texcoord is in source texels.
+          tiled.sourceWidth = texture.header().width;
+          tiled.sourceHeight = texture.header().height;
+          tiled.blendRgba = std::move(blendPixels);
+          tiled.blendDeclared = secondDeclared;
+          tiled.blendModulateRgba = std::move(modulatePixels);
+          worldTextures.push_back(std::move(tiled));
+        }
       }
       traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu",
         fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
@@ -2384,6 +2479,31 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       traceFmt("gpu: world blend-fetch declared=%zu resolved=%zu refused=%zu disabled=%zu resampled=%zu modulateDeclared=%zu modulateResolved=%zu modulateRefused=%zu",
         fetchBlendDeclared, fetchBlendResolved, fetchBlendRefused, fetchBlendDisabled, fetchBlendResampled,
         fetchModulateDeclared, fetchModulateResolved, fetchModulateRefused);
+      // T21: what the PRE-T19 order would have done with the same materials.
+      // The old comparator compared the pair's second field -- the material
+      // NAME -- and therefore accepted materials in reverse alphabetical order
+      // until `accepted.size()` reached 64. Reconstructing that order here is
+      // what lets the trace say, for a face whose pixels moved, whether the
+      // movement is a surface the old ceiling dropped (an expected newly
+      // covered surface) or a surface that was already textured (a material
+      // selection or sampling finding). Counting only materials that resolve
+      // is deliberate: the old cap was checked after validation, so a missing
+      // VMT did not consume a slot.
+      {
+        std::vector<std::string> oldOrder;
+        oldOrder.reserve(worldMaterialChain.size());
+        for (const auto& entry : worldMaterialChain) oldOrder.push_back(entry.first);
+        std::sort(oldOrder.begin(), oldOrder.end(), [](const std::string& l, const std::string& r) {
+          return l > r;
+        });
+        std::size_t accepted = 0;
+        for (const auto& name : oldOrder) {
+          auto found = worldMaterialChain.find(name);
+          if (found == worldMaterialChain.end() || found->second.reason != "tiled") continue;
+          found->second.oldOrderAccepted = ++accepted;
+          found->second.beyondOldCap = accepted > 64;
+        }
+      }
     }
     if (!displayVtf.empty()) {
       tf2::native::VtfTexture texture;
@@ -3957,7 +4077,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldCullBackfaces ? 1 : 0,
       sample.worldCullBackfaces ? "cull-back" : "cull-none");
     traceFmt("gpu: world debug view=%s",
-      sample.worldDebugView == 2 ? "depth" : sample.worldDebugView == 1 ? "flat" : "textured");
+      sample.worldDebugView == 3 ? "albedo"
+        : sample.worldDebugView == 2 ? "depth" : sample.worldDebugView == 1 ? "flat" : "textured");
     // ---- T19: the atlas plan, and the per-material account behind it --------
     // The old reading was one number (`capped=51`) with no names. This is the
     // table that number was hiding: what each material asked for, how much of it
@@ -4050,6 +4171,470 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         features.distinctBumpPaths, features.detailTypesRead,
         features.firstDetailType.empty() ? "-" : features.firstDetailType.c_str());
     }
+  };
+  // ---- T21: the per-face material chain -----------------------------------
+  // A material-fetch count says how many materials got a tile. It cannot say
+  // whether the tile that covers a wall is the wall's own texture, whether the
+  // uv that reaches it is the face's own uv, or whether the pixel on screen is
+  // the texel the shader sampled. This trace answers those three questions at
+  // a fixed set of screen points by walking the chain in the other direction:
+  // point -> front-most drawn triangle -> material -> VMT/VTF store -> tile
+  // rectangle -> the texel the shader would fetch -> the shaded value the
+  // pixel shader should output. The capture in --world-albedo mode is the
+  // other half: it writes that albedo to the frame, so the prediction and the
+  // pixel can be compared. Nothing here is aggregated: a line names one point
+  // and one face, and the gate fails on the point it can name.
+  const auto traceWorldFaces = [&]() {
+    if (!worldFaceTraceRequested) return;
+    const auto constants = renderer.worldShaderConstants();
+    if (!constants.valid) {
+      traceFmt("gpu: world face-trace status=unavailable reason=no-world-constants");
+      return;
+    }
+    const auto drawState = renderer.worldMaterialSampleState();
+    const auto& tileTable = renderer.worldTileTable();
+    std::unordered_map<std::string, const tf2::native::WorldTileReading*> tileByMaterial;
+    tileByMaterial.reserve(tileTable.size());
+    for (const auto& row : tileTable) tileByMaterial.emplace(row.material, &row);
+    std::unordered_map<std::string, const tf2::native::WorldTexture*> textureByMaterial;
+    textureByMaterial.reserve(worldTextures.size());
+    for (const auto& texture : worldTextures) textureByMaterial.emplace(texture.material, &texture);
+
+    // The sample points are fixed so two runs, two trees and two builds can be
+    // compared: a grid across the frame, plus one point inside each of the four
+    // regions visual-baseline-check.sh pins. They are screen pixels, top-left
+    // origin, and they are the same pixels frame-region-stats.py reads.
+    static constexpr int kPoints[][2] = {
+      {90, 70}, {300, 70}, {510, 70}, {720, 70}, {930, 70}, {1140, 70},
+      {90, 230}, {300, 230}, {510, 230}, {720, 230}, {930, 230}, {1140, 230},
+      {90, 390}, {300, 390}, {510, 390}, {720, 390}, {930, 390}, {1140, 390},
+      {90, 550}, {300, 550}, {510, 550}, {720, 550}, {930, 550}, {1140, 550},
+      {200, 120}, {200, 620}, {1180, 200}, {630, 30}
+    };
+    const float scale = renderer.worldHorizontalScale();
+    const float centerX = renderer.worldCenterX();
+    const float centerY = renderer.worldCenterY();
+    const float minZ = renderer.worldMinZ();
+    const float spanZ = renderer.worldSpanZ();
+    const float* m = constants.mvp;
+    const int frameWidth = constants.width;
+    const int frameHeight = constants.height;
+    // Same transform uploadWorldGeometry applied (T2 publishes it for exactly
+    // this reason), then the shader's row-vector multiply.
+    const auto project = [&](const tf2::native::BspVertex& point, float& sx, float& sy, float& depth,
+                             float& invW) {
+      const float x = (point.x - centerX) * scale;
+      const float y = (point.y - centerY) * scale;
+      const float z = (point.z - minZ) / spanZ * 0.8f + 0.1f;
+      const float cx = x * m[0] + y * m[4] + z * m[8] + m[12];
+      const float cy = x * m[1] + y * m[5] + z * m[9] + m[13];
+      const float cz = x * m[2] + y * m[6] + z * m[10] + m[14];
+      const float cw = x * m[3] + y * m[7] + z * m[11] + m[15];
+      if (!(cw > 1.0e-5f) || !std::isfinite(cw)) return false;
+      sx = (cx / cw * 0.5f + 0.5f) * static_cast<float>(frameWidth);
+      sy = (0.5f - cy / cw * 0.5f) * static_cast<float>(frameHeight);
+      depth = cz / cw;
+      // 1/w for the perspective-correct interpolation below. The rasterizer
+      // interpolates attributes as a_i/w_i normalised by sum(1/w_i); screen-
+      // space barycentrics alone are wrong on a perspective triangle, and on
+      // this frame that error reached 163 LSB on a floor that recedes.
+      invW = 1.0f / cw;
+      return std::isfinite(sx) && std::isfinite(sy) && std::isfinite(depth);
+    };
+    // Bilinear, with the texel-centre convention worldTileCoord writes:
+    // texcoord t addresses texel centres at integer t, so texel i contributes
+    // to [i-1, i+1]. Repeat is the material's own `wrap`.
+    const auto sampleBilinear = [](const std::vector<std::uint8_t>& rgba, int width, int height,
+                                   float u, float v, unsigned char out[3]) {
+      if (rgba.empty() || width <= 0 || height <= 0) return false;
+      const auto wrapIndex = [](int value, int size) {
+        const int wrapped = value % size;
+        return wrapped < 0 ? wrapped + size : wrapped;
+      };
+      const int x0 = static_cast<int>(std::floor(u));
+      const int y0 = static_cast<int>(std::floor(v));
+      const float fx = u - static_cast<float>(x0);
+      const float fy = v - static_cast<float>(y0);
+      float sum[3] = {0.0f, 0.0f, 0.0f};
+      for (int dy = 0; dy < 2; ++dy) {
+        for (int dx = 0; dx < 2; ++dx) {
+          const int x = wrapIndex(x0 + dx, width);
+          const int y = wrapIndex(y0 + dy, height);
+          const float weight = (dx ? fx : 1.0f - fx) * (dy ? fy : 1.0f - fy);
+          const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+            + static_cast<std::size_t>(x)) * 4u;
+          if (at + 2u >= rgba.size()) return false;
+          for (int c = 0; c < 3; ++c) sum[c] += weight * static_cast<float>(rgba[at + static_cast<std::size_t>(c)]);
+        }
+      }
+      for (int c = 0; c < 3; ++c) {
+        out[c] = static_cast<unsigned char>(std::clamp(std::lround(sum[c]), 0l, 255l));
+      }
+      return true;
+    };
+    const auto shadeFor = [](const std::string& material) {
+      const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(material));
+      return 0.78f + static_cast<float>(hash % 23) / 100.0f;
+    };
+    const bool clipApplied = drawState.worldVisClipApplied
+      && !worldVisKeptIndices.empty();
+    std::size_t hits = 0, tiledHits = 0, untiledHits = 0, blendHits = 0, oversizedHits = 0;
+    std::size_t beyondCapHits = 0, depthMatched = 0, discriminatingHits = 0;
+    for (const auto& point : kPoints) {
+      const int px = point[0];
+      const int py = point[1];
+      if (px < 0 || py < 0 || px >= frameWidth || py >= frameHeight) continue;
+      const float fx = static_cast<float>(px) + 0.5f;
+      const float fy = static_cast<float>(py) + 0.5f;
+      int bestTriangle = -1;
+      float bestDepth = 2.0f;
+      float bestBary[3] = {0.0f, 0.0f, 0.0f};
+      float bestInvW[3] = {1.0f, 1.0f, 1.0f};
+      const auto consider = [&](std::size_t ordinal) {
+        if (ordinal >= displayMap.triangles.size()) return;
+        const auto& triangle = displayMap.triangles[ordinal];
+        if (triangle.water) return;
+        float ax, ay, az, aw, bx, by, bz, bw, cx, cy, cz, cw;
+        if (!project(triangle.a, ax, ay, az, aw) || !project(triangle.b, bx, by, bz, bw)
+            || !project(triangle.c, cx, cy, cz, cw)) return;
+        // Front faces are clockwise in D3D's screen space; a back face is not
+        // rasterised when the pass culls, so it cannot be the pixel's owner.
+        const float area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+        if (drawState.worldCullBackfaces && !(area > 0.0f)) return;
+        if (std::fabs(area) < 1.0e-6f) return;
+        const float w0 = ((by - cy) * (fx - cx) + (cx - bx) * (fy - cy)) / area;
+        const float w1 = ((cy - ay) * (fx - cx) + (ax - cx) * (fy - cy)) / area;
+        const float w2 = 1.0f - w0 - w1;
+        if (w0 < -1.0e-4f || w1 < -1.0e-4f || w2 < -1.0e-4f) return;
+        const float depth = w0 * az + w1 * bz + w2 * cz;
+        if (!(depth >= 0.0f) || depth >= bestDepth) return;
+        bestDepth = depth;
+        bestTriangle = static_cast<int>(ordinal);
+        bestBary[0] = w0; bestBary[1] = w1; bestBary[2] = w2;
+        bestInvW[0] = aw; bestInvW[1] = bw; bestInvW[2] = cw;
+      };
+      if (clipApplied) {
+        for (const std::size_t ordinal : worldVisKeptIndices) consider(ordinal);
+      } else {
+        for (std::size_t ordinal = 0; ordinal < displayMap.triangles.size(); ++ordinal) consider(ordinal);
+      }
+      if (bestTriangle < 0) {
+        traceFmt("gpu: world face-trace point=%d,%d tri=none reason=no-drawn-triangle",
+          px, py);
+        continue;
+      }
+      const auto& triangle = displayMap.triangles[static_cast<std::size_t>(bestTriangle)];
+      // Does the frame's own depth agree that this face owns the pixel? A model,
+      // the water pass or a nearer triangle would answer no. Unmeasured (-1)
+      // is not a match either, so a run without a depth readback cannot pass
+      // the pixel comparison by accident.
+      const float frameDepth = renderer.capturedDepthAt(px, py);
+      // The ViewModel pass CLEARS the depth buffer to 1.0 and then draws the
+      // weapon, so after it a pixel the weapon touched is < 1.0 and a pixel it
+      // did not is exactly the cleared value. Comparing the final depth with
+      // the world depth would be meaningless -- the weapon lives in its own
+      // space and its depth at this pixel was 0.9822 over a world depth of
+      // 0.5657 -- so the test is "still cleared".
+      const float finalDepth = renderer.capturedFinalDepthAt(px, py);
+      const bool depthMatch = frameDepth >= 0.0f && std::fabs(frameDepth - bestDepth) <= 2.0e-5f
+        && finalDepth >= 0.999f;
+      const auto chainIt = worldMaterialChain.find(triangle.material);
+      if (chainIt == worldMaterialChain.end()) {
+        traceFmt("gpu: world face-trace point=%d,%d tri=%d material=%s reason=no-chain-record",
+          px, py, bestTriangle, triangle.material.c_str());
+        continue;
+      }
+      const auto& chain = chainIt->second;
+      const auto tileIt = tileByMaterial.find(triangle.material);
+      const tf2::native::WorldTileReading* tile = tileIt == tileByMaterial.end() ? nullptr : tileIt->second;
+      const bool tiled = tile != nullptr && tile->batch >= 0;
+      // Perspective-correct weights: b_i/w_i over the sum. This is what the
+      // rasterizer does, and it is what makes a CPU prediction comparable to a
+      // pixel on a triangle that recedes from the camera.
+      float bary[3] = {bestBary[0] * bestInvW[0], bestBary[1] * bestInvW[1], bestBary[2] * bestInvW[2]};
+      const float barySum = bary[0] + bary[1] + bary[2];
+      if (std::fabs(barySum) > 1.0e-20f) {
+        for (float& value : bary) value /= barySum;
+      }
+      // NOT the raw texcoord: the renderer maps each VERTEX's texcoord into the
+      // atlas before the rasterizer interpolates, so a triangle that spans a
+      // wrap seam interpolates across the tile the way the GPU does -- which is
+      // not the way the unwrapped texcoord would. Interpolating the mapped uv
+      // and inverting the map below reproduces the shader's input exactly.
+      const auto mapTileCoord = [](float texcoord, int sourceSize, int tileOrigin,
+                                   int tileExtent, int atlasSize) {
+        const float size = static_cast<float>(sourceSize > 0 ? sourceSize : 1);
+        const float wrapped = texcoord - std::floor(texcoord / size) * size;
+        return (static_cast<float>(tileOrigin)
+          + wrapped * static_cast<float>(tileExtent) / size + 0.5f)
+          / static_cast<float>(atlasSize > 0 ? atlasSize : 1);
+      };
+      const float lu = bary[0] * triangle.alu + bary[1] * triangle.blu + bary[2] * triangle.clu;
+      const float lv = bary[0] * triangle.alv + bary[1] * triangle.blv + bary[2] * triangle.clv;
+      const float blendWeight = bary[0] * triangle.aAlpha + bary[1] * triangle.bAlpha + bary[2] * triangle.cAlpha;
+      bool insideTile = false;
+      std::string uvText = "-";
+      std::string texelText = "-";
+      std::string blendText = "-";
+      std::string albedoText = "-";
+      std::string albedoTileText = "-";
+      std::string expectedText = "-";
+      int albedo[3] = {0, 0, 0};
+      const auto textureIt = textureByMaterial.find(triangle.material);
+      const bool haveTexture = textureIt != textureByMaterial.end();
+      if (tiled) {
+        ++tiledHits;
+        const int sourceWidth = tile->sourceWidth > 0 ? tile->sourceWidth : tile->width;
+        const int sourceHeight = tile->sourceHeight > 0 ? tile->sourceHeight : tile->height;
+        if (sourceWidth > tile->width || sourceHeight > tile->height) ++oversizedHits;
+        // The uv the renderer writes for this vertex, recomputed from the
+        // published rectangle and the published source size. `tile->x/y` is the
+        // tile's first pixel inside its border.
+        const int atlasWidth = tile->atlasWidth > 0 ? tile->atlasWidth : 1;
+        const int atlasHeight = tile->atlasHeight > 0 ? tile->atlasHeight : 1;
+        const float su = bary[0] * mapTileCoord(triangle.au, sourceWidth, tile->x, tile->width, atlasWidth)
+          + bary[1] * mapTileCoord(triangle.bu, sourceWidth, tile->x, tile->width, atlasWidth)
+          + bary[2] * mapTileCoord(triangle.cu, sourceWidth, tile->x, tile->width, atlasWidth);
+        const float sv = bary[0] * mapTileCoord(triangle.av, sourceHeight, tile->y, tile->height, atlasHeight)
+          + bary[1] * mapTileCoord(triangle.bv, sourceHeight, tile->y, tile->height, atlasHeight)
+          + bary[2] * mapTileCoord(triangle.cv, sourceHeight, tile->y, tile->height, atlasHeight);
+        const float insideU = su * static_cast<float>(tile->atlasWidth) - 0.5f;
+        const float insideV = sv * static_cast<float>(tile->atlasHeight) - 0.5f;
+        insideTile = insideU >= static_cast<float>(tile->x) - 0.5f
+          && insideU <= static_cast<float>(tile->x + tile->width) - 0.5f
+          && insideV >= static_cast<float>(tile->y) - 0.5f
+          && insideV <= static_cast<float>(tile->y + tile->height) - 0.5f;
+        char uvBuffer[96];
+        std::snprintf(uvBuffer, sizeof(uvBuffer), "%.5f,%.5f", su, sv);
+        uvText = uvBuffer;
+        // The tile-local texel coordinate the atlas uv addresses. It is the
+        // same number for all three layers: the second layer and the mask were
+        // resampled onto this tile's grid before upload.
+        // The sample coordinate in TILE texels, which is what the GPU's linear
+        // filter sees. It is NOT the source texel coordinate: a texture larger
+        // than 512 was box-downscaled into the tile before upload, so sampling
+        // the full-resolution source at the same spot picks a different texel
+        // -- measured, that difference alone was up to 40 LSB on a 1024-source
+        // floor. The tile buffer is the texture the shader samples, so the
+        // prediction samples it too.
+        const float tileU = su * static_cast<float>(atlasWidth) - 0.5f - static_cast<float>(tile->x);
+        const float tileV = sv * static_cast<float>(atlasHeight) - 0.5f - static_cast<float>(tile->y);
+        // T21: the albedo the material path writes, as a function of one
+        // tile-local texcoord. It has to be a function of the coordinate and
+        // nothing else, because the fix under test moves the coordinate and
+        // keeps everything else -- so the rival prediction has to walk the
+        // second layer and the modulate mask too. Predicting the rival from the
+        // first layer alone made a blend material disagree with the frame for a
+        // reason that had nothing to do with the uv (measured: one point, delta
+        // 113, at a face whose blend weight is 1.0).
+        const auto predictAlbedo = [&](float localU, float localV, int out[3],
+                                       std::string* blendOut) {
+          unsigned char base[3];
+          if (!haveTexture) return false;
+          if (!sampleBilinear(textureIt->second->rgba, tile->width, tile->height,
+                localU, localV, base)) return false;
+          out[0] = base[0]; out[1] = base[1]; out[2] = base[2];
+          if (!chain.blend) {
+            if (blendOut) *blendOut = "none";
+            return true;
+          }
+          const auto& texture = *textureIt->second;
+          // The second layer was resampled onto this tile's grid before upload,
+          // so the same tile-local texcoord addresses it. Where the byte count
+          // does not match the tile the layer was refused at upload, and the
+          // trace says so instead of sampling garbage.
+          if (texture.blendRgba.empty()) {
+            if (blendOut) *blendOut = "declared-no-layer";
+            return true;
+          }
+          if (texture.blendRgba.size() != static_cast<std::size_t>(tile->width) * tile->height * 4u) {
+            if (blendOut) *blendOut = "declared-grid-differs";
+            return true;
+          }
+          unsigned char second[3];
+          if (!sampleBilinear(texture.blendRgba, tile->width, tile->height,
+                localU, localV, second)) return true;
+          float weight = std::clamp(blendWeight < 0.0f ? 0.0f : blendWeight, 0.0f, 1.0f);
+          // `$blendmodulatetexture` reshapes the weight: lower = sat(g-r),
+          // upper = sat(g+r), weight = smoothstep(lower, upper, weight).
+          // Skipping it is a real difference on this map -- T12 measured
+          // 10 declared and 10 resolved modulate layers -- so the mirror
+          // applies it whenever the mask arrived on this tile's grid.
+          if (texture.blendModulateRgba.size()
+              == static_cast<std::size_t>(tile->width) * tile->height * 4u) {
+            unsigned char mask[3];
+            if (sampleBilinear(texture.blendModulateRgba, tile->width, tile->height,
+                  localU, localV, mask)) {
+              const float lower = std::clamp((static_cast<float>(mask[1]) - static_cast<float>(mask[0])) / 255.0f, 0.0f, 1.0f);
+              const float upper = std::clamp((static_cast<float>(mask[1]) + static_cast<float>(mask[0])) / 255.0f, 0.0f, 1.0f);
+              const float span = std::max(upper - lower, 1.0e-5f);
+              const float t = std::clamp((weight - lower) / span, 0.0f, 1.0f);
+              weight = t * t * (3.0f - 2.0f * t);
+            }
+          }
+          for (int c = 0; c < 3; ++c) {
+            out[c] = static_cast<int>(std::lround(
+              static_cast<float>(out[c]) * (1.0f - weight) + static_cast<float>(second[c]) * weight));
+          }
+          if (blendOut) {
+            char blendBuffer[64];
+            std::snprintf(blendBuffer, sizeof(blendBuffer), "%.3f texel=%u,%u,%u", weight,
+              second[0], second[1], second[2]);
+            *blendOut = blendBuffer;
+          }
+          return true;
+        };
+        unsigned char texel[3];
+        if (haveTexture && sampleBilinear(textureIt->second->rgba, tile->width, tile->height,
+              tileU, tileV, texel)) {
+          // (the tile buffer is the downscaled texture, so this is the texel
+          // the shader's linear sampler reads at the interpolated uv)
+          char texelBuffer[48];
+          std::snprintf(texelBuffer, sizeof(texelBuffer), "%u,%u,%u", texel[0], texel[1], texel[2]);
+          texelText = texelBuffer;
+        }
+        if (chain.blend && haveTexture) ++blendHits;
+        predictAlbedo(tileU, tileV, albedo, &blendText);
+        // T21: the rival hypothesis, predicted from the same tile buffer and
+        // the same barycentrics so that nothing but the uv normaliser differs.
+        // Before this task the renderer normalised the texcoord by the TILE
+        // size, not the source size, so a 1024 texture box-downscaled into a
+        // 512 tile repeated twice across the face it belongs to. Both
+        // predictions are emitted because "the new uv is right" is only shown
+        // when the same pixel REJECTS the old one: run against a build that
+        // still carries the old uv, `albedoTile` must match the frame and
+        // `albedo` must not, and the reverse on a build with the fix. A point
+        // where the two predictions agree cannot discriminate, so it is
+        // counted separately and never claimed as evidence.
+        if (haveTexture && (sourceWidth != tile->width || sourceHeight != tile->height)) {
+          const float oldU = bary[0] * mapTileCoord(triangle.au, tile->width, tile->x, tile->width, atlasWidth)
+            + bary[1] * mapTileCoord(triangle.bu, tile->width, tile->x, tile->width, atlasWidth)
+            + bary[2] * mapTileCoord(triangle.cu, tile->width, tile->x, tile->width, atlasWidth);
+          const float oldV = bary[0] * mapTileCoord(triangle.av, tile->height, tile->y, tile->height, atlasHeight)
+            + bary[1] * mapTileCoord(triangle.bv, tile->height, tile->y, tile->height, atlasHeight)
+            + bary[2] * mapTileCoord(triangle.cv, tile->height, tile->y, tile->height, atlasHeight);
+          int rival[3] = {0, 0, 0};
+          if (predictAlbedo(oldU * static_cast<float>(atlasWidth) - 0.5f - static_cast<float>(tile->x),
+                oldV * static_cast<float>(atlasHeight) - 0.5f - static_cast<float>(tile->y),
+                rival, nullptr)) {
+            char oldBuffer[48];
+            std::snprintf(oldBuffer, sizeof(oldBuffer), "%d,%d,%d", rival[0], rival[1], rival[2]);
+            albedoTileText = oldBuffer;
+          }
+        }
+      } else {
+        ++untiledHits;
+        const float shade = shadeFor(triangle.material);
+        const int value = static_cast<int>(std::lround(std::clamp(shade, 0.0f, 1.0f) * 255.0f));
+        albedo[0] = albedo[1] = albedo[2] = value;
+      }
+      if (chain.beyondOldCap) ++beyondCapHits;
+      if (depthMatch) ++depthMatched;
+      if (albedoTileText != "-" && albedoTileText != albedoText) ++discriminatingHits;
+      // The pixel shader's output, computed from the constants it was given:
+      // albedo, then the sRGB-encoded lightmap sample, then the diffuse term.
+      float light[3] = {1.0f, 1.0f, 1.0f};
+      if (constants.lightmapEnabled && triangle.lightmapped && lu >= 0.0f) {
+        // T21: bilinear, not nearest. The shader asks its sampler for
+        // `lightmapTexture.Sample(sampler0, lightUv)`, and the sampler is a
+        // WRAP/linear sampler, so it blends the four texels around
+        // lightUv*size - 0.5. Mirroring that with one floor()'d texel looked
+        // close enough on a smooth floor and then missed by 8% on a wall whose
+        // lightmap has a shadow edge across it -- one point at 1140,230, delta
+        // 7 against a tolerance of 6, which is exactly the shape of a
+        // "lighting is wrong" finding that is really a mirror defect.
+        unsigned char lightTexel[3];
+        if (sampleBilinear(displayMap.lightmapAtlas, displayMap.lightmapAtlasWidth,
+              displayMap.lightmapAtlasHeight,
+              lu * static_cast<float>(displayMap.lightmapAtlasWidth) - 0.5f,
+              lv * static_cast<float>(displayMap.lightmapAtlasHeight) - 0.5f, lightTexel)) {
+          for (int c = 0; c < 3; ++c) {
+            const float linear = static_cast<float>(lightTexel[c]) / 255.0f;
+            light[c] = std::pow(std::max(linear, 0.0f), 1.0f / 2.2f);
+          }
+        }
+      }
+      // The renderer gives all three vertices the triangle's own geometric
+      // normal, so the interpolated normal is that normal; reproduced here the
+      // same way rather than read from a vertex field that does not exist.
+      const float abx = triangle.b.x - triangle.a.x, aby = triangle.b.y - triangle.a.y, abz = triangle.b.z - triangle.a.z;
+      const float acx = triangle.c.x - triangle.a.x, acy = triangle.c.y - triangle.a.y, acz = triangle.c.z - triangle.a.z;
+      float normal[3] = {aby * acz - abz * acy, abz * acx - abx * acz, abx * acy - aby * acx};
+      const float normalLength = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+      if (normalLength > 1.0e-8f) {
+        for (float& value : normal) value /= normalLength;
+      } else {
+        normal[0] = 0.0f; normal[1] = 0.0f; normal[2] = 1.0f;
+      }
+      float lighting = 1.0f;
+      if (constants.lightMode > 0.5f) {
+        float direction[3] = {constants.lightDirection[0], constants.lightDirection[1], constants.lightDirection[2]};
+        const float directionLength = std::sqrt(direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2]);
+        if (directionLength > 1.0e-8f) for (float& value : direction) value /= directionLength;
+        const float diffuse = std::clamp(normal[0] * direction[0] + normal[1] * direction[1] + normal[2] * direction[2], 0.0f, 1.0f);
+        lighting = 1.0f * (1.0f - constants.lightMode) + (0.62f + 0.38f * diffuse) * constants.lightMode;
+      }
+      int expected[3];
+      for (int c = 0; c < 3; ++c) {
+        float value = static_cast<float>(albedo[c]) / 255.0f;
+        if (constants.selfIllum > 0.0f) {
+          value += value * constants.selfIllumTint[c] * std::clamp(constants.selfIllum, 0.0f, 1.0f);
+        }
+        value *= light[c] * lighting;
+        expected[c] = static_cast<int>(std::lround(std::clamp(value, 0.0f, 1.0f) * 255.0f));
+      }
+      char albedoBuffer[48];
+      std::snprintf(albedoBuffer, sizeof(albedoBuffer), "%d,%d,%d", albedo[0], albedo[1], albedo[2]);
+      albedoText = albedoBuffer;
+      char expectedBuffer[48];
+      std::snprintf(expectedBuffer, sizeof(expectedBuffer), "%d,%d,%d", expected[0], expected[1], expected[2]);
+      expectedText = expectedBuffer;
+      ++hits;
+      traceFmt("gpu: world face-trace point=%d,%d tri=%d material=%s vmt=%s vmtStore=%s vtf=%s"
+        " vtfStore=%s src=%dx%d tile=%d/%d size=%dx%d rect=%d,%d atlas=%dx%d uv=%s uvInside=%d texel=%s"
+        " blend=%s luv=%.4f,%.4f light=%d,%d,%d albedo=%s albedoTile=%s expected=%s reason=%s"
+        " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x",
+        px, py, bestTriangle, triangle.material.c_str(),
+        chain.vmtPath.empty() ? "-" : chain.vmtPath.c_str(), chain.vmtStore.c_str(),
+        chain.vtfPath.empty() ? "-" : chain.vtfPath.c_str(), chain.vtfStore.c_str(),
+        chain.sourceWidth, chain.sourceHeight,
+        tiled ? tile->batch : -1, tiled ? tile->tile : -1,
+        tiled ? tile->width : 0, tiled ? tile->height : 0,
+        tiled ? tile->x : 0, tiled ? tile->y : 0,
+        tiled ? tile->atlasWidth : 0, tiled ? tile->atlasHeight : 0,
+        uvText.c_str(), insideTile ? 1 : 0, texelText.c_str(), blendText.c_str(), lu, lv,
+        static_cast<int>(std::lround(light[0] * 255.0f)),
+        static_cast<int>(std::lround(light[1] * 255.0f)),
+        static_cast<int>(std::lround(light[2] * 255.0f)),
+        albedoText.c_str(), albedoTileText.c_str(), expectedText.c_str(),
+        tiled ? "tiled" : (tile != nullptr ? tile->reason.c_str() : chain.reason.c_str()),
+        chain.beyondOldCap ? 1 : 0, chain.oldOrderAccepted, bestDepth, frameDepth, finalDepth,
+        depthMatch ? 1 : 0, renderer.capturedDepthRawAt(px, py));
+    }
+    // Named refusals, weighted by the pvs-visible triangles they cost. The
+    // aggregate material-fetch line says `vmtMissing=3`; this says how much of
+    // THIS frame's geometry those three materials were.
+    std::unordered_map<std::string, std::size_t> visibleByMaterial;
+    for (const std::size_t ordinal : worldVisKeptIndices) {
+      if (ordinal < displayMap.triangles.size()) ++visibleByMaterial[displayMap.triangles[ordinal].material];
+    }
+    std::unordered_map<std::string, std::pair<std::size_t, std::size_t>> refusalTotals;
+    for (const auto& entry : worldMaterialChain) {
+      if (entry.second.reason == "tiled") continue;
+      auto& total = refusalTotals[entry.second.reason];
+      ++total.first;
+      total.second += visibleByMaterial[entry.first];
+    }
+    for (const auto& entry : refusalTotals) {
+      traceFmt("gpu: world visible-refusal reason=%s materials=%zu visibleTriangles=%zu",
+        entry.first.c_str(), entry.second.first, entry.second.second);
+    }
+    traceFmt("gpu: world face-trace-summary points=%d hits=%zu tiled=%zu untiled=%zu blend=%zu"
+      " oversized=%zu beyondOldCap=%zu depthMatched=%zu discriminating=%zu clipApplied=%d"
+      " frame=%dx%d depthBuffer=%dx%d",
+      static_cast<int>(sizeof(kPoints) / sizeof(kPoints[0])), hits, tiledHits, untiledHits, blendHits,
+      oversizedHits, beyondCapHits, depthMatched, discriminatingHits, clipApplied ? 1 : 0, frameWidth, frameHeight,
+      renderer.capturedDepthWidth(), renderer.capturedDepthHeight());
   };
   // The paint ledger: one row per prepared model, written after the GPU upload
   // so `uploaded` reflects what the renderer actually accepted. This is the
@@ -5444,6 +6029,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // Emitted on the frame the capture was requested for, so the readings and
       // the bitmap on disk describe the same frame.
       if (captureRequested) writeViewModelReading();
+      // T21: the face trace is taken on the same frame, after the draw. Its
+      // screen points are pixels of the bitmap the capture just wrote.
+      if (captureRequested) traceWorldFaces();
       traceFmt("draw: end frames=%llu pending=%d", static_cast<unsigned long long>(renderedFrames),
         renderer.frameCapturePending() ? 1 : 0);
       if (captureRequested && !renderer.frameCapturePending()) {
