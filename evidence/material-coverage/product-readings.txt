@@ -1,0 +1,5 @@
+gpu: world material-fetch distinct=148 tiled=112 capped=0 vmtMissing=4 vmtNoBase=31 vtfMissing=1 vtfTooLarge=105 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=32 downscaled=105
+gpu: world atlas-plan batches=2 blendBatches=1 tiled=112 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=254684944 reason=112 of 112 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=113+64+64 MiB
+gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=2 batchDraws=2 texturedBatchDraws=2
+gpu: world atlas size=4112 bytes=67634176 atlases=2 totalBytes=119416592 state=bound
+gpu: world vis cameraCluster=639 visibleFromCamera=2150 clusters=2940 clusteredTriangles=34517 hiddenTriangles=10872 withoutCluster=165483 inputTriangles=200000 drawnTriangles=189128 clipApplied=1 state=active eyeMap=(0.0,0.0,0.0) reason=hid 10872 of 200000 triangles from cluster 639

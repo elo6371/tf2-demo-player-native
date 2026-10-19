@@ -1,0 +1,33 @@
+{"reading":"map.distinctMaterials","value":"148"}
+{"reading":"map.triangles","value":"200000"}
+{"reading":"map.vpkEntries","value":"149734"}
+{"reading":"map.vmtResolved","value":"144"}
+{"reading":"map.vmtMissing","value":"4"}
+{"reading":"map.vmtNoBase","value":"31"}
+{"reading":"map.vtfResolved","value":"112"}
+{"reading":"map.vtfMissing","value":"1"}
+{"reading":"plan.tiled","value":"112"}
+{"reading":"plan.refused","value":"0"}
+{"reading":"plan.batches","value":"2"}
+{"reading":"plan.refusedMalformed","value":"0"}
+{"reading":"plan.refusedDuplicate","value":"0"}
+{"reading":"plan.refusedBudget","value":"0"}
+{"reading":"plan.albedoMiB","value":"113"}
+{"reading":"plan.reason","value":"112 of 112 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=113+0+0 MiB"}
+{"reading":"plan.beyondOldCap","value":"48"}
+{"reading":"feature.summary","value":"materials=148 bumpmap=50(visible 0, resolved 50, missing 0, distinct 28) bumpmap2=1(visible 0) ssbump=41(visible 0) detail=51(visible 0, resolved 0, types 0)"}
+{"reading":"feature.bumpmap.declared","value":"50"}
+{"reading":"feature.bumpmap.resolved","value":"50"}
+{"reading":"feature.bumpmap.missing","value":"0"}
+{"reading":"feature.bumpmap.distinct","value":"28"}
+{"reading":"feature.bumpmap.reason","value":"the world pass has one bump sampler slot for the whole world, but the materials name 28 distinct $bumpmap textures, so no material's own normal map is applied"}
+{"reading":"feature.bumpmap2.declared","value":"1"}
+{"reading":"feature.bumpmap2.reason","value":"$bumpmap2 is layer 2's normal map and the pass has one bump sampler; it is refused, not silently replaced by layer 1's"}
+{"reading":"feature.ssbump.declared","value":"41"}
+{"reading":"feature.ssbump.reason","value":"$ssbump needs the SSBump normal decode and a tangent basis the world vertex format does not carry; the bump map is not sampled for these materials"}
+{"reading":"feature.detail.declared","value":"51"}
+{"reading":"feature.detail.resolved","value":"0"}
+{"reading":"feature.detail.types","value":"0"}
+{"reading":"feature.detail.firstType","value":""}
+{"reading":"feature.detail.reason","value":"detail layers need a second, detailscale-scaled uv and the `$detailblendmode` result; the world vertex carries one atlas uv, so the layer is refused"}
+{"reading":"mapTest","value":"true"}

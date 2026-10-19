@@ -1,0 +1,27 @@
+{"check":"plan.single.batches","ok":true,"detail":"batches=1"}
+{"check":"plan.single.tile","ok":true,"detail":"accepted=1 refused=0"}
+{"check":"plan.single.atlas","ok":true,"detail":"514x514"}
+{"check":"plan.single.origin","ok":true,"detail":"1,1"}
+{"check":"plan.148.accepted","ok":true,"detail":"accepted=148"}
+{"check":"plan.148.batches","ok":true,"detail":"batches=3"}
+{"check":"plan.148.first","ok":true,"detail":"4112x4112"}
+{"check":"plan.148.last","ok":true,"detail":"20 tiles 2570x2056"}
+{"check":"plan.148.inside","ok":true,"detail":"every tile's pixels and border are inside its atlas"}
+{"check":"plan.148.disjoint","ok":true,"detail":"no two tiles share a texel or a border texel"}
+{"check":"refusal.emptyMaterial","ok":true,"detail":"empty-material"}
+{"check":"refusal.emptyPixels","ok":true,"detail":"empty-pixels"}
+{"check":"refusal.tooLarge","ok":true,"detail":"tile-too-large"}
+{"check":"refusal.mismatch","ok":true,"detail":"pixel-count-mismatch"}
+{"check":"refusal.duplicate","ok":true,"detail":"duplicate-material"}
+{"check":"refusal.counts","ok":true,"detail":"accepted=1 refused=5 malformed=4"}
+{"check":"budget.batches","ok":true,"detail":"batches=1"}
+{"check":"budget.refused","ok":true,"detail":"accepted=64 budget=84"}
+{"check":"budget.reason","ok":true,"detail":"atlas-budget"}
+{"check":"uv.origin","ok":false,"detail":"0.001946"}
+{"check":"uv.wrap","ok":true,"detail":"0.001946"}
+{"check":"uv.bounded","ok":true,"detail":"every wrapped uv stays inside the tile's block"}
+{"check":"blit.red.centre","ok":true,"detail":"centre of tile 0 is red"}
+{"check":"blit.red.border","ok":true,"detail":"tile 0's border replicates its edge"}
+{"check":"blit.green.centre","ok":true,"detail":"centre of tile 1 is green"}
+{"check":"blit.neighbour","ok":true,"detail":"each tile's own block holds its own pixels"}
+{"reading":"selfTest","value":"false"}

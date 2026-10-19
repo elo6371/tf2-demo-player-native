@@ -17,6 +17,7 @@
 #include "model_loader.h"
 #include "demo_header.h"
 #include "world_material.h"
+#include "world_tile_atlas.h"
 #include "viewmodel_material.h"
 
 namespace tf2::native {
@@ -242,6 +243,20 @@ enum class WorldLightmapStatus {
 enum class WorldCubemapStatus { Unavailable, Approximate2d, SixFace };
 const char* worldCubemapStatusName(WorldCubemapStatus status);
 
+// T19: one material's outcome from the atlas plan, as the product reports it.
+// `reason` is "tiled" or a WorldTileRefusal name; `batch` is which atlas holds
+// it and `tile` its position inside that atlas.
+struct WorldTileReading {
+  std::string material;
+  int batch = -1;
+  int tile = -1;
+  int width = 0;
+  int height = 0;
+  bool blend = false;
+  bool modulate = false;
+  std::string reason;
+};
+
 struct WorldMaterialSampleState {
   WorldLightmapStatus lightmapStatus = WorldLightmapStatus::Unavailable;
   float lightmapIntensity = 1.0f;
@@ -326,6 +341,36 @@ struct WorldMaterialSampleState {
   // grey. Read from the renderer after the draw so a capture cannot claim a
   // mode it did not use.
   int worldDebugView = 0;
+  // ---- T19 (2026-10-19): atlas allocation, in full ----------------------
+  // The pair that replaces the silent 64-tile cap. `worldTilesTiled` is what
+  // got a tile and `worldTilesRefused` is what did not, split by cause, so
+  // "the atlas holds 148 materials" and "the atlas silently dropped 51" cannot
+  // print the same numbers. `worldAtlasBatches` is how many textures the plan
+  // needed: 1 means the old single-atlas shape, 3 means the reference map.
+  std::size_t worldTilesTiled = 0;
+  std::size_t worldTilesRefused = 0;
+  std::size_t worldTilesRefusedMalformed = 0;
+  std::size_t worldTilesRefusedDuplicate = 0;
+  std::size_t worldTilesRefusedBudget = 0;
+  std::size_t worldAtlasBatches = 0;
+  std::size_t worldAtlasBlendBatches = 0;
+  std::uint64_t worldAtlasLayerBytes = 0;
+  std::string worldAtlasPlanReason;
+  // T19: the draw batches the world pass issued, and the two cross-pass
+  // questions. `weaponDrawsWithWorldAtlas` counts weapon ranges drawn while a
+  // world atlas was the bound t0; `worldDrawsWithWeaponTexture` counts world
+  // batches drawn while a weapon range's albedo was. Both must be 0: they are
+  // the leak the task asks to rule out, and a counter that can only ever be
+  // green is not a check, so the mutation binds one on purpose.
+  std::size_t worldBatchDrawCalls = 0;
+  std::size_t worldBatchTexturedDrawCalls = 0;
+  std::size_t weaponDrawsWithWorldAtlas = 0;
+  std::size_t worldDrawsWithWeaponTexture = 0;
+  std::size_t slot0Binds = 0;
+  // One row per material the upload was handed, in the order it was handed
+  // them. The reason is "tiled" or the refusal's name, so a gate can assert on
+  // the exact material that used to vanish into `capped=51`.
+  std::vector<WorldTileReading> worldTileTable;
 };
 
 // What a per-triangle pvs clip decided, handed to the renderer by the caller
@@ -480,9 +525,28 @@ public:
   // T12: the atlas edge in pixels, its byte size, and the reason it is or is
   // not bound. "bound" is the only value that means the atlas is what the
   // world pass samples.
+  // T19: `size` and `bytes` stay the single-atlas readings they were -- the
+  // largest one the pass bound -- so a gate written against one atlas keeps
+  // meaning what it meant. `atlases` and `totalBytes` are what the batching
+  // added: how many there are and what they cost together.
   std::size_t worldAtlasSize() const { return worldAtlasSize_; }
   std::uint64_t worldAtlasBytes() const { return worldAtlasBytes_; }
+  std::size_t worldAtlasCount() const { return worldAtlasCount_; }
+  std::uint64_t worldAtlasTotalBytes() const { return worldAtlasTotalBytes_; }
   const std::string& worldAtlasReason() const { return worldAtlasReason_; }
+  // T19: the per-material disposition of the last atlas upload. Kept as a table
+  // rather than folded into the counters because the product's trace names each
+  // material and its pvs-visible triangle count next to it -- a count of 51
+  // refused tiles answers "how many" and not "which", and the task's question
+  // is the second one.
+  const std::vector<WorldTileReading>& worldTileTable() const { return worldTileTable_; }
+  // T19: the t0 ledger's counters, read after a frame like the draw flags.
+  std::size_t weaponDrawsWithWorldAtlas() const { return weaponDrawsWithWorldAtlas_; }
+  std::size_t worldDrawsWithWeaponTexture() const { return worldDrawsWithWeaponTexture_; }
+  std::size_t slot0BindCount() const { return slot0Binds_; }
+  std::size_t worldBatchDrawCallCount() const { return worldBatchDrawCalls_; }
+  std::size_t worldAtlasBatchCount() const { return worldAtlasBatches_; }
+  std::size_t worldAtlasBlendBatchCount() const { return worldAtlasBlendBatches_; }
   bool saveCameraPreset(std::size_t slot);
   bool applyCameraPreset(std::size_t slot);
   bool clearCameraPreset(std::size_t slot);
@@ -1030,7 +1094,56 @@ private:
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
   Texture2D texture_;
+  // T19: one albedo atlas per batch. `worldTexture_` is still the single
+  // material texture the non-atlas upload uses; the atlas path never writes it,
+  // so a map whose materials all failed still falls back to it and the two
+  // paths cannot be confused for each other.
   Texture2D worldTexture_;
+  std::vector<Texture2D> worldAtlasTextures_;
+  std::vector<Texture2D> worldBlendAtlasTextures_;
+  std::vector<Texture2D> worldModulateAtlasTextures_;
+  // One draw per batch: the tiles' indices are grouped by batch in the index
+  // buffer, so each draw is a contiguous range and each binds its own atlas.
+  struct WorldDrawBatch {
+    int tiles = 0;
+    UINT firstIndex = 0;
+    UINT indexCount = 0;
+    // The views this batch draws with. Raw pointers into the Texture2D objects
+    // that own them: the objects live in the vectors below for the lifetime of
+    // the upload, and moving a Texture2D in its vector does not move the
+    // resource it holds.
+    ID3D11ShaderResourceView* albedoView = nullptr;
+    ID3D11ShaderResourceView* blendView = nullptr;
+    ID3D11ShaderResourceView* modulateView = nullptr;
+  };
+  std::vector<WorldDrawBatch> worldDrawBatches_;
+  // Per uploaded triangle, which batch it belongs to; -1 when the material got
+  // no tile. Sized map.triangles.size() and used to regroup the pvs draw list.
+  std::vector<std::int16_t> worldTriangleBatch_;
+  std::vector<WorldTileReading> worldTileTable_;
+  std::size_t worldTilesTiled_ = 0;
+  std::size_t worldTilesRefused_ = 0;
+  std::size_t worldTilesRefusedMalformed_ = 0;
+  std::size_t worldTilesRefusedDuplicate_ = 0;
+  std::size_t worldTilesRefusedBudget_ = 0;
+  std::size_t worldAtlasBatches_ = 0;
+  std::size_t worldAtlasBlendBatches_ = 0;
+  std::uint64_t worldAtlasLayerBytes_ = 0;
+  std::string worldAtlasPlanReason_ = "no atlas plan was made";
+  // T19: the t0 ledger. Every slot-0 bind in the world and ViewModel passes goes
+  // through bindSlot0, so "the weapon drew with the world atlas" and "the world
+  // drew with a weapon texture" are measured at the draw rather than argued from
+  // the order of the statements.
+  ID3D11ShaderResourceView* lastSlot0View_ = nullptr;
+  std::string lastSlot0Pass_ = "none";
+  std::size_t slot0Binds_ = 0;
+  std::size_t weaponDrawsWithWorldAtlas_ = 0;
+  std::size_t worldDrawsWithWeaponTexture_ = 0;
+  std::size_t worldBatchDrawCalls_ = 0;
+  std::size_t worldBatchTexturedDrawCalls_ = 0;
+  void bindSlot0(ID3D11ShaderResourceView* view, const char* pass);
+  bool isWorldAtlasView(const ID3D11ShaderResourceView* view) const;
+  bool isWeaponMaterialView(const ID3D11ShaderResourceView* view) const;
   Texture2D worldBumpTexture_;
   Texture2D worldEnvTexture_;
   Texture2D worldLightmapTexture_;
@@ -1053,6 +1166,8 @@ private:
   // material texture and every count stayed green.
   std::size_t worldAtlasSize_ = 0;
   std::uint64_t worldAtlasBytes_ = 0;
+  std::size_t worldAtlasCount_ = 0;
+  std::uint64_t worldAtlasTotalBytes_ = 0;
   std::string worldAtlasReason_ = "no world atlas was uploaded";
   Microsoft::WRL::ComPtr<ID3D11Texture2D> worldCubemapTexture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldCubemapView_;

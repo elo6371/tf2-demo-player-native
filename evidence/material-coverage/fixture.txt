@@ -1,0 +1,9 @@
+{"reading":"fixture.materials","value":"16"}
+{"reading":"fixture.tiled","value":"16"}
+{"reading":"fixture.refused","value":"0"}
+{"reading":"fixture.batches","value":"1"}
+{"reading":"fixture.uvMatchesTile","value":"16"}
+{"check":"fixture.uvMatchesTile","ok":true,"detail":"16 of 16 tile centres resolve to their own material"}
+{"reading":"fixture.refusedAfterBad","value":"1"}
+{"check":"fixture.fallback","ok":true,"detail":"a malformed material is refused and has no slot to sample"}
+{"reading":"fixtureTest","value":"true"}

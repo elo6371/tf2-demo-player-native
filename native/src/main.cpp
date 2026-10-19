@@ -6,6 +6,7 @@
 #include "asset_lookup.h"
 #include "vtf_texture.h"
 #include "world_material.h"
+#include "world_material_features.h"
 #include "vmt_material.h"
 #include "bsp_map.h"
 #include "demo_header.h"
@@ -1767,6 +1768,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool mapBumpMapDeclared = false;
   tf2::native::WorldMaterialParams mapMaterialParams;
   std::vector<tf2::native::WorldTexture> worldTextures;
+  // T19: every material VMT that parsed, kept for the feature scan. The scan
+  // runs after the first draw because `visibleTriangles` only exists once the
+  // pvs clip has run; keeping the parsed fields here is what lets it run then
+  // without re-reading the archive.
+  std::vector<std::pair<std::string, tf2::native::VmtMaterial>> worldFetchedMaterials;
   std::vector<std::shared_ptr<tf2::native::VpkArchive>> soundArchives;
   // The lookup policy as an object rather than as the six copied loops this
   // file used to carry. Sound keeps using `soundArchives` directly -- it wants
@@ -1991,6 +1997,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // unreadable, or larger than the 512-texel tile. Each exit is counted, and
       // the counts are printed, so "the map drew flat" becomes a number with a
       // reason instead of a look.
+      // 256 is the ceiling, not the policy: the reference frame resolves 148,
+      // and 256 tiles at 512 texels is 270 MiB of layer, which is under the
+      // planner's 384 MiB budget. A map past it is reported, not truncated in
+      // silence.
+      constexpr std::size_t kMaxWorldMaterials = 256;
       std::size_t fetchDistinct = 0, fetchCapped = 0, fetchVmtMissing = 0, fetchVmtNoBase = 0;
       std::size_t fetchVtfMissing = 0, fetchVtfTooLarge = 0, fetchDecodeEmpty = 0, fetchTiled = 0;
       std::size_t fetchMaxWidth = 0, fetchMaxHeight = 0;
@@ -2009,11 +2020,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // existing gate relies on.
       const bool blendEnabled = worldBlendGiven ? worldBlendRequested : true;
       std::size_t fetchModulateDeclared = 0, fetchModulateResolved = 0, fetchModulateRefused = 0;
-      // The atlas is a 64-tile grid, so a map with more materials than that
-      // draws the remainder flat. Which 64 matters: choosing them in triangle
-      // order (the previous behaviour) left the biggest surfaces flat while a
-      // one-triangle trim got a tile. Order the materials by the triangles they
-      // cover, largest first, and cut there.
+      // T19: the fetch no longer stops at 64. The renderer's plan chunks the
+      // materials it is handed into as many atlases as they need, so the only
+      // bound here is the hard ceiling -- a map with more distinct materials
+      // than this is refused by name (`capped`) rather than silently drawn
+      // flat, and the fetch order is still coverage order so a ceiling would
+      // drop the smallest surfaces first.
       std::vector<std::pair<std::size_t, std::string>> materialOrder;
       {
         std::unordered_map<std::string, std::size_t> coverage;
@@ -2023,8 +2035,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         }
         materialOrder.reserve(coverage.size());
         for (const auto& entry : coverage) materialOrder.emplace_back(entry.second, entry.first);
+        // T19: the pair is (triangles, name), so the count is `first`. This
+        // compared `second` -- the *name* -- which sorted the fetch into reverse
+        // alphabetical order while the comment below called it coverage order.
+        // Measured on cp_snakewater: the 64 tiles the old ceiling kept began
+        // with `maps/.../blendgroundtograss008_wvt_patch` (117 triangles) and
+        // the map's largest material, MEDIEVAL/PLASTERWALL002A at 80256
+        // triangles, sat at index 71. The order is what decides which materials
+        // a budget refusal drops first, so it has to be the one it claims.
         std::sort(materialOrder.begin(), materialOrder.end(), [](const auto& l, const auto& r) {
-          return l.second != r.second ? l.second > r.second : l.first < r.first;
+          return l.first != r.first ? l.first > r.first : l.second < r.second;
         });
       }
       // A VTF larger than the tile is downscaled to the tile instead of being
@@ -2089,15 +2109,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       for (const auto& entry : materialOrder) {
         const std::string& materialName = entry.second;
         ++fetchDistinct;
-        if (worldTextures.size() >= 64u) { ++fetchCapped; continue; }
+        if (worldTextures.size() >= kMaxWorldMaterials) { ++fetchCapped; continue; }
         const auto materialPath = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
         const auto materialLookup = assetChain.lookup(materialPath);
         auto materialBytes = materialLookup.bytes;
         if (materialLookup.store == tf2::native::AssetStore::Pakfile) ++fetchFromPakfile;
         tf2::native::VmtMaterial material;
         if (materialBytes.empty()) { ++fetchVmtMissing; continue; }
-        if (!tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)
-            || (material.baseTexture.empty() && material.baseTexture2.empty())) {
+        if (!tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)) {
+          ++fetchVmtNoBase; continue;
+        }
+        // Recorded before the base-texture check: a material with no
+        // `$basetexture` still declares `$detail` or `$ssbump`, and the feature
+        // scan's question is what the map's materials ask for.
+        worldFetchedMaterials.emplace_back(materialName, material);
+        if (material.baseTexture.empty() && material.baseTexture2.empty()) {
           ++fetchVmtNoBase; continue;
         }
         // T12: one lookup policy, written once and used for every resource a
@@ -3462,8 +3488,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // The atlas's own identity. A refused atlas is the difference between
       // "the terrain material resolved" and "the terrain material is what the
       // screen shows", and before this line the two read the same.
-      traceFmt("gpu: world atlas size=%zu bytes=%zu state=%s",
+      traceFmt("gpu: world atlas size=%zu bytes=%zu atlases=%zu totalBytes=%zu state=%s",
         renderer.worldAtlasSize(), static_cast<std::size_t>(renderer.worldAtlasBytes()),
+        renderer.worldAtlasCount(), static_cast<std::size_t>(renderer.worldAtlasTotalBytes()),
         renderer.worldAtlasReason().c_str());
     }
     {
@@ -3824,6 +3851,98 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldCullBackfaces ? "cull-back" : "cull-none");
     traceFmt("gpu: world debug view=%s",
       sample.worldDebugView == 2 ? "depth" : sample.worldDebugView == 1 ? "flat" : "textured");
+    // ---- T19: the atlas plan, and the per-material account behind it --------
+    // The old reading was one number (`capped=51`) with no names. This is the
+    // table that number was hiding: what each material asked for, how much of it
+    // the camera's pvs actually reaches, and what the plan did with it. `visible`
+    // is computed from the same kept-index list the draw uses, so "this
+    // material affects the reference frame" is a count of triangles that
+    // survived the clip and not an estimate.
+    traceFmt("gpu: world atlas-plan batches=%zu blendBatches=%zu tiled=%zu refused=%zu"
+      " malformed=%zu duplicate=%zu budget=%zu layerBytes=%llu reason=%s",
+      sample.worldAtlasBatches, sample.worldAtlasBlendBatches, sample.worldTilesTiled,
+      sample.worldTilesRefused, sample.worldTilesRefusedMalformed,
+      sample.worldTilesRefusedDuplicate, sample.worldTilesRefusedBudget,
+      static_cast<unsigned long long>(sample.worldAtlasLayerBytes),
+      sample.worldAtlasPlanReason.empty() ? "-" : sample.worldAtlasPlanReason.c_str());
+    {
+      std::unordered_map<std::string, std::size_t> trianglesByMaterial;
+      for (const auto& triangle : displayMap.triangles) ++trianglesByMaterial[triangle.material];
+      std::unordered_map<std::string, std::size_t> visibleByMaterial;
+      for (const std::size_t triangle : worldVisKeptIndices) {
+        if (triangle < displayMap.triangles.size()) {
+          ++visibleByMaterial[displayMap.triangles[triangle].material];
+        }
+      }
+      for (const auto& row : sample.worldTileTable) {
+        traceFmt("gpu: world tile material=%s tris=%zu visible=%zu batch=%d tile=%d"
+          " size=%dx%d blend=%d modulate=%d reason=%s",
+          row.material.empty() ? "-" : row.material.c_str(),
+          trianglesByMaterial[row.material], visibleByMaterial[row.material],
+          row.batch, row.tile, row.width, row.height, row.blend ? 1 : 0, row.modulate ? 1 : 0,
+          row.reason.c_str());
+      }
+    }
+    // The two cross-pass questions, read from the ledger the draws fill. A
+    // zero here is the statement the task asks for; the mutation makes one of
+    // them non-zero so the zero can be trusted.
+    traceFmt("gpu: world isolation weaponDrawsWithWorldAtlas=%zu worldDrawsWithWeaponTexture=%zu"
+      " slot0Binds=%zu batchDraws=%zu texturedBatchDraws=%zu",
+      sample.weaponDrawsWithWorldAtlas, sample.worldDrawsWithWeaponTexture,
+      sample.slot0Binds, sample.worldBatchDrawCalls, sample.worldBatchTexturedDrawCalls);
+    // ---- T19: what the materials ask the shader for ------------------------
+    // Declared, visible and resolved per feature, with the refusal each one
+    // gets. The scan is shared with the probe (world_material_features.cpp), so
+    // the gate's numbers and the product's numbers come from one rule.
+    {
+      std::unordered_map<std::string, std::size_t> visibleByMaterial;
+      for (const std::size_t triangle : worldVisKeptIndices) {
+        if (triangle < displayMap.triangles.size()) {
+          ++visibleByMaterial[displayMap.triangles[triangle].material];
+        }
+      }
+      std::unordered_map<std::string, std::size_t> trianglesByMaterial;
+      for (const auto& triangle : displayMap.triangles) ++trianglesByMaterial[triangle.material];
+      std::vector<tf2::native::WorldMaterialFeatureInput> inputs;
+      inputs.reserve(worldFetchedMaterials.size());
+      for (const auto& entry : worldFetchedMaterials) {
+        tf2::native::WorldMaterialFeatureInput input;
+        input.material = entry.first;
+        input.vmt = &entry.second;
+        input.triangles = trianglesByMaterial[entry.first];
+        input.visibleTriangles = visibleByMaterial[entry.first];
+        inputs.push_back(std::move(input));
+      }
+      tf2::native::WorldFeatureResolvers resolvers;
+      resolvers.resourceExists = [&](const std::string& path) {
+        return !readMaterialVtf(path).empty();
+      };
+      resolvers.readResource = [&](const std::string& path) {
+        return assetChain.lookup(path).bytes;
+      };
+      const auto features = tf2::native::scanWorldMaterialFeatures(inputs, resolvers);
+      traceFmt("gpu: world features %s", features.summary.c_str());
+      const auto emitFeature = [](const char* name, const tf2::native::WorldMaterialFeatureCount& count) {
+        if (count.declared == 0) {
+          traceFmt("gpu: world feature feature=%s declared=0 visible=0 resolved=0 missing=0"
+            " first=- resource=- reason=-", name);
+          return;
+        }
+        traceFmt("gpu: world feature feature=%s declared=%zu visible=%zu resolved=%zu missing=%zu"
+          " first=%s resource=%s reason=%s", name, count.declared, count.visibleDeclared,
+          count.resourcesResolved, count.resourcesMissing,
+          count.firstMaterial.empty() ? "-" : count.firstMaterial.c_str(),
+          count.firstResource.empty() ? "-" : count.firstResource.c_str(),
+          count.reason.empty() ? "-" : count.reason.c_str());
+      };
+      emitFeature("bumpmap", features.bumpMap);
+      emitFeature("bumpmap2", features.bumpMap2);
+      emitFeature("ssbump", features.ssBump);
+      emitFeature("detail", features.detail);
+      traceFmt("gpu: world feature-detail distinctBumpPaths=%zu detailTypesRead=%zu firstDetailType=%s",
+        features.distinctBumpPaths, features.detailTypesRead,
+        features.firstDetailType.empty() ? "-" : features.firstDetailType.c_str());
+    }
   };
   // The paint ledger: one row per prepared model, written after the GPU upload
   // so `uploaded` reflects what the renderer actually accepted. This is the

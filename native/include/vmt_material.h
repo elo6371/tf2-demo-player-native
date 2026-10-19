@@ -24,6 +24,17 @@ struct VmtMaterial {
   // a hard alpha cut where the map author asked for a soft transition.
   std::string blendModulateTexture;
   std::string bumpMap;
+  // T19: the keys the world pass can see but cannot yet draw. They are parsed
+  // rather than ignored because "this material declares a bump map" and "this
+  // material's bump map was not fetched" are different findings, and the second
+  // one is only visible if the first one is a field.
+  std::string bumpMap2;       // `$bumpmap2`, layer 2's normal map
+  bool ssBump = false;        // `$ssbump`, the bump map is in the SSBump format
+  std::string detailTexture;  // `$detail`, another material used as a detail layer
+  // The detail material's own `%detailtype`, read from the material `$detail`
+  // names rather than from this one. Empty when the detail material did not
+  // resolve or declares none.
+  std::string detailType;
   std::string envMap;
   std::string selfIllumTint;
   std::string phongTint;
