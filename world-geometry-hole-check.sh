@@ -110,20 +110,40 @@ frame_tick() { # frame_tick <trace>
   fi
   printf '%s' "$tick"
 }
+# The last line that says why a reload stopped, with the trace clock stripped.
+refusal_line() { # refusal_line <trace>
+  grep -a "reload-stage\|state=no world atlas was uploaded" "$1" 2>/dev/null | tr -d '\r' \
+    | tail -1 | sed 's/^[0-9.]* //'
+}
 # A capture whose frame is not at TICK is a different camera, and comparing it
 # against a tick-TICK account measures the camera, not the code. Retry rather
 # than accept: the arm fires on the first draw at or after the tick, so a run
 # that skips a tick captures late.
+#
+# T26 mutation M1 taught this function a second answer. Removing the sky
+# polygon does not produce an empty mask: this product's rule (T12) is that an
+# empty upload is a refusal, so the run ends before the first draw. That is a
+# red the gate has to judge, and it is not "the frame landed on tick 2001" --
+# four retries of a refusal printed four identical lines and then skipped the
+# judgement, which is how a mutation can pass for the wrong reason. So: no draw
+# at all plus a non-zero exit returns 2 and names the refusal.
 run_capture_trace() { # run_capture_trace <bmp> <trace> [extra flags...]
   local bmp="$1" trace="$2"; shift 2
-  local attempt
+  local attempt rc
+  LAST_PRODUCT_RC=0
   for attempt in 1 2 3 4; do
     rm -f "$trace" "$bmp"
     TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 180 "$PRODUCT" \
       --tf-root "$TF" --demo "$DEMO" --capture-tick "$TICK" \
       --capture-frame "$(cygpath -m "$PWD/$bmp")" \
       --audio-disabled --hidden-window --world-water off "$@" > "$SCRATCH/run.log" 2>&1
-    if [ $? -eq 0 ] && [ -s "$bmp" ] && [ "$(frame_tick "$trace")" = "$TICK" ]; then
+    rc=$?
+    LAST_PRODUCT_RC=$rc
+    if [ "$rc" -ne 0 ] && ! grep -aq "draw: begin tick=" "$trace" 2>/dev/null; then
+      echo "  the product refused to draw (exit $rc): $(refusal_line "$trace")"
+      return 2
+    fi
+    if [ "$rc" -eq 0 ] && [ -s "$bmp" ] && [ "$(frame_tick "$trace")" = "$TICK" ]; then
       return 0
     fi
     echo "  retry: the capture landed on tick $(frame_tick "$trace"), not $TICK"
@@ -509,7 +529,7 @@ stock_frames() { # stock_frames <dir>
 
 capture_sky_mask() { # capture_sky_mask <dir> [extra flags...]
   local dir="$1"; shift
-  run_capture_trace "$dir/sky-faces.bmp" "$SCRATCH/focused.trace" \
+  run_capture_trace "$dir/sky-faces.bmp" "$dir/capture.trace" \
     --world-geometry sky --no-world-cull --world-flat "$@"
 }
 
@@ -517,7 +537,13 @@ capture_sky_mask() { # capture_sky_mask <dir> [extra flags...]
 # would have failed. Prints which ones, so a mutation that only half-breaks the
 # account is still visible in the log.
 judge_account() { # judge_account <label> <dir>
-  local label="$1" dir="$2" report="$SCRATCH/account-$label.txt"
+  # Two statements, not one `local`: bash expands every word of the `local`
+  # command before the builtin runs, so `report="$SCRATCH/account-$label.txt"`
+  # in the same line reads `label` while it is still unset, and `set -u` kills
+  # the run there -- which is what happened on the first M2 attempt.
+  local label="$1"
+  local dir="$2"
+  local report="$SCRATCH/account-$label.txt"
   if ! "$PYTHON" world-geometry-hole-account.py --dir "$dir" --out "$SCRATCH/mask-$label" \
       > "$report" 2>&1; then
     echo "  PASS $label: the account refuses the frame -- $(head -1 "$report")"
@@ -546,7 +572,16 @@ judge_account() { # judge_account <label> <dir>
 }
 
 # M1: the parser still counts the sky faces and no longer emits their polygons.
-# The census line the probe prints stays at 731; the mask can only be empty.
+# The census line the probe prints stays at 731, so the count cannot notice; what
+# notices is everything downstream of the geometry. This mutation has exactly two
+# acceptable reds and the gate names which one it got:
+#   - an empty mask, caught by the account (sky=0, unexplained=38328), or
+#   - a refusal to upload nothing at all, which is what this product does: the
+#     uploader's own guard rejects an empty source, the reload fails, and the
+#     process exits 14 before the first draw.
+# The first attempt judged only the first red and, on the second, retried a
+# refusal four times and then skipped the judgement. That is worse than a wrong
+# assertion: it is a mutation that passes for the wrong reason.
 echo "-- M1: the parser keeps the sky count and drops the polygons --"
 MUTATION_ACTIVE=1
 "$PYTHON" patch-source.py "$SRC_BSP" <<'PATCH_M1'
@@ -558,8 +593,29 @@ MUTATION_ACTIVE=1
 PATCH_M1
 if [ $? -ne 0 ]; then
   echo "  FAIL M1 could not patch the parser"; mfail=1
-elif build_mutated M1 && stock_frames "$SCRATCH/m1" && capture_sky_mask "$SCRATCH/m1"; then
-  judge_account M1 "$SCRATCH/m1"
+elif build_mutated M1 && stock_frames "$SCRATCH/m1"; then
+  capture_sky_mask "$SCRATCH/m1"; m1_status=$?
+  M1_TRACE="$SCRATCH/m1/capture.trace"
+  case "$m1_status" in
+    0)
+      judge_account M1 "$SCRATCH/m1" ;;
+    2)
+      m1_draws=$(grep -ac "draw: begin tick=" "$M1_TRACE" 2>/dev/null)
+      m1_atlas=$(grep -ac "state=no world atlas was uploaded" "$M1_TRACE" 2>/dev/null)
+      m1_frame=no; [ -e "$SCRATCH/m1/sky-faces.bmp" ] && m1_frame=yes
+      if [ "$LAST_PRODUCT_RC" = 14 ] && [ "$m1_draws" = 0 ] && [ "$m1_atlas" -ge 1 ] \
+          && [ "$m1_frame" = no ]; then
+        echo "  PASS M1: no sky polygon means no upload -- exit 14, no draw, no atlas, no frame"
+      else
+        echo "  FAIL M1: the run stopped, but not as an empty sky buffer must (rc=$LAST_PRODUCT_RC draws=$m1_draws atlas=$m1_atlas frame=$m1_frame)"
+        mfail=1
+      fi
+      ;;
+    *)
+      echo "  FAIL M1: the sky mask neither landed nor was refused (status $m1_status)"
+      mfail=1
+      ;;
+  esac
 fi
 restore_sources
 
@@ -576,8 +632,14 @@ MUTATION_ACTIVE=1
 PATCH_M2
 if [ $? -ne 0 ]; then
   echo "  FAIL M2 could not patch the uploader"; mfail=1
-elif build_mutated M2 && stock_frames "$SCRATCH/m2" && capture_sky_mask "$SCRATCH/m2"; then
-  judge_account M2 "$SCRATCH/m2"
+elif build_mutated M2 && stock_frames "$SCRATCH/m2"; then
+  capture_sky_mask "$SCRATCH/m2"; m2_status=$?
+  if [ "$m2_status" = 0 ]; then
+    judge_account M2 "$SCRATCH/m2"
+  else
+    echo "  FAIL M2: the sky mask could not be captured (status $m2_status)"
+    mfail=1
+  fi
 fi
 restore_sources
 
