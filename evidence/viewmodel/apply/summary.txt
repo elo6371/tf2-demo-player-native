@@ -1,0 +1,33 @@
+# T18 viewmodel applied-pose gate, run 20261019102131-7379
+executable_sha256=77a9a08a8ba6a920a216a72f48b4d3f307aaebc05a12d189f1b32dddb9b4c28d
+recording=autorecord_2026-07-02_13-26-46.dem
+tick=0 sequence=1 model=models/weapons/v_models/v_scattergun_scout.mdl drawn=models/weapons/c_models/c_sniper_arms.mdl
+host_overlap=0 (1 = another worktree had a product process live; captures are paused)
+
+## frames
+frame.bind.sha256=2f0822edab9f359a2ce09d3b935316bd98dcb9b35a74a01fb7347eda68b85b7c frame.bind.bytes=2582406
+frame.apply.sha256=13a0d7363872022d0cdfe0694f561ccef703533a76185454bfaf28a328956a49 frame.apply.bytes=2582406
+frame.repeat.sha256=13a0d7363872022d0cdfe0694f561ccef703533a76185454bfaf28a328956a49 frame.repeat.bytes=2582406
+frame.world.sha256=e4d802c27021fbd49649271c3140be1d4ec584a7b04b36d2a8d3272e802ddfd4 frame.world.bytes=2582406
+frame.flat-bind.sha256=320ec443c247d0e80ac3e38dbbd5c86accad8b6dccd78c868bfc58b96dece45c frame.flat-bind.bytes=2582406
+frame.flat-apply.sha256=dd04f80228d28427137da777ce04632a6e6b47331cf0a51a965febf76913699e frame.flat-apply.bytes=2582406
+
+## applied run, product lines
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+scene: vmAnim entity=1077 sequence=1 entitySequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=0/1 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel centre viewSpace=(8.96,-6.30,63.87) clip=(4.829,-6.304,62.886,63.873) ndc=(0.076,-0.099) onScreen=1
+gpu: viewmodel pose extent bindCenter=(0.000,52.050,-1.801) bindRadius=29.880 posedCenter=(-0.009,52.050,-1.801) posedRadius=29.887 centerShift=0.009 vertices=9996 posedVertices=9996 nonFinite=0 maxDisplacement=6.126 valid=1 reason=-
+
+## bind run, the same lines that must not move
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel centre viewSpace=(8.96,-6.30,63.87) clip=(4.829,-6.304,62.886,63.873) ndc=(0.076,-0.099) onScreen=1
+
+## mask containment (bounds: outside <= 64, changed >= 1000)
+BMP-MASK changed=10097 inside=10095 outside=2 mask_pixels=25601 bbox=(x=577..838, y=313..393) w=262 h=81 status=PASS
+BMP-MASK changed=5586 inside=5584 outside=2 mask_pixels=25601 bbox=(x=579..838, y=316..383) w=260 h=68 status=PASS
+
+## caveats
+paused_capture=1 (a playing capture lands on a scheduler-dependent tick)
+world_geometry=shattered (F1/T17): the composition is judged, not the map
