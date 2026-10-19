@@ -169,16 +169,18 @@ builds, captures, mutations, and audio-device runs remain serialized on this
 host. No task may edit another task's worktree or the integration branch while
 T25 is being integrated.
 
-### T25 - Final visual baseline closure
+### T25 - Final visual baseline closure (completed)
 
 - Start from `36d68b0` and reproduce the hidden-window T17 baseline failure.
 - Attribute every changed reading: material-fetch 85/85/70, blend 10/10/10,
   W1, and W2. Use T19/T21/T12 evidence to separate expected changes from a
   rendering regression.
-- Produce reviewed final pins only when the same current-tree frame, trace,
-  and source identity support them. Otherwise keep the gate `NOT VERIFIED`.
-- Run forward and mutation forms of the affected baseline gate with hidden
-  captures and byte-identical source restoration.
+- Produced reviewed final pins from the current hidden-window frame and trace;
+  see `T25-VISUAL-BASELINE-CLOSURE-2026-10-19.md`.
+- Forward and mutation forms passed; 5/5 mutations were caught and all source
+  restores were byte-identical.
+- The regression gate is green, while release visual status remains
+  `NOT VERIFIED` because W2 still has the known world completeness defect.
 - Do not run `verify-all.sh` during T25.
 
 ### T26 - World geometry completeness and visible holes
