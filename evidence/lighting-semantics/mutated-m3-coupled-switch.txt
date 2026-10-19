@@ -1,0 +1,1 @@
+20587.8 gpu: world lighting dynamic=1 specular=1 bump=0 requestedDynamic=1 requestedSpecular=1 requestedBump=0 bumpOwner=WOOD/WALL007A bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0

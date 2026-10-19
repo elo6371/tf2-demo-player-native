@@ -307,6 +307,14 @@ struct WorldMaterialSampleState {
   bool envTextureBound = false;
   bool lightmapAtlasBound = false;
   bool selfIllumEnabled = false;
+  // T24: the three pass-level lighting constants the LAST world draw uploaded.
+  // `bumpMode` is true only when the switch is on and a bump texture is bound,
+  // so a frame can be attributed to the constant rather than to the setting.
+  // `dynamicLightingMode` and `specularMode` have no resource dependency; they
+  // are the settings field, read through the same helper the constant uses.
+  bool dynamicLightingMode = false;
+  bool specularMode = false;
+  bool bumpMode = false;
   // Falsifiable vertex counts for the lightmap pass. `lightmappedVertexCount`
   // is how many of the uploaded world vertices carry a per-face light uv; a
   // vertex without one is drawn flat no matter what the atlas holds. The pair
@@ -994,6 +1002,15 @@ private:
   bool createTarget(UINT width, UINT height);
   bool createPipeline();
   bool writeBackBufferToFile(const std::wstring& path);
+  // T24: the three pass-level lighting controls as the draw will upload them.
+  // One implementation each, read by both the constant buffer and the frame
+  // sample, so "what the settings asked for" and "what the shader got" cannot
+  // drift apart in the trace.
+  bool worldDynamicLightingEffective() const { return settings_.dynamicLighting; }
+  bool worldSpecularEffective() const { return settings_.specular; }
+  bool worldBumpEffective() const {
+    return settings_.bumpMapping && worldBumpTexture_.view() != nullptr;
+  }
   // The six-array-slice cube, shared by the environment cube and the sky: one
   // implementation, so the cube cannot be right for one and wrong for the other.
   bool createCubeTexture(const std::array<std::vector<std::uint8_t>, 6>& faces, UINT side,

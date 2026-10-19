@@ -73,6 +73,10 @@ add_executable(tf2_demo_native WIN32
   # second copy of the placement rule.
   src/world_tile_atlas.cpp
   src/world_material_features.cpp
+  # T24: the lighting-control ledger, shared with lighting_semantics_probe. In
+  # the product because the trace and the gate must read one classification:
+  # the probe's six rows and the product's six rows are the same function.
+  src/world_lighting.cpp
   third_party/lzma/LzmaDec.c
   src/texture2d.cpp
   src/settings_store.cpp
@@ -152,6 +156,16 @@ add_executable(material_coverage_probe tools/material_coverage_probe.cpp
   third_party/lzma/LzmaDec.c)
 target_include_directories(material_coverage_probe PRIVATE include third_party/lzma)
 set_target_properties(material_coverage_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# T24: the six lighting/shader controls. The probe links the same ledger the
+# product's trace reads, so its rows and the product's rows cannot disagree
+# about what "declared", "requested" and "effective" mean.
+add_executable(lighting_semantics_probe tools/lighting_semantics_probe.cpp
+  src/world_lighting.cpp src/world_material_features.cpp src/vmt_material.cpp
+  src/vpk_archive.cpp src/bsp_map.cpp src/vtf_texture.cpp src/world_material.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(lighting_semantics_probe PRIVATE include third_party/lzma)
+set_target_properties(lighting_semantics_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(terrain_blend_probe tools/terrain_blend_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(terrain_blend_probe PRIVATE include third_party/lzma)

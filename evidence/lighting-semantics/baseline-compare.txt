@@ -1,0 +1,15 @@
+# T24 reference frame vs the 9591499 baseline, same preset, same tick, same demo.
+# baseline: D:/TF2_Native_Worktrees/t24-baseline (git worktree --detach 9591499, clean)
+# every run passes --settings-file, so neither side reads or writes the machine's ini
+
+preset=standard, baseline vs T24:
+BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+
+# Why the number that first looked like a T24 regression is not one:
+# the same baseline binary, only the ini's preset changed -- the sky is drawn or not.
+9591499 preset=standard vs 9591499 preset=performance:
+BMP-DIFF differing=519738 total=2582352 percent=20.1265 max_delta=192 extent=1264x681x24 status=PASS
+
+baseline traces: sky state under each preset
+  standard:   20044.2 gpu: world sky state=active vertices=36 triangles=12 faces=6 draws=1 side=512 resampled=1 reason=six sides, 36 vertices
+  performance:19965.5 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller

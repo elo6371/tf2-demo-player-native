@@ -1,0 +1,32 @@
+{"check":"fixture.base.parses","ok":true","detail":""}
+{"check":"fixture.layer2.parses","ok":true","detail":""}
+{"check":"fixture.nobump.parses","ok":true","detail":""}
+{"check":"controls.count","ok":true","detail":"6"}
+{"check":"controls.names","ok":true","detail":"the six rows are in the task's order"}
+{"check":"controls.kinds","ok":true","detail":"three pass switches, three material keys"}
+{"check":"dynamic.off","ok":true","detail":"disabled"}
+{"check":"dynamic.scope","ok":true","detail":"2 materials / 150 triangles"}
+{"check":"specular.off","ok":true","detail":"disabled"}
+{"check":"specular.phong","ok":true","detail":"2 declared / 2 visible"}
+{"check":"specular.exponents","ok":true","detail":"2 declared / 2 distinct"}
+{"check":"specular.reason","ok":true","detail":"a pass constant: one lobe (boost 0.12, exponent 32) for 2 visible materials / 150 visible triangles; 2 of those materials declare $phong and 2 declare $phongexponent (2 distinct value(s), first=12), and the pass reads none of them; first=$phong material FIXTURE/BASE; off"}
+{"check":"bump.counts","ok":true","detail":"2/2 resolved 2"}
+{"check":"bump.refused","ok":true","detail":"refused"}
+{"check":"bump.refusal.names.distinct","ok":true","detail":"off, and refused when on: the world pass has one bump sampler slot, but the materials name 2 distinct $bumpmap textures across 2 visible materials, so no material's own normal map is applied"}
+{"check":"bump2.counts","ok":true","detail":"1 declared, 1 resolved"}
+{"check":"bump2.refused","ok":true","detail":"refused"}
+{"check":"bump2.reason","ok":true","detail":"$bumpmap2 is layer 2's normal map and the pass has one bump sampler; it is refused, not silently replaced by layer 1's"}
+{"check":"ssbump.counts","ok":true","detail":"1 declared, 1 resolved"}
+{"check":"ssbump.refused","ok":true","detail":"refused"}
+{"check":"detail.counts","ok":true","detail":"2 declared, 1 resolved, 1 missing"}
+{"check":"detail.typeRead","ok":false","detail":"detail layers need a second, detailscale-scaled uv and the `$detailblendmode` result; the world vertex carries one atlas uv, so the layer is refused; 1 detail VMT(s) read, 0 distinct %detailtype value(s)"}
+{"check":"detail.refused","ok":true","detail":"refused"}
+{"check":"detail.reason.names.parse","ok":false","detail":"detail layers need a second, detailscale-scaled uv and the `$detailblendmode` result; the world vertex carries one atlas uv, so the layer is refused; 1 detail VMT(s) read, 0 distinct %detailtype value(s)"}
+{"check":"pass.dynamic.applied","ok":true","detail":"applied"}
+{"check":"pass.specular.applied","ok":true","detail":"applied"}
+{"check":"pass.bump.applied","ok":true","detail":"on: the pass has one bump sampler and it holds materials/fix/base_height.vtf (named by the slot's owner FIXTURE/BASE); 2 materials declare $bumpmap and name 2 distinct textures, so the surfaces that did not name this one are shaded by another material's normal map"}
+{"reading":"pass.appliedCount","value":"3"}
+{"check":"pass.bump.requestedNotEffective","ok":true","detail":"refused"}
+{"check":"pass.bump.reason.names.owner","ok":true","detail":"requested but refused: no bump texture is bound; the slot's owner FIXTURE/NOBUMP declares no $bumpmap, while 2 visible materials name 2 distinct $bumpmap textures and the pass has one sampler slot"}
+{"check":"pass.dynamic.requestedNotEffective","ok":true","detail":"a pass constant, not a material key: the pixel shader replaces the lightmap-only factor with 0.62+0.38*dot(normal, lightDirection) for 2 visible materials / 150 visible triangles; no VMT declares it, so every surface is shaded by the same guessed direction and the baked lightmap's own direct light is counted twice; requested but no constant was uploaded"}
+{"reading":"selfTest","value":"false"}
