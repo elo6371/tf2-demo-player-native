@@ -1708,4 +1708,110 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
   return file;
 }
 
+// ---------------------------------------------------------------------------
+// Blend layer resolution
+// ---------------------------------------------------------------------------
+bool resampleRgba(const std::vector<std::uint8_t>& source, std::uint32_t width,
+    std::uint32_t height, std::uint32_t outWidth, std::uint32_t outHeight,
+    std::vector<std::uint8_t>& out) {
+  if (width == 0 || height == 0 || outWidth == 0 || outHeight == 0) return false;
+  if (source.size() != static_cast<std::size_t>(width) * height * 4u) return false;
+  if (width == outWidth && height == outHeight) { out = source; return true; }
+  out.assign(static_cast<std::size_t>(outWidth) * outHeight * 4u, 0);
+  for (std::uint32_t y = 0; y < outHeight; ++y) {
+    const std::uint32_t sy0 = static_cast<std::uint32_t>(static_cast<std::uint64_t>(y) * height / outHeight);
+    const std::uint32_t sy1 = std::max<std::uint32_t>(sy0 + 1,
+      static_cast<std::uint32_t>(static_cast<std::uint64_t>(y + 1) * height / outHeight));
+    for (std::uint32_t x = 0; x < outWidth; ++x) {
+      const std::uint32_t sx0 = static_cast<std::uint32_t>(static_cast<std::uint64_t>(x) * width / outWidth);
+      const std::uint32_t sx1 = std::max<std::uint32_t>(sx0 + 1,
+        static_cast<std::uint32_t>(static_cast<std::uint64_t>(x + 1) * width / outWidth));
+      std::size_t sum[4] = {0, 0, 0, 0};
+      std::uint32_t count = 0;
+      for (std::uint32_t sy = sy0; sy < sy1 && sy < height; ++sy) {
+        for (std::uint32_t sx = sx0; sx < sx1 && sx < width; ++sx) {
+          const std::size_t at = (static_cast<std::size_t>(sy) * width + sx) * 4u;
+          for (int c = 0; c < 4; ++c) sum[c] += source[at + static_cast<std::size_t>(c)];
+          ++count;
+        }
+      }
+      if (count == 0) count = 1;
+      const std::size_t at = (static_cast<std::size_t>(y) * outWidth + x) * 4u;
+      for (int c = 0; c < 4; ++c) {
+        out[at + static_cast<std::size_t>(c)] = static_cast<std::uint8_t>(sum[c] / count);
+      }
+    }
+  }
+  return true;
+}
+
+BlendLayerOutcome resolveBlendLayer(const std::string& secondPath,
+    const std::vector<std::uint8_t>& secondBytes, bool baseResolved,
+    std::uint32_t tileWidth, std::uint32_t tileHeight) {
+  BlendLayerOutcome outcome;
+  const std::string named = secondPath.empty() ? std::string("(unnamed)") : secondPath;
+  if (!baseResolved) {
+    outcome.reason = "the first layer did not resolve, so there is nothing to blend from";
+    return outcome;
+  }
+  if (secondBytes.empty()) {
+    outcome.reason = "the second layer " + named + " did not resolve from loose, VPK or pakfile";
+    return outcome;
+  }
+  VtfTexture texture;
+  if (!texture.parse(secondBytes)) {
+    outcome.reason = "the second layer " + named + " is not a readable VTF";
+    return outcome;
+  }
+  outcome.sourceWidth = texture.header().width;
+  outcome.sourceHeight = texture.header().height;
+  auto rgba = texture.decodeRgba(secondBytes);
+  if (rgba.empty()) {
+    outcome.reason = "the second layer " + named + " decoded to nothing";
+    return outcome;
+  }
+  if (!resampleRgba(rgba, outcome.sourceWidth, outcome.sourceHeight, tileWidth, tileHeight,
+                    outcome.pixels)) {
+    outcome.reason = "the second layer " + named + " could not be resampled to the tile grid";
+    return outcome;
+  }
+  outcome.status = BlendLayerOutcome::Status::Resolved;
+  outcome.resampled = outcome.sourceWidth != tileWidth || outcome.sourceHeight != tileHeight;
+  return outcome;
+}
+
+BlendModulateOutcome resolveBlendModulate(const std::string& modulatePath,
+    const std::vector<std::uint8_t>& modulateBytes, bool secondResolved,
+    std::uint32_t tileWidth, std::uint32_t tileHeight) {
+  // The path is carried for callers that want to print it beside the reason;
+  // the reason itself stays the same string the product traced before this was
+  // pulled out, so old and new traces compare line for line.
+  (void)modulatePath;
+  BlendModulateOutcome outcome;
+  if (!secondResolved) {
+    outcome.refusal = BlendModulateOutcome::Refusal::NoSecondLayer;
+    outcome.reason = "the material has no usable second layer to modulate";
+    return outcome;
+  }
+  if (modulateBytes.empty()) {
+    outcome.refusal = BlendModulateOutcome::Refusal::NotResolved;
+    outcome.reason = "did not resolve from loose, VPK or pakfile";
+    return outcome;
+  }
+  VtfTexture texture;
+  auto rgba = texture.parse(modulateBytes) ? texture.decodeRgba(modulateBytes)
+                                           : std::vector<std::uint8_t>{};
+  outcome.sourceWidth = texture.header().width;
+  outcome.sourceHeight = texture.header().height;
+  if (rgba.empty() || !resampleRgba(rgba, outcome.sourceWidth, outcome.sourceHeight,
+                                    tileWidth, tileHeight, outcome.pixels)) {
+    outcome.refusal = BlendModulateOutcome::Refusal::DecodeOrResampleFailed;
+    outcome.reason = "decoded to nothing or could not be resampled";
+    return outcome;
+  }
+  outcome.status = BlendModulateOutcome::Status::Resolved;
+  outcome.resampled = outcome.sourceWidth != tileWidth || outcome.sourceHeight != tileHeight;
+  return outcome;
+}
+
 } // namespace tf2::native

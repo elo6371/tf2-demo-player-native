@@ -1,1 +1,1 @@
-gpu: world blend enabled=1 terrainOnly=0 textures=64 layers=2 accepted=64 acceptedLayers=2 tiles=2 modulateTiles=2 malformedLayers=0 weightedVertices=30816 modulatedVertices=0 weightMin=0.000 weightMax=1.000 distinctWeights=9
+gpu: world blend enabled=1 terrainOnly=0 textures=112 layers=3 accepted=112 acceptedLayers=3 tiles=3 modulateTiles=2 malformedLayers=0 weightedVertices=33888 modulatedVertices=0 weightMin=0.000 weightMax=1.000 distinctWeights=9

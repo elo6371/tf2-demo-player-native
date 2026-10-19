@@ -1,0 +1,1 @@
+gpu: world material-fetch distinct=148 tiled=112 capped=0 vmtMissing=4 vmtNoBase=31 vtfMissing=1 vtfTooLarge=105 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=32 downscaled=105 blendFirst=3 blendLastRank=25 blendCapped=0

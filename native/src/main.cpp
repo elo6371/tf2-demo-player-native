@@ -2029,6 +2029,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // resolved is what reached the atlas; refused is what did not, each with
       // a named reason on its own trace line.
       std::size_t fetchBlendDeclared = 0, fetchBlendResolved = 0, fetchBlendRefused = 0, fetchBlendResampled = 0;
+      // T12 post-merge: the ordering's *outcome*, not just its input. `blendFirst`
+      // counts how many materials declare a second layer; that number does not
+      // move when the sort ignores the declaration, which is exactly the defect
+      // the ordering exists to avoid. `blendLastRank` is the 1-based position of
+      // the last blend material in the sorted order (0 when there is none), and
+      // `blendCapped` is how many of them were dropped by the cap. With the sort
+      // in place the rank is 3 and the cap drops none; with a triangle-count
+      // order the rank runs past 64 and the cap drops the map's third terrain
+      // material.
+      std::size_t fetchBlendFirst = 0;
+      std::size_t fetchBlendLastRank = 0;
+      std::size_t fetchBlendCapped = 0;
       // T12: a layer skipped because `--world-blend off` asked for it is not a
       // refusal. Counting the two together would make the switch look like a
       // resolution failure in the summary line, which is the reading a reader
@@ -2045,7 +2057,24 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // than this is refused by name (`capped`) rather than silently drawn
       // flat, and the fetch order is still coverage order so a ceiling would
       // drop the smallest surfaces first.
+      // T12: blend materials are offered before single-layer materials so a
+      // future budget refusal cannot silently remove a terrain layer. The
+      // blend declaration uses the same store chain as the actual fetch.
+      std::unordered_map<std::string, bool> declaresBlend;
       std::vector<std::pair<std::size_t, std::string>> materialOrder;
+      // The map's pakfile is the last store in the chain, and it only exists
+      // once the map bytes do. Registering it before the declaration scan keeps
+      // both the scan and the fetch on one lookup policy.
+      if (!mapBytes.empty()) {
+        assetChain.setPakfileReader([&mapBytes](const std::string& assetPath,
+            std::vector<std::uint8_t>& bytes, std::string& reason) {
+          return tf2::native::bspPakfileEntry(mapBytes, assetPath, bytes, &reason);
+        });
+      }
+      const auto readVmt = [&](const std::string& materialName) {
+        const auto materialPath = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
+        return assetChain.lookup(materialPath).bytes;
+      };
       {
         std::unordered_map<std::string, std::size_t> coverage;
         for (const auto& triangle : displayMap.triangles) {
@@ -2062,9 +2091,30 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // the map's largest material, MEDIEVAL/PLASTERWALL002A at 80256
         // triangles, sat at index 71. The order is what decides which materials
         // a budget refusal drops first, so it has to be the one it claims.
-        std::sort(materialOrder.begin(), materialOrder.end(), [](const auto& l, const auto& r) {
+        for (const auto& entry : materialOrder) {
+          const auto bytes = readVmt(entry.second);
+          if (bytes.empty()) continue;
+          tf2::native::VmtMaterial material;
+          if (!tf2::native::VmtParser::parse(std::string(bytes.begin(), bytes.end()), material)) continue;
+          declaresBlend[entry.second] = !material.baseTexture2.empty()
+            && material.baseTexture2 != material.baseTexture;
+        }
+        const auto blendOf = [&](const std::string& name) {
+          const auto it = declaresBlend.find(name);
+          return it != declaresBlend.end() && it->second;
+        };
+        std::sort(materialOrder.begin(), materialOrder.end(), [&](const auto& l, const auto& r) {
+          const bool lb = blendOf(l.second), rb = blendOf(r.second);
+          if (lb != rb) return lb;
           return l.first != r.first ? l.first > r.first : l.second < r.second;
         });
+        std::size_t blendFirst = 0;
+        for (std::size_t i = 0; i < materialOrder.size(); ++i) {
+          if (!blendOf(materialOrder[i].second)) continue;
+          ++blendFirst;
+          fetchBlendLastRank = i + 1;  // 1-based: "the last blend material is the Nth to be offered a tile"
+        }
+        fetchBlendFirst = blendFirst;
       }
       // A VTF larger than the tile is downscaled to the tile instead of being
       // dropped: measured on pl_odyssey, 42 of 108 materials shipped
@@ -2116,19 +2166,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         if (outWidth == 0 || outHeight == 0) return false;
         return resampleTo(source, width, height, outWidth, outHeight, out);
       };
-      // The map's pakfile is the last store in the chain, and it only exists
-      // once the map bytes do. Registering it here keeps the order in
-      // AssetStoreChain rather than in each lookup.
-      if (!mapBytes.empty()) {
-        assetChain.setPakfileReader([&mapBytes](const std::string& assetPath,
-            std::vector<std::uint8_t>& bytes, std::string& reason) {
-          return tf2::native::bspPakfileEntry(mapBytes, assetPath, bytes, &reason);
-        });
-      }
       for (const auto& entry : materialOrder) {
         const std::string& materialName = entry.second;
         ++fetchDistinct;
-        if (worldTextures.size() >= kMaxWorldMaterials) { ++fetchCapped; continue; }
+        if (worldTextures.size() >= kMaxWorldMaterials) {
+          if (declaresBlend.count(materialName) && declaresBlend[materialName]) ++fetchBlendCapped;
+          ++fetchCapped;
+          continue;
+        }
         const auto materialPath = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
         const auto materialLookup = assetChain.lookup(materialPath);
         auto materialBytes = materialLookup.bytes;
@@ -2220,28 +2265,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           traceFmt("gpu: world blend material=%s second=%s status=off reason=--world-blend off",
             materialName.c_str(), material.baseTexture2.c_str());
         } else if (secondDeclared) {
-          if (!baseResolved) {
-            blendReason = "the first layer did not resolve, so there is nothing to blend from";
-          } else if (!secondResolved) {
-            blendReason = "the second layer " + secondPath + " did not resolve from loose, VPK or pakfile";
-          } else {
-            tf2::native::VtfTexture secondTexture;
-            if (!secondTexture.parse(secondBytes)) {
-              blendReason = "the second layer " + secondPath + " is not a readable VTF";
-            } else {
-              blendSourceWidth = secondTexture.header().width;
-              blendSourceHeight = secondTexture.header().height;
-              auto secondRgba = secondTexture.decodeRgba(secondBytes);
-              if (secondRgba.empty()) {
-                blendReason = "the second layer " + secondPath + " decoded to nothing";
-              } else if (!resampleTo(secondRgba, blendSourceWidth, blendSourceHeight,
-                                     tiledWidth, tiledHeight, blendPixels)) {
-                blendReason = "the second layer " + secondPath + " could not be resampled to the tile grid";
-              } else {
-                ++fetchBlendResolved;
-                if (blendSourceWidth != tiledWidth || blendSourceHeight != tiledHeight) ++fetchBlendResampled;
-              }
-            }
+          // T12 post-merge: the decision lives in `resolveBlendLayer`, so the
+          // six reasons below are the same code the refusal fixtures execute.
+          // Inline, the only way to reach one of them was to find a map broken
+          // in exactly that way, and on the reference map none was reached.
+          const auto outcome = tf2::native::resolveBlendLayer(
+            secondPath, secondBytes, baseResolved, tiledWidth, tiledHeight);
+          blendReason = outcome.reason;
+          if (outcome.status == tf2::native::BlendLayerOutcome::Status::Resolved) {
+            blendPixels = outcome.pixels;
+            blendSourceWidth = outcome.sourceWidth;
+            blendSourceHeight = outcome.sourceHeight;
+            ++fetchBlendResolved;
+            if (outcome.resampled) ++fetchBlendResampled;
           }
           if (!blendReason.empty()) {
             ++fetchBlendRefused;
@@ -2266,31 +2302,39 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // not look like the terrain".
         if (blendEnabled && !material.blendModulateTexture.empty()) {
           ++fetchModulateDeclared;
-          if (blendPixels.empty()) {
-            traceFmt("gpu: world blend-modulate material=%s status=refused reason=%s",
-              materialName.c_str(), "the material has no usable second layer to modulate");
-          } else if (!resolveTexture(material.blendModulateTexture, modulatePath, modulateBytes)) {
-            ++fetchModulateRefused;
-            traceFmt("gpu: world blend-modulate material=%s path=%s status=refused reason=%s",
-              materialName.c_str(), modulatePath.c_str(), "did not resolve from loose, VPK or pakfile");
+          // T12 post-merge: the three reasons live in `resolveBlendModulate`,
+          // the same code `terrain_blend_probe --refusal-fixtures` executes.
+          // Inline, reaching one of them required a map that ships a broken
+          // modulate -- and the reference map has none, so `modulateRefused=0`
+          // was a counter with no execution behind it.
+          const bool secondResolvedForModulate = !blendPixels.empty();
+          if (secondResolvedForModulate) {
+            resolveTexture(material.blendModulateTexture, modulatePath, modulateBytes);
+          }
+          const auto modulateOutcome = tf2::native::resolveBlendModulate(
+            material.blendModulateTexture, modulateBytes, secondResolvedForModulate,
+            tiledWidth, tiledHeight);
+          if (modulateOutcome.status == tf2::native::BlendModulateOutcome::Status::Resolved) {
+            modulatePixels = modulateOutcome.pixels;
+            ++fetchModulateResolved;
+            traceFmt("gpu: world blend-modulate material=%s path=%s source=%zux%zu tile=%zux%zu",
+              materialName.c_str(), modulatePath.c_str(),
+              static_cast<std::size_t>(modulateOutcome.sourceWidth),
+              static_cast<std::size_t>(modulateOutcome.sourceHeight),
+              static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight));
           } else {
-            tf2::native::VtfTexture modulateTexture;
-            auto modulateRgba = modulateTexture.parse(modulateBytes) ? modulateTexture.decodeRgba(modulateBytes)
-                                                                     : std::vector<std::uint8_t>{};
-            const UINT modulateSourceWidth = modulateTexture.header().width;
-            const UINT modulateSourceHeight = modulateTexture.header().height;
-            if (modulateRgba.empty()
-                || !resampleTo(modulateRgba, modulateSourceWidth, modulateSourceHeight,
-                               tiledWidth, tiledHeight, modulatePixels)) {
+            // "No second layer to modulate" is not a resource refusal -- there
+            // is nothing the lookup could have found -- so it is traced but not
+            // counted, which is the reading the old inline code produced.
+            if (modulateOutcome.refusal != tf2::native::BlendModulateOutcome::Refusal::NoSecondLayer) {
               ++fetchModulateRefused;
-              traceFmt("gpu: world blend-modulate material=%s path=%s status=refused reason=%s",
-                materialName.c_str(), modulatePath.c_str(), "decoded to nothing or could not be resampled");
+            }
+            if (modulateOutcome.refusal == tf2::native::BlendModulateOutcome::Refusal::NoSecondLayer) {
+              traceFmt("gpu: world blend-modulate material=%s status=refused reason=%s",
+                materialName.c_str(), modulateOutcome.reason.c_str());
             } else {
-              ++fetchModulateResolved;
-              traceFmt("gpu: world blend-modulate material=%s path=%s source=%zux%zu tile=%zux%zu",
-                materialName.c_str(), modulatePath.c_str(),
-                static_cast<std::size_t>(modulateSourceWidth), static_cast<std::size_t>(modulateSourceHeight),
-                static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight));
+              traceFmt("gpu: world blend-modulate material=%s path=%s status=refused reason=%s",
+                materialName.c_str(), modulatePath.c_str(), modulateOutcome.reason.c_str());
             }
           }
         }
@@ -2299,9 +2343,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         worldTextures.push_back({materialName, std::move(tiledPixels), tiledWidth, tiledHeight,
                                  std::move(blendPixels), secondDeclared, std::move(modulatePixels)});
       }
-      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu",
+      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu",
         fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
-        fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled);
+        fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled,
+        fetchBlendFirst, fetchBlendLastRank, fetchBlendCapped);
       traceFmt("gpu: world blend-fetch declared=%zu resolved=%zu refused=%zu disabled=%zu resampled=%zu modulateDeclared=%zu modulateResolved=%zu modulateRefused=%zu",
         fetchBlendDeclared, fetchBlendResolved, fetchBlendRefused, fetchBlendDisabled, fetchBlendResampled,
         fetchModulateDeclared, fetchModulateResolved, fetchModulateRefused);

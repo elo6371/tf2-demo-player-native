@@ -136,6 +136,15 @@ struct BspMap {
   std::size_t windingSideOneFaces = 0;
   std::size_t windingMisfacedTriangles = 0;
   std::size_t windingMisfacedDisplaced = 0;
+  // T12 post-merge: T11 reverses a displacement triangle's b and c to orient
+  // it, and the blend weight rides on the vertex. `std::swap(b, c)` alone would
+  // leave the alphas where they were and attach the author's weight to the
+  // wrong corner -- a picture that still blends, just with the mask mirrored
+  // inside every quad. These two counters compare the emitted triangle's
+  // (position, weight) pairs against the grid cells it was built from: a swap
+  // that moves the positions and not the weights reads as `detached`.
+  std::size_t alphaPairingChecked = 0;
+  std::size_t alphaPairingDetached = 0;
   // T11 third round: is the SOURCE winding uniform? The rule matrix left one
   // question open -- whether the stored polygon order is a per-face coin toss,
   // which no plane-derived rule could ever reproduce, or a fixed convention

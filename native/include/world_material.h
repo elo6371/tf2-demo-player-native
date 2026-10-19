@@ -810,4 +810,65 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture);
 std::int32_t appendLuxel(std::vector<std::uint8_t>& lighting, std::uint8_t r, std::uint8_t g,
   std::uint8_t b, std::int8_t exponent);
 
+// ---------------------------------------------------------------------------
+// Blend layer resolution (T12)
+// ---------------------------------------------------------------------------
+// `$basetexture2` is resolved and resampled onto the first layer's tile grid.
+// The product did this inline, which meant every refusal it can produce was a
+// string inside a 400-line loop: reachable only by finding a map whose assets
+// are broken in exactly that way, and never once executed on the reference map
+// (`refused=0`). A refusal counter of zero is not evidence that refusal works.
+//
+// Pulled out so the same code can be handed a fixture: the product calls it
+// with real bytes, `terrain_blend_probe --refusal-fixtures` calls it with six
+// synthetic ones, and the reasons are the same strings in both.
+struct BlendLayerOutcome {
+  enum class Status { Resolved, Refused };
+  Status status = Status::Refused;
+  std::string reason;                       // empty only when Resolved
+  std::vector<std::uint8_t> pixels;         // tile-sized RGBA
+  std::uint32_t sourceWidth = 0;
+  std::uint32_t sourceHeight = 0;
+  bool resampled = false;                   // source != tile
+};
+
+// Box-resample `source` (width x height RGBA) to outWidth x outHeight. Returns
+// false on a zero dimension or a byte count that does not match the source.
+bool resampleRgba(const std::vector<std::uint8_t>& source, std::uint32_t width,
+  std::uint32_t height, std::uint32_t outWidth, std::uint32_t outHeight,
+  std::vector<std::uint8_t>& out);
+
+// `secondBytes` empty means the caller's lookup policy did not resolve the
+// layer; `baseResolved` false means there is no first layer to blend from.
+BlendLayerOutcome resolveBlendLayer(const std::string& secondPath,
+  const std::vector<std::uint8_t>& secondBytes, bool baseResolved,
+  std::uint32_t tileWidth, std::uint32_t tileHeight);
+
+// `$blendmodulatetexture` is a third texture on the same grid, read as
+// `smoothstep(g - r, g + r, weight)`. Its three refusal reasons were strings
+// inside main.cpp's loop, which meant the only way to execute one was to find a
+// map with a broken modulate -- and the reference map has none. Pulled out for
+// the same reason as the layer above: the refusal fixtures and the product run
+// the same code, so "the reason exists" is a reading and not a claim.
+struct BlendModulateOutcome {
+  enum class Status { Resolved, Refused };
+  enum class Refusal {
+    None,
+    NoSecondLayer,            // nothing to modulate; the product does not count this as a refusal
+    NotResolved,              // the path did not resolve from loose, VPK or pakfile
+    DecodeOrResampleFailed,   // resolved, but not a decodable VTF or not resamplable
+  };
+  Status status = Status::Refused;
+  Refusal refusal = Refusal::None;
+  std::string reason;                 // empty only when Resolved
+  std::vector<std::uint8_t> pixels;   // tile-sized RGBA
+  std::uint32_t sourceWidth = 0;
+  std::uint32_t sourceHeight = 0;
+  bool resampled = false;
+};
+
+BlendModulateOutcome resolveBlendModulate(const std::string& modulatePath,
+  const std::vector<std::uint8_t>& modulateBytes, bool secondResolved,
+  std::uint32_t tileWidth, std::uint32_t tileHeight);
+
 } // namespace tf2::native
