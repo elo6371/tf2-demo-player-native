@@ -224,8 +224,9 @@ visibility hole.
 exactly those 20 triangles as if the emission had oriented them to their face's
 own side-aware outward direction -- the rule the missing grid would have used.
 It changed nothing: the flag was wired (`evaluated=321`) and **zero** of those
-evaluations flipped (`flipped=0`); holes stayed at 40 and drawn at 457. The reason is in the data: the quads' own outward direction is
-`(0,0,+1)`, so "orient to outward" keeps them facing away from the eye above.
+evaluations flipped (`flipped=0`); holes stayed at 40 and drawn at 457. The
+reason is in the data: the quads' own outward direction is `(0,0,+1)`, so
+"orient to outward" keeps them facing away from the eye above.
 Closing these holes needs a per-face decision the plane lump does not carry
 (the same class of missing ground truth T11 named for brush/side-1), not another
 winding sign. No product rule was changed on the strength of a guess.
@@ -513,8 +514,9 @@ directions, all of them below the camera and outside the POV.
 The measured first-hit account agrees with the pixel account: 594 eye
 directions, 457 drawn, 1 visibility-rejected, 129 back-face-rejected, 7 both;
 97 of the 137 rejections show a farther surface (the frame still fills, with a
-different surface) and 40 show none. The probe's 21.7% rejection and the screen's 19.4% back-face
-population are the same defect seen through two instruments.
+different surface) and 40 show none. The probe's 21.7% rejection and the
+screen's 19.4% back-face population are the same defect seen through two
+instruments.
 
 **No winding, culling or PVS rule was changed.** The one repair that looked
 mechanical -- orient the 10 fallback quads to their own face's outward direction
