@@ -48,6 +48,7 @@ specular 只能**加**（darker=0）。任一项出现一个反向字节，就�
 | branch | `task/t24-lighting-semantics`（从 `9591499` 拉出） |
 | base commit | `9591499` Merge branch `task/t17-world-visual` into `p0-entity-protocol` |
 | final commit | `593065d` 实现（含证据），`573a3ed` 交付报告 |
+| push | `origin/task/t24-lighting-semantics`，`git push -u` rc=0（首次推送，新建远端分支） |
 | 参考地图 | `maps/pl_odyssey.bsp`，108 个 distinct 材质，首个 `WOOD/WALL007A` |
 | 参考 demo / tick | `autorecord_2026-07-02_13-26-46.dem`，tick 2000（脚本重试到恰好 2000） |
 | 诊断 bump 纹理 | `materials/brick/brickwall001_normal.vtf` |
