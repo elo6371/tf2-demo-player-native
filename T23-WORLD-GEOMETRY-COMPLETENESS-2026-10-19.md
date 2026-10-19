@@ -55,8 +55,8 @@ geometry ray-eye drawn-tone dark=… of … atlas=…
 
 `nothingDrawable` is the only first-hit outcome that is a hole in the strict
 sense: geometry exists along the ray, the product draws none of it, and there is
-no farther drawable surface either. `drawableBehind` is the wrong-surface case:
-the frame still fills, with the surface behind the removed one. Directions are
+no farther drawable surface either. `drawableBehind` is the different-surface
+case: the frame still fills, with the surface behind the removed one. Directions are
 split into down / horizontal / up (`dz < -0.3`, `|dz| <= 0.3`, `dz > 0.3`)
 because "no geometry" straight up is sky, while "no geometry" downwards is a
 question about terrain.
@@ -194,7 +194,7 @@ The fallback quads are 0 drawn / 26 rejected.
 
 **Rejection is not the same as a hole.** Of the 137 rejected first hits, 97 have
 a farther drawable surface along the same ray (`drawableBehind`: the frame shows
-the wrong surface, not empty space) and 40 have none (`nothingDrawable`). Those
+a different surface, not empty space) and 40 have none (`nothingDrawable`). Those
 40 are the only strict holes from this eye:
 
 ```
@@ -481,8 +481,8 @@ directions, all of them below the camera and outside the POV.
 
 The measured first-hit account agrees with the pixel account: 594 eye
 directions, 457 drawn, 1 visibility-rejected, 129 back-face-rejected, 7 both;
-97 of the 137 rejections show a farther surface (the wrong surface, not a hole)
-and 40 show none. The probe's 21.7% rejection and the screen's 19.4% back-face
+97 of the 137 rejections show a farther surface (the frame still fills, with a
+different surface) and 40 show none. The probe's 21.7% rejection and the screen's 19.4% back-face
 population are the same defect seen through two instruments.
 
 **No winding, culling or PVS rule was changed.** The one repair that looked
