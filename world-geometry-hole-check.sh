@@ -609,8 +609,13 @@ fi
 restore_sources
 
 # M4: the sky buffer is drawn through its own bounds instead of the world's.
-# Every sky pixel is still a sky pixel, but at the wrong scale and offset, so a
-# mask that is merely "somewhere near" cannot pass as a same-view frame.
+# Every sky pixel is still a sky pixel, but at the wrong scale and offset. The
+# coverage account cannot see this -- the hull covers every direction, so a
+# mask that is merely "somewhere near" still covers the frame, and that limit is
+# stated in the delivery report. What can see it is the second instrument: the
+# rasterizer's face id at a traced pixel has to be the face the CPU oracle
+# projected with the frame's own matrix, and a moved buffer puts a different
+# face (or none) there.
 echo "-- M4: the sky mask gets its own transform --"
 MUTATION_ACTIVE=1
 "$PYTHON" patch-source.py "$SRC_REN" <<'PATCH_M4'
@@ -624,8 +629,18 @@ MUTATION_ACTIVE=1
 PATCH_M4
 if [ $? -ne 0 ]; then
   echo "  FAIL M4 could not patch the bounds"; mfail=1
-elif build_mutated M4 && stock_frames "$SCRATCH/m4" && capture_sky_mask "$SCRATCH/m4"; then
-  judge_account M4 "$SCRATCH/m4"
+elif build_mutated M4; then
+  mkdir -p "$SCRATCH/m4"
+  if ! run_capture_trace "$SCRATCH/m4/sky-ids.bmp" "$SCRATCH/focused.trace" \
+      --world-geometry sky --no-world-cull --world-face-id; then
+    echo "  FAIL M4 capture"; mfail=1
+  elif "$PYTHON" hole-point-verify.py --trace "$ANA/point-trace.txt" \
+      --ids "$SCRATCH/m4/sky-ids.bmp" > "$SCRATCH/verify-M4.txt" 2>&1; then
+    echo "  FAIL M4: the ids still matched after the buffer moved"
+    mfail=1
+  else
+    echo "  PASS M4: $(tail -1 "$SCRATCH/verify-M4.txt")"
+  fi
 fi
 restore_sources
 

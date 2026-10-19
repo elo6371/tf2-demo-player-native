@@ -1,0 +1,80 @@
+geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=99312 faces=18052 displaced=46912 water=300 lightmapped=98830 degenerate=4790 maxEdge=2560.0 over256=13114 over1024=357 over4096=0 bounds=(-5266,-13264,-2593)..(4048,8704,1544)
+geometry faces total=18052 rendered=17321 sky=731 skippedNoDraw=0 skippedInvalid=0
+geometry sky faces=731 triangles=1842 bufferTriangles=99312
+geometry face-info index=15310 kind=world material=GREEK/GREEK_GROUND03B_COBBLE triangles=2 displacement=0 fallback=0 plane=280 planeSide=0 cluster=2310 centroid=(-1916.5,1660.5,420.0) bounds=(-1960.3,1616.6,384.0)..(-1872.6,1704.3,456.0)
+geometry face-info index=15324 kind=world material=GREEK/GREEK_GROUND03B_COBBLE triangles=2 displacement=0 fallback=0 plane=573 planeSide=1 cluster=2313 centroid=(-1536.0,1056.0,544.0) bounds=(-1536.0,1024.0,384.0)..(-1536.0,1088.0,704.0)
+geometry face-info index=15376 kind=world material=GREEK/GREEK_GROUND03B triangles=3 displacement=0 fallback=0 plane=573 planeSide=1 cluster=2334 centroid=(-1536.0,782.2,256.0) bounds=(-1536.0,640.0,128.0)..(-1536.0,960.0,384.0)
+geometry face-info index=17260 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-647.8,2321.8,111.0) bounds=(-972.7,2068.6,0.0)..(-330.9,2575.5,233.9)
+geometry face-info index=17262 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-639.7,2299.1,304.0) bounds=(-876.7,2044.0,224.0)..(-409.4,2534.4,384.0)
+geometry face-info index=17266 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-926.7,2525.3,247.0) bounds=(-983.5,2426.1,9.9)..(-845.8,2632.2,384.0)
+geometry face-info index=17268 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-1181.2,2926.9,191.5) bounds=(-1540.5,2581.1,0.0)..(-793.8,3182.5,384.0)
+geometry face-info index=17326 kind=world material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=30 planeSide=0 cluster=-1 centroid=(-1537.2,3334.8,19.1) bounds=(-2176.0,2816.0,-30.0)..(-1024.0,3733.7,90.5)
+geometry face-info index=10483 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=4464 planeSide=0 cluster=1 centroid=(3264.0,5440.0,-1152.0) bounds=(3072.0,5248.0,-2432.0)..(3456.0,5632.0,128.0)
+geometry face-info index=10517 kind=sky material=TOOLS/TOOLSSKYBOX triangles=4 displacement=0 fallback=0 plane=693 planeSide=1 cluster=2 centroid=(2474.7,4512.0,517.3) bounds=(2048.0,4512.0,128.0)..(3072.0,4512.0,1024.0)
+geometry face-info index=11850 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=477 planeSide=1 cluster=0 centroid=(-3584.0,8576.0,-704.0) bounds=(-4096.0,8576.0,-2176.0)..(-3072.0,8576.0,768.0)
+geometry face-info index=12719 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=700 planeSide=0 cluster=1366 centroid=(-1280.0,3968.0,480.0) bounds=(-1408.0,3840.0,192.0)..(-1152.0,4096.0,768.0)
+geometry face-info index=12721 kind=sky material=TOOLS/TOOLSSKYBOX triangles=3 displacement=0 fallback=0 plane=700 planeSide=0 cluster=1368 centroid=(-1294.2,3953.8,-56.9) bounds=(-1408.0,3840.0,-256.0)..(-1152.0,4096.0,192.0)
+geometry face-info index=12816 kind=sky material=TOOLS/TOOLSSKYBOX triangles=4 displacement=0 fallback=0 plane=43 planeSide=1 cluster=695 centroid=(-1530.7,2514.7,2048.0) bounds=(-2048.0,2048.0,2048.0)..(-1024.0,3072.0,2048.0)
+geometry face-info index=13686 kind=sky material=TOOLS/TOOLSSKYBOX triangles=4 displacement=0 fallback=0 plane=101 planeSide=1 cluster=695 centroid=(-512.0,1368.0,1381.3) bounds=(-512.0,1088.0,1024.0)..(-512.0,1760.0,2048.0)
+geometry face-info index=13691 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=676 planeSide=0 cluster=695 centroid=(-656.0,1904.0,1568.0) bounds=(-800.0,1760.0,1088.0)..(-512.0,2048.0,2048.0)
+geometry lightmap-uv atlas=4096x2251 vertices=296490 unwrittenTexels=0 unwrittenShare=0.0000 sampledMeanLum=109.7
+geometry lightmap-tone histogram=31123,11225,9370,8995,6561,6051,4623,20882 darkTriangles=26844 darkShare=0.2703
+geometry lightmap-face-tone histogram=5896,2489,1916,1718,1176,952,880,2099 darkFaces=5018 zeroFaces=898
+geometry lightmap-hdr-tone histogram=6154,2393,1854,1643,1155,942,824,2161 darkFaces=5303 zeroFaces=940 intensity=0.891 samples=11130803
+geometry lightmap-tone darkest: 0[maps/pl_odyssey/nature/blendgroundtomarble01_wvt_patch n=4] 0[maps/pl_odyssey/nature/blendsandtodirt_odyssey_wvt_patch n=2] 3[maps/pl_odyssey/metal/metalchrome002_-1984_3264_-832 n=6] 4[maps/pl_odyssey/metal/metalchrome002_-3408_3264_-928 n=2] 4[maps/pl_odyssey/tile/floor_tile_004a_-2200_3720_-952 n=2] 6[maps/pl_odyssey/glass/glasswindow001a_1392_3512_-768 n=32] 12[WOOD/GRAIN_ELEVATOR_SILO_10A n=326] 18[PROPS/HAZARDSTRIP001A n=8]
+geometry lightmap-tone darkMaterials: 8092[WOOD/WALL007A n=15339] 2301[SWAMP/PROPS/FISHINGNET002 n=4984] 2069[WOOD/WOOD_WALL006B n=2801] 1585[WOOD/WOOD_FLOOR004 n=3497] 1061[GREEK/GREEK_GROUND03B n=6388] 871[NATURE/BLENDGROUNDTOMARBLE01 n=5928] 815[NATURE/MARBLE_WALL_01B n=2639] 788[NATURE/BLENDGROUNDTOGRASS_ODYSSEY n=5514]
+geometry edge-groups staticMaxEdge=2560.0 staticOver1024=357 staticMaterialOver1024=33 displacedMaxEdge=502.4 displacedOver1024=0
+geometry displacement faces=1382 triangles=46912 cornerMatches=1382
+geometry displacement coverage candidates=1392 emitted=1382 fallback=10 (lump=0 polygon=0 index=0 power=0 range=0 corner=0 nonFinite=0 cell=10 limit=0 other=0)
+geometry displacement fallback-face index=17034 material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY
+geometry displacement fallback-face index=17817 material=NATURE/BLENDGROUNDTOMARBLE01
+geometry displacement fallback-face index=17818 material=NATURE/BLENDGROUNDTOMARBLE01
+geometry displacement fallback-face index=17819 material=NATURE/BLENDGROUNDTOMARBLE01
+geometry displacement fallback-face index=17821 material=NATURE/BLENDGROUNDTOMARBLE01
+geometry displacement fallback-face index=18038 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry displacement fallback-face index=18039 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry displacement fallback-face index=18043 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry displacement fallback-face index=18044 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry displacement fallback-face index=18045 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry displacement fallback-quads triangles=20
+geometry winding agree=5416 of 16136 faces (33.6% agree with the bsp plane normals)
+geometry winding flippedTriangles=8514 of 99312
+geometry winding sideAware misfaced=15126 displacedMisfaced=0 sideOneFaces=5388 of 16136
+geometry stored-winding class=brush alongPlane=98 againstPlane=14646
+geometry stored-winding class=displacement alongPlane=0 againstPlane=1392
+geometry grid-vs-polygon keeps=5 reverses=1381 of 1382 displacement faces
+geometry pre-rule class=brush alongPlane=41624 againstPlane=396 alongOutward=26894 againstOutward=15126
+geometry pre-rule class=displacement alongPlane=46856 againstPlane=142 alongOutward=38484 againstOutward=8514
+geometry materials distinct=108 atlasCap=64 trianglesCoveredByCap=98011 of 99312 (98.7%)
+geometry material rank=0 triangles=15340 name=WOOD/WALL007A
+geometry material rank=1 triangles=6850 name=NATURE/BLENDCLIFFTOGRASS_ODYSSEY
+geometry material rank=2 triangles=6390 name=GREEK/GREEK_GROUND03B
+geometry material rank=3 triangles=5928 name=NATURE/BLENDGROUNDTOMARBLE01
+geometry material rank=4 triangles=5514 name=NATURE/BLENDGROUNDTOGRASS_ODYSSEY
+geometry material rank=5 triangles=5026 name=METAL/IBEAM002
+geometry material rank=6 triangles=4984 name=SWAMP/PROPS/FISHINGNET002
+geometry material rank=7 triangles=4223 name=GREEK/GREEK_GROUND03D
+geometry offender index=90049 longest=2560.0 area=1572864.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-2048.0, 5632.0, -2176.0)      b=(-2048.0, 7680.0, -2176.0)      c=(-3584.0, 7680.0, -2176.0)
+geometry offender index=90048 longest=2560.0 area=1572864.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-2048.0, 5632.0, -2176.0)      b=(-3584.0, 7680.0, -2176.0)      c=(-3584.0, 5632.0, -2176.0)
+geometry offender index=90051 longest=2415.1 area=1310720.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-768.0, 5632.0, -2176.0)      b=(-768.0, 7680.0, -2176.0)      c=(-2048.0, 7680.0, -2176.0)
+geometry offender index=90050 longest=2415.1 area=1310720.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOMARBLE01 cluster=-1
+      a=(-768.0, 5632.0, -2176.0)      b=(-2048.0, 7680.0, -2176.0)      c=(-2048.0, 5632.0, -2176.0)
+geometry offender index=99119 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, -1536.0, -2432.0)      b=(3456.0, -1536.0, -2560.0)      c=(3456.0, 512.0, -2560.0)
+geometry offender index=99117 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, 512.0, -2432.0)      b=(3456.0, 512.0, -2560.0)      c=(3456.0, 2560.0, -2560.0)
+geometry offender index=99116 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, 512.0, -2432.0)      b=(3456.0, 2560.0, -2560.0)      c=(2816.0, 2560.0, -2432.0)
+geometry offender index=99118 longest=2149.5 area=668338.6 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2816.0, -1536.0, -2432.0)      b=(3456.0, 512.0, -2560.0)      c=(2816.0, 512.0, -2432.0)
+geometry offender index=99115 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, 512.0, -2176.0)      b=(2816.0, 512.0, -2432.0)      c=(2816.0, 2560.0, -2432.0)
+geometry offender index=99015 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, -1536.0, -2176.0)      b=(2816.0, -1536.0, -2432.0)      c=(2816.0, 512.0, -2432.0)
+geometry offender index=99014 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, -1536.0, -2176.0)      b=(2816.0, 512.0, -2432.0)      c=(2304.0, 512.0, -2176.0)
+geometry offender index=99114 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
+      a=(2304.0, 512.0, -2176.0)      b=(2816.0, 2560.0, -2432.0)      c=(2304.0, 2560.0, -2176.0)
