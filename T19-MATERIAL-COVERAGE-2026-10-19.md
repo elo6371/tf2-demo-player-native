@@ -285,9 +285,10 @@ fd50dd06dd06a5e7c5e4277c97ea4fdc11d0d11e  native/src/world_tile_atlas.cpp
 
 ## 13. 最终状态
 
-- 工作树 `D:/TF2_Native_Worktrees/t19-material-coverage`：6 个修改文件 + 9 个新增文件，
-  无其它脏文件（跑既有门禁时被覆盖的 `evidence/terrain-blend/`、`evidence/visual-baseline/`、
-  `evidence/world-material/` 已用 `git checkout --` 还原，不属于本轮改动）。
+- 工作树 `D:/TF2_Native_Worktrees/t19-material-coverage`：提交 `0ade875` 后干净
+  （24 个文件：6 个修改、18 个新增，其中 11 个是 `evidence/material-coverage/` 的证据）。
+  跑既有门禁时被覆盖的 `evidence/terrain-blend/`、`evidence/visual-baseline/`、
+  `evidence/world-material/` 已用 `git checkout --` 还原，不属于本轮改动。
 - 主工作树 `D:/TF2_Native_Test`：用户的 `M evidence/world-material/real-cp_snakewater_final1.txt`
   与 3 个未跟踪 md 原样保留，未被提交、未被触碰。
 - 对照工作树 `D:/TF2_Native_Worktrees/t19-baseline` 仍存在（detached `e67630b`），只用于
