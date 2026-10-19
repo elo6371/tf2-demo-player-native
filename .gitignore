@@ -93,3 +93,8 @@ evidence/t23-world-geometry/captures/*.log
 evidence/t26-world-holes/captures/*.trace
 evidence/t26-world-holes/captures/traces/
 evidence/t26-world-holes/captures/*.log
+# T23's accounting tool writes its own mask bitmap, and T26 runs that tool over
+# T26's frames to show both tasks count the same pixels. The bitmap is T23's
+# reading of the frame, not T26's claim: T26 tracks its own `hole-mask.bmp` and
+# leaves this one on disk so the second tool cannot overwrite evidence.
+evidence/t26-world-holes/analysis/accounting-mask.bmp

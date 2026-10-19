@@ -293,8 +293,11 @@ def main(argv):
     # T23's 38,328 excludes the overlay: the `none` frame is the frame with no
     # world pass at all, so every pixel that is not its clear colour is the HUD
     # or an entity, and no world triangle was ever going to cover it. Counting
-    # those as missing would add ~24k invented holes and the two tasks would be
-    # reporting different populations under the same word.
+    # those as missing would be reporting a second population under the same
+    # word. Measured on this frame set the count is 0 -- tick 2000 draws no HUD
+    # -- so the exclusion is inert here and the mutation run says so rather than
+    # pretending to cover it; the line below is where a reader sees which case
+    # the frames are in.
     clear_colour = mode_colour(frames["none"].pixels)
     overlay = bytearray(total)
     none_pixels = frames["none"].pixels

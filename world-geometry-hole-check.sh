@@ -706,16 +706,25 @@ elif build_mutated M4; then
 fi
 restore_sources
 
-# M5: the accounting drops the overlay exclusion -- the one definition this task
-# shares with T23. The frames are the forward frames, unmutated; only the rule
-# that decides what "missing" means changes, and the pinned total must move.
-echo "-- M5: the account counts the overlay as missing --"
+# M5: the account takes its mask from the product's own picture instead of the
+# all-switches-off frame. This is the definition the whole task stands on: with
+# the cull and the pvs clip off, "no triangle" means no triangle; without them it
+# means "no triangle the product kept", and a back-face or a clipped surface
+# would read as a hole. The frames are the forward frames, unmutated; only the
+# frame the mask is taken from changes, and the pinned total must move.
+#
+# The first version of M5 dropped the overlay exclusion instead, and the gate
+# refused it: measured on these frames `overlay=0` (tick 2000 draws no HUD), so
+# the mutation changed no number. A mutation that cannot move a pin is not
+# coverage, and this one is not claimed as such -- the overlay exclusion stays in
+# the tool for frames that carry a HUD and is documented as inert here.
+echo "-- M5: the account reads empty off the product's picture --"
 MUTATION_ACTIVE=1
 "$PYTHON" patch-source.py "$TOOL_ACCOUNT" <<'PATCH_M5'
     missing = bytearray(1 if (not present_all_off[index]) and not overlay[index] else 0
                         for index in range(total))
 %%
-    missing = bytearray(1 if not present_all_off[index] else 0
+    missing = bytearray(1 if (not present_base[index]) and not overlay[index] else 0
                         for index in range(total))  # T26 mutation M5
 PATCH_M5
 if [ $? -ne 0 ]; then
