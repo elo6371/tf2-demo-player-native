@@ -2,6 +2,7 @@ geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=99312 faces=1805
 geometry lightmap-uv atlas=4096x2251 vertices=296490 unwrittenTexels=0 unwrittenShare=0.0000 sampledMeanLum=109.7
 geometry lightmap-tone histogram=31123,11225,9370,8995,6561,6051,4623,20882 darkTriangles=26844 darkShare=0.2703
 geometry lightmap-face-tone histogram=5896,2489,1916,1718,1176,952,880,2099 darkFaces=5018 zeroFaces=898
+geometry lightmap-hdr-tone histogram=6154,2393,1854,1643,1155,942,824,2161 darkFaces=5303 zeroFaces=940 intensity=0.891 samples=11130803
 geometry lightmap-tone darkest: 0[maps/pl_odyssey/nature/blendgroundtomarble01_wvt_patch n=4] 0[maps/pl_odyssey/nature/blendsandtodirt_odyssey_wvt_patch n=2] 3[maps/pl_odyssey/metal/metalchrome002_-1984_3264_-832 n=6] 4[maps/pl_odyssey/metal/metalchrome002_-3408_3264_-928 n=2] 4[maps/pl_odyssey/tile/floor_tile_004a_-2200_3720_-952 n=2] 6[maps/pl_odyssey/glass/glasswindow001a_1392_3512_-768 n=32] 12[WOOD/GRAIN_ELEVATOR_SILO_10A n=326] 18[PROPS/HAZARDSTRIP001A n=8]
 geometry lightmap-tone darkMaterials: 8092[WOOD/WALL007A n=15339] 2301[SWAMP/PROPS/FISHINGNET002 n=4984] 2069[WOOD/WOOD_WALL006B n=2801] 1585[WOOD/WOOD_FLOOR004 n=3497] 1061[GREEK/GREEK_GROUND03B n=6388] 871[NATURE/BLENDGROUNDTOMARBLE01 n=5928] 815[NATURE/MARBLE_WALL_01B n=2639] 788[NATURE/BLENDGROUNDTOGRASS_ODYSSEY n=5514]
 geometry edge-groups staticMaxEdge=2560.0 staticOver1024=357 staticMaterialOver1024=33 displacedMaxEdge=502.4 displacedOver1024=0
@@ -14,6 +15,13 @@ geometry stored-winding class=displacement alongPlane=0 againstPlane=1392
 geometry grid-vs-polygon keeps=5 reverses=1381 of 1382 displacement faces
 geometry pre-rule class=brush alongPlane=41624 againstPlane=396 alongOutward=26894 againstOutward=15126
 geometry pre-rule class=displacement alongPlane=46856 againstPlane=142 alongOutward=38484 againstOutward=8514
+geometry ray-down cells=9216 hits=5381 misses=3835 drawnByShippedRule=3809 of 5381 (0.708)
+geometry ray-down first-hit class=brush storedUp=1598 storedDown=1483
+geometry ray-down first-hit class=displacement storedUp=2226 storedDown=74
+geometry ray-down first-hit brush planeSide=0 storedUp=1580 storedDown=0
+geometry ray-down first-hit displacement planeSide=0 storedUp=2199 storedDown=63
+geometry ray-down first-hit brush planeSide=1 storedUp=18 storedDown=1483
+geometry ray-down first-hit displacement planeSide=1 storedUp=27 storedDown=11
 geometry materials distinct=108 atlasCap=64 trianglesCoveredByCap=98011 of 99312 (98.7%)
 geometry material rank=0 triangles=15340 name=WOOD/WALL007A
 geometry material rank=1 triangles=6850 name=NATURE/BLENDCLIFFTOGRASS_ODYSSEY
@@ -47,3 +55,36 @@ geometry offender index=99014 longest=2126.5 area=586171.8 displacement=0 water=
       a=(2304.0, -1536.0, -2176.0)      b=(2816.0, 512.0, -2432.0)      c=(2304.0, 512.0, -2176.0)
 geometry offender index=99114 longest=2126.5 area=586171.8 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY cluster=-1
       a=(2304.0, 512.0, -2176.0)      b=(2816.0, 2560.0, -2432.0)      c=(2304.0, 2560.0, -2176.0)
+geometry eye=(-2423.6,5566.0,-1280.0) cluster=1032 visClusters=1692 bounds=(-5266,-13264,-2593)..(4048,8704,1544)
+geometry facing pvsKept front=10785 back=18627 pvsHidden front=9367 back=13601 noCluster front=19613 back=27319
+geometry side-census class=brush planeSide=0 outward=10931 inward=5361
+geometry side-census class=brush planeSide=1 outward=4670 inward=3851
+geometry side-census class=displacement planeSide=0 outward=23364 inward=15164
+geometry side-census class=displacement planeSide=1 outward=4256 inward=4128
+geometry tree-side outwardOpen=9589 inwardOpen=4002 ambiguous=58134
+geometry tree-side brush outwardOpen=6493 inwardOpen=3421 ambiguous=14899
+geometry tree-side displacement outwardOpen=3096 inwardOpen=581 ambiguous=43235
+geometry ray-eye dirs=1152 hits=594 misses=558 shippedRuleKeeps=458 of 594 (0.771)
+geometry ray-eye first-hit class=brush storedTowardEye=424 storedAway=98
+geometry ray-eye first-hit class=displacement storedTowardEye=9 storedAway=63
+geometry ray-eye first-hit brush planeSide=0 towardEye=116 away=55
+geometry ray-eye first-hit displacement planeSide=0 towardEye=9 away=38
+geometry ray-eye first-hit brush planeSide=1 towardEye=308 away=43
+geometry ray-eye first-hit displacement planeSide=1 towardEye=0 away=25
+geometry rule-table cells=5381 (top) 594 (eye) -- keep means the stored order already faces the observer
+geometry rule-table mask=00 brushSide0=flip brushSide1=flip dispSide0=flip dispSide1=flip top=0.289 eye=0.271 worst=0.271
+geometry rule-table mask=01 brushSide0=keep brushSide1=flip dispSide0=flip dispSide1=flip top=0.583 eye=0.374 worst=0.374
+geometry rule-table mask=02 brushSide0=flip brushSide1=keep dispSide0=flip dispSide1=flip top=0.017 eye=0.717 worst=0.017
+geometry rule-table mask=03 brushSide0=keep brushSide1=keep dispSide0=flip dispSide1=flip top=0.311 eye=0.820 worst=0.311
+geometry rule-table mask=04 brushSide0=flip brushSide1=flip dispSide0=keep dispSide1=flip top=0.686 eye=0.222 worst=0.222
+geometry rule-table mask=05 brushSide0=keep brushSide1=flip dispSide0=keep dispSide1=flip top=0.980 eye=0.325 worst=0.325
+geometry rule-table mask=06 brushSide0=flip brushSide1=keep dispSide0=keep dispSide1=flip top=0.414 eye=0.668 worst=0.414
+geometry rule-table mask=07 brushSide0=keep brushSide1=keep dispSide0=keep dispSide1=flip top=0.708 eye=0.771 worst=0.708
+geometry rule-table mask=08 brushSide0=flip brushSide1=flip dispSide0=flip dispSide1=keep top=0.292 eye=0.229 worst=0.229
+geometry rule-table mask=09 brushSide0=keep brushSide1=flip dispSide0=flip dispSide1=keep top=0.586 eye=0.332 worst=0.332
+geometry rule-table mask=10 brushSide0=flip brushSide1=keep dispSide0=flip dispSide1=keep top=0.020 eye=0.675 worst=0.020
+geometry rule-table mask=11 brushSide0=keep brushSide1=keep dispSide0=flip dispSide1=keep top=0.314 eye=0.778 worst=0.314
+geometry rule-table mask=12 brushSide0=flip brushSide1=flip dispSide0=keep dispSide1=keep top=0.689 eye=0.180 worst=0.180
+geometry rule-table mask=13 brushSide0=keep brushSide1=flip dispSide0=keep dispSide1=keep top=0.983 eye=0.283 worst=0.283
+geometry rule-table mask=14 brushSide0=flip brushSide1=keep dispSide0=keep dispSide1=keep top=0.417 eye=0.626 worst=0.417
+geometry rule-table mask=15 brushSide0=keep brushSide1=keep dispSide0=keep dispSide1=keep top=0.711 eye=0.729 worst=0.711

@@ -1,0 +1,42 @@
+=== 1/4 a frame comes back from the running program (no demo) ===
+paused capture rc=0 size=2582406
+  OK   paused capture rc = 0
+
+=== 2/4 the file is a well-formed BMP and its header agrees with its size ===
+fileBytes=2582406 1264x681 bpp=24 dataOffset=54 dibSize=40 imageBytes=2582352 planes=1 compression=0 actual=2582406
+  OK   dataOffset (14-byte file header + 40-byte DIB) = 54
+  OK   DIB header size = 40
+  OK   bits per pixel = 24
+  OK   planes = 1
+  OK   compression (BI_RGB) = 0
+  OK   imageBytes == stride*height = 2582352
+  OK   fileBytes == dataOffset + imageBytes = 2582406
+  OK   fileBytes == the bytes actually on disk = 2582406
+distinct colours (capped at 9) = 9
+  OK   the frame is not a single flat colour
+  OK   the frame has a positive extent
+
+=== 3/4 the same input twice gives the same bytes, and a different scene does not ===
+second paused capture rc=0 size=2582406
+  OK   second paused capture rc = 0
+paused sha256 #1 = 211faad9f60fe9cda11dc12dbdd51da04fd0fa15c54b28b4d2acaf51af71dd2f
+paused sha256 #2 = 211faad9f60fe9cda11dc12dbdd51da04fd0fa15c54b28b4d2acaf51af71dd2f
+  OK   two captures of the same static scene are byte-identical
+demo capture rc=0 size=2582406
+demo 1264x681 bpp=24 fileBytes=2582406 actual=2582406
+demo sha256 = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
+  OK   a demo scene and the paused scene are different pictures
+installed-map demo capture rc=0 size=2582406
+installed-map demo sha256 = 7cef661d1a6c9380a08bdc03ed9c18403833eaf5c57a82a899bfa03499230989
+  OK   the installed-map demo scene differs from the paused scene
+installed-map distinct colours (full count) = 33663  [reading only]
+installed-map vs fallback-capture: differing 2576197 / 2582352 = 0.9976 (need >= 10%)
+  OK   the installed-map frame is not the fallback picture
+
+=== 4/4 a bad tick is refused instead of guessed ===
+invalid --capture-tick rc=13
+  OK   invalid --capture-tick exit code = 13
+  OK   no frame was written for the rejected request
+
+FRAME-CAPTURE=PASS
+RC=0

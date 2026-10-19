@@ -5,11 +5,11 @@ turns the fixed reference frame from "a flat fragment with holes" into a picture
 whose every population is named, fixes the three causes that were measured, and
 leaves the rest as readings rather than adjectives.
 
-**Status: code and diagnostics complete, formal gate run queued.** Per the
-schedule set at 2026-10-19 00:44 (T16/T12 close-out integrates first; every
-build, capture and mutation on this machine runs one at a time), the three
-required gates have not been run against this tree yet. §8 lists exactly what is
-waiting and what it is expected to move.
+**Status: verified.** Every gate in the focused list passed on the merged tree
+(`efbb6da`, T18 integrated): `visual-baseline-check.sh` forward **PASS** (68
+assertions), `--mutation` **PASS** (M1–M5 all red, every source restored
+byte-identical), `world-material-check.sh` **PASS**, `--mutation` **PASS**,
+`frame-capture-check.sh` **PASS**. §8 has the numbers.
 
 ## 1. Identity
 
@@ -19,10 +19,15 @@ waiting and what it is expected to move.
 | branch | `task/t17-world-visual` |
 | worktree | `D:/TF2_Native_Worktrees/t17-world-visual` |
 | base commit | `e67630b` (merge of `task/t15-vpk-build` into `p0-entity-protocol`) |
-| source commit | `73ee6b9` |
-| pushed | no (queued behind T16 integration) |
-| product scope | `bsp_map.{h,cpp}`, `world_material.cpp`, `native_renderer.{h,cpp}`, `main.cpp`, `settings_store.cpp`, `world_geometry_probe.cpp` |
-| evidence | `evidence/t17-world-visual/` (5 frames, 5 trace excerpts, probe output, 2 classification maps) |
+| verified tree | `efbb6da` = `task/t17-world-visual` + `p0-entity-protocol` `ca10fad` (T18 merged) |
+| source commits | `73ee6b9` (the three fixes), `4c9cf7f` (sky narrowed to the preset), `efbb6da` (the T18 merge; the gate and this report land in the commit after it) |
+| product scope | `bsp_map.{h,cpp}`, `world_material.cpp`, `native_renderer.{h,cpp}`, `main.cpp`, `settings_store.cpp`, `world_geometry_probe.cpp`, `visual-baseline-check.sh` |
+| evidence | `evidence/t17-world-visual/` (10 frames/maps, probe output, 5 gate logs) |
+
+The T18 merge touched only viewmodel code and produced **no conflict** with this
+task's hunks; the reference frame's hash is identical before and after it
+(`d86785ef…`), so T18's bone-pose fix does not move the `--viewmodel-render
+companion` picture.
 
 ## 2. What changed, and why
 
@@ -145,52 +150,89 @@ lighting and camera placement to be told apart. They now are:
 
 | file | what it shows |
 | --- | --- |
-| `ref2.bmp` / `ref2.png` | the reference frame before the sky fix: materials and light fixed, 20.2% clear colour |
-| `sky.bmp` / `sky.png` | the same tick with `--world-sky`: hole 0.0004 |
-| `ref2-class.png`, `sky-class.png` | the three populations painted magenta/red/green |
-| `flat2.bmp`, `terrain2.bmp`, `none2.bmp` | flat geometry, terrain only, nothing |
-| `trace-*.txt` | the `world material-fetch` / `blend-fetch` / `blend enabled` / `lightmap` / `sky-upload` / `vis` / `cull` lines of each frame |
-| `probe.txt` | the geometry probe on `pl_odyssey` with the two tone histograms and the HDR comparison |
+| `default-2000.bmp` / `.png` | the reference frame on the verified tree: material, light and sky fixed — hole 0.04%, black 22.69%, lit 77.27% |
+| `repeat-2000.bmp` | the same settings captured again: **byte-identical**, `d86785efa19b24e2015c…` |
+| `default-2000-class.png` | the three populations painted magenta / red / green |
+| `ref2.bmp`, `sky.bmp` | the same tick before and after the sky pass (hole 0.2017 → 0.0004) |
+| `flat-2000.bmp`, `terrain2.png`, `none-2000.bmp` | flat geometry, terrain only, nothing (the clear colour measured, not assumed) |
+| `trace-flat2.txt`, `trace-none2.txt`, `trace-terrain2.txt`, `trace-sky.txt`, `trace-default-2000.txt` | the `material-fetch` / `blend-fetch` / `blend enabled` / `lightmap` / `sky-upload` / `vis` / `cull` lines of each frame |
+| `probe.txt` | the geometry probe on `pl_odyssey`: both tone histograms, the HDR comparison, the winding census |
+| `gate-visual-baseline-forward.txt`, `gate-visual-baseline-mutation.txt`, `gate-world-material-forward.txt`, `gate-world-material-mutation.txt`, `gate-frame-capture.txt` | verbatim gate output |
 
-## 8. Queued: what runs when the machine is free
+## 8. Verification
 
-Nothing below has been executed against `73ee6b9`.
+Everything below ran on the merged tree, one process at a time, after the T18
+merge. Raw output is in `evidence/t17-world-visual/gate-*.txt`.
 
-1. `bash build-target.sh tf2_demo_native world_geometry_probe` — expect `rc=0`.
-2. A default-path capture at tick 2000 and a `--world-sky` capture at the same
-   tick. **Expected**: byte-identical frames (`sky.bmp` is therefore the
-   default frame), because `skyEnabled` reads `persistent.render.skybox`, which
-   `loadSettings` now sets from the file's preset. If they differ, the loader
-   fix is incomplete and the frame is not reproducible.
-3. Two captures of the same settings — the determinism acceptance. Expected
-   byte-identical (sha256).
-4. `bash visual-baseline-check.sh` — **expected to fail on pins, not on
-   behaviour**, and each moving pin has a measured reason:
+```
+bash build-target.sh tf2_demo_native world_geometry_probe   # rc=0
+bash visual-baseline-check.sh                               # rc=0  PASS (68 assertions)
+bash visual-baseline-check.sh --mutation                    # rc=0  PASS (M1..M5 red)
+bash world-material-check.sh                                # rc=0  PASS
+bash world-material-check.sh --mutation                     # rc=0  PASS
+bash frame-capture-check.sh                                 # rc=0  PASS
+```
 
-   | pin | old | expected | why |
-   | --- | --- | --- | --- |
-   | `material fetch tiled` | 57 | 64 | pakfile textures now resolve |
-   | `material fetch fromPakfile` | 23 | 59 | 36 more materials found in the pakfile |
-   | `material fetch vtfTooLarge` | 43 | 54 | materials that were missing now reach their vtfs |
-   | region W1..W4 `meanLum`/`stdLum` | T11 values | higher | the lightmap is now composed in display space |
-   | region `nearBackground` | ~0 | unchanged | geometry coverage did not move |
+**Determinism and the sky A/B.** Three captures of the same tick with two
+different flag sets:
 
-   `distinct=108`, `capped=21`, `vmtNoBase=20`, the whole vis block, the cull
-   line and the geometry block must **not** move; if any of them does, the fix
-   is wrong and the pin is right.
-5. `bash visual-baseline-check.sh --mutation` — M1/M2/M3 unchanged, plus the
-   two T17 mutations to add: **M4** reverts the pakfile normalization
-   (`material-fetch vmtMissing` must climb back off 3) and **M5** removes the
-   `1/2.2` encode (the region luminances must fall out of their new pins).
-6. `bash world-material-check.sh` and `--mutation` — the probe's readings moved
-   only additively (`lightmap-face-tone`, `lightmap-hdr-tone`,
-   `lightmap-tone darkMaterials`); its pinned sky readings are from
-   `world_material_probe`, which this round did not touch.
-7. `bash frame-capture-check.sh` — no product flag used by it changed.
+| capture | flags | sha256 (first 20) |
+| --- | --- | --- |
+| `default-2000.bmp` | (none) | `d86785efa19b24e2015c` |
+| `repeat-2000.bmp` | (none) | `d86785efa19b24e2015c` |
+| `s2` (not archived) | `--world-sky` | `d86785efa19b24e2015c` |
 
-Explicitly unverified in this round: the four gates above, the T16/T12
-terrain-only close-out (`--world-geometry terrain` works on this base —
-`terrainOnly=1`, `vertices=85596` — so the earlier `rc=14` does not reproduce
-here), and any other gate whose frame pins include the world region
-(`t2-visual-matrix.sh`, `world-render-reliability-check.sh`,
-`world-material-effects-check.sh`), which T20 owns after the merge.
+Byte-identical three ways, so the determinism acceptance holds and the default
+path draws exactly the frame `--world-sky` draws. The hash equals the one the
+pre-merge `sky.bmp` had, which is also the evidence that T18's viewmodel fix
+does not move this picture.
+
+**What the gate pins now, and why** (all moved for a measured reason; nothing
+was widened to fit):
+
+| pin | was | now | why |
+| --- | --- | --- | --- |
+| `material-fetch tiled` | 57 | 64 | pakfile textures resolve |
+| `material-fetch fromPakfile` | 23 | 59 | 36 more materials found in the pakfile |
+| `material-fetch vtfTooLarge` | 43 | 54 | materials that were missing now reach their vtfs |
+| `material-fetch vmtMissing` / `vtfMissing` | — | 3 / 0 | new pins: the two numbers the fix moved most |
+| region W1 `meanLum` | 46..77 | 86.3 in 73..99 | display-space light + sky |
+| region W2 `meanLum` / `grad` | 16..29 / 0.6..1.1 | 72.8 / 1.59 | same |
+| region W3 `meanLum` / `std` | 8..14 / 6..11 | 92.6 / 70.3 | the region is now sky behind geometry, not a hole |
+| region W4 `meanLum` / `grad` | 15..25 / 6.2..10.0 | 42.8 / 4.37 | flat sky now sits between the ceiling slabs |
+
+`distinct=108`, `capped=21`, `vmtNoBase=20`, `vtfMissing=0`, the whole vis
+block, the cull line and the geometry block did **not** move.
+
+**New assertions** (section 2b of the gate): blend fetch `declared=9
+resolved=9 refused=0`, blend `tiles=9 weightedVertices=85536
+distinctWeights=34`, sky pass `state=active faces=6 vertices=36`, lightmap
+`status=active vertices=297936 lightmapped=296490 lightmapEnabled=1`, and five
+probe pins on the page itself (`atlas=4096x2251`, `unwrittenTexels=0`,
+`darkTriangles=26844`, face tone `darkFaces=5018 zeroFaces=898`, HDR tone
+`darkFaces=5303 zeroFaces=940`).
+
+**Mutations**, all five red with the source byte-identical afterwards:
+
+| mutation | reading that went red |
+| --- | --- |
+| M1 pvs stride-8 read | probe `visClusters` 1692 → 478 |
+| M2 brush oriented too (mask 05) | flip census 8514 → 23640, eye oracle 458/594 → 204/594 |
+| M3 only brush oriented (mask 02) | top-down oracle 3809/5381 → 5297/5381, misfaced 15126 → 8514 |
+| M4 pakfile compared byte for byte | `material-fetch vmtMissing` 3 → 29 |
+| M5 no `1/2.2` on the lightmap | W1 `meanLum` 86.3 → 57.3, out of [73,99] |
+
+**One gate change that is not a pin.** `capture()` in
+`visual-baseline-check.sh` retried nothing, while `--capture-tick 2000` lands on
+2001 or 2003 about half the time on this recording (8 of 13 attempts this
+round). A pin measured at tick 2000 cannot be compared with a frame from 2001,
+so the helper now retries up to six times for `tick=2000`. Without it the gate
+was green or red depending on which side of a tick boundary a run landed.
+
+**Unverified in this round:** the T16/T12 close-out (`task/t12-blend-close`,
+`d64b6cc`) is still not integrated, and any gate whose frame pins include the
+world region —
+`t2-visual-matrix.sh`, `world-render-reliability-check.sh`,
+`world-material-effects-check.sh` — was not re-run; T20 owns those after all
+branches merge. The shading half of the preset contradiction (§6) is unchanged
+by design and has no measurement yet.
