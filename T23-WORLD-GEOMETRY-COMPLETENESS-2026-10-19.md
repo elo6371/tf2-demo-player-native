@@ -426,6 +426,13 @@ The matrix was captured with the product build from the base source
 to the matrix frame. The counters changed the executable, not the picture, and
 every frame in the matrix is a picture of the current source tree.
 
+The probe output is additive in the same sense: the base binary's output and the
+new binary's output, with every T23 line stripped, diff empty. The triangle
+census, the winding censuses, the lightmap tone readings, both first-hit
+oracles and the sixteen-rule table are byte-for-byte what they were before this
+branch. The base-source binary used for that check is
+`D:/TF2_Native_Test/native/build-nmake/world_geometry_probe.exe` at `9591499`.
+
 Frame hashes (all 1264x681, `--capture-tick 2000`; `ref`/`textured`/`none`/
 `terrain` visible-window, the switch matrix and `lightmap-off` hidden):
 
