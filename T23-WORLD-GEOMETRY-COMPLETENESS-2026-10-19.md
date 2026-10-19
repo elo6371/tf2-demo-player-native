@@ -253,10 +253,11 @@ missing           38,328 = 860,784 - all-off fill 822,456
 Fill-level coverage is therefore 79.45% with the shipped switches and 95.55%
 with both off. **The 16.1-point gap is the back-face cull, not missing
 geometry**; the visibility clip accounts for 0.25 points at most (the `both`
-population). Holding the cull constant, the vis clip changes the **depth of no
-pixel at all**: the 2,149 pixels it fills in `flat-novis` are pixels the cull-off
-frame already fills, and every pixel both `depth-base` and `depth-novis` draw has
-the same depth. With the cull off the vis clip changes nothing at all:
+population). The vis clip changes exactly **2,149 pixels** in the depth frame,
+and they are the same 2,149 pixels `flat-novis` adds to `flat-base`: in all of
+them the product frame draws nothing, so there is no product surface whose
+depth could change. Every pixel both `depth-base` and `depth-novis` draw has the
+same depth. With the cull off the vis clip changes nothing at all:
 `flat-novis-nocull` and `flat-nocull` are byte-identical, and so are
 `depth-novis-nocull` and `depth-nocull`.
 
