@@ -991,6 +991,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // Off by default: a per-face trace is a diagnostic, and a normal run's trace
   // should not carry 24 lines nobody asked for.
   bool worldFaceTraceRequested = false;
+  // T26: the screen points the empty-pixel trace names, as "x,y;x,y;...". They
+  // come from the accounting mask rather than from a fixed grid: the point of
+  // the trace is to name the face under a pixel the frame does not fill.
+  std::vector<std::pair<int, int>> worldHoleTracePoints;
+  int invalidWorldHoleTraceArgument = 0;
   // T2 (2026-10-14): the water surface follows the same shape as T1's two
   // switches -- on by default, with an explicit off switch -- for the same
   // reason: "the water is drawn" is only a reading if "the water is not drawn"
@@ -1012,10 +1017,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool worldBlendRequested = true;
   bool worldBlendGiven = false;
   int invalidWorldBlendArgument = 0;
-  // all | terrain | none. `none` is not a convenience: it is how the gate
+  // all | terrain | sky | none. `none` is not a convenience: it is how the gate
   // measures the background colour of its own camera instead of assuming one,
-  // and the terrain mask is `terrain` minus `none` pixel by pixel.
-  enum class WorldGeometryFilter { All, Terrain, None };
+  // and the terrain mask is `terrain` minus `none` pixel by pixel. T26 adds
+  // `sky`: the BSP's sky-brush polygons, through the same camera and transform,
+  // which is what turns "this pixel is empty" into "this pixel is the map's
+  // sky" without guessing from a colour.
+  enum class WorldGeometryFilter { All, Terrain, Sky, None };
   WorldGeometryFilter worldGeometry = WorldGeometryFilter::All;
   int invalidWorldGeometryArgument = 0;
   // T17: the lightmap A/B. The product had no way to draw the world with the
@@ -1093,8 +1101,41 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // pixel; the textured frame cannot, because its pixels are albedo
         // times a lightmap.
         ++worldDebugViewGiven; worldDebugView = 3;
+      } else if (wcscmp(arguments[i], L"--world-face-id") == 0) {
+        // T26: the face index as colour. It is the rasterizer's answer to
+        // "which face owns this pixel", which is the independent check of the
+        // CPU point oracle the empty-pixel trace uses.
+        ++worldDebugViewGiven; worldDebugView = 4;
       } else if (wcscmp(arguments[i], L"--world-face-trace") == 0) {
         worldFaceTraceRequested = true;
+      } else if (wcscmp(arguments[i], L"--world-hole-trace") == 0 && i + 1 < argumentCount) {
+        // "x,y;x,y;..." -- parsed strictly, because a typo that silently
+        // produced zero points would make the empty-pixel claim vacuous.
+        const std::wstring list = arguments[++i];
+        std::size_t at = 0;
+        while (at <= list.size()) {
+          const auto semicolon = list.find(L';', at);
+          const std::wstring token = list.substr(at, semicolon == std::wstring::npos
+            ? std::wstring::npos : semicolon - at);
+          if (!token.empty()) {
+            const auto comma = token.find(L',');
+            if (comma == std::wstring::npos) { ++invalidWorldHoleTraceArgument; break; }
+            wchar_t* endX = nullptr;
+            wchar_t* endY = nullptr;
+            const wchar_t* xText = token.c_str();
+            const long x = std::wcstol(xText, &endX, 10);
+            const long y = std::wcstol(token.c_str() + comma + 1, &endY, 10);
+            if (endX == xText || *endX != L',' || endY == token.c_str() + comma + 1 || *endY != L'\0') {
+              ++invalidWorldHoleTraceArgument;
+              break;
+            }
+            worldHoleTracePoints.emplace_back(static_cast<int>(x), static_cast<int>(y));
+          }
+          if (semicolon == std::wstring::npos) break;
+          at = semicolon + 1;
+        }
+      } else if (wcscmp(arguments[i], L"--world-hole-trace") == 0) {
+        ++invalidWorldHoleTraceArgument;
       } else if (wcscmp(arguments[i], L"--world-lightmap") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"on") == 0) { worldLightmapRequested = true; worldLightmapGiven = true; }
         else if (wcscmp(arguments[i], L"off") == 0) { worldLightmapRequested = false; worldLightmapGiven = true; }
@@ -1147,6 +1188,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       } else if (wcscmp(arguments[i], L"--world-geometry") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"all") == 0) worldGeometry = WorldGeometryFilter::All;
         else if (wcscmp(arguments[i], L"terrain") == 0) worldGeometry = WorldGeometryFilter::Terrain;
+        else if (wcscmp(arguments[i], L"sky") == 0) worldGeometry = WorldGeometryFilter::Sky;
         else if (wcscmp(arguments[i], L"none") == 0) worldGeometry = WorldGeometryFilter::None;
         else ++invalidWorldGeometryArgument;
       } else if (wcscmp(arguments[i], L"--world-geometry") == 0) {
@@ -1431,10 +1473,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   if (worldSpecularGiven) persistent.render.specular = worldSpecularRequested;
   if (worldBumpGiven) persistent.render.bumpMapping = worldBumpRequested;
   if (invalidWorldGeometryArgument) {
-    // T12: `all|terrain|none`. `terrain` and `none` are the two frames the
-    // region proof is computed from; a typo that fell back to `all` would make
-    // the mask the whole world and the containment claim vacuous.
-    OutputDebugStringW(L"TF2 Demo Player: invalid --world-geometry; it takes all, terrain or none.\n");
+    // T12: `all|terrain|sky|none`. `terrain`, `sky` and `none` are the frames
+    // the region and empty-pixel proofs are computed from; a typo that fell back
+    // to `all` would make the mask the whole world and the claim vacuous.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-geometry; it takes all, terrain, sky or none.\n");
+    return 13;
+  }
+  if (invalidWorldHoleTraceArgument) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-hole-trace; it takes screen points as x,y;x,y.\n");
     return 13;
   }
   if (invalidViewModelEffectArgument) {
@@ -3607,6 +3653,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // the picture.
     renderer.setWorldBlendEnabled(worldBlendGiven ? worldBlendRequested : true);
     renderer.setWorldTerrainOnly(worldGeometry == WorldGeometryFilter::Terrain);
+    // T26: the sky mask is its own buffer and its face ids ride the vertex
+    // colour, so both are upload-time decisions like the terrain filter.
+    renderer.setWorldSkyFaceOnly(worldGeometry == WorldGeometryFilter::Sky);
+    renderer.setWorldFaceIdUpload(worldDebugView == 4);
     renderer.setWorldDiagnosticIsolation(worldGeometry != WorldGeometryFilter::All);
     // T17: this one changes a draw-time constant, not the upload. It is set here
     // so the reading and the frames of one run describe one configuration.
@@ -3616,6 +3666,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // draw's own guard skips it. That frame is the background measurement the
       // terrain mask is subtracted from; it is a control, not a feature.
       traceFmt("gpu: world geometry=none state=empty reason=--world-geometry none");
+    } else if (worldGeometry == WorldGeometryFilter::Sky) {
+      // T26: the sky brushes, and only them. The single-material overload is
+      // used on purpose -- there is no atlas for sky materials, and the mask
+      // pass is flat colour, so a texture would be a second thing to explain.
+      uploadedWorld = renderer.uploadWorldGeometry(displayMap, std::string{}, 0, 0);
+      traceFmt("gpu: world geometry=sky triangles=%zu faces=%zu state=%s",
+        displayMap.skyTriangles.size(), displayMap.skyFaces, uploadedWorld ? "uploaded" : "refused");
     } else if (!uploadedWorld && !worldTextures.empty()) {
       uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
     }
@@ -3627,6 +3684,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     traceFmt("gpu: world geometry=%s blend=%s",
       worldGeometry == WorldGeometryFilter::Terrain ? "terrain"
+        : worldGeometry == WorldGeometryFilter::Sky ? "sky"
         : worldGeometry == WorldGeometryFilter::None ? "none" : "all",
       (worldBlendGiven ? worldBlendRequested : true) ? "on" : "off");
     // ---- T2 (2026-10-14): the water surface --------------------------------
@@ -4189,7 +4247,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldCullBackfaces ? 1 : 0,
       sample.worldCullBackfaces ? "cull-back" : "cull-none");
     traceFmt("gpu: world debug view=%s",
-      sample.worldDebugView == 3 ? "albedo"
+      sample.worldDebugView == 4 ? "face-id"
+        : sample.worldDebugView == 3 ? "albedo"
         : sample.worldDebugView == 2 ? "depth" : sample.worldDebugView == 1 ? "flat" : "textured");
     // ---- T19: the atlas plan, and the per-material account behind it --------
     // The old reading was one number (`capped=51`) with no names. This is the
@@ -4351,6 +4410,59 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
   };
+  // ---- T21/T26: the map -> screen projection, written once ----------------
+  // `uploadWorldGeometry` publishes the transform and `worldShaderConstants` is
+  // the matrix the draw used, so this is the product's own camera and not a
+  // second one. T21 walks point -> triangle for the material chain; T26 walks
+  // point -> triangle for the empty pixel. Two copies of these twenty lines
+  // would be two things that can disagree with the frame they explain.
+  struct WorldTraceProjection {
+    bool valid = false;
+    float m[16] = {};
+    int width = 0;
+    int height = 0;
+    float scale = 1.0f;
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    float minZ = 0.0f;
+    float spanZ = 1.0f;
+  };
+  const auto worldTraceProjection = [&]() {
+    WorldTraceProjection out;
+    const auto constants = renderer.worldShaderConstants();
+    if (!constants.valid) return out;
+    out.valid = true;
+    for (int i = 0; i < 16; ++i) out.m[i] = constants.mvp[i];
+    out.width = constants.width;
+    out.height = constants.height;
+    out.scale = renderer.worldHorizontalScale();
+    out.centerX = renderer.worldCenterX();
+    out.centerY = renderer.worldCenterY();
+    out.minZ = renderer.worldMinZ();
+    out.spanZ = renderer.worldSpanZ();
+    return out;
+  };
+  // The same transform uploadWorldGeometry applied (T2 publishes it for exactly
+  // this reason), then the shader's row-vector multiply. `depth` is the
+  // post-divide z the depth buffer holds; `invW` is 1/w for the
+  // perspective-correct interpolation of the attributes.
+  const auto projectMapPoint = [](const WorldTraceProjection& p, const tf2::native::BspVertex& point,
+                                  float& sx, float& sy, float& depth, float& invW) {
+    const float x = (point.x - p.centerX) * p.scale;
+    const float y = (point.y - p.centerY) * p.scale;
+    const float z = (point.z - p.minZ) / p.spanZ * 0.8f + 0.1f;
+    const float* m = p.m;
+    const float cx = x * m[0] + y * m[4] + z * m[8] + m[12];
+    const float cy = x * m[1] + y * m[5] + z * m[9] + m[13];
+    const float cz = x * m[2] + y * m[6] + z * m[10] + m[14];
+    const float cw = x * m[3] + y * m[7] + z * m[11] + m[15];
+    if (!(cw > 1.0e-5f) || !std::isfinite(cw)) return false;
+    sx = (cx / cw * 0.5f + 0.5f) * static_cast<float>(p.width);
+    sy = (0.5f - cy / cw * 0.5f) * static_cast<float>(p.height);
+    depth = cz / cw;
+    invW = 1.0f / cw;
+    return std::isfinite(sx) && std::isfinite(sy) && std::isfinite(depth);
+  };
   // ---- T21: the per-face material chain -----------------------------------
   // A material-fetch count says how many materials got a tile. It cannot say
   // whether the tile that covers a wall is the wall's own texture, whether the
@@ -4365,11 +4477,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // and one face, and the gate fails on the point it can name.
   const auto traceWorldFaces = [&]() {
     if (!worldFaceTraceRequested) return;
-    const auto constants = renderer.worldShaderConstants();
-    if (!constants.valid) {
-      traceFmt("gpu: world face-trace status=unavailable reason=no-world-constants");
-      return;
-    }
     const auto drawState = renderer.worldMaterialSampleState();
     const auto& tileTable = renderer.worldTileTable();
     std::unordered_map<std::string, const tf2::native::WorldTileReading*> tileByMaterial;
@@ -4390,35 +4497,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       {90, 550}, {300, 550}, {510, 550}, {720, 550}, {930, 550}, {1140, 550},
       {200, 120}, {200, 620}, {1180, 200}, {630, 30}
     };
-    const float scale = renderer.worldHorizontalScale();
-    const float centerX = renderer.worldCenterX();
-    const float centerY = renderer.worldCenterY();
-    const float minZ = renderer.worldMinZ();
-    const float spanZ = renderer.worldSpanZ();
-    const float* m = constants.mvp;
-    const int frameWidth = constants.width;
-    const int frameHeight = constants.height;
-    // Same transform uploadWorldGeometry applied (T2 publishes it for exactly
-    // this reason), then the shader's row-vector multiply.
+    const auto projection = worldTraceProjection();
+    if (!projection.valid) {
+      traceFmt("gpu: world face-trace status=unavailable reason=no-world-constants");
+      return;
+    }
+    // The shading half of the chain is predicted from the constants the draw
+    // used, not re-derived from the scene.
+    const auto constants = renderer.worldShaderConstants();
+    const int frameWidth = projection.width;
+    const int frameHeight = projection.height;
+    // The shared projector, bound to this frame's matrix.
     const auto project = [&](const tf2::native::BspVertex& point, float& sx, float& sy, float& depth,
                              float& invW) {
-      const float x = (point.x - centerX) * scale;
-      const float y = (point.y - centerY) * scale;
-      const float z = (point.z - minZ) / spanZ * 0.8f + 0.1f;
-      const float cx = x * m[0] + y * m[4] + z * m[8] + m[12];
-      const float cy = x * m[1] + y * m[5] + z * m[9] + m[13];
-      const float cz = x * m[2] + y * m[6] + z * m[10] + m[14];
-      const float cw = x * m[3] + y * m[7] + z * m[11] + m[15];
-      if (!(cw > 1.0e-5f) || !std::isfinite(cw)) return false;
-      sx = (cx / cw * 0.5f + 0.5f) * static_cast<float>(frameWidth);
-      sy = (0.5f - cy / cw * 0.5f) * static_cast<float>(frameHeight);
-      depth = cz / cw;
-      // 1/w for the perspective-correct interpolation below. The rasterizer
-      // interpolates attributes as a_i/w_i normalised by sum(1/w_i); screen-
-      // space barycentrics alone are wrong on a perspective triangle, and on
-      // this frame that error reached 163 LSB on a floor that recedes.
-      invW = 1.0f / cw;
-      return std::isfinite(sx) && std::isfinite(sy) && std::isfinite(depth);
+      return projectMapPoint(projection, point, sx, sy, depth, invW);
     };
     // Bilinear, with the texel-centre convention worldTileCoord writes:
     // texcoord t addresses texel centres at integer t, so texel i contributes
@@ -4814,6 +4906,111 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       static_cast<int>(sizeof(kPoints) / sizeof(kPoints[0])), hits, tiledHits, untiledHits, blendHits,
       oversizedHits, beyondCapHits, depthMatched, discriminatingHits, clipApplied ? 1 : 0, frameWidth, frameHeight,
       renderer.capturedDepthWidth(), renderer.capturedDepthHeight());
+  };
+  // ---- T26: the empty-pixel trace -----------------------------------------
+  // A missing pixel has to be attributed before any geometry rule is changed,
+  // and a colour cannot do it: the sky box fills every pixel no world triangle
+  // covers, so "the frame shows sky" is true whether the map intended sky or
+  // has a hole. This trace answers the question with the map's own data, at the
+  // product's own camera: for a named screen point it reports
+  //
+  //   drawn  the front-most world triangle the shipped switches would draw,
+  //   any    the front-most world triangle with the cull and the pvs off,
+  //   sky    the front-most BSP sky-brush triangle (the `--world-geometry sky`
+  //          buffer), which is the map's statement of intent for that pixel.
+  //
+  // The rasterizer's own test is reused rather than a ray cast in another space:
+  // project the three vertices with the frame's matrix, take the screen
+  // barycentrics, keep the nearest. `frameDepth` is the depth the capture
+  // actually holds, so a point the oracle calls empty and the buffer calls
+  // occupied is a reading that contradicts itself and is printed as such.
+  const auto traceWorldHoles = [&]() {
+    if (worldHoleTracePoints.empty()) return;
+    const auto projection = worldTraceProjection();
+    if (!projection.valid) {
+      traceFmt("gpu: world hole-trace status=unavailable reason=no-world-constants");
+      return;
+    }
+    const auto drawState = renderer.worldMaterialSampleState();
+    const bool cullEnabled = drawState.worldCullBackfaces;
+    const bool clipApplied = drawState.worldVisClipApplied && !worldVisKeptIndices.empty();
+    std::vector<std::uint8_t> kept;
+    if (clipApplied) {
+      kept.assign(displayMap.triangles.size(), 0);
+      for (const std::size_t ordinal : worldVisKeptIndices) {
+        if (ordinal < kept.size()) kept[ordinal] = 1;
+      }
+    }
+    std::size_t drawnHits = 0, anyHits = 0, skyHits = 0, missingWithSky = 0, missingWithoutSky = 0;
+    for (const auto& point : worldHoleTracePoints) {
+      const int px = point.first, py = point.second;
+      if (px < 0 || py < 0 || px >= projection.width || py >= projection.height) continue;
+      const float fx = static_cast<float>(px) + 0.5f;
+      const float fy = static_cast<float>(py) + 0.5f;
+      int drawnOrdinal = -1, anyOrdinal = -1, skyOrdinal = -1;
+      float drawnDepth = 2.0f, anyDepth = 2.0f, skyDepth = 2.0f;
+      // The screen-space coverage test, shared by both lists: same projection,
+      // same barycentrics, same depth.
+      const auto covers = [&](const tf2::native::BspTriangle& triangle, float& depth, float& area) {
+        float ax, ay, az, aw, bx, by, bz, bw, cx, cy, cz, cw;
+        if (!projectMapPoint(projection, triangle.a, ax, ay, az, aw)
+            || !projectMapPoint(projection, triangle.b, bx, by, bz, bw)
+            || !projectMapPoint(projection, triangle.c, cx, cy, cz, cw)) return false;
+        area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+        if (std::fabs(area) < 1.0e-6f) return false;
+        const float w0 = ((by - cy) * (fx - cx) + (cx - bx) * (fy - cy)) / area;
+        const float w1 = ((cy - ay) * (fx - cx) + (ax - cx) * (fy - cy)) / area;
+        const float w2 = 1.0f - w0 - w1;
+        if (w0 < -1.0e-4f || w1 < -1.0e-4f || w2 < -1.0e-4f) return false;
+        depth = w0 * az + w1 * bz + w2 * cz;
+        return depth >= 0.0f;
+      };
+      for (std::size_t ordinal = 0; ordinal < displayMap.triangles.size(); ++ordinal) {
+        const auto& triangle = displayMap.triangles[ordinal];
+        if (triangle.water) continue;
+        float depth = 0.0f, area = 0.0f;
+        if (!covers(triangle, depth, area)) continue;
+        if (depth < anyDepth) { anyDepth = depth; anyOrdinal = static_cast<int>(ordinal); }
+        const bool faces = area > 0.0f;
+        const bool visible = !clipApplied || kept[ordinal] != 0;
+        if ((!cullEnabled || faces) && visible && depth < drawnDepth) {
+          drawnDepth = depth;
+          drawnOrdinal = static_cast<int>(ordinal);
+        }
+      }
+      for (std::size_t ordinal = 0; ordinal < displayMap.skyTriangles.size(); ++ordinal) {
+        float depth = 0.0f, area = 0.0f;
+        if (!covers(displayMap.skyTriangles[ordinal], depth, area)) continue;
+        if (depth < skyDepth) { skyDepth = depth; skyOrdinal = static_cast<int>(ordinal); }
+      }
+      const auto describe = [&](int ordinal, bool sky, float depth, char* buffer, std::size_t size) {
+        if (ordinal < 0) {
+          std::snprintf(buffer, size, "-");
+          return;
+        }
+        const auto& triangle = sky ? displayMap.skyTriangles[static_cast<std::size_t>(ordinal)]
+                                   : displayMap.triangles[static_cast<std::size_t>(ordinal)];
+        std::snprintf(buffer, size, "face=%d material=%s tri=%d depth=%.4f",
+          triangle.faceIndex, triangle.material.empty() ? "-" : triangle.material.c_str(), ordinal, depth);
+      };
+      char drawnText[192], anyText[192], skyText[192];
+      describe(drawnOrdinal, false, drawnDepth, drawnText, sizeof(drawnText));
+      describe(anyOrdinal, false, anyDepth, anyText, sizeof(anyText));
+      describe(skyOrdinal, true, skyDepth, skyText, sizeof(skyText));
+      const float frameDepth = renderer.capturedDepthAt(px, py);
+      traceFmt("gpu: world hole-trace point=%d,%d drawn=%s any=%s sky=%s frameDepth=%.4f",
+        px, py, drawnText, anyText, skyText, frameDepth);
+      if (drawnOrdinal >= 0) ++drawnHits;
+      if (anyOrdinal >= 0) ++anyHits;
+      if (skyOrdinal >= 0) ++skyHits;
+      if (drawnOrdinal < 0) {
+        if (skyOrdinal >= 0) ++missingWithSky; else ++missingWithoutSky;
+      }
+    }
+    traceFmt("gpu: world hole-trace-summary points=%zu drawnHits=%zu anyHits=%zu skyHits=%zu"
+      " emptyWithSky=%zu emptyWithoutSky=%zu cull=%d clipApplied=%d",
+      worldHoleTracePoints.size(), drawnHits, anyHits, skyHits, missingWithSky, missingWithoutSky,
+      cullEnabled ? 1 : 0, clipApplied ? 1 : 0);
   };
   // The paint ledger: one row per prepared model, written after the GPU upload
   // so `uploaded` reflects what the renderer actually accepted. This is the
@@ -6175,6 +6372,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         renderer.requestFrameCapture(captureFramePath.wstring());
         captureArmed = false;
         captureRequested = true;
+        // T26: which tick the captured frame actually belongs to. The arm fires
+        // on the first draw at or after the requested tick, and a run that
+        // skips a tick captures a LATER camera than its neighbours -- measured:
+        // a `world-ids` run drew 1999 then 2002, and its frame disagreed with
+        // the matrix by ~15k pixels. A cross-frame account that mixes ticks is
+        // comparing two cameras, so the tick travels with the frame instead of
+        // being assumed from the flag.
+        traceFmt("capture: armed requested=%d frame_tick=%d frames=%llu",
+          static_cast<int>(captureTick), static_cast<int>(g_playback.tick),
+          static_cast<unsigned long long>(renderedFrames));
       }
       if (g_renderer) {
         // The clip is decided before the draw it governs, so the frame that is
@@ -6211,6 +6418,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // T21: the face trace is taken on the same frame, after the draw. Its
       // screen points are pixels of the bitmap the capture just wrote.
       if (captureRequested) traceWorldFaces();
+      // T26: the same frame, the other question. Emitted after the capture so
+      // `frameDepth` is the depth buffer of the frame on disk.
+      if (captureRequested) traceWorldHoles();
       traceFmt("draw: end frames=%llu pending=%d", static_cast<unsigned long long>(renderedFrames),
         renderer.frameCapturePending() ? 1 : 0);
       if (captureRequested && !renderer.frameCapturePending()) {

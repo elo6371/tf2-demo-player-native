@@ -336,6 +336,11 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // matrices with only the depth question visible. Neither mode exists on the
   // product path; the renderer states which one it is and the trace prints it.
   if (envFeatures.x > 3.5) {
+    // T26: mode 6 is the face-id frame. `$colour` carries the dface_t index,
+    // written at upload time and identical on all three vertices, so the
+    // interpolated value is the id itself. Reading it here is what lets a pixel
+    // be attributed to a face instead of to a colour.
+    if (envFeatures.x > 5.5) return float4(colour.rgb, 1.0);
     float depthZ = position.z / max(position.w, 1.0e-4);
     if (envFeatures.x > 4.5) return float4(depthZ, depthZ, depthZ, 1.0);
     return float4(0.35, 0.62, 0.38, 1.0);
@@ -1091,8 +1096,29 @@ bool Renderer::uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, 
   return true;
 }
 
+// T26: the face-id frame's encoding, in one place. $colour is unused by the id
+// mode, so it carries the BSP face index: 8 bits per channel, and every vertex
+// of a triangle carries the same value, so the interpolated result is exact and
+// a decode can never be a blend of two faces.
+static void writeWorldFaceId(float& r, float& g, float& b, float& a, std::int32_t faceIndex) {
+  const std::uint32_t id = static_cast<std::uint32_t>(faceIndex);
+  r = static_cast<float>(id & 0xFFu) / 255.0f;
+  g = static_cast<float>((id >> 8) & 0xFFu) / 255.0f;
+  b = static_cast<float>((id >> 16) & 0xFFu) / 255.0f;
+  a = 1.0f;
+}
 bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texturedMaterial, UINT textureWidth, UINT textureHeight) {
   if (!device_ || !map.valid || map.triangles.empty()) {
+    lastError_ = E_INVALIDARG;
+    return false;
+  }
+  // T26: `--world-geometry sky` reuses this overload -- one flat colour, no
+  // atlas -- over `map.skyTriangles` instead of `map.triangles`. The bounds and
+  // the transform still come from the world triangles, so the mask is projected
+  // exactly where the world pass would have drawn the same map coordinates; a
+  // mask built on its own bounds would be a picture of a different map.
+  const std::vector<BspTriangle>& source = worldSkyFaceOnly_ ? map.skyTriangles : map.triangles;
+  if (source.empty()) {
     lastError_ = E_INVALIDARG;
     return false;
   }
@@ -1138,14 +1164,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   const float horizontalSpan = std::max(spanX, spanY), horizontalScale = 1.8f / horizontalSpan;
   const float centerX = (minX + maxX) * 0.5f, centerY = (minY + maxY) * 0.5f;
   std::vector<WorldVertex> vertices;
-  vertices.reserve(map.triangles.size() * 3);
+  vertices.reserve(source.size() * 3);
   std::size_t lightmappedVertices = 0;
   std::size_t displacedTriangles = 0;
   std::size_t waterTriangles = 0;
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
     return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 1.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
-  for (const auto& triangle : map.triangles) {
+  for (const auto& triangle : source) {
     const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(triangle.material));
     const float shade = 0.78f + static_cast<float>(hash % 23) / 100.0f;
     const bool textured = !texturedMaterial.empty() && triangle.material == texturedMaterial && textureWidth > 0 && textureHeight > 0;
@@ -1160,6 +1186,16 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
     a.r = shade; a.g = shade; a.b = shade; a.a = textured ? 1.0f : 0.0f;
     b.r = shade; b.g = shade; b.b = shade; b.a = textured ? 1.0f : 0.0f;
     c.r = shade; c.g = shade; c.b = shade; c.a = textured ? 1.0f : 0.0f;
+    // T26: the face-id frame. `$colour` is unused by the id mode, so it carries
+    // the face index instead. A helper because both upload overloads must agree:
+    // the first version of this wrote the id only on the single-material path,
+    // and the world capture -- which goes through the atlas overload -- came
+    // back pure white, which decodes to face 16,777,215 and does not exist.
+    if (worldFaceIdUpload_ && triangle.faceIndex >= 0) {
+      writeWorldFaceId(a.r, a.g, a.b, a.a, triangle.faceIndex);
+      writeWorldFaceId(b.r, b.g, b.b, b.a, triangle.faceIndex);
+      writeWorldFaceId(c.r, c.g, c.b, c.a, triangle.faceIndex);
+    }
     const float invWidth = textured ? 1.0f / static_cast<float>(textureWidth) : 0.0f;
     const float invHeight = textured ? 1.0f / static_cast<float>(textureHeight) : 0.0f;
     a.u = triangle.au * invWidth; a.v = triangle.av * invHeight; b.u = triangle.bu * invWidth; b.v = triangle.bv * invHeight; c.u = triangle.cu * invWidth; c.v = triangle.cv * invHeight;
@@ -1545,6 +1581,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // is the geometry the renderer will draw.
     if (triangle.displacement) ++displacedTriangles;
     if (triangle.water) ++waterTriangles;
+    // T26: the same id write as the single-material overload above. Without it
+    // `--world-face-id` is white on the product path, which is the path the
+    // seam trace has to read.
+    if (worldFaceIdUpload_ && triangle.faceIndex >= 0) {
+      writeWorldFaceId(a.r, a.g, a.b, a.a, triangle.faceIndex);
+      writeWorldFaceId(b.r, b.g, b.b, b.a, triangle.faceIndex);
+      writeWorldFaceId(c.r, c.g, c.b, c.a, triangle.faceIndex);
+    }
     vertices.push_back(a); vertices.push_back(b); vertices.push_back(c);
     ++uploadedTriangle;
   }
@@ -4217,8 +4261,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // path); the albedo view rides envFeatures.y because x > 3.5 is already
       // claimed by the flat/depth block, and a mode 6 in x would be caught
       // there first -- measured: the first albedo capture was a depth frame.
+      // T26 adds mode 4 = face id, which deliberately rides that same block at
+      // 6.0 and is therefore a third member of it rather than a new sweep.
       debugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
-        : worldDebugView_ == 3 ? 0.0f : 4.0f;
+        : worldDebugView_ == 3 ? 0.0f
+        : worldDebugView_ == 4 ? 6.0f : 4.0f;
       debugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &debugConstants, 0, 0);
     }

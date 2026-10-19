@@ -87,3 +87,9 @@ evidence/weapon-material/*.trace
 evidence/t23-world-geometry/captures/*.trace
 evidence/t23-world-geometry/captures/traces/
 evidence/t23-world-geometry/captures/*.log
+# T26 follows the same rule for its own matrix: the frames are the claim about
+# pixels and stay tracked; the per-frame traces are machine output and stay on
+# disk with their sha256 in evidence/t26-world-holes/analysis/hashes.txt.
+evidence/t26-world-holes/captures/*.trace
+evidence/t26-world-holes/captures/traces/
+evidence/t26-world-holes/captures/*.log

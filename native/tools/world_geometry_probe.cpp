@@ -134,11 +134,27 @@ int main(int argc, char** argv) {
   // oracles treat them as repaired and print the first-hit delta the change
   // would buy before a single pixel is drawn.
   bool virtualFallbackOrient = false;
+  // T26: face ids named on the command line, printed one line each. The
+  // question a hole has to answer is "which face is under this pixel", and the
+  // face-id frame answers it with a number; this turns that number back into a
+  // material, a class, a plane and an extent without dumping 18,000 rows.
+  std::vector<int> faceInfoIds;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--tf-root") == 0 && i + 1 < argc) tfRoot = argv[++i];
     else if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc) mapPath = argv[++i];
     else if (std::strcmp(argv[i], "--atlas-width") == 0 && i + 1 < argc) atlasWidth = std::atoi(argv[++i]);
     else if (std::strcmp(argv[i], "--fallback-orient") == 0) virtualFallbackOrient = true;
+    else if (std::strcmp(argv[i], "--face-info") == 0 && i + 1 < argc) {
+      const std::string list = argv[++i];
+      std::size_t at = 0;
+      while (at <= list.size()) {
+        const auto comma = list.find(',', at);
+        const std::string token = list.substr(at, comma == std::string::npos ? std::string::npos : comma - at);
+        if (!token.empty()) faceInfoIds.push_back(std::atoi(token.c_str()));
+        if (comma == std::string::npos) break;
+        at = comma + 1;
+      }
+    }
     else if (std::strcmp(argv[i], "--dump-lightmap") == 0 && i + 1 < argc) dumpLightmapPath = argv[++i];
     else if (std::strcmp(argv[i], "--triangle-limit") == 0 && i + 1 < argc) triangleLimit = static_cast<std::size_t>(std::stoull(argv[++i]));
     else if (std::strcmp(argv[i], "--ray-down") == 0 && i + 1 < argc) {
@@ -263,6 +279,60 @@ int main(int argc, char** argv) {
   std::printf("geometry faces total=%zu rendered=%zu sky=%zu skippedNoDraw=%zu skippedInvalid=%zu\n",
               map.faceCount, map.renderedFaceCount, map.skyFaces,
               map.facesSkippedNoDraw, map.facesSkippedInvalid);
+  // T26: the sky faces as geometry rather than as a count. `triangleCount` above
+  // is the product's buffer and must not include them; this line says how many
+  // polygons the sky brushes contribute, which is what the `--world-geometry
+  // sky` mask draws and therefore what a missing pixel can be attributed to.
+  std::printf("geometry sky faces=%zu triangles=%zu bufferTriangles=%zu\n",
+              map.skyFaces, map.skyTriangles.size(), map.triangles.size());
+  if (!faceInfoIds.empty()) {
+    struct FaceInfo {
+      bool present = false, sky = false, displacement = false, fallback = false;
+      std::string material;
+      std::size_t triangles = 0;
+      int planeIndex = -1, planeSide = -1, cluster = -1;
+      double sumX = 0.0, sumY = 0.0, sumZ = 0.0;
+      float minX = 1e30f, minY = 1e30f, minZ = 1e30f, maxX = -1e30f, maxY = -1e30f, maxZ = -1e30f;
+    };
+    std::unordered_map<int, FaceInfo> info;
+    const auto collect = [&](const BspTriangle& t, bool sky) {
+      if (t.faceIndex < 0) return;
+      auto& entry = info[t.faceIndex];
+      entry.present = true;
+      entry.sky = sky;
+      entry.material = t.material;
+      entry.displacement = entry.displacement || t.displacement;
+      entry.fallback = entry.fallback || t.fallbackQuad;
+      entry.planeIndex = t.planeIndex;
+      entry.planeSide = t.planeSide;
+      entry.cluster = t.cluster;
+      ++entry.triangles;
+      for (const auto& v : {t.a, t.b, t.c}) {
+        entry.sumX += v.x; entry.sumY += v.y; entry.sumZ += v.z;
+        entry.minX = std::min(entry.minX, v.x); entry.minY = std::min(entry.minY, v.y); entry.minZ = std::min(entry.minZ, v.z);
+        entry.maxX = std::max(entry.maxX, v.x); entry.maxY = std::max(entry.maxY, v.y); entry.maxZ = std::max(entry.maxZ, v.z);
+      }
+    };
+    for (const auto& triangle : map.triangles) collect(triangle, false);
+    for (const auto& triangle : map.skyTriangles) collect(triangle, true);
+    for (const int id : faceInfoIds) {
+      const auto found = info.find(id);
+      if (found == info.end()) {
+        std::printf("geometry face-info index=%d state=absent reason=no emitted triangle carries this face\n", id);
+        continue;
+      }
+      const auto& entry = found->second;
+      const double vertices = entry.triangles == 0 ? 1.0 : static_cast<double>(entry.triangles) * 3.0;
+      std::printf("geometry face-info index=%d kind=%s material=%s triangles=%zu displacement=%d fallback=%d"
+                  " plane=%d planeSide=%d cluster=%d centroid=(%.1f,%.1f,%.1f)"
+                  " bounds=(%.1f,%.1f,%.1f)..(%.1f,%.1f,%.1f)\n",
+                  id, entry.sky ? "sky" : "world", entry.material.c_str(), entry.triangles,
+                  entry.displacement ? 1 : 0, entry.fallback ? 1 : 0,
+                  entry.planeIndex, entry.planeSide, entry.cluster,
+                  entry.sumX / vertices, entry.sumY / vertices, entry.sumZ / vertices,
+                  entry.minX, entry.minY, entry.minZ, entry.maxX, entry.maxY, entry.maxZ);
+    }
+  }
   // T17: do the lightmap uvs address the texels the packer actually wrote?
   //
   // The atlas is a shelf pack of per-face rectangles on a 0-filled page whose
