@@ -256,12 +256,13 @@ FX="--viewmodel-phong off --viewmodel-bump off --viewmodel-selfillum off"
 
 echo
 if [ "$MUTATION" -eq 1 ]; then
-  echo "=== 1/7 --mutation: four reference captures from the unmodified tree ==="
-  run_product bind    --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE"
-  run_product world   --viewmodel-fov 90
-  run_product bon     --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$BODY_OVERRIDE"
-  run_product bslot0  --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$BODY_OVERRIDE" --viewmodel-weapon-material-slot 0
-  run_product bslot1  --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$BODY_OVERRIDE" --viewmodel-weapon-material-slot 1
+  echo "=== 1/7 --mutation: five reference captures from the unmodified tree ==="
+  run_product bind     --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE"
+  run_product world    --viewmodel-fov 90
+  run_product bodyoff  --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-body off
+  run_product bon      --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$BODY_OVERRIDE"
+  run_product bslot0   --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$BODY_OVERRIDE" --viewmodel-weapon-material-slot 0
+  run_product bslot1   --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$BODY_OVERRIDE" --viewmodel-weapon-material-slot 1
 else
   echo "=== 1/7 nineteen captures: presentation, pose, partition, body ==="
   # Presentation: the product's natural look, with the body the entity names.
@@ -698,8 +699,12 @@ if [ "$MUTATION" -eq 1 ]; then
   echo
   echo "=== M the defects, one at a time ==="
   BASELINE_BSLOT0_HASH=$(sha256sum "$RUN_DIR/bslot0.bmp" | cut -d' ' -f1)
-  BASELINE_SCOPE_PX=$(mask_field "$BODY_SCOPE_LINE" changed)
-  BASELINE_RIFLE_PX=$(mask_field "$BODY_RIFLE_LINE" changed)
+  # The section-6 readings belong to the forward run, so the baseline pixel
+  # counts are measured here, from the two forced reference frames themselves.
+  BASELINE_FORCED=$(python bmp-diff-mask.py "$RUN_DIR/bslot0.bmp" "$RUN_DIR/bslot1.bmp" \
+    --mask "$RUN_DIR/bslot0.bmp" "$RUN_DIR/bslot1.bmp" 2>&1 | tail -1)
+  BASELINE_SCOPE_PX=$(mask_field "$BASELINE_FORCED" changed)
+  BASELINE_RIFLE_PX=$BASELINE_SCOPE_PX
   BASELINE_KEYS=$(reading "$RUN_DIR/bon.trace" 'viewmodel weaponBodyMaterial' keys)
   assert_gt "baseline: the forced body frames differ" "$BASELINE_SCOPE_PX" "200"
   echo "  ..   baseline: scope=$BASELINE_SCOPE_PX rifle=$BASELINE_RIFLE_PX keys=$BASELINE_KEYS"
@@ -755,7 +760,7 @@ if [ "$MUTATION" -eq 1 ]; then
       # scope's albedo and the scope range binds the rifle's.
       if [ "$M2_KEYS" = "$BASELINE_KEYS" ]; then M2_OK=0; fi
       case "$M2_KEYS" in
-        *c_sniperrifle_scope.vtf,c_tfc_sniperrifle.vtf*) ;;
+        *c_sniperrifle_scope.vtf,*c_tfc_sniperrifle.vtf*) ;;
         *) M2_OK=0 ;;
       esac
       if [ "$M2_OK" -eq 1 ]; then
@@ -773,6 +778,12 @@ if [ "$MUTATION" -eq 1 ]; then
   echo
   echo "-- m3: the body's slot override is read by the arms' range builder too"
   MUTATION_TOTAL=$((MUTATION_TOTAL + 1))
+  # The control first: on the unmutated tree a body-only override changes no
+  # pixel outside the body's own coverage.
+  BASELINE_LEAK=$(python bmp-diff-mask.py "$RUN_DIR/bon.bmp" "$RUN_DIR/bslot0.bmp" \
+    --mask "$RUN_DIR/bon.bmp" "$RUN_DIR/bodyoff.bmp" 2>&1 | tail -1)
+  assert_eq "baseline: a body-only override changes nothing outside the body" \
+    "$(mask_field "$BASELINE_LEAK" outside)" "0"
   apply_mutation native/src/main.cpp "material state leak"
   if printf '%s\n' '    const auto ranges = viewModelDrawRangesFor(request, viewModelFlatColor,
       viewModelMaterialSlotOverride);' '%%' \
@@ -786,11 +797,16 @@ if [ "$MUTATION" -eq 1 ]; then
       echo "  ..   m3 body-offset reading=[$M3_LEAK] arms slotOverride=$M3_ARMS"
       M3_OK=1
       # The defect: a body-only override repaints the hands, so the difference
-      # leaves the body's coverage.
-      if [ "$(mask_field "$M3_LEAK" outside)" = "0" ]; then M3_OK=0; fi
-      if [ "$M3_ARMS" != "0" ]; then M3_OK=0; fi
+      # leaves the body's coverage. The baseline leaves it by 0 px.
+      if [ "$(mask_field "$M3_LEAK" outside)" -lt 5000 ]; then M3_OK=0; fi
+      # The control that makes this a leak and not a mis-test: the arms' own
+      # reading still says slotOverride=-1. The readings name the input each
+      # channel was given, not the slot a range finally used, so a leak between
+      # the two channels is invisible to every reading line and visible only in
+      # the picture -- which is why the gate judges pixels, not readings.
+      if [ "$M3_ARMS" != "-1" ]; then M3_OK=0; fi
       if [ "$M3_OK" -eq 1 ]; then
-        pass "m3 caught: the body override repainted the arms ($(mask_field "$M3_LEAK" outside) px outside the body)"
+        pass "m3 caught: the body override repainted the arms ($(mask_field "$M3_LEAK" outside) px outside the body, arms reading still $(reading "$RUN_DIR/m3-bslot0.trace" 'viewmodel materialReadings' slotOverride))"
         MUTATION_CATCHES=$((MUTATION_CATCHES + 1))
       else
         fail_line "m3 was not caught (outside=$(mask_field "$M3_LEAK" outside), arms slotOverride=$M3_ARMS)"
