@@ -18,7 +18,12 @@ constexpr std::size_t kHeaderSize = 8 + 64 * 16 + 4;
 constexpr int kLumpTexData = 2, kLumpVertices = 3, kLumpTexInfo = 6, kLumpFaces = 7,
   kLumpLighting = 8,
   kLumpEdges = 12, kLumpSurfEdges = 13, kLumpModels = 14,
-  kLumpStringData = 43, kLumpStringTable = 44;
+  kLumpStringData = 43, kLumpStringTable = 44,
+  // T17: v20's second lighting lump. A map compiled with HDR carries the
+  // tonemapped page in lump 8 and the wide-range page in lump 53, and the
+  // engine picks per `mat_hdr_level`. Both are indexed by the same
+  // `dface_t.lightofs`, so the two are directly comparable luxel for luxel.
+  kLumpLightingHdr = 53;
 
 template <typename T> T read(const Bytes& b, std::size_t at) {
   T value{}; std::memcpy(&value, b.data() + at, sizeof(T)); return value;
@@ -111,12 +116,17 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   if (bytes.size() < kHeaderSize || read<std::uint32_t>(bytes, 0) != 0x50534256u) return fail("BSP header is invalid");
   map.version = read<std::int32_t>(bytes, 4); map.revision = read<std::int32_t>(bytes, 8 + 64 * 16);
   Lump table[64]{}; for (int i = 0; i < 64; ++i) { table[i].offset = read<std::int32_t>(bytes, 8 + i * 16); table[i].length = read<std::int32_t>(bytes, 8 + i * 16 + 4); }
-  Bytes texData, vertices, texInfo, faces, edges, surfEdges, models, stringData, stringTable, lighting;
+  Bytes texData, vertices, texInfo, faces, edges, surfEdges, models, stringData, stringTable, lighting, lightingHdr;
   if (!decodeLump(bytes, table[kLumpTexData], texData)) { map.error = std::string("BSP texdata LZMA decode failed/") + gLzmaError; return false; }
   if (!decodeLump(bytes, table[kLumpVertices], vertices)) return fail("BSP vertices LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpTexInfo], texInfo)) return fail("BSP texinfo LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpFaces], faces)) return fail("BSP faces LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpLighting], lighting)) return fail("BSP lighting LZMA decode failed");
+  // T17: optional, and only when its size matches -- a mismatched pair would
+  // index one page with the other's offsets, which is the failure this reading
+  // exists to rule out.
+  const bool hdrLumpUsable = tryDecode(bytes, table[kLumpLightingHdr], lightingHdr)
+    && !lightingHdr.empty() && lightingHdr.size() == lighting.size();
   if (!decodeLump(bytes, table[kLumpEdges], edges)) return fail("BSP edges LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpSurfEdges], surfEdges)) return fail("BSP surfedges LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpModels], models)) return fail("BSP models LZMA decode failed");
@@ -413,6 +423,48 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         rowHeight = std::max(rowHeight, samplesH);
         atlasHeight = std::max(atlasHeight, cursorY + samplesH);
         ++map.lightmapPackedFaces;
+        // T17: the tone of the rectangle this face just wrote, before any uv is
+        // involved. Paired with the triangle histogram in world_geometry_probe
+        // this says whether a dark frame is dark data or a uv reading another
+        // face's rectangle.
+        double faceToneSum = 0.0;
+        for (int y = 0; y < samplesH; ++y) {
+          for (int x = 0; x < samplesW; ++x) {
+            const auto at = (static_cast<std::size_t>(cursorY + y) * kAtlas
+              + static_cast<std::size_t>(packed.x + x)) * 4u;
+            faceToneSum += (static_cast<double>(atlas[at])
+              + static_cast<double>(atlas[at + 1]) + static_cast<double>(atlas[at + 2])) / 3.0;
+          }
+        }
+        const double faceTone = faceToneSum / static_cast<double>(samplesW * samplesH);
+        // T17: the same rectangle, read out of the HDR page instead. Same
+        // offsets, same extents, different exposure -- so a face that is black
+        // in one page and lit in the other is a page choice, not a uv error.
+        double faceToneHdrSum = 0.0;
+        if (hdrLumpUsable) {
+          for (int y = 0; y < samplesH; ++y) {
+            for (int x = 0; x < samplesW; ++x) {
+              const auto sampleAt = static_cast<std::size_t>(lightOffset)
+                + (static_cast<std::size_t>(y) * static_cast<std::size_t>(samplesW)
+                  + static_cast<std::size_t>(x)) * 4u;
+              for (int channel = 0; channel < 3; ++channel) {
+                const int exponent = static_cast<int>(static_cast<std::int8_t>(lightingHdr[sampleAt + 3]));
+                const float scale = std::ldexp(1.0f, exponent) / 255.0f;
+                const float decoded = static_cast<float>(lightingHdr[sampleAt + static_cast<std::size_t>(channel)]) * scale;
+                faceToneHdrSum += decoded >= 1.0f ? 255.0 : (decoded > 0.0f ? decoded * 255.0 : 0.0);
+              }
+            }
+          }
+          const double faceToneHdr = faceToneHdrSum / static_cast<double>(samplesW * samplesH * 3);
+          ++map.lightmapHdrFaceToneHistogram[std::min<std::size_t>(7, static_cast<std::size_t>(faceToneHdr / 32.0))];
+          if (faceToneHdr < 24.0) ++map.lightmapHdrFaceToneDark;
+          if (faceToneHdr < 1.0) ++map.lightmapHdrFaceToneZero;
+          map.hdrLightmapToneSum += static_cast<std::uint64_t>(faceToneHdrSum);
+          map.hdrLightmapToneCount += static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 3u;
+        }
+        ++map.lightmapFaceToneHistogram[std::min<std::size_t>(7, static_cast<std::size_t>(faceTone / 32.0))];
+        if (faceTone < 24.0) ++map.lightmapFaceToneDark;
+        if (faceTone < 1.0) ++map.lightmapFaceToneZero;
       }
     }
     const int cluster = faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceCluster.size() ? faceCluster[static_cast<std::size_t>(faceIndex)] : -1;
@@ -660,6 +712,15 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     if (map.triangles.size() >= triangleLimit) break;
   }
   map.triangleCount = map.triangles.size();
+  map.hasHdrLightmap = hdrLumpUsable;
+  if (hdrLumpUsable) {
+    map.hdrLightmapSampleCount = lightingHdr.size() / 4u;
+    if (map.hdrLightmapToneCount > 0) {
+      map.hdrLightmapIntensity = static_cast<float>(std::clamp(
+        (static_cast<double>(map.hdrLightmapToneSum) / static_cast<double>(map.hdrLightmapToneCount)) / 128.0,
+        0.15, 2.0));
+    }
+  }
   if (lighting.size() % 4 == 0) map.lightmapSampleCount = lighting.size() / 4u;
   else if (lighting.size() % 3 == 0) map.lightmapSampleCount = lighting.size() / 3u;
   if (map.lightmapPackedFaces > 0 && atlasHeight > 0) {

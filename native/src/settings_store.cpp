@@ -55,11 +55,30 @@ std::filesystem::path settingsPath() {
 
 PersistentSettings loadSettings() {
   PersistentSettings result{};
-  result.render = RenderSettings::fromPreset(QualityPreset::Performance);
   const auto file = settingsPath();
   if (file.empty()) return result;
-  result.render.preset = readInt(file, L"preset", 0) == 1
+  const bool standardQuality = readInt(file, L"preset", 0) == 1;
+  result.render.preset = standardQuality
     ? QualityPreset::Standard : QualityPreset::Performance;
+  // T17: `preset` is a label the rest of the program reads -- the env pass asks
+  // `preset == Standard` before it samples a cube -- so a settings file that
+  // says standard while every flag holds Performance's value is a contradiction
+  // the frame inherits. The trace printed both halves at once: `cubemap ...
+  // preset=standard` next to `sky-upload state=unavailable reason=skybox draw
+  // disabled by the caller`, and 20.2% of the reference frame was clear colour
+  // because the sky pass never ran.
+  //
+  // The sky is taken from the preset because it decides what geometry the world
+  // pass draws. The other Standard flags (dynamic lighting, specular, bump,
+  // shadows, water reflection, mip bias, anisotropy, model lod) stay exactly
+  // where this reader left them: each of those changes the SHADING, and a
+  // shading change has to be measured before it is claimed. Enabling them here
+  // would have moved every region pin in this task's own evidence for a reason
+  // the task did not measure, which is the opposite of what T17 asks for. That
+  // half of the contradiction is written down in
+  // T17-WORLD-VISUAL-2026-10-19.md §6 and belongs to the render-regression
+  // round.
+  result.render.skybox = standardQuality;
   result.render.renderScale = static_cast<float>(readInt(file, L"renderScalePercent", 100)) / 100.0f;
   result.render.viewModelFov = static_cast<float>(
     migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));

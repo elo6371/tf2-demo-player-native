@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace {
@@ -104,6 +105,7 @@ void dumpVertex(const char* name, const BspVertex& v) {
 int main(int argc, char** argv) {
   std::string tfRoot;
   std::string mapPath;
+  std::string dumpLightmapPath;
   std::size_t triangleLimit = 4000000;
   bool haveEye = false;
   float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
@@ -119,9 +121,16 @@ int main(int argc, char** argv) {
   std::size_t topTotal[2][2] = {{0, 0}, {0, 0}};
   std::size_t eyeFacing[2][2] = {{0, 0}, {0, 0}};   // stored winding faces the eye
   std::size_t eyeTotal[2][2] = {{0, 0}, {0, 0}};
+  // T17: the product parses with the parser's default atlas width (4096), which
+  // for pl_odyssey produces a 4096x2251 page -- not a square. The uv measurement
+  // below is only about the product's page if this number matches it, so it is
+  // an option rather than a constant.
+  int atlasWidth = 4096;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--tf-root") == 0 && i + 1 < argc) tfRoot = argv[++i];
     else if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc) mapPath = argv[++i];
+    else if (std::strcmp(argv[i], "--atlas-width") == 0 && i + 1 < argc) atlasWidth = std::atoi(argv[++i]);
+    else if (std::strcmp(argv[i], "--dump-lightmap") == 0 && i + 1 < argc) dumpLightmapPath = argv[++i];
     else if (std::strcmp(argv[i], "--triangle-limit") == 0 && i + 1 < argc) triangleLimit = static_cast<std::size_t>(std::stoull(argv[++i]));
     else if (std::strcmp(argv[i], "--ray-down") == 0 && i + 1 < argc) {
       // T11 third round: vertical first-hit census. N is the grid resolution
@@ -164,7 +173,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   BspMap map;
-  if (!tf2::native::BspParser::parse(bytes, map, triangleLimit, 2048)) {
+  if (!tf2::native::BspParser::parse(bytes, map, triangleLimit, atlasWidth)) {
     std::printf("geometry status=parse-failed map=%s triangles=%zu reason=the bsp parser rejected the file\n",
                 mapPath.c_str(), map.triangles.size());
     return 1;
@@ -214,6 +223,169 @@ int main(int argc, char** argv) {
               mapPath.c_str(), map.version, map.triangles.size(), map.faceCount,
               displaced, water, lightmapped, degenerate, maxEdge, over256, over1024, over4096,
               minX, minY, minZ, maxX, maxY, maxZ);
+  // T17: do the lightmap uvs address the texels the packer actually wrote?
+  //
+  // The atlas is a shelf pack of per-face rectangles on a 0-filled page whose
+  // alpha is 255 exactly where a luxel was written. So "the uv lands on an
+  // unwritten texel" is directly measurable: read the alpha under the uv. A
+  // correct uv set reads 0 here whatever the lighting is; a v axis normalised
+  // by the atlas WIDTH instead of its HEIGHT reads a large fraction, because
+  // the atlas is not square (pl_odyssey: 4096x2251).
+  if (map.lightmapMode == tf2::native::BspLightmapMode::RgbExp32
+      && map.lightmapAtlasWidth > 0 && map.lightmapAtlasHeight > 0
+      && !map.lightmapAtlas.empty()) {
+    const int width = map.lightmapAtlasWidth, height = map.lightmapAtlasHeight;
+    std::size_t vertices = 0, unwritten = 0, sampled = 0;
+    double luminance = 0.0;
+    for (const auto& triangle : map.triangles) {
+      if (!triangle.lightmapped) continue;
+      const float uv[3][2] = {{triangle.alu, triangle.alv}, {triangle.blu, triangle.blv},
+                              {triangle.clu, triangle.clv}};
+      for (const auto& corner : uv) {
+        ++vertices;
+        const int x = static_cast<int>(std::floor(corner[0] * static_cast<float>(width)));
+        const int y = static_cast<int>(std::floor(corner[1] * static_cast<float>(height)));
+        if (x < 0 || y < 0 || x >= width || y >= height) { ++unwritten; continue; }
+        const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+          + static_cast<std::size_t>(x)) * 4u;
+        if (map.lightmapAtlas[at + 3] == 0) { ++unwritten; continue; }
+        ++sampled;
+        luminance += (static_cast<double>(map.lightmapAtlas[at])
+          + map.lightmapAtlas[at + 1] + map.lightmapAtlas[at + 2]) / 3.0;
+      }
+    }
+    std::printf("geometry lightmap-uv atlas=%dx%d vertices=%zu unwrittenTexels=%zu "
+                "unwrittenShare=%.4f sampledMeanLum=%.1f\n",
+                width, height, vertices, unwritten,
+                vertices == 0 ? 0.0 : static_cast<double>(unwritten) / static_cast<double>(vertices),
+                sampled == 0 ? 0.0 : luminance / static_cast<double>(sampled));
+    // T17: the mean is not enough. A page whose mean is 110 can still be black
+    // where most triangles sample, and "most of the frame is black" is a claim
+    // about the distribution, not about the average. The histogram says how many
+    // emitted triangles read a dark texel; the per-material table says which
+    // surfaces those are.
+    std::vector<std::size_t> histogram(8, 0);
+    struct MaterialTone { std::size_t triangles = 0; double sum = 0.0; std::size_t dark = 0; };
+    std::unordered_map<std::string, MaterialTone> tones;
+    double darkSum = 0.0; std::size_t darkTriangles = 0;
+    for (const auto& triangle : map.triangles) {
+      if (!triangle.lightmapped) continue;
+      const float uv[3][2] = {{triangle.alu, triangle.alv}, {triangle.blu, triangle.blv},
+                              {triangle.clu, triangle.clv}};
+      double tone = 0.0; int samples = 0;
+      for (const auto& corner : uv) {
+        const int x = std::clamp(static_cast<int>(std::floor(corner[0] * static_cast<float>(width))), 0, width - 1);
+        const int y = std::clamp(static_cast<int>(std::floor(corner[1] * static_cast<float>(height))), 0, height - 1);
+        const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+          + static_cast<std::size_t>(x)) * 4u;
+        tone += (static_cast<double>(map.lightmapAtlas[at])
+          + map.lightmapAtlas[at + 1] + map.lightmapAtlas[at + 2]) / 3.0;
+        ++samples;
+      }
+      tone /= static_cast<double>(samples == 0 ? 1 : samples);
+      ++histogram[std::min<std::size_t>(7, static_cast<std::size_t>(tone / 32.0))];
+      auto& entry = tones[triangle.material];
+      ++entry.triangles;
+      entry.sum += tone;
+      if (tone < 24.0) { darkSum += tone; ++darkTriangles; ++entry.dark; }
+    }
+    std::printf("geometry lightmap-tone histogram=%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu darkTriangles=%zu darkShare=%.4f\n",
+                histogram[0], histogram[1], histogram[2], histogram[3],
+                histogram[4], histogram[5], histogram[6], histogram[7],
+                darkTriangles, map.triangleCount == 0 ? 0.0
+                  : static_cast<double>(darkTriangles) / static_cast<double>(map.triangleCount));
+    // T17: the same histogram taken on the rectangles the packer WROTE rather
+    // than on the uvs. Two readings of the same page: this one cannot be wrong
+    // about the data, the one above cannot be wrong about the sampling. When
+    // they agree the frame is dark because the map baked it dark; when they
+    // disagree the uvs are reading somebody else's rectangle.
+    std::printf("geometry lightmap-face-tone histogram=%u,%u,%u,%u,%u,%u,%u,%u darkFaces=%zu zeroFaces=%zu\n",
+                map.lightmapFaceToneHistogram[0], map.lightmapFaceToneHistogram[1],
+                map.lightmapFaceToneHistogram[2], map.lightmapFaceToneHistogram[3],
+                map.lightmapFaceToneHistogram[4], map.lightmapFaceToneHistogram[5],
+                map.lightmapFaceToneHistogram[6], map.lightmapFaceToneHistogram[7],
+                map.lightmapFaceToneDark, map.lightmapFaceToneZero);
+    if (map.hasHdrLightmap) {
+      std::printf("geometry lightmap-hdr-tone histogram=%u,%u,%u,%u,%u,%u,%u,%u darkFaces=%zu zeroFaces=%zu intensity=%.3f samples=%zu\n",
+                  map.lightmapHdrFaceToneHistogram[0], map.lightmapHdrFaceToneHistogram[1],
+                  map.lightmapHdrFaceToneHistogram[2], map.lightmapHdrFaceToneHistogram[3],
+                  map.lightmapHdrFaceToneHistogram[4], map.lightmapHdrFaceToneHistogram[5],
+                  map.lightmapHdrFaceToneHistogram[6], map.lightmapHdrFaceToneHistogram[7],
+                  map.lightmapHdrFaceToneDark, map.lightmapHdrFaceToneZero,
+                  static_cast<double>(map.hdrLightmapIntensity), map.hdrLightmapSampleCount);
+    } else {
+      std::printf("geometry lightmap-hdr-tone state=absent reason=lump 53 is missing, empty, or not the size of lump 8\n");
+    }
+    std::vector<std::pair<double, std::string>> ranked;
+    for (const auto& entry : tones) {
+      if (entry.second.triangles == 0) continue;
+      ranked.emplace_back(entry.second.sum / static_cast<double>(entry.second.triangles),
+                          entry.first + " n=" + std::to_string(entry.second.triangles));
+    }
+    std::sort(ranked.begin(), ranked.end());
+    std::printf("geometry lightmap-tone darkest:");
+    for (std::size_t i = 0; i < ranked.size() && i < 8; ++i) {
+      std::printf(" %.0f[%s]", ranked[i].first, ranked[i].second.c_str());
+    }
+    std::printf("\n");
+    // T17: which surfaces the dark triangles belong to, by count rather than by
+    // average. The list above ranks materials by mean tone and is therefore
+    // dominated by materials with three triangles each; this one says where the
+    // 28% of the frame that reads black actually lives.
+    std::vector<std::pair<std::size_t, std::string>> byDark;
+    for (const auto& entry : tones) {
+      if (entry.second.dark == 0) continue;
+      byDark.emplace_back(entry.second.dark, entry.first + " n="
+        + std::to_string(entry.second.triangles));
+    }
+    std::sort(byDark.begin(), byDark.end(),
+      [](const auto& left, const auto& right) { return left.first > right.first; });
+    std::printf("geometry lightmap-tone darkMaterials:");
+    for (std::size_t i = 0; i < byDark.size() && i < 8; ++i) {
+      std::printf(" %zu[%s]", byDark[i].first, byDark[i].second.c_str());
+    }
+    std::printf("\n");
+    // T17: the page itself, as a picture. "The lightmap is dark" and "the uv
+    // samples a dark part of a fine page" are different diagnoses and the tone
+    // table cannot tell them apart; the atlas can, because it carries its own
+    // alpha (255 where a luxel was written).
+    if (!dumpLightmapPath.empty()) {
+      const std::uint32_t rowBytes = static_cast<std::uint32_t>(width) * 3u;
+      const std::uint32_t padding = (4u - (rowBytes % 4u)) % 4u;
+      const std::uint32_t imageBytes = (rowBytes + padding) * static_cast<std::uint32_t>(height);
+      std::FILE* file = std::fopen(dumpLightmapPath.c_str(), "wb");
+      if (file) {
+        std::uint8_t header[54] = {};
+        header[0] = 'B'; header[1] = 'M';
+        const std::uint32_t fileSize = 54u + imageBytes;
+        std::memcpy(header + 2, &fileSize, 4);
+        const std::uint32_t dataOffset = 54u;
+        std::memcpy(header + 10, &dataOffset, 4);
+        const std::uint32_t infoSize = 40u;
+        std::memcpy(header + 14, &infoSize, 4);
+        std::memcpy(header + 18, &width, 4);
+        const std::int32_t storedHeight = height;
+        std::memcpy(header + 22, &storedHeight, 4);
+        const std::uint16_t planes = 1, bpp = 24;
+        std::memcpy(header + 26, &planes, 2);
+        std::memcpy(header + 28, &bpp, 2);
+        std::fwrite(header, 1, sizeof(header), file);
+        std::vector<std::uint8_t> row(rowBytes + padding, 0);
+        for (int y = height - 1; y >= 0; --y) {
+          for (int x = 0; x < width; ++x) {
+            const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+              + static_cast<std::size_t>(x)) * 4u;
+            row[static_cast<std::size_t>(x) * 3u + 0] = map.lightmapAtlas[at + 2];
+            row[static_cast<std::size_t>(x) * 3u + 1] = map.lightmapAtlas[at + 1];
+            row[static_cast<std::size_t>(x) * 3u + 2] = map.lightmapAtlas[at + 0];
+          }
+          std::fwrite(row.data(), 1, row.size(), file);
+        }
+        std::fclose(file);
+        std::printf("geometry lightmap-dump path=%s size=%dx%d\n", dumpLightmapPath.c_str(), width, height);
+      }
+    }
+  }
   std::printf("geometry edge-groups staticMaxEdge=%.1f staticOver1024=%zu staticMaterialOver1024=%zu displacedMaxEdge=%.1f displacedOver1024=%zu\n",
               staticMaxEdge, staticOver1024, staticMaterialOver1024, displacedMaxEdge, displacedOver1024);
   std::printf("geometry displacement faces=%zu triangles=%zu cornerMatches=%zu\n",

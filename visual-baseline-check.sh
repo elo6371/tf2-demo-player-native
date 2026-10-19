@@ -39,15 +39,25 @@
 #      gradient, each pinned with a margin. This is the object-visibility
 #      acceptance: a region that empties to the clear colour, goes flat, or
 #      loses its edges fails here, and "pixels changed" alone never passes.
+#   4. (T17) the three populations of the world pass: the terrain's two blend
+#      layers resolve and are weighted, the sky pass draws its six faces, the
+#      lightmap term is on and addresses its own texels, and the two lightmap
+#      pages agree about how dark the map's data is. These are the readings the
+#      world visual closure was measured with, so a regression in any of them
+#      is visible here instead of in a screenshot someone has to squint at.
 #
-# mutation: three source mutations, each of which must turn the forward pins
+# mutation: five source mutations, each of which must turn the forward pins
 #   red, and each source must come back byte-identical:
 #   M1 reverts the pvs row-table fix (the stride-8 single-table read) -- the
 #      probe's visClusters pin must fall back off 1692,
 #   M2 orients brush to the outward direction as well (mask 05) -- the flip
 #      census and the eye first-hit oracle must both move,
 #   M3 inverts the split so only brush is oriented (mask 02) -- the top-down
-#      first-hit oracle must collapse.
+#      first-hit oracle must collapse,
+#   M4 (T17) compares pakfile entry names byte for byte again -- the product's
+#      material-fetch vmtMissing must climb back off 3,
+#   M5 (T17) drops the 1/2.2 encode on the lightmap sample -- W1's mean
+#      luminance must fall out of its pin, because that pin was measured with it.
 #
 # The reference capture deliberately does NOT pass --hidden-window: the pinned
 # region numbers below were measured on a visible-window capture at
@@ -94,14 +104,28 @@ assert_max() { # assert_max <name> <got> <ceiling>
 
 capture() { # capture <bmp-path> <trace-path> [extra flags...]
   local bmp="$1" trace="$2"; shift 2
-  local traceWin
+  local traceWin bmpWin attempt rc tick
   traceWin="$(cygpath -m "$PWD/$trace")"
-  local bmpWin
   bmpWin="$(cygpath -m "$PWD/$bmp")"
-  TF2_NATIVE_TRACE="$traceWin" timeout 300 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
-    --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
-    --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
-    "$@" > "$SCRATCH/capture.$RUN_TAG.log" 2>&1
+  # T17: `--capture-tick N` means the first draw with `tick >= N`, and on this
+  # recording that lands on 2001 or 2003 about half the time (measured 2026-10-19:
+  # 8 of 13 attempts). A pin measured at tick 2000 cannot be compared with a
+  # frame drawn at 2001 -- the camera moved -- so the capture retries until the
+  # draw reports exactly 2000. Before this the gate passed or failed on which
+  # side of the tick boundary the run happened to land.
+  for attempt in 1 2 3 4 5 6; do
+    rm -f "$bmp"
+    TF2_NATIVE_TRACE="$traceWin" timeout 300 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
+      --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
+      --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
+      "$@" > "$SCRATCH/capture.$RUN_TAG.log" 2>&1
+    rc=$?
+    tick=$(grep -a "draw: begin tick=" "$trace" 2>/dev/null | tr -d '\r' | tail -1 \
+      | sed -n 's/.*tick=\([-0-9]*\).*/\1/p')
+    if [ "$rc" = 0 ] && [ "$tick" = "2000" ] && [ -s "$bmp" ]; then return 0; fi
+    echo "  (capture attempt $attempt: rc=$rc tick=${tick:-none}, retrying for tick 2000)"
+  done
+  return 1
 }
 
 trace_field() { # trace_field <trace> <line-prefix> <key>
@@ -127,6 +151,27 @@ assert_eq "probe materials covered by atlas cap" "$(grep -oE 'trianglesCoveredBy
 # computes from the same map coordinates: one number, two instruments.
 assert_eq "probe eye cluster" "$(trace_field "$PROBE_TXT" 'geometry eye' 'cluster')" "1032"
 assert_eq "probe eye pvs popcount" "$(trace_field "$PROBE_TXT" 'geometry eye' visClusters)" "1692"
+# T17: the lightmap page, measured two ways so the two answers can be compared.
+# `lightmap-uv` asks whether the uvs land on texels the packer wrote -- 0
+# unwritten of 296490 corners means they do. `lightmap-tone` is what those
+# texels contain read THROUGH the uvs; `lightmap-face-tone` is what the same
+# rectangles contain read from the packer. They agree (31.5% vs 34.4% in the
+# darkest bucket), so the 27% of triangles that draw dark are dark data in the
+# shipped map. `lightmap-hdr-tone` asks the other lighting lump -- lump 53 says
+# the same thing (5303 dark faces vs 5018), so the tonemapped page is not the
+# cause either. A uv or page regression moves one of these six numbers.
+assert_eq "probe lightmap uv atlas" \
+  "$(grep -oE 'lightmap-uv atlas=[0-9]+x[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "4096x2251"
+assert_eq "probe lightmap unwritten texels" \
+  "$(grep -oE 'unwrittenTexels=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "0"
+assert_eq "probe lightmap dark triangles" \
+  "$(grep -oE 'darkTriangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "26844"
+assert_eq "probe lightmap face tone" \
+  "$(grep 'lightmap-face-tone' "$PROBE_TXT" | grep -oE 'darkFaces=[0-9]+ zeroFaces=[0-9]+' | head -1)" \
+  "darkFaces=5018 zeroFaces=898"
+assert_eq "probe lightmap hdr tone" \
+  "$(grep 'lightmap-hdr-tone' "$PROBE_TXT" | grep -oE 'darkFaces=[0-9]+ zeroFaces=[0-9]+' | head -1)" \
+  "darkFaces=5303 zeroFaces=940"
 # T11 third round: the buffer ships ONE winding convention, not two, and the
 # rule is a keep/flip choice per (class, side) cell. The shipped rule is mask 07:
 # brush keeps the order the map stores, displacement is oriented to its face's
@@ -177,9 +222,18 @@ cp "$REF_TRACE" "$OUT/trace-ref.txt"
 MATFETCH=$(grep -o "gpu: world material-fetch .*" "$REF_TRACE" | head -1)
 [ -n "$MATFETCH" ] || { echo "  FAIL no material-fetch line"; fail=1; }
 assert_eq "material fetch distinct" "$(printf '%s' "$MATFETCH" | grep -oE 'distinct=[0-9]+' | cut -d= -f2)" "108"
-assert_eq "material fetch tiled" "$(printf '%s' "$MATFETCH" | grep -oE 'tiled=[0-9]+' | cut -d= -f2)" "57"
-assert_eq "material fetch fromPakfile" "$(printf '%s' "$MATFETCH" | grep -oE 'fromPakfile=[0-9]+' | cut -d= -f2)" "23"
-assert_eq "material fetch vtfTooLarge" "$(printf '%s' "$MATFETCH" | grep -oE 'vtfTooLarge=[0-9]+' | cut -d= -f2)" "43"
+# T17: these four moved because the bsp pakfile lookup became case-insensitive
+# (pl_odyssey stores lowercase entries, textdata names them uppercase). tiled
+# 57->64 and fromPakfile 23->59 are 41 more materials that now find their vmt
+# and their vtf; vtfTooLarge 43->54 is those materials reaching vtfs that are
+# correctly refused for size; vmtMissing 29->3 and vtfMissing 2->0 are the ones
+# that stopped being missing. `distinct` and `capped` must NOT move -- the set
+# of materials did not change, only whether each one resolved.
+assert_eq "material fetch tiled" "$(printf '%s' "$MATFETCH" | grep -oE 'tiled=[0-9]+' | cut -d= -f2)" "64"
+assert_eq "material fetch fromPakfile" "$(printf '%s' "$MATFETCH" | grep -oE 'fromPakfile=[0-9]+' | cut -d= -f2)" "59"
+assert_eq "material fetch vtfTooLarge" "$(printf '%s' "$MATFETCH" | grep -oE 'vtfTooLarge=[0-9]+' | cut -d= -f2)" "54"
+assert_eq "material fetch vmtMissing" "$(printf '%s' "$MATFETCH" | grep -oE 'vmtMissing=[0-9]+' | cut -d= -f2)" "3"
+assert_eq "material fetch vtfMissing" "$(printf '%s' "$MATFETCH" | grep -oE 'vtfMissing=[0-9]+' | cut -d= -f2)" "0"
 
 VISLINE=$(grep -o "gpu: world vis .*" "$REF_TRACE" | head -1)
 [ -n "$VISLINE" ] || { echo "  FAIL no world vis line"; fail=1; }
@@ -207,6 +261,52 @@ assert_eq "world cull line" "$CULLLINE" "gpu: world cull backfaces=1 mode=cull-b
 GEOM=$(grep -o "gpu: world geometry .*" "$REF_TRACE" | head -1)
 assert_eq "gpu displaced triangles" "$(printf '%s' "$GEOM" | grep -oE 'displacedTriangles=[0-9]+' | cut -d= -f2)" "46912"
 assert_eq "gpu water triangles" "$(printf '%s' "$GEOM" | grep -oE 'waterTriangles=[0-9]+' | cut -d= -f2)" "300"
+
+# ---------------------------------------------------------------------------
+# 2b. T17: the world pass draws a place, not a set of holes
+# ---------------------------------------------------------------------------
+# Three populations were measured on this frame (evidence/t17-world-visual):
+# pixels identical to the clear colour (nothing drawn), drawn pixels whose every
+# channel is <32 (the light took them to zero), and the rest. The sky pass is
+# the difference between the first population being 20.2% and 0.04%, and the
+# blend fetch is the difference between the terrain drawing one layer and two.
+echo "== 2b. T17 world visual closure =="
+BLENDFETCH=$(grep -o "gpu: world blend-fetch .*" "$REF_TRACE" | head -1)
+[ -n "$BLENDFETCH" ] || { echo "  FAIL no blend-fetch line"; fail=1; }
+assert_eq "blend fetch declared" \
+  "$(printf '%s' "$BLENDFETCH" | grep -oE 'declared=[0-9]+' | cut -d= -f2)" "9"
+assert_eq "blend fetch resolved" \
+  "$(printf '%s' "$BLENDFETCH" | grep -oE 'resolved=[0-9]+' | cut -d= -f2)" "9"
+assert_eq "blend fetch refused" \
+  "$(printf '%s' "$BLENDFETCH" | grep -oE 'refused=[0-9]+' | cut -d= -f2)" "0"
+BLENDLINE=$(grep -o "gpu: world blend enabled=.*" "$REF_TRACE" | head -1)
+assert_eq "blend tiles" \
+  "$(printf '%s' "$BLENDLINE" | grep -oE 'tiles=[0-9]+' | cut -d= -f2)" "9"
+assert_eq "blend weighted vertices" \
+  "$(printf '%s' "$BLENDLINE" | grep -oE 'weightedVertices=[0-9]+' | cut -d= -f2)" "85536"
+assert_eq "blend distinct weights" \
+  "$(printf '%s' "$BLENDLINE" | grep -oE 'distinctWeights=[0-9]+' | cut -d= -f2)" "34"
+# The sky pass carries no geometry of its own into the world vertex buffer, so
+# "is the sky drawn" is exactly this line: 6 faces, 12 triangles, 36 vertices.
+# A settings file that says `preset=0` turns it off and this goes red, which is
+# the point -- the reference frame is not reproducible without the sky.
+SKYLINE=$(grep -o "gpu: world sky-upload .*" "$REF_TRACE" | head -1)
+[ -n "$SKYLINE" ] || { echo "  FAIL no sky-upload line"; fail=1; }
+assert_eq "sky pass state" \
+  "$(printf '%s' "$SKYLINE" | grep -oE 'state=[a-z-]+' | cut -d= -f2)" "active"
+assert_eq "sky pass faces" \
+  "$(printf '%s' "$SKYLINE" | grep -oE 'faces=[0-9]+' | cut -d= -f2)" "6"
+assert_eq "sky pass vertices" \
+  "$(printf '%s' "$SKYLINE" | grep -oE 'vertices=[0-9]+' | cut -d= -f2)" "36"
+LIGHTLINE=$(grep -o "gpu: world lightmap status=.*" "$REF_TRACE" | head -1)
+assert_eq "lightmap status" \
+  "$(printf '%s' "$LIGHTLINE" | grep -oE 'status=[a-z-]+' | cut -d= -f2)" "active"
+assert_eq "lightmap vertices" \
+  "$(printf '%s' "$LIGHTLINE" | grep -oE 'vertices=[0-9]+' | cut -d= -f2)" "297936"
+assert_eq "lightmap lightmapped vertices" \
+  "$(printf '%s' "$LIGHTLINE" | grep -oE 'lightmapped=[0-9]+' | cut -d= -f2)" "296490"
+assert_eq "lightmap term on" \
+  "$(printf '%s' "$LIGHTLINE" | grep -oE 'lightmapEnabled=[0-9]+' | cut -d= -f2)" "1"
 
 # ---------------------------------------------------------------------------
 # 3. measurable object presence in four world regions
@@ -244,10 +344,22 @@ regfield() { # regfield <region-line-key> <field>
 # dark and flat because the material/lightmap path draws terrain dark (F2/T12).
 # W4 gained contrast for the same reason. Both are re-pinned to today's readings;
 # when T12 lands, these two pins are expected to move again and upward.
-for spec in "x=0,y=0 46 77 52 88 0.10 7.9 13.7" \
-            "x=0,y=560 16 29 10 18 0.10 0.6 1.1" \
-            "x=1100,y=100 8 14 6 11 0.10 0.05 0.20" \
-            "x=600,y=0 15 25 42 68 0.05 6.2 10.0"; do
+#
+# T17 (2026-10-19) moved all four, and all four moved UP for two measured
+# reasons, neither of which is a threshold being widened to fit:
+#   * the lightmap is now composed in display space (pow 1/2.2 on the sample),
+#     so every lit pixel is brighter -- W1 46..77 -> 86.3, W2 16..29 -> 72.8;
+#   * the sky pass runs in the default path, so the regions that used to be
+#     clear colour are now sky -- W3 8..14 -> 92.6 with std 70.3 (it is no longer
+#     a flat hole; it is blue sky behind dark geometry), W4's gradient falls
+#     (6.2..10.0 -> 4.37) because flat sky now sits between the ceiling slabs.
+# `nearBackground` is no longer a hole measurement: the tool reads the frame's
+# own top-left corner, which is now a wall, not clear colour. It is kept as an
+# upper bound so a region that collapses to one colour still fails.
+for spec in "x=0,y=0 73 99 53 80 0.05 7.7 12.8" \
+            "x=0,y=560 62 84 19 28 0.03 1.2 2.0" \
+            "x=1100,y=100 79 107 56 84 0.02 0.8 1.3" \
+            "x=600,y=0 36 49 44 66 0.02 3.3 5.5"; do
   set -- $spec; KEY="$1"; shift
   mean=$(regfield "$KEY" meanLum); std=$(regfield "$KEY" stdLum)
   nearbg=$(regfield "$KEY" nearBackground); grad=$(regfield "$KEY" meanGradient)
@@ -357,9 +469,75 @@ if cmp -s "$SAVE_MAP" "$SRC_MAP"; then echo "  RESTORE=OK (M3 source byte-identi
   echo "  RESTORE=FAIL (M3: the source did not come back byte-identical)"; fail=1; fi
 bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m3-restore.$RUN_TAG.build" 2>&1
 
+# M4: the bsp pakfile lookup goes back to comparing bytes. pl_odyssey stores
+# lowercase entries and textdata names them uppercase, so the materials that
+# only exist in the pakfile stop resolving: `material-fetch vmtMissing` has to
+# climb back off 3.
+echo "-- M4: the pakfile lookup compares the stored name byte for byte again --"
+SRC_MAT="native/src/world_material.cpp"
+SAVE_MAT="$SCRATCH/world_material.cpp.save"
+cp "$SRC_MAT" "$SAVE_MAT"
+"$PYTHON" - "$SRC_MAT" <<'PYEOF_INNER'
+import sys
+path = sys.argv[1]
+src = open(path, encoding='utf-8').read()
+old = "if (normalizePakfileName(entryName) == wantedName) {"
+new = "if (entryName == name) {"
+assert old in src, "M4 patch site not found"
+open(path, 'w', encoding='utf-8', newline='').write(src.replace(old, new))
+PYEOF_INNER
+if [ $? != 0 ]; then echo "  FAIL M4 could not patch the source"; mfail=1; fi
+bash build-target.sh tf2_demo_native > "$SCRATCH/m4.$RUN_TAG.build" 2>&1
+M4_BMP="$SCRATCH/m4.$RUN_TAG.bmp"; M4_TRACE="$SCRATCH/m4.$RUN_TAG.trace"
+capture "$M4_BMP" "$M4_TRACE" > /dev/null 2>&1
+M4_MISS=$(grep -o "gpu: world material-fetch .*" "$M4_TRACE" | head -1 | grep -oE 'vmtMissing=[0-9]+' | cut -d= -f2)
+if [ "$M4_MISS" = "3" ]; then
+  echo "  NOT-RED M4: the mutated lookup still reports vmtMissing=3"
+  mfail=1
+else
+  echo "  RED M4 as required: vmtMissing = ${M4_MISS:-none} (was 3; the byte-for-byte lookup cannot see the lowercase entries)"
+fi
+cp "$SAVE_MAT" "$SRC_MAT"
+if cmp -s "$SAVE_MAT" "$SRC_MAT"; then echo "  RESTORE=OK (M4 source byte-identical)"; else
+  echo "  RESTORE=FAIL (M4: the source did not come back byte-identical)"; fail=1; fi
+bash build-target.sh tf2_demo_native > "$SCRATCH/m4-restore.$RUN_TAG.build" 2>&1
+
+# M5: the lightmap sample stops being encoded, so the frame goes back to
+# multiplying a display-referred albedo by a linear light. W1's mean luminance
+# has to fall out of its pin: that is the whole claim the shader change makes.
+echo "-- M5: the lightmap sample is used as a raw multiplier again --"
+SRC_REN="native/src/native_renderer.cpp"
+SAVE_REN="$SCRATCH/native_renderer.cpp.save"
+cp "$SRC_REN" "$SAVE_REN"
+"$PYTHON" - "$SRC_REN" <<'PYEOF_INNER'
+import sys
+path = sys.argv[1]
+src = open(path, encoding='utf-8').read()
+old = "lightColour = pow(max(lightmapTexture.Sample(sampler0, lightUv).rgb, 0.0), 1.0 / 2.2);"
+new = "lightColour = max(lightmapTexture.Sample(sampler0, lightUv).rgb, 0.0);"
+assert old in src, "M5 patch site not found"
+open(path, 'w', encoding='utf-8', newline='').write(src.replace(old, new))
+PYEOF_INNER
+if [ $? != 0 ]; then echo "  FAIL M5 could not patch the source"; mfail=1; fi
+bash build-target.sh tf2_demo_native > "$SCRATCH/m5.$RUN_TAG.build" 2>&1
+M5_BMP="$SCRATCH/m5.$RUN_TAG.bmp"; M5_TRACE="$SCRATCH/m5.$RUN_TAG.trace"
+capture "$M5_BMP" "$M5_TRACE" > /dev/null 2>&1
+M5_W1=$("$PYTHON" frame-region-stats.py "$M5_BMP" 0,0,420,200 2>/dev/null \
+  | grep 'region x=0,y=0' | grep -oE 'meanLum=[-0-9.]+' | cut -d= -f2)
+if awk -v v="$M5_W1" 'BEGIN{exit !(v>=73 && v<=99)}'; then
+  echo "  NOT-RED M5: the un-encoded frame still reads W1 meanLum = $M5_W1 inside [73,99]"
+  mfail=1
+else
+  echo "  RED M5 as required: W1 meanLum = ${M5_W1:-none} (was 86.3 in [73,99])"
+fi
+cp "$SAVE_REN" "$SRC_REN"
+if cmp -s "$SAVE_REN" "$SRC_REN"; then echo "  RESTORE=OK (M5 source byte-identical)"; else
+  echo "  RESTORE=FAIL (M5: the source did not come back byte-identical)"; fail=1; fi
+bash build-target.sh tf2_demo_native > "$SCRATCH/m5-restore.$RUN_TAG.build" 2>&1
+
 echo "== verdict =="
 if [ "$fail" = 0 ] && [ "$mfail" = 0 ]; then
-  echo "PASS: the forward baseline held, both mutations went red, both sources came back byte-identical."
+  echo "PASS: the forward baseline held, all five mutations went red, every source came back byte-identical."
   exit 0
 fi
 echo "FAIL: forward-fail=$fail mutation-not-red=$mfail"

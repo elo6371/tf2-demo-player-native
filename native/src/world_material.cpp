@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -180,6 +181,24 @@ std::uint32_t zip32(const std::vector<std::uint8_t>& bytes, std::size_t at) {
     | (static_cast<std::uint32_t>(bytes[at + 3]) << 24);
 }
 
+// T17: source content paths are case-insensitive in every store the engine
+// ships. The VPK reader lowercases both the tree keys and the lookup
+// (vpk_archive.cpp `normalize`); a BSP pakfile is a plain ZIP whose central
+// directory keeps whatever case the packer wrote, and this reader compared the
+// two bytes exactly. The same asset therefore resolved from one store and not
+// from another: pl_odyssey packs its own terrain VMTs as
+// `materials/nature/blendclifftograss_odyssey.vmt` while its texdata names them
+// `NATURE/BLENDCLIFFTOGRASS_ODYSSEY`, and all 29 such materials read as
+// "vmtMissing" -- which is why the map's terrain had no material at all.
+std::string normalizePakfileName(std::string value) {
+  std::replace(value.begin(), value.end(), '\\', '/');
+  while (!value.empty() && value.front() == '/') value.erase(value.begin());
+  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
+  return value;
+}
+
 } // namespace
 
 bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::string& name,
@@ -221,6 +240,7 @@ bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::strin
   const std::uint32_t entryCount = zip16(bspBytes, cursor + 10);
   const std::uint32_t directoryOffset = zip32(bspBytes, cursor + 16);
   if (entryCount == 0 || entryCount > 100000u) return false;
+  const std::string wantedName = normalizePakfileName(name);
   std::size_t at = offset + directoryOffset;
   for (std::uint32_t index = 0; index < entryCount; ++index) {
     if (at + 46 > static_cast<std::size_t>(lumpEnd)) return false;
@@ -239,7 +259,7 @@ bool bspPakfileEntry(const std::vector<std::uint8_t>& bspBytes, const std::strin
     const std::string entryName(reinterpret_cast<const char*>(bspBytes.data()) + at + 46,
       nameLength);
     const std::size_t next = at + 46 + nameLength + extraLength + commentLength;
-    if (entryName == name) {
+    if (normalizePakfileName(entryName) == wantedName) {
       const std::size_t localAt = offset + localOffset;
       if (localAt + 30 > static_cast<std::size_t>(lumpEnd)) return fail("pakfile entry header is out of bounds");
       if (!(bspBytes[localAt] == 'P' && bspBytes[localAt + 1] == 'K' && bspBytes[localAt + 2] == 3

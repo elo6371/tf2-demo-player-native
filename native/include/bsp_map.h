@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -84,6 +85,24 @@ struct BspMap {
   int lightmapAtlasMaxWidth = 0;
   std::size_t lightmapAtlasDroppedFaces = 0;
   bool lightmapAtlasGrown = false;
+  // T17: the tone of what the packer WROTE, per face, before any uv is
+  // involved. The per-triangle tone is what the shader samples through the
+  // uv; this is the face's own luxels. If the two histograms agree, the uvs
+  // address their own rectangle and a dark frame is dark data; if they
+  // disagree, the uv mapping is reading somebody else's rectangle. Buckets are
+  // 32 wide, the same as the triangle histogram in world_geometry_probe.
+  std::array<std::uint32_t, 8> lightmapFaceToneHistogram{};
+  std::size_t lightmapFaceToneDark = 0;
+  std::size_t lightmapFaceToneZero = 0;
+  // The same two histograms taken on lump 53, the HDR page. A map compiled with
+  // HDR keeps both and the engine chooses; if the tonemapped page is black
+  // where the wide-range page is lit, the frame is dark because of the page we
+  // chose, not because of the uvs or the map.
+  std::array<std::uint32_t, 8> lightmapHdrFaceToneHistogram{};
+  std::size_t lightmapHdrFaceToneDark = 0;
+  std::size_t lightmapHdrFaceToneZero = 0;
+  std::uint64_t hdrLightmapToneSum = 0;
+  std::uint64_t hdrLightmapToneCount = 0;
   std::string lightmapAtlasReason;
   std::vector<std::uint8_t> lightmapAtlas;
   std::vector<BspTriangle> triangles;

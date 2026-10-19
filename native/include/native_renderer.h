@@ -636,6 +636,13 @@ public:
   // is what the `none` frame used to show instead of the background), and the
   // entity, marker and projectile passes. Measured, all three.
   void setWorldDiagnosticIsolation(bool isolated) { worldDiagnosticIsolation_ = isolated; }
+  // T17: the lightmap is the one shading term the product had no off switch for,
+  // so "the world is dark" could not be attributed to it. `false` keeps the same
+  // geometry, materials and uvs and replaces the sample with white, which turns
+  // the question into a frame comparison instead of an argument. Diagnostic
+  // only; the product path never calls it.
+  void setWorldLightmapEnabled(bool enabled) { worldLightmapEnabled_ = enabled; }
+  bool worldLightmapEnabled() const { return worldLightmapEnabled_; }
   // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
   // was never set on the success path of uploadWorldWaterGeometry, so
   // waterSurfaceSampleState() reported `unavailable` for a surface that drew --
@@ -1318,6 +1325,7 @@ private:
   WorldMaterialParams worldMaterialParams_{};
   WorldLightmapStatus worldLightmapStatus_ = WorldLightmapStatus::Unavailable;
   float worldLightmapIntensity_ = 1.0f;
+  bool worldLightmapEnabled_ = true;
   HRESULT lastError_ = S_OK;
   const char* initStage_ = "none";
   std::wstring capturePath_;
