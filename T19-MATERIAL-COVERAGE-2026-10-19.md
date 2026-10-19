@@ -38,6 +38,8 @@ world 与 weapon 的 t0 状态由 draw 处的账本测量：`weaponDrawsWithWorl
 | worktree | `D:/TF2_Native_Worktrees/t19-material-coverage` |
 | branch | `task/t19-material-coverage`（从 `e67630b` 拉出） |
 | base commit | `e67630b` Merge branch `task/t15-vpk-build` into `p0-entity-protocol` |
+| final commit | `0ade875` feat(t19): batch the world atlas and name every material it cannot draw（本报告随该提交入库） |
+| push | `origin/task/t19-material-coverage`，`git push -u` rc=0（首次推送，新建远端分支） |
 | 对照 worktree | `D:/TF2_Native_Worktrees/t19-baseline`（`--detach e67630b`，只用于取基线帧） |
 | 主工作树 | `D:/TF2_Native_Test` — 用户既有改动（`M evidence/world-material/real-cp_snakewater_final1.txt`、3 个未跟踪 md）**未触碰** |
 
