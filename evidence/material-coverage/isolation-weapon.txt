@@ -1,0 +1,1 @@
+gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=4 batchDraws=1 texturedBatchDraws=1

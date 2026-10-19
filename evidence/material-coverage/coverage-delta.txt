@@ -1,0 +1,3 @@
+pixels=860784
+changed=30533
+max_channel_delta=146

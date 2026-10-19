@@ -68,6 +68,11 @@ add_executable(tf2_demo_native WIN32
   # worldCubemapVtfPath the probe measures, so "what the gate pins" and "what the
   # product does" are one implementation rather than two that agree by hand.
   src/world_material.cpp
+  # T19: the tile atlas plan and the feature scan. Pure functions, shared with
+  # material_coverage_probe: the gate asserts the plan the product made, not a
+  # second copy of the placement rule.
+  src/world_tile_atlas.cpp
+  src/world_material_features.cpp
   third_party/lzma/LzmaDec.c
   src/texture2d.cpp
   src/settings_store.cpp
@@ -137,6 +142,17 @@ set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # T12: the terrain blend resources and the per-vertex weight. Links the same
 # parser, VMT reader and VPK reader the product uses, plus world_material.cpp
 # for `bspPakfileEntry` -- the third store the lookup policy has to reach.
+# T19: the material-coverage probe. It drives world_tile_atlas and
+# world_material_features -- the two modules the product uses -- over a synthetic
+# material set and over a real map, so the gate can assert the plan and the
+# feature classification without a GPU.
+add_executable(material_coverage_probe tools/material_coverage_probe.cpp
+  src/world_tile_atlas.cpp src/world_material_features.cpp src/vmt_material.cpp
+  src/vpk_archive.cpp src/bsp_map.cpp src/vtf_texture.cpp src/world_material.cpp
+  third_party/lzma/LzmaDec.c)
+target_include_directories(material_coverage_probe PRIVATE include third_party/lzma)
+set_target_properties(material_coverage_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(terrain_blend_probe tools/terrain_blend_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(terrain_blend_probe PRIVATE include third_party/lzma)
 set_target_properties(terrain_blend_probe PROPERTIES WIN32_EXECUTABLE OFF)
