@@ -1,0 +1,113 @@
+# T22 gate on the integration HEAD (after merging task/t22-viewmodel-presentation)
+#
+# Why this file exists: the archived summary.txt and frames are the T22 branch's
+# evidence, captured on base 9591499. After the merge into p0-entity-protocol
+# (which brought in the T12-close and T23 changes to main.cpp) the gate was run
+# again on the integration HEAD; this is that run's summary (20261019142841-6517),
+# and gate-forward-integration-head.log is its full log.
+#
+# Result: PASS, 90 assertions, 0 failures -- identical assertions, identical mask
+# readings (coverage 25601/24324/20998/13260; partitions 20282+328=20610,
+# 8651+4609=13260, 1302+8308=9610; pose 9740 px with 2 outside, centroid shift
+# 6.34761). Every frame hash differs from the branch run's, but the frames
+# themselves differ by at most 1/255 on 196 of 2,582,352 pixels (bind) and 216
+# (world) -- build-to-build float noise at the lowest bit, not a rendering
+# change. The gate asserts relations (partitions, controls, tolerances), not
+# frame hashes, which is why it survives a rebuild; the repeat-frame assertion
+# within one build is what pins determinism.
+
+# T22 viewmodel presentation gate, run 20261019142841-6517
+executable_sha256=b021ec1424277c2b4c507a6a0e4276e3decdb4436f3c9c8b7297d788802eea23
+recording=autorecord_2026-07-02_13-26-46.dem
+tick=0 sequence=1 viewmodel=models/weapons/v_models/v_scattergun_scout.mdl
+drawn_arms=models/weapons/c_models/c_sniper_arms.mdl drawn_body_override=models/weapons/c_models/c_tfc_sniperrifle/c_tfc_sniperrifle.mdl
+host_overlap=0 (1 = another worktree had a product process live; captures are paused)
+
+## frames
+frame.bind.sha256=144298c754dd2ab547aaf8fefa15f5312b01b5d289c224e3e1d02b2fe68ce4c3 frame.bind.bytes=2582406
+frame.apply.sha256=a3327ef0eaf8212145e49e5b380209e9af257c5323b36beba0174d483618e1e1 frame.apply.bytes=2582406
+frame.repeat.sha256=a3327ef0eaf8212145e49e5b380209e9af257c5323b36beba0174d483618e1e1 frame.repeat.bytes=2582406
+frame.bodyoff.sha256=6cb84e68825d7391b1b7aa91a684da105b0400d918927be316f6774e1610bb35 frame.bodyoff.bytes=2582406
+frame.bodyflat.sha256=9a224f7b52b3ac7653de8a6739c537b0e24a9b7d7520d459cb5237d44fdfb402 frame.bodyflat.bytes=2582406
+frame.world.sha256=e0421ef611466d8a39a703797c89a842f5fee215e786b392103aaa5311bf5edd frame.world.bytes=2582406
+frame.pbind.sha256=65d2c835449884ad8617204a151814ab8a9159f88d0cfae5b4badb233b46fd22 frame.pbind.bytes=2582406
+frame.papply.sha256=b39cbb1e950c78b3d5e9cf54e3765f3515a4e53742ec7c66ada3c12f6459a313 frame.papply.bytes=2582406
+frame.pslot0.sha256=87ded10812d0c05adde31f609fe5bd6724015698fd3b9d79f77295964a546b48 frame.pslot0.bytes=2582406
+frame.pslot1.sha256=b689fca2299ffe482f75667b906019ad8748dfdd4304eca0a4cba406739712c3 frame.pslot1.bytes=2582406
+frame.papplyslot0.sha256=dcfe2fe9ac4f36374b27bcbd53338b8911f290a527350b92e0506a1d137c036b frame.papplyslot0.bytes=2582406
+frame.pbodyoff.sha256=59a2ebcc793fd44448b3ea642b24d31538563505aa8831fe3a30782eb2ae065a frame.pbodyoff.bytes=2582406
+frame.kbind.sha256=bfcdcf02948f4be395753fab1b6c9da2674bcaef026d8339ed6c1a38945662fe frame.kbind.bytes=2582406
+frame.kslot0.sha256=4f63f422bd0a412f6bbdce126353fe62f70c3fb6d2ee24caa5f1ebf6a0e06d4e frame.kslot0.bytes=2582406
+frame.kslot1.sha256=ad2e65e2703e2e91d460ab2dd681999a52e6708fe53be0df4691eea3cf491391 frame.kslot1.bytes=2582406
+frame.kworld.sha256=e0421ef611466d8a39a703797c89a842f5fee215e786b392103aaa5311bf5edd frame.kworld.bytes=2582406
+frame.bon.sha256=1633a717659f710b0ed2916baa1d5cd9a968bda8d00426db24cb9a35647119ca frame.bon.bytes=2582406
+frame.bflat.sha256=e2a5485643c0575bedc89ffe70acec3fda79430be15ed57cde9aff3480a27f8d frame.bflat.bytes=2582406
+frame.bslot0.sha256=9be1a50d29317d2f11549ee80b3b8f09583933e9ee99c893897f4fcc30b91024 frame.bslot0.bytes=2582406
+frame.bslot1.sha256=61183741e72fab99033d48c8e9e347360d5d409a68aeed2fd0a1d719fe38300e frame.bslot1.bytes=2582406
+
+## coverage
+BMP-MASK changed=25601 inside=25601 outside=0 mask_pixels=25601 bbox=(x=571..838, y=247..530) w=268 h=284 status=PASS
+BMP-MASK changed=24324 inside=24324 outside=0 mask_pixels=24324 bbox=(x=571..829, y=247..530) w=259 h=284 status=PASS
+BMP-MASK changed=20998 inside=20998 outside=0 mask_pixels=20998 bbox=(x=571..838, y=297..417) w=268 h=121 status=PASS
+BMP-MASK changed=13260 inside=13260 outside=0 mask_pixels=13260 bbox=(x=643..714, y=244..549) w=72 h=306 status=PASS
+
+## ranges, attributed in pixels (effects off for the partition frames)
+arms hand:   BMP-MASK changed=20282 inside=20282 outside=0 mask_pixels=20998 bbox=(x=571..838, y=297..415) w=268 h=119 status=PASS
+arms sleeve: BMP-MASK changed=328 inside=328 outside=0 mask_pixels=20998 bbox=(x=582..744, y=383..415) w=163 h=33 status=PASS
+arms union:  BMP-MASK changed=20610 inside=20610 outside=0 mask_pixels=20998 bbox=(x=571..838, y=297..415) w=268 h=119 status=PASS
+full hands:  BMP-MASK changed=8651 inside=8651 outside=0 mask_pixels=13260 bbox=(x=643..710, y=245..549) w=68 h=305 status=PASS
+full weapon: BMP-MASK changed=4609 inside=4609 outside=0 mask_pixels=13260 bbox=(x=643..714, y=244..549) w=72 h=306 status=PASS
+full union:  BMP-MASK changed=13260 inside=13260 outside=0 mask_pixels=13260 bbox=(x=643..714, y=244..549) w=72 h=306 status=PASS
+
+## weapon body
+body scope:  BMP-MASK changed=1302 inside=1302 outside=0 mask_pixels=9610 bbox=(x=677..714, y=376..576) w=38 h=201 status=PASS
+body rifle:  BMP-MASK changed=8308 inside=8308 outside=0 mask_pixels=9610 bbox=(x=655..715, y=228..578) w=61 h=351 status=PASS
+body union:  BMP-MASK changed=9610 inside=9610 outside=0 mask_pixels=9610 bbox=(x=655..715, y=228..578) w=61 h=351 status=PASS
+pose vs body: BMP-MASK changed=9740 inside=259 outside=9481 mask_pixels=9610 bbox=(x=571..838, y=311..393) w=268 h=83 status=FAIL reason=outside=9481 exceeds 0
+
+## pose
+bind hand:   BMP-CONTACT maskPixels=20282 maskBbox=(x=571..838, y=297..415) w=268 h=119 centroid=(685.58,359.80) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=235 nearFraction=0.0116 outsideBody=20047 contactDistance=1 radius=2 region=0,0,1264,681 status=OK
+posed hand:  BMP-CONTACT maskPixels=18929 maskBbox=(x=571..829, y=297..415) w=259 h=119 centroid=(679.49,361.59) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=180 nearFraction=0.0095 outsideBody=18749 contactDistance=1 radius=2 region=0,0,1264,681 status=OK
+hand containment: BMP-MASK changed=18929 inside=18927 outside=2 mask_pixels=20282 bbox=(x=571..829, y=297..415) w=259 h=119 status=FAIL reason=outside=2 exceeds 0
+pose change: BMP-MASK changed=9740 inside=9738 outside=2 mask_pixels=25601 bbox=(x=571..838, y=311..393) w=268 h=83 status=FAIL reason=outside=2 exceeds 0
+
+## product lines
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=7 texturesReused=2 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=2 bumpSlots=3 bumpAppliedRanges=2 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=2 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=2 keys=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf,materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=7 texturesReused=2 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=2 bumpSlots=3 bumpAppliedRanges=2 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=2 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=2 keys=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf,materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel pose extent bindCenter=(0.000,52.050,-1.801) bindRadius=29.880 posedCenter=(-0.009,52.050,-1.801) posedRadius=29.887 centerShift=0.009 vertices=9996 posedVertices=9996 nonFinite=0 maxDisplacement=6.126 valid=1 reason=-
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=8 texturesReused=2 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=2 bumpSlots=3 bumpAppliedRanges=2 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=2 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=2 keys=materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=8 texturesReused=2 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=2 bumpSlots=3 bumpAppliedRanges=2 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=2 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_tfc_sniperrifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=0
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=8 texturesReused=2 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=2 bumpSlots=3 bumpAppliedRanges=2 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=2 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_items/c_sniperrifle_scope.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=1
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=7 texturesReused=2 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=0 bumpSlots=3 bumpAppliedRanges=0 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=1 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=0 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=2 keys=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf,materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=1
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=7 texturesReused=2 fallbackSlots=0 alphaSlots=0 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=0 bumpSlots=3 bumpAppliedRanges=0 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=1 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=2 keys=materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf,materials/models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=23169 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=modelMismatch meshRadius=15.78 alignment=weapon_bone vmAnimInput=modelMismatch vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1 ranges=2 boundSlots=2
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=3 texturesReused=2 fallbackSlots=0 alphaSlots=2 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=0 bumpSlots=1 bumpAppliedRanges=0 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=2 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel weaponBodyMaterial ranges=0 texturedRanges=0 fallbackRanges=0 boundSlots=0 keys=- runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-16.78,29.40,7.06) fov=90.00 near=0.7888 far=97.8058 distance=34.7053 radius=15.7751 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+
+## caveats
+paused_capture=1 (a playing capture lands on a scheduler-dependent tick)
+world_geometry=shattered (F1/T17): the composition is judged, not the map
+body_static=1 (the weapon body is not transformed by the pose; see T22 report)
+partition_effects_off=1 (forcing a slot moves the pass's global effect constants too)
