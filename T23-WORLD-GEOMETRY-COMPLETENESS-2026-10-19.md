@@ -12,6 +12,14 @@ cull, pvs, material or lighting rule was edited. Two new measurement tools are
 added: `world-geometry-completeness-capture.sh` and
 `world-geometry-accounting.py`.
 
+**Result in one paragraph.** On the reference POV, back-face rejection owns
+19.40% of the frame (16.1 points of it drawing nothing at all), missing geometry
+4.45% (36,015 of those pixels are the one top-edge sky opening), visibility at
+most 0.25%, and 28.0% of the pixels the product draws are lightmap-dark. The
+world is complete at face level (18,052 faces, 731 sky, 0 invalid, 0 nodraw);
+1,382 of 1,392 displacement faces tessellate and the 10 that do not fall back
+to flat quads. No rendering rule was changed.
+
 ## 1. What was still open
 
 T11 closed the winding question with a measured decision (mask 07) and two
