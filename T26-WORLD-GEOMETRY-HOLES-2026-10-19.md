@@ -40,22 +40,30 @@ the bounds from `map.triangles` even when it uploads `map.skyTriangles`).
 ```
 HOLE totals   missing=38328  sky=38328  unexplained=0
 HOLE split    open=36015  enclosed=2313  enclosedUnexplained=0  components=44
+HOLE dark     drawn=683894  dark=185044  limit=16
 ACCOUNTING    drawn=653277 backface=167030 visibility=0 both=2149 missing=38328
               other=0 overlay=0
+ACCOUNTING    dark drawn_dark=182417 of 653277 (0.2792)
+              lightmap_driven=182368 albedo_driven=49 limit=16
 ```
 
 - **38,328 missing (4.45%)**, of which **36,015** belong to edge-touching
   components (the largest is 35,678 px, `x=430..701 y=0..193`, the opening above
-  the map) and **2,313 (0.27%)** to 21 enclosed components.
+  the map) and **2,313 (0.27%)** to 42 enclosed components, most of them a few
+  pixels wide.
 - **`unexplained=0`**: every missing pixel has a sky face along it.
 - **`backface=167,030` and `visibility=0`** reproduce T23 exactly, so T11's
   winding rule and T17's clip are untouched by this task.
 - **`other=0`**: with the frames tick-aligned, every drawn pixel is attributable
   to one of the three switch classes; the earlier `other=3,631` was a symptom of
   the capture defect in §3.
-- **Dark is not empty.** 182,417 of the 653,277 drawn pixels (27.9%) are below
-  luminance 16 and 182,368 of those become bright with the lightmap off — that is
-  a shading result on drawn geometry, and none of it is in the missing set.
+- **Dark is not empty.** The two `dark` lines above count different populations
+  on purpose: T26's `drawn` is "the world pass put something here" (683,894),
+  T23's excludes the 30,617 pixels its winding test rejects (653,277). On either
+  population roughly 27% of drawn pixels are below luminance 16, and T23's line
+  splits them: 182,368 of 182,417 become bright with the lightmap off, so they
+  are lighting on geometry, not absence of it. None of them is in the missing
+  set, which is defined by coverage rather than colour.
 
 ## 3. A capture defect that changed the answer, and its fix
 
@@ -139,7 +147,7 @@ HOLE seam rank=1 point=696,516 left=17268:7  right=^17256:7 up=15310:58 down=172
 HOLE seam rank=2 point=489,481 left=15376:33 right=17262:5    up=15324:23 down=17262:35
 HOLE seam rank=2 point=488,501 left=15376:35 right=17262:3    up=15324:43 down=17260:20
 HOLE seam rank=4 point=577,501 left=17262:4  right=17266:2    up=17262:21 down=17260:30
-HOLE seam rank=4 point=576,520 left=17260:2  right=17266:2    up=17262:21 down=17260:7
+HOLE seam rank=4 point=576,520 left=17260:2  right=17266:2    up=17262:36 down=17260:7
 ```
 
 `world_geometry_probe --face-info` resolves every one of those indices against
@@ -254,21 +262,61 @@ components to aim at, and a gate that will fail if the sliver population grows.
    displacement cell and one sky face must appear
 ```
 
-Mutation run, `--mutation`. Each mutation removes one rule the verdict stands on
-and the gate must go red for it, judged by the same equality assertions the
-forward run made — not by inspection:
+Mutation run, `--mutation`. Each mutation removes one rule the verdict stands on,
+and the gate has to go red for it — judged by the same equality assertions the
+forward run made, not by inspection. Measured on this tree:
 
-| # | mutation | expected red |
+| # | mutation | measured red |
 | --- | --- | --- |
-| M1 | parser keeps the sky face count but drops the polygons | mask empty, `sky=0`, `unexplained=38328` |
-| M2 | the sky buffer is filled from `map.triangles` | mask becomes the world's own coverage |
-| M3 | the face-id view returns a constant | `hole-point-verify` decode mismatch |
-| M4 | the sky buffer is drawn through its own bounds | mask misaligned, `sky` and `enclosed` move |
-| M5 | the account stops excluding the overlay | pinned `missing` moves by the overlay |
+| M1 | parser keeps the sky face count but drops the polygons | no sky polygon means no upload: exit 14, no draw, no atlas, no frame — the account never runs |
+| M2 | the sky buffer is filled from `map.triangles` | `sky=0 unexplained=38328 enclosedUnexplained=2313` |
+| M3 | the face-id view returns a constant | `HOLE-POINT-SUMMARY points=12 failures=12` |
+| M4 | the sky buffer is drawn through its own bounds | `HOLE-POINT-SUMMARY points=12 failures=2` |
+| M5 | the account reads emptiness off the product's picture | `missing=176890` (pin 38328), `enclosed=16667` (pin 2313) |
+
+```
+-- M1: the parser keeps the sky count and drops the polygons --
+  the product refused to draw (exit 14): gpu: reload-stage stage=models lastError=0x80070057
+  PASS M1: no sky polygon means no upload -- exit 14, no draw, no atlas, no frame
+-- M2: the sky pass uploads the world triangles --
+  PASS M2: the gate goes red: sky=0 unexplained=38328 enclosedUnexplained=2313
+-- M3: the face-id view returns a constant --
+  PASS M3: HOLE-POINT-SUMMARY points=12 failures=12 ids=1264x681 depth=-
+-- M4: the sky mask gets its own transform --
+  PASS M4: HOLE-POINT-SUMMARY points=12 failures=2 ids=1264x681 depth=-
+-- M5: the account reads empty off the product's picture --
+  PASS M5: the gate goes red: missing=176890 sky=176890 enclosed=16667
+-- after restore: the pinned frame comes back --
+  PASS the restored build reproduces the pinned textured frame byte for byte
+== mutation verdict ==
+PASS: all five mutations turned the gate red and every source came back byte-identical.
+```
 
 Every mutation restores its source byte for byte (`cmp`), and the run ends by
 rebuilding from the restored tree and re-capturing `textured`, which must equal
 the pinned frame.
+
+Three of these reds are worth stating plainly, because each one is a fact about
+the instruments rather than about the code:
+
+- **M1's red is a refusal, not an empty mask.** This product's rule, from T12, is
+  that an empty upload is a refusal and not a zero-triangle buffer, so a sky mode
+  with no sky polygon cannot produce a frame at all. The first version of this
+  gate expected an empty mask, read the refusal as a tick drift, retried it four
+  times and then skipped the judgement — a mutation passing for the wrong reason.
+  The gate now accepts both reds and, for the refusal, asserts its four facts
+  (exit 14, no draw, no atlas, no frame).
+- **M4 is caught by 2 points of 12, and by nothing else.** Moving the sky buffer
+  to its own bounds still leaves a mask that covers the frame (§4), so the
+  coverage account cannot see the change at all; only the face-id decode can,
+  and at this camera it moves the id at 2 of the 12 traced pixels. That is a thin
+  margin, and it is the honest size of this instrument.
+- **The first M5 was not coverage and was replaced.** It dropped the account's
+  overlay exclusion; measured on these frames `overlay=0` (tick 2000 draws no
+  HUD), so no pinned number moved and the gate refused it. The exclusion stays in
+  the tool for frames that carry a HUD, is documented as inert here, and the
+  mutation now attacks the definition the task actually stands on: the mask is
+  read off the all-switches-off frame, not off the product's picture.
 
 ## 10. Files
 
@@ -283,9 +331,11 @@ the pinned frame.
 | `hole-point-verify.py` | CPU oracle vs rasterizer vs depth buffer |
 | `world-geometry-hole-check.sh` | the gate and the five mutations |
 | `evidence/t26-world-holes/captures/*.bmp` | the frames (traces are ignored; see `analysis/hashes.txt`) |
-| `evidence/t26-world-holes/analysis/` | account, T23 account, probe, oracle, point trace, face info |
+| `evidence/t26-world-holes/analysis/` | the account, T23's account, probe, oracle, point trace, face info — rewritten by every gate run, with `identity.txt` naming the commit that wrote it |
 
-Verification status: the forward gate passes on this tree except the
-committed-tree assertion, which the commit in §11 satisfies; the mutation run
-follows the same commit. Per the plan, T26 is **not merged** — the merge waits
-for T25.
+Verification status: the forward gate and the mutation run both pass on this
+tree at `20d974390e1d` — 37 passing assertions, five mutations red, four sources
+restored byte-identical each time, and the restored build reproducing the pinned
+`textured` frame byte for byte. `analysis/identity.txt` names the commit the gate
+ran on; this report is committed on top of it. Per the plan, T26 is **not
+merged** — the merge waits for T25.

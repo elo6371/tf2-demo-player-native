@@ -32,4 +32,4 @@ ACCOUNTING missing-component rank=20 area=5 bbox=(x=542..546,y=520..520) edge=0 
 ACCOUNTING missing-component rank=21 area=4 bbox=(x=939..939,y=591..594) edge=0 fill=1.000
 ACCOUNTING missing-component rank=22 area=3 bbox=(x=940..940,y=596..598) edge=0 fill=1.000
 ACCOUNTING missing-component rank=23 area=3 bbox=(x=745..745,y=625..627) edge=0 fill=1.000
-ACCOUNTING mask=evidence/t23-world-geometry/analysis\accounting-mask.bmp
+ACCOUNTING mask=evidence/t26-world-holes/analysis\accounting-mask.bmp
