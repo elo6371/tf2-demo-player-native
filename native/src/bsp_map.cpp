@@ -292,7 +292,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     if (count < 3 || firstEdge < 0 || static_cast<std::size_t>(firstEdge) + static_cast<std::size_t>(count) > surfEdgeCount || infoIndex < 0 || static_cast<std::size_t>(infoIndex) >= texInfo.size() / 72) continue;
     const auto flags = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 64);
     if ((flags & (2 | 4)) != 0) { ++map.skyFaces; continue; }
-    if ((flags & (64 | 128)) != 0) continue;
+    if ((flags & (64 | 128)) != 0) { ++map.facesSkippedNoDraw; continue; }
     const bool water = (flags & 8) != 0;
     const auto texDataIndex = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 68); const auto material = names.count(texDataIndex) ? names[texDataIndex] : std::string{};
     const auto infoBase = static_cast<std::size_t>(infoIndex) * 72;
@@ -331,7 +331,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       }
       polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12));
     }
-    if (!validFace || polygon.size() < 3) continue;
+    if (!validFace || polygon.size() < 3) { ++map.facesSkippedInvalid; continue; }
     // T10 winding census: the polygon's normal (from its own winding) against
     // the face's BSP plane. dface_t: planenum is a uint16 at +0, the back-side
     // flag a byte at +2. This counts the SOURCE winding -- it is a measurement
@@ -485,6 +485,9 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // compared against the polygon's own winding once per face, so a 32x32 grid
     // cannot outvote a quad in the census.
     bool gridCounted = false;
+    // T23: set only while the fallback fan below is being emitted, so the
+    // triangles it pushes can say they are a substitution for a refused grid.
+    bool emittingFallbackQuad = false;
     const auto pushTriangle = [&](BspVertex a, BspVertex b, BspVertex c, bool displacement,
                                   float aAlpha = -1.0f, float bAlpha = -1.0f, float cAlpha = -1.0f) {
       if (map.triangles.size() >= triangleLimit) return;
@@ -605,10 +608,23 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       triangle.planeSide = facePlaneSide;
       triangle.planeIndex = haveFaceOutward ? static_cast<std::int32_t>(facePlaneNumber) : -1;
       triangle.windingFlipped = flipped ? 1 : 0;
+      triangle.fallbackQuad = emittingFallbackQuad;
       triangle.cluster = cluster;
       map.triangles.push_back(std::move(triangle));
     };
     bool emittedDisp = false;
+    // T23: the face asked for a displacement grid. Record why it did not get
+    // one, because "no grid" is emitted as a flat quad and a flat quad is not
+    // a hole -- the two must not share a counter.
+    enum DispFail { kDispOk = 0, kDispLump, kDispPolygon, kDispIndex, kDispPower,
+                    kDispRange, kDispCorner, kDispNonFinite, kDispCell, kDispLimit };
+    DispFail dispFail = kDispOk;
+    if (dispIndex >= 0) {
+      ++map.displacementFaceCandidates;
+      if (!dispInfoOk || !dispVertsOk) dispFail = kDispLump;
+      else if (polygon.size() != 4) dispFail = kDispPolygon;
+      else if (static_cast<std::size_t>(dispIndex) >= dispInfo.size() / 176) dispFail = kDispIndex;
+    }
     if (dispIndex >= 0 && dispInfoOk && dispVertsOk && polygon.size() == 4
         && static_cast<std::size_t>(dispIndex) < dispInfo.size() / 176) {
       const auto dispBase = static_cast<std::size_t>(dispIndex) * 176;
@@ -616,6 +632,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       const auto vertStart = read<std::int32_t>(dispInfo, dispBase + 12);
       const auto power = read<std::int32_t>(dispInfo, dispBase + 20);
       const int size = power >= 2 && power <= 4 ? (1 << power) + 1 : 0;
+      if (size <= 1) dispFail = kDispPower;
+      else if (vertStart < 0
+          || static_cast<std::size_t>(vertStart) + static_cast<std::size_t>(size) * static_cast<std::size_t>(size) > dispVerts.size() / 20) {
+        dispFail = kDispRange;
+      }
       if (size > 1 && vertStart >= 0
           && static_cast<std::size_t>(vertStart) + static_cast<std::size_t>(size) * static_cast<std::size_t>(size) <= dispVerts.size() / 20) {
         int corner = 0;
@@ -627,7 +648,9 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           const float distance = dx * dx + dy * dy + dz * dz;
           if (distance < best) { best = distance; corner = i; }
         }
+        if (best > 1.0f) dispFail = kDispCorner;
         if (best <= 1.0f) {
+          dispFail = kDispOk;
           BspVertex quad[4];
           // The displacement vertex rows are stored in the face's canonical
           // corner order. The face-side bit affects the emitted winding below,
@@ -663,6 +686,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               }
             }
           }
+          if (!finite) dispFail = kDispNonFinite;
           bool displacementComplete = finite;
           const auto usable = [](const BspVertex& a, const BspVertex& b, const BspVertex& c) {
             const float abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
@@ -676,7 +700,9 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
             return std::isfinite(area2) && area2 > 1.0e-8f
               && ab2 <= 262144.0f && ac2 <= 262144.0f && bc2 <= 262144.0f;
           };
+          if (finite) dispFail = kDispLimit;
           if (finite && map.triangles.size() + static_cast<std::size_t>(size - 1) * static_cast<std::size_t>(size - 1) * 2u <= triangleLimit) {
+            dispFail = kDispOk;
             const auto before = map.triangles.size();
             // T12 post-merge: the blend weight is a property of a grid cell, not
             // of a slot in the triangle. `pushTriangle` reverses b and c to
@@ -711,7 +737,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gy * size + gx)]; };
               const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gy * size + gx)]; };
               const auto p00 = at(x, y), p10 = at(x + 1, y), p11 = at(x + 1, y + 1), p01 = at(x, y + 1);
-              if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) { displacementComplete = false; continue; }
+              if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) {
+                displacementComplete = false;
+                dispFail = kDispCell;
+                continue;
+              }
               const auto w00 = weightAt(x, y), w11 = weightAt(x + 1, y + 1), w10 = weightAt(x + 1, y);
               const auto w01 = weightAt(x, y + 1);
               pushTriangle(p00, p11, p10, true, w00, w11, w10);
@@ -734,9 +764,31 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       }
     }
     if (!emittedDisp) {
+      // T23: a candidate that did not produce a grid. Counted here, where the
+      // decision is final, so a face that emitted a partial grid and then rolled
+      // it back and a face that never entered the branch land in one place.
+      if (dispIndex >= 0) {
+        ++map.displacementFallbackFaces;
+        map.displacementFallbackFaceIndex.push_back(faceIndex);
+        map.displacementFallbackMaterial.push_back(material);
+        switch (dispFail) {
+          case kDispLump: ++map.displacementFallbackLump; break;
+          case kDispPolygon: ++map.displacementFallbackPolygon; break;
+          case kDispIndex: ++map.displacementFallbackIndex; break;
+          case kDispPower: ++map.displacementFallbackPower; break;
+          case kDispRange: ++map.displacementFallbackRange; break;
+          case kDispCorner: ++map.displacementFallbackCorner; break;
+          case kDispNonFinite: ++map.displacementFallbackNonFinite; break;
+          case kDispCell: ++map.displacementFallbackCell; break;
+          case kDispLimit: ++map.displacementFallbackLimit; break;
+          default: ++map.displacementFallbackOther; break;
+        }
+      }
+      emittingFallbackQuad = dispIndex >= 0;
       for (std::size_t i = 1; i + 1 < polygon.size() && map.triangles.size() < triangleLimit; ++i) {
         pushTriangle(polygon[0], polygon[i + 1], polygon[i], false);
       }
+      emittingFallbackQuad = false;
     }
     if (water) ++map.waterFaces;
     ++map.renderedFaceCount;

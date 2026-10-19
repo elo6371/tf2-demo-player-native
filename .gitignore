@@ -75,3 +75,15 @@ evidence/frame-capture/mutated.bmp
 # The frames stay tracked: "two runs are byte-identical at tick 2000" is a claim
 # about bytes, and it is only checkable if the bytes are here.
 evidence/weapon-material/*.trace
+
+# T23: one trace per capture is ~1.9 MB of per-frame lines (13 of them, 25 MB).
+# What the accounting reads is the frame, not the trace; what the trace proves is
+# that the frame was the draw at tick 2000, and world-geometry-completeness-capture.sh
+# checks that itself before it accepts a capture and retries until it holds. The
+# raw traces stay on disk and evidence/t23-world-geometry/hashes.txt records the
+# sha256 of each one, so a trace can still be checked against a claim about it.
+# The frames stay tracked: "the cull, not missing geometry, owns this gap" is a
+# claim about pixels, and it is only checkable if the pixels are here.
+evidence/t23-world-geometry/captures/*.trace
+evidence/t23-world-geometry/captures/traces/
+evidence/t23-world-geometry/captures/*.log
