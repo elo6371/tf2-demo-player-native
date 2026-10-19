@@ -59,11 +59,9 @@
 #   M5 (T17) drops the 1/2.2 encode on the lightmap sample -- W1's mean
 #      luminance must fall out of its pin, because that pin was measured with it.
 #
-# The reference capture deliberately does NOT pass --hidden-window: the pinned
-# region numbers below were measured on a visible-window capture at
-# 1264x681, and a hidden-window swapchain cannot be assumed to match. Every
-# other gate convention (RUN_TAG'd scratch files, timeouts, byte-identical
-# restores) is kept.
+# T23 measured the textured frame on visible and hidden swapchains and found
+# byte-identical captures at 1264x681. Keep verification out of the foreground
+# so it cannot cover the user's active window.
 #
 # Usage: bash visual-baseline-check.sh [--mutation]
 # Exit:  0 = every assertion held (or, with --mutation, went red).
@@ -116,7 +114,7 @@ capture() { # capture <bmp-path> <trace-path> [extra flags...]
   for attempt in 1 2 3 4 5 6; do
     rm -f "$bmp"
     TF2_NATIVE_TRACE="$traceWin" timeout 300 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
-      --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
+      --hidden-window --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
       --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
       "$@" > "$SCRATCH/capture.$RUN_TAG.log" 2>&1
     rc=$?

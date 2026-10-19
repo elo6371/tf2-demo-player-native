@@ -34,7 +34,7 @@ TRACE_WIN="$(cygpath -m "$PWD/$TRACE")"
 for attempt in 1 2 3 4 5 6; do
   rm -f "$BMP" "$TRACE"
   TF2_NATIVE_TRACE="$TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
-    --capture-tick 2000 --capture-frame "$BMP_WIN" --audio-disabled \
+    --hidden-window --capture-tick 2000 --capture-frame "$BMP_WIN" --audio-disabled \
     --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
     "$@" > "${TRACE%.trace}.log" 2>&1
   rc=$?

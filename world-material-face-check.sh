@@ -89,7 +89,7 @@ capture() { # capture <bmp> <trace> [extra flags...]
   for attempt in 1 2 3 4 5 6 7 8; do
     rm -f "$bmp"
     TF2_NATIVE_TRACE="$traceWin" timeout 300 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
-      --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
+      --hidden-window --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
       --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
       --world-water off --world-face-trace "$@" > "$SCRATCH/capture.$RUN_TAG.log" 2>&1
     rc=$?

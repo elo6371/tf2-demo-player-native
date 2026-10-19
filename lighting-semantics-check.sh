@@ -32,9 +32,10 @@
 #
 # THE DIRECTION MATTERS
 #   `bmp-delta-sign.py` counts brighter and darker separately, because the
-#   semantic claim is directional. Measured: A->B is brighter=0 darker=1583615,
+#   semantic claim is directional. Measured on the T21-integrated tree:
+#   A->B is brighter=0 darker=1584117,
 #   i.e. the "dynamic light" term (0.62+0.38*dot) can only subtract from the
-#   baked light. A->C is darker=0 brighter=265448: the lobe only adds. Those two
+#   baked light. A->C is darker=0 brighter=267343: the lobe only adds. Those two
 #   lines are what stops either switch being promoted to a default on the
 #   strength of "the picture changed".
 #
@@ -112,7 +113,7 @@ capture() { # capture <name> [extra flags...]
     write_gate_ini
     TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 300 "$PRODUCT" --tf-root "$TF" \
       --demo "$DEMO" --capture-tick 2000 --capture-frame "$(cygpath -m "$PWD/$bmp")" \
-      --audio-disabled --viewmodel models/weapons/v_models/v_scattergun_scout.mdl \
+      --hidden-window --audio-disabled --viewmodel models/weapons/v_models/v_scattergun_scout.mdl \
       --viewmodel-render companion --settings-file "$(cygpath -m "$PWD/$GATE_INI")" \
       "$@" > "$SCRATCH/$name.log" 2>&1
     rc=$?
@@ -352,14 +353,14 @@ DIFF_E=$(run_diff "$SCRATCH/B.bmp" "$SCRATCH/E.bmp")
 dfield() { printf '%s' "$1" | grep -oE "$2=[-0-9.]+" | head -1 | cut -d= -f2; }
 assert_eq "determinism (A vs A2) differing" "$(dfield "$DIFF_A2" differing)" "0"
 assert_eq "determinism (A vs A2) max_delta" "$(dfield "$DIFF_A2" max_delta)" "0"
-assert_eq "dynamic differing" "$(dfield "$DIFF_B" differing)" "1583615"
+assert_eq "dynamic differing" "$(dfield "$DIFF_B" differing)" "1584117"
 assert_eq "dynamic max_delta" "$(dfield "$DIFF_B" max_delta)" "83"
-assert_eq "specular differing" "$(dfield "$DIFF_C" differing)" "265448"
+assert_eq "specular differing" "$(dfield "$DIFF_C" differing)" "267343"
 assert_eq "specular max_delta" "$(dfield "$DIFF_C" max_delta)" "12"
 # Bump alone: the normal is only read by the lighting terms, all off here.
 assert_eq "bump alone differing" "$(dfield "$DIFF_D" differing)" "0"
 assert_eq "bump alone max_delta" "$(dfield "$DIFF_D" max_delta)" "0"
-assert_eq "bump under dynamic differing" "$(dfield "$DIFF_E" differing)" "749629"
+assert_eq "bump under dynamic differing" "$(dfield "$DIFF_E" differing)" "746559"
 assert_eq "bump under dynamic max_delta" "$(dfield "$DIFF_E" max_delta)" "13"
 
 SIGN="$SCRATCH/sign.txt"
@@ -371,11 +372,11 @@ sfield() { sed -n "$1p" "$SIGN" | grep -oE "$2=[-0-9]+" | head -1 | cut -d= -f2;
 # The dynamic-light term is 0.62+0.38*NdotL: it can only subtract from the baked
 # lightmap. A single brighter byte would refute the sentence the report makes.
 assert_eq "dynamic brighter" "$(sfield 1 brighter)" "0"
-assert_eq "dynamic darker" "$(sfield 1 darker)" "1583615"
+assert_eq "dynamic darker" "$(sfield 1 darker)" "1584117"
 assert_eq "dynamic max_down" "$(sfield 1 max_down)" "83"
 # Specular is additive only.
 assert_eq "specular darker" "$(sfield 2 darker)" "0"
-assert_eq "specular brighter" "$(sfield 2 brighter)" "265448"
+assert_eq "specular brighter" "$(sfield 2 brighter)" "267343"
 assert_eq "specular max_up" "$(sfield 2 max_up)" "12"
 # Bump perturbs the normal both ways: the delta is not a scale.
 assert_ge "bump brighter" "$(sfield 3 brighter)" "1"
