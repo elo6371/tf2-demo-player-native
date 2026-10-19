@@ -802,6 +802,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   //                             body's material line: the recording's own body
   //                             has two slots on one atlas, so the per-range
   //                             binding claim needs a body whose slots differ.
+  //   --viewmodel-weapon-material-slot <n>  bind slot n for EVERY body range,
+  //                             mirroring `--viewmodel-material-slot` for the
+  //                             arms. It is the body's own input override, and it
+  //                             exists because the arms' claim ("each range is
+  //                             painted by its own albedo") was only ever made
+  //                             about the arms: the body's equivalent was a
+  //                             count of the keys it *asked* for. Forcing slot 0
+  //                             and slot 1 in turn partitions the body's pixels
+  //                             into the ranges that natively use the other slot,
+  //                             which is a picture claim instead of a request.
+  //                             Reported as `slotOverride=` on the body's
+  //                             material line, so an overridden run cannot be
+  //                             read as a natural one, and it must move nothing
+  //                             outside the body's own coverage.
   //   --viewmodel-sequence <n>  an input OVERRIDE, not a feature: use sequence n
   //                             in place of the entity's own m_nSequence. It
   //                             exists because on both pinned recordings the
@@ -880,6 +894,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // reachable -- and every reading line reports `slotOverride=`, so an overridden
   // run cannot be mistaken for a natural one.
   std::int32_t viewModelMaterialSlotOverride = -1;
+  // The body's copy of the same override. Negative = each range binds the slot
+  // its own descriptor names, which is the only value a natural run has. It is a
+  // separate variable on purpose: the two draws share the texture cache but not
+  // their material state, so a body-only override must be unable to repaint the
+  // hands (T22 measures that with a containment test).
+  std::int32_t viewModelWeaponMaterialSlotOverride = -1;
   // Forces one slot into the `MissingMaterial` state before the pass runs, so
   // the fallback branch is reachable. Negative = no injection. See the
   // `--viewmodel-material-missing-slot` parse site for why the input this
@@ -1149,6 +1169,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         commandWeaponModel = arguments[++i];
         if (commandWeaponModel.empty()) viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-weapon-model") == 0) {
+        viewModelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--viewmodel-weapon-material-slot") == 0 && i + 1 < argumentCount) {
+        // The body's input override, and it is deliberately not the arms'
+        // variable: the two draws share a texture cache, not their material
+        // state, and a body run that repainted the hands would be a defect this
+        // flag's own containment test has to be able to see.
+        wchar_t* end = nullptr;
+        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 0) {
+          viewModelWeaponMaterialSlotOverride = static_cast<std::int32_t>(parsed);
+        } else {
+          viewModelArgumentRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--viewmodel-weapon-material-slot") == 0) {
         viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-sequence") == 0 && i + 1 < argumentCount) {
         // An INPUT OVERRIDE, and named like one. The pinned recordings' ViewModel
@@ -3200,7 +3234,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       });
     tf2::native::applyViewModelMaterialResult(request);
     viewModelWeaponStats.lastRuntimeFailure = summary.firstFailure;
-    viewModelWeaponBody.ranges = viewModelDrawRangesFor(request, viewModelWeaponFlatColor, -1);
+    viewModelWeaponBody.ranges = viewModelDrawRangesFor(request, viewModelWeaponFlatColor,
+      viewModelWeaponMaterialSlotOverride);
     // The reason behind the first range that will draw flat colour. Read off the
     // source range table, because a flat range's draw range carries no slot: the
     // builder leaves `slot` unset when it could not resolve one, and reading the
@@ -3209,7 +3244,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     viewModelWeaponStats.lastUnboundReason.clear();
     if (!viewModelWeaponFlatColor) {
       for (const auto& source : request.mesh.ranges) {
-        const auto slot = source.materialSlot;
+        // The slot the range WILL bind, not the one its descriptor names: under
+        // the override a range whose natural slot resolves can still be bound to
+        // a slot that does not, and the reason has to describe the draw.
+        const auto slot = viewModelWeaponMaterialSlotOverride >= 0
+          ? viewModelWeaponMaterialSlotOverride : source.materialSlot;
         const bool textured = slot >= 0
           && static_cast<std::size_t>(slot) < request.materials.slots.size()
           && request.materials.slots[static_cast<std::size_t>(slot)].pixelsDecoded
@@ -4382,7 +4421,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     //   two slots both resolve and whose two ranges both bind one slot reads
     //   2/2/2/2 and looks correct. `weaponBoundSlots` and the key list are the
     //   readings that separate the two pictures.
-    traceFmt("gpu: viewmodel weaponBodyMaterial ranges=%zu texturedRanges=%zu fallbackRanges=%zu boundSlots=%zu keys=%s runtimeFailure=%s unboundReason=%s flatColor=%d override=%d",
+    traceFmt("gpu: viewmodel weaponBodyMaterial ranges=%zu texturedRanges=%zu fallbackRanges=%zu boundSlots=%zu keys=%s runtimeFailure=%s unboundReason=%s flatColor=%d override=%d slotOverride=%d",
       renderer.viewModelWeaponDrawRangeCount(),
       renderer.viewModelWeaponTexturedRanges(),
       renderer.viewModelWeaponFallbackRanges(),
@@ -4394,7 +4433,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       viewModelWeaponStats.lastUnboundReason.empty()
         ? "-" : viewModelWeaponStats.lastUnboundReason.c_str(),
       viewModelWeaponFlatColor ? 1 : 0,
-      commandWeaponModel.empty() ? 0 : 1);
+      commandWeaponModel.empty() ? 0 : 1,
+      viewModelWeaponMaterialSlotOverride);
   };
   const auto writeMetrics = [&](LARGE_INTEGER sample, bool force) {
     if (!metricsFile) return;

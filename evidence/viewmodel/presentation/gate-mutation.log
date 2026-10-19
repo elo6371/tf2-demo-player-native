@@ -1,0 +1,69 @@
+=== 0/7 the pinned recording and the model files ===
+  OK   autorecord_2026-07-02_13-26-46.dem pinned (21856667 bytes, c8a58501d222bdd9...)
+  OK   pinned recordings verified = 1
+  OK   executable hash recorded (d27106bfded4fc34b2a73a44e90d5ae42d924de90ed422c5b7f9a8c25bfc00e6)
+
+=== 1/7 --mutation: five reference captures from the unmodified tree ===
+  bind rc=0 bmp=2582406
+  world rc=0 bmp=2582406
+  bodyoff rc=0 bmp=2582406
+  bon rc=0 bmp=2582406
+  bslot0 rc=0 bmp=2582406
+  bslot1 rc=0 bmp=2582406
+
+=== 2/7 two independent draw requests, on the product's lines ===
+  ..   forward readings are asserted by the forward run; this run measures the defects
+
+=== 3/7 framing on the captured frame, and the control that carries it ===
+  ..   framing assertions belong to the forward run; this run measures the defects
+
+=== 4/7 the arms: each range owns its own pixels and its own albedo ===
+  ..   partition assertions belong to the forward run; this run measures the defects
+
+=== 5/7 a model that is both: scattergun and scout hands, two albedos ===
+  ..   partition assertions belong to the forward run; this run measures the defects
+
+=== 6/7 the weapon body: two ranges, two albedos, two pixel sets ===
+  ..   scope range (slot 1 forced to slot 0): [BMP-MASK changed=1302 inside=1302 outside=0 mask_pixels=9537 bbox=(x=677..714, y=376..576) w=38 h=201 status=PASS]
+  ..   rifle range (slot 0 forced to slot 1): [BMP-MASK changed=8308 inside=8235 outside=73 mask_pixels=9537 bbox=(x=655..715, y=228..578) w=61 h=351 status=FAIL reason=outside=73 exceeds 0]
+  ..   both forced frames against each other: [BMP-MASK changed=9610 inside=9537 outside=73 mask_pixels=9537 bbox=(x=655..715, y=228..578) w=61 h=351 status=FAIL reason=outside=73 exceeds 0]
+  ..   partition assertions belong to the forward run; this run measures the defects
+
+=== 7/7 the posed hand, in the picture ===
+  ..   pose assertions belong to the forward run; this run measures the defects
+
+=== M the defects, one at a time ===
+  OK   baseline: the forced body frames differ = 9610 (> 200)
+  ..   baseline: scope=9610 rifle=9610 keys=materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf
+
+-- m1: the body's slot override is reported but the range builder is not told
+  ..   mutation applied to native/src/main.cpp
+  ..   m1-bslot0 captured (2582406 bytes)
+  ..   m1 keys=materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf diff=[BMP-MASK changed=0 inside=0 outside=0 mask_pixels=0 bbox=none status=PASS]
+  OK   m1 caught: the forced frame equals the natural frame (0 px, baseline 9610)
+  ..   native/src/main.cpp restored byte-for-byte (c2b5a3626c5da3ecca28983c2dc8310a6f52da47fa2609692263e54824f1c52b)
+
+-- m2: the natural body ranges read the slot next to the one they name
+  ..   mutation applied to native/src/main.cpp
+  ..   m2-bon captured (2582406 bytes)
+  ..   m2 keys=materials/models/weapons/c_items/c_sniperrifle_scope.vtf,materials/models/weapons/c_items/c_tfc_sniperrifle.vtf
+  OK   m2 caught: the natural body binds its two albedos in the wrong order (materials/models/weapons/c_items/c_sniperrifle_scope.vtf,materials/models/weapons/c_items/c_tfc_sniperrifle.vtf)
+  ..   native/src/main.cpp restored byte-for-byte (c2b5a3626c5da3ecca28983c2dc8310a6f52da47fa2609692263e54824f1c52b)
+
+-- m3: the body's slot override is read by the arms' range builder too
+  OK   baseline: a body-only override changes nothing outside the body = 0
+  ..   mutation applied to native/src/main.cpp
+  ..   m3-bslot0 captured (2582406 bytes)
+  ..   m3 body-offset reading=[BMP-MASK changed=20104 inside=1302 outside=18802 mask_pixels=9537 bbox=(x=571..838, y=297..576) w=268 h=280 status=FAIL reason=outside=18802 exceeds 0] arms slotOverride=-1
+  OK   m3 caught: the body override repainted the arms (18802 px outside the body, arms reading still -1)
+  ..   native/src/main.cpp restored byte-for-byte (c2b5a3626c5da3ecca28983c2dc8310a6f52da47fa2609692263e54824f1c52b)
+
+-- restoration: the restored tree draws the baseline frame again
+  ..   restored-bon captured (2582406 bytes)
+  OK   the restored source draws the baseline body frame byte for byte = 6681e53510f9c46c06fe4c404c14a88946eb40afa27e2b12878a7ea56ae764af
+  OK   the source tree is clean after the mutations = 0
+
+
+MUTATION-CAUGHT=PASS (3 of 3 defects)
+VIEWMODEL-PRESENTATION=PASS (10 assertions, 0 failures)
+rc=0

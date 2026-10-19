@@ -1,0 +1,153 @@
+=== 0/7 the pinned recording and the model files ===
+  OK   autorecord_2026-07-02_13-26-46.dem pinned (21856667 bytes, c8a58501d222bdd9...)
+  OK   pinned recordings verified = 1
+  OK   executable hash recorded (2449159967ff7e9a895fe8655e6b535073faaf4e54fbe3a66691a4640bfc235d)
+
+=== 1/7 nineteen captures: presentation, pose, partition, body ===
+  bind rc=0 bmp=2582406
+  apply rc=0 bmp=2582406
+  repeat rc=0 bmp=2582406
+  bodyoff rc=0 bmp=2582406
+  bodyflat rc=0 bmp=2582406
+  world rc=0 bmp=2582406
+  pbind rc=0 bmp=2582406
+  papply rc=0 bmp=2582406
+  pslot0 rc=0 bmp=2582406
+  pslot1 rc=0 bmp=2582406
+  papplyslot0 rc=0 bmp=2582406
+  pbodyoff rc=0 bmp=2582406
+  kbind rc=0 bmp=2582406
+  kslot0 rc=0 bmp=2582406
+  kslot1 rc=0 bmp=2582406
+  kworld rc=0 bmp=2582406
+  bon rc=0 bmp=2582406
+  bflat rc=0 bmp=2582406
+  bslot0 rc=0 bmp=2582406
+  bslot1 rc=0 bmp=2582406
+
+=== 2/7 two independent draw requests, on the product's lines ===
+  OK   bind: one ViewModel draw call = 1
+  OK   bind: the drawn model is the entity's = models/weapons/c_models/c_sniper_arms.mdl
+  OK   bind: no pose is applied = 0
+  OK   apply: the pose is applied = 1
+  OK   apply: the pass skins = 1
+  OK   apply: the bone table covers the skeleton = 58/58
+  OK   apply: the sequence is inside the drawn model's table = 1
+  OK   apply: the pose samples a frame = 0
+  OK   arms: two ranges = 2
+  OK   arms: two distinct material slots bound = 2
+  OK   arms: the two ranges' slots, in range order = 0,1
+  OK   arms: the two ranges' vertex counts = 600,9396
+  OK   arms: both ranges are textured = 1,1
+  OK   body: two ranges = 2
+  OK   body: two textured ranges = 2
+  OK   body: two distinct slots bound = 2
+  OK   body: no model override = 0
+  OK   body: its own albedo is bound
+  OK   body: the arms' albedo is not in the body's key list
+  OK   body: the natural body's two slots share one atlas (why the override exists) = 1
+  OK   override body: two distinct albedos = 2
+  OK   override body: the rifle's albedo
+  OK   override body: the scope's albedo
+  OK   override body: reported as an override = 1
+  OK   override body: two slots bound = 2
+  OK   forced arms slot 0: reported = 0
+  OK   forced arms slot 1: reported = 1
+  OK   forced arms slot 0: one slot bound = 1
+  OK   forced body slot 0: reported = 0
+  OK   forced body slot 1: reported = 1
+  OK   forced body slot 0: both ranges take slot 0 = materials/models/weapons/c_items/c_tfc_sniperrifle.vtf,materials/models/weapons/c_items/c_tfc_sniperrifle.vtf
+  OK   forced body slot 1: both ranges take slot 1 = materials/models/weapons/c_items/c_sniperrifle_scope.vtf,materials/models/weapons/c_items/c_sniperrifle_scope.vtf
+
+=== 3/7 framing on the captured frame, and the control that carries it ===
+  OK   the world pass is byte-identical under a different ViewModel flag set = 3e80cccd665f970a7f4fc2bb5113f218f6e382c49e053db9463b618e514bab4d
+  ..   coverage: bind [BMP-MASK changed=25601 inside=25601 outside=0 mask_pixels=25601 bbox=(x=571..838, y=247..530) w=268 h=284 status=PASS]
+  ..   coverage: apply [BMP-MASK changed=24324 inside=24324 outside=0 mask_pixels=24324 bbox=(x=571..829, y=247..530) w=259 h=284 status=PASS]
+  ..   coverage: command [BMP-MASK changed=13260 inside=13260 outside=0 mask_pixels=13260 bbox=(x=643..714, y=244..549) w=72 h=306 status=PASS]
+  OK   the composite covers a weapon-sized region = 25601 (>= 8000)
+  OK   the composite does not fill the frame = 25601 (<= 80000)
+  ..   composite covers 2.97% of the frame
+  OK   the applied pose keeps the composite on screen = 24324 (>= 8000)
+  OK   the applied pose does not grow the composite = 24324 (<= 25601)
+  ..   composite bbox: x=571..838 y=247..530
+  OK   left margin = 571 (>= 100)
+  OK   right margin = 425 (>= 100)
+  OK   top margin = 247 (>= 100)
+  OK   bottom margin = 150 (>= 100)
+  OK   the pose does not move the left edge = 0 (<= 12)
+  OK   the pose does not move the right edge = 9 (<= 12)
+  OK   the pose does not move the top edge = 0 (<= 12)
+  OK   the pose does not move the bottom edge = 0 (<= 12)
+  OK   the pose changes the composite's area by less than a tenth = 0.0498809 (<= 0.10)
+  OK   the eye is outside the model (distance / radius) = 2.2 (<= 2.30)
+  OK   the eye is not far from the model (distance / radius) = 2.2 (>= 2.10)
+  OK   the camera and the framing are the same text on the bind and applied runs = gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+  OK   the applied frame repeats byte for byte = 04fbd243c0efe7371f4edcb4f99ff3ef7affbdbc5f54afa4f0d9af0126b8e84e
+  ..   world strip above the composite: [BMP-DIFF region=0,0,1264,220 differing=0 total=834240 percent=0.0000 max_delta=0 share=0.0000]
+  OK   the pose does not touch the world above the composite = 0
+  ..   everything below y=420: [BMP-DIFF region=0,420,1264,261 differing=0 total=989712 percent=0.0000 max_delta=0 share=0.0000]
+  OK   the pose does not touch anything below the hand = 0
+
+=== 4/7 the arms: each range owns its own pixels and its own albedo ===
+  ..   arms-only coverage: [BMP-MASK changed=20998 inside=20998 outside=0 mask_pixels=20998 bbox=(x=571..838, y=297..417) w=268 h=121 status=PASS]
+  ..   hand range (slot 1 forced to slot 0): [BMP-MASK changed=20282 inside=20282 outside=0 mask_pixels=20998 bbox=(x=571..838, y=297..415) w=268 h=119 status=PASS]
+  ..   sleeve range (slot 0 forced to slot 1): [BMP-MASK changed=328 inside=328 outside=0 mask_pixels=20998 bbox=(x=582..744, y=383..415) w=163 h=33 status=PASS]
+  ..   both forced frames against each other: [BMP-MASK changed=20610 inside=20610 outside=0 mask_pixels=20998 bbox=(x=571..838, y=297..415) w=268 h=119 status=PASS]
+  OK   the hand range owns pixels = 20282 (>= 8000)
+  OK   the sleeve range owns pixels = 328 (>= 100)
+  OK   the hand's pixels are on the arms = 0
+  OK   the sleeve's pixels are on the arms = 0
+  OK   no pixel is owned by both ranges (hand vs sleeve) = 0
+  OK   no pixel is owned by both ranges (sleeve vs hand) = 0
+  OK   the two ranges' pixel sets add up to the forced pair's difference = 20610
+  OK   forcing the two slots really produces two different pictures = 20610 (> 1000)
+
+=== 5/7 a model that is both: scattergun and scout hands, two albedos ===
+  ..   model coverage: [BMP-MASK changed=13260 inside=13260 outside=0 mask_pixels=13260 bbox=(x=643..714, y=244..549) w=72 h=306 status=PASS]
+  ..   hands range (slot 1 forced to slot 0): [BMP-MASK changed=8651 inside=8651 outside=0 mask_pixels=13260 bbox=(x=643..710, y=245..549) w=68 h=305 status=PASS]
+  ..   weapon range (slot 0 forced to slot 1): [BMP-MASK changed=4609 inside=4609 outside=0 mask_pixels=13260 bbox=(x=643..714, y=244..549) w=72 h=306 status=PASS]
+  ..   both forced frames against each other: [BMP-MASK changed=13260 inside=13260 outside=0 mask_pixels=13260 bbox=(x=643..714, y=244..549) w=72 h=306 status=PASS]
+  OK   the hands range owns pixels = 8651 (>= 2000)
+  OK   the weapon range owns pixels = 4609 (>= 2000)
+  OK   the two ranges of one mesh do not share a pixel = 0
+  OK   they add up to the forced pair's difference = 13260
+  OK   the model's range table is two ranges = 2
+  OK   the model's two ranges use two slots = 2
+  OK   the model's ranges in order: the weapon, then the hands = 9723,13446
+
+=== 6/7 the weapon body: two ranges, two albedos, two pixel sets ===
+  ..   scope range (slot 1 forced to slot 0): [BMP-MASK changed=1302 inside=1302 outside=0 mask_pixels=9610 bbox=(x=677..714, y=376..576) w=38 h=201 status=PASS]
+  ..   rifle range (slot 0 forced to slot 1): [BMP-MASK changed=8308 inside=8308 outside=0 mask_pixels=9610 bbox=(x=655..715, y=228..578) w=61 h=351 status=PASS]
+  ..   both forced frames against each other: [BMP-MASK changed=9610 inside=9610 outside=0 mask_pixels=9610 bbox=(x=655..715, y=228..578) w=61 h=351 status=PASS]
+  OK   the scope range owns pixels = 1302 (>= 200)
+  OK   the rifle range owns pixels = 8308 (>= 2000)
+  OK   the body's two ranges do not share a pixel = 0
+  OK   the body's two pixel sets add up to the forced pair's difference = 9610
+  OK   the scope's pixel set is the small one = 1302 (<= 3000)
+  OK   the rifle's pixel set is the large one = 8308 (>= 4000)
+  OK   the body override changes nothing above the composite = 0
+  OK   a body-only slot override changes nothing outside the body = 0
+  ..   pose change against the body's coverage: [BMP-MASK changed=9740 inside=259 outside=9481 mask_pixels=9610 bbox=(x=571..838, y=311..393) w=268 h=83 status=FAIL reason=outside=9481 exceeds 0]
+  OK   the pose change barely lands on the body = 259 (<= 1000)
+  OK   the pose change is not a body change (most of it is off the body) = 9481 (>= 5000)
+
+=== 7/7 the posed hand, in the picture ===
+  ..   bind hand: [BMP-CONTACT maskPixels=20282 maskBbox=(x=571..838, y=297..415) w=268 h=119 centroid=(685.58,359.80) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=235 nearFraction=0.0116 outsideBody=20047 contactDistance=1 radius=2 region=0,0,1264,681 status=OK]
+  ..   posed hand: [BMP-CONTACT maskPixels=18929 maskBbox=(x=571..829, y=297..415) w=259 h=119 centroid=(679.49,361.59) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=180 nearFraction=0.0095 outsideBody=18749 contactDistance=1 radius=2 region=0,0,1264,681 status=OK]
+  OK   the bind hand's mask is large enough to judge = 20282 (>= 8000)
+  OK   the posed hand's mask is large enough to judge = 18929 (>= 8000)
+  OK   the bind hand touches the weapon = 1
+  OK   the posed hand still touches the weapon = 1
+  OK   the posed hand keeps at least half the bind hand's contact = 0.818966 (>= 0.5)
+  ..   posed hand against the bind hand's mask: [BMP-MASK changed=18929 inside=18927 outside=2 mask_pixels=20282 bbox=(x=571..829, y=297..415) w=259 h=119 status=FAIL reason=outside=2 exceeds 0]
+  OK   the posed hand does not leave the bind hand's region = 2 (<= 64)
+  OK   the hand's centroid moves less than 10 px = 6.34761 (<= 10)
+  ..   pose change against the composite's coverage: [BMP-MASK changed=9740 inside=9738 outside=2 mask_pixels=25601 bbox=(x=571..838, y=311..393) w=268 h=83 status=FAIL reason=outside=2 exceeds 0]
+  OK   the pose changed the picture = 9740 (> 1000)
+  OK   the pose change is inside the ViewModel's coverage = 2 (<= 64)
+  OK   the pose change is not a re-skin of the frame = 9740 (<= 20000)
+
+evidence written to evidence/viewmodel/presentation
+
+VIEWMODEL-PRESENTATION=PASS (90 assertions, 0 failures)
+rc=0
