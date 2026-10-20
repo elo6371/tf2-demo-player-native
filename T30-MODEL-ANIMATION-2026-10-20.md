@@ -203,6 +203,13 @@ bash viewmodel-robustness-check.sh --mutation
 
 ## 6. Forward gate results
 
+The forward evidence was produced by the gate at `9c8f120`. Commit `3de562e`
+then changed only mutation-block assertions (the m1 control's line pattern, the
+m3 witnesses, the restoration assertion); the mutation run executed after that
+change re-captured the baseline frames and reproduced the forward frames
+hash-for-hash (`bind 49604d9d…`, `world 04e32a13…`, `applied 45dd7bea…`), so the
+frozen evidence describes the same product source the final gate version judges.
+
 Six sections, 203 assertions, none failed. The readings this report depends on
 are in `evidence/t30/summary.txt`; the numbers are:
 
