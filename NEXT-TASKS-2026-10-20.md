@@ -324,6 +324,31 @@ merge; I do not merge task branches on the implementer's behalf.
   attribute, not to hide. NOT VERIFIED (no input): temp_entity/PCF sound
   events, MP3-named music events, human listening, non-device-6 devices,
   MP3 loudness/latency, whole-corpus 1687-recording count.
+- 2026-10-20 — T30 `task/t30-model-animation@fb62c82` merged as `3ffd6cb`.
+  Product sources are unchanged (`git diff 36303c2 -- native/src native/include`
+  empty). Delivery: `native/tools/model_robustness_probe.cpp` + CMake target,
+  `viewmodel-robustness-check.sh` (6 sections), `model-inventory-sweep.sh`, the
+  full 363-model inventory (326 `c_*` + 37 `v_*`; 186 single-range, 148
+  multi-range with distinct VTFs, 9 `*_animations.mdl` refusals), and the report.
+  Real inputs: `c_rocketlauncher` (1 range / 20,748 verts / 1 VTF / 4 LODs),
+  `c_syringegun` (2 ranges on `c_syringegun.vtf` + `c_syringegun_glass.vtf`),
+  and a real `v_scattergun_scout` whose VVD/VTX were omitted -> named refusal
+  `viewmodel companions are missing`. Named LOD-0 refusal, named LOD-1
+  fallback (`lodFallback=1`), and the animation-companion absence reported as a
+  named degradation (not a refusal), kept separate as requested.
+  Gates: `VIEWMODEL-ROBUSTNESS=PASS (203 assertions, 0 failures)`;
+  `MUTATION-CAUGHT=PASS (4 of 4)` with byte-exact source restoration against
+  HEAD and the restored build re-drawing the committed applied frame;
+  contact `nearFraction 0.0705 bind / 0.0694 applied`, `contactDistance=0`,
+  98.4% kept; pose 10,097 px changed, 10,095 inside VM coverage. `.gitattributes`
+  gains `evidence/t30/** -text` (same rule as `evidence/weapon-material/**`).
+  NOT VERIFIED (the branch changes no product code, so expected to hold but not
+  a run): sibling viewmodel/weapon gates; the combined verification runs
+  `viewmodel-range-check.sh` and `viewmodel-companion-check.sh`. Also NOT
+  VERIFIED: animation-companion absence as a product refusal (no shipped model
+  has an empty own table + declared companion), LOD fallback only via fixture,
+  one paused tick/one sequence, only three models drawn in pixels.
+
 
 
 
