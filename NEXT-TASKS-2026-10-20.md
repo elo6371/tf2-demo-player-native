@@ -550,3 +550,126 @@ usable or rejected with a fully attributed external/environment cause.
   product-attributable pixels are not further split; per-texel (not per-rectangle)
   lightmap projection is still unclaimed; the account covers one camera and one tick.
 
+- 2026-10-20 — wave 2/3 (T34-T38) integrated. Five branches from `ac7e2b7`
+  merged into `p0-entity-protocol`; all validation serialized through
+  `_shared/hostlock.sh`.
+
+  **T38** `task/t38-perf` → `82e5c66` (log `a00ecf9`). Read-only footprint and
+  steady-state audit; nothing deleted, no product change, no pin moved. Re-measured
+  on `ac7e2b7` rather than reusing T33's `36303c2` numbers: 3,447 tracked files /
+  1,324,098,756 B (T33: 3,351 / ~1,301 MiB); 212 duplicate sha256 groups / 1,379
+  files / 570.9 MiB wasted (45.2%); only 4 candidates (4.93 MiB) are last copies
+  of their bytes with no reference anywhere — per-candidate keep/drop manifest
+  committed as `evidence/t38-perf/deletion-manifest.txt`. Committed
+  `quality-audit-check.sh` unmodified: forward exit 0 with all 20 pins held and two
+  byte-identical captures (`6bb4d9a7…`); mutation exit 0 with
+  `maxTilesPerBatch 64→20` red as required. Runtime vs T33: atlas 2 textures /
+  89.7 MiB and layerBytes 218.7 MiB unchanged; mean frame 15.89→15.45 ms; fps
+  65.9–66.7→64.8/64.9 median (delta **not attributed**); peak ws 2188/2185 MiB.
+  Corrects the previous pass: scene updates are 84.2/s, not 66.7/s, so the
+  per-update `ModelInstance` rebuild is ~1,500–2,500 allocs/s **by reading code
+  only** — no wall-clock attribution, not claimed as a regression.
+
+  **T36** `task/t36-lighting` → `e209328` (log `f303063`). Zero product changes;
+  answers the item T29 left `NOT VERIFIED` and **overturns** the earlier reading.
+  The inherited plane-side rule called 86.00% of the drawn face-id population
+  BACK, but that population already passed `D3D11_CULL_BACK`, so the rasterizer
+  calls all of it FRONT; scoring four rules against that known population picks
+  the inverted sign (86% vs 14%). Calibrated: drawn front 645,326 (86.00%) / back
+  105,065 (14.00%); dark front 171,030 (82.85%) / back 35,410 (17.15%); dark rate
+  26.50% vs 33.70% over a 27.51% base = **relative risk 1.272** — a mild
+  enrichment, **not** the explanation for a fifth of the frame. 97.51% (front) /
+  99.38% (back) of dark pixels sit on lightmap rectangles the map baked below
+  96/255, so **99.94% is the map's own lighting**; 1.98% (4,123 px) is
+  product-attributable. Forward `lighting-dark-account-check.sh --reuse` exit 0,
+  21 assertions, 0 failures, reproducible; gains §3b calibrating the side rule
+  against the rasterizer's own cull so the inversion cannot return silently.
+  m2 swap mutation is real (170,701/35,227 → 35,227/170,701, total holds at
+  208,630, source restored byte-identical); **m1/m3 NOT run** (need a product
+  build + capture) and reported as deferred. Four defects fixed that meant the
+  gate had **never** passed forward, including the serious one: **every mutation
+  treated a crashed tool as RED**, so any syntax error would have "passed".
+
+  **T35** `task/t35-pins` → `2584d50` + `91b217e`. Zero product changes. Re-pinned
+  the pixels T29 moved and **split the pins by origin** as the honesty check:
+  every FRAME-derived pin moved (missing 38,328→1,648; enclosed 2,313→1,648; open
+  36,015→0; components 44→34; backface 167,030→80,917; both frame shas), every
+  BSP-derived pin held (sky faces 731, sky triangles 1,842, buffer triangles
+  99,312, enclosed components ≥200px 3, face account 18,052/17,321/731), and
+  `unexplained` is 0 on both sides. The terrain occlusion assertion was kept RED
+  rather than widened; the 7 pixels are now attributed by **two independent
+  instruments that agree exactly** — the product's own `--world-hole-trace`
+  (`drawnHits=7 of 7`, face 9,764 WOOD/WALL020B at depth 0.9722) and a
+  `--world-face-id` decode (`face_id=9,764` at all seven) — so the gate gains a
+  colour-blind second arm (`composed != none`) instead of a looser tolerance.
+  `seamCulled 2→0` is **left red deliberately**: the gate's own failure message
+  blames `world-ids-nocull.bmp` not being read, which T35 disproves with the
+  account tool's own loader (all 32 directions around the 8 representative points
+  resolve from the CULL-ON frame, seam faces 8555/15324/17217/17260/17262/17266/
+  17268/17326 named, and 81,218 px are still drawn only with the cull off), so
+  the mechanism lives and simply no longer falls on a surviving sliver.
+
+  **T34** `task/t34-nearclip` → `97c10b2` (pin fix `a5c00d8`). Closes verify-all
+  step 22 **without touching T29's near plane**. Route chosen by measurement:
+  route (a) "use a tick where the camera moves" is impossible — 5,009 scene ticks
+  on the near-clip demo and 1,862 on the weapon demo each resolve ONE camera pose
+  (eye exactly 0,0,0, pitch/yaw exactly 0.00), while `mode=first-person`,
+  `target=1` and per-tick `follows` prove the product really applies a pose every
+  tick. So section 3 reads the pose from the trace sections 1–2 already write (no
+  extra launch) and asserts the branch the reading selects: still camera → the
+  three frames must be ONE picture and must not be a flat fill; camera moved →
+  they must differ (the old assertion, kept as the other arm). A premise
+  assertion requires `nearMapUnits ∈ [3,5]` so the conclusion holds only through
+  T29's plane. Section 3 fully green: `distinct frames = 1 of 3`, 547 distinct
+  sampled colours, `nearMapUnits=4.00`, camera drift 0.000. Control: 28 points,
+  20 resolve, **17 nearer than the old 603-map-unit clip**, nearest 121.6 map
+  units. Mutation: `nearMapUnits=602.78` (the Lead's 602.78 reproduced exactly),
+  named points 20→5, 0 nearer than 603, picture moved 98.1% of its bytes. Both
+  frame hashes match the Lead's independent readings (`f841c39f…` T29 build,
+  `d91dd163…` old plane). Gate: forward EXIT=1 OK=55 FAIL=1 (the one red is the
+  identity-skinning pair); mutation EXIT=0 OK=46 FAIL=10 MUTATION-CAUGHT=PASS.
+  The identity 3 bytes are attributed, not masked: 1 pixel / 3 bytes at (622,268),
+  max Δ59 on an edge whose neighbourhood also differs by 59 — a silhouette
+  sampling difference, not float reassociation; tolerance **not** widened.
+  **Lead correction `a5c00d8`**: T34 pinned step 22 at 57 by arithmetic that does
+  not match the gate — measured per-section counts are 27/6/5/11/6/1 = **56**
+  (section 3 prints five assertions; the branch token is a reading line). A pin of
+  57 would have kept step 22 red forever even after the identity fix, so it is
+  pinned at the measured 56 with the measurement in the comment.
+
+  **T37** `task/t37-installer` → `d305211` + `ab06a75`. The product becomes its
+  own installer and the VPK diagnostic stops lying. **Corrects a blocker this
+  report carried**: `pak01_dir.vpk` is **absent**, not corrupt — verified
+  independently by the Lead (`Test-Path` false, no `pak01*` entries; the install
+  ships `tf2_misc` 5,402,349 B, `tf2_sound_misc` 158,146 B,
+  `tf2_sound_vo_english` 560,962 B, `tf2_textures` 1,974,706 B `_dir.vpk`
+  indexes, all of which open). The original reading came from
+  `vpk_query.cpp:50-56`, which printed `OPEN FAILED` for any `open()` failure and
+  discarded the error string, so "absent" and "corrupt" were indistinguishable;
+  the real defect was the diagnostic losing the reason. Lifecycle implemented in
+  the product: `--version` (from the shipped `VERSION.txt`), `--install <dir>`
+  (stages payload under `.uninstall/payload/`, writes a manifest with path, size,
+  sha256, state and backup), `--install-status` (VERIFIED/modified + version), and
+  `--uninstall` (removes only what its manifest says it installed, restores
+  backed-up user edits, names a running image it cannot delete). Three product
+  fixes found by gate runs: reinstall made the package's own files unremovable
+  (ours-and-identical now stays `new`, ours-but-edited becomes `changed` with a
+  backup); installing onto a directory whose image is running no longer steals the
+  caller's redirected stdout and records `VERSION.txt` in the manifest; the VPK
+  diagnostic keeps the reason. Readiness gate re-pinned for the new package shape:
+  **107 checks, 0 failures, exit 0** (the Lead re-ran it clean after a first run
+  was polluted by a mid-edit worktree).
+
+  Integration edits this round: `2429791` withdraws the pak01 blocker in
+  `T28-RELEASE-ACCEPTANCE-2026-10-20.md`; `4a51668` pins `exe_count` 42→44 for
+  T37's `install_cli_probe` and `vpk_readiness_probe` (measured two ways:
+  `grep -c '^add_executable(' = 44` and a clean full Release build printing
+  `cmake_build_rc=0 errors=0 exe_count=44`, `exes_on_disk=44`; the warning count
+  moved 10→11 for a C4189 in T37's own code, warnings not asserted by design).
+
+  Merged-tree focused gates: `verify-fast --no-build` PASS (43),
+  `quality-audit-check.sh` PASS, `world-near-clip-check.sh` PASS,
+  `lighting-dark-account-check.sh --reuse` PASS,
+  `world-geometry-hole-check.sh` FAIL on the one `seamCulled` assertion T35
+  deliberately left red and attributed.
+
