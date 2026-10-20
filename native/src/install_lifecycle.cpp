@@ -203,12 +203,35 @@ Result installInto(const Options& options, const PackageInfo& info) {
     record.sha256 = sourceSha;
 
     const auto was = prior.find(name);
+    const bool oursBefore = previouslyInstalled.count(name) != 0;
     if (was == prior.end()) {
+      record.state = kStateNew;
+    } else if (was->second.sha == sourceSha && was->second.bytes == sourceBytes && oursBefore) {
+      // The bytes are already exactly the package own, and the previous manifest
+      // proves this package put them there. The record must stay `new`: `unchanged`
+      // means "it was here before we arrived and is not ours", and uninstall
+      // deliberately leaves those. A reinstall that reclassified its own files as
+      // unchanged made them unremovable -- measured 2026-10-20 as an uninstall
+      // that reported PASS while leaving the product and the smoke probe behind.
       record.state = kStateNew;
     } else if (was->second.sha == sourceSha && was->second.bytes == sourceBytes) {
       record.state = kStateUnchanged;
-    } else if (previouslyInstalled.count(name) != 0) {
-      record.state = kStateNew;
+    } else if (oursBefore) {
+      // Ours, but the bytes on disk are NOT the bytes the previous manifest
+      // recorded: the user edited a file this package installed. Refreshing it is
+      // correct -- an upgrade replaces its own files -- but the bytes being
+      // replaced are the user work, so they are backed up first and the record
+      // says `changed`, which is what makes uninstall restore them.
+      record.state = kStateChanged;
+      const auto backupRelative = std::filesystem::path(kBackupDirectory) / encodeName(name);
+      const auto backupPath = statePath(options, backupRelative);
+      if (!copyFileRaw(destination, backupPath)) {
+        emit(result, "install=FAIL reason=cannot_back_up file=" + name);
+        result.exitCode = 2;
+        return result;
+      }
+      record.backup = backupRelative.generic_string();
+      ++backups;
     } else {
       record.state = kStateChanged;
       const auto backupRelative = std::filesystem::path(kBackupDirectory) / encodeName(name);
@@ -414,7 +437,7 @@ Result uninstallFrom(const Options& options) {
     return result;
   }
 
-  std::size_t removed = 0, restored = 0, preserved = 0, modified = 0, missing = 0;
+  std::size_t removed = 0, restored = 0, preserved = 0, modified = 0, missing = 0, deferred = 0;
   for (const auto& file : manifest.files) {
     if (file.state == kStatePreserved || file.state == kStateUnchanged) { ++preserved; continue; }
     const auto path = options.installDir / std::filesystem::path(file.path);
@@ -440,7 +463,26 @@ Result uninstallFrom(const Options& options) {
         continue;
       }
     }
-    if (std::filesystem::remove(path, code)) ++removed;
+    // A RUNNING IMAGE CANNOT DELETE ITSELF.
+    //   Windows keeps the mapped image locked with delete-share denied, so
+    //   std::filesystem::remove on the executable that is executing this code
+    //   fails -- measured 2026-10-20 as an uninstall that printed removed=2 and
+    //   left tf2_demo_native.exe behind, which is exactly the kind of green
+    //   reading this manifest exists to prevent. It is counted separately, by
+    //   name, and the caller is told what to do, instead of being folded into a
+    //   success count it does not belong in.
+    if (isRunningImage(path)) {
+      ++deferred;
+      emit(result, "uninstall=note deferred_running_image=" + file.path);
+      continue;
+    }
+    if (!std::filesystem::remove(path, code)) {
+      // Not removed and not ours to defer: say so rather than counting a pass.
+      emit(result, "uninstall=note could_not_remove=" + file.path
+        + " win32=" + std::to_string(code.value()));
+      continue;
+    }
+    ++removed;
   }
 
   // Directories this package created, deepest first, and only while empty: a
@@ -474,9 +516,15 @@ Result uninstallFrom(const Options& options) {
     // exists to make impossible.
     std::filesystem::remove_all(options.installDir / kStateDirectory, code);
   }
-  emit(result, "uninstall=PASS removed=" + std::to_string(removed) + " restored="
+  // Three, not zero: the caller asked for a complete removal and did not get one.
+  // Exit 2 is reserved for "this directory is not an install", which is a
+  // different finding and must stay distinguishable in a script.
+  if (deferred != 0) result.exitCode = 3;
+  emit(result, "uninstall=" + std::string(deferred == 0 ? "PASS" : "INCOMPLETE")
+    + " removed=" + std::to_string(removed) + " restored="
     + std::to_string(restored) + " preserved=" + std::to_string(preserved) + " modified="
-    + std::to_string(modified) + " alreadyMissing=" + std::to_string(missing));
+    + std::to_string(modified) + " alreadyMissing=" + std::to_string(missing)
+    + " deferredRunningImage=" + std::to_string(deferred));
   return result;
 }
 
