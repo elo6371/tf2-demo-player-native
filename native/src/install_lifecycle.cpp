@@ -84,6 +84,22 @@ std::string utcNow() {
 // directory (it holds the manifest and the backups, and a manifest that listed
 // its own backups would have to be written after itself) and the staged payload
 // (an input to the install, not part of it).
+// Whether a destination IS the executable currently running. Windows keeps a
+// running image locked, so an in-place copy onto it fails with a sharing
+// violation -- and the package this round ships is exactly that case: the thing
+// that installs is the thing that is installed. Naming it is the difference
+// between "the installer is broken" and "a running image cannot replace itself".
+bool isRunningImage(const std::filesystem::path& path) {
+  wchar_t self[MAX_PATH]{};
+  if (GetModuleFileNameW(nullptr, self, MAX_PATH) == 0) return false;
+  std::error_code error;
+  const auto candidate = std::filesystem::weakly_canonical(path, error);
+  if (error) return false;
+  const auto running = std::filesystem::weakly_canonical(std::filesystem::path(self), error);
+  if (error) return false;
+  return candidate == running;
+}
+
 bool isLifecycleState(const std::string& relative) {
   return relative == kStateDirectory
     || relative.rfind(std::string(kStateDirectory) + "/", 0) == 0
@@ -240,6 +256,22 @@ Result installInto(const Options& options, const PackageInfo& info) {
   for (const auto& file : files) {
     const auto source = payloadDir / std::filesystem::path(file.path);
     const auto destination = installDir / std::filesystem::path(file.path);
+    // The package this round ships installs ITSELF: the running image is one of
+    // the files being laid down. Windows keeps a running image locked, so a copy
+    // onto it fails with a sharing violation -- measured 2026-10-20 as
+    // "install=FAIL reason=cannot_copy file=tf2_demo_native.exe" on a package that
+    // was otherwise complete. The bytes are already there and are the ones the
+    // manifest hashes, so the correct reading is "already in place", not a failure.
+    // Under a HARNESS the copy would succeed and truncate the live program.
+    if (isRunningImage(destination)) {
+      const auto running = sha256File(destination, nullptr);
+      if (running != file.sha256) {
+        emit(result, "install=note running_image_kept file=" + file.path
+          + " reason=running_images_cannot_be_replaced_here");
+      }
+      ++copied;
+      continue;
+    }
     if (!copyFileRaw(source, destination)) {
       emit(result, "install=FAIL reason=cannot_copy file=" + file.path);
       result.exitCode = 2;
@@ -259,31 +291,49 @@ Result installInto(const Options& options, const PackageInfo& info) {
   manifest.files = files;
 
   // preserved: everything that was already in the directory and is not ours.
-  std::set<std::string> ours;
-  for (const auto& file : files) ours.insert(file.path);
-  for (const auto& [relative, record] : prior) {
-    (void)record;
-    if (ours.count(relative) != 0) continue;
-    ManifestFile preserved;
-    preserved.path = relative;
-    preserved.state = kStatePreserved;
-    const auto path = installDir / std::filesystem::path(relative);
-    preserved.bytes = std::filesystem::file_size(path, code);
-    preserved.sha256 = sha256File(path, nullptr);
-    manifest.files.push_back(std::move(preserved));
-  }
-  std::sort(manifest.files.begin(), manifest.files.end(),
-    [](const ManifestFile& a, const ManifestFile& b) { return a.path < b.path; });
+  // Collected AFTER the file list is final, because the list grows by one when
+  // the version file this package wrote has to be recorded: computing preserved
+  // from a list that later grew would list the package own VERSION.txt twice.
+  const auto collectPreserved = [&]() {
+    std::set<std::string> ours;
+    for (const auto& file : files) ours.insert(file.path);
+    for (const auto& [relative, record] : prior) {
+      (void)record;
+      if (ours.count(relative) != 0) continue;
+      ManifestFile preserved;
+      preserved.path = relative;
+      preserved.state = kStatePreserved;
+      const auto path = installDir / std::filesystem::path(relative);
+      preserved.bytes = std::filesystem::file_size(path, code);
+      preserved.sha256 = sha256File(path, nullptr);
+      manifest.files.push_back(std::move(preserved));
+    }
+    std::sort(manifest.files.begin(), manifest.files.end(),
+      [](const ManifestFile& a, const ManifestFile& b) { return a.path < b.path; });
+  };
 
-  if (!writeManifest(manifestFile, manifest, &error)) {
-    emit(result, "install=FAIL reason=cannot_write_manifest error=" + error);
-    result.exitCode = 2;
-    return result;
+  // VERSION.txt is a file this package LAYS DOWN, so the manifest has to record
+  // it: a file that is written but not listed is one uninstall cannot prove it may
+  // remove, and the earlier version left it behind after a "complete" uninstall.
+  // It is written here -- before the manifest -- so the record can carry the real
+  // bytes and hash of what was written.
+  //
+  // WHO OWNS IT is decided BEFORE the bytes are written, and by the one source of
+  // truth there is: a previous manifest that lists it as preserved says the user
+  // brought it, and then it is left exactly alone. Everything else is the
+  // package own file -- either the copy cmake --install put beside the executable,
+  // or one an earlier run of this installer wrote. An earlier version wrote it
+  // unconditionally and then listed it as preserved, which is the worst of both:
+  // the user file is destroyed and the manifest claims it was left alone.
+  bool previouslyPreserved = false;
+  if (reinstalling) {
+    for (const auto& file : existing.files) {
+      if (file.path == kVersionFileName && file.state == kStatePreserved) previouslyPreserved = true;
+    }
   }
-
-  // The version file the package ships, written from the same values that went
-  // into the manifest so the two cannot disagree.
-  {
+  const bool userVersionIsOurs = !previouslyPreserved;
+  bool wroteUserVersionFile = false;
+  if (userVersionIsOurs) {
     std::ostringstream text;
     text << "package=tf2_demo_native\n";
     text << "version=" << info.version << "\n";
@@ -291,10 +341,40 @@ Result installInto(const Options& options, const PackageInfo& info) {
     text << "buildUtc=" << info.buildUtc << "\n";
     text << "sourceDateEpoch=" << info.sourceDateEpoch << "\n";
     text << "sourceTree=" << info.sourceTree << "\n";
-    text << "installedUtc=" << manifest.installedUtc << "\n";
+    text << "installedUtc=" << utcNow() << "\n";
     const auto contents = text.str();
     std::ofstream stream(installDir / kVersionFileName, std::ios::binary | std::ios::trunc);
-    if (stream) stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+    if (stream) {
+      stream.write(contents.data(), static_cast<std::streamsize>(contents.size()));
+      wroteUserVersionFile = true;
+    }
+  }
+  if (wroteUserVersionFile) {
+    ManifestFile record;
+    record.path = kVersionFileName;
+    record.state = kStateNew;
+    const auto versionPath = installDir / kVersionFileName;
+    record.bytes = std::filesystem::file_size(versionPath, code);
+    record.sha256 = sha256File(versionPath, &error);
+    if (record.sha256.empty()) {
+      emit(result, "install=FAIL reason=cannot_hash_payload file=" + std::string(kVersionFileName)
+        + " error=" + error);
+      result.exitCode = 2;
+      return result;
+    }
+    files.push_back(std::move(record));
+    std::sort(files.begin(), files.end(),
+      [](const ManifestFile& a, const ManifestFile& b) { return a.path < b.path; });
+  } else {
+    emit(result, "install=note kept_user_version_file=" + std::string(kVersionFileName));
+  }
+
+  manifest.files = files;
+  collectPreserved();
+  if (!writeManifest(manifestFile, manifest, &error)) {
+    emit(result, "install=FAIL reason=cannot_write_manifest error=" + error);
+    result.exitCode = 2;
+    return result;
   }
 
   // The payload is an input, not part of the install: leaving it would double the
@@ -388,7 +468,10 @@ Result uninstallFrom(const Options& options) {
   {
     std::error_code code;
     std::filesystem::remove(manifestFile, code);
-    std::filesystem::remove(options.installDir / kVersionFileName, code);
+    // VERSION.txt is removed by the record loop above when the manifest lists it
+    // as ours. Removing it unconditionally here would delete a version file the
+    // user brought with them, which is the exact class of bug this manifest
+    // exists to make impossible.
     std::filesystem::remove_all(options.installDir / kStateDirectory, code);
   }
   emit(result, "uninstall=PASS removed=" + std::to_string(removed) + " restored="
