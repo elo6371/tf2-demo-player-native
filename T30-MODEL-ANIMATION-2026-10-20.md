@@ -12,7 +12,10 @@ VVD/VTX companion), and two further classes are named readings: a malformed
 LOD-0 descriptor is refused, an absent LOD-0 is a reported LOD fallback, and an
 absent animation companion is a reported degradation.
 
-MUTATION-VERDICT-PLACEHOLDER
+`MUTATION-CAUGHT=PASS (4 of 4)` — `bash viewmodel-robustness-check.sh
+--mutation`, rc=0, 114 assertions held under the mutated runs, every source restored
+byte-for-byte and the restored build re-drew the applied frame
+`45dd7bea…` — the same hash as the committed forward evidence.
 
 The three real inputs T30 asked for are covered by one deterministic probe and
 one gate:
@@ -44,7 +47,7 @@ Two further classes the task named are covered as readings, not as opinions:
 | worktree | `D:/TF2_Native_Worktrees/t30-model-animation` |
 | branch | `task/t30-model-animation` |
 | base commit | `36303c2` |
-| product commits | `909a253` (probe + gate + sweep script), `a08d4ea` (fixture-root markers, post-fixture LOD view, real input pins, gate nounset defect), `PLACEHOLDER` (evidence), `PLACEHOLDER` (this report) |
+| product commits | `909a253` (probe + gate + sweep script), `a08d4ea` (fixture-root markers, post-fixture LOD view, real input pins, gate nounset defect), `23a2e83` (dead-lock reclaim), `782e263` (one effect-flag set for the partition), `9c8f120` (body-line patterns, contact bound, translucent partition), `3de562e` (m1 control pattern, m3 witnesses, restoration assertion), `afbb628` (forward evidence + report freeze), then the mutation-evidence + report commit |
 | push status | not pushed; no remote command was run |
 
 ## 2. The installed inventory, measured in this worktree
@@ -174,7 +177,6 @@ All build/launch/capture/mutation sequences ran inside
 `bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t30 ...`.
 
 ```
-```
 bash build-target.sh model_robustness_probe tf2_demo_native vpk_query
   rc=0     (fresh tree, 2m10s; warnings only from pre-existing files:
             main.cpp C4244 x5 + C4457; native_renderer.cpp C4267 x2 + C4456 x2.
@@ -192,7 +194,11 @@ bash viewmodel-robustness-check.sh
 bash viewmodel-robustness-check.sh
   rc=0     VIEWMODEL-ROBUSTNESS=PASS (203 assertions, 0 failures)
            host_overlap=0, probe 85226039..., executable c8bd9337...
-```
+bash viewmodel-robustness-check.sh --mutation
+  rc=0     MUTATION-CAUGHT=PASS (4 of 4)
+           (first mutation attempt: 2 of 4 caught; two gate assertions were wrong
+           about where the defect surfaces and one restoration assertion named the
+           wrong outcome; fixed in 3de562e, see section 8.)
 ```
 
 ## 6. Forward gate results
@@ -276,7 +282,23 @@ and re-probes the damaged companion fixture, which must return its pinned readin
 | m3 | `companionSetComplete` stops requiring the VVD | the no-VVD fixture's `companions` reading becomes 1 (pinned 0), and the product's refusal stops being the named `viewmodel companions are missing` |
 | m4 | the bone table is uploaded as its own transpose (T18's defect written back into `toColumnMajor`) | pixels outside the ViewModel coverage explode past the pinned `outside <= 64`; control: `vmAnimApplied=1` and the CPU pose extent still moves geometry (the extent reading cannot see this defect — T18's lesson) |
 
-MUTATION-RESULTS-PLACEHOLDER
+MUTATION-CAUGHT=PASS (4 of 4), 114 assertions held under the mutated runs.
+
+| # | defect injected | witness (defect value) | control that held | restoration |
+|---|---|---|---|---|
+| m1 | every range drawn with the first range's geometry | multi-range body frame moved 52f560c4 -> d088df8a | range count still 2; vertex buffer still 25,143 | native/src/main.cpp back to efb4d513 |
+| m2 | every range reads the next material slot (materialSlot + 1) | keys syringegun.vtf,syringegun_glass.vtf -> syringegun_glass.vtf,syringegun_blue.vtf; frame -> 47565411 | range count still 2 | main.cpp efb4d513 |
+| m3 | companionSetComplete stops requiring the VVD | no-VVD fixture reads companions=1 where the gate pins 0 | the request builder still refuses the fixture with the named 'viewmodel companions are missing' (two checks, only one mutated) | native/src/model_loader.cpp back to 10c14ad8 |
+| m4 | the bone table uploaded as its own transpose (T18's defect) | pixels outside the ViewModel coverage 106,999 against the pinned <= 64; the CPU pose extent also moves (81.592 units vs 6.126) but the pixel containment is the judgement | vmAnimApplied=1 | native/src/animation_binding.cpp back to 5b0faccc |
+
+**Restoration is proven against the commit, not assumed.** The three restored
+hashes equal the committed files' sha256 exactly, and the restored build re-drew
+the applied frame to 45dd7bea - the same hash as the forward run's committed
+applied-pose.bmp. The animation-companion degradation reading also came back
+(ok / separateAnimSource=0 / animSeqs=1), and `git status --porcelain -- native/`
+was empty after the last restore. The forward evidence therefore describes the
+same product source the mutation run proved it had restored, which is why no
+third forward run was spent on a host-lock window.
 
 ## 8. Defects this round found in its own harness
 
@@ -329,6 +351,28 @@ Recorded because each one produced a wrong or missing reading before it was fixe
    slots. The gate bounds the overlap (computed two ways, same number; under a
    third of the union) instead of asserting zero, and the report says which
    model property that is.
+9. **The first mutation attempt had a wrong theory of where its defect surfaces.**
+   m3 patched the resolver so it stopped requiring the VVD, and the gate expected
+   the product's *reason string* to move. It did not: the request builder has a
+   SECOND completeness check after inspection, so the named refusal survives the
+   resolver defect. The mutation was real (the probe reading `companions` went 0
+   -> 1) but the assertion looked in the wrong place. Fixed by using the probe
+   reading as the witness and the surviving named refusal as the control -- which
+   is the stronger statement: two independent checks stand between a missing
+   companion and a silent draw.
+10. **A control re-used the pattern bug from item 6.** The m1 control read
+    `vertices` with the `gpu: viewmodel weaponBody` pattern and got `<none>` from
+    the `weaponBodyMaterial` line, which made the isolated defect read as "not
+    isolated". Same fix: name the line.
+11. **A restoration assertion named the wrong outcome.** The restored
+    animation-companion fixture was asserted to return `anim-source-missing`;
+    the pinned reading is the degradation `ok / separateAnimSource=0 / animSeqs=1`.
+    The assertion had copied the refusal vocabulary from the resource companions
+    instead of the degradation vocabulary this round established.
+12. **`assert_eq <empty> <empty>` prints `<none>` and fails.** The clean-tree
+    assertion compared `$DIRTY_NATIVE` with `""` through a helper that renders
+    empty as `<none>` on both sides, so a clean tree read as a mismatch. Replaced
+    by an explicit `-z` test.
 
 ## 9. Hashes
 
@@ -381,7 +425,13 @@ Frozen frames and evidence artifacts:
 | `evidence/t30/inventory-groups.txt` | 39,979 | class lists derived from the TSV |
 | `evidence/t30/inventory.txt` | 3,396 | the gate's curated inventory readings |
 | `evidence/t30/summary.txt` | 5,382 | the forward run's whole evidence block |
-| `evidence/t30/gate-forward.log` | 15,261 | the forward run's log (203 assertions) |
+| `evidence/t30/gate-forward.log` | 15,261 | sha256 `5c18bae923c0caf06ba9ec5f2c31c67ed76970592ea40b6bd1646b26b0d3639f` — the forward run's log (203 assertions) |
+| `evidence/t30/gate-mutation.log` | 9,571 | sha256 `07a7cebf143b4bf1d254f92fa8c0e7efcc14bd5e723cc8e59f686d5e4726e07b` — the mutation run's log (4/4 caught, 114 assertions) |
+
+Restoration targets, byte-for-byte (sha256 equals the file at HEAD):
+`native/src/main.cpp` `efb4d513c20edf87616f252ded1ed54f47da280ee106dbc4753f21535e41a3a8`,
+`native/src/model_loader.cpp` `10c14ad8dc10afbca7f4fbd26e975ebd93d27d40203bfc48a08c49dbc0f64f35`,
+`native/src/animation_binding.cpp` `5b0faccc1d7dce724f252aa8feb42459497ed0d310f632bc057bd8ef3dd97820`.
 
 ## 10. Not verified
 
@@ -430,9 +480,15 @@ Frozen frames and evidence artifacts:
 ## 11. Final worktree and process state
 
 - Branch `task/t30-model-animation`: base `36303c2`, then the commits listed in
-  §1; `git status --short` clean after the evidence and report commits.
-- No `tf2_demo_native.exe`, probe, `cl.exe`, `link.exe`, `nmake` or `cmake`
-  process started by this task is left running; `hostlock.sh status` shows the
-  lock free and owned by nobody when this report is committed.
-- `.scratch/t30/` holds the traces, per-run frames and logs (untracked);
-  `evidence/t30/` holds the frozen artifacts this report's claims depend on.
+  §1; `git status --short` is clean at the last commit of this branch.
+- Every build/launch/capture/mutation sequence ran inside
+  `bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t30 ...`; each run's waiter
+  printed its own `ACQUIRED`/`LOCKED-COMMAND-EXIT` line in the archived logs, and
+  the mutation run released the lock when it exited.
+- No `tf2_demo_native.exe`, `model_robustness_probe.exe`, `cl.exe`, `link.exe`,
+  `nmake` or `cmake` process started by this task is left running (checked after
+  the last commit with `tasklist`).
+- `.scratch/t30/` holds this round's traces, per-run frames and logs (untracked);
+  `evidence/t30/` holds the frozen artifacts this report's claims depend on, and
+  every text file there is checked out byte-for-byte (`.gitattributes` marks
+  `evidence/t30/** -text`) so the hashes above describe the reviewed bytes.

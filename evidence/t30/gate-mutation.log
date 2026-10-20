@@ -1,0 +1,153 @@
+ACQUIRED owner=t30 at 2026-10-20 13:46:51
+=== 0/6 the pinned recording, models and binaries ===
+  OK   autorecord_2026-07-02_13-26-46.dem pinned (21856667 bytes)
+  OK   pinned recordings verified = 1
+  OK   the POV recording is the pinned one
+  OK   probe sha256 recorded (f808edbba445d7722c7c5f8a9bd8bd501418ca12e3a52f7c572de336b18b3ae5)
+  OK   executable sha256 recorded (2ad73cc1e9784c0bda9da824f0ad347c9540f0dce29eda5a5b057a58c5bdbf86)
+=== 1/6 installed models: ranges, slots, companions, animation source ===
+  census: c_ weapon models=326, v_ viewmodels=37
+  OK   c_ weapon models in the install = 326 (>= 20)
+  OK   v_ viewmodels in the install = 37
+  OK   c_scout_arms.mdl: 1 ranges, 13446 vertices
+  OK   c_soldier_arms.mdl: 3 ranges, 13074 vertices
+  OK   c_pyro_arms.mdl: 3 ranges, 8412 vertices
+  OK   c_demo_arms.mdl: 2 ranges, 10086 vertices
+  OK   c_heavy_arms.mdl: 2 ranges, 15732 vertices
+  OK   c_engineer_arms.mdl: 4 ranges, 11736 vertices
+  OK   c_medic_arms.mdl: 2 ranges, 8640 vertices
+  OK   c_sniper_arms.mdl: 2 ranges, 9996 vertices
+  OK   c_spy_arms.mdl: 1 ranges, 11640 vertices
+  OK   arms models that failed = 0
+  OK   single-range input rc = 0
+  OK   single-range input ranges = 1
+  OK   single-range input target descriptors = 1
+  OK   single-range input vertices = 20748
+  OK   single-range input distinct range textures = 1
+  OK   single-range input selected LOD = 0
+  OK   single-range input lod fallback = 0
+  OK   single-range input refusal count = 0
+  OK   single-range input bound VTF
+  OK   single-range input bad skin weights = 0
+  OK   multi-range input rc = 0
+  OK   multi-range input ranges = 2
+  OK   multi-range input target descriptors = 2
+  OK   multi-range input vertices = 25143
+  OK   multi-range input distinct range materials = 2
+  OK   multi-range input distinct range textures = 2
+  OK   multi-range input selected LOD = 0
+  OK   multi-range input refusal count = 0
+  OK   multi-range input ranges whose VTF resolved = 2
+  OK   multi-range input vertices with bad skin weights = 0
+  OK   multi-range input per-range VTFs, in range order = c_syringegun.vtf,c_syringegun_glass.vtf
+  OK   multi-range input every range's highest bone is inside the skeleton (3 < 4)
+  OK   multi-LOD input rc = 0
+  OK   multi-LOD input declared LODs = 4
+  OK   multi-LOD input selected LOD = 0
+  OK   multi-LOD input lod fallback = 0
+  OK   pinned arms input animation source resolves = ok
+  OK   pinned arms input animation companion is separate = 1
+  OK   pinned arms input animation companion path
+  OK   pinned arms input animation companion is declared
+  OK   pinned arms input sequences bound by name = 38 (> 0)
+  OK   pinned arms input bind matrices cover the skeleton
+=== 2/6 three real inputs: single-range, multi-range, damaged companion ===
+  OK   fixture vm-ok materialised = 0
+  OK   fixture vm-ok omits nothing = -
+  OK   fixture vm-ok files written = 5 (>= 3)
+  OK   fixture vm-no-vvd materialised = 0
+  OK   fixture vm-no-vvd omits the VVD = vvd
+  OK   fixture vm-no-vtx omits the VTX = vtx
+  OK   fixture arms-ok materialised = 0
+  OK   fixture arms-ok carries the declared animation companion
+  OK   fixture arms-no-anim materialised = 0
+  OK   fixture arms-no-anim omits the declared animation companion
+  OK   probe on the complete fixture rc = 0
+  OK   probe on the complete fixture resolution = found-loose
+  OK   probe on the complete fixture companions = 1
+  OK   probe on the complete fixture mesh built = 1
+  OK   probe on the complete fixture ranges = 2
+  OK   probe on the no-VVD fixture resolution = found-loose
+  OK   probe on the no-VVD fixture mdl present = 1
+  OK   probe on the no-VVD fixture vvd absent = 0
+  OK   probe on the no-VVD fixture companions incomplete = 0
+  OK   probe on the no-VVD fixture refuses the mesh = 0
+  OK   probe on the no-VVD fixture names a refusal
+  OK   probe on the no-VTX fixture vtx absent = 0
+  OK   probe on the no-VTX fixture companions incomplete = 0
+  OK   probe on the complete arms fixture rc = 0
+  OK   probe on the complete arms fixture companions = 1
+  OK   probe on the complete arms fixture animation source = ok
+  OK   probe on the complete arms fixture separate animation source = 1
+  OK   probe on the complete arms fixture animation path
+  OK   probe on the complete arms fixture bound sequences = 38 (> 0)
+  OK   probe on the complete arms fixture bind matrices cover the skeleton = 58
+  OK   probe on the complete arms fixture skeleton is 58 bones = 58
+  OK   probe on the complete arms fixture animation set is larger than the stub = 88 (> 1)
+  OK   probe on the complete arms fixture bound sequences = 38 (> 1)
+  OK   probe on the no-animation-companion fixture rc = 0
+  OK   probe on the no-animation-companion fixture mesh still builds = 1
+  OK   probe on the no-animation-companion fixture ranges = 2
+  OK   probe on the no-animation-companion fixture is not a separate source = 0
+  OK   probe on the no-animation-companion fixture degrades to the stub table = 1
+  OK   probe on the no-animation-companion fixture binds only the stub sequence = 1
+  OK   probe on the no-animation-companion fixture animation path is the model itself = models/weapons/c_models/c_sniper_arms.mdl
+  OK   malformed LOD-0 descriptor rc = 1
+  OK   malformed LOD-0 descriptor builds no mesh = 0
+  OK   malformed LOD-0 descriptor refusal names the descriptor
+  OK   malformed LOD-0 descriptor refusal names the cause
+  OK   absent LOD-0 falls back instead of refusing = 0
+  OK   absent LOD-0 selected LOD = 1
+  OK   absent LOD-0 is reported as a fallback = 1
+  OK   absent LOD-0 still builds the mesh = 1
+  OK   absent LOD-0 range count is the next LOD's = 1
+=== 3/6 the product: bind/applied pose, single and multi range bodies ===
+  -- mutation baselines from the unmodified tree
+  bind rc=0 bmp=2582406 hash=49604d9da68b2040...
+  world rc=0 bmp=2582406 hash=04e32a13133044d5...
+  applied rc=0 bmp=2582406 hash=45dd7bea557c847e...
+  multi rc=0 bmp=2582406 hash=52f560c4ab2d29ef...
+=== 4/6 pixels: coverage mask, pose containment, contact, body partition ===
+  -- m1: the wrong range's geometry is drawn
+  m1 rc=0 bmp=2582406 hash=d088df8a8b8e8caa...
+  OK   m1: the wrong range geometry moves the body frame = d088df8a8b8e8caa8ad125a6008df75ae23c7f334c8eacc8709ea323245e7b9d (!= 52f560c4ab2d29ef4c3dbb7cde7750e0265ed3b3bb9fe18515bcdc718e47a323, the defect moved it)
+  OK   m1 control: every range is still drawn = 2
+  OK   m1 control: the vertex buffer is unchanged = 25143
+  ..   native/src/main.cpp restored byte-for-byte (efb4d513c20edf87616f252ded1ed54f47da280ee106dbc4753f21535e41a3a8)
+  OK   m1: caught (1 reading(s) took the defect's value)
+  -- m2: every range reads the slot next to the one it names
+  m2 rc=0 bmp=2582406 hash=47565411d19ddb6d...
+  OK   m2: the body's key list moves to the wrong slot = materials/models/weapons/c_items/c_syringegun_glass.vtf,materials/models/weapons/c_items/c_syringegun_blue.vtf (!= materials/models/weapons/c_items/c_syringegun.vtf,materials/models/weapons/c_items/c_syringegun_glass.vtf, the defect moved it)
+  OK   m2: the wrong slot changes the picture = 47565411d19ddb6d4f4e81f538d0be00424692af15f076eaf7a2e493596d7bd2 (!= 52f560c4ab2d29ef4c3dbb7cde7750e0265ed3b3bb9fe18515bcdc718e47a323, the defect moved it)
+  OK   m2 control: the range count is unchanged = 2
+  ..   native/src/main.cpp restored byte-for-byte (efb4d513c20edf87616f252ded1ed54f47da280ee106dbc4753f21535e41a3a8)
+  OK   m2: caught (2 reading(s) took the defect's value)
+  -- m3: a missing companion stops being detected (the VVD is ignored)
+  OK   m3: the no-VVD fixture is reported as a complete companion set = 1 (defect reproduces; the gate pins 0, so that assertion goes red)
+  m3 rc=0 bmp=2582406 hash=803ff052b3aadccf...
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=incomplete(mdl=1,vvd=0,vtx=1,mesh=0) attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel companions are missing
+  OK   m3 control: the request builder still refuses it by name = viewmodel companions are missing
+  ..   native/src/model_loader.cpp restored byte-for-byte (10c14ad8dc10afbca7f4fbd26e975ebd93d27d40203bfc48a08c49dbc0f64f35)
+  OK   m3: caught (1 reading(s) took the defect's value)
+  -- m4: the bone table is read as its own transpose
+  m4 rc=0 bmp=2582406 hash=6d23e75bc9898812...
+  OK   m4: the transposed bone table throws pixels outside the coverage = 106999 (> 64; the gate pins <= 64)
+  OK   m4 control: the pose is still applied = 1
+  OK   m4 control: the pose extent still moves geometry (the reading cannot see this defect) = 81.592 (> 0.01)
+  ..   native/src/animation_binding.cpp restored byte-for-byte (5b0faccc1d7dce724f252aa8feb42459497ed0d310f632bc057bd8ef3dd97820)
+  OK   m4: caught (1 reading(s) took the defect's value)
+  -- restoration
+  restored rc=0 bmp=2582406 hash=45dd7bea557c847e...
+  OK   restored: the applied frame reproduces the baseline = 45dd7bea557c847e14968443857742609c105b56dd7cf13b133b9900120c0ce6
+  OK   restored: the animation companion degradation returns (status) = ok
+  OK   restored: the animation companion degradation returns (separate source) = 0
+  OK   restored: the animation companion degradation returns (stub table) = 1
+  OK   the product sources are clean after the mutations
+
+=== 6/6 evidence and verdict ===
+
+assertions: 114 held, 0 failed
+host_overlap=0 (a paused capture is insensitive to it; the repeat hash is the guard)
+MUTATION-CAUGHT=PASS (4 of 4)
+LOCKED-COMMAND-EXIT rc=0 owner=t30
+RUN6_EXIT=True
