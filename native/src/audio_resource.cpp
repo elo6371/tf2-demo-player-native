@@ -134,6 +134,7 @@ bool parseWav(const std::vector<std::uint8_t>& bytes, WavPcmData& out) {
     out.error = "WAV data is not aligned to complete samples";
     return false;
   }
+  out.codec = SoundCodec::Wav;
   out.valid = true;
   return true;
 }
@@ -367,6 +368,7 @@ Mp3DecodeStatus decodeMp3ToPcm(const std::vector<std::uint8_t>& bytes,
   out.bitsPerSample = 16;
   out.blockAlign = dst.nBlockAlign;
   out.byteRate = dst.nAvgBytesPerSec;
+  out.codec = SoundCodec::Mp3;
   out.valid = true;
   detail = "decoded " + std::to_string(produced) + " PCM bytes at " + std::to_string(frame.sampleRate)
     + " Hz " + std::to_string(frame.channels) + " channel(s)";

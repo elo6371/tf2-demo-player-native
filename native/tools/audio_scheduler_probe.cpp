@@ -37,7 +37,7 @@
 //   cannot hit a diagnostic line instead of the readings line.
 //
 // MUTATIONS
-//   Eight defects, one flip each. Every flip is computed from a real defective
+//   Eleven defects, one flip each. Every flip is computed from a real defective
 //   computation -- a replica of the broken code path walking the same library
 //   timeline, or the real scheduler driven into the defect shape -- and then
 //   overwrites only the readings that flip moves. The normal run fails unless
@@ -50,7 +50,8 @@
 //   --self-test        the normal contract run (default)
 //   --mutation <case>  tick_dedup | reverse_reset | voice_filter |
 //                      delay_rounding | missing_as_played | null_sink_device |
-//                      duration_cap | marker_strip
+//                      duration_cap | marker_strip | mp3_decode |
+//                      mp3_silent_accept | mp3_playback_drop
 //   Exit: 0 = contract held (or, under --mutation, the flip was caught);
 //         1 = a check, the contract, or a mutation's discrimination failed;
 //         2 = usage error.
@@ -139,6 +140,13 @@ const std::vector<std::pair<std::string, std::string>>& pinnedContract() {
     {"durationUnderCapSeconds", "524"},
     {"indexMarkedResolved", "2"}, {"indexMarkedPath", "sound/weapons/shotgun_shoot.wav"},
     {"readMarkedPath", "sound/weapons/shotgun_shoot.wav"},
+    {"mp3PlaybackSeen", "5"}, {"mp3PlaybackPlayed", "2"}, {"mp3PlaybackMissing", "3"},
+    {"mp3PlaybackSinkCalls", "2"}, {"mp3PlaybackRefused", "3"},
+    {"mp3PlaybackRefusalNames",
+      "probe_no_frame.mp3:invalid_wav,probe_sync_only.mp3:invalid_wav,"
+      "probe_layer2.mp3:unsupported_format"},
+    {"mp3PlaybackMp3Seen", "1"}, {"mp3PlaybackMp3Played", "1"}, {"mp3PlaybackMp3Failed", "0"},
+    {"mp3PlaybackObserved", "probe_play_wav.wav:played,probe_play_mp3.mp3:played"},
   };
   return pinned;
 }
@@ -266,6 +274,11 @@ struct ContractRun {
   // timeline than the one under test.
   SoundEventTimeline tickTimeline;
   SoundEventTimeline mixedTimeline;
+  // The five-event refusal case (2d): the timeline and the bytes each name
+  // resolves to, kept on the run so the mutation replica drives the same
+  // objects instead of rebuilding a lookalike.
+  SoundEventTimeline mp3Timeline;
+  std::unordered_map<std::string, std::vector<std::uint8_t>> mp3ByName;
   WavPcmData fixture;
   std::size_t missingEvents = 0;
   std::size_t mixedPlayed = 0;
@@ -535,6 +548,96 @@ void runContract(ContractRun& run) {
       && soundResolveStatusForMp3Decode(Mp3DecodeStatus::Decoded) == SoundResolveStatus::Resolved
       && soundResolveStatusForMp3Decode(Mp3DecodeStatus::InvalidStream) == SoundResolveStatus::InvalidWav);
 
+  // -- 2d. The refusals at the playback boundary ----------------------------
+  // 2c names what the bytes are; this case proves what the scheduler does with
+  // those names: five events -- a playable WAV, the real MP3 the pinned
+  // recording sends, and the three crafted refusals -- driven through the real
+  // scheduler with the same classifySoundResourceBytes the product's resolver
+  // calls. A refused MP3 has to be *counted* and must never reach the sink; a
+  // silently dropped event would leave eventsSeen at four with no counter
+  // explaining the fifth. `refused` is measured by the resolver, so
+  // "seen == played + missing" and "refused == missing" are two separately
+  // computed readings that have to agree.
+  {
+    run.mp3Timeline.clear();
+    run.mp3ByName.clear();
+    run.mp3ByName["sound/probe_play_wav.wav"] = craftWav(11025, 1, 11025, 64);
+    run.mp3ByName["sound/probe_play_mp3.mp3"] =
+      archive.read("sound/ambient_mp3/water/water_splash1.mp3");
+    run.mp3ByName["sound/probe_no_frame.mp3"] = craftMp3NoFrame();
+    run.mp3ByName["sound/probe_sync_only.mp3"] = craftMp3SyncOnly();
+    run.mp3ByName["sound/probe_layer2.mp3"] = craftMp3Layer2();
+    check(run, "the real MP3 the refusal case plays is present in the archive",
+      !run.mp3ByName["sound/probe_play_mp3.mp3"].empty());
+    const char* mp3FixtureNames[] = {"sound/probe_play_wav.wav", "sound/probe_play_mp3.mp3",
+      "sound/probe_no_frame.mp3", "sound/probe_sync_only.mp3", "sound/probe_layer2.mp3"};
+    bool built = true;
+    for (std::uint32_t i = 0; i < 5; ++i) {
+      if (!run.mp3Timeline.add(eventAt(static_cast<std::int32_t>(10 + i), 20u + i,
+            mp3FixtureNames[i]))) built = false;
+    }
+    run.mp3Timeline.sortByTick();
+    check(run, "the five-event refusal timeline was built", built && run.mp3Timeline.size() == 5);
+
+    std::size_t refused = 0, sinkCalls = 0;
+    std::string refusalNames;
+    std::string observed;
+    AudioEventScheduler mp3Scheduler;
+    mp3Scheduler.setDeviceId(0);
+    mp3Scheduler.setResolver([&](const std::string& name, WavPcmData& out) {
+      const auto it = run.mp3ByName.find(name);
+      if (it == run.mp3ByName.end()) return false;
+      SoundResource resource;
+      std::string detail;
+      const auto status = classifySoundResourceBytes(it->second, name, resource, detail);
+      std::cerr << "mp3_playback name=" << name << " status=" << soundResolveStatusName(status)
+                << " detail=\"" << detail << "\"\n";
+      if (status != SoundResolveStatus::Resolved) {
+        ++refused;
+        if (!refusalNames.empty()) refusalNames += ',';
+        refusalNames += name.substr(name.find_last_of('/') + 1) + ":"
+          + soundResolveStatusName(status);
+        return false;
+      }
+      out = resource.wav;
+      return true;
+    });
+    mp3Scheduler.setPlaybackSink([&sinkCalls](const WavPcmData& pcm, float, float) {
+      if (!wavPcmIsPlayable(pcm)) return false;
+      ++sinkCalls;
+      return true;
+    });
+    mp3Scheduler.setContentObserver([&observed](const SoundPlaybackEvent& event,
+        const WavPcmData&, const char* outcomeName) {
+      if (!observed.empty()) observed += ',';
+      observed += event.name.substr(event.name.find_last_of('/') + 1) + ":" + outcomeName;
+    });
+    mp3Scheduler.reset(0);
+    const auto mp3Playback = mp3Scheduler.advance(run.mp3Timeline, 20);
+    mp3Scheduler.stop();
+    run.readings.set("mp3PlaybackSeen", static_cast<long long>(mp3Playback.eventsSeen));
+    run.readings.set("mp3PlaybackPlayed", static_cast<long long>(mp3Playback.eventsPlayed));
+    run.readings.set("mp3PlaybackMissing",
+      static_cast<long long>(mp3Playback.eventsMissingResource));
+    run.readings.set("mp3PlaybackSinkCalls", static_cast<long long>(sinkCalls));
+    run.readings.set("mp3PlaybackRefused", static_cast<long long>(refused));
+    run.readings.set("mp3PlaybackRefusalNames", refusalNames);
+    run.readings.set("mp3PlaybackMp3Seen", static_cast<long long>(mp3Playback.mp3EventsSeen));
+    run.readings.set("mp3PlaybackMp3Played", static_cast<long long>(mp3Playback.mp3EventsPlayed));
+    run.readings.set("mp3PlaybackMp3Failed", static_cast<long long>(mp3Playback.mp3EventsFailed));
+    run.readings.set("mp3PlaybackObserved", observed);
+    check(run, "a refused MP3 is counted, not silently dropped, and never reaches the sink",
+      mp3Playback.eventsSeen == 5 && mp3Playback.eventsPlayed == 2
+        && mp3Playback.eventsMissingResource == 3 && refused == 3 && sinkCalls == 2);
+    check(run, "the playable MP3 is attributed to the MP3 codec at the playback boundary",
+      mp3Playback.mp3EventsSeen == 1 && mp3Playback.mp3EventsPlayed == 1
+        && mp3Playback.mp3EventsFailed == 0
+        && observed == "probe_play_wav.wav:played,probe_play_mp3.mp3:played");
+    check(run, "each refusal keeps its own name",
+      refusalNames == "probe_no_frame.mp3:invalid_wav,probe_sync_only.mp3:invalid_wav,"
+        "probe_layer2.mp3:unsupported_format");
+  }
+
   // -- 3. Tick semantics: dedup, forward, reverse, seek ---------------------
   run.tickTimeline.add(eventAt(2, 1, "weapons/probe.wav"));
   run.tickTimeline.add(eventAt(5, 2, "weapons/probe.wav"));
@@ -757,7 +860,7 @@ const std::vector<const char*>& mutationCases() {
   static const std::vector<const char*> cases = {
     "tick_dedup", "reverse_reset", "voice_filter",
     "delay_rounding", "missing_as_played", "null_sink_device", "duration_cap",
-    "marker_strip", "mp3_decode", "mp3_silent_accept"};
+    "marker_strip", "mp3_decode", "mp3_silent_accept", "mp3_playback_drop"};
   return cases;
 }
 
@@ -814,6 +917,45 @@ void applyMutation(const char* name, const ContractRun& run, Readings& defective
     defective.set("mp3EventStatus", "unsupported_format");
     defective.set("mp3EventPcmBytes", 0);
     defective.set("readMp3PcmBytes", 0);
+  } else if (which == "mp3_playback_drop") {
+    // The defect at the playback boundary: the resolver refuses MP3 again (the
+    // pre-T7 shape), so the MP3 events are counted missing and never reach the
+    // sink. Computed, not asserted -- the same timeline and the same sink are
+    // driven again with only the resolver's MP3 answer changed.
+    std::size_t sinkCalls = 0;
+    std::string observed;
+    AudioEventScheduler defectiveScheduler;
+    defectiveScheduler.setDeviceId(0);
+    defectiveScheduler.setResolver([&run](const std::string& name, WavPcmData& out) {
+      if (name.size() >= 4 && name.compare(name.size() - 4, 4, ".mp3") == 0) return false;
+      const auto it = run.mp3ByName.find(name);
+      if (it == run.mp3ByName.end()) return false;
+      SoundResource resource;
+      std::string detail;
+      if (classifySoundResourceBytes(it->second, name, resource, detail)
+          != SoundResolveStatus::Resolved) return false;
+      out = resource.wav;
+      return true;
+    });
+    defectiveScheduler.setPlaybackSink([&sinkCalls](const WavPcmData& pcm, float, float) {
+      if (!wavPcmIsPlayable(pcm)) return false;
+      ++sinkCalls;
+      return true;
+    });
+    defectiveScheduler.setContentObserver([&observed](const SoundPlaybackEvent& event,
+        const WavPcmData&, const char* outcomeName) {
+      if (!observed.empty()) observed += ',';
+      observed += event.name.substr(event.name.find_last_of('/') + 1) + ":" + outcomeName;
+    });
+    defectiveScheduler.reset(0);
+    const auto stats = defectiveScheduler.advance(run.mp3Timeline, 20);
+    defectiveScheduler.stop();
+    defective.set("mp3PlaybackPlayed", static_cast<long long>(stats.eventsPlayed));
+    defective.set("mp3PlaybackMissing", static_cast<long long>(stats.eventsMissingResource));
+    defective.set("mp3PlaybackSinkCalls", static_cast<long long>(sinkCalls));
+    defective.set("mp3PlaybackMp3Seen", static_cast<long long>(stats.mp3EventsSeen));
+    defective.set("mp3PlaybackMp3Played", static_cast<long long>(stats.mp3EventsPlayed));
+    defective.set("mp3PlaybackObserved", observed);
   } else if (which == "mp3_silent_accept") {
     // A decode that produced no PCM is accepted as a resolution, so a stream
     // with sync-shaped bytes and no audio would be handed to the output path as

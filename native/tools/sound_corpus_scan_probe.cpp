@@ -98,6 +98,20 @@ std::string jsonEscape(const std::string& value) {
   return out;
 }
 
+bool nameIsMp3(const std::string& name) {
+  return name.size() >= 4 && name.compare(name.size() - 4, 4, ".mp3") == 0;
+}
+
+// A name with no dot after its last slash. The archive resolver tries .wav
+// before .mp3 for these, so which codec they become is not a fact the demo
+// bytes carry -- counted so the scan's MP3 reading can be read as a lower
+// bound instead of as the whole population.
+bool nameHasNoExtension(const std::string& name) {
+  const auto slash = name.find_last_of('/');
+  const auto dot = name.find_last_of('.');
+  return dot == std::string::npos || (slash != std::string::npos && dot < slash);
+}
+
 struct DemoReading {
   std::string demo;
   std::string map;
@@ -110,6 +124,16 @@ struct DemoReading {
   std::size_t kinds[kKindCount] = {};
   std::size_t table[kKindCount] = {};
   std::size_t tableEntries = 0;
+  // T31: which of the scheduled events and precache names are MP3s. The scan
+  // reads demo bytes only -- it never opens a VPK -- so "MP3" here means the
+  // name carries an explicit `.mp3` extension, which is how this corpus spells
+  // the sound. Names without any extension are counted apart rather than
+  // guessed at: those are the ones the resolver has to decide by probing the
+  // archive, and a scan that assumed them would be inventing the answer.
+  std::size_t mp3NamedEvents = 0;
+  std::size_t mp3NamedKinds[kKindCount] = {};
+  std::size_t tableMp3Named = 0;
+  std::size_t tableNoExtension = 0;
   std::size_t voiceInit = 0;
   std::size_t voiceData = 0;
   std::uint64_t voicePayloadBits = 0;
@@ -158,6 +182,16 @@ bool scanOne(const std::filesystem::path& path, DemoReading& out) {
   for (const auto& entry : summary.soundPrecache) {
     ++out.tableEntries;
     ++out.table[static_cast<std::size_t>(tf2::native::classifySoundEvent(entry.second))];
+    if (nameIsMp3(entry.second)) {
+      ++out.tableMp3Named;
+    } else if (nameHasNoExtension(entry.second)) {
+      ++out.tableNoExtension;
+    }
+  }
+  for (const auto& event : timeline.events()) {
+    if (!nameIsMp3(event.name)) continue;
+    ++out.mp3NamedEvents;
+    ++out.mp3NamedKinds[static_cast<std::size_t>(event.kind)];
   }
   out.decodedEvents = summary.decodedSoundEvents.size();
   for (const auto& event : summary.decodedSoundEvents) { if (event.valid) ++out.validEvents; }
@@ -201,6 +235,20 @@ void printDemo(const DemoReading& r) {
     std::cout << ",\"" << kindKey(i) << "\":" << r.table[i];
   }
   std::cout << "}"
+            << ",\"mp3\":{\"events\":" << r.mp3NamedEvents
+            << ",\"table\":" << r.tableMp3Named
+            << ",\"tableNoExtension\":" << r.tableNoExtension
+            << ",\"kinds\":{";
+  {
+    bool first = true;
+    for (std::size_t i = 0; i < kKindCount; ++i) {
+      if (r.mp3NamedKinds[i] == 0) continue;
+      if (!first) std::cout << ',';
+      first = false;
+      std::cout << '"' << kindKey(i) << '"' << ':' << r.mp3NamedKinds[i];
+    }
+  }
+  std::cout << "}}"
             << ",\"svc\":{\"voiceInit\":" << r.voiceInit
             << ",\"voiceData\":" << r.voiceData
             << ",\"voicePayloadBits\":" << r.voicePayloadBits
@@ -274,6 +322,9 @@ int main(int argc, char** argv) {
   std::size_t withMusicNames = 0, withTempEntityNames = 0, withPcfNames = 0;
   std::size_t withVoiceData = 0, withVoiceNames = 0, withAnnouncerNames = 0;
   std::size_t withTempEntityMessages = 0, withUnknownMessagePackets = 0;
+  std::size_t withMp3Events = 0, totalMp3NamedEvents = 0, totalTableMp3Named = 0,
+    totalTableNoExtension = 0;
+  std::size_t mp3Kinds[kKindCount] = {};
   std::size_t totalSoundMessages = 0, totalVoicePayloadBits = 0, totalTempPayloadBits = 0;
   std::size_t totalDecodedEvents = 0, totalTimeline = 0, totalUnresolved = 0, totalUnplaceable = 0, totalRefused = 0;
   for (const auto& path : demos) {
@@ -300,6 +351,11 @@ int main(int argc, char** argv) {
     if (reading.table[static_cast<std::size_t>(tf2::native::SoundEventKind::Pcf)] > 0) ++withPcfNames;
     if (reading.table[static_cast<std::size_t>(tf2::native::SoundEventKind::Voice)] > 0) ++withVoiceNames;
     if (reading.table[static_cast<std::size_t>(tf2::native::SoundEventKind::Announcer)] > 0) ++withAnnouncerNames;
+    totalMp3NamedEvents += reading.mp3NamedEvents;
+    totalTableMp3Named += reading.tableMp3Named;
+    totalTableNoExtension += reading.tableNoExtension;
+    for (std::size_t i = 0; i < kKindCount; ++i) mp3Kinds[i] += reading.mp3NamedKinds[i];
+    if (reading.mp3NamedEvents > 0) ++withMp3Events;
     if (reading.voiceData > 0) ++withVoiceData;
     if (reading.tempEntityMessages > 0) ++withTempEntityMessages;
     if (reading.unknownMessagePackets > 0) ++withUnknownMessagePackets;
@@ -330,7 +386,20 @@ int main(int argc, char** argv) {
             << ",\"refused\":" << totalRefused
             << ",\"voicePayloadBits\":" << totalVoicePayloadBits
             << ",\"tempPayloadBits\":" << totalTempPayloadBits
-            << ",\"eventKinds\":{";
+            << ",\"demosWithMp3Events\":" << withMp3Events
+            << ",\"mp3Events\":" << totalMp3NamedEvents
+            << ",\"mp3TableNames\":" << totalTableMp3Named
+            << ",\"tableNamesNoExtension\":" << totalTableNoExtension
+            << ",\"mp3EventKinds\":{";
+  {
+    bool first = true;
+    for (std::size_t i = 0; i < kKindCount; ++i) {
+      if (!first) std::cout << ',';
+      first = false;
+      std::cout << '"' << kindKey(i) << '"' << ':' << mp3Kinds[i];
+    }
+  }
+  std::cout << "},\"eventKinds\":{";
   for (std::size_t i = 0; i < kKindCount; ++i) {
     if (i) std::cout << ',';
     std::cout << "\"" << kindKey(i) << "\":" << events.events[i];

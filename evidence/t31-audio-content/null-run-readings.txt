@@ -1,0 +1,3 @@
+6213.7 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+93151.8 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=3501 events_played=0 events_skipped=1955 events_missing=1546 drawn=4144 capture_written=1 metrics_written=0 exit=0
+93151.8 audio: summary soundEventsRead=5080 soundEventsScheduled=4989 soundEventsPlayed=0 soundEventsSkippedVoice=127 soundEventsMissingResource=1546 firstPacketTick=77346 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=2147 soundEventsMp3Seen=2 soundEventsMp3Played=0 soundEventsMp3Skipped=1 soundEventsMp3Failed=0 soundEventsMp3Inaudible=1 soundEventsInaudible=1267

@@ -247,8 +247,30 @@ AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeli
     auto& player = players_[nextVoice_++ % kVoiceCount];
     lastSpatialMix_ = listenerValid_ ? computeSpatialMix(event.origin, listener_) : SpatialMix{1.0f, 0.0f};
     const float volume = event.volume * lastSpatialMix_.gain;
-    if (!resolver_(event.name, wav) || !wav.valid || lastSpatialMix_.isSilent()) {
+    const bool resolved = resolver_ != nullptr && resolver_(event.name, wav) && wav.valid;
+    // The codec comes from the buffer the resolver produced, so an event whose
+    // name says .mp3 but whose bytes decoded as something else is counted as
+    // what it was, and a resolver that stopped decoding cannot leave these
+    // counters reading a name-derived value. An event that resolved to PCM and
+    // was then refused for being inaudible is still an MP3 event this chain
+    // carried, so it is counted in seen -- the identity is
+    // seen == played + skipped + failed + inaudible.
+    const bool fromMp3 = resolved && wav.codec == SoundCodec::Mp3;
+    if (fromMp3) ++stats_.mp3EventsSeen;
+    const auto observe = [&](const char* outcome) {
+      if (contentObserver_) contentObserver_(event, wav, outcome);
+    };
+    if (!resolved || lastSpatialMix_.isSilent()) {
       ++stats_.eventsMissingResource;
+      if (resolved && lastSpatialMix_.isSilent()) {
+        // The resource is fine and the listener would not hear it. Named rather
+        // than folded into "missing bytes": same total, different fact.
+        ++stats_.eventsInaudible;
+        if (fromMp3) ++stats_.mp3EventsInaudible;
+        observe("inaudible");
+      } else if (fromMp3) {
+        ++stats_.mp3EventsFailed;
+      }
       return;
     }
     const bool pcmShapeValid = wav.encoding == WavEncoding::Pcm
@@ -257,15 +279,29 @@ AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeli
       && wav.blockAlign != 0 && wav.pcm.size() % wav.blockAlign == 0;
     if (!pcmShapeValid) {
       ++stats_.eventsMissingResource;
+      if (fromMp3) ++stats_.mp3EventsFailed;
+      observe("failed");
       return;
     }
     if (outcomeSink_) {
       // The device-free sink owns the outcome; `skipped` is the explicit
       // "not played, and that is the contract" answer --audio-disabled uses.
       switch (outcomeSink_(wav, volume, lastSpatialMix_.pan)) {
-        case PlaybackOutcome::played: ++stats_.eventsPlayed; return;
-        case PlaybackOutcome::skipped: ++stats_.eventsSkippedDisabled; return;
-        case PlaybackOutcome::failed: ++stats_.eventsMissingResource; return;
+        case PlaybackOutcome::played:
+          ++stats_.eventsPlayed;
+          if (fromMp3) ++stats_.mp3EventsPlayed;
+          observe("played");
+          return;
+        case PlaybackOutcome::skipped:
+          ++stats_.eventsSkippedDisabled;
+          if (fromMp3) ++stats_.mp3EventsSkipped;
+          observe("skipped");
+          return;
+        case PlaybackOutcome::failed:
+          ++stats_.eventsMissingResource;
+          if (fromMp3) ++stats_.mp3EventsFailed;
+          observe("failed");
+          return;
       }
     }
     const bool played = wavPcmIsPlayable(wav) && (playbackSink_
@@ -273,9 +309,13 @@ AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeli
       : player.play(wav, volume, lastSpatialMix_.pan));
     if (!played) {
       ++stats_.eventsMissingResource;
+      if (fromMp3) ++stats_.mp3EventsFailed;
+      observe("failed");
       return;
     }
     ++stats_.eventsPlayed;
+    if (fromMp3) ++stats_.mp3EventsPlayed;
+    observe("played");
   });
   lastTick_ = tick;
   return stats_;

@@ -1,0 +1,84 @@
+=== 1/5 incremental build (skipped: --no-build) ===
+
+=== 1/5 pinned inputs ===
+  OK   input[autorecord_2026-07-16_12-41-] (pinned input verified: size 5509069, sha256 5e0b1fe8d972...)
+
+=== 2/5 the content map on the pinned recording: was an MP3 actually scheduled? ===
+  OK   content: the map ran (rc=0)
+  OK   content (two MP3 events are scheduled, not just present)
+  OK   content (both scheduled rows pinned: tick/index/kind/status/seconds/srctable/path)
+  OK   content (both decoded: named channels/rate/bits/bytes match the pinned decode)
+  OK   content (filtered MP3 rows: 190, pinned)
+  OK   content (mapping lines == scheduled == 4989)
+
+=== 3/5 the product under the null sink, on the same window 5/5 uses ===
+  OK   null run: trace produced (rc=0)
+  OK   null (two per-event MP3 records over the window)
+  OK   null (both events pinned: the in-range one is skipped by the null sink, the out-of-range one is named inaudible)
+  OK   null (MP3 accounting: seen=2 = played=0 + skipped=1 + failed=0 + inaudible=1)
+  OK   null (window joined to the map: 4650:6615 7675:6616)
+  OK   null (null sink: attempts=0 opens_ok=0 played=0 -- it never asked for a device)
+  OK   null (the window was created hidden and never shown)
+  OK   null (filtered kinds skipped in the same window: 127)
+
+=== 4/5 the negative fixtures: named refusals at the playback boundary ===
+  OK   scheduler: the refusal probe held its contract (rc=0)
+  OK   scheduler: the refusal probe opened no device
+  OK   scheduler: five events reached the playback decision
+  OK   scheduler: the playable WAV and the real MP3 both played
+  OK   scheduler: the three refused MP3s are counted missing, not dropped
+  OK   scheduler: only the two playable events reached the sink
+  OK   scheduler: the resolver refused exactly three of them
+  OK   scheduler: the codec provenance says the playable event came from MP3
+  OK   scheduler: and that event was the one played
+  OK   scheduler: no decoded MP3 failed the output path
+  OK   scheduler: each refusal keeps its own name
+  OK   scheduler: the observer saw the two playable events in order
+  OK   scheduler: MP3-shaped bytes with no frame are invalid
+  OK   scheduler: a stream that decodes to zero PCM is refused
+  OK   scheduler: a Layer II stream is refused by name
+  OK   scheduler: a machine with no codec reports a capability gap
+  OK   scheduler: every internal flip toggles a pinned reading
+
+=== 5/5 device acceptance: the same window on real device 6 (AUDIBLE) ===
+  OK   device 6 run: trace produced (rc=0)
+  OK   device (two per-event MP3 records on the real device)
+  OK   device (the in-range event played on device 6; the out-of-range one is still named inaudible)
+  OK   device (MP3 accounting: seen=2 = played=1 + skipped=0 + failed=0 + inaudible=1)
+  OK   device (same window and events as the null run: only the outcome differs)
+  OK   device (device 6: attempts=1828 opens_ok=1828 events_played=1828, every open succeeded)
+  OK   device (the window was created hidden and never shown)
+
+assertions_ok=39 assertions_bad=0
+captures: map=evidence/fast/audio-content/content-map.tsv trace=evidence/fast/audio-content/null-trace.txt bmp=evidence/fast/audio-content/null-frame.bmp
+null trace sha256: d29cdc76ef9c893ad71e641b161d19facfebef532e6bebc2528c602ce452b6ac
+
+=== mutation: perturb each capture and require its assertions to go red ===
+  MUTATION-CAUGHT=PASS (content-seconds: 1 of 5 assertions went red)
+  MUTATION-CAUGHT=PASS (content-path: 2 of 5 assertions went red)
+  MUTATION-CAUGHT=PASS (content-tick: 1 of 5 assertions went red)
+  MUTATION-CAUGHT=PASS (content-detail: 1 of 5 assertions went red)
+  MUTATION-CAUGHT=PASS (content-filtered: 1 of 5 assertions went red)
+  MUTATION-CAUGHT=PASS (null-outcome: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (null-inaudible-name: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (null-skips: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (null-inaudible-count: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (null-plays: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (null-bytes: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (null-attempts: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (null-hidden: 1 of 7 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-refused: 1 of 16 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-missing: 1 of 16 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-sink: 1 of 16 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-noframe: 1 of 16 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-provenance: 1 of 16 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-refusalnames: 1 of 16 assertions went red)
+  MUTATION-CAUGHT=PASS (scheduler-observer: 1 of 16 assertions went red)
+  MUTATION-CAUGHT=PASS (device-outcome: 1 of 6 assertions went red)
+  MUTATION-CAUGHT=PASS (device-inaudible: 1 of 6 assertions went red)
+  MUTATION-CAUGHT=PASS (device-mp3played: 1 of 6 assertions went red)
+  MUTATION-CAUGHT=PASS (device-opens: 1 of 6 assertions went red)
+  MUTATION-CAUGHT=PASS (device-attempts: 1 of 6 assertions went red)
+mutations_caught=25 mutations_total=25
+
+VERIFY-AUDIO-CONTENT=PASS (assertions_ok=39 mutations=25/25)

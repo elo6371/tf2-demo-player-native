@@ -3274,6 +3274,24 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     return false;
   });
+  // T31: one line per MP3 event that reached a playback decision. Without it
+  // the MP3 chain is only readable as totals, and an MP3 event is one
+  // eventsSeen like any other -- a build that stopped decoding MP3 moves no
+  // total at all. These lines are the per-event record the gate joins against
+  // the content map (tick/index/path) and against the null-sink vs device runs
+  // (outcome). Only MP3 is printed: printing every event would bury the record
+  // under thousands of lines. The codec tested here is the one the resolver
+  // actually produced (WavPcmData::codec), not a guess from the name.
+  soundScheduler.setContentObserver([&](const tf2::native::SoundPlaybackEvent& event,
+      const tf2::native::WavPcmData& wav, const char* outcomeName) {
+    if (wav.codec != tf2::native::SoundCodec::Mp3) return;
+    traceFmt("audio: mp3 tick=%d index=%u name=%s pcmBytes=%zu rate=%u channels=%u bits=%u"
+      " seconds=%.3f outcome=%s",
+      static_cast<int>(event.tick), static_cast<unsigned>(event.soundIndex), event.name.c_str(),
+      static_cast<std::size_t>(wav.pcm.size()), static_cast<unsigned>(wav.sampleRate),
+      static_cast<unsigned>(wav.channels), static_cast<unsigned>(wav.bitsPerSample),
+      tf2::native::wavDurationSeconds(wav), outcomeName);
+  });
   std::wstring demoSuffix;
   if (!commandDemo.empty()) {
     if (demoHeader.valid) {
@@ -7084,11 +7102,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // backwards, which is what a reverse run has to do to replay anything.
     traceFmt("audio: summary soundEventsRead=%zu soundEventsScheduled=%zu soundEventsPlayed=%zu"
       " soundEventsSkippedVoice=%zu soundEventsMissingResource=%zu firstPacketTick=%d"
-      " soundOriginTick=%d reverseRecoveries=%zu duplicateTicks=%zu",
+      " soundOriginTick=%d reverseRecoveries=%zu duplicateTicks=%zu"
+      " soundEventsMp3Seen=%zu soundEventsMp3Played=%zu soundEventsMp3Skipped=%zu"
+      " soundEventsMp3Failed=%zu soundEventsMp3Inaudible=%zu soundEventsInaudible=%zu",
       soundEventsRead, soundTimeline.size(), audioStats.eventsPlayed,
       audioStats.eventsSkippedVoice, audioStats.eventsMissingResource,
       static_cast<int>(firstPacketTick), static_cast<int>(soundOriginTick),
-      audioStats.reverseRecoveries, audioStats.duplicateTicks);
+      audioStats.reverseRecoveries, audioStats.duplicateTicks,
+      audioStats.mp3EventsSeen, audioStats.mp3EventsPlayed, audioStats.mp3EventsSkipped,
+      audioStats.mp3EventsFailed, audioStats.mp3EventsInaudible, audioStats.eventsInaudible);
     // The camera/HUD contract, on one line so camera-ui-check.sh can pin it:
     // the mode the run ended in, the double-click window the controller
     // advertises (a constant, so a drift shows up as a changed reading), the

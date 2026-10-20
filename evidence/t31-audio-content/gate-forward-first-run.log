@@ -1,0 +1,64 @@
+=== 1/5 incremental build (the targets this gate reads) ===
+=== configure ===
+=== build audio_scheduler_probe sound_content_map_probe tf2_demo_native ===
+note: fresh build tree; header stamp guard not needed
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\main.cpp(1103): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\main.cpp(1104): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\main.cpp(1105): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\main.cpp(1106): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\main.cpp(1107): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\main.cpp(6208): warning C4457: 鈥渋nstance鈥濈殑澹版槑闅愯棌浜嗗嚱鏁板弬鏁?
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\native_renderer.cpp(3642): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\native_renderer.cpp(3643): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\native_renderer.cpp(3950): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Worktrees\t31-audio-content\native\src\native_renderer.cpp(4120): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+rc=0
+build_rc=0
+
+=== 1/5 pinned inputs ===
+  OK   input[autorecord_2026-07-16_12-41-] (pinned input verified: size 5509069, sha256 5e0b1fe8d972...)
+
+=== 2/5 the content map on the pinned recording: was an MP3 actually scheduled? ===
+  OK   content: the map ran (rc=0)
+  OK   content (two MP3 events are scheduled, not just present)
+  OK   content (both scheduled rows pinned: tick/index/kind/status/seconds/srctable/path)
+  FAIL content (decoder detail moved; got: sound/ambient_mp3/water/water_splash1.mp3|sound/ambient_mp3/water/water_splash1.mp3|1|44100|16|122112;sound/ambient_mp3/water/water_splash2.mp3|sound/ambient_mp3/water/water_splash2.mp3|1|44100|16|140544)
+  FAIL content (filtered MP3 rows: 190, pinned 0)
+  OK   content (mapping lines == scheduled == 4989)
+
+=== 3/5 the product under the null sink, on the same window 5/5 uses ===
+  OK   null run: trace produced (rc=0)
+  FAIL null (per-event MP3 records: 1, pinned 2)
+  FAIL null (per-event records moved; got: 123843.8 audio: mp3 tick=7675|6616|ambient_mp3/water/water_splash2.mp3|140544|1.593|skipped)
+  FAIL null (MP3 accounting: seen=1 played=0 skipped=1 failed=0)
+  FAIL null (window does not match the map: run [123843.8 audio: mp3 tick=7675:6616] map [4650:6615 7675:6616])
+  OK   null (null sink: attempts=0 opens_ok=0 played=0 -- it never asked for a device)
+  OK   null (the window was created hidden and never shown)
+  OK   null (filtered kinds skipped in the same window: 127)
+
+=== 4/5 the negative fixtures: named refusals at the playback boundary ===
+  OK   scheduler: the refusal probe held its contract (rc=0)
+  OK   scheduler: the refusal probe opened no device
+  OK   scheduler: five events reached the playback decision
+  OK   scheduler: the playable WAV and the real MP3 both played
+  OK   scheduler: the three refused MP3s are counted missing, not dropped
+  OK   scheduler: only the two playable events reached the sink
+  OK   scheduler: the resolver refused exactly three of them
+  OK   scheduler: the codec provenance says the playable event came from MP3
+  OK   scheduler: and that event was the one played
+  OK   scheduler: no decoded MP3 failed the output path
+  OK   scheduler: each refusal keeps its own name
+  OK   scheduler: the observer saw the two playable events in order
+  OK   scheduler: MP3-shaped bytes with no frame are invalid
+  OK   scheduler: a stream that decodes to zero PCM is refused
+  OK   scheduler: a Layer II stream is refused by name
+  OK   scheduler: a machine with no codec reports a capability gap
+  OK   scheduler: every internal flip toggles a pinned reading
+
+=== 5/5 device acceptance (skipped: pass --device to run the audible device-6 acceptance) ===
+
+assertions_ok=26 assertions_bad=6
+captures: map=evidence/fast/audio-content/content-map.tsv trace=evidence/fast/audio-content/null-trace.txt bmp=evidence/fast/audio-content/null-frame.bmp
+null trace sha256: 5dbb381a7ae5e2c9cfa228530dee3a2d92bfcaac17cd24d5c1f12e2e65e8ca3b
+
+VERIFY-AUDIO-CONTENT=FAIL (assertions_ok=26 assertions_bad=6 mutations=0/0)

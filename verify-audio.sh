@@ -163,7 +163,11 @@ E_SCHEDULER=(
   'jumpSeen=2|scheduler: two timeline jumps exercised the scheduler'
   'recoveredSeen=2|scheduler: two recoveries'
   'missingPlayed=0|scheduler: a missing sound was never played'
-  'mutationsCaught=10 mutationsTotal=10|scheduler: every internal flip toggles a pinned reading'
+  # T31 added the eleventh internal flip (mp3_playback_drop: the resolver refuses
+  # MP3 again, so the MP3 events are counted missing and never reach the sink).
+  # The count is pinned here so a flip that stops discriminating is a red gate
+  # rather than a smaller number nobody reads.
+  'mutationsCaught=11 mutationsTotal=11|scheduler: every internal flip toggles a pinned reading'
 )
 
 E_SINK=(

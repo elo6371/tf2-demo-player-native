@@ -52,6 +52,13 @@ enum class Mp3DecodeStatus : std::uint8_t {
 };
 
 struct WavPcmData {
+  // Which reader produced these bytes: parseWav sets Wav, decodeMp3ToPcm sets
+  // Mp3. The provenance is carried on the PCM rather than re-derived by the
+  // caller because the scheduler only ever sees the decoded buffer -- without
+  // it, "the MP3 chain reached the output path" is not observable from the
+  // product at all, and the per-event playback record would have to guess the
+  // codec from the name.
+  SoundCodec codec = SoundCodec::Unknown;
   WavEncoding encoding = WavEncoding::Unknown;
   std::uint16_t channels = 0;
   std::uint32_t sampleRate = 0;

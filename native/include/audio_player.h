@@ -67,6 +67,31 @@ struct AudioScheduleStats {
   // the resource resolved and the event was deliberately not played, which is
   // a different state from "nothing was found".
   std::size_t eventsSkippedDisabled = 0;
+  // The five MP3 counters. They exist because the totals above cannot answer
+  // "did the MP3 chain reach the output path?": an MP3 event and a WAV event
+  // are one eventsSeen each, so a build that stops decoding MP3 entirely moves
+  // no total at all -- it moves these counters to zero and the totals stay put.
+  // The codec is read from the decoded buffer (WavPcmData::codec), i.e. from
+  // what the resolver actually produced, not from the event name.
+  // mp3EventsSeen == mp3EventsPlayed + mp3EventsSkipped + mp3EventsFailed
+  //   + mp3EventsInaudible
+  // and the pair that must differ between a --audio-disabled run and a device
+  // run is (skipped, played): the same events decode in both, and only one run
+  // may claim to have played them.
+  std::size_t mp3EventsSeen = 0;
+  std::size_t mp3EventsPlayed = 0;
+  std::size_t mp3EventsSkipped = 0;
+  std::size_t mp3EventsFailed = 0;
+  std::size_t mp3EventsInaudible = 0;
+  // Events whose spatial mix was silent at the listener: the resource resolved
+  // and decoded, and the product must still not play it. Counted separately
+  // because "no bytes" and "out of earshot" are different facts that used to
+  // share eventsMissingResource -- measured on the pinned cp_well recording,
+  // the first of its two scheduled MP3 water splashes lands here (tick 4650,
+  // out of range of the observer) while the second (tick 7675) reaches the
+  // output path. eventsInaudible is *inside* eventsMissingResource, so the
+  // accounting identity every existing gate pins is unchanged.
+  std::size_t eventsInaudible = 0;
   // advance() calls refused because the tick had already been consumed. The
   // player calls advance() once per rendered frame while the timeline moves at
   // the demo tick rate, so this is expected to be large; what it proves is that
@@ -93,10 +118,23 @@ public:
   // other so "which sink ran" is never ambiguous.
   enum class PlaybackOutcome { played, skipped, failed };
   using OutcomeSink = std::function<PlaybackOutcome(const WavPcmData&, float, float)>;
+  // Called once for every event that resolved to PCM, with the event, the PCM
+  // and the named outcome: "played", "skipped", "failed" or "inaudible". The
+  // aggregate counters say how many; an observer is what lets the product print
+  // a per-event record (tick, sound index, name, decoded shape, duration,
+  // outcome) instead of a number a reader has to take on faith. The caller
+  // decides what to keep -- main.cpp keeps MP3 lines only.
+  //
+  // A string rather than the PlaybackOutcome enum because "inaudible" is not a
+  // sink answer: it is the scheduler refusing to hand a silent spatial mix to
+  // the device, which the enum (a sink's report) cannot express without giving
+  // the enum a value no sink may return.
+  using ContentObserver = std::function<void(const SoundPlaybackEvent&, const WavPcmData&, const char*)>;
 
   void setResolver(Resolver resolver) { resolver_ = std::move(resolver); }
   void setPlaybackSink(PlaybackSink sink) { playbackSink_ = std::move(sink); outcomeSink_ = nullptr; }
   void setOutcomeSink(OutcomeSink sink) { outcomeSink_ = std::move(sink); playbackSink_ = nullptr; }
+  void setContentObserver(ContentObserver observer) { contentObserver_ = std::move(observer); }
   void setDeviceId(UINT deviceId) { for (auto& player : players_) player.setDeviceId(deviceId); }
   void reset(std::int32_t tick = 0);
   AudioScheduleStats advance(const SoundEventTimeline& timeline, std::int32_t tick);
@@ -116,6 +154,7 @@ private:
   Resolver resolver_;
   PlaybackSink playbackSink_;
   OutcomeSink outcomeSink_;
+  ContentObserver contentObserver_;
   std::int32_t lastTick_ = -1;
   bool initialized_ = false;
   bool stopped_ = true;
