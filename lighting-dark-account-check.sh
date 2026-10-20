@@ -240,7 +240,15 @@ assert_eq "removed pixels that are BSP-BACK faces" \
   "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removedSide'].get('back',0))" "$CJSON")" "37095"
 
 echo "== 6. evidence =="
-cp "$ACCOUNT/account.txt" "$OUT/account.txt"
+# The console log names each mask by the scratch path it was written to, which
+# changes every run (`.scratch/t36-account.$$/...`) without the reading changing.
+# The counts and the bucket names are the evidence; the path is a build artifact,
+# so it is reduced to the mask's own name before the log is archived. Without
+# this, any rerun dirtied two tracked files with a no-op diff.
+awk '{ if (match($0, / -> .*[\/\\]([^\/\\]+\.mask)[ \t\r]*$/)) {
+         name = $0; sub(/^.*[\/\\]/, "", name); sub(/[ \t\r]+$/, "", name);
+         sub(/ -> .*/, "", $0); print $0 " -> masks/" name
+       } else print }' "$ACCOUNT/account.txt" > "$OUT/account.txt"
 cp "$ACCOUNT/account.json" "$OUT/account.json"
 cp "$ACCOUNT/cull.txt" "$OUT/cull-control.txt"
 cp "$ACCOUNT/cull.json" "$OUT/cull-control.json"
@@ -252,7 +260,9 @@ for m in "$ACCOUNT"/*.mask; do
   [ -s "$m" ] && cp "$m" "$OUT/masks/"
 done
 {
-  echo "run=$$ $(date -Is)"
+  # Deliberately no pid and no timestamp: this file is the parameter record for
+  # the frames, and a rerun that changes only "what time it was" is a dirty tree
+  # with no new reading. The run's own log carries the timestamp.
   echo "map=$MAP demo=$(basename "$DEMO") tick=2000 camera=the T29 reference"
   echo "viewmodel=$VMODEL --viewmodel-render companion"
   for n in textured ids ids-nocull lmoff flat; do

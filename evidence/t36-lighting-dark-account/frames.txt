@@ -1,4 +1,3 @@
-run=8106 2026-10-20T20:15:41+08:00
 map=maps/pl_odyssey.bsp demo=autorecord_2026-07-02_13-26-46.dem tick=2000 camera=the T29 reference
 viewmodel=models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
 textured sha256=6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b

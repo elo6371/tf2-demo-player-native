@@ -15,20 +15,20 @@ frame 1264x681  dark(lum<16) = 208630 of 860784 (24.24%)
   rect_lt_96_front_albedoDark                  9 (  0.00%)
 
 masks (1 = in the population):
-  A_no_world_triangle                       2702 px -> .scratch/t36/acct\A_no_world_triangle.mask
-  rect_all_zero_back_albedoBright          67951 px -> .scratch/t36/acct\rect_all_zero_back_albedoBright.mask
-  rect_all_zero_front_albedoBright          5432 px -> .scratch/t36/acct\rect_all_zero_front_albedoBright.mask
-  rect_bright_back_albedoBright             3993 px -> .scratch/t36/acct\rect_bright_back_albedoBright.mask
-  rect_bright_front_albedoBright             130 px -> .scratch/t36/acct\rect_bright_front_albedoBright.mask
-  rect_bright_front_albedoDark                10 px -> .scratch/t36/acct\rect_bright_front_albedoDark.mask
-  rect_lt_32_back_albedoBright             26425 px -> .scratch/t36/acct\rect_lt_32_back_albedoBright.mask
-  rect_lt_32_front_albedoBright             4039 px -> .scratch/t36/acct\rect_lt_32_front_albedoBright.mask
-  rect_lt_8_back_albedoBright              14814 px -> .scratch/t36/acct\rect_lt_8_back_albedoBright.mask
-  rect_lt_8_front_albedoBright             24855 px -> .scratch/t36/acct\rect_lt_8_front_albedoBright.mask
-  rect_lt_96_back_albedoBright             57516 px -> .scratch/t36/acct\rect_lt_96_back_albedoBright.mask
-  rect_lt_96_back_albedoDark                   2 px -> .scratch/t36/acct\rect_lt_96_back_albedoDark.mask
-  rect_lt_96_front_albedoBright              752 px -> .scratch/t36/acct\rect_lt_96_front_albedoBright.mask
-  rect_lt_96_front_albedoDark                  9 px -> .scratch/t36/acct\rect_lt_96_front_albedoDark.mask
+  A_no_world_triangle                       2702 px -> masks/A_no_world_triangle.mask
+  rect_all_zero_back_albedoBright          67951 px -> masks/rect_all_zero_back_albedoBright.mask
+  rect_all_zero_front_albedoBright          5432 px -> masks/rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright             3993 px -> masks/rect_bright_back_albedoBright.mask
+  rect_bright_front_albedoBright             130 px -> masks/rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark                10 px -> masks/rect_bright_front_albedoDark.mask
+  rect_lt_32_back_albedoBright             26425 px -> masks/rect_lt_32_back_albedoBright.mask
+  rect_lt_32_front_albedoBright             4039 px -> masks/rect_lt_32_front_albedoBright.mask
+  rect_lt_8_back_albedoBright              14814 px -> masks/rect_lt_8_back_albedoBright.mask
+  rect_lt_8_front_albedoBright             24855 px -> masks/rect_lt_8_front_albedoBright.mask
+  rect_lt_96_back_albedoBright             57516 px -> masks/rect_lt_96_back_albedoBright.mask
+  rect_lt_96_back_albedoDark                   2 px -> masks/rect_lt_96_back_albedoDark.mask
+  rect_lt_96_front_albedoBright              752 px -> masks/rect_lt_96_front_albedoBright.mask
+  rect_lt_96_front_albedoDark                  9 px -> masks/rect_lt_96_front_albedoDark.mask
 
-ledger -> .scratch/t36/acct/account.json
+ledger -> .scratch/t36-account.12472/account/account.json
 product-attributable (albedo bright AND rectangle bright): 4123 px (1.9762% of dark)
