@@ -29,7 +29,15 @@ param(
   # The rule for this machine: any invocation that could open the device names
   # it, because the default device is not the one the operator is listening on.
   [int]$AudioDevice = 6,
-  [string[]]$ExtraArgs = @()
+  [string[]]$ExtraArgs = @(),
+  # T32: the installed copy of the product. Empty means the developer build, so
+  # every existing caller keeps its exact behaviour; a clean-install case names
+  # the installed exe and the capture then measures that binary from that
+  # directory (the working directory below is already the exe own directory).
+  [string]$ExePath,
+  # T32: a settings file a previous case wrote. Empty means a fresh file under
+  # -OutDir, which is what every historical caller got.
+  [string]$SettingsFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,7 +47,11 @@ $repo = $PSScriptRoot
 $OutDir = [System.IO.Path]::GetFullPath($OutDir)
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
-$exe = (Resolve-Path (Join-Path $repo 'native\build-nmake\tf2_demo_native.exe')).Path
+$exe = if ([string]::IsNullOrEmpty($ExePath)) {
+  (Resolve-Path (Join-Path $repo 'native\build-nmake\tf2_demo_native.exe')).Path
+} else {
+  (Resolve-Path -LiteralPath $ExePath).Path
+}
 if (-not (Test-Path -LiteralPath $exe)) { throw "exe not built: $exe" }
 if (-not (Test-Path -LiteralPath $Demo)) { throw "missing input: $Demo" }
 
@@ -80,8 +92,17 @@ $scanner = $scanner.Replace($anchorPid, $anchorPid + "`r`n      if (ownerPid != 
 Invoke-Expression $scanner
 
 # ---- one launch ---------------------------------------------------------
-$settings = Join-Path $OutDir 'settings.ini'
-if (Test-Path -LiteralPath $settings) { Remove-Item -LiteralPath $settings -Force }
+# A case that must read what a previous case saved passes -SettingsFile: the
+# restart reading is "the second launch reused the root the first one wrote",
+# and deleting the file between them would turn it into another first launch.
+if ([string]::IsNullOrEmpty($SettingsFile)) {
+  $settings = Join-Path $OutDir 'settings.ini'
+  if (Test-Path -LiteralPath $settings) { Remove-Item -LiteralPath $settings -Force }
+} else {
+  $settings = [System.IO.Path]::GetFullPath($SettingsFile)
+  $settingsParent = Split-Path $settings -Parent
+  if (-not (Test-Path -LiteralPath $settingsParent)) { New-Item -ItemType Directory -Path $settingsParent -Force | Out-Null }
+}
 
 $arguments = New-Object System.Collections.Generic.List[string]
 foreach ($a in $ExtraArgs) { $arguments.Add($a) }

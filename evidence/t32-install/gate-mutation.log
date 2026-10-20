@@ -1,0 +1,83 @@
+
+=== mutation preconditions: the forward run artifacts ===
+  OK   forward artifact first-launch = present
+  OK   forward artifact precedence = present
+  OK   forward artifact vpk-corrupt = present
+
+=== M1 precedence reversal: the VPK candidate moved in front of the loose map ===
+  mutated: order is vpk, maps, download-maps
+  OK   M1 applied = 0
+  rebuild m1-build rc=0
+  OK   M1 build succeeded = 0
+  stage m1-install rc=0 prefix=install-m1
+  OK   M1 stage rc = 0
+  CASE store-precedence rc=0 TITLE-CAPTURE=PASS (len=3095 brackets=yes)
+  cases=1 failed=0
+  capture rc=0
+  OK   M1 capture rc = 0
+  under M1: store=vpk bsp=invalid/BSP header is invalid
+  OK   M1 caught: the reversed order read the VPK and lost the BSP = store=vpk bsp=invalid
+  OK   M1 source restored byte-identical = yes
+  rebuild m1-restore rc=0
+  OK   M1 restore build succeeded = 0
+  stage m1-restore-install rc=0 prefix=install-m1-restored
+  OK   M1 restore stage rc = 0
+  CASE store-precedence rc=0 TITLE-CAPTURE=PASS (len=3136 brackets=yes)
+  cases=1 failed=0
+  capture rc=0
+  OK   M1 restore capture rc = 0
+  OK   M1 restored reference store = maps
+  OK   M1 restored reference BSP = 2512 tris
+
+=== M2 corrupt-entry acceptance: the 64-bit inline offset narrowed to 32 bits ===
+  mutated: the tree base is narrowed to 32 bits before the offset is added
+  OK   M2 applied = 0
+  rebuild m2-build rc=0
+  OK   M2 build succeeded = 0
+  stage m2-install rc=0 prefix=install-m2
+  OK   M2 stage rc = 0
+  CASE store-vpk-corrupt rc=0 TITLE-CAPTURE=PASS (len=3096 brackets=yes)
+  cases=1 failed=0
+  capture rc=0
+  OK   M2 capture rc = 0
+  under M2: store=vpk refused=0
+  OK   M2 caught: the out-of-range entry was accepted and read as the map = store=vpk refused=0
+  OK   M2 source restored byte-identical = yes
+  rebuild m2-restore rc=0
+  OK   M2 restore build succeeded = 0
+  stage m2-restore-install rc=0 prefix=install-m2-restored
+  OK   M2 restore stage rc = 0
+  CASE store-vpk-corrupt rc=0 TITLE-CAPTURE=PASS (len=3112 brackets=yes)
+  cases=1 failed=0
+  capture rc=0
+  OK   M2 restore capture rc = 0
+  OK   M2 restored reference refused count = 1
+  OK   M2 restored reference named reason = VPK entry range outside directory archive
+
+=== M3 missing install files: the smoke probe dropped from install(TARGETS) ===
+  mutated: install(TARGETS) no longer names native_install_smoke_probe
+  OK   M3 applied = 0
+  OK   M3 build succeeded = 0
+  OK   M3 reached the generated install script = 0
+  stage m3-install rc=0 prefix=install-m3
+  OK   M3 stage rc = 0
+  under M3: package files: install_smoke_probe.ps1
+tf2_demo_native.exe 
+  OK   M3 caught: the package lost the smoke probe = absent
+  OK   M3 package file count = 2
+  OK   M3 source restored byte-identical = yes
+  OK   M3 restore build succeeded = 0
+  OK   M3 restore reached the generated install script = hits=1
+  stage m3-restore-install rc=0 prefix=install-m3-restored
+  OK   M3 restore stage rc = 0
+  OK   M3 restored reference package list = install_smoke_probe.ps1
+native_install_smoke_probe.exe
+tf2_demo_native.exe
+
+=== mutation verdict ===
+  OK   restored byte-identical: map_lookup.cpp = yes
+  OK   restored byte-identical: vpk_archive.cpp = yes
+  OK   restored byte-identical: CMakeLists.txt = yes
+
+  cases=4 checks=39 mutations=3
+  INSTALL-READINESS-MUTATION=PASS (3 mutations caught, sources restored)

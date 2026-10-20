@@ -1,0 +1,6 @@
+# T32 changed sources and gate scripts (SHA-256, 2026-10-20)
+f29aac82ff5d04040b323d0782547c381a001ac46c9c4cda0ee96453f42b54da *native/src/main.cpp
+198116b9853f5d0fc41535c57d87b0fb407e074d11aff9ba649adfaa7a17099d *title-capture.ps1
+c20b039ff969698d2fb757cffa12741bceb08b745dc32d937c3608ef594635d7 *install-readiness-check.sh
+d56a15e0f84776dafd5c78e0ab6284cd55f2550c459acc03a9f414e0da0c6935 *install-readiness-capture.ps1
+942237164b9a6499013498816edbbc4e13d804beaddb6f154c957abbf2db0c41 *install-readiness-fixtures.py

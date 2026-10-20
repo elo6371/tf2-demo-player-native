@@ -1,0 +1,2 @@
+install_executable=1 tf_root_missing_prompt=1 warp_fallback=1 feature_level=b100
+install_layout=ok tf2_assets_packaged=0
