@@ -151,10 +151,18 @@ being weakened: the same pins still go red when an assertion disappears.
    no installer package, no uninstaller, no version/upgrade metadata, no
    shortcuts/file associations, TF2 resources not bundled. `cmake --install`
    staging is not an installer and no installer claim is made.
-4. **`pak01_dir.vpk` fails to open on this install** (T31 corpus probe). With
-   T32's product fix the product now names it as `vpk: refused` instead of
-   silently skipping it; the root cause (install corruption vs reader gap) is
-   not attributed.
+4. ~~**`pak01_dir.vpk` fails to open on this install**~~ — **CORRECTED by T37,
+   and the correction is verified by the Lead.** There is no `pak01_dir.vpk` on
+   this machine at all: `Test-Path` is false, `Get-ChildItem pak01*` is empty, and
+   the install ships four `_dir.vpk` indexes instead (`tf2_misc` 5,402,349 B,
+   `tf2_sound_misc` 158,146 B, `tf2_sound_vo_english` 560,962 B, `tf2_textures`
+   1,974,706 B), all of which open. The original reading came from
+   `vpk_query.cpp:50-56`, which prints `OPEN FAILED` for **any** `open()` failure
+   and discards the `error` string, so "absent" and "corrupt" were
+   indistinguishable in T31's census — `pak01_dir.vpk: OPEN FAILED` recorded a
+   missing file, not an unreadable one. This was a blocker in this report on a
+   false premise and is withdrawn; the real defect was the diagnostic's own loss
+   of the error string, which T37 fixes.
 5. **T29's own named blocker**: residual black is 98.7% lightmap-driven
    (205,911 px) and the back-face share of it is NOT VERIFIED (needs
    `--world-face-id`).
