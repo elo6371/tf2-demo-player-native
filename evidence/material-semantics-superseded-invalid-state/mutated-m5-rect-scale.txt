@@ -1,0 +1,8 @@
+{"check":"rect.placed","ok":true,"detail":"a half-resolution rect exists for the tile"}
+{"check":"rect.centre.u","ok":false,"detail":"0.562500 vs 0.625000"}
+{"check":"rect.centre.v","ok":true,"detail":"0.062500 vs 0.062743"}
+{"check":"rect.size","ok":false,"detail":"512x256"}
+{"check":"rect.inside","ok":true,"detail":"1029,1"}
+{"check":"rect.neighbours","ok":false,"detail":"513 <= 3"}
+{"check":"rect.too.small","ok":true,"detail":"a 4-texel feature atlas cannot hold a 512-texel tile"}
+{"check":"rect.degenerate.feature","ok":true,"detail":"a feature atlas narrower than 3 texels is refused outright"}

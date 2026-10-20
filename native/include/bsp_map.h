@@ -27,6 +27,17 @@ struct BspTriangle {
   float aAlpha = -1.0f;
   float bAlpha = -1.0f;
   float cAlpha = -1.0f;
+  // T27 (2026-10-19): the face's texture axes, straight from `texinfo_t\`s
+  // textureVecs. They are the basis the uv above was computed in
+  // (`uv = dot(p, axis.xyz) + axis.w`), which is exactly the basis a normal map
+  // is authored against: the bump map's x axis runs along the texture's u
+  // direction on the face. Carrying them means the pixel shader can build a
+  // tangent frame from the map's own data instead of inventing one from a world
+  // up vector, and it is why the `$bumpmap` path can decode a normal map as a
+  // normal map. Not normalised here: the BSP stores texels-per-world-unit, and
+  // the renderer normalises once per triangle (they are constant across it).
+  float uAxis[3] = {1.0f, 0.0f, 0.0f};
+  float vAxis[3] = {0.0f, 1.0f, 0.0f};
   std::string material;
   bool lightmapped = false;
   bool water = false;

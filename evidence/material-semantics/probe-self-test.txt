@@ -1,0 +1,51 @@
+{"check":"parse.ok","ok":true,"detail":""}
+{"check":"parse.bumpmap1.alias","ok":true,"detail":"$bumpmap1 -> bumpMap = fix/a_height"}
+{"check":"parse.bumpmap2","ok":true,"detail":"fix/b_height"}
+{"check":"parse.detail.mode","ok":true,"detail":"8"}
+{"check":"parse.detail.factor","ok":true,"detail":"0.375000"}
+{"check":"parse.detail.scale","ok":true,"detail":"1.900000"}
+{"check":"parse.detail.mode.supported","ok":true,"detail":"mode 8 is TCOMBINE_MULTIPLY, which this pass implements"}
+{"check":"parse.ssbump.absent","ok":true,"detail":"$ssbump was not declared"}
+{"check":"parse.bumpmap.precedence","ok":true,"detail":"fix/plain"}
+{"check":"parse.detail.mode.refused","ok":true,"detail":"modes 4,5,6,7,9,10,11 are named, not drawn"}
+{"check":"parse.detail.mode.drawn","ok":true,"detail":"modes 0,1,2,3,8 reach TextureCombine"}
+{"check":"parse.detail.mode.malformed","ok":true,"detail":"a non-numeric $detailblendmode is refused"}
+{"check":"parse.ssbump","ok":true,"detail":"$ssbump 1 parses as true"}
+{"check":"parse.detailtype","ok":true,"detail":"2"}
+{"check":"rect.placed","ok":true,"detail":"a half-resolution rect exists for the tile"}
+{"check":"rect.centre.u","ok":true,"detail":"0.562500 vs 0.562743"}
+{"check":"rect.centre.v","ok":true,"detail":"0.062500 vs 0.062743"}
+{"check":"rect.size","ok":true,"detail":"256x256"}
+{"check":"rect.inside","ok":true,"detail":"1029,1"}
+{"check":"rect.neighbours","ok":true,"detail":"257 <= 257"}
+{"check":"rect.too.small","ok":true,"detail":"a 4-texel feature atlas cannot hold a 512-texel tile"}
+{"check":"rect.degenerate.feature","ok":true,"detail":"a feature atlas narrower than 3 texels is refused outright"}
+{"check":"combine.mode0","ok":true,"detail":"0.400000,0.375000,0.900000"}
+{"check":"combine.mode1","ok":true,"detail":"0.650000,0.625000,1.100000"}
+{"check":"combine.mode2","ok":true,"detail":"0.425000,0.437500,0.700000"}
+{"check":"combine.mode3","ok":true,"detail":"0.450000,0.375000,0.800000"}
+{"check":"combine.mode8","ok":true,"detail":"0.300000,0.312500,0.600000"}
+{"check":"combine.factor.zero","ok":true,"detail":"factor 0 leaves the base alone (modes 0/3/8)"}
+{"check":"combine.mode2.alpha","ok":true,"detail":"mode 2 scales by detail.a, mode 3 does not"}
+{"check":"tangent.flat","ok":true,"detail":"1.000000"}
+{"check":"tangent.u","ok":true,"detail":"dot(T)=0.707107 dot(N)=0.707107"}
+{"check":"tangent.unit","ok":true,"detail":"the result is a unit vector"}
+{"check":"tangent.sign","ok":true,"detail":"v=0.707107 vs -0.707107"}
+{"check":"tangent.rotation","ok":true,"detail":"the same texel tilts by the same angle in the rotated frame"}
+{"check":"tangent.degenerate","ok":true,"detail":"a tangent parallel to N falls back to the geometric normal"}
+{"check":"fixture.bump.split","ok":true,"detail":"2 declared, 1 ssbump, 1 not"}
+{"check":"fixture.detail.type","ok":true,"detail":"2"}
+{"check":"ledger.off.bump","ok":true,"detail":"refused"}
+{"check":"ledger.off.bump.reason","ok":true,"detail":"off: the world pass has one bump sampler slot (--world-bump) and the per-material path is off too (--world-material-bump), so the 2 visible materials that name one of 1 distinct $bumpmap textures are drawn with no normal map at all"}
+{"check":"ledger.off.bump2","ok":true,"detail":"refused"}
+{"check":"ledger.on.bump","ok":true,"detail":"applied"}
+{"check":"ledger.on.bump.reason","ok":true,"detail":"on: 2 materials sample their own $bumpmap tile through a per-face tangent basis built from the BSP texinfo axes; of the 2 materials that declare $bumpmap, 1 set $ssbump and are refused by name (a bumpBasis weight is not a tangent-space normal)"}
+{"check":"ledger.on.bump2","ok":true,"detail":"applied"}
+{"check":"ledger.on.bump2.reason","ok":true,"detail":"on: 1 of 1 declared materials draw layer 2; each lerps its layer-2 normal into the base normal by the same vertex weight that selects the albedo layer (SDK BUMPMAP2 block: `vNormal.xyz = lerp(vNormal.xyz, vNormal2.xyz, blendfactor)`), which is why the two layers cannot disagree about where the boundary is"}
+{"check":"ledger.on.ssbump","ok":true,"detail":"refused"}
+{"check":"ledger.on.ssbump.split","ok":true,"detail":"1 of 2 materials that declare $bumpmap set $ssbump; Source compiles that as `BUMPMAP == 2`, where the texel is NOT remapped with `* 2 - 1` and is consumed as weights on bumpBasis[0..2] against three lightmap directions (lightmappedgeneric_ps2_3_x.h). This pass has one lightmap and no basis, so those materials keep the flat geometric normal while the other 1 apply their own normal map"}
+{"check":"ledger.on.detailtype","ok":true,"detail":"detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused; 2 detail VMT(s) read, 1 distinct %detailtype value(s) (first=2); 1 material names a %detailtype group (first=2); %detailtype names a detail-prop group that VBSP consumes at map compile time (it emits prop_detail sprites and models there), so the key never reaches a runtime shader and has no consumer here; the $detail layer itself draws for 1 materials"}
+{"reading":"self.applied","value":"1"}
+{"check":"ledger.requested.bump","ok":true,"detail":"refused"}
+{"check":"ledger.requested.bump2","ok":true,"detail":"requested but refused: $bumpmap2 is blended into layer 1's normal and --world-material-bump is off, so layer 1's normal is not sampled either"}
+{"reading":"selfTest","value":"true"}

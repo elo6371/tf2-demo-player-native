@@ -91,17 +91,19 @@ int runSelfTest() {
   files["materials/fix/base_height.vtf"] = "v";
   files["materials/fix/b_height.vtf"] = "v";
   files["materials/fix/b2_height.vtf"] = "v";
-  // The detail material is a real VMT with the one key the install lacks.
-  files["materials/fix/detail_a.vmt"] = "LightmappedGeneric { \"%detailtype\" \"2\""
-    " \"$basetexture\" \"fix/detail_a\" }";
+  // The detail material is a real VMT. `%detailtype` is NOT here: it is a key in
+  // the material that names the layer (VBSP reads it at compile time), so it sits
+  // on FIXTURE/BASE below. Putting it in the detail file is the mistake T27 found
+  // in this probe's model of the key.
+  files["materials/fix/detail_a.vmt"] = "LightmappedGeneric { \"$basetexture\" \"fix/detail_a\" }";
   // `fix/detail_missing` is deliberately absent: it is the branch that makes
-  // "%detailtype cannot be read here" a measurement rather than an assumption.
+  // "the layer's texture and mode cannot be resolved here" a measurement.
 
   VmtMaterial base, layer2, noBump;
   check("fixture.base.parses", VmtParser::parse(
     "LightmappedGeneric { \"$basetexture\" \"fix/base\" \"$bumpmap\" \"fix/base_height\""
     " \"$ssbump\" \"1\" \"$phong\" \"1\" \"$phongexponent\" \"12\" \"$phongboost\" \"2\""
-    " \"$detail\" \"fix/detail_a\" }", base), base.error);
+    " \"%detailtype\" \"2\" \"$detail\" \"fix/detail_a\" }", base), base.error);
   check("fixture.layer2.parses", VmtParser::parse(
     "WorldVertexTransition { \"$basetexture\" \"fix/b\" \"$basetexture2\" \"fix/b2\""
     " \"$bumpmap\" \"fix/b_height\" \"$bumpmap2\" \"fix/b2_height\" \"$phong\" \"1\""

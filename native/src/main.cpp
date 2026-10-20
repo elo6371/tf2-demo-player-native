@@ -42,6 +42,7 @@
 #include <tuple>
 #include <vector>
 #include <memory>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -1044,6 +1045,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // frame's slot owner declares no $bumpmap, so the only way to measure the
   // branch's pixels is to name one. Empty means "whatever the material says".
   std::wstring worldBumpTextureOverride;
+  // T27: three switches, one per semantic, plus the detail branch's diagnostic
+  // texture. `worldBump2Given` is only meaningful with `--world-material-bump
+  // on` (layer 2's normal is blended into layer 1's, so there is nothing to
+  // blend toward without it), and the trace prints both so a frame that asked
+  // for bump2 alone is a reading rather than a silent no-op.
+  bool worldMaterialBumpGiven = false;
+  bool worldMaterialBumpRequested = false;
+  bool worldBump2Given = false;
+  bool worldBump2Requested = false;
+  bool worldDetailGiven = false;
+  bool worldDetailRequested = false;
+  std::wstring worldDetailTextureOverride;
+  // T27: `$bumpmap2`'s diagnostic texture. 4 of this map's 5 $bumpmap2
+  // materials declare `$ssbump` (refused by name, and rightly) and the fifth is
+  // under the map, so without an override the layer has no visible pixel and the
+  // gate could only measure a counter. The override replaces the TEXELS; the
+  // blend weight stays the material's own vertex alpha, which is the part of
+  // this semantic the material owns.
+  std::wstring worldBump2TextureOverride;
   int invalidWorldLightingArgument = 0;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
@@ -1122,6 +1142,45 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       } else if (wcscmp(arguments[i], L"--world-bump-texture") == 0 && i + 1 < argumentCount) {
         worldBumpTextureOverride = arguments[++i];
       } else if (wcscmp(arguments[i], L"--world-bump-texture") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-material-bump") == 0 && i + 1 < argumentCount) {
+        // T27: the per-material normal path, separate from `--world-bump`
+        // (T24's single-slot diagnostic). One switch per capture is the rule
+        // this pair exists to keep: `--world-bump` measures one texture applied
+        // to the whole world, this one measures every material's own.
+        if (wcscmp(arguments[++i], L"on") == 0) { worldMaterialBumpRequested = true; worldMaterialBumpGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldMaterialBumpRequested = false; worldMaterialBumpGiven = true; }
+        else { ++invalidWorldLightingArgument; }
+      } else if (wcscmp(arguments[i], L"--world-material-bump") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-bump2") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { worldBump2Requested = true; worldBump2Given = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldBump2Requested = false; worldBump2Given = true; }
+        else { ++invalidWorldLightingArgument; }
+      } else if (wcscmp(arguments[i], L"--world-bump2") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-detail") == 0 && i + 1 < argumentCount) {
+        if (wcscmp(arguments[++i], L"on") == 0) { worldDetailRequested = true; worldDetailGiven = true; }
+        else if (wcscmp(arguments[i], L"off") == 0) { worldDetailRequested = false; worldDetailGiven = true; }
+        else { ++invalidWorldLightingArgument; }
+      } else if (wcscmp(arguments[i], L"--world-detail") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-bump2-texture") == 0 && i + 1 < argumentCount) {
+        // The layer-2 diagnostic source, for the reason in the declaration
+        // above: without it this map's only non-ssbump `$bumpmap2` material
+        // contributes no visible pixel, so the branch's pixels cannot be
+        // measured at all.
+        worldBump2TextureOverride = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--world-bump2-texture") == 0) {
+        ++invalidWorldLightingArgument;
+      } else if (wcscmp(arguments[i], L"--world-detail-texture") == 0 && i + 1 < argumentCount) {
+        // The detail branch's diagnostic source, for the same reason
+        // `--world-bump-texture` exists: every `$detail` VMT on the reference
+        // map is absent from this install, so the only way to measure the
+        // branch's pixels is to name a texture. Empty means "whatever the
+        // material's detail VMT says".
+        worldDetailTextureOverride = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--world-detail-texture") == 0) {
         ++invalidWorldLightingArgument;
       } else if (wcscmp(arguments[i], L"--world-water") == 0 && i + 1 < argumentCount) {
         // on|off, and nothing else: a switch that accepts any string is a switch
@@ -1419,8 +1478,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // T24: same rule, and here it decides whether the A/B means anything. A
     // typo that fell back to `off` would produce two copies of the baseline and
     // the gate would report "this semantic changes no pixel" as a measurement.
-    OutputDebugStringW(L"TF2 Demo Player: invalid --world-dynamic-light/--world-specular/--world-bump;"
-      L" each takes on or off and nothing else.\n");
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-dynamic-light/--world-specular/--world-bump/"
+      L"--world-material-bump/--world-bump2/--world-detail; each takes on or off and nothing else.\n");
     return 13;
   }
   // Applied after the argument loop and after normalize(), so an override is
@@ -1430,6 +1489,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   if (worldDynamicLightGiven) persistent.render.dynamicLighting = worldDynamicLightRequested;
   if (worldSpecularGiven) persistent.render.specular = worldSpecularRequested;
   if (worldBumpGiven) persistent.render.bumpMapping = worldBumpRequested;
+  if (worldMaterialBumpGiven) persistent.render.materialBump = worldMaterialBumpRequested;
+  // Layer 2's normal is a modifier of layer 1's, so asking for it alone is not a
+  // frame this pass can draw: the request is recorded and reported, and the
+  // effective flag below stays false. That is the same "requested != effective"
+  // split T24 established for the pass switches.
+  if (worldBump2Given) persistent.render.bumpMap2 = worldBump2Requested;
+  if (worldDetailGiven) persistent.render.detailLayer = worldDetailRequested;
   if (invalidWorldGeometryArgument) {
     // T12: `all|terrain|none`. `terrain` and `none` are the two frames the
     // region proof is computed from; a typo that fell back to `all` would make
@@ -1903,6 +1969,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool mapBaseTexture2Declared = false;
   bool mapBumpMapDeclared = false;
   bool mapBumpTextureForced = false;
+  // T27: the layer-2 diagnostic decoded and is in use. Passed to the renderer
+  // before the world upload because it decides whether a material without a
+  // layer-1 normal may still carry the layer-2 bit (the shader names the base).
+  bool worldBump2Diagnostic = false;
   tf2::native::WorldMaterialParams mapMaterialParams;
   std::vector<tf2::native::WorldTexture> worldTextures;
   // T19: every material VMT that parsed, kept for the feature scan. The scan
@@ -2255,6 +2325,51 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // existing gate relies on.
       const bool blendEnabled = worldBlendGiven ? worldBlendRequested : true;
       std::size_t fetchModulateDeclared = 0, fetchModulateResolved = 0, fetchModulateRefused = 0;
+      // T27: the three feature layers, each with its own declared/resolved/
+      // refused split. `bumpSsBump` is a refusal that is *not* a missing
+      // resource -- the VTF is there and decodes -- so it is counted apart from
+      // `bumpMissing`: folding them together would make a semantic refusal look
+      // like a broken install.
+      std::size_t fetchBumpDeclared = 0, fetchBumpResolved = 0, fetchBumpMissing = 0, fetchBumpSsBump = 0;
+      std::size_t fetchBump2Declared = 0, fetchBump2Resolved = 0, fetchBump2Missing = 0;
+      std::size_t fetchBump2SsBump = 0, fetchBump2Forced = 0;
+      std::size_t fetchDetailDeclared = 0, fetchDetailResolved = 0, fetchDetailNoVmt = 0;
+      std::size_t fetchDetailNoBase = 0, fetchDetailModeRefused = 0, fetchDetailForced = 0;
+      std::size_t fetchDetailVtfMissing = 0;
+      // The modes actually drawn, so the trace can say "2 materials at mode 0,
+      // 1 at mode 8" instead of "3 detail layers". `$detailblendmode` decides
+      // which branch of TextureCombine runs, so a count without the mode is a
+      // count of layers that draw differently from one another.
+      std::map<int, std::size_t> detailModeCounts;
+      const bool materialBumpEnabled = persistent.render.materialBump;
+      const bool bump2Enabled = persistent.render.bumpMap2 && materialBumpEnabled;
+      const bool detailEnabled = persistent.render.detailLayer;
+      // T27: the layer-2 diagnostic texture, decoded once before the loop.
+      std::vector<std::uint8_t> bump2OverridePixels;
+      std::string bump2OverridePath;
+      UINT bump2OverrideWidth = 0, bump2OverrideHeight = 0;
+      if (bump2Enabled && !worldBump2TextureOverride.empty()) {
+        bump2OverridePath = tf2::native::VmtParser::resourcePath(
+          std::filesystem::path(worldBump2TextureOverride).u8string(), ".vtf");
+        const auto overrideBytes = assetChain.lookup(bump2OverridePath).bytes;
+        tf2::native::VtfTexture overrideTexture;
+        if (!overrideBytes.empty() && overrideTexture.parse(overrideBytes)
+            && !overrideTexture.header().isCubemap()) {
+          bump2OverridePixels = overrideTexture.decodeRgba(overrideBytes);
+          bump2OverrideWidth = overrideTexture.header().width;
+          bump2OverrideHeight = overrideTexture.header().height;
+          worldBump2Diagnostic = !bump2OverridePixels.empty();
+        }
+        if (bump2OverridePixels.empty()) {
+          // Named rather than ignored: a typo in the path would otherwise look
+          // exactly like "the layer drew nothing", which is the failure mode
+          // this whole task exists to make impossible to say.
+          traceFmt("gpu: world feature layer=bump2 override status=refused path=%s"
+            " reason=the --world-bump2-texture VTF did not resolve or decode",
+            bump2OverridePath.c_str());
+          bump2OverridePath.clear();
+        }
+      }
       // T19: the fetch no longer stops at 64. The renderer's plan chunks the
       // materials it is handed into as many atlases as they need, so the only
       // bound here is the hard ceiling -- a map with more distinct materials
@@ -2370,6 +2485,54 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         outHeight = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(height) * scale));
         if (outWidth == 0 || outHeight == 0) return false;
         return resampleTo(source, width, height, outWidth, outHeight, out);
+      };
+      // T27: `$detailscale` baked into pixels. The SDK multiplies the detail
+      // texcoord in the vertex stage (`i.detailOrBumpAndEnvmapMaskTexCoord`),
+      // which needs a second texcoord the world vertex does not carry. Repeating
+      // the detail texture `repeat` times across the base tile is the same
+      // picture, because the atlas uv is normalised over exactly one base tile:
+      // source uv = atlas uv * repeat. Bilinear with wrap, so a scale of 1.9
+      // reads as a repeat rather than as a seam at the tile edge.
+      const auto tileRepeat = [](const std::vector<std::uint8_t>& source, UINT width, UINT height,
+                                 float repeat, UINT outWidth, UINT outHeight,
+                                 std::vector<std::uint8_t>& out) {
+        if (width == 0 || height == 0 || outWidth == 0 || outHeight == 0) return false;
+        if (source.size() != static_cast<std::size_t>(width) * height * 4u) return false;
+        if (!(repeat > 0.0f) || !std::isfinite(repeat)) return false;
+        out.assign(static_cast<std::size_t>(outWidth) * outHeight * 4u, 0);
+        const auto wrap = [](int value, int limit) {
+          const int period = limit > 0 ? limit : 1;
+          int wrapped = value % period;
+          if (wrapped < 0) wrapped += period;
+          return wrapped;
+        };
+        for (UINT y = 0; y < outHeight; ++y) {
+          const float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(outHeight) * repeat;
+          const int y0 = static_cast<int>(std::floor(v - 0.5f));
+          const float fy = (v - 0.5f) - static_cast<float>(y0);
+          for (UINT x = 0; x < outWidth; ++x) {
+            const float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(outWidth) * repeat;
+            const int x0 = static_cast<int>(std::floor(u - 0.5f));
+            const float fx = (u - 0.5f) - static_cast<float>(x0);
+            float texel[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            for (int dy = 0; dy < 2; ++dy) {
+              for (int dx = 0; dx < 2; ++dx) {
+                const int sx = wrap(x0 + dx, static_cast<int>(width));
+                const int sy = wrap(y0 + dy, static_cast<int>(height));
+                const float weight = (dx == 0 ? 1.0f - fx : fx) * (dy == 0 ? 1.0f - fy : fy);
+                const std::size_t at = (static_cast<std::size_t>(sy) * width
+                  + static_cast<std::size_t>(sx)) * 4u;
+                for (int c = 0; c < 4; ++c) texel[c] += weight * static_cast<float>(source[at + static_cast<std::size_t>(c)]);
+              }
+            }
+            const std::size_t at = (static_cast<std::size_t>(y) * outWidth + x) * 4u;
+            for (int c = 0; c < 4; ++c) {
+              out[at + static_cast<std::size_t>(c)] = static_cast<std::uint8_t>(
+                std::clamp(texel[c] + 0.5f, 0.0f, 255.0f));
+            }
+          }
+        }
+        return true;
       };
       for (const auto& entry : materialOrder) {
         const std::string& materialName = entry.second;
@@ -2566,6 +2729,251 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             }
           }
         }
+        // ---- T27: the three feature layers --------------------------------
+        // Each is fetched onto the SAME pixel grid as the albedo tile
+        // (`tiledWidth` x `tiledHeight`), because the renderer's feature atlas
+        // reuses the albedo tile's rectangle: one uv addresses both, and a layer
+        // on a different grid would sample the wrong texel. A layer is fetched
+        // only when its own switch is on, so a capture changes one semantic and
+        // the off frame allocates and samples nothing.
+        std::vector<std::uint8_t> bumpPixels, bump2Pixels, detailPixels;
+        if (materialBumpEnabled && !material.bumpMap.empty()) {
+          ++fetchBumpDeclared;
+          if (material.ssBump) {
+            // Source compiles `$ssbump` as `BUMPMAP == 2`: the texel is NOT
+            // remapped with `* 2 - 1` and is consumed as weights on
+            // `bumpBasis[0..2]` against three lightmap directions
+            // (lightmappedgeneric_ps2_3_x.h, the `BUMPMAP == 2` block). This
+            // pass has one lightmap and no basis, so the material is refused by
+            // name instead of being decoded as a tangent-space normal it is not.
+            ++fetchBumpSsBump;
+            traceFmt("gpu: world feature material=%s layer=bump path=%s status=refused"
+              " reason=$ssbump: the texel is a bumpBasis weight, not a tangent-space normal",
+              materialName.c_str(), material.bumpMap.c_str());
+          } else {
+            std::string bumpPath;
+            std::vector<std::uint8_t> bumpBytes;
+            tf2::native::VtfTexture bumpTexture;
+            if (!resolveTexture(material.bumpMap, bumpPath, bumpBytes)
+                || !bumpTexture.parse(bumpBytes) || bumpTexture.header().isCubemap()) {
+              ++fetchBumpMissing;
+              traceFmt("gpu: world feature material=%s layer=bump path=%s status=refused"
+                " reason=the $bumpmap VTF did not resolve or decode",
+                materialName.c_str(), bumpPath.empty() ? material.bumpMap.c_str() : bumpPath.c_str());
+            } else {
+              auto bumpRgba = bumpTexture.decodeRgba(bumpBytes);
+              std::vector<std::uint8_t> resampled;
+              if (bumpRgba.empty()
+                  || !resampleTo(bumpRgba, bumpTexture.header().width, bumpTexture.header().height,
+                                 tiledWidth, tiledHeight, resampled)) {
+                ++fetchBumpMissing;
+                traceFmt("gpu: world feature material=%s layer=bump path=%s status=refused"
+                  " reason=the VTF decoded empty or would not resample to the tile grid",
+                  materialName.c_str(), bumpPath.c_str());
+              } else {
+                bumpPixels = std::move(resampled);
+                ++fetchBumpResolved;
+                // The dimensions are the reading: a normal map on a different
+                // grid from its albedo is the failure this line can show.
+                traceFmt("gpu: world feature material=%s layer=bump path=%s source=%zux%zu"
+                  " tile=%zux%zu ssbump=0 status=resolved",
+                  materialName.c_str(), bumpPath.c_str(),
+                  static_cast<std::size_t>(bumpTexture.header().width),
+                  static_cast<std::size_t>(bumpTexture.header().height),
+                  static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight));
+              }
+            }
+          }
+        }
+        // T27: `$bumpmap2`, layer 2's normal. Three things can stop it, and each
+        // one is counted separately because they mean different things:
+        //   * the material declares `$ssbump`, so the DECLARED second-layer
+        //     texel is a bumpBasis weight rather than a signed normal (the same
+        //     refusal as the `$bumpmap` row, and 4 of this map's 5 $bumpmap2
+        //     materials are in this state);
+        //   * its VTF did not resolve;
+        //   * the diagnostic override replaced the texels.
+        // The override is tried first and counted as `bump2Forced`: it exists
+        // because the two facts above leave this demo with no visible pixel of
+        // the feature at all (the one non-ssbump material is under the map), and
+        // a gate that cannot move a pixel cannot tell "implemented" from "counter
+        // incremented". It replaces the texels only -- the blend weight the lerp
+        // uses is still the material's own vertex alpha.
+        if (bump2Enabled && !material.bumpMap2.empty()) {
+          ++fetchBump2Declared;
+          // `$ssbump` is a property of the material, so it is counted on every
+          // path -- including the forced one, where the diagnostic texels mean it
+          // does not stop the layer but the declaration is still true. The three
+          // path counters (resolved / missing / forced) describe what was
+          // sampled; this one describes what was declared.
+          if (material.ssBump) ++fetchBump2SsBump;
+          if (!bump2OverridePixels.empty()) {
+            std::vector<std::uint8_t> resampled;
+            if (!resampleTo(bump2OverridePixels, bump2OverrideWidth, bump2OverrideHeight,
+                            tiledWidth, tiledHeight, resampled)) {
+              ++fetchBump2Missing;
+              traceFmt("gpu: world feature material=%s layer=bump2 path=%s status=refused"
+                " reason=the --world-bump2-texture VTF would not resample to the tile grid",
+                materialName.c_str(), material.bumpMap2.c_str());
+            } else {
+              bump2Pixels = std::move(resampled);
+              ++fetchBump2Forced;
+              traceFmt("gpu: world feature material=%s layer=bump2 path=%s declared=%s"
+                " source=diagnostic tile=%zux%zu ssbump=%d status=forced",
+                materialName.c_str(), bump2OverridePath.c_str(), material.bumpMap2.c_str(),
+                static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight),
+                material.ssBump ? 1 : 0);
+            }
+          } else if (material.ssBump) {
+            traceFmt("gpu: world feature material=%s layer=bump2 path=%s status=refused"
+              " reason=$ssbump: layer 2's texel is a bumpBasis weight, not a tangent-space normal",
+              materialName.c_str(), material.bumpMap2.c_str());
+          } else {
+            std::string bump2Path;
+            std::vector<std::uint8_t> bump2Bytes;
+            tf2::native::VtfTexture bump2Texture;
+            if (!resolveTexture(material.bumpMap2, bump2Path, bump2Bytes)
+                || !bump2Texture.parse(bump2Bytes) || bump2Texture.header().isCubemap()) {
+              ++fetchBump2Missing;
+              traceFmt("gpu: world feature material=%s layer=bump2 path=%s status=refused"
+                " reason=the $bumpmap2 VTF did not resolve or decode",
+                materialName.c_str(), bump2Path.empty() ? material.bumpMap2.c_str() : bump2Path.c_str());
+            } else {
+              auto bump2Rgba = bump2Texture.decodeRgba(bump2Bytes);
+              std::vector<std::uint8_t> resampled;
+              if (bump2Rgba.empty()
+                  || !resampleTo(bump2Rgba, bump2Texture.header().width, bump2Texture.header().height,
+                                 tiledWidth, tiledHeight, resampled)) {
+                ++fetchBump2Missing;
+                traceFmt("gpu: world feature material=%s layer=bump2 path=%s status=refused"
+                  " reason=the VTF decoded empty or would not resample to the tile grid",
+                  materialName.c_str(), bump2Path.c_str());
+              } else {
+                bump2Pixels = std::move(resampled);
+                ++fetchBump2Resolved;
+                traceFmt("gpu: world feature material=%s layer=bump2 path=%s source=%zux%zu"
+                  " tile=%zux%zu status=resolved",
+                  materialName.c_str(), bump2Path.c_str(),
+                  static_cast<std::size_t>(bump2Texture.header().width),
+                  static_cast<std::size_t>(bump2Texture.header().height),
+                  static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight));
+              }
+            }
+          }
+        }
+        if (detailEnabled && !material.detailTexture.empty()) {
+          ++fetchDetailDeclared;
+          if (material.detailBlendModeUnsupported) {
+            // TextureCombine has no branch here for the inputs this pass owns:
+            // 4 needs the base's alpha, 5/6 run after lighting, 7 selects by
+            // base alpha, 9 writes only alpha, 10/11 consume an SSBump detail.
+            ++fetchDetailModeRefused;
+            traceFmt("gpu: world feature material=%s layer=detail mode=%d status=refused"
+              " reason=$detailblendmode has no TextureCombine branch this pass can feed",
+              materialName.c_str(), material.detailBlendMode);
+          } else {
+            // The detail material's own texture. `$detail` names a VMT, not a
+            // VTF, so the layer's pixels come from that material's
+            // `$basetexture` -- and `%detailtype` is read from the same file.
+            const std::string detailVmtPath =
+              tf2::native::VmtParser::resourcePath(material.detailTexture, ".vmt");
+            std::vector<std::uint8_t> detailRgba;
+            tf2::native::VtfTexture detailTexture;
+            std::string detailTexturePath;
+            std::string detailType;
+            std::vector<std::uint8_t> detailSourceBytes;
+            UINT detailWidth = 0, detailHeight = 0;
+            // The named reason this material's layer did not draw, or null when
+            // it did. One variable rather than three counters compared against
+            // zero: those counters are cumulative over the loop, so a failure on
+            // an earlier material would have relabelled this one.
+            const char* detailFailure = nullptr;
+            if (!worldDetailTextureOverride.empty()) {
+              // The diagnostic source, for the same reason T24's bump override
+              // exists: every `$detail` VMT the reference map names is absent
+              // from this install, so the branch has no pixels to sample and an
+              // A/B would measure nothing.
+              const std::string overrideNarrow =
+                std::filesystem::path(worldDetailTextureOverride).u8string();
+              detailTexturePath = tf2::native::VmtParser::resourcePath(overrideNarrow, ".vtf");
+              detailSourceBytes = assetChain.lookup(detailTexturePath).bytes;
+              if (!detailSourceBytes.empty() && detailTexture.parse(detailSourceBytes)
+                  && !detailTexture.header().isCubemap()) {
+                detailRgba = detailTexture.decodeRgba(detailSourceBytes);
+                detailWidth = detailTexture.header().width;
+                detailHeight = detailTexture.header().height;
+              }
+              if (detailRgba.empty()) {
+                ++fetchDetailVtfMissing;
+                detailFailure = "the --world-detail-texture VTF did not resolve or decode";
+              } else {
+                ++fetchDetailForced;
+                // `%detailtype` still comes from the detail VMT when it exists,
+                // even though the pixels do not: the type is the declaration
+                // under test and the override only replaces the texels.
+                const auto forcedVmtBytes = assetChain.lookup(detailVmtPath).bytes;
+                tf2::native::VmtMaterial forcedDetail;
+                if (!forcedVmtBytes.empty()
+                    && tf2::native::VmtParser::parse(
+                         std::string(forcedVmtBytes.begin(), forcedVmtBytes.end()), forcedDetail)) {
+                  detailType = forcedDetail.detailType;
+                }
+              }
+            } else {
+              const auto detailVmtBytes = assetChain.lookup(detailVmtPath).bytes;
+              tf2::native::VmtMaterial detailMaterial;
+              if (detailVmtBytes.empty()
+                  || !tf2::native::VmtParser::parse(
+                       std::string(detailVmtBytes.begin(), detailVmtBytes.end()), detailMaterial)) {
+                ++fetchDetailNoVmt;
+                detailFailure = "the $detail VMT is absent from this install";
+              } else {
+                detailType = detailMaterial.detailType;
+                std::vector<std::uint8_t> detailVtfBytes;
+                if (detailMaterial.baseTexture.empty()
+                    || !resolveTexture(detailMaterial.baseTexture, detailTexturePath, detailVtfBytes)
+                    || !detailTexture.parse(detailVtfBytes)
+                    || detailTexture.header().isCubemap()) {
+                  ++fetchDetailNoBase;
+                  detailFailure = "the detail material's $basetexture VTF did not resolve or decode";
+                } else {
+                  detailRgba = detailTexture.decodeRgba(detailVtfBytes);
+                  detailWidth = detailTexture.header().width;
+                  detailHeight = detailTexture.header().height;
+                  if (detailRgba.empty()) {
+                    ++fetchDetailVtfMissing;
+                    detailFailure = "the detail VTF decoded empty";
+                  }
+                }
+              }
+            }
+            std::vector<std::uint8_t> repeated;
+            if (!detailFailure
+                && !tileRepeat(detailRgba, detailWidth, detailHeight, material.detailScale,
+                               tiledWidth, tiledHeight, repeated)) {
+              ++fetchDetailVtfMissing;
+              detailFailure = "the detail texture would not repeat onto the tile grid";
+            }
+            if (detailFailure) {
+              traceFmt("gpu: world feature material=%s layer=detail vmt=%s texture=%s detailtype=%s"
+                " mode=%d status=refused reason=%s",
+                materialName.c_str(), detailVmtPath.c_str(), detailTexturePath.c_str(),
+                detailType.empty() ? "-" : detailType.c_str(), material.detailBlendMode,
+                detailFailure);
+            } else {
+              detailPixels = std::move(repeated);
+              ++fetchDetailResolved;
+              ++detailModeCounts[material.detailBlendMode];
+              traceFmt("gpu: world feature material=%s layer=detail vmt=%s texture=%s detailtype=%s"
+                " mode=%d factor=%.3f scale=%.3f tile=%zux%zu status=resolved",
+                materialName.c_str(), detailVmtPath.c_str(), detailTexturePath.c_str(),
+                detailType.empty() ? "-" : detailType.c_str(), material.detailBlendMode,
+                static_cast<double>(material.detailBlendFactor),
+                static_cast<double>(material.detailScale),
+                static_cast<std::size_t>(tiledWidth), static_cast<std::size_t>(tiledHeight));
+            }
+          }
+        }
         if (tiledWidth != texture.header().width || tiledHeight != texture.header().height) ++fetchDownscaled;
         ++fetchTiled;
         {
@@ -2581,6 +2989,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           tiled.blendRgba = std::move(blendPixels);
           tiled.blendDeclared = secondDeclared;
           tiled.blendModulateRgba = std::move(modulatePixels);
+          // T27: the three feature layers, already on this tile's grid. The
+          // mode and factor are the *material's* `$detailblendmode` and
+          // `$detailblendfactor`; the renderer copies them onto every vertex of
+          // the material, because the pass has no per-material constant buffer.
+          tiled.bumpRgba = std::move(bumpPixels);
+          tiled.bumpDeclared = !material.bumpMap.empty();
+          tiled.bump2Rgba = std::move(bump2Pixels);
+          tiled.bump2Declared = !material.bumpMap2.empty();
+          tiled.detailRgba = std::move(detailPixels);
+          tiled.detailDeclared = !tiled.detailRgba.empty();
+          tiled.detailMode = material.detailBlendMode;
+          tiled.detailFactor = material.detailBlendFactor;
+          tiled.detailScale = material.detailScale;
+          tiled.ssBump = material.ssBump;
           worldTextures.push_back(std::move(tiled));
         }
       }
@@ -2591,6 +3013,30 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       traceFmt("gpu: world blend-fetch declared=%zu resolved=%zu refused=%zu disabled=%zu resampled=%zu modulateDeclared=%zu modulateResolved=%zu modulateRefused=%zu",
         fetchBlendDeclared, fetchBlendResolved, fetchBlendRefused, fetchBlendDisabled, fetchBlendResampled,
         fetchModulateDeclared, fetchModulateResolved, fetchModulateRefused);
+      // T27: one line per layer, and the switches in it, so a reader can tell
+      // "the switch was off" from "the switch was on and the resource was not
+      // there" without diffing two traces. The mode histogram is on the detail
+      // line because TextureCombine's branch is chosen by it: two detail layers
+      // at different modes do not draw the same picture.
+      {
+        std::string detailModes;
+        for (const auto& entry : detailModeCounts) {
+          if (!detailModes.empty()) detailModes += ",";
+          detailModes += std::to_string(entry.first) + "x" + std::to_string(entry.second);
+        }
+        if (detailModes.empty()) detailModes = "-";
+        traceFmt("gpu: world feature-fetch bumpSwitch=%d bumpDeclared=%zu bumpResolved=%zu"
+          " bumpMissing=%zu bumpSsBump=%zu bump2Switch=%d bump2Declared=%zu bump2Resolved=%zu"
+          " bump2Missing=%zu bump2SsBump=%zu bump2Forced=%zu detailSwitch=%d detailDeclared=%zu"
+          " detailResolved=%zu detailNoVmt=%zu detailNoBase=%zu detailVtfMissing=%zu"
+          " detailModeRefused=%zu detailForced=%zu detailModes=%s",
+          materialBumpEnabled ? 1 : 0, fetchBumpDeclared, fetchBumpResolved, fetchBumpMissing,
+          fetchBumpSsBump, bump2Enabled ? 1 : 0, fetchBump2Declared, fetchBump2Resolved,
+          fetchBump2Missing, fetchBump2SsBump, fetchBump2Forced, detailEnabled ? 1 : 0,
+          fetchDetailDeclared, fetchDetailResolved,
+          fetchDetailNoVmt, fetchDetailNoBase, fetchDetailVtfMissing, fetchDetailModeRefused,
+          fetchDetailForced, detailModes.c_str());
+      }
       // T21: what the PRE-T19 order would have done with the same materials.
       // The old comparator compared the pair's second field -- the material
       // NAME -- and therefore accepted materials in reverse alphabetical order
@@ -3611,6 +4057,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // T17: this one changes a draw-time constant, not the upload. It is set here
     // so the reading and the frames of one run describe one configuration.
     renderer.setWorldLightmapEnabled(worldLightmapGiven ? worldLightmapRequested : true);
+    // T27: the three feature switches, for the same reason -- all three decide
+    // what the upload contains (which feature atlases exist and which vertex
+    // bits are set), so setting them after the upload would produce a frame that
+    // describes the flag instead of the image.
+    renderer.setWorldMaterialBumpEnabled(persistent.render.materialBump);
+    renderer.setWorldBump2Enabled(persistent.render.bumpMap2 && persistent.render.materialBump);
+    renderer.setWorldBump2Diagnostic(worldBump2Diagnostic);
+    renderer.setWorldDetailEnabled(persistent.render.detailLayer);
     if (worldGeometry == WorldGeometryFilter::None) {
       // Nothing is uploaded, so no world vertex buffer exists and the world
       // draw's own guard skips it. That frame is the background measurement the
@@ -4324,6 +4778,30 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       passState.bumpOwnerTexture = mapBumpMapPath;
       passState.bumpTextureSource = mapBumpMapPath.empty() ? "none"
         : (mapBumpTextureForced ? "forced" : "material");
+      // T27: the per-material feature path. `effective` comes from the renderer's
+      // post-upload state (atlas present AND a vertex bit set), never from the
+      // settings field -- that is the whole point of the split.
+      passState.materialBumpRequested = renderer.settings().materialBump;
+      passState.materialBumpEffective = lightingSample.materialBumpMode;
+      passState.materialBumpMaterials = lightingSample.bumpFeature.materials;
+      passState.bump2Requested = renderer.settings().bumpMap2;
+      passState.bump2Effective = lightingSample.bump2Mode;
+      passState.bump2Materials = lightingSample.bump2Feature.materials;
+      passState.bump2Diagnostic = worldBump2Diagnostic;
+      // The 4 `$ssbump` materials have no layer-1 normal for the lerp to start
+      // from; under the diagnostic they lerp onto the base the frame already
+      // computed. The count comes from the same parse the feature rows used.
+      passState.bump2DiagnosticBase = worldBump2Diagnostic ? features.bumpMap2SsBump : 0;
+      // With an override in hand every effective layer-2 tile sampled it (the
+      // fetch takes the override branch before it looks at the material's own
+      // VTF), so the forced count is the effective count. With no override it is
+      // zero by construction, which is what makes the ledger able to say "layer
+      // 2 drew, and it drew from a diagnostic texture" as one sentence.
+      passState.bump2Forced = worldBump2TextureOverride.empty()
+        ? 0 : lightingSample.bump2Feature.materials;
+      passState.detailRequested = renderer.settings().detailLayer;
+      passState.detailEffective = lightingSample.detailMode;
+      passState.detailMaterials = lightingSample.detailFeature.materials;
       const auto lighting = tf2::native::scanWorldLightingSemantics(inputs, resolvers, passState);
       traceFmt("gpu: world lighting dynamic=%d specular=%d bump=%d requestedDynamic=%d"
         " requestedSpecular=%d requestedBump=%d bumpOwner=%s bumpTexture=%s bumpTextureSource=%s"
@@ -4336,6 +4814,24 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         passState.bumpTextureSource.c_str(),
         mapBumpMapDeclared ? 1 : 0);
       traceFmt("gpu: world lighting-summary %s", lighting.summary.c_str());
+      // T27: what reached the vertex buffer, per feature. These are the numbers
+      // between "the material asked" (the feature-fetch line) and "a pixel
+      // moved" (the capture): a tile in the atlas with no vertex bit is a
+      // texture nothing samples, and a bit with no tile would sample the
+      // filler. `*Enabled` here is the renderer's own flag, so a caller that set
+      // the switch and skipped the upload reads as 0 rather than as on.
+      traceFmt("gpu: world feature-apply bump enabled=%d tiles=%zu materials=%zu vertices=%zu"
+        " bump2 enabled=%d tiles=%zu materials=%zu vertices=%zu weights=%zu(%.3f..%.3f)"
+        " detail enabled=%d tiles=%zu materials=%zu vertices=%zu",
+        lightingSample.bumpFeature.enabled ? 1 : 0, lightingSample.bumpFeature.tiles,
+        lightingSample.bumpFeature.materials, lightingSample.bumpFeature.vertices,
+        lightingSample.bump2Feature.enabled ? 1 : 0, lightingSample.bump2Feature.tiles,
+        lightingSample.bump2Feature.materials, lightingSample.bump2Feature.vertices,
+        lightingSample.bump2Feature.bump2DistinctWeights,
+        static_cast<double>(lightingSample.bump2Feature.bump2WeightMin),
+        static_cast<double>(lightingSample.bump2Feature.bump2WeightMax),
+        lightingSample.detailFeature.enabled ? 1 : 0, lightingSample.detailFeature.tiles,
+        lightingSample.detailFeature.materials, lightingSample.detailFeature.vertices);
       for (const auto& control : lighting.controls) {
         traceFmt("gpu: world lighting-control control=%s kind=%s state=%s declared=%zu visible=%zu"
           " resolved=%zu missing=%zu materials=%zu triangles=%zu requested=%d effective=%d"
@@ -5284,6 +5780,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         } else {
           if (g_playback.tick >= g_playback.endTick) { tickAccumulator = 0.0; break; }
           ++g_playback.tick;
+          // T27: `--capture-tick N` means "the frame drawn AT tick N", not "the
+          // first frame drawn at or after N". Those differ whenever a drawn
+          // frame spans more than one tick: the draw cadence is wall clock
+          // (~8.3 ms target) while the tick cadence is the demo's `tickRate`
+          // (~66.7 Hz), and both read the same `elapsed`, so a loaded machine
+          // draws every tenth tick and a capture armed at N lands at N+10.
+          // Holding the cursor at N until that draw happens makes the captured
+          // tick exact by construction rather than by retrying, which is what
+          // a pinned pixel diff needs. The hold lasts one frame: the draw that
+          // satisfies it disarms the capture and the next iteration resumes.
+          if (captureArmed && captureTick > 0 && g_playback.tick > captureTick) {
+            g_playback.tick = static_cast<std::int32_t>(captureTick);
+            tickAccumulator = 0.0;
+            break;
+          }
         }
         tickAccumulator -= 1.0;
       }

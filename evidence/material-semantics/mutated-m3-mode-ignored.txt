@@ -1,0 +1,1 @@
+18597.4 gpu: world feature-fetch bumpSwitch=0 bumpDeclared=0 bumpResolved=0 bumpMissing=0 bumpSsBump=0 bump2Switch=0 bump2Declared=0 bump2Resolved=0 bump2Missing=0 bump2SsBump=0 bump2Forced=0 detailSwitch=1 detailDeclared=15 detailResolved=15 detailNoVmt=0 detailNoBase=0 detailVtfMissing=0 detailModeRefused=0 detailForced=15 detailModes=0x15

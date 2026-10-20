@@ -596,6 +596,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       triangle.a = a; triangle.b = b; triangle.c = c;
       triangle.aAlpha = aAlpha; triangle.bAlpha = bAlpha; triangle.cAlpha = cAlpha;
       triangle.au = ta[0]; triangle.av = ta[1]; triangle.bu = tb[0]; triangle.bv = tb[1]; triangle.cu = tc[0]; triangle.cv = tc[1];
+      // T27: the same axes the uv was computed from, so the renderer's tangent
+      // frame and the material's texture coordinates cannot disagree about
+      // which way the texture's u axis points on this face.
+      triangle.uAxis[0] = u0; triangle.uAxis[1] = u1; triangle.uAxis[2] = u2;
+      triangle.vAxis[0] = v0; triangle.vAxis[1] = v1; triangle.vAxis[2] = v2;
       if (packed.ok) {
         const auto la = lightUv(a), lb = lightUv(b), lc = lightUv(c);
         triangle.alu = la[0]; triangle.alv = la[1]; triangle.blu = lb[0]; triangle.blv = lb[1]; triangle.clu = lc[0]; triangle.clv = lc[1];

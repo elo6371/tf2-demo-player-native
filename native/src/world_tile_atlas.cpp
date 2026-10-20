@@ -93,9 +93,12 @@ WorldAtlasPlan planWorldTiles(const std::vector<WorldTileSource>& sources,
     std::vector<std::size_t> sources;
     bool hasBlend = false;
     bool hasModulate = false;
+    bool hasBump = false;
+    bool hasBump2 = false;
     std::uint64_t totalBytes = 0;
   };
   std::vector<PricedBatch> priced;
+  const std::uint32_t featureScale = options.featureScale < 1u ? 1u : options.featureScale;
   for (const auto& members : batchSources) {
     PricedBatch batch;
     batch.sources = members;
@@ -105,13 +108,23 @@ WorldAtlasPlan planWorldTiles(const std::vector<WorldTileSource>& sources,
     batch.batch.width = static_cast<std::uint32_t>(batch.batch.columns) * options.tileSize;
     batch.batch.height = static_cast<std::uint32_t>(batch.batch.rows) * options.tileSize;
     batch.batch.albedoBytes = bytesFor(batch.batch.columns, batch.batch.rows, options.tileSize);
+    // T27: ceil, so the last row/column of texels is not lost to the integer
+    // division. On the reference map both dimensions are even and this is exact.
+    batch.batch.featureWidth = (batch.batch.width + featureScale - 1u) / featureScale;
+    batch.batch.featureHeight = (batch.batch.height + featureScale - 1u) / featureScale;
+    batch.batch.featureBytes = static_cast<std::uint64_t>(batch.batch.featureWidth)
+      * batch.batch.featureHeight * 4ull;
     for (const std::size_t index : members) {
       if (sources[index].blendBytes > 0) batch.hasBlend = true;
       if (sources[index].modulateBytes > 0) batch.hasModulate = true;
+      if (sources[index].bumpBytes > 0) batch.hasBump = true;
+      if (sources[index].bump2Bytes > 0) batch.hasBump2 = true;
     }
     batch.totalBytes = batch.batch.albedoBytes
       + (batch.hasBlend ? batch.batch.albedoBytes : 0)
-      + (batch.hasModulate ? batch.batch.albedoBytes : 0);
+      + (batch.hasModulate ? batch.batch.albedoBytes : 0)
+      + (batch.hasBump ? batch.batch.featureBytes : 0)
+      + (batch.hasBump2 ? batch.batch.featureBytes : 0);
     priced.push_back(std::move(batch));
   }
 
@@ -124,15 +137,20 @@ WorldAtlasPlan planWorldTiles(const std::vector<WorldTileSource>& sources,
   // be choosing a worse picture for the same money.
   std::size_t admitted = 0;
   std::uint64_t spentAlbedo = 0, spentBlend = 0, spentModulate = 0;
+  std::uint64_t spentBump = 0, spentBump2 = 0;
   for (const auto& batch : priced) {
     const std::uint64_t nextAlbedo = spentAlbedo + batch.batch.albedoBytes;
     const std::uint64_t nextBlend = spentBlend + (batch.hasBlend ? batch.batch.albedoBytes : 0);
     const std::uint64_t nextModulate = spentModulate
       + (batch.hasModulate ? batch.batch.albedoBytes : 0);
-    if (nextAlbedo + nextBlend + nextModulate > options.budgetBytes) break;
+    const std::uint64_t nextBump = spentBump + (batch.hasBump ? batch.batch.featureBytes : 0);
+    const std::uint64_t nextBump2 = spentBump2 + (batch.hasBump2 ? batch.batch.featureBytes : 0);
+    if (nextAlbedo + nextBlend + nextModulate + nextBump + nextBump2 > options.budgetBytes) break;
     spentAlbedo = nextAlbedo;
     spentBlend = nextBlend;
     spentModulate = nextModulate;
+    spentBump = nextBump;
+    spentBump2 = nextBump2;
     ++admitted;
   }
 
@@ -172,30 +190,73 @@ WorldAtlasPlan planWorldTiles(const std::vector<WorldTileSource>& sources,
         ? sources[index].sourceHeight : sources[index].height;
       slot.blend = sources[index].blendBytes > 0;
       slot.modulate = sources[index].modulateBytes > 0;
+      slot.bump = sources[index].bumpBytes > 0;
+      slot.bump2 = sources[index].bump2Bytes > 0;
       ++plan.accepted;
     }
     WorldTileBatch placed = batch.batch;
     for (const std::size_t index : batch.sources) {
       if (plan.slots[index].blend) ++placed.blendTiles;
       if (plan.slots[index].modulate) ++placed.modulateTiles;
+      if (plan.slots[index].bump) ++placed.bumpTiles;
+      if (plan.slots[index].bump2) ++placed.bump2Tiles;
     }
     plan.batches.push_back(placed);
   }
   plan.albedoBytes = spentAlbedo;
   plan.blendBytes = spentBlend;
   plan.modulateBytes = spentModulate;
+  plan.bumpBytes = spentBump;
+  plan.bump2Bytes = spentBump2;
 
   char summary[512] = {0};
   std::snprintf(summary, sizeof(summary),
     "%zu of %zu materials tiled in %zu batch(es); refused=%zu (malformed=%zu, duplicate=%zu,"
-    " budget=%zu); layers=%llu+%llu+%llu MiB",
+    " budget=%zu); layers=%llu+%llu+%llu+%llu+%llu MiB",
     plan.accepted, sources.size(), plan.batches.size(), plan.refused, plan.refusedMalformed,
     plan.refusedDuplicate, plan.refusedBudget,
     static_cast<unsigned long long>(plan.albedoBytes / (1024ull * 1024ull)),
     static_cast<unsigned long long>(plan.blendBytes / (1024ull * 1024ull)),
-    static_cast<unsigned long long>(plan.modulateBytes / (1024ull * 1024ull)));
+    static_cast<unsigned long long>(plan.modulateBytes / (1024ull * 1024ull)),
+    static_cast<unsigned long long>(plan.bumpBytes / (1024ull * 1024ull)),
+    static_cast<unsigned long long>(plan.bump2Bytes / (1024ull * 1024ull)));
   plan.reason = summary;
   return plan;
+}
+
+bool worldFeatureTileRect(const WorldTileSlot& slot, std::uint32_t atlasWidth,
+    std::uint32_t atlasHeight, std::uint32_t featureWidth, std::uint32_t featureHeight,
+    WorldFeatureTileRect& out) {
+  if (atlasWidth == 0 || atlasHeight == 0 || featureWidth < 3 || featureHeight < 3) return false;
+  if (slot.width == 0 || slot.height == 0) return false;
+  const auto scale = [](std::uint32_t value, std::uint32_t from, std::uint32_t to) {
+    const double scaled = static_cast<double>(value) * static_cast<double>(to)
+      / static_cast<double>(from);
+    return static_cast<long long>(scaled + 0.5);
+  };
+  const long long limitX = static_cast<long long>(featureWidth) - 2;
+  const long long limitY = static_cast<long long>(featureHeight) - 2;
+  long long width = scale(slot.width, atlasWidth, featureWidth);
+  long long height = scale(slot.height, atlasHeight, featureHeight);
+  if (width < 1) width = 1;
+  if (height < 1) height = 1;
+  if (width > limitX || height > limitY) return false;
+  long long x = scale(slot.x, atlasWidth, featureWidth);
+  long long y = scale(slot.y, atlasHeight, featureHeight);
+  if (x < 1) x = 1;
+  if (y < 1) y = 1;
+  if (x + width > static_cast<long long>(featureWidth) - 1) {
+    x = static_cast<long long>(featureWidth) - 1 - width;
+  }
+  if (y + height > static_cast<long long>(featureHeight) - 1) {
+    y = static_cast<long long>(featureHeight) - 1 - height;
+  }
+  if (x < 1 || y < 1) return false;
+  out.x = static_cast<std::uint32_t>(x);
+  out.y = static_cast<std::uint32_t>(y);
+  out.width = static_cast<std::uint32_t>(width);
+  out.height = static_cast<std::uint32_t>(height);
+  return true;
 }
 
 void worldTileBlit(std::vector<std::uint8_t>& atlas, std::uint32_t atlasWidth,

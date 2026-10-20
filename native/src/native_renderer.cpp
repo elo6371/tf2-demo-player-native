@@ -19,7 +19,46 @@
 namespace tf2::native {
 
 namespace {
-struct WorldVertex { float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz; float lu = -1.0f; float lv = -1.0f; float blend = -1.0f; float blendModulate = 0.0f; };
+struct WorldVertex {
+  float x, y, z;
+  float r, g, b, a;
+  float u, v;
+  float nx, ny, nz;
+  float lu = -1.0f;
+  float lv = -1.0f;
+  float blend = -1.0f;
+  float blendModulate = 0.0f;
+  // ---- T27 (2026-10-19): per-material feature inputs ---------------------
+  // One semantic bit per material feature, because the whole world is a handful
+  // of draw calls over atlases: there is no per-material constant to put these
+  // in, and a per-vertex flag is what lets the pixel shader sample a material's
+  // own normal/detail tile without a second draw. Bit 0 = `$bumpmap` tile, bit 1
+  // = `$bumpmap2` tile, bit 2 = `$detail` tile. Set by the renderer from the
+  // tiles it actually blitted, not from the VMT: a declared feature whose
+  // texture did not resolve must not set a bit that makes the shader sample
+  // the neutral filler and call it applied.
+  float featureMask = 0.0f;
+  // `$detailblendmode` and `$detailblendfactor`, as the SDK's TextureCombine
+  // reads them (`lightmappedgeneric_ps2_3_x.h` -> `common_ps_fxc.h`).
+  float detailMode = 0.0f;
+  float detailFactor = 1.0f;
+  // T27: the layer-2 diagnostic eligibility. The shader's `feature.w`. Kept
+  // OUT of `featureMask` on purpose: setting bit 2 on a vertex whose bit 0 is
+  // clear is not a state the shader can consume (layer 2 has no base normal),
+  // and measured on this machine that state alone moved 38,538 px with the
+  // layer-2 arm deleted -- the mechanism was not isolated, so the state is not
+  // created. The flag lets the diagnostic use the base normal the frame already
+  // computed without lying about the material's mask.
+  float featureDiag = 0.0f;
+  // The face's tangent frame: the BSP texinfo u axis, normalised, plus the
+  // sign of the bitangent (`cross(N, T) * sign`). Four floats rather than six
+  // because the bitangent is rebuilt from the interpolated normal, which is the
+  // same vector the scalar lighting uses -- one normal, one frame.
+  float tangentX = 0.0f;
+  float tangentY = 0.0f;
+  float tangentZ = 1.0f;
+  float tangentSign = 1.0f;
+};
 // T2 (2026-10-14): the water pass reuses the world's input layout and vertex
 // shader, which is only sound while the two vertex structs agree field for
 // field. This is the assertion that says so at compile time rather than at the
@@ -30,8 +69,11 @@ static_assert(offsetof(WorldWaterVertex, u) == offsetof(WorldVertex, u)
   && offsetof(WorldWaterVertex, nx) == offsetof(WorldVertex, nx)
   && offsetof(WorldWaterVertex, lu) == offsetof(WorldVertex, lu)
   && offsetof(WorldWaterVertex, blend) == offsetof(WorldVertex, blend)
-  && offsetof(WorldWaterVertex, blendModulate) == offsetof(WorldVertex, blendModulate),
-  "the water vertex's uv, normal, light-uv and blend offsets must match the world's");
+  && offsetof(WorldWaterVertex, blendModulate) == offsetof(WorldVertex, blendModulate)
+  && offsetof(WorldWaterVertex, featureMask) == offsetof(WorldVertex, featureMask)
+  && offsetof(WorldWaterVertex, detailMode) == offsetof(WorldVertex, detailMode)
+  && offsetof(WorldWaterVertex, tangentX) == offsetof(WorldVertex, tangentX),
+  "the water vertex's uv, normal, light-uv, blend and feature offsets must match the world's");
 struct EntityModelGpuVertex {
   float x, y, z;
   float nx, ny, nz;
@@ -288,9 +330,9 @@ cbuffer WorldConstants : register(b0) {
   float4 lightmapFeatures;
   float4 envFeatures;
 };
-struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; };
-struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; };
-Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; return output; }
+struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
+struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
+Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; output.feature = input.feature; output.tangent = input.tangent; return output; }
 )HLSL";
   static constexpr char worldPixelSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
@@ -313,13 +355,57 @@ TextureCube envCube : register(t5);
 // rectangles, so the vertex's single uv addresses the same texel in all three.
 Texture2D blendTexture : register(t6);
 Texture2D blendModulateTexture : register(t7);
+// T27: the per-material feature atlases. Each batch owns one of each, laid out
+// on the SAME tile rectangles as the albedo atlas it is drawn with, so the one
+// uv the vertex carries addresses the material's own normal/detail texel in all
+// of them. That is the whole reason a second sampler slot is enough: the tiles
+// agree about where a texel is, which is what makes a per-material normal map
+// possible without a per-material draw.
+Texture2D bumpAtlas : register(t8);
+Texture2D bumpAtlas2 : register(t9);
+Texture2D detailAtlas : register(t10);
 SamplerState sampler0 : register(s0);
 float3 safeNormalize(float3 value) {
   float lengthSquared = dot(value, value);
   if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
   return value * rsqrt(lengthSquared);
 }
-float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5) : SV_TARGET {
+// T27: `$detail`'s TextureCombine, transcribed from
+// common_ps_fxc.h:701-739. The mode comes from `$detailblendmode` and the
+// factor from `$detailblendfactor`; both ride the vertex because the pass has no
+// per-material constant. Modes the product does not draw are refused on the CPU
+// and never reach here, so this switch has no "default: guess" arm.
+float3 combineDetail(float3 baseColor, float4 detailColor, uint mode, float factor) {
+  if (mode == 0u) return baseColor * lerp(float3(1.0, 1.0, 1.0), 2.0 * detailColor.rgb, factor);
+  if (mode == 1u) return baseColor + factor * detailColor.rgb;
+  if (mode == 2u) return lerp(baseColor, detailColor.rgb, saturate(factor * detailColor.a));
+  if (mode == 3u) return lerp(baseColor, detailColor.rgb, factor);
+  if (mode == 8u) return lerp(baseColor, baseColor * detailColor.rgb, factor);
+  return baseColor;
+}
+// The normal map decode: NORM_DECODE_NONE (common_ps_fxc.h), i.e.
+// `texel.rgb * 2 - 1`. This is the decode `lightmappedgeneric_ps2_3_x.h` applies
+// under `#if BUMPMAP == 1`; `$ssbump` is `BUMPMAP == 2`, which deliberately does
+// NOT do it -- an SSBump texel stays 0..1 and is consumed as weights on
+// `bumpBasis[0..2]` against three lightmap directions. This pass has neither the
+// basis nor the three lightmaps, so SSBump materials are refused by name on the
+// CPU and never reach this function.
+float3 decodeNormal(float3 texel) { return safeNormalize(texel * 2.0 - 1.0); }
+// The tangent frame, from the BSP texinfo axes the vertex carries. N is the
+// geometric normal; T is the texture's u axis with N removed; B is
+// cross(N, T) * sign, the sign that makes B point along increasing v. A
+// degenerate T falls back to an identity frame, which makes the bump map a
+// no-op on that triangle instead of a NaN.
+float3 tangentNormal(float3 texel, float3 Ng, float4 tangent) {
+  float3 T = float3(tangent.x, tangent.y, tangent.z);
+  T = T - Ng * dot(Ng, T);
+  T = safeNormalize(T);
+  if (dot(T, T) < 0.5) return Ng;
+  float3 B = cross(Ng, T) * (tangent.w < 0.0 ? -1.0 : 1.0);
+  float3 n = decodeNormal(texel);
+  return safeNormalize(T * n.x + B * n.y + Ng * n.z);
+}
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5, float4 feature : TEXCOORD6, float4 tangent : TEXCOORD7) : SV_TARGET {
   // Mode 3 is the sky box, and it short-circuits: the box is lit by nothing,
   // carries no lightmap uv and has no meaningful normal, so running the
   // lighting half of this shader over it would be inventing a direction to
@@ -349,6 +435,12 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // `blendfactor` and the `FANCY_BLENDING` block). A negative weight is the
   // sentinel for a single-layer vertex, so a material without a second layer
   // never samples the blend atlas.
+  //
+  // T27: the SAME weight is what `$bumpmap2` is lerped by, because Source has one
+  // `blendfactor` variable and the BUMPMAP2 block reads it after the modulate
+  // has rewritten it. Computing it once here is what keeps the albedo layer and
+  // the normal layer from disagreeing about where the boundary is.
+  float blendWeight = 0.0f;
   if (blend >= 0.0) {
     float weight = blend;
     if (blendModulate > 0.5) {
@@ -360,17 +452,31 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
       // a picture of the map.
       weight = smoothstep(lower, lower + max(upper - lower, 1.0e-5), weight);
     }
-    sampled = lerp(sampled, blendTexture.Sample(sampler0, uv).rgb, weight);
+    blendWeight = saturate(weight);
+    sampled = lerp(sampled, blendTexture.Sample(sampler0, uv).rgb, blendWeight);
   }
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
+  // T27: `$detail`. The layer is combined with the SAME TextureCombine the SDK
+  // uses (common_ps_fxc.h), at the point the SDK calls it: on the base colour
+  // with the vertex tint already applied, before lighting (`albedo =
+  // TextureCombine(albedo, detailColor, DETAIL_BLEND_MODE,
+  // g_DetailBlendFactor)`). `$detailscale` is baked into the detail tile on the
+  // CPU -- this pass has one atlas uv per vertex, so the repetition has to live
+  // in the pixels rather than in a second texcoord. A material with no detail
+  // tile has bit 2 clear and never samples here.
+  uint featureMask = (uint)feature.x;
+  if ((featureMask & 4u) != 0u) {
+    float4 detailColor = detailAtlas.Sample(sampler0, uv);
+    albedo = combineDetail(albedo, detailColor, (uint)feature.y, feature.z);
+  }
   // T21: mode 6 is the ALBEDO the material path produced -- both layers of a
-  // blend material already mixed, the flat branch for a material with no tile,
-  // and nothing else. Lighting, the lightmap and self-illum are deliberately
-  // NOT applied: this view exists so a gate can compare one screen pixel with
-  // one texel the CPU sampled from the same tile, which is the only way to tell
-  // "the wall is dark because the material is dark" from "the wall is dark
-  // because it sampled the wrong tile".
+  // blend material already mixed, the detail layer combined, the flat branch for
+  // a material with no tile, and nothing else. Lighting, the lightmap and
+  // self-illum are deliberately NOT applied: this view exists so a gate can
+  // compare one screen pixel with one texel the CPU sampled from the same tile,
+  // which is the only way to tell "the wall is dark because the material is
+  // dark" from "the wall is dark because it sampled the wrong tile".
   if (envFeatures.y > 0.5) return float4(albedo, 1.0);
   float3 lightColour = float3(lightmapFactor, lightmapFactor, lightmapFactor);
   if (lightmapFeatures.w > 0.5 && lightUv.x >= 0.0) {
@@ -391,11 +497,53 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     lightColour = pow(max(lightmapTexture.Sample(sampler0, lightUv).rgb, 0.0), 1.0 / 2.2);
   }
   albedo *= lightColour;
-  float3 n = safeNormalize(normal);
-  if (lightmapFeatures.y > 0.5) {
-    float3 bump = bumpTexture.Sample(sampler0, uv).xyz * 2.0 - 1.0;
-    n = safeNormalize(n + float3(bump.xy * 0.35, bump.z * 0.1));
-  }
+  float3 Ng = safeNormalize(normal);
+  // T27: the per-material normal. Bit 0 means this material's own `$bumpmap`
+  // tile was blitted into the batch's bump atlas; the vertex's tangent frame
+  // comes from the face's texinfo axes, so the map's x/y mean what the material
+  // author made them mean. When the material has no tile the legacy single-slot
+  // branch still runs, which is what T24's diagnostic switch measures -- the two
+  // are separate paths on purpose, and the trace names which one a frame used.
+  //
+  // Both candidate normals are computed as VALUES and chosen with `?:`. Not
+  // for speed: measured on this machine, a vertex whose mask carried bit 2
+  // without bit 1 changed 38,538 px even with the layer-2 arm deleted, and it
+  // still did after the branch writes below were turned into these selects --
+  // so the state itself, not any one write, moved the frame. The mechanism was
+  // not isolated this round; what was fixed is that the state is no longer
+  // created. The product path only sets bit 2 when bit 0 is set (see the vertex
+  // upload), and the diagnostic rides `featureDiag`, which no shader arm
+  // mistakes for a layer the material asked for.
+  const bool hasLayer1 = (featureMask & 1u) != 0u;
+  float3 nMaterial = tangentNormal(bumpAtlas.Sample(sampler0, uv).xyz, Ng, tangent);
+  float3 bump = bumpTexture.Sample(sampler0, uv).xyz * 2.0 - 1.0;
+  float3 nLegacy = lightmapFeatures.y > 0.5
+    ? safeNormalize(Ng + float3(bump.xy * 0.35, bump.z * 0.1)) : Ng;
+  float3 n = hasLayer1 ? nMaterial : nLegacy;
+  // `$bumpmap2`: layer 2's normal, lerped into the base normal by the same
+  // `blendfactor` that selects the albedo layer (SDK: BUMPMAP2 block,
+  // `vNormal.xyz = lerp(vNormal.xyz, vNormal2.xyz, blendfactor)`). `blendWeight`
+  // is 0 for a vertex with no second layer, which leaves the base alone -- the
+  // reading a face with no painted weight should give.
+  //
+  // T27: the product path requires layer 1 (`hasLayer1`): Source compiles
+  // BUMPMAP2 under BUMPMAP, so a material whose layer 1 is `$ssbump` (refused
+  // above) has no normal to lerp toward and its bit is never set. `feature.w`
+  // is the diagnostic eligibility -- set only by --world-bump2-texture, and only
+  // for a material that declares layer 2 -- so the diagnostic never masquerades
+  // as a mask bit the shader would read as "this material asked for layer 2
+  // with a layer-1 base". `envFeatures.z` is the same switch on the pass side:
+  // it lets the diagnostic lerp onto the base normal the frame already computed,
+  // and the trace names that base. Both layers are decoded in the SAME geometric
+  // frame: layer 2's texel is a normal on this surface, not on the surface layer
+  // 1 already tilted.
+  // Bit 1 is the product path (layer 1 present); `feature.w` is the diagnostic
+  // eligibility, set only by --world-bump2-texture and only for a material that
+  // declares layer 2. The diagnostic flag does not masquerade as a mask bit.
+  const bool useLayer2 = ((featureMask & 2u) != 0u || feature.w > 0.5)
+    && (hasLayer1 || envFeatures.z > 0.5);
+  float3 n2 = tangentNormal(bumpAtlas2.Sample(sampler0, uv).xyz, Ng, tangent);
+  n = useLayer2 ? safeNormalize(lerp(n, n2, blendWeight)) : n;
   // envFeatures.x is the mode the renderer is actually in, not a claim about it:
   // 0 = no env map, 1 = the 2D approximation, 2 = a real six-face cube. The two
   // branches sample different resources and the mode is what decides which, so a
@@ -841,9 +989,14 @@ float4 main(Input input) : SV_TARGET {
       // constant to put them in.
       {"TEXCOORD", 4, DXGI_FORMAT_R32_FLOAT, 0, 56, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"TEXCOORD", 5, DXGI_FORMAT_R32_FLOAT, 0, 60, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      // T27: the per-material feature mask/params and the face's tangent frame.
+      // Same reason as the blend fields above -- the world is a handful of
+      // atlas draws, so the material's own feature inputs travel on the vertex.
+      {"TEXCOORD", 6, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 64, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 7, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 80, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
     initStage_ = "layout.world";
-    const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 7, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
+    const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 9, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
     if (!layoutCreated) {
       worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
       lastError_ = E_FAIL;
@@ -1221,6 +1374,15 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldBlendTexturesSeen_ = textures.size();
   worldBlendLayersSeen_ = 0;
   for (const auto& source : textures) if (!source.blendRgba.empty()) ++worldBlendLayersSeen_;
+  // T27: every feature reading is written by this upload, never inherited: a
+  // frame that did not build the atlas must not read the previous frame's
+  // tile count as its own.
+  worldBumpFeature_ = WorldFeatureState{};
+  worldBump2Feature_ = WorldFeatureState{};
+  worldDetailFeature_ = WorldFeatureState{};
+  worldBumpFeature_.enabled = worldMaterialBumpEnabled_;
+  worldBump2Feature_.enabled = worldMaterialBumpEnabled_ && worldBump2Enabled_;
+  worldDetailFeature_.enabled = worldDetailEnabled_;
   // ---- T19: the plan, not a capped walk -----------------------------------
   // Before this, `accepted.size() >= kMaxTiles` skipped the material with a
   // `continue` and no counter: measured on cp_snakewater_final1 from the
@@ -1245,6 +1407,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // which is what keeps the two frames differing by the shader branch alone.
     request.blendBytes = source.blendRgba.size();
     request.modulateBytes = source.blendModulateRgba.size();
+    // T27: the two normal layers enter the plan only when their switch is on
+    // and main.cpp actually fetched pixels. Both halves matter: with the switch
+    // off the atlas must not exist (the default frame is byte-identical), and a
+    // declared-but-unresolved `$bumpmap` must not price a texture it cannot
+    // fill.
+    request.bumpBytes = worldMaterialBumpEnabled_ ? source.bumpRgba.size() : 0;
+    request.bump2Bytes = (worldMaterialBumpEnabled_ && worldBump2Enabled_)
+      ? source.bump2Rgba.size() : 0;
     requests.push_back(std::move(request));
   }
   const WorldAtlasPlan plan = planWorldTiles(requests);
@@ -1255,7 +1425,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldTilesRefusedDuplicate_ = plan.refusedDuplicate;
   worldTilesRefusedBudget_ = plan.refusedBudget;
   worldAtlasBatches_ = plan.batches.size();
-  worldAtlasLayerBytes_ = plan.albedoBytes + plan.blendBytes + plan.modulateBytes;
+  worldAtlasLayerBytes_ = plan.albedoBytes + plan.blendBytes + plan.modulateBytes
+    + plan.bumpBytes + plan.bump2Bytes;
   worldTileTable_.clear();
   worldTileTable_.reserve(textures.size());
   for (std::size_t index = 0; index < textures.size(); ++index) {
@@ -1302,12 +1473,35 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   std::vector<std::vector<std::uint8_t>> atlasPixels(plan.batches.size());
   std::vector<std::vector<std::uint8_t>> blendPixels(plan.batches.size());
   std::vector<std::vector<std::uint8_t>> modulatePixels(plan.batches.size());
+  // T27: the two normal-map layers. Their fill is the neutral normal
+  // (128,128,255) rather than the albedo fill (88): a texel a material did not
+  // write must decode to "straight up", so a stray sample is a no-op instead of
+  // a plausible-looking tilt that a frame would show as shading.
+  std::vector<std::vector<std::uint8_t>> bumpPixels(plan.batches.size());
+  std::vector<std::vector<std::uint8_t>> bump2Pixels(plan.batches.size());
+  // The detail layer's fill is opaque black. No vertex samples it -- bit 2 of
+  // the mask is set from the same set of materials that was blitted here -- and
+  // black is chosen so that a regression which sampled the fill anyway would
+  // show as a crushed surface rather than as a plausible one: the modulate,
+  // additive and multiply branches all collapse toward 0 on it.
+  std::vector<std::vector<std::uint8_t>> detailPixels(plan.batches.size());
+  const auto makeNeutral = [](std::size_t bytes, std::uint8_t r, std::uint8_t g,
+                              std::uint8_t b) {
+    std::vector<std::uint8_t> pixels(bytes, 0);
+    for (std::size_t at = 0; at + 3 < pixels.size(); at += 4u) {
+      pixels[at + 0] = r; pixels[at + 1] = g; pixels[at + 2] = b; pixels[at + 3] = 255u;
+    }
+    return pixels;
+  };
   for (std::size_t batch = 0; batch < plan.batches.size(); ++batch) {
     atlasPixels[batch].assign(static_cast<std::size_t>(plan.batches[batch].albedoBytes), worldAtlasFill);
   }
   std::unordered_set<std::string> blendedMaterials;
   std::unordered_set<std::string> modulatedMaterials;
   std::unordered_set<std::string> terrainMaterials;
+  std::unordered_set<std::string> bumpMaterials;
+  std::unordered_set<std::string> bump2Materials;
+  std::unordered_set<std::string> detailBlitMaterials;
   std::size_t blendTiles = 0, blendModulateTiles = 0, malformedLayers = 0;
   for (std::size_t index = 0; index < textures.size(); ++index) {
     const WorldTileSlot& slot = plan.slots[index];
@@ -1350,12 +1544,57 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       worldTileTable_[index].modulate = false;
     }
     if (!blendedMaterials.count(source.material)) worldTileTable_[index].blend = false;
+    // ---- T27: the two normal layers ---------------------------------------
+    // Each is resampled from the material's tile grid (where main.cpp put it)
+    // into the feature atlas' own rectangle. The feature atlas is the same
+    // rectangles in normalised space at 1/featureScale the resolution, so the
+    // albedo uv addresses it without a second texcoord. A rectangle that cannot
+    // be placed leaves the material's bit clear (the atlas has no texel under
+    // its uv, and "sampled the filler" would be reported as applied).
+    const auto blitFeature = [&](const std::vector<std::uint8_t>& rgba,
+                                 std::vector<std::uint8_t>& target, WorldFeatureState& state,
+                                 std::uint8_t fill) {
+      if (rgba.empty()) return false;
+      if (rgba.size() != expected) return false;
+      WorldFeatureTileRect rect;
+      if (!worldFeatureTileRect(slot, batch.width, batch.height, batch.featureWidth,
+                                batch.featureHeight, rect)) {
+        return false;
+      }
+      std::vector<std::uint8_t> resampled;
+      if (!resampleRgba(rgba, slot.width, slot.height, rect.width, rect.height, resampled)) {
+        return false;
+      }
+      if (target.empty()) target = makeNeutral(static_cast<std::size_t>(batch.featureBytes),
+                                               fill, fill, fill);
+      worldTileBlit(target, batch.featureWidth, rect.x, rect.y, rect.width, rect.height, resampled);
+      ++state.tiles;
+      return true;
+    };
+    if (worldMaterialBumpEnabled_ && blitFeature(source.bumpRgba, bumpPixels[slot.batch],
+                                                 worldBumpFeature_, 128u)) {
+      worldTileTable_[index].bump = true;
+      bumpMaterials.insert(source.material);
+    }
+    if (worldMaterialBumpEnabled_ && worldBump2Enabled_
+        && blitFeature(source.bump2Rgba, bump2Pixels[slot.batch], worldBump2Feature_, 128u)) {
+      worldTileTable_[index].bump2 = true;
+      bump2Materials.insert(source.material);
+    }
+    if (worldDetailEnabled_ && blitFeature(source.detailRgba, detailPixels[slot.batch],
+                                           worldDetailFeature_, 0u)) {
+      worldTileTable_[index].detail = true;
+      detailBlitMaterials.insert(source.material);
+    }
   }
   worldBlendTiles_ = blendTiles;
   worldBlendModulateTiles_ = blendModulateTiles;
   worldBlendMalformedLayers_ = malformedLayers;
   worldBlendVertices_ = 0;
   worldBlendModulateVertices_ = 0;
+  worldBumpFeature_.materials = bumpMaterials.size();
+  worldBump2Feature_.materials = bump2Materials.size();
+  worldDetailFeature_.materials = detailBlitMaterials.size();
   // T12's 67.6 MiB note still applies per batch: a batch of 64 tiles is over the
   // 64 MiB guard the ordinary textures use, and that guard exists to catch a
   // runaway allocation rather than to refuse the size this pass is built around.
@@ -1363,6 +1602,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldAtlasTextures_.clear();
   worldBlendAtlasTextures_.clear();
   worldModulateAtlasTextures_.clear();
+  worldBumpAtlasTextures_.clear();
+  worldBump2AtlasTextures_.clear();
   // The single-atlas readings are the largest atlas, not batch 0's: a gate that
   // asked "is there a 4112-wide, 64-MiB atlas" still gets the atlas it meant,
   // and the total is reported separately.
@@ -1414,6 +1655,52 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     } else {
       worldModulateAtlasTextures_.emplace_back();
     }
+    // T27: the normal-map layers, one texture per batch at the feature
+    // resolution. Empty when the switch was off or no tile in this batch asked
+    // for the layer, which is what keeps an off run's allocation identical to
+    // the pre-T27 build.
+    const std::uint64_t featureBudget = std::max<std::uint64_t>(64ull * 1024ull * 1024ull,
+      layout.featureBytes);
+    if (!bumpPixels[batch].empty()) {
+      Texture2D bump;
+      if (!bump.create(device_.Get(), bumpPixels[batch], layout.featureWidth,
+                       layout.featureHeight, &atlasError, featureBudget)) {
+        worldAtlasReason_ = atlasError.empty()
+          ? "the bump atlas texture was refused" : atlasError;
+        lastError_ = E_FAIL;
+        return false;
+      }
+      worldBumpAtlasTextures_.push_back(std::move(bump));
+    } else {
+      worldBumpAtlasTextures_.emplace_back();
+    }
+    if (!bump2Pixels[batch].empty()) {
+      Texture2D bump2;
+      if (!bump2.create(device_.Get(), bump2Pixels[batch], layout.featureWidth,
+                        layout.featureHeight, &atlasError, featureBudget)) {
+        worldAtlasReason_ = atlasError.empty()
+          ? "the bump2 atlas texture was refused" : atlasError;
+        lastError_ = E_FAIL;
+        return false;
+      }
+      worldBump2AtlasTextures_.push_back(std::move(bump2));
+    } else {
+      worldBump2AtlasTextures_.emplace_back();
+    }
+    // The detail layer, same rectangle rule and same budget as the normals.
+    if (!detailPixels[batch].empty()) {
+      Texture2D detail;
+      if (!detail.create(device_.Get(), detailPixels[batch], layout.featureWidth,
+                         layout.featureHeight, &atlasError, featureBudget)) {
+        worldAtlasReason_ = atlasError.empty()
+          ? "the detail atlas texture was refused" : atlasError;
+        lastError_ = E_FAIL;
+        return false;
+      }
+      worldDetailAtlasTextures_.push_back(std::move(detail));
+    } else {
+      worldDetailAtlasTextures_.emplace_back();
+    }
   }
   worldAtlasReason_ = "bound";
   // The old single-atlas members keep their meaning for the two other passes
@@ -1435,9 +1722,23 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   const float centerX = (minX + maxX) * 0.5f, centerY = (minY + maxY) * 0.5f;
   std::vector<WorldVertex> vertices;
   vertices.reserve(map.triangles.size() * 3);
+  // T27: the feature material counts are counted off the BITS THE VERTICES
+  // CARRY, not off the blit set. A material can be blitted into an atlas and
+  // still have no vertex that samples it (the product path refuses layer 2 when
+  // layer 1 is absent); reporting the blit set would say five materials apply
+  // while the shader sees one.
+  std::unordered_set<std::string> bumpVertexMaterials;
+  std::unordered_set<std::string> bump2VertexMaterials;
+  std::unordered_set<std::string> detailVertexMaterials;
   // T12: 256 buckets over [0,1]. The count of distinct buckets is what
   // separates "the painted weights arrived" from "a constant was written".
   std::vector<unsigned char> weightBuckets(256, 0);
+  // T27: the same instrument for `$bumpmap2`'s lerp weight, because the SDK
+  // blends layer 2's normal by the vertex's blend factor -- a constant 1 and a
+  // painted gradient both draw a picture, and only the distribution tells them
+  // apart.
+  std::vector<unsigned char> bump2WeightBuckets(256, 0);
+  std::unordered_set<std::string> detailMaterials;
   std::size_t lightmappedVertices = 0;
   std::size_t displacedTriangles = 0;
   std::size_t waterTriangles = 0;
@@ -1519,6 +1820,71 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         weightBuckets[static_cast<std::size_t>(clamped * 255.0f + 0.5f)] = 1;
       }
       if (triangle.lightmapped) { a.lu = triangle.alu; a.lv = triangle.alv; b.lu = triangle.blu; b.lv = triangle.blv; c.lu = triangle.clu; c.lv = triangle.clv; }
+      // ---- T27: the per-material feature inputs ---------------------------
+      // The mask is built from the blits this upload performed, not from the
+      // VMTs: `bumpMaterials` is filled in the same loop that wrote the atlas,
+      // so "the bit is set" and "there is a texel under this uv" are the same
+      // statement by construction.
+      {
+        const WorldTexture& material = textures[tile->second];
+        int mask = 0;
+        if (bumpMaterials.count(triangle.material)) mask |= 1;
+        // T27: layer 2 has no base normal unless layer 1 was blitted, so the
+        // product path only sets bit 2 when bit 0 is set. The diagnostic does
+        // NOT set bit 2 on a material without layer 1: measured on this machine,
+        // that state moved 38,538 px even with the layer-2 arm deleted, and it
+        // still did after the layer-1 writes were made selects -- the state
+        // itself, not one write, and the mechanism was not isolated. So the
+        // diagnostic instead sets `featureDiag` (the shader's `feature.w`) and
+        // lerps onto the base the frame already computed.
+        const bool layer2Declared = bump2Materials.count(triangle.material) != 0;
+        if (layer2Declared && (mask & 1) != 0) mask |= 2;
+        const bool layer2Diagnostic = layer2Declared && worldBump2Diagnostic_;
+        const bool detailDrawn = worldDetailEnabled_
+          && detailBlitMaterials.count(triangle.material) != 0;
+        if (detailDrawn) mask |= 4;
+        a.featureMask = b.featureMask = c.featureMask = static_cast<float>(mask);
+        a.detailMode = b.detailMode = c.detailMode = static_cast<float>(material.detailMode);
+        a.detailFactor = b.detailFactor = c.detailFactor = material.detailFactor;
+        a.featureDiag = b.featureDiag = c.featureDiag = layer2Diagnostic ? 1.0f : 0.0f;
+        // The face's own texture basis. Normalised here rather than in the
+        // shader because it is constant across the face and already in map
+        // space, which is the space the uv was computed in.
+        float tx = triangle.uAxis[0], ty = triangle.uAxis[1], tz = triangle.uAxis[2];
+        const float tlen = std::sqrt(tx * tx + ty * ty + tz * tz);
+        if (tlen > 1.0e-6f) { tx /= tlen; ty /= tlen; tz /= tlen; }
+        else { tx = 0.0f; ty = 0.0f; tz = 1.0f; }
+        // The bitangent's sign: does cross(N, T) point along the map's +v axis?
+        const float bx = normal.y * tz - normal.z * ty;
+        const float by = normal.z * tx - normal.x * tz;
+        const float bz = normal.x * ty - normal.y * tx;
+        const float vSign = (bx * triangle.vAxis[0] + by * triangle.vAxis[1]
+          + bz * triangle.vAxis[2]) < 0.0f ? -1.0f : 1.0f;
+        a.tangentX = b.tangentX = c.tangentX = tx;
+        a.tangentY = b.tangentY = c.tangentY = ty;
+        a.tangentZ = b.tangentZ = c.tangentZ = tz;
+        a.tangentSign = b.tangentSign = c.tangentSign = vSign;
+        // Counted off the vertices, the same rule the blend weights above use:
+        // a material in the set whose triangle never reached the buffer must not
+        // read as applied.
+        if ((mask & 1) != 0) {
+          worldBumpFeature_.vertices += 3;
+          bumpVertexMaterials.insert(triangle.material);
+        }
+        if ((mask & 2) != 0 || layer2Diagnostic) {
+          worldBump2Feature_.vertices += 3;
+          bump2VertexMaterials.insert(triangle.material);
+          // The weight the shader will lerp layer 2's normal by: `max(blend,0)`,
+          // saturate, exactly what the pixel shader computes.
+          const float clamped = std::min(std::max(a.blend, 0.0f), 1.0f);
+          bump2WeightBuckets[static_cast<std::size_t>(clamped * 255.0f + 0.5f)] = 1;
+        }
+        if ((mask & 4) != 0) {
+          worldDetailFeature_.vertices += 3;
+          detailMaterials.insert(triangle.material);
+          detailVertexMaterials.insert(triangle.material);
+        }
+      }
       worldTriangleBatch_[uploadedTriangle] = static_cast<std::int16_t>(t.batch);
     } else {
       const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(triangle.material));
@@ -1561,6 +1927,26 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     if (worldBlendWeightMin_ < 0.0f || value < worldBlendWeightMin_) worldBlendWeightMin_ = value;
     if (value > worldBlendWeightMax_) worldBlendWeightMax_ = value;
     ++worldBlendDistinctWeights_;
+  }
+  // T27: the detail layer's material count, and `$bumpmap2`'s weight
+  // distribution -- the reading that separates the painted blend from a
+  // constant.
+  worldBumpFeature_.materials = bumpVertexMaterials.size();
+  worldBump2Feature_.materials = bump2VertexMaterials.size();
+  worldDetailFeature_.materials = detailVertexMaterials.size();
+  worldDetailFeature_.tiles = detailMaterials.size();
+  worldBump2Feature_.bump2WeightMin = -1.0f;
+  worldBump2Feature_.bump2WeightMax = -1.0f;
+  worldBump2Feature_.bump2DistinctWeights = 0;
+  for (std::size_t bucket = 0; bucket < bump2WeightBuckets.size(); ++bucket) {
+    if (!bump2WeightBuckets[bucket]) continue;
+    const float value = static_cast<float>(bucket) / 255.0f;
+    if (worldBump2Feature_.bump2WeightMin < 0.0f
+        || value < worldBump2Feature_.bump2WeightMin) {
+      worldBump2Feature_.bump2WeightMin = value;
+    }
+    if (value > worldBump2Feature_.bump2WeightMax) worldBump2Feature_.bump2WeightMax = value;
+    ++worldBump2Feature_.bump2DistinctWeights;
   }
   // T12: an empty filter result is a refusal, not a zero-triangle buffer.
   // CreateBuffer with ByteWidth 0 fails on its own, but it fails with E_FAIL
@@ -1631,6 +2017,15 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         ? worldBlendAtlasTextures_[batch].view() : nullptr;
       draw.modulateView = batch < worldModulateAtlasTextures_.size()
         ? worldModulateAtlasTextures_[batch].view() : nullptr;
+      // T27: the feature views are bound per batch for the same reason the
+      // blend atlas is: a batch that holds no bump tile must not sample the
+      // previous batch's normal map.
+      draw.bumpView = batch < worldBumpAtlasTextures_.size()
+        ? worldBumpAtlasTextures_[batch].view() : nullptr;
+      draw.bump2View = batch < worldBump2AtlasTextures_.size()
+        ? worldBump2AtlasTextures_[batch].view() : nullptr;
+      draw.detailView = batch < worldDetailAtlasTextures_.size()
+        ? worldDetailAtlasTextures_[batch].view() : nullptr;
       if (draw.indexCount > 0) worldDrawBatches_.push_back(draw);
       grouped.insert(grouped.end(), perBatch[batch].begin(), perBatch[batch].end());
     }
@@ -2386,6 +2781,18 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.dynamicLightingMode = worldDynamicLightingEffective();
   state.specularMode = worldSpecularEffective();
   state.bumpMode = worldBumpEffective();
+  // T27: the feature path's own state. `*Mode` requires both the atlas and a
+  // vertex that points at it: an atlas with no vertex bit is a texture nothing
+  // samples, and a bit with no atlas samples the filler.
+  state.bumpFeature = worldBumpFeature_;
+  state.bump2Feature = worldBump2Feature_;
+  state.detailFeature = worldDetailFeature_;
+  state.materialBumpMode = worldMaterialBumpEnabled_ && worldBumpFeature_.tiles > 0
+    && worldBumpFeature_.vertices > 0;
+  state.bump2Mode = worldMaterialBumpEnabled_ && worldBump2Enabled_
+    && worldBump2Feature_.tiles > 0 && worldBump2Feature_.vertices > 0;
+  state.detailMode = worldDetailEnabled_ && worldDetailFeature_.tiles > 0
+    && worldDetailFeature_.vertices > 0;
   state.worldVertexCount = worldVertexCount_;
   state.convertedMin[0] = worldConvertedMin_[0]; state.convertedMin[1] = worldConvertedMin_[1]; state.convertedMin[2] = worldConvertedMin_[2];
   state.convertedMax[0] = worldConvertedMax_[0]; state.convertedMax[1] = worldConvertedMax_[1]; state.convertedMax[2] = worldConvertedMax_[2];
@@ -4083,7 +4490,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // The cube wins when it is there: it is the map's own environment rather
     // than a 2D projection of whatever $envmap named, and the capability layer
     // only builds it when all six faces decoded.
-    constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f, 0.0f, 0.0f);
+    constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f,
+      worldBump2Diagnostic_ ? 1.0f : 0.0f, 0.0f);
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
     frameConstantsValid = true;
     // T21: publish the same numbers for the face trace. Copied field by field
@@ -4243,6 +4651,15 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         ID3D11ShaderResourceView* blendModulateView = batch.modulateView;
         context_->PSSetShaderResources(6, 1, &blendView);
         context_->PSSetShaderResources(7, 1, &blendModulateView);
+        // T27: the material's own normal maps and the detail layer. The detail
+        // texture is the same for every batch (it is one forced resource, see
+        // the member's comment); the two normal atlases are per batch.
+        ID3D11ShaderResourceView* bumpAtlasView = batch.bumpView;
+        ID3D11ShaderResourceView* bump2AtlasView = batch.bump2View;
+        ID3D11ShaderResourceView* detailView = batch.detailView;
+        context_->PSSetShaderResources(8, 1, &bumpAtlasView);
+        context_->PSSetShaderResources(9, 1, &bump2AtlasView);
+        context_->PSSetShaderResources(10, 1, &detailView);
         // The cross-pass question, measured where it can go wrong: a world
         // draw that happens while a weapon's albedo is the bound t0.
         if (isWeaponMaterialView(lastSlot0View_)) ++worldDrawsWithWeaponTexture_;
@@ -4330,6 +4747,9 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // that forgets to set its own.
     context_->PSSetShaderResources(6, 1, &noBump);
     context_->PSSetShaderResources(7, 1, &noBump);
+    context_->PSSetShaderResources(8, 1, &noBump);
+    context_->PSSetShaderResources(9, 1, &noBump);
+    context_->PSSetShaderResources(10, 1, &noBump);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(worldWaterVertexCount_, 0);
     worldWaterDrewThisFrame_ = true;
@@ -4502,6 +4922,12 @@ void Renderer::shutdown() {
   worldBlendTexture_.reset();
   worldBlendModulateTexture_.reset();
   worldBumpTexture_.reset();
+  worldBumpAtlasTextures_.clear();
+  worldBump2AtlasTextures_.clear();
+  worldBumpFeature_ = WorldFeatureState{};
+  worldBump2Feature_ = WorldFeatureState{};
+  worldDetailFeature_ = WorldFeatureState{};
+  worldDetailAtlasTextures_.clear();
   worldEnvTexture_.reset();
   worldLightmapTexture_.reset();
   worldCubemapTexture_.Reset();

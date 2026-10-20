@@ -396,6 +396,18 @@ struct WorldWaterVertex {
   // structs share one input layout.
   float blend = -1.0f;
   float blendModulate = 0.0f;
+  // T27: the per-material feature inputs. Water declares none of `$bumpmap`,
+  // `$bumpmap2` or `$detail`, so the mask is 0 and the tangent is the identity
+  // -- but the fields must exist here for the same reason the blend fields do:
+  // one input layout, one vertex struct shape.
+  float featureMask = 0.0f;
+  float detailMode = 0.0f;
+  float detailFactor = 1.0f;
+  float featurePad = 0.0f;
+  float tangentX = 0.0f;
+  float tangentY = 0.0f;
+  float tangentZ = 1.0f;
+  float tangentSign = 1.0f;
 };
 
 // The water material's parsed parameters. TF2's water shaders carry the two

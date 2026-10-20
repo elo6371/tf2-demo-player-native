@@ -12,16 +12,16 @@
 {"check":"specular.reason","ok":true","detail":"a pass constant: one lobe (boost 0.12, exponent 32) for 2 visible materials / 150 visible triangles; 2 of those materials declare $phong and 2 declare $phongexponent (2 distinct value(s), first=12), and the pass reads none of them; first=$phong material FIXTURE/BASE; off"}
 {"check":"bump.counts","ok":true","detail":"2/2 resolved 2"}
 {"check":"bump.refused","ok":true","detail":"refused"}
-{"check":"bump.refusal.names.distinct","ok":true","detail":"off, and refused when on: the world pass has one bump sampler slot, but the materials name 2 distinct $bumpmap textures across 2 visible materials, so no material's own normal map is applied"}
+{"check":"bump.refusal.names.distinct","ok":true","detail":"off: the world pass has one bump sampler slot (--world-bump) and the per-material path is off too (--world-material-bump), so the 2 visible materials that name one of 2 distinct $bumpmap textures are drawn with no normal map at all"}
 {"check":"bump2.counts","ok":true","detail":"1 declared, 1 resolved"}
 {"check":"bump2.refused","ok":true","detail":"refused"}
-{"check":"bump2.reason","ok":true","detail":"$bumpmap2 is layer 2's normal map and the pass has one bump sampler; it is refused, not silently replaced by layer 1's"}
+{"check":"bump2.reason","ok":true","detail":"$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's"}
 {"check":"ssbump.counts","ok":true","detail":"1 declared, 1 resolved"}
 {"check":"ssbump.refused","ok":true","detail":"refused"}
 {"check":"detail.counts","ok":true","detail":"2 declared, 1 resolved, 1 missing"}
-{"check":"detail.typeRead","ok":true","detail":"detail layers need a second, detailscale-scaled uv and the `$detailblendmode` result; the world vertex carries one atlas uv, so the layer is refused; 1 detail VMT(s) read, 1 distinct %detailtype value(s) (first=2)"}
+{"check":"detail.typeRead","ok":true","detail":"detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused; 1 detail VMT(s) read, 1 distinct %detailtype value(s) (first=2); 1 material names a %detailtype group (first=2); %detailtype names a detail-prop group that VBSP consumes at map compile time (it emits prop_detail sprites and models there), so the key never reaches a runtime shader and has no consumer here"}
 {"check":"detail.refused","ok":true","detail":"refused"}
-{"check":"detail.reason.names.parse","ok":true","detail":"detail layers need a second, detailscale-scaled uv and the `$detailblendmode` result; the world vertex carries one atlas uv, so the layer is refused; 1 detail VMT(s) read, 1 distinct %detailtype value(s) (first=2)"}
+{"check":"detail.reason.names.parse","ok":true","detail":"detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused; 1 detail VMT(s) read, 1 distinct %detailtype value(s) (first=2); 1 material names a %detailtype group (first=2); %detailtype names a detail-prop group that VBSP consumes at map compile time (it emits prop_detail sprites and models there), so the key never reaches a runtime shader and has no consumer here"}
 {"check":"pass.dynamic.applied","ok":true","detail":"applied"}
 {"check":"pass.specular.applied","ok":true","detail":"applied"}
 {"check":"pass.bump.applied","ok":true","detail":"on: the pass has one bump sampler and it holds materials/fix/base_height.vtf (named by the slot's owner FIXTURE/BASE); 2 materials declare $bumpmap and name 2 distinct textures, so the surfaces that did not name this one are shaded by another material's normal map"}

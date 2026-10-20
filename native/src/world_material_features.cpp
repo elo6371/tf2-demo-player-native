@@ -42,9 +42,12 @@ WorldMaterialFeatureReading scanWorldMaterialFeatures(
     if (!vmt.bumpMap.empty()) {
       countTexture(reading.bumpMap, entry.material, vmt.bumpMap, visible, resolvers);
       bumpPaths.insert(vmt.bumpMap);
+      if (vmt.ssBump) ++reading.ssBumpDeclared;
+      else ++reading.bumpMapWithoutSsBump;
     }
     if (!vmt.bumpMap2.empty()) {
       countTexture(reading.bumpMap2, entry.material, vmt.bumpMap2, visible, resolvers);
+      if (vmt.ssBump) ++reading.bumpMap2SsBump;
     }
     if (vmt.ssBump) {
       // `$ssbump` qualifies `$bumpmap` rather than naming a texture of its own,
@@ -61,6 +64,18 @@ WorldMaterialFeatureReading scanWorldMaterialFeatures(
         ++reading.ssBump.resourcesMissing;
       }
     }
+    // `%detailtype` is a key in THIS material, not in the detail material that
+    // `$detail` points at: VBSP reads it at map compile time and emits
+    // prop_detail sprites and models from the map's `detail.vbsp` (Valve's
+    // "Detail props" page). T27 measured the placement instead of assuming it --
+    // `NATURE/BLENDGROUNDTOGRASS_ODYSSEY` in the reference map carries
+    // `%detailtype "tf_forest_grass"` in its own VMT, while the detail VMT it
+    // names is absent from the install. Counting the key here is what turns
+    // "0 read" into "1 read, and its consumer is the compiler".
+    if (!vmt.detailType.empty()) {
+      if (reading.firstDetailType.empty()) reading.firstDetailType = vmt.detailType;
+      detailTypesRead.insert(vmt.detailType);
+    }
     if (!vmt.detailTexture.empty()) {
       ++reading.detail.declared;
       if (visible) ++reading.detail.visibleDeclared;
@@ -74,17 +89,6 @@ WorldMaterialFeatureReading scanWorldMaterialFeatures(
         && VmtParser::parse(std::string(bytes.begin(), bytes.end()), detailMaterial);
       if (detailParsed) ++reading.detail.resourcesResolved;
       else ++reading.detail.resourcesMissing;
-      // `%detailtype` lives in the detail material, not in this one. It is read
-      // here because the count that matters is how many detail layers the scan
-      // could classify, and a version that only counted `$detail` would report
-      // 51 declared and 0 read without saying why.
-      if (detailParsed) {
-        const auto at = detailMaterial.fields.find("%detailtype");
-        if (at != detailMaterial.fields.end() && !at->second.empty()) {
-          if (reading.firstDetailType.empty()) reading.firstDetailType = at->second;
-          detailTypesRead.insert(at->second);
-        }
-      }
     }
   }
   reading.distinctBumpPaths = bumpPaths.size();
@@ -92,29 +96,49 @@ WorldMaterialFeatureReading scanWorldMaterialFeatures(
 
   // The named refusals. Each one is derived from the counts above, so a reader
   // can re-derive the sentence from the numbers printed next to it.
+  // T27: these four sentences used to describe a pass that could not do any of
+  // this ("no material's own normal map is applied", "the world vertex carries
+  // one atlas uv, so the layer is refused"). Three of the four are switches now,
+  // so the sentence has to say which switch, and keep whatever refusal survives
+  // it -- otherwise the ledger tells the next reader to implement work that is
+  // already in the tree.
   if (reading.bumpMap.declared > 0) {
     if (reading.distinctBumpPaths > 1) {
-      reading.bumpMap.reason = "the world pass has one bump sampler slot for the whole world, but the"
-        " materials name " + std::to_string(reading.distinctBumpPaths) + " distinct $bumpmap textures, so"
-        " no material's own normal map is applied";
+      reading.bumpMap.reason = "the materials name " + std::to_string(reading.distinctBumpPaths)
+        + " distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply"
+        " each material's own; per-material binding is the --world-material-bump switch, and with it"
+        " on the " + std::to_string(reading.bumpMapWithoutSsBump) + " that do not set $ssbump sample"
+        " their own tile through a texinfo-axis tangent basis while the "
+        + std::to_string(reading.ssBumpDeclared) + " that do stay refused (see the $ssbump row)";
     } else if (reading.bumpMap.resourcesMissing > 0) {
       reading.bumpMap.reason = pct(reading.bumpMap.resourcesMissing, reading.bumpMap.declared)
         + " declared $bumpmap textures did not resolve";
     } else {
-      reading.bumpMap.reason = "one $bumpmap texture serves the whole world; per-material binding is not implemented";
+      reading.bumpMap.reason = "one $bumpmap texture serves the whole world; per-material binding is"
+        " available behind --world-material-bump";
     }
   }
   if (reading.bumpMap2.declared > 0) {
-    reading.bumpMap2.reason = "$bumpmap2 is layer 2's normal map and the pass has one bump sampler;"
-      " it is refused, not silently replaced by layer 1's";
+    reading.bumpMap2.reason = "$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal"
+      " by the vertex blend weight, so it is sampled only when --world-material-bump and"
+      " --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's";
+    if (reading.bumpMap2SsBump > 0) {
+      reading.bumpMap2.reason += "; " + pct(reading.bumpMap2SsBump, reading.bumpMap2.declared)
+        + " of those materials also declare $ssbump, so their second-layer texel is a bumpBasis"
+        " weight and stays refused even with both switches on (--world-bump2-texture measures the"
+        " layer with a diagnostic normal map instead)";
+    }
   }
   if (reading.ssBump.declared > 0) {
-    reading.ssBump.reason = "$ssbump needs the SSBump normal decode and a tangent basis the world"
-      " vertex format does not carry; the bump map is not sampled for these materials";
+    reading.ssBump.reason = "$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal"
+      " but three bumpBasis weights against three lightmap directions; this pass samples one"
+      " lightmap and one tangent-space normal, so these materials are refused by name even when"
+      " --world-material-bump is on";
   }
   if (reading.detail.declared > 0) {
-    reading.detail.reason = "detail layers need a second, detailscale-scaled uv and the"
-      " `$detailblendmode` result; the world vertex carries one atlas uv, so the layer is refused";
+    reading.detail.reason = "detail layers are the --world-detail switch: the detail material's"
+      " $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo"
+      " by $detailblendmode; with the switch off the layer is refused";
   }
 
   char summary[768] = {0};

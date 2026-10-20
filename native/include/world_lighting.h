@@ -112,6 +112,32 @@ struct WorldLightingPassState {
   // a bump map" and "the pass samples a map a material asked for" are different
   // claims.
   std::string bumpTextureSource;
+  // ---- T27: the per-material feature path --------------------------------
+  // `*Effective` is read from the renderer's own state: the atlas exists AND at
+  // least one uploaded vertex carries the mask bit. That is the pair that
+  // separates "the material asked" from "the shader samples it", and it is why
+  // these are not simply copies of the settings field.
+  bool materialBumpRequested = false;
+  bool materialBumpEffective = false;
+  std::size_t materialBumpMaterials = 0;
+  bool bump2Requested = false;
+  bool bump2Effective = false;
+  std::size_t bump2Materials = 0;
+  // How many of `bump2Materials` sampled a diagnostic texture rather than the
+  // VTF their own `$bumpmap2` names. Counted apart because "layer 2 draws" and
+  // "layer 2 draws from its declared resource" are different claims, and on this
+  // map only the first is true (4 of 5 declared second-layer textures are
+  // `$ssbump`, the fifth is under the map).
+  std::size_t bump2Forced = 0;
+  // T27: the diagnostic base. When the layer-2 texture is forced, a material
+  // whose layer 1 is refused (`$ssbump`) has no per-material normal to lerp
+  // toward; the shader uses the base normal the frame already computed and this
+  // count says how many materials took that path. It is not Source's BUMPMAP2.
+  bool bump2Diagnostic = false;
+  std::size_t bump2DiagnosticBase = 0;
+  bool detailRequested = false;
+  bool detailEffective = false;
+  std::size_t detailMaterials = 0;
 };
 
 struct WorldLightingReading {

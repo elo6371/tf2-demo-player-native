@@ -31,9 +31,24 @@ struct VmtMaterial {
   std::string bumpMap2;       // `$bumpmap2`, layer 2's normal map
   bool ssBump = false;        // `$ssbump`, the bump map is in the SSBump format
   std::string detailTexture;  // `$detail`, another material used as a detail layer
-  // The detail material's own `%detailtype`, read from the material `$detail`
-  // names rather than from this one. Empty when the detail material did not
-  // resolve or declares none.
+  // T27: the three keys that decide how the detail layer is composited.
+  // `$detailblendmode` is the TCOMBINE_* index TextureCombine switches on
+  // (common_ps_fxc.h), `$detailblendfactor` is its `fBlendFactor`, and
+  // `$detailscale` is the uv multiplier the SDK applies in the vertex stage.
+  // Parsed even when the layer cannot be drawn: "declares mode 8" and "draws
+  // mode 0" are different findings and only the first one is visible in the VMT.
+  int detailBlendMode = 0;
+  float detailBlendFactor = 1.0f;
+  float detailScale = 1.0f;
+  // T27: `$detailblendmode` names a TCOMBINE_* branch this pass has no inputs
+  // for (4 and up: base alpha, the two post-lighting self-illum modes, the
+  // two-pattern select, the detail-alpha mask and the two SSBump combos). The
+  // material is refused by name rather than drawn as if it were mode 0.
+  bool detailBlendModeUnsupported = false;
+  // This VMT's own `%detailtype`, i.e. the value read when this material is the
+  // one another material's `$detail` points at. Empty when it declares none.
+  // Kept as the raw text: the shipped values are "0" and "2", and a mapping
+  // invented here would be a second copy of a rule the pass does not implement.
   std::string detailType;
   std::string envMap;
   std::string selfIllumTint;

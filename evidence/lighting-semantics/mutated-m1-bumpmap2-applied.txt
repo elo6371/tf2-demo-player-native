@@ -40,9 +40,9 @@
 {"reading":"lighting.specular.reason","value":"a pass constant: one lobe (boost 0.12, exponent 32) for 0 visible materials / 0 visible triangles; no visible material declares $phong, so the lobe is added to materials that never asked for one; off"}
 {"reading":"lighting.bump.kind","value":"pass-switch"}
 {"reading":"lighting.bump.state","value":"refused"}
-{"reading":"lighting.bump.declared","value":"44"}
+{"reading":"lighting.bump.declared","value":"45"}
 {"reading":"lighting.bump.visible","value":"0"}
-{"reading":"lighting.bump.resolved","value":"44"}
+{"reading":"lighting.bump.resolved","value":"45"}
 {"reading":"lighting.bump.missing","value":"0"}
 {"reading":"lighting.bump.materials","value":"0"}
 {"reading":"lighting.bump.triangles","value":"0"}
@@ -51,7 +51,7 @@
 {"reading":"lighting.bump.parsed","value":"1"}
 {"reading":"lighting.bump.first","value":"GREEK/GREEK_GROUND03B"}
 {"reading":"lighting.bump.resource","value":"materials/greek/greek_ground03b_ssbump.vtf"}
-{"reading":"lighting.bump.reason","value":"off, and refused when on: the world pass has one bump sampler slot, but the materials name 26 distinct $bumpmap textures across 0 visible materials, so no material's own normal map is applied"}
+{"reading":"lighting.bump.reason","value":"off: the world pass has one bump sampler slot (--world-bump) and the per-material path is off too (--world-material-bump), so the 0 visible materials that name one of 26 distinct $bumpmap textures are drawn with no normal map at all"}
 {"reading":"lighting.$bumpmap2.kind","value":"material-key"}
 {"reading":"lighting.$bumpmap2.state","value":"applied"}
 {"reading":"lighting.$bumpmap2.declared","value":"5"}
@@ -65,7 +65,7 @@
 {"reading":"lighting.$bumpmap2.parsed","value":"1"}
 {"reading":"lighting.$bumpmap2.first","value":"GREEK/GREEK_BLEND_COBBLE_FLOOR_01_TO_SAND"}
 {"reading":"lighting.$bumpmap2.resource","value":"materials/nature/dirtground001_height-ssbump.vtf"}
-{"reading":"lighting.$bumpmap2.reason","value":"$bumpmap2 is layer 2's normal map and the pass has one bump sampler; it is refused, not silently replaced by layer 1's"}
+{"reading":"lighting.$bumpmap2.reason","value":"$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's; 4/5 of those materials also declare $ssbump, so their second-layer texel is a bumpBasis weight and stays refused even with both switches on (--world-bump2-texture measures the layer with a diagnostic normal map instead)"}
 {"reading":"lighting.%detailtype.kind","value":"material-key"}
 {"reading":"lighting.%detailtype.state","value":"refused"}
 {"reading":"lighting.%detailtype.declared","value":"15"}
@@ -76,10 +76,10 @@
 {"reading":"lighting.%detailtype.triangles","value":"0"}
 {"reading":"lighting.%detailtype.requested","value":"0"}
 {"reading":"lighting.%detailtype.effective","value":"0"}
-{"reading":"lighting.%detailtype.parsed","value":"0"}
+{"reading":"lighting.%detailtype.parsed","value":"1"}
 {"reading":"lighting.%detailtype.first","value":"WOOD/WALL007A"}
 {"reading":"lighting.%detailtype.resource","value":"materials/overlays/detail006.vmt"}
-{"reading":"lighting.%detailtype.reason","value":"detail layers need a second, detailscale-scaled uv and the `$detailblendmode` result; the world vertex carries one atlas uv, so the layer is refused; 15 of 15 referenced detail VMTs are absent from this install, so %detailtype cannot be read here; the read path is exercised by the probe's fixture"}
+{"reading":"lighting.%detailtype.reason","value":"detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused; 15 of 15 referenced detail VMTs are absent from this install, so the layer's own texture and blend mode cannot be resolved here; %detailtype is a key in the material that names the layer, not in the detail VMT, and is read above; 1 material names a %detailtype group (first=tf_forest_grass); %detailtype names a detail-prop group that VBSP consumes at map compile time (it emits prop_detail sprites and models there), so the key never reaches a runtime shader and has no consumer here"}
 {"reading":"lighting.$ssbump.kind","value":"material-key"}
 {"reading":"lighting.$ssbump.state","value":"refused"}
 {"reading":"lighting.$ssbump.declared","value":"36"}
@@ -93,4 +93,4 @@
 {"reading":"lighting.$ssbump.parsed","value":"1"}
 {"reading":"lighting.$ssbump.first","value":"GREEK/GREEK_GROUND03B"}
 {"reading":"lighting.$ssbump.resource","value":"greek/greek_ground03b_ssbump"}
-{"reading":"lighting.$ssbump.reason","value":"$ssbump needs the SSBump normal decode and a tangent basis the world vertex format does not carry; the bump map is not sampled for these materials"}
+{"reading":"lighting.$ssbump.reason","value":"$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on"}
