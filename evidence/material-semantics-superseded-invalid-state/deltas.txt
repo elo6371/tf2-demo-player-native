@@ -1,0 +1,9 @@
+BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+BMP-DIFF differing=1584117 total=2582352 percent=61.3440 max_delta=83 extent=1264x681x24 status=PASS
+BMP-DIFF differing=624 total=2582352 percent=0.0242 max_delta=21 extent=1264x681x24 status=PASS
+BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+BMP-DIFF differing=82213 total=2582352 percent=3.1836 max_delta=60 extent=1264x681x24 status=PASS
+BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+BMP-DIFF differing=38538 total=2582352 percent=1.4924 max_delta=53 extent=1264x681x24 status=PASS
+BMP-DIFF differing=135 total=2582352 percent=0.0052 max_delta=3 extent=1264x681x24 status=PASS
