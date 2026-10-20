@@ -274,9 +274,20 @@ tail -6 "$OUT/1-build.txt"
 # every chain run in that window. The warning count is deliberately NOT asserted
 # -- the C4457 in main.cpp predates all of this and only its line number moves;
 # the 2026-10-18 build reports 9 warnings, all of them pre-existing.)
+#
+# 2026-10-20 T29-T33 round: 38 -> 42, a deliberate edit measured two ways on the
+# merged tree (Lead, integration 1b0d1a2): grep -c '^add_executable(' = 42, and a
+# clean full Release build printing cmake_build_rc=0 errors=0 warnings=10
+# exe_count=42. Four targets joined the tree since the 38 pin was written, each
+# named from the commit that added it rather than counted by eye:
+#   T19 0ade875 material_coverage_probe, T24 593065d lighting_semantics_probe,
+#   T27 fa1cf8d world_feature_probe, T30 909a253 model_robustness_probe.
+#   Three of them (T19/T24/T27) landed without the pin moving, so the pin had
+#   already drifted to 38-vs-41 before this round; this edit closes that
+#   pre-existing gap as well as adding T30's target.
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=38$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=42$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
