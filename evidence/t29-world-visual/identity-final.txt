@@ -1,0 +1,13 @@
+# provenance of the evidence in this directory
+final_commit=bb3c2d7d7fc42ea68254418f35ca4d2ac6f7b619
+product_exe_sha256=72fa36f136430626729993d31186c611abbec5e3d7d98798013fc01c477a4440
+sources:
+  85b00d685bbd4d63270850293bc6a173ccf738ac15f11104945457ca185dcd34 *native/src/native_renderer.cpp
+  2fd08946821f6033ad84b2eeee4d0611e72246af24d4d2f37027562d554a8962 *native/include/native_renderer.h
+  01e5e5f13377251a59ebef604cb79b2df6ca8da314b25fd14ab2d1de06ac00b2 *native/src/main.cpp
+  18fa28d61d2eb715595f98add3603a3d14970c8a0464408733b1be83d71c3eab *world-near-clip-check.sh
+  887f3c347a672b4f4212c1154e84c60ba9bee6fad83e0aa90769df4abbf1c1f0 *trace-near-points.py
+  fe1f70080fd2681cb38a5790e6bce7afc79450be5ba1f635be9eae571542182e *visual-baseline-check.sh
+frame sha256 (ref-after.bmp): 6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b
+frame sha256 (ref-before.bmp): 5e24802a8ad29c54daba59f66e42498fd6ec7ede2a4f8782d00d33eb76b9fcba
+frame sha256 (ref-mutation-clip-restored.bmp): f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608

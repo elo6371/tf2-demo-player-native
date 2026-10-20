@@ -1,2 +1,2 @@
-42342.6 gpu: world visible-refusal reason=no-basetexture materials=20 visibleTriangles=758
-42342.6 gpu: world visible-refusal reason=vmt-missing materials=3 visibleTriangles=144
+46901.1 gpu: world visible-refusal reason=no-basetexture materials=20 visibleTriangles=758
+46901.1 gpu: world visible-refusal reason=vmt-missing materials=3 visibleTriangles=144

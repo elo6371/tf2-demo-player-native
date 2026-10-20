@@ -1,0 +1,35 @@
+# T29 exact inputs and command lines (2026-10-20)
+
+map:   D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/pl_odyssey.bsp
+demo:  D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem
+root:  D:/SteamLibrary/steamapps/common/Team Fortress 2/tf
+frame: tick 2000, 1264x681, --hidden-window --audio-disabled,
+       --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+
+# every build / launch / capture / mutation is serialized through
+#   bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t29 <cmd>
+
+build (only the affected target):
+  bash build-target.sh tf2_demo_native
+
+focused gate, forward:
+  bash world-near-clip-check.sh
+focused gate, mutation (near plane back to the box-unit constant):
+  bash world-near-clip-check.sh --mutation
+
+regression gate, forward (regions re-pinned, clip reading added):
+  bash visual-baseline-check.sh
+regression gate, mutation (five source mutations, pre-existing):
+  bash visual-baseline-check.sh --mutation
+
+material-chain gate, forward (the relevant material gate):
+  bash world-material-face-check.sh
+
+pixel-depth reading used by both the gate and the report:
+  python trace-near-points.py <trace> <near_box> <scale> 611.0
+
+offline attribution instruments (no product launch; pure file analysis):
+  python .scratch/t29/atlas_pack.py        # replicates the lightmap atlas packer
+  python .scratch/t29/raycast.py           # CPU ray cast from the demo eye
+  python .scratch/t29/backface.py          # drawn pixels vs their face plane
+  python .scratch/t29/depth_convert.py     # depth -> map units, before/after

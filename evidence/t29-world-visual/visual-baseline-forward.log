@@ -1,0 +1,82 @@
+== 1. geometry census (probe) ==
+  OK probe status = ok
+  OK probe triangles = 99312
+  OK probe displaced = 46912
+  OK probe degenerate = 4790
+  OK probe materials covered by atlas cap = 98011
+  OK probe eye cluster = 1032
+  OK probe eye pvs popcount = 1692
+  OK probe lightmap uv atlas = 4096x2251
+  OK probe lightmap unwritten texels = 0
+  OK probe lightmap dark triangles = 26844
+  OK probe lightmap face tone = darkFaces=5018 zeroFaces=898
+  OK probe lightmap hdr tone = darkFaces=5303 zeroFaces=940
+  OK probe winding flip census = 8514
+  OK probe side-aware misfaced = 15126
+  OK probe side-aware misfaced displaced = 0
+  OK probe faces on the back of their plane = 5388
+  OK oracle top-down first hits drawn = drawnByShippedRule=3809 of 5381
+  OK oracle eye first hits drawn = shippedRuleKeeps=458 of 594
+  OK rule table mask 07 = top=0.708 eye=0.771
+  OK census brush side0 = outward=10931 inward=5361
+  OK census brush side1 = outward=4670 inward=3851
+  OK census displacement side0 = outward=23364 inward=15164
+  OK census displacement side1 = outward=4256 inward=4128
+== 2. product reference capture (first-person, tick 2000, vis+cull) ==
+  OK product run rc = 0
+  OK material fetch distinct = 108
+  OK material fetch tiled = 85
+  OK material fetch fromPakfile = 85
+  OK material fetch vtfTooLarge = 70
+  OK material fetch vmtMissing = 3
+  OK material fetch vtfMissing = 0
+  vis: gpu: world vis cameraCluster=1032 visibleFromCamera=1692 clusters=2938 clusteredTriangles=52380 hiddenTriangles=22968 withoutCluster=46932 inputTriangles=99312 drawnTriangles=76344 clipApplied=1 state=active eyeMap=(-2423.6,5566.0,-1280.0) reason=hid 22968 of 99312 triangles from cluster 1032
+  OK vis clip applied = 1
+  OK vis camera cluster = 1032
+  OK vis pvs popcount = 1692
+  OK vis hidden triangles = 22968
+  OK vis drawn triangles = 76344
+  OK vis eye (map space) = eyeMap=(-2423.6,5566.0,-1280.0)
+  OK world cull line = gpu: world cull backfaces=1 mode=cull-back
+  OK gpu displaced triangles = 46912
+  OK gpu water triangles = 300
+== 2b. T17 world visual closure ==
+  OK blend fetch declared = 10
+  OK blend fetch resolved = 10
+  OK blend fetch refused = 0
+  OK blend tiles = 10
+  OK blend weighted vertices = 85920
+  OK blend distinct weights = 34
+  OK sky pass state = active
+  OK sky pass faces = 6
+  OK sky pass vertices = 36
+  OK lightmap status = active
+  OK lightmap vertices = 297936
+  OK lightmap lightmapped vertices = 296490
+  OK lightmap term on = 1
+  OK world clip state = published
+  OK world near plane (map units) = 4.00 in [3.0,5.0]
+== 3. region presence (the object-visibility acceptance) ==
+frame path=.scratch/visual-baseline.20261020130530-69553/ref.20261020130530-69553.bmp size=1264x681 background=(36,28,24) backgroundLum=30.1
+region x=0,y=0,w=420,h=200 pixels=84000 meanLum=18.8 stdLum=21.90 nearBackground=0.2383 nearBlack=0.4881 nearWhite=0.0000 meanGradient=2.68 neutralGrey=0
+region x=0,y=560,w=420,h=121 pixels=50820 meanLum=57.0 stdLum=24.19 nearBackground=0.0843 nearBlack=0.0754 nearWhite=0.0000 meanGradient=5.82 neutralGrey=0
+region x=1100,y=100,w=164,h=200 pixels=32800 meanLum=133.9 stdLum=31.03 nearBackground=0.0059 nearBlack=0.0077 nearWhite=0.0000 meanGradient=6.10 neutralGrey=0
+region x=600,y=0,w=64,h=60 pixels=3840 meanLum=42.9 stdLum=55.55 nearBackground=0.0120 nearBlack=0.6784 nearWhite=0.0000 meanGradient=4.18 neutralGrey=0
+  OK region x=0,y=0 meanLum = 18.8 in [16.8,20.8]
+  OK region x=0,y=0 stdLum = 21.90 in [18.9,24.9]
+  OK region x=0,y=0 nearBackground = 0.2383 <= 0.30
+  OK region x=0,y=0 meanGradient = 2.68 in [1.2,4.2]
+  OK region x=0,y=560 meanLum = 57.0 in [55.0,59.0]
+  OK region x=0,y=560 stdLum = 24.19 in [21.2,27.2]
+  OK region x=0,y=560 nearBackground = 0.0843 <= 0.20
+  OK region x=0,y=560 meanGradient = 5.82 in [4.3,7.3]
+  OK region x=1100,y=100 meanLum = 133.9 in [131.9,135.9]
+  OK region x=1100,y=100 stdLum = 31.03 in [28.0,34.0]
+  OK region x=1100,y=100 nearBackground = 0.0059 <= 0.03
+  OK region x=1100,y=100 meanGradient = 6.10 in [4.6,7.6]
+  OK region x=600,y=0 meanLum = 42.9 in [42.85,42.95]
+  OK region x=600,y=0 stdLum = 55.55 in [55.50,55.60]
+  OK region x=600,y=0 nearBackground = 0.0120 <= 0.02
+  OK region x=600,y=0 meanGradient = 4.18 in [4.13,4.23]
+== verdict ==
+PASS: the visual baseline held (probe + trace + four world regions).

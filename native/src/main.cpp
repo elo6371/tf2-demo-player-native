@@ -4699,6 +4699,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       sample.worldSkyVertexCount, sample.worldSkyTriangles, sample.worldSkyFaces,
       sample.worldSkyDraws, sample.worldSkySide, sample.worldSkyResampled ? 1 : 0,
       worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
+    // T29: the world projection's clip planes, in the box unit the matrix takes
+    // AND in the map units they mean. uploadWorldGeometry scales the map into a
+    // unit box (worldHorizontalScale_ map units per box unit), so a near plane
+    // written in box units is a clip distance in MAP units: the shipped 0.05
+    // was 611 map units on this map and the room the camera stands in was
+    // clipped out of every frame. Read back from the renderer after the draw
+    // (this lambda runs once, on the first drawn frame -- the same discipline
+    // the sky and water lines here use), so a gate pins what the matrix was
+    // built from instead of the constant someone intended.
+    {
+      const float nearBox = renderer.worldNearPlaneNormalized();
+      const float farBox = renderer.worldFarPlaneNormalized();
+      const float scale = renderer.worldHorizontalScale();
+      const bool haveTransform = std::isfinite(scale) && scale > 0.0f;
+      traceFmt("gpu: world clip near=%.8f far=%.6f nearMapUnits=%.2f farMapUnits=%.0f horizontalScale=%.8f state=%s",
+        nearBox, farBox,
+        haveTransform ? nearBox / scale : -1.0f,
+        haveTransform ? farBox / scale : -1.0f,
+        scale, haveTransform ? "published" : "no-transform");
+    }
     // T2 (2026-10-14): the water surface as a DRAW, read from the renderer
     // after the frame -- the same discipline the sky and vis lines above use.
     // `draws` is set inside the pass itself, so a mutation that deletes the
