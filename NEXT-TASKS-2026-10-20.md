@@ -510,3 +510,43 @@ usable or rejected with a fully attributed external/environment cause.
   (main.cpp:52, :6174) — inert, flagged for revisit if the 0xE06D7363 crash in that
   try/catch is ever fixed.
 
+- 2026-10-20 — T36 `task/t36-lighting@08786cb` merged as `e209328` (41 files, 36
+  evidence files, new gate 510 lines, report 289 lines; **zero product source
+  changes**). T36 answers the item T29 left `NOT VERIFIED` — the back-face share
+  of the residual black — and the answer overturns the earlier reading.
+  The inherited gate's plane-side rule called 86.00% of the drawn face-id
+  population BACK, but that population has already passed `D3D11_CULL_BACK`, so
+  the rasterizer calls every pixel in it FRONT. Scoring four candidate rules
+  against that known population selects the inverted sign (86% agreement) over
+  the rule as written (14%) — every front/back number in the account was swapped.
+  Calibrated result: drawn front 645,326 (86.00%) / back 105,065 (14.00%); dark
+  front 171,030 (82.85%) / back 35,410 (17.15%); dark rate 26.50% front vs 33.70%
+  back over a 27.51% base = **relative risk 1.272**. So the back-face share is a
+  mild 1.27x enrichment, **not** the explanation for a fifth of the frame, and
+  T29's back-face hypothesis is not supported at that strength.
+  What survives: 97.51% (front) / 99.38% (back) of dark pixels sit on lightmap
+  rectangles the map baked below 96/255, and 98.69% of the dark population has a
+  dark lightmap term over a bright albedo, so **99.94% is the map's own lighting,
+  not a product defect**; 1.98% (4,123 px) is product-attributable and stays named.
+  Forward: `bash lighting-dark-account-check.sh --reuse` exit 0, 21 assertions,
+  0 failures, reproducible; the gate launches no product so it held no host lock.
+  It gains §3b, which scores the side rule against the rasterizer's own cull and
+  fails if the sign flips back, so the inversion cannot return silently.
+  Mutation: m2 (side-rule inversion) is a real mutation — it swaps the two
+  populations exactly (back/front 170,701/35,227 → 35,227/170,701) while the total
+  holds at 208,630 — source restored byte-identical. **m1 (RGBExp32 exponent sign)
+  and m3 (`--no-world-cull` ignored) were NOT run** (they need a product build plus
+  a capture under the lock); they are wired and fail closed, reported as deferred.
+  Four defects fixed that meant this gate had **never** passed forward: a missing
+  account directory; `--eye "-2423.6,..."` rejected by argparse at all five call
+  sites (it needs `--eye=`); two invented side-sum pins; and the serious one,
+  **every mutation treated a crashed tool as RED** (m2's original patch was a
+  Python SyntaxError, so the tool died, the count fell back to 0 through
+  `|| echo 0`, and `0 != 170698` printed RED; it would have "passed" on any
+  syntax error).
+  Carried forward as named TODOs: the cull control's `removedSide` (44,046 front /
+  37,095 back) is computed with the **same inverted rule**, so that pin currently
+  carries a flipped label and needs re-derivation; m1/m3 unrun; the 4,123
+  product-attributable pixels are not further split; per-texel (not per-rectangle)
+  lightmap projection is still unclaimed; the account covers one camera and one tick.
+
