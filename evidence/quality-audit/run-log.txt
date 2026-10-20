@@ -1,0 +1,168 @@
+WAITING owner=t33 queue_head=1792470124075145700-t31-10930
+WAITING owner=t33 queue_head=1792470124075145700-t31-10930
+WAITING owner=t33 queue_head=1792470124075145700-t31-10930
+WAITING owner=t33 queue_head=1792470124075145700-t31-10930
+WAITING owner=t33 queue_head=1792470124075145700-t31-10930
+WAITING owner=t33 queue_head=1792470225464359400-t29-12213
+WAITING owner=t33 queue_head=1792470225464359400-t29-12213
+WAITING owner=t33 queue_head=1792470225464359400-t29-12213
+WAITING owner=t33 queue_head=1792470225464359400-t29-12213
+WAITING owner=t33 queue_head=1792470225464359400-t29-12213
+WAITING owner=t33 queue_head=1792470225464359400-t29-12213
+WAITING owner=t33 queue_head=1792470225464359400-t29-12213
+WAITING owner=t33 queue_head=1792470300851990200-t32-13626
+WAITING owner=t33 queue_head=1792470300851990200-t32-13626
+WAITING owner=t33 queue_head=1792470300851990200-t32-13626
+WAITING owner=t33 queue_head=1792470300851990200-t32-13626
+WAITING owner=t33 queue_head=1792470300851990200-t32-13626
+ACQUIRED owner=t33 at 2026-10-20 12:46:50
+== 1/2 forward: the pinned demo at tick 2000, twice ==
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=2
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=229322128
+atlas_count=2
+atlas_totalbytes=94053776
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=26
+metrics_seconds=25.90
+rendered_frames=1628
+peak_working_set_mb=2181.6
+steady_growth_mb=-10.7
+median_fps=65.9
+frame_sha256=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=2
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=229322128
+atlas_count=2
+atlas_totalbytes=94053776
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=26
+metrics_seconds=25.91
+rendered_frames=1605
+peak_working_set_mb=2175.5
+steady_growth_mb=-4.5
+median_fps=66.3
+frame_sha256=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+  OK frame determinism (same scene twice) = f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+  OK the two runs report identical deterministic readings
+== 2/2 the pinned readings and the envelope ==
+  OK material-fetch distinct = 108
+  OK material-fetch tiled = 85
+  OK material-fetch fromPakfile = 85
+  OK material-fetch vtfTooLarge = 70
+  OK material-fetch vmtMissing = 3
+  OK atlas-plan batches = 2
+  OK atlas-plan blendBatches = 1
+  OK atlas-plan tiled = 85
+  OK atlas-plan refused = 0
+  OK atlas-plan budget refusals = 0
+  OK atlas-plan layerBytes = 229322128
+  OK atlas count = 2
+  OK atlas totalBytes = 94053776
+  OK atlas state = bound
+  OK blend tiles = 10
+  OK blend weighted vertices = 85920
+  OK sky state = active
+  OK sky faces = 6
+  OK isolation weapon draws with world atlas = 0
+  OK isolation world draws with weapon texture = 0
+  OK trace lines = 31507 >= 1000
+  OK metrics rows = 26 >= 5
+  OK rendered frames = 1628 >= 500
+  OK peak working set MB = 2181.6 <= 3072
+  OK steady growth MB (after 5 s) = -10.7 <= 32
+  OK median fps after 5 s = 65.9 >= 30
+== mutation: maxTilesPerBatch 64 -> 20 ==
+binary_before=eb4fc8c35ffecd895a48367814458e9b4d684ab22474e367e5175377562e75b7
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=5
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=133154784
+atlas_count=5
+atlas_totalbytes=90883424
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=26
+metrics_seconds=26.01
+rendered_frames=1657
+peak_working_set_mb=2174.2
+steady_growth_mb=-1.0
+median_fps=67.0
+frame_sha256=b8270c71372f6bd0cbe087c2c6ba2955651f858dcd78822d2f660ec6660cfc1d
+  RED as required: atlas-plan batches 5 (was 2), atlases 5 (was 2)
+  mutated frame sha256=b8270c71372f6bd0cbe087c2c6ba2955651f858dcd78822d2f660ec6660cfc1d (reference f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608)
+  RESTORE=OK (source byte-identical)
+  RESTORE=NOTE the rebuilt binary sha256=d58417d0731c6d274646f6594952cf77f00cd4814ffbd454887fce0543cd6327 differs from eb4fc8c35ffecd895a48367814458e9b4d684ab22474e367e5175377562e75b7 (relink artifact); the readings and frame below are the restoration proof
+== the restored tree reproduces the reference readings ==
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=2
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=229322128
+atlas_count=2
+atlas_totalbytes=94053776
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=26
+metrics_seconds=25.88
+rendered_frames=1648
+peak_working_set_mb=2179.6
+steady_growth_mb=-7.6
+median_fps=65.8
+frame_sha256=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+  OK restored readings reproduce the reference exactly
+  OK restored frame determinism = f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+== verdict ==
+PASS: the forward pins held, the mutation went red, the source and the binary came back, the restored tree reproduced the readings.
+LOCKED-COMMAND-EXIT rc=0 owner=t33

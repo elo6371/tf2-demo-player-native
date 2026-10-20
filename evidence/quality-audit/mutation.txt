@@ -1,0 +1,10 @@
+mutation=world_tile_atlas.h maxTilesPerBatch 64->20
+source_restore=byte-identical
+binary_before=eb4fc8c35ffecd895a48367814458e9b4d684ab22474e367e5175377562e75b7
+binary_after=d58417d0731c6d274646f6594952cf77f00cd4814ffbd454887fce0543cd6327
+mutated_readings:
+atlas_batches=5
+atlas_plan_layerbytes=133154784
+atlas_count=5
+atlas_totalbytes=90883424
+frame_sha256=b8270c71372f6bd0cbe087c2c6ba2955651f858dcd78822d2f660ec6660cfc1d
