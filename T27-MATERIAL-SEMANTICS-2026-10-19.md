@@ -90,7 +90,9 @@ R1→R2 = **15,953 px 双向**，m2 = **25,908 px**（R1→M2）。旧的 38,538
 | 诊断 detail 纹理 | `materials/brick/brickwall001.vtf` |
 | 诊断 layer-2 法线 | `materials/brick/brickwall001_normal.vtf` |
 | 画面 | 1264×681×24bpp，`preset=1`，`vsync=0` |
-| 主工作树 | `D:/TF2_Native_Test` — **未触碰**；产品进程与抓帧全程串行 |
+| 主工作树 | `D:/TF2_Native_Test` — 开发期**未触碰**；合并与收尾验证在其上进行 |
+| 本分支提交 | `fa1cf8d` feat(t27) per-material feature atlases… / `ffeffff` evidence(t27) the gate on the final tree… |
+| T24 依赖验证 | `lighting-semantics-check.sh --mutation` 在本分支上重跑通过（4 pin 随 `$bumpmap1` 别名更新，见 §3.2）；日志 `evidence/material-semantics/t24-lighting-semantics-dependency.log` |
 
 ## 3. 改动文件与理由
 
