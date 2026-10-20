@@ -9,7 +9,7 @@ camera `eye=(-2423.6, 5566.0, -1280.0)`, `--hidden-window --audio-disabled`.
 
 ## 0. The short version
 
-The inherited gate passes forward with 21 assertions. But two of the readings it
+The inherited gate passes forward with 19 assertions. But two of the readings it
 carries are wrong, and I found them by calibrating instead of re-pinning:
 
 1. **The "back face" label is inverted.** The account's plane-side rule calls
@@ -30,7 +30,7 @@ the lightmap rectangle, which is what the account already had right.
 
 ## 1. What the inherited gate actually asserts
 
-Forward mode, 21 assertions, exit 0:
+Forward mode, 19 assertions, exit 0:
 
 | group | what it pins |
 | --- | --- |
@@ -72,7 +72,7 @@ Fixed: m2 inverts properly and now asserts a real **swap** (same total, BACK
 takes FRONT's value); m1 and m3 fail closed on a missing ledger instead of
 reading it as 0.
 
-## 3. The forward reading (exit 0, 21 assertions)
+## 3. The forward reading (exit 0, 19 assertions)
 
 ```
 bash lighting-dark-account-check.sh --reuse      # exit 0
@@ -93,6 +93,11 @@ bash lighting-dark-account-check.sh --reuse      # exit 0
 PASS: 208,630 dark pixels attributed bucket by bucket; 99.94% is the map own
 lighting, 1.98% is product-attributable, the cull control holds.
 ```
+
+`OK` lines counted by rerunning on the committed state: **19**; `FAIL`
+lines: 0; exit 0. The gate's own header claims 21. The true count is 19, which
+is consistent with that header never having been checked against a run. I
+pinned the observed count, not the claimed one.
 
 Full log: `evidence/t36-lighting-dark-account/account.txt`.
 Forward was run with `--reuse` over the tick-2000 frames already captured on

@@ -1,0 +1,77 @@
+  reused textured
+  reused ids
+  reused ids-nocull
+  reused lmoff
+  reused flat
+== 1. capture the account matrix ==
+== 2. the population account ==
+frame 1264x681  dark(lum<16) = 208630 of 860784 (24.24%)
+  A_no_world_triangle                       2702 (  1.30%)
+  rect_all_zero_back_albedoBright          67951 ( 32.57%)
+  rect_all_zero_front_albedoBright          5432 (  2.60%)
+  rect_bright_back_albedoBright             3993 (  1.91%)
+  rect_bright_front_albedoBright             130 (  0.06%)
+  rect_bright_front_albedoDark                10 (  0.00%)
+  rect_lt_32_back_albedoBright             26425 ( 12.67%)
+  rect_lt_32_front_albedoBright             4039 (  1.94%)
+  rect_lt_8_back_albedoBright              14814 (  7.10%)
+  rect_lt_8_front_albedoBright             24855 ( 11.91%)
+  rect_lt_96_back_albedoBright             57516 ( 27.57%)
+  rect_lt_96_back_albedoDark                   2 (  0.00%)
+  rect_lt_96_front_albedoBright              752 (  0.36%)
+  rect_lt_96_front_albedoDark                  9 (  0.00%)
+
+masks (1 = in the population):
+  A_no_world_triangle                       2702 px -> .scratch/t36-account.10043/account\A_no_world_triangle.mask
+  rect_all_zero_back_albedoBright          67951 px -> .scratch/t36-account.10043/account\rect_all_zero_back_albedoBright.mask
+  rect_all_zero_front_albedoBright          5432 px -> .scratch/t36-account.10043/account\rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright             3993 px -> .scratch/t36-account.10043/account\rect_bright_back_albedoBright.mask
+  rect_bright_front_albedoBright             130 px -> .scratch/t36-account.10043/account\rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark                10 px -> .scratch/t36-account.10043/account\rect_bright_front_albedoDark.mask
+  rect_lt_32_back_albedoBright             26425 px -> .scratch/t36-account.10043/account\rect_lt_32_back_albedoBright.mask
+  rect_lt_32_front_albedoBright             4039 px -> .scratch/t36-account.10043/account\rect_lt_32_front_albedoBright.mask
+  rect_lt_8_back_albedoBright              14814 px -> .scratch/t36-account.10043/account\rect_lt_8_back_albedoBright.mask
+  rect_lt_8_front_albedoBright             24855 px -> .scratch/t36-account.10043/account\rect_lt_8_front_albedoBright.mask
+  rect_lt_96_back_albedoBright             57516 px -> .scratch/t36-account.10043/account\rect_lt_96_back_albedoBright.mask
+  rect_lt_96_back_albedoDark                   2 px -> .scratch/t36-account.10043/account\rect_lt_96_back_albedoDark.mask
+  rect_lt_96_front_albedoBright              752 px -> .scratch/t36-account.10043/account\rect_lt_96_front_albedoBright.mask
+  rect_lt_96_front_albedoDark                  9 px -> .scratch/t36-account.10043/account\rect_lt_96_front_albedoDark.mask
+
+ledger -> .scratch/t36-account.10043/account/account.json
+product-attributable (albedo bright AND rectangle bright): 4123 px (1.9762% of dark)
+== 3. the pinned populations ==
+  OK dark total (the T29 reference frame) = 208630
+  OK A no world triangle (sky/viewmodel) = 2702
+  OK rect all zero, BACK, albedo bright = 67951
+  OK rect all zero, FRONT, albedo bright = 5432
+  OK rect mean<8, BACK = 14814
+  OK rect mean<8, FRONT = 24855
+  OK rect mean<32, BACK = 26425
+  OK rect mean<32, FRONT = 4039
+  OK rect mean<96, BACK = 57516
+  OK rect mean<96, FRONT = 752
+  OK rect BRIGHT, BACK = 3993
+  OK rect BRIGHT, FRONT = 130
+  OK dark on BACK faces = 170701
+  OK dark on FRONT faces = 35227
+  OK product-attributable pixels = 4123 <= 4200
+== 4. the masks exist and sum to the counts ==
+  OK every mask sums to its count
+== 5. the back-face control ==
+face-id pixels the cull KEPT   : 750391
+face-id pixels the cull REMOVED: 81141 (from 19 distinct faces)
+  removed faces by BSP side    : {'front': 44046, 'back': 37095}
+  pixels with a face only in the culled frame: 0
+  top removed faces            : [(17605, 33090), (17672, 25675), (17674, 15739), (17330, 1765), (17327, 1676), (17259, 1132), (17258, 843), (17256, 337)]
+CONTROL=OK the cull removed 81141 px (44046 BSP-front / 37095 BSP-back); the culled frame is a subset of the unculled one
+NOTE the front/back split of the removed population is the T11
+     winding disagreement, not a cull defect: the cull follows the
+     buffer winding, the side test follows the plane lump.
+  OK pixels the cull removed = 81141
+  OK removed pixels that are BSP-FRONT faces = 44046
+  OK removed pixels that are BSP-BACK faces = 37095
+== 6. evidence ==
+  wrote evidence/t36-lighting-dark-account/{account.txt,account.json,cull-control.txt,cull-control.json,frames.txt}
+  and the population masks
+== verdict ==
+PASS: 208,630 dark pixels attributed bucket by bucket; 99.94% is the map own lighting, 1.98% is product-attributable, the cull control holds.
