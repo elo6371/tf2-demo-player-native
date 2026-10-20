@@ -58,26 +58,43 @@ terrain-pair change (277,523 of 277,523), no changed pixel lies outside the
 measured region, the repeat frame is byte-identical, and `all/off` still
 withholds every layer (`tiles=0 weightedVertices=0`).
 
-**The gate is RED on one assertion, and it is left red.** The occlusion
-attribution reads `0 of 7` where it read `4,237 of 4,403`. Its test is
-one-armed — a terrain-pair pixel the composed frame does not show, *at a pixel
-where the composed frame differs from the terrain-only frame* — and that arm
-cannot separate "the terrain drew black" from "something else drew black" when
-both are black. At every one of the 7 pixels:
+**The gate went red on one assertion; it has since been attributed and the test
+corrected (`5837666`).** The occlusion attribution read `0 of 7` where it read
+`4,237 of 4,403`. Its test was one-armed — a terrain-pair pixel the composed
+frame does not show, *at a pixel where the composed frame differs from the
+terrain-only frame* — and that arm cannot separate "the terrain drew black"
+from "something else drew black" when both are black. At every one of the 7:
 
     allon=000000  alloff=000000  allrep=000000  terron=000000
     terroff=020000..050504 (near-black red)      none=0E1216
 
-So the composed frame is not showing a *different* colour there; it is showing
-the *same* colour the blended terrain draws, and the delta the terrain pair
-carries is erased by that equality rather than by a different surface.
+**What is actually there**, measured two independent ways
+(`evidence/terrain-blend/region-attribution.txt`):
+
+    the product's own --world-hole-trace at the seven coordinates
+      drawnHits=7 of 7, face 9764 (WOOD/WALL020B) at depth 0.9722
+    a --world-face-id frame decoded at the same seven coordinates
+      face_id=9764 at every one
+
+One instrument traces a ray, the other rasterizes and reads the colour back.
+They agree exactly: the 7 pixels are covered by face 9764, drawn in front.
+
+The fix was to the **test**, not to the number. A second arm that does not
+depend on either surface's colour — `none` draws nothing from this camera, so
+a composed pixel that is not `none` has a surface on it — reads **7 of 7**. Both
+arms are now asserted, plus a sharper statement: every lost pixel must be one
+the composed frame drew on, because a lost pixel still reading as background
+would be a pixel the composed frame did not render, which is a worse and
+different explanation than occlusion. The original 90% floor is **kept** for
+the case it was designed for; nothing was relaxed.
 
 Subject size: one two-row sliver, x=0..19 at y=292..293, out of 277,530 changed
 pixels. The pre-T29 numbers are kept verbatim in
 `evidence/terrain-blend/region-superseded-pre-t29.txt`, marked superseded.
 
-This report does **not** claim which surface fills those pixels. Naming it is
-the outstanding measurement, listed under NOT VERIFIED.
+This report does **not** claim face 9764's black is correct — that is the
+T29/T36 lightmap defect. What is established is that the 7 pixels are
+**covered**, not that the thing covering them is lit correctly.
 
 ## 3. The hole account, re-derived (analysis only, no product launch)
 
