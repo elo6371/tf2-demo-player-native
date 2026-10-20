@@ -193,12 +193,42 @@ closed or explicitly accepted. T28 owns the only full-chain run:
 
 ## Assignment order
 
-- Start T29, T30, T31, and T32 in separate worktrees; they may develop in
-  parallel, but their validation runs are serialized.
-- Start T33 as an audit-only task in parallel. Delay overlapping code edits
-  until the affected task branch is integrated.
-- I review each delivered branch and report blockers or safe fixes.
-- The integration owner merges accepted branches and updates this file after
-  each merge.
-- T28 is blocked until all preceding reports, focused gates, and current-tree
-  evidence are reviewed.
+### Required order
+
+1. Start T29, T30, T31, and T32 from `36303c2` in separate worktrees. Their
+   implementation work may proceed in parallel.
+2. Run their builds, product captures, mutation suites, and device tests one at
+   a time. Do not start another validation run until the previous process,
+   lock, and shared build output are gone.
+3. Deliver and review T29-T32 one by one. After each review, the integration
+   owner merges the accepted branch and updates this task file.
+4. T33 may audit code, file sizes, warnings, and performance in parallel with
+   T29-T32. T33 product edits must wait until the owner of the affected files
+   has merged or frozen them; otherwise T33 is audit-only.
+5. After all accepted T29-T33 branches are merged, rebuild the final tree and
+   run the affected focused gates once more on the merge result.
+6. Only then start T28. T28 performs the clean install/lifecycle checks and
+   the single `verify-all.sh --quick` release-boundary run.
+
+### Cannot run in parallel
+
+- Any two product builds that use the same host build directory.
+- Any two launches that write traces, BMPs, settings, locks, or evidence under
+  shared paths.
+- Any two mutation suites; a mutation may leave a temporary source change or
+  binary until its restore step completes.
+- Audio-device tests and any other test that owns the audio device.
+- T28 with T29-T33 validation, branch merges, or code edits.
+- T33 edits touching files currently being changed by T29-T32.
+- Full-chain `verify-all.sh` with every other task activity.
+
+### Can run in parallel
+
+- T29, T30, T31, and T32 implementation in isolated worktrees.
+- T33 read-only audit while T29-T32 implement.
+- Report writing, static inspection, and evidence inventory that do not invoke
+  the product or mutate shared files.
+
+I review each delivered branch and report blockers or safe fixes. The
+integration owner merges accepted branches and updates this file after each
+merge; I do not merge task branches on the implementer's behalf.
