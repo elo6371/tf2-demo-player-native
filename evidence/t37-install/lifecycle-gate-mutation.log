@@ -1,0 +1,46 @@
+
+=== mutation preconditions: the forward run ===
+  OK   forward artifact pkg = present
+  OK   forward artifact version.txt = present
+
+=== M1 stdout: the product takes the redirected handle again ===
+  mutated: the console is attached even when the caller redirected stdout
+  OK   M1 applied = 0
+  rebuild m1-build rc=0
+  OK   M1 build succeeded = 0
+  under M1: exit=0 bytes=0
+  OK   M1 caught: exit 0 with an empty redirect file = exit=0 bytes=0
+  OK   M1 source restored byte-identical = yes
+  rebuild m1-restore rc=0
+  OK   M1 restore build succeeded = 0
+
+=== M2 uninstall: the manifest's state words are ignored, so every listed file goes ===
+  mutated: preserved/unchanged records are no longer skipped
+  OK   M2 applied = 0
+  rebuild m2-build rc=0
+  OK   M2 build succeeded = 0
+  under M2, manifest recorded the user file as: preserved
+  under M2: uninstall=note deferred_running_image=tf2_demo_native.exe uninstall=INCOMPLETE removed=3 restored=0 preserved=1 modified=0 alreadyMissing=0 deferredRunningImage=1 
+  FAIL M2 caught: the user's own file was deleted = still present, expected absent
+  OK   M2 source restored byte-identical = yes
+  rebuild m2-restore rc=0
+  OK   M2 restore build succeeded = 0
+
+=== M3 manifest: the format line is not required, so any text file parses ===
+  mutated: a file that is not a manifest parses as one
+  OK   M3 applied = 0
+  rebuild m3-build rc=0
+  OK   M3 build succeeded = 0
+  under M3: exit=0 reading=uninstall=PASS removed=0 restored=0 preserved=0 modified=0 alreadyMissing=0 deferredRunningImage=0 
+  OK   M3 caught: a foreign file was accepted as an install manifest = exit=0
+  OK   M3 source restored byte-identical = yes
+  rebuild m3-restore rc=0
+  OK   M3 restore build succeeded = 0
+
+=== mutation verdict ===
+  OK   restored byte-identical: main.cpp = yes
+  OK   restored byte-identical: install_lifecycle.cpp = yes
+  OK   restored byte-identical: install_manifest.cpp = yes
+
+  cases=3 checks=20 mutations=3
+  INSTALL-LIFECYCLE-MUTATION=FAIL fail=1 mutations=3
