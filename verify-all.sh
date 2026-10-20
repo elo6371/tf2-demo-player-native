@@ -893,10 +893,15 @@ VIEWMODEL_ANIMATION_TRACE_DIR="$VM_ANIM_TRACE" \
   bash viewmodel-animation-check.sh > "$OUT/23-viewmodel-animation.txt" 2>&1
 tail -18 "$OUT/23-viewmodel-animation.txt"
 # The assertion count is pinned for the same reason as steps 8 and 21-22: a gate
-# that prints PASS while its assertions quietly disappear is not a gate. The
-# current count is 139 after the companion product path replaced the old
-# refusal-only sections. It is intentionally read from this gate, not copied
-# from a previous branch report.
+# that prints PASS while its assertions quietly disappear is not a gate. It is
+# intentionally read from this gate, not copied from a previous branch report.
+#
+# 2026-10-20 T29-T33 round: 139 -> 154. Measured twice on the merged tree with
+# this gate's own PASS verdict: the chain run (evidence/verify/23-...txt, 154 OK)
+# and a standalone rerun (.scratch/final-verify-1/pincheck/23.txt, 154 OK). The
+# pin had gone stale when later rounds added the pose/history assertions; the
+# same stale-pin shape as exe_count above, and fixed the same way: the number is
+# what the gate emits, not a number chosen to make the step green.
 # The historical 111 was arrived at as: 5 in section 0 (two recordings pinned by size and sha256, both
 # identified, and the verified count) + 5 in section 1 (the self-test rc, its
 # failure count, the pinned 49 assertions, the cross-check note, and the
@@ -948,9 +953,14 @@ VM_COMPANION_OUT="$OUT/24-viewmodel-companion.txt"
 VIEWMODEL_COMPANION_TRACE_DIR="$OUT/24-viewmodel-companion-traces" \
   VERIFY_ALL_LOCK_HELD=1 bash viewmodel-companion-check.sh > "$VM_COMPANION_OUT" 2>&1
 tail -18 "$VM_COMPANION_OUT"
+# 2026-10-20 T29-T33 round: 108 -> 114, measured the same way as step 23 above
+# (chain run and a standalone rerun both emitted 114 OK lines with the gate's own
+# PASS). The three viewmodel-companion sections that grew were the pose-applied
+# and control assertions; the count is pinned so a section that silently stops
+# running is red, not a smaller number nobody reads.
 VM_COMPANION_OK=$(grep -c '^  OK   ' "$VM_COMPANION_OUT" || true)
 if grep -q 'VIEWMODEL-COMPANION=PASS' "$VM_COMPANION_OUT" \
-   && [ "${VM_COMPANION_OK:-0}" -eq 108 ]; then
+   && [ "${VM_COMPANION_OK:-0}" -eq 114 ]; then
   echo "VIEWMODEL-COMPANION=PASS (assertions_ok=$VM_COMPANION_OK)"
 else
   echo "VIEWMODEL-COMPANION=FAIL (assertions_ok=${VM_COMPANION_OK:-0})"; rc_all=1
