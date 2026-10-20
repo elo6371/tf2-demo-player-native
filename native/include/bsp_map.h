@@ -63,6 +63,11 @@ struct BspTriangle {
   // flag lets a diagnostic count those triangles without re-parsing the face.
   bool fallbackQuad = false;
   int cluster = -1;
+  // T26: the dface_t this triangle was emitted from. The renderer never reads
+  // it; a diagnostic does, because "which face is this pixel" is the question
+  // a visible hole has to answer before anybody changes geometry. -1 means the
+  // triangle was not emitted from a face (no such path today).
+  std::int32_t faceIndex = -1;
 };
 
 enum class BspLightmapMode { Unavailable, AverageIntensity, RgbExp32 };
@@ -133,6 +138,15 @@ struct BspMap {
   std::string lightmapAtlasReason;
   std::vector<std::uint8_t> lightmapAtlas;
   std::vector<BspTriangle> triangles;
+  // T26: the sky faces, as geometry, kept apart from `triangles` on purpose.
+  // The product must not draw them -- a sky brush face inside the world pass
+  // would be a new surface with a sky material whose lightmap and blend data do
+  // not exist -- but a measurement of "is this empty pixel sky by design" needs
+  // their polygons, and guessing that answer from a colour is not a
+  // measurement. They are emitted here and drawn only by the `--world-geometry
+  // sky` diagnostic mask, which is the same camera, projection and transform as
+  // the world pass.
+  std::vector<BspTriangle> skyTriangles;
   std::string skyName;
   std::size_t skyFaces = 0;
   std::size_t displacementFaces = 0;

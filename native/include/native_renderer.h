@@ -799,6 +799,17 @@ public:
   // colour or a projection is to draw a frame that contains the terrain and
   // nothing else, from the same camera and the same buffers.
   void setWorldTerrainOnly(bool terrainOnly) { worldTerrainOnly_ = terrainOnly; }
+  // T26: `--world-geometry sky` uploads the BSP's sky-brush polygons and
+  // nothing else. It is not a picture of the game: it is the only honest answer
+  // to "is this empty pixel sky by design or is it a hole", because it is the
+  // map's own sky geometry through the product's own camera, projection and
+  // world transform. The product never draws this buffer -- sky faces are not
+  // in `map.triangles` at all.
+  void setWorldSkyFaceOnly(bool skyOnly) { worldSkyFaceOnly_ = skyOnly; }
+  // T26: bake the face index into the vertex colour so the flat debug view can
+  // output a face-id frame. Set before the upload, because the colour is a
+  // vertex property; the draw side is `setWorldDebugView(4)`.
+  void setWorldFaceIdUpload(bool enabled) { worldFaceIdUpload_ = enabled; }
   // T12: `--world-geometry terrain|none` is a diagnostic frame, not a picture of
   // the game, so every other pass has to leave it alone: the pvs index buffer
   // (built from the full triangle list, so it would index past a filtered vertex
@@ -1468,6 +1479,12 @@ private:
   // all/off, terrain/on, terrain/off.
   bool worldBlendEnabled_ = true;
   bool worldTerrainOnly_ = false;
+  // T26: upload the sky-brush polygons instead of the world triangles, and/or
+  // bake the face index into the vertex colour. Both are diagnostic-only and
+  // both are read by `uploadWorldGeometry`, which is why they are set before the
+  // upload rather than before the draw.
+  bool worldSkyFaceOnly_ = false;
+  bool worldFaceIdUpload_ = false;
   bool worldDiagnosticIsolation_ = false;
   float worldBlendWeightMin_ = -1.0f;
   float worldBlendWeightMax_ = -1.0f;

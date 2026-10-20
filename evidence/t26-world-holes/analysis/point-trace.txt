@@ -1,0 +1,13 @@
+44256.2 gpu: world hole-trace point=469,106 drawn=- any=- sky=face=13686 material=TOOLS/TOOLSSKYBOX tri=872 depth=0.7467 frameDepth=1.0000
+44259.6 gpu: world hole-trace point=618,18 drawn=- any=- sky=face=12816 material=TOOLS/TOOLSSKYBOX tri=691 depth=0.8105 frameDepth=1.0000
+44262.9 gpu: world hole-trace point=536,157 drawn=- any=- sky=face=13691 material=TOOLS/TOOLSSKYBOX tri=882 depth=0.7799 frameDepth=1.0000
+44266.2 gpu: world hole-trace point=699,494 drawn=- any=- sky=face=12719 material=TOOLS/TOOLSSKYBOX tri=675 depth=0.8189 frameDepth=1.0000
+44269.5 gpu: world hole-trace point=696,516 drawn=- any=- sky=face=12721 material=TOOLS/TOOLSSKYBOX tri=679 depth=0.8193 frameDepth=1.0000
+44272.9 gpu: world hole-trace point=696,534 drawn=- any=- sky=face=12721 material=TOOLS/TOOLSSKYBOX tri=679 depth=0.8174 frameDepth=1.0000
+44276.2 gpu: world hole-trace point=489,481 drawn=- any=- sky=face=10517 material=TOOLS/TOOLSSKYBOX tri=172 depth=0.8844 frameDepth=1.0000
+44279.6 gpu: world hole-trace point=488,501 drawn=- any=- sky=face=10517 material=TOOLS/TOOLSSKYBOX tri=172 depth=0.8820 frameDepth=1.0000
+44282.9 gpu: world hole-trace point=486,512 drawn=- any=- sky=face=10483 material=TOOLS/TOOLSSKYBOX tri=121 depth=0.9041 frameDepth=1.0000
+44286.3 gpu: world hole-trace point=946,646 drawn=- any=- sky=face=11850 material=TOOLS/TOOLSSKYBOX tri=476 depth=0.8878 frameDepth=1.0000
+44289.7 gpu: world hole-trace point=953,656 drawn=- any=- sky=face=11850 material=TOOLS/TOOLSSKYBOX tri=476 depth=0.8865 frameDepth=1.0000
+44293.2 gpu: world hole-trace point=958,667 drawn=- any=- sky=face=11850 material=TOOLS/TOOLSSKYBOX tri=476 depth=0.8853 frameDepth=1.0000
+44293.2 gpu: world hole-trace-summary points=12 drawnHits=0 anyHits=0 skyHits=12 emptyWithSky=12 emptyWithoutSky=0 cull=1 clipApplied=1

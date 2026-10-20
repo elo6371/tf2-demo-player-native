@@ -287,12 +287,41 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     return std::array<float, 2>{point.x * x0 + point.y * x1 + point.z * x2 + x3, point.x * y0 + point.y * y1 + point.z * y2 + y3};
   };
   struct PackedLight { bool ok = false; int x = 0, y = 0, samplesW = 0, samplesH = 0, storedW = 0, storedH = 0, minsU = 0, minsV = 0; };
+  // T26: the surfedge walk, lifted out of the face loop because two callers now
+  // need the same polygon: the world emission below and the sky-face emission
+  // that answers "was this empty pixel meant to be sky". Returns false exactly
+  // where the inline loop used to set `validFace = false`, so the invalid-face
+  // counter keeps its meaning.
+  const auto buildPolygon = [&](const std::int32_t firstEdge, const std::int16_t count,
+                                std::vector<BspVertex>& polygon) {
+    polygon.clear();
+    polygon.reserve(static_cast<std::size_t>(count));
+    for (std::int16_t i = 0; i < count; ++i) {
+      const auto surf = read<std::int32_t>(surfEdges,
+        (static_cast<std::size_t>(firstEdge) + i) * 4);
+      // A negative surfedge names the same edge with its endpoints reversed.
+      // Source stores the edge number as the absolute value; the sign only
+      // selects which endpoint is read first.
+      const auto edge = surf < 0 ? -surf : surf;
+      if (edge < 0 || static_cast<std::size_t>(edge) >= edgeCount) return false;
+      const auto vertexIndex = read<std::uint16_t>(edges,
+        static_cast<std::size_t>(edge) * 4 + (surf < 0 ? 2 : 0));
+      if (vertexIndex >= vertexCount) return false;
+      polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12));
+    }
+    return polygon.size() >= 3;
+  };
   for (std::int32_t faceIndex = firstFace; faceIndex < firstFace + faceCount; ++faceIndex) {
     const auto base = static_cast<std::size_t>(faceIndex) * 56; const auto firstEdge = read<std::int32_t>(faces, base + 4); const auto count = read<std::int16_t>(faces, base + 8); const auto infoIndex = read<std::int16_t>(faces, base + 10);
     if (count < 3 || firstEdge < 0 || static_cast<std::size_t>(firstEdge) + static_cast<std::size_t>(count) > surfEdgeCount || infoIndex < 0 || static_cast<std::size_t>(infoIndex) >= texInfo.size() / 72) continue;
     const auto flags = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 64);
-    if ((flags & (2 | 4)) != 0) { ++map.skyFaces; continue; }
-    if ((flags & (64 | 128)) != 0) { ++map.facesSkippedNoDraw; continue; }
+    // T26: a sky face is no longer discarded at the header. It is still not put
+    // into the world buffer -- the product path must draw exactly the triangles
+    // it drew before -- but its polygon is emitted into `skyTriangles`, which is
+    // what makes "this empty pixel is the map's sky, at this face" a reading
+    // instead of an inference from a colour.
+    const bool skyFace = (flags & (2 | 4)) != 0;
+    if (!skyFace && (flags & (64 | 128)) != 0) { ++map.facesSkippedNoDraw; continue; }
     const bool water = (flags & 8) != 0;
     const auto texDataIndex = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 68); const auto material = names.count(texDataIndex) ? names[texDataIndex] : std::string{};
     const auto infoBase = static_cast<std::size_t>(infoIndex) * 72;
@@ -310,34 +339,44 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       ? static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 4u : 0u;
     const bool hasLightmap = styles0 != 255 && lightOffset >= 0 && lightBytes > 0
       && static_cast<std::uint64_t>(lightOffset) + lightBytes <= lighting.size();
-    std::vector<BspVertex> polygon; polygon.reserve(static_cast<std::size_t>(count));
-    bool validFace = true;
-    for (std::int16_t i = 0; i < count; ++i) {
-      const auto surf = read<std::int32_t>(surfEdges,
-        (static_cast<std::size_t>(firstEdge) + i) * 4);
-      // A negative surfedge names the same edge with its endpoints reversed.
-      // Source stores the edge number as the absolute value; the sign only
-      // selects which endpoint is read first.
-      const auto edge = surf < 0 ? -surf : surf;
-      if (edge < 0 || static_cast<std::size_t>(edge) >= edgeCount) {
-        validFace = false;
-        break;
-      }
-      const auto vertexIndex = read<std::uint16_t>(edges,
-        static_cast<std::size_t>(edge) * 4 + (surf < 0 ? 2 : 0));
-      if (vertexIndex >= vertexCount) {
-        validFace = false;
-        break;
-      }
-      polygon.push_back(vertex(vertices, static_cast<std::size_t>(vertexIndex) * 12));
+    std::vector<BspVertex> polygon;
+    if (!buildPolygon(firstEdge, count, polygon)) {
+      // A sky face whose polygon cannot be built was counted as sky before this
+      // branch existed, because the counter ran before the walk. It still is.
+      if (skyFace) { ++map.skyFaces; continue; }
+      ++map.facesSkippedInvalid; continue;
     }
-    if (!validFace || polygon.size() < 3) { ++map.facesSkippedInvalid; continue; }
+    const std::uint32_t facePlaneNumber = read<std::uint16_t>(faces, base);
+    const std::uint8_t facePlaneSide = faces[base + 2];
+    const int cluster = faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceCluster.size() ? faceCluster[static_cast<std::size_t>(faceIndex)] : -1;
+    if (skyFace) {
+      ++map.skyFaces;
+      const auto skyPlane = static_cast<std::size_t>(facePlaneNumber) < map.planes.size()
+        ? static_cast<std::int32_t>(facePlaneNumber) : -1;
+      const auto texCoord = [&](const BspVertex& point) {
+        return std::array<float, 2>{point.x * u0 + point.y * u1 + point.z * u2 + u3,
+                                    point.x * v0 + point.y * v1 + point.z * v2 + v3};
+      };
+      for (std::size_t i = 1; i + 1 < polygon.size(); ++i) {
+        BspTriangle triangle;
+        triangle.a = polygon[0]; triangle.b = polygon[i + 1]; triangle.c = polygon[i];
+        const auto ta = texCoord(triangle.a), tb = texCoord(triangle.b), tc = texCoord(triangle.c);
+        triangle.au = ta[0]; triangle.av = ta[1];
+        triangle.bu = tb[0]; triangle.bv = tb[1];
+        triangle.cu = tc[0]; triangle.cv = tc[1];
+        triangle.material = material;
+        triangle.planeSide = facePlaneSide;
+        triangle.planeIndex = skyPlane;
+        triangle.cluster = cluster;
+        triangle.faceIndex = faceIndex;
+        map.skyTriangles.push_back(std::move(triangle));
+      }
+      continue;
+    }
     // T10 winding census: the polygon's normal (from its own winding) against
     // the face's BSP plane. dface_t: planenum is a uint16 at +0, the back-side
     // flag a byte at +2. This counts the SOURCE winding -- it is a measurement
     // of the shipped data, not of what the renderer decides.
-    const std::uint32_t facePlaneNumber = read<std::uint16_t>(faces, base);
-    const std::uint8_t facePlaneSide = faces[base + 2];
     // T11 third round: the face class is a property of the dface_t itself, so it
     // is read here rather than at the displacement branch below -- the winding
     // census needs it while the plane is still in scope.
@@ -467,7 +506,6 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         if (faceTone < 1.0) ++map.lightmapFaceToneZero;
       }
     }
-    const int cluster = faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceCluster.size() ? faceCluster[static_cast<std::size_t>(faceIndex)] : -1;
     const auto texCoord = [&](const BspVertex& point) { return std::array<float, 2>{point.x * u0 + point.y * u1 + point.z * u2 + u3, point.x * v0 + point.y * v1 + point.z * v2 + v3}; };
     const auto lightUv = [&](const BspVertex& point) {
       const auto lux = luxelOf(point, lu0, lu1, lu2, lu3, lv0, lv1, lv2, lv3);
@@ -615,6 +653,9 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       triangle.windingFlipped = flipped ? 1 : 0;
       triangle.fallbackQuad = emittingFallbackQuad;
       triangle.cluster = cluster;
+      // T26: the face this triangle belongs to, carried into the buffer so a
+      // face-id frame can name the surface under any pixel.
+      triangle.faceIndex = faceIndex;
       map.triangles.push_back(std::move(triangle));
     };
     bool emittedDisp = false;

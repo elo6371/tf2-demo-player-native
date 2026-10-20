@@ -183,7 +183,7 @@ T25 is being integrated.
   `NOT VERIFIED` because W2 still has the known world completeness defect.
 - Do not run `verify-all.sh` during T25.
 
-### T26 - World geometry completeness and visible holes
+### T26 - World geometry completeness and visible holes (completed)
 
 - Use the T23 accounting matrix to isolate the 38,328 missing pixels and the
   2,282 closed-hole component from the 36,015 top opening.
@@ -192,6 +192,12 @@ T25 is being integrated.
 - Change geometry only when a first-hit oracle and same-view frame show a
   measurable improvement without regressing T11 winding or T17 visibility.
 - Deliver a focused gate and mutation coverage for each changed geometry rule.
+- Delivered diagnostic-only instrumentation; no geometry rule was changed.
+  The 38,328 missing pixels are all sky-backed (`unexplained=0`); the enclosed
+  2,313 pixels are narrow seams, while 36,015 pixels belong to the map-top
+  opening. See `T26-WORLD-GEOMETRY-HOLES-2026-10-19.md`.
+- Merged into the integration line after T25; post-merge gate results are
+  recorded in the report. Release visual status remains `NOT VERIFIED`.
 
 ### T27 - Material semantics that affect visible output (completed)
 
@@ -221,7 +227,7 @@ T25 is being integrated.
   bump materials); the reason is recorded at each pin in
   `lighting-semantics-check.sh`.
 
-### T28 - Release packaging and final acceptance
+### T28 - Release packaging and final acceptance (ready)
 
 - Verify clean-directory install layout, first launch, restart, uninstall,
   explicit-root behavior, and resource migration on a clean test directory.
@@ -233,14 +239,13 @@ T25 is being integrated.
 
 ## Parallel schedule
 
-- T25 and T27 are merged; T26 is the only remaining task that may develop in an
-  isolated worktree, and its validation and merge no longer wait for anything.
-- T28 waits for T26 and is the only task allowed to start the full release chain.
+- T25, T26, and T27 are merged. T28 is ready to start.
+- T28 is the only task allowed to start the full release chain.
 - Product builds, mutations, captures, audio-device runs, and any test that
   writes shared build/evidence paths are serialized, even when the code tasks
   themselves are parallel.
-- T20 focused work is complete except for the T17 visual baseline closure;
-  that closure is T25. T26 and T28 require their own focused checks.
+- T20's visual baseline closure is T25. T26 and T27 have focused post-merge
+  checks; T28 owns the final release checks.
 - The 24-step full chain is not routine task validation. Run it only at a
   declared release boundary on a committed, clean, idle worktree.
 
