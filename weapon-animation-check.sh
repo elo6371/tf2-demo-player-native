@@ -550,6 +550,21 @@ for index in 0 1 2; do
   if [ -n "${POSES[$index]}" ]; then CAM_READINGS=$((CAM_READINGS + 1)); fi
 done
 assert_eq "ticks that published a camera pose" "$CAM_READINGS" "3"
+# The projection the frames were drawn through. The frame claim below rests on
+# it: T29 put the near plane in map units (4.0) so the room the camera stands in
+# is drawn at all. If it goes back to the box-unit constant that plane is ~603
+# map units -- past the room -- and the camera looks at the far side of the map.
+# This is the quantity world-near-clip-check.sh owns; it is re-read here because
+# THIS gate's picture reading is only meaningful through it.
+CLIP_LINE=$(tr -d '\r' < "$TRACE_DIR/tick-${TICKS[0]}.trace" 2>/dev/null | grep -a 'gpu: world clip ' | head -1)
+NEAR_MAP=$(printf '%s\n' "$CLIP_LINE" | grep -oE 'nearMapUnits=[-0-9.]+' | head -1 | cut -d= -f2)
+echo "  near plane: nearMapUnits=$NEAR_MAP (T29: 4.0 map units)"
+if awk -v v="$NEAR_MAP" 'BEGIN{exit !(v >= 3.0 && v <= 5.0)}'; then
+  echo "  OK   the frames were drawn through the T29 near plane (nearMapUnits=$NEAR_MAP in [3,5])"
+else
+  echo "  FAIL the frames were NOT drawn through the T29 near plane (nearMapUnits=${NEAR_MAP:-none}, want [3,5])"
+  fail=1; FAIL_LINES+=("near plane: nearMapUnits=${NEAR_MAP:-none} outside [3,5]")
+fi
 CAM_SPREAD=$(camera_moved "${POSES[0]}" "${POSES[2]}")
 CAM_MOVED=$(printf '%s' "$CAM_SPREAD" | awk '{print $2}')
 echo "  camera across ticks ${TICKS[0]}..${TICKS[2]}: $CAM_SPREAD (eps=$CAMERA_STILL_EPS)"
