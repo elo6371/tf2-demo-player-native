@@ -252,4 +252,22 @@ merge; I do not merge task branches on the implementer's behalf.
   reproducibility. The post-merge gate rerun for this branch is folded into
   the combined T29-T33 merge verification, because this merge changes no
   product source and no other branch has been merged yet.
+- 2026-10-20 — T32 `task/t32-resource-install@84b67c7` (+docs follow-up `3bf941d`)
+  merged as `4cc6f15` / `3bf941d` cherry-picked. Product: `native/src/main.cpp`
+  now reports a VPK that is present but unreadable as a named refusal
+  (`vpk: refused file=<name> reason=<reader reason>`, `vpk: archives opened=N
+  refused=M`, title suffix `VPK refused: N`) instead of skipping it silently,
+  and the `resources:` line separates the requested root from the resolved
+  root, so a refused `--tf-root` names the path it tried. Owner readings on
+  the branch: forward `INSTALL-READINESS=PASS` (13 cases / 102 checks / 0
+  mutations); mutation `INSTALL-READINESS-MUTATION=PASS (3 caught, sources
+  restored)` — precedence reversal, 32-bit narrowing accepting an out-of-range
+  VPK entry, and a missing staged install file; all three sources restored
+  with `cmp` and the rebuild reproduced the reference readings.
+  Release blockers recorded with owner T28: no installer package, no
+  uninstaller, no version/upgrade metadata, no shortcuts/file associations,
+  and TF2 resources are not bundled (by design). Staging is not an installer
+  and the branch does not claim one. Post-merge gate rerun is folded into the
+  combined T29-T33 verification.
+
 
