@@ -1,0 +1,183 @@
+WAITING lock held by owner=t31
+ACQUIRED owner=t33 at 2026-10-20 12:18:41
+== 1/2 forward: the pinned demo at tick 2000, twice ==
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=2
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=229322128
+atlas_count=2
+atlas_totalbytes=94053776
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=27
+metrics_seconds=27.52
+rendered_frames=1737
+peak_working_set_mb=2805.4
+steady_growth_mb=-164.6
+median_fps=66.7
+frame_sha256=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=2
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=229322128
+atlas_count=2
+atlas_totalbytes=94053776
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=27
+metrics_seconds=26.78
+rendered_frames=1645
+peak_working_set_mb=2781.4
+steady_growth_mb=119.3
+median_fps=63.9
+frame_sha256=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+  OK frame determinism (same scene twice) = f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+  FAIL the two runs do not report identical readings
+== 2/2 the pinned readings and the envelope ==
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL material-fetch distinct: got '' want '108'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL material-fetch tiled: got '' want '85'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL material-fetch fromPakfile: got '' want '85'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL material-fetch vtfTooLarge: got '' want '70'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL material-fetch vmtMissing: got '' want '3'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas-plan batches: got '' want '2'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas-plan blendBatches: got '' want '1'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas-plan tiled: got '' want '85'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas-plan refused: got '' want '0'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas-plan budget refusals: got '' want '0'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas-plan layerBytes: got '' want '229322128'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas count: got '' want '2'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas totalBytes: got '' want '94053776'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL atlas state: got '' want 'bound'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL blend tiles: got '' want '10'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL blend weighted vertices: got '' want '85920'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL sky state: got '' want 'active'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL sky faces: got '' want '6'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL isolation weapon draws with world atlas: got '' want '0'
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL isolation world draws with weapon texture: got '' want '0'
+  OK trace lines = 31491 >= 1000
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL metrics rows: got '' below 5
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL rendered frames: got '' below 500
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  OK peak working set MB =  <= 3072
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  OK steady growth MB (after 5 s) =  <= 32
+grep: .scratch/quality-audit.20261020121841-7765/ref-a.pins: No such file or directory
+  FAIL median fps after 5 s: got '' below 30
+== mutation: maxTilesPerBatch 64 -> 20 ==
+binary_before=090965547873217fa24c04c02d7cf216dde81cb6e86108f59ed900d193dfcfa3
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=5
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=133154784
+atlas_count=5
+atlas_totalbytes=90883424
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=28
+metrics_seconds=28.74
+rendered_frames=1877
+peak_working_set_mb=2684.6
+steady_growth_mb=15.2
+median_fps=69.5
+frame_sha256=b8270c71372f6bd0cbe087c2c6ba2955651f858dcd78822d2f660ec6660cfc1d
+  RED as required: atlas-plan batches 5 (was 2), atlases 5 (was 2)
+  mutated frame sha256=b8270c71372f6bd0cbe087c2c6ba2955651f858dcd78822d2f660ec6660cfc1d (reference f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608)
+  RESTORE=OK (source byte-identical)
+  RESTORE=NOTE the rebuilt binary sha256=eb4fc8c35ffecd895a48367814458e9b4d684ab22474e367e5175377562e75b7 differs from 090965547873217fa24c04c02d7cf216dde81cb6e86108f59ed900d193dfcfa3 (relink artifact); the readings and frame below are the restoration proof
+== the restored tree reproduces the reference readings ==
+material_fetch_distinct=108
+material_fetch_tiled=85
+material_fetch_frompak=85
+material_fetch_vtftoolarge=70
+material_fetch_vmtmissing=3
+atlas_batches=2
+atlas_blend_batches=1
+atlas_plan_tiled=85
+atlas_plan_refused=0
+atlas_plan_budget=0
+atlas_plan_layerbytes=229322128
+atlas_count=2
+atlas_totalbytes=94053776
+atlas_state=bound
+blend_tiles=10
+blend_weighted=85920
+sky_state=active
+sky_faces=6
+isolation_weapon_worldatlas=0
+isolation_world_weapontex=0
+metrics_rows=28
+metrics_seconds=28.04
+rendered_frames=1843
+peak_working_set_mb=2825.9
+steady_growth_mb=-3.9
+median_fps=67.9
+frame_sha256=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+  FAIL restored readings differ from the reference
+21,22c21,22
+< metrics_rows=27
+< metrics_seconds=27.52
+---
+> metrics_rows=28
+> metrics_seconds=28.04
+  OK restored frame determinism = f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+== verdict ==
+FAIL: forward-fail=1 mutation-not-red=0
+LOCKED-COMMAND-EXIT rc=1 owner=t33

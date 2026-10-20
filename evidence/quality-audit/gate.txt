@@ -1,0 +1,5 @@
+forward-fail=0
+mutation-not-red=0
+restore-source=ok
+restore-binary=relinked
+restore-readings=ok
