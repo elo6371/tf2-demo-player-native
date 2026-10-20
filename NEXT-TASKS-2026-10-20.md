@@ -673,3 +673,84 @@ usable or rejected with a fully attributed external/environment cause.
   `world-geometry-hole-check.sh` FAIL on the one `seamCulled` assertion T35
   deliberately left red and attributed.
 
+### Wave 2/3 integration close-out — what the chain found in the integration, and what is still red
+
+**The last complete chain run (24 steps, one clean tree, HEAD `e7a44ae`):
+`VERIFY=FAIL`, 22 of 24 steps green.** Two steps were red, and they are
+different in kind:
+
+| step | reading | cause |
+|---|---|---|
+| 22 weapon-animation | `WEAPON-ANIMATION=FAIL (assertions_ok=55)` | **real**: one assertion, the identity-vs-control bind-pose pair, differs by 3 bytes |
+| 23 viewmodel-animation | `VIEWMODEL-ANIMATION=FAIL (assertions_ok=154)` | **stale pin**: the gate itself printed `VIEWMODEL-ANIMATION=PASS` with 154 assertions and `verify-all.sh` demanded 139 |
+
+**The step-23 pin was a forgotten edit in `b343728`** (from the T29-T33 wave, not
+this one). That commit's message and the comment it added both say "139 -> 154",
+and in the same commit it really did move step 24's pin 108 -> 114 — but it left
+step 23's number at 139. Step 23 has therefore been red on every chain run since,
+while the gate printed PASS. Repaired in `ff75490`: the pin is the measured 154,
+and the per-section reading taken from the chain's own log is
+5 / 6 / 17 / 13 / 11 / 42 / 48 / 12 = 154. Re-measured three times now (that
+wave's chain run and standalone rerun, both 154, plus this run, 154).
+
+**Step 22 is the one real red, and it is 3 bytes.** Sections 1-6 are green except
+that pair; the chain also ran both of its mutations green
+(`WEAPON-ANIMATION-MUTATION=PASS`, `WEAPON-ANIMATION-MUTATION-MODEL=PASS`), so
+the gate is still load-bearing. The measured reading:
+
+```
+BMP-DIFF differing=3 total=2582352 percent=0.0001 max_delta=59 extent=1264x681x24
+status=FAIL reason=whole frame max_delta=59 exceeds 1
+```
+
+one pixel, three channel bytes, channel delta 59, on a silhouette. The claim
+"identity skinning does not deform the bind pose" survives at the percentage bound
+(0.0001% of 8.6 px allowed) and fails only the `--max-delta 1` bound — which is
+exactly the bound a pixel that crosses a pixel boundary cannot satisfy, no matter
+how small the underlying float difference is.
+
+**T34 attributed those 3 bytes to T29's near plane. The Lead's test refuted that
+attribution, and the refutation is recorded rather than dropped.** The mechanism
+T34 proposed is real in the code: `worldHorizontalScale_` defaults to `1.0f`
+(`native_renderer.h:1558`) and is only assigned by `uploadWorldGeometry`
+(`native_renderer.cpp:1395`, `:2113`), so a run that uploads no world geometry
+states its near plane as `max(1.0 * 4.0)` = **4.0 box units**, 80x the `0.05` the
+same path used before T29. The Lead implemented the corresponding repair — apply
+the map-unit conversion only when world geometry is actually uploaded — rebuilt,
+and re-ran the pair. **The pair still differed by exactly 3 bytes at delta 59.**
+So either the `--model` path does upload the map's world geometry (making the
+new condition true and the change a no-op, which is what the identical reading
+suggests) or the near plane is not the cause. Either way the attribution is
+**not established**, the change bought nothing, and it was reverted
+(`git diff native/src/native_renderer.cpp` vs `ac7e2b7` is the T34 camera-trace
+commit only; `kWorldNearMapUnits = 4.0f` untouched). The honest state of the
+3 bytes is: **measured, not attributed**, and the next step is named below.
+
+**T37's last three commits** (`7ef48a3`, `d529b84`, `b418d94`) landed in
+`0614d33`: the mutation half now proves a mutation ran its own binary (compare
+the exe hash across the rebuild), **M2 is recorded as an UNCAUGHT mutation rather
+than rewritten as a pass** (M1 and M3 caught; the single-point `if(false)` rebuild
+succeeded and the reading still showed `preserved=1`, so one mutation does not
+change the deletion candidate set), and the VPK four-way attribution experiment is
+committed as evidence.
+
+**What is not claimed.** The full chain was **not** re-run after `ff75490`. On the
+measured step verdicts the chain should now read **23 of 24 with step 22 the only
+red**, because step 23's gate verdict was already PASS with exactly 154 assertions
+and only the pin disagreed — but that is a derivation from two measured numbers,
+not a re-run, and it is written down as a derivation. The integration owner
+stopped the final chain deliberately: a merge landed while it was running (its own
+serialization mistake, caught), and the user then asked for the report instead of
+another two-hour run. **A chain re-run on `0614d33` is the first thing the next
+session should do.**
+
+**Named next step for step 22, in order of preference.** The assertion's own prose
+already allows what its number forbids ("a handful of bytes may round differently
+… but nothing may move"), so the repair that keeps the claim intact is to measure
+the claim: assert that *interior* pixels are identical (max delta <= 1 strict) and
+that every differing pixel lies on a silhouette (adjacent to a strong gradient in
+the control frame), with the silhouette count capped. That is strictly stronger
+where deformation would show and correctly permissive where a pixel boundary
+falls. It is a semantic change to a gate, so it needs its own measurement and a
+deliberate edit — not a widened tolerance, and not a `--max-delta 59`.
+
