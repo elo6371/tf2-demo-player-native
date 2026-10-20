@@ -9,3 +9,8 @@ evidence/viewmodel/range/logs/** -text
 # appear in exactly the situation the receipt exists for -- a fresh clone -- so
 # this directory is checked out byte for byte.
 evidence/weapon-material/** -text
+# T30: the inventory TSV, the gate summary and the frozen frames are evidence whose
+# bytes the report's sha256 lines describe. core.autocrlf=true on this host would
+# otherwise rewrite the text files on checkout and make the report's hashes describe
+# a different file. Checked out byte for byte, like evidence/weapon-material/**.
+evidence/t30/** -text
