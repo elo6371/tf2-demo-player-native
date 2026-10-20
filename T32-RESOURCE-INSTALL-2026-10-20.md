@@ -42,12 +42,16 @@ cd D:/TF2_Native_Worktrees/t32-resource-install
 bash build-target.sh tf2_demo_native native_install_smoke_probe vpk_integrity_probe map_lookup_probe
 
 # 前向门禁（一次 host lock 序列），staging + 13 段断言
+# 前向门禁（一次 host lock 序列）；本次实际把 forward+mutation 用下面这条汇总脚本
+# 放进同一把锁（约 14 分钟），拆成两次 run 也可以（Lead 的 ≤20 分钟/次建议）
 bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t32 \
-  bash .scratch/t32/run-forward.sh .scratch/t32/forward-20261020
+  bash .scratch/t32/run-all.sh .scratch/t32/final
 
-# mutation 门禁（第二次 host lock 序列）
+# 只重跑 forward / 只重跑 mutation 时（各自一次 host lock 序列）
 bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t32 \
-  bash .scratch/t32/run-mutation.sh .scratch/t32/forward-20261020
+  bash .scratch/t32/run-forward.sh .scratch/t32/final
+bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t32 \
+  bash .scratch/t32/run-mutation.sh .scratch/t32/final
 ```
 
 `build-target.sh` 的完整构建日志见 `evidence/t32-install/build.log`；forward/mutation 输出见同目录 `gate-forward.log`、`gate-mutation.log`。退出码与 verdict 行见 §6、§7。
@@ -252,10 +256,9 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t32 \
 cd D:/TF2_Native_Worktrees/t32-resource-install
 bash build-target.sh tf2_demo_native native_install_smoke_probe vpk_integrity_probe map_lookup_probe
 bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t32 \
-  bash .scratch/t32/run-forward.sh .scratch/t32/forward-20261020
-# 期望：INSTALL-READINESS=PASS，退出码 0，日志与 evidence/t32-install/gate-forward.log 对照
-bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t32 \
-  bash .scratch/t32/run-mutation.sh .scratch/t32/forward-20261020
+  bash .scratch/t32/run-all.sh .scratch/t32/final
+# 期望：INSTALL-READINESS=PASS / INSTALL-READINESS-MUTATION=PASS (3 mutations caught, sources restored)，
+# 退出码 0，日志与 evidence/t32-install/gate-forward.log、gate-mutation.log 逐行对照
 # 期望：INSTALL-READINESS-MUTATION=PASS (3 mutations caught, sources restored)
 ```
 
@@ -282,12 +285,13 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t32 \
 
 ## 13. 提交
 
-分支 `task/t32-resource-install` 基于 `36303c2`，共 3 个提交，**未推送**（Lead 负责 review 与合并）：
+分支 `task/t32-resource-install` 基于 `36303c2`，共 4 个提交，**未推送**（Lead 负责 review 与合并）：
 
 | commit | 标题 | 内容 |
 |---|---|---|
 | `4e1a23d` | `fix(product): report a present but unreadable VPK instead of skipping it` | `native/src/main.cpp`（§2） |
 | `aceb852` | `test(t32): install-readiness gate, clean-room store fixtures and capture` | `install-readiness-check.sh`、`install-readiness-fixtures.py`、`install-readiness-capture.ps1`、`title-capture.ps1`、`evidence/t32-install/`（15 个证据文件） |
-| 本报告提交 | `docs: record T32 install-readiness acceptance and installer blockers` | `T32-RESOURCE-INSTALL-2026-10-20.md` |
+| `84b67c7` | `docs: record T32 install-readiness acceptance and installer blockers` | `T32-RESOURCE-INSTALL-2026-10-20.md` |
+| 本提交 | `docs(t32): point the reproduce commands at the run the evidence came from` | 报告 §1.2/§11 的复现命令改成证据来源目录 `.scratch/t32/final`，并记录实际用 `run-all.sh` 一把锁跑完 forward+mutation |
 
 提交后的工作区状态与残留进程状态见 §10；`git status --short` 为空、分支只有这 3 个提交。
