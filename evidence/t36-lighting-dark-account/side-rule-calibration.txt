@@ -1,0 +1,9 @@
+Drawn face-id pixels (the GPU already culled back-facing triangles,
+so these are what the rasterizer calls FRONT):
+
+  asWritten  front=(sd>=0 if side==0 else sd<=0)   front  105065 (14.00%)  back  645326 (86.00%)
+  inverted   front=(sd<0 if side==0 else sd>0)     front  645326 (86.00%)  back  105065 (14.00%)
+  planeOnly  front=sd>=0 (ignore side)             front  315742 (42.08%)  back  434649 (57.92%)
+  sideOnly   front=side==0 (ignore plane)          front  399182 (53.20%)  back  351209 (46.80%)
+
+Rule that agrees with the rasterizer: inverted   front=(sd<0 if side==0 else sd>0)

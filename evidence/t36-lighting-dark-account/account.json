@@ -1,0 +1,30 @@
+{
+ "width": 1264,
+ "height": 681,
+ "dark": 208630,
+ "darkThreshold": 16.0,
+ "albedoThreshold": 16.0,
+ "eyeMap": [
+  -2423.6,
+  5566.0,
+  -1280.0
+ ],
+ "bsp": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/pl_odyssey.bsp",
+ "counts": {
+  "rect_lt_32_back_albedoBright": 26425,
+  "rect_all_zero_front_albedoBright": 5432,
+  "rect_lt_96_back_albedoBright": 57516,
+  "rect_lt_8_back_albedoBright": 14814,
+  "rect_lt_32_front_albedoBright": 4039,
+  "rect_all_zero_back_albedoBright": 67951,
+  "rect_bright_back_albedoBright": 3993,
+  "rect_lt_8_front_albedoBright": 24855,
+  "rect_bright_front_albedoBright": 130,
+  "rect_lt_96_front_albedoBright": 752,
+  "A_no_world_triangle": 2702,
+  "rect_lt_96_back_albedoDark": 2,
+  "rect_bright_front_albedoDark": 10,
+  "rect_lt_96_front_albedoDark": 9
+ },
+ "productAttributable": 4123
+}
