@@ -476,7 +476,37 @@ usable or rejected with a fully attributed external/environment cause.
   has an empty own table + declared companion), LOD fallback only via fixture,
   one paused tick/one sequence, only three models drawn in pixels.
 
-
-
-
+- 2026-10-20 — T38 `task/t38-perf@6de31fb` (audit `90b3e83`) merged as `82e5c66`.
+  Read-only pass: no product source, no pin, no .gitignore, nothing deleted.
+  Re-measured on `ac7e2b7` (not copied from T33's 36303c2 numbers): 3,447 tracked
+  files / 1,324,098,756 B (T33: 3,351 / ~1,301 MiB); 212 duplicate sha256 groups /
+  1,379 files / 598,588,586 B wasted = 570.9 MiB (45.2%); only 4 candidates
+  (4.93 MiB) are last copies of their bytes with no reference anywhere — the
+  per-candidate keep/drop manifest is committed as
+  `evidence/t38-perf/deletion-manifest.txt` for the integration owner, and nothing
+  was deleted.
+  Gates: committed `quality-audit-check.sh` unmodified (`git diff HEAD` empty;
+  working-tree sha256 95e63d9c…, blob af1390f1…, difference is core.autocrlf
+  rendering LF as CRLF, `git ls-files --eol` = i/lf w/crlf) — forward exit 0, all 20
+  pins held, two captures byte-identical (6bb4d9a7…); mutation exit 0 with
+  `maxTilesPerBatch 64→20` going red as required (atlas_batches 2→5, atlas_count
+  2→5, layerBytes 229,322,128→133,154,784), source restored byte-identical
+  (5d403654…), rebuilt tree reproduced the reference readings and frame.
+  Build: rc=0, 366 s, 0 errors, 10 warnings (same ten as T33), exe_count=42,
+  total_exe_bytes 21,800,960.
+  Runtime vs T33 on the same inputs: atlas 2 textures / 89.7 MiB and atlas-plan
+  layerBytes 218.7 MiB unchanged; mean frame 15.89→15.45 ms; fps 65.9–66.7→64.8/64.9
+  median; peak working set 2.18–2.83 GiB→2188/2185 MiB; steady growth negative.
+  **The 66.7→64.9 fps delta is not attributed** and stays a named next step
+  (side-by-side 36303c2 run diffing the CSVs).
+  Correction to the previous pass recorded here: scene updates are 84.2/s
+  (1,922 `scene: begin` over 22.815 s), not 66.7/s, so the per-update
+  `ModelInstance` vector rebuild (main.cpp:6177-6438, native_renderer.cpp:3121-3179)
+  is priced at roughly 1,500–2,500 allocs/s **by reading code only** — no
+  wall-clock attribution was made and it is not claimed as a regression. VMT
+  parsing and VTF decoding are load-time once each (no repeated-parse defect);
+  bone buffer grows geometrically (no thrash); 18.2 trace lines per scene update
+  are all gated on TF2_NATIVE_TRACE. Two stale "TEMP DIAGNOSTIC" labels remain
+  (main.cpp:52, :6174) — inert, flagged for revisit if the 0xE06D7363 crash in that
+  try/catch is ever fixed.
 
