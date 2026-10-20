@@ -285,9 +285,23 @@ tail -6 "$OUT/1-build.txt"
 #   Three of them (T19/T24/T27) landed without the pin moving, so the pin had
 #   already drifted to 38-vs-41 before this round; this edit closes that
 #   pre-existing gap as well as adding T30's target.
+#
+# 2026-10-20 T37 round: 42 -> 44, measured the same two ways on the merged tree
+# (Lead, after the T37 merge d305211): grep -c '^add_executable(' = 44, and a
+# clean full Release build printing cmake_build_rc=0 errors=0 exe_count=44 with
+# exes_on_disk=44. Both targets come from T37 (44f5cc9), not from a probe that
+# drifted in unnoticed:
+#   native/tools/install_cli_probe      the --install/--uninstall/--version
+#                                       lifecycle driver the product answers from
+#   native/tools/vpk_readiness_probe    the VPK attribution probe that
+#                                       distinguishes absent / truncated /
+#                                       unreadable / unsupported from each other
+# The warning count moved 10 -> 11 in the same build (a C4189 unused local in
+# T37's own code); warnings are not asserted here by design, and the new one is
+# named in the T37 report rather than suppressed.
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=42$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=44$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
