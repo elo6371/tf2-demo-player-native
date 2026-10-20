@@ -269,5 +269,35 @@ merge; I do not merge task branches on the implementer's behalf.
   and TF2 resources are not bundled (by design). Staging is not an installer
   and the branch does not claim one. Post-merge gate rerun is folded into the
   combined T29-T33 verification.
+- 2026-10-20 — T29 `task/t29-world-visual@21bfffd` merged as `1c24d22`.
+  Product: the world pass built its projection with `near = 0.05` in the
+  normalized box unit `uploadWorldGeometry` maps the map into, i.e. 611 map
+  units on `pl_odyssey`, so the room the camera stands in was clipped out of
+  every frame. The near plane is now stated in map units (4 map units, the
+  Source first-person distance) and converted through `worldHorizontalScale_`,
+  and `gpu: world clip near/far nearMapUnits farMapUnits horizontalScale
+  state=published` publishes the planes the matrix was built from. Only
+  `native_renderer.{h,cpp}` + `main.cpp` changed; winding, PVS and culling
+  untouched.
+  Evidence: `world-near-clip-check.sh` forward PASS (nearMapUnits=4.00,
+  18 of 25 named pixels nearer than the old clip, W1 18.8/21.90, W2
+  57.0/24.19, W3 133.9/31.03 on the re-pinned baseline, W4 42.9/55.55/
+  nearBlack 0.6784 exactly unchanged); mutation PASS with 3 reads RED
+  (nearMapUnits 610.22, W1 75.3, 0 of 25), sources restored byte-identical and
+  the restored build reproduced the reference frame; `world-material-face-check.sh`
+  PASS; `visual-baseline-check.sh` forward PASS on the re-pinned baseline.
+  The re-pin is justified by the control region and by the revert mutation,
+  not by widening a tolerance. The old readings are kept as superseded.
+  Decisions/blockers: T26's sky-account gate was not re-run on the fixed frame
+  (Lead runs `world-geometry-hole-check.sh` on the merged tree and re-pins
+  deliberately if the frame change moves it); the residual black is classified
+  sky 17 px (0.008%), lightmap-driven 205,911 (98.7%), albedo/shader 2,702
+  (1.3%), which is recorded as a new task-sized blocker (T34 candidate:
+  back-face / empty-lightmap-rect dark regions) with its cheapest next step;
+  back-face share NOT VERIFIED (needs `--world-face-id`), near/far depth ratio
+  1:305,101 with the depth-resolution table recorded and z-fighting NOT
+  VERIFIED. `visual-baseline-check.sh --mutation` was not run by the owner and
+  is part of the combined verification.
+
 
 
