@@ -1,0 +1,249 @@
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+WAITING owner=t30 queue_head=1792472797788905500-t29-71230
+ACQUIRED owner=t30 at 2026-10-20 13:33:43
+=== 0/6 the pinned recording, models and binaries ===
+  OK   autorecord_2026-07-02_13-26-46.dem pinned (21856667 bytes)
+  OK   pinned recordings verified = 1
+  OK   the POV recording is the pinned one
+  OK   probe sha256 recorded (85226039cbd0bef936a7f7e20d4ded6938cca5008bd0140bbd56bd0649b6ad0f)
+  OK   executable sha256 recorded (c8bd9337813808cffd30c8a34c330a0dd55ed9bfa009f13733883bd0d2c5c9e8)
+=== 1/6 installed models: ranges, slots, companions, animation source ===
+  census: c_ weapon models=326, v_ viewmodels=37
+  OK   c_ weapon models in the install = 326 (>= 20)
+  OK   v_ viewmodels in the install = 37
+  OK   c_scout_arms.mdl: 1 ranges, 13446 vertices
+  OK   c_soldier_arms.mdl: 3 ranges, 13074 vertices
+  OK   c_pyro_arms.mdl: 3 ranges, 8412 vertices
+  OK   c_demo_arms.mdl: 2 ranges, 10086 vertices
+  OK   c_heavy_arms.mdl: 2 ranges, 15732 vertices
+  OK   c_engineer_arms.mdl: 4 ranges, 11736 vertices
+  OK   c_medic_arms.mdl: 2 ranges, 8640 vertices
+  OK   c_sniper_arms.mdl: 2 ranges, 9996 vertices
+  OK   c_spy_arms.mdl: 1 ranges, 11640 vertices
+  OK   arms models that failed = 0
+  OK   single-range input rc = 0
+  OK   single-range input ranges = 1
+  OK   single-range input target descriptors = 1
+  OK   single-range input vertices = 20748
+  OK   single-range input distinct range textures = 1
+  OK   single-range input selected LOD = 0
+  OK   single-range input lod fallback = 0
+  OK   single-range input refusal count = 0
+  OK   single-range input bound VTF
+  OK   single-range input bad skin weights = 0
+  OK   multi-range input rc = 0
+  OK   multi-range input ranges = 2
+  OK   multi-range input target descriptors = 2
+  OK   multi-range input vertices = 25143
+  OK   multi-range input distinct range materials = 2
+  OK   multi-range input distinct range textures = 2
+  OK   multi-range input selected LOD = 0
+  OK   multi-range input refusal count = 0
+  OK   multi-range input ranges whose VTF resolved = 2
+  OK   multi-range input vertices with bad skin weights = 0
+  OK   multi-range input per-range VTFs, in range order = c_syringegun.vtf,c_syringegun_glass.vtf
+  OK   multi-range input every range's highest bone is inside the skeleton (3 < 4)
+  OK   multi-LOD input rc = 0
+  OK   multi-LOD input declared LODs = 4
+  OK   multi-LOD input selected LOD = 0
+  OK   multi-LOD input lod fallback = 0
+  OK   pinned arms input animation source resolves = ok
+  OK   pinned arms input animation companion is separate = 1
+  OK   pinned arms input animation companion path
+  OK   pinned arms input animation companion is declared
+  OK   pinned arms input sequences bound by name = 38 (> 0)
+  OK   pinned arms input bind matrices cover the skeleton
+=== 2/6 three real inputs: single-range, multi-range, damaged companion ===
+  OK   fixture vm-ok materialised = 0
+  OK   fixture vm-ok omits nothing = -
+  OK   fixture vm-ok files written = 5 (>= 3)
+  OK   fixture vm-no-vvd materialised = 0
+  OK   fixture vm-no-vvd omits the VVD = vvd
+  OK   fixture vm-no-vtx omits the VTX = vtx
+  OK   fixture arms-ok materialised = 0
+  OK   fixture arms-ok carries the declared animation companion
+  OK   fixture arms-no-anim materialised = 0
+  OK   fixture arms-no-anim omits the declared animation companion
+  OK   probe on the complete fixture rc = 0
+  OK   probe on the complete fixture resolution = found-loose
+  OK   probe on the complete fixture companions = 1
+  OK   probe on the complete fixture mesh built = 1
+  OK   probe on the complete fixture ranges = 2
+  OK   probe on the no-VVD fixture resolution = found-loose
+  OK   probe on the no-VVD fixture mdl present = 1
+  OK   probe on the no-VVD fixture vvd absent = 0
+  OK   probe on the no-VVD fixture companions incomplete = 0
+  OK   probe on the no-VVD fixture refuses the mesh = 0
+  OK   probe on the no-VVD fixture names a refusal
+  OK   probe on the no-VTX fixture vtx absent = 0
+  OK   probe on the no-VTX fixture companions incomplete = 0
+  OK   probe on the complete arms fixture rc = 0
+  OK   probe on the complete arms fixture companions = 1
+  OK   probe on the complete arms fixture animation source = ok
+  OK   probe on the complete arms fixture separate animation source = 1
+  OK   probe on the complete arms fixture animation path
+  OK   probe on the complete arms fixture bound sequences = 38 (> 0)
+  OK   probe on the complete arms fixture bind matrices cover the skeleton = 58
+  OK   probe on the complete arms fixture skeleton is 58 bones = 58
+  OK   probe on the complete arms fixture animation set is larger than the stub = 88 (> 1)
+  OK   probe on the complete arms fixture bound sequences = 38 (> 1)
+  OK   probe on the no-animation-companion fixture rc = 0
+  OK   probe on the no-animation-companion fixture mesh still builds = 1
+  OK   probe on the no-animation-companion fixture ranges = 2
+  OK   probe on the no-animation-companion fixture is not a separate source = 0
+  OK   probe on the no-animation-companion fixture degrades to the stub table = 1
+  OK   probe on the no-animation-companion fixture binds only the stub sequence = 1
+  OK   probe on the no-animation-companion fixture animation path is the model itself = models/weapons/c_models/c_sniper_arms.mdl
+  OK   malformed LOD-0 descriptor rc = 1
+  OK   malformed LOD-0 descriptor builds no mesh = 0
+  OK   malformed LOD-0 descriptor refusal names the descriptor
+  OK   malformed LOD-0 descriptor refusal names the cause
+  OK   absent LOD-0 falls back instead of refusing = 0
+  OK   absent LOD-0 selected LOD = 1
+  OK   absent LOD-0 is reported as a fallback = 1
+  OK   absent LOD-0 still builds the mesh = 1
+  OK   absent LOD-0 range count is the next LOD's = 1
+=== 3/6 the product: bind/applied pose, single and multi range bodies ===
+  bind rc=0 bmp=2582406 hash=49604d9da68b2040...
+  OK   bind frame bytes = 2582406 (>= 1024)
+  OK   bind request status = ok
+  OK   bind request companions = 1
+  OK   bind request mesh ready = 1
+  OK   bind arms ranges = 2
+  OK   bind arms range slots = 0,1
+  OK   bind arms range vertices = 600,9396
+  OK   bind arms both ranges textured = 1,1
+  OK   bind one ViewModel draw call = 1
+  OK   bind drawn model is the entity's = models/weapons/c_models/c_sniper_arms.mdl
+  OK   bind pass ranges = 2
+  OK   bind pass distinct material slots = 2
+  OK   bind no pose applied = 0
+  OK   bind no skinning = 0
+  OK   bind animation input resolves = ok
+  applied rc=0 bmp=2582406 hash=45dd7bea557c847e...
+  OK   applied pose applied = 1
+  OK   applied pass skins = 1
+  OK   applied bone table covers the skeleton = 58/58
+  OK   applied sequence is inside the drawn model's table = 1
+  OK   applied pose samples a frame = 0
+  OK   applied one ViewModel draw call = 1
+  OK   applied model matches the entity's = 1
+  OK   pose extent is valid = 1
+  OK   pose extent vertices equal the mesh's = 9996
+  OK   every vertex was posed = 9996
+  OK   no posed vertex is non-finite = 0
+  OK   the pose moves geometry = 6.126 (> 0.01)
+  OK   the pose moves no vertex further than the model is wide = 6.126 (<= 29.880)
+  OK   the pose does not move the framing anchor = 0.009 (<= 5)
+  OK   the applied frame differs from the bind frame = 45dd7bea557c847e14968443857742609c105b56dd7cf13b133b9900120c0ce6 (!= 49604d9da68b2040ca54f8c683f66750ea6004f58d7c103252ee09f383228016)
+  OK   the camera is byte-identical between bind and applied = gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+  OK   the placement centre is byte-identical between bind and applied = gpu: viewmodel centre viewSpace=(8.96,-6.30,63.87) clip=(4.829,-6.304,62.886,63.873) ndc=(0.076,-0.099) onScreen=1
+  repeat rc=0 bmp=2582406 hash=45dd7bea557c847e...
+  OK   the applied frame repeats byte for byte = 45dd7bea557c847e14968443857742609c105b56dd7cf13b133b9900120c0ce6
+  world rc=0 bmp=2582406 hash=04e32a13133044d5...
+  OK   the world-only frame differs from the ViewModel frame = 04e32a13133044d58c832ee15b4ac0b7f7f9ef40464c84002d23b3d9eff926ba (!= 49604d9da68b2040ca54f8c683f66750ea6004f58d7c103252ee09f383228016)
+  bodyoff rc=0 bmp=2582406 hash=2d5223ffc3377693...
+  OK   body-off: the body is switched off, not refused = 0
+  bodyofffx rc=0 bmp=2582406 hash=8d2bf07a017ba90e...
+  applyoff rc=0 bmp=2582406 hash=43fb1aa9f5f839fc...
+  single rc=0 bmp=2582406 hash=8deea85de4d199d4...
+  OK   single-range body model is the pinned one
+  OK   single-range body request ok = ok
+  OK   single-range body mesh ready = 1
+  OK   single-range body vertices = 20748
+  OK   single-range body is an override = 1
+  OK   single-range body ranges = 1
+  OK   single-range body textured ranges = 1
+  OK   single-range body fallback ranges = 0
+  OK   single-range body distinct slots = 1
+  OK   single-range body keys name its own VTF
+  OK   single-range body draw calls = 1 (>= 1)
+  OK   single-range body visible = 1
+  multi rc=0 bmp=2582406 hash=52f560c4ab2d29ef...
+  OK   multi-range body model is the pinned one
+  OK   multi-range body request ok = ok
+  OK   multi-range body mesh ready = 1
+  OK   multi-range body vertices = 25143
+  OK   multi-range body is an override = 1
+  OK   multi-range body ranges = 2
+  OK   multi-range body textured ranges = 2
+  OK   multi-range body fallback ranges = 0
+  OK   multi-range body distinct slots = 2
+  OK   multi-range body keys name one different VTF per range = c_syringegun.vtf,c_syringegun_glass.vtf
+  OK   multi-range body draw calls = 1 (>= 1)
+  OK   multi-range body visible = 1
+  OK   the multi-range body frame differs from the single-range one = 52f560c4ab2d29ef4c3dbb7cde7750e0265ed3b3bb9fe18515bcdc718e47a323 (!= 8deea85de4d199d4e62843842ed194d5623e0ca4b661c9677fa9002e8c151cc7)
+  mslot0 rc=0 bmp=2582406 hash=839ebf7b654d4423...
+  OK   forced body slot 0 is reported = 0
+  OK   forced body slot 0 binds one slot = 1
+  mslot1 rc=0 bmp=2582406 hash=739dbe5ea7d15fd6...
+  OK   forced body slot 1 is reported = 1
+  OK   forced body slot 1 binds one slot = 1
+  fixture-ok rc=0 bmp=2582406 hash=6262ce7fab8bbce1...
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1 reason=drawn
+  OK   fixture complete: request status = ok
+  OK   fixture complete: request mesh ready = 1
+  OK   fixture complete: the real model draws
+  OK   fixture complete: draw counter = 1 (> 0)
+  OK   fixture complete: the pass drew = drawn
+  fixture-no-vvd rc=0 bmp=2582406 hash=803ff052b3aadccf...
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel companions are missing
+  OK   fixture no-VVD: request status = failed
+  OK   fixture no-VVD: the refusal is named = viewmodel companions are missing
+  OK   fixture no-VVD: the resource reading names the missing VVD
+  OK   fixture no-VVD: nothing is drawn = 0
+  OK   fixture no-VVD: no range table is published = 0
+  OK   fixture no-VVD: the refusal changes the picture = 803ff052b3aadccfdba7784d63105454cc6d1c911e6b92e86c9584eef8264af3 (!= 6262ce7fab8bbce1dcaecd02d21579a4b823122bd806794c7ae41d688c7705b7)
+  fixture-no-vtx rc=0 bmp=2582406 hash=803ff052b3aadccf...
+  viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=0 reason=viewmodel companions are missing
+  OK   fixture no-VTX: request status = failed
+  OK   fixture no-VTX: the refusal is the same named one = viewmodel companions are missing
+  OK   fixture no-VTX: the resource reading names the missing VTX
+  OK   fixture no-VTX: nothing is drawn = 0
+=== 4/6 pixels: coverage mask, pose containment, contact, body partition ===
+  OK   the ViewModel has its own coverage = 25601 (>= 15000)
+  ..   coverage BMP-MASK changed=25601 inside=25601 outside=0 mask_pixels=25601 bbox=(x=571..838, y=247..530) w=268 h=284 status=PASS
+  OK   the weapon body's own coverage = 4991 (>= 500)
+  OK   the arms' own coverage = 20998 (>= 3000)
+  OK   the body does not change anything outside the composite = 0
+  OK   the arms do not change anything outside the composite = 0
+  OK   the pose moves real pixels = 10097 (>= 5000)
+  OK   the pose stays inside the ViewModel's coverage = 2 (<= 64)
+  ..   pose BMP-MASK changed=10097 inside=10095 outside=2 mask_pixels=25601 bbox=(x=577..838, y=313..393) w=262 h=81 status=FAIL reason=outside=2 exceeds 0
+  OK   contact: the arms mask has pixels (bind) = 20998 (>= 15000)
+  OK   contact: the arms touch the body (bind) = 0.0705 (>= 0.05)
+  OK   contact: the touch distance is measured (bind) = 0 (>= 0)
+  OK   contact: the touch distance is small (bind) = 0 (<= 8)
+  OK   contact: the arms mask has pixels (applied) = 19646 (>= 15000)
+  OK   contact: the posed arms still touch the body = 0.0694 (>= 0.05)
+  OK   contact: the posed touch distance is measured = 0 (>= 0)
+  OK   contact: the posed touch distance is small = 0 (<= 8)
+  OK   contact: the pose keeps at least 80% of the bind contact = 0.9844 (>= 0.8)
+  ..   contact bind: BMP-CONTACT maskPixels=20998 maskBbox=(x=571..838, y=297..417) w=268 h=121 centroid=(685.48,361.42) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=1480 nearFraction=0.0705 outsideBody=19518 contactDistance=0 radius=8 region=0,0,1264,681 status=OK
+  ..   contact applied: BMP-CONTACT maskPixels=19646 maskBbox=(x=571..829, y=297..417) w=259 h=121 centroid=(679.60,363.25) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=1364 nearFraction=0.0694 outsideBody=18282 contactDistance=0 radius=8 region=0,0,1264,681 status=OK
+  OK   forced slot 0 changes the body = 577 (>= 100)
+  OK   forced slot 1 changes the body = 2481 (>= 1000)
+  OK   forced slot 0 stays on the body = 2 (<= 64)
+  OK   forced slot 1 stays on the body = 20 (<= 64)
+  OK   the two forced frames union the body = 2494 (>= 2000)
+  OK   the overlap computed two ways is the same number = 564
+  OK   most body pixels change under one forced slot only = 564 (<= 1000)
+  OK   the forced-slot overlap is under a third of the union = 0.2261 (<= 0.3334)
+  ..   partition: slot0=577 slot1=2481 union=2494 overlap=564
+  OK   the single-range body covers pixels = 10698 (>= 300)
+
+=== 6/6 evidence and verdict ===
+  OK   evidence written to evidence/t30
+
+assertions: 203 held, 0 failed
+host_overlap=0 (a paused capture is insensitive to it; the repeat hash is the guard)
+VIEWMODEL-ROBUSTNESS=PASS (203 assertions, 0 failures)
+LOCKED-COMMAND-EXIT rc=0 owner=t30
+RUN4_EXIT=True

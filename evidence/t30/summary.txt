@@ -1,0 +1,46 @@
+# viewmodel-robustness-check.sh readings (2026-10-20T05:38:19Z)
+# branch: task/t30-model-animation commit: 9c8f1205fd52fb1c26b54d0598ec8a9cc2f6aaa6
+# tf root: D:/SteamLibrary/steamapps/common/Team Fortress 2/tf
+# recording: D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem (pinned by evidence/viewmodel/animation-inputs.txt)
+# tick: 0  pose sequence: 1  capture: paused, hidden window, audio disabled
+# command: bash viewmodel-robustness-check.sh
+probe_sha256=85226039cbd0bef936a7f7e20d4ded6938cca5008bd0140bbd56bd0649b6ad0f
+executable_sha256=c8bd9337813808cffd30c8a34c330a0dd55ed9bfa009f13733883bd0d2c5c9e8
+host_overlap=0
+inventory_c_weapon_models=326 inventory_v_viewmodels=37
+single_model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl ranges=1 vertices=20748 vtf=c_rocketlauncher.vtf
+multi_model=models/weapons/c_models/c_syringegun/c_syringegun.mdl ranges=2 vertices=25143 vtfs=c_syringegun.vtf,c_syringegun_glass.vtf
+lod_model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl declared_lods=4 lod0_malformed=refused lod0_absent=fallback_to_lod_1
+arms_model=models/weapons/c_models/c_sniper_arms.mdl arms_ranges=2 arms_vertices=9996 animation=companion_c_sniper_animations
+
+[frames]
+bind=49604d9da68b2040ca54f8c683f66750ea6004f58d7c103252ee09f383228016 bytes=2582406
+applied=45dd7bea557c847e14968443857742609c105b56dd7cf13b133b9900120c0ce6
+applied_repeat=identical
+world=04e32a13133044d58c832ee15b4ac0b7f7f9ef40464c84002d23b3d9eff926ba
+multi_range_body=52f560c4ab2d29ef4c3dbb7cde7750e0265ed3b3bb9fe18515bcdc718e47a323
+
+[camera]
+gpu: viewmodel frame eye=(-0.09,0.22,0.70) forward=(-0.354,0.891,0.283) placement=(-31.70,55.50,12.75) fov=90.00 near=1.4940 far=185.2539 distance=65.7352 radius=29.8797 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+
+[pose]
+gpu: viewmodel pose extent bindCenter=(0.000,52.050,-1.801) bindRadius=29.880 posedCenter=(-0.009,52.050,-1.801) posedRadius=29.887 centerShift=0.009 vertices=9996 posedVertices=9996 nonFinite=0 maxDisplacement=6.126 valid=1 reason=-
+
+[masks]
+coverage: BMP-MASK changed=25601 inside=25601 outside=0 mask_pixels=25601 bbox=(x=571..838, y=247..530) w=268 h=284 status=PASS
+body: BMP-MASK changed=4991 inside=4991 outside=0 mask_pixels=25601 bbox=(x=655..710, y=247..530) w=56 h=284 status=PASS
+arms: BMP-MASK changed=20998 inside=20998 outside=0 mask_pixels=25601 bbox=(x=571..838, y=297..417) w=268 h=121 status=PASS
+pose: BMP-MASK changed=10097 inside=10095 outside=2 mask_pixels=25601 bbox=(x=577..838, y=313..393) w=262 h=81 status=FAIL reason=outside=2 exceeds 0 bbox=(x=577..838, y=313..393)
+contact_bind: BMP-CONTACT maskPixels=20998 maskBbox=(x=571..838, y=297..417) w=268 h=121 centroid=(685.48,361.42) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=1480 nearFraction=0.0705 outsideBody=19518 contactDistance=0 radius=8 region=0,0,1264,681 status=OK
+contact_applied: BMP-CONTACT maskPixels=19646 maskBbox=(x=571..829, y=297..417) w=259 h=121 centroid=(679.60,363.25) bodyPixels=4991 bodyBbox=(x=655..710, y=247..530) near=1364 nearFraction=0.0694 outsideBody=18282 contactDistance=0 radius=8 region=0,0,1264,681 status=OK
+partition_slot0: BMP-MASK changed=577 inside=575 outside=2 mask_pixels=2472 bbox=(x=654..713, y=303..453) w=60 h=151 status=FAIL reason=outside=2 exceeds 0
+partition_slot1: BMP-MASK changed=2481 inside=2461 outside=20 mask_pixels=2472 bbox=(x=649..718, y=303..458) w=70 h=156 status=FAIL reason=outside=20 exceeds 0
+partition_union: BMP-MASK changed=2494 inside=2472 outside=22 mask_pixels=2472 bbox=(x=649..718, y=303..458) w=70 h=156 status=FAIL reason=outside=22 exceeds 0
+partition_overlap: BMP-MASK changed=577 inside=564 outside=13 mask_pixels=2481 bbox=(x=654..713, y=303..453) w=60 h=151 status=FAIL reason=outside=13 exceeds 0
+single_body_coverage: BMP-MASK changed=10698 inside=10698 outside=0 mask_pixels=10698 bbox=(x=632..730, y=239..555) w=99 h=317 status=PASS
+
+[product readings]
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+gpu: viewmodel weaponBodyMaterial ranges=2 texturedRanges=2 fallbackRanges=0 boundSlots=2 keys=materials/models/weapons/c_items/c_syringegun.vtf,materials/models/weapons/c_items/c_syringegun_glass.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1

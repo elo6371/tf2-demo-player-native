@@ -1,0 +1,21 @@
+# T30 inventory readings: curated sweep (2026-10-20T05:34:00Z)
+# probe: native/build-nmake/model_robustness_probe.exe (sha256 85226039cbd0bef936a7f7e20d4ded6938cca5008bd0140bbd56bd0649b6ad0f)
+# tf root: D:/SteamLibrary/steamapps/common/Team Fortress 2/tf
+# command: model_robustness_probe --tf-root <tf> --model <each>
+# full install sweep: evidence/t30/inventory.tsv (model-inventory-sweep.sh)
+census c_weapon_models=326 v_viewmodels=37
+c_scout_arms.mdl rc=0 built=1 descriptors=1 ranges=1 vertices=13446 indices=13446
+c_soldier_arms.mdl rc=0 built=1 descriptors=3 ranges=3 vertices=13074 indices=13074
+c_pyro_arms.mdl rc=0 built=1 descriptors=3 ranges=3 vertices=8412 indices=8412
+c_demo_arms.mdl rc=0 built=1 descriptors=2 ranges=2 vertices=10086 indices=10086
+c_heavy_arms.mdl rc=0 built=1 descriptors=2 ranges=2 vertices=15732 indices=15732
+c_engineer_arms.mdl rc=0 built=1 descriptors=4 ranges=4 vertices=11736 indices=11736
+c_medic_arms.mdl rc=0 built=1 descriptors=2 ranges=2 vertices=8640 indices=8640
+c_sniper_arms.mdl rc=0 built=1 descriptors=2 ranges=2 vertices=9996 indices=9996
+c_spy_arms.mdl rc=0 built=1 descriptors=1 ranges=1 vertices=11640 indices=11640
+robust model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl resolution=found-vpk fixture=none mdlFound=1 vvd=1 vtx=1 companions=1 bones=4 seq=1 attach=10 slots=2 lodCount=4 lod0=1 targetLod=0 lodFallback=0 targetDesc=1 targetIdx=20748 meshBuilt=1 meshRanges=1 meshVertices=20748 distinctRangeMaterials=1 distinctRangeTextures=1 materialTable=available animationInput=ok animPath=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl separateAnimSource=0 animSeqs=1 boundSeqs=1 bindBones=4/4 materialized=- dropped=- error=-
+robust range descriptor=0 count=20748 slot=0 name=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher vtf=materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vtf vtfStatus=resolved maxBone=2 badWeights=0
+robust model=models/weapons/c_models/c_syringegun/c_syringegun.mdl resolution=found-vpk fixture=none mdlFound=1 vvd=1 vtx=1 companions=1 bones=4 seq=1 attach=3 slots=3 lodCount=4 lod0=2 targetLod=0 lodFallback=0 targetDesc=2 targetIdx=25143 meshBuilt=1 meshRanges=2 meshVertices=25143 distinctRangeMaterials=2 distinctRangeTextures=2 materialTable=available animationInput=ok animPath=models/weapons/c_models/c_syringegun/c_syringegun.mdl separateAnimSource=0 animSeqs=1 boundSeqs=1 bindBones=4/4 materialized=- dropped=- error=-
+robust range descriptor=0 count=24279 slot=0 name=models/weapons/c_items/c_syringegun vtf=materials/models/weapons/c_items/c_syringegun.vtf vtfStatus=resolved maxBone=3 badWeights=0
+robust range descriptor=1 count=864 slot=1 name=models/weapons/c_items/c_syringegun_glass vtf=materials/models/weapons/c_items/c_syringegun_glass.vtf vtfStatus=resolved maxBone=0 badWeights=0
+robust model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl resolution=found-vpk fixture=none mdlFound=1 vvd=1 vtx=1 companions=1 bones=4 seq=1 attach=10 slots=2 lodCount=4 lod0=1 targetLod=0 lodFallback=0 targetDesc=1 targetIdx=20748 meshBuilt=1 meshRanges=1 meshVertices=20748 distinctRangeMaterials=1 distinctRangeTextures=1 materialTable=available animationInput=ok animPath=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl separateAnimSource=0 animSeqs=1 boundSeqs=1 bindBones=4/4 materialized=- dropped=- error=-
