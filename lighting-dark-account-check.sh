@@ -244,8 +244,12 @@ cp "$ACCOUNT/account.txt" "$OUT/account.txt"
 cp "$ACCOUNT/account.json" "$OUT/account.json"
 cp "$ACCOUNT/cull.txt" "$OUT/cull-control.txt"
 cp "$ACCOUNT/cull.json" "$OUT/cull-control.json"
+# The masks go under masks/ rather than the evidence root: a second run used to
+# leave a duplicate copy of every one of them in the root, so the tree went dirty
+# with 14 untracked files that carried no new reading.
+mkdir -p "$OUT/masks"
 for m in "$ACCOUNT"/*.mask; do
-  [ -s "$m" ] && cp "$m" "$OUT/"
+  [ -s "$m" ] && cp "$m" "$OUT/masks/"
 done
 {
   echo "run=$$ $(date -Is)"
