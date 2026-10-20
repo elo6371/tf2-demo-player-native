@@ -1,0 +1,35 @@
+# T31 corpus slice: the seven recordings this round scanned for MP3 content.
+#
+# WHY THIS SLICE
+#   The full corpus is 1687 recordings / 41.13 GiB and takes about 13 hours at
+#   the measured scan rate (T7 measured 0.89 MiB/s and documented the
+#   extrapolation in evidence/t7-audio-content/corpus-scan-55-selection.txt).
+#   That is neither a gate nor a task-sized run, so this round scans the union of
+#   the two already-pinned sets plus the recording that carries the scheduled
+#   MP3s:
+#     * the three content-map recordings (pov, matcha, well) --
+#       evidence/audio/content-inputs.txt and
+#       evidence/t31-audio-content/content-inputs.txt;
+#     * the four remaining category recordings T7 pinned for its corpus slice
+#       (pd_circus, cp_manor_event, cp_wildcat_event, plr_hightower_event) --
+#       evidence/t7-audio-content/corpus-inputs.txt.
+#   Every one of them is bound to its own size and sha256 in those lists, so this
+#   file names inputs and does not restate their hashes. What it does NOT claim
+#   is exhaustive coverage: the whole-corpus count stays NOT VERIFIED, and the
+#   cheapest next step is to run the same probe over the 55-recording manifest
+#   written down in evidence/t7-audio-content/corpus-scan-55-selection.txt
+#   (about 20 minutes at the measured rate).
+#
+# WHAT IT ANSWERS
+#   Per recording: how many scheduled events carry an explicit .mp3 name, split
+#   by event kind (so "scheduled MP3" and "filtered MP3" stay separate counts),
+#   how many precache names are .mp3, and how many names carry no extension at
+#   all (the ones whose codec the archive has to decide, which this probe
+#   deliberately does not guess).
+D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem
+D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-16_12-41-25.dem
+D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-10-04_12-08-10.dem
+D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-10-02_14-26-03.dem
+D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-10-02_13-20-12.dem
+D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-10-12_16-47-40.dem

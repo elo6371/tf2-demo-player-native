@@ -1,0 +1,21 @@
+# T31 pinned inputs for verify-audio-content.sh.
+#
+# Format: <size> <sha256> <root> <filename>   (same shape as
+# evidence/audio/timeline-inputs.txt and evidence/audio/content-inputs.txt, so
+# the existing readers and the reader in this gate parse it the same way).
+#
+# WHY THIS RECORDING
+#   Of the three recordings T3/T7 pinned, only the cp_well one schedules an MP3
+#   that is not a filtered kind. Its content map (T7, re-measured by this gate's
+#   2/5 section) names exactly two world-kind MP3 events --
+#   ambient_mp3/water/water_splash{1,2}.mp3 at relative ticks 4650 and 7675 --
+#   which is the only real "MP3 the product is asked to play" input this corpus
+#   has. A gate that selected the pov or matcha recording instead would be
+#   asserting that filtered voice clips do not play, which is a different claim
+#   and one the filter already makes by construction.
+#
+# THE THREE FIELDS ARE SEPARATE FAILURES
+#   A missing file, a wrong size and a wrong hash are three different FAILs in
+#   the gate, not one. "The input is not here" and "the input is clean" must not
+#   read the same -- that is the rule T3 wrote into its own input lists.
+5509069 5e0b1fe8d97247ee327c9dc575e492af875c0c2554a42f8097619a8d7ed81cbd steam autorecord_2026-07-16_12-41-25.dem

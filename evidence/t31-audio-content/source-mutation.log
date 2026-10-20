@@ -1,0 +1,51 @@
+
+=== 1. hash the source and keep the restore copy ===
+src=native/src/audio_resource.cpp
+sha256_before=c20bddd32f943281407dbeb510958d9a50e0ea8117013935d4b00c4ee7bd9b39
+copy=.scratch/t31/source-mutation/audio_resource.cpp.before
+
+=== 2. the mutation: delete the MP3 provenance line ===
+sha256_mutated=fe4cb0f6c2095ab089640ed319bb4cfe837d9cd4292ec790ed2cd7e70e01556d
+0
+mp3_provenance_lines=0
+
+=== 3. rebuild the affected targets and run the forward gate (expect FAIL) ===
+build_rc=0
+=== build audio_scheduler_probe sound_content_map_probe tf2_demo_native ===
+rc=0
+gate_rc=1
+  FAIL null (per-event MP3 records: 0, pinned 2)
+  FAIL null (per-event records moved; got: )
+  FAIL null (MP3 accounting: seen=0 played=0 skipped=0 failed=0 inaudible=0)
+  FAIL null (window does not match the map: run [] map [4650:6615 7675:6616])
+  FAIL scheduler: the refusal probe failed (rc=1): FAIL the playable MP3 is attributed to the MP3 codec at the playback boundary FAIL contract key mp3PlaybackMp3Seen: expected '1', got '0' 
+  FAIL scheduler: the refusal probe opened no device (wanted: device=0 playbackCalls=0)
+
+VERIFY-AUDIO-CONTENT=FAIL (assertions_ok=11 assertions_bad=21 mutations=0/0)
+MUTATION-CAUGHT=PASS (the forward gate failed on the per-event MP3 record)
+
+=== 4. the probe alone on the mutated build (expect exit 1, naming the codec) ===
+probe_rc=1
+FAIL the playable MP3 is attributed to the MP3 codec at the playback boundary
+PROBE-CAUGHT=PASS (the probe's contract refused the mutated build)
+
+=== 5. restore the source byte for byte ===
+sha256_restored=c20bddd32f943281407dbeb510958d9a50e0ea8117013935d4b00c4ee7bd9b39
+RESTORE=BYTE-IDENTICAL (c20bddd32f943281407dbeb510958d9a50e0ea8117013935d4b00c4ee7bd9b39)
+
+=== 6. rebuild and run the forward gate again (expect PASS) ===
+build_rc=0
+gate_rc=0
+
+VERIFY-AUDIO-CONTENT=PASS (assertions_ok=32 mutations=0/0)
+REFERENCE-REPRODUCED=PASS (the restored build passes the same gate)
+
+=== 7. compare the restored per-event record with the pre-mutation reference ===
+PER-EVENT-RECORD=NOT-COMPARED (a reference capture is missing)
+
+=== summary ===
+source_sha256_before=c20bddd32f943281407dbeb510958d9a50e0ea8117013935d4b00c4ee7bd9b39
+source_sha256_mutated=fe4cb0f6c2095ab089640ed319bb4cfe837d9cd4292ec790ed2cd7e70e01556d
+source_sha256_restored=c20bddd32f943281407dbeb510958d9a50e0ea8117013935d4b00c4ee7bd9b39
+gate_rc_mutated=1 gate_rc_restored=0
+SOURCE-MUTATION=FAIL

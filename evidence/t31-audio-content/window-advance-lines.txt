@@ -1,0 +1,7 @@
+# scheduler advance lines around the two scheduled MP3 ticks (null-sink run)
+# columns: tick cursor seen played skippedVoice missing dup
+58726.6 audio: advance tick=4649 cursor=4649 seen=1998 played=0 skippedVoice=57 missing=933 dup=1318
+58759.4 audio: advance tick=4651 cursor=4651 seen=2001 played=0 skippedVoice=57 missing=936 dup=1320
+92820.5 audio: advance tick=7673 cursor=7673 seen=3487 played=0 skippedVoice=127 missing=1536 dup=2140
+92845.4 audio: advance tick=7675 cursor=7675 seen=3489 played=0 skippedVoice=127 missing=1536 dup=2140
+92852.7 audio: advance tick=7676 cursor=7676 seen=3491 played=0 skippedVoice=127 missing=1537 dup=2140

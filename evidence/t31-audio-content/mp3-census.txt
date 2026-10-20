@@ -1,0 +1,21 @@
+# T31 MP3 census of the shipped sound archives (VPK index only, no decode).
+# command: native/build-nmake/vpk_query.exe "$TF" sound .mp3
+# The five archives vpk_query opens: pak01, tf2_misc, tf2_textures,
+# tf2_sound_misc, tf2_sound_vo_english.
+total_mp3_entries=13140
+# entries per top-level directory under sound/ (count, directory):
+vo                           12668
+ambient_mp3                  335
+ui                           55
+commentary                   49
+misc                         16
+items                        14
+music                        1
+mvm                          1
+replay                       1
+# per-archive line from vpk_query:
+pak01_dir.vpk: OPEN FAILED
+tf2_misc_dir.vpk: 104137 entries, 0 match 'sound' ext=.mp3
+tf2_textures_dir.vpk: 29639 entries, 0 match 'sound' ext=.mp3
+tf2_sound_misc_dir.vpk: 3230 entries, 472 match 'sound' ext=.mp3
+tf2_sound_vo_english_dir.vpk: 12728 entries, 12668 match 'sound' ext=.mp3

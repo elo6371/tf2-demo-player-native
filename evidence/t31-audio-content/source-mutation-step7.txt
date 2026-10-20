@@ -1,0 +1,11 @@
+# T31 source-mutation step 7: the restored build vs the pre-mutation reference.
+# The captured lines start with the trace's elapsed-milliseconds prefix, which is
+# wall clock and differs every run; the record the gate reads starts at 'audio: mp3'.
+# Both sides are normalised with: sed -e 's/^[0-9][0-9.]* audio: mp3/audio: mp3/'
+# reference sha256 (normalised): 210998646dd7d118bc64093ff8282a5b4c5efce3ace2cc3fb6ea8328bcfa679f
+# restored  sha256 (normalised): 210998646dd7d118bc64093ff8282a5b4c5efce3ace2cc3fb6ea8328bcfa679f
+# raw diff (as captured, timestamps included) line count: 4
+PER-EVENT-RECORD=IDENTICAL after stripping the elapsed prefix (2 lines)
+# the restored record:
+audio: mp3 tick=4650 index=6615 name=ambient_mp3/water/water_splash1.mp3 pcmBytes=122112 rate=44100 channels=1 bits=16 seconds=1.384 outcome=inaudible
+audio: mp3 tick=7675 index=6616 name=ambient_mp3/water/water_splash2.mp3 pcmBytes=140544 rate=44100 channels=1 bits=16 seconds=1.593 outcome=skipped
