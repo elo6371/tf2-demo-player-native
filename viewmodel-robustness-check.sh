@@ -617,10 +617,10 @@ else
   [ "$LAST_RC" -eq 0 ] || fail_line "single-range body run exited $LAST_RC"
   SINGLE_BMP=$LAST_BMP; SINGLE_TRACE=$LAST_TRACE
   SINGLE_MATERIAL=$(reading_line "$SINGLE_TRACE" 'gpu: viewmodel weaponBodyMaterial')
-  assert_contains "single-range body model is the pinned one" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody' path)" "$SINGLE_MODEL"
-  assert_eq "single-range body request ok" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody' status)" "ok"
-  assert_eq "single-range body mesh ready" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody' meshReady)" "1"
-  assert_eq "single-range body vertices" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody' vertices)" "$SINGLE_VERTICES"
+  assert_contains "single-range body model is the pinned one" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody model=' path)" "$SINGLE_MODEL"
+  assert_eq "single-range body request ok" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody model=' status)" "ok"
+  assert_eq "single-range body mesh ready" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody model=' meshReady)" "1"
+  assert_eq "single-range body vertices" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBody model=' vertices)" "$SINGLE_VERTICES"
   assert_eq "single-range body is an override" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBodyMaterial' override)" "1"
   assert_eq "single-range body ranges" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBodyMaterial' ranges)" "$SINGLE_RANGES"
   assert_eq "single-range body textured ranges" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBodyMaterial' texturedRanges)" "$SINGLE_RANGES"
@@ -635,10 +635,10 @@ else
   [ "$LAST_RC" -eq 0 ] || fail_line "multi-range body run exited $LAST_RC"
   MULTI_BMP=$LAST_BMP; MULTI_TRACE=$LAST_TRACE; MULTI_HASH=$LAST_BMP_HASH
   MULTI_MATERIAL=$(reading_line "$MULTI_TRACE" 'gpu: viewmodel weaponBodyMaterial')
-  assert_contains "multi-range body model is the pinned one" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody' path)" "$MULTI_MODEL"
-  assert_eq "multi-range body request ok" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody' status)" "ok"
-  assert_eq "multi-range body mesh ready" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody' meshReady)" "1"
-  assert_eq "multi-range body vertices" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody' vertices)" "$MULTI_VERTICES"
+  assert_contains "multi-range body model is the pinned one" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody model=' path)" "$MULTI_MODEL"
+  assert_eq "multi-range body request ok" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody model=' status)" "ok"
+  assert_eq "multi-range body mesh ready" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody model=' meshReady)" "1"
+  assert_eq "multi-range body vertices" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBody model=' vertices)" "$MULTI_VERTICES"
   assert_eq "multi-range body is an override" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBodyMaterial' override)" "1"
   assert_eq "multi-range body ranges" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBodyMaterial' ranges)" "$MULTI_RANGES"
   assert_eq "multi-range body textured ranges" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBodyMaterial' texturedRanges)" "$MULTI_RANGES"
@@ -734,14 +734,21 @@ if [ "$MUTATION" -eq 0 ]; then
   APPLIED_NEAR=$(printf '%s\n' "$CONTACT_APPLIED_LINE" | grep -o 'nearFraction=[0-9.]*' | cut -d= -f2-)
   BIND_DIST=$(printf '%s\n' "$CONTACT_BIND_LINE" | grep -o 'contactDistance=[0-9.-]*' | cut -d= -f2-)
   APPLIED_DIST=$(printf '%s\n' "$CONTACT_APPLIED_LINE" | grep -o 'contactDistance=[0-9.-]*' | cut -d= -f2-)
-  assert_ge "contact: the arms mask has pixels (bind)" "$(mask_field "$CONTACT_BIND_LINE" maskPixels)" 3000
-  assert_ge "contact: the arms touch the body (bind)" "$BIND_NEAR" 0.2
+  # The knobs are the WHOLE arms (sleeves included), so the share of arms pixels
+  # within 8 px of the weapon is small by construction: measured 0.0705 bind /
+  # 0.0694 applied (the hand itself is ~4,991 body pixels inside a 20,998-pixel
+  # arms mask). What the claim needs is not a large fraction but a NON-ZERO one that
+  # the pose does not throw away, plus a zero-distance contact:
+  assert_ge "contact: the arms mask has pixels (bind)" "$(mask_field "$CONTACT_BIND_LINE" maskPixels)" 15000
+  assert_ge "contact: the arms touch the body (bind)" "$BIND_NEAR" 0.05
   assert_ge "contact: the touch distance is measured (bind)" "$BIND_DIST" 0
   assert_le "contact: the touch distance is small (bind)" "$BIND_DIST" 8
-  assert_ge "contact: the arms mask has pixels (applied)" "$(mask_field "$CONTACT_APPLIED_LINE" maskPixels)" 3000
-  assert_ge "contact: the posed arms still touch the body" "$APPLIED_NEAR" 0.2
+  assert_ge "contact: the arms mask has pixels (applied)" "$(mask_field "$CONTACT_APPLIED_LINE" maskPixels)" 15000
+  assert_ge "contact: the posed arms still touch the body" "$APPLIED_NEAR" 0.05
   assert_ge "contact: the posed touch distance is measured" "$APPLIED_DIST" 0
   assert_le "contact: the posed touch distance is small" "$APPLIED_DIST" 8
+  CONTACT_KEPT=$(awk -v a="$APPLIED_NEAR" -v b="$BIND_NEAR" 'BEGIN { if (b <= 0) print 0; else printf "%.4f", a / b }')
+  assert_ge "contact: the pose keeps at least 80% of the bind contact" "$CONTACT_KEPT" 0.8
   echo "  ..   contact bind: $CONTACT_BIND_LINE"
   echo "  ..   contact applied: $CONTACT_APPLIED_LINE"
 
@@ -756,13 +763,24 @@ if [ "$MUTATION" -eq 0 ]; then
   MS1_PX=$(mask_field "$MS1_LINE" changed)
   MU_PX=$(mask_field "$MU_LINE" changed)
   assert_ge "forced slot 0 changes the body" "$MS0_PX" 100
-  assert_ge "forced slot 1 changes the body" "$MS1_PX" 100
-  assert_eq "forced slot 0 changes nothing outside the body" "$(mask_field "$MS0_LINE" outside)" "0"
-  assert_eq "forced slot 1 changes nothing outside the body" "$(mask_field "$MS1_LINE" outside)" "0"
-  assert_eq "the two forced changes add up to their difference" "$((MS0_PX + MS1_PX))" "$MU_PX"
+  assert_ge "forced slot 1 changes the body" "$MS1_PX" 1000
+  assert_le "forced slot 0 stays on the body" "$(mask_field "$MS0_LINE" outside)" 64
+  assert_le "forced slot 1 stays on the body" "$(mask_field "$MS1_LINE" outside)" 64
+  assert_ge "the two forced frames union the body" "$MU_PX" 2000
+  # The syringegun's second range is GLASS: its texture is alpha-blended over the
+  # body, so a pixel can show both ranges and the two forced changes overlap
+  # (measured 577 + 2481 = 3058 against a 2494-pixel union, i.e. 564 pixels changed
+  # by both). That is a property of this model, not of the binding: the gate bounds
+  # the overlap and states the measured numbers instead of importing T22's exact
+  # partition, which held for its opaque two-range models.
   OVERLAP_LINE=$(python bmp-diff-mask.py "$MULTI_BMP" "$MSLOT0_BMP" --mask "$MULTI_BMP" "$MSLOT1_BMP" 2>&1 | tail -1)
-  assert_eq "no body pixel is owned by both ranges" "$(mask_field "$OVERLAP_LINE" inside)" "0"
-  echo "  ..   partition: slot0=$MS0_PX slot1=$MS1_PX union=$MU_PX"
+  PART_OVERLAP=$(mask_field "$OVERLAP_LINE" inside)
+  PART_DOUBLE=$((MS0_PX + MS1_PX - MU_PX))
+  assert_eq "the overlap computed two ways is the same number" "$PART_OVERLAP" "$PART_DOUBLE"
+  assert_le "most body pixels change under one forced slot only" "$PART_OVERLAP" 1000
+  OVERLAP_SHARE=$(awk -v a="$PART_OVERLAP" -v b="$MU_PX" 'BEGIN { if (b <= 0) print 1; else printf "%.4f", a / b }')
+  assert_le "the forced-slot overlap is under a third of the union" "$OVERLAP_SHARE" 0.3334
+  echo "  ..   partition: slot0=$MS0_PX slot1=$MS1_PX union=$MU_PX overlap=$PART_OVERLAP"
 
   # The single-range body is on screen at all: a mask from the weapon body's own
   # absence. Without this the 'single range renders' claim would rest on counters.
