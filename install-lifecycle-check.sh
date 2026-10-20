@@ -322,10 +322,25 @@ cp "$SRC_MAIN" "$MUT/backup/main.cpp"
 cp "$SRC_LIFE" "$MUT/backup/install_lifecycle.cpp"
 cp "$SRC_MAN" "$MUT/backup/install_manifest.cpp"
 
+# A MUTATION MUST RUN ITS OWN BINARY.
+#   A build that silently did not relink leaves the previous exe in place and every
+#   reading after it is a reading of the REFERENCE product -- the mutation then
+#   "fails to be caught" for a reason that has nothing to do with the mutation.
+#   The exe hash is compared across the rebuild so this can never be mistaken for
+#   a real miss: measured 2026-10-20, M2's mutated binary was byte-identical to the
+#   reference one because the link had failed quietly.
 rebuild() { # <log-name>
-  bash build-target.sh tf2_demo_native install_cli_probe > "$MUT/logs/$1.log" 2>&1
-  local rc=$?
-  echo "  rebuild $1 rc=$rc"
+  local before after rc=0
+  before="$(sha256sum "$EXE" 2>/dev/null | cut -d' ' -f1)"
+  bash build-target.sh tf2_demo_native install_cli_probe > "$MUT/logs/$1.log" 2>&1 || rc=$?
+  after="$(sha256sum "$EXE" 2>/dev/null | cut -d' ' -f1)"
+  echo "  rebuild $1 rc=$rc exe_before=${before:0:12} exe_after=${after:0:12}"
+  if [ "$rc" = "0" ] && [ "$before" = "$after" ]; then
+    echo "  MUTATION-NOT-LINKED: the exe is byte-identical after a supposedly mutated rebuild"
+    echo "  --- last 12 lines of $MUT/logs/$1.log ---"
+    tail -12 "$MUT/logs/$1.log" | sed 's/^/    /'
+    return 90
+  fi
   return $rc
 }
 fresh_package() { # <prefix>
@@ -348,8 +363,9 @@ open(path, "wb").write(data.replace(old, new, 1))
 print("  mutated: the console is attached even when the caller redirected stdout")
 PY
 eq "M1 applied" "$?" "0"
-rebuild m1-build
-eq "M1 build succeeded" "$?" "0"
+M1_BUILD=0
+rebuild m1-build || M1_BUILD=$?
+eq "M1 build succeeded AND relinked" "$M1_BUILD" "0"
 fresh_package "$MUT/pkg-m1" || echo "  stage warning"
 M1RC="$(run_exe "$MUT/pkg-m1/tf2_demo_native.exe" "$MUT/m1-version.txt" --version)"
 echo "  under M1: exit=$M1RC bytes=$(wc -c < "$MUT/m1-version.txt" | tr -d ' ')"
@@ -379,8 +395,9 @@ open(path, "wb").write(data.replace(old, new, 1))
 print("  mutated: preserved/unchanged records are no longer skipped")
 PY
 eq "M2 applied" "$?" "0"
-rebuild m2-build
-eq "M2 build succeeded" "$?" "0"
+M2_BUILD=0
+rebuild m2-build || M2_BUILD=$?
+eq "M2 build succeeded AND relinked" "$M2_BUILD" "0"
 M2="$MUT/pkg-m2"
 rm -rf "$M2"; mkdir -p "$M2/.uninstall"
 cp -r "$OUT/stage/.uninstall/payload" "$M2/.uninstall/payload"
@@ -391,13 +408,20 @@ cp -r "$OUT/stage/.uninstall/payload" "$M2/.uninstall/payload"
 echo 'user file the package never installed' > "$M2/user-notes.txt"
 run_exe "$OUT/stage/tf2_demo_native.exe" "$MUT/m2-install.txt" --install --install-dir "$(cygpath -w "$M2")" > /dev/null
 echo "  under M2, manifest recorded the user file as: $(sed -n 's/^file=\([a-z]*\)\t.*user-notes.txt$/\1/p' "$M2/.uninstall/install-manifest.txt" | head -1)"
+M2_SAVED_MANIFEST="$MUT/m2-manifest.txt"
+cp "$M2/.uninstall/install-manifest.txt" "$M2_SAVED_MANIFEST" 2>/dev/null
 run_exe "$M2/tf2_demo_native.exe" "$MUT/m2-uninstall.txt" --uninstall --install-dir "$(cygpath -w "$M2")" > /dev/null
 echo "  under M2: $(cat "$MUT/m2-uninstall.txt" | tr '\n' ' ')"
 MUTATIONS=$((MUTATIONS + 1))
+# The mutated build must delete a file the reference build keeps. If the user file
+# survives here it is not because the mutation failed to apply -- M2 applied and
+# the rebuild succeeded above -- but because something else protects it, and that
+# would mean the mutation is not aimed at the reading this gate pins.
 if [ ! -f "$M2/user-notes.txt" ]; then
   ok "M2 caught: the user's own file was deleted" "absent"
 else
-  wrong "M2 caught: the user's own file was deleted" "still present" "absent"
+  wrong "M2 caught: the user's own file was deleted" \
+    "still present; manifest said: $(sed -n 's/^file=\([a-z]*\).*user-notes.txt$/\1/p' "$M2_SAVED_MANIFEST" 2>/dev/null)" "absent"
 fi
 cp "$MUT/backup/install_lifecycle.cpp" "$SRC_LIFE"
 if cmp -s "$SRC_LIFE" "$MUT/backup/install_lifecycle.cpp"; then ok "M2 source restored byte-identical" "yes"; else wrong "M2 source restored byte-identical" "no" "yes"; fi
@@ -418,8 +442,9 @@ open(path, "wb").write(data.replace(old, new, 1))
 print("  mutated: a file that is not a manifest parses as one")
 PY
 eq "M3 applied" "$?" "0"
-rebuild m3-build
-eq "M3 build succeeded" "$?" "0"
+M3_BUILD=0
+rebuild m3-build || M3_BUILD=$?
+eq "M3 build succeeded AND relinked" "$M3_BUILD" "0"
 M3="$MUT/pkg-m3"
 stage_package "$M3" m3-stage || echo "  stage warning"
 mkdir -p "$M3/.uninstall"
