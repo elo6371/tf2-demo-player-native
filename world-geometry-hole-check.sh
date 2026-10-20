@@ -57,25 +57,58 @@ mkdir -p "$SCRATCH" "$ANA"
 # never copied from an older tree.
 #
 # T23 published 38,328 missing / 36,015 open / 2,313 enclosed / 44 components
-# from 9591499, and this tree reproduces all four exactly -- once every frame in
-# the matrix belongs to the SAME tick. The first run of this matrix did not:
-# five frames were captured at tick 2001/2002 because the arm fires on the first
-# draw at or after the requested tick, and the account read 38,143 missing /
-# 2,310 enclosed. That 185-pixel difference was the camera, not the code, and it
-# is why capture-matrix frames carry their tick and this gate refuses a frame
-# from the wrong one.
-PIN_MISSING=38328
-PIN_SKY_MISSING=38328
+# from 9591499, and the tree this gate was written on reproduced all four
+# exactly -- once every frame in the matrix belongs to the SAME tick. The first
+# run of this matrix did not: five frames were captured at tick 2001/2002
+# because the arm fires on the first draw at or after the requested tick, and
+# the account read 38,143 missing / 2,310 enclosed. That 185-pixel difference
+# was the camera, not the code, and it is why capture-matrix frames carry their
+# tick and this gate refuses a frame from the wrong one.
+#
+# T35 RE-BASELINE. T29 moved the world near plane from 611 map units to 4, and
+# the camera's own room came back on screen. Every pin below that is derived
+# from a FRAME moved; every pin derived from the BSP did not, and that split is
+# the evidence that this was a projection change rather than a geometry-rule
+# change. Measured on 9b4e734, same camera, same tick 2000, same switches:
+#
+#   reading                         pre-T29     T29 tree   moved?
+#   missing                          38,328 ->     1,648   yes
+#   missing covered by a sky face    38,328 ->     1,648   yes
+#   missing with no sky face              0 ->         0   no
+#   enclosed                          2,313 ->     1,648   yes
+#   open                             36,015 ->         0   yes
+#   components                           44 ->        34   yes
+#   enclosed components >= 200 px         3 ->         3   no
+#   back-face rejections (T23)      167,030 ->    80,917   yes
+#   sky faces (probe, BSP read)         731 ->       731   no
+#   sky triangles (probe, BSP read)   1,842 ->     1,842   no
+#   buffer triangles (probe)         99,312 ->    99,312   no
+#   textured frame sha              5e24802 ->  ac2cfe9   yes
+#   ref frame sha                   f87f396 ->  6bb4d9a   yes
+#
+# The fall in missing is the fix: those pixels had geometry all along and the
+# 611-unit clip was removing it. unexplained is 0 on both sides, so T29
+# neither created a hole nor hid one behind the sky mask. The back-face count
+# halving is the same fact read from T23's side.
+#
+# SEAM_CULLED MOVED 2 -> 0, and it is NOT a pass: the two slivers that had a
+# culled neighbour are no longer the slivers the account reports. The gate's
+# assertion is therefore RED on this tree and stays red; see the report's
+# NOT VERIFIED section. The seam account itself still works -- 10 seam faces
+# are named, all 13 requested faces resolve, 0 are absent, and 3 of 3 enclosed
+# components >= 200 px are still thin sky-backed slivers.
+PIN_MISSING=1648
+PIN_SKY_MISSING=1648
 PIN_UNEXPLAINED=0
-PIN_ENCLOSED=2313
+PIN_ENCLOSED=1648
 PIN_ENCLOSED_MIN_COMPONENT=200
 PIN_ENCLOSED_COMPONENTS=3
 PIN_SKY_FACES=731
 PIN_SKY_TRIANGLES=1842
 PIN_WORLD_TRIANGLES=99312
-PIN_BACKFACE=167030
-PIN_TEXTURED_SHA=5e24802a8ad29c54daba59f66e42498fd6ec7ede2a4f8782d00d33eb76b9fcba
-PIN_REF_SHA=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+PIN_BACKFACE=80917
+PIN_TEXTURED_SHA=ac2cfe9b45bad37a210ad3a8a25b34c2e768fe3e4bd8c578046262bdf31c129d
+PIN_REF_SHA=6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b
 
 fail=0
 assert_in() { # assert_in <file> <fixed string> <label>
