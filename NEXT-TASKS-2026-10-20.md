@@ -233,6 +233,133 @@ I review each delivered branch and report blockers or safe fixes. The
 integration owner merges accepted branches and updates this file after each
 merge; I do not merge task branches on the implementer's behalf.
 
+## Release review result
+
+T28 was executed on frozen commit `ac7e2b7` and pushed successfully, but the
+release verdict is **NOT PASS**. The full chain had 23/24 steps passing; step 22
+`WEAPON-ANIMATION` remains red because T29's near-plane fix makes the pinned
+camera frame stable and occludes the old animation population. Four pixel pins
+also need a task-owned re-baseline with mutation evidence. This is a release
+blocker record, not permission to weaken thresholds.
+
+## Next task wave
+
+All tasks below start from `ac7e2b7` in separate worktrees. They may be
+implemented in parallel, but each task's build, capture, mutation, and device
+validation is serialized with every other task.
+
+### T34 — Near-clip and weapon-animation regression closure
+
+**Owner:** follow-up to T29/T30. **Blocker:** `verify-all.sh` step 22.
+
+1. Reproduce `WEAPON-ANIMATION` on the frozen tree at the exact pinned ticks.
+2. Compare the pre-T29 near plane and the 4-map-unit plane using the same
+   hidden-window inputs; record camera position, near/far planes, model bounds,
+   draw calls, frame hashes, and animation deltas.
+3. Determine whether the gate should use a camera/model-aware view, a different
+   valid tick, or a product correction. Do not restore the incorrect 602-map-unit
+   near plane just to make the gate green.
+4. Add a mutation that reintroduces the old near-plane behavior and a control
+   that proves the room remains visible.
+5. Run the weapon-animation forward/mutation gate and the affected ViewModel
+   gates after the fix.
+
+**Exit:** step 22 passes without regressing the T29 room visibility, or the
+remaining limitation is explicitly measured and assigned before T28 reruns.
+
+### T35 — Final pixel-pin re-baseline
+
+**Owner:** visual acceptance. **Blocker:** four T29-shifted pins and specular
+population extinction.
+
+1. Capture the final hidden-window frame at every pin's exact tick on `ac7e2b7`.
+2. Re-measure material semantics, lighting semantics, T26 hole seams, and all
+   dependent visual regions; compare against T29's before/after frame masks.
+3. For each moved pin, prove whether the old population is occluded, replaced,
+   or genuinely broken. Keep `specular -> pixel` as `NOT VERIFIED` if the
+   original population no longer exists.
+4. Update pins only with a same-tree forward frame, mutation, source hashes, and
+   a population explanation. Preserve superseded readings.
+5. Run the affected forward and mutation gates twice where required for
+   deterministic confirmation.
+
+**Exit:** all moved pins have current evidence, or remain named blockers. No
+   broad tolerance widening.
+
+### T36 — Lighting, lightmap, and back-face dark-region closure
+
+**Owner:** rendering audit. **Blocker:** T29 residual black is 98.7% lightmap
+driven; back-face share is still `NOT VERIFIED`.
+
+1. Use `--world-face-id`, lightmap coordinates, and the T26 account on the
+   T29-fixed frame to classify dark pixels as front/back face, empty lightmap
+   texel, zero lightmap data, albedo, or shader output.
+2. Produce a population ledger with frame masks, not only aggregate counters.
+3. Test one controlled lightmap decode/encoding change and one back-face control;
+   reject changes that fill pixels by drawing the wrong surface.
+4. Add mutations for lightmap UV/page selection and face-side classification.
+5. Re-run T25, T26, T27, and lighting-focused gates after any product fix.
+
+**Exit:** dark-region root cause is fixed with pixel evidence, or the remaining
+black population is a named Source/map semantic limitation.
+
+### T37 — Installer and `pak01_dir.vpk` readiness
+
+**Owner:** installation/resource pipeline. **Blockers:** no installer lifecycle
+features and shipped `pak01_dir.vpk` unreadable on this machine.
+
+1. Reproduce the `pak01_dir.vpk` refusal with `vpk_query`, the product, and a
+   clean copied archive; distinguish corrupt archive, unsupported format, and
+   path/permission failure.
+2. Verify all required VPK volumes and directory indexes from a clean resource
+   root; report selected store and refusal reason for each.
+3. Implement the smallest packaging/lifecycle slice required by the product
+   contract: version metadata, install/uninstall, upgrade/migration, and clean
+   first launch. Do not bundle TF2 resources.
+4. Add fixtures for missing, truncated, unreadable, and valid VPKs, plus
+   precedence reversal; run forward and mutation tests in a clean directory.
+5. Record installed file list, sizes, exit codes, and restart behavior.
+
+**Exit:** installer lifecycle is real and tested, and `pak01_dir.vpk` is either
+usable or rejected with a fully attributed external/environment cause.
+
+### T38 — Final performance and footprint cleanup review
+
+**Owner:** audit-only unless a measured low-risk fix is approved.
+
+1. Review T33's 565 MiB duplicate evidence inventory and remove only files that
+   no report, hash list, or gate references.
+2. Measure Release executable sizes, peak working set, atlas memory, texture
+   upload/reuse counts, and steady-state frame time on the fixed demo.
+3. Inspect repeated VMT/VTF parsing, atlas copies, per-frame allocations, and
+   diagnostics that remain in production paths.
+4. Submit before/after measurements and a deletion manifest. Do not delete
+   tracked evidence or change product behavior without a focused gate.
+
+## Next execution order
+
+1. Start T34, T35, T36, and T37 in isolated worktrees from `ac7e2b7`.
+2. Run T38 as a read-only audit in parallel; its code edits wait for affected
+   task branches to freeze.
+3. Review and merge accepted branches one at a time; after each merge, run only
+   the affected focused gates.
+4. After T34-T38 are merged, run one serialized final-tree regression covering
+   T25/T26/T27, ViewModel, audio, install, and quality gates.
+5. Only after that regression is green or every remaining blocker is explicitly
+   accepted may T28 be rerun. The full `verify-all.sh --quick` run remains the
+   last operation.
+
+### Cannot run in parallel
+
+- Any product build, launch, mutation, capture, or audio-device test with
+  another such operation.
+- T28 with T34-T38 validation, merging, or code edits.
+- T35 pin changes while T34 changes the camera/near-plane behavior.
+- T36 lighting edits while T29/T35 are modifying the same world shader or
+  frame-accounting files.
+- T37 clean-install tests while another task uses the same staged directory.
+- The full `verify-all.sh --quick` chain with any other task activity.
+
 ## Merge log (integration owner)
 
 - 2026-10-20 — T33 `task/t33-quality-audit@132caa7` merged as `8628ab8`.
