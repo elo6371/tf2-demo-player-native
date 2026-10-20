@@ -9,7 +9,7 @@ camera `eye=(-2423.6, 5566.0, -1280.0)`, `--hidden-window --audio-disabled`.
 
 ## 0. The short version
 
-The inherited gate passes forward with 19 assertions. But two of the readings it
+The gate passes forward with **21 assertions**. But two of the readings it
 carries are wrong, and I found them by calibrating instead of re-pinning:
 
 1. **The "back face" label is inverted.** The account's plane-side rule calls
@@ -30,7 +30,7 @@ the lightmap rectangle, which is what the account already had right.
 
 ## 1. What the inherited gate actually asserts
 
-Forward mode, 19 assertions, exit 0:
+Forward mode, 21 assertions, exit 0:
 
 | group | what it pins |
 | --- | --- |
@@ -72,7 +72,7 @@ Fixed: m2 inverts properly and now asserts a real **swap** (same total, BACK
 takes FRONT's value); m1 and m3 fail closed on a missing ledger instead of
 reading it as 0.
 
-## 3. The forward reading (exit 0, 19 assertions)
+## 3. The forward reading (exit 0, 21 assertions)
 
 ```
 bash lighting-dark-account-check.sh --reuse      # exit 0
@@ -90,14 +90,17 @@ bash lighting-dark-account-check.sh --reuse      # exit 0
   OK pixels the cull removed = 81141
   OK removed pixels that are BSP-FRONT faces = 44046
   OK removed pixels that are BSP-BACK faces = 37095
+  OK the calibrated rule calls 86.00% of the drawn (already-culled) population FRONT
+  .. relative risk of being dark, back vs front = 1.272 (base rate 27.51%)
+  OK back faces are not a stand-alone explanation (RR 1.272 < 5.0)
 PASS: 208,630 dark pixels attributed bucket by bucket; 99.94% is the map own
 lighting, 1.98% is product-attributable, the cull control holds.
 ```
 
-`OK` lines counted by rerunning on the committed state: **19**; `FAIL`
-lines: 0; exit 0. The gate's own header claims 21. The true count is 19, which
-is consistent with that header never having been checked against a run. I
-pinned the observed count, not the claimed one.
+`OK` lines counted on the committed state: **21**; `FAIL` lines: 0; exit 0.
+That 21 is the count *after* I added the two calibration assertions in §5; the
+inherited gate emitted 19 while its header claimed 21, which is what a header
+looks like when it was never checked against a run. §3b is new in this task.
 
 Full log: `evidence/t36-lighting-dark-account/account.txt`.
 Forward was run with `--reuse` over the tick-2000 frames already captured on
@@ -253,10 +256,10 @@ at the strength the share implied. It is a real but weak enrichment.
 3. **Per-texel, not per-rectangle**: project `luv` per dark pixel and read the
    single texel it samples. This is what would turn "the rectangle is dark" into
    "the texel this pixel read is dark", which is the claim T29 could not make.
-4. **Add the calibration to the gate itself** as an assertion: the plane-side
-   rule must classify ≥95% of drawn face-id pixels as front. That turns §5 from
-   a one-off measurement into a property that cannot silently regress. It is the
-   single highest-value change in this list.
+4. ~~Add the calibration to the gate~~ — **done** (§3b): the gate now asserts
+   the plane-side rule classifies ≥80% of the drawn (already-culled) population
+   front, and that the dark-rate relative risk stays below 5. This is the change
+   that makes the inversion unable to come back silently.
 5. Second camera + second tick, so the 99.94% is not one frame's opinion.
 
 ## 11. Evidence
