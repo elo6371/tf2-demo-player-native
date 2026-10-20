@@ -202,30 +202,50 @@ set re-examined against the cull-off frame's silhouette — see NOT VERIFIED.
 Every item below is a red or an unknown that this task did not close, with the
 measurement that would close it. None of them is described as passing.
 
-### 5.1 The 7 terrain pixels the composed frame does not show
+### 5.1 The 7 terrain pixels — **CLOSED**, kept here for the method
 
-*Not known*: which surface fills x=0..19 at y=292..293 in `all-on.bmp`.
-*Cheapest closure*: capture that one camera with `--world-geometry none` and
-with `--world-geometry terrain` while reading the product's own hole-trace at
-those 7 points (`--world-hole-trace "8,292;9,292;0,293;1,293;2,293;3,293;19,293"`),
-which names the nearest world triangle and the nearest sky face per point. That
-turns the one-armed test into a two-armed one and the assertion becomes a real
-occlusion claim again.
+*Was not known*: which surface fills x=0..19 at y=292..293 in `all-on.bmp`.
+*Closed by*: `--world-hole-trace` at the seven coordinates
+(`drawnHits=7`, face 9764 `WOOD/WALL020B`, depth 0.9722) cross-checked against
+a `--world-face-id` frame decoded at the same coordinates (9764 at all seven).
+Two instruments, same answer. The gate's test now carries the second arm that
+does not depend on colour and reads 7 of 7 (`5837666`).
 
-### 5.2 The specular camera (priority 5)
+*Still not claimed*: that face 9764's black is correct. That is the T29/T36
+lightmap defect and belongs to T36.
 
-*Not done at all.* The `PIN_SPEC_DIFF=135 / PIN_SPEC_MAX=3 / 123 up / 12 down`
-pin was measured on a camera where the 9 `$bumpmap` materials were on screen.
-After T29 the demo camera at tick 2000 frames none of them, so the population is
-extinct and `world-material-semantics-check.sh` section 5 will read `0` against
-a pin of `135`.
+### 5.2 The specular camera (priority 5) — poses found, capture NOT run
 
-*Cheapest closure*: `world_feature_probe --camera <material>` derives a pose
-from each material's own largest triangle. Nine materials are named in
-`T27`/`T35` handoff. The next step is to run that probe for all nine (it reads
-the BSP only, no product launch, so no lock), pick the material whose pose can be
-reached from the demo, and re-shoot S1/S2 there. Until that is done the specular
-pin is **NOT VERIFIED**, not re-pinned and not deleted.
+The `PIN_SPEC_DIFF=135 / PIN_SPEC_MAX=3 / 123 up / 12 down` pin was measured on
+a camera where the 9 `$bumpmap` materials were on screen. After T29 the demo
+camera at tick 2000 frames none of them, so the population is extinct and
+`world-material-semantics-check.sh` section 5 will read `0` against a pin of
+`135`. **This is still NOT VERIFIED.**
+
+What *was* done, and it is the part that was blocking:
+
+1. `world_feature_probe --camera <material>` was run for all nine named
+   materials and all nine answered `camera.status=ok` with an eye, pitch and
+   yaw. Two notes on getting it to work: `--map` takes a FILESYSTEM path, not
+   the `maps/pl_odyssey.bsp` name the gate uses for `--face-info` — passing the
+   short name makes all nine answer `cannot read` — and the poses are derived
+   from each material's largest triangle, so the triangle counts matter
+   (`IBEAM002` 5,026 triangles vs `IBEAM001` 3).
+2. The product accepts those poses: `--debug-camera <x> <y> <z> <pitch> <yaw>`
+   is applied **every frame** (`native/src/main.cpp` line 6157), not once after
+   the world upload, and it survives the camera-mode transition (line 6123).
+   Both of those were defects once — the comment at 6150 records that three
+   different `--debug-camera` positions produced byte-identical frames — so
+   they are the reason a probe pose is usable as a capture camera at all.
+3. The nine poses are tabulated in `.scratch/t35/analysis/camera/*.txt`.
+
+*The one step left*: run S1/S2 at one of those poses and read the trace's
+`bump.tiles/bump.materials`. A pose is a candidate only if `bump.materials` is
+above zero there — with it at zero, S1 and S2 are the same frame by
+construction and `PIN_SPEC_DIFF` cannot be re-measured at that camera.
+`.scratch/t35/specular-camera.sh` does exactly that for all nine poses and was
+never granted a lock window. Until it runs, the pin is NOT VERIFIED, not
+re-pinned and not deleted.
 
 ### 5.3 The lighting-semantics pixel pins
 
