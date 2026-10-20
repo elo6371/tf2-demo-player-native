@@ -345,6 +345,14 @@ tree is recorded below.
 
 ## 11. Post-merge verification
 
-Pending on integration HEAD `5c8aac6`: rerun the focused T26 and T27 gates, then
-the T25 forward visual regression gate. These checks use hidden windows and are
-serialized; the full release chain is reserved for T28.
+On integration commit `83252d1` (T26 merge on top of T25/T27), all focused
+checks passed with hidden windows and serialized product launches:
+
+- `world-geometry-hole-check.sh --mutation`: **PASS**, 37 assertions, 5/5
+  mutations caught, all four mutated sources restored byte-identically.
+- `world-material-semantics-check.sh --mutation`: **PASS**, 163 forward
+  assertions, 5/5 mutations caught, all sources restored byte-identically.
+- `visual-baseline-check.sh`: **PASS** with current material, blend, geometry,
+  sky, lightmap, and W1/W2 pins.
+
+The full release chain remains reserved for T28.

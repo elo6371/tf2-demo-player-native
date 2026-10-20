@@ -196,8 +196,9 @@ T25 is being integrated.
   The 38,328 missing pixels are all sky-backed (`unexplained=0`); the enclosed
   2,313 pixels are narrow seams, while 36,015 pixels belong to the map-top
   opening. See `T26-WORLD-GEOMETRY-HOLES-2026-10-19.md`.
-- Merged into the integration line after T25; post-merge gate results are
-  recorded in the report. Release visual status remains `NOT VERIFIED`.
+- Merged into the integration line after T25; post-merge T26/T27 focused gates
+  and the T25 visual regression all pass. Release visual status remains
+  `NOT VERIFIED` where the report names limits.
 
 ### T27 - Material semantics that affect visible output (completed)
 
