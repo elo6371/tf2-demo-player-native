@@ -91,7 +91,8 @@ R1→R2 = **15,953 px 双向**，m2 = **25,908 px**（R1→M2）。旧的 38,538
 | 诊断 layer-2 法线 | `materials/brick/brickwall001_normal.vtf` |
 | 画面 | 1264×681×24bpp，`preset=1`，`vsync=0` |
 | 主工作树 | `D:/TF2_Native_Test` — 开发期**未触碰**；合并与收尾验证在其上进行 |
-| 本分支提交 | `fa1cf8d` feat(t27) per-material feature atlases… / `ffeffff` evidence(t27) the gate on the final tree… |
+| 本分支提交 | `fa1cf8d` feat(t27) per-material feature atlases… / `ffeffff` evidence(t27) the gate on the final tree… / `8249de2` docs(t27) the branch commits… |
+| 合并提交 | `aec77a2` Merge task/t27-material-semantics into integration（合并后在 integration HEAD 上重跑正向 + 变异，见 §7） |
 | T24 依赖验证 | `lighting-semantics-check.sh --mutation` 在本分支上重跑通过（4 pin 随 `$bumpmap1` 别名更新，见 §3.2）；日志 `evidence/material-semantics/t24-lighting-semantics-dependency.log` |
 
 ## 3. 改动文件与理由
@@ -102,7 +103,7 @@ R1→R2 = **15,953 px 双向**，m2 = **25,908 px**（R1→M2）。旧的 38,538
 |---|---|
 | `native/tools/world_feature_probe.cpp` | 独立可执行：`--self-test`（49 条断言；fixture 用两个不同的 `%detailtype` 值——detail 文件里 `9`、表面材质里 `2`——把键的位置钉住）、`--map`（真实 BSP 上的四组读数）、`--resource ... --stats`（解码单张 VTF 并给出 `meanDeviation` / `strongFraction`）、`--camera <material>`（按材质法线反解相机 pitch/yaw）。产品与 probe 链接同一份 `world_material_features.cpp`，所以「probe 的读数」与「产品的读数」不可能成为两套定义。 |
 | `world-material-semantics-check.sh` | 本轮门禁：2 个读数小节 + 13 次 tick 固定的抓帧 + 5 个 mutation。 |
-| `evidence/material-semantics/` | 当前树的证据：probe 输出、三份 trace 摘录、`deltas.txt`、`sign.txt`、13 帧 sha256，以及两份完整门禁日志 `gate-forward.log`（163 条断言全过）与 `gate-mutation.log`（5/5 变红）。 |
+| `evidence/material-semantics/` | 当前树的证据：probe 输出、三份 trace 摘录、`deltas.txt`、`sign.txt`、13 帧 sha256，以及四份完整门禁日志——`gate-forward.log` / `gate-mutation.log`（分支树）与 `gate-forward-integration.log` / `gate-mutation-integration.log`（合并后的 integration 树，验收依据）。 |
 | `evidence/material-semantics-superseded-invalid-state/` | 被替换掉的 38,538 px 那一轮证据原样归档，`SUPERSEDED.md` 说明它为什么不是 PASS、修正后的 pin 是什么。原样保留、标注，而不是改写成本轮通过。 |
 
 修改：
@@ -283,6 +284,13 @@ R1→R2 **15,953 px（8,790 亮 / 7,163 暗）**，max Δ26。**删除整个 lay
 `bump tiles=9 materials=45 vertices=187437`——9 个瓦片被 blit，45 个材质声称采样，36 个采的是空瓦片。
 这正是 counter-only 的形状：每个数字都是真的，合起来是错的；只有帧差（624 → 416,188）能暴露它。
 m2 的 25,908 px 与正向 15,953 px 不同，说明改采 layer 1 的图集确实改变了结果，而不是碰巧不动。
+
+**合并后在 integration HEAD 上又跑了一遍**（`aec77a2` Merge task/t27-material-semantics into
+integration）：正向 163 条断言同样全过、13 次抓帧同样全部第一次命中，变异同样 5/5 变红，且数值
+逐项相同（m1 0、m2 25,908、m3 78,791、m4 416,188、m5 512×256）。两份日志分别是
+`gate-forward.log` / `gate-mutation.log`（分支树）与 `gate-forward-integration.log` /
+`gate-mutation-integration.log`（合并后的 integration 树）。按「a green branch gate is not a
+green post-merge gate」这条规则，合并后的那一份才是验收依据。
 
 **抓帧的确定性是产品行为，不是脚本重试。** 原实现里 `--capture-tick N` 的含义是
 「第一个 tick >= N 的绘制」，而绘制节奏是墙钟（120 Hz 目标）、tick 节奏是 demo 的

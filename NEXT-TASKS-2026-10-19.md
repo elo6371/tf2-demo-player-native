@@ -193,7 +193,7 @@ T25 is being integrated.
   measurable improvement without regressing T11 winding or T17 visibility.
 - Deliver a focused gate and mutation coverage for each changed geometry rule.
 
-### T27 - Material semantics that affect visible output
+### T27 - Material semantics that affect visible output (completed)
 
 - Prioritize features that can change the final image: `$bumpmap2`, `%detailtype`,
   `$ssbump`, detail textures, specular, and dynamic lighting.
@@ -202,6 +202,24 @@ T25 is being integrated.
   source resources or shader consumers are absent.
 - Use one semantic switch per capture and retain directional and deterministic
   controls. Do not accept a counter-only implementation.
+- Delivered per-material feature atlases for `$bumpmap`, `$bumpmap2` and `$detail`
+  with a texinfo-axis tangent basis; see `T27-MATERIAL-SEMANTICS-2026-10-19.md`.
+- Forward gate: 163 assertions on the integration HEAD after the merge, 13 captures
+  all first-hit. Mutation gate: 5/5 red, sources byte-identical.
+- `$bumpmap` 624 px (355/269), `$detail` with a diagnostic texture 82,213 px
+  (dark-only, as its mode 0 predicts), specular 135 px (123/12), and the
+  `$bumpmap2` lerp 15,953 px moving both ways (8,790/7,163).
+- The declared `$bumpmap2` resource chain is `NOT VERIFIED` on this demo: 4 of the
+  5 materials have no layer-1 base (`$ssbump`) and the fifth is occluded at every
+  camera tried, so the product path moves 0 px. The shader arm itself is measured
+  on a diagnostic texture and a named diagnostic base.
+- `$ssbump` and `%detailtype` stay named refusals (BUMPMAP == 2 needs three
+  lightmaps; %detailtype is consumed by VBSP at map compile time).
+- The first layer-2 reading (38,538 px, all darker) was an invalid vertex state and
+  is archived under `evidence/material-semantics-superseded-invalid-state/`.
+- T24's lighting pins follow the new `$bumpmap1` alias reading (44 -> 45 declared
+  bump materials); the reason is recorded at each pin in
+  `lighting-semantics-check.sh`.
 
 ### T28 - Release packaging and final acceptance
 
@@ -215,15 +233,14 @@ T25 is being integrated.
 
 ## Parallel schedule
 
-- T25 is the only active integration task now; T26 and T27 may develop in
-  isolated worktrees, but their validation and merge wait for T25.
-- T28 waits for T25-T27 and is the only task allowed to start the full release
-  chain.
+- T25 and T27 are merged; T26 is the only remaining task that may develop in an
+  isolated worktree, and its validation and merge no longer wait for anything.
+- T28 waits for T26 and is the only task allowed to start the full release chain.
 - Product builds, mutations, captures, audio-device runs, and any test that
   writes shared build/evidence paths are serialized, even when the code tasks
   themselves are parallel.
 - T20 focused work is complete except for the T17 visual baseline closure;
-  that closure is T25. T26-T28 require their own focused checks.
+  that closure is T25. T26 and T28 require their own focused checks.
 - The 24-step full chain is not routine task validation. Run it only at a
   declared release boundary on a committed, clean, idle worktree.
 

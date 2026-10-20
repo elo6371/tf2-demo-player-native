@@ -1,1 +1,1 @@
-21006.1 gpu: world feature-apply bump enabled=1 tiles=9 materials=45 vertices=187437 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
+21222.7 gpu: world feature-apply bump enabled=1 tiles=9 materials=45 vertices=187437 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
