@@ -864,6 +864,15 @@ public:
   // coordinates, drew 36 triangles at the wrong scale and changed no pixel while
   // reporting draws=1. This flag is the guard that makes that unreachable.
   bool worldBoundsValid() const { return worldBoundsValid_; }
+  // T29: the near and far planes the last world draw built its projection from,
+  // in the same normalized box the world vertex buffer lives in. They are
+  // published because a plane written in box units is a clip distance in MAP
+  // units: 0.05 box units was 611 map units on the reference map, so the room
+  // the camera stands in was outside the frame. A gate has to read the number
+  // the matrix was built from, not the constant someone meant it to be; the
+  // conversion to map units is printed beside it from the same transform.
+  float worldNearPlaneNormalized() const { return worldNearPlaneNormalized_; }
+  float worldFarPlaneNormalized() const { return worldFarPlaneNormalized_; }
   // ---- T2 (2026-10-14): the ViewModel's advanced materials ----------------
   // One call per frame carrying the three parsed readings and the material's own
   // parameters. It is a struct rather than three setters because the three
@@ -1547,6 +1556,11 @@ private:
   float worldCenterY_ = 0.0f;
   float worldSpanZ_ = 1.0f;
   float worldHorizontalScale_ = 1.0f;
+  // T29: what drawFrame actually put in the projection. The default is the
+  // value that was hard-coded before the fix, so a frame drawn without the
+  // published transform reads as the old clip rather than as a made-up one.
+  float worldNearPlaneNormalized_ = 0.05f;
+  float worldFarPlaneNormalized_ = 100.0f;
   std::array<CameraPreset, 8> cameraPresets_{};
   WorldMaterialParams worldMaterialParams_{};
   WorldLightmapStatus worldLightmapStatus_ = WorldLightmapStatus::Unavailable;

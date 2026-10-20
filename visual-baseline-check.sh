@@ -113,7 +113,11 @@ capture() { # capture <bmp-path> <trace-path> [extra flags...]
   # side of the tick boundary the run happened to land.
   for attempt in 1 2 3 4 5 6; do
     rm -f "$bmp"
-    TF2_NATIVE_TRACE="$traceWin" timeout 300 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
+    # T29: force-killable. Two product launches deadlocked during load on this
+    # host in the T29 session (all threads waiting, no trace progress); a plain
+    # SIGTERM did not settle them and the sequence pinned the host lock. -k 5
+    # guarantees the capture cannot outlive its 120 s budget.
+    TF2_NATIVE_TRACE="$traceWin" timeout -k 5 120 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
       --hidden-window --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
       --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
       "$@" > "$SCRATCH/capture.$RUN_TAG.log" 2>&1
@@ -302,6 +306,16 @@ assert_eq "lightmap lightmapped vertices" \
   "$(printf '%s' "$LIGHTLINE" | grep -oE 'lightmapped=[0-9]+' | cut -d= -f2)" "296490"
 assert_eq "lightmap term on" \
   "$(printf '%s' "$LIGHTLINE" | grep -oE 'lightmapEnabled=[0-9]+' | cut -d= -f2)" "1"
+# T29: the world projection's near plane, in map units. The world is uploaded in
+# a normalized box, so a plane written in box units is a clip distance in map
+# units; 0.05 box units was 611 map units and clipped the camera's own room out
+# of every frame. The line carries both numbers, read back from the renderer
+# that built the matrix, and the map-unit reading must be the small one.
+CLIPLINE=$(grep -o "gpu: world clip .*" "$REF_TRACE" | head -1)
+assert_eq "world clip state" \
+  "$(printf '%s' "$CLIPLINE" | grep -oE 'state=[a-z-]+' | cut -d= -f2)" "published"
+assert_range "world near plane (map units)" \
+  "$(printf '%s' "$CLIPLINE" | grep -oE 'nearMapUnits=[-0-9.]+' | cut -d= -f2)" "3.0" "5.0"
 
 # ---------------------------------------------------------------------------
 # 3. measurable object presence in four world regions
@@ -353,10 +367,26 @@ regfield() { # regfield <region-line-key> <field>
 # `nearBackground` is no longer a hole measurement: the tool reads the frame's
 # own top-left corner, which is now a wall, not clear colour. It is kept as an
 # upper bound so a region that collapses to one colour still fails.
-for spec in "x=0,y=0 74 77 54 59 0.07 11.0 13.0" \
-            "x=0,y=560 54 59 16 20 0.38 3.3 4.5" \
-            "x=1100,y=100 89 95 68 75 0.02 0.8 1.2" \
-            "x=600,y=0 40 46 52 60 0.02 3.5 4.8"; do
+# T29 (2026-10-20) re-measured all four, and the reason is not a threshold being
+# moved to fit: the world projection's near plane was written in the normalized
+# box's unit. 0.05 box units is 0.05 / worldHorizontalScale_ = 611 MAP units on
+# this map, so every surface within 611 units of the camera was clipped out of
+# every frame and the frame showed only the far side of the map (903 faces, none
+# nearer than ~630 units; 21.3% of the pixels black, 76.8% of them back faces of
+# geometry whose lightmap rect is zero in both the LDR and HDR pages). The plane
+# is now stated in map units (4.0). The readings below are the fixed frame's.
+# The old readings are kept here as superseded, not rewritten: W1 75.3/56.65 ->
+# 18.8/21.9, W2 56.5/17.39 -> 57.0/24.2, W3 91.9/71.12 -> 133.9/31.0, and
+# W4 42.9/55.55 -> 42.9/55.55 (the control: the same pixels, unchanged).
+# The frame's total dark population moved 183,571 -> 208,630 and this gate does
+# not claim it fell: the clip was showing the far side of the map, the frame now
+# shows the room, and the room's left wall is in the map's own shadow. What
+# changed is which surfaces are dark. See T29-WORLD-VISUAL-2026-10-20.md and
+# world-near-clip-check.sh (the focused gate for this fix).
+for spec in "x=0,y=0 16.8 20.8 18.9 24.9 0.30 1.2 4.2" \
+            "x=0,y=560 55.0 59.0 21.2 27.2 0.20 4.3 7.3" \
+            "x=1100,y=100 131.9 135.9 28.0 34.0 0.03 4.6 7.6" \
+            "x=600,y=0 42.85 42.95 55.50 55.60 0.02 4.13 4.23"; do
   set -- $spec; KEY="$1"; shift
   mean=$(regfield "$KEY" meanLum); std=$(regfield "$KEY" stdLum)
   nearbg=$(regfield "$KEY" nearBackground); grad=$(regfield "$KEY" meanGradient)
@@ -521,11 +551,11 @@ M5_BMP="$SCRATCH/m5.$RUN_TAG.bmp"; M5_TRACE="$SCRATCH/m5.$RUN_TAG.trace"
 capture "$M5_BMP" "$M5_TRACE" > /dev/null 2>&1
 M5_W1=$("$PYTHON" frame-region-stats.py "$M5_BMP" 0,0,420,200 2>/dev/null \
   | grep 'region x=0,y=0' | grep -oE 'meanLum=[-0-9.]+' | cut -d= -f2)
-if awk -v v="$M5_W1" 'BEGIN{exit !(v>=73 && v<=99)}'; then
-  echo "  NOT-RED M5: the un-encoded frame still reads W1 meanLum = $M5_W1 inside [73,99]"
+if awk -v v="$M5_W1" 'BEGIN{exit !(v>=16.8 && v<=20.8)}'; then
+  echo "  NOT-RED M5: the un-encoded frame still reads W1 meanLum = $M5_W1 inside [16.8,20.8]"
   mfail=1
 else
-  echo "  RED M5 as required: W1 meanLum = ${M5_W1:-none} (was 75.3 in [74,77])"
+  echo "  RED M5 as required: W1 meanLum = ${M5_W1:-none} (the re-pinned reading is 18.8 in [16.8,20.8])"
 fi
 cp "$SAVE_REN" "$SRC_REN"
 if cmp -s "$SAVE_REN" "$SRC_REN"; then echo "  RESTORE=OK (M5 source byte-identical)"; else

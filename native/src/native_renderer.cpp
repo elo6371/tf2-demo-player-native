@@ -4503,7 +4503,30 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     frameUp_[0] = XMVectorGetX(up); frameUp_[1] = XMVectorGetY(up); frameUp_[2] = XMVectorGetZ(up);
     frameRight_[0] = XMVectorGetX(rightVector); frameRight_[1] = XMVectorGetY(rightVector); frameRight_[2] = XMVectorGetZ(rightVector);
     const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
-    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, 0.05f, 100.0f);
+    // T29: THE WORLD IS NOT IN METRES. uploadWorldGeometry scales the map into
+    // a normalized box at worldHorizontalScale_ map units per box unit, so a
+    // near plane written in box units is a clip distance in MAP units:
+    // 0.05 box units is 0.05 / worldHorizontalScale_ = 611 map units on the
+    // reference map. The room the reference camera stands in is ~183 map units
+    // away (a CPU ray cast from the demo eye hits a front face at a median of
+    // 183 units), so the world pass was clipping out the entire space around
+    // the camera and drawing only what lay beyond it -- the frame was a
+    // dollhouse of distant walls rather than a first-person scene.
+    //
+    // The near plane is now stated in map units and converted through the same
+    // transform the vertices went through, with the old box-unit value kept as
+    // the fallback for a tree that has no valid transform yet. 4 map units is
+    // the usual Source first-person near distance and is far enough in front of
+    // the viewpoint that the camera's own geometry is inside the frame. The far
+    // plane is box units too, but it is 100 box units, which is ~55 map spans
+    // and also contains the sky box (halfExtent 40 box units), so it stays.
+    const float kWorldNearMapUnits = 4.0f;
+    const float worldNearPlane = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
+      ? std::max(worldHorizontalScale_ * kWorldNearMapUnits, 1.0e-6f) : 0.05f;
+    const float worldFarPlane = 100.0f;
+    worldNearPlaneNormalized_ = worldNearPlane;
+    worldFarPlaneNormalized_ = worldFarPlane;
+    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, worldNearPlane, worldFarPlane);
     const XMMATRIX mvp = view * projection;
     WorldConstantsData& constants = frameConstants;
     XMStoreFloat4x4(&constants.mvp, mvp);

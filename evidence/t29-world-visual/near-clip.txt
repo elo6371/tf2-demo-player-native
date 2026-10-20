@@ -1,0 +1,10 @@
+clip reading, fixed build (gpu: world clip, evidence/t29-world-visual/readings.txt):
+22499.6 gpu: world clip near=0.00032775 far=100.000000 nearMapUnits=4.00 farMapUnits=1220444 horizontalScale=0.00008194 state=published
+
+near-point reading on the fixed build: 28 named pixels of the T21 face trace,
+depth converted through the near plane and scale that build published
+(.scratch/t29/frames/fix-ref.trace; the frame is evidence/.../ref-after.bmp).
+18 25 94.3
+
+near-point reading on the pre-fix tree: the committed T21 trace, near 0.05 box:
+0 24 617.6

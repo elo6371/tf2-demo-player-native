@@ -1,0 +1,17 @@
+residual black attribution of the FIXED reference frame (fix-ref.bmp)
+buckets: A_sky = no world triangle and identical with the lightmap off
+         B_lightmap = world triangle, bright with the lightmap off
+         C_albedo = world triangle, dark with the lightmap off
+black pixels in the fixed frame: 208630
+  A_sky             17 (0.000)
+  B_lightmap    205911 (0.987)
+  C_albedo        2702 (0.013)
+
+
+black share per cell (visual 8 cols x 6 rows, y=0 top); dominant bucket
+ y=  0..112    0%B   16%B   10%B    0%-    2%B    4%B    1%B    0%-
+ y=113..226   35%B    4%B   27%B   10%B    3%B    0%-    0%-    0%B
+ y=227..339   54%B    9%B   45%B   25%B    9%C    7%B    7%B   10%B
+ y=340..453   16%B   31%B   79%B   47%B   15%B    2%B    2%B    8%B
+ y=454..566   11%B   65%B   68%B    5%B   50%B   95%B   39%B    0%-
+ y=567..680    2%B   88%B   43%B    5%B   31%B   98%B   67%B   21%B

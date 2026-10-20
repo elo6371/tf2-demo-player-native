@@ -1,0 +1,2 @@
+0f5f2ffacf0227644938aefca4d5ef5cefbfab6025ee0fd65beb19dc53086b60 *.scratch/world-near-clip.20261020130422-68427/ref.trace
+6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b *.scratch/world-near-clip.20261020130422-68427/ref.bmp

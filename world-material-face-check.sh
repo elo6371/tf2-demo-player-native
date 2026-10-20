@@ -88,7 +88,8 @@ capture() { # capture <bmp> <trace> [extra flags...]
   bmpWin="$(cygpath -m "$PWD/$bmp")"
   for attempt in 1 2 3 4 5 6 7 8; do
     rm -f "$bmp"
-    TF2_NATIVE_TRACE="$traceWin" timeout 300 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
+    # T29: force-killable, for the load-time deadlock measured on this host.
+    TF2_NATIVE_TRACE="$traceWin" timeout -k 5 150 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
       --hidden-window --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
       --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
       --world-water off --world-face-trace "$@" > "$SCRATCH/capture.$RUN_TAG.log" 2>&1
