@@ -1,0 +1,69 @@
+# SUPERSEDED -- the pre-T29 terrain-blend region readings.
+#
+# These are the numbers evidence/terrain-blend/region.txt held at ac7e2b7,
+# taken from frames captured on 10-18/10-19, i.e. BEFORE T29 moved the world
+# near plane from 611 map units to 4. The six frames were re-captured on the
+# T29-fixed tree (1b3482b) and region.txt now holds the new reading. The old
+# numbers are kept here verbatim rather than deleted: they are what the gate
+# asserted against until this task, and the T12/T26 reports quote them.
+#
+# frame=1264x681
+# pixels=860784
+# terrain_region=13745
+# terrain_region_pct=1
+# diff_on_off=598
+# diff_on_off_in_region=598
+# diff_on_off_out_region=0
+# diff_on_repeat=0
+# diff_terrain_pair=5001
+# diff_terrain_pair_in_region=5001
+# diff_on_off_in_terrain_pair=598
+# diff_terrain_pair_not_in_full=4403
+# diff_terrain_pair_occluded=4237
+#
+# what moved, and what did not
+# ----------------------------
+#   terrain_region       13,745 -> 277,581   (1% -> 32% of the frame)
+#   diff_on_off             598 -> 277,523
+#   diff_terrain_pair     5,001 -> 277,530
+#   diff_terrain_pair_not_in_full (lost)  4,403 -> 7
+#   diff_terrain_pair_occluded (one-arm)  4,237 -> 0
+#
+# T29 put the camera's own room inside the frame. The displacement terrain is
+# now most of the near half of the view, so the measured region grew by a
+# factor of 20 and the blend is visible on every pixel of it. The subset
+# assertions held at the new scale without any tolerance change: every
+# composed change is a terrain-pair change (277,523 of 277,523), every change
+# is inside the measured region (0 outside), and the repeat frame is still
+# byte-identical. That is the blend becoming VISIBLE, not the blend changing.
+#
+# the one reading that did not survive
+# ------------------------------------
+# The gate's last assertion attributes the shortfall to occlusion with a
+# one-arm test: a terrain-pair pixel the composed frame does not show, at a
+# pixel where the composed frame differs from the terrain-only frame, is
+# covered by world geometry. It read 4,237 of 4,403 on the old frames and
+# reads 0 of 7 on these, so the gate is RED on this assertion alone.
+#
+# The 7 pixels are all in one two-row sliver at y=292..293, x=0..19:
+#   (8,292) (9,292) (0,293) (1,293) (2,293) (3,293) (19,293)
+# and every one of them reads, across this run's six frames:
+#   allon=000000  alloff=000000  allrep=000000  terron=000000
+#   terroff=020000..050504 (a near-black red)  none=0E1216
+# measured with .scratch/t35/terrain-7px.py over this run's own six frames
+# (scratch copy kept at .scratch/t35/terrain-7px.py; not tracked evidence).
+#
+# What that pair actually says: the blended terrain draws 0,0,0 there and the
+# unblended terrain draws a near-black red (2..5). In the COMPOSED frame both
+# arms read 0,0,0, and the composed value equals the terrain-only blended
+# value byte for byte -- so the composed frame is not showing a different
+# colour at these pixels, it is showing the same one, and the delta the
+# terrain pair carries is lost to that equality rather than to a different
+# surface drawing a different colour.
+#
+# This note does NOT claim which surface fills those pixels; the one-arm test
+# cannot separate "terrain drew black" from "something elsewhere drew black"
+# when both are black, and that is exactly why it reads 0. Naming the surface
+# is the outstanding measurement (see T35-PIN-REBASELINE section "NOT
+# VERIFIED"), and until it is made the gate's occlusion attribution is a red
+# with a known, bounded subject: 7 pixels of 277,530, in one 2-row sliver.
