@@ -277,7 +277,12 @@ asserted exactly.
   `bash world-geometry-hole-check.sh --mutation` on this branch, then re-pin
   its totals from the new frames. The account tool and its 12-point oracle are
   unchanged; only the frame population moves. **This is a Lead decision** — it
-  also touches T23's accounting pins.
+  also touches T23's accounting pins. The gate was **not run** on the fixed tree
+  by this task; the integration owner should run it once on the merge tree. The
+  expected shape: the pin `missing=38328 / sky=38328 / unexplained=0` must move
+  because the all-switches-off frame now draws near geometry that used to be
+  clipped; the sky-face and geometry/PVS counts are frame-independent and should
+  not. Re-pin only the frame-derived totals and say so in the commit.
 - **The near surfaces' zero lightmaps.** 5 of the 25 traced points in the fixed
   frame still read `light=0,0,0`: those surfaces are lit for the side the map
   authored as front. Whether Source would draw them at all (back-face cull) is
@@ -294,7 +299,40 @@ asserted exactly.
   killed; the successful runs were force-killed-capable. Every capture in the
   gates used `timeout -k 5 150`.
 
-## 10. Files
+## 10. New task-sized blocker (T34 candidate): lightmap-driven black
+
+The residual black of the fixed frame is named, not hidden in a limitations
+list. It is a **new blocker** with its own task:
+
+- **Reading.** 205,911 px of the fixed reference frame (98.7% of all its black
+  pixels) are *drawn world geometry* that is bright with the lightmap off and
+  black with it on. 2,702 px (1.3%) are dark even without the lightmap, and 17
+  px (0.008%) are sky.
+- **Cause as measured.** The surfaces' own lightmap rectangles read zero in
+  both lighting pages (LDR lump 8 and HDR lump 53; 898 of 18,052 faces are
+  pure-black-rect faces), the uv reaches the rectangle correctly (the offline
+  packer reproduces the product's `4096x2251` atlas exactly), and the material
+  chain resolves at those pixels (section 6). In the pre-fix frame, 76.8% of
+  this population was *back faces* of their own `dface_t` plane — surfaces
+  drawn from the side they were never lit for. Whether the fixed frame keeps
+  that share is NOT VERIFIED (needs the face-id capture in section 4b).
+- **Why it is task-sized.** Fixing it means either (a) not drawing the back of
+  a face — a winding/cull decision, which this repo's rules allow only with a
+  first-hit oracle and a same-view pixel improvement (T26 measured the eye
+  oracle: shipped mask 07 keeps 458/594, mask 05 drops to 0.325), or (b)
+  lighting the back of a face — a lightmap-composition decision that needs its
+  own two-sided-light rule and its own pins.
+- **Cheapest next verification** (for whoever takes it): one `--world-face-id`
+  capture at tick 2000 on this branch, the offline plane test in
+  `.scratch/t29/backface.py` (kept in the worktree; the script is small enough
+  to re-derive from the report), and the T26 eye oracle run on the same camera.
+
+This blocker is *not* a regression from this task: before the fix this
+population was 183,571 px and the frame showed a dollhouse; now it is 205,911 px
+on the correct surfaces. It is the next visual-quality task, not a reason to
+revert a projection fix.
+
+## 11. Files
 
 | file | role |
 | --- | --- |
