@@ -382,11 +382,16 @@ eq "M2 applied" "$?" "0"
 rebuild m2-build
 eq "M2 build succeeded" "$?" "0"
 M2="$MUT/pkg-m2"
-stage_package "$M2" m2-stage || echo "  stage warning"
-run_exe "$M2/tf2_demo_native.exe" "$MUT/m2-install.txt" --install > /dev/null
-echo 'user file' > "$M2/user-notes.txt"
-run_exe "$M2/tf2_demo_native.exe" "$MUT/m2-status.txt" --install-status > /dev/null
-run_exe "$M2/tf2_demo_native.exe" "$MUT/m2-uninstall.txt" --uninstall > /dev/null
+rm -rf "$M2"; mkdir -p "$M2/.uninstall"
+cp -r "$OUT/stage/.uninstall/payload" "$M2/.uninstall/payload"
+# The user's file is put there FIRST, before the install, because that is the only
+# way it reaches the manifest: a file added after the install is not in the
+# manifest at all, so no change to the state-word filter could ever delete it and
+# the mutation would prove nothing.
+echo 'user file the package never installed' > "$M2/user-notes.txt"
+run_exe "$OUT/stage/tf2_demo_native.exe" "$MUT/m2-install.txt" --install --install-dir "$(cygpath -w "$M2")" > /dev/null
+echo "  under M2, manifest recorded the user file as: $(sed -n 's/^file=\([a-z]*\)\t.*user-notes.txt$/\1/p' "$M2/.uninstall/install-manifest.txt" | head -1)"
+run_exe "$M2/tf2_demo_native.exe" "$MUT/m2-uninstall.txt" --uninstall --install-dir "$(cygpath -w "$M2")" > /dev/null
 echo "  under M2: $(cat "$MUT/m2-uninstall.txt" | tr '\n' ' ')"
 MUTATIONS=$((MUTATIONS + 1))
 if [ ! -f "$M2/user-notes.txt" ]; then
@@ -418,7 +423,12 @@ eq "M3 build succeeded" "$?" "0"
 M3="$MUT/pkg-m3"
 stage_package "$M3" m3-stage || echo "  stage warning"
 mkdir -p "$M3/.uninstall"
-printf 'hello\nthis is not a manifest\n' > "$M3/.uninstall/install-manifest.txt"
+# A file with no format= line but otherwise well-formed: without the format check
+# it parses as an install manifest with zero files, and uninstall returns 0 having
+# "removed" nothing from a directory this package never installed into. A file of
+# random text would be rejected by the record parser instead, which proves nothing
+# about the format check.
+printf 'package=some-other-package\npackageVersion=9.9.9\npackageVersionCode=999\nfiles=0\n' > "$M3/.uninstall/install-manifest.txt"
 M3RC="$(run_exe "$M3/tf2_demo_native.exe" "$MUT/m3-uninstall.txt" --uninstall)"
 echo "  under M3: exit=$M3RC reading=$(cat "$MUT/m3-uninstall.txt" | tr '\n' ' ')"
 MUTATIONS=$((MUTATIONS + 1))
