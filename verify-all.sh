@@ -930,6 +930,19 @@ tail -18 "$OUT/23-viewmodel-animation.txt"
 # pin had gone stale when later rounds added the pose/history assertions; the
 # same stale-pin shape as exe_count above, and fixed the same way: the number is
 # what the gate emits, not a number chosen to make the step green.
+#
+# 2026-10-20 T34-T38 round: the number above was never applied. b343728 wrote
+# this comment and its commit message saying 139 -> 154, and changed step 24's
+# 108 -> 114 in the same commit, but left THIS line at 139 - so step 23 has been
+# red on every chain run since, with the gate printing its own PASS and the pin
+# disagreeing with it. Found by the T34-T38 integration chain run
+# (.scratch/final-chain/verify-all.log: VIEWMODEL-ANIMATION=FAIL,
+# assertions_ok=154). The number is now the measured 154, and the current
+# per-section reading is 5 / 6 / 17 / 13 / 11 / 42 / 48 / 12 = 154 (sections
+# 0/7 through 7/7), taken from the chain run's own log rather than from the
+# section descriptions. This is a stale-pin repair, not a weakened gate: the same
+# pin still goes red when an assertion disappears.
+#
 # The historical 111 was arrived at as: 5 in section 0 (two recordings pinned by size and sha256, both
 # identified, and the verified count) + 5 in section 1 (the self-test rc, its
 # failure count, the pinned 49 assertions, the cross-check note, and the
@@ -948,7 +961,7 @@ tail -18 "$OUT/23-viewmodel-animation.txt"
 # counts).
 VM_ANIM_OK=$(grep -c '^  OK   ' "$OUT/23-viewmodel-animation.txt" || true)
 if grep -q 'VIEWMODEL-ANIMATION=PASS' "$OUT/23-viewmodel-animation.txt" \
-   && [ "${VM_ANIM_OK:-0}" -eq 139 ]; then
+   && [ "${VM_ANIM_OK:-0}" -eq 154 ]; then
   echo "VIEWMODEL-ANIMATION=PASS (assertions_ok=$VM_ANIM_OK)"
 else
   echo "VIEWMODEL-ANIMATION=FAIL (assertions_ok=${VM_ANIM_OK:-0})"; rc_all=1
