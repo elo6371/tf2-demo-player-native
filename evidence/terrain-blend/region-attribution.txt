@@ -1,0 +1,59 @@
+# T35: the 7 pixels the composed terrain frame does not show -- ATTRIBUTED
+#
+# THE QUESTION (report section 2). Of the 277,530 pixels the terrain pair
+# (terrain-on vs terrain-off) changes, the composed frame (all-on vs all-off)
+# shows 277,523. The gate called the other 7 "lost" and attributed them to
+# occlusion with a ONE-ARM test -- lost AND (all-on != terrain-on) -- which read
+# 0 of 7, because at all 7 pixels all-on == all-off == terrain-on == 000000.
+# A one-armed test cannot separate "the terrain drew black" from "something
+# else drew black" when both are black.
+#
+# THE ANSWER: all 7 pixels are covered by ONE world face, drawn in front.
+#
+# Two instruments, computing the answer different ways, agree exactly.
+#
+# 1. The product's own per-pixel geometry oracle (--world-hole-trace), run at
+#    the 7 pixels with the world fully on, same camera and tick as the pair:
+#
+#      gpu: world hole-trace-summary points=7 drawnHits=7 anyHits=7 skyHits=7
+#                                     emptyWithSky=0 emptyWithoutSky=0
+#
+#    and all seven rows identical except for the pixel coordinate:
+#
+#      drawn=face=9764 material=WOOD/WALL020B tri=31540 depth=0.9722
+#      any  =face=9764 material=WOOD/WALL020B tri=31540 depth=0.9722
+#      sky  =face=9336 material=TOOLS/TOOLSSKYBOX tri=1441 depth=0.9983
+#      frameDepth=0.9722
+#
+#    drawnHits=7 of 7: every one of the 7 pixels has a world triangle on it.
+#
+# 2. The face-id frame (--world-face-id) decoded independently at the same 7
+#    coordinates:
+#
+#      (  8,292) (  9,292) (  0,293) (  1,293) (  2,293) (  3,293) ( 19,293)
+#      face_id=9764 at every one
+#
+#    which is the same face the oracle named, reached by rasterizing and reading
+#    the colour back rather than by tracing a ray.
+#
+# WHAT THIS MEANS FOR THE ASSERTION. The gate's attribution was right and its
+# TEST was too weak. The correct statement is:
+#
+#   the 7 terrain-pair pixels the composed frame does not show are pixels where
+#   face 9764 (WOOD/WALL020B) is drawn in front of the terrain, at depth 0.9722,
+#   and that surface is itself black, so replacing the blended terrain's colour
+#   with it leaves both arms of the composed pair reading 000000.
+#
+# This is occlusion, and it is now measured with two arms (the oracle's
+# drawnHits and the face-id frame) instead of one.
+#
+# WHAT IT DOES NOT CLAIM. It does not claim face 9764's black is correct. The
+# T29 report already records that the near walls carry the map's own dark
+# lightmap; making that right is T36's subject, not this task's. What is
+# established here is only that the 7 pixels are COVERED, not that the thing
+# covering them is lit correctly.
+#
+# RE-RUNNING IT (needs the host lock; it launches the product):
+#   bash .scratch/t35/terrain-attribute.sh
+# Produced: .scratch/t35/terrain-attr/oracle-7px.txt and the face-id decode.
+# Run at afb3cd3 with tf2_demo_native.exe b031bca67ca50b77...
