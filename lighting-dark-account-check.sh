@@ -212,6 +212,51 @@ assert_le "product-attributable pixels" \
   "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['productAttributable'])" "$ACCOUNT/account.json")" \
   "4200"
 
+echo "== 3b. the face-side rule is calibrated against the rasterizer =="
+# The account's side rule must agree with something already known, or its
+# front/back split is a statement about the sign of a test and nothing else. The
+# --world-face-id frame is drawn with D3D11_CULL_BACK, so every pixel carrying a
+# face id is a surface the RASTERIZER called front. A correct plane-side rule
+# calls nearly all of that population front. The rule as written calls 86% of it
+# back, which is how this gate's headline number came to be inverted.
+SIDE="$ACCOUNT/side.txt"
+"$PYTHON" dark-account-side.py --frames "$SCRATCH" --bsp "$BSP" \
+  --eye="-2423.6,5566.0,-1280.0" --json "$ACCOUNT/side.json" > "$SIDE.raw" 2>&1
+# Same normalisation as the account log: the ledger path carries the pid, and a
+# rerun must not dirty tracked evidence with a no-op diff.
+sed 's#^ledger -> .*#ledger -> side-account.json#' "$SIDE.raw" > "$SIDE"
+cat "$SIDE"
+if [ ! -s "$ACCOUNT/side.json" ]; then
+  echo "  FAIL the side account produced no ledger"; cat "$SIDE"; fail=1
+else
+  DRAWN_FRONT=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['drawn']['front'])" "$ACCOUNT/side.json")
+  DRAWN_BACK=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['drawn']['back'])" "$ACCOUNT/side.json")
+  DRAWN_ALL=$((DRAWN_FRONT + DRAWN_BACK))
+  # Under the calibrated rule the drawn population is overwhelmingly front.
+  FRONT_PCT=$(awk -v f="$DRAWN_FRONT" -v t="$DRAWN_ALL" 'BEGIN{printf "%.2f", 100.0*f/t}')
+  # The bar is a MAJORITY, not unanimity: the plane lump and the buffer winding
+  # are allowed to disagree on some faces (that residual is T11's business), and
+  # the two rules are opposites (86% vs 14%), so any threshold between 14% and 86%
+  # separates them. 80% keeps a wide margin on the right side of that gap while
+  # still failing loudly if the sign ever flips back.
+  if awk -v v="$FRONT_PCT" 'BEGIN{exit !(v>=80.0)}'; then
+    echo "  OK the calibrated rule calls $FRONT_PCT% of the drawn (already-culled) population FRONT"
+  else
+    echo "  FAIL the calibrated rule calls only $FRONT_PCT% of the drawn population front"
+    echo "       (the opposite sign calls 86%; a rule that disagrees with the"
+    echo "        rasterizer's own cull cannot label which side a surface was seen from)"
+    fail=1
+  fi
+  # The darkness must be measurable against its own base rate, not just shared.
+  RR=$("$PYTHON" -c "import json,sys;print('%.3f' % json.load(open(sys.argv[1]))['relativeRiskBackVsFront'])" "$ACCOUNT/side.json")
+  echo "  .. relative risk of being dark, back vs front = $RR (base rate $(awk -v b="$("$PYTHON" -c "import json,sys;print('%.2f' % json.load(open(sys.argv[1]))['baseDarkRatePct'])" "$ACCOUNT/side.json")" 'BEGIN{print b}')%)"
+  if awk -v v="$RR" 'BEGIN{exit !(v < 5.0)}'; then
+    echo "  OK back faces are not a stand-alone explanation (RR $RR < 5.0)"
+  else
+    echo "  FAIL back-face enrichment RR=$RR -- the side split now dominates the account"; fail=1
+  fi
+fi
+
 echo "== 4. the masks exist and sum to the counts =="
 mask_ok=1
 for k in $("$PYTHON" -c "import json;print(' '.join(json.load(open('$ACCOUNT/account.json'))['counts']))"); do
@@ -253,6 +298,10 @@ awk '{ if (match($0, / -> .*[\/\\]([^\/\\]+\.mask)[ \t\r]*$/)) {
 cp "$ACCOUNT/account.json" "$OUT/account.json"
 cp "$ACCOUNT/cull.txt" "$OUT/cull-control.txt"
 cp "$ACCOUNT/cull.json" "$OUT/cull-control.json"
+if [ -s "$ACCOUNT/side.json" ]; then
+  cp "$ACCOUNT/side.json" "$OUT/side-account.json"
+  cp "$ACCOUNT/side.txt" "$OUT/side-account.txt"
+fi
 # The masks go under masks/ rather than the evidence root: a second run used to
 # leave a duplicate copy of every one of them in the root, so the tree went dirty
 # with 14 untracked files that carried no new reading.

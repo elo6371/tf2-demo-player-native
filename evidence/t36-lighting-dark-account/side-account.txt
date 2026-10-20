@@ -13,4 +13,4 @@ dark pixels whose face rectangle mean is below 96/255:
 
 A relative risk near 1.0 means the darkness does NOT concentrate on
 one side: the split is the frame's composition, not a defect.
-ledger -> evidence/t36-lighting-dark-account/side-account.json
+ledger -> side-account.json
