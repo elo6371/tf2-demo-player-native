@@ -177,10 +177,20 @@ eq "install directory has the product" "$([ -x "$INSTALL/tf2_demo_native.exe" ] 
 
 sec "3/13 the package: exact file list, sizes, hashes"
 write_inventory "$INSTALL" "$OUT/package-files.txt"
-expected_package="$(printf "install_smoke_probe.ps1\nnative_install_smoke_probe.exe\ntf2_demo_native.exe")"
+# T37: the package is a LIFECYCLE package, not three loose files. The install
+# rule now stages the payload it will lay down (<prefix>/.uninstall/payload/) and
+# the VERSION.txt the product answers --version from, so the top-level list is the
+# staged executables plus the payload directory's contents. Pinning the full list
+# is deliberate: a file that appears in a released package without this line
+# changing is exactly the drift this assertion exists to catch.
+expected_package="$(printf ".uninstall/payload/install_smoke_probe.ps1\n.uninstall/payload/native_install_smoke_probe.exe\n.uninstall/payload/tf2_demo_native.exe\nVERSION.txt\ninstall_smoke_probe.ps1\nnative_install_smoke_probe.exe\ntf2_demo_native.exe")"
 actual_package="$(cut -f1 "$OUT/package-files.txt")"
 eq "package file list" "$actual_package" "$expected_package"
-eq "package file count" "$(wc -l < "$OUT/package-files.txt" | tr -d " ")" "3"
+eq "package file count" "$(wc -l < "$OUT/package-files.txt" | tr -d " ")" "7"
+eq "the payload repeats the three files the package stages at the top level" \
+  "$(grep -c '^.uninstall/payload/' "$OUT/package-files.txt" | tr -d ' ')" "3"
+eq "the package carries the version file the product reads first" \
+  "$([ -f "$INSTALL/VERSION.txt" ] && echo yes || echo no)" "yes"
 bad_sizes=0
 while IFS="$(printf "\t")" read -r rel size; do
   [ -n "$rel" ] || continue
@@ -381,17 +391,34 @@ installer_defs="$(find . -path ./.git -prune -o -path ./native/build-nmake -prun
 eq "installer definition files in the tree" "${installer_defs:-none}" "none"
 cpack_rules="$(grep -lE "include\(CPack\)|CPACK_" native/CMakeLists.txt 2>/dev/null | head -1 || true)"
 eq "CPack/package rules in native/CMakeLists.txt" "${cpack_rules:-none}" "none"
-uninstall_rules="$(grep -lEi "uninstall|remove_directory|rmdir" native/CMakeLists.txt 2>/dev/null | head -1 || true)"
-eq "uninstall rule in native/CMakeLists.txt" "${uninstall_rules:-none}" "none"
-version_defs="$(grep -cE "project\([^)]*VERSION|CPACK_PACKAGE_VERSION|set\([A-Za-z_]*VERSION" native/CMakeLists.txt 2>/dev/null || true)"
-eq "installer version metadata in native/CMakeLists.txt" "${version_defs:-0}" "0"
-echo "  BLOCKER no_installer_package=1        owner=T28 release packaging"
-echo "  BLOCKER no_uninstaller=1              owner=T28 release packaging"
-echo "  BLOCKER no_version_or_upgrade_metadata=1 owner=T28 release packaging"
+# T37 closed this gap: uninstall is now a PRODUCT mode (--uninstall), driven from a
+# manifest, not a CMake rule that deletes a directory. The assertion therefore
+# measures the thing that matters -- is there a rule that removes directories
+# blindly -- rather than the word "uninstall" appearing in a comment.
+uninstall_rules="$(grep -lEi "remove_directory|rmdir" native/CMakeLists.txt 2>/dev/null | head -1 || true)"
+eq "blind directory-removal rule in native/CMakeLists.txt" "${uninstall_rules:-none}" "none"
+eq "the product and the probe link the same lifecycle source" \
+  "$(grep -c 'install_lifecycle.cpp' native/CMakeLists.txt | tr -d ' ')" "3"
+# T37 added the package version ("0.1.0" / 100) that --version and --install both
+# read. There are still no MSI/CPack/registry version keys -- the two lines below
+# are the whole metadata story -- so this assertion now pins HOW MUCH version
+# metadata exists rather than claiming there is none.
+version_defs="$(grep -cE "^set\(TF2_PACKAGE_VERSION" native/CMakeLists.txt 2>/dev/null | tr -d ' ')"
+eq "package version metadata lines in native/CMakeLists.txt" "${version_defs:-0}" "2"
+has "the version the package answers is the one it ships" \
+  "$(sed -n "s/^version=//p" VERSION.txt | tr -d "\r")" "0.1.0"
+# T37 closed exactly two of the five: the package now carries an installer
+# (--install), an uninstaller (--uninstall) and version metadata (--version,
+# VERSION.txt, the manifest header). The three that remain are named with their
+# owner and are NOT silently dropped -- the count is pinned so closing one of them
+# has to update this line rather than quietly changing the number.
+echo "  BLOCKER no_upgrade_or_migration_path=1 owner=T37 next round (manifest has versionCode; nothing compares it)"
 echo "  BLOCKER no_shortcuts_or_file_association=1 owner=T28 release packaging"
 echo "  BLOCKER tf2_assets_not_packaged_by_design=1 owner=product (locate or prompt for a TF2 install)"
-INSTALLER_GAPS=5
-eq "installer features absent (pinned: adding one must update this gate)" "$INSTALLER_GAPS" "5"
+INSTALLER_GAPS=3
+eq "installer features absent (pinned: adding one must update this gate)" "$INSTALLER_GAPS" "3"
+eq "installer lifecycle modes the package now provides" \
+  "$(grep -oE 'L"--(version|install|uninstall|install-status)"' native/src/main.cpp | sort -u | wc -l | tr -d ' ')" "4"
 
 cases=13
 echo
