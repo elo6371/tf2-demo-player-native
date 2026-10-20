@@ -63,11 +63,18 @@ std::filesystem::path defaultInstallDirectory() {
   return std::filesystem::path(self).parent_path();
 }
 
-// This is a WIN32 subsystem executable, so the parent stdout is only valid when
-// the process was started with one redirected. A user typing
-// `tf2_demo_native --version` in a terminal has no redirected stdout, and
-// AttachConsole plus a reopen of CONOUT$ is what makes the answer visible to
-// them instead of it being written to a handle nobody reads.
+// A REDIRECTED STDOUT IS THE CALLER'S AND IS NEVER REPLACED.
+//   The first version of this attached to the parent console unconditionally
+//   and then reopened CONOUT$ "to be safe". Under a shell redirect such as
+//   "tf2_demo_native --version > out.txt" AttachConsole succeeds against the
+//   shell's console, the reopen points stdout at the terminal, and the file the
+//   caller redirected to stays 0 bytes while the reading appears on a terminal
+//   nobody captured. Measured on 2026-10-20: 0 bytes in the file and exit 0 --
+//   a silent, green-shaped lie, and the exact failure a gate that parses the
+//   file would call "no output" or, worse, "passed". Only a process with no
+//   usable stdout at all needs the console (a double click, where Windows hands
+//   a GUI subsystem process an invalid handle), and only then is it attached,
+//   used and freed.
 int runLifecycle(LifecycleRequest& request) {
   if (!request.directoryGiven) request.options.installDir = defaultInstallDirectory();
   tf2::native::installer::Result result;
@@ -78,18 +85,23 @@ int runLifecycle(LifecycleRequest& request) {
     case LifecycleMode::Status:
     default: result = tf2::native::installer::status(request.options); break;
   }
-  const bool console = AttachConsole(ATTACH_PARENT_PROCESS) != 0;
+  const HANDLE given = GetStdHandle(STD_OUTPUT_HANDLE);
+  const bool noStdout = given == nullptr || given == INVALID_HANDLE_VALUE;
+  bool attached = false;
   std::FILE* sink = stdout;
-  if (console) {
-    std::FILE* reopened = nullptr;
-    if (_wfreopen_s(&reopened, L"CONOUT$", L"w", stdout) == 0 && reopened != nullptr) sink = reopened;
+  if (noStdout) {
+    attached = AttachConsole(ATTACH_PARENT_PROCESS) != 0;
+    if (attached) {
+      std::FILE* reopened = nullptr;
+      if (_wfreopen_s(&reopened, L"CONOUT$", L"w", stdout) == 0 && reopened != nullptr) sink = reopened;
+    }
   }
   for (const auto& line : result.lines) {
     std::fprintf(sink, "%s\n", line.c_str());
     std::fflush(sink);
   }
   const int code = result.exitCode;
-  if (console) FreeConsole();
+  if (attached) FreeConsole();
   return code;
 }
 } // namespace

@@ -1,0 +1,76 @@
+T37 -- pak01_dir.vpk attribution on this machine
+=================================================
+Measured 2026-10-20 on the build tree native/build-nmake, against the pinned
+resource root D:/SteamLibrary/steamapps/common/Team Fortress 2/tf. The Steam
+install is never written to: every hypothesis below is tested on a CLEAN COPY of
+a real archive (tf2_misc_dir.vpk, 5,402,349 B, version 2, 104,137 entries) that
+is renamed pak01_dir.vpk inside .scratch/t37/vpk-attrib/<kind>/pak01_dir.vpk.
+
+1. WHAT THE ROOT ACTUALLY CONTAINS
+----------------------------------
+indexes present ( *_dir.vpk ):  tf2_misc, tf2_sound_misc, tf2_sound_vo_english,
+                               tf2_textures
+numbered volumes present:      151   (stem_000.vpk .. stem_NNN.vpk)
+pak01_dir.vpk present:         no
+
+2. ATTRIBUTION OF THE REAL pak01_dir.vpk  (vpk_readiness_probe <tf root>)
+------------------------------------------------------------------------
+vpk.attribution.pak01_dir.vpk=absent
+vpk.reason.pak01_dir.vpk=ERROR_FILE_NOT_FOUND
+vpk.format.pak01_dir.vpk=none
+probe.summary.absent=1 unreadable=0 refused=0 opened=4 volumesPresent=151
+
+=> The finding is NOT "corrupt", NOT "unsupported format", NOT "permission":
+   the file does not exist under that name. The four archives that do exist all
+   open, and 151 numbered volumes are on disk, so this is a NAMING/LAYOUT
+   difference of this install, not a damaged archive.
+
+   This also corrects the inherited wording "pak01_dir.vpk 打不开" (T31 10.2,
+   which recorded the vpk_query line "pak01_dir.vpk: OPEN FAILED"). vpk_query
+   prints that same string for "no such file", so the T31 reading was true but
+   did not distinguish absent from refused -- which is exactly the ambiguity
+   vpk_readiness_probe was written to remove.
+
+3. THE FOUR HYPOTHESES, EACH MEASURED ON ITS OWN CLEAN COPY
+-----------------------------------------------------------
+kind        vpk.attribution      vpk.reason                                     vpk.format
+----------  -------------------  ---------------------------------------------  -----------------------------------------
+intact      opened               104137 entries                                 magic=ok version=2 treeSize=5313889 bytes=5402349
+truncated   refused              truncated VPK directory tree                   magic=ok version=2 treeSize=5313889 bytes=4096
+version3    refused              unsupported VPK header                         magic=ok version=3 treeSize=5313889 bytes=5402349
+denied      unreadable           ERROR_ACCESS_DENIED (reader: cannot read VPK directory file)   none
+missing     absent               ERROR_FILE_NOT_FOUND                           none
+
+How each copy was made (byte-exact, reproducible):
+  truncated  first 12 header bytes + 4084 bytes of a tree that declares 5,313,889
+  version3   signature 0x55aa1234 kept, the version field rewritten 2 -> 3
+  denied     icacls <our copy> /deny "%USERNAME%:(R)"   (rc=0, removed after the
+             reading; the same probe then reports opened again)
+
+=> The reader's four outcomes are four DIFFERENT named strings, and the header
+   facts are reported independently of the reader. A v3 archive is "unsupported
+   format", not "corrupt"; a tree past EOF is "corrupt", not "unsupported"; a
+   deny ACE is "unreadable" with the Win32 code, and the file is present.
+
+4. vpk_query (the pre-existing reader) ON THE SAME FIVE COPIES
+--------------------------------------------------------------
+intact     pak01_dir.vpk: 104137 entries, 0 match 'maps' ext=.bsp
+truncated  pak01_dir.vpk: OPEN FAILED
+version3   pak01_dir.vpk: OPEN FAILED
+denied     pak01_dir.vpk: OPEN FAILED
+missing    pak01_dir.vpk: OPEN FAILED
+
+   Four distinct causes, one string. That is the gap T32 named and this probe
+   closes; it is also why the T31 reading could not be attributed.
+
+5. WHAT THIS DOES NOT CLAIM
+---------------------------
+- Not verified: whether a retail TF2 install that DOES ship pak01_dir.vpk opens
+  it. No such archive is on this machine, and inventing one would be a fixture,
+  not a measurement. The product's fixed name list is a superset of a real
+  install by construction (main.cpp comments say so), and an absent name is
+  skipped silently while a present-but-refused one is counted -- so the
+  behaviour with a real pak01 is the same code path already measured on
+  tf2_misc_dir.vpk above.
+- The deny-ACE row needs an account with a DACL; it is measured here as
+  Administrator on our own copy and removed immediately afterwards.
