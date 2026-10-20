@@ -298,6 +298,33 @@ merge; I do not merge task branches on the implementer's behalf.
   1:305,101 with the depth-resolution table recorded and z-fighting NOT
   VERIFIED. `visual-baseline-check.sh --mutation` was not run by the owner and
   is part of the combined verification.
+- 2026-10-20 — T31 `task/t31-audio-content@ef11a61` merged as `81c6c94`.
+  Product: `WavPcmData` carries the codec its bytes came from, the scheduler
+  gains five MP3 counters plus a per-event `ContentObserver`, `main.cpp`
+  prints one `audio: mp3 …` decision line per MP3 event and appends
+  `soundEventsMp3*`/`soundEventsInaudible` to `audio: summary`; the `inaudible`
+  outcome (resource decoded, listener out of range, 1267 of 1546 previously
+"missing" events on the pinned recording) is now named instead of folded into
+  `eventsMissingResource` (the existing accounting identity is unchanged). The
+  ACM decoder path is untouched.
+  Gates: new `verify-audio-content.sh` — forward `VERIFY-AUDIO-CONTENT=PASS`
+  (32 assertions, 20/20 capture mutations), device `PASS` (39 assertions,
+  25/25) with the same window 0→7700 on a null sink and on device 6: the two
+  scheduled world MP3 events (tick 4650 `inaudible` in both; tick 7675
+  `skipped` vs `played`) are pinned per event; refusal fixtures name
+  `invalid_wav` and `unsupported_format` and count refused events. A real
+  source mutation (drop `out.codec = SoundCodec::Mp3`) is invisible to every
+  total and is caught by the forward gate; source restored byte-identical
+  (`c20bddd3…`) and the record reproduced. Existing `verify-audio.sh` stays
+  green (235 assertions / 25 caught; 240/27 with device); its only edit is the
+  scheduler mutation-count pin 10→11, with the new flip documented.
+  Cross-task finding recorded for the final report: their corpus probe found
+  the shipped install's `pak01_dir.vpk` OPEN FAILED — with T32's fix the
+  product now names that as `vpk: refused`, so this is an install defect to
+  attribute, not to hide. NOT VERIFIED (no input): temp_entity/PCF sound
+  events, MP3-named music events, human listening, non-device-6 devices,
+  MP3 loudness/latency, whole-corpus 1687-recording count.
+
 
 
 
