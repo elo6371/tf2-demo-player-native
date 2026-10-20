@@ -1,0 +1,170 @@
+# T35 — the pixel pins, re-baselined on the T29 tree
+
+Task: board task-8. Branch `task/t35-pins`, baseline `ac7e2b7`.
+Owner t35. This report is written incrementally; each section says which commit
+its numbers came from.
+
+## 0. Status at the time of writing
+
+| priority | subject | state | commit |
+| --- | --- | --- | --- |
+| 1 | the T26 capture matrix re-captured | **done** | `1b3482b` |
+| 2 | the terrain-blend frames re-captured | **done** | `1a55351` |
+| 3 | the four gates, forward | 1 of 4 run, 3 outstanding | — |
+| 4 | the pins that moved, re-pinned | outstanding | — |
+| 5 | the specular camera re-solved | NOT VERIFIED, next step named | — |
+
+## 1. The T26 capture matrix (`1b3482b`)
+
+The 12 uncommitted files inherited from the previous agent were exactly what
+they said they were. Verified before committing, not assumed:
+
+- all 19 frames are 1264x681, 24bpp, 54-byte header, 2,582,406 bytes;
+- every frame carries a trace whose `capture: armed` line reads
+  `frame_tick=2000` and a `capture_written=1` summary — so no frame is from a
+  neighbouring camera, which is the failure the gate's own comment describes;
+- 11 of the 19 differ from their `HEAD` blobs, and the 8 that do not are the
+  ones the previous capture had already produced on the same camera;
+- `analysis/identity.txt` names `HEAD ac7e2b7e40e4` and its three source
+  hashes match the tree byte for byte, while its two exe hashes match
+  `native/build-nmake/`.
+
+`flat-novis-nocull.bmp` is restored and now hashes equal to
+`flat-nocull.bmp` (`f31ebc4066737ba6…`). That equality is correct rather than
+suspicious: with the vis clip off, the back-face cull makes no difference to a
+frame at this camera, which is what the pre-T29 pair also read.
+
+## 2. The terrain-blend frames (`1a55351`) — and one red assertion
+
+The gate re-captures its own six frames on every run, so running it forward is
+both the re-capture and the reading. `region.txt`, before -> after:
+
+| reading | pre-T29 | T29 tree |
+| --- | --- | --- |
+| `terrain_region` | 13,745 (1%) | **277,581 (32%)** |
+| `diff_on_off` | 598 | **277,523** |
+| `diff_terrain_pair` | 5,001 | **277,530** |
+| `diff_terrain_pair_not_in_full` | 4,403 | **7** |
+| `diff_terrain_pair_occluded` | 4,237 | **0** |
+
+T29 put the camera's own room inside the frame, so the displacement terrain is
+now most of the near half of the view. Six of the seven section-5 assertions
+hold at the new scale **with no tolerance change**: every composed change is a
+terrain-pair change (277,523 of 277,523), no changed pixel lies outside the
+measured region, the repeat frame is byte-identical, and `all/off` still
+withholds every layer (`tiles=0 weightedVertices=0`).
+
+**The gate is RED on one assertion, and it is left red.** The occlusion
+attribution reads `0 of 7` where it read `4,237 of 4,403`. Its test is
+one-armed — a terrain-pair pixel the composed frame does not show, *at a pixel
+where the composed frame differs from the terrain-only frame* — and that arm
+cannot separate "the terrain drew black" from "something else drew black" when
+both are black. At every one of the 7 pixels:
+
+    allon=000000  alloff=000000  allrep=000000  terron=000000
+    terroff=020000..050504 (near-black red)      none=0E1216
+
+So the composed frame is not showing a *different* colour there; it is showing
+the *same* colour the blended terrain draws, and the delta the terrain pair
+carries is erased by that equality rather than by a different surface.
+
+Subject size: one two-row sliver, x=0..19 at y=292..293, out of 277,530 changed
+pixels. The pre-T29 numbers are kept verbatim in
+`evidence/terrain-blend/region-superseded-pre-t29.txt`, marked superseded.
+
+This report does **not** claim which surface fills those pixels. Naming it is
+the outstanding measurement, listed under NOT VERIFIED.
+
+## 3. The hole account, re-derived (analysis only, no product launch)
+
+The T26 frames were committed before their account was re-derived, so
+`analysis/hole-account.txt` still held the pre-T29 numbers. Running the same
+tool over the re-captured frames — a pure BMP analysis, no product launch, so it
+needs no host lock — gives:
+
+| reading | pre-T29 (`ac7e2b7`) | T29 tree |
+| --- | --- | --- |
+| `missing` | 38,328 | **1,648** |
+| `sky` | 38,328 | **1,648** |
+| `unexplained` | 0 | **0** |
+| `enclosed` | 2,313 | **1,648** |
+| `open` | 36,015 | **0** |
+| `components` | 44 | **34** |
+| `dark` (lum < 16) | 185,044 | **218,119** |
+| `W2 drawn` | 50,245 | **50,820** |
+| `W3 drawn` | 27,507 | **32,800** |
+
+T23's own accounting tool agrees through a second program:
+
+    ACCOUNTING totals pixels=860784 drawn=777918 backface=80917 visibility=0
+                      both=301 missing=1648 other=0
+
+Two things follow, and they are the point of this section:
+
+- **The hole population fell by 95.7% and every surviving pixel is still
+  sky-backed.** `unexplained` is 0 both before and after, so T29 did not
+  create a hole and did not hide one behind the sky mask. What it did was put
+  the near surfaces — which have geometry — back on screen, and those pixels
+  left the missing population.
+- **The back-face rejections fell by half** (167,030 -> 80,917) and the dark
+  population *grew* (185,044 -> 218,119). Both are the same fact: the room the
+  camera is in is now drawn, and its walls carry the map's own dark lightmap.
+  That growth is the T36 lightmap defect, not a rendering regression, and this
+  task does not touch it.
+
+## 4. The four gates, forward
+
+Run under `hostlock.sh run t35`; every run records HEAD, the two exe hashes and
+the three source hashes at the top of its log.
+
+| gate | state | log |
+| --- | --- | --- |
+| `terrain-blend-check.sh` | **FAIL**, 1 assertion (section 2) | `.scratch/t35/forward/terrain-blend.log` |
+| `world-geometry-hole-check.sh` | see below | `.scratch/t35/forward/geometry-hole.*.log` |
+| `lighting-semantics-check.sh` | outstanding | — |
+| `world-material-semantics-check.sh` | outstanding | — |
+
+## 5. What is NOT verified, and the cheapest next step for each
+
+Every item below is a red or an unknown that this task did not close, with the
+measurement that would close it. None of them is described as passing.
+
+### 5.1 The 7 terrain pixels the composed frame does not show
+
+*Not known*: which surface fills x=0..19 at y=292..293 in `all-on.bmp`.
+*Cheapest closure*: capture that one camera with `--world-geometry none` and
+with `--world-geometry terrain` while reading the product's own hole-trace at
+those 7 points (`--world-hole-trace "8,292;9,292;0,293;1,293;2,293;3,293;19,293"`),
+which names the nearest world triangle and the nearest sky face per point. That
+turns the one-armed test into a two-armed one and the assertion becomes a real
+occlusion claim again.
+
+### 5.2 The specular camera (priority 5)
+
+*Not done at all.* The `PIN_SPEC_DIFF=135 / PIN_SPEC_MAX=3 / 123 up / 12 down`
+pin was measured on a camera where the 9 `$bumpmap` materials were on screen.
+After T29 the demo camera at tick 2000 frames none of them, so the population is
+extinct and `world-material-semantics-check.sh` section 5 will read `0` against
+a pin of `135`.
+
+*Cheapest closure*: `world_feature_probe --camera <material>` derives a pose
+from each material's own largest triangle. Nine materials are named in
+`T27`/`T35` handoff. The next step is to run that probe for all nine (it reads
+the BSP only, no product launch, so no lock), pick the material whose pose can be
+reached from the demo, and re-shoot S1/S2 there. Until that is done the specular
+pin is **NOT VERIFIED**, not re-pinned and not deleted.
+
+### 5.3 The lighting-semantics pixel pins
+
+Six hard-coded pins (`1584117/83`, `267343/12`, `0/0`, `746559/13`) are frame
+deltas from a pre-T29 camera. They will move for the same reason the terrain
+ones did. Not measured yet in this task.
+
+### 5.4 The geometry gate's own hard pins
+
+`PIN_MISSING=38328 PIN_SKY_MISSING=38328 PIN_ENCLOSED=2313
+PIN_ENCLOSED_COMPONENTS=3 PIN_BACKFACE=167030` are the pre-T29 account. The
+re-derived account (section 3) reads `1648 / 1648 / 1648 / 0 components >= 200
+px / 80917`. The probe-side pins (`PIN_SKY_FACES=731`,
+`PIN_SKY_TRIANGLES=1842`, `PIN_WORLD_TRIANGLES=99312`) are BSP reads and are
+**unchanged** — re-run on this tree they print the pinned values exactly.
