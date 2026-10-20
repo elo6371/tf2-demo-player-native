@@ -82,10 +82,42 @@ add_executable(tf2_demo_native WIN32
   src/settings_store.cpp
   src/item_schema.cpp
   src/native_ui.cpp
+  # T37: the installer lifecycle (version / install / uninstall) the package was
+  # missing. In the product, not only in a probe, because the thing that is
+  # installed is the thing that installs: a probe that performed a different
+  # install would be a second implementation of the one behaviour this round
+  # claims. Both files link bcrypt (already in the link line) for SHA-256.
+  src/install_manifest.cpp
+  src/install_lifecycle.cpp
 )
 
+# T37: the package version, stated once. It is a cache variable so a release can
+# re-stamp without editing this file, and it is compiled into the product because
+# `--version` has to answer before any file exists to read. VERSION.txt beside
+# the executable can still override it at run time (see install_lifecycle.cpp),
+# so a packaged build does not need a rebuild to be re-numbered. The source date
+# epoch and tree are recorded because "which source produced this binary" is the
+# question an upgrade actually has to answer.
+set(TF2_PACKAGE_VERSION "0.1.0" CACHE STRING "Package version reported by --version")
+set(TF2_PACKAGE_VERSION_CODE "100" CACHE STRING "Monotonic package version code")
+string(TIMESTAMP TF2_BUILD_UTC "%Y-%m-%dT%H:%M:%SZ" UTC)
+execute_process(COMMAND git rev-parse --short=12 HEAD
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  OUTPUT_VARIABLE TF2_SOURCE_TREE OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET RESULT_VARIABLE TF2_GIT_RC)
+if (NOT TF2_GIT_RC EQUAL 0)
+  set(TF2_SOURCE_TREE "unknown")
+endif()
+set(TF2_SOURCE_DATE_EPOCH "0" CACHE STRING "Source date epoch recorded in the manifest")
+set(TF2_VERSION_DEFINES
+  TF2_PACKAGE_VERSION="${TF2_PACKAGE_VERSION}"
+  TF2_PACKAGE_VERSION_CODE=${TF2_PACKAGE_VERSION_CODE}
+  TF2_BUILD_UTC="${TF2_BUILD_UTC}"
+  TF2_SOURCE_DATE_EPOCH="${TF2_SOURCE_DATE_EPOCH}"
+  TF2_SOURCE_TREE="${TF2_SOURCE_TREE}")
+
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
-target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
 # msacm32 supplies the ACM stream API audio_resource.cpp uses to turn MPEG
 # Layer III resources into PCM; without it the link fails on acmStreamOpen.
 target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32)
@@ -553,10 +585,45 @@ target_link_libraries(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T37: the lifecycle driver. It links the product's own installer code rather than
+# a copy of it, so a gate that drives this probe is driving the bytes the product
+# runs. The probe exists because a package is "these files staged next to the
+# installer": the gate stages them, the probe performs the install, and neither
+# half has to guess what the other meant.
+add_executable(install_cli_probe tools/install_cli_probe.cpp
+  src/install_lifecycle.cpp src/install_manifest.cpp)
+target_include_directories(install_cli_probe PRIVATE include)
+target_compile_definitions(install_cli_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
+target_link_libraries(install_cli_probe PRIVATE bcrypt)
+set_target_properties(install_cli_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# T37: the install rule now lays down the LIFECYCLE, not only the executables.
+#
+#   the package payload   <prefix>/.uninstall/payload/ -- exactly the files
+#                         `--install` will copy into the directory
+#   the installer         <prefix>/tf2_demo_native.exe -- already staged, so the
+#                         directory can install ITSELF with no external tool and
+#                         no network
+#   the version file      <prefix>/VERSION.txt -- what `--version` reads first
+#
+# The payload is staged by `cmake --install` itself rather than by a packaging
+# step, because the rule already knows the exact file list and sizes T32 measured.
+# It is deliberately NOT a copy of the developer's whole build directory: only
+# named targets and named program files are listed, so a stray artefact cannot
+# end up in a release.
 install(TARGETS tf2_demo_native native_install_smoke_probe
   RUNTIME DESTINATION .
 )
 install(PROGRAMS tools/install_smoke_probe.ps1 DESTINATION .)
+# The payload uses $<TARGET_FILE:...> rather than a second install(TARGETS) so
+# each artefact has exactly one install rule that names it; two rules for one
+# target is how the "which files does the package contain" answer stops being
+# readable from this file.
+install(FILES "$<TARGET_FILE:tf2_demo_native>"
+              "$<TARGET_FILE:native_install_smoke_probe>"
+  DESTINATION .uninstall/payload)
+install(PROGRAMS tools/install_smoke_probe.ps1 DESTINATION .uninstall/payload)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION.txt" DESTINATION . OPTIONAL)
 
 if (MSVC)
   target_compile_options(tf2_demo_native PRIVATE /W4 /permissive- /EHsc /utf-8)
