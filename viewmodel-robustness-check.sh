@@ -280,6 +280,12 @@ mfield() { printf '%s\n' "$MAT_ERR" | grep -m1 '^robust materialize' | grep -oE 
 # ---------------------------------------------------------------------------
 # Product plumbing
 # ---------------------------------------------------------------------------
+# The three material-effect switches, off for the frames that are used to
+# ATTRIBUTE pixels to ranges. Forcing a slot also moves the pass's global effect
+# constants (T22 measured a 5,620-pixel overlap on this class of frame when the
+# switches were on), so a partition measured with effects on is not a partition.
+FX="--viewmodel-phong off --viewmodel-bump off --viewmodel-selfillum off"
+
 run_product() { # run_product <name> [extra args...]
   local name="$1"; shift
   rm -f "$RUN_DIR/$name.bmp" "$RUN_DIR/$name.trace"
@@ -525,7 +531,7 @@ if [ "$MUTATION" -eq 1 ]; then
   run_product applied --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-apply-animation
   [ "$LAST_RC" -eq 0 ] || fail_line "baseline applied exited $LAST_RC"
   APPLIED_HASH=$LAST_BMP_HASH; APPLIED_BMP=$LAST_BMP
-  run_product multi --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL"
+  run_product multi --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" $FX
   [ "$LAST_RC" -eq 0 ] || fail_line "baseline multi exited $LAST_RC"
   MULTI_HASH=$LAST_BMP_HASH
   MULTI_TRACE=$LAST_TRACE
@@ -596,13 +602,18 @@ else
   [ "$LAST_RC" -eq 0 ] || fail_line "body-off run exited $LAST_RC"
   BODYOFF_BMP=$LAST_BMP
   assert_eq "body-off: the body is switched off, not refused" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyReading' weaponVisible)" "0"
+  # The same body-off frame with the effect switches off, so the partition frames
+  # and the body coverage they are judged against share ONE flag set.
+  run_product bodyofffx --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-body off $FX
+  [ "$LAST_RC" -eq 0 ] || fail_line "body-off (effects off) run exited $LAST_RC"
+  BODYOFFFX_BMP=$LAST_BMP
 
   run_product applyoff --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-apply-animation --viewmodel-weapon-body off
   [ "$LAST_RC" -eq 0 ] || fail_line "applied body-off run exited $LAST_RC"
   APPLYOFF_BMP=$LAST_BMP
 
   # ---- the single-range real model, drawn as the weapon body ----------------
-  run_product single --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$SINGLE_MODEL"
+  run_product single --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$SINGLE_MODEL" $FX
   [ "$LAST_RC" -eq 0 ] || fail_line "single-range body run exited $LAST_RC"
   SINGLE_BMP=$LAST_BMP; SINGLE_TRACE=$LAST_TRACE
   SINGLE_MATERIAL=$(reading_line "$SINGLE_TRACE" 'gpu: viewmodel weaponBodyMaterial')
@@ -620,7 +631,7 @@ else
   assert_eq "single-range body visible" "$(reading "$SINGLE_TRACE" 'gpu: viewmodel weaponBodyReading' weaponVisible)" "1"
 
   # ---- the multi-range real model, drawn as the weapon body ------------------
-  run_product multi --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL"
+  run_product multi --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" $FX
   [ "$LAST_RC" -eq 0 ] || fail_line "multi-range body run exited $LAST_RC"
   MULTI_BMP=$LAST_BMP; MULTI_TRACE=$LAST_TRACE; MULTI_HASH=$LAST_BMP_HASH
   MULTI_MATERIAL=$(reading_line "$MULTI_TRACE" 'gpu: viewmodel weaponBodyMaterial')
@@ -640,12 +651,12 @@ else
   assert_eq "multi-range body visible" "$(reading "$MULTI_TRACE" 'gpu: viewmodel weaponBodyReading' weaponVisible)" "1"
   assert_ne "the multi-range body frame differs from the single-range one" "$MULTI_HASH" "$(sha256sum "$SINGLE_BMP" | cut -d' ' -f1)"
 
-  run_product mslot0 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" --viewmodel-weapon-material-slot 0
+  run_product mslot0 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" --viewmodel-weapon-material-slot 0 $FX
   [ "$LAST_RC" -eq 0 ] || fail_line "multi-range forced slot 0 run exited $LAST_RC"
   MSLOT0_BMP=$LAST_BMP
   assert_eq "forced body slot 0 is reported" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyMaterial' slotOverride)" "0"
   assert_eq "forced body slot 0 binds one slot" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyMaterial' boundSlots)" "1"
-  run_product mslot1 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" --viewmodel-weapon-material-slot 1
+  run_product mslot1 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" --viewmodel-weapon-material-slot 1 $FX
   [ "$LAST_RC" -eq 0 ] || fail_line "multi-range forced slot 1 run exited $LAST_RC"
   MSLOT1_BMP=$LAST_BMP
   assert_eq "forced body slot 1 is reported" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyMaterial' slotOverride)" "1"
@@ -738,9 +749,9 @@ if [ "$MUTATION" -eq 0 ]; then
   # disjoint sets of the body's pixels, and the two changes must add up exactly
   # to the difference between the two forced frames. This is the per-range
   # texture claim as a picture.
-  MS0_LINE=$(python bmp-diff-mask.py "$MULTI_BMP" "$MSLOT0_BMP" --mask "$MULTI_BMP" "$BODYOFF_BMP" 2>&1 | tail -1)
-  MS1_LINE=$(python bmp-diff-mask.py "$MULTI_BMP" "$MSLOT1_BMP" --mask "$MULTI_BMP" "$BODYOFF_BMP" 2>&1 | tail -1)
-  MU_LINE=$(python bmp-diff-mask.py "$MSLOT0_BMP" "$MSLOT1_BMP" --mask "$MULTI_BMP" "$BODYOFF_BMP" 2>&1 | tail -1)
+  MS0_LINE=$(python bmp-diff-mask.py "$MULTI_BMP" "$MSLOT0_BMP" --mask "$MULTI_BMP" "$BODYOFFFX_BMP" 2>&1 | tail -1)
+  MS1_LINE=$(python bmp-diff-mask.py "$MULTI_BMP" "$MSLOT1_BMP" --mask "$MULTI_BMP" "$BODYOFFFX_BMP" 2>&1 | tail -1)
+  MU_LINE=$(python bmp-diff-mask.py "$MSLOT0_BMP" "$MSLOT1_BMP" --mask "$MULTI_BMP" "$BODYOFFFX_BMP" 2>&1 | tail -1)
   MS0_PX=$(mask_field "$MS0_LINE" changed)
   MS1_PX=$(mask_field "$MS1_LINE" changed)
   MU_PX=$(mask_field "$MU_LINE" changed)
@@ -755,7 +766,7 @@ if [ "$MUTATION" -eq 0 ]; then
 
   # The single-range body is on screen at all: a mask from the weapon body's own
   # absence. Without this the 'single range renders' claim would rest on counters.
-  SINGLE_COVER_LINE=$(python bmp-diff-mask.py "$SINGLE_BMP" "$BODYOFF_BMP" --mask "$SINGLE_BMP" "$BODYOFF_BMP" 2>&1 | tail -1)
+  SINGLE_COVER_LINE=$(python bmp-diff-mask.py "$SINGLE_BMP" "$BODYOFFFX_BMP" --mask "$SINGLE_BMP" "$BODYOFFFX_BMP" 2>&1 | tail -1)
   assert_ge "the single-range body covers pixels" "$(mask_field "$SINGLE_COVER_LINE" changed)" 300
 fi
 
@@ -825,7 +836,7 @@ if [ "$MUTATION" -eq 1 ]; then
 PATCH
   then
     if bash build-target.sh tf2_demo_native > "$RUN_DIR/mutation-m1-build-$RUN_TAG.log" 2>&1; then
-      run_product m1 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL"
+      run_product m1 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" $FX
       expect_moved "m1: the wrong range geometry moves the body frame" "$LAST_BMP_HASH" "$MULTI_HASH"
       assert_eq "m1 control: every range is still drawn" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyMaterial' ranges)" "$MULTI_RANGES"
       assert_eq "m1 control: the vertex buffer is unchanged" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBody' vertices)" "$MULTI_VERTICES"
@@ -848,7 +859,7 @@ PATCH
 PATCH
   then
     if bash build-target.sh tf2_demo_native > "$RUN_DIR/mutation-m2-build-$RUN_TAG.log" 2>&1; then
-      run_product m2 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL"
+      run_product m2 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" $FX
       expect_moved "m2: the body's key list moves to the wrong slot" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyMaterial' keys)" "$MULTI_KEYS_ACTUAL"
       expect_moved "m2: the wrong slot changes the picture" "$LAST_BMP_HASH" "$MULTI_HASH"
       assert_eq "m2 control: the range count is unchanged" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyMaterial' ranges)" "$MULTI_RANGES"
