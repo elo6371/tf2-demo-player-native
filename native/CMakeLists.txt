@@ -215,6 +215,29 @@ target_compile_definitions(viewmodel_range_probe PRIVATE ${TF2_DEMO_HEADER_DEFIN
 target_include_directories(viewmodel_range_probe PRIVATE include)
 set_target_properties(viewmodel_range_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T30: one deterministic line per real model -- selected LOD and ranges, the VTF
+# each range binds, the animation source the binding resolves to, and the named
+# refusals -- plus a materialisation mode that writes a real model's own bytes
+# (MDL/VVD/VTX and the declared *_animations.mdl) into a loose fixture root so a
+# gate can make a REAL model's companion set incomplete. Links the loader, the
+# animation binding and the same material reader the draw pass uses; it does not
+# link the renderer and does not draw.
+add_executable(model_robustness_probe
+  tools/model_robustness_probe.cpp
+  src/animation_binding.cpp
+  src/animation_decoder.cpp
+  src/viewmodel_material.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
+  src/item_schema.cpp)
+target_link_libraries(model_robustness_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(model_robustness_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+target_include_directories(model_robustness_probe PRIVATE include third_party/lzma)
+set_target_properties(model_robustness_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp src/vmt_material.cpp src/vtf_texture.cpp)
 target_link_libraries(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
