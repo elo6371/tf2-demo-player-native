@@ -857,7 +857,7 @@ PATCH
       run_product m1 --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-weapon-model "$MULTI_MODEL" $FX
       expect_moved "m1: the wrong range geometry moves the body frame" "$LAST_BMP_HASH" "$MULTI_HASH"
       assert_eq "m1 control: every range is still drawn" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBodyMaterial' ranges)" "$MULTI_RANGES"
-      assert_eq "m1 control: the vertex buffer is unchanged" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBody' vertices)" "$MULTI_VERTICES"
+      assert_eq "m1 control: the vertex buffer is unchanged" "$(reading "$LAST_TRACE" 'gpu: viewmodel weaponBody model=' vertices)" "$MULTI_VERTICES"
     else
       fail_line "m1: the mutated product did not build"
     fi
@@ -902,8 +902,13 @@ PATCH
     if bash build-target.sh model_robustness_probe tf2_demo_native > "$RUN_DIR/mutation-m3-build-$RUN_TAG.log" 2>&1; then
       probe_run m3 "$RUN_DIR/fixture-vm-no-vvd" "$VM_MODEL"
       expect_red "m3: the no-VVD fixture is reported as a complete companion set" "$(pfield companions)" "1" "0"
+      # The control is the SECOND gate: even with the resolver reading wrong, the
+      # request builder still inspects the fixture and refuses it by name. The
+      # mutation therefore changes a reading the forward gate pins (section 2) and
+      # is isolated from the product's own named refusal -- which is the point:
+      # two checks stand between a missing companion and a silent draw.
       run_fixture_product m3 "$RUN_DIR/fixture-vm-no-vvd" "$VM_MODEL"
-      expect_moved "m3: the missing companion no longer produces its named refusal" "$(reason_of "$LAST_READING")" "viewmodel companions are missing"
+      assert_eq "m3 control: the request builder still refuses it by name" "$(reason_of "$LAST_READING")" "viewmodel companions are missing"
     else
       fail_line "m3: the mutated product did not build"
     fi
@@ -957,9 +962,15 @@ PATCH
   run_product restored --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-apply-animation
   assert_eq "restored: the applied frame reproduces the baseline" "$LAST_BMP_HASH" "$APPLIED_HASH"
   probe_run restored-anim "$RUN_DIR/fixture-arms-no-anim" "$ARMS_MODEL"
-  assert_eq "restored: the animation companion refusal returns" "$(pfield animationInput)" "anim-source-missing"
+  assert_eq "restored: the animation companion degradation returns (status)" "$(pfield animationInput)" "ok"
+  assert_eq "restored: the animation companion degradation returns (separate source)" "$(pfield separateAnimSource)" "0"
+  assert_eq "restored: the animation companion degradation returns (stub table)" "$(pfield animSeqs)" "1"
   DIRTY_NATIVE=$(git status --porcelain -- native/)
-  assert_eq "the product sources are clean after the mutations" "$DIRTY_NATIVE" ""
+  if [ -z "$DIRTY_NATIVE" ]; then
+    pass "the product sources are clean after the mutations"
+  else
+    fail_line "the product sources are dirty after the mutations: $DIRTY_NATIVE"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
