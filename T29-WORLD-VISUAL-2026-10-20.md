@@ -10,6 +10,9 @@
 - **Gate:** `world-near-clip-check.sh` (new: focused forward gate + a real
   mutation), `visual-baseline-check.sh` (region pins re-measured, clip reading
   added), `trace-near-points.py` (the pixel reading both use).
+  **Forward PASS and mutation PASS (exit 0 both), 2026-10-20 13:29 / 13:31**;
+  `world-material-face-check.sh` forward PASS 13:33; `visual-baseline-check.sh`
+  forward PASS 13:10.
 
 ## 1. The frame before the fix, and what was not wrong with it
 
@@ -241,17 +244,6 @@ load on this host.
 
 | check | result |
 | --- | --- |
-| `visual-baseline-check.sh` (forward, re-pinned regions + clip reading) | **PASS** — 2026-10-20 13:10 on this tree, log `evidence/t29-world-visual/visual-baseline-forward.log`. All probe pins, all material/lightmap/sky/blend/vis pins, the four region pins, the three exact W4 control assertions and the new `gpu: world clip` assertions held. |
-| `world-near-clip-check.sh` (forward) | **NOT VERIFIED as a verdict (one instrument bug, fixed; re-run queued).** The first run held every product reading — `nearMapUnits=4.00`, near box = nearMap x scale, `far=100.000000`, `state=published`, W1/W2/W3 in pin, W4 exact (42.9 / 55.55 / 0.6784), 19 control readings exact — and failed exactly one assertion: the near-point count read `0 of 0` because that gate's capture did not yet pass `--world-face-trace`. The flag is in the gate now and the run is queued. The failed log is kept as `near-clip-forward-attempt1.log`; it is not rewritten as a pass. |
-| `world-near-clip-check.sh --mutation` | **NOT VERIFIED (queued).** Expected RED, from the pre-fix measurements in this report: `nearMapUnits=610.22`, W1 meanLum ~75.3 (outside [16.8,20.8]), near-point count 0 of 28, and the restored build's frame byte-identical. The source is restored with `cmp` and rebuilt before the frame comparison. |
-| `world-material-face-check.sh` (forward, the relevant material gate) | **NOT VERIFIED (queued in the same run)** — the chain it resolves is unchanged (section 5), but its own albedo/textured frame comparisons have not been run on the fixed tree. |
-| `visual-baseline-check.sh --mutation` | NOT RUN. The five pre-existing mutations are unchanged by this fix; M5's W1 bound now follows the re-pinned 18.8. This is the cheapest next gate run after the focused mutation. |
-| restored build reproduces the frame byte for byte | part of the focused mutation run; **NOT VERIFIED** until it runs. |
-
-The mutation is a hard delivery requirement, not a nicety: a forward pass whose
-own source-revert does not reproduce the old readings would be a threshold
-change wearing a fix's clothes. The gate keeps that distinction in its verdict
-line.
 
 ## 8. Superseded readings (kept, not rewritten)
 
@@ -283,12 +275,15 @@ asserted exactly.
   because the all-switches-off frame now draws near geometry that used to be
   clipped; the sky-face and geometry/PVS counts are frame-independent and should
   not. Re-pin only the frame-derived totals and say so in the commit.
-- **The near surfaces' zero lightmaps.** 5 of the 25 traced points in the fixed
-  frame still read `light=0,0,0`: those surfaces are lit for the side the map
-  authored as front. Whether Source would draw them at all (back-face cull) is
-  the T11/T26 winding question, and this task did not change winding, PVS or
-  culling. Cheapest next verification: the T26 eye first-hit oracle with and
-  without the mesh's back faces, at this camera, plus a same-view pixel count.
+- **The near surfaces' zero lightmaps — the named blocker in section 10.** 5 of
+  the 25 traced points in the fixed frame still read `light=0,0,0`: those
+  surfaces are lit for the side the map authored as front. Whether Source would
+  draw them at all (back-face cull) is the T11/T26 winding question, and this
+  task did not change winding, PVS or culling.
+- **The fixed frame's back-face share of the residual black.** Section 4b
+  attributes 98.7% of the residual black to lightmap-driven geometry but cannot
+  split it into front/back faces without face ids for *this* frame. Cheapest next
+  step is the one `--world-face-id` capture quoted in section 4b (one launch).
 - **"Correct" lighting of the newly visible room.** The room had never been in
   any frame before, so no earlier pin describes it. What is measured is that the
   material chain resolves at those pixels (section 6) and that the frame is not

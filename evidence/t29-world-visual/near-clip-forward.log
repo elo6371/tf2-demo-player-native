@@ -1,0 +1,50 @@
+== 0. build ==
+  OK build
+  head=bb3c2d7d7fc42ea68254418f35ca4d2ac6f7b619 exe=f063468a8abed1409d5d8089aeeeeb9bef2abc96cf45f243e6916eb903a5c292
+== 1. clip reading ==
+  20870.8 gpu: world clip near=0.00032775 far=100.000000 nearMapUnits=4.00 farMapUnits=1220444 horizontalScale=0.00008194 state=published
+  OK near plane in map units = 4.00 in [3.0,5.0]
+  OK near box units = nearMapUnits * horizontalScale (0.00032775 = 4.00 * 0.00008194)
+  OK far plane unchanged = 100.000000
+  OK transform published = published
+== 2. pixel evidence (tick 2000, hidden window) ==
+frame path=.scratch/world-near-clip.20261020132752-98504/ref.bmp size=1264x681 background=(36,28,24) backgroundLum=30.1
+region x=0,y=0,w=420,h=200 pixels=84000 meanLum=18.8 stdLum=21.90 nearBackground=0.2383 nearBlack=0.4881 nearWhite=0.0000 meanGradient=2.68 neutralGrey=0
+region x=0,y=560,w=420,h=121 pixels=50820 meanLum=57.0 stdLum=24.19 nearBackground=0.0843 nearBlack=0.0754 nearWhite=0.0000 meanGradient=5.82 neutralGrey=0
+region x=1100,y=100,w=164,h=200 pixels=32800 meanLum=133.9 stdLum=31.03 nearBackground=0.0059 nearBlack=0.0077 nearWhite=0.0000 meanGradient=6.10 neutralGrey=0
+region x=600,y=0,w=64,h=60 pixels=3840 meanLum=42.9 stdLum=55.55 nearBackground=0.0120 nearBlack=0.6784 nearWhite=0.0000 meanGradient=4.18 neutralGrey=0
+  dark population lum<16: 208630 (pre-fix frame: 183571)
+  OK dark pixels (stability pin) = 208630 in [195000,225000]
+  named points closer than the old 611-unit clip: 18 of 25 (nearest 94.3 map units; pre-fix 0 of 28)
+  OK near-point population = 18 >= 12
+  OK region W1 meanLum = 18.8 in [16.8,20.8]
+  OK region W1 stdLum = 21.90 in [18.9,24.9]
+  OK region W2 meanLum = 57.0 in [55.0,59.0]
+  OK region W2 stdLum = 24.19 in [21.2,27.2]
+  OK region W3 meanLum = 133.9 in [131.9,135.9]
+  OK region W3 stdLum = 31.03 in [28.0,34.0]
+  OK control W4 meanLum (exact) = 42.9
+  OK control W4 stdLum (exact) = 55.55
+  OK control W4 nearBlack (exact) = 0.6784
+  OK region W2 nearBackground = 0.0843 <= 0.20
+== 3. control: the readings the projection fix must not have touched ==
+  OK control material-fetch distinct = 108
+  OK control material-fetch tiled = 85
+  OK control material-fetch fromPakfile = 85
+  OK control material-fetch vmtMissing = 3
+  OK control material-fetch vtfMissing = 0
+  OK control material-fetch vtfTooLarge = 70
+  OK control lightmap status = active
+  OK control lightmap vertices = 297936
+  OK control lightmap lightmapped = 296490
+  OK control lightmap lightmapEnabled = 1
+  OK control sky-upload state = active
+  OK control sky-upload faces = 6
+  OK control sky-upload vertices = 36
+  OK control blend tiles = 10
+  OK control blend weightedVertices = 85920
+  OK control vis drawnTriangles = 76344
+  OK control vis hiddenTriangles = 22968
+  OK control vis visibleFromCamera = 1692
+== verdict ==
+PASS: the world pass draws the space the camera stands in (near clip in map units, pixels re-pinned, material/sky/pvs readings unchanged).

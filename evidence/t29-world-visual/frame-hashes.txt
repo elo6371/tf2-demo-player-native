@@ -1,2 +1,2 @@
-0f5f2ffacf0227644938aefca4d5ef5cefbfab6025ee0fd65beb19dc53086b60 *.scratch/world-near-clip.20261020130422-68427/ref.trace
-6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b *.scratch/world-near-clip.20261020130422-68427/ref.bmp
+a02bb2f37c10aba7b95d11692f3ff4b47bf97295d6ca6e638afd7677c41ce78a *.scratch/world-near-clip.20261020132845-99226/ref.trace
+6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b *.scratch/world-near-clip.20261020132845-99226/ref.bmp

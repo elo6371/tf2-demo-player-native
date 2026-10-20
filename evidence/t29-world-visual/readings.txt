@@ -1,6 +1,7 @@
-22499.6 gpu: world clip near=0.00032775 far=100.000000 nearMapUnits=4.00 farMapUnits=1220444 horizontalScale=0.00008194 state=published
-19853.6 gpu: world material-fetch distinct=108 tiled=85 capped=0 vmtMissing=3 vmtNoBase=20 vtfMissing=0 vtfTooLarge=70 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=85 downscaled=70 blendFirst=10 blendLastRank=10 blendCapped=0
-21054.6 gpu: world lightmap status=active intensity=0.898 atlas=1 bump=0 env=0 vertices=297936 lightmapped=296490 bounds=(-0.38,-0.90,0.10)..(0.38,0.90,0.90) lightmapEnabled=1
-20872.7 gpu: world sky-upload state=active vertices=36 triangles=12 faces=6 side=512 resampled=1 reason=six sides, 36 vertices
-21054.6 gpu: world blend enabled=1 terrainOnly=0 textures=85 layers=10 accepted=85 acceptedLayers=10 tiles=10 modulateTiles=10 malformedLayers=0 weightedVertices=85920 modulatedVertices=85920 weightMin=0.000 weightMax=1.000 distinctWeights=34
-22499.7 gpu: world vis cameraCluster=1032 visibleFromCamera=1692 clusters=2938 clusteredTriangles=52380 hiddenTriangles=22968 withoutCluster=46932 inputTriangles=99312 drawnTriangles=76344 clipApplied=1 state=active eyeMap=(-2423.6,5566.0,-1280.0) reason=hid 22968 of 99312 triangles from cluster 1032
+21092.4 gpu: world clip near=0.00032775 far=100.000000 nearMapUnits=4.00 farMapUnits=1220444 horizontalScale=0.00008194 state=published
+18974.6 gpu: world material-fetch distinct=108 tiled=85 capped=0 vmtMissing=3 vmtNoBase=20 vtfMissing=0 vtfTooLarge=70 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=85 downscaled=70 blendFirst=10 blendLastRank=10 blendCapped=0
+19868.5 gpu: world lightmap status=active intensity=0.898 atlas=1 bump=0 env=0 vertices=297936 lightmapped=296490 bounds=(-0.38,-0.90,0.10)..(0.38,0.90,0.90) lightmapEnabled=1
+19710.3 gpu: world sky-upload state=active vertices=36 triangles=12 faces=6 side=512 resampled=1 reason=six sides, 36 vertices
+19868.5 gpu: world blend enabled=1 terrainOnly=0 textures=85 layers=10 accepted=85 acceptedLayers=10 tiles=10 modulateTiles=10 malformedLayers=0 weightedVertices=85920 modulatedVertices=85920 weightMin=0.000 weightMax=1.000 distinctWeights=34
+21092.4 gpu: world vis cameraCluster=1032 visibleFromCamera=1692 clusters=2938 clusteredTriangles=52380 hiddenTriangles=22968 withoutCluster=46932 inputTriangles=99312 drawnTriangles=76344 clipApplied=1 state=active eyeMap=(-2423.6,5566.0,-1280.0) reason=hid 22968 of 99312 triangles from cluster 1032
+45614.8 gpu: world face-trace-summary points=28 hits=25 tiled=25 untiled=0 blend=5 oversized=24 beyondOldCap=11 depthMatched=24 discriminating=24 clipApplied=1 frame=1264x681 depthBuffer=1264x681
