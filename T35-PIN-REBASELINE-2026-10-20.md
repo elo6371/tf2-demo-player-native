@@ -10,9 +10,13 @@ its numbers came from.
 | --- | --- | --- | --- |
 | 1 | the T26 capture matrix re-captured | **done** | `1b3482b` |
 | 2 | the terrain-blend frames re-captured | **done** | `1a55351` |
-| 3 | the four gates, forward | 1 of 4 run, 3 outstanding | — |
-| 4 | the pins that moved, re-pinned | outstanding | — |
-| 5 | the specular camera re-solved | NOT VERIFIED, next step named | — |
+| 3 | the four gates, forward | **2 of 4 run**, lighting + material outstanding | `9b4e734` |
+| 4 | the pins that moved, re-pinned | **T26 done**, terrain-blend outstanding | `f076afa` |
+| 5 | the specular camera re-solved | **poses found**, capture not run | — |
+
+> The two outstanding gates are blocked on one thing only: the host lock is
+> saturated (t34/t36/t37 queue ahead of me on every acquisition). Their inputs
+> and scripts are ready; see section 4.
 
 ## 1. The T26 capture matrix (`1b3482b`)
 
@@ -120,9 +124,61 @@ the three source hashes at the top of its log.
 | gate | state | log |
 | --- | --- | --- |
 | `terrain-blend-check.sh` | **FAIL**, 1 assertion (section 2) | `.scratch/t35/forward/terrain-blend.log` |
-| `world-geometry-hole-check.sh` | see below | `.scratch/t35/forward/geometry-hole.*.log` |
-| `lighting-semantics-check.sh` | outstanding | — |
-| `world-material-semantics-check.sh` | outstanding | — |
+| `world-geometry-hole-check.sh` | **FAIL** pre-re-pin: 8 pins; re-pinned and re-run, see 4.1 | `.scratch/t35/forward/geometry-hole.before.log` |
+| `lighting-semantics-check.sh` | **outstanding** — blocked on the lock | — |
+| `world-material-semantics-check.sh` | **outstanding** — blocked on the lock | — |
+
+### 4.1 `world-geometry-hole-check.sh`, forward, before the re-pin
+
+Run on `a403544`. Eight assertions failed and each one is the near-plane fix,
+not a defect. The gate's own controls passed, and they are what makes the
+attribution safe:
+
+     PASS the binary this run built reproduces the pinned textured frame byte for byte
+     PASS sky face census            (731 faces / 1842 triangles / 99312 buffer triangles)
+     PASS face account unchanged     (18052 / 17321 / 731)
+     PASS the shipped winding rule keeps 0.771 of the eye's first hits
+     PASS 9 of 9 traced points are empty with a sky face behind them
+     PASS every named face exists, 0 absent
+     PASS at least one side of a sliver is a tessellated displacement cell
+     PASS enclosed components >= 200 px, each a sliver (3)
+     PASS the depth control ran / the depth view is saturated (not used as evidence)
+
+The eight failures, verbatim:
+
+    FAIL stored textured frame identity: ac2cfe9b45ba != 5e24802a8ad2
+    FAIL stored ref frame identity:      6bb4d9a712e8 != f87f396a60dc
+    FAIL missing pixels:                 1648 != 38328
+    FAIL missing pixels covered by sky:  1648 != 38328
+    FAIL enclosed missing pixels:        1648 != 2313
+    FAIL T23/T26 agree on missing:       1648 != 38328
+    FAIL back-face population:           80917 != 167030
+    FAIL no sliver had a culled neighbour
+
+Seven of the eight were re-pinned (`f076afa`). The eighth is left red; see
+4.2.
+
+### 4.2 The pin that stays red: `seamCulled`
+
+`HOLE seamCulled` read 2 before this task and reads 0 now, so the gate's
+`-ge 1` fails. The gate prints *"no sliver had a culled neighbour:
+`world-ids-nocull.bmp` is not being read"* — and on this tree **that message's
+guess is wrong**. Verified independently of the gate
+(`.scratch/t35/seam-check.py`, which imports the account tool's own `read_bmp`
+and `match_mask` so it shares the decode rather than re-implementing it):
+
+- all 32 directions around the 8 representative points of the enclosed
+  components resolve **from the cull-on frame**;
+- the faces they name are 8555, 15324, 17217, 17260, 17262, 17266, 17268,
+  17326 — the seam account is working;
+- 81,218 pixels *are* drawn only with the cull off, so the mechanism the
+  assertion tests for is alive in this frame.
+
+So the reading is real: after the near-plane fix, none of the surviving
+slivers is bracketed by a surface the product culls. The assertion is **left
+red** rather than relaxed to `>= 0`, because relaxing it converts a measured
+change into a pass without measuring anything. Closing it needs the sliver
+set re-examined against the cull-off frame's silhouette — see NOT VERIFIED.
 
 ## 5. What is NOT verified, and the cheapest next step for each
 
