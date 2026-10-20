@@ -844,14 +844,17 @@ tail -16 "$OUT/22-weapon-animation.txt"
 # uploaded matrices, GPU-accepted instances, GPU matrices == caller matrices,
 # bind-bone mismatches, the weapon-class instance count being reported at all,
 # every bind-pose fallback carrying a reason, and a named witness) x 3 = 27, +
-# 6 in section 2 (four last-tick readings plus the two growth comparisons) + 1 in
-# section 3 (the frames are not all identical) + 11 in section 4 (five field
+# 6 in section 2 (four last-tick readings plus the two growth comparisons) + 6 in
+# section 3 (T34: the pose was published at all three ticks, the camera reading
+# resolved a branch, the frames are one picture on a still camera, that frame is
+# a picture and not a flat fill, the frames were drawn through the T29 near
+# plane, and the still-camera branch token itself) + 11 in section 4 (five field
 # equalities, the bind-pose compare, the pose-moved compare, the witness frame
 # count, the two-tick frame inequality, the tick-following compare, and the
 # wrap-at-frame-count compare) + 6 in section 5 (both halves of the bind-pose
 # mutation pair, each with its own compared-entity count) + 1 in section 6.
 WA_OK=$(grep -c '^  OK   ' "$OUT/22-weapon-animation.txt" || true)
-if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 52 ]; then
+if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 57 ]; then
   echo "WEAPON-ANIMATION=PASS (assertions_ok=$WA_OK)"
 else
   echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0})"; rc_all=1
