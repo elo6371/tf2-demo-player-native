@@ -1603,6 +1603,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
   }
   const auto assets = tf2::native::AssetRoot::findInstalled(candidates);
+  // T32: the root this run was asked for and the root it resolved to, as two
+  // separate fields. They differ exactly when the request was refused, and the
+  // refusal used to have no reading at all: an explicit --tf-root that did not
+  // exist produced only a title that said the resources were not found, with no
+  // path and no exit status to say which root was tried.
+  traceFmt("resources: requested=%s tf_root=%s valid=%d",
+    commandTfRoot.empty() ? "-" : commandTfRoot.string().c_str(),
+    assets.tfDirectory.empty() ? "-" : assets.tfDirectory.string().c_str(),
+    assets.valid() ? 1 : 0);
   nativeUi.setTfRoot(assets.valid() ? assets.tfDirectory : persistent.tfRoot);
   std::string cacheStatus;
   const auto cacheDirectory = localCacheDirectory(cacheStatus);
@@ -1961,6 +1970,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
   }
   std::size_t indexedVpkEntries = 0;
+  // T32: archives that are ON DISK but could not be opened. Kept apart from an
+  // archive that is simply absent -- the fixed name list this product opens is a
+  // superset of what any one install carries, so absence is normal and silent --
+  // and surfaced in the title when it is non-zero, because "this install has no
+  // VPK" and "this install's VPK is unreadable" need different repairs.
+  std::size_t refusedVpkCount = 0;
   std::vector<std::uint8_t> displayRgba;
   UINT displayWidth = 0;
   UINT displayHeight = 0;
@@ -2106,12 +2121,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::string mapLookupReason;
     std::vector<std::uint8_t> mapBytes;
     for (const auto* name : { L"pak01_dir.vpk", L"tf2_misc_dir.vpk", L"tf2_textures_dir.vpk", L"tf2_sound_misc_dir.vpk", L"tf2_sound_vo_english_dir.vpk" }) {
+      const auto archivePath = assets.tfDirectory / name;
       auto archive = std::make_shared<tf2::native::VpkArchive>();
-      if (archive->open(assets.tfDirectory / name)) {
-        assetChain.addArchive(archive, assets.tfDirectory / name);
+      std::string archiveError;
+      if (archive->open(archivePath, &archiveError)) {
+        assetChain.addArchive(archive, archivePath);
         soundArchives.push_back(std::move(archive));
+        continue;
       }
+      // T32: `open` fails for an archive this install simply does not have, and
+      // that is the normal case -- the name list above is a superset of a real
+      // install. Only a file that is present and still unreadable is a resource
+      // finding; it is named with the archive reader own reason and counted,
+      // instead of being skipped in silence and surfacing later as "map not
+      // found in maps, download/maps or a vpk", which blames the wrong thing.
+      std::error_code presentError;
+      if (!std::filesystem::is_regular_file(archivePath, presentError) || presentError) continue;
+      ++refusedVpkCount;
+      traceFmt("vpk: refused file=%s reason=%s",
+        std::filesystem::path(name).string().c_str(),
+        archiveError.empty() ? "open failed without a reason" : archiveError.c_str());
     }
+    traceFmt("vpk: archives opened=%zu refused=%zu", soundArchives.size(), refusedVpkCount);
     if (!mapPlan.nameUsable) {
       // Refused by name, before any store is touched. Reported as the refusal
       // it is, not as "not found": a map called `..\..\x` was never searched
@@ -3394,6 +3425,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   const std::wstring title = assets.valid()
     ? std::wstring(L"TF2 Demo Player - TF2 资源已连接: ") + assets.tfDirectory.wstring()
       + L" [VPK entries: " + std::to_wstring(indexedVpkEntries)
+      + (refusedVpkCount ? (L", VPK refused: " + std::to_wstring(refusedVpkCount)) : std::wstring())
       + L", VTF: " + (displayWidth ? std::to_wstring(displayWidth) + L"x" + std::to_wstring(displayHeight) : L"fallback")
       + L", VMT: " + (displayShader.empty() ? L"unparsed" : std::wstring(displayShader.begin(), displayShader.end()))
       + L"/" + (displayBaseTexture.empty() ? L"no base texture" : std::wstring(displayBaseTexture.begin(), displayBaseTexture.end()))
@@ -3408,7 +3440,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + L", deps: base2=" + (mapBaseTexture2Declared ? (mapBaseTexture2Found ? L"ok" : L"missing") : L"none")
       + L" bump=" + (mapBumpMapDeclared ? (mapBumpMapFound ? L"ok" : L"missing") : L"none")
       + L", maptex: " + (mapWidth ? std::to_wstring(mapWidth) + L"x" + std::to_wstring(mapHeight) : L"fallback") + L"]"
-    : L"TF2 Demo Player - TF2 资源未找到";
+    : (commandTfRoot.empty()
+        ? std::wstring(L"TF2 Demo Player - TF2 资源未找到")
+        : std::wstring(L"TF2 Demo Player - TF2 资源未找到: ") + commandTfRoot.wstring());
   const std::wstring titleBase = title + demoSuffix;
   auto entitySnapshotStatus = tf2::native::EntitySnapshotQueryStatus::NoHistory;
   // How far behind the requested tick the drawn snapshot is. Non-zero means the
