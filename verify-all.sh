@@ -839,19 +839,33 @@ WEAPON_ANIMATION_OUT="$WA_OUT" WEAPON_ANIMATION_TRACE_DIR="$WA_TRACE" \
   bash weapon-animation-check.sh > "$OUT/22-weapon-animation.txt" 2>&1
 tail -16 "$OUT/22-weapon-animation.txt"
 # The assertion count is pinned for the same reason as steps 8 and 21: a gate
-# that prints PASS while its assertions quietly disappear is not a gate. 52 is
-# arrived at as: 9 per playback tick in section 1 (capture rc, skinned instances,
-# uploaded matrices, GPU-accepted instances, GPU matrices == caller matrices,
-# bind-bone mismatches, the weapon-class instance count being reported at all,
-# every bind-pose fallback carrying a reason, and a named witness) x 3 = 27, +
-# 6 in section 2 (four last-tick readings plus the two growth comparisons) + 1 in
-# section 3 (the frames are not all identical) + 11 in section 4 (five field
-# equalities, the bind-pose compare, the pose-moved compare, the witness frame
-# count, the two-tick frame inequality, the tick-following compare, and the
-# wrap-at-frame-count compare) + 6 in section 5 (both halves of the bind-pose
-# mutation pair, each with its own compared-entity count) + 1 in section 6.
+# that prints PASS while its assertions quietly disappear is not a gate.
+#
+# Measured on the T34 tree (task/t34-nearclip), not predicted from the section
+# descriptions: the forward run emits 55 OK + 1 FAIL = 56, and the per-section
+# counts are 27 / 6 / 5 / 11 / 6 / 1 = 56. T34's report and its pin commit
+# carried 57 because section 3 was described with six entries while the gate
+# prints five: the branch token is a '..' reading line, not an assertion. The
+# original arithmetic (27 + 6 + 6 + 11 + 6 + 1) therefore did not match the
+# gate, and a pin of 57 would have kept step 22 red forever even after the one
+# failing assertion was fixed - the failure mode this pin exists to prevent,
+# inverted: a gate that passes while the pin is wrong.
+#
+# 27 = 9 per playback tick in section 1 (capture rc, skinned instances, uploaded
+# matrices, GPU-accepted instances, GPU matrices == caller matrices, bind-bone
+# mismatches, the weapon-class instance count being reported at all, every
+# bind-pose fallback carrying a reason, and a named witness) x 3, + 6 in section
+# 2 (four last-tick readings plus the two growth comparisons) + 5 in section 3
+# (T34: the pose was published at all three ticks, the camera reading resolved a
+# branch, the frames are one picture on a still camera, that frame is a picture
+# and not a flat fill, and the frames were drawn through the T29 near plane) +
+# 11 in section 4 (five field equalities, the bind-pose compare, the pose-moved
+# compare, the witness frame count, the two-tick frame inequality, the
+# tick-following compare, and the wrap-at-frame-count compare) + 6 in section 5
+# (both halves of the bind-pose mutation pair, each with its own
+# compared-entity count) + 1 in section 6.
 WA_OK=$(grep -c '^  OK   ' "$OUT/22-weapon-animation.txt" || true)
-if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 52 ]; then
+if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 56 ]; then
   echo "WEAPON-ANIMATION=PASS (assertions_ok=$WA_OK)"
 else
   echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0})"; rc_all=1

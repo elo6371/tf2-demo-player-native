@@ -31,8 +31,23 @@
 #      and the two have opposite fixes.
 #   5. A named witness exists (a real model path, not "-") whose sampled frame
 #      advances across the three ticks.
-#   6. Three frames captured at three different ticks, at least two of which are
-#      byte-distinct. This is the only assertion here that speaks to the picture.
+#   6. The picture, read against what the camera did. T34. This used to be
+#      "three frames at three ticks, at least two byte-distinct", which reads as
+#      "the picture follows the animation" and is not: a frame differs between
+#      two ticks if EITHER the animation moved OR the camera did. On this demo
+#      only the second can, so the assertion is now the pair
+#        (a) the camera pose each tick resolved is READ out of the trace the
+#            gate already writes (scene: camera ... eye= pitch= yaw=), and
+#        (b) frames are required to be byte-identical when the camera did not
+#            move, and to differ when it did.
+#      Measured on this demo: the camera does not move (eye=0,0,0 at every one
+#      of 5009 scene ticks; see T34-NEARCLIP-2026-10-20.md), so branch (b-i)
+#      fires and the three frames are asserted IDENTICAL. That is a stronger
+#      statement than the old "two differ" was: on a still camera any
+#      difference would be the world or the animation moving, and the animation
+#      moving is what sections 1-2 already measure per instance, per tick.
+#      A demo whose camera does move gets branch (b-ii) automatically; the
+#      choice is made from the reading, never from a flag or a demo name.
 #   7. Every bind-pose instance carries a non-empty reason.
 #   8. The standalone `--model` path skins with identity matrices and does NOT
 #      deform the bind pose: enabling the skinning branch with identity matrices
@@ -130,6 +145,47 @@ mkdir -p "$OUT" "$TRACE_DIR"
 # entities start at tick 128592 while its playback position starts at 0, so a
 # --capture-tick written from a demo tick would never be reached.
 TICKS=(2000 4000 6000)
+
+# T34: how far the camera may drift between two ticks and still count as
+# "still". The demo resolves its eye as exactly 0,0,0 on every tick, so this
+# bound does not sit near a measurement -- it exists so that a demo whose eye is
+# merely *nearly* still is treated as still rather than flipping the branch on
+# float noise.
+CAMERA_STILL_EPS=0.5
+
+# camera_pose <trace> -> "x,y,z pitch yaw src", or "" when the trace carries no
+# camera reading. The pose is the LAST one in the trace: the capture is written
+# at the last draw, so the last scene tick is the one the frame belongs to.
+camera_pose() {
+  local line eye pitch yaw src
+  line=$(tr -d '\r' < "$1" 2>/dev/null | grep -a 'scene: camera mode=' | tail -1)
+  [ -n "$line" ] || { printf ''; return 0; }
+  eye=$(printf '%s\n' "$line" | grep -oE 'eye=[-0-9.,]+' | head -1 | cut -d= -f2)
+  pitch=$(printf '%s\n' "$line" | grep -oE 'pitch=[-0-9.]+' | head -1 | cut -d= -f2)
+  yaw=$(printf '%s\n' "$line" | grep -oE 'yaw=[-0-9.]+' | head -1 | cut -d= -f2)
+  src=$(printf '%s\n' "$line" | grep -oE 'src=[A-Za-z-]+' | head -1 | cut -d= -f2)
+  printf '%s %s %s %s' "$eye" "$pitch" "$yaw" "$src"
+}
+
+# camera_moved <pose-a> <pose-b> -> "<delta> moved|still|no-reading". Yaw is
+# compared on the circle, so 359.9 -> 0.1 is a 0.2 degree move, not 359.8.
+camera_moved() {
+  "$PY" - "$1" "$2" "$CAMERA_STILL_EPS" <<'PYEOF_CAM'
+import sys
+a = sys.argv[1].replace(",", " ").split()
+b = sys.argv[2].replace(",", " ").split()
+eps = float(sys.argv[3])
+if len(a) < 5 or len(b) < 5:
+    print("0 no-reading")
+    sys.exit(0)
+d = max(abs(float(a[i]) - float(b[i])) for i in range(3))
+dp = abs(float(a[3]) - float(b[3]))
+dy = abs(float(a[4]) - float(b[4])) % 360.0
+dy = min(dy, 360.0 - dy)
+w = max(d, dp, dy)
+print(("%.3f " % w) + ("moved" if w > eps else "still"))
+PYEOF_CAM
+}
 
 MUTATION=0
 MUTATION_TARGET=""
@@ -469,17 +525,84 @@ else
 fi
 
 echo
-echo "=== 3/6 three frames at three ticks, and the picture follows ==="
+echo "=== 3/6 the frames, read against what the camera did ==="
+# T34. The reading decides which assertion applies. It is not a flag and not a
+# per-demo hardcode: the poses are read out of the three traces sections 1-2
+# already produced, so a demo whose camera moves gets the "frames must differ"
+# side without anyone editing this file.
 HASHES=()
+POSES=()
 for tick in "${TICKS[@]}"; do
   BMP="$RUN_DIR/tick-$tick.bmp"
+  POSE=$(camera_pose "$TRACE_DIR/tick-$tick.trace")
+  POSES+=("$POSE")
   HASH=$("$PY" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$BMP" 2>/dev/null || echo none)
   HASHES+=("$HASH")
-  echo "  tick=$tick sha256=$HASH"
+  echo "  tick=$tick camera='$POSE' sha256=$HASH"
 done
 DISTINCT=$(printf '%s\n' "${HASHES[@]}" | sort -u | wc -l)
-echo "distinct frames = $DISTINCT of ${#HASHES[@]}"
-assert_ge "distinct captured frames" "$DISTINCT" 2
+echo "  distinct frames = $DISTINCT of ${#HASHES[@]}"
+# The camera reading must exist. A trace without it cannot decide either branch,
+# and silently defaulting to "still" would let this section pass on a build that
+# stopped publishing the pose.
+CAM_READINGS=0
+for index in 0 1 2; do
+  if [ -n "${POSES[$index]}" ]; then CAM_READINGS=$((CAM_READINGS + 1)); fi
+done
+assert_eq "ticks that published a camera pose" "$CAM_READINGS" "3"
+# The projection the frames were drawn through. The frame claim below rests on
+# it: T29 put the near plane in map units (4.0) so the room the camera stands in
+# is drawn at all. If it goes back to the box-unit constant that plane is ~603
+# map units -- past the room -- and the camera looks at the far side of the map.
+# This is the quantity world-near-clip-check.sh owns; it is re-read here because
+# THIS gate's picture reading is only meaningful through it.
+CLIP_LINE=$(tr -d '\r' < "$TRACE_DIR/tick-${TICKS[0]}.trace" 2>/dev/null | grep -a 'gpu: world clip ' | head -1)
+NEAR_MAP=$(printf '%s\n' "$CLIP_LINE" | grep -oE 'nearMapUnits=[-0-9.]+' | head -1 | cut -d= -f2)
+echo "  near plane: nearMapUnits=$NEAR_MAP (T29: 4.0 map units)"
+if awk -v v="$NEAR_MAP" 'BEGIN{exit !(v >= 3.0 && v <= 5.0)}'; then
+  echo "  OK   the frames were drawn through the T29 near plane (nearMapUnits=$NEAR_MAP in [3,5])"
+else
+  echo "  FAIL the frames were NOT drawn through the T29 near plane (nearMapUnits=${NEAR_MAP:-none}, want [3,5])"
+  fail=1; FAIL_LINES+=("near plane: nearMapUnits=${NEAR_MAP:-none} outside [3,5]")
+fi
+CAM_SPREAD=$(camera_moved "${POSES[0]}" "${POSES[2]}")
+CAM_MOVED=$(printf '%s' "$CAM_SPREAD" | awk '{print $2}')
+echo "  camera across ticks ${TICKS[0]}..${TICKS[2]}: $CAM_SPREAD (eps=$CAMERA_STILL_EPS)"
+assert_ne "the camera reading resolved a branch" "$CAM_MOVED" "no-reading"
+if [ "$CAM_MOVED" = "still" ]; then
+  # The camera did not move, so the only correct reading is that the frames are
+  # one picture. This is the assertion the old "distinct >= 2" inverted, and it
+  # is the whole of T34: on a still camera three DIFFERING frames are a world
+  # difference being credited to the animation chain.
+  echo "  ..   camera still across the three ticks: the frames must be ONE picture"
+  assert_eq "frames of a still camera are one picture (distinct)" "$DISTINCT" "1"
+  # The positive control: a still camera over a static world still has to show
+  # the world, so the frame may not be a flat fill. 32 distinct colours over a
+  # 1-in-49 sample is a floor a black or single-colour frame cannot reach and a
+  # real frame clears by orders of magnitude (the measured value is printed on
+  # the line immediately above the assertion).
+  FRAME_COLOURS=$("$PY" - "$RUN_DIR/tick-${TICKS[0]}.bmp" <<'PYEOF_COLOURS'
+import struct, sys
+d = open(sys.argv[1], "rb").read()
+off = struct.unpack_from("<I", d, 10)[0]
+w, h = struct.unpack_from("<ii", d, 18)
+stride = (abs(w) * 3 + 3) // 4 * 4
+seen = set()
+for y in range(0, abs(h), 7):
+    base = off + y * stride
+    for x in range(0, w, 7):
+        seen.add(d[base + x * 3:base + x * 3 + 3])
+print(len(seen))
+PYEOF_COLOURS
+)
+  echo "  ..   distinct sampled colours in the tick ${TICKS[0]} frame: $FRAME_COLOURS"
+  assert_ge "the still-camera frame is a picture and not a flat fill" "$FRAME_COLOURS" 32
+else
+  # The camera moved, so the frames MUST differ: that is what made the old
+  # assertion mean what it said.
+  echo "  ..   camera moved across the three ticks: the frames must differ"
+  assert_ge "frames of a moving camera differ (distinct)" "$DISTINCT" 2
+fi
 fi
 
 echo
