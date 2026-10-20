@@ -1,0 +1,104 @@
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main.cpp.obj
+main.cpp
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\main.cpp(1103): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\main.cpp(1104): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\main.cpp(1105): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\main.cpp(1106): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\main.cpp(1107): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\main.cpp(6219): warning C4457: 鈥渋nstance鈥濈殑澹版槑闅愯棌浜嗗嚱鏁板弬鏁?
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\main.cpp(700): note: 鍙傝鈥渋nstance鈥濈殑澹版槑
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 22%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 22%] Building C object CMakeFiles/tf2_demo_native.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 22%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer.cpp.obj
+native_renderer.cpp
+?敞鎰? 鍖呭惈鏂囦欢:    D:\TF2_Native_Worktrees\t32-resource-install\native\include\audio_timeline.h
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\native_renderer.cpp(3642): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\native_renderer.cpp(3643): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\native_renderer.cpp(3950): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\native_renderer.cpp(3816): note: 鍙傝鈥渧iew鈥濈殑澹版槑
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\native_renderer.cpp(4120): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Worktrees\t32-resource-install\native\src\native_renderer.cpp(3816): note: 鍙傝鈥渧iew鈥濈殑澹版槑
+[ 22%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 33%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/map_lookup.cpp.obj
+map_lookup.cpp
+[ 33%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/asset_lookup.cpp.obj
+asset_lookup.cpp
+[ 33%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 33%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/model_loader.cpp.obj
+model_loader.cpp
+?敞鎰? 鍖呭惈鏂囦欢:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\cstdio
+?敞鎰? 鍖呭惈鏂囦欢:      C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\stdexcept
+[ 44%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/viewmodel.cpp.obj
+viewmodel.cpp
+[ 44%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 44%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 55%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 55%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[ 55%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 55%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_player.cpp.obj
+audio_player.cpp
+[ 66%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/effects_timeline.cpp.obj
+effects_timeline.cpp
+[ 66%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/pcf_operators.cpp.obj
+pcf_operators.cpp
+[ 66%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/playback_hud.cpp.obj
+playback_hud.cpp
+[ 66%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 77%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_material.cpp.obj
+world_material.cpp
+?敞鎰? 鍖呭惈鏂囦欢:         C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\ammintrin.h
+[ 77%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_tile_atlas.cpp.obj
+world_tile_atlas.cpp
+[ 77%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_material_features.cpp.obj
+world_material_features.cpp
+[ 77%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_lighting.cpp.obj
+world_lighting.cpp
+[ 88%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/texture2d.cpp.obj
+texture2d.cpp
+[ 88%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/settings_store.cpp.obj
+settings_store.cpp
+[ 88%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[100%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_ui.cpp.obj
+native_ui.cpp
+[100%] Linking CXX executable tf2_demo_native.exe
+[100%] Built target tf2_demo_native
+[  0%] Building CXX object CMakeFiles/native_install_smoke_probe.dir/tools/native_install_smoke_probe.cpp.obj
+native_install_smoke_probe.cpp
+[100%] Building CXX object CMakeFiles/native_install_smoke_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[100%] Building CXX object CMakeFiles/native_install_smoke_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[100%] Linking CXX executable native_install_smoke_probe.exe
+[100%] Built target native_install_smoke_probe
+[  0%] Building CXX object CMakeFiles/vpk_integrity_probe.dir/tools/vpk_integrity_probe.cpp.obj
+vpk_integrity_probe.cpp
+?敞鎰? 鍖呭惈鏂囦欢:          C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\stdio.h
+[100%] Building CXX object CMakeFiles/vpk_integrity_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[100%] Building CXX object CMakeFiles/vpk_integrity_probe.dir/src/asset_lookup.cpp.obj
+asset_lookup.cpp
+[100%] Linking CXX executable vpk_integrity_probe.exe
+[100%] Built target vpk_integrity_probe
+[  0%] Building CXX object CMakeFiles/map_lookup_probe.dir/tools/map_lookup_probe.cpp.obj
+map_lookup_probe.cpp
+[  0%] Building CXX object CMakeFiles/map_lookup_probe.dir/src/map_lookup.cpp.obj
+map_lookup.cpp
+[100%] Linking CXX executable map_lookup_probe.exe
+[100%] Built target map_lookup_probe

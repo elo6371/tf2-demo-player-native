@@ -1,0 +1,36 @@
+0.0 trace open
+157.6 resources: requested=D:\TF2_Native_Worktrees\t32-resource-install\.scratch\t32\final\fixtures\roots\precedence tf_root=D:\TF2_Native_Worktrees\t32-resource-install\.scratch\t32\final\fixtures\roots\precedence valid=1
+14567.7 vpk: archives opened=1 refused=0
+14567.8 map: lookup map=t32_marker store=vpk selected=maps/t32_marker.bsp bytes=31 reason=found
+14584.7 audio: timeline firstPacketTick=29368 soundOriginTick=0 originFound=1 read=5563 scheduled=5323 unresolved=240 unplaceable=0 refused=0 kinds=w888/f2263/u14/o1647/v504/a7/m0
+14967.4 gpu: reload begin
+14967.4 gpu: reload-stage stage=texture lastError=0x00000000
+14967.4 gpu: reload-stage stage=aux lastError=0x00000000
+14967.4 gpu: reload-stage stage=lightmap lastError=0x00000000
+14967.5 gpu: reload-stage stage=cubemap lastError=0x00000000
+14967.5 gpu: reload-stage stage=sky lastError=0x00000000
+14967.6 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+14967.6 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14967.6 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14967.6 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14967.6 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14967.6 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14967.6 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14967.6 gpu: world geometry=all blend=on
+14967.6 gpu: reload-stage stage=water lastError=0x00000000
+14967.6 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+14967.6 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0 bounds=(0.00,0.00,0.00)..(0.00,0.00,0.00) lightmapEnabled=1
+14967.6 gpu: world geometry displacedTriangles=0 waterTriangles=0
+14967.6 gpu: world blend enabled=1 terrainOnly=0 textures=0 layers=0 accepted=0 acceptedLayers=0 tiles=0 modulateTiles=0 malformedLayers=0 weightedVertices=0 modulatedVertices=0 weightMin=-1.000 weightMax=-1.000 distinctWeights=0
+14967.6 gpu: world atlas size=0 bytes=0 atlases=0 totalBytes=0 state=no world atlas was uploaded
+14967.6 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+14967.6 gpu: models done 0 uploaded=0
+14967.6 gpu: reload-stage stage=models lastError=0x00000000
+14967.6 gpu: reload end
+14967.6 gpu: post-reload lastError=0x00000000
+14967.6 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+14967.6 loop n=1 tick=0
+14968.7 metrics t=0.00 tick=0 iter=1
+14968.7 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=0 capture_written=0 metrics_written=0 exit=0
+14968.7 audio: summary soundEventsRead=5563 soundEventsScheduled=5323 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=29368 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=0
+14968.7 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=0 freezeFrames=0

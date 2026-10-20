@@ -1,0 +1,9 @@
+fixtures_root=D:\TF2_Native_Worktrees\t32-resource-install\.scratch\t32\final\fixtures
+fixture_demo=D:\TF2_Native_Worktrees\t32-resource-install\.scratch\t32\final\fixtures\demo\t32_marker.dem
+fixture_roots=8
+fixture_files=31
+fixture_vpk=roots/precedence/pak01_dir.vpk bytes=84 sha256=715e2842bb59f40933f19ff6da938c4b1451018714f9731372f049e88fd44a29
+fixture_vpk=roots/vpk-corrupt/pak01_dir.vpk bytes=53 sha256=25e8777cdb81cdfe1bb81ea46190db8b09b099426e08c0529c8c2455998af57b
+fixture_vpk=roots/vpk-empty/pak01_dir.vpk bytes=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+fixture_vpk=roots/vpk-only/pak01_dir.vpk bytes=2897057 sha256=51a98e22f5cba869dc855fd0edd33fecf24f86b1301cf396dc350679c4ae2e19
+fixture_vpk=roots/vpk-truncated/pak01_dir.vpk bytes=8 sha256=57255c0ff82f2f96822b4ce39af7ba7c1342c06b23ea8cf2cd1d7ad1bf173adb
