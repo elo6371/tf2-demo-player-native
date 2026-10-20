@@ -232,3 +232,24 @@ closed or explicitly accepted. T28 owns the only full-chain run:
 I review each delivered branch and report blockers or safe fixes. The
 integration owner merges accepted branches and updates this file after each
 merge; I do not merge task branches on the implementer's behalf.
+
+## Merge log (integration owner)
+
+- 2026-10-20 — T33 `task/t33-quality-audit@132caa7` merged as `8628ab8`.
+  Audit-only delivery: one new gate (`quality-audit-check.sh`), the audit
+  report, and frozen evidence; no product source changed. Owner readings on
+  `36303c2`: 20 deterministic load-time world pins + same-scene determinism +
+  steady-state envelope; mutation `maxTilesPerBatch 64->20` captured (batches
+  2->5, atlases 2->5, frame hash moved), source restored byte-identical, and
+  the restored build reproduced the reference. The earlier FAIL run is
+  committed as `evidence/quality-audit/run-log-superseded.txt` (gate-script
+  bug: `assert_pins` read `ref-a.pins` while `forward()` wrote `ref-a.out`).
+  Decisions: the deletion proposals are NOT applied (committed evidence is
+  not deleted in this wave; 565.0 MiB of duplicate content is inventoried for
+  a separate cleanup task); the non-reproducible link finding (three relinks
+  of one source produced three binary hashes) is recorded for T28, which will
+  hash only the final build's artifacts and will not claim cross-build
+  reproducibility. The post-merge gate rerun for this branch is folded into
+  the combined T29-T33 merge verification, because this merge changes no
+  product source and no other branch has been merged yet.
+
