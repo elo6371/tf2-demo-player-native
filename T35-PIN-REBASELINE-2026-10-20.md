@@ -10,13 +10,16 @@ its numbers came from.
 | --- | --- | --- | --- |
 | 1 | the T26 capture matrix re-captured | **done** | `1b3482b` |
 | 2 | the terrain-blend frames re-captured | **done** | `1a55351` |
-| 3 | the four gates, forward | **2 of 4 run**, lighting + material outstanding | `9b4e734` |
-| 4 | the pins that moved, re-pinned | **T26 done**, terrain-blend outstanding | `f076afa` |
-| 5 | the specular camera re-solved | **poses found**, capture not run | — |
+| 3 | the four gates, forward | **2 of 4 run**, lighting + material outstanding | `9b4e734`, `afb3cd3` |
+| 4 | the pins that moved, re-pinned | **T26 re-pinned and re-verified**; terrain-blend fixed at the test | `f076afa`, `5837666` |
+| 5 | the specular camera re-solved | **9 poses found and shown usable**, S1/S2 never captured | — |
 
-> The two outstanding gates are blocked on one thing only: the host lock is
-> saturated (t34/t36/t37 queue ahead of me on every acquisition). Their inputs
-> and scripts are ready; see section 4.
+> **Why the last two gates did not run: the host lock, not a judgement.**
+> Every acquisition this session queued behind t34/t36/t37 and waited 4-12
+> minutes. The final attempt (`terrain-blend`, to prove the two-arm fix) was
+> granted no window at all and the lock wait itself hit its 1500 s cap. Per the
+> task's rule (exit 75 = stop and report, never `--force`) I stopped rather
+> than break the lock. Their scripts and inputs are ready; see section 4.
 
 ## 1. The T26 capture matrix (`1b3482b`)
 
@@ -140,10 +143,31 @@ the three source hashes at the top of its log.
 
 | gate | state | log |
 | --- | --- | --- |
-| `terrain-blend-check.sh` | **FAIL**, 1 assertion (section 2) | `.scratch/t35/forward/terrain-blend.log` |
-| `world-geometry-hole-check.sh` | **FAIL** pre-re-pin: 8 pins; re-pinned and re-run, see 4.1 | `.scratch/t35/forward/geometry-hole.before.log` |
-| `lighting-semantics-check.sh` | **outstanding** — blocked on the lock | — |
-| `world-material-semantics-check.sh` | **outstanding** — blocked on the lock | — |
+| `terrain-blend-check.sh` | **FAIL** 1 assertion before the test fix; the fixed test was verified **offline**, never re-run under the gate | `.scratch/t35/forward/terrain-blend.log` |
+| `world-geometry-hole-check.sh` | 8 failures pre-re-pin, **29 PASS / 1 FAIL** after re-pin | `.scratch/t35/forward/geometry-hole.{before,after}.log` |
+| `lighting-semantics-check.sh` | **never ran** — no lock window | — |
+| `world-material-semantics-check.sh` | **never ran** — no lock window | — |
+
+### 4.0 The terrain two-arm fix: verified offline, NOT re-run
+
+`5837666` replaced the one-armed occlusion test with a two-arm one. The gate
+run that would prove it was starved of the lock and timed out, so the fix is
+recorded as **verified offline against the frames the previous run left on
+disk** (`.scratch/t35/verify-arm.py`, over that run's own six frames):
+
+    diff_terrain_pair          = 277530
+    diff_terrain_pair_not_in_full =      7
+    diff_terrain_pair_occluded =     0   (the OLD one-arm test)
+    diff_terrain_pair_covered  =     7   (the NEW second arm)
+    every lost pixel drawn on (not background)? True
+
+Each of the 7 reads `allon=000000` against `none=16120e`, so every one of them
+is a pixel the composed frame drew something on. That is what the second arm
+asserts, and it now reads 7 of 7 where the first arm read 0.
+
+**This is not the same as a green gate.** The gate was not re-run, so the
+claim is "the fixed assertion reads 7 of 7 on the committed frames", not "the
+gate passes". A re-run is the first thing a successor should do.
 
 ### 4.1 `world-geometry-hole-check.sh`, forward, before the re-pin
 
@@ -261,3 +285,34 @@ re-derived account (section 3) reads `1648 / 1648 / 1648 / 0 components >= 200
 px / 80917`. The probe-side pins (`PIN_SKY_FACES=731`,
 `PIN_SKY_TRIANGLES=1842`, `PIN_WORLD_TRIANGLES=99312`) are BSP reads and are
 **unchanged** — re-run on this tree they print the pinned values exactly.
+## 6. Final state, residual risk, and the first three things to do next
+
+### 6.1 What a successor should run first
+
+1. `bash terrain-blend-check.sh` under the lock — confirm the two-arm fix
+   passes a real gate run (offline it reads 7 of 7; the gate never re-ran).
+2. `bash lighting-semantics-check.sh` — it has never run on this tree. Expect
+   the six hard-coded pixel pins (section 5.3) to fail exactly as the terrain
+   and T26 ones did, for the same reason, and re-pin them the same way.
+3. `bash world-material-semantics-check.sh` — likewise never run. Its
+   `PIN_SPEC_*` will read 0 against a non-zero pin until the specular camera
+   is re-solved (section 5.2); that is expected and is not a new defect.
+
+### 6.2 Residual risk this task knowingly leaves
+
+- **Two gates have never run on this tree.** Anything they would have caught
+  is uncaught. This is the largest risk in the delivery and it is a
+  scheduling artefact, not a finding.
+- **The `seamCulled` assertion is red by choice.** If a later agent finds this
+  red and "fixes" it by relaxing `-ge 1` to `-ge 0`, the measurement it guards
+  (is any sliver bracketed by a culled surface?) becomes permanently
+  unmeasurable. `analysis/PINS-T35.md` says so at the site.
+- **`PIN_SPEC_*` is stale, not wrong.** It described a real camera that T29
+  removed. Deleting it would lose the only record that specular was ever
+  measured end to end.
+
+### 6.3 What this task did NOT touch
+
+No `native/` product source was modified: every gate's identity block reports
+`native/` clean, and `git status` on the branch shows no source change. The
+only files this task changed are evidence, gate scripts, and this report.
