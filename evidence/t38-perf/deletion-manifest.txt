@@ -1,0 +1,94 @@
+# T38 deletion manifest -- copies with no report / hash list / gate reference
+#
+# Generated from: git ls-tree -r -l HEAD plus sha256 of every blob whose size
+# collided with another blob, then a reference scan of every tracked
+# .md/.sh/.py/.ps1/.txt/.json/.csv/.tsv/src file.
+#
+# Reference levels, strongest first:
+#   L1-exact-path      the full path or its evidence/-relative form appears
+#   L2-path-tail3      the last 3 path components appear
+#   L2-basename        the basename (>=8 char stem, not a generic name) appears
+#   L3-sha256-manifest only the sha256 appears, in some hash list
+#   L4-dir+name        its directory appears and the name fits a stem+number
+#                      pattern built from it, i.e. a gate writes it by name
+#   L4-dir-only        only its directory appears
+#   L0-nothing         NONE of the above
+#
+# A copy is listed ONLY if it is L0-nothing. Every entry also records whether
+# an identical twin survives elsewhere, because 'this copy is unreferenced'
+# is not the same claim as 'these bytes can go'.
+#
+# NOTHING HAS BEEN DELETED. This is a list for the integration owner.
+
+## Summary
+
+tracked files             : 3447
+tracked bytes             : 1324098756 (1262.8 MiB)
+duplicate groups          : 212
+files inside those groups : 1379
+wasted by duplication     : 598588586 bytes (570.9 MiB, 45.2% of the tree)
+members with no reference : 35 (7.94 MiB)
+
+with a cited identical twin (bytes survive deletion): 31 files, 3.01 MiB
+last copy of their content (bytes would go away)  : 4 files, 4.93 MiB
+
+## A. Unreferenced copies whose identical bytes survive elsewhere
+
+| bytes | sha256 | path | identical cited twin |
+|---:|---|---|---|
+| 2834074 | 2080bd775329d4b837d807bf2c047f1efbc15a2139fe790eec1e6946255316f1 | evidence/mutation/animavail-m13/oracle-all-classes.txt | evidence/animation-availability/oracle-all-classes.txt |
+| 196349 | 04e73a7ae33d40d2c7b0d7c2fc83ddd787d859957c11e6d2ccb1f8e0c9a9b41e | evidence/mutation/animavail-m13/oracle-ctfplayer.txt | evidence/animation-availability/oracle-ctfplayer.txt |
+| 43020 | 0e6156a23392d88297f223baff91566deddcfc207aa3f70b71b2ac78a6821412 | evidence/t9-resource-discovery-20261017113652-50508-mutation/stability-release-check.sh.orig | stability-release-check.sh |
+| 20161 | 52cf3ec74027aae988b2bc73068a96914c46324a3d17f8ed15064723b15a59c1 | evidence/mutation/weaponworldmodel-m10/oracle-witness.txt | evidence/weapon-world-model/oracle-witness.txt |
+| 14532 | 088cd61272fed0f9503f41359e6f320d00a95fb9e7c163c38937f2d9b5503042 | evidence/mutation/animavail-m13/pov.txt | evidence/mutation/animavail-m13/bagel.txt |
+| 14532 | 088cd61272fed0f9503f41359e6f320d00a95fb9e7c163c38937f2d9b5503042 | evidence/mutation/animavail-m13/sourcetv.txt | evidence/mutation/animavail-m13/bagel.txt |
+| 6147 | ab5f739b33bdc7b1d6383ca7ac0e58893ba94b72ee5d9ca12d3d42f7052f5954 | evidence/material-semantics-superseded-invalid-state/probe-map.txt | evidence/material-semantics/probe-map.txt |
+| 3473 | 3084f941c3278801c1d730527106995368e4a1a8b7a9c6bd06ad32397e5d22e7 | evidence/t9-resource-discovery-20261017113652-50508-mutation/map_lookup.cpp.orig | native/src/map_lookup.cpp |
+| 2694 | d339468b7bac7edeb1a0d1753f80606d30f0871e66fec8fead426157803eb6ea | evidence/t1-viewmodel-acceptance/logs/gate-fast.log | evidence/t2-rerun-20261014-193500-t2a/gate-verify-fast.log |
+| 2694 | d339468b7bac7edeb1a0d1753f80606d30f0871e66fec8fead426157803eb6ea | evidence/world-material/t1-followup/verify-fast.log | evidence/t2-rerun-20261014-193500-t2a/gate-verify-fast.log |
+| 1734 | 679c26310f4c8c3bdc9cc068dbfe982fa7838f45e329aa51a27ee5534833a134 | evidence/after-fix/decal.txt | evidence/probe-baseline/decal.txt |
+| 1711 | b705905907dceef95f38c197479412418f6a63c3932cf49149b171113a078031 | evidence/after-fix/protocol23.txt | evidence/probe-baseline/protocol23.txt |
+| 1646 | 109d579f4ebccd651433c647be1f2cf50c204856ccf625247b4b6e103bdbac4c | evidence/after-fix/bagel.txt | evidence/perf-bagel.txt |
+| 1607 | 966e3a77072bbf0c197c2f67481e898116f6c2f70ff1e7893f02591a3f75541c | evidence/after-fix/ashville73.txt | evidence/probe-baseline/ashville73.txt |
+| 1605 | 8df81523666372206c0a078edcc165ca778d37f12afff7299c3f7e60bcbc5e02 | evidence/after-fix/saytext2.txt | evidence/probe-baseline/saytext2.txt |
+| 1585 | effada4ba9fc188dd0213e77d1bbae5c49e31a189e2e0dc60b01d569793625b6 | evidence/after-fix/comp.txt | evidence/probe-baseline/comp.txt |
+| 1447 | 00c9178f5ce044d4a67adbd12c09553d3c76ce98e6f92668c43e6f3e82d2f168 | evidence/after-fix/small.txt | evidence/probe-baseline/small.txt |
+| 1424 | 7e29b7c71ce06f5b2fa32212fecbdb7a6c04659fd50dff9d9a7566f33777d868 | evidence/after-fix/short2024.txt | evidence/probe-baseline/short2024.txt |
+| 1394 | a626b9319cd3ba899ea24ccddc4fbfcbbdb29abbd5e43998195f70f10ba927fc | evidence/mutation/weaponworldmodel-m10/fixture.txt | evidence/mutation/model.m10-selftest.txt |
+| 1224 | bf8b68e881b522d5d572df6d235aa7d6301e2a0c2688590d033fb50eb32f676d | evidence/t2-rerun-20261014-193500-t2a/fast/world-material-probe.txt | evidence/t2-rerun-20261014-193500-t2a/mutation/self-test.txt |
+| 1086 | 9f52bd703703980d0b1999561b20a36bdc9873d32474893f9a426c267fe2f16d | evidence/mutation/animavail-m13/bagel.json | evidence/animation-availability/bagel.json |
+| 1086 | 9f52bd703703980d0b1999561b20a36bdc9873d32474893f9a426c267fe2f16d | evidence/mutation/slotfreshness-m11/bagel.json | evidence/animation-availability/bagel.json |
+| 1068 | a0f6019741ac34375ee69632ba7c9c250911ea768237b4473b4ff9261a86ae14 | evidence/mutation/weaponworldmodel-m10/pov.json | evidence/mutation/model.m10.txt |
+| 1045 | 325631e7c7a96a02201d9820d79596e10dafdc6777ea04d04c2eb179021ab979 | evidence/mutation/animavail-m13/sourcetv.json | evidence/animation-availability/sourcetv.json |
+| 709 | c3f72a5146c0fb067be0e790cc24c14547d29cfadda2b24e7644fc62c524c238 | evidence/verify/22-weapon-animation-mutation-evidence/mutation-failure-entity.txt | evidence/render-gate-recheck/mutation/weapon-animation-mutation-failure-entity.txt |
+| 605 | ca7aee0d0d8006e27fd453737cace7a7c00de7ea3e6ea75f3b8a7ef46c9990e2 | evidence/material-semantics-superseded-invalid-state/mutated-m5-rect-scale.txt | evidence/material-semantics/mutated-m5-rect-scale.txt |
+| 514 | b331144af6d7e87b19b856151b678b0cda734454aa37d5e46f81dbd49e33b5cf | evidence/mutation/slotfreshness-m11/bagel.txt | evidence/slot-freshness/bagel.txt |
+| 243 | ffd64c5655b93e62a130b97386a591f4aef63d285464434a4cf11bc4ecca4792 | evidence/mutation/historycoverage-m9/fixture.txt | evidence/mutation/recording.m9.txt |
+| 240 | 99ae66d06558755a6b133d6fad9fcc983319ae40362af5c0cdf740480d3e86cd | evidence/t2-rerun-20261014-193500-t2a/fast/presentation-probe.txt | evidence/history-coverage/fixture.txt |
+| 40 | 70ac2433a7bb1d16ae3b0463f8408f3489805403fff54f24627c78606e1b7f15 | evidence/mutation/slotfreshness-m11/fixture.json | evidence/mutation/model.m10-selftest.json |
+| 40 | 70ac2433a7bb1d16ae3b0463f8408f3489805403fff54f24627c78606e1b7f15 | evidence/mutation/weaponworldmodel-m10/fixture.json | evidence/mutation/model.m10-selftest.json |
+
+## B. Unreferenced AND the last copy of their content
+
+These are the only files whose content would disappear. Each is in a
+directory a report describes but does not name this exact file.
+
+| bytes | sha256 | path |
+|---:|---|---|
+| 2582406 | 141782377bb5a734d5d7a4f90c923107d5772f3b208d7616bda1e07c55a05cca | evidence/t8-render-reliability-20261017004448-27674-forward/sunshine-sky.bmp |
+| 2582406 | 141782377bb5a734d5d7a4f90c923107d5772f3b208d7616bda1e07c55a05cca | evidence/t8-render-reliability-20261017102233-412-forward/sunshine-sky.bmp |
+| 96 | 183c3ee903f507fb2465ec81753897ef42ca8c4dc918f7e4f4ae703e9361f49c | evidence/t8-render-reliability-20261017004448-27674-forward/sky-face-samples.txt |
+| 96 | 183c3ee903f507fb2465ec81753897ef42ca8c4dc918f7e4f4ae703e9361f49c | evidence/t8-render-reliability-20261017102233-412-forward/sky-face-samples.txt |
+
+## C. The T33 proposal re-measured, per copy
+
+| sha256 | bytes | copies | referenced copies |
+|---|---:|---:|---|
+| cdf7214181c430df90ccb91459cc75a5269549daa8902470552838cd362aed65 | 51834617 | 4 | evidence/stability-release/run-03/fixtures/bad-magic.dem, evidence/t4-rerun-20261015-t4b/run-05/fixtures/bad-magic.dem, evidence/t4-rerun-20261015-t4b/run-06/fixtures/bad-magic.dem, evidence/t4-rerun-20261015-t4b/run-07/fixtures/bad-magic.dem |
+| 3e9ec1e6751c2adff76cbfc09c8944cbb2180c8d6c8fc79430503ce6516ca922 | 51834617 | 4 | evidence/stability-release/run-03/fixtures/bad-version.dem, evidence/t4-rerun-20261015-t4b/run-05/fixtures/bad-version.dem, evidence/t4-rerun-20261015-t4b/run-06/fixtures/bad-version.dem, evidence/t4-rerun-20261015-t4b/run-07/fixtures/bad-version.dem |
+| c8ae5062bbc342f3a8c8012932edb79d22c7bbc06eb7cb42c7e4979bb32380df | 31100770 | 4 | evidence/stability-release/run-03/fixtures/mid-truncated.dem, evidence/t4-rerun-20261015-t4b/run-05/fixtures/mid-truncated.dem, evidence/t4-rerun-20261015-t4b/run-06/fixtures/mid-truncated.dem, evidence/t4-rerun-20261015-t4b/run-07/fixtures/mid-truncated.dem |
+| 1202ed5a5407d18162d9976e28248596ee82bcd44d1d171acbcaa5ec04ceb222 | 72987 | 4 | evidence/stability-release/run-03/fixtures/truncated-packet.dem, evidence/t4-rerun-20261015-t4b/run-05/fixtures/truncated-packet.dem, evidence/t4-rerun-20261015-t4b/run-06/fixtures/truncated-packet.dem, evidence/t4-rerun-20261015-t4b/run-07/fixtures/truncated-packet.dem |
+| cf7d35ae79814849361c3b77d8d7fca529792333330aa7fca789d8cc1bd69e7e | 37076 | 4 | evidence/stability-release/run-03/fixtures/incomplete-netmsg.dem, evidence/t4-rerun-20261015-t4b/run-05/fixtures/incomplete-netmsg.dem, evidence/t4-rerun-20261015-t4b/run-06/fixtures/incomplete-netmsg.dem, evidence/t4-rerun-20261015-t4b/run-07/fixtures/incomplete-netmsg.dem |
+| a519827e25a212037c29bd182fb0cc513e8cfed99144e54f350c2c6ff88fc27e | 260 | 4 | evidence/stability-release/run-03/fixtures/truncated-header.dem, evidence/t4-rerun-20261015-t4b/run-05/fixtures/truncated-header.dem, evidence/t4-rerun-20261015-t4b/run-06/fixtures/truncated-header.dem, evidence/t4-rerun-20261015-t4b/run-07/fixtures/truncated-header.dem |
+| e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | 0 | 4 | evidence/stability-release/run-03/fixtures/empty.dem, evidence/t4-rerun-20261015-t4b/run-05/fixtures/empty.dem, evidence/t4-rerun-20261015-t4b/run-06/fixtures/empty.dem, evidence/t4-rerun-20261015-t4b/run-07/fixtures/empty.dem |
+
