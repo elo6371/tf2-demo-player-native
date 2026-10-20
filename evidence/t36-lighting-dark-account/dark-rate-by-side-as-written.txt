@@ -1,0 +1,10 @@
+drawn (all face-id pixels):  front  105065 ( 14.00%)  back  645326 ( 86.00%)
+dark  (lum<16):              front   35410 ( 17.15%)  back  171030 ( 82.85%)
+
+dark rate ON back faces :  26.50%  (171030 of 645326)
+dark rate ON front faces:  33.70%  (35410 of 105065)
+base dark rate overall  :  27.51%
+
+relative risk of being dark, back vs front = 0.786
+
+VERDICT: back faces are enriched/depleted: lift=0.786

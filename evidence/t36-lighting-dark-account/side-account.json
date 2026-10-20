@@ -1,0 +1,38 @@
+{
+ "width": 1264,
+ "height": 681,
+ "eyeMap": [
+  -2423.6,
+  5566.0,
+  -1280.0
+ ],
+ "calibration": {
+  "note": "the rule dark-account.py uses calls most of the already back-face-culled drawn population BACK; the calibrated rule is the sign the rasterizer agrees with",
+  "drawnUnderCalibratedRule": {
+   "front": 645326,
+   "back": 105065
+  }
+ },
+ "drawn": {
+  "front": 645326,
+  "back": 105065
+ },
+ "dark": {
+  "front": 171030,
+  "back": 35410
+ },
+ "darkRatePct": {
+  "front": 26.502883813762345,
+  "back": 33.702945795459954
+ },
+ "baseDarkRatePct": 27.510990936724987,
+ "relativeRiskBackVsFront": 1.2716708880547851,
+ "darkOnLowRectangle": {
+  "front": 166765,
+  "back": 35190
+ },
+ "darkOnLowRectangleSharePct": {
+  "front": 97.50628544699761,
+  "back": 99.37870658006213
+ }
+}

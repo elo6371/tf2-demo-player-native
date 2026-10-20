@@ -1,0 +1,4 @@
+dark pixels in the textured reference frame: 208630
+  lmoff dark  AND albedo dark  (a dark material):    2723 (  1.31%)
+  lmoff dark  BUT albedo BRIGHT (misattributed):       0 (  0.00%)
+  lmoff bright (the lightmap term is what is dark):  205907 ( 98.69%)

@@ -1,0 +1,34 @@
+frame 1264x681  dark(lum<16) = 208630 of 860784 (24.24%)
+  A_no_world_triangle                       2702 (  1.30%)
+  rect_all_zero_back_albedoBright          67951 ( 32.57%)
+  rect_all_zero_front_albedoBright          5432 (  2.60%)
+  rect_bright_back_albedoBright             3993 (  1.91%)
+  rect_bright_front_albedoBright             130 (  0.06%)
+  rect_bright_front_albedoDark                10 (  0.00%)
+  rect_lt_32_back_albedoBright             26425 ( 12.67%)
+  rect_lt_32_front_albedoBright             4039 (  1.94%)
+  rect_lt_8_back_albedoBright              14814 (  7.10%)
+  rect_lt_8_front_albedoBright             24855 ( 11.91%)
+  rect_lt_96_back_albedoBright             57516 ( 27.57%)
+  rect_lt_96_back_albedoDark                   2 (  0.00%)
+  rect_lt_96_front_albedoBright              752 (  0.36%)
+  rect_lt_96_front_albedoDark                  9 (  0.00%)
+
+masks (1 = in the population):
+  A_no_world_triangle                       2702 px -> masks/A_no_world_triangle.mask
+  rect_all_zero_back_albedoBright          67951 px -> masks/rect_all_zero_back_albedoBright.mask
+  rect_all_zero_front_albedoBright          5432 px -> masks/rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright             3993 px -> masks/rect_bright_back_albedoBright.mask
+  rect_bright_front_albedoBright             130 px -> masks/rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark                10 px -> masks/rect_bright_front_albedoDark.mask
+  rect_lt_32_back_albedoBright             26425 px -> masks/rect_lt_32_back_albedoBright.mask
+  rect_lt_32_front_albedoBright             4039 px -> masks/rect_lt_32_front_albedoBright.mask
+  rect_lt_8_back_albedoBright              14814 px -> masks/rect_lt_8_back_albedoBright.mask
+  rect_lt_8_front_albedoBright             24855 px -> masks/rect_lt_8_front_albedoBright.mask
+  rect_lt_96_back_albedoBright             57516 px -> masks/rect_lt_96_back_albedoBright.mask
+  rect_lt_96_back_albedoDark                   2 px -> masks/rect_lt_96_back_albedoDark.mask
+  rect_lt_96_front_albedoBright              752 px -> masks/rect_lt_96_front_albedoBright.mask
+  rect_lt_96_front_albedoDark                  9 px -> masks/rect_lt_96_front_albedoDark.mask
+
+ledger -> account.json
+product-attributable (albedo bright AND rectangle bright): 4123 px (1.9762% of dark)
