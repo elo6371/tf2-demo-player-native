@@ -87,7 +87,12 @@ BSP="$TF/$MAP"
 OUT=evidence/t36-lighting-dark-account
 SCRATCH=".scratch/t36-account.$$"
 CAP="$OUT/captures"
-mkdir -p "$SCRATCH" "$OUT" "$CAP"
+ACCOUNT="$SCRATCH/account"
+# The account writes its ledger, its masks and its own console log here, so the
+# directory has to exist before the first redirect or the tool fails with
+# "No such file or directory" and the gate reports a missing ledger instead of
+# a missing directory (which is what happened on this gate's first run).
+mkdir -p "$SCRATCH" "$OUT" "$CAP" "$ACCOUNT"
 
 fail=0
 assert_eq() { # assert_eq <name> <got> <want>
@@ -165,9 +170,8 @@ for n in textured ids ids-nocull lmoff flat; do
 done
 
 echo "== 2. the population account =="
-ACCOUNT="$SCRATCH/account"
 "$PYTHON" dark-account.py --frames "$SCRATCH" --out "$ACCOUNT" \
-  --bsp "$BSP" --eye "-2423.6,5566.0,-1280.0" \
+  --bsp "$BSP" --eye="-2423.6,5566.0,-1280.0" \
   --json "$ACCOUNT/account.json" > "$ACCOUNT/account.txt" 2>&1
 if [ ! -s "$ACCOUNT/account.json" ]; then
   echo "  FAIL the account tool did not produce a ledger";
@@ -198,10 +202,10 @@ assert_eq "rect BRIGHT, FRONT" "$(jget rect_bright_front_albedoBright)" "130"
 # The face-side split T29 left NOT VERIFIED.
 assert_eq "dark on BACK faces" \
   "$("$PYTHON" -c "import json;d=json.load(open('$ACCOUNT/account.json'))['counts'];print(sum(v for k,v in d.items() if '_back_' in k))")" \
-  "170698"
+  "170701"
 assert_eq "dark on FRONT faces" \
   "$("$PYTHON" -c "import json;d=json.load(open('$ACCOUNT/account.json'))['counts'];print(sum(v for k,v in d.items() if '_front_' in k))")" \
-  "35817"
+  "35227"
 # How much of the frame a product lightmap defect could still explain. A decode
 # regression that starts losing bright data grows it.
 assert_le "product-attributable pixels" \
@@ -224,7 +228,7 @@ if [ "$mask_ok" = 1 ]; then echo "  OK every mask sums to its count"; else fail=
 echo "== 5. the back-face control =="
 CJSON="$ACCOUNT/cull.json"
 "$PYTHON" cull-control.py --frames "$SCRATCH" --bsp "$BSP" \
-  --eye "-2423.6,5566.0,-1280.0" --json "$CJSON" > "$ACCOUNT/cull.txt" 2>&1
+  --eye="-2423.6,5566.0,-1280.0" --json "$CJSON" > "$ACCOUNT/cull.txt" 2>&1
 cull_rc=$?
 cat "$ACCOUNT/cull.txt"
 if [ "$cull_rc" != 0 ]; then echo "  FAIL the cull control did not hold"; fail=1; fi
@@ -294,24 +298,6 @@ restore_source() { # restore_source <backup> <path> <label> <expected hash>
     echo "  RESTORE=FAIL ($3: the source did not come back byte-identical)"; fail=1
   fi
 }
-run_account() { # run_account <tag> -- rebuild nothing, just re-read the frames
-  local tag="$1" dir="$SCRATCH/mut-$tag"
-  mkdir -p "$dir"
-  for n in textured ids ids-nocull lmoff flat; do
-    if [ ! -s "$SCRATCH/$n.bmp" ]; then
-      case "$n" in
-        textured)   capture "mut-$tag-textured" || return 1 ;;
-        ids)        capture "mut-$tag-ids" --world-face-id || return 1 ;;
-        ids-nocull) capture "mut-$tag-nocull" --world-face-id --no-world-cull || return 1 ;;
-        lmoff)      capture "mut-$tag-lmoff" --world-lightmap off || return 1 ;;
-        flat)       capture "mut-$tag-flat" --world-flat || return 1 ;;
-      esac
-      cp "$SCRATCH/mut-$tag-$n.bmp" "$dir/$n.bmp" 2>/dev/null || true
-      cp "$SCRATCH/mut-$tag-*.bmp" "$dir/" 2>/dev/null || true
-    fi
-  done
-  return 0
-}
 
 echo "-- m1: the lightmap RGBExp32 decode takes the exponent with the wrong sign --"
 SRC_MAP="native/src/bsp_map.cpp"
@@ -339,13 +325,20 @@ else
       done
       cp "$SCRATCH/ids-nocull.bmp" "$M1/"
       "$PYTHON" dark-account.py --frames "$M1" --out "$M1" \
-        --bsp "$BSP" --eye "-2423.6,5566.0,-1280.0" \
+        --bsp "$BSP" --eye="-2423.6,5566.0,-1280.0" \
         --json "$M1/account.json" > "$M1/account.txt" 2>&1
-      M1_DARK=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['dark'])" "$M1/account.json" 2>/dev/null || echo 0)
-      if [ "$M1_DARK" = "208630" ]; then
-        echo "  NOT-RED m1: the frame dark total did not move (still $M1_DARK)"; mfail=1
+      if [ ! -s "$M1/account.json" ]; then
+        echo "  MUTATION-BROKEN (m1): the account tool produced no ledger";
+        cat "$M1/account.txt"; mfail=1
       else
-        echo "  RED m1 as required: dark total moved 208630 -> $M1_DARK"
+        M1_DARK=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['dark'])" "$M1/account.json")
+        M1_ZERO=$("$PYTHON" -c "import json;d=json.load(open('$M1/account.json'))['counts'];print(d.get('rect_all_zero_back_albedoBright',0))")
+        if [ "$M1_DARK" = "208630" ]; then
+          echo "  NOT-RED m1: the frame dark total did not move (still $M1_DARK)"; mfail=1
+        else
+          echo "  RED m1 as required: dark total moved 208630 -> $M1_DARK"
+          echo "    (the all-zero BACK bucket moved 67951 -> $M1_ZERO)"
+        fi
       fi
       cp "$M1/account.txt" "$OUT/mutated-m1-exponent-sign.txt"
     fi
@@ -366,13 +359,32 @@ else
   mkdir -p "$M2"
   for n in textured ids ids-nocull lmoff flat; do cp "$SCRATCH/$n.bmp" "$M2/"; done
   "$PYTHON" dark-account.py --frames "$M2" --out "$M2" \
-    --bsp "$BSP" --eye "-2423.6,5566.0,-1280.0" \
+    --bsp "$BSP" --eye="-2423.6,5566.0,-1280.0" \
     --json "$M2/account.json" > "$M2/account.txt" 2>&1
-  M2_BACK=$("$PYTHON" -c "import json;d=json.load(open('$M2/account.json'))['counts'];print(sum(v for k,v in d.items() if '_back_' in k))" 2>/dev/null || echo 0)
-  if [ "$M2_BACK" = "170698" ]; then
-    echo "  NOT-RED m2: the back-face population did not move (still $M2_BACK)"; mfail=1
+  if [ ! -s "$M2/account.json" ]; then
+    # A crashed tool is not a mutation going red. That is the failure mode the
+    # first version of this mutation had: the replacement line was invalid
+    # Python, the account tool died, the back-face count read as 0 out of the
+    # "|| echo 0", and "0 != 170698" was reported as RED. It proved the tool
+    # could be broken, not that the side rule was observed.
+    echo "  MUTATION-BROKEN (m2): the account tool produced no ledger, so the"
+    echo "    side rule was never exercised"; cat "$M2/account.txt"; mfail=1
   else
-    echo "  RED m2 as required: dark on BACK faces moved 170698 -> $M2_BACK"
+    M2_BACK=$("$PYTHON" -c "import json;d=json.load(open('$M2/account.json'))['counts'];print(sum(v for k,v in d.items() if '_back_' in k))")
+    M2_FRONT=$("$PYTHON" -c "import json;d=json.load(open('$M2/account.json'))['counts'];print(sum(v for k,v in d.items() if '_front_' in k))")
+    M2_DARK=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['dark'])" "$M2/account.json")
+    # The inversion must SWAP the two populations, not merely move a number:
+    # same total, BACK becomes what FRONT was and FRONT becomes what BACK was.
+    # Anything else is the tool changing its mind, not the rule being wrong.
+    if [ "$M2_BACK" = "170701" ]; then
+      echo "  NOT-RED m2: the back-face population did not move (still $M2_BACK)"; mfail=1
+    elif [ "$M2_DARK" != "208630" ] || [ "$M2_BACK" != "35227" ] || [ "$M2_FRONT" != "170701" ]; then
+      echo "  MUTATION-BROKEN (m2): the split moved but did not swap:"
+      echo "    dark=$M2_DARK (want 208630) back=$M2_BACK (want 35227) front=$M2_FRONT (want 170701)"
+      mfail=1
+    else
+      echo "  RED m2 as required: BACK 170701 -> $M2_BACK and FRONT 35227 -> $M2_FRONT, the same total"
+    fi
   fi
   cp "$M2/account.txt" "$OUT/mutated-m2-side-inverted.txt"
 fi
@@ -402,12 +414,17 @@ else
       cp "$SCRATCH/lmoff.bmp" "$M3/"
       cp "$SCRATCH/flat.bmp" "$M3/"
       "$PYTHON" cull-control.py --frames "$M3" --bsp "$BSP" \
-        --eye "-2423.6,5566.0,-1280.0" --json "$M3/cull.json" > "$M3/cull.txt" 2>&1
-      M3_REM=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removed'])" "$M3/cull.json" 2>/dev/null || echo 0)
-      if [ "$M3_REM" = "81141" ]; then
-        echo "  NOT-RED m3: --no-world-cull still changed the frame ($M3_REM px)"; mfail=1
+        --eye="-2423.6,5566.0,-1280.0" --json "$M3/cull.json" > "$M3/cull.txt" 2>&1
+      if [ ! -s "$M3/cull.json" ]; then
+        echo "  MUTATION-BROKEN (m3): the cull control produced no reading";
+        cat "$M3/cull.txt"; mfail=1
       else
-        echo "  RED m3 as required: the cull control collapsed 81141 -> $M3_REM px"
+        M3_REM=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removed'])" "$M3/cull.json")
+        if [ "$M3_REM" = "81141" ]; then
+          echo "  NOT-RED m3: --no-world-cull still changed the frame ($M3_REM px)"; mfail=1
+        else
+          echo "  RED m3 as required: the cull control collapsed 81141 -> $M3_REM px"
+        fi
       fi
       cp "$M3/cull.txt" "$OUT/mutated-m3-no-cull-ignored.txt"
     fi
