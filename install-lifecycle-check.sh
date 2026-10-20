@@ -131,30 +131,63 @@ eq "install_cli_probe agrees with the product" \
   "$("$PROBE" --version | head -1 | sed 's/ versionCode=.*//')" \
   "package=tf2_demo_native version=$pkg_version"
 
-sec "4/8 --install into the clean directory"
+sec "4/8 --install into a directory that holds nothing but the payload (the packaged shape)"
+# The directory cmake --install produced already holds the product; installing
+# into it therefore exercises the "it is already here" path, not the path a user
+# takes. Both are real and both are measured, so four files below is the right
+# answer for the packaged prefix and three is the right answer for a fresh
+# directory. The fresh one is section 4b.
 IRC="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/install.txt" --install)"
 eq "product --install exit code" "$IRC" "0"
 echo "  --- --install ---"
-sed 's/^/    /' "$OUT/install.txt"
+sed "s/^/    /" "$OUT/install.txt"
 has "install reported PASS" "$(cat "$OUT/install.txt")" "install=PASS"
 eq "install mode" "$(field "$OUT/install.txt" mode)" "fresh"
-eq "installed file count" "$(field "$OUT/install.txt" files)" "3"
-eq "files the install created" "$(field "$OUT/install.txt" new)" "3"
+eq "files the install owns (3 payload + the VERSION.txt it writes)" "$(field "$OUT/install.txt" files)" "4"
+eq "the only file it created" "$(field "$OUT/install.txt" new)" "1"
 eq "files it had to back up" "$(field "$OUT/install.txt" backups)" "0"
+eq "no file was already there to preserve" "$(field "$OUT/install.txt" preserved)" "0"
 eq "the payload was consumed, not left behind" \
   "$([ -d "$PKG/.uninstall/payload" ] && echo present || echo consumed)" "consumed"
 eq "the manifest is on disk" "$([ -f "$PKG/.uninstall/install-manifest.txt" ] && echo yes || echo no)" "yes"
 inventory "$PKG" "$OUT/installed-files.txt"
 echo "  --- installed directory ---"
-sed 's/^/    /' "$OUT/installed-files.txt"
+sed "s/^/    /" "$OUT/installed-files.txt"
 eq "installed file count (3 payload + VERSION.txt + manifest)" \
-  "$(wc -l < "$OUT/installed-files.txt" | tr -d ' ')" "5"
+  "$(wc -l < "$OUT/installed-files.txt" | tr -d " ")" "5"
 eq "the installed manifest records the package version" \
-  "$(sed -n 's/^packageVersion=//p' "$PKG/.uninstall/install-manifest.txt" | tr -d '\r')" "$declared_version"
+  "$(sed -n "s/^packageVersion=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$declared_version"
 eq "the installed manifest records a monotonic version code" \
-  "$(sed -n 's/^packageVersionCode=//p' "$PKG/.uninstall/install-manifest.txt" | tr -d '\r')" "$PVC"
+  "$(sed -n "s/^packageVersionCode=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$PVC"
+eq "the manifest lists exactly the installed files, each once" \
+  "$(sed -n "s/^file=//p" "$PKG/.uninstall/install-manifest.txt" | wc -l | tr -d " ")" "4"
+# A record is "state<TAB>bytes<TAB>sha256<TAB>path", so the state words are read
+# from the tab-separated field and not from the start of the line: a manifest key
+# line also starts with a word.
 eq "every manifest record is a state word the product knows" \
-  "$(sed -n 's/^file=\([a-z]*\)\t.*/\1/p' "$PKG/.uninstall/install-manifest.txt" | sort -u | tr '\n' ',' )" "new,"
+  "$(sed -n "s/^file=\([a-z]*\)\t.*/\1/p" "$PKG/.uninstall/install-manifest.txt" | sort -u | tr "\n" " " | sed "s/ $//")" \
+  "new unchanged"
+
+sec "4b --install into an empty directory: the shape a user actually takes"
+FRESH="$OUT/clean/fresh"; rm -rf "$FRESH"; mkdir -p "$FRESH/.uninstall"
+cp -r "$OUT/stage/.uninstall/payload" "$FRESH/.uninstall/payload"
+FRC="$(run_exe "$FRESH/tf2_demo_native.exe" "$OUT/install-fresh.txt" --install --install-dir "$(cygpath -w "$FRESH")" 2>/dev/null || true)"
+# The payload holds the product, not an installer: to install into a directory
+# with no product yet, the product is run from the package and pointed at it.
+FRC="$(run_exe "$OUT/stage/tf2_demo_native.exe" "$OUT/install-fresh.txt" --install --install-dir "$(cygpath -w "$FRESH")")"
+eq "install into an empty directory exits 0" "$FRC" "0"
+echo "  --- --install (empty directory) ---"
+sed "s/^/    /" "$OUT/install-fresh.txt"
+eq "a fresh install owns exactly the three payload files" "$(field "$OUT/install-fresh.txt" files)" "3"
+eq "a fresh install creates all three of them" "$(field "$OUT/install-fresh.txt" new)" "3"
+inventory "$FRESH" "$OUT/installed-fresh.txt"
+echo "  --- the empty directory after the install ---"
+sed "s/^/    /" "$OUT/installed-fresh.txt"
+eq "the fresh directory holds the payload and the manifest" \
+  "$(wc -l < "$OUT/installed-fresh.txt" | tr -d " ")" "4"
+FSRC="$(run_exe "$FRESH/tf2_demo_native.exe" "$OUT/status-fresh.txt" --install-status)"
+eq "the fresh install reports VERIFIED" "$(cat "$OUT/status-fresh.txt" | grep -o "status=[A-Z]*" | head -1)" "status=VERIFIED"
+
 
 sec "5/8 --install-status in a NEW process: the state is on disk, not in memory"
 SRC="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/status.txt" --install-status)"
@@ -162,7 +195,7 @@ eq "product --install-status exit code" "$SRC" "0"
 echo "  --- --install-status ---"
 sed 's/^/    /' "$OUT/status.txt"
 has "status is VERIFIED" "$(cat "$OUT/status.txt")" "status=VERIFIED"
-eq "status counts 3 present files" "$(field "$OUT/status.txt" present)" "3"
+eq "status counts every file the manifest lists as present" "$(field "$OUT/status.txt" present)" "4"
 eq "status found nothing missing" "$(field "$OUT/status.txt" missing)" "0"
 eq "status found nothing modified" "$(field "$OUT/status.txt" modified)" "0"
 eq "status reports the installed version" "$(field "$OUT/status.txt" version)" "$declared_version"
@@ -170,7 +203,6 @@ eq "status reports the installed version" "$(field "$OUT/status.txt" version)" "
 sec "6/8 what a user does to an installed directory: edit one file, add another"
 echo 'user note' > "$PKG/user-notes.txt"
 echo 'edited by the user after the install' >> "$PKG/install_smoke_probe.ps1"
-SRC2="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/status-edited.txt" --status 2>/dev/null || true)"
 SRC3="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/status-edited.txt" --install-status)"
 eq "--install-status exit code after an edit" "$SRC3" "0"
 echo "  --- status after edit ---"
@@ -179,20 +211,29 @@ has "status noticed the edit" "$(cat "$OUT/status-edited.txt")" "status=DEGRADED
 eq "status counts the edited file as modified" "$(field "$OUT/status-edited.txt" modified)" "1"
 
 sec "7/8 --install over an existing install (the upgrade shape)"
+# The payload is consumed by the first install, so an upgrade starts from the
+# same place the first one did: the package stages it again. Without a payload the
+# product says so by name instead of reinstalling half a package -- measured, and
+# pinned here, because "reinstall silently did nothing" would be the worse answer.
+NOPAY="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/reinstall-no-payload.txt" --install)"
+eq "install with the payload already consumed exits 2" "$NOPAY" "2"
+has "and names the missing payload" "$(cat "$OUT/reinstall-no-payload.txt")" "reason=no_payload"
 cp -r "$OUT/stage/.uninstall/payload" "$PKG/.uninstall/payload"
 IRC2="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/reinstall.txt" --install)"
 eq "product --install (second time) exit code" "$IRC2" "0"
 echo "  --- --install over the existing install ---"
-sed 's/^/    /' "$OUT/reinstall.txt"
+sed "s/^/    /" "$OUT/reinstall.txt"
 eq "the second install knows it is a reinstall" "$(field "$OUT/reinstall.txt" mode)" "reinstall"
-eq "a reinstall does not back up the package's own files" "$(field "$OUT/reinstall.txt" backups)" "0"
+eq "a reinstall does not back up the package own files" "$(field "$OUT/reinstall.txt" backups)" "0"
+eq "a reinstall did not touch the user file" \
+  "$([ -f "$PKG/user-notes.txt" ] && echo present || echo absent)" "present"
 eq "the version the install carries is unchanged by a reinstall" \
-  "$(sed -n 's/^packageVersion=//p' "$PKG/.uninstall/install-manifest.txt" | tr -d '\r')" "$declared_version"
-sec "8/8 --uninstall: only what the manifest says, and the user's files stay"
+  "$(sed -n "s/^packageVersion=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$declared_version"
+sec "8/8 --uninstall: only what the manifest says, and the user files stay"
 URC="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/uninstall.txt" --uninstall)"
 eq "product --uninstall exit code" "$URC" "0"
 echo "  --- --uninstall ---"
-sed 's/^/    /' "$OUT/uninstall.txt"
+sed "s/^/    /" "$OUT/uninstall.txt"
 has "uninstall reported PASS" "$(cat "$OUT/uninstall.txt")" "uninstall=PASS"
 eq "the edited file was left alone and counted" "$(field "$OUT/uninstall.txt" modified)" "1"
 eq "the file the user added is still there" \
@@ -206,9 +247,9 @@ eq "the version file the install wrote is gone" \
   "$([ -f "$PKG/VERSION.txt" ] && echo present || echo absent)" "absent"
 inventory "$PKG" "$OUT/after-uninstall.txt"
 echo "  --- what is left ---"
-sed 's/^/    /' "$OUT/after-uninstall.txt"
-eq "what is left is exactly the user's two files" \
-  "$(cut -f1 "$OUT/after-uninstall.txt" | tr '\n' ' ' | sed 's/ *$//')" "install_smoke_probe.ps1 user-notes.txt"
+sed "s/^/    /" "$OUT/after-uninstall.txt"
+eq "what is left is exactly the user two files" \
+  "$(cut -f1 "$OUT/after-uninstall.txt" | tr "\n" " " | sed "s/ *$//")" "install_smoke_probe.ps1 user-notes.txt"
 eq "the install directory itself survives" "$([ -d "$PKG" ] && echo present || echo absent)" "present"
 
 sec "uninstall refuses a directory that is not an install"
@@ -218,31 +259,27 @@ NRC="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/uninstall-not-install.txt" --uni
 eq "uninstall in a directory with no manifest exits 2" "$NRC" "2"
 has "and it names the missing manifest rather than deleting anything" \
   "$(cat "$OUT/uninstall-not-install.txt")" "reason=no_manifest"
-eq "the user's file is untouched" "$([ -f "$NOTAN/data.txt" ] && echo present || echo absent)" "present"
+eq "the user file is untouched" "$([ -f "$NOTAN/data.txt" ] && echo present || echo absent)" "present"
 
 sec "install refuses an empty payload instead of pretending"
-EMPTY="$OUT/clean/empty-payload"; mkdir -p "$EMPTY/.uninstall/payload"
+EMPTY="$OUT/clean/empty-payload"; rm -rf "$EMPTY"; mkdir -p "$EMPTY/.uninstall/payload"
 ERC="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/install-empty.txt" --install --install-dir "$(cygpath -w "$EMPTY")")"
 eq "install with an empty payload exits 2" "$ERC" "2"
 has "and says why" "$(cat "$OUT/install-empty.txt")" "reason=empty_payload"
 
-sec "the install records itself without a registry or a service"
-manifest_head="$(head -12 "$OUT/logs/../clean/pkg/.uninstall/install-manifest.txt" 2>/dev/null)"
-echo "  --- manifest as it was written (from the pre-uninstall copy) ---"
-sed 's/^/    /' "$OUT/manifest-before-uninstall.txt" 2>/dev/null || true
-reg_hits="$(grep -ciE 'registry|HKEY_|service' "$OUT/installed-files.txt" 2>/dev/null || true)"
-eq "the installed directory contains no registry or service artefact" "${reg_hits:-0}" "0"
-eq "the manifest is the only state file" \
-  "$(find "$OUT/stage" -path '*/.uninstall/*' -name '*.txt' | wc -l | tr -d ' ')" "1"
+sec "the install is a directory, not machine state"
+eq "the installed directory contains no registry or service artefact" \
+  "$(grep -ciE 'registry|HKEY_|service' "$OUT/installed-files.txt" 2>/dev/null || echo 0)" "0"
+eq "the manifest is the only state the install writes" \
+  "$(find "$OUT/stage" -path '*/.uninstall/*' -type f ! -path '*payload*' | wc -l | tr -d ' ')" "1"
 
-cases=8
+cases=9
 echo
 echo "  cases=$cases checks=$CHECKS mutations=0"
 if [ "$FAIL" -eq 0 ]; then echo "  INSTALL-LIFECYCLE=PASS"; exit 0; fi
 echo "  INSTALL-LIFECYCLE=FAIL fail=$FAIL"
 exit 1
 fi
-
 # ==================================================================== mutation
 sec "mutation preconditions: the forward run"
 for need in "$OUT/clean/pkg" "$OUT/version.txt"; do

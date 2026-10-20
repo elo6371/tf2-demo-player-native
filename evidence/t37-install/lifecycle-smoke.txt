@@ -1,0 +1,44 @@
+ACQUIRED owner=t37 at 2026-10-20 21:15:45
+build_rc=0
+cmake-install rc=0
+--- --install ---
+rc=0
+install=START package=0.1.0 payloadFiles=3 payloadBytes=2215724 mode=fresh
+install=PASS files=4 new=1 changed=0 unchanged=3 preserved=0 backups=0 copied=3
+install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+--- prefix after install ---
+.uninstall/install-manifest.txt 712
+install_smoke_probe.ps1 812
+native_install_smoke_probe.exe 297984
+tf2_demo_native.exe 1916928
+VERSION.txt 160
+--- manifest ---
+format=tf2-demo-native-install-manifest
+formatVersion=1
+package=tf2_demo_native
+packageVersion=0.1.0
+packageVersionCode=100
+sourceDateEpoch=0
+sourceTree=44f5cc952362
+installedUtc=2026-10-20T13:15:50Z
+installDirectory=D:/TF2_Native_Worktrees/t37-installer/.scratch/t37/life/prefix
+files=4
+file=new	160	e6bfc02c49620f5d141e4f98a82c1033c15347f2ad1782257ead16c21aea28bc	VERSION.txt
+file=unchanged	812	9af2e272a77f9e154474d9c681f07dbbcb5e7108dd66da6205251640ae70fec6	install_smoke_probe.ps1
+file=unchanged	297984	c5ad540fe05ddf2008f0283e15e9394efd2858d7c324af91e8f4e7982f05c6d5	native_install_smoke_probe.exe
+file=unchanged	1916928	44b1768f1822bd551d94bd0f710fa3c58042ddb072c953a36006898458d1fa08	tf2_demo_native.exe
+--- --install-status ---
+rc=0
+status=VERIFIED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-20T13:15:50Z files=4 present=4 missing=0 modified=0
+--- --install again (reinstall) ---
+rc=2
+install=FAIL reason=no_payload payload=D:/TF2_Native_Worktrees/t37-installer/.scratch/t37/life/prefix/.uninstall/payload
+--- --uninstall ---
+rc=0
+uninstall=PASS removed=1 restored=0 preserved=3 modified=0 alreadyMissing=0
+--- what is left ---
+ 0
+install_smoke_probe.ps1 812
+native_install_smoke_probe.exe 297984
+tf2_demo_native.exe 1916928
+LOCKED-COMMAND-EXIT rc=0 owner=t37
