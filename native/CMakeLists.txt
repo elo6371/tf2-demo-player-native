@@ -167,6 +167,16 @@ add_executable(lighting_semantics_probe tools/lighting_semantics_probe.cpp
 target_include_directories(lighting_semantics_probe PRIVATE include third_party/lzma)
 set_target_properties(lighting_semantics_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T27: the per-material feature path (normal layers, detail layer). Links
+# world_tile_atlas.cpp for `worldFeatureTileRect`, so the probe and the renderer
+# scale a tile rectangle with one function.
+add_executable(world_feature_probe tools/world_feature_probe.cpp
+  src/world_lighting.cpp src/world_material_features.cpp src/world_tile_atlas.cpp
+  src/vmt_material.cpp src/vpk_archive.cpp src/bsp_map.cpp src/vtf_texture.cpp
+  src/world_material.cpp third_party/lzma/LzmaDec.c)
+target_include_directories(world_feature_probe PRIVATE include third_party/lzma)
+set_target_properties(world_feature_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(terrain_blend_probe tools/terrain_blend_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
 target_include_directories(terrain_blend_probe PRIVATE include third_party/lzma)
 set_target_properties(terrain_blend_probe PROPERTIES WIN32_EXECUTABLE OFF)

@@ -101,9 +101,49 @@ bool VmtParser::parse(const std::string& text, VmtMaterial& material) {
   material.baseTexture2 = scalar(root, "$basetexture2");
   material.blendModulateTexture = scalar(root, "$blendmodulatetexture");
   material.bumpMap = scalar(root, "$bumpmap");
+  // `$bumpmap1` is layer 1 of a WorldVertexTransition. It is read as an alias
+  // rather than ignored: `$bumpmap` and `$bumpmap1` are the same slot in the
+  // SDK, and a blend material that names only the numbered form would otherwise
+  // read as having no normal map at all.
+  if (material.bumpMap.empty()) material.bumpMap = scalar(root, "$bumpmap1");
   material.bumpMap2 = scalar(root, "$bumpmap2");
   material.ssBump = enabled(scalar(root, "$ssbump"));
   material.detailTexture = scalar(root, "$detail");
+  material.detailType = scalar(root, "%detailtype");
+  {
+    // `$detailblendmode` is an integer TCOMBINE_* index; a malformed value is
+    // refused rather than defaulted, because defaulting would draw a mode-8
+    // material as mode 0 and change every texel of it.
+    const std::string mode = scalar(root, "$detailblendmode");
+    if (!mode.empty()) {
+      char* end = nullptr;
+      const long value = std::strtol(mode.c_str(), &end, 10);
+      if (end && *end == '\0') {
+        material.detailBlendMode = static_cast<int>(value);
+        // 0,1,2,3,8 are the pre-lighting branches TextureCombine implements for
+        // a base colour and a detail colour; 4 needs the base's alpha, 5 and 6
+        // run after lighting, 7 selects between two patterns by base alpha, 9
+        // only writes alpha, and 10/11 consume an SSBump detail. None of those
+        // inputs exist in the world pass, so they are named, not approximated.
+        material.detailBlendModeUnsupported = !(value == 0 || value == 1 || value == 2
+          || value == 3 || value == 8);
+      } else {
+        material.detailBlendModeUnsupported = true;
+      }
+    }
+    const std::string factor = scalar(root, "$detailblendfactor");
+    if (!factor.empty()) {
+      char* end = nullptr;
+      const double value = std::strtod(factor.c_str(), &end);
+      if (end && *end == '\0') material.detailBlendFactor = static_cast<float>(value);
+    }
+    const std::string scale = scalar(root, "$detailscale");
+    if (!scale.empty()) {
+      char* end = nullptr;
+      const double value = std::strtod(scale.c_str(), &end);
+      if (end && *end == '\0' && value > 0.0) material.detailScale = static_cast<float>(value);
+    }
+  }
   material.envMap = scalar(root, "$envmap");
   material.selfIllumTint = scalar(root, "$selfillumtint");
   material.phongTint = scalar(root, "$phongtint");

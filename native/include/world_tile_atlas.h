@@ -76,6 +76,12 @@ struct WorldTileSource {
   std::size_t blendBytes = 0;
   bool blendDeclared = false;
   std::size_t modulateBytes = 0;
+  // T27: the per-material feature layers, already resampled to this tile's own
+  // `width` x `height`. Zero means the material shipped no layer for that
+  // feature (or the switch that fetches it was off); the planner prices a
+  // feature atlas for a batch only when at least one of its tiles carries one.
+  std::size_t bumpBytes = 0;
+  std::size_t bump2Bytes = 0;
 };
 
 // Where one material's pixels live. `x` and `y` address the tile's first pixel,
@@ -94,6 +100,11 @@ struct WorldTileSlot {
   std::uint32_t sourceHeight = 0;
   bool blend = false;
   bool modulate = false;
+  // T27: whether this material's own layer was handed over for the feature
+  // atlases. The renderer blits only the ones that are true, and sets the
+  // vertex's feature bits from the blits -- not from the VMT.
+  bool bump = false;
+  bool bump2 = false;
 };
 
 // One atlas. `columns` x `rows` tiles, each `tileSize` square including its
@@ -107,6 +118,17 @@ struct WorldTileBatch {
   std::uint64_t albedoBytes = 0;
   int blendTiles = 0;
   int modulateTiles = 0;
+  // T27: the feature atlases drawn with this batch. They are laid out on the
+  // SAME tile rectangles in normalised space and at `1/featureScale` of the
+  // albedo resolution, which is what lets one uv address all of them while
+  // costing a quarter of the memory per layer. Measured: three more full-size
+  // layers on the reference map would have been 282 MiB and would have pushed
+  // the plan over its 384 MiB budget; at half resolution they are 70 MiB.
+  std::uint32_t featureWidth = 0;
+  std::uint32_t featureHeight = 0;
+  std::uint64_t featureBytes = 0;
+  int bumpTiles = 0;
+  int bump2Tiles = 0;
 };
 
 struct WorldAtlasPlanOptions {
@@ -122,6 +144,13 @@ struct WorldAtlasPlanOptions {
   // needs more is refused by name and the reading says how much it would have
   // cost.
   std::uint64_t budgetBytes = 384ull * 1024ull * 1024ull;
+  // T27: feature layers (normal maps) are stored at 1/featureScale of the
+  // albedo atlas in each dimension. A normal map carries low-frequency
+  // direction, not albedo detail, and the reference map's 44 bump tiles at full
+  // resolution would cost every batch a second and third 67 MiB texture. 0 or 1
+  // means full resolution, which is what the probe's fixtures use so the
+  // arithmetic stays exact.
+  std::uint32_t featureScale = 2;
 };
 
 struct WorldAtlasPlan {
@@ -139,6 +168,9 @@ struct WorldAtlasPlan {
   std::uint64_t albedoBytes = 0;
   std::uint64_t blendBytes = 0;
   std::uint64_t modulateBytes = 0;
+  // T27: the normal-map layers' totals, priced at the feature resolution.
+  std::uint64_t bumpBytes = 0;
+  std::uint64_t bump2Bytes = 0;
   // One measured sentence naming the counts, in the style the capability layer
   // uses: a reader can re-derive it from the numbers next to it.
   std::string reason;
@@ -171,5 +203,27 @@ void worldTileBlit(std::vector<std::uint8_t>& atlas, std::uint32_t atlasWidth,
 // a mid-grey that is visibly not a texture, so an unassigned texel is a
 // finding rather than a plausible dark patch.
 constexpr std::uint8_t worldAtlasFill = 88u;
+
+// ---------------------------------------------------------------------------
+// T27: a feature tile's rectangle inside a feature atlas
+// ---------------------------------------------------------------------------
+// The feature atlases are drawn with the albedo uv, which is normalised by the
+// ALBEDO atlas size. So a tile's rectangle in the feature atlas has to be the
+// albedo rectangle scaled by `featureSize / atlasSize` -- proportional in
+// normalised space, not a second grid. `worldTileBlit` needs one texel of
+// margin on every side for the replicated border, so the rect is clamped into
+// [1, size-1) and a tile that cannot fit at all is refused (returns false and
+// the caller leaves the material's feature bit clear rather than sampling a
+// neighbouring tile and calling it applied).
+struct WorldFeatureTileRect {
+  std::uint32_t x = 0;
+  std::uint32_t y = 0;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+};
+
+bool worldFeatureTileRect(const WorldTileSlot& slot, std::uint32_t atlasWidth,
+  std::uint32_t atlasHeight, std::uint32_t featureWidth, std::uint32_t featureHeight,
+  WorldFeatureTileRect& out);
 
 } // namespace tf2::native

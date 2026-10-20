@@ -155,8 +155,13 @@ WorldLightingReading scanWorldLightingSemantics(
     control.missing = features.bumpMap.resourcesMissing;
     control.visibleMaterials = features.bumpMap.visibleDeclared;
     control.visibleTriangles = bumpTriangles;
-    control.requested = pass.bumpRequested;
-    control.effective = pass.bumpEffective;
+    control.requested = pass.bumpRequested || pass.materialBumpRequested;
+    // T27: two paths can make this row applied, and they are not the same
+    // claim. `pass.bumpEffective` is T24's one-slot diagnostic; the per-material
+    // path is the renderer's atlas plus a vertex bit. `materialPath` decides
+    // which sentence the reason gets.
+    const bool materialPath = pass.materialBumpEffective;
+    control.effective = pass.bumpEffective || materialPath;
     control.firstMaterial = features.bumpMap.firstMaterial;
     control.firstResource = pass.bumpOwnerTexture.empty()
       ? features.bumpMap.firstResource : pass.bumpOwnerTexture;
@@ -168,7 +173,13 @@ WorldLightingReading scanWorldLightingSemantics(
     } else {
       control.state = WorldLightingState::NotDeclared;
     }
-    if (control.effective) {
+    if (materialPath) {
+      control.reason = "on: " + std::to_string(pass.materialBumpMaterials)
+        + " materials sample their own $bumpmap tile through a per-face tangent basis built from"
+        " the BSP texinfo axes; of the " + std::to_string(control.declared)
+        + " materials that declare $bumpmap, " + std::to_string(features.ssBumpDeclared)
+        + " set $ssbump and are refused by name (a bumpBasis weight is not a tangent-space normal)";
+    } else if (pass.bumpEffective) {
       const std::string source = pass.bumpTextureSource == "material"
         ? "named by the slot's owner " + pass.bumpOwnerMaterial
         : (pass.bumpTextureSource == "forced"
@@ -191,10 +202,11 @@ WorldLightingReading scanWorldLightingSemantics(
         + std::to_string(features.distinctBumpPaths) + " distinct $bumpmap textures and the pass"
         " has one sampler slot";
     } else {
-      control.reason = "off, and refused when on: the world pass has one bump sampler slot, but the"
-        " materials name " + std::to_string(features.distinctBumpPaths) + " distinct $bumpmap"
-        " textures across " + std::to_string(control.visibleDeclared) + " visible materials, so no"
-        " material's own normal map is applied";
+      control.reason = "off: the world pass has one bump sampler slot"
+        " (--world-bump) and the per-material path is off too (--world-material-bump), so the "
+        + std::to_string(control.visibleDeclared) + " visible materials that name one of "
+        + std::to_string(features.distinctBumpPaths) + " distinct $bumpmap textures are drawn"
+        " with no normal map at all";
     }
   }
 
@@ -212,11 +224,53 @@ WorldLightingReading scanWorldLightingSemantics(
     control.parsed = control.declared > 0;
     control.firstMaterial = features.bumpMap2.firstMaterial;
     control.firstResource = features.bumpMap2.firstResource;
-    control.state = control.declared > 0 ? WorldLightingState::Refused
-                                       : WorldLightingState::NotDeclared;
-    control.reason = features.bumpMap2.declared == 0
-      ? "no material declares $bumpmap2"
-      : features.bumpMap2.reason;
+    // T27: layer 2's normal is drawn when its own switch is on AND the material
+    // path is on, because it is blended into layer 1's normal and there is
+    // nothing to blend toward otherwise. `effective` is the renderer's reading,
+    // not this arithmetic: a batch with no bump2 tile leaves it false.
+    control.requested = pass.bump2Requested;
+    control.effective = pass.bump2Effective;
+    if (control.effective) {
+      control.state = WorldLightingState::Applied;
+    } else if (control.declared > 0 || control.requested) {
+      control.state = WorldLightingState::Refused;
+    } else {
+      control.state = WorldLightingState::NotDeclared;
+    }
+    if (control.declared == 0) {
+      control.reason = "no material declares $bumpmap2";
+    } else if (control.effective) {
+      control.reason = "on: " + std::to_string(pass.bump2Materials) + " of "
+        + std::to_string(features.bumpMap2.declared) + " declared materials draw layer 2; each"
+        " lerps its layer-2 normal into the base normal by the same vertex weight that selects"
+        " the albedo layer (SDK BUMPMAP2 block: `vNormal.xyz = lerp(vNormal.xyz, vNormal2.xyz,"
+        " blendfactor)`), which is why the two layers cannot disagree about where the boundary is";
+      // T27: "layer 2 draws" and "layer 2 draws from the resource its VMT names"
+      // are separate claims, and this map only supports the first. Saying the
+      // forced count here keeps the ledger from reading as the second.
+      if (pass.bump2Diagnostic && pass.bump2DiagnosticBase > 0) {
+        control.reason += "; " + std::to_string(pass.bump2DiagnosticBase) + " of them set"
+          " $ssbump, so their layer-1 normal is refused and the lerp starts from the base"
+          " normal this pass already computed -- the diagnostic measures the shader arm, not"
+          " Source's bumpBasis";
+      } else if (features.bumpMap2SsBump > 0) {
+        control.reason += "; " + std::to_string(features.bumpMap2SsBump) + " declared"
+          " materials set $ssbump, so their layer-1 normal is refused and the product path has"
+          " no base normal to lerp layer 2 into (--world-bump2-texture names a diagnostic base)";
+      }
+      if (pass.bump2Forced > 0) {
+        control.reason += "; " + std::to_string(pass.bump2Forced) + " of them sample the"
+          " --world-bump2-texture diagnostic, not the VTF their $bumpmap2 names ("
+          + std::to_string(features.bumpMap2.declared - features.bumpMap2SsBump) + " of "
+          + std::to_string(features.bumpMap2.declared) + " declared second-layer textures are not"
+          " SSBump)";
+      }
+    } else if (control.requested) {
+      control.reason = "requested but refused: $bumpmap2 is blended into layer 1's normal and"
+        " --world-material-bump is off, so layer 1's normal is not sampled either";
+    } else {
+      control.reason = features.bumpMap2.reason;
+    }
   }
 
   // ---- 4. %detailtype -----------------------------------------------------
@@ -244,12 +298,35 @@ WorldLightingReading scanWorldLightingSemantics(
       control.reason = features.detail.reason + "; "
         + (control.resolved == 0
           ? std::to_string(control.missing) + " of " + std::to_string(control.declared)
-            + " referenced detail VMTs are absent from this install, so %detailtype cannot be read"
-            " here; the read path is exercised by the probe's fixture"
+            + " referenced detail VMTs are absent from this install, so the layer's own texture and"
+            " blend mode cannot be resolved here; %detailtype is a key in the material that names"
+            " the layer, not in the detail VMT, and is read above"
           : std::to_string(control.resolved) + " detail VMT(s) read, "
             + std::to_string(features.detailTypesRead) + " distinct %detailtype value(s)"
             + (features.firstDetailType.empty() ? std::string()
               : " (first=" + features.firstDetailType + ")"));
+      // T27: the key and the layer are two different things, and this row is
+      // about the key. `%detailtype` names a detail-prop group that VBSP reads
+      // at map compile time to emit prop_detail sprites and models from the
+      // map's `detail.vbsp`; it never reaches a runtime shader, so no pass has a
+      // consumer for it -- hence the sentence is unconditional. Attaching it to
+      // `detailEffective` made the row read as if switching the layer off also
+      // switched the key's status, which it does not. The count comes first
+      // because "1 material names a group" and "0 read" are different claims,
+      // and only the first one is true here.
+      if (features.detailTypesRead > 0) {
+        control.reason += "; " + std::to_string(features.detailTypesRead) + " material"
+          + (features.detailTypesRead == 1 ? " names" : "s name") + " a %detailtype group"
+          + (features.firstDetailType.empty() ? std::string()
+            : " (first=" + features.firstDetailType + ")");
+      }
+      control.reason += "; %detailtype names a detail-prop group that VBSP consumes at map"
+        " compile time (it emits prop_detail sprites and models there), so the key never reaches"
+        " a runtime shader and has no consumer here";
+      if (pass.detailEffective) {
+        control.reason += "; the $detail layer itself draws for "
+          + std::to_string(pass.detailMaterials) + " materials";
+      }
     }
   }
 
@@ -272,6 +349,18 @@ WorldLightingReading scanWorldLightingSemantics(
     control.reason = features.ssBump.declared == 0
       ? "no material declares $ssbump"
       : features.ssBump.reason;
+    if (control.declared > 0 && pass.materialBumpEffective) {
+      // T27 measured what the refusal costs: the per-material path is live, and
+      // this is the subset it cannot take. Both numbers are counted, so the
+      // subtraction is checkable rather than asserted.
+      control.reason = std::to_string(features.ssBumpDeclared) + " of "
+        + std::to_string(features.bumpMap.declared) + " materials that declare $bumpmap set"
+        " $ssbump; Source compiles that as `BUMPMAP == 2`, where the texel is NOT remapped with"
+        " `* 2 - 1` and is consumed as weights on bumpBasis[0..2] against three lightmap"
+        " directions (lightmappedgeneric_ps2_3_x.h). This pass has one lightmap and no basis, so"
+        " those materials keep the flat geometric normal while the other "
+        + std::to_string(features.bumpMapWithoutSsBump) + " apply their own normal map";
+    }
   }
 
   std::size_t applied = 0, refused = 0, disabled = 0, notDeclared = 0;

@@ -195,8 +195,16 @@ assert_eq "\$phong declared" "$(kv "$PROBE_MAP" lighting.phongDeclared)" "0"
 assert_eq "dynamicLighting state" "$(kv "$PROBE_MAP" lighting.dynamicLighting.state)" "disabled"
 assert_eq "specular state" "$(kv "$PROBE_MAP" lighting.specular.state)" "disabled"
 assert_eq "bump state" "$(kv "$PROBE_MAP" lighting.bump.state)" "refused"
-assert_eq "bump declared" "$(kv "$PROBE_MAP" lighting.bump.declared)" "44"
-assert_eq "bump resolved" "$(kv "$PROBE_MAP" lighting.bump.resolved)" "44"
+# T27 changed these two from 44 to 45 by adding the `$bumpmap1` alias to the
+# parser (`vmt_material.cpp`): `$bumpmap1` is layer 1 of a WorldVertexTransition
+# and is the same slot as `$bumpmap`. The map has exactly one material that
+# spells it that way -- GREEK/GREEK_BLEND_COBBLE_FLOOR_01_TO_SAND, which is
+# also the only non-SSBump `$bumpmap2` material -- so it now counts as
+# declaring a bump map, and `$bumpmap declared` moved 44 -> 45. This is the
+# reading getting more correct, not a regression; the pin is moved with the
+# reason rather than left to fail.
+assert_eq "bump declared" "$(kv "$PROBE_MAP" lighting.bump.declared)" "45"
+assert_eq "bump resolved" "$(kv "$PROBE_MAP" lighting.bump.resolved)" "45"
 assert_eq "bump missing" "$(kv "$PROBE_MAP" lighting.bump.missing)" "0"
 assert_eq "\$bumpmap2 state" "$(kv "$PROBE_MAP" 'lighting.$bumpmap2.state')" "refused"
 assert_eq "\$bumpmap2 declared" "$(kv "$PROBE_MAP" 'lighting.$bumpmap2.declared')" "5"
@@ -204,19 +212,23 @@ assert_eq "\$bumpmap2 resolved" "$(kv "$PROBE_MAP" 'lighting.$bumpmap2.resolved'
 assert_eq "%detailtype state" "$(kv "$PROBE_MAP" 'lighting.%detailtype.state')" "refused"
 assert_eq "%detailtype declared" "$(kv "$PROBE_MAP" 'lighting.%detailtype.declared')" "15"
 assert_eq "%detailtype resolved" "$(kv "$PROBE_MAP" 'lighting.%detailtype.resolved')" "0"
-assert_eq "%detailtype parsed" "$(kv "$PROBE_MAP" 'lighting.%detailtype.parsed')" "0"
+# T27 moved the key to where it belongs (the material that names the layer, not
+# the detail VMT), and this map declares it once: parsed is now 1, not 0.
+assert_eq "%detailtype parsed" "$(kv "$PROBE_MAP" 'lighting.%detailtype.parsed')" "1"
 assert_eq "\$ssbump state" "$(kv "$PROBE_MAP" 'lighting.$ssbump.state')" "refused"
 assert_eq "\$ssbump declared" "$(kv "$PROBE_MAP" 'lighting.$ssbump.declared')" "36"
 assert_eq "\$ssbump resolved" "$(kv "$PROBE_MAP" 'lighting.$ssbump.resolved')" "36"
 assert_eq "ledger summary" "$(kv "$PROBE_MAP" lighting.summary)" \
   "controls=6 applied=0 refused=4 disabled=2 notDeclared=0 phong=0(visible 0, exponents 0/0) bumpOwner=WOOD/WALL007A"
 
-# The 9 `$bumpmap` VTFs that are in the map's own pakfile and nowhere else. The
+# The `$bumpmap` VTFs that are in the map's own pakfile and nowhere else. The
 # product's feature scan called them missing before T24 because the chain's
 # pakfile reader held a reference to a block-local vector; this pins the
-# attribution so a regression cannot come back as "9 missing" again.
-assert_eq "bump paths absent from the chain" "$(kv "$PROBE_MAP" bump.chainMissing)" "9"
-assert_eq "bump paths in the map pakfile only" "$(kv "$PROBE_MAP" bump.pakfileOnly)" "9"
+# attribution so a regression cannot come back as "missing" again. T27's
+# `$bumpmap1` alias added one more material to the list (the cobble floor
+# above), so the count is 10, not 9 -- see the note on `bump declared`.
+assert_eq "bump paths absent from the chain" "$(kv "$PROBE_MAP" bump.chainMissing)" "10"
+assert_eq "bump paths in the map pakfile only" "$(kv "$PROBE_MAP" bump.pakfileOnly)" "10"
 assert_eq "bump paths absent everywhere" "$(kv "$PROBE_MAP" bump.absent)" "0"
 
 RES_DETAIL="$SCRATCH/res-detail.txt"
@@ -252,11 +264,15 @@ assert_eq "A dynamic scope" "$(cfield "$DYN" materials)/$(cfield "$DYN" triangle
 SPEC=$(controlline "$A_TRACE" specular)
 assert_eq "A specular state" "$(cfield "$SPEC" state)" "disabled"
 assert_contains "A specular names the missing \$phong" "$SPEC" "no visible material declares \$phong"
+# T27's `$bumpmap1` alias adds GREEK/GREEK_BLEND_COBBLE_FLOOR_01_TO_SAND to
+# the declared set (44 -> 45) and its 1,128 triangles to the visible scope
+# (53,334 -> 53,462). The reason is recorded where the parser changed; the
+# pin follows the reading.
 BUMP=$(controlline "$A_TRACE" bump)
 assert_eq "A bump counts" \
   "$(cfield "$BUMP" declared)/$(cfield "$BUMP" visible)/$(cfield "$BUMP" resolved)/$(cfield "$BUMP" missing)" \
-  "44/43/44/0"
-assert_eq "A bump scope" "$(cfield "$BUMP" materials)/$(cfield "$BUMP" triangles)" "43/53334"
+  "45/44/45/0"
+assert_eq "A bump scope" "$(cfield "$BUMP" materials)/$(cfield "$BUMP" triangles)" "44/53462"
 B2=$(controlline "$A_TRACE" '$bumpmap2')
 assert_eq "A \$bumpmap2 counts" \
   "$(cfield "$B2" declared)/$(cfield "$B2" visible)/$(cfield "$B2" resolved)" "5/5/5"
@@ -264,7 +280,7 @@ assert_eq "A \$bumpmap2 scope" "$(cfield "$B2" materials)/$(cfield "$B2" triangl
 DET=$(controlline "$A_TRACE" '%detailtype')
 assert_eq "A %detailtype counts" \
   "$(cfield "$DET" declared)/$(cfield "$DET" visible)/$(cfield "$DET" resolved)/$(cfield "$DET" missing)/$(cfield "$DET" parsed)" \
-  "15/14/0/15/0"
+  "15/14/0/15/1"
 assert_contains "A %detailtype names the install" "$DET" "absent from this install"
 SSB=$(controlline "$A_TRACE" '$ssbump')
 assert_eq "A \$ssbump counts" \
@@ -450,11 +466,16 @@ SAVE_LIGHT="$SCRATCH/world_lighting.cpp.save"
 cp "$SRC_LIGHT" "$SAVE_LIGHT"
 HASH_LIGHT=$(git hash-object "$SRC_LIGHT")
 if ! patch_in "$SRC_LIGHT" \
-  '    control.state = control.declared > 0 ? WorldLightingState::Refused
-                                       : WorldLightingState::NotDeclared;
-    control.reason = features.bumpMap2.declared == 0' \
-  '    control.state = WorldLightingState::Applied;  // mutation m1
-    control.reason = features.bumpMap2.declared == 0'; then
+  '      control.state = WorldLightingState::Refused;
+    } else {
+      control.state = WorldLightingState::NotDeclared;
+    }
+    if (control.declared == 0) {' \
+  '      control.state = WorldLightingState::Applied;  // mutation m1
+    } else {
+      control.state = WorldLightingState::NotDeclared;
+    }
+    if (control.declared == 0) {'; then
   echo "  MUTATION-SETUP=FAIL (m1: the patch did not apply)"; fail=1
 else
   bash build-target.sh lighting_semantics_probe > "$SCRATCH/m1.build" 2>&1
@@ -479,13 +500,13 @@ restore_source "$SAVE_LIGHT" "$SRC_LIGHT" m1 "$HASH_LIGHT"
 # m2: the %detailtype read path stops reading the key. The fixture is the only
 # input that can catch it, because the install has no detail VMT at all.
 echo "-- m2: the detail material's %detailtype is no longer read --"
-SRC_FEAT="native/src/world_material_features.cpp"
-SAVE_FEAT="$SCRATCH/world_material_features.cpp.save"
+SRC_FEAT="native/src/vmt_material.cpp"
+SAVE_FEAT="$SCRATCH/vmt_material.cpp.save"
 cp "$SRC_FEAT" "$SAVE_FEAT"
 HASH_FEAT=$(git hash-object "$SRC_FEAT")
 if ! patch_in "$SRC_FEAT" \
-  'if (at != detailMaterial.fields.end() && !at->second.empty()) {' \
-  'if (false) {  // mutation m2'; then
+  'material.detailType = scalar(root, "%detailtype");' \
+  'material.detailType = std::string();  // mutation m2'; then
   echo "  MUTATION-SETUP=FAIL (m2: the patch did not apply)"; fail=1
 else
   bash build-target.sh lighting_semantics_probe > "$SCRATCH/m2.build" 2>&1

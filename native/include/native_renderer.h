@@ -39,6 +39,14 @@ struct RenderSettings {
   bool dynamicLighting = false;
   bool shadows = false;
   bool bumpMapping = false;
+  // T27: the per-material feature passes. Deliberately separate from
+  // `bumpMapping`: that one is T24's single-slot diagnostic, which binds one
+  // texture for the whole world, while these turn on the per-material atlases.
+  // A capture that turned on one must not read as having turned on the other,
+  // and `normalize()` leaves all three alone for the same reason.
+  bool materialBump = false;
+  bool bumpMap2 = false;
+  bool detailLayer = false;
   bool specular = false;
   bool waterReflection = false;
   bool waterRefraction = true;
@@ -86,6 +94,33 @@ struct WorldTexture {
   // `$blendmodulatetexture`, same grid, r and g carrying the smoothstep range
   // the SDK's shader uses. Empty means the blend is the raw vertex alpha.
   std::vector<std::uint8_t> blendModulateRgba;
+  // ---- T27 (2026-10-19): the material features that change the image ------
+  // Each of these is already resampled onto this tile's own width x height, for
+  // the same reason the blend layer is: one tile rectangle, one uv, so a
+  // per-material normal or detail map can be sampled by the vertex uv that is
+  // already there. Empty means the feature is not drawn for this material --
+  // either it declared nothing, its texture did not resolve, or the switch that
+  // fetches it was off. The renderer sets the vertex's feature mask from what
+  // it actually blitted, so an empty vector can never claim to be applied.
+  std::vector<std::uint8_t> bumpRgba;      // `$bumpmap`
+  std::vector<std::uint8_t> bump2Rgba;     // `$bumpmap2`, layer 2's normal
+  std::vector<std::uint8_t> detailRgba;    // `$detail`, tiled `$detailscale` times
+  // TextureCombine's two arguments, from `$detailblendmode` and
+  // `$detailblendfactor` on the material that declares `$detail`.
+  std::uint32_t detailMode = 0;
+  float detailFactor = 1.0f;
+  float detailScale = 1.0f;
+  // What the VMT asked for, whether or not it resolved. The terrain filter's
+  // lesson (T12) applies here too: "declared and not fetched" is a different
+  // fact from "never declared", and only the first one is a bug.
+  bool bumpDeclared = false;
+  bool bump2Declared = false;
+  bool detailDeclared = false;
+  // `$ssbump`. Carried so the feature state can say how many of the materials
+  // that declare a normal map were refused because their texel is a bumpBasis
+  // weight rather than a tangent-space normal -- a refusal that is not a missing
+  // resource and must not be counted as one.
+  bool ssBump = false;
 };
 
 // T12: what the terrain blend path actually did, as counts a gate can read.
@@ -118,6 +153,29 @@ struct WorldBlendState {
   float weightMin = -1.0f;
   float weightMax = -1.0f;
   std::size_t distinctWeights = 0;
+};
+
+// T27: what the per-material feature path actually did, counted from the
+// blits and the vertices rather than from the VMTs. `tiles` is how many
+// materials put a layer into a feature atlas; `vertices` is how many uploaded
+// vertices carry that bit in `featureMask`; `materials` is how many distinct
+// materials those vertices belong to. A declared-and-resolved count without
+// these three cannot tell "the shader samples this material's own normal map"
+// from "the atlas was built and no vertex points at it", and the second one is
+// the T19 failure this task exists to close.
+struct WorldFeatureState {
+  // The switch the caller set. `enabled == false` means the atlas was not
+  // built at all, not that it was built and left unbound.
+  bool enabled = false;
+  std::size_t tiles = 0;
+  std::size_t materials = 0;
+  std::size_t vertices = 0;
+  // The blend-weight distribution that reached `$bumpmap2`'s lerp. Same reason
+  // as the terrain weights: a constant 1 and a painted gradient draw different
+  // pictures, and only the distribution tells them apart.
+  float bump2WeightMin = -1.0f;
+  float bump2WeightMax = -1.0f;
+  std::size_t bump2DistinctWeights = 0;
 };
 
 struct ProjectileLine {
@@ -274,6 +332,13 @@ struct WorldTileReading {
   int sourceHeight = 0;
   bool blend = false;
   bool modulate = false;
+  // T27: whether this material's normal layers reached the feature atlases. A
+  // material that declares `$bumpmap` but whose tile could not be placed has
+  // `bump == false`, so "declared" and "the shader can sample it" stay two
+  // different readings instead of one optimistic flag.
+  bool bump = false;
+  bool bump2 = false;
+  bool detail = false;
   std::string reason;
 };
 
@@ -315,6 +380,15 @@ struct WorldMaterialSampleState {
   bool dynamicLightingMode = false;
   bool specularMode = false;
   bool bumpMode = false;
+  // T27: the per-material feature path, as the last upload left it. `*Mode`
+  // says the atlas exists AND at least one vertex carries the bit, which is the
+  // pair that separates "the material asked" from "the shader samples it".
+  bool materialBumpMode = false;
+  bool bump2Mode = false;
+  bool detailMode = false;
+  WorldFeatureState bumpFeature{};
+  WorldFeatureState bump2Feature{};
+  WorldFeatureState detailFeature{};
   // Falsifiable vertex counts for the lightmap pass. `lightmappedVertexCount`
   // is how many of the uploaded world vertices carry a per-face light uv; a
   // vertex without one is drawn flat no matter what the atlas holds. The pair
@@ -695,6 +769,29 @@ public:
   // would change the atlas contents as well, and then a differing pixel could
   // be attributed to the atlas rather than to the shader branch.
   void setWorldBlendEnabled(bool enabled) { worldBlendEnabled_ = enabled; }
+  // ---- T27 (2026-10-19): the material-feature switches -------------------
+  // One switch per semantic, and each one is a renderer-side switch for the
+  // same reason the blend switch is: turning it off has to leave the geometry,
+  // the albedo atlas and the uv exactly as they are, so the two frames differ
+  // by the normal/detail branch alone. `false` means the atlas is not built at
+  // all and no vertex carries the bit, which is also what makes the default
+  // frame byte-identical to the pre-T27 build.
+  void setWorldMaterialBumpEnabled(bool enabled) { worldMaterialBumpEnabled_ = enabled; }
+  void setWorldBump2Enabled(bool enabled) { worldBump2Enabled_ = enabled; }
+  // T27: the layer-2 diagnostic base. The product path lerps layer 2 into the
+  // material's own layer-1 normal (Source's BUMPMAP2 block is compiled under
+  // BUMPMAP), so a material whose layer 1 is refused -- the 36 `$ssbump`
+  // materials -- has no base for the lerp and must not carry the bit. The
+  // diagnostic switch exists because the one material on this map that does have
+  // both layers is under the terrain at both gate cameras: it lets the lerp be
+  // measured on the base normal the pass already computed, with the trace naming
+  // that base. It is a measurement of the shader arm, not a claim about Source's
+  // bumpBasis.
+  void setWorldBump2Diagnostic(bool enabled) { worldBump2Diagnostic_ = enabled; }
+  void setWorldDetailEnabled(bool enabled) { worldDetailEnabled_ = enabled; }
+  WorldFeatureState worldBumpFeatureState() const { return worldBumpFeature_; }
+  WorldFeatureState worldBump2FeatureState() const { return worldBump2Feature_; }
+  WorldFeatureState worldDetailFeatureState() const { return worldDetailFeature_; }
   // `setWorldTerrainOnly(true)` uploads only the triangles whose material is a
   // blend material -- the displacement terrain -- and nothing else. It exists
   // because "the change is in the terrain region" is a claim about *where* the
@@ -1213,6 +1310,13 @@ private:
     ID3D11ShaderResourceView* albedoView = nullptr;
     ID3D11ShaderResourceView* blendView = nullptr;
     ID3D11ShaderResourceView* modulateView = nullptr;
+    // T27: the feature atlases for this batch. Same tile rectangles as
+    // `albedoView`, which is what lets one uv address all of them; null when
+    // this batch has no material with the feature (the shader's mask bit is
+    // clear for those vertices, so null is never sampled).
+    ID3D11ShaderResourceView* bumpView = nullptr;
+    ID3D11ShaderResourceView* bump2View = nullptr;
+    ID3D11ShaderResourceView* detailView = nullptr;
   };
   std::vector<WorldDrawBatch> worldDrawBatches_;
   // Per uploaded triangle, which batch it belongs to; -1 when the material got
@@ -1259,6 +1363,21 @@ private:
   Texture2D worldBlendTexture_;
   Texture2D worldBlendModulateTexture_;
   std::size_t worldBlendTiles_ = 0;
+  // ---- T27: the per-material feature atlases ------------------------------
+  // One atlas per batch per feature, on the base atlas's tile rectangles. They
+  // exist only when their switch is on, so an off run allocates exactly what
+  // the pre-T27 build allocated and the two frames differ by the shader branch
+  // and not by a texture the driver decided to lay out differently.
+  std::vector<Texture2D> worldBumpAtlasTextures_;
+  std::vector<Texture2D> worldBump2AtlasTextures_;
+  std::vector<Texture2D> worldDetailAtlasTextures_;
+  WorldFeatureState worldBumpFeature_;
+  WorldFeatureState worldBump2Feature_;
+  WorldFeatureState worldDetailFeature_;
+  bool worldMaterialBumpEnabled_ = false;
+  bool worldBump2Enabled_ = false;
+  bool worldBump2Diagnostic_ = false;
+  bool worldDetailEnabled_ = false;
   std::size_t worldBlendTexturesSeen_ = 0;
   std::size_t worldBlendLayersSeen_ = 0;
   std::size_t worldBlendAccepted_ = 0;
