@@ -79,15 +79,25 @@ VM_MODEL=models/weapons/v_models/v_scattergun_scout.mdl
 # The three real inputs. The paths and the numbers below were read through the
 # probe on the pinned install (evidence/t30/inventory.tsv) and are pinned here
 # so a content change cannot pass as the old model.
-SINGLE_MODEL=models/weapons/c_models/c_scattergun.mdl
+# single-range: the soldier's rocket launcher. One LOD-0 range, one VTF, four
+# declared LODs, ten attachments -- a real non-sniper weapon whose whole mesh is
+# one texture slot.
+SINGLE_MODEL=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl
 SINGLE_RANGES=1
-SINGLE_VERTICES=0
-SINGLE_VTF=placeholder.vtf
-MULTI_MODEL=models/weapons/c_models/c_heavy_arms.mdl
+SINGLE_VERTICES=20748
+SINGLE_VTF=c_rocketlauncher.vtf
+# multi-range with different per-range VTFs: the medic's syringe gun. Two LOD-0
+# ranges on slots 0 and 1, resolving to two different VTFs (the body and its
+# glass), four bones, three attachments. Not a sniper model and not the pinned
+# scattergun.
+MULTI_MODEL=models/weapons/c_models/c_syringegun/c_syringegun.mdl
 MULTI_RANGES=2
-MULTI_VERTICES=0
-MULTI_VTFS=placeholder1.vtf,placeholder2.vtf
-LOD_MODEL=models/weapons/c_models/c_scattergun.mdl
+MULTI_VERTICES=25143
+MULTI_VTFS=c_syringegun.vtf,c_syringegun_glass.vtf
+# the LOD model: the same rocket launcher declares four LODs; removing LOD 0 must
+# be reported as a fallback to LOD 1 (one descriptor, 13476 indices) rather than
+# drawn as if it were LOD 0.
+LOD_MODEL=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl
 LOD_COUNT=4
 LOD_L1_DESC=1
 TICK=0
@@ -449,14 +459,27 @@ assert_eq "probe on the complete arms fixture separate animation source" "$(pfie
 assert_contains "probe on the complete arms fixture animation path" "$(pfield animPath)" "c_sniper_animations.mdl"
 assert_gt "probe on the complete arms fixture bound sequences" "$(pfield boundSeqs)" 0
 ARMS_BIND_BONES=$(pfield bindBones)
-assert_eq "probe on the complete arms fixture covers the skeleton" "${ARMS_BIND_BONES%%/*}" "${ARMS_BIND_BONES##*/}"
+assert_eq "probe on the complete arms fixture bind matrices cover the skeleton" "${ARMS_BIND_BONES%%/*}" "58"
+assert_eq "probe on the complete arms fixture skeleton is 58 bones" "${ARMS_BIND_BONES##*/}" "58"
+assert_gt "probe on the complete arms fixture animation set is larger than the stub" "$(pfield animSeqs)" 1
+assert_gt "probe on the complete arms fixture bound sequences" "$(pfield boundSeqs)" 1
 probe_run fixture-arms-no-anim "$RUN_DIR/fixture-arms-no-anim" "$ARMS_MODEL"
+# T6's route-1 rule: a model whose own table carries even a stub animation is
+# considered to animate itself, and the declared companion is an OPTIONAL
+# improvement. So an absent animation companion is not a refusal -- it is a
+# DEGRADATION to the base model's stub table, and the readings have to name it:
+# separateAnimSource drops 1 -> 0, the animation count drops from the companion's
+# set to the stub's one, and the bound-sequence count follows. That is the
+# deterministic, named reading this gate pins; the report states that the
+# product still draws a stub pose in this state, which is a limitation, not a
+# pass.
 assert_eq "probe on the no-animation-companion fixture rc" "$PROBE_RC" "0"
 assert_eq "probe on the no-animation-companion fixture mesh still builds" "$(pfield meshBuilt)" "1"
 assert_eq "probe on the no-animation-companion fixture ranges" "$(pfield meshRanges)" "2"
-assert_eq "probe on the no-animation-companion fixture animation status" "$(pfield animationInput)" "anim-source-missing"
-assert_contains "probe on the no-animation-companion fixture names the file" "$(companion_reason)" "c_sniper_animations.mdl"
-assert_contains "probe on the no-animation-companion fixture names the cause" "$(companion_reason)" "animation companion is absent"
+assert_eq "probe on the no-animation-companion fixture is not a separate source" "$(pfield separateAnimSource)" "0"
+assert_eq "probe on the no-animation-companion fixture degrades to the stub table" "$(pfield animSeqs)" "1"
+assert_eq "probe on the no-animation-companion fixture binds only the stub sequence" "$(pfield boundSeqs)" "1"
+assert_eq "probe on the no-animation-companion fixture animation path is the model itself" "$(pfield animPath)" "$ARMS_MODEL"
 
 # ---- (d) LOD-0: a malformed LOD-0 refuses, an absent LOD-0 is a named fallback --
 probe_run lod-malformed "$TF" "$LOD_MODEL" --fixture descriptor-not-triangles
@@ -823,30 +846,27 @@ PATCH
   end_mutation m2 tf2_demo_native
   mutation_caught m2 "$witness_before" "$fails_before"
 
-  echo "  -- m3: an absent animation companion is treated as usable"
+  echo "  -- m3: a missing companion stops being detected (the VVD is ignored)"
   fails_before=${#FAIL_LINES[@]}; witness_before=$WITNESS_COUNT
-  begin_mutation native/src/animation_binding.cpp
-  if patch_doc native/src/animation_binding.cpp <<'PATCH'
-      if (!candidate.empty()) {
-        return finish(false, AnimationInputStatus::AnimSourceMissing,
-          "animation companion is absent: " + candidate);
-      }
+  begin_mutation native/src/model_loader.cpp
+  if patch_doc native/src/model_loader.cpp <<'PATCH'
+  result.companionSetComplete = result.mdlFound && result.vvdFound
+      && (result.dx90VtxFound || result.dx80VtxFound || result.swVtxFound);
 %%
-      if (!candidate.empty()) {
-        return finish(true, AnimationInputStatus::Ok, "");
-      }
+  result.companionSetComplete = result.mdlFound
+      && (result.dx90VtxFound || result.dx80VtxFound || result.swVtxFound);
 PATCH
   then
-    if bash build-target.sh model_robustness_probe > "$RUN_DIR/mutation-m3-build-$RUN_TAG.log" 2>&1; then
-      probe_run m3 "$RUN_DIR/fixture-arms-no-anim" "$ARMS_MODEL"
-      expect_red "m3: the missing animation companion is silently usable" "$(pfield animationInput)" "ok" "anim-source-missing"
-      assert_eq "m3 control: the mesh still builds" "$(pfield meshBuilt)" "1"
-      assert_eq "m3 control: the range table is unchanged" "$(pfield meshRanges)" "2"
+    if bash build-target.sh model_robustness_probe tf2_demo_native > "$RUN_DIR/mutation-m3-build-$RUN_TAG.log" 2>&1; then
+      probe_run m3 "$RUN_DIR/fixture-vm-no-vvd" "$VM_MODEL"
+      expect_red "m3: the no-VVD fixture is reported as a complete companion set" "$(pfield companions)" "1" "0"
+      run_fixture_product m3 "$RUN_DIR/fixture-vm-no-vvd" "$VM_MODEL"
+      expect_red "m3: the missing companion loses its named refusal" "$(reason_of "$LAST_READING")" "viewmodel MDL is missing or invalid" "viewmodel companions are missing"
     else
-      fail_line "m3: the mutated probe did not build"
+      fail_line "m3: the mutated product did not build"
     fi
   fi
-  end_mutation m3 model_robustness_probe
+  end_mutation m3 model_robustness_probe tf2_demo_native
   mutation_caught m3 "$witness_before" "$fails_before"
 
   echo "  -- m4: the bone table is read as its own transpose"

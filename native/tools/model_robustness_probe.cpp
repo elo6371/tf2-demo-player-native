@@ -306,10 +306,19 @@ int main(int argc, char** argv) {
       }
       files.push_back(std::move(file));
     }
-    // A root the product will accept needs the two directories it probes for.
+    // A root the product will accept needs a NON-EMPTY store under materials,
+    // models and maps: AssetRoot::valid() requires a regular file under each (the
+    // committed fixture roots carry a .gitkeep). Without the two markers the
+    // animation binding refuses the root as "no asset root" -- read as
+    // model-missing on the first forward run -- and the product drops --tf-root.
     std::error_code directoryError;
     std::filesystem::create_directories(materializeDir / "maps", directoryError);
     std::filesystem::create_directories(materializeDir / "materials", directoryError);
+    const std::vector<std::uint8_t> markerText = {'#', ' ', 'T', '3', '0', ' ', 'f',
+      'i', 'x', 't', 'u', 'r', 'e', ' ', 'r', 'o', 'o', 't', '\n'};
+    for (const char* marker : {"maps/.gitkeep", "materials/.gitkeep"}) {
+      if (!writeBytes(materializeDir / marker, markerText, materialiseError)) break;
+    }
     std::size_t written = 0;
     for (const auto& file : files) if (!file.dropped && file.bytes != 0) ++written;
     std::fprintf(stderr,
@@ -362,8 +371,6 @@ int main(int argc, char** argv) {
     targetLod = metadata.indices.front().lod;
     for (const auto& descriptor : metadata.indices) targetLod = std::min(targetLod, descriptor.lod);
   }
-  const bool lodFallback = !metadata.indices.empty() && targetLod > 0;
-
   // ---- fixtures ------------------------------------------------------------
   // Applied to the decoded model, not to the file: the same entry point the
   // builder reads, with one state changed.
@@ -396,12 +403,23 @@ int main(int argc, char** argv) {
   std::size_t targetIndices = 0;
   std::size_t targetWithoutMaterial = 0;
   std::uint32_t effectiveLod = targetLod;
+  // The LOD view is recomputed AFTER the fixture, so a run that removed the LOD-0
+  // descriptors reports the LOD it actually selected and calls that a fallback.
+  // The first version computed lodFallback before the fixture and read 0 on a run
+  // whose own targetLod was 1, which is the one number the fallback claim needs.
+  lods.clear();
+  lod0Descriptors = 0;
+  for (const auto& descriptor : metadata.indices) {
+    lods.insert(descriptor.lod);
+    if (descriptor.lod == 0) ++lod0Descriptors;
+  }
   if (!metadata.indices.empty()) {
     effectiveLod = metadata.indices.front().lod;
     for (const auto& descriptor : metadata.indices) {
       effectiveLod = std::min(effectiveLod, descriptor.lod);
     }
   }
+  const bool lodFallback = !metadata.indices.empty() && effectiveLod > 0;
   for (const auto& descriptor : metadata.indices) {
     if (descriptor.lod != effectiveLod) continue;
     ++targetDescriptors;

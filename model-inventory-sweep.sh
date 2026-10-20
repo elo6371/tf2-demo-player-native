@@ -29,7 +29,7 @@ PROBE=native/build-nmake/model_robustness_probe.exe
 CENSUS=native/build-nmake/vpk_query.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 OUT=evidence/t30/inventory.tsv
-GROUPS=evidence/t30/inventory-groups.txt
+GROUPS_FILE=evidence/t30/inventory-groups.txt
 mkdir -p "$(dirname "$OUT")"
 if [ ! -x "$PROBE" ] || [ ! -x "$CENSUS" ]; then
   echo "FATAL: build model_robustness_probe vpk_query first" >&2; exit 1
@@ -70,7 +70,7 @@ echo "swept $COUNT models, $FAILS with a refusal"
   awk -F'\t' '$2 == 0 && $3 ~ / separateAnimSource=0 / {print "  " $1}' "$OUT"
   echo "# models that produced a named refusal:"
   awk -F'\t' '$2 != 0 {print "  " $1 }' "$OUT"
-} > "$GROUPS"
+} > "$GROUPS_FILE"
 SINGLE=$(awk -F'\t' '$2 == 0 && $3 ~ / meshRanges=1 /' "$OUT" | wc -l)
 MULTI=$(awk -F'\t' '$2 == 0 && $3 ~ / meshRanges=[2-9]/ && $3 ~ / distinctRangeTextures=[2-9]/' "$OUT" | wc -l)
 echo "single-range=$SINGLE multi-range-distinct-textures=$MULTI"
