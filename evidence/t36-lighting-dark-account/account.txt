@@ -30,5 +30,5 @@ masks (1 = in the population):
   rect_lt_96_front_albedoBright              752 px -> masks/rect_lt_96_front_albedoBright.mask
   rect_lt_96_front_albedoDark                  9 px -> masks/rect_lt_96_front_albedoDark.mask
 
-ledger -> .scratch/t36-account.12472/account/account.json
+ledger -> account.json
 product-attributable (albedo bright AND rectangle bright): 4123 px (1.9762% of dark)

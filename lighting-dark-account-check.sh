@@ -248,7 +248,8 @@ echo "== 6. evidence =="
 awk '{ if (match($0, / -> .*[\/\\]([^\/\\]+\.mask)[ \t\r]*$/)) {
          name = $0; sub(/^.*[\/\\]/, "", name); sub(/[ \t\r]+$/, "", name);
          sub(/ -> .*/, "", $0); print $0 " -> masks/" name
-       } else print }' "$ACCOUNT/account.txt" > "$OUT/account.txt"
+       } else if ($0 ~ /^ledger -> /) { print "ledger -> account.json" }
+       else print }' "$ACCOUNT/account.txt" > "$OUT/account.txt"
 cp "$ACCOUNT/account.json" "$OUT/account.json"
 cp "$ACCOUNT/cull.txt" "$OUT/cull-control.txt"
 cp "$ACCOUNT/cull.json" "$OUT/cull-control.json"
