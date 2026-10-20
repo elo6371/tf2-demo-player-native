@@ -6103,9 +6103,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         static_cast<int>(entitySnapshotStatus), static_cast<int>(entitySnapshotStaleness),
         currentEntityStates.size());
       tf2::native::DemoViewSample observerView;
+      // T34: the eye this scene tick resolved, in map units, read from the
+      // same observer view the camera decision below consumes. Defaults keep
+      // the line readable on a scene tick with no observe target.
+      float cameraEyeX = 0.0f, cameraEyeY = 0.0f, cameraEyeZ = 0.0f;
       const bool haveObserverView =
         tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneTick, observerView)
         && observerView.hasOrigin && observerView.hasAngles;
+      if (haveObserverView) {
+        cameraEyeX = observerView.origin[0];
+        cameraEyeY = observerView.origin[1];
+        cameraEyeZ = observerView.origin[2];
+      }
       // T4 camera modes. The mode machine and the no-target rule live in
       // native_ui (decideCameraSceneAction, probe-checked over the whole
       // matrix); this block only executes the decision. The historical
@@ -6158,9 +6167,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         renderer.setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1],
           g_debugCameraEye[2], g_debugCameraPitch, g_debugCameraYaw);
       }
-      traceFmt("scene: camera mode=%s target=%d follows=%u holds=%u freeze=%u",
+      // T34: the camera pose this scene tick resolved, in MAP units.
+      // Published because a gate that asserts "the picture changed between
+      // two ticks" has to know whether the camera moved between them, or it
+      // is measuring the world rather than the thing it names. The counters
+      // above say the decision was taken; these numbers say where the camera
+      // ended up, and `src` names the source the pose came from.
+      traceFmt("scene: camera mode=%s target=%d follows=%u holds=%u freeze=%u"
+        " eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f src=%s",
         tf2::native::cameraModeName(cameraMode), haveObserverView ? 1 : 0,
-        g_cameraFollows, g_cameraHoldsNoTarget, g_cameraFreezeFrames);
+        g_cameraFollows, g_cameraHoldsNoTarget, g_cameraFreezeFrames,
+        cameraEyeX, cameraEyeY, cameraEyeZ,
+        g_debugCamera ? g_debugCameraPitch
+          : (haveObserverView ? observerView.angles[0] : 0.0f),
+        g_debugCamera ? g_debugCameraYaw
+          : (haveObserverView ? observerView.angles[1] : 0.0f),
+        g_debugCamera ? "debug" : (haveObserverView ? "demo" : "held"));
       traceCheckpoint("scene: observer done");
       const bool snapshotDrawable = entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
           || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
