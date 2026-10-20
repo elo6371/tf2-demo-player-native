@@ -592,6 +592,16 @@ set_target_properties(viewmodel_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # half has to guess what the other meant.
 add_executable(install_cli_probe tools/install_cli_probe.cpp
   src/install_lifecycle.cpp src/install_manifest.cpp)
+
+# T37: the VPK readiness probe. vpk_query answers "OPEN FAILED" and stops, which
+# conflates absent, unreadable and refused; this one reads the header
+# independently of the product reader and reports the numbered volumes the tree
+# names, so a directory index whose volumes are missing is not read as "the
+# archive opened".
+add_executable(vpk_readiness_probe tools/vpk_readiness_probe.cpp src/vpk_archive.cpp)
+target_include_directories(vpk_readiness_probe PRIVATE include)
+target_compile_definitions(vpk_readiness_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+set_target_properties(vpk_readiness_probe PROPERTIES WIN32_EXECUTABLE OFF)
 target_include_directories(install_cli_probe PRIVATE include)
 target_compile_definitions(install_cli_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
 target_link_libraries(install_cli_probe PRIVATE bcrypt)
