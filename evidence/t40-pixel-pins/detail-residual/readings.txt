@@ -1,0 +1,22 @@
+=== T45 detail-prefix readings 2026-10-21T17:48:52 ===
+HEAD=6888e6debfe712575dd4ffce4b918eb57dbef6eb
+source_before=85b00d685bbd4d63270850293bc6a173ccf738ac15f11104945457ca185dcd34 source_after=85b00d685bbd4d63270850293bc6a173ccf738ac15f11104945457ca185dcd34
+frames:
+  A_ref 6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b
+  F_ref 2ffa7d2bfeb9e6e9de160315f460c3384b8a0d124cfb060b6bc905752f38f8b5
+  A_mut f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+  F_mut 21cb8aa28df87b6c869e12a12be240ab79c0d5d5370bf97b073652890280647f
+  A_res 6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b
+  F_res 2ffa7d2bfeb9e6e9de160315f460c3384b8a0d124cfb060b6bc905752f38f8b5
+restored A reproduces pin: YES
+restored F reproduces pin: YES
+-- A_mut vs kept pre-fix A --
+A_mut_vs_old BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+A_mut_sha f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608 old_pin f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608
+-- F_mut vs kept pre-fix F --
+F_mut_vs_old BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+F_mut_vs_currentF BMP-DIFF differing=1560453 total=2582352 percent=60.4276 max_delta=234 extent=1264x681x24 status=PASS
+F_mut_vs_old_sign BMP-SIGN brighter=0 darker=0 same=2582352 max_up=0 max_down=0 extent=1264x681x24 status=OK 
+-- mutation must move the frame away from the current pin --
+A_mut_vs_A_ref BMP-DIFF differing=1551760 total=2582352 percent=60.0910 max_delta=234 extent=1264x681x24 status=PASS
+F_mut_vs_F_ref BMP-DIFF differing=1560453 total=2582352 percent=60.4276 max_delta=234 extent=1264x681x24 status=PASS

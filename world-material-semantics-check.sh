@@ -107,6 +107,14 @@
 #   this install. Those three sentences are pinned as text, so a future change
 #   that quietly drops a refusal goes red here.
 #
+# T45: the two consumers are ALSO measured at one wide-area diagnostic pose from
+# T35's nine-pose set (--debug-camera, tick 2000). The tick-2000 reference camera
+# sees only a sliver of the nine material-normal materials after the T29 near
+# clip, which is why S1/S2 there are byte-identical and that claim is printed
+# NOT VERIFIED in section 5b. The same nine tiles, the same atlas and the same
+# reader are measured at the wide pose on a population that is on screen, and
+# both readings are pinned: a second view, not a replacement for the missing one.
+#
 # mutation: five source mutations, each must turn a forward pin red, and each
 # source must come back byte-identical:
 #   m1 the tangent frame is ignored (normal = geometric normal) -> C->D 0 px
@@ -170,6 +178,28 @@ PIN_SPEC12_UP=337; PIN_SPEC12_DOWN=7
 # two-sided material-bump claim the tick-2000 camera can no longer make.
 PIN_BUMP12_DIFF=990; PIN_BUMP12_MAX=19
 PIN_BUMP12_UP=458; PIN_BUMP12_DOWN=532
+# T45: the wide-area pose. T35 derived nine material-framed poses with the probe
+# but never launched the product at any of them (the host queue starved it), so
+# their qualification is a measurement, not an assumption: _shared/t45/
+# wide-select.sh ranks all nine by the pixel population their material-normal
+# switch moves (S1w vs S2w, same build and flags) and captures the winner here.
+# WALL013 won:
+#   eye=(-3498.225, 1021.852, 1327.843) pitch=70.529329 yaw=134.999352
+# The pose moves the RENDER view, not the cluster cull: every pose's trace
+# carries the same observer-camera "gpu: world vis" line and the same
+# bump-control scope (the nine tiles are 9 materials / 19305 vertices world-wide
+# in every pose), so the trace cannot tell two poses apart. The pose is therefore
+# pinned by the frames: Aw must differ from A (the reference camera's frame) and
+# Aw2 must equal Aw byte for byte.
+# At that camera both consumers move pixels in both directions -- the claim the
+# tick-2000 camera cannot make -- so every direction is pinned exactly and carries
+# an assert_ne positive control: either one collapsing to zero is a red.
+WIDE_NAME=WALL013
+WIDE_CAM=(--debug-camera -3498.225 1021.852 1327.843 70.529329 134.999352)
+PIN_WIDE_SW_DIFF=775135; PIN_WIDE_SW_MAX=24
+PIN_WIDE_SW_UP=386760; PIN_WIDE_SW_DOWN=388375
+PIN_WIDE_CW_DIFF=688102; PIN_WIDE_CW_MAX=60
+PIN_WIDE_CW_UP=203847; PIN_WIDE_CW_DOWN=484255
 
 RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 MODE="${1:-}"
@@ -446,6 +476,15 @@ capture S2 2000 --world-specular on --world-material-bump on || fail=1
 capture C12 1200 --world-dynamic-light on || fail=1
 capture S1_12 1200 --world-specular on || fail=1
 capture S2_12 1200 --world-specular on --world-material-bump on || fail=1
+# T45: the wide-area pose from T35's set. Aw/Aw2 pin the pose's own determinism;
+# S1w/S2w and Cw/Dw are the two consumers of the same nine tiles, one switch
+# apart, on a population that is on screen.
+capture Aw 2000 "${WIDE_CAM[@]}" || fail=1
+capture Aw2 2000 "${WIDE_CAM[@]}" || fail=1
+capture S1w 2000 --world-specular on "${WIDE_CAM[@]}" || fail=1
+capture S2w 2000 --world-specular on --world-material-bump on "${WIDE_CAM[@]}" || fail=1
+capture Cw 2000 --world-dynamic-light on "${WIDE_CAM[@]}" || fail=1
+capture Dw 2000 --world-dynamic-light on --world-material-bump on "${WIDE_CAM[@]}" || fail=1
 
 # ---- B: the declaration and the lookup both happen, the reader does not ----
 assert_eq "B feature switches" \
@@ -614,6 +653,11 @@ DIFF_R3=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/R3.bmp")
 DIFF_S=$(run_diff "$SCRATCH/S1.bmp" "$SCRATCH/S2.bmp")
 DIFF_C12R1=$(run_diff "$SCRATCH/C12.bmp" "$SCRATCH/R1.bmp")
 DIFF_S12=$(run_diff "$SCRATCH/S1_12.bmp" "$SCRATCH/S2_12.bmp")
+# T45: the wide-area pose.
+DIFF_AW2=$(run_diff "$SCRATCH/Aw.bmp" "$SCRATCH/Aw2.bmp")
+DIFF_AWVS=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/Aw.bmp")
+DIFF_SW=$(run_diff "$SCRATCH/S1w.bmp" "$SCRATCH/S2w.bmp")
+DIFF_CW=$(run_diff "$SCRATCH/Cw.bmp" "$SCRATCH/Dw.bmp")
 
 dfield() { printf '%s' "$1" | grep -oE "$2=[-0-9.]+" | head -1 | cut -d= -f2; }
 assert_eq "determinism (A vs A2) differing" "$(dfield "$DIFF_A2" differing)" "0"
@@ -656,6 +700,9 @@ SIGN="$SCRATCH/sign.txt"
 # T40: the tick-1200 direction pairs (lines 6 and 7).
 "$PYTHON" bmp-delta-sign.py "$SCRATCH/C12.bmp" "$SCRATCH/R1.bmp" | tee -a "$SIGN" > /dev/null
 "$PYTHON" bmp-delta-sign.py "$SCRATCH/S1_12.bmp" "$SCRATCH/S2_12.bmp" | tee -a "$SIGN" > /dev/null
+# T45: the wide-area direction pairs (lines 8 and 9 of sign.txt).
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/S1w.bmp" "$SCRATCH/S2w.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/Cw.bmp" "$SCRATCH/Dw.bmp" | tee -a "$SIGN" > /dev/null
 sfield() { sed -n "$1p" "$SIGN" | grep -oE "$2=[-0-9]+" | head -1 | cut -d= -f2; }
 # B is the null: the same frame, byte for byte, with the atlas bound.
 assert_eq "B brighter" "$(sfield 1 brighter)" "0"
@@ -691,6 +738,47 @@ assert_eq "specular highlight gained at tick 1200" "$(sfield 7 brighter)" "$PIN_
 assert_eq "specular highlight lost at tick 1200" "$(sfield 7 darker)" "$PIN_SPEC12_DOWN"
 assert_ne "specular highlight gained at tick 1200 (positive control)" "$(sfield 7 brighter)" "0"
 assert_ne "specular highlight lost at tick 1200 (positive control)" "$(sfield 7 darker)" "0"
+# ---- T45: the wide-area pose ----
+# The pose must move the view: with --debug-camera ignored, Aw would equal A. The
+# vis line is deliberately not used for this -- it reports the observer camera the
+# cluster cull is computed from, which --debug-camera does not change.
+assert_eq "wide pose determinism differing" "$(dfield "$DIFF_AW2" differing)" "0"
+assert_eq "wide pose determinism max_delta" "$(dfield "$DIFF_AW2" max_delta)" "0"
+if [ "$(dfield "$DIFF_AWVS" differing)" -gt 2000000 ]; then
+  echo "  OK wide pose moved the view ($(dfield "$DIFF_AWVS" differing) bytes differ from the reference camera's frame)"
+else
+  echo "  FAIL wide pose did not move the view: $(dfield "$DIFF_AWVS" differing) bytes differ from A"; fail=1
+fi
+WL1=$(lightingline "$SCRATCH/S1w.trace")
+WL2=$(lightingline "$SCRATCH/S2w.trace")
+assert_eq "S1w switches" "$(lfield "$WL1" dynamic)/$(lfield "$WL1" specular)/$(lfield "$WL1" bump)" "0/1/0"
+assert_eq "S2w switches" "$(lfield "$WL2" dynamic)/$(lfield "$WL2" specular)/$(lfield "$WL2" bump)" "0/1/0"
+assert_eq "S1w has no material normal" "$(af "$SCRATCH/S1w.trace" bump.tiles)" "0"
+assert_eq "S1w bump row" "$(cfield "$(controlline "$SCRATCH/S1w.trace" bump)" state)" "refused"
+assert_eq "S2w draws the material normal" "$(af "$SCRATCH/S2w.trace" bump.tiles)/$(af "$SCRATCH/S2w.trace" bump.materials)" "9/9"
+assert_eq "S2w material-normal vertices" "$(af "$SCRATCH/S2w.trace" bump.vertices)" "19305"
+assert_eq "S2w bump row" "$(cfield "$(controlline "$SCRATCH/S2w.trace" bump)" state)" "applied"
+assert_eq "wide specular reads the material normal differing" "$(dfield "$DIFF_SW" differing)" "$PIN_WIDE_SW_DIFF"
+assert_eq "wide specular reads the material normal max_delta" "$(dfield "$DIFF_SW" max_delta)" "$PIN_WIDE_SW_MAX"
+assert_eq "wide specular highlight gained" "$(sfield 8 brighter)" "$PIN_WIDE_SW_UP"
+assert_eq "wide specular highlight lost" "$(sfield 8 darker)" "$PIN_WIDE_SW_DOWN"
+assert_ne "wide specular highlight gained (positive control)" "$(sfield 8 brighter)" "0"
+assert_ne "wide specular highlight lost (positive control)" "$(sfield 8 darker)" "0"
+# The same reader is one-sided at tick 2000 because only 28 px of the world are
+# covered by the nine materials there (C vs D: 79 bytes brighter / 0 darker). At
+# the wide pose the same nine tiles move both ways, which is the statement that
+# separates "this view is small" from "the shader or the data is wrong".
+WC1=$(lightingline "$SCRATCH/Cw.trace")
+assert_eq "Cw switches" "$(lfield "$WC1" dynamic)/$(lfield "$WC1" specular)/$(lfield "$WC1" bump)" "1/0/0"
+assert_eq "Cw bump row" "$(cfield "$(controlline "$SCRATCH/Cw.trace" bump)" state)" "refused"
+assert_eq "Cw feature tiles" "$(af "$SCRATCH/Cw.trace" bump.tiles)" "0"
+assert_eq "Dw draws the material normal" "$(af "$SCRATCH/Dw.trace" bump.tiles)/$(af "$SCRATCH/Dw.trace" bump.materials)" "9/9"
+assert_eq "wide material bump under dynamic differing" "$(dfield "$DIFF_CW" differing)" "$PIN_WIDE_CW_DIFF"
+assert_eq "wide material bump under dynamic max_delta" "$(dfield "$DIFF_CW" max_delta)" "$PIN_WIDE_CW_MAX"
+assert_eq "wide material bump brighter" "$(sfield 9 brighter)" "$PIN_WIDE_CW_UP"
+assert_eq "wide material bump darker" "$(sfield 9 darker)" "$PIN_WIDE_CW_DOWN"
+assert_ne "wide material bump brighter (positive control)" "$(sfield 9 brighter)" "0"
+assert_ne "wide material bump darker (positive control)" "$(sfield 9 darker)" "0"
 
 # ---------------------------------------------------------------------------
 # 5b. what this gate does NOT verify, printed rather than absorbed by a pin
@@ -699,9 +787,9 @@ echo "== 5b. not verified =="
 NOTVERIFIED="$OUT/not-verified.txt"
 : > "$NOTVERIFIED"
 {
-  echo "NOT VERIFIED specular at the tick-2000 reference camera: PIN_SPEC_DIFF=$PIN_SPEC_DIFF because S1 == S2 -- the nine material-normal materials are occluded by the near geometry the T29 clip revealed. The consumer is proven on the tick-1200 camera (S1_12 vs S2_12 = $PIN_SPEC12_DIFF bytes, $PIN_SPEC12_UP brighter / $PIN_SPEC12_DOWN darker), which is a different view, NOT a replacement for the missing tick-2000 population. Cheapest next step: one wide-area diagnostic pose (T35 prepared nine material-framed poses), owner T43."
-  echo "NOT VERIFIED detail residual: 2812 px of the detail moved population (1320 old + 1492 new, 0.33% of the frame) sit on 27 non-displaced WOOD/WALL007A faces where the T26 face-id mask says the surface did not move and the baseline frame is byte-identical, yet the detail layer's effect toggled. The pin above does not absorb them. Evidence: evidence/t40-pixel-pins/forward-readings.txt section 3 and detail-residual-face-info.txt. Cheapest next step: restore the pre-fix near plane (the T29 gate's own mutation), capture F at tick 2000 and diff it against the pre-fix F frame; owner T43."
-  echo "NOT VERIFIED material bump direction at the tick-2000 camera: the population is one-sided there (79 brighter / 0 darker) because the pre-fix population was mostly occluded by the near geometry. The two-sided claim is pinned on the tick-1200 camera (C12 vs R1 = $PIN_BUMP12_DIFF bytes, $PIN_BUMP12_UP brighter / $PIN_BUMP12_DOWN darker) with assert_ne positive controls."
+  echo "NOT VERIFIED specular at the tick-2000 reference camera: PIN_SPEC_DIFF=$PIN_SPEC_DIFF because S1 == S2 -- only 28 px of the world are covered by the nine material-normal materials there (C vs D moves 28 px), so the lobe has no material normal to read. The consumer is measured, not assumed, at the T45 wide-area pose $WIDE_NAME: S1w vs S2w = $PIN_WIDE_SW_DIFF bytes, $PIN_WIDE_SW_UP brighter / $PIN_WIDE_SW_DOWN darker. That is a second view with a visible population, NOT a replacement for the missing tick-2000 one; both are pinned above."
+  echo "NOT VERIFIED detail residual, pixel-level mechanism only (the cause is measured): 2812 px of the detail moved population (1320 old + 1492 new, 0.33% of the frame) sit on 27 non-displaced WOOD/WALL007A faces where the T26 face-id mask says the surface did not move and the baseline frame is byte-identical, yet the detail layer's effect toggled. T45 put T29's pre-fix near plane back (T29's own m1 patch, one expression): source 85b00d68.. -> fe39ae5d.., the product then prints 'gpu: world clip near=0.05000000 nearMapUnits=610.22 state=published', and the mutated build reproduced the pre-fix frames byte-identically (A f87f396a.., F 21cb8aa2.., 0 of 2,582,352 bytes differ); restoring the line byte-identically (cmp clean, 85b00d68..) and rebuilding reproduced this tree's frames exactly (A 6bb4d9a7.., F 2ffa7d2b..). The near clip is therefore the cause, measured at frame level and not inferred from the source diff. Evidence: evidence/t40-pixel-pins/detail-residual/ (mutation.md + readings.txt). What is NOT isolated is the pixel-level path inside the rasterizer that turns a projection change into a different detail sample on an un-clipped face; a depth-tie explanation is ruled out because a different winner would change the face id, and no shader or data defect is claimed."
+  echo "NOT VERIFIED material bump direction at the tick-2000 camera: the population is one-sided there (79 brighter / 0 darker) because only 28 px of the world are covered by the nine material-normal materials, so the surviving sliver reads one way. The same reader and the same nine tiles move both ways at the T45 wide-area pose (Cw vs Dw = $PIN_WIDE_CW_DIFF bytes, $PIN_WIDE_CW_UP brighter / $PIN_WIDE_CW_DOWN darker) and at tick 1200 (C12 vs R1 = $PIN_BUMP12_DIFF bytes, $PIN_BUMP12_UP brighter / $PIN_BUMP12_DOWN darker); both carry assert_ne positive controls."
 } | tee -a "$NOTVERIFIED"
 
 # ---------------------------------------------------------------------------
@@ -718,8 +806,14 @@ grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/
 # measured-zero view; this one names the 9/9 tiles the lobe actually read).
 grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/S2_12.trace" \
   | tr -d '\r' > "$OUT/trace-specular-tick1200.txt"
+# T45: the wide-area pose traces.
+grep -aE "gpu: world (feature|lighting|vis|atlas|cubemap)" "$SCRATCH/S2w.trace" \
+  | tr -d '\r' > "$OUT/trace-specular-wide.txt"
+grep -aE "gpu: world (feature|lighting|vis|atlas|cubemap)" "$SCRATCH/Dw.trace" \
+  | tr -d '\r' > "$OUT/trace-bump-wide.txt"
 if [ ! -s "$OUT/trace-bump2-tick1200.txt" ] || [ ! -s "$OUT/trace-detail-tick2000.txt" ] \
-  || [ ! -s "$OUT/trace-specular-tick2000.txt" ] || [ ! -s "$OUT/trace-specular-tick1200.txt" ]; then
+  || [ ! -s "$OUT/trace-specular-tick2000.txt" ] || [ ! -s "$OUT/trace-specular-tick1200.txt" ] \
+  || [ ! -s "$OUT/trace-specular-wide.txt" ] || [ ! -s "$OUT/trace-bump-wide.txt" ]; then
   echo "  FAIL a reference trace had no world lines"; fail=1
 fi
 cp "$PROBE_MAP" "$OUT/probe-map.txt"
@@ -729,9 +823,10 @@ cp "$SIGN" "$OUT/sign.txt"
 {
   echo "run=$RUN_TAG"
   echo "map=$MAP demo=$(basename "$DEMO")"
-  echo "tick2000=A,A2,B,C,D,E,F,S1,S2  tick1200=R1,R1b,R2,R3,C12,S1_12,S2_12"
+  echo "tick2000=A,A2,B,C,D,E,F,S1,S2,Aw,Aw2,S1w,S2w,Cw,Dw  tick1200=R1,R1b,R2,R3,C12,S1_12,S2_12"
   echo "detailTexture=$DETAIL_TEXTURE"
-  for name in A A2 B C D E F R1 R1b R2 R3 S1 S2 C12 S1_12 S2_12; do
+  echo "widePose=$WIDE_NAME ${WIDE_CAM[*]}"
+  for name in A A2 B C D E F R1 R1b R2 R3 S1 S2 C12 S1_12 S2_12 Aw Aw2 S1w S2w Cw Dw; do
     if [ -s "$SCRATCH/$name.bmp" ]; then
       echo "$name sha256=$("$PYTHON" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$SCRATCH/$name.bmp")"
     fi
@@ -741,7 +836,7 @@ cp "$SIGN" "$OUT/sign.txt"
 if [ "$MODE" != "--mutation" ]; then
   echo "== verdict =="
   if [ "$fail" = 0 ]; then
-    echo "PASS: three material features pinned declaration->lookup->shader input->pixel delta, the normal read by both consumers at tick 1200 (the tick-2000 specular view is NOT VERIFIED, see section 5b); the null frame is 0 px; three refusals still named."
+    echo "PASS: three material features pinned declaration->lookup->shader input->pixel delta; the material normal read by both consumers (specular and dynamic light) at the T45 wide-area pose $WIDE_NAME, every direction exact with assert_ne positive controls; the null frame is 0 px; the tick-2000 specular pair stays a measured zero and is printed NOT VERIFIED (28 px of the world covered by the nine materials there, see section 5b); three refusals still named."
   else echo "FAIL: $fail assertion groups did not hold."; fi
   exit "$fail"
 fi
