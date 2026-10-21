@@ -1,0 +1,44 @@
+two-cycle root-decision comparison (A = first package/settings, B = second)
+case            field                A                                        B                                        match
+first-launch    exit_code            0                                        0                                        yes
+first-launch    trace_valid          1                                        1                                        yes
+first-launch    trace_root           d:/steamlibrary/steamapps/common/team fo d:/steamlibrary/steamapps/common/team fo yes
+first-launch    connected_root       d:/steamlibrary/steamapps/common/team fo d:/steamlibrary/steamapps/common/team fo yes
+first-launch    title_bracket        True                                     True                                     yes
+first-launch    title_is_load_time   False                                    False                                    yes
+restart         exit_code            0                                        0                                        yes
+restart         trace_valid          1                                        1                                        yes
+restart         trace_root           d:/steamlibrary/steamapps/common/team fo d:/steamlibrary/steamapps/common/team fo yes
+restart         connected_root       d:/steamlibrary/steamapps/common/team fo d:/steamlibrary/steamapps/common/team fo yes
+restart         title_bracket        True                                     True                                     yes
+restart         title_is_load_time   False                                    False                                    yes
+explicit-root   exit_code            0                                        0                                        yes
+explicit-root   trace_valid          1                                        1                                        yes
+explicit-root   trace_root           d:/steamlibrary/steamapps/common/team fo d:/steamlibrary/steamapps/common/team fo yes
+explicit-root   connected_root       d:/steamlibrary/steamapps/common/team fo d:/steamlibrary/steamapps/common/team fo yes
+explicit-root   title_bracket        True                                     True                                     yes
+explicit-root   title_is_load_time   False                                    False                                    yes
+missing-root    exit_code            0                                        0                                        yes
+missing-root    trace_valid          0                                        0                                        yes
+missing-root    trace_root           -                                        -                                        yes
+missing-root    connected_root                                                                                         yes
+missing-root    title_bracket        False                                    False                                    yes
+missing-root    title_is_load_time   False                                    False                                    yes
+empty-root      exit_code            0                                        0                                        yes
+empty-root      trace_valid          0                                        0                                        yes
+empty-root      trace_root           -                                        -                                        yes
+empty-root      connected_root                                                                                         yes
+empty-root      title_bracket        False                                    False                                    yes
+empty-root      title_is_load_time   False                                    False                                    yes
+
+timings in seconds (A / B):
+  first-launch    t_window_s=0.243/0.328 t_root_title_s=20.893/20.264 t_bracket_s=20.893/20.264 close_at_s=20.896/20.267 total_s=23.188/22.904 samples=97/94
+  restart         t_window_s=0.22/0.223 t_root_title_s=20.371/24.014 t_bracket_s=20.371/24.014 close_at_s=20.373/24.017 total_s=22.624/26.016 samples=96/113
+  explicit-root   t_window_s=0.215/0.219 t_root_title_s=21.475/20.986 t_bracket_s=21.475/20.986 close_at_s=21.493/20.987 total_s=24.08/22.874 samples=101/99
+  missing-root    t_window_s=0.214/0.236 t_root_title_s=15.66/14.799 t_bracket_s=-1/-1 close_at_s=15.662/14.801 total_s=16.857/15.61 samples=74/70
+  empty-root      t_window_s=0.22/0.223 t_root_title_s=17.822/23.396 t_bracket_s=-1/-1 close_at_s=17.826/23.399 total_s=19.127/24.631 samples=84/110
+
+root accounting (each cycle):
+DECISION-MISMATCHES=0
+ROOT-ACCOUNTING-FAILURES=0
+TWO-CYCLE=PASS

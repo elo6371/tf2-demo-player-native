@@ -1,0 +1,1 @@
+161.7 resources: requested=- tf_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf valid=1

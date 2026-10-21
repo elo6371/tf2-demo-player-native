@@ -1,0 +1,11 @@
+case=first-launch
+class=OK
+elapsed_s=21.725
+trace_valid=1
+trace_requested=-
+trace_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+trace_resources_ms=161.8
+trace_last_ms=20635.7
+title_bracket=1
+title_load_time=0
+title_len=3133

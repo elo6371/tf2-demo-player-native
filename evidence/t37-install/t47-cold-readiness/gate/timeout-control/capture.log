@@ -1,0 +1,5 @@
+CASE first-launch rc=0 TITLE-CAPTURE=PASS (len=30 brackets=no)
+READINESS case=first-launch elapsed_s=21.0 trace_valid=1 trace_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf title_bracket=0 title_load_time=1 class=TITLE-CAPTURE-TIMEOUT
+TITLE-CAPTURE-TIMEOUT case=first-launch elapsed_s=21.0 trace_valid=1 trace_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf title_bracket=no title=load-time
+CAPTURE-ABORT reason=title-capture-timeout case=first-launch
+cases=1 failed=1 titleTimeouts=1

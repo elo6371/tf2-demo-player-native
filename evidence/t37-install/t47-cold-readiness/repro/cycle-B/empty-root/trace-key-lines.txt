@@ -1,0 +1,1 @@
+180.2 resources: requested=D:\TF2_Native_Worktrees\t47-cold-readiness\.scratch\t47\repro\cycle-B\roots\empty tf_root=- valid=0

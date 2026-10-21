@@ -1,0 +1,11 @@
+case=explicit-root
+class=OK
+elapsed_s=21.293
+trace_valid=1
+trace_requested=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+trace_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+trace_resources_ms=162.4
+trace_last_ms=20407.1
+title_bracket=1
+title_load_time=0
+title_len=3133
