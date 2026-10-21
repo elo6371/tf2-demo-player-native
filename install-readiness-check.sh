@@ -407,16 +407,19 @@ version_defs="$(grep -cE "^set\(TF2_PACKAGE_VERSION" native/CMakeLists.txt 2>/de
 eq "package version metadata lines in native/CMakeLists.txt" "${version_defs:-0}" "2"
 has "the version the package answers is the one it ships" \
   "$(sed -n "s/^version=//p" VERSION.txt | tr -d "\r")" "0.1.0"
-# T37 closed exactly two of the five: the package now carries an installer
+# T37 closed two of the five: the package already carried an installer
 # (--install), an uninstaller (--uninstall) and version metadata (--version,
-# VERSION.txt, the manifest header). The three that remain are named with their
-# owner and are NOT silently dropped -- the count is pinned so closing one of them
-# has to update this line rather than quietly changing the number.
-echo "  BLOCKER no_upgrade_or_migration_path=1 owner=T37 next round (manifest has versionCode; nothing compares it)"
+# VERSION.txt, the manifest header). T42 closed a third: an install now compares
+# the manifest's packageVersionCode and refuses to go backwards by name
+# (install=FAIL reason=downgrade; a newer one reports mode=upgrade). That is a
+# version decision, not a migration engine, and the two gaps that remain are named
+# with their owner and are NOT silently dropped -- the count is pinned so closing
+# one of them has to update this line rather than quietly changing the number.
+echo "  CLOSED  upgrade_and_downgrade_decision=1 owner=T42 (packageVersionCode comparison; see evidence/t37-install/t42-upgrade-downgrade.log)"
 echo "  BLOCKER no_shortcuts_or_file_association=1 owner=T28 release packaging"
 echo "  BLOCKER tf2_assets_not_packaged_by_design=1 owner=product (locate or prompt for a TF2 install)"
-INSTALLER_GAPS=3
-eq "installer features absent (pinned: adding one must update this gate)" "$INSTALLER_GAPS" "3"
+INSTALLER_GAPS=2
+eq "installer features absent (pinned: adding one must update this gate)" "$INSTALLER_GAPS" "2"
 eq "installer lifecycle modes the package now provides" \
   "$(grep -oE 'L"--(version|install|uninstall|install-status)"' native/src/main.cpp | sort -u | wc -l | tr -d ' ')" "4"
 
@@ -553,17 +556,43 @@ eq "M2 restored reference refused count" "$M2_R_REFUSED" "1"
 eq "M2 restored reference named reason" "$M2_R_REASON" "VPK entry range outside directory archive"
 
 # ------------------------------------------------------------ M3 install files
-sec "M3 missing install files: the smoke probe dropped from install(TARGETS)"
+sec "M3 missing install files: the smoke probe dropped from both install rules"
+#   T37 moved the smoke probe from the package root into .uninstall/payload (the
+#   file list --install lays down), so dropping it from install(TARGETS) alone no
+#   longer changes the shipped package: measured 2026-10-21, the staged package
+#   still carried the probe in the payload and the mutation was dead. It now
+#   removes the probe from the payload rule as well -- the only way a release
+#   stops shipping it -- and the package assertions are measured against the
+#   forward run's reference listing instead of a pre-T37 hardcoded list.
+M3_REF_HITS="$(grep -c native_install_smoke_probe "$BUILD/cmake_install.cmake" 2>/dev/null | tr -d " ")"
+eq "M3 reference install script names the smoke probe twice (root and payload)" "${M3_REF_HITS:-0}" "2"
+M3_REF_COUNT="$(wc -l < "$OUT/package-files.txt" | tr -d " ")"
 python - "$SRC_CMAKE" <<'PY'
 import sys
 path = sys.argv[1]
 data = open(path, "rb").read()
-old = b"install(TARGETS tf2_demo_native native_install_smoke_probe"
-new = b"install(TARGETS tf2_demo_native"
-if old not in data:
-    sys.exit("M3 anchor absent")
-open(path, "wb").write(data.replace(old, new, 1))
-print("  mutated: install(TARGETS) no longer names native_install_smoke_probe")
+lines = data.split(b"\n")
+# The root rule: drop the probe target from the TARGETS list.
+root_index = None
+for index, line in enumerate(lines):
+    if line.startswith(b"install(TARGETS tf2_demo_native native_install_smoke_probe"):
+        root_index = index
+        break
+if root_index is None:
+    sys.exit("M3 root anchor absent")
+lines[root_index] = lines[root_index].replace(b" native_install_smoke_probe", b"", 1)
+# The payload rule: drop the probe's file line from the FILES command. Matched
+# by stripped content so the mutation does not depend on the indentation.
+payload_index = None
+for index, line in enumerate(lines):
+    if line.strip() == b'"$<TARGET_FILE:native_install_smoke_probe>"':
+        payload_index = index
+        break
+if payload_index is None:
+    sys.exit("M3 payload anchor absent")
+del lines[payload_index]
+open(path, "wb").write(b"\n".join(lines))
+print("  mutated: neither install rule names native_install_smoke_probe")
 PY
 eq "M3 applied" "$?" "0"
 bash build-target.sh tf2_demo_native > "$MUT/logs/m3-build.log" 2>&1
@@ -576,22 +605,28 @@ write_inventory "$MUT/install-m3" "$MUT/m3-package-files.txt"
 M3_LIST="$(cut -f1 "$MUT/m3-package-files.txt")"
 echo "  under M3: package files: $(printf "%s " "$M3_LIST")"
 MUTATIONS=$((MUTATIONS + 1))
-if printf "%s\n" "$M3_LIST" | grep -qx "native_install_smoke_probe.exe"; then
-  wrong "M3 caught: the package lost the smoke probe" "still present" "absent"
+M3_LOST="$(comm -23 <(cut -f1 "$OUT/package-files.txt" | sort) <(cut -f1 "$MUT/m3-package-files.txt" | sort) | tr '\n' ' ')"
+M3_ADDED="$(comm -13 <(cut -f1 "$OUT/package-files.txt" | sort) <(cut -f1 "$MUT/m3-package-files.txt" | sort) | tr '\n' ' ')"
+if [ "$M3_LOST" = ".uninstall/payload/native_install_smoke_probe.exe native_install_smoke_probe.exe " ] && [ -z "$M3_ADDED" ]; then
+  ok "M3 caught: the package lost both probe copies and nothing else" "$M3_LOST"
 else
-  ok "M3 caught: the package lost the smoke probe" "absent"
+  wrong "M3 caught: the package lost both probe copies and nothing else" \
+    "lost=$M3_LOST added=${M3_ADDED:-none}" "lost the two probe copies, added nothing"
 fi
-eq "M3 package file count" "$(wc -l < "$MUT/m3-package-files.txt" | tr -d " ")" "2"
+eq "M3 package holds the reference file list minus the two probe copies" \
+  "$(wc -l < "$MUT/m3-package-files.txt" | tr -d " ")" "$(( M3_REF_COUNT - 2 ))"
 cp "$MUT/backup/CMakeLists.txt" "$SRC_CMAKE"
 if cmp -s "$SRC_CMAKE" "$MUT/backup/CMakeLists.txt"; then ok "M3 source restored byte-identical" "yes"; else wrong "M3 source restored byte-identical" "no" "yes"; fi
 bash build-target.sh tf2_demo_native native_install_smoke_probe > "$MUT/logs/m3-restore-build.log" 2>&1
 eq "M3 restore build succeeded" "$?" "0"
 M3_R_HITS="$(grep -c native_install_smoke_probe "$BUILD/cmake_install.cmake" 2>/dev/null | tr -d " ")"
-if [ "${M3_R_HITS:-0}" -ge 1 ] 2>/dev/null; then ok "M3 restore reached the generated install script" "hits=$M3_R_HITS"; else wrong "M3 restore reached the generated install script" "hits=${M3_R_HITS:-0}" "at least 1"; fi
+eq "M3 restore regenerated the reference install script" "${M3_R_HITS:-0}" "${M3_REF_HITS:-0}"
 stage_install "$MUT/install-m3-restored" m3-restore-install
 eq "M3 restore stage rc" "$?" "0"
 write_inventory "$MUT/install-m3-restored" "$MUT/m3-restored-package-files.txt"
-eq "M3 restored reference package list" "$(cut -f1 "$MUT/m3-restored-package-files.txt")" "$(printf "install_smoke_probe.ps1\nnative_install_smoke_probe.exe\ntf2_demo_native.exe")"
+eq "M3 restored reference package list" \
+  "$(cut -f1 "$MUT/m3-restored-package-files.txt" | sort)" \
+  "$(cut -f1 "$OUT/package-files.txt" | sort)"
 
 # ------------------------------------------------------------------- verdict
 sec "mutation verdict"

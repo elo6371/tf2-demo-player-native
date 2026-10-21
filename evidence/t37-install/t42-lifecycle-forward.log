@@ -1,0 +1,334 @@
+
+=== 1/15 the package cmake --install produces ===
+  OK   cmake --install rc = 0
+  --- staged package ---
+    .uninstall/payload/install_smoke_probe.ps1	812
+    .uninstall/payload/native_install_smoke_probe.exe	297984
+    .uninstall/payload/tf2_demo_native.exe	1921024
+    VERSION.txt	679
+    install_smoke_probe.ps1	812
+    native_install_smoke_probe.exe	297984
+    tf2_demo_native.exe	1921024
+  OK   the package carries the product = yes
+  OK   the package carries a payload the installer will lay down = yes
+  OK   the package carries its version file = yes
+  OK   payload file count = 3
+  OK   no file in the package is empty = 0
+  OK   input present vpk_query.exe = yes
+  OK   input present title-capture.ps1 = yes
+  OK   input present install-lifecycle-fixtures.py = yes
+  OK   pinned input present autorecord_2026-07-02_13-26-46.dem = yes
+  OK   pinned input present itemtest.bsp = yes
+  reference build exe sha256=8c64712e30a2d0a3142ff50a1c45117e63a27fba46cc3e7340587fbcacbc26f8
+  staged package exe sha256=8c64712e30a2d0a3142ff50a1c45117e63a27fba46cc3e7340587fbcacbc26f8
+  OK   the staged package is the build's binary (every forward reading describes it) = 8c64712e30a2d0a3142ff50a1c45117e63a27fba46cc3e7340587fbcacbc26f8
+  OK   the reference binary identity is recorded for the mutation run = yes
+  OK   the installed-product launch driver was written = yes
+
+=== 2/15 the package copied into a clean temporary directory ===
+  OK   the copy is the package = same
+
+=== 2b/15 clean-room fixture roots for the first-launch and VPK cases ===
+  fixtures_root=D:\TF2_Native_Worktrees\t42-installer-vpk\.scratch\t42\life-t42\fixtures
+  fixture_demo=D:\TF2_Native_Worktrees\t42-installer-vpk\.scratch\t42\life-t42\fixtures\demo\t32_marker.dem
+  fixture_roots=7
+  fixture_files=30
+  fixture_vpk=roots/precedence-shadow/pak01_dir.vpk bytes=2897057 sha256=51a98e22f5cba869dc855fd0edd33fecf24f86b1301cf396dc350679c4ae2e19
+  fixture_vpk=roots/vpk-format/pak01_dir.vpk bytes=53 sha256=37a122bd739120fead8c81562003c275678beeb2dacca47444622b6d7373e0eb
+  fixture_vpk=roots/vpk-truncated-tree/pak01_dir.vpk bytes=28 sha256=e1825937f3e5f15551f91311d000319a753c8cfe152b5793f1c0c7e34ac0ed79
+  fixture_vpk=roots/vpk-unreadable/pak01_dir.vpk bytes=-1 sha256=unreadable-by-design
+  fixture_vpk=roots/vpk-valid/pak01_dir.vpk bytes=2897057 sha256=51a98e22f5cba869dc855fd0edd33fecf24f86b1301cf396dc350679c4ae2e19
+  fixture_vpk=roots/vpk-volume-missing/pak01_dir.vpk bytes=53 sha256=9becf9c731013afa7d56cae4d935b42cf95eb9d5aa6411b99c2d2121a3c0f5df
+  OK   fixture build rc = 0
+  OK   fixture root count = 7
+  OK   the fixture demo is the pinned demo with the fixture map name = yes
+  OK   the valid-state archive exists = yes
+  OK   the fixture inputs are hashed (a later diff can say what changed) = yes
+
+=== 3/15 --version: the package names itself, through a redirect ===
+  OK   product --version exit code = 0
+  OK   product --version wrote a non-empty answer to the redirect = yes
+  --- --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-10-21T01:40:29Z sourceDateEpoch=0 sourceTree=34e17142e2b2
+  OK   version line names the package = yes
+  version=0.1.0 declared=0.1.0
+  OK   the version the product answers is the version the package ships = 0.1.0
+  OK   the version line carries a monotonic versionCode = yes
+  OK   the version line names the source tree it came from = yes
+  OK   versionCode is a number = yes
+  OK   install_cli_probe agrees with the product = package=tf2_demo_native version=0.1.0
+
+=== 4/15 --install into a directory that holds nothing but the payload (the packaged shape) ===
+  OK   product --install exit code = 0
+  --- --install ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2219820 mode=fresh
+    install=PASS files=4 new=1 changed=0 unchanged=3 preserved=0 backups=0 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+  OK   install reported PASS = yes
+  OK   install mode = fresh
+  OK   files the install owns (3 payload + the VERSION.txt it writes) = 4
+  OK   the only file it created = 1
+  OK   files it had to back up = 0
+  OK   no file was already there to preserve = 0
+  OK   the payload was consumed, not left behind = consumed
+  OK   the manifest is on disk = yes
+  state files after the install: 1
+  --- installed directory ---
+    .uninstall/install-manifest.txt	723
+    VERSION.txt	160
+    install_smoke_probe.ps1	812
+    native_install_smoke_probe.exe	297984
+    tf2_demo_native.exe	1921024
+  OK   installed file count (3 payload + VERSION.txt + manifest) = 5
+  OK   the installed manifest records the package version = 0.1.0
+  OK   the installed manifest records a monotonic version code = 100
+  OK   the manifest lists exactly the installed files, each once = 4
+  OK   every manifest record is a state word the product knows = new unchanged
+
+=== 4b/15 --install into an empty directory: the shape a user actually takes ===
+  OK   install into an empty directory exits 0 = 0
+  --- --install (empty directory) ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2219820 mode=fresh
+    install=PASS files=4 new=4 changed=0 unchanged=0 preserved=0 backups=0 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+  OK   a fresh install owns the three payload files plus the VERSION.txt it writes = 4
+  OK   a fresh install creates every one of them = 4
+  --- the empty directory after the install ---
+    .uninstall/install-manifest.txt	707
+    VERSION.txt	160
+    install_smoke_probe.ps1	812
+    native_install_smoke_probe.exe	297984
+    tf2_demo_native.exe	1921024
+  OK   the fresh directory holds the payload, the version file and the manifest = 5
+  OK   the fresh install reports VERIFIED = status=VERIFIED
+
+=== 5/15 --install-status in a NEW process: the state is on disk, not in memory ===
+  OK   product --install-status exit code = 0
+  --- --install-status ---
+    status=VERIFIED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-21T03:16:47Z files=4 present=4 missing=0 modified=0
+  OK   status is VERIFIED = yes
+  OK   status counts every file the manifest lists as present = 4
+  OK   status found nothing missing = 0
+  OK   status found nothing modified = 0
+  OK   status reports the installed version = 0.1.0
+
+=== 6/15 what a user does to an installed directory: edit one file, add another ===
+  OK   --install-status exit code after an edit = 0
+  --- status after edit ---
+    status=DEGRADED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-21T03:16:48Z files=4 present=3 missing=0 modified=1
+  OK   status noticed the edit = yes
+  OK   status counts the edited file as modified = 1
+
+=== 7/15 --install over an existing install (the reinstall shape) ===
+  OK   install with the payload already consumed exits 2 = 2
+  OK   and names the missing payload = yes
+  OK   product --install (second time) exit code = 0
+  --- --install over the existing install ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2219820 mode=reinstall
+    install=PASS files=4 new=1 changed=0 unchanged=3 preserved=0 backups=0 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+  OK   the second install knows it is a reinstall = reinstall
+  OK   a reinstall leaves the package directory itself intact = present
+  OK   the version the install carries is unchanged by a reinstall = 0.1.0
+  OK   reinstall over the edited install exits 0 = 0
+  OK   the reinstall backed up the one file the user had edited = 1
+  OK   the edited bytes are still in the backup = present
+
+=== 8/15 --uninstall: only what the manifest says, and the user files stay ===
+  OK   product --uninstall exit code (incomplete by design: it is the running image) = 3
+  --- --uninstall ---
+    uninstall=note deferred_running_image=tf2_demo_native.exe
+    uninstall=INCOMPLETE removed=2 restored=1 preserved=1 modified=0 alreadyMissing=0 deferredRunningImage=1
+  OK   uninstall reported the incomplete removal honestly = yes
+  OK   the file the user added is still there = present
+  OK   the file the user edited is restored to the bytes it had before the reinstall = present
+  OK   the unedited installed files are gone = absent
+  OK   the running product is deferred by name, not deleted = 1
+  OK   and the deferral names the file = yes
+  OK   so the verdict is INCOMPLETE, not PASS = yes
+  OK   the state directory is gone = absent
+  OK   the version file the install wrote is gone = absent
+  --- what is left ---
+    install_smoke_probe.ps1	849
+    tf2_demo_native.exe	1921024
+    user-notes.txt	10
+  OK   what is left is the two files the user made plus the deferred running image = install_smoke_probe.ps1 tf2_demo_native.exe user-notes.txt
+  OK   the install directory itself survives = present
+
+=== uninstall refuses a directory that is not an install ===
+  OK   uninstall in a directory with no manifest exits 2 = 2
+  OK   and it names the missing manifest rather than deleting anything = yes
+  OK   the user file is untouched = present
+
+=== install refuses an empty payload instead of pretending ===
+  OK   install with an empty payload exits 2 = 2
+  OK   and says why = yes
+
+=== the install is a directory, not machine state ===
+  OK   installed files contain no registry or service artefact = 0
+  OK   the manifest is the only state the install writes = 1
+
+=== 9/15 upgrade and downgrade: the installed packageVersionCode is compared ===
+  OK   the first install of the pair exits 0 = 0
+  OK   the pair starts as a fresh install of the shipped version = fresh
+  OK   the upgrade exits 0 = 0
+  --- --install (newer package over the install) ---
+    install=note upgrade fromVersionCode=100 toVersionCode=200
+    install=START package=0.2.0 payloadFiles=3 payloadBytes=2219839 mode=upgrade
+    install=PASS files=4 new=3 changed=1 unchanged=0 preserved=0 backups=1 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.2.0 versionCode=200
+  OK   the install names the operation an upgrade = upgrade
+  OK   the upgrade replaces the one file whose payload bytes changed = 1
+  OK   the pre-upgrade bytes of that file were backed up before replacement = 1
+  OK   the manifest now names the upgraded version = 0.2.0
+  OK   the manifest now names the upgraded versionCode = 200
+  OK   the upgraded file on disk carries the new payload's marker = 1
+  OK   status after the upgrade exits 0 = 0
+  OK   status after the upgrade reports the new version = 0.2.0
+  OK   status after the upgrade finds nothing missing = 0
+  OK   an older package over a newer install exits 2 = 2
+  --- --install (older package over newer install) ---
+    install=FAIL reason=downgrade installedVersionCode=200 packageVersionCode=100
+  OK   the refusal names both version codes = yes
+  OK   the refusal did not start an install it would not finish = absent
+  OK   the refused downgrade left the newer manifest in place = 200
+  OK   the refused downgrade left the upgraded payload byte in place = 1
+  OK   and the directory still verifies against the newer manifest = 0
+
+=== 10/15 migration: the installed directory moved somewhere else ===
+  OK   status in the moved directory exits 0 = 0
+  OK   the moved install verifies against its manifest = yes
+  OK   the moved install reports the version it was upgraded to = 0.2.0
+  OK   the foreign user file is neither missing nor modified = 0:0
+  OK   the manifest still records the OLD install path (nothing reads it) = yes
+  OK   the user's note was never in the manifest (it was added after the install) = absent
+  OK   the moved install uninstalls (incomplete only for its running image) = 3
+  --- --uninstall (moved install) ---
+    uninstall=note deferred_running_image=tf2_demo_native.exe
+    uninstall=INCOMPLETE removed=2 restored=1 preserved=0 modified=0 alreadyMissing=0 deferredRunningImage=1
+  OK   the uninstaller restored the pre-upgrade bytes of the file the upgrade replaced = 1
+  OK   and the pre-upgrade payload bytes are back on disk = 0
+  OK   the user file that was never installed is still there = present
+  OK   the uninstall removed the two installed files the upgrade left behind = 2
+  OK   and it did not claim the file it never recorded as preserved (preserved counts manifest records only) = 0
+  OK   the running image is deferred by name, not deleted = 1
+
+=== 11/15 first launch: the installed directory boots and saves the root it connected ===
+  OK   the directory the first launch boots is a real install = 0
+  OK   it is a fresh install of the shipped version = fresh
+  OK   first launch exit code = 0
+  OK   the capture harness read a title from its own process = yes
+  OK   first launch root valid = 1
+  OK   first launch connected to the fixture root it was given = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/life-t42/fixtures/roots/vpk-valid
+  OK   and the title carries the archive bracket a connected run has = yes
+  OK   first launch opened the fixture archive = 1
+  OK   first launch refused no archive = 0
+  OK   first launch parsed the fixture map out of that archive = vpk
+  OK   first launch wrote its settings file = yes
+  OK   and saved the root it connected = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/life-t42/fixtures/roots/vpk-valid
+  OK   the install directory itself holds no settings file (the capture used its own) = absent
+
+=== 12/15 restart: a second process reuses the root the first one saved ===
+  OK   restart exit code = 0
+  OK   restart was given no root on its command line = -
+  OK   restart connected to the fixture root the first launch saved = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/life-t42/fixtures/roots/vpk-valid
+  OK   restart resolved a valid root = 1
+  OK   restart opened the fixture archive = 1
+  OK   restart did not need a second settings file = no
+
+=== 13/15 non-admin shape: an install into a directory the account may not write ===
+  OK   the deny-write ACL was applied to the target directory = 0
+  OK   install into a write-denied directory exits 2 = 2
+  --- --install (deny-write directory) ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2219820 mode=fresh
+    install=FAIL reason=cannot_copy file=install_smoke_probe.ps1
+  OK   and names the copy the account could not perform = yes
+  OK   the refusal cannot be read as a PASS = absent
+  OK   the refused install wrote nothing into the directory = same
+  OK   the user's file survived the refused install = present
+  OK   no manifest was written by the refused install = absent
+  OK   the deny-write ACL was removed again = 0
+
+=== 14/15 missing runtime file: status names it, --version falls back, uninstall counts it ===
+  OK   the directory the missing-file case starts from is a real install = 0
+  OK   the install owns four records (three payload files and the version file) = 4
+  OK   status with two installed files removed exits 0 (it reports, it does not crash) = 0
+  --- --install-status (an installed runtime file and VERSION.txt removed) ---
+    status=DEGRADED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-21T03:17:30Z files=4 present=2 missing=2 modified=0
+  OK   status is DEGRADED, not VERIFIED = yes
+  OK   status counts the two removed files as missing = 2
+  OK   status still counts the two intact records as present = 2
+  OK   status found nothing modified (a missing file is not a modified one) = 0
+  OK   the installed product still answers --version with its version file gone = 0
+  OK   --version wrote a non-empty answer to the redirect = yes
+  OK   --version still names the package = yes
+  OK   --version falls back to the compiled version = yes
+  OK   uninstall with two files already missing exits 3 (its running image is deferred) = 3
+  --- --uninstall (two files already missing) ---
+    uninstall=note deferred_running_image=tf2_demo_native.exe
+    uninstall=INCOMPLETE removed=1 restored=0 preserved=0 modified=0 alreadyMissing=2 deferredRunningImage=1
+  OK   uninstall counts the two missing records as alreadyMissing = 2
+  OK   uninstall removes the one installed file that is still there = 1
+  OK   that file is gone = absent
+  OK   the file it cannot remove is still a named deferral, not a removal = 1
+
+=== 15/15 VPK states: absent, unreadable, unsupported, truncated and valid, through vpk_query AND the installed product ===
+  OK   valid: vpk_query exit code = 0
+  OK   valid: vpk_query opened the archive and found the map = 1 entries, 1 match 'maps' ext=.bsp
+  OK   valid: the installed product boots = 0
+  OK   valid: product opened exactly one archive = 1
+  OK   valid: product refused nothing = 0
+  OK   valid: product read the map out of the archive = vpk
+  OK   valid: the archived BSP was parsed = yes
+  OK   absent: vpk_query exit code = 0
+  OK   absent: vpk_query names the file absent and the OS reason = ABSENT (ERROR_FILE_NOT_FOUND)
+  OK   absent: the installed product boots = 0
+  OK   absent: product opened no archive (there is none) = 0
+  OK   absent: product counted no refusal = 0
+  OK   absent: the trace carries no refusal line at all = absent
+  OK   absent: the title has no VPK refusal count = 
+  OK   absent: the loose map still answered = maps
+  OK   unreadable: vpk_query exit code = 0
+  OK   unreadable: vpk_query separates it from absent and from refused = UNREADABLE (ERROR_ACCESS_DENIED)
+  OK   unreadable: the installed product boots = 0
+  OK   unreadable: the root stayed valid (the archive NAME is there; readability is a separate question) = 1
+  OK   unreadable: product opened no archive = 0
+  OK   unreadable: product counted one present-but-unopenable archive = 1
+  OK   unreadable: product names the reader's own reason = cannot read VPK directory file
+  OK   unreadable: product attribution is the same category vpk_query used = unreadable
+  OK   unreadable: the title carries the refusal count = 1
+  OK   unreadable: the map could not be read = none
+  OK   unsupported: vpk_query exit code = 0
+  OK   unsupported: vpk_query names the format, not corruption = UNSUPPORTED (unsupported VPK header)
+  OK   unsupported: the installed product boots = 0
+  OK   unsupported: product counted one refusal = 1
+  OK   unsupported: product repeats the named format reason = unsupported VPK header
+  OK   unsupported: product attribution is the same category vpk_query used = unsupported
+  OK   unsupported: the title carries the refusal count = 1
+  OK   truncated: vpk_query exit code = 0
+  OK   truncated: vpk_query names the truncation, not the format = TRUNCATED (truncated VPK directory tree)
+  OK   truncated: the installed product boots = 0
+  OK   truncated: product counted one refusal = 1
+  OK   truncated: product repeats the named truncation reason = truncated VPK directory tree
+  OK   truncated: product attribution is the same category vpk_query used = truncated
+  OK   absent is not any corrupt or unreadable answer (vpk_query) = distinct
+  OK   the three present-but-refused states get three different product attributions = 3
+  OK   and absent stays refused=0 while every present-but-broken copy is refused=1 = 0:1
+  OK   vpk_query gives the five states five different answers = 5
+  OK   volume-missing: vpk_query exit code = 0
+  OK   volume-missing: vpk_query lists the entry the archive cannot produce = 1 entries, 1 match 'maps' ext=.bsp
+  OK   volume-missing: the installed product boots = 0
+  OK   volume-missing: the directory index opened = 1
+  OK   volume-missing: and no refusal is counted (the open succeeded) = 0
+  OK   volume-missing: the map read still produced no bytes = 0
+  OK   volume-missing: NAMED LIMITATION: store=none with no per-entry reason = none
+  OK   shadow: vpk_query exit code = 0
+  OK   shadow: vpk_query still lists the archived copy = 1 entries, 1 match 'maps' ext=.bsp
+  OK   shadow: the installed product boots = 0
+  OK   shadow: the bad loose file answered before the valid archived one = maps
+  OK   shadow: the bad loose BSP shadowed the valid archived one = invalid/BSP header is invalid
+  OK   the deny-read VPK fixture ACL was reset for cleanup = 0
+
+  cases=15 checks=213 mutations=0
+  INSTALL-LIFECYCLE=PASS

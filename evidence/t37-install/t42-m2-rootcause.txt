@@ -1,0 +1,38 @@
+T42 M2 root cause measurement -- 2026-10-21, worktree t42-installer-vpk
+
+Question: M2 (uninstallFrom no longer skips preserved/unchanged records) was
+recorded by T37 as not caught. Is the behaviour unreachable, or did the
+fixture never execute the mutated binary?
+
+step 1  the forward-stage package the T37 M2 fixture copied its payload from:
+        49239329da6610f5d2c1c0faec2f3ef20a8bf2c87f8937702af2e353c6574f8f  life-ref/stage/tf2_demo_native.exe
+
+step 2  the T37-shaped fixture (payload copied from that stage):
+        installed uninstaller sha256 49239329da6610f5d2c1c0faec2f3ef20a8bf2c87f8937702af2e353c6574f8f
+        install=START package=0.1.0 payloadFiles=3 payloadBytes=2218284 mode=fresh
+        install=PASS files=4 new=4 changed=0 unchanged=0 preserved=1 backups=0 copied=3
+        install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+        uninstall=note deferred_running_image=tf2_demo_native.exe
+        uninstall=INCOMPLETE removed=3 restored=0 preserved=1 modified=0 alreadyMissing=0 deferredRunningImage=1
+        user file after uninstall: present  -> the reference binary behaved correctly; the MUTATION NEVER RAN
+
+step 3  the same fixture shape staged from the MUTATED build after the rebuild:
+        installed uninstaller sha256 caab68979c991ec3d093b0f9b6069d3498d48bac9c80b1a30ebe538a39aee98f
+        install=START package=0.1.0 payloadFiles=3 payloadBytes=2218284 mode=fresh
+        install=PASS files=4 new=4 changed=0 unchanged=0 preserved=1 backups=0 copied=3
+        install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+        uninstall=note deferred_running_image=tf2_demo_native.exe
+        uninstall=INCOMPLETE removed=4 restored=0 preserved=0 modified=0 alreadyMissing=0 deferredRunningImage=1
+        user file after uninstall: absent  -> M2 CAUGHT
+
+step 4  restore proof: the mutated source was copied back from the backup,
+        cmp reported identical, and the rebuild returned rc=0:
+        === build tf2_demo_native install_cli_probe ===
+        rc=0
+        git diff of native/src/install_lifecycle.cpp after restore: clean
+
+Conclusion: M2 was MUTATION-NOT-LINKED in T37's fixture, not uncaught in the
+product. The gate now stages every mutation fixture from the mutated build,
+asserts the executing binary's sha256 equals the mutated build (exit 90
+MUTATION-NOT-LINKED if it is the reference binary), and the forward run
+records and prints the reference sha256 it staged.

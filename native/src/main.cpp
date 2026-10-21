@@ -2235,9 +2235,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       std::error_code presentError;
       if (!std::filesystem::is_regular_file(archivePath, presentError) || presentError) continue;
       ++refusedVpkCount;
+      // T42: the same stable attribution words vpk_query prints. A trace reader and
+      // a query reader must not have to guess which failures are format problems,
+      // which are truncated files, and which are permissions -- the three have
+      // different repairs. The category is a function of the reader's own reason,
+      // never of a path or a fixture name.
+      const std::string archiveReason = archiveError.empty()
+        ? std::string("open failed without a reason") : archiveError;
+      const char* archiveAttribution = "open_failed";
+      if (archiveReason == "unsupported VPK header") archiveAttribution = "unsupported";
+      else if (archiveReason.rfind("truncated", 0) == 0) archiveAttribution = "truncated";
+      else if (archiveReason == "cannot read VPK directory file") archiveAttribution = "unreadable";
+      // Two lines, not one extended line. Existing readers take everything after
+      // reason= as the reason and require file= immediately after "refused", so
+      // inserting a field between them would silently rewrite their reading. The
+      // first line is therefore byte-compatible with pre-T42 traces; the second is
+      // the new attribution word, keyed to the same file.
       traceFmt("vpk: refused file=%s reason=%s",
-        std::filesystem::path(name).string().c_str(),
-        archiveError.empty() ? "open failed without a reason" : archiveError.c_str());
+        std::filesystem::path(name).string().c_str(), archiveReason.c_str());
+      traceFmt("vpk: refused attribution=%s file=%s",
+        archiveAttribution, std::filesystem::path(name).string().c_str());
     }
     traceFmt("vpk: archives opened=%zu refused=%zu", soundArchives.size(), refusedVpkCount);
     if (!mapPlan.nameUsable) {

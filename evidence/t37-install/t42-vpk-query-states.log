@@ -1,0 +1,52 @@
+=== vpk-query-precedence-shadow
+pak01_dir.vpk: 1 entries, 1 match 'maps' ext=.bsp
+    maps/t32_marker.bsp
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 1
+=== vpk-query-vpk-format
+pak01_dir.vpk: UNSUPPORTED (unsupported VPK header)
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 0
+=== vpk-query-vpk-missing
+pak01_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 0
+=== vpk-query-vpk-truncated-tree
+pak01_dir.vpk: TRUNCATED (truncated VPK directory tree)
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 0
+=== vpk-query-vpk-unreadable
+pak01_dir.vpk: UNREADABLE (ERROR_ACCESS_DENIED)
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 0
+=== vpk-query-vpk-valid
+pak01_dir.vpk: 1 entries, 1 match 'maps' ext=.bsp
+    maps/t32_marker.bsp
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 1
+=== vpk-query-vpk-volume-missing
+pak01_dir.vpk: 1 entries, 1 match 'maps' ext=.bsp
+    maps/t32_marker.bsp
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 1
