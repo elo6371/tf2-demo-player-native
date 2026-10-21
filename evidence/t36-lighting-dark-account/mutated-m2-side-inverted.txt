@@ -1,4 +1,10 @@
-  File "D:\TF2_Native_Worktrees\t41-lighting-mutation\dark-account.py", line 164
-    front = (sd <= 0.0) if side == 0 else (sd >= 0.0); front = not front  // mutation m2
-                                                                                      ^^
-SyntaxError: invalid syntax
+m2 (pure Python, no product): the face-side test in dark-account.py is
+negated as a whole -- front = not ((sd >= 0.0) if side == 0 else (sd <= 0.0))
+  baseline: dark=208630 back=98160 front=107768
+  mutated : dark=208630 back=107768 front=98160
+  M2=RED-as-required the split swapped 98160/107768 -> 107768/98160 at the
+    same 208630 total
+  RESTORE=OK (dark-account.py byte-identical, 911cc84a70eec2cfb3dd12925f316add6d1dc05b)
+Note: negating only the inner comparison, not ((sd <= 0.0) if side == 0 else
+(sd >= 0.0)), is NOT an inversion -- it reproduces the baseline exactly and
+was measured doing so -- because it differs from the original only at sd == 0.

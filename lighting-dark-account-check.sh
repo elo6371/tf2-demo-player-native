@@ -576,7 +576,7 @@ cp dark-account.py "$SAVE_ACC"
 HASH_ACC=$(git hash-object dark-account.py 2>/dev/null || echo none)
 if ! patch_in dark-account.py \
   '                front = (sd >= 0.0) if side == 0 else (sd <= 0.0)' \
-  '                front = (sd <= 0.0) if side == 0 else (sd >= 0.0)  # mutation m2'; then
+  '                front = not ((sd >= 0.0) if side == 0 else (sd <= 0.0))  # mutation m2'; then
   echo "  MUTATION-SETUP=FAIL (m2: the patch did not apply)"; fail=1
 else
   M2="$SCRATCH/m2-account"
