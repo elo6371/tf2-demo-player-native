@@ -50,10 +50,23 @@
 #      choice is made from the reading, never from a flag or a demo name.
 #   7. Every bind-pose instance carries a non-empty reason.
 #   8. The standalone `--model` path skins with identity matrices and does NOT
-#      deform the bind pose: enabling the skinning branch with identity matrices
-#      must leave the picture alone (max channel delta <= 1, <= 0.001% of bytes
-#      differing), while supplying a sequence must move it. That pair is what
-#      separates "the branch runs" from "the branch moved the geometry".
+#      deform the bind pose, while supplying a sequence must move it. That pair is
+#      what separates "the branch runs" from "the branch moved the geometry".
+#      T39 replaced the byte-exact bound with the rule the claim actually needs,
+#      because the pair is not bit-exact BY DESIGN: the skinning shader evaluates
+#      sum(w_i * M_i * v) with normalized weights, a different float expression
+#      than the passthrough, so one sample sitting on a surface boundary can be
+#      owned by the other triangle and take the neighbouring surface's colour
+#      (measured one pixel, delta 59/255, on the final tree -- T39 report). The
+#      rule, measured by bmp-silhouette-diff.py: outside a measured edge mask the
+#      max channel delta <= 1 (strict; measured 0), every changed pixel lies
+#      inside that mask (measured 1 of 1), the changed-pixel count is capped at 4
+#      (measured 1; a moved transform changes thousands), the whole-frame max
+#      delta has a ceiling of 128 so a big move cannot hide in the mask (measured
+#      59), and the mask itself is a measured population (gradient >= 32 in the
+#      control frame: 18,446 px = 2.14% of 860,784) so containment is not
+#      vacuous. A control applies the same rule to the identity-vs-animated pair
+#      -- a real pose change -- and requires it to be rejected.
 #   9. The pose follows the tick, not just the cursor. The `--model` path is run
 #      twice on a 100-frame game sequence at two ticks: the sampled frame index
 #      must differ, the picture must differ by more than rounding could produce,
@@ -79,14 +92,20 @@
 # the game's own VPK. Nothing here depends on a loose custom model that only
 # exists on one machine.
 #
-# Usage: bash weapon-animation-check.sh [--mutation | --mutation-model]
+# Usage: bash weapon-animation-check.sh [--mutation | --mutation-model | --mutation-identity]
 #   --mutation        forces bind pose inside buildAnimationSkinMatrices, rebuilds
 #                     and requires this script to go red (the entity contract).
 #   --mutation-model  replaces the identity matrices on the `--model` path with
 #                     the model's inverse bind matrices -- the historical bug --
 #                     and requires this script to go red (the single-model
-#                     contract). It skips sections 1-3, which read the entity path
-#                     and cannot move because of it.
+#                     contract).
+#   --mutation-identity  moves the identity matrices' model transform by 0.02 of
+#                     the model's normalized box. The picture moves but no counter
+#                     does; the silhouette rule must reject it, and the verdict is
+#                     required to come from that rule rather than from an
+#                     unrelated assertion.
+#   The two `--model` mutations skip sections 1-3, which read the entity path and
+#   cannot move because of them.
 # Exit:  0 = every assertion held (or, with a mutation, the checks went red).
 #
 # One run at a time: the script takes .scratch/weapon-animation.lock with mkdir
@@ -190,8 +209,9 @@ PYEOF_CAM
 MUTATION=0
 MUTATION_TARGET=""
 case "${1:-}" in
-  --mutation)       MUTATION=1; MUTATION_TARGET="entity" ;;
-  --mutation-model) MUTATION=1; MUTATION_TARGET="model" ;;
+  --mutation)          MUTATION=1; MUTATION_TARGET="entity" ;;
+  --mutation-model)    MUTATION=1; MUTATION_TARGET="model" ;;
+  --mutation-identity) MUTATION=1; MUTATION_TARGET="identity" ;;
   "")               ;;
   *) echo "FATAL: unknown option: $1"; exit 1 ;;
 esac
@@ -232,7 +252,7 @@ ROOT=$(cygpath -m "$(pwd)" 2>/dev/null || pwd)
 case "$ROOT" in
   /[a-zA-Z]/*) echo "FATAL: could not convert '$ROOT' to a Windows path"; exit 1 ;;
 esac
-for path in "$EXE" "$PROBE" "$TF" "$DEMO" "$MAP" "$PY" bmp-pixel-diff.py; do
+for path in "$EXE" "$PROBE" "$TF" "$DEMO" "$MAP" "$PY" bmp-pixel-diff.py bmp-silhouette-diff.py; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
 done
 
@@ -299,6 +319,23 @@ bmp_diff() {
     echo "  FAIL $label (rc=$rc)"; fail=1; FAIL_LINES+=("$label: $line")
   fi
 }
+# silhouette_diff <label> <a> <b> <edge-frame> <bounds...> -> PASS/FAIL of the
+# semantic "it may only differ on an edge" rule. The tool's exit code is the
+# assertion, exactly like bmp_diff: 0 held, 1 a bound failed, 2 the input could
+# not be read. All three are reported, none are skipped.
+silhouette_diff() {
+  local label="$1" a="$2" b="$3" edge="$4"; shift 4
+  local line rc
+  line=$("$PY" bmp-silhouette-diff.py "$a" "$b" --edge-frame "$edge" "$@" 2>&1)
+  rc=$?
+  echo "  $line"
+  if [ "$rc" -eq 0 ]; then
+    echo "  OK   $label"
+  else
+    echo "  FAIL $label (rc=$rc)"; fail=1; FAIL_LINES+=("$label: $line")
+  fi
+  return "$rc"
+}
 
 SOURCE=""
 BACKUP=""
@@ -347,7 +384,7 @@ PYEOF
       cp "$BACKUP" "$SOURCE"
       exit 1
     fi
-  else
+  elif [ "$MUTATION_TARGET" = "model" ]; then
     echo "=== mutation: the --model identity matrices become the inverse bind matrices ==="
     SOURCE=native/src/main.cpp
     BACKUP=".scratch/weapon-animation-mutation-model.bak"
@@ -391,6 +428,47 @@ PYEOF
       cp "$BACKUP" "$SOURCE"
       exit 1
     fi
+  else
+    echo "=== mutation: the --model identity matrices move the model transform ==="
+    SOURCE=native/src/main.cpp
+    BACKUP=".scratch/weapon-animation-mutation-identity.bak"
+    cp "$SOURCE" "$BACKUP"
+    if ! "$PY" - "$SOURCE" <<'PYEOF'
+import io, sys
+path = sys.argv[1]
+raw = io.open(path, "rb").read()
+crlf = b"\r\n" in raw
+text = raw.decode("utf-8").replace("\r\n", "\n") if crlf else raw.decode("utf-8")
+anchor = (
+    "        identity.reserve(bindBoneCount);\n"
+    "        for (std::size_t i = 0; i < bindBoneCount; ++i) {\n"
+    "          std::array<float, 16> matrix{};\n"
+    "          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;\n"
+    "          identity.push_back(matrix);\n"
+)
+inject = (
+    "        identity.reserve(bindBoneCount);\n"
+    "        for (std::size_t i = 0; i < bindBoneCount; ++i) {\n"
+    "          std::array<float, 16> matrix{};\n"
+    "          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;\n"
+    "          // MUTATION: a rigid move of the model transform through the identity\n"
+    "          // matrices. It moves the picture but no pose counter, and no texture\n"
+    "          // or resource reading changes; the silhouette rule must reject it.\n"
+    "          matrix[12] = 0.02f;\n"
+    "          identity.push_back(matrix);\n"
+)
+assert text.count(anchor) == 1, "standalone model identity matrix anchor"
+text = text.replace(anchor, inject)
+if crlf:
+    text = text.replace("\n", "\r\n")
+io.open(path, "wb").write(text.encode("utf-8"))
+print("MUTATION-PATCHED")
+PYEOF
+    then
+      echo "FATAL: the mutation did not apply; the mutated build would prove nothing"
+      cp "$BACKUP" "$SOURCE"
+      exit 1
+    fi
   fi
   bash build-target.sh tf2_demo_native > "$RUN_DIR/mutation-build.txt" 2>&1
   BUILD_RC=$?
@@ -402,13 +480,15 @@ PYEOF
   fi
 fi
 
-# The `--model` mutation rewrites the identity matrices on the standalone path
-# and nothing else. Sections 1-3 read the *entity* path -- three demo playbacks,
-# ~5 of this gate's 7 minutes -- and cannot move because of it. They are skipped
-# rather than re-run: a mutation that costs as much as the gate it guards stops
-# being run, and an unrun mutation is not a control.
+# The two `--model` mutations rewrite the identity matrices on the standalone
+# path and nothing else. Sections 1-3 read the *entity* path -- three demo
+# playbacks, ~5 of this gate's 7 minutes -- and cannot move because of them. They
+# are skipped rather than re-run: a mutation that costs as much as the gate it
+# guards stops being run, and an unrun mutation is not a control.
 ENTITY_SECTIONS=1
-[ "$MUTATION_TARGET" = "model" ] && ENTITY_SECTIONS=0
+if [ "$MUTATION_TARGET" = "model" ] || [ "$MUTATION_TARGET" = "identity" ]; then
+  ENTITY_SECTIONS=0
+fi
 
 if [ "$ENTITY_SECTIONS" -eq 0 ]; then
   echo "=== 1-3/6 skipped: the --model mutation does not touch the entity path ==="
@@ -435,8 +515,14 @@ for tick in "${TICKS[@]}"; do
   # lives with the trace; only the captured frame is a frozen witness.
   CSV="$TRACE_DIR/tick-$tick.bmp.csv"
   rm -f "$BMP" "$CSV"
+  # --hidden-window/--audio-disabled: the host runs one capture at a time and the
+  # window and audio device must not be visible to whoever else is logged in. T39
+  # measured that adding them changes no pixel: the identity/control pair is
+  # byte-identical under the flag pair and under the previous invocation (both
+  # frame hashes recorded in T39-WEAPON-ANIMATION-2026-10-21.md).
   TF2_NATIVE_TRACE="$ROOT/$TRACE" timeout "$RUN_TIMEOUT" "$EXE" \
-    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$DEMO" \
+    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
+    --demo "$DEMO" \
     --capture-frame "$BMP" --capture-tick "$tick" --metrics-file "$CSV" \
     > "$TRACE_DIR/tick-$tick.log" 2>&1
   rc=$?
@@ -610,14 +696,18 @@ echo "=== 4/6 the standalone --model path skins without deforming the bind pose 
 # Two runs that differ only in the shader branch, and one that differs in the
 # input pose. `--model-skinning 0` is the control: the same matrices are
 # uploaded but the skinning branch is disabled, so it renders the vertex buffer
-# exactly as the pipeline did before any of this existed. If enabling the branch
-# with identity matrices moved a single vertex, these two frames would not agree.
+# exactly as the pipeline did before any of this existed. The pair is not
+# bit-exact by design (the shader's weighted sum is a different float
+# expression), so section 4 asserts the semantic rule below rather than byte
+# equality; if the branch moved the geometry, thousands of interior and edge
+# pixels would disagree, not one.
 run_model() { # run_model <name> <model> <args...>
   local name="$1" model="$2"; shift 2
   local bmp="$RUN_DIR/model-$name.bmp"
   rm -f "$bmp"
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/model-$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
-    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --model "$model" \
+    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
+    --model "$model" \
     --capture-frame "$bmp" "$@" > "$TRACE_DIR/model-$name.log" 2>&1
   echo "$bmp"
 }
@@ -664,10 +754,49 @@ assert_eq "the --model path uploads every bone" "$(field "$IDENTITY_LINE" upload
 assert_eq "a supplied sequence produces an animated pose" "$(field "$ANIMATED_LINE" source)" "animated"
 assert_eq "the animated run uploads every bone" "$(field "$ANIMATED_LINE" uploaded)" "$(field "$ANIMATED_LINE" bones)"
 # The claim itself. Identity skin matrices through the skinning branch versus no
-# skinning branch at all: a handful of bytes may round differently (the weighted
-# sum is a different float expression), but nothing may move.
-bmp_diff "identity skinning does not deform the bind pose" \
-  "$MODEL_IDENTITY" "$MODEL_CONTROL" --max-delta 1 --max-diff-percent 0.001
+# skinning branch at all. It is NOT a byte-exact claim and never was: the skinning
+# shader evaluates sum(w_i * M_i * v) with normalized weights, a different float
+# expression than the passthrough, so a sample sitting on a surface boundary can
+# be owned by the other triangle and take the neighbouring surface's colour. On
+# this frame that is ONE pixel of 860,784, delta 59 of 255, on a measured edge
+# (T39). The previous bound asked a raster tie to be a bit-identical rendering,
+# which it cannot be, so it was replaced -- not widened -- by the rule the claim
+# actually needs:
+#   * outside the measured edge mask the rounding allowance still holds, strictly
+#     (max channel delta <= 1; measured 0);
+#   * every changed pixel lies inside the edge mask (measured 1 of 1);
+#   * changed pixels are capped at 4 (measured 1; the real-pose control below and
+#     the --mutation-identity case change thousands);
+#   * the whole-frame max delta has a ceiling of 128, so a large move cannot hide
+#     inside the mask (measured 59, the two surface colours at the edge).
+# The mask is derived, not listed: pixels whose 4-neighbour maximum per-channel
+# gradient in the control frame reaches 32. On this frame that selects 18,446 px
+# = 2.14% of the frame (gradient population: 823,210 px at 0, 2,813 at 1, up to
+# 222 at the strongest face boundary; the residual pixel measures 59). The
+# threshold is a stated parameter rather than a natural break, so the measured
+# population is printed on every run and bounded 1,000..86,078 -- an empty or
+# whole-frame mask would make containment vacuous.
+silhouette_diff "identity skinning changes nothing outside the measured edge mask" \
+  "$MODEL_IDENTITY" "$MODEL_CONTROL" "$MODEL_CONTROL" \
+  --edge-threshold 32 --max-interior-delta 1 --max-changed 4 \
+  --max-global-delta 128 --min-mask 1000 --max-mask 86078
+# The control that catches a real wrong pose: the same rule applied to the
+# identity-vs-animated pair. A sampled sequence really moves the geometry (the
+# positive half is asserted below), so the rule must REJECT this pair -- it
+# changes interior pixels and thousands of edge pixels. The requirement is
+# exactly rc=1 (a bound failed): rc=2 would mean the comparison could not be
+# read, which is a gate failure, not a rejection by the rule.
+SEM_POSE=$("$PY" bmp-silhouette-diff.py "$MODEL_IDENTITY" "$MODEL_ANIMATED" \
+  --edge-frame "$MODEL_IDENTITY" --edge-threshold 32 --max-interior-delta 1 \
+  --max-changed 4 --max-global-delta 128 --min-mask 1000 --max-mask 86078 2>&1)
+SEM_POSE_RC=$?
+echo "  $SEM_POSE"
+if [ "$SEM_POSE_RC" -eq 1 ]; then
+  echo "  OK   the silhouette rule rejects a real pose change (identity vs animated)"
+else
+  echo "  FAIL the silhouette rule did not reject a real pose change (rc=$SEM_POSE_RC)"
+  fail=1; FAIL_LINES+=("the silhouette rule did not reject a real pose change: $SEM_POSE")
+fi
 # And the positive control: supplying a sequence must move the geometry, by a
 # margin no rounding can produce.
 bmp_diff "a sampled sequence moves the geometry" \
@@ -771,6 +900,22 @@ if [ "$MUTATION" -eq 1 ]; then
       echo "# the mutation was caught: these assertions went red with $MUTATION_TARGET mutated"
       printf '%s\n' "${FAIL_LINES[@]}"
     } > "$OUT/mutation-failure-$MUTATION_TARGET.txt"
+    # The identity mutation exists to prove the silhouette rule is load-bearing, so
+    # "something went red" is not enough: the named rule must be one of the red
+    # assertions. A mutation caught only by an unrelated reading would leave the
+    # rule untested while the run still said PASS.
+    if [ "$MUTATION_TARGET" = "identity" ]; then
+      CAUGHT_BY_RULE=0
+      for entry in "${FAIL_LINES[@]}"; do
+        case "$entry" in
+          "identity skinning changes nothing outside the measured edge mask"*) CAUGHT_BY_RULE=1 ;;
+        esac
+      done
+      if [ "$CAUGHT_BY_RULE" -ne 1 ]; then
+        echo "MUTATION-CAUGHT=FAIL (the identity mutation went red, but not on the silhouette rule)"
+        exit 1
+      fi
+    fi
     echo "MUTATION-CAUGHT=PASS ($MUTATION_TARGET mutation turns this step red)"
     exit 0
   fi
