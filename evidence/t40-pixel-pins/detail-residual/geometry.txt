@@ -1,0 +1,34 @@
+residual same-face pixels=2812
+faces=27 top=[(7536, 1315), (7538, 251), (4447, 180), (1732, 177), (734, 174), (4762, 142), (1456, 121), (2970, 111)]
+depth_changed=1736/2812 albedo_changed=97/2812 flat_changed=0/2812
+adjacent_to_id_changed_1px=401/2812 (14.3%)
+components=172 sizes=[1042, 316, 242, 124, 108, 67, 56, 51, 46, 43, 40, 32, 30, 28, 25, 21, 20, 20, 18, 16]
+  comp n=1042 bbox=(40..100,261..372) faces=[(7536, 851), (7538, 153)] side={'new': 587, 'old': 455}
+  comp n=316 bbox=(211..246,64..117) faces=[(2970, 104), (1732, 68)] side={'old': 158, 'new': 158}
+  comp n=242 bbox=(35..55,364..400) faces=[(7536, 212), (7538, 25)] side={'old': 121, 'new': 121}
+  comp n=124 bbox=(97..115,264..291) faces=[(7536, 77), (734, 46)] side={'old': 53, 'new': 71}
+  comp n=108 bbox=(203..228,68..84) faces=[(4762, 83), (1732, 18)] side={'new': 62, 'old': 46}
+  comp n= 67 bbox=(710..721,149..168) faces=[(1456, 49), (3658, 11)] side={'new': 33, 'old': 34}
+  comp n= 56 bbox=(212..233,62..65) faces=[(1732, 56)] side={'new': 31, 'old': 25}
+  comp n= 51 bbox=(106..120,508..520) faces=[(4447, 39), (6171, 8)] side={'new': 22, 'old': 29}
+  comp n= 46 bbox=(90..103,552..564) faces=[(4447, 46)] side={'new': 20, 'old': 26}
+  comp n= 43 bbox=(35..43,351..365) faces=[(7538, 43)] side={'old': 24, 'new': 19}
+  comp n= 40 bbox=(281..290,0..10) faces=[(10099, 37), (8949, 3)] side={'new': 40}
+  comp n= 32 bbox=(99..109,518..526) faces=[(4447, 24), (3714, 8)] side={'new': 20, 'old': 12}
+  comp n= 30 bbox=(708..716,163..173) faces=[(1456, 17), (5233, 13)] side={'old': 15, 'new': 15}
+  comp n= 28 bbox=(700..708,171..181) faces=[(1456, 16), (5233, 12)] side={'old': 15, 'new': 13}
+  comp n= 25 bbox=(718..723,116..124) faces=[(1459, 25)] side={'new': 12, 'old': 13}
+face7536 same-id pixels=2908
+  baseline_moved=34 detail_old=1321 detail_new=1479 detail_both=736 detail_neither=844
+  detail_new_only=743 detail_old_only=585
+  face7536 bbox=(32..112,270..407)
+   x=87 y=270 oldF-A=(0, 0, 0) newF-A=(0, 0, 0) Aold=(24, 28, 38) Anew=(24, 28, 38) Fold=(24, 28, 38) Fnew=(24, 28, 38)
+   x=103 y=274 oldF-A=(-7, -5, -3) newF-A=(-7, -5, -3) Aold=(20, 22, 30) Anew=(20, 22, 30) Fold=(13, 17, 27) Fnew=(13, 17, 27)
+   x=85 y=277 oldF-A=(-7, -7, -4) newF-A=(-7, -7, -4) Aold=(23, 28, 37) Anew=(23, 28, 37) Fold=(16, 21, 33) Fnew=(16, 21, 33)
+   x=85 y=279 oldF-A=(0, 0, 0) newF-A=(0, 0, 0) Aold=(20, 23, 31) Anew=(20, 23, 31) Fold=(20, 23, 31) Fnew=(20, 23, 31)
+   x=84 y=281 oldF-A=(0, 0, 0) newF-A=(-8, -7, -5) Aold=(25, 30, 39) Anew=(25, 30, 39) Fold=(25, 30, 39) Fnew=(17, 23, 34)
+   x=83 y=283 oldF-A=(-8, -7, -5) newF-A=(-8, -7, -5) Aold=(26, 30, 39) Anew=(26, 30, 39) Fold=(18, 23, 34) Fnew=(18, 23, 34)
+   x=82 y=285 oldF-A=(0, 0, 0) newF-A=(-8, -7, -4) Aold=(26, 30, 38) Anew=(26, 30, 38) Fold=(26, 30, 38) Fnew=(18, 23, 34)
+   x=81 y=287 oldF-A=(0, 0, 0) newF-A=(0, 0, 0) Aold=(27, 31, 38) Anew=(27, 31, 38) Fold=(27, 31, 38) Fnew=(27, 31, 38)
+   x=80 y=289 oldF-A=(0, 0, 0) newF-A=(-9, -8, -5) Aold=(27, 31, 39) Anew=(27, 31, 39) Fold=(27, 31, 39) Fnew=(18, 23, 34)
+   x=79 y=291 oldF-A=(0, 0, 0) newF-A=(0, 0, 0) Aold=(28, 32, 39) Anew=(28, 32, 39) Fold=(28, 32, 39) Fnew=(28, 32, 39)

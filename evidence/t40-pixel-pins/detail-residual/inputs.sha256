@@ -1,0 +1,16 @@
+# sha256 of every frame the detail-residual attribution reads.
+# provenance: old = the pre-T29 build kept by T40 (integrate-t26 run 20261020110643-1229 /
+#            t40-pixel-pins frames/t26-pre), new = this tree (T26 captures committed
+#            in evidence/t26-world-holes/captures, T40 material-new frames).
+f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608  t40-pixel-pins/.scratch/t40/frames/material-old/A.bmp
+21cb8aa28df87b6c869e12a12be240ab79c0d5d5370bf97b073652890280647f  t40-pixel-pins/.scratch/t40/frames/material-old/F.bmp
+005fd44d3a3f95342c74efb0292d6eeee4fac88bd68621ddf206a3c6cb775d4e  t40-pixel-pins/.scratch/t40/frames/t26-pre/world-ids.bmp
+d4c2298ca9c7e3d04f2d8148864bdaba8af265fdcc49260ce097f9a08588d973  t40-pixel-pins/.scratch/t40/frames/t26-pre/depth-base.bmp
+a13bba4b1e870b480f57d8c0049a62507097f6c043033469db7e01b9601d303f  t40-pixel-pins/.scratch/t40/frames/t26-pre/lightmap-off.bmp
+d4d31160c52a1c77d5b7c04c2080d784c4ee5f8e82236f861c7274c22be8d38b  t40-pixel-pins/.scratch/t40/frames/t26-pre/flat-base.bmp
+6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b  t40-pixel-pins/.scratch/t40/frames/material-new/A.bmp
+2ffa7d2bfeb9e6e9de160315f460c3384b8a0d124cfb060b6bc905752f38f8b5  t40-pixel-pins/.scratch/t40/frames/material-new/F.bmp
+cceeaf4447d1d6a87322570fe657d727bd127dc6afacd3e4f5de62d18c8f2c98  evidence/t26-world-holes/captures/world-ids.bmp
+806d0b7a206718eb6e9cb30a1b35c03c13d3e3c914b823750e6cfbf1edc045d7  evidence/t26-world-holes/captures/depth-base.bmp
+334a0682285dc3afc72b41809fc094f90365b7319c91bddcea3e908c75f5f213  evidence/t26-world-holes/captures/lightmap-off.bmp
+83e3f7d6f97f667fc76735853828a252fe83b7fbe3a803803cbe346db92e10ac  evidence/t26-world-holes/captures/flat-base.bmp
