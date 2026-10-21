@@ -368,3 +368,117 @@ Owner: integration owner. Start only after T44-T48 are reviewed.
    only when the chain passes and no unaccepted release blocker remains.
 6. Push the final commit; verify `git ls-remote`, ahead/behind, artifact hashes,
    clean worktree, free lock, and zero residual processes.
+
+## Product scope clarified by the user — roadmap after T49
+
+The full product target is a TF2 demo review/editor tool, not only a demo parser
+and renderer. Current player/render/audio/resource foundations are substantial,
+but the following user-facing features are **not implemented or not accepted**
+yet. Re-estimated progress against this full target is roughly **35–40%**;
+the earlier 75% estimate described core-engine/release-gate progress and did not
+include this feature scope. Clip editing/export is explicitly a later phase.
+
+| Feature | Current state |
+|---|---|
+| Load/play TF2 demos, render BSP world and first-person models, read local TF2 resources, schedule sound | Implemented; broad focused evidence exists |
+| Import/apply a custom HUD | Not implemented; current HUD/status display is not a user HUD import system |
+| Free camera while paused | Camera/free-look controls exist, but the exact paused free-camera workflow needs a focused acceptance task |
+| Save multiple fixed camera bookmarks and jump with custom hotkeys | Not implemented |
+| Timeline under the player and choose/edit a time range | Not implemented |
+| Export selected range to MP4 or another compatible video format | Deferred to a later phase, as requested |
+| One-click X-ray player outlines through walls, red/blue by team | Not implemented |
+| Projectile trajectory overlay, all players or selected player, configurable visibility/linger and performance interval | Not implemented |
+| In-app logs.tf viewer: empty by default, import a logs.tf URL, resizable and scrollable like a browser | Not implemented |
+
+### T50 — Camera director and paused free camera
+
+Start after T49 establishes a stable player baseline. Design the controls before
+implementing: pause must freeze demo time while camera motion continues; provide
+clear orbit/free-fly controls, reset-to-player, save/name/delete camera
+bookmarks, and user-configurable hotkeys with conflict detection and defaults.
+
+Acceptance steps:
+
+1. Test pause/resume and camera movement separately; assert demo tick stays fixed
+   while camera pose changes, then advances after resume.
+2. Save at least three camera bookmarks, jump among them with configured keys,
+   and verify exact pose restoration and stable frame capture.
+3. Test key conflicts, missing bindings, reset, and keyboard focus in text fields.
+4. Keep rendering hidden during automated captures; add forward and mutation
+   checks for a broken pause freeze and a broken bookmark jump.
+
+### T51 — Custom HUD import and preview
+
+Investigate which TF2 HUD file formats can be supported safely; then implement a
+user-facing import flow with file/folder picker, validation, preview, apply,
+reset-to-default, and a clear refusal reason for unsupported assets. Do not claim
+full Source HUD compatibility from loading one layout file. Keep HUD scaling and
+screen-resolution behavior visible in the preview.
+
+Acceptance steps: import a known-good custom HUD, reject malformed/missing
+files, preview before applying, preserve user files on reset/uninstall, and
+verify HUD changes do not alter the captured world/model image underneath.
+
+### T52 — Team-colored X-ray player outlines
+
+Add a one-click overlay toggle that draws player silhouettes through walls, with
+red-team red and blue-team blue outlines. First prove player entity identity,
+team mapping, and pose at each sampled tick; render the outline in a separate
+depth-aware pass so it does not change world geometry or ordinary visibility.
+
+Acceptance steps: test one red and one blue player, visible and occluded poses,
+toggle on/off pixel masks, unknown-team fallback, entity despawn, and no-player
+fixtures. Mutations must catch swapped team colors, depth-tested-only outlines,
+and a leaked always-on overlay. If a demo lacks reliable team/player state,
+name that input limitation.
+
+### T53 — Projectile trajectory overlay
+
+Add a one-click trajectory toggle and controls for all players versus one
+selected player. Let the user adjust sampling/performance quality and how long a
+trail remains after the projectile disappears or the overlay is disabled; use
+about 0.5 seconds as the default linger, with a slider and immediate preview.
+The overlay must not assume constant velocity if the demo provides observed
+projectile positions that capture gravity, collision, or deflection.
+
+Acceptance steps: use real projectile entities, compare the line against sampled
+positions from the same demo ticks, test all-player and selected-player filters,
+owner changes/deflection, disappearance, toggle-off linger, and low/high sampling
+cost. Include an explicit no-projectile case and a performance reading.
+
+### T54 — Embedded logs.tf viewer
+
+Add a logs panel that is empty until the user imports a URL. Support the supplied
+logs.tf URL shape, validate the host before navigation, and provide a resizable
+pane with normal scrolling and browser-like back/forward/reload controls. Keep
+demo playback usable while the panel is open. Prefer an already available
+Windows web-view runtime; report a missing-runtime explanation and fallback if
+the host cannot initialize. Do not fetch or impersonate user credentials.
+
+Acceptance steps: empty state, valid logs.tf URL, malformed/wrong-host URL,
+resize, scroll, navigation history, close/reopen, and playback responsiveness.
+
+### T55 — Timeline, clip selection, and video export (deferred)
+
+This is deliberately after T50-T54. First build a timeline synchronized to demo
+ticks with draggable in/out handles and precise numeric entry. Then export the
+selected interval to MP4/H.264 when available, with a documented compatible
+fallback format, progress/cancel behavior, audio sync, and output-path choice.
+Do not start encoder integration until frame capture can reproduce the chosen
+range and resource loading can sustain export without foreground test windows.
+
+## Product-feature execution and parallelism
+
+1. Finish T44-T49 release follow-up first; this stabilizes the renderer/player
+baseline against which new features can be tested.
+2. T50 and T51 may be designed in parallel, but coordinate UI/settings files
+   before implementation because both add user controls.
+3. T52 and T53 may be prototyped in parallel only in separate worktrees; they
+   share entity/team/overlay rendering concepts and must agree on one ownership
+   and tick-sampling API before either is merged.
+4. T54 is comparatively independent and can be developed in parallel after the
+   T49 baseline, but its WebView packaging/lifecycle tests remain serialized with
+   all other installation tests.
+5. T55 remains deferred until the review UI and camera workflow are accepted.
+6. All builds, launches, captures, mutation suites, audio-device runs, and
+   clean-install tests remain single-instance operations on this host.
