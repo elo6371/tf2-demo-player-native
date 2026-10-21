@@ -1,0 +1,3 @@
+EYE eye=-2294.8,348.8,383.4 src=demo tick=2000 armed=42068.5 capture: armed requested=2000 frame_tick=2000 frames=1431
+EYE camera-line 42066.6 scene: camera mode=first-person target=1 follows=1914 holds=0 freeze=0 eye=-2294.8,348.8,383.4 pitch=-8.43 yaw=64.27 src=demo
+EYE superseded-eyeMap absent

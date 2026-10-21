@@ -1,0 +1,9 @@
+CLASS face=8555 kind=brush side=0 disp=0 plane=19586 planeSD=87.964 emittedDot=87.964 derived=front
+CLASS face=15324 kind=brush side=1 disp=0 plane=573 planeSD=758.800 emittedDot=758.800 derived=front
+CLASS face=17217 kind=disp side=0 disp=1 plane=806 planeSD=59.114 emittedDot=59.114 derived=front
+CLASS face=17260 kind=disp side=1 disp=1 plane=2347 planeSD=-2462.146 emittedDot=2462.146 derived=front
+CLASS face=17262 kind=disp side=1 disp=1 plane=2347 planeSD=-2462.146 emittedDot=2462.146 derived=front
+CLASS face=17266 kind=disp side=1 disp=1 plane=2347 planeSD=-2462.146 emittedDot=2462.146 derived=front
+CLASS face=17268 kind=disp side=1 disp=1 plane=2347 planeSD=-2462.146 emittedDot=2462.146 derived=front
+CLASS face=17326 kind=disp side=0 disp=1 plane=30 planeSD=383.400 emittedDot=383.400 derived=front
+CLASS-SUMMARY faces=8 parsed=8 derivedFront=8 derivedBack=0

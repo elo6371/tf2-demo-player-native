@@ -18,6 +18,11 @@
 #      cell would fill back-facing pixels at this POV, and the first-hit oracle
 #      says it would hide two thirds of the eye's first hits. The numbers are
 #      pinned so a later "fix" has to argue with them.
+#   6. The seam classification is not a cull artefact. Every measured seam
+#      direction resolves, 0 of the 8 named seam faces are derived-back at the
+#      capture's own camera, and a POSITIVE control shows the product cull still
+#      removes a named non-seam face at the same pose. Mutation M6 disables the
+#      cull and must turn the positive control red while the seam answer stays.
 #
 # WHAT IT DOES NOT CLAIM
 #   `drawn` is not `correct`. A pixel with a triangle is not a pixel with the
@@ -26,7 +31,7 @@
 #   which pixels have no geometry and what the map says about them.
 #
 # Usage: bash world-geometry-hole-check.sh [--mutation] [--reuse]
-#   --mutation  run the forward gate, then prove each of five mutations turns it
+#   --mutation  run the forward gate, then prove each of six mutations turns it
 #               red, restoring every source byte-for-byte.
 #   --reuse     keep the frames already captured under evidence/ (the capture
 #               script resumes). Without it the matrix is captured again.
@@ -91,12 +96,28 @@ mkdir -p "$SCRATCH" "$ANA"
 # neither created a hole nor hid one behind the sky mask. The back-face count
 # halving is the same fact read from T23's side.
 #
-# SEAM_CULLED MOVED 2 -> 0, and it is NOT a pass: the two slivers that had a
-# culled neighbour are no longer the slivers the account reports. The gate's
-# assertion is therefore RED on this tree and stays red; see the report's
-# NOT VERIFIED section. The seam account itself still works -- 10 seam faces
-# are named, all 13 requested faces resolve, 0 are absent, and 3 of 3 enclosed
-# components >= 200 px are still thin sky-backed slivers.
+# SEAM_CULLED MOVED 2 -> 0 (T44). The old assertion was
+# "at least one sliver had a culled neighbour" (SEAM_CULLED >= 1); on this tree
+# it is RED and it must not be called a pass: after the T29 near-plane fix none
+# of the surviving slivers is bracketed by a surface the product culls. T41
+# derived why and T44 measured it at the capture's own pose: all eight named
+# seam faces are derived-FRONT under the D3D11 rule (CULL_BACK,
+# FrontCounterClockwise=FALSE, front iff dot(emittedNormal, eye-p) > 0), so a
+# correct cull CANNOT remove them and 0 cull-off-only directions is the correct
+# reading. The old >=1 pin encoded a pre-T29 artefact. It is replaced -- not
+# relaxed -- by four measurements that can fail independently:
+#   * every one of the 24 measured direction probes resolves to a face
+#     (6 seam points x 4 directions). The merged wave summary's "32/32" is a
+#     documentation error: T40's own log (evidence/t40-pixel-pins/t26-hole.log,
+#     lines 51-55) shows 6 seam lines and 13 face-info requests, and this gate
+#     now asserts the measured total instead of copying the number;
+#   * 0 of the 8 named faces are derived-back at the trace's camera;
+#   * a POSITIVE control: the product cull removes 81,218 face-id px from 18
+#     non-seam faces at the same pose, the largest being face 17605
+#     (disp/side-0, derived-back, 33,167 px), so "the cull is on" is measured;
+#   * mutation M6 disables the cull and must turn that control RED while the
+#     derived-side classification stays at 0 derived-back, so the seam answer
+#     cannot be an artefact of a disabled cull.
 PIN_MISSING=1648
 PIN_SKY_MISSING=1648
 PIN_UNEXPLAINED=0
@@ -109,6 +130,23 @@ PIN_WORLD_TRIANGLES=99312
 PIN_BACKFACE=80917
 PIN_TEXTURED_SHA=ac2cfe9b45bad37a210ad3a8a25b34c2e768fe3e4bd8c578046262bdf31c129d
 PIN_REF_SHA=6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b
+
+# T44 pins, measured on 6888e6d + the T44 assertion at the same camera/tick as
+# the T35 re-baseline (trace: captures/traces/world-ids.trace, last
+# 'scene: camera' before 'capture: armed ... frame_tick=2000', src=demo --
+# NOT the once-per-run 'gpu: world vis eyeMap', which is the first drawn frame).
+# The account traces 6 representative points (2 per enclosed sliver >= 200 px),
+# 4 directions each = 24 probes, and all 24 resolve. The 8 named faces are all
+# derived-front; the cull's positive control removes 18 non-seam faces.
+PIN_CAPTURE_EYE="-2294.8,348.8,383.4"
+PIN_SEAM_IDS="8555,15324,17217,17260,17262,17266,17268,17326"
+PIN_SEAM_POINTS=6
+PIN_SEAM_PROBES=24
+PIN_SEAM_CULLED=0
+PIN_SEAM_DERIVED_BACK=0
+PIN_CULL_TOP_FACE=17605
+PIN_CULL_TOP_DERIVED=back
+PIN_CULL_TOP_PIXELS=33167
 
 fail=0
 assert_in() { # assert_in <file> <fixed string> <label>
@@ -183,6 +221,325 @@ run_capture_trace() { # run_capture_trace <bmp> <trace> [extra flags...]
   done
   return 1
 }
+
+# ---- T44 side instrument ------------------------------------------------
+# One generated tool, three readings: the capture pose (eye), the derived side
+# of the named seam faces (classify), and what the product cull removed (cull).
+# It is generated into .scratch because it is this gate's instrument, not a
+# repository tool: the gate is the only thing that should run it, and a scratch
+# directory that is wiped must not break another gate. The BSP walk is T41's
+# raster-rule.py parser reduced to the three lumps the emission rule reads.
+cat > "$SCRATCH/seam-cull.py" <<'PYEOF'
+#!/usr/bin/env python3
+"""T44 side instrument for world-geometry-hole-check.sh -- generated by the gate.
+
+Three readings, all from committed artifacts (no product launch):
+
+  eye       the camera the captured frame was drawn with, read from the capture's
+            own trace. The last 'scene: camera' line BEFORE the 'capture: armed
+            ... frame_tick=TICK' line. The once-per-run 'gpu: world vis eyeMap'
+            line is a different scene pose (the first drawn frame) and is NOT
+            used; T41 established that at the T36/T41 pose and this gate must not
+            repeat the mistake.
+  classify  for each named seam face: the side the RASTERIZER's derived rule
+            calls it at that eye. The rule (T41): D3D11_CULL_BACK with
+            FrontCounterClockwise=FALSE, front iff dot(emittedNormal, eye-p) > 0.
+            The brush fan emits the PLANE normal whatever the side bit says; a
+            displacement face's triangles are flipped onto the face's outward
+            (n if side==0 else -n). So brush is side-independent, disp is
+            side-aware. This is a BSP+eye reading: the product cull cannot change
+            it, which is what makes it a valid classification while the cull is
+            under mutation.
+  cull      the positive control: pixels that world-ids-nocull.bmp gives a face id
+            and world-ids.bmp does not, grouped by face. That is what the
+            product's cull removed at this pose, and the top NON-seam face is
+            named with its derived side (it must be derived-back).
+
+Usage:
+  seam-cull.py eye      --trace T --tick 2000
+  seam-cull.py classify --bsp B --eye=X,Y,Z --faces 1,2,3
+  seam-cull.py cull     --bsp B --eye=X,Y,Z --seam 1,2,3 --ids A --ids-nocull B
+Exit: 0 = readings produced; 2 = a required input is missing/unreadable.
+"""
+import argparse
+import lzma
+import os
+import struct
+import sys
+
+import numpy as np
+
+
+def read_lump(data, index):
+    off, length = struct.unpack_from("<ii", data, 8 + index * 16)
+    if length <= 0:
+        return b""
+    raw = data[off:off + length]
+    if raw[:4] != b"LZMA":
+        return raw
+    actual = struct.unpack_from("<I", raw, 4)[0]
+    dec = lzma.LZMADecompressor(
+        format=lzma.FORMAT_RAW,
+        filters=[lzma._decode_filter_properties(lzma.FILTER_LZMA1, raw[12:17])])
+    return dec.decompress(raw[17:], max_length=actual)
+
+
+class Bsp:
+    """The three lumps the emission rule reads, plus the face->polygon walk.
+
+    This is raster-rule.py's parser (T41) reduced to what classify/cull need;
+    keeping the field offsets in one place is why it is copied rather than
+    re-derived here.
+    """
+
+    def __init__(self, path):
+        d = open(path, "rb").read()
+        self.first_face, self.face_count = struct.unpack_from("<ii", read_lump(d, 14), 40)
+        self.faces = read_lump(d, 7)
+        self.planes = read_lump(d, 1)
+        self.edges = read_lump(d, 12)
+        self.surfedges = read_lump(d, 13)
+        self.vertices = read_lump(d, 3)
+        self.n_edges = len(self.edges) // 4
+        self.n_verts = len(self.vertices) // 12
+        self.n_surf = len(self.surfedges) // 4
+        self.V = np.frombuffer(self.vertices, dtype=np.float32,
+                               count=self.n_verts * 3).reshape(self.n_verts, 3).astype(np.float64)
+        self.E = np.frombuffer(self.edges, dtype=np.uint16,
+                               count=self.n_edges * 2).reshape(self.n_edges, 2)
+        self.P = np.frombuffer(self.planes, dtype=np.float32,
+                               count=len(self.planes) // 4).reshape(-1, 5)[:, :4].astype(np.float64)
+
+    def face(self, index):
+        b = index * 56
+        if index < 0 or b + 56 > len(self.faces):
+            return None
+        planenum = struct.unpack_from("<H", self.faces, b)[0]
+        side = self.faces[b + 2]
+        firstedge = struct.unpack_from("<i", self.faces, b + 4)[0]
+        count = struct.unpack_from("<h", self.faces, b + 8)[0]
+        dispinfo = struct.unpack_from("<h", self.faces, b + 12)[0]
+        if count < 3 or firstedge < 0 or firstedge + count > self.n_surf:
+            return None
+        if planenum >= len(self.P):
+            return None
+        verts = []
+        for k in range(count):
+            s = struct.unpack_from("<i", self.surfedges, (firstedge + k) * 4)[0]
+            e = -s if s < 0 else s
+            if e < 0 or e >= self.n_edges:
+                return None
+            vi = int(self.E[e][1 if s < 0 else 0])
+            if vi >= self.n_verts:
+                return None
+            verts.append(vi)
+        n = self.P[planenum][:3]
+        if not np.dot(n, n) > 1e-12:
+            return None
+        return {"planenum": planenum, "side": int(side), "count": int(count),
+                "dispinfo": int(dispinfo), "poly": self.V[verts],
+                "plane": n / np.linalg.norm(n), "dist": float(self.P[planenum][3])}
+
+
+def read_bmp(path):
+    d = open(path, "rb").read()
+    off = struct.unpack_from("<I", d, 10)[0]
+    w, hh = struct.unpack_from("<ii", d, 18)
+    topdown = hh < 0
+    h = abs(hh)
+    stride = (w * 3 + 3) // 4 * 4
+    a = np.frombuffer(d, dtype=np.uint8, count=stride * h, offset=off).reshape(h, stride)
+    rgb = a[:, :w * 3].reshape(h, w, 3)[:, :, ::-1]
+    if not topdown:
+        rgb = rgb[::-1]
+    return w, h, rgb
+
+
+def face_ids(path):
+    w, h, rgb = read_bmp(path)
+    ids = (rgb[:, :, 0].astype(np.int64) | (rgb[:, :, 1].astype(np.int64) << 8)
+           | (rgb[:, :, 2].astype(np.int64) << 16))
+    return w, h, ids
+
+
+def derived_side(face, eye):
+    """(derived side, signed plane distance, dot(emitted normal, eye-p0))."""
+    sd = float(np.dot(face["plane"], eye) - face["dist"])
+    if face["dispinfo"] >= 0:
+        outward = face["plane"] * (1.0 if face["side"] == 0 else -1.0)
+        emitted_dot = float(np.dot(outward, eye - face["poly"][0]))
+    else:
+        emitted_dot = float(np.dot(face["plane"], eye - face["poly"][0]))
+    return ("front" if emitted_dot > 0.0 else "back"), sd, emitted_dot
+
+
+def mode_eye(args):
+    try:
+        lines = open(args.trace, "r", errors="replace").read().splitlines()
+    except OSError as exc:
+        print("EYE state=missing trace=%s (%s)" % (args.trace, exc))
+        return 2
+    armed_index = None
+    armed_line = ""
+    for index, line in enumerate(lines):
+        if "capture: armed " in line:
+            tick = None
+            for token in line.split():
+                if token.startswith("frame_tick="):
+                    try:
+                        tick = int(token.split("=", 1)[1])
+                    except ValueError:
+                        tick = None
+            if tick == args.tick:
+                armed_index = index
+                armed_line = line.strip()
+    if armed_index is None:
+        print("EYE state=missing reason=no 'capture: armed' line with frame_tick=%d" % args.tick)
+        return 2
+    eye_line = ""
+    for index in range(armed_index - 1, -1, -1):
+        if "scene: camera" in lines[index]:
+            eye_line = lines[index].strip()
+            break
+    if not eye_line:
+        print("EYE state=missing reason=no 'scene: camera' line before the capture")
+        return 2
+    values = {}
+    for token in eye_line.split():
+        if "=" in token:
+            key, value = token.split("=", 1)
+            values[key] = value
+    eye = values.get("eye")
+    src = values.get("src", "?")
+    if not eye:
+        print("EYE state=missing reason=the camera line has no eye= field")
+        return 2
+    # The once-per-run eyeMap line is a different scene pose; report it so a
+    # reader can see it was not used rather than merely not mentioned.
+    eye_map = ""
+    for line in lines:
+        if "gpu: world vis eyeMap" in line:
+            eye_map = line.strip()
+            break
+    print("EYE eye=%s src=%s tick=%d armed=%s" % (eye, src, args.tick, armed_line))
+    print("EYE camera-line %s" % eye_line)
+    if eye_map:
+        print("EYE superseded-eyeMap %s" % eye_map)
+    else:
+        print("EYE superseded-eyeMap absent")
+    return 0
+
+
+def mode_classify(args):
+    bsp = Bsp(args.bsp)
+    eye = np.array([float(v) for v in args.eye.split(",")])
+    faces = [int(v) for v in args.faces.split(",") if v.strip()]
+    if not faces:
+        print("CLASS state=missing reason=no faces requested")
+        return 2
+    front = back = 0
+    for f in faces:
+        face = bsp.face(f)
+        if face is None:
+            print("CLASS face=%d state=unparsed" % f)
+            continue
+        side, sd, emitted_dot = derived_side(face, eye)
+        kind = "disp" if face["dispinfo"] >= 0 else "brush"
+        print("CLASS face=%d kind=%s side=%d disp=%d plane=%d planeSD=%.3f"
+              " emittedDot=%.3f derived=%s"
+              % (f, kind, face["side"], 1 if face["dispinfo"] >= 0 else 0,
+                 face["planenum"], sd, emitted_dot, side))
+        if side == "front":
+            front += 1
+        else:
+            back += 1
+    print("CLASS-SUMMARY faces=%d parsed=%d derivedFront=%d derivedBack=%d"
+          % (len(faces), front + back, front, back))
+    return 0 if front + back == len(faces) else 1
+
+
+def mode_cull(args):
+    bsp = Bsp(args.bsp)
+    eye = np.array([float(v) for v in args.eye.split(",")])
+    seam = set(int(v) for v in args.seam.split(",") if v.strip())
+    w, h, cull_ids = face_ids(args.ids)
+    w2, h2, nocull_ids = face_ids(args.ids_nocull)
+    if (w, h) != (w2, h2):
+        print("CULL state=missing reason=frames differ in size %dx%d vs %dx%d" % (w, h, w2, h2))
+        return 2
+    lo, hi = bsp.first_face, bsp.first_face + bsp.face_count
+    in_cull = (cull_ids >= lo) & (cull_ids < hi)
+    in_nocull = (nocull_ids >= lo) & (nocull_ids < hi)
+    kept = int((in_cull & in_nocull).sum())
+    removed_mask = in_nocull & ~in_cull
+    removed = int(removed_mask.sum())
+    only_cull = int((in_cull & ~in_nocull).sum())
+    counts = {}
+    flat = nocull_ids[removed_mask].tolist()
+    for value in flat:
+        counts[value] = counts.get(value, 0) + 1
+    print("CULL state=ok frames=%dx%d kept=%d removed=%d onlyInCull=%d distinctRemoved=%d"
+          % (w, h, kept, removed, only_cull, len(counts)))
+    rows = []
+    for face_id, pixels in counts.items():
+        face = bsp.face(int(face_id))
+        if face is None:
+            rows.append((pixels, int(face_id), "unparsed", -1, "?", 0.0))
+            continue
+        side, sd, emitted_dot = derived_side(face, eye)
+        kind = "disp" if face["dispinfo"] >= 0 else "brush"
+        rows.append((pixels, int(face_id), kind, face["side"], side, sd))
+    rows.sort(key=lambda row: (-row[0], row[1]))
+    for pixels, face_id, kind, side_bit, side, sd in rows[:24]:
+        print("CULL face=%d pixels=%d kind=%s side=%s derived=%s planeSD=%.3f seam=%d"
+              % (face_id, pixels, kind, side_bit, side, sd, 1 if face_id in seam else 0))
+    non_seam = [row for row in rows if row[1] not in seam]
+    seam_removed = [row for row in rows if row[1] in seam]
+    if non_seam:
+        pixels, face_id, kind, side_bit, side, sd = non_seam[0]
+        print("CULL-SUMMARY removed=%d onlyInCull=%d distinct=%d nonSeam=%d"
+              " seamFacesRemoved=%d topNonSeam=%d topNonSeamPixels=%d"
+              " topNonSeamKind=%s topNonSeamSide=%s topNonSeamDerived=%s"
+              % (removed, only_cull, len(rows), len(non_seam), len(seam_removed),
+                 face_id, pixels, kind, side_bit, side))
+    else:
+        print("CULL-SUMMARY removed=%d onlyInCull=%d distinct=%d nonSeam=0"
+              " seamFacesRemoved=%d topNonSeam=none topNonSeamPixels=0"
+              " topNonSeamKind=- topNonSeamSide=- topNonSeamDerived=-"
+              % (removed, only_cull, len(rows), len(seam_removed)))
+    for pixels, face_id, kind, side_bit, side, sd in seam_removed:
+        print("CULL seam-removed face=%d pixels=%d kind=%s side=%s derived=%s"
+              % (face_id, pixels, kind, side_bit, side))
+    return 0
+
+
+def main(argv):
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="mode", required=True)
+    eye = sub.add_parser("eye")
+    eye.add_argument("--trace", required=True)
+    eye.add_argument("--tick", type=int, required=True)
+    cls = sub.add_parser("classify")
+    cls.add_argument("--bsp", required=True)
+    cls.add_argument("--eye", required=True)
+    cls.add_argument("--faces", required=True)
+    cull = sub.add_parser("cull")
+    cull.add_argument("--bsp", required=True)
+    cull.add_argument("--eye", required=True)
+    cull.add_argument("--seam", required=True)
+    cull.add_argument("--ids", required=True)
+    cull.add_argument("--ids-nocull", required=True)
+    args = ap.parse_args(argv[1:])
+    if args.mode == "eye":
+        return mode_eye(args)
+    if args.mode == "classify":
+        return mode_classify(args)
+    return mode_cull(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+PYEOF
 
 echo "== 0. source and tool identity =="
 HEAD_SHA=$(git rev-parse --short=12 HEAD)
@@ -423,31 +780,69 @@ fi
 
 echo "== 8. what the empty pixels sit between =="
 # The shape test says the enclosed population is slivers; it cannot say between
-# what. Two instruments answer that from the map's own tables:
+# what. Three instruments answer that from the map's own tables:
 #   - the world face-id frame names the face on the other side of each sliver
-#     (four directions, first drawn pixel within 64 px), and
-#   - `world_geometry_probe --face-info` turns an index into a material, a plane
-#     and a displacement flag.
-# Together they turn "there is a crack" into "this crack runs between face A and
-# face B, and B is a tessellated displacement cell".
-SEAM_CULLED=$(grep -F "HOLE seamCulled " "$ANA/hole-account.txt" | sed -n 's/.*directions=\([0-9]*\).*/\1/p')
-echo "  seam directions that only the cull-off frame could name: ${SEAM_CULLED:-0}"
-# The sliver itself is missing even with the cull off -- it is in the missing
-# mask, which is taken from the all-off frame. So a culled neighbour explains
-# the SHAPE of the boundary, not the emptiness. Both facts are asserted because
-# together they are the difference between "the cull hides a face" (T11's
-# question) and "the surfaces do not meet" (this one).
-if [ "${SEAM_CULLED:-0}" -ge 1 ]; then
-  echo "  PASS at least one sliver is bounded by a surface the product culls"
+#     (four directions, first drawn pixel within 64 px),
+#   - world_geometry_probe --face-info turns an index into a material, a plane
+#     and a displacement flag, and
+#   - the derived raster rule (T41) says which side of each named face the eye is
+#     on, from the BSP plane and the capture's own camera.
+# The capture pose is the trace's LAST 'scene: camera' line before the frame was
+# drawn -- NOT the once-per-run 'gpu: world vis eyeMap', which is the first
+# drawn frame and a different scene pose. T41 made that mistake first; this gate
+# now asserts the eye it classifies with against the trace line it came from.
+BSP="$TF/maps/pl_odyssey.bsp"
+SEAM_TRACE="$CAP/traces/world-ids.trace"
+CAPTURE_EYE=""
+if [ ! -s "$SEAM_TRACE" ]; then
+  echo "  FAIL the world-ids capture left no trace at $SEAM_TRACE"
+  fail=1
+elif "$PYTHON" "$SCRATCH/seam-cull.py" eye --trace "$SEAM_TRACE" --tick "$TICK" \
+    > "$ANA/seam-eye.txt" 2>&1; then
+  sed 's/^/  /' "$ANA/seam-eye.txt"
+  CAPTURE_EYE=$(sed -n 's/^EYE eye=\([^ ]*\) src=.*/\1/p' "$ANA/seam-eye.txt" | head -1)
+  CAPTURE_SRC=$(sed -n 's/^EYE eye=[^ ]* src=\([^ ]*\) .*/\1/p' "$ANA/seam-eye.txt" | head -1)
+  assert_eq "$CAPTURE_SRC" "demo" "the capture pose is the demo camera at tick $TICK"
+  assert_eq "$CAPTURE_EYE" "$PIN_CAPTURE_EYE" "capture-pose eye from the trace's last scene camera"
 else
-  echo "  FAIL no sliver had a culled neighbour: world-ids-nocull.bmp is not being read"
+  echo "  FAIL the world-ids trace does not name a pose at tick $TICK"
+  sed 's/^/       /' "$ANA/seam-eye.txt"
   fail=1
 fi
+
+# The seam trace, counted rather than quoted. The old gate checked that ONE
+# direction came from the cull-off frame; T44 replaces that with "every measured
+# probe resolves" because a probe that resolves to nothing is an instrument
+# failure the old assertion could not see, and because the count is a reading
+# that has to travel with the verdict.
+SEAM_ROWS=$(grep -E '^HOLE seam rank=' "$ANA/hole-account.txt" || true)
+SEAM_POINTS=$(printf '%s\n' "$SEAM_ROWS" | grep -c '^HOLE seam rank=' || true)
+PROBES=$(printf '%s\n' "$SEAM_ROWS" | grep -oE '(left|right|up|down)=[^[:space:]]+' | grep -c . || true)
+RESOLVED=$(printf '%s\n' "$SEAM_ROWS" | grep -oE '(left|right|up|down)=[0-9^]' | grep -c . || true)
+UNRESOLVED=$((PROBES - RESOLVED))
+SEAM_CULLED=$(grep -F "HOLE seamCulled " "$ANA/hole-account.txt" | sed -n 's/.*directions=\([0-9]*\).*/\1/p')
 SEAM_LINE=$(grep -F "HOLE seamFaces " "$ANA/hole-account.txt" || true)
 SEAM_IDS=$(sed -n 's/.*[[:space:]]ids=//p' <<<"$SEAM_LINE")
+echo "  seam points: ${SEAM_POINTS:-0}; direction probes: ${PROBES:-0}; resolved: ${RESOLVED:-0}; cull-off-only: ${SEAM_CULLED:-0}"
+echo "  seam faces: ${SEAM_IDS:-none}"
+assert_eq "$SEAM_POINTS" "$PIN_SEAM_POINTS" "seam representative points (four probes each)"
+assert_eq "$PROBES" "$PIN_SEAM_PROBES" "seam direction probes measured at this pose"
+assert_eq "$RESOLVED" "$PROBES" "every measured seam direction probe resolves to a face"
+if [ "$UNRESOLVED" -ne 0 ]; then
+  printf '%s\n' "$SEAM_ROWS" | awk '{bad=0; for (i=1;i<=NF;i++) if ($i ~ /^(left|right|up|down)=-$/) bad=1; if (bad) print "       " $0}'
+fi
+# The pre-T29 gate asserted that at least one sliver had a cull-off-only
+# neighbour. After the near-plane fix no sliver at this pose is bracketed by a
+# surface the product culls, and T41 derived why: all eight named seam faces are
+# derived-FRONT, so a correct cull cannot remove them. The old >= 1 assertion
+# encoded a pre-T29 artefact and is SUPERSEDED by the statement below; it is not
+# relaxed in place. A seam face the cull wrongly removed is still caught here,
+# because its neighbour would then resolve only in the all-off frame.
+assert_eq "${SEAM_CULLED:-0}" "$PIN_SEAM_CULLED" "seam directions only the cull-off frame could name (a front seam neighbour was not culled)"
+assert_eq "$SEAM_IDS" "$PIN_SEAM_IDS" "the eight named seam faces"
+
 SKY_FACE_IDS=$(grep -o "sky=face=[0-9]*" "$ANA/point-trace.txt" 2>/dev/null \
   | sed 's/.*face=//' | sort -un | tr '\n' ',' | sed 's/,$//')
-echo "  seam faces: ${SEAM_IDS:-none}"
 echo "  sky faces at the traced points: ${SKY_FACE_IDS:-none}"
 if [ -z "$SEAM_IDS" ]; then
   echo "  FAIL no face bracketed an enclosed component (is world-ids.bmp missing?)"
@@ -463,11 +858,11 @@ else
     fail=1
   else
     REQUESTED=$(tr ',' '\n' <<<"$FACE_LIST" | grep -c .)
-    RESOLVED=$(grep -c "geometry face-info index=" "$ANA/face-info.txt")
+    RESOLVED_FACES=$(grep -c "geometry face-info index=" "$ANA/face-info.txt")
     ABSENT=$(grep -c "state=absent" "$ANA/face-info.txt")
     DISPLACED=$(grep "geometry face-info index=" "$ANA/face-info.txt" | grep -c "displacement=1" || true)
     SKY_KIND=$(grep "geometry face-info index=" "$ANA/face-info.txt" | grep -c "kind=sky" || true)
-    assert_eq "$RESOLVED" "$REQUESTED" "every named face exists in the map's face table"
+    assert_eq "$RESOLVED_FACES" "$REQUESTED" "every named face exists in the map's face table"
     assert_eq "$ABSENT" "0" "no face index was invented by a decode error"
     echo "  $DISPLACED of them are displacement faces, $SKY_KIND are sky faces"
     if [ "${DISPLACED:-0}" -ge 1 ]; then
@@ -483,6 +878,89 @@ else
       fail=1
     fi
     grep "geometry face-info index=" "$ANA/face-info.txt" | head -12 | sed 's/^/       /'
+  fi
+
+  # ---- the derived side of the eight named faces -------------------------
+  # The T41 rule applied per face at the capture's own eye, not per pixel:
+  # D3D11_CULL_BACK with FrontCounterClockwise=FALSE, front iff
+  # dot(emittedNormal, eye - p) > 0. A brush fan emits the plane normal whatever
+  # the side bit says; a displacement face is flipped onto its outward. The rule
+  # is a BSP+eye reading, so the cull switch cannot change it -- which is what
+  # makes it a valid control while mutation M6 disables the cull.
+  if [ -n "$CAPTURE_EYE" ]; then
+    "$PYTHON" "$SCRATCH/seam-cull.py" classify --bsp "$BSP" --eye="$CAPTURE_EYE" \
+      --faces "$SEAM_IDS" > "$ANA/seam-derived.txt" 2>&1
+    if [ $? -ne 0 ]; then
+      echo "  FAIL the derived-side classification refused (see $ANA/seam-derived.txt)"
+      sed 's/^/       /' "$ANA/seam-derived.txt"
+      fail=1
+    else
+      grep -E '^CLASS ' "$ANA/seam-derived.txt" | sed 's/^/       /'
+      CLASS_SUMMARY=$(grep -F 'CLASS-SUMMARY ' "$ANA/seam-derived.txt")
+      echo "  $CLASS_SUMMARY"
+      DERIVED_BACK=$(field "$CLASS_SUMMARY" derivedBack)
+      DERIVED_PARSED=$(field "$CLASS_SUMMARY" parsed)
+      assert_eq "$DERIVED_BACK" "$PIN_SEAM_DERIVED_BACK" "named seam faces the derived raster rule calls back at this pose"
+      assert_eq "$DERIVED_PARSED" "8" "every named seam face parsed from the BSP face table"
+      if [ "${DERIVED_BACK:-1}" = "0" ]; then
+        echo "  PASS all 8 named seam faces are derived-front: a correct cull leaves them drawn"
+      fi
+    fi
+  else
+    echo "  FAIL no capture eye, so the derived-side statement cannot be made"
+    fail=1
+  fi
+
+  # ---- the positive control: the cull still removes a named non-seam face --
+  # The seam statement above would also hold for a product that drew NOTHING,
+  # so this control makes "the cull is on" a measurement. At the same pose it
+  # names the non-seam face with the largest pixel population that has a face id
+  # with the cull off and none with the cull on, records its derived side (back)
+  # and refuses a culled frame that paints a pixel the unculled one does not.
+  "$PYTHON" "$SCRATCH/seam-cull.py" cull --bsp "$BSP" --eye="$CAPTURE_EYE" \
+    --seam "$SEAM_IDS" --ids "$CAP/world-ids.bmp" --ids-nocull "$CAP/world-ids-nocull.bmp" \
+    > "$ANA/cull-control.txt" 2>&1
+  if [ $? -ne 0 ]; then
+    echo "  FAIL the cull positive control refused to read the frames"
+    sed 's/^/       /' "$ANA/cull-control.txt"
+    fail=1
+  else
+    grep -E '^CULL ' "$ANA/cull-control.txt" | head -24 | sed 's/^/       /'
+    CULL_SUMMARY=$(grep -F 'CULL-SUMMARY ' "$ANA/cull-control.txt")
+    echo "  $CULL_SUMMARY"
+    CULL_REMOVED=$(field "$CULL_SUMMARY" removed)
+    CULL_ONLY=$(field "$CULL_SUMMARY" onlyInCull)
+    CULL_NONSEAM=$(field "$CULL_SUMMARY" nonSeam)
+    CULL_TOP=$(field "$CULL_SUMMARY" topNonSeam)
+    CULL_TOP_PIXELS=$(field "$CULL_SUMMARY" topNonSeamPixels)
+    CULL_TOP_DERIVED=$(field "$CULL_SUMMARY" topNonSeamDerived)
+    CULL_TOP_SIDE=$(field "$CULL_SUMMARY" topNonSeamSide)
+    CULL_TOP_KIND=$(field "$CULL_SUMMARY" topNonSeamKind)
+    assert_eq "$CULL_ONLY" "0" "the culled face-id frame is a subset of the unculled frame"
+    if [ "${CULL_REMOVED:-0}" -ge 1 ]; then
+      echo "  PASS the product cull removed $CULL_REMOVED face-id pixels at this pose"
+    else
+      echo "  FAIL the product cull removed no face-id pixel: the cull is not measurably on"
+      fail=1
+    fi
+    if [ "${CULL_NONSEAM:-0}" -ge 1 ]; then
+      echo "  PASS $CULL_NONSEAM non-seam face(s) lost pixels to the cull"
+    else
+      echo "  FAIL no non-seam face lost pixels to the cull"
+      fail=1
+    fi
+    assert_eq "$CULL_TOP" "$PIN_CULL_TOP_FACE" "top non-seam face the product cull removed"
+    assert_eq "$CULL_TOP_KIND" "disp" "the control face is a displacement face"
+    assert_eq "$CULL_TOP_SIDE" "0" "the control face's BSP side bit"
+    assert_eq "$CULL_TOP_DERIVED" "$PIN_CULL_TOP_DERIVED" "the control face's derived side (what a correct cull removes)"
+    assert_eq "$CULL_TOP_PIXELS" "$PIN_CULL_TOP_PIXELS" "pixels the cull removed from the control face"
+    case ",$SEAM_IDS," in
+      *",$CULL_TOP,"*)
+        echo "  FAIL the positive control face $CULL_TOP is one of the named seam faces"
+        fail=1 ;;
+      *)
+        echo "  PASS the positive control face $CULL_TOP is not one of the 8 named seam faces" ;;
+    esac
   fi
 fi
 
@@ -767,6 +1245,64 @@ else
 fi
 restore_sources
 
+# M6: the world back-face cull never runs. The forward verdict now stands on two
+# independent statements: the seam classification (0 of 8 named faces are
+# derived-back; a BSP+eye reading the product cannot change) and the positive
+# control (the cull removes a named non-seam face). This mutation deletes the
+# second: with the cull disabled the culled frame equals the unculled one, so the
+# control finds nothing removed and must go red. The classification must NOT
+# move -- if it did, the seam answer would be reading the cull instead of the
+# geometry, and the mutation would be proving the wrong thing.
+echo "-- M6: the world back-face cull never runs --"
+MUTATION_ACTIVE=1
+"$PYTHON" patch-source.py "$SRC_MAIN" <<'PATCH_M6'
+        renderer.setWorldBackfaceCull(worldCullGiven ? worldCullRequested : true);
+%%
+        renderer.setWorldBackfaceCull(false);  // T44 mutation M6: the cull never runs
+PATCH_M6
+if [ $? -ne 0 ]; then
+  echo "  FAIL M6 could not patch the cull switch"; mfail=1
+elif build_mutated M6; then
+  mkdir -p "$SCRATCH/m6"
+  if ! run_capture_trace "$SCRATCH/m6/world-ids.bmp" "$SCRATCH/m6/world-ids.trace" \
+      --world-face-id --world-water off; then
+    echo "  FAIL M6 capture"; mfail=1
+  else
+    M6_EYE=$("$PYTHON" "$SCRATCH/seam-cull.py" eye --trace "$SCRATCH/m6/world-ids.trace" \
+      --tick "$TICK" | sed -n 's/^EYE eye=\([^ ]*\).*/\1/p' | head -1)
+    if [ "$M6_EYE" != "$CAPTURE_EYE" ]; then
+      echo "  FAIL M6: the mutated build drew from a different pose ($M6_EYE, forward $CAPTURE_EYE)"
+      mfail=1
+    else
+      "$PYTHON" "$SCRATCH/seam-cull.py" classify --bsp "$BSP" --eye="$M6_EYE" \
+        --faces "$PIN_SEAM_IDS" > "$SCRATCH/m6/seam-derived.txt" 2>&1
+      M6_CLASS=$(grep -F 'CLASS-SUMMARY ' "$SCRATCH/m6/seam-derived.txt")
+      M6_DERIVED_BACK=$(field "$M6_CLASS" derivedBack)
+      echo "  seam classification with the cull disabled: $M6_CLASS"
+      "$PYTHON" "$SCRATCH/seam-cull.py" cull --bsp "$BSP" --eye="$M6_EYE" \
+        --seam "$PIN_SEAM_IDS" --ids "$SCRATCH/m6/world-ids.bmp" \
+        --ids-nocull "$CAP/world-ids-nocull.bmp" > "$SCRATCH/m6/cull-control.txt" 2>&1
+      M6_CULL=$(grep -F 'CULL-SUMMARY ' "$SCRATCH/m6/cull-control.txt")
+      echo "  $M6_CULL"
+      M6_REMOVED=$(field "$M6_CULL" removed)
+      M6_ONLY=$(field "$M6_CULL" onlyInCull)
+      if [ "${M6_REMOVED:-0}" -ne 0 ]; then
+        echo "  FAIL M6: the positive control still found $M6_REMOVED cull-removed pixels -- the mutation did not disable the cull"
+        mfail=1
+      elif [ "${M6_ONLY:-1}" -ne 0 ]; then
+        echo "  FAIL M6: the disabled-cull frame is not a subset of the unculled one (onlyInCull=$M6_ONLY)"
+        mfail=1
+      elif [ "${M6_DERIVED_BACK:-1}" -ne 0 ]; then
+        echo "  FAIL M6: the seam classification stopped being meaningful: $M6_CLASS"
+        mfail=1
+      else
+        echo "  PASS M6: the cull removed 0 px (positive control RED) while 8 of 8 named seam faces are still derived-front -- the seam answer is geometry, not the cull"
+      fi
+    fi
+  fi
+fi
+restore_sources
+
 # The last mutation's build is a mutant binary. Rebuilding from the restored
 # sources and re-capturing the pinned frame is the only statement that matters:
 # byte-identical sources have to produce a byte-identical picture, or the gate
@@ -793,7 +1329,7 @@ fi
 
 echo "== mutation verdict =="
 if [ "$mfail" = 0 ]; then
-  echo "PASS: all five mutations turned the gate red and every source came back byte-identical."
+  echo "PASS: all six mutations turned the gate red and every source came back byte-identical."
   exit 0
 fi
 echo "FAIL: a mutation was not caught, or a source was not restored. The tree may be dirty -- check 'git status native/' before continuing."
