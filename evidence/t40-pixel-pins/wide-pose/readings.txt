@@ -1,0 +1,27 @@
+pose=WALL013 eye=(-3498.225,1021.852,1327.843) pitch=70.529329 yaw=134.999352 tick=2000
+HEAD=6888e6debfe712575dd4ffce4b918eb57dbef6eb
+cull_note=the vis/bump/specular counters are the observer camera's cull (same for every pose); the pose is proven by the frames
+frame Aw 56aaa2f295eff76711af461b9d9b4ee841babdd1bb4956d380b6f2cd124baf18
+frame Aw2 56aaa2f295eff76711af461b9d9b4ee841babdd1bb4956d380b6f2cd124baf18
+frame S1w 303010f2e022ba73885cea5aa484db85a4a0e0e298554c0e67aa38debc19ca40
+frame S2w 124e7c481443ac299b963583f4d6be461f94efd1ba1d8124ae90601c8e5af340
+frame Cw 8ee623f54d640409d9c155932f2ad4876a75d02b9748926183a00a9d7a358f76
+frame Dw b4ff3e317b68ee7a408cbb59c76161c129146e3622336b3a3ba572503acb3a2d
+camera 22216.8 gpu: world vis cameraCluster=1032 visibleFromCamera=1692 clusters=2938 clusteredTriangles=52380 hiddenTriangles=22968 withoutCluster=46932 inputTriangles=99312 drawnTriangles=76344 clipApplied=1 state=active eyeMap=(-2423.6,5566.0,-1280.0) reason=hid 22968 of 99312 triangles from cluster 1032
+apply_S2w 20623.7 gpu: world feature-apply bump enabled=1 tiles=9 materials=9 vertices=19305 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
+apply_Dw 20449.6 gpu: world feature-apply bump enabled=1 tiles=9 materials=9 vertices=19305 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
+lighting_S1w 20424.3 gpu: world lighting dynamic=0 specular=1 bump=0 requestedDynamic=0 requestedSpecular=1 requestedBump=0 bumpOwner=WOOD/WALL007A bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+lighting_S2w 20623.7 gpu: world lighting dynamic=0 specular=1 bump=0 requestedDynamic=0 requestedSpecular=1 requestedBump=0 bumpOwner=WOOD/WALL007A bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+lighting_Cw 20284.2 gpu: world lighting dynamic=1 specular=0 bump=0 requestedDynamic=1 requestedSpecular=0 requestedBump=0 bumpOwner=WOOD/WALL007A bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+lighting_Dw 20449.6 gpu: world lighting dynamic=1 specular=0 bump=0 requestedDynamic=1 requestedSpecular=0 requestedBump=0 bumpOwner=WOOD/WALL007A bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+specular_control 20623.7 gpu: world lighting-control control=specular kind=pass-switch state=applied declared=0 visible=0 resolved=1 missing=0 materials=100 triangles=76231 requested=1 effective=1 parsed=0 first=- resource=- reason=a pass constant: one lobe (boost 0.12, exponent 32) for 100 visible materials / 76231 visible triangles; no visible material declares $phong, so the lobe is added to materials that never asked for one; applied
+bump_control 20623.7 gpu: world lighting-control control=bump kind=pass-switch state=applied declared=45 visible=44 resolved=45 missing=0 materials=44 triangles=53462 requested=1 effective=1 parsed=1 first=NATURE/BLENDCLIFFTOGRASS_ODYSSEY resource=materials/Nature/rockwall003_height-ssbump.vtf reason=on: 9 materials sample their own $bumpmap tile through a per-face tangent basis built from the BSP texinfo axes; of the 45 materials that declare $bumpmap, 36 set $ssbump and are refused by name (a bumpBasis weight is not a tangent-space normal)
+-- pose proof --
+Aw_vs_A BMP-DIFF differing=2570233 total=2582352 percent=99.5307 max_delta=220 extent=1264x681x24 status=PASS
+Aw_vs_Aw2 BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+S2w_vs_holdA_S2w BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+-- pairs --
+S1w_vs_S2w BMP-DIFF differing=775135 total=2582352 percent=30.0166 max_delta=24 extent=1264x681x24 status=PASS
+S1w_vs_S2w_sign BMP-SIGN brighter=386760 darker=388375 same=1807217 max_up=24 max_down=21 extent=1264x681x24 status=OK 
+Cw_vs_Dw BMP-DIFF differing=688102 total=2582352 percent=26.6463 max_delta=60 extent=1264x681x24 status=PASS
+Cw_vs_Dw_sign BMP-SIGN brighter=203847 darker=484255 same=1894250 max_up=14 max_down=60 extent=1264x681x24 status=OK 
