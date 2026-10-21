@@ -1,6 +1,6 @@
-﻿T41 raster rule: D3D11_CULL_BACK, FrontCounterClockwise=False
+T41 raster rule: D3D11_CULL_BACK, FrontCounterClockwise=False
 front test: dot(emittedNormal, eye - p) > 0
-eye = (-2294.8,348.8,383.4) from capture trace evidence/t36-lighting-dark-account/captures/ids.trace, last 'scene: camera'
+eye = (-2294.8,348.8,383.4) from capture trace .scratch/t36-account.46989\ids.trace, last 'scene: camera'
   62124.3 scene: camera mode=first-person target=1 follows=1683 holds=0 freeze=0 eye=-2294.8,348.8,383.4 pitch=-8.43 yaw=64.27 src=demo
   last drawn tick in that trace: 2000
 

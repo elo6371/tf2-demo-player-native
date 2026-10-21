@@ -28,7 +28,7 @@
     348.8,
     383.4
   ],
-  "eyeSource": "capture trace evidence/t36-lighting-dark-account/captures/ids.trace, last 'scene: camera'",
+  "eyeSource": "capture trace .scratch/t36-account.46989\\ids.trace, last 'scene: camera'",
   "eyeTraceLine": "62124.3 scene: camera mode=first-person target=1 follows=1683 holds=0 freeze=0 eye=-2294.8,348.8,383.4 pitch=-8.43 yaw=64.27 src=demo",
   "faceIdFrame": {
     "distinctFaceIds": 641,
@@ -38,8 +38,8 @@
     "drawnPixelsWrittenFront": 378895,
     "facesWithRegion": 452,
     "frames": [
-      "evidence/t36-lighting-dark-account/captures\\ids.bmp",
-      "evidence/t36-lighting-dark-account/captures\\ids-nocull.bmp"
+      ".scratch/t36-account.46989\\ids.bmp",
+      ".scratch/t36-account.46989\\ids-nocull.bmp"
     ],
     "height": 681,
     "inRangePixels": 750391,
@@ -150,7 +150,7 @@
       "width": 1264,
       "yaw": 64.27
     },
-    "cameraSource": "capture trace evidence/t36-lighting-dark-account/captures/ids.trace, last 'scene: camera'",
+    "cameraSource": "capture trace .scratch/t36-account.46989\\ids.trace, last 'scene: camera'",
     "emission": {
       "brushFaceClassTriangles": 52380,
       "brushFanTriangles": 52400,

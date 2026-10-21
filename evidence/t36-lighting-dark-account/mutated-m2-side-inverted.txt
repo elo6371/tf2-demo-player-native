@@ -1,10 +1,32 @@
-m2 (pure Python, no product): the face-side test in dark-account.py is
-negated as a whole -- front = not ((sd >= 0.0) if side == 0 else (sd <= 0.0))
-  baseline: dark=208630 back=98160 front=107768
-  mutated : dark=208630 back=107768 front=98160
-  M2=RED-as-required the split swapped 98160/107768 -> 107768/98160 at the
-    same 208630 total
-  RESTORE=OK (dark-account.py byte-identical, 911cc84a70eec2cfb3dd12925f316add6d1dc05b)
-Note: negating only the inner comparison, not ((sd <= 0.0) if side == 0 else
-(sd >= 0.0)), is NOT an inversion -- it reproduces the baseline exactly and
-was measured doing so -- because it differs from the original only at sd == 0.
+frame 1264x681  dark(lum<16) = 208630 of 860784 (24.24%)
+  A_no_world_triangle                       2702 (  1.30%)
+  rect_all_zero_back_albedoBright          42556 ( 20.40%)
+  rect_all_zero_front_albedoBright         30827 ( 14.78%)
+  rect_bright_back_albedoBright             2979 (  1.43%)
+  rect_bright_front_albedoBright            1144 (  0.55%)
+  rect_bright_front_albedoDark                10 (  0.00%)
+  rect_lt_32_back_albedoBright              4382 (  2.10%)
+  rect_lt_32_front_albedoBright            26082 ( 12.50%)
+  rect_lt_8_back_albedoBright              23952 ( 11.48%)
+  rect_lt_8_front_albedoBright             15717 (  7.53%)
+  rect_lt_96_back_albedoBright             33899 ( 16.25%)
+  rect_lt_96_front_albedoBright            24369 ( 11.68%)
+  rect_lt_96_front_albedoDark                 11 (  0.01%)
+
+masks (1 = in the population):
+  A_no_world_triangle                       2702 px -> .scratch/t36-account.46989/m2-account\A_no_world_triangle.mask
+  rect_all_zero_back_albedoBright          42556 px -> .scratch/t36-account.46989/m2-account\rect_all_zero_back_albedoBright.mask
+  rect_all_zero_front_albedoBright         30827 px -> .scratch/t36-account.46989/m2-account\rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright             2979 px -> .scratch/t36-account.46989/m2-account\rect_bright_back_albedoBright.mask
+  rect_bright_front_albedoBright            1144 px -> .scratch/t36-account.46989/m2-account\rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark                10 px -> .scratch/t36-account.46989/m2-account\rect_bright_front_albedoDark.mask
+  rect_lt_32_back_albedoBright              4382 px -> .scratch/t36-account.46989/m2-account\rect_lt_32_back_albedoBright.mask
+  rect_lt_32_front_albedoBright            26082 px -> .scratch/t36-account.46989/m2-account\rect_lt_32_front_albedoBright.mask
+  rect_lt_8_back_albedoBright              23952 px -> .scratch/t36-account.46989/m2-account\rect_lt_8_back_albedoBright.mask
+  rect_lt_8_front_albedoBright             15717 px -> .scratch/t36-account.46989/m2-account\rect_lt_8_front_albedoBright.mask
+  rect_lt_96_back_albedoBright             33899 px -> .scratch/t36-account.46989/m2-account\rect_lt_96_back_albedoBright.mask
+  rect_lt_96_front_albedoBright            24369 px -> .scratch/t36-account.46989/m2-account\rect_lt_96_front_albedoBright.mask
+  rect_lt_96_front_albedoDark                 11 px -> .scratch/t36-account.46989/m2-account\rect_lt_96_front_albedoDark.mask
+
+ledger -> .scratch/t36-account.46989/m2-account/account.json
+product-attributable (albedo bright AND rectangle bright): 4123 px (1.9762% of dark)
