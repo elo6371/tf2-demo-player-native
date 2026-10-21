@@ -407,16 +407,19 @@ version_defs="$(grep -cE "^set\(TF2_PACKAGE_VERSION" native/CMakeLists.txt 2>/de
 eq "package version metadata lines in native/CMakeLists.txt" "${version_defs:-0}" "2"
 has "the version the package answers is the one it ships" \
   "$(sed -n "s/^version=//p" VERSION.txt | tr -d "\r")" "0.1.0"
-# T37 closed exactly two of the five: the package now carries an installer
+# T37 closed two of the five: the package already carried an installer
 # (--install), an uninstaller (--uninstall) and version metadata (--version,
-# VERSION.txt, the manifest header). The three that remain are named with their
-# owner and are NOT silently dropped -- the count is pinned so closing one of them
-# has to update this line rather than quietly changing the number.
-echo "  BLOCKER no_upgrade_or_migration_path=1 owner=T37 next round (manifest has versionCode; nothing compares it)"
+# VERSION.txt, the manifest header). T42 closed a third: an install now compares
+# the manifest's packageVersionCode and refuses to go backwards by name
+# (install=FAIL reason=downgrade; a newer one reports mode=upgrade). That is a
+# version decision, not a migration engine, and the two gaps that remain are named
+# with their owner and are NOT silently dropped -- the count is pinned so closing
+# one of them has to update this line rather than quietly changing the number.
+echo "  CLOSED  upgrade_and_downgrade_decision=1 owner=T42 (packageVersionCode comparison; see evidence/t37-install/t42-upgrade-downgrade.log)"
 echo "  BLOCKER no_shortcuts_or_file_association=1 owner=T28 release packaging"
 echo "  BLOCKER tf2_assets_not_packaged_by_design=1 owner=product (locate or prompt for a TF2 install)"
-INSTALLER_GAPS=3
-eq "installer features absent (pinned: adding one must update this gate)" "$INSTALLER_GAPS" "3"
+INSTALLER_GAPS=2
+eq "installer features absent (pinned: adding one must update this gate)" "$INSTALLER_GAPS" "2"
 eq "installer lifecycle modes the package now provides" \
   "$(grep -oE 'L"--(version|install|uninstall|install-status)"' native/src/main.cpp | sort -u | wc -l | tr -d ' ')" "4"
 

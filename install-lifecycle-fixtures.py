@@ -33,13 +33,27 @@ WHY A SECOND FIXTURE SCRIPT
                      archived one. A product that merely preferred whichever
                      copy could be parsed would answer store=vpk here.
 
-The unreadable root is the only fixture that needs a non-file change (a deny
-ACE), so the script also removes it on request with --reset-acl: deleting a
-directory whose file is denied to us is itself a permission question.
+The unreadable root is the only vault fixture that needs a non-file change (a
+deny-read ACE), so the script also removes it on request with --reset-acl:
+deleting a directory whose file is denied to us is itself a permission question.
+
+T42 adds the WRITE side of the same technique, because this host runs elevated and
+a real "install into Program Files as a standard user" case would measure nothing:
+   --deny-write DIR   deny this account write access to DIR (the non-admin shape).
+                      The install payload is unpacked first, so the product gets
+                      as far as copying and then meets the DACL, which is where a
+                      non-admin install actually fails.
+   --allow-write DIR  remove that deny again (recursive), so the case can be
+                      cleaned up.
+These are mode switches, not fixture builds: --demo and --bsp are not needed for
+them and are not required on the command line.
 
 USAGE
    python install-lifecycle-fixtures.py --out DIR --demo DEMO --bsp MAP [--reset-acl]
-Exit 0 when every root and the demo rewrite were written and hashed.
+   python install-lifecycle-fixtures.py --out DIR --deny-write DIR
+   python install-lifecycle-fixtures.py --out DIR --allow-write DIR
+Exit 0 when every root and the demo rewrite were written and hashed, or when the
+requested ACL change reported success.
 """
 
 import argparse
@@ -142,6 +156,30 @@ def reset_acl(root):
                    capture_output=True, text=True)
 
 
+def deny_write(path):
+    """A directory this account may not write into: the non-admin install shape."""
+    user = os.environ.get('USERNAME', '')
+    if not user:
+        raise SystemExit('cannot name the current user for the deny ACE')
+    if not os.path.isdir(path):
+        raise SystemExit('deny-write target is not a directory: %s' % path)
+    result = subprocess.run(['icacls', path, '/deny', '%s:(OI)(CI)(W)' % user],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit('icacls deny-write failed: %s %s' % (result.stdout, result.stderr))
+
+
+def allow_write(path):
+    """Remove the deny-write ACE again (and any deny-read left in the tree)."""
+    user = os.environ.get('USERNAME', '')
+    if not user or not os.path.isdir(path):
+        raise SystemExit('allow-write target is not a directory: %s' % path)
+    result = subprocess.run(['icacls', path, '/remove:d', user, '/T', '/C'],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit('icacls allow-write failed: %s %s' % (result.stdout, result.stderr))
+
+
 def rewrite_demo(source, destination, map_name):
     with open(source, 'rb') as handle:
         data = bytearray(handle.read())
@@ -166,14 +204,26 @@ def sha256_of(path):
 def main(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', required=True)
-    parser.add_argument('--demo', required=True)
-    parser.add_argument('--bsp', required=True)
+    parser.add_argument('--demo')
+    parser.add_argument('--bsp')
     parser.add_argument('--reset-acl', action='store_true')
+    parser.add_argument('--deny-write', metavar='DIR')
+    parser.add_argument('--allow-write', metavar='DIR')
     args = parser.parse_args(argv)
     out = os.path.abspath(args.out)
+    # The ACL modes are independent of the fixture build, so they run before the
+    # demo/map inputs are required.
     if args.reset_acl:
         reset_acl(out)
         return 0
+    if args.deny_write:
+        deny_write(os.path.abspath(args.deny_write))
+        return 0
+    if args.allow_write:
+        allow_write(os.path.abspath(args.allow_write))
+        return 0
+    if not args.demo or not args.bsp:
+        parser.error('--demo and --bsp are required to build fixtures')
     if os.path.isdir(out):
         reset_acl(out)
         shutil.rmtree(out)
