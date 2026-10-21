@@ -165,3 +165,22 @@ Steps:
 The project is not release-pass until T39-T42 are reviewed, T43 runs on a frozen
 tree, and the final chain exits 0. If any item remains unverified, the release
 report must say **NOT PASS** and name the owner and cheapest next verification.
+
+## Merge log (integration owner)
+
+- 2026-10-21 — T39 `task/t39-weapon-animation@daea556` merged as `39c9b05`.
+  No product source changed: the step-22 identity pair is a deterministic
+  one-sample raster ownership tie (1 pixel / 3 bytes, delta 59, at (622,412);
+  860,783 other pixels byte-identical), caused by the skinning shader's
+  normalized weighted sum versus the passthrough. The whole-frame byte bound is
+  replaced by `bmp-silhouette-diff.py` (outside a measured edge mask
+  max_delta <= 1 strictly, every changed pixel inside the mask, changed pixels
+  capped at 4, global ceiling 128, mask population printed and bounded) plus a
+  real-pose control that the same rule rejects. Step-22 pin 56 -> 57 and a third
+  mutation (`--mutation-identity`) added; forward 57 OK / 0 FAIL, mutations all
+  caught with byte-identical restores, affected ViewModel gates 154/114 PASS.
+  The T34 near-plane attribution stays refuted and the near plane is untouched.
+  Open (NOT VERIFIED): per-sample rasterizer instrumentation; threshold 32 is a
+  stated parameter (population printed); second-model check supplementary;
+  exe hashes not reproducible across rebuilds. T43 re-runs the affected gates on
+  the frozen tree.
