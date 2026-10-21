@@ -11,3 +11,4 @@ diff_terrain_pair_in_region=277530
 diff_on_off_in_terrain_pair=277523
 diff_terrain_pair_not_in_full=7
 diff_terrain_pair_occluded=0
+diff_terrain_pair_covered=7

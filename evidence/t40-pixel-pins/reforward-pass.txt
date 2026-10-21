@@ -1,0 +1,68 @@
+T40 forward PASS readings on the re-pinned tree
+================================================
+when: 2026-10-21 10:53:36 - 11:13 (one host-lock hold, ACQUIRED 10:53:36,
+LOCKED-COMMAND-EXIT rc=0 owner=t40, released on completion)
+HEAD: c0393b8594266a7b89d103593ad10ffb4a3c7827 (task/t40-pixel-pins)
+Tree: clean at the start (dirty_count=0), no concurrent build. Same identity as
+fa0a509: tf2_demo_native.exe 304e2790..., lighting_semantics_probe.exe 9065c1db...,
+world_feature_probe.exe 7b3f7fc6...; sources 14cfa22e world_lighting.cpp,
+a98d981c vmt_material.cpp, 725c9ee1 main.cpp, f341eadc native_renderer.h,
+90173f81 native_renderer.cpp, fc76d7f7 world_tile_atlas.cpp.
+
+LIGHTING (bash lighting-semantics-check.sh) -> rc=0, 96 OK / 0 FAIL
+  PASS: six controls measured; three pass switches compared one at a time; four
+  keys refused by name.
+  A-A2 differing 0            (determinism)
+  A->B dynamic differing 1776259 max_delta 77
+  A->C specular differing 390361 max_delta 15
+  A->D bump-alone differing 0  max_delta 0   (no consumer, by design)
+  B->E bump-under-dynamic differing 910776 max_delta 13
+  sign line 1 dynamic: brighter=0 darker=1776259 max_down=77
+  sign line 2 specular: brighter=390361 darker=0 max_up=15
+  Frames A=A2=D=F=6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b,
+  B=c261227f52bb1ec5dd4e137f2563a01c8a03199f01f419d32f5a3b1473a3c644,
+  C=d90da8deecf3fd01402e51b4e9c15df0cccc9261c89a0f4bbd451cf975a69f38,
+  E=1d45417a7216f5f58826a0d1332fc7edc92a6c3a0087ed692fd0268b1f08d1e6.
+
+MATERIAL (bash world-material-semantics-check.sh) -> rc=0, 183 OK / 0 FAIL
+  PASS: three material features pinned declaration->lookup->shader input->pixel
+  delta, the normal read by both consumers at tick 1200 (the tick-2000 specular
+  view is NOT VERIFIED, see section 5b); the null frame is 0 px; three refusals
+  still named.
+  deltas.txt (in order A-A2, B, C, D, E, F, R1-R2, R1-R3, R1b, S1-S2, C12-R1, S1_12-S2_12):
+    0 / 0 / 1776259 (max 77) / 79 (max 17) / 0 / 271060 (max 60) / 7343 (max 26)
+    / 0 / 0 / 0 / 990 (max 19) / 344 (max 5)
+  sign.txt:
+    line 1 B:          0 / 0
+    line 2 C->D:       79 brighter / 0 darker (one-sided in this view, printed)
+    line 3 A->F:       0 / 271060
+    line 4 R1->R2:     4107 brighter / 3236 darker (both ways)
+    line 5 S1->S2:     0 / 0 (extinct view; NOT VERIFIED)
+    line 6 C12->R1:    458 brighter / 532 darker (both ways)
+    line 7 S1_12->S2_12: 337 brighter / 7 darker (both ways)
+  Frames: A=A2=B=E=6bb4d9a7, C=c261227f, D=6917533d, F=2ffa7d2b,
+  R1=R1b=R3=f05573d7, R2=782c260c, S1=S2=d90da8de,
+  C12=302d60edb2d60dcc97db4781e13fb7989283dea2b4cbf79c6e4e8bfe7c791915,
+  S1_12=3dd81e3aa73a916c0de6bf5506c1ea7616e9c50887e35dffd85086fd93c0f10e,
+  S2_12=81bb9b9dadfbb7e96aa2cc3dda839d92bc84fb938ea26f6e7cdefecb71ce7637.
+  The three tick-1200 hashes are identical to the pre-run diagnostic captures
+  (same tree, same build), so the new pins are reproducible, not a one-off.
+
+NOT VERIFIED, deliberately printed by the material gate (section 5b) and saved as
+evidence/material-semantics/not-verified.txt:
+  1. specular at the tick-2000 camera: 0/0, population occluded by the near
+     geometry the T29 clip revealed; the tick-1200 pair is a consumer proof on a
+     different camera, NOT a replacement. Owner T43; cheapest next step: one
+     wide-area diagnostic pose (T35's nine material-framed poses).
+  2. detail residual 2812 px (1320 old + 1492 new, 0.33%) on 27 non-displaced
+     WOOD/WALL007A faces, mechanism not established; the 271060 pin does not
+     absorb it. Owner T43; cheapest next step: restore the pre-fix near plane
+     with the T29 gate's own mutation, capture F at tick 2000, diff against the
+     pre-fix F.
+  3. material bump at the tick-2000 camera is one-sided (79 brighter / 0 darker)
+     by occlusion; the two-sided claim is pinned at tick 1200 (990 / 458 up /
+     532 down) with assert_ne positive controls.
+
+How to reproduce: bash lighting-semantics-check.sh; bash
+world-material-semantics-check.sh (both build their own target first and write
+the evidence/ files above; no source mutation).

@@ -1,0 +1,212 @@
+== 0. build ==
+  OK both targets built
+== 1. probe self-test (fixture) ==
+  OK self-test verdict = true
+  OK self-test checks passed = 49
+  OK self-test checks failed = 0
+  OK $bumpmap1 alias contains 'fix/a_height'
+  OK $bumpmap beats $bumpmap1 contains 'fix/plain'
+  OK $ssbump parses contains '1 parses as true'
+  OK %detailtype read contains '2'
+  OK detail mode 8 drawn = 8
+  OK mode 8 names its arm contains 'TCOMBINE_MULTIPLY'
+  OK drawn modes contains '0,1,2,3,8'
+  OK refused modes contains '4,5,6,7,9,10,11'
+  OK malformed mode refused contains 'non-numeric'
+  OK detail scale = 1.900000
+  OK detail factor = 0.375000
+  OK combine mode 0 = 0.400000,0.375000,0.900000
+  OK combine mode 1 = 0.650000,0.625000,1.100000
+  OK combine mode 2 = 0.425000,0.437500,0.700000
+  OK combine mode 3 = 0.450000,0.375000,0.800000
+  OK combine mode 8 = 0.300000,0.312500,0.600000
+  OK mode 2 uses detail alpha contains 'mode 2 scales by detail.a'
+  OK factor 0 is the identity contains 'factor 0 leaves the base'
+  OK tangent frame contains 'dot(T)=0.707107'
+  OK bitangent sign contains '0.707107 vs -0.707107'
+  OK tangent rotation contains 'same angle'
+  OK degenerate tangent contains 'falls back'
+  OK feature tile size = 256x256
+  OK feature tile centre contains '0.562500'
+  OK tiles do not overlap contains '257 <= 257'
+  OK off row names the switch contains '--world-material-bump'
+  OK on row names the tangent basis contains 'tangent basis'
+  OK bump2 row names the lerp contains 'lerp'
+  OK ssbump row splits the count contains '1 of 2'
+  OK detail row keeps the key refused contains 'consumer'
+  OK bump2 without layer 1 is named contains '--world-material-bump is off'
+== 2. probe on maps/pl_odyssey.bsp ==
+  OK distinct materials = 108
+  OK $bumpmap declared = 45
+  OK $bumpmap resolved = 45
+  OK $bumpmap missing = 0
+  OK $bumpmap distinct paths = 26
+  OK non-ssbump $bumpmap = 9
+  OK $bumpmap first contains 'GREEK/GREEK_GROUND03B'
+  OK bump reason names the switch contains '--world-material-bump'
+  OK $bumpmap2 declared = 5
+  OK $bumpmap2 resolved = 5
+  OK $bumpmap2 missing = 0
+  OK $bumpmap2 first = GREEK/GREEK_BLEND_COBBLE_FLOOR_01_TO_SAND
+  OK $bumpmap2 reason names both switches contains '--world-material-bump and --world-bump2'
+  OK $bumpmap2 ssbump split = 4
+  OK $bumpmap2 reason names the split contains '4/5 of those materials also declare $ssbump'
+  OK $detail declared = 15
+  OK $detail resolved = 0
+  OK $detail missing = 15
+  OK %detailtype read = 1
+  OK %detailtype first value = tf_forest_grass
+  OK $detail reason names the switch contains '--world-detail'
+  OK $ssbump declared = 36
+  OK $ssbump resolved = 36
+  OK $ssbump under --world-material-bump contains 'refused by name even when --world-material-bump is on'
+== 3. reference capture (all switches off) ==
+  OK A switches = 0/0/0
+  OK A feature switches = 0/0/0
+  OK A feature tiles = 0/0/0
+  OK A feature vertices = 0/0/0
+  OK A bump row = refused
+  OK A bump row names both switches contains '--world-material-bump'
+  OK A $bumpmap2 row = refused
+  OK A $bumpmap2 counts = 5/5/5
+  OK A %detailtype row = refused
+  OK A %detailtype counts = 15/0/15/1
+  OK A %detailtype names the install contains 'absent from this install'
+  OK A %detailtype names the group contains 'first=tf_forest_grass'
+  OK A %detailtype names the compiler contains 'VBSP'
+  OK A %detailtype keeps its refusal contains 'no consumer here'
+  OK A $ssbump row = refused
+== 4. single-semantic captures ==
+  OK B feature switches = 1/0/0
+  OK B declaration/lookup = 45/9/0
+  OK B ssbump split = 36
+  OK B tiles/materials = 9/9
+  OK B vertices = 19305
+  OK B bump row = applied
+  OK B row names the tangent basis contains 'per-face tangent basis'
+  OK B row splits ssbump contains '36 set $ssbump'
+  OK B $bumpmap2 row = refused
+  OK B $bumpmap2 reason contains 'sampled only when --world-material-bump and --world-bump2 are both on'
+  OK B $bumpmap2 resolves = 5
+  OK B $ssbump split contains '36 of 45'
+  OK C switches = 1/0/0
+  OK C bump row = refused
+  OK C feature tiles = 0
+  OK D switches = 1/0/0
+  OK D bump row = applied
+  OK D tiles/vertices = 9/19305
+  OK E detail switch = 1
+  OK E detail declared/resolved/forced = 15/0/0
+  OK E detail tiles = 0
+  OK E detail vertices = 0
+  OK E %detailtype row = refused
+  OK E row names the absence contains 'absent from this install'
+  OK E row keeps %detailtype's own refusal contains 'no consumer here'
+  OK F detail switch = 1
+  OK F detail declared/resolved/forced = 15/15/15
+  OK F detail mode histogram = 0x15
+  OK F detail tiles/materials = 15/15
+  OK F detail vertices = 73770
+  OK F %detailtype row = refused
+  OK F row says the layer draws contains 'the $detail layer itself draws for 15 materials'
+  OK F row keeps the key refused contains 'consumer'
+  OK R1 bump2 tiles = 0
+  OK R1 bump2 switch = 0
+  OK R1 bump tiles = 9
+  OK R3 bump2 switch = 1
+  OK R3 bump2 declared/resolved/missing = 5/1/0
+  OK R3 bump2 ssbump split = 4
+  OK R3 bump2 forced = 0
+  OK R3 bump2 tiles/materials/vertices = 1/1/384
+  OK R3 bump2 row = applied
+  OK R3 row names the product refusal contains 'no base normal to lerp layer 2 into'
+  OK R3 row names the 4 refused bases contains '4 declared materials set $ssbump'
+  OK R2 bump2 switch = 1
+  OK R2 bump2 forced = 5
+  OK R2 bump2 ssbump still counted = 4
+  OK R2 bump2 tiles/materials = 5/5
+  OK R2 bump2 vertices = 41118
+  OK R2 bump2 weight span = 9(0.000..1.000)
+  OK R2 $bumpmap2 row = applied
+  OK R2 row names the shared weight contains 'same vertex weight that selects the albedo layer'
+  OK R2 row admits the diagnostic texels contains 'sample the --world-bump2-texture diagnostic'
+  OK R2 row names the diagnostic base contains 'base normal this pass already computed'
+  OK R2 row names the 4 refused bases contains '4 of them set $ssbump'
+  OK S1 switches = 0/1/0
+  OK S2 switches = 0/1/0
+  OK S1 has no material normal = 0
+  OK S1 bump row = refused
+  OK S2 draws the material normal = 9/9
+  OK S2 bump row = applied
+  OK C12 switches = 1/0/0
+  OK C12 bump row = refused
+  OK S1_12 switches = 0/1/0
+  OK S2_12 switches = 0/1/0
+  OK S1_12 has no material normal = 0
+  OK S2_12 draws the material normal = 9/9
+  OK S2_12 bump row = applied
+  OK R1 draws the material normal = 9/9
+== 5. measured deltas ==
+  OK determinism (A vs A2) differing = 0
+  OK determinism (A vs A2) max_delta = 0
+  OK material bump without a reader differing = 0
+  OK material bump without a reader max_delta = 0
+  OK dynamic light differing = 1776259
+  OK dynamic light max_delta = 77
+  OK material bump under dynamic light differing = 79
+  OK material bump under dynamic light max_delta = 17
+  OK detail without a resource differing = 0
+  OK detail with a resource differing = 271060
+  OK detail with a resource max_delta = 60
+  OK determinism at tick 1200 differing = 0
+  OK $bumpmap2 differing = 7343
+  OK $bumpmap2 max_delta = 26
+  OK declared layer2 on the product path = 0
+  OK declared layer2 on the product path max = 0
+  OK specular reads the material normal differing = 0
+  OK specular reads the material normal max_delta = 0
+  OK tick-1200 material bump under dynamic differing = 990
+  OK tick-1200 material bump under dynamic max_delta = 19
+  OK specular reads the material normal at tick 1200 differing = 344
+  OK specular reads the material normal at tick 1200 max_delta = 5
+  OK B brighter = 0
+  OK B darker = 0
+  OK material bump brighter = 79
+  OK material bump darker (this view) = 0
+  OK tick-1200 material bump brighter = 458
+  OK tick-1200 material bump darker = 532
+  OK tick-1200 material bump brighter (positive control) = 458 (was 0)
+  OK tick-1200 material bump darker (positive control) = 532 (was 0)
+  OK detail brighter = 0
+  OK detail darker = 271060
+  OK $bumpmap2 brighter = 4107
+  OK $bumpmap2 darker = 3236
+  OK specular highlight gained (tick 2000) = 0
+  OK specular highlight lost (tick 2000) = 0
+  OK specular highlight gained at tick 1200 = 337
+  OK specular highlight lost at tick 1200 = 7
+  OK specular highlight gained at tick 1200 (positive control) = 337 (was 0)
+  OK specular highlight lost at tick 1200 (positive control) = 7 (was 0)
+== 5b. not verified ==
+NOT VERIFIED specular at the tick-2000 reference camera: PIN_SPEC_DIFF=0 because S1 == S2 -- the nine material-normal materials are occluded by the near geometry the T29 clip revealed. The consumer is proven on the tick-1200 camera (S1_12 vs S2_12 = 344 bytes, 337 brighter / 7 darker), which is a different view, NOT a replacement for the missing tick-2000 population. Cheapest next step: one wide-area diagnostic pose (T35 prepared nine material-framed poses), owner T43.
+NOT VERIFIED detail residual: 2812 px of the detail moved population (1320 old + 1492 new, 0.33% of the frame) sit on 27 non-displaced WOOD/WALL007A faces where the T26 face-id mask says the surface did not move and the baseline frame is byte-identical, yet the detail layer's effect toggled. The pin above does not absorb them. Evidence: evidence/t40-pixel-pins/forward-readings.txt section 3 and detail-residual-face-info.txt. Cheapest next step: restore the pre-fix near plane (the T29 gate's own mutation), capture F at tick 2000 and diff it against the pre-fix F frame; owner T43.
+NOT VERIFIED material bump direction at the tick-2000 camera: the population is one-sided there (79 brighter / 0 darker) because the pre-fix population was mostly occluded by the near geometry. The two-sided claim is pinned on the tick-1200 camera (C12 vs R1 = 990 bytes, 458 brighter / 532 darker) with assert_ne positive controls.
+== 6. evidence ==
+== mutation mode ==
+-- m1: tangentNormal returns the geometric normal --
+  RED m1 as required: differing=0 (was 79) while the row still reads applied
+  RESTORE=OK (m1 source byte-identical)
+-- m2: $bumpmap2 samples layer 1's tile --
+  RED m2 as required: differing=11746 (was 7343) while the row still reads applied
+  RESTORE=OK (m2 source byte-identical)
+-- m3: combineDetail ignores $detailblendmode --
+  RED m3 as required: differing=255344 (was 271060) while the histogram still reads 0x15
+  RESTORE=OK (m3 source byte-identical)
+-- m4: the feature bit is set from the VMT, not from the blit --
+  RED m4 as required: differing=417045 (was 79) while feature-apply still reports materials=45
+  RESTORE=OK (m4 source byte-identical)
+-- m5: the feature tile rect ignores the half-resolution atlas --
+  RED m5 as required: the rect reads '512x256' (was 256x256)
+  RESTORE=OK (m5 source byte-identical)
+== verdict ==
+PASS: forward pins held, all five mutations went red, every source came back byte-identical.

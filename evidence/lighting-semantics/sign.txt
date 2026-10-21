@@ -1,3 +1,3 @@
-BMP-SIGN brighter=0 darker=1584117 same=998235 max_up=0 max_down=83 extent=1264x681x24 status=OK
-BMP-SIGN brighter=267343 darker=0 same=2315009 max_up=12 max_down=0 extent=1264x681x24 status=OK
-BMP-SIGN brighter=687115 darker=59444 same=1835793 max_up=13 max_down=13 extent=1264x681x24 status=OK
+BMP-SIGN brighter=0 darker=1776259 same=806093 max_up=0 max_down=77 extent=1264x681x24 status=OK
+BMP-SIGN brighter=390361 darker=0 same=2191991 max_up=15 max_down=0 extent=1264x681x24 status=OK
+BMP-SIGN brighter=830580 darker=80196 same=1671576 max_up=13 max_down=12 extent=1264x681x24 status=OK

@@ -49,6 +49,11 @@
 #   R3  R1 + --world-bump2 (no texture)       the declared texture, drawn, 0 px
 #   S1  --world-specular on                   the other reader of the same normal
 #   S2  S1 + --world-material-bump on         the lobe moves, both directions
+#   -- T40 additions on the tick-1200 camera, where the population is on screen --
+#   C12 --world-dynamic-light on              the tick-1200 baseline for C->D's
+#                                             second-camera twin (C12 vs R1)
+#   S1_12 --world-specular on                 the specular baseline at tick 1200
+#   S2_12 S1_12 + --world-material-bump on    the lobe reads the normal there
 #
 # WHY A->B IS 0 AND THAT IS THE MEASUREMENT
 #   With `--world-material-bump on` the CPU builds the bump atlas, sets the
@@ -60,11 +65,37 @@
 #
 # THE DIRECTION QUESTION
 #   `bmp-delta-sign.py` splits every differing byte into brighter/darker, and
-#   both normal pairs are reported with it. C->D moves both ways, and so does
-#   R1->R2 (8,790 brighter / 7,163 darker): a normal perturbation moves a
+#   both normal pairs are reported with it. R1->R2 moves both ways (4,107
+#   brighter / 3,236 darker on the current tree): a normal perturbation moves a
 #   surface toward and away from the light. A one-way read would mean a scale
 #   factor, not a lerp between two normals. The gate pins both directions, not
 #   just "the frame changed".
+#
+# T40 RE-PIN (2026-10-21, on 34e1714) -- the T29 near clip fix put the room
+# around the camera on screen, which moved every tick-2000 population and took
+# two direction claims with it:
+#   * C->D (material bump under dynamic light) moved 624 -> 79 bytes and is now
+#     one-sided at tick 2000 (79 brighter / 0 darker): the pre-fix population was
+#     mostly occluded, and what survives is the part of the lobe that gains. The
+#     old pin is kept as a superseded reading (C=06503ebd..., D=399ae424...).
+#     The two-sided claim is therefore pinned on the tick-1200 camera where both
+#     directions still exist: C12 vs R1 = 990 bytes / max 19, 458 brighter /
+#     532 darker. That pair is a positive control that goes red if either
+#     direction vanishes.
+#   * S1 vs S2 at tick 2000 is now 0 bytes: the nine material-normal materials
+#     are occluded by the near geometry the clip revealed, and the two frames
+#     are byte-identical (d90da8de). The old 135 / 123 gained / 12 lost reading
+#     is superseded, and the tick-2000 specular claim is printed as NOT VERIFIED
+#     instead of being pinned as a false zero. The consumer is measured on the
+#     tick-1200 camera: S1_12 vs S2_12 = 344 bytes / max 5, 337 brighter / 7
+#     darker. That is a proof on a different camera, NOT a replacement for the
+#     missing tick-2000 population; a wide-area diagnostic pose is the named
+#     next step (evidence/t40-pixel-pins/forward-readings.txt section 4).
+#   * the detail pair moved 82,213 -> 271,060 bytes. 96.9% of the moved
+#     population is attributed by the T26 face-id mask (occluded by a near
+#     surface or replaced by it); 2,812 px on 27 non-displaced faces are not,
+#     and the gate prints them as NOT VERIFIED (section 5) rather than letting
+#     the new pin absorb them.
 #
 # WHAT THIS GATE DOES NOT CLAIM
 #   That the drawn result matches Source's. `%detailtype` is still refused by
@@ -106,22 +137,39 @@ PYTHON="${PYTHON:-python}"
 # Measured on this machine with the tick pinned by capture(). These are pins, not
 # floors: a change in any one of them means a semantic moved, and the report
 # quotes the same numbers.
-PIN_DYN_DIFF=1584117; PIN_DYN_MAX=83
-PIN_BUMP_DIFF=624; PIN_BUMP_MAX=21
-PIN_DETAIL_DIFF=82213; PIN_DETAIL_MAX=60
-# T27 final: the layer-2 diagnostic arm on the base normal the frame already
-# computed. 15,953 px, moving BOTH ways (8,790 brighter / 7,163 darker): a
-# real lerp between two normals. The earlier 38,538 px all-darker reading was
-# an invalid vertex state (bit 2 without bit 1); it is preserved in the report
-# as a superseded reading and is not a pin.
-PIN_B2_DIFF=15953; PIN_B2_MAX=26
-PIN_B2_UP=8790; PIN_B2_DOWN=7163
+# T40 re-pin on 34e1714: superseded tick-2000 readings, measured on the pre-fix
+# tree whose baseline frame was A=f87f396a...f9608, were dynamic 1584117/83,
+# material bump under dynamic 624/21, detail 82213/60. The T29 near clip put the
+# room on screen; the identities and the population split of every moved
+# population are in evidence/t40-pixel-pins/forward-readings.txt.
+PIN_DYN_DIFF=1776259; PIN_DYN_MAX=77
+PIN_BUMP_DIFF=79; PIN_BUMP_MAX=17
+PIN_DETAIL_DIFF=271060; PIN_DETAIL_MAX=60
+# T27: the layer-2 diagnostic arm on the base normal the frame already computed,
+# moving BOTH ways: a real lerp between two normals. The earlier 38,538 px
+# all-darker reading was an invalid vertex state (bit 2 without bit 1); it is
+# preserved in the report as a superseded reading and is not a pin.
+# T40 re-pin on 34e1714: superseded 15,953 / 8,790 / 7,163.
+PIN_B2_DIFF=7343; PIN_B2_MAX=26
+PIN_B2_UP=4107; PIN_B2_DOWN=3236
 # The specular pair: the same material normal, read by the other consumer. 135
-# px is small because the lobe is `0.12 * pow(dot(n,h), 32)` and the 9 bumped
-# materials are a thin slice of this view -- small is not the same as noise, and
-# the direction split is what says so (the highlight moves, it does not gain).
-PIN_SPEC_DIFF=135; PIN_SPEC_MAX=3
-PIN_SPEC_UP=123; PIN_SPEC_DOWN=12
+# px was small because the lobe is `0.12 * pow(dot(n,h), 32)` and the 9 bumped
+# materials were a thin slice of this view -- the direction split (123 gained /
+# 12 lost) was what said it was not noise.
+# T40 re-pin on 34e1714: at the tick-2000 camera the population is gone
+# (0/0, S1 == S2 byte-identical), so this pair is pinned at the measured zero
+# and the gate PRINTS the claim as NOT VERIFIED rather than passing it as a
+# semantic. The old reading is kept as superseded (S1=9d613c38..., S2=6742abec...).
+PIN_SPEC_DIFF=0; PIN_SPEC_MAX=0
+# T40: the tick-1200 camera where the nine materials are on screen. Both
+# directions exist there, and both are pinned exactly so either one going to
+# zero is a red, not a silent pass.
+PIN_SPEC12_DIFF=344; PIN_SPEC12_MAX=5
+PIN_SPEC12_UP=337; PIN_SPEC12_DOWN=7
+# T40: C12 vs R1 -- the tick-1200 twin of C->D, the positive control for the
+# two-sided material-bump claim the tick-2000 camera can no longer make.
+PIN_BUMP12_DIFF=990; PIN_BUMP12_MAX=19
+PIN_BUMP12_UP=458; PIN_BUMP12_DOWN=532
 
 RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 MODE="${1:-}"
@@ -389,6 +437,15 @@ capture R3 1200 --world-dynamic-light on --world-material-bump on --world-bump2 
 # T27 asks about, and it is a different claim from "the frame changed".
 capture S1 2000 --world-specular on || fail=1
 capture S2 2000 --world-specular on --world-material-bump on || fail=1
+# T40: the tick-2000 camera no longer sees the nine material-normal materials
+# (the T29 near clip put the room on screen and the wall in front of them), so
+# S1 and S2 came back byte-identical. The consumers are measured on the
+# tick-1200 camera the bump2 pins already use, where those materials are on
+# screen: C12 is the tick-1200 baseline for the dynamic-light reader, S1_12 /
+# S2_12 the specular pair.
+capture C12 1200 --world-dynamic-light on || fail=1
+capture S1_12 1200 --world-specular on || fail=1
+capture S2_12 1200 --world-specular on --world-material-bump on || fail=1
 
 # ---- B: the declaration and the lookup both happen, the reader does not ----
 assert_eq "B feature switches" \
@@ -513,6 +570,27 @@ assert_eq "S2 draws the material normal" \
   "$(af "$SCRATCH/S2.trace" bump.tiles)/$(af "$SCRATCH/S2.trace" bump.materials)" "9/9"
 assert_eq "S2 bump row" "$(cfield "$(controlline "$SCRATCH/S2.trace" bump)" state)" "applied"
 
+# ---- T40: the same two consumers on the tick-1200 camera ----
+# C12 is the baseline the material-bump reader is measured against there (C12 vs
+# R1); its switch line and control row must say what it is, or the pair would be
+# comparing two different pictures.
+C12LINE=$(lightingline "$SCRATCH/C12.trace")
+assert_eq "C12 switches" \
+  "$(lfield "$C12LINE" dynamic)/$(lfield "$C12LINE" specular)/$(lfield "$C12LINE" bump)" "1/0/0"
+assert_eq "C12 bump row" "$(cfield "$(controlline "$SCRATCH/C12.trace" bump)" state)" "refused"
+S112LINE=$(lightingline "$SCRATCH/S1_12.trace")
+S212LINE=$(lightingline "$SCRATCH/S2_12.trace")
+assert_eq "S1_12 switches" \
+  "$(lfield "$S112LINE" dynamic)/$(lfield "$S112LINE" specular)/$(lfield "$S112LINE" bump)" "0/1/0"
+assert_eq "S2_12 switches" \
+  "$(lfield "$S212LINE" dynamic)/$(lfield "$S212LINE" specular)/$(lfield "$S212LINE" bump)" "0/1/0"
+assert_eq "S1_12 has no material normal" "$(af "$SCRATCH/S1_12.trace" bump.tiles)" "0"
+assert_eq "S2_12 draws the material normal" \
+  "$(af "$SCRATCH/S2_12.trace" bump.tiles)/$(af "$SCRATCH/S2_12.trace" bump.materials)" "9/9"
+assert_eq "S2_12 bump row" "$(cfield "$(controlline "$SCRATCH/S2_12.trace" bump)" state)" "applied"
+assert_eq "R1 draws the material normal" \
+  "$(af "$SCRATCH/R1.trace" bump.tiles)/$(af "$SCRATCH/R1.trace" bump.materials)" "9/9"
+
 # ---------------------------------------------------------------------------
 # 5. the pixel deltas, and their direction
 # ---------------------------------------------------------------------------
@@ -534,6 +612,8 @@ DIFF_R1B=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/R1b.bmp")
 DIFF_R2=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/R2.bmp")
 DIFF_R3=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/R3.bmp")
 DIFF_S=$(run_diff "$SCRATCH/S1.bmp" "$SCRATCH/S2.bmp")
+DIFF_C12R1=$(run_diff "$SCRATCH/C12.bmp" "$SCRATCH/R1.bmp")
+DIFF_S12=$(run_diff "$SCRATCH/S1_12.bmp" "$SCRATCH/S2_12.bmp")
 
 dfield() { printf '%s' "$1" | grep -oE "$2=[-0-9.]+" | head -1 | cut -d= -f2; }
 assert_eq "determinism (A vs A2) differing" "$(dfield "$DIFF_A2" differing)" "0"
@@ -553,8 +633,18 @@ assert_eq "\$bumpmap2 differing" "$(dfield "$DIFF_R2" differing)" "$PIN_B2_DIFF"
 assert_eq "\$bumpmap2 max_delta" "$(dfield "$DIFF_R2" max_delta)" "$PIN_B2_MAX"
 assert_eq "declared layer2 on the product path" "$(dfield "$DIFF_R3" differing)" "0"
 assert_eq "declared layer2 on the product path max" "$(dfield "$DIFF_R3" max_delta)" "0"
+# T40: the pair is pinned at the measured zero and the claim is printed as NOT
+# VERIFIED below, not passed off as a semantic. At tick 2000 the nine
+# material-normal materials are behind the near geometry the T29 clip revealed;
+# S1 and S2 are the same file. The old reading (135/3) is in the pin comment.
 assert_eq "specular reads the material normal differing" "$(dfield "$DIFF_S" differing)" "$PIN_SPEC_DIFF"
 assert_eq "specular reads the material normal max_delta" "$(dfield "$DIFF_S" max_delta)" "$PIN_SPEC_MAX"
+# T40: the tick-1200 twins, where both consumers have a population. Exact pins:
+# either direction going to zero is a red here, not a silently weaker pass.
+assert_eq "tick-1200 material bump under dynamic differing" "$(dfield "$DIFF_C12R1" differing)" "$PIN_BUMP12_DIFF"
+assert_eq "tick-1200 material bump under dynamic max_delta" "$(dfield "$DIFF_C12R1" max_delta)" "$PIN_BUMP12_MAX"
+assert_eq "specular reads the material normal at tick 1200 differing" "$(dfield "$DIFF_S12" differing)" "$PIN_SPEC12_DIFF"
+assert_eq "specular reads the material normal at tick 1200 max_delta" "$(dfield "$DIFF_S12" max_delta)" "$PIN_SPEC12_MAX"
 
 SIGN="$SCRATCH/sign.txt"
 : > "$SIGN"
@@ -563,14 +653,24 @@ SIGN="$SCRATCH/sign.txt"
 "$PYTHON" bmp-delta-sign.py "$SCRATCH/A.bmp" "$SCRATCH/F.bmp" | tee -a "$SIGN" > /dev/null
 "$PYTHON" bmp-delta-sign.py "$SCRATCH/R1.bmp" "$SCRATCH/R2.bmp" | tee -a "$SIGN" > /dev/null
 "$PYTHON" bmp-delta-sign.py "$SCRATCH/S1.bmp" "$SCRATCH/S2.bmp" | tee -a "$SIGN" > /dev/null
+# T40: the tick-1200 direction pairs (lines 6 and 7).
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/C12.bmp" "$SCRATCH/R1.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/S1_12.bmp" "$SCRATCH/S2_12.bmp" | tee -a "$SIGN" > /dev/null
 sfield() { sed -n "$1p" "$SIGN" | grep -oE "$2=[-0-9]+" | head -1 | cut -d= -f2; }
 # B is the null: the same frame, byte for byte, with the atlas bound.
 assert_eq "B brighter" "$(sfield 1 brighter)" "0"
 assert_eq "B darker" "$(sfield 1 darker)" "0"
-# A normal perturbation moves a surface both toward and away from the light.
-# A one-way delta here would be a scale factor, not a perturbed normal.
-assert_ne "material bump brighter" "$(sfield 2 brighter)" "0"
-assert_ne "material bump darker" "$(sfield 2 darker)" "0"
+# T40: the tick-2000 C->D population is now one-sided by occlusion (79 brighter
+# / 0 darker). That is pinned as the measured reading of THIS view, and the
+# two-sided claim is made on the tick-1200 camera where both directions exist:
+# the exact pins on lines 6 are the positive control (either direction at 0 is a
+# red), and the assert_ne below double-checks it.
+assert_eq "material bump brighter" "$(sfield 2 brighter)" "79"
+assert_eq "material bump darker (this view)" "$(sfield 2 darker)" "0"
+assert_eq "tick-1200 material bump brighter" "$(sfield 6 brighter)" "$PIN_BUMP12_UP"
+assert_eq "tick-1200 material bump darker" "$(sfield 6 darker)" "$PIN_BUMP12_DOWN"
+assert_ne "tick-1200 material bump brighter (positive control)" "$(sfield 6 brighter)" "0"
+assert_ne "tick-1200 material bump darker (positive control)" "$(sfield 6 darker)" "0"
 # The detail layer multiplies the albedo (mode 0, factor 1) with a brick texture
 # whose texels are darker than the 1.0 probe, so this delta is one-way by
 # construction: base * 2 * detail <= base for detail <= 0.5.
@@ -582,8 +682,27 @@ assert_eq "\$bumpmap2 darker" "$(sfield 4 darker)" "$PIN_B2_DOWN"
 # both directions: where the perturbed normal turns toward the half vector the
 # texel gains, where it turns away it loses. A one-way read here would mean the
 # material normal only ever scaled the highlight.
-assert_eq "specular highlight gained" "$(sfield 5 brighter)" "$PIN_SPEC_UP"
-assert_eq "specular highlight lost" "$(sfield 5 darker)" "$PIN_SPEC_DOWN"
+# T40: at tick 2000 both are 0 because the population is occluded - the claim is
+# NOT VERIFIED there (printed below) and the directions are pinned on the
+# tick-1200 camera, exactly, with assert_ne as the positive control.
+assert_eq "specular highlight gained (tick 2000)" "$(sfield 5 brighter)" "0"
+assert_eq "specular highlight lost (tick 2000)" "$(sfield 5 darker)" "0"
+assert_eq "specular highlight gained at tick 1200" "$(sfield 7 brighter)" "$PIN_SPEC12_UP"
+assert_eq "specular highlight lost at tick 1200" "$(sfield 7 darker)" "$PIN_SPEC12_DOWN"
+assert_ne "specular highlight gained at tick 1200 (positive control)" "$(sfield 7 brighter)" "0"
+assert_ne "specular highlight lost at tick 1200 (positive control)" "$(sfield 7 darker)" "0"
+
+# ---------------------------------------------------------------------------
+# 5b. what this gate does NOT verify, printed rather than absorbed by a pin
+# ---------------------------------------------------------------------------
+echo "== 5b. not verified =="
+NOTVERIFIED="$OUT/not-verified.txt"
+: > "$NOTVERIFIED"
+{
+  echo "NOT VERIFIED specular at the tick-2000 reference camera: PIN_SPEC_DIFF=$PIN_SPEC_DIFF because S1 == S2 -- the nine material-normal materials are occluded by the near geometry the T29 clip revealed. The consumer is proven on the tick-1200 camera (S1_12 vs S2_12 = $PIN_SPEC12_DIFF bytes, $PIN_SPEC12_UP brighter / $PIN_SPEC12_DOWN darker), which is a different view, NOT a replacement for the missing tick-2000 population. Cheapest next step: one wide-area diagnostic pose (T35 prepared nine material-framed poses), owner T43."
+  echo "NOT VERIFIED detail residual: 2812 px of the detail moved population (1320 old + 1492 new, 0.33% of the frame) sit on 27 non-displaced WOOD/WALL007A faces where the T26 face-id mask says the surface did not move and the baseline frame is byte-identical, yet the detail layer's effect toggled. The pin above does not absorb them. Evidence: evidence/t40-pixel-pins/forward-readings.txt section 3 and detail-residual-face-info.txt. Cheapest next step: restore the pre-fix near plane (the T29 gate's own mutation), capture F at tick 2000 and diff it against the pre-fix F frame; owner T43."
+  echo "NOT VERIFIED material bump direction at the tick-2000 camera: the population is one-sided there (79 brighter / 0 darker) because the pre-fix population was mostly occluded by the near geometry. The two-sided claim is pinned on the tick-1200 camera (C12 vs R1 = $PIN_BUMP12_DIFF bytes, $PIN_BUMP12_UP brighter / $PIN_BUMP12_DOWN darker) with assert_ne positive controls."
+} | tee -a "$NOTVERIFIED"
 
 # ---------------------------------------------------------------------------
 # 6. evidence: the lines and numbers, not 25 MB of BMPs
@@ -595,8 +714,12 @@ grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/
   | tr -d '\r' > "$OUT/trace-detail-tick2000.txt"
 grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/S2.trace" \
   | tr -d '\r' > "$OUT/trace-specular-tick2000.txt"
+# T40: the tick-1200 specular consumer (the tick-2000 pair above is the
+# measured-zero view; this one names the 9/9 tiles the lobe actually read).
+grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/S2_12.trace" \
+  | tr -d '\r' > "$OUT/trace-specular-tick1200.txt"
 if [ ! -s "$OUT/trace-bump2-tick1200.txt" ] || [ ! -s "$OUT/trace-detail-tick2000.txt" ] \
-  || [ ! -s "$OUT/trace-specular-tick2000.txt" ]; then
+  || [ ! -s "$OUT/trace-specular-tick2000.txt" ] || [ ! -s "$OUT/trace-specular-tick1200.txt" ]; then
   echo "  FAIL a reference trace had no world lines"; fail=1
 fi
 cp "$PROBE_MAP" "$OUT/probe-map.txt"
@@ -606,9 +729,9 @@ cp "$SIGN" "$OUT/sign.txt"
 {
   echo "run=$RUN_TAG"
   echo "map=$MAP demo=$(basename "$DEMO")"
-  echo "tick2000=A,A2,B,C,D,E,F,S1,S2  tick1200=R1,R1b,R2,R3"
+  echo "tick2000=A,A2,B,C,D,E,F,S1,S2  tick1200=R1,R1b,R2,R3,C12,S1_12,S2_12"
   echo "detailTexture=$DETAIL_TEXTURE"
-  for name in A A2 B C D E F R1 R1b R2 R3 S1 S2; do
+  for name in A A2 B C D E F R1 R1b R2 R3 S1 S2 C12 S1_12 S2_12; do
     if [ -s "$SCRATCH/$name.bmp" ]; then
       echo "$name sha256=$("$PYTHON" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$SCRATCH/$name.bmp")"
     fi
@@ -618,7 +741,7 @@ cp "$SIGN" "$OUT/sign.txt"
 if [ "$MODE" != "--mutation" ]; then
   echo "== verdict =="
   if [ "$fail" = 0 ]; then
-    echo "PASS: three material features pinned declaration->lookup->shader input->pixel delta, the normal read by both consumers; the null frame is 0 px; three refusals still named."
+    echo "PASS: three material features pinned declaration->lookup->shader input->pixel delta, the normal read by both consumers at tick 1200 (the tick-2000 specular view is NOT VERIFIED, see section 5b); the null frame is 0 px; three refusals still named."
   else echo "FAIL: $fail assertion groups did not hold."; fi
   exit "$fail"
 fi

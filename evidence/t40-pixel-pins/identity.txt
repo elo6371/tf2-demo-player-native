@@ -1,0 +1,22 @@
+T40 identity - the tree the forward readings describe
+===================================================
+(copied verbatim from the identity block each forward run printed first)
+
+when=2026-10-21T09:46:38+08:00
+pwd=/d/TF2_Native_Worktrees/t40-pixel-pins
+HEAD=34e17142e2b2d9c789e4a1eb815efcfd05f1673c
+branch=task/t40-pixel-pins
+dirty_count=0
+src 14cfa22e01ecca341a2a4edee0678a0c6dea7a1d native/src/world_lighting.cpp
+src a98d981c5414c3400851354a9ab748485957b7d6 native/src/vmt_material.cpp
+src 725c9ee13bef3920279485d2fc041ced45495714 native/src/main.cpp
+src f341eadcb8b7d53edbbdc2424fffa7299fa5266a native/include/native_renderer.h
+src 90173f817262737dfc260086ae74bffd63154491 native/src/native_renderer.cpp
+src fc76d7f7debbd5956c383fbb11a592e08451d4e7 native/src/world_tile_atlas.cpp
+exe 304e2790a74b320794e82f0cda5680a3cc83beb664fa3fc6085e446ddfcf4e97 native/build-nmake/tf2_demo_native.exe
+exe 9065c1dbfa5b88b47cd23db5128a97f21971441b20748c505c4ecaa49131a50a native/build-nmake/lighting_semantics_probe.exe
+exe 7b3f7fc697088d2c2665a79f3475ebeff6a8772268cca76de72c793733ca63af native/build-nmake/world_feature_probe.exe
+
+The material forward run (2026-10-21T09:56:37+08:00) printed the same HEAD,
+branch, six source hashes and three exe hashes; its dirty_count=4 names only
+the four evidence/lighting-semantics files the first run had just rewritten.

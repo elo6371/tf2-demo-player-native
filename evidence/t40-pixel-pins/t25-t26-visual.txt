@@ -1,0 +1,35 @@
+T40 T25 / T26 / T12 visual gates on d667452
+============================================
+when: 2026-10-21 12:16:41 (T25+T12 hold) and 12:17:56-12:29 (T26 hold)
+HEAD: d667452ce207 (task/t40-pixel-pins), native/ clean at start, same binaries
+the forward and mutation runs used.
+
+T25 visual-baseline-check.sh -> rc=0, 70 OK / 0 FAIL
+  "PASS: the visual baseline held (probe + trace + four world regions)."
+  All four region pins held on this tree, e.g. x=0,y=0 meanLum 18.8 in
+  [16.8,20.8]; x=0,y=560 meanLum 57.0 in [55.0,59.0]; x=1100,y=100 meanLum
+  133.9 in [131.9,135.9]; x=600,y=0 meanLum 42.9 in [42.85,42.95]. So the near
+  clip did not move the object-visibility acceptance.
+
+T26 world-geometry-hole-check.sh -> rc=1, exactly 1 assertion group red:
+  FAIL no sliver had a culled neighbour: world-ids-nocull.bmp is not being read
+  "seam directions that only the cull-off frame could name: 0"
+  "seam faces: 8555,15324,17217,17260,17262,17266,17268,17326"
+  Every other section passed (source identity, build, capture matrix, "the
+  product picture did not move", probe/sky, first-hit oracle, empty-pixel
+  account, the T23 account, point oracle). The captures were regenerated and are
+  byte-identical to the committed ones (git sees only analysis run-tag text).
+
+  This is a MEASURED red with a known explanation, not a moved pin:
+  T41 measured that 0 of the 8 named seam faces are derived-back at the capture
+  pose (all 8 derived-front; the cull removes 8 other displacement/side-0 faces
+  and none of the seam faces), so seamCulled=0 is the correct reading for this
+  tree and the old "`-ge 1`" pin encoded a pre-T29 artefact. The pin is LEFT RED
+  on purpose (not relaxed, not re-pinned) and is a named blocker for the cull
+  correctness question: owner T41 (measurement), recorded by T43 as NOT PASS.
+
+T12 terrain-blend-check.sh -> NOT RUN in this hold: the gate exits
+  "FATAL: missing input: native/build-nmake/terrain_blend_probe.exe" — the probe
+  was never built on this branch. That reading is a build gap, not a result and
+  is not committed as one; a build+run hold was queued immediately (see
+  t12-build.log / t12-terrain-blend.log in this directory once it lands).
