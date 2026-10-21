@@ -142,12 +142,13 @@ than the exe). Forward 9 m 39 s; mutation 2 m 57 s; total 12 m 40 s -- inside th
 ### Forward: `INSTALL-READINESS=PASS`, `cases=13 checks=145 mutations=0`
 
 - Assertion audit against T42's own evidence log (107 assertions, all OK):
-  **107 -> 145, 38 added, 0 removed** (`_shared/t47/assertion-diff.py`; the added
-  labels are listed in `evidence/t37-install/t47-cold-readiness/gate/forward-verdict.txt`).
+  **107 -> 145, 38 added, 0 removed** (`_shared/t47/assertion-diff.py`; every
+  added label is listed verbatim in
+  `evidence/t37-install/t47-cold-readiness/gate/added-assertions-forward.txt`).
   They are: the positive control (8), the two-cycle assertions (15), the per-case
   readiness classes (6), the independent trace roots (3), the capture-time and
-  after-capture staged hashes and the launched-binary/installer-mode checks (5),
-  and the title-timeout classification check (1).
+  after-capture staged hashes with the launched-binary and installer-mode checks
+  (4), and the two capture-classification checks (2).
 - Staged binary: `staged binary hash at capture time` = `staged binary hash after
   the captures` = `82b6c18e...` = the built exe; the first-launch command line
   names `.scratch/t47/gate/forward/install/tf2_demo_native.exe`, so the reading
@@ -191,7 +192,8 @@ than the exe). Forward 9 m 39 s; mutation 2 m 57 s; total 12 m 40 s -- inside th
 ### Mutation: `INSTALL-READINESS-MUTATION=PASS (3 mutations caught, sources restored)`
 
 - `cases=4 checks=55 mutations=3` in the first green run. Against the
-  40-assertion T42 log T47 adds 13 unique assertions, 0 removed: 10 staged-binary
+  40-assertion T42 log T47 adds 13 unique assertions, 0 removed (listed in
+  `evidence/t37-install/t47-cold-readiness/gate/added-assertions-mutation.txt`): 10 staged-binary
   identity checks (hash of the staged exe at every mutated and restored stage,
   plus the recorded command line of four captures), 2 product-process
   preconditions, 1 no-lifecycle-mode check.

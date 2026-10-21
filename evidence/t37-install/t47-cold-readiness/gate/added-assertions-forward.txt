@@ -1,0 +1,42 @@
+baseline assertions = 107
+t47 assertions      = 145
+added               = 38
+  + cycle-2 capture launched its own staged binary
+  + cycle-2 capture rc
+  + cycle-2 every case classified OK
+  + cycle-2 explicit-root decision
+  + cycle-2 first launch saved the connected root
+  + cycle-2 first-launch decision
+  + cycle-2 no readiness run invoked an installer or uninstaller mode
+  + cycle-2 no title capture timeouts
+  + cycle-2 restart decision
+  + cycle-2 restart did not need a second settings file
+  + cycle-2 stage rc
+  + cycle-2 staged product is the built product
+  + empty-root readiness class (trace and title agree: not connected)
+  + every forward case classified OK
+  + explicit-root readiness class
+  + explicit-root trace root
+  + first-launch readiness class
+  + first-launch trace root
+  + missing-root readiness class (trace and title agree: not connected)
+  + no readiness run invoked an installer or uninstaller mode
+  + no title capture timeouts in the forward capture
+  + positive control: capture exits non-zero on a classified timeout
+  + positive control: named TITLE-CAPTURE-TIMEOUT line
+  + positive control: no connected root was accepted
+  + positive control: no generic title-capture failure was involved
+  + positive control: the case class is TITLE-CAPTURE-TIMEOUT
+  + positive control: title is not the connected form
+  + positive control: title timeouts counted
+  + positive control: trace still says the root connected
+  + relocated readiness class
+  + restart readiness class
+  + restart trace root
+  + staged binary hash after the captures
+  + staged binary hash at capture time
+  + the capture launched the staged installed binary
+  + two cold-start cycles agree: explicit-root
+  + two cold-start cycles agree: first-launch
+  + two cold-start cycles agree: restart
+removed             = 0
