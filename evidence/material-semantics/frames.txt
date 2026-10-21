@@ -1,4 +1,4 @@
-run=20261021110100-57476
+run=20261021113848-82549
 map=maps/pl_odyssey.bsp demo=autorecord_2026-07-02_13-26-46.dem
 tick2000=A,A2,B,C,D,E,F,S1,S2  tick1200=R1,R1b,R2,R3,C12,S1_12,S2_12
 detailTexture=materials/brick/brickwall001.vtf
