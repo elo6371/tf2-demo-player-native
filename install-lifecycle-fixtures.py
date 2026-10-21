@@ -157,13 +157,24 @@ def reset_acl(root):
 
 
 def deny_write(path):
-    """A directory this account may not write into: the non-admin install shape."""
+    """A directory this account may not write into: the non-admin install shape.
+
+    The mask is WD,AD (write data, append data; add file, add subdirectory for a
+    directory), not the simple right W. T42 measured why: icacls' W expands to
+    FILE_GENERIC_WRITE, whose STANDARD_RIGHTS_WRITE shares the READ_CONTROL bit,
+    so denying W also denies READ_CONTROL and a native reader cannot open the
+    payload at all. The install then refused with cannot_hash_payload -- a true
+    reading of an ACL that denied more than intended, but not the case this gate
+    means to test (a write-protected install directory). WD,AD denies exactly the
+    writes, so the product hashes its payload, reaches the copy, and refuses with
+    cannot_copy. Measured 2026-10-21 in .scratch/t42/denytest*.sh.
+    """
     user = os.environ.get('USERNAME', '')
     if not user:
         raise SystemExit('cannot name the current user for the deny ACE')
     if not os.path.isdir(path):
         raise SystemExit('deny-write target is not a directory: %s' % path)
-    result = subprocess.run(['icacls', path, '/deny', '%s:(OI)(CI)(W)' % user],
+    result = subprocess.run(['icacls', path, '/deny', '%s:(OI)(CI)(WD,AD)' % user],
                             capture_output=True, text=True)
     if result.returncode != 0:
         raise SystemExit('icacls deny-write failed: %s %s' % (result.stdout, result.stderr))

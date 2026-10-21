@@ -833,7 +833,6 @@ rebuild() { # <log-name>
 }
 fresh_package() { # <prefix>
   stage_package "$1" mutation-stage || return 1
-  cp -r "$1/.uninstall/payload" "$1/.uninstall/payload" 2>/dev/null || true
   return 0
 }
 
