@@ -1,0 +1,12 @@
+# T48 -- step 3: the accepted silhouette rule re-run on the T43-input pair.
+# Rule bounds (unchanged from T39): outside-mask max channel delta <= 1; every changed
+# pixel inside the derived edge mask (outside == 0); changed pixels <= 4; global max
+# <= 128; mask population within [1000, 86078]. Exit 0 = the pair passed.
+
+## pair: identity skinning vs passthrough (edge frame = control)
+BMP-SILHOUETTE changed=1 changed_bytes=3 inside=1 outside=0 mask_pixels=18446 mask_share=2.1429 interior_pixels=842338 interior_max=0 global_max=59 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=PASS
+rc=0
+
+## real-pose control: identity vs animated (edge frame = identity); it must be rejected
+BMP-SILHOUETTE changed=14064 changed_bytes=42128 inside=2496 outside=11568 mask_pixels=18445 mask_share=2.1428 interior_pixels=842339 interior_max=172 global_max=181 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=FAIL reason=interior_max=172 exceeds 1; changed=14064 exceeds 4; global_max=181 exceeds 128; outside=11568 changed pixels are not on a measured edge
+rc=1
