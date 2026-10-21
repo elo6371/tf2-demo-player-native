@@ -1,0 +1,104 @@
+== 0. build ==
+  OK both targets built
+== 1. probe self-test (fixture) ==
+  OK self-test verdict = true
+  OK self-test check count = 30
+  OK controls count = 6
+  OK controls order = the six rows are in the task's order
+  OK bump counts = 2/2 resolved 2
+  OK bump2 refused = refused
+  OK ssbump counts = 1 declared, 1 resolved
+  OK detail counts = 2 declared, 1 resolved, 1 missing
+  OK detail type read contains '1 distinct %detailtype value(s) (first=2)'
+  OK detail refused = refused
+  OK requested-not-effective names the owner contains 'declares no $bumpmap'
+  OK requested-not-effective dynamic contains 'requested but no constant was uploaded'
+== 2. probe on maps/pl_odyssey.bsp ==
+  OK map first material = WOOD/WALL007A
+  OK map distinct materials = 108
+  OK bump owner = WOOD/WALL007A
+  OK bump owner declares = 0
+  OK bump owner texture = -
+  OK $phong declared = 0
+  OK dynamicLighting state = disabled
+  OK specular state = disabled
+  OK bump state = refused
+  OK bump declared = 45
+  OK bump resolved = 45
+  OK bump missing = 0
+  OK $bumpmap2 state = refused
+  OK $bumpmap2 declared = 5
+  OK $bumpmap2 resolved = 5
+  OK %detailtype state = refused
+  OK %detailtype declared = 15
+  OK %detailtype resolved = 0
+  OK %detailtype parsed = 1
+  OK $ssbump state = refused
+  OK $ssbump declared = 36
+  OK $ssbump resolved = 36
+  OK ledger summary = controls=6 applied=0 refused=4 disabled=2 notDeclared=0 phong=0(visible 0, exponents 0/0) bumpOwner=WOOD/WALL007A
+  OK bump paths absent from the chain = 10
+  OK bump paths in the map pakfile only = 10
+  OK bump paths absent everywhere = 0
+  OK detail VMT exists = false
+  OK diagnostic bump texture exists = true
+== 3. reference capture (all three switches off) ==
+  OK A switch state = 0/0/0
+  OK A requested = 0/0/0
+  OK A bump owner = WOOD/WALL007A
+  OK A bump texture = -
+  OK A bump texture source = none
+  OK A bump owner declared = 0
+  OK A ledger summary contains 'controls=6 applied=0 refused=4 disabled=2 notDeclared=0 phong=0(visible 0, exponents 0/0)'
+  OK A dynamic state = disabled
+  OK A dynamic scope = 100/76231
+  OK A specular state = disabled
+  OK A specular names the missing $phong contains 'no visible material declares $phong'
+  OK A bump counts = 45/44/45/0
+  OK A bump scope = 44/53462
+  OK A $bumpmap2 counts = 5/5/5
+  OK A $bumpmap2 scope = 5/13706
+  OK A %detailtype counts = 15/14/0/15/1
+  OK A %detailtype names the install contains 'absent from this install'
+  OK A $ssbump counts = 36/35/36/0
+== 4. single-semantic captures ==
+  OK B switches = 1/0/0
+  OK B request = 1/0/0
+  OK C switches = 0/1/0
+  OK D switches = 0/0/1
+  OK D texture source = forced
+  OK D texture = materials/brick/brickwall001_normal.vtf
+  OK E switches = 1/0/1
+  OK F requested = 1
+  OK F effective = 0
+  OK F texture = -
+  OK F control state = refused
+  OK F refusal names the owner contains 'declares no $bumpmap'
+  OK performance preset leaves all three off = 0/0/0
+  OK an explicit switch outranks the preset name = 0/1/0
+  OK P2 requested = 1
+  OK B dynamic row = applied
+  OK C specular row = applied
+  OK D bump row = applied
+  OK F bump row = refused
+== 5. measured deltas ==
+  OK determinism (A vs A2) differing = 0
+  OK determinism (A vs A2) max_delta = 0
+  OK dynamic differing = 1776259
+  OK dynamic max_delta = 77
+  OK specular differing = 390361
+  OK specular max_delta = 15
+  OK bump alone differing = 0
+  OK bump alone max_delta = 0
+  OK bump under dynamic differing = 910776
+  OK bump under dynamic max_delta = 13
+  OK dynamic brighter = 0
+  OK dynamic darker = 1776259
+  OK dynamic max_down = 77
+  OK specular darker = 0
+  OK specular brighter = 390361
+  OK specular max_up = 15
+  OK bump brighter = 830580 >= 1
+  OK bump darker = 80196 >= 1
+== verdict ==
+PASS: six controls measured; three pass switches compared one at a time; four keys refused by name.
