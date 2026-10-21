@@ -1,0 +1,91 @@
+{
+  "cullMode": "D3D11_CULL_BACK",
+  "derivedDrawn": {
+    "back": 3561,
+    "front": 4123
+  },
+  "derivedDrawnFaces": 7684,
+  "derivedFrontFaces": 7684,
+  "derivedRemoved": {
+    "back": 7755,
+    "front": 2613
+  },
+  "derivedRemovedFaces": 10368,
+  "emission": {
+    "brushAgainstPlane": 1,
+    "brushAlongPlane": 16654,
+    "brushDegenerate": 5,
+    "brushFaces": 16660,
+    "brushTris": 54222,
+    "dispFaces": 1392,
+    "dispGridAgainstPlane": 1392,
+    "dispGridAlongPlane": 0,
+    "dispTris": 2784
+  },
+  "eye": [
+    -2423.6,
+    5566.0,
+    -1280.0
+  ],
+  "faceIdFrame": {
+    "distinctFaceIds": 641,
+    "drawnPixelsOnDerivedBack": 465922,
+    "drawnPixelsOnDerivedFront": 284469,
+    "drawnPixelsWrittenBack": 645326,
+    "drawnPixelsWrittenFront": 105065,
+    "facesWithRegion": 452,
+    "frames": [
+      ".scratch/t36-account.23990\\ids.bmp",
+      ".scratch/t36-account.23990\\ids-nocull.bmp"
+    ],
+    "height": 681,
+    "inRangePixels": 750391,
+    "nocullOnly": 81141,
+    "offRangePixels": 110393,
+    "overBoundFaces": 387,
+    "pixelsTheCullRemoved": 81141,
+    "ratioMax": 10702242.874902735,
+    "ratioMedian": 11.347456107830691,
+    "ratioP90": 158.05606872420668,
+    "removedByIds": 0,
+    "width": 1264
+  },
+  "facesParsed": 18052,
+  "frontCounterClockwise": false,
+  "frontRule": "dot(emittedNormal, eye - p) > 0",
+  "ruleAgreement": {
+    "brush/side-0": {
+      "agree": 10493,
+      "derivedFront": 3580,
+      "disagree": 52,
+      "eyeSide": 3582,
+      "faces": 10545,
+      "writtenFront": 3632
+    },
+    "brush/side-1": {
+      "agree": 1,
+      "derivedFront": 3561,
+      "disagree": 6114,
+      "eyeSide": 3562,
+      "faces": 6115,
+      "writtenFront": 2553
+    },
+    "disp/side-0": {
+      "agree": 1138,
+      "derivedFront": 427,
+      "disagree": 7,
+      "eyeSide": 427,
+      "faces": 1145,
+      "writtenFront": 434
+    },
+    "disp/side-1": {
+      "agree": 246,
+      "derivedFront": 116,
+      "disagree": 1,
+      "eyeSide": 130,
+      "faces": 247,
+      "writtenFront": 117
+    }
+  },
+  "writtenFrontFaces": 6736
+}

@@ -1,0 +1,23 @@
+T41 raster rule: D3D11_CULL_BACK, FrontCounterClockwise=False
+front test: dot(emittedNormal, eye - p) > 0, eye = -2423.6,5566.0,-1280.0
+
+emission census (the triangles the rasterizer receives):
+  brush faces 16660 (54222 triangles): along the plane normal 16654, against 1, degenerate 5
+  displacement faces 1392 (2784 triangles): the grid's own order is against the plane normal 1392, along 0; the product flips every triangle onto the face's outward
+
+derived front set at this eye: 7684 of 18052 faces (written plane-side rule: 6736)
+cell             faces eyeSide  derivedF writtenF disagree
+brush/side-0     10545    3582      3580     3632       52
+brush/side-1      6115    3562      3561     2553     6114
+disp/side-0       1145     427       427      434        7
+disp/side-1        247     130       116      117        1
+
+face-id frame 1264x681: 750391 pixels carry a face id (110393 off-range)
+  distinct ids 641; drawn pixels on faces the derived rule calls FRONT 284469 (37.91%)
+  drawn pixels on faces the derived rule calls BACK  465922 (62.09%)  <- must be 0
+  the same population under the written plane-side rule: FRONT 105065, BACK 645326
+  (the written rule and the derived rule are different rules: they agree in every class x side cell but one, see the table above)
+  per-face pinhole bound: 387 of 452 regions exceed the area their face can cover (median ratio 11.35, p90 158.06, max 10702242.9)
+  pixels the unculled frame paints and the culled one does not: 81141 (only-cull 0)
+
+json -> raster-rule.json

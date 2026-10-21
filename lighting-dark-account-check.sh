@@ -34,7 +34,14 @@
 #      account is being taken on the frame T29 measured;
 #   2. every bucket count is pinned, so a lightmap change, a winding change or
 #      a cull change moves a number here instead of hiding in a total;
-#   3. the face-side split of the dark population is pinned (T29 NOT VERIFIED);
+#   3. the face-side split of the dark population is pinned (T29 NOT VERIFIED),
+#      in the AUTHORED sense of front/back -- the side the map wrote the surface
+#      to be seen from. Since T41 that sense is derived, not calibrated: the
+#      raster state (CULL_BACK + FrontCounterClockwise=FALSE) plus the winding
+#      the product actually emits fix the front set, and the plane-side rule is
+#      shown to differ from it in exactly one cell (brush/side-1). See section
+#      3b/3c and raster-rule.py; the pixel-level split T36 read off the face-id
+#      frame is not a measurement (3c(4));
 #   4. the product-attributable share stays tiny: a lightmap regression that
 #      starts losing bright data grows it;
 #   5. the mask files exist and their pixel sums equal the counts;
@@ -212,13 +219,24 @@ assert_le "product-attributable pixels" \
   "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['productAttributable'])" "$ACCOUNT/account.json")" \
   "4200"
 
-echo "== 3b. the face-side rule is calibrated against the rasterizer =="
-# The account's side rule must agree with something already known, or its
-# front/back split is a statement about the sign of a test and nothing else. The
-# --world-face-id frame is drawn with D3D11_CULL_BACK, so every pixel carrying a
-# face id is a surface the RASTERIZER called front. A correct plane-side rule
-# calls nearly all of that population front. The rule as written calls 86% of it
-# back, which is how this gate's headline number came to be inverted.
+echo "== 3b. the front/back rule, derived from the raster state and the winding =="
+# T36 calibrated this rule by majority vote: whatever calls >=80% of the drawn
+# pixels FRONT wins. That cannot say which of the two names is right, and it
+# adopts the instrument it is meant to test. T41 derives the rule instead, from
+# the three things that decide it:
+#   * the world raster state is D3D11_CULL_BACK with FrontCounterClockwise =
+#     FALSE (native_renderer.cpp:1174-1179), so front is the CLOCKWISE triangle
+#     in the viewport's y-down screen space, i.e. dot(emittedNormal, eye-p) > 0
+#     -- the same test the trace's own oracle applies (main.cpp:5236-5239,
+#     "area > 0", which reported depthMatched=24 of 25 named pixels);
+#   * the product does not emit the stored polygon: the brush fan is pushed as
+#     (polygon[0], polygon[i+1], polygon[i]) (bsp_map.cpp:835, the reverse of
+#     the surfedge order) and displacement triangles are flipped per triangle
+#     onto the face's side-aware outward (bsp_map.cpp:609-616);
+#   * the eye is the trace's own eyeMap, pinned at line 255 above.
+# raster-rule.py counts 1 and 2 out of the lumps, applies 3, and reports which
+# cell of the class x side table the shipped plane-side rule gets wrong. Its
+# output is archived, so a winding or raster-state regression moves a number.
 SIDE="$ACCOUNT/side.txt"
 "$PYTHON" dark-account-side.py --frames "$SCRATCH" --bsp "$BSP" \
   --eye="-2423.6,5566.0,-1280.0" --json "$ACCOUNT/side.json" > "$SIDE.raw" 2>&1
@@ -232,21 +250,16 @@ else
   DRAWN_FRONT=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['drawn']['front'])" "$ACCOUNT/side.json")
   DRAWN_BACK=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['drawn']['back'])" "$ACCOUNT/side.json")
   DRAWN_ALL=$((DRAWN_FRONT + DRAWN_BACK))
-  # Under the calibrated rule the drawn population is overwhelmingly front.
+  # This ledger is T36's CALIBRATED rule, i.e. the negation of the plane-side
+  # rule, chosen by majority vote. Its labels are therefore neither the authored
+  # side (which the account proper uses, and which is what section 3's buckets
+  # name) nor the derived raster rule (section 3c): it is the negation of the
+  # first, and it only coincides with the second on the cells where the two
+  # rules already agree. It is kept because its RR is the concentration test,
+  # which is symmetric, but its NAME for a side is not a reading -- 3c is.
   FRONT_PCT=$(awk -v f="$DRAWN_FRONT" -v t="$DRAWN_ALL" 'BEGIN{printf "%.2f", 100.0*f/t}')
-  # The bar is a MAJORITY, not unanimity: the plane lump and the buffer winding
-  # are allowed to disagree on some faces (that residual is T11's business), and
-  # the two rules are opposites (86% vs 14%), so any threshold between 14% and 86%
-  # separates them. 80% keeps a wide margin on the right side of that gap while
-  # still failing loudly if the sign ever flips back.
-  if awk -v v="$FRONT_PCT" 'BEGIN{exit !(v>=80.0)}'; then
-    echo "  OK the calibrated rule calls $FRONT_PCT% of the drawn (already-culled) population FRONT"
-  else
-    echo "  FAIL the calibrated rule calls only $FRONT_PCT% of the drawn population front"
-    echo "       (the opposite sign calls 86%; a rule that disagrees with the"
-    echo "        rasterizer's own cull cannot label which side a surface was seen from)"
-    fail=1
-  fi
+  echo "  .. the calibrated (negated) rule calls $FRONT_PCT% of the drawn pixels FRONT;"
+  echo "     the plane-side rule the account itself uses calls the same pixels BACK."
   # The darkness must be measurable against its own base rate, not just shared.
   RR=$("$PYTHON" -c "import json,sys;print('%.3f' % json.load(open(sys.argv[1]))['relativeRiskBackVsFront'])" "$ACCOUNT/side.json")
   echo "  .. relative risk of being dark, back vs front = $RR (base rate $(awk -v b="$("$PYTHON" -c "import json,sys;print('%.2f' % json.load(open(sys.argv[1]))['baseDarkRatePct'])" "$ACCOUNT/side.json")" 'BEGIN{print b}')%)"
@@ -255,6 +268,65 @@ else
   else
     echo "  FAIL back-face enrichment RR=$RR -- the side split now dominates the account"; fail=1
   fi
+fi
+
+echo "== 3c. the derived rule, and the face-id frame tested against it =="
+RRULE="$ACCOUNT/raster-rule.json"
+"$PYTHON" raster-rule.py --bsp "$BSP" --frames "$SCRATCH" \
+  --eye="-2423.6,5566.0,-1280.0" --json "$RRULE" > "$ACCOUNT/raster-rule.txt" 2>&1
+# The tool prints the ledger path it was handed, and that path carries this
+# run's pid; the reading does not. Reduced the same way the account log is, so a
+# rerun cannot dirty a tracked file with a no-op diff.
+sed 's#^json -> .*#json -> raster-rule.json#' "$ACCOUNT/raster-rule.txt" > "$OUT/raster-rule.txt"
+cat "$OUT/raster-rule.txt"
+rjget() { # rjget <python expression over d>
+  "$PYTHON" -c "import json,sys;d=json.load(open(sys.argv[1]));print($1)" "$RRULE" 2>/dev/null
+}
+if [ ! -s "$RRULE" ]; then
+  echo "  FAIL the raster-rule tool produced no reading"; fail=1
+else
+  # (1) the emission census: the buffer's winding, counted from the lumps.
+  assert_eq "brush triangles emitted along the plane normal" \
+    "$(rjget "d['emission']['brushAlongPlane']")" "16654"
+  assert_eq "brush triangles emitted against it" \
+    "$(rjget "d['emission']['brushAgainstPlane']")" "1"
+  assert_eq "brush faces with a degenerate fan" \
+    "$(rjget "d['emission']['brushDegenerate']")" "5"
+  assert_eq "displacement grids whose own order is against the plane normal" \
+    "$(rjget "d['emission']['dispGridAgainstPlane']")" "1392"
+  # (2) the front set the raster must keep at this eye. The written plane-side
+  # rule is NOT this set: it differs in one cell -- brush/side-1, where the fan
+  # emits the plane normal whatever the side bit says.
+  assert_eq "faces the derived rule calls front" \
+    "$(rjget "d['derivedFrontFaces']")" "7684"
+  assert_eq "brush/side-1 faces the two rules disagree on" \
+    "$(rjget "d['ruleAgreement']['brush/side-1']['disagree']")" "6114"
+  assert_le "faces the two rules disagree on outside brush/side-1" \
+    "$(rjget "d['ruleAgreement']['brush/side-0']['disagree']+d['ruleAgreement']['disp/side-0']['disagree']+d['ruleAgreement']['disp/side-1']['disagree']")" \
+    "60"
+  # (3) removedSide, re-derived: the authored side of what the raster keeps and
+  # of what it removes, weighted by FACE. A cull that removes the authored-back
+  # surfaces is doing its job; the authored-back faces it still keeps are the
+  # brush/side-1 winding cell, and they are counted here so the residual cannot
+  # drift in silence. T36's 44,046/37,095 are a different number: the same rule
+  # applied to the culled PIXELS of the face-id frame, which section 3c(4)
+  # shows cannot carry a per-face reading.
+  assert_eq "raster-kept faces, authored front" "$(rjget "d['derivedDrawn']['front']")" "4123"
+  assert_eq "raster-kept faces, authored back"  "$(rjget "d['derivedDrawn']['back']")"  "3561"
+  assert_eq "raster-removed faces, authored front" "$(rjget "d['derivedRemoved']['front']")" "2613"
+  assert_eq "raster-removed faces, authored back"  "$(rjget "d['derivedRemoved']['back']")"  "7755"
+  # (4) the instrument T36 used as the oracle, tested against the derived rule.
+  # A CULL_BACK frame can only contain faces the raster kept, so the pixels on
+  # faces the rule removes must be ZERO. They are not, and the per-face area of
+  # the id regions exceeds what those faces can subtend, so the face-id frame is
+  # not sound at face granularity: the pixel-level side split inherited from it
+  # is not a measurement. The numbers are pinned so the day the instrument is
+  # fixed (the traced capture named in the T41 report) this gate goes red and
+  # says so.
+  assert_eq "drawn pixels on a face the derived rule removes" \
+    "$(rjget "d['faceIdFrame']['drawnPixelsOnDerivedBack']")" "465922"
+  assert_eq "id regions that exceed their own pinhole bound" \
+    "$(rjget "d['faceIdFrame']['overBoundFaces']")" "387"
 fi
 
 echo "== 4. the masks exist and sum to the counts =="
@@ -301,6 +373,9 @@ cp "$ACCOUNT/cull.json" "$OUT/cull-control.json"
 if [ -s "$ACCOUNT/side.json" ]; then
   cp "$ACCOUNT/side.json" "$OUT/side-account.json"
   cp "$ACCOUNT/side.txt" "$OUT/side-account.txt"
+fi
+if [ -s "$ACCOUNT/raster-rule.json" ]; then
+  cp "$ACCOUNT/raster-rule.json" "$OUT/raster-rule.json"
 fi
 # The masks go under masks/ rather than the evidence root: a second run used to
 # leave a duplicate copy of every one of them in the root, so the tree went dirty
