@@ -244,6 +244,26 @@ Readings from the hold go in `evidence/weapon-animation/t48/mutation-pose.txt`.
    alternative is a viewport-offset sweep: re-render with sub-pixel viewport
    shifts at 1/256 px and read pixel (622,412) until the colour flips -- the flip
    offset is the sample's distance to the edge, on hardware.
+5. **No GPU frame debugger is installed on this host** (no RenderDoc, PIX or
+   Nsight; checked in the usual install locations and on PATH), so the
+   per-sample history of a captured frame is not obtainable by an external tool
+   either. That is why item 4 is the only route.
+
+## 6a. Observation: the committed witness directory is a superseded snapshot
+
+`evidence/weapon-animation/` at `6888e6d` still holds the **2026-10-10** run:
+`readings.txt` is stamped `2026-10-10T11:41:33Z`, the two `mutation-failure-*.txt`
+files quote the pre-T39 byte-bound assertions (`identity skinning does not
+deform the bind pose: BMP-DIFF differing=2542251 ...`), and `model-identity.bmp`
+and `model-control.bmp` are **the same bytes** (`442ff83b...`). A reader of that
+directory would conclude the identity pair renders bit-identically, which is the
+claim T39 replaced and T48 bounds. Those files are the gate's *default* output
+(`OUT=evidence/weapon-animation`), so any later hand-run of the gate rewrites
+them anyway; this task deliberately wrote its output to `.scratch/t48/` and did
+not refresh them, because a 5 x 2.5 MB binary refresh is a decision for the
+integration owner, not a diagnostic side effect. Recommended: refresh them once
+(one forward gate run with the default `OUT`) before the next freeze, so the
+committed witnesses show the pair the rule actually measures.
 
 ## 7. Reproduce
 
