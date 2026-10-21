@@ -34,7 +34,10 @@
 #   --mutation  run the forward gate, then prove each of six mutations turns it
 #               red, restoring every source byte-for-byte.
 #   --reuse     keep the frames already captured under evidence/ (the capture
-#               script resumes). Without it the matrix is captured again.
+#               script resumes). Without it the matrix is captured again. Since
+#               T49 "resume" is an identity test, not an existence test: see
+#               world-geometry-hole-capture.sh, and section 2 of this gate, which
+#               proves the rule rejects a trace that has lost its pose line.
 # Exit:  0 = every assertion held (or, with --mutation, every mutation went red
 #            and every source came back identical);
 #        1 = an assertion failed, or a mutation did not turn the gate red;
@@ -573,6 +576,18 @@ echo "  PASS build"
 } | tee "$ANA/identity.txt"
 
 echo "== 2. capture matrix =="
+# The cache is validated BEFORE the matrix is asked to reuse it (T49). Until T49
+# the capture path accepted a frame whose trace said `capture_written=1` at the
+# right tick, which is not provenance: the T49 release run reused an 18-frame
+# matrix whose traces had no `scene: camera` line, so this gate could not name
+# the pose behind the pixels and went red on cached evidence. The capture script
+# now requires the armed line, a pose line with eye= and src= before it, and a
+# matching identity (HEAD, exe, demo, map, tick, window, flags, capture script).
+# This section proves the rule rejects exactly that stale shape -- on a copy, so
+# the real matrix is not disturbed -- and then runs the matrix.
+if [ -d "$CAP/traces" ]; then
+  echo "  cached matrix before this run: $(bash world-geometry-hole-capture.sh --validate "$CAP" 2>&1 | grep -c 'reason=ok') of $(ls "$CAP"/*.bmp 2>/dev/null | wc -l) frames reusable"
+fi
 bash world-geometry-hole-capture.sh "$CAP" > "$SCRATCH/capture.txt" 2>&1
 if [ $? -ne 0 ]; then
   echo "  FAIL capture"
@@ -580,6 +595,66 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 tail -1 "$SCRATCH/capture.txt" | sed 's/^/  /'
+echo "  captured this run: $(grep -c '^  captured ' "$SCRATCH/capture.txt") recaptured, $(grep -c '^  kept ' "$SCRATCH/capture.txt") reused from cache"
+# Now the rule itself. The control runs on a COPY of the matrix this run just
+# produced, so it is never judged against evidence whose shape it did not
+# create: the first version of this control ran before the matrix and failed on
+# a matrix captured before identity files existed.
+CACHE_PROBE="$SCRATCH/cache-probe"
+rm -rf "$CACHE_PROBE"; mkdir -p "$CACHE_PROBE/traces"
+cp "$CAP"/*.bmp "$CACHE_PROBE/" 2>/dev/null
+cp "$CAP"/traces/*.trace "$CACHE_PROBE/traces/" 2>/dev/null
+cp "$CAP"/traces/*.identity "$CACHE_PROBE/traces/" 2>/dev/null
+if [ -s "$CACHE_PROBE/traces/world-ids.trace" ]; then
+  # Strip exactly the shape that made the T43/T49 matrix stale: the pose line.
+  # Everything else (armed line, capture_written, identity) still says "reuse me".
+  sed -i '/^[0-9.]* scene: camera /d' "$CACHE_PROBE/traces/world-ids.trace"
+  rm -f "$CACHE_PROBE/traces/world-ids.identity"
+  PROBE_OUT=$(bash world-geometry-hole-capture.sh --validate "$CACHE_PROBE" 2>&1 || true)
+  PROBE_REASON=$(sed -n 's/^VALIDATE world-ids reason=\(.*\)$/\1/p' <<<"$PROBE_OUT")
+  echo "  cache control without the pose line: reason=${PROBE_REASON:-none}"
+  if [ "$PROBE_REASON" = "trace-no-camera-pose" ]; then
+    echo "  PASS a trace that lost its \"scene: camera\" pose line is refused, not reused"
+  else
+    echo "  FAIL the cache accepted a trace with no pose line (reason=${PROBE_REASON:-none})"
+    fail=1
+  fi
+  # And the identity check is not dead code: change one input byte's worth of
+  # identity and the same frame must be refused with that reason.
+  cp "$CAP/traces/world-ids.trace" "$CACHE_PROBE/traces/world-ids.trace"
+  if [ -s "$CAP/traces/world-ids.identity" ]; then
+    sed 's/^exe=.*/exe=0000000000000000000000000000000000000000000000000000000000000000/' \
+      "$CAP/traces/world-ids.identity" > "$CACHE_PROBE/traces/world-ids.identity"
+    PROBE_OUT=$(bash world-geometry-hole-capture.sh --validate "$CACHE_PROBE" 2>&1 || true)
+    PROBE_REASON=$(sed -n 's/^VALIDATE world-ids reason=\(.*\)$/\1/p' <<<"$PROBE_OUT")
+    echo "  cache control with a different exe hash: reason=${PROBE_REASON:-none}"
+    if [ "$PROBE_REASON" = "identity-mismatch" ]; then
+      echo "  PASS a frame whose executable identity changed is refused, not reused"
+    else
+      echo "  FAIL the cache accepted a frame with a mismatched executable identity (reason=${PROBE_REASON:-none})"
+      fail=1
+    fi
+  else
+    echo "  FAIL the world-ids identity file is missing, so the identity control cannot run"
+    fail=1
+  fi
+else
+  echo "  FAIL the cache control needs $CAP/traces/world-ids.trace"
+  fail=1
+fi
+# And the matrix this run produced must itself be fully reusable: if a frame it
+# just wrote cannot pass its own cache rule, the next run would recapture it and
+# the "two runs are the same picture" claim would have no evidence behind it.
+REUSABLE=$(bash world-geometry-hole-capture.sh --validate "$CAP" 2>&1 | grep -c 'reason=ok')
+FRAMES=$(ls "$CAP"/*.bmp 2>/dev/null | wc -l)
+echo "  this run's matrix is $REUSABLE/$FRAMES reusable on the next run"
+if [ "$REUSABLE" = "$FRAMES" ] && [ "$FRAMES" -gt 0 ]; then
+  echo "  PASS every frame this run wrote carries an identity and a pose-bearing trace"
+else
+  echo "  FAIL $((FRAMES - REUSABLE)) of $FRAMES frames would be recaptured: the matrix is not self-consistent"
+  bash world-geometry-hole-capture.sh --validate "$CAP" 2>&1 | grep -v 'reason=ok' | sed 's/^/       /'
+  fail=1
+fi
 for frame in "$CAP"/*.bmp; do
   printf '%s  %s\n' "$(sha256sum "$frame" | cut -d' ' -f1)" "$(basename "$frame")"
 done | sort -k2 > "$ANA/hashes.txt"
