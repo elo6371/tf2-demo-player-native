@@ -1,8 +1,12 @@
 # T48 -- the one-sample identity-skinning difference: measured and bounded
 
-Status: **static half complete; the two host-lock holds are written and not yet
-run** (T48 is not priority; T44/T47 hold the queue). Sections 1-4 and 6 are
-measured now, section 5 is designed and its readings are to be filled by hold 2.
+Status: **static half and hold 1 complete, hold 2 pending.** The forward gate ran
+on this tree under the host lock (commit 5e90026, 2026-10-21T08:40:01Z..08:47:40Z):
+`WEAPON-ANIMATION=PASS`, 57 OK / 0 FAIL, identity/control/animated frame hashes
+returned byte-identical to the T43 pins, the silhouette rule PASS, the real-pose
+control still rejected, gate rc=0, tree clean before and after. The mutation hold
+(`--mutation-pose`) is written and waits for the Lead's sequencing behind
+T44/T47's priority validation; section 5 is filled when it runs.
 
 Boundary: base commit `6888e6d`, worktree `D:\TF2_Native_Worktrees\t48-raster-sample`,
 branch `task/t48-raster-sample`. Write scope: `weapon-animation-check.sh`,
@@ -100,6 +104,14 @@ candidates are **model** surfaces, not model-versus-world: the sample sits at th
 corner of a **1-pixel-tall bright band** whose lower boundary steps down exactly
 at the sample's column (in the identity frame the band starts at x=623 on row 412;
 in the control frame it starts at x=622).
+
+**Hold 1 confirmation.** The forward gate re-ran on this worktree under the lock
+(commit `5e90026`, 7m39s, no `--force`): `WEAPON-ANIMATION=PASS`, 57 OK / 0 FAIL,
+gate rc=0, and the pinned frames returned byte-identical -- `a06f4e36` (identity),
+`37e5eb2a` (control), `7f4101b8` (animated), plus `1812c700`/`478607ec` for the wave
+pair and `f841c39f` for all three tick frames. The rule's two lines in section 4
+are that run's own output. Log:
+`evidence/weapon-animation/t48/forward-hold1-readings.txt`.
 
 The model's footprint, measured as the pixels the pose change moves
 (identity frame vs animated frame, which cannot move the still world), is
@@ -283,9 +295,10 @@ $PY evidence/weapon-animation/t48/reconcile_lighting.py 114,114,120 169,169,179
 
 Recorded output: `evidence/weapon-animation/t48/` (`pair-hashes.txt`,
 `rule-t43-pair.txt`, `pixel-inspect-t43-pair.txt`, `shader-reconciliation.txt`,
-`edge-population-t43-pair.txt`).
+`edge-population-t43-pair.txt`, `forward-hold1-readings.txt`).
 
-Host-lock holds (not yet run; T44/T47 are priority):
+Host-lock holds (hold 1 ran in 7m39s; hold 2 waits for the Lead's sequencing
+behind T44/T47's priority validation):
 
 ```
 HOSTLOCK_TIMEOUT=5400 bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t39 \
