@@ -32,12 +32,28 @@
 #
 # THE DIRECTION MATTERS
 #   `bmp-delta-sign.py` counts brighter and darker separately, because the
-#   semantic claim is directional. Measured on the T21-integrated tree:
-#   A->B is brighter=0 darker=1584117,
-#   i.e. the "dynamic light" term (0.62+0.38*dot) can only subtract from the
-#   baked light. A->C is darker=0 brighter=267343: the lobe only adds. Those two
-#   lines are what stops either switch being promoted to a default on the
-#   strength of "the picture changed".
+#   semantic claim is directional. A->B must be brighter=0 (the "dynamic light"
+#   term 0.62+0.38*dot can only subtract from the baked light) and A->C must be
+#   darker=0 (the specular lobe only adds). Those two lines are what stops
+#   either switch being promoted to a default on the strength of "the picture
+#   changed".
+#
+# T40 RE-PIN (2026-10-21, on 34e1714): the T29 near clip fix put the room around
+# the camera on screen, so every frame these pins were measured on changed. The
+# numbers below were re-measured on the current tree (identity and forward
+# readings in evidence/t40-pixel-pins/forward-readings.txt); the pre-fix pins
+# are kept as superseded readings, with the pre-fix frame they came from
+# (A=f87f396a60dc72082f232bcd71547066c02c433e35ccda1576c3b21333ef9608):
+#   A->B differing 1584117 / max 83  -> 1776259 / 77
+#   A->C differing  267343 / max 12  ->  390361 / 15
+#   B->E differing  746559 / max 13  ->  910776 / 13 (max unchanged)
+# The direction claims did not move: A->B is still brighter=0 (darker 1776259,
+# max_down 77) and A->C is still darker=0 (brighter 390361, max_up 15). The
+# population split of each moved population, measured against the T26 face-id
+# mask, is in evidence/t40-pixel-pins/forward-readings.txt section 3: 56011 of
+# the 56015 old dynamic pixels are occluded by a near surface, 15241 of the
+# 15281 old specular pixels likewise, and the remainder are same-face uv changes
+# or one-byte colour ties; none is a semantic regression.
 #
 # WHAT THIS GATE DOES NOT CLAIM
 #   That any of the six is visually correct. It pins declared/parsed/requested/
@@ -369,14 +385,19 @@ DIFF_E=$(run_diff "$SCRATCH/B.bmp" "$SCRATCH/E.bmp")
 dfield() { printf '%s' "$1" | grep -oE "$2=[-0-9.]+" | head -1 | cut -d= -f2; }
 assert_eq "determinism (A vs A2) differing" "$(dfield "$DIFF_A2" differing)" "0"
 assert_eq "determinism (A vs A2) max_delta" "$(dfield "$DIFF_A2" max_delta)" "0"
-assert_eq "dynamic differing" "$(dfield "$DIFF_B" differing)" "1584117"
-assert_eq "dynamic max_delta" "$(dfield "$DIFF_B" max_delta)" "83"
-assert_eq "specular differing" "$(dfield "$DIFF_C" differing)" "267343"
-assert_eq "specular max_delta" "$(dfield "$DIFF_C" max_delta)" "12"
+# T40 re-pin on 34e1714 (T29 near clip): superseded pre-fix readings were
+# dynamic 1584117/83 and specular 267343/12 on the frame whose A is
+# f87f396a...f9608; the moved populations are classified in
+# evidence/t40-pixel-pins/forward-readings.txt section 3.
+assert_eq "dynamic differing" "$(dfield "$DIFF_B" differing)" "1776259"
+assert_eq "dynamic max_delta" "$(dfield "$DIFF_B" max_delta)" "77"
+assert_eq "specular differing" "$(dfield "$DIFF_C" differing)" "390361"
+assert_eq "specular max_delta" "$(dfield "$DIFF_C" max_delta)" "15"
 # Bump alone: the normal is only read by the lighting terms, all off here.
 assert_eq "bump alone differing" "$(dfield "$DIFF_D" differing)" "0"
 assert_eq "bump alone max_delta" "$(dfield "$DIFF_D" max_delta)" "0"
-assert_eq "bump under dynamic differing" "$(dfield "$DIFF_E" differing)" "746559"
+# superseded pre-fix reading: 746559 (max 13, which did not move).
+assert_eq "bump under dynamic differing" "$(dfield "$DIFF_E" differing)" "910776"
 assert_eq "bump under dynamic max_delta" "$(dfield "$DIFF_E" max_delta)" "13"
 
 SIGN="$SCRATCH/sign.txt"
@@ -388,12 +409,14 @@ sfield() { sed -n "$1p" "$SIGN" | grep -oE "$2=[-0-9]+" | head -1 | cut -d= -f2;
 # The dynamic-light term is 0.62+0.38*NdotL: it can only subtract from the baked
 # lightmap. A single brighter byte would refute the sentence the report makes.
 assert_eq "dynamic brighter" "$(sfield 1 brighter)" "0"
-assert_eq "dynamic darker" "$(sfield 1 darker)" "1584117"
-assert_eq "dynamic max_down" "$(sfield 1 max_down)" "83"
+# T40 re-pin on 34e1714: superseded 1584117 / 83. Still one-way by construction.
+assert_eq "dynamic darker" "$(sfield 1 darker)" "1776259"
+assert_eq "dynamic max_down" "$(sfield 1 max_down)" "77"
 # Specular is additive only.
 assert_eq "specular darker" "$(sfield 2 darker)" "0"
-assert_eq "specular brighter" "$(sfield 2 brighter)" "267343"
-assert_eq "specular max_up" "$(sfield 2 max_up)" "12"
+# T40 re-pin on 34e1714: superseded 267343 / 12. Still one-way by construction.
+assert_eq "specular brighter" "$(sfield 2 brighter)" "390361"
+assert_eq "specular max_up" "$(sfield 2 max_up)" "15"
 # Bump perturbs the normal both ways: the delta is not a scale.
 assert_ge "bump brighter" "$(sfield 3 brighter)" "1"
 assert_ge "bump darker" "$(sfield 3 darker)" "1"
