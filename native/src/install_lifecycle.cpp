@@ -128,6 +128,33 @@ Result installInto(const Options& options, const PackageInfo& info) {
   Manifest existing;
   const bool reinstalling = readManifest(manifestFile, &existing, &error);
 
+  // T42: an install over an existing install is a decision about VERSIONS.
+  //   T37 recorded 'nothing compares packageVersionCode' as a named gap and named
+  //   the consequence: a package newer than the install rewrote the manifest with
+  //   its own version and called itself a reinstall, so the install directory's
+  //   version depended on which package ran last, and a downgrade silently
+  //   replaced files with older ones. The smallest honest closure is the
+  //   decision, not a migration engine: going backwards is refused by name before
+  //   one byte is touched, going forwards says 'upgrade', and only an equal code
+  //   keeps the pre-T42 word 'reinstall'. A legacy manifest without a versionCode
+  //   (0) cannot be ordered, so it keeps the old behaviour rather than guessing.
+  std::string installMode = reinstalling ? "reinstall" : "fresh";
+  if (reinstalling && info.versionCode != 0 && existing.packageVersionCode != 0) {
+    if (info.versionCode < existing.packageVersionCode) {
+      emit(result, "install=FAIL reason=downgrade installedVersionCode="
+        + std::to_string(existing.packageVersionCode)
+        + " packageVersionCode=" + std::to_string(info.versionCode));
+      result.exitCode = 2;
+      return result;
+    }
+    if (info.versionCode > existing.packageVersionCode) {
+      installMode = "upgrade";
+      emit(result, "install=note upgrade fromVersionCode="
+        + std::to_string(existing.packageVersionCode)
+        + " toVersionCode=" + std::to_string(info.versionCode));
+    }
+  }
+
   const auto payloadDir = stateDir / kPayloadDirectory;
   std::error_code code;
   if (!std::filesystem::is_directory(payloadDir, code)) {
@@ -146,7 +173,7 @@ Result installInto(const Options& options, const PackageInfo& info) {
   }
   emit(result, "install=START package=" + info.version + " payloadFiles="
     + std::to_string(payloadCount) + " payloadBytes=" + std::to_string(payloadBytes)
-    + " mode=" + (reinstalling ? "reinstall" : "fresh"));
+    + " mode=" + installMode);
   if (payloadCount == 0) {
     emit(result, "install=FAIL reason=empty_payload");
     result.exitCode = 2;
