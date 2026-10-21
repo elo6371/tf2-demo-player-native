@@ -1172,8 +1172,8 @@ def main():
             "namedFace": named_ledger,
             "removedLedger": removed_ledger,
             "supersedes": {
-                "T41 brush residual (334 pixels)": "0 attributable to brush geometry: the 268 pixels the id frame puts on brush faces on derived-back faces are viewmodel overwrites -- their bytes equal the textured frame's bytes at the same pixel and no brush triangle of the named face covers them",
-                "T41 51,956 arithmetic": "51,890 = 51,620 disp/side-0 + 2 disp/side-1 + 268 viewmodel overwrites; the world population on derived-back faces is 51,622",
+                "T41 brush residual (334 pixels)": "explained, and 0 of them brush geometry: of the 268 pixels the id frame puts on brush faces on derived-back faces, 266 are viewmodel overwrites (their bytes equal the textured frame's bytes at the same pixel and no emitted triangle of the face they decode to covers them) and 2 are a zero-area fan sliver of face 15334; T41's 334 also did not add up to its own 51,890 total",
+                "T41 51,956 arithmetic": "51,890 = 51,620 disp/side-0 + 2 disp/side-1 + 268 on brush faces, of which 266 viewmodel + 2 zero-area fan; the derived-back world population is 51,624, not 51,622",
                 "T41 face-level rule on displacement": "conservative, as claimed: face 17605 is authored back and its grid still ships front triangles; the per-triangle rule accounts for them exactly",
             },
         })
