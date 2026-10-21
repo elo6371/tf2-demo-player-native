@@ -1,0 +1,19 @@
+baseline assertions = 40
+t47 assertions      = 55
+added               = 15
+  + M1 capture launched its own staged binary
+  + M1 staged binary is the build under test
+  + M1-restored capture launched its own staged binary
+  + M1-restored staged binary is the build under test
+  + M2 capture launched its own staged binary
+  + M2 staged binary is the build under test
+  + M2-restored capture launched its own staged binary
+  + M2-restored staged binary is the build under test
+  + M3 staged binary is the build under test
+  + M3-restored staged binary is the build under test
+  + mutation captures invoked no installer or uninstaller mode
+  + no product process after the mutation suite
+  + no product process before the mutation suite
+  + no product process before the mutation suite
+  + no product process before the mutation suite
+removed             = 0

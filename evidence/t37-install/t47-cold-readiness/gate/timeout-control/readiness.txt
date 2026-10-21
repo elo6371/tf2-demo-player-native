@@ -1,0 +1,11 @@
+case=first-launch
+class=TITLE-CAPTURE-TIMEOUT
+elapsed_s=20.977
+trace_valid=1
+trace_requested=-
+trace_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf
+trace_resources_ms=178.7
+trace_last_ms=19984.0
+title_bracket=0
+title_load_time=1
+title_len=30

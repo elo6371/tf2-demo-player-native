@@ -1,0 +1,1 @@
+{"bound_hit": false, "case": "missing-root", "close_at_s": 14.801, "connected_root": "", "exit_code": "0", "foreign_windows": 0, "samples": 70, "t_bracket_s": -1, "t_root_title_s": 14.799, "t_window_s": 0.236, "title_bracket": false, "title_is_load_time": false, "title_len": 2889, "total_s": 15.61, "trace_resources_ms": "188.1", "trace_root": "-", "trace_valid": "0"}

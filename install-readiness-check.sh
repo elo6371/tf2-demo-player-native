@@ -31,6 +31,21 @@
 # USAGE
 #   bash install-readiness-check.sh --forward <out-dir>
 #   bash install-readiness-check.sh --mutation <out-dir>   (forward must have run)
+# T47 (2026-10-21): COLD-CACHE DETERMINISM AND THE SEPARATE TITLE TIMEOUT
+#   T43's cold run failed four assertions on first-launch/restart/explicit-root:
+#   the title was still the window's load-time string (len=30, no "[VPK
+#   entries:") while the same run's trace already reported resources: ...
+#   tf_root=... valid=1. That is a title-capture timing failure, not a wrong
+#   root decision, but a last-title assertion cannot tell the two apart. This
+#   gate now (a) gives the title poll a documented bound (TITLE_BOUND_SECONDS),
+#   (b) asserts the trace's root decision independently of the title, (c)
+#   classifies trace-connects-but-title-never-settles as TITLE-CAPTURE-TIMEOUT
+#   in the capture driver (never accepted as a connected title), and (d) runs a
+#   SECOND first-launch/restart/explicit-root cycle from its own staged package
+#   and its own settings directories and requires identical root-selection
+#   decisions. A positive control in section 8b cuts the poll bound on purpose
+#   and proves the timeout is reported separately.
+#
 # Exit 0 = every assertion held / every mutation was caught.
 
 set -uo pipefail
@@ -63,6 +78,33 @@ TF_ROOT_WIN="$(cygpath -w "$TF_ROOT" 2>/dev/null || printf "%s" "$TF_ROOT")"
 REAL_DEMO_WIN="$(cygpath -w "$REAL_DEMO" 2>/dev/null || printf "%s" "$REAL_DEMO")"
 CAPTURE_PS="$(cygpath -w "$REPO/install-readiness-capture.ps1" 2>/dev/null || printf "%s" "$REPO/install-readiness-capture.ps1")"
 FIXTURES_PY="$(cygpath -w "$REPO/install-readiness-fixtures.py" 2>/dev/null || printf "%s" "$REPO/install-readiness-fixtures.py")"
+
+# T47: the documented title poll bound, in seconds. The old value was 30 s,
+# hardcoded at the capture call; T43's cold run hit it with the window still on
+# its load-time title while the trace already said valid=1. The bound is a cap:
+# title-capture stops polling as soon as the connected title appears, so a warm
+# run costs its real load time, not this value.
+#   120 s = 5.0x the slowest warm time-to-connected-title measured on this host
+#   (24.0 s, T47-COLD-READINESS-2026-10-21.md) and 4x the old 30 s bound that the
+#   cold run exceeded. The cold path itself cannot be reproduced on demand
+#   without clearing system-wide caches (out of bounds), so the number is
+#   anchored to the measured warm reading plus the forced-timeout control in
+#   section 8b rather than to a cold measurement.
+# A case that exceeds it is classified TITLE-CAPTURE-TIMEOUT in the capture
+# driver and is NOT accepted as connected; the driver then aborts the remaining
+# cases (CAPTURE-ABORT) instead of paying the bound thirteen times, and this gate
+# stays red rather than lowering the value to make a title green.
+TITLE_BOUND_SECONDS=120
+# T47: aggregate ceiling on title-capture wall time per capture invocation, so a
+# pathological host cannot push a forward run past the 30-minute host-lock hold.
+# The measured warm forward capture spends ~7.5 minutes in title-capture (four
+# connected lifecycle cases at ~21 s, the two unconnectable roots waiting out the
+# bound, seven store cases at ~17 s); 600 s is that total plus ~35%. The ceiling
+# counts capture time only. Reached -> CAPTURE-BUDGET-EXHAUSTED and a non-zero
+# exit with the remaining cases named as skipped, never silently dropped.
+CAPTURE_BUDGET_SECONDS=600
+# The second cycle runs three connected cases only (~63 s warm); 240 s is ~3.8x.
+CAPTURE_CYCLE_BUDGET_SECONDS=240
 
 CHECKS=0
 FAIL=0
@@ -99,15 +141,15 @@ hash_list() { # <dir> -- "sha256  ./relative" for every file, stable order
   ( cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum )
 }
 
-run_capture() { # <install-dir> <out-dir> <cases> [only]
-  local install="$1" outdir="$2" cases="$3" only="${4:-}"
+run_capture() { # <install-dir> <out-dir> <cases> [only] [bound-seconds] [budget-seconds]
+  local install="$1" outdir="$2" cases="$3" only="${4:-}" seconds="${5:-$TITLE_BOUND_SECONDS}" budget="${6:-$CAPTURE_BUDGET_SECONDS}"
   mkdir -p "$outdir"
   local args=(-NoProfile -ExecutionPolicy Bypass -File "$CAPTURE_PS"
     -InstallDir "$(cygpath -w "$install")"
     -FixtureDir "$(cygpath -w "$OUT/fixtures")"
     -OutDir "$(cygpath -w "$outdir")"
     -TfRoot "$TF_ROOT_WIN" -RealDemo "$REAL_DEMO_WIN"
-    -Cases "$cases" -Seconds 30)
+    -Cases "$cases" -Seconds "$seconds" -BudgetSeconds "$budget")
   if [ -n "$only" ]; then args+=(-Only "$only"); fi
   powershell "${args[@]}" > "$outdir/capture.log" 2>&1
   local rc=$?
@@ -141,6 +183,25 @@ archives_opened() { # <case> -- opened= value from the vpk summary line
 }
 archives_refused() { # <case> -- refused= value from the vpk summary line
   sed -n "s/.*vpk: archives opened=\([0-9]*\) refused=\([0-9]*\).*/\2/p" "$(case_dir "$1")/trace.txt" 2>/dev/null | tail -1
+}
+
+# T47: directory-scoped readings, so the second cold-start cycle (a different
+# cases root and a different staged package) is judged by the same functions as
+# the first one. The decision tuple is the whole root reading:
+#   exit code | trace valid | trace tf_root | connected root | VPK bracket
+dir_rc()         { sed "1s/^\xEF\xBB\xBF//" "$1/exit-code.txt" 2>/dev/null | tr -d "\r\n"; }
+dir_valid()      { sed -n "s/.*resources: .* valid=\([0-9]*\).*/\1/p" "$1/trace.txt" 2>/dev/null | tail -1; }
+dir_trace_root() { sed -n "s/.*resources: .* tf_root=\(.*\) valid=[0-9].*/\1/p" "$1/trace.txt" 2>/dev/null | tail -1; }
+dir_connected()  { connected_root "$1/title-last.txt"; }
+dir_bracket()    { case "$(cat "$1/title-last.txt" 2>/dev/null)" in *"[VPK entries:"*) printf "yes";; *) printf "no";; esac; }
+dir_decision()   { printf "%s|%s|%s|%s|%s" "$(dir_rc "$1")" "$(dir_valid "$1")" "$(norm_path "$(dir_trace_root "$1")")" "$(norm_path "$(dir_connected "$1")")" "$(dir_bracket "$1")"; }
+readiness_class() { sed -n "s/^class=//p" "$1/readiness.txt" 2>/dev/null | tail -1; }
+case_trace_root() { sed -n "s/.*resources: .* tf_root=\(.*\) valid=[0-9].*/\1/p" "$(case_dir "$1")/trace.txt" 2>/dev/null | tail -1; }
+case_exe_path() { sed -n '1s/^\xEF\xBB\xBF//; 1s/^"//; 1s/"$//p' "$1/command.txt" 2>/dev/null | head -1; }
+capture_failed()   { sed -n "s/.*failed=\([0-9]*\).*/\1/p" "$1/capture.log" 2>/dev/null | tail -1; }
+capture_timeouts() { sed -n "s/.*titleTimeouts=\([0-9]*\).*/\1/p" "$1/capture.log" 2>/dev/null | tail -1; }
+no_lifecycle_mode_runs() { # <root> -- command.txt files that asked for install modes
+  find "$1" -name command.txt -print0 2>/dev/null | xargs -0 -r grep -lE -- '(^| )--(install|uninstall|version|install-status)( |$)' 2>/dev/null | wc -l | tr -d " "
 }
 
 product_processes() {
@@ -277,9 +338,26 @@ eq "fixture root count" "$(ls -1 "$OUT/fixtures/roots" 2>/dev/null | wc -l | tr 
 cp "$OUT/fixtures/inputs.sha256" "$OUT/fixtures-inputs.sha256" 2>/dev/null || true
 
 sec "8/13 product runs: the installed binary, its own directory as cwd"
+# T47: the staged binary is hashed again AT CAPTURE TIME, so every title/root
+# reading below belongs to the binary section 3 hashed, not to a stale copy.
+eq "staged binary hash at capture time" \
+  "$(sha256sum "$INSTALL/tf2_demo_native.exe" | cut -d" " -f1)" \
+  "$(sha256sum "$EXE" | cut -d" " -f1)"
 CAPTURE_RC=0
 run_capture "$INSTALL" "$OUT/cases" all || CAPTURE_RC=$?
 eq "capture rc" "$CAPTURE_RC" "0"
+eq "no title capture timeouts in the forward capture" "$(capture_timeouts "$OUT/cases")" "0"
+eq "every forward case classified OK" "$(capture_failed "$OUT/cases")" "0"
+eq "the capture launched the staged installed binary" \
+  "$(norm_path "$(case_exe_path "$(case_dir first-launch)")")" \
+  "$(norm_path "$(cygpath -w "$INSTALL/tf2_demo_native.exe")")"
+# T47: the readiness captures never invoke a lifecycle mode. A stale installer
+# or uninstaller executable (one left in an older staging directory) would show
+# up here as a command line asking for --install/--uninstall/--version.
+eq "no readiness run invoked an installer or uninstaller mode" "$(no_lifecycle_mode_runs "$OUT/cases")" "0"
+eq "staged binary hash after the captures" \
+  "$(sha256sum "$INSTALL/tf2_demo_native.exe" | cut -d" " -f1)" \
+  "$(sha256sum "$EXE" | cut -d" " -f1)"
 
 # Map/resource readings come from the lines that own them. `store=`, `bytes=` and
 # `valid=` appear on other trace lines too (a lightmap byte count, a texture
@@ -294,6 +372,27 @@ case_bytes()    { lookup_field "$1" bytes; }
 resources_valid() { sed -n "s/.*resources: .* valid=\([0-9]*\).*/\1/p" "$(case_dir "$1")/trace.txt" 2>/dev/null | tail -1; }
 case_valid()    { resources_valid "$1"; }
 case_requested() { sed -n "s/.*resources: requested=\(.*\) tf_root=.*/\1/p" "$(case_dir "$1")/trace.txt" 2>/dev/null | tail -1; }
+
+sec "8b/13 positive control: a too-short poll bound is TITLE-CAPTURE-TIMEOUT, not a connected title"
+# T47: the cold-cache classification must be provable on demand. Five seconds is
+# shorter than this host's measured warm time-to-connected-title for the real
+# root (recorded in T47-COLD-READINESS-2026-10-21.md), so the case is cut while
+# the trace already reports valid=1 -- exactly the T43 shape. The control passes
+# only if the capture names the timeout separately AND the title is not the
+# connected form. If the product ever loaded inside five seconds the control
+# would produce a bracket and fail here: that is the assertion, not a flake.
+CONTROL_DIR="$OUT/cases-timeout-control"
+rm -rf "$CONTROL_DIR"
+CONTROL_RC=0
+run_capture "$INSTALL" "$CONTROL_DIR" lifecycle first-launch 5 || CONTROL_RC=$?
+eq "positive control: capture exits non-zero on a classified timeout" "$CONTROL_RC" "1"
+eq "positive control: title timeouts counted" "$(capture_timeouts "$CONTROL_DIR")" "1"
+eq "positive control: named TITLE-CAPTURE-TIMEOUT line" "$(grep -c '^TITLE-CAPTURE-TIMEOUT ' "$CONTROL_DIR/capture.log" | tr -d " ")" "1"
+eq "positive control: trace still says the root connected" "$(dir_valid "$CONTROL_DIR/first-launch")" "1"
+eq "positive control: no generic title-capture failure was involved" "$(grep -c 'TITLE-CAPTURE=FAIL' "$CONTROL_DIR/capture.log" | tr -d " ")" "0"
+eq "positive control: title is not the connected form" "$(dir_bracket "$CONTROL_DIR/first-launch")" "no"
+eq "positive control: no connected root was accepted" "$(dir_connected "$CONTROL_DIR/first-launch")" ""
+eq "positive control: the case class is TITLE-CAPTURE-TIMEOUT" "$(readiness_class "$CONTROL_DIR/first-launch")" "TITLE-CAPTURE-TIMEOUT"
 
 sec "9/13 first launch, close, restart, explicit root, missing root, relocation"
 expected_root="$(norm_path "$TF_ROOT")"
@@ -312,6 +411,18 @@ eq "restart did not need a second settings file" "$([ -f "$(case_dir restart)/se
 eq "explicit-root exit code" "$(case_rc explicit-root)" "0"
 eq "explicit-root connected root" "$(norm_path "$(case_connected explicit-root)")" "$expected_root"
 eq "explicit-root root valid" "$(case_valid explicit-root)" "1"
+# T47: the trace's root decision is asserted on its own, not inferred from the
+# title. T43's cold run already had valid=1 here while the title was still the
+# load-time string, so the two signals are kept separate for every case.
+eq "first-launch trace root" "$(norm_path "$(case_trace_root first-launch)")" "$expected_root"
+eq "restart trace root" "$(norm_path "$(case_trace_root restart)")" "$expected_root"
+eq "explicit-root trace root" "$(norm_path "$(case_trace_root explicit-root)")" "$expected_root"
+eq "first-launch readiness class" "$(readiness_class "$(case_dir first-launch)")" "OK"
+eq "restart readiness class" "$(readiness_class "$(case_dir restart)")" "OK"
+eq "explicit-root readiness class" "$(readiness_class "$(case_dir explicit-root)")" "OK"
+eq "missing-root readiness class (trace and title agree: not connected)" "$(readiness_class "$(case_dir missing-root)")" "OK"
+eq "empty-root readiness class (trace and title agree: not connected)" "$(readiness_class "$(case_dir empty-root)")" "OK"
+eq "relocated readiness class" "$(readiness_class "$(case_dir relocated)")" "OK"
 eq "missing-root exit code (reports, does not crash)" "$(case_rc missing-root)" "0"
 eq "missing-root root invalid" "$(case_valid missing-root)" "0"
 eq "missing-root connected root" "$(case_connected missing-root)" ""
@@ -332,6 +443,40 @@ eq "the product wrote nothing into its install directory" \
   "$(diff -q "$OUT/package-hashes.txt" "$OUT/package-hashes-after-runs.txt" >/dev/null 2>&1 && echo unchanged || echo changed)" "unchanged"
 eq "the relocated copy is the same package" \
   "$(diff -q <(hash_list "$INSTALL") <(hash_list "$(case_dir relocated)/install") >/dev/null 2>&1 && echo same || echo different)" "same"
+
+sec "9b/13 second cold-start cycle: its own staged package and settings directories"
+# T47: the T43 failure was one run that never reached the connected title, not a
+# wrong root decision. Determinism therefore needs a second complete cycle from
+# a separate staging directory and fresh settings directories, and the decision
+# tuple (exit | trace valid | trace tf_root | connected root | VPK bracket) must
+# be identical between the cycles.
+CYCLE2_INSTALL="$OUT/install-cycle2"
+rm -rf "$CYCLE2_INSTALL" "$OUT/cases-cycle2"
+stage_install "$CYCLE2_INSTALL" install-cycle2
+eq "cycle-2 stage rc" "$?" "0"
+eq "cycle-2 staged product is the built product" \
+  "$(sha256sum "$CYCLE2_INSTALL/tf2_demo_native.exe" | cut -d" " -f1)" \
+  "$(sha256sum "$EXE" | cut -d" " -f1)"
+CYCLE2_RC=0
+run_capture "$CYCLE2_INSTALL" "$OUT/cases-cycle2" cycle "" "$TITLE_BOUND_SECONDS" "$CAPTURE_CYCLE_BUDGET_SECONDS" || CYCLE2_RC=$?
+eq "cycle-2 capture rc" "$CYCLE2_RC" "0"
+eq "cycle-2 no title capture timeouts" "$(capture_timeouts "$OUT/cases-cycle2")" "0"
+eq "cycle-2 every case classified OK" "$(capture_failed "$OUT/cases-cycle2")" "0"
+expected_connected_decision="0|1|$expected_root|$expected_root|yes"
+eq "cycle-2 first-launch decision" "$(dir_decision "$OUT/cases-cycle2/first-launch")" "$expected_connected_decision"
+eq "cycle-2 restart decision" "$(dir_decision "$OUT/cases-cycle2/restart")" "$expected_connected_decision"
+eq "cycle-2 explicit-root decision" "$(dir_decision "$OUT/cases-cycle2/explicit-root")" "$expected_connected_decision"
+eq "two cold-start cycles agree: first-launch" "$(dir_decision "$OUT/cases-cycle2/first-launch")" "$(dir_decision "$OUT/cases/first-launch")"
+eq "two cold-start cycles agree: restart" "$(dir_decision "$OUT/cases-cycle2/restart")" "$(dir_decision "$OUT/cases/restart")"
+eq "two cold-start cycles agree: explicit-root" "$(dir_decision "$OUT/cases-cycle2/explicit-root")" "$(dir_decision "$OUT/cases/explicit-root")"
+eq "cycle-2 first launch saved the connected root" \
+  "$(norm_path "$(sed -n "s/^tfRoot=//p" "$OUT/cases-cycle2/first-launch/settings.ini" | tail -1)")" "$expected_root"
+eq "cycle-2 restart did not need a second settings file" \
+  "$([ -f "$OUT/cases-cycle2/restart/settings.ini" ] && echo yes || echo no)" "no"
+eq "cycle-2 capture launched its own staged binary" \
+  "$(norm_path "$(case_exe_path "$OUT/cases-cycle2/first-launch")")" \
+  "$(norm_path "$(cygpath -w "$CYCLE2_INSTALL/tf2_demo_native.exe")")"
+eq "cycle-2 no readiness run invoked an installer or uninstaller mode" "$(no_lifecycle_mode_runs "$OUT/cases-cycle2")" "0"
 
 sec "10/13 the store matrix: loose > VPK, download/maps, missing, broken archives"
 prec_tris="$(tris_of "$(case_bsp store-precedence)")"
@@ -442,6 +587,7 @@ sec "mutation preconditions: the forward run artifacts"
 for need in "$OUT/cases/first-launch" "$OUT/fixtures/roots/precedence" "$OUT/fixtures/roots/vpk-corrupt"; do
   eq "forward artifact ${need##*/}" "$([ -e "$need" ] && echo present || echo absent)" "present"
 done
+eq "no product process before the mutation suite" "$(product_processes)" "0"
 MUT="$OUT/mutation"
 mkdir -p "$MUT/backup" "$MUT/logs"
 SRC_MAP="$REPO/native/src/map_lookup.cpp"
@@ -461,6 +607,22 @@ mut_store() { sed -n "s/.*map: lookup .* store=\([^ ]*\).*/\1/p" "$1/trace.txt" 
 mut_refused() { sed -n "s/.*vpk: archives opened=\([0-9]*\) refused=\([0-9]*\).*/\2/p" "$1/trace.txt" 2>/dev/null | tail -1; }
 mut_reason() { sed -n "s/.*vpk: refused file=[^ ]* reason=\(.*\)/\1/p" "$1/trace.txt" 2>/dev/null | tail -1; }
 mut_tris() { tris_of "$(bsp_segment "$1/title-last.txt")"; }
+# T47: a mutation reading is only evidence about the MUTATED build if the staged
+# executable it ran is the one the rebuild produced. Both halves are asserted:
+# the staged hash equals the current build hash, and the recorded command line
+# names that staged copy (not a stale tf2_demo_native.exe from an earlier
+# staging directory).
+assert_mutation_binary() { # <label> <install-dir> [<case-dir>]
+  local label="$1" install="$2" caseDir="${3:-}"
+  eq "$label staged binary is the build under test" \
+    "$(sha256sum "$install/tf2_demo_native.exe" | cut -d" " -f1)" \
+    "$(sha256sum "$EXE" | cut -d" " -f1)"
+  if [ -n "$caseDir" ]; then
+    eq "$label capture launched its own staged binary" \
+      "$(norm_path "$(case_exe_path "$caseDir")")" \
+      "$(norm_path "$(cygpath -w "$install/tf2_demo_native.exe")")"
+  fi
+}
 
 # ---------------------------------------------------------------- M1 precedence
 sec "M1 precedence reversal: the VPK candidate moved in front of the loose map"
@@ -488,6 +650,7 @@ eq "M1 stage rc" "$?" "0"
 run_capture "$MUT/install-m1" "$MUT/cases-m1" stores store-precedence
 M1_CAPTURE=$?
 eq "M1 capture rc" "$M1_CAPTURE" "0"
+assert_mutation_binary "M1" "$MUT/install-m1" "$MUT/cases-m1/store-precedence"
 M1_STORE="$(mut_store "$MUT/cases-m1/store-precedence")"
 M1_TRIS="$(mut_tris "$MUT/cases-m1/store-precedence")"
 cp "$MUT/cases-m1/store-precedence/trace.txt" "$MUT/m1-trace.txt" 2>/dev/null || true
@@ -507,6 +670,7 @@ stage_install "$MUT/install-m1-restored" m1-restore-install
 eq "M1 restore stage rc" "$?" "0"
 run_capture "$MUT/install-m1-restored" "$MUT/cases-m1-restored" stores store-precedence
 eq "M1 restore capture rc" "$?" "0"
+assert_mutation_binary "M1-restored" "$MUT/install-m1-restored" "$MUT/cases-m1-restored/store-precedence"
 M1_R_STORE="$(mut_store "$MUT/cases-m1-restored/store-precedence")"
 M1_R_TRIS="$(mut_tris "$MUT/cases-m1-restored/store-precedence")"
 eq "M1 restored reference store" "$M1_R_STORE" "maps"
@@ -532,6 +696,7 @@ stage_install "$MUT/install-m2" m2-install
 eq "M2 stage rc" "$?" "0"
 run_capture "$MUT/install-m2" "$MUT/cases-m2" stores store-vpk-corrupt
 eq "M2 capture rc" "$?" "0"
+assert_mutation_binary "M2" "$MUT/install-m2" "$MUT/cases-m2/store-vpk-corrupt"
 M2_STORE="$(mut_store "$MUT/cases-m2/store-vpk-corrupt")"
 M2_REFUSED="$(mut_refused "$MUT/cases-m2/store-vpk-corrupt")"
 cp "$MUT/cases-m2/store-vpk-corrupt/trace.txt" "$MUT/m2-trace.txt" 2>/dev/null || true
@@ -550,6 +715,7 @@ stage_install "$MUT/install-m2-restored" m2-restore-install
 eq "M2 restore stage rc" "$?" "0"
 run_capture "$MUT/install-m2-restored" "$MUT/cases-m2-restored" stores store-vpk-corrupt
 eq "M2 restore capture rc" "$?" "0"
+assert_mutation_binary "M2-restored" "$MUT/install-m2-restored" "$MUT/cases-m2-restored/store-vpk-corrupt"
 M2_R_REFUSED="$(mut_refused "$MUT/cases-m2-restored/store-vpk-corrupt")"
 M2_R_REASON="$(mut_reason "$MUT/cases-m2-restored/store-vpk-corrupt")"
 eq "M2 restored reference refused count" "$M2_R_REFUSED" "1"
@@ -601,6 +767,7 @@ M3_INSTALL_SCRIPT_HITS="$(grep -c native_install_smoke_probe "$BUILD/cmake_insta
 eq "M3 reached the generated install script" "${M3_INSTALL_SCRIPT_HITS:-0}" "0"
 stage_install "$MUT/install-m3" m3-install
 eq "M3 stage rc" "$?" "0"
+assert_mutation_binary "M3" "$MUT/install-m3"
 write_inventory "$MUT/install-m3" "$MUT/m3-package-files.txt"
 M3_LIST="$(cut -f1 "$MUT/m3-package-files.txt")"
 echo "  under M3: package files: $(printf "%s " "$M3_LIST")"
@@ -623,6 +790,7 @@ M3_R_HITS="$(grep -c native_install_smoke_probe "$BUILD/cmake_install.cmake" 2>/
 eq "M3 restore regenerated the reference install script" "${M3_R_HITS:-0}" "${M3_REF_HITS:-0}"
 stage_install "$MUT/install-m3-restored" m3-restore-install
 eq "M3 restore stage rc" "$?" "0"
+assert_mutation_binary "M3-restored" "$MUT/install-m3-restored"
 write_inventory "$MUT/install-m3-restored" "$MUT/m3-restored-package-files.txt"
 eq "M3 restored reference package list" \
   "$(cut -f1 "$MUT/m3-restored-package-files.txt" | sort)" \
@@ -635,6 +803,8 @@ for pair in "map_lookup.cpp|$SRC_MAP" "vpk_archive.cpp|$SRC_VPK" "CMakeLists.txt
   if cmp -s "$path" "$backup"; then ok "restored byte-identical: $name" "yes"; else wrong "restored byte-identical: $name" "no" "yes"; fi
 done
 echo
+eq "mutation captures invoked no installer or uninstaller mode" "$(no_lifecycle_mode_runs "$MUT")" "0"
+eq "no product process after the mutation suite" "$(product_processes)" "0"
 echo "  cases=4 checks=$CHECKS mutations=$MUTATIONS"
 if [ "$FAIL" -eq 0 ] && [ "$MUTATIONS" -eq 3 ]; then
   echo "  INSTALL-READINESS-MUTATION=PASS (3 mutations caught, sources restored)"

@@ -1,0 +1,11 @@
+case=empty-root
+class=OK
+elapsed_s=121.213
+trace_valid=0
+trace_requested=D:\TF2_Native_Worktrees\t47-cold-readiness\.scratch\t47\gate\forward\fixtures\roots\empty
+trace_root=-
+trace_resources_ms=152.3
+trace_last_ms=120163.6
+title_bracket=0
+title_load_time=0
+title_len=2900

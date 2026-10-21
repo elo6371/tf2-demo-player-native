@@ -1,0 +1,11 @@
+case=missing-root
+class=OK
+elapsed_s=121.256
+trace_valid=0
+trace_requested=D:\TF2_Native_Worktrees\t47-cold-readiness\.scratch\t47\gate\forward\fixtures\roots\__no_such_root__
+trace_root=-
+trace_resources_ms=168.6
+trace_last_ms=120383.3
+title_bracket=0
+title_load_time=0
+title_len=2911

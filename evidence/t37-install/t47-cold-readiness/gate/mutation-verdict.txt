@@ -1,0 +1,61 @@
+  OK   forward artifact first-launch = present
+  OK   no product process before the mutation suite = 0
+  OK   forward artifact precedence = present
+  OK   no product process before the mutation suite = 0
+  OK   forward artifact vpk-corrupt = present
+  OK   no product process before the mutation suite = 0
+  OK   M1 applied = 0
+  OK   M1 build succeeded = 0
+  OK   M1 stage rc = 0
+  cases=1 failed=0 titleTimeouts=0
+  OK   M1 capture rc = 0
+  OK   M1 staged binary is the build under test = cf25a19cfce338656c5acbdd3c4966ca7be9aac67af013560af74da77e4d4fd3
+  OK   M1 capture launched its own staged binary = d:/tf2_native_worktrees/t47-cold-readiness/.scratch/t47/gate/forward/mutation/install-m1/tf2_demo_native.exe
+  OK   M1 caught: the reversed order read the VPK and lost the BSP = store=vpk bsp=invalid
+  OK   M1 source restored byte-identical = yes
+  OK   M1 restore build succeeded = 0
+  OK   M1 restore stage rc = 0
+  cases=1 failed=0 titleTimeouts=0
+  OK   M1 restore capture rc = 0
+  OK   M1-restored staged binary is the build under test = 8665b143ca3bc049a690c78f07cacbf432ce20a2762606509636c885df1265b3
+  OK   M1-restored capture launched its own staged binary = d:/tf2_native_worktrees/t47-cold-readiness/.scratch/t47/gate/forward/mutation/install-m1-restored/tf2_demo_native.exe
+  OK   M1 restored reference store = maps
+  OK   M1 restored reference BSP = 2512 tris
+  OK   M2 applied = 0
+  OK   M2 build succeeded = 0
+  OK   M2 stage rc = 0
+  cases=1 failed=0 titleTimeouts=0
+  OK   M2 capture rc = 0
+  OK   M2 staged binary is the build under test = d4da5410d3660855f7d7d7dfd3a6f0dcfe7eed1e2c6d9660687ac9112d72188b
+  OK   M2 capture launched its own staged binary = d:/tf2_native_worktrees/t47-cold-readiness/.scratch/t47/gate/forward/mutation/install-m2/tf2_demo_native.exe
+  OK   M2 caught: the out-of-range entry was accepted and read as the map = store=vpk refused=0
+  OK   M2 source restored byte-identical = yes
+  OK   M2 restore build succeeded = 0
+  OK   M2 restore stage rc = 0
+  cases=1 failed=0 titleTimeouts=0
+  OK   M2 restore capture rc = 0
+  OK   M2-restored staged binary is the build under test = 373ca8760f9dd6a67c66be14faaf8963bbf42ee72039dfa8c3a35f6ae51a7760
+  OK   M2-restored capture launched its own staged binary = d:/tf2_native_worktrees/t47-cold-readiness/.scratch/t47/gate/forward/mutation/install-m2-restored/tf2_demo_native.exe
+  OK   M2 restored reference refused count = 1
+  OK   M2 restored reference named reason = VPK entry range outside directory archive
+  OK   M3 reference install script names the smoke probe twice (root and payload) = 2
+  OK   M3 applied = 0
+  OK   M3 build succeeded = 0
+  OK   M3 reached the generated install script = 0
+  OK   M3 stage rc = 0
+  OK   M3 staged binary is the build under test = 016fe7485a397b196eee059aea3abb93e0d5c35aae1ebda7b8fcee1d1e651723
+  OK   M3 caught: the package lost both probe copies and nothing else = .uninstall/payload/native_install_smoke_probe.exe native_install_smoke_probe.exe 
+  OK   M3 package holds the reference file list minus the two probe copies = 5
+  OK   M3 source restored byte-identical = yes
+  OK   M3 restore build succeeded = 0
+  OK   M3 restore regenerated the reference install script = 2
+  OK   M3 restore stage rc = 0
+  OK   M3-restored staged binary is the build under test = 2449b2bedbdc73eee4bce095fdff86149037601ae7a2d56159a17ce94c1bf1c3
+  OK   M3 restored reference package list = .uninstall/payload/install_smoke_probe.ps1
+  OK   restored byte-identical: map_lookup.cpp = yes
+  OK   restored byte-identical: vpk_archive.cpp = yes
+  OK   restored byte-identical: CMakeLists.txt = yes
+  OK   mutation captures invoked no installer or uninstaller mode = 0
+  OK   no product process after the mutation suite = 0
+  cases=4 checks=55 mutations=3
+  INSTALL-READINESS-MUTATION=PASS (3 mutations caught, sources restored)
