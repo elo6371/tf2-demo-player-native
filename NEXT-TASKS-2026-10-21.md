@@ -2,15 +2,20 @@
 
 ## Current status
 
-- Integration HEAD: `p0-entity-protocol@6888e6d` (T43 freeze commit).
-- Remote `origin/p0-entity-protocol` matches the local HEAD.
-- T39-T42 are merged and reviewed; T43 ran on the frozen tree.
+- Integration HEAD: local `p0-entity-protocol@8f73d0f`; remote remains
+  `origin/p0-entity-protocol@bc31533` by instruction, until T49 is complete.
+- T44-T48 are reviewed and merged locally with no conflicts and no `native/`
+  changes. The frozen product/source baseline is the T43 tree plus gate,
+  evidence, and task-record updates.
 - T43's one `verify-all.sh --quick` run passed 24/24, but release verdict is
-  **NOT PASS** because T26's focused seam assertion remains red and there are
-  open `NOT VERIFIED` readings and a cold-cache readiness flake.
+  **NOT PASS** because of the focused T26 red and open `NOT VERIFIED` readings.
+- T49 is partially complete: T25/T26/T40/T41/T38 focused gates passed after a
+  fresh T26 capture; install lifecycle/readiness, step 22/ViewModel, audio, and
+  the one full chain have not run.
 - Full report: `T43-RELEASE-REPORT-2026-10-21.md`. Its source of truth is the
   frozen validation commit `6888e6d`; the report and this follow-up plan are
-  documentation-only commits on top of that frozen tree.
+  documentation-only commits on top of that frozen tree. T49 partial report is
+  `.scratch/t49/T49-REPORT.md`; its logs remain under `.scratch/t49/`.
 
 ## Ownership and execution rules
 
@@ -428,7 +433,8 @@ validation; and the final `verify-all.sh --quick` with any other activity.
 
 ### T49 — Final release acceptance follow-up
 
-Owner: integration owner. Start only after T44-T48 are reviewed.
+Owner: integration owner. T44-T48 are reviewed and merged locally. Continue
+from the clean T49 worktree; do not push before the final chain and report.
 
 1. Freeze the new integration commit; verify clean files, free lock, no pending
    merges, and no product/probe/compiler processes.
@@ -441,6 +447,69 @@ Owner: integration owner. Start only after T44-T48 are reviewed.
    only when the chain passes and no unaccepted release blocker remains.
 6. Push the final commit; verify `git ls-remote`, ahead/behind, artifact hashes,
    clean worktree, free lock, and zero residual processes.
+
+### T49 continuation runbook (quality-preserving efficiency)
+
+The remaining work is one serial validation batch. Avoid rerunning gates that
+already passed unless a source, gate, evidence pin, or executable changes.
+
+0. **Fix the stale T26 capture-cache acceptance before the final batch.** The
+   gate currently treats `capture_written=1` plus tick 2000 as sufficient, even
+   when a reused trace lacks `scene: camera ... eye=... src=demo`. Update cache
+   reuse to require the armed tick and pose/provenance lines plus matching
+   executable/input/flags identity. This is gate-only; then run T26 forward and
+   mutation once on the resulting T49 candidate tree. Preserve the stale trace
+   as superseded evidence; do not delete it.
+1. Record the new candidate HEAD, `git status`, lock/process state, and existing
+   44-executable SHA manifest. Rebuild only if the gate fix changes generated
+   inputs or a required executable is stale; do not repeat the clean 44-exe
+   Release build without a reason.
+2. Run `D:\TF2_Native_Worktrees\_shared\t49\focused-d.sh` once under the host
+   lock (install lifecycle forward/mutation, then readiness forward/mutation).
+   Inspect each section's exit code and restoration result before continuing.
+3. Run `focused-e.sh` once (weapon-animation step 22, ViewModel animation,
+   companion). These tests are sequential inside the wrapper; do not launch a
+   second copy or rerun individual green gates.
+4. Run `focused-f.sh` once (audio content and audio subsystem, device/mutation).
+   Ensure the selected device is available before starting; do not overlap any
+   install or renderer process.
+5. Review logs and verify all mutation sources are restored. If a section fails,
+   stop before the chain, classify the failure, fix only that failure, and
+   rerun its focused gate plus direct dependents. Do not discard a run because
+   it is inconvenient; mark stale input/cache evidence as superseded with hashes.
+6. After D/E/F pass, check clean status, lock FREE, and zero processes. Run
+   `_shared/t49/chain.sh` exactly once as the final validation operation.
+7. Finalize the report with exact HEAD, logs/hashes, focused and full-chain
+   verdicts, remaining `NOT VERIFIED`, clean state, then push and verify remote.
+
+### Efficiency rules for future task waves
+
+- **Parallelize coding, serialize machines:** independent owners may implement
+  in separate worktrees at the same time. Builds, captures, mutations, device
+  tests, and install staging remain one-at-a-time on this host.
+- **Use three validation layers:** per change, run the narrowest direct gate;
+  after a task wave, run only the union of affected gates once; run the full
+  24-step chain only at the release boundary. Never run the full chain per task.
+- **Build once per candidate source tree:** reuse the clean build for multiple
+  gates if source/configuration identity is unchanged. Record executable hashes
+  and rebuild only when affected sources or build inputs changed.
+- **Cache evidence by identity, not file existence:** include source commit,
+  executable hash, command flags, demo/map hashes, target tick, and required
+  trace pose markers. A BMP/trace pair is reusable only when all identity checks
+  match. This prevents repeating long captures and prevents stale evidence from
+  passing.
+- **Bundle tests by host resource:** the T49 D/E/F wrappers already group
+  install, render/ViewModel, and audio work. Run each wrapper once, inspect it,
+  and do not separately rerun its green subcommands.
+- **Stop on the first unexplained red:** preserve its log and inputs, diagnose
+  whether it is product, gate, stale artifact, or environment, then rerun only
+  the affected validation. Do not rerun all prior green groups.
+- **Keep mutations meaningful:** every changed product or gate invariant needs
+  at least one mutation that reaches the changed behavior and a byte-exact
+  restore. Do not remove mutation coverage to save time.
+- **Parallel review and paperwork:** while one locked test batch runs, another
+  owner may review diffs or prepare reports, but must not touch the shared build,
+  evidence, settings, lock, or staging paths.
 
 ## Product scope clarified by the user — roadmap after T49
 
