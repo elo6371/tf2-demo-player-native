@@ -182,10 +182,20 @@ done
 # the captured frame, so every side-dependent reading was taken against the
 # wrong camera. The capture's own trace carries the right one: the last
 # 'scene: camera' line before the frame is drawn (mode=first-person, src=demo).
-EYE_LINE=$(grep -a "scene: camera" "$SCRATCH/ids.trace" | tail -1)
-EYE=$(printf '%s' "$EYE_LINE" | grep -oE 'eye=-?[0-9.]+,-?[0-9.]+,-?[0-9.]+' | head -1 | cut -d= -f2)
+EYE_LINE=""
+EYE=""
+if [ -s "$SCRATCH/ids.trace" ]; then
+  EYE_LINE=$(grep -a "scene: camera" "$SCRATCH/ids.trace" | tail -1)
+  EYE=$(printf '%s' "$EYE_LINE" | grep -oE 'eye=-?[0-9.]+,-?[0-9.]+,-?[0-9.]+' | head -1 | cut -d= -f2)
+fi
+if [ -z "$EYE" ] && [ -s "$OUT/frames.txt" ]; then
+  # A --reuse run has no capture trace of its own: take the pose the committed
+  # frames were captured at, which frames.txt records, and say where it came from.
+  EYE=$(grep -m1 '^eye=' "$OUT/frames.txt" | cut -d= -f2)
+  EYE_LINE="read back from $OUT/frames.txt (reuse: no capture trace to read)"
+fi
 if [ -z "$EYE" ]; then
-  echo "  FAIL no 'scene: camera' line in $SCRATCH/ids.trace -- cannot classify a pose"
+  echo "  FAIL no capture trace and no pose in $OUT/frames.txt -- cannot classify a pose"
   exit 2
 fi
 echo "  capture pose: eye=$EYE"
@@ -336,21 +346,40 @@ else
   # of what it removes, weighted by FACE. A cull that removes the authored-back
   # surfaces is doing its job; the authored-back faces it still keeps are the
   # brush/side-1 winding cell, and they are counted here so the residual cannot
-  # drift in silence. T36's 44,046/37,095 -- WRONG POSE, now 6 front / 81,135 back are a different number: the same rule
-  # applied to the culled PIXELS of the face-id frame, which section 3c(4)
-  # shows cannot carry a per-face reading.
+  # drift in silence. T36's 44,046 plane-front / 37,095 plane-back is
+  # SUPERSEDED: it was read at the vis-line eye, which is the first drawn frame,
+  # not the pose of the captured frame. Re-derived at the capture pose it is
+  # 6 plane-front / 81,135 plane-back -- the cull removing the surfaces the map
+  # authored facing away, which is what a back-face cull is for. What stays
+  # withheld is the per-FACE reading of these pixels: the rule that labels them
+  # is exact on planar geometry and approximate on displacement (3c(4)).
   assert_eq "raster-kept faces, authored front" "$(rjget "d['derivedDrawn']['front']")" "5526"
   assert_eq "raster-kept faces, authored back"  "$(rjget "d['derivedDrawn']['back']")"  "4043"
   assert_eq "raster-removed faces, authored front" "$(rjget "d['derivedRemoved']['front']")" "2073"
   assert_eq "raster-removed faces, authored back"  "$(rjget "d['derivedRemoved']['back']")"  "6410"
   # (4) the instrument T36 used as the oracle, tested against the derived rule.
-  # A CULL_BACK frame can only contain faces the raster kept, so the pixels on
-  # faces the rule removes must be ZERO. They are not, and the per-face area of
-  # the id regions exceeds what those faces can subtend, so the face-id frame is
-  # not sound at face granularity: the pixel-level side split inherited from it
-  # is not a measurement. The numbers are pinned so the day the instrument is
-  # fixed (the traced capture named in the T41 report) this gate goes red and
-  # says so.
+# At the wrong pose (the vis-line eye) this read 465,922 drawn pixels on faces
+# the rule calls back, and that was taken as the frame being unsound. At the
+# capture pose it is 51,890 (6.92%), and the rest has a shape:
+#   51,620 on disp/side-0 and 2 on disp/side-1. The rule uses the face's outward
+#     normal as the emitted normal of a displacement face, which is the only
+#     thing computable without evaluating the displaced grid. The product flips
+#     each TRIANGLE onto that outward, so a steep grid triangle can face the eye
+#     while the face's base plane does not: the rule is EXACT on the planar
+#     brush faces and CONSERVATIVE on the curved displacement ones.
+#   334 on brush faces (0.04%): the 5 degenerate fans and the 1 brush face
+#     emitted against its own plane normal, both named in the census above.
+# The product's own 28-point face trace agrees: 24 points carry a world face
+# id, 22 are derived-front, and the 2 exceptions are (930,390) and (1140,390),
+# both id 17605, the same disp/side-0 face.
+# So the frame is not shown to be unsound. The rule is exact on planar geometry
+# and approximate on displacement, and the face-weighted split below is pinned
+# as measured-for-brush and bounded-for-disp, not as a pixel-exact attribution.
+# A SEPARATE cross-check, unexplained but bounded: 163 of 452 id regions cover
+# more pixels than a 90-degree pinhole from this eye allows (median ratio 0.68,
+# p90 3.07, max 43,269). Overlapping or very thin edge-on surfaces would do that
+# with no cull defect, and this test cannot tell the two apart, so it is a
+# bound and not a verdict on the frame.
   assert_eq "drawn pixels on a face the derived rule removes" \
     "$(rjget "d['faceIdFrame']['drawnPixelsOnDerivedBack']")" "51890"
   assert_eq "id regions that exceed their own pinhole bound" \
@@ -428,6 +457,9 @@ done
   # with no new reading. The run's own log carries the timestamp.
   echo "map=$MAP demo=$(basename "$DEMO") tick=2000 camera=the T29 reference"
   echo "viewmodel=$VMODEL --viewmodel-render companion"
+  # The pose the frames were drawn with, so a --reuse run classifies with the
+  # same eye instead of a per-run line that only the first drawn frame carries.
+  echo "eye=$EYE"
   for n in textured ids ids-nocull lmoff flat; do
     if [ -s "$CAP/$n.bmp" ]; then
       echo "$n sha256=$("$PYTHON" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$CAP/$n.bmp")"
@@ -449,7 +481,11 @@ if [ "$MUTATION_REQUESTED" = 0 ]; then
   echo "== verdict =="
   if [ "$fail" = 0 ]; then
     echo "PASS: 208,630 dark pixels attributed bucket by bucket; 99.94% is the map own lighting, 1.98% is product-attributable, the cull control holds."
-    echo "NOT VERIFIED: the PIXEL-level authored-side split (T36's 170,701/35,227 -- WRONG POSE, now 98,160 back / 107,768 front and its 86%-back headline) and the pixel-level removedSide split (44,046/37,095 -- WRONG POSE, now 6 front / 81,135 back)."
+    echo "NOT VERIFIED: the PIXEL-level authored-side split, and the per-face reading of the removed pixels."
+  echo "  T36's numbers for both (170,701 back / 35,227 front; 44,046 front / 37,095 back) are SUPERSEDED, not re-pinned:"
+  echo "  they were read at the vis-line eye, which is the first drawn frame, not the pose of the captured frame."
+  echo "  Re-derived at the capture pose: 98,160 back / 107,768 front, and 6 front / 81,135 back removed."
+  echo "  Its '86% of drawn pixels are BACK' headline reads 50.49% back / 49.51% front at the capture pose."
     echo "  They stay pinned, in the plane-side convention, because a cull or winding change must still move them -- but the face-id attribution they rest on fails its own test (3c(4))."
     echo "  The measured claim is the derived, FACE-weighted split in 3c: kept 5526 authored-front / 4043 authored-back, removed 2073 / 6410."
   else
