@@ -1,0 +1,18 @@
+=== 10/15 migration: the installed directory moved somewhere else ===
+  OK   status in the moved directory exits 0 = 0
+  OK   the moved install verifies against its manifest = yes
+  OK   the moved install reports the version it was upgraded to = 0.2.0
+  OK   the foreign user file is neither missing nor modified = 0:0
+  OK   the manifest still records the OLD install path (nothing reads it) = yes
+  OK   the user's note was never in the manifest (it was added after the install) = absent
+  OK   the moved install uninstalls (incomplete only for its running image) = 3
+  --- --uninstall (moved install) ---
+    uninstall=note deferred_running_image=tf2_demo_native.exe
+    uninstall=INCOMPLETE removed=2 restored=1 preserved=0 modified=0 alreadyMissing=0 deferredRunningImage=1
+  OK   the uninstaller restored the pre-upgrade bytes of the file the upgrade replaced = 1
+  OK   and the pre-upgrade payload bytes are back on disk = 0
+  OK   the user file that was never installed is still there = present
+  OK   the uninstall removed the two installed files the upgrade left behind = 2
+  OK   and it did not claim the file it never recorded as preserved (preserved counts manifest records only) = 0
+  OK   the running image is deferred by name, not deleted = 1
+

@@ -1,0 +1,4 @@
+.scratch/t42/life-t42/forward.log:  cases=15 checks=213 mutations=0
+.scratch/t42/life-t42/forward.log:  INSTALL-LIFECYCLE=PASS
+.scratch/t42/life-t42/mutation.log:  cases=3 checks=25 mutations=3
+.scratch/t42/life-t42/mutation.log:  INSTALL-LIFECYCLE-MUTATION=PASS (3 mutations caught, sources restored)

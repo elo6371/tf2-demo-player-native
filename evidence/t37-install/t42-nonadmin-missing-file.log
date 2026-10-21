@@ -1,0 +1,36 @@
+=== 13/15 non-admin shape: an install into a directory the account may not write ===
+  OK   the deny-write ACL was applied to the target directory = 0
+  OK   install into a write-denied directory exits 2 = 2
+  --- --install (deny-write directory) ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2219820 mode=fresh
+    install=FAIL reason=cannot_copy file=install_smoke_probe.ps1
+  OK   and names the copy the account could not perform = yes
+  OK   the refusal cannot be read as a PASS = absent
+  OK   the refused install wrote nothing into the directory = same
+  OK   the user's file survived the refused install = present
+  OK   no manifest was written by the refused install = absent
+  OK   the deny-write ACL was removed again = 0
+
+=== 14/15 missing runtime file: status names it, --version falls back, uninstall counts it ===
+  OK   the directory the missing-file case starts from is a real install = 0
+  OK   the install owns four records (three payload files and the version file) = 4
+  OK   status with two installed files removed exits 0 (it reports, it does not crash) = 0
+  --- --install-status (an installed runtime file and VERSION.txt removed) ---
+    status=DEGRADED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-21T03:17:30Z files=4 present=2 missing=2 modified=0
+  OK   status is DEGRADED, not VERIFIED = yes
+  OK   status counts the two removed files as missing = 2
+  OK   status still counts the two intact records as present = 2
+  OK   status found nothing modified (a missing file is not a modified one) = 0
+  OK   the installed product still answers --version with its version file gone = 0
+  OK   --version wrote a non-empty answer to the redirect = yes
+  OK   --version still names the package = yes
+  OK   --version falls back to the compiled version = yes
+  OK   uninstall with two files already missing exits 3 (its running image is deferred) = 3
+  --- --uninstall (two files already missing) ---
+    uninstall=note deferred_running_image=tf2_demo_native.exe
+    uninstall=INCOMPLETE removed=1 restored=0 preserved=0 modified=0 alreadyMissing=2 deferredRunningImage=1
+  OK   uninstall counts the two missing records as alreadyMissing = 2
+  OK   uninstall removes the one installed file that is still there = 1
+  OK   that file is gone = absent
+  OK   the file it cannot remove is still a named deferral, not a removal = 1
+

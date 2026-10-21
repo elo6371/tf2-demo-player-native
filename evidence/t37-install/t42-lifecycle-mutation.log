@@ -1,0 +1,52 @@
+
+=== mutation preconditions: the forward run ===
+  OK   forward artifact pkg = present
+  OK   forward artifact version.txt = present
+  OK   forward artifact reference-exe.sha256 = present
+  reference exe sha256=8c64712e30a2d0a3142ff50a1c45117e63a27fba46cc3e7340587fbcacbc26f8
+
+=== M1 stdout: the product takes the redirected handle again ===
+  mutated: the console is attached even when the caller redirected stdout
+  OK   M1 applied = 0
+  rebuild m1-build rc=0 reference=8c64712e30a2 exe_before=8c64712e30a2 exe_after=3a9c5f33c209
+  OK   M1 build succeeded AND relinked = 0
+  OK   M1 fixture binary is the binary the mutation built = 3a9c5f33c209
+  under M1: exit=0 bytes=0
+  OK   M1 caught: exit 0 with an empty redirect file = exit=0 bytes=0
+  OK   M1 source restored byte-identical = yes
+  rebuild m1-restore rc=0 reference=8c64712e30a2 exe_before=3a9c5f33c209 exe_after=65c7bbd7206c
+  OK   M1 restore build succeeded = 0
+
+=== M2 uninstall: the manifest's state words are ignored, so every listed file goes ===
+  mutated: preserved/unchanged records are no longer skipped
+  OK   M2 applied = 0
+  rebuild m2-build rc=0 reference=8c64712e30a2 exe_before=65c7bbd7206c exe_after=e7b4a8d2dd41
+  OK   M2 build succeeded AND relinked = 0
+  under M2, manifest recorded the user file as: preserved
+  OK   the M2 fixture's manifest lists the user file as preserved (what the mutation targets) = preserved
+  OK   M2 installed uninstaller is the binary the mutation built = e7b4a8d2dd41
+  under M2: uninstall=note deferred_running_image=tf2_demo_native.exe uninstall=INCOMPLETE removed=4 restored=0 preserved=0 modified=0 alreadyMissing=0 deferredRunningImage=1 
+  OK   M2 caught: the user's own file was deleted = absent
+  OK   M2 source restored byte-identical = yes
+  rebuild m2-restore rc=0 reference=8c64712e30a2 exe_before=e7b4a8d2dd41 exe_after=2ede31425071
+  OK   M2 restore build succeeded = 0
+
+=== M3 manifest: the format line is not required, so any text file parses ===
+  mutated: a file that is not a manifest parses as one
+  OK   M3 applied = 0
+  rebuild m3-build rc=0 reference=8c64712e30a2 exe_before=2ede31425071 exe_after=58112314043e
+  OK   M3 build succeeded AND relinked = 0
+  OK   M3 staged binary is the binary the mutation built = 58112314043e
+  under M3: exit=0 reading=uninstall=PASS removed=0 restored=0 preserved=0 modified=0 alreadyMissing=0 deferredRunningImage=0 
+  OK   M3 caught: a foreign file was accepted as an install manifest = exit=0
+  OK   M3 source restored byte-identical = yes
+  rebuild m3-restore rc=0 reference=8c64712e30a2 exe_before=58112314043e exe_after=ffa359427894
+  OK   M3 restore build succeeded = 0
+
+=== mutation verdict ===
+  OK   restored byte-identical: main.cpp = yes
+  OK   restored byte-identical: install_lifecycle.cpp = yes
+  OK   restored byte-identical: install_manifest.cpp = yes
+
+  cases=3 checks=25 mutations=3
+  INSTALL-LIFECYCLE-MUTATION=PASS (3 mutations caught, sources restored)

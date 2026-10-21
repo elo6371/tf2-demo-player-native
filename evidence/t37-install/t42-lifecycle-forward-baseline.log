@@ -1,0 +1,146 @@
+
+=== 1/8 the package cmake --install produces ===
+  OK   cmake --install rc = 0
+  --- staged package ---
+    .uninstall/payload/install_smoke_probe.ps1	812
+    .uninstall/payload/native_install_smoke_probe.exe	297984
+    .uninstall/payload/tf2_demo_native.exe	1919488
+    VERSION.txt	679
+    install_smoke_probe.ps1	812
+    native_install_smoke_probe.exe	297984
+    tf2_demo_native.exe	1919488
+  OK   the package carries the product = yes
+  OK   the package carries a payload the installer will lay down = yes
+  OK   the package carries its version file = yes
+  OK   payload file count = 3
+  OK   no file in the package is empty = 0
+
+=== 2/8 the package copied into a clean temporary directory ===
+  OK   the copy is the package = same
+
+=== 3/8 --version: the package names itself, through a redirect ===
+  OK   product --version exit code = 0
+  OK   product --version wrote a non-empty answer to the redirect = yes
+  --- --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-10-21T01:40:29Z sourceDateEpoch=0 sourceTree=34e17142e2b2
+  OK   version line names the package = yes
+  version=0.1.0 declared=0.1.0
+  OK   the version the product answers is the version the package ships = 0.1.0
+  OK   the version line carries a monotonic versionCode = yes
+  OK   the version line names the source tree it came from = yes
+  OK   versionCode is a number = yes
+  OK   install_cli_probe agrees with the product = package=tf2_demo_native version=0.1.0
+
+=== 4/8 --install into a directory that holds nothing but the payload (the packaged shape) ===
+  OK   product --install exit code = 0
+  --- --install ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2218284 mode=fresh
+    install=PASS files=4 new=1 changed=0 unchanged=3 preserved=0 backups=0 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+  OK   install reported PASS = yes
+  OK   install mode = fresh
+  OK   files the install owns (3 payload + the VERSION.txt it writes) = 4
+  OK   the only file it created = 1
+  OK   files it had to back up = 0
+  OK   no file was already there to preserve = 0
+  OK   the payload was consumed, not left behind = consumed
+  OK   the manifest is on disk = yes
+  state files after the install: 1
+  --- installed directory ---
+    .uninstall/install-manifest.txt	723
+    VERSION.txt	160
+    install_smoke_probe.ps1	812
+    native_install_smoke_probe.exe	297984
+    tf2_demo_native.exe	1919488
+  OK   installed file count (3 payload + VERSION.txt + manifest) = 5
+  OK   the installed manifest records the package version = 0.1.0
+  OK   the installed manifest records a monotonic version code = 100
+  OK   the manifest lists exactly the installed files, each once = 4
+  OK   every manifest record is a state word the product knows = new unchanged
+
+=== 4b --install into an empty directory: the shape a user actually takes ===
+  OK   install into an empty directory exits 0 = 0
+  --- --install (empty directory) ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2218284 mode=fresh
+    install=PASS files=4 new=4 changed=0 unchanged=0 preserved=0 backups=0 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+  OK   a fresh install owns the three payload files plus the VERSION.txt it writes = 4
+  OK   a fresh install creates every one of them = 4
+  --- the empty directory after the install ---
+    .uninstall/install-manifest.txt	707
+    VERSION.txt	160
+    install_smoke_probe.ps1	812
+    native_install_smoke_probe.exe	297984
+    tf2_demo_native.exe	1919488
+  OK   the fresh directory holds the payload, the version file and the manifest = 5
+  OK   the fresh install reports VERIFIED = status=VERIFIED
+
+=== 5/8 --install-status in a NEW process: the state is on disk, not in memory ===
+  OK   product --install-status exit code = 0
+  --- --install-status ---
+    status=VERIFIED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-21T01:55:28Z files=4 present=4 missing=0 modified=0
+  OK   status is VERIFIED = yes
+  OK   status counts every file the manifest lists as present = 4
+  OK   status found nothing missing = 0
+  OK   status found nothing modified = 0
+  OK   status reports the installed version = 0.1.0
+
+=== 6/8 what a user does to an installed directory: edit one file, add another ===
+  OK   --install-status exit code after an edit = 0
+  --- status after edit ---
+    status=DEGRADED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-21T01:55:29Z files=4 present=3 missing=0 modified=1
+  OK   status noticed the edit = yes
+  OK   status counts the edited file as modified = 1
+
+=== 7/8 --install over an existing install (the upgrade shape) ===
+  OK   install with the payload already consumed exits 2 = 2
+  OK   and names the missing payload = yes
+  OK   product --install (second time) exit code = 0
+  --- --install over the existing install ---
+    install=START package=0.1.0 payloadFiles=3 payloadBytes=2218284 mode=reinstall
+    install=PASS files=4 new=1 changed=0 unchanged=3 preserved=0 backups=0 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.1.0 versionCode=100
+  OK   the second install knows it is a reinstall = reinstall
+  OK   a reinstall leaves the package directory itself intact = present
+  OK   the version the install carries is unchanged by a reinstall = 0.1.0
+  OK   reinstall over the edited install exits 0 = 0
+  OK   the reinstall backed up the one file the user had edited = 1
+  OK   the edited bytes are still in the backup = present
+
+=== 8/8 --uninstall: only what the manifest says, and the user files stay ===
+  OK   product --uninstall exit code (incomplete by design: it is the running image) = 3
+  --- --uninstall ---
+    uninstall=note deferred_running_image=tf2_demo_native.exe
+    uninstall=INCOMPLETE removed=2 restored=1 preserved=1 modified=0 alreadyMissing=0 deferredRunningImage=1
+  OK   uninstall reported the incomplete removal honestly = yes
+  OK   the file the user added is still there = present
+  OK   the file the user edited is restored to the bytes it had before the reinstall = present
+  OK   the unedited installed files are gone = absent
+  OK   the running product is deferred by name, not deleted = 1
+  OK   and the deferral names the file = yes
+  OK   so the verdict is INCOMPLETE, not PASS = yes
+  OK   the state directory is gone = absent
+  OK   the version file the install wrote is gone = absent
+  --- what is left ---
+    install_smoke_probe.ps1	849
+    tf2_demo_native.exe	1919488
+    user-notes.txt	10
+  OK   what is left is the two files the user made plus the deferred running image = install_smoke_probe.ps1 tf2_demo_native.exe user-notes.txt
+  OK   the install directory itself survives = present
+
+=== uninstall refuses a directory that is not an install ===
+  OK   uninstall in a directory with no manifest exits 2 = 2
+  OK   and it names the missing manifest rather than deleting anything = yes
+  OK   the user file is untouched = present
+
+=== install refuses an empty payload instead of pretending ===
+  OK   install with an empty payload exits 2 = 2
+  OK   and says why = yes
+
+=== the install is a directory, not machine state ===
+  OK   installed files contain no registry or service artefact = 0
+  OK   the manifest is the only state the install writes = 1
+
+  cases=9 checks=71 mutations=0
+  INSTALL-LIFECYCLE=PASS

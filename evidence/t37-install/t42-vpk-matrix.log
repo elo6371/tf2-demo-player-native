@@ -1,0 +1,57 @@
+=== 15/15 VPK states: absent, unreadable, unsupported, truncated and valid, through vpk_query AND the installed product ===
+  OK   valid: vpk_query exit code = 0
+  OK   valid: vpk_query opened the archive and found the map = 1 entries, 1 match 'maps' ext=.bsp
+  OK   valid: the installed product boots = 0
+  OK   valid: product opened exactly one archive = 1
+  OK   valid: product refused nothing = 0
+  OK   valid: product read the map out of the archive = vpk
+  OK   valid: the archived BSP was parsed = yes
+  OK   absent: vpk_query exit code = 0
+  OK   absent: vpk_query names the file absent and the OS reason = ABSENT (ERROR_FILE_NOT_FOUND)
+  OK   absent: the installed product boots = 0
+  OK   absent: product opened no archive (there is none) = 0
+  OK   absent: product counted no refusal = 0
+  OK   absent: the trace carries no refusal line at all = absent
+  OK   absent: the title has no VPK refusal count = 
+  OK   absent: the loose map still answered = maps
+  OK   unreadable: vpk_query exit code = 0
+  OK   unreadable: vpk_query separates it from absent and from refused = UNREADABLE (ERROR_ACCESS_DENIED)
+  OK   unreadable: the installed product boots = 0
+  OK   unreadable: the root stayed valid (the archive NAME is there; readability is a separate question) = 1
+  OK   unreadable: product opened no archive = 0
+  OK   unreadable: product counted one present-but-unopenable archive = 1
+  OK   unreadable: product names the reader's own reason = cannot read VPK directory file
+  OK   unreadable: product attribution is the same category vpk_query used = unreadable
+  OK   unreadable: the title carries the refusal count = 1
+  OK   unreadable: the map could not be read = none
+  OK   unsupported: vpk_query exit code = 0
+  OK   unsupported: vpk_query names the format, not corruption = UNSUPPORTED (unsupported VPK header)
+  OK   unsupported: the installed product boots = 0
+  OK   unsupported: product counted one refusal = 1
+  OK   unsupported: product repeats the named format reason = unsupported VPK header
+  OK   unsupported: product attribution is the same category vpk_query used = unsupported
+  OK   unsupported: the title carries the refusal count = 1
+  OK   truncated: vpk_query exit code = 0
+  OK   truncated: vpk_query names the truncation, not the format = TRUNCATED (truncated VPK directory tree)
+  OK   truncated: the installed product boots = 0
+  OK   truncated: product counted one refusal = 1
+  OK   truncated: product repeats the named truncation reason = truncated VPK directory tree
+  OK   truncated: product attribution is the same category vpk_query used = truncated
+  OK   absent is not any corrupt or unreadable answer (vpk_query) = distinct
+  OK   the three present-but-refused states get three different product attributions = 3
+  OK   and absent stays refused=0 while every present-but-broken copy is refused=1 = 0:1
+  OK   vpk_query gives the five states five different answers = 5
+  OK   volume-missing: vpk_query exit code = 0
+  OK   volume-missing: vpk_query lists the entry the archive cannot produce = 1 entries, 1 match 'maps' ext=.bsp
+  OK   volume-missing: the installed product boots = 0
+  OK   volume-missing: the directory index opened = 1
+  OK   volume-missing: and no refusal is counted (the open succeeded) = 0
+  OK   volume-missing: the map read still produced no bytes = 0
+  OK   volume-missing: NAMED LIMITATION: store=none with no per-entry reason = none
+  OK   shadow: vpk_query exit code = 0
+  OK   shadow: vpk_query still lists the archived copy = 1 entries, 1 match 'maps' ext=.bsp
+  OK   shadow: the installed product boots = 0
+  OK   shadow: the bad loose file answered before the valid archived one = maps
+  OK   shadow: the bad loose BSP shadowed the valid archived one = invalid/BSP header is invalid
+  OK   the deny-read VPK fixture ACL was reset for cleanup = 0
+

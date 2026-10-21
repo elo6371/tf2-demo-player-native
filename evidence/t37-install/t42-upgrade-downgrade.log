@@ -1,0 +1,27 @@
+=== 9/15 upgrade and downgrade: the installed packageVersionCode is compared ===
+  OK   the first install of the pair exits 0 = 0
+  OK   the pair starts as a fresh install of the shipped version = fresh
+  OK   the upgrade exits 0 = 0
+  --- --install (newer package over the install) ---
+    install=note upgrade fromVersionCode=100 toVersionCode=200
+    install=START package=0.2.0 payloadFiles=3 payloadBytes=2219839 mode=upgrade
+    install=PASS files=4 new=3 changed=1 unchanged=0 preserved=0 backups=1 copied=3
+    install_manifest=.uninstall/install-manifest.txt version=0.2.0 versionCode=200
+  OK   the install names the operation an upgrade = upgrade
+  OK   the upgrade replaces the one file whose payload bytes changed = 1
+  OK   the pre-upgrade bytes of that file were backed up before replacement = 1
+  OK   the manifest now names the upgraded version = 0.2.0
+  OK   the manifest now names the upgraded versionCode = 200
+  OK   the upgraded file on disk carries the new payload's marker = 1
+  OK   status after the upgrade exits 0 = 0
+  OK   status after the upgrade reports the new version = 0.2.0
+  OK   status after the upgrade finds nothing missing = 0
+  OK   an older package over a newer install exits 2 = 2
+  --- --install (older package over newer install) ---
+    install=FAIL reason=downgrade installedVersionCode=200 packageVersionCode=100
+  OK   the refusal names both version codes = yes
+  OK   the refusal did not start an install it would not finish = absent
+  OK   the refused downgrade left the newer manifest in place = 200
+  OK   the refused downgrade left the upgraded payload byte in place = 1
+  OK   and the directory still verifies against the newer manifest = 0
+

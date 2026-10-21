@@ -1,0 +1,23 @@
+=== 11/15 first launch: the installed directory boots and saves the root it connected ===
+  OK   the directory the first launch boots is a real install = 0
+  OK   it is a fresh install of the shipped version = fresh
+  OK   first launch exit code = 0
+  OK   the capture harness read a title from its own process = yes
+  OK   first launch root valid = 1
+  OK   first launch connected to the fixture root it was given = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/life-t42/fixtures/roots/vpk-valid
+  OK   and the title carries the archive bracket a connected run has = yes
+  OK   first launch opened the fixture archive = 1
+  OK   first launch refused no archive = 0
+  OK   first launch parsed the fixture map out of that archive = vpk
+  OK   first launch wrote its settings file = yes
+  OK   and saved the root it connected = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/life-t42/fixtures/roots/vpk-valid
+  OK   the install directory itself holds no settings file (the capture used its own) = absent
+
+=== 12/15 restart: a second process reuses the root the first one saved ===
+  OK   restart exit code = 0
+  OK   restart was given no root on its command line = -
+  OK   restart connected to the fixture root the first launch saved = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/life-t42/fixtures/roots/vpk-valid
+  OK   restart resolved a valid root = 1
+  OK   restart opened the fixture archive = 1
+  OK   restart did not need a second settings file = no
+
