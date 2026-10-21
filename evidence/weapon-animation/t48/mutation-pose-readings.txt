@@ -1,0 +1,51 @@
+# T48 hold 2 -- the pose-displacement mutation (--mutation-pose) and its restore proof.
+# Lock owner t39, one waiter, no --force; hold window 2026-10-21T09:20:44Z..09:22:51Z (2m07s).
+# Worktree commit 8de25f1; the mutation is a 0.001-of-the-box rigid displacement of the
+# bind pose through the --model identity matrices (matrix[12] = 0.001f), i.e. about
+# 0.22 px at the model's measured scale bound. The claim this hold supports is exactly:
+#   the gate catches a 0.001f pose displacement on the silhouette rule, and restores
+#   main.cpp byte-identically. It is not a proof of the per-sample tie (see the report).
+
+## before
+commit: 8de25f197d8f81f917ebaa2cd417cff7a3943eb4
+main.cpp before: f8badad54adce891111fdbe4f99562f1321227a83bbbcb58ec3b8f360ff27bbd
+modified paths before: 0
+
+## the mutation run
+=== mutation: the --model identity matrices displace the pose by 0.001 of the box ===
+MUTATION-PATCHED
+mutation build rc=0
+=== 1-3/6 skipped: the --model mutation does not touch the entity path ===
+restore build rc=0
+MUTATION-CAUGHT=PASS (pose mutation turns this step red)
+mutation rc=0
+
+## the failure the mutation produced (this is the assertion the gate calls the rule)
+# the mutation was caught: these assertions went red with pose mutated
+identity skinning changes nothing outside the measured edge mask: BMP-SILHOUETTE changed=3322 changed_bytes=7699 inside=925 outside=2397 mask_pixels=18446 mask_share=2.1429 interior_pixels=842338 interior_max=73 global_max=145 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=FAIL reason=interior_max=73 exceeds 1; changed=3322 exceeds 4; global_max=145 exceeds 128; outside=2397 changed pixels are not on a measured edge
+
+## restore proof
+main.cpp after:  f8badad54adce891111fdbe4f99562f1321227a83bbbcb58ec3b8f360ff27bbd
+RESTORE-SOURCE=MATCH (main.cpp is byte-identical to the pristine file)
+modified paths after: 0
+gate backup: f8badad54adce891111fdbe4f99562f1321227a83bbbcb58ec3b8f360ff27bbd
+RESTORE-BACKUP=MATCH (the gate's own backup is the pristine file)
+
+## the restored binary re-captures the pinned pair
+=== pair re-capture on the restored binary (the gate's own invocation) ===
+capture skinning=1 rc=0
+capture skinning=0 rc=0
+37e5eb2a473d5003c8f64d098be4e38d89069280cf98cc6b09a61e382c99939e *.scratch/t48/restore/model-control.bmp
+a06f4e360b2be20257ae885804b40724e17b6cdecda7fede1ba4724a4c07670d *.scratch/t48/restore/model-identity.bmp
+--- skin upload lines from the restored binary ---
+3476.2 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
+3497.6 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
+
+RESTORE-HASH identity=MATCH a06f4e360b2be20257ae885804b40724e17b6cdecda7fede1ba4724a4c07670d
+RESTORE-HASH control=MATCH 37e5eb2a473d5003c8f64d098be4e38d89069280cf98cc6b09a61e382c99939e
+RESTORE-CMP model-identity=identical-to-hold1-forward
+RESTORE-CMP model-control=identical-to-hold1-forward
+
+
+=== T48 hold 2 done 2026-10-21T09:22:51Z ===
+# hostlock printed LOCKED-COMMAND-EXIT rc=0 owner=t39 after the run.

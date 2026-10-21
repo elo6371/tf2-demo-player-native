@@ -1,12 +1,13 @@
 # T48 -- the one-sample identity-skinning difference: measured and bounded
 
-Status: **static half and hold 1 complete, hold 2 pending.** The forward gate ran
-on this tree under the host lock (commit 5e90026, 2026-10-21T08:40:01Z..08:47:40Z):
-`WEAPON-ANIMATION=PASS`, 57 OK / 0 FAIL, identity/control/animated frame hashes
-returned byte-identical to the T43 pins, the silhouette rule PASS, the real-pose
-control still rejected, gate rc=0, tree clean before and after. The mutation hold
-(`--mutation-pose`) is written and waits for the Lead's sequencing behind
-T44/T47's priority validation; section 5 is filled when it runs.
+Status: **both host-lock holds complete.** Hold 1 (forward gate, 7m39s at commit
+`5e90026`): `WEAPON-ANIMATION=PASS`, 57 OK / 0 FAIL, the pinned frames returned
+byte-identical to the T43 manifest, the silhouette rule PASS, the real-pose
+control still rejected, gate rc=0, tree clean. Hold 2 (mutation, 2m07s at commit
+`8de25f1`): `MUTATION-CAUGHT=PASS`, the 0.001-of-the-box pose displacement rejected
+on the silhouette rule's own label, `main.cpp` byte-identical after the run, tree
+clean, and the identity/control pair re-captured on the restored binary at
+`a06f4e36...`/`37e5eb2a...`. Sections 1-6 below are all measured.
 
 Boundary: base commit `6888e6d`, worktree `D:\TF2_Native_Worktrees\t48-raster-sample`,
 branch `task/t48-raster-sample`. Write scope: `weapon-animation-check.sh`,
@@ -33,6 +34,14 @@ still passes. The difference is **bounded, not proven**:
   this shift, not an anomaly -- and because the pipeline is deterministic, the
   same sample is the same sample on every run (verified byte-identical across
   two separate builds, T39's and T43's).
+
+A displacement a thousand times larger is caught with a wide margin: the new
+`--mutation-pose` moves the bind pose by 0.001 of the box (0.22 px) and the
+accepted rule rejects the pair on its own label (`changed=3,322`, `outside=2,397`,
+`interior_max=73`, `global_max=145`), with the source and the frame hash restored
+byte-identically (section 5). The rule's measured floor is therefore about 1,000x
+coarser than the float difference this pair is expected to tolerate, which is
+what makes "one sample" an expected reading rather than a gap.
 
 What is **not** proven is the per-sample ownership decision itself: no
 instrumentation in this tree exposes the model path's clip position, post-divide
@@ -213,24 +222,58 @@ untouched by this round; only the new `--inspect-pixel` mode was added):
 
 The T43 chain ran the same rule as step 22 with 57 assertions and 0 failures.
 
-## 5. The pose-displacement mutation (step 4) -- designed, hold 2 pending
+## 5. The pose-displacement mutation (step 4) -- caught, and the source restored
 
-New flag `--mutation-pose` in `weapon-animation-check.sh`. It patches
-`native/src/main.cpp` where the `--model` path builds its identity matrices and
-adds `matrix[12] = 0.001f` -- a rigid **0.001-of-the-box** displacement of the
-bind pose, i.e. `0.001 x 222.9 = 0.22 px` at the measured scale. Every counter in
-the gate stays at its forward value (no pose, resource or texture reading moves);
-only the picture moves. The gate requires the failure to come from the silhouette
-rule itself (same `CAUGHT_BY_RULE` check as `--mutation-identity`), restores the
-source, and rebuilds.
+`--mutation-pose` patches `native/src/main.cpp` where the `--model` path builds
+its identity matrices and adds `matrix[12] = 0.001f`: a rigid
+**0.001-of-the-box** displacement of the bind pose, `0.22 px` at the measured
+scale. Every counter in the gate stays at its forward value -- the mutated run's
+`readings.txt` shows the same skin-upload lines and counts, and sections 1-3 are
+skipped because they read the entity path -- so only the picture moves. The gate
+requires the failure to come from the silhouette rule itself, the same
+`CAUGHT_BY_RULE` check as `--mutation-identity`.
 
-However it is caught (containment, the changed-pixel cap or the interior bound),
-the verdict is a gate red for a real displacement, and the restore proof is:
-`main.cpp` byte-identical to the pristine file, tree clean, and the
-identity/control pair re-captured on the restored binary returning
-`a06f4e36...` / `37e5eb2a...`.
+Hold 2 (2m07s, commit `8de25f1`) caught it:
 
-Readings from the hold go in `evidence/weapon-animation/t48/mutation-pose.txt`.
+```
+MUTATION-PATCHED
+mutation build rc=0
+MUTATION-CAUGHT=PASS (pose mutation turns this step red)
+mutation rc=0
+
+identity skinning changes nothing outside the measured edge mask:
+  BMP-SILHOUETTE changed=3322 changed_bytes=7699 inside=925 outside=2397
+  mask_pixels=18446 interior_pixels=842338 interior_max=73 global_max=145
+  status=FAIL reason=interior_max=73 exceeds 1; changed=3322 exceeds 4;
+  global_max=145 exceeds 128; outside=2397 changed pixels are not on a measured edge
+```
+
+That is the rule's measured sensitivity floor. A displacement of about a fifth of
+a pixel moves **3,322 samples**, 2,397 of them off the measured edge mask, with a
+worst interior delta of **73** levels: the accepted rule is not passing a
+bit-identical pair by accident, it is passing a pair whose float difference is
+about 1,000x smaller than this mutation's picture change.
+
+Restore proof, all from the same hold:
+
+```
+main.cpp before  f8badad54adce891111fdbe4f99562f1321227a83bbbcb58ec3b8f360ff27bbd
+main.cpp after   f8badad54adce891111fdbe4f99562f1321227a83bbbcb58ec3b8f360ff27bbd
+gate backup      f8badad54adce891111fdbe4f99562f1321227a83bbbcb58ec3b8f360ff27bbd
+RESTORE-SOURCE=MATCH   RESTORE-BACKUP=MATCH   modified paths after: 0
+restore build rc=0
+RESTORE-HASH identity=MATCH a06f4e360b2be20257ae885804b40724e17b6cdecda7fede1ba4724a4c07670d
+RESTORE-HASH control=MATCH 37e5eb2a473d5003c8f64d098be4e38d89069280cf98cc6b09a61e382c99939e
+RESTORE-CMP model-identity=identical-to-hold1-forward
+RESTORE-CMP model-control=identical-to-hold1-forward
+```
+
+The step-22 frame hash returns on the restored binary, byte for byte identical to
+hold 1's forward frames. The claim this hold supports is exactly: **the gate
+catches a 0.001f pose displacement and restores byte-identically** -- it does not
+prove the per-sample tie of section 3.
+
+Readings: `evidence/weapon-animation/t48/mutation-pose-readings.txt`.
 
 ## 6. NOT VERIFIED / measurement limits
 
@@ -295,10 +338,10 @@ $PY evidence/weapon-animation/t48/reconcile_lighting.py 114,114,120 169,169,179
 
 Recorded output: `evidence/weapon-animation/t48/` (`pair-hashes.txt`,
 `rule-t43-pair.txt`, `pixel-inspect-t43-pair.txt`, `shader-reconciliation.txt`,
-`edge-population-t43-pair.txt`, `forward-hold1-readings.txt`).
+`edge-population-t43-pair.txt`, `forward-hold1-readings.txt`,
+`mutation-pose-readings.txt`).
 
-Host-lock holds (hold 1 ran in 7m39s; hold 2 waits for the Lead's sequencing
-behind T44/T47's priority validation):
+Host-lock holds (both ran, one waiter each, no `--force`; 7m39s and 2m07s):
 
 ```
 HOSTLOCK_TIMEOUT=5400 bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t39 \
