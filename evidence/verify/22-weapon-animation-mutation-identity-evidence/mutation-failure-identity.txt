@@ -1,0 +1,2 @@
+# the mutation was caught: these assertions went red with identity mutated
+identity skinning changes nothing outside the measured edge mask: BMP-SILHOUETTE changed=8747 changed_bytes=25755 inside=2003 outside=6744 mask_pixels=18446 mask_share=2.1429 interior_pixels=842338 interior_max=136 global_max=163 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=FAIL reason=interior_max=136 exceeds 1; changed=8747 exceeds 4; global_max=163 exceeds 128; outside=6744 changed pixels are not on a measured edge
