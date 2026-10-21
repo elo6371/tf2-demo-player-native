@@ -1,0 +1,147 @@
+T40 FORWARD READINGS - light and material semantic gates on 34e1714
+==============================================================
+Recorded 2026-10-21 before ANY mutation of native/ or any pin edit.
+Both gates were rebuilt from this same committed tree and the logs below carry
+the identity block; no source file changed between the two runs (their six
+source hashes and three exe hashes are identical).
+
+tree     HEAD=34e17142e2b2d9c789e4a1eb815efcfd05f1673c
+         branch=task/t40-pixel-pins
+         worktree clean when the lighting run started (dirty_count=0); the
+         material run started after the lighting evidence files were rewritten
+         (dirty_count=4, those four evidence files only)
+src      14cfa22e01ecca341a2a4edee0678a0c6dea7a1d native/src/world_lighting.cpp
+         a98d981c5414c3400851354a9ab748485957b7d6 native/src/vmt_material.cpp
+         725c9ee13bef3920279485d2fc041ced45495714 native/src/main.cpp
+         f341eadcb8b7d53edbbdc2424fffa7299fa5266a native/include/native_renderer.h
+         90173f817262737dfc260086ae74bffd63154491 native/src/native_renderer.cpp
+         fc76d7f7debbd5956c383fbb11a592e08451d4e7 native/src/world_tile_atlas.cpp
+exe      304e2790a74b320794e82f0cda5680a3cc83beb664fa3fc6085e446ddfcf4e97 tf2_demo_native.exe
+         9065c1dbfa5b88b47cd23db5128a97f21971441b20748c505c4ecaa49131a50a lighting_semantics_probe.exe
+         7b3f7fc697088d2c2665a79f3475ebeff6a8772268cca76de72c793733ca63af world_feature_probe.exe
+
+commands
+  bash lighting-semantics-check.sh        -> rc=1: 9 FAIL, 87 OK
+  bash world-material-semantics-check.sh  -> rc=1: 14 FAIL, 149 OK
+
+Gate pins are DIFFERING BYTES over 2,582,352 comparable bytes (1264x681x24).
+The moved populations in section 3 are PIXELS.
+
+1. LIGHTING GATE (lighting-semantics-check.sh) - every failure is a section 5 pin
+   assertion                     old pin     forward       note
+   dynamic differing             1584117     1776259
+   dynamic max_delta             83          77
+   dynamic darker                1584117     1776259
+   dynamic max_down              83          77
+   dynamic brighter              0           0            unchanged
+   dynamic max_up                0           0            unchanged
+   specular differing            267343      390361
+   specular max_delta            12          15
+   specular brighter             267343      390361
+   specular max_up               12          15
+   specular darker               0           0            unchanged
+   specular max_down             0           0            unchanged
+   bump under dynamic differing  746559      910776
+   bump under dynamic max_delta  13          13           unchanged
+   bump alone differing/max      0/0         0/0          unchanged
+   Every semantic/count assertion held, including: dynamic scope 100/76231,
+   bump scope 44/53462, $bumpmap2 scope 5/13706, %detailtype 15/14/0/15/1,
+   $ssbump 36/35/36/0, bump 45/44/45/0, A==A2 determinism.
+   Frame hashes now: A=A2=D=F=6bb4d9a7...974b, B=c261227f...c644,
+   C=d90da8de...9f38, E=1d45417a...d1e6, P1=ef7d6880...b5ad, P2=0a100205...1c20.
+
+2. MATERIAL GATE (world-material-semantics-check.sh) - every failure is a pin
+   assertion                     old pin     forward       direction
+   dynamic differing             1584117     1776259
+   dynamic max_delta             83          77
+   dynamic darker                1584117     1776259    (only)
+   material bump under dynamic   624         79            brighter 79, darker 0
+   material bump under dynamic max 21        17
+   material bump darker (assert_ne 0)        0             <- one-way now
+   detail with resource          82213       271060        darker 271060 only
+   detail max_delta              60          60            unchanged
+   detail darker                 82213       271060
+   detail without resource       0/0         0/0           unchanged
+   $bumpmap2 differing           15953       7343
+   $bumpmap2 max_delta           26          26            unchanged
+   $bumpmap2 brighter            8790        4107
+   $bumpmap2 darker              7163        3236
+   specular reads material normal 135        0             <- extinct at tick 2000
+   specular max_delta            3           0
+   specular highlight gained     123         0
+   specular highlight lost       12          0
+   Every non-pixel assertion held, including: B declaration/lookup 45/9/0,
+   ssbump 36, tiles/materials 9/9, vertices 19305, detail 15/15, S2 draws the
+   material normal 9/9, the three determinism comparisons (A==A2, R1==R1b==R3,
+   S1==S2), and the ten refusals/rows.
+   Frame hashes now: A=A2=B=E=6bb4d9a7..., C=c261227f..., D=6917533d...e0dc,
+   F=2ffa7d2b...f8b5, R1=R1b=R3=f05573d7..., R2=782c260c..., S1=S2=d90da8de...
+   (S1 and S2 are the same file now: the tick-2000 specular camera cannot see
+   the nine material-normal materials any more.)
+
+3. POPULATION CLASSIFICATION (pixels; .scratch/t40/classify2.py)
+   Geometry mask: T26 face-id frames, pre-fix 179b296:.../world-ids.bmp vs the
+   current tree's evidence/t26-world-holes/captures/world-ids.bmp, plus the T26
+   drawn mask (hole-mask.bmp, palette 1 = drawn). Rule: a moved pixel whose face
+   id changed is a replaced/occluded surface; an old-only drawn pixel is
+   occluded_by_near; an old-only undrawn pixel is replaced_by_sky; a same-face
+   pixel whose baseline colour changed is a uv change inside that face; BROKEN
+   is reserved for a same-face pixel whose baseline frame is byte-identical.
+
+   pair                          old_only  occluded  sky  same-face  BROKEN | new_only  replaced  same-face BROKEN
+   lighting dynamic (A->B)       56015     56011     0    2          2      | 114390    114389    1        0
+   lighting specular (A->C)      15281     15241     0    21         19     | 61499     61470     14       15
+   lighting bump-alone (A->D)    0         -         -    -          -      | 0         -         -        -
+   lighting bump-under-dyn(B->E) 56073     56069     0    2          2      | 114640    114639    1        0
+   lighting preset (P1->P2)      100485    100445    0    21         19     | 56246     56217     14       15
+   material bump no reader(A->B) 0         -         -    -          -      | 0         -         -        -
+   material detail (A->F)        16514     15166     0    28         1320   | 79459     77940     27       1492
+   material bump/dyn (C->D)      220       220       0    0          0      | 0         -         -        -
+   material bump2 layer2(R1->R2) 3858 (no tick-1200 face mask: every one of
+                                 them is on a pixel whose baseline frame moved)
+   bump2 product path (R1->R3)   0/0
+   The old-only/new-only counts above are 96.9% to 100% attributed by the T26
+   mask. Two residuals are opened, not waved away:
+   (a) one-byte same-face ties. lighting dynamic: 2 old-only pixels (x=583,y=276
+       and x=571,y=279); specular: 19 old / 15 new, scattered. At each, one
+       frame differs from its own baseline by exactly one byte and the other is
+       byte-identical; the face id is unchanged. These are colour-rounding ties,
+       not a semantic regression, and they do not move a pin.
+   (b) detail residual, 2,812 px (1,320 old + 1,492 new) on 27 non-displaced
+       WOOD/WALL007A faces (top face 7536 carries 1,315 px). At these pixels the
+       face id is unchanged, the baseline frame is byte-identical and the
+       lightmap-off (albedo) frame is identical for 96.6% of them, yet the
+       detail layer's effect toggled. The surface did not move; the detail
+       product path did. NOT EXPLAINED YET -> NOT VERIFIED (see section 4).
+
+4. SPECULAR STATUS - NOT VERIFIED
+   At the tick-2000 reference camera the specular lobe no longer sees any
+   pixel of the nine material-normal materials (S1 == S2 byte-identical, 0/0;
+   the previous 135 bytes / 123 gained / 12 lost are the pre-fix occlusion
+   reading). The frame is the same d90da8de in both captures. The consumer IS
+   measured on the gate's other camera (tick 1200, which sees the population;
+   the same camera the bump2 pins already use):
+     C12 vs R1 (material bump under dynamic): 990 bytes, max_delta 19,
+       brighter 458 / darker 532 (both directions - this replaces the tick-2000
+       C->D one-way reading for the "both directions" semantic)
+     S1_12 vs S2_12 (specular reads the material normal): 344 bytes,
+       max_delta 5, brighter 337 / darker 7 (both directions)
+   hashes C12=302d60ed..., S1_12=3dd81e3a..., S2_12=81bb9b9d...
+   Decision for the re-pin: the tick-2000 specular assertion is pinned at the
+   measured 0/0 with the occlusion reason, the two-sided consumer proof is
+   pinned at tick 1200, and "specular at the tick-2000 reference view" stays
+   NOT VERIFIED - it needs a wide-area diagnostic pose (T35 prepared nine) and
+   is handed to T43/T40-follow-up with that cheapest next step.
+   Cheapest next step for (b) and for the specular wide view, in one lock
+   window: restore the pre-fix near plane (the T29 gate's own mutation), capture
+   F at tick 2000 and diff it against the pre-fix F frame - if the detail
+   residual is clip-caused it disappears; and run S1/S2 at one T35 material pose.
+   owner: T43 (or T40 follow-up).
+
+5. PROVENANCE
+   The tracked evidence in evidence/lighting-semantics and
+   evidence/material-semantics was rewritten by these two runs (deltas.txt,
+   frames.txt, sign.txt, trace-ref.txt / trace-*.txt). The gate scripts still
+   carry the OLD pins in this commit; this commit records the forward reading,
+   not a re-pin. No native/ source was modified; the mutation forms of both
+   gates have NOT been run yet and their logs will be added after the re-pin.
