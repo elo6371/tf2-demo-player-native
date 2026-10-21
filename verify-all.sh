@@ -856,14 +856,16 @@ tail -16 "$OUT/22-weapon-animation.txt"
 # that prints PASS while its assertions quietly disappear is not a gate.
 #
 # Measured on the T34 tree (task/t34-nearclip), not predicted from the section
-# descriptions: the forward run emits 55 OK + 1 FAIL = 56, and the per-section
-# counts are 27 / 6 / 5 / 11 / 6 / 1 = 56. T34's report and its pin commit
-# carried 57 because section 3 was described with six entries while the gate
-# prints five: the branch token is a '..' reading line, not an assertion. The
-# original arithmetic (27 + 6 + 6 + 11 + 6 + 1) therefore did not match the
-# gate, and a pin of 57 would have kept step 22 red forever even after the one
-# failing assertion was fixed - the failure mode this pin exists to prevent,
-# inverted: a gate that passes while the pin is wrong.
+# descriptions: the gate printed 56 assertion lines (55 OK + 1 FAIL, the FAIL
+# being the identity-skinning pair) with per-section counts 27 / 6 / 5 / 11 / 6 /
+# 1, which is why the pin was 56 rather than the 57 T34's report had carried: the
+# pin counts the assertions a green run prints, and a pin above that keeps the
+# step red forever -- the failure mode this pin exists to prevent, inverted.
+#
+# T39 replaced section 4's whole-frame byte bound with the measured-silhouette
+# rule and its real-pose control (11 -> 12 assertions; see
+# T39-WEAPON-ANIMATION-2026-10-21.md), and the forward run on the final tree
+# emits 57 OK + 0 FAIL = 57 with per-section counts 27 / 6 / 5 / 12 / 6 / 1.
 #
 # 27 = 9 per playback tick in section 1 (capture rc, skinned instances, uploaded
 # matrices, GPU-accepted instances, GPU matrices == caller matrices, bind-bone
@@ -873,24 +875,28 @@ tail -16 "$OUT/22-weapon-animation.txt"
 # (T34: the pose was published at all three ticks, the camera reading resolved a
 # branch, the frames are one picture on a still camera, that frame is a picture
 # and not a flat fill, and the frames were drawn through the T29 near plane) +
-# 11 in section 4 (five field equalities, the bind-pose compare, the pose-moved
-# compare, the witness frame count, the two-tick frame inequality, the
-# tick-following compare, and the wrap-at-frame-count compare) + 6 in section 5
-# (both halves of the bind-pose mutation pair, each with its own
-# compared-entity count) + 1 in section 6.
+# 12 in section 4 (five field equalities, the measured-silhouette rule, its
+# real-pose control, the sampled-sequence move, the witness frame count, the
+# two-tick frame inequality, the tick-following compare, and the
+# wrap-at-frame-count compare) + 6 in section 5 (both halves of the bind-pose
+# mutation pair, each with its own compared-entity count) + 1 in section 6.
 WA_OK=$(grep -c '^  OK   ' "$OUT/22-weapon-animation.txt" || true)
-if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 56 ]; then
+if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 57 ]; then
   echo "WEAPON-ANIMATION=PASS (assertions_ok=$WA_OK)"
 else
   echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0})"; rc_all=1
 fi
-# This gate owns two contracts, and the second one is the shape that was
+# This gate owns three contracts, and the second one is the shape that was
 # actually wrong. `--mutation` forces the sampled pose back to the bind pose and
 # must turn section 1 red: the entity path's per-instance matrices are what
 # carries the pose. `--mutation-model` uploads the model's inverse bind matrices
 # on the standalone path -- the historical defect -- and must turn section 4 red:
 # identity skin matrices through the skinning branch are what keeps the bind pose
 # where it is, and no counter in the program can see the difference.
+# `--mutation-identity` moves the identity matrices' model transform by 0.02 of
+# the normalized box: the picture moves, no counter moves, and the verdict is
+# required to come from the measured-silhouette rule itself (the gate checks the
+# failing line's name), which is the rule that replaced the byte bound.
 WA_MUT="$OUT/22-weapon-animation-mutation.txt"
 WEAPON_ANIMATION_OUT="$OUT/22-weapon-animation-mutation-evidence" \
 WEAPON_ANIMATION_TRACE_DIR="$OUT/22-weapon-animation-mutation-traces" \
@@ -908,6 +914,20 @@ if grep -q 'MUTATION-CAUGHT=PASS' "$WA_MUTMODEL"; then
   echo "WEAPON-ANIMATION-MUTATION-MODEL=PASS (the inverse bind matrix on the --model path is caught)"
 else
   echo "WEAPON-ANIMATION-MUTATION-MODEL=FAIL (the historical --model defect was not caught)"; rc_all=1
+fi
+# The third mutation is the one that guards the rule T39 added. The byte bound it
+# replaced could only fail on any difference; the silhouette rule must still fail
+# when the difference is a moved transform with every counter intact. The gate
+# itself requires the failing assertion to be the silhouette rule, so this line
+# cannot go green on an unrelated red.
+WA_MUTIDENTITY="$OUT/22-weapon-animation-mutation-identity.txt"
+WEAPON_ANIMATION_OUT="$OUT/22-weapon-animation-mutation-identity-evidence" \
+WEAPON_ANIMATION_TRACE_DIR="$OUT/22-weapon-animation-mutation-identity-traces" \
+  bash weapon-animation-check.sh --mutation-identity > "$WA_MUTIDENTITY" 2>&1
+if grep -q 'MUTATION-CAUGHT=PASS' "$WA_MUTIDENTITY"; then
+  echo "WEAPON-ANIMATION-MUTATION-IDENTITY=PASS (a moved model transform outside the silhouette rule is caught)"
+else
+  echo "WEAPON-ANIMATION-MUTATION-IDENTITY=FAIL (the silhouette rule did not catch a moved transform)"; rc_all=1
 fi
 
 step "23/24 viewmodel animation (the entity's sequence is refused by the drawn model's own table)"
