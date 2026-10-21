@@ -1,6 +1,6 @@
 T41 raster rule: D3D11_CULL_BACK, FrontCounterClockwise=False
 front test: dot(emittedNormal, eye - p) > 0
-eye = (-2294.8,348.8,383.4) from capture trace .scratch/t36-account.100523\ids.trace, last 'scene: camera'
+eye = (-2294.8,348.8,383.4) from capture trace .scratch/t36-account.46989\ids.trace, last 'scene: camera'
   62124.3 scene: camera mode=first-person target=1 follows=1683 holds=0 freeze=0 eye=-2294.8,348.8,383.4 pitch=-8.43 yaw=64.27 src=demo
   last drawn tick in that trace: 2000
 
@@ -22,5 +22,26 @@ face-id frame 1264x681: 750391 pixels carry a face id (110393 off-range)
   (the written rule and the derived rule are different rules: they agree in every class x side cell but one, see the table above)
   per-face pinhole bound: 163 of 452 regions exceed the area their face can cover (median ratio 0.68, p90 3.07, max 43269.0)
   pixels the unculled frame paints and the culled one does not: 81141 (only-cull 0)
+
+emitted triangles rebuilt from the lumps (the rasterizer's actual input):
+  99312 triangles from 17321 faces: brush 52400, displacement 46932 (grids 1382, fallbacks 10); 8514 flipped onto the face's outward
+per-triangle raster side at this eye (dot(cross(b-a,c-a), eye-a)):
+  displacement 24058 front / 22874 back; brush 24383 front / 23218 back; degenerate 4779
+  displacement faces shipping BOTH sides: 343; of those, faces the face-level rule calls BACK: 126
+product trace reconciled against this projection:
+  25 points, 25 name a triangle; 25 project onto the traced pixel with area>0, 24 carry the emitted face's id, 25 match the traced depth (max delta 4.85e-05)
+  exceptions: [{'point': [720, 390], 'traceTri': 27780, 'emittedFace': 8555, 'idFace': 1053980, 'depth': 0.974}]
+pixel ledger:
+  750391 in-range pixels; 512 are viewmodel bytes (id frame == textured frame), 266 of them on derived-back faces; 0 covered by their own face's geometry
+  drawn on derived-back faces, world pixels only: 51624 -> front triangle 51357 (+65 sub-pixel), back-only 49 (+32 sub-pixel), none 121
+    disp/side-0   51620: front 51356 (+64 sub-pixel), back-only 49 (+30), none 121
+    disp/side-1       2: front 1 (+1 sub-pixel), back-only 0 (+0), none 0
+    brush/side-0      2: front 0 (+0 sub-pixel), back-only 0 (+2), none 0
+named face 17605 (plane side distance -0.600, face-level rule: back):
+  51618 pixels, 32 emitted triangles (17 front / 15 back): front triangle 51354 (+64 sub-pixel), back-only 49 (+30), none 121
+  front triangles carrying pixels: 12
+  trace exception [930, 390] tri=83290 (front) frontExact=True backExact=True
+  trace exception [1140, 390] tri=83285 (front) frontExact=True backExact=True
+pixels the cull removed, same measurement: 81141 -> covered only by back triangles 81089 (+34 sub-pixel), by a FRONT triangle 14 (+4), none 0
 
 json -> raster-rule.json
