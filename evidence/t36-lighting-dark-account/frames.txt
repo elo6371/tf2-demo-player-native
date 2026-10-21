@@ -1,5 +1,6 @@
 map=maps/pl_odyssey.bsp demo=autorecord_2026-07-02_13-26-46.dem tick=2000 camera=the T29 reference
 viewmodel=models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion
+eye=-2294.8,348.8,383.4
 textured sha256=6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b
 ids sha256=2e47ffa405bdf3207a6e09db8732b20f7f605390084a9e3e0947ae06853c5d99
 ids-nocull sha256=d55106888299b1239e985a3fda1ec12ec6b509374d207a5349a91b66945da92e

@@ -1,0 +1,4 @@
+  File "D:\TF2_Native_Worktrees\t41-lighting-mutation\dark-account.py", line 164
+    front = (sd <= 0.0) if side == 0 else (sd >= 0.0); front = not front  // mutation m2
+                                                                                      ^^
+SyntaxError: invalid syntax

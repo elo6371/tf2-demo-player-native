@@ -28,8 +28,8 @@
     348.8,
     383.4
   ],
-  "eyeSource": "capture trace .scratch/t36-account.65844\\ids.trace, last 'scene: camera'",
-  "eyeTraceLine": "42388.4 scene: camera mode=first-person target=1 follows=1897 holds=0 freeze=0 eye=-2294.8,348.8,383.4 pitch=-8.43 yaw=64.27 src=demo",
+  "eyeSource": "capture trace .scratch/t36-account.100523\\ids.trace, last 'scene: camera'",
+  "eyeTraceLine": "62124.3 scene: camera mode=first-person target=1 follows=1683 holds=0 freeze=0 eye=-2294.8,348.8,383.4 pitch=-8.43 yaw=64.27 src=demo",
   "faceIdFrame": {
     "distinctFaceIds": 641,
     "drawnPixelsOnDerivedBack": 51890,
@@ -38,8 +38,8 @@
     "drawnPixelsWrittenFront": 378895,
     "facesWithRegion": 452,
     "frames": [
-      ".scratch/t36-account.65844\\ids.bmp",
-      ".scratch/t36-account.65844\\ids-nocull.bmp"
+      ".scratch/t36-account.100523\\ids.bmp",
+      ".scratch/t36-account.100523\\ids-nocull.bmp"
     ],
     "height": 681,
     "inRangePixels": 750391,
