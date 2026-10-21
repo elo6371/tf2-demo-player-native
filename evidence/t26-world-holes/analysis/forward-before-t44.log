@@ -1,0 +1,92 @@
+T44: the unmodified T26 gate on 6888e6d, before the assertion change.
+Run under hostlock owner=t44 on 2026-10-21 16:04:44-16:20:35 (script
+_shared/t44/repro-forward.sh; build 48 s, capture matrix 13m07s, gate 1m55s).
+Readings: 15 captures at tick 2000, all other assertions PASS, exactly one FAIL:
+  seam directions that only the cull-off frame could name: 0
+  FAIL no sliver had a culled neighbour: world-ids-nocull.bmp is not being read
+The trace's last scene: camera before the captured draw is
+eye=-2294.8,348.8,383.4 src=demo (the two lines before it are the previous
+demo tick's pose, -2299.3,341.0,383.4); the once-per-run eyeMap line is absent.
+This red is the subject T44 replaces, preserved here so the replacement is not
+retro-fitted onto a green.
+
+== forward gate, unmodified (expect one red: seamCulled) ==
+== 0. source and tool identity ==
+  HEAD=6888e6debfe7 branch=task/t44-seam-assertion
+  PASS native/ is clean
+== 1. build ==
+  PASS build
+HEAD 6888e6debfe7
+tf2_demo_native.exe 82ef8f79a5259efffd70c75a87ceafc14dffacaf4a5db7fe9423f709e4475359
+world_geometry_probe.exe fe935b4026e82e21690a40660acc2396c3607bbf74dc130794407c6e651000a7
+native/src/bsp_map.cpp 6be8b2430b1e61be91d2391023104c47760c774974ecbcaa1214f8de96ef69aa
+native/src/main.cpp f8badad54adce891111fdbe4f99562f1321227a83bbbcb58ec3b8f360ff27bbd
+native/src/native_renderer.cpp 85b00d685bbd4d63270850293bc6a173ccf738ac15f11104945457ca185dcd34
+== 2. capture matrix ==
+  T26 capture matrix complete: 18 frames in evidence/t26-world-holes/captures
+== 3. the product picture did not move ==
+  PASS stored textured frame identity (ac2cfe9b45bad37a210ad3a8a25b34c2e768fe3e4bd8c578046262bdf31c129d)
+  PASS stored ref frame identity (6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b)
+  PASS the binary this run built reproduces the pinned textured frame byte for byte
+== 4. probe: the sky as geometry ==
+  PASS sky face census
+  PASS face account unchanged
+== 5. first-hit oracle: the winding candidate is refused ==
+  shipped mask07 eye=0.771 flip mask05 eye=0.325 top mask13 eye=0.283
+  PASS the shipped rule keeps 0.771 of the eye's first hits; the two cells a flip would win read 0.325 and 0.283
+== 6. the empty-pixel account ==
+  HOLE totals missing=1648 sky=1648 unexplained=0 skyOnDrawn=777917 skyOnDrawnUnmeasured=777917
+  HOLE split open=0 enclosed=1648 enclosedUnexplained=0 components=34
+  PASS missing pixels (1648)
+  PASS missing pixels covered by a sky face (1648)
+  PASS missing pixels with no sky face (0)
+  PASS enclosed missing pixels (1648)
+  PASS enclosed pixels with no sky face (0)
+  HOLE maskReach coverage=860783 share=1.00000 degenerate=1
+  PASS the sky hull is closed from this camera (the mask cannot discriminate) (1)
+  HOLE depthControl drawnCovered=777917 skyBehind=0 skyInFront=0 tie=777917 measured=1 saturated=1
+  PASS the depth control ran (1)
+  PASS the depth view is saturated, so it is not used as evidence (1)
+  PASS enclosed components >= 200 px, each a sliver (3)
+  PASS every enclosed component is a thin sky-backed sliver
+== 6b. the T23 account still reads the same ==
+  ACCOUNTING totals pixels=860784 drawn=777918 backface=80917 visibility=0 both=301 missing=1648 other=0 overlay=0
+  PASS T23 and T26 agree on the missing population (1648)
+  PASS back-face population (T11 winding unchanged) (80917)
+  PASS visibility population (T17 clip unchanged) (0)
+== 7. the point oracle and the rasterizer ==
+  46837.9 gpu: world hole-trace-summary points=9 drawnHits=0 anyHits=0 skyHits=9 emptyWithSky=9 emptyWithoutSky=0 cull=1 clipApplied=1
+  PASS points with no sky face (0)
+  PASS 9 of 9 traced points are empty with a sky face behind them
+  PASS HOLE-POINT-SUMMARY points=9 failures=0 ids=1264x681 depth=-
+  PASS the traced frame is the pinned textured frame (the trace changed no pixel)
+== 8. what the empty pixels sit between ==
+  seam directions that only the cull-off frame could name: 0
+  FAIL no sliver had a culled neighbour: world-ids-nocull.bmp is not being read
+  seam faces: 8555,15324,17217,17260,17262,17266,17268,17326
+  sky faces at the traced points: 10392,10483,10517,10666,12721
+  PASS every named face exists in the map's face table (13)
+  PASS no face index was invented by a decode error (0)
+  6 of them are displacement faces, 5 are sky faces
+  PASS at least one side of a sliver is a tessellated displacement cell
+  PASS at least one traced empty pixel is backed by a sky face of the map
+       geometry face-info index=8555 kind=world material=WOOD/WOOD_FLOOR004 triangles=2 displacement=0 fallback=0 plane=19586 planeSide=0 cluster=2626 centroid=(-2217.2,550.8,400.3) bounds=(-2304.0,464.0,352.0)..(-2128.6,639.4,447.2)
+       geometry face-info index=15324 kind=world material=GREEK/GREEK_GROUND03B_COBBLE triangles=2 displacement=0 fallback=0 plane=573 planeSide=1 cluster=2313 centroid=(-1536.0,1056.0,544.0) bounds=(-1536.0,1024.0,384.0)..(-1536.0,1088.0,704.0)
+       geometry face-info index=17217 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=806 planeSide=0 cluster=-1 centroid=(-1995.6,586.7,384.4) bounds=(-2137.5,422.5,256.0)..(-1856.0,704.0,523.4)
+       geometry face-info index=17260 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-647.8,2321.8,111.0) bounds=(-972.7,2068.6,0.0)..(-330.9,2575.5,233.9)
+       geometry face-info index=17262 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-639.7,2299.1,304.0) bounds=(-876.7,2044.0,224.0)..(-409.4,2534.4,384.0)
+       geometry face-info index=17266 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-926.7,2525.3,247.0) bounds=(-983.5,2426.1,9.9)..(-845.8,2632.2,384.0)
+       geometry face-info index=17268 kind=world material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=2347 planeSide=1 cluster=-1 centroid=(-1181.2,2926.9,191.5) bounds=(-1540.5,2581.1,0.0)..(-793.8,3182.5,384.0)
+       geometry face-info index=17326 kind=world material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY triangles=32 displacement=1 fallback=0 plane=30 planeSide=0 cluster=-1 centroid=(-1537.2,3334.8,19.1) bounds=(-2176.0,2816.0,-30.0)..(-1024.0,3733.7,90.5)
+       geometry face-info index=10392 kind=sky material=TOOLS/TOOLSSKYBOX triangles=4 displacement=0 fallback=0 plane=745 planeSide=1 cluster=1 centroid=(1578.7,6656.0,-469.3) bounds=(1024.0,6656.0,-1152.0)..(2048.0,6656.0,128.0)
+       geometry face-info index=10483 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=4464 planeSide=0 cluster=1 centroid=(3264.0,5440.0,-1152.0) bounds=(3072.0,5248.0,-2432.0)..(3456.0,5632.0,128.0)
+       geometry face-info index=10517 kind=sky material=TOOLS/TOOLSSKYBOX triangles=4 displacement=0 fallback=0 plane=693 planeSide=1 cluster=2 centroid=(2474.7,4512.0,517.3) bounds=(2048.0,4512.0,128.0)..(3072.0,4512.0,1024.0)
+       geometry face-info index=10666 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=693 planeSide=1 cluster=61 centroid=(480.0,4512.0,160.0) bounds=(384.0,4512.0,128.0)..(576.0,4512.0,192.0)
+== verdict ==
+FAIL: 1 assertion groups did not hold.
+
+real	1m55.611s
+user	0m0.000s
+sys	0m0.000s
+GATE rc=1
+== end 2026-10-21 16:20:35 ==

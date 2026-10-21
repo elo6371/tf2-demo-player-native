@@ -1,0 +1,22 @@
+CULL state=ok frames=1264x681 kept=777918 removed=81218 onlyInCull=0 distinctRemoved=19
+CULL face=17605 pixels=33167 kind=disp side=0 derived=back planeSD=-0.600 seam=0
+CULL face=17672 pixels=25675 kind=disp side=0 derived=back planeSD=-2979.200 seam=0
+CULL face=17674 pixels=15739 kind=disp side=0 derived=back planeSD=-2729.062 seam=0
+CULL face=17330 pixels=1765 kind=disp side=0 derived=back planeSD=-1526.800 seam=0
+CULL face=17327 pixels=1676 kind=disp side=0 derived=back planeSD=-1608.403 seam=0
+CULL face=17259 pixels=1132 kind=disp side=0 derived=back planeSD=-1782.800 seam=0
+CULL face=17258 pixels=843 kind=disp side=0 derived=back planeSD=-1782.800 seam=0
+CULL face=17256 pixels=337 kind=disp side=0 derived=back planeSD=-2723.200 seam=0
+CULL face=17328 pixels=304 kind=disp side=0 derived=back planeSD=-3363.200 seam=0
+CULL face=17331 pixels=249 kind=disp side=0 derived=back planeSD=-2922.937 seam=0
+CULL face=17304 pixels=190 kind=disp side=0 derived=back planeSD=-2343.541 seam=0
+CULL face=17299 pixels=73 kind=disp side=0 derived=back planeSD=-2794.884 seam=0
+CULL face=17320 pixels=28 kind=disp side=0 derived=back planeSD=-2733.675 seam=0
+CULL face=16957 pixels=22 kind=disp side=0 derived=back planeSD=-939.864 seam=0
+CULL face=2574 pixels=6 kind=brush side=0 derived=back planeSD=-1366.800 seam=0
+CULL face=17298 pixels=5 kind=disp side=0 derived=front planeSD=383.400 seam=0
+CULL face=16749 pixels=4 kind=disp side=1 derived=back planeSD=1766.800 seam=0
+CULL face=17333 pixels=2 kind=disp side=0 derived=back planeSD=-2733.675 seam=0
+CULL face=17266 pixels=1 kind=disp side=1 derived=front planeSD=-2462.146 seam=1
+CULL-SUMMARY removed=81218 onlyInCull=0 distinct=19 nonSeam=18 seamFacesRemoved=1 topNonSeam=17605 topNonSeamPixels=33167 topNonSeamKind=disp topNonSeamSide=0 topNonSeamDerived=back
+CULL seam-removed face=17266 pixels=1 kind=disp side=1 derived=front
