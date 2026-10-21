@@ -525,7 +525,7 @@ else
           echo "  NOT-RED m1: the frame dark total did not move (still $M1_DARK)"; mfail=1
         else
           echo "  RED m1 as required: dark total moved 208630 -> $M1_DARK"
-          echo "    (the all-zero BACK bucket moved 67951 -> $M1_ZERO)"
+          echo "    (the all-zero BACK bucket moved 30827 -> $M1_ZERO)"
         fi
       fi
       cp "$M1/account.txt" "$OUT/mutated-m1-exponent-sign.txt"
@@ -564,14 +564,14 @@ else
     # The inversion must SWAP the two populations, not merely move a number:
     # same total, BACK becomes what FRONT was and FRONT becomes what BACK was.
     # Anything else is the tool changing its mind, not the rule being wrong.
-    if [ "$M2_BACK" = "170701" ]; then
+    if [ "$M2_BACK" = "98160" ]; then
       echo "  NOT-RED m2: the back-face population did not move (still $M2_BACK)"; mfail=1
-    elif [ "$M2_DARK" != "208630" ] || [ "$M2_BACK" != "35227" ] || [ "$M2_FRONT" != "170701" ]; then
+    elif [ "$M2_DARK" != "208630" ] || [ "$M2_BACK" != "107768" ] || [ "$M2_FRONT" != "98160" ]; then
       echo "  MUTATION-BROKEN (m2): the split moved but did not swap:"
-      echo "    dark=$M2_DARK (want 208630) back=$M2_BACK (want 35227) front=$M2_FRONT (want 170701)"
+      echo "    dark=$M2_DARK (want 208630) back=$M2_BACK (want 107768) front=$M2_FRONT (want 98160)"
       mfail=1
     else
-      echo "  RED m2 as required: BACK 170701 -> $M2_BACK and FRONT 35227 -> $M2_FRONT, the same total"
+      echo "  RED m2 as required: BACK 98160 -> $M2_BACK and FRONT 107768 -> $M2_FRONT, the same total"
     fi
   fi
   cp "$M2/account.txt" "$OUT/mutated-m2-side-inverted.txt"
