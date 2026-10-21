@@ -11,12 +11,30 @@ against the committed T36 frame.
   --reuse` exits 0, every pin holds, including the 43 new 3d assertions (§6). A
   `--reuse` run copies the committed frames and launches neither the product
   nor a build, so it needed no host lock and no host-lock slot.
-* Mutation m4 verified by running the gate's own m4 block, extracted verbatim,
-  against the real tree (§5): it turns the ledger red with the exact swap and
-  `raster-rule.py` comes back byte-identical (`RESTORE=OK`).
-* The full `--mutation` suite (m1-m4) has NOT been run here: m1 and m3 need a
-  product build, another task holds the shared host lock, and the Lead has not
-  sent "priority clear". That is the remaining step, not a result.
+* Mutation suite PASS, run in this worktree under the shared host lock (owner
+  t46, 2026-10-21 17:22:53 -> 17:28:59, 6m06s): `bash
+  lighting-dark-account-check.sh --mutation --reuse` exits 0, the forward pins
+  hold, all four mutations go red for their stated reasons, every source comes
+  back byte-identical, and the restore build succeeds:
+
+```
+  RED m1 as required: dark total moved 208630 -> 3913
+    (the all-zero BACK bucket moved 30827 -> 601)
+  RESTORE=OK (m1 source byte-identical)
+  RED m2 as required: BACK 98160 -> 107768 and FRONT 107768 -> 98160, the same total
+  RESTORE=OK (m2 source byte-identical)
+  RED m3 as required: the cull control collapsed 81141 -> 0 px
+  RESTORE=OK (m3 source byte-identical)
+  RED m4 as required: face-17605 front pixels 51354 -> 51413, back-only 49 -> 0,
+    front triangles 17 -> 15, displacement front triangles 24058 -> 22958 (the same frame, the other side)
+  RESTORE=OK (m4 source byte-identical)
+  RESTORE-BUILD=OK
+PASS: forward pins held, all four mutations went red, every source came back byte-identical.
+```
+
+* Mutation m4 was also verified in isolation before the suite (its block
+  extracted verbatim from the gate and run against the real tree), so the
+  suite's m4 line is a confirmation, not the first execution.
 
 The readings below are the tool's own, reproducible with the command in §10.
 
@@ -226,13 +244,14 @@ moves but not by the swap the flip implies — a crashed tool is reported as
 MUTATION-BROKEN, not red). A global percentage could not tell 51,354 from
 51,413 or 49 from 0, which is why the gate pins counts.
 
-Verified: the gate's m4 block, extracted verbatim from
-`lighting-dark-account-check.sh` and run against the real tree with the real
-helpers (`patch_in`, `restore_source`), printed `RED m4 as required: face-17605
-front pixels 51354 -> 51413, back-only 49 -> 0, front triangles 17 -> 15,
-displacement front triangles 24058 -> 22958` and then `RESTORE=OK (m4 source
-byte-identical)`, with `git hash-object raster-rule.py` equal before and after
-(da6daa7…). So the wiring, not only the arithmetic, is exercised.
+Verified twice. First in isolation: the gate's m4 block, extracted verbatim
+from `lighting-dark-account-check.sh` and run against the real tree with the
+real helpers (`patch_in`, `restore_source`), printed `RED m4 as required:
+face-17605 front pixels 51354 -> 51413, back-only 49 -> 0, front triangles
+17 -> 15, displacement front triangles 24058 -> 22958` and then `RESTORE=OK
+(m4 source byte-identical)`, with `git hash-object raster-rule.py` equal before
+and after (da6daa7…). Then in the full suite (§status): the same line, m4
+completes in seconds because it is python-only on the already-reused frame.
 
 ## 6. Gate changes
 
@@ -260,21 +279,28 @@ where that script runs `bash lighting-dark-account-check.sh --mutation --reuse`
 from this worktree. Cost: the forward ledger is ~9 s twice (forward + m4) on
 top of the gate's existing work; m4 needs no build.
 
-What has run here, and what has not:
+What has run here:
 
 * `bash lighting-dark-account-check.sh --reuse` — exit 0, forward PASS. It
   copied the committed frames, so it ran no build and launched no product.
   Every new 3d pin printed OK, including the 202-pixel bound and the named
   face, and the forward verdict printed the T46 resolution text.
 * the extracted m4 block (§5) — RED as required, RESTORE=OK, tree clean.
-* `bash lighting-dark-account-check.sh --mutation --reuse` — NOT run: its m1
-  and m3 rebuild the product and recapture, which needs the shared host lock
-  and a build directory that is not present in this worktree yet.
+* `bash lighting-dark-account-check.sh --mutation --reuse` under
+  `hostlock.sh run t46` — exit 0, full PASS (§status). The hold configured and
+  built `native/build-nmake` cold for m1, rebuilt for m3, rebuilt after the
+  restores, and launched the product four times for the m1/m3 captures; it
+  finished in 6m06s, well inside the 30-minute ceiling, and released the lock
+  (`status` = FREE afterwards).
+* the forward verdict text and the mutation verdict ("all four mutations")
+  both printed from the same script that T49's chain calls.
 
 ## 7. What this does NOT claim
 
-* It is not a full gate PASS. The forward gate passes in this worktree, but
-  the mutation suite (m1-m4) has not run; see §status and §6.
+* It is not a claim about the merged tree: this is the gate's PASS at this
+  branch's revision (`0e583b6` + the mutation-suite evidence commit). T49's
+  chain re-runs the same script on the integrated wave; nothing here is merged
+  or pushed.
 * The per-triangle rule is a measurement, not a proof that the raster is
   exactly modelable: 202 pixels are bounded, 18 removed pixels disagree on a
   grazing edge, and the 2 zero-area brush-fan pixels are drawn by a float32
@@ -293,8 +319,9 @@ capture frames and their trace.
 ## 9. Merge risk
 
 * Files: `raster-rule.py`, `lighting-dark-account-check.sh`,
-  `evidence/t36-lighting-dark-account/raster-rule.json|txt`. No native source,
-  no build input, no other task's evidence.
+  `evidence/t36-lighting-dark-account/raster-rule.json|txt` and the mutation
+  evidence `mutated-m{1,2,4}-*.txt`. No native source, no build input, no
+  other task's evidence.
 * The T41 keys in the JSON are untouched, so anything reading them (the T36
   gate's 3c pins) is unaffected; the gate's forward run regenerates the same
   numbers from the same frames.
@@ -316,3 +343,37 @@ python raster-rule.py \
 
 The tool prints its readings and writes the JSON the gate pins; exit 0 means
 every reading was produced.
+
+## Appendix A. Superseded evidence file: `mutated-m2-side-inverted.txt`
+
+T41 committed that file as a hand-written note about the m2 mutation. The gate
+itself writes it as the mutated account tool's raw output (`cp
+"$M2/account.txt" "$OUT/mutated-m2-side-inverted.txt"`), so this run replaced
+the note. The note is preserved here verbatim, because it records a measurement
+that is easy to get wrong:
+
+```
+m2 (pure Python, no product): the face-side test in dark-account.py is
+negated as a whole -- front = not ((sd >= 0.0) if side == 0 else (sd <= 0.0))
+  baseline: dark=208630 back=98160 front=107768
+  mutated : dark=208630 back=107768 front=98160
+  M2=RED-as-required the split swapped 98160/107768 -> 107768/98160 at the
+    same 208630 total
+  RESTORE=OK (dark-account.py byte-identical, 911cc84a70eec2cfb3dd12925f316add6d1dc05b)
+Note: negating only the inner comparison, not ((sd <= 0.0) if side == 0 else
+(sd >= 0.0)), is NOT an inversion -- it reproduces the baseline exactly and
+was measured doing so -- because it differs from the original only at sd == 0.
+```
+
+## Appendix B. Why the evidence files churn
+
+`dark-account.py` and `raster-rule.py` print the run directory into their
+output (mask paths, `eyeSource`, the frame list). The gate writes to
+`.scratch/t36-account.$$/`, so a gate run rewrites
+`account.txt`, `frames.txt`, `side-account.txt`, `raster-rule.json|txt` and
+`mutated-m1-*.txt` with a new pid in those path strings while every count stays
+identical. That is pre-existing T41 behaviour and is why the committed
+`mutated-m1` already carried a different run's pid. This branch commits the
+files the mutation-suite run produced; a future run will rewrite the paths and
+nothing else. `mutated-m4-side-inverted.txt` is new in this run and is the m4
+ledger the mutation produced (its counters are the mutated column in §5).
