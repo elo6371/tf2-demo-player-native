@@ -1,0 +1,6 @@
+face-id pixels the cull KEPT   : 750391
+face-id pixels the cull REMOVED: 0 (from 0 distinct faces)
+  removed faces by BSP side    : {}
+  pixels with a face only in the culled frame: 0
+  top removed faces            : []
+CONTROL=FAIL the cull removed nothing

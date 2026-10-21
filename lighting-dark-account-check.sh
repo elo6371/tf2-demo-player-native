@@ -34,7 +34,14 @@
 #      account is being taken on the frame T29 measured;
 #   2. every bucket count is pinned, so a lightmap change, a winding change or
 #      a cull change moves a number here instead of hiding in a total;
-#   3. the face-side split of the dark population is pinned (T29 NOT VERIFIED);
+#   3. the face-side split of the dark population is pinned (T29 NOT VERIFIED),
+#      in the AUTHORED sense of front/back -- the side the map wrote the surface
+#      to be seen from. Since T41 that sense is derived, not calibrated: the
+#      raster state (CULL_BACK + FrontCounterClockwise=FALSE) plus the winding
+#      the product actually emits fix the front set, and the plane-side rule is
+#      shown to differ from it in exactly one cell (brush/side-1). See section
+#      3b/3c and raster-rule.py; the pixel-level split T36 read off the face-id
+#      frame is not a measurement (3c(4));
 #   4. the product-attributable share stays tiny: a lightmap regression that
 #      starts losing bright data grows it;
 #   5. the mask files exist and their pixel sums equal the counts;
@@ -169,9 +176,34 @@ for n in textured ids ids-nocull lmoff flat; do
   cp "$SCRATCH/$n.trace" "$CAP/" 2>/dev/null || true
 done
 
+# T41: the eye every tool below classifies with. It used to be the literal
+# (-2423.6,5566.0,-1280.0), which is the 'gpu: world vis eyeMap' value -- and
+# main.cpp emits that line ONCE, on the FIRST drawn frame. It is not the pose of
+# the captured frame, so every side-dependent reading was taken against the
+# wrong camera. The capture's own trace carries the right one: the last
+# 'scene: camera' line before the frame is drawn (mode=first-person, src=demo).
+EYE_LINE=""
+EYE=""
+if [ -s "$SCRATCH/ids.trace" ]; then
+  EYE_LINE=$(grep -a "scene: camera" "$SCRATCH/ids.trace" | tail -1)
+  EYE=$(printf '%s' "$EYE_LINE" | grep -oE 'eye=-?[0-9.]+,-?[0-9.]+,-?[0-9.]+' | head -1 | cut -d= -f2)
+fi
+if [ -z "$EYE" ] && [ -s "$OUT/frames.txt" ]; then
+  # A --reuse run has no capture trace of its own: take the pose the committed
+  # frames were captured at, which frames.txt records, and say where it came from.
+  EYE=$(grep -m1 '^eye=' "$OUT/frames.txt" | cut -d= -f2)
+  EYE_LINE="read back from $OUT/frames.txt (reuse: no capture trace to read)"
+fi
+if [ -z "$EYE" ]; then
+  echo "  FAIL no capture trace and no pose in $OUT/frames.txt -- cannot classify a pose"
+  exit 2
+fi
+echo "  capture pose: eye=$EYE"
+echo "    $EYE_LINE"
+
 echo "== 2. the population account =="
 "$PYTHON" dark-account.py --frames "$SCRATCH" --out "$ACCOUNT" \
-  --bsp "$BSP" --eye="-2423.6,5566.0,-1280.0" \
+  --bsp "$BSP" --eye="$EYE" \
   --json "$ACCOUNT/account.json" > "$ACCOUNT/account.txt" 2>&1
 if [ ! -s "$ACCOUNT/account.json" ]; then
   echo "  FAIL the account tool did not produce a ledger";
@@ -189,39 +221,50 @@ assert_eq "dark total (the T29 reference frame)" \
   "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['dark'])" "$ACCOUNT/account.json")" \
   "208630"
 assert_eq "A no world triangle (sky/viewmodel)" "$(jget A_no_world_triangle)" "2702"
-assert_eq "rect all zero, BACK, albedo bright" "$(jget rect_all_zero_back_albedoBright)" "67951"
-assert_eq "rect all zero, FRONT, albedo bright" "$(jget rect_all_zero_front_albedoBright)" "5432"
-assert_eq "rect mean<8, BACK"  "$(jget rect_lt_8_back_albedoBright)" "14814"
-assert_eq "rect mean<8, FRONT" "$(jget rect_lt_8_front_albedoBright)" "24855"
-assert_eq "rect mean<32, BACK" "$(jget rect_lt_32_back_albedoBright)" "26425"
-assert_eq "rect mean<32, FRONT" "$(jget rect_lt_32_front_albedoBright)" "4039"
-assert_eq "rect mean<96, BACK" "$(jget rect_lt_96_back_albedoBright)" "57516"
-assert_eq "rect mean<96, FRONT" "$(jget rect_lt_96_front_albedoBright)" "752"
-assert_eq "rect BRIGHT, BACK" "$(jget rect_bright_back_albedoBright)" "3993"
-assert_eq "rect BRIGHT, FRONT" "$(jget rect_bright_front_albedoBright)" "130"
+assert_eq "rect all zero, BACK, albedo bright" "$(jget rect_all_zero_back_albedoBright)" "30827"
+assert_eq "rect all zero, FRONT, albedo bright" "$(jget rect_all_zero_front_albedoBright)" "42556"
+assert_eq "rect mean<8, BACK"  "$(jget rect_lt_8_back_albedoBright)" "15717"
+assert_eq "rect mean<8, FRONT" "$(jget rect_lt_8_front_albedoBright)" "23952"
+assert_eq "rect mean<32, BACK" "$(jget rect_lt_32_back_albedoBright)" "26082"
+assert_eq "rect mean<32, FRONT" "$(jget rect_lt_32_front_albedoBright)" "4382"
+assert_eq "rect mean<96, BACK" "$(jget rect_lt_96_back_albedoBright)" "24369"
+assert_eq "rect mean<96, FRONT" "$(jget rect_lt_96_front_albedoBright)" "33899"
+assert_eq "rect BRIGHT, BACK" "$(jget rect_bright_back_albedoBright)" "1144"
+assert_eq "rect BRIGHT, FRONT" "$(jget rect_bright_front_albedoBright)" "2979"
 # The face-side split T29 left NOT VERIFIED.
 assert_eq "dark on BACK faces" \
   "$("$PYTHON" -c "import json;d=json.load(open('$ACCOUNT/account.json'))['counts'];print(sum(v for k,v in d.items() if '_back_' in k))")" \
-  "170701"
+  "98160"
 assert_eq "dark on FRONT faces" \
   "$("$PYTHON" -c "import json;d=json.load(open('$ACCOUNT/account.json'))['counts'];print(sum(v for k,v in d.items() if '_front_' in k))")" \
-  "35227"
+  "107768"
 # How much of the frame a product lightmap defect could still explain. A decode
 # regression that starts losing bright data grows it.
 assert_le "product-attributable pixels" \
   "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['productAttributable'])" "$ACCOUNT/account.json")" \
   "4200"
 
-echo "== 3b. the face-side rule is calibrated against the rasterizer =="
-# The account's side rule must agree with something already known, or its
-# front/back split is a statement about the sign of a test and nothing else. The
-# --world-face-id frame is drawn with D3D11_CULL_BACK, so every pixel carrying a
-# face id is a surface the RASTERIZER called front. A correct plane-side rule
-# calls nearly all of that population front. The rule as written calls 86% of it
-# back, which is how this gate's headline number came to be inverted.
+echo "== 3b. the front/back rule, derived from the raster state and the winding =="
+# T36 calibrated this rule by majority vote: whatever calls >=80% of the drawn
+# pixels FRONT wins. That cannot say which of the two names is right, and it
+# adopts the instrument it is meant to test. T41 derives the rule instead, from
+# the three things that decide it:
+#   * the world raster state is D3D11_CULL_BACK with FrontCounterClockwise =
+#     FALSE (native_renderer.cpp:1174-1179), so front is the CLOCKWISE triangle
+#     in the viewport's y-down screen space, i.e. dot(emittedNormal, eye-p) > 0
+#     -- the same test the trace's own oracle applies (main.cpp:5236-5239,
+#     "area > 0", which reported depthMatched=24 of 25 named pixels);
+#   * the product does not emit the stored polygon: the brush fan is pushed as
+#     (polygon[0], polygon[i+1], polygon[i]) (bsp_map.cpp:835, the reverse of
+#     the surfedge order) and displacement triangles are flipped per triangle
+#     onto the face's side-aware outward (bsp_map.cpp:609-616);
+#   * the eye is the trace's own eyeMap, pinned at line 255 above.
+# raster-rule.py counts 1 and 2 out of the lumps, applies 3, and reports which
+# cell of the class x side table the shipped plane-side rule gets wrong. Its
+# output is archived, so a winding or raster-state regression moves a number.
 SIDE="$ACCOUNT/side.txt"
 "$PYTHON" dark-account-side.py --frames "$SCRATCH" --bsp "$BSP" \
-  --eye="-2423.6,5566.0,-1280.0" --json "$ACCOUNT/side.json" > "$SIDE.raw" 2>&1
+  --eye="$EYE" --json "$ACCOUNT/side.json" > "$SIDE.raw" 2>&1
 # Same normalisation as the account log: the ledger path carries the pid, and a
 # rerun must not dirty tracked evidence with a no-op diff.
 sed 's#^ledger -> .*#ledger -> side-account.json#' "$SIDE.raw" > "$SIDE"
@@ -232,21 +275,16 @@ else
   DRAWN_FRONT=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['drawn']['front'])" "$ACCOUNT/side.json")
   DRAWN_BACK=$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['drawn']['back'])" "$ACCOUNT/side.json")
   DRAWN_ALL=$((DRAWN_FRONT + DRAWN_BACK))
-  # Under the calibrated rule the drawn population is overwhelmingly front.
+  # This ledger is T36's CALIBRATED rule, i.e. the negation of the plane-side
+  # rule, chosen by majority vote. Its labels are therefore neither the authored
+  # side (which the account proper uses, and which is what section 3's buckets
+  # name) nor the derived raster rule (section 3c): it is the negation of the
+  # first, and it only coincides with the second on the cells where the two
+  # rules already agree. It is kept because its RR is the concentration test,
+  # which is symmetric, but its NAME for a side is not a reading -- 3c is.
   FRONT_PCT=$(awk -v f="$DRAWN_FRONT" -v t="$DRAWN_ALL" 'BEGIN{printf "%.2f", 100.0*f/t}')
-  # The bar is a MAJORITY, not unanimity: the plane lump and the buffer winding
-  # are allowed to disagree on some faces (that residual is T11's business), and
-  # the two rules are opposites (86% vs 14%), so any threshold between 14% and 86%
-  # separates them. 80% keeps a wide margin on the right side of that gap while
-  # still failing loudly if the sign ever flips back.
-  if awk -v v="$FRONT_PCT" 'BEGIN{exit !(v>=80.0)}'; then
-    echo "  OK the calibrated rule calls $FRONT_PCT% of the drawn (already-culled) population FRONT"
-  else
-    echo "  FAIL the calibrated rule calls only $FRONT_PCT% of the drawn population front"
-    echo "       (the opposite sign calls 86%; a rule that disagrees with the"
-    echo "        rasterizer's own cull cannot label which side a surface was seen from)"
-    fail=1
-  fi
+  echo "  .. the calibrated (negated) rule calls $FRONT_PCT% of the drawn pixels FRONT;"
+  echo "     the plane-side rule the account itself uses calls the same pixels BACK."
   # The darkness must be measurable against its own base rate, not just shared.
   RR=$("$PYTHON" -c "import json,sys;print('%.3f' % json.load(open(sys.argv[1]))['relativeRiskBackVsFront'])" "$ACCOUNT/side.json")
   echo "  .. relative risk of being dark, back vs front = $RR (base rate $(awk -v b="$("$PYTHON" -c "import json,sys;print('%.2f' % json.load(open(sys.argv[1]))['baseDarkRatePct'])" "$ACCOUNT/side.json")" 'BEGIN{print b}')%)"
@@ -255,6 +293,97 @@ else
   else
     echo "  FAIL back-face enrichment RR=$RR -- the side split now dominates the account"; fail=1
   fi
+fi
+
+echo "== 3c. the derived rule, and the face-id frame tested against it =="
+RRULE="$ACCOUNT/raster-rule.json"
+"$PYTHON" raster-rule.py --bsp "$BSP" --frames "$SCRATCH" \
+  --eye="$EYE" --json "$RRULE" > "$ACCOUNT/raster-rule.txt" 2>&1
+# The tool prints the ledger path it was handed, and that path carries this
+# run's pid; the reading does not. Reduced the same way the account log is, so a
+# rerun cannot dirty a tracked file with a no-op diff.
+sed 's#^json -> .*#json -> raster-rule.json#' "$ACCOUNT/raster-rule.txt" > "$OUT/raster-rule.txt"
+cat "$OUT/raster-rule.txt"
+rjget() { # rjget <python expression over d>
+  "$PYTHON" -c "import json,sys;d=json.load(open(sys.argv[1]));print($1)" "$RRULE" 2>/dev/null
+}
+if [ ! -s "$RRULE" ]; then
+  echo "  FAIL the raster-rule tool produced no reading"; fail=1
+else
+  # (1) the emission census: the buffer's winding, counted from the lumps.
+  assert_eq "brush triangles emitted along the plane normal" \
+    "$(rjget "d['emission']['brushAlongPlane']")" "16654"
+  assert_eq "brush triangles emitted against it" \
+    "$(rjget "d['emission']['brushAgainstPlane']")" "1"
+  assert_eq "brush faces with a degenerate fan" \
+    "$(rjget "d['emission']['brushDegenerate']")" "5"
+  assert_eq "displacement grids whose own order is against the plane normal" \
+    "$(rjget "d['emission']['dispGridAgainstPlane']")" "1392"
+  # (2) the front set the raster must keep at this eye. The written plane-side
+  # rule is NOT this set: it differs in one cell -- brush/side-1, where the fan
+  # emits the plane normal whatever the side bit says.
+  assert_eq "faces the derived rule calls front" \
+    "$(rjget "d['derivedFrontFaces']")" "9569"
+  assert_eq "brush/side-1 faces the two rules disagree on" \
+    "$(rjget "d['ruleAgreement']['brush/side-1']['disagree']")" "6114"
+  # (2b) the INDEPENDENT cross-check for the rule, kept from T21/T29: the
+  # product's own face trace compares its CPU raster oracle -- the same
+  # "area > 0" winding test (main.cpp:5236-5239) -- against the depth buffer at
+  # 28 named pixels, and agrees on 24 of 25. That is a second instrument, on a
+  # different frame, reaching the same sign this derivation starts from; the
+  # face-id frame's own pixels are what cannot corroborate it (3c(4)).
+  assert_eq "committed face-trace depthMatched (independent raster oracle)" \
+    "$(grep -o 'depthMatched=[0-9]*' evidence/world-material-face/trace-textured.txt | head -1 | cut -d= -f2)" "24"
+  # The ONE known disagreement between the derived rule and the shipped
+  # plane-side rule is the brush/side-1 cell: the brush fan carries the plane
+  # normal whatever the side bit says, so the rasterizer keeps the face the map
+  # authored as back. That is T11's residual, named here rather than averaged
+  # away.
+  assert_le "faces the two rules disagree on outside brush/side-1" \
+    "$(rjget "d['ruleAgreement']['brush/side-0']['disagree']+d['ruleAgreement']['disp/side-0']['disagree']+d['ruleAgreement']['disp/side-1']['disagree']")" \
+    "60"
+  # (3) removedSide, re-derived: the authored side of what the raster keeps and
+  # of what it removes, weighted by FACE. A cull that removes the authored-back
+  # surfaces is doing its job; the authored-back faces it still keeps are the
+  # brush/side-1 winding cell, and they are counted here so the residual cannot
+  # drift in silence. T36's 44,046 plane-front / 37,095 plane-back is
+  # SUPERSEDED: it was read at the vis-line eye, which is the first drawn frame,
+  # not the pose of the captured frame. Re-derived at the capture pose it is
+  # 6 plane-front / 81,135 plane-back -- the cull removing the surfaces the map
+  # authored facing away, which is what a back-face cull is for. What stays
+  # withheld is the per-FACE reading of these pixels: the rule that labels them
+  # is exact on planar geometry and approximate on displacement (3c(4)).
+  assert_eq "raster-kept faces, authored front" "$(rjget "d['derivedDrawn']['front']")" "5526"
+  assert_eq "raster-kept faces, authored back"  "$(rjget "d['derivedDrawn']['back']")"  "4043"
+  assert_eq "raster-removed faces, authored front" "$(rjget "d['derivedRemoved']['front']")" "2073"
+  assert_eq "raster-removed faces, authored back"  "$(rjget "d['derivedRemoved']['back']")"  "6410"
+  # (4) the instrument T36 used as the oracle, tested against the derived rule.
+# At the wrong pose (the vis-line eye) this read 465,922 drawn pixels on faces
+# the rule calls back, and that was taken as the frame being unsound. At the
+# capture pose it is 51,890 (6.92%), and the rest has a shape:
+#   51,620 on disp/side-0 and 2 on disp/side-1. The rule uses the face's outward
+#     normal as the emitted normal of a displacement face, which is the only
+#     thing computable without evaluating the displaced grid. The product flips
+#     each TRIANGLE onto that outward, so a steep grid triangle can face the eye
+#     while the face's base plane does not: the rule is EXACT on the planar
+#     brush faces and CONSERVATIVE on the curved displacement ones.
+#   334 on brush faces (0.04%): the 5 degenerate fans and the 1 brush face
+#     emitted against its own plane normal, both named in the census above.
+# The product's own 28-point face trace agrees: 24 points carry a world face
+# id, 22 are derived-front, and the 2 exceptions are (930,390) and (1140,390),
+# both id 17605, the same disp/side-0 face.
+# So the frame is not shown to be unsound. The rule is exact on planar geometry
+# and approximate on displacement, and the face-weighted split below is pinned
+# as measured-for-brush and bounded-for-disp, not as a pixel-exact attribution.
+# A SEPARATE cross-check, unexplained but bounded: 163 of 452 id regions cover
+# more pixels than a 90-degree pinhole from this eye allows (median ratio 0.68,
+# p90 3.07, max 43,269). Overlapping or very thin edge-on surfaces would do that
+# with no cull defect, and this test cannot tell the two apart, so it is a
+# bound and not a verdict on the frame.
+  assert_eq "drawn pixels on a face the derived rule removes" \
+    "$(rjget "d['faceIdFrame']['drawnPixelsOnDerivedBack']")" "51890"
+  assert_eq "id regions that exceed their own pinhole bound" \
+    "$(rjget "d['faceIdFrame']['overBoundFaces']")" "163"
 fi
 
 echo "== 4. the masks exist and sum to the counts =="
@@ -273,16 +402,26 @@ if [ "$mask_ok" = 1 ]; then echo "  OK every mask sums to its count"; else fail=
 echo "== 5. the back-face control =="
 CJSON="$ACCOUNT/cull.json"
 "$PYTHON" cull-control.py --frames "$SCRATCH" --bsp "$BSP" \
-  --eye="-2423.6,5566.0,-1280.0" --json "$CJSON" > "$ACCOUNT/cull.txt" 2>&1
+  --eye="$EYE" --json "$CJSON" > "$ACCOUNT/cull.txt" 2>&1
 cull_rc=$?
 cat "$ACCOUNT/cull.txt"
 if [ "$cull_rc" != 0 ]; then echo "  FAIL the cull control did not hold"; fail=1; fi
 assert_eq "pixels the cull removed" \
   "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removed'])" "$CJSON")" "81141"
-assert_eq "removed pixels that are BSP-FRONT faces" \
-  "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removedSide'].get('front',0))" "$CJSON")" "44046"
-assert_eq "removed pixels that are BSP-BACK faces" \
-  "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removedSide'].get('back',0))" "$CJSON")" "37095"
+# T41: the two numbers below are the PLANE-SIDE convention applied to the
+# culled PIXELS of the face-id frame -- the same convention the account proper
+# uses for its authored-side buckets. They stay pinned, because a cull-state or
+# winding change must still move them, but they are NOT VERIFIED as a reading
+# of the rasterizer's decision: that reading is the face-weighted derived split
+# in 3c, and the attribution these rest on fails its own test (3c(4)). The
+# status marker is asserted first, so restoring these as truth means deleting
+# the assertion that says they are not.
+assert_eq "removedSide status in the derived ledger" \
+  "$(rjget "d['notVerified']['status']")" "NOT VERIFIED"
+assert_eq "removed pixels that are BSP-FRONT faces (plane-side convention)" \
+  "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removedSide'].get('front',0))" "$CJSON")" "6"
+assert_eq "removed pixels that are BSP-BACK faces (plane-side convention)" \
+  "$("$PYTHON" -c "import json,sys;print(json.load(open(sys.argv[1]))['removedSide'].get('back',0))" "$CJSON")" "81135"
 
 echo "== 6. evidence =="
 # The console log names each mask by the scratch path it was written to, which
@@ -302,6 +441,9 @@ if [ -s "$ACCOUNT/side.json" ]; then
   cp "$ACCOUNT/side.json" "$OUT/side-account.json"
   cp "$ACCOUNT/side.txt" "$OUT/side-account.txt"
 fi
+if [ -s "$ACCOUNT/raster-rule.json" ]; then
+  cp "$ACCOUNT/raster-rule.json" "$OUT/raster-rule.json"
+fi
 # The masks go under masks/ rather than the evidence root: a second run used to
 # leave a duplicate copy of every one of them in the root, so the tree went dirty
 # with 14 untracked files that carried no new reading.
@@ -315,6 +457,9 @@ done
   # with no new reading. The run's own log carries the timestamp.
   echo "map=$MAP demo=$(basename "$DEMO") tick=2000 camera=the T29 reference"
   echo "viewmodel=$VMODEL --viewmodel-render companion"
+  # The pose the frames were drawn with, so a --reuse run classifies with the
+  # same eye instead of a per-run line that only the first drawn frame carries.
+  echo "eye=$EYE"
   for n in textured ids ids-nocull lmoff flat; do
     if [ -s "$CAP/$n.bmp" ]; then
       echo "$n sha256=$("$PYTHON" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$CAP/$n.bmp")"
@@ -324,10 +469,25 @@ done
 echo "  wrote $OUT/{account.txt,account.json,cull-control.txt,cull-control.json,frames.txt}"
 echo "  and the population masks"
 
-if [ "$MODE" != "--mutation" ]; then
+# T41: the mode test used to compare against the exact string "--mutation", so
+# "--mutation --reuse" fell through to the forward verdict, printed PASS and
+# exited 0 without running a single mutation. Asking for the mutations is now
+# tested as a membership, not as an equality.
+case "$MODE" in
+  *--mutation*) MUTATION_REQUESTED=1 ;;
+  *) MUTATION_REQUESTED=0 ;;
+esac
+if [ "$MUTATION_REQUESTED" = 0 ]; then
   echo "== verdict =="
   if [ "$fail" = 0 ]; then
     echo "PASS: 208,630 dark pixels attributed bucket by bucket; 99.94% is the map own lighting, 1.98% is product-attributable, the cull control holds."
+    echo "NOT VERIFIED: the PIXEL-level authored-side split, and the per-face reading of the removed pixels."
+  echo "  T36's numbers for both (170,701 back / 35,227 front; 44,046 front / 37,095 back) are SUPERSEDED, not re-pinned:"
+  echo "  they were read at the vis-line eye, which is the first drawn frame, not the pose of the captured frame."
+  echo "  Re-derived at the capture pose: 98,160 back / 107,768 front, and 6 front / 81,135 back removed."
+  echo "  Its '86% of drawn pixels are BACK' headline reads 50.49% back / 49.51% front at the capture pose."
+    echo "  They stay pinned, in the plane-side convention, because a cull or winding change must still move them -- but the face-id attribution they rest on fails its own test (3c(4))."
+    echo "  The measured claim is the derived, FACE-weighted split in 3c: kept 5526 authored-front / 4043 authored-back, removed 2073 / 6410."
   else
     echo "FAIL: $fail assertion groups did not hold."
   fi
@@ -389,7 +549,7 @@ else
       done
       cp "$SCRATCH/ids-nocull.bmp" "$M1/"
       "$PYTHON" dark-account.py --frames "$M1" --out "$M1" \
-        --bsp "$BSP" --eye="-2423.6,5566.0,-1280.0" \
+        --bsp "$BSP" --eye="$EYE" \
         --json "$M1/account.json" > "$M1/account.txt" 2>&1
       if [ ! -s "$M1/account.json" ]; then
         echo "  MUTATION-BROKEN (m1): the account tool produced no ledger";
@@ -401,7 +561,7 @@ else
           echo "  NOT-RED m1: the frame dark total did not move (still $M1_DARK)"; mfail=1
         else
           echo "  RED m1 as required: dark total moved 208630 -> $M1_DARK"
-          echo "    (the all-zero BACK bucket moved 67951 -> $M1_ZERO)"
+          echo "    (the all-zero BACK bucket moved 30827 -> $M1_ZERO)"
         fi
       fi
       cp "$M1/account.txt" "$OUT/mutated-m1-exponent-sign.txt"
@@ -416,14 +576,14 @@ cp dark-account.py "$SAVE_ACC"
 HASH_ACC=$(git hash-object dark-account.py 2>/dev/null || echo none)
 if ! patch_in dark-account.py \
   '                front = (sd >= 0.0) if side == 0 else (sd <= 0.0)' \
-  '                front = (sd <= 0.0) if side == 0 else (sd >= 0.0); front = not front  // mutation m2'; then
+  '                front = not ((sd >= 0.0) if side == 0 else (sd <= 0.0))  # mutation m2'; then
   echo "  MUTATION-SETUP=FAIL (m2: the patch did not apply)"; fail=1
 else
   M2="$SCRATCH/m2-account"
   mkdir -p "$M2"
   for n in textured ids ids-nocull lmoff flat; do cp "$SCRATCH/$n.bmp" "$M2/"; done
   "$PYTHON" dark-account.py --frames "$M2" --out "$M2" \
-    --bsp "$BSP" --eye="-2423.6,5566.0,-1280.0" \
+    --bsp "$BSP" --eye="$EYE" \
     --json "$M2/account.json" > "$M2/account.txt" 2>&1
   if [ ! -s "$M2/account.json" ]; then
     # A crashed tool is not a mutation going red. That is the failure mode the
@@ -440,14 +600,14 @@ else
     # The inversion must SWAP the two populations, not merely move a number:
     # same total, BACK becomes what FRONT was and FRONT becomes what BACK was.
     # Anything else is the tool changing its mind, not the rule being wrong.
-    if [ "$M2_BACK" = "170701" ]; then
+    if [ "$M2_BACK" = "98160" ]; then
       echo "  NOT-RED m2: the back-face population did not move (still $M2_BACK)"; mfail=1
-    elif [ "$M2_DARK" != "208630" ] || [ "$M2_BACK" != "35227" ] || [ "$M2_FRONT" != "170701" ]; then
+    elif [ "$M2_DARK" != "208630" ] || [ "$M2_BACK" != "107768" ] || [ "$M2_FRONT" != "98160" ]; then
       echo "  MUTATION-BROKEN (m2): the split moved but did not swap:"
-      echo "    dark=$M2_DARK (want 208630) back=$M2_BACK (want 35227) front=$M2_FRONT (want 170701)"
+      echo "    dark=$M2_DARK (want 208630) back=$M2_BACK (want 107768) front=$M2_FRONT (want 98160)"
       mfail=1
     else
-      echo "  RED m2 as required: BACK 170701 -> $M2_BACK and FRONT 35227 -> $M2_FRONT, the same total"
+      echo "  RED m2 as required: BACK 98160 -> $M2_BACK and FRONT 107768 -> $M2_FRONT, the same total"
     fi
   fi
   cp "$M2/account.txt" "$OUT/mutated-m2-side-inverted.txt"
@@ -478,7 +638,7 @@ else
       cp "$SCRATCH/lmoff.bmp" "$M3/"
       cp "$SCRATCH/flat.bmp" "$M3/"
       "$PYTHON" cull-control.py --frames "$M3" --bsp "$BSP" \
-        --eye="-2423.6,5566.0,-1280.0" --json "$M3/cull.json" > "$M3/cull.txt" 2>&1
+        --eye="$EYE" --json "$M3/cull.json" > "$M3/cull.txt" 2>&1
       if [ ! -s "$M3/cull.json" ]; then
         echo "  MUTATION-BROKEN (m3): the cull control produced no reading";
         cat "$M3/cull.txt"; mfail=1

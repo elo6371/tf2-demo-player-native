@@ -2,8 +2,8 @@
  "kept": 750391,
  "removed": 81141,
  "removedSide": {
-  "front": 44046,
-  "back": 37095
+  "back": 81135,
+  "front": 6
  },
  "onlyInCullFrame": 0,
  "distinctRemovedFaces": 19,
@@ -42,8 +42,8 @@
   ]
  ],
  "eyeMap": [
-  -2423.6,
-  5566.0,
-  -1280.0
+  -2294.8,
+  348.8,
+  383.4
  ]
 }
