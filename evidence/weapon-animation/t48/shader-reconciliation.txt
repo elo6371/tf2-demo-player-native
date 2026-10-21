@@ -1,0 +1,6 @@
+# T48 -- step 2 (the part instrumentation permits): the two candidate shader outputs.
+# Measured colours at the sample, converted to the lighting factor and the diffuse term
+# of the product's untextured model shader (vertex colour forced to 0.72,0.72,0.76).
+
+colour=(114,114,120) lighting=0.618192..0.621775 diffuse=-0.004759..0.004671 (saturated at 0: the surface faces away from the light)
+colour=(169,169,179) lighting=0.921053..0.923203 diffuse=0.792244..0.797902

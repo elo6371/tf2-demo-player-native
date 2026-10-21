@@ -1,0 +1,28 @@
+# T48 -- step 1: pixel (622,412) and its neighbourhood in the T43-input pair.
+# Produced by the new --inspect-pixel mode of bmp-silhouette-diff.py.
+
+BMP-INSPECT pixel=622,412 window=9 extent=1264x681x24 frame_pixels=860784
+BMP-INSPECT A=D:/TF2_Native_Test/evidence/verify/22-weapon-animation/model-identity.bmp B=D:/TF2_Native_Test/evidence/verify/22-weapon-animation/model-control.bmp edge=D:/TF2_Native_Test/evidence/verify/22-weapon-animation/model-control.bmp
+BMP-INSPECT stored: A_row=268 A_data_offsets=1018122..1018124 B_row=268 B_data_offsets=1018122..1018124 edge_row=268
+BMP-INSPECT values: A=(114, 114, 120) B=(169, 169, 179) edge=(169, 169, 179) delta=(55, 55, 59) max_channel=59
+BMP-INSPECT neighbour left  A=(114, 114, 120) B=(114, 114, 120) delta=(0, 0, 0)
+BMP-INSPECT neighbour right A=(170, 170, 179) B=(170, 170, 179) delta=(0, 0, 0)
+BMP-INSPECT neighbour up    A=(163, 163, 172) B=(163, 163, 172) delta=(0, 0, 0)
+BMP-INSPECT neighbour down  A=(114, 114, 120) B=(114, 114, 120) delta=(0, 0, 0)
+BMP-INSPECT gradient: A=59 B=59 edge=59 edge_threshold=32 mask_edge=1
+BMP-INSPECT grid_A_r: R channel of D:/TF2_Native_Test/evidence/verify/22-weapon-animation/model-identity.bmp, rows y=408..416, columns x=618..626, '*' marks the sample
+BMP-INSPECT grid_A_r header 618 619 620 621 622 623 624 625 626
+BMP-INSPECT grid_A_r y=408 114 114 114 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=409 171 172 172 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=410 114 114 114 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=411 162 162 162 163 163 163 163 164 164
+BMP-INSPECT grid_A_r y=412 114 114 114 114 *114 170 170 171 114
+BMP-INSPECT grid_A_r y=413 114 114 114 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=414 144 144 144 134 124 114 114 114 114
+BMP-INSPECT grid_A_r y=415 149 149 149 148 148 148 147 147 147
+BMP-INSPECT grid_A_r y=416 173 172 171 171 170 156 151 151 151
+BMP-INSPECT differing_in_window: 1 of 81
+BMP-INSPECT differs (622,412) A=(114, 114, 120) B=(169, 169, 179) delta=(55, 55, 59)
+BMP-INSPECT window_A_values: (114, 114, 120) x43 (163, 163, 172) x4 (151, 151, 159) x3 (162, 162, 171) x3 (144, 144, 152) x2 (147, 147, 155) x2 (148, 148, 156) x2 (149, 149, 157) x2
+BMP-INSPECT status=OK
+BMP-INSPECT inspection-only=1 (no bound given: nothing was checked)

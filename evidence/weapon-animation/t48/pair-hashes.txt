@@ -1,0 +1,11 @@
+# T48 -- the T43-input identity-skinning pair, its pose control and its tick frames.
+# These are the T43 release chain's own step-22 frames (verify-all.sh --quick on
+# 6888e6d); the hashes are the values the chain manifest recorded for the same paths,
+# so the pair is byte-identical to the one T39 measured at the same inputs.
+#
+a06f4e360b2be20257ae885804b40724e17b6cdecda7fede1ba4724a4c07670d */d/TF2_Native_Test/evidence/verify/22-weapon-animation/model-identity.bmp
+37e5eb2a473d5003c8f64d098be4e38d89069280cf98cc6b09a61e382c99939e */d/TF2_Native_Test/evidence/verify/22-weapon-animation/model-control.bmp
+7f4101b83a4249554e363ed52168fdbc59dff93ef9b48a01c9713d02ed84f65e */d/TF2_Native_Test/evidence/verify/22-weapon-animation/model-animated.bmp
+f841c39f027b9af8e7d55fe8173e2cc271e79629fbd3af839492ef8a92ced6b5 */d/TF2_Native_Test/evidence/verify/22-weapon-animation/tick-2000.bmp
+f841c39f027b9af8e7d55fe8173e2cc271e79629fbd3af839492ef8a92ced6b5 */d/TF2_Native_Test/evidence/verify/22-weapon-animation/tick-4000.bmp
+f841c39f027b9af8e7d55fe8173e2cc271e79629fbd3af839492ef8a92ced6b5 */d/TF2_Native_Test/evidence/verify/22-weapon-animation/tick-6000.bmp

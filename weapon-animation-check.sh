@@ -104,7 +104,13 @@
 #                     does; the silhouette rule must reject it, and the verdict is
 #                     required to come from that rule rather than from an
 #                     unrelated assertion.
-#   The two `--model` mutations skip sections 1-3, which read the entity path and
+#   --mutation-pose  moves the same model transform by 0.001 of the box instead --
+#                     a sub-pixel rigid displacement of the bind pose (0.001 of the
+#                     box is 0.22 px at the model's measured 223 px/unit scale
+#                     bound). Every counter stays at its forward value; the
+#                     silhouette rule must still reject the pair, which measures
+#                     the rule's sensitivity floor.
+#   The three `--model` mutations skip sections 1-3, which read the entity path and
 #   cannot move because of them.
 # Exit:  0 = every assertion held (or, with a mutation, the checks went red).
 #
@@ -212,6 +218,7 @@ case "${1:-}" in
   --mutation)          MUTATION=1; MUTATION_TARGET="entity" ;;
   --mutation-model)    MUTATION=1; MUTATION_TARGET="model" ;;
   --mutation-identity) MUTATION=1; MUTATION_TARGET="identity" ;;
+  --mutation-pose)     MUTATION=1; MUTATION_TARGET="pose" ;;
   "")               ;;
   *) echo "FATAL: unknown option: $1"; exit 1 ;;
 esac
@@ -428,6 +435,48 @@ PYEOF
       cp "$BACKUP" "$SOURCE"
       exit 1
     fi
+  elif [ "$MUTATION_TARGET" = "pose" ]; then
+    echo "=== mutation: the --model identity matrices displace the pose by 0.001 of the box ==="
+    SOURCE=native/src/main.cpp
+    BACKUP=".scratch/weapon-animation-mutation-pose.bak"
+    cp "$SOURCE" "$BACKUP"
+    if ! "$PY" - "$SOURCE" <<'PYEOF'
+import io, sys
+path = sys.argv[1]
+raw = io.open(path, "rb").read()
+crlf = b"\r\n" in raw
+text = raw.decode("utf-8").replace("\r\n", "\n") if crlf else raw.decode("utf-8")
+anchor = (
+    "        identity.reserve(bindBoneCount);\n"
+    "        for (std::size_t i = 0; i < bindBoneCount; ++i) {\n"
+    "          std::array<float, 16> matrix{};\n"
+    "          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;\n"
+    "          identity.push_back(matrix);\n"
+)
+inject = (
+    "        identity.reserve(bindBoneCount);\n"
+    "        for (std::size_t i = 0; i < bindBoneCount; ++i) {\n"
+    "          std::array<float, 16> matrix{};\n"
+    "          matrix[0] = 1.0f; matrix[5] = 1.0f; matrix[10] = 1.0f; matrix[15] = 1.0f;\n"
+    "          // MUTATION (T48): displace the bind pose by a rigid thousandth of the\n"
+    "          // normalized box. No counter, texture or resource reading changes;\n"
+    "          // only the picture moves, so the silhouette rule must reject this\n"
+    "          // pair and thereby measure its sensitivity floor.\n"
+    "          matrix[12] = 0.001f;\n"
+    "          identity.push_back(matrix);\n"
+)
+assert text.count(anchor) == 1, "standalone model identity matrix anchor"
+text = text.replace(anchor, inject)
+if crlf:
+    text = text.replace("\n", "\r\n")
+io.open(path, "wb").write(text.encode("utf-8"))
+print("MUTATION-PATCHED")
+PYEOF
+    then
+      echo "FATAL: the mutation did not apply; the mutated build would prove nothing"
+      cp "$BACKUP" "$SOURCE"
+      exit 1
+    fi
   else
     echo "=== mutation: the --model identity matrices move the model transform ==="
     SOURCE=native/src/main.cpp
@@ -486,7 +535,7 @@ fi
 # are skipped rather than re-run: a mutation that costs as much as the gate it
 # guards stops being run, and an unrun mutation is not a control.
 ENTITY_SECTIONS=1
-if [ "$MUTATION_TARGET" = "model" ] || [ "$MUTATION_TARGET" = "identity" ]; then
+if [ "$MUTATION_TARGET" = "model" ] || [ "$MUTATION_TARGET" = "identity" ] || [ "$MUTATION_TARGET" = "pose" ]; then
   ENTITY_SECTIONS=0
 fi
 
@@ -904,7 +953,7 @@ if [ "$MUTATION" -eq 1 ]; then
     # "something went red" is not enough: the named rule must be one of the red
     # assertions. A mutation caught only by an unrelated reading would leave the
     # rule untested while the run still said PASS.
-    if [ "$MUTATION_TARGET" = "identity" ]; then
+    if [ "$MUTATION_TARGET" = "identity" ] || [ "$MUTATION_TARGET" = "pose" ]; then
       CAUGHT_BY_RULE=0
       for entry in "${FAIL_LINES[@]}"; do
         case "$entry" in

@@ -58,10 +58,20 @@ WHY THIS EXISTS
   would pass every pair, a whole-frame mask would pass every pair too. The
   measured population is printed with the bounds that were checked.
 
+  INSPECTION MODE (T48): --inspect-pixel X,Y prints the raw neighbourhood of one
+  sample instead of claiming anything -- the pixel and its four neighbours in
+  both frames, the per-channel deltas, the 4-neighbour gradient and mask
+  membership, and a value grid of the window -- because a pair that differs by
+  one sample raises "which sample, on what edge, between which colours?", and
+  that question must be answerable from the frames rather than from a re-run.
+  An inspection-only run checks no property and so passes no bound; the rule
+  output is unchanged and still requires one.
+
 Usage:
   bmp-silhouette-diff.py A.bmp B.bmp --edge-frame F.bmp
       [--edge-threshold N] [--max-interior-delta N] [--max-changed N]
       [--max-global-delta N] [--min-mask N] [--max-mask N]
+      [--inspect-pixel X,Y] [--inspect-window N]
 
   At least one bound must be given: a comparison with no bound is an unchecked
   property, and printing PASS for it would be a lie (the same rule
@@ -152,6 +162,103 @@ def edge_mask(pixels, width, height, bpp, threshold):
     return mask
 
 
+DIRECTIONS = (("left", -1, 0), ("right", 1, 0), ("up", 0, -1), ("down", 0, 1))
+
+
+def pixel_rgb(pixels, width, height, bpp, x, y, top_down):
+    """Return (rgb, byte offset, stored row) for a display pixel (x, y).
+
+    The rule above compares STORED bytes; this mode is the one place where the
+    display coordinate is needed, so the bottom-up flip happens here and nowhere
+    else. pixel_rgb is only meaningful when every frame shares an orientation,
+    which main() checks before it calls in.
+    """
+    stored = y if top_down else height - 1 - y
+    offset = stored * width * bpp + x * bpp
+    return (pixels[offset + 2], pixels[offset + 1], pixels[offset]), offset, stored
+
+
+def neighbour_gradient(pixels, width, height, bpp, x, y, top_down):
+    """The same 4-neighbour maximum per-channel difference the mask uses."""
+    here = pixel_rgb(pixels, width, height, bpp, x, y, top_down)[0]
+    best = 0
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        nx, ny = x + dx, y + dy
+        if nx < 0 or ny < 0 or nx >= width or ny >= height:
+            continue
+        other = pixel_rgb(pixels, width, height, bpp, nx, ny, top_down)[0]
+        for channel in range(3):
+            delta = here[channel] - other[channel]
+            if delta < 0:
+                delta = -delta
+            if delta > best:
+                best = delta
+    return best
+
+
+def inspect_sample(first, second, reference, width, height, bpp,
+                   first_top_down, second_top_down, reference_top_down, mask,
+                   threshold, x, y, window, label_a, label_b, label_edge):
+    """Print the raw neighbourhood of one sample. It asserts nothing."""
+    print("BMP-INSPECT pixel=%d,%d window=%d extent=%dx%dx%d frame_pixels=%d"
+          % (x, y, window, width, height, bpp * 8, width * height))
+    print("BMP-INSPECT A=%s B=%s edge=%s" % (label_a, label_b, label_edge))
+    value_a, offset_a, stored_a = pixel_rgb(first, width, height, bpp, x, y, first_top_down)
+    value_b, offset_b, stored_b = pixel_rgb(second, width, height, bpp, x, y, second_top_down)
+    value_r, _, stored_r = pixel_rgb(reference, width, height, bpp, x, y, reference_top_down)
+    delta = tuple(abs(p - q) for p, q in zip(value_a, value_b))
+    print("BMP-INSPECT stored: A_row=%d A_data_offsets=%d..%d B_row=%d B_data_offsets=%d..%d edge_row=%d"
+          % (stored_a, offset_a, offset_a + bpp - 1, stored_b, offset_b, offset_b + bpp - 1,
+             stored_r))
+    print("BMP-INSPECT values: A=%s B=%s edge=%s delta=%s max_channel=%d"
+          % (value_a, value_b, value_r, delta, max(delta)))
+    for name, dx, dy in DIRECTIONS:
+        nx, ny = x + dx, y + dy
+        if nx < 0 or ny < 0 or nx >= width or ny >= height:
+            print("BMP-INSPECT neighbour %-5s outside the frame" % name)
+            continue
+        neighbour_a = pixel_rgb(first, width, height, bpp, nx, ny, first_top_down)[0]
+        neighbour_b = pixel_rgb(second, width, height, bpp, nx, ny, second_top_down)[0]
+        neighbour_delta = tuple(abs(p - q) for p, q in zip(neighbour_a, neighbour_b))
+        print("BMP-INSPECT neighbour %-5s A=%s B=%s delta=%s"
+              % (name, neighbour_a, neighbour_b, neighbour_delta))
+    print("BMP-INSPECT gradient: A=%d B=%d edge=%d edge_threshold=%d mask_edge=%d"
+          % (neighbour_gradient(first, width, height, bpp, x, y, first_top_down),
+             neighbour_gradient(second, width, height, bpp, x, y, second_top_down),
+             neighbour_gradient(reference, width, height, bpp, x, y, reference_top_down),
+             threshold, mask[stored_r * width + x]))
+    half = window // 2
+    x0, x1 = max(0, x - half), min(width - 1, x + half)
+    y0, y1 = max(0, y - half), min(height - 1, y + half)
+    print("BMP-INSPECT grid_A_r: R channel of %s, rows y=%d..%d, columns x=%d..%d, '*' marks the sample"
+          % (label_a, y0, y1, x0, x1))
+    print("BMP-INSPECT grid_A_r header %s"
+          % " ".join("%3d" % gx for gx in range(x0, x1 + 1)))
+    differing = []
+    histogram = {}
+    for gy in range(y0, y1 + 1):
+        cells = []
+        for gx in range(x0, x1 + 1):
+            here = pixel_rgb(first, width, height, bpp, gx, gy, first_top_down)[0]
+            other = pixel_rgb(second, width, height, bpp, gx, gy, second_top_down)[0]
+            if here != other:
+                differing.append((gx, gy, here, other))
+            histogram[here] = histogram.get(here, 0) + 1
+            cells.append("*%2d" % here[0] if (gx == x and gy == y) else "%3d" % here[0])
+        print("BMP-INSPECT grid_A_r y=%3d %s" % (gy, " ".join(cells)))
+    print("BMP-INSPECT differing_in_window: %d of %d"
+          % (len(differing), (x1 - x0 + 1) * (y1 - y0 + 1)))
+    for gx, gy, here, other in differing[:12]:
+        print("BMP-INSPECT differs (%d,%d) A=%s B=%s delta=%s"
+              % (gx, gy, here, other, tuple(abs(p - q) for p, q in zip(here, other))))
+    if len(differing) > 12:
+        print("BMP-INSPECT differs ... %d more" % (len(differing) - 12))
+    ranked = sorted(histogram.items(), key=lambda item: (-item[1], item[0]))
+    print("BMP-INSPECT window_A_values: %s"
+          % " ".join("%s x%d" % (value, count) for value, count in ranked[:8]))
+    print("BMP-INSPECT status=OK")
+
+
 def main(argv):
     args = argv[1:]
     bounds = {
@@ -163,6 +270,8 @@ def main(argv):
         "max_mask": None,
     }
     edge_frame = None
+    inspect_pixel = None
+    inspect_window = 9
     positional = []
     index = 0
     while index < len(args):
@@ -172,6 +281,32 @@ def main(argv):
                 print("BMP-SILHOUETTE status=ERROR reason=--edge-frame needs a value")
                 return EXIT_ERROR
             edge_frame = args[index + 1]
+            index += 2
+            continue
+        if token == "--inspect-pixel":
+            if index + 1 >= len(args):
+                print("BMP-SILHOUETTE status=ERROR reason=--inspect-pixel needs X,Y")
+                return EXIT_ERROR
+            parts = args[index + 1].split(",")
+            if len(parts) != 2:
+                print("BMP-SILHOUETTE status=ERROR reason=--inspect-pixel wants X,Y")
+                return EXIT_ERROR
+            try:
+                inspect_pixel = (int(parts[0]), int(parts[1]))
+            except ValueError:
+                print("BMP-SILHOUETTE status=ERROR reason=--inspect-pixel wants two integers")
+                return EXIT_ERROR
+            index += 2
+            continue
+        if token == "--inspect-window":
+            if index + 1 >= len(args):
+                print("BMP-SILHOUETTE status=ERROR reason=--inspect-window needs a value")
+                return EXIT_ERROR
+            try:
+                inspect_window = int(args[index + 1])
+            except ValueError:
+                print("BMP-SILHOUETTE status=ERROR reason=--inspect-window is not an integer")
+                return EXIT_ERROR
             index += 2
             continue
         key = token[2:].replace("-", "_") if token.startswith("--") else None
@@ -195,14 +330,18 @@ def main(argv):
     if edge_frame is None:
         print("BMP-SILHOUETTE status=ERROR reason=--edge-frame is required; the mask must be derived from a stated frame")
         return EXIT_ERROR
-    if all(bounds[key] is None for key in bounds if key != "edge_threshold"):
+    has_bounds = any(bounds[key] is not None for key in bounds if key != "edge_threshold")
+    if not has_bounds and inspect_pixel is None:
         print("BMP-SILHOUETTE status=ERROR reason=no bound given; nothing would be checked")
+        return EXIT_ERROR
+    if inspect_window < 3 or inspect_window % 2 == 0:
+        print("BMP-SILHOUETTE status=ERROR reason=--inspect-window must be an odd number >= 3")
         return EXIT_ERROR
     threshold = bounds["edge_threshold"] if bounds["edge_threshold"] is not None else 32
 
     try:
         first, width, height, bpp, first_top_down = read_frame(positional[0])
-        second, sw, sh, sbpp, _ = read_frame(positional[1])
+        second, sw, sh, sbpp, second_top_down = read_frame(positional[1])
         reference, rw, rh, rbpp, reference_top_down = read_frame(edge_frame)
     except ValueError as error:
         print("BMP-SILHOUETTE status=ERROR reason=%s" % error)
@@ -215,12 +354,29 @@ def main(argv):
     if len(first) != len(second) or len(first) != len(reference):
         print("BMP-SILHOUETTE status=ERROR reason=pixel data length differs")
         return EXIT_ERROR
+    if inspect_pixel is not None:
+        if not (0 <= inspect_pixel[0] < width and 0 <= inspect_pixel[1] < height):
+            print("BMP-SILHOUETTE status=ERROR reason=--inspect-pixel %d,%d is outside %dx%d"
+                  % (inspect_pixel[0], inspect_pixel[1], width, height))
+            return EXIT_ERROR
+        if first_top_down != second_top_down or first_top_down != reference_top_down:
+            print("BMP-SILHOUETTE status=ERROR reason=--inspect-pixel needs frames of one orientation")
+            return EXIT_ERROR
 
     try:
         mask = edge_mask(reference, width, height, bpp, threshold)
     except ValueError as error:
         print("BMP-SILHOUETTE status=ERROR reason=%s" % error)
         return EXIT_ERROR
+
+    if inspect_pixel is not None:
+        inspect_sample(first, second, reference, width, height, bpp,
+                       first_top_down, second_top_down, reference_top_down, mask,
+                       threshold, inspect_pixel[0], inspect_pixel[1], inspect_window,
+                       positional[0], positional[1], edge_frame)
+        if not has_bounds:
+            print("BMP-INSPECT inspection-only=1 (no bound given: nothing was checked)")
+            return EXIT_PASS
 
     stride = width * bpp
     total_pixels = width * height

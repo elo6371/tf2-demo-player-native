@@ -1,0 +1,6 @@
+footprint pixels=14064 bbox=x537..754 y375..529 extent=218x155 diagonal=267.5px
+scale upper bound=222.9 px/unit (the 1.2-unit box projected onto the 267.5 px footprint diagonal)
+model-shaded pixels=9247 of 33790 in the footprint box (27.4%)
+boundary threshold=32 samples=2139 boundaries=1069 shift_bound=0.000223px expected_ties=0.477
+boundary threshold=48 samples=1245 boundaries=622 shift_bound=0.000223px expected_ties=0.278
+realistic_shift(1.5e-7 units)=0.000033px expected_ties_at_threshold_32=0.071

@@ -1,0 +1,84 @@
+# T48 hold 1 -- the forward gate at the T43 inputs, run on this tree under the host lock.
+# Lock owner t39, no --force, one waiter; hold window 2026-10-21T08:40:01Z..08:47:40Z (7m39s).
+# Worktree commit 5e90026; tree clean before and after, no tracked file changed.
+# hostlock released after the run: LOCKED-COMMAND-EXIT rc=0 owner=t39, no gate lock left.
+# Build: fresh tree, build-target.sh tf2_demo_native weapon_animation_probe, rc=0.
+
+## build and verdict
+build rc=0
+WEAPON-ANIMATION=PASS
+gate rc=0
+assertion lines: 57 OK, 0 FAIL, 5 informational
+
+## frame hashes of this run, against the T43 manifest pins
+# identity pin a06f4e360b2be20257ae885804b40724e17b6cdecda7fede1ba4724a4c07670d
+# control  pin 37e5eb2a473d5003c8f64d098be4e38d89069280cf98cc6b09a61e382c99939e
+# animated pin 7f4101b83a4249554e363ed52168fdbc59dff93ef9b48a01c9713d02ed84f65e
+7f4101b83a4249554e363ed52168fdbc59dff93ef9b48a01c9713d02ed84f65e *.scratch/t48/forward/model-animated.bmp
+37e5eb2a473d5003c8f64d098be4e38d89069280cf98cc6b09a61e382c99939e *.scratch/t48/forward/model-control.bmp
+a06f4e360b2be20257ae885804b40724e17b6cdecda7fede1ba4724a4c07670d *.scratch/t48/forward/model-identity.bmp
+1812c700be44eb9327bb9c877f26b8f849d4466c777dd1ab78d8d7d519fa6f52 *.scratch/t48/forward/model-wave-a.bmp
+478607ec5f6e8da3f621d8b5df15b0c8a3ed4b9bf8fc8c5df6cf875633f36c9a *.scratch/t48/forward/model-wave-b.bmp
+41f4b33e8ab70a09b48288726673851cc6506f5f4e9aa6440b85fd563d4f3ad8 *.scratch/t48/forward/model-wave-full.bmp
+41f4b33e8ab70a09b48288726673851cc6506f5f4e9aa6440b85fd563d4f3ad8 *.scratch/t48/forward/model-wave-zero.bmp
+f841c39f027b9af8e7d55fe8173e2cc271e79629fbd3af839492ef8a92ced6b5 *.scratch/t48/forward/tick-2000.bmp
+f841c39f027b9af8e7d55fe8173e2cc271e79629fbd3af839492ef8a92ced6b5 *.scratch/t48/forward/tick-4000.bmp
+f841c39f027b9af8e7d55fe8173e2cc271e79629fbd3af839492ef8a92ced6b5 *.scratch/t48/forward/tick-6000.bmp
+
+## the silhouette rule, unchanged bounds
+=== the silhouette rule, pair (identity vs control, edge frame = control) ===
+BMP-SILHOUETTE changed=1 changed_bytes=3 inside=1 outside=0 mask_pixels=18446 mask_share=2.1429 interior_pixels=842338 interior_max=0 global_max=59 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=PASS
+rc=0
+
+=== the silhouette rule, real-pose control (identity vs animated, edge frame = identity) ===
+BMP-SILHOUETTE changed=14064 changed_bytes=42128 inside=2496 outside=11568 mask_pixels=18445 mask_share=2.1428 interior_pixels=842339 interior_max=172 global_max=181 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=FAIL reason=interior_max=172 exceeds 1; changed=14064 exceeds 4; global_max=181 exceeds 128; outside=11568 changed pixels are not on a measured edge
+rc=1
+
+## pixel (622,412), window 9
+=== pixel (622,412) inspection, window 9 ===
+BMP-INSPECT pixel=622,412 window=9 extent=1264x681x24 frame_pixels=860784
+BMP-INSPECT A=.scratch/t48/forward/model-identity.bmp B=.scratch/t48/forward/model-control.bmp edge=.scratch/t48/forward/model-control.bmp
+BMP-INSPECT stored: A_row=268 A_data_offsets=1018122..1018124 B_row=268 B_data_offsets=1018122..1018124 edge_row=268
+BMP-INSPECT values: A=(114, 114, 120) B=(169, 169, 179) edge=(169, 169, 179) delta=(55, 55, 59) max_channel=59
+BMP-INSPECT neighbour left  A=(114, 114, 120) B=(114, 114, 120) delta=(0, 0, 0)
+BMP-INSPECT neighbour right A=(170, 170, 179) B=(170, 170, 179) delta=(0, 0, 0)
+BMP-INSPECT neighbour up    A=(163, 163, 172) B=(163, 163, 172) delta=(0, 0, 0)
+BMP-INSPECT neighbour down  A=(114, 114, 120) B=(114, 114, 120) delta=(0, 0, 0)
+BMP-INSPECT gradient: A=59 B=59 edge=59 edge_threshold=32 mask_edge=1
+BMP-INSPECT grid_A_r: R channel of .scratch/t48/forward/model-identity.bmp, rows y=408..416, columns x=618..626, '*' marks the sample
+BMP-INSPECT grid_A_r header 618 619 620 621 622 623 624 625 626
+BMP-INSPECT grid_A_r y=408 114 114 114 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=409 171 172 172 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=410 114 114 114 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=411 162 162 162 163 163 163 163 164 164
+BMP-INSPECT grid_A_r y=412 114 114 114 114 *114 170 170 171 114
+BMP-INSPECT grid_A_r y=413 114 114 114 114 114 114 114 114 114
+BMP-INSPECT grid_A_r y=414 144 144 144 134 124 114 114 114 114
+BMP-INSPECT grid_A_r y=415 149 149 149 148 148 148 147 147 147
+BMP-INSPECT grid_A_r y=416 173 172 171 171 170 156 151 151 151
+BMP-INSPECT differing_in_window: 1 of 81
+BMP-INSPECT differs (622,412) A=(114, 114, 120) B=(169, 169, 179) delta=(55, 55, 59)
+BMP-INSPECT window_A_values: (114, 114, 120) x43 (163, 163, 172) x4 (151, 151, 159) x3 (162, 162, 171) x3 (144, 144, 152) x2 (147, 147, 155) x2 (148, 148, 156) x2 (149, 149, 157) x2
+BMP-INSPECT status=OK
+BMP-INSPECT inspection-only=1 (no bound given: nothing was checked)
+rc=0
+
+## model footprint (the pose difference cannot move the still world)
+=== model footprint (identity vs animated differ on the model only) ===
+model footprint from the pose difference: 14064 px, bbox x=537..754 y=151..305 (218x155)
+
+# The hold script printed the box in stored (bottom-up) rows; the committed
+# measure_edge_population.py prints display rows, so the canonical box is
+# x=537..754 y=375..529 (681-1-305=375, 681-1-151=529). Same 14,064 pixels.
+
+## edge population on these byte-identical frames
+# (from evidence/weapon-animation/t48/edge-population-t43-pair.txt: the frames
+#  here hash equal, so the same script on them gives the same numbers)
+footprint pixels=14064 bbox=x537..754 y375..529 extent=218x155 diagonal=267.5px
+scale upper bound=222.9 px/unit (the 1.2-unit box projected onto the 267.5 px footprint diagonal)
+model-shaded pixels=9247 of 33790 in the footprint box (27.4%)
+boundary threshold=32 samples=2139 boundaries=1069 shift_bound=0.000223px expected_ties=0.477
+boundary threshold=48 samples=1245 boundaries=622 shift_bound=0.000223px expected_ties=0.278
+realistic_shift(1.5e-7 units)=0.000033px expected_ties_at_threshold_32=0.071
+
+=== T48 hold 1 done 2026-10-21T08:47:40Z ===
