@@ -225,6 +225,79 @@ The T43 report was copied from `.scratch/t43/` into
 `T43-RELEASE-REPORT-2026-10-21.md` in a documentation-only follow-up. The tested
 freeze remains `6888e6d`; no product code or gates were changed after that run.
 
+### T44-T48 merge log — 2026-10-21
+
+- T44 `task/t44-seam-assertion@0f5f95d` merged as `a77dc33`. No product
+  source. The pre-T29 `seamCulled >= 1` assertion is replaced by measured
+  semantics: pose from the trace's last `scene: camera` (eye
+  -2294.8,348.8,383.4, tick 2000; the once-per-run eyeMap is absent and printed
+  as superseded), 6 points x 4 directions = **24/24** resolvable directions
+  (the brief's "32/32" is a documentation error; T40's own log has 6 HOLE seam
+  lines and 13 face-info requests), **0/8** named seam faces derived-back at
+  that eye, and a positive cull control: 81,218 removed px / 19 faces, 18
+  non-seam, top face **17605** disp/side-0 derived-back **33,167 px**, plus
+  1 px of seam 17266 at a silhouette edge recorded not hidden. Forward PASS;
+  M1-M6 all red, including M6 (cull never runs -> removed=0 while 8/8 stay
+  derived-front), all sources restored byte-identically. NOT VERIFIED:
+  per-pixel derived side, eye printed to 0.1 units, pre-existing stale header
+  numbers, identity.txt exe-hash churn.
+- T45 `task/t45-visible-material@19757f5` merged as `d3ce7eb`. No product
+  source. The tick-2000 specular and bump-direction gaps are now measured on a
+  second, wide-area diagnostic view (WALL013, --debug-camera, tick 2000):
+  S1w vs S2w 775,135 bytes (386,760 brighter / 388,375 darker, max 24) and
+  Cw vs Dw 688,102 bytes (203,847 / 484,255, max 60), with Aw==Aw2, S2w equal
+  to the hold-A frame, and Aw-vs-A 2,570,233 bytes moved-view control. The
+  tick-2000 reference camera still has only 28 px of material-normal coverage,
+  so specular there remains a measured zero and the bump direction there
+  one-sided; both stay **NOT VERIFIED**, not replaced. The 2,812 px detail
+  residual is now attributed at frame level: T29's near-plane expression
+  reverted -> pre-fix A/F reproduced byte-for-byte (f87f396a / 21cb8aa2),
+  restored -> current pins (6bb4d9a7 / 2ffa7d2b); the pixel-level rasterizer
+  path is still **NOT VERIFIED** and no shader/data defect is claimed. Gate:
+  material forward 209 OK / 0 FAIL; m1-m5 all red and restored; lighting
+  forward 96/0 = T43 baseline; lighting m1-m4 all red and restored.
+- T46 `task/t46-authored-side@b169152` merged as `af9d4d7`. No product
+  source. Per-triangle ledger closes T41's 51,890 px exactly: **51,624 world
+  + 266 ViewModel**, world = 51,620 disp/side-0 + 2 disp/side-1 + 2 zero-area
+  brush-fan; face **17605** 51,618 px / 32 grid triangles (17 front / 15 back),
+  51,354 exactly on a front triangle, 64 sub-pixel, 202 edge-on px bounded
+  (49 back-only + 32 back-only-sub + 121 no-triangle). Cull 81,141 = 81,123
+  back-covered + 18 grazing, 0 uncovered. T36 forward PASS with 43 new exact
+  pins; m1-m4 all red, m4 requires the exact swap 51,354->51,413, 49->0,
+  17->15, 24,058->22,958; all restores OK. T36's per-face plane-side split and
+  per-face removed readings stay SUPERSEDED / NOT VERIFIED; 163 over-bound id
+  regions stay bounded.
+- T47 `task/t47-cold-readiness@a1c34b9` merged as `c86418e`. No product
+  source. Readiness title polling is bounded (TITLE_BOUND_SECONDS=120,
+  CAPTURE_BUDGET_SECONDS=600, fail-fast) and the trace root is asserted
+  independently; a 5 s forced bound produces exactly
+  `TITLE-CAPTURE-TIMEOUT` with trace `valid=1`, never accepted as
+  connected. Two independent cold-start cycles (separate staged packages and
+  settings dirs) give identical root decisions (DECISION-MISMATCHES=0,
+  ROOT-ACCOUNTING-FAILURES=0, TWO-CYCLE=PASS). Forward 13 cases /**145
+  checks** (T42's 107 kept verbatim, +38 additive, 0 removed); mutation 3/3
+  caught and restored, staged-binary hashes asserted per stage, no
+  install/uninstall/version invocation during capture. True system-wide cold
+  cache is **NOT VERIFIED**; the 20.4-24.0 s warm settle and the old 30 s bound
+  explain T43's four title-capture failures as timing, not a wrong root.
+- T48 `task/t48-raster-sample@1721b36` merged as `59ff6a9`. No product
+  source, no silhouette-rule change. The one-sample identity/passthrough tie
+  at (622,412) is **bounded, not proven**: identity multiply is exact, shift
+  <=0.00022 px at 222.9 px/unit, 1,069 measured boundaries -> 0.48 expected
+  ties worst case (0.07 realistic), observed 1; shader outputs reconcile
+  exactly, but clip/NDC/viewport/depth are unavailable and per-sample
+  ownership is **NOT VERIFIED**. Step 22 still PASS 57/0 with the pair
+  changed=1/outside=0/interior_max=0 and the real-pose control still rejected;
+  `--mutation-pose` (0.001f) turns the gate red (3,322 changed, 2,397
+  outside, interior 73) and restores main.cpp (f8badad5...) byte-identically,
+  with the restored pair a06f4e36 / 37e5eb2a cmp-identical. The tracked
+  `evidence/weapon-animation/` snapshot is flagged superseded and was not
+  refreshed.
+
+All five merges are clean; no `native/` or `evidence/verify/` change rode
+along. The T26 "32/32" brief is superseded by the measured 24/24 above; the
+T49 report must state the measured total.
+
 ## Next wave: T44-T48
 
 All tasks start from `6888e6d` in independent worktrees. Development may be
