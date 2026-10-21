@@ -1,0 +1,190 @@
+
+=== 1/13 preconditions: pinned inputs and a build that matches the sources ===
+  OK   input present tf = yes
+  OK   input present autorecord_2026-07-02_13-26-46.dem = yes
+  OK   input present itemtest.bsp = yes
+  OK   product build is fresh against its sources = fresh
+  OK   no product process before the run = 0
+
+=== 2/13 stage a clean install with cmake --install ===
+  stage install rc=0 prefix=install
+  OK   cmake --install rc = 0
+  OK   install directory has the product = yes
+
+=== 3/13 the package: exact file list, sizes, hashes ===
+  OK   package file list = .uninstall/payload/install_smoke_probe.ps1
+.uninstall/payload/native_install_smoke_probe.exe
+.uninstall/payload/tf2_demo_native.exe
+VERSION.txt
+install_smoke_probe.ps1
+native_install_smoke_probe.exe
+tf2_demo_native.exe
+  OK   package file count = 7
+  OK   the payload repeats the three files the package stages at the top level = 3
+  OK   the package carries the version file the product reads first = yes
+  package .uninstall/payload/install_smoke_probe.ps1 bytes=812
+  package .uninstall/payload/native_install_smoke_probe.exe bytes=297984
+  package .uninstall/payload/tf2_demo_native.exe bytes=1921024
+  package VERSION.txt bytes=679
+  package install_smoke_probe.ps1 bytes=812
+  package native_install_smoke_probe.exe bytes=297984
+  package tf2_demo_native.exe bytes=1921024
+  OK   every packaged file is non-empty = 0
+  OK   installed product is byte-identical to the built one = a696a1ad1e941e4e846684cbd9b745aa782777615e9b46753fd0cfeadc749965
+  OK   package carries no per-user settings file = absent
+  OK   package carries no cache directory = absent
+
+=== 4/13 runtime dependency closure of every installed executable ===
+  OK   dumpbin available for the import check = yes
+  OK   tf2_demo_native.exe import list parsed = yes
+  OK   tf2_demo_native.exe runtime DLLs missing from the install = none
+  OK   tf2_demo_native.exe uses the statically linked MSVC runtime = none
+  tf2_demo_native.exe system=12 shipped=none
+  OK   native_install_smoke_probe.exe import list parsed = yes
+  OK   native_install_smoke_probe.exe runtime DLLs missing from the install = none
+  OK   native_install_smoke_probe.exe uses the statically linked MSVC runtime = none
+  native_install_smoke_probe.exe system=2 shipped=none
+
+=== 5/13 the shipped layout script and the shipped smoke probe, run from the install ===
+  install_executable=1 tf_root_missing_prompt=1 warp_fallback=1 feature_level=b100
+  install_layout=ok tf2_assets_packaged=0
+  OK   install_smoke_probe.ps1 rc = 0
+  OK   install layout accepted by the shipped script = yes
+  OK   the package still declares the TF2 assets unpackaged = yes
+  install_executable=1 tf_root_missing_prompt=1 warp_fallback=1 feature_level=b100
+  OK   installed smoke probe rc = 0
+  OK   installed smoke probe readings = yes
+
+=== 6/13 product store chain precedence, including the BSP pakfile (reused probe) ===
+  {"reading":"vpk.precedence.loose-wins","value":"loose"}
+  {"reading":"vpk.precedence.loose-wins.origin","value":"loose"}
+  {"reading":"vpk.precedence.loose-wins.bytes","value":"LOOSE-FILE"}
+  {"reading":"vpk.precedence.directory-before-volume","value":"vpk-directory"}
+  {"reading":"vpk.precedence.directory-before-volume.origin","value":"pak01_dir.vpk"}
+  {"reading":"vpk.precedence.directory-before-volume.bytes","value":"DIRECTORY-DATA"}
+  {"reading":"vpk.precedence.order-decides","value":"vpk-volume"}
+  {"reading":"vpk.precedence.order-decides.origin","value":"pak02_dir.vpk"}
+  OK   vpk_integrity_probe rc = 0
+  OK   chain: loose beats the VPKs = loose
+  OK   chain: first added archive answers = vpk-directory
+  OK   chain: pakfile answers last = pakfile
+  OK   chain: pakfile cannot outrank loose = loose
+  OK   chain: an absent name is none, not a refusal = none
+  OK   chain probe summary = yes
+
+=== 7/13 clean-room store fixtures built from the pinned demo and map ===
+  fixtures_root=D:\TF2_Native_Worktrees\t42-installer-vpk\.scratch\t42\ready-final\fixtures
+  fixture_demo=D:\TF2_Native_Worktrees\t42-installer-vpk\.scratch\t42\ready-final\fixtures\demo\t32_marker.dem
+  fixture_roots=8
+  fixture_files=31
+  fixture_vpk=roots/precedence/pak01_dir.vpk bytes=84 sha256=715e2842bb59f40933f19ff6da938c4b1451018714f9731372f049e88fd44a29
+  fixture_vpk=roots/vpk-corrupt/pak01_dir.vpk bytes=53 sha256=25e8777cdb81cdfe1bb81ea46190db8b09b099426e08c0529c8c2455998af57b
+  fixture_vpk=roots/vpk-empty/pak01_dir.vpk bytes=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  fixture_vpk=roots/vpk-only/pak01_dir.vpk bytes=2897057 sha256=51a98e22f5cba869dc855fd0edd33fecf24f86b1301cf396dc350679c4ae2e19
+  fixture_vpk=roots/vpk-truncated/pak01_dir.vpk bytes=8 sha256=57255c0ff82f2f96822b4ce39af7ba7c1342c06b23ea8cf2cd1d7ad1bf173adb
+  OK   fixture build rc = 0
+  OK   fixture root count = 8
+
+=== 8/13 product runs: the installed binary, its own directory as cwd ===
+  CASE first-launch rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
+  CASE restart rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
+  CASE explicit-root rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
+  CASE missing-root rc=0 TITLE-CAPTURE=PASS (len=2909 brackets=no)
+  CASE empty-root rc=0 TITLE-CAPTURE=PASS (len=2898 brackets=no)
+  CASE relocated rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
+  CASE store-precedence rc=0 TITLE-CAPTURE=PASS (len=3139 brackets=yes)
+  CASE store-vpk-only rc=0 TITLE-CAPTURE=PASS (len=3137 brackets=yes)
+  CASE store-download-maps rc=0 TITLE-CAPTURE=PASS (len=3142 brackets=yes)
+  CASE store-missing-map rc=0 TITLE-CAPTURE=PASS (len=3099 brackets=yes)
+  CASE store-vpk-corrupt rc=0 TITLE-CAPTURE=PASS (len=3115 brackets=yes)
+  CASE store-vpk-empty rc=0 TITLE-CAPTURE=PASS (len=3113 brackets=yes)
+  CASE store-vpk-truncated rc=0 TITLE-CAPTURE=PASS (len=3117 brackets=yes)
+  cases=13 failed=0
+  capture rc=0
+  OK   capture rc = 0
+
+=== 9/13 first launch, close, restart, explicit root, missing root, relocation ===
+  OK   first-launch exit code = 0
+  OK   first-launch root valid = 1
+  OK   first-launch connected root = d:/steamlibrary/steamapps/common/team fortress 2/tf
+  OK   first-launch title is a connected title = yes
+  OK   first-launch refused VPK count = 
+  OK   first launch wrote its settings file = yes
+  OK   first launch saved the connected root = d:/steamlibrary/steamapps/common/team fortress 2/tf
+  OK   restart exit code = 0
+  OK   restart reused the saved root = d:/steamlibrary/steamapps/common/team fortress 2/tf
+  OK   restart root valid = 1
+  OK   restart did not need a second settings file = no
+  OK   explicit-root exit code = 0
+  OK   explicit-root connected root = d:/steamlibrary/steamapps/common/team fortress 2/tf
+  OK   explicit-root root valid = 1
+  OK   missing-root exit code (reports, does not crash) = 0
+  OK   missing-root root invalid = 0
+  OK   missing-root connected root = 
+  OK   missing-root title claims no connected install = absent
+  OK   missing-root names the requested path = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/ready-final/fixtures/roots/__no_such_root__
+  OK   missing-root title names the failed path = yes
+  OK   empty-root exit code (reports, does not crash) = 0
+  OK   empty-root root invalid = 0
+  OK   empty-root connected root = 
+  OK   empty-root title claims no connected install = absent
+  OK   empty-root names the requested path = d:/tf2_native_worktrees/t42-installer-vpk/.scratch/t42/ready-final/fixtures/roots/empty
+  OK   relocated exit code = 0
+  OK   relocated connected root = d:/steamlibrary/steamapps/common/team fortress 2/tf
+  OK   relocated root valid = 1
+  OK   the product wrote nothing into its install directory = unchanged
+  OK   the relocated copy is the same package = same
+
+=== 10/13 the store matrix: loose > VPK, download/maps, missing, broken archives ===
+  OK   precedence: loose answered, not the VPK = maps
+  OK   precedence: selected file = maps/t32_marker.bsp
+  OK   precedence: the loose BSP was parsed = 2512 tris
+  OK   precedence: the VPK opened = 1
+  OK   precedence: no VPK refused = 0
+  OK   vpk-only: the VPK answered = vpk
+  OK   vpk-only: selected entry = maps/t32_marker.bsp
+  OK   vpk-only: the packed BSP was parsed = 2512 tris
+  OK   vpk-only: no VPK refused = 0
+  OK   download-maps: the downloaded copy answered = download-maps
+  OK   download-maps: selected file = download/maps/t32_marker.bsp
+  OK   download-maps: the BSP was parsed = 2512 tris
+  OK   missing-map: no store answered = none
+  OK   missing-map: no bytes read = 0
+  OK   missing-map: the title reports an invalid BSP = invalid/BSP header is invalid
+  OK   corrupt-vpk: no map store answered = none
+  OK   corrupt-vpk: the present archive was counted as refused = 1
+  OK   corrupt-vpk: the archive refused to open = 0
+  OK   corrupt-vpk: named refusal reason = VPK entry range outside directory archive
+  OK   corrupt-vpk: the title carries the refusal count = 1
+  OK   empty-vpk: counted as refused = 1
+  OK   empty-vpk: named refusal reason = empty VPK file
+  OK   truncated-vpk: counted as refused = 1
+  OK   truncated-vpk: named refusal reason = truncated VPK header
+  OK   the three broken archives get three different named reasons = 3
+  OK   the real install opened its archives = opened=4
+  OK   the real install refused no VPK = 0
+
+=== 11/13 reinstall over the existing directory (no uninstaller exists) ===
+  OK   reinstall rc = 0
+  OK   reinstall leaves the package identical = same
+
+=== 12/13 uninstall: the package is a directory and nothing else ===
+  OK   removing the directory removes the package = absent
+  OK   no product process left behind = 0
+  OK   the removed executable is gone = absent
+
+=== 13/13 installer features this package does NOT have (release blockers) ===
+  OK   installer definition files in the tree = none
+  OK   CPack/package rules in native/CMakeLists.txt = none
+  OK   blind directory-removal rule in native/CMakeLists.txt = none
+  OK   the product and the probe link the same lifecycle source = 3
+  OK   package version metadata lines in native/CMakeLists.txt = 2
+  OK   the version the package answers is the one it ships = yes
+  CLOSED  upgrade_and_downgrade_decision=1 owner=T42 (packageVersionCode comparison; see evidence/t37-install/t42-upgrade-downgrade.log)
+  BLOCKER no_shortcuts_or_file_association=1 owner=T28 release packaging
+  BLOCKER tf2_assets_not_packaged_by_design=1 owner=product (locate or prompt for a TF2 install)
+  OK   installer features absent (pinned: adding one must update this gate) = 2
+  OK   installer lifecycle modes the package now provides = 4
+
+  cases=13 checks=107 mutations=0
+  INSTALL-READINESS=PASS
