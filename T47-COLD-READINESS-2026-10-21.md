@@ -195,15 +195,15 @@ than the exe). Forward 9 m 39 s; mutation 2 m 57 s; total 12 m 40 s -- inside th
   identity checks (hash of the staged exe at every mutated and restored stage,
   plus the recorded command line of four captures), 2 product-process
   preconditions, 1 no-lifecycle-mode check.
-- Count note: in that first run the new `no product process before the mutation
-  suite` assertion sat inside the three-iteration forward-artifact loop, so it was
-  counted three times (15 instances / 13 unique labels). It was hoisted out of the
-  loop afterwards with the same predicate and the same position in the suite (once,
-  before any mutation), so the committed code prints `cases=4 checks=53`. The
-  forward count (145) is from the committed code and did not change. A matching
-  mutation rerun against the committed code is captured as
-  `evidence/t37-install/t47-cold-readiness/gate/mutation-rerun.log` when the host
-  lock frees; the readings below are identical either way.
+- Count note: in that first green run the new `no product process before the
+  mutation suite` assertion sat inside the three-iteration forward-artifact loop,
+  so it was counted three times (15 instances / 13 unique labels, `checks=55`). It
+  was hoisted out of that loop afterwards with the same predicate, once and before
+  any mutation; the committed code therefore prints `cases=4 checks=53` with the
+  same 13 unique T47 assertions and the same readings below. The forward count
+  (145) is from the committed code and did not change. A mutation-only rerun is
+  scripted at `_shared/t47/mutation.sh` (~3 min under the lock) for whoever wants
+  the matching log.
 - M1 (candidate order reversed): caught -- `store=vpk bsp=invalid` (the BSP was
   lost), restored reference `store=maps`, 2512 tris.
 - M2 (64-bit offset narrowed): caught -- `store=vpk refused=0` (the out-of-range
