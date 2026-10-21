@@ -2,15 +2,15 @@
 
 ## Current status
 
-- Integration HEAD: `p0-entity-protocol@34e1714`.
+- Integration HEAD: `p0-entity-protocol@6888e6d` (T43 freeze commit).
 - Remote `origin/p0-entity-protocol` matches the local HEAD.
-- T29-T38 are merged and reviewed. The release result is **NOT PASS**.
-- The last full chain is not a clean final-tree result because the tree was
-  merged during one run. Do not use that run as release evidence.
-- Known open items: step 22 has a measured 3-byte frame difference; T35
-  lighting/material gates were not run on this tree; T36 m1/m3 and removed-side
-  derivation are incomplete; T37 mutation M2 was not caught; T28 must be rerun
-  only after these items are closed or explicitly accepted.
+- T39-T42 are merged and reviewed; T43 ran on the frozen tree.
+- T43's one `verify-all.sh --quick` run passed 24/24, but release verdict is
+  **NOT PASS** because T26's focused seam assertion remains red and there are
+  open `NOT VERIFIED` readings and a cold-cache readiness flake.
+- Full report: `T43-RELEASE-REPORT-2026-10-21.md`. Its source of truth is the
+  frozen validation commit `6888e6d`; the report and this follow-up plan are
+  documentation-only commits on top of that frozen tree.
 
 ## Ownership and execution rules
 
@@ -162,9 +162,11 @@ Steps:
 
 ## Completion rule
 
-The project is not release-pass until T39-T42 are reviewed, T43 runs on a frozen
-tree, and the final chain exits 0. If any item remains unverified, the release
-report must say **NOT PASS** and name the owner and cheapest next verification.
+T43 has run. The project remains **NOT PASS** until the T26 focused red is
+resolved with a semantic assertion and positive control, the cold-cache T37
+readiness behavior is deterministic, and every release-relevant `NOT VERIFIED`
+item below is measured or explicitly retained as a limitation. A final release
+task must run on a new frozen tree after T44-T48 are reviewed and merged.
 
 ## Merge log (integration owner)
 
@@ -194,3 +196,175 @@ report must say **NOT PASS** and name the owner and cheapest next verification.
 This commit is the freeze commit. After it, no source, gate, evidence, or merge change is allowed. T43 runs the focused gates once on this tree (step 22, ViewModel 23/24, T25/T26/T27, T36 lighting, T37 install and readiness, T38 quality, audio), then verify-all.sh --quick exactly once as the final operation, then pushes and verifies the remote.
 
 Known red / NOT VERIFIED at the boundary: T26 seamCulled (measured red; owner T43/T41; cheapest next step = replace the pre-T29 cull-neighbour assertion with the derived-rule statement above); T40 tick-2000 specular, 2,812 px detail residual, one-sided bump; T41 pixel-level side split; T39 per-sample rasterizer instrumentation. None is described as a pass.
+
+## T43 close-out — 2026-10-21
+
+T43 is complete on frozen commit `6888e6d`:
+
+- `verify-all.sh --quick`: **VERIFY=PASS**, 24/24 steps, rc=0, exactly one
+  completed chain run. Full hashes and focused logs are in
+  `T43-RELEASE-REPORT-2026-10-21.md`.
+- Step 22: PASS 57/0; ViewModel steps 23/24: PASS 154/0 and 114/0.
+- T25 visual baseline: PASS 70/0. T27 terrain blend: PASS 94/0. T36 dark
+  account: PASS 35/0.
+- T37 lifecycle: PASS 15 cases/213 checks. Readiness: first cold-cache run had
+  four title-capture failures while trace already showed a valid `tf_root`; the
+  warm-cache retry passed 13/107. Keep timing sensitivity open until cold runs
+  behave deterministically.
+- T38: PASS 28/0. Audio content: PASS 39/0 plus 25/25 mutations. Audio
+  subsystem: PASS 240/0 plus its mutation suite.
+- T26 world-hole gate: **FAIL** at `seamCulled=0`. T41/T43 measured all 8 named
+  seam faces as derived-front at the capture pose; culling removes other
+  non-seam faces. The old `>=1` assertion is obsolete, but it must be replaced
+  with a seam-specific assertion and a positive cull control before the focused
+  gate is called green.
+- Release verdict stays **NOT PASS**. The full chain's pass does not erase the
+  focused red or unverified material/lighting readings.
+
+The T43 report was copied from `.scratch/t43/` into
+`T43-RELEASE-REPORT-2026-10-21.md` in a documentation-only follow-up. The tested
+freeze remains `6888e6d`; no product code or gates were changed after that run.
+
+## Next wave: T44-T48
+
+All tasks start from `6888e6d` in independent worktrees. Development may be
+parallel; builds, launches, captures, mutations, install tests, and audio-device
+tests are serialized. The integration owner merges reviewed branches; I review
+each delivery and help resolve difficult issues.
+
+### T44 — Correct the T26 seam assertion without hiding culling regressions
+
+Owner: T26 gate owner / integration owner. Keep changes within
+`world-geometry-hole-check.sh`, its report, and T26 evidence unless a probe bug
+is demonstrated.
+
+1. Reproduce the T43 result from the exact trace camera and tick. Do not use the
+   first `world vis eyeMap` line if it belongs to another scene pose.
+2. Assert **0 of the 8 named seam faces are derived-back** at this pose. Keep
+   the 32/32 resolvable-direction check and face-id/oracle agreement.
+3. Add a positive control proving the product cull removes at least one named
+   **non-seam** face at the same pose; record its face ID and derived side.
+4. Add a mutation that disables or reverses culling and prove the positive
+   control turns red while seam classification remains meaningful.
+5. Run `world-geometry-hole-check.sh` and `--mutation`; confirm all mutations
+   are caught and mutated sources restore byte-for-byte.
+
+Exit: the focused T26 gate passes for current geometry semantics and still
+fails if culling is genuinely broken.
+
+### T45 — Finish T40's visible material semantics
+
+Owner: T40 pixel-pin owner. Do not relabel an occluded zero-delta pair as PASS.
+
+1. Use one wide-area pose from T35's nine-pose set at tick 2000. Capture a
+   baseline and repeat; prove exact tick, camera pose, and frame determinism.
+2. Measure specular with and without the material normal on that pose; require
+   a visible material population and directional pixel evidence.
+3. Measure tick-2000 bump under the same wide-area pose; determine whether its
+   79/0 direction is occlusion or a shader/data defect.
+4. For the 2,812-pixel detail residual on 27 WOOD/WALL007A faces, run T29's
+   near-plane mutation, capture F at tick 2000, and compare against the pre-fix
+   F. Identify the exact face/material/resource/shader cause.
+5. Keep one semantic switch per capture. Run
+   `lighting-semantics-check.sh --mutation` and
+   `world-material-semantics-check.sh --mutation` after forward evidence.
+6. Re-run T25/T26 if a shared frame, pin, or world shader changes. Preserve
+   source hashes and byte-identical mutation restores.
+
+Exit: each item is measured on a visible population or remains `NOT VERIFIED`
+with a named reason; no occluded zero-delta pair is called proof.
+
+### T46 — Resolve T41's authored-side pixel population
+
+Owner: T41 lighting/culling owner.
+
+1. At the exact T43 capture pose, instrument face 17605's displacement grid and
+   dump each emitted triangle's vertices, normal, plane side, emitted winding,
+   eye dot product, and derived raster-facing result.
+2. Map the triangles to the face-id frame and report which pixels are authored
+   front/back, raster front/back, and actually removed by D3D11 culling.
+3. Reconcile the 51,620 disp/side-0 residual and the two product-trace
+   exceptions. Separate conservative face classification from pixel ownership.
+4. Add a mutation that flips the selected side classification and prove the
+   pixel ledger detects it; do not substitute a global percentage.
+5. Run the focused T36 gate and its complete mutation suite after restoring the
+   diagnostic path.
+
+Exit: the authored-side versus raster-side split is explained for the named
+face, or remaining curved-grid ambiguity is bounded and marked `NOT VERIFIED`.
+
+### T47 — Make install readiness deterministic on a cold cache
+
+Owner: T37/T42 install-gate owner. Product root and UI title are separate
+signals; keep both checks.
+
+1. Reproduce the T43 cold-cache title failure without clearing system-wide
+   caches: use a fresh install/settings directory and record elapsed time,
+   trace, and every title sample.
+2. Make title capture poll within a documented bound instead of sampling too
+   early. Independently assert trace
+   `resources: ... tf_root=... valid=1`.
+3. If trace says the root connected but the title never reaches its connected
+   form, report `TITLE-CAPTURE-TIMEOUT` separately; do not accept it as a
+   connected title.
+4. Run two clean first-launch/restart/explicit-root cycles from separate
+   temporary directories and require identical root-selection decisions.
+5. Run `install-readiness-check.sh --forward` and `--mutation` with the staged
+   binary hash check; verify no stale installer/uninstaller executable ran.
+
+Exit: two cold-start cycles pass deterministically, or the gate reports a
+separate reproducible title timeout while preserving correct root accounting.
+
+### T48 — Close or bound T39's rasterizer-sample limitation
+
+Owner: T39 weapon-animation owner. Diagnostic work only; do not change the
+accepted silhouette rule unless measurement invalidates it.
+
+1. Use the exact identity-skinning/passthrough pair at the T43 inputs and inspect
+   pixel `(622,412)` plus neighboring coverage.
+2. Record interpolated clip position, post-divide position, viewport position,
+   depth, and shader output for both paths where instrumentation permits.
+3. Verify the current rule: outside-mask max delta <=1, all changed pixels are
+   inside the measured edge mask, changed-pixel count <=4, and the real-pose
+   control is rejected.
+4. Add a mutation that displaces the pose beyond the mask and prove the gate
+   fails. Restore source and confirm the step-22 frame hash returns.
+5. If hardware cannot expose per-sample detail, document the measurement limit;
+   do not claim the exact one-sample tie mechanism as proven.
+
+Exit: the difference is explained or explicitly bounded; step 22 continues to
+pass without loosening the silhouette or directional rules.
+
+## Execution order and non-parallel work
+
+1. Start T44, T45, T46, T47, and T48 in separate worktrees from `6888e6d`.
+   T44 and T47 are highest priority: one is a focused red; one makes install
+   readiness timing-sensitive.
+2. T45/T46/T48 may develop while T44/T47 are reviewed. Coordinate before merge
+   if tasks touch the same gate or diagnostic source.
+3. Run each task's build/capture/mutation validation one at a time under the
+   host lock. Never run two capture or mutation suites concurrently.
+4. Merge accepted branches one at a time. After each merge, run only the
+   directly affected focused gate; do not run the full chain during this wave.
+5. After T44-T48 are reviewed and merged, the integration owner prepares a new
+   frozen commit and starts T49 final release acceptance.
+
+Cannot run in parallel: any two builds/launches/captures/mutations; T47 staging
+tests with another install test; T49 with code edits, merges, or other
+validation; and the final `verify-all.sh --quick` with any other activity.
+
+### T49 — Final release acceptance follow-up
+
+Owner: integration owner. Start only after T44-T48 are reviewed.
+
+1. Freeze the new integration commit; verify clean files, free lock, no pending
+   merges, and no product/probe/compiler processes.
+2. Run T26, T40 lighting/material, T41 dark-account, T37 lifecycle/readiness,
+   T39 step 22, ViewModel, T25, T38, and audio focused gates once on that tree.
+3. Measure remaining `NOT VERIFIED` items or list them as explicit release
+   limitations with owner; preserve every focused FAIL.
+4. Run `verify-all.sh --quick` exactly once as the final test operation.
+5. Report focused-gate and full-chain verdicts separately. Mark release PASS
+   only when the chain passes and no unaccepted release blocker remains.
+6. Push the final commit; verify `git ls-remote`, ahead/behind, artifact hashes,
+   clean worktree, free lock, and zero residual processes.
