@@ -164,13 +164,52 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bsp", required=True)
     ap.add_argument("--frames", required=True)
-    ap.add_argument("--eye", default="%.1f,%.1f,%.1f" % DEFAULT_EYE)
+    ap.add_argument("--eye", default="%.1f,%.1f,%.1f" % DEFAULT_EYE,
+                    help="fallback eye, used only when --trace cannot be read")
+    ap.add_argument("--trace", default="",
+                    help="capture trace to read the camera from; the last "
+                         "'scene: camera' line is the pose the captured frame "
+                         "was drawn with")
     ap.add_argument("--json", default="")
     args = ap.parse_args()
-    eye = np.array([float(v) for v in args.eye.split(",")])
+    # T41 correction: the eye this tool used first, (-2423.6,5566.0,-1280.0), is
+    # the 'gpu: world vis eyeMap' value, and main.cpp emits that line ONCE on
+    # the first drawn frame. It is not the pose of the captured tick-2000 frame.
+    # The capture's own trace carries the real one: the last 'scene: camera'
+    # line before the frame is drawn (mode=first-person ... src=demo), and that
+    # is what classifies the pixels below.
+    trace_path = args.trace or os.path.join(args.frames, "ids.trace")
+    eye_source = "argument --eye (no readable trace)"
+    eye_line = ""
+    drawn_tick = None
+    if os.path.exists(trace_path):
+        try:
+            with open(trace_path, "r", errors="replace") as fh:
+                for line in fh:
+                    if "scene: camera" in line:
+                        eye_line = line.strip()
+                    elif "draw: begin tick=" in line:
+                        try:
+                            drawn_tick = int(line.split("draw: begin tick=")[1].split()[0])
+                        except (IndexError, ValueError):
+                            pass
+        except OSError:
+            eye_line = ""
+    if eye_line:
+        import re
+        m = re.search(r"eye=(-?[0-9.]+),(-?[0-9.]+),(-?[0-9.]+)", eye_line)
+        if m:
+            eye = np.array([float(m.group(1)), float(m.group(2)), float(m.group(3))])
+            eye_source = "capture trace %s, last 'scene: camera'" % trace_path
+        else:
+            eye = np.array([float(v) for v in args.eye.split(",")])
+    else:
+        eye = np.array([float(v) for v in args.eye.split(",")])
     bsp = Bsp(args.bsp)
     out = {"cullMode": CULL_MODE, "frontCounterClockwise": FRONT_COUNTER_CLOCKWISE,
-           "eye": [float(v) for v in eye], "frontRule": "dot(emittedNormal, eye - p) > 0"}
+           "eye": [float(v) for v in eye], "eyeSource": eye_source,
+           "eyeTraceLine": eye_line, "drawnTick": drawn_tick,
+           "frontRule": "dot(emittedNormal, eye - p) > 0"}
 
     # ---- 1. emission census -------------------------------------------------
     census = {"brushFaces": 0, "brushTris": 0, "brushAlongPlane": 0, "brushAgainstPlane": 0,
@@ -329,8 +368,40 @@ def main():
         rc = 1
     out["faceIdFrame"] = frame
 
+    # ---- 4. what this derivation supersedes, and what it does not ----------
+    # The pins it replaces were measurements of a different question made with
+    # the plane-side convention and a per-pixel face attribution that fails the
+    # test above. They stay in the gate (a cull or winding change must still
+    # move them) but they are not the answer to "which side was this pixel seen
+    # from", and this block is what a reader is pointed at.
+    out["notVerified"] = {
+        "status": "NOT VERIFIED",
+        "claims": [
+            "the pixel-level authored-side split of the dark population"
+            " (T36: 170701 back / 35227 front) and the 86%-back headline",
+            "the pixel-level removedSide split (T36: 44046 plane-front /"
+            " 37095 plane-back of 81141 removed pixels)",
+        ],
+        "why": "they rest on the face-id frame, whose per-pixel ids put %d of %d"
+               " world pixels on faces the derived rule removes and whose regions"
+               " exceed their own face's pinhole area for %d of %d faces"
+               % (frame.get("drawnPixelsOnDerivedBack", 0), frame.get("inRangePixels", 0),
+                  frame.get("overBoundFaces", 0), frame.get("facesWithRegion", 0)),
+        "supersededBy": "derivedDrawn / derivedRemoved: the authored side of what the"
+                        " raster keeps and removes, weighted by face",
+        "cheapestNextStep": "one product run at tick 2000 with --world-face-id"
+                            " --world-face-trace: the trace names tri=<ordinal> at each"
+                            " of its 28 pixels, so the id at that pixel can be compared"
+                            " with the face of the triangle the trace says was drawn",
+    }
+
     print("T41 raster rule: %s, FrontCounterClockwise=%s" % (CULL_MODE, FRONT_COUNTER_CLOCKWISE))
-    print("front test: %s, eye = %s" % (out["frontRule"], args.eye))
+    print("front test: %s" % out["frontRule"])
+    print("eye = (%.1f,%.1f,%.1f) from %s" % (eye[0], eye[1], eye[2], eye_source))
+    if eye_line:
+        print("  %s" % eye_line)
+    if drawn_tick is not None:
+        print("  last drawn tick in that trace: %s" % drawn_tick)
     print("")
     print("emission census (the triangles the rasterizer receives):")
     print("  brush faces %d (%d triangles): along the plane normal %d, against %d, degenerate %d"

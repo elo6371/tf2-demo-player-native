@@ -1,16 +1,17 @@
 {
   "cullMode": "D3D11_CULL_BACK",
   "derivedDrawn": {
-    "back": 3561,
-    "front": 4123
+    "back": 4043,
+    "front": 5526
   },
-  "derivedDrawnFaces": 7684,
-  "derivedFrontFaces": 7684,
+  "derivedDrawnFaces": 9569,
+  "derivedFrontFaces": 9569,
   "derivedRemoved": {
-    "back": 7755,
-    "front": 2613
+    "back": 6410,
+    "front": 2073
   },
-  "derivedRemovedFaces": 10368,
+  "derivedRemovedFaces": 8483,
+  "drawnTick": 2000,
   "emission": {
     "brushAgainstPlane": 1,
     "brushAlongPlane": 16654,
@@ -23,69 +24,81 @@
     "dispTris": 2784
   },
   "eye": [
-    -2423.6,
-    5566.0,
-    -1280.0
+    -2294.8,
+    348.8,
+    383.4
   ],
+  "eyeSource": "capture trace .scratch/t36-account.65844\\ids.trace, last 'scene: camera'",
+  "eyeTraceLine": "42388.4 scene: camera mode=first-person target=1 follows=1897 holds=0 freeze=0 eye=-2294.8,348.8,383.4 pitch=-8.43 yaw=64.27 src=demo",
   "faceIdFrame": {
     "distinctFaceIds": 641,
-    "drawnPixelsOnDerivedBack": 465922,
-    "drawnPixelsOnDerivedFront": 284469,
-    "drawnPixelsWrittenBack": 645326,
-    "drawnPixelsWrittenFront": 105065,
+    "drawnPixelsOnDerivedBack": 51890,
+    "drawnPixelsOnDerivedFront": 698501,
+    "drawnPixelsWrittenBack": 371496,
+    "drawnPixelsWrittenFront": 378895,
     "facesWithRegion": 452,
     "frames": [
-      ".scratch/t36-account.23990\\ids.bmp",
-      ".scratch/t36-account.23990\\ids-nocull.bmp"
+      ".scratch/t36-account.65844\\ids.bmp",
+      ".scratch/t36-account.65844\\ids-nocull.bmp"
     ],
     "height": 681,
     "inRangePixels": 750391,
     "nocullOnly": 81141,
     "offRangePixels": 110393,
-    "overBoundFaces": 387,
+    "overBoundFaces": 163,
     "pixelsTheCullRemoved": 81141,
-    "ratioMax": 10702242.874902735,
-    "ratioMedian": 11.347456107830691,
-    "ratioP90": 158.05606872420668,
+    "ratioMax": 43269.04376222055,
+    "ratioMedian": 0.6804126970144135,
+    "ratioP90": 3.074147537053051,
     "removedByIds": 0,
     "width": 1264
   },
   "facesParsed": 18052,
   "frontCounterClockwise": false,
   "frontRule": "dot(emittedNormal, eye - p) > 0",
+  "notVerified": {
+    "cheapestNextStep": "one product run at tick 2000 with --world-face-id --world-face-trace: the trace names tri=<ordinal> at each of its 28 pixels, so the id at that pixel can be compared with the face of the triangle the trace says was drawn",
+    "claims": [
+      "the pixel-level authored-side split of the dark population (T36: 170701 back / 35227 front) and the 86%-back headline",
+      "the pixel-level removedSide split (T36: 44046 plane-front / 37095 plane-back of 81141 removed pixels)"
+    ],
+    "status": "NOT VERIFIED",
+    "supersededBy": "derivedDrawn / derivedRemoved: the authored side of what the raster keeps and removes, weighted by face",
+    "why": "they rest on the face-id frame, whose per-pixel ids put 51890 of 750391 world pixels on faces the derived rule removes and whose regions exceed their own face's pinhole area for 163 of 452 faces"
+  },
   "ruleAgreement": {
     "brush/side-0": {
-      "agree": 10493,
-      "derivedFront": 3580,
-      "disagree": 52,
-      "eyeSide": 3582,
+      "agree": 10543,
+      "derivedFront": 4797,
+      "disagree": 2,
+      "eyeSide": 4799,
       "faces": 10545,
-      "writtenFront": 3632
+      "writtenFront": 4799
     },
     "brush/side-1": {
       "agree": 1,
-      "derivedFront": 3561,
+      "derivedFront": 4044,
       "disagree": 6114,
-      "eyeSide": 3562,
+      "eyeSide": 4043,
       "faces": 6115,
-      "writtenFront": 2553
+      "writtenFront": 2072
     },
     "disp/side-0": {
-      "agree": 1138,
-      "derivedFront": 427,
-      "disagree": 7,
-      "eyeSide": 427,
+      "agree": 1145,
+      "derivedFront": 609,
+      "disagree": 0,
+      "eyeSide": 609,
       "faces": 1145,
-      "writtenFront": 434
+      "writtenFront": 609
     },
     "disp/side-1": {
-      "agree": 246,
-      "derivedFront": 116,
-      "disagree": 1,
-      "eyeSide": 130,
+      "agree": 247,
+      "derivedFront": 119,
+      "disagree": 0,
+      "eyeSide": 128,
       "faces": 247,
-      "writtenFront": 117
+      "writtenFront": 119
     }
   },
-  "writtenFrontFaces": 6736
+  "writtenFrontFaces": 7599
 }
