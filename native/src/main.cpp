@@ -2246,9 +2246,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       if (archiveReason == "unsupported VPK header") archiveAttribution = "unsupported";
       else if (archiveReason.rfind("truncated", 0) == 0) archiveAttribution = "truncated";
       else if (archiveReason == "cannot read VPK directory file") archiveAttribution = "unreadable";
-      traceFmt("vpk: refused file=%s reason=%s attribution=%s",
-        std::filesystem::path(name).string().c_str(),
-        archiveReason.c_str(), archiveAttribution);
+      // Two lines, not one extended line. Existing readers take everything after
+      // reason= as the reason and require file= immediately after "refused", so
+      // inserting a field between them would silently rewrite their reading. The
+      // first line is therefore byte-compatible with pre-T42 traces; the second is
+      // the new attribution word, keyed to the same file.
+      traceFmt("vpk: refused file=%s reason=%s",
+        std::filesystem::path(name).string().c_str(), archiveReason.c_str());
+      traceFmt("vpk: refused attribution=%s file=%s",
+        archiveAttribution, std::filesystem::path(name).string().c_str());
     }
     traceFmt("vpk: archives opened=%zu refused=%zu", soundArchives.size(), refusedVpkCount);
     if (!mapPlan.nameUsable) {

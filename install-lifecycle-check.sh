@@ -525,6 +525,9 @@ eq "the foreign user file is neither missing nor modified" \
   "$(field "$OUT/migrated-status.txt" missing):$(field "$OUT/migrated-status.txt" modified)" "0:0"
 has "the manifest still records the OLD install path (nothing reads it)" \
   "$(cat "$MIG/.uninstall/install-manifest.txt")" "/upgrade/target"
+MIG_MANIFEST="$(cat "$MIG/.uninstall/install-manifest.txt" 2>/dev/null)"
+hasnt "the user's note was never in the manifest (it was added after the install)" \
+  "$MIG_MANIFEST" "user-notes.txt"
 M1="$(run_exe "$MIG/tf2_demo_native.exe" "$OUT/migrated-uninstall.txt" --uninstall)"
 eq "the moved install uninstalls (incomplete only for its running image)" "$M1" "3"
 echo "  --- --uninstall (moved install) ---"
@@ -535,8 +538,10 @@ eq "and the pre-upgrade payload bytes are back on disk" \
   "$(grep -c "upgraded payload" "$MIG/install_smoke_probe.ps1" 2>/dev/null | tr -d " ")" "0"
 eq "the user file that was never installed is still there" \
   "$([ -f "$MIG/user-notes.txt" ] && echo present || echo absent)" "present"
-eq "and it is counted preserved rather than claimed as removed" \
-  "$(field "$OUT/migrated-uninstall.txt" preserved)" "1"
+eq "the uninstall removed the two installed files the upgrade left behind" \
+  "$(field "$OUT/migrated-uninstall.txt" removed)" "2"
+eq "and it did not claim the file it never recorded as preserved (preserved counts manifest records only)" \
+  "$(field "$OUT/migrated-uninstall.txt" preserved)" "0"
 eq "the running image is deferred by name, not deleted" \
   "$(field "$OUT/migrated-uninstall.txt" deferredRunningImage)" "1"
 
@@ -659,7 +664,7 @@ vpk_state_query() { # <root-name> -> rc
 }
 vpk_query_line() { sed -n "s/^pak01_dir.vpk: //p" "$OUT/vpk-query-$1.txt" | head -1; }
 vpk_query_category() { vpk_query_line "$1" | sed -n "s/^\([A-Z_]*\) .*/\1/p" | tr "A-Z" "a-z"; }
-vpk_attribution() { sed -n "s/.*vpk: refused file=[^ ]* .*attribution=\([^ ]*\).*/\1/p" "$1" 2>/dev/null | tail -1; }
+vpk_attribution() { sed -n "s/.*vpk: refused attribution=\([^ ]*\).*/\1/p" "$1" 2>/dev/null | tail -1; }
 vpk_state_product() { # <root-name> -> rc
   run_product "$LAUNCH/tf2_demo_native.exe" "$FIX/demo/t32_marker.dem" "$OUT/cases/$1" "$FIX/roots/$1" -
 }
@@ -683,7 +688,7 @@ PR="$(vpk_state_product vpk-missing)"; eq "absent: the installed product boots" 
 eq "absent: product opened no archive (there is none)" "$(archives_opened "$(state_case vpk-missing)/trace.txt")" "0"
 eq "absent: product counted no refusal" "$(archives_refused "$(state_case vpk-missing)/trace.txt")" "0"
 hasnt "absent: the trace carries no refusal line at all" "$(cat "$(state_case vpk-missing)/trace.txt")" "vpk: refused"
-eq "absent: the title has no VPK refusal count" "$(title_refused "$(state_case vpk-missing)")" ""
+eq "absent: the title has no VPK refusal count" "$(title_refused "$(state_case vpk-missing)/title-last.txt")" ""
 eq "absent: the loose map still answered" "$(trace_store "$(state_case vpk-missing)/trace.txt")" "maps"
 
 # ---- unreadable: present, and the account may not read it
@@ -700,7 +705,7 @@ eq "unreadable: product names the reader's own reason" \
   "$(refused_reason "$(state_case vpk-unreadable)/trace.txt")" "cannot read VPK directory file"
 eq "unreadable: product attribution is the same category vpk_query used" \
   "$(vpk_attribution "$(state_case vpk-unreadable)/trace.txt")" "$(vpk_query_category vpk-unreadable)"
-eq "unreadable: the title carries the refusal count" "$(title_refused "$(state_case vpk-unreadable)")" "1"
+eq "unreadable: the title carries the refusal count" "$(title_refused "$(state_case vpk-unreadable)/title-last.txt")" "1"
 eq "unreadable: the map could not be read" "$(trace_store "$(state_case vpk-unreadable)/trace.txt")" "none"
 
 # ---- unsupported: a well-formed file in a format this reader does not know
@@ -713,7 +718,7 @@ eq "unsupported: product repeats the named format reason" \
   "$(refused_reason "$(state_case vpk-format)/trace.txt")" "unsupported VPK header"
 eq "unsupported: product attribution is the same category vpk_query used" \
   "$(vpk_attribution "$(state_case vpk-format)/trace.txt")" "$(vpk_query_category vpk-format)"
-eq "unsupported: the title carries the refusal count" "$(title_refused "$(state_case vpk-format)")" "1"
+eq "unsupported: the title carries the refusal count" "$(title_refused "$(state_case vpk-format)/title-last.txt")" "1"
 
 # ---- truncated: a valid header whose tree runs past EOF
 QR="$(vpk_state_query vpk-truncated-tree)"; eq "truncated: vpk_query exit code" "$QR" "0"
@@ -978,6 +983,9 @@ rebuild m3-build || M3_BUILD=$?
 eq "M3 build succeeded AND relinked" "$M3_BUILD" "0"
 M3="$MUT/pkg-m3"
 stage_package "$M3" m3-stage || echo "  stage warning"
+M3_LINKED=0
+mutated_binary_identity "$M3/tf2_demo_native.exe" "M3 staged binary" || M3_LINKED=$?
+if [ "$M3_LINKED" = "90" ]; then mutation_not_linked "the M3 fixture would run the reference build"; fi
 mkdir -p "$M3/.uninstall"
 # A file with no format= line but otherwise well-formed: without the format check
 # it parses as an install manifest with zero files, and uninstall returns 0 having
