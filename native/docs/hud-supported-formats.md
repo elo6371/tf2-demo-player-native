@@ -101,10 +101,11 @@ degradation, not a silent one.
 | `xpos`, `ypos`, `wide`, `tall` | resolved (see 2.3) |
 | `zpos` | read and kept; panels are drawn in document order, so a HUD that
   relies on zpos for overlap draws in the wrong order. Reported, not guessed |
-| `visible`, `enabled` | `0`/`1`/`true`/`false`; an invisible panel is not drawn and owns no pixels |
+| `visible` | `0`/`1`/`true`/`false`; an invisible panel is **not drawn and owns no pixels**, and a hidden panel's children are hidden with it (visibility is inherited, like Source's). The geometry is still resolved, so a hidden panel is a legal parent for a visible descendant once it is shown |
+| `enabled` | read and reported; this build has no input handling and no VGUI runtime, so a disabled panel is still drawn. Reading it and pretending otherwise would be the kind of half-true support this document exists to avoid |
 | `controlname`, `fieldname` | read, recorded, never dispatched: this build has no VGUI runtime |
-| `labelText` | read and shown in the preview as a marker; `%Token%` interpolation is not implemented |
-| `font`, `textAlignment`, `image` | read, counted in `unknownKeys`-style readings, **not rendered** |
+| `labelText` | read and reported; **not rendered** — this build rasterises no font, so the panel is a bordered block. `%Token%` interpolation is not implemented either |
+| `font`, `textAlignment`, `image` | read and reported per panel; **not rendered** (see 2.4) |
 | every other key | counted in `unknownKeys`; a document's unknown-key count is reported so "we ignored 40 keys" is a reading |
 
 ### 2.3 Coordinates
