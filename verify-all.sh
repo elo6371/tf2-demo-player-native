@@ -1026,6 +1026,43 @@ if grep -q 'VIEWMODEL-COMPANION=PASS' "$VM_COMPANION_OUT" \
 else
   echo "VIEWMODEL-COMPANION=FAIL (assertions_ok=${VM_COMPANION_OK:-0})"; rc_all=1
 fi
+# THE TWO GATES CANNOT OVERLAP THE PRODUCT IMAGE (T49).
+#   The forward gate above ends with a product launch, and the mutation gate below
+#   starts its own launches seconds later. Windows keeps the executable locked
+#   until the last handle closes, so in the T49 chain (2026-10-22 01:30) the
+#   mutation half began 4 s after the forward half's last exit and every launch
+#   before its first rebuild failed with rc=126 "Permission denied", turning 86
+#   assertions red for a reason that had nothing to do with the proof. The gate
+#   now retries that one shape itself (see run_product in
+#   viewmodel-companion-check.sh); this wait makes the handover explicit rather
+#   than relying on the first launch to discover it, and it is bounded so a
+#   permanently locked file still fails.
+wait_for_companion_image() { # wait until no product image is still running or releasing
+  local deadline pid_count idle=0
+  deadline=$(( $(date +%s) + 60 ))
+  echo "  settling the product image before the mutation half"
+  while :; do
+    pid_count=$(ps -W 2>/dev/null | grep -ci 'tf2_demo_native' || true)
+    if [ "${pid_count:-0}" -eq 0 ]; then
+      # Two consecutive clear readings: "no process" alone is what the forward
+      # half's last launch leaves behind for the few seconds Windows still holds
+      # the image, and the whole point of this wait is to outlast that window.
+      idle=$((idle + 1))
+      if [ "$idle" -ge 4 ]; then
+        echo "  product processes=0 for 2s; the mutation half may start"
+        return 0
+      fi
+    else
+      idle=0
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "  note: the product image stayed busy for 60s (processes=${pid_count:-?}); running anyway"
+      return 1
+    fi
+    sleep 0.5
+  done
+}
+wait_for_companion_image
 VM_COMPANION_MUT="$OUT/24-viewmodel-companion-mutation.txt"
 VERIFY_ALL_LOCK_HELD=1 VIEWMODEL_COMPANION_TRACE_DIR="$OUT/24-viewmodel-companion-mutation-traces" \
   bash viewmodel-companion-check.sh --mutation > "$VM_COMPANION_MUT" 2>&1

@@ -316,17 +316,79 @@ assert_ge "the cycle witness has a live sequence" "$(field "$CONTROL_LINE" witne
 # ---------------------------------------------------------------------------
 echo
 echo "=== 2/6 the pass draws the entity's own model ==="
+# A BUSY PRODUCT IMAGE IS A HOST STATE, NOT A READING (T49).
+#   Windows keeps an executable's image open until the last handle closes, so a
+#   launch that starts a few seconds after the previous product process exited can
+#   fail with rc=126 "Permission denied" before the program runs at all. Measured
+#   on the T49 chain (2026-10-22 01:30): step 24's forward gate ended its last
+#   launch at 01:30:25 and the mutation gate's first launch at 01:30:29 hit
+#   exactly that; every launch before the mutation half's first rebuild failed, and
+#   86 assertions went red for a reason that had nothing to do with the proof. The
+#   same gate on the same tree with an idle image read 6/6 PASS and zero rc=126,
+#   which is what identifies contention rather than a defect.
+#
+#   Two things are deliberately NOT used as the readiness signal, both measured on
+#   this host on 2026-10-22:
+#     * `cp "$EXE" /dev/null` succeeds even while the product is running, so a
+#       read test says nothing about the loader's share mode;
+#     * `"$EXE" --version` also succeeds while another instance runs, so an
+#       exec probe does not reproduce the race either.
+#   The only signal that matches the failure is the one in the failing log:
+#   timeout(1) could not run the file. So the wait watches the process table (which
+#   is what the contention comes from) and the retry is driven by the launcher's
+#   own error text -- never by the exit code alone, because 126/127 are also what
+#   timeout(1) returns for a launch it refused, and a product that exited 126 on
+#   its own would not have written that line.
+#
+#   Everything that is not that shape -- a real product failure, a wrong exit code,
+#   a crash -- still fails on the first attempt. At most one retry is allowed, so a
+#   permanently unavailable image is reported as the failure it is.
+EXE_WAIT_TIMEOUT=${VIEWMODEL_COMPANION_EXE_WAIT:-30}   # seconds
+EXE_WAIT_INTERVAL=0.5
+launch_denied() { # launch_denied <log> -> 0 when the launcher could not exec the exe
+  grep -aqE "failed to run command .*: (Permission denied|No such file or directory)$" "$1" 2>/dev/null
+}
+product_processes() { # product_processes -> number of running product images
+  ps -W 2>/dev/null | grep -ci 'tf2_demo_native' || true
+}
+wait_for_exe() { # wait_for_exe -> 0 when no product image is running any more
+  local deadline count
+  deadline=$(( $(date +%s) + EXE_WAIT_TIMEOUT ))
+  while :; do
+    count=$(product_processes)
+    if [ "${count:-0}" -eq 0 ]; then return 0; fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "  note: $count product process(es) still running after ${EXE_WAIT_TIMEOUT}s; running anyway"
+      return 1
+    fi
+    sleep "$EXE_WAIT_INTERVAL"
+  done
+}
 run_product() { # run_product <name> <demo> <tick> [extra...]
   local name="$1" demo="$2" tick="$3"; shift 3
   local bmp="$TRACE_DIR/$name.bmp"
+  local log="$TRACE_DIR/$name.log"
+  local attempt waited=0
   rm -f "$bmp" "$TRACE_DIR/$name.csv"
-  TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
-    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$demo" \
-    --settings-file "$TRACE_DIR/$name-settings.ini" \
-    --capture-frame "$bmp" --capture-tick "$tick" \
-    --metrics-file "$TRACE_DIR/$name.csv" \
-    --viewmodel "$VM_MODEL" --viewmodel-fov 90 "$@" > "$TRACE_DIR/$name.log" 2>&1
-  LAST_RC=$?
+  for attempt in 1 2; do
+    TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
+      --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$demo" \
+      --settings-file "$TRACE_DIR/$name-settings.ini" \
+      --capture-frame "$bmp" --capture-tick "$tick" \
+      --metrics-file "$TRACE_DIR/$name.csv" \
+      --viewmodel "$VM_MODEL" --viewmodel-fov 90 "$@" > "$log" 2>&1
+    LAST_RC=$?
+    if launch_denied "$log" && [ "$attempt" -eq 1 ]; then
+      # One retry, after the previous image has actually left the process table.
+      # Repeated at most once: a second denial is reported as the failure it is, so
+      # a permanently unavailable image cannot be papered over by waiting.
+      wait_for_exe && waited=1
+      rm -f "$bmp" "$TRACE_DIR/$name.csv"
+      continue
+    fi
+    break
+  done
+  [ "$waited" -eq 1 ] && echo "  note: $name retried once after the product image left the process table"
   load_run "$name"
   echo "  $name rc=$LAST_RC bmp=$(stat -c%s "$bmp" 2>/dev/null || echo 0)"
 }
