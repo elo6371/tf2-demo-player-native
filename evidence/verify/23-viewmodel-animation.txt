@@ -116,14 +116,14 @@
 === 6/7 the accepted pose is on a real animation; the stub is the negative ===
   pov-history rc=0 bmp=2582406
   scene: vmAnim entity=1077 sequence=30 entitySequence=30 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=60/61 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
-  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1399 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1758 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
   OK   pov history rc = 0
   OK   pov history draws the entity's own model = models/weapons/c_models/c_sniper_arms.mdl
-  OK   pov history observations = 1914 (>= 1)
-  OK   pov history accepted every observation = 1914
+  OK   pov history observations = 1663 (>= 1)
+  OK   pov history accepted every observation = 1663
   OK   pov history refused nothing = 0
-  OK   pov history matched every observation = 1914
-  OK   pov history measured every sequence inside the entity's own table = 1914
+  OK   pov history matched every observation = 1663
+  OK   pov history measured every sequence inside the entity's own table = 1663
   OK   pov history no model mismatch = 0
   OK   pov history applied nothing without the flag = 0
   OK   pov history sequence range = 1..30
@@ -171,7 +171,7 @@
   ..   pov-pose-bind vs pov-pose-apply: 30163 byte positions differ (the reference pose equals the bind pose)
   pov-motion-apply rc=0 bmp=2582406
   scene: vmAnim entity=1077 sequence=30 entitySequence=30 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=60/61 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=30
-  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1526 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=30 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1483 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=30 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
   OK   real motion, applied: rc = 0
   OK   real motion, applied: vmAnimApplied = 1
   OK   real motion, applied: skinning = 1

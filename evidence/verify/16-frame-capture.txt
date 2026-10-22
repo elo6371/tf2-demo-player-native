@@ -19,18 +19,19 @@ distinct colours (capped at 9) = 9
 === 3/4 the same input twice gives the same bytes, and a different scene does not ===
 second paused capture rc=0 size=2582406
   OK   second paused capture rc = 0
-paused sha256 #1 = a61a3e4d28978fb6b71c012d45089a6f8673956d94ee2cda5abdd1973dbbaed1
-paused sha256 #2 = a61a3e4d28978fb6b71c012d45089a6f8673956d94ee2cda5abdd1973dbbaed1
+paused sha256 #1 = 41f4b33e8ab70a09b48288726673851cc6506f5f4e9aa6440b85fd563d4f3ad8
+paused sha256 #2 = 41f4b33e8ab70a09b48288726673851cc6506f5f4e9aa6440b85fd563d4f3ad8
   OK   two captures of the same static scene are byte-identical
 demo capture rc=0 size=2582406
 demo 1264x681 bpp=24 fileBytes=2582406 actual=2582406
 demo sha256 = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
   OK   a demo scene and the paused scene are different pictures
 installed-map demo capture rc=0 size=2582406
-installed-map demo sha256 = d086695e0e29c67d731042dd22eda0484c9ca683ebe19ce81a2e832d966d7d7a
+installed-map demo sha256 = c68145e7f8b2a63d589d0ce4bae06408315c84178cd904bbe4abd3ca0ca4ecc7
   OK   the installed-map demo scene differs from the paused scene
-installed-map distinct colours (capped at 4097) = 563
-  OK   the installed-map frame is shaded geometry, not a full-screen decal
+installed-map distinct colours (full count) = 24078  [reading only]
+installed-map vs fallback-capture: differing 2569553 / 2582352 = 0.9950 (need >= 10%)
+  OK   the installed-map frame is not the fallback picture
 
 === 4/4 a bad tick is refused instead of guessed ===
 invalid --capture-tick rc=13

@@ -1,4 +1,4 @@
-mutation: the resolver's range branch is neutered (rebuilt)
+mutation: the companion proof AND the companion adoption are neutered (rebuilt)
 === 0/7 pinned inputs ===
   OK   autorecord_2026-07-02_13-26-46.dem pinned (21856667 bytes, c8a58501d222bdd9...)
   OK   bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem pinned (51834617 bytes, 308cc1453672b26d...)
@@ -8,11 +8,11 @@ mutation: the resolver's range branch is neutered (rebuilt)
 
 === 1/7 the instrument: the probe's self-test ===
   OK   self-test rc = 1
-  OK   self-test failures = 1
-  OK   self-test assertions = 48
-  OK   self-test expected mutation failure = 1
+  OK   self-test failures = 18
+  OK   self-test assertions = 76
+  OK   self-test checks that ran = 94
   OK   self-test ran the product cross-check = 0
-  OK   self-test covered every resolver branch = 6 (>= 5)
+  OK   self-test covered every resolver branch = 12 (>= 5)
 
 === 2/7 the demo carries a ViewModel's animation state ===
   OK   pov probe rc = 0
@@ -33,12 +33,14 @@ mutation: the resolver's range branch is neutered (rebuilt)
   OK   pov distinct entity model paths = 5
   OK   pov entity models that are v_* viewmodels = 0
 
-=== 3/7 the sequence the entity carries does not index the drawn model ===
+=== 3/7 the sequence the entity carried did not index the model T2 drew ===
   OK   drawn model sequence count = 7
   OK   drawn model bone count = 45
   OK   entity model sequence count = 43
   OK   entity model bone count = 58
   OK   entity model resolved = 1
+  OK   entity model sequences that reach a descriptor = 1
+  OK   entity model's first posable sequence = 0
   OK   the entity's table is larger than the drawn one = 43 (> 7)
   OK   the observed sequences run past the drawn table = 34 (> 6)
   OK   observed sequences inside the drawn table = 37
@@ -59,28 +61,48 @@ mutation: the resolver's range branch is neutered (rebuilt)
   OK   matcha ViewModel observations = 3344 (>= 1)
   OK   matcha index space verdict = mismatch
 
-=== 5/7 the product refuses an out-of-range sequence and keeps the bind pose ===
+=== 5/7 a model the entity did not name is refused, not drawn ===
   pov-refusal rc=0 bmp=2582406
-  scene: vmAnim entity=1077 sequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=missing poseAvailable=0 applied=0 frame=0/0 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=sequence 29 is past the model's 7 sequences
-  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0
+  scene: vmAnim entity=1077 sequence=29 entitySequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=sequenceOutOfRange poseAvailable=0 applied=0 frame=0/0 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=m_nSequence 29 is past the entity's own model's 7 sequences owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=1 sequenceInRange=0 bindPose=1 sequenceOverride=-1
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=23169 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=sequenceOutOfRange meshRadius=15.78 alignment=weapon_bone vmAnimInput=sequenceOutOfRange vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=1 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1 ranges=2 boundSlots=2
   OK   pov refusal rc = 0
-  OK   pov refusal vmAnimInput = missing
+  OK   pov refusal draws what it was told to draw = models/weapons/v_models/v_scattergun_scout.mdl
+  OK   pov refusal vmAnimInput = sequenceOutOfRange
+  OK   pov refusal entity model does not match the drawn one = 1
+  OK   pov refusal the range question was never reached = 0
   OK   pov refusal vmAnimApplied = 0
   OK   pov refusal skinning = 0
   OK   pov refusal boneTableCoverage = 0/0
-  OK   pov refusal animationInput = missing
+  OK   pov refusal animationInput = sequenceOutOfRange
   OK   pov refusal drawn = 1
   OK   pov refusal entity = 1077
   OK   pov refusal sequence = 29
   OK   pov refusal cyclePresent = 0
   OK   pov refusal poseAvailable = 0
   OK   pov refusal applied = 0
-  OK   pov refusal names the entity's own model contains c_sniper_arms.mdl
   OK   pov refusal observations = 2 (>= 1)
-  OK   pov refusal out-of-range count = 0
+  OK   pov refusal mismatch count = 0
+  OK   pov refusal out-of-range count = 2
+  pov-companion rc=0 bmp=2582406
+  scene: vmAnim entity=1077 sequence=29 entitySequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=missing poseAvailable=0 applied=0 frame=0/0 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=sequence has no animation binding owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=1 sequenceOverride=-1
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=29.88 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1 ranges=2 boundSlots=2
+  OK   pov companion rc = 0
+  OK   pov companion draws the entity's own model = models/weapons/c_models/c_sniper_arms.mdl
+  OK   pov companion entity model matches the drawn model = 1
+  OK   pov companion sequence inside the entity's own table = 1
+  OK   pov companion status = missing
+  OK   pov companion no override was in force = -1
+  OK   pov companion no model mismatch = 0
+  OK   pov companion every observation matched = 2
+  OK   pov companion every sequence was in range = 2
+  OK   pov companion refused nothing for a range reason = 0
+  OK   pov companion pose is available = 0
+  OK   pov companion frame count is the companion's = 0
+  OK   pov companion applies nothing by default = 0
+  OK   pov companion skins nothing by default = 0
   matcha-pairing rc=0 bmp=2582406
-  scene: vmAnim entity=-1 sequence=-1 rate=0.00 cyclePresent=0 model=- status=missing poseAvailable=0 applied=0 frame=0/0 entityRule=the snapshot holds no ViewModel entity reason=no viewmodel entity owned by the view entity
-  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0
+  scene: vmAnim entity=-1 sequence=-1 entitySequence=-1 rate=0.00 cyclePresent=0 model=- status=missing poseAvailable=0 applied=0 frame=0/0 entityRule=the snapshot holds no ViewModel entity reason=no viewmodel entity owned by the view entity owner=-1 viewEntity=1 modelIndex=-1 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 bindPose=1 sequenceOverride=-1
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=23169 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=2 boneMismatch=0 bindPose=1 ranges=2 boundSlots=2
   OK   matcha pairing rc = 0
   OK   matcha pairing vmAnimInput = missing
   OK   matcha pairing vmAnimApplied = 0
@@ -91,41 +113,72 @@ mutation: the resolver's range branch is neutered (rebuilt)
   OK   matcha pairing observations = 2 (>= 1)
   OK   matcha pairing missing count = 2
 
-=== 6/7 the accepted pose is available but not applied by default ===
+=== 6/7 the accepted pose is on a real animation; the stub is the negative ===
   pov-history rc=0 bmp=2582406
-  scene: vmAnim entity=1077 sequence=30 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=missing poseAvailable=0 applied=0 frame=0/0 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=sequence 30 is past the model's 7 sequences
-  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1248 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=15.78 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0
+  scene: vmAnim entity=1077 sequence=30 entitySequence=30 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=missing poseAvailable=0 applied=0 frame=0/0 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=sequence has no animation binding owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=1 sequenceOverride=-1
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1440 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=29.88 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=1 ranges=2 boundSlots=2
   OK   pov history rc = 0
-  OK   the first accepted pose is at playback tick 814 (derived from the run)
-  OK   pov history accepted poses = 865 (>= 1)
-  OK   pov history applied poses without the flag = 0
-  OK   pov history refusals = 0
+  OK   pov history draws the entity's own model = models/weapons/c_models/c_sniper_arms.mdl
+  OK   pov history observations = 1920 (>= 1)
+  OK   pov history accepted every observation = 0
+  OK   pov history refused nothing = 1920
+  OK   pov history matched every observation = 1920
+  OK   pov history measured every sequence inside the entity's own table = 1920
+  OK   pov history no model mismatch = 0
+  OK   pov history applied nothing without the flag = 0
+  OK   pov history sequence range = 1..30
   OK   pov history sequence changes = 2 (>= 1)
-  ok-bind rc=0 bmp=2582406
-  scene: vmAnim entity=1077 sequence=1 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a resolvable model and the lowest m_nViewModelIndex reason=-
-  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=524 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=15.78 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0
+  OK   pov history frame count is the companion's = 0
+  pov-stub rc=0 bmp=2582406
+  scene: vmAnim entity=1077 sequence=0 entitySequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=0/1 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=0
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=0 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  OK   stub sequence: rc = 0
+  OK   stub sequence: inside the entity's own table = 1
+  OK   stub sequence: refused = ok
+  OK   stub sequence: no pose = 1
+  OK   stub sequence: frame count = 1
+  OK   stub sequence: applied = 0
+  OK   stub sequence: the override is reported = 0
+  OK   the first sequence the entity's model can pose, by name = 0
+  OK   and the recording does not carry it = 1..30 (!= 0..30)
+  pov-pose-bind rc=0 bmp=2582406
+  scene: vmAnim entity=1077 sequence=0 entitySequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=0/1 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=0
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=0 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
   OK   accepted pose, default: rc = 0
   OK   accepted pose, default: vmAnimInput = ok
+  OK   accepted pose, default: entity model matches the drawn model = 1
+  OK   accepted pose, default: sequence inside the entity's own table = 1
+  OK   accepted pose, default: the override is reported = 0
   OK   accepted pose, default: vmAnimApplied = 0
   OK   accepted pose, default: skinning = 0
   OK   accepted pose, default: boneTableCoverage = 0/0
   OK   accepted pose, default: poseAvailable = 1
   OK   accepted pose, default: applied = 0
-  OK   accepted pose, default: frame count = 31 (>= 2)
-  ok-apply rc=0 bmp=2582406
-  scene: vmAnim entity=1077 sequence=1 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=30/31 entityRule=the viewmodel entity with a resolvable model and the lowest m_nViewModelIndex reason=-
-  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=521 vertices=9723 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=45/45 animationInput=bones:45 meshRadius=15.78 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1
+  OK   accepted pose, default: frame count = 1
+  pov-pose-apply rc=0 bmp=2582406
+  scene: vmAnim entity=1077 sequence=0 entitySequence=29 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=0/1 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=0
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=0 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
   OK   accepted pose, applied: rc = 0
   OK   accepted pose, applied: vmAnimInput = ok
   OK   accepted pose, applied: vmAnimApplied = 1
   OK   accepted pose, applied: skinning = 1
   OK   accepted pose, applied: applied = 1
   OK   accepted pose, applied: animationInput reports the effect contains bones:
-  OK   accepted pose, applied: coverage numerator = 45 (> 0)
-  OK   accepted pose, applied: the table covers the whole skeleton = 45
+  OK   accepted pose, applied: coverage numerator = 58 (> 0)
+  OK   accepted pose, applied: the table covers the whole skeleton = 58
+  OK   accepted pose, applied: the table is the model's own bone count = 58
   OK   accepted pose, applied: every accepted pose was applied = 2
-  OK   the applied pose changes the frame = 37636 (> 0)
-  ..   ok-bind vs ok-apply: 37636 byte positions differ
+  ..   pov-pose-bind vs pov-pose-apply: 77952 byte positions differ (the reference pose equals the bind pose)
+  pov-motion-apply rc=0 bmp=2582406
+  scene: vmAnim entity=1077 sequence=30 entitySequence=30 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=missing poseAvailable=0 applied=0 frame=0/0 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=sequence has no animation binding owner=18 viewEntity=18 modelIndex=1032 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=1 sequenceOverride=30
+  gpu: viewmodel pass order worldPass=1 viewModelPass=6 afterWorld=1 drawCalls=1442 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=29.88 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=0 sequenceOverride=30 modelMismatch=0 boneMismatch=0 bindPose=1 ranges=2 boundSlots=2
+  OK   real motion, applied: rc = 0
+  OK   real motion, applied: vmAnimApplied = 0
+  OK   real motion, applied: skinning = 0
+  OK   real motion, applied: frame count = 0
+  OK   real motion, applied: the table covers the whole skeleton = 0
+  OK   the applied real animation changes the frame = 0
+  ..   pov-history vs pov-motion-apply: 0 byte positions differ
 
 === 7/7 the readings can go red ===
   OK   mutation census-skip-viewmodel: the class census collapses = 0
@@ -142,11 +195,13 @@ mutation: the resolver's range branch is neutered (rebuilt)
   OK   probe mutation controls that held = 5
 
 mutation readings:
-  refusal vmAnimInput  = missing (fixed build: sequenceOutOfRange)
-  refusal reason names the drawn table = 0 (fixed build: 1)
-  refusal outOfRange   = 0 of 2 observations (fixed build: all of them)
-  control poseAvailable = 0 (must stay 0: still a refusal, only unlabelled)
-  control matcha entity = -1 (must stay -1)
-  control index space   = mismatch (must stay mismatch)
-mutation_red=3/3 hold=3/3
-MUTATION-CAUGHT=PASS (the range branch is what names the refusal; every control held)
+  refusal vmAnimInput  = sequenceOutOfRange (fixed build: modelMismatch)
+  refusal reason names both paths = 0 (fixed build: 1)
+  refusal modelMismatch = 0 of 2 observations (fixed build: all of them)
+  history ok           = 0 of 1920 (fixed build: all of them; neutered: 0)
+  control poseAvailable   = 0 (must stay 0: still a refusal, only mislabelled)
+  control companion match = 2 of 2 (must not move: the proof cannot fire on a match)
+  control matcha entity   = -1 (must stay -1)
+  control index space     = mismatch (must stay mismatch)
+mutation_red=4/4 hold=4/4
+MUTATION-CAUGHT=PASS (the model proof AND the companion adoption are what carry the animation readings; every control held)

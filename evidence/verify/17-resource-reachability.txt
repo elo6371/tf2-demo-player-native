@@ -1,5 +1,5 @@
 === 1/5 the archives main.cpp names are all present, or the reason is named ===
-archivesOpened=4 missingNames=pak01_dir.vpk totalEntries=149686
+archivesOpened=4 missingNames=pak01_dir.vpk totalEntries=149734
   OK   archives opened = 4
   OK   missing archive (by name) = pak01_dir.vpk
 

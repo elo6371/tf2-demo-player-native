@@ -1,8 +1,8 @@
 === 1/6 the product skins entity models on the GPU ===
 tick=2000 rc=0 bmp=2582406
   OK   capture rc at tick 2000 = 0
-  43351.5 scene: anim skinned=63 bindPose=33 matrices=177 gpuSkin=62/177 boneMismatch=0 poseChanges=48 targetInstances=4 targetPose=0 advances=48 targetAdv=0 cycle=7956/0 tick=12016 status=sample-failed reason=animation bone index is outside the skeleton
-  43351.5 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=7/100 lf=7/0 poseChanges=2 seen=825 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  41613.2 scene: anim skinned=63 bindPose=33 matrices=177 gpuSkin=62/177 boneMismatch=0 poseChanges=48 targetInstances=4 targetPose=0 advances=48 targetAdv=0 cycle=7760/0 tick=12016 status=sample-failed reason=animation bone index is outside the skeleton
+  41613.2 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=7/100 lf=7/0 poseChanges=2 seen=776 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
   OK   skinned instances at tick 2000 = 63 (>= 1)
   OK   bone matrices uploaded at tick 2000 = 177 (>= 1)
   OK   GPU-accepted skinned instances at tick 2000 = 62 (>= 1)
@@ -14,8 +14,8 @@ tick=2000 rc=0 bmp=2582406
   OK   witness at tick 2000 is a named model: models/props_ui/bannerflag_comp_l.mdl
 tick=4000 rc=0 bmp=2582406
   OK   capture rc at tick 4000 = 0
-  66490.6 scene: anim skinned=62 bindPose=34 matrices=176 gpuSkin=61/176 boneMismatch=0 poseChanges=146 targetInstances=4 targetPose=0 advances=146 targetAdv=0 cycle=15850/0 tick=13614 status=sample-failed reason=animation bone index is outside the skeleton
-  66490.6 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=26/100 lf=26/0 poseChanges=5 seen=2655 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  64386.5 scene: anim skinned=62 bindPose=34 matrices=176 gpuSkin=61/176 boneMismatch=0 poseChanges=146 targetInstances=4 targetPose=0 advances=146 targetAdv=0 cycle=16852/0 tick=13614 status=sample-failed reason=animation bone index is outside the skeleton
+  64386.6 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=26/100 lf=26/0 poseChanges=5 seen=2817 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
   OK   skinned instances at tick 4000 = 62 (>= 1)
   OK   bone matrices uploaded at tick 4000 = 176 (>= 1)
   OK   GPU-accepted skinned instances at tick 4000 = 61 (>= 1)
@@ -27,8 +27,8 @@ tick=4000 rc=0 bmp=2582406
   OK   witness at tick 4000 is a named model: models/props_ui/bannerflag_comp_l.mdl
 tick=6000 rc=0 bmp=2582406
   OK   capture rc at tick 6000 = 0
-  91842.1 scene: anim skinned=62 bindPose=34 matrices=176 gpuSkin=61/176 boneMismatch=0 poseChanges=283 targetInstances=4 targetPose=0 advances=283 targetAdv=0 cycle=25131/0 tick=15907 status=sequence-out-of-range reason=sequence has no animation binding
-  91842.1 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=58/100 lf=58/0 poseChanges=9 seen=4395 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  87193.8 scene: anim skinned=62 bindPose=34 matrices=176 gpuSkin=61/176 boneMismatch=0 poseChanges=283 targetInstances=4 targetPose=0 advances=283 targetAdv=0 cycle=26948/0 tick=15907 status=sequence-out-of-range reason=sequence has no animation binding
+  87193.8 scene: animwitness any=models/props_ui/bannerflag_comp_l.mdl ent=136 seq=1 frame=58/100 lf=58/0 poseChanges=9 seen=4720 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
   OK   skinned instances at tick 6000 = 62 (>= 1)
   OK   bone matrices uploaded at tick 6000 = 176 (>= 1)
   OK   GPU-accepted skinned instances at tick 6000 = 61 (>= 1)
@@ -66,11 +66,11 @@ tick=6000 rc=0 bmp=2582406
   OK   the still-camera frame is a picture and not a flat fill = 547 (>= 32)
 
 === 4/6 the standalone --model path skins without deforming the bind pose ===
-  identity: 3240.0 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
-  control : 3235.1 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
-  animated: 3233.7 gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=0 frame=0/1 reason=ref
-  wave-a  : 3221.1 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=15/100 reason=wave
-  wave-b  : 3240.5 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=50/100 reason=wave
+  identity: 3274.5 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
+  control : 3276.8 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
+  animated: 3233.8 gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=0 frame=0/1 reason=ref
+  wave-a  : 3274.2 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=15/100 reason=wave
+  wave-b  : 3237.4 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=50/100 reason=wave
   OK   the --model path uploads identity matrices with skinning on = identity
   OK   the --model path enables the skinning branch = 1
   OK   the --model path uploads every bone = 78
