@@ -1019,9 +1019,18 @@ tail -18 "$VM_COMPANION_OUT"
 # PASS). The three viewmodel-companion sections that grew were the pose-applied
 # and control assertions; the count is pinned so a section that silently stops
 # running is red, not a smaller number nobody reads.
+#
+# 2026-10-22 T49.1: 114 -> 125. The gate gained section 1b, the retry self-test
+# (11 assertions: three for deny-then-ok, three for always-deny, three for
+# real-failure and two for the wait bound). Those are real assertions that run on
+# every invocation, so they belong in the count. This pin is the reason the T49.1
+# chain run was red at 125 before the number was updated -- the failure was the
+# pin doing its job, not a gate defect, and it is recorded rather than quietly
+# fixed: a count that moves without an explanation is exactly what the pin exists
+# to catch.
 VM_COMPANION_OK=$(grep -c '^  OK   ' "$VM_COMPANION_OUT" || true)
 if grep -q 'VIEWMODEL-COMPANION=PASS' "$VM_COMPANION_OUT" \
-   && [ "${VM_COMPANION_OK:-0}" -eq 114 ]; then
+   && [ "${VM_COMPANION_OK:-0}" -eq 125 ]; then
   echo "VIEWMODEL-COMPANION=PASS (assertions_ok=$VM_COMPANION_OK)"
 else
   echo "VIEWMODEL-COMPANION=FAIL (assertions_ok=${VM_COMPANION_OK:-0})"; rc_all=1
