@@ -9,13 +9,135 @@
   evidence, and task-record updates.
 - T43's one `verify-all.sh --quick` run passed 24/24, but release verdict is
   **NOT PASS** because of the focused T26 red and open `NOT VERIFIED` readings.
-- T49 is partially complete: T25/T26/T40/T41/T38 focused gates passed after a
-  fresh T26 capture; install lifecycle/readiness, step 22/ViewModel, audio, and
-  the one full chain have not run.
+- T49 is complete as a validation batch: the 24-step chain ran end to end on
+  2026-10-22 and 23 of 24 steps passed; step 22 failed on a stale lock file, not
+  on the product. See the 2026-10-22 execution log below.
 - Full report: `T43-RELEASE-REPORT-2026-10-21.md`. Its source of truth is the
   frozen validation commit `6888e6d`; the report and this follow-up plan are
   documentation-only commits on top of that frozen tree. T49 partial report is
   `.scratch/t49/T49-REPORT.md`; its logs remain under `.scratch/t49/`.
+
+## 2026-10-22 execution log
+
+Everything below happened in one day and is recorded because the rules in this
+file were tested against reality rather than asserted.
+
+### The 24-step chain ran end to end
+
+`ACQUIRED 16:34:01` -> `RUN3-END 20:13:35`, `CHAIN-RC=1`, `VERIFY=FAIL`.
+**23 of 24 steps passed.** The single red was step 22:
+
+- `WEAPON-ANIMATION=FAIL (another weapon-animation-check run owns .scratch/weapon-animation.lock)`
+- `WEAPON-ANIMATION=FAIL (assertions_ok=0)` -- zero assertions executed.
+
+The lock was a directory left at `15:38:53` by a run killed when the editor
+restarted. `mkdir` cannot tell "someone is running" from "someone was killed
+three and a half hours ago", and the directory stored nothing that could.
+`assertions_ok=0` is the tell: the step neither passed nor measured anything, and
+the verdict said FAIL.
+
+Fixed in `cb0c17f`: the lock records owner pid and birth time; a dead owner on a
+lock older than `WEAPON_LOCK_STALE_SECONDS` is cleared and the run continues with
+`WEAPON-LOCK=STALE-REMOVED`; a dead owner on a young lock is refused rather than
+cleared, because a starting process and a dead one look identical. The no-owner
+file case falls back to the directory mtime -- that is the case that actually
+happened, and defaulting to "now" would have made it look freshly born and the
+fix would have proved nothing. `weapon-lock-selftest.sh` covers all five cases.
+
+Step 24 passed on its first clean run with `VIEWMODEL-COMPANION=PASS
+(assertions_ok=125)`, confirming the 114->125 pin correction was right.
+
+### T50 closed with a green gate
+
+`CAMERA-UI=PASS`, `GATE-RC=0`, `GATE-SECONDS=564`, 94 scripted product steps with
+0 failures, 8 T50 mutations plus 6+2 T4 mutations each red through an assertion
+count (never a build failure), every source restored byte-for-byte, `git status`
+0 lines before and after. Branch `task/t50-camera` at `386f7fc`, then `e7d9345`
+for the audio guard.
+
+Pause was proven three ways, not one: tick held at three separate marks, tick
+identical before and after an orbit, and no drift when idle. Reported separately
+because any one of them alone is weak.
+
+The first run had 13 failures that all traced to one fixture root cause: the demo
+needs `koth_bagel_rc13`, the tree only has rc5/rc10/rc11/rc12, so the world box is
+empty, `orbitPose()` is never valid, and every pose assertion is red for a reason
+that has nothing to do with the product. That is a documented input limitation,
+not a pass.
+
+### A capture run made audible noise
+
+An interference gate's control phase omitted `--audio-disabled` (the forward
+phase had it) and played the demo's audio through the default playback device at
+system volume for twenty seconds. **Every automated reading stayed green; the only
+detector was a person in the next room.** The launch helper now refuses any
+capture command without `--audio-disabled`.
+
+Two lessons, both now rules: a phase that claims to differ in one dimension must
+have its flags diffed and not eyeballed, and a guard at file scope with `return`
+instead of `exit` prints REFUSED and then runs the command anyway -- which is
+worse than no guard, because it manufactures the impression of protection.
+
+### One chain holding the lock for 3h39m stalled five tasks
+
+Measured waits: T50 spent 3 minutes queueing normally and 4h07m waiting behind a
+single chain that occupied the lock from `16:34:01` to `20:13:35`. T52 wrote:
+"the last three hours have been spent waiting, not measuring" -- its code, six
+mutations and patch checks were finished and it needed one uninterrupted 40-60
+minute window that never existed.
+
+This is the strongest argument in the file for per-resource locks (build / GPU
+capture / mutation) instead of one machine-level lock. The efficiency rules say
+to batch by scarce resource; on this day the scarce resource was monopolised by
+one consumer for most of the afternoon.
+
+### T54: the gate found two real runtime defects
+
+Round 1 built clean on the first attempt (`cl /Zs` had already found all three
+WebView2 compile errors while waiting for the lock, which turned the first build
+from a gamble into a check). Round 2 turned 10 of 12 product assertions green and
+evidenced the real WebView2 path
+(`state=content host=alive url=https://logs.tf/1 navigations=1`), which no fake
+host in a probe can prove.
+
+Two defects remain and both are real, not gate artefacts: `scroll`'s process
+disappears with `rc=127` while its trace shows 20 s of activity (the two
+readings contradict each other; the next run must determine whether the trace
+is fresh), and `history` reports two accepted navigations while `get_CanGoBack`
+refuses the back. Both may share one cause: treating `state=Content` as "the
+navigation completed".
+
+### T52: two paths answered "which model is this player" differently
+
+778 of 778 frames reported `samples=21 noMesh=20 submitted=0`: the overlay
+sampled the players, classified them by team, had their origins, and drew
+nothing. No player in this recording carries `m_nModelIndex`, and the sampler
+resolved the model only from that field, while the entity pass has long fallen
+back to `defaultPlayerModelPath(m_iClass)` and keyed the mesh
+`<path>#class-fallback`.
+
+Not "the number is not the number you think" but **the same fact produced by two
+paths and joined on a key only one of them uses**. The fix requires a positive
+control (`submitted>0` and `drew>0` and a player identifiable in the BMP) plus two
+mutations, because a count that merely stops being zero does not prove the
+outline landed on the right mesh.
+
+The tree also held three different answers for `firstPacketTick` (a comment said
+29368, the probe printed 1, the product trace said 10252). Only the product is
+evidence. Three answers are worse than none, because the next reader picks the
+one that looks most authoritative.
+
+### The playbook became a rule, not a habit
+
+`docs/READ-THE-PLAYBOOK-FIRST.md` (`eb98498`) makes reading
+`github.com/elo6371/coding-problem-playbook` a precondition for work. The
+justification is in the repository: on this day one new gate contained six
+defects, each an instance of a trap documented hours earlier by the same author.
+
+Two entries were added from today: the audio leak, and that six-defect cluster.
+The README opens with "read this before work, not after a failure" and lists the
+recurring families so the next reader can pattern-match a symptom instead of
+rediscovering a cause.
 
 ## Ownership and execution rules
 
@@ -448,6 +570,46 @@ from the clean T49 worktree; do not push before the final chain and report.
 6. Push the final commit; verify `git ls-remote`, ahead/behind, artifact hashes,
    clean worktree, free lock, and zero residual processes.
 
+### T49.1 — Gate hardening after the T49 code review (do this before T50 lands)
+
+Owner: integration owner. Code review of the T49 acceptance wave found four
+defects, all in the gates rather than in the product. They are fixed and
+verified in `62ab9c1`; this section records what they were, because each one is
+a shape that can come back.
+
+1. **A wait whose status was thrown away.** `verify-all.sh` called
+   `wait_for_companion_image` and ignored the return code, so a product image
+   that stayed busy for the whole 60 s bound still ran the mutation half — the
+   exact state that produced step 24's original false red. The mutation half now
+   runs only when the image settled; a timeout prints
+   `VIEWMODEL-COMPANION-MUTATION=SKIPPED` and fails the chain. Skipping is
+   deliberate: a mutation suite run against an image that cannot be executed
+   reports "not caught" for reasons unrelated to the proof.
+2. **A retry that nothing tested.** The busy-image retry added in T49 was
+   reachable only from a 90-minute chain run that happened to collide with a
+   releasing image. `attempt_launch` is now the single launch path and
+   `--selftest-retry` drives it with stubs; the four cases
+   (deny-then-ok / always-deny / real-failure / timeout) run on **every**
+   invocation, because a guard exercised only on request is the untested guard
+   this replaces. Two defects in the first version of that test are worth
+   remembering: the timeout case asserted that an idle host should time out (it
+   correctly does not), and the retry cases read the real process table, so a
+   gate running elsewhere on the host turned one of them red for an environment
+   reason. The process count is now stubbed for those cases.
+3. **A comment that described the opposite of the code.** T26's cache control
+   deleted the identity file while its comment said the identity still read
+   "reuse me". It now keeps the identity and strips only the pose line, so the
+   control is evidence for the pose rule and not for the identity rule.
+4. **Stale commit ids in the report**, which named the acceptance commit as the
+   pushed HEAD. The report now names both and says which is which.
+
+One defect found while fixing those is worth its own line because it will bite
+anyone who waits on the product: `ps -W | grep -i tf2_demo_native` matches any
+process whose **arguments** mention the binary — including the gate that is
+doing the waiting — so "a product is still alive" reads permanently true. Count
+the command column instead:
+`ps -W | awk '{print $NF}' | grep -ci tf2_demo_native'`.
+
 ### T49 continuation runbook (quality-preserving efficiency)
 
 The remaining work is one serial validation batch. Avoid rerunning gates that
@@ -510,6 +672,65 @@ already passed unless a source, gate, evidence pin, or executable changes.
 - **Parallel review and paperwork:** while one locked test batch runs, another
   owner may review diffs or prepare reports, but must not touch the shared build,
   evidence, settings, lock, or staging paths.
+
+## Mandatory task execution contract
+
+Every future task wave must carry these rules in its Markdown task list. Task
+owners follow them as acceptance requirements, not optional advice.
+
+### Hard rules — mistakes that invalidate a run
+
+- **One host lock, one product operation.** Builds that rewrite shared outputs,
+  product launches, captures, mutation suites, install staging, and audio-device
+  tests run one at a time. Record the lock owner before and after each batch; do
+  not start when ownership is unclear or another product process is active.
+- **Automated rendering stays quiet and hidden.** Every capture uses
+  `--hidden-window --audio-disabled`; a gate must reject a launch missing either
+  flag. Verify the effective command/trace before accepting pixels. Never let a
+  test make audible output or cover the user's active window.
+- **No assertion means no result.** A gate with zero assertions, skipped setup,
+  a product that never launched, a stale executable, or a failed mutation build
+  is `NOT RUN`/`INVALID`, never PASS. Pin expected assertion counts and stop
+  immediately when a prerequisite is absent.
+- **Use reachable inputs and bounded waits.** Check demo tick ranges and required
+  entities before scheduling a capture; give every wait a deadline and report
+  why it stopped. Do not retry real product failures as if they were host
+  contention.
+- **Protect source, evidence, and user state.** Do not merge, edit shared source,
+  change settings, or clean evidence while a test owns the lock. Preserve failed
+  logs and superseded evidence with hashes. Restore every mutation byte-for-byte
+  and verify the restored tree before continuing.
+- **Never manufacture green.** Do not widen thresholds, remove a mutation, or
+  relabel a failure to pass. On the first unexplained red, stop the batch and
+  diagnose it; after two identical environment failures, stop and hand off the
+  exact errors and attempted steps.
+
+### Efficiency rules — save time without reducing coverage
+
+- Parallelize independent implementation, static review, and report work in
+  separate worktrees; serialize all host-resource tests under the single lock.
+- Build once per unchanged source/configuration identity. Run each task's narrow
+  forward and mutation gates, then after integration run only the union of gates
+  affected by merged changes. Do not rerun already-green unrelated gates.
+- Run `verify-all.sh --quick` once only after the final task wave is merged and
+  the tree is frozen. If a post-chain change affects a tested module, rerun its
+  focused gates; if it affects multiple modules or chain assertions, freeze and
+  run the full chain again.
+- Reuse captures only when commit/source, executable, demo/map, flags, tick,
+  pose/provenance, and relevant settings match. A file's existence or matching
+  timestamp is never sufficient cache evidence.
+- Batch work by the scarce resource (renderer, installer, audio device). Keep a
+  visible queue with owner, lock state, start/stop time, and next eligible task;
+  an empty queue does not mean active tasks are complete.
+
+### Required fields in every task entry
+
+Each task must name an owner, goal and non-goals, prerequisites, execution order,
+parallel-safe work and shared-file conflicts, lock/resource needs, exact focused
+commands, expected assertion/readout counts, mutations and restore proof,
+failure/stop conditions, evidence paths, and a handoff checklist. A task is not
+complete until its forward and mutation evidence is reviewed and its status is
+updated in this file.
 
 ## Product scope clarified by the user — roadmap after T49
 
