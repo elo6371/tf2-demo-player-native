@@ -212,19 +212,44 @@ unless the run opted in.
 
 ## 4. What the gates observe (so the two gates cannot disagree)
 
-T50's trace readings (all `camera:` prefixed, emitted only when the feature is
-exercised or at exit):
+T50's trace readings (emitted only when the feature is exercised or at exit).
+The exact field names are part of the acceptance: the gate greps these lines and
+the mutation harness proves each pinned reading can go red, so renaming a field
+is a contract change like any other:
 
 ```
-camera: snapshot label=<a> tick=<n> mode=<m> focus=<x,y,z> yaw=<y> pitch=<p> dist=<d> src=<..>
-camera: bookmark action=save|jump|delete slot=<n> name=<n> ok=<0|1> pose=<x,y,z;y;p;d>
-camera: keys action=<id> chord=<canonical> result=ok|conflict|unbound|reset
-camera: focus textField=1 dispatched=0 suppressed=<n>
-camera: director tick=<n> paused=<0|1> moved=<0|1> pose=<...>
+camera: accept step=<n> cmd=<id> result=ok|fail detail=<what>
+camera: snapshot label=<a> valid=<0|1> tick=<n> paused=<0|1> mode=<m>
+                 demoView=<0|1> fov=<%.6f> focus=<x,y,z> yaw=<y> pitch=<p> dist=<d>
+camera: bookmark action=save|delete slot=<n> [name=<n>] ok=<0|1>
+camera: bookmark action=jump slot=<n> ok=<0|1> reason=<r> focus=.. yaw=.. pitch=.. dist=..
+camera: verify kind=bookmark slot=<n> match=<0|1> fovMatch=<0|1>
+                 fovWant=<f> fovGot=<f> want=<pose> got=<pose>
+camera: verify kind=name slot=<n> match=<0|1> name=<n>
+camera: keys vk=<n> ctrl=<0|1> alt=<0|1> shift=<0|1> action=<id|-> result=<r>
+camera: keys action=<id> chord=<canonical> result=ok|conflict current=<canonical>
+camera: keys action=<id> result=unbound
+camera: keys action=* result=reset-all resets=<n>
+camera: director frozen=<n> advanced=<n> violations=<n> tick=<n> moves=<n>
+                 movesWhilePaused=<n> freeFlySteps=<n> bookmarkApplies=<n>
+                 resetToPlayer=<requests>/<applies> resetView=<n>
+                 focusSuppressed=<n> captures=<n>
+camera: capture label=<a> tick=<n> paused=<0|1> frames=<n> path=<p>
+camera: expect what=<same-tick|tick|tick-gt> <fields> match=<0|1>
+camera: mark tick=<n>
+keys: table actions=<n> sets=<n> conflicts=<n> resets=<n> dispatched=<n>
+keys: bind action=<id> chord=<canonical>
 ```
 
-T51's gate reads its own `hud:` lines and must not parse `camera:` lines, and
-vice versa.
+`result=<r>` on a `camera: keys vk=` line is what dispatch decided: `ok`, `conflict`,
+`unbound` (a bound action whose chord is empty, per 1.2), or `suppressed-by-focus`
+(the text-field rule). The pause claim is carried by two independent readings:
+`expect what=same-tick match=1` (the demo clock stood still) and two `snapshot`
+lines whose pose fields differ (the camera moved). A broken freeze moves
+`director violations`; a camera that froze too would leave the pose fields equal.
+
+T51's gate reads its own `hud:` lines and must not parse `camera:` or `keys:` lines,
+and vice versa.
 
 ## 5. Change control
 
