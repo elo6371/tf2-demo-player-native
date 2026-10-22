@@ -270,3 +270,27 @@ VIEWMODEL-COMPANION-MUTATION=PASS (all six proof mutations were caught)
    对所有可能的主机负载都成立的证明；重试上限 30 秒是第二道保护。Owner T24/T49。
 3. 其余 NOT VERIFIED 见第 4 节，均有 owner 与"最省的下一步"。
 
+
+## 8. 推送记录（2026-10-22）
+
+| 项 | 值 |
+|---|---|
+| 推送的命令 | `git push origin p0-entity-protocol`，`bc31533..f3de4b7` |
+| `git ls-remote` | `f3de4b737b797b30801035085b0525d83389c87a  refs/heads/p0-entity-protocol` |
+| 本地 HEAD | `f3de4b7`（与远端一致） |
+| ahead/behind | **0 / 0** |
+| 工作树 | 干净（`git status --porcelain` 为空） |
+| `native/` 自 `8f73d0f` | **零改动** |
+| 主机锁 | `FREE`，`product_processes=0` |
+| 残留进程 | 0（产品/编译器/构建工具） |
+| 报告 sha256 | `95e099042419a3fc0998dfe92e2d35e8c3ff105612974c35bc831088d5b53359` |
+| 验收链日志 sha256 | `51eb3c78ca9b4363c3a702d43a54464f507dca41ca2351df39a91a9504c70c76` |
+
+推送的提交（在 T44-T48 的合并/证据提交之上）：
+
+- `3e32b3f` gate(t49): require provenance, not existence, for the T26 capture cache
+- `0d6abf1` evidence(t49): refresh the T49 step-22 witness frames and readings
+- `783931a` gate(t49): retry a product image that is still busy, and settle it between step-24 halves
+- `13645ca` evidence(t49): the acceptance chain — VERIFY=PASS, 24/24, on 783931a
+- `f3de4b7` chore: ignore the trace directories and mutation frame T49 exercised for the first time
+
