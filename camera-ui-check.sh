@@ -572,10 +572,11 @@ if [ ! -s "$T50_TRACE" ]; then
 else
   t50_steps=$(grep -c "camera: accept step=" "$T50_TRACE" || true)
   t50_failed=$(grep -c "camera: accept .* result=fail" "$T50_TRACE" || true)
-  # The script has 93 executable steps; a floor of 85 leaves room for the
-  # optional re-flow of a step that had to wait, and still fails hard if the
-  # script stopped early (which is what a crash or a broken step parser looks
-  # like).
+  # The script has 94 commands that report a step (every one but quit), and the
+  # seed added two of them (reset-view, frames 1). The floor of 85 is a liveness
+  # check -- it fails hard when the script stopped early, which is what a crash
+  # or a broken step parser looks like -- while `steps that failed` below is what
+  # pins correctness; the exact count is printed in the trace it was read from.
   assert_ge_ok "T50 script steps executed" "$t50_steps" 85
   assert_eq "T50 script steps that failed" "$t50_failed" "0"
   grep -a "camera: accept .* result=fail" "$T50_TRACE" | head -10 || true
