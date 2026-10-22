@@ -59,6 +59,40 @@
 | 产品采集（5 个 tick） | playback 64229/64254/64279/64304/64329，各 33 s，BMP 2582406 B；**每个都** `samples=21 noMesh=20 noOrigin=1 submitted=0 drew=0` |
 | 编排器判决 | `T52-LOCK-RUN=OVERLAY-DRAWS-NOTHING`（早退，不浪费后面 10 次采集） |
 
+### 3.1 描边**确实画出来了**（21:36，`pick-64229.trace`，同一构建）
+
+```text
+gpu: overlay meshes prepared=9 uploaded=9 rejected=0
+outline: draw ... drew=1 silhouettes=5 drawCalls=5 vertexCount=137040
+             submitted=14 red=6 blue=6 unknown=2 noMesh=6 noOrigin=1 poseWorld=0 poseBind=14
+```
+
+`submitted=14`、`silhouettes=5`、`drew=1`：**这是这条任务第一次真的画出轮廓**。
+
+> ⚠️ 读数更正（21:53 门禁跑出来才发现）：`samples=21` 不是 21 名玩家，而是 **20 名玩家 + 1 条 `CTFPlayerResource`**
+> （队伍信息实体，不是玩家）。因此 `noMesh=6 / noOrigin=1` 里的那个 1 不是"某个玩家没有位置"，
+> 而是**这条资源实体被 builder 正确拒掉**。错误读数保留在此，证据与更正见 §9.2。
+`poseBind=14 / poseWorld=0` 同时说明了两件事：(a) 方案在工作；(b) 世界渲染面这一帧没有玩家网格可复用。
+帧内的队伍色像素也是实测的（BMP 逐像素统计）：`red_total=128`、`blue_total=287`。
+
+### 3.2 但"颜色落在哪个框里"这个断言在本 tick 上还断不了，原因是读数本身
+
+门禁的逐实体像素断言依赖 trace 里每个 item 自己的屏幕框。实测这一帧的框是**退化的 1 像素**：
+
+```text
+outline: item entity=15 team=blue    x0=467 y0=354 x1=467 y1=354 depth=1.0000 onScreen=1
+outline: item entity=16 team=unknown x0=564 y0=344 x1=564 y1=344 depth=1.0000 onScreen=1
+```
+
+而 BMP 里队伍色像素的真实范围是：红 **(502,333)-(519,342)（128 px）**、蓝 **(453,325)-(567,342)（287 px）**。
+原因可读：`native_renderer.cpp:5442-5443` 用的是**常量包围盒**（±20 / ±36 地图单位）而不是网格自身的 AABB，
+在这张地图的缩放比下 20 地图单位投影出来不到 2 像素；`depth=1.0000` 说明最近角点也没进远平面以内。
+再加一条：这一帧红蓝两队**在画面上是挤在一起的**（蓝像素横跨 x=453..567，覆盖了红玩家框的左右两侧），
+所以任何"框内不得出现另一队颜色"的断言在这个 tick 上都必然失败——不是描边错，是这一帧的几何不支持这条断言。
+
+**最便宜的下一步（不需要新功能）**：把 `buildOverlayPreparedMesh` 的常量盒换成网格自身 AABB 的投影（约 25 行，
+`EntityModelMesh` 上传时顺手存 min/max），门禁再挑一个"红蓝框中心距离 > 96 像素"的 tick（`--find-ticks` 的 8 个 tick 里可测）。
+
 **没有跑的：** 门禁 STEP 6/7（正向 + 11 条变异）没跑——编排器按设计在第 5 步判死就退出，没有进入门禁。
 上一轮（20:51–20:57）的门禁尝试留下的是 `NO-CAPTURE-TICK`；再上一轮（20:28–20:41）留下的是
 `evidence/outline/pick-64332.trace` 里 **778 帧全部 `drew=0`** 的记录。
@@ -78,6 +112,24 @@
 | m9 | bind 优先于 world | 探针 self-test 排序用例变红 | NOT RUN |
 
 11 个补丁模式已用脚本验证**在源码里各出现且仅出现 1 次**（`MUTCHECK=ALL-PATTERNS-UNIQUE`，含 m9）。
+
+### 4.1 上传上限 64→96：成对读数（不是变异）
+
+lead 的要求：把"抬上限"这个改动本身变成可观测的，否则它和今天那些"我以为我修了"的改动没有区别。
+做法是门禁里的 **cap A/B 一对读数**（同一个构建里只改这一个常量）：
+
+| 上限 | 读数 | 期望 |
+|---|---|---|
+| 64（旧） | `gpu: overlay meshes prepared=9 uploaded=4 rejected=5` + 5 条 `gpu: overlay mesh refused key=... lastError=0x8007000E` | `rejected >= 1`（断言） |
+| 96（现在） | `prepared=9 uploaded=9 rejected=0` | `rejected == 0` 且 `uploaded == prepared`（断言） |
+
+被拒的 key 会"提交了、计数了、画不出来"——正是 m8 注入的缺陷形状，而它**在别的任何读数里都看不见**：
+`submitted` 照样涨，`silhouettes` 照样是 0，门禁看起来只是"没画出来"。这就是为什么这一对必须单独量。
+
+**代价（写清，不只写好处）**：`Renderer` 里每个网格是 `min(顶点数,12000)` 个 `EntityModelGpuVertex`（约 56–64 B/顶点），
+所以 64→96 的上限把"最坏情况"从约 39 MB 抬到约 59 MB（+20 MB）；实际这条录制上 9 个 class 模型的 bind pose
+每个约 2–4k 顶点（≈130–250 KB），**真实增量约 2 MB**。抬上限换的是"9 个职业的轮廓都能画"，
+而不是内存优化；如果哪天内存紧张，正确的做法是给描边单独一个网格表，而不是把别人的预算切走。
 每条变异都会先构建：**编译失败记为 MUTATION-INVALID，不算抓到**（与 MUTATION-RED 分开计）。
 恢复用整文件字节复制 + `cmp` 校验，恢复后还要重跑一次正向读数确认二进制回到绿的。
 
@@ -99,7 +151,10 @@
 ## 7. 保留窗口与逐 tick 分布
 
 - 探针域（实体历史，SERVER tick）：`retainedFirst=74481 retainedLast=74671`，`checkpoints=2 archive=96 dropped=174 flushes=174 gap=0`；
-  `--find-ticks 25` 扫出 8 个 tick，全部 `fidelity=exactTick stale=0`，每 tick `rows=21 red=6 blue=6~7 unknown=8~9 posed=20`。
+  `--find-ticks 25` 扫出 8 个 tick，全部 `fidelity=exactTick stale=0`。
+  每 tick `rows=21`，但**其中 1 行是 `CTFPlayerResource`**（§9.2）：真实分布是
+  **20 名玩家 + 1 条资源实体**，玩家侧 `red=6 blue=6~7 unknown=7~8 posed=20`。
+  6 个采集 tick 合计：`rows=126 withTeam=120 red=36 blue=40 unknown=50 withPose=120`（差掉的 6 条就是资源实体）。
 - 产品域（播放游标）：`sceneTick = firstPacketTick + playbackTick`，`firstPacketTick=10252`（产品自己打印的 `scene: begin tick=0 sceneTick=10252`）；
   可播放窗口 playbackTick 64229..64352；本轮实测的 5 个 tick 见第 3 节。
 
@@ -175,6 +230,118 @@ grep -a "^outline: draw" "$1" | tail -1 | tr " " "\\n" | grep -a "^$2=" | cut -d
 1. 去掉行首锚点；
 2. 在门禁开头加一条**用产品真实行形状**的自检（`12.3 outline: draw ... submitted=3` → 必须读出 3），读不到就红；
 3. 让'读不到'变成 `<none>` 而不是空字符串，这样所有断言都能看出是'没读到'而不是'读到了空'。
+
+## 4.0 门禁正向运行：**红**（`OUTLINE-CHECK=FAIL`，49 OK / 10 FAIL，21:52–22:16）
+
+这是第一次真正跑完正向门禁（不是被编排器挡在门外）。**它不再是"什么都没画"**：
+
+```text
+on.drew=1 on.silhouettes=5 on.submitted=14 on.red=6 on.blue=6 on.unknown=2
+on.poseWorld=0 on.poseBind=14        (submitted == poseWorld + poseBind ✓)
+world models: prepared=59 uploaded=59   (worldModelUploads 断言 ✓ 通过)
+on.ordinal=6                        ✓
+vm.ordinal=6 vm.vmOrdinal=7 vm.orderOk=1 vm.drew=1   ✓✓ （带 --viewmodel 的那次采集）
+off: enabled=0 drew=0 disabled=21，off 帧红蓝像素 0                      ✓
+test mode: depthTested，穿墙像素 = 0，与 off 帧在该区域逐字节相同        ✓
+```
+
+**通过的关键项**：描边真的画（`drew=1/silhouettes=5`）、每个提交的轮廓都声明了姿势来源、
+世界面模型数不被扰动（59/59，advisory→断言，见 §9.1）、覆层序号 6 在 ViewModel 之前（带 viewmodel 时 `vmOrdinal=7 orderOk=1`）、
+关掉开关后一像素不画、深度测试模式下一像素不穿墙。
+
+### 10 条 FAIL，按根因分四类（没有一条是"描边没画"）
+
+| # | 读数 | 根因 | 谁的 | 最便宜的下一步 |
+|---|---|---|---|---|
+| 1-4 | `rows carrying a team slot = 120, expected 126`；`rows carrying a pose` 同；`rowsMissingTeam/Pose = 6` | 采样器把 `CTFPlayerResource` 当玩家（§9.2） | 我 | 过滤器精确匹配 `CTFPlayer`，重建；断言不用改 |
+| 5 | `x-ray: depth write = 1, expected 0` | **未定案**：`native_renderer.cpp:1327` 用 `MASK_ZERO` 建状态、1351 读回，静态路径不可能得 1，而 exe(21:33:23) 比源码(21:32:35) 新，所以不是在跑旧二进制 | 我 | 在 1348 读回处打印两个 state 的 `(test,write)`，重建再读一次；两次运行定案 |
+| 6-7 | `diff_outside=<none> diff_inside=<none>` | 门禁把 4701 个 region 塞进 argv → `Argument list too long`，python 根本没跑 | 我 | 已修：`regions_file=`（见下），并且 region 应只取**最后一帧**的 item，而不是整条 trace 的并集 |
+| 8-9 | `red/blue pixels in the player region = 0`，`occluded region = 1x1` | item 框退化 1 像素（§3.2），于是"区域"里没有任何像素 | 我 | 常量盒 → 网格 AABB（lead 已批准） |
+| 10 | `team-coloured pixels THROUGH the wall = 0, expected >=8` | 同上：occluded region 被 1×1 框裁成 1 像素 | 我 | 同 #8-9 |
+
+### 已修并**离线验证**的一条：non-interference 的 argv 溢出
+`regions_file=` 加进 `outline-frame-check.py`，用本轮真实产物复跑：
+```text
+diff_outside=391 diff_inside=93 regions=4701 | VERDICT FAIL
+(坏 region 文件自检：region wants x0,y0,x1,y1: 1,2,3  ✓ 拒绝，不是静默跳过)
+```
+**`diff_outside=391` 不是"描边改了世界像素"**：`regions=4701` 是整条 trace 所有帧 item 的并集（998 帧 × ~5），
+而这一帧只画了 14 个轮廓。
+
+于是顺手从根上修掉它：`outline-regions.py` 现在默认只读**最后一帧**（BMP 拍的就是那一帧）的 item，
+`--frame all` 保留旧行为。离线复测（同一份本轮产物）：
+```text
+--csv            → 14 个框 / 225 字节      （--frame all 仍是 4701 个 / 94 KB，就是它撑爆了 argv）
+--team           → red=510,343 blue=565,343
+noninterference  → diff_outside=478 diff_inside=6 regions=14   VERDICT FAIL
+```
+**这一组数字把问题钉死了**：本例覆层一共改变了 **484** 个像素（`478+6`），而帧内队伍色像素是 `128+287=415`，
+两者同一量级 → **484 个差异像素全部是描边自己的轮廓**，不是世界像素被改。
+但 14 个退化 1 像素的框只豁免了其中 6 个，所以"区域外必须逐字节相同"这条断言**现在只能报"框不够大"**。
+**AABB 框修好之后它才会变成真正的 non-interference 断言**——这是同一个根因的两个症状，不是两个缺陷。
+
+## 9.1 产品与离线互相矛盾：**运行时的 `renderable` 还没有定案**（lead 要求单列）
+
+两边的读数都是别人测好的、都保留在这里，**结论只能是"矛盾未解"**：
+
+| 侧 | 读数 | 出处 |
+|---|---|---|
+| 离线 | 9 个 class 模型全部 `resolution=found-vpk, vvd=true, vtx=true, meshBuilt=true`；`entity_model_probe` 给出 `uniqueRenderable=4 scoutVertices=12000` | `model_robustness_probe` / `entity_model_probe`（t50-camera2 的只读调查） |
+| 产品 | `gpu: models done 59`（世界面只准备 59 个）；`entityMeshKeyByPath` 里没有玩家路径；`poseWorld=0 poseBind=14` | 本任务 21:36 的 `pick-64229.trace` |
+
+**两边不能同时为真。** loader 层没有缺陷（离线能建出 scout 的 12000 个顶点），而运行时的 9 个 class 请求没有变成网格。
+**本轮不追这条因果**，因为它不属于 T52，而且我手上没有能定案的读数。
+
+⚠️ 报告里**不得**写成"因为世界面没画玩家，所以描边改用 bind"——那是因果断言，因果未证。
+能说的是：`poseWorld=0 / poseBind=14` 是实测的姿势来源分布，它说明这一帧里描边**没有**从世界面拿到网格；
+**为什么**没有，要等一次带 trace 的运行定案。
+
+**最便宜的定案动作（t50 给的，两行 trace，属于另一个任务）**：
+`main.cpp:2159` 之后加 `gpu: class requests=%zu renderable=%zu firstDiagnostic=%s`，并在 2164 的循环里按丢弃原因计数。
+一次运行能区分三层：`requests=0`（构造）｜`renderable=0 + diagnostic`（inspection）｜`renderable=9 但 models done 仍 59`（合并/去重）。
+
+**本窗口已经把这条不变量写成了门禁断言**：`assert world pass model uploads == 59`（并打印 prepared/uploaded 实测值）。
+这条断言存在的理由是：`main.cpp:2159-2161` 把 9 个 class 请求并进了同一个 `meshSource`，
+所以"世界面仍然是 59"**不是构造保证的**，只是这次运行恰好成立。读数会变的东西不是不变量；现在它变了门禁会红。
+
+## 9.2 采样器把非玩家实体当成玩家（门禁抓到的真缺陷）
+
+门禁 3/6 节的两条断言在 21:53 变红：
+
+```text
+FAIL rows carrying a team slot = 120, expected 126
+FAIL rows carrying a pose      = 120, expected 126
+FAIL sampled rows with no team value = 6, expected 0
+FAIL sampled rows with no pose       = 6, expected 0
+demo summary ticks=6 rows=126 distinctEntities=21 withTeam=120 withPose=120
+tick requested=74482 ... entity=31 class=CTFPlayerResource player=1 team=unknown raw=0 hasTeam=0 hasOrigin=0
+```
+
+`CTFPlayerResource` 是**队伍信息实体**，每 tick 一条被 `player=1` 采进来（6 个 tick 共 6 条）。
+于是 `rows=126` = 120 玩家行 + 6 资源实体行；`withTeam=120`、`withPose=120` 正好差这 6 条。
+
+**这是"断言是对的、被测对象错了"的实例**，不是"断言写错了"：
+修掉过滤器之后 `rows=120 / withTeam=120 / withPose=120`，**那两条断言一个字都不用改就会通过**。
+判据（lead 的表述，写进报告以便复用）：**修完断言不动就绿 = 对象错了；必须改期望值 = 断言错了。**
+
+**修法（下一个窗口，一行）**：玩家过滤器用**精确类名** `CTFPlayer`，不用"排除 `*Resource`"。
+理由：白名单会漏掉新东西，黑名单会漏进新东西，而后者更难发现——它看起来已经修了。
+
+帧不受影响：builder 因为 `hasOrigin=0` 拒掉这些行并计入 `noOrigin`。
+所以 `noOrigin=1` 的正确读法是"这条资源实体被正确拒绝"，**不是**"某个玩家没有位置"。
+
+## 10.1 门禁设计：三条可复用判据
+
+1. **变异要按"能不能把断言弄红"判，不是按"能不能改一张它改不动的图"判。**
+   m9（bind 优先于 world）在这条录制上改变不了产品帧——世界面根本没有玩家网格，两种顺序画出来的都是 bind。
+   但它能弄红探针里那条"两源都有答案时 world 必须赢"的用例，所以它是一个有效的变异。
+   反过来，一个"能让截图变化"但弄不红任何断言的变异，只是噪声。
+2. **断言要能自己退休。** `submitted == poseWorld + poseBind` 证明"每个提交都有姿势来源"，
+   但它**不要求 `bind > 0`**：等产品真的开始画玩家身体那天，`poseBind` 会自然归 0，这条断言仍然成立。
+   如果写成 `assert poseBind > 0`，产品变好的那天门禁会变红——那是把缺陷固化成了规格。
+3. **"读不到"必须和"读到空"分开。** `outline_value` 锚定 grep 读不到任何字段时，所有断言拿到的是空串：
+   它同时让 `== 0` 和 `== 1` 失败（很吵），却对一个"本该为空"的字段静静通过（很危险）。
+   现在读不到就是 `<none>`，并且门禁开头用产品真实行形状自检这个读取器本身。
 
 ## 11. 同族发现（读到了字，读错了字段）
 

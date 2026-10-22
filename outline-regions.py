@@ -41,9 +41,13 @@ DEPTH_EPSILON = 0.004
 
 
 def parse_args(argv):
-    args = {"mode": None, "trace": None, "depth": None}
+    args = {"mode": None, "trace": None, "depth": None, "frame": "last"}
     pending = None
     for item in argv[1:]:
+        if pending == "--frame":
+            args["frame"] = item
+            pending = None
+            continue
         if pending == "--trace":
             args["trace"] = item
             pending = None
@@ -64,8 +68,12 @@ def parse_args(argv):
             pending = "--depth"
         elif item.startswith("--trace="):
             args["trace"] = item.split("=", 1)[1]
+        elif item == "--frame":
+            pending = "--frame"
         elif item.startswith("--depth="):
             args["depth"] = item.split("=", 1)[1]
+        elif item.startswith("--frame="):
+            args["frame"] = item.split("=", 1)[1]
         else:
             raise SystemExit("unknown argument: " + item)
     if pending is not None:
@@ -80,14 +88,33 @@ ITEM = re.compile(
     r"x0=(-?\d+) y0=(-?\d+) x1=(-?\d+) y1=(-?\d+) depth=([0-9.]+) onScreen=([01])")
 
 
-def read_items(path):
-    items = []
+DRAW = re.compile(r"outline: draw ")
+
+
+def read_items(path, last_frame_only=True):
+    """The item rows of the frame the BMP was captured from.
+
+    A trace holds one `outline: draw` line per frame followed by that frame's
+    item rows, and a capture is one frame. Reading every item in the file gives
+    the union over ~1000 frames: on the tested tick that was 4701 boxes, which
+    (a) exempts far more of the picture than the frame actually painted -- a
+    weaker non-interference claim than it looks -- and (b) was long enough to
+    hit `Argument list too long` when the gate passed them on argv, so the
+    assertion silently read nothing. The default is therefore the LAST frame;
+    --frame all keeps the old behaviour for callers that want it.
+    """
+    groups = []
     with open(path, "r", errors="replace") as handle:
         for line in handle:
+            if DRAW.search(line):
+                groups.append([])
+                continue
             match = ITEM.search(line)
             if not match:
                 continue
-            items.append({
+            if not groups:
+                groups.append([])
+            groups[-1].append({
                 "entity": int(match.group(1)),
                 "team": match.group(2),
                 "mode": match.group(3),
@@ -98,7 +125,11 @@ def read_items(path):
                 "depth": float(match.group(8)),
                 "onScreen": match.group(9) == "1",
             })
-    return items
+    if not groups:
+        return []
+    if last_frame_only:
+        return groups[-1]
+    return [item for group in groups for item in group]
 
 
 def area(item):
@@ -209,7 +240,7 @@ def main(argv):
     args = parse_args(argv)
     if not args["mode"] or not args["trace"]:
         raise SystemExit(__doc__)
-    items = read_items(args["trace"])
+    items = read_items(args["trace"], args.get("frame", "last") != "all")
     on_screen = [item for item in items if item["onScreen"]]
 
     if args["mode"] == "csv":

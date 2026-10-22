@@ -434,13 +434,50 @@ SUBMITTED_ON=$(outline_value "$OUT/on.trace" submitted)
 echo "  on.poseWorld=${POSE_WORLD:-<none>} on.poseBind=${POSE_BIND:-<none>}"
 assert_eq "every submitted silhouette declares a pose source" \
   "$(( ${POSE_WORLD:-0} + ${POSE_BIND:-0} ))" "${SUBMITTED_ON:-0}"
-# The ordinal assertion the lead asked for: the overlay draws BEFORE the
-# ViewModel pass, evaluated on the product's own two numbers.
-assert_eq "pass order (overlay before viewModel)" "$(outline_value "$OUT/on.trace" orderOk)" "1"
+# THE WORLD PASS'S MODEL COUNT, AS AN ASSERTION AND NOT AS A SENTENCE.
+# The report used to say "the overlay must not disturb the world pass's 59 models"
+# while main.cpp:2159-2161 merges nine class requests into the same meshSource the
+# world pass fills. That merge does NOT constructively guarantee the invariant: it
+# holds only because those requests are skipped later, so "59" was a coincidence of
+# this run rather than a property of the code. A reading that can silently change
+# is not an invariant; this one is asserted against the pre-change baseline, so the
+# day the outline's meshes DO displace a world model the gate goes red instead of
+# the report quietly losing a sentence.
+WORLD_MODELS_PREPARED=$(sed -n "s/.*gpu: models done \([0-9][0-9]*\) uploaded=.*/\1/p" "$OUT/on.trace" | head -1)
+WORLD_MODELS_UPLOADED=$(trace_field "$OUT/on.trace" "gpu: models done" uploaded)
+echo "  world models: prepared=${WORLD_MODELS_PREPARED:-<none>} uploaded=${WORLD_MODELS_UPLOADED:-<none>} (baseline 59/59, measured before the outline uploaded anything)"
+assert_eq "world pass model uploads unchanged by the overlay" "${WORLD_MODELS_UPLOADED:-<none>}" "59"
+# The ordinal assertion the lead asked for, in two halves because the product can
+# answer only one of them without a viewmodel.
+#
+# `ordinal` is the slot the overlay pass actually took this frame: always
+# measurable, always 6.
 assert_eq "overlay ordinal" "$(outline_value "$OUT/on.trace" ordinal)" "6"
-# The pair, not just one side: the ViewModel pass takes the next ordinal, so the
-# overlay's 6 means "immediately before the pass that clears depth".
-assert_eq "viewModel ordinal" "$(outline_value "$OUT/on.trace" vmOrdinal)" "7"
+# `vmOrdinal` is only set when drawViewModel() RUNS, and that pass returns early
+# unless a viewmodel was requested and its mesh uploaded (native_renderer.cpp:
+# 4152-4160). A plain demo capture requests none, so on the `on` frame vmOrdinal
+# is 0 and orderOk is 0 -- and that 0 is CORRECT: "before a pass that did not
+# run" is not a statement this frame can make. Reading it as a failure would be
+# the same class of error as reading an empty grep as "the value is zero".
+VM_ORD_ON=$(outline_value "$OUT/on.trace" vmOrdinal)
+if [ "${VM_ORD_ON:-0}" -ge 1 ]; then
+  assert_eq "viewModel ordinal (on frame)" "${VM_ORD_ON}" "7"
+  assert_eq "pass order (overlay before viewModel)" "$(outline_value "$OUT/on.trace" orderOk)" "1"
+else
+  echo "  NOT-PAIR on frame: the ViewModel pass did not run (vmOrdinal=0); the pair is"
+  echo "  asserted on the dedicated --viewmodel capture below instead."
+fi
+# ...and here is that capture: the same tick, the same overlay, plus a viewmodel,
+# which is the only state in which "the overlay draws before the pass that clears
+# depth" is observable at all. This is a capture, not a mutation: nothing changes
+# but the argument that makes the ViewModel pass exist.
+run_frame "$OUT/vm" --outline on --viewmodel models/weapons/v_models/v_scattergun_scout.mdl
+VM_ORD=$(outline_value "$OUT/vm.trace" vmOrdinal)
+echo "  vm.ordinal=$(outline_value "$OUT/vm.trace" ordinal) vm.vmOrdinal=${VM_ORD:-<none>} vm.orderOk=$(outline_value "$OUT/vm.trace" orderOk) vm.drew=$(outline_value "$OUT/vm.trace" drew)"
+assert_eq "viewModel ordinal (with a viewmodel)" "${VM_ORD:-<none>}" "7"
+assert_eq "pass order (overlay before viewModel, with a viewmodel)" \
+  "$(outline_value "$OUT/vm.trace" orderOk)" "1"
+assert_eq "overlay ordinal (with a viewmodel)" "$(outline_value "$OUT/vm.trace" ordinal)" "6"
 assert_eq "overlay enabled in the off run" "$(outline_value "$OUT/off.trace" enabled)" "0"
 assert_eq "overlay drew in the off run" "$(outline_value "$OUT/off.trace" drew)" "0"
 # The toggle's effect is a COUNT: with the switch off, every sampled player is
@@ -943,7 +980,12 @@ PYEOF
 "  drawViewModel();
   drawOverlayPass();  /* mutation m4: after the pass that clears depth */" || mut_fail=1
   if rebuild_product m4; then
-    M4_RC=$(run_frame "$OUT/m4" --outline on)
+    # WITH a viewmodel: the mutation moves the overlay after the ViewModel pass, and
+    # the pair being asserted only exists when that pass runs. Without --viewmodel
+    # both the mutant and the fixed build report vmOrdinal=0 and the case would
+    # read GREEN -- a mutation that "did not move a reading" because the reading
+    # was never taken. That is the same trap this file fixes elsewhere.
+    M4_RC=$(run_frame "$OUT/m4" --outline on --viewmodel models/weapons/v_models/v_scattergun_scout.mdl)
     M4_ORDER=$(outline_value "$OUT/m4.trace" orderOk)
     M4_ORDINAL=$(outline_value "$OUT/m4.trace" ordinal)
     M4_VM=$(outline_value "$OUT/m4.trace" vmOrdinal)
@@ -958,7 +1000,7 @@ PYEOF
   # The restored tree must be the FIXED tree, and a byte-exact restore plus a
   # rebuild is only half of that: the binary has to read green again, or every
   # later reading in this worktree is a reading of the last mutant.
-  R_RC=$(run_frame "$OUT/restored" --outline on)
+  R_RC=$(run_frame "$OUT/restored" --outline on --viewmodel models/weapons/v_models/v_scattergun_scout.mdl)
   assert_eq "restored build: overlay ordinal" "$(outline_value "$OUT/restored.trace" ordinal)" "6"
   assert_eq "restored build: pass order" "$(outline_value "$OUT/restored.trace" orderOk)" "1"
   assert_eq "restored build: overlay drew" "$(outline_value "$OUT/restored.trace" drew)" "1"

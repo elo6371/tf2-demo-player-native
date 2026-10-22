@@ -123,7 +123,18 @@ def main(argv):
     if mode == "noninterference":
         on = Frame(args["on"])
         off = Frame(args["off"])
-        regions = [parse_region(value) for value in args.get("regions", "").split(";") if value]
+        # `regions_file=` exists because the region list grows with the number of
+        # drawn silhouettes (14 on the tested tick) and passing them on argv hit
+        # `Argument list too long` inside the Windows shim -- the assertion then
+        # read `diff_outside=<none>` and looked like a product failure. A file has
+        # no length limit, and the reader still takes the regions from the product,
+        # never from a search of the frame.
+        if "regions_file" in args:
+            with open(args["regions_file"], "r", encoding="utf-8") as handle:
+                raw = handle.read().strip()
+        else:
+            raw = args.get("regions", "")
+        regions = [parse_region(value) for value in raw.split(";") if value]
         outside = 0
         inside = 0
         for y in range(on.height):
