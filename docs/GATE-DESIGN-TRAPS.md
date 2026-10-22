@@ -146,6 +146,26 @@ else's run. The tell is usually that the *shape* of the evidence is missing
 entirely (no file was ever found, not even an old one), which is a search fault,
 not a work fault.
 
+### 11. Corrupted arguments look like product defects (T54's /Zs run)
+T54 ran `cl /Zs` while queued, and the first run reported that **all six**
+translation units had failed -- including `main.cpp`, which is known to build.
+The errors were plausible-looking products of a wrong compiler invocation: MSYS
+rewrites any argument that starts with `/` into a path, so the build's
+`/DWIN32 /O2 /utf-8` reached cl as `C:/Program Files/Git/DWIN32`, and every
+source was then read as code page 936 rather than UTF-8. That yields
+`C2001: newline in constant` and `C3493: cannot implicitly capture` in files
+that compile fine.
+
+Two things made it findable: one file that "should" build was red, and the
+compiler's complaint was about a *path* (`C:/Program Files/Git/DWIN32`), which is
+never a source problem.
+
+**Rule:** when a tool reports a mass failure, read what it says it **opened** or
+**was invoked with** before reading what it says is wrong. A harness bug that
+wears a product bug's clothes costs a debugging session and, worse, teaches you
+to ignore the compiler. Fix the invocation (here: `export MSYS2_ARG_CONV_EXCL='*'`
+and spell options with `-`), then believe the output.
+
 ## Checklist before calling a gate green
 
 1. For each new assertion: **does its object exist on the success path?** Name the
