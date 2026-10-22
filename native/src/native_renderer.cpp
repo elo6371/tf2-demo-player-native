@@ -4534,6 +4534,15 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   framePassOrdinal_ = 0;
   viewModelWorldPassOrdinal_ = 0;
+  // T51: the HUD readings are per-frame, reset here for the reason the ordinal
+  // above is: a drawHudPass that did not run this frame must read as "nothing was
+  // drawn", not as "the last frame that drew something". Without this, turning the
+  // HUD off would leave drawn=<the previous count> on the trace and a gate would
+  // read a HUD that no longer exists.
+  hudDrawnRects_ = 0;
+  hudPassOrdinal_ = 0;
+  hudScissorApplied_ = false;
+  hudLastRegion_ = HudPixelRectLast{};
   // Both readings below are written by the draw calls themselves and read back
   // by worldMaterialSampleState(). They are reset here, once per frame, so that
   // "the sky drew" and "the world drew indexed" are statements about this frame
@@ -5105,10 +5114,6 @@ void Renderer::setHudRects(const std::vector<HudDrawRect>& rects) {
 }
 
 void Renderer::drawHudPass() {
-  hudDrawnRects_ = 0;
-  hudPassOrdinal_ = 0;
-  hudScissorApplied_ = false;
-  hudLastRegion_ = HudPixelRectLast{};
   if (!context_ || !target_ || width_ == 0 || height_ == 0) return;
   if (!hudVertexShader_ || !hudPixelShader_ || !hudInputLayout_ || !hudConstants_
       || !hudRasterizerState_ || !hudDepthStencilState_ || !hudBlendState_) return;

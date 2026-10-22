@@ -658,6 +658,9 @@ if (MSVC)
   target_compile_options(tf2_demo_native PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_compile_options(entity_protocol_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_compile_options(entity_message_fixture_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
+  # T51: the probe is held to the product's warning bar, because a probe is read as
+  # evidence and evidence built at /W3 is not the same evidence.
+  target_compile_options(hud_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_link_options(tf2_demo_native PRIVATE /DYNAMICBASE /NXCOMPAT)
 endif()
 
