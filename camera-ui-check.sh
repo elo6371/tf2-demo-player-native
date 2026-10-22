@@ -427,7 +427,11 @@ cyg_trace="$(cygpath -m "$PWD/$T50_TRACE")"
 cyg_a="$(cygpath -m "$PWD/$T50_FRAME_A")"
 cyg_b="$(cygpath -m "$PWD/$T50_FRAME_B")"
 cyg_settings="$(cygpath -m "$PWD/$T50_SETTINGS")"
-cat > "$T50_SCRIPT" <<EOF
+# The heredoc is QUOTED: the comments below are documentation, and an unquoted
+# heredoc ran their backticked text as command substitution (the first run printed
+# `camera: command not found` twice and silently deleted the words). The two
+# capture paths are substituted afterwards through placeholders instead.
+cat > "$T50_SCRIPT" <<'T50SCRIPT'
 # T50 acceptance script. Every step reports `camera: accept step=N cmd=.. result=..`
 # and every reading the gate pins is a `camera:` line below it.
 # 1. reach a tick where the demo has an observe target and pause there. The run
@@ -438,6 +442,18 @@ tick 200
 frames 2
 pause
 frames 4
+# 0. Establish the orbit camera explicitly. This machine's tf root has bagel
+#    rc5/rc10/rc11/rc12 but NOT the demo's koth_bagel_rc13, so the map's world
+#    box is empty (gpu: world atlas state=no world atlas was uploaded) and the
+#    first-person follow cannot convert the demo eye into it: the orbit pose is
+#    never set, every snapshot reads valid=0 and every save is refused. The
+#    reset seeds a representable pose (focusZ 0.25, pitch 0.36, distance 1.65,
+#    all inside setOrbitPose's clamps) so the pause/bookmark assertions measure
+#    the camera the renderer actually draws from. The demo-view pose path is a
+#    named input limitation in the report, not something this seed pretends to
+#    have measured.
+reset-view
+frames 1
 mark-tick
 snapshot before
 # 2. THE PAUSE HALF: the tick must stand still while the camera moves.
@@ -498,13 +514,13 @@ frames 3
 verify-bookmark 1
 snapshot jump1-again
 # 6. The frame claim: the same bookmark twice is the same frame, byte for byte.
-capture ${cyg_a} jump1-a
+capture __CAPTURE_A__ jump1-a
 frames 2
 key 113
 frames 2
 key 112
 frames 3
-capture ${cyg_b} jump1-b
+capture __CAPTURE_B__ jump1-b
 frames 1
 # 7. Key table: conflict refused, unbound dispatches nothing, reset restores.
 conflict camera.resetView F9
@@ -538,7 +554,10 @@ key 114
 frames 2
 verify-bookmark 3
 quit
-EOF
+T50SCRIPT
+# The two capture paths are the only substitutions the script needs.
+sed -e "s|__CAPTURE_A__|$cyg_a|" -e "s|__CAPTURE_B__|$cyg_b|" \
+  "$T50_SCRIPT" > "$T50_SCRIPT.tmp" && mv "$T50_SCRIPT.tmp" "$T50_SCRIPT"
 
 T50_RUN_TIMEOUT=300
 TF2_NATIVE_TRACE="$cyg_trace" timeout -k 5 "$T50_RUN_TIMEOUT" "$EXE" --tf-root "$TF" \
@@ -859,6 +878,11 @@ tick 200
 frames 2
 pause
 frames 4
+# Same seed as the forward script: without a map world the demo view cannot set
+# a pose and every save would be refused, which would make M2/M2b measure zero
+# verify lines instead of a red assertion.
+reset-view
+frames 1
 mark-tick
 snapshot base
 orbit 60 20
