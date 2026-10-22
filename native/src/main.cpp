@@ -2204,8 +2204,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     for (auto& request : classRequests) {
       if (request.inspection.metadata.bindPoseVertices.size() < 3) {
         std::string meshError;
-        if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)) continue;
-        if (request.inspection.metadata.bindPoseVertices.size() < 3) continue;
+        if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)) {
+          // WHY, not just "0 of 9". This line is the difference between the next
+          // window rewriting the fallback and the next window fixing one loader
+          // rule: renderableResourceSet is mdl.signatureValid && vvd.signatureValid
+          // && anyVtx (model_loader.cpp:804), and the diagnostic says which of the
+          // three failed for this class.
+          traceFmt("gpu: overlay mesh unavailable path=%s renderable=%d error=%s %s",
+            request.modelPath.c_str(), request.renderable ? 1 : 0, meshError.c_str(),
+            request.diagnostic.substr(0, 120).c_str());
+          continue;
+        }
+        if (request.inspection.metadata.bindPoseVertices.size() < 3) {
+          traceFmt("gpu: overlay mesh unavailable path=%s reason=no-bind-pose-vertices",
+            request.modelPath.c_str());
+          continue;
+        }
       }
       PreparedEntityMesh prepared;
       prepared.path = request.modelPath;
