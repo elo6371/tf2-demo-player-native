@@ -4764,8 +4764,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // arriving by a different road.
     g_overlayBindMeshes.clear();
     std::size_t overlayMeshesUploaded = 0;
+    std::size_t overlayMeshesRejected = 0;
     for (const auto& prepared : overlayBindMeshes) {
       if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices)) {
+        ++overlayMeshesRejected;
         traceFmt("gpu: overlay mesh refused key=%s lastError=0x%08lX",
           prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
         continue;
@@ -4773,8 +4775,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       g_overlayBindMeshes.push_back(prepared.cacheKey);
       ++overlayMeshesUploaded;
     }
-    traceFmt("gpu: overlay meshes prepared=%zu uploaded=%zu%s", overlayBindMeshes.size(),
-      overlayMeshesUploaded,
+    // accepted/rejected as a PAIR, because the upload cap is a decision with a
+    // cost and the pair is what makes "raise the cap" observable instead of
+    // assumed: at cap 64 this recording refuses five of the nine class models
+    // (the world pass has already taken 59 of the 64 slots), and a refused key is
+    // submitted, counted and drawn from nothing.
+    traceFmt("gpu: overlay meshes prepared=%zu uploaded=%zu rejected=%zu%s",
+      overlayBindMeshes.size(), overlayMeshesUploaded, overlayMeshesRejected,
       overlayMeshesUploaded == 0 ? " (NONE -- the outline has no mesh source and will submit nothing)" : "");
     traceFmt("gpu: reload-stage stage=models lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedBones = true;

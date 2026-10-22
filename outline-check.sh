@@ -397,6 +397,11 @@ outline_value() { # outline_value <trace> <field>
 # field and the gate explains nothing about why.
 printf "12.3 outline: draw enabled=1 depth=xray depthTest=0 depthWrite=0 drew=1 submitted=3\n" \
   > "$OUT/helper-selftest.trace"
+# The same reader for the one-time startup lines (gpu: ...), which are printed ONCE
+# per process and carry k=v fields just like the outline line.
+trace_field() { # trace_field <trace> <line-match> <field>
+  grep -a -m1 "$2" "$1" 2>/dev/null | tr " " "\n" | grep -a "^$3=" | cut -d= -f2
+}
 HELPER_SUBMITTED=$(outline_value "$OUT/helper-selftest.trace" submitted)
 if [ "$HELPER_SUBMITTED" = "3" ]; then
   echo "  OK   outline_value reads the product line shape (timestamp prefix, k=v tokens)"
@@ -574,6 +579,13 @@ echo
 #   m8 item keeps the bare path     -> silhouettes drawn drop to 0 while submitted stays >0
 #   m9 bind mesh preferred over the
 #      world mesh                   -> the probe self-test's ordering case fails
+#
+# ...and one PAIRED READING that is not a mutation (nothing is supposed to be red):
+#   cap A/B  the renderer's mesh limit 64 vs 96 -> at 64 the overlay's class meshes
+#            are refused (rejected>0, keys logged); at 96 rejected=0 and
+#            uploaded==prepared. Without the pair, "raise the cap" is an
+#            assumption rather than a measurement, and the refusal it fixes is
+#            invisible in every other reading in this file.
 # ---------------------------------------------------------------------------
 if [ "$MUTATION" = "1" ]; then
   echo
@@ -881,6 +893,39 @@ PYEOF
     must_move "m9" "probe self-test failures when the bind mesh wins" "0" "${M9_FAILURES:-0}"
   fi
   restore_all || true
+
+  # ---- cap A/B: the upload limit as a PAIRED reading (not a mutation) -----
+  echo
+  echo "  -- cap A/B: the renderer's mesh limit, 64 (old) vs 96 (now) --"
+  # NOT a mutation: nothing here is supposed to be red. It is the price of a
+  # decision made observable. The overlay uploads nine class models into the same
+  # table the world pass fills, and on the reference recording the world pass has
+  # already taken 59 of the 64 slots -- so at the OLD limit five of the nine were
+  # refused with E_OUTOFMEMORY, and a refused key is submitted, counted and drawn
+  # from nothing (precisely the shape m8 injects on purpose). Without this pair
+  # "raise the cap" would be an assumption, not a reading.
+  patch_in "$MUT_RENDERER" \
+"  constexpr std::size_t kEntityModelMeshLimit = 96;" \
+"  constexpr std::size_t kEntityModelMeshLimit = 64;  /* cap A: the old limit */" || mut_fail=1
+  if rebuild_product cap64; then
+    CAP64_RC=$(run_frame "$OUT/cap64" --outline on)
+    CAP64_PREPARED=$(trace_field "$OUT/cap64.trace" "gpu: overlay meshes prepared=" prepared)
+    CAP64_UPLOADED=$(trace_field "$OUT/cap64.trace" "gpu: overlay meshes prepared=" uploaded)
+    CAP64_REJECTED=$(trace_field "$OUT/cap64.trace" "gpu: overlay meshes prepared=" rejected)
+    CAP64_KEYS=$(grep -a -c "gpu: overlay mesh refused" "$OUT/cap64.trace" 2>/dev/null || true)
+    echo "    at 64: prepared=${CAP64_PREPARED:-<none>} uploaded=${CAP64_UPLOADED:-<none>} rejected=${CAP64_REJECTED:-<none>} refused-keys-logged=${CAP64_KEYS:-0}"
+    grep -a "gpu: overlay mesh refused" "$OUT/cap64.trace" 2>/dev/null | head -3 | sed "s/^/      /" || true
+    assert_ge "cap 64: the old limit REFUSES class meshes (this is what 96 buys)" \
+      "${CAP64_REJECTED:-0}" "1"
+  fi
+  restore_all; rebuild_product "restore after cap A" || true
+  CAP96_RC=$(run_frame "$OUT/cap96" --outline on)
+  CAP96_PREPARED=$(trace_field "$OUT/cap96.trace" "gpu: overlay meshes prepared=" prepared)
+  CAP96_UPLOADED=$(trace_field "$OUT/cap96.trace" "gpu: overlay meshes prepared=" uploaded)
+  CAP96_REJECTED=$(trace_field "$OUT/cap96.trace" "gpu: overlay meshes prepared=" rejected)
+  echo "    at 96: prepared=${CAP96_PREPARED:-<none>} uploaded=${CAP96_UPLOADED:-<none>} rejected=${CAP96_REJECTED:-<none>}"
+  assert_eq "cap 96: every prepared class mesh is uploaded" "${CAP96_REJECTED:-<none>}" "0"
+  assert_eq "cap 96: uploaded count matches prepared" "${CAP96_UPLOADED:-<none>}" "${CAP96_PREPARED:-<none>}"
 
   # ---- m4: draw the overlay AFTER the ViewModel pass ---------------------
   echo
