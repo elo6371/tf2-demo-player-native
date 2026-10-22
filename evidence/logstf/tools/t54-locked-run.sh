@@ -39,6 +39,9 @@ pin_traces() {
 # and exits with its verdict -- so "the manifest is empty fails the run" is a
 # claim that can be reproduced in two seconds instead of asserted in a commit
 # message. No build, no product launch, no lock needed.
+# It proves COVERAGE (the regenerated manifest lists every trace on disk), not
+# INTEGRITY against a stored manifest: it rewrites the file before comparing. Do
+# not cite it as "the traces are unchanged since the last run".
 if [ "${1:-}" = "--traces-check" ]; then
   pin_traces
   echo "TRACES-CHECK-RC=$TRACES_RC"
@@ -221,7 +224,6 @@ else
   echo "SOURCES-RESTORED=FAIL"
   diff "$LOGDIR/sources-before.sha256" "$LOGDIR/sources-after.sha256"
 fi
-git status --porcelain | head -20
 mkdir -p evidence/logstf/traces
 cp .scratch/logstf/*.trace evidence/logstf/traces/ 2>/dev/null || true
 cp "$LOGDIR"/*.log "$LOGDIR"/*.sha256 "$LOGDIR"/probe.txt "$LOGDIR"/install-preview-files.txt evidence/logstf/ 2>/dev/null
@@ -233,6 +235,16 @@ cp "$LOGDIR"/*.log "$LOGDIR"/*.sha256 "$LOGDIR"/probe.txt "$LOGDIR"/install-prev
 # something. A check that fails, hides its failure and leaves a file that looks like
 # evidence is worse than no check (playbook 2026-10-22 family).
 pin_traces
+# The tree status has to be read AFTER this run wrote its artefacts. The line used
+# to sit above the copies and above the manifest, so it reported a clean tree that
+# could not have included the very files this run had just produced -- a reading
+# that always agrees with what the author expects is not a reading.
+# NOTE what pin_traces() guarantees: it REGENERATES the manifest and compares its
+# line count with the number of traces on disk, so it proves COVERAGE ("every trace
+# present is pinned"), not INTEGRITY against a previously stored manifest. Integrity
+# over time is what git and this very status line carry.
+echo "--- tree status after this run's writes ---"
+git status --porcelain | head -20
 # The summary line is what a reader quotes, so the trace manifest belongs IN it.
 # Printing TRACES-HASH=FAIL eight lines above a green summary is the same defect as
 # the empty manifest itself: the failure exists and nothing downstream sees it.
