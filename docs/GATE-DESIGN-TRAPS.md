@@ -126,6 +126,26 @@ token**, and say which value makes it come out that way. If the only answer is
 (`refusalReason=`), asserted instead of the prose -- and the prose is still
 printed, because a human reads the sentence and a gate reads the token.
 
+### 10. "It did not change" and "I did not see it change" are different findings
+T54's work was queued behind a long chain run. The chain's heartbeat was alive
+but I could find no file written in the last eight minutes, and I reported the
+chain as possibly stalled. It was not: it was at step 8 of 24, and its output was
+going to `D:\TF2_Native_Test\evidence\verify\`, not into the worktrees tree I
+searched. The Lead had made the same call minutes earlier from a different
+window. Two people, two wrong reads, same shape.
+
+The observation that would have settled it was available: a **counter that
+advances** (step 8 -> 10 of 24) and the mtime of the file the work must write.
+
+**Rule:** before saying "nothing is happening", name three things -- the exact
+path/process where the activity **must** appear, the counter or timestamp that
+proves it advanced, and the reading that would distinguish "slow" from "stuck".
+"An absence of writes where I looked" is not evidence of an absence of work, and
+a false "stuck" invites an intervention that throws away an hour of someone
+else's run. The tell is usually that the *shape* of the evidence is missing
+entirely (no file was ever found, not even an old one), which is a search fault,
+not a work fault.
+
 ## Checklist before calling a gate green
 
 1. For each new assertion: **does its object exist on the success path?** Name the
@@ -145,5 +165,8 @@ printed, because a human reads the sentence and a gate reads the token.
    different claims).
 9. For each asserted token: which line writes **exactly** that token, and can
    that line ever produce it (trap 9 -- the token is present but is prose)?
-10. Does the gate state in the report **what it does not prove** (T51: no panel
+11. For any claim that something **did not change**: which counter or mtime was
+    read, at which path, and would the evidence have appeared there if it had
+    happened (trap 10)?
+12. Does the gate state in the report **what it does not prove** (T51: no panel
    pixels are read; T54: no page pixels are read), with the cheapest next step?
