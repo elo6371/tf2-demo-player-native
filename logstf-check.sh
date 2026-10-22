@@ -164,15 +164,20 @@ if [ "$LAUNCH_SITES" -ne 1 ]; then
 fi
 safety_check --hidden-window --audio-disabled || {
   echo "FATAL: the safety predicate rejects an argv that has both flags"; exit 3; }
-if safety_check --hidden-window --capture-frame x >/dev/null 2>&1; then
-  echo "FATAL: the safety predicate accepted an argv without --audio-disabled"
-  exit 3
-fi
-if safety_check --audio-disabled --capture-frame x >/dev/null 2>&1; then
-  echo "FATAL: the safety predicate accepted an argv without --hidden-window"
-  exit 3
-fi
-echo "LAUNCH-SAFETY=OK (1 launch site, predicate rejects a flagless argv)"
+safety_check --hidden-window --capture-frame x >/dev/null 2>&1
+missing_audio_rc=$?
+[ "$missing_audio_rc" -eq 98 ] || {
+  echo "FATAL: an argv missing --audio-disabled gave rc=$missing_audio_rc (want 98)"
+  exit 3; }
+safety_check --audio-disabled --capture-frame x >/dev/null 2>&1
+missing_window_rc=$?
+[ "$missing_window_rc" -eq 99 ] || {
+  echo "FATAL: an argv missing --hidden-window gave rc=$missing_window_rc (want 99)"
+  exit 3; }
+echo "LAUNCH-SAFETY=OK (1 launch site; missing --audio-disabled -> 98, missing --hidden-window -> 99)"
+echo "  (a truly flagless argv is refused by whichever case runs first, which is 99;
+  the test above is 'one flag missing', not 'flagless' -- the difference is what a
+  report would otherwise get to claim without the code backing it)"
 
 # --- 1/3 the probe ------------------------------------------------------------
 echo "=== 1/3 logstf_viewer_probe (URL policy, empty state, geometry, failure text) ==="

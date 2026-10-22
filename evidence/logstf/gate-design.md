@@ -49,8 +49,11 @@ launch the product. A guard that shouts and then launches manufactures the impre
 of having prevented something. It now builds `local -a argv` and checks **that**, uses
 one predicate shared with its own self-test, counts launch sites statically
 (`LAUNCH_SITES` must be 1, matched on the launch line's shape so the check does not
-count its own grep), and proves both directions: a flagless argv is refused without
-launching, and a good argv is accepted.
+count its own grep), and proves both directions: an argv missing either safety flag is
+refused without ever launching the product, with the codes pinned (`--audio-disabled`
+missing -> 98, `--hidden-window` missing -> 99 -- a truly flagless argv is refused by
+whichever case runs first, which is 99, so the test is described as "one flag missing"
+and not as "flagless"), and a good argv is accepted.
 
 The self-test immediately caught two defects in itself: a predicate written as one
 pattern requiring `--hidden-window` **immediately followed by** `--audio-disabled`

@@ -186,5 +186,23 @@ git status --porcelain | head -20
 mkdir -p evidence/logstf/traces
 cp .scratch/logstf/*.trace evidence/logstf/traces/ 2>/dev/null || true
 cp "$LOGDIR"/*.log "$LOGDIR"/*.sha256 "$LOGDIR"/probe.txt "$LOGDIR"/install-preview-files.txt evidence/logstf/ 2>/dev/null
-( cd evidence/logstf && sha256sum *.trace > traces.sha256 2>/dev/null ) || true
+# The manifest must hash traces/*.trace, and an empty manifest must FAIL the run.
+# The first version ran "cd evidence/logstf && sha256sum *.trace": the glob matched
+# nothing (the traces are one directory down), sha256sum's error went to /dev/null,
+# the redirect had already truncated the file, and "|| true" hid the whole thing --
+# leaving a committed, 0-byte "integrity manifest" that read as if it had verified
+# something. A check that fails, hides its failure and leaves a file that looks like
+# evidence is worse than no check (playbook 2026-10-22 family).
+( cd evidence/logstf && sha256sum traces/*.trace > traces.sha256 )
+traces_pinned=$(wc -l < evidence/logstf/traces.sha256 | tr -d ' ')
+traces_present=$(ls evidence/logstf/traces/*.trace 2>/dev/null | wc -l | tr -d ' ')
+if [ ! -s evidence/logstf/traces.sha256 ]; then
+  echo "TRACES-HASH=FAIL (the manifest is empty; the run's traces are not pinned)"
+  TRACES_RC=1
+elif [ "$traces_pinned" -ne "$traces_present" ]; then
+  echo "TRACES-HASH=FAIL (manifest pins $traces_pinned lines but $traces_present traces exist)"
+  TRACES_RC=1
+else
+  echo "TRACES-HASH=OK ($traces_pinned trace file(s) pinned)"
+fi
 echo "T54-RUN-DONE build=$BUILD_RC forward=$FWD_RC mutation=$MUT_RC readiness=$READY_RC logdir=$LOGDIR $(date '+%H:%M:%S')"
