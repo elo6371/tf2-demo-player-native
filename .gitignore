@@ -61,12 +61,26 @@ evidence/verify/22-weapon-animation/
 evidence/verify/23-viewmodel-animation-traces/
 evidence/verify/23-viewmodel-animation-mutation-traces/
 
+# 第 22 步的第三个变异（--mutation-identity，T39 加的）与第 24 步的伴生证明
+# 各有一段独立 trace 目录：T49 之前它们从没被生成过，所以一直没进 .gitignore；
+# 完整链第一次跑出它们时，18 MB 的 .trace/.log 直接躺在工作树里未跟踪。
+# 同第 22 步其余三个目录、同第 23 步：留下来的是 verdict 日志与
+# mutation-failure 文本，原始 trace 与帧是可再生的机器产物。
+evidence/verify/22-weapon-animation-mutation-identity-traces/
+evidence/verify/24-viewmodel-companion-traces/
+evidence/verify/24-viewmodel-companion-mutation-traces/
+
 # 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
 merge-patches/
 
 # The mutated frame is regenerated from paused.bmp by frame-capture-check.sh --mutation;
 # it is a one-byte edit of a file already kept, so it carries no independent evidence.
 evidence/frame-capture/mutated.bmp
+# Same rule for the second mutation (T49 noticed it was never covered): the frame
+# is regenerated from demo-installed-map.bmp on every run, and what it attests is
+# the comparison refusing a fallback-shaped picture -- the verdict line, not this
+# perturbed copy of a frame that is already tracked.
+evidence/frame-capture/demo-installed-map.as-fallback.bmp
 
 # T14: one trace per run is ~3.7 MB of per-frame lines. What each assertion reads
 # is extracted into evidence/weapon-material/<run>.readings.txt by
