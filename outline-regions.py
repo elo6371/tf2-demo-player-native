@@ -41,7 +41,7 @@ DEPTH_EPSILON = 0.004
 
 
 def parse_args(argv):
-    args = {"mode": None, "trace": None, "depth": None, "frame": "last"}
+    args = {"mode": None, "trace": None, "depth": None, "frame": "captured"}
     pending = None
     for item in argv[1:]:
         if pending == "--frame":
@@ -89,25 +89,40 @@ ITEM = re.compile(
 
 
 DRAW = re.compile(r"outline: draw ")
+CAPTURE = re.compile(r"capture: armed ")
 
 
-def read_items(path, last_frame_only=True):
+def read_items(path, frame="captured"):
     """The item rows of the frame the BMP was captured from.
 
-    A trace holds one `outline: draw` line per frame followed by that frame's
-    item rows, and a capture is one frame. Reading every item in the file gives
-    the union over ~1000 frames: on the tested tick that was 4701 boxes, which
-    (a) exempts far more of the picture than the frame actually painted -- a
-    weaker non-interference claim than it looks -- and (b) was long enough to
-    hit `Argument list too long` when the gate passed them on argv, so the
-    assertion silently read nothing. The default is therefore the LAST frame;
-    --frame all keeps the old behaviour for callers that want it.
+    A trace holds one 'outline: draw' line per frame followed by that frame's
+    item rows, and a capture is one frame -- but NOT the last one. The product
+    arms the capture with 'capture: armed requested=N frame_tick=T frames=F' and
+    then draws; the recording keeps running for a few more frames before the
+    process exits. So 'the last frame's items' describes a camera the BMP does
+    not show, and the gate compared a picture against another frame's boxes:
+    measured 2026-10-22, 'differing pixels outside every drawn region = 297'
+    with the differences reaching 23 px away -- not an outline halo, a player
+    who had moved.
+
+    Three modes:
+      captured (default) the group after the last 'capture: armed' line
+      last     the last group in the file (what this reader did before)
+      all      every group joined (the original default, 4701 boxes)
     """
     groups = []
+    capture_group = None
+    armed = False
     with open(path, "r", errors="replace") as handle:
         for line in handle:
+            if CAPTURE.search(line):
+                armed = True
+                continue
             if DRAW.search(line):
                 groups.append([])
+                if armed:
+                    capture_group = len(groups) - 1
+                    armed = False
                 continue
             match = ITEM.search(line)
             if not match:
@@ -127,9 +142,11 @@ def read_items(path, last_frame_only=True):
             })
     if not groups:
         return []
-    if last_frame_only:
+    if frame == "all":
+        return [item for group in groups for item in group]
+    if frame == "last" or capture_group is None:
         return groups[-1]
-    return [item for group in groups for item in group]
+    return groups[capture_group]
 
 
 def area(item):
@@ -240,7 +257,7 @@ def main(argv):
     args = parse_args(argv)
     if not args["mode"] or not args["trace"]:
         raise SystemExit(__doc__)
-    items = read_items(args["trace"], args.get("frame", "last") != "all")
+    items = read_items(args["trace"], args.get("frame", "captured"))
     on_screen = [item for item in items if item["onScreen"]]
 
     if args["mode"] == "csv":

@@ -255,6 +255,37 @@ pass 画的是被**外扩过**的轮廓壳，而 item 框报的是**网格本身
 （门禁报 297、我量 424，差值本身也是读数：门禁的 region 取的是 trace **最后一帧**的 item，而捕获帧不一定是最后一帧，
 这两个数不一致就说明"区域取自哪一帧"还没钉死。下个窗口一并钉。）
 
+### 4.1 那条红的**下一轮排除**：两个假设都被量掉了
+
+**(a) "区域取自最后一帧而不是被拍那一帧" —— 排除。** 改了 reader（`outline-regions.py` 现在默认取
+`capture: armed` 之后的第一帧，`--frame captured|last|all` 三档），离线用同一批 BMP 重量：
+```text
+capture: armed requested=64229 frame_tick=64229 frames=316
+regions captured=14  regions last=14        ← 两套框完全一样（这一跑捕获后没再动）
+noninterference: diff_outside=297 diff_inside=187 regions=14   VERDICT FAIL   ← 一个像素都没变
+```
+所以 297 不是对齐问题。**这个改动本身仍然要留**：它把"区域取自哪一帧"从没说清变成写死的一条规则，
+并写进 docstring——落在某天"悄悄给出正确样子"之前。
+
+**(b) "画的是外扩壳，框是网格本体" —— 也排除。** shader 的外扩是：
+```hlsl
+mapped += unitNormal * cameraPositionAndExpand.w * mode.x;   // w = kOverlaySilhouetteExpand = 0.004
+```
+`0.004` 是**世界单位**，在 player ≈ 20 单位 ≈ 10 像素的比例下是 **0.002 像素**——外扩不是 23 像素光晕的来源。
+
+**(c) 剩下的读数，逐连通域量的**（on/off 差集，8 连通）：
+```text
+4 个 blob:  (453,325)-(474,338) 22x14   (502,333)-(519,342) 18x10
+            (557,335)-(569,341) 13x7    (480,336)-(488,342)  9x7
+14 个报告的框，全部落在 y=340..351 这一带，例如 (506,340)-(513,342)、(559,341)-(565,343)
+```
+**框系统性地比 blob 低 8–14 像素、且纵向被压到 2–3 像素（blob 是 10–14 像素）。**
+这不是"框小一点"，是**框和人不在同一个位置**——所以下一步不再是调框的大小，而是查这个偏移：
+按 item 打印 `cacheKey / vertexCount / worldMin / worldMax / origin`，与 blob 的 bbox 对照，
+就能判断是 (i) `boundsMin/Max` 对被蒙皮的网格不成立（模型空间 AABB × 骨骼变换 ≠ 蒙皮后范围），
+还是 (ii) 送进框的 `mvpForOverlay` 与画的时候用的不是同一个矩阵（帧内先后次序），
+还是 (iii) 框取到了别的实例的行。**三种都有测法，但都要再开一次窗口。**
+
 ### 4.2 `depthWrite=1` **已定案**：是运行时归一化，不是产品写深度
 
 判读规则在跑之前写死（`stateWrite=0 ⇒ 缺陷在赋值路径`；`stateWrite=1 ⇒ 状态本身没带上掩码`），22:51 的读数：
