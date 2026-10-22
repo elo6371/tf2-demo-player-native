@@ -359,6 +359,50 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
   check(!table.set("camera.notAnAction", parseChord("F12")), "an unregistered action is refused");
   readings.set("keyConflictsRefused", table.conflictCount() - conflictsBefore);
 
+  // --- the SHAARED table: a second feature registers into it ---------------
+  // Contract 2 promises T51 that its hud.* actions go into THIS table, so a
+  // chord one feature wants and the other already holds is refused without
+  // either side knowing the other's action list. Tested here, in pure logic,
+  // because the alternative is discovering it in a build where two features have
+  // silently claimed F9 and the one that loses is decided by map iteration order.
+  {
+    KeyBindTable shared = defaultKeyBindings();
+    // T51's three actions, registered the way it will register them.
+    shared.registerDefault("hud.toggle", parseChord("H"));
+    shared.registerDefault("hud.import", parseChord("Ctrl+H"));
+    shared.registerDefault("hud.preview", parseChord("Alt+H"));
+    check(shared.registered("hud.toggle"), "a second feature can register its actions");
+    check(shared.actions().size() == 30, "the table holds both features' actions");
+    // Now the collision: the HUD wants a key the camera holds.
+    const std::uint32_t before = shared.conflictCount();
+    check(!shared.set("hud.toggle", parseChord("F1")),
+      "a HUD binding on a camera key is refused");
+    check(shared.conflictCount() == before + 1, "the cross-feature refusal is counted");
+    check(shared.actionKey(camera_actions::jumpBookmark(1)) == parseChord("F1"),
+      "the camera action keeps its key");
+    check(shared.actionKey("hud.toggle") == parseChord("H"),
+      "the refused HUD action keeps its own key");
+    // And the reverse direction: the camera must not take a key the HUD holds.
+    check(!shared.set(camera_actions::kFreeFly, parseChord("Ctrl+H")),
+      "a camera binding on a HUD key is refused too");
+    check(shared.actionKey(camera_actions::kFreeFly) == parseChord("F9"),
+      "the camera action keeps its key after the reverse refusal");
+    // A conflict query names the owner, which is what a UI has to show.
+    const auto owners = shared.conflicts(parseChord("F1"));
+    check(owners.size() == 1 && owners[0] == camera_actions::jumpBookmark(1),
+      "the conflict query names the action that owns the key");
+    // resetAll restores BOTH features' defaults and does not disturb the
+    // registrations: a second feature's registration is a default, not a rebind.
+    shared.set("hud.import", parseChord("Alt+F12"));
+    shared.resetAll();
+    check(shared.actionKey("hud.import") == parseChord("Ctrl+H"),
+      "resetAll restores a second feature's default as well");
+    check(shared.actionKey(camera_actions::kFreeFly) == parseChord("F9"),
+      "resetAll leaves the camera defaults exactly as compiled");
+    check(shared.actions().size() == 30, "resetAll does not drop any action");
+    readings.set("keySharedTable", 1u);
+  }
+
   // --- missing bindings --------------------------------------------------
   table.unbind(camera_actions::kResetView);
   check(table.unbound(camera_actions::kResetView), "an unbound action reads as unbound");

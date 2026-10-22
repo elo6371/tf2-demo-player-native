@@ -788,6 +788,10 @@ T50EOF
   echo
   echo "--- T50-M1: the demo tick advances while paused"
   t50_backup native/src/main.cpp || t50mrc=1
+  # The freeze rule lives in the loop's `if (g_playback.enabled && !g_playback.paused)`.
+  # Dropping the paused term is the defect: the tick keeps advancing while the
+  # user believes the demo is paused. The comment stays short so the patch is one
+  # line and the restore is one copy.
   if t50_patch native/src/main.cpp "    if (g_playback.enabled && !g_playback.paused) {" "    if (g_playback.enabled) {  // mutation: pause no longer freezes the tick"; then
     if bash build-target.sh tf2_demo_native > "$T50M/m1.build" 2>&1; then
       t50_script_run m1
@@ -818,6 +822,7 @@ T50EOF
   echo "--- T50-M2: a bookmark jump lands 0.001 box units off"
   t50_backup native/src/main.cpp || t50mrc=1
   if t50_patch native/src/main.cpp "      bookmark.pose.focusZ, bookmark.pose.yaw, bookmark.pose.pitch," "      bookmark.pose.focusZ + 0.001f, bookmark.pose.yaw, bookmark.pose.pitch,"; then
+    # (the +0.001f is the whole defect: the saved pose is honest, the jump is not)
     if bash build-target.sh tf2_demo_native > "$T50M/m2.build" 2>&1; then
       t50_script_run m2
       m2_exact=$(grep -a "camera: verify kind=bookmark" "$T50M/m2.trace" | grep -c "match=1" || true)

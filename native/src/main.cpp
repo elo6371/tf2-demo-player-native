@@ -526,7 +526,13 @@ bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character
     std::string& action, std::string& result) {
   if (!tf2::native::shouldDispatchHotkey(g_textFieldFocused, character)) {
     ++g_hotkeySuppressedByFocus;
+    // Both the product counter and the table's own count move, so the summary
+    // line and the table cannot disagree about how often focus won.
+    g_keyBinds.noteSuppressedByFocus();
     action.clear();
+    // The message names the rule, not just the failure: a user who wonders why
+    // F1 did nothing inside the name field gets "suppressed-by-focus" in the
+    // trace rather than silence.
     result = "suppressed-by-focus";
     return false;
   }
@@ -7132,6 +7138,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           // camera stays exactly where the user's orbit left it.
           ++g_cameraFreezeFrames;
           break;
+      }
+      // T50 "back to the player": the request is a LATCH the scene tick
+      // consumes, and only on a tick that actually has an observe target --
+      // that is the whole reason it is latched rather than applied in the key
+      // handler. Consuming it on a tick with no target would spend the request
+      // and leave the camera where it was, which the user reads as "the key did
+      // nothing" and the trace would report as applied.
+      if (haveObserverView && g_cameraDirector.takeResetToPlayer()) {
+        // In first-person the switch above already adopted the demo eye; this
+        // makes the adoption explicit for the record and re-asserts it, so the
+        // command has the same effect whether the mode was already first-person
+        // or the handler had just set it.
+        renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
+          observerView.origin[2], observerView.angles[0], observerView.angles[1]);
+        traceFmt("camera: reset-to-player applied=1 tick=%d eye=%.1f,%.1f,%.1f",
+          static_cast<int>(g_playback.tick), observerView.origin[0],
+          observerView.origin[1], observerView.origin[2]);
       }
       // T10 diagnostic camera, applied EVERY frame rather than once: the
       // one-shot apply after the world upload lost to an ordering this file
