@@ -36,6 +36,16 @@ std::vector<OverlayEntitySample> sampleOverlayEntities(
   (`EntityModelResolver::extractTransform`, which prefers the fresher of the two
   origin slots). A silhouette at a different origin from its mesh is the defect
   that rule exists to prevent, so the contract forbids a second origin reader.
+* **The silhouette's pose source is conditional and is recorded, never assumed
+  (v5, 2026-10-22).** The mesh that answers the join is asked for in this order:
+  first the mesh the entity pass uploaded AND DREW for this frame -- that mesh
+  carries the bones of the pose on screen -- and only if there is none, the
+  overlay's own bind-pose upload of the class model (`<path>#class-fallback`).
+  Every draw reports which one answered (`poseSource=world|bind`, counted per
+  list as `poseWorld`/`poseBind`). The bind case draws a BIND POSE at the player
+  origin: it does not follow the animation, and no assertion may claim it does.
+  The condition is not a loophole, it is the measurement: on the reference
+  recording the entity pass has no player body mesh at all (see v5).
 * Cost is counted, never timed: `OverlaySampleCost` is the same shape as
   `ResolverStats` so the two can be compared directly.
 
@@ -133,6 +143,158 @@ appended to T52's silhouettes by the product and share that pass's depth mode
 320 on one demo, 18 on another) is the same trap. **Team** is `m_iTeamNum` with
 an explicit `OverlayTeam::Unknown` fallback that is a neutral grey, so an
 unknown team can never pass a red/blue pixel assertion.
+## v3 (2026-10-22, T52 implementation) -- what the code forced, and what is now a reading
+
+Three things below changed the contract AFTER v2, and all three are additive: no
+consumer of v2 has to change and T53 reads none of them. They are recorded here
+because a header that differs from the page describing it is how the next reader
+gets lied to.
+
+1. **`OverlayEntityFilter::Projectiles` is gone** (approved amendment (a)). The
+   filter enum still selects players; projectile membership is a CALLER-provided
+   optional class-name set (`OverlayClassSet`), and T52 passes `nullptr`. A fixed
+   projectile filter inside the contract would have forced T53 to change the
+   header the moment its class list changed, and T53 had already measured that
+   list differing between recordings.
+2. **Two `OverlayDrawList` submissions per frame** (approved amendment (b)), one
+   per depth mode. v2 said "one pass, one list"; the pass is still one pass, but
+   the renderer now keeps **one list per depth slot** and rebuilds its GPU
+   buffers from BOTH on every submission. This was not a documentation nicety:
+   the first implementation rebuilt the buffers from the list just submitted, so
+   the second call of a frame erased the first one's geometry, and the per-slot
+   line draw used the wrong start offset. Both defects are why the gate asserts
+   `red=`/`blue=` counts AND the drawn vertex/line counts, not just "drew=1".
+3. **`OverlayPassReading` publishes the depth state it actually bound**:
+   `depthTestEnabled` and `depthWriteEnabled`, filled from
+   `ID3D11DepthStencilState::GetDesc()` on the two states at init. The contract has
+   always said "x-ray is depth test OFF and depth write OFF"; until this it was a
+   sentence beside the lines that set the flags, and the write half is invisible in
+   any screenshot because the ViewModel pass clears depth immediately afterwards.
+   It is now a number in the trace and an assertion in the gate, with mutation m5
+   (write ON) as its proof that the assertion can go red.
+
+### The tick domain, measured (this is why the gate never passed)
+
+The entity history retains a WINDOW, not the recording, and the product fills its
+scene states through the same accessor (`queryEntitySnapshotAtOrBeforeTick`).
+Sampled ticks outside the window therefore answer `unavailable` with no rows, and a
+frame captured at one has NO player in it at all -- the overlay draws nothing
+because there is nothing to draw, which reads exactly like a broken overlay.
+Measured on the reference recording before the fix: requested playback ticks
+1001/1201/1401/1601/1801/2001, six answers, all "the tick precedes every retained
+snapshot", `rows=0`. The probe now prints the window and every tick inside it that
+answers with players (`--find-ticks`), and the gate's tick list is inside it.
+
+### Harness changes needed to observe any of this
+
+* `--playback-speed <multiplier>` (0.125 .. 64). A capture pinned near the end of a
+  ~64000-tick recording costs ~16 minutes of wall clock at 1x, and the gate needs
+  more than ten frames. The captured frame is unchanged because the cursor is HELD
+  at the requested tick and the scene is resolved from the recording, not
+  accumulated frame by frame -- and that sentence is an ASSERTION, not a remark:
+  the gate captures the same tick at speed=1 and at the default speed and requires
+  the two frames to be byte-identical (`cmp`), with mutation m6 (capture lands NEAR
+  the tick instead of AT it) as the proof that the comparison can go red.
+* `--start-paused` is NOT usable with `--capture-tick`: it freezes the cursor at 0,
+  so the one-shot capture waits forever for `tick >= N` and the run times out with
+  no frame. The inherited gate passed it, which is consistent with the artifacts the
+  earlier runs left behind: none.
+
+## v5 (2026-10-22, T52 first run with the join fixed) -- the overlay had no mesh to draw
+
+The class fallback fixed the join and changed nothing on screen, and the reason is
+the next layer down:
+
+```text
+gpu: models done 59 uploaded=59          <- every model the process ever prepared
+scene: buildInstances=256                <- instance requests, capped
+scene: setInstances draws=96 markers=32  <- 32 entities fall back to a MARKER
+grep -c models/player pick-64229.trace   -> 0   (1.3 MB, 33 seconds)
+```
+
+**The world pass never draws a player BODY on this recording.** A player with no
+demo model path becomes a marker, so `draws` contains no player mesh, so the
+silhouette builder -- which joins against `draws` on purpose, because that is the
+only way it can be the same mesh the screen shows -- had nothing to join to. That
+is a hole in the product, not in the overlay: 21 players are sampled per frame and
+none of them is drawn as a body.
+
+**What the overlay does about it, and what it refuses to do.** It uploads the nine
+class models itself, keyed exactly as `EntityModelResolver` keys its class
+fallback, and uses them ONLY as a fallback behind the world pass's mesh. It does
+not draw a coloured quad: a team-coloured square is not an outline of a player,
+and it would put a coloured box on the screen for a player nobody drew. It also
+does not prefer its own mesh: the world pass's mesh wins whenever one exists,
+so on the day the body hole is fixed the bind source drops to 0 with no code
+change -- that is the whole reason `poseSource` is counted rather than assumed.
+
+Two consequences written down rather than hidden:
+
+1. The bind silhouettes do not follow the animation. A gate may assert that the
+   mask is STABLE at one tick and that `poseSource` agrees with which mesh exists;
+   it may not assert that the outline tracks the animated pose.
+2. The mesh cap in `Renderer::uploadEntityModelMesh` was 64. The reference
+   recording uses 59 for the world, so five of the nine class models were REFUSED
+   with E_OUTOFMEMORY -- and a refused key is submitted, counted, and drawn from
+   nothing, which is exactly the defect mutation m8 injects on purpose. The cap is
+   now 96 and the keys that actually landed are the only ones the builder is told
+   about; an upload refusal is a trace line, not a silent hole.
+## v4 (2026-10-22, T52 first green build) -- the model join, and how it was found
+
+The feature as first written could not draw anything, on any tick, and the gate had
+no way to say so. This section is the reading that found it and the rule it forced.
+
+### What the numbers said
+
+A capture at playback tick 64332 (sceneTick 74584, inside the retained window) wrote
+778 frames of trace and every one of them carried
+
+    outline: draw ... drew=0 submitted=0 samples=21 noMesh=20 noOrigin=1
+
+i.e. the sampler found the players (21 rows, 6 red / 7 blue / 8 unknown, 20 with a
+pose) and the builder rejected ALL of them. The probe at the same tick prints the
+reason in its own column: `model=-` on all 21 rows.
+
+**No player on this recording carries `m_nModelIndex`.** Identity, team, origin and
+pose all resolve; the model does not. The sampler resolved the model ONLY from
+`m_nModelIndex`, so every row reached the join with an empty path.
+
+### The rule it forced: one fact, one producer
+
+The world entity pass has answered "which model is this player" since before this
+feature existed: `EntityModelResolver::buildInstances` falls back to
+`defaultPlayerModelPath(m_iClass)` and keys the mesh `"<path>#class-fallback"`.
+The overlay answered the same question a different way, so the two disagreed about
+what a player looks like: the mesh pass uploaded 96 instances and the overlay drew
+none of them, and both reported success on their own lines.
+
+The fix is not "also try m_iClass". The fix is that the outline now asks the same
+producer and carries THE KEY THE MESH WAS UPLOADED UNDER, because the renderer looks
+the uploaded mesh up by that key. A silhouette with the bare path is submitted,
+counted, and drawn from nothing -- mutation m8 is that exact defect, and it is the
+reason the join carries `cacheKey` on the item rather than recomputing it at draw
+time.
+
+### Two mutations, because the fix has two halves
+
+* **m7** removes the class fallback -> `submitted` must fall back to 0 and `noMesh`
+  must rise to `samples`. If it does not, the fallback is not what draws the
+  silhouettes and the fix proved nothing.
+* **m8** keeps the resolved path but drops the upload key from the item ->
+  `submitted` stays > 0 (asserted as the positive control) while `silhouettes`
+  drawn drops to 0. This is the half a pixel gate cannot see on its own: the list is
+  right and the frame is empty.
+
+### The tick origin has ONE answer, and it is the product's
+
+Three numbers were circulating for `firstPacketTick` on one recording: a comment in
+main.cpp said 29368, the probe printed 1, the product's trace said 10252. Only the
+third is the product speaking about itself ("scene: begin tick=0 sceneTick=10252").
+The comment now carries the derivation and no number; the probe prints
+`serverTickOrigin` (the first command 1 or 2 entry, the product's own rule) and
+`firstRecordedPacketTick` separately; and the capture tick is computed as
+`sceneTick - (the product's own offset)` from a five-second capture at playback 0
+instead of being derived from a probe tick and a guess.
 ## v1 FROZEN (2026-10-22) -- final changes before implementation
 
 Both reviewers changed the contract in the same direction: **decide nothing on

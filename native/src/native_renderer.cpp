@@ -1336,6 +1336,25 @@ float4 main(Input input) : SV_TARGET {
     overlayDescription.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
     if (FAILED(device_->CreateDepthStencilState(&overlayDescription,
         overlayDepthTestedState_.GetAddressOf()))) return false;
+    // Read both states BACK. The contract says x-ray is "depth test OFF and
+    // depth write OFF"; with this readback that sentence is a number in the
+    // trace instead of a comment beside the lines that set it, and a state whose
+    // description drifted cannot stay silent while the picture stays plausible.
+    // ID3D11DepthStencilState::GetDesc returns void, not HRESULT (D3D11 differs
+    // from the D3D12-style getters here): the state object is immutable once
+    // created, so the readback cannot fail and needs no SUCCEEDED wrapper. The
+    // first attempt wrapped it anyway and did not compile.
+    D3D11_DEPTH_STENCIL_DESC overlayReadback{};
+    if (overlayXRayDepthState_) {
+      overlayXRayDepthState_->GetDesc(&overlayReadback);
+      overlayXRayDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
+      overlayXRayDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+    }
+    if (overlayDepthTestedState_) {
+      overlayDepthTestedState_->GetDesc(&overlayReadback);
+      overlayDepthTestedDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
+      overlayDepthTestedDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+    }
   }
   {
     D3D11_RASTERIZER_DESC overlayRasterizer{};
@@ -3194,16 +3213,6 @@ void Renderer::setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>
   projectileVertexCount_ = static_cast<UINT>(particles.size());
 }
 
-// The CPU-side record of what was uploaded per instance: the pass needs the
-// entity identity and the world origin to publish a screen box, and neither is
-// recoverable from the GPU instance stream without decoding it again.
-struct OverlayCpuInstance {
-  std::uint16_t entityIndex = 0;
-  OverlayTeam team = OverlayTeam::Unknown;
-  float origin[3] = {0.0f, 0.0f, 0.0f};
-};
-std::vector<OverlayCpuInstance> overlayInstances_;
-
 void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
   // Stored, not drawn: the pass runs inside draw(), in its own slot, and a
   // caller must be able to submit on a sampled tick and keep drawing between
@@ -3211,25 +3220,25 @@ void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
   // each other.
   const std::size_t slot = list.depth == OverlayDepthMode::DepthTested ? 1u : 0u;
   overlayLists_[slot] = list;
+  // Rebuilt from BOTH stored lists. A rebuild that read only the list just
+  // handed in would erase the other mode buffers, so the second submission of
+  // one frame would silently delete the first -- the failure the contract rule
+  // "one list per depth mode, two lists per frame" (v1, T53 requirement (c))
+  // exists to make impossible.
+  rebuildOverlayBuffers();
+}
+
+void Renderer::rebuildOverlayBuffers() {
   overlayInstanceCount_ = 0;
   overlayInstances_.clear();
   overlayLineVertexCount_ = 0;
   overlayLineVertexCountByDepth_[0] = 0;
   overlayLineVertexCountByDepth_[1] = 0;
+  overlayLineStartByDepth_[0] = 0;
+  overlayLineStartByDepth_[1] = 0;
   overlayDrawRanges_.clear();
   if (!device_ || !context_ || !worldBoundsValid_) return;
 
-  // ---- silhouettes -------------------------------------------------------
-  struct Bucket {
-    ID3D11Buffer* vertexBuffer = nullptr;
-    UINT vertexCount = 0;
-    OverlayDepthMode depth = OverlayDepthMode::XRay;
-    std::vector<EntityModelInstanceGpu> items;
-  };
-
-  std::vector<EntityModelInstanceGpu> packed;
-  std::vector<Bucket> buckets;
-  std::unordered_map<std::string, std::size_t> bucketOf;
   const auto normalize = [this](float x, float y, float z) {
     return DirectX::XMFLOAT3((x - worldCenterX_) * worldHorizontalScale_,
       (y - worldCenterY_) * worldHorizontalScale_,
@@ -3242,55 +3251,72 @@ void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
   world.horizontalScale = worldHorizontalScale_;
   world.zScale = 0.8f / worldSpanZ_;
   constexpr std::size_t maxInstances = 96;
-  std::size_t accepted = 0;
-  for (const auto& item : list.items) {
-    if (item.kind != OverlayPrimitiveKind::Silhouette) continue;
-    if (accepted >= maxInstances) break;
-    if (item.cacheKey.empty()) continue;
-    const auto mesh = entityModelMeshes_.find(item.cacheKey);
-    if (mesh == entityModelMeshes_.end() || !mesh->second.vertexBuffer
-        || mesh->second.vertexCount < 3 || (mesh->second.vertexCount % 3) != 0) continue;
-    EntityModelInstanceRows rows;
-    if (!buildEntityModelInstanceRows(item.origin, item.angles, item.hasAngles, world, rows)) continue;
-    const auto inserted = bucketOf.emplace(item.cacheKey, buckets.size());
-    if (inserted.second) {
-      Bucket created;
-      created.vertexBuffer = mesh->second.vertexBuffer.Get();
-      created.vertexCount = mesh->second.vertexCount;
-      created.depth = list.depth;
-      buckets.push_back(created);
-    }
-    EntityModelInstanceGpu gpu{};
-    for (int row = 0; row < 3; ++row) {
-      for (int column = 0; column < 4; ++column) gpu.position[row][column] = rows.positionRows[row * 4 + column];
-      for (int column = 0; column < 3; ++column) gpu.normal[row][column] = rows.normalRows[row * 3 + column];
-    }
-    gpu.color[0] = item.color.rgba[0];
-    gpu.color[1] = item.color.rgba[1];
-    gpu.color[2] = item.color.rgba[2];
-    gpu.color[3] = item.color.rgba[3];
-    // Skinning is advertised only when the matrices for it were uploaded, the
-    // same rule the entity pass follows: an instance that indexes past the
-    // buffer is drawn unskinned rather than reading another entity's bones.
-    const bool skinned = item.skinned && item.boneCount > 0
-      && static_cast<std::size_t>(item.boneOffset) + item.boneCount <= entityBoneMatrixCount_;
-    if (skinned) {
-      gpu.boneOffset = item.boneOffset;
-      gpu.skinEnabled = 1u;
-      gpu.padding[0] = item.boneCount;
-    }
-    // Keep the identity and the origin alongside the GPU record, in the same
-    // order, so range.instanceStart indexes both tables.
-    OverlayCpuInstance cpu;
-    cpu.entityIndex = item.entityIndex;
-    cpu.team = item.team;
-    cpu.origin[0] = item.origin[0];
-    cpu.origin[1] = item.origin[1];
-    cpu.origin[2] = item.origin[2];
-    overlayInstances_.push_back(cpu);
-    buckets[inserted.first->second].items.push_back(gpu);
-    ++accepted;
 
+  // ---- silhouettes, one bucket per (mode, mesh) --------------------------
+  struct Bucket {
+    ID3D11Buffer* vertexBuffer = nullptr;
+    UINT vertexCount = 0;
+    OverlayDepthMode depth = OverlayDepthMode::XRay;
+    std::vector<EntityModelInstanceGpu> items;
+  };
+
+  std::vector<EntityModelInstanceGpu> packed;
+  std::vector<Bucket> buckets;
+  std::size_t accepted = 0;
+  for (std::size_t slot = 0; slot < 2 && accepted < maxInstances; ++slot) {
+    const OverlayDrawList& list = overlayLists_[slot];
+    if (!list.enabled) continue;
+    // Keyed per mode, so one mesh drawn in both modes stays two draws with two
+    // depth modes instead of collapsing into whichever list came first.
+    std::unordered_map<std::string, std::size_t> bucketOf;
+    for (const auto& item : list.items) {
+      if (item.kind != OverlayPrimitiveKind::Silhouette) continue;
+      if (accepted >= maxInstances) break;
+      if (item.cacheKey.empty()) continue;
+      const auto mesh = entityModelMeshes_.find(item.cacheKey);
+      if (mesh == entityModelMeshes_.end() || !mesh->second.vertexBuffer
+          || mesh->second.vertexCount < 3 || (mesh->second.vertexCount % 3) != 0) continue;
+      EntityModelInstanceRows rows;
+      if (!buildEntityModelInstanceRows(item.origin, item.angles, item.hasAngles, world, rows)) continue;
+      const auto inserted = bucketOf.emplace(item.cacheKey, buckets.size());
+      if (inserted.second) {
+        Bucket created;
+        created.vertexBuffer = mesh->second.vertexBuffer.Get();
+        created.vertexCount = mesh->second.vertexCount;
+        created.depth = list.depth;
+        buckets.push_back(created);
+      }
+      EntityModelInstanceGpu gpu{};
+      for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 4; ++column) gpu.position[row][column] = rows.positionRows[row * 4 + column];
+        for (int column = 0; column < 3; ++column) gpu.normal[row][column] = rows.normalRows[row * 3 + column];
+      }
+      gpu.color[0] = item.color.rgba[0];
+      gpu.color[1] = item.color.rgba[1];
+      gpu.color[2] = item.color.rgba[2];
+      gpu.color[3] = item.color.rgba[3];
+      // Skinning is advertised only when the matrices for it were uploaded, the
+      // same rule the entity pass follows: an instance that indexes past the
+      // buffer is drawn unskinned rather than reading another entity bones.
+      const bool skinned = item.skinned && item.boneCount > 0
+        && static_cast<std::size_t>(item.boneOffset) + item.boneCount <= entityBoneMatrixCount_;
+      if (skinned) {
+        gpu.boneOffset = item.boneOffset;
+        gpu.skinEnabled = 1u;
+        gpu.padding[0] = item.boneCount;
+      }
+      // Keep the identity and the origin alongside the GPU record, in the same
+      // order, so range.instanceStart indexes both tables.
+      OverlayInstanceRecord cpu;
+      cpu.entityIndex = item.entityIndex;
+      cpu.team = item.team;
+      cpu.origin[0] = item.origin[0];
+      cpu.origin[1] = item.origin[1];
+      cpu.origin[2] = item.origin[2];
+      overlayInstances_.push_back(cpu);
+      buckets[inserted.first->second].items.push_back(gpu);
+      ++accepted;
+    }
   }
   if (accepted > 0) {
     packed.reserve(accepted);
@@ -3331,33 +3357,41 @@ void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
     overlayInstanceCount_ = packed.size();
   }
 
-  // ---- lines and markers (T53's) -----------------------------------------
+  // ---- lines and markers, one contiguous range per depth mode -------------
   // Built into the SAME pass so they share its depth mode per list and its
   // restore discipline. The vertices are in world space already, converted with
   // the same map-to-box transform every other world vertex uses.
   std::vector<WorldVertex> lineVertices;
-  for (const auto& item : list.items) {
-    if (item.kind == OverlayPrimitiveKind::Silhouette) continue;
-    const DirectX::XMFLOAT3 start = normalize(item.start[0], item.start[1], item.start[2]);
-    const DirectX::XMFLOAT3 end = normalize(item.end[0], item.end[1], item.end[2]);
-    const auto vertex = [&](const DirectX::XMFLOAT3& p) {
-      return WorldVertex{p.x, p.y, p.z, item.color.rgba[0], item.color.rgba[1],
-        item.color.rgba[2], item.color.rgba[3], 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
-    };
-    lineVertices.push_back(vertex(start));
-    lineVertices.push_back(vertex(end));
-    if (item.kind == OverlayPrimitiveKind::Marker) {
-      // A three-axis cross, the same shape the fallback markers use, so a
-      // marker reads as a point in space rather than as a short segment.
-      constexpr float extent = 8.0f;
-      const DirectX::XMFLOAT3 axes[3] = {
-        normalize(item.start[0] + extent, item.start[1], item.start[2]),
-        normalize(item.start[0], item.start[1] + extent, item.start[2]),
-        normalize(item.start[0], item.start[1], item.start[2] + extent),
-      };
-      for (const auto& axis : axes) { lineVertices.push_back(vertex(start)); lineVertices.push_back(vertex(axis)); }
+  for (std::size_t slot = 0; slot < 2; ++slot) {
+    const OverlayDrawList& list = overlayLists_[slot];
+    const UINT rangeStart = static_cast<UINT>(lineVertices.size());
+    if (list.enabled) {
+      for (const auto& item : list.items) {
+        if (item.kind == OverlayPrimitiveKind::Silhouette) continue;
+        const DirectX::XMFLOAT3 startPoint = normalize(item.start[0], item.start[1], item.start[2]);
+        const DirectX::XMFLOAT3 endPoint = normalize(item.end[0], item.end[1], item.end[2]);
+        const auto vertex = [&](const DirectX::XMFLOAT3& p) {
+          return WorldVertex{p.x, p.y, p.z, item.color.rgba[0], item.color.rgba[1],
+            item.color.rgba[2], item.color.rgba[3], 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+        };
+        lineVertices.push_back(vertex(startPoint));
+        lineVertices.push_back(vertex(endPoint));
+        if (item.kind == OverlayPrimitiveKind::Marker) {
+          // A three-axis cross, the same shape the fallback markers use, so a
+          // marker reads as a point in space rather than as a short segment.
+          constexpr float extent = 8.0f;
+          const DirectX::XMFLOAT3 axes[3] = {
+            normalize(item.start[0] + extent, item.start[1], item.start[2]),
+            normalize(item.start[0], item.start[1] + extent, item.start[2]),
+            normalize(item.start[0], item.start[1], item.start[2] + extent),
+          };
+          for (const auto& axis : axes) { lineVertices.push_back(vertex(startPoint)); lineVertices.push_back(vertex(axis)); }
+        }
+        if (lineVertices.size() >= 32768u) break;
+      }
     }
-    if (lineVertices.size() >= 32768u) break;
+    overlayLineStartByDepth_[slot] = rangeStart;
+    overlayLineVertexCountByDepth_[slot] = static_cast<UINT>(lineVertices.size()) - rangeStart;
   }
   if (!lineVertices.empty()) {
     if (!overlayLineBuffer_ || overlayLineCapacity_ < lineVertices.size()) {
@@ -3369,6 +3403,8 @@ void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
       if (FAILED(device_->CreateBuffer(&description, nullptr,
           overlayLineBuffer_.ReleaseAndGetAddressOf()))) {
         overlayLineVertexCount_ = 0;
+        overlayLineStartByDepth_[0] = 0;
+        overlayLineStartByDepth_[1] = 0;
         return;
       }
       overlayLineCapacity_ = lineVertices.size();
@@ -3376,15 +3412,15 @@ void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
     D3D11_MAPPED_SUBRESOURCE mapped{};
     if (FAILED(context_->Map(overlayLineBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
       overlayLineVertexCount_ = 0;
+      overlayLineStartByDepth_[0] = 0;
+      overlayLineStartByDepth_[1] = 0;
       return;
     }
     std::memcpy(mapped.pData, lineVertices.data(), lineVertices.size() * sizeof(WorldVertex));
     context_->Unmap(overlayLineBuffer_.Get(), 0);
     overlayLineVertexCount_ = static_cast<UINT>(lineVertices.size());
-    overlayLineVertexCountByDepth_[slot] = overlayLineVertexCount_;
   }
 }
-
 void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
   entityMarkerVertexCount_ = 0;
   if (!device_ || !worldBoundsValid_ || markers.empty()) return;
@@ -3430,7 +3466,16 @@ void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
 
 bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices) {
   if (!device_ || cacheKey.empty() || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
-  if (entityModelMeshes_.size() >= 64 && entityModelMeshes_.find(cacheKey) == entityModelMeshes_.end()) {
+  // 96, not 64 (2026-10-22). The cap is a GPU-memory guard, and the sizes it
+  // guards are the world pass's 64 models plus the outline's nine class models,
+  // which are uploaded by the same call and are NOT part of the world budget.
+  // At 64 the reference recording (59 world models) left five of the nine
+  // refused with E_OUTOFMEMORY, and a refused key is the worst failure shape
+  // available here: the draw list submits it, the counter counts it, and the
+  // frame is empty -- the same defect mutation m8 injects on purpose.
+  constexpr std::size_t kEntityModelMeshLimit = 96;
+  if (entityModelMeshes_.size() >= kEntityModelMeshLimit
+      && entityModelMeshes_.find(cacheKey) == entityModelMeshes_.end()) {
     lastError_ = E_OUTOFMEMORY;
     return false;
   }
@@ -5210,6 +5255,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(3, 1, &noLightmap);
     context_->PSSetShaderResources(5, 1, &noCube);
   }
+  // The water surface is ordinal 2 and the entity markers 3, so that the
+  // overlay slot number below is the contract ordinal (6) rather than
+  // whichever ++ happens to come fourth in this function.
+  ++framePassOrdinal_;
 
   if (!worldDiagnosticIsolation_ && entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0
       && worldVertexShader_ && worldPixelShader_ && worldInputLayout_ && worldConstants_) {
@@ -5287,13 +5336,19 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   }
   ++framePassOrdinal_;
   // ---- T52: THE OVERLAY PASS ----------------------------------------------
-  // Ordinal 6 in the contract: after the entity meshes it outlines and before
-  // the ViewModel pass, which CLEARS the depth buffer. Drawing it after the
-  // ViewModel would either punch the weapon through the silhouette or need a
-  // second depth clear, and both are worse than drawing it here.
+  // Contract ordinal 6: after the entity meshes it outlines and after the
+  // projectile-track pass, before the ViewModel pass, which CLEARS the depth
+  // buffer. Drawing it after the ViewModel would either punch the weapon
+  // through the silhouette or need a second depth clear, and both are worse
+  // than drawing it where the scene depth is still the frame depth -- which is
+  // why the body is defined here and the CALL sits 200 lines below.
   overlayPassReading_ = OverlayPassReading{};
-  overlayPassReading_.stageOrdinal = framePassOrdinal_;
-  {
+  // Defined here, CALLED as pass 6 (after the projectile-track pass). The
+  // ordinal is taken with the ++ inside the lambda, so moving the call moves
+  // the number: the mutation that draws it after the ViewModel cannot keep
+  // reading 6.
+  const auto drawOverlayPass = [&]() {
+    overlayPassReading_.stageOrdinal = ++framePassOrdinal_;
     const bool anyEnabled = overlayLists_[0].enabled || overlayLists_[1].enabled;
     overlayPassReading_.enabled = anyEnabled;
     if (!worldDiagnosticIsolation_) {
@@ -5301,6 +5356,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         OverlayDrawList& list = overlayLists_[slot];
         if (!list.enabled) return false;
         overlayPassReading_.depth = list.depth;
+        const bool xraySlot = list.depth == OverlayDepthMode::XRay;
+        overlayPassReading_.depthTestEnabled = xraySlot
+          ? overlayXRayDepthTestEnabled_ : overlayDepthTestedDepthTestEnabled_;
+        overlayPassReading_.depthWriteEnabled = xraySlot
+          ? overlayXRayDepthWriteEnabled_ : overlayDepthTestedDepthWriteEnabled_;
         const DirectX::XMMATRIX mvpForOverlay = DirectX::XMLoadFloat4x4(&frameConstants.mvp);
         const bool hasSilhouettes = overlayInstanceBuffer_ && overlayInstanceCount_ > 0
           && !overlayDrawRanges_.empty() && overlayVertexShader_ && overlayPixelShader_
@@ -5429,7 +5489,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
           context_->IASetVertexBuffers(0, 1, &lineBuffer, &lineStride, &lineOffset);
           context_->VSSetShader(overlayLineVertexShader_.Get(), nullptr, 0);
           context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-          context_->Draw(overlayLineVertexCountByDepth_[slot], 0);
+          context_->Draw(overlayLineVertexCountByDepth_[slot], overlayLineStartByDepth_[slot]);
           ++overlayPassReading_.drawCalls;
           overlayPassReading_.vertexCount += overlayLineVertexCountByDepth_[slot];
           overlayPassReading_.lines += overlayLineVertexCountByDepth_[slot] / 2u;
@@ -5447,8 +5507,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                               : worldNoCullRasterizerState_.Get());
     }
-  }
-  ++framePassOrdinal_;
+  };
   if (!worldDiagnosticIsolation_ && projectileVertexBuffer_ && projectileVertexCount_ > 0 && worldVertexShader_ && worldPixelShader_
       && worldInputLayout_ && worldConstants_) {
     const UINT projectileStride = sizeof(WorldVertex), projectileOffset = 0;
@@ -5495,7 +5554,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->VSSetConstantBuffers(1, 1, &modelConstants);
     context_->Draw(modelVertexCount_, 0);
   }
-  ++framePassOrdinal_;
+  // T52: THE OVERLAY IS DRAWN HERE -- pass 6, after the projectile tracks and
+  // before the ViewModel pass clears depth. Passes that are not on the
+  // contract list (the standalone --model diagnostic above) take no ordinal,
+  // or the numbers would drift with a flag nobody set.
+  drawOverlayPass();
   // T21: the depth the frame has after the world, water and entity passes and
   // BEFORE the ViewModel pass clears it (the weapon's own pass clears depth so
   // the weapon draws over the map). Read here because this is the last moment

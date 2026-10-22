@@ -190,6 +190,15 @@ const char* overlayDepthModeName(OverlayDepthMode mode) {
   return "unknown";
 }
 
+const char* overlayPoseSourceName(OverlayPoseSource source) {
+  switch (source) {
+    case OverlayPoseSource::None: return "none";
+    case OverlayPoseSource::World: return "world";
+    case OverlayPoseSource::Bind: return "bind";
+  }
+  return "none";
+}
+
 const char* overlaySnapshotFidelityName(OverlaySnapshotFidelity fidelity) {
   switch (fidelity) {
     case OverlaySnapshotFidelity::Unavailable: return "unavailable";
@@ -285,17 +294,39 @@ std::vector<OverlayEntitySample> sampleOverlayEntities(
     // an entity that names no model -- and is reported as a reason, not as an
     // error.
     std::int64_t modelIndex = 0;
+    bool modelResolved = false;
     if (readIntProperty(state, "m_nModelIndex", modelIndex)
         && modelIndex >= 1 && modelIndex <= 0xffff) {
       const auto found = modelPrecache.find(static_cast<std::uint16_t>(modelIndex));
       if (found != modelPrecache.end() && !found->second.empty()) {
         sample.modelPath = found->second;
         ++counts.modelPathResolved;
+        modelResolved = true;
       } else {
         sample.reason = "modelIndex is not declared in modelprecache";
       }
     } else {
       sample.reason = "no m_nModelIndex slot";
+    }
+    // THE PLAYER-CLASS FALLBACK, and it is not optional on real recordings.
+    // Measured on cp_snakewater (bb841c6d...): every one of 21 sampled players
+    // answers m_iClass, m_iTeamNum and a pose, and none answers m_nModelIndex, so
+    // the join below rejected all 21 as noMesh and the pass drew nothing in 778
+    // consecutive frames. The world pass has answered this question since before
+    // this feature existed -- EntityModelResolver::buildInstances falls back to
+    // defaultPlayerModelPath() and keys it "<path>#class-fallback" -- so the
+    // outline that did not fall back was drawing a DIFFERENT set of players than
+    // the entity pass drew. One question, one answer.
+    if (!modelResolved && sample.isPlayer && sample.hasPlayerClass) {
+      const std::string fallback =
+        EntityModelResolver::defaultPlayerModelPath(sample.playerClass);
+      if (!fallback.empty()) {
+        sample.modelPath = fallback;
+        sample.modelPathFromClass = true;
+        ++counts.modelPathResolved;
+        if (!sample.reason.empty()) sample.reason += "; ";
+        sample.reason += "class fallback model path";
+      }
     }
     if (!sample.hasOrigin) {
       if (!sample.reason.empty()) sample.reason += "; ";
@@ -447,13 +478,15 @@ void OverlayEntityTracker::reset() {
 
 OverlayDrawList buildOutlineDrawList(
     const std::vector<OverlayEntitySample>& samples,
-    const std::vector<std::string>& knownMeshes,
+    const std::vector<std::string>& worldMeshes,
+    const std::vector<std::string>& fallbackMeshes,
     bool enabled,
     OverlayDepthMode depth) {
   OverlayDrawList list;
   list.enabled = enabled;
   list.depth = depth;
-  std::unordered_set<std::string> known(knownMeshes.begin(), knownMeshes.end());
+  const std::unordered_set<std::string> world(worldMeshes.begin(), worldMeshes.end());
+  const std::unordered_set<std::string> fallback(fallbackMeshes.begin(), fallbackMeshes.end());
   for (const auto& sample : samples) {
     if (!sample.present) { ++list.rejectedNotPlayer; continue; }
     // A row that is not a player is counted rather than silently dropped: a
@@ -462,7 +495,37 @@ OverlayDrawList buildOutlineDrawList(
     if (!sample.isPlayer) { ++list.rejectedNotPlayer; continue; }
     if (!enabled) { ++list.rejectedDisabled; continue; }
     if (!sample.hasOrigin) { ++list.rejectedNoOrigin; continue; }
-    if (sample.modelPath.empty() || known.find(sample.modelPath) == known.end()) {
+    // WHICH KEY THE ENTITY PASS ACTUALLY USED, AND WHICH SOURCE ANSWERED.
+    //
+    // Two spellings of one fact: the bare path, and
+    // "<path>#class-fallback" (EntityModelResolver::buildInstances keys the
+    // class fallback that way). Matching only the bare path rejected every
+    // class-fallback player and read exactly like "the model is missing".
+    //
+    // Two SOURCES, and the order is the requirement: world first, bind fallback.
+    // A player the entity pass drew this frame gets the bones of the pose on
+    // screen; a player it did not draw gets the overlay's own bind-pose mesh and
+    // says so. Preferring the bind mesh would silently stop tracking animation
+    // on the day the world pass starts drawing player bodies.
+    std::string meshKey;
+    OverlayPoseSource poseSource = OverlayPoseSource::None;
+    if (!sample.modelPath.empty()) {
+      const std::string classKey = sample.modelPath + "#class-fallback";
+      if (world.find(sample.modelPath) != world.end()) {
+        meshKey = sample.modelPath;
+        poseSource = OverlayPoseSource::World;
+      } else if (world.find(classKey) != world.end()) {
+        meshKey = classKey;
+        poseSource = OverlayPoseSource::World;
+      } else if (fallback.find(classKey) != fallback.end()) {
+        meshKey = classKey;
+        poseSource = OverlayPoseSource::Bind;
+      } else if (fallback.find(sample.modelPath) != fallback.end()) {
+        meshKey = sample.modelPath;
+        poseSource = OverlayPoseSource::Bind;
+      }
+    }
+    if (meshKey.empty()) {
       // The cache key the entity pass would have used. A path that no uploaded
       // mesh answers is rejected here; drawing a fallback quad in team colour
       // would put a coloured square where a player is not.
@@ -475,7 +538,9 @@ OverlayDrawList buildOutlineDrawList(
     item.isPlayer = true;
     item.team = sample.team;
     item.color = overlayTeamColor(sample.team);
-    item.cacheKey = sample.modelPath;
+    item.cacheKey = meshKey;
+    item.poseSource = poseSource;
+    if (poseSource == OverlayPoseSource::World) ++list.poseSourceWorld; else ++list.poseSourceBind;
     item.origin[0] = sample.origin[0];
     item.origin[1] = sample.origin[1];
     item.origin[2] = sample.origin[2];

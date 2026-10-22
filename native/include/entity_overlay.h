@@ -236,6 +236,15 @@ struct OverlayEntitySample {
   // knows it. Empty means "this entity names no model", which is not an error:
   // a player between spawn and its first network update carries none.
   std::string modelPath;
+  // True when modelPath came from the player-class fallback instead of
+  // m_nModelIndex. THE RECORDING THIS FEATURE WAS BUILT ON HAS NO PLAYER
+  // m_nModelIndex AT ALL: 21 of 21 sampled players resolved identity, team,
+  // origin and pose and none resolved a model, so every silhouette was rejected
+  // as "no uploaded mesh" and the pass drew nothing in 778 of 778 frames. The
+  // world pass never had that problem because EntityModelResolver falls back to
+  // the class model; the outline has to answer the same way, and the flag is what
+  // tells the mesh join which cache key to look for.
+  bool modelPathFromClass = false;
   // Why a row is absent or partial, as a stable string for the trace.
   std::string reason;
 };
@@ -459,6 +468,16 @@ enum class OverlayDepthMode : std::uint8_t {
 
 const char* overlayDepthModeName(OverlayDepthMode mode);
 
+// Where a silhouette's MESH came from, printed per draw and counted per list.
+// None means "no mesh answered", which the builder reports as rejectedNoMesh.
+enum class OverlayPoseSource : std::uint8_t {
+  None = 0,
+  World = 1, // the entity pass uploaded and drew this mesh this frame
+  Bind = 2,  // the overlay uploaded it for itself; no bones, bind pose
+};
+
+const char* overlayPoseSourceName(OverlayPoseSource source);
+
 struct OverlayDrawItem {
   OverlayPrimitiveKind kind = OverlayPrimitiveKind::Silhouette;
   // Entity identity the item was built from. Reported by the renderer on the
@@ -467,9 +486,28 @@ struct OverlayDrawItem {
   bool isPlayer = false;
   OverlayTeam team = OverlayTeam::Unknown;
   OverlayColor color{};
-  // Silhouette: the uploaded mesh to draw and where to put it. The skinning
-  // fields are copied from the same instance the entity pass drew, so the
-  // outline follows the pose instead of the bind pose.
+  // Silhouette: the uploaded mesh to draw and where to put it.
+  //
+  // WHERE THE POSE COMES FROM, recorded per item rather than asserted once for
+  // the whole feature (2026-10-22). Two sources exist and they are not
+  // equivalent:
+  //
+  //   World  the mesh the entity pass uploaded FOR THIS FRAME, joined through
+  //          the instance the pass drew, so the skinning fields below are the
+  //          bones of the pose on screen.
+  //   Bind   a mesh the overlay uploaded for itself, as bind-pose triangles.
+  //          There is nothing to skin: the outline stands in a T-pose-ish
+  //          bind pose at the player origin.
+  //
+  // Measured on the reference recording, the second case is the ONLY one that
+  // happens: the entity pass prepares 59 models (`gpu: models done 59
+  // uploaded=59`) and draws 96 instances plus 32 markers, and the string
+  // "models/player" never appears in a 33-second trace -- players have no body
+  // mesh in the world pass at all. The join therefore finds no world mesh and
+  // the overlay falls back to the class model. When that upstream gap is fixed
+  // the sources change by themselves and the counters below go to 0; that is
+  // the reason this is a READING and not a comment.
+  OverlayPoseSource poseSource = OverlayPoseSource::None;
   std::string cacheKey;
   float origin[3] = {0.0f, 0.0f, 0.0f};
   bool hasAngles = false;
@@ -501,6 +539,12 @@ struct OverlayDrawList {
   std::vector<OverlayDrawItem> items;
   // Counters filled by the builder, before the renderer rejects anything.
   std::size_t submittedByTeam[3] = {0, 0, 0};  // indexed by OverlayTeam
+  // Where the submitted silhouettes got their mesh from. These two are the
+  // retirement condition for the overlay's own mesh upload: when the world pass
+  // starts drawing player bodies, poseSourceBind goes to 0 with no code change,
+  // and a gate that asserted "bind > 0" would go red on the day it got better.
+  std::size_t poseSourceWorld = 0;
+  std::size_t poseSourceBind = 0;
   // Why an entity that was sampled is not in items.
   std::size_t rejectedDisabled = 0;
   std::size_t rejectedNoMesh = 0;
@@ -510,13 +554,29 @@ struct OverlayDrawList {
 };
 
 // T52's builder: sampled players -> silhouette items, coloured by team. Pure.
-// knownMeshes is the set of cache keys the renderer has uploaded; an item
-// whose key is absent is counted in rejectedNoMesh and not submitted.
-// enabled == false submits nothing and counts every sampled player in
-// rejectedDisabled -- so the toggle's effect is a count and not an absence.
+//
+// THE MESH SOURCE IS ORDERED, and the order is the whole of requirement (1)
+// from the 2026-10-22 review: the world pass's mesh for THIS FRAME is asked for
+// first, and the overlay's own bind-pose upload is the fallback. It is not the
+// other way round, and it is not "whichever key matches" -- a silhouette that
+// preferred its own bind mesh would silently stop following the animation on
+// the day the world pass started drawing players.
+//
+//   worldMeshes     cache keys the entity pass uploaded and DREW this frame
+//   fallbackMeshes  cache keys the overlay uploaded for itself (bind pose)
+//
+// Both sets are spelled in the two ways the same fact gets written: the bare
+// model path and "<path>#class-fallback", because EntityModelResolver keys the
+// class fallback that way (entity_model.cpp). Whichever set answers, the item
+// carries THE KEY THAT MATCHED -- the renderer looks the mesh up by it.
+//
+// An item whose key is in neither set is counted in rejectedNoMesh and not
+// submitted; enabled == false submits nothing and counts every sampled player in
+// rejectedDisabled, so the toggle's effect is a count and not an absence.
 OverlayDrawList buildOutlineDrawList(
   const std::vector<OverlayEntitySample>& samples,
-  const std::vector<std::string>& knownMeshes,
+  const std::vector<std::string>& worldMeshes,
+  const std::vector<std::string>& fallbackMeshes,
   bool enabled,
   OverlayDepthMode depth);
 
@@ -635,6 +695,14 @@ struct OverlayPassReading {
   bool enabled = false;
   OverlayDepthMode depth = OverlayDepthMode::XRay;
   bool drewThisFrame = false;
+  // The depth state the pass ACTUALLY configured for the list it drew, read
+  // back from the state object it bound rather than repeated from the intent:
+  // x-ray is depth test OFF and depth write OFF, the depth-tested control is
+  // test ON and write OFF. Both halves are published because an "x-ray" list
+  // that writes depth keeps the picture plausible while it changes what every
+  // later pass sees, and no screenshot would show it.
+  bool depthTestEnabled = false;
+  bool depthWriteEnabled = false;
   std::size_t submitted = 0;
   std::size_t drawn = 0;
   std::size_t silhouettes = 0;

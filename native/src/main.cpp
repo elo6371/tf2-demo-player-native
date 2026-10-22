@@ -253,6 +253,15 @@ bool g_debugCamera = false;
 // owner and no other feature may change the flag while it holds the slot, which
 // is what the class enforces rather than documents.
 tf2::native::OverlayToggleState g_overlayToggle;
+// The overlay's OWN mesh source (2026-10-22). The entity pass uploads a mesh
+// per drawn instance and the outline joins against those; measured on the
+// reference recording it uploads 59 models and never one under "models/player",
+// because a player without a demo model path becomes a MARKER in the world pass
+// (setInstances draws=96 markers=32) rather than a body. So the overlay uploads
+// the nine class models itself, under the exact key EntityModelResolver uses for
+// its class fallback, and prefers the world pass's mesh whenever one exists.
+std::vector<std::string> g_overlayBindMeshes;
+// The prepared meshes themselves live next to preparedEntityMeshes, in the scope that uploads them.
 std::size_t g_overlaySampledTicks = 0;
 std::size_t g_overlayFramesWithList = 0;
 // What the last built list contained, as scalars so the trace prints one line
@@ -268,6 +277,13 @@ struct OverlayStats {
   std::size_t lastNoOrigin = 0;
   std::size_t lastDisabled = 0;
   std::size_t lastSamples = 0;
+  // Where the submitted silhouettes got their mesh. Both are printed and both
+  // are asserted: submitted == poseWorld + poseBind is the claim that every
+  // silhouette has a declared pose source, and poseBind is the number that goes
+  // to 0 on the day the world pass draws player bodies -- the overlay's own
+  // mesh upload retires itself instead of needing a patch.
+  std::size_t lastPoseWorld = 0;
+  std::size_t lastPoseBind = 0;
 };
 OverlayStats outlineStats{};
 // The tier is the performance dial; the product default is every tick.
@@ -886,6 +902,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool hiddenWindow = false;
   bool audioDisabled = false;
   bool startPaused = false;
+  // A capture harness pays for every tick it has to play THROUGH to reach the one
+  // it wants: this recording is about 64000 ticks at 66.7 ticks/second, so a
+  // frame pinned near the end costs sixteen minutes of wall clock at 1x, and a
+  // gate that takes ten of them never finishes. The multiplier changes only how
+  // fast the cursor travels -- the captured frame is unchanged, because the
+  // cursor is held AT the requested tick and the scene is resolved from the
+  // recording rather than accumulated frame by frame.
+  double playbackSpeed = 0.0;
+  bool playbackSpeedRejected = false;
   std::filesystem::path metricsPath;
   std::filesystem::path captureFramePath;
   std::filesystem::path dumpEntityMaterialsPath;
@@ -1592,6 +1617,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         audioDisabled = true;
       } else if (wcscmp(arguments[i], L"--start-paused") == 0) {
         startPaused = true;
+      } else if (wcscmp(arguments[i], L"--playback-speed") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const double parsed = std::wcstod(arguments[++i], &end);
+        if (end && *end == L'\0' && parsed > 0.0) playbackSpeed = parsed;
+        else playbackSpeedRejected = true;
+      } else if (wcscmp(arguments[i], L"--playback-speed") == 0) {
+        playbackSpeedRejected = true;
       } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
         metricsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--dump-entity-materials") == 0 && i + 1 < argumentCount) {
@@ -1643,6 +1675,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   if (captureTickRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
+    return 13;
+  }
+  if (playbackSpeedRejected) {
+    // Same rule: a typo that quietly fell back to 1x would turn a bounded capture
+    // run into a sixteen-minute one and the harness would read the timeout as
+    // "the feature is broken".
+    OutputDebugStringW(L"TF2 Demo Player: invalid --playback-speed; expected a positive multiplier.\n");
     return 13;
   }
   if (outlineArgumentRejected) {
@@ -2095,6 +2134,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::size_t textureNamesRead = 0;
   };
   std::vector<PreparedEntityMesh> preparedEntityMeshes;
+  // The overlay's own bind-pose player meshes. Separate list so the world pass's
+  // model count stays the number other tasks read (see the preparation site).
+  std::vector<PreparedEntityMesh> overlayBindMeshes;
   std::unordered_map<std::string, std::string> entityMeshKeyByPath;
   // Paint accounting for the window title: how many prepared models reached a
   // readable VTF, and how many of those became a GPU texture.
@@ -2142,6 +2184,39 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       preparedEntityMeshes.push_back(std::move(prepared));
       if (preparedEntityMeshes.size() >= 64) break;
     }
+    // THE OVERLAY'S OWN MESHES, kept in their OWN list.
+    //
+    // Not appended to preparedEntityMeshes, on purpose: that vector is the world
+    // pass's model set and its size is a reading other tasks assert against
+    // ("gpu: models done 59 uploaded=59"). Adding nine player models to it would
+    // change a number that belongs to someone else while measuring this feature.
+    // They are prepared here, uploaded in the same one-time block as the world
+    // meshes, and counted on their own line.
+    //
+    // Why they exist at all is a reading, not a preference: on the reference
+    // recording the entity pass prepares 59 models and the string "models/player"
+    // appears ZERO times in a 33-second trace while 21 players are sampled per
+    // frame. The outline was written to reuse the world pass's mesh, and on this
+    // recording the world pass has none to reuse. See the report's "what the world
+    // pass does not draw" section; when that is fixed these uploads retire by
+    // themselves (poseSourceBind goes to 0 and a gate that asserted "bind > 0"
+    // would be the thing that had to change).
+    for (auto& request : classRequests) {
+      if (request.inspection.metadata.bindPoseVertices.size() < 3) {
+        std::string meshError;
+        if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)) continue;
+        if (request.inspection.metadata.bindPoseVertices.size() < 3) continue;
+      }
+      PreparedEntityMesh prepared;
+      prepared.path = request.modelPath;
+      prepared.cacheKey = request.modelPath + "#class-fallback";
+      prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
+      prepared.textureSlots = request.inspection.metadata.textureCount;
+      prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
+      overlayBindMeshes.push_back(std::move(prepared));
+    }
+    traceFmt("gpu: overlay meshes prepared=%zu of 9%s", overlayBindMeshes.size(),
+      overlayBindMeshes.empty() ? " (NONE -- the outline has no mesh source and will submit nothing)" : "");
   }
   std::size_t indexedVpkEntries = 0;
   // T32: archives that are ON DISK but could not be opened. Kept apart from an
@@ -3366,6 +3441,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   g_playback.endTick = std::max<std::int32_t>(0, demoHeader.ticks);
   g_playback.tick = 0;
   g_playback.paused = startPaused;
+  if (playbackSpeed > 0.0) {
+    // 64x is the ceiling on purpose: the loop steps ONE tick at a time, so a
+    // larger multiplier only makes each drawn frame span more ticks without
+    // reaching the requested one any sooner.
+    g_playback.speed = std::clamp(playbackSpeed, 0.125, 64.0);
+  }
   g_playback.reverse = false;
   g_playback.tickRate = tf2::native::demoTickRate(demoHeader);
   tf2::native::SoundEventTimeline soundTimeline;
@@ -3374,7 +3455,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   //   * `firstPacketTick` is the SERVER tick origin. Entity history is keyed by
   //     the tick `svc_NetTick` carries, and the signon block's entry tick holds
   //     the server tick at connect, so the first command 1 or 2 entry is the
-  //     right origin for `sceneTick`. Measured here: 29368.
+  //     right origin for `sceneTick`.
+  //     IT IS PER RECORDING, so no number belongs in this comment. It used to say
+  //     "measured here: 29368", which was true of the recording the sentence was
+  //     written on and was read as a constant by the next two readers: the overlay
+  //     probe printed 1 under this name (it was printing
+  //     firstRecordedPacketTick instead) and the outline gate converted the
+  //     prober's ticks with it, producing a capture tick 10128 past the end of
+  //     the recording. cp_snakewater measures 10252 and the product prints it on
+  //     its own "scene: begin tick=0 sceneTick=<n>" line, which is the only
+  //     authority for it.
   //   * `soundOriginTick` is the DEMO ENTRY tick origin, because sound events
   //     are tagged with `entry.tick`. The recorded packets carry their own
   //     counter that starts near zero, so the signon tick is *above* the whole
@@ -4653,6 +4743,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     traceFmt("gpu: models done %zu uploaded=%zu", preparedEntityMeshes.size(),
       entityMaterialUploadedModels);
+    // THE OVERLAY'S OWN MESHES GO IN AFTER the world pass's, and the keys that
+    // actually landed are the only ones the builder is told about: a key whose
+    // upload was refused would be submitted, counted, and drawn from nothing --
+    // "the list is right and the frame is empty", which is mutation m8's defect
+    // arriving by a different road.
+    g_overlayBindMeshes.clear();
+    std::size_t overlayMeshesUploaded = 0;
+    for (const auto& prepared : overlayBindMeshes) {
+      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices)) {
+        traceFmt("gpu: overlay mesh refused key=%s lastError=0x%08lX",
+          prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
+        continue;
+      }
+      g_overlayBindMeshes.push_back(prepared.cacheKey);
+      ++overlayMeshesUploaded;
+    }
+    traceFmt("gpu: overlay meshes prepared=%zu uploaded=%zu%s", overlayBindMeshes.size(),
+      overlayMeshesUploaded,
+      overlayMeshesUploaded == 0 ? " (NONE -- the outline has no mesh source and will submit nothing)" : "");
     traceFmt("gpu: reload-stage stage=models lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedBones = true;
     modelSkinSource = "none";
@@ -5181,17 +5290,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     const auto& pass = renderer.overlayPassReading();
     const bool orderOk = tf2::native::overlayPassOrderValid(
       pass.stageOrdinal, renderer.viewModelPassOrdinal());
-    traceFmt("outline: draw enabled=%d depth=%s drew=%d ordinal=%zu vmOrdinal=%zu orderOk=%d"
+    traceFmt("outline: draw enabled=%d depth=%s depthTest=%d depthWrite=%d drew=%d ordinal=%zu vmOrdinal=%zu orderOk=%d"
       " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
       " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
+      " poseWorld=%zu poseBind=%zu"
       " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s",
       pass.enabled ? 1 : 0, tf2::native::overlayDepthModeName(pass.depth),
+      pass.depthTestEnabled ? 1 : 0, pass.depthWriteEnabled ? 1 : 0,
       pass.drewThisFrame ? 1 : 0, pass.stageOrdinal, renderer.viewModelPassOrdinal(),
       orderOk ? 1 : 0, pass.silhouettes, pass.lines, pass.markers,
       pass.vertexCount, pass.drawCalls,
       outlineStats.lastSubmitted, outlineStats.lastRed, outlineStats.lastBlue,
       outlineStats.lastUnknown, outlineStats.lastNoMesh, outlineStats.lastNoOrigin,
-      outlineStats.lastDisabled, outlineStats.lastSamples, g_overlaySampledTicks,
+      outlineStats.lastDisabled, outlineStats.lastPoseWorld, outlineStats.lastPoseBind,
+      outlineStats.lastSamples, g_overlaySampledTicks,
       g_overlayToggle.presses(), g_overlayToggle.stateChanges(),
       g_overlayToggle.refusedForeignPresses(),
       tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()));
@@ -6737,11 +6849,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
               currentEntityStates, demoNetworkSummary.serverClassSchemas,
               demoNetworkSummary.modelPrecache, tf2::native::OverlayEntityFilter::Players,
               nullptr, nullptr);
-            std::vector<std::string> knownMeshes;
-            knownMeshes.reserve(draws.size());
-            for (const auto& draw : draws) knownMeshes.push_back(draw.cacheKey);
+            // WORLD FIRST, BIND SECOND, and the builder is told which is which
+            // rather than being handed one merged set: the item records the
+            // source, the line prints the split, and a future world pass that
+            // draws player bodies moves every item from bind to world without a
+            // code change here.
+            std::vector<std::string> worldMeshes;
+            worldMeshes.reserve(draws.size());
+            for (const auto& draw : draws) worldMeshes.push_back(draw.cacheKey);
             tf2::native::OverlayDrawList list = tf2::native::buildOutlineDrawList(
-              samples, knownMeshes, g_overlayToggle.enabled(), outlineDepthMode);
+              samples, worldMeshes, g_overlayBindMeshes, g_overlayToggle.enabled(), outlineDepthMode);
             // The pose the silhouettes are drawn at is the pose the MESH was drawn
             // at: the entity pass already resolved a transform per instance, and a
             // second resolution here would be a second answer to "where is
@@ -6766,6 +6883,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             outlineStats.lastNoMesh = list.rejectedNoMesh;
             outlineStats.lastNoOrigin = list.rejectedNoOrigin;
             outlineStats.lastDisabled = list.rejectedDisabled;
+            outlineStats.lastPoseWorld = list.poseSourceWorld;
+            outlineStats.lastPoseBind = list.poseSourceBind;
             outlineStats.lastSamples = samples.size();
             renderer.setOverlayDrawList(list);
             ++g_overlayFramesWithList;
