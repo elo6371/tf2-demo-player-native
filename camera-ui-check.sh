@@ -148,6 +148,28 @@ pvalue() { # pvalue <file> <field> -- first key=value match on one line
   grep -oE "$2=[^ ]*" "$1" 2>/dev/null | head -1 | cut -d= -f2
 }
 
+# --- the launcher: the safety flags are bound here, not remembered per call -----
+# Playbook 2026-10-22 (a capture run leaked audio to the default device): one call
+# site that forgot --audio-disabled made the machine play sound for the whole
+# phase while every automated reading stayed green; the only detector was a human
+# in the next room. So the product is launched through one function that refuses
+# a command line without the two flags. The refusal predicate is separate from the
+# launch so the gate can prove it refuses without starting a product.
+t50_launch_flags_ok() { # <args...>; rc 0 = both safety flags present
+  case " $* " in *" --hidden-window "*) : ;; *) return 99 ;; esac
+  case " $* " in *" --audio-disabled "*) : ;; *) return 99 ;; esac
+  return 0
+}
+run_t50_product() { # <trace-path> <args...>
+  local trace="$1"; shift
+  if ! t50_launch_flags_ok "$@"; then
+    echo "REFUSED: the product was launched without --hidden-window --audio-disabled" >&2
+    return 99
+  fi
+  TF2_NATIVE_TRACE="$trace" timeout -k 5 "$T50_RUN_TIMEOUT" "$EXE" \
+    --tf-root "$TF" --demo "$BAGEL" "$@"
+}
+
 run_e2e() { # run_e2e <prefix> -- one quiet product run with title polling
   local prefix="$1"
   rm -f "$prefix.bmp" "$prefix.trace" "$prefix.driver.txt"
@@ -165,9 +187,13 @@ import time
 exe, timeout_s, bmp, tick, tf, demo, trace = sys.argv[1:8]
 env = dict(os.environ)
 env["TF2_NATIVE_TRACE"] = trace
-proc = subprocess.Popen([exe, "--tf-root", tf, "--demo", demo,
-                         "--hidden-window", "--audio-disabled",
-                         "--capture-frame", bmp, "--capture-tick", tick],
+safety = ["--hidden-window", "--audio-disabled"]
+args = [exe, "--tf-root", tf, "--demo", demo, *safety,
+        "--capture-frame", bmp, "--capture-tick", tick]
+missing = [flag for flag in ("--hidden-window", "--audio-disabled") if flag not in args]
+if missing:
+    sys.exit("REFUSED: the e2e launcher is missing " + " ".join(missing))
+proc = subprocess.Popen(args,
                         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 u32 = ctypes.windll.user32
 
@@ -266,6 +292,37 @@ run_probe_expectations "$OUT/probe.txt" "${E_PROBE[@]}"
 echo "assertions_ok=$ok assertions_bad=$bad"
 assert_eq "probe exit" "$probe_rc" "0"
 if [ "$bad" -ne 0 ]; then fail=1; fi
+
+# --- the launcher guard, before the first product launch ----------------------
+# A guard that has never refused anything is a comment. These two readings are
+# about the gate itself: one calls the predicate on deliberately bad command lines
+# (no product is started), the other reads this file and proves the launcher
+# actually consults the predicate. The red path of the first is a predicate that
+# accepts a missing flag; the red path of the second is deleting the guard call
+# from run_t50_product, which is the mistake this whole helper exists to prevent.
+t50_guard_refusals=0
+t50_guard_accepts=0
+for bad in "--hidden-window" "--audio-disabled"; do
+  if t50_launch_flags_ok "$bad" >/dev/null 2>&1; then
+    t50_guard_accepts=$((t50_guard_accepts + 1))
+  else
+    t50_guard_refusals=$((t50_guard_refusals + 1))
+  fi
+done
+if t50_launch_flags_ok >/dev/null 2>&1; then
+  t50_guard_accepts=$((t50_guard_accepts + 1))
+else
+  t50_guard_refusals=$((t50_guard_refusals + 1))
+fi
+if t50_launch_flags_ok --hidden-window --audio-disabled >/dev/null 2>&1; then
+  t50_guard_accepts=$((t50_guard_accepts + 1))
+else
+  t50_guard_accepts=0
+fi
+assert_eq "the launcher guard refused each missing-flag line and accepted the full one" \
+  "$t50_guard_refusals/$t50_guard_accepts" "3/1"
+assert_eq "run_t50_product consults the guard before launching" \
+  "$(grep -c 'if ! t50_launch_flags_ok "\$@"; then' "$0")" "1"
 
 # --- 2/3 the quiet end-to-end run ---------------------------------------------
 echo
@@ -560,8 +617,7 @@ sed -e "s|__CAPTURE_A__|$cyg_a|" -e "s|__CAPTURE_B__|$cyg_b|" \
   "$T50_SCRIPT" > "$T50_SCRIPT.tmp" && mv "$T50_SCRIPT.tmp" "$T50_SCRIPT"
 
 T50_RUN_TIMEOUT=300
-TF2_NATIVE_TRACE="$cyg_trace" timeout -k 5 "$T50_RUN_TIMEOUT" "$EXE" --tf-root "$TF" \
-  --demo "$BAGEL" --hidden-window --audio-disabled --start-paused \
+run_t50_product "$cyg_trace" --hidden-window --audio-disabled --start-paused \
   --settings-file "$cyg_settings" --camera-script "$(cygpath -m "$PWD/$T50_SCRIPT")" \
   > "$OUT/t50-run.log" 2>&1
 t50_rc=$?
@@ -865,8 +921,7 @@ if [ "$MUTATION" -eq 1 ]; then
     cygb="$(cygpath -m "$PWD/$bmp")"
     sed -e "s|__TRACE__|$cygt|" -e "s|__BMP__|$cygb|" "$T50M/template.script" > "$T50M/$tag.script"
     rm -f "$trace" "$bmp"
-    TF2_NATIVE_TRACE="$cygt" timeout -k 5 "$T50_RUN_TIMEOUT" "$EXE" --tf-root "$TF" \
-      --demo "$BAGEL" --hidden-window --audio-disabled --start-paused \
+    run_t50_product "$cygt" --hidden-window --audio-disabled --start-paused \
       --settings-file "$(cygpath -m "$PWD/$T50M/$tag.settings.ini")" \
       --camera-script "$(cygpath -m "$PWD/$T50M/$tag.script")" \
       > "$T50M/$tag.log" 2>&1
