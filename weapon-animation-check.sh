@@ -234,11 +234,62 @@ esac
 # cleared deliberately rather than silently overlapped.
 mkdir -p .scratch
 LOCK_DIR=.scratch/weapon-animation.lock
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "WEAPON-ANIMATION=FAIL (another weapon-animation-check run owns $LOCK_DIR)"
-  exit 2
+
+# A LOCK NOBODY CAN INTERPRET FAILS FOREVER
+#
+# The comment above says a stale lock "must be cleared deliberately", and on
+# 2026-10-22 nobody did: a run killed at 15:38:53 left this directory behind, and
+# the 24-step acceptance chain failed step 22 five hours later with
+# assertions_ok=0 -- zero assertions executed, because the gate never started.
+# The reading looked like a product failure but nothing about the product had
+# been measured, and the empty lock could not be told apart from a live one.
+#
+# So the lock now records who owns it and when it was born. A lock whose owner
+# pid is gone, or that is older than WEAPON_LOCK_STALE_SECONDS, is removed and the
+# run continues, saying so. A lock whose owner is alive is still honoured, and
+# nothing is ever overlapped silently.
+WEAPON_LOCK_STALE_SECONDS=${WEAPON_LOCK_STALE_SECONDS:-5400}
+take_lock() {
+  mkdir "$LOCK_DIR" 2>/dev/null || return 1
+  { echo "pid=$$"; echo "started=$(date +%s)"; } > "$LOCK_DIR/owner" 2>/dev/null || true
+  return 0
+}
+lock_owner_alive() {
+  local f="$LOCK_DIR/owner" pid
+  [ -f "$f" ] || return 1
+  pid=$(sed -n "s/^pid=//p" "$f" 2>/dev/null | head -1)
+  case "$pid" in ""|*[!0-9]*) return 1 ;; esac
+  kill -0 "$pid" 2>/dev/null # 0 when a process with that pid exists
+}
+if ! take_lock; then
+  now=$(date +%s)
+  born=$(sed -n "s/^started=//p" "$LOCK_DIR/owner" 2>/dev/null | head -1)
+  case "$born" in
+    ""|*[!0-9]*)
+      # No owner file at all -- exactly what the 15:38 lock looked like, because it
+      # predates this change. Fall back to the directory's own mtime; defaulting to
+      # "now" here would have made every pre-existing stale lock look freshly born
+      # and the whole change would have proved nothing.
+      born=$(stat -c %Y "$LOCK_DIR" 2>/dev/null || echo "$now") ;;
+  esac
+  age=$((now - born))
+  if lock_owner_alive; then
+    echo "WEAPON-ANIMATION=FAIL (another weapon-animation-check run owns $LOCK_DIR, owner alive, age=${age}s)"
+    exit 2
+  fi
+  if [ "$age" -ge "$WEAPON_LOCK_STALE_SECONDS" ]; then
+    rm -rf "$LOCK_DIR"
+    echo "WEAPON-LOCK=STALE-REMOVED (no live owner, age=${age}s >= ${WEAPON_LOCK_STALE_SECONDS}s)"
+    if ! take_lock; then
+      echo "WEAPON-ANIMATION=FAIL (could not take $LOCK_DIR even after clearing a stale one)"
+      exit 2
+    fi
+  else
+    echo "WEAPON-ANIMATION=FAIL (no live owner but age=${age}s < ${WEAPON_LOCK_STALE_SECONDS}s; refusing to treat a young lock as stale)"
+    exit 2
+  fi
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 # A mutation run writes into its own directory. It produces the same filenames
 # as the normal run, so sharing one directory would overwrite the committed
