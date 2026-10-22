@@ -4217,6 +4217,72 @@ void Renderer::resetCamera() {
   observerFocusZ_ = 0.25f;
 }
 
+// T50. The three numbers above are the shipped defaults, repeated in
+// camera_director.h as kDefaultCameraYaw/Pitch/Distance/FocusZ so the pure half
+// can reset without linking the renderer. Two spellings of one constant is how
+// they drift, so the product asserts they agree at the call site (main.cpp) and
+// camera_probe pins the director's copies. Read here for the trace as well.
+
+Renderer::OrbitPoseReading Renderer::orbitPose() const {
+  OrbitPoseReading reading;
+  if (!observerFocusValid_) return reading;
+  if (!std::isfinite(observerFocusX_) || !std::isfinite(observerFocusY_)
+      || !std::isfinite(observerFocusZ_) || !std::isfinite(cameraYaw_)
+      || !std::isfinite(cameraPitch_) || !std::isfinite(cameraDistance_)) return reading;
+  reading.valid = true;
+  reading.focusX = observerFocusX_;
+  reading.focusY = observerFocusY_;
+  reading.focusZ = observerFocusZ_;
+  reading.yaw = cameraYaw_;
+  reading.pitch = cameraPitch_;
+  reading.distance = cameraDistance_;
+  reading.demoView = observerDemoView_;
+  reading.fovDegrees = settings_.viewModelFov;
+  return reading;
+}
+
+bool Renderer::setOrbitPose(float focusX, float focusY, float focusZ,
+    float yaw, float pitch, float distance) {
+  if (!std::isfinite(focusX) || !std::isfinite(focusY) || !std::isfinite(focusZ)
+      || !std::isfinite(yaw) || !std::isfinite(pitch) || !std::isfinite(distance)) {
+    return false;
+  }
+  // The same clamps applyCameraPreset applies, so a pose that went through a
+  // bookmark and a pose that went through a preset reach the draw identically.
+  setObserverFocus(std::clamp(focusX, -1.0e6f, 1.0e6f),
+    std::clamp(focusY, -1.0e6f, 1.0e6f), std::clamp(focusZ, -1.0e6f, 1.0e6f));
+  cameraYaw_ = std::remainder(yaw, 6.28318530717958647692f);
+  cameraPitch_ = std::clamp(pitch, 0.25f, 1.45f);
+  cameraDistance_ = std::clamp(distance, 0.8f, 12.0f);
+  return true;
+}
+
+bool Renderer::cameraEyeMapWorld(float& x, float& y, float& z) const {
+  if (observerDemoView_) {
+    // A demo view already stores its eye in the box; convert that one back
+    // rather than reading the demo degrees, so one direction of conversion is
+    // used for both camera kinds.
+    return observerFocusMapWorld(x, y, z);
+  }
+  if (!observerFocusValid_ || !std::isfinite(cameraYaw_) || !std::isfinite(cameraPitch_)
+      || !std::isfinite(cameraDistance_) || !std::isfinite(worldHorizontalScale_)
+      || worldHorizontalScale_ <= 0.0f || !std::isfinite(worldSpanZ_)
+      || worldSpanZ_ <= 0.0f) {
+    return false;
+  }
+  // The orbit eye, computed in the SAME box the view matrix is built from
+  // (draw(): target + (cos yaw cos pitch, sin yaw cos pitch, sin pitch) *
+  // distance) and then converted to map units by the one inverse in this file.
+  const float horizontal = std::cos(cameraPitch_) * cameraDistance_;
+  const float boxX = observerFocusX_ + std::cos(cameraYaw_) * horizontal;
+  const float boxY = observerFocusY_ + std::sin(cameraYaw_) * horizontal;
+  const float boxZ = observerFocusZ_ + std::sin(cameraPitch_) * cameraDistance_;
+  x = (boxX - 0.0f) / worldHorizontalScale_ + worldCenterX_;
+  y = (boxY - 0.0f) / worldHorizontalScale_ + worldCenterY_;
+  z = (boxZ - 0.1f) / 0.8f * worldSpanZ_ + worldMinZ_;
+  return std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
+}
+
 void Renderer::resize(UINT width, UINT height) {
   if (!swapChain_ || width == 0 || height == 0 || (width == width_ && height == height_)) return;
   releaseTarget();

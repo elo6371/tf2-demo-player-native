@@ -9,6 +9,12 @@ namespace tf2::native {
 struct PersistentSettings {
   RenderSettings render;
   std::filesystem::path tfRoot;
+  // T50: the two sections this struct does NOT own but must not destroy. They
+  // live in the same file, and saveSettings rewrites the file through a
+  // temporary, so a writer that only knew [renderer] deleted [camera] and [keys]
+  // on every exit. saveSettings now carries every other section across; this
+  // comment is here so the next reader does not add a third file for the same
+  // reason.
 };
 
 std::filesystem::path settingsPath();

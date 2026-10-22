@@ -82,6 +82,14 @@ add_executable(tf2_demo_native WIN32
   src/settings_store.cpp
   src/item_schema.cpp
   src/native_ui.cpp
+  # T50: the camera director, the named bookmark store and the ONE key table.
+  # In the product rather than only in the probe because the probe has to drive
+  # the same freeze rule and the same [camera]/[keys] file the product writes; a
+  # probe with its own copy would only prove that two copies agree.
+  src/camera_director.cpp
+  src/camera_bookmarks.cpp
+  src/keybinds.cpp
+  src/ini_section.cpp
   # T37: the installer lifecycle (version / install / uninstall) the package was
   # missing. In the product, not only in a probe, because the thing that is
   # installed is the thing that installs: a probe that performed a different
@@ -530,6 +538,18 @@ target_link_libraries(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(native_ui_probe PRIVATE include third_party/lzma)
 set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# T50 camera gate probe. The freeze rule, the bookmark store and the key table
+# are all pure; this probe drives them without a GPU or a demo, which is what
+# lets camera-ui-check.sh assert the pause/bookmark contract on every run.
+add_executable(camera_probe tools/camera_probe.cpp
+  src/camera_director.cpp
+  src/camera_bookmarks.cpp
+  src/keybinds.cpp
+  src/ini_section.cpp)
+target_compile_definitions(camera_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+target_include_directories(camera_probe PRIVATE include)
+set_target_properties(camera_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # P0 entity protocol census probe. Deliberately compiled with the same strict
 # flags as the product target (/W4 /permissive-) so a header change that would

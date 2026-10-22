@@ -699,6 +699,28 @@ public:
   bool clearCameraPreset(std::size_t slot);
   void clearCameraPresets();
   void resetCamera();
+  // T50: the orbit pose as the draw will use it, read from the same members the
+  // view matrix is built from. Before this, a gate could only see the camera in
+  // a frame; the pause/bookmark contract needs the numbers, because "the pose
+  // came back exactly" is a claim a pixel comparison answers with "it looks the
+  // same" and a float comparison answers with "it is the same".
+  struct OrbitPoseReading {
+    bool valid = false;
+    // Focus in the normalized box (what saveCameraPreset stores).
+    float focusX = 0.0f, focusY = 0.0f, focusZ = 0.0f;
+    float yaw = 0.0f, pitch = 0.0f, distance = 0.0f;
+    bool demoView = false;
+    float fovDegrees = 90.0f;
+  };
+  OrbitPoseReading orbitPose() const;
+  // Applies a pose through the same clamps applyCameraPreset uses, without
+  // needing a preset slot. Returns false when the input is not finite.
+  bool setOrbitPose(float focusX, float focusY, float focusZ,
+    float yaw, float pitch, float distance);
+  // The map-space eye and target the next world draw will use, in map units.
+  // The bookmark store keeps the box-space focus; a gate that wants to say "the
+  // camera is where the demo eye is" needs the map-space answer.
+  bool cameraEyeMapWorld(float& x, float& y, float& z) const;
   bool draw(float clearRed, float clearGreen, float clearBlue);
   bool uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   bool uploadWorldGeometry(const BspMap& map, const std::string& texturedMaterial, UINT textureWidth, UINT textureHeight);
