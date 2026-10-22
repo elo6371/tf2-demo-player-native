@@ -1042,7 +1042,10 @@ wait_for_companion_image() { # wait until no product image is still running or r
   deadline=$(( $(date +%s) + 60 ))
   echo "  settling the product image before the mutation half"
   while :; do
-    pid_count=$(ps -W 2>/dev/null | grep -ci 'tf2_demo_native' || true)
+# The COMMAND column only: a grep of the whole ps line also matches any process
+    # whose arguments mention the binary, including the gate that is doing the
+    # waiting. That false positive makes "a product is still alive" always true.
+    pid_count=$(ps -W 2>/dev/null | awk '{print $NF}' | grep -ci 'tf2_demo_native' || true)
     if [ "${pid_count:-0}" -eq 0 ]; then
       # Two consecutive clear readings: "no process" alone is what the forward
       # half's last launch leaves behind for the few seconds Windows still holds
@@ -1062,15 +1065,29 @@ wait_for_companion_image() { # wait until no product image is still running or r
     sleep 0.5
   done
 }
-wait_for_companion_image
-VM_COMPANION_MUT="$OUT/24-viewmodel-companion-mutation.txt"
-VERIFY_ALL_LOCK_HELD=1 VIEWMODEL_COMPANION_TRACE_DIR="$OUT/24-viewmodel-companion-mutation-traces" \
-  bash viewmodel-companion-check.sh --mutation > "$VM_COMPANION_MUT" 2>&1
-tail -12 "$VM_COMPANION_MUT"
-if grep -q 'MUTATION-CAUGHT=PASS' "$VM_COMPANION_MUT"; then
-  echo "VIEWMODEL-COMPANION-MUTATION=PASS (all six proof mutations were caught)"
+# THE WAIT IS A PRECONDITION, NOT A COURTESY (T49.1).
+#   The first version called this and threw the status away, so a product image that
+#   stayed busy for the whole 60 s bound still went on to run the mutation half --
+#   which is exactly the state that produced the original false red (a launch that
+#   cannot exec the image reports Permission denied and every dependent assertion
+#   reads a frame that was never drawn). A wait whose failure is not acted on is
+#   not a guard: it is a delay with a comment. So the mutation half now runs ONLY
+#   when the image actually settled, and a timeout is a named red that skips it.
+#   Skipping is deliberate: a mutation suite run against an unavailable image would
+#   report "not caught" for reasons that have nothing to do with the proof, and a
+#   verdict built from that is worse than no verdict.
+if wait_for_companion_image; then
+  VM_COMPANION_MUT="$OUT/24-viewmodel-companion-mutation.txt"
+  VERIFY_ALL_LOCK_HELD=1 VIEWMODEL_COMPANION_TRACE_DIR="$OUT/24-viewmodel-companion-mutation-traces" \
+    bash viewmodel-companion-check.sh --mutation > "$VM_COMPANION_MUT" 2>&1
+  tail -12 "$VM_COMPANION_MUT"
+  if grep -q 'MUTATION-CAUGHT=PASS' "$VM_COMPANION_MUT"; then
+    echo "VIEWMODEL-COMPANION-MUTATION=PASS (all six proof mutations were caught)"
+  else
+    echo "VIEWMODEL-COMPANION-MUTATION=FAIL (a companion proof mutation was not caught)"; rc_all=1
+  fi
 else
-  echo "VIEWMODEL-COMPANION-MUTATION=FAIL (a companion proof mutation was not caught)"; rc_all=1
+  echo "VIEWMODEL-COMPANION-MUTATION=SKIPPED (the product image did not settle; see the wait above)"; rc_all=1
 fi
 
 printf '\n'

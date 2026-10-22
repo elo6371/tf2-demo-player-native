@@ -273,18 +273,25 @@ VIEWMODEL-COMPANION-MUTATION=PASS (all six proof mutations were caught)
 
 ## 8. 推送记录（2026-10-22）
 
+**验收提交**是 `f3de4b7`——完整链跑在它上面，报告正文与第 5 节的所有读数都
+描述它。**推送的 HEAD** 是 `6b71aeb`，即在验收提交之上加一个只改本文档的提交
+（把本节的读数写进来）。这两个号都不是笔误，区别在此：
+
 | 项 | 值 |
 |---|---|
-| 推送的命令 | `git push origin p0-entity-protocol`，`bc31533..f3de4b7` |
-| `git ls-remote` | `f3de4b737b797b30801035085b0525d83389c87a  refs/heads/p0-entity-protocol` |
-| 本地 HEAD | `f3de4b7`（与远端一致） |
+| 验收提交（链跑在它上面） | `f3de4b737b797b30801035085b0525d83389c87a` |
+| 推送的命令 | `git push origin p0-entity-protocol`，先 `bc31533..f3de4b7`，后 `f3de4b7..6b71aeb` |
+| `git ls-remote`（最终） | `6b71aeb6777a7cf85a2644d6e8ffa46ab473d7f2  refs/heads/p0-entity-protocol` |
+| 本地 HEAD | `6b71aeb`（与远端一致） |
 | ahead/behind | **0 / 0** |
 | 工作树 | 干净（`git status --porcelain` 为空） |
 | `native/` 自 `8f73d0f` | **零改动** |
 | 主机锁 | `FREE`，`product_processes=0` |
 | 残留进程 | 0（产品/编译器/构建工具） |
-| 报告 sha256 | `95e099042419a3fc0998dfe92e2d35e8c3ff105612974c35bc831088d5b53359` |
 | 验收链日志 sha256 | `51eb3c78ca9b4363c3a702d43a54464f507dca41ca2351df39a91a9504c70c76` |
+
+本报告的 sha256 不写死在这里：写下它就会立刻改掉它。要核对就用
+`git show <推送 HEAD>:T49-RELEASE-REPORT-2026-10-22.md | sha256sum`。
 
 推送的提交（在 T44-T48 的合并/证据提交之上）：
 

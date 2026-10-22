@@ -607,9 +607,15 @@ cp "$CAP"/traces/*.trace "$CACHE_PROBE/traces/" 2>/dev/null
 cp "$CAP"/traces/*.identity "$CACHE_PROBE/traces/" 2>/dev/null
 if [ -s "$CACHE_PROBE/traces/world-ids.trace" ]; then
   # Strip exactly the shape that made the T43/T49 matrix stale: the pose line.
-  # Everything else (armed line, capture_written, identity) still says "reuse me".
+  # Everything else -- the armed line, capture_written, and the identity file this
+  # run just wrote -- stays exactly as it is, so the only difference from a
+  # reusable frame is the missing pose. That is what makes the control mean
+  # something: if the identity file were removed too, the frame would be refused
+  # for 'no-identity' and the pose rule would never be exercised (identified on
+  # review after T49: the first version did delete it, so the comment above said
+  # "identity still says reuse me" while the code had just removed it).
   sed -i '/^[0-9.]* scene: camera /d' "$CACHE_PROBE/traces/world-ids.trace"
-  rm -f "$CACHE_PROBE/traces/world-ids.identity"
+  # The identity file is KEPT on purpose; see above.
   PROBE_OUT=$(bash world-geometry-hole-capture.sh --validate "$CACHE_PROBE" 2>&1 || true)
   PROBE_REASON=$(sed -n 's/^VALIDATE world-ids reason=\(.*\)$/\1/p' <<<"$PROBE_OUT")
   echo "  cache control without the pose line: reason=${PROBE_REASON:-none}"

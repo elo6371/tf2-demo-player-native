@@ -115,6 +115,17 @@ fi
 # The flags are recorded as one line and compared as one line, so a switch whose
 # ORDER changes (which changes nothing) still matches and a switch that appears
 # or disappears does not.
+#
+# WHAT `flags=` DOES *NOT* CONTAIN (reviewer question after T49, so it is written
+# down rather than left to be re-derived): the three switches every capture always
+# passes -- --tf-root/--demo/--capture-tick/--capture-frame are input identity and
+# live in their own fields above, --audio-disabled is constant, and
+# --hidden-window is recorded SEPARATELY as window= because `ref` is the one frame
+# that runs WITHOUT it. flags= is therefore only the per-frame switches the matrix
+# varies (--world-water/--world-flat/--world-depth/--world-face-id/--no-world-cull/
+# --no-world-vis-clip/--world-geometry/--world-lightmap/--viewmodel*). A caller that
+# starts passing a new switch gets it recorded automatically, because identity_line
+# takes "$@" verbatim.
 identity_line() { # identity_line <name> <window> <flags...>
   local name="$1" window="$2"; shift 2
   printf 'version=%s\nhead=%s\nexe=%s\ndemo=%s\nmap=%s\ntick=%s\nwindow=%s\nflags=%s\ncaptureScript=%s\n' \

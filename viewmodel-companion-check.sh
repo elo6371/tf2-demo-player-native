@@ -70,9 +70,11 @@ cd "$(dirname "$0")"
 # Arguments
 # ---------------------------------------------------------------------------
 MUTATION=0
+SELFTEST_RETRY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --mutation) MUTATION=1 ;;
+    --selftest-retry) SELFTEST_RETRY=1 ;;
     *) echo "unknown argument: $1"; exit 2 ;;
   esac
   shift
@@ -311,11 +313,6 @@ assert_eq "control model multi-frame sequences" "$(field "$CONTROL_LINE" multiFr
 assert_eq "control widest binding" "$(field "$CONTROL_LINE" maxFrames)" "57"
 assert_ge "the cycle witness has a live sequence" "$(field "$CONTROL_LINE" witness)" "0"
 
-# ---------------------------------------------------------------------------
-# Section 2 -- the proof, on the entity's own model, at three derived ticks
-# ---------------------------------------------------------------------------
-echo
-echo "=== 2/6 the pass draws the entity's own model ==="
 # A BUSY PRODUCT IMAGE IS A HOST STATE, NOT A READING (T49).
 #   Windows keeps an executable's image open until the last handle closes, so a
 #   launch that starts a few seconds after the previous product process exited can
@@ -349,7 +346,13 @@ launch_denied() { # launch_denied <log> -> 0 when the launcher could not exec th
   grep -aqE "failed to run command .*: (Permission denied|No such file or directory)$" "$1" 2>/dev/null
 }
 product_processes() { # product_processes -> number of running product images
-  ps -W 2>/dev/null | grep -ci 'tf2_demo_native' || true
+  # The COMMAND column only, not the whole line. `ps -W | grep tf2_demo_native`
+  # also matches any process whose ARGUMENTS mention the binary -- including this
+  # very script's own launcher line and, as it turned out, the stub the retry
+  # self-test runs, which contains the denial message verbatim. That false positive
+  # made the wait believe a product was alive when none was, and it is why the
+  # self-test's "reported a retry" case read 0 on an otherwise healthy host.
+  ps -W 2>/dev/null | awk '{print $NF}' | grep -ci 'tf2_demo_native' || true
 }
 wait_for_exe() { # wait_for_exe -> 0 when no product image is running any more
   local deadline count
@@ -364,31 +367,192 @@ wait_for_exe() { # wait_for_exe -> 0 when no product image is running any more
     sleep "$EXE_WAIT_INTERVAL"
   done
 }
-run_product() { # run_product <name> <demo> <tick> [extra...]
-  local name="$1" demo="$2" tick="$3"; shift 3
-  local bmp="$TRACE_DIR/$name.bmp"
-  local log="$TRACE_DIR/$name.log"
+
+# ONE LAUNCH, WITH THE RETRY RULE (T49.1). The single-attempt launch that every
+# reading above goes through lives here rather than inline in run_product, because
+# a retry rule that is only reachable from a 90-minute chain run is a rule nobody
+# has ever executed: the T49 review noted exactly that the busy-image retry was
+# never itself tested. --selftest-retry drives THIS function with a stub command,
+# so the code under test is the same code the chain runs.
+#
+# attempt_launch <label> <cmd...> -> sets LAUNCH_RC and LAST_LAUNCH_RETRIED
+#   retries once, and only when the command's own log says the launcher could not
+#   exec the file. The command's stdout+stderr must go to `<label>.log`; the
+#   caller passes the argv, this function decides whether a second attempt happens.
+LAUNCH_DIR=""
+attempt_launch() { # attempt_launch <label> <cmd...>
+  local label="$1"; shift
+  local log="${LAUNCH_DIR:-$TRACE_DIR}/$label.log"
   local attempt waited=0
-  rm -f "$bmp" "$TRACE_DIR/$name.csv"
+  LAST_LAUNCH_RETRIED=0
   for attempt in 1 2; do
-    TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
-      --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$demo" \
-      --settings-file "$TRACE_DIR/$name-settings.ini" \
-      --capture-frame "$bmp" --capture-tick "$tick" \
-      --metrics-file "$TRACE_DIR/$name.csv" \
-      --viewmodel "$VM_MODEL" --viewmodel-fov 90 "$@" > "$log" 2>&1
-    LAST_RC=$?
+    "$@" > "$log" 2>&1
+    LAUNCH_RC=$?
     if launch_denied "$log" && [ "$attempt" -eq 1 ]; then
-      # One retry, after the previous image has actually left the process table.
-      # Repeated at most once: a second denial is reported as the failure it is, so
-      # a permanently unavailable image cannot be papered over by waiting.
       wait_for_exe && waited=1
-      rm -f "$bmp" "$TRACE_DIR/$name.csv"
       continue
     fi
     break
   done
-  [ "$waited" -eq 1 ] && echo "  note: $name retried once after the product image left the process table"
+  LAST_LAUNCH_RETRIED=$waited
+  return "$LAUNCH_RC"
+}
+
+# ---------------------------------------------------------------------------
+# Section 1b -- the retry rule, driven with stubs (--selftest-retry)
+# ---------------------------------------------------------------------------
+# The busy-image retry added in T49 was, on review, never itself executed by
+# anything: the only path to it is a chain run that happens to collide with a
+# product image that is still being released, and a rule that can only fail in
+# production is not a tested rule. This section drives attempt_launch -- the SAME
+# function run_product uses -- with small shell stubs, so what is under test is
+# the code the chain runs, not a copy of it.
+#
+# What is asserted, and why each one has to be here:
+#   deny-then-ok    first attempt writes the launcher's Permission-denied line and
+#                   exits 126; second succeeds. Must end rc=0 with exactly TWO
+#                   attempts. Catches a retry that does not actually retry.
+#   always-deny     every attempt is denied. Must end rc=126 with exactly TWO
+#                   attempts -- one retry, never a loop -- and must take no longer
+#                   than the documented bound. Catches an unbounded retry.
+#   real-failure    the command fails with rc=3 and no launcher line. Must end
+#                   rc=3 with exactly ONE attempt. Catches a retry that fires on
+#                   the exit code instead of on the launcher's own message.
+#   timeout         the wait itself is forced to expire (VIEWMODEL_COMPANION_EXE_WAIT=1
+#                   with a stub that reports a live product process). The retry
+#                   still happens (the rule is "wait, then try once more"), and
+#                   wait_for_exe must return 1 and print its note. Catches a wait
+#                   that silently returns success when it timed out.
+# It runs on EVERY invocation, not behind a flag: a test that only runs when
+# somebody remembers to pass --selftest-retry is not much better than the untested
+# retry it replaces. --selftest-retry exists only to run this section ALONE
+# (skipping the product launches), which is how it is developed and reviewed.
+retry_selftest() {
+  echo
+  echo "=== 1b/6 the retry rule, driven with stubs ==="
+  STUB_DIR=".scratch/companion-retry-selftest"
+  rm -rf "$STUB_DIR"; mkdir -p "$STUB_DIR/traces"
+  LAUNCH_DIR="$STUB_DIR/traces"
+  RETRY_TIMEOUT_SAVED="$EXE_WAIT_TIMEOUT"
+  # HERMETIC: the retry cases must not depend on whether the host happens to have a
+  # product running. The first version ran against the real process table, so a
+  # companion gate running elsewhere on the host made "deny-then-ok" read
+  # reported-a-retry=0 (the wait timed out on a real product instead of settling),
+  # which is a red about the environment and not about the rule. The process count
+  # is stubbed to zero for these three cases and restored before the timeout case,
+  # which needs the opposite.
+  saved_processes="$(declare -f product_processes)"
+  product_processes() { echo 0; }
+  # A stub that writes the launcher's denial line on its first N successful
+  # touches. It counts attempts in a file, so "exactly two attempts" is a fact
+  # about the filesystem and not about the log being overwritten.
+  stub_deny() { # stub_deny <counter> <denials>
+    local counter="$1" denials="$2"
+    local n; n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$counter"
+    if [ "$n" -le "$denials" ]; then
+      printf "timeout: failed to run command 'tf2_demo_native.exe': Permission denied\n"
+      return 126
+    fi
+    echo "stub product ran"
+    return 0
+  }
+  stub_fail() { # a real product failure: no launcher line, own exit code
+    printf "scene: anim ...\nreal product failure\n"
+    return 3
+  }
+
+  # --- denial once, then success ---
+  DENY_COUNTER="$STUB_DIR/denythenok.count"; : > "$DENY_COUNTER"
+  attempt_launch deny-then-ok bash -c "$(declare -f stub_deny); stub_deny '$DENY_COUNTER' 1"
+  DENY_ATTEMPTS=$(cat "$DENY_COUNTER" 2>/dev/null || echo 0)
+  assert_eq "deny-then-ok: outcome" "$LAUNCH_RC" "0"
+  assert_eq "deny-then-ok: attempts" "$DENY_ATTEMPTS" "2"
+  assert_eq "deny-then-ok: reported a retry" "$LAST_LAUNCH_RETRIED" "1"
+
+  # --- denied every time: exactly one retry, then the failure is reported ---
+  ALWAYS_COUNTER="$STUB_DIR/always.count"; : > "$ALWAYS_COUNTER"
+  started=$(date +%s)
+  attempt_launch always-deny bash -c "$(declare -f stub_deny); stub_deny '$ALWAYS_COUNTER' 99"
+  ended=$(date +%s)
+  ALWAYS_ATTEMPTS=$(cat "$ALWAYS_COUNTER" 2>/dev/null || echo 0)
+  assert_eq "always-deny: outcome is the launcher's rc" "$LAUNCH_RC" "126"
+  assert_eq "always-deny: attempts (one retry, not a loop)" "$ALWAYS_ATTEMPTS" "2"
+  if [ $(( ended - started )) -le $(( EXE_WAIT_TIMEOUT + 10 )) ]; then
+    echo "  OK   always-deny: bounded by the wait ($(( ended - started ))s <= ${EXE_WAIT_TIMEOUT}+10s)"
+  else
+    echo "  FAIL always-deny: took $(( ended - started ))s, longer than the bound"
+    fail=1; FAIL_LINES+=("always-deny: unbounded retry")
+  fi
+
+  # --- a real failure must not be retried ---
+  FAIL_COUNTER="$STUB_DIR/realfail.count"; : > "$FAIL_COUNTER"
+  attempt_launch real-failure bash -c "$(declare -f stub_fail); echo x > '$FAIL_COUNTER'; stub_fail"
+  FAIL_ATTEMPTS=$(wc -l < "$FAIL_COUNTER" 2>/dev/null | tr -d ' ')
+  assert_eq "real-failure: outcome" "$LAUNCH_RC" "3"
+  assert_eq "real-failure: attempts (no retry on a real failure)" "${FAIL_ATTEMPTS:-0}" "1"
+  assert_eq "real-failure: reported no retry" "$LAST_LAUNCH_RETRIED" "0"
+
+  # --- the wait bound itself ---
+  # The first version of this case asserted "wait_for_exe fails when asked to time
+  # out", and it failed on review for a good reason: with no product running the
+  # wait CORRECTLY returns success immediately, so the case was asserting the
+  # opposite of the intended behaviour and would have gone red on a healthy host.
+  # The bound is a property of the loop, so the loop's only input -- the process
+  # count -- is what the stub replaces. It replaces it unconditionally rather than
+  # only when the host happens to be idle, so this case runs identically during a
+  # chain and on an idle machine.
+  product_processes() { echo 1; }        # a consumer that never goes away
+  started=$(date +%s)
+  if EXE_WAIT_TIMEOUT=1 EXE_WAIT_INTERVAL=0.2 wait_for_exe; then
+    echo "  FAIL timeout: the wait reported success while the process count was 1"
+    fail=1; FAIL_LINES+=("timeout: wait returned success under contention")
+  else
+    echo "  OK   timeout: the wait gave up after its bound and named the condition"
+  fi
+  ended=$(date +%s)
+  if [ $(( ended - started )) -ge 1 ]; then
+    echo "  OK   timeout: it actually waited ($(( ended - started ))s >= 1s)"
+  else
+    echo "  FAIL timeout: it returned before the bound elapsed ($(( ended - started ))s)"
+    fail=1; FAIL_LINES+=("timeout: returned before its bound")
+  fi
+  # Restore both the process count and the wait parameters the case borrowed.
+  eval "$saved_processes"
+  EXE_WAIT_TIMEOUT="$RETRY_TIMEOUT_SAVED"
+  EXE_WAIT_INTERVAL=0.5
+  echo "  ..   retry self-test complete"
+}
+
+# --selftest-retry runs ONLY this section: no product launch, no capture, so it
+# is usable while another task holds the host lock. Every other invocation runs
+# it as well (right here, before section 2), because a guard that is only
+# exercised on request is the same untested guard this section was added for.
+if [ "$SELFTEST_RETRY" -eq 1 ]; then
+  retry_selftest
+  if [ "$fail" -eq 0 ]; then echo "RETRY-SELFTEST=PASS"; exit 0; fi
+  echo "RETRY-SELFTEST=FAIL"; exit 1
+fi
+retry_selftest
+
+# ---------------------------------------------------------------------------
+# Section 2 -- the proof, on the entity's own model, at three derived ticks
+# ---------------------------------------------------------------------------
+echo
+echo "=== 2/6 the pass draws the entity's own model ==="
+run_product() { # run_product <name> <demo> <tick> [extra...]
+  local name="$1" demo="$2" tick="$3"; shift 3
+  local bmp="$TRACE_DIR/$name.bmp"
+  rm -f "$bmp" "$TRACE_DIR/$name.csv"
+  LAUNCH_DIR="$TRACE_DIR"
+  attempt_launch "$name" \
+    env TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
+      --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$demo" \
+      --settings-file "$TRACE_DIR/$name-settings.ini" \
+      --capture-frame "$bmp" --capture-tick "$tick" \
+      --metrics-file "$TRACE_DIR/$name.csv" \
+      --viewmodel "$VM_MODEL" --viewmodel-fov 90 "$@"
+  LAST_RC=$LAUNCH_RC
+  [ "$LAST_LAUNCH_RETRIED" -eq 1 ] && echo "  note: $name retried once after the product image left the process table"
   load_run "$name"
   echo "  $name rc=$LAST_RC bmp=$(stat -c%s "$bmp" 2>/dev/null || echo 0)"
 }
