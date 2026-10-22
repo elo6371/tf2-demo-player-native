@@ -98,7 +98,28 @@ public:
   // happens before there is a request to hand to import(). Counted in the same
   // tally so "the user clicked import and nothing happened" is a reading.
   void noteDiscoveryRefusal(const std::string& reason);
+
+  // Apply the CLI/UI overrides in ONE place so the precedence rule is written
+  // once instead of in every caller. Order is deliberate and documented at the
+  // definition: import, then reset, then scale, then enabled.
+  struct HudOverrides {
+    bool importRequested = false;
+    std::filesystem::path root;
+    std::string layout;
+    bool resetRequested = false;
+    bool scaleGiven = false;
+    int scalePercent = 100;
+    bool enabledGiven = false;
+    bool enabled = false;
+  };
+  // Returns the result of the last operation that changed anything; NothingToDo
+  // when no field was set.
+  HudApplyResult applyOverrides(const HudOverrides& overrides, int screenWidth,
+    int screenHeight, float dpiScale);
   int refusedImports() const { return refusedImports_; }
+  // The result of the most recent import/overrides application, so a caller can
+  // report "refused" without keeping a second copy of the answer.
+  HudApplyResult lastApply() const { return lastApply_; }
   int acceptedImports() const { return acceptedImports_; }
 
 private:
@@ -108,6 +129,7 @@ private:
   bool imported_ = false;
   HudRefusal lastRefusal_ = HudRefusal::None;
   std::string lastRefusalDetail_;
+  HudApplyResult lastApply_ = HudApplyResult::NothingToDo;
   bool repaired_ = false;
   std::string repairDetail_;
   int refusedImports_ = 0;

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 
 namespace tf2::native {
@@ -49,9 +50,21 @@ std::string upperAscii(std::string text) {
   return text;
 }
 
+// Written by the first caller and read immediately, so a single static buffer is
+// enough: formatChord copies it into the string it returns.
 const char* keyName(unsigned vk) {
   for (const auto& entry : kNamedKeys) {
     if (entry.vk == vk) return entry.name;
+  }
+  // VK_F1..VK_F24 are contiguous, so the function keys are named
+  // arithmetically rather than with 24 more table rows. They must be named at
+  // all: a table that could parse "F5" but printed it as "VK:116" would make
+  // formatChord(parseChord(text)) != text, and the settings file would change
+  // its bytes on every save.
+  if (vk >= static_cast<unsigned>(VK_F1) && vk <= static_cast<unsigned>(VK_F24)) {
+    static thread_local char name[8];
+    std::snprintf(name, sizeof(name), "F%u", vk - static_cast<unsigned>(VK_F1) + 1u);
+    return name;
   }
   return nullptr;
 }
@@ -76,7 +89,11 @@ bool parseKeyName(std::string text, unsigned& vk) {
   for (const auto& entry : kNamedKeys) {
     if (upper == entry.name) { vk = entry.vk; return true; }
   }
-  if (upper.size() >= 3 && upper.size() <= 4 && upper[0] == 'F') {
+  // "F1".."F9" are two characters and "F10".."F24" three, so the length check
+  // is 2..3. Getting this wrong is silent in the worst way: F1..F9 stop parsing,
+  // every default that uses one becomes unbound, and formatChord(parseChord(x))
+  // stops being the identity -- the settings file then rewrites itself.
+  if (upper.size() >= 2 && upper.size() <= 3 && upper[0] == 'F') {
     int number = 0;
     if (parseInt(upper.substr(1), number) && number >= 1 && number <= 24) {
       // The F-key block is contiguous: F1..F24 map to VK_F1 + n - 1.

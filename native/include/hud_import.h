@@ -215,6 +215,11 @@ HudLayout parseHudLayout(const std::string& text, const HudLimits& limits = {});
 
 struct HudScreenRect {
   bool valid = false;
+  // The panel resolved but the document says it is not shown. Kept separate from
+  // `valid` on purpose: "the geometry is wrong" and "the document hid it" are
+  // different findings, and a HUD that reported the second as the first would
+  // look broken when it was following its own instructions.
+  bool visible = true;
   HudRefusal reason = HudRefusal::None;
   int x = 0, y = 0, w = 0, h = 0;
   std::size_t panel = 0;   // index into HudLayout::panels
@@ -228,10 +233,12 @@ struct HudScreenRect {
 std::vector<HudScreenRect> resolveHudRects(const HudLayout& layout, int screenWidth,
   int screenHeight, float dpiScale, int scalePercent);
 
-// The union of every valid rectangle, which is the region a HUD is allowed to
-// own. Outside it the captured frame must be byte-identical to a frame drawn
-// with no HUD at all -- that is the assertion this function exists to make
-// checkable rather than approximate.
+// The union of every VALID and VISIBLE rectangle, which is the region a HUD is
+// allowed to own. Outside it the captured frame must be byte-identical to a
+// frame drawn with no HUD at all -- that is the assertion this function exists
+// to make checkable rather than approximate. An invisible panel contributes
+// nothing: it is not drawn, so excluding its rectangle would hand the pass an
+// alibi it never uses.
 struct HudPixelRect { int x = 0, y = 0, w = 0, h = 0; bool empty = true; };
 HudPixelRect hudUnionRect(const std::vector<HudScreenRect>& rects);
 

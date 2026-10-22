@@ -267,22 +267,33 @@ HudCoord parseHudCoord(const std::string& text) {
 
   char* end = nullptr;
   const char first = value[0];
+  // A bare prefix letter ("c", "r", "f") carries no number. Source tolerates it as
+  // an offset of zero, but accepting it here would make the most likely typo --
+  // a coordinate someone meant to fill in -- resolve to a real position on screen.
+  // Requiring at least one digit after the letter means "c0" is how you say
+  // "centred", and "c" is refused as malformed.
+  const auto numberAfterPrefix = [&](const char* start, double& out) {
+    if (start == nullptr || *start == '\0') return false;
+    end = nullptr;
+    out = std::strtod(start, &end);
+    return end != start && end && *end == '\0';
+  };
 
   if (first == 'c' || first == 'C') {
-    const double number = std::strtod(value.c_str() + 1, &end);
-    if (!end || *end != '\0') return result;
+    double number = 0.0;
+    if (!numberAfterPrefix(value.c_str() + 1, number)) return result;
     result.ok = true; result.unit = HudCoordUnit::Center; result.value = static_cast<float>(number);
     return result;
   }
   if (first == 'r' || first == 'R') {
-    const double number = std::strtod(value.c_str() + 1, &end);
-    if (!end || *end != '\0') return result;
+    double number = 0.0;
+    if (!numberAfterPrefix(value.c_str() + 1, number)) return result;
     result.ok = true; result.unit = HudCoordUnit::Right; result.value = static_cast<float>(number);
     return result;
   }
   if (first == 'f' || first == 'F') {
-    const double number = std::strtod(value.c_str() + 1, &end);
-    if (!end || *end != '\0') return result;
+    double number = 0.0;
+    if (!numberAfterPrefix(value.c_str() + 1, number)) return result;
     result.ok = true; result.unit = HudCoordUnit::Fraction; result.value = static_cast<float>(number);
     return result;
   }
@@ -291,24 +302,24 @@ HudCoord parseHudCoord(const std::string& text) {
   // not model, so resolving it as a plain fraction would be an approximation
   // presented as a fact. Parsed, then refused by name.
   if (first == 'p' || first == 'P') {
-    const double number = std::strtod(value.c_str() + 1, &end);
-    if (!end || *end != '\0') return result;
+    double number = 0.0;
+    if (!numberAfterPrefix(value.c_str() + 1, number)) return result;
     result.ok = false; result.unit = HudCoordUnit::ParentProportional;
     result.value = static_cast<float>(number);
     return result;
   }
 
   if (first == 'o' || first == 'O') {
-    const double number = std::strtod(value.c_str() + 1, &end);
-    if (!end || *end != '\0') return result;
+    double number = 0.0;
+    if (!numberAfterPrefix(value.c_str() + 1, number)) return result;
     // Parsed, then refused by name: "the document uses a form this build does
     // not resolve" and "the document is malformed" are different findings.
     result.ok = false; result.unit = HudCoordUnit::ParentOffset; result.value = static_cast<float>(number);
     return result;
   }
   if (first == 's' || first == 'S') {
-    const double number = std::strtod(value.c_str() + 1, &end);
-    if (!end || *end != '\0') return result;
+    double number = 0.0;
+    if (!numberAfterPrefix(value.c_str() + 1, number)) return result;
     result.ok = false; result.unit = HudCoordUnit::Scaled; result.value = static_cast<float>(number);
     return result;
   }
@@ -398,7 +409,8 @@ std::vector<LayoutToken> tokenizeLayout(const std::string& text, bool& untermina
     if (character == '}') { tokens.push_back({LayoutToken::Kind::Close, "}", line}); ++i; continue; }
     LayoutToken token;
     token.line = line;
-    if (character == '"') {
+    const bool quoted = character == '"';
+    if (quoted) {
       ++i;
       bool closed = false;
       while (i < text.size()) {
@@ -421,7 +433,12 @@ std::vector<LayoutToken> tokenizeLayout(const std::string& text, bool& untermina
         ++i;
       }
     }
-    if (token.value.empty()) continue;
+    // An UNQUOTED empty token cannot happen (the bare-token loop always consumes
+    // at least one character), but a QUOTED empty string can and does: HUD
+    // documents carry "labelText" "" all over the place. Dropping it would make
+    // the next KEY the value of this one and misalign every pair that follows --
+    // which is exactly how the real corpus first failed to parse here.
+    if (token.value.empty() && !quoted) continue;
     tokens.push_back(std::move(token));
   }
   return tokens;
@@ -556,6 +573,16 @@ HudLayout parseHudLayout(const std::string& text, const HudLimits& limits) {
   std::size_t deepest = 1;
   if (!readBlock(filtered, cursor, false, document, 1u, limits, reason, deepest)) {
     layout.reason = reason;
+    // The tokenizer tracks line numbers precisely so a refusal can name one:
+    // "malformed document" is a report, "malformed at line 41" is something a
+    // user can act on. The cursor is the first token the reader could not
+    // consume, which is where the structure broke.
+    if (cursor < filtered.size()) {
+      layout.detail = "line " + std::to_string(filtered[cursor].line);
+    } else {
+      layout.detail = "line " + std::to_string(tokens.empty() ? 0 : tokens.back().line)
+        + " (document ended early)";
+    }
     return layout;
   }
   layout.nestingDepth = deepest;
@@ -573,12 +600,19 @@ HudLayout parseHudLayout(const std::string& text, const HudLimits& limits) {
   // Source places them. The vector order is pre-order, so a parent is always
   // already resolved when its children are reached.
   std::unordered_set<std::string> seenNames;
+  // A stack, with each panel's children pushed in reverse so they are popped in
+  // document order: that makes the visit genuinely PRE-ORDER (a subtree stays
+  // together) rather than breadth-first. Both orders satisfy "a parent is
+  // resolved before its children", but only pre-order matches what a reader of
+  // HudLayout::panels expects and what the probe's ordinals name.
   std::vector<std::pair<const PanelBlock*, int>> pending;   // block, parent index
-  for (const PanelBlock& child : document.children) pending.emplace_back(&child, -1);
+  for (auto child = document.children.rbegin(); child != document.children.rend(); ++child) {
+    pending.emplace_back(&(*child), -1);
+  }
   while (!pending.empty()) {
-    const PanelBlock* block = pending.front().first;
-    const int parent = pending.front().second;
-    pending.erase(pending.begin());
+    const PanelBlock* block = pending.back().first;
+    const int parent = pending.back().second;
+    pending.pop_back();
     if (layout.panels.size() >= limits.maxPanels) {
       layout.reason = HudRefusal::TooManyPanels;
       return layout;
@@ -632,8 +666,11 @@ HudLayout parseHudLayout(const std::string& text, const HudLimits& limits) {
     layout.panels.push_back(std::move(panel));
     // Children are queued AFTER the panel is in the vector, and their parent
     // index is this one, so resolution can read the parent rectangle that this
-    // pre-order visit already produced.
-    for (const PanelBlock& child : block->children) pending.emplace_back(&child, index);
+    // pre-order visit already produced. Reversed for the same reason as above:
+    // the stack pops them in document order.
+    for (auto child = block->children.rbegin(); child != block->children.rend(); ++child) {
+      pending.emplace_back(&(*child), index);
+    }
   }
 
   // A document whose every panel was refused is a refusal, not an empty HUD.
@@ -721,6 +758,12 @@ std::vector<HudScreenRect> resolveHudRects(const HudLayout& layout, int screenWi
     rect.y = top;
     rect.w = right - left;
     rect.h = bottom - top;
+    // Visibility is inherited, like Source's: a child of a hidden panel is
+    // hidden. The geometry is still resolved (a hidden panel is a legal place
+    // for a visible grandchild to live once the parent is shown), but the union
+    // region and the draw list both skip it.
+    rect.visible = panel.visible
+      && (panel.parent < 0 || rects[static_cast<std::size_t>(panel.parent)].visible);
     rects.push_back(rect);
   }
   return rects;
@@ -729,7 +772,10 @@ std::vector<HudScreenRect> resolveHudRects(const HudLayout& layout, int screenWi
 HudPixelRect hudUnionRect(const std::vector<HudScreenRect>& rects) {
   HudPixelRect result;
   for (const HudScreenRect& rect : rects) {
-    if (!rect.valid) continue;
+    // Only pixels this build will actually paint. Counting a hidden panel would
+    // exclude a region from the world comparison that the HUD never touches,
+    // and the assertion is supposed to be tight.
+    if (!rect.valid || !rect.visible) continue;
     if (result.empty) {
       result.x = rect.x; result.y = rect.y; result.w = rect.w; result.h = rect.h;
       result.empty = false;

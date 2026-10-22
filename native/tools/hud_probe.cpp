@@ -318,7 +318,18 @@ int main(int argc, char** argv) {
     std::printf("scale200 ammo=%d,%d,%d,%d childW=%d\n", doubled[3].x, doubled[3].y,
       doubled[3].w, doubled[3].h, doubled[2].w);
     check(doubled[3].w == normal[3].w * 2, "pixel-extent-doubles-at-200");
-    check(doubled[2].w == normal[2].w, "fraction-extent-does-not-double");
+    // The fraction panel is "f0.5" WIDE, i.e. half of its parent. Its parent is a
+    // pixel-anchored panel that doubles at 200%, so the child's pixel width doubles
+    // too -- and that is the correct behaviour, not a bug: a fraction of a bigger
+    // box is a bigger box. What must NOT change is the RATIO. (An earlier version
+    // of this assertion compared the two pixel widths and failed on correct code;
+    // the rule it was trying to state is the ratio, and the ratio is what it now
+    // measures.)
+    const double normalRatio = normal[2].w / static_cast<double>(normal[1].w);
+    const double doubledRatio = doubled[2].w / static_cast<double>(doubled[1].w);
+    std::printf("scale.ratio normal=%.6f doubled=%.6f\n", normalRatio, doubledRatio);
+    check(std::abs(normalRatio - doubledRatio) < 0.01f,
+      "fraction-ratio-does-not-change-with-scale");
   }
   {
     // dpi is folded in exactly like the user scale, because a 150% desktop and a
@@ -357,7 +368,13 @@ int main(int argc, char** argv) {
   // document, so a validator that refuses everything cannot pass this section.
   struct DocCase { const char* label; std::string text; tf2::native::HudRefusal want; };
   std::vector<DocCase> docCases;
-  docCases.push_back({ "missing-document-name", "not-a-name { }\n", tf2::native::HudRefusal::MissingDocumentName });
+  // A document whose first token is a brace has no name. (The earlier fixture here
+  // was "not-a-name { }", which HAS a name and no panels -- it was testing
+  // missing-root-panel and passing its assertion only because the two reasons were
+  // conflated at the time. The probe caught it because the reason it got back did
+  // not match the reason it asked for.)
+  docCases.push_back({ "missing-document-name", "{\n\t\"Root\"\n\t{\n\t}\n}\n",
+    tf2::native::HudRefusal::MissingDocumentName });
   docCases.push_back({ "missing-root-panel", "Resource/UI/X.res\n{\n}\n", tf2::native::HudRefusal::MissingRootPanel });
   docCases.push_back({ "unterminated-comment", std::string("Resource/UI/X.res\n{\n\t/* opened\n"),
     tf2::native::HudRefusal::MalformedKeyValues });
@@ -433,7 +450,8 @@ int main(int argc, char** argv) {
     const auto parsed = tf2::native::parseHudLayout(deep);
     std::printf("nest.deep ok=%d reason=%s panels=%zu\n", parsed.ok ? 1 : 0,
       reasonOf(parsed.reason).c_str(), parsed.panels.size());
-    check(!parsed.ok && parsed.reason == tf2::native::NestingTooDeep, "depth-17-refused");
+    check(!parsed.ok && parsed.reason == tf2::native::HudRefusal::NestingTooDeep,
+      "depth-17-refused");
   }
 
   // =======================================================================
@@ -455,7 +473,10 @@ int main(int argc, char** argv) {
         if (code) break;
         if (!entry.is_regular_file()) continue;
         if (entry.path().extension() != ".res") continue;
-        if (tried >= 24) break;
+        // The whole directory, not a sample: the support-scope document quotes
+        // these counts, and "19 of the first 24 files" is not the same claim as
+        // "N of the whole installed HUD". The cap below is a runaway guard only.
+        if (tried >= 4096) break;
         ++tried;
         const auto read = tf2::native::readHudFile(corpus, entry.path().filename().u8string());
         if (!read.ok) { ++refusedOther; refusedSample.push_back(entry.path().filename().u8string() + ":read:" + reasonOf(read.reason)); continue; }
@@ -463,7 +484,7 @@ int main(int argc, char** argv) {
         if (parsed.ok) { ++imported; continue; }
         if (parsed.reason == tf2::native::HudRefusal::UnsupportedInclude) { ++includes; continue; }
         ++refusedOther;
-        if (refusedSample.size() < 5) {
+        if (refusedSample.size() < 12) {
           refusedSample.push_back(entry.path().filename().u8string() + ":" + reasonOf(parsed.reason));
         }
       }

@@ -49,18 +49,36 @@ EXE=native/build-nmake/tf2_demo_native.exe
 # The absolute path is what every launch uses: a gate that launches through a
 # relative path from inside $(cd ...) is testing the shell, not the product.
 EXE_ABS="$(cygpath -m "$PWD/$EXE")"
+# hud_probe links only hud_import.cpp -- no device, no window, no audio -- so the
+# gates and the probe itself run outside the host lock. The path is the build
+# output, because that is what build-target.sh produces; the fallback is the
+# standalone build this task uses while the lock is held by another task.
 PROBE=native/build-nmake/hud_probe.exe
+[ -x "$PROBE" ] || PROBE=.scratch/probe/hud_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
 OUT="${HUD_CHECK_OUT:-.scratch/hud-check}"
 RUN_TIMEOUT=400
-# A fixed camera in map coordinates and a fixed tick: every capture below is
-# taken at the same pose and the same demo time, so the ONLY thing that varies
-# between the HUD pair is the HUD. --debug-camera freezes the per-frame camera,
-# which is what makes the outside-the-rects comparison meaningful: an observer
-# camera that moved between the two runs would differ everywhere.
+# Tick 0 with --start-paused, on purpose.
+#
+# A mid-demo tick would be the harder-looking choice and the wrong one: the draw
+# cadence is wall clock while the tick cadence is the demo's, so a run "at tick
+# 2000" can draw 2000 in one process and 2002 in the next, and then the two
+# frames differ EVERYWHERE because the camera and the entities moved -- the
+# outside-the-rects comparison would go red for a reason that has nothing to do
+# with the HUD. Tick 0 paused draws whatever the world looks like at the demo's
+# first frame and stays there, so any difference between two captures is a
+# difference the feature made.
+#
+# --debug-camera additionally freezes the per-frame camera in map coordinates:
+# the comparison is between two processes, and a pose that depends on entity
+# state is one more thing that could drift between them.
 CAMERA=(--debug-camera -3498.225 1021.852 1327.843 70.529329 134.999352)
-TICK=2000
+TICK=0
+# The device every run is pinned to, for the same reason the other gates do it:
+# a launch that opens the system default makes noise on the wrong output, and
+# --audio-disabled is checked AFTER the device is chosen.
+AUDIO_DEVICE=6
 
 MUTATION=0
 for arg in "$@"; do
@@ -70,9 +88,11 @@ for arg in "$@"; do
   esac
 done
 
-# Missing input is a failure, not a skip.
+# Missing input is a failure, not a skip. The demo is required because every
+# capture below compares two FRAMES, and a run with no world would make "the HUD
+# did not disturb the world" a statement about a picture with no world in it.
 fail=0
-for path in "$EXE" "$PROBE" "$DEMO"; do
+for path in "$EXE_ABS" "$PROBE" "$DEMO" "$TF"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
 done
 
@@ -123,48 +143,78 @@ mkdir -p "$FIX/good/resource/ui" "$FIX/empty" "$FIX/escape-target" "$FIX/user"
 cat > "$FIX/good/resource/ui/hudlayout.res" <<'RES'
 "Resource/UI/HudLayout.res"
 {
-	"HudRoot"
+	"HealthAnchor"
 	{
 		"controlname"	"EditablePanel"
-		"xpos"			"0"
-		"ypos"			"0"
-		"wide"			"100%"
-		"tall"			"100%"
+		"xpos"			"c-175"
+		"ypos"			"r120"
+		"wide"			"350"
+		"tall"			"80"
 		"visible"		"1"
+		"enabled"		"1"
 
-		"HealthAnchor"
+		"HealthValue"
 		{
-			"controlname"	"EditablePanel"
-			"xpos"			"c-175"
-			"ypos"			"r120"
-			"wide"			"350"
-			"tall"			"80"
+			"controlname"	"CExLabel"
+			"xpos"			"0"
+			"ypos"			"0"
+			"wide"			"f0.5"
+			"tall"			"100%"
+			"labelText"		"%Health%"
+			"textAlignment"	"center"
+			"font"			"ClientTitleFont"
 			"visible"		"1"
-
-			"HealthValue"
-			{
-				"controlname"	"CExLabel"
-				"xpos"			"0"
-				"ypos"			"0"
-				"wide"			"f0.5"
-				"tall"			"100%"
-				"labelText"		"%Health%"
-				"visible"		"1"
-			}
 		}
 
-		"AmmoPanel"
+		"HealthIcon"
 		{
-			"controlname"	"EditablePanel"
-			"xpos"			"r200"
-			"ypos"			"40"
-			"wide"			"200"
+			"controlname"	"ImagePanel"
+			"xpos"			"f0.5"
+			"ypos"			"0"
+			"wide"			"64"
 			"tall"			"64"
+			"image"			"hud/health_icon"
 			"visible"		"1"
 		}
 	}
+
+	"AmmoPanel"
+	{
+		"controlname"	"EditablePanel"
+		"xpos"			"r200"
+		"ypos"			"r160"
+		"wide"			"200"
+		"tall"			"64"
+		"visible"		"1"
+	}
+
+	"Crosshair"
+	{
+		"controlname"	"ImagePanel"
+		"xpos"			"c-4"
+		"ypos"			"c-4"
+		"wide"			"8"
+		"tall"			"8"
+		"image"			"crosshairs/default"
+		"visible"		"1"
+	}
+
+	"HiddenPanel"
+	{
+		"controlname"	"EditablePanel"
+		"xpos"			"10"
+		"ypos"			"10"
+		"wide"			"10"
+		"tall"			"10"
+		"visible"		"0"
+	}
 }
 RES
+# Six panels resolve; five are drawn (HiddenPanel has visible "0" and must be
+# excluded from both the draw list and the union region). The document has NO
+# full-screen root on purpose: a HUD whose union rectangle is the whole client
+# would make the outside-the-rect comparison vacuous, and the assertion this gate
+# exists for would pass while proving nothing.
 
 # The same document with one unsupported coordinate: the import must succeed and
 # report exactly one refused panel, so "it imported" cannot mean "it imported
@@ -236,9 +286,9 @@ echo "$PROBE_RC" > "$OUT/probe.rc"
 cat "$OUT/probe.txt"
 assert_eq "probe exit code" "$PROBE_RC" "0"
 assert_eq "probe self-failures" "$(kv "$OUT/probe.txt" hud_probe.failures)" "0"
-assert_eq "path cases exercised" "$(kv "$OUT/probe.txt" path.cases)" "22"
-assert_eq "path accepted controls" "$(kv "$OUT/probe.txt" path.accepted)" "3"
-assert_eq "path refusals" "$(kv "$OUT/probe.txt" path.refused)" "19"
+assert_eq "path cases exercised" "$(kv "$OUT/probe.txt" path.cases)" "20"
+assert_eq "path accepted controls" "$(kv "$OUT/probe.txt" path.accepted)" "4"
+assert_eq "path refusals" "$(kv "$OUT/probe.txt" path.refused)" "16"
 assert_eq "path wrong" "$(kv "$OUT/probe.txt" path.wrong)" "0"
 assert_eq "coordinate forms parsed" "$(kv "$OUT/probe.txt" coord.parsed)" "12"
 assert_eq "coordinates refused by design" "$(kv "$OUT/probe.txt" coord.refusedByDesign)" "3"
@@ -249,8 +299,19 @@ assert_eq "document refusals by name" "$(kv "$OUT/probe.txt" doc.refusedAsNamed)
 assert_eq "document refusal mismatches" "$(kv "$OUT/probe.txt" doc.wrong)" "0"
 assert_eq "file refusals correct" "$(kv "$OUT/probe.txt" file.correct)" "9"
 assert_eq "file refusal mismatches" "$(kv "$OUT/probe.txt" file.wrong)" "0"
-assert_ge "corpus documents sampled" "$(kv "$OUT/probe.txt" corpus.tried)" "12"
-assert_ge "corpus documents imported" "$(kv "$OUT/probe.txt" corpus.imported)" "8"
+# The corpus is the WHOLE installed directory, so these are absolute counts and
+# not floors: a floor would let the sampler quietly narrow its scope and still
+# pass. If a machine has no TF2 the probe prints corpus=skipped and these are
+# reported as NOT VERIFIED instead of being invented.
+if [ "$(kv "$OUT/probe.txt" corpus)" = "skipped" ]; then
+  echo "  NOT-VERIFIED corpus readings: no TF2 install on this machine"
+  echo "  NOT-VERIFIED owner=t51-hud; next step: run on a machine with tf/custom/m0rehud-5.8"
+else
+  assert_eq "corpus documents sampled" "$(kv "$OUT/probe.txt" corpus.tried)" "102"
+  assert_eq "corpus documents imported" "$(kv "$OUT/probe.txt" corpus.imported)" "71"
+  assert_eq "corpus refused for #base" "$(kv "$OUT/probe.txt" corpus.refusedInclude)" "23"
+  assert_eq "corpus refused for another reason" "$(kv "$OUT/probe.txt" corpus.refusedOther)" "8"
+fi
 echo
 echo "=== 2/8 the product imports the good fixture, and the frame shows it ==="
 # One run per state, all at the same camera and tick. run_hud <name> [args...]
@@ -267,7 +328,7 @@ run_hud() { # run_hud <name> [extra args...]
   # gate reads (and WRITES) whatever the tester had configured, which is the
   # exact defect settings_store.h's override was added for.
   TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout "$RUN_TIMEOUT" "$EXE" \
-    --tf-root "$TF" --audio-disabled --hidden-window \
+    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
     --settings-file "$(cygpath -m "$PWD/$settings")" \
     --ui-settings-file "$(cygpath -m "$PWD/$uisettings")" \
     --demo "$DEMO" --start-paused --capture-tick "$TICK" \
@@ -289,8 +350,9 @@ ON_VALID=$(grep -oE 'hud: rects valid=[0-9]+' "$OUT/hud_on.trace" | tail -1 | se
 ON_UNION=$(grep -oE 'hud: rects .*union=[0-9]+,[0-9]+,[0-9]+,[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*union=//')
 ON_IMPORT=$(grep -oE 'hud: import result=[a-z-]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*=//')
 ON_SCISSOR=$(grep -oE 'hud: draw .*scissor=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*scissor=//')
+ON_REGION=$(grep -oE 'hud: draw .*region=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*region=//')
 echo "  readings: import=$ON_IMPORT panels=$ON_PANELS valid=$ON_VALID union=$ON_UNION"
-echo "  readings: drawnOff=${OFF_DRAWN:-<none>} drawnOn=${ON_DRAWN:-<none>} scissor=${ON_SCISSOR:-<none>}"
+echo "  readings: drawnOff=${OFF_DRAWN:-<none>} drawnOn=${ON_DRAWN:-<none>} scissor=${ON_SCISSOR:-<none>} region=${ON_REGION:-<none>}"
 
 # The default-off half of the contract: a plain capture run draws NO HUD.
 assert_eq "a hud-off run draws nothing" "${OFF_DRAWN:-<none>}" "0"
@@ -299,6 +361,12 @@ assert_eq "the good fixture resolves every panel" "$ON_VALID" "5"
 assert_eq "the drawn rect count equals the resolved count" "$ON_DRAWN" "5"
 assert_eq "the pass scissored itself" "$ON_SCISSOR" "1"
 assert_ne "the HUD owns some pixels" "$ON_UNION" ""
+# The renderer's own drawn region must agree with the resolver's union. They are
+# computed by different code from different inputs (the resolver from the
+# document; the renderer from the rect list it was handed), so agreement is a
+# real cross-check rather than a tautology -- and it is what makes the union
+# rectangle usable as the alibi boundary in step 3.
+assert_eq "the renderer's region matches the resolver's union" "$ON_REGION" "$ON_UNION"
 
 # The import must be readable back as a settings file: the [hud] keys exist and
 # say what the run said.
@@ -451,7 +519,7 @@ PARTIAL_VALID=$(grep -oE 'hud: rects valid=[0-9]+' "$OUT/hud_partial.trace" | ta
 PARTIAL_REFUSED=$(grep -oE 'hud: layout .*refused=[0-9]+' "$OUT/hud_partial.trace" | tail -1 | sed 's/.*refused=//')
 echo "  partial -> result=${PARTIAL_RESULT:-<none>} valid=${PARTIAL_VALID:-<none>} refusedPanels=${PARTIAL_REFUSED:-<none>}"
 assert_eq "a partially unsupported document still imports" "$PARTIAL_RESULT" "applied"
-assert_eq "the partial document keeps four panels" "$PARTIAL_VALID" "4"
+assert_eq "the partial document keeps five panels" "$PARTIAL_VALID" "5"
 assert_eq "the partial document counts one refused panel" "$PARTIAL_REFUSED" "1"
 
 # An oversized file is refused before it is parsed, by the size rule.
@@ -480,7 +548,7 @@ printf "and this\n" > "$HUD_ROOT_MUT/resource/ui/keepme.txt"
 # Import it, then reset it in the same process, then exit: the root must be
 # untouched and the settings must be back to the contract defaults.
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/reset.trace")" timeout "$RUN_TIMEOUT" "$EXE" \
-  --tf-root "$TF" --audio-disabled --hidden-window \
+  --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
   --settings-file "$(cygpath -m "$PWD/$OUT/reset.settings.ini")" \
   --ui-settings-file "$(cygpath -m "$PWD/$OUT/reset.ui.ini")" \
   --demo "$DEMO" --start-paused --capture-tick "$TICK" \
@@ -570,7 +638,7 @@ echo "=== 8/8 a broken HUD is refused, not half-applied ==="
 # mixture: "a failed import cannot leave a half-applied HUD behind" is a property
 # of the commit point in HudState::import.
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/twoimport.trace")" timeout "$RUN_TIMEOUT" "$EXE" \
-  --tf-root "$TF" --audio-disabled --hidden-window \
+  --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
   --settings-file "$(cygpath -m "$PWD/$OUT/twoimport.settings.ini")" \
   --ui-settings-file "$(cygpath -m "$PWD/$OUT/twoimport.ui.ini")" \
   --demo "$DEMO" --start-paused --capture-tick "$TICK" \
@@ -669,8 +737,24 @@ PYEOF
 import sys
 path = sys.argv[1]
 text = open(path, encoding='utf-8').read()
-needle = "  context_->RSSetScissorRects(1, &scissor);\n  hudScissorApplied_ = true;"
-replacement = "  hudScissorApplied_ = true;"
+# The defect: every HUD panel is drawn as a FULL-SCREEN quad instead of inside
+# its own rect. That is the shape of the failure the assertion exists to catch --
+# "the HUD drew over the world" -- and it must make the outside-the-rect
+# comparison go red. A mutation that merely removed the scissor would NOT do
+# that, because the quads already lie inside the rects; the mutation has to
+# change what is drawn, not only how it is clipped.
+needle = (
+    "    const float left = (std::max)(0.0f, rect.left);\n"
+    "    const float top = (std::max)(0.0f, rect.top);\n"
+    "    const float right = (std::min)(static_cast<float>(width_), rect.right);\n"
+    "    const float bottom = (std::min)(static_cast<float>(height_), rect.bottom);"
+)
+replacement = (
+    "    const float left = 0.0f;\n"
+    "    const float top = 0.0f;\n"
+    "    const float right = static_cast<float>(width_);\n"
+    "    const float bottom = static_cast<float>(height_);"
+)
 if needle not in text:
     raise SystemExit("mutation-2 anchor not found")
 open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, replacement, 1))
@@ -682,10 +766,12 @@ PYEOF
     MUT2_BUILD=$?
     run_hud mut2_off
     run_hud mut2_on --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-apply --hud-on
-    MUT2_UNION=$(grep -oE 'hud: rects .*union=[0-9]+,[0-9]+,[0-9]+,[0-9]+' "$OUT/mut2_on.trace" | tail -1 | sed 's/.*union=//')
-    IFS=, read -r MUX MUY MUW MUH <<< "$MUT2_UNION"
+    # The region is the FORWARD run's union rectangle, not the mutated run's:
+    # the claim under test is "outside the region the HUD is supposed to own",
+    # and taking the region from the mutated build would let it widen its own
+    # alibi until the comparison passed by construction.
     MUT2_REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$OUT/mut2_off.bmp")" \
-      "$(cygpath -m "$PWD/$OUT/mut2_on.bmp")" "$MUX" "$MUY" "$((MUX + MUW))" "$((MUY + MUH))")
+      "$(cygpath -m "$PWD/$OUT/mut2_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
     echo "$MUT2_REGION" > "$OUT/mut2.region.txt"
     MUT2_OUTSIDE=$(echo "$MUT2_REGION" | grep '^outsideDiff=' | cut -d= -f2)
     echo "  mutated build rc=$MUT2_BUILD, outsideDiff=${MUT2_OUTSIDE:-<none>} (forward reads 0)"
@@ -699,10 +785,8 @@ PYEOF
       || { echo "  RESTORE-BUILD=FAIL (mutation 2)"; mrc=1; }
     run_hud restored_off
     run_hud restored_on --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-apply --hud-on
-    REST_UNION=$(grep -oE 'hud: rects .*union=[0-9]+,[0-9]+,[0-9]+,[0-9]+' "$OUT/restored_on.trace" | tail -1 | sed 's/.*union=//')
-    IFS=, read -r RUX RUY RUW RUH <<< "$REST_UNION"
     REST_REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$OUT/restored_off.bmp")" \
-      "$(cygpath -m "$PWD/$OUT/restored_on.bmp")" "$RUX" "$RUY" "$((RUX + RUW))" "$((RUY + RUH))")
+      "$(cygpath -m "$PWD/$OUT/restored_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
     REST_OUTSIDE=$(echo "$REST_REGION" | grep '^outsideDiff=' | cut -d= -f2)
     echo "  restored build: outsideDiff=${REST_OUTSIDE:-<none>}"
     if [ "${REST_OUTSIDE:-1}" -eq 0 ]; then

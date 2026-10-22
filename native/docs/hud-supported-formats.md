@@ -28,6 +28,31 @@ and 4240 coordinate strings whose first character is either a digit/sign
 corpus uses a `%` suffix or an `s` (scaled) coordinate, but both are legal
 VGUI and both are handled below.
 
+**What the 102 documents actually do through the parser** (`hud_probe` reads the
+whole directory, not a sample; the readings are in `evidence/hud/probe.txt`):
+
+| outcome | count | why |
+|---|---|---|
+| imported as a layout | **71** | no `#base`, every panel's coordinates resolvable |
+| refused, `unsupported-include` | **23** | they open with `#base` and would render with holes |
+| refused, `unsupported-coordinate` | **7** | `hudalert`, `huddemomancharge`, `hudhealthaccount`, `huditemeffectmeter_action`, `huditemeffectmeter_killstreak`, `hudkillstreaknotice`, `hudteamswitch` — `o`-prefixed coordinates |
+| refused, `missing-root-panel` | **1** | `huddamageaccount_last.res` is an include *fragment*: `"Resource/UI/HudDamageAccount.res" { }`, an empty document that only exists to be `#base`d by `huddamageaccount.res`. Refusing it is correct. |
+
+So the honest headline is **71 of 102 (70%)** of an installed custom HUD's
+documents, and **that is the support scope, not "Source HUD compatible"**. The
+eight refusals that are not includes are all one defect each — an `o`
+coordinate, or a fragment — and every one of them is named rather than
+silently skipped.
+
+Two tokenizer facts the corpus taught, both now covered by fixtures:
+
+- HUD documents carry **quoted empty strings** (`"labelText" ""`) on nearly every
+  text panel. A tokenizer that drops empty tokens turns the next key into this
+  key's value and misaligns every pair after it; that failure was measured here
+  (19 of the first 24 files imported) and fixed by keeping quoted empties.
+- A **bare prefix letter** with no number (`"xpos" "c"`) is a typo, not a zero
+  offset. It is refused as malformed; `"c0"` is how you say "centred".
+
 ### 1.1 The layout documents are the only safe part
 
 A `.res` document is **data**: a tree of quoted strings and numbers. It cannot

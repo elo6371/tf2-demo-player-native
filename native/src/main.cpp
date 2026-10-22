@@ -22,6 +22,9 @@
 #include "native_ui.h"
 #include "hud_import.h"
 #include "hud_state.h"
+// wideToUtf8 / utf8ToWide: the narrow/wide bridge the HUD document path needs,
+// shared with T50's settings layer rather than re-implemented here.
+#include "ini_section.h"
 #include "keybinds.h"
 #include "install_lifecycle.h"
 
@@ -644,6 +647,20 @@ void registerKeybinds(const std::filesystem::path& settingsFile) {
   }
 }
 
+
+// Whether a text field owns the keyboard right now. The focus rule is a property
+// of the UI, and the table asks it rather than guessing: a HUD hotkey that fired
+// while the user was typing a bookmark name would be worse than one that did not
+// fire at all.
+bool isTextFieldFocused() {
+  const HWND focused = GetFocus();
+  if (!focused) return false;
+  wchar_t className[64]{};
+  if (GetClassNameW(focused, className, static_cast<int>(std::size(className))) == 0) return false;
+  return _wcsicmp(className, L"EDIT") == 0 || _wcsicmp(className, L"RichEdit20W") == 0
+    || _wcsicmp(className, L"RichEdit50W") == 0;
+}
+
 // The action a key press maps to, or empty. Modifiers come from GetKeyState
 // rather than the message because WM_KEYDOWN does not carry them.
 std::string hudActionForKey(WPARAM key) {
@@ -803,7 +820,10 @@ void hudApplyRects(HWND window) {
   };
   std::size_t index = 0;
   for (const auto& rect : g_hud.rects()) {
-    if (!rect.valid) { ++index; continue; }
+    // Hidden panels keep their geometry but are not drawn; the index is advanced
+    // anyway so a panel's colour depends on the document, not on which of its
+    // siblings happen to be hidden in this frame.
+    if (!rect.valid || !rect.visible) { ++index; continue; }
     tf2::native::Renderer::HudDrawRect draw;
     draw.left = static_cast<float>(rect.x);
     draw.top = static_cast<float>(rect.y);
@@ -997,10 +1017,17 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       g_nativeUi->command(tf2::native::UiCommand::Reverse);
     } else if (id == kUiHudImport) {
       hudImportInteractive(window);
+      // A HUD command must not fall through to the playback sync below: that
+      // block rewrites g_playback.tick from the demo controller, and "I changed
+      // the HUD and the timeline jumped back" is a bug the user would blame on
+      // the HUD.
+      return 0;
     } else if (id == kUiHudPreview) {
       hudTogglePreview(window);
+      return 0;
     } else if (id == kUiHudReset) {
       hudResetToDefault(window);
+      return 0;
     } else {
       return DefWindowProcW(window, message, wParam, lParam);
     }
@@ -1051,29 +1078,44 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
             || wParam == VK_END
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
-    // T51: the shared hotkey table gets the first look. A bound chord that
-    // dispatches an action ends the message here; anything the table does not
-    // claim falls through to the product's historical key handling below, which
-    // is what keeps this from silently stealing SPACE, P or F1..F8.
+    // T51: the shared hotkey table (contract 1.2) gets the first look.
+    //
+    // Two rules, both from that contract, and both are why this is not simply
+    // "compare the key":
+    //   * the focus rule: while a text field has focus, a plain character key is
+    //     text, not a command. Ctrl/Alt chords still dispatch, because a text
+    //     field does not consume them either. shouldDispatchHotkey() is the
+    //     shared predicate -- the table does not decide it, the UI does.
+    //   * only CHARACTER keys are withheld: an F-key or Home is a command even
+    //     with a field focused, which is what makes the shortcut discoverable.
+    // Anything the table does not claim falls through to the product's historical
+    // key handling below, which is what keeps this from silently stealing SPACE,
+    // P or F1..F8.
     if (g_keybindsLoaded && g_renderer) {
-      const auto action = hudActionForKey(wParam);
-      if (!action.empty()) {
-        traceFmt("hud: keys dispatch action=%s", action.c_str());
-        if (action == "hud.toggle") {
-          g_hud.setEnabled(!g_hud.settings().enabled);
+      const bool textFieldFocused = isTextFieldFocused();
+      const bool characterKey = (wParam >= 'A' && wParam <= 'Z') || (wParam >= '0' && wParam <= '9');
+      if (!tf2::native::shouldDispatchHotkey(textFieldFocused, characterKey)) {
+        g_keybinds.noteSuppressedByFocus();
+        traceFmt("hud: keys suppressed focus=1 key=%u", static_cast<unsigned>(wParam));
+      } else {
+        const auto action = hudActionForKey(wParam);
+        if (!action.empty()) {
+          traceFmt("hud: keys dispatch action=%s", action.c_str());
+          if (action == "hud.toggle") {
+            g_hud.setEnabled(!g_hud.settings().enabled);
+          } else if (action == "hud.preview") {
+            g_hud.setPreview(!g_hud.settings().preview);
+            g_hud.setEnabled(g_hud.settings().preview);
+          } else if (action == "hud.reset") {
+            hudResetToDefault(window);
+          }
+          // One place applies the consequence, so four branches cannot each pick
+          // a different subset of "redraw, update the status line, publish".
           hudApplyRects(window);
           hudUpdateStatus(window);
           hudPublishTrace(window);
-        } else if (action == "hud.preview") {
-          g_hud.setPreview(!g_hud.settings().preview);
-          g_hud.setEnabled(g_hud.settings().preview);
-          hudApplyRects(window);
-          hudUpdateStatus(window);
-          hudPublishTrace(window);
-        } else if (action == "hud.reset") {
-          hudResetToDefault(window);
+          return 0;
         }
-        return 0;
       }
     }
     const bool functionKey = wParam >= VK_F1 && wParam <= VK_F8;
@@ -2015,8 +2057,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       } else if (wcscmp(arguments[i], L"--hud-root") == 0) {
         hudArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--hud-layout") == 0 && i + 1 < argumentCount) {
-        hudLayout = std::string(arguments[++i]);
-        if (hudLayout.empty()) hudArgumentRejected = true;
+        // The document path is stored narrow because that is what HudSettings and
+        // the [hud] settings file carry. A wide value that does not round-trip to
+        // UTF-8 is refused rather than transliterated.
+        if (!tf2::native::wideToUtf8(arguments[++i], hudLayout) || hudLayout.empty()) {
+          hudArgumentRejected = true;
+        }
       } else if (wcscmp(arguments[i], L"--hud-layout") == 0) {
         hudArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--hud-scale") == 0 && i + 1 < argumentCount) {
@@ -4210,29 +4256,41 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     traceFmt("hud: settings-file path=%s status=%s loaded=%d repaired=%d",
       hudSettingsFile.empty() ? "-" : hudSettingsFile.u8string().c_str(),
       settingsStatus.c_str(), hudSettingsFile.empty() ? 0 : 1, g_hud.repaired() ? 1 : 0);
-    if (hudScaleGiven) g_hud.setScalePercent(hudScale);
-    if (hudOnGiven) g_hud.setEnabled(hudOn);
-    if (hudResetRequested) {
-      const auto resetResult = g_hud.resetToDefault();
-      traceFmt("hud: reset result=%s source=cli", tf2::native::hudApplyResultName(resetResult));
-    }
-    if (!hudRoot.empty() || !hudLayout.empty() || hudApplyRequested) {
+    {
+      tf2::native::HudState::HudOverrides overrides;
       std::string detail;
-      std::string layout = hudLayout;
-      if (layout.empty() && !hudRoot.empty()) layout = discoverHudLayout(hudRoot, detail);
-      if (layout.empty()) {
-        traceFmt("hud: import refused reason=missing detail=no-document-in-root");
-        g_hud.noteDiscoveryRefusal("cli-no-document");
-      } else {
-        RECT client{};
-        GetClientRect(window, &client);
-        const float dpiScale = static_cast<float>(GetDpiForWindow(window)) / 96.0f;
-        tf2::native::HudImportRequest request;
-        request.root = hudRoot;
-        request.layout = layout;
-        const auto importResult = g_hud.import(request, client.right, client.bottom, dpiScale);
+      overrides.importRequested = !hudRoot.empty() || !hudLayout.empty() || hudApplyRequested;
+      overrides.root = hudRoot;
+      overrides.layout = hudLayout;
+      if (overrides.importRequested && overrides.layout.empty() && !hudRoot.empty()) {
+        overrides.layout = discoverHudLayout(hudRoot, detail);
+        if (overrides.layout.empty()) {
+          // Nothing to import: recorded as a refusal rather than silently doing
+          // nothing, for the reason the picker path gives.
+          traceFmt("hud: import refused reason=%s detail=no-document-in-root",
+            detail.compare(0, 10, "ambiguous:") == 0 ? "ambiguous-document" : "missing");
+          g_hud.noteDiscoveryRefusal(detail.empty() ? "cli-no-document" : detail);
+          overrides.importRequested = false;
+        }
+      }
+      overrides.resetRequested = hudResetRequested;
+      overrides.scaleGiven = hudScaleGiven;
+      overrides.scalePercent = hudScale;
+      overrides.enabledGiven = hudOnGiven;
+      overrides.enabled = hudOn;
+      RECT client{};
+      GetClientRect(window, &client);
+      const float dpiScale = static_cast<float>(GetDpiForWindow(window)) / 96.0f;
+      const auto overridesResult = g_hud.applyOverrides(overrides,
+        client.right, client.bottom, dpiScale);
+      traceFmt("hud: cli import=%d reset=%d scale=%d enabled=%d result=%s discover=%s",
+        overrides.importRequested ? 1 : 0, hudResetRequested ? 1 : 0,
+        hudScaleGiven ? hudScale : -1, hudOnGiven ? (hudOn ? 1 : 0) : -1,
+        tf2::native::hudApplyResultName(overridesResult),
+        detail.empty() ? "-" : detail.c_str());
+      if (overrides.importRequested) {
         traceFmt("hud: import result=%s document=%s source=cli",
-          tf2::native::hudApplyResultName(importResult), layout.c_str());
+          tf2::native::hudApplyResultName(g_hud.lastApply()), overrides.layout.c_str());
       }
     }
     registerKeybinds(hudSettingsFile);
@@ -7613,6 +7671,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (elapsed >= kTargetFrameSeconds) {
       traceFmt("draw: begin tick=%d frames=%llu", static_cast<int>(g_playback.tick),
         static_cast<unsigned long long>(renderedFrames));
+      // T51: the HUD rectangles are re-resolved against the CURRENT client size on
+      // the frame that is about to be written. WM_SIZE covers a user resize; this
+      // covers the capture path, where a hidden window can bring the first draw at
+      // a different size than the one the import resolved against, and where a
+      // stale rectangle would make the frame comparison measure the wrong region.
+      if (captureArmed && g_renderer) hudApplyRects(window);
       if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
         renderer.requestFrameCapture(captureFramePath.wstring());
         captureArmed = false;
@@ -7659,6 +7723,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
       // Emitted on the frame the capture was requested for, so the readings and
       // the bitmap on disk describe the same frame.
+      // T51: the HUD pass ordinal and drawn-rect count for the frame on disk.
+      // Taken here, after the draw and only on the captured frame, so the reading
+      // and the bitmap describe the same frame -- the same rule the two lines
+      // below follow for the world and the ViewModel.
+      if (captureRequested && g_renderer) {
+        traceFmt("hud: draw drawn=%zu rects=%zu ordinal=%zu scissor=%d region=%d,%d,%d,%d",
+          g_renderer->hudDrawnRects(), g_renderer->hudRectCount(),
+          g_renderer->hudPassOrdinal(), g_renderer->hudScissorApplied() ? 1 : 0,
+          g_renderer->hudLastRegion().x, g_renderer->hudLastRegion().y,
+          g_renderer->hudLastRegion().w, g_renderer->hudLastRegion().h);
+      }
       if (captureRequested) writeViewModelReading();
       // T21: the face trace is taken on the same frame, after the draw. Its
       // screen points are pixels of the bitmap the capture just wrote.
@@ -7793,6 +7868,24 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   persistent.render = renderer.settings();
   if (assets.valid()) persistent.tfRoot = assets.tfDirectory;
   tf2::native::saveSettings(persistent);
+  // T51: the shared hotkey table, as a reading.
+  //
+  // NOTHING IS WRITTEN HERE, and that is a decision rather than an omission.
+  // [keys] is one table shared by two features (contract 1.2) and T50 ships the
+  // editor that rebinds it; a second exit path writing the same section would be
+  // two writers on one file, and a capture-only run would rewrite the tester's
+  // bindings as a side effect of taking a screenshot. T51 registers its three
+  // actions into the table so they are discoverable, dispatches them, and reports
+  // them -- the write stays with the feature that owns the editor.
+  if (g_keybindsLoaded) {
+    traceFmt("hud: keys actions=%zu registered=%d dispatched=%u suppressed=%u conflicts=%u",
+      g_keybinds.actions().size(),
+      (g_keybinds.registered("hud.toggle") && g_keybinds.registered("hud.preview")
+        && g_keybinds.registered("hud.reset")) ? 1 : 0,
+      g_keybinds.dispatchOkCount(), g_keybinds.suppressedByFocusCount(),
+      g_keybinds.conflictCount());
+  }
+
   // T51: the [hud] section is written on the same exit path as [renderer], so a
   // user who imported a HUD and never pressed another button still gets it back
   // next run. A plain capture run writes nothing: hudTouched stays false unless

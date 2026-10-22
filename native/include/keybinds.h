@@ -110,6 +110,13 @@ public:
   // Dispatch, with the reading the trace prints.
   KeyDispatch dispatch(const KeyChord& chord);
 
+  // Records that a keystroke was withheld because a text field owned it. The
+  // focus rule itself lives in shouldDispatchHotkey() -- it is a property of the
+  // UI, not of the table -- but the TABLE keeps the count, so "a focused field
+  // really did swallow keystrokes" is a reading on the same summary line as the
+  // rest of the key statistics.
+  void noteSuppressedByFocus() { ++suppressedByFocus_; }
+
   // Three distinct resets (contract 1.2): one action, every action, no bindings.
   bool resetAction(const std::string& action);
   void resetAll();

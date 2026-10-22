@@ -100,6 +100,7 @@ HudApplyResult HudState::import(const HudImportRequest& request, int screenWidth
     int screenHeight, float dpiScale) {
   lastRefusal_ = HudRefusal::None;
   lastRefusalDetail_.clear();
+  lastApply_ = HudApplyResult::Refused;   // overwritten below only on success
   // The root itself is the user boundary: it may be absolute (it is what the
   // folder picker returned), but it must exist and be a directory. The LAYOUT
   // is the untrusted part and goes through the full relative-path rule.
@@ -147,6 +148,7 @@ HudApplyResult HudState::import(const HudImportRequest& request, int screenWidth
   settings_.enabled = true;
   layout_ = parsed;
   imported_ = true;
+  lastApply_ = HudApplyResult::Applied;
   ++acceptedImports_;
   layoutFor(screenWidth, screenHeight, dpiScale);
   return HudApplyResult::Applied;
@@ -178,6 +180,39 @@ HudApplyResult HudState::resetToDefault() {
   return HudApplyResult::ResetToDefault;
 }
 
+HudApplyResult HudState::applyOverrides(const HudOverrides& overrides, int screenWidth,
+    int screenHeight, float dpiScale) {
+  // WHY THIS ORDER, and why it is here rather than in main.cpp:
+  //
+  //   import, then reset, then scale, then enabled.
+  //
+  // Each step is more specific than the one before, so "--hud-apply --hud-on
+  // --hud-scale 150" means "import this document, then put it at 150%" instead of
+  // "import it and drop the rest". Import must come before enabled for a second
+  // reason too: a successful import sets enabled = true by itself, so a --hud-off
+  // applied BEFORE the import would be silently overridden by the very import the
+  // caller asked for. Writing the order in the state object rather than at the
+  // call site is what keeps the picker, the CLI and the gate applying it the same.
+  HudApplyResult last = HudApplyResult::NothingToDo;
+  if (overrides.importRequested) {
+    HudImportRequest request;
+    request.root = overrides.root;
+    request.layout = overrides.layout;
+    last = import(request, screenWidth, screenHeight, dpiScale);
+  }
+  if (overrides.resetRequested) last = resetToDefault();
+  if (overrides.scaleGiven) {
+    setScalePercent(overrides.scalePercent);
+    layoutFor(screenWidth, screenHeight, dpiScale);
+    last = HudApplyResult::Applied;
+  }
+  if (overrides.enabledGiven) {
+    setEnabled(overrides.enabled);
+    last = HudApplyResult::Applied;
+  }
+  return last;
+}
+
 void HudState::noteDiscoveryRefusal(const std::string& reason) {
   lastRefusal_ = HudRefusal::Missing;
   lastRefusalDetail_ = reason;
@@ -185,8 +220,11 @@ void HudState::noteDiscoveryRefusal(const std::string& reason) {
 }
 
 std::size_t HudState::visiblePanels() const {
+  // "Visible" here means "will be drawn": a resolved rect the document hid is not
+  // one of these, and neither is a hidden panel's child. The distinction is what
+  // the gate's drawn-count assertion compares against, so the two cannot drift.
   std::size_t count = 0;
-  for (const auto& rect : rects_) { if (rect.valid) ++count; }
+  for (const auto& rect : rects_) { if (rect.valid && rect.visible) ++count; }
   return count;
 }
 
