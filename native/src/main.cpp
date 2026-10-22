@@ -764,8 +764,12 @@ void hudPublishTrace(HWND window) {
     g_hud.layout().panels.size(), g_hud.layout().refusedPanels,
     g_hud.layout().nestingDepth, g_hud.layout().unknownKeys,
     g_hud.layout().duplicateNames, g_hud.layout().includeCount);
-  traceFmt("hud: rects valid=%zu invalid=%zu union=%d,%d,%d,%d empty=%d",
-    g_hud.visiblePanels(), g_hud.invalidPanels(),
+  // Three counts, named for what they measure. `resolved` counts geometry that
+  // came out; `visible` counts what will actually be drawn; `invalid` counts the
+  // panels whose geometry failed. Collapsing them is how "it resolved 5 panels"
+  // and "it drew 4" become the same sentence.
+  traceFmt("hud: rects resolved=%zu visible=%zu invalid=%zu union=%d,%d,%d,%d empty=%d",
+    g_hud.resolvedPanels(), g_hud.visiblePanels(), g_hud.invalidPanels(),
     unionRect.x, unionRect.y, unionRect.w, unionRect.h, unionRect.empty ? 1 : 0);
   traceFmt("hud: refuse accepted=%d refused=%d lastReason=%s detail=%s",
     g_hud.acceptedImports(), g_hud.refusedImports(),

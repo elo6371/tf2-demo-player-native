@@ -57,7 +57,13 @@ PROBE=native/build-nmake/hud_probe.exe
 [ -x "$PROBE" ] || PROBE=.scratch/probe/hud_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
-OUT="${HUD_CHECK_OUT:-.scratch/hud-check}"
+# Two directories, for the reason the other gates split them: OUT is the evidence
+# that gets committed (readings, fixtures, the region diff), SCRATCH is the bulk
+# that does not (every captured BMP is ~2.7 MB and four of them are byte-for-byte
+# comparable copies of each other).
+RUN_TAG="$(date +%Y%m%d%H%M%S)-$"
+OUT="${HUD_CHECK_OUT:-evidence/hud}"
+SCRATCH="${HUD_CHECK_SCRATCH:-.scratch/hud-check/$RUN_TAG}"
 RUN_TIMEOUT=400
 # Tick 0 with --start-paused, on purpose.
 #
@@ -103,7 +109,7 @@ for tool in cygpath timeout cmp diff; do
   command -v "$tool" >/dev/null 2>&1 || { echo "FATAL: missing tool: $tool"; exit 1; }
 done
 
-rm -rf "$OUT"; mkdir -p "$OUT"
+mkdir -p "$OUT" "$SCRATCH"
 
 assert_eq() { # assert_eq <label> <actual> <expected>
   if [ "${2:-<none>}" = "$3" ]; then
@@ -318,9 +324,9 @@ echo "=== 2/8 the product imports the good fixture, and the frame shows it ==="
 run_hud() { # run_hud <name> [extra args...]
   local name="$1"; shift
   local trace="$OUT/$name.trace"
-  local bmp="$OUT/$name.bmp"
-  local csv="$OUT/$name.csv"
-  local log="$OUT/$name.log"
+  local bmp="$SCRATCH/$name.bmp"
+  local csv="$SCRATCH/$name.csv"
+  local log="$SCRATCH/$name.log"
   local settings="$OUT/$name.settings.ini"
   local uisettings="$OUT/$name.ui.ini"
   rm -f "$trace" "$bmp" "$csv" "$log" "$settings" "$uisettings"
@@ -346,12 +352,13 @@ assert_eq "hud_on exit code" "$RC_hud_on" "0"
 OFF_DRAWN=$(grep -oE 'hud: draw drawn=[0-9]+' "$OUT/hud_off.trace" | tail -1 | sed 's/.*drawn=//')
 ON_DRAWN=$(grep -oE 'hud: draw drawn=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*drawn=//')
 ON_PANELS=$(grep -oE 'hud: layout .*panels=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*panels=//')
-ON_VALID=$(grep -oE 'hud: rects valid=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*valid=//')
+ON_RESOLVED=$(grep -oE 'hud: rects resolved=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*resolved=//')
+ON_VISIBLE=$(grep -oE 'hud: rects .*visible=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*visible=//')
 ON_UNION=$(grep -oE 'hud: rects .*union=[0-9]+,[0-9]+,[0-9]+,[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*union=//')
 ON_IMPORT=$(grep -oE 'hud: import result=[a-z-]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*=//')
 ON_SCISSOR=$(grep -oE 'hud: draw .*scissor=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*scissor=//')
 ON_REGION=$(grep -oE 'hud: draw .*region=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*region=//')
-echo "  readings: import=$ON_IMPORT panels=$ON_PANELS valid=$ON_VALID union=$ON_UNION"
+echo "  readings: import=$ON_IMPORT panels=$ON_PANELS resolved=$ON_RESOLVED visible=$ON_VISIBLE union=$ON_UNION"
 echo "  readings: drawnOff=${OFF_DRAWN:-<none>} drawnOn=${ON_DRAWN:-<none>} scissor=${ON_SCISSOR:-<none>} region=${ON_REGION:-<none>}"
 
 # The default-off half of the contract: a plain capture run draws NO HUD.
@@ -500,7 +507,7 @@ refusal_case() { # refusal_case <name> <expected-token> [args...]
   assert_eq "$name drew no HUD" "${drawn:-<none>}" "0"
   # The frame must still be a world: a capture that came back blank or as the
   # fallback quad would mean the refusal took the renderer with it.
-  assert_eq "$name still captured a frame" "$([ -s "$OUT/refuse_$name.bmp" ] && echo present || echo absent)" "present"
+  assert_eq "$name still captured a frame" "$([ -s "$SCRATCH/refuse_$name.bmp" ] && echo present || echo absent)" "present"
 }
 
 refusal_case broken      malformed-keyvalues --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-layout "resource/ui/hudbroken.res" --hud-apply --hud-on
@@ -515,11 +522,13 @@ refusal_case missing     missing --hud-root "$(cygpath -m "$PWD/$FIX/good")" --h
 # everything.
 run_hud hud_partial --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-layout "resource/ui/hudpartial.res" --hud-apply --hud-on
 PARTIAL_RESULT=$(grep -oE 'hud: import result=[a-z-]+' "$OUT/hud_partial.trace" | tail -1 | sed 's/.*=//')
-PARTIAL_VALID=$(grep -oE 'hud: rects valid=[0-9]+' "$OUT/hud_partial.trace" | tail -1 | sed 's/.*valid=//')
+PARTIAL_VALID=$(grep -oE 'hud: rects resolved=[0-9]+' "$OUT/hud_partial.trace" | tail -1 | sed 's/.*resolved=//')
 PARTIAL_REFUSED=$(grep -oE 'hud: layout .*refused=[0-9]+' "$OUT/hud_partial.trace" | tail -1 | sed 's/.*refused=//')
 echo "  partial -> result=${PARTIAL_RESULT:-<none>} valid=${PARTIAL_VALID:-<none>} refusedPanels=${PARTIAL_REFUSED:-<none>}"
 assert_eq "a partially unsupported document still imports" "$PARTIAL_RESULT" "applied"
-assert_eq "the partial document keeps five panels" "$PARTIAL_VALID" "5"
+# The fixture's "r200" was replaced by "o3" on ONE panel: the document still
+# resolves five of its six panels and reports exactly one refused.
+assert_eq "the partial document keeps five resolved panels" "$PARTIAL_VALID" "5"
 assert_eq "the partial document counts one refused panel" "$PARTIAL_REFUSED" "1"
 
 # An oversized file is refused before it is parsed, by the size rule.
@@ -626,7 +635,7 @@ echo "=== 7/8 a HUD-off run and its own repeat are byte-identical ==="
 # everywhere, or "identical outside the rect" would be a property of a
 # non-deterministic capture rather than of the HUD.
 run_hud hud_off_repeat
-if cmp -s "$OUT/hud_off.bmp" "$OUT/hud_off_repeat.bmp"; then
+if cmp -s "$SCRATCH/hud_off.bmp" "$SCRATCH/hud_off_repeat.bmp"; then
   echo "  OK   two hud-off captures are byte-identical"
 else
   echo "  FAIL two hud-off captures differ"; fail=1

@@ -87,6 +87,12 @@ public:
   const HudLayout& layout() const { return layout_; }
   const std::vector<HudScreenRect>& rects() const { return rects_; }
   HudPixelRect unionRect() const { return hudUnionRect(rects_); }
+  // Three different questions, three different answers -- they used to share one
+  // counter and a trace line that said "valid=" while printing the visible count.
+  //   resolvedPanels()  geometry resolved (drawable or merely hidden)
+  //   visiblePanels()   resolved AND the document says it is shown: what is drawn
+  //   invalidPanels()   geometry could not be resolved: a refused/zero panel
+  std::size_t resolvedPanels() const;
   std::size_t visiblePanels() const;
   std::size_t invalidPanels() const;
 

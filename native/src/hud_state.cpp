@@ -219,6 +219,12 @@ void HudState::noteDiscoveryRefusal(const std::string& reason) {
   ++refusedImports_;
 }
 
+std::size_t HudState::resolvedPanels() const {
+  std::size_t count = 0;
+  for (const auto& rect : rects_) { if (rect.valid) ++count; }
+  return count;
+}
+
 std::size_t HudState::visiblePanels() const {
   // "Visible" here means "will be drawn": a resolved rect the document hid is not
   // one of these, and neither is a hidden panel's child. The distinction is what
