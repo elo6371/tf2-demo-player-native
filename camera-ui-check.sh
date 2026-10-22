@@ -353,6 +353,23 @@ else
     "$(pvalue "$t50_probe" bookmarkFilePoseExact)" "3"
   assert_eq "T50 deleting a bookmark is durable" \
     "$(pvalue "$t50_probe" bookmarkDeletePersists)" "1"
+  # Two saves of the same bookmarks are byte-identical. That is the property the
+  # two byte-identical captures rest on, and it is a pure-logic fact: if the file
+  # format drifted between two writes, the frames could too.
+  assert_eq "T50 two saves of the same bookmarks are byte-identical" \
+    "$(pvalue "$t50_probe" bookmarkFileStable)" "1"
+  # Re-applying the same bookmark must not change the pose. This is the OTHER
+  # half of the byte-identical capture claim: a jump that nudged the pose by an
+  # epsilon would still draw "the same" frame at one resolution and a different
+  # one at another.
+  assert_eq "T50 re-applying a bookmark changes no pose" \
+    "$(pvalue "$t50_probe" bookmarkJumpStable)" "1"
+  # Free-fly / reset-to-player / reset-view are the three camera operations the
+  # task names; each has a reading so none of them can silently become a no-op.
+  assert_eq "T50 reset-to-player applies exactly once" \
+    "$(pvalue "$t50_probe" resetToPlayer)" "1"
+  assert_eq "T50 reset-view restores every default" \
+    "$(pvalue "$t50_probe" resetView)" "1"
   assert_eq "T50 a corrupt pose is refused, not defaulted" \
     "$(pvalue "$t50_probe" bookmarkCorruptRefused)" "1"
   assert_eq "T50 the chord grammar round-trips" "$(pvalue "$t50_probe" chordRoundTrips)" "13"
@@ -365,6 +382,17 @@ else
     "$(pvalue "$t50_probe" keyDuplicateRefused)" "1"
   assert_eq "T50 a focused text field suppresses hotkeys" \
     "$(pvalue "$t50_probe" keyFocusSuppresses)" "1"
+  # The table is SHARED with T51 (contract 1.2/2): its hud.* actions register
+  # into the same KeyBindTable, and a chord either feature holds is refused for
+  # the other in both directions. Asserted in pure logic because the alternative
+  # is discovering it in a build where two features silently claimed one key.
+  assert_eq "T50 the key table is shared with the HUD actions" \
+    "$(pvalue "$t50_probe" keySharedTable)" "1"
+  assert_eq "T50 a bound key dispatches its action" \
+    "$(pvalue "$t50_probe" keyDispatchOk)" "1"
+  # resetAction / resetAll / unbindAll are three DIFFERENT resets (contract 1.2);
+  # the count is pinned so a later edit cannot merge two of them.
+  assert_eq "T50 the three resets each ran" "$(pvalue "$t50_probe" keyResetCount)" "4"
 fi
 
 echo
@@ -608,6 +636,34 @@ else
     "$(pvalue <(printf "%s\n" "$director_line") bookmarkApplies)" 6
   assert_ge_ok "T50 text-field suppressions were counted" \
     "$(pvalue <(printf "%s\n" "$director_line") focusSuppressed)" 2
+  # The exported binding table, from the product (not from the probe): one
+  # `keys: bind` line per action in the MERGED table. This is the reading a
+  # second feature's gate asserts against, so it is pinned here too -- a line
+  # nothing reads is a line that rots. The prefix is deliberately neutral:
+  # T51's hud.* actions live in the same table, so naming these lines after
+  # one feature would misdescribe the other half.
+  assert_contains "T50 the product exports the binding table" \
+    "$(cat "$T50_TRACE" 2>/dev/null)" "keys: bind action=camera.freeFly chord=F9"
+  assert_contains "T50 the exported table carries the bookmark keys" \
+    "$(cat "$T50_TRACE" 2>/dev/null)" "keys: bind action=camera.bookmark.jump1 chord=F1"
+  assert_contains "T50 the exported table carries the save keys" \
+    "$(cat "$T50_TRACE" 2>/dev/null)" "keys: bind action=camera.bookmark.save1 chord=Ctrl+F1"
+  # After reset-keys every camera action holds its compiled default again, so
+  # the LAST `keys: bind` line for each action must be the default chord. The
+  # Alt+F11 rebind and the unbind both happened earlier in the same run, so a
+  # table that stopped updating would show one of them instead.
+  tail_f9="$(grep -a "keys: bind action=camera.freeFly " "$T50_TRACE" | tail -1)"
+  assert_contains "T50 restore-defaults is visible in the exported table" \
+    "$tail_f9" "chord=F9"
+  tail_f11="$(grep -a "keys: bind action=camera.resetView " "$T50_TRACE" | tail -1)"
+  assert_contains "T50 the rebound action came back to its default" \
+    "$tail_f11" "chord=F11"
+  # The table summary must agree: 27 actions, and the conflict count is a
+  # number (the two refusals the script provoked), not a constant.
+  keys_table="$(grep -a "keys: table " "$T50_TRACE" | tail -1)"
+  assert_contains "T50 the exported table reports its size" "$keys_table" "actions=27"
+  assert_ge_ok "T50 the exported table counted the conflicts" \
+    "$(pvalue <(printf "%s\n" "$keys_table") conflicts)" 2
   # The durable file: the three bookmarks and the [keys] table must be there,
   # and the [renderer] section of an unrelated save must have survived.
   assert_contains "T50 bookmarks persisted" "$(cat "$T50_SETTINGS" 2>/dev/null)" "bookmark3.saved=1"
@@ -784,6 +840,90 @@ conflict camera.resetView F9
 conflict camera.freeFly Ctrl+Shift+F1
 quit
 T50EOF
+
+  # --- M0: the pure-logic mutations -------------------------------------------
+  # These need only camera_probe, not the product: they perturb the module the
+  # assertion names and re-run the probe. Cheap enough to run every time, and
+  # they are the mutations that prove the readings pinned in 1/3 are live.
+
+  echo
+  echo "--- T50-M0a: key names are compared case-sensitively again"
+  t50_backup native/src/keybinds.cpp || t50mrc=1
+  if t50_patch native/src/keybinds.cpp \
+      "    if (nameEquals(upper, entry.name)) { vk = entry.vk; return true; }" \
+      "    if (upper == entry.name) { vk = entry.vk; return true; }"; then
+    if bash build-target.sh camera_probe > "$T50M/m0a.build" 2>&1; then
+      if "$CAMERA_PROBE" > "$T50M/m0a.probe" 2>&1; then
+        echo "  MUTATION-CAUGHT=FAIL (T50-M0a: the probe stayed green on case-sensitive names)"; t50mrc=1
+      else
+        echo "  MUTATION-CAUGHT=PASS (T50-M0a: the probe went red on the round-trip assertion)"
+        grep -a '^FAIL' "$T50M/m0a.probe" | head -3 | sed 's/^/       /'
+      fi
+    else
+      echo "  MUTATION-BUILD=FAIL (T50-M0a)"; tail -5 "$T50M/m0a.build"; t50mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (T50-M0a: the patch did not apply)"; t50mrc=1
+  fi
+  t50_restore_check native/src/keybinds.cpp || t50mrc=1
+
+  echo
+  echo "--- T50-M0b: a frozen pause frame is no longer counted"
+  t50_backup native/src/camera_director.cpp || t50mrc=1
+  if t50_patch native/src/camera_director.cpp \
+      "      } else {
+        ++frozenDemoFrames_;
+      }" \
+      "      } else {
+        // mutation: a frozen frame is no longer counted
+      }"; then
+    if bash build-target.sh camera_probe > "$T50M/m0b.build" 2>&1; then
+      if "$CAMERA_PROBE" > "$T50M/m0b.probe" 2>&1; then
+        echo "  MUTATION-CAUGHT=FAIL (T50-M0b: the probe stayed green with the counter removed)"; t50mrc=1
+      else
+        echo "  MUTATION-CAUGHT=PASS (T50-M0b: the probe went red on the frozen-frame count)"
+        grep -a '^FAIL' "$T50M/m0b.probe" | head -3 | sed 's/^/       /'
+      fi
+    else
+      echo "  MUTATION-BUILD=FAIL (T50-M0b)"; tail -5 "$T50M/m0b.build"; t50mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (T50-M0b: the patch did not apply)"; t50mrc=1
+  fi
+  t50_restore_check native/src/camera_director.cpp || t50mrc=1
+
+  echo
+  echo "--- T50-M0c: conflict detection accepts a duplicate chord"
+  t50_backup native/src/keybinds.cpp || t50mrc=1
+  if t50_patch native/src/keybinds.cpp \
+      "      if (entry.second.current == chord) {" \
+      "      if (false && entry.second.current == chord) {  // mutation: conflicts accepted"; then
+    if bash build-target.sh camera_probe > "$T50M/m0c.build" 2>&1; then
+      if "$CAMERA_PROBE" > "$T50M/m0c.probe" 2>&1; then
+        echo "  MUTATION-CAUGHT=FAIL (T50-M0c: the probe stayed green with conflicts accepted)"; t50mrc=1
+      else
+        echo "  MUTATION-CAUGHT=PASS (T50-M0c: the probe went red on the conflict assertions)"
+        grep -a '^FAIL' "$T50M/m0c.probe" | head -4 | sed 's/^/       /'
+      fi
+    else
+      echo "  MUTATION-BUILD=FAIL (T50-M0c)"; tail -5 "$T50M/m0c.build"; t50mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (T50-M0c: the patch did not apply)"; t50mrc=1
+  fi
+  t50_restore_check native/src/keybinds.cpp || t50mrc=1
+
+  # The control: all three restored, the probe must be green again. Without this
+  # the three PASS lines above would also be produced by a probe that fails for
+  # an unrelated reason.
+  bash build-target.sh camera_probe > "$T50M/m0.restore.build" 2>&1 \
+    || { echo "  RESTORE-BUILD=FAIL (T50-M0)"; t50mrc=1; }
+  if "$CAMERA_PROBE" > "$T50M/m0.control.probe" 2>&1; then
+    echo "  MUTATION-CONTROL=PASS (the restored tree runs the probe green again)"
+  else
+    echo "  MUTATION-CONTROL=FAIL (the restored tree still fails)"; t50mrc=1
+    grep -a '^FAIL' "$T50M/m0.control.probe" | head -5 | sed 's/^/       /'
+  fi
 
   echo
   echo "--- T50-M1: the demo tick advances while paused"

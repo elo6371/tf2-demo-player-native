@@ -8187,17 +8187,31 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       g_cameraBookmarks.savedCount(), tf2::native::kCameraBookmarkSlots,
       g_cameraBookmarks.saveCount(), g_cameraBookmarks.deleteCount(),
       g_cameraBookmarks.jumpCount(), g_cameraBookmarks.refusedCount());
-    traceFmt("camera: keys actions=%zu sets=%u conflicts=%u resets=%u dispatched=%u"
-      " unbound=%u last=%s",
+    // Counters for the WHOLE shared table, so the same neutral prefix. The
+    // action count in a merged build includes T51's three, and a gate that
+    // pinned an exact 27 here would go red the moment the two features met --
+    // a green gate that turns red on a CORRECT merge is worse than no
+    // assertion, so the count is reported rather than pinned, and the pinned
+    // 27 lives in camera_probe against the camera-only table.
+    traceFmt("keys: table actions=%zu sets=%u conflicts=%u resets=%u dispatched=%u"
+      " unbound=%u suppressed=%u last=%s",
       g_keyBinds.actions().size(), g_keyBinds.setCount(), g_keyBinds.conflictCount(),
       g_keyBinds.resetCount(), g_keyBinds.dispatchOkCount(),
-      g_keyBinds.dispatchUnboundCount(),
+      g_keyBinds.dispatchUnboundCount(), g_keyBinds.suppressedByFocusCount(),
       g_lastDispatchedAction.empty() ? "-" : g_lastDispatchedAction.c_str());
     // Every action and the chord it currently holds, one line per action. A
     // gate that has to prove "the binding a user set is the one that fires"
     // needs the table, not a summary of it.
+    //
+    // The prefix is `keys:`, NOT `camera:`, because this table is shared
+    // (contract 1.2/2): T51's hud.* actions live in it too, so a line named
+    // after one of the two features would be a lie for the other's rows. The
+    // action id identifies a row -- a reader filters on that, not on the
+    // prefix. This is the reading a second feature's gate should assert
+    // against: the MERGED table, which is exactly where two features could
+    // disagree about who owns a key.
     for (const auto& action : g_keyBinds.actions()) {
-      traceFmt("camera: bind action=%s chord=%s", action.c_str(),
+      traceFmt("keys: bind action=%s chord=%s", action.c_str(),
         tf2::native::formatChord(g_keyBinds.actionKey(action)).c_str());
     }
     for (std::size_t slot = 1; slot <= tf2::native::kCameraBookmarkSlots; ++slot) {
