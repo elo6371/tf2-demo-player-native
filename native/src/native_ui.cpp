@@ -29,7 +29,14 @@ bool pathExists(const std::filesystem::path& path) {
   return !path.empty() && std::filesystem::exists(path, error) && !error;
 }
 
-std::filesystem::path uiSettingsPath() {
+// Empty means "the user's real ui.ini". Set by setUiSettingsFileOverride, which
+// exists for the same reason settings_store.h's override does: a gate whose
+// expected value came out of %LOCALAPPDATA% is reading the machine, not the
+// build -- and it would be WRITING the machine too.
+std::filesystem::path g_uiSettingsFileOverride;
+
+std::filesystem::path computeUiSettingsPath() {
+  if (!g_uiSettingsFileOverride.empty()) return g_uiSettingsFileOverride;
   wchar_t* value = nullptr;
   std::size_t length = 0;
   if (_wdupenv_s(&value, &length, L"LOCALAPPDATA") != 0 || !value) return {};
@@ -39,6 +46,8 @@ std::filesystem::path uiSettingsPath() {
   std::filesystem::create_directories(path.parent_path(), error);
   return error ? std::filesystem::path{} : path;
 }
+
+
 
 void writeUiInt(const std::filesystem::path& path, const wchar_t* key, int value) {
   wchar_t buffer[32]{};
@@ -71,6 +80,21 @@ void loadUiSettings(UiSettings& settings) {
 }
 
 } // namespace
+
+// The public entry point, outside the anonymous namespace on purpose: main.cpp
+// needs it to write [hud], and a second anonymous-namespace definition would
+// shadow this declaration and link-fail instead of telling anyone why.
+std::filesystem::path uiSettingsPath() { return computeUiSettingsPath(); }
+
+void setUiSettingsFileOverride(const std::filesystem::path& file) {
+  g_uiSettingsFileOverride = file;
+  // The directory must exist before anything writes into it, and the override is
+  // the one case where "the parent is there" cannot be assumed.
+  if (!file.empty()) {
+    std::error_code error;
+    std::filesystem::create_directories(file.parent_path(), error);
+  }
+}
 
 NativeUiController::NativeUiController() {
   loadUiSettings(settings_);
@@ -601,6 +625,50 @@ bool uiRectsOverlap(const UiRect& a, const UiRect& b) {
     && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
+UiHudLayoutPlan planHudLayout(const UiLayoutPlan& base, int clientWidth,
+    int clientHeight, float dpiScale) {
+  UiHudLayoutPlan plan;
+  if (!base.valid || clientWidth <= 0 || clientHeight <= 0 || !(dpiScale > 0.0f)
+      || !std::isfinite(dpiScale)) {
+    return plan;
+  }
+  plan.valid = true;
+  // The row sits below the lowest base rect. Taking the maximum over every rect
+  // rather than adding a constant to Timeline is what keeps this correct when
+  // T50 adds ids of its own: the HUD row follows whatever is lowest, not what
+  // the base plan happened to look like on the day this was written.
+  int lowest = 0;
+  for (const auto& rect : base.rects) {
+    const int bottom = rect.y + rect.h;
+    if (bottom > lowest) lowest = bottom;
+  }
+  const int margin = scaleDimension(16, dpiScale);
+  const int gap = scaleDimension(6, dpiScale);
+  int y = lowest + gap;
+  const int h = scaleDimension(30, dpiScale);
+  if (y > clientHeight) y = clientHeight;
+  const int heights = (std::min)(h, (std::max)(0, clientHeight - y));
+  // Widths at 96 dpi: import button, preview toggle, scale slider, reset, then a
+  // status line that takes whatever is left of the row.
+  const int widths[static_cast<std::size_t>(UiHudControlId::Count)] = {
+    scaleDimension(130, dpiScale), scaleDimension(120, dpiScale),
+    scaleDimension(160, dpiScale), scaleDimension(140, dpiScale), 0,
+  };
+  int x = margin;
+  for (int index = 0; index < static_cast<int>(UiHudControlId::Count); ++index) {
+    auto& rect = plan.rects[static_cast<std::size_t>(index)];
+    const int cx = (std::min)(x, clientWidth);
+    const int room = (std::max)(0, clientWidth - margin - cx);
+    rect.x = cx;
+    rect.y = y;
+    rect.h = heights;
+    const bool isStatus = index == static_cast<int>(UiHudControlId::Status);
+    const int wanted = isStatus ? room : widths[index];
+    rect.w = (std::clamp)(wanted, (std::min)(isStatus ? 0 : 24, room), room);
+    x = cx + rect.w + gap;
+  }
+  return plan;
+}
 std::string composePlaybackHudLine(const PlaybackHudLine& fields) {
   auto squash = [](std::string value) {
     for (char& character : value) {

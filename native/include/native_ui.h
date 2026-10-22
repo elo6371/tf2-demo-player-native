@@ -306,6 +306,47 @@ private:
   unsigned clientHeight_ = 720;
 };
 
+// T51: the ui.ini override, mirroring settings_store.h's setSettingsFileOverride.
+//
+// WHY THIS EXISTS
+//   The [hud] section lives in ui.ini, and a gate that writes it would be editing
+//   the machine's real settings -- so a green run would depend on, and destroy,
+//   whatever the tester had configured. settings_store.h already solved exactly
+//   this for settings.ini; this is the same rule for the other file, in the file
+//   that owns the path. Must be called before the controller is constructed.
+void setUiSettingsFileOverride(const std::filesystem::path& file);
+std::filesystem::path uiSettingsPath();
+
 const char* uiScreenName(UiScreen screen);
+
+// ---------------------------------------------------------------------------
+// T51: the custom HUD controls (contract addendum, agreed with T50 2026-10-22).
+//
+// WHY A SEPARATE ENUM RATHER THAN MORE UiControlId VALUES
+//   T50 reserves the ids immediately after Timeline and owns every rect
+//   planUiLayout produces. Extending that enum from here would put both teams in
+//   one hunk -- and a merge that dropped one side has ids would move every rect
+//   silently. So the HUD owns its own id set and its own planner, which CONSUMES
+//   the base plan instead of editing it: the base rects are read, never written.
+// ---------------------------------------------------------------------------
+enum class UiHudControlId { Import = 0, Preview, Scale, Reset, Status, Count };
+
+struct UiHudLayoutPlan {
+  UiRect rects[static_cast<std::size_t>(UiHudControlId::Count)]{};
+  bool valid = false;
+};
+
+// Places one row of HUD controls immediately below the base plan lowest row,
+// sharing the base planner margin, gap and dpi rule. Every rect is inside the
+// client and inside the row; the row itself may fall past the bottom on a small
+// window, in which case its rects collapse to the client bottom edge exactly
+// as the base planner collapses its own (containment, not refusal, is the rule).
+UiHudLayoutPlan planHudLayout(const UiLayoutPlan& base, int clientWidth,
+  int clientHeight, float dpiScale);
+
+// The HUD commands. Kept beside the existing UiCommand rather than added to it,
+// for the same reason as the ids: one enum, one owner.
+enum class UiHudCommand { ImportFolder, ImportFile, TogglePreview, SetScale, Reset };
+
 
 } // namespace tf2::native

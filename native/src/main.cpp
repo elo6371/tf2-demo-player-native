@@ -20,6 +20,9 @@
 #include "animation_binding.h"
 #include "item_schema.h"
 #include "native_ui.h"
+#include "hud_import.h"
+#include "hud_state.h"
+#include "keybinds.h"
 #include "install_lifecycle.h"
 
 // T37: the installer lifecycle modes. Declared at namespace scope rather than
@@ -124,6 +127,11 @@ int runLifecycle(LifecycleRequest& request) {
 #include <exception>
 #include <fstream>
 #include <shellapi.h>
+// T51: SHBrowseForFolderW / SHGetPathFromIDListW. The folder picker is a shell
+// dialog, not a common-item one: GetOpenFileNameW cannot return a directory, and
+// a HUD is a directory.
+#include <shlobj.h>
+#include <string>
 #include <sstream>
 #include <tuple>
 #include <vector>
@@ -230,6 +238,13 @@ HWND g_uiBack = nullptr;
 HWND g_uiForward = nullptr;
 HWND g_uiReverse = nullptr;
 HWND g_uiTimeline = nullptr;
+// T51: the custom HUD row. Its own ids and its own planner (see native_ui.h);
+// nothing here touches a rect the base planner produced.
+HWND g_uiHudImport = nullptr;
+HWND g_uiHudPreview = nullptr;
+HWND g_uiHudScale = nullptr;
+HWND g_uiHudReset = nullptr;
+HWND g_uiHudStatus = nullptr;
 constexpr int kUiOpen = 4101;
 constexpr int kUiCancel = 4102;
 constexpr int kUiConfirm = 4103;
@@ -239,6 +254,12 @@ constexpr int kUiBack = 4106;
 constexpr int kUiForward = 4107;
 constexpr int kUiReverse = 4108;
 constexpr int kUiTimeline = 4109;
+// T51: the HUD row's own ids. Chosen above the base block (4110+) rather than
+// interleaved with it, so a later base control cannot collide with one of these.
+constexpr int kUiHudImport = 4121;
+constexpr int kUiHudPreview = 4122;
+constexpr int kUiHudScale = 4123;
+constexpr int kUiHudReset = 4124;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
@@ -285,6 +306,21 @@ void applyUiLayout(HWND window) {
   move(tf2::native::UiControlId::Forward, g_uiForward);
   move(tf2::native::UiControlId::Reverse, g_uiReverse);
   move(tf2::native::UiControlId::Timeline, g_uiTimeline);
+  // T51: the HUD row is placed by consuming the plan above, never by editing it.
+  const auto hudPlan = tf2::native::planHudLayout(plan, client.right, client.bottom,
+    static_cast<float>(dpi) / 96.0f);
+  if (hudPlan.valid) {
+    const auto moveHud = [&](tf2::native::UiHudControlId id, HWND control) {
+      if (!control) return;
+      const auto& rect = hudPlan.rects[static_cast<std::size_t>(id)];
+      MoveWindow(control, rect.x, rect.y, rect.w, rect.h, TRUE);
+    };
+    moveHud(tf2::native::UiHudControlId::Import, g_uiHudImport);
+    moveHud(tf2::native::UiHudControlId::Preview, g_uiHudPreview);
+    moveHud(tf2::native::UiHudControlId::Scale, g_uiHudScale);
+    moveHud(tf2::native::UiHudControlId::Reset, g_uiHudReset);
+    moveHud(tf2::native::UiHudControlId::Status, g_uiHudStatus);
+  }
   if (g_nativeUi) {
     g_nativeUi->setDisplayMetrics(dpi, static_cast<unsigned>(client.right),
       static_cast<unsigned>(client.bottom), IsZoomed(window) != 0);
@@ -518,6 +554,34 @@ void createNativeUiControls(HWND window, HINSTANCE instance) {
   auto [lx, ly, lw, lh] = rectFor(tf2::native::UiControlId::Timeline, 16, 122, 700, 30);
   g_uiTimeline = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_ENABLESELRANGE,
     kUiTimeline, lx, ly, lw, lh);
+  // T51: the HUD row, from the HUD planner. It consumes the base plan computed
+  // above, so the HUD controls follow whatever T50's row ends up being.
+  const auto hudPlan = tf2::native::planHudLayout(plan, client.right, client.bottom,
+    static_cast<float>(dpi) / 96.0f);
+  const auto hudRectFor = [&](tf2::native::UiHudControlId id, int fallbackX,
+      int fallbackY, int fallbackW, int fallbackH) {
+    if (!hudPlan.valid) return std::make_tuple(fallbackX, fallbackY, fallbackW, fallbackH);
+    const auto& rect = hudPlan.rects[static_cast<std::size_t>(id)];
+    return std::make_tuple(rect.x, rect.y, rect.w, rect.h);
+  };
+  auto [hix, hiy, hiw, hih] = hudRectFor(tf2::native::UiHudControlId::Import, 16, 160, 130, 30);
+  g_uiHudImport = make(L"BUTTON", L"Import HUD...", BS_PUSHBUTTON, kUiHudImport, hix, hiy, hiw, hih);
+  auto [hpx, hpy, hpw, hph] = hudRectFor(tf2::native::UiHudControlId::Preview, 152, 160, 120, 30);
+  g_uiHudPreview = make(L"BUTTON", L"Preview HUD", BS_AUTOCHECKBOX, kUiHudPreview, hpx, hpy, hpw, hph);
+  auto [hsx, hsy, hsw, hsh] = hudRectFor(tf2::native::UiHudControlId::Scale, 278, 160, 160, 30);
+  g_uiHudScale = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_HORZ,
+    kUiHudScale, hsx, hsy, hsw, hsh);
+  if (g_uiHudScale) {
+    // 50..200 in the contract's window, one tick per 10% so a drag lands on a
+    // round number and the preview text is readable.
+    SendMessageW(g_uiHudScale, TBM_SETRANGE, TRUE, MAKELONG(50, 200));
+    SendMessageW(g_uiHudScale, TBM_SETTICFREQ, 10, 0);
+    SendMessageW(g_uiHudScale, TBM_SETPOS, TRUE, 100);
+  }
+  auto [hrx, hry, hrw, hrh] = hudRectFor(tf2::native::UiHudControlId::Reset, 444, 160, 140, 30);
+  g_uiHudReset = make(L"BUTTON", L"Reset HUD", BS_PUSHBUTTON, kUiHudReset, hrx, hry, hrw, hrh);
+  auto [hcx, hcy, hcw, hch] = hudRectFor(tf2::native::UiHudControlId::Status, 590, 160, 400, 30);
+  g_uiHudStatus = make(L"STATIC", L"HUD: none", SS_LEFT, 0, hcx, hcy, hcw, hch);
   updateNativeUiControls(window);
 }
 
@@ -533,6 +597,317 @@ bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
   if (!GetOpenFileNameW(&dialog)) return false;
   result = std::filesystem::path(buffer);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// T51: the custom HUD, at the product level.
+//
+// The split is deliberate and mirrors hud_import.h / hud_state.h: the pure rules
+// (paths, documents, coordinates) live in hud_import.cpp and are asserted by
+// hud_probe without a window; the settings round trip lives in hud_state.cpp;
+// only the two things that need a window -- a folder picker and pushing
+// rectangles at the renderer -- are here.
+//
+// Every state change funnels through hudPublishTrace(), which prints the hud:
+// lines the gate reads. A reading is printed even when the answer is "nothing
+// happened", because a gate that only sees lines when something works cannot
+// tell "off" from "broken".
+// ---------------------------------------------------------------------------
+
+tf2::native::HudState g_hud;
+// The discovered document is kept in g_hud.settings().layout, which is the value
+// that gets persisted -- a second copy here would be a second thing that can
+// disagree with what the settings file says was imported.
+bool g_hudTraceEnabled = true;
+
+
+// T50/T51 shared hotkey table (native/include/keybinds.h, contract 1.2). T51
+// registers its three actions into the ONE table rather than building a second
+// one; at merge time T50's camera actions register into the same object. The
+// table is a global because there is one window and one settings file.
+tf2::native::KeyBindTable g_keybinds;
+bool g_keybindsLoaded = false;
+
+void registerKeybinds(const std::filesystem::path& settingsFile) {
+  if (g_keybindsLoaded) return;
+  g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("H"));
+  g_keybinds.registerDefault("hud.preview", tf2::native::parseChord("Ctrl+P"));
+  g_keybinds.registerDefault("hud.reset", tf2::native::parseChord("Ctrl+Shift+H"));
+  if (!settingsFile.empty()) g_keybinds.loadFromSettings(settingsFile);
+  g_keybindsLoaded = true;
+  // The reading the gate asserts: the three actions exist, are bound, and their
+  // canonical text is what the contract says.
+  for (const char* action : {"hud.toggle", "hud.preview", "hud.reset"}) {
+    const auto chord = g_keybinds.actionKey(action);
+    traceFmt("hud: keys action=%s chord=%s bound=%d", action,
+      tf2::native::formatChord(chord).c_str(), chord.bound() ? 1 : 0);
+  }
+}
+
+// The action a key press maps to, or empty. Modifiers come from GetKeyState
+// rather than the message because WM_KEYDOWN does not carry them.
+std::string hudActionForKey(WPARAM key) {
+  tf2::native::KeyChord chord;
+  chord.vk = static_cast<unsigned>(key);
+  chord.ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+  chord.alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
+  chord.shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+  const auto* action = g_keybinds.actionForKey(chord);
+  if (!action) return {};
+  return *action;
+}
+
+// A folder picker. GetOpenFileNameW cannot select a directory, which is the
+// whole reason this is a second helper rather than a flag on the existing one.
+bool chooseHudFolder(HWND owner, std::filesystem::path& result) {
+  BROWSEINFOW browse{};
+  browse.hwndOwner = owner;
+  browse.lpszTitle = L"Select the folder that contains the HUD (the one with resource/ui)";
+  browse.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+  PIDLIST_ABSOLUTE idList = SHBrowseForFolderW(&browse);
+  if (!idList) return false;
+  wchar_t path[MAX_PATH]{};
+  const bool ok = SHGetPathFromIDListW(idList, path) != FALSE;
+  // SHBrowseForFolderW returns a PIDLIST_ABSOLUTE allocated with CoTaskMemAlloc,
+  // so it is freed with CoTaskMemFree and not with ILFree (which is for the
+  // shell item's child pidls). Getting this wrong leaks one small block per
+  // dialog; the gate opens the dialog zero times, so the leak would be invisible
+  // in every reading -- stated here instead of discovered later.
+  CoTaskMemFree(idList);
+  if (!ok) return false;
+  result = std::filesystem::path(path);
+  return true;
+}
+
+// Which document inside the folder is the HUD. The candidates are ordered from
+// most specific to least, and the answer is reported so a user whose folder has
+// three .res files can see which one was taken.
+std::string discoverHudLayout(const std::filesystem::path& root, std::string& detail) {
+  std::error_code error;
+  const char* candidates[] = {
+    "resource/ui/hudlayout.res",
+    "scripts/hudlayout.res",
+    "ui/hudlayout.res",
+    "hudlayout.res",
+  };
+  for (const char* candidate : candidates) {
+    const auto file = root / std::filesystem::u8path(candidate);
+    if (std::filesystem::is_regular_file(file, error)) {
+      detail = std::string("candidate:") + candidate;
+      return candidate;
+    }
+  }
+  // Fall back to an enumeration: the single .res under resource/ui, then the
+  // single .res anywhere under the folder. More than one is refused rather than
+  // guessed -- picking the alphabetically first of fifteen panels is not "the
+  // HUD", and a silently-wrong pick is exactly the kind of claim this task
+  // forbids.
+  std::vector<std::string> found;
+  const auto collect = [&](const std::filesystem::path& directory, bool recursive) {
+    std::error_code scanError;
+    if (!std::filesystem::is_directory(directory, scanError)) return;
+    if (recursive) {
+      for (const auto& entry : std::filesystem::recursive_directory_iterator(directory, scanError)) {
+        if (scanError) break;
+        if (!entry.is_regular_file()) continue;
+        if (entry.path().extension() != ".res") continue;
+        if (found.size() < 64u) found.push_back(entry.path().lexically_relative(root).generic_u8string());
+      }
+    } else {
+      for (const auto& entry : std::filesystem::directory_iterator(directory, scanError)) {
+        if (scanError) break;
+        if (!entry.is_regular_file()) continue;
+        if (entry.path().extension() != ".res") continue;
+        if (found.size() < 64u) found.push_back(entry.path().lexically_relative(root).generic_u8string());
+      }
+    }
+  };
+  collect(root / "resource" / "ui", false);
+  if (found.size() == 1u) { detail = "unique:resource/ui"; return found.front(); }
+  found.clear();
+  collect(root, true);
+  if (found.size() == 1u) { detail = "unique:recursive"; return found.front(); }
+  detail = "ambiguous:" + std::to_string(found.size()) + "-documents";
+  return {};
+}
+
+void hudPublishTrace(HWND window) {
+  if (!g_hudTraceEnabled) return;
+  const auto& settings = g_hud.settings();
+  const auto unionRect = g_hud.unionRect();
+  traceFmt("hud: settings enabled=%d scale=%d preview=%d root=%s layout=%s imported=%d",
+    settings.enabled ? 1 : 0, settings.scalePercent, settings.preview ? 1 : 0,
+    settings.root.empty() ? "-" : settings.root.c_str(),
+    settings.layout.empty() ? "-" : settings.layout.c_str(),
+    g_hud.imported() ? 1 : 0);
+  traceFmt("hud: layout ok=%d document=%s panels=%zu refused=%zu nesting=%zu"
+    " unknownKeys=%zu duplicates=%zu includes=%zu",
+    g_hud.layout().ok ? 1 : 0,
+    g_hud.layout().documentName.empty() ? "-" : g_hud.layout().documentName.c_str(),
+    g_hud.layout().panels.size(), g_hud.layout().refusedPanels,
+    g_hud.layout().nestingDepth, g_hud.layout().unknownKeys,
+    g_hud.layout().duplicateNames, g_hud.layout().includeCount);
+  traceFmt("hud: rects valid=%zu invalid=%zu union=%d,%d,%d,%d empty=%d",
+    g_hud.visiblePanels(), g_hud.invalidPanels(),
+    unionRect.x, unionRect.y, unionRect.w, unionRect.h, unionRect.empty ? 1 : 0);
+  traceFmt("hud: refuse accepted=%d refused=%d lastReason=%s detail=%s",
+    g_hud.acceptedImports(), g_hud.refusedImports(),
+    tf2::native::hudRefusalName(g_hud.lastRefusal()),
+    g_hud.lastRefusalDetail().empty() ? "-" : g_hud.lastRefusalDetail().c_str());
+  if (g_hud.repaired()) traceFmt("hud: repaired detail=%s", g_hud.repairDetail().c_str());
+  // The draw reading. It is emitted on every publish so a run whose HUD is off
+  // says so out loud instead of leaving the gate to infer it from a missing line.
+  if (g_renderer) {
+    traceFmt("hud: draw drawn=%zu rects=%zu ordinal=%zu scissor=%d region=%d,%d,%d,%d",
+      g_renderer->hudDrawnRects(), g_renderer->hudRectCount(),
+      g_renderer->hudPassOrdinal(), g_renderer->hudScissorApplied() ? 1 : 0,
+      g_renderer->hudLastRegion().x, g_renderer->hudLastRegion().y,
+      g_renderer->hudLastRegion().w, g_renderer->hudLastRegion().h);
+  }
+  (void)window;
+}
+
+
+// T51: where ui.ini is. native_ui.cpp's uiSettingsPath() is in an anonymous
+// namespace inside that translation unit, and the [hud] section has to go into
+// the SAME file as [ui] -- a second path computed here that drifted from that
+// one would produce a HUD that never persists. It mirrors the same rule and is
+// cross-checked by the gate, which reads the path out of the trace and checks the
+// file exists.
+// T51: where ui.ini is. The path itself lives in native_ui.cpp (that file owns
+// it, and the [hud] section has to be in the SAME file as [ui]); this wrapper
+// only turns "no path" into a reading, because a silent empty path would look
+// like a HUD that simply did not persist.
+std::filesystem::path uiSettingsFilePath(std::string& status) {
+  const auto path = tf2::native::uiSettingsPath();
+  status = path.empty() ? "no-ui-settings-path" : "ok";
+  return path;
+}
+
+// Pushes the current layout at the renderer for the window's current client size.
+void hudApplyRects(HWND window) {
+  if (!g_renderer) return;
+  RECT client{};
+  if (!window || !GetClientRect(window, &client)) { client.right = 1280; client.bottom = 720; }
+  const float dpiScale = window ? static_cast<float>(GetDpiForWindow(window)) / 96.0f : 1.0f;
+  g_hud.layoutFor(client.right, client.bottom, dpiScale);
+  std::vector<tf2::native::Renderer::HudDrawRect> rects;
+  // Colors are per-panel and fixed: this build rasterises no font and no image,
+  // so the colour is the only thing that distinguishes one panel from another
+  // and a stable palette is what lets a reviewer name a block from a screenshot.
+  static const float kPalette[][4] = {
+    {0.16f, 0.35f, 0.55f, 0.72f},
+    {0.20f, 0.50f, 0.28f, 0.72f},
+    {0.55f, 0.35f, 0.14f, 0.72f},
+    {0.45f, 0.20f, 0.45f, 0.72f},
+  };
+  std::size_t index = 0;
+  for (const auto& rect : g_hud.rects()) {
+    if (!rect.valid) { ++index; continue; }
+    tf2::native::Renderer::HudDrawRect draw;
+    draw.left = static_cast<float>(rect.x);
+    draw.top = static_cast<float>(rect.y);
+    draw.right = static_cast<float>(rect.x + rect.w);
+    draw.bottom = static_cast<float>(rect.y + rect.h);
+    const float* colour = kPalette[index % 4u];
+    draw.colour[0] = colour[0]; draw.colour[1] = colour[1];
+    draw.colour[2] = colour[2]; draw.colour[3] = colour[3];
+    rects.push_back(draw);
+    ++index;
+  }
+  g_renderer->setHudRects(rects);
+  // The pass draws only when the user enabled the HUD AND there is something to
+  // draw. Both conditions are visible in the trace above.
+  g_renderer->setHudEnabled(g_hud.settings().enabled && !rects.empty());
+}
+
+void hudUpdateStatus(HWND window) {
+  if (!g_uiHudStatus) return;
+  const auto& settings = g_hud.settings();
+  std::wstring text = L"HUD: none";
+  if (g_hud.imported()) {
+    text = L"HUD: " + std::wstring(g_hud.layout().documentName.begin(), g_hud.layout().documentName.end())
+      + L" | panels=" + std::to_wstring(g_hud.visiblePanels())
+      + L" | scale=" + std::to_wstring(settings.scalePercent) + L"%"
+      + (settings.enabled ? L" | on" : L" | off");
+    if (g_hud.layout().refusedPanels != 0 || g_hud.invalidPanels() != 0) {
+      text += L" | refused=" + std::to_wstring(g_hud.layout().refusedPanels + g_hud.invalidPanels());
+    }
+  } else if (g_hud.lastRefusal() != tf2::native::HudRefusal::None) {
+    const char* reason = tf2::native::hudRefusalName(g_hud.lastRefusal());
+    text = L"HUD refused: " + std::wstring(reason, reason + std::strlen(reason));
+  }
+  SetWindowTextW(g_uiHudStatus, text.c_str());
+  if (g_uiHudPreview) {
+    SendMessageW(g_uiHudPreview, BM_SETCHECK, settings.preview ? BST_CHECKED : BST_UNCHECKED, 0);
+  }
+  if (g_uiHudScale) SendMessageW(g_uiHudScale, TBM_SETPOS, TRUE, settings.scalePercent);
+  if (window) InvalidateRect(window, nullptr, FALSE);
+}
+
+void hudImportInteractive(HWND window) {
+  std::filesystem::path folder;
+  if (!chooseHudFolder(window, folder)) {
+    traceFmt("hud: import action=cancelled");
+    return;
+  }
+  std::string detail;
+  const std::string layout = discoverHudLayout(folder, detail);
+  traceFmt("hud: import root=%s discover=%s", folder.u8string().c_str(), detail.c_str());
+  if (layout.empty()) {
+    // Nothing to import: report the discovery result as the refusal rather than
+    // silently doing nothing, because "I clicked Import and nothing happened" is
+    // the failure mode this whole feature exists to avoid.
+    const bool ambiguous = detail.compare(0, 10, "ambiguous:") == 0;
+    traceFmt("hud: import refused reason=%s", ambiguous ? "ambiguous-document" : "missing");
+    if (g_uiHudStatus) {
+      g_hud.noteDiscoveryRefusal(ambiguous ? "ambiguous-document" : "missing");
+      SetWindowTextW(g_uiHudStatus, ambiguous
+        ? L"HUD refused: several documents; pick a folder with one"
+        : L"HUD refused: no .res document in that folder");
+    }
+    return;
+  }
+  RECT client{};
+  GetClientRect(window, &client);
+  const float dpiScale = static_cast<float>(GetDpiForWindow(window)) / 96.0f;
+  tf2::native::HudImportRequest request;
+  request.root = folder;
+  request.layout = layout;
+  const auto result = g_hud.import(request, client.right, client.bottom, dpiScale);
+  traceFmt("hud: import result=%s document=%s", tf2::native::hudApplyResultName(result),
+    layout.c_str());
+  if (result == tf2::native::HudApplyResult::Applied) {
+    hudApplyRects(window);
+  }
+  hudUpdateStatus(window);
+  hudPublishTrace(window);
+}
+
+void hudTogglePreview(HWND window) {
+  const bool checked = g_uiHudPreview
+    && SendMessageW(g_uiHudPreview, BM_GETCHECK, 0, 0) == BST_CHECKED;
+  // The checkbox is the feature switch, not a second "enabled": it drives
+  // hud.enabled, which is the one key the contract gives this feature.
+  g_hud.setEnabled(checked);
+  g_hud.setPreview(checked);
+  traceFmt("hud: toggle enabled=%d", checked ? 1 : 0);
+  hudApplyRects(window);
+  hudUpdateStatus(window);
+  hudPublishTrace(window);
+}
+
+void hudResetToDefault(HWND window) {
+  const auto result = g_hud.resetToDefault();
+  traceFmt("hud: reset result=%s", tf2::native::hudApplyResultName(result));
+  // The renderer is told there is nothing to draw BEFORE the status line is
+  // updated, so a reset cannot leave a frame with a stale HUD on it.
+  if (g_renderer) {
+    g_renderer->setHudRects({});
+    g_renderer->setHudEnabled(false);
+  }
+  hudUpdateStatus(window);
+  hudPublishTrace(window);
 }
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -620,6 +995,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       g_nativeUi->command(tf2::native::UiCommand::StepForward);
     } else if (id == kUiReverse) {
       g_nativeUi->command(tf2::native::UiCommand::Reverse);
+    } else if (id == kUiHudImport) {
+      hudImportInteractive(window);
+    } else if (id == kUiHudPreview) {
+      hudTogglePreview(window);
+    } else if (id == kUiHudReset) {
+      hudResetToDefault(window);
     } else {
       return DefWindowProcW(window, message, wParam, lParam);
     }
@@ -631,6 +1012,16 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     return 0;
   }
   case WM_HSCROLL:
+    if (reinterpret_cast<HWND>(lParam) == g_uiHudScale) {
+      // The scale slider is a live preview: the rectangles are re-resolved and
+      // pushed to the renderer on every position change, so a drag shows the HUD
+      // growing rather than updating on release.
+      const int position = static_cast<int>(SendMessageW(g_uiHudScale, TBM_GETPOS, 0, 0));
+      g_hud.setScalePercent(position);
+      hudApplyRects(window);
+      hudUpdateStatus(window);
+      return 0;
+    }
     if (g_nativeUi && reinterpret_cast<HWND>(lParam) == g_uiTimeline) {
       const auto position = static_cast<std::int32_t>(SendMessageW(
         g_uiTimeline, TBM_GETPOS, 0, 0));
@@ -660,6 +1051,31 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
             || wParam == VK_END
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
+    // T51: the shared hotkey table gets the first look. A bound chord that
+    // dispatches an action ends the message here; anything the table does not
+    // claim falls through to the product's historical key handling below, which
+    // is what keeps this from silently stealing SPACE, P or F1..F8.
+    if (g_keybindsLoaded && g_renderer) {
+      const auto action = hudActionForKey(wParam);
+      if (!action.empty()) {
+        traceFmt("hud: keys dispatch action=%s", action.c_str());
+        if (action == "hud.toggle") {
+          g_hud.setEnabled(!g_hud.settings().enabled);
+          hudApplyRects(window);
+          hudUpdateStatus(window);
+          hudPublishTrace(window);
+        } else if (action == "hud.preview") {
+          g_hud.setPreview(!g_hud.settings().preview);
+          g_hud.setEnabled(g_hud.settings().preview);
+          hudApplyRects(window);
+          hudUpdateStatus(window);
+          hudPublishTrace(window);
+        } else if (action == "hud.reset") {
+          hudResetToDefault(window);
+        }
+        return 0;
+      }
+    }
     const bool functionKey = wParam >= VK_F1 && wParam <= VK_F8;
     if (functionKey && g_renderer) {
       const std::size_t slot = static_cast<std::size_t>(wParam - VK_F1);
@@ -833,6 +1249,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           return 13;
         }
         tf2::native::setSettingsFileOverride(std::filesystem::path(arguments[++i]));
+      } else if (wcscmp(arguments[i], L"--ui-settings-file") == 0) {
+        // T51: the same hermeticity rule for ui.ini, which is where [hud] lives.
+        // Taken in the same pre-scan and for the same reason: the controller
+        // reads it during construction, which happens before the main loop parses
+        // arguments.
+        if (i + 1 >= argumentCount) {
+          OutputDebugStringW(L"TF2 Demo Player: --ui-settings-file needs a path; refusing to guess.\n");
+          return 13;
+        }
+        tf2::native::setUiSettingsFileOverride(std::filesystem::path(arguments[++i]));
       }
     }
   }
@@ -856,6 +1282,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool startPaused = false;
   std::filesystem::path metricsPath;
   std::filesystem::path captureFramePath;
+  // T51 acceptance surface. The HUD is a user feature with a picker, but a gate
+  // cannot click one, so the same code path is reachable from the command line:
+  //   --hud-root DIR          the folder the picker would have returned
+  //   --hud-layout REL        the document inside it (discovered when omitted)
+  //   --hud-scale N           the scale slider's value, 50..200
+  //   --hud-on / --hud-off    the preview checkbox
+  //   --hud-reset             the reset button, applied before the frame is drawn
+  //   --hud-apply             import and enable, the shape a gate uses
+  // A flag with no value is refused with exit 13 rather than defaulted, for the
+  // reason the other flags are: a run that asked for one thing and measured
+  // another is worse than a run that refused.
+  std::filesystem::path hudRoot;
+  std::string hudLayout;
+  int hudScale = 100;
+  bool hudScaleGiven = false;
+  bool hudOnGiven = false, hudOn = false;
+  bool hudResetRequested = false;
+  bool hudApplyRequested = false;
+  bool hudArgumentRejected = false;
+  bool hudConfigRequested = false;
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
@@ -1563,6 +2009,37 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else captureTickRejected = true;
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0) {
         captureTickRejected = true;
+      } else if (wcscmp(arguments[i], L"--hud-root") == 0 && i + 1 < argumentCount) {
+        hudRoot = arguments[++i];
+        if (hudRoot.empty()) hudArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--hud-root") == 0) {
+        hudArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--hud-layout") == 0 && i + 1 < argumentCount) {
+        hudLayout = std::string(arguments[++i]);
+        if (hudLayout.empty()) hudArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--hud-layout") == 0) {
+        hudArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--hud-scale") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 50 && parsed <= 200) {
+          hudScale = static_cast<int>(parsed);
+          hudScaleGiven = true;
+          hudConfigRequested = true;
+        } else {
+          hudArgumentRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--hud-scale") == 0) {
+        hudArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--hud-on") == 0) {
+        hudOnGiven = true; hudOn = true; hudConfigRequested = true;
+      } else if (wcscmp(arguments[i], L"--hud-off") == 0) {
+        hudOnGiven = true; hudOn = false; hudConfigRequested = true;
+      } else if (wcscmp(arguments[i], L"--hud-reset") == 0) {
+        hudResetRequested = true;
+        hudConfigRequested = true;
+      } else if (wcscmp(arguments[i], L"--hud-apply") == 0) {
+        hudApplyRequested = true;
       }
     }
     persistent.render.normalize();
@@ -1574,6 +2051,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   if (captureTickRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
+    return 13;
+  }
+  if (hudArgumentRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --hud-root/--hud-layout/--hud-scale; refusing to guess.\n");
     return 13;
   }
   if (modelArgumentRejected) {
@@ -3713,6 +4194,51 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       renderer.initStage(), static_cast<unsigned long>(renderer.lastError()));
     DestroyWindow(window);
     return 12;
+  }
+  // ---- T51: load the HUD state and apply it -------------------------------
+  //
+  // The [hud] section lives in ui.ini, which is the file NativeUiController owns.
+  // It is loaded after the renderer exists because the rectangles can only be
+  // resolved once the window has a client size, and applied before the first
+  // frame so a --hud-apply run captures a frame that already has the HUD on it.
+  {
+    std::string settingsStatus;
+    const auto hudSettingsFile = uiSettingsFilePath(settingsStatus);
+    if (!hudSettingsFile.empty()) {
+      g_hud.loadFrom(hudSettingsFile);
+    }
+    traceFmt("hud: settings-file path=%s status=%s loaded=%d repaired=%d",
+      hudSettingsFile.empty() ? "-" : hudSettingsFile.u8string().c_str(),
+      settingsStatus.c_str(), hudSettingsFile.empty() ? 0 : 1, g_hud.repaired() ? 1 : 0);
+    if (hudScaleGiven) g_hud.setScalePercent(hudScale);
+    if (hudOnGiven) g_hud.setEnabled(hudOn);
+    if (hudResetRequested) {
+      const auto resetResult = g_hud.resetToDefault();
+      traceFmt("hud: reset result=%s source=cli", tf2::native::hudApplyResultName(resetResult));
+    }
+    if (!hudRoot.empty() || !hudLayout.empty() || hudApplyRequested) {
+      std::string detail;
+      std::string layout = hudLayout;
+      if (layout.empty() && !hudRoot.empty()) layout = discoverHudLayout(hudRoot, detail);
+      if (layout.empty()) {
+        traceFmt("hud: import refused reason=missing detail=no-document-in-root");
+        g_hud.noteDiscoveryRefusal("cli-no-document");
+      } else {
+        RECT client{};
+        GetClientRect(window, &client);
+        const float dpiScale = static_cast<float>(GetDpiForWindow(window)) / 96.0f;
+        tf2::native::HudImportRequest request;
+        request.root = hudRoot;
+        request.layout = layout;
+        const auto importResult = g_hud.import(request, client.right, client.bottom, dpiScale);
+        traceFmt("hud: import result=%s document=%s source=cli",
+          tf2::native::hudApplyResultName(importResult), layout.c_str());
+      }
+    }
+    registerKeybinds(hudSettingsFile);
+    hudApplyRects(window);
+    hudUpdateStatus(window);
+    hudPublishTrace(window);
   }
   renderer.setWorldMaterialParams(mapMaterialParams);
   tf2::native::ModelMetadata modelMetadata;
@@ -7267,6 +7793,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   persistent.render = renderer.settings();
   if (assets.valid()) persistent.tfRoot = assets.tfDirectory;
   tf2::native::saveSettings(persistent);
+  // T51: the [hud] section is written on the same exit path as [renderer], so a
+  // user who imported a HUD and never pressed another button still gets it back
+  // next run. A plain capture run writes nothing: hudTouched stays false unless
+  // a hud.* value was actually asked for.
+  {
+    std::string hudStatus;
+    const auto hudSettingsFile = uiSettingsFilePath(hudStatus);
+    const bool hudTouched = hudConfigRequested || !hudRoot.empty() || !hudLayout.empty()
+      || g_hud.imported() || g_hud.lastRefusal() != tf2::native::HudRefusal::None;
+    if (!hudSettingsFile.empty() && hudTouched) {
+      const bool saved = g_hud.saveTo(hudSettingsFile);
+      traceFmt("hud: save path=%s ok=%d enabled=%d scale=%d",
+        hudSettingsFile.u8string().c_str(), saved ? 1 : 0,
+        g_hud.settings().enabled ? 1 : 0, g_hud.settings().scalePercent);
+    }
+    traceFmt("hud: summary imported=%d accepted=%d refused=%d panels=%zu visible=%zu"
+      " invalid=%zu scale=%d enabled=%d lastReason=%s",
+      g_hud.imported() ? 1 : 0, g_hud.acceptedImports(), g_hud.refusedImports(),
+      g_hud.layout().panels.size(), g_hud.visiblePanels(), g_hud.invalidPanels(),
+      g_hud.settings().scalePercent, g_hud.settings().enabled ? 1 : 0,
+      tf2::native::hudRefusalName(g_hud.lastRefusal()));
+  }
   g_renderer = nullptr;
   return static_cast<int>(message.wParam);
 }

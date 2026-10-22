@@ -824,6 +824,44 @@ public:
   // only; the product path never calls it.
   void setWorldLightmapEnabled(bool enabled) { worldLightmapEnabled_ = enabled; }
   bool worldLightmapEnabled() const { return worldLightmapEnabled_; }
+  // ---- T51: the custom HUD pass -----------------------------------------
+  // A screen-space pass drawn AFTER the ViewModel pass and BEFORE the frame
+  // capture, in its own viewport-scissored rectangles, with depth test and depth
+  // write disabled, blending enabled, and its own shader pair. It shares no
+  // buffer, no constant buffer and no state with the world, entity or ViewModel
+  // passes, which is what makes "the HUD did not touch the world" a property of
+  // the code rather than a hope: the only thing this pass can write is the
+  // colour of the pixels inside the rectangles it was handed.
+  //
+  // The rectangles are the resolved HUD layout (hud_import.h), recomputed by the
+  // caller on every resize so the pass never draws a stale layout. `enabled`
+  // false is the product default: a capture-only run draws no HUD at all.
+  struct HudDrawRect {
+    float left = 0.0f, top = 0.0f, right = 0.0f, bottom = 0.0f;
+    float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+  };
+  // The pixel region the pass was allowed to touch on the last draw, unioned.
+  // Declared before its accessor so the type is complete where it is used.
+  struct HudPixelRectLast { int x = 0; int y = 0; int w = 0; int h = 0; bool empty = true; };
+  // Replaces the whole rect list; an empty list disables the pass without
+  // touching `enabled`, so "no HUD in this document" and "the user turned it
+  // off" stay distinguishable in the readings.
+  void setHudRects(const std::vector<HudDrawRect>& rects);
+  void setHudEnabled(bool enabled) { hudEnabled_ = enabled; }
+  bool hudEnabled() const { return hudEnabled_; }
+  std::size_t hudRectCount() const { return hudRectVertexCount_ / 6u; }
+  // The number of rects the last draw actually covered, reset at the start of
+  // it. `hudRectCount()` is what was handed in; this is what was drawn.
+  std::size_t hudDrawnRects() const { return hudDrawnRects_; }
+  std::size_t hudPassOrdinal() const { return hudPassOrdinal_; }
+  // Whether the pass scissored itself. Recorded from the draw rather than
+  // asserted, because "the pass cannot paint outside its rects" is the claim the
+  // world comparison rests on.
+  bool hudScissorApplied() const { return hudScissorApplied_; }
+  // The pixels the pass was allowed to touch on the last draw, in back-buffer
+  // coordinates, unioned. Empty when nothing was drawn.
+  HudPixelRectLast hudLastRegion() const { return hudLastRegion_; }
+
   // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
   // was never set on the success path of uploadWorldWaterGeometry, so
   // waterSurfaceSampleState() reported `unavailable` for a surface that drew --
@@ -1115,6 +1153,11 @@ private:
     float distance = 3.0f;
   };
 
+  // T51: one call that draws every HUD rect, scissored to their union, and puts
+  // the frame's own states back afterwards. Private because it must only ever be
+  // reached from draw() at the one point where the world and ViewModel passes
+  // have finished -- a HUD drawn mid-frame would be a HUD drawn under geometry.
+  void drawHudPass();
   void releaseTarget();
   bool createTarget(UINT width, UINT height);
   bool createPipeline();
@@ -1571,6 +1614,27 @@ private:
   std::wstring capturePath_;
   bool captureSucceeded_ = false;
   std::wstring captureError_;
+  // ---- T51: the HUD pass's own state --------------------------------------
+  // Deliberately small and entirely separate from every other pass: a vertex
+  // buffer of screen-space quads, the list it was built from, and the readings
+  // the trace prints. Nothing here is shared with the world, the entities or the
+  // ViewModel, which is the design claim the world-comparison assertion checks.
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> hudVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> hudPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> hudInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> hudVertexBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> hudConstants_;
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> hudRasterizerState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> hudDepthStencilState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> hudBlendState_;
+  UINT hudRectVertexCount_ = 0;
+  std::size_t hudRectCapacity_ = 0;
+  std::vector<HudDrawRect> hudRects_;
+  bool hudEnabled_ = false;
+  std::size_t hudDrawnRects_ = 0;
+  std::size_t hudPassOrdinal_ = 0;
+  bool hudScissorApplied_ = false;
+  HudPixelRectLast hudLastRegion_{};
 };
 
 } // namespace tf2::native
