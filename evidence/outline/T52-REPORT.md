@@ -286,7 +286,7 @@ mapped += unitNormal * cameraPositionAndExpand.w * mode.x;   // w = kOverlaySilh
 还是 (ii) 送进框的 `mvpForOverlay` 与画的时候用的不是同一个矩阵（帧内先后次序），
 还是 (iii) 框取到了别的实例的行。**三种都有测法，但都要再开一次窗口。**
 
-### 4.2 `depthWrite=1` **已定案**：是运行时归一化，不是产品写深度
+### 4.2 `depthWrite=1` 的定案（**措辞已按 §7.2 更正**）：是运行时归一化，不是产品写深度
 
 判读规则在跑之前写死（`stateWrite=0 ⇒ 缺陷在赋值路径`；`stateWrite=1 ⇒ 状态本身没带上掩码`），22:51 的读数：
 ```text
@@ -476,3 +476,70 @@ tick requested=74482 ... entity=31 class=CTFPlayerResource player=1 team=unknown
 - `evidence/outline/pick-64332.trace`（778 帧 `drew=0` 的原始证据，gitignored）
 - 门禁 `outline-check.sh`：11 条变异、对齐表、pose 断言、`outline_value` 自检
 - 探针 `native/tools/entity_overlay_probe.cpp`：`classFallback=`/`reason=`/`serverTickOrigin=` 三列 + 8 条 fallback 用例
+
+## 7. 变异与配对读数（第一次全量，00:06 结束）
+
+9 条变异全部**重建**，每条自带 `cmp` 还原：日志里 **27 条** `restored ... byte-identical (cmp)`，跑完 `git status` **0 行**。
+
+| 变异 | 结果 | 读数（变异后 vs 声明的固定值） |
+|---|---|---|
+| m1 红蓝互换 | **RED** | 错队名额里的队伍像素 `95`（固定 `0`） |
+| m2 pass 一律深度测试 | **RED** | 穿墙队伍像素 `0`（固定 `68`） |
+| m2 子断言 x-ray depth test | **点不亮** | `0`（固定 `0`）——这条子断言没有可动的读数 |
+| m3 无视开关恒开 | **RED** | `--outline off` 帧队伍像素 `415`（固定 `0`） |
+| m5 overlay 写深度 | **INVALID，不是 RED** | 见 7.1 |
+| m6 捕获 tick 依赖速度 | **RED** | speed=1 与 speed=64 捕获不同帧 |
+| m7 取消 class 回退 | **RED** | 提交轮廓 `0`（固定 `14`）、noMesh `20`（固定 `6`） |
+| m8 轮廓带裸路径 | **RED** | 画出轮廓 `0`（固定 `5`） |
+| m9 bind mesh 优先 | **RED** | 探针 self-test 失败 `5`（固定 `0`） |
+| m4 ViewModel 之后画 | **RED** | 次序 `0`（固定 `1`）、ordinal `7`（固定 `6`） |
+
+### 7.1 m5 是**假红** —— 必须先说清楚
+
+```bash
+must_move "m5" "x-ray depth write state" "0" "$(outline_value "$OUT/m5.trace" depthWrite)"
+```
+期望值是**硬编码的 0**，而**固定构建自己**的正向 trace 三次都读 `depthWrite=1`。
+固定值本来就是 1 时写死一个 0 当"固定值"，这条断言**不跑变异也会红**——没有区分力。
+⇒ **m5 记 INVALID**。修法：期望值从正向 trace 取；而"它该是几"取决于 4.2 的定案。
+
+### 7.2 4.2 的措辞更正：读数是读数，解释是解释
+
+已测到的：同一份代码、同一个 `ZERO` 掩码，`DepthEnable=FALSE` 的状态读回 `ALL`（`stateWrite=1`、每帧 `depthWrite=1`），
+`DepthEnable=TRUE` 的对照读回 `ZERO`（`depthWrite=0`）。**两个答案，只差一个字段。**
+因此"掩码惰性、不写深度靠 `DepthEnable=FALSE`"是**解释**，不是直接测到的 D3D11 内部行为；
+**行为层（这一帧深度缓冲有没有被改）仍未测**：NOT VERIFIED，owner 我，最便宜下一步 = overlay pass 前后各 staging 读回一次深度缓冲逐字节比。
+
+### 7.3 cap A/B 配对读数：**没读出来**（3 条 FAIL，NOT VERIFIED）
+
+```text
+FAIL cap 64: the old limit REFUSES class meshes (this is what 96 buys) = 0, expected >= 1
+FAIL cap 96: every prepared class mesh is uploaded = <none>, expected 0
+FAIL cap 96: uploaded count matches prepared = <none>, expected 9
+```
+`<none>` 不是"读数为 0"，是**没有读数**：这两次 run 的 trace 里没有 `gpu: overlay meshes prepared=` 行。
+其余 8 条变异都有读数，只有 cap 段是 `<none>` ⇒ 最可能是这几次 run 的 trace 没落在断言读的那条路径上。
+⇒ cap A/B **NOT VERIFIED**，owner 我，下一步：先核对 cap 段用的 trace 文件名与 `run_frame` 实际写出的名字。
+
+### 7.4 可重复性（被测的，不是假设的）
+
+同一构建、同一参数、正向门禁**连跑两次**：`57 OK / 1 FAIL`，失败那条与读数完全一致（`diff_outside=297`）。
+带变异的那一轮算上 cap 段是 `61 OK / 4 FAIL`，其中 3 条 FAIL 全在 cap 段（见 7.3）。
+
+## 8. 交接：唯一那条红 + 下个窗口三步
+
+**读数**：4 个绘制 blob 与 14 个框，X 中心逐像素吻合（463/510/562/484 全中），Y 偏 2–18 px 且被压扁；
+尺寸比：`blob 21x14 vs 框 17x4`、`18x10 vs 9x3`、`13x7 vs 7x3`、`9x7 vs 7x3` ⇒ **两轴都小、Y 更狠（1.2–3.5 倍）**。
+已排除：帧对齐（captured 与 last 两套框完全相同、`diff_outside` 一个像素没变）、
+shader 外扩（`0.004` 世界单位 = 0.002 像素）、两角点投影（代码是 8 角点）、串轴（换方向不改跨度）。
+
+**候选**：`AABB 覆盖的顶点比画出来的少`——最像 `uploadEntityModelMesh(cacheKey, vertices)` 的 `vertices` 是一个子网格，
+而绘制是 `drawCalls=5 vertexCount=137040` 的合并轮廓。
+
+**下个窗口三步**（一次重建就能定因）：
+1. item 行打 `cacheKey / mesh.vertexCount / boundsMin / boundsMax`，与 `drawCalls / vertexCount` 对照；
+   同时打 `projectedOrigin`，用于判定"位置错"还是"形状错"。
+2. 定因：若 key 相同而 `vertexCount` 不同 ⇒ 同名两对象（家族第三次现身）；若 key 不同 ⇒ 子网格选错。
+3. 修 + 重建 + 正向（21 分钟）+ 变异全量（45 分钟）。
+
+**还欠的 NOT VERIFIED**：行为层"不写深度"（owner 我）、cap A/B 配对读数（owner 我）、m5 的期望值（owner 我）。
