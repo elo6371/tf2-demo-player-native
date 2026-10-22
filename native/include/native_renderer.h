@@ -19,6 +19,7 @@
 #include "world_material.h"
 #include "world_tile_atlas.h"
 #include "viewmodel_material.h"
+#include "entity_overlay.h"
 
 namespace tf2::native {
 
@@ -61,6 +62,14 @@ struct RenderSettings {
   float renderScale = 1.0f;
   float viewModelFov = 90.0f;
   bool vsync = false;
+  // T52: the overlay slot's persisted state. Two keys only -- `outline` (the
+  // on/off the F9 key also drives) and `outline_depth` (0 x-ray product, 1 the
+  // depth-tested control). T53 adds its own keys under its own names; neither
+  // task writes the other's.
+  bool outlineEnabled = false;
+
+  bool outlineDepthTested = false;
+
 
   static RenderSettings fromPreset(QualityPreset preset);
   void normalize();
@@ -645,6 +654,27 @@ public:
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setEntityMarkers(const std::vector<EntityMarker>& markers);
+
+  // ---- T52: THE OVERLAY PASS ------------------------------------------------
+
+  // One pass, one list PER DEPTH MODE (T53 needs a depth-tested trail and an
+  // x-ray marker in the same frame). The list is copied and kept until it is
+  // replaced, so a product loop that only rebuilds on a sampled tick does not
+  // blank the overlay on the frames in between.
+  //
+  // WHAT THE PASS MAY NOT DO. It writes no depth, restores every state it
+  // touches, and draws nothing when both stored lists are disabled. With the
+  // overlay off, the frame must be byte-identical to a build with no overlay
+  // code at all -- that is the mechanical form of "does not change world
+  // geometry or ordinary visibility", and it is why the pass owns its own
+  // depth-stencil states rather than borrowing the world's.
+  void setOverlayDrawList(const OverlayDrawList& list);
+
+  // What the pass did on the last frame, including its ordinal in draw()'s own
+  // counter, so "the overlay drew before the weapon" is a number a gate reads
+  // rather than a claim about the order of two statements.
+  const OverlayPassReading& overlayPassReading() const { return overlayPassReading_; }
+
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
   bool uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
@@ -1169,6 +1199,43 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> entityMarkerVertexBuffer_;
   std::size_t entityMarkerVertexCapacity_ = 0;
   UINT entityMarkerVertexCount_ = 0;
+  // ---- T52: the overlay pass -------------------------------------------------
+  // Two stored lists, one per depth mode, because a frame may carry an x-ray
+  // silhouette and a depth-tested trail at once and the mode lives on the list.
+  // Stored rather than taken per frame so a product loop that rebuilds only on
+  // a sampled tick keeps drawing between samples.
+  OverlayDrawList overlayLists_[2];
+  OverlayPassReading overlayPassReading_{};
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> overlayVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> overlayLineVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> overlayLineInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> overlayPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> overlayConstants_;
+  // Depth writes are OFF in both: that is what stops the overlay from changing
+  // the depth buffer the later passes and the capture read back.
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> overlayXRayDepthState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> overlayDepthTestedState_;
+  // Cull none: the silhouette is an expanded shell whose winding a thin model
+  // part can invert, and culling it would punch a hole in the outline.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> overlayRasterizerState_;
+  // Instance stream for the silhouettes, rebuilt when a list is submitted.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> overlayInstanceBuffer_;
+  std::size_t overlayInstanceCapacity_ = 0;
+  struct OverlayDrawRange {
+    ID3D11Buffer* vertexBuffer = nullptr;
+    UINT vertexCount = 0;
+    UINT instanceStart = 0;
+    UINT instanceCount = 0;
+    OverlayDepthMode depth = OverlayDepthMode::XRay;
+  };
+  std::vector<OverlayDrawRange> overlayDrawRanges_;
+  std::size_t overlayInstanceCount_ = 0;
+  // Line and marker primitives (T53's), built with the world's own vertex
+  // layout so a trail lands on the world it describes.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> overlayLineBuffer_;
+  std::size_t overlayLineCapacity_ = 0;
+  UINT overlayLineVertexCount_ = 0;
+  UINT overlayLineVertexCountByDepth_[2] = {0, 0};
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelVertexBuffer_;
   UINT modelVertexCount_ = 0;
   ModelGpuStatus modelGpuStatus_ = ModelGpuStatus::NotLoaded;

@@ -258,12 +258,163 @@ struct OverlaySampleStats {
   std::size_t modelPathResolved = 0;
 };
 
+// WHICH CLASSES COUNT IS THE CALLER'S DECISION, NOT A RULE HIDDEN HERE.
+// T53 measured the name rule on the reference recording's real server class
+// table (355 classes) and it is wrong in BOTH directions:
+//   7 false positives -- CTFRocketLauncher, CTFGrenadeLauncher,
+//       CTFPipebombLauncher, CTFFlameThrower, CTFJar, CTFBottle,
+//       CTFPowerupBottle. Every one is a WEAPON or a held item that carries
+//       DT_BaseEntity.m_vecOrigin and sits at (0,0,0) while held, so a keyword
+//       filter draws a trail from the world origin for each of them.
+//   1 false negative -- CTFGrenadePipebombProjectile. It contains no
+//       "Projectile" at all and is the second most common real projectile on
+//       that demo (774 spawns against 1228 CTFProjectile_Rocket).
+// A rule inside the shared sampler can only be wrong in one direction or the
+// other, so the SET is an input. A null classSet keeps the built-in default
+// rule, which is what T52 uses (TF2 has exactly one player class, CTFPlayer,
+// and its substring rule matches it); T53 passes its measured list.
+struct OverlayClassSet {
+  std::vector<std::string> classNames;  // exact class-name matches
+};
+
 std::vector<OverlayEntitySample> sampleOverlayEntities(
   const std::vector<EntityState>& statesByIndex,
   const std::vector<ServerClassSchema>& classSchemas,
   const std::unordered_map<std::uint16_t, std::string>& modelPrecache,
   OverlayEntityFilter filter,
+  const OverlayClassSet* classSet = nullptr,
   OverlaySampleStats* stats = nullptr);
+
+// ---------------------------------------------------------------------------
+// 4b. HOW A TICK IS RESOLVED, AND HOW HONEST IT IS ABOUT RESOLUTION
+//
+// T53 raised the question this section answers: per-tick projectile positions
+// exist on the wire (each CTFProjectile_* / grenade entity gets an m_vecOrigin
+// update every packet while alive), but the entity history does not retain
+// every packet -- queryEntitySnapshotAtOrBeforeTick answers most ticks from the
+// newest retained CHECKPOINT at-or-before them, and on the reference recording
+// the worst observed staleness is 1057 ticks (16 s at 66.66 tick). A consumer
+// that read such a snapshot as "the state at tick T" would draw a trail of
+// eight frozen positions and call it a trajectory.
+//
+// THE CONTRACT'S ANSWER IS NOT A SECOND QUERY. resolveOverlaySnapshot calls
+// queryEntitySnapshotAtOrBeforeTick -- the one implementation -- and adds only
+// the honest reading a consumer has to act on: which tick the answer really
+// came from, how stale that is, and which of the three fidelities applies.
+// A feature decides what to do about a stale answer; the accessor never hides
+// one.
+//
+//   ExactTick           the live window replayed the tick itself (staleness 0)
+//   CheckpointFallback  an archived checkpoint at-or-before the tick; the
+//                       answer is a real snapshot, but it is NOT this tick
+//   Unavailable         no history for this tick (before the window, a gap, or
+//                       no history at all) -- states is empty and reason says
+//                       which one
+//
+// WHO WIDENS THE RETAINED WINDOW. Neither task does it inside the overlay.
+// EntityHistoryLimits is a demo_header policy every consumer shares (the
+// instance cache, the trace, the probes), and changing it to fit one feature
+// would move every reading taken against it. T52 does not need it: a silhouette
+// is a statement about the snapshot the frame was drawn from, and a stale
+// snapshot is reported as stale. T53's per-tick trail does need it and owns
+// that change in demo_header, with the fidelity field below as the reading that
+// says whether the widening worked -- until then T53's fidelity will read
+// CheckpointFallback on most ticks and its acceptance must say so.
+// ---------------------------------------------------------------------------
+enum class OverlaySnapshotFidelity : std::uint8_t {
+  Unavailable = 0,
+  CheckpointFallback = 1,
+  ExactTick = 2,
+};
+
+const char* overlaySnapshotFidelityName(OverlaySnapshotFidelity fidelity);
+
+// The tick domain is the SERVER tick (entity history is keyed by it;
+// sceneTick = firstPacketTick + playback.tick is what the product passes in).
+struct OverlaySnapshotResolution {
+  std::int32_t requestedTick = 0;
+  std::int32_t resolvedTick = 0;
+  std::int32_t stalenessTicks = 0;
+  OverlaySnapshotFidelity fidelity = OverlaySnapshotFidelity::Unavailable;
+  // The demo_header status this came from, kept so a caller can separate
+  // "before the retained window" from "a gap in it" without re-querying.
+  // Printed as a name by the trace; never compared as a number.
+  std::string reason;
+};
+
+// Resolves one tick into states. Returns the resolution; states is empty only
+// when fidelity is Unavailable.
+OverlaySnapshotResolution resolveOverlaySnapshot(
+  const DemoNetworkSummary& summary,
+  std::int32_t tick,
+  std::vector<EntityState>& states);
+
+// ---------------------------------------------------------------------------
+// 4c. LIFECYCLE -- "DISAPPEARED" IS A TRANSITION, NOT A MISSING SAMPLE
+//
+// T53's acceptance needs "the projectile vanished" and T52's needs "the player
+// despawned", and a bare sample list cannot tell either from "this tick was
+// never sampled". The tracker diffs consecutive sample sets by entity index and
+// returns one row per entity whose presence changed. It is a pure value the
+// probe drives, so the despawn case and the no-player case are testable without
+// a demo that happens to contain a despawn at the right tick.
+//
+// The tracker is fed only the ticks the policy actually sampled
+// (overlayTickSampled), so a stride of 4 reports four ticks of change at once --
+// which is the truth about what was observed, and the reason
+// ticksSinceLastSample is on the row.
+// ---------------------------------------------------------------------------
+enum class OverlayLifecycleTransition : std::uint8_t {
+  Appeared = 0,   // present now, not in the previous sampled set
+  Persisted = 1,  // present in both (emitted only when includePersisted)
+  Vanished = 2,   // present before, absent now: the despawn case
+};
+
+const char* overlayLifecycleTransitionName(OverlayLifecycleTransition transition);
+
+struct OverlayLifecycleEvent {
+  OverlayLifecycleTransition transition = OverlayLifecycleTransition::Appeared;
+  std::uint16_t entityIndex = 0;
+  std::int32_t classId = -1;
+  std::string className;
+  bool isPlayer = false;
+  OverlayTeam team = OverlayTeam::Unknown;
+  std::int32_t tick = 0;
+  std::int32_t ticksSinceLastSample = 0;
+};
+
+struct OverlayLifecycleStats {
+  std::size_t appeared = 0;
+  std::size_t persisted = 0;
+  std::size_t vanished = 0;
+  std::size_t ticksFed = 0;
+};
+
+class OverlayEntityTracker {
+public:
+  // Feeds the samples of one sampled tick. Returns the transitions and folds
+  // the same counts into stats() incrementally. A tick fed twice is refused
+  // (returns empty, increments duplicateTicks) rather than applied twice: the
+  // tracker's answer must not depend on how many times a frame asked.
+  std::vector<OverlayLifecycleEvent> observe(
+    std::int32_t tick,
+    const std::vector<OverlayEntitySample>& samples,
+    bool includePersisted = false);
+  void reset();
+  const OverlayLifecycleStats& stats() const { return stats_; }
+  std::size_t duplicateTicks() const { return duplicates_; }
+  bool hasSample() const { return haveTick_; }
+
+private:
+  bool haveTick_ = false;
+  std::int32_t lastTick_ = 0;
+  // entityIndex -> the row, so a Vanished event can still name the class and
+  // team the entity had on its last observed tick.
+  std::unordered_map<std::uint16_t, OverlayEntitySample> previous_;
+  OverlayLifecycleStats stats_{};
+  std::size_t duplicates_ = 0;
+};
+
 
 // ---------------------------------------------------------------------------
 // 5. THE DRAW LIST
@@ -332,6 +483,15 @@ struct OverlayDrawItem {
   float end[3] = {0.0f, 0.0f, 0.0f};
 };
 
+// ONE LIST PER DEPTH MODE, NOT ONE LIST PER FEATURE.
+// T53 needs a depth-tested trail (so a path behind a wall reads as 3D) and an
+// x-ray marker (so a live projectile can still be found behind cover) in the
+// SAME frame. The depth mode is a property of the list, so the renderer takes
+// one list per mode -- setOverlayDrawList(list) is called once for XRay and
+// once for DepthTested -- and the pass issues at most two state changes.
+// Keeping the mode on the list rather than on the item is what stops a
+// mutation from hiding one primitive's depth state behind another's, which is
+// the whole reason it is not on OverlayDrawItem.
 struct OverlayDrawList {
   // Read by the renderer, never inferred: an empty list with enabled == true is
   // "the overlay is on and there is nothing to draw", which is a different
@@ -361,40 +521,82 @@ OverlayDrawList buildOutlineDrawList(
   OverlayDepthMode depth);
 
 // ---------------------------------------------------------------------------
-// 6. THE TOGGLE STATE
+// 6. THE TOGGLE STATE -- ONE SLOT, ONE OWNER
 //
-// One state machine for the whole overlay slot, so T52's key and T53's key
-// cannot disagree about whether "the overlay" is on. Both features' items
-// live in one pass; two independent enable flags would let a frame be drawn
-// with one feature's items and the other's pass state.
+// T52's key and T53's key must not be able to disagree about whether "the
+// overlay" is on, and they must not be able to disturb each other either.
+// Both halves of that sentence are mechanical here:
 //
-// presses counts edge presses and stateChanges counts actual changes: a held
-// key that repeats must not toggle repeatedly (the reason main.cpp's
-// WM_KEYDOWN arm already filters the repeat bit), and "the counter moved" is
-// how the gate sees a key that was pressed and ignored.
+//   * there is ONE boolean, so two features cannot hold two opinions about it;
+//   * the boolean has exactly ONE OWNER at a time. Acquiring is the claim, and
+//     a call from a feature that does not own the slot is REFUSED and counted
+//     (refusedForeignPresses) rather than applied. So "T53 turned the overlay
+//     off while T52 was driving it" is an observable refusal, not a silent
+//     change of what T52's frame means.
+//
+// WHY OWNERSHIP AT ALL. The two features draw into one pass, so a frame's
+// overlay is one thing. If both could write the flag, the trace would show a
+// toggle count that neither feature can account for, and a gate that pressed
+// F9 could not attribute the resulting frame to the feature it was testing.
+// Ownership makes "who is driving" a field (owner), not an assumption.
+//
+// presses counts every call, stateChanges only the calls that moved the state,
+// so "pressed twice" and "pressed once and was refused" are different
+// readings. startupDefault keeps "started on, then toggled off" readable as
+// exactly that.
 // ---------------------------------------------------------------------------
+enum class OverlaySlotOwner : std::uint8_t {
+  None = 0,
+  Outline = 1,     // T52 controls the slot
+  Trajectory = 2,  // T53 controls the slot
+};
+
+const char* overlaySlotOwnerName(OverlaySlotOwner owner);
+
 class OverlayToggleState {
 public:
+  // Claims the slot for `owner`. Succeeds when the slot is free or already
+  // owned by that same feature; refuses (returns false, counts the refusal)
+  // when another feature holds it. The renderer's overlay pass reads enabled()
+  // and never acquires.
+  bool acquire(OverlaySlotOwner owner);
+  // Gives the slot up. Only the owner may release it; a foreign release is
+  // refused and counted like a foreign press.
+  bool release(OverlaySlotOwner owner);
+
+  OverlaySlotOwner owner() const { return owner_; }
   bool enabled() const { return enabled_; }
-  // Returns the new state. A call whose state did not change still counts a
-  // press, so "pressed twice" and "pressed once" are different readings.
-  bool set(bool value);
-  bool toggle();
-  bool on() { return set(true); }
-  bool off() { return set(false); }
+
+  // The two setters both REQUIRE ownership. A call from a non-owner returns
+  // the current state unchanged and increments refusedForeignPresses, so a
+  // gate can show the interference did not land.
+  bool set(OverlaySlotOwner who, bool value);
+  bool toggle(OverlaySlotOwner who);
+  bool on(OverlaySlotOwner who) { return set(who, true); }
+  bool off(OverlaySlotOwner who) { return set(who, false); }
+
   std::uint32_t presses() const { return presses_; }
   std::uint32_t stateChanges() const { return stateChanges_; }
-  // The state written by the command line, kept apart from enabled_: a run
-  // that started with --outline on and later toggled off must be readable as
-  // "started on, toggled", not as "started off".
+  std::uint32_t refusedForeignPresses() const { return refusedForeign_; }
+  std::uint32_t acquisitions() const { return acquisitions_; }
+  std::uint32_t releases() const { return releases_; }
+
+  // The state written by the command line. Kept apart from enabled_ so a run
+  // that started with --outline on and later toggled off reads as "started on,
+  // toggled", not as "started off". Does not require ownership: it is applied
+  // before any feature exists.
   void setStartupDefault(bool value) { startupDefault_ = value; enabled_ = value; }
   bool startupDefault() const { return startupDefault_; }
 
 private:
+  OverlaySlotOwner owner_ = OverlaySlotOwner::None;
   bool enabled_ = false;
   bool startupDefault_ = false;
   std::uint32_t presses_ = 0;
   std::uint32_t stateChanges_ = 0;
+  std::uint32_t refusedForeign_ = 0;
+  std::uint32_t acquisitions_ = 0;
+  std::uint32_t releases_ = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -409,7 +611,27 @@ private:
 // stageOrdinal is the pass's position in draw()'s own counter, so "the overlay
 // drew after the world" is a number, not an ordering of statements.
 // ---------------------------------------------------------------------------
+// ONE ROW PER SILHOUETTE THE PASS ACTUALLY DREW, with the screen box it covers
+// and the depth its own geometry projects to. This is what lets a gate ask
+// "is THIS player's region red" instead of "does the frame contain red", and
+// what lets the depth-tested control be judged on the pixels a wall occludes.
+// The box is the projected AABB in pixels (top-left origin, as the BMP is
+// read), clamped to the viewport; `depth` is the projected depth of the box's
+// centre, 0..1, which is the number the depth buffer is compared against.
+struct OverlayItemReading {
+  std::uint16_t entityIndex = 0;
+  OverlayTeam team = OverlayTeam::Unknown;
+  OverlayDepthMode depthMode = OverlayDepthMode::XRay;
+  bool onScreen = false;
+  int x0 = 0;
+  int y0 = 0;
+  int x1 = 0;
+  int y1 = 0;
+  float depth = 0.0f;
+};
+
 struct OverlayPassReading {
+
   bool enabled = false;
   OverlayDepthMode depth = OverlayDepthMode::XRay;
   bool drewThisFrame = false;
@@ -431,6 +653,117 @@ struct OverlayPassReading {
   bool hasBounds = false;
   float boundsMin[3] = {0.0f, 0.0f, 0.0f};
   float boundsMax[3] = {0.0f, 0.0f, 0.0f};
+  std::vector<OverlayItemReading> items;
 };
+
+// ---------------------------------------------------------------------------
+// 7b. THE RENDERER ENTRY POINT (answered for T53's question d)
+//
+// The overlay pass is ONE pass that draws ONE list. T52 and T53 do not each
+// get a pass; they each contribute items through their own builder and the
+// product submits the merged list once per frame:
+//
+//   renderer.setOverlayDrawList(const OverlayDrawList& list);
+//   const OverlayPassReading& Renderer::overlayPassReading() const;
+//
+// setOverlayDrawList takes a copy: the renderer keeps the list across frames
+// until it is replaced or cleared, so a product loop that only rebuilds on a
+// sampled tick does not clear the overlay on the frames in between. Passing an
+// empty list with enabled = false is the off state; passing an empty list with
+// enabled = true is "on and nothing to draw", which the reading distinguishes.
+//
+// Line and Marker primitives (T53's) are built by the renderer into vertex
+// buffers from `start`/`end` using the same map-to-box transform as every other
+// world vertex, so a trail's line lands on the world it describes. They share
+// the overlay pass's depth mode; the header keeps that mode per list on purpose
+// (see OverlayDepthMode) and T53 said if that is wrong it has to say so before
+// both implementations exist.
+
+// What a caller merges: buildOutlineDrawList's items plus T53's. The merge is
+// a plain append; the renderer re-derives every count from the list it was
+// handed, so a feature cannot inflate another's reading.
+
+// ---------------------------------------------------------------------------
+// 8. SETTINGS AND KEY BINDINGS -- ONE PLACE, NOT TWO
+//
+// T53's question (c): the two features must not each add their own key to
+// settings.ini and then race to write the file. The rule:
+//
+//   * settings.ini gains exactly TWO keys for the whole overlay slot:
+//       [renderer] outline=0|1        (T52's on/off, the product default 0)
+//       [renderer] outline_depth=0|1  (0 = XRay product, 1 = DepthTested control)
+//     Written only by T52, through settings_store's existing PersistentSettings
+//     rather than by a second ini writer. T53 reads none of them.
+//   * T53's trajectory settings (linger ticks, sampling tier, player filter)
+//     are T53's to add, under their own key names, in the same section. The
+//     contract does not fix their names; it fixes that neither task writes the
+//     other's keys.
+//   * key bindings: T52 owns the outline key (F9, the first key past the F1..F8
+//     camera-preset range), T53 owns its own, and both go through the single
+//     OverlayToggleState-shaped path in main.cpp's WM_KEYDOWN arm with the
+//     repeat-bit guard that arm already applies. Two keys, two states, one
+//     pass -- a key that toggled the shared pass state from two places would
+//     make "pressed F9" and "pressed F10" indistinguishable in the trace.
+
+
+// ---------------------------------------------------------------------------
+// 9. THE GATE'S ASSERTIONS, IN THE CONTRACT RATHER THAN IN A SCRIPT
+//
+// Each acceptance criterion has one predicate here, so the probe, the product
+// trace and the gate cannot hold three slightly different opinions about what
+// "the outline is red" or "the overlay drew in the right slot" means.
+//
+// (a) PASS ORDER. overlayPassOrderValid(overlayOrdinal, viewModelOrdinal) is the
+//     whole assertion: the overlay must be drawn strictly BEFORE the ViewModel
+//     pass. The product prints both ordinals, the probe asserts this predicate,
+//     and the mutation that moves the overlay after the ViewModel pass makes it
+//     false AND makes the weapon visibly outlined -- one reading, two symptoms.
+//
+// (b) TEAM COLOUR. overlayPixelMatchesTeam(rgb) is the pixel side: a red-team
+//     pixel must be red-dominant by a margin the predicate states, a blue-team
+//     pixel blue-dominant, and a neutral pixel must satisfy NEITHER. Swapping
+//     the two colours therefore fails BOTH directions, and an unknown team that
+//     fell back to red would fail the neutral test.
+//
+// (c) DEPTH AWARENESS -- what the depth-tested mutation has to show. The
+//     assertion is NOT "some pixels changed"; it is: in the region where the
+//     world's own depth buffer proves a player is occluded by world geometry,
+//       XRay frame          -> that region contains team-coloured outline pixels
+//       DepthTested frame   -> that region contains NONE, and is byte-identical
+//                              to the same region of the overlay-off frame
+//     The occluded region is not guessed: captureDepthBuffer(false) already
+//     stores the world depth of the frame, so the probe reads the frame's own
+//     depth at a pixel and asks whether the silhouette's projected depth is
+//     behind it. A threshold on a pixel count would pass for a silhouette that
+//     merely moved; this cannot.
+//
+// (d) NON-INTERFERENCE. With the overlay on, every pixel OUTSIDE the drawn
+//     silhouette's bounds must be byte-identical to the overlay-off frame at
+//     the same tick. That is the direct evidence for "does not change world
+//     geometry or ordinary visibility", and it is why the pass publishes its
+//     bounds at all.
+//
+// (e) TOGGLE OWNERSHIP. acquire/toggle from a foreign owner must be refused
+//     (refusedForeignPresses moves, enabled() does not), so "two features each
+//     toggling" is a measurable refusal instead of a race.
+// ---------------------------------------------------------------------------
+
+// (a) The pass must come before the ViewModel pass. False when either ordinal
+// is unset (0), which is what a pass that never ran reports -- so a missing
+// overlay cannot pass this by reading both as 0.
+bool overlayPassOrderValid(std::size_t overlayOrdinal, std::size_t viewModelOrdinal);
+
+// (b) The pixel predicate, in 8-bit channels as the BMP holds them.
+// A red pixel: r >= green + 48 and r >= blue + 48 and r >= 96.
+// A blue pixel: b >= red + 48 and b >= green + 48 and b >= 96.
+// A neutral pixel: neither of the above.
+// 48 is ~19% of full scale: well above the map's own warm albedo (whose
+// measured red-minus-green on the reference frames stays under 30) and well
+// below the team colours this contract defines, so the predicate separates
+// them instead of splitting hairs.
+bool overlayPixelMatchesTeam(std::uint8_t r, std::uint8_t g, std::uint8_t b, OverlayTeam team);
+bool overlayPixelIsNeutral(std::uint8_t r, std::uint8_t g, std::uint8_t b);
+constexpr int kOverlayTeamChannelMargin = 48;
+constexpr int kOverlayTeamChannelFloor = 96;
 
 } // namespace tf2::native

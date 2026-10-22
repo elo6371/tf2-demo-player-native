@@ -83,6 +83,14 @@ PersistentSettings loadSettings() {
   result.render.viewModelFov = static_cast<float>(
     migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));
   result.render.vsync = readBool(file, L"vsync", false);
+  // T52: the overlay's two keys. They are read here, with everything else, so a
+  // gate that pins its own settings file makes the COMPILED default the input --
+  // "no stored value" is then reachable from a gate instead of being whatever
+  // this machine happens to have saved.
+  result.render.outlineEnabled = readBool(file, L"outline", false);
+
+  result.render.outlineDepthTested = readInt(file, L"outline_depth", 0) == 1;
+
   result.render.normalize();
   wchar_t root[32768]{};
   GetPrivateProfileStringW(kSection, L"tfRoot", L"", root,
@@ -108,7 +116,12 @@ bool saveSettings(const PersistentSettings& settings) {
   if (!writeInt(temporary, L"preset", render.preset == QualityPreset::Standard ? 1 : 0)
       || !writeInt(temporary, L"renderScalePercent", static_cast<int>(render.renderScale * 100.0f + 0.5f))
       || !writeInt(temporary, L"viewModelFov", static_cast<int>(render.viewModelFov + 0.5f))
-      || !writeBool(temporary, L"vsync", render.vsync)) {
+      || !writeBool(temporary, L"vsync", render.vsync)
+      // T52: the overlay's two keys, written here so there is ONE ini writer. A
+      // second writer racing this one is how a settings file ends up with half of
+      // one round's keys.
+      || !writeBool(temporary, L"outline", render.outlineEnabled)
+      || !writeInt(temporary, L"outline_depth", render.outlineDepthTested ? 1 : 0)) {
     DeleteFileW(temporary.c_str());
     return false;
   }

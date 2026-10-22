@@ -17,6 +17,7 @@
 #include "model_loader.h"
 #include "viewmodel.h"
 #include "entity_model.h"
+#include "entity_overlay.h"
 #include "animation_binding.h"
 #include "item_schema.h"
 #include "native_ui.h"
@@ -248,6 +249,29 @@ POINT g_lastMouse{};
 // and camera-ui-check.sh pins.
 tf2::native::CameraModeController g_cameraMode;
 bool g_debugCamera = false;
+// T52: the overlay's toggle. One slot, one owner: main.cpp is the outline's
+// owner and no other feature may change the flag while it holds the slot, which
+// is what the class enforces rather than documents.
+tf2::native::OverlayToggleState g_overlayToggle;
+std::size_t g_overlaySampledTicks = 0;
+std::size_t g_overlayFramesWithList = 0;
+// What the last built list contained, as scalars so the trace prints one line
+// whatever the list size. `lastDisabled` is the one that makes "the toggle is
+// off" a COUNT (every sampled player was refused because the overlay is off)
+// rather than an absence of output.
+struct OverlayStats {
+  std::size_t lastSubmitted = 0;
+  std::size_t lastRed = 0;
+  std::size_t lastBlue = 0;
+  std::size_t lastUnknown = 0;
+  std::size_t lastNoMesh = 0;
+  std::size_t lastNoOrigin = 0;
+  std::size_t lastDisabled = 0;
+  std::size_t lastSamples = 0;
+};
+OverlayStats outlineStats{};
+// The tier is the performance dial; the product default is every tick.
+tf2::native::OverlaySampleTier overlaySampleTier = tf2::native::OverlaySampleTier::EveryTick;
 float g_debugCameraEye[3] = {0.0f, 0.0f, 0.0f};
 float g_debugCameraPitch = 0.0f;
 float g_debugCameraYaw = 0.0f;
@@ -658,8 +682,16 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // repeat.
     if ((lParam & (1u << 30)) != 0u
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
-            || wParam == VK_END
+            || wParam == VK_END || wParam == VK_F9
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
+    // T52: F9 is the overlay's key -- the first key past the F1..F8 camera-preset
+    // range, so the two do not collide. The repeat bit is filtered above: a held
+    // key must toggle once, and the toggle's own presses counter is what the
+    // trace reports, so "pressed and ignored" and "never pressed" differ.
+    if (wParam == VK_F9) {
+      g_overlayToggle.toggle(tf2::native::OverlaySlotOwner::Outline);
+      return 0;
+    }
     const bool functionKey = wParam >= VK_F1 && wParam <= VK_F8;
     if (functionKey && g_renderer) {
       const std::size_t slot = static_cast<std::size_t>(wParam - VK_F1);
@@ -859,6 +891,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
+  // T52: the outline overlay's command-line state. `--outline on|off` is the
+  // toggle the one key press also drives; `--outline-depth xray|tested` is the
+  // CONTROL the depth-awareness mutation needs, and it is a separate argument
+  // because a run that asked for depth-tested and drew x-ray would otherwise
+  // read as a pass.
+  bool outlineRequested = false;
+  bool outlineGiven = false;
+  tf2::native::OverlayDepthMode outlineDepthMode = tf2::native::OverlayDepthMode::XRay;
+  bool outlineArgumentRejected = false;
+  bool outlineDepthGiven = false;
   // Standalone `--model` skinning contract. The single-model path is a separate
   // contract from the entity-instance path: it uploads one skeleton to b1, so
   // it can and must enable the skinning branch explicitly. Three knobs:
@@ -1554,6 +1596,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         metricsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--dump-entity-materials") == 0 && i + 1 < argumentCount) {
         dumpEntityMaterialsPath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--outline") == 0 && i + 1 < argumentCount) {
+        const wchar_t* value = arguments[++i];
+        if (wcscmp(value, L"on") == 0) { outlineRequested = true; outlineGiven = true; }
+        else if (wcscmp(value, L"off") == 0) { outlineRequested = false; outlineGiven = true; }
+        else outlineArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--outline") == 0) {
+        outlineArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--outline-depth") == 0 && i + 1 < argumentCount) {
+        const wchar_t* value = arguments[++i];
+        if (wcscmp(value, L"xray") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::XRay; outlineDepthGiven = true; }
+        else if (wcscmp(value, L"tested") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::DepthTested; outlineDepthGiven = true; }
+        else outlineArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--outline-depth") == 0) {
+        outlineArgumentRejected = true;
+
       } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
         captureFramePath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
@@ -1567,6 +1624,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     persistent.render.normalize();
   }
+  // T52: the outline takes the overlay slot at startup, before anything can draw.
+  // kUiPlay/F9 can then only change the FLAG; ownership is what makes "who is
+  // driving the overlay" a field rather than an assumption. Applied AFTER the
+  // argument loop so the command line can override the stored value, and "no
+  // --outline given" keeps the stored one -- a run that was asked for off and
+  // drew on must be distinguishable from a run with a stale ini.
+  g_overlayToggle.acquire(tf2::native::OverlaySlotOwner::Outline);
+  g_overlayToggle.setStartupDefault(outlineGiven ? outlineRequested : persistent.render.outlineEnabled);
+  if (!outlineDepthGiven) {
+    outlineDepthMode = persistent.render.outlineDepthTested
+      ? tf2::native::OverlayDepthMode::DepthTested : tf2::native::OverlayDepthMode::XRay;
+  }
   if (worldDebugViewGiven > 1) ++invalidWorldDebugArgument;
   if (audioDeviceRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --audio-device; default device not used.\n");
@@ -1576,6 +1645,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
     return 13;
   }
+  if (outlineArgumentRejected) {
+    // Same rule as --world-water: a typo that fell back to `on` or to x-ray
+    // would make two frames that were meant to differ identical, and the gate
+    // would report "no difference" as a pass.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --outline/--outline-depth; --outline takes on|off, --outline-depth takes xray|tested.\n");
+    return 13;
+  }
+
   if (modelArgumentRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --model-sequence/--model-tick/--model-skinning; refusing to guess.\n");
     return 13;
@@ -5092,6 +5169,45 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
   };
+  // T52: the overlay's account of the frame it just drew. `enabled` and
+  // `drew` are the pass's own reading, so "the toggle is off" and "the overlay
+  // is on and has nothing to draw" are two different lines instead of the
+  // absence of one. `orderOk` is the ordinal-6 assertion evaluated on the
+  // renderer's own numbers: the gate reads it, the mutation that moves the pass
+  // after the ViewModel makes it 0, and both symptoms (this line, and the
+  // weapon wearing a silhouette) come from one defect.
+  const auto traceOutlineDraw = [&]() {
+    if (!g_renderer) return;
+    const auto& pass = renderer.overlayPassReading();
+    const bool orderOk = tf2::native::overlayPassOrderValid(
+      pass.stageOrdinal, renderer.viewModelPassOrdinal());
+    traceFmt("outline: draw enabled=%d depth=%s drew=%d ordinal=%zu vmOrdinal=%zu orderOk=%d"
+      " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
+      " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
+      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s",
+      pass.enabled ? 1 : 0, tf2::native::overlayDepthModeName(pass.depth),
+      pass.drewThisFrame ? 1 : 0, pass.stageOrdinal, renderer.viewModelPassOrdinal(),
+      orderOk ? 1 : 0, pass.silhouettes, pass.lines, pass.markers,
+      pass.vertexCount, pass.drawCalls,
+      outlineStats.lastSubmitted, outlineStats.lastRed, outlineStats.lastBlue,
+      outlineStats.lastUnknown, outlineStats.lastNoMesh, outlineStats.lastNoOrigin,
+      outlineStats.lastDisabled, outlineStats.lastSamples, g_overlaySampledTicks,
+      g_overlayToggle.presses(), g_overlayToggle.stateChanges(),
+      g_overlayToggle.refusedForeignPresses(),
+      tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()));
+    // One row per drawn silhouette. The gate joins these to the frame: the box
+    // is the pass's own projection of that entity's extent, so "this region is
+    // red" is a statement about THIS entity rather than about the picture.
+    for (const auto& item : pass.items) {
+      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d",
+        static_cast<unsigned>(item.entityIndex),
+        tf2::native::overlayTeamName(item.team),
+        tf2::native::overlayDepthModeName(item.depthMode),
+        item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0);
+    }
+  };
+
+
   // ---- T21/T26: the map -> screen projection, written once ----------------
   // `uploadWorldGeometry` publishes the transform and `worldShaderConstants` is
   // the matrix the draw used, so this is the product's own camera and not a
@@ -6608,6 +6724,53 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           animationStats.targetWitnessLocalFrame, animationStats.targetWitnessSectionFrames,
           animationStats.targetWitnessObservations);
         traceCheckpoint("scene: instances set");
+        // ---- T52: the overlay's per-tick build --------------------------------
+        // Built here, where the snapshot and the uploaded meshes are both already
+        // in hand, and only on a tick the sampling policy selects. A skipped tick
+        // does not clear the list: the overlay keeps drawing what it was last told,
+        // which is what makes a stride a cost saving rather than a flicker.
+        {
+          const bool sampled = tf2::native::overlayTickSampled(overlaySampleTier, sceneTick);
+          if (sampled) {
+            ++g_overlaySampledTicks;
+            std::vector<tf2::native::OverlayEntitySample> samples = tf2::native::sampleOverlayEntities(
+              currentEntityStates, demoNetworkSummary.serverClassSchemas,
+              demoNetworkSummary.modelPrecache, tf2::native::OverlayEntityFilter::Players,
+              nullptr, nullptr);
+            std::vector<std::string> knownMeshes;
+            knownMeshes.reserve(draws.size());
+            for (const auto& draw : draws) knownMeshes.push_back(draw.cacheKey);
+            tf2::native::OverlayDrawList list = tf2::native::buildOutlineDrawList(
+              samples, knownMeshes, g_overlayToggle.enabled(), outlineDepthMode);
+            // The pose the silhouettes are drawn at is the pose the MESH was drawn
+            // at: the entity pass already resolved a transform per instance, and a
+            // second resolution here would be a second answer to "where is
+            // entity N". Matching by cache key is not enough -- two players of the
+            // same class share one -- so the entity index is the join.
+            for (auto& item : list.items) {
+              for (const auto& draw : draws) {
+                if (draw.cacheKey != item.cacheKey) continue;
+                if (std::fabs(draw.origin[0] - item.origin[0]) > 1.0e-3f
+                    || std::fabs(draw.origin[1] - item.origin[1]) > 1.0e-3f
+                    || std::fabs(draw.origin[2] - item.origin[2]) > 1.0e-3f) continue;
+                item.skinned = draw.skinningEnabled;
+                item.boneOffset = draw.boneOffset;
+                item.boneCount = draw.boneCount;
+                break;
+              }
+            }
+            outlineStats.lastSubmitted = list.items.size();
+            outlineStats.lastRed = list.submittedByTeam[1];
+            outlineStats.lastBlue = list.submittedByTeam[2];
+            outlineStats.lastUnknown = list.submittedByTeam[0];
+            outlineStats.lastNoMesh = list.rejectedNoMesh;
+            outlineStats.lastNoOrigin = list.rejectedNoOrigin;
+            outlineStats.lastDisabled = list.rejectedDisabled;
+            outlineStats.lastSamples = samples.size();
+            renderer.setOverlayDrawList(list);
+            ++g_overlayFramesWithList;
+          }
+        }
       } else {
         renderer.setEntityBoneMatrices({});
         renderer.setEntityModelInstances({});
@@ -7130,6 +7293,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // made, and a pass that has not run yet counts as zero. Taken here, the
         // line describes a frame that exists.
         traceWorldDraw();
+        traceOutlineDraw();
       }
       // Emitted on the frame the capture was requested for, so the readings and
       // the bitmap on disk describe the same frame.

@@ -89,3 +89,74 @@ a pixel assertion can be about the entity's own region.
 3. Do you need a second depth mode (e.g. depth-tested trail + x-ray marker)?
    The contract keeps the mode per **list** on purpose; say so now if that is
    wrong, before both implementations exist.
+
+## v2 (2026-10-22, after t53-trajectory's findings) -- what changed and why
+
+T53 measured that per-tick projectile origins ARE on the wire and that the C++
+entity history does NOT retain them: `queryEntitySnapshotAtOrBeforeTick` answers
+most ticks from the newest retained checkpoint (worst staleness 1057 ticks on
+the reference recording, median gap 822). Four answers went into the header
+because a chat reply would have been contradicted by the code:
+
+1. **`resolveOverlaySnapshot(summary, tick, states)`** -- the one shared accessor
+   (question a). It calls the existing `queryEntitySnapshotAtOrBeforeTick` and
+   adds the honest reading: `requestedTick`, `resolvedTick`, `stalenessTicks`,
+   and `OverlaySnapshotFidelity::{ExactTick, CheckpointFallback, Unavailable}`.
+   Tick domain is the **server tick** (`sceneTick = firstPacketTick + playback.tick`).
+   It never hides a stale answer -- a consumer decides what to do with one.
+2. **Retention is not the overlay's to widen** (question b). `EntityHistoryLimits`
+   is a demo_header policy every consumer shares; changing it for one feature
+   would move every reading taken against it. T52 does not need it (a stale
+   snapshot is reported as stale). T53 owns that widening in demo_header, and the
+   fidelity field is the reading that says whether it worked -- until then T53's
+   fidelity will read `CheckpointFallback` on most ticks and its acceptance must
+   say so instead of claiming per-tick trajectories.
+3. **`OverlayEntityTracker`** (from T53's lifecycle point). `observe(tick,
+   samples)` diffs consecutive sampled ticks by entity index and returns
+   `Appeared` / `Persisted` / `Vanished`, so "the projectile vanished" and "the
+   player despawned" are transitions rather than missing samples. A tick fed
+   twice is refused rather than applied twice, so the answer cannot depend on how
+   many frames asked.
+4. **Settings and keys do not collide** (question c). The whole overlay slot gets
+   exactly two `settings.ini` keys, both written by T52 through the existing
+   `PersistentSettings` path: `outline=0|1` and `outline_depth=0|1`. T53 adds its
+   own keys (linger, tier, player filter) under its own names in the same
+   section and writes none of T52's. Two keys, two states, one pass.
+
+Renderer entry point (question d): `setOverlayDrawList(const OverlayDrawList&)`
+plus `overlayPassReading()`. One pass, one list -- line/trail primitives are
+appended to T52's silhouettes by the product and share that pass's depth mode
+(kept per list on purpose; T53 was told to object now if it needs otherwise).
+
+**Entity identity** stays `entityIndex + classId + className` with matching by
+**class name** only, never by a pinned id -- T53's own measurement (CTFViewModel
+320 on one demo, 18 on another) is the same trap. **Team** is `m_iTeamNum` with
+an explicit `OverlayTeam::Unknown` fallback that is a neutral grey, so an
+unknown team can never pass a red/blue pixel assertion.
+## v1 FROZEN (2026-10-22) -- final changes before implementation
+
+Both reviewers changed the contract in the same direction: **decide nothing on
+the caller's behalf that the caller has measured.**
+
+1. **`OverlayClassSet`** (T53's requirement (a)). `sampleOverlayEntities` gained
+   an optional `const OverlayClassSet* classSet`; a null set keeps the built-in
+   name rule (T52's path), and T53 passes its measured class list. The rule was
+   wrong in both directions on the real server class table: 7 false positives
+   (CTFRocketLauncher, CTFGrenadeLauncher, CTFPipebombLauncher, CTFFlameThrower,
+   CTFJar, CTFBottle, CTFPowerupBottle -- weapons and held items that carry
+   `m_vecOrigin` and sit at (0,0,0) while held) and 1 false negative
+   (CTFGrenadePipebombProjectile, no "Projectile" substring, 774 spawns = the
+   second most common real projectile).
+2. **One `OverlayDrawList` per depth mode** (T53's requirement (c)): the renderer
+   accepts the list once per mode, so one frame can carry a depth-tested trail
+   and an x-ray head marker. The invariant "one list = one depth mode" is
+   unchanged -- it is what stops a mutation hiding one primitive's depth state
+   behind another's.
+3. **No per-item age field** (agreed as drafted). Linger state stays in T53's
+   builder; `OverlayDrawList::rejectedLingered` is the shared reading.
+4. **The gate's assertions live in the header** as predicates, not in the
+   script: `overlayPassOrderValid` (the ordinal-6 assertion),
+   `overlayPixelMatchesTeam` / `overlayPixelIsNeutral` (the pixel side), and the
+   owner-bound `OverlayToggleState` (one slot, one owner, foreign presses
+   refused and counted).
+
