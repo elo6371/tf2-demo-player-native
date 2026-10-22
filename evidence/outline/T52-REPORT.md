@@ -364,6 +364,28 @@ tick requested=74482 ... entity=31 class=CTFPlayerResource player=1 team=unknown
    修法：`regions_file=` 让区域不走 argv，并且 region 默认只取被拍那一帧（4701 → 14）。
    判据：**任何把自己的产物喂回自己作参数的断言，都要有一条"喂不进去时它会喊"的路径**。
 
+## 11.1 下一窗口的补丁计划（行号级，未应用）
+
+写成计划而不是先改：**没有锁就不能编译，未编译的改动进了树只会让下一个窗口多花时间查语法**。
+
+### A. 采样器：精确匹配 `CTFPlayer`（§9.2）
+- `native/src/entity_overlay.cpp` 的玩家判定（`isPlayer` 处）改成类名 == `"CTFPlayer"` 的精确比较；
+- 断言不用改：修完 `rows=withTeam=withPose=120`。
+
+### B. item 框：常量盒 → 网格 AABB（§3.2，lead 已批准）
+1. `native/include/native_renderer.h:1269-1275` `EntityModelMesh` 加 `float boundsMin[3]; float boundsMax[3];`
+2. `native/src/native_renderer.cpp:3485-3494` 上传时顺手求 min/max（顶点就在手上，6 行）
+3. `native/include/native_renderer.h:1234-1238` `OverlayInstanceRecord` 加世界空间 `worldMin[3]/worldMax[3]`
+4. `native/src/native_renderer.cpp:3310-3316` 用 `rows.positionRows` 变换 AABB 的 8 个角，存世界 min/max
+5. `native/src/native_renderer.cpp:5437-5463` 把 `halfX/halfZ`+`center` 换成 record 的 8 个角，投影循环不动
+6. **同 tick 对照读数**：`OverlayItemReading` 加 `legacy[4]`，仍用旧常量盒算一遍，item 行加 `legacy=x0,y0,x1,y1`
+   —— 这样"盒子修对了"和"断言放宽了"在同一行里能分开读。
+
+### C. `depthWrite=1` 定案（§4.0 第 5 条）
+- `native_renderer.cpp:1348` 读回处加一行 trace：`gpu: overlay depth states xray(test=%d write=%d) tested(test=%d write=%d)`；
+- 重建后**一次采集**就能定案：若打印 `xray(test=0 write=0)` 而 draw 行仍报 `depthWrite=1`，则缺陷在 `overlayPassReading_` 的赋值路径；
+  若打印 `write=1`，则缺陷在状态创建（`MASK_ZERO` 没有生效），产品确实写了深度。
+
 ## 12. 这次给 lead 的建议
 
 ! 21:52–22:16 的门禁已经跑过一轮正向（§4.0）。下面是**下一窗口**的排法，已按 lead 的优先序调整：
