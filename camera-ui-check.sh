@@ -40,17 +40,19 @@
 #         both by accident;
 #     (b) after resume the tick advances past the frozen tick.
 #   Then the bookmark claim: three names, three DIFFERENT cameras, each jump
-#   restoring all six pose fields exactly, and two captures of the same
-#   bookmark byte-identical.
+#   restoring all six pose fields AND the projection fov exactly (seven numbers,
+#   so a jump that lands 1e-3 off or restores the wrong fov is red), and two
+#   captures of the same bookmark on the same paused tick byte-identical.
 #
 # WHAT THE MUTATIONS PROVE
 #   --mutation re-runs the shipped expectation lists against perturbed
 #   captures (so every needle discriminates), then rebuilds the product with
 #   one defect reintroduced at a time and requires the real gate to go red.
 #   The T4 pair: the camera default flipped to third-person and the title's
-#   camera field replaced by a constant. The T50 three: the pause stops
-#   freezing the tick, a bookmark jump lands 0.001 box units off, and the key
-#   table accepts a duplicate chord. Restore is a byte-for-byte copy from a
+#   camera field replaced by a constant. The T50 four: the pause stops freezing
+#   the tick, a bookmark jump lands 0.001 box units off, a jump restores the
+#   orbit into the wrong fov (posing as an assertion only the fov check can
+#   catch), and the key table accepts a duplicate chord. Restore is a byte-for-byte copy from a
 #   scratch backup verified with cmp, then a rebuild, then a control run that
 #   must reproduce the fixed readings.
 #
@@ -82,6 +84,20 @@ CAMERA_PROBE=native/build-nmake/camera_probe.exe
 # Missing input is a failure, not a skip: a gate that quietly SKIPs reports
 # success for a run that did no work.
 fail=0
+mkdir -p "$OUT"
+# THE BUILD COMES FIRST. Two defects hid here before this block moved up:
+#   * native_ui_probe is an input to section 1/3 and does not exist in a fresh
+#     build tree, so checking for it before building refused to run the gate at
+#     all -- the gate had never executed a single assertion on this branch;
+#   * the T50 build used to run AFTER the probe, so its "a stale binary would
+#     describe a tree that no longer exists" claim did not cover the probe.
+# One build at the top makes all four sections describe the same tree.
+echo "=== 0/4 build (product + native_ui_probe + camera_probe) ==="
+if bash build-target.sh tf2_demo_native native_ui_probe camera_probe > "$OUT/build.txt" 2>&1; then
+  echo "  OK build tf2_demo_native native_ui_probe camera_probe"
+else
+  echo "  FAIL build (see $OUT/build.txt)"; tail -30 "$OUT/build.txt"; exit 1
+fi
 for path in "$EXE" "$PROBE" "$TF" "$BAGEL"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
 done
@@ -312,18 +328,6 @@ assert_contains "title HUD error status" "$e2e_title" "error=none"
 #   compiled defaults, and a focused text field suppresses every bound action.
 
 echo
-echo "=== T50 0/3 build (product + camera_probe) ==="
-# Built here rather than assumed: a stale binary would make every reading below
-# describe a tree that no longer exists. This gate is invoked under the host
-# lock (hostlock.sh run t50-camera ...) precisely because it builds and runs the
-# product, so the build belongs inside it, like the other gates that build.
-if bash build-target.sh tf2_demo_native camera_probe > "$OUT/t50-build.txt" 2>&1; then
-  echo "  OK build tf2_demo_native camera_probe"
-else
-  echo "  FAIL build (see $OUT/t50-build.txt)"; tail -20 "$OUT/t50-build.txt"; fail=1
-fi
-
-echo
 echo "=== T50 1/3 camera_probe (freeze rule, bookmarks, key table) ==="
 CAMERA_PROBE=native/build-nmake/camera_probe.exe
 if [ ! -x "$CAMERA_PROBE" ]; then
@@ -349,8 +353,15 @@ else
   assert_eq "T50 three bookmarks stored" "$(pvalue "$t50_probe" bookmarksSaved)" "3"
   assert_eq "T50 every saved pose came back exactly" \
     "$(pvalue "$t50_probe" bookmarkPoseExact)" "3"
+  # The seventh pose field, with its own exact count: three DIFFERENT fovs are
+  # saved (100/85/60), so a store that shared one value or ignored the argument
+  # cannot pass by coincidence.
+  assert_eq "T50 every saved fov came back exactly" \
+    "$(pvalue "$t50_probe" bookmarkFovExact)" "3"
   assert_eq "T50 every pose survived the settings file exactly" \
     "$(pvalue "$t50_probe" bookmarkFilePoseExact)" "3"
+  assert_eq "T50 every fov survived the settings file exactly" \
+    "$(pvalue "$t50_probe" bookmarkFileFovExact)" "3"
   assert_eq "T50 deleting a bookmark is durable" \
     "$(pvalue "$t50_probe" bookmarkDeletePersists)" "1"
   # Two saves of the same bookmarks are byte-identical. That is the property the
@@ -405,6 +416,13 @@ T50_FRAME_A="$OUT/t50-jump1-a.bmp"
 T50_FRAME_B="$OUT/t50-jump1-b.bmp"
 T50_SETTINGS="$OUT/t50-settings.ini"
 rm -f "$T50_TRACE" "$T50_FRAME_A" "$T50_FRAME_B" "$T50_SETTINGS"
+# The projection is part of a bookmark (contract 1.1 `bookmarkN.fov`). A run that
+# only ever saw the 90-degree default could not tell a jump that restores the
+# saved fov from one that resets it to the default, so the run starts from a
+# non-default 100: every saved bookmark carries 100 and every verify line below
+# must report fovWant=100 with fovMatch=1. The product loads this file because
+# --settings-file is taken before loadSettings (the pre-scan in wWinMain).
+printf '[renderer]\r\nviewModelFov=100\r\n' > "$T50_SETTINGS"
 cyg_trace="$(cygpath -m "$PWD/$T50_TRACE")"
 cyg_a="$(cygpath -m "$PWD/$T50_FRAME_A")"
 cyg_b="$(cygpath -m "$PWD/$T50_FRAME_B")"
@@ -589,9 +607,18 @@ else
   #     configured key performs must equal the jump the button performs.
   t50_verify=$(grep -a "camera: verify kind=bookmark" "$T50_TRACE" || true)
   verify_total=$(printf "%s\n" "$t50_verify" | grep -c "match=" || true)
-  verify_exact=$(printf "%s\n" "$t50_verify" | grep -c "match=1" || true)
+  # ` match=1 fovMatch=` rather than `match=1`: the line carries two fields whose
+  # names both end in `match`, and a substring match would let fovMatch=1 stand in
+  # for a pose that is off by 1e-3 -- which is exactly the mutation below.
+  verify_exact=$(printf "%s\n" "$t50_verify" | grep -c " match=1 fovMatch=" || true)
+  verify_fov=$(printf "%s\n" "$t50_verify" | grep -c " fovMatch=1 " || true)
   assert_ge_ok "T50 bookmark poses verified" "$verify_total" 6
   assert_eq "T50 bookmark poses exact" "$verify_exact" "$verify_total"
+  # The seventh field: the projection the frame behind the bookmark was drawn
+  # through. Its own count, because its own mutation (T50-M2b) moves only it.
+  assert_eq "T50 bookmark fovs restored exactly" "$verify_fov" "$verify_total"
+  assert_contains "T50 the bookmarked fov is the seeded non-default" \
+    "$(printf "%s\n" "$t50_verify" | head -1)" "fovWant=100"
   verify_names=$(grep -a "camera: verify kind=name" "$T50_TRACE" | grep -c "match=1" || true)
   assert_eq "T50 three bookmark names round-tripped" "$verify_names" "3"
   saved_marks=$(grep -a "camera: bookmark action=save" "$T50_TRACE" | grep -c "ok=1" || true)
@@ -669,13 +696,24 @@ else
   assert_contains "T50 bookmarks persisted" "$(cat "$T50_SETTINGS" 2>/dev/null)" "bookmark3.saved=1"
   assert_contains "T50 a bookmark name persisted" "$(cat "$T50_SETTINGS" 2>/dev/null)" "name=spawn door"
   assert_contains "T50 the key table persisted" "$(cat "$T50_SETTINGS" 2>/dev/null)" "camera.freeFly="
-  # The process must still be a hidden window: a capture run that showed a
-  # window would be a different run.
-  grep -a "camera: capture label=jump1-a" "$T50_TRACE" | tail -1
-  grep -a "camera: capture label=jump1-b" "$T50_TRACE" | tail -1
-  capture_a_tick=$(pvalue <(grep -a "camera: capture label=jump1-a" "$T50_TRACE" | head -1) tick)
-  capture_b_tick=$(pvalue <(grep -a "camera: capture label=jump1-b" "$T50_TRACE" | head -1) tick)
+  # The captures must belong to the paused half: a capture taken while the tick
+  # was moving would make "same frame twice" a claim about two different moments
+  # that merely look alike.
+  capture_a_line=$(grep -a "camera: capture label=jump1-a" "$T50_TRACE" | head -1)
+  capture_b_line=$(grep -a "camera: capture label=jump1-b" "$T50_TRACE" | head -1)
+  assert_contains "T50 the first compared capture was taken while paused" \
+    "$capture_a_line" "paused=1"
+  assert_contains "T50 the second compared capture was taken while paused" \
+    "$capture_b_line" "paused=1"
+  capture_a_tick=$(pvalue <(printf "%s\n" "$capture_a_line") tick)
+  capture_b_tick=$(pvalue <(printf "%s\n" "$capture_b_line") tick)
   assert_eq "T50 both compared captures are on the same tick" "$capture_a_tick" "$capture_b_tick"
+  # The run must be the hidden, device-free run the contract requires. The
+  # previous version of this block only grepped the capture lines under a
+  # comment claiming they proved the window was hidden; they do not.
+  t50_mode_line=$(grep -a "mode: summary" "$T50_TRACE" | tail -1)
+  assert_contains "T50 the scripted run was hidden and opened no audio device" \
+    "$t50_mode_line" "window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0"
 fi
 # --- T4 mutation ---------------------------------------------------------------
 if [ "$MUTATION" -eq 1 ]; then
@@ -766,15 +804,17 @@ fi
 
 # --- T50 mutation cases -------------------------------------------------------
 #
-# Three defects, each reintroducing one claim the T50 contract makes. Every case
-# edits the product source, rebuilds, re-runs the SAME script the forward section
-# ran, requires the specific reading to go red, then restores the source from a
+# Four defects, each reintroducing one claim the T50 contract makes: the pause
+# freeze, the bookmark pose (1e-3 off), the bookmark fov (one degree off, pose
+# exact) and conflict detection (two actions on one chord). Every case edits the
+# product source, rebuilds, re-runs the SAME script the forward section ran,
+# requires the specific reading to go red, then restores the source from a
 # byte-exact backup and verifies with cmp. The restore check is not decorative:
 # a gate that leaves a mutated tree behind would poison every later run.
 
 if [ "$MUTATION" -eq 1 ]; then
   echo
-  echo "=== T50 mutation: pause freeze, bookmark pose, conflict detection ==="
+  echo "=== T50 mutation: pause freeze, bookmark pose, bookmark fov, conflict detection ==="
   t50mrc=0
   T50M="$OUT/t50-mutation"
   mkdir -p "$T50M"
@@ -795,7 +835,9 @@ if [ "$MUTATION" -eq 1 ]; then
   # quoted so the shell cannot eat the C++ operators.
   t50_patch() {
     local file="$1" find="$2" replace="$3"
-    { printf '%s\n' "$find"; printf '%%%%\n'; printf '%s\n' "$replace"; } | python "$ROOT/patch-source.py" "$file"
+    # "$PY", not `python`: the gate validated this interpreter above and a PATH
+    # python is not guaranteed under the host-lock's bash.
+    { printf '%s\n' "$find"; printf '%%%%\n'; printf '%s\n' "$replace"; } | "$PY" "$ROOT/patch-source.py" "$file"
   }
   t50_script_run() {
     tag="$1"; trace="$T50M/$1.trace"; bmp="$T50M/$1.bmp"
@@ -965,7 +1007,8 @@ T50EOF
     # (the +0.001f is the whole defect: the saved pose is honest, the jump is not)
     if bash build-target.sh tf2_demo_native > "$T50M/m2.build" 2>&1; then
       t50_script_run m2
-      m2_exact=$(grep -a "camera: verify kind=bookmark" "$T50M/m2.trace" | grep -c "match=1" || true)
+      m2_exact=$(grep -a "camera: verify kind=bookmark" "$T50M/m2.trace" | grep -c " match=1 fovMatch=" || true)
+      m2_fov=$(grep -a "camera: verify kind=bookmark" "$T50M/m2.trace" | grep -c " fovMatch=1 " || true)
       m2_total=$(grep -a "camera: verify kind=bookmark" "$T50M/m2.trace" | grep -c "match=" || true)
       if [ "${m2_total:-0}" -ge 1 ] && [ "${m2_exact:-1}" = "0" ]; then
         echo "  MUTATION-CAUGHT=PASS (T50-M2: verify-bookmark went red, 0 of $m2_total exact)"
@@ -981,6 +1024,36 @@ T50EOF
   fi
   t50_restore_check native/src/main.cpp || t50mrc=1
   bash build-target.sh tf2_demo_native > "$T50M/m2.restore.build" 2>&1 || { echo "  RESTORE-BUILD=FAIL (T50-M2)"; t50mrc=1; }
+
+  echo
+  echo "--- T50-M2b: a jump restores the orbit but not the saved fov"
+  # fov is the seventh field of the bookmark pose (contract 1.1). This mutation
+  # leaves all six orbit numbers exact, so the pose assertion stays green and
+  # ONLY the fov assertion can catch it -- which is what proves the fov check is
+  # an assertion and not a duplicate of the pose one.
+  t50_backup native/src/main.cpp || t50mrc=1
+  if t50_patch native/src/main.cpp \
+      "  g_renderer->setViewModelFov(bookmark.fov);" \
+      "  g_renderer->setViewModelFov(bookmark.fov + 1.0f);  // mutation: wrong fov"; then
+    if bash build-target.sh tf2_demo_native > "$T50M/m2b.build" 2>&1; then
+      t50_script_run m2b
+      m2b_total=$(grep -a "camera: verify kind=bookmark" "$T50M/m2b.trace" | grep -c "match=" || true)
+      m2b_fov_exact=$(grep -a "camera: verify kind=bookmark" "$T50M/m2b.trace" | grep -c " fovMatch=1 " || true)
+      m2b_pose_exact=$(grep -a "camera: verify kind=bookmark" "$T50M/m2b.trace" | grep -c " match=1 fovMatch=" || true)
+      if [ "${m2b_total:-0}" -ge 1 ] && [ "${m2b_fov_exact:-1}" = "0" ]; then
+        echo "  MUTATION-CAUGHT=PASS (T50-M2b: fovMatch went red, 0 of $m2b_total exact; pose stayed exact on $m2b_pose_exact)"
+      else
+        echo "  MUTATION-CAUGHT=FAIL (T50-M2b: fov assertion stayed green, $m2b_fov_exact of $m2b_total exact)"
+        t50mrc=1
+      fi
+    else
+      echo "  MUTATION-BUILD=FAIL (T50-M2b)"; tail -5 "$T50M/m2b.build"; t50mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (T50-M2b: the patch did not apply)"; t50mrc=1
+  fi
+  t50_restore_check native/src/main.cpp || t50mrc=1
+  bash build-target.sh tf2_demo_native > "$T50M/m2b.restore.build" 2>&1 || { echo "  RESTORE-BUILD=FAIL (T50-M2b)"; t50mrc=1; }
 
   echo
   echo "--- T50-M3: the key table accepts a duplicate chord"
@@ -1006,7 +1079,7 @@ T50EOF
   echo
   echo "--- T50-M4 (control): the restored build reproduces the fixed readings"
   t50_script_run restored
-  restored_exact=$(grep -a "camera: verify kind=bookmark" "$T50M/restored.trace" | grep -c "match=1" || true)
+  restored_exact=$(grep -a "camera: verify kind=bookmark" "$T50M/restored.trace" | grep -c " match=1 fovMatch=" || true)
   restored_frozen=$(grep -a "camera: expect what=same-tick" "$T50M/restored.trace" | grep -c "match=1" || true)
   restored_conflicts=$(grep -a "camera: keys .* result=conflict" "$T50M/restored.trace" | wc -l || true)
   restored_rc=$(cat "$T50M/restored.rc" 2>/dev/null || echo 1)
@@ -1018,7 +1091,7 @@ T50EOF
   fi
 
   [ "$t50mrc" -eq 0 ] || { echo "CAMERA-UI-T50-MUTATION=FAIL"; exit 1; }
-  echo "CAMERA-UI-T50-MUTATION=PASS (three T50 defects went red and every source restored byte-identical)"
+  echo "CAMERA-UI-T50-MUTATION=PASS (four T50 defects went red and every source restored byte-identical)"
 fi
 echo
 if [ "$fail" -eq 0 ]; then

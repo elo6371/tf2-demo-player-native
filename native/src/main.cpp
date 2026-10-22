@@ -423,8 +423,12 @@ bool saveCameraBookmark(std::size_t slot, const std::string& name) {
   syncRendererPoseToDirector();
   tf2::native::CameraPose pose = g_cameraDirector.pose();
   if (!pose.valid) return false;
+  // The fov the frame behind this save was drawn through. Read from the same
+  // reading the orbit fields come from, so a bookmark is the whole camera.
+  const auto reading = g_renderer->orbitPose();
+  const float fov = reading.valid ? reading.fovDegrees : tf2::native::kDefaultBookmarkFov;
   const bool ok = g_cameraBookmarks.save(slot, name, pose,
-    cameraModeToken(g_cameraMode.mode()), g_playback.tick);
+    cameraModeToken(g_cameraMode.mode()), g_playback.tick, fov);
   if (ok && g_renderer) {
     // The renderer keeps its own transient presets (F1..F8 via the old Ctrl
     // arms). Kept in step so an old binding path and the new bookmark store
@@ -448,6 +452,9 @@ bool jumpToCameraBookmark(std::size_t slot, std::string& reason) {
     reason = "rejected";
     return false;
   }
+  // The projection is part of the saved view: an orbit restored into a
+  // different FOV is a different frame, so the jump writes it back too.
+  g_renderer->setViewModelFov(bookmark.fov);
   // A jump leaves the demo eye: the pose IS the new camera, and a demo view
   // left armed would overwrite it on the next scene tick.
   g_renderer->clearObserverDemoView();
@@ -814,11 +821,18 @@ bool runCameraScriptStep() {
     current.pitch = reading.pitch; current.distance = reading.distance;
     current.valid = true;
     const auto& saved = g_cameraBookmarks.at(wanted);
+    // Two separate readings, because the mutation harness proves each one can go
+    // red on its own: the six orbit fields, and the projection the frame is
+    // drawn through. A jump that restores the orbit into the wrong fov is a
+    // different picture even though the pose numbers match.
     const bool match = tf2::native::poseEqual(current, saved.pose);
-    traceFmt("camera: verify kind=bookmark slot=%d match=%d want=%s got=%s",
-      static_cast<int>(wanted), match ? 1 : 0,
+    const bool fovMatch = reading.fovDegrees == saved.fov;
+    traceFmt("camera: verify kind=bookmark slot=%d match=%d fovMatch=%d fovWant=%s fovGot=%s want=%s got=%s",
+      static_cast<int>(wanted), match ? 1 : 0, fovMatch ? 1 : 0,
+      tf2::native::formatPoseField(saved.fov).c_str(),
+      tf2::native::formatPoseField(reading.fovDegrees).c_str(),
       tf2::native::formatPose(saved.pose).c_str(), tf2::native::formatPose(current).c_str());
-    return match ? ok("exact") : fail("pose-mismatch");
+    return match && fovMatch ? ok("exact") : fail(match ? "fov-mismatch" : "pose-mismatch");
   }
   if (step.command == "verify-name") {
     double slot = 0.0;

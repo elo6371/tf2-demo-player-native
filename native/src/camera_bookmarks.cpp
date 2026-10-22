@@ -3,6 +3,7 @@
 #include "ini_section.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 
 namespace tf2::native {
@@ -47,7 +48,7 @@ bool CameraBookmarkStore::writeSlotKey(std::size_t slot, const char* field, std:
 }
 
 bool CameraBookmarkStore::save(std::size_t slot, const std::string& name,
-    const CameraPose& pose, const std::string& mode, std::int32_t tick) {
+    const CameraPose& pose, const std::string& mode, std::int32_t tick, float fov) {
   if (slot < 1 || slot > kCameraBookmarkSlots || !pose.valid) {
     ++refusedCount_;
     return false;
@@ -58,6 +59,10 @@ bool CameraBookmarkStore::save(std::size_t slot, const std::string& name,
   bookmark.saved = true;
   bookmark.name = finalName;
   bookmark.pose = pose;
+  // The same clamp Renderer::setViewModelFov applies, so the stored value is
+  // the value a jump can actually restore (a stored 500 would come back 120 and
+  // the exactness assertion would rightly fail).
+  bookmark.fov = std::isfinite(fov) ? std::clamp(fov, 40.0f, 120.0f) : kDefaultBookmarkFov;
   bookmark.mode = mode.empty() ? "first-person" : mode;
   bookmark.tick = tick;
   ++saveCount_;
@@ -130,14 +135,25 @@ bool CameraBookmarkStore::loadFromSettings(const std::filesystem::path& file) {
         if (index) poseText += ",";
         poseText += readString(section, slotKey(slot, fields[index]));
       }
+      const std::string fovText = readString(section, slotKey(slot, "fov"));
+      float fov = kDefaultBookmarkFov;
+      bool fovValid = true;
+      if (!fovText.empty()) {
+        char* end = nullptr;
+        const double parsed = std::strtod(fovText.c_str(), &end);
+        fovValid = end && *end == '\0' && std::isfinite(parsed);
+        if (fovValid) fov = std::clamp(static_cast<float>(parsed), 40.0f, 120.0f);
+      }
       CameraPose pose;
-      if (!parsePose(poseText, pose)) {
-        // A saved flag with an unusable pose is a corrupt slot, not a bookmark:
-        // keeping it would make a jump restore whatever the parse defaulted to.
+      if (!parsePose(poseText, pose) || !fovValid) {
+        // A saved flag with an unusable pose (or fov) is a corrupt slot, not a
+        // bookmark: keeping it would make a jump restore whatever the parse
+        // defaulted to.
         bookmark = CameraBookmark{};
         ++refusedCount_;
       } else {
         bookmark.pose = pose;
+        bookmark.fov = fov;
         if (bookmark.name.empty()) bookmark.name = defaultBookmarkName(slot);
         if (bookmark.mode.empty()) bookmark.mode = "first-person";
       }
@@ -176,6 +192,8 @@ bool CameraBookmarkStore::saveToSettings(const std::filesystem::path& file) cons
       if (!utf8ToWide(bookmark.saved ? formatPoseField(values[index]) : std::string(), value)) return false;
       section.emplace_back(slotKey(slot, fields[index]), value);
     }
+    if (!utf8ToWide(bookmark.saved ? formatPoseField(bookmark.fov) : std::string(), value)) return false;
+    section.emplace_back(slotKey(slot, "fov"), value);
     if (!utf8ToWide(bookmark.saved ? bookmark.mode : std::string(), value)) return false;
     section.emplace_back(slotKey(slot, "mode"), value);
     if (!utf8ToWide(std::to_string(bookmark.saved ? bookmark.tick : -1), value)) return false;

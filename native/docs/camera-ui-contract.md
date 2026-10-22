@@ -37,12 +37,15 @@ Eight slots, 1-based in the UI, 0-based in the file suffix.
 | `bookmarkN.yaw` | float, radians, `[-pi,pi)` | 0 | orbit yaw |
 | `bookmarkN.pitch` | float, radians, `[0.25,1.45]` | 0.55 | orbit pitch |
 | `bookmarkN.distance` | float, `[0.8,12]` | 3.0 | orbit distance |
+| `bookmarkN.fov` | float, `[40,120]` | 90 | camera projection FOV in degrees (`Renderer::viewModelFov()`, the value the world projection is built from); jumping restores it, so the frame a bookmark reproduces includes the projection as well as the six orbit fields |
 | `bookmarkN.mode` | string | `first-person` | `first-person` | `third-person` | `free-look`, the camera mode active at save time; jumping restores it |
 | `bookmarkN.tick` | int | -1 | playback tick at save time, informational only (a jump never seeks) |
 
-Floats are written with 9 significant digits; a jump restores the pose by
-writing those exact values back, so a save/jump/save round trip is
-byte-identical in the file. `-1` and `saved=0` are the "no bookmark" state.
+Floats are written with 9 significant digits; a jump restores the pose and the
+fov by writing those exact values back (`setOrbitPose` for the six orbit fields,
+`setViewModelFov` for `fov`), so a save/jump/save round trip is byte-identical
+in the file and the restored pose compares equal -- not epsilon-close -- to the
+saved one. `-1` and `saved=0` are the "no bookmark" state.
 
 ### 1.2 `[keys]` — the one shortcut table (shared with T51)
 

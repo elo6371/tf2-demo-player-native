@@ -185,14 +185,17 @@ void checkBookmarks(Readings& readings, const std::filesystem::path& settingsFil
   tf2::native::CameraBookmarkStore store;
   check(store.savedCount() == 0, "a fresh store has no bookmarks");
 
-  struct Case { std::size_t slot; const char* name; tf2::native::CameraPose pose; };
+  // fov values deliberately differ between the three slots: an implementation
+  // that shared one fov across the store, or that ignored the argument, would
+  // pass with three identical numbers and fail here.
+  struct Case { std::size_t slot; const char* name; tf2::native::CameraPose pose; float fov; };
   const Case cases[3] = {
-    { 1, "tower", makePose(0.123456789f, -0.987654321f, 0.456789012f, 1.23456789f, 0.654321098f, 9.87654321f) },
-    { 2, "spawn door", makePose(-0.5f, 0.25f, 0.75f, -3.0f, 0.3f, 1.5f) },
-    { 3, "mid high", makePose(0.0f, 0.0f, 0.9f, 0.0f, 1.4f, 11.5f) },
+    { 1, "tower", makePose(0.123456789f, -0.987654321f, 0.456789012f, 1.23456789f, 0.654321098f, 9.87654321f), 100.0f },
+    { 2, "spawn door", makePose(-0.5f, 0.25f, 0.75f, -3.0f, 0.3f, 1.5f), 85.0f },
+    { 3, "mid high", makePose(0.0f, 0.0f, 0.9f, 0.0f, 1.4f, 11.5f), 60.0f },
   };
   for (const auto& item : cases) {
-    check(store.save(item.slot, item.name, item.pose, "third-person", 1234),
+    check(store.save(item.slot, item.name, item.pose, "third-person", 1234, item.fov),
       "a bookmark saves");
   }
   check(store.savedCount() == 3, "three bookmarks are stored");
@@ -205,6 +208,14 @@ void checkBookmarks(Readings& readings, const std::filesystem::path& settingsFil
   }
   check(exact == 3, "every saved pose comes back exactly");
   readings.set("bookmarkPoseExact", exact);
+  // The projection is part of the saved camera (contract 1.1 `bookmarkN.fov`),
+  // so it gets its own exact count rather than hiding inside the pose one.
+  std::uint32_t fovExact = 0;
+  for (const auto& item : cases) {
+    if (store.saved(item.slot) && store.at(item.slot).fov == item.fov) ++fovExact;
+  }
+  check(fovExact == 3, "every saved fov comes back exactly");
+  readings.set("bookmarkFovExact", fovExact);
   // Underscores, not spaces: the readings line is space-separated, so a name
   // with a space inside a value would split into two tokens for any reader.
   readings.set("bookmarkNames", std::string("tower|spawn_door|mid_high"));
@@ -214,6 +225,8 @@ void checkBookmarks(Readings& readings, const std::filesystem::path& settingsFil
     "a bookmark saves without a typed name");
   check(store.at(4).name == tf2::native::defaultBookmarkName(4),
     "an unnamed bookmark falls back to its default name");
+  check(store.at(4).fov == tf2::native::kDefaultBookmarkFov,
+    "a bookmark saved without an fov keeps the shipped default");
   check(store.remove(4), "the unnamed bookmark deletes");
   check(!store.saved(4), "a deleted bookmark is gone");
   check(!store.remove(4), "deleting an empty slot is refused, not silently ignored");
@@ -244,6 +257,12 @@ void checkBookmarks(Readings& readings, const std::filesystem::path& settingsFil
   }
   check(fileExact == 3, "every pose survives a write/read cycle exactly");
   readings.set("bookmarkFilePoseExact", fileExact);
+  std::uint32_t fileFovExact = 0;
+  for (const auto& item : cases) {
+    if (reloaded.saved(item.slot) && reloaded.at(item.slot).fov == item.fov) ++fileFovExact;
+  }
+  check(fileFovExact == 3, "every fov survives a write/read cycle exactly");
+  readings.set("bookmarkFileFovExact", fileFovExact);
   check(reloaded.at(2).name == "spawn door (red)", "the renamed bookmark keeps its name on disk");
   check(reloaded.at(1).mode == "third-person", "the camera mode survives on disk");
 

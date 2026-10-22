@@ -27,11 +27,20 @@ namespace tf2::native {
 // ---------------------------------------------------------------------------
 
 constexpr std::size_t kCameraBookmarkSlots = 8;
+// The projection FOV a bookmark saved before `bookmarkN.fov` existed reads back
+// as. It is also the renderer's compiled default, so an old file keeps drawing
+// the frame the user saved (contract 1.1).
+constexpr float kDefaultBookmarkFov = 90.0f;
 
 struct CameraBookmark {
   bool saved = false;
   std::string name;
   CameraPose pose;
+  // The camera projection FOV at save time. Separate from the six orbit fields
+  // because the renderer keeps it in RenderSettings, and a jump that restored
+  // the orbit but not the projection would draw a different frame (the exactness
+  // claim is about the frame, so fov is part of the pose a gate compares).
+  float fov = kDefaultBookmarkFov;
   // The camera mode active at save time, so a jump restores the view the user
   // saved and not only the numbers. Empty on a slot that was never saved.
   std::string mode;
@@ -50,7 +59,8 @@ public:
   // are refused rather than clamped: a bookmark the user cannot see is worse
   // than a refused save.
   bool save(std::size_t slot, const std::string& name, const CameraPose& pose,
-    const std::string& mode, std::int32_t tick);
+    const std::string& mode, std::int32_t tick,
+    float fov = kDefaultBookmarkFov);
   bool remove(std::size_t slot);
   bool rename(std::size_t slot, const std::string& name);
   // Wipes every slot in memory. Deliberately separate from 'remove': "clear all
