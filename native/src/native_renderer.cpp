@@ -3313,6 +3313,25 @@ void Renderer::rebuildOverlayBuffers() {
       cpu.origin[0] = item.origin[0];
       cpu.origin[1] = item.origin[1];
       cpu.origin[2] = item.origin[2];
+      // The mesh's own box, through the same rows the instance is drawn with.
+      for (int axis = 0; axis < 3; ++axis) {
+        cpu.worldMin[axis] = 1.0e30f;
+        cpu.worldMax[axis] = -1.0e30f;
+      }
+      for (int corner = 0; corner < 8; ++corner) {
+        const float modelPoint[3] = {
+          (corner & 1) ? mesh->second.boundsMax[0] : mesh->second.boundsMin[0],
+          (corner & 4) ? mesh->second.boundsMax[1] : mesh->second.boundsMin[1],
+          (corner & 2) ? mesh->second.boundsMax[2] : mesh->second.boundsMin[2],
+        };
+        for (int axis = 0; axis < 3; ++axis) {
+          const float* row = &rows.positionRows[axis * 4];
+          const float world = row[0] * modelPoint[0] + row[1] * modelPoint[1]
+            + row[2] * modelPoint[2] + row[3];
+          cpu.worldMin[axis] = std::min(cpu.worldMin[axis], world);
+          cpu.worldMax[axis] = std::max(cpu.worldMax[axis], world);
+        }
+      }
       overlayInstances_.push_back(cpu);
       buckets[inserted.first->second].items.push_back(gpu);
       ++accepted;
@@ -3492,6 +3511,17 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
       source.weights[0], source.weights[1], source.weights[2],
       source.boneIndices[0], source.boneIndices[1], source.boneIndices[2], source.boneCount};
   }
+  // EntityModelGpuVertex carries the position as three scalars (x, y, z), not an
+  // array: the first attempt indexed a member called position and did not compile.
+  float boundsMin[3] = {local[0].x, local[0].y, local[0].z};
+  float boundsMax[3] = {boundsMin[0], boundsMin[1], boundsMin[2]};
+  for (const auto& vertex : local) {
+    const float position[3] = {vertex.x, vertex.y, vertex.z};
+    for (int axis = 0; axis < 3; ++axis) {
+      boundsMin[axis] = std::min(boundsMin[axis], position[axis]);
+      boundsMax[axis] = std::max(boundsMax[axis], position[axis]);
+    }
+  }
   D3D11_BUFFER_DESC description{};
   description.ByteWidth = static_cast<UINT>(count * sizeof(EntityModelGpuVertex));
   description.Usage = D3D11_USAGE_IMMUTABLE;
@@ -3506,6 +3536,10 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   EntityModelMesh mesh;
   mesh.vertexBuffer = std::move(buffer);
   mesh.vertexCount = static_cast<UINT>(count);
+  for (int axis = 0; axis < 3; ++axis) {
+    mesh.boundsMin[axis] = boundsMin[axis];
+    mesh.boundsMax[axis] = boundsMax[axis];
+  }
   entityModelMeshes_[cacheKey] = std::move(mesh);
   entityModelDrawRanges_.clear();
   entityModelVertexCount_ = 0;
@@ -5439,17 +5473,24 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
               // converted with the frame's own scale factors rather than a
               // constant, so a different map cannot silently change what "the
               // region this player covers" means.
-              const float halfX = 20.0f * worldHorizontalScale_;
-              const float halfZ = 36.0f * (0.8f / worldSpanZ_);
-              const DirectX::XMVECTOR center = DirectX::XMVectorSet(instance.origin[0], instance.origin[1], instance.origin[2], 1.0f);
+              // The box is THIS mesh's own extent, transformed by THIS instance's
+              // rows and projected with the same mvp the shader was handed. The
+              // constant hull it replaces projected to under two pixels on this
+              // map, so every item read x0==x1 and the region assertions could not
+              // be evaluated at all -- a correct silhouette inside a one-pixel box.
+              const float legacyHalfX = 20.0f * worldHorizontalScale_;
+              const float legacyHalfZ = 36.0f * (0.8f / worldSpanZ_);
+              const DirectX::XMVECTOR legacyCenter = DirectX::XMVectorSet(instance.origin[0], instance.origin[1], instance.origin[2], 1.0f);
               float minX = 1.0f, minY = 1.0f, maxX = -1.0f, maxY = -1.0f;
               float nearest = 1.0f;
               bool projected = false;
+              const float* boxMin = instance.worldMin;
+              const float* boxMax = instance.worldMax;
               for (int corner = 0; corner < 8; ++corner) {
-                const float sx = (corner & 1) ? halfX : -halfX;
-                const float sz = (corner & 2) ? halfZ : -halfZ;
-                const float sy = (corner & 4) ? halfX : -halfX;
-                const DirectX::XMVECTOR world = DirectX::XMVectorAdd(center, DirectX::XMVectorSet(sx, sy, sz, 0.0f));
+                const DirectX::XMVECTOR world = DirectX::XMVectorSet(
+                  (corner & 1) ? boxMax[0] : boxMin[0],
+                  (corner & 4) ? boxMax[1] : boxMin[1],
+                  (corner & 2) ? boxMax[2] : boxMin[2], 1.0f);
                 const DirectX::XMVECTOR clip = DirectX::XMVector4Transform(world, mvpForOverlay);
                 const float w = DirectX::XMVectorGetW(clip);
                 if (!(w > 1.0e-4f)) continue;
@@ -5460,6 +5501,32 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                 minX = std::min(minX, ndcX); maxX = std::max(maxX, ndcX);
                 minY = std::min(minY, ndcY); maxY = std::max(maxY, ndcY);
                 nearest = std::min(nearest, ndcZ);
+              }
+              // The box the OLD constant hull gives for the same silhouette, in
+              // the same units, so ONE trace line carries both. If the two
+              // disagree the reader can see which one covers the pixels the pass
+              // drew, and nobody can mistake "the box was fixed" for "the
+              // assertion was relaxed".
+              {
+                float legacyMinX = 1.0f, legacyMinY = 1.0f, legacyMaxX = -1.0f, legacyMaxY = -1.0f;
+                for (int corner = 0; corner < 8; ++corner) {
+                  const float sx = (corner & 1) ? legacyHalfX : -legacyHalfX;
+                  const float sz = (corner & 2) ? legacyHalfZ : -legacyHalfZ;
+                  const float sy = (corner & 4) ? legacyHalfX : -legacyHalfX;
+                  const DirectX::XMVECTOR world = DirectX::XMVectorAdd(legacyCenter,
+                    DirectX::XMVectorSet(sx, sy, sz, 0.0f));
+                  const DirectX::XMVECTOR clip = DirectX::XMVector4Transform(world, mvpForOverlay);
+                  const float w = DirectX::XMVectorGetW(clip);
+                  if (!(w > 1.0e-4f)) continue;
+                  const float ndcX = DirectX::XMVectorGetX(clip) / w;
+                  const float ndcY = DirectX::XMVectorGetY(clip) / w;
+                  legacyMinX = std::min(legacyMinX, ndcX); legacyMaxX = std::max(legacyMaxX, ndcX);
+                  legacyMinY = std::min(legacyMinY, ndcY); legacyMaxY = std::max(legacyMaxY, ndcY);
+                }
+                reading.legacyX0 = static_cast<int>((legacyMinX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.legacyX1 = static_cast<int>((legacyMaxX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.legacyY0 = static_cast<int>((0.5f - legacyMaxY * 0.5f) * static_cast<float>(height_));
+                reading.legacyY1 = static_cast<int>((0.5f - legacyMinY * 0.5f) * static_cast<float>(height_));
               }
               if (projected) {
                 reading.x0 = static_cast<int>((minX * 0.5f + 0.5f) * static_cast<float>(width_));

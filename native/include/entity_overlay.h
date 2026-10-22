@@ -687,6 +687,13 @@ struct OverlayItemReading {
   int y0 = 0;
   int x1 = 0;
   int y1 = 0;
+  // The box the constant +/-20, +/-36 map-unit hull would have produced for the
+  // same silhouette. Kept so one line carries both, which is the only way to
+  // tell "the box was fixed" from "the assertion was relaxed".
+  int legacyX0 = 0;
+  int legacyY0 = 0;
+  int legacyX1 = 0;
+  int legacyY1 = 0;
   float depth = 0.0f;
 };
 

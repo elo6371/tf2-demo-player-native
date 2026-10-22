@@ -5315,7 +5315,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
       " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
       " poseWorld=%zu poseBind=%zu"
-      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s",
+      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d",
       pass.enabled ? 1 : 0, tf2::native::overlayDepthModeName(pass.depth),
       pass.depthTestEnabled ? 1 : 0, pass.depthWriteEnabled ? 1 : 0,
       pass.drewThisFrame ? 1 : 0, pass.stageOrdinal, renderer.viewModelPassOrdinal(),
@@ -5327,16 +5327,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       outlineStats.lastSamples, g_overlaySampledTicks,
       g_overlayToggle.presses(), g_overlayToggle.stateChanges(),
       g_overlayToggle.refusedForeignPresses(),
-      tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()));
+      tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()),
+      renderer.overlayXRayDepthTestEnabled() ? 1 : 0,
+      renderer.overlayXRayDepthWriteEnabled() ? 1 : 0);
     // One row per drawn silhouette. The gate joins these to the frame: the box
     // is the pass's own projection of that entity's extent, so "this region is
     // red" is a statement about THIS entity rather than about the picture.
     for (const auto& item : pass.items) {
-      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d",
+      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d legacy=%d,%d,%d,%d",
         static_cast<unsigned>(item.entityIndex),
         tf2::native::overlayTeamName(item.team),
         tf2::native::overlayDepthModeName(item.depthMode),
-        item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0);
+        item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0,
+        item.legacyX0, item.legacyY0, item.legacyX1, item.legacyY1);
     }
   };
 

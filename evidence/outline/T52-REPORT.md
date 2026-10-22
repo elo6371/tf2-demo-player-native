@@ -233,7 +233,44 @@ grep -a "^outline: draw" "$1" | tail -1 | tr " " "\\n" | grep -a "^$2=" | cut -d
 2. 在门禁开头加一条**用产品真实行形状**的自检（`12.3 outline: draw ... submitted=3` → 必须读出 3），读不到就红；
 3. 让'读不到'变成 `<none>` 而不是空字符串，这样所有断言都能看出是'没读到'而不是'读到了空'。
 
-## 4.0 门禁正向运行：**红**（`OUTLINE-CHECK=FAIL`，49 OK / 10 FAIL，21:52–22:16）
+## 4.0 门禁正向运行（第二次，修复后）：**57 OK / 1 FAIL**（23:00–23:22）
+
+三处修复（采样器精确 `CTFPlayer`、item 框用网格自身 AABB、D3D11 状态读回打印）编译通过、
+探针 `self-test checks=97 failures=0`、正向门禁从 **49 OK/10 FAIL → 57 OK/1 FAIL**。
+
+**唯一还红的一条**：
+```text
+FAIL differing pixels outside every drawn region = 297, expected 0
+```
+同一 tick 的旧盒/新盒对照（lead 要求的那条）在同一行里：
+```text
+outline: item entity=2  team=red  x0=480 y0=335 x1=504 y1=342  legacy=497,339,497,339   ← 25x8 px，旧盒 1 px
+outline: item entity=5  team=blue x0=607 y0=336 x1=627 y1=340  legacy=622,337,622,337   ← 21x5 px，旧盒 1 px
+```
+**框修对了**（旧盒确实是 1 像素），但"区域外不得有差异"仍不成立：我自己逐像素量了一遍这一帧，
+`differing=484`，其中 `outside=424`，且这些像素到最近框的切比雪夫距离分布是 `1px:39, 2px:39, ..., 23px:1`
+——**不是 1–2 像素的描边外扩，而是一圈最远 23 像素的光晕**。这与 shader 里的 `kOverlaySilhouetteExpand` 一致：
+pass 画的是被**外扩过**的轮廓壳，而 item 框报的是**网格本身**的范围。所以要么框改报"实际绘制范围"，
+要么这条断言的区域按外扩量放大——**两者必须同一个来源，否则框永远小于画**。
+（门禁报 297、我量 424，差值本身也是读数：门禁的 region 取的是 trace **最后一帧**的 item，而捕获帧不一定是最后一帧，
+这两个数不一致就说明"区域取自哪一帧"还没钉死。下个窗口一并钉。）
+
+### 4.2 `depthWrite=1` **已定案**：是运行时归一化，不是产品写深度
+
+判读规则在跑之前写死（`stateWrite=0 ⇒ 缺陷在赋值路径`；`stateWrite=1 ⇒ 状态本身没带上掩码`），22:51 的读数：
+```text
+per-frame: depthTest=0 depthWrite=1      states: stateTest=0 stateWrite=1
+tested control: depthTest=1 depthWrite=0   ← 同一个 desc，DepthEnable=TRUE 建出来的那个，掩码被保留了
+```
+代码在 `native_renderer.cpp:1327` 要的是 `D3D11_DEPTH_WRITE_MASK_ZERO`；同一段代码用 `DepthEnable=TRUE` 建的对照状态
+读回来就是 `ZERO`。**同码同掩码、两种答案，差别只在 `DepthEnable`** ⇒ `DepthEnable=FALSE` 时 D3D11 不保留写掩码，
+写掩码此时是惰性的，"不写深度"由 `DepthEnable=FALSE` 保证，不由掩码保证。
+
+**因此**：门禁不再断言 `depthWrite==0`（那是在断言一个运行时会重写的字段），改为**记录**该读数并断言 `depthTest==0`；
+契约里"depth write off"这句要改写成机制描述。**行为层面"这一帧深度缓冲没被改"仍未测**（NOT VERIFIED，owner：我，
+最便宜下一步：在 overlay pass 前后各读一次深度缓冲并逐字节比较——渲染器已有 `captureDepthBuffer` 的 staging 读回路径）。
+
+## 4.0-旧 第一次正向运行：`OUTLINE-CHECK=FAIL`（49 OK / 10 FAIL，21:52–22:16）
 
 这是第一次真正跑完正向门禁（不是被编排器挡在门外）。**它不再是"什么都没画"**：
 

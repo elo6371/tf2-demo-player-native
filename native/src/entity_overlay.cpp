@@ -57,8 +57,15 @@ bool readIntProperty(const EntityState& state, const char* suffix, std::int64_t&
 // A player is identified by CLASS NAME, never by a pinned class id: the id is a
 // property of one recording's server class table and changes between demos.
 bool isPlayerClassName(const std::string& className) {
-  return className.find("TFPlayer") != std::string::npos
-    || className.find("Player") != std::string::npos;
+  // EXACT names, not substrings, and NOT a blacklist of known non-players.
+  // The substring test also matched CTFPlayerResource -- the team-info entity,
+  // which carries no team slot and no origin. It was sampled once per tick as a
+  // player, so the frame line read samples=21 for a frame that had 20 players,
+  // and the gate's "every sampled row carries a team and a pose" assertion went
+  // red with 120 of 126 rows. The assertion was right; the sampled object was
+  // wrong. A blacklist would have removed this one name and quietly admitted the
+  // next *Proxy or *Manager, which is harder to notice because it looks fixed.
+  return className == "CTFPlayer";
 }
 
 // Projectile identity, by name, for the same reason. The list is deliberately

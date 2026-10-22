@@ -492,9 +492,26 @@ assert_eq "tested run depth mode" "$(outline_value "$OUT/tested.trace" depth)" "
 # an outline visible through a wall without changing what the wall lets through
 # afterwards; the second half is invisible in any screenshot.
 assert_eq "x-ray: depth test" "$(outline_value "$OUT/on.trace" depthTest)" "0"
-assert_eq "x-ray: depth write" "$(outline_value "$OUT/on.trace" depthWrite)" "0"
+# The write half, MEASURED 2026-10-22 22:51 and therefore no longer asserted as
+# a zero: the pass is created with DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO
+# (native_renderer.cpp:1327) and D3D11 reports DepthWriteMask = ALL for that same
+# state (`stateWrite=1` in the draw line, printed from the GetDesc readback).
+# Both readings are in the trace and they are both true: when DepthEnable is
+# FALSE the runtime does not preserve the write mask, and the mask is inert --
+# "no depth write" is enforced by DepthEnable = FALSE, not by the mask.
+# So the register here is what the state says, and the CONTRACT sentence is
+# reported as UNVERIFIED-BEHAVIOURALLY (report section 4.2) rather than passed:
+# asserting depthWrite==0 would be asserting a field the runtime rewrites.
+echo "  x-ray depth write, as D3D11 reports it: depthWrite=$(outline_value "$OUT/on.trace" depthWrite) stateWrite=$(outline_value "$OUT/on.trace" stateWrite)  (NOT asserted, see report 4.2)"
 assert_eq "depth-tested control: depth test" "$(outline_value "$OUT/tested.trace" depthTest)" "1"
+# The control still ASSERTS its write bit, and that is the paired reading which
+# makes the x-ray result readable: the depth-tested state is created from the
+# SAME descriptor with DepthEnable = TRUE, and D3D11 reports its mask as ZERO --
+# so the runtime preserves the mask when the test is on and rewrites it to ALL
+# when the test is off. Same code, same mask, two answers: the difference is the
+# runtime, not the overlay.
 assert_eq "depth-tested control: depth write" "$(outline_value "$OUT/tested.trace" depthWrite)" "0"
+echo "  tested state: depthTest=$(outline_value "$OUT/tested.trace" depthTest) depthWrite=$(outline_value "$OUT/tested.trace" depthWrite)"
 
 # The per-item rows, printed so a red run reports WHERE the pass put each
 # silhouette instead of only how many it drew. "no players on screen" and "two

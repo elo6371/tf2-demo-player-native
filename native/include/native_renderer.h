@@ -675,6 +675,18 @@ public:
   // rather than a claim about the order of two statements.
   const OverlayPassReading& overlayPassReading() const { return overlayPassReading_; }
 
+  // T52: the depth-stencil states as D3D11 REPORTS them, next to the numbers the
+  // pass publishes per frame. The contract says x-ray is "depth test off and
+  // depth write off"; the pass is created with DepthWriteMask = ZERO and a gate
+  // read depthWrite=1 out of the per-frame reading, which is either a real depth
+  // write (a contract violation) or the two numbers coming from different places.
+  // Printing both in one line settles which, and the rule for reading it was
+  // written before the run: state=0 with the per-frame number still 1 means the
+  // defect is in how the pass fills its reading; state=1 means the state itself
+  // does not have the mask we asked for.
+  bool overlayXRayDepthTestEnabled() const { return overlayXRayDepthTestEnabled_; }
+  bool overlayXRayDepthWriteEnabled() const { return overlayXRayDepthWriteEnabled_; }
+
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
   bool uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
@@ -1235,6 +1247,12 @@ private:
     std::uint16_t entityIndex = 0;
     OverlayTeam team = OverlayTeam::Unknown;
     float origin[3] = {0.0f, 0.0f, 0.0f};
+    // The mesh's box transformed by this instance's rows: where THIS player's
+    // silhouette actually is in the world. Computed once here rather than per
+    // item at draw time, so the box the trace publishes and the box the shader
+    // projects cannot drift apart.
+    float worldMin[3] = {0.0f, 0.0f, 0.0f};
+    float worldMax[3] = {0.0f, 0.0f, 0.0f};
   };
   struct OverlayDrawRange {
     ID3D11Buffer* vertexBuffer = nullptr;
@@ -1269,6 +1287,12 @@ private:
   struct EntityModelMesh {
     Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
     UINT vertexCount = 0;
+    // The mesh's extent in its own space, measured once at upload. The overlay's
+    // per-item screen box is the projection of THIS box: the constant +/-20, +/-36
+    // map-unit hull it used before projected to under two pixels on this map, so
+    // every item read x0==x1 and every region-scoped assertion was vacuous.
+    float boundsMin[3] = {0.0f, 0.0f, 0.0f};
+    float boundsMax[3] = {0.0f, 0.0f, 0.0f};
     // The model's own paint, resolved from its MDL texture table. Empty until
     // uploadEntityModelTexture succeeds; a null view keeps the world atlas.
     Texture2D texture;
