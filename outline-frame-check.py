@@ -135,7 +135,10 @@ def main(argv):
                 else:
                     outside += 1
         print("diff_outside=%d diff_inside=%d regions=%d" % (outside, inside, len(regions)))
-        ok = outside == 0 and inside > 0
+        # require_inside=0 is for the determinism call, which compares two
+        # runs of the SAME state and therefore has no drawn region to find.
+        want_inside = args.get("require_inside", "1") != "0"
+        ok = outside == 0 and (inside > 0 or not want_inside)
         print("VERDICT %s" % ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
 
@@ -166,6 +169,24 @@ def main(argv):
         ok = red_inside >= int(args.get("min_red", "8")) and \
             blue_inside >= int(args.get("min_blue", "8")) and \
             red_wrong == 0 and blue_wrong == 0
+        print("VERDICT %s" % ("PASS" if ok else "FAIL"))
+        return 0 if ok else 1
+
+    if mode == "teamcount":
+        # A frame-wide count, because the per-region mode cannot say "this
+        # frame has NO team-coloured pixel", which is exactly the toggle-off
+        # reading mutation m3 has to move.
+        frame = Frame(args["frame"])
+        red_total = blue_total = 0
+        for y in range(frame.height):
+            for x in range(frame.width):
+                r, g, b = frame.rgb(x, y)
+                if is_red(r, g, b):
+                    red_total += 1
+                elif is_blue(r, g, b):
+                    blue_total += 1
+        print("red_total=%d blue_total=%d" % (red_total, blue_total))
+        ok = red_total + blue_total >= int(args.get("min_total", "0"))
         print("VERDICT %s" % ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
 

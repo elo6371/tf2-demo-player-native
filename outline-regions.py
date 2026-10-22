@@ -13,33 +13,63 @@ MODES
                    non-interference assertion may differ inside)
   --team           the largest RED box and the largest BLUE box as
                    "red=x0,y0,x1,y1 blue=x0,y0,x1,y1"
-  --occluded       the part of those boxes that the frame's own depth says is
-                   BEHIND world geometry, as one box; empty when nothing is
+  --occluded       a rectangle EVERY pixel of which the frame's own depth buffer
+                   says is behind world geometry. Empty when there is none.
 
   --occluded needs --depth (the same tick's capture). The depth it compares
   against is read out of the BMP the renderer wrote with --world-depth, so a
   wall that is not where the trace thinks it is cannot be assumed away.
+
+WHY THE OCCLUDED REGION IS A RECTANGLE AND NOT A BOUNDING BOX
+  The depth-awareness assertion is "the depth-tested frame draws NOTHING here and
+  is byte-identical to the overlay-off frame here". A bounding box of the
+  occluded pixels of two players also contains pixels that are NOT occluded, so
+  the assertion would fail on a correct build and pass for the wrong reason once
+  the box happened to fit. The region printed here is the largest axis-aligned
+  rectangle that the depth buffer proves is occluded, so the claim is about a
+  region that is occluded by construction.
 """
 import re
 import struct
 import sys
 
+# How much nearer than the silhouette's own projected depth the world surface has
+# to be before the pixel counts as occluded. 0.004 is about one 8-bit depth step
+# (1/255) plus a margin, and far smaller than the separation between a player and
+# a wall in front of it.
+DEPTH_EPSILON = 0.004
+
 
 def parse_args(argv):
     args = {"mode": None, "trace": None, "depth": None}
+    pending = None
     for item in argv[1:]:
+        if pending == "--trace":
+            args["trace"] = item
+            pending = None
+            continue
+        if pending == "--depth":
+            args["depth"] = item
+            pending = None
+            continue
         if item == "--csv":
             args["mode"] = "csv"
         elif item == "--team":
             args["mode"] = "team"
         elif item == "--occluded":
             args["mode"] = "occluded"
+        elif item == "--trace":
+            pending = "--trace"
+        elif item == "--depth":
+            pending = "--depth"
         elif item.startswith("--trace="):
             args["trace"] = item.split("=", 1)[1]
         elif item.startswith("--depth="):
             args["depth"] = item.split("=", 1)[1]
         else:
             raise SystemExit("unknown argument: " + item)
+    if pending is not None:
+        raise SystemExit(pending + " needs a value")
     return args
 
 
@@ -67,7 +97,7 @@ def read_items(path):
                 "y1": int(match.group(7)),
                 "depth": float(match.group(8)),
                 "onScreen": match.group(9) == "1",
-            });
+            })
     return items
 
 
@@ -76,12 +106,12 @@ def area(item):
 
 
 def read_depth_bmp(path):
-    """The --world-depth capture is greyscale: near is bright, far is dark.
+    """The --world-depth capture: every byte is the interpolated depth as grey.
 
-    The renderer writes depth as an 8-bit value; what the occluded-region
-    derivation needs is only a COMPARISON with the overlay item's own projected
-    depth, so the reading is the pixel value normalised to 0..1 the same way the
-    renderer packed it.
+    The world pixel shader's diagnostic mode 5 writes position.z / position.w
+    into all four channels (native_renderer.cpp, the envFeatures.x > 4.5 branch),
+    i.e. the same 0..1 value the depth buffer holds, so a pixel's brightness IS
+    its depth scaled by 255. Nearer is darker; the comparison below says so.
     """
     data = open(path, "rb").read()
     if data[0:2] != b"BM":
@@ -89,6 +119,8 @@ def read_depth_bmp(path):
     off = struct.unpack_from("<I", data, 10)[0]
     width, height = struct.unpack_from("<ii", data, 18)
     bpp = struct.unpack_from("<H", data, 28)[0] // 8
+    if bpp < 3:
+        raise SystemExit("want at least 24bpp, got %d" % (bpp * 8))
     flip = height < 0
     height = abs(height)
     stride = width * bpp
@@ -97,36 +129,80 @@ def read_depth_bmp(path):
 
 def depth_at(frame, x, y):
     pixels, width, height, bpp, flip, stride = frame
+    if x < 0 or y < 0 or x >= width or y >= height:
+        return None
     row = y if flip else (height - 1 - y)
     offset = row * stride + x * bpp
     return pixels[offset] / 255.0
 
 
-def occluded_box(items, frame):
-    """The part of the players' boxes that the world depth says is IN FRONT.
+def occluded_pixels(item, frame):
+    """The pixels of one item's box whose world depth is NEARER than the silhouette.
 
     A silhouette pixel is occluded when the frame's own depth at that pixel is
     strictly nearer than the silhouette's projected depth: that is the wall
-    standing between the camera and the player. The box returned bounds exactly
-    those pixels, so the depth-tested control is judged on the region a wall
-    actually covers rather than on a neighbourhood around it.
+    standing between the camera and the player. The item's depth is the nearest
+    of its eight projected corners, so this can only under-report occlusion,
+    never invent it.
     """
-    minx, miny, maxx, maxy = 10 ** 9, 10 ** 9, -1, -1
+    pixels = set()
+    for y in range(item["y0"], item["y1"] + 1):
+        for x in range(item["x0"], item["x1"] + 1):
+            world = depth_at(frame, x, y)
+            if world is None:
+                continue
+            if world < item["depth"] - DEPTH_EPSILON:
+                pixels.add((x, y))
+    return pixels
+
+
+def largest_all_occluded_rectangle(pixels, item):
+    """The largest axis-aligned rectangle inside the item box made only of occluded pixels.
+
+    Histogram-per-row, the classic largest-rectangle-in-a-histogram scan. The
+    result is a region the depth buffer proves is occluded at EVERY pixel, which
+    is what makes "the depth-tested frame draws nothing here" a statement about
+    the wall rather than about the player's box.
+    """
+    x0, y0, x1, y1 = item["x0"], item["y0"], item["x1"], item["y1"]
+    width = x1 - x0 + 1
+    if width <= 0:
+        return None
+    heights = [0] * width
+    best = None  # (area, x0, y0, x1, y1)
+    for y in range(y0, y1 + 1):
+        for index in range(width):
+            if (x0 + index, y) in pixels:
+                heights[index] += 1
+            else:
+                heights[index] = 0
+        stack = []  # (startIndex, height)
+        for index in range(width + 1):
+            height = heights[index] if index < width else 0
+            start = index
+            while stack and stack[-1][1] > height:
+                column, columnHeight = stack.pop()
+                candidate = columnHeight * (index - column)
+                if columnHeight > 0 and (best is None or candidate > best[0]):
+                    best = (candidate, x0 + column, y - columnHeight + 1, x0 + index - 1, y)
+                start = column
+            stack.append((start, height))
+    return best
+
+
+def occluded_rectangle(items, frame):
+    """The largest fully-occluded rectangle across every drawn silhouette."""
+    best = None
     for item in items:
-        for y in range(item["y0"], item["y1"] + 1):
-            for x in range(item["x0"], item["x1"] + 1):
-                world = depth_at(frame, x, y)
-                # 0.004 is comfortably larger than the depth write's own
-                # quantisation (8 bits over the 0..1 range) and far smaller than
-                # the separation between a player and the wall in front of it.
-                if world < item["depth"] - 0.004:
-                    minx = min(minx, x)
-                    maxx = max(maxx, x)
-                    miny = min(miny, y)
-                    maxy = max(maxy, y)
-    if maxx < 0:
-        return ""
-    return "%d,%d,%d,%d" % (minx, miny, maxx, maxy)
+        pixels = occluded_pixels(item, frame)
+        if not pixels:
+            continue
+        rectangle = largest_all_occluded_rectangle(pixels, item)
+        if rectangle is None:
+            continue
+        if best is None or rectangle[0] > best[0]:
+            best = rectangle + (item["entity"], item["team"], len(pixels))
+    return best
 
 
 def main(argv):
@@ -161,9 +237,16 @@ def main(argv):
         if not args["depth"]:
             raise SystemExit("--occluded needs --depth <world-depth bmp>")
         frame = read_depth_bmp(args["depth"])
-        box = occluded_box(on_screen, frame)
-        if box:
-            print(box)
+        best = occluded_rectangle(on_screen, frame)
+        if best is None:
+            sys.stderr.write("occluded: no fully-occluded pixel in %d drawn item(s)\n"
+                             % len(on_screen))
+            return 0
+        rectArea, rx0, ry0, rx1, ry1, entity, team, count = best
+        sys.stderr.write(
+            "occluded: entity=%d team=%s occludedPixels=%d rect=%d,%d,%d,%d (%d px)\n"
+            % (entity, team, count, rx0, ry0, rx1, ry1, rectArea))
+        print("%d,%d,%d,%d" % (rx0, ry0, rx1, ry1))
         return 0
 
     raise SystemExit("no mode selected")

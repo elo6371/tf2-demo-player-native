@@ -1215,27 +1215,54 @@ private:
   // the depth buffer the later passes and the capture read back.
   Microsoft::WRL::ComPtr<ID3D11DepthStencilState> overlayXRayDepthState_;
   Microsoft::WRL::ComPtr<ID3D11DepthStencilState> overlayDepthTestedState_;
+  // Read back from those two state objects (GetDesc) once, at init, so the trace
+  // publishes the state the GPU was given instead of a literal copied from the
+  // code that created it.
+  bool overlayXRayDepthTestEnabled_ = false;
+  bool overlayXRayDepthWriteEnabled_ = false;
+  bool overlayDepthTestedDepthTestEnabled_ = false;
+  bool overlayDepthTestedDepthWriteEnabled_ = false;
   // Cull none: the silhouette is an expanded shell whose winding a thin model
   // part can invert, and culling it would punch a hole in the outline.
   Microsoft::WRL::ComPtr<ID3D11RasterizerState> overlayRasterizerState_;
-  // Instance stream for the silhouettes, rebuilt when a list is submitted.
+  // Instance stream for the silhouettes, rebuilt whenever a list is submitted.
   Microsoft::WRL::ComPtr<ID3D11Buffer> overlayInstanceBuffer_;
   std::size_t overlayInstanceCapacity_ = 0;
+  // The CPU-side record of one uploaded silhouette. The pass publishes a screen
+  // box and an entity identity per drawn instance, and neither can be recovered
+  // from the GPU instance stream without decoding it a second time.
+  struct OverlayInstanceRecord {
+    std::uint16_t entityIndex = 0;
+    OverlayTeam team = OverlayTeam::Unknown;
+    float origin[3] = {0.0f, 0.0f, 0.0f};
+  };
   struct OverlayDrawRange {
     ID3D11Buffer* vertexBuffer = nullptr;
     UINT vertexCount = 0;
     UINT instanceStart = 0;
     UINT instanceCount = 0;
+    // Which stored list's depth mode this range belongs to. Ranges for BOTH
+    // modes live in the one list: a frame may carry an x-ray silhouette and a
+    // depth-tested trail at once (contract v1, T53's requirement (c)).
     OverlayDepthMode depth = OverlayDepthMode::XRay;
   };
   std::vector<OverlayDrawRange> overlayDrawRanges_;
+  std::vector<OverlayInstanceRecord> overlayInstances_;
   std::size_t overlayInstanceCount_ = 0;
   // Line and marker primitives (T53's), built with the world's own vertex
-  // layout so a trail lands on the world it describes.
+  // layout so a trail lands on the world it describes. Both modes' vertices
+  // share one buffer and are drawn by range, so submitting the second list of a
+  // frame does not erase the first list's trail.
   Microsoft::WRL::ComPtr<ID3D11Buffer> overlayLineBuffer_;
   std::size_t overlayLineCapacity_ = 0;
   UINT overlayLineVertexCount_ = 0;
+  UINT overlayLineStartByDepth_[2] = {0, 0};
   UINT overlayLineVertexCountByDepth_[2] = {0, 0};
+  // Rebuilds every GPU-side overlay buffer from BOTH stored lists. Called by
+  // setOverlayDrawList, which stores the list it was handed and then rebuilds
+  // from both modes -- the buffers are a function of the two lists, not of the
+  // last call.
+  void rebuildOverlayBuffers();
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelVertexBuffer_;
   UINT modelVertexCount_ = 0;
   ModelGpuStatus modelGpuStatus_ = ModelGpuStatus::NotLoaded;
