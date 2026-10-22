@@ -367,10 +367,13 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
   // silently claimed F9 and the one that loses is decided by map iteration order.
   {
     KeyBindTable shared = defaultKeyBindings();
-    // T51's three actions, registered the way it will register them.
+    // T51's three actions, with the ids AND default chords from contract 1.2
+    // (hud.toggle=H, hud.preview=Ctrl+P, hud.reset=Ctrl+Shift+H). Spelled here
+    // exactly as T51 registers them: a test that registered a name the product
+    // will never have would pass while proving nothing about the real table.
     shared.registerDefault("hud.toggle", parseChord("H"));
-    shared.registerDefault("hud.import", parseChord("Ctrl+H"));
-    shared.registerDefault("hud.preview", parseChord("Alt+H"));
+    shared.registerDefault("hud.preview", parseChord("Ctrl+P"));
+    shared.registerDefault("hud.reset", parseChord("Ctrl+Shift+H"));
     check(shared.registered("hud.toggle"), "a second feature can register its actions");
     check(shared.actions().size() == 30, "the table holds both features' actions");
     // Now the collision: the HUD wants a key the camera holds.
@@ -383,7 +386,7 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
     check(shared.actionKey("hud.toggle") == parseChord("H"),
       "the refused HUD action keeps its own key");
     // And the reverse direction: the camera must not take a key the HUD holds.
-    check(!shared.set(camera_actions::kFreeFly, parseChord("Ctrl+H")),
+    check(!shared.set(camera_actions::kFreeFly, parseChord("Ctrl+P")),
       "a camera binding on a HUD key is refused too");
     check(shared.actionKey(camera_actions::kFreeFly) == parseChord("F9"),
       "the camera action keeps its key after the reverse refusal");
@@ -393,9 +396,9 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
       "the conflict query names the action that owns the key");
     // resetAll restores BOTH features' defaults and does not disturb the
     // registrations: a second feature's registration is a default, not a rebind.
-    shared.set("hud.import", parseChord("Alt+F12"));
+    shared.set("hud.preview", parseChord("Alt+F12"));
     shared.resetAll();
-    check(shared.actionKey("hud.import") == parseChord("Ctrl+H"),
+    check(shared.actionKey("hud.preview") == parseChord("Ctrl+P"),
       "resetAll restores a second feature's default as well");
     check(shared.actionKey(camera_actions::kFreeFly) == parseChord("F9"),
       "resetAll leaves the camera defaults exactly as compiled");
