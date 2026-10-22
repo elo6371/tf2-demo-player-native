@@ -1,0 +1,6 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t51-hud\native\src\native_renderer.cpp(3745): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t51-hud\native\src\native_renderer.cpp(3746): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t51-hud\native\src\native_renderer.cpp(4053): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Worktrees\t51-hud\native\src\native_renderer.cpp(4223): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+rc=0

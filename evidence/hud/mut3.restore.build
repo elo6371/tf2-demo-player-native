@@ -1,0 +1,8 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t51-hud\native\src\main.cpp(1702): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t51-hud\native\src\main.cpp(1703): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t51-hud\native\src\main.cpp(1704): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t51-hud\native\src\main.cpp(1705): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t51-hud\native\src\main.cpp(1706): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t51-hud\native\src\main.cpp(7001): warning C4457: 鈥渋nstance鈥濈殑澹版槑闅愯棌浜嗗嚱鏁板弬鏁?
+rc=0

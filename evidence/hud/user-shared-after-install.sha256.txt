@@ -1,0 +1,8 @@
+06c7dd5168fa9b1421f949d01e66096a7c1e9375013599c9a97f86b963a7a32b *./.uninstall/install-manifest.txt
+8f94406612497adb8621e0dd6c90d0ac867c74167e71c40db896444497030c2b *./VERSION.txt
+00d75b5176b48ccc71d91bcc1d7b90fc2820429b1629b77fd1d5f4c5dcee4f6d *./readme.txt
+d7c64f41503bbdb171b683ed225455cb42541ce022c761ad3f98337fa6c9c7b4 *./resource/ui/hudlayout.res
+f9b1aa31c414d154479235ef2ab6fff12daf4b1efb08d5bf59dba333b84f2388 *./resource/ui/keepme.txt
+370a8c04b8a65bb4494275eec227f1b694db04c76da6b0b8ae88ed1ab19790a3 *./sub/deeper/deep.txt
+44c5e3a0418ff3a9a3a7204954cca43fb00a86034f6546c538c20c3d1de62d69 *./tf2_demo_native.exe
+98fbdf8d8ac2bcd6c80ae6401a6cfcee37fb47c0cca8df14675785921d69691b *./user-notes.txt

@@ -1,0 +1,5 @@
+inside=178296
+outside=682488
+insideDiff=178296
+outsideDiff=682488
+firstDiff=0,680

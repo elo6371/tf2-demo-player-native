@@ -15,7 +15,7 @@ namespace tf2::native {
 //   Source .res file -- and turns its panels into screen-space rectangles the
 //   renderer can fill. It does NOT implement Source's VGUI runtime, and it does
 //   not claim to. The supported subset, and every refusal it can name, is
-//   written in T51-HUD-SUPPORTED-FORMATS-2026-10-22.md; that document and this
+//   written in native/docs/hud-supported-formats.md; that document and this
 //   header are the same claim and must not drift apart.
 //
 //   In particular: no #base includes, no font rasterisation, no image

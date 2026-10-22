@@ -1,0 +1,306 @@
+=== 1/9 the probe's reading set (pure rules, no window) ===
+path.cases=20
+path.accepted=4
+path.refused=16
+path.wrong=0
+coord.parsed=12
+coord.refusedByDesign=3
+coord.malformed=5
+coord.wrong=0
+ok good-document-parses reason=none
+good.panels=5
+good.nesting=4
+good.unknownKeys=0
+res 1280x720 dpi=1.00 scale=100 valid=5 total=5 root=0,0,1280,720 anchor=290,520,350,80 child=290,520,175,80
+res 1920x1080 dpi=1.00 scale=100 valid=5 total=5 root=0,0,1920,1080 anchor=610,880,350,80 child=610,880,175,80
+res 1920x1080 dpi=1.50 scale=100 valid=5 total=5 root=0,0,1920,1080 anchor=435,780,525,120 child=435,780,263,120
+res 1280x720 dpi=1.00 scale=200 valid=5 total=5 root=0,0,1280,720 anchor=0,320,640,160 child=0,320,320,160
+res 1280x720 dpi=1.00 scale=50 valid=5 total=5 root=0,0,1280,720 anchor=465,620,175,40 child=465,620,88,40
+ok every-screen-has-visible-panels
+adapt.fraction small=0.500000 large=0.500000
+ok fraction-anchor-is-resolution-independent
+adapt.pixels smallAmmo=200x64 largeAmmo=200x64
+ok pixel-anchor-keeps-its-size
+adapt.rightAnchor small=880 large=1520
+ok right-anchor-follows-the-edge
+scale100 ammo=880,40,200,64 childW=175
+scale200 ammo=480,80,400,128 childW=320
+ok pixel-extent-doubles-at-200
+scale.ratio normal=0.500000 doubled=0.500000
+ok fraction-ratio-does-not-change-with-scale
+dpi1.0 ammoW=200 dpi1.5 ammoW=300
+ok dpi-scale-multiplies-pixel-anchors
+union x=0 y=0 w=1280 h=720 empty=0
+ok union-is-non-empty
+union.outside=0
+ok every-panel-is-inside-the-union
+doc.cases=7
+doc.refusedAsNamed=7
+doc.wrong=0
+panel.refused=1 kept=4 ok=1
+ok one-bad-panel-still-parses
+ok one-bad-panel-is-counted-exactly-once
+ok the-other-panels-survive
+orphan.parseRefused=1 parseOk=1 invalidRects=0
+ok orphan-case-still-parses
+ok only-the-parent-is-refused-by-parse
+nest.deep ok=0 reason=nesting-too-deep panels=0
+ok depth-17-refused
+corpus.dir=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/custom/m0rehud-5.8/resource/ui
+corpus.tried=102
+corpus.imported=71
+corpus.refusedInclude=23
+corpus.refusedOther=8
+corpus.importedPartial=55
+corpus.panelsKept=800
+corpus.panelsRefused=511
+corpus.sample hudalert.res:unsupported-coordinate
+corpus.sample huddamageaccount_last.res:missing-root-panel
+corpus.sample huddemomancharge.res:unsupported-coordinate
+corpus.sample hudhealthaccount.res:unsupported-coordinate
+corpus.sample huditemeffectmeter_action.res:unsupported-coordinate
+corpus.sample huditemeffectmeter_killstreak.res:unsupported-coordinate
+corpus.sample hudkillstreaknotice.res:unsupported-coordinate
+corpus.sample hudteamswitch.res:unsupported-coordinate
+ok corpus-was-actually-sampled
+ok corpus-documents-import
+file.cases=9
+file.correct=9
+file.wrong=0
+bom.textEqual=1 hadBom=1 bytes=832
+ok bom-is-stripped-not-transformed
+ok bom-is-reported
+scale.49=50 scale.50=50 scale.100=100 scale.200=200 scale.201=200
+ok scale-is-clamped-to-the-contract-window
+ok scale-range-boundaries-are-exact
+hud_probe.failures=0
+  OK   probe exit code = 0
+  OK   probe self-failures = 0
+  OK   path cases exercised = 20
+  OK   path accepted controls = 4
+  OK   path refusals = 16
+  OK   path wrong = 0
+  OK   coordinate forms parsed = 12
+  OK   coordinates refused by design = 3
+  OK   coordinates malformed = 5
+  OK   coordinates wrong = 0
+  OK   good document panels = 5
+  OK   document refusals by name = 7
+  OK   document refusal mismatches = 0
+  OK   file refusals correct = 9
+  OK   file refusal mismatches = 0
+  OK   corpus documents sampled = 102
+  OK   corpus documents imported = 71
+  OK   corpus refused for #base = 23
+  OK   corpus refused for another reason = 8
+  corpus panels: kept=800 dropped=511, in 55 of the imported documents
+  OK   partially imported documents (55) <= imported documents (71)
+  OK   dropped panels (511) >= partially imported documents (55)
+
+=== 2/9 the product imports the good fixture, and the frame shows it ===
+  OK   hud_off exit code = 0
+  OK   hud_on exit code = 0
+  readings: import=applied panels=6 resolved=6 visible=5 union=282,333,782,228
+  readings: drawnOff=0 drawnOn=5 scissor=1 region=282,333,782,228
+  OK   a hud-off run draws nothing = 0
+  OK   the good fixture imports = applied
+  OK   the good fixture resolves every panel = 6
+  OK   the document hides exactly one panel = 5
+  OK   no panel failed to resolve = 0
+  OK   the drawn rect count equals the visible count = 5
+  OK   the pass scissored itself = 1
+  OK   the HUD owns some pixels = 282,333,782,228 (!= )
+  OK   the renderer's region matches the resolver's union = 282,333,782,228
+  OK   the [hud] section was written = present
+  OK   hud.enabled persisted = 1
+  OK   hud.scale persisted = 100
+
+
+=== 2b/9 the three hotkeys are registered in the shared table ===
+  hud.toggle -> chord=H bound=1 (contract: H)
+  OK   hud.toggle is bound = 1
+  OK   hud.toggle default chord = H
+  hud.preview -> chord=Ctrl+P bound=1 (contract: Ctrl+P)
+  OK   hud.preview is bound = 1
+  OK   hud.preview default chord = Ctrl+P
+  hud.reset -> chord=Ctrl+Shift+H bound=1 (contract: Ctrl+Shift+H)
+  OK   hud.reset is bound = 1
+  OK   hud.reset default chord = Ctrl+Shift+H
+  the shared table holds 30 actions
+  OK   the shared table kept the camera actions (>= 12)
+=== 3/9 the measurement must be deterministic BEFORE it is used ===
+  three hud-off captures: 2582406 / 2582406 / 2582406 bytes
+  OK   hud-off repeat exit code = 0
+  OK   hud-off repeat2 exit code = 0
+  OK   capture 1 and capture 2 are byte-identical
+  OK   capture 1 and capture 3 are byte-identical
+  hud_off drew tick=0
+  hud_off_repeat drew tick=0
+  hud_off_repeat2 drew tick=0
+  DETERMINISTIC=PASS (the measurement is reproducible; the comparison below is evidence)
+
+=== 4/9 HUD on vs off: identical outside the HUD union rectangle ===
+  union rect: x=282 y=333 w=782 h=228 -> right=1064 bottom=561
+  inside=178296
+  outside=682488
+  insideDiff=40864
+  outsideDiff=0
+  firstDiff=-
+  OK   pixels outside the HUD region that changed = 0
+  OK   pixels inside the HUD region = 178296 (>= 1000)
+  OK   pixels outside the HUD region = 682488 (>= 100000)
+  OK   pixels changed inside the HUD region = 40864 (>= 1000)
+
+=== 5/9 every refusal is executed, and the world keeps rendering ===
+  broken -> rc=0 reason=malformed-keyvalues drawn=0
+  OK   broken refused with its own token = malformed-keyvalues
+  OK   broken exit code = 0
+  OK   broken drew no HUD = 0
+  OK   broken still captured a frame = present
+  include -> rc=0 reason=unsupported-include drawn=0
+  OK   include refused with its own token = unsupported-include
+  OK   include exit code = 0
+  OK   include drew no HUD = 0
+  OK   include still captured a frame = present
+  refused -> rc=0 reason=unsupported-coordinate drawn=0
+  OK   refused refused with its own token = unsupported-coordinate
+  OK   refused exit code = 0
+  OK   refused drew no HUD = 0
+  OK   refused still captured a frame = present
+  traversal -> rc=0 reason=parent-traversal drawn=0
+  OK   traversal refused with its own token = parent-traversal
+  OK   traversal exit code = 0
+  OK   traversal drew no HUD = 0
+  OK   traversal still captured a frame = present
+  missing -> rc=0 reason=missing drawn=0
+  OK   missing refused with its own token = missing
+  OK   missing exit code = 0
+  OK   missing drew no HUD = 0
+  OK   missing still captured a frame = present
+  partial -> result=applied valid=5 refusedPanels=1
+  OK   a partially unsupported document still imports = applied
+  OK   the partial document keeps five resolved panels = 5
+  OK   the partial document counts one refused panel = 1
+  oversized -> rc=0 reason=too-large drawn=0
+  OK   oversized refused with its own token = too-large
+  OK   oversized exit code = 0
+  OK   oversized drew no HUD = 0
+  OK   oversized still captured a frame = present
+
+=== 6/9 reset and uninstall never touch a user file ===
+  user fixture: 10 entries, 4 files, 6 directories
+  OK   reset run exit code = 0
+  OK   the reset ran = reset
+  OK   the HUD is off after reset = 0
+  OK   the scale is back to 100 = 100
+  OK   nothing is imported after reset = 0
+  OK   import+reset: the directory-entry set is unchanged
+  OK   import+reset: every directory (including the empty one) still exists
+  OK   import+reset: every file is byte-identical
+  settings after reset: enabled=0 root=<empty>
+  OK   hud.enabled is 0 in the file after reset = 0
+  OK   hud.root reads back empty after the reset (present-and-empty)
+  hud.root empty-value states: reset=present-and-empty; a plain run writes [hud] x0 (absent)
+  OK   a plain capture run writes no [hud] section at all = 0
+  (a) uninstall in a directory with no manifest: rc=2
+  OK   an uninstall with no manifest refuses = 2
+  OK   it refused by name (reason=no_manifest)
+  OK   (a) after the refused uninstall: the directory-entry set is unchanged
+  OK   (a) after the refused uninstall: every directory (including the empty one) still exists
+  OK   (a) after the refused uninstall: every file is byte-identical
+  (b) install into the user's own folder: rc=0
+  OK   the install into the user folder succeeded = 0
+  OK   the install left user-notes.txt in place
+  OK   the install left sub/deeper/deep.txt in place
+  OK   the install left resource/ui/keepme.txt in place
+  OK   the install left resource/ui/hudlayout.res in place
+  OK   after the install: every file the user already had is byte-identical
+  (b) uninstall from the user's own folder: rc=0
+  OK   the uninstall completed (rc=0: 3 means it deferred its own image)
+  OK   after the uninstall user-notes.txt is still there
+  OK   after the uninstall sub/deeper/deep.txt is still there
+  OK   after the uninstall resource/ui/keepme.txt is still there
+  OK   after the uninstall resource/ui/hudlayout.res is still there
+  NOT-VERIFIED the user's empty directory: it was removed by the shared
+    installer's empty-directory sweep (an empty DIRECTORY is removed; no user
+    FILE is). owner=t37-installer; cheapest next step: have the installer
+    record the directories it creates and sweep only those, then this becomes
+    a hard assertion here and in install-lifecycle-check.sh.
+  OK   every file the user had before is byte-identical after install+uninstall
+  OK   the uninstall removed the file its manifest listed
+
+=== 7/9 the scale slider is a live, measurable scaling rule ===
+  union at 50%: 457,337,707,284
+  union at 200%: 0,233,864,208
+  OK   the union region grows with the scale = 457,337,707,284 (!= 0,233,864,208)
+  OK   scale 50 is persisted = 50
+  OK   scale 200 is persisted = 200
+
+=== 8/9 the same document at two scales changes only its own pixels ===
+  inside=179712
+  outside=681072
+  insideDiff=138880
+  outsideDiff=0
+  firstDiff=-
+  OK   at 200%: nothing outside its region changed = 0
+  OK   at 200%: the region really did change = 138880 (>= 1000)
+
+=== 9/9 a broken HUD is refused, not half-applied ===
+  broken-document run: rc=0 result=refused drawn=0
+  OK   a broken document is refused = refused
+  OK   nothing is drawn after a refusal = 0
+  OK   a refused import is still a clean exit = 0
+
+
+MUTATION-SUITE: rebuilding the product once per defect, four defects
+
+--- mutation 1/2: a bad HUD is accepted ---
+  mutated build rc=0, probe rc=1, refusedAsNamed=6 (forward reads 7)
+  MUTATION-CAUGHT=PASS (mutation 1: the refusal assertion went red)
+  RESTORED native/src/hud_import.cpp (byte-identical to the backup)
+  RESTORED-PROBE-IDENTICAL (the restored probe reproduces the forward reading)
+
+--- mutation 2/2: the HUD pass perturbs the world ---
+  mutated build rc=0, outsideDiff=682488 (forward reads 0)
+  MUTATION-CAUGHT=PASS (mutation 2: the world comparison went red)
+  RESTORED native/src/native_renderer.cpp (byte-identical to the backup)
+  restored build: outsideDiff=0
+  RESTORED-PIXEL-CLEAN (the restored build agrees outside the rect again)
+
+--- mutation 3/4: the hud.* hotkeys are never registered ---
+  mutated build rc=0; the hotkey readings it prints are below
+  hud.toggle -> chord=<none> bound=0 (contract: H)
+  FAIL hud.toggle is bound = 0, expected 1
+  FAIL hud.toggle default chord = <none>, expected H
+  hud.preview -> chord=Ctrl+P bound=1 (contract: Ctrl+P)
+  OK   hud.preview is bound = 1
+  OK   hud.preview default chord = Ctrl+P
+  hud.reset -> chord=Ctrl+Shift+H bound=1 (contract: Ctrl+Shift+H)
+  OK   hud.reset is bound = 1
+  OK   hud.reset default chord = Ctrl+Shift+H
+  the shared table holds 29 actions
+  OK   the shared table kept the camera actions (>= 12)
+  MUTATION-CAUGHT=PASS (mutation 3: the hotkey assertions went red)
+  RESTORED native/src/main.cpp (byte-identical to the backup)
+  hud.toggle -> chord=H bound=1 (contract: H)
+  OK   hud.toggle is bound = 1
+  OK   hud.toggle default chord = H
+  hud.preview -> chord=Ctrl+P bound=1 (contract: Ctrl+P)
+  OK   hud.preview is bound = 1
+  OK   hud.preview default chord = Ctrl+P
+  hud.reset -> chord=Ctrl+Shift+H bound=1 (contract: Ctrl+Shift+H)
+  OK   hud.reset is bound = 1
+  OK   hud.reset default chord = Ctrl+Shift+H
+  the shared table holds 30 actions
+  OK   the shared table kept the camera actions (>= 12)
+  RESTORED-HOTKEYS=PASS (the restored build registers all three again)
+
+--- mutation 4/4: reset deletes the imported directory ---
+  NOTE the snapshot target is missing: evidence/hud/user-hud
+  mutated build rc=0, reset rc=0
+  MUTATION-CAUGHT=PASS (mutation 4: the user-file comparison went red)
+  RESTORED native/src/hud_state.cpp (byte-identical to the backup)
+  RESTORED-USER-FILES=PASS (the restored build leaves every user file byte-identical)
+
+HUD-MUTATION=PASS (all four mutations went red; every mutated source restored
+  byte-for-byte with cmp, then rebuilt and re-read)

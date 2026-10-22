@@ -1,0 +1,4 @@
+=== build tf2_demo_native hud_probe ===
+D:\TF2_Native_Worktrees\t51-hud\native\src\hud_import.cpp(556): warning C4127: 鏉′欢琛ㄨ揪寮忔槸甯搁噺
+D:\TF2_Native_Worktrees\t51-hud\native\src\hud_import.cpp(556): warning C4127: 鏉′欢琛ㄨ揪寮忔槸甯搁噺
+rc=0

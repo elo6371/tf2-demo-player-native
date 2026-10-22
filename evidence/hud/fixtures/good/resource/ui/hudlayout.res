@@ -1,0 +1,68 @@
+"Resource/UI/HudLayout.res"
+{
+	"HealthAnchor"
+	{
+		"controlname"	"EditablePanel"
+		"xpos"			"c-175"
+		"ypos"			"r120"
+		"wide"			"350"
+		"tall"			"80"
+		"visible"		"1"
+		"enabled"		"1"
+
+		"HealthValue"
+		{
+			"controlname"	"CExLabel"
+			"xpos"			"0"
+			"ypos"			"0"
+			"wide"			"f0.5"
+			"tall"			"100%"
+			"labelText"		"%Health%"
+			"textAlignment"	"center"
+			"font"			"ClientTitleFont"
+			"visible"		"1"
+		}
+
+		"HealthIcon"
+		{
+			"controlname"	"ImagePanel"
+			"xpos"			"f0.5"
+			"ypos"			"0"
+			"wide"			"64"
+			"tall"			"64"
+			"image"			"hud/health_icon"
+			"visible"		"1"
+		}
+	}
+
+	"AmmoPanel"
+	{
+		"controlname"	"EditablePanel"
+		"xpos"			"r200"
+		"ypos"			"r160"
+		"wide"			"200"
+		"tall"			"64"
+		"visible"		"1"
+	}
+
+	"Crosshair"
+	{
+		"controlname"	"ImagePanel"
+		"xpos"			"c-4"
+		"ypos"			"c-4"
+		"wide"			"8"
+		"tall"			"8"
+		"image"			"crosshairs/default"
+		"visible"		"1"
+	}
+
+	"HiddenPanel"
+	{
+		"controlname"	"EditablePanel"
+		"xpos"			"10"
+		"ypos"			"10"
+		"wide"			"10"
+		"tall"			"10"
+		"visible"		"0"
+	}
+}

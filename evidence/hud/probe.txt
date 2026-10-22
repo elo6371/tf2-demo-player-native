@@ -50,6 +50,9 @@ corpus.tried=102
 corpus.imported=71
 corpus.refusedInclude=23
 corpus.refusedOther=8
+corpus.importedPartial=55
+corpus.panelsKept=800
+corpus.panelsRefused=511
 corpus.sample hudalert.res:unsupported-coordinate
 corpus.sample huddamageaccount_last.res:missing-root-panel
 corpus.sample huddemomancharge.res:unsupported-coordinate

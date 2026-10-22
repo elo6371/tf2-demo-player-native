@@ -112,3 +112,24 @@ evidence/t26-world-holes/captures/*.log
 # reading of the frame, not T26's claim: T26 tracks its own `hole-mask.bmp` and
 # leaves this one on disk so the second tool cannot overwrite evidence.
 evidence/t26-world-holes/analysis/accounting-mask.bmp
+
+# T51 follows the same rule for the HUD gate: the pixel comparisons are the claim
+# and stay tracked (evidence/hud/region.txt, region-200.txt, the fixtures), the
+# product traces are machine output and stay on disk with their sha256 in
+# evidence/hud/traces.sha256. Every HUD line the gate reads out of a trace is
+# quoted next to its assertion in evidence/hud/forward.log.
+evidence/hud/*.trace
+
+# The probe materialises its own fixture tree on every run, and the mutation suite
+# keeps one copy per mutated build; the gate also builds the three user-directory
+# trees it installs into and then asserts about. All of it is regenerated, none of
+# it is evidence: what the assertions compared is committed as the snapshots next
+# to them (user-hud-*.entries.txt / .dirs.txt / .sha256.txt,
+# user-shared-*.entries.txt / .dirs.txt / .sha256.txt, mut4-after.*) and quoted
+# line by line in forward.log and mutation.log.
+evidence/hud/probe-fixtures/
+evidence/hud/probe-fixtures-mut1/
+evidence/hud/probe-fixtures-restored/
+evidence/hud/uninstall/
+evidence/hud/user-hud/
+evidence/hud/user-hud-shared/

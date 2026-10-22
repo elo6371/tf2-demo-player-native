@@ -1,0 +1,10 @@
+.
+./empty-dir
+./resource
+./resource/ui
+./resource/ui/hudlayout.res
+./resource/ui/keepme.txt
+./sub
+./sub/deeper
+./sub/deeper/deep.txt
+./user-notes.txt

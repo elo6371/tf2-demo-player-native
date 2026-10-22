@@ -1,0 +1,4 @@
+d7c64f41503bbdb171b683ed225455cb42541ce022c761ad3f98337fa6c9c7b4 *./resource/ui/hudlayout.res
+f9b1aa31c414d154479235ef2ab6fff12daf4b1efb08d5bf59dba333b84f2388 *./resource/ui/keepme.txt
+370a8c04b8a65bb4494275eec227f1b694db04c76da6b0b8ae88ed1ab19790a3 *./sub/deeper/deep.txt
+98fbdf8d8ac2bcd6c80ae6401a6cfcee37fb47c0cca8df14675785921d69691b *./user-notes.txt

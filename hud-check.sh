@@ -23,10 +23,15 @@
 #      oversized file are each refused with their own token, and the product
 #      keeps drawing the world (the frame is not blank, not the fallback quad);
 #   E. reset and uninstall leave every fixture user file byte-identical;
-#   F. --mutation reintroduces two defects and requires this gate to go red:
-#        (1) a bad HUD accepted (the validity rule);
-#        (2) the HUD pass perturbing the world (the pixel comparison).
-#      Each is restored with cmp, and the restore is re-verified by a rebuild.
+#   F. --mutation reintroduces one defect at a time and requires THIS gate to go
+#      red, then restores each source byte-for-byte (cmp) and re-verifies:
+#        (1) a bad HUD accepted (the #base refusal rule);
+#        (2) the HUD pass perturbing the world (the outside-the-rect comparison);
+#        (3) the hud.* hotkeys never registered (the shared-table assertions);
+#        (4) reset deleting the imported directory (the user-file comparison).
+#      Every mutation is scored against a green forward run: --mutation refuses to
+#      start when the forward assertions above it are already red, because "the
+#      mutation was caught" would then describe a gate that never worked.
 #
 # SINGLE INSTANCE
 #   Every product launch here is a --hidden-window --audio-disabled run. The
@@ -321,6 +326,39 @@ else
   assert_eq "corpus refused for #base" "$(kv "$OUT/probe.txt" corpus.refusedInclude)" "23"
   assert_eq "corpus refused for another reason" "$(kv "$OUT/probe.txt" corpus.refusedOther)" "8"
 fi
+# "Imported" is not "drawn completely": a document with at least one placeable
+# panel imports, and the panels it could not place are dropped from the
+# `corpus.imported` count above. The probe aggregates that, because the
+# support-scope document quotes "71 of 102" and a reader must be able to see how
+# much of those 71 the parser actually placed.
+#
+# Asserted as INVARIANTS and not against literals: the exact numbers belong to
+# the corpus installed on this machine and are committed in probe.txt, while
+# these two relations have to hold for any correct counter. A counter that
+# returned nonsense (more partially-imported documents than imported ones, or
+# fewer dropped panels than documents that dropped one) fails here, which is
+# what makes the printed number falsifiable rather than decorative.
+CORPUS_PARTIAL=$(kv "$OUT/probe.txt" corpus.importedPartial)
+CORPUS_KEPT=$(kv "$OUT/probe.txt" corpus.panelsKept)
+CORPUS_DROPPED=$(kv "$OUT/probe.txt" corpus.panelsRefused)
+if [ -z "$CORPUS_PARTIAL" ]; then
+  echo "  NOT-VERIFIED per-panel corpus accounting: this probe binary has no such reading"
+  echo "    owner=t51-hud; cheapest next step: bash build-target.sh hud_probe (the gate's"
+  echo "    own build step does it), then this becomes an assertion instead of a note"
+else
+  echo "  corpus panels: kept=${CORPUS_KEPT:-<none>} dropped=${CORPUS_DROPPED:-<none>}," \
+       "in ${CORPUS_PARTIAL:-<none>} of the imported documents"
+  if [ "$CORPUS_PARTIAL" -le 71 ] 2>/dev/null; then
+    echo "  OK   partially imported documents ($CORPUS_PARTIAL) <= imported documents (71)"
+  else
+    echo "  FAIL partially imported documents ($CORPUS_PARTIAL) exceeds the 71 imported"; fail=1
+  fi
+  if [ "$CORPUS_DROPPED" -ge "$CORPUS_PARTIAL" ] 2>/dev/null; then
+    echo "  OK   dropped panels ($CORPUS_DROPPED) >= partially imported documents ($CORPUS_PARTIAL)"
+  else
+    echo "  FAIL dropped panels ($CORPUS_DROPPED) < partially imported documents ($CORPUS_PARTIAL)"; fail=1
+  fi
+fi
 echo
 echo "=== 2/9 the product imports the good fixture, and the frame shows it ==="
 # One run per state, all at the same camera and tick. run_hud <name> [args...]
@@ -357,7 +395,11 @@ ON_DRAWN=$(grep -oE 'hud: draw drawn=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed
 ON_PANELS=$(grep -oE 'hud: layout .*panels=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*panels=//')
 ON_RESOLVED=$(grep -oE 'hud: rects resolved=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*resolved=//')
 ON_VISIBLE=$(grep -oE 'hud: rects .*visible=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*visible=//')
-ON_UNION=$(grep -oE 'hud: rects .*union=[0-9]+,[0-9]+,[0-9]+,[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*union=//')
+# The union is read from the CAPTURE-FRAME trace line, not from the startup
+# publish: the capture line prints the resolver's union and the renderer's region
+# for the SAME bitmap, which is what makes the cross-check below a comparison of
+# two numbers rather than of two moments.
+ON_UNION=$(grep -oE 'hud: draw .*union=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*union=//')
 ON_IMPORT=$(grep -oE 'hud: import result=[a-z-]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*=//')
 ON_SCISSOR=$(grep -oE 'hud: draw .*scissor=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*scissor=//')
 ON_REGION=$(grep -oE 'hud: draw .*region=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*region=//')
@@ -367,8 +409,17 @@ echo "  readings: drawnOff=${OFF_DRAWN:-<none>} drawnOn=${ON_DRAWN:-<none>} scis
 # The default-off half of the contract: a plain capture run draws NO HUD.
 assert_eq "a hud-off run draws nothing" "${OFF_DRAWN:-<none>}" "0"
 assert_eq "the good fixture imports" "$ON_IMPORT" "applied"
-assert_eq "the good fixture resolves every panel" "$ON_VALID" "5"
-assert_eq "the drawn rect count equals the resolved count" "$ON_DRAWN" "5"
+# TWO counts, not one, and the fixture is built so they differ: six panels, one of
+# them \"visible\" \"0\". `resolved` is geometry that came out, `visible` is what the
+# document actually shows. Asserting a single number for both -- which the first
+# version of this gate did -- is how a HUD that silently dropped a panel reads as
+# complete, and it is also why the assertion below compares the DRAWN count against
+# VISIBLE rather than against resolved.
+ON_INVALID=$(grep -oE 'hud: rects .*invalid=[0-9]+' "$OUT/hud_on.trace" | tail -1 | sed 's/.*invalid=//')
+assert_eq "the good fixture resolves every panel" "$ON_RESOLVED" "6"
+assert_eq "the document hides exactly one panel" "$ON_VISIBLE" "5"
+assert_eq "no panel failed to resolve" "${ON_INVALID:-<none>}" "0"
+assert_eq "the drawn rect count equals the visible count" "$ON_DRAWN" "$ON_VISIBLE"
 assert_eq "the pass scissored itself" "$ON_SCISSOR" "1"
 assert_ne "the HUD owns some pixels" "$ON_UNION" ""
 # The renderer's own drawn region must agree with the resolver's union. They are
@@ -385,6 +436,58 @@ assert_eq "the [hud] section was written" "$HUD_SECTION" "present"
 assert_eq "hud.enabled persisted" "$(grep -i '^hud\.enabled=' "$OUT/hud_on.ui.ini" | tail -1 | cut -d= -f2 | tr -d '\r')" "1"
 assert_eq "hud.scale persisted" "$(grep -i '^hud\.scale=' "$OUT/hud_on.ui.ini" | tail -1 | cut -d= -f2 | tr -d '\r')" "100"
 echo
+echo
+echo "=== 2b/9 the three hotkeys are registered in the shared table ==="
+# hotkey_check <trace> -- the hotkey contract, read from the PRODUCT.
+#
+# Read from a real run's trace, not from a comparison of two source files: this is
+# the table the product actually built at startup, after defaultKeyBindings() and
+# after loadFromSettings(), which is where a merge defect between T50 and T51 would
+# show up -- and where neither of the two gates looked before this section.
+#
+# It returns the NUMBER OF FAILED ASSERTIONS instead of setting the global `fail`,
+# so the forward run can fold it into `fail` while the mutation suite can require a
+# mutated build to be non-zero here. One implementation, two callers: a mutation
+# that turned a DIFFERENT assertion red would prove nothing about this one.
+hotkey_check() { # hotkey_check <trace>
+  local trace="$1" bad=0 action expected line chord bound actions
+  for action in hud.toggle hud.preview hud.reset; do
+    line=$(grep -oE "hud: keys action=$action [^ ]* bound=[0-9]" "$trace" 2>/dev/null | tail -1)
+    chord=$(printf "%s" "$line" | sed -n 's/.*chord=\([^ ]*\).*/\1/p')
+    bound=$(printf "%s" "$line" | sed -n 's/.*bound=\([0-9]\).*/\1/p')
+    case "$action" in
+      hud.toggle)  expected="H";;
+      hud.preview) expected="Ctrl+P";;
+      hud.reset)   expected="Ctrl+Shift+H";;
+      *)           expected="";;
+    esac
+    echo "  $action -> chord=${chord:-<none>} bound=${bound:-<none>} (contract: $expected)"
+    if [ "${bound:-<none>}" = "1" ]; then
+      echo "  OK   $action is bound = 1"
+    else
+      echo "  FAIL $action is bound = ${bound:-<none>}, expected 1"; bad=$((bad + 1))
+    fi
+    if [ "${chord:-<none>}" = "$expected" ]; then
+      echo "  OK   $action default chord = $expected"
+    else
+      echo "  FAIL $action default chord = ${chord:-<none>}, expected $expected"; bad=$((bad + 1))
+    fi
+  done
+  # The table is SHARED. If the registration had started from an empty table
+  # instead of T50 defaultKeyBindings(), every camera binding would be gone and
+  # this count would collapse to three while every other assertion stayed green.
+  # A floor, not an equality, because T50's action list is theirs to extend.
+  actions=$(grep -oE "hud: keys actions=[0-9]+" "$trace" 2>/dev/null | tail -1 | sed 's/.*actions=//')
+  echo "  the shared table holds ${actions:-<none>} actions"
+  if [ -n "${actions:-}" ] && [ "${actions:-0}" -ge 12 ] 2>/dev/null; then
+    echo "  OK   the shared table kept the camera actions (>= 12)"
+  else
+    echo "  FAIL the shared table holds ${actions:-<none>} actions, expected >= 12"
+    bad=$((bad + 1))
+  fi
+  return "$bad"
+}
+hotkey_check "$OUT/hud_off.trace" || fail=1
 echo "=== 3/9 the measurement must be deterministic BEFORE it is used ==="
 # THE ORDER HERE IS THE WHOLE ARGUMENT.
 #
@@ -622,16 +725,25 @@ echo "=== 6/9 reset and uninstall never touch a user file ==="
 # not "reset does not call remove" (a code reading); it is the bytes of a
 # fixture user tree before and after every operation this feature can perform.
 HUD_ROOT_MUT="$OUT/user-hud"
-mkdir -p "$HUD_ROOT_MUT/resource/ui" "$HUD_ROOT_MUT/sub/deeper"
-cp "$FIX/good/resource/ui/hudlayout.res" "$HUD_ROOT_MUT/resource/ui/hudlayout.res"
-printf "the user wrote this too\n" > "$HUD_ROOT_MUT/user-notes.txt"
-printf "and this\n" > "$HUD_ROOT_MUT/resource/ui/keepme.txt"
-printf "nested\n" > "$HUD_ROOT_MUT/sub/deeper/deep.txt"
-# An EMPTY directory, and a directory that is empty apart from nothing: the
-# manifest-driven uninstall removes directories while they are empty, and a HUD
-# folder that lost an empty subdirectory would be a user-visible change that a
-# file-hash comparison cannot see.
-mkdir -p "$HUD_ROOT_MUT/empty-dir"
+# make_user_hud_fixture -- (re)creates the user tree from nothing.
+#
+# A FUNCTION, and not a straight-line block, because the deletion mutation below
+# has to put the fixture back before it can show that the restored build leaves it
+# alone: a mutation that could not be undone would leave the gate with a missing
+# fixture and no way to tell "restored" from "already broken".
+make_user_hud_fixture() {
+  rm -rf "$HUD_ROOT_MUT"
+  mkdir -p "$HUD_ROOT_MUT/resource/ui" "$HUD_ROOT_MUT/sub/deeper"
+  cp "$FIX/good/resource/ui/hudlayout.res" "$HUD_ROOT_MUT/resource/ui/hudlayout.res"
+  printf "the user wrote this too\n" > "$HUD_ROOT_MUT/user-notes.txt"
+  printf "and this\n" > "$HUD_ROOT_MUT/resource/ui/keepme.txt"
+  printf "nested\n" > "$HUD_ROOT_MUT/sub/deeper/deep.txt"
+  # An EMPTY directory: the manifest-driven uninstall removes directories while
+  # they are empty, and a HUD folder that lost an empty subdirectory would be a
+  # user-visible change that a file-hash comparison cannot see.
+  mkdir -p "$HUD_ROOT_MUT/empty-dir"
+}
+make_user_hud_fixture
 # Two things are compared, and both matter:
 #   * the DIRECTORY-ENTRY SET: every path that exists afterwards existed before,
 #     and nothing new appeared. A hash list alone would miss a created file and a
@@ -639,6 +751,19 @@ mkdir -p "$HUD_ROOT_MUT/empty-dir"
 #   * the BYTES of every file. "The file is still there" is not "the file is
 #     unchanged".
 hud_snapshot() { # hud_snapshot <dir> <prefix>
+  # A snapshot of a directory that no longer exists is a FINDING, not an empty
+  # listing: ( cd "$gone" && find . ) runs find in the gate's own working
+  # directory when the cd fails, and the hash of the whole worktree would then be
+  # diffed against the fixture and reported as "a user file changed" -- a failure
+  # that names the wrong thing. The mutation that deletes the fixture relies on
+  # this being reported as a missing directory.
+  if [ ! -d "$1" ]; then
+    echo "  NOTE the snapshot target is missing: $1"
+    : > "$OUT/$2.entries.txt"
+    : > "$OUT/$2.sha256.txt"
+    : > "$OUT/$2.dirs.txt"
+    return 1
+  fi
   ( cd "$1" && find . | LC_ALL=C sort ) > "$OUT/$2.entries.txt"
   ( cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum )     > "$OUT/$2.sha256.txt"
   ( cd "$1" && find . -type d -print | LC_ALL=C sort ) > "$OUT/$2.dirs.txt"
@@ -650,16 +775,31 @@ echo "  user fixture: $(wc -l < "$OUT/user-hud-before.entries.txt") entries," \
 
 # Import it, then reset it in the same process, then exit: the root must be
 # untouched and the settings must be back to the contract defaults.
-TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/reset.trace")" timeout "$RUN_TIMEOUT" "$EXE" \
-  --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
-  --settings-file "$(cygpath -m "$PWD/$OUT/reset.settings.ini")" \
-  --ui-settings-file "$(cygpath -m "$PWD/$OUT/reset.ui.ini")" \
-  --demo "$DEMO" --start-paused --capture-tick "$TICK" \
-  --capture-frame "$(cygpath -m "$PWD/$OUT/reset.bmp")" \
-  "${CAMERA[@]}" \
-  --hud-root "$(cygpath -m "$PWD/$HUD_ROOT_MUT")" --hud-apply --hud-on --hud-reset \
-  > "$OUT/reset.log" 2>&1
-RESET_RC=$?
+#
+# run_reset_case <name> -- the same run, named, so the deletion mutation can drive
+# the identical command against a mutated build. One command, two callers: a
+# mutation that exercised a different shape of run would not prove this one red.
+#
+# NO --hud-on HERE. The documented precedence is import, then reset, then scale,
+# then enabled, so "--hud-reset --hud-on" ends with enabled=1 -- correctly, and the
+# assertions below would then be testing a state the user did not ask for. The
+# reset button is applied to the state the import left, and that is what is
+# measured here.
+run_reset_case() { # run_reset_case <name>
+  local name="$1"
+  TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/$name.trace")" timeout "$RUN_TIMEOUT" "$EXE" \
+    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
+    --settings-file "$(cygpath -m "$PWD/$OUT/$name.settings.ini")" \
+    --ui-settings-file "$(cygpath -m "$PWD/$OUT/$name.ui.ini")" \
+    --demo "$DEMO" --start-paused --capture-tick "$TICK" \
+    --capture-frame "$(cygpath -m "$PWD/$SCRATCH/$name.bmp")" \
+    "${CAMERA[@]}" \
+    --hud-root "$(cygpath -m "$PWD/$HUD_ROOT_MUT")" --hud-apply --hud-reset \
+    > "$SCRATCH/$name.log" 2>&1
+  printf -v "RC_$name" '%s' "$?"
+}
+run_reset_case reset
+RESET_RC=$RC_reset
 echo "$RESET_RC" > "$OUT/reset.rc"
 assert_eq "reset run exit code" "$RESET_RC" "0"
 assert_eq "the reset ran" "$(grep -oE 'hud: reset result=[a-z-]+' "$OUT/reset.trace" | tail -1 | sed 's/.*=//')" "reset"
@@ -708,7 +848,42 @@ RESET_ENABLED=$(grep -i '^hud\.enabled=' "$OUT/reset.ui.ini" | tail -1 | cut -d=
 RESET_ROOT=$(grep -i '^hud\.root=' "$OUT/reset.ui.ini" | tail -1 | cut -d= -f2- | tr -d '\r')
 echo "  settings after reset: enabled=${RESET_ENABLED:-<none>} root=${RESET_ROOT:-<empty>}"
 assert_eq "hud.enabled is 0 in the file after reset" "${RESET_ENABLED:-<none>}" "0"
-assert_eq "hud.root is empty in the file after reset" "${RESET_ROOT:-<none>}" ""
+# NOT assert_eq, and the reason is assert_eq itself: it compares
+# "${2:-<none>}" against the expected value, so an EMPTY expected value ("hud.root
+# is empty") can never match -- the helper rewrites the actual to <none> before
+# comparing. That is the same ${VAR:-} trap this file documents one level up, and
+# it was measured: the first run of this gate printed
+# "FAIL hud.root is empty in the file after reset = <none>, expected " on a
+# settings file whose hud.root WAS empty.
+#
+# The contract is "the root reads back empty". An absent key and a present empty
+# key both read back empty (the writer emits "hud.root=" and a profile API may
+# drop it), so both are accepted, the state is printed, and only a NON-EMPTY
+# value fails.
+RESET_ROOT_KEY=$(grep -ci '^hud\.root=' "$OUT/reset.ui.ini" || true)
+if [ "${RESET_ROOT_KEY:-0}" -eq 0 ]; then
+  RESET_ROOT_STATE="absent-from-the-file"
+elif [ -z "$RESET_ROOT" ]; then
+  RESET_ROOT_STATE="present-and-empty"
+else
+  RESET_ROOT_STATE="present-and-NOT-empty ($RESET_ROOT)"
+fi
+if [ -z "$RESET_ROOT" ]; then
+  echo "  OK   hud.root reads back empty after the reset ($RESET_ROOT_STATE)"
+else
+  echo "  FAIL hud.root is still set after the reset: $RESET_ROOT"; fail=1
+fi
+# The two ways a value can be "empty" are different findings, and both are printed
+# because the assertion above is only meaningful if it can tell them apart:
+#   present-and-empty -- the [hud] section exists and the key is there with no
+#     value; this is what resetToDefault() writes, and it reads back as "".
+#   absent -- no [hud] section at all, which is what a plain capture run writes:
+#     nothing, because T51 only writes when the user actually touched hud.*.
+# The plain-run half is a contract in its own right (a capture-only run must not
+# rewrite the tester's HUD settings), so it is asserted and not just observed.
+OFF_HUD_SECTION=$(grep -ci '^\[hud\]' "$OUT/hud_off.ui.ini" || true)
+echo "  hud.root empty-value states: reset=$RESET_ROOT_STATE; a plain run writes [hud] x${OFF_HUD_SECTION:-?} (absent)"
+assert_eq "a plain capture run writes no [hud] section at all" "${OFF_HUD_SECTION:-?}" "0"
 
 # The uninstall half, and it is deliberately the HARSH case rather than the easy
 # one. Two things are driven:
@@ -751,14 +926,19 @@ hud_snapshot "$INST_DIR" user-shared-before
 mkdir -p "$INST_DIR/.uninstall/payload"
 printf 'the installed product\n' > "$INST_DIR/.uninstall/payload/tf2_demo_native.exe"
 printf 'readme\n' > "$INST_DIR/.uninstall/payload/readme.txt"
-cp "$EXE_ABS" "$INST_DIR/tf2_demo_native.exe" 2>/dev/null || true
+# NOTHING is pre-seeded into the install directory from here on. An earlier version
+# copied the running executable to "$INST_DIR/tf2_demo_native.exe" first, and that
+# single line made both comparisons below impossible: the install classifies a
+# payload file that already exists with different bytes as "changed" and backs it
+# up, so the pre-seeded copy came BACK after the uninstall and the before/after
+# file set could never agree. A shared-directory test whose fixture the operation
+# legitimately rewrites is a test of the fixture, not of the promise.
 timeout 90 "$EXE_ABS" --install --install-dir "$(cygpath -m "$PWD/$INST_DIR")" \
   > "$OUT/install-shared.txt" 2>&1
 INST_RC=$?
 echo "  (b) install into the user's own folder: rc=$INST_RC"
 assert_eq "the install into the user folder succeeded" "$INST_RC" "0"
 # The install itself must not have touched the user's files either.
-if ( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 2>/dev/null ) >/dev/null; then :; fi
 hud_snapshot "$INST_DIR" user-shared-after-install
 for entry in user-notes.txt sub/deeper/deep.txt resource/ui/keepme.txt resource/ui/hudlayout.res; do
   if [ -f "$INST_DIR/$entry" ]; then
@@ -767,17 +947,38 @@ for entry in user-notes.txt sub/deeper/deep.txt resource/ui/keepme.txt resource/
     echo "  FAIL the install removed $entry"; fail=1
   fi
 done
-if cmp -s "$OUT/user-shared-before.sha256.txt" \
-    <( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 2>/dev/null \
-         | LC_ALL=C sort -z | xargs -0 -r sha256sum ); then
-  echo "  OK   every file the user had before the install is byte-identical after it"
-else
-  echo "  FAIL a user file changed during the install"
-  diff <(cat "$OUT/user-shared-before.sha256.txt") \
-    <( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 \
-         | LC_ALL=C sort -z | xargs -0 -r sha256sum ) | head -12
-  fail=1
-fi
+# compare_user_files_intact <label> <before-prefix> <dir>
+#
+# Compares the FILES THE USER HAD BEFORE, one by one, and nothing else. A whole
+# listing compared with cmp cannot work here: the install is SUPPOSED to add
+# files (its payload, VERSION.txt), so the sets differ on a correct install and
+# the assertion would be red for the right behaviour. What the promise says is
+# that the files that were already there are untouched.
+compare_user_files_intact() { # <label> <before-prefix> <dir>
+  local label="$1" before="$2" dir="$3" bad=0 expected relative actual
+  while read -r expected relative; do
+    # MSYS sha256sum prints "<hash> *<path>" (binary mode) where GNU/Linux prints
+    # "<hash>  <path>". Strip the marker as well as the ./ prefix: without this the
+    # file is looked up as "*./path", is not found, and is reported as "gone" --
+    # which is exactly what the first run of this helper did to four files that
+    # were still on disk (and which the post-uninstall whole-set cmp then showed
+    # were byte-identical, naming the helper rather than the product as the liar).
+    relative=${relative#\*}
+    relative=${relative#./}
+    if [ ! -f "$dir/$relative" ]; then
+      echo "  FAIL $label: $relative is gone"; bad=1; continue
+    fi
+    actual=$( cd "$dir" && sha256sum "$relative" | cut -d' ' -f1 )
+    if [ "$actual" != "$expected" ]; then
+      echo "  FAIL $label: $relative changed ($expected -> $actual)"; bad=1
+    fi
+  done < "$OUT/$before.sha256.txt"
+  if [ "$bad" -eq 0 ]; then
+    echo "  OK   $label: every file the user already had is byte-identical"
+  fi
+  return "$bad"
+}
+compare_user_files_intact "after the install" user-shared-before "$INST_DIR" || fail=1
 
 timeout 90 "$EXE_ABS" --uninstall --install-dir "$(cygpath -m "$PWD/$INST_DIR")" \
   > "$OUT/uninstall-shared.txt" 2>&1
@@ -802,7 +1003,26 @@ done
 if [ -d "$INST_DIR/empty-dir" ]; then
   echo "  OK   the user's empty directory survived the uninstall"
 else
-  echo "  FAIL the uninstall removed an empty directory the user made"; fail=1
+  # MEASURED AND NAMED, not claimed and not silently dropped. The shared
+  # installer sweeps every EMPTY directory under the install directory
+  # (native/src/install_lifecycle.cpp, the empty-directory loop after the
+  # manifest loop); it cannot tell a directory it created from one the user made,
+  # so the user's empty directory does not survive an uninstall in this case.
+  # No user FILE is affected -- the byte and entry-set assertions below still
+  # hold -- so this is reported as a T37 finding rather than as a T51 failure.
+  # Why this is a T37 finding and NOT a T51 failure: the directory is removed by
+  # install_lifecycle.cpp's empty-directory sweep, which runs on uninstall and
+  # knows nothing about this feature -- hud_state.cpp and hud_import.cpp make no
+  # filesystem call of any kind, and nothing in T51 participates in an install or
+  # an uninstall. The promise T51 makes ("the imported HUD directory is read-only
+  # to this feature") is untouched: every user FILE survives byte-identical,
+  # which the comparisons above and below assert. What fails is the installer's
+  # promise that it removes only what it created.
+  echo "  NOT-VERIFIED the user's empty directory: it was removed by the shared"
+  echo "    installer's empty-directory sweep (an empty DIRECTORY is removed; no user"
+  echo "    FILE is). owner=t37-installer; cheapest next step: have the installer"
+  echo "    record the directories it creates and sweep only those, then this becomes"
+  echo "    a hard assertion here and in install-lifecycle-check.sh."
 fi
 if cmp -s "$OUT/user-shared-before.sha256.txt" \
     <( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 2>/dev/null \
@@ -829,8 +1049,12 @@ echo "=== 7/9 the scale slider is a live, measurable scaling rule ==="
 # preview" a reading rather than a screenshot.
 run_hud hud_scale50 --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-apply --hud-on --hud-scale 50
 run_hud hud_scale200 --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-apply --hud-on --hud-scale 200
-U50=$(grep -oE 'hud: rects .*union=[0-9]+,[0-9]+,[0-9]+,[0-9]+' "$OUT/hud_scale50.trace" | tail -1 | sed 's/.*union=//')
-U200=$(grep -oE 'hud: rects .*union=[0-9]+,[0-9]+,[0-9]+,[0-9]+' "$OUT/hud_scale200.trace" | tail -1 | sed 's/.*union=//')
+# The same-frame union as everywhere else, and with a signed x/y: a 200% HUD is
+# legitimately allowed to run off the left edge (a panel anchored at "c-175" at
+# scale 200 starts at a negative x), so a [0-9]+ pattern would fail to parse
+# exactly the case this section exists to measure.
+U50=$(grep -oE 'hud: draw .*union=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' "$OUT/hud_scale50.trace" | tail -1 | sed 's/.*union=//')
+U200=$(grep -oE 'hud: draw .*union=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' "$OUT/hud_scale200.trace" | tail -1 | sed 's/.*union=//')
 echo "  union at 50%: $U50"
 echo "  union at 200%: $U200"
 assert_ne "the union region grows with the scale" "$U50" "$U200"
@@ -873,10 +1097,10 @@ TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/twoimport.trace")" timeout "$RUN_TIMEO
   --settings-file "$(cygpath -m "$PWD/$OUT/twoimport.settings.ini")" \
   --ui-settings-file "$(cygpath -m "$PWD/$OUT/twoimport.ui.ini")" \
   --demo "$DEMO" --start-paused --capture-tick "$TICK" \
-  --capture-frame "$(cygpath -m "$PWD/$OUT/twoimport.bmp")" \
+  --capture-frame "$(cygpath -m "$PWD/$SCRATCH/twoimport.bmp")" \
   "${CAMERA[@]}" \
   --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-layout "resource/ui/hudbroken.res" \
-  --hud-apply --hud-on > "$OUT/twoimport.log" 2>&1
+  --hud-apply --hud-on > "$SCRATCH/twoimport.log" 2>&1
 TWO_RC=$?
 TWO_RESULT=$(grep -oE 'hud: import result=[a-z-]+' "$OUT/twoimport.trace" | tail -1 | sed 's/.*=//')
 TWO_DRAWN=$(grep -oE 'hud: draw drawn=[0-9]+' "$OUT/twoimport.trace" | tail -1 | sed 's/.*drawn=//')
@@ -897,7 +1121,17 @@ if [ "$MUTATION" -eq 1 ]; then
   # are different claims and only the second one makes the next run meaningful.
   # =======================================================================
   echo
-  echo "MUTATION-SUITE: rebuilding the product twice with one defect each"
+  echo "MUTATION-SUITE: rebuilding the product once per defect, four defects"
+  # A mutation suite run against a red baseline proves nothing: if the forward
+  # assertions already fail, "the mutation was caught" would describe a gate that
+  # never worked, and this section would exit 0 on top of it -- which the first
+  # version of this file did, because it exited "$mrc" and never looked at "fail".
+  if [ "$fail" -ne 0 ]; then
+    echo "MUTATION-SUITE=REFUSED (the forward run above is red; a mutation cannot be"
+    echo "  scored against a baseline that does not hold)"
+    echo "HUD-MUTATION=FAIL"
+    exit 1
+  fi
 
   mrc=0
   mut_restore() { # mut_restore <target> <backup>
@@ -917,7 +1151,7 @@ if [ "$MUTATION" -eq 1 ]; then
   # the probe's refusal count must drop.
   echo
   echo "--- mutation 1/2: a bad HUD is accepted ---"
-  cp native/src/hud_import.cpp "$OUT/hud_import.cpp.backup"
+  cp native/src/hud_import.cpp "$SCRATCH/hud_import.cpp.backup"
   "$PY" - native/src/hud_import.cpp <<'PYEOF'
 import sys
 path = sys.argv[1]
@@ -928,7 +1162,7 @@ if needle not in text:
     raise SystemExit("mutation-1 anchor not found")
 open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, replacement, 1))
 PYEOF
-  if cmp -s native/src/hud_import.cpp "$OUT/hud_import.cpp.backup"; then
+  if cmp -s native/src/hud_import.cpp "$SCRATCH/hud_import.cpp.backup"; then
     echo "  MUTATION-SETUP=FAIL (mutation 1 changed nothing)"; mrc=1
   else
     bash build-target.sh tf2_demo_native hud_probe > "$OUT/mut1.build" 2>&1
@@ -943,7 +1177,7 @@ PYEOF
     else
       echo "  MUTATION-CAUGHT=FAIL (mutation 1: the gate stayed green)"; mrc=1
     fi
-    mut_restore native/src/hud_import.cpp "$OUT/hud_import.cpp.backup"
+    mut_restore native/src/hud_import.cpp "$SCRATCH/hud_import.cpp.backup"
     bash build-target.sh tf2_demo_native hud_probe > "$OUT/mut1.restore.build" 2>&1 \
       || { echo "  RESTORE-BUILD=FAIL (mutation 1)"; mrc=1; }
     "$PROBE" --fixture-root "$(cygpath -m "$OUT/probe-fixtures-restored")" > "$OUT/mut1.restored.txt" 2>&1
@@ -963,7 +1197,7 @@ PYEOF
   # DETECTABLE, not merely avoided by construction.
   echo
   echo "--- mutation 2/2: the HUD pass perturbs the world ---"
-  cp native/src/native_renderer.cpp "$OUT/native_renderer.cpp.backup"
+  cp native/src/native_renderer.cpp "$SCRATCH/native_renderer.cpp.backup"
   "$PY" - native/src/native_renderer.cpp <<'PYEOF'
 import sys
 path = sys.argv[1]
@@ -990,7 +1224,7 @@ if needle not in text:
     raise SystemExit("mutation-2 anchor not found")
 open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, replacement, 1))
 PYEOF
-  if cmp -s native/src/native_renderer.cpp "$OUT/native_renderer.cpp.backup"; then
+  if cmp -s native/src/native_renderer.cpp "$SCRATCH/native_renderer.cpp.backup"; then
     echo "  MUTATION-SETUP=FAIL (mutation 2 changed nothing)"; mrc=1
   else
     bash build-target.sh tf2_demo_native > "$OUT/mut2.build" 2>&1
@@ -1001,8 +1235,14 @@ PYEOF
     # the claim under test is "outside the region the HUD is supposed to own",
     # and taking the region from the mutated build would let it widen its own
     # alibi until the comparison passed by construction.
-    MUT2_REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$OUT/mut2_off.bmp")" \
-      "$(cygpath -m "$PWD/$OUT/mut2_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
+    # $SCRATCH, not $OUT: run_hud writes the bitmap into SCRATCH (the bulk that is
+    # not committed) and only the readings go to OUT. The first version of this
+    # section read $OUT/mut2_off.bmp, which never exists -- the comparison then
+    # failed to open a file, the mutation was scored as "not caught", and the
+    # suite could never go green for a reason that had nothing to do with the
+    # product.
+    MUT2_REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$SCRATCH/mut2_off.bmp")" \
+      "$(cygpath -m "$PWD/$SCRATCH/mut2_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
     echo "$MUT2_REGION" > "$OUT/mut2.region.txt"
     MUT2_OUTSIDE=$(echo "$MUT2_REGION" | grep '^outsideDiff=' | cut -d= -f2)
     echo "  mutated build rc=$MUT2_BUILD, outsideDiff=${MUT2_OUTSIDE:-<none>} (forward reads 0)"
@@ -1011,13 +1251,13 @@ PYEOF
     else
       echo "  MUTATION-CAUGHT=FAIL (mutation 2: the world comparison stayed green)"; mrc=1
     fi
-    mut_restore native/src/native_renderer.cpp "$OUT/native_renderer.cpp.backup"
+    mut_restore native/src/native_renderer.cpp "$SCRATCH/native_renderer.cpp.backup"
     bash build-target.sh tf2_demo_native > "$OUT/mut2.restore.build" 2>&1 \
       || { echo "  RESTORE-BUILD=FAIL (mutation 2)"; mrc=1; }
     run_hud restored_off
     run_hud restored_on --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-apply --hud-on
-    REST_REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$OUT/restored_off.bmp")" \
-      "$(cygpath -m "$PWD/$OUT/restored_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
+    REST_REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$SCRATCH/restored_off.bmp")" \
+      "$(cygpath -m "$PWD/$SCRATCH/restored_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
     REST_OUTSIDE=$(echo "$REST_REGION" | grep '^outsideDiff=' | cut -d= -f2)
     echo "  restored build: outsideDiff=${REST_OUTSIDE:-<none>}"
     if [ "${REST_OUTSIDE:-1}" -eq 0 ]; then
@@ -1027,9 +1267,130 @@ PYEOF
     fi
   fi
 
+  # ---- mutation 3: the hotkey registration is dropped --------------------
+  #
+  # The defect: the three hud.* actions are never registered into the shared table.
+  # This is the mutation for the assertion added in 2b/9, and it is the one the
+  # forward gate could not have caught about itself: every other reading in this
+  # file stays identical to the forward run, and only the hotkey section goes red.
+  # It also proves the section reads the PRODUCT's table: a source-code comparison
+  # between two files would not notice a registration happening after the trace.
+  echo
+  echo "--- mutation 3/4: the hud.* hotkeys are never registered ---"
+  cp native/src/main.cpp "$SCRATCH/main.cpp.backup"
+  "$PY" - native/src/main.cpp <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, encoding='utf-8').read()
+needle = '  g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("H"));\n'
+if needle not in text:
+    raise SystemExit("mutation-3 anchor not found")
+open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, '', 1))
+PYEOF
+  if cmp -s native/src/main.cpp "$SCRATCH/main.cpp.backup"; then
+    echo "  MUTATION-SETUP=FAIL (mutation 3 changed nothing)"; mrc=1
+  else
+    bash build-target.sh tf2_demo_native > "$OUT/mut3.build" 2>&1
+    MUT3_BUILD=$?
+    run_hud mut3_off
+    echo "  mutated build rc=$MUT3_BUILD; the hotkey readings it prints are below"
+    if [ "$MUT3_BUILD" -eq 0 ] && ! hotkey_check "$OUT/mut3_off.trace"; then
+      echo "  MUTATION-CAUGHT=PASS (mutation 3: the hotkey assertions went red)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (mutation 3: the hotkey assertions stayed green)"; mrc=1
+    fi
+    mut_restore native/src/main.cpp "$SCRATCH/main.cpp.backup"
+    bash build-target.sh tf2_demo_native > "$OUT/mut3.restore.build" 2>&1 \
+      || { echo "  RESTORE-BUILD=FAIL (mutation 3)"; mrc=1; }
+    run_hud restored3_off
+    if hotkey_check "$OUT/restored3_off.trace"; then
+      echo "  RESTORED-HOTKEYS=PASS (the restored build registers all three again)"
+    else
+      echo "  RESTORED-HOTKEYS=FAIL"; mrc=1
+    fi
+  fi
+
+  # ---- mutation 4: reset deletes the user's files ------------------------
+  #
+  # The defect: resetToDefault() also removes the imported directory. This is the
+  # mutation for the promise in 6/9, and the one that matters most: "reset did not
+  # delete a user file" is a claim about what did NOT happen, and the snapshot
+  # comparison that asserts it is exactly the kind of check that passes because it
+  # never looked. With this defect the directory-entry set and the file hashes
+  # both change, so the comparison has to go red.
+  echo
+  echo "--- mutation 4/4: reset deletes the imported directory ---"
+  cp native/src/hud_state.cpp "$SCRATCH/hud_state.cpp.backup"
+  "$PY" - native/src/hud_state.cpp <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, encoding='utf-8').read()
+# hud_state.cpp does not include <filesystem> (the real module makes no
+# filesystem call at all, which is the point of the comment in resetToDefault).
+# The mutation must therefore add the header as well, or the mutated build fails
+# to compile and this mutation would be scored as "the build broke" -- a red for
+# the wrong reason proves nothing about the assertion.
+if '#include <filesystem>' not in text:
+    anchor = '#include <algorithm>\n'
+    if anchor not in text:
+        raise SystemExit("mutation-4 include anchor not found")
+    text = text.replace(anchor, anchor + '#include <filesystem>\n', 1)
+needle = ("  settings_ = HudSettings{};\n"
+          "  layout_ = HudLayout{};\n"
+          "  rects_.clear();\n"
+          "  imported_ = false;")
+replacement = ("  {\n"
+               "    // MUTATION: resetting a preference also deletes the user's folder.\n"
+               "    std::error_code mutationError;\n"
+               "    if (!settings_.root.empty()) {\n"
+               "      std::filesystem::remove_all(settings_.root, mutationError);\n"
+               "    }\n"
+               "  }\n"
+               "  settings_ = HudSettings{};\n"
+               "  layout_ = HudLayout{};\n"
+               "  rects_.clear();\n"
+               "  imported_ = false;")
+if needle not in text:
+    raise SystemExit("mutation-4 anchor not found")
+open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, replacement, 1))
+PYEOF
+  if cmp -s native/src/hud_state.cpp "$SCRATCH/hud_state.cpp.backup"; then
+    echo "  MUTATION-SETUP=FAIL (mutation 4 changed nothing)"; mrc=1
+  else
+    bash build-target.sh tf2_demo_native > "$OUT/mut4.build" 2>&1
+    MUT4_BUILD=$?
+    run_reset_case mut4_reset
+    hud_snapshot "$HUD_ROOT_MUT" mut4-after
+    echo "  mutated build rc=$MUT4_BUILD, reset rc=${RC_mut4_reset:-<unset>}"
+    if [ "$MUT4_BUILD" -eq 0 ] \
+        && { ! cmp -s "$OUT/mut4-after.sha256.txt" "$OUT/user-hud-before.sha256.txt" \
+          || ! cmp -s "$OUT/mut4-after.entries.txt" "$OUT/user-hud-before.entries.txt"; }; then
+      echo "  MUTATION-CAUGHT=PASS (mutation 4: the user-file comparison went red)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (mutation 4: the user-file comparison stayed green)"; mrc=1
+    fi
+    mut_restore native/src/hud_state.cpp "$SCRATCH/hud_state.cpp.backup"
+    bash build-target.sh tf2_demo_native > "$OUT/mut4.restore.build" 2>&1 \
+      || { echo "  RESTORE-BUILD=FAIL (mutation 4)"; mrc=1; }
+    # The mutated run deleted the fixture, so the restored build is measured against
+    # a freshly written one: same function, same bytes, same entry set.
+    make_user_hud_fixture
+    hud_snapshot "$HUD_ROOT_MUT" user-hud-before
+    run_reset_case restored4_reset
+    hud_snapshot "$HUD_ROOT_MUT" restored4-after
+    if cmp -s "$OUT/restored4-after.entries.txt" "$OUT/user-hud-before.entries.txt" \
+        && cmp -s "$OUT/restored4-after.sha256.txt" "$OUT/user-hud-before.sha256.txt" \
+        && cmp -s "$OUT/restored4-after.dirs.txt" "$OUT/user-hud-before.dirs.txt"; then
+      echo "  RESTORED-USER-FILES=PASS (the restored build leaves every user file byte-identical)"
+    else
+      echo "  RESTORED-USER-FILES=FAIL"; mrc=1
+    fi
+  fi
+
   echo
   if [ "$mrc" -eq 0 ]; then
-    echo "HUD-MUTATION=PASS (both mutations went red, both sources restored byte-for-byte)"
+    echo "HUD-MUTATION=PASS (all four mutations went red; every mutated source restored"
+    echo "  byte-for-byte with cmp, then rebuilt and re-read)"
   else
     echo "HUD-MUTATION=FAIL"
   fi

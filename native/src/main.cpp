@@ -4306,6 +4306,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         traceFmt("hud: import result=%s document=%s source=cli",
           tf2::native::hudApplyResultName(g_hud.lastApply()), overrides.layout.c_str());
       }
+      if (hudResetRequested) {
+        // The reset's own return value, not the flag that asked for it: the gate
+        // asserts "the reset ran", and a line printed from the request would be a
+        // comment rather than a reading. g_hud.lastReset() is exactly the value
+        // resetToDefault() returned, so this cannot print "reset" for a reset that
+        // did not happen. (The button and hotkey paths print the same line from
+        // hudResetToDefault; the CLI path needs its own because the button is not
+        // what ran.)
+        traceFmt("hud: reset result=%s", tf2::native::hudApplyResultName(g_hud.lastReset()));
+      }
     }
     registerKeybinds(hudSettingsFile);
     hudApplyRects(window);
@@ -7742,11 +7752,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // and the bitmap describe the same frame -- the same rule the two lines
       // below follow for the world and the ViewModel.
       if (captureRequested && g_renderer) {
-        traceFmt("hud: draw drawn=%zu rects=%zu ordinal=%zu scissor=%d region=%d,%d,%d,%d",
+        // The RESOLVER's union is printed on the same line as the RENDERER's
+        // region, and that is not decoration: the startup publish happens before
+        // the capture-time re-resolution (hudApplyRects above), so a window whose
+        // client size settled after startup would make a startup union and a
+        // capture region differ for a reason that is not a defect. Two numbers
+        // that describe the same bitmap can be compared; two that describe
+        // different ones cannot, and the gate's cross-check depends on it.
+        const auto hudUnion = g_hud.unionRect();
+        traceFmt("hud: draw drawn=%zu rects=%zu ordinal=%zu scissor=%d"
+          " region=%d,%d,%d,%d union=%d,%d,%d,%d",
           g_renderer->hudDrawnRects(), g_renderer->hudRectCount(),
           g_renderer->hudPassOrdinal(), g_renderer->hudScissorApplied() ? 1 : 0,
           g_renderer->hudLastRegion().x, g_renderer->hudLastRegion().y,
-          g_renderer->hudLastRegion().w, g_renderer->hudLastRegion().h);
+          g_renderer->hudLastRegion().w, g_renderer->hudLastRegion().h,
+          hudUnion.x, hudUnion.y, hudUnion.w, hudUnion.h);
       }
       if (captureRequested) writeViewModelReading();
       // T21: the face trace is taken on the same frame, after the draw. Its

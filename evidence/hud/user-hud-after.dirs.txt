@@ -1,0 +1,6 @@
+.
+./empty-dir
+./resource
+./resource/ui
+./sub
+./sub/deeper

@@ -23,10 +23,14 @@ HUD at `tf/custom/m0rehud-5.8`, plus the shipped `tf/resource` tree:
 | scripts | `scripts/*.nut`, `scripts/hudlayout.res` | a Squirrel VM and the game's own globals |
 
 Measured on that corpus: 102 `.res` documents, 23 of which open with `#base`,
-and 4240 coordinate strings whose first character is either a digit/sign
-(4200), `c` (168), `f` (133), `r` (88), `p` (18) or `o` (3). No document in the
-corpus uses a `%` suffix or an `s` (scaled) coordinate, but both are legal
-VGUI and both are handled below.
+and 5313 coordinate values — the value of `xpos`, `ypos`, `wide`, `tall` or
+`zpos` — whose first character is either a digit/sign (4903), `c` (168), `f`
+(133), `r` (88), `p` (18) or `o` (3); every value is one of those six forms.
+No document in it uses a `%` suffix or an `s` (scaled) coordinate, but both
+are legal VGUI and both are handled below. The counting rule is stated because
+these numbers are a contract: count the five geometry keys across the 102
+documents and these are the numbers, so a later reader can reproduce them
+instead of taking them on trust.
 
 **What the 102 documents actually do through the parser** (`hud_probe` reads the
 whole directory, not a sample; the readings are in `evidence/hud/probe.txt`):
@@ -35,14 +39,35 @@ whole directory, not a sample; the readings are in `evidence/hud/probe.txt`):
 |---|---|---|
 | imported as a layout | **71** | no `#base`, every panel's coordinates resolvable |
 | refused, `unsupported-include` | **23** | they open with `#base` and would render with holes |
-| refused, `unsupported-coordinate` | **7** | `hudalert`, `huddemomancharge`, `hudhealthaccount`, `huditemeffectmeter_action`, `huditemeffectmeter_killstreak`, `hudkillstreaknotice`, `hudteamswitch` — `o`-prefixed coordinates |
+| refused, `unsupported-coordinate` | **7** | nothing in the document can be placed. Three (`hudalert`, `huddemomancharge`, `hudteamswitch`) are laid out with `cs-0.5` — a centred coordinate carrying the `s` (scaled) suffix, which needs Source's base resolution and which this grammar deliberately cannot express — and every panel in them is one of those. Four (`hudhealthaccount`, `huditemeffectmeter_action`, `huditemeffectmeter_killstreak`, `hudkillstreaknotice`) are control and colour configuration files: their only panel carries no `xpos`/`ypos`/`wide`/`tall` at all, so there is no rectangle to resolve |
 | refused, `missing-root-panel` | **1** | `huddamageaccount_last.res` is an include *fragment*: `"Resource/UI/HudDamageAccount.res" { }`, an empty document that only exists to be `#base`d by `huddamageaccount.res`. Refusing it is correct. |
 
 So the honest headline is **71 of 102 (70%)** of an installed custom HUD's
 documents, and **that is the support scope, not "Source HUD compatible"**. The
-eight refusals that are not includes are all one defect each — an `o`
-coordinate, or a fragment — and every one of them is named rather than
-silently skipped.
+eight refusals that are not includes are all one defect each — a scaled-centre
+coordinate, a document with no geometry, or a fragment — and every one of them
+is named rather than silently skipped.
+
+One caveat on the "71", because it is the number most likely to be over-read: a
+document is refused as a whole only when nothing in it can be placed. When at
+least one panel resolves, the document is **imported and the unresolvable panels
+are dropped and counted**, so "71 imported" is not "71 documents drawn
+completely". Measured over the same corpus, from the `corpus.importedPartial`,
+`corpus.panelsKept` and `corpus.panelsRefused` readings in
+`evidence/hud/probe.txt`:
+
+| reading | value |
+|---|---|
+| documents imported | **71 of 102** |
+| ... of those, documents that dropped at least one panel | **55 of 71** |
+| panels placed | **800** |
+| panels dropped | **511** |
+
+So the honest unit for the support scope is the PANEL: **800 of 1311 panels
+(61%)** of this installed HUD get a rectangle, and 55 of the 71 documents that
+open are drawn only in part. Two of those lose a single `wide "o1"`
+(`pvprankpanel.res`, `ingamequeuestatus.res`); others lose most of their
+controls. Counting documents hides that; counting panels does not.
 
 Two tokenizer facts the corpus taught, both now covered by fixtures:
 
@@ -172,7 +197,7 @@ reparse point, a `..` that survived, or a root of `C:/hud` with a candidate of
 | a NUL byte inside the text | `invalid-utf8` |
 | a UTF-8 BOM | accepted and stripped; reported as `hadBom` |
 
-The 256 KiB cap is 20x the largest `.res` in the corpus (46 KiB,
+The 256 KiB cap is 5.4x the largest `.res` in the corpus (48 225 bytes,
 `mainmenuoverride.res`), so it constrains nothing real and bounds what a
 hand-made file can make the parser do.
 
@@ -202,21 +227,47 @@ Nothing outside `hud.*` is written by this feature.
 
 ## 5. What the gate proves, and what it does not
 
-`hud-check.sh` asserts:
+`hud-check.sh` asserts, in this order:
 
-1. the probe's reading set (paths, coordinates, resolution, refusals, corpus);
-2. a real product run imports a known-good fixture HUD and draws it, with the
-   drawn rectangles matching the probe's resolved rectangles;
-3. a malformed fixture and a missing fixture are both refused with their named
-   reason, and the product keeps rendering the world;
-4. **two captures at the same camera and tick, one with the HUD and one
-   without, are byte-identical outside the HUD union rectangle** — the
-   assertion the task calls "HUD changes must not modify the world/model
-   rendering underneath";
-5. reset and uninstall leave every fixture user file byte-identical;
-6. `--mutation` reintroduces two defects (a bad HUD accepted; the HUD pass
-   perturbing the world) and requires the gate to go red, then restores the
-   sources byte-for-byte (`cmp`) and re-verifies.
+1. the probe's reading set (path rules, coordinate grammar, resolution
+   arithmetic, every refusal by name, and the installed corpus);
+2. a real product run imports a known-good fixture HUD and draws it: the
+   renderer's drawn count equals the document's **visible** count (not its
+   resolved count — the fixture hides one panel on purpose so the two numbers
+   differ), and the renderer's own drawn region equals the resolver's union
+   rectangle *for the same frame*, which is what makes that rectangle usable as
+   an alibi boundary below;
+3. the three `hud.*` hotkeys are present in the shared key table the PRODUCT
+   built at startup, with their canonical chords — read from a run's trace, not
+   from two source files compared with each other;
+4. **the measurement is deterministic before it is used**: two HUD-off captures
+   must be byte-identical before any pixel is compared. If they are not, the
+   comparison below is reported NOT VERIFIED with an owner and a next step,
+   because a difference between two frames that are not reproducible cannot be
+   attributed to the HUD;
+5. **HUD on vs HUD off, same camera and same tick, are byte-identical outside
+   the HUD union rectangle** — the task's "a HUD change must not modify the
+   world/model rendering underneath" — together with the mirror assertion that
+   the HUD did change pixels inside the rectangle, so the first one cannot pass
+   vacuously;
+6. the same comparison at 200% scale, against that scale's own union rectangle;
+7. six refusals executed in the product (malformed, `#base` include,
+   unsupported coordinate, `..` traversal, missing file, oversized file), each
+   with its own token and each still rendering a world frame; plus a
+   partially-unsupported document as the CONTROL, which must import, keep five
+   panels and count exactly one refused — otherwise "refused" could be a
+   validator that refuses everything;
+8. import-then-reset, and uninstall, leave the fixture user directory identical:
+   the directory-entry set, the directory set (including an empty directory) and
+   the bytes of every file;
+9. `--mutation` reintroduces one defect at a time and requires THIS gate to go
+   red, then restores each source byte-for-byte (`cmp`) and re-verifies with a
+   rebuilt product: (a) the `#base` refusal disabled, so a bad HUD is accepted;
+   (b) the HUD pass drawing full-screen quads, so the HUD perturbs the world;
+   (c) `hud.toggle` never registered, so the key table is incomplete;
+   (d) `resetToDefault()` deleting the imported directory, so reset destroys
+   user files. A mutation is only scored against a green forward run: the suite
+   refuses to start when the forward assertions are already red.
 
 What it does **not** prove, and must not be read as proving: that any
 particular third-party HUD looks like it does in Team Fortress 2. It proves

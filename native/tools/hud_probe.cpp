@@ -467,6 +467,12 @@ int main(int argc, char** argv) {
       "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/custom/m0rehud-5.8/resource/ui";
     std::error_code code;
     std::size_t tried = 0, imported = 0, includes = 0, refusedOther = 0;
+    // "Imported" is not "drawn completely": a document with at least one placeable
+    // panel imports, and the panels it could not place are DROPPED silently from
+    // the reading above. These three counters are what turns that into a number,
+    // because the support-scope document quotes "71 of 102" and a reader has to
+    // be able to see how much of those 71 the parser actually placed.
+    std::size_t importedPartial = 0, panelsKept = 0, panelsRefused = 0;
     std::vector<std::string> refusedSample;
     if (std::filesystem::is_directory(corpus, code)) {
       for (const auto& entry : std::filesystem::directory_iterator(corpus, code)) {
@@ -481,7 +487,13 @@ int main(int argc, char** argv) {
         const auto read = tf2::native::readHudFile(corpus, entry.path().filename().u8string());
         if (!read.ok) { ++refusedOther; refusedSample.push_back(entry.path().filename().u8string() + ":read:" + reasonOf(read.reason)); continue; }
         const auto parsed = tf2::native::parseHudLayout(read.text);
-        if (parsed.ok) { ++imported; continue; }
+        if (parsed.ok) {
+          ++imported;
+          panelsKept += parsed.panels.size();
+          panelsRefused += parsed.refusedPanels;
+          if (parsed.refusedPanels != 0) ++importedPartial;
+          continue;
+        }
         if (parsed.reason == tf2::native::HudRefusal::UnsupportedInclude) { ++includes; continue; }
         ++refusedOther;
         if (refusedSample.size() < 12) {
@@ -494,6 +506,9 @@ int main(int argc, char** argv) {
     std::printf("corpus.imported=%zu\n", imported);
     std::printf("corpus.refusedInclude=%zu\n", includes);
     std::printf("corpus.refusedOther=%zu\n", refusedOther);
+    std::printf("corpus.importedPartial=%zu\n", importedPartial);
+    std::printf("corpus.panelsKept=%zu\n", panelsKept);
+    std::printf("corpus.panelsRefused=%zu\n", panelsRefused);
     for (const auto& line : refusedSample) std::printf("corpus.sample %s\n", line.c_str());
     // The directory is optional (a machine without TF2 installed is a skip, not
     // a failure), but IF it is there the sampler must have done real work.
