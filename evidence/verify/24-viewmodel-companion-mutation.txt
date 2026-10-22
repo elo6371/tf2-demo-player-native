@@ -25,10 +25,25 @@
   OK   control widest binding = 57
   OK   the cycle witness has a live sequence = 1 (>= 0)
 
+=== 1b/6 the retry rule, driven with stubs ===
+  OK   deny-then-ok: outcome = 0
+  OK   deny-then-ok: attempts = 2
+  OK   deny-then-ok: reported a retry = 1
+  OK   always-deny: outcome is the launcher's rc = 126
+  OK   always-deny: attempts (one retry, not a loop) = 2
+  OK   always-deny: bounded by the wait (1s <= 30+10s)
+  OK   real-failure: outcome = 3
+  OK   real-failure: attempts (no retry on a real failure) = 1
+  OK   real-failure: reported no retry = 0
+  note: 1 product process(es) still running after 1s; running anyway
+  OK   timeout: the wait gave up after its bound and named the condition
+  OK   timeout: it actually waited (1s >= 1s)
+  ..   retry self-test complete
+
 === 2/6 the pass draws the entity's own model ===
   history rc=0 bmp=2582406
   OK   history rc = 0
-  OK   history observations = 1846 (>= 1000)
+  OK   history observations = 1781 (>= 1000)
   OK   history distinct sequences = 3
   OK   history sequence range = 1..30
   OK   witness ticks derived = 3
@@ -56,8 +71,8 @@
   OK   witness-b sequence = 1
   OK   witness-b entity model matches the drawn model = 1
   OK   witness-b model mismatches, counted = 0
-  OK   witness-b sequences in range, counted = 731
-  OK   witness-b observations exceed witness-a's = 731 (> 2)
+  OK   witness-b sequences in range, counted = 702
+  OK   witness-b observations exceed witness-a's = 702 (> 2)
   OK   witness-b sequence changes = 1 (>= 1)
   witness-c rc=0 bmp=2582406
   OK   witness-c rc = 0
@@ -66,7 +81,7 @@
   OK   witness-c model mismatches, counted = 0
   OK   witness-c sequence changes = 2 (>= 2)
   OK   witness-c sequence range over the run = 1..30
-  OK   every natural run observation was accepted = 1554
+  OK   every natural run observation was accepted = 1491
   OK   and none was refused = 0
   OK   no override was in force = -1
   OK   the frames of ticks a and b differ = 2366405 (> 0)
@@ -100,10 +115,10 @@
   OK   pose-applied skinned = 1
   OK   pose-applied bone table covers the whole skeleton = 58
   OK   pose-applied bone table size is the model's own bone count = 58
-  OK   pose-applied every accepted pose was applied = 2
-  OK   pose-applied every observation was accepted = 2 (> 0)
+  OK   pose-applied every accepted pose was applied = 1
+  OK   pose-applied every observation was accepted = 1 (> 0)
   OK   pose-applied refused nothing = 0
-  ..   pose-accepted vs pose-applied: 30163 byte positions differ (the reference pose equals the bind pose)
+  ..   pose-accepted vs pose-applied: 27780 byte positions differ (the reference pose equals the bind pose)
   pose-motion rc=0 bmp=2582406
   OK   pose-motion rc = 0
   OK   pose-motion applied = 1
@@ -119,7 +134,7 @@
   OK   refusal draws the model it was told to draw = models/weapons/v_models/v_scattergun_scout.mdl
   OK   refusal the entity's model does not match the drawn one = 0
   OK   refusal the range question was never reached = 0
-  OK   refusal mismatches, counted = 2
+  OK   refusal mismatches, counted = 1
   OK   refusal matches, counted = 0
   OK   refusal leaves the bind pose = 1
   OK   refusal applies nothing = 0
@@ -174,10 +189,10 @@
   mutation-force-v-model rc=0 bmp=2582406
   OK   force-v-model: the pass's request names the model it was told to name = models/weapons/v_models/v_scattergun_scout.mdl
   OK   force-v-model: the entity's model no longer matches the drawn one = 0
-  OK   force-v-model: the mismatch now fires = 2 (!= 0)
+  OK   force-v-model: the mismatch now fires = 1 (!= 0)
   OK   force-v-model: the range question is never reached = 0
   OK   force-v-model: and the mutated pass issues no draw call at all = 0
-  OK   force-v-model: work count -- scene updates = 2 (>= 1)
+  OK   force-v-model: work count -- scene updates = 1 (>= 1)
   OK   force-v-model: control -- the refusal still leaves the bind pose = 1
   OK   force-v-model: control -- the bone question is never reached either = 0
   OK   force-v-model: target red, control held
@@ -191,7 +206,7 @@
   OK   owner-cleared: control -- the drawn request is still the entity's model = models/weapons/c_models/c_sniper_arms.mdl
   OK   owner-cleared: control -- the same mesh is still drawn = 9996
   OK   owner-cleared: control -- and the pass still issues its draw call = 1
-  OK   owner-cleared: work count -- scene updates = 2 (>= 1)
+  OK   owner-cleared: work count -- scene updates = 1 (>= 1)
   OK   owner-cleared: target red, control held
   OK   owner-cleared: source restored byte-for-byte (a4c32550c623)
   OK   owner-cleared: the restored tree rebuilt

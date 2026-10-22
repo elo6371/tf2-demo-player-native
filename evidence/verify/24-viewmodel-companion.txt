@@ -25,14 +25,29 @@
   OK   control widest binding = 57
   OK   the cycle witness has a live sequence = 1 (>= 0)
 
+=== 1b/6 the retry rule, driven with stubs ===
+  OK   deny-then-ok: outcome = 0
+  OK   deny-then-ok: attempts = 2
+  OK   deny-then-ok: reported a retry = 1
+  OK   always-deny: outcome is the launcher's rc = 126
+  OK   always-deny: attempts (one retry, not a loop) = 2
+  OK   always-deny: bounded by the wait (0s <= 30+10s)
+  OK   real-failure: outcome = 3
+  OK   real-failure: attempts (no retry on a real failure) = 1
+  OK   real-failure: reported no retry = 0
+  note: 1 product process(es) still running after 1s; running anyway
+  OK   timeout: the wait gave up after its bound and named the condition
+  OK   timeout: it actually waited (1s >= 1s)
+  ..   retry self-test complete
+
 === 2/6 the pass draws the entity's own model ===
   history rc=0 bmp=2582406
   OK   history rc = 0
-  OK   history observations = 1850 (>= 1000)
+  OK   history observations = 1768 (>= 1000)
   OK   history distinct sequences = 3
   OK   history sequence range = 1..30
   OK   witness ticks derived = 3
-  ..   derived witness ticks: 0 814 1697
+  ..   derived witness ticks: 0 814 1698
   witness-a rc=0 bmp=2582406
   OK   witness-a rc = 0
   OK   witness-a drawn model = models/weapons/c_models/c_sniper_arms.mdl
@@ -56,8 +71,8 @@
   OK   witness-b sequence = 1
   OK   witness-b entity model matches the drawn model = 1
   OK   witness-b model mismatches, counted = 0
-  OK   witness-b sequences in range, counted = 730
-  OK   witness-b observations exceed witness-a's = 730 (> 2)
+  OK   witness-b sequences in range, counted = 712
+  OK   witness-b observations exceed witness-a's = 712 (> 2)
   OK   witness-b sequence changes = 1 (>= 1)
   witness-c rc=0 bmp=2582406
   OK   witness-c rc = 0
@@ -66,7 +81,7 @@
   OK   witness-c model mismatches, counted = 0
   OK   witness-c sequence changes = 2 (>= 2)
   OK   witness-c sequence range over the run = 1..30
-  OK   every natural run observation was accepted = 1561
+  OK   every natural run observation was accepted = 1471
   OK   and none was refused = 0
   OK   no override was in force = -1
   OK   the frames of ticks a and b differ = 2366405 (> 0)
