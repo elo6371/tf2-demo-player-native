@@ -517,8 +517,11 @@ std::string logsPanelRuntimeLine() {
   line += " available=" + std::string(runtime.available ? "1" : "0");
   line += " source=" + (runtime.source.empty() ? std::string("absent") : runtime.source);
   line += " version=" + (runtime.version.empty() ? std::string("-") : runtime.version);
-  line += " loader=";
-  line += loader.empty() ? "not-compiled" : loader;
+  // The loader status already names itself ("loader=present", "loader=missing
+  // (path)"). Prefixing it here produced "loader=loader=present" in every trace
+  // line of the first gate run -- a doubled token that the gate's "loader="
+  // assertion passed on, and a reader would have spent a minute on.
+  line += " " + (loader.empty() ? std::string("loader=not-compiled") : loader);
   if (!runtime.available) {
     line += " reason=" + runtime.reason;
     line += " fallback=" + runtime.fallback;
@@ -539,7 +542,7 @@ std::string logsPanelSummaryLine() {
     "logstf: summary attached=1 script=%s state=%s host=%s panel=%d content=%d client=%d,%d"
     " dpiScale=%.2f url=%s"
     " navigations=%u accepted=%u refused=%u opens=%u closes=%u hostStarts=%u hostFailures=%u"
-    " scrollCalls=%u scriptFailures=%u canBack=%d canForward=%d refusal=%s unavailable=%s",
+    " scrollCalls=%u scriptFailures=%u canBack=%d canForward=%d refusal=%s refusalReason=%s unavailable=%s",
     g_options.script.empty() ? "-" : g_options.script.c_str(),
     logsPanelStateName(snapshot.state),
     snapshot.hostAlive ? "alive" : "none",
@@ -552,6 +555,7 @@ std::string logsPanelSummaryLine() {
     snapshot.scrollCalls, snapshot.scriptFailures,
     snapshot.canGoBack ? 1 : 0, snapshot.canGoForward ? 1 : 0,
     snapshot.lastRefusal.empty() ? "-" : snapshot.lastRefusal.c_str(),
+    snapshot.lastRefusalReason.empty() ? "-" : snapshot.lastRefusalReason.c_str(),
     snapshot.unavailable.empty() ? "-" : snapshot.unavailable.c_str());
   std::string line = buffer;
   if (!g_options.exitReason.empty()) line += " scriptFailure=" + g_options.exitReason;

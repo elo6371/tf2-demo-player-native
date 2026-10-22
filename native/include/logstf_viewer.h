@@ -47,10 +47,11 @@ namespace tf2::native {
 //   https://logs.tf/player/<steamid>  a player's logs
 //   https://logs.tf/                  the front page
 //
-// "www.logs.tf" is accepted and kept as typed. An http:// URL is accepted and
-// UPGRADED to https (logs.tf redirects it anyway); the decision records that it
-// was upgraded so a gate can tell the two paths apart. Every other scheme is
-// refused: javascript:, file:, data:, about:, ftp:, ms-*: and a bare
+// "www.logs.tf" is accepted and kept as typed. An http:// URL is REFUSED with
+// its own reason (NotHttps) rather than silently upgraded: the acceptance text
+// says a non-https address must get an explicit refusal, and "we changed what
+// you asked for" is a decision the user did not make. Every other scheme is
+// refused too: javascript:, file:, data:, about:, ftp:, ms-*: and a bare
 // "logs.tf/1" with no scheme. Non-ASCII input is refused rather than
 // percent-encoded, because a homograph host must not become "logs.tf" through a
 // normalisation step.
@@ -63,6 +64,7 @@ enum class LogsUrlReason {
   UnsupportedCharacter, // control or non-ASCII byte
   MissingScheme,        // no "://"
   UnsupportedScheme,    // a scheme other than http/https
+  NotHttps,             // http://: the panel opens https only, and says so
   MissingHost,          // "https:///" and friends
   UserInfoRefused,      // "https://user:pass@logs.tf/1"
   Malformed,            // backslashes, empty labels, ".." segments
@@ -220,6 +222,12 @@ public:
   virtual std::string failureReason() const = 0;
 
   virtual bool navigate(const std::string& url, std::string* error) = 0;
+  // True while the browser has been told to go somewhere and has not finished.
+  // A real browser is asynchronous, so "Navigate returned S_OK" is not "the page
+  // is there": treating it as Content made goBack() run before the navigation had
+  // been committed, and the runtime answered CanGoBack=0. A synchronous host (the
+  // probe's recording fake) returns false here, which is the same meaning.
+  virtual bool navigationPending() const = 0;
   virtual bool goBack(std::string* error) = 0;
   virtual bool goForward(std::string* error) = 0;
   virtual bool reload(std::string* error) = 0;
@@ -255,7 +263,12 @@ const char* logsPanelStateName(LogsPanelState state);
 struct LogsPanelSnapshot {
   LogsPanelState state = LogsPanelState::Closed;
   std::string url;            // the address bar text (accepted URL only)
-  std::string lastRefusal;    // reason from the most recent refused import
+  std::string lastRefusal;    // what the user is told about the last refusal
+  // The same refusal as a machine-readable token from logsUrlReasonName(), so a
+  // gate can assert "it refused for THIS reason" without matching English prose.
+  // T54's gate asserted refusal=host-not-allowed against a field that only ever
+  // held the sentence, so that assertion could never pass (GATE-DESIGN-TRAPS #1).
+  std::string lastRefusalReason;
   std::string unavailable;    // runtime explanation while Unavailable
   std::string fallback;       // the named fallback while Unavailable
   bool canGoBack = false;

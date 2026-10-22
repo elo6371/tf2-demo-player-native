@@ -1,0 +1,3 @@
+readings: 34 expectation keys checked against 54 distinct names; 0 name(s) set more than once
+sources: 14 asserted keys checked against native/src
+GATE-SELF-CHECK=PASS (48 item(s) checked)

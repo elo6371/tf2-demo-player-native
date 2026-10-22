@@ -1,0 +1,11 @@
+.uninstall/payload/WebView2Loader.dll
+.uninstall/payload/install_smoke_probe.ps1
+.uninstall/payload/native_install_smoke_probe.exe
+.uninstall/payload/tf2_demo_native.exe
+VERSION.txt
+WebView2Loader.dll
+install_smoke_probe.ps1
+native_install_smoke_probe.exe
+tf2_demo_native.exe
+third_party/webview2/LICENSE.txt
+third_party/webview2/NOTICE.txt

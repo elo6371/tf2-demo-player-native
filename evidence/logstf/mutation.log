@@ -1,0 +1,142 @@
+LAUNCH-SAFETY=OK (1 launch site, predicate rejects a flagless argv)
+=== 1/3 logstf_viewer_probe (URL policy, empty state, geometry, failure text) ===
+url-reasons 'http://logs.tf/3->not-https','HTTP://LOGS.TF/3->not-https','logs.tf/1->missing-scheme','//logs.tf/1->missing-scheme','javascript:alert(1)->unsupported-scheme','file:///C:/Windows/System32/drivers/etc/hosts->unsupported-scheme','data:text/html,<script>alert(1)</script>->unsupported-scheme','about:blank->unsupported-scheme','ftp://logs.tf/1->unsupported-scheme','ms-settings:privacy->unsupported-scheme','https://->missing-host','https:///1->missing-host','https://user:pass@logs.tf/1->user-info-refused','https://logs.tf@evil.example/1->user-info-refused','https://logs.tf\1->malformed','https://logs.tf:8443/1->port-not-allowed','https://logs.tf:443abc/1->malformed','https://evil.example/1->host-not-allowed','https://logs.tf.evil.example/1->host-not-allowed','https://evillogs.tf/1->host-not-allowed','https://logs.tf./1->malformed','https://sub.logs.tf/1->host-not-allowed','https://127.0.0.1/1->host-not-allowed','https://logs.tf/../../etc/passwd->malformed','https://logs.tf/admin->path-not-supported','https://logs.tf/a/b/c->path-not-supported'
+hist window=probe frames=8192 p50=1.00 p95=1.00 max=1.00 mean=1.00
+PASS logstf_viewer_probe empty=inert url=validated resize=clamped scroll=measured runtime=explained
+urlAcceptCases=14 urlAccepted=14 urlEmptyCases=3 urlEmpty=3 urlRefuseCases=26 urlRefused=26 homographRefused=1 injectionRefused=1 emptyHostCalls=0 emptyNavigations=0 emptyState=empty reopenHostCalls=0 reopenState=empty refusalKeepsEmpty=1 refusalHasReason=1 pendingKeepsLoading=1 pendingLandsOnContent=1 contentState=content contentNavigations=1 backCalls=1 forwardCalls=1 reloadCalls=1 reopenNavigations=2 reopenLoadedState=content unavailableState=unavailable unavailableHasReason=1 unavailableHasFallback=1 createFailureReason=WebView2Loader.dll could not be loaded asyncFailureReason=CreateCoreWebView2Environment failed with 0x80070002 geometryCases=96 geometryOutside=0 geometryOverlaps=0 geometryNoContent=0 geometryDemoSqueezed=0 geometryUnreachable=0 clampMin=320 clampMax=1600 scrollOffset=480 scrollClamped=0 scrollFailures=1 scrollHeight=4200 viewportHeight=720 emptyScriptDelta=0 runtimeKind=webview2 runtimeAvailable=1 runtimeSource=registry runtimeVersion=155.0.4283.62 runtimeDirFallback=installation-dir runtimeHalfInstallNamed=1 runtimeAbsentHasReason=1 runtimeAbsentHasFallback=1 absentRuntimeNavigations=0 histogramP50=1 histogramSamples=8192
+probe_exit=0
+  OK   probe exit = 0
+  OK   url: every accepted shape is accepted verbatim
+  OK   url: an empty address is Empty/Missing, not a refusal
+  OK   url: every refusal names its own reason
+  OK   url: a non-ASCII homograph never reaches the host rule
+  OK   url: a header-injection attempt is refused
+  OK   empty: an open panel with no URL is Empty
+  OK   empty: zero host calls
+  OK   empty: zero navigations
+  OK   empty: a reopen is Empty again
+  OK   content: a reopen of a loaded panel lands on Content
+  OK   empty: a reopen still makes no host call
+  OK   empty: a refused import leaves the panel Empty
+  OK   empty: a refused import names its reason
+  OK   content: a valid URL with a live host lands on Content
+  OK   content: exactly one navigation
+  OK   content: back reached the host once
+  OK   content: forward reached the host once
+  OK   content: reload reached the host once
+  OK   content: a reopen restored exactly one navigation
+  OK   content: a pending navigation keeps the panel in Loading
+  OK   content: the panel reaches Content when the navigation completes
+  OK   failure: no runtime reports Unavailable
+  OK   failure: no runtime names the reason
+  OK   failure: no runtime names the fallback
+  OK   geometry: nothing leaves the client at any size/dpi
+  OK   geometry: no two toolbar controls overlap
+  OK   geometry: every panel size leaves a content rect
+  OK   geometry: the demo keeps its minimum width
+  OK   geometry: every toolbar control stays reachable
+  OK   scroll: the offset the page took is what is reported
+  OK   scroll: a page that cannot scroll reports 0, not the request
+  OK   scroll: the page height is read back
+  OK   scroll: the viewport height is read back
+  OK   frames: the ring is bounded
+assertions_ok=34 assertions_bad=0
+host_runtime=runtimeKind=webview2 runtimeAvailable=1
+
+=== 2/3 the product (hidden window, audio disabled, --logstf-script) ===
+  empty rc=0 trace_lines=6302
+  OK   empty run rc = 0
+  empty.summary: 43515.8 logstf: summary attached=1 script=empty state=empty host=none panel=640 content=637 client=1264,681 dpiScale=1.00 url=- navigations=0 accepted=0 refused=0 opens=1 closes=0 hostStarts=0 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+  empty.runtime: 43515.9 logstf: runtime kind=webview2 available=1 source=registry version=155.0.4283.62 loader=present
+  OK   product empty state
+  OK   product empty navigations
+  OK   product empty host
+  OK   product empty accepted
+  OK   product empty refused
+  OK   product runtime line present
+  OK   product runtime line names a kind
+  OK   product loader status
+  refuse rc=0 trace_lines=5505
+  refuse.summary: 38721.0 logstf: summary attached=1 script=import state=empty host=none panel=640 content=637 client=1264,681 dpiScale=1.00 url=- navigations=0 accepted=0 refused=1 opens=1 closes=0 hostStarts=0 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal='evil.example' is not logs.tf; only logs.tf and www.logs.tf are accepted refusalReason=host-not-allowed unavailable=- scriptFailure=import: the URL was refused: 'evil.example' is not logs.tf; only logs.tf and www.logs.tf are accepted
+  OK   wrong host refused
+  OK   wrong host never navigated
+  OK   wrong host names its reason
+  nothttps rc=0 trace_lines=6320
+  nothttps.summary: 38033.1 logstf: summary attached=1 script=import state=empty host=none panel=640 content=637 client=1264,681 dpiScale=1.00 url=- navigations=0 accepted=0 refused=1 opens=1 closes=0 hostStarts=0 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=this address is http://; the panel opens https:// pages only -- try https://logs.tf/3 refusalReason=not-https unavailable=- scriptFailure=import: the URL was refused: this address is http://; the panel opens https:// pages only -- try https://logs.tf/3
+  OK   http URL refused
+  OK   http URL names its reason
+  OK   http URL never navigated
+  malformed rc=0 trace_lines=4697
+  malformed.summary: 38051.4 logstf: summary attached=1 script=import state=empty host=none panel=640 content=637 client=1264,681 dpiScale=1.00 url=- navigations=0 accepted=0 refused=1 opens=1 closes=0 hostStarts=0 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=scheme 'javascript' is not accepted; only http:// and https:// are refusalReason=unsupported-scheme unavailable=- scriptFailure=import: the URL was refused: scheme 'javascript' is not accepted; only http:// and https:// are
+  OK   malformed URL refused
+  OK   malformed URL names its reason
+  OK   malformed URL never navigated
+  import rc=0 trace_lines=3654
+  OK   import run rc = 0
+  import.summary: 46823.8 logstf: summary attached=1 script=import state=content host=alive panel=640 content=637 client=1264,681 dpiScale=1.00 url=https://logs.tf/1 navigations=1 accepted=1 refused=0 opens=1 closes=0 hostStarts=1 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+  import.runtime: 46823.9 logstf: runtime kind=webview2 available=1 source=registry version=155.0.4283.62 loader=present
+  OK   valid URL accepted
+  OK   valid URL address kept
+  OK   valid URL navigated once
+  OK   valid URL host alive
+  OK   valid URL panel has width
+panel_content=1
+  scroll rc=0 trace_lines=4058
+  scroll.summary: 44283.9 logstf: summary attached=1 script=scroll state=content host=alive panel=640 content=637 client=1264,681 dpiScale=1.00 url=https://logs.tf/1 navigations=1 accepted=1 refused=0 opens=1 closes=0 hostStarts=1 hostFailures=0 scrollCalls=1 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+  OK   scroll reached the page
+  OK   scroll script succeeded
+  resize rc=0 trace_lines=3623
+  resize.summary: 44004.8 logstf: summary attached=1 script=resize state=content host=alive panel=944 content=637 client=1264,681 dpiScale=1.00 url=https://logs.tf/1 navigations=1 accepted=1 refused=0 opens=1 closes=0 hostStarts=1 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+  OK   resize clamps the request to the edge = 944
+  OK   resize stays in content
+  history rc=0 trace_lines=4499
+  history.summary: 43790.6 logstf: summary attached=1 script=history state=content host=alive panel=640 content=637 client=1264,681 dpiScale=1.00 url=https://logs.tf/2 navigations=2 accepted=2 refused=0 opens=1 closes=0 hostStarts=1 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=1 canForward=0 refusal=- refusalReason=- unavailable=-
+  OK   history navigated twice
+  OK   history has an entry behind it
+  OK   history back/forward/reload all succeeded
+  OK   history ended on the second URL
+  reopen rc=0 trace_lines=3680
+  reopen.summary: 45435.1 logstf: summary attached=1 script=reopen state=content host=alive panel=640 content=637 client=1264,681 dpiScale=1.00 url=https://logs.tf/1 navigations=2 accepted=1 refused=0 opens=2 closes=1 hostStarts=2 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+  OK   reopen returns to content
+  OK   reopen navigated once more
+  OK   reopen counted
+  close rc=0 trace_lines=4129
+  close.summary: 40900.3 logstf: summary attached=1 script=close state=closed host=none panel=0 content=0 client=1264,681 dpiScale=1.00 url=https://logs.tf/1 navigations=1 accepted=1 refused=0 opens=1 closes=1 hostStarts=1 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+  OK   close returns to Closed
+  OK   close drops the host
+  OK   close has no geometry
+  frames_closed rc=0 trace_lines=3488
+  frames_open rc=0 trace_lines=4142
+  frames.closed: 39357.6 logstf: frames window=closed frames=332 p50=16.26 p95=54.68 max=1111.80 mean=31.53 | window=open frames=0 p50=0.00 p95=0.00 max=0.00 mean=0.00
+  frames.open:   40961.3 logstf: frames window=closed frames=0 p50=0.00 p95=0.00 max=0.00 mean=0.00 | window=open frames=386 p50=16.00 p95=43.10 max=891.15 mean=24.99
+  p95_closed=54.68 p95_open=43.10 frames_closed=332 frames_open=386
+  OK   baseline frame samples = 332 (>= 30)
+  OK   panel-open frame samples = 386 (>= 30)
+  capture.open: 40883.4 capture: armed requested=600 frame_tick=600 frames=385
+  OK   panel-open run reached the capture tick = 600 (>= 600)
+  OK   panel-open p95 stays within 2x of the closed baseline = 1
+  p95_ratio=0.79
+
+=== 3/3 mutation: perturbed captures, then four real product defects ===
+  MUTATION-CAUGHT=PASS (url_host: 1 of 34 assertions went red)
+  MUTATION-CAUGHT=PASS (empty_calls: 1 of 34 assertions went red)
+  MUTATION-CAUGHT=PASS (empty_navigate: 1 of 34 assertions went red)
+  MUTATION-CAUGHT=PASS (unavailable: 1 of 34 assertions went red)
+  MUTATION-CAUGHT=PASS (geometry: 1 of 34 assertions went red)
+  MUTATION-CAUGHT=PASS (scroll: 1 of 34 assertions went red)
+  mutated build rc=0 (m1)
+  m1 rc=0 trace_lines=3368
+  MUTATION-CAUGHT=PASS (m1_wrong_host: probe and product both went red)
+  mutated build rc=0 (m2)
+  m2 rc=0 trace_lines=2788
+  MUTATION-CAUGHT=PASS (m2_empty_prefetch: probe and product both went red)
+patched 2 sites
+  mutated build rc=0 (m3)
+  MUTATION-CAUGHT=PASS (m3_silent_runtime: the reason assertion went red)
+  mutated build rc=0 (m4)
+  MUTATION-CAUGHT=PASS (m4_resize_unclamped: the geometry matrix went red)
+  mutated build rc=0 (m5)
+  MUTATION-CAUGHT=PASS (m5_pending_navigation: the async-host case went red)
+LOGSTF-MUTATION=PASS (six capture mutations, four product mutations and one seam mutation all went red)
+
+LOGSTF=PASS panel_content=1 runtime_available=1

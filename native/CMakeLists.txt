@@ -667,6 +667,16 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/x64/WebView2Loader.
     DESTINATION .)
   install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/x64/WebView2Loader.dll"
     DESTINATION .uninstall/payload)
+  # The loader is redistributed as a BINARY, so the SDK's own licence and its
+  # third-party notices travel with the package: BSD-3-Clause clause 2 requires
+  # the copyright notice, the conditions and the disclaimer in the documentation
+  # and/or other materials accompanying a binary redistribution. They are
+  # installed as documentation next to the package, NOT into .uninstall/payload:
+  # the payload is the set of files the installer lays down and owns (and its
+  # count is asserted elsewhere), while a licence is read, not installed.
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/LICENSE.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/NOTICE.txt"
+    DESTINATION third_party/webview2)
 endif()
 # The payload uses $<TARGET_FILE:...> rather than a second install(TARGETS) so
 # each artefact has exactly one install rule that names it; two rules for one

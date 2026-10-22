@@ -43,6 +43,69 @@ reading will not say which happened. That is why the gate's label spells the sum
 out ("4 payload + VERSION.txt + manifest + 2 licence files") instead of pinning a
 number with no cause attached.
 
+## A second gate owns the same question, and it is runnable
+
+`install-lifecycle-check.sh` is not the only gate that pins the package list.
+`install-readiness-check.sh` (T32/T37) pins it too, in section "3/13 the package",
+and T54 made those constants stale in three places:
+
+| line | old -> new | observed or derived | basis |
+|------|------------|---------------------|-------|
+| 255 | 7 names -> 11 names | **observed** | evidence/logstf/readiness.log (T54 lock hold, 2026-10-22) |
+| 262 | `package file count` 7 -> 11 | **observed** | same run, same log |
+| 264 | payload entries 3 -> 4, label rewritten | **observed** | same run, same log |
+
+**Observed, not planned.** The witness is `evidence/logstf/readiness.log`, written
+during lock hold `t54-logstf` on 2026-10-22 (run started 22:16:53, gate at
+22:25:41). Its own verdict lines:
+
+```
+  OK   package file count = 11
+  OK   the payload holds the three files it lays down at the top level plus
+       WebView2Loader.dll (4 = 3 + loader; the licence files are not payload) = 4
+  cases=13 checks=145 mutations=0
+  INSTALL-READINESS=PASS
+```
+
+The staged file list that section checks against is
+`evidence/logstf/install-preview-files.txt`, printed by `cmake --install` into a
+scratch prefix and listing, in the order the install writes them:
+
+```
+.uninstall/payload/WebView2Loader.dll
+.uninstall/payload/install_smoke_probe.ps1
+.uninstall/payload/native_install_smoke_probe.exe
+.uninstall/payload/tf2_demo_native.exe
+VERSION.txt
+WebView2Loader.dll
+install_smoke_probe.ps1
+native_install_smoke_probe.exe
+tf2_demo_native.exe
+third_party/webview2/LICENSE.txt
+third_party/webview2/NOTICE.txt
+```
+
+**A note on how this row was nearly wrong**: for two rounds the file list was
+reported missing, and the gate read as "install preview not completed", because the
+runner's `$LOGDIR` was a relative path and the install step `cd`s into the staged
+tree before writing its list. The install had succeeded every time -- the licences
+were on disk while the gate said they were not. The reading was about the log's
+path, not about the install (see evidence/logstf/gate-design.md). If this document
+is read without `evidence/logstf/readiness.log` beside it, the three rows revert to
+a plan, not an observation.
+
+The count is 11, not 7 + 2: the package grows by four. The top level gains
+`WebView2Loader.dll` (native/CMakeLists.txt:665-667) as well as the two licence
+files, and the payload gains the loader too -- four payload entries are the three
+files the installer lays down again *plus* the loader. A reader who assumes the
+licences are the only additions will get 9 and be wrong by two; that is why the
+label on the payload assertion now states the composition instead of counting.
+
+**These three are observations, not derivations.** Unlike the twelve above, this
+gate needs no WebView2 runtime and no product launch to answer its package
+question, so it was executed -- and an executable expectation that has never been
+executed is the least trustworthy kind of all.
+
 ## The cheapest way to turn all twelve into measurements
 
 ```

@@ -101,6 +101,7 @@ const char* logsUrlReasonName(LogsUrlReason reason) {
   case LogsUrlReason::UnsupportedCharacter: return "unsupported-character";
   case LogsUrlReason::MissingScheme: return "missing-scheme";
   case LogsUrlReason::UnsupportedScheme: return "unsupported-scheme";
+  case LogsUrlReason::NotHttps: return "not-https";
   case LogsUrlReason::MissingHost: return "missing-host";
   case LogsUrlReason::UserInfoRefused: return "user-info-refused";
   case LogsUrlReason::Malformed: return "malformed";
@@ -175,10 +176,20 @@ LogsUrlDecision validateLogsUrl(const std::string& input) {
     decision.message = "the scheme is not a plain name; only http:// and https:// are accepted";
     return decision;
   }
-  if (scheme != "http" && scheme != "https") {
+  if (scheme == "http") {
+    // Refused, not upgraded: see the header. Keeping this a refusal means the
+    // reason the user sees (and the gate reads) is about the address they typed,
+    // not about a silent rewrite of it.
+    decision.verdict = LogsUrlVerdict::Refused;
+    decision.reason = LogsUrlReason::NotHttps;
+    decision.message = "this address is http://; the panel opens https:// pages only"
+        " -- try https://" + lowered.substr(7);
+    return decision;
+  }
+  if (scheme != "https") {
     decision.verdict = LogsUrlVerdict::Refused;
     decision.reason = LogsUrlReason::UnsupportedScheme;
-    decision.message = "scheme '" + scheme + "' is not accepted; only http:// and https:// are";
+    decision.message = "scheme '" + scheme + "' is not accepted; only https:// is";
     return decision;
   }
 
@@ -273,14 +284,15 @@ LogsUrlDecision validateLogsUrl(const std::string& input) {
   decision.verdict = LogsUrlVerdict::Accepted;
   decision.reason = LogsUrlReason::None;
   decision.host = toLower(host);
-  decision.upgradedToHttps = scheme == "http";
+  // https is the only accepted scheme, so nothing is ever rewritten; the field
+  // stays because a decision records what it did, and "did not upgrade" is a
+  // reading a caller can still assert.
+  decision.upgradedToHttps = false;
   // The default port is dropped from the canonical form: "https://logs.tf:443/4"
   // and "https://logs.tf/4" are the same page, and a canonical URL that keeps
   // one of two spellings cannot be compared with the host's reported source.
   decision.url = "https://" + host + path + query;
-  decision.message = decision.upgradedToHttps
-      ? "accepted (http upgraded to https): " + decision.url
-      : "accepted: " + decision.url;
+  decision.message = "accepted: " + decision.url;
   return decision;
 }
 
@@ -359,10 +371,18 @@ LogsToolbarPlan planLogsToolbar(const LogsPanelBounds& panel, float dpiScale) {
 
   // The address field takes the slack; import and close are anchored to the
   // right edge so they never slide out of reach as the panel narrows.
-  const int closeWidth = button;
-  const int importWidth = scaled(64);
-  const int closeX = std::max(cursor, right - closeWidth);
-  const int importX = std::max(cursor, closeX - gap - importWidth);
+  //
+  // Each of the three is measured from the space that is actually left, right
+  // to left, and shortened rather than allowed to slide over its neighbour: a
+  // narrow panel clips the address field to nothing and then the Import button,
+  // and never overlaps two controls. The earlier version anchored from the
+  // right but let a short panel push Import across Close, which is a layout
+  // defect a user sees as two labels on top of each other.
+  const int closeWidth = std::min(button, std::max(0, right - cursor));
+  const int closeX = right - closeWidth;
+  const int importWidth = std::min(scaled(64),
+      std::max(0, closeX - gap - cursor));
+  const int importX = closeX - gap - importWidth;
   const int addressWidth = std::max(0, importX - gap - cursor);
 
   LogsPanelBounds& address = plan.rects[static_cast<std::size_t>(LogsToolbarControl::Address)];
@@ -373,18 +393,18 @@ LogsToolbarPlan planLogsToolbar(const LogsPanelBounds& panel, float dpiScale) {
   address.visible = addressWidth > 0;
 
   LogsPanelBounds& import = plan.rects[static_cast<std::size_t>(LogsToolbarControl::Import)];
-  import.x = importX;
+  import.x = importWidth > 0 ? importX : std::min(cursor, closeX);
   import.y = panel.y + pad;
-  import.w = std::max(0, std::min(importWidth, right - importX));
+  import.w = importWidth;
   import.h = button;
-  import.visible = import.w > 0;
+  import.visible = importWidth > 0;
 
   LogsPanelBounds& close = plan.rects[static_cast<std::size_t>(LogsToolbarControl::Close)];
   close.x = closeX;
   close.y = panel.y + pad;
-  close.w = std::max(0, std::min(closeWidth, right - closeX));
+  close.w = closeWidth;
   close.h = button;
-  close.visible = close.w > 0;
+  close.visible = closeWidth > 0;
 
   const int contentTop = panel.y + pad + rowHeight + pad;
   plan.content.x = panel.x;
@@ -626,18 +646,21 @@ bool LogsPanelController::importUrl(const std::string& raw) {
   if (decision.verdict == LogsUrlVerdict::Empty) {
     lastRefusal_ = decision.message;
     counters_.lastRefusal = lastRefusal_;
+    counters_.lastRefusalReason = logsUrlReasonName(decision.reason);
     return false;
   }
   if (decision.verdict == LogsUrlVerdict::Refused) {
     ++counters_.refusedImports;
     lastRefusal_ = decision.message;
     counters_.lastRefusal = lastRefusal_;
+    counters_.lastRefusalReason = logsUrlReasonName(decision.reason);
     counters_.state = state_;
     return false;
   }
   ++counters_.acceptedImports;
   lastRefusal_.clear();
   counters_.lastRefusal.clear();
+  counters_.lastRefusalReason.clear();
   url_ = decision.url;
   addressText_ = raw;
   counters_.url = url_;
@@ -674,8 +697,13 @@ bool LogsPanelController::importUrl(const std::string& raw) {
       return false;
     }
     pendingNavigate_ = false;
-    state_ = LogsPanelState::Content;
-    counters_.state = state_;
+    // Loading, plus the pump below promotes it once the host says the page is
+    // there. Leaving it Loading is what makes the asynchronous path and the
+    // synchronous one the same state machine.
+    if (!host_->navigationPending()) {
+      state_ = LogsPanelState::Content;
+      counters_.state = state_;
+    }
   }
   return true;
 }
@@ -723,10 +751,17 @@ void LogsPanelController::pump() {
     }
     pendingNavigate_ = false;
   }
-  // The browser exists and has been told where to go. Content means "a page was
-  // requested on a live host", and the host's own source is reported as the URL
-  // when it has one -- so a redirect (logs.tf upgrades http to https) is visible
-  // instead of being overwritten with what was typed.
+  // Stay Loading while the browser is still on its way. "Navigate returned S_OK"
+  // is not "the page is there": with the asynchronous real host, entering Content
+  // here let the very next goBack() run before the navigation was committed, and
+  // the runtime answered CanGoBack=0 (the first product run that drove
+  // back/forward, 2026-10-22). The synchronous probe host never reports pending,
+  // so both hosts agree on what Content means; only the timing differs.
+  if (host_->navigationPending()) return;
+  // The browser exists and the page it was sent to has arrived. Content means "a
+  // page is loaded on a live host", and the host's own source is reported as the
+  // URL when it has one -- so a redirect is visible instead of being overwritten
+  // with what was typed.
   state_ = LogsPanelState::Content;
   counters_.state = state_;
   counters_.canGoBack = host_->canGoBack();

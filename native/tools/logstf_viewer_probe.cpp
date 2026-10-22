@@ -113,6 +113,14 @@ public:
   bool goBack(std::string*) override { ++backs; return historyBack; }
   bool goForward(std::string*) override { ++forwards; return historyForward; }
   bool reload(std::string*) override { ++reloads; return true; }
+  // The fake host normally navigates synchronously: by the time navigate()
+  // returns, the page it models is there, so nothing is pending. The flag exists
+  // so a test can model the real (asynchronous) host: a branch that only the real
+  // runtime can reach would otherwise never be executed by any test, and would
+  // look covered while being dead.
+  bool navigationPending() const override { return pendingNavigation; }
+  bool pendingNavigation = false;
+
   bool canGoBack() const override { return historyBack; }
   bool canGoForward() const override { return historyForward; }
   std::string currentUrl() const override { return source; }
@@ -178,7 +186,6 @@ int main() {
     {"  https://logs.tf/11  ", "https://logs.tf/11", "logs.tf", false},
     {"https://logs.tf/5?tab=chat", "https://logs.tf/5?tab=chat", "logs.tf", false},
     {"https://logs.tf/5#summary", "https://logs.tf/5", "logs.tf", false},
-    {"http://logs.tf/3", "https://logs.tf/3", "logs.tf", true},
     {"https://logs.tf:443/4", "https://logs.tf/4", "logs.tf", false},
   };
   int acceptedOk = 0;
@@ -205,9 +212,33 @@ int main() {
   readings.set("urlAccepted", acceptedOk);
 
   struct RefusedCase { const char* input; LogsUrlReason reason; };
+  // Empty input is its own verdict, not a refusal: "nothing was typed" must not
+  // be phrased to the user as "your URL is invalid". Kept in its own table so
+  // the two classes cannot merge by accident.
+  {
+    const char* empties[] = {"", "   ", "\t"};
+    int emptyOk = 0;
+    for (const char* text : empties) {
+      const LogsUrlDecision decision = validateLogsUrl(text);
+      if (decision.verdict == LogsUrlVerdict::Empty
+          && decision.reason == LogsUrlReason::Missing
+          && decision.url.empty() && !decision.message.empty()) {
+        ++emptyOk;
+      } else {
+        std::cerr << "FAIL empty case: '" << text << "' -> "
+                  << logsUrlVerdictName(decision.verdict) << "/"
+                  << logsUrlReasonName(decision.reason) << "\n";
+        ++g_failures;
+      }
+    }
+    check(emptyOk == 3, "an empty address is Empty/Missing, never Refused");
+    readings.set("urlEmptyCases", 3);
+    readings.set("urlEmpty", emptyOk);
+  }
+
   const RefusedCase refused[] = {
-    {"", LogsUrlReason::Missing},
-    {"   ", LogsUrlReason::Missing},
+    {"http://logs.tf/3", LogsUrlReason::NotHttps},
+    {"HTTP://LOGS.TF/3", LogsUrlReason::NotHttps},
     {"logs.tf/1", LogsUrlReason::MissingScheme},
     {"//logs.tf/1", LogsUrlReason::MissingScheme},
     {"javascript:alert(1)", LogsUrlReason::UnsupportedScheme},
@@ -254,6 +285,20 @@ int main() {
     "every refused URL names the right reason and carries no URL");
   readings.set("urlRefuseCases", static_cast<long long>(sizeof(refused) / sizeof(refused[0])));
   readings.set("urlRefused", refusedOk);
+  // The whole table, printed: a reader can compare the reason the policy chose
+  // with the reason the case was written for, without re-deriving either.
+  {
+    std::string table;
+    for (const auto& item : refused) {
+      if (!table.empty()) table += ',';
+      table += "'";
+      table += item.input;
+      table += "->";
+      table += logsUrlReasonName(item.reason);
+      table += "'";
+    }
+    std::cout << "url-reasons " << table << "\n";
+  }
 
   // A non-ASCII homograph must not become logs.tf through a normalisation
   // step, and a control byte must not travel into a request line.
@@ -337,6 +382,31 @@ int main() {
     readings.set("refusalHasReason", afterRefusal.lastRefusal.empty() ? 0LL : 1LL);
   }
 
+  // --- 2e. An asynchronous host keeps the panel in Loading until the page lands
+  // The real WebView2 host answers navigationPending()=true between Navigate and
+  // NavigationCompleted. Without this case, the controller branch that reads it
+  // would never execute in any test on any machine -- the probe's host completes
+  // synchronously -- and "the panel waits for the page" would be an untested
+  // claim about the only path that needs it.
+  {
+    RecordingHost host;
+    host.state = HostStatus::Ready;
+    host.pendingNavigation = true;
+    LogsPanelController controller(&host, availableRuntime());
+    controller.open();
+    for (int frame = 0; frame < 3; ++frame) controller.pump();
+    check(controller.importUrl("https://logs.tf/55"), "an asynchronous host accepts the URL");
+    for (int frame = 0; frame < 3; ++frame) controller.pump();
+    check(controller.snapshot().state == LogsPanelState::Loading,
+      "a pending navigation keeps the panel in Loading");
+    readings.set("pendingKeepsLoading", controller.snapshot().state == LogsPanelState::Loading ? 1LL : 0LL);
+    host.pendingNavigation = false;
+    controller.pump();
+    check(controller.snapshot().state == LogsPanelState::Content,
+      "the panel reaches Content when the navigation completes");
+    readings.set("pendingLandsOnContent", controller.snapshot().state == LogsPanelState::Content ? 1LL : 0LL);
+  }
+
   // --- 3. A valid URL, a live host, and the browser controls ---------------
   {
     RecordingHost host;
@@ -397,7 +467,11 @@ int main() {
     check(reopened.navigations == 2, "the reopen navigated exactly once more");
     check(host.starts == 2, "the reopen created exactly one more browser");
     readings.set("reopenNavigations", static_cast<long long>(reopened.navigations));
-    readings.set("reopenState", logsPanelStateName(reopened.state));
+    // NOT "reopenState": the empty-panel case above already owns that name, and
+    // the later set() silently overwrote it, so the gate's "a reopen is Empty
+    // again" assertion could never see "empty". A reading whose name is reused
+    // is a reading whose earlier value does not exist (GATE-DESIGN-TRAPS 9).
+    readings.set("reopenLoadedState", logsPanelStateName(reopened.state));
   }
 
   // --- 4. Failure states ----------------------------------------------------
@@ -629,12 +703,16 @@ int main() {
     readings.set("scrollHeight", scrollHeight);
     readings.set("viewportHeight", viewportHeight);
 
-    // Scrolling an empty panel does nothing at all.
+    // Scrolling an empty panel does nothing at all. Measured as a delta on the
+    // host's own counter: "the empty panel issued no script" is a statement
+    // about what was NOT called, which only a before/after count can make.
+    const int scriptsBeforeEmpty = host.scripts;
     LogsPanelController empty(&host, availableRuntime());
     empty.open();
     int emptyOffset = 77;
     check(!empty.scrollContent(100, &emptyOffset), "an empty panel cannot scroll");
-    check(host.scripts == 3, "an empty panel issues no script");
+    check(host.scripts == scriptsBeforeEmpty, "an empty panel issues no script");
+    readings.set("emptyScriptDelta", host.scripts - scriptsBeforeEmpty);
   }
 
   // --- 7. The runtime probe ------------------------------------------------
@@ -780,13 +858,21 @@ int main() {
   }
 
   // --- 9. Verdict -----------------------------------------------------------
+  //
+  // The verdict comes first and the readings line comes LAST, on BOTH paths.
+  // The readings used to be printed only when the probe passed, which made the
+  // mutations unreadable: a mutation works by making the probe fail, so the
+  // readings line vanished exactly when the mutation was active, and the gate
+  // saw "reading missing" where it needed "reading changed". Absence of a
+  // reading and a changed reading are different findings, and only one of them
+  // scores a mutation.
   if (g_failures != 0) {
     std::cout << "FAIL logstf_viewer_probe failures=" << g_failures << "\n";
-    return 1;
+  } else {
+    std::cout << "PASS logstf_viewer_probe"
+                 " empty=inert url=validated resize=clamped scroll=measured"
+                 " runtime=explained\n";
   }
-  std::cout << "PASS logstf_viewer_probe"
-               " empty=inert url=validated resize=clamped scroll=measured"
-               " runtime=explained\n";
   std::cout << readings.line() << "\n";
-  return 0;
+  return g_failures != 0 ? 1 : 0;
 }

@@ -887,11 +887,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   g_nativeUi = &nativeUi;
   DragAcceptFiles(window, TRUE);
   createNativeUiControls(window, instance);
-  // T54: the logs panel. Creating its controls is not creating a browser -- the
-  // WebView2 object exists only after a URL is imported, which is what makes
-  // "an empty panel fetches nothing" true of the product and not only of the
-  // controller the probe drives.
-  tf2::native::logsPanelAttach(window, instance, g_logsPanelOptions);
+  // T54: the logs panel is attached AFTER the argument loop, not here. Attached
+  // here it copied the options as they stood -- defaults -- because the loop that
+  // fills g_logsPanelOptions runs four hundred lines below: every scripted run
+  // reported state=closed script=- and never opened the panel. The first gate run
+  // found it (2026-10-22), which is also the first time this tree met a compiler.
   std::filesystem::path commandTfRoot;
   std::filesystem::path commandDemo;
   std::filesystem::path commandModel;
@@ -1664,6 +1664,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --logstf-width/--logstf-pump-ms; refusing to guess.\n");
     return 13;
   }
+  // T54: now that the logstf arguments have been read, attach the panel. Creating
+  // its controls is not creating a browser -- the WebView2 object exists only
+  // after a URL is imported, which is what makes "an empty panel fetches nothing"
+  // true of the product and not only of the controller the probe drives.
+  //
+  // Anything added between the window's creation and this line that calls
+  // logsPanelLayout/Mouse/Command is a silent no-op: those functions return
+  // early while g_controller is null. That is the correct behaviour during
+  // creation, and it is also why this attach point -- not the earlier one -- is
+  // where the options become real.
+  tf2::native::logsPanelAttach(window, instance, g_logsPanelOptions);
   if (invalidWorldWaterArgument) {
     // T2 (2026-10-14): `--world-water` takes on|off and nothing else. Refusing
     // rather than defaulting matters because the pixel claim compares a water-on

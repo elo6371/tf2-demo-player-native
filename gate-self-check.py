@@ -44,17 +44,28 @@ def read(path):
 
 
 def gate_expectation_keys(gate_text):
-    """Keys of a 'key=value|description' expectation table, with line numbers."""
+    """(line, key, value) of a 'key=value|description' expectation table."""
     found = []
     for index, line in enumerate(gate_text.splitlines(), start=1):
-        match = re.match(r"\s*'([A-Za-z][A-Za-z0-9_]*)=.*\|", line)
+        match = re.match(r"\s*'([A-Za-z][A-Za-z0-9_]*)=([^|]*)\|", line)
         if match:
-            found.append((index, match.group(1), line.strip()))
+            found.append((index, match.group(1), match.group(2).strip(), line.strip()))
     return found
 
 
 def probe_readings(source_text):
-    return set(re.findall(r'readings\.(?:set|add)\("([^"]+)"', source_text))
+    """name -> how many times the probe sets it.
+
+    A name set twice is a reading whose earlier value the gate can never see: the
+    second set() overwrites it. T54's "reopenState" was set by the empty-panel
+    case and again by the loaded-panel case, so the gate's "a reopen is Empty
+    again" assertion read "content" forever -- trap 9 one layer down, and the
+    reason this check is in the tool rather than in a reviewer's head.
+    """
+    counts = {}
+    for name in re.findall(r'readings\.(?:set|add)\("([^"]+)"', source_text):
+        counts[name] = counts.get(name, 0) + 1
+    return counts
 
 
 def asserted_tokens(gate_text):
@@ -85,16 +96,38 @@ def main(argv):
     checked = 0
 
     if args.readings:
-        keys = gate_expectation_keys(gate_text)
+        table = gate_expectation_keys(gate_text)
+        keys = [(line, key) for line, key, _value, _text in table]
         available = probe_readings(read(args.readings))
-        for line, key, text in keys:
+        # Two expectations for one key with different values cannot both hold: the
+        # probe prints one value per name. T54 shipped exactly that -- "a reopen is
+        # Empty again" (reopenState=empty) and a second "lands on Content"
+        # assertion still asking for reopenState=content -- after a rename that
+        # only one of the two lines followed. The gate went red for a defect in
+        # the gate, one run after the same class of defect was written up.
+        by_key = {}
+        for line, key, value, _text in table:
+            by_key.setdefault(key, []).append((line, value))
+        for key, entries in sorted(by_key.items()):
+            values = sorted({value for _line, value in entries})
+            if len(values) > 1:
+                where = ", ".join(f"line {line} wants '{value}'" for line, value in entries)
+                print(f"{args.gate}:{key}: contradictory expectations -- {where}")
+                findings += 1
+        for line, key in keys:
             if key not in available:
                 print(f"{args.gate}:{line}: assertion key '{key}' is never set by "
                       f"{os.path.basename(args.readings)} -- this assertion cannot pass")
                 findings += 1
-        checked += len(keys)
+        duplicates = sorted(name for name, count in available.items() if count > 1)
+        for name in duplicates:
+            print(f"{os.path.basename(args.readings)}: reading '{name}' is set "
+                  f"{available[name]} times -- the later value overwrites the earlier one")
+            findings += 1
+        checked += len(keys) + len(duplicates)
         print(f"readings: {len(keys)} expectation keys checked against "
-              f"{len(available)} readings.set() names")
+              f"{len(available)} distinct names; "
+              f"{len(duplicates)} name(s) set more than once")
 
     if args.sources:
         sources = ""

@@ -152,17 +152,21 @@ public:
                                           "cause, not the viewer)");
                                     }
                                     return S_OK;
-                                  }).Get(), nullptr);
+                                  }).Get(), &navigationToken_);
                         }
                         RECT rect = bounds;
                         if (controller_) controller_->put_Bounds(rect);
-                        if (webview_) webview_->put_IsVisible(TRUE);
+                        // IsVisible is on the CONTROLLER, not on ICoreWebView2:
+                        // the controller is the window, the webview is the page
+                        // inside it. Calling it on the page does not compile,
+                        // which is how this line was found -- never built.
+                        if (controller_) controller_->put_IsVisible(TRUE);
                         return S_OK;
-                      }).Get(), nullptr);
+                      }).Get());
               if (FAILED(controllerResult)) fail("CreateCoreWebView2Controller returned "
                   + hresultText(controllerResult));
               return S_OK;
-            }).Get(), nullptr);
+            }).Get());
     if (FAILED(hr)) {
       fail("CreateCoreWebView2EnvironmentWithOptions returned " + hresultText(hr));
       if (error != nullptr) *error = failure_;
@@ -199,6 +203,8 @@ public:
     url_ = url;
     return true;
   }
+
+  bool navigationPending() const override { return navigationInFlight_.load(); }
 
   bool goBack(std::string* error) override {
     BOOL can = FALSE;
@@ -266,6 +272,20 @@ public:
       if (error) *error = "the web view is not ready";
       return false;
     }
+    // No nested evaluation. This function pumps the message queue while it waits,
+    // and a dispatched message can re-enter product code that asks for another
+    // script (the panel's own pump does). Two ExecuteScript calls waiting on each
+    // other's pump is how a script step turns into a hang or a stack overflow, and
+    // the probe's fake host is synchronous, so only the real runtime can reach it.
+    if (scriptDepth_ != 0) {
+      if (error) *error = "a script call is already in flight";
+      return false;
+    }
+    ++scriptDepth_;
+    struct DepthGuard {
+      int& depth;
+      ~DepthGuard() { --depth; }
+    } depthGuard{scriptDepth_};
     std::atomic<bool> done{false};
     std::string value;
     std::string failure;
@@ -282,13 +302,17 @@ public:
       if (error) *error = "ExecuteScript failed with " + hresultText(hr);
       return false;
     }
-    HWND pumpTarget = parent_;
-    if (controller_) controller_->get_ParentWindow(&pumpTarget);
+    // Pump EVERY message on this thread, not only the ones addressed to the panel's
+    // parent window. WebView2 delivers ExecuteScript's completion to a window of
+    // its own, so a PeekMessage filtered by hWnd never dispatches it: every call
+    // then waits out the deadline below and reports a timeout that looks like the
+    // page failing. (Found by the first real-runtime scroll run, 2026-10-22; the
+    // probe cannot see it because its host completes synchronously.)
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(3000);
     while (!done.load()) {
       MSG message{};
       bool pumped = false;
-      while (PeekMessageW(&message, pumpTarget, 0, 0, PM_REMOVE)) {
+      while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
         pumped = true;
         TranslateMessage(&message);
         DispatchMessageW(&message);
@@ -377,6 +401,12 @@ private:
 
   HMODULE module_ = nullptr;
   CreateEnvironmentFn createEnvironment_ = nullptr;
+  // [out] parameter of add_NavigationCompleted. The IDL marks it [out] with no
+  // "may be null" contract, so passing nullptr is relying on undocumented
+  // leniency of the runtime -- and this is the one line the probe's fake host
+  // cannot cover, because only the real runtime ever reaches it.
+  EventRegistrationToken navigationToken_{};
+  int scriptDepth_ = 0;  // see runScript: nested evaluation is refused
   HWND parent_ = nullptr;
   std::atomic<HostStatus> status_{HostStatus::Idle};
   std::string failure_;
