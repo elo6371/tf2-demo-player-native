@@ -115,10 +115,21 @@ reader. Each one is here for a reason, and each is safe to re-run:
 
 | tool | what it does | when to reach for it |
 |---|---|---|
-| `t54-locked-run.sh` | the whole locked run in one script (it also writes `traces.sha256`, and fails the run if that manifest is empty or its line count does not match the files it claims to pin) : hashes the six sources, builds, install-preview, probe, gate-self-check, the forward gate, the readiness gate, the eleven mutations, restores and compares every mutated source byte-for-byte | reproducing this verdict, or re-running it after a change. It must run **under `hostlock.sh`**: `bash _shared/hostlock.sh run t54-logstf bash evidence/logstf/tools/t54-locked-run.sh` |
+| `t54-locked-run.sh` | the whole locked run in one script: hashes the six sources, builds, install-preview, probe, gate-self-check, the forward gate, the readiness gate, the eleven mutations, restores and compares every mutated source byte-for-byte | reproducing this verdict, or re-running it after a change. It must run **under `hostlock.sh`**: `bash _shared/hostlock.sh run t54-logstf bash evidence/logstf/tools/t54-locked-run.sh` |
+| `t54-locked-run.sh --traces-check` | **just** the trace-manifest check, on the real tree, no build and no launch: prints `TRACES-HASH=OK (14 trace file(s) pinned)` and exits 0; with the traces moved away it prints `TRACES-HASH=FAIL` and exits 1, which in a full run is the summary's `traces=1` and `exit 23` | when you doubt the manifest, or after touching it. A check reachable only through a twenty-minute run is a check nobody exercises |
 | `verify-gate.sh` | extracts the gate's **own** `safety_check` predicate and **asserts** three argv shapes: missing `--audio-disabled` -> 98, missing `--hidden-window` -> 99, both present -> 0; and counts launch sites | after touching the launch guard. It tests the real predicate rather than a copy, which is the only way that check means anything |
 | `rc-probe.sh` | the exit-code table measured on this machine: command-not-found 127, SIGSEGV 139, SIGABRT 134, native SEH access violation 1, `exit(127)` 127 | whenever an exit code is used as evidence. `rc=127` alone does **not** mean "command not found" -- this table is why that claim needed five independent readings |
 | `rc-probe2.sh` | the same probes through MSYS bash's own wrappers, for the cases where the outer shell rewrites the status | extending the table. Read both before quoting a code |
+
+## A note on the older logs
+
+`forward.log` and `mutation.log` were written by the run before the safety
+self-test grew its third case, and their first line still reads
+`LAUNCH-SAFETY=OK (1 launch site, predicate rejects a flagless argv)`. That
+wording is kept **deliberately**: editing a log so it matches the current code
+would make the log stop being a record of what actually ran. The corrected
+wording and the pinned 98/99 codes live in the code and in the readings of the
+next run.
 
 ## Gate design notes
 

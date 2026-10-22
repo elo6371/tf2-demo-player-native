@@ -6,6 +6,45 @@
 set -uo pipefail
 cd /d/TF2_Native_Worktrees/t54-logstf || exit 90
 
+# Pin the run's traces and decide whether the manifest is trustworthy.
+#   The first version hashed "*.trace" from evidence/logstf, where no trace lives:
+#   the glob matched nothing, sha256sum's error went to /dev/null, the redirect had
+#   already truncated the file, and "|| true" hid the exit status -- leaving a
+#   committed 0-byte "integrity manifest" that read as if it had verified something.
+#   A check that fails, hides its failure and leaves a file that looks like evidence
+#   is worse than no check (playbook 2026-10-22 family).
+#   TRACES_RC is initialised here because "set -u" is on: a variable set only on the
+#   failure path would abort the script on the success path, i.e. the check would
+#   fail the run only when the run was already failing.
+pin_traces() {
+  TRACES_RC=0
+  ( cd evidence/logstf && sha256sum traces/*.trace > traces.sha256 )
+  local pinned present
+  pinned=$(wc -l < evidence/logstf/traces.sha256 | tr -d ' ')
+  present=$(ls evidence/logstf/traces/*.trace 2>/dev/null | wc -l | tr -d ' ')
+  if [ ! -s evidence/logstf/traces.sha256 ]; then
+    echo "TRACES-HASH=FAIL (the manifest is empty; the run's traces are not pinned)"
+    TRACES_RC=1
+  elif [ "$pinned" -ne "$present" ]; then
+    echo "TRACES-HASH=FAIL (manifest pins $pinned lines but $present traces exist)"
+    TRACES_RC=1
+  else
+    echo "TRACES-HASH=OK ($pinned trace file(s) pinned)"
+  fi
+  return 0
+}
+
+# A check that can only be reached by a twenty-minute run is a check nobody runs.
+# This entry point exercises exactly the code the run uses, against the real tree,
+# and exits with its verdict -- so "the manifest is empty fails the run" is a
+# claim that can be reproduced in two seconds instead of asserted in a commit
+# message. No build, no product launch, no lock needed.
+if [ "${1:-}" = "--traces-check" ]; then
+  pin_traces
+  echo "TRACES-CHECK-RC=$TRACES_RC"
+  exit "$TRACES_RC"
+fi
+
 # Two tickets are queued for this run (owner t54-logstf and t54-logstf-backup) so a
 # stuck queue cannot cost the whole task. Whichever is granted first must end the
 # other, or the same twenty-minute run executes twice and the second rebuilds the
@@ -193,16 +232,9 @@ cp "$LOGDIR"/*.log "$LOGDIR"/*.sha256 "$LOGDIR"/probe.txt "$LOGDIR"/install-prev
 # leaving a committed, 0-byte "integrity manifest" that read as if it had verified
 # something. A check that fails, hides its failure and leaves a file that looks like
 # evidence is worse than no check (playbook 2026-10-22 family).
-( cd evidence/logstf && sha256sum traces/*.trace > traces.sha256 )
-traces_pinned=$(wc -l < evidence/logstf/traces.sha256 | tr -d ' ')
-traces_present=$(ls evidence/logstf/traces/*.trace 2>/dev/null | wc -l | tr -d ' ')
-if [ ! -s evidence/logstf/traces.sha256 ]; then
-  echo "TRACES-HASH=FAIL (the manifest is empty; the run's traces are not pinned)"
-  TRACES_RC=1
-elif [ "$traces_pinned" -ne "$traces_present" ]; then
-  echo "TRACES-HASH=FAIL (manifest pins $traces_pinned lines but $traces_present traces exist)"
-  TRACES_RC=1
-else
-  echo "TRACES-HASH=OK ($traces_pinned trace file(s) pinned)"
-fi
-echo "T54-RUN-DONE build=$BUILD_RC forward=$FWD_RC mutation=$MUT_RC readiness=$READY_RC logdir=$LOGDIR $(date '+%H:%M:%S')"
+pin_traces
+# The summary line is what a reader quotes, so the trace manifest belongs IN it.
+# Printing TRACES-HASH=FAIL eight lines above a green summary is the same defect as
+# the empty manifest itself: the failure exists and nothing downstream sees it.
+echo "T54-RUN-DONE build=$BUILD_RC forward=$FWD_RC mutation=$MUT_RC readiness=$READY_RC traces=$TRACES_RC logdir=$LOGDIR $(date '+%H:%M:%S')"
+[ "$TRACES_RC" -eq 0 ] || { echo "T54-RUN-EXIT=23 (the trace manifest did not pin the run's traces)"; exit 23; }
