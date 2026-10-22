@@ -633,9 +633,19 @@ bool g_keybindsLoaded = false;
 
 void registerKeybinds(const std::filesystem::path& settingsFile) {
   if (g_keybindsLoaded) return;
+  // The BASE is T50's table, not an empty one. [keys] is a single table shared by
+  // both features (contract 1.2), and camera_probe asserts that order explicitly:
+  // defaultKeyBindings() first, then the three hud.* registerDefault calls. A
+  // second table that happened to contain only hud.* would pass "the hud actions
+  // are bound" while silently dropping every camera binding the moment both
+  // branches are merged -- which is exactly the defect that test exists to catch,
+  // and it would be caught in T50's worktree, not mine, so I would never see it.
+  g_keybinds = tf2::native::defaultKeyBindings();
   g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("H"));
   g_keybinds.registerDefault("hud.preview", tf2::native::parseChord("Ctrl+P"));
   g_keybinds.registerDefault("hud.reset", tf2::native::parseChord("Ctrl+Shift+H"));
+  // The user's file is applied ON TOP of the defaults, so an action absent from it
+  // keeps its default and an action present with an empty value is unbound.
   if (!settingsFile.empty()) g_keybinds.loadFromSettings(settingsFile);
   g_keybindsLoaded = true;
   // The reading the gate asserts: the three actions exist, are bound, and their

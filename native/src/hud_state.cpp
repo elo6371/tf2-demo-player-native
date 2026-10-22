@@ -177,6 +177,8 @@ HudApplyResult HudState::resetToDefault() {
   lastRefusalDetail_.clear();
   repaired_ = false;
   repairDetail_.clear();
+  lastReset_ = HudApplyResult::ResetToDefault;
+  lastApply_ = HudApplyResult::ResetToDefault;
   return HudApplyResult::ResetToDefault;
 }
 

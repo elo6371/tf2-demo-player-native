@@ -69,6 +69,22 @@ const char* keyName(unsigned vk) {
   return nullptr;
 }
 
+// Case-insensitive on the ASCII letters only. The table's spellings are mixed
+// case ("Numpad5", "PageUp") while the input was upper-cased, so comparing them
+// directly would make every multi-word key name unparseable -- and the failure
+// is silent: a name that does not parse is "unbound", so F1 would work and
+// Numpad5 would quietly do nothing.
+bool nameEquals(const std::string& upperInput, const char* name) {
+  std::size_t index = 0;
+  for (; index < upperInput.size(); ++index) {
+    if (name[index] == '\0') return false;
+    char expected = name[index];
+    if (expected >= 'a' && expected <= 'z') expected = static_cast<char>(expected - 'a' + 'A');
+    if (upperInput[index] != expected) return false;
+  }
+  return name[index] == '\0';
+}
+
 bool parseInt(const std::string& text, int& value) {
   if (text.empty()) return false;
   for (const char character : text) {
@@ -87,7 +103,7 @@ bool parseKeyName(std::string text, unsigned& vk) {
   if (text.empty()) return false;
   const std::string upper = upperAscii(text);
   for (const auto& entry : kNamedKeys) {
-    if (upper == entry.name) { vk = entry.vk; return true; }
+    if (nameEquals(upper, entry.name)) { vk = entry.vk; return true; }
   }
   // "F1".."F9" are two characters and "F10".."F24" three, so the length check
   // is 2..3. Getting this wrong is silent in the worst way: F1..F9 stop parsing,

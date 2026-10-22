@@ -285,7 +285,7 @@ mkdir -p "$FIX/user/sub"
 printf 'nested user file\n' > "$FIX/user/sub/deep.txt"
 ( cd "$FIX/user" && find . -type f | sort | xargs sha256sum ) > "$OUT/user-before.sha256"
 
-echo "=== 1/8 the probe's reading set (pure rules, no window) ==="
+echo "=== 1/9 the probe's reading set (pure rules, no window) ==="
 "$PROBE" --fixture-root "$(cygpath -m "$OUT/probe-fixtures")" > "$OUT/probe.txt" 2>&1
 PROBE_RC=$?
 echo "$PROBE_RC" > "$OUT/probe.rc"
@@ -309,7 +309,10 @@ assert_eq "file refusal mismatches" "$(kv "$OUT/probe.txt" file.wrong)" "0"
 # not floors: a floor would let the sampler quietly narrow its scope and still
 # pass. If a machine has no TF2 the probe prints corpus=skipped and these are
 # reported as NOT VERIFIED instead of being invented.
-if [ "$(kv "$OUT/probe.txt" corpus)" = "skipped" ]; then
+# grep for the literal line rather than going through kv(): kv() returns the FIRST
+# match of a prefix, and "corpus.dir=..." is printed unconditionally above the
+# skip line, so the kv() form of this test could never be true.
+if grep -q '^corpus=skipped' "$OUT/probe.txt"; then
   echo "  NOT-VERIFIED corpus readings: no TF2 install on this machine"
   echo "  NOT-VERIFIED owner=t51-hud; next step: run on a machine with tf/custom/m0rehud-5.8"
 else
@@ -319,7 +322,7 @@ else
   assert_eq "corpus refused for another reason" "$(kv "$OUT/probe.txt" corpus.refusedOther)" "8"
 fi
 echo
-echo "=== 2/8 the product imports the good fixture, and the frame shows it ==="
+echo "=== 2/9 the product imports the good fixture, and the frame shows it ==="
 # One run per state, all at the same camera and tick. run_hud <name> [args...]
 run_hud() { # run_hud <name> [extra args...]
   local name="$1"; shift
@@ -381,6 +384,62 @@ grep -qi '^\[hud\]' "$OUT/hud_on.ui.ini" && HUD_SECTION=present || HUD_SECTION=a
 assert_eq "the [hud] section was written" "$HUD_SECTION" "present"
 assert_eq "hud.enabled persisted" "$(grep -i '^hud\.enabled=' "$OUT/hud_on.ui.ini" | tail -1 | cut -d= -f2 | tr -d '\r')" "1"
 assert_eq "hud.scale persisted" "$(grep -i '^hud\.scale=' "$OUT/hud_on.ui.ini" | tail -1 | cut -d= -f2 | tr -d '\r')" "100"
+echo
+echo "=== 3/9 the measurement must be deterministic BEFORE it is used ==="
+# THE ORDER HERE IS THE WHOLE ARGUMENT.
+#
+#   A comparison between two captures is only evidence if the same
+#   configuration produces the same bytes twice. If two hud-off runs differ, then
+#   "hud-on differs from hud-off outside the rect" says nothing about the HUD --
+#   it says the capture is not reproducible -- and asserting it afterwards would
+#   be reading noise as a signal.
+#
+# So this section runs BEFORE the HUD comparison and is allowed to stop the gate.
+# It is not a control at the end; it is the precondition of everything below.
+run_hud hud_off_repeat
+run_hud hud_off_repeat2
+DET_A=$(stat -c%s "$SCRATCH/hud_off.bmp" 2>/dev/null || echo 0)
+DET_B=$(stat -c%s "$SCRATCH/hud_off_repeat.bmp" 2>/dev/null || echo 0)
+DET_C=$(stat -c%s "$SCRATCH/hud_off_repeat2.bmp" 2>/dev/null || echo 0)
+echo "  three hud-off captures: $DET_A / $DET_B / $DET_C bytes"
+assert_eq "hud-off repeat exit code" "$RC_hud_off_repeat" "0"
+assert_eq "hud-off repeat2 exit code" "$RC_hud_off_repeat2" "0"
+
+DETERMINISTIC=1
+if cmp -s "$SCRATCH/hud_off.bmp" "$SCRATCH/hud_off_repeat.bmp"; then
+  echo "  OK   capture 1 and capture 2 are byte-identical"
+else
+  echo "  FAIL capture 1 and capture 2 differ -- the measurement is not deterministic"
+  DETERMINISTIC=0
+fi
+if cmp -s "$SCRATCH/hud_off.bmp" "$SCRATCH/hud_off_repeat2.bmp"; then
+  echo "  OK   capture 1 and capture 3 are byte-identical"
+else
+  echo "  FAIL capture 1 and capture 3 differ"
+  DETERMINISTIC=0
+fi
+# The tick each capture actually drew. Equal bytes imply equal ticks, but the
+# reading is printed so a reader does not have to infer it -- and if the bytes
+# ever do diverge, the ticks are the first thing to look at.
+for pair in "hud_off" "hud_off_repeat" "hud_off_repeat2"; do
+  t=$(grep -aoE 'draw: begin tick=[0-9]+' "$OUT/$pair.trace" 2>/dev/null | tail -1 | sed 's/.*tick=//')
+  echo "  $pair drew tick=${t:-<none>}"
+done
+
+if [ "$DETERMINISTIC" -eq 0 ]; then
+  # Writing NOT VERIFIED rather than skipping quietly: a capture pair that is not
+  # reproducible cannot support the claim, and the claim is the task.
+  echo "  NOT-VERIFIED: the outside-the-rect comparison (owner=t51-hud)"
+  echo "    reason: two identical hud-off runs did not produce identical bytes, so a"
+  echo "            difference between hud-off and hud-on cannot be attributed to the HUD."
+  echo "    cheapest next step: re-run this gate on an idle machine; if it still"
+  echo "            differs, capture the pair at --start-paused with no demo, which"
+  echo "            removes entity animation from the frame."
+  fail=1
+else
+  echo "  DETERMINISTIC=PASS (the measurement is reproducible; the comparison below is evidence)"
+fi
+
 # ---------------------------------------------------------------------------
 # The key assertion: outside the HUD union rectangle the two frames are
 # byte-identical. This is what "a HUD change does not modify the world/model
@@ -464,28 +523,35 @@ print("firstDiff=%s" % (("%d,%d" % first) if first else "-"))
 PYEOF
 
 echo
-echo "=== 3/8 HUD on vs off: identical outside the HUD union rectangle ==="
+echo "=== 4/9 HUD on vs off: identical outside the HUD union rectangle ==="
 IFS=, read -r UX UY UW UH <<< "$ON_UNION"
 UX_R=$((UX + UW))
 UY_B=$((UY + UH))
 echo "  union rect: x=$UX y=$UY w=$UW h=$UH -> right=$UX_R bottom=$UY_B"
-REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$OUT/hud_off.bmp")" \
-  "$(cygpath -m "$PWD/$OUT/hud_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
-echo "$REGION" > "$OUT/region.txt"
-echo "$REGION" | sed 's/^/  /'
-assert_eq "pixels outside the HUD region" "$(kv "$OUT/region.txt" outsideDiff)" "0"
-assert_ge "pixels inside the HUD region" "$(kv "$OUT/region.txt" inside)" "1000"
-assert_ge "pixels outside the HUD region" "$(kv "$OUT/region.txt" outside)" "100000"
-# And the capture is not the fallback quad / a blank frame: a frame with the HUD
-# must also still be a world frame, so it must differ from the hud-off frame
-# INSIDE the rect (otherwise nothing was drawn) and have many colours (a world,
-# not a flat fill).
-# The same region reader answers the other half: the HUD must have CHANGED
-# pixels inside its rect, or the comparison outside it would be vacuous (two
-# identical frames trivially agree everywhere).
-assert_ge "pixels changed inside the HUD region" "$(kv "$OUT/region.txt" insideDiff)" "1000"
+if [ "$DETERMINISTIC" -eq 0 ]; then
+  # The comparison is NOT run, and the reason is written down rather than the
+  # section being skipped silently: a difference here could not be attributed to
+  # the HUD when two hud-off runs already disagree.
+  echo "  NOT-VERIFIED: outside-the-rect comparison not run -- the baseline pair above is not reproducible"
+  echo "    owner=t51-hud"
+  echo "    cheapest next step: re-run this gate on an idle machine; if it still differs, capture"
+  echo "      the pair with --start-paused and no --demo, which removes entity animation"
+  printf 'inside=0\noutside=0\ninsideDiff=0\noutsideDiff=not-verified\nfirstDiff=-\n' > "$OUT/region.txt"
+else
+  REGION=$("$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$SCRATCH/hud_off.bmp")" \
+    "$(cygpath -m "$PWD/$SCRATCH/hud_on.bmp")" "$UX" "$UY" "$UX_R" "$UY_B")
+  echo "$REGION" > "$OUT/region.txt"
+  echo "$REGION" | sed 's/^/  /'
+  assert_eq "pixels outside the HUD region that changed" "$(kv "$OUT/region.txt" outsideDiff)" "0"
+  assert_ge "pixels inside the HUD region" "$(kv "$OUT/region.txt" inside)" "1000"
+  assert_ge "pixels outside the HUD region" "$(kv "$OUT/region.txt" outside)" "100000"
+  # The other half of the same reader: the HUD must have CHANGED pixels inside
+  # its rect, or the comparison outside it would be vacuous -- two identical
+  # frames agree everywhere and prove nothing.
+  assert_ge "pixels changed inside the HUD region" "$(kv "$OUT/region.txt" insideDiff)" "1000"
+fi
 echo
-echo "=== 4/8 every refusal is executed, and the world keeps rendering ==="
+echo "=== 5/9 every refusal is executed, and the world keeps rendering ==="
 # A refusal that only exists in the probe is a statement about a pure function.
 # These four runs prove the PRODUCT refuses, names the reason, and still draws a
 # world frame -- the last part matters most: an import that fails must not take
@@ -501,9 +567,17 @@ refusal_case() { # refusal_case <name> <expected-token> [args...]
   local drawn
   drawn=$(grep -oE 'hud: draw drawn=[0-9]+' "$OUT/refuse_$name.trace" | tail -1 | sed 's/.*drawn=//')
   printf -v "REASON_$name" '%s' "$reason"
-  echo "  $name -> rc=$RC_refuse_$name reason=${reason:-<none>} drawn=${drawn:-<none>}"
+  # Indirect expansion: "$RC_refuse_$name" is read by bash as $RC_refuse_ followed
+  # by $name, which is empty -- the comparison would then be "" vs "0" and fail
+  # for a reason that has nothing to do with the product.
+  local rcvar="RC_refuse_$name"
+  # ${!rcvar} on an unset name is an error under set -u, and "the run never
+  # happened" must read as a failure rather than aborting the whole gate.
+  local rc="<unset>"
+  if [ -n "${!rcvar+x}" ]; then rc="${!rcvar}"; fi
+  echo "  $name -> rc=${rc:-<none>} reason=${reason:-<none>} drawn=${drawn:-<none>}"
   assert_eq "$name refused with its own token" "$reason" "$expected"
-  assert_eq "$name exit code" "$RC_refuse_$name" "0"
+  assert_eq "$name exit code" "${rc:-<none>}" "0"
   assert_eq "$name drew no HUD" "${drawn:-<none>}" "0"
   # The frame must still be a world: a capture that came back blank or as the
   # fallback quad would mean the refusal took the renderer with it.
@@ -543,16 +617,36 @@ cp "$FIX/good/resource/ui/hudlayout.res" "$FIX/good/resource/ui/hudoversized.res
 python_make_oversized "$FIX/good/resource/ui/hudoversized.res"
 refusal_case oversized too-large --hud-root "$(cygpath -m "$PWD/$FIX/good")" --hud-layout "resource/ui/hudoversized.res" --hud-apply --hud-on
 echo
-echo "=== 5/8 reset and uninstall never touch a user file ==="
+echo "=== 6/9 reset and uninstall never touch a user file ==="
 # The promise: the imported directory is READ-ONLY to this feature. The test is
 # not "reset does not call remove" (a code reading); it is the bytes of a
 # fixture user tree before and after every operation this feature can perform.
 HUD_ROOT_MUT="$OUT/user-hud"
-mkdir -p "$HUD_ROOT_MUT/resource/ui"
+mkdir -p "$HUD_ROOT_MUT/resource/ui" "$HUD_ROOT_MUT/sub/deeper"
 cp "$FIX/good/resource/ui/hudlayout.res" "$HUD_ROOT_MUT/resource/ui/hudlayout.res"
 printf "the user wrote this too\n" > "$HUD_ROOT_MUT/user-notes.txt"
 printf "and this\n" > "$HUD_ROOT_MUT/resource/ui/keepme.txt"
-( cd "$HUD_ROOT_MUT" && find . -type f | sort | xargs sha256sum ) > "$OUT/user-hud-before.sha256"
+printf "nested\n" > "$HUD_ROOT_MUT/sub/deeper/deep.txt"
+# An EMPTY directory, and a directory that is empty apart from nothing: the
+# manifest-driven uninstall removes directories while they are empty, and a HUD
+# folder that lost an empty subdirectory would be a user-visible change that a
+# file-hash comparison cannot see.
+mkdir -p "$HUD_ROOT_MUT/empty-dir"
+# Two things are compared, and both matter:
+#   * the DIRECTORY-ENTRY SET: every path that exists afterwards existed before,
+#     and nothing new appeared. A hash list alone would miss a created file and a
+#     deleted-then-recreated file with the same bytes.
+#   * the BYTES of every file. "The file is still there" is not "the file is
+#     unchanged".
+hud_snapshot() { # hud_snapshot <dir> <prefix>
+  ( cd "$1" && find . | LC_ALL=C sort ) > "$OUT/$2.entries.txt"
+  ( cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum )     > "$OUT/$2.sha256.txt"
+  ( cd "$1" && find . -type d -print | LC_ALL=C sort ) > "$OUT/$2.dirs.txt"
+}
+hud_snapshot "$HUD_ROOT_MUT" user-hud-before
+echo "  user fixture: $(wc -l < "$OUT/user-hud-before.entries.txt") entries," \
+     "$(wc -l < "$OUT/user-hud-before.sha256.txt") files," \
+     "$(wc -l < "$OUT/user-hud-before.dirs.txt") directories"
 
 # Import it, then reset it in the same process, then exit: the root must be
 # untouched and the settings must be back to the contract defaults.
@@ -573,13 +667,39 @@ assert_eq "the HUD is off after reset" "$(grep -oE 'hud: summary .*enabled=[0-9]
 assert_eq "the scale is back to 100" "$(grep -oE 'hud: summary .*scale=[0-9]+' "$OUT/reset.trace" | tail -1 | sed 's/.*scale=//')" "100"
 assert_eq "nothing is imported after reset" "$(grep -oE 'hud: summary imported=[0-9]+' "$OUT/reset.trace" | tail -1 | sed 's/.*imported=//')" "0"
 
-( cd "$HUD_ROOT_MUT" && find . -type f | sort | xargs sha256sum ) > "$OUT/user-hud-after.sha256"
-if cmp -s "$OUT/user-hud-before.sha256" "$OUT/user-hud-after.sha256"; then
-  echo "  OK   every user file byte-identical after import+reset"
-else
-  echo "  FAIL a user file changed"; diff "$OUT/user-hud-before.sha256" "$OUT/user-hud-after.sha256" | head -10
-  fail=1
-fi
+hud_snapshot "$HUD_ROOT_MUT" user-hud-after
+# assert_snapshot_unchanged <label> <prefix>
+#
+# BOTH arguments are required, and the prefix is not the same for every caller.
+# The first version of this helper hard-coded "user-hud-after", which meant the
+# second and third calls silently compared against the FIRST call's snapshot and
+# printed OK without ever looking at the state they claimed to have checked. That
+# is a gate reporting a stale green, which is worse than no gate.
+assert_snapshot_unchanged() { # <label> <prefix>
+  local label="$1" prefix="$2"
+  if cmp -s "$OUT/$prefix.entries.txt" "$OUT/user-hud-before.entries.txt"; then
+    echo "  OK   $label: the directory-entry set is unchanged"
+  else
+    echo "  FAIL $label: the directory-entry set changed"
+    diff "$OUT/user-hud-before.entries.txt" "$OUT/$prefix.entries.txt" | head -12
+    fail=1
+  fi
+  if cmp -s "$OUT/$prefix.dirs.txt" "$OUT/user-hud-before.dirs.txt"; then
+    echo "  OK   $label: every directory (including the empty one) still exists"
+  else
+    echo "  FAIL $label: a directory disappeared or appeared"
+    diff "$OUT/user-hud-before.dirs.txt" "$OUT/$prefix.dirs.txt" | head -12
+    fail=1
+  fi
+  if cmp -s "$OUT/$prefix.sha256.txt" "$OUT/user-hud-before.sha256.txt"; then
+    echo "  OK   $label: every file is byte-identical"
+  else
+    echo "  FAIL $label: a file's bytes changed"
+    diff "$OUT/user-hud-before.sha256.txt" "$OUT/$prefix.sha256.txt" | head -12
+    fail=1
+  fi
+}
+assert_snapshot_unchanged "import+reset" "user-hud-after"
 
 # The settings file after reset must hold the contract defaults, not the import:
 # a reset that only clears memory and leaves the file saying enabled=1 would
@@ -590,32 +710,120 @@ echo "  settings after reset: enabled=${RESET_ENABLED:-<none>} root=${RESET_ROOT
 assert_eq "hud.enabled is 0 in the file after reset" "${RESET_ENABLED:-<none>}" "0"
 assert_eq "hud.root is empty in the file after reset" "${RESET_ROOT:-<none>}" ""
 
-# The uninstall half: an uninstall of the product must not reach into the HUD
-# folder either. The installer only ever removes what its manifest lists, and the
-# HUD root is not in it; this drives the real lifecycle to say so.
+# The uninstall half, and it is deliberately the HARSH case rather than the easy
+# one. Two things are driven:
+#
+#   (a) an uninstall in a directory with no manifest: it must REFUSE (exit 2)
+#       rather than delete on a guess. This is the case that stays safe even if a
+#       user points --install-dir at a folder they care about.
+#
+#   (b) an uninstall where the HUD folder IS the install directory. The manifest
+#       lists the payload files and nothing else, so the operation removes its own
+#       files and leaves every file the user added -- including one sitting in the
+#       same directory, and the empty subdirectory. This is the assertion that
+#       would catch a cleanup implemented as "remove the install directory", which
+#       is the obvious wrong way to write it and passes case (a) happily.
 UNINST="$OUT/uninstall"
 rm -rf "$UNINST"; mkdir -p "$UNINST"
 # $EXE_ABS is resolved once, before any subshell changes the working directory:
 # a relative executable path inside $(cd ...) is the classic way a gate stops
 # testing what it claims to test.
-TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/uninstall.trace")" timeout 60 "$EXE_ABS" \
-  --uninstall --install-dir "$(cygpath -m "$PWD/$UNINST")" \
+timeout 60 "$EXE_ABS" --uninstall --install-dir "$(cygpath -m "$PWD/$UNINST")" \
   > "$OUT/uninstall.txt" 2>&1
 UNINST_RC=$?
-if true; then
-  echo "  uninstall in a directory with no manifest: rc=$UNINST_RC"
-  # It must REFUSE (no manifest), not delete anything -- that is the exact
-  # behaviour that keeps a user directory safe even if the install dir is shared.
-  assert_eq "uninstall without a manifest refuses" "$UNINST_RC" "2"
-  ( cd "$HUD_ROOT_MUT" && find . -type f | sort | xargs sha256sum ) > "$OUT/user-hud-after-uninstall.sha256"
-  if cmp -s "$OUT/user-hud-before.sha256" "$OUT/user-hud-after-uninstall.sha256"; then
-    echo "  OK   every user file byte-identical after an uninstall attempt"
+echo "  (a) uninstall in a directory with no manifest: rc=$UNINST_RC"
+assert_eq "an uninstall with no manifest refuses" "$UNINST_RC" "2"
+if grep -q 'uninstall=FAIL reason=no_manifest' "$OUT/uninstall.txt"; then
+  echo "  OK   it refused by name (reason=no_manifest)"
+else
+  echo "  FAIL it did not name no_manifest"; sed 's/^/    /' "$OUT/uninstall.txt" | head -5; fail=1
+fi
+hud_snapshot "$HUD_ROOT_MUT" user-hud-after-uninstall-a
+assert_snapshot_unchanged "(a) after the refused uninstall" "user-hud-after-uninstall-a"
+
+# (b) the shared-directory case. The HUD folder becomes the install directory: the
+# payload is staged inside it, the install runs, and then the uninstall removes
+# exactly what the manifest lists.
+INST_DIR="$OUT/user-hud-shared"
+rm -rf "$INST_DIR"
+cp -a "$HUD_ROOT_MUT" "$INST_DIR"
+hud_snapshot "$INST_DIR" user-shared-before
+mkdir -p "$INST_DIR/.uninstall/payload"
+printf 'the installed product\n' > "$INST_DIR/.uninstall/payload/tf2_demo_native.exe"
+printf 'readme\n' > "$INST_DIR/.uninstall/payload/readme.txt"
+cp "$EXE_ABS" "$INST_DIR/tf2_demo_native.exe" 2>/dev/null || true
+timeout 90 "$EXE_ABS" --install --install-dir "$(cygpath -m "$PWD/$INST_DIR")" \
+  > "$OUT/install-shared.txt" 2>&1
+INST_RC=$?
+echo "  (b) install into the user's own folder: rc=$INST_RC"
+assert_eq "the install into the user folder succeeded" "$INST_RC" "0"
+# The install itself must not have touched the user's files either.
+if ( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 2>/dev/null ) >/dev/null; then :; fi
+hud_snapshot "$INST_DIR" user-shared-after-install
+for entry in user-notes.txt sub/deeper/deep.txt resource/ui/keepme.txt resource/ui/hudlayout.res; do
+  if [ -f "$INST_DIR/$entry" ]; then
+    echo "  OK   the install left $entry in place"
   else
-    echo "  FAIL a user file changed across the uninstall attempt"; fail=1
+    echo "  FAIL the install removed $entry"; fail=1
   fi
+done
+if cmp -s "$OUT/user-shared-before.sha256.txt" \
+    <( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 2>/dev/null \
+         | LC_ALL=C sort -z | xargs -0 -r sha256sum ); then
+  echo "  OK   every file the user had before the install is byte-identical after it"
+else
+  echo "  FAIL a user file changed during the install"
+  diff <(cat "$OUT/user-shared-before.sha256.txt") \
+    <( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 \
+         | LC_ALL=C sort -z | xargs -0 -r sha256sum ) | head -12
+  fail=1
+fi
+
+timeout 90 "$EXE_ABS" --uninstall --install-dir "$(cygpath -m "$PWD/$INST_DIR")" \
+  > "$OUT/uninstall-shared.txt" 2>&1
+INST_U_RC=$?
+echo "  (b) uninstall from the user's own folder: rc=$INST_U_RC"
+# 3 is the documented "the running image cannot delete itself" outcome, which is
+# a SUCCESS with one deferred file rather than a failure. Anything else is a
+# failure of the assertion, so the expected value is checked by name.
+if [ "$INST_U_RC" = "0" ] || [ "$INST_U_RC" = "3" ]; then
+  echo "  OK   the uninstall completed (rc=$INST_U_RC: 3 means it deferred its own image)"
+else
+  echo "  FAIL the uninstall did not complete (rc=$INST_U_RC)"; fail=1
+fi
+hud_snapshot "$INST_DIR" user-shared-after-uninstall
+for entry in user-notes.txt sub/deeper/deep.txt resource/ui/keepme.txt resource/ui/hudlayout.res; do
+  if [ -f "$INST_DIR/$entry" ]; then
+    echo "  OK   after the uninstall $entry is still there"
+  else
+    echo "  FAIL the uninstall removed the user's $entry"; fail=1
+  fi
+done
+if [ -d "$INST_DIR/empty-dir" ]; then
+  echo "  OK   the user's empty directory survived the uninstall"
+else
+  echo "  FAIL the uninstall removed an empty directory the user made"; fail=1
+fi
+if cmp -s "$OUT/user-shared-before.sha256.txt" \
+    <( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 2>/dev/null \
+         | LC_ALL=C sort -z | xargs -0 -r sha256sum ); then
+  echo "  OK   every file the user had before is byte-identical after install+uninstall"
+else
+  echo "  FAIL a user file changed across install+uninstall"
+  diff <(cat "$OUT/user-shared-before.sha256.txt") \
+    <( cd "$INST_DIR" && find . -path ./.uninstall -prune -o -type f -print0 \
+         | LC_ALL=C sort -z | xargs -0 -r sha256sum ) | head -12
+  fail=1
+fi
+# And the product's own file must be gone: an uninstall that leaves the payload
+# behind while reporting success is the mirror-image defect.
+if [ -f "$INST_DIR/readme.txt" ]; then
+  echo "  FAIL the uninstall left the payload's readme.txt behind"; fail=1
+else
+  echo "  OK   the uninstall removed the file its manifest listed"
 fi
 echo
-echo "=== 6/8 the scale slider is a live, measurable scaling rule ==="
+echo "=== 7/9 the scale slider is a live, measurable scaling rule ==="
 # Same document, same window, two scales. The pixel anchors double; the
 # fractional ones do not. That pair is what makes "HUD scaling is visible in the
 # preview" a reading rather than a screenshot.
@@ -630,19 +838,33 @@ assert_eq "scale 50 is persisted" "$(grep -i '^hud\.scale=' "$OUT/hud_scale50.ui
 assert_eq "scale 200 is persisted" "$(grep -i '^hud\.scale=' "$OUT/hud_scale200.ui.ini" | tail -1 | cut -d= -f2 | tr -d '\r')" "200"
 
 echo
-echo "=== 7/8 a HUD-off run and its own repeat are byte-identical ==="
-# The control for step 3: two runs of the SAME configuration must be identical
-# everywhere, or "identical outside the rect" would be a property of a
-# non-deterministic capture rather than of the HUD.
-run_hud hud_off_repeat
-if cmp -s "$SCRATCH/hud_off.bmp" "$SCRATCH/hud_off_repeat.bmp"; then
-  echo "  OK   two hud-off captures are byte-identical"
+echo "=== 8/9 the same document at two scales changes only its own pixels ==="
+# The scaling rule must not leak into the world either: a 200% HUD is bigger, so
+# the region it is allowed to own is bigger, and OUTSIDE THAT region the frame
+# must still equal the hud-off baseline. This is the resolution-adaptation half of
+# the task's claim, measured the same way as the 100% case.
+U50_R=$(echo "$U50" | cut -d, -f1)
+U50_Y=$(echo "$U50" | cut -d, -f2)
+U50_W=$(echo "$U50" | cut -d, -f3)
+U50_H=$(echo "$U50" | cut -d, -f4)
+if [ "$DETERMINISTIC" -eq 0 ]; then
+  echo "  NOT-VERIFIED: the 200% comparison not run -- the baseline pair is not reproducible"
+  echo "    owner=t51-hud"
 else
-  echo "  FAIL two hud-off captures differ"; fail=1
+  IFS=, read -r S2X S2Y S2W S2H <<< "$U200"
+  SCALED=$(  "$PY" "$OUT/hud-region-diff.py" "$(cygpath -m "$PWD/$SCRATCH/hud_off.bmp")" \
+    "$(cygpath -m "$PWD/$SCRATCH/hud_scale200.bmp")" \
+    "$S2X" "$S2Y" "$((S2X + S2W))" "$((S2Y + S2H))")
+  echo "$SCALED" > "$OUT/region-200.txt"
+  echo "$SCALED" | sed 's/^/  /'
+  assert_eq "at 200%: nothing outside its region changed" \
+    "$(kv "$OUT/region-200.txt" outsideDiff)" "0"
+  assert_ge "at 200%: the region really did change" \
+    "$(kv "$OUT/region-200.txt" insideDiff)" "1000"
 fi
 
 echo
-echo "=== 8/8 a broken HUD is refused, not half-applied ==="
+echo "=== 9/9 a broken HUD is refused, not half-applied ==="
 # An import of a broken document. The state must be the DEFAULT one, not a
 # mixture: "a failed import cannot leave a half-applied HUD behind" is a property
 # of the commit point in HudState::import.

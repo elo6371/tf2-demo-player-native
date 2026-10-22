@@ -126,6 +126,11 @@ public:
   // The result of the most recent import/overrides application, so a caller can
   // report "refused" without keeping a second copy of the answer.
   HudApplyResult lastApply() const { return lastApply_; }
+  // The reset's own result, so a caller reports what resetToDefault() returned
+  // instead of restating the request it just made. "hud: reset result=reset"
+  // printed from the flag would be a comment; printed from the return value it is
+  // a reading.
+  HudApplyResult lastReset() const { return lastReset_; }
   int acceptedImports() const { return acceptedImports_; }
 
 private:
@@ -136,6 +141,7 @@ private:
   HudRefusal lastRefusal_ = HudRefusal::None;
   std::string lastRefusalDetail_;
   HudApplyResult lastApply_ = HudApplyResult::NothingToDo;
+  HudApplyResult lastReset_ = HudApplyResult::NothingToDo;
   bool repaired_ = false;
   std::string repairDetail_;
   int refusedImports_ = 0;
