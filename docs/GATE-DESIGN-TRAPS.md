@@ -108,6 +108,24 @@ cannot drop fewer panels than documents), record snapshots as evidence with the
 date and the corpus path in the report, and say in the doc that the number is a
 measurement.
 
+### 9. The asserted string exists, and can never equal the expectation (T54)
+T54's gate asserted `refusal=host-not-allowed` against the product's summary
+line. The substring `refusal=` **is** in that line -- so a reviewer checking
+"is this assertion anchored on a real field?" finds it and moves on -- but the
+field holds `decision.message`, a human sentence ("'evil.example' is not a
+logs.tf address; ..."), and no refusal ever produces the token. The assertion
+was unsatisfiable from the day it was written; it was found by reading the
+writer, not by running the gate (which had never run at all -- see trap 1).
+
+This is the quietest form of trap 1: not a missing object, but an object of the
+**wrong type** -- prose where a token was expected.
+
+**Rule:** for every asserted token, point at the line that writes **exactly that
+token**, and say which value makes it come out that way. If the only answer is
+"the message contains the reason", the fix is a machine-readable field
+(`refusalReason=`), asserted instead of the prose -- and the prose is still
+printed, because a human reads the sentence and a gate reads the token.
+
 ## Checklist before calling a gate green
 
 1. For each new assertion: **does its object exist on the success path?** Name the
@@ -125,5 +143,7 @@ measurement.
    because four per-file "is gone" lines became one summary line, and one new
    assertion was added -- "fewer assertions" and "different assertions" are
    different claims).
-9. Does the gate state in the report **what it does not prove** (T51: no panel
+9. For each asserted token: which line writes **exactly** that token, and can
+   that line ever produce it (trap 9 -- the token is present but is prose)?
+10. Does the gate state in the report **what it does not prove** (T51: no panel
    pixels are read; T54: no page pixels are read), with the cheapest next step?
