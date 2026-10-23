@@ -201,7 +201,7 @@ eq "the package carries a payload the installer will lay down" \
   "$([ -f "$OUT/stage/.uninstall/payload/tf2_demo_native.exe" ] && echo yes || echo no)" "yes"
 eq "the package carries its version file" "$([ -f "$OUT/stage/VERSION.txt" ] && echo yes || echo no)" "yes"
 payload_files="$(cd "$OUT/stage/.uninstall/payload" 2>/dev/null && find . -type f | wc -l | tr -d ' ')"
-eq "payload file count" "${payload_files:-0}" "3"
+eq "payload file count" "${payload_files:-0}" "4"
 eq "no file in the package is empty" \
   "$(awk -F'\t' '$2 == 0 {n++} END {print n+0}' "$OUT/package-files.txt")" "0"
 hashlist "$OUT/stage" "$OUT/package-hashes.txt"
@@ -292,7 +292,7 @@ echo "  --- --install ---"
 sed "s/^/    /" "$OUT/install.txt"
 has "install reported PASS" "$(cat "$OUT/install.txt")" "install=PASS"
 eq "install mode" "$(field "$OUT/install.txt" mode)" "fresh"
-eq "files the install owns (3 payload + the VERSION.txt it writes)" "$(field "$OUT/install.txt" files)" "4"
+eq "files the install owns (4 payload + the VERSION.txt it writes)" "$(field "$OUT/install.txt" files)" "5"
 eq "the only file it created" "$(field "$OUT/install.txt" new)" "1"
 eq "files it had to back up" "$(field "$OUT/install.txt" backups)" "0"
 eq "no file was already there to preserve" "$(field "$OUT/install.txt" preserved)" "0"
@@ -304,14 +304,18 @@ echo "  state files after the install: $STATE_FILES_AFTER_INSTALL"
 inventory "$PKG" "$OUT/installed-files.txt"
 echo "  --- installed directory ---"
 sed "s/^/    /" "$OUT/installed-files.txt"
-eq "installed file count (3 payload + VERSION.txt + manifest)" \
-  "$(wc -l < "$OUT/installed-files.txt" | tr -d " ")" "5"
+# The count includes the two WebView2 licence files that ship in the package as
+# documentation (third_party/webview2/LICENSE.txt and NOTICE.txt): they are in
+# the package, so they are in a listing of the package, but they are not install
+# records and the manifest below does not claim them.
+eq "installed file count (4 payload + VERSION.txt + manifest + 2 licence files)" \
+  "$(wc -l < "$OUT/installed-files.txt" | tr -d " ")" "8"
 eq "the installed manifest records the package version" \
   "$(sed -n "s/^packageVersion=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$declared_version"
 eq "the installed manifest records a monotonic version code" \
   "$(sed -n "s/^packageVersionCode=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$PVC"
 eq "the manifest lists exactly the installed files, each once" \
-  "$(sed -n "s/^file=//p" "$PKG/.uninstall/install-manifest.txt" | wc -l | tr -d " ")" "4"
+  "$(sed -n "s/^file=//p" "$PKG/.uninstall/install-manifest.txt" | wc -l | tr -d " ")" "5"
 # A record is "state<TAB>bytes<TAB>sha256<TAB>path", so the state words are read
 # from the tab-separated field and not from the start of the line: a manifest key
 # line also starts with a word.
@@ -329,14 +333,14 @@ FRC="$(run_exe "$OUT/stage/tf2_demo_native.exe" "$OUT/install-fresh.txt" --insta
 eq "install into an empty directory exits 0" "$FRC" "0"
 echo "  --- --install (empty directory) ---"
 sed "s/^/    /" "$OUT/install-fresh.txt"
-eq "a fresh install owns the three payload files plus the VERSION.txt it writes" \
-  "$(field "$OUT/install-fresh.txt" files)" "4"
-eq "a fresh install creates every one of them" "$(field "$OUT/install-fresh.txt" new)" "4"
+eq "a fresh install owns the four payload files plus the VERSION.txt it writes" \
+  "$(field "$OUT/install-fresh.txt" files)" "5"
+eq "a fresh install creates every one of them" "$(field "$OUT/install-fresh.txt" new)" "5"
 inventory "$FRESH" "$OUT/installed-fresh.txt"
 echo "  --- the empty directory after the install ---"
 sed "s/^/    /" "$OUT/installed-fresh.txt"
 eq "the fresh directory holds the payload, the version file and the manifest" \
-  "$(wc -l < "$OUT/installed-fresh.txt" | tr -d " ")" "5"
+  "$(wc -l < "$OUT/installed-fresh.txt" | tr -d " ")" "6"
 FSRC="$(run_exe "$FRESH/tf2_demo_native.exe" "$OUT/status-fresh.txt" --install-status)"
 eq "the fresh install reports VERIFIED" "$(cat "$OUT/status-fresh.txt" | grep -o "status=[A-Z]*" | head -1)" "status=VERIFIED"
 
@@ -347,7 +351,7 @@ eq "product --install-status exit code" "$SRC" "0"
 echo "  --- --install-status ---"
 sed 's/^/    /' "$OUT/status.txt"
 has "status is VERIFIED" "$(cat "$OUT/status.txt")" "status=VERIFIED"
-eq "status counts every file the manifest lists as present" "$(field "$OUT/status.txt" present)" "4"
+eq "status counts every file the manifest lists as present" "$(field "$OUT/status.txt" present)" "5"
 eq "status found nothing missing" "$(field "$OUT/status.txt" missing)" "0"
 eq "status found nothing modified" "$(field "$OUT/status.txt" modified)" "0"
 eq "status reports the installed version" "$(field "$OUT/status.txt" version)" "$declared_version"
@@ -538,8 +542,8 @@ eq "and the pre-upgrade payload bytes are back on disk" \
   "$(grep -c "upgraded payload" "$MIG/install_smoke_probe.ps1" 2>/dev/null | tr -d " ")" "0"
 eq "the user file that was never installed is still there" \
   "$([ -f "$MIG/user-notes.txt" ] && echo present || echo absent)" "present"
-eq "the uninstall removed the two installed files the upgrade left behind" \
-  "$(field "$OUT/migrated-uninstall.txt" removed)" "2"
+eq "the uninstall removed the three installed files the upgrade left behind" \
+  "$(field "$OUT/migrated-uninstall.txt" removed)" "3"
 eq "and it did not claim the file it never recorded as preserved (preserved counts manifest records only)" \
   "$(field "$OUT/migrated-uninstall.txt" preserved)" "0"
 eq "the running image is deferred by name, not deleted" \
@@ -619,8 +623,8 @@ MISS="$OUT/clean/missing"; rm -rf "$MISS"; mkdir -p "$MISS/.uninstall"
 cp -r "$OUT/stage/.uninstall/payload" "$MISS/.uninstall/payload"
 MI0="$(run_exe "$OUT/stage/tf2_demo_native.exe" "$OUT/missing-install.txt" --install --install-dir "$(cygpath -w "$MISS")")"
 eq "the directory the missing-file case starts from is a real install" "$MI0" "0"
-eq "the install owns four records (three payload files and the version file)" \
-  "$(field "$OUT/missing-install.txt" files)" "4"
+eq "the install owns five records (four payload files and the version file)" \
+  "$(field "$OUT/missing-install.txt" files)" "5"
 rm -f "$MISS/native_install_smoke_probe.exe" "$MISS/VERSION.txt"
 MI1="$(run_exe "$MISS/tf2_demo_native.exe" "$OUT/missing-status.txt" --install-status)"
 eq "status with two installed files removed exits 0 (it reports, it does not crash)" "$MI1" "0"
@@ -628,7 +632,7 @@ echo "  --- --install-status (an installed runtime file and VERSION.txt removed)
 sed "s/^/    /" "$OUT/missing-status.txt"
 has "status is DEGRADED, not VERIFIED" "$(cat "$OUT/missing-status.txt")" "status=DEGRADED"
 eq "status counts the two removed files as missing" "$(field "$OUT/missing-status.txt" missing)" "2"
-eq "status still counts the two intact records as present" "$(field "$OUT/missing-status.txt" present)" "2"
+eq "status still counts the three intact records as present" "$(field "$OUT/missing-status.txt" present)" "3"
 eq "status found nothing modified (a missing file is not a modified one)" \
   "$(field "$OUT/missing-status.txt" modified)" "0"
 MV="$(run_exe "$MISS/tf2_demo_native.exe" "$OUT/missing-version.txt" --version)"
@@ -643,8 +647,8 @@ echo "  --- --uninstall (two files already missing) ---"
 sed "s/^/    /" "$OUT/missing-uninstall.txt"
 eq "uninstall counts the two missing records as alreadyMissing" \
   "$(field "$OUT/missing-uninstall.txt" alreadyMissing)" "2"
-eq "uninstall removes the one installed file that is still there" \
-  "$(field "$OUT/missing-uninstall.txt" removed)" "1"
+eq "uninstall removes the two installed files that are still there" \
+  "$(field "$OUT/missing-uninstall.txt" removed)" "2"
 eq "that file is gone" "$([ -f "$MISS/install_smoke_probe.ps1" ] && echo present || echo absent)" "absent"
 eq "the file it cannot remove is still a named deferral, not a removal" \
   "$(field "$OUT/missing-uninstall.txt" deferredRunningImage)" "1"

@@ -244,12 +244,26 @@ write_inventory "$INSTALL" "$OUT/package-files.txt"
 # staged executables plus the payload directory's contents. Pinning the full list
 # is deliberate: a file that appears in a released package without this line
 # changing is exactly the drift this assertion exists to catch.
-expected_package="$(printf ".uninstall/payload/install_smoke_probe.ps1\n.uninstall/payload/native_install_smoke_probe.exe\n.uninstall/payload/tf2_demo_native.exe\nVERSION.txt\ninstall_smoke_probe.ps1\nnative_install_smoke_probe.exe\ntf2_demo_native.exe")"
+# T54 (2026-10-22): the package grew from 7 files to 11, and every added line is
+# the WebView2 loader or its licence. The four payload entries are the three
+# files also staged at the top level PLUS WebView2Loader.dll; the top level is
+# those three plus the loader, VERSION.txt and the two licence files. The list is
+# sorted by LC_ALL=C, so "WebView2Loader.dll" (W) precedes "install_..." (i) and
+# "VERSION.txt" (V) precedes "WebView2Loader.dll". Derived from the install rules
+# at native/CMakeLists.txt:656-689; the observation this line needs is this gate's
+# own run, and until that run exists the eleven names are a derivation, not a
+# measurement.
+expected_package="$(printf ".uninstall/payload/WebView2Loader.dll\n.uninstall/payload/install_smoke_probe.ps1\n.uninstall/payload/native_install_smoke_probe.exe\n.uninstall/payload/tf2_demo_native.exe\nVERSION.txt\nWebView2Loader.dll\ninstall_smoke_probe.ps1\nnative_install_smoke_probe.exe\ntf2_demo_native.exe\nthird_party/webview2/LICENSE.txt\nthird_party/webview2/NOTICE.txt")"
 actual_package="$(cut -f1 "$OUT/package-files.txt")"
 eq "package file list" "$actual_package" "$expected_package"
-eq "package file count" "$(wc -l < "$OUT/package-files.txt" | tr -d " ")" "7"
-eq "the payload repeats the three files the package stages at the top level" \
-  "$(grep -c '^.uninstall/payload/' "$OUT/package-files.txt" | tr -d ' ')" "3"
+eq "package file count" "$(wc -l < "$OUT/package-files.txt" | tr -d " ")" "11"
+# The label states the cause, because the count alone is ambiguous: four payload
+# entries are the three top-level files the installer lays down again PLUS
+# WebView2Loader.dll, which the payload needs in order to install it, while the
+# two licence files are documentation and stay OUT of the payload on purpose
+# (native/CMakeLists.txt:670-676).
+eq "the payload holds the three files it lays down at the top level plus WebView2Loader.dll (4 = 3 + loader; the licence files are not payload)" \
+  "$(grep -c '^.uninstall/payload/' "$OUT/package-files.txt" | tr -d ' ')" "4"
 eq "the package carries the version file the product reads first" \
   "$([ -f "$INSTALL/VERSION.txt" ] && echo yes || echo no)" "yes"
 bad_sizes=0

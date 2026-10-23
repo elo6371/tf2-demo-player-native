@@ -106,6 +106,20 @@ add_executable(tf2_demo_native WIN32
   src/camera_bookmarks.cpp
   src/keybinds.cpp
   src/ini_section.cpp
+  # T54: the logs.tf panel. logstf_viewer.cpp is the whole contract that needs
+  # no browser -- URL policy, geometry, the state machine, the runtime probe and
+  # the frame-time readings -- and it is compiled into logstf_viewer_probe as
+  # well, so the gate drives the product's own rules instead of a second copy.
+  # logstf_webview.cpp is the WebView2 backend behind ILogsViewHost; it loads
+  # WebView2Loader.dll by name at run time, so a host WITHOUT a web-view runtime
+  # still starts the player and reports Unavailable (see logstf-check.sh).
+  src/logstf_viewer.cpp
+  src/logstf_webview.cpp
+  # T54: the Win32 half -- the panel's controls, the splitter drag, the child
+  # window the browser draws into, and the scripted --logstf-script sequence.
+  # main.cpp only forwards six messages, so the panel's diff cannot reach the
+  # rest of the player.
+  src/logstf_panel.cpp
   # T37: the installer lifecycle (version / install / uninstall) the package was
   # missing. In the product, not only in a probe, because the thing that is
   # installed is the thing that installs: a probe that performed a different
@@ -141,10 +155,28 @@ set(TF2_VERSION_DEFINES
   TF2_SOURCE_TREE="${TF2_SOURCE_TREE}")
 
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
+# T54: the WebView2 SDK headers, vendored under third_party/webview2/include
+# (WebView2.h and WebView2EnvironmentOptions.h, with Microsoft's licence beside
+# them). Only the backend includes them, so only the targets that compile it
+# need this path; the SDK is not a download step and the branch builds offline.
+target_include_directories(tf2_demo_native PRIVATE third_party/webview2/include)
 target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
 # msacm32 supplies the ACM stream API audio_resource.cpp uses to turn MPEG
 # Layer III resources into PCM; without it the link fails on acmStreamOpen.
 target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32)
+
+# T54: the logs panel contract. Links logstf_viewer.cpp (the product's own URL
+# policy, geometry, state machine, runtime probe and frame-time histogram) and
+# NOT logstf_webview.cpp: the probe drives the controller through a recording
+# fake host, so it needs neither the WebView2 SDK nor a browser process. A green
+# run is therefore a statement about the rules the product applies; the
+# pixel-level question ("does a page appear in the pane") is answered by the
+# product run in logstf-check.sh, not inferred here.
+add_executable(logstf_viewer_probe tools/logstf_viewer_probe.cpp src/logstf_viewer.cpp)
+target_include_directories(logstf_viewer_probe PRIVATE include)
+target_compile_definitions(logstf_viewer_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(logstf_viewer_probe PRIVATE advapi32 shell32)
+set_target_properties(logstf_viewer_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(item_schema_probe tools/item_schema_probe.cpp src/item_schema.cpp src/proto_wire.cpp)
 
@@ -706,6 +738,27 @@ install(TARGETS tf2_demo_native native_install_smoke_probe
   RUNTIME DESTINATION .
 )
 install(PROGRAMS tools/install_smoke_probe.ps1 DESTINATION .)
+# T54: the WebView2 loader, and ONLY the loader. The browser itself is the
+# Evergreen runtime Windows already carries (see the logstf: runtime line the
+# product traces), so the package ships 159 KB rather than a browser: no
+# fixed-version runtime is staged. A host without the runtime still installs and
+# runs; the panel then reports Unavailable with the reason and the fallback.
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/x64/WebView2Loader.dll")
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/x64/WebView2Loader.dll"
+    DESTINATION .)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/x64/WebView2Loader.dll"
+    DESTINATION .uninstall/payload)
+  # The loader is redistributed as a BINARY, so the SDK's own licence and its
+  # third-party notices travel with the package: BSD-3-Clause clause 2 requires
+  # the copyright notice, the conditions and the disclaimer in the documentation
+  # and/or other materials accompanying a binary redistribution. They are
+  # installed as documentation next to the package, NOT into .uninstall/payload:
+  # the payload is the set of files the installer lays down and owns (and its
+  # count is asserted elsewhere), while a licence is read, not installed.
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/LICENSE.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/NOTICE.txt"
+    DESTINATION third_party/webview2)
+endif()
 # The payload uses $<TARGET_FILE:...> rather than a second install(TARGETS) so
 # each artefact has exactly one install rule that names it; two rules for one
 # target is how the "which files does the package contain" answer stops being
@@ -716,8 +769,19 @@ install(FILES "$<TARGET_FILE:tf2_demo_native>"
 install(PROGRAMS tools/install_smoke_probe.ps1 DESTINATION .uninstall/payload)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION.txt" DESTINATION . OPTIONAL)
 
+# T54: the loader must sit beside the executable the build tree produces, not
+# only in the package, or a build-tree run reports loader=missing and the panel
+# half of logstf-check.sh would be skipped on the very machine that can run it.
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/x64/WebView2Loader.dll")
+  add_custom_command(TARGET tf2_demo_native POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2/x64/WebView2Loader.dll"
+      "$<TARGET_FILE_DIR:tf2_demo_native>/WebView2Loader.dll"
+    COMMENT "Copying WebView2Loader.dll next to tf2_demo_native.exe")
+endif()
+
 if (MSVC)
-  target_compile_options(tf2_demo_native PRIVATE /W4 /permissive- /EHsc /utf-8)
+  target_compile_options(tf2_demo_native PRIVATE /W4 /permissive- /utf-8)
   target_compile_options(entity_protocol_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_compile_options(entity_message_fixture_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   # T51: the probe is held to the product's warning bar, because a probe is read as

@@ -1,0 +1,3654 @@
+0.0 trace open
+596.7 resources: requested=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf tf_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf valid=1
+27727.2 vpk: archives opened=4 refused=0
+27727.4 map: lookup map=koth_bagel_rc13 store=none selected=- bytes=0 reason=not found in maps, download/maps or a vpk
+27853.0 audio: timeline firstPacketTick=-2147483648 soundOriginTick=1 originFound=1 read=5234 scheduled=5167 unresolved=52 unplaceable=15 refused=0 kinds=w2641/f4/u23/o1927/v571/a1/m0
+28354.2 logstf: runtime kind=webview2 available=1 source=registry version=155.0.4283.62 loader=present
+30797.5 logstf: summary attached=1 script=import state=content host=alive panel=640 content=637 client=1264,681 dpiScale=1.00 url=https://logs.tf/1 navigations=1 accepted=1 refused=0 opens=1 closes=0 hostStarts=1 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+30797.7 gpu: reload begin
+30798.3 gpu: reload-stage stage=texture lastError=0x00000000
+30798.3 gpu: reload-stage stage=aux lastError=0x00000000
+30798.3 gpu: reload-stage stage=lightmap lastError=0x00000000
+30798.3 gpu: reload-stage stage=cubemap lastError=0x00000000
+30798.3 gpu: reload-stage stage=sky lastError=0x00000000
+30798.3 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+30798.3 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+30798.3 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+30798.3 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+30798.4 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+30798.4 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+30798.4 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+30798.4 gpu: world geometry=all blend=on
+30798.4 gpu: reload-stage stage=water lastError=0x00000000
+30798.4 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+30798.4 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0 bounds=(0.00,0.00,0.00)..(0.00,0.00,0.00) lightmapEnabled=1
+30798.4 gpu: world geometry displacedTriangles=0 waterTriangles=0
+30798.4 gpu: world blend enabled=1 terrainOnly=0 textures=0 layers=0 accepted=0 acceptedLayers=0 tiles=0 modulateTiles=0 malformedLayers=0 weightedVertices=0 modulatedVertices=0 weightMin=-1.000 weightMax=-1.000 distinctWeights=0
+30798.4 gpu: world atlas size=0 bytes=0 atlases=0 totalBytes=0 state=no world atlas was uploaded
+30798.4 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+30809.5 gpu: model 0/52 1024x1024 11.1ms uploaded=1
+30816.9 gpu: model 1/52 1024x1024 7.2ms uploaded=1
+30818.3 gpu: model 2/52 512x512 1.3ms uploaded=1
+30819.0 gpu: model 3/52 256x256 0.6ms uploaded=1
+30830.2 gpu: model 4/52 2048x1024 11.1ms uploaded=1
+30863.5 gpu: model 5/52 2048x2048 32.8ms uploaded=1
+30872.1 gpu: model 6/52 1024x1024 7.8ms uploaded=1
+30880.5 gpu: model 7/52 1024x1024 8.2ms uploaded=1
+30883.1 gpu: model 8/52 512x512 2.4ms uploaded=1
+30890.6 gpu: model 9/52 1024x1024 7.4ms uploaded=1
+30898.6 gpu: model 10/52 1024x1024 7.8ms uploaded=1
+30899.4 gpu: model 11/52 256x256 0.6ms uploaded=1
+30900.6 gpu: model 12/52 512x512 1.2ms uploaded=1
+30904.8 gpu: model 13/52 1024x1024 4.1ms uploaded=1
+30912.7 gpu: model 14/52 1024x1024 7.8ms uploaded=1
+30946.6 gpu: model 15/52 2048x2048 33.7ms uploaded=1
+30978.5 gpu: model 16/52 2048x2048 31.1ms uploaded=1
+30980.8 gpu: model 17/52 512x512 1.6ms uploaded=1
+30982.2 gpu: model 18/52 512x512 1.3ms uploaded=1
+31022.8 gpu: model 19/52 2048x2048 40.5ms uploaded=1
+31025.0 gpu: model 20/52 512x512 1.4ms uploaded=1
+31027.2 gpu: model 21/52 512x512 2.1ms uploaded=1
+31031.8 gpu: model 22/52 1024x1024 4.6ms uploaded=1
+31063.6 gpu: model 23/52 2048x2048 31.6ms uploaded=1
+31072.8 gpu: model 24/52 1024x1024 8.5ms uploaded=1
+31075.3 gpu: model 25/52 512x512 2.2ms uploaded=1
+31080.4 gpu: model 26/52 1024x1024 5.0ms uploaded=1
+31085.6 gpu: model 27/52 1024x1024 5.0ms uploaded=1
+31087.2 gpu: model 28/52 512x512 1.3ms uploaded=1
+31089.9 gpu: model 29/52 512x512 2.6ms uploaded=1
+31121.5 gpu: model 30/52 2048x2048 31.6ms uploaded=1
+31126.7 gpu: model 31/52 1024x512 4.4ms uploaded=1
+31129.4 gpu: model 32/52 512x512 2.5ms uploaded=1
+31131.8 gpu: model 33/52 512x512 2.4ms uploaded=1
+31164.4 gpu: model 34/52 2048x2048 32.5ms uploaded=1
+31197.1 gpu: model 35/52 2048x2048 31.9ms uploaded=1
+31202.5 gpu: model 36/52 1024x1024 4.7ms uploaded=1
+31210.7 gpu: model 37/52 1024x1024 7.9ms uploaded=1
+31213.3 gpu: model 38/52 512x512 2.3ms uploaded=1
+31231.1 gpu: model 39/52 1024x1024 17.7ms uploaded=1
+31233.8 gpu: model 40/52 512x512 2.5ms uploaded=1
+31236.2 gpu: model 41/52 512x512 2.3ms uploaded=1
+31238.7 gpu: model 42/52 512x512 2.4ms uploaded=1
+31247.7 gpu: model 43/52 2048x1024 8.9ms uploaded=1
+31251.3 gpu: model 44/52 1024x512 3.1ms uploaded=1
+31253.8 gpu: model 45/52 1024x512 2.4ms uploaded=1
+31256.3 gpu: model 46/52 1024x512 2.5ms uploaded=1
+31265.7 gpu: model 47/52 2048x1024 9.3ms uploaded=1
+31271.4 gpu: model 48/52 1024x1024 5.3ms uploaded=1
+31281.8 gpu: model 49/52 2048x1024 10.0ms uploaded=1
+31287.6 gpu: model 50/52 1024x1024 5.3ms uploaded=1
+31297.6 gpu: model 51/52 2048x1024 9.7ms uploaded=1
+31298.1 gpu: models done 52 uploaded=52
+31298.1 gpu: reload-stage stage=models lastError=0x00000000
+31298.1 gpu: reload end
+31298.1 gpu: post-reload lastError=0x00000000
+31298.4 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+31298.4 loop n=1 tick=0
+31298.4 audio: advance tick=0 cursor=0 seen=0 played=0 skippedVoice=0 missing=0 dup=0
+31298.4 scene: begin tick=0 sceneTick=-2147483648
+31298.4 scene: snapshot status=3 stale=0 states=0
+31298.4 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31298.4 scene: observer done
+31298.4 scene: hud fxDue=0 drawable=0
+31298.4 scene: done
+31310.3 loop n=2 tick=0
+31310.4 draw: begin tick=0 frames=0
+31313.3 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+31313.3 gpu: world clip near=4.00000000 far=100.000000 nearMapUnits=4.00 farMapUnits=100 horizontalScale=1.00000000 state=published
+31313.4 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=0 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+31313.4 gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=0 clusteredTriangles=0 hiddenTriangles=0 withoutCluster=0 inputTriangles=0 drawnTriangles=0 clipApplied=0 state=unavailable eyeMap=(0.0,0.0,0.0) reason=the bsp carries no cluster pvs
+31313.4 gpu: world cull backfaces=1 mode=cull-back
+31313.4 gpu: world debug view=textured
+31313.4 gpu: world atlas-plan batches=0 blendBatches=0 tiled=0 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=0 reason=no atlas plan was made
+31313.4 gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=0 batchDraws=0 texturedBatchDraws=0
+31313.4 gpu: world features materials=0 bumpmap=0(visible 0, resolved 0, missing 0, distinct 0) bumpmap2=0(visible 0) ssbump=0(visible 0) detail=0(visible 0, resolved 0, types 0)
+31313.4 gpu: world feature feature=bumpmap declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+31313.4 gpu: world feature feature=bumpmap2 declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+31313.4 gpu: world feature feature=ssbump declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+31313.4 gpu: world feature feature=detail declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+31313.4 gpu: world feature-detail distinctBumpPaths=0 detailTypesRead=0 firstDetailType=-
+31313.4 gpu: world lighting dynamic=0 specular=0 bump=0 requestedDynamic=0 requestedSpecular=0 requestedBump=0 bumpOwner=- bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+31313.5 gpu: world lighting-summary controls=6 applied=0 refused=0 disabled=2 notDeclared=4 phong=0(visible 0, exponents 0/0) bumpOwner=-
+31313.5 gpu: world feature-apply bump enabled=0 tiles=0 materials=0 vertices=0 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
+31313.5 gpu: world lighting-control control=dynamicLighting kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant, not a material key: the pixel shader replaces the lightmap-only factor with 0.62+0.38*dot(normal, lightDirection) for 0 visible materials / 0 visible triangles; no VMT declares it, so every surface is shaded by the same guessed direction and the baked lightmap's own direct light is counted twice; off
+31313.5 gpu: world lighting-control control=specular kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant: one lobe (boost 0.12, exponent 32) for 0 visible materials / 0 visible triangles; no visible material declares $phong, so the lobe is added to materials that never asked for one; off
+31313.5 gpu: world lighting-control control=bump kind=pass-switch state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=off: the world pass has one bump sampler slot (--world-bump) and the per-material path is off too (--world-material-bump), so the 0 visible materials that name one of 0 distinct $bumpmap textures are drawn with no normal map at all
+31313.5 gpu: world lighting-control control=$bumpmap2 kind=material-key state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=no material declares $bumpmap2
+31313.5 gpu: world lighting-control control=%detailtype kind=material-key state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=no material declares $detail
+31313.6 gpu: world lighting-control control=$ssbump kind=material-key state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=no material declares $ssbump
+31313.6 draw: end frames=1 pending=0
+31313.6 loop n=3 tick=0
+31313.6 audio: advance tick=1 cursor=1 seen=0 played=0 skippedVoice=0 missing=0 dup=1
+31313.6 scene: begin tick=1 sceneTick=-2147483647
+31313.6 scene: snapshot status=3 stale=0 states=0
+31313.6 scene: camera mode=first-person target=1 follows=2 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31313.6 scene: observer done
+31313.6 scene: hud fxDue=0 drawable=0
+31313.6 scene: done
+31326.2 loop n=4 tick=1
+31326.2 audio: advance tick=2 cursor=2 seen=0 played=0 skippedVoice=0 missing=0 dup=1
+31326.2 scene: begin tick=2 sceneTick=-2147483646
+31326.2 scene: snapshot status=3 stale=0 states=0
+31326.2 scene: camera mode=first-person target=1 follows=3 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31326.2 scene: observer done
+31326.2 scene: hud fxDue=0 drawable=0
+31326.2 scene: done
+31327.2 draw: begin tick=2 frames=1
+31346.4 draw: end frames=2 pending=0
+31346.4 loop n=5 tick=2
+31346.4 audio: advance tick=3 cursor=3 seen=0 played=0 skippedVoice=0 missing=0 dup=1
+31346.4 scene: begin tick=3 sceneTick=-2147483645
+31346.4 scene: snapshot status=3 stale=0 states=0
+31346.4 scene: camera mode=first-person target=1 follows=4 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31346.5 scene: observer done
+31346.5 scene: hud fxDue=0 drawable=0
+31346.5 scene: done
+31346.7 draw: begin tick=3 frames=2
+31346.9 draw: end frames=3 pending=0
+31346.9 loop n=6 tick=3
+31357.2 loop n=7 tick=3
+31357.2 audio: advance tick=4 cursor=4 seen=0 played=0 skippedVoice=0 missing=0 dup=2
+31357.2 scene: begin tick=4 sceneTick=-2147483644
+31357.2 scene: snapshot status=3 stale=0 states=0
+31357.2 scene: camera mode=first-person target=1 follows=5 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31357.2 scene: observer done
+31357.2 scene: hud fxDue=0 drawable=0
+31357.2 scene: done
+31358.1 draw: begin tick=4 frames=3
+31650.3 draw: end frames=4 pending=0
+31650.3 loop n=8 tick=4
+31651.5 audio: advance tick=20 cursor=20 seen=2 played=0 skippedVoice=0 missing=1 dup=2
+31651.5 scene: begin tick=20 sceneTick=-2147483628
+31651.5 scene: snapshot status=3 stale=0 states=0
+31651.5 scene: camera mode=first-person target=1 follows=6 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31651.5 scene: observer done
+31651.5 scene: hud fxDue=0 drawable=0
+31651.5 scene: done
+31651.7 draw: begin tick=20 frames=4
+31651.8 draw: end frames=5 pending=0
+31651.8 loop n=9 tick=20
+31667.5 loop n=10 tick=20
+31667.7 audio: advance tick=21 cursor=21 seen=2 played=0 skippedVoice=0 missing=1 dup=3
+31667.7 scene: begin tick=21 sceneTick=-2147483627
+31667.7 scene: snapshot status=3 stale=0 states=0
+31667.7 scene: camera mode=first-person target=1 follows=7 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31667.7 scene: observer done
+31667.7 scene: hud fxDue=0 drawable=0
+31667.7 scene: done
+31668.2 draw: begin tick=21 frames=5
+31668.7 draw: end frames=6 pending=0
+31668.7 loop n=11 tick=21
+31683.3 loop n=12 tick=21
+31683.4 audio: advance tick=23 cursor=23 seen=2 played=0 skippedVoice=0 missing=1 dup=4
+31683.4 scene: begin tick=23 sceneTick=-2147483625
+31683.4 scene: snapshot status=3 stale=0 states=0
+31683.4 scene: camera mode=first-person target=1 follows=8 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31683.4 scene: observer done
+31683.4 scene: hud fxDue=0 drawable=0
+31683.4 scene: done
+31683.6 draw: begin tick=23 frames=6
+31691.1 draw: end frames=7 pending=0
+31691.2 loop n=13 tick=23
+31699.5 loop n=14 tick=23
+31699.5 audio: advance tick=24 cursor=24 seen=2 played=0 skippedVoice=0 missing=1 dup=5
+31699.6 scene: begin tick=24 sceneTick=-2147483624
+31699.6 scene: snapshot status=3 stale=0 states=0
+31699.6 scene: camera mode=first-person target=1 follows=9 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31699.6 scene: observer done
+31699.6 scene: hud fxDue=0 drawable=0
+31699.6 scene: done
+31699.8 draw: begin tick=24 frames=7
+31699.9 draw: end frames=8 pending=0
+31699.9 loop n=15 tick=24
+31714.4 loop n=16 tick=24
+31714.5 audio: advance tick=25 cursor=25 seen=2 played=0 skippedVoice=0 missing=1 dup=6
+31714.5 scene: begin tick=25 sceneTick=-2147483623
+31714.5 scene: snapshot status=3 stale=0 states=0
+31714.5 scene: camera mode=first-person target=1 follows=10 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31714.5 scene: observer done
+31714.5 scene: hud fxDue=0 drawable=0
+31714.5 scene: done
+31714.8 draw: begin tick=25 frames=8
+31714.9 draw: end frames=9 pending=0
+31714.9 loop n=17 tick=25
+31729.7 loop n=18 tick=25
+31729.8 audio: advance tick=26 cursor=26 seen=2 played=0 skippedVoice=0 missing=1 dup=7
+31729.8 scene: begin tick=26 sceneTick=-2147483622
+31729.8 scene: snapshot status=3 stale=0 states=0
+31729.8 scene: camera mode=first-person target=1 follows=11 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31729.8 scene: observer done
+31729.8 scene: hud fxDue=0 drawable=0
+31729.8 scene: done
+31730.3 draw: begin tick=26 frames=9
+31730.5 draw: end frames=10 pending=0
+31730.5 loop n=19 tick=26
+31745.4 loop n=20 tick=26
+31745.5 audio: advance tick=27 cursor=27 seen=2 played=0 skippedVoice=0 missing=1 dup=8
+31745.5 scene: begin tick=27 sceneTick=-2147483621
+31745.5 scene: snapshot status=3 stale=0 states=0
+31745.5 scene: camera mode=first-person target=1 follows=12 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31745.5 scene: observer done
+31745.5 scene: hud fxDue=0 drawable=0
+31745.5 scene: done
+31745.8 draw: begin tick=27 frames=10
+31745.9 draw: end frames=11 pending=0
+31745.9 loop n=21 tick=27
+31761.1 loop n=22 tick=27
+31761.2 audio: advance tick=28 cursor=28 seen=2 played=0 skippedVoice=0 missing=1 dup=9
+31761.2 scene: begin tick=28 sceneTick=-2147483620
+31761.2 scene: snapshot status=3 stale=0 states=0
+31761.2 scene: camera mode=first-person target=1 follows=13 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31761.2 scene: observer done
+31761.2 scene: hud fxDue=0 drawable=0
+31761.2 scene: done
+31761.6 draw: begin tick=28 frames=11
+31767.8 draw: end frames=12 pending=0
+31767.8 loop n=23 tick=28
+31767.8 audio: advance tick=29 cursor=29 seen=2 played=0 skippedVoice=0 missing=1 dup=9
+31767.8 scene: begin tick=29 sceneTick=-2147483619
+31767.8 scene: snapshot status=3 stale=0 states=0
+31767.9 scene: camera mode=first-person target=1 follows=14 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31767.9 scene: observer done
+31767.9 scene: hud fxDue=0 drawable=0
+31767.9 scene: done
+31776.7 loop n=24 tick=29
+31776.7 audio: advance tick=30 cursor=30 seen=2 played=0 skippedVoice=0 missing=1 dup=9
+31776.7 scene: begin tick=30 sceneTick=-2147483618
+31776.7 scene: snapshot status=3 stale=0 states=0
+31776.7 scene: camera mode=first-person target=1 follows=15 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31776.8 scene: observer done
+31776.8 scene: hud fxDue=0 drawable=0
+31776.8 scene: done
+31777.1 draw: begin tick=30 frames=12
+31787.9 draw: end frames=13 pending=0
+31787.9 loop n=25 tick=30
+31787.9 audio: advance tick=31 cursor=31 seen=2 played=0 skippedVoice=0 missing=1 dup=9
+31787.9 scene: begin tick=31 sceneTick=-2147483617
+31787.9 scene: snapshot status=3 stale=0 states=0
+31787.9 scene: camera mode=first-person target=1 follows=16 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31788.0 scene: observer done
+31788.0 scene: hud fxDue=0 drawable=0
+31788.0 scene: done
+31788.2 draw: begin tick=31 frames=13
+31807.3 draw: end frames=14 pending=0
+31807.3 loop n=26 tick=31
+31807.3 audio: advance tick=32 cursor=32 seen=2 played=0 skippedVoice=0 missing=1 dup=9
+31807.3 scene: begin tick=32 sceneTick=-2147483616
+31807.3 scene: snapshot status=3 stale=0 states=0
+31807.3 scene: camera mode=first-person target=1 follows=17 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31807.3 scene: observer done
+31807.3 scene: hud fxDue=0 drawable=0
+31807.4 scene: done
+31809.8 draw: begin tick=32 frames=14
+31812.8 draw: end frames=15 pending=0
+31812.8 loop n=27 tick=32
+31822.9 loop n=28 tick=32
+31822.9 audio: advance tick=33 cursor=33 seen=2 played=0 skippedVoice=0 missing=1 dup=10
+31822.9 scene: begin tick=33 sceneTick=-2147483615
+31822.9 scene: snapshot status=3 stale=0 states=0
+31822.9 scene: camera mode=first-person target=1 follows=18 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31822.9 scene: observer done
+31822.9 scene: hud fxDue=0 drawable=0
+31822.9 scene: done
+31823.9 draw: begin tick=33 frames=15
+31824.0 draw: end frames=16 pending=0
+31824.1 loop n=29 tick=33
+31838.2 loop n=30 tick=33
+31838.2 audio: advance tick=34 cursor=34 seen=2 played=0 skippedVoice=0 missing=1 dup=11
+31838.2 scene: begin tick=34 sceneTick=-2147483614
+31838.2 scene: snapshot status=3 stale=0 states=0
+31838.2 scene: camera mode=first-person target=1 follows=19 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31838.2 scene: observer done
+31838.2 scene: hud fxDue=0 drawable=0
+31838.2 scene: done
+31838.6 draw: begin tick=34 frames=16
+31838.7 draw: end frames=17 pending=0
+31838.7 loop n=31 tick=34
+31853.5 loop n=32 tick=34
+31853.5 audio: advance tick=35 cursor=35 seen=2 played=0 skippedVoice=0 missing=1 dup=12
+31853.5 scene: begin tick=35 sceneTick=-2147483613
+31853.5 scene: snapshot status=3 stale=0 states=0
+31853.5 scene: camera mode=first-person target=1 follows=20 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31853.6 scene: observer done
+31853.6 scene: hud fxDue=0 drawable=0
+31853.6 scene: done
+31854.7 draw: begin tick=35 frames=17
+31854.8 draw: end frames=18 pending=0
+31854.8 loop n=33 tick=35
+31854.8 audio: advance tick=36 cursor=36 seen=2 played=0 skippedVoice=0 missing=1 dup=12
+31854.8 scene: begin tick=36 sceneTick=-2147483612
+31854.8 scene: snapshot status=3 stale=0 states=0
+31854.9 scene: camera mode=first-person target=1 follows=21 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31854.9 scene: observer done
+31854.9 scene: hud fxDue=0 drawable=0
+31854.9 scene: done
+31868.7 loop n=34 tick=36
+31868.8 audio: advance tick=37 cursor=37 seen=2 played=0 skippedVoice=0 missing=1 dup=12
+31868.8 scene: begin tick=37 sceneTick=-2147483611
+31868.8 scene: snapshot status=3 stale=0 states=0
+31868.8 scene: camera mode=first-person target=1 follows=22 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31868.8 scene: observer done
+31868.8 scene: hud fxDue=0 drawable=0
+31868.8 scene: done
+31869.2 draw: begin tick=37 frames=18
+31869.4 draw: end frames=19 pending=0
+31869.4 loop n=35 tick=37
+31884.6 loop n=36 tick=37
+31884.6 audio: advance tick=38 cursor=38 seen=2 played=0 skippedVoice=0 missing=1 dup=13
+31884.6 scene: begin tick=38 sceneTick=-2147483610
+31884.6 scene: snapshot status=3 stale=0 states=0
+31884.6 scene: camera mode=first-person target=1 follows=23 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31884.6 scene: observer done
+31884.6 scene: hud fxDue=0 drawable=0
+31884.6 scene: done
+31884.8 draw: begin tick=38 frames=19
+31884.9 draw: end frames=20 pending=0
+31884.9 loop n=37 tick=38
+31899.9 loop n=38 tick=38
+31899.9 audio: advance tick=39 cursor=39 seen=2 played=0 skippedVoice=0 missing=1 dup=14
+31899.9 scene: begin tick=39 sceneTick=-2147483609
+31899.9 scene: snapshot status=3 stale=0 states=0
+31899.9 scene: camera mode=first-person target=1 follows=24 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31899.9 scene: observer done
+31899.9 scene: hud fxDue=0 drawable=0
+31899.9 scene: done
+31900.3 draw: begin tick=39 frames=20
+31900.4 draw: end frames=21 pending=0
+31900.4 loop n=39 tick=39
+31915.4 loop n=40 tick=39
+31915.5 audio: advance tick=40 cursor=40 seen=2 played=0 skippedVoice=0 missing=1 dup=15
+31915.5 scene: begin tick=40 sceneTick=-2147483608
+31915.5 scene: snapshot status=3 stale=0 states=0
+31915.5 scene: camera mode=first-person target=1 follows=25 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31915.5 scene: observer done
+31915.5 scene: hud fxDue=0 drawable=0
+31915.5 scene: done
+31915.9 draw: begin tick=40 frames=21
+31916.1 draw: end frames=22 pending=0
+31916.1 loop n=41 tick=40
+31931.0 loop n=42 tick=40
+31931.1 audio: advance tick=41 cursor=41 seen=2 played=0 skippedVoice=0 missing=1 dup=16
+31931.1 scene: begin tick=41 sceneTick=-2147483607
+31931.1 scene: snapshot status=3 stale=0 states=0
+31931.1 scene: camera mode=first-person target=1 follows=26 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31931.1 scene: observer done
+31931.1 scene: hud fxDue=0 drawable=0
+31931.1 scene: done
+31931.4 draw: begin tick=41 frames=22
+31932.2 draw: end frames=23 pending=0
+31932.3 loop n=43 tick=41
+31946.4 loop n=44 tick=41
+31946.5 audio: advance tick=42 cursor=42 seen=2 played=0 skippedVoice=0 missing=1 dup=17
+31946.5 scene: begin tick=42 sceneTick=-2147483606
+31946.5 scene: snapshot status=3 stale=0 states=0
+31946.6 scene: camera mode=first-person target=1 follows=27 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31946.6 scene: observer done
+31946.6 scene: hud fxDue=0 drawable=0
+31946.6 scene: done
+31946.9 draw: begin tick=42 frames=23
+31947.0 draw: end frames=24 pending=0
+31947.0 loop n=45 tick=42
+31961.7 loop n=46 tick=42
+31961.7 audio: advance tick=43 cursor=43 seen=2 played=0 skippedVoice=0 missing=1 dup=18
+31961.7 scene: begin tick=43 sceneTick=-2147483605
+31961.7 scene: snapshot status=3 stale=0 states=0
+31961.7 scene: camera mode=first-person target=1 follows=28 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31961.7 scene: observer done
+31961.8 scene: hud fxDue=0 drawable=0
+31961.8 scene: done
+31962.0 draw: begin tick=43 frames=24
+31963.5 draw: end frames=25 pending=0
+31963.6 loop n=47 tick=43
+31977.3 loop n=48 tick=43
+31977.3 audio: advance tick=44 cursor=44 seen=2 played=0 skippedVoice=0 missing=1 dup=19
+31977.3 scene: begin tick=44 sceneTick=-2147483604
+31977.3 scene: snapshot status=3 stale=0 states=0
+31977.3 scene: camera mode=first-person target=1 follows=29 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31977.3 scene: observer done
+31977.3 scene: hud fxDue=0 drawable=0
+31977.4 scene: done
+31979.3 draw: begin tick=44 frames=25
+31979.4 draw: end frames=26 pending=0
+31979.4 loop n=49 tick=44
+31992.7 loop n=50 tick=44
+31993.2 audio: advance tick=45 cursor=45 seen=3 played=0 skippedVoice=0 missing=1 dup=20
+31993.3 scene: begin tick=45 sceneTick=-2147483603
+31993.3 scene: snapshot status=3 stale=0 states=0
+31993.3 scene: camera mode=first-person target=1 follows=30 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+31993.3 scene: observer done
+31993.3 scene: hud fxDue=0 drawable=0
+31993.3 scene: done
+31993.5 draw: begin tick=45 frames=26
+31993.6 draw: end frames=27 pending=0
+31993.6 loop n=51 tick=45
+32008.0 loop n=52 tick=45
+32008.1 audio: advance tick=46 cursor=46 seen=3 played=0 skippedVoice=0 missing=1 dup=21
+32008.1 scene: begin tick=46 sceneTick=-2147483602
+32008.1 scene: snapshot status=3 stale=0 states=0
+32008.1 scene: camera mode=first-person target=1 follows=31 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32008.1 scene: observer done
+32008.2 scene: hud fxDue=0 drawable=0
+32008.2 scene: done
+32008.6 draw: begin tick=46 frames=27
+32008.7 draw: end frames=28 pending=0
+32008.7 loop n=53 tick=46
+32023.2 loop n=54 tick=46
+32023.3 audio: advance tick=47 cursor=47 seen=3 played=0 skippedVoice=0 missing=1 dup=22
+32023.3 scene: begin tick=47 sceneTick=-2147483601
+32023.3 scene: snapshot status=3 stale=0 states=0
+32023.3 scene: camera mode=first-person target=1 follows=32 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32023.3 scene: observer done
+32023.3 scene: hud fxDue=0 drawable=0
+32023.3 scene: done
+32024.5 draw: begin tick=47 frames=28
+32024.6 draw: end frames=29 pending=0
+32024.6 loop n=55 tick=47
+32024.6 audio: advance tick=48 cursor=48 seen=3 played=0 skippedVoice=0 missing=1 dup=22
+32024.6 scene: begin tick=48 sceneTick=-2147483600
+32024.6 scene: snapshot status=3 stale=0 states=0
+32024.6 scene: camera mode=first-person target=1 follows=33 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32024.6 scene: observer done
+32024.6 scene: hud fxDue=0 drawable=0
+32024.6 scene: done
+32038.6 loop n=56 tick=48
+32038.7 audio: advance tick=49 cursor=49 seen=3 played=0 skippedVoice=0 missing=1 dup=22
+32038.7 scene: begin tick=49 sceneTick=-2147483599
+32038.7 scene: snapshot status=3 stale=0 states=0
+32038.7 scene: camera mode=first-person target=1 follows=34 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32038.7 scene: observer done
+32038.7 scene: hud fxDue=0 drawable=0
+32038.7 scene: done
+32039.2 draw: begin tick=49 frames=29
+32039.3 draw: end frames=30 pending=0
+32039.3 loop n=57 tick=49
+32054.0 loop n=58 tick=49
+32054.1 audio: advance tick=50 cursor=50 seen=3 played=0 skippedVoice=0 missing=1 dup=23
+32054.1 scene: begin tick=50 sceneTick=-2147483598
+32054.1 scene: snapshot status=3 stale=0 states=0
+32054.1 scene: camera mode=first-person target=1 follows=35 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32054.1 scene: observer done
+32054.1 scene: hud fxDue=0 drawable=0
+32054.1 scene: done
+32054.6 draw: begin tick=50 frames=30
+32054.7 draw: end frames=31 pending=0
+32054.7 loop n=59 tick=50
+32069.7 loop n=60 tick=50
+32069.8 audio: advance tick=51 cursor=51 seen=3 played=0 skippedVoice=0 missing=1 dup=24
+32069.8 scene: begin tick=51 sceneTick=-2147483597
+32069.8 scene: snapshot status=3 stale=0 states=0
+32069.8 scene: camera mode=first-person target=1 follows=36 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32069.8 scene: observer done
+32069.8 scene: hud fxDue=0 drawable=0
+32069.8 scene: done
+32070.8 draw: begin tick=51 frames=31
+32070.9 draw: end frames=32 pending=0
+32070.9 loop n=61 tick=51
+32085.8 loop n=62 tick=51
+32085.9 audio: advance tick=52 cursor=52 seen=3 played=0 skippedVoice=0 missing=1 dup=25
+32085.9 scene: begin tick=52 sceneTick=-2147483596
+32085.9 scene: snapshot status=3 stale=0 states=0
+32085.9 scene: camera mode=first-person target=1 follows=37 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32085.9 scene: observer done
+32085.9 scene: hud fxDue=0 drawable=0
+32085.9 scene: done
+32086.6 draw: begin tick=52 frames=32
+32086.7 draw: end frames=33 pending=0
+32086.7 loop n=63 tick=52
+32101.6 loop n=64 tick=52
+32101.6 audio: advance tick=53 cursor=53 seen=3 played=0 skippedVoice=0 missing=1 dup=26
+32101.6 scene: begin tick=53 sceneTick=-2147483595
+32101.6 scene: snapshot status=3 stale=0 states=0
+32101.7 scene: camera mode=first-person target=1 follows=38 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32101.7 scene: observer done
+32101.7 scene: hud fxDue=0 drawable=0
+32101.7 scene: done
+32102.0 draw: begin tick=53 frames=33
+32102.1 draw: end frames=34 pending=0
+32102.1 loop n=65 tick=53
+32116.9 loop n=66 tick=53
+32116.9 audio: advance tick=54 cursor=54 seen=3 played=0 skippedVoice=0 missing=1 dup=27
+32116.9 scene: begin tick=54 sceneTick=-2147483594
+32116.9 scene: snapshot status=3 stale=0 states=0
+32117.0 scene: camera mode=first-person target=1 follows=39 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32117.0 scene: observer done
+32117.0 scene: hud fxDue=0 drawable=0
+32117.0 scene: done
+32117.6 draw: begin tick=54 frames=34
+32117.7 draw: end frames=35 pending=0
+32117.8 loop n=67 tick=54
+32131.9 loop n=68 tick=54
+32132.1 audio: advance tick=55 cursor=55 seen=5 played=0 skippedVoice=1 missing=1 dup=28
+32132.1 scene: begin tick=55 sceneTick=-2147483593
+32132.1 scene: snapshot status=3 stale=0 states=0
+32132.1 scene: camera mode=first-person target=1 follows=40 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32132.1 scene: observer done
+32132.1 scene: hud fxDue=0 drawable=0
+32132.1 scene: done
+32132.2 draw: begin tick=55 frames=35
+32132.3 draw: end frames=36 pending=0
+32132.3 loop n=69 tick=55
+32147.6 loop n=70 tick=55
+32147.6 audio: advance tick=56 cursor=56 seen=5 played=0 skippedVoice=1 missing=1 dup=29
+32147.6 scene: begin tick=56 sceneTick=-2147483592
+32147.6 scene: snapshot status=3 stale=0 states=0
+32147.6 scene: camera mode=first-person target=1 follows=41 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32147.6 scene: observer done
+32147.6 scene: hud fxDue=0 drawable=0
+32147.6 scene: done
+32148.1 draw: begin tick=56 frames=36
+32148.2 draw: end frames=37 pending=0
+32148.2 loop n=71 tick=56
+32162.6 loop n=72 tick=56
+32162.7 audio: advance tick=57 cursor=57 seen=5 played=0 skippedVoice=1 missing=1 dup=30
+32162.7 scene: begin tick=57 sceneTick=-2147483591
+32162.7 scene: snapshot status=3 stale=0 states=0
+32162.7 scene: camera mode=first-person target=1 follows=42 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32162.7 scene: observer done
+32162.7 scene: hud fxDue=0 drawable=0
+32162.7 scene: done
+32163.5 draw: begin tick=57 frames=37
+32163.6 draw: end frames=38 pending=0
+32163.6 loop n=73 tick=57
+32178.7 loop n=74 tick=57
+32178.7 audio: advance tick=58 cursor=58 seen=5 played=0 skippedVoice=1 missing=1 dup=31
+32178.7 scene: begin tick=58 sceneTick=-2147483590
+32178.7 scene: snapshot status=3 stale=0 states=0
+32178.7 scene: camera mode=first-person target=1 follows=43 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32178.7 scene: observer done
+32178.7 scene: hud fxDue=0 drawable=0
+32178.7 scene: done
+32179.0 draw: begin tick=58 frames=38
+32179.1 draw: end frames=39 pending=0
+32179.1 loop n=75 tick=58
+32193.8 loop n=76 tick=58
+32193.9 audio: advance tick=59 cursor=59 seen=5 played=0 skippedVoice=1 missing=1 dup=32
+32194.0 scene: begin tick=59 sceneTick=-2147483589
+32194.0 scene: snapshot status=3 stale=0 states=0
+32194.0 scene: camera mode=first-person target=1 follows=44 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32194.0 scene: observer done
+32194.0 scene: hud fxDue=0 drawable=0
+32194.0 scene: done
+32194.3 draw: begin tick=59 frames=39
+32197.0 draw: end frames=40 pending=0
+32197.0 loop n=77 tick=59
+32197.0 audio: advance tick=60 cursor=60 seen=5 played=0 skippedVoice=1 missing=1 dup=32
+32197.1 scene: begin tick=60 sceneTick=-2147483588
+32197.1 scene: snapshot status=3 stale=0 states=0
+32197.1 scene: camera mode=first-person target=1 follows=45 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32197.1 scene: observer done
+32197.1 scene: hud fxDue=0 drawable=0
+32197.1 scene: done
+32209.8 loop n=78 tick=60
+32209.9 audio: advance tick=61 cursor=61 seen=5 played=0 skippedVoice=1 missing=1 dup=32
+32209.9 scene: begin tick=61 sceneTick=-2147483587
+32209.9 scene: snapshot status=3 stale=0 states=0
+32209.9 scene: camera mode=first-person target=1 follows=46 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32209.9 scene: observer done
+32209.9 scene: hud fxDue=0 drawable=0
+32209.9 scene: done
+32210.1 draw: begin tick=61 frames=40
+32210.2 draw: end frames=41 pending=0
+32210.2 loop n=79 tick=61
+32225.2 loop n=80 tick=61
+32225.2 audio: advance tick=62 cursor=62 seen=5 played=0 skippedVoice=1 missing=1 dup=33
+32225.2 scene: begin tick=62 sceneTick=-2147483586
+32225.2 scene: snapshot status=3 stale=0 states=0
+32225.2 scene: camera mode=first-person target=1 follows=47 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32225.2 scene: observer done
+32225.2 scene: hud fxDue=0 drawable=0
+32225.2 scene: done
+32225.6 draw: begin tick=62 frames=41
+32225.7 draw: end frames=42 pending=0
+32225.7 loop n=81 tick=62
+32241.0 loop n=82 tick=62
+32241.0 audio: advance tick=63 cursor=63 seen=5 played=0 skippedVoice=1 missing=1 dup=34
+32241.0 scene: begin tick=63 sceneTick=-2147483585
+32241.0 scene: snapshot status=3 stale=0 states=0
+32241.0 scene: camera mode=first-person target=1 follows=48 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32241.0 scene: observer done
+32241.0 scene: hud fxDue=0 drawable=0
+32241.1 scene: done
+32241.9 draw: begin tick=63 frames=42
+32242.0 draw: end frames=43 pending=0
+32242.0 loop n=83 tick=63
+32256.0 loop n=84 tick=63
+32256.1 audio: advance tick=64 cursor=64 seen=7 played=0 skippedVoice=3 missing=1 dup=35
+32256.1 scene: begin tick=64 sceneTick=-2147483584
+32256.1 scene: snapshot status=3 stale=0 states=0
+32256.1 scene: camera mode=first-person target=1 follows=49 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32256.1 scene: observer done
+32256.1 scene: hud fxDue=0 drawable=0
+32256.1 scene: done
+32256.8 draw: begin tick=64 frames=43
+32263.1 draw: end frames=44 pending=0
+32263.2 loop n=85 tick=64
+32271.6 loop n=86 tick=64
+32271.6 audio: advance tick=65 cursor=65 seen=7 played=0 skippedVoice=3 missing=1 dup=36
+32271.6 scene: begin tick=65 sceneTick=-2147483583
+32271.6 scene: snapshot status=3 stale=0 states=0
+32271.6 scene: camera mode=first-person target=1 follows=50 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32271.6 scene: observer done
+32271.6 scene: hud fxDue=0 drawable=0
+32271.6 scene: done
+32272.1 draw: begin tick=65 frames=44
+32285.8 draw: end frames=45 pending=0
+32285.8 loop n=87 tick=65
+32285.8 audio: advance tick=66 cursor=66 seen=7 played=0 skippedVoice=3 missing=1 dup=36
+32285.8 scene: begin tick=66 sceneTick=-2147483582
+32285.8 scene: snapshot status=3 stale=0 states=0
+32285.8 scene: camera mode=first-person target=1 follows=51 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32285.8 scene: observer done
+32285.8 scene: hud fxDue=0 drawable=0
+32285.8 scene: done
+32286.0 draw: begin tick=66 frames=45
+32298.7 draw: end frames=46 pending=0
+32298.8 loop n=88 tick=66
+32298.8 audio: advance tick=67 cursor=67 seen=7 played=0 skippedVoice=3 missing=1 dup=36
+32298.8 scene: begin tick=67 sceneTick=-2147483581
+32298.8 scene: snapshot status=3 stale=0 states=0
+32298.8 scene: camera mode=first-person target=1 follows=52 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32298.8 scene: observer done
+32298.9 scene: hud fxDue=0 drawable=0
+32298.9 scene: done
+32299.1 metrics t=1.00 tick=67 iter=88
+32299.1 draw: begin tick=67 frames=46
+32311.6 draw: end frames=47 pending=0
+32311.7 loop n=89 tick=67
+32311.7 audio: advance tick=68 cursor=68 seen=7 played=0 skippedVoice=3 missing=1 dup=36
+32311.7 scene: begin tick=68 sceneTick=-2147483580
+32311.7 scene: snapshot status=3 stale=0 states=0
+32311.7 scene: camera mode=first-person target=1 follows=53 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32311.7 scene: observer done
+32311.7 scene: hud fxDue=0 drawable=0
+32311.7 scene: done
+32312.2 draw: begin tick=68 frames=47
+32333.5 draw: end frames=48 pending=0
+32333.6 loop n=90 tick=68
+32333.6 audio: advance tick=70 cursor=70 seen=7 played=0 skippedVoice=3 missing=1 dup=36
+32333.6 scene: begin tick=70 sceneTick=-2147483578
+32333.6 scene: snapshot status=3 stale=0 states=0
+32333.6 scene: camera mode=first-person target=1 follows=54 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32333.6 scene: observer done
+32333.6 scene: hud fxDue=0 drawable=0
+32333.6 scene: done
+32334.1 draw: begin tick=70 frames=48
+32350.4 draw: end frames=49 pending=0
+32350.4 loop n=91 tick=70
+32350.4 audio: advance tick=71 cursor=71 seen=7 played=0 skippedVoice=3 missing=1 dup=36
+32350.4 scene: begin tick=71 sceneTick=-2147483577
+32350.4 scene: snapshot status=3 stale=0 states=0
+32350.4 scene: camera mode=first-person target=1 follows=55 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32350.4 scene: observer done
+32350.4 scene: hud fxDue=0 drawable=0
+32350.4 scene: done
+32351.6 draw: begin tick=71 frames=49
+32359.8 draw: end frames=50 pending=0
+32359.8 loop n=92 tick=71
+32359.9 draw: begin tick=71 frames=50
+32377.6 draw: end frames=51 pending=0
+32377.6 loop n=93 tick=71
+32377.6 audio: advance tick=72 cursor=72 seen=7 played=0 skippedVoice=3 missing=1 dup=37
+32377.6 scene: begin tick=72 sceneTick=-2147483576
+32377.6 scene: snapshot status=3 stale=0 states=0
+32377.6 scene: camera mode=first-person target=1 follows=56 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32377.6 scene: observer done
+32377.6 scene: hud fxDue=0 drawable=0
+32377.6 scene: done
+32377.9 draw: begin tick=72 frames=51
+32390.3 draw: end frames=52 pending=0
+32390.3 loop n=94 tick=72
+32390.3 audio: advance tick=73 cursor=73 seen=7 played=0 skippedVoice=3 missing=1 dup=37
+32390.3 scene: begin tick=73 sceneTick=-2147483575
+32390.4 scene: snapshot status=3 stale=0 states=0
+32390.4 scene: camera mode=first-person target=1 follows=57 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32390.4 scene: observer done
+32390.4 scene: hud fxDue=0 drawable=0
+32390.4 scene: done
+32390.6 draw: begin tick=73 frames=52
+32408.0 draw: end frames=53 pending=0
+32408.0 loop n=95 tick=73
+32408.0 audio: advance tick=75 cursor=75 seen=7 played=0 skippedVoice=3 missing=1 dup=37
+32408.0 scene: begin tick=75 sceneTick=-2147483573
+32408.0 scene: snapshot status=3 stale=0 states=0
+32408.1 scene: camera mode=first-person target=1 follows=58 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32408.1 scene: observer done
+32408.1 scene: hud fxDue=0 drawable=0
+32408.1 scene: done
+32408.3 draw: begin tick=75 frames=53
+32420.7 draw: end frames=54 pending=0
+32420.7 loop n=96 tick=75
+32420.8 draw: begin tick=75 frames=54
+32434.5 draw: end frames=55 pending=0
+32434.6 loop n=97 tick=75
+32434.6 audio: advance tick=76 cursor=76 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32434.6 scene: begin tick=76 sceneTick=-2147483572
+32434.6 scene: snapshot status=3 stale=0 states=0
+32434.6 scene: camera mode=first-person target=1 follows=59 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32434.6 scene: observer done
+32434.6 scene: hud fxDue=0 drawable=0
+32434.6 scene: done
+32434.8 draw: begin tick=76 frames=55
+32447.9 draw: end frames=56 pending=0
+32448.0 loop n=98 tick=76
+32448.0 audio: advance tick=77 cursor=77 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32448.0 scene: begin tick=77 sceneTick=-2147483571
+32448.0 scene: snapshot status=3 stale=0 states=0
+32448.0 scene: camera mode=first-person target=1 follows=60 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32448.0 scene: observer done
+32448.0 scene: hud fxDue=0 drawable=0
+32448.0 scene: done
+32448.3 draw: begin tick=77 frames=56
+32457.0 draw: end frames=57 pending=0
+32457.1 loop n=99 tick=77
+32457.1 audio: advance tick=78 cursor=78 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32457.1 scene: begin tick=78 sceneTick=-2147483570
+32457.1 scene: snapshot status=3 stale=0 states=0
+32457.1 scene: camera mode=first-person target=1 follows=61 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32457.1 scene: observer done
+32457.1 scene: hud fxDue=0 drawable=0
+32457.1 scene: done
+32457.3 draw: begin tick=78 frames=57
+32475.5 draw: end frames=58 pending=0
+32475.6 loop n=100 tick=78
+32475.6 audio: advance tick=79 cursor=79 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32475.6 scene: begin tick=79 sceneTick=-2147483569
+32475.6 scene: snapshot status=3 stale=0 states=0
+32475.6 scene: camera mode=first-person target=1 follows=62 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32475.6 scene: observer done
+32475.6 scene: hud fxDue=0 drawable=0
+32475.6 scene: done
+32475.9 draw: begin tick=79 frames=58
+32492.8 draw: end frames=59 pending=0
+32492.9 loop n=101 tick=79
+32492.9 audio: advance tick=80 cursor=80 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32492.9 scene: begin tick=80 sceneTick=-2147483568
+32492.9 scene: snapshot status=3 stale=0 states=0
+32492.9 scene: camera mode=first-person target=1 follows=63 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32492.9 scene: observer done
+32492.9 scene: hud fxDue=0 drawable=0
+32492.9 scene: done
+32493.6 draw: begin tick=80 frames=59
+32510.2 draw: end frames=60 pending=0
+32510.2 loop n=102 tick=80
+32510.2 audio: advance tick=81 cursor=81 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32510.2 scene: begin tick=81 sceneTick=-2147483567
+32510.2 scene: snapshot status=3 stale=0 states=0
+32510.2 scene: camera mode=first-person target=1 follows=64 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32510.2 scene: observer done
+32510.2 scene: hud fxDue=0 drawable=0
+32510.2 scene: done
+32510.6 draw: begin tick=81 frames=60
+32519.3 draw: end frames=61 pending=0
+32519.3 loop n=103 tick=81
+32519.3 audio: advance tick=82 cursor=82 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32519.3 scene: begin tick=82 sceneTick=-2147483566
+32519.3 scene: snapshot status=3 stale=0 states=0
+32519.3 scene: camera mode=first-person target=1 follows=65 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32519.3 scene: observer done
+32519.3 scene: hud fxDue=0 drawable=0
+32519.3 scene: done
+32519.5 draw: begin tick=82 frames=61
+32538.9 draw: end frames=62 pending=0
+32538.9 loop n=104 tick=82
+32539.0 audio: advance tick=83 cursor=83 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32539.0 scene: begin tick=83 sceneTick=-2147483565
+32539.0 scene: snapshot status=3 stale=0 states=0
+32539.0 scene: camera mode=first-person target=1 follows=66 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32539.0 scene: observer done
+32539.0 scene: hud fxDue=0 drawable=0
+32539.0 scene: done
+32540.3 draw: begin tick=83 frames=62
+32548.3 draw: end frames=63 pending=0
+32548.4 loop n=105 tick=83
+32548.4 audio: advance tick=84 cursor=84 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32548.4 scene: begin tick=84 sceneTick=-2147483564
+32548.4 scene: snapshot status=3 stale=0 states=0
+32548.4 scene: camera mode=first-person target=1 follows=67 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32548.4 scene: observer done
+32548.4 scene: hud fxDue=0 drawable=0
+32548.4 scene: done
+32548.7 draw: begin tick=84 frames=63
+32561.7 draw: end frames=64 pending=0
+32561.7 loop n=106 tick=84
+32561.7 audio: advance tick=85 cursor=85 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32561.7 scene: begin tick=85 sceneTick=-2147483563
+32561.7 scene: snapshot status=3 stale=0 states=0
+32561.7 scene: camera mode=first-person target=1 follows=68 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32561.8 scene: observer done
+32561.8 scene: hud fxDue=0 drawable=0
+32561.8 scene: done
+32562.2 draw: begin tick=85 frames=64
+32575.5 draw: end frames=65 pending=0
+32575.5 loop n=107 tick=85
+32575.5 audio: advance tick=86 cursor=86 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32575.5 scene: begin tick=86 sceneTick=-2147483562
+32575.5 scene: snapshot status=3 stale=0 states=0
+32575.6 scene: camera mode=first-person target=1 follows=69 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32575.6 scene: observer done
+32575.6 scene: hud fxDue=0 drawable=0
+32575.6 scene: done
+32575.8 draw: begin tick=86 frames=65
+32593.3 draw: end frames=66 pending=0
+32593.3 loop n=108 tick=86
+32593.3 audio: advance tick=87 cursor=87 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32593.3 scene: begin tick=87 sceneTick=-2147483561
+32593.3 scene: snapshot status=3 stale=0 states=0
+32593.3 scene: camera mode=first-person target=1 follows=70 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32593.3 scene: observer done
+32593.3 scene: hud fxDue=0 drawable=0
+32593.3 scene: done
+32593.5 draw: begin tick=87 frames=66
+32614.5 draw: end frames=67 pending=0
+32614.5 loop n=109 tick=87
+32614.5 audio: advance tick=88 cursor=88 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32614.5 scene: begin tick=88 sceneTick=-2147483560
+32614.5 scene: snapshot status=3 stale=0 states=0
+32614.5 scene: camera mode=first-person target=1 follows=71 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32614.5 scene: observer done
+32614.6 scene: hud fxDue=0 drawable=0
+32614.6 scene: done
+32614.8 draw: begin tick=88 frames=67
+32632.5 draw: end frames=68 pending=0
+32632.6 loop n=110 tick=88
+32632.6 audio: advance tick=89 cursor=89 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32632.6 scene: begin tick=89 sceneTick=-2147483559
+32632.6 scene: snapshot status=3 stale=0 states=0
+32632.6 scene: camera mode=first-person target=1 follows=72 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32632.6 scene: observer done
+32632.6 scene: hud fxDue=0 drawable=0
+32632.6 scene: done
+32632.9 draw: begin tick=89 frames=68
+32649.9 draw: end frames=69 pending=0
+32650.0 loop n=111 tick=89
+32650.0 audio: advance tick=91 cursor=91 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32650.0 scene: begin tick=91 sceneTick=-2147483557
+32650.0 scene: snapshot status=3 stale=0 states=0
+32650.0 scene: camera mode=first-person target=1 follows=73 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32650.0 scene: observer done
+32650.0 scene: hud fxDue=0 drawable=0
+32650.0 scene: done
+32650.4 draw: begin tick=91 frames=69
+32664.4 draw: end frames=70 pending=0
+32664.4 loop n=112 tick=91
+32664.4 audio: advance tick=92 cursor=92 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32664.4 scene: begin tick=92 sceneTick=-2147483556
+32664.4 scene: snapshot status=3 stale=0 states=0
+32664.4 scene: camera mode=first-person target=1 follows=74 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32664.4 scene: observer done
+32664.4 scene: hud fxDue=0 drawable=0
+32664.4 scene: done
+32664.6 draw: begin tick=92 frames=70
+32682.7 draw: end frames=71 pending=0
+32682.7 loop n=113 tick=92
+32682.7 audio: advance tick=93 cursor=93 seen=7 played=0 skippedVoice=3 missing=1 dup=38
+32682.8 scene: begin tick=93 sceneTick=-2147483555
+32682.8 scene: snapshot status=3 stale=0 states=0
+32682.8 scene: camera mode=first-person target=1 follows=75 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32682.8 scene: observer done
+32682.8 scene: hud fxDue=0 drawable=0
+32682.8 scene: done
+32683.9 draw: begin tick=93 frames=71
+32692.1 draw: end frames=72 pending=0
+32692.2 loop n=114 tick=93
+32692.2 draw: begin tick=93 frames=72
+32714.8 draw: end frames=73 pending=0
+32714.8 loop n=115 tick=93
+32714.8 audio: advance tick=95 cursor=95 seen=7 played=0 skippedVoice=3 missing=1 dup=39
+32714.8 scene: begin tick=95 sceneTick=-2147483553
+32714.8 scene: snapshot status=3 stale=0 states=0
+32714.8 scene: camera mode=first-person target=1 follows=76 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32714.8 scene: observer done
+32714.8 scene: hud fxDue=0 drawable=0
+32714.8 scene: done
+32715.4 draw: begin tick=95 frames=73
+32743.8 draw: end frames=74 pending=0
+32743.8 loop n=116 tick=95
+32744.0 audio: advance tick=97 cursor=97 seen=22 played=0 skippedVoice=16 missing=1 dup=39
+32744.0 scene: begin tick=97 sceneTick=-2147483551
+32744.0 scene: snapshot status=3 stale=0 states=0
+32744.0 scene: camera mode=first-person target=1 follows=77 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32744.0 scene: observer done
+32744.0 scene: hud fxDue=0 drawable=0
+32744.0 scene: done
+32745.7 draw: begin tick=97 frames=74
+32748.4 draw: end frames=75 pending=0
+32748.5 loop n=117 tick=97
+32754.7 loop n=118 tick=97
+32754.7 audio: advance tick=98 cursor=98 seen=22 played=0 skippedVoice=16 missing=1 dup=40
+32754.7 scene: begin tick=98 sceneTick=-2147483550
+32754.8 scene: snapshot status=3 stale=0 states=0
+32754.8 scene: camera mode=first-person target=1 follows=78 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32754.8 scene: observer done
+32754.8 scene: hud fxDue=0 drawable=0
+32754.8 scene: done
+32755.1 draw: begin tick=98 frames=75
+32755.2 draw: end frames=76 pending=0
+32755.2 loop n=119 tick=98
+32770.3 loop n=120 tick=98
+32770.4 audio: advance tick=99 cursor=99 seen=22 played=0 skippedVoice=16 missing=1 dup=41
+32770.4 scene: begin tick=99 sceneTick=-2147483549
+32770.4 scene: snapshot status=3 stale=0 states=0
+32770.4 scene: camera mode=first-person target=1 follows=79 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32770.4 scene: observer done
+32770.4 scene: hud fxDue=0 drawable=0
+32770.4 scene: done
+32770.7 draw: begin tick=99 frames=76
+32770.9 draw: end frames=77 pending=0
+32770.9 loop n=121 tick=99
+32786.0 loop n=122 tick=99
+32786.1 audio: advance tick=100 cursor=100 seen=22 played=0 skippedVoice=16 missing=1 dup=42
+32786.1 scene: begin tick=100 sceneTick=-2147483548
+32786.1 scene: snapshot status=3 stale=0 states=0
+32786.1 scene: camera mode=first-person target=1 follows=80 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32786.1 scene: observer done
+32786.1 scene: hud fxDue=0 drawable=0
+32786.1 scene: done
+32786.8 draw: begin tick=100 frames=77
+32786.9 draw: end frames=78 pending=0
+32786.9 loop n=123 tick=100
+32800.9 loop n=124 tick=100
+32801.0 audio: advance tick=101 cursor=101 seen=22 played=0 skippedVoice=16 missing=1 dup=43
+32801.0 scene: begin tick=101 sceneTick=-2147483547
+32801.0 scene: snapshot status=3 stale=0 states=0
+32801.1 scene: camera mode=first-person target=1 follows=81 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32801.1 scene: observer done
+32801.1 scene: hud fxDue=0 drawable=0
+32801.1 scene: done
+32801.3 draw: begin tick=101 frames=78
+32801.4 draw: end frames=79 pending=0
+32801.4 loop n=125 tick=101
+32816.1 loop n=126 tick=101
+32816.2 audio: advance tick=102 cursor=102 seen=22 played=0 skippedVoice=16 missing=1 dup=44
+32816.2 scene: begin tick=102 sceneTick=-2147483546
+32816.2 scene: snapshot status=3 stale=0 states=0
+32816.2 scene: camera mode=first-person target=1 follows=82 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32816.2 scene: observer done
+32816.2 scene: hud fxDue=0 drawable=0
+32816.2 scene: done
+32816.8 draw: begin tick=102 frames=79
+32817.0 draw: end frames=80 pending=0
+32817.0 loop n=127 tick=102
+32831.8 loop n=128 tick=102
+32831.9 audio: advance tick=103 cursor=103 seen=22 played=0 skippedVoice=16 missing=1 dup=45
+32831.9 scene: begin tick=103 sceneTick=-2147483545
+32831.9 scene: snapshot status=3 stale=0 states=0
+32831.9 scene: camera mode=first-person target=1 follows=83 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32831.9 scene: observer done
+32831.9 scene: hud fxDue=0 drawable=0
+32831.9 scene: done
+32832.1 draw: begin tick=103 frames=80
+32850.2 draw: end frames=81 pending=0
+32850.2 loop n=129 tick=103
+32850.2 audio: advance tick=105 cursor=105 seen=22 played=0 skippedVoice=16 missing=1 dup=45
+32850.2 scene: begin tick=105 sceneTick=-2147483543
+32850.2 scene: snapshot status=3 stale=0 states=0
+32850.2 scene: camera mode=first-person target=1 follows=84 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32850.2 scene: observer done
+32850.2 scene: hud fxDue=0 drawable=0
+32850.2 scene: done
+32850.5 draw: begin tick=105 frames=81
+32990.0 draw: end frames=82 pending=0
+32990.0 loop n=130 tick=105
+32990.5 audio: advance tick=114 cursor=114 seen=26 played=0 skippedVoice=16 missing=1 dup=45
+32990.5 scene: begin tick=114 sceneTick=-2147483534
+32990.5 scene: snapshot status=3 stale=0 states=0
+32990.5 scene: camera mode=first-person target=1 follows=85 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+32990.5 scene: observer done
+32990.5 scene: hud fxDue=0 drawable=0
+32990.5 scene: done
+32990.8 draw: begin tick=114 frames=82
+33167.0 draw: end frames=83 pending=0
+33167.1 loop n=131 tick=114
+33167.4 audio: advance tick=126 cursor=126 seen=29 played=0 skippedVoice=18 missing=1 dup=45
+33167.4 scene: begin tick=126 sceneTick=-2147483522
+33167.4 scene: snapshot status=3 stale=0 states=0
+33167.4 scene: camera mode=first-person target=1 follows=86 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33167.4 scene: observer done
+33167.4 scene: hud fxDue=0 drawable=0
+33167.4 scene: done
+33167.6 draw: begin tick=126 frames=83
+33246.7 draw: end frames=84 pending=0
+33246.7 loop n=132 tick=126
+33246.7 audio: advance tick=131 cursor=131 seen=29 played=0 skippedVoice=18 missing=1 dup=45
+33246.7 scene: begin tick=131 sceneTick=-2147483517
+33246.7 scene: snapshot status=3 stale=0 states=0
+33246.8 scene: camera mode=first-person target=1 follows=87 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33246.8 scene: observer done
+33246.8 scene: hud fxDue=0 drawable=0
+33246.8 scene: done
+33247.4 draw: begin tick=131 frames=84
+33398.3 draw: end frames=85 pending=0
+33398.4 loop n=133 tick=131
+33398.4 audio: advance tick=141 cursor=141 seen=29 played=0 skippedVoice=18 missing=1 dup=45
+33398.4 scene: begin tick=141 sceneTick=-2147483507
+33398.4 scene: snapshot status=3 stale=0 states=0
+33398.4 scene: camera mode=first-person target=1 follows=88 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33398.4 scene: observer done
+33398.4 scene: hud fxDue=0 drawable=0
+33398.4 scene: done
+33398.6 draw: begin tick=141 frames=85
+33399.4 draw: end frames=86 pending=0
+33399.4 loop n=134 tick=141
+33407.0 loop n=135 tick=141
+33407.0 audio: advance tick=142 cursor=142 seen=29 played=0 skippedVoice=18 missing=1 dup=46
+33407.0 scene: begin tick=142 sceneTick=-2147483506
+33407.0 scene: snapshot status=3 stale=0 states=0
+33407.0 scene: camera mode=first-person target=1 follows=89 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33407.0 scene: observer done
+33407.0 scene: hud fxDue=0 drawable=0
+33407.0 scene: done
+33408.4 draw: begin tick=142 frames=86
+33408.5 draw: end frames=87 pending=0
+33408.5 loop n=136 tick=142
+33421.9 loop n=137 tick=142
+33422.0 audio: advance tick=143 cursor=143 seen=29 played=0 skippedVoice=18 missing=1 dup=47
+33422.0 scene: begin tick=143 sceneTick=-2147483505
+33422.0 scene: snapshot status=3 stale=0 states=0
+33422.0 scene: camera mode=first-person target=1 follows=90 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33422.0 scene: observer done
+33422.0 scene: hud fxDue=0 drawable=0
+33422.0 scene: done
+33426.8 draw: begin tick=143 frames=87
+33426.9 draw: end frames=88 pending=0
+33427.0 loop n=138 tick=143
+33437.3 loop n=139 tick=143
+33437.6 audio: advance tick=144 cursor=144 seen=31 played=0 skippedVoice=18 missing=1 dup=48
+33437.6 scene: begin tick=144 sceneTick=-2147483504
+33437.6 scene: snapshot status=3 stale=0 states=0
+33437.6 scene: camera mode=first-person target=1 follows=91 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33437.6 scene: observer done
+33437.6 scene: hud fxDue=0 drawable=0
+33437.7 scene: done
+33439.2 draw: begin tick=144 frames=88
+33439.3 draw: end frames=89 pending=0
+33439.3 loop n=140 tick=144
+33452.8 loop n=141 tick=144
+33452.8 audio: advance tick=145 cursor=145 seen=31 played=0 skippedVoice=18 missing=1 dup=49
+33452.8 scene: begin tick=145 sceneTick=-2147483503
+33452.8 scene: snapshot status=3 stale=0 states=0
+33452.8 scene: camera mode=first-person target=1 follows=92 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33452.8 scene: observer done
+33452.8 scene: hud fxDue=0 drawable=0
+33452.8 scene: done
+33453.0 draw: begin tick=145 frames=89
+33453.1 draw: end frames=90 pending=0
+33453.1 loop n=142 tick=145
+33468.2 loop n=143 tick=145
+33468.2 audio: advance tick=146 cursor=146 seen=31 played=0 skippedVoice=18 missing=1 dup=50
+33468.3 scene: begin tick=146 sceneTick=-2147483502
+33468.3 scene: snapshot status=3 stale=0 states=0
+33468.3 scene: camera mode=first-person target=1 follows=93 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33468.3 scene: observer done
+33468.3 scene: hud fxDue=0 drawable=0
+33468.3 scene: done
+33468.8 draw: begin tick=146 frames=90
+33468.9 draw: end frames=91 pending=0
+33468.9 loop n=144 tick=146
+33484.3 loop n=145 tick=146
+33484.4 audio: advance tick=147 cursor=147 seen=31 played=0 skippedVoice=18 missing=1 dup=51
+33484.4 scene: begin tick=147 sceneTick=-2147483501
+33484.4 scene: snapshot status=3 stale=0 states=0
+33484.4 scene: camera mode=first-person target=1 follows=94 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33484.4 scene: observer done
+33484.4 scene: hud fxDue=0 drawable=0
+33484.4 scene: done
+33484.7 draw: begin tick=147 frames=91
+33484.8 draw: end frames=92 pending=0
+33484.8 loop n=146 tick=147
+33485.1 audio: advance tick=148 cursor=148 seen=32 played=0 skippedVoice=18 missing=1 dup=51
+33485.1 scene: begin tick=148 sceneTick=-2147483500
+33485.1 scene: snapshot status=3 stale=0 states=0
+33485.1 scene: camera mode=first-person target=1 follows=95 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33485.1 scene: observer done
+33485.1 scene: hud fxDue=0 drawable=0
+33485.1 scene: done
+33500.0 loop n=147 tick=148
+33500.1 audio: advance tick=149 cursor=149 seen=32 played=0 skippedVoice=18 missing=1 dup=51
+33500.1 scene: begin tick=149 sceneTick=-2147483499
+33500.1 scene: snapshot status=3 stale=0 states=0
+33500.1 scene: camera mode=first-person target=1 follows=96 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33500.1 scene: observer done
+33500.1 scene: hud fxDue=0 drawable=0
+33500.1 scene: done
+33500.5 draw: begin tick=149 frames=92
+33500.7 draw: end frames=93 pending=0
+33500.7 loop n=148 tick=149
+33515.1 loop n=149 tick=149
+33515.2 audio: advance tick=150 cursor=150 seen=32 played=0 skippedVoice=18 missing=1 dup=52
+33515.2 scene: begin tick=150 sceneTick=-2147483498
+33515.2 scene: snapshot status=3 stale=0 states=0
+33515.2 scene: camera mode=first-person target=1 follows=97 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33515.2 scene: observer done
+33515.2 scene: hud fxDue=0 drawable=0
+33515.2 scene: done
+33515.5 draw: begin tick=150 frames=93
+33515.6 draw: end frames=94 pending=0
+33515.6 loop n=150 tick=150
+33530.4 loop n=151 tick=150
+33530.4 audio: advance tick=151 cursor=151 seen=32 played=0 skippedVoice=18 missing=1 dup=53
+33530.4 scene: begin tick=151 sceneTick=-2147483497
+33530.4 scene: snapshot status=3 stale=0 states=0
+33530.4 scene: camera mode=first-person target=1 follows=98 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33530.5 scene: observer done
+33530.5 scene: hud fxDue=0 drawable=0
+33530.5 scene: done
+33531.1 draw: begin tick=151 frames=94
+33533.8 draw: end frames=95 pending=0
+33533.8 loop n=152 tick=151
+33546.6 loop n=153 tick=151
+33546.8 audio: advance tick=152 cursor=152 seen=33 played=0 skippedVoice=18 missing=1 dup=54
+33546.9 scene: begin tick=152 sceneTick=-2147483496
+33546.9 scene: snapshot status=3 stale=0 states=0
+33546.9 scene: camera mode=first-person target=1 follows=99 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33546.9 scene: observer done
+33546.9 scene: hud fxDue=0 drawable=0
+33546.9 scene: done
+33547.6 draw: begin tick=152 frames=95
+33550.0 draw: end frames=96 pending=0
+33550.1 loop n=154 tick=152
+33561.9 loop n=155 tick=152
+33561.9 audio: advance tick=153 cursor=153 seen=33 played=0 skippedVoice=18 missing=1 dup=55
+33562.0 scene: begin tick=153 sceneTick=-2147483495
+33562.0 scene: snapshot status=3 stale=0 states=0
+33562.0 scene: camera mode=first-person target=1 follows=100 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33562.0 scene: observer done
+33562.0 scene: hud fxDue=0 drawable=0
+33562.0 scene: done
+33562.3 draw: begin tick=153 frames=96
+33562.4 draw: end frames=97 pending=0
+33562.4 loop n=156 tick=153
+33577.3 loop n=157 tick=153
+33577.4 audio: advance tick=154 cursor=154 seen=34 played=0 skippedVoice=19 missing=1 dup=56
+33577.4 scene: begin tick=154 sceneTick=-2147483494
+33577.5 scene: snapshot status=3 stale=0 states=0
+33577.5 scene: camera mode=first-person target=1 follows=101 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33577.5 scene: observer done
+33577.5 scene: hud fxDue=0 drawable=0
+33577.5 scene: done
+33578.0 draw: begin tick=154 frames=97
+33578.1 draw: end frames=98 pending=0
+33578.2 loop n=158 tick=154
+33592.4 loop n=159 tick=154
+33592.6 audio: advance tick=155 cursor=155 seen=35 played=0 skippedVoice=19 missing=1 dup=57
+33592.6 scene: begin tick=155 sceneTick=-2147483493
+33592.6 scene: snapshot status=3 stale=0 states=0
+33592.6 scene: camera mode=first-person target=1 follows=102 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33592.6 scene: observer done
+33592.6 scene: hud fxDue=0 drawable=0
+33592.6 scene: done
+33592.8 draw: begin tick=155 frames=98
+33599.8 draw: end frames=99 pending=0
+33599.9 loop n=160 tick=155
+33599.9 audio: advance tick=156 cursor=156 seen=35 played=0 skippedVoice=19 missing=1 dup=57
+33599.9 scene: begin tick=156 sceneTick=-2147483492
+33599.9 scene: snapshot status=3 stale=0 states=0
+33599.9 scene: camera mode=first-person target=1 follows=103 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33599.9 scene: observer done
+33599.9 scene: hud fxDue=0 drawable=0
+33599.9 scene: done
+33607.7 loop n=161 tick=156
+33607.7 audio: advance tick=157 cursor=157 seen=35 played=0 skippedVoice=19 missing=1 dup=57
+33607.7 scene: begin tick=157 sceneTick=-2147483491
+33607.7 scene: snapshot status=3 stale=0 states=0
+33607.7 scene: camera mode=first-person target=1 follows=104 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33607.7 scene: observer done
+33607.7 scene: hud fxDue=0 drawable=0
+33607.7 scene: done
+33608.4 draw: begin tick=157 frames=99
+33616.9 draw: end frames=100 pending=0
+33616.9 loop n=162 tick=157
+33617.0 draw: begin tick=157 frames=100
+33645.3 draw: end frames=101 pending=0
+33645.3 loop n=163 tick=157
+33646.0 audio: advance tick=159 cursor=159 seen=36 played=0 skippedVoice=19 missing=1 dup=58
+33646.0 scene: begin tick=159 sceneTick=-2147483489
+33646.0 scene: snapshot status=3 stale=0 states=0
+33646.0 scene: camera mode=first-person target=1 follows=105 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33646.1 scene: observer done
+33646.1 scene: hud fxDue=0 drawable=0
+33646.1 scene: done
+33646.2 draw: begin tick=159 frames=101
+33658.9 draw: end frames=102 pending=0
+33658.9 loop n=164 tick=159
+33658.9 audio: advance tick=160 cursor=160 seen=36 played=0 skippedVoice=19 missing=1 dup=58
+33658.9 scene: begin tick=160 sceneTick=-2147483488
+33658.9 scene: snapshot status=3 stale=0 states=0
+33658.9 scene: camera mode=first-person target=1 follows=106 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33658.9 scene: observer done
+33659.0 scene: hud fxDue=0 drawable=0
+33659.0 scene: done
+33659.1 draw: begin tick=160 frames=102
+33660.0 draw: end frames=103 pending=0
+33660.0 loop n=165 tick=160
+33671.8 loop n=166 tick=160
+33671.9 audio: advance tick=161 cursor=161 seen=36 played=0 skippedVoice=19 missing=1 dup=59
+33671.9 scene: begin tick=161 sceneTick=-2147483487
+33671.9 scene: snapshot status=3 stale=0 states=0
+33671.9 scene: camera mode=first-person target=1 follows=107 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33671.9 scene: observer done
+33671.9 scene: hud fxDue=0 drawable=0
+33671.9 scene: done
+33675.0 draw: begin tick=161 frames=103
+33675.1 draw: end frames=104 pending=0
+33675.1 loop n=167 tick=161
+33685.9 loop n=168 tick=161
+33685.9 audio: advance tick=162 cursor=162 seen=36 played=0 skippedVoice=19 missing=1 dup=60
+33685.9 scene: begin tick=162 sceneTick=-2147483486
+33685.9 scene: snapshot status=3 stale=0 states=0
+33686.0 scene: camera mode=first-person target=1 follows=108 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33686.0 scene: observer done
+33686.0 scene: hud fxDue=0 drawable=0
+33686.0 scene: done
+33687.0 draw: begin tick=162 frames=104
+33687.1 draw: end frames=105 pending=0
+33687.1 loop n=169 tick=162
+33701.7 loop n=170 tick=162
+33701.7 audio: advance tick=163 cursor=163 seen=36 played=0 skippedVoice=19 missing=1 dup=61
+33701.7 scene: begin tick=163 sceneTick=-2147483485
+33701.7 scene: snapshot status=3 stale=0 states=0
+33701.7 scene: camera mode=first-person target=1 follows=109 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33701.7 scene: observer done
+33701.7 scene: hud fxDue=0 drawable=0
+33701.7 scene: done
+33703.8 draw: begin tick=163 frames=105
+33703.9 draw: end frames=106 pending=0
+33703.9 loop n=171 tick=163
+33703.9 audio: advance tick=164 cursor=164 seen=37 played=0 skippedVoice=19 missing=2 dup=61
+33703.9 scene: begin tick=164 sceneTick=-2147483484
+33703.9 scene: snapshot status=3 stale=0 states=0
+33703.9 scene: camera mode=first-person target=1 follows=110 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33704.0 scene: observer done
+33704.0 scene: hud fxDue=0 drawable=0
+33704.0 scene: done
+33717.0 loop n=172 tick=164
+33717.1 audio: advance tick=165 cursor=165 seen=37 played=0 skippedVoice=19 missing=2 dup=61
+33717.1 scene: begin tick=165 sceneTick=-2147483483
+33717.1 scene: snapshot status=3 stale=0 states=0
+33717.1 scene: camera mode=first-person target=1 follows=111 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33717.1 scene: observer done
+33717.1 scene: hud fxDue=0 drawable=0
+33717.1 scene: done
+33718.4 draw: begin tick=165 frames=106
+33718.6 draw: end frames=107 pending=0
+33718.6 loop n=173 tick=165
+33732.7 loop n=174 tick=165
+33732.9 audio: advance tick=166 cursor=166 seen=39 played=0 skippedVoice=19 missing=2 dup=62
+33732.9 scene: begin tick=166 sceneTick=-2147483482
+33732.9 scene: snapshot status=3 stale=0 states=0
+33732.9 scene: camera mode=first-person target=1 follows=112 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33732.9 scene: observer done
+33732.9 scene: hud fxDue=0 drawable=0
+33732.9 scene: done
+33734.3 draw: begin tick=166 frames=107
+33734.4 draw: end frames=108 pending=0
+33734.4 loop n=175 tick=166
+33748.4 loop n=176 tick=166
+33748.5 audio: advance tick=167 cursor=167 seen=39 played=0 skippedVoice=19 missing=2 dup=63
+33748.5 scene: begin tick=167 sceneTick=-2147483481
+33748.5 scene: snapshot status=3 stale=0 states=0
+33748.5 scene: camera mode=first-person target=1 follows=113 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33748.5 scene: observer done
+33748.5 scene: hud fxDue=0 drawable=0
+33748.5 scene: done
+33749.3 draw: begin tick=167 frames=108
+33749.3 draw: end frames=109 pending=0
+33749.3 loop n=177 tick=167
+33763.5 loop n=178 tick=167
+33763.5 audio: advance tick=168 cursor=168 seen=39 played=0 skippedVoice=19 missing=2 dup=64
+33763.5 scene: begin tick=168 sceneTick=-2147483480
+33763.5 scene: snapshot status=3 stale=0 states=0
+33763.6 scene: camera mode=first-person target=1 follows=114 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33763.6 scene: observer done
+33763.6 scene: hud fxDue=0 drawable=0
+33763.6 scene: done
+33764.5 draw: begin tick=168 frames=109
+33764.6 draw: end frames=110 pending=0
+33764.6 loop n=179 tick=168
+33779.3 loop n=180 tick=168
+33779.3 audio: advance tick=169 cursor=169 seen=39 played=0 skippedVoice=19 missing=2 dup=65
+33779.3 scene: begin tick=169 sceneTick=-2147483479
+33779.4 scene: snapshot status=3 stale=0 states=0
+33779.4 scene: camera mode=first-person target=1 follows=115 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33779.4 scene: observer done
+33779.4 scene: hud fxDue=0 drawable=0
+33779.4 scene: done
+33781.0 draw: begin tick=169 frames=110
+33781.1 draw: end frames=111 pending=0
+33781.1 loop n=181 tick=169
+33794.0 loop n=182 tick=169
+33794.1 audio: advance tick=170 cursor=170 seen=39 played=0 skippedVoice=19 missing=2 dup=66
+33794.1 scene: begin tick=170 sceneTick=-2147483478
+33794.1 scene: snapshot status=3 stale=0 states=0
+33794.1 scene: camera mode=first-person target=1 follows=116 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33794.1 scene: observer done
+33794.1 scene: hud fxDue=0 drawable=0
+33794.1 scene: done
+33796.1 draw: begin tick=170 frames=111
+33796.3 draw: end frames=112 pending=0
+33796.3 loop n=183 tick=170
+33809.5 loop n=184 tick=170
+33809.5 audio: advance tick=171 cursor=171 seen=39 played=0 skippedVoice=19 missing=2 dup=67
+33809.5 scene: begin tick=171 sceneTick=-2147483477
+33809.5 scene: snapshot status=3 stale=0 states=0
+33809.5 scene: camera mode=first-person target=1 follows=117 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33809.5 scene: observer done
+33809.5 scene: hud fxDue=0 drawable=0
+33809.5 scene: done
+33810.6 draw: begin tick=171 frames=112
+33810.7 draw: end frames=113 pending=0
+33810.7 loop n=185 tick=171
+33824.7 loop n=186 tick=171
+33824.8 audio: advance tick=173 cursor=173 seen=40 played=0 skippedVoice=19 missing=2 dup=68
+33824.8 scene: begin tick=173 sceneTick=-2147483475
+33824.8 scene: snapshot status=3 stale=0 states=0
+33824.8 scene: camera mode=first-person target=1 follows=118 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33824.8 scene: observer done
+33824.8 scene: hud fxDue=0 drawable=0
+33824.8 scene: done
+33824.9 draw: begin tick=173 frames=113
+33825.1 draw: end frames=114 pending=0
+33825.1 loop n=187 tick=173
+33839.9 loop n=188 tick=173
+33839.9 audio: advance tick=174 cursor=174 seen=40 played=0 skippedVoice=19 missing=2 dup=69
+33839.9 scene: begin tick=174 sceneTick=-2147483474
+33839.9 scene: snapshot status=3 stale=0 states=0
+33839.9 scene: camera mode=first-person target=1 follows=119 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33840.0 scene: observer done
+33840.0 scene: hud fxDue=0 drawable=0
+33840.0 scene: done
+33840.7 draw: begin tick=174 frames=114
+33840.8 draw: end frames=115 pending=0
+33840.8 loop n=189 tick=174
+33855.7 loop n=190 tick=174
+33855.8 audio: advance tick=175 cursor=175 seen=40 played=0 skippedVoice=19 missing=2 dup=70
+33855.8 scene: begin tick=175 sceneTick=-2147483473
+33855.8 scene: snapshot status=3 stale=0 states=0
+33855.8 scene: camera mode=first-person target=1 follows=120 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33855.8 scene: observer done
+33855.8 scene: hud fxDue=0 drawable=0
+33855.8 scene: done
+33857.4 draw: begin tick=175 frames=115
+33857.5 draw: end frames=116 pending=0
+33857.5 loop n=191 tick=175
+33871.7 loop n=192 tick=175
+33871.7 audio: advance tick=176 cursor=176 seen=40 played=0 skippedVoice=19 missing=2 dup=71
+33871.7 scene: begin tick=176 sceneTick=-2147483472
+33871.7 scene: snapshot status=3 stale=0 states=0
+33871.8 scene: camera mode=first-person target=1 follows=121 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33871.8 scene: observer done
+33871.8 scene: hud fxDue=0 drawable=0
+33871.8 scene: done
+33872.9 draw: begin tick=176 frames=116
+33908.6 draw: end frames=117 pending=0
+33908.6 loop n=193 tick=176
+33908.6 audio: advance tick=178 cursor=178 seen=40 played=0 skippedVoice=19 missing=2 dup=71
+33908.6 scene: begin tick=178 sceneTick=-2147483470
+33908.6 scene: snapshot status=3 stale=0 states=0
+33908.7 scene: camera mode=first-person target=1 follows=122 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+33908.7 scene: observer done
+33908.7 scene: hud fxDue=0 drawable=0
+33908.7 scene: done
+33908.9 draw: begin tick=178 frames=117
+34128.9 draw: end frames=118 pending=0
+34128.9 loop n=194 tick=178
+34129.0 audio: advance tick=193 cursor=193 seen=44 played=0 skippedVoice=20 missing=2 dup=71
+34129.0 scene: begin tick=193 sceneTick=-2147483455
+34129.0 scene: snapshot status=3 stale=0 states=0
+34129.0 scene: camera mode=first-person target=1 follows=123 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+34129.0 scene: observer done
+34129.1 scene: hud fxDue=0 drawable=0
+34129.1 scene: done
+34129.3 draw: begin tick=193 frames=118
+37129.6 draw: end frames=119 pending=0
+37129.7 loop n=195 tick=193
+37130.2 audio: advance tick=209 cursor=209 seen=53 played=0 skippedVoice=20 missing=4 dup=71
+37130.2 scene: begin tick=209 sceneTick=-2147483439
+37130.2 scene: snapshot status=3 stale=0 states=0
+37130.2 scene: camera mode=first-person target=1 follows=124 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+37130.2 scene: observer done
+37130.2 scene: hud fxDue=0 drawable=0
+37130.2 scene: done
+37130.7 draw: begin tick=209 frames=119
+37310.4 draw: end frames=120 pending=0
+37310.4 loop n=196 tick=209
+37310.7 audio: advance tick=221 cursor=221 seen=55 played=0 skippedVoice=20 missing=4 dup=71
+37310.7 scene: begin tick=221 sceneTick=-2147483427
+37310.7 scene: snapshot status=3 stale=0 states=0
+37310.7 scene: camera mode=first-person target=1 follows=125 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+37310.7 scene: observer done
+37310.7 scene: hud fxDue=0 drawable=0
+37310.7 scene: done
+37310.9 draw: begin tick=221 frames=120
+37311.7 draw: end frames=121 pending=0
+37311.8 loop n=197 tick=221
+37321.8 loop n=198 tick=221
+37321.9 audio: advance tick=222 cursor=222 seen=55 played=0 skippedVoice=20 missing=4 dup=72
+37321.9 scene: begin tick=222 sceneTick=-2147483426
+37321.9 scene: snapshot status=3 stale=0 states=0
+37321.9 scene: camera mode=first-person target=1 follows=126 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+37321.9 scene: observer done
+37321.9 scene: hud fxDue=0 drawable=0
+37322.0 scene: done
+37322.2 draw: begin tick=222 frames=121
+37322.4 draw: end frames=122 pending=0
+37322.4 loop n=199 tick=222
+37337.0 loop n=200 tick=222
+37337.1 audio: advance tick=223 cursor=223 seen=55 played=0 skippedVoice=20 missing=4 dup=73
+37337.1 scene: begin tick=223 sceneTick=-2147483425
+37337.1 scene: snapshot status=3 stale=0 states=0
+37337.1 scene: camera mode=first-person target=1 follows=127 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+37337.1 scene: observer done
+37337.1 scene: hud fxDue=0 drawable=0
+37337.1 scene: done
+37337.5 draw: begin tick=223 frames=122
+38337.6 draw: end frames=123 pending=0
+38337.6 loop n=201 tick=223
+38337.7 audio: advance tick=239 cursor=239 seen=58 played=0 skippedVoice=20 missing=4 dup=73
+38337.7 scene: begin tick=239 sceneTick=-2147483409
+38337.7 scene: snapshot status=3 stale=0 states=0
+38337.8 scene: camera mode=first-person target=1 follows=128 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+38337.8 scene: observer done
+38337.8 scene: hud fxDue=0 drawable=0
+38337.8 scene: done
+38338.0 draw: begin tick=239 frames=123
+39397.9 draw: end frames=124 pending=0
+39397.9 loop n=202 tick=239
+39398.0 audio: advance tick=255 cursor=255 seen=61 played=0 skippedVoice=21 missing=4 dup=73
+39398.0 scene: begin tick=255 sceneTick=-2147483393
+39398.0 scene: snapshot status=3 stale=0 states=0
+39398.0 scene: camera mode=first-person target=1 follows=129 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+39398.0 scene: observer done
+39398.0 scene: hud fxDue=0 drawable=0
+39398.0 scene: done
+39398.5 draw: begin tick=255 frames=124
+39399.2 draw: end frames=125 pending=0
+39399.2 loop n=203 tick=255
+39421.8 loop n=204 tick=255
+39421.9 audio: advance tick=257 cursor=257 seen=61 played=0 skippedVoice=21 missing=4 dup=74
+39421.9 scene: begin tick=257 sceneTick=-2147483391
+39421.9 scene: snapshot status=3 stale=0 states=0
+39421.9 scene: camera mode=first-person target=1 follows=130 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+39421.9 scene: observer done
+39421.9 scene: hud fxDue=0 drawable=0
+39421.9 scene: done
+39423.6 draw: begin tick=257 frames=125
+39423.8 draw: end frames=126 pending=0
+39423.8 loop n=205 tick=257
+39437.9 loop n=206 tick=257
+39438.0 audio: advance tick=258 cursor=258 seen=63 played=0 skippedVoice=22 missing=5 dup=75
+39438.0 scene: begin tick=258 sceneTick=-2147483390
+39438.0 scene: snapshot status=3 stale=0 states=0
+39438.0 scene: camera mode=first-person target=1 follows=131 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+39438.0 scene: observer done
+39438.0 scene: hud fxDue=0 drawable=0
+39438.0 scene: done
+39438.3 draw: begin tick=258 frames=126
+39438.4 draw: end frames=127 pending=0
+39438.4 loop n=207 tick=258
+39453.0 loop n=208 tick=258
+39453.1 audio: advance tick=259 cursor=259 seen=65 played=0 skippedVoice=22 missing=7 dup=76
+39453.1 scene: begin tick=259 sceneTick=-2147483389
+39453.1 scene: snapshot status=3 stale=0 states=0
+39453.1 scene: camera mode=first-person target=1 follows=132 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+39453.1 scene: observer done
+39453.1 scene: hud fxDue=0 drawable=0
+39453.1 scene: done
+39453.8 draw: begin tick=259 frames=127
+40453.9 draw: end frames=128 pending=0
+40453.9 loop n=209 tick=259
+40454.2 audio: advance tick=275 cursor=275 seen=69 played=0 skippedVoice=22 missing=8 dup=76
+40454.2 scene: begin tick=275 sceneTick=-2147483373
+40454.2 scene: snapshot status=3 stale=0 states=0
+40454.2 scene: camera mode=first-person target=1 follows=133 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+40454.2 scene: observer done
+40454.2 scene: hud fxDue=0 drawable=0
+40454.2 scene: done
+40454.4 draw: begin tick=275 frames=128
+40879.1 draw: end frames=129 pending=0
+40879.2 loop n=210 tick=275
+40879.6 audio: advance tick=291 cursor=291 seen=77 played=0 skippedVoice=22 missing=13 dup=76
+40879.6 scene: begin tick=291 sceneTick=-2147483357
+40879.6 scene: snapshot status=3 stale=0 states=0
+40879.6 scene: camera mode=first-person target=1 follows=134 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+40879.6 scene: observer done
+40879.6 scene: hud fxDue=0 drawable=0
+40879.6 scene: done
+40880.2 draw: begin tick=291 frames=129
+41232.5 draw: end frames=130 pending=0
+41232.5 loop n=211 tick=291
+41232.8 audio: advance tick=307 cursor=307 seen=95 played=0 skippedVoice=29 missing=18 dup=76
+41232.8 scene: begin tick=307 sceneTick=-2147483341
+41232.8 scene: snapshot status=3 stale=0 states=0
+41232.8 scene: camera mode=first-person target=1 follows=135 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41232.8 scene: observer done
+41232.8 scene: hud fxDue=0 drawable=0
+41232.8 scene: done
+41234.3 draw: begin tick=307 frames=130
+41234.4 draw: end frames=131 pending=0
+41234.4 loop n=212 tick=307
+41243.7 loop n=213 tick=307
+41243.8 audio: advance tick=308 cursor=308 seen=95 played=0 skippedVoice=29 missing=18 dup=77
+41243.8 scene: begin tick=308 sceneTick=-2147483340
+41243.8 scene: snapshot status=3 stale=0 states=0
+41243.8 scene: camera mode=first-person target=1 follows=136 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41243.8 scene: observer done
+41243.8 scene: hud fxDue=0 drawable=0
+41243.8 scene: done
+41244.0 draw: begin tick=308 frames=131
+41244.0 draw: end frames=132 pending=0
+41244.0 loop n=214 tick=308
+41258.8 loop n=215 tick=308
+41258.8 audio: advance tick=309 cursor=309 seen=95 played=0 skippedVoice=29 missing=18 dup=78
+41258.8 scene: begin tick=309 sceneTick=-2147483339
+41258.8 scene: snapshot status=3 stale=0 states=0
+41258.8 scene: camera mode=first-person target=1 follows=137 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41258.8 scene: observer done
+41258.8 scene: hud fxDue=0 drawable=0
+41258.8 scene: done
+41259.1 draw: begin tick=309 frames=132
+41259.2 draw: end frames=133 pending=0
+41259.2 loop n=216 tick=309
+41274.3 loop n=217 tick=309
+41274.4 audio: advance tick=310 cursor=310 seen=95 played=0 skippedVoice=29 missing=18 dup=79
+41274.4 scene: begin tick=310 sceneTick=-2147483338
+41274.4 scene: snapshot status=3 stale=0 states=0
+41274.4 scene: camera mode=first-person target=1 follows=138 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41274.4 scene: observer done
+41274.4 scene: hud fxDue=0 drawable=0
+41274.4 scene: done
+41274.7 draw: begin tick=310 frames=133
+41444.5 draw: end frames=134 pending=0
+41444.6 loop n=218 tick=310
+41444.6 audio: advance tick=321 cursor=321 seen=97 played=0 skippedVoice=29 missing=20 dup=79
+41444.6 scene: begin tick=321 sceneTick=-2147483327
+41444.6 scene: snapshot status=3 stale=0 states=0
+41444.6 scene: camera mode=first-person target=1 follows=139 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41444.6 scene: observer done
+41444.6 scene: hud fxDue=0 drawable=0
+41444.6 scene: done
+41444.8 draw: begin tick=321 frames=134
+41444.8 draw: end frames=135 pending=0
+41444.9 loop n=219 tick=321
+41444.9 audio: advance tick=322 cursor=322 seen=98 played=0 skippedVoice=29 missing=21 dup=79
+41444.9 scene: begin tick=322 sceneTick=-2147483326
+41444.9 scene: snapshot status=3 stale=0 states=0
+41444.9 scene: camera mode=first-person target=1 follows=140 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41444.9 scene: observer done
+41444.9 scene: hud fxDue=0 drawable=0
+41444.9 scene: done
+41461.6 loop n=220 tick=322
+41461.7 audio: advance tick=323 cursor=323 seen=99 played=0 skippedVoice=29 missing=22 dup=79
+41461.7 scene: begin tick=323 sceneTick=-2147483325
+41461.7 scene: snapshot status=3 stale=0 states=0
+41461.7 scene: camera mode=first-person target=1 follows=141 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41461.7 scene: observer done
+41461.7 scene: hud fxDue=0 drawable=0
+41461.8 scene: done
+41462.6 draw: begin tick=323 frames=135
+41462.7 draw: end frames=136 pending=0
+41462.8 loop n=221 tick=323
+41477.1 loop n=222 tick=323
+41477.1 audio: advance tick=324 cursor=324 seen=100 played=0 skippedVoice=29 missing=23 dup=80
+41477.1 scene: begin tick=324 sceneTick=-2147483324
+41477.1 scene: snapshot status=3 stale=0 states=0
+41477.2 scene: camera mode=first-person target=1 follows=142 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41477.2 scene: observer done
+41477.2 scene: hud fxDue=0 drawable=0
+41477.2 scene: done
+41477.7 draw: begin tick=324 frames=136
+41477.8 draw: end frames=137 pending=0
+41477.8 loop n=223 tick=324
+41491.7 loop n=224 tick=324
+41491.8 audio: advance tick=325 cursor=325 seen=101 played=0 skippedVoice=29 missing=24 dup=81
+41491.9 scene: begin tick=325 sceneTick=-2147483323
+41491.9 scene: snapshot status=3 stale=0 states=0
+41491.9 scene: camera mode=first-person target=1 follows=143 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+41491.9 scene: observer done
+41491.9 scene: hud fxDue=0 drawable=0
+41491.9 scene: done
+41492.4 draw: begin tick=325 frames=137
+42492.6 draw: end frames=138 pending=0
+42492.6 loop n=225 tick=325
+42492.7 audio: advance tick=341 cursor=341 seen=110 played=0 skippedVoice=30 missing=32 dup=81
+42492.7 scene: begin tick=341 sceneTick=-2147483307
+42492.7 scene: snapshot status=3 stale=0 states=0
+42492.7 scene: camera mode=first-person target=1 follows=144 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+42492.7 scene: observer done
+42492.7 scene: hud fxDue=0 drawable=0
+42492.7 scene: done
+42492.9 draw: begin tick=341 frames=138
+43089.3 draw: end frames=139 pending=0
+43089.3 loop n=226 tick=341
+43091.6 audio: advance tick=357 cursor=357 seen=217 played=0 skippedVoice=43 missing=68 dup=81
+43091.6 scene: begin tick=357 sceneTick=-2147483291
+43091.6 scene: snapshot status=3 stale=0 states=0
+43091.6 scene: camera mode=first-person target=1 follows=145 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43091.6 scene: observer done
+43091.6 scene: hud fxDue=0 drawable=0
+43091.6 scene: done
+43092.3 draw: begin tick=357 frames=139
+43274.3 draw: end frames=140 pending=0
+43274.3 loop n=227 tick=357
+43274.4 audio: advance tick=370 cursor=370 seen=219 played=0 skippedVoice=43 missing=68 dup=81
+43274.5 scene: begin tick=370 sceneTick=-2147483278
+43274.5 scene: snapshot status=3 stale=0 states=0
+43274.5 scene: camera mode=first-person target=1 follows=146 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43274.5 scene: observer done
+43274.5 scene: hud fxDue=0 drawable=0
+43274.5 scene: done
+43274.7 draw: begin tick=370 frames=140
+43299.7 draw: end frames=141 pending=0
+43299.7 loop n=228 tick=370
+43299.7 audio: advance tick=371 cursor=371 seen=219 played=0 skippedVoice=43 missing=68 dup=81
+43299.7 scene: begin tick=371 sceneTick=-2147483277
+43299.7 scene: snapshot status=3 stale=0 states=0
+43299.7 scene: camera mode=first-person target=1 follows=147 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43299.8 scene: observer done
+43299.8 scene: hud fxDue=0 drawable=0
+43299.8 scene: done
+43300.0 draw: begin tick=371 frames=141
+43323.0 draw: end frames=142 pending=0
+43323.0 loop n=229 tick=371
+43323.1 audio: advance tick=373 cursor=373 seen=219 played=0 skippedVoice=43 missing=68 dup=81
+43323.1 scene: begin tick=373 sceneTick=-2147483275
+43323.1 scene: snapshot status=3 stale=0 states=0
+43323.1 scene: camera mode=first-person target=1 follows=148 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43323.1 scene: observer done
+43323.1 scene: hud fxDue=0 drawable=0
+43323.1 scene: done
+43323.3 draw: begin tick=373 frames=142
+43327.9 draw: end frames=143 pending=0
+43327.9 loop n=230 tick=373
+43341.4 loop n=231 tick=373
+43341.4 audio: advance tick=374 cursor=374 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43341.5 scene: begin tick=374 sceneTick=-2147483274
+43341.5 scene: snapshot status=3 stale=0 states=0
+43341.5 scene: camera mode=first-person target=1 follows=149 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43341.5 scene: observer done
+43341.5 scene: hud fxDue=0 drawable=0
+43341.5 scene: done
+43342.5 draw: begin tick=374 frames=143
+43345.7 draw: end frames=144 pending=0
+43345.7 loop n=232 tick=374
+43345.7 audio: advance tick=375 cursor=375 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43345.7 scene: begin tick=375 sceneTick=-2147483273
+43345.7 scene: snapshot status=3 stale=0 states=0
+43345.7 scene: camera mode=first-person target=1 follows=150 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43345.7 scene: observer done
+43345.7 scene: hud fxDue=0 drawable=0
+43345.7 scene: done
+43356.8 loop n=233 tick=375
+43356.8 audio: advance tick=376 cursor=376 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43356.8 scene: begin tick=376 sceneTick=-2147483272
+43356.8 scene: snapshot status=3 stale=0 states=0
+43356.8 scene: camera mode=first-person target=1 follows=151 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43356.8 scene: observer done
+43356.8 scene: hud fxDue=0 drawable=0
+43356.8 scene: done
+43357.7 draw: begin tick=376 frames=144
+43377.7 draw: end frames=145 pending=0
+43377.8 loop n=234 tick=376
+43377.8 audio: advance tick=377 cursor=377 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43377.8 scene: begin tick=377 sceneTick=-2147483271
+43377.8 scene: snapshot status=3 stale=0 states=0
+43377.8 scene: camera mode=first-person target=1 follows=152 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43377.8 scene: observer done
+43377.8 scene: hud fxDue=0 drawable=0
+43377.8 scene: done
+43378.0 draw: begin tick=377 frames=145
+43391.4 draw: end frames=146 pending=0
+43391.5 loop n=235 tick=377
+43391.5 audio: advance tick=378 cursor=378 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43391.5 scene: begin tick=378 sceneTick=-2147483270
+43391.5 scene: snapshot status=3 stale=0 states=0
+43391.5 scene: camera mode=first-person target=1 follows=153 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43391.5 scene: observer done
+43391.5 scene: hud fxDue=0 drawable=0
+43391.5 scene: done
+43391.7 draw: begin tick=378 frames=146
+43422.8 draw: end frames=147 pending=0
+43422.8 loop n=236 tick=378
+43422.8 audio: advance tick=380 cursor=380 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43422.8 scene: begin tick=380 sceneTick=-2147483268
+43422.8 scene: snapshot status=3 stale=0 states=0
+43422.8 scene: camera mode=first-person target=1 follows=154 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43422.8 scene: observer done
+43422.8 scene: hud fxDue=0 drawable=0
+43422.9 scene: done
+43423.1 draw: begin tick=380 frames=147
+43440.9 draw: end frames=148 pending=0
+43440.9 loop n=237 tick=380
+43440.9 audio: advance tick=381 cursor=381 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43440.9 scene: begin tick=381 sceneTick=-2147483267
+43440.9 scene: snapshot status=3 stale=0 states=0
+43440.9 scene: camera mode=first-person target=1 follows=155 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43440.9 scene: observer done
+43440.9 scene: hud fxDue=0 drawable=0
+43441.0 scene: done
+43441.2 draw: begin tick=381 frames=148
+43458.6 draw: end frames=149 pending=0
+43458.6 loop n=238 tick=381
+43458.6 audio: advance tick=382 cursor=382 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43458.6 scene: begin tick=382 sceneTick=-2147483266
+43458.6 scene: snapshot status=3 stale=0 states=0
+43458.7 scene: camera mode=first-person target=1 follows=156 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43458.7 scene: observer done
+43458.7 scene: hud fxDue=0 drawable=0
+43458.7 scene: done
+43458.9 draw: begin tick=382 frames=149
+43481.0 draw: end frames=150 pending=0
+43481.0 loop n=239 tick=382
+43481.0 audio: advance tick=384 cursor=384 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43481.0 scene: begin tick=384 sceneTick=-2147483264
+43481.0 scene: snapshot status=3 stale=0 states=0
+43481.0 scene: camera mode=first-person target=1 follows=157 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43481.0 scene: observer done
+43481.0 scene: hud fxDue=0 drawable=0
+43481.0 scene: done
+43481.4 draw: begin tick=384 frames=150
+43504.3 draw: end frames=151 pending=0
+43504.3 loop n=240 tick=384
+43504.4 audio: advance tick=385 cursor=385 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43504.4 scene: begin tick=385 sceneTick=-2147483263
+43504.4 scene: snapshot status=3 stale=0 states=0
+43504.4 scene: camera mode=first-person target=1 follows=158 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43504.4 scene: observer done
+43504.4 scene: hud fxDue=0 drawable=0
+43504.4 scene: done
+43504.6 draw: begin tick=385 frames=151
+43526.8 draw: end frames=152 pending=0
+43526.9 loop n=241 tick=385
+43526.9 audio: advance tick=387 cursor=387 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43526.9 scene: begin tick=387 sceneTick=-2147483261
+43526.9 scene: snapshot status=3 stale=0 states=0
+43526.9 scene: camera mode=first-person target=1 follows=159 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43526.9 scene: observer done
+43526.9 scene: hud fxDue=0 drawable=0
+43526.9 scene: done
+43527.5 draw: begin tick=387 frames=152
+43544.3 draw: end frames=153 pending=0
+43544.3 loop n=242 tick=387
+43544.3 audio: advance tick=388 cursor=388 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43544.3 scene: begin tick=388 sceneTick=-2147483260
+43544.3 scene: snapshot status=3 stale=0 states=0
+43544.3 scene: camera mode=first-person target=1 follows=160 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43544.4 scene: observer done
+43544.4 scene: hud fxDue=0 drawable=0
+43544.4 scene: done
+43544.6 draw: begin tick=388 frames=153
+43553.5 draw: end frames=154 pending=0
+43553.5 loop n=243 tick=388
+43553.5 audio: advance tick=389 cursor=389 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43553.6 scene: begin tick=389 sceneTick=-2147483259
+43553.6 scene: snapshot status=3 stale=0 states=0
+43553.6 scene: camera mode=first-person target=1 follows=161 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43553.6 scene: observer done
+43553.6 scene: hud fxDue=0 drawable=0
+43553.6 scene: done
+43554.1 draw: begin tick=389 frames=154
+43581.0 draw: end frames=155 pending=0
+43581.1 loop n=244 tick=389
+43581.1 audio: advance tick=391 cursor=391 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43581.1 scene: begin tick=391 sceneTick=-2147483257
+43581.1 scene: snapshot status=3 stale=0 states=0
+43581.1 scene: camera mode=first-person target=1 follows=162 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43581.1 scene: observer done
+43581.1 scene: hud fxDue=0 drawable=0
+43581.1 scene: done
+43581.4 draw: begin tick=391 frames=155
+43612.2 draw: end frames=156 pending=0
+43612.2 loop n=245 tick=391
+43612.2 audio: advance tick=393 cursor=393 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43612.2 scene: begin tick=393 sceneTick=-2147483255
+43612.2 scene: snapshot status=3 stale=0 states=0
+43612.3 scene: camera mode=first-person target=1 follows=163 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43612.3 scene: observer done
+43612.3 scene: hud fxDue=0 drawable=0
+43612.3 scene: done
+43612.9 draw: begin tick=393 frames=156
+43626.5 draw: end frames=157 pending=0
+43626.6 loop n=246 tick=393
+43626.6 audio: advance tick=394 cursor=394 seen=219 played=0 skippedVoice=43 missing=68 dup=82
+43626.6 scene: begin tick=394 sceneTick=-2147483254
+43626.6 scene: snapshot status=3 stale=0 states=0
+43626.6 scene: camera mode=first-person target=1 follows=164 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43626.6 scene: observer done
+43626.6 scene: hud fxDue=0 drawable=0
+43626.6 scene: done
+43627.4 draw: begin tick=394 frames=157
+43635.7 draw: end frames=158 pending=0
+43635.7 loop n=247 tick=394
+43635.8 draw: begin tick=394 frames=158
+43659.6 draw: end frames=159 pending=0
+43659.6 loop n=248 tick=394
+43659.6 audio: advance tick=396 cursor=396 seen=219 played=0 skippedVoice=43 missing=68 dup=83
+43659.6 scene: begin tick=396 sceneTick=-2147483252
+43659.6 scene: snapshot status=3 stale=0 states=0
+43659.7 scene: camera mode=first-person target=1 follows=165 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43659.7 scene: observer done
+43659.7 scene: hud fxDue=0 drawable=0
+43659.7 scene: done
+43660.0 draw: begin tick=396 frames=159
+43671.3 draw: end frames=160 pending=0
+43671.3 loop n=249 tick=396
+43671.3 audio: advance tick=397 cursor=397 seen=219 played=0 skippedVoice=43 missing=68 dup=83
+43671.3 scene: begin tick=397 sceneTick=-2147483251
+43671.3 scene: snapshot status=3 stale=0 states=0
+43671.3 scene: camera mode=first-person target=1 follows=166 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43671.3 scene: observer done
+43671.3 scene: hud fxDue=0 drawable=0
+43671.3 scene: done
+43672.3 draw: begin tick=397 frames=160
+43690.7 draw: end frames=161 pending=0
+43690.8 loop n=250 tick=397
+43690.8 audio: advance tick=398 cursor=398 seen=219 played=0 skippedVoice=43 missing=68 dup=83
+43690.8 scene: begin tick=398 sceneTick=-2147483250
+43690.8 scene: snapshot status=3 stale=0 states=0
+43690.8 scene: camera mode=first-person target=1 follows=167 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43690.8 scene: observer done
+43690.8 scene: hud fxDue=0 drawable=0
+43690.8 scene: done
+43691.1 draw: begin tick=398 frames=161
+43713.1 draw: end frames=162 pending=0
+43713.1 loop n=251 tick=398
+43713.1 audio: advance tick=399 cursor=399 seen=219 played=0 skippedVoice=43 missing=68 dup=83
+43713.1 scene: begin tick=399 sceneTick=-2147483249
+43713.1 scene: snapshot status=3 stale=0 states=0
+43713.1 scene: camera mode=first-person target=1 follows=168 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43713.1 scene: observer done
+43713.1 scene: hud fxDue=0 drawable=0
+43713.1 scene: done
+43713.4 draw: begin tick=399 frames=162
+43727.8 draw: end frames=163 pending=0
+43727.9 loop n=252 tick=399
+43727.9 audio: advance tick=400 cursor=400 seen=219 played=0 skippedVoice=43 missing=68 dup=83
+43727.9 scene: begin tick=400 sceneTick=-2147483248
+43727.9 scene: snapshot status=3 stale=0 states=0
+43727.9 scene: camera mode=first-person target=1 follows=169 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43727.9 scene: observer done
+43728.0 scene: hud fxDue=0 drawable=0
+43728.0 scene: done
+43728.3 draw: begin tick=400 frames=163
+43745.7 draw: end frames=164 pending=0
+43745.7 loop n=253 tick=400
+43745.7 audio: advance tick=402 cursor=402 seen=219 played=0 skippedVoice=43 missing=68 dup=83
+43745.7 scene: begin tick=402 sceneTick=-2147483246
+43745.7 scene: snapshot status=3 stale=0 states=0
+43745.7 scene: camera mode=first-person target=1 follows=170 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43745.7 scene: observer done
+43745.7 scene: hud fxDue=0 drawable=0
+43745.7 scene: done
+43746.0 draw: begin tick=402 frames=164
+43759.4 draw: end frames=165 pending=0
+43759.4 loop n=254 tick=402
+43759.5 draw: begin tick=402 frames=165
+43778.4 draw: end frames=166 pending=0
+43778.4 loop n=255 tick=402
+43778.4 audio: advance tick=404 cursor=404 seen=219 played=0 skippedVoice=43 missing=68 dup=84
+43778.4 scene: begin tick=404 sceneTick=-2147483244
+43778.4 scene: snapshot status=3 stale=0 states=0
+43778.4 scene: camera mode=first-person target=1 follows=171 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43778.5 scene: observer done
+43778.5 scene: hud fxDue=0 drawable=0
+43778.5 scene: done
+43778.8 draw: begin tick=404 frames=166
+43792.5 draw: end frames=167 pending=0
+43792.5 loop n=256 tick=404
+43792.5 audio: advance tick=405 cursor=405 seen=219 played=0 skippedVoice=43 missing=68 dup=84
+43792.5 scene: begin tick=405 sceneTick=-2147483243
+43792.5 scene: snapshot status=3 stale=0 states=0
+43792.5 scene: camera mode=first-person target=1 follows=172 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43792.5 scene: observer done
+43792.5 scene: hud fxDue=0 drawable=0
+43792.5 scene: done
+43792.7 draw: begin tick=405 frames=167
+43824.9 draw: end frames=168 pending=0
+43825.0 loop n=257 tick=405
+43825.0 audio: advance tick=407 cursor=407 seen=219 played=0 skippedVoice=43 missing=68 dup=84
+43825.0 scene: begin tick=407 sceneTick=-2147483241
+43825.0 scene: snapshot status=3 stale=0 states=0
+43825.0 scene: camera mode=first-person target=1 follows=173 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43825.0 scene: observer done
+43825.0 scene: hud fxDue=0 drawable=0
+43825.0 scene: done
+43825.2 draw: begin tick=407 frames=168
+43847.7 draw: end frames=169 pending=0
+43847.8 loop n=258 tick=407
+43847.8 audio: advance tick=408 cursor=408 seen=219 played=0 skippedVoice=43 missing=68 dup=84
+43847.8 scene: begin tick=408 sceneTick=-2147483240
+43847.8 scene: snapshot status=3 stale=0 states=0
+43847.8 scene: camera mode=first-person target=1 follows=174 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43847.8 scene: observer done
+43847.8 scene: hud fxDue=0 drawable=0
+43847.8 scene: done
+43848.0 draw: begin tick=408 frames=169
+43862.3 draw: end frames=170 pending=0
+43862.4 loop n=259 tick=408
+43862.4 audio: advance tick=409 cursor=409 seen=220 played=0 skippedVoice=44 missing=68 dup=84
+43862.4 scene: begin tick=409 sceneTick=-2147483239
+43862.4 scene: snapshot status=3 stale=0 states=0
+43862.4 scene: camera mode=first-person target=1 follows=175 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43862.4 scene: observer done
+43862.4 scene: hud fxDue=0 drawable=0
+43862.4 scene: done
+43862.8 draw: begin tick=409 frames=170
+43882.3 draw: end frames=171 pending=0
+43882.3 loop n=260 tick=409
+43882.3 audio: advance tick=411 cursor=411 seen=220 played=0 skippedVoice=44 missing=68 dup=84
+43882.3 scene: begin tick=411 sceneTick=-2147483237
+43882.3 scene: snapshot status=3 stale=0 states=0
+43882.4 scene: camera mode=first-person target=1 follows=176 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43882.4 scene: observer done
+43882.4 scene: hud fxDue=0 drawable=0
+43882.4 scene: done
+43882.6 draw: begin tick=411 frames=171
+43895.4 draw: end frames=172 pending=0
+43895.4 loop n=261 tick=411
+43895.4 audio: advance tick=412 cursor=412 seen=220 played=0 skippedVoice=44 missing=68 dup=84
+43895.4 scene: begin tick=412 sceneTick=-2147483236
+43895.4 scene: snapshot status=3 stale=0 states=0
+43895.5 scene: camera mode=first-person target=1 follows=177 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43895.5 scene: observer done
+43895.5 scene: hud fxDue=0 drawable=0
+43895.5 scene: done
+43896.6 draw: begin tick=412 frames=172
+43905.4 draw: end frames=173 pending=0
+43905.5 loop n=262 tick=412
+43905.5 draw: begin tick=412 frames=173
+43921.1 draw: end frames=174 pending=0
+43921.1 loop n=263 tick=412
+43921.1 audio: advance tick=413 cursor=413 seen=220 played=0 skippedVoice=44 missing=68 dup=85
+43921.1 scene: begin tick=413 sceneTick=-2147483235
+43921.1 scene: snapshot status=3 stale=0 states=0
+43921.1 scene: camera mode=first-person target=1 follows=178 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43921.1 scene: observer done
+43921.2 scene: hud fxDue=0 drawable=0
+43921.2 scene: done
+43921.4 draw: begin tick=413 frames=174
+43949.3 draw: end frames=175 pending=0
+43949.3 loop n=264 tick=413
+43949.3 audio: advance tick=415 cursor=415 seen=220 played=0 skippedVoice=44 missing=68 dup=85
+43949.3 scene: begin tick=415 sceneTick=-2147483233
+43949.3 scene: snapshot status=3 stale=0 states=0
+43949.4 scene: camera mode=first-person target=1 follows=179 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43949.4 scene: observer done
+43949.4 scene: hud fxDue=0 drawable=0
+43949.4 scene: done
+43950.2 draw: begin tick=415 frames=175
+43950.4 draw: end frames=176 pending=0
+43950.4 loop n=265 tick=415
+43961.9 loop n=266 tick=415
+43962.0 audio: advance tick=416 cursor=416 seen=220 played=0 skippedVoice=44 missing=68 dup=86
+43962.0 scene: begin tick=416 sceneTick=-2147483232
+43962.0 scene: snapshot status=3 stale=0 states=0
+43962.0 scene: camera mode=first-person target=1 follows=180 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43962.0 scene: observer done
+43962.0 scene: hud fxDue=0 drawable=0
+43962.0 scene: done
+43963.9 draw: begin tick=416 frames=176
+43964.0 draw: end frames=177 pending=0
+43964.0 loop n=267 tick=416
+43976.9 loop n=268 tick=416
+43976.9 audio: advance tick=417 cursor=417 seen=220 played=0 skippedVoice=44 missing=68 dup=87
+43976.9 scene: begin tick=417 sceneTick=-2147483231
+43976.9 scene: snapshot status=3 stale=0 states=0
+43976.9 scene: camera mode=first-person target=1 follows=181 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43976.9 scene: observer done
+43976.9 scene: hud fxDue=0 drawable=0
+43977.0 scene: done
+43977.6 draw: begin tick=417 frames=177
+43977.7 draw: end frames=178 pending=0
+43977.7 loop n=269 tick=417
+43992.8 loop n=270 tick=417
+43992.9 audio: advance tick=418 cursor=418 seen=220 played=0 skippedVoice=44 missing=68 dup=88
+43992.9 scene: begin tick=418 sceneTick=-2147483230
+43992.9 scene: snapshot status=3 stale=0 states=0
+43992.9 scene: camera mode=first-person target=1 follows=182 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+43992.9 scene: observer done
+43992.9 scene: hud fxDue=0 drawable=0
+43992.9 scene: done
+43993.5 draw: begin tick=418 frames=178
+43993.6 draw: end frames=179 pending=0
+43993.6 loop n=271 tick=418
+44009.1 loop n=272 tick=418
+44009.1 audio: advance tick=419 cursor=419 seen=220 played=0 skippedVoice=44 missing=68 dup=89
+44009.1 scene: begin tick=419 sceneTick=-2147483229
+44009.1 scene: snapshot status=3 stale=0 states=0
+44009.1 scene: camera mode=first-person target=1 follows=183 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44009.1 scene: observer done
+44009.1 scene: hud fxDue=0 drawable=0
+44009.2 scene: done
+44009.4 draw: begin tick=419 frames=179
+44009.5 draw: end frames=180 pending=0
+44009.5 loop n=273 tick=419
+44025.2 loop n=274 tick=419
+44025.3 audio: advance tick=421 cursor=421 seen=220 played=0 skippedVoice=44 missing=68 dup=90
+44025.3 scene: begin tick=421 sceneTick=-2147483227
+44025.3 scene: snapshot status=3 stale=0 states=0
+44025.3 scene: camera mode=first-person target=1 follows=184 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44025.3 scene: observer done
+44025.3 scene: hud fxDue=0 drawable=0
+44025.3 scene: done
+44026.0 draw: begin tick=421 frames=180
+44026.1 draw: end frames=181 pending=0
+44026.1 loop n=275 tick=421
+44040.5 loop n=276 tick=421
+44040.6 audio: advance tick=422 cursor=422 seen=220 played=0 skippedVoice=44 missing=68 dup=91
+44040.6 scene: begin tick=422 sceneTick=-2147483226
+44040.6 scene: snapshot status=3 stale=0 states=0
+44040.6 scene: camera mode=first-person target=1 follows=185 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44040.6 scene: observer done
+44040.6 scene: hud fxDue=0 drawable=0
+44040.6 scene: done
+44042.3 draw: begin tick=422 frames=181
+44042.4 draw: end frames=182 pending=0
+44042.4 loop n=277 tick=422
+44055.8 loop n=278 tick=422
+44055.9 audio: advance tick=423 cursor=423 seen=220 played=0 skippedVoice=44 missing=68 dup=92
+44055.9 scene: begin tick=423 sceneTick=-2147483225
+44055.9 scene: snapshot status=3 stale=0 states=0
+44055.9 scene: camera mode=first-person target=1 follows=186 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44055.9 scene: observer done
+44055.9 scene: hud fxDue=0 drawable=0
+44055.9 scene: done
+44056.6 draw: begin tick=423 frames=182
+44056.7 draw: end frames=183 pending=0
+44056.7 loop n=279 tick=423
+44071.6 loop n=280 tick=423
+44071.6 audio: advance tick=424 cursor=424 seen=220 played=0 skippedVoice=44 missing=68 dup=93
+44071.6 scene: begin tick=424 sceneTick=-2147483224
+44071.6 scene: snapshot status=3 stale=0 states=0
+44071.6 scene: camera mode=first-person target=1 follows=187 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44071.6 scene: observer done
+44071.7 scene: hud fxDue=0 drawable=0
+44071.7 scene: done
+44072.2 draw: begin tick=424 frames=183
+44072.3 draw: end frames=184 pending=0
+44072.3 loop n=281 tick=424
+44086.7 loop n=282 tick=424
+44086.8 audio: advance tick=425 cursor=425 seen=220 played=0 skippedVoice=44 missing=68 dup=94
+44086.8 scene: begin tick=425 sceneTick=-2147483223
+44086.8 scene: snapshot status=3 stale=0 states=0
+44086.9 scene: camera mode=first-person target=1 follows=188 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44086.9 scene: observer done
+44086.9 scene: hud fxDue=0 drawable=0
+44086.9 scene: done
+44087.3 draw: begin tick=425 frames=184
+44087.4 draw: end frames=185 pending=0
+44087.4 loop n=283 tick=425
+44102.3 loop n=284 tick=425
+44102.3 audio: advance tick=426 cursor=426 seen=220 played=0 skippedVoice=44 missing=68 dup=95
+44102.3 scene: begin tick=426 sceneTick=-2147483222
+44102.3 scene: snapshot status=3 stale=0 states=0
+44102.3 scene: camera mode=first-person target=1 follows=189 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44102.3 scene: observer done
+44102.3 scene: hud fxDue=0 drawable=0
+44102.3 scene: done
+44102.5 draw: begin tick=426 frames=185
+44102.6 draw: end frames=186 pending=0
+44102.6 loop n=285 tick=426
+44118.2 loop n=286 tick=426
+44118.2 audio: advance tick=427 cursor=427 seen=220 played=0 skippedVoice=44 missing=68 dup=96
+44118.2 scene: begin tick=427 sceneTick=-2147483221
+44118.2 scene: snapshot status=3 stale=0 states=0
+44118.2 scene: camera mode=first-person target=1 follows=190 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44118.3 scene: observer done
+44118.3 scene: hud fxDue=0 drawable=0
+44118.3 scene: done
+44119.4 draw: begin tick=427 frames=186
+44119.5 draw: end frames=187 pending=0
+44119.5 loop n=287 tick=427
+44133.7 loop n=288 tick=427
+44133.7 audio: advance tick=428 cursor=428 seen=220 played=0 skippedVoice=44 missing=68 dup=97
+44133.7 scene: begin tick=428 sceneTick=-2147483220
+44133.7 scene: snapshot status=3 stale=0 states=0
+44133.7 scene: camera mode=first-person target=1 follows=191 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44133.7 scene: observer done
+44133.7 scene: hud fxDue=0 drawable=0
+44133.7 scene: done
+44134.2 draw: begin tick=428 frames=187
+44134.4 draw: end frames=188 pending=0
+44134.4 loop n=289 tick=428
+44149.1 loop n=290 tick=428
+44149.1 audio: advance tick=429 cursor=429 seen=220 played=0 skippedVoice=44 missing=68 dup=98
+44149.1 scene: begin tick=429 sceneTick=-2147483219
+44149.1 scene: snapshot status=3 stale=0 states=0
+44149.2 scene: camera mode=first-person target=1 follows=192 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44149.2 scene: observer done
+44149.2 scene: hud fxDue=0 drawable=0
+44149.2 scene: done
+44149.4 draw: begin tick=429 frames=188
+44149.5 draw: end frames=189 pending=0
+44149.5 loop n=291 tick=429
+44163.9 loop n=292 tick=429
+44163.9 audio: advance tick=430 cursor=430 seen=220 played=0 skippedVoice=44 missing=68 dup=99
+44163.9 scene: begin tick=430 sceneTick=-2147483218
+44163.9 scene: snapshot status=3 stale=0 states=0
+44163.9 scene: camera mode=first-person target=1 follows=193 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44163.9 scene: observer done
+44164.0 scene: hud fxDue=0 drawable=0
+44164.0 scene: done
+44164.3 draw: begin tick=430 frames=189
+44164.4 draw: end frames=190 pending=0
+44164.4 loop n=293 tick=430
+44179.5 loop n=294 tick=430
+44179.6 audio: advance tick=431 cursor=431 seen=220 played=0 skippedVoice=44 missing=68 dup=100
+44179.6 scene: begin tick=431 sceneTick=-2147483217
+44179.6 scene: snapshot status=3 stale=0 states=0
+44179.6 scene: camera mode=first-person target=1 follows=194 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44179.6 scene: observer done
+44179.6 scene: hud fxDue=0 drawable=0
+44179.6 scene: done
+44180.0 draw: begin tick=431 frames=190
+44180.1 draw: end frames=191 pending=0
+44180.1 loop n=295 tick=431
+44194.7 loop n=296 tick=431
+44194.7 audio: advance tick=432 cursor=432 seen=220 played=0 skippedVoice=44 missing=68 dup=101
+44194.7 scene: begin tick=432 sceneTick=-2147483216
+44194.7 scene: snapshot status=3 stale=0 states=0
+44194.7 scene: camera mode=first-person target=1 follows=195 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44194.7 scene: observer done
+44194.8 scene: hud fxDue=0 drawable=0
+44194.8 scene: done
+44195.1 draw: begin tick=432 frames=191
+44195.2 draw: end frames=192 pending=0
+44195.2 loop n=297 tick=432
+44210.3 loop n=298 tick=432
+44210.3 audio: advance tick=433 cursor=433 seen=220 played=0 skippedVoice=44 missing=68 dup=102
+44210.3 scene: begin tick=433 sceneTick=-2147483215
+44210.3 scene: snapshot status=3 stale=0 states=0
+44210.3 scene: camera mode=first-person target=1 follows=196 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44210.4 scene: observer done
+44210.4 scene: hud fxDue=0 drawable=0
+44210.4 scene: done
+44210.6 draw: begin tick=433 frames=192
+44210.7 draw: end frames=193 pending=0
+44210.7 loop n=299 tick=433
+44224.9 loop n=300 tick=433
+44225.0 audio: advance tick=434 cursor=434 seen=221 played=0 skippedVoice=45 missing=68 dup=103
+44225.1 scene: begin tick=434 sceneTick=-2147483214
+44225.1 scene: snapshot status=3 stale=0 states=0
+44225.1 scene: camera mode=first-person target=1 follows=197 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44225.1 scene: observer done
+44225.1 scene: hud fxDue=0 drawable=0
+44225.1 scene: done
+44225.4 draw: begin tick=434 frames=193
+44225.5 draw: end frames=194 pending=0
+44225.5 loop n=301 tick=434
+44241.7 loop n=302 tick=434
+44241.7 audio: advance tick=436 cursor=436 seen=221 played=0 skippedVoice=45 missing=68 dup=104
+44241.7 scene: begin tick=436 sceneTick=-2147483212
+44241.8 scene: snapshot status=3 stale=0 states=0
+44241.8 scene: camera mode=first-person target=1 follows=198 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44241.8 scene: observer done
+44241.8 scene: hud fxDue=0 drawable=0
+44241.8 scene: done
+44242.0 draw: begin tick=436 frames=194
+44242.1 draw: end frames=195 pending=0
+44242.1 loop n=303 tick=436
+44257.0 loop n=304 tick=436
+44257.1 audio: advance tick=437 cursor=437 seen=221 played=0 skippedVoice=45 missing=68 dup=105
+44257.1 scene: begin tick=437 sceneTick=-2147483211
+44257.1 scene: snapshot status=3 stale=0 states=0
+44257.1 scene: camera mode=first-person target=1 follows=199 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44257.1 scene: observer done
+44257.1 scene: hud fxDue=0 drawable=0
+44257.1 scene: done
+44257.3 draw: begin tick=437 frames=195
+44257.4 draw: end frames=196 pending=0
+44257.4 loop n=305 tick=437
+44273.3 loop n=306 tick=437
+44273.3 audio: advance tick=438 cursor=438 seen=221 played=0 skippedVoice=45 missing=68 dup=106
+44273.3 scene: begin tick=438 sceneTick=-2147483210
+44273.4 scene: snapshot status=3 stale=0 states=0
+44273.4 scene: camera mode=first-person target=1 follows=200 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44273.4 scene: observer done
+44273.4 scene: hud fxDue=0 drawable=0
+44273.4 scene: done
+44273.9 draw: begin tick=438 frames=196
+44274.0 draw: end frames=197 pending=0
+44274.0 loop n=307 tick=438
+44288.8 loop n=308 tick=438
+44288.9 audio: advance tick=439 cursor=439 seen=221 played=0 skippedVoice=45 missing=68 dup=107
+44288.9 scene: begin tick=439 sceneTick=-2147483209
+44288.9 scene: snapshot status=3 stale=0 states=0
+44288.9 scene: camera mode=first-person target=1 follows=201 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44288.9 scene: observer done
+44288.9 scene: hud fxDue=0 drawable=0
+44288.9 scene: done
+44289.2 draw: begin tick=439 frames=197
+44289.3 draw: end frames=198 pending=0
+44289.4 loop n=309 tick=439
+44304.7 loop n=310 tick=439
+44304.8 audio: advance tick=440 cursor=440 seen=221 played=0 skippedVoice=45 missing=68 dup=108
+44304.8 scene: begin tick=440 sceneTick=-2147483208
+44304.8 scene: snapshot status=3 stale=0 states=0
+44304.8 scene: camera mode=first-person target=1 follows=202 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44304.8 scene: observer done
+44304.8 scene: hud fxDue=0 drawable=0
+44304.8 scene: done
+44305.0 draw: begin tick=440 frames=198
+44305.1 draw: end frames=199 pending=0
+44305.1 loop n=311 tick=440
+44320.2 loop n=312 tick=440
+44320.2 audio: advance tick=441 cursor=441 seen=221 played=0 skippedVoice=45 missing=68 dup=109
+44320.2 scene: begin tick=441 sceneTick=-2147483207
+44320.2 scene: snapshot status=3 stale=0 states=0
+44320.2 scene: camera mode=first-person target=1 follows=203 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44320.2 scene: observer done
+44320.2 scene: hud fxDue=0 drawable=0
+44320.3 scene: done
+44320.8 draw: begin tick=441 frames=199
+44320.9 draw: end frames=200 pending=0
+44320.9 loop n=313 tick=441
+44336.1 loop n=314 tick=441
+44336.2 audio: advance tick=442 cursor=442 seen=221 played=0 skippedVoice=45 missing=68 dup=110
+44336.2 scene: begin tick=442 sceneTick=-2147483206
+44336.2 scene: snapshot status=3 stale=0 states=0
+44336.2 scene: camera mode=first-person target=1 follows=204 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44336.2 scene: observer done
+44336.2 scene: hud fxDue=0 drawable=0
+44336.2 scene: done
+44336.6 draw: begin tick=442 frames=200
+44336.7 draw: end frames=201 pending=0
+44336.8 loop n=315 tick=442
+44351.1 loop n=316 tick=442
+44351.2 audio: advance tick=443 cursor=443 seen=221 played=0 skippedVoice=45 missing=68 dup=111
+44351.3 scene: begin tick=443 sceneTick=-2147483205
+44351.3 scene: snapshot status=3 stale=0 states=0
+44351.3 scene: camera mode=first-person target=1 follows=205 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44351.3 scene: observer done
+44351.4 scene: hud fxDue=0 drawable=0
+44351.4 scene: done
+44351.7 draw: begin tick=443 frames=201
+44351.8 draw: end frames=202 pending=0
+44351.8 loop n=317 tick=443
+44367.0 loop n=318 tick=443
+44367.1 audio: advance tick=444 cursor=444 seen=221 played=0 skippedVoice=45 missing=68 dup=112
+44367.1 scene: begin tick=444 sceneTick=-2147483204
+44367.1 scene: snapshot status=3 stale=0 states=0
+44367.1 scene: camera mode=first-person target=1 follows=206 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44367.1 scene: observer done
+44367.1 scene: hud fxDue=0 drawable=0
+44367.1 scene: done
+44367.8 draw: begin tick=444 frames=202
+44367.9 draw: end frames=203 pending=0
+44367.9 loop n=319 tick=444
+44382.5 loop n=320 tick=444
+44382.5 audio: advance tick=445 cursor=445 seen=221 played=0 skippedVoice=45 missing=68 dup=113
+44382.5 scene: begin tick=445 sceneTick=-2147483203
+44382.6 scene: snapshot status=3 stale=0 states=0
+44382.6 scene: camera mode=first-person target=1 follows=207 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44382.6 scene: observer done
+44382.6 scene: hud fxDue=0 drawable=0
+44382.6 scene: done
+44382.9 draw: begin tick=445 frames=203
+44383.0 draw: end frames=204 pending=0
+44383.0 loop n=321 tick=445
+44397.9 loop n=322 tick=445
+44397.9 audio: advance tick=446 cursor=446 seen=221 played=0 skippedVoice=45 missing=68 dup=114
+44397.9 scene: begin tick=446 sceneTick=-2147483202
+44397.9 scene: snapshot status=3 stale=0 states=0
+44397.9 scene: camera mode=first-person target=1 follows=208 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44397.9 scene: observer done
+44397.9 scene: hud fxDue=0 drawable=0
+44397.9 scene: done
+44398.5 draw: begin tick=446 frames=204
+44399.9 draw: end frames=205 pending=0
+44399.9 loop n=323 tick=446
+44413.6 loop n=324 tick=446
+44413.7 audio: advance tick=448 cursor=448 seen=221 played=0 skippedVoice=45 missing=68 dup=115
+44413.7 scene: begin tick=448 sceneTick=-2147483200
+44413.7 scene: snapshot status=3 stale=0 states=0
+44413.7 scene: camera mode=first-person target=1 follows=209 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44413.7 scene: observer done
+44413.7 scene: hud fxDue=0 drawable=0
+44413.7 scene: done
+44414.0 draw: begin tick=448 frames=205
+44426.4 draw: end frames=206 pending=0
+44426.5 loop n=325 tick=448
+44426.5 draw: begin tick=448 frames=206
+44441.1 draw: end frames=207 pending=0
+44441.1 loop n=326 tick=448
+44441.1 audio: advance tick=449 cursor=449 seen=221 played=0 skippedVoice=45 missing=68 dup=116
+44441.1 scene: begin tick=449 sceneTick=-2147483199
+44441.2 scene: snapshot status=3 stale=0 states=0
+44441.2 scene: camera mode=first-person target=1 follows=210 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44441.2 scene: observer done
+44441.2 scene: hud fxDue=0 drawable=0
+44441.2 scene: done
+44441.5 draw: begin tick=449 frames=207
+44454.5 draw: end frames=208 pending=0
+44454.6 loop n=327 tick=449
+44454.9 audio: advance tick=450 cursor=450 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44454.9 scene: begin tick=450 sceneTick=-2147483198
+44454.9 scene: snapshot status=3 stale=0 states=0
+44454.9 scene: camera mode=first-person target=1 follows=211 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44454.9 scene: observer done
+44454.9 scene: hud fxDue=0 drawable=0
+44454.9 scene: done
+44455.1 draw: begin tick=450 frames=208
+44467.4 draw: end frames=209 pending=0
+44467.5 loop n=328 tick=450
+44467.5 audio: advance tick=451 cursor=451 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44467.5 scene: begin tick=451 sceneTick=-2147483197
+44467.5 scene: snapshot status=3 stale=0 states=0
+44467.5 scene: camera mode=first-person target=1 follows=212 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44467.5 scene: observer done
+44467.5 scene: hud fxDue=0 drawable=0
+44467.5 scene: done
+44467.9 draw: begin tick=451 frames=209
+44486.2 draw: end frames=210 pending=0
+44486.2 loop n=329 tick=451
+44486.2 audio: advance tick=452 cursor=452 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44486.2 scene: begin tick=452 sceneTick=-2147483196
+44486.2 scene: snapshot status=3 stale=0 states=0
+44486.2 scene: camera mode=first-person target=1 follows=213 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44486.3 scene: observer done
+44486.3 scene: hud fxDue=0 drawable=0
+44486.3 scene: done
+44486.6 draw: begin tick=452 frames=210
+44497.7 draw: end frames=211 pending=0
+44497.8 loop n=330 tick=452
+44497.8 audio: advance tick=453 cursor=453 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44497.8 scene: begin tick=453 sceneTick=-2147483195
+44497.8 scene: snapshot status=3 stale=0 states=0
+44497.8 scene: camera mode=first-person target=1 follows=214 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44497.8 scene: observer done
+44497.8 scene: hud fxDue=0 drawable=0
+44497.8 scene: done
+44498.3 draw: begin tick=453 frames=211
+44513.0 draw: end frames=212 pending=0
+44513.0 loop n=331 tick=453
+44513.0 audio: advance tick=454 cursor=454 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44513.0 scene: begin tick=454 sceneTick=-2147483194
+44513.0 scene: snapshot status=3 stale=0 states=0
+44513.0 scene: camera mode=first-person target=1 follows=215 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44513.1 scene: observer done
+44513.1 scene: hud fxDue=0 drawable=0
+44513.1 scene: done
+44513.3 draw: begin tick=454 frames=212
+44548.5 draw: end frames=213 pending=0
+44548.5 loop n=332 tick=454
+44548.5 audio: advance tick=457 cursor=457 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44548.5 scene: begin tick=457 sceneTick=-2147483191
+44548.5 scene: snapshot status=3 stale=0 states=0
+44548.5 scene: camera mode=first-person target=1 follows=216 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44548.5 scene: observer done
+44548.5 scene: hud fxDue=0 drawable=0
+44548.5 scene: done
+44548.8 draw: begin tick=457 frames=213
+44575.1 draw: end frames=214 pending=0
+44575.2 loop n=333 tick=457
+44575.2 audio: advance tick=458 cursor=458 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44575.2 scene: begin tick=458 sceneTick=-2147483190
+44575.2 scene: snapshot status=3 stale=0 states=0
+44575.2 scene: camera mode=first-person target=1 follows=217 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44575.2 scene: observer done
+44575.2 scene: hud fxDue=0 drawable=0
+44575.2 scene: done
+44575.5 draw: begin tick=458 frames=214
+44593.0 draw: end frames=215 pending=0
+44593.0 loop n=334 tick=458
+44593.0 audio: advance tick=460 cursor=460 seen=223 played=0 skippedVoice=45 missing=68 dup=116
+44593.0 scene: begin tick=460 sceneTick=-2147483188
+44593.0 scene: snapshot status=3 stale=0 states=0
+44593.0 scene: camera mode=first-person target=1 follows=218 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44593.0 scene: observer done
+44593.0 scene: hud fxDue=0 drawable=0
+44593.0 scene: done
+44593.7 draw: begin tick=460 frames=215
+44606.4 draw: end frames=216 pending=0
+44606.4 loop n=335 tick=460
+44606.4 draw: begin tick=460 frames=216
+44620.2 draw: end frames=217 pending=0
+44620.2 loop n=336 tick=460
+44620.2 audio: advance tick=461 cursor=461 seen=223 played=0 skippedVoice=45 missing=68 dup=117
+44620.2 scene: begin tick=461 sceneTick=-2147483187
+44620.2 scene: snapshot status=3 stale=0 states=0
+44620.3 scene: camera mode=first-person target=1 follows=219 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44620.3 scene: observer done
+44620.3 scene: hud fxDue=0 drawable=0
+44620.3 scene: done
+44620.5 draw: begin tick=461 frames=217
+44647.7 draw: end frames=218 pending=0
+44647.8 loop n=337 tick=461
+44648.1 audio: advance tick=463 cursor=463 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44648.1 scene: begin tick=463 sceneTick=-2147483185
+44648.1 scene: snapshot status=3 stale=0 states=0
+44648.1 scene: camera mode=first-person target=1 follows=220 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44648.1 scene: observer done
+44648.1 scene: hud fxDue=0 drawable=0
+44648.1 scene: done
+44648.3 draw: begin tick=463 frames=218
+44657.5 draw: end frames=219 pending=0
+44657.5 loop n=338 tick=463
+44657.6 audio: advance tick=464 cursor=464 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44657.6 scene: begin tick=464 sceneTick=-2147483184
+44657.6 scene: snapshot status=3 stale=0 states=0
+44657.6 scene: camera mode=first-person target=1 follows=221 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44657.6 scene: observer done
+44657.6 scene: hud fxDue=0 drawable=0
+44657.6 scene: done
+44658.1 draw: begin tick=464 frames=219
+44671.1 draw: end frames=220 pending=0
+44671.2 loop n=339 tick=464
+44671.2 audio: advance tick=465 cursor=465 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44671.2 scene: begin tick=465 sceneTick=-2147483183
+44671.2 scene: snapshot status=3 stale=0 states=0
+44671.2 scene: camera mode=first-person target=1 follows=222 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44671.2 scene: observer done
+44671.2 scene: hud fxDue=0 drawable=0
+44671.2 scene: done
+44671.5 draw: begin tick=465 frames=220
+44707.4 draw: end frames=221 pending=0
+44707.4 loop n=340 tick=465
+44707.5 audio: advance tick=467 cursor=467 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44707.5 scene: begin tick=467 sceneTick=-2147483181
+44707.5 scene: snapshot status=3 stale=0 states=0
+44707.5 scene: camera mode=first-person target=1 follows=223 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44707.5 scene: observer done
+44707.5 scene: hud fxDue=0 drawable=0
+44707.5 scene: done
+44708.4 draw: begin tick=467 frames=221
+44726.8 draw: end frames=222 pending=0
+44726.8 loop n=341 tick=467
+44726.8 audio: advance tick=468 cursor=468 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44726.8 scene: begin tick=468 sceneTick=-2147483180
+44726.8 scene: snapshot status=3 stale=0 states=0
+44726.8 scene: camera mode=first-person target=1 follows=224 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44726.8 scene: observer done
+44726.9 scene: hud fxDue=0 drawable=0
+44726.9 scene: done
+44727.0 draw: begin tick=468 frames=222
+44742.1 draw: end frames=223 pending=0
+44742.2 loop n=342 tick=468
+44742.2 audio: advance tick=469 cursor=469 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44742.2 scene: begin tick=469 sceneTick=-2147483179
+44742.2 scene: snapshot status=3 stale=0 states=0
+44742.2 scene: camera mode=first-person target=1 follows=225 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44742.2 scene: observer done
+44742.2 scene: hud fxDue=0 drawable=0
+44742.2 scene: done
+44742.6 draw: begin tick=469 frames=223
+44752.2 draw: end frames=224 pending=0
+44752.2 loop n=343 tick=469
+44752.2 audio: advance tick=470 cursor=470 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44752.2 scene: begin tick=470 sceneTick=-2147483178
+44752.2 scene: snapshot status=3 stale=0 states=0
+44752.2 scene: camera mode=first-person target=1 follows=226 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44752.2 scene: observer done
+44752.2 scene: hud fxDue=0 drawable=0
+44752.2 scene: done
+44753.9 draw: begin tick=470 frames=224
+44770.5 draw: end frames=225 pending=0
+44770.5 loop n=344 tick=470
+44770.6 audio: advance tick=471 cursor=471 seen=224 played=0 skippedVoice=45 missing=68 dup=117
+44770.6 scene: begin tick=471 sceneTick=-2147483177
+44770.6 scene: snapshot status=3 stale=0 states=0
+44770.6 scene: camera mode=first-person target=1 follows=227 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44770.6 scene: observer done
+44770.6 scene: hud fxDue=0 drawable=0
+44770.6 scene: done
+44771.0 draw: begin tick=471 frames=225
+44797.5 draw: end frames=226 pending=0
+44797.5 loop n=345 tick=471
+44797.5 audio: advance tick=473 cursor=473 seen=225 played=0 skippedVoice=45 missing=69 dup=117
+44797.5 scene: begin tick=473 sceneTick=-2147483175
+44797.5 scene: snapshot status=3 stale=0 states=0
+44797.5 scene: camera mode=first-person target=1 follows=228 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44797.5 scene: observer done
+44797.5 scene: hud fxDue=0 drawable=0
+44797.5 scene: done
+44798.0 draw: begin tick=473 frames=226
+44820.1 draw: end frames=227 pending=0
+44820.1 loop n=346 tick=473
+44820.1 audio: advance tick=475 cursor=475 seen=225 played=0 skippedVoice=45 missing=69 dup=117
+44820.1 scene: begin tick=475 sceneTick=-2147483173
+44820.2 scene: snapshot status=3 stale=0 states=0
+44820.2 scene: camera mode=first-person target=1 follows=229 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44820.2 scene: observer done
+44820.2 scene: hud fxDue=0 drawable=0
+44820.2 scene: done
+44820.5 draw: begin tick=475 frames=227
+44847.2 draw: end frames=228 pending=0
+44847.3 loop n=347 tick=475
+44847.3 audio: advance tick=476 cursor=476 seen=225 played=0 skippedVoice=45 missing=69 dup=117
+44847.3 scene: begin tick=476 sceneTick=-2147483172
+44847.3 scene: snapshot status=3 stale=0 states=0
+44847.3 scene: camera mode=first-person target=1 follows=230 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44847.3 scene: observer done
+44847.3 scene: hud fxDue=0 drawable=0
+44847.3 scene: done
+44847.5 draw: begin tick=476 frames=228
+44874.7 draw: end frames=229 pending=0
+44874.8 loop n=348 tick=476
+44874.8 audio: advance tick=478 cursor=478 seen=225 played=0 skippedVoice=45 missing=69 dup=117
+44874.8 scene: begin tick=478 sceneTick=-2147483170
+44874.8 scene: snapshot status=3 stale=0 states=0
+44874.8 scene: camera mode=first-person target=1 follows=231 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44874.8 scene: observer done
+44874.8 scene: hud fxDue=0 drawable=0
+44874.8 scene: done
+44875.0 draw: begin tick=478 frames=229
+44893.1 draw: end frames=230 pending=0
+44893.1 loop n=349 tick=478
+44893.1 audio: advance tick=480 cursor=480 seen=225 played=0 skippedVoice=45 missing=69 dup=117
+44893.1 scene: begin tick=480 sceneTick=-2147483168
+44893.2 scene: snapshot status=3 stale=0 states=0
+44893.2 scene: camera mode=first-person target=1 follows=232 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44893.2 scene: observer done
+44893.2 scene: hud fxDue=0 drawable=0
+44893.2 scene: done
+44893.3 draw: begin tick=480 frames=230
+44906.8 draw: end frames=231 pending=0
+44906.8 loop n=350 tick=480
+44906.9 draw: begin tick=480 frames=231
+44928.2 draw: end frames=232 pending=0
+44928.2 loop n=351 tick=480
+44928.2 audio: advance tick=482 cursor=482 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+44928.2 scene: begin tick=482 sceneTick=-2147483166
+44928.2 scene: snapshot status=3 stale=0 states=0
+44928.2 scene: camera mode=first-person target=1 follows=233 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44928.2 scene: observer done
+44928.2 scene: hud fxDue=0 drawable=0
+44928.2 scene: done
+44928.5 draw: begin tick=482 frames=232
+44946.6 draw: end frames=233 pending=0
+44946.6 loop n=352 tick=482
+44946.6 audio: advance tick=483 cursor=483 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+44946.6 scene: begin tick=483 sceneTick=-2147483165
+44946.6 scene: snapshot status=3 stale=0 states=0
+44946.6 scene: camera mode=first-person target=1 follows=234 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44946.6 scene: observer done
+44946.6 scene: hud fxDue=0 drawable=0
+44946.6 scene: done
+44946.8 draw: begin tick=483 frames=233
+44956.2 draw: end frames=234 pending=0
+44956.3 loop n=353 tick=483
+44956.3 audio: advance tick=484 cursor=484 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+44956.3 scene: begin tick=484 sceneTick=-2147483164
+44956.3 scene: snapshot status=3 stale=0 states=0
+44956.4 scene: camera mode=first-person target=1 follows=235 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44956.4 scene: observer done
+44956.4 scene: hud fxDue=0 drawable=0
+44956.4 scene: done
+44956.6 draw: begin tick=484 frames=234
+44973.5 draw: end frames=235 pending=0
+44973.5 loop n=354 tick=484
+44973.5 audio: advance tick=485 cursor=485 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+44973.5 scene: begin tick=485 sceneTick=-2147483163
+44973.5 scene: snapshot status=3 stale=0 states=0
+44973.5 scene: camera mode=first-person target=1 follows=236 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44973.5 scene: observer done
+44973.5 scene: hud fxDue=0 drawable=0
+44973.5 scene: done
+44974.0 draw: begin tick=485 frames=235
+44991.6 draw: end frames=236 pending=0
+44991.7 loop n=355 tick=485
+44991.7 audio: advance tick=486 cursor=486 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+44991.7 scene: begin tick=486 sceneTick=-2147483162
+44991.7 scene: snapshot status=3 stale=0 states=0
+44991.7 scene: camera mode=first-person target=1 follows=237 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+44991.7 scene: observer done
+44991.7 scene: hud fxDue=0 drawable=0
+44991.7 scene: done
+44991.9 draw: begin tick=486 frames=236
+45004.6 draw: end frames=237 pending=0
+45004.6 loop n=356 tick=486
+45004.6 audio: advance tick=487 cursor=487 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+45004.7 scene: begin tick=487 sceneTick=-2147483161
+45004.7 scene: snapshot status=3 stale=0 states=0
+45004.7 scene: camera mode=first-person target=1 follows=238 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45004.7 scene: observer done
+45004.7 scene: hud fxDue=0 drawable=0
+45004.7 scene: done
+45004.9 draw: begin tick=487 frames=237
+45026.7 draw: end frames=238 pending=0
+45026.7 loop n=357 tick=487
+45026.7 audio: advance tick=488 cursor=488 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+45026.7 scene: begin tick=488 sceneTick=-2147483160
+45026.7 scene: snapshot status=3 stale=0 states=0
+45026.7 scene: camera mode=first-person target=1 follows=239 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45026.7 scene: observer done
+45026.7 scene: hud fxDue=0 drawable=0
+45026.7 scene: done
+45027.0 draw: begin tick=488 frames=238
+45053.3 draw: end frames=239 pending=0
+45053.3 loop n=358 tick=488
+45053.3 audio: advance tick=490 cursor=490 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+45053.3 scene: begin tick=490 sceneTick=-2147483158
+45053.3 scene: snapshot status=3 stale=0 states=0
+45053.3 scene: camera mode=first-person target=1 follows=240 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45053.3 scene: observer done
+45053.3 scene: hud fxDue=0 drawable=0
+45053.3 scene: done
+45053.8 draw: begin tick=490 frames=239
+45075.3 draw: end frames=240 pending=0
+45075.3 loop n=359 tick=490
+45075.4 audio: advance tick=492 cursor=492 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+45075.4 scene: begin tick=492 sceneTick=-2147483156
+45075.4 scene: snapshot status=3 stale=0 states=0
+45075.4 scene: camera mode=first-person target=1 follows=241 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45075.4 scene: observer done
+45075.4 scene: hud fxDue=0 drawable=0
+45075.4 scene: done
+45075.6 draw: begin tick=492 frames=240
+45097.5 draw: end frames=241 pending=0
+45097.5 loop n=360 tick=492
+45097.5 audio: advance tick=493 cursor=493 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+45097.6 scene: begin tick=493 sceneTick=-2147483155
+45097.6 scene: snapshot status=3 stale=0 states=0
+45097.6 scene: camera mode=first-person target=1 follows=242 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45097.6 scene: observer done
+45097.6 scene: hud fxDue=0 drawable=0
+45097.6 scene: done
+45097.8 draw: begin tick=493 frames=241
+45110.8 draw: end frames=242 pending=0
+45110.9 loop n=361 tick=493
+45110.9 audio: advance tick=494 cursor=494 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+45110.9 scene: begin tick=494 sceneTick=-2147483154
+45110.9 scene: snapshot status=3 stale=0 states=0
+45110.9 scene: camera mode=first-person target=1 follows=243 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45110.9 scene: observer done
+45110.9 scene: hud fxDue=0 drawable=0
+45110.9 scene: done
+45111.1 draw: begin tick=494 frames=242
+45128.1 draw: end frames=243 pending=0
+45128.1 loop n=362 tick=494
+45128.1 audio: advance tick=495 cursor=495 seen=225 played=0 skippedVoice=45 missing=69 dup=118
+45128.1 scene: begin tick=495 sceneTick=-2147483153
+45128.1 scene: snapshot status=3 stale=0 states=0
+45128.1 scene: camera mode=first-person target=1 follows=244 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45128.1 scene: observer done
+45128.1 scene: hud fxDue=0 drawable=0
+45128.1 scene: done
+45128.5 draw: begin tick=495 frames=243
+45148.3 draw: end frames=244 pending=0
+45148.4 loop n=363 tick=495
+45148.4 audio: advance tick=497 cursor=497 seen=227 played=0 skippedVoice=46 missing=69 dup=118
+45148.4 scene: begin tick=497 sceneTick=-2147483151
+45148.4 scene: snapshot status=3 stale=0 states=0
+45148.4 scene: camera mode=first-person target=1 follows=245 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45148.4 scene: observer done
+45148.4 scene: hud fxDue=0 drawable=0
+45148.4 scene: done
+45148.6 draw: begin tick=497 frames=244
+45151.7 draw: end frames=245 pending=0
+45151.7 loop n=364 tick=497
+45158.4 loop n=365 tick=497
+45158.5 draw: begin tick=497 frames=245
+45158.6 draw: end frames=246 pending=0
+45158.6 loop n=366 tick=497
+45173.5 loop n=367 tick=497
+45173.6 audio: advance tick=498 cursor=498 seen=227 played=0 skippedVoice=46 missing=69 dup=121
+45173.6 scene: begin tick=498 sceneTick=-2147483150
+45173.6 scene: snapshot status=3 stale=0 states=0
+45173.6 scene: camera mode=first-person target=1 follows=246 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45173.6 scene: observer done
+45173.6 scene: hud fxDue=0 drawable=0
+45173.6 scene: done
+45174.0 draw: begin tick=498 frames=246
+45174.1 draw: end frames=247 pending=0
+45174.1 loop n=368 tick=498
+45188.8 loop n=369 tick=498
+45188.9 audio: advance tick=499 cursor=499 seen=227 played=0 skippedVoice=46 missing=69 dup=122
+45188.9 scene: begin tick=499 sceneTick=-2147483149
+45188.9 scene: snapshot status=3 stale=0 states=0
+45188.9 scene: camera mode=first-person target=1 follows=247 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45188.9 scene: observer done
+45188.9 scene: hud fxDue=0 drawable=0
+45188.9 scene: done
+45189.1 draw: begin tick=499 frames=247
+45189.2 draw: end frames=248 pending=0
+45189.2 loop n=370 tick=499
+45189.2 audio: advance tick=500 cursor=500 seen=227 played=0 skippedVoice=46 missing=69 dup=122
+45189.2 scene: begin tick=500 sceneTick=-2147483148
+45189.2 scene: snapshot status=3 stale=0 states=0
+45189.2 scene: camera mode=first-person target=1 follows=248 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45189.2 scene: observer done
+45189.2 scene: hud fxDue=0 drawable=0
+45189.2 scene: done
+45204.3 loop n=371 tick=500
+45204.4 audio: advance tick=501 cursor=501 seen=227 played=0 skippedVoice=46 missing=69 dup=122
+45204.4 scene: begin tick=501 sceneTick=-2147483147
+45204.4 scene: snapshot status=3 stale=0 states=0
+45204.4 scene: camera mode=first-person target=1 follows=249 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45204.4 scene: observer done
+45204.4 scene: hud fxDue=0 drawable=0
+45204.4 scene: done
+45204.7 draw: begin tick=501 frames=248
+45204.8 draw: end frames=249 pending=0
+45204.8 loop n=372 tick=501
+45219.3 loop n=373 tick=501
+45219.4 audio: advance tick=502 cursor=502 seen=227 played=0 skippedVoice=46 missing=69 dup=123
+45219.4 scene: begin tick=502 sceneTick=-2147483146
+45219.4 scene: snapshot status=3 stale=0 states=0
+45219.4 scene: camera mode=first-person target=1 follows=250 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45219.5 scene: observer done
+45219.5 scene: hud fxDue=0 drawable=0
+45219.5 scene: done
+45219.8 draw: begin tick=502 frames=249
+45219.9 draw: end frames=250 pending=0
+45219.9 loop n=374 tick=502
+45235.0 loop n=375 tick=502
+45235.0 audio: advance tick=503 cursor=503 seen=227 played=0 skippedVoice=46 missing=69 dup=124
+45235.0 scene: begin tick=503 sceneTick=-2147483145
+45235.0 scene: snapshot status=3 stale=0 states=0
+45235.0 scene: camera mode=first-person target=1 follows=251 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45235.0 scene: observer done
+45235.0 scene: hud fxDue=0 drawable=0
+45235.0 scene: done
+45235.9 draw: begin tick=503 frames=250
+45236.0 draw: end frames=251 pending=0
+45236.0 loop n=376 tick=503
+45251.1 loop n=377 tick=503
+45251.1 audio: advance tick=504 cursor=504 seen=227 played=0 skippedVoice=46 missing=69 dup=125
+45251.1 scene: begin tick=504 sceneTick=-2147483144
+45251.2 scene: snapshot status=3 stale=0 states=0
+45251.2 scene: camera mode=first-person target=1 follows=252 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45251.2 scene: observer done
+45251.2 scene: hud fxDue=0 drawable=0
+45251.2 scene: done
+45251.5 draw: begin tick=504 frames=251
+45251.6 draw: end frames=252 pending=0
+45251.6 loop n=378 tick=504
+45267.3 loop n=379 tick=504
+45267.3 audio: advance tick=505 cursor=505 seen=227 played=0 skippedVoice=46 missing=69 dup=126
+45267.3 scene: begin tick=505 sceneTick=-2147483143
+45267.3 scene: snapshot status=3 stale=0 states=0
+45267.3 scene: camera mode=first-person target=1 follows=253 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45267.3 scene: observer done
+45267.3 scene: hud fxDue=0 drawable=0
+45267.3 scene: done
+45267.5 draw: begin tick=505 frames=252
+45267.6 draw: end frames=253 pending=0
+45267.6 loop n=380 tick=505
+45282.8 loop n=381 tick=505
+45282.9 audio: advance tick=506 cursor=506 seen=227 played=0 skippedVoice=46 missing=69 dup=127
+45282.9 scene: begin tick=506 sceneTick=-2147483142
+45282.9 scene: snapshot status=3 stale=0 states=0
+45282.9 scene: camera mode=first-person target=1 follows=254 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45282.9 scene: observer done
+45282.9 scene: hud fxDue=0 drawable=0
+45282.9 scene: done
+45283.5 draw: begin tick=506 frames=253
+45283.6 draw: end frames=254 pending=0
+45283.6 loop n=382 tick=506
+45298.5 loop n=383 tick=506
+45298.6 audio: advance tick=507 cursor=507 seen=227 played=0 skippedVoice=46 missing=69 dup=128
+45298.6 scene: begin tick=507 sceneTick=-2147483141
+45298.6 scene: snapshot status=3 stale=0 states=0
+45298.6 scene: camera mode=first-person target=1 follows=255 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45298.6 scene: observer done
+45298.6 scene: hud fxDue=0 drawable=0
+45298.6 scene: done
+45299.6 draw: begin tick=507 frames=254
+45299.7 draw: end frames=255 pending=0
+45299.7 loop n=384 tick=507
+45314.2 loop n=385 tick=507
+45314.2 audio: advance tick=508 cursor=508 seen=227 played=0 skippedVoice=46 missing=69 dup=129
+45314.2 scene: begin tick=508 sceneTick=-2147483140
+45314.2 scene: snapshot status=3 stale=0 states=0
+45314.2 scene: camera mode=first-person target=1 follows=256 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45314.2 scene: observer done
+45314.2 scene: hud fxDue=0 drawable=0
+45314.2 scene: done
+45314.5 draw: begin tick=508 frames=255
+45314.6 draw: end frames=256 pending=0
+45314.6 loop n=386 tick=508
+45329.9 loop n=387 tick=508
+45329.9 audio: advance tick=509 cursor=509 seen=227 played=0 skippedVoice=46 missing=69 dup=130
+45329.9 scene: begin tick=509 sceneTick=-2147483139
+45329.9 scene: snapshot status=3 stale=0 states=0
+45329.9 scene: camera mode=first-person target=1 follows=257 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45329.9 scene: observer done
+45329.9 scene: hud fxDue=0 drawable=0
+45329.9 scene: done
+45330.4 draw: begin tick=509 frames=256
+45330.6 draw: end frames=257 pending=0
+45330.6 loop n=388 tick=509
+45345.7 loop n=389 tick=509
+45345.8 audio: advance tick=510 cursor=510 seen=227 played=0 skippedVoice=46 missing=69 dup=131
+45345.8 scene: begin tick=510 sceneTick=-2147483138
+45345.8 scene: snapshot status=3 stale=0 states=0
+45345.8 scene: camera mode=first-person target=1 follows=258 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45345.8 scene: observer done
+45345.8 scene: hud fxDue=0 drawable=0
+45345.8 scene: done
+45346.2 draw: begin tick=510 frames=257
+45346.3 draw: end frames=258 pending=0
+45346.3 loop n=390 tick=510
+45360.9 loop n=391 tick=510
+45361.0 audio: advance tick=511 cursor=511 seen=227 played=0 skippedVoice=46 missing=69 dup=132
+45361.0 scene: begin tick=511 sceneTick=-2147483137
+45361.0 scene: snapshot status=3 stale=0 states=0
+45361.0 scene: camera mode=first-person target=1 follows=259 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45361.0 scene: observer done
+45361.0 scene: hud fxDue=0 drawable=0
+45361.0 scene: done
+45362.1 draw: begin tick=511 frames=258
+45362.2 draw: end frames=259 pending=0
+45362.2 loop n=392 tick=511
+45376.4 loop n=393 tick=511
+45376.4 audio: advance tick=513 cursor=513 seen=227 played=0 skippedVoice=46 missing=69 dup=133
+45376.4 scene: begin tick=513 sceneTick=-2147483135
+45376.4 scene: snapshot status=3 stale=0 states=0
+45376.4 scene: camera mode=first-person target=1 follows=260 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45376.4 scene: observer done
+45376.4 scene: hud fxDue=0 drawable=0
+45376.4 scene: done
+45376.8 draw: begin tick=513 frames=259
+45376.9 draw: end frames=260 pending=0
+45376.9 loop n=394 tick=513
+45392.1 loop n=395 tick=513
+45392.1 audio: advance tick=514 cursor=514 seen=227 played=0 skippedVoice=46 missing=69 dup=134
+45392.1 scene: begin tick=514 sceneTick=-2147483134
+45392.1 scene: snapshot status=3 stale=0 states=0
+45392.1 scene: camera mode=first-person target=1 follows=261 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45392.1 scene: observer done
+45392.1 scene: hud fxDue=0 drawable=0
+45392.1 scene: done
+45392.4 draw: begin tick=514 frames=260
+45392.6 draw: end frames=261 pending=0
+45392.6 loop n=396 tick=514
+45407.6 loop n=397 tick=514
+45407.7 audio: advance tick=515 cursor=515 seen=227 played=0 skippedVoice=46 missing=69 dup=135
+45407.7 scene: begin tick=515 sceneTick=-2147483133
+45407.7 scene: snapshot status=3 stale=0 states=0
+45407.7 scene: camera mode=first-person target=1 follows=262 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45407.7 scene: observer done
+45407.7 scene: hud fxDue=0 drawable=0
+45407.7 scene: done
+45408.5 draw: begin tick=515 frames=261
+45408.6 draw: end frames=262 pending=0
+45408.6 loop n=398 tick=515
+45423.4 loop n=399 tick=515
+45423.4 audio: advance tick=516 cursor=516 seen=228 played=0 skippedVoice=47 missing=69 dup=136
+45423.4 scene: begin tick=516 sceneTick=-2147483132
+45423.4 scene: snapshot status=3 stale=0 states=0
+45423.4 scene: camera mode=first-person target=1 follows=263 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45423.4 scene: observer done
+45423.4 scene: hud fxDue=0 drawable=0
+45423.4 scene: done
+45423.9 draw: begin tick=516 frames=262
+45424.0 draw: end frames=263 pending=0
+45424.0 loop n=400 tick=516
+45438.3 loop n=401 tick=516
+45438.3 audio: advance tick=517 cursor=517 seen=228 played=0 skippedVoice=47 missing=69 dup=137
+45438.3 scene: begin tick=517 sceneTick=-2147483131
+45438.3 scene: snapshot status=3 stale=0 states=0
+45438.3 scene: camera mode=first-person target=1 follows=264 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45438.3 scene: observer done
+45438.3 scene: hud fxDue=0 drawable=0
+45438.3 scene: done
+45439.1 draw: begin tick=517 frames=263
+45439.2 draw: end frames=264 pending=0
+45439.2 loop n=402 tick=517
+45453.8 loop n=403 tick=517
+45453.9 audio: advance tick=518 cursor=518 seen=228 played=0 skippedVoice=47 missing=69 dup=138
+45453.9 scene: begin tick=518 sceneTick=-2147483130
+45453.9 scene: snapshot status=3 stale=0 states=0
+45453.9 scene: camera mode=first-person target=1 follows=265 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45453.9 scene: observer done
+45453.9 scene: hud fxDue=0 drawable=0
+45453.9 scene: done
+45454.2 draw: begin tick=518 frames=264
+45454.3 draw: end frames=265 pending=0
+45454.3 loop n=404 tick=518
+45469.4 loop n=405 tick=518
+45469.4 audio: advance tick=519 cursor=519 seen=228 played=0 skippedVoice=47 missing=69 dup=139
+45469.4 scene: begin tick=519 sceneTick=-2147483129
+45469.4 scene: snapshot status=3 stale=0 states=0
+45469.4 scene: camera mode=first-person target=1 follows=266 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45469.4 scene: observer done
+45469.4 scene: hud fxDue=0 drawable=0
+45469.4 scene: done
+45469.8 draw: begin tick=519 frames=265
+45469.9 draw: end frames=266 pending=0
+45469.9 loop n=406 tick=519
+45484.7 loop n=407 tick=519
+45484.8 audio: advance tick=520 cursor=520 seen=228 played=0 skippedVoice=47 missing=69 dup=140
+45484.8 scene: begin tick=520 sceneTick=-2147483128
+45484.8 scene: snapshot status=3 stale=0 states=0
+45484.8 scene: camera mode=first-person target=1 follows=267 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45484.8 scene: observer done
+45484.8 scene: hud fxDue=0 drawable=0
+45484.8 scene: done
+45485.2 draw: begin tick=520 frames=266
+45485.3 draw: end frames=267 pending=0
+45485.3 loop n=408 tick=520
+45499.9 loop n=409 tick=520
+45499.9 audio: advance tick=521 cursor=521 seen=228 played=0 skippedVoice=47 missing=69 dup=141
+45499.9 scene: begin tick=521 sceneTick=-2147483127
+45499.9 scene: snapshot status=3 stale=0 states=0
+45499.9 scene: camera mode=first-person target=1 follows=268 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45499.9 scene: observer done
+45499.9 scene: hud fxDue=0 drawable=0
+45499.9 scene: done
+45500.3 draw: begin tick=521 frames=267
+45500.4 draw: end frames=268 pending=0
+45500.4 loop n=410 tick=521
+45515.0 loop n=411 tick=521
+45515.0 audio: advance tick=522 cursor=522 seen=228 played=0 skippedVoice=47 missing=69 dup=142
+45515.1 scene: begin tick=522 sceneTick=-2147483126
+45515.1 scene: snapshot status=3 stale=0 states=0
+45515.1 scene: camera mode=first-person target=1 follows=269 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45515.1 scene: observer done
+45515.1 scene: hud fxDue=0 drawable=0
+45515.1 scene: done
+45517.2 draw: begin tick=522 frames=268
+45517.3 draw: end frames=269 pending=0
+45517.3 loop n=412 tick=522
+45530.2 loop n=413 tick=522
+45530.2 audio: advance tick=523 cursor=523 seen=228 played=0 skippedVoice=47 missing=69 dup=143
+45530.2 scene: begin tick=523 sceneTick=-2147483125
+45530.2 scene: snapshot status=3 stale=0 states=0
+45530.2 scene: camera mode=first-person target=1 follows=270 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45530.2 scene: observer done
+45530.2 scene: hud fxDue=0 drawable=0
+45530.2 scene: done
+45530.9 draw: begin tick=523 frames=269
+45531.1 draw: end frames=270 pending=0
+45531.1 loop n=414 tick=523
+45545.5 loop n=415 tick=523
+45545.5 audio: advance tick=524 cursor=524 seen=228 played=0 skippedVoice=47 missing=69 dup=144
+45545.5 scene: begin tick=524 sceneTick=-2147483124
+45545.5 scene: snapshot status=3 stale=0 states=0
+45545.6 scene: camera mode=first-person target=1 follows=271 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45545.6 scene: observer done
+45545.6 scene: hud fxDue=0 drawable=0
+45545.6 scene: done
+45546.6 draw: begin tick=524 frames=270
+45546.7 draw: end frames=271 pending=0
+45546.7 loop n=416 tick=524
+45560.8 loop n=417 tick=524
+45560.8 audio: advance tick=525 cursor=525 seen=228 played=0 skippedVoice=47 missing=69 dup=145
+45560.8 scene: begin tick=525 sceneTick=-2147483123
+45560.8 scene: snapshot status=3 stale=0 states=0
+45560.8 scene: camera mode=first-person target=1 follows=272 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45560.8 scene: observer done
+45560.9 scene: hud fxDue=0 drawable=0
+45560.9 scene: done
+45561.4 draw: begin tick=525 frames=271
+45577.6 draw: end frames=272 pending=0
+45577.7 loop n=418 tick=525
+45578.0 audio: advance tick=527 cursor=527 seen=229 played=0 skippedVoice=47 missing=69 dup=145
+45578.0 scene: begin tick=527 sceneTick=-2147483121
+45578.0 scene: snapshot status=3 stale=0 states=0
+45578.0 scene: camera mode=first-person target=1 follows=273 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45578.0 scene: observer done
+45578.0 scene: hud fxDue=0 drawable=0
+45578.0 scene: done
+45578.2 draw: begin tick=527 frames=272
+45586.7 draw: end frames=273 pending=0
+45586.7 loop n=419 tick=527
+45586.8 draw: begin tick=527 frames=273
+45609.7 draw: end frames=274 pending=0
+45609.7 loop n=420 tick=527
+45609.7 audio: advance tick=529 cursor=529 seen=229 played=0 skippedVoice=47 missing=69 dup=146
+45609.7 scene: begin tick=529 sceneTick=-2147483119
+45609.8 scene: snapshot status=3 stale=0 states=0
+45609.8 scene: camera mode=first-person target=1 follows=274 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45609.8 scene: observer done
+45609.8 scene: hud fxDue=0 drawable=0
+45609.8 scene: done
+45610.0 draw: begin tick=529 frames=274
+45620.4 draw: end frames=275 pending=0
+45620.4 loop n=421 tick=529
+45620.5 draw: begin tick=529 frames=275
+45643.8 draw: end frames=276 pending=0
+45643.8 loop n=422 tick=529
+45643.9 audio: advance tick=531 cursor=531 seen=229 played=0 skippedVoice=47 missing=69 dup=147
+45643.9 scene: begin tick=531 sceneTick=-2147483117
+45643.9 scene: snapshot status=3 stale=0 states=0
+45643.9 scene: camera mode=first-person target=1 follows=275 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45643.9 scene: observer done
+45643.9 scene: hud fxDue=0 drawable=0
+45643.9 scene: done
+45644.1 draw: begin tick=531 frames=276
+45662.5 draw: end frames=277 pending=0
+45662.6 loop n=423 tick=531
+45662.6 audio: advance tick=532 cursor=532 seen=229 played=0 skippedVoice=47 missing=69 dup=147
+45662.6 scene: begin tick=532 sceneTick=-2147483116
+45662.6 scene: snapshot status=3 stale=0 states=0
+45662.6 scene: camera mode=first-person target=1 follows=276 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45662.6 scene: observer done
+45662.6 scene: hud fxDue=0 drawable=0
+45662.6 scene: done
+45662.9 draw: begin tick=532 frames=277
+45672.3 draw: end frames=278 pending=0
+45672.4 loop n=424 tick=532
+45672.4 audio: advance tick=533 cursor=533 seen=229 played=0 skippedVoice=47 missing=69 dup=147
+45672.4 scene: begin tick=533 sceneTick=-2147483115
+45672.4 scene: snapshot status=3 stale=0 states=0
+45672.4 scene: camera mode=first-person target=1 follows=277 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45672.4 scene: observer done
+45672.4 scene: hud fxDue=0 drawable=0
+45672.4 scene: done
+45673.1 draw: begin tick=533 frames=278
+45691.3 draw: end frames=279 pending=0
+45691.3 loop n=425 tick=533
+45691.3 audio: advance tick=534 cursor=534 seen=229 played=0 skippedVoice=47 missing=69 dup=147
+45691.3 scene: begin tick=534 sceneTick=-2147483114
+45691.4 scene: snapshot status=3 stale=0 states=0
+45691.4 scene: camera mode=first-person target=1 follows=278 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45691.4 scene: observer done
+45691.4 scene: hud fxDue=0 drawable=0
+45691.4 scene: done
+45691.6 draw: begin tick=534 frames=279
+45705.9 draw: end frames=280 pending=0
+45705.9 loop n=426 tick=534
+45705.9 audio: advance tick=535 cursor=535 seen=229 played=0 skippedVoice=47 missing=69 dup=147
+45705.9 scene: begin tick=535 sceneTick=-2147483113
+45705.9 scene: snapshot status=3 stale=0 states=0
+45705.9 scene: camera mode=first-person target=1 follows=279 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45705.9 scene: observer done
+45706.0 scene: hud fxDue=0 drawable=0
+45706.0 scene: done
+45706.1 draw: begin tick=535 frames=280
+45707.1 draw: end frames=281 pending=0
+45707.1 loop n=427 tick=535
+45715.5 loop n=428 tick=535
+45715.5 audio: advance tick=536 cursor=536 seen=229 played=0 skippedVoice=47 missing=69 dup=148
+45715.5 scene: begin tick=536 sceneTick=-2147483112
+45715.5 scene: snapshot status=3 stale=0 states=0
+45715.5 scene: camera mode=first-person target=1 follows=280 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45715.5 scene: observer done
+45715.5 scene: hud fxDue=0 drawable=0
+45715.5 scene: done
+45716.0 draw: begin tick=536 frames=281
+45716.1 draw: end frames=282 pending=0
+45716.1 loop n=429 tick=536
+45730.7 loop n=430 tick=536
+45730.7 audio: advance tick=537 cursor=537 seen=229 played=0 skippedVoice=47 missing=69 dup=149
+45730.7 scene: begin tick=537 sceneTick=-2147483111
+45730.7 scene: snapshot status=3 stale=0 states=0
+45730.7 scene: camera mode=first-person target=1 follows=281 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45730.7 scene: observer done
+45730.7 scene: hud fxDue=0 drawable=0
+45730.7 scene: done
+45731.1 draw: begin tick=537 frames=282
+45731.2 draw: end frames=283 pending=0
+45731.2 loop n=431 tick=537
+45746.7 loop n=432 tick=537
+45746.8 audio: advance tick=538 cursor=538 seen=229 played=0 skippedVoice=47 missing=69 dup=150
+45746.8 scene: begin tick=538 sceneTick=-2147483110
+45746.8 scene: snapshot status=3 stale=0 states=0
+45746.8 scene: camera mode=first-person target=1 follows=282 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45746.8 scene: observer done
+45746.8 scene: hud fxDue=0 drawable=0
+45746.8 scene: done
+45747.3 draw: begin tick=538 frames=283
+45747.4 draw: end frames=284 pending=0
+45747.4 loop n=433 tick=538
+45761.7 loop n=434 tick=538
+45761.8 audio: advance tick=539 cursor=539 seen=229 played=0 skippedVoice=47 missing=69 dup=151
+45761.8 scene: begin tick=539 sceneTick=-2147483109
+45761.8 scene: snapshot status=3 stale=0 states=0
+45761.8 scene: camera mode=first-person target=1 follows=283 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45761.8 scene: observer done
+45761.8 scene: hud fxDue=0 drawable=0
+45761.8 scene: done
+45762.3 draw: begin tick=539 frames=284
+45762.4 draw: end frames=285 pending=0
+45762.4 loop n=435 tick=539
+45777.0 loop n=436 tick=539
+45777.0 audio: advance tick=540 cursor=540 seen=229 played=0 skippedVoice=47 missing=69 dup=152
+45777.0 scene: begin tick=540 sceneTick=-2147483108
+45777.1 scene: snapshot status=3 stale=0 states=0
+45777.1 scene: camera mode=first-person target=1 follows=284 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45777.1 scene: observer done
+45777.1 scene: hud fxDue=0 drawable=0
+45777.1 scene: done
+45777.6 draw: begin tick=540 frames=285
+45777.7 draw: end frames=286 pending=0
+45777.7 loop n=437 tick=540
+45793.1 loop n=438 tick=540
+45793.1 audio: advance tick=541 cursor=541 seen=229 played=0 skippedVoice=47 missing=69 dup=153
+45793.1 scene: begin tick=541 sceneTick=-2147483107
+45793.1 scene: snapshot status=3 stale=0 states=0
+45793.1 scene: camera mode=first-person target=1 follows=285 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45793.1 scene: observer done
+45793.1 scene: hud fxDue=0 drawable=0
+45793.2 scene: done
+45793.7 draw: begin tick=541 frames=286
+45793.8 draw: end frames=287 pending=0
+45793.8 loop n=439 tick=541
+45808.3 loop n=440 tick=541
+45808.3 audio: advance tick=542 cursor=542 seen=229 played=0 skippedVoice=47 missing=69 dup=154
+45808.3 scene: begin tick=542 sceneTick=-2147483106
+45808.3 scene: snapshot status=3 stale=0 states=0
+45808.4 scene: camera mode=first-person target=1 follows=286 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45808.4 scene: observer done
+45808.4 scene: hud fxDue=0 drawable=0
+45808.4 scene: done
+45808.6 draw: begin tick=542 frames=287
+45808.6 draw: end frames=288 pending=0
+45808.6 loop n=441 tick=542
+45823.5 loop n=442 tick=542
+45823.6 audio: advance tick=543 cursor=543 seen=229 played=0 skippedVoice=47 missing=69 dup=155
+45823.6 scene: begin tick=543 sceneTick=-2147483105
+45823.6 scene: snapshot status=3 stale=0 states=0
+45823.6 scene: camera mode=first-person target=1 follows=287 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45823.6 scene: observer done
+45823.6 scene: hud fxDue=0 drawable=0
+45823.6 scene: done
+45824.6 draw: begin tick=543 frames=288
+45824.7 draw: end frames=289 pending=0
+45824.7 loop n=443 tick=543
+45839.6 loop n=444 tick=543
+45839.6 audio: advance tick=544 cursor=544 seen=229 played=0 skippedVoice=47 missing=69 dup=156
+45839.7 scene: begin tick=544 sceneTick=-2147483104
+45839.7 scene: snapshot status=3 stale=0 states=0
+45839.7 scene: camera mode=first-person target=1 follows=288 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45839.7 scene: observer done
+45839.7 scene: hud fxDue=0 drawable=0
+45839.7 scene: done
+45839.9 draw: begin tick=544 frames=289
+45839.9 draw: end frames=290 pending=0
+45839.9 loop n=445 tick=544
+45839.9 audio: advance tick=545 cursor=545 seen=229 played=0 skippedVoice=47 missing=69 dup=156
+45839.9 scene: begin tick=545 sceneTick=-2147483103
+45839.9 scene: snapshot status=3 stale=0 states=0
+45839.9 scene: camera mode=first-person target=1 follows=289 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45839.9 scene: observer done
+45839.9 scene: hud fxDue=0 drawable=0
+45840.0 scene: done
+45854.8 loop n=446 tick=545
+45854.9 audio: advance tick=546 cursor=546 seen=229 played=0 skippedVoice=47 missing=69 dup=156
+45854.9 scene: begin tick=546 sceneTick=-2147483102
+45854.9 scene: snapshot status=3 stale=0 states=0
+45854.9 scene: camera mode=first-person target=1 follows=290 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45854.9 scene: observer done
+45854.9 scene: hud fxDue=0 drawable=0
+45854.9 scene: done
+45855.5 draw: begin tick=546 frames=290
+45855.7 draw: end frames=291 pending=0
+45855.7 loop n=447 tick=546
+45870.8 loop n=448 tick=546
+45870.8 audio: advance tick=547 cursor=547 seen=229 played=0 skippedVoice=47 missing=69 dup=157
+45870.9 scene: begin tick=547 sceneTick=-2147483101
+45870.9 scene: snapshot status=3 stale=0 states=0
+45870.9 scene: camera mode=first-person target=1 follows=291 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45870.9 scene: observer done
+45870.9 scene: hud fxDue=0 drawable=0
+45870.9 scene: done
+45871.3 draw: begin tick=547 frames=291
+45871.4 draw: end frames=292 pending=0
+45871.4 loop n=449 tick=547
+45886.9 loop n=450 tick=547
+45887.0 audio: advance tick=548 cursor=548 seen=229 played=0 skippedVoice=47 missing=69 dup=158
+45887.0 scene: begin tick=548 sceneTick=-2147483100
+45887.0 scene: snapshot status=3 stale=0 states=0
+45887.0 scene: camera mode=first-person target=1 follows=292 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45887.0 scene: observer done
+45887.0 scene: hud fxDue=0 drawable=0
+45887.0 scene: done
+45887.9 draw: begin tick=548 frames=292
+45888.0 draw: end frames=293 pending=0
+45888.1 loop n=451 tick=548
+45902.7 loop n=452 tick=548
+45902.8 audio: advance tick=549 cursor=549 seen=229 played=0 skippedVoice=47 missing=69 dup=159
+45902.8 scene: begin tick=549 sceneTick=-2147483099
+45902.8 scene: snapshot status=3 stale=0 states=0
+45902.8 scene: camera mode=first-person target=1 follows=293 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45902.8 scene: observer done
+45902.8 scene: hud fxDue=0 drawable=0
+45902.8 scene: done
+45903.6 draw: begin tick=549 frames=293
+45903.7 draw: end frames=294 pending=0
+45903.7 loop n=453 tick=549
+45917.9 loop n=454 tick=549
+45917.9 audio: advance tick=550 cursor=550 seen=229 played=0 skippedVoice=47 missing=69 dup=160
+45917.9 scene: begin tick=550 sceneTick=-2147483098
+45917.9 scene: snapshot status=3 stale=0 states=0
+45917.9 scene: camera mode=first-person target=1 follows=294 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45917.9 scene: observer done
+45917.9 scene: hud fxDue=0 drawable=0
+45918.0 scene: done
+45918.4 draw: begin tick=550 frames=294
+45918.5 draw: end frames=295 pending=0
+45918.5 loop n=455 tick=550
+45933.6 loop n=456 tick=550
+45933.7 audio: advance tick=551 cursor=551 seen=229 played=0 skippedVoice=47 missing=69 dup=161
+45933.7 scene: begin tick=551 sceneTick=-2147483097
+45933.7 scene: snapshot status=3 stale=0 states=0
+45933.7 scene: camera mode=first-person target=1 follows=295 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45933.7 scene: observer done
+45933.7 scene: hud fxDue=0 drawable=0
+45933.7 scene: done
+45934.0 draw: begin tick=551 frames=295
+45934.1 draw: end frames=296 pending=0
+45934.1 loop n=457 tick=551
+45948.7 loop n=458 tick=551
+45948.8 audio: advance tick=552 cursor=552 seen=229 played=0 skippedVoice=47 missing=69 dup=162
+45948.8 scene: begin tick=552 sceneTick=-2147483096
+45948.8 scene: snapshot status=3 stale=0 states=0
+45948.8 scene: camera mode=first-person target=1 follows=296 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45948.8 scene: observer done
+45948.8 scene: hud fxDue=0 drawable=0
+45948.8 scene: done
+45949.3 draw: begin tick=552 frames=296
+45949.4 draw: end frames=297 pending=0
+45949.4 loop n=459 tick=552
+45964.4 loop n=460 tick=552
+45964.4 audio: advance tick=553 cursor=553 seen=229 played=0 skippedVoice=47 missing=69 dup=163
+45964.4 scene: begin tick=553 sceneTick=-2147483095
+45964.4 scene: snapshot status=3 stale=0 states=0
+45964.4 scene: camera mode=first-person target=1 follows=297 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45964.4 scene: observer done
+45964.4 scene: hud fxDue=0 drawable=0
+45964.5 scene: done
+45964.8 draw: begin tick=553 frames=297
+45964.9 draw: end frames=298 pending=0
+45964.9 loop n=461 tick=553
+45980.4 loop n=462 tick=553
+45980.5 audio: advance tick=554 cursor=554 seen=229 played=0 skippedVoice=47 missing=69 dup=164
+45980.5 scene: begin tick=554 sceneTick=-2147483094
+45980.5 scene: snapshot status=3 stale=0 states=0
+45980.5 scene: camera mode=first-person target=1 follows=298 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45980.5 scene: observer done
+45980.5 scene: hud fxDue=0 drawable=0
+45980.5 scene: done
+45980.8 draw: begin tick=554 frames=298
+45980.9 draw: end frames=299 pending=0
+45980.9 loop n=463 tick=554
+45995.5 loop n=464 tick=554
+45995.5 audio: advance tick=555 cursor=555 seen=229 played=0 skippedVoice=47 missing=69 dup=165
+45995.5 scene: begin tick=555 sceneTick=-2147483093
+45995.5 scene: snapshot status=3 stale=0 states=0
+45995.5 scene: camera mode=first-person target=1 follows=299 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+45995.5 scene: observer done
+45995.5 scene: hud fxDue=0 drawable=0
+45995.5 scene: done
+45996.1 draw: begin tick=555 frames=299
+45996.2 draw: end frames=300 pending=0
+45996.3 loop n=465 tick=555
+46011.5 loop n=466 tick=555
+46011.7 audio: advance tick=556 cursor=556 seen=230 played=0 skippedVoice=47 missing=69 dup=166
+46011.7 scene: begin tick=556 sceneTick=-2147483092
+46011.7 scene: snapshot status=3 stale=0 states=0
+46011.7 scene: camera mode=first-person target=1 follows=300 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46011.7 scene: observer done
+46011.7 scene: hud fxDue=0 drawable=0
+46011.7 scene: done
+46013.3 draw: begin tick=556 frames=300
+46013.4 draw: end frames=301 pending=0
+46013.4 loop n=467 tick=556
+46013.4 audio: advance tick=557 cursor=557 seen=230 played=0 skippedVoice=47 missing=69 dup=166
+46013.4 scene: begin tick=557 sceneTick=-2147483091
+46013.4 scene: snapshot status=3 stale=0 states=0
+46013.4 scene: camera mode=first-person target=1 follows=301 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46013.4 scene: observer done
+46013.4 scene: hud fxDue=0 drawable=0
+46013.4 scene: done
+46027.4 loop n=468 tick=557
+46027.4 audio: advance tick=558 cursor=558 seen=230 played=0 skippedVoice=47 missing=69 dup=166
+46027.4 scene: begin tick=558 sceneTick=-2147483090
+46027.4 scene: snapshot status=3 stale=0 states=0
+46027.4 scene: camera mode=first-person target=1 follows=302 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46027.5 scene: observer done
+46027.5 scene: hud fxDue=0 drawable=0
+46027.5 scene: done
+46027.9 draw: begin tick=558 frames=301
+46028.0 draw: end frames=302 pending=0
+46028.0 loop n=469 tick=558
+46042.8 loop n=470 tick=558
+46042.9 audio: advance tick=559 cursor=559 seen=230 played=0 skippedVoice=47 missing=69 dup=167
+46042.9 scene: begin tick=559 sceneTick=-2147483089
+46042.9 scene: snapshot status=3 stale=0 states=0
+46042.9 scene: camera mode=first-person target=1 follows=303 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46042.9 scene: observer done
+46042.9 scene: hud fxDue=0 drawable=0
+46042.9 scene: done
+46043.2 draw: begin tick=559 frames=302
+46053.4 draw: end frames=303 pending=0
+46053.4 loop n=471 tick=559
+46053.4 draw: begin tick=559 frames=303
+46054.3 draw: end frames=304 pending=0
+46054.4 loop n=472 tick=559
+46073.7 loop n=473 tick=559
+46073.8 audio: advance tick=561 cursor=561 seen=230 played=0 skippedVoice=47 missing=69 dup=169
+46073.8 scene: begin tick=561 sceneTick=-2147483087
+46073.8 scene: snapshot status=3 stale=0 states=0
+46073.8 scene: camera mode=first-person target=1 follows=304 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46073.8 scene: observer done
+46073.8 scene: hud fxDue=0 drawable=0
+46073.8 scene: done
+46075.6 draw: begin tick=561 frames=304
+46075.7 draw: end frames=305 pending=0
+46075.7 loop n=474 tick=561
+46089.1 loop n=475 tick=561
+46089.2 audio: advance tick=562 cursor=562 seen=230 played=0 skippedVoice=47 missing=69 dup=170
+46089.2 scene: begin tick=562 sceneTick=-2147483086
+46089.2 scene: snapshot status=3 stale=0 states=0
+46089.2 scene: camera mode=first-person target=1 follows=305 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46089.2 scene: observer done
+46089.2 scene: hud fxDue=0 drawable=0
+46089.2 scene: done
+46089.6 draw: begin tick=562 frames=305
+46089.7 draw: end frames=306 pending=0
+46089.7 loop n=476 tick=562
+46105.6 loop n=477 tick=562
+46105.6 audio: advance tick=563 cursor=563 seen=230 played=0 skippedVoice=47 missing=69 dup=171
+46105.6 scene: begin tick=563 sceneTick=-2147483085
+46105.6 scene: snapshot status=3 stale=0 states=0
+46105.6 scene: camera mode=first-person target=1 follows=306 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46105.6 scene: observer done
+46105.6 scene: hud fxDue=0 drawable=0
+46105.6 scene: done
+46106.0 draw: begin tick=563 frames=306
+46106.1 draw: end frames=307 pending=0
+46106.1 loop n=478 tick=563
+46121.5 loop n=479 tick=563
+46121.5 audio: advance tick=564 cursor=564 seen=230 played=0 skippedVoice=47 missing=69 dup=172
+46121.5 scene: begin tick=564 sceneTick=-2147483084
+46121.5 scene: snapshot status=3 stale=0 states=0
+46121.6 scene: camera mode=first-person target=1 follows=307 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46121.6 scene: observer done
+46121.6 scene: hud fxDue=0 drawable=0
+46121.6 scene: done
+46121.8 draw: begin tick=564 frames=307
+46121.8 draw: end frames=308 pending=0
+46121.9 loop n=480 tick=564
+46137.0 loop n=481 tick=564
+46137.1 audio: advance tick=565 cursor=565 seen=230 played=0 skippedVoice=47 missing=69 dup=173
+46137.1 scene: begin tick=565 sceneTick=-2147483083
+46137.1 scene: snapshot status=3 stale=0 states=0
+46137.1 scene: camera mode=first-person target=1 follows=308 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46137.1 scene: observer done
+46137.1 scene: hud fxDue=0 drawable=0
+46137.1 scene: done
+46137.8 draw: begin tick=565 frames=308
+46137.9 draw: end frames=309 pending=0
+46137.9 loop n=482 tick=565
+46152.9 loop n=483 tick=565
+46152.9 audio: advance tick=566 cursor=566 seen=230 played=0 skippedVoice=47 missing=69 dup=174
+46153.0 scene: begin tick=566 sceneTick=-2147483082
+46153.0 scene: snapshot status=3 stale=0 states=0
+46153.0 scene: camera mode=first-person target=1 follows=309 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46153.0 scene: observer done
+46153.0 scene: hud fxDue=0 drawable=0
+46153.0 scene: done
+46153.3 draw: begin tick=566 frames=309
+46153.4 draw: end frames=310 pending=0
+46153.4 loop n=484 tick=566
+46168.4 loop n=485 tick=566
+46168.5 audio: advance tick=567 cursor=567 seen=230 played=0 skippedVoice=47 missing=69 dup=175
+46168.5 scene: begin tick=567 sceneTick=-2147483081
+46168.5 scene: snapshot status=3 stale=0 states=0
+46168.5 scene: camera mode=first-person target=1 follows=310 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46168.5 scene: observer done
+46168.5 scene: hud fxDue=0 drawable=0
+46168.5 scene: done
+46170.2 draw: begin tick=567 frames=310
+46170.3 draw: end frames=311 pending=0
+46170.3 loop n=486 tick=567
+46170.3 audio: advance tick=568 cursor=568 seen=230 played=0 skippedVoice=47 missing=69 dup=175
+46170.3 scene: begin tick=568 sceneTick=-2147483080
+46170.3 scene: snapshot status=3 stale=0 states=0
+46170.4 scene: camera mode=first-person target=1 follows=311 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46170.4 scene: observer done
+46170.4 scene: hud fxDue=0 drawable=0
+46170.4 scene: done
+46184.1 loop n=487 tick=568
+46184.1 audio: advance tick=569 cursor=569 seen=230 played=0 skippedVoice=47 missing=69 dup=175
+46184.1 scene: begin tick=569 sceneTick=-2147483079
+46184.1 scene: snapshot status=3 stale=0 states=0
+46184.1 scene: camera mode=first-person target=1 follows=312 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46184.1 scene: observer done
+46184.1 scene: hud fxDue=0 drawable=0
+46184.1 scene: done
+46184.5 draw: begin tick=569 frames=311
+46184.7 draw: end frames=312 pending=0
+46184.7 loop n=488 tick=569
+46199.4 loop n=489 tick=569
+46199.4 audio: advance tick=570 cursor=570 seen=230 played=0 skippedVoice=47 missing=69 dup=176
+46199.4 scene: begin tick=570 sceneTick=-2147483078
+46199.4 scene: snapshot status=3 stale=0 states=0
+46199.4 scene: camera mode=first-person target=1 follows=313 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46199.4 scene: observer done
+46199.4 scene: hud fxDue=0 drawable=0
+46199.4 scene: done
+46199.9 draw: begin tick=570 frames=312
+46204.4 draw: end frames=313 pending=0
+46204.4 loop n=490 tick=570
+46215.4 loop n=491 tick=570
+46215.5 audio: advance tick=571 cursor=571 seen=230 played=0 skippedVoice=47 missing=69 dup=177
+46215.5 scene: begin tick=571 sceneTick=-2147483077
+46215.5 scene: snapshot status=3 stale=0 states=0
+46215.5 scene: camera mode=first-person target=1 follows=314 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46215.5 scene: observer done
+46215.5 scene: hud fxDue=0 drawable=0
+46215.5 scene: done
+46216.0 draw: begin tick=571 frames=313
+46221.6 draw: end frames=314 pending=0
+46221.7 loop n=492 tick=571
+46231.0 loop n=493 tick=571
+46231.0 audio: advance tick=572 cursor=572 seen=230 played=0 skippedVoice=47 missing=69 dup=178
+46231.0 scene: begin tick=572 sceneTick=-2147483076
+46231.0 scene: snapshot status=3 stale=0 states=0
+46231.0 scene: camera mode=first-person target=1 follows=315 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46231.0 scene: observer done
+46231.0 scene: hud fxDue=0 drawable=0
+46231.1 scene: done
+46231.4 draw: begin tick=572 frames=314
+46253.2 draw: end frames=315 pending=0
+46253.2 loop n=494 tick=572
+46253.2 audio: advance tick=574 cursor=574 seen=230 played=0 skippedVoice=47 missing=69 dup=178
+46253.2 scene: begin tick=574 sceneTick=-2147483074
+46253.2 scene: snapshot status=3 stale=0 states=0
+46253.2 scene: camera mode=first-person target=1 follows=316 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46253.3 scene: observer done
+46253.3 scene: hud fxDue=0 drawable=0
+46253.3 scene: done
+46253.5 draw: begin tick=574 frames=315
+46275.3 draw: end frames=316 pending=0
+46275.4 loop n=495 tick=574
+46275.4 audio: advance tick=575 cursor=575 seen=230 played=0 skippedVoice=47 missing=69 dup=178
+46275.4 scene: begin tick=575 sceneTick=-2147483073
+46275.4 scene: snapshot status=3 stale=0 states=0
+46275.4 scene: camera mode=first-person target=1 follows=317 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46275.4 scene: observer done
+46275.4 scene: hud fxDue=0 drawable=0
+46275.4 scene: done
+46275.7 draw: begin tick=575 frames=316
+46293.1 draw: end frames=317 pending=0
+46293.1 loop n=496 tick=575
+46293.1 audio: advance tick=577 cursor=577 seen=230 played=0 skippedVoice=47 missing=69 dup=178
+46293.1 scene: begin tick=577 sceneTick=-2147483071
+46293.1 scene: snapshot status=3 stale=0 states=0
+46293.1 scene: camera mode=first-person target=1 follows=318 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46293.1 scene: observer done
+46293.1 scene: hud fxDue=0 drawable=0
+46293.1 scene: done
+46293.4 draw: begin tick=577 frames=317
+46306.3 draw: end frames=318 pending=0
+46306.4 loop n=497 tick=577
+46306.4 audio: advance tick=578 cursor=578 seen=231 played=0 skippedVoice=47 missing=69 dup=178
+46306.4 scene: begin tick=578 sceneTick=-2147483070
+46306.4 scene: snapshot status=3 stale=0 states=0
+46306.4 scene: camera mode=first-person target=1 follows=319 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46306.4 scene: observer done
+46306.4 scene: hud fxDue=0 drawable=0
+46306.4 scene: done
+46306.7 draw: begin tick=578 frames=318
+46323.6 draw: end frames=319 pending=0
+46323.8 loop n=498 tick=578
+46323.8 audio: advance tick=579 cursor=579 seen=231 played=0 skippedVoice=47 missing=69 dup=178
+46323.8 scene: begin tick=579 sceneTick=-2147483069
+46323.8 scene: snapshot status=3 stale=0 states=0
+46323.8 scene: camera mode=first-person target=1 follows=320 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46323.8 scene: observer done
+46323.8 scene: hud fxDue=0 drawable=0
+46323.8 scene: done
+46324.8 draw: begin tick=579 frames=319
+46345.3 draw: end frames=320 pending=0
+46345.3 loop n=499 tick=579
+46345.3 audio: advance tick=580 cursor=580 seen=231 played=0 skippedVoice=47 missing=69 dup=178
+46345.3 scene: begin tick=580 sceneTick=-2147483068
+46345.3 scene: snapshot status=3 stale=0 states=0
+46345.3 scene: camera mode=first-person target=1 follows=321 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46345.3 scene: observer done
+46345.3 scene: hud fxDue=0 drawable=0
+46345.3 scene: done
+46345.6 draw: begin tick=580 frames=320
+46354.5 draw: end frames=321 pending=0
+46354.5 loop n=500 tick=580
+46354.5 audio: advance tick=581 cursor=581 seen=231 played=0 skippedVoice=47 missing=69 dup=178
+46354.5 scene: begin tick=581 sceneTick=-2147483067
+46354.5 scene: snapshot status=3 stale=0 states=0
+46354.5 scene: camera mode=first-person target=1 follows=322 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46354.5 scene: observer done
+46354.5 scene: hud fxDue=0 drawable=0
+46354.5 scene: done
+46355.0 draw: begin tick=581 frames=321
+46371.8 draw: end frames=322 pending=0
+46371.8 loop n=501 tick=581
+46371.8 audio: advance tick=582 cursor=582 seen=231 played=0 skippedVoice=47 missing=69 dup=178
+46371.8 scene: begin tick=582 sceneTick=-2147483066
+46371.8 scene: snapshot status=3 stale=0 states=0
+46371.9 scene: camera mode=first-person target=1 follows=323 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46371.9 scene: observer done
+46371.9 scene: hud fxDue=0 drawable=0
+46371.9 scene: done
+46372.1 draw: begin tick=582 frames=322
+46394.0 draw: end frames=323 pending=0
+46394.0 loop n=502 tick=582
+46394.0 audio: advance tick=583 cursor=583 seen=231 played=0 skippedVoice=47 missing=69 dup=178
+46394.0 scene: begin tick=583 sceneTick=-2147483065
+46394.0 scene: snapshot status=3 stale=0 states=0
+46394.0 scene: camera mode=first-person target=1 follows=324 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46394.1 scene: observer done
+46394.1 scene: hud fxDue=0 drawable=0
+46394.1 scene: done
+46394.3 draw: begin tick=583 frames=323
+46410.6 draw: end frames=324 pending=0
+46410.6 loop n=503 tick=583
+46410.6 audio: advance tick=584 cursor=584 seen=231 played=0 skippedVoice=47 missing=69 dup=178
+46410.6 scene: begin tick=584 sceneTick=-2147483064
+46410.6 scene: snapshot status=3 stale=0 states=0
+46410.6 scene: camera mode=first-person target=1 follows=325 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46410.6 scene: observer done
+46410.6 scene: hud fxDue=0 drawable=0
+46410.6 scene: done
+46410.8 draw: begin tick=584 frames=324
+46427.4 draw: end frames=325 pending=0
+46427.5 loop n=504 tick=584
+46427.8 audio: advance tick=586 cursor=586 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46427.8 scene: begin tick=586 sceneTick=-2147483062
+46427.8 scene: snapshot status=3 stale=0 states=0
+46427.8 scene: camera mode=first-person target=1 follows=326 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46427.8 scene: observer done
+46427.8 scene: hud fxDue=0 drawable=0
+46427.8 scene: done
+46428.0 draw: begin tick=586 frames=325
+46458.7 draw: end frames=326 pending=0
+46458.7 loop n=505 tick=586
+46458.7 audio: advance tick=588 cursor=588 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46458.7 scene: begin tick=588 sceneTick=-2147483060
+46458.7 scene: snapshot status=3 stale=0 states=0
+46458.7 scene: camera mode=first-person target=1 follows=327 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46458.7 scene: observer done
+46458.8 scene: hud fxDue=0 drawable=0
+46458.8 scene: done
+46459.0 draw: begin tick=588 frames=326
+46471.3 draw: end frames=327 pending=0
+46471.3 loop n=506 tick=588
+46471.3 audio: advance tick=589 cursor=589 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46471.3 scene: begin tick=589 sceneTick=-2147483059
+46471.3 scene: snapshot status=3 stale=0 states=0
+46471.3 scene: camera mode=first-person target=1 follows=328 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46471.3 scene: observer done
+46471.3 scene: hud fxDue=0 drawable=0
+46471.3 scene: done
+46471.5 draw: begin tick=589 frames=327
+46498.9 draw: end frames=328 pending=0
+46498.9 loop n=507 tick=589
+46498.9 audio: advance tick=590 cursor=590 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46498.9 scene: begin tick=590 sceneTick=-2147483058
+46498.9 scene: snapshot status=3 stale=0 states=0
+46498.9 scene: camera mode=first-person target=1 follows=329 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46498.9 scene: observer done
+46499.0 scene: hud fxDue=0 drawable=0
+46499.0 scene: done
+46499.2 draw: begin tick=590 frames=328
+46511.4 draw: end frames=329 pending=0
+46511.4 loop n=508 tick=590
+46511.4 audio: advance tick=591 cursor=591 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46511.4 scene: begin tick=591 sceneTick=-2147483057
+46511.4 scene: snapshot status=3 stale=0 states=0
+46511.5 scene: camera mode=first-person target=1 follows=330 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46511.5 scene: observer done
+46511.5 scene: hud fxDue=0 drawable=0
+46511.5 scene: done
+46512.4 draw: begin tick=591 frames=329
+46528.3 draw: end frames=330 pending=0
+46528.3 loop n=509 tick=591
+46528.3 audio: advance tick=592 cursor=592 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46528.3 scene: begin tick=592 sceneTick=-2147483056
+46528.3 scene: snapshot status=3 stale=0 states=0
+46528.3 scene: camera mode=first-person target=1 follows=331 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46528.3 scene: observer done
+46528.3 scene: hud fxDue=0 drawable=0
+46528.3 scene: done
+46528.6 draw: begin tick=592 frames=330
+46563.6 draw: end frames=331 pending=0
+46563.6 loop n=510 tick=592
+46563.6 audio: advance tick=595 cursor=595 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46563.6 scene: begin tick=595 sceneTick=-2147483053
+46563.6 scene: snapshot status=3 stale=0 states=0
+46563.6 scene: camera mode=first-person target=1 follows=332 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46563.6 scene: observer done
+46563.7 scene: hud fxDue=0 drawable=0
+46563.7 scene: done
+46563.9 draw: begin tick=595 frames=331
+46586.5 draw: end frames=332 pending=0
+46586.5 loop n=511 tick=595
+46586.6 audio: advance tick=596 cursor=596 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46586.6 scene: begin tick=596 sceneTick=-2147483052
+46586.6 scene: snapshot status=3 stale=0 states=0
+46586.6 scene: camera mode=first-person target=1 follows=333 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46586.6 scene: observer done
+46586.6 scene: hud fxDue=0 drawable=0
+46586.6 scene: done
+46586.8 draw: begin tick=596 frames=332
+46603.6 draw: end frames=333 pending=0
+46603.6 loop n=512 tick=596
+46603.6 audio: advance tick=597 cursor=597 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46603.6 scene: begin tick=597 sceneTick=-2147483051
+46603.6 scene: snapshot status=3 stale=0 states=0
+46603.6 scene: camera mode=first-person target=1 follows=334 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46603.6 scene: observer done
+46603.6 scene: hud fxDue=0 drawable=0
+46603.6 scene: done
+46603.8 draw: begin tick=597 frames=333
+46628.5 draw: end frames=334 pending=0
+46628.6 loop n=513 tick=597
+46628.6 audio: advance tick=599 cursor=599 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46628.6 scene: begin tick=599 sceneTick=-2147483049
+46628.6 scene: snapshot status=3 stale=0 states=0
+46628.6 scene: camera mode=first-person target=1 follows=335 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46628.6 scene: observer done
+46628.6 scene: hud fxDue=0 drawable=0
+46628.6 scene: done
+46628.9 draw: begin tick=599 frames=334
+46642.8 draw: end frames=335 pending=0
+46642.8 loop n=514 tick=599
+46642.8 audio: advance tick=600 cursor=600 seen=232 played=0 skippedVoice=47 missing=69 dup=178
+46642.8 scene: begin tick=600 sceneTick=-2147483048
+46642.8 scene: snapshot status=3 stale=0 states=0
+46642.8 scene: camera mode=first-person target=1 follows=336 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+46642.8 scene: observer done
+46642.8 scene: hud fxDue=0 drawable=0
+46642.8 scene: done
+46643.4 draw: begin tick=600 frames=335
+46643.5 capture: armed requested=600 frame_tick=600 frames=335
+46774.8 draw: end frames=336 pending=0
+46774.8 loop n=515 tick=600
+46774.8 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=232 events_played=0 events_skipped=163 events_missing=69 drawn=336 capture_written=1 metrics_written=0 exit=0
+46774.8 audio: summary soundEventsRead=5234 soundEventsScheduled=5167 soundEventsPlayed=0 soundEventsSkippedVoice=47 soundEventsMissingResource=69 firstPacketTick=-2147483648 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=178 soundEventsMp3Seen=0 soundEventsMp3Played=0 soundEventsMp3Skipped=0 soundEventsMp3Failed=0 soundEventsMp3Inaudible=0 soundEventsInaudible=0
+46774.8 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=336 holdsNoTarget=0 freezeFrames=0
+46823.8 logstf: summary attached=1 script=import state=content host=alive panel=640 content=637 client=1264,681 dpiScale=1.00 url=https://logs.tf/1 navigations=1 accepted=1 refused=0 opens=1 closes=0 hostStarts=1 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=-
+46823.9 logstf: runtime kind=webview2 available=1 source=registry version=155.0.4283.62 loader=present

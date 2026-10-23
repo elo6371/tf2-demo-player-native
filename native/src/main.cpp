@@ -42,6 +42,8 @@
 // T50: wideToUtf8, so a name typed into the bookmark field reaches the store in
 // the same encoding the settings file uses.
 #include "ini_section.h"
+#include "logstf_panel.h"
+#include "logstf_viewer.h"
 
 // T37: the installer lifecycle modes. Declared at namespace scope rather than
 // inside wWinMain so the enumeration and the argument scan are one readable
@@ -245,6 +247,26 @@ void openTrace() {
   traceCheckpoint("trace open");
 }
 
+// T54: argument text -> UTF-8. The logs panel's URL policy is defined in bytes
+// (ASCII only, refusing everything else), so the conversion has to be exact and
+// lossless-or-refused rather than "best effort": a URL that cannot survive the
+// wide->narrow trip is refused by the policy instead of being mangled into
+// something that passes the host allow-list.
+std::string narrowAscii(const wchar_t* value) {
+  if (value == nullptr) return {};
+  std::string result;
+  for (const wchar_t* cursor = value; *cursor != L'\0'; ++cursor) {
+    if (*cursor < 0 || *cursor > 0x7F) {
+      // Out of range on purpose: the policy refuses non-ASCII bytes, and this
+      // is how they get to it instead of silently becoming '?'.
+      result.push_back('\x7F');
+      continue;
+    }
+    result.push_back(static_cast<char>(*cursor));
+  }
+  return result;
+}
+
 tf2::native::NativeUiController* g_nativeUi = nullptr;
 HWND g_uiStatus = nullptr;
 HWND g_uiOpen = nullptr;
@@ -301,6 +323,12 @@ constexpr int kUiHudScale = 4123;
 constexpr int kUiHudReset = 4124;
 bool g_orbiting = false;
 POINT g_lastMouse{};
+
+// T54: the logs panel's startup options. Parsed in the main argument loop and
+// consumed once the window exists; the panel itself lives in logstf_panel.cpp
+// so main.cpp only forwards messages to it.
+tf2::native::LogsPanelOptions g_logsPanelOptions;
+bool g_logsPanelArgumentRejected = false;
 
 // Camera mode machine (T4). The controller owns the mode and the SPACE
 // single/double classification; the per-scene-tick decision is
@@ -1766,6 +1794,10 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   case WM_SIZE:
     if (g_renderer) g_renderer->resize(LOWORD(lParam), HIWORD(lParam));
     applyUiLayout(window);
+    // T54: the logs panel is docked to the right edge and follows the same
+    // client rect; it is laid out after the controls so the demo's minimum
+    // width is what the planner measured, not what an earlier size allowed.
+    tf2::native::logsPanelLayout(window);
     return 0;
   case WM_DPICHANGED: {
     // Per-monitor v2: the system suggests a new window rect scaled for the
@@ -1778,8 +1810,15 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         SWP_NOZORDER | SWP_NOACTIVATE);
     }
     applyUiLayout(window);
+    tf2::native::logsPanelLayout(window);
     return 0;
   }
+  case WM_LBUTTONDOWN:
+  case WM_LBUTTONUP:
+    // T54: the panel's splitter. Consumed only when the press landed on the
+    // splitter, so ordinary left clicks still reach the default procedure.
+    if (tf2::native::logsPanelMouse(window, message, wParam, lParam)) return 0;
+    return DefWindowProcW(window, message, wParam, lParam);
   case WM_RBUTTONDOWN:
     g_orbiting = true;
     g_lastMouse = POINT{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
@@ -1790,6 +1829,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     if (GetCapture() == window) ReleaseCapture();
     return 0;
   case WM_MOUSEMOVE:
+    // T54: a splitter drag owns the mouse until the button comes up.
+    if (tf2::native::logsPanelMouse(window, message, wParam, lParam)) return 0;
     if (g_orbiting && g_renderer) {
       const POINT current{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
       g_renderer->orbitCamera(static_cast<float>(current.x - g_lastMouse.x), static_cast<float>(current.y - g_lastMouse.y));
@@ -1904,6 +1945,9 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       return 0;
     } else if (id == kUiHudReset) {
       hudResetToDefault(window);
+    } else if (tf2::native::logsPanelCommand(window, static_cast<int>(id))) {
+      // T54: the logs panel's own controls. Handled before the default so an
+      // id it owns can never fall through to DefWindowProc and be lost.
       return 0;
     } else {
       return DefWindowProcW(window, message, wParam, lParam);
@@ -2228,6 +2272,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   g_nativeUi = &nativeUi;
   DragAcceptFiles(window, TRUE);
   createNativeUiControls(window, instance);
+  // T54: the logs panel is attached AFTER the argument loop, not here. Attached
+  // here it copied the options as they stood -- defaults -- because the loop that
+  // fills g_logsPanelOptions runs four hundred lines below: every scripted run
+  // reported state=closed script=- and never opened the panel. The first gate run
+  // found it (2026-10-22), which is also the first time this tree met a compiler.
   std::filesystem::path commandTfRoot;
   std::filesystem::path commandDemo;
   std::filesystem::path commandModel;
@@ -2996,6 +3045,30 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         hiddenWindow = true;
       } else if (wcscmp(arguments[i], L"--audio-disabled") == 0) {
         audioDisabled = true;
+      } else if (wcscmp(arguments[i], L"--logstf-open") == 0) {
+        g_logsPanelOptions.openAtStartup = true;
+      } else if (wcscmp(arguments[i], L"--logstf-url") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.url = narrowAscii(arguments[++i]);
+        g_logsPanelOptions.openAtStartup = true;
+      } else if (wcscmp(arguments[i], L"--logstf-url2") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.url2 = narrowAscii(arguments[++i]);
+      } else if (wcscmp(arguments[i], L"--logstf-width") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.width = static_cast<int>(parsed);
+        else g_logsPanelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--logstf-user-data") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.userData = narrowAscii(arguments[++i]);
+      } else if (wcscmp(arguments[i], L"--logstf-script") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.script = narrowAscii(arguments[++i]);
+        g_logsPanelOptions.openAtStartup = true;
+      } else if (wcscmp(arguments[i], L"--logstf-pump-ms") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.pumpMilliseconds = static_cast<int>(parsed);
+        else g_logsPanelArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--logstf-measure") == 0) {
+        g_logsPanelOptions.measureFrames = true;
       } else if (wcscmp(arguments[i], L"--start-paused") == 0) {
         startPaused = true;
       } else if (wcscmp(arguments[i], L"--playback-speed") == 0 && i + 1 < argumentCount) {
@@ -3131,6 +3204,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov/--viewmodel-render/--viewmodel-weapon-body/--viewmodel-sequence; refusing to guess.\n");
     return 13;
   }
+  if (g_logsPanelArgumentRejected) {
+    // T54: a rejected argument is a refusal, not a default. A gate that asked
+    // for a width and got one the parser invented would measure the inventor.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --logstf-width/--logstf-pump-ms; refusing to guess.\n");
+    return 13;
+  }
+  // T54: now that the logstf arguments have been read, attach the panel. Creating
+  // its controls is not creating a browser -- the WebView2 object exists only
+  // after a URL is imported, which is what makes "an empty panel fetches nothing"
+  // true of the product and not only of the controller the probe drives.
+  //
+  // Anything added between the window's creation and this line that calls
+  // logsPanelLayout/Mouse/Command is a silent no-op: those functions return
+  // early while g_controller is null. That is the correct behaviour during
+  // creation, and it is also why this attach point -- not the earlier one -- is
+  // where the options become real.
+  tf2::native::logsPanelAttach(window, instance, g_logsPanelOptions);
   if (invalidWorldWaterArgument) {
     // T2 (2026-10-14): `--world-water` takes on|off and nothing else. Refusing
     // rather than defaulting matters because the pixel claim compares a water-on
@@ -5413,6 +5503,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     hudPublishTrace(window);
   }
   renderer.setWorldMaterialParams(mapMaterialParams);
+  // T54: the scripted panel sequence runs once the renderer and the window are
+  // fully alive -- the script pumps messages, and a WM_SIZE delivered to an
+  // uninitialized renderer would be a resize the player never asked for. It
+  // runs before the playback loop so the trace lines describe the panel that
+  // the loop then measures.
+  if (!g_logsPanelOptions.script.empty()) {
+    traceFmt("%s", tf2::native::logsPanelRuntimeLine().c_str());
+    tf2::native::logsPanelRunScript(window);
+    traceFmt("%s", tf2::native::logsPanelSummaryLine().c_str());
+  }
   tf2::native::ModelMetadata modelMetadata;
   bool modelReady = false;
   if (!commandModel.empty()) {
@@ -8985,6 +9085,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // so the counters read "work done", not "calls made"; that is the number a
     // gate can distinguish "the cache works" with, because a counter that
     // incremented on every call would be identical to main_loop_iterations.
+    // T54: advance the panel's asynchronous work once per frame. Inert while
+    // the panel is closed (the controller returns immediately).
+    tf2::native::logsPanelPump(window);
     if (updateNativeUiControls(window)) ++uiUpdateCalls;
     if (refreshWindowTitle()) ++titleUpdateCalls;
     writeMetrics(now, false);
@@ -9058,6 +9161,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
       if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) {
         ++renderedFrames;
+        // T54: the responsiveness reading, taken where a FRAME exists. The
+        // interval is the time since the previous draw (lastFrame is only moved
+        // by the draw branch below), so it is a frame interval and not a loop
+        // iteration, and the window it lands in is chosen by whether the panel
+        // is open -- which is what makes "closed" and "open" the two halves of
+        // one measurement rather than two different instruments.
+        tf2::native::logsPanelSampleFrame(measuredElapsed * 1000.0);
         // After the draw, not before it: both readings count calls the passes
         // made, and a pass that has not run yet counts as zero. Taken here, the
         // line describes a frame that exists.
@@ -9281,6 +9391,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     g_keyBinds.saveToSettings(tf2::native::settingsPath());
   }
   renderer.shutdown();
+  // T54: the panel's browser must be gone before the process exits, and its
+  // frame-time window is emitted here so the reading covers the whole run.
+  {
+    const std::string frameLine = tf2::native::logsPanelFrameLine();
+    if (!frameLine.empty()) traceFmt("%s", frameLine.c_str());
+    traceFmt("%s", tf2::native::logsPanelSummaryLine().c_str());
+    traceFmt("%s", tf2::native::logsPanelRuntimeLine().c_str());
+    tf2::native::logsPanelShutdown();
+  }
   persistent.render = renderer.settings();
   if (assets.valid()) persistent.tfRoot = assets.tfDirectory;
   tf2::native::saveSettings(persistent);
