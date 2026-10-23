@@ -526,6 +526,25 @@ FAIL cap 96: uploaded count matches prepared = <none>, expected 9
 同一构建、同一参数、正向门禁**连跑两次**：`57 OK / 1 FAIL`，失败那条与读数完全一致（`diff_outside=297`）。
 带变异的那一轮算上 cap 段是 `61 OK / 4 FAIL`，其中 3 条 FAIL 全在 cap 段（见 7.3）。
 
+## 8.0 判读规则（**采数之前写死**，2026-10-23 09:3x）
+
+在跑任何一次采集之前，把三种可能结果和各自意味着什么写下来。读数回来只做对照，不再解释。
+
+新增的诊断读数（item 行旁，一条独立 `outline: itemdiag` 行）：
+`key`（实例 cacheKey 的哈希）、`meshVerts`（框用的那个网格的 vertexCount）、`skinned`（该实例是否走骨骼）、
+`bmin/bmax`（**模型空间**边界）、`origin`（该实例 origin 用同一个 mvp 投到屏幕的像素坐标）、
+`range`（这一批 draw 的 `vertexCount/instanceCount`）。
+
+| 观察 | 结论 | 下一步 |
+|---|---|---|
+| `origin` 投影 ≈ blob 中心，box 中心偏下且扁 | **形状问题**：框的范围不是这块几何的范围 | 查 `bmin/bmax` 是否 0 或退化；查 `skinned=1` 时"绑定姿态边界 × rows"是否等于"蒙皮后范围" |
+| `origin` 投影也偏下 8–14 px（与 box 一起偏） | **位置问题**：这个实例的 origin/矩阵与画出来的不是同一份 | 查 `OverlayInstanceRecord` 与 GPU 实例是否同序（`range.instanceStart` 索引两张表） |
+| `meshVerts` ≠ `range` 的 vertexCount | **框量的网格 ≠ 画的网格** | 查 bucket 分组（`bucketOf.emplace(item.cacheKey, ...)`）与实例落桶 |
+| `skinned=1` 且 `bmin/bmax` 明显小于 blob 的竖直范围 | **绑定姿态边界被当成蒙皮后范围** | 修法：绑定时把边界也按骨骼变换（或用世界渲染面自己的 bounds） |
+| 读数一条都没有 | 诊断打印没走到（item 未进入该分支） | 先确认 `outline: item` 行是否还在 |
+
+**不许**在看到读数后改这套判据；如需新增判据，另起一节注明"采数之后追加"，并说明为什么原来的判据不够。
+
 ## 8. 交接：唯一那条红 + 下个窗口三步
 
 **读数**：4 个绘制 blob 与 14 个框，X 中心逐像素吻合（463/510/562/484 全中），Y 偏 2–18 px 且被压扁；

@@ -694,6 +694,28 @@ struct OverlayItemReading {
   int legacyY0 = 0;
   int legacyX1 = 0;
   int legacyY1 = 0;
+  // Diagnostics for the "the box is not the painted extent" question: where the
+  // instance's ORIGIN lands on screen (the position half), what the box was
+  // measured from (the shape half), and what was actually drawn (the third
+  // possibility: box and draw measuring different meshes).
+  int originX = 0;
+  int originY = 0;
+  std::uint32_t meshKeyHash = 0;
+  std::uint32_t meshVertexCount = 0;
+  std::uint32_t skinned = 0;
+  std::uint32_t rangeVertexCount = 0;
+  std::uint32_t rangeInstanceCount = 0;
+  float meshBoundsMin[3] = {0.0f, 0.0f, 0.0f};
+  float meshBoundsMax[3] = {0.0f, 0.0f, 0.0f};
+  // How many of the box corners survived the projection, and the range of their
+  // w. A box built from the corners that had w > 0 is smaller than the geometry
+  // it is supposed to contain whenever some corners fall behind the eye, which is
+  // the difference between "the extent is wrong" and "the corners were dropped".
+  int cornersProjected = 0;
+  float cornerWMin = 0.0f;
+  float cornerWMax = 0.0f;
+  float worldExtent[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // x0,y0,z0,x1,y1,z1
+  float rowY[4] = {0.0f, 0.0f, 0.0f, 0.0f};  // the instance row that produces world Y
   float depth = 0.0f;
 };
 
@@ -710,6 +732,11 @@ struct OverlayPassReading {
   // later pass sees, and no screenshot would show it.
   bool depthTestEnabled = false;
   bool depthWriteEnabled = false;
+  // What the state that was actually BOUND says about the depth test, read from
+  // its own desc. depthTestEnabled above is derived from the requested mode, so a
+  // mutant that binds the wrong state cannot move it -- measured: m2 binds the
+  // depth-tested state for the x-ray list and depthTest stayed 0.
+  int stateBoundDepthTest = 0;
   std::size_t submitted = 0;
   std::size_t drawn = 0;
   std::size_t silhouettes = 0;

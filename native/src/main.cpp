@@ -5315,7 +5315,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
       " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
       " poseWorld=%zu poseBind=%zu"
-      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d",
+      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d stateBound=%d",
       pass.enabled ? 1 : 0, tf2::native::overlayDepthModeName(pass.depth),
       pass.depthTestEnabled ? 1 : 0, pass.depthWriteEnabled ? 1 : 0,
       pass.drewThisFrame ? 1 : 0, pass.stageOrdinal, renderer.viewModelPassOrdinal(),
@@ -5329,7 +5329,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       g_overlayToggle.refusedForeignPresses(),
       tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()),
       renderer.overlayXRayDepthTestEnabled() ? 1 : 0,
-      renderer.overlayXRayDepthWriteEnabled() ? 1 : 0);
+      renderer.overlayXRayDepthWriteEnabled() ? 1 : 0,
+      renderer.overlayPassReading().stateBoundDepthTest);
     // One row per drawn silhouette. The gate joins these to the frame: the box
     // is the pass's own projection of that entity's extent, so "this region is
     // red" is a statement about THIS entity rather than about the picture.
@@ -5340,6 +5341,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         tf2::native::overlayDepthModeName(item.depthMode),
         item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0,
         item.legacyX0, item.legacyY0, item.legacyX1, item.legacyY1);
+      // The attribution line: box vs painted pixels is decided by these numbers,
+      // not by another guess. See the report's section 8.0 for the rule that was
+      // written before this line existed.
+      traceFmt("outline: itemdiag entity=%u key=%08x meshVerts=%u skinned=%u range=%u,%u"
+        " origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f",
+        static_cast<unsigned>(item.entityIndex), static_cast<unsigned>(item.meshKeyHash),
+        static_cast<unsigned>(item.meshVertexCount), static_cast<unsigned>(item.skinned),
+        static_cast<unsigned>(item.rangeVertexCount), static_cast<unsigned>(item.rangeInstanceCount),
+        item.originX, item.originY, item.cornersProjected, item.cornerWMin, item.cornerWMax,
+        item.worldExtent[0], item.worldExtent[1], item.worldExtent[2],
+        item.worldExtent[3], item.worldExtent[4], item.worldExtent[5],
+        item.meshBoundsMin[0], item.meshBoundsMin[1], item.meshBoundsMin[2],
+        item.meshBoundsMax[0], item.meshBoundsMax[1], item.meshBoundsMax[2]);
     }
   };
 

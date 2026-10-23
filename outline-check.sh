@@ -400,8 +400,27 @@ printf "12.3 outline: draw enabled=1 depth=xray depthTest=0 depthWrite=0 drew=1 
 # The same reader for the one-time startup lines (gpu: ...), which are printed ONCE
 # per process and carry k=v fields just like the outline line.
 trace_field() { # trace_field <trace> <line-match> <field>
-  grep -a -m1 "$2" "$1" 2>/dev/null | tr " " "\n" | grep -a "^$3=" | cut -d= -f2
+  # The LAST line carrying the field, not the first line carrying the prefix.
+  # Measured 2026-10-23: the startup prints `gpu: overlay meshes prepared=9 of 9`
+  # (a progress line) BEFORE `gpu: overlay meshes prepared=9 uploaded=9 rejected=0`
+  # (the reading), so -m1 matched the progress line, found no uploaded= or
+  # rejected= token, and the cap A/B pair reported <none> -- "no reading" read as
+  # "reading of zero" is exactly the failure this file keeps meeting. A field that
+  # is printed twice is resolved to its LAST value, which is the settled one.
+  grep -a "$2" "$1" 2>/dev/null | grep -a "$3=" | tail -1 | tr " " "\n" | grep -a "^$3=" | cut -d= -f2
 }
+# The reader needs its own proof, because it is the thing that fails silently: a
+# trace where a progress line and the reading share a prefix, and the field only
+# exists on the SECOND line.
+printf "1.0 gpu: overlay meshes prepared=0 of 9\n2.0 gpu: overlay meshes prepared=9 uploaded=9 rejected=0\n" \
+  > "$OUT/helper-tracefield.trace"
+HELPER_UPLOADED=$(trace_field "$OUT/helper-tracefield.trace" "gpu: overlay meshes prepared=" uploaded)
+if [ "$HELPER_UPLOADED" = "9" ]; then
+  echo "  OK   trace_field skips a prefix-sharing line that lacks the field"
+else
+  echo "  FAIL trace_field took the wrong line: got '${HELPER_UPLOADED:-<empty>}' instead of 9"
+  fail=1
+fi
 HELPER_SUBMITTED=$(outline_value "$OUT/helper-selftest.trace" submitted)
 if [ "$HELPER_SUBMITTED" = "3" ]; then
   echo "  OK   outline_value reads the product line shape (timestamp prefix, k=v tokens)"
@@ -492,6 +511,9 @@ assert_eq "tested run depth mode" "$(outline_value "$OUT/tested.trace" depth)" "
 # an outline visible through a wall without changing what the wall lets through
 # afterwards; the second half is invisible in any screenshot.
 assert_eq "x-ray: depth test" "$(outline_value "$OUT/on.trace" depthTest)" "0"
+# And the same statement about the state that was BOUND, read from that state's
+# own desc -- the field mutation m2 has to move.
+assert_eq "x-ray: the bound state has the depth test off" "$(outline_value "$OUT/on.trace" stateBound)" "0"
 # The write half, MEASURED 2026-10-22 22:51 and therefore no longer asserted as
 # a zero: the pass is created with DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO
 # (native_renderer.cpp:1327) and D3D11 reports DepthWriteMask = ALL for that same
@@ -806,7 +828,11 @@ PYEOF
     # depend on a single pixel: the mutant binds its x-ray list to the
     # depth-tested state, so the published flag moves from 0 to 1 even on a frame
     # where nothing is occluded.
-    must_move "m2" "x-ray depth test state" "$(outline_value "$OUT/on.trace" depthTest)" "$(outline_value "$OUT/m2.trace" depthTest)"
+    # The per-frame depthTest is derived from the REQUESTED mode, so a mutant that
+# binds the depth-tested state for the x-ray list cannot move it -- measured
+# 2026-10-22: fixed=0, mutated=0, MUTATION-GREEN on an assertion that could never
+# have moved. The reading that follows the pointer actually bound is stateBound.
+must_move "m2" "x-ray depth test state actually bound" "$(outline_value "$OUT/on.trace" stateBound)" "$(outline_value "$OUT/m2.trace" stateBound)"
   fi
   restore_all || true
 
@@ -849,7 +875,15 @@ PYEOF
   if rebuild_product m5; then
     M5_RC=$(run_frame "$OUT/m5" --outline on)
     echo "    m5 depthTest=$(outline_value "$OUT/m5.trace" depthTest) depthWrite=$(outline_value "$OUT/m5.trace" depthWrite)"
-    must_move "m5" "x-ray depth write state" "0" "$(outline_value "$OUT/m5.trace" depthWrite)"
+    # The fixed value is READ from the forward run, never written as a literal: the
+# first version declared "0" while the fixed build itself publishes depthWrite=1,
+# so the assertion went red with no mutation at all. Measured 2026-10-22: it
+# reported MUTATION-RED m5 with both runs reading 1 -- no discriminating power.
+# With the value taken from $OUT/on.trace the pair reads honestly: if the mutated
+# run publishes the same number this case reports that the READING cannot prove
+# the mask, which is a statement about the reading and not about the product.
+M5_FIXED=$(outline_value "$OUT/on.trace" depthWrite)
+must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.trace" depthWrite)"
   fi
   restore_all || true
 

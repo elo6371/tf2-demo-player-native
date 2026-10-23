@@ -3313,6 +3313,21 @@ void Renderer::rebuildOverlayBuffers() {
       cpu.origin[0] = item.origin[0];
       cpu.origin[1] = item.origin[1];
       cpu.origin[2] = item.origin[2];
+      // What the box will be computed from, recorded next to it.
+      {
+        std::uint32_t hash = 2166136261u;
+        for (const char character : item.cacheKey) {
+          hash ^= static_cast<std::uint32_t>(static_cast<unsigned char>(character));
+          hash *= 16777619u;
+        }
+        cpu.meshKeyHash = hash;
+      }
+      cpu.meshVertexCount = mesh->second.vertexCount;
+      cpu.skinned = skinned ? 1u : 0u;
+      for (int axis = 0; axis < 3; ++axis) {
+        cpu.meshBoundsMin[axis] = mesh->second.boundsMin[axis];
+        cpu.meshBoundsMax[axis] = mesh->second.boundsMax[axis];
+      }
       // The mesh's own box, through the same rows the instance is drawn with.
       for (int axis = 0; axis < 3; ++axis) {
         cpu.worldMin[axis] = 1.0e30f;
@@ -5423,8 +5438,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         // Its own rasterizer and depth state, so the world's cull and depth
         // settings cannot leak in and the overlay's cannot leak out.
         context_->RSSetState(overlayRasterizerState_.Get());
-        context_->OMSetDepthStencilState(list.depth == OverlayDepthMode::XRay
-          ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get(), 0);
+        ID3D11DepthStencilState* boundDepthState = list.depth == OverlayDepthMode::XRay
+          ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();
+        context_->OMSetDepthStencilState(boundDepthState, 0);
+        overlayPassReading_.stateBoundDepthTest =
+          (boundDepthState == overlayXRayDepthState_.Get())
+          ? (overlayXRayDepthTestEnabled_ ? 1 : 0)
+          : (overlayDepthTestedDepthTestEnabled_ ? 1 : 0);
         context_->PSSetShader(overlayPixelShader_.Get(), nullptr, 0);
         context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
         ID3D11ShaderResourceView* noTexture = nullptr;
@@ -5468,6 +5488,30 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
               reading.entityIndex = instance.entityIndex;
               reading.team = instance.team;
               reading.depthMode = list.depth;
+              reading.meshKeyHash = instance.meshKeyHash;
+              reading.meshVertexCount = instance.meshVertexCount;
+              reading.skinned = instance.skinned;
+              reading.rangeVertexCount = range.vertexCount;
+              reading.rangeInstanceCount = range.instanceCount;
+              for (int axis = 0; axis < 3; ++axis) {
+                reading.meshBoundsMin[axis] = instance.meshBoundsMin[axis];
+                reading.meshBoundsMax[axis] = instance.meshBoundsMax[axis];
+              }
+              // Where this instance's ORIGIN lands on screen, through the same mvp.
+              // If the box centre tracks this but the box is squashed, the extent is
+              // wrong; if both are offset from the painted blob, the placement is.
+              {
+                const DirectX::XMVECTOR originPoint = DirectX::XMVectorSet(
+                  instance.origin[0], instance.origin[1], instance.origin[2], 1.0f);
+                const DirectX::XMVECTOR originClip = DirectX::XMVector4Transform(originPoint, mvpForOverlay);
+                const float originW = DirectX::XMVectorGetW(originClip);
+                if (originW > 1.0e-4f) {
+                  reading.originX = static_cast<int>(
+                    (DirectX::XMVectorGetX(originClip) / originW * 0.5f + 0.5f) * static_cast<float>(width_));
+                  reading.originY = static_cast<int>(
+                    (0.5f - DirectX::XMVectorGetY(originClip) / originW * 0.5f) * static_cast<float>(height_));
+                }
+              }
               // The extent in the renderer's normalised box: a player model is
               // about 40 map units across and 72 tall (the Source player hull),
               // converted with the frame's own scale factors rather than a
@@ -5484,6 +5528,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
               float minX = 1.0f, minY = 1.0f, maxX = -1.0f, maxY = -1.0f;
               float nearest = 1.0f;
               bool projected = false;
+              for (int axis = 0; axis < 3; ++axis) {
+                reading.worldExtent[axis] = instance.worldMin[axis];
+                reading.worldExtent[axis + 3] = instance.worldMax[axis];
+              }
               const float* boxMin = instance.worldMin;
               const float* boxMax = instance.worldMax;
               for (int corner = 0; corner < 8; ++corner) {
@@ -5493,7 +5541,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                   (corner & 2) ? boxMax[2] : boxMin[2], 1.0f);
                 const DirectX::XMVECTOR clip = DirectX::XMVector4Transform(world, mvpForOverlay);
                 const float w = DirectX::XMVectorGetW(clip);
+                if (corner == 0 || w < reading.cornerWMin) reading.cornerWMin = w;
+                if (corner == 0 || w > reading.cornerWMax) reading.cornerWMax = w;
                 if (!(w > 1.0e-4f)) continue;
+                ++reading.cornersProjected;
                 projected = true;
                 const float ndcX = DirectX::XMVectorGetX(clip) / w;
                 const float ndcY = DirectX::XMVectorGetY(clip) / w;

@@ -1253,6 +1253,16 @@ private:
     // projects cannot drift apart.
     float worldMin[3] = {0.0f, 0.0f, 0.0f};
     float worldMax[3] = {0.0f, 0.0f, 0.0f};
+    // What the box was computed FROM, so a box that disagrees with the pixels can
+    // be attributed instead of guessed at: which mesh the box measured, how many
+    // vertices it had, whether the draw was skinned (the box is bind-pose extent
+    // through the instance rows, which is not the skinned extent), and the mesh's
+    // own model-space bounds.
+    std::uint32_t meshKeyHash = 0;
+    std::uint32_t meshVertexCount = 0;
+    std::uint32_t skinned = 0;
+    float meshBoundsMin[3] = {0.0f, 0.0f, 0.0f};
+    float meshBoundsMax[3] = {0.0f, 0.0f, 0.0f};
   };
   struct OverlayDrawRange {
     ID3D11Buffer* vertexBuffer = nullptr;
