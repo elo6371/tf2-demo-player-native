@@ -112,6 +112,37 @@ const char* logsUrlReasonName(LogsUrlReason reason) {
   return "unknown";
 }
 
+std::string logsScriptValue(const std::string& json) {
+  // Only a JSON string needs decoding; a number, true/false or null is already
+  // the text a caller wants and decoding is a no-op for it.
+  if (json.size() < 2 || json.front() != '"' || json.back() != '"') return json;
+  std::string out;
+  out.reserve(json.size() - 2);
+  for (std::size_t i = 1; i + 1 < json.size(); ++i) {
+    if (json[i] != '\\' || i + 2 >= json.size()) {
+      out.push_back(json[i]);
+      continue;
+    }
+    const char escaped = json[i + 1];
+    switch (escaped) {
+      case 'n': out.push_back('\n'); break;
+      case 't': out.push_back('\t'); break;
+      case 'r': out.push_back('\r'); break;
+      case '"': out.push_back('"'); break;
+      case '\\': out.push_back('\\'); break;
+      case '/': out.push_back('/'); break;
+      default:
+        // An escape this decoder does not know is kept verbatim instead of
+        // dropped: a silently shortened answer reads like a right one.
+        out.push_back('\\');
+        out.push_back(escaped);
+        break;
+    }
+    ++i;
+  }
+  return out;
+}
+
 LogsUrlDecision validateLogsUrl(const std::string& input) {
   LogsUrlDecision decision;
   // Trim leading/trailing whitespace: a URL pasted from a chat has one, and

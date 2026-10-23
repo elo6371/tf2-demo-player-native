@@ -704,6 +704,25 @@ int main() {
     check(controller.snapshot().scrollCalls == 1, "the scroll is counted");
     readings.set("scrollOffset", offset);
 
+    // The decoder, in the shapes the REAL runtime produces. The recording host
+    // below answers with plain strings, so without this case nothing in this
+    // tree would ever see the quoted form -- and every scroll offset on a real
+    // machine would read 0 while this probe stayed green.
+    check(logsScriptValue("\"480\"") == "480",
+      "a quoted JSON string decodes to its text");
+    check(logsScriptValue("480") == "480",
+      "an unquoted JSON number passes through");
+    check(logsScriptValue("\"4200,720\"") == "4200,720",
+      "a quoted pair decodes with its comma intact");
+    check(logsScriptValue("\"a\\\"b\"") == "a\"b",
+      "an escaped quote decodes, not terminates");
+    check(logsScriptValue("\"\"") == "",
+      "an empty JSON string decodes to an empty answer");
+    check(logsScriptValue("null") == "null",
+      "a JSON null is passed through, not mistaken for empty");
+    readings.set("scriptValueQuoted", logsScriptValue("\"480\"") == "480" ? 1LL : 0LL);
+    readings.set("scriptValueEmpty", logsScriptValue("\"\"") == "" ? 1LL : 0LL);
+
     // A host whose script seam answers something that is not a number (a page
     // that threw, a seam returning "undefined") is NOT the same as a page that
     // stayed put: the raw answer is recorded so the two are separable.

@@ -36,6 +36,7 @@
 #     m4 resize ignored        -- setWidth stops clamping (the drag leaves the client)
 #     m6 script never runs     -- the scroll call is counted, the page never moves
 #     m7 history flag only     -- CanGoBack=1, the address never changes
+#     m8 JSON not decoded      -- the browser's quoted result parses as 0
 #   Plus capture mutations over the probe's own reading lines, so each needle is
 #   shown to discriminate.
 #
@@ -221,6 +222,8 @@ P_ASSERTIONS=(
   'geometryDemoSqueezed=0|geometry: the demo keeps its minimum width'
   'geometryUnreachable=0|geometry: every toolbar control stays reachable'
   'scrollOffset=480|scroll: the offset the page took is what is reported'
+  'scriptValueQuoted=1|script: the JSON string a real browser returns decodes to its text'
+  'scriptValueEmpty=1|script: an empty JSON string decodes to an empty answer'
   'scrollRawRecorded=1|scroll: an unparsable page answer is recorded, not folded into 0'
   'scrollFailuresWhenRefused=1|scroll: a refused script is distinguishable from a page that stayed put'
   'scrollOffsetWhenRefused=0|scroll: a refused script reports no offset'
@@ -382,10 +385,23 @@ if [ "$PANEL_CONTENT" -eq 1 ]; then
   scroll_viewport="$(pvalue "$scroll_summary" scrollViewport)"
   scroll_offset="$(pvalue "$scroll_summary" scrollOffset)"
   scroll_raw="$(pvalue "$scroll_summary" scrollRaw)"
-  assert_eq "scroll: the page is taller than the pane" \
-    "$([ -n "$scroll_page" ] && [ -n "$scroll_viewport" ] && [ "$scroll_page" -gt "$scroll_viewport" ] && echo yes || echo no)" "yes"
-  assert_eq "scroll: the page really moved (offset > 0)" \
-    "$([ -n "$scroll_offset" ] && [ "$scroll_offset" -gt 0 ] && echo yes || echo no)" "yes"
+  assert_eq "scroll: the extent was read from the page" \
+    "$([ -n "$scroll_page" ] && [ -n "$scroll_viewport" ] && echo yes || echo no)" "yes"
+  if [ -n "$scroll_page" ] && [ -n "$scroll_viewport" ] && [ "$scroll_page" -gt "$scroll_viewport" ]; then
+    # The page is taller than its viewport, so a scroll CAN move it and the
+    # offset is a real outcome rather than a clamped zero.
+    assert_eq "scroll: the page really moved (offset > 0)" \
+      "$([ -n "$scroll_offset" ] && [ "$scroll_offset" -gt 0 ] && echo yes || echo no)" "yes"
+  else
+    # A page shorter than the pane cannot scroll, so "offset 0" would be
+    # vacuously true. Reported, never counted as a pass: this is the exact
+    # shape of assertion this report had to stop making.
+    echo "  NOT-VERIFIED scroll displacement: the imported page is not taller"
+    echo "               than the pane (page=$scroll_page viewport=$scroll_viewport), so a"
+    echo "               scroll cannot move it and offset 0 proves nothing."
+    echo "               (owner: t54-logstf; cheapest next step: import a log page with"
+    echo "               more than one screen of text and re-run --logstf-script scroll)"
+  fi
   assert_eq "scroll: the page answered a number, not undefined" \
     "$(case "$scroll_raw" in undefined|none|"") echo bad;; *) echo ok;; esac)" "ok"
 
@@ -544,6 +560,8 @@ if [ "$MUTATION" -eq 1 ]; then
   # links the same policy) must go red on the accepted/refused cases, and the
   # product's own wrong-host run must start navigating.
   backup="$OUT/logstf_viewer.cpp.backup"
+  backup_webview="$OUT/logstf_webview.cpp.backup"
+  cp native/src/logstf_webview.cpp "$backup_webview"
   cp native/src/logstf_viewer.cpp "$backup"
   # '#' as the delimiter, because in a GNU BRE \| is the ALTERNATION operator, not
   # a literal "||": the '|'-delimited form matched one half of the condition and
@@ -848,6 +866,55 @@ PYEOF
   cp "$backup" native/src/logstf_viewer.cpp
   cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m7)"; mrc=1; }
 
+  # Product mutation 8: THE DEFECT THIS ROUND FOUND. Stop decoding the browser
+  # JSON, so String(480) parses as 0. Every call counter stays green: the script
+  # runs, succeeds, and reports an offset of 0 on a page that does scroll. This is
+  # the failure mode that made the original scroll assertion decorative -- and it
+  # is invisible to any test whose fake host answers with an unquoted string,
+  # which is every test in this tree before the decoder existed.
+  cp native/src/logstf_webview.cpp "$backup_webview"
+  m8_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+needle = "else value = logsScriptValue(narrow(jsonResult));"
+replacement = "else value = narrow(jsonResult);"
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m8_patch native/src/logstf_webview.cpp && ! cmp -s native/src/logstf_webview.cpp "$backup_webview"; then
+    if bash build-target.sh tf2_demo_native > "$OUT/m8.build" 2>&1; then
+      echo "  mutated build rc=0 (m8)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m8): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    run_product m8 --logstf-script scroll --logstf-url "https://logs.tf/1"
+    m8_summary="$(grep -F 'logstf: summary' "$OUT/m8.trace" | tail -1)"
+    m8_calls="$(pvalue "$m8_summary" scrollCalls)"
+    m8_fail="$(pvalue "$m8_summary" scriptFailures)"
+    m8_raw="$(pvalue "$m8_summary" scrollRaw)"
+    m8_off="$(pvalue "$m8_summary" scrollOffset)"
+    echo "  m8 readings: scrollCalls=$m8_calls scriptFailures=$m8_fail scrollRaw=$m8_raw scrollOffset=$m8_off"
+    if [ "$m8_calls" != "1" ] || [ "$m8_fail" != "0" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m8: the call counters moved too, so this"
+      echo "    mutation does not isolate the decode: calls=$m8_calls fail=$m8_fail)"; mrc=1
+    elif [ "${m8_off:-0}" -le 0 ] 2>/dev/null; then
+      echo "  MUTATION-CAUGHT=PASS (m8_json_undecoded: scrollCalls=1 and scriptFailures=0"
+      echo "    stayed green, the offset read 0 on a page that scrolls -- scrollRaw=$m8_raw)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (m8_json_undecoded: the offset stayed positive)"; mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m8_json_undecoded: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup_webview" native/src/logstf_webview.cpp
+  cmp -s native/src/logstf_webview.cpp "$backup_webview" || { echo "  RESTORE=FAIL (m8)"; mrc=1; }
+
   # Restore the real binaries after the last mutation.
   bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/restore.build" 2>&1 \
     || { echo "  RESTORE-BUILD=FAIL"; mrc=1; }
@@ -855,7 +922,7 @@ PYEOF
     || { echo "  RESTORE-PROBE=FAIL (the restored probe is not green)"; mrc=1; }
 
   [ "$mrc" -eq 0 ] || { echo "LOGSTF-MUTATION=FAIL"; exit 1; }
-  echo "LOGSTF-MUTATION=PASS (eight capture mutations, six product mutations and one seam mutation all went red)"
+  echo "LOGSTF-MUTATION=PASS (eight capture mutations, seven product mutations and one seam mutation all went red)"
 fi
 
 echo

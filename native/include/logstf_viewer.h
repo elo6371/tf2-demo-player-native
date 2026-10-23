@@ -94,6 +94,19 @@ constexpr std::size_t kMaxLogsUrlLength = 2048;
 // from whichever URL happened to be accepted.
 bool isAllowedLogsHost(const std::string& host);
 
+// The value a script expression produced, from the JSON the browser returns.
+//
+// ICoreWebView2::ExecuteScript answers with JSON, not with the expression's raw
+// text: a script returning String(480) comes back as the five characters "480"
+// INCLUDING the quotes, and one returning a number comes back without them.
+// Parsing that JSON as a number yields 0 for every string result -- which is
+// exactly what the panel's scroll offset and page extent are. The probe's
+// recording host answers with the plain string, so a controller that parses the
+// JSON directly stays green in every unit test and reads 0 on a real machine.
+// A free function rather than a host method, so the probe can test the decoding
+// against the quoted forms a real browser produces.
+std::string logsScriptValue(const std::string& json);
+
 LogsUrlDecision validateLogsUrl(const std::string& input);
 
 const char* logsUrlVerdictName(LogsUrlVerdict verdict);
@@ -234,9 +247,14 @@ public:
   virtual bool canGoBack() const = 0;
   virtual bool canGoForward() const = 0;
   virtual std::string currentUrl() const = 0;
-  // Run a script in the page and return its value as text. This is how
-  // "scrolling works" becomes a measurement instead of an assertion about a
-  // scrollbar's presence: the same seam drives window.scrollBy and reads
+  // Run a script in the page and return its value as TEXT -- the value the
+  // expression produced, already decoded from whatever envelope the runtime
+  // wraps it in (WebView2 answers with JSON, so String(480) arrives as "\"480\"";
+  // the real host decodes it with logsScriptValue). Returning the raw envelope
+  // is what made every scroll offset read 0 on a real machine while the fake
+  // host, which answers plain text, kept every test green.
+  // This is how "scrolling works" becomes a measurement instead of an assertion
+  // about a scrollbar's presence: the same seam drives window.scrollTo and reads
   // window.scrollY back. A host that cannot evaluate reports the error.
   virtual bool runScript(const std::string& script, std::string* result, std::string* error) = 0;
   virtual void setBounds(const LogsPanelBounds& content) = 0;
