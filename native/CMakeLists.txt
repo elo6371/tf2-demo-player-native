@@ -276,6 +276,25 @@ target_compile_definitions(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES}
 target_include_directories(entity_model_probe PRIVATE include third_party/lzma)
 set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T53: the projectile track probe. Links entity_model.cpp because one of its
+# assertions is that the trajectory origin reader and the entity resolver agree
+# on the same state -- two readers that merely agreed on the easy case would make
+# that assertion vacuous, so the probe has to be able to call both.
+add_executable(projectile_track_probe
+  tools/projectile_track_probe.cpp
+  src/projectile_track.cpp
+  src/entity_model.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
+  src/item_schema.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp)
+target_link_libraries(projectile_track_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(projectile_track_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+target_include_directories(projectile_track_probe PRIVATE include third_party/lzma)
+set_target_properties(projectile_track_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 add_executable(viewmodel_fov_probe
   tools/viewmodel_fov_probe.cpp
   src/viewmodel.cpp
