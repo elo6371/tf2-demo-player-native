@@ -21,6 +21,17 @@
 #include "item_schema.h"
 #include "native_ui.h"
 #include "install_lifecycle.h"
+// T50: the camera contract. The director owns the freeze rule and the camera
+// operations, the store owns the named bookmarks, the table owns every key the
+// product binds. All three are in the product (not only in the probe) for the
+// same reason the rest of this file's collaborators are: a probe with its own
+// copy would only prove that two copies agree.
+#include "camera_director.h"
+#include "camera_bookmarks.h"
+#include "keybinds.h"
+// T50: wideToUtf8, so a name typed into the bookmark field reaches the store in
+// the same encoding the settings file uses.
+#include "ini_section.h"
 
 // T37: the installer lifecycle modes. Declared at namespace scope rather than
 // inside wWinMain so the enumeration and the argument scan are one readable
@@ -230,6 +241,16 @@ HWND g_uiBack = nullptr;
 HWND g_uiForward = nullptr;
 HWND g_uiReverse = nullptr;
 HWND g_uiTimeline = nullptr;
+// T50: the camera controls (contract section 3).
+HWND g_uiCameraMode = nullptr;
+HWND g_uiFreeFly = nullptr;
+HWND g_uiResetToPlayer = nullptr;
+HWND g_uiResetView = nullptr;
+HWND g_uiBookmarkSave = nullptr;
+HWND g_uiBookmarkName = nullptr;
+HWND g_uiBookmarkDelete = nullptr;
+HWND g_uiBookmarkList = nullptr;
+HWND g_uiKeybindReset = nullptr;
 constexpr int kUiOpen = 4101;
 constexpr int kUiCancel = 4102;
 constexpr int kUiConfirm = 4103;
@@ -239,6 +260,17 @@ constexpr int kUiBack = 4106;
 constexpr int kUiForward = 4107;
 constexpr int kUiReverse = 4108;
 constexpr int kUiTimeline = 4109;
+constexpr int kUiFreeFly = 4110;
+constexpr int kUiResetToPlayer = 4111;
+constexpr int kUiResetView = 4112;
+constexpr int kUiBookmarkSave = 4113;
+constexpr int kUiBookmarkName = 4114;
+constexpr int kUiBookmarkDelete = 4115;
+constexpr int kUiBookmarkList = 4116;
+constexpr int kUiKeybindReset = 4117;
+// Which bookmark slot the controls act on. 1-based, matching the store and the
+// settings keys; the cycler walks 1..8 and wraps.
+std::size_t g_uiBookmarkSlot = 1;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
@@ -253,6 +285,22 @@ float g_debugCameraPitch = 0.0f;
 float g_debugCameraYaw = 0.0f;
 tf2::native::PauseKeyController g_pauseKey;
 tf2::native::CameraMode g_lastAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
+
+// T50. The camera director owns the freeze rule and the camera operations; the
+// bookmark store owns the named positions; the key table owns every binding the
+// product has. Declared here rather than inside wWinMain because the window
+// procedure's key arm needs all three.
+tf2::native::CameraDirector g_cameraDirector;
+tf2::native::CameraBookmarkStore g_cameraBookmarks;
+tf2::native::KeyBindTable g_keyBinds = tf2::native::defaultKeyBindings();
+// Which action a key edge dispatched, last one only. Reported in the summary so
+// a run that pressed nothing and a run whose press found no binding are
+// different readings.
+std::string g_lastDispatchedAction;
+std::uint32_t g_hotkeySuppressedByFocus = 0;
+// True while a text field has focus. Set by the bookmark-name edit control's
+// EN_SETFOCUS/EN_KILLFOCUS; read by shouldDispatchHotkey before every key.
+bool g_textFieldFocused = false;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
 std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
 std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
@@ -285,10 +333,664 @@ void applyUiLayout(HWND window) {
   move(tf2::native::UiControlId::Forward, g_uiForward);
   move(tf2::native::UiControlId::Reverse, g_uiReverse);
   move(tf2::native::UiControlId::Timeline, g_uiTimeline);
+  move(tf2::native::UiControlId::CameraMode, g_uiCameraMode);
+  move(tf2::native::UiControlId::FreeFly, g_uiFreeFly);
+  move(tf2::native::UiControlId::ResetToPlayer, g_uiResetToPlayer);
+  move(tf2::native::UiControlId::ResetView, g_uiResetView);
+  move(tf2::native::UiControlId::BookmarkSave, g_uiBookmarkSave);
+  move(tf2::native::UiControlId::BookmarkNameEdit, g_uiBookmarkName);
+  move(tf2::native::UiControlId::BookmarkDelete, g_uiBookmarkDelete);
+  move(tf2::native::UiControlId::BookmarkList, g_uiBookmarkList);
+  move(tf2::native::UiControlId::KeybindReset, g_uiKeybindReset);
   if (g_nativeUi) {
     g_nativeUi->setDisplayMetrics(dpi, static_cast<unsigned>(client.right),
       static_cast<unsigned>(client.bottom), IsZoomed(window) != 0);
   }
+}
+
+
+struct PlaybackState {
+  bool enabled = false;
+  bool paused = false;
+  bool reverse = false;
+  double speed = 1.0;
+  double tickRate = 66.6666667;
+  std::int32_t tick = 0;
+  std::int32_t endTick = 0;
+  std::int32_t anchorLookupTick = -1;
+  bool anchorValid = false;
+  tf2::native::DemoIndexEntry anchor{};
+};
+PlaybackState g_playback{};
+constexpr double kTargetFrameSeconds = 1.0 / 120.0;
+
+// ---------------------------------------------------------------------------
+// T50: the camera director and the key table, as the window procedure uses them.
+// ---------------------------------------------------------------------------
+
+// Pushes the director's pose into the renderer. The director is the pure half
+// (it has no D3D11), so this is the one place the two are connected; every
+// camera operation goes through it rather than touching the renderer directly,
+// which is what makes "the pose the trace prints" and "the pose the frame is
+// drawn from" the same number.
+void syncDirectorPoseToRenderer(tf2::native::CameraMoveSource source) {
+  if (!g_renderer) return;
+  const auto& pose = g_cameraDirector.pose();
+  if (!pose.valid) return;
+  if (source == tf2::native::CameraMoveSource::Reset) {
+    // A view reset is the renderer's own reset (it also clears the demo view),
+    // and then the director's focus is re-applied so the two agree.
+    g_renderer->resetCamera();
+    g_renderer->setOrbitPose(pose.focusX, pose.focusY, pose.focusZ,
+      pose.yaw, pose.pitch, pose.distance);
+    return;
+  }
+  g_renderer->setOrbitPose(pose.focusX, pose.focusY, pose.focusZ,
+    pose.yaw, pose.pitch, pose.distance);
+}
+
+// Reads the renderer's current pose back into the director. Called once per
+// scene tick, so the director always holds what the frame was drawn from and a
+// bookmark saved between ticks captures the drawn camera rather than a stale
+// copy of it.
+void syncRendererPoseToDirector(tf2::native::CameraMoveSource source =
+    tf2::native::CameraMoveSource::Player) {
+  if (!g_renderer) return;
+  const auto reading = g_renderer->orbitPose();
+  if (!reading.valid) return;
+  tf2::native::CameraPose pose;
+  pose.focusX = reading.focusX;
+  pose.focusY = reading.focusY;
+  pose.focusZ = reading.focusZ;
+  pose.yaw = reading.yaw;
+  pose.pitch = reading.pitch;
+  pose.distance = reading.distance;
+  pose.valid = true;
+  // The SOURCE travels with the pose: it is what separates "the camera moved"
+  // from "a bookmark moved it", and the summary reports both.
+  g_cameraDirector.applyPose(pose, source);
+}
+
+const char* cameraModeToken(tf2::native::CameraMode mode) {
+  return tf2::native::cameraModeName(mode);
+}
+
+// Saves the camera under `slot` with `name` (empty means the default name).
+// Reads the pose from the renderer, because the renderer is what the last frame
+// was drawn from.
+bool saveCameraBookmark(std::size_t slot, const std::string& name) {
+  if (!g_renderer) return false;
+  syncRendererPoseToDirector();
+  tf2::native::CameraPose pose = g_cameraDirector.pose();
+  if (!pose.valid) return false;
+  // The fov the frame behind this save was drawn through. Read from the same
+  // reading the orbit fields come from, so a bookmark is the whole camera.
+  const auto reading = g_renderer->orbitPose();
+  const float fov = reading.valid ? reading.fovDegrees : tf2::native::kDefaultBookmarkFov;
+  const bool ok = g_cameraBookmarks.save(slot, name, pose,
+    cameraModeToken(g_cameraMode.mode()), g_playback.tick, fov);
+  if (ok && g_renderer) {
+    // The renderer keeps its own transient presets (F1..F8 via the old Ctrl
+    // arms). Kept in step so an old binding path and the new bookmark store
+    // cannot disagree about where slot n is.
+    g_renderer->saveCameraPreset(slot - 1);
+  }
+  return ok;
+}
+
+// Jumps to `slot`. The pose is applied through setOrbitPose, which is the same
+// clamp path a preset takes, and the camera mode saved with the bookmark is
+// restored so the jump lands on the view the user saved.
+bool jumpToCameraBookmark(std::size_t slot, std::string& reason) {
+  if (!g_cameraBookmarks.saved(slot)) { reason = "empty"; return false; }
+  const auto& bookmark = g_cameraBookmarks.at(slot);
+  if (!bookmark.pose.valid) { reason = "no-pose"; return false; }
+  if (!g_renderer) { reason = "no-renderer"; return false; }
+  if (!g_renderer->setOrbitPose(bookmark.pose.focusX, bookmark.pose.focusY,
+      bookmark.pose.focusZ, bookmark.pose.yaw, bookmark.pose.pitch,
+      bookmark.pose.distance)) {
+    reason = "rejected";
+    return false;
+  }
+  // The projection is part of the saved view: an orbit restored into a
+  // different FOV is a different frame, so the jump writes it back too.
+  g_renderer->setViewModelFov(bookmark.fov);
+  // A jump leaves the demo eye: the pose IS the new camera, and a demo view
+  // left armed would overwrite it on the next scene tick.
+  g_renderer->clearObserverDemoView();
+  syncRendererPoseToDirector(tf2::native::CameraMoveSource::Bookmark);
+  if (!bookmark.mode.empty()) {
+    if (bookmark.mode == "first-person") g_cameraMode.setMode(tf2::native::CameraMode::FirstPerson);
+    else if (bookmark.mode == "third-person") g_cameraMode.setMode(tf2::native::CameraMode::ThirdPerson);
+    else if (bookmark.mode == "free-look") g_cameraMode.setMode(tf2::native::CameraMode::FreeLook);
+    g_lastAppliedCameraMode = g_cameraMode.mode();
+  }
+  g_cameraBookmarks.noteJump();
+  reason = "ok";
+  return true;
+}
+
+// One key edge, already classified by the window procedure. The action id drives
+// the work, so a rebound key does the same thing as the default key.
+bool handleCameraAction(const std::string& action, std::string& reason) {
+  using namespace tf2::native;
+  reason = "ok";
+  if (action == camera_actions::kFreeFly) {
+    // Free-fly is a MODE, not a one-shot: it leaves whatever feeds the camera
+    // and holds the orbit where the user put it (CameraMode::FreeLook).
+    const bool enabling = g_cameraMode.mode() != CameraMode::FreeLook;
+    g_cameraMode.setMode(enabling ? CameraMode::FreeLook : CameraMode::FirstPerson);
+    g_lastAppliedCameraMode = g_cameraMode.mode();
+    g_cameraDirector.setFreeFly(enabling);
+    if (g_renderer && enabling) g_renderer->clearObserverDemoView();
+    reason = enabling ? "free-fly-on" : "free-fly-off";
+    return true;
+  }
+  if (action == camera_actions::kResetToPlayer) {
+    // "Back to the player": first-person, and the demo eye is adopted at the
+    // next scene tick (the eye belongs to the tick, so applying it here would
+    // be overwritten immediately).
+    g_cameraMode.setMode(CameraMode::FirstPerson);
+    g_lastAppliedCameraMode = CameraMode::FirstPerson;
+    g_cameraDirector.setFreeFly(false);
+    g_cameraDirector.requestResetToPlayer();
+    reason = "reset-to-player";
+    return true;
+  }
+  if (action == camera_actions::kResetView) {
+    g_cameraDirector.resetView();
+    syncDirectorPoseToRenderer(CameraMoveSource::Reset);
+    reason = "reset-view";
+    return true;
+  }
+  for (std::size_t slot = 1; slot <= kCameraBookmarkSlots; ++slot) {
+    if (action == camera_actions::jumpBookmark(slot)) {
+      std::string jumpReason;
+      const bool ok = jumpToCameraBookmark(slot, jumpReason);
+      reason = jumpReason;
+      return ok;
+    }
+    if (action == camera_actions::saveBookmark(slot)) {
+      const bool ok = saveCameraBookmark(slot, std::string());
+      reason = ok ? "saved" : "refused";
+      return ok;
+    }
+    if (action == camera_actions::deleteBookmark(slot)) {
+      const bool ok = g_cameraBookmarks.remove(slot);
+      reason = ok ? "deleted" : "empty";
+      if (ok && g_renderer) g_renderer->clearCameraPreset(slot - 1);
+      return ok;
+    }
+  }
+  reason = "unhandled";
+  return false;
+}
+
+// One key edge, from the window procedure or the acceptance driver. The focus
+// rule is consulted FIRST, before the table: a text field owns every keystroke
+// while it has focus, including keys that are also bound.
+bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character,
+    std::string& action, std::string& result) {
+  if (!tf2::native::shouldDispatchHotkey(g_textFieldFocused, character)) {
+    ++g_hotkeySuppressedByFocus;
+    // Both the product counter and the table's own count move, so the summary
+    // line and the table cannot disagree about how often focus won.
+    g_keyBinds.noteSuppressedByFocus();
+    action.clear();
+    // The message names the rule, not just the failure: a user who wonders why
+    // F1 did nothing inside the name field gets "suppressed-by-focus" in the
+    // trace rather than silence.
+    result = "suppressed-by-focus";
+    return false;
+  }
+  tf2::native::KeyChord chord;
+  chord.vk = vk;
+  chord.ctrl = ctrl;
+  chord.alt = alt;
+  chord.shift = shift;
+  const auto dispatched = g_keyBinds.dispatch(chord);
+  if (dispatched.result != tf2::native::KeyDispatchResult::Ok) {
+    action.clear();
+    // "unbound" is a legal state and is reported as one: there is no fallback
+    // key table behind this, by design.
+    result = "unbound";
+    return false;
+  }
+  action = dispatched.action;
+  g_lastDispatchedAction = action;
+  std::string reason;
+  handleCameraAction(action, reason);
+  result = "ok:" + reason;
+  return true;
+}
+
+
+// ---------------------------------------------------------------------------
+// T50: the scripted camera acceptance driver.
+//
+// The pause/bookmark contract has claims a human cannot check and a single-run
+// capture cannot express: "the tick was fixed WHILE the camera moved", "the
+// pose came back exactly", "two jumps to the same bookmark draw the same
+// frame". Each of those needs a sequence of operations inside one process, at a
+// known tick, with the readings printed as they happen. So the product grows a
+// script mode: a text file of steps, executed by the main loop, each one
+// reporting `camera: ...` to the trace.
+//
+// It is a TEST-ONLY path. `--camera-script` is the only way in, the default
+// product run takes none of it, and every step reports itself so a gate can
+// tell "the step did nothing" from "the step was never run".
+// ---------------------------------------------------------------------------
+
+struct CameraScriptStep {
+  std::string command;
+  std::vector<std::string> args;
+  // The raw line, so the trace quotes what was asked for and not a
+  // re-serialisation of it.
+  std::string text;
+};
+
+std::vector<CameraScriptStep> g_cameraScript;
+std::size_t g_cameraScriptIndex = 0;
+bool g_cameraScriptMode = false;
+bool g_cameraScriptDone = false;
+std::uint32_t g_cameraScriptStepsRun = 0;
+std::uint32_t g_cameraScriptStepsFailed = 0;
+// A capture step waits for the frame it asked for; the loop must not quit on it
+// the way the one-shot --capture-frame path does.
+bool g_scriptCapturePending = false;
+std::string g_scriptCapturePath;
+std::string g_scriptCaptureLabel;
+std::uint32_t g_cameraCaptures = 0;
+// Frames to wait before the next step, for steps whose effect lands on a later
+// frame (a capture, a scene-tick camera application).
+std::uint32_t g_cameraScriptWaitFrames = 0;
+// The tick a `mark-tick` step recorded, for `expect-same-tick` to compare against.
+std::int32_t g_scriptTickMark = -1;
+// The exit code a `quit` step asked for; -1 means "no script ran".
+int g_cameraScriptExitCode = -1;
+
+std::vector<std::string> splitWords(const std::string& line) {
+  std::vector<std::string> words;
+  std::size_t index = 0;
+  while (index < line.size()) {
+    while (index < line.size() && (line[index] == ' ' || line[index] == '\t')) ++index;
+    if (index >= line.size()) break;
+    const std::size_t start = index;
+    while (index < line.size() && line[index] != ' ' && line[index] != '\t') ++index;
+    words.push_back(line.substr(start, index - start));
+  }
+  return words;
+}
+
+bool loadCameraScript(const std::filesystem::path& file) {
+  g_cameraScript.clear();
+  std::ifstream input(file);
+  if (!input) return false;
+  std::string line;
+  while (std::getline(input, line)) {
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+    if (line.empty() || line[0] == '#') continue;
+    auto words = splitWords(line);
+    if (words.empty()) continue;
+    CameraScriptStep step;
+    step.text = line;
+    step.command = words.front();
+    step.args.assign(words.begin() + 1, words.end());
+    g_cameraScript.push_back(std::move(step));
+  }
+  return !g_cameraScript.empty();
+}
+
+// Every step reports through this pair so a failed step is a reading, not a
+// silent skip: `camera: accept` carries the step index, the command and a
+// one-word result.
+void cameraScriptReport(std::size_t index, const std::string& command,
+    const std::string& result, const std::string& detail) {
+  traceFmt("camera: accept step=%zu cmd=%s result=%s detail=%s", index,
+    command.c_str(), result.c_str(), detail.empty() ? "-" : detail.c_str());
+}
+
+// Parses a pose out of the renderer and reports it. `label` names the moment;
+// the gate compares two labels' numbers, which is what makes "the camera moved
+// while the tick did not" a measurement rather than a claim.
+void cameraSnapshot(const std::string& label) {
+  if (!g_renderer) {
+    traceFmt("camera: snapshot label=%s valid=0", label.c_str());
+    return;
+  }
+  const auto reading = g_renderer->orbitPose();
+  if (!reading.valid) {
+    traceFmt("camera: snapshot label=%s valid=0 tick=%d", label.c_str(),
+      static_cast<int>(g_playback.tick));
+    return;
+  }
+  tf2::native::CameraPose pose;
+  pose.focusX = reading.focusX; pose.focusY = reading.focusY; pose.focusZ = reading.focusZ;
+  pose.yaw = reading.yaw; pose.pitch = reading.pitch; pose.distance = reading.distance;
+  pose.valid = true;
+  traceFmt("camera: snapshot label=%s valid=1 tick=%d paused=%d mode=%s demoView=%d fov=%.6f %s",
+    label.c_str(), static_cast<int>(g_playback.tick), g_playback.paused ? 1 : 0,
+    cameraModeToken(g_cameraMode.mode()), reading.demoView ? 1 : 0,
+    static_cast<double>(reading.fovDegrees), tf2::native::poseTraceFields(pose).c_str());
+}
+
+// Runs the pending script step. Returns true when a step ran (the caller then
+// continues the loop without doing anything else this iteration), so the
+// sequence of steps is deterministic even when the machine is loaded.
+bool runCameraScriptStep() {
+  using namespace tf2::native;
+  if (!g_cameraScriptMode || g_cameraScriptIndex >= g_cameraScript.size()) return false;
+  if (g_cameraScriptWaitFrames > 0) { --g_cameraScriptWaitFrames; return true; }
+  if (g_scriptCapturePending) return true;   // the capture owns the loop
+  const std::size_t index = g_cameraScriptIndex;
+  const CameraScriptStep& step = g_cameraScript[index];
+  ++g_cameraScriptIndex;
+  ++g_cameraScriptStepsRun;
+  const auto fail = [&](const std::string& detail) {
+    ++g_cameraScriptStepsFailed;
+    cameraScriptReport(index, step.command, "fail", detail);
+    return true;
+  };
+  const auto ok = [&](const std::string& detail) {
+    cameraScriptReport(index, step.command, "ok", detail);
+    return true;
+  };
+  const auto number = [&](std::size_t position, double& value) {
+    if (position >= step.args.size()) return false;
+    char* end = nullptr;
+    value = std::strtod(step.args[position].c_str(), &end);
+    return end && *end == '\0';
+  };
+  if (step.command == "tick") {
+    double wanted = 0.0;
+    if (!number(0, wanted)) return fail("bad-argument");
+    // Waiting is not failing: the step stays unexecuted until the tick arrives.
+    // The execution counter is rolled back with the index, or a long wait would
+    // report dozens of executed steps that never ran and the gate's
+    // "steps executed" assertion would count iterations instead of steps.
+    if (g_playback.tick < static_cast<std::int32_t>(wanted)) {
+      --g_cameraScriptIndex;
+      --g_cameraScriptStepsRun;
+      return true;
+    }
+    return ok("tick=" + std::to_string(g_playback.tick));
+  }
+  if (step.command == "frames") {
+    double count = 0.0;
+    if (!number(0, count)) return fail("bad-argument");
+    g_cameraScriptWaitFrames = static_cast<std::uint32_t>(count);
+    return ok("wait=" + std::to_string(g_cameraScriptWaitFrames));
+  }
+  if (step.command == "pause" || step.command == "resume") {
+    const bool paused = step.command == "pause";
+    g_playback.paused = paused;
+    g_pauseKey.paused = paused;
+    g_cameraDirector.setPaused(paused);
+    return ok(paused ? "paused" : "playing");
+  }
+  if (step.command == "orbit") {
+    double dx = 0.0, dy = 0.0;
+    if (!number(0, dx) || !number(1, dy)) return fail("bad-argument");
+    // Through the renderer, which is what the product does for a drag: the
+    // director then reads the pose back, so both halves agree.
+    if (!g_renderer) return fail("no-renderer");
+    g_renderer->orbitCamera(static_cast<float>(dx), static_cast<float>(dy));
+    syncRendererPoseToDirector();
+    return ok("moved");
+  }
+  if (step.command == "zoom") {
+    double delta = 0.0;
+    if (!number(0, delta)) return fail("bad-argument");
+    if (!g_renderer) return fail("no-renderer");
+    g_renderer->zoomCamera(static_cast<float>(delta));
+    syncRendererPoseToDirector();
+    return ok("zoomed");
+  }
+  if (step.command == "save") {
+    double slot = 0.0;
+    if (!number(0, slot)) return fail("bad-argument");
+    std::string name;
+    for (std::size_t position = 1; position < step.args.size(); ++position) {
+      if (!name.empty()) name += " ";
+      name += step.args[position];
+    }
+    const bool saved = saveCameraBookmark(static_cast<std::size_t>(slot), name);
+    traceFmt("camera: bookmark action=save slot=%d name=%s ok=%d",
+      static_cast<int>(slot), name.empty() ? "-" : name.c_str(), saved ? 1 : 0);
+    return saved ? ok("slot=" + std::to_string(static_cast<int>(slot))) : fail("refused");
+  }
+  if (step.command == "jump") {
+    double slot = 0.0;
+    if (!number(0, slot)) return fail("bad-argument");
+    std::string reason;
+    const bool jumped = jumpToCameraBookmark(static_cast<std::size_t>(slot), reason);
+    const auto pose = g_cameraDirector.pose();
+    traceFmt("camera: bookmark action=jump slot=%d ok=%d reason=%s %s",
+      static_cast<int>(slot), jumped ? 1 : 0, reason.c_str(),
+      pose.valid ? tf2::native::poseTraceFields(pose).c_str() : "focus=-");
+    return jumped ? ok(reason) : fail(reason);
+  }
+  if (step.command == "delete") {
+    double slot = 0.0;
+    if (!number(0, slot)) return fail("bad-argument");
+    const bool removed = g_cameraBookmarks.remove(static_cast<std::size_t>(slot));
+    if (removed && g_renderer) g_renderer->clearCameraPreset(static_cast<std::size_t>(slot) - 1);
+    traceFmt("camera: bookmark action=delete slot=%d ok=%d",
+      static_cast<int>(slot), removed ? 1 : 0);
+    return removed ? ok("deleted") : fail("empty");
+  }
+  if (step.command == "reset-view") {
+    g_cameraDirector.resetView();
+    syncDirectorPoseToRenderer(CameraMoveSource::Reset);
+    return ok("reset-view");
+  }
+  if (step.command == "reset-to-player") {
+    std::string reason;
+    handleCameraAction(camera_actions::kResetToPlayer, reason);
+    return ok(reason);
+  }
+  if (step.command == "freefly") {
+    const bool on = !step.args.empty() && step.args[0] == "on";
+    const std::string action = camera_actions::kFreeFly;
+    std::string reason;
+    handleCameraAction(action, reason);
+    if (on != g_cameraDirector.freeFly()) {
+      // The action toggles; a script that asks for a state gets that state.
+      handleCameraAction(action, reason);
+    }
+    return ok(g_cameraDirector.freeFly() ? "on" : "off");
+  }
+  if (step.command == "snapshot") {
+    cameraSnapshot(step.args.empty() ? "unnamed" : step.args[0]);
+    return ok(step.args.empty() ? "unnamed" : step.args[0]);
+  }
+  if (step.command == "verify-bookmark") {
+    // The exactness assertion, inside the product. Compares the renderer's own
+    // pose with the bookmarked one through the same poseEqual a save/jump round
+    // trip uses, so "the pose came back" is exact rather than to 6 decimals on a
+    // trace line. A jump that lands 1e-3 away reports match=0.
+    double slot = 0.0;
+    if (!number(0, slot)) return fail("bad-argument");
+    const std::size_t wanted = static_cast<std::size_t>(slot);
+    if (!g_cameraBookmarks.saved(wanted) || !g_renderer) return fail("no-bookmark");
+    const auto reading = g_renderer->orbitPose();
+    if (!reading.valid) return fail("no-pose");
+    tf2::native::CameraPose current;
+    current.focusX = reading.focusX; current.focusY = reading.focusY;
+    current.focusZ = reading.focusZ; current.yaw = reading.yaw;
+    current.pitch = reading.pitch; current.distance = reading.distance;
+    current.valid = true;
+    const auto& saved = g_cameraBookmarks.at(wanted);
+    // Two separate readings, because the mutation harness proves each one can go
+    // red on its own: the six orbit fields, and the projection the frame is
+    // drawn through. A jump that restores the orbit into the wrong fov is a
+    // different picture even though the pose numbers match.
+    const bool match = tf2::native::poseEqual(current, saved.pose);
+    const bool fovMatch = reading.fovDegrees == saved.fov;
+    traceFmt("camera: verify kind=bookmark slot=%d match=%d fovMatch=%d fovWant=%s fovGot=%s want=%s got=%s",
+      static_cast<int>(wanted), match ? 1 : 0, fovMatch ? 1 : 0,
+      tf2::native::formatPoseField(saved.fov).c_str(),
+      tf2::native::formatPoseField(reading.fovDegrees).c_str(),
+      tf2::native::formatPose(saved.pose).c_str(), tf2::native::formatPose(current).c_str());
+    return match && fovMatch ? ok("exact") : fail(match ? "fov-mismatch" : "pose-mismatch");
+  }
+  if (step.command == "verify-name") {
+    double slot = 0.0;
+    if (!number(0, slot)) return fail("bad-argument");
+    std::string wanted;
+    for (std::size_t position = 1; position < step.args.size(); ++position) {
+      if (!wanted.empty()) wanted += " ";
+      wanted += step.args[position];
+    }
+    const auto& bookmark = g_cameraBookmarks.at(static_cast<std::size_t>(slot));
+    const bool match = bookmark.saved && bookmark.name == wanted;
+    traceFmt("camera: verify kind=name slot=%d match=%d name=%s",
+      static_cast<int>(slot), match ? 1 : 0, bookmark.name.c_str());
+    return match ? ok("named") : fail("name-mismatch");
+  }
+  if (step.command == "capture") {
+    if (!g_renderer || step.args.empty()) return fail("bad-argument");
+    g_scriptCapturePath = step.args[0];
+    g_scriptCaptureLabel = step.args.size() > 1 ? step.args[1] : step.args[0];
+    g_scriptCapturePending = true;
+    // The capture is armed here and requested on the next drawn frame; the
+    // `camera: capture` line then names the tick it landed on. The step still
+    // reports, so "the step was executed" and "the frame was written" stay two
+    // separate readings.
+    return ok("armed=" + g_scriptCaptureLabel);
+  }
+  if (step.command == "key") {
+    double vk = 0.0;
+    if (!number(0, vk)) return fail("bad-argument");
+    bool ctrl = false, alt = false, shift = false;
+    for (std::size_t position = 1; position < step.args.size(); ++position) {
+      if (step.args[position] == "ctrl") ctrl = true;
+      else if (step.args[position] == "alt") alt = true;
+      else if (step.args[position] == "shift") shift = true;
+    }
+    std::string action;
+    std::string result;
+    dispatchHotkey(static_cast<unsigned>(vk), ctrl, alt, shift, false, action, result);
+    traceFmt("camera: keys vk=%d ctrl=%d alt=%d shift=%d action=%s result=%s",
+      static_cast<int>(vk), ctrl ? 1 : 0, alt ? 1 : 0, shift ? 1 : 0,
+      action.empty() ? "-" : action.c_str(), result.c_str());
+    return ok(result);
+  }
+  if (step.command == "conflict") {
+    // Binds `action` to `chord` and reports whether the table accepted it.
+    // This is the step the gate uses to prove conflict detection is real: the
+    // answer must be "refused" and the action must keep its own key.
+    if (step.args.size() < 2) return fail("bad-argument");
+    const auto chord = tf2::native::parseChord(step.args[1]);
+    const bool accepted = g_keyBinds.set(step.args[0], chord);
+    traceFmt("camera: keys action=%s chord=%s result=%s current=%s",
+      step.args[0].c_str(), tf2::native::formatChord(chord).c_str(),
+      accepted ? "accepted" : "conflict",
+      tf2::native::formatChord(g_keyBinds.actionKey(step.args[0])).c_str());
+    return ok(accepted ? "accepted" : "conflict");
+  }
+  if (step.command == "bind") {
+    if (step.args.size() < 2) return fail("bad-argument");
+    const auto chord = tf2::native::parseChord(step.args[1]);
+    const bool accepted = g_keyBinds.set(step.args[0], chord);
+    traceFmt("camera: keys action=%s chord=%s result=%s current=%s",
+      step.args[0].c_str(), tf2::native::formatChord(chord).c_str(),
+      accepted ? "accepted" : "conflict",
+      tf2::native::formatChord(g_keyBinds.actionKey(step.args[0])).c_str());
+    return ok(accepted ? "accepted" : "conflict");
+  }
+  if (step.command == "unbind") {
+    if (step.args.empty()) return fail("bad-argument");
+    g_keyBinds.unbind(step.args[0]);
+    traceFmt("camera: keys action=%s result=unbound", step.args[0].c_str());
+    return ok("unbound");
+  }
+  if (step.command == "reset-keys") {
+    g_keyBinds.resetAll();
+    traceFmt("camera: keys action=* result=reset-all resets=%u",
+      g_keyBinds.resetCount());
+    return ok("reset-all");
+  }
+  if (step.command == "focus-text") {
+    g_textFieldFocused = !step.args.empty() && step.args[0] == "on";
+    return ok(g_textFieldFocused ? "on" : "off");
+  }
+  if (step.command == "director") {
+    traceFmt("camera: director frozen=%u advanced=%u violations=%u tick=%d"
+      " moves=%u movesWhilePaused=%u freeFlySteps=%u bookmarkApplies=%u"
+      " resetToPlayer=%u/%u resetView=%u focusSuppressed=%u",
+      g_cameraDirector.frozenDemoFrames(), g_cameraDirector.advancedDemoFrames(),
+      g_cameraDirector.pauseViolations(), static_cast<int>(g_cameraDirector.lastTick()),
+      g_cameraDirector.cameraMoves(), g_cameraDirector.cameraMovesWhilePaused(),
+      g_cameraDirector.freeFlySteps(), g_cameraDirector.bookmarkApplies(),
+      g_cameraDirector.resetToPlayerRequests(), g_cameraDirector.resetToPlayerApplies(),
+      g_cameraDirector.resetViewCount(), g_hotkeySuppressedByFocus);
+    return ok("reported");
+  }
+  if (step.command == "expect-tick") {
+    double wanted = -1.0;
+    if (!number(0, wanted)) return fail("bad-argument");
+    traceFmt("camera: expect what=tick expected=%d actual=%d match=%d",
+      static_cast<int>(wanted), static_cast<int>(g_playback.tick),
+      static_cast<int>(wanted) == g_playback.tick ? 1 : 0);
+    return static_cast<std::int32_t>(wanted) == g_playback.tick
+      ? ok("match") : fail("mismatch");
+  }
+  if (step.command == "mark-tick") {
+    g_scriptTickMark = g_playback.tick;
+    traceFmt("camera: mark tick=%d", static_cast<int>(g_scriptTickMark));
+    return ok("marked");
+  }
+  if (step.command == "expect-same-tick") {
+    // "the tick is exactly where it was when the mark was taken". Exact rather
+    // than "did not move much": the pause contract is that the cursor stands
+    // still, and a gate that accepted a wobble would accept a broken freeze.
+    const bool same = g_playback.tick == g_scriptTickMark;
+    traceFmt("camera: expect what=same-tick marked=%d actual=%d match=%d",
+      static_cast<int>(g_scriptTickMark), static_cast<int>(g_playback.tick),
+      same ? 1 : 0);
+    return same ? ok("frozen") : fail("tick-moved");
+  }
+  if (step.command == "expect-tick-gt") {
+    // "the tick advanced past N". Separate from expect-tick because the
+    // resume half of the contract is a claim about direction, not about a
+    // particular value: the loop is free to draw several ticks between two
+    // steps and pinning an exact number would make the gate a timing test.
+    double wanted = -1.0;
+    if (!number(0, wanted)) return fail("bad-argument");
+    const bool advanced = g_cameraDirector.lastTick() > static_cast<std::int32_t>(wanted);
+    traceFmt("camera: expect what=tick-gt expected=%d actual=%d match=%d",
+      static_cast<int>(wanted), static_cast<int>(g_cameraDirector.lastTick()),
+      advanced ? 1 : 0);
+    return advanced ? ok("advanced") : fail("not-advanced");
+  }
+  if (step.command == "save-settings") {
+    const bool bookmarks = g_cameraBookmarks.saveToSettings(tf2::native::settingsPath());
+    const bool keys = g_keyBinds.saveToSettings(tf2::native::settingsPath());
+    traceFmt("camera: settings bookmarks=%d keys=%d path=%s", bookmarks ? 1 : 0,
+      keys ? 1 : 0, tf2::native::settingsPath().u8string().c_str());
+    return bookmarks && keys ? ok("saved") : fail("refused");
+  }
+  if (step.command == "load-settings") {
+    const bool bookmarks = g_cameraBookmarks.loadFromSettings(tf2::native::settingsPath());
+    const bool keys = g_keyBinds.loadFromSettings(tf2::native::settingsPath());
+    traceFmt("camera: settings bookmarks=%d keys=%d loaded=1 slots=%zu",
+      bookmarks ? 1 : 0, keys ? 1 : 0, g_cameraBookmarks.savedCount());
+    return ok("loaded");
+  }
+  if (step.command == "quit") {
+    traceFmt("camera: accept steps=%u failures=%u captures=%u",
+      g_cameraScriptStepsRun, g_cameraScriptStepsFailed, g_cameraCaptures);
+    // The exit code is recorded here rather than read back from WM_QUIT: the
+    // main loop leaves through `break` on g_cameraScriptDone, so the queued quit
+    // message is never the thing that ends the process and message.wParam would
+    // still hold whatever was last dispatched. A gate reading a wrong exit code
+    // as "the run passed" is the failure this avoids.
+    g_cameraScriptExitCode = g_cameraScriptStepsFailed == 0 ? 0 : 1;
+    g_cameraScriptDone = true;
+    return true;
+  }
+  return fail("unknown-command");
 }
 
 // Reduce a `--model` argument to the form the animation cache is keyed by.
@@ -332,20 +1034,6 @@ std::string normalizedModelPath(const std::string& rawPath, const std::filesyste
   return path.substr(marker);
 }
 
-struct PlaybackState {
-  bool enabled = false;
-  bool paused = false;
-  bool reverse = false;
-  double speed = 1.0;
-  double tickRate = 66.6666667;
-  std::int32_t tick = 0;
-  std::int32_t endTick = 0;
-  std::int32_t anchorLookupTick = -1;
-  bool anchorValid = false;
-  tf2::native::DemoIndexEntry anchor{};
-};
-PlaybackState g_playback{};
-constexpr double kTargetFrameSeconds = 1.0 / 120.0;
 
 const wchar_t* entitySnapshotStatusName(tf2::native::EntitySnapshotQueryStatus status) {
   switch (status) {
@@ -393,7 +1081,8 @@ void setUiControlVisible(HWND control, bool visible) {
 // (std::string) are cheap next to a SendMessageW round trip.
 bool uiControlsUnchanged(const tf2::native::UiSnapshot& state, int cameraMode,
     const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-      std::string, bool, std::uint32_t, std::string, int>& signature) {
+      std::string, bool, std::uint32_t, std::string, int, std::size_t, bool, bool>&
+      signature) {
   return std::get<0>(signature) == static_cast<int>(state.screen)
     && std::get<1>(signature) == state.tick
     && std::get<2>(signature) == state.ticks
@@ -404,7 +1093,10 @@ bool uiControlsUnchanged(const tf2::native::UiSnapshot& state, int cameraMode,
     && std::get<7>(signature) == state.bspAvailable
     && std::get<8>(signature) == state.missingResourceCount
     && std::get<9>(signature) == state.error
-    && std::get<10>(signature) == cameraMode;
+    && std::get<10>(signature) == cameraMode
+    && std::get<11>(signature) == g_uiBookmarkSlot
+    && std::get<12>(signature) == g_cameraDirector.freeFly()
+    && std::get<13>(signature) == g_textFieldFocused;
 }
 
 // Returns true when it actually pushed to the controls, false when the cached
@@ -418,13 +1110,21 @@ bool updateNativeUiControls(HWND window) {
   // window, hence one call site, and the whole reason this function is called
   // every iteration is to keep the controls in step with the playback state.
   static std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-    std::string, bool, std::uint32_t, std::string, int> lastSignature{};
+    std::string, bool, std::uint32_t, std::string, int, std::size_t, bool, bool>
+    lastSignature{};
   static bool signatureValid = false;
+  // T50 adds the bookmark slot, the free-fly state and the text-field focus to
+  // the cache key. Without them the camera label and the slot button would only
+  // refresh when some unrelated field moved, which is exactly the stale-label
+  // class this cache exists to avoid -- a control that is correct once and
+  // frozen afterwards.
   const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-    std::string, bool, std::uint32_t, std::string, int> signature{
+    std::string, bool, std::uint32_t, std::string, int, std::size_t, bool, bool>
+    signature{
       static_cast<int>(state.screen), state.tick, state.ticks, state.playing,
       state.reverse, state.mapName, state.recordingType, state.bspAvailable,
-      state.missingResourceCount, state.error, cameraMode};
+      state.missingResourceCount, state.error, cameraMode, g_uiBookmarkSlot,
+      g_cameraDirector.freeFly(), g_textFieldFocused};
   if (signatureValid && uiControlsUnchanged(state, cameraMode, lastSignature)) return false;
   lastSignature = signature;
   signatureValid = true;
@@ -441,6 +1141,40 @@ bool updateNativeUiControls(HWND window) {
   setUiControlVisible(g_uiForward, player);
   setUiControlVisible(g_uiReverse, player);
   setUiControlVisible(g_uiTimeline, player);
+  // T50: the camera controls are player-screen controls, like the transport.
+  setUiControlVisible(g_uiCameraMode, player);
+  setUiControlVisible(g_uiFreeFly, player);
+  setUiControlVisible(g_uiResetToPlayer, player);
+  setUiControlVisible(g_uiResetView, player);
+  setUiControlVisible(g_uiBookmarkSave, player);
+  setUiControlVisible(g_uiBookmarkName, player);
+  setUiControlVisible(g_uiBookmarkDelete, player);
+  setUiControlVisible(g_uiBookmarkList, player);
+  setUiControlVisible(g_uiKeybindReset, player);
+  if (player) {
+    // The camera row is a readout: the mode the frame is drawing from, plus
+    // whether a text field currently owns the keyboard. Both are state a user
+    // needs to see to understand why a key did nothing.
+    if (g_uiCameraMode) {
+      const char* modeName = tf2::native::cameraModeName(g_cameraMode.mode());
+      std::wstring text = L"camera: " + std::wstring(modeName, modeName + std::strlen(modeName));
+      if (g_cameraDirector.freeFly()) text += L" | free-fly";
+      if (g_textFieldFocused) text += L" | typing";
+      SetWindowTextW(g_uiCameraMode, text.c_str());
+    }
+    if (g_uiBookmarkList) {
+      // "Slot n/9" carries the slot, whether it holds a bookmark and the name,
+      // so the cycler's state is readable without opening a dialog.
+      const auto& bookmark = g_cameraBookmarks.at(g_uiBookmarkSlot);
+      std::wstring label = L"Slot " + std::to_wstring(g_uiBookmarkSlot);
+      if (bookmark.saved) {
+        label += L": " + std::wstring(bookmark.name.begin(), bookmark.name.end());
+      }
+      SetWindowTextW(g_uiBookmarkList, label.c_str());
+    }
+    if (g_uiBookmarkDelete) EnableWindow(g_uiBookmarkDelete,
+      g_cameraBookmarks.saved(g_uiBookmarkSlot) ? TRUE : FALSE);
+  }
   if (g_uiTimeline) {
     SendMessageW(g_uiTimeline, TBM_SETRANGE, TRUE,
       MAKELONG(0, std::max<std::int32_t>(0, state.ticks)));
@@ -518,6 +1252,46 @@ void createNativeUiControls(HWND window, HINSTANCE instance) {
   auto [lx, ly, lw, lh] = rectFor(tf2::native::UiControlId::Timeline, 16, 122, 700, 30);
   g_uiTimeline = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_ENABLESELRANGE,
     kUiTimeline, lx, ly, lw, lh);
+  // T50: the camera controls. Labels are the shipped key names so the button and
+  // the binding read the same; a rebound key does not rename the button (the
+  // binding is the source of truth and the tooltip/hint names the action, not a
+  // key that may have moved).
+  auto [ffx, ffy, ffw, ffh] = rectFor(tf2::native::UiControlId::FreeFly, 16, 158, 90, 30);
+  g_uiFreeFly = make(L"BUTTON", L"Free-fly", BS_PUSHBUTTON, kUiFreeFly, ffx, ffy, ffw, ffh);
+  auto [rpx, rpy, rpw, rph] = rectFor(tf2::native::UiControlId::ResetToPlayer, 112, 158, 90, 30);
+  g_uiResetToPlayer = make(L"BUTTON", L"To player", BS_PUSHBUTTON, kUiResetToPlayer,
+    rpx, rpy, rpw, rph);
+  auto [rvx, rvy, rvw, rvh] = rectFor(tf2::native::UiControlId::ResetView, 208, 158, 90, 30);
+  g_uiResetView = make(L"BUTTON", L"Reset view", BS_PUSHBUTTON, kUiResetView,
+    rvx, rvy, rvw, rvh);
+  {
+    // A copy, not a reference: the ternary would otherwise have to reconcile a
+    // const reference with a temporary.
+    tf2::native::UiRect rect{304, 158, 200, 30};
+    if (plan.valid) rect = rects[static_cast<std::size_t>(tf2::native::UiControlId::CameraMode)];
+    g_uiCameraMode = make(L"STATIC", L"camera: first-person", SS_LEFT, 0,
+      rect.x, rect.y, rect.w, rect.h);
+  }
+  auto [bsx, bsy, bsw, bsh] = rectFor(tf2::native::UiControlId::BookmarkSave, 16, 194, 90, 28);
+  g_uiBookmarkSave = make(L"BUTTON", L"Save mark", BS_PUSHBUTTON, kUiBookmarkSave,
+    bsx, bsy, bsw, bsh);
+  auto [bnx, bny, bnw, bnh] = rectFor(tf2::native::UiControlId::BookmarkNameEdit, 112, 194, 240, 28);
+  // A text field owns the keyboard while it has focus: dispatchHotkey consults
+  // shouldDispatchHotkey BEFORE the table, and the flag it reads is set from the
+  // edit control EN_SETFOCUS / EN_KILLFOCUS notifications in WM_COMMAND. No
+  // subclass is used: WM_COMMAND is a path the product already routes, so focus
+  // state has one owner.
+  g_uiBookmarkName = make(L"EDIT", L"", WS_BORDER | ES_AUTOHSCROLL,
+    kUiBookmarkName, bnx, bny, bnw, bnh);
+  auto [bdx, bdy, bdw, bdh] = rectFor(tf2::native::UiControlId::BookmarkDelete, 358, 194, 90, 28);
+  g_uiBookmarkDelete = make(L"BUTTON", L"Delete", BS_PUSHBUTTON, kUiBookmarkDelete,
+    bdx, bdy, bdw, bdh);
+  auto [blx, bly, blw, blh] = rectFor(tf2::native::UiControlId::BookmarkList, 454, 194, 110, 28);
+  g_uiBookmarkList = make(L"BUTTON", L"Slot 1", BS_PUSHBUTTON, kUiBookmarkList,
+    blx, bly, blw, blh);
+  auto [krx, kry, krw, krh] = rectFor(tf2::native::UiControlId::KeybindReset, 570, 194, 110, 28);
+  g_uiKeybindReset = make(L"BUTTON", L"Default keys", BS_PUSHBUTTON, kUiKeybindReset,
+    krx, kry, krw, krh);
   updateNativeUiControls(window);
 }
 
@@ -592,6 +1366,15 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     return 0;
   }
   case WM_COMMAND: {
+    // T50: a text field owns the keyboard while it has focus, and this is where
+    // that state is decided. The edit control's own notifications are the
+    // authority (no polling, no subclass): every key path in the window
+    // procedure asks dispatchHotkey, which asks shouldDispatchHotkey.
+    if (g_nativeUi && LOWORD(wParam) == kUiBookmarkName) {
+      const int notification = HIWORD(wParam);
+      if (notification == EN_SETFOCUS) { g_textFieldFocused = true; return 0; }
+      if (notification == EN_KILLFOCUS) { g_textFieldFocused = false; return 0; }
+    }
     if (!g_nativeUi || HIWORD(wParam) != BN_CLICKED) {
       return DefWindowProcW(window, message, wParam, lParam);
     }
@@ -620,6 +1403,43 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       g_nativeUi->command(tf2::native::UiCommand::StepForward);
     } else if (id == kUiReverse) {
       g_nativeUi->command(tf2::native::UiCommand::Reverse);
+    } else if (id == kUiFreeFly) {
+      std::string reason;
+      handleCameraAction(tf2::native::camera_actions::kFreeFly, reason);
+    } else if (id == kUiResetToPlayer) {
+      std::string reason;
+      handleCameraAction(tf2::native::camera_actions::kResetToPlayer, reason);
+    } else if (id == kUiResetView) {
+      std::string reason;
+      handleCameraAction(tf2::native::camera_actions::kResetView, reason);
+    } else if (id == kUiBookmarkSave) {
+      // The name comes from the text field, so a UI save and a hotkey save
+      // differ only in whether a name was typed.
+      std::wstring typed(256, L'\0');
+      const int length = g_uiBookmarkName
+        ? GetWindowTextW(g_uiBookmarkName, typed.data(), static_cast<int>(typed.size())) : 0;
+      typed.resize(static_cast<std::size_t>((std::max)(0, length)));
+      std::string name;
+      tf2::native::wideToUtf8(typed, name);
+      saveCameraBookmark(g_uiBookmarkSlot, name);
+    } else if (id == kUiBookmarkDelete) {
+      if (g_cameraBookmarks.remove(g_uiBookmarkSlot) && g_renderer) {
+        g_renderer->clearCameraPreset(g_uiBookmarkSlot - 1);
+      }
+    } else if (id == kUiBookmarkList) {
+      // Cycle 1..8. The next slot keeps the cycler one click away from every
+      // bookmark, which is the whole point of having eight.
+      g_uiBookmarkSlot = g_uiBookmarkSlot >= tf2::native::kCameraBookmarkSlots
+        ? 1 : g_uiBookmarkSlot + 1;
+      if (g_uiBookmarkName) {
+        const auto& bookmark = g_cameraBookmarks.at(g_uiBookmarkSlot);
+        const std::wstring label = bookmark.saved
+          ? std::wstring(bookmark.name.begin(), bookmark.name.end()) : std::wstring();
+        SetWindowTextW(g_uiBookmarkName, label.c_str());
+      }
+    } else if (id == kUiKeybindReset) {
+      g_keyBinds.resetAll();
+      g_keyBinds.saveToSettings(tf2::native::settingsPath());
     } else {
       return DefWindowProcW(window, message, wParam, lParam);
     }
@@ -660,15 +1480,36 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
             || wParam == VK_END
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
-    const bool functionKey = wParam >= VK_F1 && wParam <= VK_F8;
-    if (functionKey && g_renderer) {
-      const std::size_t slot = static_cast<std::size_t>(wParam - VK_F1);
+    // T50: the camera keys are bindings now, not if-arms. F1..F8 / Ctrl+F1..F8 /
+    // Ctrl+Shift+F1..F8 keep their T4 meanings as the [keys] defaults, and the
+    // table is what decides -- so a user rebind reaches the same actions and a
+    // key with no binding does nothing (reported as unbound, with no fallback).
+    // The old function-key arm fired even when the key was unbound, which is the
+    // behaviour this replaces; it also meant F1..F8 was a key range nobody could
+    // see or change.
+    {
       const bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+      const bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
       const bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-      if (control && shift) g_renderer->clearCameraPreset(slot);
-      else if (control) g_renderer->saveCameraPreset(slot);
-      else g_renderer->applyCameraPreset(slot);
-    } else if (wParam == VK_HOME) {
+      const unsigned vk = static_cast<unsigned>(wParam);
+      // A character key is one that produces text. The focus rule suppresses
+      // every bound action while a text field is focused; this flag is what
+      // lets a caller tell the two kinds apart without a second policy.
+      const bool character = (vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9')
+        || vk == VK_SPACE || vk == VK_OEM_PLUS || vk == VK_OEM_MINUS;
+      std::string dispatchedAction;
+      std::string dispatchResult;
+      const bool handled = dispatchHotkey(vk, control, alt, shift, character,
+        dispatchedAction, dispatchResult);
+      if (handled || dispatchResult == "suppressed-by-focus") {
+        updateNativeUiControls(window);
+        return 0;
+      }
+      // Not a bound action: fall through to the playback keys below, which are
+      // transport rather than feature bindings.
+      if (control || alt) return 0;
+    }
+    if (wParam == VK_HOME) {
       if (g_renderer) g_renderer->resetCamera();
       if (g_playback.enabled) { g_playback.tick = 0; g_playback.reverse = false; }
     } else if (wParam == VK_END && g_playback.enabled) {
@@ -837,6 +1678,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
   }
   auto persistent = tf2::native::loadSettings();
+  // T50: the durable camera state, read from the same file. A settings file that
+  // does not exist leaves both at their compiled defaults -- which is what makes
+  // "--settings-file <new path>" a hermetic run with no bookmarks and the shipped
+  // keys, rather than a run that inherits whatever the machine had.
+  g_cameraBookmarks.loadFromSettings(tf2::native::settingsPath());
+  g_keyBinds.loadFromSettings(tf2::native::settingsPath());
   tf2::native::NativeUiController nativeUi;
   nativeUi.setTfRoot(persistent.tfRoot);
   g_nativeUi = &nativeUi;
@@ -859,6 +1706,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
+  // T50 acceptance driver: a file of camera steps, executed in order. Empty in
+  // every ordinary run, which is why the default product path never sees it.
+  std::filesystem::path cameraScriptPath;
+  bool cameraScriptRejected = false;
   // Standalone `--model` skinning contract. The single-model path is a separate
   // contract from the entity-instance path: it uploads one skeleton to b1, so
   // it can and must enable the skinning branch explicitly. Three knobs:
@@ -1563,6 +2414,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else captureTickRejected = true;
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0) {
         captureTickRejected = true;
+      } else if (wcscmp(arguments[i], L"--camera-script") == 0 && i + 1 < argumentCount) {
+        // T50: the scripted acceptance driver (see runCameraScriptStep). A file
+        // of steps, each reported as `camera: accept`; the run quits when the
+        // script says so, with the exit code carrying the failure count.
+        cameraScriptPath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--camera-script") == 0) {
+        cameraScriptRejected = true;
       }
     }
     persistent.render.normalize();
@@ -1574,6 +2432,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   if (captureTickRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
+    return 13;
+  }
+  if (cameraScriptRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: --camera-script needs a path.\n");
     return 13;
   }
   if (modelArgumentRejected) {
@@ -6124,6 +6986,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // code. A gate therefore never has to guess when to kill the process.
   bool captureArmed = !captureFramePath.empty();
   bool captureRequested = false;
+  // T50: load the acceptance script before the loop and say so in the trace.
+  // A path that does not load is a hard refusal, not an empty script: a gate
+  // whose steps silently vanished would read as "everything passed".
+  if (!cameraScriptPath.empty()) {
+    if (!loadCameraScript(cameraScriptPath)) {
+      traceFmt("camera: accept result=fail detail=script-unreadable path=%s",
+        cameraScriptPath.u8string().c_str());
+      renderer.shutdown();
+      g_renderer = nullptr;
+      return 15;
+    }
+    g_cameraScriptMode = true;
+    traceFmt("camera: accept result=loaded steps=%zu", g_cameraScript.size());
+  }
   while (running) {
     ++mainLoopIterations;
     traceFmt("loop n=%llu tick=%d", static_cast<unsigned long long>(mainLoopIterations),
@@ -6205,6 +7081,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         lastAudioTick = g_playback.tick;
       }
     }
+    // T50: the demo clock, read every iteration. This is the single place the
+    // loop tells the director what it did; noteDemoTick counts a paused frame
+    // whose tick moved as a violation, which is what makes "pause freezes the
+    // tick" a reading rather than a claim about the code above. It runs whether
+    // or not the tick moved, because "frozen" is only meaningful per frame.
+    g_cameraDirector.setPaused(g_playback.paused);
+    g_cameraDirector.noteDemoTick(g_playback.paused, g_playback.tick);
     if (g_renderer && g_playback.enabled && g_playback.tick != lastSceneTick) {
       const std::int32_t sceneTick = firstPacketTick + g_playback.tick;
       traceFmt("scene: begin tick=%d sceneTick=%d", static_cast<int>(g_playback.tick),
@@ -6269,6 +7152,23 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           // camera stays exactly where the user's orbit left it.
           ++g_cameraFreezeFrames;
           break;
+      }
+      // T50 "back to the player": the request is a LATCH the scene tick
+      // consumes, and only on a tick that actually has an observe target --
+      // that is the whole reason it is latched rather than applied in the key
+      // handler. Consuming it on a tick with no target would spend the request
+      // and leave the camera where it was, which the user reads as "the key did
+      // nothing" and the trace would report as applied.
+      if (haveObserverView && g_cameraDirector.takeResetToPlayer()) {
+        // In first-person the switch above already adopted the demo eye; this
+        // makes the adoption explicit for the record and re-asserts it, so the
+        // command has the same effect whether the mode was already first-person
+        // or the handler had just set it.
+        renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
+          observerView.origin[2], observerView.angles[0], observerView.angles[1]);
+        traceFmt("camera: reset-to-player applied=1 tick=%d eye=%.1f,%.1f,%.1f",
+          static_cast<int>(g_playback.tick), observerView.origin[0],
+          observerView.origin[1], observerView.origin[2]);
       }
       // T10 diagnostic camera, applied EVERY frame rather than once: the
       // one-shot apply after the world upload lost to an ordering this file
@@ -7084,9 +7984,31 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (updateNativeUiControls(window)) ++uiUpdateCalls;
     if (refreshWindowTitle()) ++titleUpdateCalls;
     writeMetrics(now, false);
+    // T50: the acceptance script runs one step per drawn frame, AFTER the scene
+    // and HUD updates for that frame and BEFORE the draw, so a step that changes
+    // the camera changes the frame that is drawn next -- which is what makes
+    // "two jumps to the same bookmark capture the same frame" a statement about
+    // the same code path a user takes.
+    if (g_cameraScriptMode) {
+      if (elapsed >= kTargetFrameSeconds) runCameraScriptStep();
+      if (g_cameraScriptDone) break;
+    }
     if (elapsed >= kTargetFrameSeconds) {
       traceFmt("draw: begin tick=%d frames=%llu", static_cast<int>(g_playback.tick),
         static_cast<unsigned long long>(renderedFrames));
+      // A script capture is armed on the frame the step ran, so the frame that
+      // is drawn is the frame the step asked for.
+      if (g_renderer && g_scriptCapturePending) {
+        const std::wstring path(g_scriptCapturePath.begin(), g_scriptCapturePath.end());
+        renderer.requestFrameCapture(path);
+        g_scriptCapturePending = false;
+        ++g_cameraCaptures;
+        traceFmt("camera: capture label=%s tick=%d paused=%d frames=%llu path=%s",
+          g_scriptCaptureLabel.c_str(), static_cast<int>(g_playback.tick),
+          g_playback.paused ? 1 : 0, static_cast<unsigned long long>(renderedFrames),
+          g_scriptCapturePath.c_str());
+        cameraSnapshot(g_scriptCaptureLabel);
+      }
       if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
         renderer.requestFrameCapture(captureFramePath.wstring());
         captureArmed = false;
@@ -7262,11 +8184,77 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       tf2::native::CameraModeController::doubleClickWindowMs(),
       g_pauseKey.toggles, g_cameraFollows, g_cameraHoldsNoTarget,
       g_cameraFreezeFrames);
+    // T50: the contract this round adds, on its own line so the T4 gate's
+    // readings above are untouched. `frozenFrames` counts main-loop iterations
+    // that ran while paused with the tick holding; `violations` counts the ones
+    // where it moved anyway, and must be 0 in every run without a defect.
+    traceFmt("camera: director frozen=%u advanced=%u violations=%u tick=%d"
+      " moves=%u movesWhilePaused=%u freeFlySteps=%u bookmarkApplies=%u"
+      " resetToPlayer=%u/%u resetView=%u focusSuppressed=%u captures=%u",
+      g_cameraDirector.frozenDemoFrames(), g_cameraDirector.advancedDemoFrames(),
+      g_cameraDirector.pauseViolations(), static_cast<int>(g_cameraDirector.lastTick()),
+      g_cameraDirector.cameraMoves(), g_cameraDirector.cameraMovesWhilePaused(),
+      g_cameraDirector.freeFlySteps(), g_cameraDirector.bookmarkApplies(),
+      g_cameraDirector.resetToPlayerRequests(), g_cameraDirector.resetToPlayerApplies(),
+      g_cameraDirector.resetViewCount(), g_hotkeySuppressedByFocus, g_cameraCaptures);
+    traceFmt("camera: bookmarks saved=%zu of=%zu saves=%u deletes=%u jumps=%u refusals=%u",
+      g_cameraBookmarks.savedCount(), tf2::native::kCameraBookmarkSlots,
+      g_cameraBookmarks.saveCount(), g_cameraBookmarks.deleteCount(),
+      g_cameraBookmarks.jumpCount(), g_cameraBookmarks.refusedCount());
+    // Counters for the WHOLE shared table, so the same neutral prefix. The
+    // action count in a merged build includes T51's three, and a gate that
+    // pinned an exact 27 here would go red the moment the two features met --
+    // a green gate that turns red on a CORRECT merge is worse than no
+    // assertion, so the count is reported rather than pinned, and the pinned
+    // 27 lives in camera_probe against the camera-only table.
+    traceFmt("keys: table actions=%zu sets=%u conflicts=%u resets=%u dispatched=%u"
+      " unbound=%u suppressed=%u last=%s",
+      g_keyBinds.actions().size(), g_keyBinds.setCount(), g_keyBinds.conflictCount(),
+      g_keyBinds.resetCount(), g_keyBinds.dispatchOkCount(),
+      g_keyBinds.dispatchUnboundCount(), g_keyBinds.suppressedByFocusCount(),
+      g_lastDispatchedAction.empty() ? "-" : g_lastDispatchedAction.c_str());
+    // Every action and the chord it currently holds, one line per action. A
+    // gate that has to prove "the binding a user set is the one that fires"
+    // needs the table, not a summary of it.
+    //
+    // The prefix is `keys:`, NOT `camera:`, because this table is shared
+    // (contract 1.2/2): T51's hud.* actions live in it too, so a line named
+    // after one of the two features would be a lie for the other's rows. The
+    // action id identifies a row -- a reader filters on that, not on the
+    // prefix. This is the reading a second feature's gate should assert
+    // against: the MERGED table, which is exactly where two features could
+    // disagree about who owns a key.
+    for (const auto& action : g_keyBinds.actions()) {
+      traceFmt("keys: bind action=%s chord=%s", action.c_str(),
+        tf2::native::formatChord(g_keyBinds.actionKey(action)).c_str());
+    }
+    for (std::size_t slot = 1; slot <= tf2::native::kCameraBookmarkSlots; ++slot) {
+      const auto& bookmark = g_cameraBookmarks.at(slot);
+      if (!bookmark.saved) {
+        traceFmt("camera: bookmark slot=%zu saved=0", slot);
+        continue;
+      }
+      traceFmt("camera: bookmark slot=%zu saved=1 name=%s mode=%s tick=%d %s",
+        slot, bookmark.name.c_str(), bookmark.mode.c_str(),
+        static_cast<int>(bookmark.tick),
+        tf2::native::poseTraceFields(bookmark.pose).c_str());
+    }
+  }
+  // T50: the bookmarks and the key table are durable, so they are written at
+  // exit whether or not a script ran. loadSettings() runs before the window is
+  // created; this is the matching write. A script may have saved them already;
+  // the write is idempotent.
+  if (!tf2::native::settingsPath().empty()) {
+    g_cameraBookmarks.saveToSettings(tf2::native::settingsPath());
+    g_keyBinds.saveToSettings(tf2::native::settingsPath());
   }
   renderer.shutdown();
   persistent.render = renderer.settings();
   if (assets.valid()) persistent.tfRoot = assets.tfDirectory;
   tf2::native::saveSettings(persistent);
   g_renderer = nullptr;
+  // A scripted run reports its own failures through this code; every other run
+  // keeps the historical WM_QUIT code.
+  if (g_cameraScriptExitCode >= 0) return g_cameraScriptExitCode;
   return static_cast<int>(message.wParam);
 }

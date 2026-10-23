@@ -121,7 +121,16 @@ public:
 // can only ever clip at its own control's edge, never overlap another control.
 enum class UiControlId {
   Status = 0, Open, Cancel, Confirm, Play, Stop, Back, Forward, Reverse,
-  Timeline, Count,
+  Timeline,
+  // T50: the camera controls, reserved immediately after Timeline in the order
+  // native/docs/camera-ui-contract.md section 3 pins. T51 appends its own ids
+  // after `Count` and extends the planner with its own function, so the two
+  // features cannot move each other's rects. Kept inside the enum (rather than
+  // a second enum) because planUiLayout returns one rect array and a split
+  // would need two containment proofs.
+  CameraMode, FreeFly, ResetToPlayer, ResetView,
+  BookmarkSave, BookmarkNameEdit, BookmarkDelete, BookmarkList, KeybindReset,
+  Count,
 };
 
 struct UiRect {

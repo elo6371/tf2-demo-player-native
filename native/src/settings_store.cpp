@@ -1,5 +1,6 @@
 #include "settings_store.h"
 
+#include "ini_section.h"
 #include "viewmodel.h"
 
 #include <Windows.h>
@@ -114,6 +115,16 @@ bool saveSettings(const PersistentSettings& settings) {
   }
   const auto root = settings.tfRoot.lexically_normal();
   if (!WritePrivateProfileStringW(kSection, L"tfRoot", root.c_str(), temporary.c_str())) {
+    DeleteFileW(temporary.c_str());
+    return false;
+  }
+  // T50: carry every other section across. The bookmarks ([camera]) and the key
+  // table ([keys]) share this file, and this writer rebuilds it from empty, so
+  // without this an exit would delete both -- a data loss that reads as "the
+  // settings were reset" and that no gate would have caught, because every
+  // existing gate reads [renderer] only. The copy runs before the temp file is
+  // moved into place, so a failure leaves the old file untouched.
+  if (!copyIniSectionsExcept(file, temporary, kSection)) {
     DeleteFileW(temporary.c_str());
     return false;
   }

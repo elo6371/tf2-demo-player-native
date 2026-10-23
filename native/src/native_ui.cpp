@@ -549,11 +549,37 @@ UiLayoutPlan planUiLayout(int clientWidth, int clientHeight, float dpiScale) {
     int baseH;
     int widths[5];
   };
-  const RowSpec rows[3] = {
+  const RowSpec rows[5] = {
     { UiControlId::Open, 3, 48, 30, { 120, 90, 90, 0, 0 } },
     { UiControlId::Play, 5, 84, 30, { 110, 80, 80, 80, 90 } },
     { UiControlId::Timeline, 1, 122, 30, { 700, 0, 0, 0, 0 } },
+    // T50: the camera row -- free-fly, reset-to-player, reset-view -- at the
+    // same geometry rules as the rows above. The widths are 96-dpi numbers the
+    // dpi scale multiplies, and every rect is still clamped inside the client
+    // by the loop below, so the 42-case probe covers them unchanged.
+    { UiControlId::FreeFly, 3, 158, 30, { 90, 90, 90, 0, 0 } },
+    // The bookmark row: save, the name text field (wide enough to type into),
+    // delete, the slot cycler, and the restore-default-keys button.
+    { UiControlId::BookmarkSave, 5, 194, 28, { 90, 240, 90, 110, 110 } },
   };
+  // The camera-mode readout is a label, not a control: it sits at the end of
+  // the camera row, in the space the three buttons above leave. Planned here
+  // rather than left unplanned because an unplanned rect is exactly what "every
+  // rect inside the client, no two overlapping" cannot be asserted about, and
+  // the probe walks every rect in the array.
+  {
+    auto& modeRect = plan.rects[static_cast<std::size_t>(UiControlId::CameraMode)];
+    int x = margin;
+    for (int index = 0; index < 3; ++index) {
+      x += scaleDimension(90, dpiScale) + gap;
+    }
+    modeRect.x = (std::min)(x, clientWidth);
+    modeRect.y = (std::min)(scaleDimension(158, dpiScale), clientHeight);
+    modeRect.h = (std::min)(scaleDimension(30, dpiScale),
+      (std::max)(0, clientHeight - modeRect.y));
+    modeRect.w = (std::max)(0, (std::min)(scaleDimension(200, dpiScale),
+      (std::max)(0, clientWidth - margin - modeRect.x)));
+  }
   for (const auto& row : rows) {
     // A row whose scaled y lands past the bottom has no room: it collapses to
     // a zero-height rect pinned at the client's bottom edge, which stays
