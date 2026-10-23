@@ -126,12 +126,22 @@ struct OverlayColor {
 };
 OverlayColor overlayTeamColor(OverlayTeam team);
 
-// The band the silhouette is expanded by, in NORMALISED WORLD-BOX units (the
-// renderer's world buffer is a unit box; one world unit is about
-// 1/worldHorizontalScale_ map units -- 20 map units on the reference map).
-// It is a named constant so a gate can predict where the outline's outer edge
-// lands instead of searching the frame for "wherever it changed".
-constexpr float kOverlaySilhouetteExpand = 0.004f;
+// The silhouette's shell thickness, in PIXELS -- not in world or model units.
+//
+// Why not a world constant: on the reference capture a standing player is about
+// 4 px tall (his world height is 0.0067 normalised-box units, his model height
+// 83.45 units, so model->world is ~8e-5). A 1-2 px outline is therefore 25-50%
+// of a player's HEIGHT in world units: the same constant reads as a hairline on
+// a close-up and as a 2x blob at range, and there is no value that is an outline
+// at both distances. Measured both ways: 0.004 in world space = 0.4-1.6 px per
+// side (a blob, 373 pixels outside every box); the same 0.004 in model space =
+// 0.0002 px per side (invisible, 484 -> 41 ink pixels).
+//
+// So the expansion is applied in CLIP SPACE, where a pixel is a pixel: the
+// vertex shader offsets by 2 * pixels / viewportSize in NDC, times w. The band
+// is 1-2 px (an outline); above ~4 px it stops reading as an edge and starts
+// reading as a halo, which is what the gate's band assertion guards.
+constexpr float kOverlaySilhouetteExpandPixels = 1.5f;
 
 // ---------------------------------------------------------------------------
 // 3. THE TICK SAMPLING POLICY
@@ -434,7 +444,7 @@ private:
 //
 // THE SILHOUETTE PRIMITIVE IS A SHELL, NOT A HOLLOW RING. It is the entity's
 // own mesh, skinned with the same matrices the entity pass used and expanded
-// along its normals by kOverlaySilhouetteExpand, drawn in the team colour with
+// along its normals by kOverlaySilhouetteExpandPixels, drawn in the team colour with
 // depth writes off. A hollow ring needs a stencil pre-pass and produces a band
 // a few pixels wide at the distances these recordings place players at; the
 // filled silhouette is what makes "this pixel belongs to that entity, and that
@@ -774,7 +784,7 @@ struct OverlayPassReading {
   std::size_t vertexCount = 0;
   std::size_t drawCalls = 0;
   std::size_t stageOrdinal = 0;
-  float expandWorldUnits = kOverlaySilhouetteExpand;
+  float expandPixels = kOverlaySilhouetteExpandPixels;
   // The world-space (normalised box) rectangle the drawn silhouettes cover,
   // accumulated from the drawn items. Empty when nothing drew. This is what
   // lets a pixel assertion be about "the region this entity covers" rather

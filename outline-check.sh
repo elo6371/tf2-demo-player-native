@@ -662,7 +662,17 @@ REGION_ARG=""
 if [ -n "$REGIONS" ]; then REGION_ARG="regions=$REGIONS"; fi
 echo "  regions=$REGIONS"
 printf "%s" "$REGIONS" > "$OUT/regions.txt"
-NI=$("$PY" outline-frame-check.py noninterference on="$OUT/on.bmp" off="$OUT/off.bmp" $REGION_ARG 2>&1)
+# Both tolerances are computed BEFORE the frame comparison, because the comparison
+# takes the product's number as its own pass rule. Two readings of the same thing
+# that disagree (a green assertion next to "VERDICT FAIL") is a shape of error this
+# project has already paid for once.
+TOLERANCE=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --expand-tolerance)
+echo "  tolerance: ${TOLERANCE:-<none>}  (the product's own shell, summed)"
+TOL_VALUE=$(echo "$TOLERANCE" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
+TOL_MISSING=$(echo "$TOLERANCE" | grep -o "missing=[0-9]*" | cut -d= -f2)
+BAND=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --expand-band)
+echo "  expand band: ${BAND:-<none>}  (0 < expandPx <= 4 is an outline)"
+NI=$("$PY" outline-frame-check.py noninterference on="$OUT/on.bmp" off="$OUT/off.bmp" $REGION_ARG max_outside="${TOL_VALUE:-0}" 2>&1)
 echo "  $NI" | sed "s/^/    /"
 # PRECONDITION, written before the numbers it guards: two runs may only be
 # compared once they are shown to be looking at the same scene. The rule is
@@ -692,11 +702,15 @@ fi
 # A constant written here would make the assertion "the overlay is not wrong by more
 # than we guessed" instead of "the overlay is where the product says it is", and the
 # next change to the expansion would not be reflected in it.
-TOLERANCE=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --expand-tolerance)
-echo "  tolerance: ${TOLERANCE:-<none>}  (outside=$NI_OUT)"
-TOL_VALUE=$(echo "$TOLERANCE" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
-TOL_MISSING=$(echo "$TOLERANCE" | grep -o "missing=[0-9]*" | cut -d= -f2)
 assert_eq "items whose shell expansion the product published" "${TOL_MISSING:-<none>}" "0"
+# The shell thickness has to sit in a band, and the band is about what the picture
+# MEANS, not about a tolerance: 1-2 px is an outline on a player ~4 px tall, past
+# ~4 px it is a halo. This is the assertion the last round was missing -- the shell
+# was 60% of a player height and nothing in the gate said "that is not an outline".
+# It reads the product's own number, so it also guards the constant itself.
+assert_eq "silhouettes whose shell the product did not publish" "$(echo "$BAND" | grep -o "missing=[0-9]*" | cut -d= -f2)" "0"
+assert_eq "silhouettes with a shell of zero pixels (the outline is not drawn)" "$(echo "$BAND" | grep -o "below=[0-9]*" | cut -d= -f2)" "0"
+assert_eq "silhouettes with a shell above the outline band (> 4 px)" "$(echo "$BAND" | grep -o "above=[0-9]*" | cut -d= -f2)" "0"
 WITHIN=$(awk -v out="${NI_OUT:-0}" -v tol="${TOL_VALUE:-0}" 'BEGIN { printf "%d", ((out + 0) <= (tol + 0)) ? 1 : 0 }')
 assert_eq "painted pixels outside every drawn region, within the product's own tolerance" "${WITHIN:-<none>}" "1"
 assert_ge "differing pixels INSIDE the drawn regions" "$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)" "1"
@@ -959,7 +973,7 @@ if [ "$MUTATION" = "1" ]; then
   # The case count is written next to the cases that exist, not remembered: the list
   # grew from 8 to 12 (m-meta included) and a heading that says 8 while 12 run is
   # itself a reading that stopped matching the mechanism.
-  echo "=== mutation: 12 cases (m1-m12) plus m-meta, each rebuilt and required to go red ==="
+  echo "=== mutation: 14 cases (m1-m14) plus m-meta, each rebuilt and required to go red ==="
   MUT_SRC="native/src/entity_overlay.cpp"
   MUT_MAIN="native/src/main.cpp"
   MUT_RENDERER="native/src/native_renderer.cpp"
@@ -1485,21 +1499,19 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m12" "pixels outside every drawn region with the draw shifted 3 px" \
       "${NI_OUT:-0}" "${M12_OUT:-0}"
   fi
-  # ---- m13: the product declares no expansion while it still expands -------
+  # ---- m13: the shell DRAWN is ten times the shell DECLARED ----------------
   echo
-  echo "  -- m13: the product publishes expandPx=0 while the shell still expands --"
-  # This is the mirror of the tolerance rule. If the gate had invented its own
-  # threshold, publishing 0 while the pixels still spread by 1.6 px per side would
-  # pass. It must not: the tolerance is the product's declaration, so the
-  # declaration alone must move the reading. Both halves are the pre-fix behaviour
-  # (expansion in world space) plus a published zero.
+  echo "  -- m13: the drawing expands ten times as far as the product declares --"
+  # The mirror of the band: the gate reads the product's number, so the number has
+  # to be the truth about the picture. Here the pass keeps publishing 1.5 px (the
+  # band still passes) while the vertex shader offsets by 15: a gate that trusted
+  # its own idea of how thick a shell is would see nothing wrong. The outside /
+  # tolerance pair must fail, because the tolerance is built from the declaration.
+  # (The declaration-side lie -- publish 0, draw 1.5 -- is m14 below.)
   patch_in "$MUT_RENDERER" \
-"  local.xyz += unitNormal * cameraPositionAndExpand.w * mode.x;
-  mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));" \
-"  mapped += unitNormal * cameraPositionAndExpand.w * mode.x;  /* mutation m13: world space */" || mut_fail=1
-  patch_in "$MUT_RENDERER" \
-"                  reading.expandPixels = worldPerPixel > 0.0f ? expandWorld / worldPerPixel : 0.0f;" \
-"                  reading.expandPixels = 0.0f;  /* mutation m13: declare nothing */" || mut_fail=1
+"            frameEye_[0], frameEye_[1], frameEye_[2], kOverlaySilhouetteExpandPixels);" \
+"            frameEye_[0], frameEye_[1], frameEye_[2],
+            10.0f * kOverlaySilhouetteExpandPixels);  /* mutation m13: 15 px shell */" || mut_fail=1
   if rebuild_product m13; then
     M13_RC=$(run_frame "$OUT/m13" --outline on)
     M13_NI=$("$PY" outline-frame-check.py noninterference on="$OUT/m13.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
@@ -1510,6 +1522,37 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m13" "pixels outside every drawn region when the product declares no expansion" \
       "${NI_OUT:-0}" "${M13_OUT:-0}"
   fi
+  # ---- m14: the product declares a zero shell while the pixels still expand --
+  echo
+  echo "  -- m14: the product publishes expandPx=0 while the shell still expands --"
+  # The band and the tolerance both read the product's number. This mutation leaves
+  # the RENDERER expanding (clip space, 1.5 px) and only lies about it, so a gate that
+  # trusted its own idea of the shell would pass. The band must fail (zero is not an
+  # outline) and so must the outside/tolerance pair.
+  patch_in "$MUT_RENDERER" \
+"                reading.expandPixels = kOverlaySilhouetteExpandPixels;" \
+"                reading.expandPixels = 0.0f;  /* mutation m14: declare no shell */" || mut_fail=1
+  if rebuild_product m14; then
+    M14_RC=$(run_frame "$OUT/m14" --outline on)
+    M14_BAND=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/m14.trace" --expand-band)
+    M14_NI=$("$PY" outline-frame-check.py noninterference on="$OUT/m14.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
+    M14_OUT=$(echo "$M14_NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)
+    M14_BELOW=$(echo "$M14_BAND" | grep -o "below=[0-9]*" | cut -d= -f2)
+    M14_TOL=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/m14.trace" --expand-tolerance)
+    M14_TOLV=$(echo "$M14_TOL" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
+    # The pixels do NOT move (the renderer still expands): what moves is whether the
+    # gate accepts them. The product's declaration is the whole budget, so declaring
+    # nothing turns the same 48 out-of-region pixels from allowed into rejected.
+    M14_WITHIN=$(awk -v out="${M14_OUT:-0}" -v tol="${M14_TOLV:-0}" \
+      'BEGIN { printf "%d", ((out + 0) <= (tol + 0)) ? 1 : 0 }')
+    echo "    m14 $M14_BAND outsideDiff=${M14_OUT:-<none>} declared tolerance=${M14_TOLV:-<none>}" \
+      "within=${M14_WITHIN:-<none>} (fixed: ${BAND:-<none>} within=${WITHIN:-<none>})"
+    must_move "m14" "silhouettes the band refuses because the product declared zero" \
+      "0" "${M14_BELOW:-0}"
+    must_move "m14" "out-of-region pixels the gate still accepts once the shell is declared zero" \
+      "${WITHIN:-1}" "${M14_WITHIN:-1}"
+  fi
+  restore_all; rebuild_product "restore after m14" || true
   restore_all; rebuild_product "restore after m13" || true
   restore_all; rebuild_product "restore after m12" || true
 
