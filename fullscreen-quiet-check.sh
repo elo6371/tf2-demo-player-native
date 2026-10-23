@@ -305,6 +305,17 @@ assert_artifacts() { # assert_artifacts <label> <prefix>
 # A person can stop the guard with ESC. That is a right, and it is recorded as its own
 # outcome: not a pass (nothing was measured), not a failure (the product did nothing
 # wrong). The operator's action must never be hidden inside a verdict.
+# How many dispatch lines name something that is not a HUD action? One number for one
+# merge defect: before T51's dispatch was narrowed, F9 produced
+# "hud: keys dispatch action=camera.freeFly" -- a HUD handler claiming a camera action and
+# returning 0, so the camera never received the key. The trace looked like a dispatch.
+hud_dispatch_leak() { # hud_dispatch_leak <trace> -> count, or ABSENT when the trace is missing
+  local t="$1" n
+  [ -s "$t" ] || { echo "ABSENT"; return; }
+  n=$(grep 'hud: keys dispatch' "$t" 2>/dev/null | grep -vc 'action=hud\.' 2>/dev/null)
+  echo "${n:-0}"
+}
+
 guard_aborted() { # guard_aborted <guard-file> -- exits 3 when the operator stopped the run
   local a at
   a=$(need_field "$1" "guard.aborted")
@@ -662,7 +673,7 @@ if want_phase keyprobe; then
   if trace_written "$OUT/keyprobe"; then
     k_dispatch=$(grep -c 'hud: keys dispatch' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
     k_toggle=$(grep -c 'hud: keys dispatch action=hud.toggle' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
-    k_stolen=$(grep 'hud: keys dispatch' "$OUT/keyprobe.trace" 2>/dev/null | grep -vc 'action=hud\.' || true)
+    k_stolen=$(hud_dispatch_leak "$OUT/keyprobe.trace")
     k_enabled=$(grep -oE 'hud: settings enabled=[01]' "$OUT/keyprobe.trace" 2>/dev/null | tail -1 | cut -d= -f2)
     k_table=$(grep 'keys: table ' "$OUT/keyprobe.trace" 2>/dev/null | tail -1)
     k_last=$(printf '%s' "$k_table" | grep -oE 'last=[A-Za-z0-9._-]+' | tail -1)
@@ -834,13 +845,31 @@ if [ "$MUTATION" -eq 1 ]; then
     mfail=$((mfail + 1))
   fi
 
+  # M5 [gate-config, no file touched, no product]: the merge defect the keyprobe phase
+  # exists for, put back on purpose. Two traces go through the same decision the phase
+  # uses: one where a camera action was dispatched as a hud action (the pre-merge
+  # behaviour) and one where it was not. The reading has to move in BOTH directions --
+  # an assertion that cannot go red is decoration, and one that is always red is noise.
+  echo "-- M5 [gate-config, no file touched]: a camera action in a hud dispatch line"
+  printf '1.0 hud: keys dispatch action=hud.toggle\n2.0 hud: keys dispatch action=camera.freeFly\n' > "$OUT/m5-dirty.trace"
+  printf '1.0 hud: keys dispatch action=hud.toggle\n2.0 hud: keys dispatch action=hud.reset\n' > "$OUT/m5-clean.trace"
+  m5_dirty=$(hud_dispatch_leak "$OUT/m5-dirty.trace")
+  m5_clean=$(hud_dispatch_leak "$OUT/m5-clean.trace")
+  echo "   m5 leak reading: pre-merge trace=${m5_dirty:-ABSENT} clean trace=${m5_clean:-ABSENT} (want >0 and 0)"
+  if [ "${m5_dirty:-0}" -gt 0 ] 2>/dev/null && [ "${m5_clean:-x}" = "0" ]; then
+    echo "  OK   M5 caught: the leak reading is 1 for a camera action dispatched as a hud action, 0 without one"
+  else
+    echo "  FAIL M5 survived: the leak reading did not move (pre-merge=${m5_dirty:-ABSENT} clean=${m5_clean:-ABSENT})"
+    mfail=$((mfail + 1))
+  fi
+
   # The counts are printed by class so the line cannot be read as "three product
   # mutations": this gate never edits the product, M2 edits the instrument and restores
   # it, M1 and M3 only change arguments.
   if [ "$mfail" -eq 0 ]; then
-    echo "FULLSCREEN-QUIET-MUTATION=PASS product_source=0 harness_source=1(restored byte-for-byte, cmp) gate_config=2(files untouched)"
+    echo "FULLSCREEN-QUIET-MUTATION=PASS product_source=0 harness_source=1(restored byte-for-byte, cmp) gate_config=3(files untouched)"
   else
-    echo "FULLSCREEN-QUIET-MUTATION=FAIL product_source=0 harness_source=1 gate_config=2"
+    echo "FULLSCREEN-QUIET-MUTATION=FAIL product_source=0 harness_source=1 gate_config=3"
     exit 1
   fi
 fi
