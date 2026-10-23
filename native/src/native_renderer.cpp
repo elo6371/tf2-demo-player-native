@@ -700,16 +700,25 @@ Output main(Input input) {
   float3 rotated = float3(dot(input.nrow0.xyz, normalLocal), dot(input.nrow1.xyz, normalLocal), dot(input.nrow2.xyz, normalLocal));
   float lengthSquared = dot(rotated, rotated);
   float3 unitNormal = (lengthSquared > 1e-8 && lengthSquared < 1e8) ? rotated * rsqrt(lengthSquared) : float3(0.0, 0.0, 0.0);
-  // The expansion that turns the mesh into an outline. It is applied in MODEL
-  // space, before `rows`, because the constant was chosen for model units: 0.004
-  // against an 83-unit player is a hairline. Applied after `rows` -- in world
-  // space, where this map's player is only 0.0067 units tall -- the same constant
-  // is 60% of a player's height, i.e. a 2x scale, and that is exactly the 373
-  // pixels that fell outside every published box (report 22.3). `mode.x` is 0 for
-  // the line/marker path (no expansion: a trail must not grow), 1 for silhouettes.
-  local.xyz += unitNormal * cameraPositionAndExpand.w * mode.x;
-  mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));
-  output.position = mul(float4(mapped, 1.0), mvp);
+  // The expansion that turns the mesh into an outline, in CLIP SPACE so that the
+  // unit is a pixel: at this camera a player is ~4 px tall, so a world- or
+  // model-space constant is either a 2x blob or invisible (both measured; see
+  // kOverlaySilhouetteExpandPixels).
+  //   cameraPositionAndExpand.w = thickness in pixels
+  //   mode.yz                   = 2 / viewportWidth, 2 / viewportHeight (NDC per pixel)
+  //   mode.x                    = 0 for the line/marker path (a trail must not grow)
+  float4 clip = mul(float4(mapped, 1.0), mvp);
+  // The screen-space direction the vertex should move: the world normal taken
+  // through the projection's linear part. Normalised in 2D, so the shell is as
+  // thick everywhere instead of stretching with the surface angle.
+  float3 clipNormal = float3(dot(rotated, mvp[0].xyz), dot(rotated, mvp[1].xyz),
+    dot(rotated, mvp[2].xyz));
+  float2 normalPixels = clipNormal.xy;
+  float normalLength = length(normalPixels);
+  normalPixels = (normalLength > 1e-6) ? normalPixels / normalLength : float2(0.0, 0.0);
+  clip.xy += normalPixels * float2(mode.y, mode.z) * clip.w
+    * cameraPositionAndExpand.w * mode.x;
+  output.position = clip;
   output.colour = input.colour;
   return output;
 }
@@ -5541,8 +5550,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
           } overlayConstants{};
           overlayConstants.mvp = frameConstants.mvp;
           overlayConstants.cameraPositionAndExpand = DirectX::XMFLOAT4(
-            frameEye_[0], frameEye_[1], frameEye_[2], kOverlaySilhouetteExpand);
-          overlayConstants.mode = DirectX::XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
+            frameEye_[0], frameEye_[1], frameEye_[2], kOverlaySilhouetteExpandPixels);
+          // mode.x = expansion on (silhouettes; 0 for a trail), mode.yz = the NDC
+          // size of one pixel on each axis, so the shader's expansion is in pixels.
+          overlayConstants.mode = DirectX::XMFLOAT4(1.0f,
+            2.0f / static_cast<float>(width_), 2.0f / static_cast<float>(height_), 0.0f);
           context_->UpdateSubresource(overlayConstants_.Get(), 0, nullptr, &overlayConstants, 0, 0);
         } else {
           return false;
@@ -5765,30 +5777,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                   }
                 }
                 reading.depth = nearest;
-                // The shell's allowed overhang, from the product's own two numbers:
-                // the constant the shader adds in MODEL space (kOverlaySilhouetteExpand),
-                // times this instance's model->world scale (the length of rows row 0),
-                // divided by how many world units one pixel spans on this item. Every
-                // term is measured here; none is a constant the gate would have to know.
-                {
-                  const float sx = instance.rows[0];
-                  const float sy = instance.rows[1];
-                  const float sz = instance.rows[2];
-                  const float modelScale = std::sqrt(sx * sx + sy * sy + sz * sz);
-                  const float expandWorld = kOverlaySilhouetteExpand * modelScale;
-                  const float spanX = reading.worldExtent[3] - reading.worldExtent[0];
-                  const float spanY = reading.worldExtent[4] - reading.worldExtent[1];
-                  const float boxW = static_cast<float>(reading.x1 - reading.x0 + 1);
-                  const float boxH = static_cast<float>(reading.y1 - reading.y0 + 1);
-                  const float worldPerPixelX = spanX > 0.0f ? spanX / boxW : 0.0f;
-                  const float worldPerPixelY = spanY > 0.0f ? spanY / boxH : 0.0f;
-                  float worldPerPixel = 0.0f;
-                  if (worldPerPixelX > 0.0f && worldPerPixelY > 0.0f)
-                    worldPerPixel = std::min(worldPerPixelX, worldPerPixelY);
-                  else
-                    worldPerPixel = std::max(worldPerPixelX, worldPerPixelY);
-                  reading.expandPixels = worldPerPixel > 0.0f ? expandWorld / worldPerPixel : 0.0f;
-                }
+                // The shell's overhang, in the unit the shader now works in: PIXELS.
+                // It used to be derived (constant x model scale / world-per-pixel); it
+                // is now simply the constant, because the expansion itself is applied
+                // in clip space where a pixel is a pixel. Published rather than assumed
+                // so the gate's tolerance is read from the product, never guessed -- and
+                // so that a future change to the constant moves the gate too.
+                reading.expandPixels = kOverlaySilhouetteExpandPixels;
                 reading.onScreen = reading.x1 >= 0 && reading.y1 >= 0
                   && reading.x0 < static_cast<int>(width_) && reading.y0 < static_cast<int>(height_);
                 if (reading.onScreen) {

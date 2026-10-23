@@ -79,6 +79,8 @@ def parse_args(argv):
             args["mode"] = "extent"
         elif item == "--expand-tolerance":
             args["mode"] = "expand-tolerance"
+        elif item == "--expand-band":
+            args["mode"] = "expand-band"
         elif item == "--trace":
             pending = "--trace"
         elif item == "--depth":
@@ -417,6 +419,24 @@ def main(argv):
         print("bytes=%d nonGreyPct=%.2f nonzeroPct=%.2f uniqueSampled=%d"
               % (stats["bytes"], stats["nonGreyPct"], stats["nonzeroPct"],
                  stats["uniqueSampled"]))
+        return 0
+    if args.get("mode") == "expand-band":
+        # The band the shell thickness has to sit in, read off the PRODUCT's own
+        # number. A 1-2 px shell reads as an outline on a player who is ~4 px tall;
+        # past ~4 px it stops reading as an edge and starts reading as a halo, which
+        # is a worse thing to ship. Asserting the band makes a change to the constant
+        # that nobody thought about show up as a red line, not as a picture nobody
+        # measured.
+        rows = [i for i in read_items(args["trace"], args.get("frame", "captured")) if i["onScreen"]]
+        values = [row["expand"] for row in rows if row["expand"] >= 0.0]
+        missing = len(rows) - len(values)
+        below = sum(1 for value in values if value <= 0.0)
+        above = sum(1 for value in values if value > 4.0)
+        ordered = sorted(values)
+        median = ordered[len(ordered) // 2] if ordered else 0.0
+        print("items=%d published=%d missing=%d below=%d above=%d min=%.3f max=%.3f median=%.3f"
+              % (len(rows), len(values), missing, below, above,
+                 ordered[0] if ordered else 0.0, ordered[-1] if ordered else 0.0, median))
         return 0
     if args.get("mode") == "expand-tolerance":
         # The tolerance for "no painted pixel outside a region", and it is the

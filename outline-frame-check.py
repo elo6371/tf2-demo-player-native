@@ -149,7 +149,15 @@ def main(argv):
         # require_inside=0 is for the determinism call, which compares two
         # runs of the SAME state and therefore has no drawn region to find.
         want_inside = args.get("require_inside", "1") != "0"
-        ok = outside == 0 and (inside > 0 or not want_inside)
+        # max_outside is the tolerance the PRODUCT declares (the sum of perimeter x
+        # expand over the drawn items), passed in by the gate so this tool's verdict
+        # and the gate's assertion cannot disagree: a log that prints "VERDICT FAIL"
+        # next to a green assertion is two readings of the same thing that differ,
+        # and this project has paid for that shape of error before.
+        max_outside = int(args.get("max_outside", "0"))
+        ok = outside <= max_outside and (inside > 0 or not want_inside)
+        if max_outside:
+            print("tolerance_outside=%d allowed=%d" % (outside, max_outside))
         print("VERDICT %s" % ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
 

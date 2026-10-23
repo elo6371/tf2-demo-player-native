@@ -1741,6 +1741,88 @@ blue 的 6 个框里有一个 10x4（更近），整块 blue 区域画了 17 px
 
 这些数一起变小是同一个原因：剪影从"撑大的壳"回到了"网格本身的轮廓"。红/绿判读没有一条因此变绿。
 
+## 26. 外扩搬到裁剪空间：像素才是像素（2026-10-23 18:5x）
+
+### 26.1 为什么"常数放哪个空间"这个问题本身没有解
+
+参考相机上，一个站立的玩家屏幕高度**约 4 px**（世界高 0.0067、网格高 83.45，模型->世界 ~8e-5）。
+于是"每侧 1-2 px 的细描边"换算成世界/模型单位就是：
+
+```text
+世界空间 0.004  ->  每侧 0.4-1.6 px   墨迹 484 px（胖色块，373 px 出框）
+模型空间 0.004  ->  每侧 0.0002 px    墨迹  41 px（几乎看不见）
+想要 2 px/侧   ->  世界空间 0.0033 ≈ 身高 50%（又是胖色块）
+```
+
+**结论：在这个距离上"1-2 px 的描边"在世界/模型空间里根本不是一个固定量——它是身高的 25-50%。**
+上一轮"改到模型空间"只是把 373 换成了 41，两边都不对。lead 的判断是对的：反推世界常数是错的方向。
+
+### 26.2 做法：顶点投影之后，在 NDC 里按像素偏移
+
+```hlsl
+float4 clip = mul(float4(mapped, 1.0), mvp);
+float3 clipNormal = float3(dot(rotated, mvp[0].xyz), dot(rotated, mvp[1].xyz), dot(rotated, mvp[2].xyz));
+float2 normalPixels = clipNormal.xy;
+float normalLength = length(normalPixels);
+normalPixels = (normalLength > 1e-6) ? normalPixels / normalLength : float2(0.0, 0.0);
+clip.xy += normalPixels * float2(mode.y, mode.z) * clip.w * cameraPositionAndExpand.w * mode.x;
+```
+
+`mode.yz` 是 CPU 每帧算好的 `2/width, 2/height`（NDC 里一个像素的尺寸），
+`cameraPositionAndExpand.w` 现在是**像素数**（1.5），`mode.x` 仍是"这条路径要不要外扩"（线/标记为 0）。
+方向取屏幕空间法线并归一化，所以壳的厚度与表面角度无关，不会被拉斜。
+
+### 26.3 常数为什么是 1.5
+
+```cpp
+// 参考相机上一个玩家约 4 px 高。1.5 px/侧的壳 -> 剪影从 4 px 长到约 7 px，
+// 一眼能看见是"描边"；4 px/侧会到 12 px，那时它读起来是"光晕/放大"而不是边。
+constexpr float kOverlaySilhouetteExpandPixels = 1.5f;
+```
+
+它不再需要按距离换算（这正是像素单位的全部好处），所以注释写的是"为什么落在这个带里"，
+而不是"怎么从别的常数推出来"——推不出，也不需要推。
+
+### 26.4 带断言进 forward（不进变异）
+
+```text
+expand band: items=14 published=14 missing=0 below=0 above=0 min=1.500 max=1.500 median=1.500
+OK   silhouettes whose shell the product did not publish = 0
+OK   silhouettes with a shell of zero pixels (the outline is not drawn) = 0
+OK   silhouettes with a shell above the outline band (> 4 px) = 0
+```
+
+上一轮缺的就是这条：壳是"身高 60%"的时候，门禁里没有一句话说"这已经不是描边了"。
+带读的是产品自己发布的数，所以它同时守住常数本身（谁把常数改成 9，这里立刻红）。
+
+### 26.5 容差变成精确量，`outside` 从 0 变成一个被解释的数
+
+```text
+tolerance=360.000 items=14 published=14 missing=0        （= sum 2*(w+h)*1.5）
+diff_outside=48 diff_inside=105 regions=14               （smoke 读数）
+
+outside=48 <= tolerance=360  ->  门禁接受；48 就是这一圈 1.5 px 的壳真正落在框外的部分。
+```
+
+`--expand-tolerance` 的每个乘数现在都是产品发布的像素数，不再有"世界单位除以世界每像素"的估算，
+所以这个界是**精确的**而不是近似。为此 `outline-frame-check.py` 新增 `max_outside=`，让工具的 VERDICT
+和门禁的断言用同一条规则——日志里出现"绿断言配 VERDICT FAIL"是这一项目付过代价的错误形状。
+
+### 26.6 `>= 8` 那条红，没有改阈值就自己绿了（lead 预测正确）
+
+```text
+red_inside=20 blue_inside=35 red_wrong_team=0 blue_wrong_team=0   VERDICT PASS
+（上一轮 0.0002 px/侧时是 red=6，触发了 >= 8；现在 20 与 35）
+```
+
+### 26.7 变异 m13 重写、m14 新增
+
+- **m13 重写**：原来那条"改回世界空间 + 发布 0"依赖的着色器行已经不存在（裁剪空间改写把它们删了）。
+  现在 m13 = **画的壳是声明的 10 倍**（发布仍是 1.5，着色器按 15 px 偏移）：带照旧绿，
+  而 outside/tolerance 必须红——它证明"声明与画面对不上"能被抓住。
+- **m14 新增**：**声明 0、画面照旧 1.5 px**。像素一个都不动，变的是门禁还接不接受它们：
+  tolerance 变 0，于是同样那 48 个框外像素从"允许"变成"拒绝"。这是容差绑在声明上的正面证明。
+
 ## 8. 交接
 
 ### 8.0 冻结状态（2026-10-23 10:55，本轮结束）
