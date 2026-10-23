@@ -112,6 +112,37 @@ const char* logsUrlReasonName(LogsUrlReason reason) {
   return "unknown";
 }
 
+std::string logsScriptValue(const std::string& json) {
+  // Only a JSON string needs decoding; a number, true/false or null is already
+  // the text a caller wants and decoding is a no-op for it.
+  if (json.size() < 2 || json.front() != '"' || json.back() != '"') return json;
+  std::string out;
+  out.reserve(json.size() - 2);
+  for (std::size_t i = 1; i + 1 < json.size(); ++i) {
+    if (json[i] != '\\' || i + 2 >= json.size()) {
+      out.push_back(json[i]);
+      continue;
+    }
+    const char escaped = json[i + 1];
+    switch (escaped) {
+      case 'n': out.push_back('\n'); break;
+      case 't': out.push_back('\t'); break;
+      case 'r': out.push_back('\r'); break;
+      case '"': out.push_back('"'); break;
+      case '\\': out.push_back('\\'); break;
+      case '/': out.push_back('/'); break;
+      default:
+        // An escape this decoder does not know is kept verbatim instead of
+        // dropped: a silently shortened answer reads like a right one.
+        out.push_back('\\');
+        out.push_back(escaped);
+        break;
+    }
+    ++i;
+  }
+  return out;
+}
+
 LogsUrlDecision validateLogsUrl(const std::string& input) {
   LogsUrlDecision decision;
   // Trim leading/trailing whitespace: a URL pasted from a chat has one, and
@@ -833,18 +864,33 @@ bool LogsPanelController::reload() {
   return host_->reload(&error);
 }
 
+std::string logsScrollScript(int deltaY) {
+  // See the header: this is a string a test can inspect, and it has no length
+  // limit. The buffer it replaces truncated at 159 characters, which compiled,
+  // ran, and answered a plausible 0.
+  return
+      "(function(){var y=(window.scrollY||document.documentElement.scrollTop||0)+("
+      + std::to_string(deltaY)
+      + ");window.scrollTo(0,y);return String(window.scrollY||document.documentElement.scrollTop||0);})()";
+}
+
 bool LogsPanelController::scrollContent(int deltaY, int* resultingOffset) {
   if (resultingOffset != nullptr) *resultingOffset = 0;
   if (state_ != LogsPanelState::Content || host_ == nullptr || !counters_.hostAlive) return false;
   std::string error;
-  char script[160];
-  // scrollBy is deliberately NOT used: it animates in some builds and the
-  // offset read back would be a moving target. scrollTo with an absolute target
-  // computed by the page itself is one synchronous step.
-  std::snprintf(script, sizeof(script),
-    "(function(){var y=(window.scrollY||document.documentElement.scrollTop||0)+(%d);"
-    "window.scrollTo(0,y);return String(window.scrollY||document.documentElement.scrollTop||0);})()",
-    deltaY);
+  // Assembled with std::string, NOT snprintf into a fixed buffer.
+  // The buffer was char[160] and this script is 174 characters at a 3-digit
+  // delta: snprintf truncated it mid-identifier, the browser answered a
+  // SyntaxError that arrives as the JSON literal null, atoi("null") read 0, and
+  // every call counter stayed green -- scrollCalls=1, scriptFailures=0, offset 0.
+  // The 2026-10-23 run reported exactly that on a page 1729px tall in a 608px
+  // viewport: a page that CAN scroll and did not. A truncation that compiles,
+  // runs, and answers a plausible number is the failure mode a length check is
+  // for; building the string removes the limit instead of enlarging it.
+  // scrollBy is deliberately NOT used: it animates in some builds and the offset
+  // read back would be a moving target. scrollTo with an absolute target computed
+  // by the page itself is one synchronous step.
+  const std::string script = logsScrollScript(deltaY);
   std::string result;
   countHostCall();
   ++counters_.scrollCalls;
@@ -853,7 +899,15 @@ bool LogsPanelController::scrollContent(int deltaY, int* resultingOffset) {
     ++counters_.scriptFailures;
     return false;
   }
-  if (resultingOffset != nullptr) *resultingOffset = std::atoi(result.c_str());
+  const int parsed = std::atoi(result.c_str());
+  // The raw string is recorded next to the parsed number: a host whose script
+  // seam returned something unparsable ("undefined", "") reads as 0 in the
+  // offset and would otherwise be indistinguishable from a page that did not
+  // move. scriptFailures counts only a REFUSED call, so this is the field that
+  // catches a call that succeeded and answered nonsense.
+  counters_.lastScrollOffset = parsed;
+  counters_.lastScrollRawResult = result;
+  if (resultingOffset != nullptr) *resultingOffset = parsed;
   return true;
 }
 
@@ -862,7 +916,10 @@ bool LogsPanelController::pageExtent(int* scrollHeight, int* viewportHeight) {
   if (viewportHeight != nullptr) *viewportHeight = 0;
   if (state_ != LogsPanelState::Content || host_ == nullptr || !counters_.hostAlive) return false;
   std::string error;
-  const char* script =
+  // Two numbers from ONE round trip, so the page height and the viewport come
+  // from the same instant. It is assembled here rather than through the host so
+  // the seam returns exactly what the expression evaluated to.
+  const std::string script =
       "(function(){return String(document.documentElement.scrollHeight||0)+','+"
       "String(window.innerHeight||0);})()";
   std::string result;
@@ -874,9 +931,31 @@ bool LogsPanelController::pageExtent(int* scrollHeight, int* viewportHeight) {
   }
   const std::size_t comma = result.find(',');
   if (comma == std::string::npos) return false;
-  if (scrollHeight != nullptr) *scrollHeight = std::atoi(result.substr(0, comma).c_str());
-  if (viewportHeight != nullptr) *viewportHeight = std::atoi(result.substr(comma + 1).c_str());
+  const int pageHeight = std::atoi(result.substr(0, comma).c_str());
+  const int viewport = std::atoi(result.substr(comma + 1).c_str());
+  counters_.lastScrollPageHeight = pageHeight;
+  counters_.lastScrollViewportHeight = viewport;
+  if (scrollHeight != nullptr) *scrollHeight = pageHeight;
+  if (viewportHeight != nullptr) *viewportHeight = viewport;
   return true;
+}
+
+void LogsPanelController::recordHistoryPair(const std::string& before, const std::string& after) {
+  // Both ends are supplied by the CALLER, after it has waited for the
+  // navigation to commit. The controller cannot read them itself: GoBack()
+  // returns before an asynchronous browser has committed the move, so a pair
+  // sampled around that call would compare the old URL with itself and read as
+  // "no history" on a working browser -- or, with a non-empty check, as proof.
+  counters_.urlBeforeHistory = before;
+  counters_.urlAfterHistory = after;
+}
+
+std::string LogsPanelController::currentAddress() const {
+  if (host_ != nullptr && counters_.hostAlive) {
+    const std::string live = host_->currentUrl();
+    if (!live.empty()) return live;
+  }
+  return url_;
 }
 
 LogsPanelBounds LogsPanelController::panelBounds() const {

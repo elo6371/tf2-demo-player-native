@@ -94,6 +94,28 @@ constexpr std::size_t kMaxLogsUrlLength = 2048;
 // from whichever URL happened to be accepted.
 bool isAllowedLogsHost(const std::string& host);
 
+// The value a script expression produced, from the JSON the browser returns.
+//
+// ICoreWebView2::ExecuteScript answers with JSON, not with the expression's raw
+// text: a script returning String(480) comes back as the five characters "480"
+// INCLUDING the quotes, and one returning a number comes back without them.
+// Parsing that JSON as a number yields 0 for every string result -- which is
+// exactly what the panel's scroll offset and page extent are. The probe's
+// recording host answers with the plain string, so a controller that parses the
+// JSON directly stays green in every unit test and reads 0 on a real machine.
+// A free function rather than a host method, so the probe can test the decoding
+// against the quoted forms a real browser produces.
+std::string logsScriptValue(const std::string& json);
+
+// The scroll script for a delta, exposed so a test can hold the STRING rather
+// than a screenshot. It was previously built with snprintf into char[160] and
+// this script is 174 characters at a 3-digit delta: the browser received a
+// truncated expression, answered a SyntaxError as the JSON literal null, atoi
+// read 0, and the panel reported a successful scroll of a page that had not
+// moved. A test of the string (it parses; it ends in })(); it contains the whole
+// delta) is what turns that class red without a browser.
+std::string logsScrollScript(int deltaY);
+
 LogsUrlDecision validateLogsUrl(const std::string& input);
 
 const char* logsUrlVerdictName(LogsUrlVerdict verdict);
@@ -234,9 +256,14 @@ public:
   virtual bool canGoBack() const = 0;
   virtual bool canGoForward() const = 0;
   virtual std::string currentUrl() const = 0;
-  // Run a script in the page and return its value as text. This is how
-  // "scrolling works" becomes a measurement instead of an assertion about a
-  // scrollbar's presence: the same seam drives window.scrollBy and reads
+  // Run a script in the page and return its value as TEXT -- the value the
+  // expression produced, already decoded from whatever envelope the runtime
+  // wraps it in (WebView2 answers with JSON, so String(480) arrives as "\"480\"";
+  // the real host decodes it with logsScriptValue). Returning the raw envelope
+  // is what made every scroll offset read 0 on a real machine while the fake
+  // host, which answers plain text, kept every test green.
+  // This is how "scrolling works" becomes a measurement instead of an assertion
+  // about a scrollbar's presence: the same seam drives window.scrollTo and reads
   // window.scrollY back. A host that cannot evaluate reports the error.
   virtual bool runScript(const std::string& script, std::string* result, std::string* error) = 0;
   virtual void setBounds(const LogsPanelBounds& content) = 0;
@@ -290,6 +317,20 @@ struct LogsPanelSnapshot {
   std::uint32_t opens = 0;
   std::uint32_t closes = 0;
   std::uint32_t scrollCalls = 0;
+  // The PAGE's own answer to the last scroll, not the request: offset after the
+  // move, and the page/viewport heights from the same seam. A zero here while
+  // scrollCalls is non-zero is the reading that separates "the script ran and
+  // the page did not move" from "the script never ran" -- the count alone
+  // cannot, which is what made the scroll assertion decorative.
+  int lastScrollOffset = 0;
+  std::string lastScrollRawResult;
+  int lastScrollPageHeight = 0;
+  int lastScrollViewportHeight = 0;
+  // The address the browser reported immediately BEFORE and AFTER the last
+  // back/forward, so "history moved" is a changed URL and not merely a
+  // canGoBack flag that was already true once the second page loaded.
+  std::string urlBeforeHistory;
+  std::string urlAfterHistory;
   std::uint32_t scriptCalls = 0;
   std::uint32_t scriptFailures = 0;
   std::uint32_t hostStarts = 0;
@@ -346,6 +387,16 @@ public:
 
   // Push the current content rect to a live host and apply a pending navigate.
   void layout();
+
+  // The address the browser reports, or the imported URL when there is no live
+  // host. Used by a scripted step that must sample the address on both sides of
+  // a settled navigation.
+  std::string currentAddress() const;
+
+  // Record a history observation made by the caller AFTER it waited for the
+  // move to commit. Explicit because the pair cannot be sampled inside
+  // goBack(): see the definition.
+  void recordHistoryPair(const std::string& before, const std::string& after);
 
   LogsPanelState state() const { return state_; }
   LogsPanelSnapshot snapshot() const;

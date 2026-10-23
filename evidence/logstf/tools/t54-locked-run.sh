@@ -163,6 +163,14 @@ echo "SELFCHECK_RC=${PIPESTATUS[0]} (0 = every asserted key has a writer; this i
 echo "  static check of the gate, not of the product -- it runs before the gate)"
 
 echo
+echo "=== SCROLL VERDICT SELF-TEST $(date '+%H:%M:%S') ==="
+# Replays the recorded readings through the gate's own scroll_verdicts: the
+# negative control ("a script that never ran must name its own assertion") is a
+# two-second check, so it is not skipped when the expensive path is unavailable.
+bash evidence/logstf/tools/scroll-verdicts-selftest.sh 2>&1 | tee "$LOGDIR/scroll-verdicts-selftest.log"
+SCROLL_SELFTEST_RC=${PIPESTATUS[0]}
+echo "SCROLL-SELFTEST_RC=$SCROLL_SELFTEST_RC"
+echo
 echo "=== FORWARD GATE $(date '+%H:%M:%S') ==="
 bash logstf-check.sh 2>&1 | tee "$LOGDIR/forward.log"
 FWD_RC=${PIPESTATUS[0]}

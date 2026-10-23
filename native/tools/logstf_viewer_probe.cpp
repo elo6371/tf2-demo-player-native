@@ -72,6 +72,13 @@ public:
   bool historyBack = false;
   bool historyForward = false;
   std::string source = "https://logs.tf/1";
+  std::string backTo = "https://logs.tf/1";
+  std::string forwardTo = "https://logs.tf/2";
+  // Answers DECODED text, which is the seam's contract (ILogsViewHost::runScript).
+  // The decode of the browser's JSON envelope lives in the real host and is
+  // tested directly by the decoder cases below; m8 removes it there and requires
+  // the product's offset to go red, so "the host forgot to decode" is a failure a
+  // run can produce rather than a line a reviewer has to notice.
   std::string scriptResult = "0";
   bool scriptOk = true;
   int pumpBeforeReady = 0;
@@ -110,8 +117,20 @@ public:
     source = url;
     return true;
   }
-  bool goBack(std::string*) override { ++backs; return historyBack; }
-  bool goForward(std::string*) override { ++forwards; return historyForward; }
+  // The address changes on a successful move, because that is what the real
+  // browser does -- and because "history moved" is asserted on this string.
+  bool goBack(std::string*) override {
+    ++backs;
+    if (!historyBack) return false;
+    source = backTo;
+    return true;
+  }
+  bool goForward(std::string*) override {
+    ++forwards;
+    if (!historyForward) return false;
+    source = forwardTo;
+    return true;
+  }
   bool reload(std::string*) override { ++reloads; return true; }
   // The fake host normally navigates synchronously: by the time navigate()
   // returns, the page it models is there, so nothing is pending. The flag exists
@@ -439,8 +458,14 @@ int main() {
     // "the button is disabled" and "the page has no history" stay distinct.
     host.historyBack = true;
     host.historyForward = true;
+    host.backTo = "https://logs.tf/1";
+    host.forwardTo = "https://logs.tf/2";
+    const std::string beforeBack = controller.currentAddress();
     check(controller.goBack(), "back reports the host's move");
+    controller.recordHistoryPair(beforeBack, controller.currentAddress());
+    const std::string beforeForward = controller.currentAddress();
     check(controller.goForward(), "forward reports the host's move");
+    controller.recordHistoryPair(beforeForward, controller.currentAddress());
     check(controller.reload(), "reload reports the host's answer");
     const LogsPanelSnapshot navigated = controller.snapshot();
     check(host.backs == 1 && host.forwards == 1 && host.reloads == 1,
@@ -449,6 +474,15 @@ int main() {
       "back/forward/reload are each counted");
     check(navigated.canGoBack && navigated.canGoForward,
       "the snapshot carries the host's history answer");
+    // Back/forward are proven by the ADDRESS the browser reported before and
+    // after each move. canGoBack/canGoForward are flags the host may already
+    // have set for other reasons; a changed URL is the page actually moving.
+    check(!navigated.urlBeforeHistory.empty() && !navigated.urlAfterHistory.empty(),
+      "a back/forward records the address on both sides of the move");
+    check(navigated.urlBeforeHistory != navigated.urlAfterHistory,
+      "the address CHANGED across the settled move (a flag alone would not prove it)");
+    readings.set("historyUrlBefore", navigated.urlBeforeHistory.empty() ? "-" : navigated.urlBeforeHistory);
+    readings.set("historyUrlAfter", navigated.urlAfterHistory.empty() ? "-" : navigated.urlAfterHistory);
     readings.set("backCalls", static_cast<long long>(navigated.backCalls));
     readings.set("forwardCalls", static_cast<long long>(navigated.forwardCalls));
     readings.set("reloadCalls", static_cast<long long>(navigated.reloadCalls));
@@ -675,6 +709,67 @@ int main() {
     check(controller.snapshot().scrollCalls == 1, "the scroll is counted");
     readings.set("scrollOffset", offset);
 
+    // The SCRIPT STRING, held as a string. The defect of 2026-10-23 was a
+    // 174-character script built into char[160]: the browser got a truncated
+    // expression, answered the JSON literal null, and the panel reported a
+    // successful scroll of a page that had not moved. Nothing in this tree
+    // inspected the script, so nothing could have caught it.
+    {
+      const std::string scrolled = logsScrollScript(480);
+      check(scrolled.find("scrollTo(0,y)") != std::string::npos,
+        "the scroll script contains the scroll call");
+      check(scrolled.find("+(480)") != std::string::npos,
+        "the scroll script contains the whole delta");
+      check(scrolled.size() > 159,
+        "the scroll script is longer than the buffer it used to be truncated to");
+      check(scrolled.substr(scrolled.size() - 4) == "})()",
+        "the scroll script ends with a complete expression, not mid-identifier");
+      // Balance is the cheap proxy for "the browser will not answer a
+      // SyntaxError": the truncated form ended inside "documentElement.scr",
+      // which no amount of retrying turns into a value.
+      int depth = 0;
+      bool balanced = true;
+      for (const char c : scrolled) {
+        if (c == '(' || c == '{') ++depth;
+        else if (c == ')' || c == '}') { if (--depth < 0) { balanced = false; break; } }
+      }
+      check(balanced && depth == 0, "the scroll script's brackets balance");
+      readings.set("scrollScriptChars", static_cast<long long>(scrolled.size()));
+      readings.set("scrollScriptComplete",
+        balanced && depth == 0 && scrolled.substr(scrolled.size() - 4) == "})()" ? 1LL : 0LL);
+    }
+
+    // The decoder, in the shapes the REAL runtime produces. The recording host
+    // below answers with plain strings, so without this case nothing in this
+    // tree would ever see the quoted form -- and every scroll offset on a real
+    // machine would read 0 while this probe stayed green.
+    check(logsScriptValue("\"480\"") == "480",
+      "a quoted JSON string decodes to its text");
+    check(logsScriptValue("480") == "480",
+      "an unquoted JSON number passes through");
+    check(logsScriptValue("\"4200,720\"") == "4200,720",
+      "a quoted pair decodes with its comma intact");
+    check(logsScriptValue("\"a\\\"b\"") == "a\"b",
+      "an escaped quote decodes, not terminates");
+    check(logsScriptValue("\"\"") == "",
+      "an empty JSON string decodes to an empty answer");
+    check(logsScriptValue("null") == "null",
+      "a JSON null is passed through, not mistaken for empty");
+    readings.set("scriptValueQuoted", logsScriptValue("\"480\"") == "480" ? 1LL : 0LL);
+    readings.set("scriptValueEmpty", logsScriptValue("\"\"") == "" ? 1LL : 0LL);
+
+    // A host whose script seam answers something that is not a number (a page
+    // that threw, a seam returning "undefined") is NOT the same as a page that
+    // stayed put: the raw answer is recorded so the two are separable.
+    host.scriptResult = "undefined";
+    int nonsense = -1;
+    check(controller.scrollContent(240, &nonsense), "an unparsable answer is still a completed call");
+    check(nonsense == 0, "an unparsable offset parses to 0");
+    check(controller.snapshot().lastScrollRawResult == "undefined",
+      "the raw script answer is recorded, not only its parse");
+    readings.set("scrollRawRecorded",
+      controller.snapshot().lastScrollRawResult == "undefined" ? 1LL : 0LL);
+
     // A page shorter than its viewport cannot scroll: the browser clamps, so
     // the controller reports the clamped value instead of claiming success.
     host.scriptResult = "0";
@@ -683,13 +778,22 @@ int main() {
     check(clamped == 0, "a page that cannot scroll reports an unchanged offset");
     readings.set("scrollClamped", clamped);
 
-    // A host that cannot run script surfaces the failure and counts it.
+    // THE DISCRIMINATOR the lead asked for: a seam that refuses to run at all
+    // must not look like a page that stayed put. scriptFailures moves, the
+    // offset stays 0, and the two readings together say which happened.
     host.scriptOk = false;
+    host.scriptResult = "0";
     int failedOffset = 5;
     check(!controller.scrollContent(100, &failedOffset), "a script failure is reported as a failure");
     check(failedOffset == 0, "a failed scroll reports no offset rather than a stale one");
     check(controller.snapshot().scriptFailures == 1, "the script failure is counted");
     readings.set("scrollFailures", static_cast<long long>(controller.snapshot().scriptFailures));
+
+    // The pair that separates "the page did not move" from "the script never
+    // ran": same offset (0), different scriptFailures. Both are printed so the
+    // gate asserts the PAIR, not either half alone.
+    readings.set("scrollFailuresWhenRefused", static_cast<long long>(controller.snapshot().scriptFailures));
+    readings.set("scrollOffsetWhenRefused", controller.snapshot().lastScrollOffset);
 
     // Extent: two numbers from one round trip, so "the page is taller than the
     // pane" is a reading rather than an assumption.

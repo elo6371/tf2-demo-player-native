@@ -29,16 +29,16 @@ third_party/webview2/NOTICE.txt
   package .uninstall/payload/WebView2Loader.dll bytes=159320
   package .uninstall/payload/install_smoke_probe.ps1 bytes=812
   package .uninstall/payload/native_install_smoke_probe.exe bytes=297984
-  package .uninstall/payload/tf2_demo_native.exe bytes=2015744
+  package .uninstall/payload/tf2_demo_native.exe bytes=2020864
   package VERSION.txt bytes=679
   package WebView2Loader.dll bytes=159320
   package install_smoke_probe.ps1 bytes=812
   package native_install_smoke_probe.exe bytes=297984
-  package tf2_demo_native.exe bytes=2015744
+  package tf2_demo_native.exe bytes=2020864
   package third_party/webview2/LICENSE.txt bytes=1487
   package third_party/webview2/NOTICE.txt bytes=3894
   OK   every packaged file is non-empty = 0
-  OK   installed product is byte-identical to the built one = 8d6ee902d7b6dd47893e28789e0c1301255e0935bb9fce2d9d17c16a67e55839
+  OK   installed product is byte-identical to the built one = 2fb395fef8e5618c059f245a94c5740ce74d67372abc845de21e0226c9941c9c
   OK   package carries no per-user settings file = absent
   OK   package carries no cache directory = absent
 
@@ -94,7 +94,7 @@ third_party/webview2/NOTICE.txt
   OK   fixture root count = 8
 
 === 8/13 product runs: the installed binary, its own directory as cwd ===
-  OK   staged binary hash at capture time = 8d6ee902d7b6dd47893e28789e0c1301255e0935bb9fce2d9d17c16a67e55839
+  OK   staged binary hash at capture time = 2fb395fef8e5618c059f245a94c5740ce74d67372abc845de21e0226c9941c9c
   CASE first-launch rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
   CASE restart rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
   CASE explicit-root rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
@@ -107,7 +107,7 @@ third_party/webview2/NOTICE.txt
   CASE store-missing-map rc=0 TITLE-CAPTURE=PASS (len=3090 brackets=yes)
   CASE store-vpk-corrupt rc=0 TITLE-CAPTURE=PASS (len=3106 brackets=yes)
   CASE store-vpk-empty rc=0 TITLE-CAPTURE=PASS (len=3104 brackets=yes)
-  CASE store-vpk-truncated rc=0 TITLE-CAPTURE=PASS (len=3108 brackets=yes)
+  CASE store-vpk-truncated rc=0 TITLE-CAPTURE=PASS (len=3115 brackets=yes)
   cases=13 failed=0 titleTimeouts=0
   capture rc=0
   OK   capture rc = 0
@@ -115,7 +115,7 @@ third_party/webview2/NOTICE.txt
   OK   every forward case classified OK = 0
   OK   the capture launched the staged installed binary = d:/tf2_native_worktrees/t54-logstf/.scratch/t54-readiness/install/tf2_demo_native.exe
   OK   no readiness run invoked an installer or uninstaller mode = 0
-  OK   staged binary hash after the captures = 8d6ee902d7b6dd47893e28789e0c1301255e0935bb9fce2d9d17c16a67e55839
+  OK   staged binary hash after the captures = 2fb395fef8e5618c059f245a94c5740ce74d67372abc845de21e0226c9941c9c
 
 === 8b/13 positive control: a too-short poll bound is TITLE-CAPTURE-TIMEOUT, not a connected title ===
   CASE first-launch rc=0 TITLE-CAPTURE=PASS (len=30 brackets=no)
@@ -174,7 +174,7 @@ third_party/webview2/NOTICE.txt
 === 9b/13 second cold-start cycle: its own staged package and settings directories ===
   stage install-cycle2 rc=0 prefix=install-cycle2
   OK   cycle-2 stage rc = 0
-  OK   cycle-2 staged product is the built product = 8d6ee902d7b6dd47893e28789e0c1301255e0935bb9fce2d9d17c16a67e55839
+  OK   cycle-2 staged product is the built product = 2fb395fef8e5618c059f245a94c5740ce74d67372abc845de21e0226c9941c9c
   CASE first-launch rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
   CASE restart rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)
   CASE explicit-root rc=0 TITLE-CAPTURE=PASS (len=3133 brackets=yes)

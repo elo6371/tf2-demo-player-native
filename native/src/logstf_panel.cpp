@@ -466,24 +466,39 @@ void logsPanelRunScript(HWND window) {
         return;
       }
       settle(window, deadline);
+      // The address is sampled on both sides of a SETTLED move: GoBack returns
+      // before an asynchronous browser has committed, so a pair taken around the
+      // call would compare the old URL with itself.
+      const std::string beforeBack = g_controller->currentAddress();
       if (!g_controller->goBack()) failStep("history", "back was refused");
       pumpFor(window, 500);
       settle(window, deadline);
+      g_controller->recordHistoryPair(beforeBack, g_controller->currentAddress());
+
+      const std::string beforeForward = g_controller->currentAddress();
       if (!g_controller->goForward()) failStep("history", "forward was refused");
+      pumpFor(window, 500);
+      settle(window, deadline);
+      g_controller->recordHistoryPair(beforeForward, g_controller->currentAddress());
       pumpFor(window, 500);
       settle(window, deadline);
       if (!g_controller->reload()) failStep("history", "reload was refused");
       pumpFor(window, 500);
       settle(window, deadline);
     } else if (script == "scroll") {
-      int offset = 0;
-      if (!g_controller->scrollContent(480, &offset)) {
-        failStep("scroll", "the scroll script failed");
-      }
+      // The extent FIRST, then the scroll: the extent is what says the page is
+      // taller than the pane, and without it a scroll that legitimately cannot
+      // move (a short page) and a scroll whose script never ran would both read
+      // as "offset 0". Reading the extent first makes the two separable in the
+      // same summary line.
       int scrollHeight = 0;
       int viewportHeight = 0;
       if (!g_controller->pageExtent(&scrollHeight, &viewportHeight)) {
         failStep("scroll", "the extent script failed");
+      }
+      int offset = 0;
+      if (!g_controller->scrollContent(480, &offset)) {
+        failStep("scroll", "the scroll script failed");
       }
     } else if (script == "resize") {
       // Both ends of the range, through the same entry point the splitter
@@ -542,7 +557,10 @@ std::string logsPanelSummaryLine() {
     "logstf: summary attached=1 script=%s state=%s host=%s panel=%d content=%d client=%d,%d"
     " dpiScale=%.2f url=%s"
     " navigations=%u accepted=%u refused=%u opens=%u closes=%u hostStarts=%u hostFailures=%u"
-    " scrollCalls=%u scriptFailures=%u canBack=%d canForward=%d refusal=%s refusalReason=%s unavailable=%s",
+    " scrollCalls=%u scriptFailures=%u canBack=%d canForward=%d refusal=%s refusalReason=%s unavailable=%s"
+    " scrollOffset=%d scrollRaw=%s scrollPage=%d scrollViewport=%d"
+    " urlBeforeHistory=%s urlAfterHistory=%s"
+    " historyMoved=%d",
     g_options.script.empty() ? "-" : g_options.script.c_str(),
     logsPanelStateName(snapshot.state),
     snapshot.hostAlive ? "alive" : "none",
@@ -556,7 +574,14 @@ std::string logsPanelSummaryLine() {
     snapshot.canGoBack ? 1 : 0, snapshot.canGoForward ? 1 : 0,
     snapshot.lastRefusal.empty() ? "-" : snapshot.lastRefusal.c_str(),
     snapshot.lastRefusalReason.empty() ? "-" : snapshot.lastRefusalReason.c_str(),
-    snapshot.unavailable.empty() ? "-" : snapshot.unavailable.c_str());
+    snapshot.unavailable.empty() ? "-" : snapshot.unavailable.c_str(),
+    snapshot.lastScrollOffset,
+    snapshot.lastScrollRawResult.empty() ? "none" : snapshot.lastScrollRawResult.c_str(),
+    snapshot.lastScrollPageHeight, snapshot.lastScrollViewportHeight,
+    snapshot.urlBeforeHistory.empty() ? "-" : snapshot.urlBeforeHistory.c_str(),
+    snapshot.urlAfterHistory.empty() ? "-" : snapshot.urlAfterHistory.c_str(),
+    (!snapshot.urlBeforeHistory.empty() && !snapshot.urlAfterHistory.empty()
+        && snapshot.urlBeforeHistory != snapshot.urlAfterHistory) ? 1 : 0);
   std::string line = buffer;
   if (!g_options.exitReason.empty()) line += " scriptFailure=" + g_options.exitReason;
   return line;

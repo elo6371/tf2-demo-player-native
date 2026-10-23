@@ -1,0 +1,9 @@
+source: the last run's traces (.scratch/logstf/*.trace)
+=== scroll verdicts: the healthy line vs the three defect lines ===
+  OK   healthy run: every scroll verdict held
+  OK   script never ran (m6): first red = scroll_offset_was_read
+  OK   JSON not decoded (m8): first red = scroll_raw_is_number
+  OK   script truncated (m9): first red = scroll_raw_is_number
+  OK   all four lines carry the SAME counters (scrollCalls=1 scriptFailures=0): the defect was
+       invisible to scrollCalls and scriptFailures
+SCROLL-VERDICTS-SELFTEST=PASS (4 cases, extracted from logstf-check.sh)

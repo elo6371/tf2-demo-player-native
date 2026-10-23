@@ -294,7 +294,9 @@ public:
         Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
             [&done, &value, &failure](HRESULT scriptHr, LPCWSTR jsonResult) -> HRESULT {
               if (FAILED(scriptHr)) failure = hresultText(scriptHr);
-              else value = narrow(jsonResult);
+              // ExecuteScript answers with JSON; decoding it here is what keeps
+              // String(480) from parsing as 0 (see logsScriptValue).
+              else value = logsScriptValue(narrow(jsonResult));
               done.store(true);
               return S_OK;
             }).Get());

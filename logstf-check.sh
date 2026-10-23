@@ -34,6 +34,10 @@
 #     m2 empty-state prefetch  -- open() navigates a default page
 #     m3 silent runtime failure-- the unavailable state loses its reason/fallback
 #     m4 resize ignored        -- setWidth stops clamping (the drag leaves the client)
+#     m6 script never runs     -- the scroll call is counted, the page never moves
+#     m7 history flag only     -- CanGoBack=1, the address never changes
+#     m8 JSON not decoded      -- the browser's quoted result parses as 0
+#     m9 script truncated      -- the scroll script is built into char[160] and cut
 #   Plus capture mutations over the probe's own reading lines, so each needle is
 #   shown to discriminate.
 #
@@ -88,6 +92,68 @@ assert_nonempty() {
 assert_contains() {
   case "$2" in *"$3"*) echo "  OK   $1" ;; *) echo "  FAIL $1 (wanted: $3)"; fail=1 ;; esac
 }
+# The scroll verdicts live in ONE place, because the negative controls below must
+# measure what the forward run measures -- a control that checks something else
+# proves nothing about this gate.
+#
+# The distinction the Lead required, made into separate assertions:
+#   "the offset was READ"     -- something came back from the page at all;
+#   "the answer was a NUMBER" -- it decoded to digits, not null and not a quoted
+#                                JSON envelope;
+#   "the page actually MOVED" -- the offset is greater than zero.
+# A single assertion of the form "offset == expected" collapses all three and is
+# satisfied by 0 == 0 when nothing was read; that is exactly how the truncation
+# defect of 2026-10-23 stayed green on a page 1729px tall in a 608px viewport.
+SCROLL_FIRST_BAD=none
+_scroll_check() { # _scroll_check <name> <1|0>
+  if [ "$2" = "1" ]; then echo "  OK   $1"; return 0; fi
+  echo "  FAIL $1"
+  if [ "$SCROLL_FIRST_BAD" = "none" ]; then SCROLL_FIRST_BAD="$1"; fi
+  fail=1
+  return 0
+}
+scroll_verdicts() { # scroll_verdicts <summary-line>; sets SCROLL_FIRST_BAD
+  local summary="$1"
+  local page viewport offset raw failures
+  page="$(pvalue "$summary" scrollPage)"
+  viewport="$(pvalue "$summary" scrollViewport)"
+  offset="$(pvalue "$summary" scrollOffset)"
+  raw="$(pvalue "$summary" scrollRaw)"
+  failures="$(pvalue "$summary" scriptFailures)"
+  SCROLL_FIRST_BAD=none
+  # 1. Something came back. A script that was never issued leaves this at the
+  #    "no answer" sentinel, which is the only reading a never-run script cannot
+  #    counterfeit: every counter around it (scrollCalls, scriptFailures) stays
+  #    green, as m6 demonstrates.
+  _scroll_check "scroll_offset_was_read"     "$([ -n "$raw" ] && [ "$raw" != "none" ] && echo 1 || echo 0)"
+  # 2. The answer decoded to digits. An undecoded JSON envelope starts with a
+  #    quote; a page-side SyntaxError arrives as the literal null. Both parse as
+  #    0 through atoi(), so without this assertion they cannot be told apart from
+  #    a page that did not move (m8 and m9).
+  # A page answers a float (the 2026-10-23 run read "480.0000305175781"), so the
+  # numeric test allows one decimal point and requires at least one digit: a
+  # digit-only test would redden the healthy case, and a permissive one would
+  # accept the quoted envelope m8 produces.
+  case "$raw" in
+    ""|none|null|*[!0-9.]*) scroll_raw_numeric=0 ;;
+    *) case "$raw" in *[0-9]*) scroll_raw_numeric=1 ;; *) scroll_raw_numeric=0 ;; esac ;;
+  esac
+  _scroll_check "scroll_raw_is_number"       "$scroll_raw_numeric"
+  # 3. The page moved -- asserted only when the page COULD move. A viewport
+  #    taller than the page cannot scroll, and "offset 0" there would be a
+  #    vacuous pass.
+  if [ -n "$page" ] && [ -n "$viewport" ] && [ "$page" -gt "$viewport" ] 2>/dev/null; then
+    _scroll_check "scroll_page_moved"        "$([ -n "$offset" ] && [ "$offset" -gt 0 ] 2>/dev/null && echo 1 || echo 0)"
+  else
+    echo "  NOT-VERIFIED scroll_page_moved: the imported page is not taller than"
+    echo "               the pane (page=$page viewport=$viewport), so a scroll cannot"
+    echo "               move it and offset 0 proves nothing."
+    echo "               (owner: t54-logstf; cheapest next step: import a log page"
+    echo "               with more than one screen of text, re-run --logstf-script scroll)"
+  fi
+  _scroll_check "scroll_script_did_not_fail"  "$([ "$failures" = "0" ] && echo 1 || echo 0)"
+}
+
 pvalue() { # pvalue <line> <field>
   printf '%s\n' "$1" | grep -oE "$2=[^ ]*" | head -1 | cut -d= -f2-
 }
@@ -219,6 +285,15 @@ P_ASSERTIONS=(
   'geometryDemoSqueezed=0|geometry: the demo keeps its minimum width'
   'geometryUnreachable=0|geometry: every toolbar control stays reachable'
   'scrollOffset=480|scroll: the offset the page took is what is reported'
+  'scrollScriptComplete=1|script: the scroll script is a complete expression, not truncated'
+  'scrollScriptChars=174|script: the scroll script is the whole expression (174 chars)'
+  'scriptValueQuoted=1|script: the JSON string a real browser returns decodes to its text'
+  'scriptValueEmpty=1|script: an empty JSON string decodes to an empty answer'
+  'scrollRawRecorded=1|scroll: an unparsable page answer is recorded, not folded into 0'
+  'scrollFailuresWhenRefused=1|scroll: a refused script is distinguishable from a page that stayed put'
+  'scrollOffsetWhenRefused=0|scroll: a refused script reports no offset'
+  'historyUrlBefore=https://logs.tf/1|history: the address before the move is recorded'
+  'historyUrlAfter=https://logs.tf/2|history: the address after the move is recorded'
   'scrollClamped=0|scroll: a page that cannot scroll reports 0, not the request'
   'scrollHeight=4200|scroll: the page height is read back'
   'viewportHeight=720|scroll: the viewport height is read back'
@@ -365,8 +440,12 @@ if [ "$PANEL_CONTENT" -eq 1 ]; then
   # recording fake; what the product run proves is that the real runtime accepted
   # the script and reported no failure.
   assert_contains "scroll reached the page" "$scroll_summary" "scrollCalls=1"
-  assert_contains "scroll script succeeded" "$scroll_summary" "scriptFailures=0"
-
+  # The four verdicts below are the ones the negative controls re-use. See
+  # scroll_verdicts: "the offset was read", "the answer was a number", "the page
+  # moved" and "the script did not fail" are four different claims, and only the
+  # first one can go red when the script never runs.
+  scroll_verdicts "$scroll_summary"
+  echo "  scroll.verdicts: first_bad=$SCROLL_FIRST_BAD"
   run_product resize --logstf-script resize --logstf-url "https://logs.tf/1"
   resize_summary="$(grep -F 'logstf: summary' "$OUT/resize.trace" | tail -1)"
   echo "  resize.summary: $resize_summary"
@@ -396,6 +475,13 @@ if [ "$PANEL_CONTENT" -eq 1 ]; then
   assert_contains "history has an entry behind it" "$history_summary" "canBack=1"
   assert_contains "history back/forward/reload all succeeded" "$history_summary" "scriptFailures=0"
   assert_contains "history ended on the second URL" "$history_summary" "url=https://logs.tf/2"
+  # canBack is a FLAG, and it was already true as soon as the second page
+  # loaded. What proves the browser moved is the address on both sides of the
+  # settled move: historyMoved=1 means the two differ. Both URLs are printed so
+  # a reader can see which pages they were.
+  assert_contains "history moved the page (address changed across the move)" \
+    "$history_summary" "historyMoved=1"
+  echo "  history: $(pvalue "$history_summary" urlBeforeHistory) -> $(pvalue "$history_summary" urlAfterHistory)"
 
   run_product reopen --logstf-script reopen --logstf-url "https://logs.tf/1"
   reopen_summary="$(grep -F 'logstf: summary' "$OUT/reopen.trace" | tail -1)"
@@ -503,11 +589,20 @@ if [ "$MUTATION" -eq 1 ]; then
   mutate_capture unavailable    "$OUT/probe.txt" 's/unavailableHasReason=1/unavailableHasReason=0/'
   mutate_capture geometry       "$OUT/probe.txt" 's/geometryOverlaps=0/geometryOverlaps=3/'
   mutate_capture scroll         "$OUT/probe.txt" 's/scrollOffset=480/scrollOffset=0/'
+  # The two readings the lead's question produced. A probe that reports the
+  # scroll as a call with no offset, and one whose script seam refused, must not
+  # read the same.
+  mutate_capture scroll_raw     "$OUT/probe.txt" 's/scrollRawRecorded=1/scrollRawRecorded=0/'
+  # The history reading is the address itself; collapsing it to the "no address"
+  # sentinel is what a silently-skipped history step would look like.
+  mutate_capture history_url    "$OUT/probe.txt" 's/historyUrlAfter=https:\/\/logs.tf\/2/historyUrlAfter=-/'
 
   # Product mutation 1: the host allow-list accepts anything. The probe (which
   # links the same policy) must go red on the accepted/refused cases, and the
   # product's own wrong-host run must start navigating.
   backup="$OUT/logstf_viewer.cpp.backup"
+  backup_webview="$OUT/logstf_webview.cpp.backup"
+  cp native/src/logstf_webview.cpp "$backup_webview"
   cp native/src/logstf_viewer.cpp "$backup"
   # '#' as the delimiter, because in a GNU BRE \| is the ALTERNATION operator, not
   # a literal "||": the '|'-delimited form matched one half of the condition and
@@ -705,6 +800,253 @@ PYEOF
   cp "$backup" native/src/logstf_viewer.cpp
   cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m5)"; mrc=1; }
 
+  # Product mutation 6: THE VACUITY MUTATION. The script call is counted but
+  # never issued -- scrollCalls=1 and scriptFailures=0 both stay green, exactly
+  # as they did before this round, while the page never moves. If the gate cannot
+  # turn this red then its scroll assertions measure a call site, not a scroll.
+  cp native/src/logstf_viewer.cpp "$backup"
+  m6_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+# The scrollContent call site, identified by BOTH its neighbours: the bare
+# "runScript" line also appears in pageExtent, and replace(count=1) would then
+# silently mutate whichever function happens to come first in the file.
+needle = """  if (!host_->runScript(script, &result, &error)) {
+    ++counters_.scriptFailures;
+    return false;
+  }
+  const int parsed = std::atoi(result.c_str());"""
+replacement = """  if (false) {
+    ++counters_.scriptFailures;
+    return false;
+  }
+  const int parsed = std::atoi(result.c_str());"""
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m6_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
+    if bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/m6.build" 2>&1; then
+      echo "  mutated build rc=0 (m6)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m6): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    run_product m6 --logstf-script scroll --logstf-url "https://logs.tf/1"
+    m6_summary="$(grep -F 'logstf: summary' "$OUT/m6.trace" | tail -1)"
+    echo "  m6 summary: $m6_summary"
+    # The SAME verdicts the forward run uses, so the control measures this gate
+    # and not a parallel opinion of it. mrc=1 here is the SUCCESS condition of a
+    # negative control, so `fail` is restored afterwards.
+    saved_fail=$fail
+    scroll_verdicts "$m6_summary" > "$OUT/m6.verdicts" 2>&1
+    m6_first_bad="$SCROLL_FIRST_BAD"
+    fail=$saved_fail
+    sed 's/^/    /' "$OUT/m6.verdicts"
+    m6_calls="$(pvalue "$m6_summary" scrollCalls)"
+    m6_fail="$(pvalue "$m6_summary" scriptFailures)"
+    echo "  m6 readings: scrollCalls=$m6_calls scriptFailures=$m6_fail first_bad=$m6_first_bad"
+    # The point of this control is that the OLD readings do not move. If they
+    # moved too, the control would not show which reading did the work.
+    if [ "$m6_calls" != "1" ] || [ "$m6_fail" != "0" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m6: the call counters moved too, so this"
+      echo "    control does not isolate the page reading: calls=$m6_calls fail=$m6_fail)"; mrc=1
+    elif [ "$m6_first_bad" = "scroll_offset_was_read" ]; then
+      echo "  MUTATION-CAUGHT=PASS (m6_script_never_runs: scrollCalls=1 and"
+      echo "    scriptFailures=0 stayed green; the first red assertion is"
+      echo "    scroll_offset_was_read -- exactly the one that names it)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (m6_script_never_runs: first red was"
+      echo "    ${m6_first_bad:-nothing}, wanted scroll_offset_was_read)"; mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m6_script_never_runs: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup" native/src/logstf_viewer.cpp
+  cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m6)"; mrc=1; }
+
+  # Product mutation 7: history is a FLAG, not a move. recordHistoryPair is fed
+  # the same address on both sides, which is exactly what a browser that reports
+  # CanGoBack=1 without committing a navigation looks like. canBack=1 stays
+  # green; only historyMoved / the address pair go red.
+  cp native/src/logstf_viewer.cpp "$backup"
+  m7_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+needle = """  counters_.urlAfterHistory = after;"""
+replacement = """  counters_.urlAfterHistory = before;"""
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m7_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
+    if bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/m7.build" 2>&1; then
+      echo "  mutated build rc=0 (m7)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m7): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    run_product m7 --logstf-script history --logstf-url "https://logs.tf/1" --logstf-url2 "https://logs.tf/2"
+    m7_summary="$(grep -F 'logstf: summary' "$OUT/m7.trace" | tail -1)"
+    m7_moved="$(pvalue "$m7_summary" historyMoved)"
+    m7_can="$(pvalue "$m7_summary" canBack)"
+    echo "  m7 readings: canBack=$m7_can historyMoved=$m7_moved"
+    if [ "$m7_can" != "1" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m7: canBack moved too, so this mutation"
+      echo "    does not isolate the address reading: canBack=$m7_can)"; mrc=1
+    elif [ "$m7_moved" = "0" ]; then
+      echo "  MUTATION-CAUGHT=PASS (m7_history_flag_only: canBack=1 stayed green, the"
+      echo "    address pair went red -- historyMoved=0)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (m7_history_flag_only: the address reading stayed green)"; mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m7_history_flag_only: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup" native/src/logstf_viewer.cpp
+  cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m7)"; mrc=1; }
+
+  # Product mutation 8: THE DEFECT THIS ROUND FOUND. Stop decoding the browser
+  # JSON, so String(480) parses as 0. Every call counter stays green: the script
+  # runs, succeeds, and reports an offset of 0 on a page that does scroll. This is
+  # the failure mode that made the original scroll assertion decorative -- and it
+  # is invisible to any test whose fake host answers with an unquoted string,
+  # which is every test in this tree before the decoder existed.
+  cp native/src/logstf_webview.cpp "$backup_webview"
+  m8_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+needle = "else value = logsScriptValue(narrow(jsonResult));"
+replacement = "else value = narrow(jsonResult);"
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m8_patch native/src/logstf_webview.cpp && ! cmp -s native/src/logstf_webview.cpp "$backup_webview"; then
+    if bash build-target.sh tf2_demo_native > "$OUT/m8.build" 2>&1; then
+      echo "  mutated build rc=0 (m8)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m8): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    run_product m8 --logstf-script scroll --logstf-url "https://logs.tf/1"
+    m8_summary="$(grep -F 'logstf: summary' "$OUT/m8.trace" | tail -1)"
+    m8_calls="$(pvalue "$m8_summary" scrollCalls)"
+    m8_fail="$(pvalue "$m8_summary" scriptFailures)"
+    m8_raw="$(pvalue "$m8_summary" scrollRaw)"
+    m8_off="$(pvalue "$m8_summary" scrollOffset)"
+    echo "  m8 summary: $m8_summary"
+    saved_fail=$fail
+    scroll_verdicts "$m8_summary" > "$OUT/m8.verdicts" 2>&1
+    m8_first_bad="$SCROLL_FIRST_BAD"
+    fail=$saved_fail
+    sed 's/^/    /' "$OUT/m8.verdicts"
+    echo "  m8 readings: scrollCalls=$m8_calls scriptFailures=$m8_fail scrollRaw=$m8_raw scrollOffset=$m8_off first_bad=$m8_first_bad"
+    if [ "$m8_calls" != "1" ] || [ "$m8_fail" != "0" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m8: the call counters moved too, so this"
+      echo "    mutation does not isolate the decode: calls=$m8_calls fail=$m8_fail)"; mrc=1
+    elif [ "$m8_first_bad" = "scroll_raw_is_number" ]; then
+      echo "  MUTATION-CAUGHT=PASS (m8_json_undecoded: scrollCalls=1 and scriptFailures=0"
+      echo "    stayed green; the first red assertion is scroll_raw_is_number -- the"
+      echo "    raw answer $m8_raw was a quoted envelope, not a number)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (m8_json_undecoded: first red was"
+      echo "    ${m8_first_bad:-nothing}, wanted scroll_raw_is_number)"; mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m8_json_undecoded: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup_webview" native/src/logstf_webview.cpp
+  cmp -s native/src/logstf_webview.cpp "$backup_webview" || { echo "  RESTORE=FAIL (m8)"; mrc=1; }
+
+  # Product mutation 9: THE TRUNCATION. Rebuild the scroll script with snprintf
+  # into char[160], which cuts it at 159 characters: the browser answers a
+  # SyntaxError as the JSON literal null, atoi reads 0, and the panel reports
+  # scrollCalls=1 scriptFailures=0 on a page that did not move. This is the
+  # defect the 2026-10-23 run produced BEFORE the fix, so the mutation restores
+  # the exact code that was shipped and requires the offset assertion to notice.
+  cp native/src/logstf_viewer.cpp "$backup"
+  m9_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+needle = """  return
+      "(function(){var y=(window.scrollY||document.documentElement.scrollTop||0)+("
+      + std::to_string(deltaY)
+      + ");window.scrollTo(0,y);return String(window.scrollY||document.documentElement.scrollTop||0);})()";"""
+replacement = """  char buf[160];
+  std::snprintf(buf, sizeof(buf),
+      "(function(){var y=(window.scrollY||document.documentElement.scrollTop||0)+(%d);"
+      "window.scrollTo(0,y);return String(window.scrollY||document.documentElement.scrollTop||0);})()",
+      deltaY);
+  return std::string(buf);"""
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m9_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
+    if bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/m9.build" 2>&1; then
+      echo "  mutated build rc=0 (m9)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m9): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    # The probe holds the script as a string, so it must go red first.
+    "$PROBE" > "$OUT/m9_probe.txt" 2>&1
+    m9_probe_rc=$?
+    run_product m9 --logstf-script scroll --logstf-url "https://logs.tf/1"
+    m9_summary="$(grep -F 'logstf: summary' "$OUT/m9.trace" | tail -1)"
+    m9_calls="$(pvalue "$m9_summary" scrollCalls)"
+    m9_fail="$(pvalue "$m9_summary" scriptFailures)"
+    m9_off="$(pvalue "$m9_summary" scrollOffset)"
+    echo "  m9 summary: $m9_summary"
+    saved_fail=$fail
+    scroll_verdicts "$m9_summary" > "$OUT/m9.verdicts" 2>&1
+    m9_first_bad="$SCROLL_FIRST_BAD"
+    fail=$saved_fail
+    sed 's/^/    /' "$OUT/m9.verdicts"
+    echo "  m9 readings: scrollCalls=$m9_calls scriptFailures=$m9_fail scrollOffset=$m9_off first_bad=$m9_first_bad"
+    # TWO independent reds are required, because the two halves of this tree
+    # learn about truncation differently: the probe holds the script STRING and
+    # can refuse it without a browser, while the product can only see the answer
+    # the browser gives (null). Either alone would leave one half of the defect
+    # unwatched -- a probe-only check says nothing about what a page receives, and
+    # a product-only check needs a browser to notice a typo.
+    if [ "$m9_calls" != "1" ] || [ "$m9_fail" != "0" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m9: the call counters moved too, so this"
+      echo "    mutation does not isolate the truncation: calls=$m9_calls fail=$m9_fail)"; mrc=1
+    elif [ "$m9_probe_rc" -eq 0 ]; then
+      echo "  MUTATION-CAUGHT=FAIL (m9_script_truncated: the probe accepted a"
+      echo "    truncated script -- scrollScriptComplete=1 stayed green)"; mrc=1
+    elif [ "$m9_first_bad" != "scroll_raw_is_number" ]; then
+      echo "  MUTATION-CAUGHT=FAIL (m9_script_truncated: the probe went red but the"
+      echo "    product first red was ${m9_first_bad:-nothing}, wanted scroll_raw_is_number)"; mrc=1
+    else
+      echo "  MUTATION-CAUGHT=PASS (m9_script_truncated: the probe refused the string"
+      echo "    and the product first red was scroll_raw_is_number -- scrollCalls=1 and"
+      echo "    scriptFailures=0 stayed green while the browser answered null)"
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m9_script_truncated: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup" native/src/logstf_viewer.cpp
+  cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m9)"; mrc=1; }
+
   # Restore the real binaries after the last mutation.
   bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/restore.build" 2>&1 \
     || { echo "  RESTORE-BUILD=FAIL"; mrc=1; }
@@ -712,7 +1054,7 @@ PYEOF
     || { echo "  RESTORE-PROBE=FAIL (the restored probe is not green)"; mrc=1; }
 
   [ "$mrc" -eq 0 ] || { echo "LOGSTF-MUTATION=FAIL"; exit 1; }
-  echo "LOGSTF-MUTATION=PASS (six capture mutations, four product mutations and one seam mutation all went red)"
+  echo "LOGSTF-MUTATION=PASS (eight capture mutations, eight product mutations and one seam mutation all went red)"
 fi
 
 echo
