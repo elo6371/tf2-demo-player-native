@@ -688,6 +688,16 @@ struct DemoNetworkSummary {
   // entities against a median of 20" names it. Recorded only when measuring, so
   // a product run pays nothing for it.
   std::vector<std::uint32_t> projectileTrackAppendEntities;
+  // 1 for a packet whose append made the samples vector GROW, 0 otherwise,
+  // index-aligned with the times above.
+  //
+  // This column exists because the two obvious explanations for a 300x tail were
+  // both wrong. It is not the host: the worst packet is at the SAME index in every
+  // run (59353), which a preemption story cannot produce. It is not the walk: the
+  // worst packet is not the one with the most entities. A push_back past capacity
+  // copies every retained row, and it lands on a handful of specific packets, so
+  // if the tail is algorithmic it is here.
+  std::vector<std::uint32_t> projectileTrackAppendGrew;
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
   bool serverInfoReplayBit = false;

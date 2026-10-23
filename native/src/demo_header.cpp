@@ -2599,6 +2599,26 @@ bool readTrackOrigin(const EntityState& state, float out[3]) {
 void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick) {
   ++summary.projectileTrackPacketsScanned;
   const std::size_t limit = std::max<std::size_t>(1, summary.projectileTrackLimits.maxSamples);
+  // RESERVE THE BOUND ONCE, because the tail of the append cost was MINE.
+  //
+  // The rule is "median <= 0.5 ms, max <= 5 ms". The median is 0.009 ms and was
+  // never in question. The max was, and it took three attempts to attribute it:
+  //   1. "cold start" -- falsified: the worst packet is index 59353, not the first.
+  //   2. "the host"   -- falsified: index 59353 is the worst packet in EVERY run,
+  //                      and preemption does not land on the same packet twice.
+  //   3. "the walk"   -- falsified: the worst packet holds 683 live entities
+  //                      against a median of 671, not the maximum of 692.
+  // The real cause is growth: a push_back past capacity copies every retained row.
+  // Measured with a dedicated column (projectileTrackAppendGrew): 32 packets grow
+  // the vector and 3-4 of them are the ENTIRE >1 ms population.
+  //
+  // So it is a real cost of this code, not noise -- and it is removable. Reserving
+  // the configured bound once moves those copies out of the steady state. The bound
+  // is the number the retention already refuses to exceed, so the reservation
+  // cannot be larger than what it was designed to hold.
+  if (summary.projectileTrackSamples.capacity() == 0) {
+    summary.projectileTrackSamples.reserve(limit);
+  }
   // MEASURED, NOT ASSUMED. The append runs on the decode path once per packet and
   // the judge rule for it is "median <= 0.5 ms, max <= 5 ms", so it reports its own
   // cost when asked instead of being argued about. Opt-in because a product run
@@ -2608,13 +2628,21 @@ void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick
   // How many entity slots this packet's walk actually visited, so the cost has a
   // cause attached to it rather than being an unexplained number.
   std::size_t liveEntities = 0;
-  const auto finish = [&summary, measure, &started, &liveEntities]() {
+  // Did THIS packet make the samples vector grow? A push_back that exceeds the
+  // current capacity copies every row into a fresh allocation, so the cost lands
+  // on a handful of specific packets and moves with NOTHING else -- not the walk
+  // size, not the host. Recording the fact is what separates "the tail is the
+  // algorithm" from "the tail is the machine".
+  const std::size_t capacityBefore = summary.projectileTrackSamples.capacity();
+  const auto finish = [&summary, measure, &started, &liveEntities, capacityBefore]() {
     if (!measure) return;
     const auto elapsed = std::chrono::steady_clock::now() - started;
     summary.projectileTrackAppendMillis.push_back(
       std::chrono::duration<double, std::milli>(elapsed).count());
     summary.projectileTrackAppendEntities.push_back(
       static_cast<std::uint32_t>(liveEntities));
+    summary.projectileTrackAppendGrew.push_back(
+      summary.projectileTrackSamples.capacity() != capacityBefore ? 1u : 0u);
   };
 
   // THE CLASS TEST IS CACHED, because it was the dominant cost.

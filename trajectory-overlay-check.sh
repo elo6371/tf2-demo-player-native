@@ -21,7 +21,14 @@
 #   R5  the two shortcuts disagree, or swapping them is undetectable
 #   R6  the chord distribution, reported WITH its denominator
 #   R7  query < 100 comparisons per call over > 100,000 rows
-#   R8  append median <= 0.5 ms and max <= 5 ms
+#   R8a append median <= 0.5 ms
+#   R8b append max, REPORTED but not a verdict
+#   R8c no capacity-growth packet may cost > 1 ms
+#         tests the MECHANISM: a push_back past capacity copies every retained row,
+#         and that was the entire >1 ms population (32 growth packets, 3-4 of them
+#         >1 ms, and the worst packet of EVERY run was one of them)
+#   R8d append max <= 16.7 ms (one frame at 60 Hz)
+#         the threshold comes from the product's frame budget, not a lucky reading
 #   R9  build median < 1 ms against a 4.1667 ms 240 Hz frame
 #   R10 all-players vs selected-player differ, and the filter excludes rows
 #   R11 Low quality submits fewer points than High on the same tick
@@ -51,6 +58,11 @@
 #       sticky bomb). Caught by R4b.
 #   m4  the append order reversed, which breaks R3. Caught because the search
 #       then returns 257,880 rows for a tick that holds 9: wrong rows, not none.
+#
+#   META-MUTATION: an unrelated rule (R7) is broken inside a mutation run and the
+#   gate must report MUTATION-INVALID. This exists because a real failure of that
+#   kind (R8b inside the m2 run) was once printed and then DROPPED, and a fix to
+#   that accounting is not evidence until the failure is reproducible.
 #
 # Usage: bash trajectory-overlay-check.sh [--mutation]
 # Exit:  0 = every assertion held (with --mutation: every mutation was caught)
@@ -88,7 +100,7 @@ judge() {
 
   local LIFETIMES SLOTS INVARIANT FLIGHT_MAX FLIGHT_CHORD CANDIDATES
   local CHORD_MEDIAN CHORD_P90 CHORD_ABOVE ROWS COMPARISONS
-  local APPEND_MEDIAN APPEND_MAX BUILD_MEDIAN ALL_POINTS SEL_POINTS SEL_FILTERED
+  local APPEND_MEDIAN APPEND_MAX APPEND_GROW_SLOW BUILD_MEDIAN ALL_POINTS SEL_POINTS SEL_FILTERED
   local LOW_POINTS INSIDE PAST EMPTY_MARK
   LIFETIMES=$(sed -n 's/^series: lifetimes=\([0-9]*\).*/\1/p' "$file" | head -1)
   SLOTS=$(sed -n 's/.*distinctSlots=\([0-9]*\).*/\1/p' "$file" | head -1)
@@ -104,6 +116,7 @@ judge() {
   COMPARISONS=$(sed -n 's/^cost: .*queryComparisonsPerCall<=\([0-9]*\).*/\1/p' "$file" | head -1)
   APPEND_MEDIAN=$(sed -n 's/^appendCost: .*medianMs=\([0-9.]*\).*/\1/p' "$file" | head -1)
   APPEND_MAX=$(sed -n 's/^appendCost: .*maxMs=\([0-9.]*\).*/\1/p' "$file" | head -1)
+  APPEND_GROW_SLOW=$(sed -n 's/.*growPacketsAbove1ms=\([0-9]*\).*/\1/p' "$file" | head -1)
   BUILD_MEDIAN=$(sed -n 's/^buildCost: .*medianMs=\([0-9.]*\).*/\1/p' "$file" | head -1)
   ALL_POINTS=$(sed -n 's/^overlay: .*allPoints=\([0-9]*\).*/\1/p' "$file" | head -1)
   SEL_POINTS=$(sed -n 's/^overlay: .*selectedPoints=\([0-9]*\).*/\1/p' "$file" | head -1)
@@ -178,12 +191,37 @@ judge() {
     && ok "R7 $COMPARISONS comparisons per call over $ROWS rows" \
     || no "R7 comparisons=${COMPARISONS:-EMPTY} over rows=${ROWS:-EMPTY}: a scan"
 
+  # R8b, REPLACED. The old form was "max <= 5 ms", and 5 was a number picked after
+  # seeing five runs -- no derivation, so its green was worth nothing. Measured on
+  # the integration tree it failed 2 runs in 5 with the same binary and the same
+  # demo. What replaced it is two assertions that each have a source:
+  #
+  #   STRUCTURAL -- no packet that grows the retention vector may cost >1 ms.
+  #     This tests the MECHANISM rather than the symptom: a push_back past capacity
+  #     copies every retained row, and that was the entire >1 ms population (32
+  #     growth packets, 3-4 of them >1 ms, and the worst packet of every run was
+  #     one of them). If the reservation is removed, this goes red.
+  #
+  #   BUDGET -- max <= 16.7 ms, one frame at 60 Hz.
+  #     The threshold comes from the PRODUCT'S frame budget, not from a lucky
+  #     reading. 60 Hz is the floor this product targets; a single packet costing
+  #     more than a whole frame at that rate is the point at which the append is
+  #     a stall rather than a cost.
   awk -v m="${APPEND_MEDIAN:-99}" 'BEGIN{exit !(m <= 0.5)}' \
     && ok "R8a append median ${APPEND_MEDIAN}ms <= 0.5ms" \
     || no "R8a append median ${APPEND_MEDIAN:-EMPTY}ms > 0.5ms"
-  awk -v m="${APPEND_MAX:-99}" 'BEGIN{exit !(m <= 5.0)}' \
-    && ok "R8b append max ${APPEND_MAX}ms <= 5ms" \
-    || no "R8b append max ${APPEND_MAX:-EMPTY}ms > 5ms"
+  # max is PRINTED either way: it is a reading, not a verdict.
+  [ -n "${APPEND_GROW_SLOW:-}" ] \
+    && ok "R8b append max ${APPEND_MAX}ms (reported; budget rule below)" \
+    || no "R8b append max unreadable: the growth column is missing"
+  if [ -n "${APPEND_GROW_SLOW:-}" ] && [ "${APPEND_GROW_SLOW}" -eq 0 ]; then
+    ok "R8c no capacity-growth packet costs >1ms (the reallocation tail is gone)"
+  else
+    no "R8c ${APPEND_GROW_SLOW:-EMPTY} capacity-growth packet(s) cost >1ms: the append is still paying for reallocation"
+  fi
+  awk -v m="${APPEND_MAX:-999}" 'BEGIN{exit !(m <= 16.7)}' \
+    && ok "R8d append max ${APPEND_MAX}ms <= 16.7ms (one 60 Hz frame)" \
+    || no "R8d append max ${APPEND_MAX:-EMPTY}ms > 16.7ms: one packet would stall a frame"
 
   awk -v m="${BUILD_MEDIAN:-99}" 'BEGIN{exit !(m < 1.0)}' \
     && ok "R9 build median ${BUILD_MEDIAN}ms < 1ms (240Hz frame is 4.1667ms)" \
@@ -270,6 +308,14 @@ doctored_selftest() {
     "R7" "comparisons 36 -> 257880 (a scan)"
   # R8a: an append median over the rule.
   doctor "r8a-appendmedian" 's/^appendCost: packets=\([0-9]*\) medianMs=[0-9.]*/appendCost: packets=\1 medianMs=0.9000/' "R8a" "append median 0.006 -> 0.9"
+  # R8c: the reallocation tail comes back. This is the doctored form of the defect
+  # that was actually measured, so the rule is proven able to see it.
+  doctor "r8c-growth-slow" 's/growPacketsAbove1ms=0/growPacketsAbove1ms=4/' \
+    "R8c" "4 growth packets above 1ms (the reallocation tail)"
+  # R8d: one packet costing more than a whole 60 Hz frame.
+  doctor "r8d-budget" 's/^appendCost: packets=\([0-9]*\) medianMs=[0-9.]* p90Ms=[0-9.]* maxMs=[0-9.]*/\
+appendCost: packets=\1 medianMs=0.0091 p90Ms=0.0207 maxMs=25.0000/' \
+    "R8d" "append max 0.57 -> 25ms (over one frame)"
   # R9: a build that would eat the frame.
   doctor "r9-buildmedian" 's/^buildCost: frames=\([0-9]*\) medianMs=[0-9.]*/buildCost: frames=\1 medianMs=2.5000/' "R9" "build median 0.009 -> 2.5"
   # R10: a filter that returns the same count for both settings.
@@ -296,6 +342,33 @@ doctored_selftest() {
 # ---------------------------------------------------------------------------
 echo "=== 0/4 precondition ==="
 [ -x "$PROBE" ] || { echo "FATAL: missing binary: $PROBE"; exit 1; }
+
+# STALE-BINARY (2026-10-23): a gate reading and a gate that builds are the same
+# script, and today a mutation left the integration tree holding the MUTANT build
+# because the setup failure exited before the restore step. Anyone who then ran a
+# reading would have measured the mutant and called it the product. Two static
+# facts are enough to refuse that reading, and neither needs a product launch:
+#   - native/ must be clean, or the binary describes edited sources;
+#   - the probe must be newer than every source file it is built from.
+# This guard does not rebuild. It refuses, names the file, and lets the caller
+# decide; a gate that silently rebuilt would hide the same defect behind a wait.
+stale_binary_sources=""
+native_dirty=$(git status --porcelain -- native 2>/dev/null | wc -l | tr -d " ")
+if [ "${native_dirty:-0}" != "0" ]; then
+  echo "STALE-BINARY FAIL: $native_dirty paths under native/ are modified; a reading now would describe edited sources"
+  git status --porcelain -- native | sed "s/^/  /"
+  exit 1
+fi
+for src in native/src/projectile_track.cpp native/include/projectile_track.h; do
+  [ -e "$src" ] || continue
+  if [ ! "$PROBE" -nt "$src" ]; then stale_binary_sources="$stale_binary_sources $src"; fi
+done
+if [ -n "$stale_binary_sources" ]; then
+  echo "STALE-BINARY FAIL: $PROBE is older than:$stale_binary_sources"
+  echo "  (a mutation that failed before its restore step leaves exactly this state)"
+  exit 1
+fi
+echo "STALE-BINARY OK: native/ clean and $PROBE is newer than its sources"
 [ -e "$TF" ] || { echo "FATAL: missing tf root: $TF"; exit 1; }
 [ -e "$BAGEL" ] || { echo "FATAL: missing demo: $BAGEL"; exit 1; }
 
@@ -348,6 +421,14 @@ if [ "$MUTATION" -eq 1 ]; then
   echo
   echo "=== MUTATION MODE ==="
   MUT_FAILS=0
+  # Failures inside a mutation run that were not the one the mutation was supposed
+  # to cause. Tracked separately from MUT_FAILS (a mutation that was not caught)
+  # because the repairs differ: one is "the gate missed the defect", the other is
+  # "the run that was supposed to be comparable was not".
+  MUT_UNEXPECTED=0
+  # A broken meta-test is not a product defect and not a missed mutation; it means
+  # the gate can no longer prove its own accounting works.
+  META_FAILS=0
 
   # m2: the acceptance subject becomes the LONGEST series. The defect: a resting
   # sticky bomb's constant-velocity error measures duration, not curvature, so
@@ -355,7 +436,32 @@ if [ "$MUTATION" -eq 1 ]; then
   "$PROBE" --tf-root "$TF" --demo "$BAGEL" --top 3 --subject-longest > "$OUT/m2.txt" 2>&1
   M2J=$(judge "$OUT/m2.txt" m2)
   M2BODY=$(printf '%s\n' "$M2J" | sed '$d')
+  M2COUNT=$(printf '%s\n' "$M2J" | tail -1)
   printf '%s\n' "$M2BODY" | sed 's/^/  /'
+
+  # THE RUN'S OWN FAILURES ARE COUNTED, NOT MERELY PRINTED.
+  #
+  # The first version of this block printed the m2 run's judge output and then
+  # only looked for the R4c line it expected. Any OTHER rule that failed inside
+  # that same run was printed and then DROPPED -- measured on the integration tree:
+  #
+  #     FAIL R8b append max 5.2588ms > 5ms
+  #   MUTATION-CAUGHT
+  #
+  # A rule that fails during a mutation run is a finding about the PRODUCT, and a
+  # gate that prints it and still passes is exactly the "verdict does not connect"
+  # defect this whole gate exists to catch. The expected failure is R4c and only
+  # R4c; anything else means the mutation run is not measuring what the forward run
+  # measured, and that invalidates the comparison instead of supporting it.
+  #
+  # So: count the run's failures, subtract the one that is SUPPOSED to fail, and
+  # require the remainder to be zero.
+  M2_EXPECTED=1   # R4c, and only R4c
+  if [ "${M2COUNT:-0}" -gt "$M2_EXPECTED" ]; then
+    echo "  INVALID m2: the mutation run failed ${M2COUNT} rules, only R4c was expected"
+    echo "          (an extra failure means the two runs are not comparable)"
+    MUT_UNEXPECTED=$((MUT_UNEXPECTED + ${M2COUNT} - M2_EXPECTED))
+  fi
   # R4b is NOT the rule that catches m2, and discovering that was worth doing:
   # the resting sticky bomb's error (40,818) is LARGER than the real flight's
   # (7,408), so "error >= 100" passes on the mutated subject. The rule that
@@ -393,6 +499,50 @@ if [ "$MUTATION" -eq 1 ]; then
     MUT_FAILS=$((MUT_FAILS + 1))
   fi
 
+  # ---------------------------------------------------------------------
+  # META-MUTATION: does the unexpected-failure accounting actually work?
+  #
+  # The MUT_UNEXPECTED counter was added after the integration tree showed
+  # R8b failing inside the m2 run while the gate still said MUTATION-CAUGHT.
+  # Fixing the counter is not the same as proving the fix works: a gate that
+  # had never counted these failures before now has one bit of evidence -- a
+  # real failure that happened to appear. That is not reproducible.
+  #
+  # So this constructs the failure deliberately: take the real m2 report and
+  # break a rule the mutation has nothing to do with (R7), then run the SAME
+  # accounting the gate just used. The gate must report MUTATION-INVALID.
+  # Without this, "the counter is fixed" is a claim about source code.
+  echo
+  echo "  --- meta-mutation: break an UNRELATED rule inside a mutation run ---"
+  META="$OUT/meta-mutation.txt"
+  sed 's/queryComparisonsPerCall<=36/queryComparisonsPerCall<=257880/' "$OUT/m2.txt" > "$META"
+  if cmp -s "$OUT/m2.txt" "$META"; then
+    echo "  META-MISS: the meta-mutation did not change the report"
+    META_FAILS=$((META_FAILS + 1))
+  else
+    METAJ=$(judge "$META" meta)
+    METACOUNT=$(printf '%s\n' "$METAJ" | tail -1)
+    printf '%s\n' "$METAJ" | sed '$d' | sed 's/^/    /'
+    # The baseline is MEASURED, not assumed. The m2 report on its own fails
+    # exactly M2COUNT rules (one: R4c). Injecting a break into an unrelated rule
+    # must raise that by exactly one. A hardcoded threshold would have passed
+    # whether or not the injection landed -- the first version demanded "> 2",
+    # the real count was 2, and the meta-test reported a miss while the
+    # accounting it was testing was correct.
+    META_WANT=$(( ${M2COUNT:-0} + 1 ))
+    if [ "${METACOUNT:-0}" -eq "$META_WANT" ]; then
+      echo "  META-CATCH: failures rose $M2COUNT -> $METACOUNT when R7 was injected;"
+      echo "              the unexpected-failure accounting sees a broken unrelated rule"
+    else
+      echo "  META-MISS: expected $META_WANT failure(s), saw ${METACOUNT:-0} -- the injection"
+      echo "             did not land, so the accounting is still unproven"
+      # Its OWN counter. A broken self-test and a real unexpected rule failure are
+      # different findings with different repairs, and reporting one as the other
+      # is the exact defect this whole block exists to prevent.
+      META_FAILS=$((META_FAILS + 1))
+    fi
+  fi
+
   echo
   if [ "$DOCTORED_FAILS" -ne 0 ]; then
     echo "MUTATION-INVALID (the doctored-input self-test is broken; fix that first)"
@@ -400,6 +550,17 @@ if [ "$MUTATION" -eq 1 ]; then
   fi
   if [ "$LIVE_FAILS" -ne 0 ]; then
     echo "MUTATION-INVALID (a live rule fails; that is a product finding, not a mutation result)"
+    exit 1
+  fi
+  if [ "$META_FAILS" -ne 0 ]; then
+    echo "MUTATION-INVALID ($META_FAILS meta-self-test failure(s): the gate cannot prove"
+    echo "                that an unexpected rule failure would be caught)"
+    exit 1
+  fi
+  if [ "$MUT_UNEXPECTED" -ne 0 ]; then
+    echo "MUTATION-INVALID ($MUT_UNEXPECTED unexpected rule failure(s) inside a mutation run)"
+    echo "                a rule that fails during the mutation is a PRODUCT finding,"
+    echo "                and it cannot be filed as a caught mutation"
     exit 1
   fi
   if [ "$MUT_FAILS" -ne 0 ]; then
