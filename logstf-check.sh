@@ -640,7 +640,24 @@ if [ "$MUTATION" -eq 1 ]; then
     "$PY" - "$1" <<'PYEOF'
 import sys
 path = sys.argv[1]
-text = open(path, "r", encoding="utf-8", newline="").read()
+# UNIVERSAL NEWLINES, and a fixed newline on write. Every needle below is written
+# with LF because that is what this repository's source looks like in git. The
+# CHECKOUT is another matter: core.autocrlf=true on this host, so the integration
+# tree's working files are CRLF while a fresh branch's are LF. Reading with
+# newline="" preserved the CRLF, so every multi-line needle failed to match -- and
+# on 2026-10-23 that silenced four mutations in the integration tree (m2, m5, m6,
+# m9 all printed "needle not found"), which the suite reported as SETUP=FAIL. A
+# mutation that cannot be applied is not a caught mutation, but a suite that
+# cannot be applied on one of the two trees it runs in is a suite with a hole.
+#
+# The write below uses newline="\n", so a patched CRLF file comes back as LF for
+# its whole length. That is deliberate and harmless HERE: every mutation is a
+# throwaway edit that is restored by byte copy and verified with cmp two lines
+# later, and the compiler does not care. Preserving the original EOL would make
+# the mutation diff smaller, but it would also mean the patch code had to carry
+# the file's line-ending style -- one more thing to get wrong in the one part of
+# this script whose job is to be obviously correct.
+text = open(path, "r", encoding="utf-8").read()  # universal newlines: CRLF -> LF
 needle = """  if (url_.empty()) {
     state_ = LogsPanelState::Empty;
     counters_.state = state_;
@@ -662,7 +679,7 @@ replacement = """  if (url_.empty()) {
 if needle not in text:
     sys.stderr.write("needle not found\n")
     sys.exit(3)
-open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+open(path, "w", encoding="utf-8", newline="\n").write(text.replace(needle, replacement, 1))
 PYEOF
   }
   if python_patch_empty native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
@@ -700,7 +717,7 @@ PYEOF
     "$PY" - "$1" <<'PYEOF'
 import sys
 path = sys.argv[1]
-text = open(path, "r", encoding="utf-8", newline="").read()
+text = open(path, "r", encoding="utf-8").read()  # universal newlines: CRLF -> LF
 needle = """    unavailable_ = runtime_.reason.empty()
         ? "no web-view runtime is available to this build"
         : runtime_.reason;"""
@@ -709,7 +726,7 @@ count = text.count(needle)
 if count != 2:
     sys.stderr.write("needle count %d, expected 2\n" % count)
     sys.exit(3)
-open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement))
+open(path, "w", encoding="utf-8", newline="\n").write(text.replace(needle, replacement))
 print("patched %d sites" % count)
 PYEOF
   }
@@ -727,6 +744,13 @@ PYEOF
     else
       echo "  MUTATION-CAUGHT=FAIL (m3_silent_runtime: the gate stayed green)"; mrc=1
     fi
+  else
+    # WITHOUT THIS, a failed setup for m3 printed NOTHING: the block simply fell
+    # through to the restore, and the run's only trace of the mutation was its
+    # absence from the verdict list. On 2026-10-23 that is exactly what happened
+    # in the integration tree -- m3 has no CAPTURED and no SETUP line at all,
+    # which a reader scanning for "FAIL" would never see.
+    echo "  MUTATION-SETUP=FAIL (m3_silent_runtime: the patch changed nothing)"; mrc=1
   fi
   cp "$backup" native/src/logstf_viewer.cpp
   cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m3)"; mrc=1; }
@@ -771,12 +795,12 @@ PYEOF
     "$PY" - "$1" <<'PYEOF'
 import sys
 path = sys.argv[1]
-text = open(path, "r", encoding="utf-8", newline="").read()
+text = open(path, "r", encoding="utf-8").read()  # universal newlines: CRLF -> LF
 needle = "  if (host_->navigationPending()) return;\n"
 if needle not in text:
     sys.stderr.write("needle not found\n")
     sys.exit(3)
-open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, "", 1))
+open(path, "w", encoding="utf-8", newline="\n").write(text.replace(needle, "", 1))
 PYEOF
   }
   if python_patch_pending native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
@@ -809,7 +833,7 @@ PYEOF
     "$PY" - "$1" <<'PYEOF'
 import sys
 path = sys.argv[1]
-text = open(path, "r", encoding="utf-8", newline="").read()
+text = open(path, "r", encoding="utf-8").read()  # universal newlines: CRLF -> LF
 # The scrollContent call site, identified by BOTH its neighbours: the bare
 # "runScript" line also appears in pageExtent, and replace(count=1) would then
 # silently mutate whichever function happens to come first in the file.
@@ -826,7 +850,7 @@ replacement = """  if (false) {
 if needle not in text:
     sys.stderr.write("needle not found\n")
     sys.exit(3)
-open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+open(path, "w", encoding="utf-8", newline="\n").write(text.replace(needle, replacement, 1))
 PYEOF
   }
   if m6_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
@@ -878,13 +902,13 @@ PYEOF
     "$PY" - "$1" <<'PYEOF'
 import sys
 path = sys.argv[1]
-text = open(path, "r", encoding="utf-8", newline="").read()
+text = open(path, "r", encoding="utf-8").read()  # universal newlines: CRLF -> LF
 needle = """  counters_.urlAfterHistory = after;"""
 replacement = """  counters_.urlAfterHistory = before;"""
 if needle not in text:
     sys.stderr.write("needle not found\n")
     sys.exit(3)
-open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+open(path, "w", encoding="utf-8", newline="\n").write(text.replace(needle, replacement, 1))
 PYEOF
   }
   if m7_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
@@ -925,13 +949,13 @@ PYEOF
     "$PY" - "$1" <<'PYEOF'
 import sys
 path = sys.argv[1]
-text = open(path, "r", encoding="utf-8", newline="").read()
+text = open(path, "r", encoding="utf-8").read()  # universal newlines: CRLF -> LF
 needle = "else value = logsScriptValue(narrow(jsonResult));"
 replacement = "else value = narrow(jsonResult);"
 if needle not in text:
     sys.stderr.write("needle not found\n")
     sys.exit(3)
-open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+open(path, "w", encoding="utf-8", newline="\n").write(text.replace(needle, replacement, 1))
 PYEOF
   }
   if m8_patch native/src/logstf_webview.cpp && ! cmp -s native/src/logstf_webview.cpp "$backup_webview"; then
@@ -982,7 +1006,7 @@ PYEOF
     "$PY" - "$1" <<'PYEOF'
 import sys
 path = sys.argv[1]
-text = open(path, "r", encoding="utf-8", newline="").read()
+text = open(path, "r", encoding="utf-8").read()  # universal newlines: CRLF -> LF
 needle = """  return
       "(function(){var y=(window.scrollY||document.documentElement.scrollTop||0)+("
       + std::to_string(deltaY)
@@ -996,7 +1020,7 @@ replacement = """  char buf[160];
 if needle not in text:
     sys.stderr.write("needle not found\n")
     sys.exit(3)
-open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+open(path, "w", encoding="utf-8", newline="\n").write(text.replace(needle, replacement, 1))
 PYEOF
   }
   if m9_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
