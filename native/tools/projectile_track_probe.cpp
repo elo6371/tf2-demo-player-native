@@ -331,7 +331,12 @@ int runSelfTest() {
 //   4. the invariants the binary-search query fix will depend on (tick order);
 //   5. a counted cost reading, deliberately not a wall clock (T38's finding).
 // ===========================================================================
-int runDemo(const std::string& demoPath, int top, bool expectEmptySearch) {
+// Which series the acceptance subject is taken from. Flight is the product
+// behaviour; Longest exists ONLY as mutation m2 and is never a default.
+enum class SubjectSelector { Flight, Longest };
+
+int runDemo(const std::string& demoPath, int top, bool expectEmptySearch,
+            SubjectSelector subjectSelector = SubjectSelector::Flight) {
   using namespace tf2::native;
   DemoHeader header;
   DemoIndex index;
@@ -436,6 +441,30 @@ int runDemo(const std::string& demoPath, int top, bool expectEmptySearch) {
     if (candidateError.maxError > flightWorst) { flightWorst = candidateError.maxError; flight = &entry; }
   }
   std::printf("flights: candidates=%zu (contiguous, 40..300 samples)\n", flightCandidates);
+
+  // MUTATION m2, RUNNABLE: take the LONGEST series as the acceptance subject
+  // instead of the most curved flight.
+  //
+  // This is the defect the first version of this probe actually had, and it was
+  // caught by reading the number rather than by a test: the longest series on
+  // bagel is a sticky bomb resting on the ground for 2438 ticks, so its
+  // constant-velocity error (40,818) measures DURATION and not curvature.
+  // Asserting on it would be asserting that long things are long.
+  //
+  // The switch exists so the gate can prove its own subject-selection rule can
+  // fail. Without it, "the subject is a 40..300 tick flight" is a claim about the
+  // source rather than a reading.
+  if (subjectSelector == SubjectSelector::Longest) {
+    const auto mutated = constantVelocityError(*longest);
+    std::printf("flightSubject: MUTATED subject=longest entity=%u class=%s ticks=[%d..%d] "
+                "samples=%zu maxError=%.1f\n",
+                static_cast<unsigned>(longest->entityIndex), longest->className.c_str(),
+                longest->firstTick, longest->lastTick, longest->samples.size(),
+                static_cast<double>(mutated.ok ? mutated.maxError : 0.0f));
+    std::printf("subjectMutation: subject=longest duration=%d samples=%zu (a resting sticky bomb, "
+                "not a flight)\n",
+                longest->lastTick - longest->firstTick, longest->samples.size());
+  }
 
   // ---------------------------------------------------------------------
   // THE DISTRIBUTION, because one subject is a demonstration and not an
@@ -921,6 +950,7 @@ int main(int argc, char** argv) {
   bool selfTest = false;
   bool expectEmptySearch = false;
   bool reverseAppendOrder = false;
+  bool longestSubject = false;
   std::string tfRoot, demoPath;
   int top = 5;
   for (int i = 1; i < argc; ++i) {
@@ -930,6 +960,9 @@ int main(int argc, char** argv) {
     else if (std::strcmp(argv[i], "--top") == 0 && i + 1 < argc) top = std::atoi(argv[++i]);
     else if (std::strcmp(argv[i], "--expect-empty-search") == 0) expectEmptySearch = true;
     else if (std::strcmp(argv[i], "--reverse-append-order") == 0) reverseAppendOrder = true;
+    // Mutation m2: the acceptance subject becomes the longest series. Used only
+    // by the gate's mutation mode.
+    else if (std::strcmp(argv[i], "--subject-longest") == 0) longestSubject = true;
   }
   if (selfTest) return runSelfTest();
   if (!demoPath.empty() && !tfRoot.empty()) {
@@ -944,7 +977,8 @@ int main(int argc, char** argv) {
       // build is not a caught mutation; this one runs.
       return runOrderingMutation(demoPath, tfRoot);
     }
-    return runDemo(demoPath, top, expectEmptySearch);
+    return runDemo(demoPath, top, expectEmptySearch,
+                   longestSubject ? SubjectSelector::Longest : SubjectSelector::Flight);
   }
   std::printf("usage: projectile_track_probe --self-test | --tf-root <tf> --demo <demo.dem>\n");
   return 2;

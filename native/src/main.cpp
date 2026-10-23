@@ -5475,6 +5475,15 @@ bool outlineVertexExtent = false;
     std::wstring title = titleBase + playbackSuffix;
     if (title == lastTitle) return false;
     SetWindowTextW(window, title.c_str());
+    // T53: THE TITLE IS THE ONLY ASSEMBLY POINT FOR THE HUD READINGS, and under
+    // --hidden-window nothing ever reads a window caption. A gate that wants to
+    // assert "the flag set the field it claims to set" therefore had no channel
+    // at all: --capture-frame writes a BMP, and an on/off flag pair on a demo
+    // with no projectile at the capture tick produces byte-identical frames.
+    //
+    // So the same string goes to the trace, once per CHANGE (matching the
+    // SetWindowTextW above) rather than once per frame.
+    traceFmt("title: %s", std::string(title.begin(), title.end()).c_str());
     lastTitle = std::move(title);
     return true;
   };
