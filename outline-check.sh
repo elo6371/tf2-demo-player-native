@@ -741,6 +741,43 @@ if count != 1:
              + find[:70].replace("\r", "\\r").replace("\n", "\\n"))
 io.open(path, "wb").write(data.replace(find, repl, 1).encode("utf-8"))
 PYEOF
+    if [ $? -ne 0 ]; then
+      echo "  MUTATION-INVALID: the anchor above no longer matches the source, so no"
+      echo "                    verdict after this point would be trustworthy. Sources"
+      echo "                    are restored; the suite stops here."
+      mut_fail=1
+      restore_all || true
+      exit 3
+    fi
+  }
+
+  # The stop above is only worth having if it fires. Break the anchor on purpose in
+  # a scratch copy and check three things: non-zero status, the message, and a file
+  # that is byte-identical afterwards. Cheap enough to run every time. 2026-10-23:
+  # m2 printed PATTERN NOT FOUND, was built and run unmutated anyway, and reported
+  # MUTATION-GREEN. A green from a build that was never mutated is worse than a red:
+  # a red gets read.
+  patch_in_self_test() {
+    local tmp rc=0 out expected
+    tmp=$(mktemp)
+    printf "const int keep = 1;\n" > "$tmp"
+    expected=$(cksum < "$tmp")
+    out=$( ( patch_in "$tmp" "const int gone = 1;" "const int gone = 2;" ) 2>&1 ) || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      echo "  FAIL patch_in self-test: an anchor that does not exist reported success"; rm -f "$tmp"; return 1
+    fi
+    if ! printf '%s' "$out" | grep -q "PATTERN NOT FOUND"; then
+      echo "  FAIL patch_in self-test: no PATTERN NOT FOUND message"; rm -f "$tmp"; return 1
+    fi
+    if ! printf '%s' "$out" | grep -q "MUTATION-INVALID"; then
+      echo "  FAIL patch_in self-test: the failure did not say the case is invalid"; rm -f "$tmp"; return 1
+    fi
+    if [ "$(cksum < "$tmp")" != "$expected" ]; then
+      echo "  FAIL patch_in self-test: the file changed despite the failure"; rm -f "$tmp"; return 1
+    fi
+    rm -f "$tmp"
+    echo "  OK   patch_in stops the suite when an anchor no longer matches (rc=$rc, source untouched)"
+    return 0
   }
 
   # The restore is a copy back plus a cmp, which is the same evidence
@@ -791,6 +828,13 @@ PYEOF
     fi
   }
 
+  # Before any case: prove the guard that stops an unapplied mutation actually
+  # stops. Every verdict below is worth nothing if a rotted anchor can still
+  # produce a green.
+  echo
+  echo "  -- helper self-tests --"
+  patch_in_self_test || mut_fail=1
+
   # ---- m1: exchange the two team colours ---------------------------------
   echo
   echo "  -- m1: RED and BLUE exchanged --"
@@ -825,13 +869,35 @@ PYEOF
   # full compile. The restore itself is verified by cmp inside restore_all.
   restore_all || true
 
+  # A mutation that did not apply must not be allowed to report a verdict.
+  # patch_in already prints PATTERN NOT FOUND and sets mut_fail; 2026-10-23 m2
+  # slid past it, was built and run unmutated, and reported MUTATION-GREEN --
+  # an unapplied mutation wearing a pass. From here the case stops and says so.
+  mut_applied() {
+    if [ "$1" -ne 0 ]; then
+      echo "  MUTATION-INVALID: the mutation did not apply, so this case proves nothing"
+      return 1
+    fi
+    return 0
+  }
+
   # ---- m2: depth-test only (the depth awareness the overlay exists for) --
   echo
   echo "  -- m2: the pass depth-tests everything, so walls hide the outlines --"
+  # The anchor is the ternary that FEEDS the bound state, not the call that binds
+  # it: 2026-10-23 the bind site was refactored to read the state into
+  # `boundDepthState` so the pass could publish which state it actually bound,
+  # and the old anchor silently stopped matching. patch_in printed PATTERN NOT
+  # FOUND, the case was built and run unmutated anyway, and it reported GREEN --
+  # an unapplied mutation wearing a pass. The anchor moves with the code; the
+  # hard stop below is what keeps this from recurring.
   patch_in "$MUT_RENDERER" \
-"          ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get(), 0);" \
-"          ? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get(), 0);" || mut_fail=1
-  if rebuild_product m2; then
+"      ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();" \
+"      ? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get()"
+  M2_APPLIED=$?
+  if ! mut_applied "$M2_APPLIED"; then
+    mut_fail=1
+  elif rebuild_product m2; then
     M2_RC=$(run_frame "$OUT/m2" --outline on)
     if [ -n "$OCCLUDED" ]; then
       M2_DEPTH=$("$PY" outline-frame-check.py depth region="$OCCLUDED" \
