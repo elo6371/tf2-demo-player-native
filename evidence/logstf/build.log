@@ -1,5 +1,4 @@
 === build tf2_demo_native logstf_viewer_probe native_install_smoke_probe vpk_integrity_probe ===
-note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
 D:\TF2_Native_Worktrees\t54-logstf\native\src\main.cpp(1250): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
 D:\TF2_Native_Worktrees\t54-logstf\native\src\main.cpp(1251): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
 D:\TF2_Native_Worktrees\t54-logstf\native\src\main.cpp(1252): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁

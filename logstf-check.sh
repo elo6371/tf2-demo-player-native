@@ -92,6 +92,68 @@ assert_nonempty() {
 assert_contains() {
   case "$2" in *"$3"*) echo "  OK   $1" ;; *) echo "  FAIL $1 (wanted: $3)"; fail=1 ;; esac
 }
+# The scroll verdicts live in ONE place, because the negative controls below must
+# measure what the forward run measures -- a control that checks something else
+# proves nothing about this gate.
+#
+# The distinction the Lead required, made into separate assertions:
+#   "the offset was READ"     -- something came back from the page at all;
+#   "the answer was a NUMBER" -- it decoded to digits, not null and not a quoted
+#                                JSON envelope;
+#   "the page actually MOVED" -- the offset is greater than zero.
+# A single assertion of the form "offset == expected" collapses all three and is
+# satisfied by 0 == 0 when nothing was read; that is exactly how the truncation
+# defect of 2026-10-23 stayed green on a page 1729px tall in a 608px viewport.
+SCROLL_FIRST_BAD=none
+_scroll_check() { # _scroll_check <name> <1|0>
+  if [ "$2" = "1" ]; then echo "  OK   $1"; return 0; fi
+  echo "  FAIL $1"
+  if [ "$SCROLL_FIRST_BAD" = "none" ]; then SCROLL_FIRST_BAD="$1"; fi
+  fail=1
+  return 0
+}
+scroll_verdicts() { # scroll_verdicts <summary-line>; sets SCROLL_FIRST_BAD
+  local summary="$1"
+  local page viewport offset raw failures
+  page="$(pvalue "$summary" scrollPage)"
+  viewport="$(pvalue "$summary" scrollViewport)"
+  offset="$(pvalue "$summary" scrollOffset)"
+  raw="$(pvalue "$summary" scrollRaw)"
+  failures="$(pvalue "$summary" scriptFailures)"
+  SCROLL_FIRST_BAD=none
+  # 1. Something came back. A script that was never issued leaves this at the
+  #    "no answer" sentinel, which is the only reading a never-run script cannot
+  #    counterfeit: every counter around it (scrollCalls, scriptFailures) stays
+  #    green, as m6 demonstrates.
+  _scroll_check "scroll_offset_was_read"     "$([ -n "$raw" ] && [ "$raw" != "none" ] && echo 1 || echo 0)"
+  # 2. The answer decoded to digits. An undecoded JSON envelope starts with a
+  #    quote; a page-side SyntaxError arrives as the literal null. Both parse as
+  #    0 through atoi(), so without this assertion they cannot be told apart from
+  #    a page that did not move (m8 and m9).
+  # A page answers a float (the 2026-10-23 run read "480.0000305175781"), so the
+  # numeric test allows one decimal point and requires at least one digit: a
+  # digit-only test would redden the healthy case, and a permissive one would
+  # accept the quoted envelope m8 produces.
+  case "$raw" in
+    ""|none|null|*[!0-9.]*) scroll_raw_numeric=0 ;;
+    *) case "$raw" in *[0-9]*) scroll_raw_numeric=1 ;; *) scroll_raw_numeric=0 ;; esac ;;
+  esac
+  _scroll_check "scroll_raw_is_number"       "$scroll_raw_numeric"
+  # 3. The page moved -- asserted only when the page COULD move. A viewport
+  #    taller than the page cannot scroll, and "offset 0" there would be a
+  #    vacuous pass.
+  if [ -n "$page" ] && [ -n "$viewport" ] && [ "$page" -gt "$viewport" ] 2>/dev/null; then
+    _scroll_check "scroll_page_moved"        "$([ -n "$offset" ] && [ "$offset" -gt 0 ] 2>/dev/null && echo 1 || echo 0)"
+  else
+    echo "  NOT-VERIFIED scroll_page_moved: the imported page is not taller than"
+    echo "               the pane (page=$page viewport=$viewport), so a scroll cannot"
+    echo "               move it and offset 0 proves nothing."
+    echo "               (owner: t54-logstf; cheapest next step: import a log page"
+    echo "               with more than one screen of text, re-run --logstf-script scroll)"
+  fi
+  _scroll_check "scroll_script_did_not_fail"  "$([ "$failures" = "0" ] && echo 1 || echo 0)"
+}
+
 pvalue() { # pvalue <line> <field>
   printf '%s\n' "$1" | grep -oE "$2=[^ ]*" | head -1 | cut -d= -f2-
 }
@@ -378,36 +440,12 @@ if [ "$PANEL_CONTENT" -eq 1 ]; then
   # recording fake; what the product run proves is that the real runtime accepted
   # the script and reported no failure.
   assert_contains "scroll reached the page" "$scroll_summary" "scrollCalls=1"
-  assert_contains "scroll script succeeded" "$scroll_summary" "scriptFailures=0"
-  # The discriminator the report had to answer for: a script that never runs
-  # also reports offset 0, so the offset alone is decorative. Three readings from
-  # the same summary: the page is taller than the pane (a scroll is possible),
-  # the offset the page reported is greater than zero (the move happened), and
-  # the answer parsed as a number rather than "undefined".
-  scroll_page="$(pvalue "$scroll_summary" scrollPage)"
-  scroll_viewport="$(pvalue "$scroll_summary" scrollViewport)"
-  scroll_offset="$(pvalue "$scroll_summary" scrollOffset)"
-  scroll_raw="$(pvalue "$scroll_summary" scrollRaw)"
-  assert_eq "scroll: the extent was read from the page" \
-    "$([ -n "$scroll_page" ] && [ -n "$scroll_viewport" ] && echo yes || echo no)" "yes"
-  if [ -n "$scroll_page" ] && [ -n "$scroll_viewport" ] && [ "$scroll_page" -gt "$scroll_viewport" ]; then
-    # The page is taller than its viewport, so a scroll CAN move it and the
-    # offset is a real outcome rather than a clamped zero.
-    assert_eq "scroll: the page really moved (offset > 0)" \
-      "$([ -n "$scroll_offset" ] && [ "$scroll_offset" -gt 0 ] && echo yes || echo no)" "yes"
-  else
-    # A page shorter than the pane cannot scroll, so "offset 0" would be
-    # vacuously true. Reported, never counted as a pass: this is the exact
-    # shape of assertion this report had to stop making.
-    echo "  NOT-VERIFIED scroll displacement: the imported page is not taller"
-    echo "               than the pane (page=$scroll_page viewport=$scroll_viewport), so a"
-    echo "               scroll cannot move it and offset 0 proves nothing."
-    echo "               (owner: t54-logstf; cheapest next step: import a log page with"
-    echo "               more than one screen of text and re-run --logstf-script scroll)"
-  fi
-  assert_eq "scroll: the page answered a number, not undefined" \
-    "$(case "$scroll_raw" in undefined|none|"") echo bad;; *) echo ok;; esac)" "ok"
-
+  # The four verdicts below are the ones the negative controls re-use. See
+  # scroll_verdicts: "the offset was read", "the answer was a number", "the page
+  # moved" and "the script did not fail" are four different claims, and only the
+  # first one can go red when the script never runs.
+  scroll_verdicts "$scroll_summary"
+  echo "  scroll.verdicts: first_bad=$SCROLL_FIRST_BAD"
   run_product resize --logstf-script resize --logstf-url "https://logs.tf/1"
   resize_summary="$(grep -F 'logstf: summary' "$OUT/resize.trace" | tail -1)"
   echo "  resize.summary: $resize_summary"
@@ -800,23 +838,30 @@ PYEOF
     fi
     run_product m6 --logstf-script scroll --logstf-url "https://logs.tf/1"
     m6_summary="$(grep -F 'logstf: summary' "$OUT/m6.trace" | tail -1)"
+    echo "  m6 summary: $m6_summary"
+    # The SAME verdicts the forward run uses, so the control measures this gate
+    # and not a parallel opinion of it. mrc=1 here is the SUCCESS condition of a
+    # negative control, so `fail` is restored afterwards.
+    saved_fail=$fail
+    scroll_verdicts "$m6_summary" > "$OUT/m6.verdicts" 2>&1
+    m6_first_bad="$SCROLL_FIRST_BAD"
+    fail=$saved_fail
+    sed 's/^/    /' "$OUT/m6.verdicts"
     m6_calls="$(pvalue "$m6_summary" scrollCalls)"
     m6_fail="$(pvalue "$m6_summary" scriptFailures)"
-    m6_raw="$(pvalue "$m6_summary" scrollRaw)"
-    m6_off="$(pvalue "$m6_summary" scrollOffset)"
-    echo "  m6 readings: scrollCalls=$m6_calls scriptFailures=$m6_fail scrollRaw=$m6_raw scrollOffset=$m6_off"
-    # The point of this mutation is that the OLD assertions do not move: the
-    # verdict is only a catch if the call counter stayed green while the page
-    # reading went red. "Both went red" would not distinguish the new readings
-    # from the old ones.
+    echo "  m6 readings: scrollCalls=$m6_calls scriptFailures=$m6_fail first_bad=$m6_first_bad"
+    # The point of this control is that the OLD readings do not move. If they
+    # moved too, the control would not show which reading did the work.
     if [ "$m6_calls" != "1" ] || [ "$m6_fail" != "0" ]; then
       echo "  MUTATION-UNREADABLE=FAIL (m6: the call counters moved too, so this"
-      echo "    mutation does not isolate the page reading: calls=$m6_calls fail=$m6_fail)"; mrc=1
-    elif [ "$m6_raw" = "none" ] || [ "${m6_off:-0}" -le 0 ] 2>/dev/null; then
-      echo "  MUTATION-CAUGHT=PASS (m6_script_never_runs: scrollCalls=1 stayed green,"
-      echo "    the page reading went red -- scrollRaw=$m6_raw scrollOffset=$m6_off)"
+      echo "    control does not isolate the page reading: calls=$m6_calls fail=$m6_fail)"; mrc=1
+    elif [ "$m6_first_bad" = "scroll_offset_was_read" ]; then
+      echo "  MUTATION-CAUGHT=PASS (m6_script_never_runs: scrollCalls=1 and"
+      echo "    scriptFailures=0 stayed green; the first red assertion is"
+      echo "    scroll_offset_was_read -- exactly the one that names it)"
     else
-      echo "  MUTATION-CAUGHT=FAIL (m6_script_never_runs: the page reading stayed green)"; mrc=1
+      echo "  MUTATION-CAUGHT=FAIL (m6_script_never_runs: first red was"
+      echo "    ${m6_first_bad:-nothing}, wanted scroll_offset_was_read)"; mrc=1
     fi
   else
     echo "  MUTATION-SETUP=FAIL (m6_script_never_runs: the patch changed nothing)"; mrc=1
@@ -902,15 +947,23 @@ PYEOF
     m8_fail="$(pvalue "$m8_summary" scriptFailures)"
     m8_raw="$(pvalue "$m8_summary" scrollRaw)"
     m8_off="$(pvalue "$m8_summary" scrollOffset)"
-    echo "  m8 readings: scrollCalls=$m8_calls scriptFailures=$m8_fail scrollRaw=$m8_raw scrollOffset=$m8_off"
+    echo "  m8 summary: $m8_summary"
+    saved_fail=$fail
+    scroll_verdicts "$m8_summary" > "$OUT/m8.verdicts" 2>&1
+    m8_first_bad="$SCROLL_FIRST_BAD"
+    fail=$saved_fail
+    sed 's/^/    /' "$OUT/m8.verdicts"
+    echo "  m8 readings: scrollCalls=$m8_calls scriptFailures=$m8_fail scrollRaw=$m8_raw scrollOffset=$m8_off first_bad=$m8_first_bad"
     if [ "$m8_calls" != "1" ] || [ "$m8_fail" != "0" ]; then
       echo "  MUTATION-UNREADABLE=FAIL (m8: the call counters moved too, so this"
       echo "    mutation does not isolate the decode: calls=$m8_calls fail=$m8_fail)"; mrc=1
-    elif [ "${m8_off:-0}" -le 0 ] 2>/dev/null; then
+    elif [ "$m8_first_bad" = "scroll_raw_is_number" ]; then
       echo "  MUTATION-CAUGHT=PASS (m8_json_undecoded: scrollCalls=1 and scriptFailures=0"
-      echo "    stayed green, the offset read 0 on a page that scrolls -- scrollRaw=$m8_raw)"
+      echo "    stayed green; the first red assertion is scroll_raw_is_number -- the"
+      echo "    raw answer $m8_raw was a quoted envelope, not a number)"
     else
-      echo "  MUTATION-CAUGHT=FAIL (m8_json_undecoded: the offset stayed positive)"; mrc=1
+      echo "  MUTATION-CAUGHT=FAIL (m8_json_undecoded: first red was"
+      echo "    ${m8_first_bad:-nothing}, wanted scroll_raw_is_number)"; mrc=1
     fi
   else
     echo "  MUTATION-SETUP=FAIL (m8_json_undecoded: the patch changed nothing)"; mrc=1
@@ -961,18 +1014,32 @@ PYEOF
     m9_calls="$(pvalue "$m9_summary" scrollCalls)"
     m9_fail="$(pvalue "$m9_summary" scriptFailures)"
     m9_off="$(pvalue "$m9_summary" scrollOffset)"
-    echo "  m9 readings: scrollCalls=$m9_calls scriptFailures=$m9_fail scrollOffset=$m9_off"
+    echo "  m9 summary: $m9_summary"
+    saved_fail=$fail
+    scroll_verdicts "$m9_summary" > "$OUT/m9.verdicts" 2>&1
+    m9_first_bad="$SCROLL_FIRST_BAD"
+    fail=$saved_fail
+    sed 's/^/    /' "$OUT/m9.verdicts"
+    echo "  m9 readings: scrollCalls=$m9_calls scriptFailures=$m9_fail scrollOffset=$m9_off first_bad=$m9_first_bad"
+    # TWO independent reds are required, because the two halves of this tree
+    # learn about truncation differently: the probe holds the script STRING and
+    # can refuse it without a browser, while the product can only see the answer
+    # the browser gives (null). Either alone would leave one half of the defect
+    # unwatched -- a probe-only check says nothing about what a page receives, and
+    # a product-only check needs a browser to notice a typo.
     if [ "$m9_calls" != "1" ] || [ "$m9_fail" != "0" ]; then
       echo "  MUTATION-UNREADABLE=FAIL (m9: the call counters moved too, so this"
       echo "    mutation does not isolate the truncation: calls=$m9_calls fail=$m9_fail)"; mrc=1
-    elif [ "$m9_probe_rc" -eq 0 ] && ! grep -qF 'scrollScriptComplete=1' "$OUT/m9_probe.txt"; then
-      echo "  MUTATION-CAUGHT=PASS (m9_script_truncated: the truncated script went red"
-      echo "    in the probe, and the product read offset=$m9_off with calls=$m9_calls fail=$m9_fail)"
-    elif [ "$m9_probe_rc" -ne 0 ]; then
-      echo "  MUTATION-CAUGHT=PASS (m9_script_truncated: the mutated probe exited"
-      echo "    $m9_probe_rc -- the string check refused the truncated script)"
+    elif [ "$m9_probe_rc" -eq 0 ]; then
+      echo "  MUTATION-CAUGHT=FAIL (m9_script_truncated: the probe accepted a"
+      echo "    truncated script -- scrollScriptComplete=1 stayed green)"; mrc=1
+    elif [ "$m9_first_bad" != "scroll_raw_is_number" ]; then
+      echo "  MUTATION-CAUGHT=FAIL (m9_script_truncated: the probe went red but the"
+      echo "    product first red was ${m9_first_bad:-nothing}, wanted scroll_raw_is_number)"; mrc=1
     else
-      echo "  MUTATION-CAUGHT=FAIL (m9_script_truncated: the script check stayed green)"; mrc=1
+      echo "  MUTATION-CAUGHT=PASS (m9_script_truncated: the probe refused the string"
+      echo "    and the product first red was scroll_raw_is_number -- scrollCalls=1 and"
+      echo "    scriptFailures=0 stayed green while the browser answered null)"
     fi
   else
     echo "  MUTATION-SETUP=FAIL (m9_script_truncated: the patch changed nothing)"; mrc=1

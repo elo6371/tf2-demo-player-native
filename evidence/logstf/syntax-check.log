@@ -1,4 +1,4 @@
-=== /Zs syntax check (no object files, no link) 2026-10-23 13:00:01 ===
+=== /Zs syntax check (no object files, no link) 2026-10-23 13:12:23 ===
   /Zs OK       product-viewer  (native/src/logstf_viewer.cpp)
   /Zs OK       product-panel  (native/src/logstf_panel.cpp)
   /Zs OK       product-webview  (native/src/logstf_webview.cpp)
