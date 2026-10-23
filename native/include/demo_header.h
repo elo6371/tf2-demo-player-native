@@ -682,6 +682,12 @@ struct DemoNetworkSummary {
   // Filled only when projectileTrackLimits.measureAppendCost is true. Real
   // elapsed time, because the rule it is held to is stated in milliseconds.
   std::vector<double> projectileTrackAppendMillis;
+  // The entity count of each measured packet, index-aligned with the times above.
+  // Without it the worst append is a number with no cause: "2.2 ms on packet
+  // 59353" says nothing, while "2.2 ms on the packet that walked 812 live
+  // entities against a median of 20" names it. Recorded only when measuring, so
+  // a product run pays nothing for it.
+  std::vector<std::uint32_t> projectileTrackAppendEntities;
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
   bool serverInfoReplayBit = false;

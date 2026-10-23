@@ -2605,11 +2605,16 @@ void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick
   // must not pay a clock read per packet for a reading nobody asked for.
   const bool measure = summary.projectileTrackLimits.measureAppendCost;
   const auto started = measure ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
-  const auto finish = [&summary, measure, &started]() {
+  // How many entity slots this packet's walk actually visited, so the cost has a
+  // cause attached to it rather than being an unexplained number.
+  std::size_t liveEntities = 0;
+  const auto finish = [&summary, measure, &started, &liveEntities]() {
     if (!measure) return;
     const auto elapsed = std::chrono::steady_clock::now() - started;
     summary.projectileTrackAppendMillis.push_back(
       std::chrono::duration<double, std::milli>(elapsed).count());
+    summary.projectileTrackAppendEntities.push_back(
+      static_cast<std::uint32_t>(liveEntities));
   };
 
   // THE CLASS TEST IS CACHED, because it was the dominant cost.
@@ -2630,6 +2635,7 @@ void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick
   for (std::size_t entity = 0; entity < summary.entityStates.size() && entity < 2048u; ++entity) {
     const auto& state = summary.entityStates[entity];
     if (state.classId < 0) continue;
+    ++liveEntities;
     // Bounded by the table, not by the vector: a class id past the mask cannot be
     // a tracked class, and indexing past it would read a neighbouring byte.
     if (static_cast<std::size_t>(state.classId) >= summary.projectileTrackClassMask.size()) continue;

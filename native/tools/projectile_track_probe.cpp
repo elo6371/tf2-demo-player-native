@@ -21,14 +21,18 @@
 
 #include "demo_header.h"
 #include "projectile_track.h"
+#include "projectile_overlay.h"
 
 #include <algorithm>
 #include <cmath>
+#include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -626,20 +630,237 @@ int runDemo(const std::string& demoPath, int top, bool expectEmptySearch) {
   // median <= 0.5 ms and max <= 5 ms. Reported as a distribution rather than a
   // total, because a mean over 73k packets hides the packet that took 40 ms.
   {
-    auto samples = summary.projectileTrackAppendMillis;
-    if (samples.empty()) {
+    const auto& raw = summary.projectileTrackAppendMillis;
+    if (raw.empty()) {
       std::printf("appendCost: NOT MEASURED (measurement was off)\n");
     } else {
-      std::sort(samples.begin(), samples.end());
-      const std::size_t count = samples.size();
-      const auto at = [&samples, count](double fraction) {
+      // WHICH PACKET IS THE MAX, not just how big it was.
+      //
+      // median 0.006 ms against max 2.5 ms is a 400x tail, and a tail nobody
+      // named is a tail the next reader assumes is steady-state. So the worst
+      // packet is located by INDEX and reported next to the packet that follows
+      // it: if the cost is a one-time cold-start artefact, the second packet is
+      // already cheap and the two numbers say so. If it is a packet with an
+      // unusual entity count, the index is where to look.
+      std::size_t worstIndex = 0;
+      for (std::size_t i = 1; i < raw.size(); ++i) {
+        if (raw[i] > raw[worstIndex]) worstIndex = i;
+      }
+      auto sorted = raw;
+      std::sort(sorted.begin(), sorted.end());
+      const std::size_t count = sorted.size();
+      const auto at = [&sorted, count](double fraction) {
         std::size_t index = static_cast<std::size_t>(fraction * static_cast<double>(count));
         if (index >= count) index = count - 1;
-        return samples[index];
+        return sorted[index];
       };
       std::printf("appendCost: packets=%zu medianMs=%.4f p90Ms=%.4f maxMs=%.4f\n",
-                  count, at(0.50), at(0.90), samples.back());
+                  count, at(0.50), at(0.90), sorted.back());
+      // The tail, named. packetIndex is the position in the scan order, so index
+      // 0 is the first decoded packet -- the cold-start candidate.
+      std::printf("appendCost.tail: worstPacketIndex=%zu worstMs=%.4f secondPacketMs=%.4f "
+                  "maxAfterFirst=%.4f\n",
+                  worstIndex, raw[worstIndex],
+                  raw.size() > 1 ? raw[1] : 0.0,
+                  raw.size() > 1
+                    ? *std::max_element(raw.begin() + 1, raw.end()) : raw[0]);
+      // THE CAUSE, not just the number. If the worst packet is not the first, it
+      // is cold start ruled out and something about that packet is the cause --
+      // and the one thing this walk scales with is how many slots hold a live
+      // entity. So the worst packet's entity count is reported against the
+      // median, and the correlation is read off directly.
+      if (worstIndex < summary.projectileTrackAppendEntities.size()) {
+        auto entityCounts = summary.projectileTrackAppendEntities;
+        std::sort(entityCounts.begin(), entityCounts.end());
+        const std::uint32_t worstEntities = summary.projectileTrackAppendEntities[worstIndex];
+        const std::uint32_t medianEntities = entityCounts[entityCounts.size() / 2];
+        const std::uint32_t maxEntities = entityCounts.back();
+        std::printf("appendCost.cause: worstPacketEntities=%u medianEntities=%u maxEntities=%u\n",
+                    worstEntities, medianEntities, maxEntities);
+        // Spearman-free sanity: if the worst packet is also the largest entity
+        // count, the cost is a function of the walk and the attribution is done.
+        std::printf("appendCost.cause: worstIsAlsoLargestEntities=%s\n",
+                    worstEntities == maxEntities ? "true" : "false");
+        // IF THE WALK SIZE DOES NOT EXPLAIN THE TAIL, THE TAIL IS THE HOST.
+        //
+        // The entity count varies by about 3% across packets (671 median, 692
+        // max) while the times vary by 300x. A cost that scales with the walk
+        // cannot produce that, so the outliers are preemption: another process
+        // took the CPU mid-append. That is T38's finding arriving again -- a wall
+        // clock on this host measures the host.
+        //
+        // Counting the outliers is what turns "it is probably noise" into a
+        // reading: a handful above the threshold out of 73k is preemption, while
+        // a large share would mean the median itself is not trustworthy.
+        std::size_t above100us = 0, above500us = 0, above1ms = 0;
+        for (const double value : raw) {
+          if (value > 0.1) ++above100us;
+          if (value > 0.5) ++above500us;
+          if (value > 1.0) ++above1ms;
+        }
+        std::printf("appendCost.outliers: above100us=%zu above500us=%zu above1ms=%zu of %zu "
+                    "(%.4f%% above1ms)\n",
+                    above100us, above500us, above1ms, raw.size(),
+                    100.0 * static_cast<double>(above1ms) / static_cast<double>(raw.size()));
+        // The rule's own verdict, computed here so the gate does not re-derive it.
+        std::printf("appendCost.rule: medianOk=%s maxOk=%s\n",
+                    at(0.50) <= 0.5 ? "true" : "false",
+                    sorted.back() <= 5.0 ? "true" : "false");
+      }
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // THE BUILD COST, which is the other half of the feature's frame budget.
+  //
+  // The append cost above is a DECODE cost, paid once per packet while the demo
+  // is scanned. This is a RENDER cost, paid once per FRAME while the overlay is
+  // on -- and at 240 Hz a frame is 4.16 ms, so a build that took 2 ms would eat
+  // half the budget and turn a "one-click toggle" into a frame-rate regression.
+  //
+  // Measured over the ticks the flight actually spans, because that is when there
+  // is something to build. Reported as a distribution for the same reason the
+  // append is: a mean hides the frame that stalled.
+  // ---------------------------------------------------------------------
+  if (flight) {
+    std::vector<double> buildMillis;
+    std::vector<std::size_t> pointCounts;
+    const std::int32_t span = flight->lastTick - flight->firstTick;
+    const std::int32_t step = std::max<std::int32_t>(1, span / 200);
+    for (std::int32_t t = flight->firstTick; t <= flight->lastTick; t += step) {
+      TrajectoryBuildRequest request;
+      request.selectedPlayerEntity = -1;
+      request.lingerMs = 500;
+      const auto started = std::chrono::steady_clock::now();
+      const auto built = buildProjectileTrajectoryPoints(summary, t, request, nullptr);
+      const auto elapsed = std::chrono::steady_clock::now() - started;
+      buildMillis.push_back(std::chrono::duration<double, std::milli>(elapsed).count());
+      pointCounts.push_back(built.size());
+    }
+    if (!buildMillis.empty()) {
+      auto sortedBuild = buildMillis;
+      std::sort(sortedBuild.begin(), sortedBuild.end());
+      const std::size_t bcount = sortedBuild.size();
+      const auto atB = [&sortedBuild, bcount](double fraction) {
+        std::size_t index = static_cast<std::size_t>(fraction * static_cast<double>(bcount));
+        if (index >= bcount) index = bcount - 1;
+        return sortedBuild[index];
+      };
+      auto sortedPoints = pointCounts;
+      std::sort(sortedPoints.begin(), sortedPoints.end());
+      std::printf("buildCost: frames=%zu medianMs=%.4f p95Ms=%.4f maxMs=%.4f\n",
+                  bcount, atB(0.50), atB(0.95), sortedBuild.back());
+      std::printf("buildCost.points: median=%zu max=%zu verticesMedian=%zu verticesMax=%zu\n",
+                  sortedPoints[sortedPoints.size() / 2], sortedPoints.back(),
+                  sortedPoints[sortedPoints.size() / 2] * 2, sortedPoints.back() * 2);
+      std::printf("buildCost.budget: frameBudget240HzMs=4.1667 targetMs=1.0\n");
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // OWNER SLOT REUSE -- a known limitation that must be a reading.
+  //
+  // The player filter compares a projectile's owner HANDLE against
+  // selectedPlayerEntity, and a handle's low bits are an ENTITY SLOT. Slots are
+  // reused, so selecting a slot that carried two players' projectiles during the
+  // recording will draw both and the user cannot tell. That is not a defect to
+  // fix here -- the demo is what it is -- but it is a limitation that must be
+  // counted, or the filter's accuracy is being assumed.
+  // ---------------------------------------------------------------------
+  {
+    std::map<std::uint16_t, std::set<std::uint32_t>> lifetimesByOwner;
+    for (const auto& entry : series) {
+      for (const auto& row : entry.samples) {
+        if (!row.hasOwner) continue;
+        lifetimesByOwner[row.ownerIndex].insert(
+          (static_cast<std::uint32_t>(entry.entityIndex) << 16) | entry.generation);
+        break;  // one owner per lifetime is enough to attribute it
+      }
+    }
+    std::size_t reusedOwnerSlots = 0;
+    std::size_t worstOwner = 0;
+    std::size_t worstLifetimes = 0;
+    for (const auto& entry : lifetimesByOwner) {
+      if (entry.second.size() > 1) ++reusedOwnerSlots;
+      if (entry.second.size() > worstLifetimes) {
+        worstLifetimes = entry.second.size();
+        worstOwner = entry.first;
+      }
+    }
+    std::printf("ownerReuse: ownerSlots=%zu slotsWithMultipleLifetimes=%zu "
+                "worstOwner=%zu worstLifetimes=%zu\n",
+                lifetimesByOwner.size(), reusedOwnerSlots,
+                static_cast<unsigned>(worstOwner), worstLifetimes);
+  }
+  // ---------------------------------------------------------------------
+  // THE OVERLAY BUILDER'S OWN RULES -- filter, linger, quality.
+  //
+  // Everything above this point measures the DATA. This block measures what the
+  // overlay actually SUBMITS, because "the retention is right" and "the overlay
+  // draws the right thing" are two different claims and only the second one is
+  // the feature. Four readings, each of which a defect would move:
+  //   * all-players vs one-selected-player point counts, from the same tick;
+  //   * the linger window: a tick far past the last observation must submit
+  //     nothing, and a tick inside it must submit something;
+  //   * quality: Low must submit FEWER points than High on the same tick.
+  // ---------------------------------------------------------------------
+  if (flight) {
+    const std::int32_t probe = flight->lastTick;
+    TrajectoryBuildStats allStats, selectedStats, lowStats;
+    TrajectoryBuildRequest allRequest;
+    allRequest.selectedPlayerEntity = -1;
+    allRequest.lingerMs = 500;
+    const auto allPoints = buildProjectileTrajectoryPoints(summary, probe, allRequest, &allStats);
+
+    TrajectoryBuildRequest selectedRequest = allRequest;
+    // Pick the busiest owner so the selected filter has something to keep.
+    std::map<std::uint16_t, std::size_t> ownerRows;
+    for (const auto& row : queryProjectileTracksInRange(summary, probe - 33, probe)) {
+      if (row.hasOwner) ++ownerRows[row.ownerIndex];
+    }
+    std::uint16_t busiestOwner = 0;
+    std::size_t busiestCount = 0;
+    for (const auto& entry : ownerRows) {
+      if (entry.second > busiestCount) { busiestCount = entry.second; busiestOwner = entry.first; }
+    }
+    selectedRequest.selectedPlayerEntity = static_cast<std::int32_t>(busiestOwner);
+    const auto selectedPoints = buildProjectileTrajectoryPoints(summary, probe, selectedRequest, &selectedStats);
+
+    TrajectoryBuildRequest lowRequest = allRequest;
+    lowRequest.lowQuality = true;
+    const auto lowPoints = buildProjectileTrajectoryPoints(summary, probe, lowRequest, &lowStats);
+
+    std::printf("overlay: tick=%d allPoints=%zu allLifetimes=%zu allOwners=%zu\n",
+                probe, allPoints.size(), allStats.lifetimes, allStats.ownersRepresented);
+    std::printf("overlay: selectedOwner=%u selectedPoints=%zu selectedFilteredOut=%zu\n",
+                static_cast<unsigned>(busiestOwner), selectedPoints.size(), selectedStats.rowsFilteredOut);
+    std::printf("overlay: lowPoints=%zu highPoints=%zu lingerTicks=%d\n",
+                lowPoints.size(), allPoints.size(), allStats.lingerTicks);
+
+    // THE LINGER WINDOW, PROPERLY ANCHORED.
+    //
+    // The first version of this read "pastLingerPoints=77" and looked like a
+    // pass -- but 77 points past the linger is a FAILURE of the linger rule, and
+    // the reason it read 77 is that the tick five past ONE flight's end is inside
+    // OTHER projectiles' flights. A live demonstration of the same trap the
+    // checkpoint fallback set: an assertion is only about what it anchors on.
+    //
+    // The right question is about ONE lifetime: at a tick beyond its last
+    // observation plus the linger, that lifetime's points must be gone. So the
+    // reading is per-lifetime and the tick is chosen to be inside the window
+    // first (must be non-empty) and then outside it (must be empty).
+    TrajectoryBuildRequest pastRequest = allRequest;
+    const std::size_t insideWindow = buildProjectileTrajectoryPoints(
+      summary, flight->lastTick, pastRequest, nullptr).size();
+    const std::int32_t pastTick = flight->lastTick + allStats.lingerTicks + 5;
+    std::size_t flightPointsPastLinger = 0;
+    for (const auto& point : buildProjectileTrajectoryPoints(summary, pastTick, pastRequest, nullptr)) {
+      if (point.entityIndex == flight->entityIndex) ++flightPointsPastLinger;
+    }
+    std::printf("overlay: lingerWindowTick=%d insideWindowPoints=%zu pastTick=%d "
+                "flightPointsPastLinger=%zu lingerTicks=%d\n",
+                flight->lastTick, insideWindow, pastTick, flightPointsPastLinger,
+                allStats.lingerTicks);
   }
   return 0;
 }
