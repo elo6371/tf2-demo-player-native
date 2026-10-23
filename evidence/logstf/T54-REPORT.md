@@ -94,7 +94,8 @@ assertion that could not see it.
 |---|---|
 | branch | `task/t54-logstf` |
 | commits | `9b916c0` (the integrated baseline) + `4a5db94`, `b0f10ac`, `cbd4ef5`, `0086810` |
-| exe sha256 | recorded in `sources-after.sha256` of the run's logdir; the binary is rebuilt by every run and is not committed |
+| exe sha256 | `F1099C9BD00B7A4EE56B63C87B2D3484F3DADAF49B0E0DFD7E4F8A38BCF9716B` (2,020,864 B, built 2026-10-23 14:33:35 +08:00). Not committed: every run rebuilds it |
+| probe sha256 | `2921B1194BC0A59B8CC332807DD19582FA4F16DFD8DC4244333CBFA41D76AD7E` |
 | trace path | `.scratch/logstf/<run>.trace`, copied to `evidence/logstf/traces/` and pinned by `traces.sha256` |
 | page | `https://logs.tf/1` (200, 48183 bytes, 4678 visible chars, 21 rows) |
 | runtime | `webview2 155.0.4283.62 source=registry loader=present` |
