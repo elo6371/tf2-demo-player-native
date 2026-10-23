@@ -212,6 +212,14 @@ $script:startEpochMs = 0
 $script:stopEpochMs = 0
 $script:aborted = 0
 $script:abortedAtMs = -1
+# Foreground timeline: +ms when this guard took the foreground, -ms when it lost it,
+# relative to the moment the window was shown. everForeground=1 cannot answer the
+# question the gate actually asks -- was this guard the foreground AT THE INSTANT the
+# product created its window -- because a guard that held it at 1 s, lost it at 5 s and
+# was in the background at 19.5 s still reports 1. The timeline makes that instant
+# readable, and it also says how noisy the desktop was in the same breath.
+$script:fgState = 0
+$script:transitions = @()
 $script:hotkeyOk = 0
 $script:abortFilter = New-Object GuardAbortFilter
 [void][System.Windows.Forms.Application]::AddMessageFilter($script:abortFilter)
@@ -305,6 +313,17 @@ $timer.add_Tick({
   # took it (good), or the guard never got it in the first place (in which case a
   # Deactivate event could not have fired and the counter proves nothing). Counted
   # before the 400 ms settling cut below, because the activation happens during it.
+  # The timeline is recorded before the settling cut below, because the activation this
+  # guard arranges happens inside that window.
+  if ($fgPid -eq $script:myPid) {
+    if ($script:fgState -eq 0) {
+      $script:fgState = 1
+      if ($script:transitions.Count -lt 32) { $script:transitions += "+$($script:sinceShownMs)" }
+    }
+  } elseif ($script:fgState -eq 1) {
+    $script:fgState = 0
+    if ($script:transitions.Count -lt 32) { $script:transitions += "-$($script:sinceShownMs)" }
+  }
   if ($fgPid -eq $script:myPid) {
     $script:foregroundSamples++
     $script:everForeground = 1
@@ -455,6 +474,8 @@ $lines = @(
   "guard.firstForegroundMs=$script:firstForegroundMs",
   "guard.lastForegroundMs=$script:lastForegroundMs",
   "guard.stolenByCount=$($script:thieves.Count)",
+  "guard.fgTransitions=$($script:transitions -join ',')",
+  "guard.fgTransitionsTruncated=$(if ($script:transitions.Count -ge 32) { 1 } else { 0 })",
   "guard.startEpochMs=$script:startEpochMs",
   "guard.stopEpochMs=$script:stopEpochMs",
   "guard.coveredMs=$($script:stopEpochMs - $script:startEpochMs)",

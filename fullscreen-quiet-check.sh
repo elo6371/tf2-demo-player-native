@@ -363,6 +363,29 @@ product_is_thief() { # product_is_thief <guard-file> -> 1 listed, 0 not listed, 
   esac
 }
 
+# The foreground state at an instant, from the guard's own timeline. This is the
+# question a count cannot answer: "did the guard hold the foreground WHEN the product
+# created its window", not "was it ever the foreground at some point in the phase".
+# A guard that took the foreground at 1 s, lost it at 5 s and was in the background at
+# 19.5 s reports everForeground=1 and would pass a naive reading of the same evidence.
+fg_state_at() { # fg_state_at <guard-file> <absolute epoch ms> -> foreground|background|ABSENT
+  local f="$1" at="$2" start tr rel state=0 e sign ms
+  start=$(need_field "$f" "guard.startEpochMs")
+  tr=$(need_field "$f" "guard.fgTransitions")
+  if [ "$start" = "ABSENT" ] || [ "$tr" = "ABSENT" ]; then echo "ABSENT"; return; fi
+  rel=$((at - start))
+  IFS=',' read -r -a _ev <<< "$tr"
+  for e in "${_ev[@]}"; do
+    [ -z "$e" ] && continue
+    sign="${e:0:1}"
+    ms="${e:1}"
+    case "$ms" in ''|*[!0-9]*) continue ;; esac
+    [ "$ms" -gt "$rel" ] && break
+    if [ "$sign" = "+" ]; then state=1; else state=0; fi
+  done
+  if [ "$state" -eq 1 ]; then echo foreground; else echo background; fi
+}
+
 # The display must be still before anything is measured across it. An earlier run
 # caught modeBefore=1280x1024 against modeAfter=2560x1440 -- not the product's
 # doing, the session was changing mode while the guard came up -- and a mode
@@ -436,6 +459,10 @@ if [ "$INSTRUMENT" -eq 1 ]; then
   # keystrokes to a window nobody aimed at. That is the instrument changing the thing it
   # measures, and it is invisible in every other reading here.
   assert_eq "the guard left no input-queue attachment behind" "$i_attached" "0"
+  # The ESC stop is the operator's only way out of a screen the guard is holding. If the
+  # hotkey failed to register, that is a defect of the harness and has to be reported --
+  # not discovered by a person pressing ESC and nothing happening.
+  assert_field "the guard registered the ESC stop hotkey" "$OUT/instrument.guard.txt" "guard.hotkeyRegistered" "1"
   assert_eq "the guard held the foreground at least once" "$i_ever" "1"
   assert_eq "the guard found the instrument window by its process name" "$i_found" "1"
   # WHAT COUNTS AS EVIDENCE, and why it changed.
@@ -542,12 +569,43 @@ if want_phase forward; then
   echo "  forward watchVisibleSamples=$(need_field "$OUT/forward.guard.txt" "guard.watchVisibleSamples") window_visible=$(win_visible "$OUT/forward")"
   echo "  stolenByCount=$(need_field "$OUT/forward.guard.txt" "guard.stolenByCount") stolenBy=$(need_field "$OUT/forward.guard.txt" "guard.stolenBy")"
   assert_field "forward: the guard ran for the whole window" "$OUT/forward.guard.txt" "guard.seconds" "$GUARD_SECONDS"
+  assert_field "forward: the guard registered the ESC stop hotkey" "$OUT/forward.guard.txt" "guard.hotkeyRegistered" "1"
   assert_eq "the hidden run exited cleanly" "$fwd_rc" "0"
   assert_artifacts "hidden run" "$OUT/forward"
   if trace_written "$OUT/forward"; then
     assert_eq "the product says its own window is not visible" "$(win_visible "$OUT/forward")" "0"
   fi
   cover_window "forward" "$OUT/forward.guard.txt" "$OUT/forward" "$f_start" "$f_end"
+  # WHEN the guard held the foreground, not merely WHETHER it ever did.
+  #
+  # everyForeground=1 is satisfied by a guard that was activated at 1 s, lost the
+  # desktop at 5 s and was in the background when the product created its window at
+  # 19.5 s. The phase's claim is "the product did not take the foreground from a
+  # fullscreen window that was in the foreground", and that claim is only about the
+  # instant of the event. So two readings are required:
+  #   1. the guard got the foreground at least 2 s BEFORE the product's window existed
+  #      (it cannot have been activated by the event it is supposed to witness);
+  #   2. it still held it AT that instant, evaluated from the timeline.
+  f_startup_ms=$(need_field "$OUT/forward.guard.txt" "guard.startupForegroundMs")
+  f_start_ms=$(need_field "$OUT/forward.guard.txt" "guard.startEpochMs")
+  f_win_ms=$(win_created_ms "$OUT/forward")
+  f_tl=$(need_field "$OUT/forward.guard.txt" "guard.fgTransitions")
+  echo "  forward foreground timeline: ${f_tl:-ABSENT}"
+  if [ "$f_startup_ms" = "ABSENT" ] || [ "$f_start_ms" = "ABSENT" ] || [ "$f_win_ms" = "ABSENT" ]; then
+    echo "  FAIL the instant-coverage comparison is missing a reading (startupForegroundMs=$f_startup_ms startEpochMs=$f_start_ms window_created=$f_win_ms)"
+    fail=$((fail + 1))
+  else
+    abs_window=$((f_start + f_win_ms))
+    g_fg_abs=$((f_start_ms + f_startup_ms))
+    win_rel=$((abs_window - f_start_ms))
+    echo "  clock guard_foreground_at=+${f_startup_ms}ms window_at=+${win_rel}ms gap=$((abs_window - g_fg_abs))ms"
+    assert_le "the guard held the foreground at least 2 s before the product created its window" "$((g_fg_abs + 2000))" "$abs_window"
+    fg_state=$(fg_state_at "$OUT/forward.guard.txt" "$abs_window")
+    assert_eq "the guard was the foreground at the instant the product created its window" "$fg_state" "foreground"
+    if [ "$fg_state" != "foreground" ]; then
+      echo "       timeline says the guard was not in the foreground at +${win_rel}ms, so 'the product did not take the foreground' would be a statement about a background window"
+    fi
+  fi
   # The claim that matters, in the two forms this machine can measure: the product's
   # process never held the foreground, and no visible window of it was ever on
   # screen during the phase.
@@ -570,6 +628,55 @@ if want_phase forward; then
     echo "               so a Deactivate event could not have fired and deactivations=$f_deact carries no information"
   else
     assert_le "the hidden run did not deactivate the guard more than the baseline" "$f_deact" "$b_deact"
+  fi
+fi
+
+if want_phase keyprobe; then
+  echo "=== 2b/4 key dispatch: H must reach the HUD, F9 must still reach the camera ==="
+  # Why this phase exists: when T51's HUD dispatch and T50's camera bindings were merged,
+  # the dispatch was "any action the table returns -> handle it and return", which swallowed
+  # every camera key: F9 printed "hud: keys dispatch action=camera.freeFly" and did nothing.
+  # The reading that looked like dispatch was dispatch to nobody. So the product is asked
+  # to do both things at once, and BOTH answers are required.
+  #
+  # No guard, no visible window: this phase is about the product's own message handler, not
+  # about the desktop, so nothing is taken from the operator. The keys are POSTED to the
+  # product's hidden window (see evidence/t49/key-dispatch-probe.ps1 for why posted messages
+  # and not synthesized input).
+  rm -f "$OUT/keyprobe.probe.txt" "$OUT/keyprobe.rc" "$OUT/keyprobe.probe.log"
+  run_product "$OUT/keyprobe" --hidden-window --audio-disabled > "$OUT/keyprobe.rc" &
+  kpid=$!
+  powershell -NoProfile -ExecutionPolicy Bypass -File "$ROOT/evidence/t49/key-dispatch-probe.ps1" \
+    -ProcessName "$PRODUCT_NAME" -Out "$(cygpath -m "$OUT/keyprobe.probe.txt")" > "$OUT/keyprobe.probe.log" 2>&1 &
+  kppid=$!
+  wait "$kpid"; k_wait_rc=$?
+  wait "$kppid" 2>/dev/null
+  k_rc=$(tr -d '\r' < "$OUT/keyprobe.rc" 2>/dev/null | tail -1)
+  k_found=$(need_field "$OUT/keyprobe.probe.txt" "keyprobe.found")
+  k_h=$(need_field "$OUT/keyprobe.probe.txt" "keyprobe.hSent")
+  k_f9=$(need_field "$OUT/keyprobe.probe.txt" "keyprobe.f9Sent")
+  echo "  keyprobe rc=$k_rc probe_wait_rc=$k_wait_rc found=$k_found hSent=$k_h f9Sent=$k_f9"
+  assert_eq "the key probe found the hidden product window" "$k_found" "1"
+  assert_eq "the key probe posted the H key" "$k_h" "1"
+  assert_eq "the key probe posted the F9 key" "$k_f9" "1"
+  if trace_written "$OUT/keyprobe"; then
+    k_dispatch=$(grep -c 'hud: keys dispatch' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
+    k_toggle=$(grep -c 'hud: keys dispatch action=hud.toggle' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
+    k_stolen=$(grep 'hud: keys dispatch' "$OUT/keyprobe.trace" 2>/dev/null | grep -vc 'action=hud\.' || true)
+    k_enabled=$(grep -oE 'hud: settings enabled=[01]' "$OUT/keyprobe.trace" 2>/dev/null | tail -1 | cut -d= -f2)
+    k_table=$(grep 'keys: table ' "$OUT/keyprobe.trace" 2>/dev/null | tail -1)
+    k_last=$(printf '%s' "$k_table" | grep -oE 'last=[A-Za-z0-9._-]+' | tail -1)
+    echo "  keyprobe dispatch_lines=$k_dispatch hud.toggle=$k_toggle non-hud_dispatch_lines=$k_stolen hud_enabled_after=${k_enabled:-ABSENT}"
+    echo "  keyprobe keys_table: ${k_table:-ABSENT}"
+    # 1. H reached the HUD and the state changed.
+    assert_gt "the H key dispatched hud.toggle" "${k_toggle:-0}" "0"
+    assert_eq "pressing H turned the HUD on" "${k_enabled:-ABSENT}" "1"
+    # 2. Nothing that is not hud.* was dispatched as a hud action -- the merge defect in
+    #    one line: before the fix F9 produced "hud: keys dispatch action=camera.freeFly".
+    assert_eq "no camera action was dispatched as a HUD action" "${k_stolen:-0}" "0"
+    # 3. F9 still reached the camera table. Its own dispatch prints a different line; the
+    #    table summary says which action fired last, and the probe posts F9 last.
+    assert_eq "F9 still reached the camera bindings" "${k_last:-ABSENT}" "last=camera.freeFly"
   fi
 fi
 

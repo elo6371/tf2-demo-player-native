@@ -63,7 +63,7 @@ echo "=== 3/5 gate: baseline, forward, control (+ instrument) ==="
 # 14 s instrument + 3 x 32 s phases. The old 16 s phases made this ~70 s; the phases
 # had to grow because the product needs ~19.5 s to show a window, and a guard that
 # closes before that reports the same clean zeroes as a quiet product.
-echo "    the screen is taken over for about 115 s from here; the guard window says so"
+echo "    the screen is taken over for about 145 s from here; the guard window says so"
 bash fullscreen-quiet-check.sh --instrument > "$RUN/gate.log" 2>&1
 GATE_RC=$?
 echo "gate rc=$GATE_RC log=$RUN/gate.log"
