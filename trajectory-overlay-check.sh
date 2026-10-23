@@ -59,6 +59,11 @@
 #   m4  the append order reversed, which breaks R3. Caught because the search
 #       then returns 257,880 rows for a tick that holds 9: wrong rows, not none.
 #
+#   META-MUTATION: an unrelated rule (R7) is broken inside a mutation run and the
+#   gate must report MUTATION-INVALID. This exists because a real failure of that
+#   kind (R8b inside the m2 run) was once printed and then DROPPED, and a fix to
+#   that accounting is not evidence until the failure is reproducible.
+#
 # Usage: bash trajectory-overlay-check.sh [--mutation]
 # Exit:  0 = every assertion held (with --mutation: every mutation was caught)
 set -uo pipefail
@@ -389,6 +394,14 @@ if [ "$MUTATION" -eq 1 ]; then
   echo
   echo "=== MUTATION MODE ==="
   MUT_FAILS=0
+  # Failures inside a mutation run that were not the one the mutation was supposed
+  # to cause. Tracked separately from MUT_FAILS (a mutation that was not caught)
+  # because the repairs differ: one is "the gate missed the defect", the other is
+  # "the run that was supposed to be comparable was not".
+  MUT_UNEXPECTED=0
+  # A broken meta-test is not a product defect and not a missed mutation; it means
+  # the gate can no longer prove its own accounting works.
+  META_FAILS=0
 
   # m2: the acceptance subject becomes the LONGEST series. The defect: a resting
   # sticky bomb's constant-velocity error measures duration, not curvature, so
@@ -396,7 +409,32 @@ if [ "$MUTATION" -eq 1 ]; then
   "$PROBE" --tf-root "$TF" --demo "$BAGEL" --top 3 --subject-longest > "$OUT/m2.txt" 2>&1
   M2J=$(judge "$OUT/m2.txt" m2)
   M2BODY=$(printf '%s\n' "$M2J" | sed '$d')
+  M2COUNT=$(printf '%s\n' "$M2J" | tail -1)
   printf '%s\n' "$M2BODY" | sed 's/^/  /'
+
+  # THE RUN'S OWN FAILURES ARE COUNTED, NOT MERELY PRINTED.
+  #
+  # The first version of this block printed the m2 run's judge output and then
+  # only looked for the R4c line it expected. Any OTHER rule that failed inside
+  # that same run was printed and then DROPPED -- measured on the integration tree:
+  #
+  #     FAIL R8b append max 5.2588ms > 5ms
+  #   MUTATION-CAUGHT
+  #
+  # A rule that fails during a mutation run is a finding about the PRODUCT, and a
+  # gate that prints it and still passes is exactly the "verdict does not connect"
+  # defect this whole gate exists to catch. The expected failure is R4c and only
+  # R4c; anything else means the mutation run is not measuring what the forward run
+  # measured, and that invalidates the comparison instead of supporting it.
+  #
+  # So: count the run's failures, subtract the one that is SUPPOSED to fail, and
+  # require the remainder to be zero.
+  M2_EXPECTED=1   # R4c, and only R4c
+  if [ "${M2COUNT:-0}" -gt "$M2_EXPECTED" ]; then
+    echo "  INVALID m2: the mutation run failed ${M2COUNT} rules, only R4c was expected"
+    echo "          (an extra failure means the two runs are not comparable)"
+    MUT_UNEXPECTED=$((MUT_UNEXPECTED + ${M2COUNT} - M2_EXPECTED))
+  fi
   # R4b is NOT the rule that catches m2, and discovering that was worth doing:
   # the resting sticky bomb's error (40,818) is LARGER than the real flight's
   # (7,408), so "error >= 100" passes on the mutated subject. The rule that
@@ -434,6 +472,50 @@ if [ "$MUTATION" -eq 1 ]; then
     MUT_FAILS=$((MUT_FAILS + 1))
   fi
 
+  # ---------------------------------------------------------------------
+  # META-MUTATION: does the unexpected-failure accounting actually work?
+  #
+  # The MUT_UNEXPECTED counter was added after the integration tree showed
+  # R8b failing inside the m2 run while the gate still said MUTATION-CAUGHT.
+  # Fixing the counter is not the same as proving the fix works: a gate that
+  # had never counted these failures before now has one bit of evidence -- a
+  # real failure that happened to appear. That is not reproducible.
+  #
+  # So this constructs the failure deliberately: take the real m2 report and
+  # break a rule the mutation has nothing to do with (R7), then run the SAME
+  # accounting the gate just used. The gate must report MUTATION-INVALID.
+  # Without this, "the counter is fixed" is a claim about source code.
+  echo
+  echo "  --- meta-mutation: break an UNRELATED rule inside a mutation run ---"
+  META="$OUT/meta-mutation.txt"
+  sed 's/queryComparisonsPerCall<=36/queryComparisonsPerCall<=257880/' "$OUT/m2.txt" > "$META"
+  if cmp -s "$OUT/m2.txt" "$META"; then
+    echo "  META-MISS: the meta-mutation did not change the report"
+    META_FAILS=$((META_FAILS + 1))
+  else
+    METAJ=$(judge "$META" meta)
+    METACOUNT=$(printf '%s\n' "$METAJ" | tail -1)
+    printf '%s\n' "$METAJ" | sed '$d' | sed 's/^/    /'
+    # The baseline is MEASURED, not assumed. The m2 report on its own fails
+    # exactly M2COUNT rules (one: R4c). Injecting a break into an unrelated rule
+    # must raise that by exactly one. A hardcoded threshold would have passed
+    # whether or not the injection landed -- the first version demanded "> 2",
+    # the real count was 2, and the meta-test reported a miss while the
+    # accounting it was testing was correct.
+    META_WANT=$(( ${M2COUNT:-0} + 1 ))
+    if [ "${METACOUNT:-0}" -eq "$META_WANT" ]; then
+      echo "  META-CATCH: failures rose $M2COUNT -> $METACOUNT when R7 was injected;"
+      echo "              the unexpected-failure accounting sees a broken unrelated rule"
+    else
+      echo "  META-MISS: expected $META_WANT failure(s), saw ${METACOUNT:-0} -- the injection"
+      echo "             did not land, so the accounting is still unproven"
+      # Its OWN counter. A broken self-test and a real unexpected rule failure are
+      # different findings with different repairs, and reporting one as the other
+      # is the exact defect this whole block exists to prevent.
+      META_FAILS=$((META_FAILS + 1))
+    fi
+  fi
+
   echo
   if [ "$DOCTORED_FAILS" -ne 0 ]; then
     echo "MUTATION-INVALID (the doctored-input self-test is broken; fix that first)"
@@ -441,6 +523,17 @@ if [ "$MUTATION" -eq 1 ]; then
   fi
   if [ "$LIVE_FAILS" -ne 0 ]; then
     echo "MUTATION-INVALID (a live rule fails; that is a product finding, not a mutation result)"
+    exit 1
+  fi
+  if [ "$META_FAILS" -ne 0 ]; then
+    echo "MUTATION-INVALID ($META_FAILS meta-self-test failure(s): the gate cannot prove"
+    echo "                that an unexpected rule failure would be caught)"
+    exit 1
+  fi
+  if [ "$MUT_UNEXPECTED" -ne 0 ]; then
+    echo "MUTATION-INVALID ($MUT_UNEXPECTED unexpected rule failure(s) inside a mutation run)"
+    echo "                a rule that fails during the mutation is a PRODUCT finding,"
+    echo "                and it cannot be filed as a caught mutation"
     exit 1
   fi
   if [ "$MUT_FAILS" -ne 0 ]; then
