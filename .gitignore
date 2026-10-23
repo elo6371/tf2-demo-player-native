@@ -112,3 +112,4 @@ evidence/t26-world-holes/captures/*.log
 # reading of the frame, not T26's claim: T26 tracks its own `hole-mask.bmp` and
 # leaves this one on disk so the second tool cannot overwrite evidence.
 evidence/t26-world-holes/analysis/accounting-mask.bmp
+scratch/
