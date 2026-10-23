@@ -717,6 +717,28 @@ OK   patch_in stops the suite when an anchor no longer matches (rc=3, source unt
 这条与 m5 / `stateBound` / `grep -m1` 同一个根：**以为自己固定住了自变量**。
 这一支的变体是**以为自己应用了变异**，症状是"绿"，所以单独记一条。
 
+### 7.1 m2 重跑：**两条读数都红了**（2026-10-23 10:37，`t52-outline18`）
+
+m2 = 任务书点名的三条变异之一（"depth-tested-only outlines"）。上午那次 INVALID 是锚点对不上、变异没打上；
+锚点改到 `boundDepthState` 之后重跑，一条 4 分钟的窗口：
+
+```text
+                              固定构型     m2 变异
+stateBound（实际绑定的那个状态）   0            1        ← 红了
+穿墙的队伍色像素 occluded_xray     68           0        ← 红了
+armed                        requested=64229 frame_tick=64229
+还原                         entity_overlay.cpp / main.cpp / native_renderer.cpp 三条 cmp 全 byte-identical
+git status                   0 行
+```
+
+两条读数独立：一条来自**绑定的深度状态**（变异把 x-ray 列表绑到 depth-tested 状态，`stateBound` 0→1），
+一条来自**像素**（穿墙的队伍色像素 68→0）。像素那条也顺带证明：`occluded_xray=68` 在固定构型上是**穿墙**读到的，
+变异之后一个都没有——这正是"仅深度测试的描边"该有的红。
+
+**上一次报的 `stateBound=0 (fixed=0)` 是我自己的读数错误**：脚本用 `grep -oE "T52_TICK:-[0-9]+"` 取 tick，
+从 `T52_TICK` 这个变量名里抓到了 `52`，于是抓的是 **tick 52** 的帧，不是 64229。
+两次读数都来自同一帧所以"看起来一致"，实际那一帧没有任何轮廓。已改回硬编码 64229（与全ticket所有捕获一致），重跑后如上。
+
 ## 8. 交接：唯一那条红 + 下个窗口三步
 
 **读数**：4 个绘制 blob 与 14 个框，X 中心逐像素吻合（463/510/562/484 全中），Y 偏 2–18 px 且被压扁；
