@@ -809,6 +809,15 @@ std::vector<ProjectileTrackSample> queryProjectileTracksAtTick(
 // spans what it claims.
 std::vector<ProjectileTrackSample> queryProjectileTracksInRange(
     const DemoNetworkSummary& summary, std::int32_t firstTick, std::int32_t lastTick);
+
+// One call per decoded packet, from readPacketEntities. Walks the live entity
+// table rather than the packet's update list on purpose: a projectile that did
+// not change on this packet still EXISTS at this tick, and a trail built only
+// from changed entities would have gaps exactly where the projectile was
+// briefly not updated. Its stored origin is the last one written, which is the
+// position the entity holds at this tick.
+void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick);
+
 // Outcome of decoding one demo message stream (the payload of a dem_signon or
 // dem_packet entry: a sequence of 6-bit-typed net messages).
 struct DemoMessageStreamResult {
