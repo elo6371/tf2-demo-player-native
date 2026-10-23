@@ -74,6 +74,11 @@ public:
   std::string source = "https://logs.tf/1";
   std::string backTo = "https://logs.tf/1";
   std::string forwardTo = "https://logs.tf/2";
+  // Answers DECODED text, which is the seam's contract (ILogsViewHost::runScript).
+  // The decode of the browser's JSON envelope lives in the real host and is
+  // tested directly by the decoder cases below; m8 removes it there and requires
+  // the product's offset to go red, so "the host forgot to decode" is a failure a
+  // run can produce rather than a line a reviewer has to notice.
   std::string scriptResult = "0";
   bool scriptOk = true;
   int pumpBeforeReady = 0;
@@ -703,6 +708,36 @@ int main() {
       "the scroll script uses an absolute target, not an animated delta");
     check(controller.snapshot().scrollCalls == 1, "the scroll is counted");
     readings.set("scrollOffset", offset);
+
+    // The SCRIPT STRING, held as a string. The defect of 2026-10-23 was a
+    // 174-character script built into char[160]: the browser got a truncated
+    // expression, answered the JSON literal null, and the panel reported a
+    // successful scroll of a page that had not moved. Nothing in this tree
+    // inspected the script, so nothing could have caught it.
+    {
+      const std::string scrolled = logsScrollScript(480);
+      check(scrolled.find("scrollTo(0,y)") != std::string::npos,
+        "the scroll script contains the scroll call");
+      check(scrolled.find("+(480)") != std::string::npos,
+        "the scroll script contains the whole delta");
+      check(scrolled.size() > 159,
+        "the scroll script is longer than the buffer it used to be truncated to");
+      check(scrolled.substr(scrolled.size() - 4) == "})()",
+        "the scroll script ends with a complete expression, not mid-identifier");
+      // Balance is the cheap proxy for "the browser will not answer a
+      // SyntaxError": the truncated form ended inside "documentElement.scr",
+      // which no amount of retrying turns into a value.
+      int depth = 0;
+      bool balanced = true;
+      for (const char c : scrolled) {
+        if (c == '(' || c == '{') ++depth;
+        else if (c == ')' || c == '}') { if (--depth < 0) { balanced = false; break; } }
+      }
+      check(balanced && depth == 0, "the scroll script's brackets balance");
+      readings.set("scrollScriptChars", static_cast<long long>(scrolled.size()));
+      readings.set("scrollScriptComplete",
+        balanced && depth == 0 && scrolled.substr(scrolled.size() - 4) == "})()" ? 1LL : 0LL);
+    }
 
     // The decoder, in the shapes the REAL runtime produces. The recording host
     // below answers with plain strings, so without this case nothing in this

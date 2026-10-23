@@ -107,6 +107,15 @@ bool isAllowedLogsHost(const std::string& host);
 // against the quoted forms a real browser produces.
 std::string logsScriptValue(const std::string& json);
 
+// The scroll script for a delta, exposed so a test can hold the STRING rather
+// than a screenshot. It was previously built with snprintf into char[160] and
+// this script is 174 characters at a 3-digit delta: the browser received a
+// truncated expression, answered a SyntaxError as the JSON literal null, atoi
+// read 0, and the panel reported a successful scroll of a page that had not
+// moved. A test of the string (it parses; it ends in })(); it contains the whole
+// delta) is what turns that class red without a browser.
+std::string logsScrollScript(int deltaY);
+
 LogsUrlDecision validateLogsUrl(const std::string& input);
 
 const char* logsUrlVerdictName(LogsUrlVerdict verdict);

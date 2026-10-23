@@ -37,6 +37,7 @@
 #     m6 script never runs     -- the scroll call is counted, the page never moves
 #     m7 history flag only     -- CanGoBack=1, the address never changes
 #     m8 JSON not decoded      -- the browser's quoted result parses as 0
+#     m9 script truncated      -- the scroll script is built into char[160] and cut
 #   Plus capture mutations over the probe's own reading lines, so each needle is
 #   shown to discriminate.
 #
@@ -222,6 +223,8 @@ P_ASSERTIONS=(
   'geometryDemoSqueezed=0|geometry: the demo keeps its minimum width'
   'geometryUnreachable=0|geometry: every toolbar control stays reachable'
   'scrollOffset=480|scroll: the offset the page took is what is reported'
+  'scrollScriptComplete=1|script: the scroll script is a complete expression, not truncated'
+  'scrollScriptChars=174|script: the scroll script is the whole expression (174 chars)'
   'scriptValueQuoted=1|script: the JSON string a real browser returns decodes to its text'
   'scriptValueEmpty=1|script: an empty JSON string decodes to an empty answer'
   'scrollRawRecorded=1|scroll: an unparsable page answer is recorded, not folded into 0'
@@ -915,6 +918,68 @@ PYEOF
   cp "$backup_webview" native/src/logstf_webview.cpp
   cmp -s native/src/logstf_webview.cpp "$backup_webview" || { echo "  RESTORE=FAIL (m8)"; mrc=1; }
 
+  # Product mutation 9: THE TRUNCATION. Rebuild the scroll script with snprintf
+  # into char[160], which cuts it at 159 characters: the browser answers a
+  # SyntaxError as the JSON literal null, atoi reads 0, and the panel reports
+  # scrollCalls=1 scriptFailures=0 on a page that did not move. This is the
+  # defect the 2026-10-23 run produced BEFORE the fix, so the mutation restores
+  # the exact code that was shipped and requires the offset assertion to notice.
+  cp native/src/logstf_viewer.cpp "$backup"
+  m9_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+needle = """  return
+      "(function(){var y=(window.scrollY||document.documentElement.scrollTop||0)+("
+      + std::to_string(deltaY)
+      + ");window.scrollTo(0,y);return String(window.scrollY||document.documentElement.scrollTop||0);})()";"""
+replacement = """  char buf[160];
+  std::snprintf(buf, sizeof(buf),
+      "(function(){var y=(window.scrollY||document.documentElement.scrollTop||0)+(%d);"
+      "window.scrollTo(0,y);return String(window.scrollY||document.documentElement.scrollTop||0);})()",
+      deltaY);
+  return std::string(buf);"""
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m9_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
+    if bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/m9.build" 2>&1; then
+      echo "  mutated build rc=0 (m9)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m9): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    # The probe holds the script as a string, so it must go red first.
+    "$PROBE" > "$OUT/m9_probe.txt" 2>&1
+    m9_probe_rc=$?
+    run_product m9 --logstf-script scroll --logstf-url "https://logs.tf/1"
+    m9_summary="$(grep -F 'logstf: summary' "$OUT/m9.trace" | tail -1)"
+    m9_calls="$(pvalue "$m9_summary" scrollCalls)"
+    m9_fail="$(pvalue "$m9_summary" scriptFailures)"
+    m9_off="$(pvalue "$m9_summary" scrollOffset)"
+    echo "  m9 readings: scrollCalls=$m9_calls scriptFailures=$m9_fail scrollOffset=$m9_off"
+    if [ "$m9_calls" != "1" ] || [ "$m9_fail" != "0" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m9: the call counters moved too, so this"
+      echo "    mutation does not isolate the truncation: calls=$m9_calls fail=$m9_fail)"; mrc=1
+    elif [ "$m9_probe_rc" -eq 0 ] && ! grep -qF 'scrollScriptComplete=1' "$OUT/m9_probe.txt"; then
+      echo "  MUTATION-CAUGHT=PASS (m9_script_truncated: the truncated script went red"
+      echo "    in the probe, and the product read offset=$m9_off with calls=$m9_calls fail=$m9_fail)"
+    elif [ "$m9_probe_rc" -ne 0 ]; then
+      echo "  MUTATION-CAUGHT=PASS (m9_script_truncated: the mutated probe exited"
+      echo "    $m9_probe_rc -- the string check refused the truncated script)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (m9_script_truncated: the script check stayed green)"; mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m9_script_truncated: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup" native/src/logstf_viewer.cpp
+  cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m9)"; mrc=1; }
+
   # Restore the real binaries after the last mutation.
   bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/restore.build" 2>&1 \
     || { echo "  RESTORE-BUILD=FAIL"; mrc=1; }
@@ -922,7 +987,7 @@ PYEOF
     || { echo "  RESTORE-PROBE=FAIL (the restored probe is not green)"; mrc=1; }
 
   [ "$mrc" -eq 0 ] || { echo "LOGSTF-MUTATION=FAIL"; exit 1; }
-  echo "LOGSTF-MUTATION=PASS (eight capture mutations, seven product mutations and one seam mutation all went red)"
+  echo "LOGSTF-MUTATION=PASS (eight capture mutations, eight product mutations and one seam mutation all went red)"
 fi
 
 echo
