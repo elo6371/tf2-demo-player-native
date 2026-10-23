@@ -299,9 +299,26 @@ tail -6 "$OUT/1-build.txt"
 # The warning count moved 10 -> 11 in the same build (a C4189 unused local in
 # T37's own code); warnings are not asserted here by design, and the new one is
 # named in the T37 report rather than suppressed.
+#
+# 2026-10-23 release round: 44 -> 49, measured on the merged tree after the
+# five feature merges ended at 3823b46: grep -c '^add_executable(' = 49, and a
+# clean full Release build printing cmake_build_rc=0 errors=0 warnings=16
+# exe_count=49. (This script's older entries also quote exes_on_disk; this
+# round did not read that line, so it is not claimed here.)
+# One target per feature, each named from the commit that added it:
+#   T50 77f7499 camera_probe           the camera director / bookmark / key table
+#   T51 e4d2983 hud_probe              the custom HUD import rules, shared with the product
+#   T52 148bcfd entity_overlay_probe   the silhouette pass, driven offline
+#   T53 0c409c1 projectile_track_probe the projectile series, with closed-form fixtures
+#   T54 f30426c logstf_viewer_probe    the logs.tf panel contract, compiled into the product too
+# The warning count moved 11 -> 16 in the same build. Warnings are still not
+# asserted here by design; the five new ones are named in the release report
+# rather than suppressed. This pin is edited in the release round on purpose:
+# it is the number that says the build produced every target, and it has to
+# move with the target list or it starts agreeing with a truncated build.
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=44$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=49$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
