@@ -973,6 +973,68 @@ float4 main(Input input) : SV_TARGET {
     lastError_ = viewModelShaderResult;
     return false;
   }
+  // ---- T51: the HUD pass's shader pair and states ------------------------
+  //
+  // HLSL constants are handed in as pixels and converted to clip space here, so
+  // the pass needs no constant buffer of its own and no viewport arithmetic on
+  // the CPU side that could disagree with the layout resolution: the same
+  // numbers the trace prints are the ones the rasteriser received.
+  static constexpr char hudVertexSource[] = R"HLSL(
+cbuffer HudConstants : register(b0) {
+  float4 screenSize;   // xy = back-buffer pixels, zw = 1/size
+};
+struct Input { float2 position : POSITION; float4 colour : COLOR0; float2 rect : TEXCOORD0; };
+struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 local : TEXCOORD0; };
+Output main(Input input) {
+  Output output;
+  // top-left origin -> clip space. The y flip is here and only here.
+  const float2 ndc = float2(input.position.x * screenSize.z * 2.0 - 1.0,
+                            1.0 - input.position.y * screenSize.w * 2.0);
+  output.position = float4(ndc, 0.0, 1.0);
+  output.colour = input.colour;
+  output.local = input.rect;
+  return output;
+})HLSL";
+  static constexpr char hudPixelSource[] = R"HLSL(
+// A HUD panel is drawn as a bordered block rather than a flat fill: this build
+// rasterises no font and no image (see native/docs/hud-supported-formats.md), and
+// a solid rectangle with a one-pixel frame is the shape that says "this panel is
+// here, at this size" without pretending to be the panel's contents.
+struct Input { float4 position : SV_POSITION; float4 colour : COLOR0; float2 local : TEXCOORD0; };
+float4 main(Input input) : SV_TARGET {
+  const float edge = min(min(input.local.x, input.local.y),
+                         min(1.0 - input.local.x, 1.0 - input.local.y));
+  const float border = edge < 0.035 ? 1.0 : 0.0;
+  float4 colour = input.colour;
+  colour.rgb = lerp(colour.rgb * 0.35, colour.rgb, border);
+  return colour;
+})HLSL";
+  initStage_ = "compileShaders.hud";
+  {
+    HRESULT hudShaderResult = S_OK;
+    Microsoft::WRL::ComPtr<ID3DBlob> hudVertexBytecode;
+    Microsoft::WRL::ComPtr<ID3DBlob> hudPixelBytecode;
+    if (!compileShader(hudVertexSource, "main", "vs_5_0", hudVertexBytecode, &hudShaderResult)
+        || !compileShader(hudPixelSource, "main", "ps_5_0", hudPixelBytecode, &hudShaderResult)) {
+      lastError_ = hudShaderResult;
+      return false;
+    }
+    const D3D11_INPUT_ELEMENT_DESC hudElements[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    if (FAILED(device_->CreateVertexShader(hudVertexBytecode->GetBufferPointer(),
+          hudVertexBytecode->GetBufferSize(), nullptr, hudVertexShader_.GetAddressOf()))
+        || FAILED(device_->CreatePixelShader(hudPixelBytecode->GetBufferPointer(),
+          hudPixelBytecode->GetBufferSize(), nullptr, hudPixelShader_.GetAddressOf()))
+        || FAILED(device_->CreateInputLayout(hudElements, 3,
+          hudVertexBytecode->GetBufferPointer(), hudVertexBytecode->GetBufferSize(),
+          hudInputLayout_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+  }
   initStage_ = "createShaders.singleModel";
   if (FAILED(device_->CreateVertexShader(vertexBytecode->GetBufferPointer(), vertexBytecode->GetBufferSize(),
       nullptr, vertexShader_.GetAddressOf()))
@@ -1222,6 +1284,47 @@ float4 main(Input input) : SV_TARGET {
   // the same frame, and two UpdateSubresource calls into one buffer would make
   // whichever ran second the truth for both passes.
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldSkyConstants_.GetAddressOf()))) return false;
+  // ---- T51: the HUD pass's constants, states and vertex buffer -----------
+  //
+  // Depth test and depth write are both OFF, and the rasteriser culls nothing:
+  // a HUD panel is screen-space geometry whose winding is an implementation
+  // detail of the quad builder, and letting it be culled would silently drop
+  // panels. Blending is standard src-alpha so a panel colour can be translucent
+  // without inventing a second rule.
+  D3D11_BUFFER_DESC hudConstantsDescription{};
+  hudConstantsDescription.ByteWidth = 16;   // one float4: screenSize
+  hudConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
+  hudConstantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+  if (FAILED(device_->CreateBuffer(&hudConstantsDescription, nullptr, hudConstants_.GetAddressOf()))) return false;
+  D3D11_DEPTH_STENCIL_DESC hudDepthDescription{};
+  hudDepthDescription.DepthEnable = FALSE;
+  hudDepthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+  hudDepthDescription.DepthFunc = D3D11_COMPARISON_ALWAYS;
+  hudDepthDescription.StencilEnable = FALSE;
+  if (FAILED(device_->CreateDepthStencilState(&hudDepthDescription, hudDepthStencilState_.GetAddressOf()))) return false;
+  D3D11_RASTERIZER_DESC hudRasterDescription{};
+  hudRasterDescription.FillMode = D3D11_FILL_SOLID;
+  hudRasterDescription.CullMode = D3D11_CULL_NONE;
+  hudRasterDescription.FrontCounterClockwise = FALSE;
+  // DepthClipEnable FALSE keeps a rect whose coordinates are exactly on the
+  // edge from being clipped by rounding: the layout already clipped it to the
+  // client, and a second clip here would make the drawn region differ from the
+  // region the gate excludes.
+  hudRasterDescription.DepthClipEnable = FALSE;
+  hudRasterDescription.ScissorEnable = TRUE;
+  if (FAILED(device_->CreateRasterizerState(&hudRasterDescription, hudRasterizerState_.GetAddressOf()))) return false;
+  D3D11_BLEND_DESC hudBlendDescription{};
+  hudBlendDescription.AlphaToCoverageEnable = FALSE;
+  hudBlendDescription.IndependentBlendEnable = FALSE;
+  hudBlendDescription.RenderTarget[0].BlendEnable = TRUE;
+  hudBlendDescription.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+  hudBlendDescription.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+  hudBlendDescription.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+  hudBlendDescription.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+  hudBlendDescription.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+  hudBlendDescription.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+  hudBlendDescription.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+  if (FAILED(device_->CreateBlendState(&hudBlendDescription, hudBlendState_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC modelConstantsDescription{};
   modelConstantsDescription.ByteWidth = 8208;
   modelConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
@@ -4497,6 +4600,15 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   framePassOrdinal_ = 0;
   viewModelWorldPassOrdinal_ = 0;
+  // T51: the HUD readings are per-frame, reset here for the reason the ordinal
+  // above is: a drawHudPass that did not run this frame must read as "nothing was
+  // drawn", not as "the last frame that drew something". Without this, turning the
+  // HUD off would leave drawn=<the previous count> on the trace and a gate would
+  // read a HUD that no longer exists.
+  hudDrawnRects_ = 0;
+  hudPassOrdinal_ = 0;
+  hudScissorApplied_ = false;
+  hudLastRegion_ = HudPixelRectLast{};
   // Both readings below are written by the draw calls themselves and read back
   // by worldMaterialSampleState(). They are reset here, once per frame, so that
   // "the sky drew" and "the world drew indexed" are statements about this frame
@@ -5037,6 +5149,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   drawViewModel();
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(rasterizerState_.Get());
+  // T51: the custom HUD, after everything that draws the world and the weapon
+  // and before the frame is captured. It is the LAST pass on purpose: a HUD over
+  // a weapon is what a HUD is, and a pass that can only write inside its own
+  // scissored rectangles cannot change a world pixel by construction -- which is
+  // the assertion hud-check.sh makes by comparing two captures outside those
+  // rectangles.
+  if (hudEnabled_) drawHudPass();
   // Capture before Present: once Present has run the back buffer contents are
   // no longer defined, so this is the only point at which "the frame we just
   // composed" is still readable.
@@ -5048,6 +5167,132 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
   if (FAILED(result)) { lastError_ = result; return false; }
   return true;
+}
+
+// ---- T51: the custom HUD pass --------------------------------------------
+
+void Renderer::setHudRects(const std::vector<HudDrawRect>& rects) {
+  hudRects_ = rects;
+  // The vertex buffer is rebuilt lazily in drawHudPass, not here: this is called
+  // on resize and on import, and a device lost between the two would make an
+  // eager upload a failure the caller never asked about.
+  hudRectVertexCount_ = 0;
+}
+
+void Renderer::drawHudPass() {
+  if (!context_ || !target_ || width_ == 0 || height_ == 0) return;
+  if (!hudVertexShader_ || !hudPixelShader_ || !hudInputLayout_ || !hudConstants_
+      || !hudRasterizerState_ || !hudDepthStencilState_ || !hudBlendState_) return;
+  // An empty rect list is "this document has no panels this build can place";
+  // it is NOT an error and it is NOT the same as `enabled == false`, which is
+  // the user's switch. Both are reported separately by the caller.
+  if (hudRects_.empty()) return;
+  if (hudRectVertexCount_ == 0 || hudRectCapacity_ < hudRects_.size() * 6u) {
+    const std::size_t needed = hudRects_.size() * 6u;
+    D3D11_BUFFER_DESC description{};
+    description.ByteWidth = static_cast<UINT>(needed * sizeof(float) * 8u);
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, hudVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    hudRectCapacity_ = needed;
+  }
+  // Two triangles per rect, six vertices, each carrying its clip position, its
+  // colour and the 0..1 local coordinate the border is derived from.
+  std::vector<float> vertices;
+  vertices.reserve(hudRects_.size() * 6u * 8u);
+  int regionLeft = width_, regionTop = height_, regionRight = 0, regionBottom = 0;
+  for (const HudDrawRect& rect : hudRects_) {
+    if (!(rect.right > rect.left) || !(rect.bottom > rect.top)) continue;
+    const float left = (std::max)(0.0f, rect.left);
+    const float top = (std::max)(0.0f, rect.top);
+    const float right = (std::min)(static_cast<float>(width_), rect.right);
+    const float bottom = (std::min)(static_cast<float>(height_), rect.bottom);
+    if (!(right > left) || !(bottom > top)) continue;
+    const float corners[6][2] = {
+      {left, top}, {left, bottom}, {right, bottom},
+      {left, top}, {right, bottom}, {right, top},
+    };
+    const float locals[6][2] = {
+      {0.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f},
+      {0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 0.0f},
+    };
+    for (int corner = 0; corner < 6; ++corner) {
+      vertices.push_back(corners[corner][0]);
+      vertices.push_back(corners[corner][1]);
+      vertices.push_back(rect.colour[0]);
+      vertices.push_back(rect.colour[1]);
+      vertices.push_back(rect.colour[2]);
+      vertices.push_back(rect.colour[3]);
+      vertices.push_back(locals[corner][0]);
+      vertices.push_back(locals[corner][1]);
+    }
+    ++hudDrawnRects_;
+    regionLeft = (std::min)(regionLeft, static_cast<int>(left));
+    regionTop = (std::min)(regionTop, static_cast<int>(top));
+    regionRight = (std::max)(regionRight, static_cast<int>(right + 0.999f));
+    regionBottom = (std::max)(regionBottom, static_cast<int>(bottom + 0.999f));
+  }
+  if (vertices.empty()) return;
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(context_->Map(hudVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+  std::memcpy(mapped.pData, vertices.data(), vertices.size() * sizeof(float));
+  context_->Unmap(hudVertexBuffer_.Get(), 0);
+  hudRectVertexCount_ = static_cast<UINT>(hudDrawnRects_ * 6u);
+  hudLastRegion_.x = regionLeft;
+  hudLastRegion_.y = regionTop;
+  hudLastRegion_.w = regionRight - regionLeft;
+  hudLastRegion_.h = regionBottom - regionTop;
+  hudLastRegion_.empty = hudDrawnRects_ == 0;
+  // The whole pass is scissored to the union of the rectangles it is about to
+  // draw. That is belt and braces next to the fact that it only emits those
+  // rectangles: the scissor is what makes "cannot paint outside" a hardware
+  // property rather than an arithmetic argument, and the reading is printed so
+  // the gate can see it was set.
+  D3D11_RECT scissor{};
+  scissor.left = hudLastRegion_.x;
+  scissor.top = hudLastRegion_.y;
+  scissor.right = hudLastRegion_.x + hudLastRegion_.w;
+  scissor.bottom = hudLastRegion_.y + hudLastRegion_.h;
+  context_->RSSetScissorRects(1, &scissor);
+  hudScissorApplied_ = true;
+  const float screen[4] = { static_cast<float>(width_), static_cast<float>(height_),
+    1.0f / static_cast<float>(width_), 1.0f / static_cast<float>(height_) };
+  context_->UpdateSubresource(hudConstants_.Get(), 0, nullptr, screen, 0, 0);
+  context_->OMSetDepthStencilState(hudDepthStencilState_.Get(), 0);
+  context_->RSSetState(hudRasterizerState_.Get());
+  const float blendFactor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  context_->OMSetBlendState(hudBlendState_.Get(), blendFactor, 0xFFFFFFFFu);
+  context_->IASetInputLayout(hudInputLayout_.Get());
+  const UINT stride = sizeof(float) * 8u, offset = 0;
+  auto* buffer = hudVertexBuffer_.Get();
+  context_->IASetVertexBuffers(0, 1, &buffer, &stride, &offset);
+  context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  context_->VSSetShader(hudVertexShader_.Get(), nullptr, 0);
+  context_->PSSetShader(hudPixelShader_.Get(), nullptr, 0);
+  auto* constants = hudConstants_.Get();
+  context_->VSSetConstantBuffers(0, 1, &constants);
+  // No textures and no sampler: a bound texture would be sampled by a shader
+  // that declares none, but leaving slot 0 pointing at the weapon albedo from
+  // the ViewModel pass is how a "screen-space HUD" quietly becomes a picture of
+  // the gun. Clearing it is one call and removes the question.
+  ID3D11ShaderResourceView* noTexture = nullptr;
+  context_->PSSetShaderResources(0, 1, &noTexture);
+  context_->Draw(hudRectVertexCount_, 0);
+  hudPassOrdinal_ = ++framePassOrdinal_;
+  // Restore the frame's own states so a HUD enabled frame and a HUD disabled
+  // frame differ only in the pixels the pass drew: a leftover scissor would
+  // clip the NEXT frame's world draw, which is the exact class of defect the
+  // world-comparison assertion exists to catch.
+  D3D11_RECT full{};
+  full.left = 0;
+  full.top = 0;
+  full.right = static_cast<LONG>(width_);
+  full.bottom = static_cast<LONG>(height_);
+  context_->RSSetScissorRects(1, &full);
+  context_->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFFu);
+  context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+  context_->RSSetState(rasterizerState_.Get());
 }
 
 void Renderer::shutdown() {

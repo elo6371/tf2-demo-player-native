@@ -1,0 +1,15 @@
+.
+./.uninstall
+./.uninstall/install-manifest.txt
+./VERSION.txt
+./empty-dir
+./readme.txt
+./resource
+./resource/ui
+./resource/ui/hudlayout.res
+./resource/ui/keepme.txt
+./sub
+./sub/deeper
+./sub/deeper/deep.txt
+./tf2_demo_native.exe
+./user-notes.txt

@@ -62,6 +62,15 @@ add_executable(tf2_demo_native WIN32
   src/effects_timeline.cpp
   src/pcf_operators.cpp
   src/playback_hud.cpp
+  # T51: the custom HUD import. hud_import.cpp is the pure rule set (shared with
+  # hud_probe byte for byte, so the probe and the product cannot disagree about
+  # what a document means); hud_state.cpp is the [hud] settings round trip.
+  src/hud_import.cpp
+  src/hud_state.cpp
+  # T50's shared hotkey/INI layer, copied byte-identical from task/t50-camera.
+  # The HUD registers its three actions into the ONE table rather than a second.
+  src/keybinds.cpp
+  src/ini_section.cpp
   src/bsp_map.cpp
   # The world material capability layer. In the product, not just in the probe:
   # the product resolves a map's cubemap through the same bspPakfileEntry and
@@ -605,6 +614,16 @@ target_link_libraries(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T51: the HUD import contract. Pure: it links only hud_import.cpp, so a green
+# run is a statement about path safety, the KeyValue subset, the coordinate
+# grammar and the rectangle arithmetic, and cannot be helped by any installed
+# content or any GPU. The product links the same source file, so the probe and
+# the product cannot disagree about what a document means.
+add_executable(hud_probe tools/hud_probe.cpp src/hud_import.cpp)
+target_include_directories(hud_probe PRIVATE include)
+target_compile_definitions(hud_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+set_target_properties(hud_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 # T37: the lifecycle driver. It links the product's own installer code rather than
 # a copy of it, so a gate that drives this probe is driving the bytes the product
 # runs. The probe exists because a package is "these files staged next to the
@@ -659,6 +678,9 @@ if (MSVC)
   target_compile_options(tf2_demo_native PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_compile_options(entity_protocol_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_compile_options(entity_message_fixture_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
+  # T51: the probe is held to the product's warning bar, because a probe is read as
+  # evidence and evidence built at /W3 is not the same evidence.
+  target_compile_options(hud_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_link_options(tf2_demo_native PRIVATE /DYNAMICBASE /NXCOMPAT)
 endif()
 

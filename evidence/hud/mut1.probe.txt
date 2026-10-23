@@ -1,0 +1,80 @@
+path.cases=20
+path.accepted=4
+path.refused=16
+path.wrong=0
+coord.parsed=12
+coord.refusedByDesign=3
+coord.malformed=5
+coord.wrong=0
+ok good-document-parses reason=none
+good.panels=5
+good.nesting=4
+good.unknownKeys=0
+res 1280x720 dpi=1.00 scale=100 valid=5 total=5 root=0,0,1280,720 anchor=290,520,350,80 child=290,520,175,80
+res 1920x1080 dpi=1.00 scale=100 valid=5 total=5 root=0,0,1920,1080 anchor=610,880,350,80 child=610,880,175,80
+res 1920x1080 dpi=1.50 scale=100 valid=5 total=5 root=0,0,1920,1080 anchor=435,780,525,120 child=435,780,263,120
+res 1280x720 dpi=1.00 scale=200 valid=5 total=5 root=0,0,1280,720 anchor=0,320,640,160 child=0,320,320,160
+res 1280x720 dpi=1.00 scale=50 valid=5 total=5 root=0,0,1280,720 anchor=465,620,175,40 child=465,620,88,40
+ok every-screen-has-visible-panels
+adapt.fraction small=0.500000 large=0.500000
+ok fraction-anchor-is-resolution-independent
+adapt.pixels smallAmmo=200x64 largeAmmo=200x64
+ok pixel-anchor-keeps-its-size
+adapt.rightAnchor small=880 large=1520
+ok right-anchor-follows-the-edge
+scale100 ammo=880,40,200,64 childW=175
+scale200 ammo=480,80,400,128 childW=320
+ok pixel-extent-doubles-at-200
+scale.ratio normal=0.500000 doubled=0.500000
+ok fraction-ratio-does-not-change-with-scale
+dpi1.0 ammoW=200 dpi1.5 ammoW=300
+ok dpi-scale-multiplies-pixel-anchors
+union x=0 y=0 w=1280 h=720 empty=0
+ok union-is-non-empty
+union.outside=0
+ok every-panel-is-inside-the-union
+FAIL doc-case base-include got ok=1 reason=none want=unsupported-include
+doc.cases=7
+doc.refusedAsNamed=6
+doc.wrong=1
+panel.refused=1 kept=4 ok=1
+ok one-bad-panel-still-parses
+ok one-bad-panel-is-counted-exactly-once
+ok the-other-panels-survive
+orphan.parseRefused=1 parseOk=1 invalidRects=0
+ok orphan-case-still-parses
+ok only-the-parent-is-refused-by-parse
+nest.deep ok=0 reason=nesting-too-deep panels=0
+ok depth-17-refused
+corpus.dir=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/custom/m0rehud-5.8/resource/ui
+corpus.tried=102
+corpus.imported=76
+corpus.refusedInclude=0
+corpus.refusedOther=26
+corpus.importedPartial=60
+corpus.panelsKept=810
+corpus.panelsRefused=523
+corpus.sample charinfoloadoutsubpanel.res:unsupported-coordinate
+corpus.sample hudalert.res:unsupported-coordinate
+corpus.sample huddamageaccount.res:unsupported-coordinate
+corpus.sample huddamageaccount_last.res:missing-root-panel
+corpus.sample huddemomancharge.res:unsupported-coordinate
+corpus.sample hudhealthaccount.res:unsupported-coordinate
+corpus.sample huditemeffectmeter_action.res:unsupported-coordinate
+corpus.sample huditemeffectmeter_cleaver.res:missing-document-name
+corpus.sample huditemeffectmeter_engineer.res:missing-document-name
+corpus.sample huditemeffectmeter_heavy.res:missing-document-name
+corpus.sample huditemeffectmeter_killstreak.res:unsupported-coordinate
+corpus.sample huditemeffectmeter_organs.res:unsupported-coordinate
+ok corpus-was-actually-sampled
+ok corpus-documents-import
+file.cases=9
+file.correct=9
+file.wrong=0
+bom.textEqual=1 hadBom=1 bytes=832
+ok bom-is-stripped-not-transformed
+ok bom-is-reported
+scale.49=50 scale.50=50 scale.100=100 scale.200=200 scale.201=200
+ok scale-is-clamped-to-the-contract-window
+ok scale-range-boundaries-are-exact
+hud_probe.failures=1

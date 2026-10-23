@@ -1,0 +1,1 @@
+uninstall=PASS removed=3 restored=0 preserved=4 modified=0 alreadyMissing=0 deferredRunningImage=0
