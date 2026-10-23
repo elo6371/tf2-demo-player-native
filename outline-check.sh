@@ -554,7 +554,28 @@ echo "  regions=$REGIONS"
 printf "%s" "$REGIONS" > "$OUT/regions.txt"
 NI=$("$PY" outline-frame-check.py noninterference on="$OUT/on.bmp" off="$OUT/off.bmp" $REGION_ARG 2>&1)
 echo "  $NI" | sed "s/^/    /"
-assert_eq "differing pixels outside every drawn region" "$(echo "$NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)" "0"
+# PRECONDITION, written before the numbers it guards: two runs may only be
+# compared once they are shown to be looking at the same scene. The rule is
+# mechanical -- a scene mismatch is not confined to where a player stands, so it
+# shows up as a difference spread across the frame, and the total is checked
+# against a fraction of the frame rather than against a guess at how big an
+# outline is. Measured 2026-10-23: the on/off pair differs by 484 pixels of
+# 861k, i.e. the same camera saw the same world twice; a pair of runs captured
+# 300 frames apart differs across the whole frame and fails here, with the
+# reason stated, instead of being reported as "the overlay painted outside its
+# boxes" -- which is the shape of error this file has already made once.
+NI_OUT=$(echo "$NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)
+NI_IN=$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)
+NI_TOTAL=$(( ${NI_OUT:-0} + ${NI_IN:-0} ))
+NI_LIMIT=$(( 1264 * 681 / 50 ))
+if [ "$NI_TOTAL" -lt "$NI_LIMIT" ]; then
+  echo "  OK   precondition: the two runs saw the same scene (${NI_TOTAL} differing pixels < 2% of the frame)"
+else
+  echo "  FAIL precondition: the two runs did not see the same scene (${NI_TOTAL} >= ${NI_LIMIT} differing pixels)"
+  echo "       every region assertion below measures the camera, not the overlay, so this run proves nothing"
+  fail=1
+fi
+assert_eq "differing pixels outside every drawn region" "${NI_OUT:-<none>}" "0"
 assert_ge "differing pixels INSIDE the drawn regions" "$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)" "1"
 
 echo

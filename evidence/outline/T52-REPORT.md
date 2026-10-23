@@ -582,6 +582,37 @@ same tick 64229,  same arm:   on.trace  capture: armed ... frames=512   draws=51
   （缺席族是 `Argument list too long` 那条：命令没跑，读数 `<none>` 被当成 0。）
   两族的共同点只是都表现为"读到了一个看起来合理的数"，判据不同：一族是**没有读数**，一族是**读错了那一条**。
 
+### 8.3 那条红的重新定级：证据指向样本漂移，但 on/off 这一对是同一个场景
+
+判据先写死（写在这批数之前）：
+
+- 同场景 ⇒ 世界像素几乎全部一致，差异只出现在描边自己的像素上（几百个量级）；
+- 不同场景 ⇒ 差异铺满整帧（几万到几十万），因为相机或插值变了。
+
+读数（22:16 那一对 on/off）：
+```text
+484 differing pixels of 1264*681 = 861k     => 同一个场景
+```
+⇒ 22:16 的 1 FAIL 不是「跨运行比了不同场景」，它是真的：那一帧描边画在它自己公布的框之外。
+
+但同一 tick 不同时刻的 run 之间不是同一个场景，这一点直接量到了：
+```text
+on.trace    (22:16)  frames=512   follows=945    玩家 w≈0.33      框 2-4 px
+diag.trace  (09:45)  frames=839   follows=1298   玩家 w≈0.06-0.13  框 21-57 px
+```
+同一个 --capture-tick 64229、同一个 arm tick，渲染帧数差 300+、相机跟随计数差 350、玩家远近差 3-5 倍。
+⇒ 跨小时的两次 run 不能互相引用；只有同一次门禁里背靠背的 on/off（以及 off/off2）才能比。
+
+### 8.4 前置断言已落地（outline-check.sh，非干涉比较之前）
+
+不满足时输出：
+```text
+FAIL precondition: the two runs did not see the same scene (N >= 17220 differing pixels)
+     every region assertion below measures the camera, not the overlay, so this run proves nothing
+```
+判据是机械的：场景不同 ⇒ 差异铺满整帧；场景相同 ⇒ 只有描边像素差。不去猜「差多少算多」。
+这是本轮唯一新增的前置断言：没有它，区域类断言在样本漂移时会给出看起来合理的错数。
+
 ## 8. 交接：唯一那条红 + 下个窗口三步
 
 **读数**：4 个绘制 blob 与 14 个框，X 中心逐像素吻合（463/510/562/484 全中），Y 偏 2–18 px 且被压扁；
