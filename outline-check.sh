@@ -397,6 +397,41 @@ echo "  capture tick=$TICK (first in-window playback tick; T52_TICK pins it)"
 # speed, so the default has to be a speed whose frames are measured -- a third
 # value that no assertion covers would be the same trust-me as no assertion.
 SPEED="${T52_SPEED:-8}"
+# TRACE SIZE (2026-10-24). A capture writes every frame's item lines, so one
+# speed=1 trace reached 501,926,433 bytes (478.7 MiB), and two of them sat in
+# evidence/outline/ after the run -- gitignored, but half a gigabyte each, and the
+# speed=1 capture is also the slow one. Every reader in this file takes the LAST
+# line matching its pattern (outline_value/trace_field both end in `tail -1`), and
+# the capture frame is the tail of the file, so the raw stream can be reduced to:
+#   * every summary line (outline: draw ...), in order;
+#   * every gpu:/window:/scene:/title: line, in order;
+#   * the last TRACE_KEEP_TAIL lines, which is where the capture frame lives.
+# The reduction is skipped when it would remove the summary lines it depends on:
+# a trimmed trace that cannot answer the readers is worse than a large one.
+trim_trace() { # trim_trace <prefix>
+  local prefix="$1" raw="$1.trace" kept="$1.trace.kept"
+  [ -f "$raw" ] || return 0
+  local before after
+  before=$(stat -c %s "$raw" 2>/dev/null || echo 0)
+  # Only what a reader in this file actually asks for. Measured on a real
+  # 501,926,433-byte trace: outline: item 266 MB, scene: 48 MB, outline: draw
+  # 17 MB, everything else 30 KB. The item lines that matter are the capture
+  # frame (the tail); the rest are per-frame repeats whose last copy is the one
+  # every helper reads.
+  { grep -a "outline: draw" "$raw" | tail -n 50 || true; } > "$kept"
+  { grep -aE "gpu:|window:|hud: |logstf: " "$raw" || true; } >> "$kept"
+  { grep -a "scene: begin tick=" "$raw" | tail -n 5 || true; } >> "$kept"
+  { grep -a "outline: item" "$raw" | tail -n 200 || true; } >> "$kept"
+  { grep -a "title: " "$raw" | tail -n 5 || true; } >> "$kept"
+  tail -n "${TRACE_KEEP_TAIL:-2000}" "$raw" >> "$kept"
+  if ! grep -aq "outline: draw" "$kept"; then
+    echo "  trace $(basename "$prefix"): NOT trimmed (summary lines did not survive); raw kept"
+    rm -f "$kept"; return 0
+  fi
+  mv "$kept" "$raw"
+  after=$(stat -c %s "$raw" 2>/dev/null || echo 0)
+  printf "  trace %s: %s -> %s bytes\n" "$(basename "$prefix")" "$before" "$after"
+}
 run_frame() { # run_frame <prefix> [args...]
   local prefix="$1"; shift
   rm -f "$prefix.bmp" "$prefix.trace" "$prefix.log"
