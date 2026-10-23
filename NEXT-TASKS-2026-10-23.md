@@ -2,11 +2,11 @@
 
 ## 0. 状态口径与负责人
 
-- 主线快照：p0-entity-protocol，HEAD 3e4211f。当前提交历史已经包含 T50、T51、T52、T53、T54 的本地 merge commit；此前“这些分支都未合并”的进度表已过时。这里的“已合并”只表示进入本地集成树，不代表功能验收完成或已经推送。
-- T49 的完整链报告记录 24/24 通过。T49.1 的全屏非干扰门禁仍按最新运行报告列为未接受；完整链通过不能替代这项专门验收。
-- 当前工作树存在用户的 HUD 证据改动和未跟踪 evidence/release-gates/。所有任务必须保留这些内容，禁止清理、覆盖、暂存或提交它们。
-- 当前报告之间有冲突：T52 的已提交报告为 57 OK / 1 FAIL，用户最新摘要为 67 OK / 1 FAIL；T54 的已提交报告称滚动与历史导航通过，用户最新运行状态又报告这两项有运行时缺陷。T53 的旧进度说性能读数未齐，而主线证据已包含 append/build 成本。冲突项先对账来源、commit、exe、trace 与时间，再决定是否补跑。
-- 用户负责创建/切换任务 worktree、实现、运行门禁、提交与整合。本助手负责代码审查、疑难问题定位、任务拆解和指导；不替用户合并功能分支。
+- 主线快照：p0-entity-protocol，HEAD `ecb3a93`，与 `origin/p0-entity-protocol` 一致。提交历史已经包含 T50–T54 的本地 merge；“已合并”只表示进入集成树，不代表功能验收完成。
+- T49 完整链报告记录 24/24 通过。T49.1 于 11:52 得到 53 断言、0 失败和 mutation PASS，但可见 control 阶段占用了用户桌面，违反窗口隔离前提，故为 NOT VERIFIED。当前选择先保留此状态，不投入 2–3 小时尝试隔离桌面；隔离桌面方案单独排期。
+- `evidence/hud/**` 的 52 个工作树差异来自 11:56–12:00 的 `hud-check.sh`（20 个内容差异、其余为行尾差异），不是用户编辑；已恢复这些已跟踪文件到 HEAD。未跟踪 `evidence/release-gates/`、`evidence/trajectory/demo.txt`、`evidence/trajectory/trace-cli.txt` 和 `native/src/main.cpp` 改动仍保留，不暂存、不覆盖。
+- 截至 12:15 的同树结果：T50 18 断言 PASS，T51 PASS，T52 12 FAIL 已分为 A/B/C，T54 34 断言 PASS 但仍需证明脚本未执行时会失败，T53 正在验证 `parseFeatureArgument` 搬迁的 CLI 路径。后续状态必须注明实际 HEAD、exe 和 trace 身份。
+- 用户负责功能分支整合；本批现有 merge 已发生，不再创建新的合并动作。当前 T52 无锁诊断和 T53 gate 由用户继续，助手不启动竞争运行；助手负责审查与定因，并在所有任务完成、用户交付冻结树后执行最终冻结核验和唯一一次完整链。
 - 本清单是当前任务入口。T50–T55 的原始产品要求仍见 NEXT-TASKS-2026-10-21.md；本清单补充当前状态、收尾步骤和地图/材质/第三人称人物任务。
 
 ## 1. 全局执行规范
@@ -21,7 +21,7 @@
 6. 断言必须先证明被测主体存在。零断言、未启动、缺字段、空文件、跳过步骤、变异未应用、变异构建失败均为 NOT RUN/INVALID，不是 PASS，也不算变异捕获。
 7. 每个产品修复要有同一输入的修复前后证据、具名正向读数和至少一个能使对应验收变红的变异。变异后逐字节恢复源码、重建恢复版本并确认产物；不能只看计数器证明画面正确。
 8. 不放宽阈值、删掉失败变异、改成宽松 pin 或把未测项目改写成“通过”。遇到首个无法解释的红先停下归因；相同环境错误连续两次后停止该环境路径，提交两次原始错误和人工所需事项。
-9. 不运行完整链作为调试工具。每项任务只跑受影响的 focused gate；最终冻结树上由用户安排一次完整链。若完整链后改动触及已测模块，重跑对应 focused gates；影响多个模块或链断言时重新冻结再跑整链。
+9. 不运行完整链作为调试工具。每项任务只跑受影响的 focused gate；最终冻结树由用户交付后，助手只执行一次 verify-all.sh --quick。若完整链后改动触及已测模块，重跑对应 focused gates；影响多个模块或链断言时重新冻结再跑整链。
 10. 证据只保留支持结论的帧、短日志、报告和哈希清单。大型原始 trace 按仓库既有规则忽略并记录 SHA-256；不提交 exe、临时 build、重复帧、空日志或备份。删除任何既有或归属不明的证据前必须停下，不得把清理当效率优化。
 
 ### 提效方法
@@ -42,12 +42,12 @@
 | 任务 | 当前状态 | 下一步 |
 |---|---|---|
 | T49 完整链 | 报告记录 24/24 PASS | 保留为当前基线；不要因局部问题重跑整链 |
-| T49.1 全屏非干扰 | 未接受；最新运行摘要为三轮 FAIL，且旧报告/本地证据需要核对 | 按下面 T49.1 步骤恢复可信的隔离运行 |
-| T50 相机书签 | 本地已合并；分支报告曾记录 CAMERA-UI PASS | 集成树复核一次 camera-ui-check；只在源码身份不匹配时重跑 |
-| T51 HUD 导入 | 本地已合并；本地 forward/mutation 日志存在，用户 HUD 证据有未提交修改 | 先只读审查现有日志和 diff，保留 HUD 改动；确需补测时跑 hud-check |
-| T52 队伍色 X-ray | 本地已合并，但仍有一条区域外像素断言红；报告读数与最新摘要不一致 | 对账实际帧/包围盒/外扩轮廓，修复后重新 forward 与 mutation |
-| T53 投射物轨迹 | 本地已合并；主线有 gate 与 append/build 性能读数，旧进度报告未齐 | 核对性能证据所用 commit/exe；补齐交付报告和未验证项，不重复全链 |
-| T54 logs.tf | 本地已合并；已提交报告称滚动/历史通过，最新运行摘要称出现缺陷 | 以最新运行的源码、exe、trace 和页面状态为准，复现后关闭冲突 |
+| T49.1 全屏非干扰 | 11:52 实测 53/0 + mutation PASS；活动桌面正控不满足验收前提，NOT VERIFIED | 本波不启动隔离桌面研发；保留限制，后续单独排期 |
+| T50 相机书签 | 集成树 PASS，18 断言 | 复用 evidence/release-gates/camera-ui.log；不重复运行，除非身份对账失败 |
+| T51 HUD 导入 | 集成树 PASS；门禁写脏的 52 个 tracked HUD 产物已还原 | 复用 `evidence/release-gates/hud.log`；除非身份对账失败，不重跑 |
+| T52 队伍色 X-ray | 集成树 12 FAIL；A tick 越界、B 绝对 ordinal 假设、C 被 A 影响的 D1 采样 | 用户已批准在 `task/t52-outline` 修 A/B；先证明重排 pass 会被相对顺序断言捕获；修后预期只留 D1 `outsideDiff=297` |
+| T53 投射物轨迹 | 截至 12:15 正在验证 `parseFeatureArgument` 搬迁的 CLI 路径；当前结果未知 | 等现有 gate 结束，记录同次 HEAD/source/exe/demo/trace；不启动第二个 gate |
+| T54 logs.tf | 同树 34 断言 PASS，`runtime_available=1`；scrollOffset=480、height=4200、viewport=720 | 对账旧失败的 commit/exe/trace；增加或证明脚本未执行时的具名失败控制，不能依赖 `0 == 0` |
 | T55 时间轴/剪辑/导出 | 按原计划延后 | 在相机和 review UI 验收后按 T55 步骤实施 |
 | T56–T62 | 新增计划 | 先做 T56/T57 审计，再按依赖实现和验收 |
 
@@ -55,7 +55,8 @@
 
 **目标：**可信证明自动测试不会抢占或覆盖用户当前操作窗口。
 **非目标：**不能以只运行隐藏窗口替代 foreground/control 阶段，也不能为了让测试通过而改变产品窗口行为。
-**前置：**停止所有其他运行；确认当前桌面隔离方案确实不会把可见 control 窗口显示在用户活动窗口之上。
+**状态/决定：**11:52 运行虽有 53/0 和 mutation PASS，但可见 control 覆盖了活动桌面，故 NOT VERIFIED。本轮不投入 2–3 小时构建隔离桌面；该工作另立任务。不得用活动桌面重跑来补验收。
+**前置：**未来重新排期时，先停止所有其他运行；确认隔离桌面不会把可见 control 窗口显示在用户活动窗口之上。
 
 **步骤**
 
@@ -83,47 +84,48 @@
 
 **完成：**集成树正向/变异通过或旧证据身份完全吻合；没有把单次相机帧误称为完整书签验收。
 
-### T51 — 自定义 HUD 复核与用户文件保护
+### T51 — 自定义 HUD 复核与运行产物恢复
 
-**前置：**当前 evidence/hud 有用户未提交改动，任务执行者先保存其状态信息但不得 stash、还原、清理或覆盖。
-1. 只读检查 hud-check.sh、当前 diff 与 forward/mutation 日志，确认用户文件 fixture 的目录项和哈希清单均可解释。
-2. 只有日志身份不匹配或缺失时才运行 bash hud-check.sh；正向全绿后再运行 bash hud-check.sh --mutation。
+**状态：**集成树 gate PASS。11:56–12:00 的 `hud-check.sh` 改写了 52 个 tracked evidence 文件；mtime、运行窗口和内容/行尾差异已对上。因为这些不是用户编辑且原文件都在 HEAD，已恢复至 HEAD。未跟踪 `evidence/release-gates/` 保留。
+1. 复用 `evidence/release-gates/hud.log`，核对其 HEAD、exe 和报告身份；身份匹配时不重跑。
+2. 若证据缺失或身份不匹配，先把门禁输出改到独立 run-id 目录，再运行 `bash hud-check.sh`；正向全绿后才运行 `bash hud-check.sh --mutation`，避免覆盖已跟踪 fixture/evidence。
 3. 核对有效 HUD、缺失/畸形/越界输入的具名拒绝、预览/apply/reset、分辨率缩放、reset/uninstall 后用户文件逐字节不变，以及 HUD 开关不改变区域外世界像素。
-4. 变异 source 必须逐字节恢复，恢复构建的 probe/frame 应复现 baseline。不要把现有用户证据一起 stage 或提交。
+4. 变异 source 必须逐字节恢复，恢复构建的 probe/frame 应复现 baseline。不得暂存未跟踪的 `evidence/release-gates/`，除非后续交付明确需要并逐项审查。
 
 **完成：**所有 gate 断言有非零实测，变异全由断言捕获，用户文件清单前后完全相同。任何被删改的用户文件立即停止并报告，不自行恢复。
 
 ### T52 — 队伍色 X-ray 描边红项关闭
 
-**前置：**先对账已提交报告 57/1 与最新摘要 67/1；使用实际失败帧和其同次 trace，不能混用两次运行。
-1. 核实失败断言的两个运行是否真的同地图、同实体、同 pose、同 exe；检查 outline 区域取自当前 frame，且红/蓝双方都在同帧出现。
-2. 追踪实体世界模型网格 AABB 与 silhouette expansion 的关系。当前证据把区域外差异归因到被扩张的轮廓壳，旧 item AABB 不等于实际绘制范围；修正两边读数使用同一来源。
-3. 先运行一次代表性 forward：bash outline-check.sh。只有区域外像素红项已闭合、截图身份与 trace 匹配且其余 assertions 非零时，才运行 bash outline-check.sh --mutation。
-4. mutation 必须覆盖换队色、普通深度测试导致遮挡、overlay 恒开/泄漏、无玩家或未知队伍等适用路径；INVALID 单列，不能作为已捕获。
-5. 恢复源码 byte-identical 并重建；记录实际 assertion 数、每条 mutation 结果和 mask 外/内像素。
+**前置：**集成树 12 条红已由同次诊断拆为三类；后续代码改动只在用户维护的 `task/t52-outline` 分支进行。
+1. A（探针 tick）：默认请求 1000–2000 落在 demo 保留历史窗口 64229–64419 之前，因此真实录像段 rows=0；分支上同样 rows=0，属于过期默认值，不是 merge 缺陷。用窗口内 tick 64329 验证 rows=120，并记录 `serverTickOrigin=10252` 与 `74481-10252=64229` 的换算。
+2. B（pass 顺序）：三处 ordinal 整体 +1 是 T53 pass 插入后的序列变化。代码契约 `overlayPassOrderValid()` 是相对谓词（两者非零且 overlay < viewModel），不是固定 ordinal=6。更新断言为相对契约；必须给出一个把 overlay 移到 ViewModel 之后的负控，并指出该负控会触发哪条具名断言。不得把期望值 6 改成 7。
+3. C（区域外像素）：6141 由 A 的无效 tick 让 D1 采到更近玩家帧造成（4 个实心区块、silhouettes=4），不是新 pass。A 改用可达 tick 后回到 D1 原读数 `outsideDiff=297`；不得提高阈值或隐藏该残余红。
+4. 在 `task/t52-outline` 完成 A/B 后运行一次 forward 与 mutation，验证 A 有非零 rows、B 的 pass 重排负控被相对顺序断言捕获；每条 mutation 需证明已应用且逐字节恢复。
+5. 将唯一残余 D1 红单独交付：把 `entityIndex` 写入 GPU instance padding 并读回核对绘制归属。先静态确认 padding 生命周期/布局和 shader ABI，再做最小构建及单个代表输入；不得和 A/B 混在同一诊断结论里。
 
-**完成：**forward 0 FAIL，适用 mutation 全 RED、0 INVALID，恢复后 baseline 可复现。
-**停止：**帧外差异无法用同一渲染范围解释、红蓝玩家主体不在帧中、正控不成立或两轮输入身份不一致。
+**完成：**A/B 的 forward 与负控闭环；D1 有独立 owner 和像素归属证据，或明确保持 NOT VERIFIED。整体验收不能因旧分支 1 FAIL 覆盖集成树实测。
+**停止：**tick 仍无可达快照、pass 重排负控不转红、帧外差异归属未明、红蓝玩家主体不在帧中，或输入身份不一致。
 
 ### T53 — 投射物轨迹 gate 与性能证据收尾
 
-**前置：**主线已有 trajectory-overlay-check.sh 和 evidence/trajectory/demo.txt；这些读数能复用的条件是 commit、exe、demo、sampleRows 和配置身份相同。
-1. 对照当前 HEAD 和 evidence/trajectory/demo.txt、evidence/verify/10-trajectory.txt、evidence/verify/10-trajectory-mutation.txt 的 hash/来源；无需为重复数字重新跑 24 步链。
-2. 若 forward 来源匹配，复用；否则运行 bash trajectory-overlay-check.sh。核验 13 项 gate 规则、真实 projectile 输入、owner/slot lifetime、全体与单玩家过滤、消失与约 0.5s linger、无投射物输入。
-3. 只在 forward 全绿时运行 bash trajectory-overlay-check.sh --mutation；每个 mutation 必须有不同的具名读数，不编译的 mutation 记 INVALID。
-4. 报告 append median/p90/max 与发生最大值的 packet，build median/p95/max、240Hz 的 4.1667ms 预算占比、query 比较上界、slot reuse 对筛选的影响。均值或中位数不能掩盖最大值。
-5. 核对 overlay 的开关和采样间隔在真实产品设置中可操作；若性能 gate PASS 但用户 UI 控件未接线，要拆成明确未完成项。
+**前置：**截至 12:15，集成树正在对 `parseFeatureArgument` 搬迁做 CLI 验收；`--trajectory-*` 属于搬迁参数集合。`native/src/main.cpp` 尚有 7 行 `traceFmt("title: …")` 未提交改动，`evidence/trajectory/demo.txt` 与 `evidence/trajectory/trace-cli.txt` 也有未提交产物；已知产品 exe `3076E5B1…` 构建早于这些改动。不要把旧 exe 的结果说成新源码结果。
+1. 等现有 gate 结束，记录最终 exit、stdout、HEAD、工作树 diff、exe hash、demo hash 和 trace；不得并行启动第二个 gate 或构建。
+2. 静态核对参数搬迁的调用链与原有解析行为；用一次 focused CLI 输入验证 `--trajectory-*` 可达且未知/缺值参数仍被拒绝。区分 parse-feature 变更与标题 trace 改动的身份。
+3. gate 身份与源码一致时复用结果；否则先由用户决定如何处理未提交源码/证据，再做最小 focused 验证。不得用完整链验证 CLI 变更。
+4. 单独核验 trajectory gate 的 13 项规则、真实 projectile 输入、owner/slot lifetime、全体与单玩家过滤、消失与约 0.5s linger、无投射物输入。
+5. 报告 append median/p90/max 及最大值对应 packet、build median/p95/max 与 240 Hz 的 4.1667 ms 预算占比、query 比较上界和 slot reuse 对筛选的影响；中位数不得掩盖最大值。
+6. 核对 overlay 开关和采样间隔在真实产品设置中的可操作性；若 gate PASS 但 UI 控件未接线，拆成明确未完成项。仅在 forward 有效且全绿后运行 mutation；每个变异须有具名读数，未应用/未构建记 INVALID。
 
 **完成：**实际 gate PASS、mutation PASS/恢复完整、性能样本数非零且所有关键百分位可追溯到原始数据；旧“缺三个读数”的状态被证据明确关闭或仍保留。
 
 ### T54 — logs.tf 最新运行状态对账
 
-**前置：**旧 evidence/logstf/T54-REPORT.md 是 PASS；最新运行摘要称 scroll/history 曾失败，两者必须在同一提交上复核。
-1. 先从最近一次实际运行日志确认运行时间、HEAD、exe hash、WebView2 runtime 来源、页面 URL 和 browser state；不以旧报告覆盖更新的失败。
-2. 对可疑路径单独复现 scroll 和 back/forward：断言 scrollOffset 实际改变、canBack/canForward 随导航改变、脚本错误为空；页面不可达/脚本未执行不能读作 offset=0 或历史成功。
-3. 在当前集成树运行 bash logstf-check.sh；只有 forward 全绿才运行 bash logstf-check.sh --mutation。
-4. 保留已提交 34 assertions/旧 mutation 日志，新增复核日志到独立 run-id 目录，不覆写旧证据；把旧通过与新失败按身份逐项对照。
-5. 核验 empty state、合法/非法 host、resize、scroll、history、reload、close/reopen、播放响应；无 runtime 的机器需标记实际未验证，不能用 fake host 代替真实 runtime 结论。
+**状态：**集成树 forward 日志 `evidence/release-gates/logstf.log` 报告 34 断言 PASS、`runtime_available=1`、`state=content`、host alive；scroll 读数为 offset=480、clamped=0、height=4200、viewport=720。该摘要未给出 mutation 结果；旧失败摘要的 commit/exe/trace 身份也仍待对账。
+1. 按同一运行记录 HEAD、exe hash、WebView2 runtime、URL、browser state 和实际脚本执行确认；不得只凭非零或零数值推断 JS 成功。
+2. 证明脚本未执行时哪条具名断言会红。若当前 gate 没有脚本执行 ack，补一条明确 ack/执行状态断言；另用 JS 未执行或滚动调用未发送的负控，确认失败发生在该断言，而不是 `scrollOffset` 的数值比较。
+3. 对有效内容页确认 `scrollHeight > viewportHeight`、请求的 scroll 非零、offset 实际变化且 `scrollClamped` 符合预期；页面脚本错误和 history back/forward 另有独立读数。
+4. 对账旧失败与本次 PASS 的 commit/exe/trace；只在身份匹配后解释为同一路径的状态变化。若需重跑，输出写入独立 run-id，保留现有日志。
+5. 核验 empty state、合法/非法 host、resize、scroll、history、reload、close/reopen 和播放响应；无 runtime 时标 NOT VERIFIED，不用 fake host 代替。
 
 **完成：**最新 same-tree forward 与 mutation 通过，scroll/history 各有独立可读读数，旧报告与新运行差异得到解释。
 **停止：**WebView 脚本没有执行、日志为空、没有成功内容页面、测试窗口会覆盖用户当前窗口。
@@ -250,19 +252,20 @@
 2. 在冻结树先运行 T50–T61 直接受影响的 focused gates，一次性记录实际 assertion 与证据身份；只补缺口，不重跑已证实且身份匹配的无关 gate。
 3. 跑地图矩阵（T56 选定地图 × 已修材料/几何）和人物矩阵（T57 可达职业 × T61 可达动作）；逐格记 PASS / FAIL / NOT VERIFIED / UNSUPPORTED 与原因。
 4. 核验 T55 短片段导出的容器可解码、时间边界和音画同步；若 T55 未完成，不得声称全软件完成，也不得提前跑最终整链。
-5. 确认所有 FAIL/INVALID 都有 owner 和处置，不把 release gate 全绿等同“画面正确”；冻结后由用户运行 bash verify-all.sh --quick 恰好一次。
+5. 确认所有 FAIL/INVALID/NOT VERIFIED 都有 owner 和处置，不把 release gate 全绿等同“画面正确”；用户交付冻结树后，由助手运行 `bash verify-all.sh --quick` 恰好一次并回报原始摘要。
 6. 如 full chain 后有任何改动，废弃该 freeze 结论；按变更范围重跑 focused gates，并在必要时重新冻结后再跑完整链。
 
 **验收：**所有矩阵单元有证据或显式未验证理由；focused 与 full-chain verdict 分开报告；最终 HEAD、日志/帧 hash、远端哈希、锁和进程状态齐全。
 
 ## 12. 顺序与并行表
 
-1. 首先按 T49.1、T52、T54 当前冲突优先修复/对账；T50/T51 做只读审查并复用身份匹配的证据；T53 先审计已有 gate/artifacts。所有运行串行排队。
-2. T56 与 T57 的静态源码/资源盘点可以并行；所有它们的构建、启动、参考图抓取和 mutation 仍必须串行。
-3. T58 必须等 T56 的几何归因；T59 必须基于 T56 的材质账本。两项会触碰共享 renderer，默认串行。
-4. T60 必须等 T57；T61 必须等 T60 的模型显示稳定。禁止把模型绘制与动画缺陷在同一提交里一起改，除非先证明两者不可分并记录理由。
-5. T55 只有在 T50/T54 review UI 通过后才实现。纯 UI/数据设计可与 T56/T57 静态盘点并行；产品改动先检查 main/settings/render file ownership，确认没有共享文件冲突再排期。
-6. T62 只能在上述任务关闭、用户整合完成并冻结后开始。最终 full chain 与任何其他操作、编辑、merge、构建、抓帧或 mutation 均不可并行。
+1. 先等待当前 T53 gate 结束；不启动竞争运行。用户在 `task/t52-outline` 完成已批准的 A/B 门禁修正并交付 diff 后，助手只做审查与定因；T54 补脚本未执行负控。T49.1 保留 NOT VERIFIED，不阻塞这三项的静态工作。
+2. T50/T51 只读审查并复用身份匹配证据；HUD 产物已恢复到 HEAD，不再把它们归属为用户改动。运行时所有共享资源仍串行排队。
+3. T56 与 T57 的静态源码/资源盘点可以并行；所有构建、启动、参考图抓取和 mutation 串行。
+4. T58 必须等 T56 几何归因；T59 必须基于 T56 材质账本。两项会碰共享 renderer，默认串行。
+5. T60 必须等 T57；T61 必须等 T60 模型显示稳定。模型绘制与动画缺陷分开改，除非先证明不可分并记录理由。
+6. T55 只有在 T50/T54 review UI 通过后才实现。纯 UI/数据设计可与 T56/T57 静态盘点并行；产品改动先检查 main/settings/render 文件所有权。
+7. T62 只能在上述任务关闭、用户整合并冻结后开始。最终 full chain 与任何编辑、merge、构建、抓帧或 mutation 均不可并行。
 
 ## 13. 每个任务交给审查时
 
