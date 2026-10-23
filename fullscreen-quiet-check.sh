@@ -302,6 +302,25 @@ assert_artifacts() { # assert_artifacts <label> <prefix>
   assert_gt "$1: the run wrote metric rows" "${rows:-0}" "0"
 }
 
+# A person can stop the guard with ESC. That is a right, and it is recorded as its own
+# outcome: not a pass (nothing was measured), not a failure (the product did nothing
+# wrong). The operator's action must never be hidden inside a verdict.
+guard_aborted() { # guard_aborted <guard-file> -- exits 3 when the operator stopped the run
+  local a at
+  a=$(need_field "$1" "guard.aborted")
+  case "$a" in
+    1)
+      at=$(need_field "$1" "guard.abortedAtMs")
+      echo
+      echo "  ABORTED-BY-USER the operator pressed ESC \$at ms after the guard took the screen"
+      echo "FULLSCREEN-QUIET=ABORTED (a person ended this run; neither a pass nor a failure)"
+      exit 3 ;;
+    ABSENT)
+      echo "  FAIL $(basename "$1"): the guard file has no guard.aborted reading, so an operator abort could not be told apart from a completed run"
+      fail=$((fail + 1)) ;;
+  esac
+}
+
 # Before any trace-derived assertion, say WHY a missing trace is missing. A trace
 # that was never opened and a product that never created a window are different
 # failures and must not share a message.
@@ -396,6 +415,7 @@ if [ "$INSTRUMENT" -eq 1 ]; then
     -File "$ROOT/desktop-guard-target.ps1" >/dev/null 2>&1 &
   ti=$!
   wait "$gi" 2>/dev/null
+  guard_aborted "$OUT/instrument.guard.txt"
   kill "$ti" 2>/dev/null
   i_set=$(sed -n 's/.*setForegroundWindow=\([A-Za-z]*\).*/\1/p' "$OUT/instrument.out" 2>/dev/null)
   i_by=$(need_field "$OUT/instrument.guard.txt" "guard.stolenBy")
@@ -490,6 +510,7 @@ if want_phase baseline; then
   start_guard "$OUT/baseline" "$GUARD_SECONDS" -Watch "$PRODUCT_NAME" -Phase "baseline" &
   gb=$!
   wait "$gb" 2>/dev/null
+  guard_aborted "$OUT/baseline.guard.txt"
   b_deact=$(need_field "$OUT/baseline.guard.txt" "guard.deactivations")
   echo "  baseline deactivations=$b_deact stolenSamples=$(need_field "$OUT/baseline.guard.txt" "guard.foregroundStolenSamples")"
   echo "  baseline watchVisibleSamples=$(need_field "$OUT/baseline.guard.txt" "guard.watchVisibleSamples") modeChangedFields=$(need_field "$OUT/baseline.guard.txt" "guard.modeChangedFields")"
@@ -515,6 +536,7 @@ if want_phase forward; then
   fwd_rc=$(run_product "$OUT/forward" --hidden-window --audio-disabled)
   f_end=$(date +%s%3N)
   wait "$gf" 2>/dev/null
+  guard_aborted "$OUT/forward.guard.txt"
   f_deact=$(need_field "$OUT/forward.guard.txt" "guard.deactivations")
   echo "  forward rc=$fwd_rc deactivations=$f_deact stolenSamples=$(need_field "$OUT/forward.guard.txt" "guard.foregroundStolenSamples") modeChangedFields=$(need_field "$OUT/forward.guard.txt" "guard.modeChangedFields")"
   echo "  forward watchVisibleSamples=$(need_field "$OUT/forward.guard.txt" "guard.watchVisibleSamples") window_visible=$(win_visible "$OUT/forward")"
@@ -565,6 +587,7 @@ if want_phase control; then
   ctl_rc=$(run_product "$OUT/control" --audio-disabled)
   c_end=$(date +%s%3N)
   wait "$gc" 2>/dev/null
+  guard_aborted "$OUT/control.guard.txt"
   c_deact=$(need_field "$OUT/control.guard.txt" "guard.deactivations")
   echo "  control rc=$ctl_rc watchVisibleSamples=$(need_field "$OUT/control.guard.txt" "guard.watchVisibleSamples") watchWindowFound=$(need_field "$OUT/control.guard.txt" "guard.watchWindowFound") handOffSent=$(need_field "$OUT/control.guard.txt" "guard.handOffSent") handOffAttributed=$(need_field "$OUT/control.guard.txt" "guard.handOffAttributed") deactivations=$c_deact"
   echo "  control window_visible=$(win_visible "$OUT/control") stolenByCount=$(need_field "$OUT/control.guard.txt" "guard.stolenByCount") stolenBy=$(need_field "$OUT/control.guard.txt" "guard.stolenBy")"
@@ -638,6 +661,7 @@ if [ "$MUTATION" -eq 1 ]; then
   sleep 1
   m1_rc=$(run_product "$OUT/m1" --audio-disabled)
   wait "$gm" 2>/dev/null
+  guard_aborted "$OUT/m1.guard.txt"
   assert_artifacts "m1 shown run" "$OUT/m1"
   m1_watch=$(need_field "$OUT/m1.guard.txt" "guard.watchVisibleSamples")
   echo "   m1 watchVisibleSamples=$m1_watch rc=$m1_rc"
@@ -661,6 +685,7 @@ if [ "$MUTATION" -eq 1 ]; then
     sleep 1
     m2_rc=$(run_product "$OUT/m2" --audio-disabled)
     wait "$gb2" 2>/dev/null
+    guard_aborted "$OUT/m2.guard.txt"
     cp "$OUT/guard.orig.ps1" "$GUARD"
     if cmp -s "$GUARD" "$OUT/guard.orig.ps1"; then
       echo "  OK   the guard was restored byte for byte"
@@ -690,6 +715,7 @@ if [ "$MUTATION" -eq 1 ]; then
   sleep 1
   m3_rc=$(run_product "$OUT/m3" --audio-disabled)
   wait "$gm3" 2>/dev/null
+  guard_aborted "$OUT/m3.guard.txt"
   assert_artifacts "m3 short run" "$OUT/m3"
   m3_watch=$(need_field "$OUT/m3.guard.txt" "guard.watchVisibleSamples")
   m3_win=$(win_created_ms "$OUT/m3")

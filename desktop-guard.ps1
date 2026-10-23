@@ -18,8 +18,12 @@
 #     exactly what --hidden-window claims.
 #
 # WHAT IT IS NOT
-#   It is a borderless topmost fullscreen window, not a Direct3D exclusive-mode
-#   swap chain. A hidden window cannot change the display mode either way, but
+#   It is a borderless fullscreen window -- deliberately NOT topmost. A topmost window
+#   sits above every normal window and cannot be switched away from, which makes the
+#   stand-in more aggressive than the thing it stands in for: a real fullscreen program
+#   is not topmost, so the extra z-order changes the scene being measured. Holding the
+#   foreground is about being activated, not about being on top. It is also not a
+#   Direct3D exclusive-mode swap chain. A hidden window cannot change the display mode either way, but
 #   "an exclusive fullscreen game keeps its flip queue" is NOT proven here and
 #   must not be claimed from this file.
 param(
@@ -108,6 +112,8 @@ public class GuardWin {
       if (attached) { DetachFrom(fg); }
     }
   }
+  [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+  [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool EnumDisplaySettings(string dev, int mode, ref DEVMODE dm);
@@ -153,6 +159,24 @@ public class GuardWin {
 }
 "@
 
+# ESC abort. RegisterHotKey posts WM_HOTKEY to the window, which never arrives as a
+# KeyDown: a KeyDown handler only fires while this window has the focus, and this guard
+# can lose the focus at any moment -- that is precisely what it is here to measure. The
+# message filter sees the hotkey whatever owns the foreground, so the operator can always
+# stop the run. Being able to interrupt a test is a right, and the abort is recorded as
+# its own outcome (ABORTED-BY-USER) instead of being hidden inside a pass or a failure.
+Add-Type -ReferencedAssemblies System.Windows.Forms -TypeDefinition @"
+using System;
+using System.Windows.Forms;
+public class GuardAbortFilter : IMessageFilter {
+  public volatile bool AbortRequested = false;
+  public bool PreFilterMessage(ref Message m) {
+    if (m.Msg == 0x0312) { AbortRequested = true; return true; }
+    return false;
+  }
+}
+"@
+
 $script:deactivations = 0
 $script:activations = 0
 $script:stolen = 0
@@ -186,13 +210,24 @@ $script:handOffSelfOk = 0
 # reading as a product that never interfered.
 $script:startEpochMs = 0
 $script:stopEpochMs = 0
+$script:aborted = 0
+$script:abortedAtMs = -1
+$script:hotkeyOk = 0
+$script:abortFilter = New-Object GuardAbortFilter
+[void][System.Windows.Forms.Application]::AddMessageFilter($script:abortFilter)
 
 $form = New-Object System.Windows.Forms.Form
 $form.FormBorderStyle = "None"
 $form.WindowState = "Maximized"
-$form.TopMost = $true
+# NOT topmost: a borderless fullscreen window is what a normal fullscreen program looks
+# like. TopMost would put this window above everything and make it impossible to switch
+# away from, which is more aggressive than the situation being simulated -- and the
+# extra z-order changes the scene being measured. Foreground ownership comes from
+# activation, not from z-order.
+$form.TopMost = $false
 $form.BackColor = [System.Drawing.Color]::FromArgb(12, 12, 14)
-$form.ShowInTaskbar = $false
+# In the taskbar on purpose: Alt+Tab can find it and the operator can switch away.
+$form.ShowInTaskbar = $true
 $form.Text = "desktop-guard"
 $form.Cursor = [System.Windows.Forms.Cursors]::Default
 
@@ -208,10 +243,13 @@ $labelText = "non-interference test" + [Environment]::NewLine + [Environment]::N
   "$Seconds s" + $(if ($Phase) { " / $Phase" } else { "" }) + [Environment]::NewLine +
   $(if ($Watch) { "watching for a window of: $Watch" } else { "watching for foreground theft" }) +
   [Environment]::NewLine + [Environment]::NewLine +
-  "this screen is held by an automated check and will close by itself"
+  "this screen is held by an automated check and will close by itself" + [Environment]::NewLine +
+  "press ESC to stop it now"
 $label.Text = $labelText
 $form.Controls.Add($label)
 
+# Every close path releases the hotkey: the timed end, the ESC abort, and any other.
+$form.add_FormClosing({ [void][GuardWin]::UnregisterHotKey($form.Handle, 1) })
 $form.add_Deactivate({ $script:deactivations++ })
 $form.add_Activated({ $script:activations++ })
 
@@ -222,6 +260,16 @@ $timer.Interval = 20
 $timer.add_Tick({
   $now = [Environment]::TickCount
   $script:sinceShownMs = $now - $script:shownAt
+  # ESC: stop now and leave a record that a person did it.
+  if ($script:abortFilter.AbortRequested -and $script:aborted -eq 0) {
+    $script:aborted = 1
+    $script:abortedAtMs = $script:sinceShownMs
+    $script:deactAtEnd = $script:deactivations
+    $script:stopEpochMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $timer.Stop(); $flush.Stop(); $watchTimer.Stop(); $killer.Stop()
+    $form.Close()
+    return
+  }
   $gap = $now - $script:lastTick
   if ($gap -gt $script:worstGapMs) { $script:worstGapMs = $gap }
   $script:lastTick = $now
@@ -334,6 +382,9 @@ $form.add_Shown({
   $script:shownAt = $script:lastTick
   $script:sinceShownMs = 0
   $script:startEpochMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+  # VK_ESCAPE = 0x1B, no modifiers, id 1. If registration fails the label is the only
+  # stop the operator has, so the reading is reported rather than assumed.
+  if ([GuardWin]::RegisterHotKey($form.Handle, 1, 0, 0x1B)) { $script:hotkeyOk = 1 }
   $timer.Start()
 })
 
@@ -363,6 +414,7 @@ $killer.Interval = [Math]::Max(1000, $Seconds * 1000)
 # report 1 on a perfectly quiet run and hide a real second one.
 $killer.add_Tick({
   $timer.Stop()
+  [void][GuardWin]::UnregisterHotKey($form.Handle, 1)
   $flush.Stop()
   $watchTimer.Stop()
   $script:deactAtEnd = $script:deactivations
@@ -372,6 +424,7 @@ $killer.add_Tick({
 $killer.Start()
 
 [void]$form.ShowDialog()
+[void][System.Windows.Forms.Application]::RemoveMessageFilter($script:abortFilter)
 
 $modeAfter = [GuardWin]::Mode()
 $modeChanged = 0
@@ -385,6 +438,9 @@ if ($Watch -and ($script:thieves -contains $Watch)) { $attributed = 1 }
 
 $lines = @(
   "guard.seconds=$Seconds",
+  "guard.aborted=$script:aborted",
+  "guard.abortedAtMs=$script:abortedAtMs",
+  "guard.hotkeyRegistered=$script:hotkeyOk",
   "guard.deactivations=$script:deactAtEnd",
   "guard.activations=$script:activations",
   "guard.foregroundStolenSamples=$script:stolen",
