@@ -83,6 +83,19 @@ PersistentSettings loadSettings() {
   result.render.viewModelFov = static_cast<float>(
     migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));
   result.render.vsync = readBool(file, L"vsync", false);
+  // T53: the trajectory overlay. The defaults here are the compiled defaults and
+  // they MATTER: projectileTrajectory defaults to false, so a settings file
+  // written before this feature existed, or none at all, leaves every existing
+  // capture's pixels exactly where they were. That is the whole reason the field
+  // is read with a false fallback rather than being enabled anywhere.
+  result.render.projectileTrajectory = readBool(file, L"projectileTrajectory", false);
+  // -1 is "all players" and it is the fallback, so an unset key means "all", not
+  // "entity 0" -- 0 is the world entity and is a real index.
+  result.render.selectedPlayerEntity = static_cast<std::int32_t>(
+    readInt(file, L"selectedPlayerEntity", -1));
+  result.render.trajectoryLingerMs = readInt(file, L"trajectoryLingerMs", 500);
+  result.render.trajectoryQuality = readInt(file, L"trajectoryQuality", 1) == 0
+    ? RenderSettings::TrajectoryQuality::Low : RenderSettings::TrajectoryQuality::High;
   result.render.normalize();
   wchar_t root[32768]{};
   GetPrivateProfileStringW(kSection, L"tfRoot", L"", root,
@@ -108,7 +121,16 @@ bool saveSettings(const PersistentSettings& settings) {
   if (!writeInt(temporary, L"preset", render.preset == QualityPreset::Standard ? 1 : 0)
       || !writeInt(temporary, L"renderScalePercent", static_cast<int>(render.renderScale * 100.0f + 0.5f))
       || !writeInt(temporary, L"viewModelFov", static_cast<int>(render.viewModelFov + 0.5f))
-      || !writeBool(temporary, L"vsync", render.vsync)) {
+      || !writeBool(temporary, L"vsync", render.vsync)
+      // T53: the trajectory overlay's four controls. Written on every save so the
+      // file always states what the frame was drawn with -- a setting that only
+      // appeared when non-default would leave the reader unable to tell "off" from
+      // "never written".
+      || !writeBool(temporary, L"projectileTrajectory", render.projectileTrajectory)
+      || !writeInt(temporary, L"selectedPlayerEntity", static_cast<int>(render.selectedPlayerEntity))
+      || !writeInt(temporary, L"trajectoryLingerMs", render.trajectoryLingerMs)
+      || !writeInt(temporary, L"trajectoryQuality",
+                   render.trajectoryQuality == RenderSettings::TrajectoryQuality::Low ? 0 : 1)) {
     DeleteFileW(temporary.c_str());
     return false;
   }

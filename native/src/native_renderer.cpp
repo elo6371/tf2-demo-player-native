@@ -2959,6 +2959,95 @@ void Renderer::setProjectileTimeline(const std::vector<ProjectileTimelineEvent>&
   projectileVertexCount_ = static_cast<UINT>(vertices.size());
 }
 
+// ===========================================================================
+// T53: THE OBSERVED TRAJECTORY PASS
+//
+// The difference between this and setProjectileTimeline above is the whole point
+// of the task. That pass is fed from TempEntity GENERATION events: one position
+// and a velocity, so anything drawn from it has to be extrapolated, and
+// extrapolation is the constant-velocity assumption NEXT-TASKS:583-584 forbids.
+//
+// This pass is fed positions the demo actually recorded, one per tick. Nothing
+// here interpolates, smooths, or extends a trail past the last observed point:
+// a straight stretch of a trail is straight because the projectile flew straight,
+// not because the renderer filled a gap.
+//
+// The points arrive already in map units and already carrying their AGE, so the
+// fade toward the linger limit is a property of the data rather than of a
+// clock inside the renderer. That keeps a captured frame reproducible: the same
+// tick and the same retained rows produce the same vertices, with no dependence
+// on how long the process has been running.
+// ===========================================================================
+void Renderer::setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>& points, std::int32_t tick) {
+  projectileTrackVertexCount_ = 0;
+  projectileTrackPointCount_ = points.size();
+  if (!device_ || !worldBoundsValid_ || points.size() < 2) return;
+
+  std::vector<WorldVertex> vertices;
+  vertices.reserve(std::min<std::size_t>(points.size() * 2u, 65536u));
+
+  // The same map-to-box transform every other world vertex goes through. A trail
+  // at a different scale from the world it sits in would still look plausible in
+  // isolation, which is why this is the renderer's own normalisation and not a
+  // second copy.
+  const auto normalize = [this](float x, float y, float z) {
+    return DirectX::XMFLOAT3(
+      (x - worldCenterX_) * worldHorizontalScale_,
+      (y - worldCenterY_) * worldHorizontalScale_,
+      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+  };
+
+  // A LINE LIST, two vertices per segment, one segment per adjacent observed
+  // pair. Adjacent means adjacent IN THE ARRAY, which the caller has already
+  // ordered by tick within one lifetime; a jump between two projectile lifetimes
+  // would otherwise be drawn as a segment across the map, which is the slot-reuse
+  // defect showing up again as a line.
+  const float kLingerTicks = 33.0f;
+  for (std::size_t i = 1; i < points.size(); ++i) {
+    const auto& previous = points[i - 1];
+    const auto& current = points[i];
+    // A lifetime change must never be joined.
+    if (previous.entityIndex != current.entityIndex) continue;
+    if (std::abs(current.ageTicks - previous.ageTicks) > 1.5f) continue;
+
+    const auto start = normalize(previous.x, previous.y, previous.z);
+    const auto end = normalize(current.x, current.y, current.z);
+
+    // Colour fades with age: a fresh segment is bright, and a segment at the
+    // linger limit is nearly gone. Alpha, not size, because the pass blends.
+    const float age = current.ageTicks < 0.0f ? 0.0f : current.ageTicks;
+    const float fade = age >= kLingerTicks ? 0.0f : (1.0f - age / kLingerTicks);
+    const float alpha = 0.25f + 0.75f * fade;
+    // Warm colour, deliberately not team-coloured: T52 owns team colour, and a
+    // trail that changed hue with team would be claiming a mapping this pass does
+    // not read.
+    const float color[4] = {1.0f, 0.72f, 0.25f, alpha};
+
+    vertices.push_back({start.x, start.y, start.z, color[0], color[1], color[2], color[3],
+                        0.0f, 0.0f, 0.0f, 1.0f, 0.0f});
+    vertices.push_back({end.x, end.y, end.z, color[0], color[1], color[2], color[3],
+                        0.0f, 0.0f, 0.0f, 1.0f, 0.0f});
+    if (vertices.size() >= 65536u) break;
+  }
+  if (vertices.empty()) return;
+
+  if (!projectileTrackVertexBuffer_ || projectileTrackVertexCapacity_ < vertices.size()) {
+    D3D11_BUFFER_DESC description{};
+    description.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(WorldVertex));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    if (FAILED(device_->CreateBuffer(&description, nullptr,
+                                     projectileTrackVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    projectileTrackVertexCapacity_ = vertices.size();
+  }
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(context_->Map(projectileTrackVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+  std::memcpy(mapped.pData, vertices.data(), vertices.size() * sizeof(WorldVertex));
+  context_->Unmap(projectileTrackVertexBuffer_.Get(), 0);
+  projectileTrackVertexCount_ = static_cast<UINT>(vertices.size());
+}
+
 void Renderer::setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick) {
   if (!device_ || !worldBoundsValid_) return;
   constexpr std::int32_t lifetimeTicks = 8;
@@ -4939,6 +5028,36 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   }
   ++framePassOrdinal_;
+  // T53: the observed trajectory pass. Its own ordinal, its own buffer, and its
+  // own state restore, so the TempEntity pass above keeps exactly the behaviour
+  // it had. Nothing here runs unless the setting is on AND points were submitted,
+  // which is how "off" keeps the frame byte-identical to a build without this.
+  if (!worldDiagnosticIsolation_ && settings_.projectileTrajectory
+      && projectileTrackVertexBuffer_ && projectileTrackVertexCount_ > 0
+      && worldVertexShader_ && worldPixelShader_ && worldInputLayout_ && worldConstants_) {
+    const UINT trackStride = sizeof(WorldVertex), trackOffset = 0;
+    auto* trackBuffer = projectileTrackVertexBuffer_.Get();
+    context_->IASetInputLayout(worldInputLayout_.Get());
+    context_->IASetVertexBuffers(0, 1, &trackBuffer, &trackStride, &trackOffset);
+    context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
+    auto* trackConstants = worldConstants_.Get();
+    context_->VSSetConstantBuffers(0, 1, &trackConstants);
+    context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+    context_->PSSetConstantBuffers(0, 1, &trackConstants);
+    auto* trackView = worldAtlasTextures_.empty()
+      ? (worldTexture_.view() ? worldTexture_.view() : texture_.view())
+      : worldAtlasTextures_.front().view();
+    context_->PSSetShaderResources(0, 1, &trackView);
+    ID3D11ShaderResourceView* trackBumpView = worldBumpTexture_.view();
+    ID3D11ShaderResourceView* trackEnvView = worldEnvTexture_.view();
+    context_->PSSetShaderResources(1, 1, &trackBumpView);
+    context_->PSSetShaderResources(2, 1, &trackEnvView);
+    context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+    context_->Draw(projectileTrackVertexCount_, 0);
+    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  }
+  ++framePassOrdinal_;
   if (!worldDiagnosticIsolation_ && modelVertexBuffer_ && modelVertexCount_ > 0 && modelVertexShader_ && modelPixelShader_ && modelInputLayout_) {
     context_->IASetInputLayout(modelInputLayout_.Get());
     const UINT modelStride = sizeof(ModelGpuVertex), modelOffset = 0; auto* modelBuffer = modelVertexBuffer_.Get();
@@ -5061,6 +5180,10 @@ void Renderer::shutdown() {
   projectileVertexBuffer_.Reset();
   projectileVertexCapacity_ = 0;
   projectileVertexCount_ = 0;
+  projectileTrackVertexBuffer_.Reset();
+  projectileTrackVertexCapacity_ = 0;
+  projectileTrackVertexCount_ = 0;
+  projectileTrackPointCount_ = 0;
   entityMarkerVertexBuffer_.Reset();
   entityMarkerVertexCapacity_ = 0;
   entityMarkerVertexCount_ = 0;
@@ -5126,6 +5249,8 @@ void Renderer::shutdown() {
   worldVertexCount_ = 0;
   worldLightmappedVertexCount_ = 0;
   projectileVertexCount_ = 0;
+  projectileTrackVertexCount_ = 0;
+  projectileTrackPointCount_ = 0;
   modelVertexCount_ = 0;
   sampler_.Reset();
   depthStencilState_.Reset();

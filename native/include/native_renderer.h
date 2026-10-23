@@ -19,6 +19,9 @@
 #include "world_material.h"
 #include "world_tile_atlas.h"
 #include "viewmodel_material.h"
+// T53: ProjectileTrackPoint, a three-float POD in a header that includes nothing,
+// so the renderer can take observed positions without including the demo decoder.
+#include "projectile_track_point.h"
 
 namespace tf2::native {
 
@@ -61,6 +64,34 @@ struct RenderSettings {
   float renderScale = 1.0f;
   float viewModelFov = 90.0f;
   bool vsync = false;
+  // ---- T53 (2026-10-23): the projectile trajectory overlay ----------------
+  //
+  // DEFAULT OFF, and that is a requirement rather than caution. Every capture on
+  // this chain -- T50, T51, T52 and the release gates -- would otherwise have its
+  // pixels moved by a feature nobody asked for in that run. T52's outline toggle
+  // is default-off for exactly the same reason.
+  //
+  // These live here, with the renderer's other settings, because that is where
+  // the settings file already reads and writes, and because a control that only
+  // existed as a command-line flag would not survive a restart.
+  bool projectileTrajectory = false;
+  // "all players" (-1) or one player's entity index. There is no shared notion of
+  // a "selected player" anywhere in this tree yet (measured: selectedPlayer /
+  // selectedEntity / SelectPlayer are 0 hits across the integration tree and
+  // T52's worktree), so this field DEFINES it, and T52 reads the same field when
+  // the two branches meet. -1 is the "all" sentinel, not 0: 0 is a real entity
+  // index (the world), and using it as "all" would be the defect this comment
+  // exists to prevent.
+  std::int32_t selectedPlayerEntity = -1;
+  // How long a trail outlives the projectile that drew it, at the demo's own tick
+  // rate. 500 ms is about 33 ticks at 66.66 tick, which is the contract's
+  // kOverlayDefaultLingerTicks. Kept in milliseconds because that is what a user
+  // sets and what survives a tick-rate change between recordings.
+  int trajectoryLingerMs = 500;
+  // The sampling/performance dial. Low and High must change a MEASURED quantity
+  // (the rows sampled and the vertices submitted), or the control is decorative.
+  enum class TrajectoryQuality { Low, High };
+  TrajectoryQuality trajectoryQuality = TrajectoryQuality::High;
 
   static RenderSettings fromPreset(QualityPreset preset);
   void normalize();
@@ -643,6 +674,14 @@ public:
   int capturedDepthHeight() const { return capturedDepthHeight_; }
   void setWorldMaterialParams(const WorldMaterialParams& params);
   void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
+  // T53: the observed trajectory pass. Separate from setProjectileTimeline on
+  // purpose -- that one is driven by TempEntity GENERATION events (one position
+  // plus a velocity, so anything drawn from it is extrapolated), this one by
+  // observed per-tick positions. Keeping them apart is what lets the old path
+  // stay as the fallback for entities with no observed rows, and what lets
+  // projectileVertexCount() and projectileTrackVertexCount() be two readings
+  // instead of one that hides which pass drew.
+  void setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>& points, std::int32_t tick);
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setEntityMarkers(const std::vector<EntityMarker>& markers);
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
@@ -661,6 +700,14 @@ public:
   std::size_t entityModelTexturedInstanceCount() const { return entityModelTexturedInstanceCount_; }
   std::size_t entityModelDrawRangeCount() const { return entityModelDrawRanges_.size(); }
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
+  // T53: the observed-trajectory pass's own count, kept separate from the
+  // TempEntity pass above so "the new pass did not quietly move the old one" is
+  // a reading rather than a promise. Both are printed by the HUD line.
+  std::size_t projectileTrackVertexCount() const { return projectileTrackVertexCount_; }
+  // How many points the last call submitted before any culling, and how many of
+  // them became vertices. Low quality samples fewer points, so the two tiers
+  // differ here and the gate asserts it.
+  std::size_t projectileTrackPointCount() const { return projectileTrackPointCount_; }
   const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
   // The env mode a world draw would use now: 0 none, 1 the 2D approximation,
   // 2 the map's six-face cube.
@@ -1166,6 +1213,15 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> projectileVertexBuffer_;
   std::size_t projectileVertexCapacity_ = 0;
   UINT projectileVertexCount_ = 0;
+  // T53: the observed-trajectory pass gets its OWN buffer, not the one above.
+  // The two passes would otherwise overwrite each other between the upload and
+  // the draw -- both are uploaded once per scene tick and drawn in the same
+  // frame -- and the symptom would be a trail that flickers between the
+  // TempEntity lines and the observed path depending on which upload won.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> projectileTrackVertexBuffer_;
+  std::size_t projectileTrackVertexCapacity_ = 0;
+  UINT projectileTrackVertexCount_ = 0;
+  std::size_t projectileTrackPointCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> entityMarkerVertexBuffer_;
   std::size_t entityMarkerVertexCapacity_ = 0;
   UINT entityMarkerVertexCount_ = 0;

@@ -327,7 +327,7 @@ int runSelfTest() {
 //   4. the invariants the binary-search query fix will depend on (tick order);
 //   5. a counted cost reading, deliberately not a wall clock (T38's finding).
 // ===========================================================================
-int runDemo(const std::string& demoPath, int top) {
+int runDemo(const std::string& demoPath, int top, bool expectEmptySearch) {
   using namespace tf2::native;
   DemoHeader header;
   DemoIndex index;
@@ -335,6 +335,9 @@ int runDemo(const std::string& demoPath, int top) {
   if (!parseDemoHeaderFile(demoPath, header)) return fail("demo header parse failed");
   indexDemoFile(demoPath, header, index);
   summary.networkProtocol = header.networkProtocol;
+  // The append cost has to be a measurement: the judge rule for it is stated in
+  // milliseconds, so the clock is on for this run.
+  summary.projectileTrackLimits.measureAppendCost = true;
   if (!scanKnownDemoMessages(demoPath, index, summary)) return fail("demo scan failed");
 
   std::printf("demo=%s\n", demoPath.c_str());
@@ -429,6 +432,59 @@ int runDemo(const std::string& demoPath, int top) {
     if (candidateError.maxError > flightWorst) { flightWorst = candidateError.maxError; flight = &entry; }
   }
   std::printf("flights: candidates=%zu (contiguous, 40..300 samples)\n", flightCandidates);
+
+  // ---------------------------------------------------------------------
+  // THE DISTRIBUTION, because one subject is a demonstration and not an
+  // acceptance.
+  //
+  // "The worst of 1147 candidates is 441 units" says nothing about how many of
+  // them are curved. If most flights were near-straight, the honest sentence
+  // would be "the demo carries projectiles, but its straight ones dominate" --
+  // and a report that only cited the worst case would be hiding that. So the
+  // chord error over every candidate is reported as median / p90 / max, plus the
+  // counts above and below the 100-unit floor.
+  // ---------------------------------------------------------------------
+  {
+    std::vector<float> chordErrors;
+    chordErrors.reserve(flightCandidates);
+    std::size_t velocityAboveFloor = 0;
+    std::size_t chordAboveFloor = 0;
+    std::size_t chordBelowOne = 0;
+    for (const auto& entry : series) {
+      if (!entry.contiguous) continue;
+      const std::size_t n = entry.samples.size();
+      if (n < 40 || n > 300) continue;
+      const auto chord = twoPointLineError(entry);
+      if (!chord.ok) continue;
+      chordErrors.push_back(chord.maxError);
+      const auto vel = constantVelocityError(entry);
+      if (vel.ok && vel.maxError >= 100.0f) ++velocityAboveFloor;
+      if (chord.maxError >= 100.0f) ++chordAboveFloor;
+      if (chord.maxError < 1.0f) ++chordBelowOne;
+    }
+    if (!chordErrors.empty()) {
+      std::sort(chordErrors.begin(), chordErrors.end());
+      const std::size_t count = chordErrors.size();
+      const auto at = [&chordErrors, count](double fraction) {
+        std::size_t index = static_cast<std::size_t>(fraction * static_cast<double>(count));
+        if (index >= count) index = count - 1;
+        return chordErrors[index];
+      };
+      const float median = at(0.50);
+      const float p90 = at(0.90);
+      const float maximum = chordErrors.back();
+      const double fractionAbove =
+        100.0 * static_cast<double>(chordAboveFloor) / static_cast<double>(count);
+      std::printf("distribution: chordMedian=%.1f chordP90=%.1f chordMax=%.1f count=%zu\n",
+                  static_cast<double>(median), static_cast<double>(p90),
+                  static_cast<double>(maximum), count);
+      std::printf("distribution: chordAtLeast100=%zu chordBelow1=%zu velocityAtLeast100=%zu "
+                  "fractionChordAtLeast100=%.1f%%\n",
+                  chordAboveFloor, chordBelowOne, velocityAboveFloor, fractionAbove);
+    } else {
+      std::printf("distribution: NONE (no candidate produced a chord reading)\n");
+    }
+  }
   if (flight) {
     const auto flightError = constantVelocityError(*flight);
     const auto flightChord = twoPointLineError(*flight);
@@ -495,6 +551,52 @@ int runDemo(const std::string& demoPath, int top) {
                 entry.verticalDirectionReversed ? "true" : "false");
   }
 
+  // ---------------------------------------------------------------------
+  // THE PLAYER FILTER -- "all players" vs "one selected player".
+  //
+  // The overlay must support both, so the gate has to show the filter has an
+  // input to work with: every row carries the handle of the player who threw the
+  // projectile. This counts the DISTINCT owner slots, which is what "all players"
+  // ranges over, and prints the busiest one, which is what "one selected player"
+  // selects.
+  // ---------------------------------------------------------------------
+  {
+    std::map<std::uint16_t, std::size_t> perOwner;
+    std::size_t rowsWithoutOwner = 0;
+    for (const auto& sample : summary.projectileTrackSamples) {
+      if (!sample.hasOwner) { ++rowsWithoutOwner; continue; }
+      ++perOwner[sample.ownerIndex];
+    }
+    std::size_t busiest = 0, busiestRows = 0;
+    for (const auto& entry : perOwner) {
+      if (entry.second > busiestRows) { busiestRows = entry.second; busiest = entry.first; }
+    }
+    std::printf("filter: owners=%zu rowsWithoutOwner=%zu busiestOwner=%u busiestRows=%zu\n",
+                perOwner.size(), rowsWithoutOwner,
+                static_cast<unsigned>(busiest), busiestRows);
+  }
+
+  // ---------------------------------------------------------------------
+  // THE EXPLICIT NO-PROJECTILE CASE.
+  //
+  // An empty result must be reported as a real state, not as a silent success.
+  // This searches a tick where the demo has nothing alive and prints how many
+  // rows came back, so "the query found nothing" is a reading instead of an
+  // absence a reader has to notice.
+  // ---------------------------------------------------------------------
+  {
+    // A tick before the first observed row is guaranteed to hold nothing.
+    const std::int32_t emptyTick = summary.projectileTrackSamples.empty()
+      ? 0 : summary.projectileTrackSamples.front().tick - 1000;
+    const auto emptyRows = queryProjectileTracksAtTick(summary, emptyTick);
+    std::printf("emptycase: tick=%d rows=%zu marker=%s\n",
+                emptyTick, emptyRows.size(),
+                emptyRows.empty() ? "NO-PROJECTILE" : "UNEXPECTED-ROWS");
+    if (expectEmptySearch) {
+      std::printf("emptycase: requested and read above\n");
+    }
+  }
+
   // THE QUERY COST, counted rather than timed (T38's finding: a wall clock on
   // this host moves with every other process on it).
   //
@@ -519,6 +621,26 @@ int runDemo(const std::string& demoPath, int top) {
   // ticks were actually sampled. Both are work counts, not durations.
   std::printf("cost: sampleRows=%zu queryComparisonsPerCall<=%zu budgetPerCall=%zu\n",
               rowCount, sortBound, sortBound);
+
+  // THE APPEND COST, which runs on the decode path once per packet and is held to
+  // median <= 0.5 ms and max <= 5 ms. Reported as a distribution rather than a
+  // total, because a mean over 73k packets hides the packet that took 40 ms.
+  {
+    auto samples = summary.projectileTrackAppendMillis;
+    if (samples.empty()) {
+      std::printf("appendCost: NOT MEASURED (measurement was off)\n");
+    } else {
+      std::sort(samples.begin(), samples.end());
+      const std::size_t count = samples.size();
+      const auto at = [&samples, count](double fraction) {
+        std::size_t index = static_cast<std::size_t>(fraction * static_cast<double>(count));
+        if (index >= count) index = count - 1;
+        return samples[index];
+      };
+      std::printf("appendCost: packets=%zu medianMs=%.4f p90Ms=%.4f maxMs=%.4f\n",
+                  count, at(0.50), at(0.90), samples.back());
+    }
+  }
   return 0;
 }
 
@@ -526,6 +648,7 @@ int runDemo(const std::string& demoPath, int top) {
 
 int main(int argc, char** argv) {
   bool selfTest = false;
+  bool expectEmptySearch = false;
   std::string tfRoot, demoPath;
   int top = 5;
   for (int i = 1; i < argc; ++i) {
@@ -533,9 +656,10 @@ int main(int argc, char** argv) {
     else if (std::strcmp(argv[i], "--tf-root") == 0 && i + 1 < argc) tfRoot = argv[++i];
     else if (std::strcmp(argv[i], "--demo") == 0 && i + 1 < argc) demoPath = argv[++i];
     else if (std::strcmp(argv[i], "--top") == 0 && i + 1 < argc) top = std::atoi(argv[++i]);
+    else if (std::strcmp(argv[i], "--expect-empty-search") == 0) expectEmptySearch = true;
   }
   if (selfTest) return runSelfTest();
-  if (!demoPath.empty() && !tfRoot.empty()) return runDemo(demoPath, top);
+  if (!demoPath.empty() && !tfRoot.empty()) return runDemo(demoPath, top, expectEmptySearch);
   std::printf("usage: projectile_track_probe --self-test | --tf-root <tf> --demo <demo.dem>\n");
   return 2;
 }

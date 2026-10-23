@@ -389,6 +389,15 @@ struct ProjectileTrackLimits {
   // worth of a 30-minute recording; the two demos measured here need ~15k each,
   // so the bound is loose in practice and its collision is counted.
   std::size_t maxSamples = 400000;
+  // OPT-IN APPEND TIMING, DEFAULT OFF.
+  //
+  // The append is the one part of this layer that runs on the decode path, and
+  // the judge rule for it is "median <= 0.5 ms and max <= 5 ms per packet". That
+  // has to be a measurement, not an inference from "the decode is already doing
+  // more work than this". Timing is behind a flag because a product run must not
+  // pay a clock read per packet for a reading nobody asked for; the probe and the
+  // gate turn it on and report the distribution.
+  bool measureAppendCost = false;
 };
 
 // True when `className` is one of the projectile classes T53 tracks. THE TEST IS
@@ -665,6 +674,14 @@ struct DemoNetworkSummary {
   // ProjectileTrackSample::generation for why an index alone is not an identity.
   std::vector<std::uint32_t> projectileTrackSlotGeneration;
   std::size_t projectileTrackSeriesStarted = 0;
+  // One byte per server class: 1 when the class name is on the tracked list.
+  // Built on first use and reused for the whole recording. See the note in
+  // appendProjectileTrackSamples -- resolving the class name per entity per packet
+  // was 727k string comparisons per packet.
+  std::vector<std::uint8_t> projectileTrackClassMask;
+  // Filled only when projectileTrackLimits.measureAppendCost is true. Real
+  // elapsed time, because the rule it is held to is stated in milliseconds.
+  std::vector<double> projectileTrackAppendMillis;
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
   bool serverInfoReplayBit = false;

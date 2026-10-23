@@ -17,6 +17,9 @@
 #include "model_loader.h"
 #include "viewmodel.h"
 #include "entity_model.h"
+// T53: the trajectory overlay builder and its retained-row query.
+#include "projectile_track.h"
+#include "projectile_overlay.h"
 #include "animation_binding.h"
 #include "item_schema.h"
 #include "native_ui.h"
@@ -1184,6 +1187,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         persistent.render.vsync = true;
       } else if (wcscmp(arguments[i], L"--no-vsync") == 0) {
         persistent.render.vsync = false;
+      } else if (wcscmp(arguments[i], L"--projectile-trajectory") == 0) {
+        // T53. Off unless this flag or the settings file says otherwise.
+        persistent.render.projectileTrajectory = true;
+      } else if (wcscmp(arguments[i], L"--no-projectile-trajectory") == 0) {
+        persistent.render.projectileTrajectory = false;
+      } else if (wcscmp(arguments[i], L"--trajectory-player") == 0 && i + 1 < argumentCount) {
+        // "all" is -1; a number is an entity index. A gate runs both, so the
+        // difference between the two filters is a captured pair of frames rather
+        // than a claim about a branch.
+        const std::wstring value = arguments[++i];
+        persistent.render.selectedPlayerEntity = (value == L"all")
+          ? -1 : static_cast<std::int32_t>(wcstol(value.c_str(), nullptr, 10));
+      } else if (wcscmp(arguments[i], L"--trajectory-linger-ms") == 0 && i + 1 < argumentCount) {
+        persistent.render.trajectoryLingerMs = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
+      } else if (wcscmp(arguments[i], L"--trajectory-quality") == 0 && i + 1 < argumentCount) {
+        const std::wstring value = arguments[++i];
+        persistent.render.trajectoryQuality = (value == L"low")
+          ? tf2::native::RenderSettings::TrajectoryQuality::Low
+          : tf2::native::RenderSettings::TrajectoryQuality::High;
       } else if (wcscmp(arguments[i], L"--world-env-force") == 0) {
         forceWorldEnv = true;
       } else if (wcscmp(arguments[i], L"--world-sky") == 0) {
@@ -3585,6 +3607,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   std::size_t hudAudioPlayed = 0;
   std::size_t hudAudioMissing = 0;
   std::size_t hudTrailVertices = 0;
+  // T53: how many retained rows the trajectory pass sampled this scene tick and
+  // how many vertices it submitted. Two separate readings on purpose -- the first
+  // is the quality tier's effect on the DATA, the second is the pass's effect on
+  // the frame, and a quality knob that moved one without the other would be
+  // decorative.
+  std::size_t hudTrajectoryPoints = 0;
+  std::size_t hudTrajectoryVertices = 0;
+  tf2::native::TrajectoryBuildStats hudTrajectoryStats;
   std::size_t hudEffectsDue = 0;
   tf2::native::PlaybackHudState hudState;
   // Standalone --model skinning readings, filled by reloadGpuResources() and
@@ -3657,6 +3687,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       + std::to_wstring(soundKindCounts.footstep) + L"/" + std::to_wstring(soundKindCounts.uber)
       + L" fxDue=" + std::to_wstring(hudEffectsDue)
       + L" trailVerts=" + std::to_wstring(hudTrailVertices) + L"/1024"
+      // T53: the observed-trajectory pass, reported SEPARATELY from trailVerts
+      // above. Two counters rather than one sum, so "the new pass moved the old
+      // one" is a reading. The other fields are the filter's own accounting: a
+      // run that drew nothing says whether it was off, empty, or filtered out.
+      + L" trackVerts=" + std::to_wstring(hudTrajectoryVertices)
+      + L" trackPoints=" + std::to_wstring(hudTrajectoryPoints)
+      + L" trackRows=" + std::to_wstring(hudTrajectoryStats.rowsAvailable)
+      + L" trackFiltered=" + std::to_wstring(hudTrajectoryStats.rowsFilteredOut)
+      + L" trackLifetimes=" + std::to_wstring(hudTrajectoryStats.lifetimes)
+      + L" trackOwners=" + std::to_wstring(hudTrajectoryStats.ownersRepresented)
+      + L" trackLinger=" + std::to_wstring(hudTrajectoryStats.lingerTicks)
       + L" cache=" + std::wstring(cacheStatus.begin(), cacheStatus.end())
       + (cacheDirectory.empty() ? L"" : L"@" + cacheDirectory.wstring())
       + L" hash=" + std::wstring(hashStatus.begin(), hashStatus.end())
@@ -7069,6 +7110,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
       renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
       hudTrailVertices = renderer.projectileVertexCount();
+      // T53: the observed trajectory pass, fed from the retained per-tick rows
+      // rather than from the TempEntity generation events above. Separate call,
+      // separate buffer, separate reading -- the line above keeps its exact
+      // behaviour so a recording whose projectiles have no observed rows still
+      // draws the way it always did.
+      //
+      // OFF BY DEFAULT. When the setting is false this block submits nothing, and
+      // setProjectileTrackPoints with an empty list leaves the pass with zero
+      // vertices, so the frame is what it was before this feature existed.
+      hudTrajectoryPoints = 0;
+      hudTrajectoryVertices = 0;
+      if (persistent.render.projectileTrajectory) {
+        tf2::native::TrajectoryBuildRequest trackRequest;
+        trackRequest.selectedPlayerEntity = persistent.render.selectedPlayerEntity;
+        trackRequest.lingerMs = persistent.render.trajectoryLingerMs;
+        trackRequest.lowQuality =
+          persistent.render.trajectoryQuality == tf2::native::RenderSettings::TrajectoryQuality::Low;
+        trackRequest.tickRate = g_playback.tickRate;
+        const auto track = tf2::native::buildProjectileTrajectoryPoints(
+          demoNetworkSummary, sceneTick, trackRequest, &hudTrajectoryStats);
+        // Counted before the upload, so "how many rows the quality tier sampled"
+        // is a reading even when the pass then draws nothing.
+        hudTrajectoryPoints = track.size();
+        renderer.setProjectileTrackPoints(track, sceneTick);
+      }
+      hudTrajectoryVertices = renderer.projectileTrackVertexCount();
       lastSceneTick = g_playback.tick;
       traceCheckpoint("scene: done");
     }

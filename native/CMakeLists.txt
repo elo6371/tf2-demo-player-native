@@ -33,6 +33,11 @@ add_executable(tf2_demo_native WIN32
   src/main.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
+  # T53: the trajectory overlay builder. In the product because the probe must
+  # drive the filter/linger/quality rules the product actually applies -- a probe
+  # with its own copy would only prove two copies agree.
+  src/projectile_track.cpp
+  src/projectile_overlay.cpp
   src/asset_root.cpp
   # T9 (2026-10-16): the map search order, shared with map_lookup_probe. In the
   # product rather than inlined into main.cpp because the gate has to assert the
@@ -283,6 +288,7 @@ set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)
 add_executable(projectile_track_probe
   tools/projectile_track_probe.cpp
   src/projectile_track.cpp
+  src/projectile_overlay.cpp
   src/entity_model.cpp
   src/model_loader.cpp
   src/asset_root.cpp
