@@ -397,6 +397,26 @@ fg_state_at() { # fg_state_at <guard-file> <absolute epoch ms> -> foreground|bac
   if [ "$state" -eq 1 ]; then echo foreground; else echo background; fi
 }
 
+# Did the PRODUCT deactivate the guard? The sampling loop already answers "was another
+# process the foreground at this instant" and names it; this is the second observer: the
+# Deactivate event itself, with the name of whoever was foreground when it fired.
+# A count of Deactivate events cannot carry a verdict on this desktop -- the baseline
+# and the forward phase are two different 32 s windows on a machine where unrelated
+# applications take the foreground on their own schedule, so comparing their counts
+# measures the machine, not the program. The NAME is product-specific and is the
+# verdict; the counts are printed as readings.
+product_deactivated_guard() { # product_deactivated_guard <guard-file> -> 1 listed, 0 not, ABSENT
+  local count list
+  count=$(need_field "$1" "guard.deactivateByCount")
+  if [ "$count" = "ABSENT" ]; then echo "ABSENT"; return; fi
+  if [ "$count" = "0" ]; then echo 0; return; fi
+  list=$(need_field "$1" "guard.deactivateBy")
+  if [ "$list" = "ABSENT" ]; then echo "ABSENT"; return; fi
+  case ",$list," in
+    *",$PRODUCT_NAME,"*) echo 1 ;;
+    *) echo 0 ;;
+  esac
+}
 # The display must be still before anything is measured across it. An earlier run
 # caught modeBefore=1280x1024 against modeAfter=2560x1440 -- not the product's
 # doing, the session was changing mode while the guard came up -- and a mode
@@ -602,6 +622,12 @@ if want_phase forward; then
   f_win_ms=$(win_created_ms "$OUT/forward")
   f_tl=$(need_field "$OUT/forward.guard.txt" "guard.fgTransitions")
   echo "  forward foreground timeline: ${f_tl:-ABSENT}"
+  f_trunc=$(need_field "$OUT/forward.guard.txt" "guard.fgTransitionsTruncated")
+  if [ "$f_trunc" = "1" ]; then
+    echo "  FAIL the foreground timeline was truncated before the window instant, so the instant claim cannot be evaluated (this desktop produced more than 60 foreground changes in 32 s)"
+    fail=$((fail + 1))
+  fi
+  echo "  forward retakes: attempts=$(need_field "$OUT/forward.guard.txt" "guard.retakeAttempts") succeeded=$(need_field "$OUT/forward.guard.txt" "guard.foregroundRetakes") (the guard re-asserts its own precondition; the losses stay in the timeline)"
   if [ "$f_startup_ms" = "ABSENT" ] || [ "$f_start_ms" = "ABSENT" ] || [ "$f_win_ms" = "ABSENT" ]; then
     echo "  FAIL the instant-coverage comparison is missing a reading (startupForegroundMs=$f_startup_ms startEpochMs=$f_start_ms window_created=$f_win_ms)"
     fail=$((fail + 1))
@@ -632,13 +658,24 @@ if want_phase forward; then
   # and says why when it cannot.
   f_ever=$(need_field "$OUT/forward.guard.txt" "guard.everForeground")
   b_ever=$(need_field "$OUT/baseline.guard.txt" "guard.everForeground")
-  if [ "${b_deact:-}" = "" ]; then
-    echo "  NOT COMPARED the baseline phase did not run, so there is no deactivation reference for this phase"
-  elif [ "$f_ever" = "0" ] || [ "$b_ever" = "0" ]; then
-    echo "  NOT COMPARED the guard never held the foreground in one of these phases (forward everForeground=$f_ever, baseline=$b_ever),"
-    echo "               so a Deactivate event could not have fired and deactivations=$f_deact carries no information"
+  echo "  forward deactivateByCount=$(need_field "$OUT/forward.guard.txt" "guard.deactivateByCount") deactivateBy=$(need_field "$OUT/forward.guard.txt" "guard.deactivateBy")"
+  echo "  baseline deactivateByCount=$(need_field "$OUT/baseline.guard.txt" "guard.deactivateByCount") deactivateBy=$(need_field "$OUT/baseline.guard.txt" "guard.deactivateBy")"
+  # The counts stay printed above and are NOT the verdict. Forward and baseline are two
+  # different 32 s windows; this desktop takes the foreground on its own schedule, and a
+  # count difference between two such windows measures the machine. Measured on
+  # 2026-10-23: the baseline had 0 Deactivate events and the forward phase 1, with the
+  # product nowhere near either -- the assertion that compared them failed because one of
+  # the two windows happened to be noisier, which is exactly the kind of failure the
+  # baseline exists to keep out of a verdict. What is product-specific is the name: who
+  # was foreground when the guard lost the activation.
+  if [ "$f_ever" = "0" ]; then
+    echo "  NOT COMPARED the guard never held the foreground in the forward phase, so a Deactivate"
+    echo "               event could not have fired and deactivateBy=$f_deact carries no information"
   else
-    assert_le "the hidden run did not deactivate the guard more than the baseline" "$f_deact" "$b_deact"
+    assert_eq "the hidden run never took the foreground from the guard as the product" "$(product_deactivated_guard "$OUT/forward.guard.txt")" "0"
+  fi
+  if [ "$b_ever" = "0" ]; then
+    echo "  NOTE the baseline guard never held the foreground either, so its deactivateBy list is empty for the same reason"
   fi
 fi
 

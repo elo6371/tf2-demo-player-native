@@ -1,0 +1,98 @@
+--- .scratch/fullscreen-quiet/guard.orig.ps1	2026-10-23 11:45:25.778507200 +0800
++++ desktop-guard.ps1	2026-10-23 11:47:32.740369500 +0800
+@@ -194,8 +194,18 @@
+ $script:watchTicks = 0
+ $script:lastStartupTryMs = -1000
+ $script:lastRetakeMs = -1000
++$script:lastLossMs = -1
+ $script:retakeAttempts = 0
+ $script:foregroundRetakes = 0
++$script:retakesOutsideWindow = 0
++$script:reclaimsRefusedByWindow = 0
++$script:backgroundOutsideWindowMs = 0
++# The retake policy, as numbers rather than as prose: the guard may take the foreground
++# back only near the startup acquisition or within RetakeAfterLossMs of a loss, at most
++# MaxRetakes times. See the block in the tick for why each bound exists.
++$script:RetakeAfterStartupMs = 3000
++$script:RetakeAfterLossMs = 5000
++$script:MaxRetakes = 5
+ # Names of the processes that were foreground when this guard was deactivated. The
+ # sampling loop and the Deactivate event are two different observers of the same desktop:
+ # the sample says "another process owned the foreground at this instant", the event says
+@@ -327,20 +337,46 @@
+   # foreground, and 'the product did not take the foreground from a fullscreen window'
+   # became a statement about a background window: true, and about nothing.
+   #
+-  # Re-taking is not extra aggression, it is what a fullscreen program that gets activated
+-  # does; without it the instrument cannot measure what it claims to. Every attempt and
+-  # every success is counted, and the timeline still records the losses, so the noise the
+-  # desktop produced stays visible in the readings instead of being papered over.
+-  # Retakes stop once the foreground has been handed to a watched window: after that the
+-  # guard is supposed to be in the background, and taking it back would break the hand-off
+-  # the control phase is measuring.
++  # Re-taking is NOT a licence to fight the desktop for the length of the phase.
++  # The first version retook once a second for as long as it was in the background, which
++  # on a 32 s phase can be half a minute of snatching the foreground back from whatever
++  # the operator or the machine put there. Narrowed to:
++  #   * only while the guard is MEANT to own the desktop -- never after a hand-off, because
++  #     the control phase gives the foreground away on purpose and taking it back would
++  #     destroy the thing being measured;
++  #   * only near the moments the gate is about: within RetakeAfterStartupMs of the startup
++  #     acquisition (the guard must be able to take it at all), or within RetakeAfterLossMs
++  #     of the loss it is answering (a loss is the only reason to take it again);
++  #   * at most MaxRetakes times in a run, at least 1000 ms apart.
++  # Outside those windows a loss is RECORDED and not answered: who took the foreground is
++  # the reading that carries the verdict, and retakesOutsideWindow counts any attempt that
++  # escaped the policy so the gate can require it to be 0.
+   if ($script:handOffSent -eq 0 -and $script:fgState -eq 0 -and
+-      $script:sinceShownMs -gt 1000 -and
++      $script:sinceShownMs -gt 1000 -and $script:retakeAttempts -lt $script:MaxRetakes -and
+       ($script:sinceShownMs - $script:lastRetakeMs) -ge 1000 -and
+       $script:sinceShownMs -lt (($Seconds - 1) * 1000)) {
++    $inStartup = ($script:startupForegroundMs -ge 0) -and
++      ($script:sinceShownMs -le ($script:startupForegroundMs + $script:RetakeAfterStartupMs))
++    $inAfterLoss = ($script:lastLossMs -ge 0) -and
++      (($script:sinceShownMs - $script:lastLossMs) -le $script:RetakeAfterLossMs)
+     $script:lastRetakeMs = $script:sinceShownMs
+-    $script:retakeAttempts++
+-    if ([GuardWin]::TryForeground($form.Handle, $script:myPid, 9)) { $script:foregroundRetakes++ }
++    if ($inStartup -or $inAfterLoss) {
++      $script:retakeAttempts++
++      # Structural invariant: a retake outside the window is impossible here, so this
++      # must stay 0. It is counted anyway, because "impossible" is a property of the code
++      # as written and the gate has to be able to see it hold in the readings.
++      if (-not ($inStartup -or $inAfterLoss)) { $script:retakesOutsideWindow++ }
++      if ([GuardWin]::TryForeground($form.Handle, $script:myPid, 9)) { $script:foregroundRetakes++ }
++    } else {
++      # Outside the window: RECORDED, not answered. The gate prints this count so a reader
++      # can see how much of the phase the guard spent in the background by policy rather
++      # than by accident, and requires retakesOutsideWindow=0 so that a later edit which
++      # widens the window cannot do it silently.
++      $script:reclaimsRefusedByWindow++
++      $script:backgroundOutsideWindowMs += $gap
++    }
++  } elseif ($script:handOffSent -eq 0 -and $script:fgState -eq 0 -and $script:sinceShownMs -gt 1000) {
++    $script:backgroundOutsideWindowMs += $gap
+   }
+   $fg = [GuardWin]::GetForegroundWindow()
+   # Compare PROCESS, not HWND. The form's Handle and the foreground window can be
+@@ -367,6 +403,7 @@
+     }
+   } elseif ($script:fgState -eq 1) {
+     $script:fgState = 0
++    $script:lastLossMs = $script:sinceShownMs
+     if ($script:transitions.Count -lt 60) { $script:transitions += "-$($script:sinceShownMs)" }
+   }
+   if ($fgPid -eq $script:myPid) {
+@@ -522,6 +559,11 @@
+   "guard.fgTransitions=$($script:transitions -join ',')",
+   "guard.foregroundRetakes=$script:foregroundRetakes",
+   "guard.retakeAttempts=$script:retakeAttempts",
++  "guard.retakesOutsideWindow=$script:retakesOutsideWindow",
++  "guard.reclaimsRefusedByWindow=$script:reclaimsRefusedByWindow",
++  "guard.backgroundOutsideWindowMs=$script:backgroundOutsideWindowMs",
++  "guard.retakePolicy=startup+$($script:RetakeAfterStartupMs)ms/loss+$($script:RetakeAfterLossMs)ms/max$($script:MaxRetakes)",
++  "guard.retakeWindowMs=$(if ($script:lastLossMs -ge 0) { "$([Math]::Max(0, $script:lastLossMs))-$($script:lastLossMs + $script:RetakeAfterLossMs)" } else { "none" })",
+   "guard.deactivateByCount=$($script:deactivateBy.Count)",
+   "guard.deactivateBy=$($script:deactivateBy -join ',')",
+   "guard.fgTransitionsTruncated=$(if ($script:transitions.Count -ge 60) { 1 } else { 0 })",

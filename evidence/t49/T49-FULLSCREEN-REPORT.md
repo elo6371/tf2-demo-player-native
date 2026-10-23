@@ -1,7 +1,10 @@
 # T49 — fullscreen non-interference: what this gate proves, and what it does not
 
-Status of this file: **draft**. The final readings are marked `TBD` until the run listed
-at the bottom completes; every other line is a reading that already exists on disk.
+Status of this file: **final for the merged tree**. The verdict comes from
+`evidence/t49/run-20261023-114221/` (HEAD `66c4327`, the tree that ran is the tree that was
+committed; the runner hashes the working tree before and after and requires it unchanged).
+Every other line is a reading that already exists on disk. §8 lists a defect this run's own
+readings exposed and that was deliberately NOT changed afterwards, with the reason.
 
 ## 1. The claim
 
@@ -135,6 +138,13 @@ OK   an independent window was accepted as the foreground owner
 OK   the guard charged that foreground change to the window's process by name
 ```
 
+On the merged tree (2026-10-23) the same phase needed no arrangement at all: the target's own
+`SetForegroundWindow` was accepted (`target.setForegroundWindow=True`), the guard charged it
+by name (`stolenByCount=1 stolenBy=instrument-target`), `handOffSelfOk=1 handOffOk=1`,
+`handOffAttributed=1`, and no thread attachment was left behind
+(`attachedThreadsOutstanding=0`). That is the `instrument_source=natural` case: the evidence
+used was a foreground change the harness did not arrange.
+
 What that proves: the foreground counter fires and the by-name attribution chain works.
 What it does **not** prove: that the product has the same permission or behaviour — the
 instrument window asks for the foreground on purpose, while the product's window may be
@@ -164,6 +174,47 @@ produced by a product that is quiet. The target has to be a plain Win32 window.
 
 ## 5. What the gate proves / does not prove
 
+**Proves, when green, in two parts** (both required, neither is a count):
+
+```
+1. 产品窗口出现的那一瞬间，守卫在前台。
+   guard.fgTransitions evaluated at the window instant: state = foreground
+   (run-20261023-114221: timeline +110,...,-31406, window at +19002 ms -> foreground)
+
+2. 整段正向阶段里，每一次前台丢失，拿走前台的进程都不是产品。
+   guard.deactivateBy (who was foreground when the guard lost the activation) does not
+   name the product; guard.stolenBy (who owned the foreground in any 20 ms sample) does
+   not name it either. (run: deactivateBy=powershell, stolenBy=DeepSeek)
+```
+
+Part 2 is the provable form of "non-interference": the desktop on this machine is not
+quiet (see §9), so "the guard was never disturbed" is false as a statement about the
+machine, while "every disturbance came from a process that is not the product" is exactly
+the claim the operator made. The counts are printed and are not the verdict.
+
+Both parts are conditional on coverage, and the coverage is asserted, not assumed: the
+guard outlives the product and was watching 2 s before and after the window instant; the
+window instant is placed on the guard's clock from two clocks whose offset is printed and
+bounded (`launch_skew_ms` in [0, 2000]); the foreground timeline is not truncated; and the
+instrument proved, in the same run, that it can see and name a foreground change
+(`instrument-source=natural`, no arranged hand-off needed).
+
+**Also proves** for the same run: the display mode (width/height/refresh/bpp) did not
+change; no **visible** top-level window of the product existed at any 200 ms sample during
+the hidden run; the product's own trace agrees (`window_visible=0`); the run wrote a
+capture frame and metric rows.
+
+**Does not prove:** non-interference under **exclusive fullscreen (Direct3D exclusive-mode
+flip queue)**. The guard is a WinForms borderless window (not topmost -- see the header of
+desktop-guard.ps1 for why topmost was removed), not an exclusive swap chain. **NOT
+VERIFIED**, and it is never folded into a PASS.
+
+**No longer proves (stated, not silently dropped):** that the product's own window, when
+shown, takes the foreground. That is printed as a reading, because whether the window
+activates is a product decision.
+
+
+
 **Proves (when green, with coverage checked):** during a `--hidden-window --audio-disabled`
 run, the product's process never held the foreground, no visible top-level window of it
 existed at any 200 ms sample, and the display mode (width/height/refresh/bpp) did not change;
@@ -180,15 +231,134 @@ activates is a product decision.
 
 ## 6. Mutations, by class
 
-The gate never edits the product. Its mutations are classified so the count cannot be read as
-"many product mutations": `product_source=0`, `harness_source=1` (the guard's foreground
-filter, restored byte-for-byte and checked with `cmp -s`), `gate_config=2` (M1 runs the
-forward phase with the window shown; M3 runs the old 16 s guard, which reproduces the blind
-window on demand).
+The gate never edits the product. Its mutations are classified so a count cannot be read as
+"many product mutations":
 
-M3 exists so that the 32 s is a measured requirement: the mutation proves that 16 s cannot
-see the window, and requires `watchVisibleSamples=0` with `window_created > 16000` ms.
+| # | class | what it does | reading that has to move |
+|---|---|---|---|
+| M1 | gate-config (arguments only) | runs the forward phase with the window SHOWN | `watchVisibleSamples` 0 -> 25 |
+| M2 | harness-source (guard edited, restored byte-for-byte, `cmp -s`) | blinds the foreground filter | `stolenByCount` -> 0, by-name attribution in the control phase fails |
+| M3 | gate-config (arguments only) | the old 16 s guard | `window_created=20399 ms` with `watchVisibleSamples=0` -- the blind window, on demand |
+| M4 | not in this gate | `outsideDiff` (pixels outside the HUD region) belongs to quiet-capture-check.sh, a different file owned elsewhere | -- |
+| M5 | gate-config (no file touched, no product) | feeds the hud-dispatch leak reader a pre-merge trace and a clean one | leak = 1 and leak = 0 |
+
+M3 exists so that the 32 s is a measured requirement, not a number somebody liked. M5 exists
+because the key-dispatch phase's decision is grep-shaped, and a grep-shaped decision has to be
+shown to return both answers -- the same rule the Lead applied to the HUD pixel assertion,
+applied to an assertion this gate owns.
 
 ## 7. Final run
 
-`TBD` — `evidence/t49/run-<timestamp>/locked-run.log`.
+`evidence/t49/run-20261023-114221/` -- `T49-RUN=PASS`
+
+```
+head=66c4327   tree-before = tree-after = 9737541ad1aaaba4e80e8026a96563402946f40cbdfe689067aab34b8de0d48a
+build rc=0     freshness: no source newer than the exe
+gate: assertions_ok=53 failures=0 attribution_proven=1 instrument_source=natural guard_seconds=32
+      FULLSCREEN-QUIET=PASS
+mutation: FULLSCREEN-QUIET-MUTATION=PASS product_source=0 harness_source=1(restored byte-for-byte, cmp) gate_config=3(files untouched)
+leftovers=no   tree-unchanged=yes
+```
+
+The readings the verdict rests on, quoted from the log:
+
+```
+instrument  setForegroundWindow=True  everForeground=1  handOffOk=1  handOffAttributed=1
+            stolenByCount=1 stolenBy=instrument-target        <- natural, one named thief
+            attachedThreadsOutstanding=0  hotkeyRegistered=1
+baseline    deactivations=0  stolenSamples=123  stolenBy=ChatGPT,explorer,DeepSeek
+            watchVisibleSamples=0  modeChangedFields=0
+forward     rc=0  stolenSamples=286  watchVisibleSamples=0  window_visible=0  modeChangedFields=0
+            timeline +110,-2016,+2047,-5235,...,-31406   (window at +19002 ms -> state foreground)
+            retakes attempts=19 succeeded=12   (see section 8: this is the defect)
+            deactivateBy=powershell            <- the product is not in it
+            launch_skew_ms=731  (bounded [0,2000])
+            artefacts: frame 2582406 bytes, metrics 7 rows
+keyprobe    dispatch_lines=1 hud.toggle=1 non-hud_dispatch_lines=0 hud_enabled_after=1
+            keys: table actions=27 dispatched=1 suppressed=0 last=camera.freeFly
+control     rc=0  watchVisibleSamples=29  watchWindowFound=1  handOffOk=1  handOffAttributed=1
+            window_visible=1  launch_skew_ms=847
+M1  m1 watchVisibleSamples=25                    OK caught
+M2  m2 stolenByCount=0 handOffAttributed=0       OK caught (guard restored byte for byte)
+M3  m3 guard=16s window_created=20399ms watchVisibleSamples=0   OK caught
+M5  m5 leak: pre-merge=1 clean=0                 OK caught
+```
+
+### The key-dispatch phase (2b/4), and why it exists
+
+When T51's HUD bindings and T50's camera bindings were merged, the dispatch was "any action the
+table returns -> handle it and return 0". F9 is `camera.freeFly`, so it produced
+`hud: keys dispatch action=camera.freeFly` and returned: the camera keys were dead while the
+trace looked like a dispatch. The fix narrowed the handler to actions starting with `hud.`.
+This gate is the only independent evidence for that fix, and it asks the product to do both
+things at once through two posted `WM_KEYDOWN`s to its own hidden window: no synthesized
+input, no focus change, nothing taken from the operator (see
+`evidence/t49/key-dispatch-probe.ps1`). The four assertions are: H dispatched
+`hud.toggle`; the HUD state changed (enabled 0 -> 1); no dispatch line names a non-`hud.`
+action; and F9 still reached the camera table (`last=camera.freeFly`).
+
+## 8. Known defect: the guard reclaims the foreground outside the measurement window
+
+**What it does.** While it is in the background the guard takes the foreground back, once a
+second, for as long as it is in the background (it stops once the foreground has been handed
+away). Measured in the passing run:
+
+```
+forward retakes: attempts=19 succeeded=12   in 32 s
+forward timeline: +110,-2016,+2047,-5235,+5266,-7797,+14860,-16391,+16422,-16672,... ,-31406
+```
+
+**Why that is a defect, not an implementation detail.** To the operator a process that pulls the
+foreground back within a second is a process they cannot switch away from -- the exact
+complaint that the ESC abort and the removal of TopMost were added to answer ("我在黑屏的时候
+什么也干不了，也切不出去"). It is invisible in the verdict: the readings it exists for (the
+guard being the foreground at the window instant) come out correct.
+
+**Why it was not fixed after the run.** The passing evidence describes the tree that ran. A
+change made afterwards would be a change nobody verified, which is worse than a known defect,
+and this gate is not being run again tonight.
+
+**The narrowed design that is deliberately NOT applied** (kept as a record, not as code):
+
+```
+.scratch/t49/guard-narrowed-retake.ps1    the version written and then put aside
+evidence/t49/retake-narrowing.patch       the same change as a diff
+```
+
+It allows a reclaim only (a) within 3 s of the startup acquisition, or (b) within 5 s of the
+loss it is answering; at most 5 times per run; never after a hand-off. Losses outside those
+windows are recorded and not answered (`guard.backgroundOutsideWindowMs`), and
+`guard.retakesOutsideWindow` must be 0. With that policy the guard may not be able to hold the
+foreground through a 32 s phase on this desktop at all, so part 1 of the claim (§5) could
+become unprovable here -- which would be a finding about this machine and must be reported,
+not hidden by loosening the assertion.
+
+**What the next change must do:** apply the narrowing, then re-run this gate in full (five
+phases + mutation) and read `guard.retakeAttempts`, `guard.retakesOutsideWindow`,
+`guard.reclaimsRefusedByWindow`, `guard.backgroundOutsideWindowMs` and the timeline again.
+The pass above does not transfer to a narrowed instrument.
+
+## 9. What this run does not prove, and which runs are void
+
+**Not proven here:**
+
+- **exclusive fullscreen / Direct3D exclusive-mode flip queue** -- NOT VERIFIED (see §5);
+- that the product leaves the operator's **audio** alone: every phase passes
+  `--audio-disabled`, so the run shows the device was not opened
+  (`audio_device_opened=0`), not what would happen with audio enabled;
+- that the desktop was quiet: it was not, and the gate names who took it
+  (`ChatGPT,explorer,SearchHost,DeepSeek,Taskmgr,powershell` across phases). The sample count
+  for two phases of the same length differed 8x between two runs (123 vs 943), which is why a
+  count comparison between two phases was removed from the verdict after it failed in
+  `run-20261023-113547`;
+- anything about a **second monitor**, a different refresh rate, or a machine where the
+  foreground is refused to a background process (this machine refused a hand-off 8 consecutive
+  times in an earlier run; that is reported as a reading, not smoothed away).
+
+**Void runs, kept in the evidence:** `run-20261023-094729`, `run-20261023-103247` and the
+ad-hoc "run 3". In their forward phases `guard.everForeground=0`: the guard was never the
+foreground, so `deactivations=0` could not have fired, and the conclusion "the product did not
+steal the foreground" **could not have been false -- those conclusions are void.**
+`run-20261023-113547` is not void: it is the run whose two red assertions exposed the
+background-window problem (§5 part 1) and the machine-noise count comparison, and the fixes for
+both are what the passing run measures.

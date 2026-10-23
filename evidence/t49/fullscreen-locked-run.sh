@@ -60,13 +60,24 @@ fi
 
 # --- 3. the gate ----------------------------------------------------------
 echo "=== 3/5 gate: baseline, forward, control (+ instrument) ==="
-# 14 s instrument + 3 x 32 s phases. The old 16 s phases made this ~70 s; the phases
-# had to grow because the product needs ~19.5 s to show a window, and a guard that
-# closes before that reports the same clean zeroes as a quiet product.
-echo "    the screen is taken over for about 145 s from here; the guard window says so"
-bash fullscreen-quiet-check.sh --instrument > "$RUN/gate.log" 2>&1
+# One invocation, both halves: instrument 14 s + baseline 32 + forward 32 + keyprobe ~26
+# + control 32 = the phases, then M1/M2/M3/M5 re-run pieces of them (about 110 s more).
+# The mutation half is not optional: without it nothing here shows the assertions can go
+# red, and a gate whose assertions have never failed is a gate that only prints.
+# The old 16 s phases made this ~70 s; the phases had to grow because the product needs
+# ~19.5 s to show a window, and a guard that closes before that reports the same clean
+# zeroes as a quiet product.
+echo "    the screen is taken over for about 270 s from here; the guard window says so"
+bash fullscreen-quiet-check.sh --instrument --mutation > "$RUN/gate.log" 2>&1
 GATE_RC=$?
 echo "gate rc=$GATE_RC log=$RUN/gate.log"
+MUT_LINE=$(grep 'FULLSCREEN-QUIET-MUTATION=' "$RUN/gate.log" | tail -1)
+case "$MUT_LINE" in
+  *MUTATION=PASS*) MUT_RC=pass ;;
+  "") MUT_RC=absent ;;
+  *) MUT_RC=fail ;;
+esac
+echo "mutation half: ${MUT_LINE:-ABSENT}"
 sed -n '/=== 0\/3/,$p' "$RUN/gate.log" | sed 's/^/    /'
 
 # --- 4. no product process may survive ------------------------------------
@@ -84,8 +95,8 @@ cp .scratch/fullscreen-quiet/*.txt .scratch/fullscreen-quiet/*.log "$RUN/" 2>/de
 cp .scratch/fullscreen-quiet/*.trace "$RUN/" 2>/dev/null
 cp .scratch/fullscreen-quiet/*.bmp "$RUN/" 2>/dev/null
 
-echo "T49-RUN-DONE build=$BUILD_RC fresh=$FRESH gate=$GATE_RC leftovers=$LEFTOVERS tree-unchanged=$SAME run=$RUN"
-if [ "$BUILD_RC" -eq 0 ] && [ "$FRESH" = "yes" ] && [ "$GATE_RC" -eq 0 ] && [ "$LEFTOVERS" = "no" ] && [ "$SAME" = "yes" ]; then
+echo "T49-RUN-DONE build=$BUILD_RC fresh=$FRESH gate=$GATE_RC mutation=$MUT_RC leftovers=$LEFTOVERS tree-unchanged=$SAME run=$RUN"
+if [ "$BUILD_RC" -eq 0 ] && [ "$FRESH" = "yes" ] && [ "$GATE_RC" -eq 0 ] && [ "$MUT_RC" = "pass" ] && [ "$LEFTOVERS" = "no" ] && [ "$SAME" = "yes" ]; then
   echo "T49-RUN=PASS"
   exit 0
 fi

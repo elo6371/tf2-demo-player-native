@@ -1,0 +1,108 @@
+product=tf2_demo_native exe=/d/TF2_Native_Test/native/build-nmake/tf2_demo_native.exe
+=== 0/3 the display must be still before anything is measured across it ===
+  display first=2560x1440@240/32 second=2560x1440@240/32
+  OK   the display mode was stable across a one second window
+=== 0b/4 instrument: a window from another process must take the foreground ===
+  instrument target.setForegroundWindow=True (reading) guard.everForeground=1 handOffSelfOk=1 handOffAttempts=1 handOffOk=1 handOffAttributed=1 stolenByCount=1 stolenBy=instrument-target
+  OK   the guard left no input-queue attachment behind = 0
+  OK   the guard registered the ESC stop hotkey = 1
+  OK   the guard held the foreground at least once = 1
+  OK   the guard found the instrument window by its process name = 1
+  OK   the foreground counter fired 1 time(s) and named: instrument-target
+  OK   every named thief is a resolved process name, not a pid fallback
+  OK   the designated window is among them as well (the stronger arranged form)
+=== 1/3 baseline: the guard alone, nothing else running ===
+  baseline deactivations=0 stolenSamples=123
+  baseline watchVisibleSamples=0 modeChangedFields=0
+  mode before=2560x1440@240Hz/32bpp after=2560x1440@240Hz/32bpp
+  OK   baseline: the guard ran for the whole window = 32
+  OK   baseline changed no display field = 0
+  baseline stolenByCount=3 stolenBy=ChatGPT,explorer,DeepSeek
+  OK   the baseline did not contain the product = 0
+  OK   the baseline never showed a product window = 0
+=== 2/3 forward: the same run with --hidden-window --audio-disabled ===
+  forward rc=0 deactivations=1 stolenSamples=286 modeChangedFields=0
+  forward watchVisibleSamples=0 window_visible=0
+  stolenByCount=5 stolenBy=DeepSeek
+  OK   forward: the guard ran for the whole window = 32
+  OK   forward: the guard registered the ESC stop hotkey = 1
+  OK   the hidden run exited cleanly = 0
+  OK   hidden run: the run wrote a capture frame (bytes) = 2582406 (> 1000)
+  OK   hidden run: the run wrote metric rows = 7 (> 0)
+  OK   forward: the trace was written and reports a window
+  OK   the product says its own window is not visible = 0
+  forward: clock product_wall_ms=25084 trace_last_ms=24353 launch_skew_ms=731
+  OK   forward: the launch skew is small and positive (731 ms), so the window instant is on the same clock
+  OK   forward: the guard was watching 2 s before the product's window = 1792726997380 (<= 1792727014382)
+  OK   forward: the guard was still watching 2 s after the product's window = 1792727016382 (<= 1792727027342)
+  OK   forward: the guard outlived the product's process = 1792727020876 (<= 1792727027342)
+  forward foreground timeline: +110,-2016,+2047,-5235,+5266,-7797,+14860,-16391,+16422,-16672,+17438,-18594,+18625,-20438,+20469,-25781,+25813,-27438,+27547,-28063,+28563,-29750,+29781,-30750,+30781,-31406
+  forward retakes: attempts=19 succeeded=12 (the guard re-asserts its own precondition; the losses stay in the timeline)
+  clock guard_foreground_at=+110ms window_at=+19002ms gap=18892ms
+  OK   the guard held the foreground at least 2 s before the product created its window = 1792726997490 (<= 1792727014382)
+  OK   the guard was the foreground at the instant the product created its window = foreground
+  OK   the hidden run never took the foreground as the product = 0
+  OK   no product window was visible during the hidden run = 0
+  OK   the hidden run changed no display field = 0
+  forward deactivateByCount=1 deactivateBy=powershell
+  baseline deactivateByCount=0 deactivateBy=ABSENT
+  OK   the hidden run never took the foreground from the guard as the product = 0
+=== 2b/4 key dispatch: H must reach the HUD, F9 must still reach the camera ===
+  keyprobe rc=0 probe_wait_rc=0 found=1 hSent=1 f9Sent=1
+  OK   the key probe found the hidden product window = 1
+  OK   the key probe posted the H key = 1
+  OK   the key probe posted the F9 key = 1
+  OK   keyprobe: the trace was written and reports a window
+  keyprobe dispatch_lines=1 hud.toggle=1 non-hud_dispatch_lines=0 hud_enabled_after=1
+  keyprobe keys_table: 24589.6 keys: table actions=27 sets=0 conflicts=0 resets=0 dispatched=1 unbound=0 suppressed=0 last=camera.freeFly
+  OK   the H key dispatched hud.toggle = 1 (> 0)
+  OK   pressing H turned the HUD on = 1
+  OK   no camera action was dispatched as a HUD action = 0
+  OK   F9 still reached the camera bindings = last=camera.freeFly
+=== 3/3 control: the same run with a SHOWN window, which the guard must see ===
+  control rc=0 watchVisibleSamples=29 watchWindowFound=1 handOffSent=1 handOffAttributed=1 deactivations=1
+  control window_visible=1 stolenByCount=2 stolenBy=steamwebhelper,tf2_demo_native
+  OK   control: the guard ran for the whole window = 32
+  OK   the shown run exited cleanly = 0
+  OK   shown run: the run wrote a capture frame (bytes) = 2582406 (> 1000)
+  OK   shown run: the run wrote metric rows = 6 (> 0)
+  OK   control: the trace was written and reports a window
+  OK   the product says its own window IS visible = 1
+  control: clock product_wall_ms=28066 trace_last_ms=27219 launch_skew_ms=847
+  OK   control: the launch skew is small and positive (847 ms), so the window instant is on the same clock
+  OK   control: the guard was watching 2 s before the product's window = 1792727060187 (<= 1792727080619)
+  OK   control: the guard was still watching 2 s after the product's window = 1792727082619 (<= 1792727090172)
+  OK   control: the guard outlived the product's process = 1792727086732 (<= 1792727090172)
+  OK   the guard saw a visible product window = 29 (> 0)
+  OK   the guard found a window of the derived product name = 1
+  OK   the guard offered the foreground to the product window = 1
+  control hand-off attempts=1 ok=1 attributed=1
+  OK   the guard handed the foreground to the product window = 1
+  OK   the foreground change was attributed to the product by name = 1
+  control: the product appeared among the thieves: 1
+  product processes left after the run: no
+  OK   no product process survived the run = no
+
+fullscreen-quiet: assertions_ok=53 failures=0 attribution_proven=1 instrument_source=natural guard_seconds=32
+FULLSCREEN-QUIET=PASS
+
+=== mutation: the readings that could make this gate vacuous ===
+-- M1 [gate-config]: the forward phase with the window shown
+  OK   m1 shown run: the run wrote a capture frame (bytes) = 2582406 (> 1000)
+  OK   m1 shown run: the run wrote metric rows = 6 (> 0)
+   m1 watchVisibleSamples=25 rc=0
+  OK   M1 caught: a shown window is seen, so the forward phase's zero is a real zero
+-- M2 [harness-source]: blind the guard's foreground counter
+  OK   the guard was restored byte for byte
+   m2 stolenByCount=0 handOffAttributed=0 rc=0
+  OK   M2 the blind guard reports zero thieves = 0
+  OK   M2 detected: with a blind guard the by-name attribution fails, so the control phase cannot pass
+-- M3 [gate-config, no file touched]: the old 16 s guard, which cannot outlive the product's startup
+  OK   m3 short run: the run wrote a capture frame (bytes) = 2582406 (> 1000)
+  OK   m3 short run: the run wrote metric rows = 6 (> 0)
+   m3 guard=16s window_created=20399ms watchVisibleSamples=0 rc=0
+  OK   M3 caught: the window appears at 20399ms, after a 16 s guard has stopped, and the reading is a clean zero
+-- M5 [gate-config, no file touched]: a camera action in a hud dispatch line
+   m5 leak reading: pre-merge trace=1 clean trace=0 (want >0 and 0)
+  OK   M5 caught: the leak reading is 1 for a camera action dispatched as a hud action, 0 without one
+FULLSCREEN-QUIET-MUTATION=PASS product_source=0 harness_source=1(restored byte-for-byte, cmp) gate_config=3(files untouched)

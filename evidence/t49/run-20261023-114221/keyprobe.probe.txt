@@ -1,0 +1,7 @@
+keyprobe.pid=15536
+keyprobe.found=1
+keyprobe.hwnd=4395100
+keyprobe.firstFoundMs=62
+keyprobe.hSent=1
+keyprobe.f9Sent=1
+keyprobe.spawnMs=4281

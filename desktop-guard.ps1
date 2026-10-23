@@ -193,6 +193,15 @@ $script:handOffSent = 0
 $script:handOffAttempts = 0
 $script:watchTicks = 0
 $script:lastStartupTryMs = -1000
+$script:lastRetakeMs = -1000
+$script:retakeAttempts = 0
+$script:foregroundRetakes = 0
+# Names of the processes that were foreground when this guard was deactivated. The
+# sampling loop and the Deactivate event are two different observers of the same desktop:
+# the sample says "another process owned the foreground at this instant", the event says
+# "this window lost the activation". A count of the events cannot name anyone, and this
+# desktop produces ambient ones on its own schedule, so the name is what the gate needs.
+$script:deactivateBy = @()
 $script:startupForegroundOk = 0
 $script:startupForegroundMs = -1
 $script:foregroundSamples = 0
@@ -258,7 +267,19 @@ $form.Controls.Add($label)
 
 # Every close path releases the hotkey: the timed end, the ESC abort, and any other.
 $form.add_FormClosing({ [void][GuardWin]::UnregisterHotKey($form.Handle, 1) })
-$form.add_Deactivate({ $script:deactivations++ })
+$form.add_Deactivate({
+  $script:deactivations++
+  # Name the process that took it, at the moment it was taken. Resolved here rather than
+  # later because by the end of the phase the foreground is somebody else's.
+  $script:fgNowPid = 0
+  $fgNow = [GuardWin]::GetForegroundWindow()
+  if ($fgNow -ne [IntPtr]::Zero) { [void][GuardWin]::GetWindowThreadProcessId($fgNow, [ref]$script:fgNowPid) }
+  $script:nameNow = "pid-$($script:fgNowPid)"
+  if ($script:fgNowPid -ne 0) {
+    try { $script:nameNow = (Get-Process -Id $script:fgNowPid -ErrorAction Stop).ProcessName } catch { }
+  }
+  if ($script:deactivateBy.Count -lt 32) { $script:deactivateBy += $script:nameNow }
+})
 $form.add_Activated({ $script:activations++ })
 
 $script:lastTick = [Environment]::TickCount
@@ -297,6 +318,30 @@ $timer.add_Tick({
       $script:startupForegroundMs = $script:sinceShownMs
     }
   }
+  # Keep the precondition TRUE for the whole phase, not just at startup.
+  #
+  # Measured on this desktop: the guard took the foreground at 125 ms, lost it at 562 ms,
+  # retook it at 656 ms and lost it again at 2500 ms -- and the startup loop stopped trying
+  # once everForeground was 1, so for the remaining 29 s the guard sat in the background.
+  # The product's window then appeared at 20.1 s in front of a window that was NOT the
+  # foreground, and 'the product did not take the foreground from a fullscreen window'
+  # became a statement about a background window: true, and about nothing.
+  #
+  # Re-taking is not extra aggression, it is what a fullscreen program that gets activated
+  # does; without it the instrument cannot measure what it claims to. Every attempt and
+  # every success is counted, and the timeline still records the losses, so the noise the
+  # desktop produced stays visible in the readings instead of being papered over.
+  # Retakes stop once the foreground has been handed to a watched window: after that the
+  # guard is supposed to be in the background, and taking it back would break the hand-off
+  # the control phase is measuring.
+  if ($script:handOffSent -eq 0 -and $script:fgState -eq 0 -and
+      $script:sinceShownMs -gt 1000 -and
+      ($script:sinceShownMs - $script:lastRetakeMs) -ge 1000 -and
+      $script:sinceShownMs -lt (($Seconds - 1) * 1000)) {
+    $script:lastRetakeMs = $script:sinceShownMs
+    $script:retakeAttempts++
+    if ([GuardWin]::TryForeground($form.Handle, $script:myPid, 9)) { $script:foregroundRetakes++ }
+  }
   $fg = [GuardWin]::GetForegroundWindow()
   # Compare PROCESS, not HWND. The form's Handle and the foreground window can be
   # two different handles of this same process (the form is owned, the desktop
@@ -318,11 +363,11 @@ $timer.add_Tick({
   if ($fgPid -eq $script:myPid) {
     if ($script:fgState -eq 0) {
       $script:fgState = 1
-      if ($script:transitions.Count -lt 32) { $script:transitions += "+$($script:sinceShownMs)" }
+      if ($script:transitions.Count -lt 60) { $script:transitions += "+$($script:sinceShownMs)" }
     }
   } elseif ($script:fgState -eq 1) {
     $script:fgState = 0
-    if ($script:transitions.Count -lt 32) { $script:transitions += "-$($script:sinceShownMs)" }
+    if ($script:transitions.Count -lt 60) { $script:transitions += "-$($script:sinceShownMs)" }
   }
   if ($fgPid -eq $script:myPid) {
     $script:foregroundSamples++
@@ -475,7 +520,11 @@ $lines = @(
   "guard.lastForegroundMs=$script:lastForegroundMs",
   "guard.stolenByCount=$($script:thieves.Count)",
   "guard.fgTransitions=$($script:transitions -join ',')",
-  "guard.fgTransitionsTruncated=$(if ($script:transitions.Count -ge 32) { 1 } else { 0 })",
+  "guard.foregroundRetakes=$script:foregroundRetakes",
+  "guard.retakeAttempts=$script:retakeAttempts",
+  "guard.deactivateByCount=$($script:deactivateBy.Count)",
+  "guard.deactivateBy=$($script:deactivateBy -join ',')",
+  "guard.fgTransitionsTruncated=$(if ($script:transitions.Count -ge 60) { 1 } else { 0 })",
   "guard.startEpochMs=$script:startEpochMs",
   "guard.stopEpochMs=$script:stopEpochMs",
   "guard.coveredMs=$($script:stopEpochMs - $script:startEpochMs)",

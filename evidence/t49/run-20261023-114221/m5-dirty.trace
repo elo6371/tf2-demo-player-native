@@ -1,0 +1,2 @@
+1.0 hud: keys dispatch action=hud.toggle
+2.0 hud: keys dispatch action=camera.freeFly

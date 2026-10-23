@@ -1,0 +1,19 @@
+=== build tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Test\native\src\main.cpp(2826): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Test\native\src\main.cpp(2827): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Test\native\src\main.cpp(2828): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Test\native\src\main.cpp(2829): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Test\native\src\main.cpp(2830): warning C4244: 鈥?鈥? 浠庘€渄ouble鈥濊浆鎹㈠埌鈥渇loat鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Test\native\src\main.cpp(8358): warning C4457: 鈥渋nstance鈥濈殑澹版槑闅愯棌浜嗗嚱鏁板弬鏁?
+D:\TF2_Native_Test\native\src\native_renderer.cpp(3288): warning C4100: 'tick': 鏈紩鐢ㄧ殑鍙傛暟
+D:\TF2_Native_Test\native\src\native_renderer.cpp(3536): warning C4456: 鈥渨orld鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Test\native\src\native_renderer.cpp(4317): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Test\native\src\native_renderer.cpp(4318): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Test\native\src\native_renderer.cpp(4625): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Test\native\src\native_renderer.cpp(4795): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Test\native\src\camera_bookmarks.cpp(134): warning C4456: 鈥渋ndex鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Test\native\src\camera_bookmarks.cpp(191): warning C4456: 鈥渋ndex鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Test\native\src\logstf_panel.cpp(376): warning C4100: 'window': 鏈紩鐢ㄧ殑鍙傛暟
+D:\TF2_Native_Test\native\src\install_manifest.cpp(51): warning C4189: 鈥渄ataSize鈥? 灞€閮ㄥ彉閲忓凡鍒濆鍖栦絾涓嶅紩鐢?
+rc=0
