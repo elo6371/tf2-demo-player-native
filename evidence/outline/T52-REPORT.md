@@ -1351,6 +1351,232 @@ trace: outline: draw ... depthTest=0 depthWrite=1 ... stateTest=0 stateWrite=1
 本轮不改这个机制：改了就没有读数可依据。
 
 
+## 20. m5：读数接到设备上了，而且它接上之后说的话和原来不一样
+
+### 20.1 先量，再定
+
+在创建两个深度模板状态之后，把**送给 CreateDepthStencilState 的描述**与 **GetDesc 读回的**
+两套值都发布，再加一个 `agree`（两套值必须一致，否则这条读数不是从设备来的）。smoke 读数：
+
+```text
+stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+```
+
+三件事一次说清：
+
+- `stateCreated=0` / `stateMask=1`：我们要 `WRITE_MASK_ZERO`，设备回读 `WRITE_MASK_ALL`；
+- 原因不是产品写错状态，而是**深度被关掉时 mask 没有意义**，运行时把规范化成 ALL；
+- 旧读数 `depthWrite=1` 是"把 mask 当效果"的产物：断言名字说 overlay 不写深度，
+  读数却来自一个与写深度无关的字段——**就是你说的"名字说着一件事、读数来自另一件事"**。
+
+### 20.2 修法：发布效果，并让两套值互相制约
+
+```cpp
+// 效果，而不是 mask：DepthEnable=FALSE 的状态什么也不写，不管 mask 是什么
+overlayXRayDepthWriteEnabled_ = enabled && mask != D3D11_DEPTH_WRITE_MASK_ZERO;
+// 一致性只在有意义的地方比：enable 永远比，mask 只在深度打开时比
+overlayStateReadbackAgrees_ = createdEnable == readEnable
+  && (readEnable == 0 || createdMask == readMask);
+```
+
+门禁新增三条断言（forward 段）：
+
+```text
+OK  depth-stencil: enable=0 mask=1 created=0 agree=1 depthWrite=0 (enable&&mask = 0)
+OK  the depth-stencil readback agrees with the description it was created from = 1
+OK  the x-ray state does not write depth = 0
+OK  the published depthWrite is the effect of the state (enable AND mask) = 0
+```
+
+### 20.3 m5 变异体也跟着改对了
+
+旧变异只把 mask 改成 ALL，而深度是关的——**它改变不了任何效果**，所以无论读数接没接线都不该动。
+现在变异把 enable 和 mask 一起改（一个真正会写深度的状态）：
+
+```bash
+patch_in "$MUT_RENDERER" \
+"    overlayDescription.DepthEnable = FALSE;
+    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;" \
+"    overlayDescription.DepthEnable = TRUE;   /* mutation m5 */
+    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;"
+```
+
+固定构建读 0、变异体读 1，这条断言才是第一次真的在测东西。判读见第 23 节。
+
+## 21. m2 的历史：分号是哪一版吞掉的，"曾经 GREEN"能不能复原
+
+### 21.1 溯源（git，可复核）
+
+```text
+git show 6c0b0c3:outline-check.sh   (2026-10-22 21:26)  m2 替换文本末尾：..., 0);
+    -> 替换整段（含结尾 ", 0);"），变异体能编译
+git show 4e795b4:outline-check.sh   (2026-10-23 10:33)  m2 替换文本末尾：...Get()
+    -> 锚点含结尾分号、替换不含，变异体从此编译不过
+```
+
+4e795b4 的标题恰好是 "an unapplied mutation can no longer wear a pass"：
+它修的是"锚点没匹配上"，同一次编辑里把"编译不过"这条弄坏了。
+
+### 21.2 结论
+
+`rebuild_product` 的 MUTATION-INVALID 计数**早于** 4e795b4（`6c0b0c3` 里已经是
+`mut_invalid=$((mut_invalid + 1))` + `mut_fail=1`），所以 10:33 之后任何一次套件运行都会把 m2
+报成 INVALID 而不是 GREEN；这个窗口里只有今天 14:26 那一次，它报的正是 INVALID。早于 10:33 的
+判读（例如 `24b0067` 记的"m2 turns red on both readings"）来自 `6c0b0c3` 版本的锚点，那个锚点
+能编译（上面的 git show 原文可查）。
+
+**本分支历史上不存在"未编译成功的变异体被报成 GREEN"。** 但有两个过程漏洞，都已堵上：
+
+```text
+1. 4e795b4 之后 m2 没跑起来过（编译失败），而"这个 case 没有判读"只在末尾汇总里体现；
+2. 更早版本里 rebuild 失败会跳过 case 主体（if rebuild_product m2; then ... fi），
+   连 INVALID 那行都打不出来 —— 判读静默消失。
+```
+
+### 21.3 元自检 m-meta（每次跑套件都跑）
+
+往渲染源里追加 `#error`，要求：构建失败、被分类成 MUTATION-INVALID、mut_invalid 递增（即让套件
+最终失败）、源码字节级还原并重建成功。这条自身不计入失败（是预期的失败），但把 21.2 的漏洞 2
+永久堵住。判读见第 23 节。
+
+## 22. case (b)：两个怀疑都死了，第三个浮出来
+
+你给的两个怀疑，各用一个读数打死：
+
+### 22.1 "框取自碰撞几何而不是渲染网格" —— 否
+
+```text
+itemdiag ... box=10x3 ... bmin=-22.13,-0.03,-29.76 bmax=21.87,83.41,8.42 mh=83.45 wh=0.01
+```
+
+`mh=83.45` 就是 TF2 玩家模型的高度。**框量的是玩家渲染网格本身**，不是碰撞壳。
+
+### 22.2 "draw 用的行与框用的行不同" —— 否
+
+实例缓冲读回时顺手取出第一个实例 position 第 0 行，与 CPU 发布的行逐元素比：
+
+```text
+overlay: rowcheck gpu=0.000016,-0.000081,0.000009,0.745107
+                  cpu=0.000016,-0.000081,0.000009,0.745107 worst=0.000000 match=1
+```
+
+同一个矩阵。框与像素指向同一处，残余不在变换上，也不在实体关联上（readback 0 处不一致）。
+
+### 22.3 第三个：外扩常数用错了空间（本轮量到了每一像素）
+
+采集帧的 14 个 item 逐条算（`box` 是公布的框，`wh` 是它的世界高度）：
+
+```text
+box    wh      world/px   外扩 0.004 -> 每侧像素
+10x4   0.0100  0.00250    1.60 px
+10x3   0.0100  0.00333    1.20 px
+ 7x3   0.0100  0.00333    1.20 px
+ 7x1   0.0100  0.01000    0.40 px
+ 5x2   0.0100  0.00500    0.80 px   (8 个这种)
+ 3x2   0.0100  0.00500    0.80 px
+```
+
+即：**着色器把每个轮廓向外扩了 0.4–1.6 px**，而公布的框是**未外扩**的网格范围。
+`kOverlaySilhouetteExpand = 0.004` 是**世界单位**（`entity_overlay.h:134`，加在 `mapped` 上，
+`native_renderer.cpp` 的 `mapped += unitNormal * cameraPositionAndExpand.w * mode.x`），
+而玩家的世界高度只有 0.0067——**外扩量是玩家身高的 60%**。同样的 0.004 若按模型空间理解，
+相对 83.45 units 的身高是 0.005%，等于没有。
+
+门禁现在把两个高度并排打印（本轮实读）：
+
+```text
+heights: published boxes hmin=1 hmax=4 | team ink red=3 px blue=4 px
+```
+
+**框 1–4 px 高，墨迹 3–4 px 高——同一个对象，不是"框只有墨迹的五分之一"。**
+上一轮 §18.2 里"框 1–3 px、墨迹 10–14 px"的对比是拿**一整团连通墨迹的外接框**（多玩家连成一片）
+去比**单个玩家的框**，那个五倍是我自己量错了。撤回。
+算一遍面积：14 个玩家、平均周长约 26 px、每侧 0.8–1.6 px ⇒ 预期框外像素 ~300–430；
+实测 `outsideDiff=373`。**同一个量级，且这一次它有了名字。**
+
+结论（按三种定性）：**case (c)，量法问题**——墨迹是对的（它就是外扩后的壳），框也是对的
+（它就是网格范围），判据把"壳"和"网格"当成同一个对象在比。产品侧另有一件事：外扩常数用错了
+空间，60% 身高不是"细描边"，是"放大一倍的色块"。
+
+下一轮一次跑死的实验（两者都要）：
+```text
+1. 产品发布 expandPx（= 0.004 / world-units-per-pixel，按 item），
+   判据改成 outside <= 周长*expandPx（或把框按 expandPx 长大后再要求 outside=0）；
+2. 把外扩改到模型空间做（position + normal*expand 之后再 rows），
+   要求 outsideDiff 归零、且 m12（位移）与 m10（深度当颜色）仍然红。
+```
+
+### 22.4 我自己那条"8/14 质心在框外"的归因，是坏的尺子
+
+`attribution` 拿**每个玩家的框**去比**每团墨迹的质心**，但 14 个玩家只画出 4 团（玩家在画面里
+挨得很近，壳互相连成一片）。**一团多个玩家的质心本来就不必落在任何单个框里**，所以那条读数
+不能支持 case (b)，本轮撤回它作为证据的地位（只留作参考）。
+要按玩家归因，需要**逐实例着色**：给每个实例一个唯一颜色画一帧，才能把"这个玩家的墨迹"和
+"这个玩家的框"一一对上。这是下一轮的第二个实验。
+
+## 23. 本轮读数（2026-10-23 16:08–17:17，一次加锁的 forward + mutation）
+
+### 23.1 forward：92 OK / 1 FAIL
+
+```text
+FAIL differing pixels outside every drawn region = 373, expected 0      <- 唯一一条红（未变）
+OK   differing pixels INSIDE the drawn regions = 111 (>= 1)
+OK   drawn instances read back from the GPU buffer = 77252 (>= 1)
+     readback: drawn instances=77252 identity mismatches=0
+     region source: items=14 extent1=14 extent0=0 extent2=0 extentMissing=0 hmin=1 hmax=4
+     heights: published boxes hmin=1 hmax=4 | team ink red=3 px blue=4 px
+     depth-stencil: enable=0 mask=1 created=0 agree=1 depthWrite=0 (enable&&mask = 0)
+OK   the depth-stencil readback agrees with the description it was created from = 1
+OK   the x-ray state does not write depth = 0
+OK   the published depthWrite is the effect of the state (enable AND mask) = 0
+     overlay: rowcheck gpu=0.000016,-0.000081,0.000009,0.745107
+                      cpu=0.000016,-0.000081,0.000009,0.745107 worst=0.000000 match=1
+OK   the instance row the draw consumes equals the one the box was built from = match=1
+```
+
+### 23.2 mutation：15 条判读全红，0 GREEN，1 INVALID（那条 INVALID 是自检故意的）
+
+```text
+OK   m-meta: a source that does not compile reads MUTATION-INVALID and fails the run
+MUTATION-RED m1  team pixels in the WRONG region=61 (fixed=0)
+MUTATION-RED m2  team-coloured pixels through the wall=0 (fixed=40)
+MUTATION-RED m2  x-ray depth test state actually bound=1 (fixed=0)
+MUTATION-RED m3  team-coloured pixels in the --outline off frame=415 (fixed=0)
+MUTATION-RED m5  x-ray depth write state=1 (fixed=0)              <- 本轮主修项
+MUTATION-RED m6  without the hold, speed=1 and speed=8 capture different frames
+MUTATION-RED m7  silhouettes submitted without the class fallback=0 (fixed=14)
+MUTATION-RED m7  players rejected as noMesh without the class fallback=20 (fixed=6)
+MUTATION-RED m8  silhouettes DRAWN when the item loses the upload key=0 (fixed=5)
+MUTATION-RED m9  probe self-test failures when the bind mesh wins=5 (fixed=0)
+MUTATION-RED m4  pass order (overlay before viewModel)=0 (fixed=1)
+MUTATION-RED m4  overlay ordinal after the move=7 (fixed=6)
+MUTATION-RED m11 identity mismatches in the readback table=71694 (fixed=0)
+MUTATION-RED m12 pixels outside every drawn region with the draw shifted 3 px=488 (fixed=373)
+MUTATION-RED m10 non-grey percent of a colour frame offered as depth=16.76 (fixed=0)
+MUTATION-SUITE=ALL-RED-RESTORED   GATE-RC=1（只因 23.1 那条红）
+```
+
+判读分三列写死：**RED** = 变异体读数与固定构建不同；**GREEN** = 没动（本轮 0 条）；
+**INVALID** = 编译不过或锚点没匹配（本轮 1 条，是 m-meta 故意造的）。
+
+### 23.3 本轮三条结案的判读
+
+| 项 | 结论 | 依据 |
+| --- | --- | --- |
+| ① m5 | **结案：读数已接到设备，变异体红** | `stateCreated=0` vs `stateMask=1` 暴露了"mask 当效果"；改成发布 `enable && mask` 后固定读 0、变异读 1 |
+| ② m2 | **结案：真实红，且不再能假绿** | 补回分号后编译通过，两条读数都红（40→0、0→1）；m-meta 每次运行都验证"不编译 ⇒ INVALID ⇒ 套件失败" |
+| ③ case (b) | **归因完成：是 case (c) 量法 + 一个用错空间的外扩常数** | 网格高 83.45（是渲染网格不是碰撞壳）、draw 行与框行逐元素相同（match=1）、框高 1–4 px 与墨迹 3–4 px 同尺寸、373 是每侧 0.4–1.6 px 的外扩 |
+
+### 23.4 仍然红的 373，现在的身份
+
+它不是"投影错了"，也不是"实体错位"：框和墨迹是同一个对象，只是**框量未外扩的网格、墨迹是外扩后的壳**。
+要它归零有两条路，都排在下一轮，且都必须让 m12/m10 继续红：
+
+```text
+1. 判据侧：产品按 item 发布 expandPx = 0.004 / world-units-per-pixel，断言改成 outside <= 周长*expandPx；
+2. 产品侧：把外扩放回模型空间（或乘上 rows 的缩放量），让 0.004 重新成为"细描边"。
+```
+
 ## 8. 交接
 
 ### 8.0 冻结状态（2026-10-23 10:55，本轮结束）

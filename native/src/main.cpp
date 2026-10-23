@@ -5322,7 +5322,12 @@ bool outlineVertexExtent = false;
       " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
       " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
       " poseWorld=%zu poseBind=%zu"
-      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d stateBound=%d",
+      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d stateBound=%d"
+      // T52 (2026-10-23b): the depth-stencil state as the DEVICE reports it (raw mask,
+      // 0=ZERO 1=ALL) beside the description it was created from, and one bool that says
+      // the two agree. A mutation that flips the mask moves these; a reading that is not
+      // wired to the state moves `agree` instead. Either way the gate gets a red.
+      " stateEnable=%u stateMask=%u stateCreated=%u agree=%d",
       pass.enabled ? 1 : 0, tf2::native::overlayDepthModeName(pass.depth),
       pass.depthTestEnabled ? 1 : 0, pass.depthWriteEnabled ? 1 : 0,
       pass.drewThisFrame ? 1 : 0, pass.stageOrdinal, renderer.viewModelPassOrdinal(),
@@ -5337,7 +5342,11 @@ bool outlineVertexExtent = false;
       tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()),
       renderer.overlayXRayDepthTestEnabled() ? 1 : 0,
       renderer.overlayXRayDepthWriteEnabled() ? 1 : 0,
-      renderer.overlayPassReading().stateBoundDepthTest);
+      renderer.overlayPassReading().stateBoundDepthTest,
+      renderer.overlayXRayStateReadDepthEnable(),
+      renderer.overlayXRayStateReadWriteMask(),
+      renderer.overlayXRayStateCreatedWriteMask(),
+      renderer.overlayStateReadbackAgrees() ? 1 : 0);
     // One row per drawn silhouette. The gate joins these to the frame: the box
     // is the pass's own projection of that entity's extent, so "this region is
     // red" is a statement about THIS entity rather than about the picture.
@@ -5358,7 +5367,8 @@ bool outlineVertexExtent = false;
       // not by another guess. See the report's section 8.0 for the rule that was
       // written before this line existed.
       traceFmt("outline: itemdiag entity=%u key=%08x meshVerts=%u skinned=%u range=%u,%u"
-        " box=%dx%d vertexbox=%d,%d,%d,%d vverts=%u ndc=%.4f,%.4f origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f",
+        " box=%dx%d vertexbox=%d,%d,%d,%d vverts=%u ndc=%.4f,%.4f origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f"
+        " mh=%.2f wh=%.2f",
         static_cast<unsigned>(item.entityIndex), static_cast<unsigned>(item.meshKeyHash),
         static_cast<unsigned>(item.meshVertexCount), static_cast<unsigned>(item.skinned),
         static_cast<unsigned>(item.rangeVertexCount), static_cast<unsigned>(item.rangeInstanceCount),
@@ -5369,7 +5379,13 @@ bool outlineVertexExtent = false;
         item.worldExtent[0], item.worldExtent[1], item.worldExtent[2],
         item.worldExtent[3], item.worldExtent[4], item.worldExtent[5],
         item.meshBoundsMin[0], item.meshBoundsMin[1], item.meshBoundsMin[2],
-        item.meshBoundsMax[0], item.meshBoundsMax[1], item.meshBoundsMax[2]);
+        item.meshBoundsMax[0], item.meshBoundsMax[1], item.meshBoundsMax[2],
+        // The two heights that decide who is measuring the wrong object: the mesh's own
+        // model-space height, and the world-space height of the box the pass publishes.
+        // A player is 72 Source units tall, so if mh says 31 the box was derived from
+        // something that is not the player's render mesh.
+        item.meshBoundsMax[1] - item.meshBoundsMin[1],
+        item.worldExtent[4] - item.worldExtent[1]);
     }
     // T52 D1: one row per DRAWN instance, read back out of the buffer the draw
     // call consumed. entityIndex is what the GPU record holds (padding[1]);
@@ -5382,6 +5398,21 @@ bool outlineVertexExtent = false;
         index, static_cast<unsigned>(identity[index].first),
         static_cast<unsigned>(identity[index].second),
         identity[index].first == identity[index].second ? 1 : 0);
+    }
+    // One level deeper: does the draw consume the SAME transform the box was computed
+    // with? Identical rows means the box and the pixels cannot be describing different
+    // objects, and the residue has to be found in the projection or in the comparison.
+    if (renderer.overlayInstanceRow0Valid()) {
+      const float* gpuRow = renderer.overlayInstanceRow0Gpu();
+      const float* cpuRow = renderer.overlayInstanceRow0Cpu();
+      float worst = 0.0f;
+      for (int column = 0; column < 4; ++column) {
+        const float gap = std::fabs(gpuRow[column] - cpuRow[column]);
+        if (gap > worst) worst = gap;
+      }
+      traceFmt("overlay: rowcheck gpu=%.6f,%.6f,%.6f,%.6f cpu=%.6f,%.6f,%.6f,%.6f worst=%.6f match=%d",
+        gpuRow[0], gpuRow[1], gpuRow[2], gpuRow[3],
+        cpuRow[0], cpuRow[1], cpuRow[2], cpuRow[3], worst, worst < 1.0e-6f ? 1 : 0);
     }
   };
 

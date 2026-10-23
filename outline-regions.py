@@ -417,8 +417,14 @@ def main(argv):
         counts = {1: 0, 0: 0, 2: 0, -1: 0}
         for row in rows:
             counts[row["extent"] if row["extent"] in counts else -1] += 1
-        print("items=%d extent1=%d extent0=%d extent2=%d extentMissing=%d"
-              % (len(rows), counts[1], counts[0], counts[2], counts[-1]))
+        # The box height travels with the count so "the box is 1-3 px tall while the
+        # paint is 10-14 px tall" is a reading in the gate's own output, not a
+        # deduction someone has to redo from the attribution table.
+        heights = [row["y1"] - row["y0"] + 1 for row in rows]
+        hmin = min(heights) if heights else 0
+        hmax = max(heights) if heights else 0
+        print("items=%d extent1=%d extent0=%d extent2=%d extentMissing=%d hmin=%d hmax=%d"
+              % (len(rows), counts[1], counts[0], counts[2], counts[-1], hmin, hmax))
         return 0
     if args.get("mode") == "attribute":
         if not (args["trace"] and args["on"] and args["off"]):

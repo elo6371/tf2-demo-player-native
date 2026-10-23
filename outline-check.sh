@@ -703,6 +703,13 @@ RB_TOTAL=$(grep -a -c "overlay: readback i=" "$OUT/on.trace" 2>/dev/null || true
 RB_BAD=$(grep -a "overlay: readback i=" "$OUT/on.trace" 2>/dev/null | grep -c "match=0" 2>/dev/null || true)
 echo "  readback: drawn instances=${RB_TOTAL:-0} identity mismatches=${RB_BAD:-0}"
 grep -a "overlay: readback i=" "$OUT/on.trace" 2>/dev/null | tail -4 | sed "s/^/    /"
+# The transform the draw consumes, compared with the one the box was computed from.
+# A mismatch here means the published box describes a different placement than the
+# pixels; a match means the residue is in the projection or in the comparison itself.
+ROWCHECK=$(grep -a "overlay: rowcheck " "$OUT/on.trace" | tail -1)
+echo "  ${ROWCHECK:-<no rowcheck line>}"
+ROWMATCH=$(echo "$ROWCHECK" | grep -o " match=[01]" | tr -d " ")
+assert_eq "the instance row the draw consumes equals the one the box was built from" "${ROWMATCH:-<none>}" "match=1"
 assert_ge "drawn instances read back from the GPU buffer" "${RB_TOTAL:-0}" "1"
 assert_eq "each drawn instance carries the entity the CPU published for its slot" "${RB_BAD:-<none>}" "0"
 ATTR=$("$PY" "$PWD/outline-regions.py" --attribute --trace "$OUT/on.trace" --on "$OUT/on.bmp" --off "$OUT/off.bmp" 2>/dev/null || true)
@@ -721,6 +728,23 @@ echo "  region source: ${EXTENT:-<none>}"
 assert_ge "drawn items on the capture frame" "$(echo "$EXTENT" | grep -o "items=[0-9]*" | cut -d= -f2)" "1"
 assert_eq "items whose region is the drawn extent" "$(echo "$EXTENT" | grep -o "extent1=[0-9]*" | cut -d= -f2)" "$(echo "$EXTENT" | grep -o "items=[0-9]*" | cut -d= -f2)"
 echo "  attribution verdict: ${ATTR_OUT:-0} of ${ATTR_ROWS:-0} published boxes do NOT contain their nearest blob centroid"
+# ---- the depth-stencil state, read back from the device -------------------
+# The overlay must not write depth, and the reading must be wired to the state. Two
+# assertions, because the failure modes are different: `agree` catches a reading whose
+# source is not the device (it went red with both sides at 1 before this line existed),
+# and the mask catches a state that really writes depth. A mutation that flips the mask
+# moves the second; one that breaks the wiring moves the first.
+STATE_ENABLE=$(outline_value "$OUT/on.trace" stateEnable)
+STATE_MASK=$(outline_value "$OUT/on.trace" stateMask)
+STATE_CREATED=$(outline_value "$OUT/on.trace" stateCreated)
+STATE_AGREE=$(outline_value "$OUT/on.trace" agree)
+STATE_WRITE=$(outline_value "$OUT/on.trace" depthWrite)
+STATE_EFFECT=0
+if [ "${STATE_ENABLE:-0}" -eq 1 ] && [ "${STATE_MASK:-0}" -ne 0 ]; then STATE_EFFECT=1; fi
+echo "  depth-stencil: enable=${STATE_ENABLE:-?} mask=${STATE_MASK:-?} created=${STATE_CREATED:-?} agree=${STATE_AGREE:-?} depthWrite=${STATE_WRITE:-?} (enable&&mask = $STATE_EFFECT)"
+assert_eq "the depth-stencil readback agrees with the description it was created from" "${STATE_AGREE:-<none>}" "1"
+assert_eq "the x-ray state does not write depth" "${STATE_WRITE:-<none>}" "0"
+assert_eq "the published depthWrite is the effect of the state (enable AND mask), not the mask alone" "${STATE_WRITE:-<none>}" "$STATE_EFFECT"
 echo "  (0 outside => the boxes follow the paint and the error is in the projection;"
 echo "   any outside => the box derivation, world->screen, is the defect -- see report 9.5)"
 
@@ -731,6 +755,14 @@ TEAM_REGIONS=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --team)
 RED_REGION=$(echo "$TEAM_REGIONS" | grep -o "red=[0-9,]*" | cut -d= -f2)
 BLUE_REGION=$(echo "$TEAM_REGIONS" | grep -o "blue=[0-9,]*" | cut -d= -f2)
 echo "  red=$RED_REGION blue=$BLUE_REGION"
+# Box height against ink height, side by side, because the D1 residue is a shape
+# question before it is a threshold question: the published boxes are 1-4 px tall on
+# this frame, so if the team-coloured ink is 10 px tall the box is not measuring the
+# thing that was drawn. This line is the cheap first look; the itemdiag line carries
+# the mesh and world heights behind it.
+RED_H=$(echo "$RED_REGION" | awk -F, '{ if (NF==4) print $4-$2+1 }')
+BLUE_H=$(echo "$BLUE_REGION" | awk -F, '{ if (NF==4) print $4-$2+1 }')
+echo "  heights: published boxes hmin=$(echo "$EXTENT" | grep -o "hmin=[0-9]*" | cut -d= -f2) hmax=$(echo "$EXTENT" | grep -o "hmax=[0-9]*" | cut -d= -f2) | team ink red=${RED_H:-?} px blue=${BLUE_H:-?} px"
 # A region that could not be derived would make the assertion below vacuous,
 # so the gate refuses to pretend: no region is a FAILURE, not a skip.
 if [ -z "$RED_REGION" ] || [ -z "$BLUE_REGION" ]; then
@@ -911,7 +943,10 @@ if [ "$MUTATION" = "1" ]; then
   # mutation is not about. That is how a control phase elsewhere in this repo grew
   # an --audio-disabled omission while its author was busy describing the one
   # difference he had in mind.
-  echo "=== mutation: 8 cases, each rebuilt and required to go red ==="
+  # The case count is written next to the cases that exist, not remembered: the list
+  # grew from 8 to 12 (m-meta included) and a heading that says 8 while 12 run is
+  # itself a reading that stopped matching the mechanism.
+  echo "=== mutation: 12 cases (m1-m12) plus m-meta, each rebuilt and required to go red ==="
   MUT_SRC="native/src/entity_overlay.cpp"
   MUT_MAIN="native/src/main.cpp"
   MUT_RENDERER="native/src/native_renderer.cpp"
@@ -1041,6 +1076,37 @@ PYEOF
   echo
   echo "  -- helper self-tests --"
   patch_in_self_test || mut_fail=1
+
+  # ---- the invalid-mutation guard, exercised on purpose -------------------
+  # A green from a build that was never mutated is worse than a red, and this suite
+  # reported exactly that once (m2, whose patch had silently stopped compiling for a
+  # whole version). So the guard itself is a case: put a #error in the source, and
+  # require the suite to call it MUTATION-INVALID, to count it as a failure, and to
+  # leave the tree intact afterwards.
+  echo
+  echo "  -- m-meta: a mutant that does not compile is INVALID, not a green --"
+  META_FAIL_BEFORE=$mut_fail
+  META_INVALID_BEFORE=$mut_invalid
+  printf "\n#error T52 meta self-test: this mutant must not compile\n" >> "$MUT_RENDERER"
+  if rebuild_product m-meta > "$OUT/meta.log" 2>&1; then
+    echo "  MUTATION-META FAIL: a source containing #error compiled, so the guard cannot work"
+    mut_fail=1
+  elif ! grep -q "MUTATION-INVALID" "$OUT/meta.log"; then
+    echo "  MUTATION-META FAIL: the failure was not classified MUTATION-INVALID"
+    sed "s/^/      /" "$OUT/meta.log" | head -4
+    mut_fail=1
+  elif [ "$mut_invalid" -le "$META_INVALID_BEFORE" ]; then
+    echo "  MUTATION-META FAIL: an invalid mutant was not counted as a suite failure"
+    mut_fail=1
+  else
+    echo "  OK   a source that does not compile reads MUTATION-INVALID and fails the run"
+  fi
+  # The failure was EXPECTED, so its accounting is put back: this case proves the
+  # guard fires; it is not itself a broken mutation.
+  mut_fail=$META_FAIL_BEFORE
+  mut_invalid=$META_INVALID_BEFORE
+  restore_all || true
+  rebuild_product "restore after m-meta" || true
 
   # ---- m1: exchange the two team colours ---------------------------------
   echo
@@ -1173,9 +1239,16 @@ must_move "m2" "x-ray depth test state actually bound" "$(outline_value "$OUT/on
   # sees a surface the outline invented. The ViewModel pass clears depth right
   # afterwards, so this defect cannot show in a screenshot -- the reading that
   # has to move is the published state, which is exactly why it is published.
+  # The mutation changes what the state DOES, not just the mask: a state whose
+  # DepthEnable is FALSE writes nothing whatever its mask, and the runtime reports
+  # that mask as ALL anyway (measured 2026-10-23). Mutating the mask alone therefore
+  # moved nothing and m5 read green for a year-shaped reason -- the reading was
+  # publishing a mask rather than an effect. Both fields move together here.
   patch_in "$MUT_RENDERER" \
-"    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;" \
-"    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;  /* mutation m5 */" || mut_fail=1
+"    overlayDescription.DepthEnable = FALSE;
+    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;" \
+"    overlayDescription.DepthEnable = TRUE;   /* mutation m5: the overlay writes depth */
+    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;  /* mutation m5 */" || mut_fail=1
   if rebuild_product m5; then
     M5_RC=$(run_frame "$OUT/m5" --outline on)
     echo "    m5 depthTest=$(outline_value "$OUT/m5.trace" depthTest) depthWrite=$(outline_value "$OUT/m5.trace" depthWrite)"

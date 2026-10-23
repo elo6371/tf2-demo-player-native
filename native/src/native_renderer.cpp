@@ -1327,15 +1327,33 @@ float4 main(Input input) : SV_TARGET {
     overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
     overlayDescription.DepthFunc = D3D11_COMPARISON_ALWAYS;
     overlayDescription.StencilEnable = FALSE;
+    // What we ASK for, kept beside what we GET: the pair is the only way to tell a
+    // state that drifted from a reading that was never wired to it.
+    overlayXRayStateCreatedDepthEnable_ = overlayDescription.DepthEnable ? 1u : 0u;
+    overlayXRayStateCreatedWriteMask_ = static_cast<std::uint32_t>(overlayDescription.DepthWriteMask);
     if (FAILED(device_->CreateDepthStencilState(&overlayDescription,
         overlayXRayDepthState_.GetAddressOf()))) return false;
+    if (overlayXRayDepthState_) {
+      D3D11_DEPTH_STENCIL_DESC created{};
+      overlayXRayDepthState_->GetDesc(&created);
+      overlayXRayStateReadDepthEnable_ = created.DepthEnable ? 1u : 0u;
+      overlayXRayStateReadWriteMask_ = static_cast<std::uint32_t>(created.DepthWriteMask);
+    }
     // The control the depth-awareness mutation needs: ordinary depth test, still
     // no depth write, so a silhouette behind a wall disappears exactly as the
     // wall says it should.
     overlayDescription.DepthEnable = TRUE;
     overlayDescription.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    overlayDepthTestedStateCreatedDepthEnable_ = overlayDescription.DepthEnable ? 1u : 0u;
+    overlayDepthTestedStateCreatedWriteMask_ = static_cast<std::uint32_t>(overlayDescription.DepthWriteMask);
     if (FAILED(device_->CreateDepthStencilState(&overlayDescription,
         overlayDepthTestedState_.GetAddressOf()))) return false;
+    if (overlayDepthTestedState_) {
+      D3D11_DEPTH_STENCIL_DESC created{};
+      overlayDepthTestedState_->GetDesc(&created);
+      overlayDepthTestedStateReadDepthEnable_ = created.DepthEnable ? 1u : 0u;
+      overlayDepthTestedStateReadWriteMask_ = static_cast<std::uint32_t>(created.DepthWriteMask);
+    }
     // Read both states BACK. The contract says x-ray is "depth test OFF and
     // depth write OFF"; with this readback that sentence is a number in the
     // trace instead of a comment beside the lines that set it, and a state whose
@@ -1347,14 +1365,35 @@ float4 main(Input input) : SV_TARGET {
     D3D11_DEPTH_STENCIL_DESC overlayReadback{};
     if (overlayXRayDepthState_) {
       overlayXRayDepthState_->GetDesc(&overlayReadback);
+      overlayXRayStateReadDepthEnable_ = overlayReadback.DepthEnable ? 1u : 0u;
+      overlayXRayStateReadWriteMask_ = static_cast<std::uint32_t>(overlayReadback.DepthWriteMask);
       overlayXRayDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
-      overlayXRayDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+      // The EFFECT, not the mask: a state whose DepthEnable is FALSE writes nothing
+      // whatever its mask says -- and the runtime reports that mask as ALL, which is
+      // what made this reading say "writes depth" for a pass that cannot write depth.
+      overlayXRayDepthWriteEnabled_ = overlayReadback.DepthEnable != FALSE
+        && overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
     }
     if (overlayDepthTestedState_) {
       overlayDepthTestedState_->GetDesc(&overlayReadback);
+      overlayDepthTestedStateReadDepthEnable_ = overlayReadback.DepthEnable ? 1u : 0u;
+      overlayDepthTestedStateReadWriteMask_ = static_cast<std::uint32_t>(overlayReadback.DepthWriteMask);
       overlayDepthTestedDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
-      overlayDepthTestedDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+      overlayDepthTestedDepthWriteEnabled_ = overlayReadback.DepthEnable != FALSE
+        && overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
     }
+    // What this block exists for: the device must report what we asked for. Measured
+    // 2026-10-23 on this machine, a state created with DepthEnable=FALSE and
+    // WRITE_MASK_ZERO reads back with WRITE_MASK_ALL -- the runtime treats the mask as
+    // "no opinion" when depth is off. So agreement is checked where it means something:
+    // the enable flag always, the mask only when depth is enabled.
+    overlayStateReadbackAgrees_ =
+      overlayXRayStateCreatedDepthEnable_ == overlayXRayStateReadDepthEnable_
+      && overlayDepthTestedStateCreatedDepthEnable_ == overlayDepthTestedStateReadDepthEnable_
+      && (overlayXRayStateReadDepthEnable_ == 0
+          || overlayXRayStateCreatedWriteMask_ == overlayXRayStateReadWriteMask_)
+      && (overlayDepthTestedStateReadDepthEnable_ == 0
+          || overlayDepthTestedStateCreatedWriteMask_ == overlayDepthTestedStateReadWriteMask_);
   }
   {
     D3D11_RASTERIZER_DESC overlayRasterizer{};
@@ -3432,6 +3471,19 @@ void Renderer::rebuildOverlayBuffers() {
           for (std::size_t index = 0; index < packed.size(); ++index) {
             overlayInstanceIdentity_.emplace_back(
               drawn[index].padding[1], packed[index].padding[1]);
+          }
+          // T52 (2026-10-23c): the same readback one level deeper. D1's residue is now
+          // a question about the TRANSFORM, not about the identity: the box the pass
+          // publishes is rows*vertex projected with the frame mvp, and if the rows in
+          // the buffer the draw consumes differ from the rows the box used, the two
+          // describe different objects. First instance only -- four floats are enough
+          // to show agreement or its absence, and the trace stays readable.
+          if (!packed.empty()) {
+            for (int column = 0; column < 4; ++column) {
+              overlayInstanceRow0Gpu_[column] = drawn[0].position[0][column];
+              overlayInstanceRow0Cpu_[column] = packed[0].position[0][column];
+            }
+            overlayInstanceRow0Valid_ = true;
           }
           context_->Unmap(staging.Get(), 0);
         }
