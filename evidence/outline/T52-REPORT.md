@@ -935,7 +935,7 @@ blob 从 22x14 长到 89x49，"框外像素"因此从 297 涨到 6141；放大�
 ```text
 LOCK-DISCIPLINE: run t52-outline22 discarded, lock broken by a third party at 12:26
                  (hostlock.sh break has no ownership check: t53-merged released a lock it did not hold);
-                 rerun under lock at <rerun hh:mm>
+                 rerun under lock at 12:36:23 (t52-outline23), 68 OK / 1 FAIL, see 14.5
 ```
 
 **这一行不是追责，是让下一个读的人知道为什么有一轮不算数。** 事实与影响范围：
@@ -956,6 +956,45 @@ LOCK-DISCIPLINE: run t52-outline22 discarded, lock broken by a third party at 12
 而且同场景前置断言给出 484 像素——与 10:45 那次干净配对的数字**完全相同**。
 但按纪律：**跨过 12:26 的一轮整体判为待验证，不作为读数**；`297` 作为"待重跑确认"记录，
 最终数字以持锁重跑的读数为准。
+
+### 14.5 持锁重跑的读数（**这是有效读数**：`t52-outline23`，12:36:23 取锁 → 12:59:59 结束）
+
+```text
+OUTLINE-CHECK=FAIL       68 OK / 1 FAIL
+FAIL differing pixels outside every drawn region = 297, expected 0     ← 唯一一条，即 D1
+OK   differing pixels INSIDE the drawn regions = 187 (>= 1)
+```
+
+**A 的读数**
+```text
+OK   window discovery reported a usable history line
+OK   window discovery exit is the probe measured-nothing verdict = 1
+OK   window self-test: a line without retainedFirst= is rejected
+OK   the discovery run and the measuring run report the same history line = same
+     window: server 74481..74671 origin=10252 -> playback 64229..64419 step=31
+     ticks=64229,64260,64291,64322,64353,64384
+     capture tick=64229 (first in-window playback tick; T52_TICK pins it)
+demo summary ticks=6 rows=120 distinctEntities=20 withTeam=120 red=36 blue=36 withPose=120
+             exact=0 checkpointFallback=6 unavailable=0 ticksWithRows=6 rowsMissingTeam=0 teamMappingMismatches=0
+OK   sampled ticks the entity history could answer = 0
+OK   sampled ticks that produced player rows (own reading) = 6
+```
+
+**B 的读数**
+```text
+on.ordinal=6
+OK   overlay took a pass slot = 6 (>= 1)
+OK   the ordinal is read from the overlay pass's own line = outline
+OK   the pass that took the slot is the pass that drew = 1
+vm.ordinal=6 vm.vmOrdinal=7 vm.orderOk=1 vm.drew=1 fixed.ordinal=6
+OK   overlay ordinal is before the viewModel slot (gate's own comparison)
+OK   overlay ordinal is the same slot in both captures of one build
+```
+注意：**分支上序号仍是 6**，所以本轮没有"因为改期望值而变绿"的东西——变的只有判据。
+它在合并树（序号 7/8）上应当同样绿，在"pass 被挪到 ViewModel 之后"时两条独立地红（`orderOk` 与 `assert_lt`）。
+
+**另外顺带清掉的一条**：`speed=1` 捕获 `rc=0 took=711s`，与 `speed=8` 帧**逐字节相同**（cmp）——
+上一轮那条 `rc=127` 已确认是我 kill 进程造成的假红，不是缺陷。
 
 ## 8. 交接
 
