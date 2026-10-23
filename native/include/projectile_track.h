@@ -35,9 +35,18 @@
 
 namespace tf2::native {
 
-// One entity's observed rows, tick-ordered and otherwise untouched.
+// ONE PROJECTILE'S observed rows -- not one slot's.
+//
+// The identity is (entityIndex, generation), because Source reuses an entity slot
+// as soon as the projectile in it is destroyed. Measured on bagel, slot 377
+// carries 25 separate projectile lifetimes; keying a series on the index alone
+// merged all of them into a single 12057-sample "flight" spanning 70,596 ticks
+// and reported a constant-velocity error of 1.27 million map units on a map about
+// 3400 units across. The number was an artifact of the merge, which is precisely
+// the kind of plausible-looking nonsense this layer exists to prevent.
 struct ProjectileSeries {
   std::uint16_t entityIndex = 0;
+  std::uint32_t generation = 0;
   std::int32_t classId = -1;
   std::string className;
   std::int32_t firstTick = 0;
@@ -56,8 +65,9 @@ struct ProjectileSeries {
   float zMax = 0.0f;
 };
 
-// Split a flat retained row list into per-entity series, ordered by first
-// appearance. Rows for an entity whose class is not a projectile are ignored.
+// Split a flat retained row list into one series per PROJECTILE LIFETIME,
+// ordered by first appearance. Rows for a class that is not a projectile are
+// ignored. Rows of one slot across different lifetimes are NOT merged.
 std::vector<ProjectileSeries> buildProjectileSeries(
   const std::vector<ProjectileTrackSample>& samples,
   const std::vector<ServerClassSchema>& classSchemas);

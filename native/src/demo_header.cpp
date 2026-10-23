@@ -1277,6 +1277,15 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
     } else if (updateType == 3) {
       ++summary.packetEntityDeleteCount;
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
+      // T53: the lifetime in this slot has ended. Advancing here as well as on
+      // Enter means a slot that is deleted and later re-enters is separated even
+      // if the server reuses the index without a fresh Enter being observable.
+      if (lastEntity >= 0 && lastEntity < 2048) {
+        if (summary.projectileTrackSlotGeneration.size() < 2048u) {
+          summary.projectileTrackSlotGeneration.resize(2048u, 0u);
+        }
+        ++summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)];
+      }
       if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, false, {}, {}});
     } else if (updateType == 2) {
       if (summary.firstPacketEntitiesEnterTick < 0) {
@@ -1317,6 +1326,17 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       auto& classSlot = summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)];
       if (classSlot < 0) ++summary.activeEntityCount;
       classSlot = static_cast<std::int32_t>(classId);
+      // T53: an Enter begins a new entity lifetime in this slot, so the slot's
+      // generation advances. Without this the retention would glue every
+      // projectile that ever occupied the slot into one series. See the note on
+      // ProjectileTrackSample::generation.
+      if (static_cast<std::size_t>(lastEntity) < 2048) {
+        if (summary.projectileTrackSlotGeneration.size() < 2048u) {
+          summary.projectileTrackSlotGeneration.resize(2048u, 0u);
+        }
+        ++summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)];
+        ++summary.projectileTrackSeriesStarted;
+      }
       summary.maxActiveEntityCount = std::max(summary.maxActiveEntityCount, summary.activeEntityCount);
       summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
@@ -2580,6 +2600,8 @@ void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick
     ProjectileTrackSample sample;
     sample.tick = tick;
     sample.entityIndex = static_cast<std::uint16_t>(entity);
+    sample.generation = entity < summary.projectileTrackSlotGeneration.size()
+        ? summary.projectileTrackSlotGeneration[entity] : 0u;
     sample.classId = state.classId;
     sample.origin[0] = origin[0];
     sample.origin[1] = origin[1];
@@ -2620,26 +2642,80 @@ void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick
   }
 }
 
+// BINARY SEARCH, NOT A SCAN -- and the invariant it rests on.
+//
+// Rows are appended once per decoded packet, and packets arrive in non-decreasing
+// server-tick order, so `tick` is non-decreasing across the vector. That makes
+// lower_bound/upper_bound give the exact tick range directly.
+//
+// The first version scanned all rows. That is correct and unacceptably slow at
+// the bound this layer allows: maxSamples is 400,000 and the product calls the
+// query once per scene tick, so a scan costs 400k comparisons per frame against a
+// 16.6 ms budget. Measured: the whole 257,880-row bagel list is walked per call.
+//
+// The invariant is ASSERTable and asserted: projectileTrackTickOrderingHolds()
+// below, and the probe reports it on every run. trajectory-overlay-check.sh
+// mutates the append order to prove the assertion and the search can both fail.
+bool projectileTrackTickOrderingHolds(const DemoNetworkSummary& summary,
+                                      std::size_t* firstInversion) {
+  for (std::size_t i = 1; i < summary.projectileTrackSamples.size(); ++i) {
+    if (summary.projectileTrackSamples[i].tick < summary.projectileTrackSamples[i - 1].tick) {
+      if (firstInversion) *firstInversion = i;
+      return false;
+    }
+  }
+  return true;
+}
+
+namespace {
+
+// The half-open [begin, end) row range whose tick equals / lies in the range.
+// Precondition, enforced by the caller's assertion rather than assumed here:
+// summary.projectileTrackSamples is tick non-decreasing.
+std::size_t trackLowerBound(const std::vector<ProjectileTrackSample>& rows, std::int32_t tick) {
+  std::size_t low = 0, high = rows.size();
+  while (low < high) {
+    const std::size_t middle = low + (high - low) / 2;
+    if (rows[middle].tick < tick) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+std::size_t trackUpperBound(const std::vector<ProjectileTrackSample>& rows, std::int32_t tick) {
+  std::size_t low = 0, high = rows.size();
+  while (low < high) {
+    const std::size_t middle = low + (high - low) / 2;
+    if (rows[middle].tick <= tick) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+} // namespace
+
 std::vector<ProjectileTrackSample> queryProjectileTracksAtTick(
     const DemoNetworkSummary& summary, std::int32_t tick) {
-  std::vector<ProjectileTrackSample> rows;
   // Exact tick only. There is deliberately no at-or-before fallback: that
   // fallback is what turned a 75-tick flight into one frozen sample, and a
   // caller that wants a nearest answer should ask for one explicitly.
-  for (const auto& sample : summary.projectileTrackSamples) {
-    if (sample.tick == tick) rows.push_back(sample);
-  }
-  return rows;
+  const auto& rows = summary.projectileTrackSamples;
+  const std::size_t begin = trackLowerBound(rows, tick);
+  const std::size_t end = trackUpperBound(rows, tick);
+  if (begin >= end) return {};
+  return std::vector<ProjectileTrackSample>(rows.begin() + static_cast<std::ptrdiff_t>(begin),
+                                            rows.begin() + static_cast<std::ptrdiff_t>(end));
 }
 
 std::vector<ProjectileTrackSample> queryProjectileTracksInRange(
     const DemoNetworkSummary& summary, std::int32_t firstTick, std::int32_t lastTick) {
-  std::vector<ProjectileTrackSample> rows;
-  if (firstTick > lastTick) return rows;
-  for (const auto& sample : summary.projectileTrackSamples) {
-    if (sample.tick >= firstTick && sample.tick <= lastTick) rows.push_back(sample);
-  }
-  return rows;
+  if (firstTick > lastTick) return {};
+  const auto& rows = summary.projectileTrackSamples;
+  const std::size_t begin = trackLowerBound(rows, firstTick);
+  const std::size_t end = trackUpperBound(rows, lastTick);
+  if (begin >= end) return {};
+  return std::vector<ProjectileTrackSample>(rows.begin() + static_cast<std::ptrdiff_t>(begin),
+                                            rows.begin() + static_cast<std::ptrdiff_t>(end));
 }
 
 bool findObserverViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick, DemoViewSample& sample) {

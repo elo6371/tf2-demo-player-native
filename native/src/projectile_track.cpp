@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <utility>
 
 namespace tf2::native {
 namespace {
@@ -33,22 +34,30 @@ std::vector<ProjectileSeries> buildProjectileSeries(
     const std::vector<ProjectileTrackSample>& samples,
     const std::vector<ServerClassSchema>& classSchemas) {
   std::vector<ProjectileSeries> series;
-  std::map<std::uint16_t, std::size_t> byEntity;
+  // KEYED ON (entityIndex, generation), NOT ON THE INDEX ALONE. An index names a
+  // SLOT, and Source reuses a slot the moment the entity in it is destroyed -- on
+  // bagel slot 377 carries 25 projectile lifetimes. Grouping by index merged them
+  // into one 12057-sample "flight" whose constant-velocity error came out at 1.27
+  // million units on a 3400-unit map. The generation is bumped on every Enter and
+  // Delete, so the pair names exactly one lifetime.
+  std::map<std::pair<std::uint16_t, std::uint32_t>, std::size_t> byLifetime;
   for (const auto& sample : samples) {
     std::string className;
     for (const auto& schema : classSchemas) {
       if (schema.id == static_cast<std::uint32_t>(sample.classId)) { className = schema.name; break; }
     }
     if (!isProjectileTrackClass(className)) continue;
-    auto found = byEntity.find(sample.entityIndex);
-    if (found == byEntity.end()) {
+    const auto key = std::make_pair(sample.entityIndex, sample.generation);
+    auto found = byLifetime.find(key);
+    if (found == byLifetime.end()) {
       ProjectileSeries fresh;
       fresh.entityIndex = sample.entityIndex;
+      fresh.generation = sample.generation;
       fresh.classId = sample.classId;
       fresh.className = className;
       fresh.firstTick = sample.tick;
       fresh.lastTick = sample.tick;
-      found = byEntity.emplace(sample.entityIndex, series.size()).first;
+      found = byLifetime.emplace(key, series.size()).first;
       series.push_back(std::move(fresh));
     }
     auto& target = series[found->second];

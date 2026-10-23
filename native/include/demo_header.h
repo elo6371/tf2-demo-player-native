@@ -350,6 +350,22 @@ struct EntityHistoryLimits {
 struct ProjectileTrackSample {
   std::int32_t tick = 0;
   std::uint16_t entityIndex = 0;
+  // WHICH LIFETIME OF THIS SLOT THE ROW BELONGS TO.
+  //
+  // Source reuses entity slots the moment a projectile is destroyed, so an index
+  // does NOT identify a projectile -- it identifies a slot that many projectiles
+  // pass through. Measured on bagel, slot 377 carries 25 separate projectile
+  // lifetimes plus dozens of CSceneEntity ones, and the first version of this
+  // layer merged all of them into one "series" of 12057 samples spanning 70,596
+  // ticks. The merged series then reported a constant-velocity error of 1.27
+  // million units on a map about 3400 units across -- a number that is pure
+  // artifact, and exactly the kind of plausible-looking nonsense this whole
+  // task exists to avoid.
+  //
+  // generation is incremented on every Enter/Delete transition of a slot, so
+  // (entityIndex, generation) identifies one projectile and one only. A series is
+  // built per (entityIndex, generation) pair, never per entityIndex.
+  std::uint32_t generation = 0;
   std::int32_t classId = -1;
   float origin[3] = {0.0f, 0.0f, 0.0f};
   // The team the projectile carried, when it carried one. Kept raw: the mapping
@@ -644,6 +660,11 @@ struct DemoNetworkSummary {
   ProjectileTrackLimits projectileTrackLimits{};
   std::size_t projectileTrackSamplesDropped = 0;
   std::size_t projectileTrackPacketsScanned = 0;
+  // Per-slot lifetime counter, bumped on every Enter and Delete so that
+  // (entityIndex, generation) identifies one entity lifetime. See the note on
+  // ProjectileTrackSample::generation for why an index alone is not an identity.
+  std::vector<std::uint32_t> projectileTrackSlotGeneration;
+  std::size_t projectileTrackSeriesStarted = 0;
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
   bool serverInfoReplayBit = false;
@@ -817,6 +838,15 @@ std::vector<ProjectileTrackSample> queryProjectileTracksInRange(
 // briefly not updated. Its stored origin is the last one written, which is the
 // position the entity holds at this tick.
 void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick);
+
+// The invariant both queries' binary searches rest on: `tick` is non-decreasing
+// across projectileTrackSamples, because rows are appended once per packet and
+// packets arrive in non-decreasing server-tick order. Exposed because it is easy
+// to break without noticing (an append reordering, a replay path, a merge) and a
+// broken order turns both queries into wrong answers rather than slow ones.
+// Reports the index of the first inversion when it fails.
+bool projectileTrackTickOrderingHolds(const DemoNetworkSummary& summary,
+                                      std::size_t* firstInversion = nullptr);
 
 // Outcome of decoding one demo message stream (the payload of a dem_signon or
 // dem_packet entry: a sequence of 6-bit-typed net messages).

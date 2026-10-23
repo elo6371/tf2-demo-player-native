@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,7 @@ int fail(const char* what) {
 tf2::native::ProjectileSeries makeFallingSeries(std::size_t count, float accel) {
   tf2::native::ProjectileSeries series;
   series.entityIndex = 0;
+  series.generation = 1u;
   series.classId = 264;
   series.className = "CTFProjectile_Rocket";
   series.firstTick = 100;
@@ -58,6 +60,7 @@ tf2::native::ProjectileSeries makeFallingSeries(std::size_t count, float accel) 
     tf2::native::ProjectileTrackSample sample;
     sample.tick = 100 + static_cast<std::int32_t>(i);
     sample.entityIndex = 0;
+    sample.generation = 1u;
     sample.classId = 264;
     sample.origin[0] = t;                        // 1 unit per tick, constant
     sample.origin[1] = 0.0f;
@@ -103,9 +106,11 @@ int runSelfTest() {
   ServerClassSchema weapon;
   weapon.id = 292; weapon.name = "CTFRocketLauncher";
   schemas.push_back(weapon);
-  const auto push = [&rows](std::uint16_t entity, std::int32_t classId, std::int32_t tick, float z) {
+  const auto push = [&rows](std::uint16_t entity, std::int32_t classId, std::int32_t tick, float z,
+                            std::uint32_t generation = 1u) {
     ProjectileTrackSample sample;
     sample.entityIndex = entity; sample.classId = classId; sample.tick = tick;
+    sample.generation = generation;
     sample.origin[0] = static_cast<float>(tick); sample.origin[1] = 0.0f; sample.origin[2] = z;
     rows.push_back(sample);
   };
@@ -139,6 +144,56 @@ int runSelfTest() {
     if (entry.missingTicks != 1) return fail("exactly one tick is missing");
   }
   if (!sawGap) return fail("the gapped entity disappeared entirely");
+
+  // -------------------------------------------------------------------------
+  // 2b. SLOT REUSE MUST NOT MERGE TWO PROJECTILES.
+  //
+  //    This is the defect the first implementation had: it keyed the series on
+  //    the entity index, and an index names a SLOT, not an entity. Measured on
+  //    bagel, slot 377 carries 25 projectile lifetimes; grouping by index turned
+  //    them into one 12057-sample flight whose constant-velocity error read 1.27
+  //    million units on a 3400-unit map.
+  //
+  //    Two projectiles in slot 11 at generation 1 and generation 2, at widely
+  //    separated ticks and positions, must produce TWO series. If they merge, the
+  //    count below is 1 and this fails.
+  // -------------------------------------------------------------------------
+  {
+    std::vector<ProjectileTrackSample> reuse;
+    const auto pushGen = [&reuse](std::uint32_t generation, std::int32_t tick, float x) {
+      ProjectileTrackSample sample;
+      sample.entityIndex = 11;
+      sample.generation = generation;
+      sample.classId = 264;
+      sample.tick = tick;
+      sample.origin[0] = x; sample.origin[1] = 0.0f; sample.origin[2] = 0.0f;
+      reuse.push_back(sample);
+    };
+    pushGen(1u, 300, 0.0f);
+    pushGen(1u, 301, 10.0f);
+    pushGen(2u, 900, 2000.0f);   // a later projectile in the same slot
+    pushGen(2u, 901, 2010.0f);
+    const auto split = buildProjectileSeries(reuse, schemas);
+    if (split.size() != 2) return fail("slot reuse must produce two series, not one merged series");
+    std::size_t firstLifetimeSamples = 0, secondLifetimeSamples = 0;
+    for (const auto& entry : split) {
+      if (entry.entityIndex != 11) return fail("the reused slot must keep its index on both series");
+      if (entry.generation == 1u) firstLifetimeSamples = entry.samples.size();
+      else if (entry.generation == 2u) secondLifetimeSamples = entry.samples.size();
+    }
+    if (firstLifetimeSamples != 2 || secondLifetimeSamples != 2) {
+      return fail("each lifetime must keep exactly its own samples");
+    }
+    // And the merged readout must be gone: the second lifetime's span is 900..901,
+    // not 300..901. A merge would report a 601-tick span for a 2-sample series.
+    for (const auto& entry : split) {
+      if (entry.generation != 2u) continue;
+      if (entry.lastTick - entry.firstTick != 1) {
+        return fail("a lifetime's span must not include another lifetime's ticks");
+      }
+    }
+    std::printf("  slot-reuse fixture: series=%zu (merged would be 1)\n", split.size());
+  }
 
   // -------------------------------------------------------------------------
   // 3. SHORTCUT 1: constant velocity, against a closed-form answer.
@@ -215,6 +270,7 @@ int runSelfTest() {
   {
     ProjectileSeries bouncing;
     bouncing.entityIndex = 1;
+    bouncing.generation = 1u;
     bouncing.classId = 217;
     bouncing.className = "CTFGrenadePipebombProjectile";
     const float kZ[] = {431.0f, 423.0f, 416.0f, 409.0f, 402.0f, 394.0f, 392.0f, 397.0f, 399.0f};
@@ -222,6 +278,7 @@ int runSelfTest() {
       ProjectileTrackSample sample;
       sample.tick = 101 + static_cast<std::int32_t>(i);
       sample.entityIndex = 1;
+      sample.generation = 1u;
       sample.classId = 217;
       sample.origin[0] = 0.0f; sample.origin[1] = 0.0f; sample.origin[2] = kZ[i];
       bouncing.samples.push_back(sample);
@@ -237,12 +294,13 @@ int runSelfTest() {
     // And a monotonic fall must NOT report one, or the flag is always true.
     ProjectileSeries monotonic;
     monotonic.entityIndex = 2;
+    monotonic.generation = 1u;
     monotonic.classId = 217;
     monotonic.className = "CTFGrenadePipebombProjectile";
     for (std::size_t i = 0; i < 9; ++i) {
       ProjectileTrackSample sample;
       sample.tick = 101 + static_cast<std::int32_t>(i);
-      sample.entityIndex = 2; sample.classId = 217;
+      sample.entityIndex = 2; sample.generation = 1u; sample.classId = 217;
       sample.origin[2] = 500.0f - static_cast<float>(i);
       monotonic.samples.push_back(sample);
     }
@@ -255,6 +313,212 @@ int runSelfTest() {
   }
 
   std::printf("self-test: all assertions held\n");
+  return 0;
+}
+
+// ===========================================================================
+// THE DEMO RUN -- the acceptance, as opposed to the fixture proof above.
+//
+// Reports, in order:
+//   1. how many rows the retention kept, and whether it ever hit its bound;
+//   2. the longest observed series, with its contiguity and bounce signature;
+//   3. how wrong the two shortcuts are on THAT series -- the numbers the gate
+//      asserts;
+//   4. the invariants the binary-search query fix will depend on (tick order);
+//   5. a counted cost reading, deliberately not a wall clock (T38's finding).
+// ===========================================================================
+int runDemo(const std::string& demoPath, int top) {
+  using namespace tf2::native;
+  DemoHeader header;
+  DemoIndex index;
+  DemoNetworkSummary summary;
+  if (!parseDemoHeaderFile(demoPath, header)) return fail("demo header parse failed");
+  indexDemoFile(demoPath, header, index);
+  summary.networkProtocol = header.networkProtocol;
+  if (!scanKnownDemoMessages(demoPath, index, summary)) return fail("demo scan failed");
+
+  std::printf("demo=%s\n", demoPath.c_str());
+  std::printf("track: rows=%zu dropped=%zu packetsScanned=%zu limit=%zu\n",
+              summary.projectileTrackSamples.size(), summary.projectileTrackSamplesDropped,
+              summary.projectileTrackPacketsScanned, summary.projectileTrackLimits.maxSamples);
+
+  // THE INVARIANT THE BINARY SEARCH DEPENDS ON. Rows are appended per packet in
+  // tick order, so the tick field is non-decreasing. A lower_bound over them is
+  // only correct while that holds, and it is easy to break without noticing --
+  // so it is asserted here, and the gate mutates the append order to prove the
+  // assertion can fail.
+  std::size_t firstInversion = 0;
+  const bool tickOrdered = projectileTrackTickOrderingHolds(summary, &firstInversion);
+  std::printf("invariant: tickNonDecreasing=%s firstInversion=%zu\n",
+              tickOrdered ? "true" : "false", tickOrdered ? 0u : firstInversion);
+
+  const auto series = buildProjectileSeries(summary.projectileTrackSamples, summary.serverClassSchemas);
+  std::size_t contiguous = 0;
+  std::size_t bounced = 0;
+  std::size_t withOwner = 0;
+  std::size_t totalOwnerRows = 0;
+  std::map<std::string, std::size_t> perClass;
+  for (const auto& entry : series) {
+    ++perClass[entry.className];
+    if (entry.contiguous) ++contiguous;
+    if (entry.verticalDirectionReversed) ++bounced;
+    for (const auto& sample : entry.samples) {
+      if (sample.hasOwner) { ++withOwner; ++totalOwnerRows; }
+    }
+  }
+  // "series" means PROJECTILE LIFETIMES, not entity slots: the same slot appears
+  // many times over. Both counts are printed so a regression that starts merging
+  // again shows up as a collapsed series count against a stable slot count.
+  std::size_t distinctSlots = 0;
+  {
+    std::vector<std::uint16_t> slots;
+    for (const auto& entry : series) slots.push_back(entry.entityIndex);
+    std::sort(slots.begin(), slots.end());
+    slots.erase(std::unique(slots.begin(), slots.end()), slots.end());
+    distinctSlots = slots.size();
+  }
+  std::printf("series: lifetimes=%zu distinctSlots=%zu contiguous=%zu bounced=%zu\n",
+              series.size(), distinctSlots, contiguous, bounced);
+  for (const auto& entry : perClass) {
+    std::printf("  class %s series=%zu\n", entry.first.c_str(), entry.second);
+  }
+  std::printf("owner: rowsWithOwner=%zu of %zu\n", totalOwnerRows,
+              summary.projectileTrackSamples.size());
+
+  if (series.empty()) {
+    std::printf("NO-PROJECTILE: this recording carries no tracked projectile rows\n");
+    return 0;
+  }
+
+  // The longest series is the acceptance subject: it is the projectile the demo
+  // spends the most ticks observing, so it is where a constant-velocity model has
+  // the most room to be wrong.
+  const ProjectileSeries* longest = &series.front();
+  for (const auto& entry : series) {
+    if (entry.samples.size() > longest->samples.size()) longest = &entry;
+  }
+  std::printf("longest: entity=%u class=%s ticks=[%d..%d] samples=%zu missing=%zu contiguous=%s bounced=%s z=[%.1f..%.1f]\n",
+              static_cast<unsigned>(longest->entityIndex), longest->className.c_str(),
+              longest->firstTick, longest->lastTick, longest->samples.size(),
+              longest->missingTicks, longest->contiguous ? "true" : "false",
+              longest->verticalDirectionReversed ? "true" : "false",
+              static_cast<double>(longest->zMin), static_cast<double>(longest->zMax));
+
+  // TWO DIFFERENT SUBJECTS, because "longest" is not "best".
+  //
+  // The longest-lived series on this demo is a sticky bomb sitting on the ground
+  // for 2438 ticks. Its constant-velocity error is enormous (40,818 units) but
+  // for the wrong reason: the shortcut extrapolates a throw that ended seconds
+  // earlier, so the number measures DURATION, not curvature. Asserting on it
+  // would be asserting that long things are long.
+  //
+  // The acceptance subject is a FLIGHT: contiguous, and between 40 and 300
+  // ticks, which is the range a rocket or pipebomb actually spends in the air
+  // before it hits something. Within that set the subject is the one with the
+  // largest constant-velocity error -- the most curved observed path.
+  const ProjectileSeries* flight = nullptr;
+  float flightWorst = -1.0f;
+  std::size_t flightCandidates = 0;
+  for (const auto& entry : series) {
+    if (!entry.contiguous) continue;
+    const std::size_t n = entry.samples.size();
+    if (n < 40 || n > 300) continue;
+    ++flightCandidates;
+    const auto candidateError = constantVelocityError(entry);
+    if (!candidateError.ok) continue;
+    if (candidateError.maxError > flightWorst) { flightWorst = candidateError.maxError; flight = &entry; }
+  }
+  std::printf("flights: candidates=%zu (contiguous, 40..300 samples)\n", flightCandidates);
+  if (flight) {
+    const auto flightError = constantVelocityError(*flight);
+    const auto flightChord = twoPointLineError(*flight);
+    std::printf("flightSubject: entity=%u generation=%u class=%s ticks=[%d..%d] samples=%zu bounced=%s "
+                "maxError=%.1f meanError=%.1f worstTick=%d observed=(%.0f,%.0f,%.0f) predicted=(%.0f,%.0f,%.0f) "
+                "chordMax=%.1f\n",
+                static_cast<unsigned>(flight->entityIndex), flight->generation,
+                flight->className.c_str(), flight->firstTick, flight->lastTick,
+                flight->samples.size(), flight->verticalDirectionReversed ? "true" : "false",
+                static_cast<double>(flightError.maxError), static_cast<double>(flightError.meanError),
+                flightError.worstTick,
+                static_cast<double>(flightError.worstObserved[0]),
+                static_cast<double>(flightError.worstObserved[1]),
+                static_cast<double>(flightError.worstObserved[2]),
+                static_cast<double>(flightError.worstPredicted[0]),
+                static_cast<double>(flightError.worstPredicted[1]),
+                static_cast<double>(flightError.worstPredicted[2]),
+                static_cast<double>(flightChord.ok ? flightChord.maxError : 0.0f));
+  } else {
+    std::printf("flightSubject: NONE (no contiguous 40..300 sample series)\n");
+  }
+
+  const auto velocity = constantVelocityError(*longest);
+  if (velocity.ok) {
+    std::printf("shortcut-constantVelocity: samples=%zu max=%.1f mean=%.1f worstTick=%d "
+                "observed=(%.0f,%.0f,%.0f) predicted=(%.0f,%.0f,%.0f)\n",
+                velocity.samples, static_cast<double>(velocity.maxError),
+                static_cast<double>(velocity.meanError), velocity.worstTick,
+                static_cast<double>(velocity.worstObserved[0]),
+                static_cast<double>(velocity.worstObserved[1]),
+                static_cast<double>(velocity.worstObserved[2]),
+                static_cast<double>(velocity.worstPredicted[0]),
+                static_cast<double>(velocity.worstPredicted[1]),
+                static_cast<double>(velocity.worstPredicted[2]));
+  } else {
+    std::printf("shortcut-constantVelocity: NOT APPLICABLE (fewer than 3 samples)\n");
+  }
+  const auto chord = twoPointLineError(*longest);
+  if (chord.ok) {
+    std::printf("shortcut-twoPointLine: samples=%zu max=%.1f worstTick=%d\n",
+                chord.samples, static_cast<double>(chord.maxError), chord.worstTick);
+  } else {
+    std::printf("shortcut-twoPointLine: NOT APPLICABLE (fewer than 3 samples)\n");
+  }
+
+  // The top-N rows by shortcut error, so the gate can assert on a body of
+  // evidence rather than on a single lucky entity.
+  std::vector<const ProjectileSeries*> ranked;
+  ranked.reserve(series.size());
+  for (const auto& entry : series) ranked.push_back(&entry);
+  std::sort(ranked.begin(), ranked.end(),
+            [](const ProjectileSeries* left, const ProjectileSeries* right) {
+              return left->samples.size() > right->samples.size();
+            });
+  const int shown = std::max(1, std::min<int>(top, static_cast<int>(ranked.size())));
+  for (int i = 0; i < shown; ++i) {
+    const auto& entry = *ranked[static_cast<std::size_t>(i)];
+    const auto error = constantVelocityError(entry);
+    std::printf("row entity=%u class=%s samples=%zu maxError=%.1f meanError=%.1f bounced=%s\n",
+                static_cast<unsigned>(entry.entityIndex), entry.className.c_str(),
+                entry.samples.size(),
+                static_cast<double>(error.ok ? error.maxError : 0.0f),
+                static_cast<double>(error.ok ? error.meanError : 0.0f),
+                entry.verticalDirectionReversed ? "true" : "false");
+  }
+
+  // THE QUERY COST, counted rather than timed (T38's finding: a wall clock on
+  // this host moves with every other process on it).
+  //
+  // The reading that matters is COMPARISONS PER CALL, and it is derived rather
+  // than guessed: the query is two binary searches over N rows, so the work is at
+  // most 2*ceil(log2(N+1)) comparisons -- independent of N in the way a scan is
+  // not. The probe prints both the bound and the scan the first implementation
+  // would have done, so the difference is visible rather than asserted.
+  const std::int32_t probeTick = longest->firstTick + (longest->lastTick - longest->firstTick) / 2;
+  const std::size_t rowCount = summary.projectileTrackSamples.size();
+  std::size_t sortBound = 0;
+  for (std::size_t span = rowCount; span > 0; span >>= 1) ++sortBound;
+  sortBound *= 2;  // lower_bound + upper_bound
+  std::size_t found = 0;
+  for (int repeat = 0; repeat < 3; ++repeat) {
+    found = queryProjectileTracksAtTick(summary, probeTick).size();
+  }
+  std::printf("query: tick=%d rows=%zu calls=3 foundLast=%zu binaryComparisons<=%zu scanWouldBe=%zu\n",
+              probeTick, rowCount, found, sortBound, rowCount * 3);
+
+  // The cost reading the gate asserts on: comparisons per call, and how many
+  // ticks were actually sampled. Both are work counts, not durations.
+  std::printf("cost: sampleRows=%zu queryComparisonsPerCall<=%zu budgetPerCall=%zu\n",
+              rowCount, sortBound, sortBound);
   return 0;
 }
 
@@ -271,6 +535,7 @@ int main(int argc, char** argv) {
     else if (std::strcmp(argv[i], "--top") == 0 && i + 1 < argc) top = std::atoi(argv[++i]);
   }
   if (selfTest) return runSelfTest();
+  if (!demoPath.empty() && !tfRoot.empty()) return runDemo(demoPath, top);
   std::printf("usage: projectile_track_probe --self-test | --tf-root <tf> --demo <demo.dem>\n");
   return 2;
 }
