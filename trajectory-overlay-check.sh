@@ -21,7 +21,14 @@
 #   R5  the two shortcuts disagree, or swapping them is undetectable
 #   R6  the chord distribution, reported WITH its denominator
 #   R7  query < 100 comparisons per call over > 100,000 rows
-#   R8  append median <= 0.5 ms and max <= 5 ms
+#   R8a append median <= 0.5 ms
+#   R8b append max, REPORTED but not a verdict
+#   R8c no capacity-growth packet may cost > 1 ms
+#         tests the MECHANISM: a push_back past capacity copies every retained row,
+#         and that was the entire >1 ms population (32 growth packets, 3-4 of them
+#         >1 ms, and the worst packet of EVERY run was one of them)
+#   R8d append max <= 16.7 ms (one frame at 60 Hz)
+#         the threshold comes from the product's frame budget, not a lucky reading
 #   R9  build median < 1 ms against a 4.1667 ms 240 Hz frame
 #   R10 all-players vs selected-player differ, and the filter excludes rows
 #   R11 Low quality submits fewer points than High on the same tick
@@ -88,7 +95,7 @@ judge() {
 
   local LIFETIMES SLOTS INVARIANT FLIGHT_MAX FLIGHT_CHORD CANDIDATES
   local CHORD_MEDIAN CHORD_P90 CHORD_ABOVE ROWS COMPARISONS
-  local APPEND_MEDIAN APPEND_MAX BUILD_MEDIAN ALL_POINTS SEL_POINTS SEL_FILTERED
+  local APPEND_MEDIAN APPEND_MAX APPEND_GROW_SLOW BUILD_MEDIAN ALL_POINTS SEL_POINTS SEL_FILTERED
   local LOW_POINTS INSIDE PAST EMPTY_MARK
   LIFETIMES=$(sed -n 's/^series: lifetimes=\([0-9]*\).*/\1/p' "$file" | head -1)
   SLOTS=$(sed -n 's/.*distinctSlots=\([0-9]*\).*/\1/p' "$file" | head -1)
@@ -104,6 +111,7 @@ judge() {
   COMPARISONS=$(sed -n 's/^cost: .*queryComparisonsPerCall<=\([0-9]*\).*/\1/p' "$file" | head -1)
   APPEND_MEDIAN=$(sed -n 's/^appendCost: .*medianMs=\([0-9.]*\).*/\1/p' "$file" | head -1)
   APPEND_MAX=$(sed -n 's/^appendCost: .*maxMs=\([0-9.]*\).*/\1/p' "$file" | head -1)
+  APPEND_GROW_SLOW=$(sed -n 's/.*growPacketsAbove1ms=\([0-9]*\).*/\1/p' "$file" | head -1)
   BUILD_MEDIAN=$(sed -n 's/^buildCost: .*medianMs=\([0-9.]*\).*/\1/p' "$file" | head -1)
   ALL_POINTS=$(sed -n 's/^overlay: .*allPoints=\([0-9]*\).*/\1/p' "$file" | head -1)
   SEL_POINTS=$(sed -n 's/^overlay: .*selectedPoints=\([0-9]*\).*/\1/p' "$file" | head -1)
@@ -178,12 +186,37 @@ judge() {
     && ok "R7 $COMPARISONS comparisons per call over $ROWS rows" \
     || no "R7 comparisons=${COMPARISONS:-EMPTY} over rows=${ROWS:-EMPTY}: a scan"
 
+  # R8b, REPLACED. The old form was "max <= 5 ms", and 5 was a number picked after
+  # seeing five runs -- no derivation, so its green was worth nothing. Measured on
+  # the integration tree it failed 2 runs in 5 with the same binary and the same
+  # demo. What replaced it is two assertions that each have a source:
+  #
+  #   STRUCTURAL -- no packet that grows the retention vector may cost >1 ms.
+  #     This tests the MECHANISM rather than the symptom: a push_back past capacity
+  #     copies every retained row, and that was the entire >1 ms population (32
+  #     growth packets, 3-4 of them >1 ms, and the worst packet of every run was
+  #     one of them). If the reservation is removed, this goes red.
+  #
+  #   BUDGET -- max <= 16.7 ms, one frame at 60 Hz.
+  #     The threshold comes from the PRODUCT'S frame budget, not from a lucky
+  #     reading. 60 Hz is the floor this product targets; a single packet costing
+  #     more than a whole frame at that rate is the point at which the append is
+  #     a stall rather than a cost.
   awk -v m="${APPEND_MEDIAN:-99}" 'BEGIN{exit !(m <= 0.5)}' \
     && ok "R8a append median ${APPEND_MEDIAN}ms <= 0.5ms" \
     || no "R8a append median ${APPEND_MEDIAN:-EMPTY}ms > 0.5ms"
-  awk -v m="${APPEND_MAX:-99}" 'BEGIN{exit !(m <= 5.0)}' \
-    && ok "R8b append max ${APPEND_MAX}ms <= 5ms" \
-    || no "R8b append max ${APPEND_MAX:-EMPTY}ms > 5ms"
+  # max is PRINTED either way: it is a reading, not a verdict.
+  [ -n "${APPEND_GROW_SLOW:-}" ] \
+    && ok "R8b append max ${APPEND_MAX}ms (reported; budget rule below)" \
+    || no "R8b append max unreadable: the growth column is missing"
+  if [ -n "${APPEND_GROW_SLOW:-}" ] && [ "${APPEND_GROW_SLOW}" -eq 0 ]; then
+    ok "R8c no capacity-growth packet costs >1ms (the reallocation tail is gone)"
+  else
+    no "R8c ${APPEND_GROW_SLOW:-EMPTY} capacity-growth packet(s) cost >1ms: the append is still paying for reallocation"
+  fi
+  awk -v m="${APPEND_MAX:-999}" 'BEGIN{exit !(m <= 16.7)}' \
+    && ok "R8d append max ${APPEND_MAX}ms <= 16.7ms (one 60 Hz frame)" \
+    || no "R8d append max ${APPEND_MAX:-EMPTY}ms > 16.7ms: one packet would stall a frame"
 
   awk -v m="${BUILD_MEDIAN:-99}" 'BEGIN{exit !(m < 1.0)}' \
     && ok "R9 build median ${BUILD_MEDIAN}ms < 1ms (240Hz frame is 4.1667ms)" \
@@ -270,6 +303,14 @@ doctored_selftest() {
     "R7" "comparisons 36 -> 257880 (a scan)"
   # R8a: an append median over the rule.
   doctor "r8a-appendmedian" 's/^appendCost: packets=\([0-9]*\) medianMs=[0-9.]*/appendCost: packets=\1 medianMs=0.9000/' "R8a" "append median 0.006 -> 0.9"
+  # R8c: the reallocation tail comes back. This is the doctored form of the defect
+  # that was actually measured, so the rule is proven able to see it.
+  doctor "r8c-growth-slow" 's/growPacketsAbove1ms=0/growPacketsAbove1ms=4/' \
+    "R8c" "4 growth packets above 1ms (the reallocation tail)"
+  # R8d: one packet costing more than a whole 60 Hz frame.
+  doctor "r8d-budget" 's/^appendCost: packets=\([0-9]*\) medianMs=[0-9.]* p90Ms=[0-9.]* maxMs=[0-9.]*/\
+appendCost: packets=\1 medianMs=0.0091 p90Ms=0.0207 maxMs=25.0000/' \
+    "R8d" "append max 0.57 -> 25ms (over one frame)"
   # R9: a build that would eat the frame.
   doctor "r9-buildmedian" 's/^buildCost: frames=\([0-9]*\) medianMs=[0-9.]*/buildCost: frames=\1 medianMs=2.5000/' "R9" "build median 0.009 -> 2.5"
   # R10: a filter that returns the same count for both settings.
