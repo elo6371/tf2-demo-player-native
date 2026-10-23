@@ -417,6 +417,12 @@ run_frame() { # run_frame <prefix> [args...]
   local -a productArgs=(
     --tf-root "$TF" --hidden-window --audio-disabled --demo "$DEMO"
     --capture-tick "$TICK" --playback-speed "$SPEED" --capture-frame "$prefix.bmp"
+    # T52 (2026-10-23): the region assertions compare pixels against regions, so the
+    # region has to bound what the pass DREW. Without this the product publishes the
+    # entity AABB and the drawn triangles stick out of it by a 1-6 px fringe, so the
+    # assertion measures its own ruler instead of the overlay. Part of the launch this
+    # helper builds, so a caller cannot forget it.
+    --outline-vertex-extent
     "$@"
   )
   case " ${productArgs[*]} " in
@@ -705,6 +711,15 @@ printf "%s\n" "${ATTR:-}" | sed "/^$/d" | sed "s/^/    /"
 ATTR_ROWS=$(printf "%s\n" "${ATTR:-}" | grep -c "^attr " 2>/dev/null || true)
 ATTR_OUT=$(printf "%s\n" "${ATTR:-}" | grep -c "inside=0" 2>/dev/null || true)
 assert_ge "published items with an attribution row" "${ATTR_ROWS:-0}" "1"
+# The ruler is itself a reading: every published region must come from the projected
+# VERTICES of the mesh the draw consumes (extent=1). If the product falls back to the
+# entity AABB, or the switch is dropped from the launch, this goes red -- a region that
+# claims to be the drawn extent but is the sampler hull would quietly re-open the
+# question this fix closes.
+EXTENT=$("$PY" "$PWD/outline-regions.py" --extent --trace "$OUT/on.trace" 2>/dev/null || true)
+echo "  region source: ${EXTENT:-<none>}"
+assert_ge "drawn items on the capture frame" "$(echo "$EXTENT" | grep -o "items=[0-9]*" | cut -d= -f2)" "1"
+assert_eq "items whose region is the drawn extent" "$(echo "$EXTENT" | grep -o "extent1=[0-9]*" | cut -d= -f2)" "$(echo "$EXTENT" | grep -o "items=[0-9]*" | cut -d= -f2)"
 echo "  attribution verdict: ${ATTR_OUT:-0} of ${ATTR_ROWS:-0} published boxes do NOT contain their nearest blob centroid"
 echo "  (0 outside => the boxes follow the paint and the error is in the projection;"
 echo "   any outside => the box derivation, world->screen, is the defect -- see report 9.5)"
@@ -1085,7 +1100,7 @@ PYEOF
   # hard stop below is what keeps this from recurring.
   patch_in "$MUT_RENDERER" \
 "      ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();" \
-"      ? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get()"
+"      ? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get();"
   M2_APPLIED=$?
   if ! mut_applied "$M2_APPLIED"; then
     mut_fail=1
@@ -1359,6 +1374,32 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m11" "identity mismatches in the readback table" "0" "${M11_BAD:-0}"
   fi
   restore_all; rebuild_product "restore after m11" || true
+
+  # ---- m12: shift the draw 3 px away from the region it publishes --------
+  echo
+  echo "  -- m12: the GPU draw is shifted 3 px, the box is not --"
+  # A ruler is only a ruler if a broken overlay is caught by it. This shifts the
+  # matrix the GPU draws with (the constant buffer) by 0.005 in NDC -- 3 px at 1264 --
+  # and leaves the box the pass publishes computed from the UNSHIFTED mvpForOverlay.
+  # If outsideDiff does not leave the fixed reading, the new region rule is soft and
+  # this round proved nothing.
+  patch_in "$MUT_RENDERER" \
+"          overlayConstants.mvp = frameConstants.mvp;" \
+"          overlayConstants.mvp = frameConstants.mvp;
+          /* mutation m12: shift only what the GPU draws; the published box keeps the
+             unshifted matrix, so region and pixels move apart by 3 px. */
+          for (int shiftRow = 0; shiftRow < 4; ++shiftRow) {
+            overlayConstants.mvp.m[shiftRow][0] += 0.005f * frameConstants.mvp.m[shiftRow][3];
+          }" || mut_fail=1
+  if rebuild_product m12; then
+    M12_RC=$(run_frame "$OUT/m12" --outline on)
+    M12_NI=$("$PY" outline-frame-check.py noninterference on="$OUT/m12.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
+    M12_OUT=$(echo "$M12_NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)
+    echo "    m12 outsideDiff=${M12_OUT:-<none>} (fixed build: ${NI_OUT:-<none>})"
+    must_move "m12" "pixels outside every drawn region with the draw shifted 3 px" \
+      "${NI_OUT:-0}" "${M12_OUT:-0}"
+  fi
+  restore_all; rebuild_product "restore after m12" || true
 
   # The restored tree must be the FIXED tree, and a byte-exact restore plus a
   # rebuild is only half of that: the binary has to read green again, or every

@@ -75,6 +75,8 @@ def parse_args(argv):
             args["mode"] = "depthstats"
         elif item == "--attribute":
             args["mode"] = "attribute"
+        elif item == "--extent":
+            args["mode"] = "extent"
         elif item == "--trace":
             pending = "--trace"
         elif item == "--depth":
@@ -100,9 +102,15 @@ def parse_args(argv):
 
 # One row per drawn silhouette. The format is fixed by the product:
 #   outline: item entity=12 team=red depth=xray x0=.. y0=.. x1=.. y1=.. depth=0.53 onScreen=1
+#   T52 (2026-10-23): the line gained `extent=` (1 = the region is the projected
+#   vertices of the mesh the draw consumes, 0 = the entity AABB, 2 = vertices asked
+#   for and none in front of the eye) and `aabb=`, the old rule's box. Optional in
+#   the pattern so an older trace still parses, but the gate asserts extent=1 rather
+#   than assuming it.
 ITEM = re.compile(
     r"outline: item entity=(\d+) team=(\w+) depth=(\w+) "
-    r"x0=(-?\d+) y0=(-?\d+) x1=(-?\d+) y1=(-?\d+) depth=([0-9.]+) onScreen=([01])")
+    r"x0=(-?\d+) y0=(-?\d+) x1=(-?\d+) y1=(-?\d+) depth=([0-9.]+) onScreen=([01])"
+    r"(?: extent=(\d+) aabb=(-?\d+),(-?\d+),(-?\d+),(-?\d+))?")
 
 
 DRAW = re.compile(r"outline: draw ")
@@ -156,6 +164,11 @@ def read_items(path, frame="captured"):
                 "y1": int(match.group(7)),
                 "depth": float(match.group(8)),
                 "onScreen": match.group(9) == "1",
+                # -1 when the trace predates the field: "unknown" is not "0".
+                "extent": int(match.group(10)) if match.group(10) is not None else -1,
+                "aabb": (int(match.group(11)), int(match.group(12)),
+                         int(match.group(13)), int(match.group(14)))
+                        if match.group(11) is not None else None,
             })
     if not groups:
         return []
@@ -398,6 +411,14 @@ def main(argv):
         print("bytes=%d nonGreyPct=%.2f nonzeroPct=%.2f uniqueSampled=%d"
               % (stats["bytes"], stats["nonGreyPct"], stats["nonzeroPct"],
                  stats["uniqueSampled"]))
+        return 0
+    if args.get("mode") == "extent":
+        rows = [i for i in read_items(args["trace"], args.get("frame", "captured")) if i["onScreen"]]
+        counts = {1: 0, 0: 0, 2: 0, -1: 0}
+        for row in rows:
+            counts[row["extent"] if row["extent"] in counts else -1] += 1
+        print("items=%d extent1=%d extent0=%d extent2=%d extentMissing=%d"
+              % (len(rows), counts[1], counts[0], counts[2], counts[-1]))
         return 0
     if args.get("mode") == "attribute":
         if not (args["trace"] and args["on"] and args["off"]):

@@ -926,6 +926,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   tf2::native::OverlayDepthMode outlineDepthMode = tf2::native::OverlayDepthMode::XRay;
   bool outlineArgumentRejected = false;
   bool outlineDepthGiven = false;
+// T52 (2026-10-23): publish each silhouette's region from the vertices the draw
+// consumes instead of from the entity AABB. Off by default: it transforms every
+// vertex of every silhouette every frame, which no normal run needs. The gate turns
+// it on for the runs whose regions it measures, and asserts extent=1 on the lines.
+bool outlineVertexExtent = false;
   // Standalone `--model` skinning contract. The single-model path is a separate
   // contract from the entity-instance path: it uploads one skeleton to b1, so
   // it can and must enable the skinning branch explicitly. Three knobs:
@@ -1642,6 +1647,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else outlineArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--outline-depth") == 0) {
         outlineArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--outline-vertex-extent") == 0) {
+        outlineVertexExtent = true;
 
       } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
         captureFramePath = arguments[++i];
@@ -5335,11 +5342,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // is the pass's own projection of that entity's extent, so "this region is
     // red" is a statement about THIS entity rather than about the picture.
     for (const auto& item : pass.items) {
-      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d legacy=%d,%d,%d,%d",
+      // `extent=` says which rule produced the box on this line: 1 = the projected
+      // vertices of the mesh the draw consumes, 0 = the entity AABB's corners (the
+      // switch was off), 2 = vertices asked for and none in front of the eye. The AABB
+      // box rides along as aabb= so a region that is right for the wrong reason can be
+      // told from one that was fixed.
+      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d extent=%d aabb=%d,%d,%d,%d legacy=%d,%d,%d,%d",
         static_cast<unsigned>(item.entityIndex),
         tf2::native::overlayTeamName(item.team),
         tf2::native::overlayDepthModeName(item.depthMode),
         item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0,
+        item.extentSource, item.aabbX0, item.aabbY0, item.aabbX1, item.aabbY1,
         item.legacyX0, item.legacyY0, item.legacyX1, item.legacyY1);
       // The attribution line: box vs painted pixels is decided by these numbers,
       // not by another guess. See the report's section 8.0 for the rule that was
@@ -6939,6 +6952,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             outlineStats.lastPoseWorld = list.poseSourceWorld;
             outlineStats.lastPoseBind = list.poseSourceBind;
             outlineStats.lastSamples = samples.size();
+            // Where the region comes from, set with the list so the pass and the reading
+            // cannot disagree about which rule produced the box.
+            renderer.setOverlayVertexExtent(outlineVertexExtent);
             renderer.setOverlayDrawList(list);
             ++g_overlayFramesWithList;
           }

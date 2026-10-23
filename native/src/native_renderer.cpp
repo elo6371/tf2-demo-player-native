@@ -5636,8 +5636,22 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                 reading.legacyY0 = static_cast<int>((0.5f - legacyMaxY * 0.5f) * static_cast<float>(height_));
                 reading.legacyY1 = static_cast<int>((0.5f - legacyMinY * 0.5f) * static_cast<float>(height_));
               }
-              if (!vertexBoxDone && instance.vertexPositions && instance.vertexPositionCount > 0) {
-                vertexBoxDone = true;
+              // T52 (2026-10-23): which box the REGION comes from. The pass draws the
+              // class mesh's triangles; the AABB it used to publish is the sampler's hull
+              // for the entity. Measured on the reference recording they differ by a 1-6 px
+              // fringe of painted pixels outside the box, i.e. the assertion's ruler was
+              // the wrong object. When the switch is on, every silhouette publishes the
+              // projection of ITS OWN vertices (through the same rows and the same mvp the
+              // shader was handed), and the AABB box is kept beside it for attribution.
+              // Skinned instances are excluded on purpose: the CPU has the BIND positions,
+              // so projecting them would publish a box for a pose nobody draws. Those
+              // items fall back to the AABB and are counted as extent=2, which the gate
+              // reads as "the region is not the drawn extent" instead of trusting it.
+              const bool wantVertexBox = overlayVertexExtent_ && instance.skinned == 0
+                && instance.vertexPositions && instance.vertexPositionCount > 0;
+              if ((wantVertexBox || (!vertexBoxDone && instance.vertexPositions))
+                  && instance.vertexPositionCount > 0) {
+                if (!wantVertexBox) vertexBoxDone = true;
                 float vMinX = 1.0e30f, vMinY = 1.0e30f, vMaxX = -1.0e30f, vMaxY = -1.0e30f;
                 std::uint32_t inFront = 0;
                 for (std::uint32_t vertex = 0; vertex < instance.vertexPositionCount; ++vertex) {
@@ -5669,10 +5683,29 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
               reading.ndcWidth = maxX - minX;
               reading.ndcHeight = maxY - minY;
               if (projected) {
-                reading.x0 = static_cast<int>((minX * 0.5f + 0.5f) * static_cast<float>(width_));
-                reading.x1 = static_cast<int>((maxX * 0.5f + 0.5f) * static_cast<float>(width_));
-                reading.y0 = static_cast<int>((0.5f - maxY * 0.5f) * static_cast<float>(height_));
-                reading.y1 = static_cast<int>((0.5f - minY * 0.5f) * static_cast<float>(height_));
+                reading.aabbX0 = static_cast<int>((minX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.aabbX1 = static_cast<int>((maxX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.aabbY0 = static_cast<int>((0.5f - maxY * 0.5f) * static_cast<float>(height_));
+                reading.aabbY1 = static_cast<int>((0.5f - minY * 0.5f) * static_cast<float>(height_));
+                reading.x0 = reading.aabbX0;
+                reading.x1 = reading.aabbX1;
+                reading.y0 = reading.aabbY0;
+                reading.y1 = reading.aabbY1;
+                reading.extentSource = 0;
+                if (wantVertexBox) {
+                  if (reading.vertexCountProjected > 0) {
+                    reading.x0 = reading.vertexX0;
+                    reading.x1 = reading.vertexX1;
+                    reading.y0 = reading.vertexY0;
+                    reading.y1 = reading.vertexY1;
+                    reading.extentSource = 1;
+                  } else {
+                    // Asked for the drawn extent and got nothing in front of the eye: say
+                    // so, and keep the AABB box. A silent fallback here would be a region
+                    // that claims to be the drawn one and is not.
+                    reading.extentSource = 2;
+                  }
+                }
                 reading.depth = nearest;
                 reading.onScreen = reading.x1 >= 0 && reading.y1 >= 0
                   && reading.x0 < static_cast<int>(width_) && reading.y0 < static_cast<int>(height_);

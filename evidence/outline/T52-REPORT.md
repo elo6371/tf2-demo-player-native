@@ -1198,6 +1198,36 @@ differing 484 | inside 187 | outside 297
 实际绘制范围紧，修法在测量侧（用产品实际绘制的范围，或让产品发布已外扩/已考虑姿态的框），
 不是"产品把对象画错了地方"。定性到此为止：**case (c)，我们错**。
 
+### 16.6 上一轮写下的 case (c)，被本轮读数否掉了（2026-10-23 15:0x）
+
+上一轮的结论是"判据把发布框当成绘制范围，框比画出来的紧一圈"（case (c)，我们错）。
+本轮把尺子换成"这一次 draw 的顶点"之后（第 18 节），outsideDiff **没有归零，而是 297 -> 373**：
+
+<<<F>>>text
+diff_outside=373 diff_inside=111 regions=14      VERDICT FAIL
+<<<F>>>
+
+同一轮里的像素证据说明了为什么：
+
+<<<F>>>text
+发布框（14 条）：x 505..516, y 340..351   宽 2..10 px、高 1..3 px
+team 色墨迹：415 px，落在 453..567 x 325..342
+同帧差异像素里另有 69 px 不是 team 色（on=(184,184,184) / off=(0,0,0)）
+<<<F>>>
+
+- 框与墨迹在 x 上重合，在 y 上**框比墨迹低 3-14 px**；
+- 框量到的那块几何只有 1-3 px 高，画出来的是 10-14 px 高的站立人形；
+- 两条尺子（AABB 与顶点）投影的是**同一块短网格**，所以换尺子不会改变结论。
+
+结论：**病根在"框的世界->屏幕推导"（case b），不在"拿哪个来源当区域"（case c）。**
+上一轮的 (c) 是个合理假设，被一次对撞实验否掉了——这正是"先归因、后定性"的价值：
+它把下一轮的工作从"改测量口径"改成了"查这块比人形矮 4-5 倍的几何是从哪来的"。
+
+下一轮第一个测试（一句话）：同一个 item，把 CPU 侧 rows*vertex 的世界坐标与 GPU 实例缓冲里
+的 rows 逐元素比对，并打印该 draw range 的 vertexBuffer 与 instance.vertexPositions 是否来自
+同一个 mesh 缓存；任何一处不同，4-5 倍的差异就有解释。
+
+
 ## 17. 顺序：第 5 段是整合前置条件，D1 归因不是
 
 2026-10-23 13:2x 用户定：**等 T52 第 5 段完成，再一次性整合 T52 -> T53 -> T54**。
@@ -1216,6 +1246,110 @@ D1 归因                             -> 继续做，但不阻塞整合
 
 这条顺序也改了 D1 的措辞：它是**一条未归因的红**，不是"已确认的产品缺陷"。
 归因表（第 16 节）把手指向哪一侧，才配叫那一侧的缺陷——先归因，后定性。
+
+## 18. 修尺子：区域改由"这次 draw 的顶点"推出——以及它测出的新读数
+
+### 18.1 动作：不动那个 0，动"区域从哪来"
+
+```text
+assert_eq "differing pixels outside every drawn region" ... "0"     <- 一个字没动
+region 的来历换了：同一个 mvp、同一个实例矩阵、同一次 draw 的顶点
+```
+
+以前是投影实体的**世界 AABB 八个角**（采样器给的实体外壳）；现在是把这个实例**自己的顶点**
+（instance.vertexPositions，就是那次 draw 的顶点缓冲里的顶点）用**同一个实例矩阵**变换、用
+**同一个 mvp** 投影，取屏幕包围盒。开关 --outline-vertex-extent 默认关（每帧每个描边都要过一遍
+顶点，正常运行不需要），门禁在它测的所有捕获里都带。蒙皮实例被排除：CPU 手上是 bind 姿态的顶点，
+投影它就是给一个没人画的姿态发框；它们落 extent=2，门禁读成"这个区域不是绘制范围"。
+
+门禁新增一条，把尺子本身变成读数：
+```text
+region source: items=14 extent1=14 extent0=0 extent2=0 extentMissing=0
+OK   items whose region is the drawn extent = 14
+```
+把 --outline-vertex-extent 从启动参数里去掉，这条立刻红——尺子退回旧规则不会再无声发生。
+
+### 18.2 读数：**373**（上一轮 AABB 尺子是 297）
+
+```text
+diff_outside=373 diff_inside=111 regions=14      VERDICT FAIL
+OK   precondition: the two runs saw the same scene (484 differing pixels < 2% of the frame)
+FAIL differing pixels outside every drawn region = 373, expected 0
+OK   differing pixels INSIDE the drawn regions = 111 (>= 1)
+```
+
+按你定的规矩：**它没有变成 0，那这个数就是一条新的真实读数，不抹掉。** 而且它比 297 更大，
+说明"区域该从 AABB 换成顶点"这个方向**本身就不是病根**。同一轮里 attribution 与像素证据一起
+说明了原因：
+
+```text
+发布框（14 条）：x 459..566, y 340..351 —— 宽 2..10 px、高 1..3 px
+画出来的 team 色像素：415 个，落在 453..567 x 325..342
+同帧差异像素里另有 69 个**不是 team 色**（on=(184,184,184) / off=(0,0,0)）
+```
+
+即：**框和墨迹在 x 上重合，在 y 上框比墨迹低 3-14 px**；框量到的那块几何只有 1-3 px 高，
+而画出来的剪影是 10-14 px 高的站立人形。两条尺子（AABB 与顶点）投影的是**同一块短网格**，
+所以换尺子当然没用——**错的是这块网格/它的变换，不是"用 AABB 还是用顶点"**。
+
+这是本轮最有价值的一条：**尺子换到了对的位置，读数立刻把上一轮的归因否掉**。上一轮写的是
+case (c)「框比绘制范围紧一圈，是测量方法错」；现在看是 **case (b)「框的世界→屏幕推导错」**，
+框来自一块比人形矮 4-5 倍的几何。归因到此为止，定性下轮做。
+
+### 18.3 位移变异 m12：只平移画的东西，不动框
+
+```cpp
+overlayConstants.mvp = frameConstants.mvp;
+/* m12: 只平移 GPU 拿去画的矩阵；发布框仍用未平移的 mvpForOverlay */
+for (int shiftRow = 0; shiftRow < 4; ++shiftRow) {
+  overlayConstants.mvp.m[shiftRow][0] += 0.005f * frameConstants.mvp.m[shiftRow][3];
+}
+```
+
+0.005 NDC x (1264/2) = 3.16 px。矩阵与框一起平移会让断言保持绿，那正是"软尺子"的样子；
+所以变异只动常量缓冲。读数见 19 节（--mutation 同一轮）。
+## 19. 变异套件读数（2026-10-23 15:0x，与 forward 同一次持锁运行）
+
+```text
+m1  RED      色块落到错误队伍的 region = 61 (fixed 0)
+m2  INVALID  变异后的源码不编译 -> 这条什么都没证明（见 19.1）
+m3  RED      --outline off 帧里的 team 色像素 = 415 (fixed 0)
+m4  RED      通过顺序 overlay before viewModel = 0 (fixed 1)；ordinal 7 (fixed 6)
+m5  GREEN    亮度写状态 1 -> 1，变异没有移动读数（见 19.2）
+m6  RED      去掉 hold 后 speed=1 与 speed=8 采到的不是同一帧
+m7  RED      x2：无 class 兜底时 submitted=0 (fixed 14)、noMesh=20 (fixed 6)
+m8  RED      丢 upload key 后真正画出的剪影 = 0 (fixed 5)
+m9  RED      bind 优先于 world 时 probe 自检失败 = 5 (fixed 0)
+m10 RED      彩色帧当深度图的非灰比例 = 16.76 (fixed 0)
+m11 RED      读回表里实体不匹配 = 127484 (fixed 0)
+m12 RED      画的东西平移 3 px 后框外像素 = 488 (fixed 373)
+
+MUTATION-SUITE=FAIL  (mutations that did not compile: 1)
+```
+
+九条红是九条有面的读数；两条不红/无效，都是本轮的真读数，不是"跑过了"。
+
+### 19.1 m2 为什么无效：变异文本吞掉了分号
+
+旧锚点：`? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();`
+替换：  `? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get()`  <- 少了结尾的 `;`
+于是变异体是 `...Get()` 后面直接跟下一行语句，MSVC 在 5496 报 C2013。
+**这比"没跑"更值得记**：它说明 m2 在过去某一版锚点改写后就再也没编译过，
+而套件当时仍报了一个 GREEN——一个从未被真正变异的构建。已补回分号（本条已修，下轮复核）。
+
+### 19.2 m5 为什么 GREEN：读数说 1，而代码创建的是 ZERO
+
+```text
+code : overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;   (1327，两个状态共用)
+       overlayXRayDepthWriteEnabled_ 默认 false                        (native_renderer.h:1239)
+trace: outline: draw ... depthTest=0 depthWrite=1 ... stateTest=0 stateWrite=1
+```
+两者互相矛盾：创建的是 ZERO，读回来的成员却是 1，所以变异体（改成 ALL）当然读 1。
+这不是"变异没咬人"，是**读数没有接到那个状态上**——正是我们要找的第六种坏形状
+（mechanism not wired to verdict）。下一个测试：在那条 draw 行里同时打印
+`overlayDepthStencilState->GetDesc()` 的 DepthWriteMask 原始值，看 1 是从哪一路来的。
+本轮不改这个机制：改了就没有读数可依据。
+
 
 ## 8. 交接
 

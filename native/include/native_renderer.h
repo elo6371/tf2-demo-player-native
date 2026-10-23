@@ -674,6 +674,8 @@ public:
   // counter, so "the overlay drew before the weapon" is a number a gate reads
   // rather than a claim about the order of two statements.
   const OverlayPassReading& overlayPassReading() const { return overlayPassReading_; }
+  void setOverlayVertexExtent(bool enabled) { overlayVertexExtent_ = enabled; }
+  bool overlayVertexExtent() const { return overlayVertexExtent_; }
   const std::vector<std::pair<std::uint32_t, std::uint32_t>>& overlayInstanceIdentity() const {
     return overlayInstanceIdentity_;
   }
@@ -1291,6 +1293,11 @@ private:
   // the silhouettes are drawn from are filled from one vector in one order; this is
   // the reading that says whether that is still true.
   std::vector<std::pair<std::uint32_t, std::uint32_t>> overlayInstanceIdentity_;
+  // T52: when set, the region published for each silhouette is the projected
+  // VERTICES of the mesh the draw consumes, not the entity AABB's corners. Off by
+  // default because it transforms every vertex of every silhouette every frame;
+  // the gate turns it on for the runs it measures.
+  bool overlayVertexExtent_ = false;
   // Line and marker primitives (T53's), built with the world's own vertex
   // layout so a trail lands on the world it describes. Both modes' vertices
   // share one buffer and are drawn by range, so submitting the second list of a

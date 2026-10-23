@@ -1,0 +1,16 @@
+=== build tf2_demo_native entity_overlay_probe ===
+build failed (rc=2); preserving .scratch/build-target.log.failed-attempt-1 and retrying once
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(3354): warning C4456: 鈥渨orld鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(4166): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(4167): warning C4267: 鈥?鈥? 浠庘€渟ize_t鈥濊浆鎹㈠埌鈥渦int32_t鈥濓紝鍙兘涓㈠け鏁版嵁
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(4474): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(4644): warning C4456: 鈥渧iew鈥濈殑澹版槑闅愯棌浜嗕笂涓€涓湰鍦板０鏄?
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(5496): error C2013: 搴旇緭鍏モ€?鈥?
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(5750): error C2059: 璇硶閿欒:鈥?鈥?
+D:\TF2_Native_Worktrees\t52-outline\native\src\native_renderer.cpp(5801): error C3536: 鈥渄rawOverlayPass鈥? 鍒濆鍖栦箣鍓嶆棤娉曚娇鐢?
+NMAKE : fatal error U1077: ��"C:\Program Files\CMake\bin\cmake.exe" -E cmake_cl_compile_depends --dep-file=CMakeFiles\tf2_demo_native.dir\src\native_renderer.cpp.obj.d --working-dir=D:\TF2_Native_Worktrees\t52-outline\native\build-nmake --filter-prefix="注意: 包含文件:  " -- "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe" @C:\Users\ADMINI~1\AppData\Local\Temp\nm5AC4.tmp��: ���ش��롰0x2��
+NMAKE : fatal error U1077: ��"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\nmake.exe" -s -f CMakeFiles\tf2_demo_native.dir\build.make /nologo -SL                 CMakeFiles\tf2_demo_native.dir\build��: ���ش��롰0x2��
+NMAKE : fatal error U1077: ��"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\nmake.exe" -s -f CMakeFiles\Makefile2 /nologo -SL                 CMakeFiles\tf2_demo_native.dir\all��: ���ش��롰0x2��
+NMAKE : fatal error U1077: ��"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\nmake.exe" -s -f CMakeFiles\Makefile2 /nologo -LS                 tf2_demo_native��: ���ش��롰0x2��
+build FAILED (rc=2); full output preserved at .scratch/build-target.log.failed
+rc=2
