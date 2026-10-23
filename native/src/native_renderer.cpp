@@ -5579,6 +5579,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                 reading.legacyY0 = static_cast<int>((0.5f - legacyMaxY * 0.5f) * static_cast<float>(height_));
                 reading.legacyY1 = static_cast<int>((0.5f - legacyMinY * 0.5f) * static_cast<float>(height_));
               }
+              reading.ndcWidth = maxX - minX;
+              reading.ndcHeight = maxY - minY;
               if (projected) {
                 reading.x0 = static_cast<int>((minX * 0.5f + 0.5f) * static_cast<float>(width_));
                 reading.x1 = static_cast<int>((maxX * 0.5f + 0.5f) * static_cast<float>(width_));

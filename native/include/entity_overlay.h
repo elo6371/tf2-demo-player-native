@@ -715,7 +715,10 @@ struct OverlayItemReading {
   float cornerWMin = 0.0f;
   float cornerWMax = 0.0f;
   float worldExtent[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // x0,y0,z0,x1,y1,z1
-  float rowY[4] = {0.0f, 0.0f, 0.0f, 0.0f};  // the instance row that produces world Y
+  // The box the pass publishes, in NDC before the pixel mapping, so the pixel size
+  // it reports can be checked against the projection instead of trusted.
+  float ndcWidth = 0.0f;
+  float ndcHeight = 0.0f;
   float depth = 0.0f;
 };
 
