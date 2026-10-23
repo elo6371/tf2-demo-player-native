@@ -143,3 +143,4 @@ evidence/outline/*.bmp
 evidence/outline/*.trace
 evidence/outline/*.log
 evidence/outline/mutation-backup/
+scratch/

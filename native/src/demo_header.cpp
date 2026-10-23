@@ -10,6 +10,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <queue>
+#include <chrono>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -1277,6 +1278,15 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
     } else if (updateType == 3) {
       ++summary.packetEntityDeleteCount;
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
+      // T53: the lifetime in this slot has ended. Advancing here as well as on
+      // Enter means a slot that is deleted and later re-enters is separated even
+      // if the server reuses the index without a fresh Enter being observable.
+      if (lastEntity >= 0 && lastEntity < 2048) {
+        if (summary.projectileTrackSlotGeneration.size() < 2048u) {
+          summary.projectileTrackSlotGeneration.resize(2048u, 0u);
+        }
+        ++summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)];
+      }
       if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, false, {}, {}});
     } else if (updateType == 2) {
       if (summary.firstPacketEntitiesEnterTick < 0) {
@@ -1317,6 +1327,17 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       auto& classSlot = summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)];
       if (classSlot < 0) ++summary.activeEntityCount;
       classSlot = static_cast<std::int32_t>(classId);
+      // T53: an Enter begins a new entity lifetime in this slot, so the slot's
+      // generation advances. Without this the retention would glue every
+      // projectile that ever occupied the slot into one series. See the note on
+      // ProjectileTrackSample::generation.
+      if (static_cast<std::size_t>(lastEntity) < 2048) {
+        if (summary.projectileTrackSlotGeneration.size() < 2048u) {
+          summary.projectileTrackSlotGeneration.resize(2048u, 0u);
+        }
+        ++summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)];
+        ++summary.projectileTrackSeriesStarted;
+      }
       summary.maxActiveEntityCount = std::max(summary.maxActiveEntityCount, summary.activeEntityCount);
       summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
@@ -1361,6 +1382,11 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
     return true;
   }
   appendEntityHistory(summary, packetTick, isDelta != 0, static_cast<std::int32_t>(deltaFrom), std::move(historyEvents));
+  // T53: additive per-tick projectile retention. Placed after the existing
+  // history append and after the incomplete-packet early return above, so it runs
+  // on exactly the packets that decoded completely -- the same condition
+  // entityHistory uses. It touches no existing field.
+  appendProjectileTrackSamples(summary, packetTick);
   return true;
 }
 
@@ -2218,7 +2244,15 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   // exactly that and reported requests=0 out of 673 references; refusing turns a
   // silent wrong reading into a loud failure.
   if (networkProtocol <= 0) return false;
+  // T53: the retention limits are CONFIGURATION, not scan output, so they survive
+  // the reset below. Without this the caller's `measureAppendCost` and
+  // `maxSamples` were silently thrown away before the first packet was read --
+  // which is exactly how the append cost read "NOT MEASURED" on a run that had
+  // asked for the measurement. Zero-value limits (a caller that set nothing) still
+  // resolve to the struct's own defaults, so the reset stays the default path.
+  const ProjectileTrackLimits projectileTrackLimits = summary.projectileTrackLimits;
   summary = {};
+  summary.projectileTrackLimits = projectileTrackLimits;
   summary.networkProtocol = networkProtocol;
   if (index.entries.empty()) return false;
   summary.entityClassByIndex.assign(2048u, -1);
@@ -2417,6 +2451,317 @@ bool findEntitySnapshotAtOrBeforeTick(const DemoNetworkSummary& summary, std::in
 void appendEntityHistoryPacket(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                                std::int32_t deltaFrom, std::vector<EntityHistoryEvent> events) {
   appendEntityHistory(summary, tick, isDelta, deltaFrom, std::move(events));
+}
+
+// ===========================================================================
+// T53: PER-TICK PROJECTILE TRACK RETENTION
+//
+// ADDITIVE. Nothing above this line changes. queryEntitySnapshotAtOrBeforeTick
+// keeps its exact semantics and its exact readings, because T44/T45/T46 assert
+// against it; this is a second, independent retention with its own query.
+//
+// WHERE THE DATA COMES FROM. The demo already carries it: on koth_bagel_rc13 an
+// independent oracle shows a projectile writing m_vecOrigin on every packet for
+// the whole flight (entity 801: 75 contiguous ticks, 75 origins, no gap), and
+// that series contains a gravity fall, a collision, a bounce and a deflection.
+// What the product lacked was a place that KEPT those writes: the snapshot query
+// answers with the newest retained checkpoint, and on bagel the median gap
+// between checkpoints is 822 ticks against a 60-90 tick flight, so the flight
+// collapsed into one frozen sample.
+// ===========================================================================
+
+// THE CLASS TEST IS THE NAME, AGAINST AN EXPLICIT CLOSED LIST.
+//
+// Not an id: class ids belong to one recording's server class table (elsewhere
+// in this repo CTFViewModel measures 320 on one demo and 18 on another), so a
+// pinned id is a rule that quietly stops matching after the first demo.
+//
+// Not a substring either, because on the real table it is wrong in both
+// directions. Measured over bagel's 355 server classes:
+//   false positives -- CTFRocketLauncher, CTFGrenadeLauncher,
+//     CTFPipebombLauncher, CTFFlameThrower, CTFJar, CTFBottle, CTFPowerupBottle
+//     and CTFRocketPack all match a projectile keyword and are weapons or held
+//     items that sit at (0,0,0); each would draw a trail from the world origin.
+//   false negative -- CTFGrenadePipebombProjectile contains no "CTFProjectile_"
+//     prefix but is the second most common real projectile at 774 spawns.
+//
+// The list is closed so that adding a class is a visible one-line edit and the
+// gate can report which listed classes actually appeared on a demo.
+const std::vector<std::string>& projectileTrackClassNames() {
+  static const std::vector<std::string> kNames = {
+    "CTFProjectile_Rocket",
+    "CTFProjectile_SentryRocket",
+    "CTFGrenadePipebombProjectile",
+    "CTFProjectile_Flare",
+    "CTFProjectile_Arrow",
+    "CTFProjectile_HealingBolt",
+    "CTFProjectile_Cleaver",
+    "CTFProjectile_Jar",
+    "CTFProjectile_JarMilk",
+    "CTFProjectile_JarGas",
+    "CTFProjectile_EnergyBall",
+    "CTFProjectile_BallOfFire",
+    "CTFProjectile_GrapplingHook",
+    "CTFProjectile_MechanicalArmOrb",
+    "CTFBall_Ornament",
+    "CTFStunBall",
+  };
+  return kNames;
+}
+
+bool isProjectileTrackClass(const std::string& className) {
+  for (const auto& name : projectileTrackClassNames()) {
+    if (name == className) return true;
+  }
+  return false;
+}
+
+namespace {
+
+// The class name a class id denotes in THIS recording, or "" when the id is
+// outside the table. Only ever used to turn an id into a name so the name test
+// above can be applied -- never as the test itself.
+const std::string* trackClassNameForId(const std::vector<ServerClassSchema>& classSchemas,
+                                       std::int32_t classId) {
+  if (classId < 0) return nullptr;
+  for (const auto& schema : classSchemas) {
+    if (schema.id == static_cast<std::uint32_t>(classId)) return &schema.name;
+  }
+  return nullptr;
+}
+
+// Reads the handle slots a projectile may name its thrower in, in the order the
+// header documents. Source packs the entity index into the low 11 bits and a
+// serial into the next 10 (basehandle.h: NUM_ENT_ENTRY_BITS 11, ENT_ENTRY_MASK).
+constexpr std::uint32_t kTrackHandleIndexMask = 0x7ffu;
+constexpr std::uint32_t kTrackInvalidHandle = 0xffffffffu;
+
+const char* kOwnerSlots[] = {
+  "m_hOriginalLauncher",  // DT_BaseProjectile
+  "m_hLauncher",          // DT_TFBaseRocket / DT_TFProjectile_Pipebomb
+  "m_hThrower",           // DT_BaseGrenade
+  "m_hOwnerEntity",       // DT_BaseEntity
+};
+
+// Suffix match on a flattened "<owner table>.<prop>" key, the same rule
+// findProperty uses: the name must end in the suffix and be preceded by '.' or
+// be exactly the suffix.
+bool trackSuffixMatch(const std::string& name, const char* suffix) {
+  const std::size_t length = std::strlen(suffix);
+  if (name.size() < length) return false;
+  if (name.compare(name.size() - length, length, suffix) != 0) return false;
+  return name.size() == length || name[name.size() - length - 1] == '.';
+}
+
+// THE ORIGIN READER, AND WHY IT IS NOT A SECOND RULE.
+//
+// The overlay contract forbids drawing a trail at a different origin from the
+// mesh it belongs to, so this reproduces EntityModelResolver::extractTransform's
+// rule rather than inventing one: match names ending in "m_vecOrigin", rank the
+// candidates by lastWriteTick (freshest first) with the same tie-break, and treat
+// a missing z sibling as z = 0.
+//
+// A projectile normally carries exactly one plain m_vecOrigin Vector, so the
+// freshness and sibling terms are silent here. They are implemented anyway,
+// because an agreement assertion between this reader and the resolver is only
+// meaningful if both implement the same rule instead of agreeing on the easy
+// case -- trajectory-overlay-check.sh asserts the two agree on every sampled
+// projectile.
+bool readTrackOrigin(const EntityState& state, float out[3]) {
+  const EntityPropertyValue* best = nullptr;
+  for (const auto& entry : state.properties) {
+    if (!trackSuffixMatch(entry.first, "m_vecOrigin")) continue;
+    const auto& value = entry.second;
+    if (value.type != SendPropType::Vector && value.type != SendPropType::VectorXY) continue;
+    if (!best) { best = &value; continue; }
+    // Freshest slot wins; equal ticks fall back to the same name order the
+    // resolver's comparator produces, which for a projectile never fires.
+    if (value.lastWriteTick > best->lastWriteTick) best = &value;
+  }
+  if (!best) return false;
+  out[0] = best->x;
+  out[1] = best->y;
+  out[2] = best->type == SendPropType::Vector ? best->z : 0.0f;
+  for (int axis = 0; axis < 3; ++axis) {
+    if (!std::isfinite(out[axis])) return false;
+  }
+  return true;
+}
+
+} // namespace
+
+// One append per packet, called from readPacketEntities after the packet has
+// decoded completely. It walks the live entity table rather than the packet's
+// update list on purpose: a projectile that did not change on this packet still
+// EXISTS at this tick, and a trail that only recorded changed entities would
+// have gaps exactly where the projectile was briefly not updated. Its stored
+// origin is the last one written, which is the position it holds at this tick.
+void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick) {
+  ++summary.projectileTrackPacketsScanned;
+  const std::size_t limit = std::max<std::size_t>(1, summary.projectileTrackLimits.maxSamples);
+  // MEASURED, NOT ASSUMED. The append runs on the decode path once per packet and
+  // the judge rule for it is "median <= 0.5 ms, max <= 5 ms", so it reports its own
+  // cost when asked instead of being argued about. Opt-in because a product run
+  // must not pay a clock read per packet for a reading nobody asked for.
+  const bool measure = summary.projectileTrackLimits.measureAppendCost;
+  const auto started = measure ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  // How many entity slots this packet's walk actually visited, so the cost has a
+  // cause attached to it rather than being an unexplained number.
+  std::size_t liveEntities = 0;
+  const auto finish = [&summary, measure, &started, &liveEntities]() {
+    if (!measure) return;
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    summary.projectileTrackAppendMillis.push_back(
+      std::chrono::duration<double, std::milli>(elapsed).count());
+    summary.projectileTrackAppendEntities.push_back(
+      static_cast<std::uint32_t>(liveEntities));
+  };
+
+  // THE CLASS TEST IS CACHED, because it was the dominant cost.
+  //
+  // The first version resolved each entity's class id by scanning the whole
+  // server-class table (355 entries on bagel) and then compared the name against
+  // 16 tracked names, for up to 2048 entity slots -- 727k string comparisons per
+  // packet, 73,118 packets. A mask built once per recording turns that into a
+  // single indexed load. This is the same rule, evaluated once instead of
+  // 150 million times.
+  if (summary.projectileTrackClassMask.size() != summary.serverClassSchemas.size()) {
+    summary.projectileTrackClassMask.assign(summary.serverClassSchemas.size(), 0);
+    for (std::size_t id = 0; id < summary.serverClassSchemas.size(); ++id) {
+      summary.projectileTrackClassMask[id] =
+        isProjectileTrackClass(summary.serverClassSchemas[id].name) ? 1 : 0;
+    }
+  }
+  for (std::size_t entity = 0; entity < summary.entityStates.size() && entity < 2048u; ++entity) {
+    const auto& state = summary.entityStates[entity];
+    if (state.classId < 0) continue;
+    ++liveEntities;
+    // Bounded by the table, not by the vector: a class id past the mask cannot be
+    // a tracked class, and indexing past it would read a neighbouring byte.
+    if (static_cast<std::size_t>(state.classId) >= summary.projectileTrackClassMask.size()) continue;
+    if (!summary.projectileTrackClassMask[static_cast<std::size_t>(state.classId)]) continue;
+    float origin[3] = {};
+    if (!readTrackOrigin(state, origin)) continue;
+    ProjectileTrackSample sample;
+    sample.tick = tick;
+    sample.entityIndex = static_cast<std::uint16_t>(entity);
+    sample.generation = entity < summary.projectileTrackSlotGeneration.size()
+        ? summary.projectileTrackSlotGeneration[entity] : 0u;
+    sample.classId = state.classId;
+    sample.origin[0] = origin[0];
+    sample.origin[1] = origin[1];
+    sample.origin[2] = origin[2];
+    for (const auto& entry : state.properties) {
+      if (trackSuffixMatch(entry.first, "m_iTeamNum") && entry.second.type == SendPropType::Int) {
+        sample.hasTeam = true;
+        sample.teamRaw = entry.second.intValue;
+        break;
+      }
+    }
+    for (const char* slot : kOwnerSlots) {
+      const EntityPropertyValue* handle = nullptr;
+      for (const auto& entry : state.properties) {
+        if (trackSuffixMatch(entry.first, slot) && entry.second.type == SendPropType::Int) {
+          handle = &entry.second;
+          break;
+        }
+      }
+      if (!handle) continue;
+      const auto raw = static_cast<std::uint32_t>(handle->intValue);
+      // The empty/sentinel values are "no owner", which is a real state after a
+      // deflection: a deflected projectile keeps flying but its launcher slot is
+      // cleared, and that transition is what the owner-change assertion reads.
+      if (raw == kTrackInvalidHandle || raw == 0 || raw == kTrackHandleIndexMask) continue;
+      sample.hasOwner = true;
+      sample.ownerHandle = raw;
+      sample.ownerIndex = static_cast<std::uint16_t>(raw & kTrackHandleIndexMask);
+      break;
+    }
+    if (summary.projectileTrackSamples.size() >= limit) {
+      // Bounded, and the collision is counted rather than silently absorbed. On
+      // the two demos measured here the list never comes close to the bound.
+      summary.projectileTrackSamples.erase(summary.projectileTrackSamples.begin());
+      ++summary.projectileTrackSamplesDropped;
+    }
+    summary.projectileTrackSamples.push_back(sample);
+  }
+  finish();
+}
+
+// BINARY SEARCH, NOT A SCAN -- and the invariant it rests on.
+//
+// Rows are appended once per decoded packet, and packets arrive in non-decreasing
+// server-tick order, so `tick` is non-decreasing across the vector. That makes
+// lower_bound/upper_bound give the exact tick range directly.
+//
+// The first version scanned all rows. That is correct and unacceptably slow at
+// the bound this layer allows: maxSamples is 400,000 and the product calls the
+// query once per scene tick, so a scan costs 400k comparisons per frame against a
+// 16.6 ms budget. Measured: the whole 257,880-row bagel list is walked per call.
+//
+// The invariant is ASSERTable and asserted: projectileTrackTickOrderingHolds()
+// below, and the probe reports it on every run. trajectory-overlay-check.sh
+// mutates the append order to prove the assertion and the search can both fail.
+bool projectileTrackTickOrderingHolds(const DemoNetworkSummary& summary,
+                                      std::size_t* firstInversion) {
+  for (std::size_t i = 1; i < summary.projectileTrackSamples.size(); ++i) {
+    if (summary.projectileTrackSamples[i].tick < summary.projectileTrackSamples[i - 1].tick) {
+      if (firstInversion) *firstInversion = i;
+      return false;
+    }
+  }
+  return true;
+}
+
+namespace {
+
+// The half-open [begin, end) row range whose tick equals / lies in the range.
+// Precondition, enforced by the caller's assertion rather than assumed here:
+// summary.projectileTrackSamples is tick non-decreasing.
+std::size_t trackLowerBound(const std::vector<ProjectileTrackSample>& rows, std::int32_t tick) {
+  std::size_t low = 0, high = rows.size();
+  while (low < high) {
+    const std::size_t middle = low + (high - low) / 2;
+    if (rows[middle].tick < tick) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+std::size_t trackUpperBound(const std::vector<ProjectileTrackSample>& rows, std::int32_t tick) {
+  std::size_t low = 0, high = rows.size();
+  while (low < high) {
+    const std::size_t middle = low + (high - low) / 2;
+    if (rows[middle].tick <= tick) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+} // namespace
+
+std::vector<ProjectileTrackSample> queryProjectileTracksAtTick(
+    const DemoNetworkSummary& summary, std::int32_t tick) {
+  // Exact tick only. There is deliberately no at-or-before fallback: that
+  // fallback is what turned a 75-tick flight into one frozen sample, and a
+  // caller that wants a nearest answer should ask for one explicitly.
+  const auto& rows = summary.projectileTrackSamples;
+  const std::size_t begin = trackLowerBound(rows, tick);
+  const std::size_t end = trackUpperBound(rows, tick);
+  if (begin >= end) return {};
+  return std::vector<ProjectileTrackSample>(rows.begin() + static_cast<std::ptrdiff_t>(begin),
+                                            rows.begin() + static_cast<std::ptrdiff_t>(end));
+}
+
+std::vector<ProjectileTrackSample> queryProjectileTracksInRange(
+    const DemoNetworkSummary& summary, std::int32_t firstTick, std::int32_t lastTick) {
+  if (firstTick > lastTick) return {};
+  const auto& rows = summary.projectileTrackSamples;
+  const std::size_t begin = trackLowerBound(rows, firstTick);
+  const std::size_t end = trackUpperBound(rows, lastTick);
+  if (begin >= end) return {};
+  return std::vector<ProjectileTrackSample>(rows.begin() + static_cast<std::ptrdiff_t>(begin),
+                                            rows.begin() + static_cast<std::ptrdiff_t>(end));
 }
 
 bool findObserverViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick, DemoViewSample& sample) {
