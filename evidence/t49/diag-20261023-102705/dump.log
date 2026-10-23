@@ -1,0 +1,106 @@
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+Select-Object : A parameter cannot be found that matches parameter name 'join'.
+At D:\TF2_Native_Test\.scratch\t49\window-dump.ps1:85 char:75
++ ... dLine("WATCHED pids=$($watchPids | Select-Object -Unique -join ',')")
++                                                              ~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 
+DUMP=D:/TF2_Native_Test/evidence/t49/diag-20261023-102705/windows.txt samples=15

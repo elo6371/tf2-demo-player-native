@@ -1,0 +1,66 @@
+product=tf2_demo_native exe=/d/TF2_Native_Test/native/build-nmake/tf2_demo_native.exe
+=== 0/3 the display must be still before anything is measured across it ===
+  display first=2560x1440@240/32 second=2560x1440@240/32
+  OK   the display mode was stable across a one second window
+=== 0b/4 instrument: a window from another process must take the foreground ===
+  instrument target.setForegroundWindow=False (reading) guard.everForeground=1 handOffSelfOk=1 handOffAttempts=1 handOffOk=1 handOffAttributed=1 stolenByCount=5 stolenBy=steamwebhelper,SearchHost,explorer,r5apex_dx12,instrument-target
+  OK   the guard left no input-queue attachment behind = 0
+  OK   the guard held the foreground at least once = 1
+  OK   the guard found the instrument window by its process name = 1
+  OK   the foreground counter fired 5 time(s) and named: steamwebhelper,SearchHost,explorer,r5apex_dx12,instrument-target
+  OK   every named thief is a resolved process name, not a pid fallback
+  OK   the designated window is among them as well (the stronger arranged form)
+=== 1/3 baseline: the guard alone, nothing else running ===
+  baseline deactivations=0 stolenSamples=211
+  baseline watchVisibleSamples=0 modeChangedFields=0
+  mode before=2560x1440@240Hz/32bpp after=2560x1440@240Hz/32bpp
+  OK   baseline: the guard ran for the whole window = 32
+  OK   baseline changed no display field = 0
+  baseline stolenByCount=4 stolenBy=steamwebhelper,SearchHost,explorer,r5apex_dx12
+  OK   the baseline did not contain the product = 0
+  OK   the baseline never showed a product window = 0
+=== 2/3 forward: the same run with --hidden-window --audio-disabled ===
+  forward rc=0 deactivations=1 stolenSamples=367 modeChangedFields=0
+  forward watchVisibleSamples=0 window_visible=0
+  stolenByCount=5 stolenBy=steamwebhelper,SearchHost,explorer,r5apex_dx12,uu
+  OK   forward: the guard ran for the whole window = 32
+  OK   the hidden run exited cleanly = 0
+  OK   hidden run: the run wrote a capture frame (bytes) = 2582406 (> 1000)
+  OK   hidden run: the run wrote metric rows = 7 (> 0)
+  OK   forward: the trace was written and reports a window
+  OK   the product says its own window is not visible = 0
+  forward: clock product_wall_ms=26929 trace_last_ms=26018 launch_skew_ms=911
+  OK   forward: the launch skew is small and positive (911 ms), so the window instant is on the same clock
+  OK   forward: the guard was watching 2 s before the product's window = 1792723821170 (<= 1792723840205)
+  OK   forward: the guard was still watching 2 s after the product's window = 1792723842205 (<= 1792723851115)
+  OK   forward: the guard outlived the product's process = 1792723846579 (<= 1792723851115)
+  OK   the hidden run never took the foreground as the product = 0
+  OK   no product window was visible during the hidden run = 0
+  OK   the hidden run changed no display field = 0
+  FAIL the hidden run did not deactivate the guard more than the baseline = 1 (want <= 0)
+=== 3/3 control: the same run with a SHOWN window, which the guard must see ===
+  control rc=0 watchVisibleSamples=15 watchWindowFound=1 handOffSent=1 handOffAttributed=1 deactivations=0
+  control window_visible=0 stolenByCount=5 stolenBy=uu,tf2_demo_native,SearchHost,explorer,r5apex_dx12
+  OK   control: the guard ran for the whole window = 32
+  OK   the shown run exited cleanly = 0
+  FAIL shown run: the run wrote a capture frame (bytes) = 0 (want > 1000)
+  OK   shown run: the run wrote metric rows = 4 (> 0)
+  OK   control: the trace was written and reports a window
+  FAIL the product says its own window IS visible = 0 (want 1)
+  control: clock product_wall_ms=23061 trace_last_ms=22254 launch_skew_ms=807
+  OK   control: the launch skew is small and positive (807 ms), so the window instant is on the same clock
+  OK   control: the guard was watching 2 s before the product's window = 1792723855700 (<= 1792723873367)
+  OK   control: the guard was still watching 2 s after the product's window = 1792723875367 (<= 1792723885645)
+  OK   control: the guard outlived the product's process = 1792723877200 (<= 1792723885645)
+  OK   the guard saw a visible product window = 15 (> 0)
+  OK   the guard found a window of the derived product name = 1
+  OK   the guard offered the foreground to the product window = 1
+  control hand-off attempts=1 ok=1 attributed=1
+  OK   the guard handed the foreground to the product window = 1
+  OK   the foreground change was attributed to the product by name = 1
+  control: the product appeared among the thieves: 1
+  product processes left after the run: no
+  OK   no product process survived the run = no
+
+fullscreen-quiet: assertions_ok=38 failures=3 attribution_proven=1 instrument_source=natural guard_seconds=32
+FULLSCREEN-QUIET=FAIL

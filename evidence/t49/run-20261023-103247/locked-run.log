@@ -1,0 +1,29 @@
+warning: in the working copy of 'desktop-guard.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'fullscreen-quiet-check.sh', LF will be replaced by CRLF the next time Git touches it
+T49-RUN-START 2026-10-23 10:32:47 head=a897476 tree-before=f5102fd2fd5f0fa802978e81615d04dedaa4669fac77319796c5cafb420fed25
+lock: 
+=== 1/5 build tf2_demo_native ===
+build rc=0 log=evidence/t49/run-20261023-103247/build.log lines=2
+=== 2/5 freshness: the exe must be newer than every source it came from ===
+  exe 2026-10-22 20:12:24
+  OK   no source under native/src, native/include or native/CMakeLists.txt is newer than the exe
+=== 3/5 gate: baseline, forward, control (+ instrument) ===
+    the screen is taken over for about 70 s from here; the guard window says so
+gate rc=1 log=evidence/t49/run-20261023-103247/gate.log
+    === 0/3 the display must be still before anything is measured across it ===
+      display first=2560x1440@240/32 second=2560x1440@240/32
+      OK   the display mode was stable across a one second window
+    === 0b/4 instrument: a window from another process must take the foreground ===
+      instrument setForegroundWindow=False guard.stolenBy=DeepSeek guard.deactivations=0
+      FAIL an independent window was accepted as the foreground owner = False (want True)
+      FAIL the guard did not record instrument-target among the thieves (got: DeepSeek)
+           a foreground counter that never fires cannot report a quiet desktop
+    FULLSCREEN-QUIET=FAIL (instrument) -- the counter could not be shown to fire, so no phase below would mean anything
+=== 4/5 leftover product processes ===
+  product processes alive after the run: no
+=== 5/5 the tree did not change during the run ===
+warning: in the working copy of 'desktop-guard.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'fullscreen-quiet-check.sh', LF will be replaced by CRLF the next time Git touches it
+  tree-before=f5102fd2fd5f0fa802978e81615d04dedaa4669fac77319796c5cafb420fed25 tree-after=f5102fd2fd5f0fa802978e81615d04dedaa4669fac77319796c5cafb420fed25 unchanged=yes
+T49-RUN-DONE build=0 fresh=yes gate=1 leftovers=no tree-unchanged=yes run=evidence/t49/run-20261023-103247
+T49-RUN=FAIL

@@ -1,0 +1,10 @@
+product=tf2_demo_native exe=/d/TF2_Native_Test/native/build-nmake/tf2_demo_native.exe
+=== 0/3 the display must be still before anything is measured across it ===
+  display first=2560x1440@240/32 second=2560x1440@240/32
+  OK   the display mode was stable across a one second window
+=== 0b/4 instrument: a window from another process must take the foreground ===
+  instrument setForegroundWindow=False guard.stolenBy=DeepSeek guard.deactivations=0
+  FAIL an independent window was accepted as the foreground owner = False (want True)
+  FAIL the guard did not record instrument-target among the thieves (got: DeepSeek)
+       a foreground counter that never fires cannot report a quiet desktop
+FULLSCREEN-QUIET=FAIL (instrument) -- the counter could not be shown to fire, so no phase below would mean anything

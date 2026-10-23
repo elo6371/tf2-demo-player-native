@@ -1,0 +1,625 @@
+### sample=1 t=16ms
+TOPLEVEL count=575
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=2 t=2110ms
+TOPLEVEL count=575
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=3 t=4125ms
+TOPLEVEL count=575
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=4 t=6141ms
+TOPLEVEL count=575
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=5 t=8156ms
+TOPLEVEL count=575
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=6 t=10172ms
+TOPLEVEL count=575
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=7 t=12188ms
+TOPLEVEL count=568
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=8 t=14203ms
+TOPLEVEL count=568
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=9 t=16235ms
+TOPLEVEL count=568
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=10 t=18250ms
+TOPLEVEL count=568
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Opening: choose a .dem file' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+### sample=11 t=20266ms
+TOPLEVEL count=576
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - TF2 ?????: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable at' rect=286,286,1566,1006 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - TF2 ?????: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable at' rect=286,286,1566,1006 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Player: tick 95/77466 | playing | camera first-person' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0x190D7A pid=27048 proc=tf2_demo_native class=MSCTFIME UI title='MSCTFIME UI' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0xC08D0
+### sample=12 t=22281ms
+TOPLEVEL count=576
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - TF2 ?????: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable at' rect=286,286,1566,1006 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - TF2 ?????: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable at' rect=286,286,1566,1006 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+  CHILD hwnd=0xA0BF0 pid=27048 proc=tf2_demo_native class=Static title='Player: tick 290/77466 | playing | camera first-person' rect=310,329,1542,357 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xA0BF6 pid=27048 proc=tf2_demo_native class=Button title='Open Demo...' rect=310,365,430,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x2C0FDC pid=27048 proc=tf2_demo_native class=Button title='Cancel' rect=436,365,526,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x270D8A pid=27048 proc=tf2_demo_native class=Button title='Import' rect=532,365,622,395 vis=0 WS_CHILD=1 WS_VISIBLE=0 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x1A0DF4 pid=27048 proc=tf2_demo_native class=Button title='Play/Pause' rect=310,401,420,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D98 pid=27048 proc=tf2_demo_native class=Button title='Stop' rect=426,401,506,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x60BF2 pid=27048 proc=tf2_demo_native class=Button title='< Tick' rect=512,401,592,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x100D3C pid=27048 proc=tf2_demo_native class=Button title='Tick >' rect=598,401,678,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0x4060A pid=27048 proc=tf2_demo_native class=Button title='Reverse' rect=684,401,774,431 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+  CHILD hwnd=0xE03D0 pid=27048 proc=tf2_demo_native class=msctls_trackbar32 title='' rect=310,439,1010,469 vis=1 WS_CHILD=1 WS_VISIBLE=1 WS_POPUP=0 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+OWNED hwnd=0x190D7A pid=27048 proc=tf2_demo_native class=MSCTFIME UI title='MSCTFIME UI' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0xC08D0
+### sample=13 t=24297ms
+TOPLEVEL count=573
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+### sample=14 t=26313ms
+TOPLEVEL count=573
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='Love 2000 (?? 2000) - hitomi   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+### sample=15 t=28328ms
+TOPLEVEL count=573
+hwnd=0xBC0FD4 pid=16228 proc=explorer class=ThumbnailDeviceHelperWnd title='' rect=0,0,1,1 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8280088 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x6E0F9C pid=46604 proc=powershell class=WindowsForms10.Window.8.app.0.3b97956_r9_ad1 title='desktop-guard' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x10008 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x310C72 pid=33304 proc=RvRvpnGui class=Qt51515QWindowToolTipSaveBits title='Radmin VPN' rect=2538,1370,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A8 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x130BBE pid=39368 proc=RazerAppEngine class=RzMonitorForegroundWindowClass title='RzMonitorForegroundWindow' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80088 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x50BCA pid=21612 proc=DeepSeek Harness class=Chrome_WidgetWin_1 title='T49 ????????? ? DeepSeek Harness' rect=912,375,2273,1280 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x300886 pid=41672 proc=msedge class=Chrome_WidgetWin_1 title='Agents | OpenCode ??? 3 ??? - ?? - Microsoft? Edge' rect=349,76,2255,1369 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x80C06 pid=6988 proc=chrome class=Chrome_WidgetWin_1 title='???????? - OpenAI - Google Chrome' rect=498,78,2269,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x70238 pid=44364 proc=ChatGPT class=Chrome_WidgetWin_1 title='ChatGPT' rect=706,295,1853,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x240100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10796 pid=31004 proc=QQMusic class=TXGuiFoundation title='The Lamp Is Low - Laurindo Almeida   ' rect=-32000,-32000,-31840,-31972 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x300 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1E0E28 pid=44704 proc=clash-verge class=Tauri Window title='Clash Verge' rect=1218,461,2174,1200 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x40110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0CE0 pid=49340 proc=Notepad class=Notepad title='ds api.txt - Notepad' rect=745,355,2184,1096 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x1B0D6A pid=34360 proc=MuMuNxMain class=Qt5156QWindowToolSaveBits title='MuMu???' rect=854,430,1714,1010 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x208FE
+hwnd=0x40D06 pid=1740 proc=codex-plus-plus-manager class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x610FCE pid=51136 proc=SystemSettings class=Windows.UI.Core.CoreWindow title='??' rect=0,1,1170,875 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x12D0FC4 pid=47564 proc=ApplicationFrameHost class=ApplicationFrameWindow title='??' rect=821,386,2007,1269 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200100 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x20E10 pid=44704 proc=clash-verge class=Tao Thread Event Target title='' rect=0,0,16,16 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80800A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x204AC pid=27628 proc=PowerToys.QuickAccess class=WinUIDesktopWin32WindowClass title='PowerToys Quick Access (Preview)' rect=2160,876,2560,1392 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10686 pid=27828 proc=Microsoft.CmdPal.UI class=WinUIDesktopWin32WindowClass title='????' rect=880,456,1680,936 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=0 ex=0x180 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x2056A pid=22112 proc=NVIDIA Overlay class=CEF-OSC-WIDGET title='NVIDIA GeForce Overlay' rect=0,0,2559,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8080080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10502 pid=23808 proc=TextInputHost class=Windows.UI.Core.CoreWindow title='Windows ????' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x200000 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x10328 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10308 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10306 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10304 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x10302 pid=16228 proc=explorer class=DummyDWMListenerWindow title='' rect=0,0,0,0 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x8200080 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x0
+hwnd=0x20230 pid=16228 proc=explorer class=Shell_TrayWnd title='' rect=0,1392,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102EE pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+hwnd=0x102F0 pid=16228 proc=explorer class=WorkerW title='' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80000A0 ex_TOOLWINDOW=1 ex_NOACTIVATE=1 parent=0x102A4
+hwnd=0x102A4 pid=16228 proc=explorer class=Progman title='Program Manager' rect=0,0,2560,1440 vis=1 WS_CHILD=0 WS_VISIBLE=1 WS_POPUP=1 ex=0x80 ex_TOOLWINDOW=1 ex_NOACTIVATE=0 parent=0x0
+WATCHED pids=
+

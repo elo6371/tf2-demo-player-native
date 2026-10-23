@@ -1,0 +1,16 @@
+guard.seconds=16
+guard.deactivations=0
+guard.activations=1
+guard.foregroundStolenSamples=0
+guard.worstGapMs=47
+guard.modeChangedFields=0
+guard.stolenBy=
+guard.noForegroundSamples=0
+guard.watch=tf2_demo_native
+guard.watchVisibleSamples=0
+guard.watchWindowFound=0
+guard.handOffSent=0
+guard.handOffOk=0
+guard.handOffAttributed=0
+guard.modeBefore=2560x1440@240Hz/32bpp
+guard.modeAfter=2560x1440@240Hz/32bpp

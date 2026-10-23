@@ -1,0 +1,65 @@
+warning: in the working copy of 'desktop-guard.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'fullscreen-quiet-check.sh', LF will be replaced by CRLF the next time Git touches it
+T49-RUN-START 2026-10-23 09:47:29 head=a897476 tree-before=1fdaf548a42ec5beef7c3ee86d76815011e4580dc31844b85c461c8123f28205
+lock: 
+=== 1/5 build tf2_demo_native ===
+build rc=0 log=evidence/t49/run-20261023-094729/build.log lines=2
+=== 2/5 freshness: the exe must be newer than every source it came from ===
+  exe 2026-10-22 20:12:24
+  OK   no source under native/src, native/include or native/CMakeLists.txt is newer than the exe
+=== 3/5 gate: baseline, forward, control (+ instrument) ===
+    the screen is taken over for about 70 s from here; the guard window says so
+gate rc=1 log=evidence/t49/run-20261023-094729/gate.log
+    === 0/3 the display must be still before anything is measured across it ===
+      display first=2560x1440@240/32 second=2560x1440@240/32
+      OK   the display mode was stable across a one second window
+    === 0b/4 instrument: a window from another process must take the foreground ===
+      instrument setForegroundWindow=True guard.stolenBy=instrument-target guard.deactivations=1
+      OK   an independent window was accepted as the foreground owner = True
+      OK   the guard charged that foreground change to the window's process by name
+    === 1/3 baseline: the guard alone, nothing else running ===
+      baseline deactivations=0 stolenSamples=0
+      baseline watchVisibleSamples=0 modeChangedFields=0
+      mode before=2560x1440@240Hz/32bpp after=2560x1440@240Hz/32bpp
+      OK   baseline: the guard ran for the whole window = 16
+      OK   baseline changed no display field = 0
+      baseline stolenBy=ABSENT
+      FAIL the baseline did not contain the product = ABSENT (want 0)
+      OK   the baseline never showed a product window = 0
+    === 2/3 forward: the same run with --hidden-window --audio-disabled ===
+      forward rc=0 deactivations=0 stolenSamples=0 modeChangedFields=0
+      forward watchVisibleSamples=0 window_visible=0
+      stolenBy=ABSENT
+      OK   forward: the guard ran for the whole window = 16
+      OK   the hidden run still captured a frame = 0
+      OK   forward: the trace was written and reports a window
+      OK   the product says its own window is not visible = 0
+      FAIL the hidden run never took the foreground as the product = ABSENT (want 0)
+      OK   no product window was visible during the hidden run = 0
+      OK   the hidden run changed no display field = 0
+      OK   the hidden run did not deactivate the guard more than the baseline = 0 (<= 0)
+    === 3/3 control: the same run with a SHOWN window, which the guard must see ===
+      control rc=0 watchVisibleSamples=0 watchWindowFound=0 handOffSent=0 handOffAttributed=0 deactivations=0
+      control window_visible=1 stolenBy=ABSENT
+      OK   control: the guard ran for the whole window = 16
+      OK   the shown run also captured a frame = 0
+      OK   control: the trace was written and reports a window
+      OK   the product says its own window IS visible = 1
+      FAIL the guard saw a visible product window = 0 (want > 0)
+      FAIL the guard found a window of the derived product name = 0 (want 1)
+      FAIL the guard handed the foreground to the product window = 0 (want 1)
+      FAIL the foreground change was attributed to the product by name = 0 (want 1)
+      control: the product appeared among the thieves: ABSENT
+      product processes left after the run: no
+      OK   no product process survived the run = no
+    
+    fullscreen-quiet: assertions_ok=18 failures=6
+    FULLSCREEN-QUIET=FAIL
+=== 4/5 leftover product processes ===
+  product processes alive after the run: no
+=== 5/5 the tree did not change during the run ===
+warning: in the working copy of 'desktop-guard.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'fullscreen-quiet-check.sh', LF will be replaced by CRLF the next time Git touches it
+  tree-before=1fdaf548a42ec5beef7c3ee86d76815011e4580dc31844b85c461c8123f28205 tree-after=1fdaf548a42ec5beef7c3ee86d76815011e4580dc31844b85c461c8123f28205 unchanged=yes
+T49-RUN-DONE build=0 fresh=yes gate=1 leftovers=no tree-unchanged=yes run=evidence/t49/run-20261023-094729
+T49-RUN=FAIL

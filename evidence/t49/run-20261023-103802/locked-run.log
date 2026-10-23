@@ -1,0 +1,32 @@
+warning: in the working copy of 'desktop-guard.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'fullscreen-quiet-check.sh', LF will be replaced by CRLF the next time Git touches it
+T49-RUN-START 2026-10-23 10:38:02 head=a897476 tree-before=e24558363f76c6d14e44bf12f7b72e0baac5b6d3596f0fb3b52064b41113de63
+lock: 
+=== 1/5 build tf2_demo_native ===
+build rc=0 log=evidence/t49/run-20261023-103802/build.log lines=2
+=== 2/5 freshness: the exe must be newer than every source it came from ===
+  exe 2026-10-22 20:12:24
+  OK   no source under native/src, native/include or native/CMakeLists.txt is newer than the exe
+=== 3/5 gate: baseline, forward, control (+ instrument) ===
+    the screen is taken over for about 115 s from here; the guard window says so
+gate rc=1 log=evidence/t49/run-20261023-103802/gate.log
+    === 0/3 the display must be still before anything is measured across it ===
+      display first=2560x1440@240/32 second=2560x1440@240/32
+      OK   the display mode was stable across a one second window
+    === 0b/4 instrument: a window from another process must take the foreground ===
+      instrument target.setForegroundWindow=False (reading) guard.everForeground=1 handOffAttempts=8 handOffOk=0 handOffAttributed=0 stolenByCount=1 stolenBy=DeepSeek
+      OK   the guard held the foreground at least once = 1
+      OK   the guard found the instrument window by its process name = 1
+      FAIL the guard handed the foreground to the instrument window = 0 (want 1)
+      FAIL the foreground change was attributed to the instrument window by name = 0 (want 1)
+      FAIL the guard's thief list does not name instrument-target (got: DeepSeek)
+           stolenByCount=1: the counter DID fire and named other processes, so the hand-off is what failed, not the counter
+    FULLSCREEN-QUIET=FAIL (instrument) -- the foreground counter could not be shown to fire and attribute by name, so no phase below would mean anything
+=== 4/5 leftover product processes ===
+  product processes alive after the run: no
+=== 5/5 the tree did not change during the run ===
+warning: in the working copy of 'desktop-guard.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'fullscreen-quiet-check.sh', LF will be replaced by CRLF the next time Git touches it
+  tree-before=e24558363f76c6d14e44bf12f7b72e0baac5b6d3596f0fb3b52064b41113de63 tree-after=e24558363f76c6d14e44bf12f7b72e0baac5b6d3596f0fb3b52064b41113de63 unchanged=yes
+T49-RUN-DONE build=0 fresh=yes gate=1 leftovers=no tree-unchanged=yes run=evidence/t49/run-20261023-103802
+T49-RUN=FAIL

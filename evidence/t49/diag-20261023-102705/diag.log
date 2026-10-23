@@ -1,0 +1,72 @@
+DIAG-START 2026-10-23 10:27:05
+guard: 42 s, watch=tf2_demo_native
+dumper: 30 s, every 2 s
+product: shown window (control configuration), --audio-disabled
+product rc=0
+=== guard readings ===
+guard.seconds=42
+guard.deactivations=0
+guard.activations=1
+guard.foregroundStolenSamples=1327
+guard.worstGapMs=47
+guard.modeChangedFields=0
+guard.stolenBy=chrome,SearchHost,explorer,msedge,DeepSeek Harness
+guard.noForegroundSamples=1
+guard.stolenByCount=5
+guard.startEpochMs=1792722425652
+guard.stopEpochMs=1792722467639
+guard.coveredMs=41987
+guard.watch=tf2_demo_native
+guard.watchVisibleSamples=25
+guard.watchWindowFound=1
+guard.handOffSent=1
+guard.handOffOk=0
+guard.handOffAttributed=0
+guard.modeBefore=2560x1440@240Hz/32bpp
+guard.modeAfter=2560x1440@240Hz/32bpp
+=== product trace, window lines ===
+19478.8 mode: window_created=1 window_visible=1 hidden=0 audio_mode=disabled
+23656.6 mode: summary window_created=1 window_visible=1 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_se
+=== window dump: samples in which a tf2_demo_native window was seen ===
+1:### sample=1 t=16ms
+32:WATCHED pids=
+33:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+44:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+45:### sample=2 t=2110ms
+76:WATCHED pids=
+77:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+88:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+89:### sample=3 t=4125ms
+120:WATCHED pids=
+121:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+132:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+133:### sample=4 t=6141ms
+164:WATCHED pids=
+165:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+176:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+177:### sample=5 t=8156ms
+208:WATCHED pids=
+209:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+220:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+221:### sample=6 t=10172ms
+252:WATCHED pids=
+253:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+264:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+265:### sample=7 t=12188ms
+295:WATCHED pids=
+296:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+307:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+308:### sample=8 t=14203ms
+338:WATCHED pids=
+339:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+350:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+351:### sample=9 t=16235ms
+381:WATCHED pids=
+382:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+393:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+394:### sample=10 t=18250ms
+424:WATCHED pids=
+425:OWNED hwnd=0x3A09BC pid=27048 proc=tf2_demo_native class=TF2DemoNativeRenderer title='TF2 Demo Player - Native D3D11' rect=286,286,1566,1006 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=0 ex=0x110 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x0
+436:OWNED hwnd=0xC08D0 pid=27048 proc=tf2_demo_native class=IME title='Default IME' rect=0,0,0,0 vis=0 WS_CHILD=0 WS_VISIBLE=0 WS_POPUP=1 ex=0x0 ex_TOOLWINDOW=0 ex_NOACTIVATE=0 parent=0x3A09BC
+
+DIAG-DONE product_rc=0 guard=20 run=evidence/t49/diag-20261023-102705

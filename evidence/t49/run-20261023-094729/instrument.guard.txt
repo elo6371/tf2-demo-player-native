@@ -1,0 +1,16 @@
+guard.seconds=10
+guard.deactivations=1
+guard.activations=1
+guard.foregroundStolenSamples=216
+guard.worstGapMs=32
+guard.modeChangedFields=0
+guard.stolenBy=instrument-target
+guard.noForegroundSamples=0
+guard.watch=
+guard.watchVisibleSamples=0
+guard.watchWindowFound=0
+guard.handOffSent=0
+guard.handOffOk=0
+guard.handOffAttributed=0
+guard.modeBefore=2560x1440@240Hz/32bpp
+guard.modeAfter=2560x1440@240Hz/32bpp
