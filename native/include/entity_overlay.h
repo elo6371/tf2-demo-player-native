@@ -734,6 +734,13 @@ struct OverlayItemReading {
   // draw consumes), 2 = vertices asked for but none in front of the eye (fell back
   // to the AABB, and says so).
   int extentSource = 0;
+  // T52 (2026-10-23d): how many pixels this silhouette's shell is allowed to stick
+  // out beyond the box, computed by the PRODUCT from the same two numbers the shader
+  // works with: the expansion constant in model units, and this item's model->world
+  // scale (|rows row0|). The gate uses this number and no other -- it may not invent
+  // a tolerance of its own, because then the assertion would stop tracking the
+  // product and start tracking a guess.
+  float expandPixels = 0.0f;
   float ndcWidth = 0.0f;
   float ndcHeight = 0.0f;
   float depth = 0.0f;

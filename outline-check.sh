@@ -685,7 +685,20 @@ else
   echo "       every region assertion below measures the camera, not the overlay, so this run proves nothing"
   fail=1
 fi
-assert_eq "differing pixels outside every drawn region" "${NI_OUT:-<none>}" "0"
+# The tolerance is the PRODUCT'S number, not the gate's. Each silhouette publishes
+# how many pixels its own shell may stick out (expand=, computed in the renderer from
+# the expansion constant and that instance's model->world scale), so the allowed
+# number of out-of-region pixels is the sum of (perimeter x expand) over the items.
+# A constant written here would make the assertion "the overlay is not wrong by more
+# than we guessed" instead of "the overlay is where the product says it is", and the
+# next change to the expansion would not be reflected in it.
+TOLERANCE=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --expand-tolerance)
+echo "  tolerance: ${TOLERANCE:-<none>}  (outside=$NI_OUT)"
+TOL_VALUE=$(echo "$TOLERANCE" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
+TOL_MISSING=$(echo "$TOLERANCE" | grep -o "missing=[0-9]*" | cut -d= -f2)
+assert_eq "items whose shell expansion the product published" "${TOL_MISSING:-<none>}" "0"
+WITHIN=$(awk -v out="${NI_OUT:-0}" -v tol="${TOL_VALUE:-0}" 'BEGIN { printf "%d", ((out + 0) <= (tol + 0)) ? 1 : 0 }')
+assert_eq "painted pixels outside every drawn region, within the product's own tolerance" "${WITHIN:-<none>}" "1"
 assert_ge "differing pixels INSIDE the drawn regions" "$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)" "1"
 
 # ---- D1 attribution: which instance carries which entity, and where its paint is
@@ -1472,6 +1485,32 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m12" "pixels outside every drawn region with the draw shifted 3 px" \
       "${NI_OUT:-0}" "${M12_OUT:-0}"
   fi
+  # ---- m13: the product declares no expansion while it still expands -------
+  echo
+  echo "  -- m13: the product publishes expandPx=0 while the shell still expands --"
+  # This is the mirror of the tolerance rule. If the gate had invented its own
+  # threshold, publishing 0 while the pixels still spread by 1.6 px per side would
+  # pass. It must not: the tolerance is the product's declaration, so the
+  # declaration alone must move the reading. Both halves are the pre-fix behaviour
+  # (expansion in world space) plus a published zero.
+  patch_in "$MUT_RENDERER" \
+"  local.xyz += unitNormal * cameraPositionAndExpand.w * mode.x;
+  mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));" \
+"  mapped += unitNormal * cameraPositionAndExpand.w * mode.x;  /* mutation m13: world space */" || mut_fail=1
+  patch_in "$MUT_RENDERER" \
+"                  reading.expandPixels = worldPerPixel > 0.0f ? expandWorld / worldPerPixel : 0.0f;" \
+"                  reading.expandPixels = 0.0f;  /* mutation m13: declare nothing */" || mut_fail=1
+  if rebuild_product m13; then
+    M13_RC=$(run_frame "$OUT/m13" --outline on)
+    M13_NI=$("$PY" outline-frame-check.py noninterference on="$OUT/m13.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
+    M13_OUT=$(echo "$M13_NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)
+    M13_TOL=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/m13.trace" --expand-tolerance)
+    M13_TOLV=$(echo "$M13_TOL" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
+    echo "    m13 outsideDiff=${M13_OUT:-<none>} declared tolerance=${M13_TOLV:-<none>} (fixed build: ${NI_OUT:-<none>})"
+    must_move "m13" "pixels outside every drawn region when the product declares no expansion" \
+      "${NI_OUT:-0}" "${M13_OUT:-0}"
+  fi
+  restore_all; rebuild_product "restore after m13" || true
   restore_all; rebuild_product "restore after m12" || true
 
   # The restored tree must be the FIXED tree, and a byte-exact restore plus a

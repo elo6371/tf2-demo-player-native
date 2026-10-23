@@ -700,9 +700,15 @@ Output main(Input input) {
   float3 rotated = float3(dot(input.nrow0.xyz, normalLocal), dot(input.nrow1.xyz, normalLocal), dot(input.nrow2.xyz, normalLocal));
   float lengthSquared = dot(rotated, rotated);
   float3 unitNormal = (lengthSquared > 1e-8 && lengthSquared < 1e8) ? rotated * rsqrt(lengthSquared) : float3(0.0, 0.0, 0.0);
-  // The expansion that turns the mesh into an outline. `mode.x` is 0 for the
-  // line/marker path (no expansion: a trail must not grow), 1 for silhouettes.
-  mapped += unitNormal * cameraPositionAndExpand.w * mode.x;
+  // The expansion that turns the mesh into an outline. It is applied in MODEL
+  // space, before `rows`, because the constant was chosen for model units: 0.004
+  // against an 83-unit player is a hairline. Applied after `rows` -- in world
+  // space, where this map's player is only 0.0067 units tall -- the same constant
+  // is 60% of a player's height, i.e. a 2x scale, and that is exactly the 373
+  // pixels that fell outside every published box (report 22.3). `mode.x` is 0 for
+  // the line/marker path (no expansion: a trail must not grow), 1 for silhouettes.
+  local.xyz += unitNormal * cameraPositionAndExpand.w * mode.x;
+  mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));
   output.position = mul(float4(mapped, 1.0), mvp);
   output.colour = input.colour;
   return output;
@@ -5759,6 +5765,30 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                   }
                 }
                 reading.depth = nearest;
+                // The shell's allowed overhang, from the product's own two numbers:
+                // the constant the shader adds in MODEL space (kOverlaySilhouetteExpand),
+                // times this instance's model->world scale (the length of rows row 0),
+                // divided by how many world units one pixel spans on this item. Every
+                // term is measured here; none is a constant the gate would have to know.
+                {
+                  const float sx = instance.rows[0];
+                  const float sy = instance.rows[1];
+                  const float sz = instance.rows[2];
+                  const float modelScale = std::sqrt(sx * sx + sy * sy + sz * sz);
+                  const float expandWorld = kOverlaySilhouetteExpand * modelScale;
+                  const float spanX = reading.worldExtent[3] - reading.worldExtent[0];
+                  const float spanY = reading.worldExtent[4] - reading.worldExtent[1];
+                  const float boxW = static_cast<float>(reading.x1 - reading.x0 + 1);
+                  const float boxH = static_cast<float>(reading.y1 - reading.y0 + 1);
+                  const float worldPerPixelX = spanX > 0.0f ? spanX / boxW : 0.0f;
+                  const float worldPerPixelY = spanY > 0.0f ? spanY / boxH : 0.0f;
+                  float worldPerPixel = 0.0f;
+                  if (worldPerPixelX > 0.0f && worldPerPixelY > 0.0f)
+                    worldPerPixel = std::min(worldPerPixelX, worldPerPixelY);
+                  else
+                    worldPerPixel = std::max(worldPerPixelX, worldPerPixelY);
+                  reading.expandPixels = worldPerPixel > 0.0f ? expandWorld / worldPerPixel : 0.0f;
+                }
                 reading.onScreen = reading.x1 >= 0 && reading.y1 >= 0
                   && reading.x0 < static_cast<int>(width_) && reading.y0 < static_cast<int>(height_);
                 if (reading.onScreen) {

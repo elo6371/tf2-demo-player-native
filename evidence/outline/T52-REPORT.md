@@ -1189,9 +1189,11 @@ differing 484 | inside 187 | outside 297
 ```text
 1. 框 = 网格静态 AABB 的投影；画的 = 当前姿态的蒙皮网格 -> 姿态变形会跑到框外
    证据：14 条里 13 条的 vertexbox 是 0,0..0,0（CPU 侧没有投影顶点），框来自 AABB
-2. 描边按 kOverlaySilhouetteExpand=0.004 世界单位沿法线外扩（entity_overlay.h:134），
+2. 描边按 kOverlaySilhouetteExpand=0.004 沿法线外扩（entity_overlay.h:134），
    投影在框之后发生 -> 框天然不含这一圈
-   0.004 世界单位在这个距离上远小于 6 px，所以它最多解释 1 px，不足以解释整条窄边
+   ~~0.004 世界单位在这个距离上远小于 6 px，所以它最多解释 1 px~~
+   **这一条当时算错了，见 §22.3 与 §24：0.004 加在世界位置上是每个 item 0.4–1.6 px，
+   而它本来是模型空间的常数。改到模型空间后每侧 0.0002 px，outsideDiff 373 -> 0。**
 ```
 
 **因此 outsideDiff=297 仍然是红的、仍然记在 D1 名下，但它现在有了归因**：判据（框）比产品
@@ -1576,6 +1578,168 @@ MUTATION-SUITE=ALL-RED-RESTORED   GATE-RC=1（只因 23.1 那条红）
 1. 判据侧：产品按 item 发布 expandPx = 0.004 / world-units-per-pixel，断言改成 outside <= 周长*expandPx；
 2. 产品侧：把外扩放回模型空间（或乘上 rows 的缩放量），让 0.004 重新成为"细描边"。
 ```
+
+## 24. 外扩回到模型空间，容差改由产品发布（2026-10-23 17:2x）
+
+### 24.1 产品侧：同一常数，换回它本来属于的空间
+
+```hlsl
+// before: 世界空间（这一张图里玩家只有 0.0067 世界单位高，0.004 是 60% 身高）
+mapped += unitNormal * cameraPositionAndExpand.w * mode.x;
+// after:  模型空间（83 units 的玩家，0.004 是 0.005% 身高 = 发丝）
+local.xyz += unitNormal * cameraPositionAndExpand.w * mode.x;
+mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));
+```
+
+常数一个字没改：`kOverlaySilhouetteExpand = 0.004`。改的是它加在 `rows` 之前还是之后。
+
+### 24.2 判据侧：容差是产品按 item 发布的数，门禁不许自己发明
+
+产品现在每个 item 发布 `expand=`，算法就是它自己实际加的那个量除以该 item 的 world-per-pixel：
+
+```cpp
+expandWorld = kOverlaySilhouetteExpand * |rows row0|;        // 模型外扩 x 模型->世界缩放
+expandPixels = expandWorld / min(spanX/boxW, spanY/boxH);     // 该 item 的 world-per-pixel
+```
+
+门禁只做两件事：读这个数、把它按周长加成像素预算：
+
+```bash
+TOLERANCE=$("$PY" outline-regions.py --trace "$OUT/on.trace" --expand-tolerance)
+#   tolerance = sum over items of 2*(boxW+boxH) * expand
+assert_eq "items whose shell expansion the product published" "$TOL_MISSING" "0"
+assert_eq "painted pixels outside every drawn region, within the product own tolerance" "$WITHIN" "1"
+```
+
+门禁里**没有** 0.004、没有 1.6 px、没有任何乘法常数。产品不发布（`missing>0`）就是失败：
+**"没说话"不等于"容差为零"**。
+
+### 24.3 镜像变异 m13：产品声明 0 而像素仍然外扩 → 必须红
+
+```text
+m13 同时做两件事：着色器改回世界空间（像素照旧外扩 ~1.6 px/侧），发布的 expandPixels 改成 0。
+如果容差是门禁自己猜的，这个变异体读绿；容差绑在产品的声明上，它必须读红。
+```
+
+### 24.4 smoke 读数（长跑之前先看一眼，17:25–17:28，持锁）
+
+```text
+outline: item entity=16 ... extent=1 expand=0.000 aabb=558,342,565,344
+tolerance=0.080 items=14 published=14 missing=0
+noninterference: diff_outside=0 diff_inside=41 regions=14   VERDICT PASS
+```
+
+**373 → 0。** 一条链跑完：
+
+```text
+373（每侧 0.4-1.6 px 的外扩，面积 300-430，与实测同量级）
+  -> 外扩从世界空间改到模型空间（常数不变）
+  -> 每侧外扩 0.0002 px（expand=0.000）
+  -> outsideDiff = 0，inside 41（原 111）
+```
+
+顺带被钉住：`missing=0`（14 个 item 全部发布）、`extent1=14`（区域仍是 draw 实际消费的顶点投影）。
+
+### 24.5 关于 16:05 那次被我杀掉的运行（lead 要求写进报告）
+
+16:05 那次排队已经进了第 3 段，smoke 先一步暴露 `agree=0`：读数与创建描述对不上，说明
+**旧语义下这次运行无论跑多久都只会产出解释不了的数**。它被终止，16:08 用改好的语义重新排队。
+
+规则写下来：**一次运行的读数如果在运行过程中被证明语义是错的，跑完它只会得到一堆需要重新解释
+的数；宁可白扔一次排队（80 分钟），也不要拿它去凑读数。** 判据是"语义是否已被证明错"，
+不是"跑得顺不顺"。
+
+## 25. 本轮读数（2026-10-23 17:30–18:38，一次持锁的 forward + mutation）
+
+### 25.1 forward：93 OK / 1 FAIL，那条红换了位置
+
+```text
+OK   painted pixels outside every drawn region, within the product own tolerance = 1
+     diff_outside=0 diff_inside=41 regions=14            <- 上一轮 373 / 111
+     tolerance: tolerance=0.080 items=14 published=14 missing=0  (outside=0)
+     region source: items=14 extent1=14 extent0=0 extent2=0 extentMissing=0 hmin=1 hmax=4
+     depth-stencil: enable=0 mask=1 created=0 agree=1 depthWrite=0
+     heights: published boxes hmin=1 hmax=4 | team ink red=3 px blue=4 px
+     readback: drawn instances=68194 identity mismatches=0
+FAIL red pixels in the red player is region = 6, expected >= 8        <- 新暴露的一条
+OK   blue pixels in the blue player is region = 17 (>= 8)
+OK   blue pixels in the RED player is region = 0
+OK   red pixels in the BLUE player is region = 0
+```
+
+### 25.2 373 -> 0 的完整链（lead 要求能读出来）
+
+```text
+373 = 每侧 0.4-1.6 px 的外扩（面积 300-430，与实测同量级）
+    -> 两次假设被否：网格高 83.45（是渲染网格）、draw 行与框行逐元素相同（match=1）
+    -> 定位：kOverlaySilhouetteExpand=0.004 加在世界位置，而玩家世界高 0.0067（60% 身高）
+    -> 改到模型空间（常数不变）：每侧 0.0002 px，expand=0.000
+    -> outsideDiff = 0，inside 41
+```
+
+### 25.3 容差：产品发布，门禁只读
+
+```text
+tolerance=0.080 items=14 published=14 missing=0
+#   tolerance 由 --expand-tolerance 按 sum(2*(boxW+boxH)*expand) 算，expand 是产品逐 item 发布的
+#   门禁里没有 0.004、没有 1.6、没有任何自造的乘法常数；missing>0（产品没发布）就是失败
+```
+
+### 25.4 mutation：16 条判读全红，0 GREEN，1 INVALID（m-meta 故意）
+
+```text
+OK   m-meta: a source that does not compile reads MUTATION-INVALID and fails the run
+MUTATION-RED m1  team pixels in the WRONG region=23 (fixed=0)
+MUTATION-RED m2  team-coloured pixels through the wall=0 (fixed=17)
+MUTATION-RED m2  x-ray depth test state actually bound=1 (fixed=0)
+MUTATION-RED m3  team-coloured pixels in the --outline off frame=33 (fixed=0)
+MUTATION-RED m5  x-ray depth write state=1 (fixed=0)
+MUTATION-RED m6  without the hold, speed=1 and speed=8 capture different frames
+MUTATION-RED m7  silhouettes submitted without the class fallback=0 (fixed=14)
+MUTATION-RED m7  players rejected as noMesh without the class fallback=20 (fixed=6)
+MUTATION-RED m8  silhouettes DRAWN when the item loses the upload key=0 (fixed=5)
+MUTATION-RED m9  probe self-test failures when the bind mesh wins=5 (fixed=0)
+MUTATION-RED m4  pass order (overlay before viewModel)=0 (fixed=1)
+MUTATION-RED m4  overlay ordinal after the move=7 (fixed=6)
+MUTATION-RED m11 identity mismatches in the readback table=75782 (fixed=0)
+MUTATION-RED m12 pixels outside every drawn region with the draw shifted 3 px=41 (fixed=0)
+MUTATION-RED m13 pixels outside every drawn region when the product declares no expansion=488 (fixed=0)
+MUTATION-RED m10 non-grey percent of a colour frame offered as depth=16.71 (fixed=0)
+MUTATION-SUITE=ALL-RED-RESTORED   GATE-RC=1（只因 25.1 那条红）
+```
+
+m13 是这一轮新加的镜像变异，也是最关键的一条：`m13 outsideDiff=488 declared tolerance=0.000`。
+产品声明"我不外扩"，而像素仍按世界空间外扩 —— 如果容差是门禁自己猜的，它读绿；它读红，
+证明容差确实绑在产品的声明上。m12（draw 平移 3 px）同轮读 41（固定 0）——也继续红。
+
+### 25.5 新的那条红：`red = 6, expected >= 8`，我没有动它
+
+它不是我改坏的，是**口径被产品修正之后露出来的**：
+
+```text
+采集帧 14 个 item：red 6 / blue 6 / unknown 2（逐 item 数出来的）
+red 的 6 个框都只有约 4x2 px，整块 red 区域 12x4，里面画了 6 个红像素 = 每名红队玩家 1 px
+blue 的 6 个框里有一个 10x4（更近），整块 blue 区域画了 17 px
+外扩修好之前：整帧墨迹 484 px；修好之后：41 px（14 名玩家，平均 3 px/人）
+```
+
+`>= 8` 这个下限是在**外扩把每个剪影撑成 2-5 倍的年代**选定的。外扩修正后，同样这批玩家在自己
+区域里只画 1 px/人，于是 6 < 8。**这不是产品退化，是下限的口径跟在了一个已经被修掉的缺陷后面。**
+
+按纪律，本轮**不改这个数**。下一轮的建议（需要 lead 点头才动手）：把下限从产品自己的 item 数
+推导出来——同一区域里每名被画的玩家至少 1 px（`red_pixels >= red_items`，本轮 6 >= 6），
+而不是写死 8。这样它测的是"每名被画的玩家都留下了颜色"，而不是"当年那个胖剪影的面积"。
+
+### 25.6 顺带记下的两组对照
+
+```text
+外扩修正前后的同一批读数（同一 tick、同一相机）：
+  整帧差异像素 484 -> 41；team 像素 415 -> 33（m3 变异体读数）
+  m12 变异体 outsideDiff 488 -> 41（平移 3 px 仍然立刻出框）
+  m2 变异体 through-the-wall 40 -> 17（对照值变小，仍然 0 < 17 而判红）
+```
+
+这些数一起变小是同一个原因：剪影从"撑大的壳"回到了"网格本身的轮廓"。红/绿判读没有一条因此变绿。
 
 ## 8. 交接
 

@@ -5356,12 +5356,12 @@ bool outlineVertexExtent = false;
       // switch was off), 2 = vertices asked for and none in front of the eye. The AABB
       // box rides along as aabb= so a region that is right for the wrong reason can be
       // told from one that was fixed.
-      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d extent=%d aabb=%d,%d,%d,%d legacy=%d,%d,%d,%d",
+      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d extent=%d expand=%.3f aabb=%d,%d,%d,%d legacy=%d,%d,%d,%d",
         static_cast<unsigned>(item.entityIndex),
         tf2::native::overlayTeamName(item.team),
         tf2::native::overlayDepthModeName(item.depthMode),
         item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0,
-        item.extentSource, item.aabbX0, item.aabbY0, item.aabbX1, item.aabbY1,
+        item.extentSource, item.expandPixels, item.aabbX0, item.aabbY0, item.aabbX1, item.aabbY1,
         item.legacyX0, item.legacyY0, item.legacyX1, item.legacyY1);
       // The attribution line: box vs painted pixels is decided by these numbers,
       // not by another guess. See the report's section 8.0 for the rule that was

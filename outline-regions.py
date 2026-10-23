@@ -77,6 +77,8 @@ def parse_args(argv):
             args["mode"] = "attribute"
         elif item == "--extent":
             args["mode"] = "extent"
+        elif item == "--expand-tolerance":
+            args["mode"] = "expand-tolerance"
         elif item == "--trace":
             pending = "--trace"
         elif item == "--depth":
@@ -110,7 +112,7 @@ def parse_args(argv):
 ITEM = re.compile(
     r"outline: item entity=(\d+) team=(\w+) depth=(\w+) "
     r"x0=(-?\d+) y0=(-?\d+) x1=(-?\d+) y1=(-?\d+) depth=([0-9.]+) onScreen=([01])"
-    r"(?: extent=(\d+) aabb=(-?\d+),(-?\d+),(-?\d+),(-?\d+))?")
+    r"(?: extent=(\d+) expand=([0-9.]+) aabb=(-?\d+),(-?\d+),(-?\d+),(-?\d+))?")
 
 
 DRAW = re.compile(r"outline: draw ")
@@ -166,9 +168,13 @@ def read_items(path, frame="captured"):
                 "onScreen": match.group(9) == "1",
                 # -1 when the trace predates the field: "unknown" is not "0".
                 "extent": int(match.group(10)) if match.group(10) is not None else -1,
-                "aabb": (int(match.group(11)), int(match.group(12)),
-                         int(match.group(13)), int(match.group(14)))
-                        if match.group(11) is not None else None,
+                # -1.0 when the trace predates the field: "unknown" is not "0", and a
+                # gate that read a missing tolerance as a zero tolerance would call a
+                # correct silhouette a defect.
+                "expand": float(match.group(11)) if match.group(11) is not None else -1.0,
+                "aabb": (int(match.group(12)), int(match.group(13)),
+                         int(match.group(14)), int(match.group(15)))
+                        if match.group(12) is not None else None,
             })
     if not groups:
         return []
@@ -411,6 +417,30 @@ def main(argv):
         print("bytes=%d nonGreyPct=%.2f nonzeroPct=%.2f uniqueSampled=%d"
               % (stats["bytes"], stats["nonGreyPct"], stats["nonzeroPct"],
                  stats["uniqueSampled"]))
+        return 0
+    if args.get("mode") == "expand-tolerance":
+        # The tolerance for "no painted pixel outside a region", and it is the
+        # PRODUCT'S number, not the gate's: each silhouette publishes how many
+        # pixels its own shell is allowed to stick out (expand=), computed in the
+        # renderer from the expansion constant and that instance's model->world
+        # scale. The allowed total is the sum of (perimeter x expand) over the
+        # items -- a pixel budget, not a guessed threshold. `missing=` counts
+        # items that did not publish the number at all: that is a failure of the
+        # product to speak, not a zero tolerance.
+        rows = [i for i in read_items(args["trace"], args.get("frame", "captured")) if i["onScreen"]]
+        tolerance = 0.0
+        missing = 0
+        published = 0
+        for row in rows:
+            if row["expand"] < 0.0:
+                missing += 1
+                continue
+            published += 1
+            width = max(0, row["x1"] - row["x0"] + 1)
+            height = max(0, row["y1"] - row["y0"] + 1)
+            tolerance += 2.0 * (width + height) * max(0.0, row["expand"])
+        print("tolerance=%.3f items=%d published=%d missing=%d"
+              % (tolerance, len(rows), published, missing))
         return 0
     if args.get("mode") == "extent":
         rows = [i for i in read_items(args["trace"], args.get("frame", "captured")) if i["onScreen"]]
