@@ -342,6 +342,33 @@ appendCost: packets=\1 medianMs=0.0091 p90Ms=0.0207 maxMs=25.0000/' \
 # ---------------------------------------------------------------------------
 echo "=== 0/4 precondition ==="
 [ -x "$PROBE" ] || { echo "FATAL: missing binary: $PROBE"; exit 1; }
+
+# STALE-BINARY (2026-10-23): a gate reading and a gate that builds are the same
+# script, and today a mutation left the integration tree holding the MUTANT build
+# because the setup failure exited before the restore step. Anyone who then ran a
+# reading would have measured the mutant and called it the product. Two static
+# facts are enough to refuse that reading, and neither needs a product launch:
+#   - native/ must be clean, or the binary describes edited sources;
+#   - the probe must be newer than every source file it is built from.
+# This guard does not rebuild. It refuses, names the file, and lets the caller
+# decide; a gate that silently rebuilt would hide the same defect behind a wait.
+stale_binary_sources=""
+native_dirty=$(git status --porcelain -- native 2>/dev/null | wc -l | tr -d " ")
+if [ "${native_dirty:-0}" != "0" ]; then
+  echo "STALE-BINARY FAIL: $native_dirty paths under native/ are modified; a reading now would describe edited sources"
+  git status --porcelain -- native | sed "s/^/  /"
+  exit 1
+fi
+for src in native/src/projectile_track.cpp native/include/projectile_track.h; do
+  [ -e "$src" ] || continue
+  if [ ! "$PROBE" -nt "$src" ]; then stale_binary_sources="$stale_binary_sources $src"; fi
+done
+if [ -n "$stale_binary_sources" ]; then
+  echo "STALE-BINARY FAIL: $PROBE is older than:$stale_binary_sources"
+  echo "  (a mutation that failed before its restore step leaves exactly this state)"
+  exit 1
+fi
+echo "STALE-BINARY OK: native/ clean and $PROBE is newer than its sources"
 [ -e "$TF" ] || { echo "FATAL: missing tf root: $TF"; exit 1; }
 [ -e "$BAGEL" ] || { echo "FATAL: missing demo: $BAGEL"; exit 1; }
 
