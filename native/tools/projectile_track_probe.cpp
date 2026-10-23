@@ -735,6 +735,26 @@ int runDemo(const std::string& demoPath, int top, bool expectEmptySearch,
         std::printf("appendCost.rule: medianOk=%s maxOk=%s\n",
                     at(0.50) <= 0.5 ? "true" : "false",
                     sorted.back() <= 5.0 ? "true" : "false");
+        // THE CAUSE, PART TWO: VECTOR GROWTH.
+        //
+        // This column exists because the two obvious explanations for the tail were
+        // both wrong. It is not the host -- the worst packet sits at the SAME index
+        // in every run (59353), which preemption cannot produce. It is not the walk
+        // -- the worst packet is not the one with the most entities. The remaining
+        // candidate is a push_back that outgrew the capacity and copied every
+        // retained row, which lands on specific packets and on nothing else.
+        if (worstIndex < summary.projectileTrackAppendGrew.size()) {
+          std::size_t grewTotal = 0;
+          for (const auto value : summary.projectileTrackAppendGrew) grewTotal += value;
+          std::size_t grewAbove1ms = 0;
+          for (std::size_t i = 0; i < raw.size() && i < summary.projectileTrackAppendGrew.size(); ++i) {
+            if (raw[i] > 1.0 && summary.projectileTrackAppendGrew[i] != 0) ++grewAbove1ms;
+          }
+          std::printf("appendCost.growth: worstPacketGrew=%u totalGrowPackets=%zu "
+                      "growPacketsAbove1ms=%zu rowsRetained=%zu\n",
+                      summary.projectileTrackAppendGrew[worstIndex],
+                      grewTotal, grewAbove1ms, summary.projectileTrackSamples.size());
+        }
       }
     }
   }
