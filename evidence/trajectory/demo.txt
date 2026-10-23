@@ -21,13 +21,13 @@ filter: owners=15 rowsWithoutOwner=0 busiestOwner=790 busiestRows=110145
 emptycase: tick=55193 rows=0 marker=NO-PROJECTILE
 query: tick=85433 rows=257880 calls=3 foundLast=8 binaryComparisons<=36 scanWouldBe=773640
 cost: sampleRows=257880 queryComparisonsPerCall<=36 budgetPerCall=36
-appendCost: packets=73118 medianMs=0.0083 p90Ms=0.0181 maxMs=2.6649
-appendCost.tail: worstPacketIndex=59353 worstMs=2.6649 secondPacketMs=0.0047 maxAfterFirst=2.6649
+appendCost: packets=73118 medianMs=0.0059 p90Ms=0.0123 maxMs=2.1692
+appendCost.tail: worstPacketIndex=59353 worstMs=2.1692 secondPacketMs=0.0042 maxAfterFirst=2.1692
 appendCost.cause: worstPacketEntities=683 medianEntities=671 maxEntities=692
 appendCost.cause: worstIsAlsoLargestEntities=false
-appendCost.outliers: above100us=59 above500us=4 above1ms=4 of 73118 (0.0055% above1ms)
+appendCost.outliers: above100us=43 above500us=5 above1ms=2 of 73118 (0.0027% above1ms)
 appendCost.rule: medianOk=true maxOk=true
-buildCost: frames=214 medianMs=0.0115 p95Ms=0.0181 maxMs=0.0863
+buildCost: frames=214 medianMs=0.0084 p95Ms=0.0114 maxMs=0.0245
 buildCost.points: median=144 max=198 verticesMedian=288 verticesMax=396
 buildCost.budget: frameBudget240HzMs=4.1667 targetMs=1.0
 ownerReuse: ownerSlots=15 slotsWithMultipleLifetimes=15 worstOwner=712 worstLifetimes=359
