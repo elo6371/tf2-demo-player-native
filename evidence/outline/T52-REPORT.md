@@ -843,6 +843,120 @@ entity=2  box=25x8  vertexbox=485,337,499,341  vverts=12000  origin=497,339  w=0
 - 收益要等读回测试之后才明确。
 ⇒ **本轮冻结带着 D1**，进错题库，作为后续任务的第一件事。
 
+## 14. 合并回归的三条定因（2026-10-23 12:xx，T52 门禁在合并树上 12 条 FAIL）
+
+合并树 `3e4211f`（工作树 HEAD `ecb3a93`）上本门禁红 12 条，本分支报告记 1 条（`outsideDiff=297`）。
+十二条分成三组，**没有一条是合并引入的行为缺陷**；其中两组是门禁自己的过期常数，一组是 D1。
+
+### 14.1 A 组六条：门禁的采样点不在录像的保留窗口里（**默认值过期**）
+
+```text
+FAIL probe demo exit = 1                     FAIL sampled player rows = 0
+FAIL red player rows = 0                     FAIL blue player rows = 0
+FAIL sampled ticks that produced player rows = 0
+FAIL per-row lines carrying identity, team and pose = 0
+```
+**在分支上不带任何环境变量复现同一现象**（这是定性的关键读数）：
+```text
+分支 --ticks 1000,1200,...,2000（旧默认）  demo summary ticks=6 rows=0 unavailable=6  exit=1   ← 与合并树一致
+分支 --ticks 64229,64267,...（窗口内）      demo summary ticks=6 rows=120 withTeam=120 unavailable=0  exit=0
+```
+⇒ **合并缺陷排除**：旧默认 `TICKS="${T52_TICKS:-1000,...,2000}"` 与这条录像的保留窗口
+（`retainedFirst=74481 retainedLast=74671 serverTickOrigin=10252` ⇒ playback **64229..64419**）各说各话。
+门禁此前每一条读数都是显式传 tick 跑出来的，**默认路径从没被走过**，所以这个红藏在门禁里。
+
+**已改**（本分支）：采样点从探针自己打印的窗口**推导**，不写死；推导、窗口、步长、六个 tick 全部打印进日志；
+`T52_TICKS` 保留为"钉死某一轮的诊断口"；捕获 tick 同样改为窗口内第一个 tick（原来是 `2000`，同一类过期常数，
+它把帧拍到了录像开头、玩家近 3-5 倍，直接决定了 14.3 的像素数）。
+
+两条判读同时保留：`unavailable=0`（历史答不出的 tick 数）与 `ticksWithRows==请求数`（答得出且有玩家的 tick 数）。
+
+**推导实测**（分支，未占锁，只跑探针）：
+```text
+--ticks 0                    rc=1   （"没测到东西"裁决，发现运行按设计就是这个码）
+  stderr: FAIL no player was sampled at any requested tick
+          ← 用固定字符串断言，因为"exit 1"也可能是打印完就崩
+  window_usable: history 三字段齐全 -> yes
+  window: server 74481..74671 origin=10252 -> playback 64229..64419 step=31
+  ticks=64229,64260,64291,64322,64353,64384
+  自测：喂一行没有 retainedFirst= 的 history -> window_usable 判 no（SELFTEST-OK）
+```
+发现运行与测量运行打印的 `demo history` 行必须逐字节相同（cmp）——这条证明"窗口是同一扇窗"，
+而不是两条相似但不同的代码路径。
+一条说"我没取到答案"，一条说"我取到答案的数量"，删一条就是把一种失败换成另一种看不见。
+
+### 14.2 B 组三条：绝对序号不是契约（**快照被当成了契约**）
+
+```text
+合并树: on.ordinal=7   vm.ordinal=7  vm.vmOrdinal=8  vm.orderOk=1
+分支:   on.ordinal=6   vm.ordinal=6  vm.vmOrdinal=7  vm.orderOk=1
+```
+**`orderOk` 在两棵树上都是 1**——相对契约（描边在清深度的 pass 之前）没有坏；红的是三个绝对值。
+T53 的弹道 pass 合并进了 outline pass 之前，整体 +1，**行为没变**。
+
+**已改**：三件事同时断言，而不是把 6 改成 7——
+```text
+1 相对   orderOk=1 且 overlay ordinal < vmOrdinal（产品自比 + 门禁自比，门禁不只是复述产品）
+2 自洽   ordinal 取自 owner=outline 且 drew=1 的那一行；同一构建两次捕获（on / vm）必须同号
+3 可动   m4 移动 pass 之后 ordinal 必须 != 本构建的序号（must_move，期望值改为运行时读取）
+```
+**绝对序号 6/7 曾经是契约，2026-10-23 起不再是；当前注册表快照是 7/8。**
+快照记成读数、不记成契约：下一次有人插 pass，红的是"快照变了"而不是"行为错了"。
+
+**问：如果有人把 outline pass 挪到 ViewModel 之后，这套新断言会不会红？靠哪条红？**
+会，两条独立地红：`orderOk`（产品自己的比较，m4 就是这个移动，实测 `orderOk=0`）
+和 `assert_lt`（门禁自己比 `ordinal < vmOrdinal`，移动后是 8 > 7）。两条不共用同一来源，所以一条坏了另一条还在。
+
+### 14.3 C 组一条：`outsideDiff` 6141 是 D1 换了镜头，不是新 pass（**不是独立缺陷**）
+
+合并树 on/off 纯离线差分（不占锁、不开产品）：
+```text
+differing: 7644 / 860784 = 0.89%      regions: 7      outside every region: 7322
+框外聚类 = 4 块大实心（恰好等于 silhouettes=4）:
+  2745 px bbox=(765,334)-(853,382) 89x49 fill=0.63
+  2178 px bbox=(605,333)-(679,375) 75x43 fill=0.68
+  1577 px bbox=(351,350)-(414,382) 64x33 fill=0.75
+   820 px bbox=(673,326)-(726,347) 54x22 fill=0.69
+```
+fill 0.63-0.75 是**人体形状**；轨迹线应当是 fill≈0.02-0.05 的细长条。而且：
+```text
+grep -c -i trajectory on.trace = 0
+--projectile-trajectory 是显式开启的（默认关），--no-projectile-trajectory 才关
+```
+⇒ **不是 T53 的 pass，也不是 HUD/相机**。这是 **D1（框与画不对应）**：这一帧玩家近 3-5 倍，
+blob 从 22x14 长到 89x49，"框外像素"因此从 297 涨到 6141；放大机制就是 14.1 的捕获 tick 过期。
+
+**结论写成一句可复用的话：**
+> `6141 = D1 × 近景放大 + A 的采样点`——**这条红从来不是独立缺陷，它一直是 D1 的另一个镜头。**
+> A 修好后它回到 297，而 297 就是 D1 的当前读数：有 owner、有形状、有下一步（报告第 9 节）。
+
+### 14.4 LOCK-DISCIPLINE：一轮被丢弃的 forward
+
+```text
+LOCK-DISCIPLINE: run t52-outline22 discarded, lock broken by a third party at 12:26
+                 (hostlock.sh break has no ownership check: t53-merged released a lock it did not hold);
+                 rerun under lock at <rerun hh:mm>
+```
+
+**这一行不是追责，是让下一个读的人知道为什么有一轮不算数。** 事实与影响范围：
+
+```text
+12:19:24  ACQUIRED owner=t52-outline22
+12:19:25  探针段（1-3 段）：probe-window / probe-demo / selftest      ← 锁内，且不启产品
+12:21:53  off.bmp  off.trace                                          ← 锁内
+12:23:48  on.bmp   on.trace                                           ← 锁内
+12:25:44  tested.bmp                                                  ← 锁内，12:26 之前的最后一帧
+12:26     hostlock.sh break 把锁从我手里释放（非持有者可释放）        ← 此后 5-8 分钟无锁
+12:29:54  speed1.trace                                                ← 无锁窗口内
+12:31:55  regions.txt                                                 ← 无锁窗口内
+12:36     我发现进程处于无锁状态，自行终止                            ← 这一轮作废
+```
+
+**判断**：`outsideDiff=297` 的**两个源帧写于 12:21:53 与 12:23:48，都在锁被破坏之前**，
+而且同场景前置断言给出 484 像素——与 10:45 那次干净配对的数字**完全相同**。
+但按纪律：**跨过 12:26 的一轮整体判为待验证，不作为读数**；`297` 作为"待重跑确认"记录，
+最终数字以持锁重跑的读数为准。
+
 ## 8. 交接
 
 ### 8.0 冻结状态（2026-10-23 10:55，本轮结束）

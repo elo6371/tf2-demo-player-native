@@ -17,7 +17,7 @@
 #   2. NOTHING ELSE CHANGED. "The overlay does not change world geometry or
 #      ordinary visibility" is asserted as: with the overlay on, every pixel
 #      OUTSIDE the drawn silhouette's bounds is byte-identical to the same tick
-#      with the overlay off, and the pass reports ordinal 6 -- strictly before
+#      with the overlay off, and the pass draws in a slot before the ViewModel's --
 #      the ViewModel pass. A byte count would pass for an overlay that had
 #      shifted the whole world by one pixel; a bound cannot.
 #
@@ -57,7 +57,7 @@
 #   m3 overlay always on and leaks      -> the OFF frame gains team pixels
 #   m5 the overlay writes depth         -> the published depth WRITE flips
 #   m6 capture lands near, not at, tick -> the speed=1 and speed=default frames differ
-#   m4 move the pass after ViewModel    -> ordinal: orderOk=0 and ordinal != 6
+#   m4 move the pass after ViewModel    -> orderOk=0 and ordinal != the fixed build's
 # Each mutation restores the source and the restore is verified with cmp.
 #
 # SECTION 0 runs the two Python readers on synthetic frames and traces and
@@ -116,6 +116,13 @@ assert_le() { # assert_le <label> <actual> <maximum>
     echo "  OK   $1 = $2 (<= $3)"
   else
     echo "  FAIL $1 = ${2:-<none>}, expected <= $3"; fail=1
+  fi
+}
+assert_lt() { # assert_lt <label> <actual> <maximum, exclusive>
+  if [ -n "${2:-}" ] && [ "$2" -lt "$3" ] 2>/dev/null; then
+    echo "  OK   $1 = $2 (< $3)"
+  else
+    echo "  FAIL $1 = ${2:-<none>}, expected < $3"; fail=1
   fi
 }
 
@@ -219,22 +226,90 @@ fi
 
 echo
 echo "=== 3/6 a real recording: identity, team and pose at every sampled tick ==="
-# The tick set is a fixed list, not "whatever the run happened to reach": the
-# same ticks must be sampled in every run or the frames compared in sections 4
-# and 5 would be two different cameras.
-# These are PLAYBACK ticks (sceneTick = firstPacketTick + tick) and they must
-# land inside the C++ entity history's retained window. Outside it the accessor
-# answers "unavailable", the product's scene states come back EMPTY, and a frame
-# at that tick has no player to outline at all. Measured before this was fixed:
-# six requested ticks, six "the tick precedes every retained snapshot", zero
-# rows. The probe prints the window and the per-tick player/team counts
-# (--find-ticks); these six are inside it.
-TICKS="${T52_TICKS:-1000,1200,1400,1600,1800,2000}"
+# The tick set is DERIVED FROM THIS DEMO, not pinned in the file.
+#
+# A fixed list is a constant that assumes one recording. 2026-10-23 the default was
+# 1000..2000 while this demo retains server ticks 74481..74671 (serverTickOrigin
+# 10252, so playback 64229..64419): every request answered "the tick precedes every
+# retained snapshot", rows=0, and five assertions about players were really
+# assertions about an empty sample. The window is asked for, not remembered.
+#
+# T52_TICKS survives as an override, but it is a DIAGNOSTIC PIN for reproducing one
+# round, not the daily path. Pinning a tick list is how the stale list above stayed
+# alive: every reading in the report passed one explicitly, so the default was never
+# exercised.
+#
+# The discovery run is asserted rather than assumed:
+#   * the probe exits 1 when it measured nothing, by design -- a run that samples
+#     tick 0 always does. The exact stderr sentence is pinned, because "exited 1"
+#     alone is also what a crash after printing looks like;
+#   * its "demo history" line must be BYTE-IDENTICAL to the one the measuring run
+#     prints below (cmp), which is what makes this the same window read twice
+#     rather than a second, plausibly-similar code path;
+#   * a doctored history line missing retainedFirst= must make the guard go red,
+#     or the guard is decoration.
+window_field() { # window_field <file> <name>
+  sed -n "s/^demo history .*$2=\([0-9]*\).*/\1/p" "$1" 2>/dev/null | head -1
+}
+window_usable() { # window_usable <file> -- three fields readable and last > first
+  local a b c
+  a=$(window_field "$1" retainedFirst)
+  b=$(window_field "$1" retainedLast)
+  c=$(window_field "$1" serverTickOrigin)
+  [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ "$b" -gt "$a" ] 2>/dev/null
+}
+"$PROBE" --demo "$DEMO" --ticks 0 > "$OUT/probe-window.txt" 2>&1
+WINDOW_RC=$?
+WINDOW_OK=1
+if window_usable "$OUT/probe-window.txt"; then
+  echo "  OK   window discovery reported a usable history line"
+else
+  echo "  FAIL window discovery reported no usable history line"; fail=1; WINDOW_OK=0
+fi
+assert_eq "window discovery exit is the probe measured-nothing verdict" "$WINDOW_RC" "1"
+assert_contains "window discovery says why it measured nothing" \
+  "$(cat "$OUT/probe-window.txt" 2>/dev/null)" \
+  "FAIL no player was sampled at any requested tick"
+# Self-test: the same guard must REJECT a file that lacks the field it claims to
+# need. A guard that cannot go red is a comment that runs.
+printf 'demo history packets=1 retainedLast=2 serverTickOrigin=3\n' > "$OUT/window-doctored.txt"
+if window_usable "$OUT/window-doctored.txt"; then
+  echo "  FAIL window self-test: a line without retainedFirst= was accepted"; fail=1
+else
+  echo "  OK   window self-test: a line without retainedFirst= is rejected"
+fi
+
+RETAINED_FIRST=$(window_field "$OUT/probe-window.txt" retainedFirst)
+RETAINED_LAST=$(window_field "$OUT/probe-window.txt" retainedLast)
+ORIGIN=$(window_field "$OUT/probe-window.txt" serverTickOrigin)
+FIRST=$(( ${RETAINED_FIRST:-0} - ${ORIGIN:-0} ))
+LAST=$(( ${RETAINED_LAST:-0} - ${ORIGIN:-0} ))
+STEP=$(( (LAST - FIRST) / 6 )); [ "$STEP" -ge 1 ] 2>/dev/null || STEP=1
+if [ -n "${T52_TICKS:-}" ]; then
+  TICKS="$T52_TICKS"
+  echo "  ticks: pinned by T52_TICKS=$TICKS (diagnostic pin for one round, not the daily path)"
+elif [ "$WINDOW_OK" -eq 1 ]; then
+  TICKS=""
+  for n in 0 1 2 3 4 5; do TICKS="${TICKS:+$TICKS,}$((FIRST + n * STEP))"; done
+  echo "  window: server ${RETAINED_FIRST}..${RETAINED_LAST} origin=$ORIGIN -> playback $FIRST..$LAST step=$STEP"
+else
+  TICKS="0"
+  echo "  FAIL no tick set: the window was unreadable and T52_TICKS was not set"
+  fail=1
+fi
+echo "  ticks=$TICKS"
 "$PROBE" --demo "$DEMO" --ticks "$TICKS" > "$OUT/probe-demo.txt" 2>&1
 DEMO_RC=$?
 grep -a "^demo summary" "$OUT/probe-demo.txt" > "$OUT/probe-demo-summary.txt" 2>/dev/null
 cat "$OUT/probe-demo-summary.txt"
 assert_eq "probe demo exit" "$DEMO_RC" "0"
+# The history line the discovery run printed and the one this run printed must be
+# the same bytes: that is what makes the derived ticks a reading of the same window
+# these samples were answered against.
+grep -a "^demo history" "$OUT/probe-window.txt" > "$OUT/window-discovery.txt" 2>/dev/null
+grep -a "^demo history" "$OUT/probe-demo.txt"   > "$OUT/window-measuring.txt" 2>/dev/null
+assert_eq "the discovery run and the measuring run report the same history line" \
+  "$(cmp -s "$OUT/window-discovery.txt" "$OUT/window-measuring.txt" && echo same || echo different)" "same"
 # The rows the identity claim rests on. `rows` is how many player-rows were
 # sampled in total: a demo whose snapshots hold no player would make every
 # later assertion vacuous, so the count is a criterion and not a diagnostic.
@@ -286,6 +361,13 @@ echo "  fidelity unavailable=$(v "$OUT/probe-demo-summary.txt" unavailable)"
 # "the tick precedes every retained snapshot", zero rows. So a tick the history
 # cannot answer is a failure of the claim, not a sampling detail.
 assert_eq "sampled ticks the entity history could answer" "$(v "$OUT/probe-demo-summary.txt" unavailable)" "0"
+# Two readings on purpose. "unavailable" counts ticks the history could NOT answer;
+# "ticksWithRows" (asserted above against the requested count) counts the ones it
+# could and that produced players. A sampling point outside the retained window
+# moves the first; an empty sample moves the second. One reading cannot say both,
+# and deleting either would trade one invisible failure for another.
+assert_eq "sampled ticks that produced player rows (own reading)" \
+  "$(v "$OUT/probe-demo-summary.txt" ticksWithRows)" "$EXPECTED_TICKS"
 
 echo
 echo "=== 4/6 the frames: nothing else changed, both colours, both directions ==="
@@ -293,10 +375,15 @@ echo "=== 4/6 the frames: nothing else changed, both colours, both directions ==
 #   off     --outline off
 #   on      --outline on
 #   tested  --outline on --outline-depth tested (the depth-awareness control)
-# Fixed so the gate is reproducible; the override exists for the run that PICKS
-# the tick, because where the retained window sits is a property of the
-# recording that has to be measured once before it can be pinned.
-TICK="${T52_TICK:-2000}"
+# The capture tick is the FIRST tick inside the retained window derived above.
+# It used to be a pinned 2000, which is the same stale-constant shape as the tick
+# list: 2000 is outside this recording's window, so the frames were captured from
+# the demo's opening seconds -- a different camera, players 3-5x nearer -- and the
+# pixel readings below moved for that reason alone. T52_TICK stays as the
+# diagnostic pin, exactly like T52_TICKS.
+CAPTURE_TICK="$FIRST"
+TICK="${T52_TICK:-$CAPTURE_TICK}"
+echo "  capture tick=$TICK (first in-window playback tick; T52_TICK pins it)"
 # Two things had to change here before a capture could ever happen, and both were
 # found by reading the product instead of the gate:
 #   * --start-paused freezes g_playback.tick at 0, so the one-shot capture armed
@@ -466,21 +553,33 @@ WORLD_MODELS_PREPARED=$(sed -n "s/.*gpu: models done \([0-9][0-9]*\) uploaded=.*
 WORLD_MODELS_UPLOADED=$(trace_field "$OUT/on.trace" "gpu: models done" uploaded)
 echo "  world models: prepared=${WORLD_MODELS_PREPARED:-<none>} uploaded=${WORLD_MODELS_UPLOADED:-<none>} (baseline 59/59, measured before the outline uploaded anything)"
 assert_eq "world pass model uploads unchanged by the overlay" "${WORLD_MODELS_UPLOADED:-<none>}" "59"
-# The ordinal assertion the lead asked for, in two halves because the product can
-# answer only one of them without a viewmodel.
+# The ordinal readings. ABSOLUTE NUMBERS ARE NOT THE CONTRACT.
 #
-# `ordinal` is the slot the overlay pass actually took this frame: always
-# measurable, always 6.
-assert_eq "overlay ordinal" "$(outline_value "$OUT/on.trace" ordinal)" "6"
-# `vmOrdinal` is only set when drawViewModel() RUNS, and that pass returns early
-# unless a viewmodel was requested and its mesh uploaded (native_renderer.cpp:
-# 4152-4160). A plain demo capture requests none, so on the `on` frame vmOrdinal
-# is 0 and orderOk is 0 -- and that 0 is CORRECT: "before a pass that did not
-# run" is not a statement this frame can make. Reading it as a failure would be
-# the same class of error as reading an empty grep as "the value is zero".
+# 6/7 was the pass-registry snapshot until 2026-10-23, when T53's projectile pass was
+# merged ahead of this one and the same behaviour produced 7/8. The contract is
+# RELATIVE -- the outline must draw before the pass that clears depth -- so these
+# readings assert the relation and RECORD the snapshot. Three things are checked,
+# and they fail for different defects:
+#   1. the relation: the product's own orderOk=1 PLUS the gate's own
+#      ordinal < vmOrdinal, so the gate is not merely echoing the product;
+#   2. self-consistency: the number is read from the line that says owner=outline
+#      and drew=1, and two captures of one build agree on it -- a number taken from
+#      some other pass's line would pass (1) and fail here;
+#   3. it can move: m4 relocates the pass and the ordinal must differ from this
+#      build's, asserted in the mutation section.
+FIXED_ORD=$(outline_value "$OUT/on.trace" ordinal)
+assert_ge "overlay took a pass slot" "${FIXED_ORD:-0}" "1"
+assert_eq "the ordinal is read from the overlay pass's own line" "$(outline_value "$OUT/on.trace" owner)" "outline"
+assert_eq "the pass that took the slot is the pass that drew" "$(outline_value "$OUT/on.trace" drew)" "1"
+# "vmOrdinal" is only set when drawViewModel() RUNS, and that pass returns early
+# unless a viewmodel was requested and its mesh uploaded. A plain demo capture
+# requests none, so on the "on" frame vmOrdinal is 0 and orderOk is 0 -- and that 0
+# is CORRECT: "before a pass that did not run" is not a statement this frame can
+# make. Reading it as a failure would be the same class of error as reading an
+# empty grep as "the value is zero".
 VM_ORD_ON=$(outline_value "$OUT/on.trace" vmOrdinal)
 if [ "${VM_ORD_ON:-0}" -ge 1 ]; then
-  assert_eq "viewModel ordinal (on frame)" "${VM_ORD_ON}" "7"
+  assert_lt "pass order: overlay ordinal is before the viewModel slot" "${FIXED_ORD:-0}" "${VM_ORD_ON}"
   assert_eq "pass order (overlay before viewModel)" "$(outline_value "$OUT/on.trace" orderOk)" "1"
 else
   echo "  NOT-PAIR on frame: the ViewModel pass did not run (vmOrdinal=0); the pair is"
@@ -492,11 +591,16 @@ fi
 # but the argument that makes the ViewModel pass exist.
 run_frame "$OUT/vm" --outline on --viewmodel models/weapons/v_models/v_scattergun_scout.mdl
 VM_ORD=$(outline_value "$OUT/vm.trace" vmOrdinal)
-echo "  vm.ordinal=$(outline_value "$OUT/vm.trace" ordinal) vm.vmOrdinal=${VM_ORD:-<none>} vm.orderOk=$(outline_value "$OUT/vm.trace" orderOk) vm.drew=$(outline_value "$OUT/vm.trace" drew)"
-assert_eq "viewModel ordinal (with a viewmodel)" "${VM_ORD:-<none>}" "7"
+VM_OVERLAY_ORD=$(outline_value "$OUT/vm.trace" ordinal)
+echo "  vm.ordinal=${VM_OVERLAY_ORD:-<none>} vm.vmOrdinal=${VM_ORD:-<none>} vm.orderOk=$(outline_value "$OUT/vm.trace" orderOk) vm.drew=$(outline_value "$OUT/vm.trace" drew) fixed.ordinal=${FIXED_ORD:-<none>}"
+assert_ge "viewModel took a pass slot" "${VM_ORD:-0}" "1"
 assert_eq "pass order (overlay before viewModel, with a viewmodel)" \
   "$(outline_value "$OUT/vm.trace" orderOk)" "1"
-assert_eq "overlay ordinal (with a viewmodel)" "$(outline_value "$OUT/vm.trace" ordinal)" "6"
+assert_lt "overlay ordinal is before the viewModel slot (gate's own comparison)" \
+  "${VM_OVERLAY_ORD:-0}" "${VM_ORD:-0}"
+assert_eq "overlay ordinal is the same slot in both captures of one build" \
+  "${VM_OVERLAY_ORD:-<none>}" "${FIXED_ORD:-<none>}"
+echo "  ordinal: absolute numbers are a registry snapshot, recorded not asserted (fixed=$FIXED_ORD vmOrdinal=$VM_ORD)"
 assert_eq "overlay enabled in the off run" "$(outline_value "$OUT/off.trace" enabled)" "0"
 assert_eq "overlay drew in the off run" "$(outline_value "$OUT/off.trace" drew)" "0"
 # The toggle's effect is a COUNT: with the switch off, every sampled player is
@@ -671,7 +775,7 @@ echo
 #   m5 the overlay writes depth     -> the published x-ray depth WRITE flips
 #   m6 captured tick depends on the
 #      playback speed               -> the speed=1 and speed=default frames differ
-#   m4 draw after the ViewModel     -> ordinal: orderOk=0 and ordinal != 6
+#   m4 draw after the ViewModel     -> orderOk=0 and ordinal != the fixed build's
 #   m7 no class model fallback      -> submitted drops to 0, noMesh rises to samples
 #   m8 item keeps the bare path     -> silhouettes drawn drop to 0 while submitted stays >0
 #   m9 bind mesh preferred over the
@@ -1140,7 +1244,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m4" "pass order (overlay before viewModel)" "1" "${M4_ORDER:-0}"
     # The number itself must move too: the mutant's ordinal is no longer the slot
     # the contract names, because the ordinal is read where the pass ran.
-    must_move "m4" "overlay ordinal after the move" "6" "${M4_ORDINAL:-0}"
+    must_move "m4" "overlay ordinal after the move" "${FIXED_ORD:-0}" "${M4_ORDINAL:-0}"
   fi
   restore_all; rebuild_product "restore after m4" || true
 
@@ -1148,7 +1252,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   # rebuild is only half of that: the binary has to read green again, or every
   # later reading in this worktree is a reading of the last mutant.
   R_RC=$(run_frame "$OUT/restored" --outline on --viewmodel models/weapons/v_models/v_scattergun_scout.mdl)
-  assert_eq "restored build: overlay ordinal" "$(outline_value "$OUT/restored.trace" ordinal)" "6"
+  assert_eq "restored build: overlay ordinal" "$(outline_value "$OUT/restored.trace" ordinal)" "${FIXED_ORD:-<none>}"
   assert_eq "restored build: pass order" "$(outline_value "$OUT/restored.trace" orderOk)" "1"
   assert_eq "restored build: overlay drew" "$(outline_value "$OUT/restored.trace" drew)" "1"
 
