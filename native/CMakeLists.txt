@@ -71,6 +71,8 @@ add_executable(tf2_demo_native WIN32
   # The HUD registers its three actions into the ONE table rather than a second.
   src/keybinds.cpp
   src/ini_section.cpp
+  # T52: the shared overlay contract both T52 and T53 implement against.
+  src/entity_overlay.cpp
   src/bsp_map.cpp
   # The world material capability layer. In the product, not just in the probe:
   # the product resolves a map's cubemap through the same bspPakfileEntry and
@@ -140,6 +142,21 @@ target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN
 target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32)
 
 add_executable(item_schema_probe tools/item_schema_probe.cpp src/item_schema.cpp src/proto_wire.cpp)
+
+# T52: the overlay contract's own probe. Links the contract implementation and
+# the demo reader but NOT the renderer: every assertion it makes is about a
+# value (entity identity, team, pose, pass order, pixel predicate), and a probe
+# that needed a device could not run in the gate's cheapest tier.
+add_executable(entity_overlay_probe
+  tools/entity_overlay_probe.cpp
+  src/entity_overlay.cpp
+  src/entity_model.cpp
+  ${TF2_DEMO_HEADER_SOURCES})
+target_include_directories(entity_overlay_probe PRIVATE include third_party/lzma)
+target_link_libraries(entity_overlay_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(entity_overlay_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+set_target_properties(entity_overlay_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 target_include_directories(item_schema_probe PRIVATE include)
 set_target_properties(item_schema_probe PROPERTIES WIN32_EXECUTABLE OFF)
 

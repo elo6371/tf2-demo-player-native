@@ -618,6 +618,105 @@ float4 main(Input input) : SV_TARGET {
   return float4(input.colour.rgb * lighting, input.colour.a);
 }
 )HLSL";
+  // The line/marker half of the same pass. It is a second, tiny program rather
+  // than a branch of the silhouette one because the two read different vertex
+  // streams: a silhouette is a model mesh with per-instance placement rows, a
+  // trail is a plain world-space position with a colour.
+  static constexpr char overlayLineVertexSource[] = R"HLSL(
+cbuffer OverlayConstants : register(b0) {
+  row_major float4x4 mvp;
+  float4 cameraPositionAndExpand;
+  float4 mode;
+};
+struct Input { float3 position : POSITION; float4 colour : COLOR0; };
+struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; };
+Output main(Input input) {
+  Output output;
+  output.position = mul(float4(input.position, 1.0), mvp);
+  output.colour = input.colour;
+  return output;
+}
+)HLSL";
+
+  // ---- T52: the overlay pass's shaders -------------------------------------
+  // The silhouette is the entity's own mesh drawn as a shell expanded along its
+  // normals, in the team colour, with no texture and no lighting: an outline
+  // that shaded itself would blend into the map instead of reading as an
+  // overlay. The expansion is done in the VERTEX shader from the same instance
+  // rows the entity pass uses, so the shell follows the pose (and the skinning)
+  // rather than the bind pose.
+  //
+  // The same program draws lines and markers: a primitive with boneInfo.y == 0
+  // and a zero row0/row1/row2 falls through to the flat `position` path below,
+  // which is what the line and marker buffers are built in.
+  static constexpr char overlayVertexSource[] = R"HLSL(
+cbuffer OverlayConstants : register(b0) {
+  row_major float4x4 mvp;
+  float4 cameraPositionAndExpand;
+  float4 mode;
+};
+struct Input {
+  float3 position : POSITION;
+  float3 normal : NORMAL0;
+  float2 uv : TEXCOORD0;
+  float3 weights : BLENDWEIGHT;
+  uint4 boneIndices : BLENDINDICES;
+  float4 row0 : TEXCOORD1;
+  float4 row1 : TEXCOORD2;
+  float4 row2 : TEXCOORD3;
+  float4 nrow0 : TEXCOORD4;
+  float4 nrow1 : TEXCOORD5;
+  float4 nrow2 : TEXCOORD6;
+  float4 colour : COLOR0;
+  uint4 boneInfo : TEXCOORD7;
+};
+StructuredBuffer<float4x4> boneMatrices : register(t4);
+struct Output {
+  float4 position : SV_POSITION;
+  float4 colour : COLOR0;
+};
+Output main(Input input) {
+  Output output;
+  float4 local = float4(input.position, 1.0);
+  float3 normalLocal = input.normal;
+  if (input.boneInfo.y != 0) {
+    float totalWeight = input.weights.x + input.weights.y + input.weights.z;
+    if (totalWeight > 0.0) {
+      float3 normalizedWeights = input.weights / totalWeight;
+      float3 skinnedPos = float3(0.0, 0.0, 0.0);
+      float3 skinnedNormal = float3(0.0, 0.0, 0.0);
+      for (uint i = 0; i < 3; ++i) {
+        if (normalizedWeights[i] > 0.0 && input.boneIndices[i] < input.boneInfo.z) {
+          uint bone = input.boneInfo.x + input.boneIndices[i];
+          skinnedPos += mul(local, boneMatrices[bone]).xyz * normalizedWeights[i];
+          skinnedNormal += mul(float4(input.normal, 0.0), boneMatrices[bone]).xyz * normalizedWeights[i];
+        }
+      }
+      local = float4(skinnedPos, 1.0);
+      normalLocal = skinnedNormal;
+    }
+  }
+  float3 mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));
+  float3 rotated = float3(dot(input.nrow0.xyz, normalLocal), dot(input.nrow1.xyz, normalLocal), dot(input.nrow2.xyz, normalLocal));
+  float lengthSquared = dot(rotated, rotated);
+  float3 unitNormal = (lengthSquared > 1e-8 && lengthSquared < 1e8) ? rotated * rsqrt(lengthSquared) : float3(0.0, 0.0, 0.0);
+  // The expansion that turns the mesh into an outline. `mode.x` is 0 for the
+  // line/marker path (no expansion: a trail must not grow), 1 for silhouettes.
+  mapped += unitNormal * cameraPositionAndExpand.w * mode.x;
+  output.position = mul(float4(mapped, 1.0), mvp);
+  output.colour = input.colour;
+  return output;
+}
+)HLSL";
+  // Flat colour, no texture, no lighting. An overlay pixel must be the team
+  // colour the reading names; anything the shader did to it would make the
+  // pixel predicate a statement about the shader instead.
+  static constexpr char overlayPixelSource[] = R"HLSL(
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0) : SV_TARGET {
+  return colour;
+}
+)HLSL";
+
   static constexpr char entityModelVertexSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
   row_major float4x4 mvp;
@@ -967,6 +1066,54 @@ float4 main(Input input) : SV_TARGET {
     return false;
   }
   HRESULT viewModelShaderResult = S_OK;
+  // T52: the overlay pass's own program. Compiled here with the rest so a bad
+  // edit fails at startup with a stage name instead of at the first overlay
+  // frame, when the device is already drawing.
+  initStage_ = "compileShaders.overlay";
+  {
+    Microsoft::WRL::ComPtr<ID3DBlob> overlayVertexBytecode;
+    Microsoft::WRL::ComPtr<ID3DBlob> overlayPixelBytecode;
+    HRESULT overlayShaderResult = S_OK;
+    if (!compileShader(overlayVertexSource, "main", "vs_5_0", overlayVertexBytecode, &overlayShaderResult)
+        || !compileShader(overlayPixelSource, "main", "ps_5_0", overlayPixelBytecode, &overlayShaderResult)) {
+      lastError_ = overlayShaderResult;
+      return false;
+    }
+    if (FAILED(device_->CreateVertexShader(overlayVertexBytecode->GetBufferPointer(),
+          overlayVertexBytecode->GetBufferSize(), nullptr, overlayVertexShader_.GetAddressOf()))
+        || FAILED(device_->CreatePixelShader(overlayPixelBytecode->GetBufferPointer(),
+          overlayPixelBytecode->GetBufferSize(), nullptr, overlayPixelShader_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+  }
+
+  initStage_ = "compileShaders.overlayLine";
+  {
+    Microsoft::WRL::ComPtr<ID3DBlob> overlayLineVertexBytecode;
+    HRESULT overlayLineResult = S_OK;
+    if (!compileShader(overlayLineVertexSource, "main", "vs_5_0", overlayLineVertexBytecode, &overlayLineResult)) {
+      lastError_ = overlayLineResult;
+      return false;
+    }
+    if (FAILED(device_->CreateVertexShader(overlayLineVertexBytecode->GetBufferPointer(),
+          overlayLineVertexBytecode->GetBufferSize(), nullptr, overlayLineVertexShader_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+    // The line program's input layout: position plus a colour, nothing else.
+    const D3D11_INPUT_ELEMENT_DESC overlayLineElements[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    if (FAILED(device_->CreateInputLayout(overlayLineElements, 2,
+          overlayLineVertexBytecode->GetBufferPointer(), overlayLineVertexBytecode->GetBufferSize(),
+          overlayLineInputLayout_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+  }
+
   initStage_ = "compileShaders.viewModel";
   if (!compileShader(viewModelVertexSource, "main", "vs_5_0", viewModelVertexBytecode, &viewModelShaderResult)
       || !compileShader(viewModelPixelSource, "main", "ps_5_0", viewModelPixelBytecode, &viewModelShaderResult)) {
@@ -1224,6 +1371,63 @@ float4 main(Input input) : SV_TARGET {
   samplerDescription.MipLODBias = static_cast<FLOAT>(settings_.textureMipBias);
   samplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
   if (FAILED(device_->CreateSamplerState(&samplerDescription, sampler_.GetAddressOf()))) return false;
+  // ---- T52: the overlay pass's own state ----------------------------------
+  // Stated here rather than borrowed from the world pass: the overlay must be
+  // unable to change the world's depth, and a borrowed state is a state whose
+  // writes somebody else chose.
+  {
+    D3D11_BUFFER_DESC overlayConstantsDescription{};
+    overlayConstantsDescription.ByteWidth = 96;  // mvp + cameraPositionAndExpand + mode
+    overlayConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
+    overlayConstantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    if (FAILED(device_->CreateBuffer(&overlayConstantsDescription, nullptr,
+        overlayConstants_.GetAddressOf()))) return false;
+  }
+  {
+    D3D11_DEPTH_STENCIL_DESC overlayDescription{};
+    overlayDescription.DepthEnable = FALSE;
+    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    overlayDescription.DepthFunc = D3D11_COMPARISON_ALWAYS;
+    overlayDescription.StencilEnable = FALSE;
+    if (FAILED(device_->CreateDepthStencilState(&overlayDescription,
+        overlayXRayDepthState_.GetAddressOf()))) return false;
+    // The control the depth-awareness mutation needs: ordinary depth test, still
+    // no depth write, so a silhouette behind a wall disappears exactly as the
+    // wall says it should.
+    overlayDescription.DepthEnable = TRUE;
+    overlayDescription.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    if (FAILED(device_->CreateDepthStencilState(&overlayDescription,
+        overlayDepthTestedState_.GetAddressOf()))) return false;
+    // Read both states BACK. The contract says x-ray is "depth test OFF and
+    // depth write OFF"; with this readback that sentence is a number in the
+    // trace instead of a comment beside the lines that set it, and a state whose
+    // description drifted cannot stay silent while the picture stays plausible.
+    // ID3D11DepthStencilState::GetDesc returns void, not HRESULT (D3D11 differs
+    // from the D3D12-style getters here): the state object is immutable once
+    // created, so the readback cannot fail and needs no SUCCEEDED wrapper. The
+    // first attempt wrapped it anyway and did not compile.
+    D3D11_DEPTH_STENCIL_DESC overlayReadback{};
+    if (overlayXRayDepthState_) {
+      overlayXRayDepthState_->GetDesc(&overlayReadback);
+      overlayXRayDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
+      overlayXRayDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+    }
+    if (overlayDepthTestedState_) {
+      overlayDepthTestedState_->GetDesc(&overlayReadback);
+      overlayDepthTestedDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
+      overlayDepthTestedDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+    }
+  }
+  {
+    D3D11_RASTERIZER_DESC overlayRasterizer{};
+    overlayRasterizer.FillMode = D3D11_FILL_SOLID;
+    overlayRasterizer.CullMode = D3D11_CULL_NONE;
+    overlayRasterizer.FrontCounterClockwise = FALSE;
+    overlayRasterizer.DepthClipEnable = TRUE;
+    if (FAILED(device_->CreateRasterizerState(&overlayRasterizer,
+        overlayRasterizerState_.GetAddressOf()))) return false;
+  }
+
   D3D11_DEPTH_STENCIL_DESC depthDescription{};
   depthDescription.DepthEnable = TRUE;
   depthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
@@ -3112,6 +3316,255 @@ void Renderer::setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>
   projectileVertexCount_ = static_cast<UINT>(particles.size());
 }
 
+void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
+  // Stored, not drawn: the pass runs inside draw(), in its own slot, and a
+  // caller must be able to submit on a sampled tick and keep drawing between
+  // samples. The index is the depth mode, so the two lists cannot overwrite
+  // each other.
+  const std::size_t slot = list.depth == OverlayDepthMode::DepthTested ? 1u : 0u;
+  overlayLists_[slot] = list;
+  // Rebuilt from BOTH stored lists. A rebuild that read only the list just
+  // handed in would erase the other mode buffers, so the second submission of
+  // one frame would silently delete the first -- the failure the contract rule
+  // "one list per depth mode, two lists per frame" (v1, T53 requirement (c))
+  // exists to make impossible.
+  rebuildOverlayBuffers();
+}
+
+void Renderer::rebuildOverlayBuffers() {
+  overlayInstanceCount_ = 0;
+  overlayInstances_.clear();
+  overlayLineVertexCount_ = 0;
+  overlayLineVertexCountByDepth_[0] = 0;
+  overlayLineVertexCountByDepth_[1] = 0;
+  overlayLineStartByDepth_[0] = 0;
+  overlayLineStartByDepth_[1] = 0;
+  overlayDrawRanges_.clear();
+  if (!device_ || !context_ || !worldBoundsValid_) return;
+
+  const auto normalize = [this](float x, float y, float z) {
+    return DirectX::XMFLOAT3((x - worldCenterX_) * worldHorizontalScale_,
+      (y - worldCenterY_) * worldHorizontalScale_,
+      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+  };
+  EntityModelWorldMap world;
+  world.centerX = worldCenterX_;
+  world.centerY = worldCenterY_;
+  world.minZ = worldMinZ_;
+  world.horizontalScale = worldHorizontalScale_;
+  world.zScale = 0.8f / worldSpanZ_;
+  constexpr std::size_t maxInstances = 96;
+
+  // ---- silhouettes, one bucket per (mode, mesh) --------------------------
+  struct Bucket {
+    ID3D11Buffer* vertexBuffer = nullptr;
+    UINT vertexCount = 0;
+    OverlayDepthMode depth = OverlayDepthMode::XRay;
+    std::vector<EntityModelInstanceGpu> items;
+  };
+
+  std::vector<EntityModelInstanceGpu> packed;
+  std::vector<Bucket> buckets;
+  std::size_t accepted = 0;
+  for (std::size_t slot = 0; slot < 2 && accepted < maxInstances; ++slot) {
+    const OverlayDrawList& list = overlayLists_[slot];
+    if (!list.enabled) continue;
+    // Keyed per mode, so one mesh drawn in both modes stays two draws with two
+    // depth modes instead of collapsing into whichever list came first.
+    std::unordered_map<std::string, std::size_t> bucketOf;
+    for (const auto& item : list.items) {
+      if (item.kind != OverlayPrimitiveKind::Silhouette) continue;
+      if (accepted >= maxInstances) break;
+      if (item.cacheKey.empty()) continue;
+      const auto mesh = entityModelMeshes_.find(item.cacheKey);
+      if (mesh == entityModelMeshes_.end() || !mesh->second.vertexBuffer
+          || mesh->second.vertexCount < 3 || (mesh->second.vertexCount % 3) != 0) continue;
+      EntityModelInstanceRows rows;
+      if (!buildEntityModelInstanceRows(item.origin, item.angles, item.hasAngles, world, rows)) continue;
+      const auto inserted = bucketOf.emplace(item.cacheKey, buckets.size());
+      if (inserted.second) {
+        Bucket created;
+        created.vertexBuffer = mesh->second.vertexBuffer.Get();
+        created.vertexCount = mesh->second.vertexCount;
+        created.depth = list.depth;
+        buckets.push_back(created);
+      }
+      EntityModelInstanceGpu gpu{};
+      for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 4; ++column) gpu.position[row][column] = rows.positionRows[row * 4 + column];
+        for (int column = 0; column < 3; ++column) gpu.normal[row][column] = rows.normalRows[row * 3 + column];
+      }
+      gpu.color[0] = item.color.rgba[0];
+      gpu.color[1] = item.color.rgba[1];
+      gpu.color[2] = item.color.rgba[2];
+      gpu.color[3] = item.color.rgba[3];
+      // Skinning is advertised only when the matrices for it were uploaded, the
+      // same rule the entity pass follows: an instance that indexes past the
+      // buffer is drawn unskinned rather than reading another entity bones.
+      const bool skinned = item.skinned && item.boneCount > 0
+        && static_cast<std::size_t>(item.boneOffset) + item.boneCount <= entityBoneMatrixCount_;
+      if (skinned) {
+        gpu.boneOffset = item.boneOffset;
+        gpu.skinEnabled = 1u;
+        gpu.padding[0] = item.boneCount;
+      }
+      // Keep the identity and the origin alongside the GPU record, in the same
+      // order, so range.instanceStart indexes both tables.
+      OverlayInstanceRecord cpu;
+      cpu.entityIndex = item.entityIndex;
+      cpu.team = item.team;
+      cpu.origin[0] = item.origin[0];
+      cpu.origin[1] = item.origin[1];
+      cpu.origin[2] = item.origin[2];
+      // What the box will be computed from, recorded next to it.
+      {
+        std::uint32_t hash = 2166136261u;
+        for (const char character : item.cacheKey) {
+          hash ^= static_cast<std::uint32_t>(static_cast<unsigned char>(character));
+          hash *= 16777619u;
+        }
+        cpu.meshKeyHash = hash;
+      }
+      cpu.meshVertexCount = mesh->second.vertexCount;
+      cpu.skinned = skinned ? 1u : 0u;
+      for (int axis = 0; axis < 3; ++axis) {
+        cpu.meshBoundsMin[axis] = mesh->second.boundsMin[axis];
+        cpu.meshBoundsMax[axis] = mesh->second.boundsMax[axis];
+      }
+      // The mesh's own box, through the same rows the instance is drawn with.
+      for (int axis = 0; axis < 3; ++axis) {
+        cpu.worldMin[axis] = 1.0e30f;
+        cpu.worldMax[axis] = -1.0e30f;
+      }
+      for (int corner = 0; corner < 8; ++corner) {
+        const float modelPoint[3] = {
+          (corner & 1) ? mesh->second.boundsMax[0] : mesh->second.boundsMin[0],
+          (corner & 4) ? mesh->second.boundsMax[1] : mesh->second.boundsMin[1],
+          (corner & 2) ? mesh->second.boundsMax[2] : mesh->second.boundsMin[2],
+        };
+        for (int axis = 0; axis < 3; ++axis) {
+          const float* row = &rows.positionRows[axis * 4];
+          const float world = row[0] * modelPoint[0] + row[1] * modelPoint[1]
+            + row[2] * modelPoint[2] + row[3];
+          cpu.worldMin[axis] = std::min(cpu.worldMin[axis], world);
+          cpu.worldMax[axis] = std::max(cpu.worldMax[axis], world);
+        }
+      }
+      for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 4; ++column) {
+          cpu.rows[row * 4 + column] = rows.positionRows[row * 4 + column];
+        }
+      }
+      cpu.vertexPositions = mesh->second.cpuPositions.data();
+      cpu.vertexPositionCount = static_cast<std::uint32_t>(mesh->second.cpuPositions.size() / 3);
+      overlayInstances_.push_back(cpu);
+      buckets[inserted.first->second].items.push_back(gpu);
+      ++accepted;
+    }
+  }
+  if (accepted > 0) {
+    packed.reserve(accepted);
+    for (auto& bucket : buckets) {
+      if (bucket.items.empty()) continue;
+      OverlayDrawRange range;
+      range.vertexBuffer = bucket.vertexBuffer;
+      range.vertexCount = bucket.vertexCount;
+      range.instanceStart = static_cast<UINT>(packed.size());
+      range.instanceCount = static_cast<UINT>(bucket.items.size());
+      range.depth = bucket.depth;
+      packed.insert(packed.end(), bucket.items.begin(), bucket.items.end());
+      overlayDrawRanges_.push_back(range);
+    }
+  }
+  if (!packed.empty()) {
+    if (!overlayInstanceBuffer_ || overlayInstanceCapacity_ < packed.size()) {
+      D3D11_BUFFER_DESC description{};
+      const auto capacity = std::max(packed.size(), std::size_t{32});
+      description.ByteWidth = static_cast<UINT>(capacity * sizeof(EntityModelInstanceGpu));
+      description.Usage = D3D11_USAGE_DYNAMIC;
+      description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+      description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+      if (FAILED(device_->CreateBuffer(&description, nullptr,
+          overlayInstanceBuffer_.ReleaseAndGetAddressOf()))) {
+        overlayDrawRanges_.clear();
+        return;
+      }
+      overlayInstanceCapacity_ = capacity;
+    }
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (FAILED(context_->Map(overlayInstanceBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+      overlayDrawRanges_.clear();
+      return;
+    }
+    std::memcpy(mapped.pData, packed.data(), packed.size() * sizeof(EntityModelInstanceGpu));
+    context_->Unmap(overlayInstanceBuffer_.Get(), 0);
+    overlayInstanceCount_ = packed.size();
+  }
+
+  // ---- lines and markers, one contiguous range per depth mode -------------
+  // Built into the SAME pass so they share its depth mode per list and its
+  // restore discipline. The vertices are in world space already, converted with
+  // the same map-to-box transform every other world vertex uses.
+  std::vector<WorldVertex> lineVertices;
+  for (std::size_t slot = 0; slot < 2; ++slot) {
+    const OverlayDrawList& list = overlayLists_[slot];
+    const UINT rangeStart = static_cast<UINT>(lineVertices.size());
+    if (list.enabled) {
+      for (const auto& item : list.items) {
+        if (item.kind == OverlayPrimitiveKind::Silhouette) continue;
+        const DirectX::XMFLOAT3 startPoint = normalize(item.start[0], item.start[1], item.start[2]);
+        const DirectX::XMFLOAT3 endPoint = normalize(item.end[0], item.end[1], item.end[2]);
+        const auto vertex = [&](const DirectX::XMFLOAT3& p) {
+          return WorldVertex{p.x, p.y, p.z, item.color.rgba[0], item.color.rgba[1],
+            item.color.rgba[2], item.color.rgba[3], 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+        };
+        lineVertices.push_back(vertex(startPoint));
+        lineVertices.push_back(vertex(endPoint));
+        if (item.kind == OverlayPrimitiveKind::Marker) {
+          // A three-axis cross, the same shape the fallback markers use, so a
+          // marker reads as a point in space rather than as a short segment.
+          constexpr float extent = 8.0f;
+          const DirectX::XMFLOAT3 axes[3] = {
+            normalize(item.start[0] + extent, item.start[1], item.start[2]),
+            normalize(item.start[0], item.start[1] + extent, item.start[2]),
+            normalize(item.start[0], item.start[1], item.start[2] + extent),
+          };
+          for (const auto& axis : axes) { lineVertices.push_back(vertex(startPoint)); lineVertices.push_back(vertex(axis)); }
+        }
+        if (lineVertices.size() >= 32768u) break;
+      }
+    }
+    overlayLineStartByDepth_[slot] = rangeStart;
+    overlayLineVertexCountByDepth_[slot] = static_cast<UINT>(lineVertices.size()) - rangeStart;
+  }
+  if (!lineVertices.empty()) {
+    if (!overlayLineBuffer_ || overlayLineCapacity_ < lineVertices.size()) {
+      D3D11_BUFFER_DESC description{};
+      description.ByteWidth = static_cast<UINT>(lineVertices.size() * sizeof(WorldVertex));
+      description.Usage = D3D11_USAGE_DYNAMIC;
+      description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+      description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+      if (FAILED(device_->CreateBuffer(&description, nullptr,
+          overlayLineBuffer_.ReleaseAndGetAddressOf()))) {
+        overlayLineVertexCount_ = 0;
+        overlayLineStartByDepth_[0] = 0;
+        overlayLineStartByDepth_[1] = 0;
+        return;
+      }
+      overlayLineCapacity_ = lineVertices.size();
+    }
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (FAILED(context_->Map(overlayLineBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+      overlayLineVertexCount_ = 0;
+      overlayLineStartByDepth_[0] = 0;
+      overlayLineStartByDepth_[1] = 0;
+      return;
+    }
+    std::memcpy(mapped.pData, lineVertices.data(), lineVertices.size() * sizeof(WorldVertex));
+    context_->Unmap(overlayLineBuffer_.Get(), 0);
+    overlayLineVertexCount_ = static_cast<UINT>(lineVertices.size());
+  }
+}
 void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
   entityMarkerVertexCount_ = 0;
   if (!device_ || !worldBoundsValid_ || markers.empty()) return;
@@ -3157,7 +3610,16 @@ void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
 
 bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices) {
   if (!device_ || cacheKey.empty() || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
-  if (entityModelMeshes_.size() >= 64 && entityModelMeshes_.find(cacheKey) == entityModelMeshes_.end()) {
+  // 96, not 64 (2026-10-22). The cap is a GPU-memory guard, and the sizes it
+  // guards are the world pass's 64 models plus the outline's nine class models,
+  // which are uploaded by the same call and are NOT part of the world budget.
+  // At 64 the reference recording (59 world models) left five of the nine
+  // refused with E_OUTOFMEMORY, and a refused key is the worst failure shape
+  // available here: the draw list submits it, the counter counts it, and the
+  // frame is empty -- the same defect mutation m8 injects on purpose.
+  constexpr std::size_t kEntityModelMeshLimit = 96;
+  if (entityModelMeshes_.size() >= kEntityModelMeshLimit
+      && entityModelMeshes_.find(cacheKey) == entityModelMeshes_.end()) {
     lastError_ = E_OUTOFMEMORY;
     return false;
   }
@@ -3174,6 +3636,17 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
       source.weights[0], source.weights[1], source.weights[2],
       source.boneIndices[0], source.boneIndices[1], source.boneIndices[2], source.boneCount};
   }
+  // EntityModelGpuVertex carries the position as three scalars (x, y, z), not an
+  // array: the first attempt indexed a member called position and did not compile.
+  float boundsMin[3] = {local[0].x, local[0].y, local[0].z};
+  float boundsMax[3] = {boundsMin[0], boundsMin[1], boundsMin[2]};
+  for (const auto& vertex : local) {
+    const float position[3] = {vertex.x, vertex.y, vertex.z};
+    for (int axis = 0; axis < 3; ++axis) {
+      boundsMin[axis] = std::min(boundsMin[axis], position[axis]);
+      boundsMax[axis] = std::max(boundsMax[axis], position[axis]);
+    }
+  }
   D3D11_BUFFER_DESC description{};
   description.ByteWidth = static_cast<UINT>(count * sizeof(EntityModelGpuVertex));
   description.Usage = D3D11_USAGE_IMMUTABLE;
@@ -3187,7 +3660,17 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   }
   EntityModelMesh mesh;
   mesh.vertexBuffer = std::move(buffer);
+  mesh.cpuPositions.reserve(static_cast<std::size_t>(count) * 3);
+  for (const auto& vertex : local) {
+    mesh.cpuPositions.push_back(vertex.x);
+    mesh.cpuPositions.push_back(vertex.y);
+    mesh.cpuPositions.push_back(vertex.z);
+  }
   mesh.vertexCount = static_cast<UINT>(count);
+  for (int axis = 0; axis < 3; ++axis) {
+    mesh.boundsMin[axis] = boundsMin[axis];
+    mesh.boundsMax[axis] = boundsMax[axis];
+  }
   entityModelMeshes_[cacheKey] = std::move(mesh);
   entityModelDrawRanges_.clear();
   entityModelVertexCount_ = 0;
@@ -5012,6 +5495,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(3, 1, &noLightmap);
     context_->PSSetShaderResources(5, 1, &noCube);
   }
+  // The water surface is ordinal 2 and the entity markers 3, so that the
+  // overlay slot number below is the contract ordinal (6) rather than
+  // whichever ++ happens to come fourth in this function.
+  ++framePassOrdinal_;
 
   if (!worldDiagnosticIsolation_ && entityMarkerVertexBuffer_ && entityMarkerVertexCount_ > 0
       && worldVertexShader_ && worldPixelShader_ && worldInputLayout_ && worldConstants_) {
@@ -5088,6 +5575,283 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     }
   }
   ++framePassOrdinal_;
+  // ---- T52: THE OVERLAY PASS ----------------------------------------------
+  // Contract ordinal 6: after the entity meshes it outlines and after the
+  // projectile-track pass, before the ViewModel pass, which CLEARS the depth
+  // buffer. Drawing it after the ViewModel would either punch the weapon
+  // through the silhouette or need a second depth clear, and both are worse
+  // than drawing it where the scene depth is still the frame depth -- which is
+  // why the body is defined here and the CALL sits 200 lines below.
+  overlayPassReading_ = OverlayPassReading{};
+  // Defined here, CALLED as pass 6 (after the projectile-track pass). The
+  // ordinal is taken with the ++ inside the lambda, so moving the call moves
+  // the number: the mutation that draws it after the ViewModel cannot keep
+  // reading 6.
+  const auto drawOverlayPass = [&]() {
+    overlayPassReading_.stageOrdinal = ++framePassOrdinal_;
+    const bool anyEnabled = overlayLists_[0].enabled || overlayLists_[1].enabled;
+    overlayPassReading_.enabled = anyEnabled;
+    if (!worldDiagnosticIsolation_) {
+      const auto drawList = [&](std::size_t slot) -> bool {
+        OverlayDrawList& list = overlayLists_[slot];
+        if (!list.enabled) return false;
+        overlayPassReading_.depth = list.depth;
+        const bool xraySlot = list.depth == OverlayDepthMode::XRay;
+        overlayPassReading_.depthTestEnabled = xraySlot
+          ? overlayXRayDepthTestEnabled_ : overlayDepthTestedDepthTestEnabled_;
+        overlayPassReading_.depthWriteEnabled = xraySlot
+          ? overlayXRayDepthWriteEnabled_ : overlayDepthTestedDepthWriteEnabled_;
+        const DirectX::XMMATRIX mvpForOverlay = DirectX::XMLoadFloat4x4(&frameConstants.mvp);
+        const bool hasSilhouettes = overlayInstanceBuffer_ && overlayInstanceCount_ > 0
+          && !overlayDrawRanges_.empty() && overlayVertexShader_ && overlayPixelShader_
+          && entityModelInputLayout_ && overlayConstants_ && worldPixelShader_;
+        const bool hasLines = overlayLineBuffer_ && overlayLineVertexCountByDepth_[slot] > 0
+          && overlayLineVertexShader_ && overlayLineInputLayout_ && overlayConstants_;
+        if (!hasSilhouettes && !hasLines) return false;
+        if (!overlayConstants_) return false;
+        // The frame's own mvp: the overlay is aligned with the world it is drawn
+        // over, so it must be the SAME camera. Re-deriving it here would let the
+        // two disagree the first time the camera code changes.
+        if (frameConstantsValid) {
+          struct OverlayConstantsData {
+            DirectX::XMFLOAT4X4 mvp;
+            DirectX::XMFLOAT4 cameraPositionAndExpand;
+            DirectX::XMFLOAT4 mode;
+          } overlayConstants{};
+          overlayConstants.mvp = frameConstants.mvp;
+          overlayConstants.cameraPositionAndExpand = DirectX::XMFLOAT4(
+            frameEye_[0], frameEye_[1], frameEye_[2], kOverlaySilhouetteExpand);
+          overlayConstants.mode = DirectX::XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
+          context_->UpdateSubresource(overlayConstants_.Get(), 0, nullptr, &overlayConstants, 0, 0);
+        } else {
+          return false;
+        }
+        // Its own rasterizer and depth state, so the world's cull and depth
+        // settings cannot leak in and the overlay's cannot leak out.
+        context_->RSSetState(overlayRasterizerState_.Get());
+        ID3D11DepthStencilState* boundDepthState = list.depth == OverlayDepthMode::XRay
+          ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();
+        context_->OMSetDepthStencilState(boundDepthState, 0);
+        overlayPassReading_.stateBoundDepthTest =
+          (boundDepthState == overlayXRayDepthState_.Get())
+          ? (overlayXRayDepthTestEnabled_ ? 1 : 0)
+          : (overlayDepthTestedDepthTestEnabled_ ? 1 : 0);
+        context_->PSSetShader(overlayPixelShader_.Get(), nullptr, 0);
+        context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+        ID3D11ShaderResourceView* noTexture = nullptr;
+        context_->PSSetShaderResources(0, 1, &noTexture);
+        ID3D11ShaderResourceView* noBump = nullptr;
+        context_->PSSetShaderResources(1, 1, &noBump);
+        context_->PSSetShaderResources(2, 1, &noBump);
+        context_->PSSetShaderResources(3, 1, &noBump);
+        context_->PSSetShaderResources(5, 1, &noBump);
+        auto* overlayConstantsBuffer = overlayConstants_.Get();
+        context_->PSSetConstantBuffers(0, 1, &overlayConstantsBuffer);
+        context_->VSSetConstantBuffers(0, 1, &overlayConstantsBuffer);
+        if (hasSilhouettes) {
+          const UINT strides[2] = { sizeof(EntityModelGpuVertex), sizeof(EntityModelInstanceGpu) };
+          const UINT offsets[2] = { 0, 0 };
+          context_->IASetInputLayout(entityModelInputLayout_.Get());
+          context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+          context_->VSSetShader(overlayVertexShader_.Get(), nullptr, 0);
+          // The pass shares the entity pass's bone buffer: a silhouette must
+          // follow the pose its mesh was drawn in, not the bind pose.
+          auto* boneView = entityBoneView_.Get();
+          context_->VSSetShaderResources(4, 1, &boneView);
+          auto* instanceBuffer = overlayInstanceBuffer_.Get();
+          // One item per frame gets the vertex-level box: 12000 vertices through a
+          // matrix is not something to repeat for every silhouette.
+          bool vertexBoxDone = false;
+          for (const auto& range : overlayDrawRanges_) {
+            if (range.depth != list.depth) continue;
+            if (!range.vertexBuffer || range.vertexCount < 3 || range.instanceCount == 0) continue;
+            ID3D11Buffer* buffers[2] = { range.vertexBuffer, instanceBuffer };
+            context_->IASetVertexBuffers(0, 2, buffers, strides, offsets);
+            context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
+            ++overlayPassReading_.silhouettes;
+            ++overlayPassReading_.drawCalls;
+            // Publish where each drawn silhouette lands, so a gate can ask about
+            // THAT player's region instead of the whole frame. The box is the
+            // projection of the instance's own world-space extent through the SAME
+            // mvp the shader was handed; a second projection rule here would be a
+            // second answer to "where is this entity on screen".
+            for (UINT index = range.instanceStart; index < range.instanceStart + range.instanceCount; ++index) {
+              if (index >= overlayInstanceCount_) break;
+              const auto& instance = overlayInstances_[index];
+              OverlayItemReading reading;
+              reading.entityIndex = instance.entityIndex;
+              reading.team = instance.team;
+              reading.depthMode = list.depth;
+              reading.meshKeyHash = instance.meshKeyHash;
+              reading.meshVertexCount = instance.meshVertexCount;
+              reading.skinned = instance.skinned;
+              reading.rangeVertexCount = range.vertexCount;
+              reading.rangeInstanceCount = range.instanceCount;
+              for (int axis = 0; axis < 3; ++axis) {
+                reading.meshBoundsMin[axis] = instance.meshBoundsMin[axis];
+                reading.meshBoundsMax[axis] = instance.meshBoundsMax[axis];
+              }
+              // Where this instance's ORIGIN lands on screen, through the same mvp.
+              // If the box centre tracks this but the box is squashed, the extent is
+              // wrong; if both are offset from the painted blob, the placement is.
+              {
+                const DirectX::XMVECTOR originPoint = DirectX::XMVectorSet(
+                  instance.origin[0], instance.origin[1], instance.origin[2], 1.0f);
+                const DirectX::XMVECTOR originClip = DirectX::XMVector4Transform(originPoint, mvpForOverlay);
+                const float originW = DirectX::XMVectorGetW(originClip);
+                if (originW > 1.0e-4f) {
+                  reading.originX = static_cast<int>(
+                    (DirectX::XMVectorGetX(originClip) / originW * 0.5f + 0.5f) * static_cast<float>(width_));
+                  reading.originY = static_cast<int>(
+                    (0.5f - DirectX::XMVectorGetY(originClip) / originW * 0.5f) * static_cast<float>(height_));
+                }
+              }
+              // The extent in the renderer's normalised box: a player model is
+              // about 40 map units across and 72 tall (the Source player hull),
+              // converted with the frame's own scale factors rather than a
+              // constant, so a different map cannot silently change what "the
+              // region this player covers" means.
+              // The box is THIS mesh's own extent, transformed by THIS instance's
+              // rows and projected with the same mvp the shader was handed. The
+              // constant hull it replaces projected to under two pixels on this
+              // map, so every item read x0==x1 and the region assertions could not
+              // be evaluated at all -- a correct silhouette inside a one-pixel box.
+              const float legacyHalfX = 20.0f * worldHorizontalScale_;
+              const float legacyHalfZ = 36.0f * (0.8f / worldSpanZ_);
+              const DirectX::XMVECTOR legacyCenter = DirectX::XMVectorSet(instance.origin[0], instance.origin[1], instance.origin[2], 1.0f);
+              float minX = 1.0f, minY = 1.0f, maxX = -1.0f, maxY = -1.0f;
+              float nearest = 1.0f;
+              bool projected = false;
+              for (int axis = 0; axis < 3; ++axis) {
+                reading.worldExtent[axis] = instance.worldMin[axis];
+                reading.worldExtent[axis + 3] = instance.worldMax[axis];
+              }
+              const float* boxMin = instance.worldMin;
+              const float* boxMax = instance.worldMax;
+              for (int corner = 0; corner < 8; ++corner) {
+                const DirectX::XMVECTOR world = DirectX::XMVectorSet(
+                  (corner & 1) ? boxMax[0] : boxMin[0],
+                  (corner & 4) ? boxMax[1] : boxMin[1],
+                  (corner & 2) ? boxMax[2] : boxMin[2], 1.0f);
+                const DirectX::XMVECTOR clip = DirectX::XMVector4Transform(world, mvpForOverlay);
+                const float w = DirectX::XMVectorGetW(clip);
+                if (corner == 0 || w < reading.cornerWMin) reading.cornerWMin = w;
+                if (corner == 0 || w > reading.cornerWMax) reading.cornerWMax = w;
+                if (!(w > 1.0e-4f)) continue;
+                ++reading.cornersProjected;
+                projected = true;
+                const float ndcX = DirectX::XMVectorGetX(clip) / w;
+                const float ndcY = DirectX::XMVectorGetY(clip) / w;
+                const float ndcZ = DirectX::XMVectorGetZ(clip) / w;
+                minX = std::min(minX, ndcX); maxX = std::max(maxX, ndcX);
+                minY = std::min(minY, ndcY); maxY = std::max(maxY, ndcY);
+                nearest = std::min(nearest, ndcZ);
+              }
+              // The box the OLD constant hull gives for the same silhouette, in
+              // the same units, so ONE trace line carries both. If the two
+              // disagree the reader can see which one covers the pixels the pass
+              // drew, and nobody can mistake "the box was fixed" for "the
+              // assertion was relaxed".
+              {
+                float legacyMinX = 1.0f, legacyMinY = 1.0f, legacyMaxX = -1.0f, legacyMaxY = -1.0f;
+                for (int corner = 0; corner < 8; ++corner) {
+                  const float sx = (corner & 1) ? legacyHalfX : -legacyHalfX;
+                  const float sz = (corner & 2) ? legacyHalfZ : -legacyHalfZ;
+                  const float sy = (corner & 4) ? legacyHalfX : -legacyHalfX;
+                  const DirectX::XMVECTOR world = DirectX::XMVectorAdd(legacyCenter,
+                    DirectX::XMVectorSet(sx, sy, sz, 0.0f));
+                  const DirectX::XMVECTOR clip = DirectX::XMVector4Transform(world, mvpForOverlay);
+                  const float w = DirectX::XMVectorGetW(clip);
+                  if (!(w > 1.0e-4f)) continue;
+                  const float ndcX = DirectX::XMVectorGetX(clip) / w;
+                  const float ndcY = DirectX::XMVectorGetY(clip) / w;
+                  legacyMinX = std::min(legacyMinX, ndcX); legacyMaxX = std::max(legacyMaxX, ndcX);
+                  legacyMinY = std::min(legacyMinY, ndcY); legacyMaxY = std::max(legacyMaxY, ndcY);
+                }
+                reading.legacyX0 = static_cast<int>((legacyMinX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.legacyX1 = static_cast<int>((legacyMaxX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.legacyY0 = static_cast<int>((0.5f - legacyMaxY * 0.5f) * static_cast<float>(height_));
+                reading.legacyY1 = static_cast<int>((0.5f - legacyMinY * 0.5f) * static_cast<float>(height_));
+              }
+              if (!vertexBoxDone && instance.vertexPositions && instance.vertexPositionCount > 0) {
+                vertexBoxDone = true;
+                float vMinX = 1.0e30f, vMinY = 1.0e30f, vMaxX = -1.0e30f, vMaxY = -1.0e30f;
+                std::uint32_t inFront = 0;
+                for (std::uint32_t vertex = 0; vertex < instance.vertexPositionCount; ++vertex) {
+                  const float* position = instance.vertexPositions + vertex * 3;
+                  float world[3] = {0.0f, 0.0f, 0.0f};
+                  for (int axis = 0; axis < 3; ++axis) {
+                    const float* row = instance.rows + axis * 4;
+                    world[axis] = row[0] * position[0] + row[1] * position[1]
+                      + row[2] * position[2] + row[3];
+                  }
+                  const DirectX::XMVECTOR clip = DirectX::XMVector4Transform(
+                    DirectX::XMVectorSet(world[0], world[1], world[2], 1.0f), mvpForOverlay);
+                  const float w = DirectX::XMVectorGetW(clip);
+                  if (!(w > 1.0e-4f)) continue;
+                  ++inFront;
+                  vMinX = std::min(vMinX, DirectX::XMVectorGetX(clip) / w);
+                  vMaxX = std::max(vMaxX, DirectX::XMVectorGetX(clip) / w);
+                  vMinY = std::min(vMinY, DirectX::XMVectorGetY(clip) / w);
+                  vMaxY = std::max(vMaxY, DirectX::XMVectorGetY(clip) / w);
+                }
+                reading.vertexCountProjected = inFront;
+                if (inFront > 0) {
+                  reading.vertexX0 = static_cast<int>((vMinX * 0.5f + 0.5f) * static_cast<float>(width_));
+                  reading.vertexX1 = static_cast<int>((vMaxX * 0.5f + 0.5f) * static_cast<float>(width_));
+                  reading.vertexY0 = static_cast<int>((0.5f - vMaxY * 0.5f) * static_cast<float>(height_));
+                  reading.vertexY1 = static_cast<int>((0.5f - vMinY * 0.5f) * static_cast<float>(height_));
+                }
+              }
+              reading.ndcWidth = maxX - minX;
+              reading.ndcHeight = maxY - minY;
+              if (projected) {
+                reading.x0 = static_cast<int>((minX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.x1 = static_cast<int>((maxX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.y0 = static_cast<int>((0.5f - maxY * 0.5f) * static_cast<float>(height_));
+                reading.y1 = static_cast<int>((0.5f - minY * 0.5f) * static_cast<float>(height_));
+                reading.depth = nearest;
+                reading.onScreen = reading.x1 >= 0 && reading.y1 >= 0
+                  && reading.x0 < static_cast<int>(width_) && reading.y0 < static_cast<int>(height_);
+                if (reading.onScreen) {
+                  reading.x0 = std::clamp(reading.x0, 0, static_cast<int>(width_) - 1);
+                  reading.x1 = std::clamp(reading.x1, 0, static_cast<int>(width_) - 1);
+                  reading.y0 = std::clamp(reading.y0, 0, static_cast<int>(height_) - 1);
+                  reading.y1 = std::clamp(reading.y1, 0, static_cast<int>(height_) - 1);
+                }
+              }
+              overlayPassReading_.items.push_back(reading);
+            }
+
+          }
+          overlayPassReading_.vertexCount += entityModelVertexCount_;
+        }
+        if (hasLines) {
+          const UINT lineStride = sizeof(WorldVertex), lineOffset = 0;
+          auto* lineBuffer = overlayLineBuffer_.Get();
+          context_->IASetInputLayout(overlayLineInputLayout_.Get());
+          context_->IASetVertexBuffers(0, 1, &lineBuffer, &lineStride, &lineOffset);
+          context_->VSSetShader(overlayLineVertexShader_.Get(), nullptr, 0);
+          context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+          context_->Draw(overlayLineVertexCountByDepth_[slot], overlayLineStartByDepth_[slot]);
+          ++overlayPassReading_.drawCalls;
+          overlayPassReading_.vertexCount += overlayLineVertexCountByDepth_[slot];
+          overlayPassReading_.lines += overlayLineVertexCountByDepth_[slot] / 2u;
+          context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        }
+        return true;
+      };
+      const bool drewXRay = drawList(0);
+      const bool drewTested = drawList(1);
+      overlayPassReading_.drewThisFrame = drewXRay || drewTested;
+      // The restore that makes "the overlay changed nothing else" mechanical
+      // rather than careful: both states the world pass uses are put back here,
+      // whatever the overlay did.
+      context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+      context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
+                                              : worldNoCullRasterizerState_.Get());
+    }
+  };
   if (!worldDiagnosticIsolation_ && projectileVertexBuffer_ && projectileVertexCount_ > 0 && worldVertexShader_ && worldPixelShader_
       && worldInputLayout_ && worldConstants_) {
     const UINT projectileStride = sizeof(WorldVertex), projectileOffset = 0;
@@ -5134,7 +5898,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->VSSetConstantBuffers(1, 1, &modelConstants);
     context_->Draw(modelVertexCount_, 0);
   }
-  ++framePassOrdinal_;
+  // T52: THE OVERLAY IS DRAWN HERE -- pass 6, after the projectile tracks and
+  // before the ViewModel pass clears depth. Passes that are not on the
+  // contract list (the standalone --model diagnostic above) take no ordinal,
+  // or the numbers would drift with a flag nobody set.
+  drawOverlayPass();
   // T21: the depth the frame has after the world, water and entity passes and
   // BEFORE the ViewModel pass clears it (the weapon's own pass clears depth so
   // the weapon draws over the map). Read here because this is the last moment

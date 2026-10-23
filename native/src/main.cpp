@@ -17,6 +17,7 @@
 #include "model_loader.h"
 #include "viewmodel.h"
 #include "entity_model.h"
+#include "entity_overlay.h"
 #include "animation_binding.h"
 #include "item_schema.h"
 #include "native_ui.h"
@@ -304,6 +305,45 @@ POINT g_lastMouse{};
 // and camera-ui-check.sh pins.
 tf2::native::CameraModeController g_cameraMode;
 bool g_debugCamera = false;
+// T52: the overlay's toggle. One slot, one owner: main.cpp is the outline's
+// owner and no other feature may change the flag while it holds the slot, which
+// is what the class enforces rather than documents.
+tf2::native::OverlayToggleState g_overlayToggle;
+// The overlay's OWN mesh source (2026-10-22). The entity pass uploads a mesh
+// per drawn instance and the outline joins against those; measured on the
+// reference recording it uploads 59 models and never one under "models/player",
+// because a player without a demo model path becomes a MARKER in the world pass
+// (setInstances draws=96 markers=32) rather than a body. So the overlay uploads
+// the nine class models itself, under the exact key EntityModelResolver uses for
+// its class fallback, and prefers the world pass's mesh whenever one exists.
+std::vector<std::string> g_overlayBindMeshes;
+// The prepared meshes themselves live next to preparedEntityMeshes, in the scope that uploads them.
+std::size_t g_overlaySampledTicks = 0;
+std::size_t g_overlayFramesWithList = 0;
+// What the last built list contained, as scalars so the trace prints one line
+// whatever the list size. `lastDisabled` is the one that makes "the toggle is
+// off" a COUNT (every sampled player was refused because the overlay is off)
+// rather than an absence of output.
+struct OverlayStats {
+  std::size_t lastSubmitted = 0;
+  std::size_t lastRed = 0;
+  std::size_t lastBlue = 0;
+  std::size_t lastUnknown = 0;
+  std::size_t lastNoMesh = 0;
+  std::size_t lastNoOrigin = 0;
+  std::size_t lastDisabled = 0;
+  std::size_t lastSamples = 0;
+  // Where the submitted silhouettes got their mesh. Both are printed and both
+  // are asserted: submitted == poseWorld + poseBind is the claim that every
+  // silhouette has a declared pose source, and poseBind is the number that goes
+  // to 0 on the day the world pass draws player bodies -- the overlay's own
+  // mesh upload retires itself instead of needing a patch.
+  std::size_t lastPoseWorld = 0;
+  std::size_t lastPoseBind = 0;
+};
+OverlayStats outlineStats{};
+// The tier is the performance dial; the product default is every tick.
+tf2::native::OverlaySampleTier overlaySampleTier = tf2::native::OverlaySampleTier::EveryTick;
 float g_debugCameraEye[3] = {0.0f, 0.0f, 0.0f};
 float g_debugCameraPitch = 0.0f;
 float g_debugCameraYaw = 0.0f;
@@ -1910,7 +1950,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // repeat.
     if ((lParam & (1u << 30)) != 0u
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
-            || wParam == VK_END
+            || wParam == VK_END || wParam == VK_F12
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
     // T51: the shared hotkey table (contract 1.2) gets the first look.
     //
@@ -1933,7 +1973,10 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         traceFmt("hud: keys suppressed focus=1 key=%u", static_cast<unsigned>(wParam));
       } else {
         const auto action = hudActionForKey(wParam);
-        if (!action.empty()) {
+        // Only this feature's own actions. The table is shared with T50's camera
+        // bindings (defaultKeyBindings() is its base), so an unqualified "not empty"
+        // would swallow every camera key: it would dispatch nothing and still return.
+        if (action.rfind("hud.", 0) == 0) {
           traceFmt("hud: keys dispatch action=%s", action.c_str());
           if (action == "hud.toggle") {
             g_hud.setEnabled(!g_hud.settings().enabled);
@@ -1951,6 +1994,17 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
           return 0;
         }
       }
+    }
+    // T52: F12 is the overlay's key. Not F9: T50's camera defaults already own
+    // F9..F11 (free-fly, reset-to-player, reset-view), so an F9 toggle here would
+    // shadow a binding that still looked bound -- the key would do the outline and
+    // nothing else, and the user would have no way to tell why free-fly stopped.
+    // The repeat bit is filtered above: a held key must toggle once, and the
+    // toggle's own presses counter is what the trace reports, so "pressed and
+    // ignored" and "never pressed" differ.
+    if (wParam == VK_F12) {
+      g_overlayToggle.toggle(tf2::native::OverlaySlotOwner::Outline);
+      return 0;
     }
     // T50: the camera keys are bindings now, not if-arms. F1..F8 / Ctrl+F1..F8 /
     // Ctrl+Shift+F1..F8 keep their T4 meanings as the [keys] defaults, and the
@@ -2183,6 +2237,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool hiddenWindow = false;
   bool audioDisabled = false;
   bool startPaused = false;
+  // A capture harness pays for every tick it has to play THROUGH to reach the one
+  // it wants: this recording is about 64000 ticks at 66.7 ticks/second, so a
+  // frame pinned near the end costs sixteen minutes of wall clock at 1x, and a
+  // gate that takes ten of them never finishes. The multiplier changes only how
+  // fast the cursor travels -- the captured frame is unchanged, because the
+  // cursor is held AT the requested tick and the scene is resolved from the
+  // recording rather than accumulated frame by frame.
+  double playbackSpeed = 0.0;
+  bool playbackSpeedRejected = false;
   std::filesystem::path metricsPath;
   std::filesystem::path captureFramePath;
   // T51 acceptance surface. The HUD is a user feature with a picker, but a gate
@@ -2212,6 +2275,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // every ordinary run, which is why the default product path never sees it.
   std::filesystem::path cameraScriptPath;
   bool cameraScriptRejected = false;
+  // T52: the outline overlay's command-line state. `--outline on|off` is the
+  // toggle the one key press also drives; `--outline-depth xray|tested` is the
+  // CONTROL the depth-awareness mutation needs, and it is a separate argument
+  // because a run that asked for depth-tested and drew x-ray would otherwise
+  // read as a pass.
+  bool outlineRequested = false;
+  bool outlineGiven = false;
+  tf2::native::OverlayDepthMode outlineDepthMode = tf2::native::OverlayDepthMode::XRay;
+  bool outlineArgumentRejected = false;
+  bool outlineDepthGiven = false;
   // Standalone `--model` skinning contract. The single-model path is a separate
   // contract from the entity-instance path: it uploads one skeleton to b1, so
   // it can and must enable the skinning branch explicitly. Three knobs:
@@ -2903,10 +2976,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         audioDisabled = true;
       } else if (wcscmp(arguments[i], L"--start-paused") == 0) {
         startPaused = true;
+      } else if (wcscmp(arguments[i], L"--playback-speed") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const double parsed = std::wcstod(arguments[++i], &end);
+        if (end && *end == L'\0' && parsed > 0.0) playbackSpeed = parsed;
+        else playbackSpeedRejected = true;
+      } else if (wcscmp(arguments[i], L"--playback-speed") == 0) {
+        playbackSpeedRejected = true;
       } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
         metricsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--dump-entity-materials") == 0 && i + 1 < argumentCount) {
         dumpEntityMaterialsPath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--outline") == 0 && i + 1 < argumentCount) {
+        const wchar_t* value = arguments[++i];
+        if (wcscmp(value, L"on") == 0) { outlineRequested = true; outlineGiven = true; }
+        else if (wcscmp(value, L"off") == 0) { outlineRequested = false; outlineGiven = true; }
+        else outlineArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--outline") == 0) {
+        outlineArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--outline-depth") == 0 && i + 1 < argumentCount) {
+        const wchar_t* value = arguments[++i];
+        if (wcscmp(value, L"xray") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::XRay; outlineDepthGiven = true; }
+        else if (wcscmp(value, L"tested") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::DepthTested; outlineDepthGiven = true; }
+        else outlineArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--outline-depth") == 0) {
+        outlineArgumentRejected = true;
+
       } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
         captureFramePath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
@@ -2962,6 +3057,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     persistent.render.normalize();
   }
+  // T52: the outline takes the overlay slot at startup, before anything can draw.
+  // kUiPlay/F12 can then only change the FLAG; ownership is what makes "who is
+  // driving the overlay" a field rather than an assumption. Applied AFTER the
+  // argument loop so the command line can override the stored value, and "no
+  // --outline given" keeps the stored one -- a run that was asked for off and
+  // drew on must be distinguishable from a run with a stale ini.
+  g_overlayToggle.acquire(tf2::native::OverlaySlotOwner::Outline);
+  g_overlayToggle.setStartupDefault(outlineGiven ? outlineRequested : persistent.render.outlineEnabled);
+  if (!outlineDepthGiven) {
+    outlineDepthMode = persistent.render.outlineDepthTested
+      ? tf2::native::OverlayDepthMode::DepthTested : tf2::native::OverlayDepthMode::XRay;
+  }
   if (worldDebugViewGiven > 1) ++invalidWorldDebugArgument;
   if (audioDeviceRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --audio-device; default device not used.\n");
@@ -2979,6 +3086,21 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --hud-root/--hud-layout/--hud-scale; refusing to guess.\n");
     return 13;
   }
+  if (playbackSpeedRejected) {
+    // Same rule: a typo that quietly fell back to 1x would turn a bounded capture
+    // run into a sixteen-minute one and the harness would read the timeout as
+    // "the feature is broken".
+    OutputDebugStringW(L"TF2 Demo Player: invalid --playback-speed; expected a positive multiplier.\n");
+    return 13;
+  }
+  if (outlineArgumentRejected) {
+    // Same rule as --world-water: a typo that fell back to `on` or to x-ray
+    // would make two frames that were meant to differ identical, and the gate
+    // would report "no difference" as a pass.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --outline/--outline-depth; --outline takes on|off, --outline-depth takes xray|tested.\n");
+    return 13;
+  }
+
   if (modelArgumentRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --model-sequence/--model-tick/--model-skinning; refusing to guess.\n");
     return 13;
@@ -3421,6 +3543,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     std::size_t textureNamesRead = 0;
   };
   std::vector<PreparedEntityMesh> preparedEntityMeshes;
+  // The overlay's own bind-pose player meshes. Separate list so the world pass's
+  // model count stays the number other tasks read (see the preparation site).
+  std::vector<PreparedEntityMesh> overlayBindMeshes;
   std::unordered_map<std::string, std::string> entityMeshKeyByPath;
   // Paint accounting for the window title: how many prepared models reached a
   // readable VTF, and how many of those became a GPU texture.
@@ -3468,6 +3593,53 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       preparedEntityMeshes.push_back(std::move(prepared));
       if (preparedEntityMeshes.size() >= 64) break;
     }
+    // THE OVERLAY'S OWN MESHES, kept in their OWN list.
+    //
+    // Not appended to preparedEntityMeshes, on purpose: that vector is the world
+    // pass's model set and its size is a reading other tasks assert against
+    // ("gpu: models done 59 uploaded=59"). Adding nine player models to it would
+    // change a number that belongs to someone else while measuring this feature.
+    // They are prepared here, uploaded in the same one-time block as the world
+    // meshes, and counted on their own line.
+    //
+    // Why they exist at all is a reading, not a preference: on the reference
+    // recording the entity pass prepares 59 models and the string "models/player"
+    // appears ZERO times in a 33-second trace while 21 players are sampled per
+    // frame. The outline was written to reuse the world pass's mesh, and on this
+    // recording the world pass has none to reuse. See the report's "what the world
+    // pass does not draw" section; when that is fixed these uploads retire by
+    // themselves (poseSourceBind goes to 0 and a gate that asserted "bind > 0"
+    // would be the thing that had to change).
+    for (auto& request : classRequests) {
+      if (request.inspection.metadata.bindPoseVertices.size() < 3) {
+        std::string meshError;
+        if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)) {
+          // WHY, not just "0 of 9". This line is the difference between the next
+          // window rewriting the fallback and the next window fixing one loader
+          // rule: renderableResourceSet is mdl.signatureValid && vvd.signatureValid
+          // && anyVtx (model_loader.cpp:804), and the diagnostic says which of the
+          // three failed for this class.
+          traceFmt("gpu: overlay mesh unavailable path=%s renderable=%d error=%s %s",
+            request.modelPath.c_str(), request.renderable ? 1 : 0, meshError.c_str(),
+            request.diagnostic.substr(0, 120).c_str());
+          continue;
+        }
+        if (request.inspection.metadata.bindPoseVertices.size() < 3) {
+          traceFmt("gpu: overlay mesh unavailable path=%s reason=no-bind-pose-vertices",
+            request.modelPath.c_str());
+          continue;
+        }
+      }
+      PreparedEntityMesh prepared;
+      prepared.path = request.modelPath;
+      prepared.cacheKey = request.modelPath + "#class-fallback";
+      prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
+      prepared.textureSlots = request.inspection.metadata.textureCount;
+      prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
+      overlayBindMeshes.push_back(std::move(prepared));
+    }
+    traceFmt("gpu: overlay meshes prepared=%zu of 9%s", overlayBindMeshes.size(),
+      overlayBindMeshes.empty() ? " (NONE -- the outline has no mesh source and will submit nothing)" : "");
   }
   std::size_t indexedVpkEntries = 0;
   // T32: archives that are ON DISK but could not be opened. Kept apart from an
@@ -4692,6 +4864,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   g_playback.endTick = std::max<std::int32_t>(0, demoHeader.ticks);
   g_playback.tick = 0;
   g_playback.paused = startPaused;
+  if (playbackSpeed > 0.0) {
+    // 64x is the ceiling on purpose: the loop steps ONE tick at a time, so a
+    // larger multiplier only makes each drawn frame span more ticks without
+    // reaching the requested one any sooner.
+    g_playback.speed = std::clamp(playbackSpeed, 0.125, 64.0);
+  }
   g_playback.reverse = false;
   g_playback.tickRate = tf2::native::demoTickRate(demoHeader);
   tf2::native::SoundEventTimeline soundTimeline;
@@ -4700,7 +4878,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   //   * `firstPacketTick` is the SERVER tick origin. Entity history is keyed by
   //     the tick `svc_NetTick` carries, and the signon block's entry tick holds
   //     the server tick at connect, so the first command 1 or 2 entry is the
-  //     right origin for `sceneTick`. Measured here: 29368.
+  //     right origin for `sceneTick`.
+  //     IT IS PER RECORDING, so no number belongs in this comment. It used to say
+  //     "measured here: 29368", which was true of the recording the sentence was
+  //     written on and was read as a constant by the next two readers: the overlay
+  //     probe printed 1 under this name (it was printing
+  //     firstRecordedPacketTick instead) and the outline gate converted the
+  //     prober's ticks with it, producing a capture tick 10128 past the end of
+  //     the recording. cp_snakewater measures 10252 and the product prints it on
+  //     its own "scene: begin tick=0 sceneTick=<n>" line, which is the only
+  //     authority for it.
   //   * `soundOriginTick` is the DEMO ENTRY tick origin, because sound events
   //     are tagged with `entry.tick`. The recorded packets carry their own
   //     counter that starts near zero, so the signon tick is *above* the whole
@@ -6046,6 +6233,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     }
     traceFmt("gpu: models done %zu uploaded=%zu", preparedEntityMeshes.size(),
       entityMaterialUploadedModels);
+    // THE OVERLAY'S OWN MESHES GO IN AFTER the world pass's, and the keys that
+    // actually landed are the only ones the builder is told about: a key whose
+    // upload was refused would be submitted, counted, and drawn from nothing --
+    // "the list is right and the frame is empty", which is mutation m8's defect
+    // arriving by a different road.
+    g_overlayBindMeshes.clear();
+    std::size_t overlayMeshesUploaded = 0;
+    std::size_t overlayMeshesRejected = 0;
+    for (const auto& prepared : overlayBindMeshes) {
+      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices)) {
+        ++overlayMeshesRejected;
+        traceFmt("gpu: overlay mesh refused key=%s lastError=0x%08lX",
+          prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
+        continue;
+      }
+      g_overlayBindMeshes.push_back(prepared.cacheKey);
+      ++overlayMeshesUploaded;
+    }
+    // accepted/rejected as a PAIR, because the upload cap is a decision with a
+    // cost and the pair is what makes "raise the cap" observable instead of
+    // assumed: at cap 64 this recording refuses five of the nine class models
+    // (the world pass has already taken 59 of the 64 slots), and a refused key is
+    // submitted, counted and drawn from nothing.
+    traceFmt("gpu: overlay meshes prepared=%zu uploaded=%zu rejected=%zu%s",
+      overlayBindMeshes.size(), overlayMeshesUploaded, overlayMeshesRejected,
+      overlayMeshesUploaded == 0 ? " (NONE -- the outline has no mesh source and will submit nothing)" : "");
     traceFmt("gpu: reload-stage stage=models lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedBones = true;
     modelSkinSource = "none";
@@ -6562,6 +6775,68 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       }
     }
   };
+  // T52: the overlay's account of the frame it just drew. `enabled` and
+  // `drew` are the pass's own reading, so "the toggle is off" and "the overlay
+  // is on and has nothing to draw" are two different lines instead of the
+  // absence of one. `orderOk` is the ordinal-6 assertion evaluated on the
+  // renderer's own numbers: the gate reads it, the mutation that moves the pass
+  // after the ViewModel makes it 0, and both symptoms (this line, and the
+  // weapon wearing a silhouette) come from one defect.
+  const auto traceOutlineDraw = [&]() {
+    if (!g_renderer) return;
+    const auto& pass = renderer.overlayPassReading();
+    const bool orderOk = tf2::native::overlayPassOrderValid(
+      pass.stageOrdinal, renderer.viewModelPassOrdinal());
+    traceFmt("outline: draw enabled=%d depth=%s depthTest=%d depthWrite=%d drew=%d ordinal=%zu vmOrdinal=%zu orderOk=%d"
+      " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
+      " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
+      " poseWorld=%zu poseBind=%zu"
+      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d stateBound=%d",
+      pass.enabled ? 1 : 0, tf2::native::overlayDepthModeName(pass.depth),
+      pass.depthTestEnabled ? 1 : 0, pass.depthWriteEnabled ? 1 : 0,
+      pass.drewThisFrame ? 1 : 0, pass.stageOrdinal, renderer.viewModelPassOrdinal(),
+      orderOk ? 1 : 0, pass.silhouettes, pass.lines, pass.markers,
+      pass.vertexCount, pass.drawCalls,
+      outlineStats.lastSubmitted, outlineStats.lastRed, outlineStats.lastBlue,
+      outlineStats.lastUnknown, outlineStats.lastNoMesh, outlineStats.lastNoOrigin,
+      outlineStats.lastDisabled, outlineStats.lastPoseWorld, outlineStats.lastPoseBind,
+      outlineStats.lastSamples, g_overlaySampledTicks,
+      g_overlayToggle.presses(), g_overlayToggle.stateChanges(),
+      g_overlayToggle.refusedForeignPresses(),
+      tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()),
+      renderer.overlayXRayDepthTestEnabled() ? 1 : 0,
+      renderer.overlayXRayDepthWriteEnabled() ? 1 : 0,
+      renderer.overlayPassReading().stateBoundDepthTest);
+    // One row per drawn silhouette. The gate joins these to the frame: the box
+    // is the pass's own projection of that entity's extent, so "this region is
+    // red" is a statement about THIS entity rather than about the picture.
+    for (const auto& item : pass.items) {
+      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d legacy=%d,%d,%d,%d",
+        static_cast<unsigned>(item.entityIndex),
+        tf2::native::overlayTeamName(item.team),
+        tf2::native::overlayDepthModeName(item.depthMode),
+        item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0,
+        item.legacyX0, item.legacyY0, item.legacyX1, item.legacyY1);
+      // The attribution line: box vs painted pixels is decided by these numbers,
+      // not by another guess. See the report's section 8.0 for the rule that was
+      // written before this line existed.
+      traceFmt("outline: itemdiag entity=%u key=%08x meshVerts=%u skinned=%u range=%u,%u"
+        " box=%dx%d vertexbox=%d,%d,%d,%d vverts=%u ndc=%.4f,%.4f origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f",
+        static_cast<unsigned>(item.entityIndex), static_cast<unsigned>(item.meshKeyHash),
+        static_cast<unsigned>(item.meshVertexCount), static_cast<unsigned>(item.skinned),
+        static_cast<unsigned>(item.rangeVertexCount), static_cast<unsigned>(item.rangeInstanceCount),
+        item.x1 - item.x0 + 1, item.y1 - item.y0 + 1,
+        item.vertexX0, item.vertexY0, item.vertexX1, item.vertexY1, item.vertexCountProjected,
+        item.ndcWidth, item.ndcHeight,
+        item.originX, item.originY, item.cornersProjected, item.cornerWMin, item.cornerWMax,
+        item.worldExtent[0], item.worldExtent[1], item.worldExtent[2],
+        item.worldExtent[3], item.worldExtent[4], item.worldExtent[5],
+        item.meshBoundsMin[0], item.meshBoundsMin[1], item.meshBoundsMin[2],
+        item.meshBoundsMax[0], item.meshBoundsMax[1], item.meshBoundsMax[2]);
+    }
+  };
+
+
   // ---- T21/T26: the map -> screen projection, written once ----------------
   // `uploadWorldGeometry` publishes the transform and `worldShaderConstants` is
   // the matrix the draw used, so this is the product's own camera and not a
@@ -8116,6 +8391,60 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
           animationStats.targetWitnessLocalFrame, animationStats.targetWitnessSectionFrames,
           animationStats.targetWitnessObservations);
         traceCheckpoint("scene: instances set");
+        // ---- T52: the overlay's per-tick build --------------------------------
+        // Built here, where the snapshot and the uploaded meshes are both already
+        // in hand, and only on a tick the sampling policy selects. A skipped tick
+        // does not clear the list: the overlay keeps drawing what it was last told,
+        // which is what makes a stride a cost saving rather than a flicker.
+        {
+          const bool sampled = tf2::native::overlayTickSampled(overlaySampleTier, sceneTick);
+          if (sampled) {
+            ++g_overlaySampledTicks;
+            std::vector<tf2::native::OverlayEntitySample> samples = tf2::native::sampleOverlayEntities(
+              currentEntityStates, demoNetworkSummary.serverClassSchemas,
+              demoNetworkSummary.modelPrecache, tf2::native::OverlayEntityFilter::Players,
+              nullptr, nullptr);
+            // WORLD FIRST, BIND SECOND, and the builder is told which is which
+            // rather than being handed one merged set: the item records the
+            // source, the line prints the split, and a future world pass that
+            // draws player bodies moves every item from bind to world without a
+            // code change here.
+            std::vector<std::string> worldMeshes;
+            worldMeshes.reserve(draws.size());
+            for (const auto& draw : draws) worldMeshes.push_back(draw.cacheKey);
+            tf2::native::OverlayDrawList list = tf2::native::buildOutlineDrawList(
+              samples, worldMeshes, g_overlayBindMeshes, g_overlayToggle.enabled(), outlineDepthMode);
+            // The pose the silhouettes are drawn at is the pose the MESH was drawn
+            // at: the entity pass already resolved a transform per instance, and a
+            // second resolution here would be a second answer to "where is
+            // entity N". Matching by cache key is not enough -- two players of the
+            // same class share one -- so the entity index is the join.
+            for (auto& item : list.items) {
+              for (const auto& draw : draws) {
+                if (draw.cacheKey != item.cacheKey) continue;
+                if (std::fabs(draw.origin[0] - item.origin[0]) > 1.0e-3f
+                    || std::fabs(draw.origin[1] - item.origin[1]) > 1.0e-3f
+                    || std::fabs(draw.origin[2] - item.origin[2]) > 1.0e-3f) continue;
+                item.skinned = draw.skinningEnabled;
+                item.boneOffset = draw.boneOffset;
+                item.boneCount = draw.boneCount;
+                break;
+              }
+            }
+            outlineStats.lastSubmitted = list.items.size();
+            outlineStats.lastRed = list.submittedByTeam[1];
+            outlineStats.lastBlue = list.submittedByTeam[2];
+            outlineStats.lastUnknown = list.submittedByTeam[0];
+            outlineStats.lastNoMesh = list.rejectedNoMesh;
+            outlineStats.lastNoOrigin = list.rejectedNoOrigin;
+            outlineStats.lastDisabled = list.rejectedDisabled;
+            outlineStats.lastPoseWorld = list.poseSourceWorld;
+            outlineStats.lastPoseBind = list.poseSourceBind;
+            outlineStats.lastSamples = samples.size();
+            renderer.setOverlayDrawList(list);
+            ++g_overlayFramesWithList;
+          }
+        }
       } else {
         renderer.setEntityBoneMatrices({});
         renderer.setEntityModelInstances({});
@@ -8666,6 +8995,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // made, and a pass that has not run yet counts as zero. Taken here, the
         // line describes a frame that exists.
         traceWorldDraw();
+        traceOutlineDraw();
       }
       // Emitted on the frame the capture was requested for, so the readings and
       // the bitmap on disk describe the same frame.

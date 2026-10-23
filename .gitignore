@@ -133,3 +133,13 @@ evidence/hud/probe-fixtures-restored/
 evidence/hud/uninstall/
 evidence/hud/user-hud/
 evidence/hud/user-hud-shared/
+# T52 (红蓝队透视描边) 的门禁把每一次运行的读数写进 evidence/outline/：probe-*.txt、
+# offline-selftest.txt、每帧的 *.bmp 与 *.trace、每次运行的 *.log，以及变异期的
+# mutation-backup/。它们是同一次运行的机器产物，每次都被覆盖，提交进来只是把
+# 8 MB 级的帧和几 MB 的 trace 塞进历史；留在主线的是 OVERLAY-CONTRACT.md（契约）
+# 与 outline-offline-selftest.py（离线证明「读数两个方向都会变」的脚本）。
+evidence/outline/*.txt
+evidence/outline/*.bmp
+evidence/outline/*.trace
+evidence/outline/*.log
+evidence/outline/mutation-backup/
