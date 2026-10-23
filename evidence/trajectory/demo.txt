@@ -1,0 +1,37 @@
+demo=D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem
+track: rows=257880 dropped=0 packetsScanned=73118 limit=400000
+invariant: tickNonDecreasing=true firstInversion=0
+series: lifetimes=2201 distinctSlots=98 contiguous=2201 bounced=664
+  class CTFBall_Ornament series=47
+  class CTFGrenadePipebombProjectile series=774
+  class CTFProjectile_HealingBolt series=152
+  class CTFProjectile_Rocket series=1228
+owner: rowsWithOwner=257880 of 257880
+longest: entity=686 class=CTFGrenadePipebombProjectile ticks=[84215..86652] samples=2438 missing=0 contiguous=true bounced=true z=[237.0..287.0]
+flights: candidates=1147 (contiguous, 40..300 samples)
+distribution: chordMedian=140.9 chordP90=532.5 chordMax=1472.0 count=1147
+distribution: chordAtLeast100=667 chordBelow1=83 velocityAtLeast100=781 fractionChordAtLeast100=58.2%
+flightSubject: entity=684 generation=317 class=CTFProjectile_HealingBolt ticks=[122822..123035] samples=214 bounced=false maxError=7408.4 meanError=3484.7 worstTick=123035 observed=(-233,122,277) predicted=(5377,-4283,-1725) chordMax=441.1
+shortcut-constantVelocity: samples=2438 max=40818.1 mean=20076.4 worstTick=86652 observed=(-1361,-673,237) predicted=(-37295,-17401,9986)
+shortcut-twoPointLine: samples=2438 max=690.1 worstTick=84262
+row entity=686 class=CTFGrenadePipebombProjectile samples=2438 maxError=40818.1 meanError=20076.4 bounced=true
+row entity=811 class=CTFGrenadePipebombProjectile samples=2396 maxError=32822.5 meanError=16151.3 bounced=true
+row entity=539 class=CTFGrenadePipebombProjectile samples=2350 maxError=34150.0 meanError=16816.2 bounced=true
+filter: owners=15 rowsWithoutOwner=0 busiestOwner=790 busiestRows=110145
+emptycase: tick=55193 rows=0 marker=NO-PROJECTILE
+query: tick=85433 rows=257880 calls=3 foundLast=8 binaryComparisons<=36 scanWouldBe=773640
+cost: sampleRows=257880 queryComparisonsPerCall<=36 budgetPerCall=36
+appendCost: packets=73118 medianMs=0.0083 p90Ms=0.0181 maxMs=2.6649
+appendCost.tail: worstPacketIndex=59353 worstMs=2.6649 secondPacketMs=0.0047 maxAfterFirst=2.6649
+appendCost.cause: worstPacketEntities=683 medianEntities=671 maxEntities=692
+appendCost.cause: worstIsAlsoLargestEntities=false
+appendCost.outliers: above100us=59 above500us=4 above1ms=4 of 73118 (0.0055% above1ms)
+appendCost.rule: medianOk=true maxOk=true
+buildCost: frames=214 medianMs=0.0115 p95Ms=0.0181 maxMs=0.0863
+buildCost.points: median=144 max=198 verticesMedian=288 verticesMax=396
+buildCost.budget: frameBudget240HzMs=4.1667 targetMs=1.0
+ownerReuse: ownerSlots=15 slotsWithMultipleLifetimes=15 worstOwner=712 worstLifetimes=359
+overlay: tick=123035 allPoints=109 allLifetimes=4 allOwners=4
+overlay: selectedOwner=495 selectedPoints=34 selectedFilteredOut=75
+overlay: lowPoints=26 highPoints=109 lingerTicks=33
+overlay: lingerWindowTick=123035 insideWindowPoints=109 pastTick=123073 flightPointsPastLinger=0 lingerTicks=33

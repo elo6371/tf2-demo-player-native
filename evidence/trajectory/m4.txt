@@ -1,0 +1,4 @@
+m4.before: tickNonDecreasing=true rows=257880
+m4.after: tickNonDecreasing=false firstInversion=1
+m4.search: tick=93595 expectedRows=9 foundRows=257880
+m4.verdict: INVARIANT-BROKEN-AS-INTENDED

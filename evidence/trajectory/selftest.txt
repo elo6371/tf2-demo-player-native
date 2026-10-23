@@ -1,0 +1,5 @@
+  slot-reuse fixture: series=2 (merged would be 1)
+  constant-velocity fixture: max=144.000 at tick=109 v=(1.00,0.00,-2.00) samples=10
+  constant-velocity control (straight line): max=0.000
+  chord fixture: max=40.000 at tick=105 samples=10
+self-test: all assertions held

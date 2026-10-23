@@ -788,7 +788,7 @@ int runDemo(const std::string& demoPath, int top, bool expectEmptySearch) {
       }
     }
     std::printf("ownerReuse: ownerSlots=%zu slotsWithMultipleLifetimes=%zu "
-                "worstOwner=%zu worstLifetimes=%zu\n",
+                "worstOwner=%u worstLifetimes=%zu\n",
                 lifetimesByOwner.size(), reusedOwnerSlots,
                 static_cast<unsigned>(worstOwner), worstLifetimes);
   }
@@ -865,11 +865,62 @@ int runDemo(const std::string& demoPath, int top, bool expectEmptySearch) {
   return 0;
 }
 
+// MUTATION m4: a retained list whose ticks are NOT non-decreasing.
+//
+// The binary search in queryProjectileTracksAtTick is only correct while the rows
+// are tick-ordered. That invariant is easy to break without noticing -- an append
+// reordering, a replay path, a merge that concatenates two lists -- and when it
+// breaks the search does not fail, it returns the WRONG ROWS, which is the worst
+// kind of failure because it looks like an answer.
+//
+// This mode takes the real retained rows, reverses them (exactly what an append
+// that pushed to the front would produce), and reports both the invariant and the
+// search's behaviour. The gate asserts that the invariant reads FALSE here and
+// TRUE on the real path -- so the assertion is known to be able to fail.
+int runOrderingMutation(const std::string& demoPath, const std::string& tfRoot) {
+  using namespace tf2::native;
+  DemoHeader header;
+  DemoIndex index;
+  DemoNetworkSummary summary;
+  if (!parseDemoHeaderFile(demoPath, header)) return fail("demo header parse failed");
+  indexDemoFile(demoPath, header, index);
+  summary.networkProtocol = header.networkProtocol;
+  if (!scanKnownDemoMessages(demoPath, index, summary)) return fail("demo scan failed");
+
+  std::size_t firstInversion = 0;
+  const bool orderedBefore = projectileTrackTickOrderingHolds(summary, &firstInversion);
+  std::printf("m4.before: tickNonDecreasing=%s rows=%zu\n",
+              orderedBefore ? "true" : "false", summary.projectileTrackSamples.size());
+
+  // The broken append: newest row first.
+  std::reverse(summary.projectileTrackSamples.begin(), summary.projectileTrackSamples.end());
+  firstInversion = 0;
+  const bool orderedAfter = projectileTrackTickOrderingHolds(summary, &firstInversion);
+  std::printf("m4.after: tickNonDecreasing=%s firstInversion=%zu\n",
+              orderedAfter ? "true" : "false", firstInversion);
+
+  // And what the search does on the broken list: ask for a tick whose rows exist
+  // and see whether it finds them. A search over an unsorted range is undefined;
+  // observing it miss is the point.
+  const std::int32_t probeTick = summary.projectileTrackSamples.empty()
+    ? 0 : summary.projectileTrackSamples[summary.projectileTrackSamples.size() / 2].tick;
+  std::size_t expectedRows = 0;
+  for (const auto& row : summary.projectileTrackSamples) {
+    if (row.tick == probeTick) ++expectedRows;
+  }
+  const auto found = queryProjectileTracksAtTick(summary, probeTick);
+  std::printf("m4.search: tick=%d expectedRows=%zu foundRows=%zu\n",
+              probeTick, expectedRows, found.size());
+  std::printf("m4.verdict: %s\n", !orderedAfter ? "INVARIANT-BROKEN-AS-INTENDED" : "MUTATION-DID-NOT-FIRE");
+  return !orderedAfter ? 0 : 1;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
   bool selfTest = false;
   bool expectEmptySearch = false;
+  bool reverseAppendOrder = false;
   std::string tfRoot, demoPath;
   int top = 5;
   for (int i = 1; i < argc; ++i) {
@@ -878,9 +929,23 @@ int main(int argc, char** argv) {
     else if (std::strcmp(argv[i], "--demo") == 0 && i + 1 < argc) demoPath = argv[++i];
     else if (std::strcmp(argv[i], "--top") == 0 && i + 1 < argc) top = std::atoi(argv[++i]);
     else if (std::strcmp(argv[i], "--expect-empty-search") == 0) expectEmptySearch = true;
+    else if (std::strcmp(argv[i], "--reverse-append-order") == 0) reverseAppendOrder = true;
   }
   if (selfTest) return runSelfTest();
-  if (!demoPath.empty() && !tfRoot.empty()) return runDemo(demoPath, top, expectEmptySearch);
+  if (!demoPath.empty() && !tfRoot.empty()) {
+    if (reverseAppendOrder) {
+      // MUTATION m4, IN THE PROBE RATHER THAN IN THE DECODER.
+      //
+      // The gate has to prove that "the rows are tick non-decreasing" is an
+      // assertion that can FAIL, not one that is always true by construction. The
+      // honest way to do that without editing the decoder is to hand the analysis
+      // layer a list in the order a broken append would produce -- reversed -- and
+      // show the invariant reports the inversion. A mutation that only breaks the
+      // build is not a caught mutation; this one runs.
+      return runOrderingMutation(demoPath, tfRoot);
+    }
+    return runDemo(demoPath, top, expectEmptySearch);
+  }
   std::printf("usage: projectile_track_probe --self-test | --tf-root <tf> --demo <demo.dem>\n");
   return 2;
 }
