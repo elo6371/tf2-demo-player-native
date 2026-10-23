@@ -722,6 +722,25 @@ struct OverlayItemReading {
   // derivation is what is wrong; if they fall outside both, the geometry is.
   int vertexX0 = 0, vertexY0 = 0, vertexX1 = 0, vertexY1 = 0;
   unsigned vertexCountProjected = 0;
+  // ---- T52 (2026-10-23): which rule produced x0..y1 ---------------------
+  // The region assertions ask "no pixel outside every drawn region". That is only
+  // a measurement if the region bounds what was DRAWN. Measured: the entity AABB
+  // corners leave a 1-6 px fringe of painted pixels outside themselves, because
+  // the pass draws the class mesh's triangles (poseSource Bind) and the AABB is the
+  // sampler's hull -- two different objects. So the box is now the projected
+  // VERTICES of the mesh the draw consumes, and the AABB box is kept beside it.
+  int aabbX0 = 0, aabbY0 = 0, aabbX1 = 0, aabbY1 = 0;
+  // 0 = AABB corners (the flag was off), 1 = projected vertices (the region the
+  // draw consumes), 2 = vertices asked for but none in front of the eye (fell back
+  // to the AABB, and says so).
+  int extentSource = 0;
+  // T52 (2026-10-23d): how many pixels this silhouette's shell is allowed to stick
+  // out beyond the box, computed by the PRODUCT from the same two numbers the shader
+  // works with: the expansion constant in model units, and this item's model->world
+  // scale (|rows row0|). The gate uses this number and no other -- it may not invent
+  // a tolerance of its own, because then the assertion would stop tracking the
+  // product and start tracking a guess.
+  float expandPixels = 0.0f;
   float ndcWidth = 0.0f;
   float ndcHeight = 0.0f;
   float depth = 0.0f;
@@ -764,6 +783,7 @@ struct OverlayPassReading {
   float boundsMin[3] = {0.0f, 0.0f, 0.0f};
   float boundsMax[3] = {0.0f, 0.0f, 0.0f};
   std::vector<OverlayItemReading> items;
+
 };
 
 // ---------------------------------------------------------------------------

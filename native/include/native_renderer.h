@@ -713,6 +713,11 @@ public:
   // counter, so "the overlay drew before the weapon" is a number a gate reads
   // rather than a claim about the order of two statements.
   const OverlayPassReading& overlayPassReading() const { return overlayPassReading_; }
+  void setOverlayVertexExtent(bool enabled) { overlayVertexExtent_ = enabled; }
+  bool overlayVertexExtent() const { return overlayVertexExtent_; }
+  const std::vector<std::pair<std::uint32_t, std::uint32_t>>& overlayInstanceIdentity() const {
+    return overlayInstanceIdentity_;
+  }
 
   // T52: the depth-stencil states as D3D11 REPORTS them, next to the numbers the
   // pass publishes per frame. The contract says x-ray is "depth test off and
@@ -725,6 +730,19 @@ public:
   // does not have the mask we asked for.
   bool overlayXRayDepthTestEnabled() const { return overlayXRayDepthTestEnabled_; }
   bool overlayXRayDepthWriteEnabled() const { return overlayXRayDepthWriteEnabled_; }
+  // Raw device readback of the two overlay depth-stencil states, and the description
+  // each was created from. Published so a gate asserts agreement instead of trusting a
+  // bool that was computed somewhere else.
+  std::uint32_t overlayXRayStateReadWriteMask() const { return overlayXRayStateReadWriteMask_; }
+  std::uint32_t overlayXRayStateCreatedWriteMask() const { return overlayXRayStateCreatedWriteMask_; }
+  std::uint32_t overlayXRayStateReadDepthEnable() const { return overlayXRayStateReadDepthEnable_; }
+  std::uint32_t overlayDepthTestedStateReadWriteMask() const { return overlayDepthTestedStateReadWriteMask_; }
+  std::uint32_t overlayDepthTestedStateCreatedWriteMask() const { return overlayDepthTestedStateCreatedWriteMask_; }
+  std::uint32_t overlayDepthTestedStateReadDepthEnable() const { return overlayDepthTestedStateReadDepthEnable_; }
+  bool overlayStateReadbackAgrees() const { return overlayStateReadbackAgrees_; }
+  bool overlayInstanceRow0Valid() const { return overlayInstanceRow0Valid_; }
+  const float* overlayInstanceRow0Gpu() const { return overlayInstanceRow0Gpu_; }
+  const float* overlayInstanceRow0Cpu() const { return overlayInstanceRow0Cpu_; }
 
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
   bool uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
@@ -1355,6 +1373,27 @@ private:
   bool overlayXRayDepthWriteEnabled_ = false;
   bool overlayDepthTestedDepthTestEnabled_ = false;
   bool overlayDepthTestedDepthWriteEnabled_ = false;
+  // T52 (2026-10-23b): the depth-stencil states as the DEVICE reports them and as they
+  // were ASKED FOR. The bool above came from a GetDesc call yet read 1 against a state
+  // created with WRITE_MASK_ZERO -- a reading whose name said one thing and whose source
+  // was another. Both sides are now kept, the raw mask travels into the trace, and
+  // `agrees` compares the description handed to CreateDepthStencilState with what
+  // GetDesc returned, so the two cannot drift apart without a red assertion.
+  std::uint32_t overlayXRayStateCreatedDepthEnable_ = 0;
+  std::uint32_t overlayXRayStateCreatedWriteMask_ = 0;
+  std::uint32_t overlayXRayStateReadDepthEnable_ = 0;
+  std::uint32_t overlayXRayStateReadWriteMask_ = 0;
+  std::uint32_t overlayDepthTestedStateCreatedDepthEnable_ = 0;
+  std::uint32_t overlayDepthTestedStateCreatedWriteMask_ = 0;
+  std::uint32_t overlayDepthTestedStateReadDepthEnable_ = 0;
+  std::uint32_t overlayDepthTestedStateReadWriteMask_ = 0;
+  bool overlayStateReadbackAgrees_ = false;
+  // The instance row the draw consumes vs the row the CPU published, read back from
+  // the same staging copy as the identity. Row 0 only, first instance: enough to say
+  // whether the box and the draw share a transform.
+  float overlayInstanceRow0Gpu_[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  float overlayInstanceRow0Cpu_[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  bool overlayInstanceRow0Valid_ = false;
   // Cull none: the silhouette is an expanded shell whose winding a thin model
   // part can invert, and culling it would punch a hole in the outline.
   Microsoft::WRL::ComPtr<ID3D11RasterizerState> overlayRasterizerState_;
@@ -1403,6 +1442,17 @@ private:
   std::vector<OverlayDrawRange> overlayDrawRanges_;
   std::vector<OverlayInstanceRecord> overlayInstances_;
   std::size_t overlayInstanceCount_ = 0;
+  // ---- T52 D1 (2026-10-23): identity of the instances actually in the buffer ---
+  // (entityIndex read back out of the vertex buffer, entityIndex the CPU published
+  // for the same slot). The CPU boxes the gate measures against and the GPU records
+  // the silhouettes are drawn from are filled from one vector in one order; this is
+  // the reading that says whether that is still true.
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> overlayInstanceIdentity_;
+  // T52: when set, the region published for each silhouette is the projected
+  // VERTICES of the mesh the draw consumes, not the entity AABB's corners. Off by
+  // default because it transforms every vertex of every silhouette every frame;
+  // the gate turns it on for the runs it measures.
+  bool overlayVertexExtent_ = false;
   // Line and marker primitives (T53's), built with the world's own vertex
   // layout so a trail lands on the world it describes. Both modes' vertices
   // share one buffer and are drawn by range, so submitting the second list of a

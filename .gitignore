@@ -144,3 +144,5 @@ evidence/outline/*.trace
 evidence/outline/*.log
 evidence/outline/mutation-backup/
 scratch/
+__pycache__/
+*.pyc

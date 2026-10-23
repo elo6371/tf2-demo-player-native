@@ -2337,6 +2337,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   tf2::native::OverlayDepthMode outlineDepthMode = tf2::native::OverlayDepthMode::XRay;
   bool outlineArgumentRejected = false;
   bool outlineDepthGiven = false;
+// T52 (2026-10-23): publish each silhouette's region from the vertices the draw
+// consumes instead of from the entity AABB. Off by default: it transforms every
+// vertex of every silhouette every frame, which no normal run needs. The gate turns
+// it on for the runs whose regions it measures, and asserts extent=1 on the lines.
+bool outlineVertexExtent = false;
   // Standalone `--model` skinning contract. The single-model path is a separate
   // contract from the entity-instance path: it uploads one skeleton to b1, so
   // it can and must enable the skinning branch explicitly. Three knobs:
@@ -2734,7 +2739,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         return true;
       } else if (wcscmp(arguments[i], L"--outline-depth") == 0) {
         outlineArgumentRejected = true;
-
+        return true;
+      } else if (wcscmp(arguments[i], L"--outline-vertex-extent") == 0) {
+        // T52 (2026-10-23): publish each silhouette's region from the vertices
+        // the draw consumes instead of from the entity AABB. Off by default: it
+        // transforms every vertex of every silhouette every frame, which no
+        // normal run needs. The gate turns it on for the runs it measures.
+        outlineVertexExtent = true;
         return true;
       } else if (wcscmp(arguments[i], L"--camera-script") == 0 && i + 1 < argumentCount) {
         // T50: the scripted acceptance driver (see runCameraScriptStep). A file
@@ -6973,7 +6984,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
       " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
       " poseWorld=%zu poseBind=%zu"
-      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d stateBound=%d",
+      " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d stateBound=%d"
+      // T52 (2026-10-23b): the depth-stencil state as the DEVICE reports it (raw mask,
+      // 0=ZERO 1=ALL) beside the description it was created from, and one bool that says
+      // the two agree. A mutation that flips the mask moves these; a reading that is not
+      // wired to the state moves `agree` instead. Either way the gate gets a red.
+      " stateEnable=%u stateMask=%u stateCreated=%u agree=%d",
       pass.enabled ? 1 : 0, tf2::native::overlayDepthModeName(pass.depth),
       pass.depthTestEnabled ? 1 : 0, pass.depthWriteEnabled ? 1 : 0,
       pass.drewThisFrame ? 1 : 0, pass.stageOrdinal, renderer.viewModelPassOrdinal(),
@@ -6988,22 +7004,33 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       tf2::native::overlaySlotOwnerName(g_overlayToggle.owner()),
       renderer.overlayXRayDepthTestEnabled() ? 1 : 0,
       renderer.overlayXRayDepthWriteEnabled() ? 1 : 0,
-      renderer.overlayPassReading().stateBoundDepthTest);
+      renderer.overlayPassReading().stateBoundDepthTest,
+      renderer.overlayXRayStateReadDepthEnable(),
+      renderer.overlayXRayStateReadWriteMask(),
+      renderer.overlayXRayStateCreatedWriteMask(),
+      renderer.overlayStateReadbackAgrees() ? 1 : 0);
     // One row per drawn silhouette. The gate joins these to the frame: the box
     // is the pass's own projection of that entity's extent, so "this region is
     // red" is a statement about THIS entity rather than about the picture.
     for (const auto& item : pass.items) {
-      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d legacy=%d,%d,%d,%d",
+      // `extent=` says which rule produced the box on this line: 1 = the projected
+      // vertices of the mesh the draw consumes, 0 = the entity AABB's corners (the
+      // switch was off), 2 = vertices asked for and none in front of the eye. The AABB
+      // box rides along as aabb= so a region that is right for the wrong reason can be
+      // told from one that was fixed.
+      traceFmt("outline: item entity=%u team=%s depth=%s x0=%d y0=%d x1=%d y1=%d depth=%.4f onScreen=%d extent=%d expand=%.3f aabb=%d,%d,%d,%d legacy=%d,%d,%d,%d",
         static_cast<unsigned>(item.entityIndex),
         tf2::native::overlayTeamName(item.team),
         tf2::native::overlayDepthModeName(item.depthMode),
         item.x0, item.y0, item.x1, item.y1, item.depth, item.onScreen ? 1 : 0,
+        item.extentSource, item.expandPixels, item.aabbX0, item.aabbY0, item.aabbX1, item.aabbY1,
         item.legacyX0, item.legacyY0, item.legacyX1, item.legacyY1);
       // The attribution line: box vs painted pixels is decided by these numbers,
       // not by another guess. See the report's section 8.0 for the rule that was
       // written before this line existed.
       traceFmt("outline: itemdiag entity=%u key=%08x meshVerts=%u skinned=%u range=%u,%u"
-        " box=%dx%d vertexbox=%d,%d,%d,%d vverts=%u ndc=%.4f,%.4f origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f",
+        " box=%dx%d vertexbox=%d,%d,%d,%d vverts=%u ndc=%.4f,%.4f origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f"
+        " mh=%.2f wh=%.2f",
         static_cast<unsigned>(item.entityIndex), static_cast<unsigned>(item.meshKeyHash),
         static_cast<unsigned>(item.meshVertexCount), static_cast<unsigned>(item.skinned),
         static_cast<unsigned>(item.rangeVertexCount), static_cast<unsigned>(item.rangeInstanceCount),
@@ -7014,7 +7041,40 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         item.worldExtent[0], item.worldExtent[1], item.worldExtent[2],
         item.worldExtent[3], item.worldExtent[4], item.worldExtent[5],
         item.meshBoundsMin[0], item.meshBoundsMin[1], item.meshBoundsMin[2],
-        item.meshBoundsMax[0], item.meshBoundsMax[1], item.meshBoundsMax[2]);
+        item.meshBoundsMax[0], item.meshBoundsMax[1], item.meshBoundsMax[2],
+        // The two heights that decide who is measuring the wrong object: the mesh's own
+        // model-space height, and the world-space height of the box the pass publishes.
+        // A player is 72 Source units tall, so if mh says 31 the box was derived from
+        // something that is not the player's render mesh.
+        item.meshBoundsMax[1] - item.meshBoundsMin[1],
+        item.worldExtent[4] - item.worldExtent[1]);
+    }
+    // T52 D1: one row per DRAWN instance, read back out of the buffer the draw
+    // call consumed. entityIndex is what the GPU record holds (padding[1]);
+    // expected is what the CPU published for that slot. The gate asserts the
+    // mismatch count is 0 and, when it is not, this table says which slot holds
+    // which entity -- the pixel readings cannot say that.
+    const auto& identity = renderer.overlayInstanceIdentity();
+    for (std::size_t index = 0; index < identity.size(); ++index) {
+      traceFmt("overlay: readback i=%zu entityIndex=%u expected=%u match=%d",
+        index, static_cast<unsigned>(identity[index].first),
+        static_cast<unsigned>(identity[index].second),
+        identity[index].first == identity[index].second ? 1 : 0);
+    }
+    // One level deeper: does the draw consume the SAME transform the box was computed
+    // with? Identical rows means the box and the pixels cannot be describing different
+    // objects, and the residue has to be found in the projection or in the comparison.
+    if (renderer.overlayInstanceRow0Valid()) {
+      const float* gpuRow = renderer.overlayInstanceRow0Gpu();
+      const float* cpuRow = renderer.overlayInstanceRow0Cpu();
+      float worst = 0.0f;
+      for (int column = 0; column < 4; ++column) {
+        const float gap = std::fabs(gpuRow[column] - cpuRow[column]);
+        if (gap > worst) worst = gap;
+      }
+      traceFmt("overlay: rowcheck gpu=%.6f,%.6f,%.6f,%.6f cpu=%.6f,%.6f,%.6f,%.6f worst=%.6f match=%d",
+        gpuRow[0], gpuRow[1], gpuRow[2], gpuRow[3],
+        cpuRow[0], cpuRow[1], cpuRow[2], cpuRow[3], worst, worst < 1.0e-6f ? 1 : 0);
     }
   };
 
@@ -8623,6 +8683,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             outlineStats.lastPoseWorld = list.poseSourceWorld;
             outlineStats.lastPoseBind = list.poseSourceBind;
             outlineStats.lastSamples = samples.size();
+            // Where the region comes from, set with the list so the pass and the reading
+            // cannot disagree about which rule produced the box.
+            renderer.setOverlayVertexExtent(outlineVertexExtent);
             renderer.setOverlayDrawList(list);
             ++g_overlayFramesWithList;
           }

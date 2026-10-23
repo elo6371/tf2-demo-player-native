@@ -17,7 +17,7 @@
 #   2. NOTHING ELSE CHANGED. "The overlay does not change world geometry or
 #      ordinary visibility" is asserted as: with the overlay on, every pixel
 #      OUTSIDE the drawn silhouette's bounds is byte-identical to the same tick
-#      with the overlay off, and the pass reports ordinal 6 -- strictly before
+#      with the overlay off, and the pass draws in a slot before the ViewModel's --
 #      the ViewModel pass. A byte count would pass for an overlay that had
 #      shifted the whole world by one pixel; a bound cannot.
 #
@@ -57,7 +57,7 @@
 #   m3 overlay always on and leaks      -> the OFF frame gains team pixels
 #   m5 the overlay writes depth         -> the published depth WRITE flips
 #   m6 capture lands near, not at, tick -> the speed=1 and speed=default frames differ
-#   m4 move the pass after ViewModel    -> ordinal: orderOk=0 and ordinal != 6
+#   m4 move the pass after ViewModel    -> orderOk=0 and ordinal != the fixed build's
 # Each mutation restores the source and the restore is verified with cmp.
 #
 # SECTION 0 runs the two Python readers on synthetic frames and traces and
@@ -116,6 +116,13 @@ assert_le() { # assert_le <label> <actual> <maximum>
     echo "  OK   $1 = $2 (<= $3)"
   else
     echo "  FAIL $1 = ${2:-<none>}, expected <= $3"; fail=1
+  fi
+}
+assert_lt() { # assert_lt <label> <actual> <maximum, exclusive>
+  if [ -n "${2:-}" ] && [ "$2" -lt "$3" ] 2>/dev/null; then
+    echo "  OK   $1 = $2 (< $3)"
+  else
+    echo "  FAIL $1 = ${2:-<none>}, expected < $3"; fail=1
   fi
 }
 
@@ -219,22 +226,90 @@ fi
 
 echo
 echo "=== 3/6 a real recording: identity, team and pose at every sampled tick ==="
-# The tick set is a fixed list, not "whatever the run happened to reach": the
-# same ticks must be sampled in every run or the frames compared in sections 4
-# and 5 would be two different cameras.
-# These are PLAYBACK ticks (sceneTick = firstPacketTick + tick) and they must
-# land inside the C++ entity history's retained window. Outside it the accessor
-# answers "unavailable", the product's scene states come back EMPTY, and a frame
-# at that tick has no player to outline at all. Measured before this was fixed:
-# six requested ticks, six "the tick precedes every retained snapshot", zero
-# rows. The probe prints the window and the per-tick player/team counts
-# (--find-ticks); these six are inside it.
-TICKS="${T52_TICKS:-1000,1200,1400,1600,1800,2000}"
+# The tick set is DERIVED FROM THIS DEMO, not pinned in the file.
+#
+# A fixed list is a constant that assumes one recording. 2026-10-23 the default was
+# 1000..2000 while this demo retains server ticks 74481..74671 (serverTickOrigin
+# 10252, so playback 64229..64419): every request answered "the tick precedes every
+# retained snapshot", rows=0, and five assertions about players were really
+# assertions about an empty sample. The window is asked for, not remembered.
+#
+# T52_TICKS survives as an override, but it is a DIAGNOSTIC PIN for reproducing one
+# round, not the daily path. Pinning a tick list is how the stale list above stayed
+# alive: every reading in the report passed one explicitly, so the default was never
+# exercised.
+#
+# The discovery run is asserted rather than assumed:
+#   * the probe exits 1 when it measured nothing, by design -- a run that samples
+#     tick 0 always does. The exact stderr sentence is pinned, because "exited 1"
+#     alone is also what a crash after printing looks like;
+#   * its "demo history" line must be BYTE-IDENTICAL to the one the measuring run
+#     prints below (cmp), which is what makes this the same window read twice
+#     rather than a second, plausibly-similar code path;
+#   * a doctored history line missing retainedFirst= must make the guard go red,
+#     or the guard is decoration.
+window_field() { # window_field <file> <name>
+  sed -n "s/^demo history .*$2=\([0-9]*\).*/\1/p" "$1" 2>/dev/null | head -1
+}
+window_usable() { # window_usable <file> -- three fields readable and last > first
+  local a b c
+  a=$(window_field "$1" retainedFirst)
+  b=$(window_field "$1" retainedLast)
+  c=$(window_field "$1" serverTickOrigin)
+  [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ "$b" -gt "$a" ] 2>/dev/null
+}
+"$PROBE" --demo "$DEMO" --ticks 0 > "$OUT/probe-window.txt" 2>&1
+WINDOW_RC=$?
+WINDOW_OK=1
+if window_usable "$OUT/probe-window.txt"; then
+  echo "  OK   window discovery reported a usable history line"
+else
+  echo "  FAIL window discovery reported no usable history line"; fail=1; WINDOW_OK=0
+fi
+assert_eq "window discovery exit is the probe measured-nothing verdict" "$WINDOW_RC" "1"
+assert_contains "window discovery says why it measured nothing" \
+  "$(cat "$OUT/probe-window.txt" 2>/dev/null)" \
+  "FAIL no player was sampled at any requested tick"
+# Self-test: the same guard must REJECT a file that lacks the field it claims to
+# need. A guard that cannot go red is a comment that runs.
+printf 'demo history packets=1 retainedLast=2 serverTickOrigin=3\n' > "$OUT/window-doctored.txt"
+if window_usable "$OUT/window-doctored.txt"; then
+  echo "  FAIL window self-test: a line without retainedFirst= was accepted"; fail=1
+else
+  echo "  OK   window self-test: a line without retainedFirst= is rejected"
+fi
+
+RETAINED_FIRST=$(window_field "$OUT/probe-window.txt" retainedFirst)
+RETAINED_LAST=$(window_field "$OUT/probe-window.txt" retainedLast)
+ORIGIN=$(window_field "$OUT/probe-window.txt" serverTickOrigin)
+FIRST=$(( ${RETAINED_FIRST:-0} - ${ORIGIN:-0} ))
+LAST=$(( ${RETAINED_LAST:-0} - ${ORIGIN:-0} ))
+STEP=$(( (LAST - FIRST) / 6 )); [ "$STEP" -ge 1 ] 2>/dev/null || STEP=1
+if [ -n "${T52_TICKS:-}" ]; then
+  TICKS="$T52_TICKS"
+  echo "  ticks: pinned by T52_TICKS=$TICKS (diagnostic pin for one round, not the daily path)"
+elif [ "$WINDOW_OK" -eq 1 ]; then
+  TICKS=""
+  for n in 0 1 2 3 4 5; do TICKS="${TICKS:+$TICKS,}$((FIRST + n * STEP))"; done
+  echo "  window: server ${RETAINED_FIRST}..${RETAINED_LAST} origin=$ORIGIN -> playback $FIRST..$LAST step=$STEP"
+else
+  TICKS="0"
+  echo "  FAIL no tick set: the window was unreadable and T52_TICKS was not set"
+  fail=1
+fi
+echo "  ticks=$TICKS"
 "$PROBE" --demo "$DEMO" --ticks "$TICKS" > "$OUT/probe-demo.txt" 2>&1
 DEMO_RC=$?
 grep -a "^demo summary" "$OUT/probe-demo.txt" > "$OUT/probe-demo-summary.txt" 2>/dev/null
 cat "$OUT/probe-demo-summary.txt"
 assert_eq "probe demo exit" "$DEMO_RC" "0"
+# The history line the discovery run printed and the one this run printed must be
+# the same bytes: that is what makes the derived ticks a reading of the same window
+# these samples were answered against.
+grep -a "^demo history" "$OUT/probe-window.txt" > "$OUT/window-discovery.txt" 2>/dev/null
+grep -a "^demo history" "$OUT/probe-demo.txt"   > "$OUT/window-measuring.txt" 2>/dev/null
+assert_eq "the discovery run and the measuring run report the same history line" \
+  "$(cmp -s "$OUT/window-discovery.txt" "$OUT/window-measuring.txt" && echo same || echo different)" "same"
 # The rows the identity claim rests on. `rows` is how many player-rows were
 # sampled in total: a demo whose snapshots hold no player would make every
 # later assertion vacuous, so the count is a criterion and not a diagnostic.
@@ -286,6 +361,13 @@ echo "  fidelity unavailable=$(v "$OUT/probe-demo-summary.txt" unavailable)"
 # "the tick precedes every retained snapshot", zero rows. So a tick the history
 # cannot answer is a failure of the claim, not a sampling detail.
 assert_eq "sampled ticks the entity history could answer" "$(v "$OUT/probe-demo-summary.txt" unavailable)" "0"
+# Two readings on purpose. "unavailable" counts ticks the history could NOT answer;
+# "ticksWithRows" (asserted above against the requested count) counts the ones it
+# could and that produced players. A sampling point outside the retained window
+# moves the first; an empty sample moves the second. One reading cannot say both,
+# and deleting either would trade one invisible failure for another.
+assert_eq "sampled ticks that produced player rows (own reading)" \
+  "$(v "$OUT/probe-demo-summary.txt" ticksWithRows)" "$EXPECTED_TICKS"
 
 echo
 echo "=== 4/6 the frames: nothing else changed, both colours, both directions ==="
@@ -293,10 +375,15 @@ echo "=== 4/6 the frames: nothing else changed, both colours, both directions ==
 #   off     --outline off
 #   on      --outline on
 #   tested  --outline on --outline-depth tested (the depth-awareness control)
-# Fixed so the gate is reproducible; the override exists for the run that PICKS
-# the tick, because where the retained window sits is a property of the
-# recording that has to be measured once before it can be pinned.
-TICK="${T52_TICK:-2000}"
+# The capture tick is the FIRST tick inside the retained window derived above.
+# It used to be a pinned 2000, which is the same stale-constant shape as the tick
+# list: 2000 is outside this recording's window, so the frames were captured from
+# the demo's opening seconds -- a different camera, players 3-5x nearer -- and the
+# pixel readings below moved for that reason alone. T52_TICK stays as the
+# diagnostic pin, exactly like T52_TICKS.
+CAPTURE_TICK="$FIRST"
+TICK="${T52_TICK:-$CAPTURE_TICK}"
+echo "  capture tick=$TICK (first in-window playback tick; T52_TICK pins it)"
 # Two things had to change here before a capture could ever happen, and both were
 # found by reading the product instead of the gate:
 #   * --start-paused freezes g_playback.tick at 0, so the one-shot capture armed
@@ -330,6 +417,12 @@ run_frame() { # run_frame <prefix> [args...]
   local -a productArgs=(
     --tf-root "$TF" --hidden-window --audio-disabled --demo "$DEMO"
     --capture-tick "$TICK" --playback-speed "$SPEED" --capture-frame "$prefix.bmp"
+    # T52 (2026-10-23): the region assertions compare pixels against regions, so the
+    # region has to bound what the pass DREW. Without this the product publishes the
+    # entity AABB and the drawn triangles stick out of it by a 1-6 px fringe, so the
+    # assertion measures its own ruler instead of the overlay. Part of the launch this
+    # helper builds, so a caller cannot forget it.
+    --outline-vertex-extent
     "$@"
   )
   case " ${productArgs[*]} " in
@@ -466,21 +559,33 @@ WORLD_MODELS_PREPARED=$(sed -n "s/.*gpu: models done \([0-9][0-9]*\) uploaded=.*
 WORLD_MODELS_UPLOADED=$(trace_field "$OUT/on.trace" "gpu: models done" uploaded)
 echo "  world models: prepared=${WORLD_MODELS_PREPARED:-<none>} uploaded=${WORLD_MODELS_UPLOADED:-<none>} (baseline 59/59, measured before the outline uploaded anything)"
 assert_eq "world pass model uploads unchanged by the overlay" "${WORLD_MODELS_UPLOADED:-<none>}" "59"
-# The ordinal assertion the lead asked for, in two halves because the product can
-# answer only one of them without a viewmodel.
+# The ordinal readings. ABSOLUTE NUMBERS ARE NOT THE CONTRACT.
 #
-# `ordinal` is the slot the overlay pass actually took this frame: always
-# measurable, always 6.
-assert_eq "overlay ordinal" "$(outline_value "$OUT/on.trace" ordinal)" "6"
-# `vmOrdinal` is only set when drawViewModel() RUNS, and that pass returns early
-# unless a viewmodel was requested and its mesh uploaded (native_renderer.cpp:
-# 4152-4160). A plain demo capture requests none, so on the `on` frame vmOrdinal
-# is 0 and orderOk is 0 -- and that 0 is CORRECT: "before a pass that did not
-# run" is not a statement this frame can make. Reading it as a failure would be
-# the same class of error as reading an empty grep as "the value is zero".
+# 6/7 was the pass-registry snapshot until 2026-10-23, when T53's projectile pass was
+# merged ahead of this one and the same behaviour produced 7/8. The contract is
+# RELATIVE -- the outline must draw before the pass that clears depth -- so these
+# readings assert the relation and RECORD the snapshot. Three things are checked,
+# and they fail for different defects:
+#   1. the relation: the product's own orderOk=1 PLUS the gate's own
+#      ordinal < vmOrdinal, so the gate is not merely echoing the product;
+#   2. self-consistency: the number is read from the line that says owner=outline
+#      and drew=1, and two captures of one build agree on it -- a number taken from
+#      some other pass's line would pass (1) and fail here;
+#   3. it can move: m4 relocates the pass and the ordinal must differ from this
+#      build's, asserted in the mutation section.
+FIXED_ORD=$(outline_value "$OUT/on.trace" ordinal)
+assert_ge "overlay took a pass slot" "${FIXED_ORD:-0}" "1"
+assert_eq "the ordinal is read from the overlay pass's own line" "$(outline_value "$OUT/on.trace" owner)" "outline"
+assert_eq "the pass that took the slot is the pass that drew" "$(outline_value "$OUT/on.trace" drew)" "1"
+# "vmOrdinal" is only set when drawViewModel() RUNS, and that pass returns early
+# unless a viewmodel was requested and its mesh uploaded. A plain demo capture
+# requests none, so on the "on" frame vmOrdinal is 0 and orderOk is 0 -- and that 0
+# is CORRECT: "before a pass that did not run" is not a statement this frame can
+# make. Reading it as a failure would be the same class of error as reading an
+# empty grep as "the value is zero".
 VM_ORD_ON=$(outline_value "$OUT/on.trace" vmOrdinal)
 if [ "${VM_ORD_ON:-0}" -ge 1 ]; then
-  assert_eq "viewModel ordinal (on frame)" "${VM_ORD_ON}" "7"
+  assert_lt "pass order: overlay ordinal is before the viewModel slot" "${FIXED_ORD:-0}" "${VM_ORD_ON}"
   assert_eq "pass order (overlay before viewModel)" "$(outline_value "$OUT/on.trace" orderOk)" "1"
 else
   echo "  NOT-PAIR on frame: the ViewModel pass did not run (vmOrdinal=0); the pair is"
@@ -492,11 +597,16 @@ fi
 # but the argument that makes the ViewModel pass exist.
 run_frame "$OUT/vm" --outline on --viewmodel models/weapons/v_models/v_scattergun_scout.mdl
 VM_ORD=$(outline_value "$OUT/vm.trace" vmOrdinal)
-echo "  vm.ordinal=$(outline_value "$OUT/vm.trace" ordinal) vm.vmOrdinal=${VM_ORD:-<none>} vm.orderOk=$(outline_value "$OUT/vm.trace" orderOk) vm.drew=$(outline_value "$OUT/vm.trace" drew)"
-assert_eq "viewModel ordinal (with a viewmodel)" "${VM_ORD:-<none>}" "7"
+VM_OVERLAY_ORD=$(outline_value "$OUT/vm.trace" ordinal)
+echo "  vm.ordinal=${VM_OVERLAY_ORD:-<none>} vm.vmOrdinal=${VM_ORD:-<none>} vm.orderOk=$(outline_value "$OUT/vm.trace" orderOk) vm.drew=$(outline_value "$OUT/vm.trace" drew) fixed.ordinal=${FIXED_ORD:-<none>}"
+assert_ge "viewModel took a pass slot" "${VM_ORD:-0}" "1"
 assert_eq "pass order (overlay before viewModel, with a viewmodel)" \
   "$(outline_value "$OUT/vm.trace" orderOk)" "1"
-assert_eq "overlay ordinal (with a viewmodel)" "$(outline_value "$OUT/vm.trace" ordinal)" "6"
+assert_lt "overlay ordinal is before the viewModel slot (gate's own comparison)" \
+  "${VM_OVERLAY_ORD:-0}" "${VM_ORD:-0}"
+assert_eq "overlay ordinal is the same slot in both captures of one build" \
+  "${VM_OVERLAY_ORD:-<none>}" "${FIXED_ORD:-<none>}"
+echo "  ordinal: absolute numbers are a registry snapshot, recorded not asserted (fixed=$FIXED_ORD vmOrdinal=$VM_ORD)"
 assert_eq "overlay enabled in the off run" "$(outline_value "$OUT/off.trace" enabled)" "0"
 assert_eq "overlay drew in the off run" "$(outline_value "$OUT/off.trace" drew)" "0"
 # The toggle's effect is a COUNT: with the switch off, every sampled player is
@@ -575,8 +685,82 @@ else
   echo "       every region assertion below measures the camera, not the overlay, so this run proves nothing"
   fail=1
 fi
-assert_eq "differing pixels outside every drawn region" "${NI_OUT:-<none>}" "0"
+# The tolerance is the PRODUCT'S number, not the gate's. Each silhouette publishes
+# how many pixels its own shell may stick out (expand=, computed in the renderer from
+# the expansion constant and that instance's model->world scale), so the allowed
+# number of out-of-region pixels is the sum of (perimeter x expand) over the items.
+# A constant written here would make the assertion "the overlay is not wrong by more
+# than we guessed" instead of "the overlay is where the product says it is", and the
+# next change to the expansion would not be reflected in it.
+TOLERANCE=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --expand-tolerance)
+echo "  tolerance: ${TOLERANCE:-<none>}  (outside=$NI_OUT)"
+TOL_VALUE=$(echo "$TOLERANCE" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
+TOL_MISSING=$(echo "$TOLERANCE" | grep -o "missing=[0-9]*" | cut -d= -f2)
+assert_eq "items whose shell expansion the product published" "${TOL_MISSING:-<none>}" "0"
+WITHIN=$(awk -v out="${NI_OUT:-0}" -v tol="${TOL_VALUE:-0}" 'BEGIN { printf "%d", ((out + 0) <= (tol + 0)) ? 1 : 0 }')
+assert_eq "painted pixels outside every drawn region, within the product's own tolerance" "${WITHIN:-<none>}" "1"
 assert_ge "differing pixels INSIDE the drawn regions" "$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)" "1"
+
+# ---- D1 attribution: which instance carries which entity, and where its paint is
+# The pixel readings above say the boxes and the silhouettes disagree; they cannot
+# say which side is wrong. These two readings are the attribution:
+#   readback  -- the entity index carried by each DRAWN instance (read back out of
+#                the buffer the draw call consumes), against the entity the CPU
+#                published for that slot. A mismatch means the tables are not the
+#                same tables and every box is a box for some other entity.
+#   attr      -- per published item, the centroid of the nearest painted blob and
+#                whether it falls inside the published box. Centroid inside the box
+#                puts the error in the projection; centroid outside it puts the
+#                error in the world-to-screen step that derives the box.
+RB_TOTAL=$(grep -a -c "overlay: readback i=" "$OUT/on.trace" 2>/dev/null || true)
+RB_BAD=$(grep -a "overlay: readback i=" "$OUT/on.trace" 2>/dev/null | grep -c "match=0" 2>/dev/null || true)
+echo "  readback: drawn instances=${RB_TOTAL:-0} identity mismatches=${RB_BAD:-0}"
+grep -a "overlay: readback i=" "$OUT/on.trace" 2>/dev/null | tail -4 | sed "s/^/    /"
+# The transform the draw consumes, compared with the one the box was computed from.
+# A mismatch here means the published box describes a different placement than the
+# pixels; a match means the residue is in the projection or in the comparison itself.
+ROWCHECK=$(grep -a "overlay: rowcheck " "$OUT/on.trace" | tail -1)
+echo "  ${ROWCHECK:-<no rowcheck line>}"
+ROWMATCH=$(echo "$ROWCHECK" | grep -o " match=[01]" | tr -d " ")
+assert_eq "the instance row the draw consumes equals the one the box was built from" "${ROWMATCH:-<none>}" "match=1"
+assert_ge "drawn instances read back from the GPU buffer" "${RB_TOTAL:-0}" "1"
+assert_eq "each drawn instance carries the entity the CPU published for its slot" "${RB_BAD:-<none>}" "0"
+ATTR=$("$PY" "$PWD/outline-regions.py" --attribute --trace "$OUT/on.trace" --on "$OUT/on.bmp" --off "$OUT/off.bmp" 2>/dev/null || true)
+echo "  attribution: published item -> box -> centroid of the nearest painted blob"
+printf "%s\n" "${ATTR:-}" | sed "/^$/d" | sed "s/^/    /"
+ATTR_ROWS=$(printf "%s\n" "${ATTR:-}" | grep -c "^attr " 2>/dev/null || true)
+ATTR_OUT=$(printf "%s\n" "${ATTR:-}" | grep -c "inside=0" 2>/dev/null || true)
+assert_ge "published items with an attribution row" "${ATTR_ROWS:-0}" "1"
+# The ruler is itself a reading: every published region must come from the projected
+# VERTICES of the mesh the draw consumes (extent=1). If the product falls back to the
+# entity AABB, or the switch is dropped from the launch, this goes red -- a region that
+# claims to be the drawn extent but is the sampler hull would quietly re-open the
+# question this fix closes.
+EXTENT=$("$PY" "$PWD/outline-regions.py" --extent --trace "$OUT/on.trace" 2>/dev/null || true)
+echo "  region source: ${EXTENT:-<none>}"
+assert_ge "drawn items on the capture frame" "$(echo "$EXTENT" | grep -o "items=[0-9]*" | cut -d= -f2)" "1"
+assert_eq "items whose region is the drawn extent" "$(echo "$EXTENT" | grep -o "extent1=[0-9]*" | cut -d= -f2)" "$(echo "$EXTENT" | grep -o "items=[0-9]*" | cut -d= -f2)"
+echo "  attribution verdict: ${ATTR_OUT:-0} of ${ATTR_ROWS:-0} published boxes do NOT contain their nearest blob centroid"
+# ---- the depth-stencil state, read back from the device -------------------
+# The overlay must not write depth, and the reading must be wired to the state. Two
+# assertions, because the failure modes are different: `agree` catches a reading whose
+# source is not the device (it went red with both sides at 1 before this line existed),
+# and the mask catches a state that really writes depth. A mutation that flips the mask
+# moves the second; one that breaks the wiring moves the first.
+STATE_ENABLE=$(outline_value "$OUT/on.trace" stateEnable)
+STATE_MASK=$(outline_value "$OUT/on.trace" stateMask)
+STATE_CREATED=$(outline_value "$OUT/on.trace" stateCreated)
+STATE_AGREE=$(outline_value "$OUT/on.trace" agree)
+STATE_WRITE=$(outline_value "$OUT/on.trace" depthWrite)
+STATE_EFFECT=0
+if [ "${STATE_ENABLE:-0}" -eq 1 ] && [ "${STATE_MASK:-0}" -ne 0 ]; then STATE_EFFECT=1; fi
+echo "  depth-stencil: enable=${STATE_ENABLE:-?} mask=${STATE_MASK:-?} created=${STATE_CREATED:-?} agree=${STATE_AGREE:-?} depthWrite=${STATE_WRITE:-?} (enable&&mask = $STATE_EFFECT)"
+assert_eq "the depth-stencil readback agrees with the description it was created from" "${STATE_AGREE:-<none>}" "1"
+assert_eq "the x-ray state does not write depth" "${STATE_WRITE:-<none>}" "0"
+assert_eq "the published depthWrite is the effect of the state (enable AND mask), not the mask alone" "${STATE_WRITE:-<none>}" "$STATE_EFFECT"
+echo "  (0 outside => the boxes follow the paint and the error is in the projection;"
+echo "   any outside => the box derivation, world->screen, is the defect -- see report 9.5)"
+
 
 echo
 echo "  -- team colour, both regions, both directions --"
@@ -584,6 +768,14 @@ TEAM_REGIONS=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --team)
 RED_REGION=$(echo "$TEAM_REGIONS" | grep -o "red=[0-9,]*" | cut -d= -f2)
 BLUE_REGION=$(echo "$TEAM_REGIONS" | grep -o "blue=[0-9,]*" | cut -d= -f2)
 echo "  red=$RED_REGION blue=$BLUE_REGION"
+# Box height against ink height, side by side, because the D1 residue is a shape
+# question before it is a threshold question: the published boxes are 1-4 px tall on
+# this frame, so if the team-coloured ink is 10 px tall the box is not measuring the
+# thing that was drawn. This line is the cheap first look; the itemdiag line carries
+# the mesh and world heights behind it.
+RED_H=$(echo "$RED_REGION" | awk -F, '{ if (NF==4) print $4-$2+1 }')
+BLUE_H=$(echo "$BLUE_REGION" | awk -F, '{ if (NF==4) print $4-$2+1 }')
+echo "  heights: published boxes hmin=$(echo "$EXTENT" | grep -o "hmin=[0-9]*" | cut -d= -f2) hmax=$(echo "$EXTENT" | grep -o "hmax=[0-9]*" | cut -d= -f2) | team ink red=${RED_H:-?} px blue=${BLUE_H:-?} px"
 # A region that could not be derived would make the assertion below vacuous,
 # so the gate refuses to pretend: no region is a FAILURE, not a skip.
 if [ -z "$RED_REGION" ] || [ -z "$BLUE_REGION" ]; then
@@ -608,16 +800,76 @@ echo "=== 5/6 depth awareness: the occluded region, three ways ==="
 # taken from the SAME tick in a fourth run rather than assumed from geometry.
 DEPTH_RC=$(run_frame "$OUT/worlddepth" --outline off --world-depth)
 echo "  world-depth run rc=$DEPTH_RC"
-OCCLUDED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/worlddepth.bmp" 2>/dev/null)
+# THE DEPTH IMAGE HAS TO BE PROVED BEFORE ONE PIXEL OF IT IS EVIDENCE.
+#
+# On 2026-10-23 this run was given a 600 s timeout, never reached the requested tick,
+# wrote no BMP, the occluded region came back empty and this section fell to NOT
+# VERIFIED -- so mutation m2 had nothing to move, for a reason the log never named.
+# A capture that did not produce the depth it needs has not shown that the depth test
+# works: that is RED, not "unproven". Four readings, in the order they can fail:
+#   exists / arrived at the tick / is a scalar image / has geometry in it.
+DEPTH_STATS=$("$PY" "$PWD/outline-regions.py" --depth-stats --depth "$OUT/worlddepth.bmp" 2>&1)
+echo "  depth image: ${DEPTH_STATS:-<none>}"
+depth_stat() { printf '%s' "${DEPTH_STATS:-}" | grep -o "$1=[^ ]*" | cut -d= -f2; }
+DEPTH_TICK=$(grep -a "capture: armed" "$OUT/worlddepth.trace" 2>/dev/null | tail -1 | sed -n 's/.*frame_tick=\([0-9]*\).*/\1/p')
+DEPTH_OK=1
+assert_eq "world-depth run rc" "$DEPTH_RC" "0"
+if [ "${DEPTH_TICK:-none}" = "$TICK" ]; then
+  echo "  OK   the depth capture reached the requested tick ($TICK)"
+else
+  LAST_SCENE=$(grep -a "scene: begin tick=" "$OUT/worlddepth.trace" 2>/dev/null | tail -1 | sed -n 's/.*tick=\([0-9]*\).*/\1/p')
+  echo "  FAIL capture never reached tick $TICK (last scene tick ${LAST_SCENE:-none};"
+  echo "       capture armed frame_tick=${DEPTH_TICK:-none}, run rc=$DEPTH_RC)"
+  fail=1; DEPTH_OK=0
+fi
+DEPTH_BYTES=$(depth_stat bytes)
+DEPTH_NONGREY=$(depth_stat nonGreyPct)
+DEPTH_NONZERO=$(depth_stat nonzeroPct)
+DEPTH_UNIQUE=$(depth_stat uniqueSampled)
+if [ "${DEPTH_BYTES:-0}" -ge 100000 ] 2>/dev/null; then
+  echo "  OK   depth image bytes written = $DEPTH_BYTES (>= 100000)"
+else
+  echo "  FAIL depth image bytes written = ${DEPTH_BYTES:-<none>}, expected >= 100000"
+  fail=1; DEPTH_OK=0
+fi
+case "${DEPTH_NONGREY:-1}" in
+  0|0.0|0.00) echo "  OK   the depth image is a scalar image (0% non-grey)" ;;
+  *) echo "  FAIL the depth image is not a depth image: ${DEPTH_NONGREY:-<none>}% of pixels carry colour"
+     echo "       (the world shader writes one value into R, G and B; a colour frame of this scene is ~17%)"
+     fail=1; DEPTH_OK=0 ;;
+esac
+if [ "${DEPTH_NONZERO%%.*}" -ge 1 ] 2>/dev/null; then
+  echo "  OK   the depth image has geometry in it (${DEPTH_NONZERO}% of pixels are not black)"
+else
+  echo "  FAIL the depth image is blank: ${DEPTH_NONZERO:-<none>}% of pixels are not black, expected >= 1%"
+  fail=1; DEPTH_OK=0
+fi
+if [ "${DEPTH_UNIQUE:-0}" -ge 2 ] 2>/dev/null; then
+  echo "  OK   the depth image carries more than one sampled depth value ($DEPTH_UNIQUE)"
+else
+  echo "  FAIL the depth image is one value (${DEPTH_UNIQUE:-none} sampled): nothing was rendered"
+  fail=1; DEPTH_OK=0
+fi
+OCCLUDED=""
+if [ "$DEPTH_OK" -eq 0 ]; then
+  echo "  FAIL depth section: the depth evidence is not usable, so the occluded region is"
+  echo "       NOT measured. Red on purpose: NOT VERIFIED is for a depth image that"
+  echo "       exists and shows no occlusion, not for a capture that never arrived."
+else
+  OCCLUDED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/worlddepth.bmp" 2>/dev/null)
+fi
 echo "  occluded region: ${OCCLUDED:-<none>}"
-if [ -z "$OCCLUDED" ]; then
-  # An empty region would make the assertion vacuous, and a vacuous assertion
-  # reported as PASS is the failure shape this repository has paid for. It is
-  # NOT VERIFIED and it is named, with an owner and the cheapest next step.
-  echo "  NOT VERIFIED: the captured tick has no occluded player pixel, so the"
-  echo "  depth-awareness mutation has no region to prove itself on."
-  echo "  Owner: t52-outline. Cheapest next step: pick a capture tick at which a"
-  echo "  player is behind a wall (the trace lists per-item depth and world depth)."
+if [ "$DEPTH_OK" -eq 0 ]; then
+  : # already red above; the region could not be measured
+elif [ -z "$OCCLUDED" ]; then
+  # The depth image is real and the region is empty: that is a statement about THIS
+  # camera position, not about the depth test, so it is NOT VERIFIED and the item
+  # rows are printed as the evidence for "no player is behind world geometry here".
+  echo "  NOT VERIFIED: the depth image is valid, but no drawn player pixel is behind"
+  echo "  world geometry at this tick, so the depth-awareness mutation has no region."
+  echo "  Owner: t52-outline. Cheapest next step: pick a capture tick at which a player"
+  echo "  is behind a wall (the item rows below carry per-item depth and screen box)."
+  grep -a "outline: item " "$OUT/on.trace" 2>/dev/null | tail -6 | sed "s/^/    /"
   echo "  NOT-VERIFIED depthaware=1"
 else
   DEPTH=$("$PY" outline-frame-check.py depth region="$OCCLUDED" \
@@ -671,7 +923,7 @@ echo
 #   m5 the overlay writes depth     -> the published x-ray depth WRITE flips
 #   m6 captured tick depends on the
 #      playback speed               -> the speed=1 and speed=default frames differ
-#   m4 draw after the ViewModel     -> ordinal: orderOk=0 and ordinal != 6
+#   m4 draw after the ViewModel     -> orderOk=0 and ordinal != the fixed build's
 #   m7 no class model fallback      -> submitted drops to 0, noMesh rises to samples
 #   m8 item keeps the bare path     -> silhouettes drawn drop to 0 while submitted stays >0
 #   m9 bind mesh preferred over the
@@ -704,7 +956,10 @@ if [ "$MUTATION" = "1" ]; then
   # mutation is not about. That is how a control phase elsewhere in this repo grew
   # an --audio-disabled omission while its author was busy describing the one
   # difference he had in mind.
-  echo "=== mutation: 8 cases, each rebuilt and required to go red ==="
+  # The case count is written next to the cases that exist, not remembered: the list
+  # grew from 8 to 12 (m-meta included) and a heading that says 8 while 12 run is
+  # itself a reading that stopped matching the mechanism.
+  echo "=== mutation: 12 cases (m1-m12) plus m-meta, each rebuilt and required to go red ==="
   MUT_SRC="native/src/entity_overlay.cpp"
   MUT_MAIN="native/src/main.cpp"
   MUT_RENDERER="native/src/native_renderer.cpp"
@@ -835,6 +1090,37 @@ PYEOF
   echo "  -- helper self-tests --"
   patch_in_self_test || mut_fail=1
 
+  # ---- the invalid-mutation guard, exercised on purpose -------------------
+  # A green from a build that was never mutated is worse than a red, and this suite
+  # reported exactly that once (m2, whose patch had silently stopped compiling for a
+  # whole version). So the guard itself is a case: put a #error in the source, and
+  # require the suite to call it MUTATION-INVALID, to count it as a failure, and to
+  # leave the tree intact afterwards.
+  echo
+  echo "  -- m-meta: a mutant that does not compile is INVALID, not a green --"
+  META_FAIL_BEFORE=$mut_fail
+  META_INVALID_BEFORE=$mut_invalid
+  printf "\n#error T52 meta self-test: this mutant must not compile\n" >> "$MUT_RENDERER"
+  if rebuild_product m-meta > "$OUT/meta.log" 2>&1; then
+    echo "  MUTATION-META FAIL: a source containing #error compiled, so the guard cannot work"
+    mut_fail=1
+  elif ! grep -q "MUTATION-INVALID" "$OUT/meta.log"; then
+    echo "  MUTATION-META FAIL: the failure was not classified MUTATION-INVALID"
+    sed "s/^/      /" "$OUT/meta.log" | head -4
+    mut_fail=1
+  elif [ "$mut_invalid" -le "$META_INVALID_BEFORE" ]; then
+    echo "  MUTATION-META FAIL: an invalid mutant was not counted as a suite failure"
+    mut_fail=1
+  else
+    echo "  OK   a source that does not compile reads MUTATION-INVALID and fails the run"
+  fi
+  # The failure was EXPECTED, so its accounting is put back: this case proves the
+  # guard fires; it is not itself a broken mutation.
+  mut_fail=$META_FAIL_BEFORE
+  mut_invalid=$META_INVALID_BEFORE
+  restore_all || true
+  rebuild_product "restore after m-meta" || true
+
   # ---- m1: exchange the two team colours ---------------------------------
   echo
   echo "  -- m1: RED and BLUE exchanged --"
@@ -893,13 +1179,20 @@ PYEOF
   # hard stop below is what keeps this from recurring.
   patch_in "$MUT_RENDERER" \
 "      ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();" \
-"      ? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get()"
+"      ? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get();"
   M2_APPLIED=$?
   if ! mut_applied "$M2_APPLIED"; then
     mut_fail=1
   elif rebuild_product m2; then
     M2_RC=$(run_frame "$OUT/m2" --outline on)
-    if [ -n "$OCCLUDED" ]; then
+    # m2 may only have a conclusion when section 5's depth evidence is usable. If the
+    # depth capture did not arrive, saying "m2 has nothing to prove" would hide a
+    # red behind a NOT VERIFIED; if it arrived but no player is behind geometry,
+    # that IS undecidable and the item rows are printed as the evidence.
+    if [ "${DEPTH_OK:-0}" -ne 1 ]; then
+      echo "    M2-UNDECIDABLE depth=unusable: section 5 is red, so there is no region to move."
+      echo "    m2 is NOT proven by this run -- the red above is the finding, not this line."
+    elif [ -n "$OCCLUDED" ]; then
       M2_DEPTH=$("$PY" outline-frame-check.py depth region="$OCCLUDED" \
         xray="$OUT/m2.bmp" tested="$OUT/tested.bmp" off="$OUT/off.bmp" 2>&1)
       echo "    $M2_DEPTH" | sed "s/^/      /"
@@ -909,7 +1202,10 @@ PYEOF
       # would leave this at a positive number and be reported green.
       must_move "m2" "team-coloured pixels through the wall" "$(echo "$DEPTH" | grep -o "occluded_xray=[0-9]*" | cut -d= -f2)" "${M2_XRAY:-0}"
     else
-      echo "    NOT VERIFIED: no occluded region, so m2 has nothing to prove (picture)"
+      echo "    M2-UNDECIDABLE depth=valid region=empty: the depth image is real, but no drawn"
+      echo "    player pixel is behind world geometry at tick ${TICK}, so an occlusion reading"
+      echo "    cannot move. The item rows are the evidence for that statement:"
+      grep -a "outline: item " "$OUT/on.trace" 2>/dev/null | tail -6 | sed "s/^/      /"
     fi
     # The same mutation is the proof for the depth-TEST reading, and it does not
     # depend on a single pixel: the mutant binds its x-ray list to the
@@ -956,9 +1252,16 @@ must_move "m2" "x-ray depth test state actually bound" "$(outline_value "$OUT/on
   # sees a surface the outline invented. The ViewModel pass clears depth right
   # afterwards, so this defect cannot show in a screenshot -- the reading that
   # has to move is the published state, which is exactly why it is published.
+  # The mutation changes what the state DOES, not just the mask: a state whose
+  # DepthEnable is FALSE writes nothing whatever its mask, and the runtime reports
+  # that mask as ALL anyway (measured 2026-10-23). Mutating the mask alone therefore
+  # moved nothing and m5 read green for a year-shaped reason -- the reading was
+  # publishing a mask rather than an effect. Both fields move together here.
   patch_in "$MUT_RENDERER" \
-"    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;" \
-"    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;  /* mutation m5 */" || mut_fail=1
+"    overlayDescription.DepthEnable = FALSE;
+    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;" \
+"    overlayDescription.DepthEnable = TRUE;   /* mutation m5: the overlay writes depth */
+    overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;  /* mutation m5 */" || mut_fail=1
   if rebuild_product m5; then
     M5_RC=$(run_frame "$OUT/m5" --outline on)
     echo "    m5 depthTest=$(outline_value "$OUT/m5.trace" depthTest) depthWrite=$(outline_value "$OUT/m5.trace" depthWrite)"
@@ -1102,15 +1405,6 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   assert_eq "cap 96: every prepared class mesh is uploaded" "${CAP96_REJECTED:-<none>}" "0"
   assert_eq "cap 96: uploaded count matches prepared" "${CAP96_UPLOADED:-<none>}" "${CAP96_PREPARED:-<none>}"
 
-  # Every case above left its own build on disk, and the last one to run is not
-  # the product. Said out loud, in the run output, because the alternative is
-  # somebody forward gate measuring a mutant and calling it the fixed build --
-  # 2026-10-23 the exe on disk was the m2 mutant while the sources were clean,
-  # and only a timestamp comparison revealed it.
-  echo
-  echo "  SUITE-ARTIFACT-IS-MUTANT: the binary on disk was built from the last mutation"
-  echo "                            applied above, not from the tree. Rebuild before any"
-  echo "                            forward run or capture."
   # ---- m4: draw the overlay AFTER the ViewModel pass ---------------------
   echo
   echo "  -- m4: the overlay draws after the ViewModel pass --"
@@ -1140,17 +1434,129 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m4" "pass order (overlay before viewModel)" "1" "${M4_ORDER:-0}"
     # The number itself must move too: the mutant's ordinal is no longer the slot
     # the contract names, because the ordinal is read where the pass ran.
-    must_move "m4" "overlay ordinal after the move" "6" "${M4_ORDINAL:-0}"
+    must_move "m4" "overlay ordinal after the move" "${FIXED_ORD:-0}" "${M4_ORDINAL:-0}"
   fi
   restore_all; rebuild_product "restore after m4" || true
+
+  # ---- m11: shift the readback index by one ---------------------------------
+  echo
+  echo "  -- m11: the readback reads the wrong instance --"
+  # The attribution table is only a measurement if it can be wrong. The mutation
+  # compares each drawn instance's identity against the NEXT slot's CPU record, which
+  # is exactly the defect the table exists to catch (the tables holding the same
+  # entities in a different order). If the gate still reads 0 mismatches, the table
+  # is decoration.
+  # The rows are printed by main.cpp from the renderer's readback table (the
+  # renderer cannot call traceFmt: it is in an anonymous namespace in main.cpp).
+  # So the mutation lives on the print, which is exactly what the gate reads.
+  patch_in "$MUT_MAIN" \
+"        identity[index].first == identity[index].second ? 1 : 0);" \
+"        identity[(index + 1) % identity.size()].first == identity[index].second ? 1 : 0);" || mut_fail=1
+  if rebuild_product m11; then
+    M11_RC=$(run_frame "$OUT/m11" --outline on)
+    M11_TOTAL=$(grep -a -c "overlay: readback i=" "$OUT/m11.trace" 2>/dev/null || true)
+    M11_BAD=$(grep -a "overlay: readback i=" "$OUT/m11.trace" 2>/dev/null | grep -c "match=0" 2>/dev/null || true)
+    echo "    m11 drawn=${M11_TOTAL:-0} identity mismatches=${M11_BAD:-0}"
+    must_move "m11" "identity mismatches in the readback table" "0" "${M11_BAD:-0}"
+  fi
+  restore_all; rebuild_product "restore after m11" || true
+
+  # ---- m12: shift the draw 3 px away from the region it publishes --------
+  echo
+  echo "  -- m12: the GPU draw is shifted 3 px, the box is not --"
+  # A ruler is only a ruler if a broken overlay is caught by it. This shifts the
+  # matrix the GPU draws with (the constant buffer) by 0.005 in NDC -- 3 px at 1264 --
+  # and leaves the box the pass publishes computed from the UNSHIFTED mvpForOverlay.
+  # If outsideDiff does not leave the fixed reading, the new region rule is soft and
+  # this round proved nothing.
+  patch_in "$MUT_RENDERER" \
+"          overlayConstants.mvp = frameConstants.mvp;" \
+"          overlayConstants.mvp = frameConstants.mvp;
+          /* mutation m12: shift only what the GPU draws; the published box keeps the
+             unshifted matrix, so region and pixels move apart by 3 px. */
+          for (int shiftRow = 0; shiftRow < 4; ++shiftRow) {
+            overlayConstants.mvp.m[shiftRow][0] += 0.005f * frameConstants.mvp.m[shiftRow][3];
+          }" || mut_fail=1
+  if rebuild_product m12; then
+    M12_RC=$(run_frame "$OUT/m12" --outline on)
+    M12_NI=$("$PY" outline-frame-check.py noninterference on="$OUT/m12.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
+    M12_OUT=$(echo "$M12_NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)
+    echo "    m12 outsideDiff=${M12_OUT:-<none>} (fixed build: ${NI_OUT:-<none>})"
+    must_move "m12" "pixels outside every drawn region with the draw shifted 3 px" \
+      "${NI_OUT:-0}" "${M12_OUT:-0}"
+  fi
+  # ---- m13: the product declares no expansion while it still expands -------
+  echo
+  echo "  -- m13: the product publishes expandPx=0 while the shell still expands --"
+  # This is the mirror of the tolerance rule. If the gate had invented its own
+  # threshold, publishing 0 while the pixels still spread by 1.6 px per side would
+  # pass. It must not: the tolerance is the product's declaration, so the
+  # declaration alone must move the reading. Both halves are the pre-fix behaviour
+  # (expansion in world space) plus a published zero.
+  patch_in "$MUT_RENDERER" \
+"  local.xyz += unitNormal * cameraPositionAndExpand.w * mode.x;
+  mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));" \
+"  mapped += unitNormal * cameraPositionAndExpand.w * mode.x;  /* mutation m13: world space */" || mut_fail=1
+  patch_in "$MUT_RENDERER" \
+"                  reading.expandPixels = worldPerPixel > 0.0f ? expandWorld / worldPerPixel : 0.0f;" \
+"                  reading.expandPixels = 0.0f;  /* mutation m13: declare nothing */" || mut_fail=1
+  if rebuild_product m13; then
+    M13_RC=$(run_frame "$OUT/m13" --outline on)
+    M13_NI=$("$PY" outline-frame-check.py noninterference on="$OUT/m13.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
+    M13_OUT=$(echo "$M13_NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)
+    M13_TOL=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/m13.trace" --expand-tolerance)
+    M13_TOLV=$(echo "$M13_TOL" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
+    echo "    m13 outsideDiff=${M13_OUT:-<none>} declared tolerance=${M13_TOLV:-<none>} (fixed build: ${NI_OUT:-<none>})"
+    must_move "m13" "pixels outside every drawn region when the product declares no expansion" \
+      "${NI_OUT:-0}" "${M13_OUT:-0}"
+  fi
+  restore_all; rebuild_product "restore after m13" || true
+  restore_all; rebuild_product "restore after m12" || true
 
   # The restored tree must be the FIXED tree, and a byte-exact restore plus a
   # rebuild is only half of that: the binary has to read green again, or every
   # later reading in this worktree is a reading of the last mutant.
   R_RC=$(run_frame "$OUT/restored" --outline on --viewmodel models/weapons/v_models/v_scattergun_scout.mdl)
-  assert_eq "restored build: overlay ordinal" "$(outline_value "$OUT/restored.trace" ordinal)" "6"
+  assert_eq "restored build: overlay ordinal" "$(outline_value "$OUT/restored.trace" ordinal)" "${FIXED_ORD:-<none>}"
   assert_eq "restored build: pass order" "$(outline_value "$OUT/restored.trace" orderOk)" "1"
   assert_eq "restored build: overlay drew" "$(outline_value "$OUT/restored.trace" drew)" "1"
+
+
+  # ---- m10: the colour frame offered as the depth map --------------------
+  echo
+  echo "  -- m10: a colour frame is not a depth map --"
+  # Section 5 turns the depth capture into the occluded region, and that region is
+  # the whole face of mutation m2. If any image were accepted as a depth map, a
+  # colour frame would produce a plausible-looking region and m2 would be proven
+  # against it. This case substitutes the frame for the depth map and requires the
+  # section-5 readings to reject it: it is a GATE mutation (no rebuild, no product
+  # launch), because the thing under test is the gate's own admission rule.
+  cp "$OUT/on.bmp" "$OUT/m10-depth.bmp"
+  M10_STATS=$("$PY" "$PWD/outline-regions.py" --depth-stats --depth "$OUT/m10-depth.bmp" 2>&1)
+  echo "    m10 depth stats: ${M10_STATS:-<none>}"
+  M10_NONGREY=$(printf '%s' "${M10_STATS:-}" | grep -o "nonGreyPct=[^ ]*" | cut -d= -f2)
+  must_move "m10" "non-grey percent of a colour frame offered as depth (section 5 requires 0)" \
+    "0" "${M10_NONGREY:-?}"
+  # The region is printed but NOT asserted on: measured 2026-10-23, the colour frame
+  # yields the same rectangle as the real depth (455,348,471,351), so a region
+  # comparison would read GREEN on the substitution and prove nothing. The reading
+  # that does separate them is the admission rule itself: 0% non-grey for a depth
+  # capture, ~17% for the frame.
+  M10_REGION=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/m10-depth.bmp" 2>/dev/null)
+  M10_FIXED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/worlddepth.bmp" 2>/dev/null)
+  echo "    m10 region=${M10_REGION:-<none>}  real-depth region=${M10_FIXED:-<none>}"
+  echo "    (the two regions coincide on this tick: the region comparison is not the reading that catches this)"
+
+  # Where the binary on disk stands at the end of the suite. Every rebuilding case
+  # restores the tree and rebuilds, and the restored-build assertions ran against
+  # that rebuild; m10 is a gate mutation and rebuilds nothing. Said out loud because
+  # the alternative is somebody forward-measuring a mutant and calling it the fixed
+  # build -- 2026-10-23 the exe on disk was the m2 mutant while the sources were
+  # clean, and only a timestamp comparison revealed it.
+  echo
+  echo "  SUITE-ARTIFACT: the binary on disk was rebuilt from the RESTORED tree by the"
+  echo "                  last rebuilding case; the restored-build readings above were"
+  echo "                  taken from it. A forward run still rebuilds before it measures."
 
   echo
   if [ "$mut_fail" = "0" ]; then

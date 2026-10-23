@@ -700,9 +700,15 @@ Output main(Input input) {
   float3 rotated = float3(dot(input.nrow0.xyz, normalLocal), dot(input.nrow1.xyz, normalLocal), dot(input.nrow2.xyz, normalLocal));
   float lengthSquared = dot(rotated, rotated);
   float3 unitNormal = (lengthSquared > 1e-8 && lengthSquared < 1e8) ? rotated * rsqrt(lengthSquared) : float3(0.0, 0.0, 0.0);
-  // The expansion that turns the mesh into an outline. `mode.x` is 0 for the
-  // line/marker path (no expansion: a trail must not grow), 1 for silhouettes.
-  mapped += unitNormal * cameraPositionAndExpand.w * mode.x;
+  // The expansion that turns the mesh into an outline. It is applied in MODEL
+  // space, before `rows`, because the constant was chosen for model units: 0.004
+  // against an 83-unit player is a hairline. Applied after `rows` -- in world
+  // space, where this map's player is only 0.0067 units tall -- the same constant
+  // is 60% of a player's height, i.e. a 2x scale, and that is exactly the 373
+  // pixels that fell outside every published box (report 22.3). `mode.x` is 0 for
+  // the line/marker path (no expansion: a trail must not grow), 1 for silhouettes.
+  local.xyz += unitNormal * cameraPositionAndExpand.w * mode.x;
+  mapped = float3(dot(input.row0, local), dot(input.row1, local), dot(input.row2, local));
   output.position = mul(float4(mapped, 1.0), mvp);
   output.colour = input.colour;
   return output;
@@ -1389,15 +1395,33 @@ float4 main(Input input) : SV_TARGET {
     overlayDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
     overlayDescription.DepthFunc = D3D11_COMPARISON_ALWAYS;
     overlayDescription.StencilEnable = FALSE;
+    // What we ASK for, kept beside what we GET: the pair is the only way to tell a
+    // state that drifted from a reading that was never wired to it.
+    overlayXRayStateCreatedDepthEnable_ = overlayDescription.DepthEnable ? 1u : 0u;
+    overlayXRayStateCreatedWriteMask_ = static_cast<std::uint32_t>(overlayDescription.DepthWriteMask);
     if (FAILED(device_->CreateDepthStencilState(&overlayDescription,
         overlayXRayDepthState_.GetAddressOf()))) return false;
+    if (overlayXRayDepthState_) {
+      D3D11_DEPTH_STENCIL_DESC created{};
+      overlayXRayDepthState_->GetDesc(&created);
+      overlayXRayStateReadDepthEnable_ = created.DepthEnable ? 1u : 0u;
+      overlayXRayStateReadWriteMask_ = static_cast<std::uint32_t>(created.DepthWriteMask);
+    }
     // The control the depth-awareness mutation needs: ordinary depth test, still
     // no depth write, so a silhouette behind a wall disappears exactly as the
     // wall says it should.
     overlayDescription.DepthEnable = TRUE;
     overlayDescription.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    overlayDepthTestedStateCreatedDepthEnable_ = overlayDescription.DepthEnable ? 1u : 0u;
+    overlayDepthTestedStateCreatedWriteMask_ = static_cast<std::uint32_t>(overlayDescription.DepthWriteMask);
     if (FAILED(device_->CreateDepthStencilState(&overlayDescription,
         overlayDepthTestedState_.GetAddressOf()))) return false;
+    if (overlayDepthTestedState_) {
+      D3D11_DEPTH_STENCIL_DESC created{};
+      overlayDepthTestedState_->GetDesc(&created);
+      overlayDepthTestedStateReadDepthEnable_ = created.DepthEnable ? 1u : 0u;
+      overlayDepthTestedStateReadWriteMask_ = static_cast<std::uint32_t>(created.DepthWriteMask);
+    }
     // Read both states BACK. The contract says x-ray is "depth test OFF and
     // depth write OFF"; with this readback that sentence is a number in the
     // trace instead of a comment beside the lines that set it, and a state whose
@@ -1409,14 +1433,35 @@ float4 main(Input input) : SV_TARGET {
     D3D11_DEPTH_STENCIL_DESC overlayReadback{};
     if (overlayXRayDepthState_) {
       overlayXRayDepthState_->GetDesc(&overlayReadback);
+      overlayXRayStateReadDepthEnable_ = overlayReadback.DepthEnable ? 1u : 0u;
+      overlayXRayStateReadWriteMask_ = static_cast<std::uint32_t>(overlayReadback.DepthWriteMask);
       overlayXRayDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
-      overlayXRayDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+      // The EFFECT, not the mask: a state whose DepthEnable is FALSE writes nothing
+      // whatever its mask says -- and the runtime reports that mask as ALL, which is
+      // what made this reading say "writes depth" for a pass that cannot write depth.
+      overlayXRayDepthWriteEnabled_ = overlayReadback.DepthEnable != FALSE
+        && overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
     }
     if (overlayDepthTestedState_) {
       overlayDepthTestedState_->GetDesc(&overlayReadback);
+      overlayDepthTestedStateReadDepthEnable_ = overlayReadback.DepthEnable ? 1u : 0u;
+      overlayDepthTestedStateReadWriteMask_ = static_cast<std::uint32_t>(overlayReadback.DepthWriteMask);
       overlayDepthTestedDepthTestEnabled_ = overlayReadback.DepthEnable != FALSE;
-      overlayDepthTestedDepthWriteEnabled_ = overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
+      overlayDepthTestedDepthWriteEnabled_ = overlayReadback.DepthEnable != FALSE
+        && overlayReadback.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO;
     }
+    // What this block exists for: the device must report what we asked for. Measured
+    // 2026-10-23 on this machine, a state created with DepthEnable=FALSE and
+    // WRITE_MASK_ZERO reads back with WRITE_MASK_ALL -- the runtime treats the mask as
+    // "no opinion" when depth is off. So agreement is checked where it means something:
+    // the enable flag always, the mask only when depth is enabled.
+    overlayStateReadbackAgrees_ =
+      overlayXRayStateCreatedDepthEnable_ == overlayXRayStateReadDepthEnable_
+      && overlayDepthTestedStateCreatedDepthEnable_ == overlayDepthTestedStateReadDepthEnable_
+      && (overlayXRayStateReadDepthEnable_ == 0
+          || overlayXRayStateCreatedWriteMask_ == overlayXRayStateReadWriteMask_)
+      && (overlayDepthTestedStateReadDepthEnable_ == 0
+          || overlayDepthTestedStateCreatedWriteMask_ == overlayDepthTestedStateReadWriteMask_);
   }
   {
     D3D11_RASTERIZER_DESC overlayRasterizer{};
@@ -3423,6 +3468,9 @@ void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
 void Renderer::rebuildOverlayBuffers() {
   overlayInstanceCount_ = 0;
   overlayInstances_.clear();
+  // D1: the identity rows describe the buffer built below, so they are cleared with
+  // it. A stale row would attribute this frame's silhouettes to last frame's slots.
+  overlayInstanceIdentity_.clear();
   overlayLineVertexCount_ = 0;
   overlayLineVertexCountByDepth_[0] = 0;
   overlayLineVertexCountByDepth_[1] = 0;
@@ -3497,6 +3545,13 @@ void Renderer::rebuildOverlayBuffers() {
         gpu.skinEnabled = 1u;
         gpu.padding[0] = item.boneCount;
       }
+      // T52 D1 attribution (2026-10-23): the entity index travels INTO the GPU
+      // record so it can be read back out of the buffer the draw call consumes.
+      // padding[1] is a slot the 128-byte layout already has, so the stride and
+      // every static_assert above are untouched. The question this answers is the
+      // one the pixel readings cannot: whether the instance the GPU draws is the
+      // instance the CPU published a box for.
+      gpu.padding[1] = item.entityIndex;
       // Keep the identity and the origin alongside the GPU record, in the same
       // order, so range.instanceStart indexes both tables.
       OverlayInstanceRecord cpu;
@@ -3588,6 +3643,50 @@ void Renderer::rebuildOverlayBuffers() {
     std::memcpy(mapped.pData, packed.data(), packed.size() * sizeof(EntityModelInstanceGpu));
     context_->Unmap(overlayInstanceBuffer_.Get(), 0);
     overlayInstanceCount_ = packed.size();
+    // ---- T52 D1: read the identity back out of the buffer being drawn ------
+    // The CPU records the gate publishes boxes from and this GPU buffer are filled
+    // from one vector, in one order -- that is the ASSUMPTION D1 puts in doubt
+    // (four blobs, fourteen published boxes, 60 of 484 pixels inside any of them).
+    // Reading the entity index back out of the vertex buffer proves which entity
+    // each drawn instance actually carries, or fails to.
+    {
+      D3D11_BUFFER_DESC readback{};
+      // CopyResource needs the SAME size as the source buffer, which is allocated at
+      // capacity (>= packed.size()), not at the packed size. With the packed size the
+      // copy fails, the readback is empty, and the section that asserts on it reads
+      // zero instances -- a measurement that did not happen.
+      readback.ByteWidth = static_cast<UINT>(overlayInstanceCapacity_ * sizeof(EntityModelInstanceGpu));
+      readback.Usage = D3D11_USAGE_STAGING;
+      readback.BindFlags = 0;
+      readback.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+      Microsoft::WRL::ComPtr<ID3D11Buffer> staging;
+      if (SUCCEEDED(device_->CreateBuffer(&readback, nullptr, staging.GetAddressOf()))) {
+        context_->CopyResource(staging.Get(), overlayInstanceBuffer_.Get());
+        D3D11_MAPPED_SUBRESOURCE back{};
+        if (SUCCEEDED(context_->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &back))) {
+          const auto* drawn = static_cast<const EntityModelInstanceGpu*>(back.pData);
+          overlayInstanceIdentity_.reserve(packed.size());
+          for (std::size_t index = 0; index < packed.size(); ++index) {
+            overlayInstanceIdentity_.emplace_back(
+              drawn[index].padding[1], packed[index].padding[1]);
+          }
+          // T52 (2026-10-23c): the same readback one level deeper. D1's residue is now
+          // a question about the TRANSFORM, not about the identity: the box the pass
+          // publishes is rows*vertex projected with the frame mvp, and if the rows in
+          // the buffer the draw consumes differ from the rows the box used, the two
+          // describe different objects. First instance only -- four floats are enough
+          // to show agreement or its absence, and the trace stays readable.
+          if (!packed.empty()) {
+            for (int column = 0; column < 4; ++column) {
+              overlayInstanceRow0Gpu_[column] = drawn[0].position[0][column];
+              overlayInstanceRow0Cpu_[column] = packed[0].position[0][column];
+            }
+            overlayInstanceRow0Valid_ = true;
+          }
+          context_->Unmap(staging.Get(), 0);
+        }
+      }
+    }
   }
 
   // ---- lines and markers, one contiguous range per depth mode -------------
@@ -5862,8 +5961,22 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                 reading.legacyY0 = static_cast<int>((0.5f - legacyMaxY * 0.5f) * static_cast<float>(height_));
                 reading.legacyY1 = static_cast<int>((0.5f - legacyMinY * 0.5f) * static_cast<float>(height_));
               }
-              if (!vertexBoxDone && instance.vertexPositions && instance.vertexPositionCount > 0) {
-                vertexBoxDone = true;
+              // T52 (2026-10-23): which box the REGION comes from. The pass draws the
+              // class mesh's triangles; the AABB it used to publish is the sampler's hull
+              // for the entity. Measured on the reference recording they differ by a 1-6 px
+              // fringe of painted pixels outside the box, i.e. the assertion's ruler was
+              // the wrong object. When the switch is on, every silhouette publishes the
+              // projection of ITS OWN vertices (through the same rows and the same mvp the
+              // shader was handed), and the AABB box is kept beside it for attribution.
+              // Skinned instances are excluded on purpose: the CPU has the BIND positions,
+              // so projecting them would publish a box for a pose nobody draws. Those
+              // items fall back to the AABB and are counted as extent=2, which the gate
+              // reads as "the region is not the drawn extent" instead of trusting it.
+              const bool wantVertexBox = overlayVertexExtent_ && instance.skinned == 0
+                && instance.vertexPositions && instance.vertexPositionCount > 0;
+              if ((wantVertexBox || (!vertexBoxDone && instance.vertexPositions))
+                  && instance.vertexPositionCount > 0) {
+                if (!wantVertexBox) vertexBoxDone = true;
                 float vMinX = 1.0e30f, vMinY = 1.0e30f, vMaxX = -1.0e30f, vMaxY = -1.0e30f;
                 std::uint32_t inFront = 0;
                 for (std::uint32_t vertex = 0; vertex < instance.vertexPositionCount; ++vertex) {
@@ -5895,11 +6008,54 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
               reading.ndcWidth = maxX - minX;
               reading.ndcHeight = maxY - minY;
               if (projected) {
-                reading.x0 = static_cast<int>((minX * 0.5f + 0.5f) * static_cast<float>(width_));
-                reading.x1 = static_cast<int>((maxX * 0.5f + 0.5f) * static_cast<float>(width_));
-                reading.y0 = static_cast<int>((0.5f - maxY * 0.5f) * static_cast<float>(height_));
-                reading.y1 = static_cast<int>((0.5f - minY * 0.5f) * static_cast<float>(height_));
+                reading.aabbX0 = static_cast<int>((minX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.aabbX1 = static_cast<int>((maxX * 0.5f + 0.5f) * static_cast<float>(width_));
+                reading.aabbY0 = static_cast<int>((0.5f - maxY * 0.5f) * static_cast<float>(height_));
+                reading.aabbY1 = static_cast<int>((0.5f - minY * 0.5f) * static_cast<float>(height_));
+                reading.x0 = reading.aabbX0;
+                reading.x1 = reading.aabbX1;
+                reading.y0 = reading.aabbY0;
+                reading.y1 = reading.aabbY1;
+                reading.extentSource = 0;
+                if (wantVertexBox) {
+                  if (reading.vertexCountProjected > 0) {
+                    reading.x0 = reading.vertexX0;
+                    reading.x1 = reading.vertexX1;
+                    reading.y0 = reading.vertexY0;
+                    reading.y1 = reading.vertexY1;
+                    reading.extentSource = 1;
+                  } else {
+                    // Asked for the drawn extent and got nothing in front of the eye: say
+                    // so, and keep the AABB box. A silent fallback here would be a region
+                    // that claims to be the drawn one and is not.
+                    reading.extentSource = 2;
+                  }
+                }
                 reading.depth = nearest;
+                // The shell's allowed overhang, from the product's own two numbers:
+                // the constant the shader adds in MODEL space (kOverlaySilhouetteExpand),
+                // times this instance's model->world scale (the length of rows row 0),
+                // divided by how many world units one pixel spans on this item. Every
+                // term is measured here; none is a constant the gate would have to know.
+                {
+                  const float sx = instance.rows[0];
+                  const float sy = instance.rows[1];
+                  const float sz = instance.rows[2];
+                  const float modelScale = std::sqrt(sx * sx + sy * sy + sz * sz);
+                  const float expandWorld = kOverlaySilhouetteExpand * modelScale;
+                  const float spanX = reading.worldExtent[3] - reading.worldExtent[0];
+                  const float spanY = reading.worldExtent[4] - reading.worldExtent[1];
+                  const float boxW = static_cast<float>(reading.x1 - reading.x0 + 1);
+                  const float boxH = static_cast<float>(reading.y1 - reading.y0 + 1);
+                  const float worldPerPixelX = spanX > 0.0f ? spanX / boxW : 0.0f;
+                  const float worldPerPixelY = spanY > 0.0f ? spanY / boxH : 0.0f;
+                  float worldPerPixel = 0.0f;
+                  if (worldPerPixelX > 0.0f && worldPerPixelY > 0.0f)
+                    worldPerPixel = std::min(worldPerPixelX, worldPerPixelY);
+                  else
+                    worldPerPixel = std::max(worldPerPixelX, worldPerPixelY);
+                  reading.expandPixels = worldPerPixel > 0.0f ? expandWorld / worldPerPixel : 0.0f;
+                }
                 reading.onScreen = reading.x1 >= 0 && reading.y1 >= 0
                   && reading.x0 < static_cast<int>(width_) && reading.y0 < static_cast<int>(height_);
                 if (reading.onScreen) {
