@@ -682,6 +682,34 @@ fi
 assert_eq "differing pixels outside every drawn region" "${NI_OUT:-<none>}" "0"
 assert_ge "differing pixels INSIDE the drawn regions" "$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)" "1"
 
+# ---- D1 attribution: which instance carries which entity, and where its paint is
+# The pixel readings above say the boxes and the silhouettes disagree; they cannot
+# say which side is wrong. These two readings are the attribution:
+#   readback  -- the entity index carried by each DRAWN instance (read back out of
+#                the buffer the draw call consumes), against the entity the CPU
+#                published for that slot. A mismatch means the tables are not the
+#                same tables and every box is a box for some other entity.
+#   attr      -- per published item, the centroid of the nearest painted blob and
+#                whether it falls inside the published box. Centroid inside the box
+#                puts the error in the projection; centroid outside it puts the
+#                error in the world-to-screen step that derives the box.
+RB_TOTAL=$(grep -a -c "overlay: readback i=" "$OUT/on.trace" 2>/dev/null || true)
+RB_BAD=$(grep -a "overlay: readback i=" "$OUT/on.trace" 2>/dev/null | grep -c "match=0" 2>/dev/null || true)
+echo "  readback: drawn instances=${RB_TOTAL:-0} identity mismatches=${RB_BAD:-0}"
+grep -a "overlay: readback i=" "$OUT/on.trace" 2>/dev/null | tail -4 | sed "s/^/    /"
+assert_ge "drawn instances read back from the GPU buffer" "${RB_TOTAL:-0}" "1"
+assert_eq "each drawn instance carries the entity the CPU published for its slot" "${RB_BAD:-<none>}" "0"
+ATTR=$("$PY" "$PWD/outline-regions.py" --attribute --trace "$OUT/on.trace" --on "$OUT/on.bmp" --off "$OUT/off.bmp" 2>/dev/null || true)
+echo "  attribution: published item -> box -> centroid of the nearest painted blob"
+printf "%s\n" "${ATTR:-}" | sed "/^$/d" | sed "s/^/    /"
+ATTR_ROWS=$(printf "%s\n" "${ATTR:-}" | grep -c "^attr " 2>/dev/null || true)
+ATTR_OUT=$(printf "%s\n" "${ATTR:-}" | grep -c "inside=0" 2>/dev/null || true)
+assert_ge "published items with an attribution row" "${ATTR_ROWS:-0}" "1"
+echo "  attribution verdict: ${ATTR_OUT:-0} of ${ATTR_ROWS:-0} published boxes do NOT contain their nearest blob centroid"
+echo "  (0 outside => the boxes follow the paint and the error is in the projection;"
+echo "   any outside => the box derivation, world->screen, is the defect -- see report 9.5)"
+
+
 echo
 echo "  -- team colour, both regions, both directions --"
 TEAM_REGIONS=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --team)
@@ -712,16 +740,76 @@ echo "=== 5/6 depth awareness: the occluded region, three ways ==="
 # taken from the SAME tick in a fourth run rather than assumed from geometry.
 DEPTH_RC=$(run_frame "$OUT/worlddepth" --outline off --world-depth)
 echo "  world-depth run rc=$DEPTH_RC"
-OCCLUDED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/worlddepth.bmp" 2>/dev/null)
+# THE DEPTH IMAGE HAS TO BE PROVED BEFORE ONE PIXEL OF IT IS EVIDENCE.
+#
+# On 2026-10-23 this run was given a 600 s timeout, never reached the requested tick,
+# wrote no BMP, the occluded region came back empty and this section fell to NOT
+# VERIFIED -- so mutation m2 had nothing to move, for a reason the log never named.
+# A capture that did not produce the depth it needs has not shown that the depth test
+# works: that is RED, not "unproven". Four readings, in the order they can fail:
+#   exists / arrived at the tick / is a scalar image / has geometry in it.
+DEPTH_STATS=$("$PY" "$PWD/outline-regions.py" --depth-stats --depth "$OUT/worlddepth.bmp" 2>&1)
+echo "  depth image: ${DEPTH_STATS:-<none>}"
+depth_stat() { printf '%s' "${DEPTH_STATS:-}" | grep -o "$1=[^ ]*" | cut -d= -f2; }
+DEPTH_TICK=$(grep -a "capture: armed" "$OUT/worlddepth.trace" 2>/dev/null | tail -1 | sed -n 's/.*frame_tick=\([0-9]*\).*/\1/p')
+DEPTH_OK=1
+assert_eq "world-depth run rc" "$DEPTH_RC" "0"
+if [ "${DEPTH_TICK:-none}" = "$TICK" ]; then
+  echo "  OK   the depth capture reached the requested tick ($TICK)"
+else
+  LAST_SCENE=$(grep -a "scene: begin tick=" "$OUT/worlddepth.trace" 2>/dev/null | tail -1 | sed -n 's/.*tick=\([0-9]*\).*/\1/p')
+  echo "  FAIL capture never reached tick $TICK (last scene tick ${LAST_SCENE:-none};"
+  echo "       capture armed frame_tick=${DEPTH_TICK:-none}, run rc=$DEPTH_RC)"
+  fail=1; DEPTH_OK=0
+fi
+DEPTH_BYTES=$(depth_stat bytes)
+DEPTH_NONGREY=$(depth_stat nonGreyPct)
+DEPTH_NONZERO=$(depth_stat nonzeroPct)
+DEPTH_UNIQUE=$(depth_stat uniqueSampled)
+if [ "${DEPTH_BYTES:-0}" -ge 100000 ] 2>/dev/null; then
+  echo "  OK   depth image bytes written = $DEPTH_BYTES (>= 100000)"
+else
+  echo "  FAIL depth image bytes written = ${DEPTH_BYTES:-<none>}, expected >= 100000"
+  fail=1; DEPTH_OK=0
+fi
+case "${DEPTH_NONGREY:-1}" in
+  0|0.0|0.00) echo "  OK   the depth image is a scalar image (0% non-grey)" ;;
+  *) echo "  FAIL the depth image is not a depth image: ${DEPTH_NONGREY:-<none>}% of pixels carry colour"
+     echo "       (the world shader writes one value into R, G and B; a colour frame of this scene is ~17%)"
+     fail=1; DEPTH_OK=0 ;;
+esac
+if [ "${DEPTH_NONZERO%%.*}" -ge 1 ] 2>/dev/null; then
+  echo "  OK   the depth image has geometry in it (${DEPTH_NONZERO}% of pixels are not black)"
+else
+  echo "  FAIL the depth image is blank: ${DEPTH_NONZERO:-<none>}% of pixels are not black, expected >= 1%"
+  fail=1; DEPTH_OK=0
+fi
+if [ "${DEPTH_UNIQUE:-0}" -ge 2 ] 2>/dev/null; then
+  echo "  OK   the depth image carries more than one sampled depth value ($DEPTH_UNIQUE)"
+else
+  echo "  FAIL the depth image is one value (${DEPTH_UNIQUE:-none} sampled): nothing was rendered"
+  fail=1; DEPTH_OK=0
+fi
+OCCLUDED=""
+if [ "$DEPTH_OK" -eq 0 ]; then
+  echo "  FAIL depth section: the depth evidence is not usable, so the occluded region is"
+  echo "       NOT measured. Red on purpose: NOT VERIFIED is for a depth image that"
+  echo "       exists and shows no occlusion, not for a capture that never arrived."
+else
+  OCCLUDED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/worlddepth.bmp" 2>/dev/null)
+fi
 echo "  occluded region: ${OCCLUDED:-<none>}"
-if [ -z "$OCCLUDED" ]; then
-  # An empty region would make the assertion vacuous, and a vacuous assertion
-  # reported as PASS is the failure shape this repository has paid for. It is
-  # NOT VERIFIED and it is named, with an owner and the cheapest next step.
-  echo "  NOT VERIFIED: the captured tick has no occluded player pixel, so the"
-  echo "  depth-awareness mutation has no region to prove itself on."
-  echo "  Owner: t52-outline. Cheapest next step: pick a capture tick at which a"
-  echo "  player is behind a wall (the trace lists per-item depth and world depth)."
+if [ "$DEPTH_OK" -eq 0 ]; then
+  : # already red above; the region could not be measured
+elif [ -z "$OCCLUDED" ]; then
+  # The depth image is real and the region is empty: that is a statement about THIS
+  # camera position, not about the depth test, so it is NOT VERIFIED and the item
+  # rows are printed as the evidence for "no player is behind world geometry here".
+  echo "  NOT VERIFIED: the depth image is valid, but no drawn player pixel is behind"
+  echo "  world geometry at this tick, so the depth-awareness mutation has no region."
+  echo "  Owner: t52-outline. Cheapest next step: pick a capture tick at which a player"
+  echo "  is behind a wall (the item rows below carry per-item depth and screen box)."
+  grep -a "outline: item " "$OUT/on.trace" 2>/dev/null | tail -6 | sed "s/^/    /"
   echo "  NOT-VERIFIED depthaware=1"
 else
   DEPTH=$("$PY" outline-frame-check.py depth region="$OCCLUDED" \
@@ -1003,7 +1091,14 @@ PYEOF
     mut_fail=1
   elif rebuild_product m2; then
     M2_RC=$(run_frame "$OUT/m2" --outline on)
-    if [ -n "$OCCLUDED" ]; then
+    # m2 may only have a conclusion when section 5's depth evidence is usable. If the
+    # depth capture did not arrive, saying "m2 has nothing to prove" would hide a
+    # red behind a NOT VERIFIED; if it arrived but no player is behind geometry,
+    # that IS undecidable and the item rows are printed as the evidence.
+    if [ "${DEPTH_OK:-0}" -ne 1 ]; then
+      echo "    M2-UNDECIDABLE depth=unusable: section 5 is red, so there is no region to move."
+      echo "    m2 is NOT proven by this run -- the red above is the finding, not this line."
+    elif [ -n "$OCCLUDED" ]; then
       M2_DEPTH=$("$PY" outline-frame-check.py depth region="$OCCLUDED" \
         xray="$OUT/m2.bmp" tested="$OUT/tested.bmp" off="$OUT/off.bmp" 2>&1)
       echo "    $M2_DEPTH" | sed "s/^/      /"
@@ -1013,7 +1108,10 @@ PYEOF
       # would leave this at a positive number and be reported green.
       must_move "m2" "team-coloured pixels through the wall" "$(echo "$DEPTH" | grep -o "occluded_xray=[0-9]*" | cut -d= -f2)" "${M2_XRAY:-0}"
     else
-      echo "    NOT VERIFIED: no occluded region, so m2 has nothing to prove (picture)"
+      echo "    M2-UNDECIDABLE depth=valid region=empty: the depth image is real, but no drawn"
+      echo "    player pixel is behind world geometry at tick ${TICK}, so an occlusion reading"
+      echo "    cannot move. The item rows are the evidence for that statement:"
+      grep -a "outline: item " "$OUT/on.trace" 2>/dev/null | tail -6 | sed "s/^/      /"
     fi
     # The same mutation is the proof for the depth-TEST reading, and it does not
     # depend on a single pixel: the mutant binds its x-ray list to the
@@ -1206,15 +1304,6 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   assert_eq "cap 96: every prepared class mesh is uploaded" "${CAP96_REJECTED:-<none>}" "0"
   assert_eq "cap 96: uploaded count matches prepared" "${CAP96_UPLOADED:-<none>}" "${CAP96_PREPARED:-<none>}"
 
-  # Every case above left its own build on disk, and the last one to run is not
-  # the product. Said out loud, in the run output, because the alternative is
-  # somebody forward gate measuring a mutant and calling it the fixed build --
-  # 2026-10-23 the exe on disk was the m2 mutant while the sources were clean,
-  # and only a timestamp comparison revealed it.
-  echo
-  echo "  SUITE-ARTIFACT-IS-MUTANT: the binary on disk was built from the last mutation"
-  echo "                            applied above, not from the tree. Rebuild before any"
-  echo "                            forward run or capture."
   # ---- m4: draw the overlay AFTER the ViewModel pass ---------------------
   echo
   echo "  -- m4: the overlay draws after the ViewModel pass --"
@@ -1248,6 +1337,29 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   fi
   restore_all; rebuild_product "restore after m4" || true
 
+  # ---- m11: shift the readback index by one ---------------------------------
+  echo
+  echo "  -- m11: the readback reads the wrong instance --"
+  # The attribution table is only a measurement if it can be wrong. The mutation
+  # compares each drawn instance's identity against the NEXT slot's CPU record, which
+  # is exactly the defect the table exists to catch (the tables holding the same
+  # entities in a different order). If the gate still reads 0 mismatches, the table
+  # is decoration.
+  # The rows are printed by main.cpp from the renderer's readback table (the
+  # renderer cannot call traceFmt: it is in an anonymous namespace in main.cpp).
+  # So the mutation lives on the print, which is exactly what the gate reads.
+  patch_in "$MUT_MAIN" \
+"        identity[index].first == identity[index].second ? 1 : 0);" \
+"        identity[(index + 1) % identity.size()].first == identity[index].second ? 1 : 0);" || mut_fail=1
+  if rebuild_product m11; then
+    M11_RC=$(run_frame "$OUT/m11" --outline on)
+    M11_TOTAL=$(grep -a -c "overlay: readback i=" "$OUT/m11.trace" 2>/dev/null || true)
+    M11_BAD=$(grep -a "overlay: readback i=" "$OUT/m11.trace" 2>/dev/null | grep -c "match=0" 2>/dev/null || true)
+    echo "    m11 drawn=${M11_TOTAL:-0} identity mismatches=${M11_BAD:-0}"
+    must_move "m11" "identity mismatches in the readback table" "0" "${M11_BAD:-0}"
+  fi
+  restore_all; rebuild_product "restore after m11" || true
+
   # The restored tree must be the FIXED tree, and a byte-exact restore plus a
   # rebuild is only half of that: the binary has to read green again, or every
   # later reading in this worktree is a reading of the last mutant.
@@ -1255,6 +1367,43 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   assert_eq "restored build: overlay ordinal" "$(outline_value "$OUT/restored.trace" ordinal)" "${FIXED_ORD:-<none>}"
   assert_eq "restored build: pass order" "$(outline_value "$OUT/restored.trace" orderOk)" "1"
   assert_eq "restored build: overlay drew" "$(outline_value "$OUT/restored.trace" drew)" "1"
+
+
+  # ---- m10: the colour frame offered as the depth map --------------------
+  echo
+  echo "  -- m10: a colour frame is not a depth map --"
+  # Section 5 turns the depth capture into the occluded region, and that region is
+  # the whole face of mutation m2. If any image were accepted as a depth map, a
+  # colour frame would produce a plausible-looking region and m2 would be proven
+  # against it. This case substitutes the frame for the depth map and requires the
+  # section-5 readings to reject it: it is a GATE mutation (no rebuild, no product
+  # launch), because the thing under test is the gate's own admission rule.
+  cp "$OUT/on.bmp" "$OUT/m10-depth.bmp"
+  M10_STATS=$("$PY" "$PWD/outline-regions.py" --depth-stats --depth "$OUT/m10-depth.bmp" 2>&1)
+  echo "    m10 depth stats: ${M10_STATS:-<none>}"
+  M10_NONGREY=$(printf '%s' "${M10_STATS:-}" | grep -o "nonGreyPct=[^ ]*" | cut -d= -f2)
+  must_move "m10" "non-grey percent of a colour frame offered as depth (section 5 requires 0)" \
+    "0" "${M10_NONGREY:-?}"
+  # The region is printed but NOT asserted on: measured 2026-10-23, the colour frame
+  # yields the same rectangle as the real depth (455,348,471,351), so a region
+  # comparison would read GREEN on the substitution and prove nothing. The reading
+  # that does separate them is the admission rule itself: 0% non-grey for a depth
+  # capture, ~17% for the frame.
+  M10_REGION=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/m10-depth.bmp" 2>/dev/null)
+  M10_FIXED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/worlddepth.bmp" 2>/dev/null)
+  echo "    m10 region=${M10_REGION:-<none>}  real-depth region=${M10_FIXED:-<none>}"
+  echo "    (the two regions coincide on this tick: the region comparison is not the reading that catches this)"
+
+  # Where the binary on disk stands at the end of the suite. Every rebuilding case
+  # restores the tree and rebuilds, and the restored-build assertions ran against
+  # that rebuild; m10 is a gate mutation and rebuilds nothing. Said out loud because
+  # the alternative is somebody forward-measuring a mutant and calling it the fixed
+  # build -- 2026-10-23 the exe on disk was the m2 mutant while the sources were
+  # clean, and only a timestamp comparison revealed it.
+  echo
+  echo "  SUITE-ARTIFACT: the binary on disk was rebuilt from the RESTORED tree by the"
+  echo "                  last rebuilding case; the restored-build readings above were"
+  echo "                  taken from it. A forward run still rebuilds before it measures."
 
   echo
   if [ "$mut_fail" = "0" ]; then

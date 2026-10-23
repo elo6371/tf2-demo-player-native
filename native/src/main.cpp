@@ -5358,6 +5358,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         item.meshBoundsMin[0], item.meshBoundsMin[1], item.meshBoundsMin[2],
         item.meshBoundsMax[0], item.meshBoundsMax[1], item.meshBoundsMax[2]);
     }
+    // T52 D1: one row per DRAWN instance, read back out of the buffer the draw
+    // call consumed. entityIndex is what the GPU record holds (padding[1]);
+    // expected is what the CPU published for that slot. The gate asserts the
+    // mismatch count is 0 and, when it is not, this table says which slot holds
+    // which entity -- the pixel readings cannot say that.
+    const auto& identity = renderer.overlayInstanceIdentity();
+    for (std::size_t index = 0; index < identity.size(); ++index) {
+      traceFmt("overlay: readback i=%zu entityIndex=%u expected=%u match=%d",
+        index, static_cast<unsigned>(identity[index].first),
+        static_cast<unsigned>(identity[index].second),
+        identity[index].first == identity[index].second ? 1 : 0);
+    }
   };
 
 

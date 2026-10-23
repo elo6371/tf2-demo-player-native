@@ -466,7 +466,7 @@ tick requested=74482 ... entity=31 class=CTFPlayerResource player=1 team=unknown
 3. 变异 9 条 + cap A/B + speed 不变性：窗口不够时按 lead 的次序砍——**先砍变异条数、最后砍 speed=1**，
    砍掉的每一条写成 NOT VERIFIED 并说明原因；**不许把"没跑"写成"不适用"**。
 4. 预计纯机器时间：构建 2–4 min + 正向 7 次采集（含 16 min 的 speed=1）+ 变异 9 次重建与采集 ≈ 70–90 min。
-2. 第 9 节那条产品缺陷另开任务，不要塞回 T52；它的读数和判据行号已经写在这里。
+2. 第 9 节那条未归因的红另开任务，不要塞回 T52；它的读数和判据行号已经写在这里。
 3. 分锁（第 8 节）。今晚我 30 分钟的活等了 390 分钟，这不是我一个人的损失。
 
 ## 13. 附：本轮产物
@@ -776,15 +776,34 @@ comp  55 px  bbox=(480,336)-(488,342)   落在任何框内:  20/55   其中 20 �
 把 GPU 实例缓冲里的 `entityIndex` 读回（或把 CPU 记录的 entityIndex 同时写进 GPU 实例的 padding），
 比较"画在第 i 个实例位置上的实体"与"第 i 条 CPU 记录的实体"是否相同。相同 ⇒ 对应关系没问题，回到几何；不同 ⇒ 定因。
 
-## 9. D1：overlay 绘制对象与 CPU 记录的实体不对应（**新产品缺陷，未定因**）
+## 9. D1：overlay 绘制对象与 CPU 记录的实体不对应（**一条未归因的红，尚未定性**）
 
 ### 9.1 定级
 
 ```text
-D1  新产品缺陷：overlay 画出来的对象与它自己记录的实体不是同一个
-    状态：未定因
+D1  一条未归因的红：区域外 297 像素（同场景配对，0.06% 帧面积）
+    状态：未归因。不是「已确认的产品缺陷」，也不是「通过」。
+          已经测到的：overlay 画出来的对象与它自己记录的实体对不上。
+          还没测到的：「是哪一侧错」。
+    定性规则（用户 2026-10-23 定）：先归因、后定性。归因表只允许三种结论：
+      (a) 质心在框内、描边在框外 -> 绘制矩阵/投影错（产品侧）
+      (b) 质心本身在框外         -> 包围盒推导错（门禁侧）
+      (c) 两者都在框内而判据有别 -> 测量方法错（我们错）
     影响：pose consistency = NOT VERIFIED（阻塞项就是 D1）
           正向门禁里那条 1 FAIL 就是它的像素面，登记在本条，不挂在六项验收上
+```
+
+### 9.1a 归因结果（2026-10-23 14:0x 补，**改了本节标题里的假设**）
+
+readback 读数把本节标题那句话打掉了：**75292 个实例、0 个实体不匹配**，框与描边指向同一批实体。
+归因表（第 16 节）给出的是：14 个发布框挤在一个 110x12 px 的区域里，画出来的墨迹是它们连成的 4 块，
+框外那 297 个像素是 1-6 px 的窄边（76% <= 2 px）。
+
+```text
+结论：case (c) 测量方法错（我们错）——判据把「发布框」当成了「绘制范围」，而框比实际绘制的像素紧一圈。
+      outsideDiff=297 仍然红、仍然记在本条名下；它是未归因红的归因已完成，不是产品画错对象。
+      下一轮第一个测试：框来自网格静态 AABB 的投影（14 条里 13 条 vertexbox=0,0..0,0），
+      而画的是当前姿态的蒙皮网格 + 0.004 世界单位的外扩。
 ```
 
 ### 9.2 读数（2026-10-23 10:48，同场景配对，`t52-outline20`）
@@ -846,7 +865,7 @@ entity=2  box=25x8  vertexbox=485,337,499,341  vverts=12000  origin=497,339  w=0
 ## 14. 合并回归的三条定因（2026-10-23 12:xx，T52 门禁在合并树上 12 条 FAIL）
 
 合并树 `3e4211f`（工作树 HEAD `ecb3a93`）上本门禁红 12 条，本分支报告记 1 条（`outsideDiff=297`）。
-十二条分成三组，**没有一条是合并引入的行为缺陷**；其中两组是门禁自己的过期常数，一组是 D1。
+十二条分成三组，**没有一条是合并引入的行为缺陷**；其中两组是门禁自己的过期常数，一组是 D1 的像素面（未归因，见第 9 节）。
 
 ### 14.1 A 组六条：门禁的采样点不在录像的保留窗口里（**默认值过期**）
 
@@ -995,6 +1014,208 @@ OK   overlay ordinal is the same slot in both captures of one build
 
 **另外顺带清掉的一条**：`speed=1` 捕获 `rc=0 took=711s`，与 `speed=8` 帧**逐字节相同**（cmp）——
 上一轮那条 `rc=127` 已确认是我 kill 进程造成的假红，不是缺陷。
+
+## 15. 第 5 段：深度图从"但愿它出图"变成"不成立就红"
+
+### 15.1 那条静默降级是怎么发生的
+
+--world-depth 那次运行和别的捕获共用 RUN_TIMEOUT（600 s），而它要跑到 playback tick 64229。
+一旦这次采集没有到达目标 tick，这一段的实际形态是：
+
+```text
+worlddepth.bmp 不存在  ->  --occluded 得到空区域  ->  [ -z "$OCCLUDED" ] 分支
+                       ->  "NOT VERIFIED: the captured tick has no occluded player pixel"
+                       ->  m2 走到 "NOT VERIFIED: no occluded region, so m2 has nothing to prove"
+```
+
+三行输出看上去都很有分寸，但它们说的都不是真的：**这一帧根本没被采集到**。
+m2 不是"没得证明"，是"证明的舞台没搭起来"。这是六个形状里的第 1 个
+（absent-read-as-benign）落在第 5 段上。
+
+### 15.2 现在必须先过的四道门（按会失败的速度排）
+
+派生 occluded 区域**之前**，outline-regions.py --depth-stats 给出四个读数，门禁逐条断言。
+**本轮实测读数（2026-10-23 14:0x，tick 64229）**：
+
+```text
+world-depth run rc=0
+depth image: bytes=2582406 nonGreyPct=0.00 nonzeroPct=16.71 uniqueSampled=4
+OK   world-depth run rc = 0
+OK   the depth capture reached the requested tick (64229)
+OK   depth image bytes written = 2582406 (>= 100000)
+OK   the depth image is a scalar image (0% non-grey)
+OK   the depth image has geometry in it (16.71% of pixels are not black)
+OK   the depth image carries more than one sampled depth value (4)
+```
+
+第 2 条是点名要求的那条，它读 capture: armed requested=... frame_tick=...，把"没到"和
+"到了但没看见人"分开；失败时打印的就是那句：
+
+```text
+FAIL capture never reached tick N (last scene tick M; capture armed frame_tick=..., run rc=...)
+```
+
+第 3 条 nonGreyPct 的理由：世界像素着色器把 position.z/position.w 写进 R/G/B 三个通道，
+所以真深度图**按构造是灰的**（实测 0.00% 非灰）；同一场景的彩色帧是 16.76% 非灰。
+差一个数量级，替代品藏不住。
+
+### 15.3 出图之后 m2 才允许有结论，而且只允许三种
+
+```text
+DEPTH_OK=1 且区域非空  ->  must_move "m2" ...（原有读数）
+DEPTH_OK=1 且区域为空  ->  M2-UNDECIDABLE depth=valid region=empty
+                          + 打出 trace 里的 outline: item 行作证（相机确实没看着两个人）
+DEPTH_OK=0            ->  M2-UNDECIDABLE depth=unusable
+                          + 明说"这个发现是上面那条红，不是这行"
+```
+
+第四种情形（DEPTH_OK=0 却落 NOT VERIFIED）现在不可能发生：深度证据不成立时第 5 段
+自己就是红的，m2 没有资格再谈"没得证明"。
+
+本轮第 5 段的实际走向是第一条：
+
+```text
+occluded region: 455,348,471,351
+    occluded_xray=68 occluded_tested=0 occluded_tested_diff=0 region=17x4
+OK   team-coloured pixels drawn THROUGH the wall (x-ray) = 68 (>= 8)
+OK   team-coloured pixels through the wall when depth-tested = 0
+OK   depth-tested frame vs overlay-off frame, in the occluded region = 0
+```
+
+### 15.4 变异 m10：把世界帧当成深度图喂进去
+
+故意不重建：这条要证明的是**门禁的准入规则**有作用面，不是产品。
+
+```text
+cp on.bmp m10-depth.bmp;  depth-stats 读它
+m10  stats: bytes=2582406 nonGreyPct=16.76 nonzeroPct=16.77 uniqueSampled=26
+真深度图  : bytes=2582406 nonGreyPct=0.00  nonzeroPct=16.71 uniqueSampled=4
+must_move "m10" "non-grey percent ... (section 5 requires 0)" 0 16.76  ->  红
+```
+
+**一条诚实的负面读数**：同一 tick 上，用彩色帧推出的 occluded 矩形与真深度推出的是
+**同一个**（455,348,471,351）。所以"比较区域"这个断言在这张图上抓不到替代；
+抓到它的是准入规则本身（0% 非灰）。这句话写进 m10 的注释，免得下一个人
+以为区域比较也在守这道门。
+
+m10 属于**门禁变异**（不重建、不启动产品）；m2/m11 属于需要重建的产品变异，
+本轮 forward 没跑变异套件，所以那两条**本轮未验证**，不写 PASS。
+
+## 16. D1 归因：从"297 个像素对不上"走到"是哪一侧错"
+
+### 16.1 原来的假设，和它需要的读数
+
+已有：14 个发布框、4 个色块、484 个差异像素里 187 个落在框内。
+这只能说明"画的位置和发布的位置不是一回事"，**它甚至不能排除"画的是别的实体"**。
+像素读数在结构上做不到这件事：一个像素不知道自己是哪个实体的。
+
+### 16.2 让 GPU 说出它画的是谁（readback）
+
+实例结构第 128 字节处本来就有 padding[1]（与骨计数 padding[0] 并列），
+**不改 layout、不改 stride、四条 static_assert 一条没动**：
+
+```cpp
+gpu.padding[1] = item.entityIndex;      // 随实例一起上传
+```
+
+上传后一次 staging 拷贝，把**绘制调用真正消费的那个 buffer** 读回来，逐条打印
+（渲染器叫不到 traceFmt——它在 main.cpp 的匿名命名空间里；所以读回表挂在
+Renderer 上，由 main.cpp 打印）：
+
+```text
+overlay: readback i=<槽位> entityIndex=<GPU 里实际的> expected=<CPU 发布的> match=<0/1>
+```
+
+一个必须记下来的坑：CopyResource 要求源与目标**同尺寸**，而实例 buffer 按 capacity 分配。
+用 packed.size() 建 staging 会让拷贝静默失败、读回为空——"测量没发生"伪装成"零个不匹配"。
+代码按 overlayInstanceCapacity_ 建 staging。
+
+**读数（2026-10-23 14:0x，正向门禁，tick 64229）**：
+
+```text
+readback: drawn instances=75292 identity mismatches=0
+OK   drawn instances read back from the GPU buffer = 75292 (>= 1)
+OK   each drawn instance carries the entity the CPU published for its slot = 0
+```
+
+**这条读数先把原假设打掉了**：框与描边指向同一批实体，不存在"画的是别的实体"。
+
+### 16.3 归因表：发布框 vs 最近色块质心
+
+```text
+attr i=0  entity=2  box=506,340,513,342 centroid=510.2,342.2 blobPx=128 inside=0 dist=1.4
+attr i=1  entity=3  box=504,343,509,345 centroid=510.2,342.2 blobPx=128 inside=0 dist=4.1
+attr i=2  entity=4  box=506,341,515,342 centroid=510.2,342.2 blobPx=128 inside=0 dist=0.7
+attr i=3  entity=5  box=559,341,565,343 centroid=562.9,342.0 blobPx=76  inside=1 dist=0.9
+attr i=4  entity=6  box=455,348,471,351 centroid=462.8,348.8 blobPx=225 inside=1 dist=0.7
+attr i=5  entity=7  box=505,341,512,343 centroid=510.2,342.2 blobPx=128 inside=1 dist=1.7
+attr i=6  entity=8  box=481,340,487,342 centroid=484.3,341.0 blobPx=55  inside=1 dist=0.3
+attr i=7  entity=9  box=559,341,565,343 centroid=562.9,342.0 blobPx=76  inside=1 dist=0.9
+attr i=8  entity=10 box=456,348,470,350 centroid=462.8,348.8 blobPx=225 inside=1 dist=0.3
+attr i=9  entity=11 box=506,340,514,342 centroid=510.2,342.2 blobPx=128 inside=0 dist=1.2
+attr i=10 entity=13 box=509,341,517,343 centroid=510.2,342.2 blobPx=128 inside=1 dist=2.8
+attr i=11 entity=15 box=456,348,470,350 centroid=462.8,348.8 blobPx=225 inside=1 dist=0.3
+attr i=12 entity=16 box=558,342,565,344 centroid=562.9,342.0 blobPx=76  inside=1 dist=1.7
+attr i=13 entity=17 box=562,341,568,342 centroid=562.9,342.0 blobPx=76  inside=0 dist=2.1
+attribution verdict: 5 of 14 published boxes do NOT contain their nearest blob centroid
+```
+
+### 16.4 第三条读数：框外像素到最近框的距离
+
+这张表只能说明"质心离框多远"，说明不了"框外那 297 个像素是什么"。补一条：
+
+```text
+differing 484 | inside 187 | outside 297
+距离分布（切比雪夫，到最近发布框）: {1:137, 2:90, 3:32, 4:25, 5:12, 6:1}   最远 6 px
+```
+
+### 16.5 归因结论（按用户 2026-10-23 定的三条）
+
+```text
+(a) 质心在框内、描边在框外 -> 绘制矩阵/投影错      不成立：readback 0/75292 不匹配，
+                                                   且框外像素是 1-6 px 的窄边，不是位移
+(b) 质心本身在框外         -> 包围盒推导错         部分：5/14 质心在框外，但只差 0.7-4.1 px
+(c) 两者都在框内而判据有别 -> 测量方法错（我们错） **成立：判据把"发布框"当成了"绘制范围"**
+```
+
+三条一起读，结论只有一句：**D1 不是"画错了对象"，而是"发布框比实际画出的像素小一圈"，
+那一圈是 1-6 px（76% ≤2 px）、沿每个框的边界均匀分布的窄边。**
+框是产品自己发布的（pass 的投影），它是 2-4 px 高的极小框；14 个玩家的框全部挤在
+一个 110x12 px 的屏幕区域里，4 个色块是**多个相邻描边连成的一整块**——所以"4 个色块
+对 14 个框"从一开始就不是"4 个对象对 14 个对象"，而是"4 块墨迹对 14 个框"。
+
+机制上的候选（**下一轮的第一个测试**，不是结论）：
+
+```text
+1. 框 = 网格静态 AABB 的投影；画的 = 当前姿态的蒙皮网格 -> 姿态变形会跑到框外
+   证据：14 条里 13 条的 vertexbox 是 0,0..0,0（CPU 侧没有投影顶点），框来自 AABB
+2. 描边按 kOverlaySilhouetteExpand=0.004 世界单位沿法线外扩（entity_overlay.h:134），
+   投影在框之后发生 -> 框天然不含这一圈
+   0.004 世界单位在这个距离上远小于 6 px，所以它最多解释 1 px，不足以解释整条窄边
+```
+
+**因此 outsideDiff=297 仍然是红的、仍然记在 D1 名下，但它现在有了归因**：判据（框）比产品
+实际绘制范围紧，修法在测量侧（用产品实际绘制的范围，或让产品发布已外扩/已考虑姿态的框），
+不是"产品把对象画错了地方"。定性到此为止：**case (c)，我们错**。
+
+## 17. 顺序：第 5 段是整合前置条件，D1 归因不是
+
+2026-10-23 13:2x 用户定：**等 T52 第 5 段完成，再一次性整合 T52 -> T53 -> T54**。
+理由：我还会动共享渲染代码，现在合进去等于合两遍。
+
+```text
+第 5 段（深度感知）做完并跑出读数   -> 整合的前置条件，优先级高于 D1 归因
+D1 归因                             -> 继续做，但不阻塞整合
+分支状态                            -> 代码在 task/t52-outline、git status 干净、
+                                       门禁自测能跑，就够资格进整合
+```
+
+整合之后（**现在不做，等用户/lead 点名**）：在集成树上重跑本线的 forward + mutation，
+并证明新门禁、新断言、变异锚点**都来自集成树本身**，不是从本 worktree 借的脚本。
+对 T53 是同样的要求。
+
+这条顺序也改了 D1 的措辞：它是**一条未归因的红**，不是"已确认的产品缺陷"。
+归因表（第 16 节）把手指向哪一侧，才配叫那一侧的缺陷——先归因，后定性。
 
 ## 8. 交接
 

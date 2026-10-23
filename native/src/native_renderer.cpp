@@ -3231,6 +3231,9 @@ void Renderer::setOverlayDrawList(const OverlayDrawList& list) {
 void Renderer::rebuildOverlayBuffers() {
   overlayInstanceCount_ = 0;
   overlayInstances_.clear();
+  // D1: the identity rows describe the buffer built below, so they are cleared with
+  // it. A stale row would attribute this frame's silhouettes to last frame's slots.
+  overlayInstanceIdentity_.clear();
   overlayLineVertexCount_ = 0;
   overlayLineVertexCountByDepth_[0] = 0;
   overlayLineVertexCountByDepth_[1] = 0;
@@ -3305,6 +3308,13 @@ void Renderer::rebuildOverlayBuffers() {
         gpu.skinEnabled = 1u;
         gpu.padding[0] = item.boneCount;
       }
+      // T52 D1 attribution (2026-10-23): the entity index travels INTO the GPU
+      // record so it can be read back out of the buffer the draw call consumes.
+      // padding[1] is a slot the 128-byte layout already has, so the stride and
+      // every static_assert above are untouched. The question this answers is the
+      // one the pixel readings cannot: whether the instance the GPU draws is the
+      // instance the CPU published a box for.
+      gpu.padding[1] = item.entityIndex;
       // Keep the identity and the origin alongside the GPU record, in the same
       // order, so range.instanceStart indexes both tables.
       OverlayInstanceRecord cpu;
@@ -3396,6 +3406,37 @@ void Renderer::rebuildOverlayBuffers() {
     std::memcpy(mapped.pData, packed.data(), packed.size() * sizeof(EntityModelInstanceGpu));
     context_->Unmap(overlayInstanceBuffer_.Get(), 0);
     overlayInstanceCount_ = packed.size();
+    // ---- T52 D1: read the identity back out of the buffer being drawn ------
+    // The CPU records the gate publishes boxes from and this GPU buffer are filled
+    // from one vector, in one order -- that is the ASSUMPTION D1 puts in doubt
+    // (four blobs, fourteen published boxes, 60 of 484 pixels inside any of them).
+    // Reading the entity index back out of the vertex buffer proves which entity
+    // each drawn instance actually carries, or fails to.
+    {
+      D3D11_BUFFER_DESC readback{};
+      // CopyResource needs the SAME size as the source buffer, which is allocated at
+      // capacity (>= packed.size()), not at the packed size. With the packed size the
+      // copy fails, the readback is empty, and the section that asserts on it reads
+      // zero instances -- a measurement that did not happen.
+      readback.ByteWidth = static_cast<UINT>(overlayInstanceCapacity_ * sizeof(EntityModelInstanceGpu));
+      readback.Usage = D3D11_USAGE_STAGING;
+      readback.BindFlags = 0;
+      readback.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+      Microsoft::WRL::ComPtr<ID3D11Buffer> staging;
+      if (SUCCEEDED(device_->CreateBuffer(&readback, nullptr, staging.GetAddressOf()))) {
+        context_->CopyResource(staging.Get(), overlayInstanceBuffer_.Get());
+        D3D11_MAPPED_SUBRESOURCE back{};
+        if (SUCCEEDED(context_->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &back))) {
+          const auto* drawn = static_cast<const EntityModelInstanceGpu*>(back.pData);
+          overlayInstanceIdentity_.reserve(packed.size());
+          for (std::size_t index = 0; index < packed.size(); ++index) {
+            overlayInstanceIdentity_.emplace_back(
+              drawn[index].padding[1], packed[index].padding[1]);
+          }
+          context_->Unmap(staging.Get(), 0);
+        }
+      }
+    }
   }
 
   // ---- lines and markers, one contiguous range per depth mode -------------

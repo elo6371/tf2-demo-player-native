@@ -674,6 +674,9 @@ public:
   // counter, so "the overlay drew before the weapon" is a number a gate reads
   // rather than a claim about the order of two statements.
   const OverlayPassReading& overlayPassReading() const { return overlayPassReading_; }
+  const std::vector<std::pair<std::uint32_t, std::uint32_t>>& overlayInstanceIdentity() const {
+    return overlayInstanceIdentity_;
+  }
 
   // T52: the depth-stencil states as D3D11 REPORTS them, next to the numbers the
   // pass publishes per frame. The contract says x-ray is "depth test off and
@@ -1282,6 +1285,12 @@ private:
   std::vector<OverlayDrawRange> overlayDrawRanges_;
   std::vector<OverlayInstanceRecord> overlayInstances_;
   std::size_t overlayInstanceCount_ = 0;
+  // ---- T52 D1 (2026-10-23): identity of the instances actually in the buffer ---
+  // (entityIndex read back out of the vertex buffer, entityIndex the CPU published
+  // for the same slot). The CPU boxes the gate measures against and the GPU records
+  // the silhouettes are drawn from are filled from one vector in one order; this is
+  // the reading that says whether that is still true.
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> overlayInstanceIdentity_;
   // Line and marker primitives (T53's), built with the world's own vertex
   // layout so a trail lands on the world it describes. Both modes' vertices
   // share one buffer and are drawn by range, so submitting the second list of a

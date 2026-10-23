@@ -764,6 +764,7 @@ struct OverlayPassReading {
   float boundsMin[3] = {0.0f, 0.0f, 0.0f};
   float boundsMax[3] = {0.0f, 0.0f, 0.0f};
   std::vector<OverlayItemReading> items;
+
 };
 
 // ---------------------------------------------------------------------------
