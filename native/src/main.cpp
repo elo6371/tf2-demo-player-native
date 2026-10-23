@@ -2648,8 +2648,154 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // this semantic the material owns.
   std::wstring worldBump2TextureOverride;
   int invalidWorldLightingArgument = 0;
+  // The flags T50, T51, T52, T53 and T54 added. They are not in the chain
+  // below for one measured reason: an else-if chain this long stops compiling
+  // (MSVC C1061, hit the first time all five branches were merged -- 128 arms).
+  // The chain is a pure dispatch over mutually exclusive flags, so moving a
+  // group of arms into a function changes no behaviour: order never decided
+  // anything, and "this argument was mine" is now the return value.
+  const auto parseFeatureArgument = [&](int& i) -> bool {
+      if (wcscmp(arguments[i], L"--projectile-trajectory") == 0) {
+        // T53. Off unless this flag or the settings file says otherwise.
+        persistent.render.projectileTrajectory = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--trajectory-player") == 0 && i + 1 < argumentCount) {
+        // "all" is -1; a number is an entity index. A gate runs both, so the
+        // difference between the two filters is a captured pair of frames rather
+        // than a claim about a branch.
+        const std::wstring value = arguments[++i];
+        persistent.render.selectedPlayerEntity = (value == L"all")
+          ? -1 : static_cast<std::int32_t>(wcstol(value.c_str(), nullptr, 10));
+        return true;
+      } else if (wcscmp(arguments[i], L"--trajectory-linger-ms") == 0 && i + 1 < argumentCount) {
+        persistent.render.trajectoryLingerMs = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
+        return true;
+      } else if (wcscmp(arguments[i], L"--trajectory-quality") == 0 && i + 1 < argumentCount) {
+        const std::wstring value = arguments[++i];
+        persistent.render.trajectoryQuality = (value == L"low")
+          ? tf2::native::RenderSettings::TrajectoryQuality::Low
+          : tf2::native::RenderSettings::TrajectoryQuality::High;
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-open") == 0) {
+        g_logsPanelOptions.openAtStartup = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-url") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.url = narrowAscii(arguments[++i]);
+        g_logsPanelOptions.openAtStartup = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-url2") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.url2 = narrowAscii(arguments[++i]);
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-width") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.width = static_cast<int>(parsed);
+        else g_logsPanelArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-user-data") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.userData = narrowAscii(arguments[++i]);
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-script") == 0 && i + 1 < argumentCount) {
+        g_logsPanelOptions.script = narrowAscii(arguments[++i]);
+        g_logsPanelOptions.openAtStartup = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-pump-ms") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.pumpMilliseconds = static_cast<int>(parsed);
+        else g_logsPanelArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--logstf-measure") == 0) {
+        g_logsPanelOptions.measureFrames = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--playback-speed") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const double parsed = std::wcstod(arguments[++i], &end);
+        if (end && *end == L'\0' && parsed > 0.0) playbackSpeed = parsed;
+        else playbackSpeedRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--playback-speed") == 0) {
+        playbackSpeedRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--outline") == 0 && i + 1 < argumentCount) {
+        const wchar_t* value = arguments[++i];
+        if (wcscmp(value, L"on") == 0) { outlineRequested = true; outlineGiven = true; }
+        else if (wcscmp(value, L"off") == 0) { outlineRequested = false; outlineGiven = true; }
+        else outlineArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--outline") == 0) {
+        outlineArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--outline-depth") == 0 && i + 1 < argumentCount) {
+        const wchar_t* value = arguments[++i];
+        if (wcscmp(value, L"xray") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::XRay; outlineDepthGiven = true; }
+        else if (wcscmp(value, L"tested") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::DepthTested; outlineDepthGiven = true; }
+        else outlineArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--outline-depth") == 0) {
+        outlineArgumentRejected = true;
+
+        return true;
+      } else if (wcscmp(arguments[i], L"--camera-script") == 0 && i + 1 < argumentCount) {
+        // T50: the scripted acceptance driver (see runCameraScriptStep). A file
+        // of steps, each reported as `camera: accept`; the run quits when the
+        // script says so, with the exit code carrying the failure count.
+        cameraScriptPath = arguments[++i];
+        return true;
+      } else if (wcscmp(arguments[i], L"--camera-script") == 0) {
+        cameraScriptRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-root") == 0 && i + 1 < argumentCount) {
+        hudRoot = arguments[++i];
+        if (hudRoot.empty()) hudArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-root") == 0) {
+        hudArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-layout") == 0 && i + 1 < argumentCount) {
+        // The document path is stored narrow because that is what HudSettings and
+        // the [hud] settings file carry. A wide value that does not round-trip to
+        // UTF-8 is refused rather than transliterated.
+        if (!tf2::native::wideToUtf8(arguments[++i], hudLayout) || hudLayout.empty()) {
+          hudArgumentRejected = true;
+        }
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-layout") == 0) {
+        hudArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-scale") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        if (end && *end == L'\0' && parsed >= 50 && parsed <= 200) {
+          hudScale = static_cast<int>(parsed);
+          hudScaleGiven = true;
+          hudConfigRequested = true;
+        } else {
+          hudArgumentRejected = true;
+        }
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-scale") == 0) {
+        hudArgumentRejected = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-on") == 0) {
+        hudOnGiven = true; hudOn = true; hudConfigRequested = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-off") == 0) {
+        hudOnGiven = true; hudOn = false; hudConfigRequested = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-reset") == 0) {
+        hudResetRequested = true;
+        hudConfigRequested = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-apply") == 0) {
+        hudApplyRequested = true;
+        return true;
+      }
+    return false;
+  };
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
+      if (parseFeatureArgument(i)) continue;
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"standard") == 0) {
           persistent.render = tf2::native::RenderSettings::fromPreset(
@@ -2662,25 +2808,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         persistent.render.vsync = true;
       } else if (wcscmp(arguments[i], L"--no-vsync") == 0) {
         persistent.render.vsync = false;
-      } else if (wcscmp(arguments[i], L"--projectile-trajectory") == 0) {
-        // T53. Off unless this flag or the settings file says otherwise.
-        persistent.render.projectileTrajectory = true;
       } else if (wcscmp(arguments[i], L"--no-projectile-trajectory") == 0) {
         persistent.render.projectileTrajectory = false;
-      } else if (wcscmp(arguments[i], L"--trajectory-player") == 0 && i + 1 < argumentCount) {
-        // "all" is -1; a number is an entity index. A gate runs both, so the
-        // difference between the two filters is a captured pair of frames rather
-        // than a claim about a branch.
-        const std::wstring value = arguments[++i];
-        persistent.render.selectedPlayerEntity = (value == L"all")
-          ? -1 : static_cast<std::int32_t>(wcstol(value.c_str(), nullptr, 10));
-      } else if (wcscmp(arguments[i], L"--trajectory-linger-ms") == 0 && i + 1 < argumentCount) {
-        persistent.render.trajectoryLingerMs = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
-      } else if (wcscmp(arguments[i], L"--trajectory-quality") == 0 && i + 1 < argumentCount) {
-        const std::wstring value = arguments[++i];
-        persistent.render.trajectoryQuality = (value == L"low")
-          ? tf2::native::RenderSettings::TrajectoryQuality::Low
-          : tf2::native::RenderSettings::TrajectoryQuality::High;
       } else if (wcscmp(arguments[i], L"--world-env-force") == 0) {
         forceWorldEnv = true;
       } else if (wcscmp(arguments[i], L"--world-sky") == 0) {
@@ -3045,58 +3174,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         hiddenWindow = true;
       } else if (wcscmp(arguments[i], L"--audio-disabled") == 0) {
         audioDisabled = true;
-      } else if (wcscmp(arguments[i], L"--logstf-open") == 0) {
-        g_logsPanelOptions.openAtStartup = true;
-      } else if (wcscmp(arguments[i], L"--logstf-url") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.url = narrowAscii(arguments[++i]);
-        g_logsPanelOptions.openAtStartup = true;
-      } else if (wcscmp(arguments[i], L"--logstf-url2") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.url2 = narrowAscii(arguments[++i]);
-      } else if (wcscmp(arguments[i], L"--logstf-width") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const long parsed = std::wcstol(arguments[++i], &end, 10);
-        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.width = static_cast<int>(parsed);
-        else g_logsPanelArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--logstf-user-data") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.userData = narrowAscii(arguments[++i]);
-      } else if (wcscmp(arguments[i], L"--logstf-script") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.script = narrowAscii(arguments[++i]);
-        g_logsPanelOptions.openAtStartup = true;
-      } else if (wcscmp(arguments[i], L"--logstf-pump-ms") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const long parsed = std::wcstol(arguments[++i], &end, 10);
-        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.pumpMilliseconds = static_cast<int>(parsed);
-        else g_logsPanelArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--logstf-measure") == 0) {
-        g_logsPanelOptions.measureFrames = true;
       } else if (wcscmp(arguments[i], L"--start-paused") == 0) {
         startPaused = true;
-      } else if (wcscmp(arguments[i], L"--playback-speed") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const double parsed = std::wcstod(arguments[++i], &end);
-        if (end && *end == L'\0' && parsed > 0.0) playbackSpeed = parsed;
-        else playbackSpeedRejected = true;
-      } else if (wcscmp(arguments[i], L"--playback-speed") == 0) {
-        playbackSpeedRejected = true;
       } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
         metricsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--dump-entity-materials") == 0 && i + 1 < argumentCount) {
         dumpEntityMaterialsPath = arguments[++i];
-      } else if (wcscmp(arguments[i], L"--outline") == 0 && i + 1 < argumentCount) {
-        const wchar_t* value = arguments[++i];
-        if (wcscmp(value, L"on") == 0) { outlineRequested = true; outlineGiven = true; }
-        else if (wcscmp(value, L"off") == 0) { outlineRequested = false; outlineGiven = true; }
-        else outlineArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--outline") == 0) {
-        outlineArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--outline-depth") == 0 && i + 1 < argumentCount) {
-        const wchar_t* value = arguments[++i];
-        if (wcscmp(value, L"xray") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::XRay; outlineDepthGiven = true; }
-        else if (wcscmp(value, L"tested") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::DepthTested; outlineDepthGiven = true; }
-        else outlineArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--outline-depth") == 0) {
-        outlineArgumentRejected = true;
-
       } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
         captureFramePath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
@@ -3106,48 +3189,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         else captureTickRejected = true;
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0) {
         captureTickRejected = true;
-      } else if (wcscmp(arguments[i], L"--camera-script") == 0 && i + 1 < argumentCount) {
-        // T50: the scripted acceptance driver (see runCameraScriptStep). A file
-        // of steps, each reported as `camera: accept`; the run quits when the
-        // script says so, with the exit code carrying the failure count.
-        cameraScriptPath = arguments[++i];
-      } else if (wcscmp(arguments[i], L"--camera-script") == 0) {
-        cameraScriptRejected = true;
-      } else if (wcscmp(arguments[i], L"--hud-root") == 0 && i + 1 < argumentCount) {
-        hudRoot = arguments[++i];
-        if (hudRoot.empty()) hudArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--hud-root") == 0) {
-        hudArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--hud-layout") == 0 && i + 1 < argumentCount) {
-        // The document path is stored narrow because that is what HudSettings and
-        // the [hud] settings file carry. A wide value that does not round-trip to
-        // UTF-8 is refused rather than transliterated.
-        if (!tf2::native::wideToUtf8(arguments[++i], hudLayout) || hudLayout.empty()) {
-          hudArgumentRejected = true;
-        }
-      } else if (wcscmp(arguments[i], L"--hud-layout") == 0) {
-        hudArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--hud-scale") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const long parsed = std::wcstol(arguments[++i], &end, 10);
-        if (end && *end == L'\0' && parsed >= 50 && parsed <= 200) {
-          hudScale = static_cast<int>(parsed);
-          hudScaleGiven = true;
-          hudConfigRequested = true;
-        } else {
-          hudArgumentRejected = true;
-        }
-      } else if (wcscmp(arguments[i], L"--hud-scale") == 0) {
-        hudArgumentRejected = true;
-      } else if (wcscmp(arguments[i], L"--hud-on") == 0) {
-        hudOnGiven = true; hudOn = true; hudConfigRequested = true;
-      } else if (wcscmp(arguments[i], L"--hud-off") == 0) {
-        hudOnGiven = true; hudOn = false; hudConfigRequested = true;
-      } else if (wcscmp(arguments[i], L"--hud-reset") == 0) {
-        hudResetRequested = true;
-        hudConfigRequested = true;
-      } else if (wcscmp(arguments[i], L"--hud-apply") == 0) {
-        hudApplyRequested = true;
       }
     }
     persistent.render.normalize();
