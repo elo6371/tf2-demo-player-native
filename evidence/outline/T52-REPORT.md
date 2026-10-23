@@ -1823,6 +1823,97 @@ red_inside=20 blue_inside=35 red_wrong_team=0 blue_wrong_team=0   VERDICT PASS
 - **m14 新增**：**声明 0、画面照旧 1.5 px**。像素一个都不动，变的是门禁还接不接受它们：
   tolerance 变 0，于是同样那 48 个框外像素从"允许"变成"拒绝"。这是容差绑在声明上的正面证明。
 
+## 27. 集成树上的验收运行（2026-10-23 19:46–20:57，一次持锁，forward + 全部变异）
+
+### 27.1 这次运行跑在哪
+
+```text
+树     D:/TF2_Native_Test  HEAD 42024c6（d3523d8 T52 v1 / 508dc0e T53 / 0981b39 T54 之上）
+门禁   outline-check.sh 来自本分支 1c58081（md5 cce823fcbcad），不是 worktree 里的临时版本
+产品   sha256=0850467bafc63f6d… mtime 19:36（lead 全量构建的产物，我没有重建）
+只写   evidence/outline/**（产物）；源码零改动。跑完 git status 里 evidence/ 之外的 6 条未跟踪项
+       与跑之前完全一致（那是 lead 的 evidence/release-gates、evidence/trajectory）
+
+这就是用户点名的验收条件：门禁、断言、锚点必须来自集成树。
+```
+
+### 27.2 forward：97 OK / 0 FAIL，GATE-RC=0
+
+```text
+ordinal: absolute numbers are a registry snapshot, recorded not asserted (fixed=7 vmOrdinal=8)
+OK   overlay took a pass slot = 7 (>= 1)
+OK   viewModel took a pass slot = 8 (>= 1)
+OK   pass order (overlay before viewModel, with a viewmodel) = 1
+OK   overlay ordinal is before the viewModel slot (gate own comparison) = 7 (< 8)
+
+world models: prepared=59 uploaded=59          <- lead 让我先放着的那条，集成树上本来就是 59/59
+tolerance: tolerance=360.000 items=14 published=14 missing=0
+expand band: items=14 published=14 missing=0 below=0 above=0 min=1.500 max=1.500 median=1.500
+diff_outside=48 diff_inside=105 regions=14
+OK   precondition: the two runs saw the same scene (153 differing pixels < 2% of the frame)
+readback: drawn instances=63938 identity mismatches=0
+region source: items=14 extent1=14 extent0=0 extent2=0 extentMissing=0 hmin=1 hmax=4
+heights: published boxes hmin=1 hmax=4 | team ink red=3 px blue=4 px
+red_inside=20 blue_inside=35 red_wrong_team=0 blue_wrong_team=0     <- 不再触发 >= 8
+负对照 exchanged-colour frame: red_inside=0 blue_inside=0 red_wrong_team=256 blue_wrong_team=256  FAIL
+```
+
+三条待定点全部落地：
+
+1. **`WORLD_MODELS_UPLOADED = 59`** —— 集成树上就是 59/59，**没有红**。所以不需要改成"off 与 on 相等"的关系断言：
+   这个数在两棵树上都是 59，它测的是"覆层没有多传模型"，不是树间差异。留原样，记录在案。
+2. **`NI_LIMIT`** —— 集成树帧尺寸实测 **1264×681**（从 `evidence/outline/on.bmp` 头读的），与写死的算式一致，不动。
+   trace 里没有 `client=` 字段，所以"打印 client 尺寸"这一步改成读 BMP 头，结论相同。
+3. **`outside` 与 `tolerance`** —— `outside=48 <= tolerance=360`，判据是产品自己声明的 1.5 px/侧。牙口见 27.3 的 m13/m14。
+
+### 27.3 mutation：18 条判读全红，0 GREEN，1 INVALID（m-meta 故意）
+
+```text
+OK            m-meta: a source that does not compile reads MUTATION-INVALID and fails the run
+MUTATION-RED  m1   team pixels in the WRONG region=55 (fixed=0)
+MUTATION-RED  m2   team-coloured pixels through the wall=0 (fixed=35)
+MUTATION-RED  m2   x-ray depth test state actually bound=1 (fixed=0)
+MUTATION-RED  m3   team-coloured pixels in the --outline off frame=121 (fixed=0)
+MUTATION-RED  m5   x-ray depth write state=1 (fixed=0)
+MUTATION-RED  m6   without the hold, speed=1 and speed=8 capture different frames
+MUTATION-RED  m7   silhouettes submitted without the class fallback=0 (fixed=14)
+MUTATION-RED  m7   players rejected as noMesh without the class fallback=20 (fixed=6)
+MUTATION-RED  m8   silhouettes DRAWN when the item loses the upload key=0 (fixed=5)
+MUTATION-RED  m9   probe self-test failures when the bind mesh wins=5 (fixed=0)
+MUTATION-RED  m4   pass order (overlay before viewModel)=0 (fixed=1)
+MUTATION-RED  m4   overlay ordinal after the move=8 (fixed=7)
+MUTATION-RED  m11  identity mismatches in the readback table=69454 (fixed=0)
+MUTATION-RED  m12  pixels outside every drawn region with the draw shifted 3 px=153 (fixed=48)
+MUTATION-RED  m13  pixels outside every drawn region when the product declares no expansion=3358 (fixed=48)
+MUTATION-RED  m14  silhouettes the band refuses because the product declared zero=14 (fixed=0)
+MUTATION-RED  m14  out-of-region pixels the gate still accepts once the shell is declared zero=0 (fixed=1)
+MUTATION-RED  m10  non-grey percent of a colour frame offered as depth=16.72 (fixed=0)
+MUTATION-SUITE=ALL-RED-RESTORED
+```
+
+### 27.4 三件只有在这棵树上才能证明的事
+
+**(a) 序号没有任何绝对依赖。** m4 的读数在集成树上自动变成 `8 (fixed=7)`，在我 worktree 上是 `7 (fixed=6)`。
+同一个变异、同一份门禁脚本、两棵树两对数字——期望值是从运行时读的，不是写死的。
+forward 里那条 `ordinal: ... (fixed=7 vmOrdinal=8)` 是**记录**，`assert_lt` 才是断言，两者分工清楚。
+
+**(b) m13 把"声明与画面对不上"抓成 3358。** 它发布 1.5 px、按 15 px 画：带断言照旧绿（声明是 1.5），
+outside 从 48 涨到 3358，容差 360 —— 判据红。上一轮同一位置读到 488（世界空间那一版），量级差约 7 倍，
+与 15/1.5 的比例关系一致。
+
+**(c) m14 的红是从"接受"变成"拒绝"，像素一个都没动。** 它只把发布的 `expandPixels` 改 0：
+同样那 48 个框外像素，fixed 构建 within=1（接受），变异体 within=0（拒绝）。
+**这是"容差绑在产品声明上"最直接的证据**：改的不是画面，是声明。
+
+### 27.5 `>= 8` 那条红：集成树上也是绿的，阈值一个字没改
+
+```text
+red_inside=20 blue_inside=35        （上一轮 0.0002 px/侧时是 red=6，触发 >= 8）
+负对照（两队颜色交换）：red_inside=0 blue_inside=0 red_wrong_team=256 blue_wrong_team=256  FAIL
+```
+
+负对照值得单独记：它证明 `red_inside=20` 不是"凡是红像素都算"，而是"红像素出现在红队自己的区域里"。
+
 ## 8. 交接
 
 ### 8.0 冻结状态（2026-10-23 10:55，本轮结束）
