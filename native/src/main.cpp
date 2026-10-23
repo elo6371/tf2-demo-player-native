@@ -5345,11 +5345,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
       // not by another guess. See the report's section 8.0 for the rule that was
       // written before this line existed.
       traceFmt("outline: itemdiag entity=%u key=%08x meshVerts=%u skinned=%u range=%u,%u"
-        " box=%dx%d ndc=%.4f,%.4f origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f",
+        " box=%dx%d vertexbox=%d,%d,%d,%d vverts=%u ndc=%.4f,%.4f origin=%d,%d corners=%d w=%.2f..%.2f world=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f bmin=%.2f,%.2f,%.2f bmax=%.2f,%.2f,%.2f",
         static_cast<unsigned>(item.entityIndex), static_cast<unsigned>(item.meshKeyHash),
         static_cast<unsigned>(item.meshVertexCount), static_cast<unsigned>(item.skinned),
         static_cast<unsigned>(item.rangeVertexCount), static_cast<unsigned>(item.rangeInstanceCount),
-        item.x1 - item.x0 + 1, item.y1 - item.y0 + 1, item.ndcWidth, item.ndcHeight,
+        item.x1 - item.x0 + 1, item.y1 - item.y0 + 1,
+        item.vertexX0, item.vertexY0, item.vertexX1, item.vertexY1, item.vertexCountProjected,
+        item.ndcWidth, item.ndcHeight,
         item.originX, item.originY, item.cornersProjected, item.cornerWMin, item.cornerWMax,
         item.worldExtent[0], item.worldExtent[1], item.worldExtent[2],
         item.worldExtent[3], item.worldExtent[4], item.worldExtent[5],

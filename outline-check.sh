@@ -1102,6 +1102,15 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   assert_eq "cap 96: every prepared class mesh is uploaded" "${CAP96_REJECTED:-<none>}" "0"
   assert_eq "cap 96: uploaded count matches prepared" "${CAP96_UPLOADED:-<none>}" "${CAP96_PREPARED:-<none>}"
 
+  # Every case above left its own build on disk, and the last one to run is not
+  # the product. Said out loud, in the run output, because the alternative is
+  # somebody forward gate measuring a mutant and calling it the fixed build --
+  # 2026-10-23 the exe on disk was the m2 mutant while the sources were clean,
+  # and only a timestamp comparison revealed it.
+  echo
+  echo "  SUITE-ARTIFACT-IS-MUTANT: the binary on disk was built from the last mutation"
+  echo "                            applied above, not from the tree. Rebuild before any"
+  echo "                            forward run or capture."
   # ---- m4: draw the overlay AFTER the ViewModel pass ---------------------
   echo
   echo "  -- m4: the overlay draws after the ViewModel pass --"

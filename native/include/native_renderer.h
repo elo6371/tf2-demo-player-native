@@ -1263,6 +1263,11 @@ private:
     std::uint32_t skinned = 0;
     float meshBoundsMin[3] = {0.0f, 0.0f, 0.0f};
     float meshBoundsMax[3] = {0.0f, 0.0f, 0.0f};
+    // The rows the GPU instance carries, and the vertices they transform. Kept
+    // so the pass can project the vertices themselves instead of projecting a box.
+    float rows[12] = {0.0f};
+    const float* vertexPositions = nullptr;
+    std::uint32_t vertexPositionCount = 0;
   };
   struct OverlayDrawRange {
     ID3D11Buffer* vertexBuffer = nullptr;
@@ -1303,6 +1308,11 @@ private:
     // every item read x0==x1 and every region-scoped assertion was vacuous.
     float boundsMin[3] = {0.0f, 0.0f, 0.0f};
     float boundsMax[3] = {0.0f, 0.0f, 0.0f};
+    // A CPU copy of the positions. The published AABB is a DERIVATION of these,
+    // and on 2026-10-23 a derivation disagreed with the pixels; the vertex-level
+    // box is the same question asked of the vertices instead of of a box around
+    // them, so the two answers can be compared.
+    std::vector<float> cpuPositions;  // x,y,z per vertex
     // The model's own paint, resolved from its MDL texture table. Empty until
     // uploadEntityModelTexture succeeds; a null view keeps the world atlas.
     Texture2D texture;

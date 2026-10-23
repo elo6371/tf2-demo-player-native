@@ -717,6 +717,11 @@ struct OverlayItemReading {
   float worldExtent[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // x0,y0,z0,x1,y1,z1
   // The box the pass publishes, in NDC before the pixel mapping, so the pixel size
   // it reports can be checked against the projection instead of trusted.
+  // The same box, computed from the mesh's vertices through the same rows and
+  // the same mvp. If the pixels fall inside THIS and outside the AABB, the AABB
+  // derivation is what is wrong; if they fall outside both, the geometry is.
+  int vertexX0 = 0, vertexY0 = 0, vertexX1 = 0, vertexY1 = 0;
+  unsigned vertexCountProjected = 0;
   float ndcWidth = 0.0f;
   float ndcHeight = 0.0f;
   float depth = 0.0f;

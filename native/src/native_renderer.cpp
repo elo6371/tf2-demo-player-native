@@ -3347,6 +3347,13 @@ void Renderer::rebuildOverlayBuffers() {
           cpu.worldMax[axis] = std::max(cpu.worldMax[axis], world);
         }
       }
+      for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 4; ++column) {
+          cpu.rows[row * 4 + column] = rows.positionRows[row * 4 + column];
+        }
+      }
+      cpu.vertexPositions = mesh->second.cpuPositions.data();
+      cpu.vertexPositionCount = static_cast<std::uint32_t>(mesh->second.cpuPositions.size() / 3);
       overlayInstances_.push_back(cpu);
       buckets[inserted.first->second].items.push_back(gpu);
       ++accepted;
@@ -3550,6 +3557,12 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   }
   EntityModelMesh mesh;
   mesh.vertexBuffer = std::move(buffer);
+  mesh.cpuPositions.reserve(static_cast<std::size_t>(count) * 3);
+  for (const auto& vertex : local) {
+    mesh.cpuPositions.push_back(vertex.x);
+    mesh.cpuPositions.push_back(vertex.y);
+    mesh.cpuPositions.push_back(vertex.z);
+  }
   mesh.vertexCount = static_cast<UINT>(count);
   for (int axis = 0; axis < 3; ++axis) {
     mesh.boundsMin[axis] = boundsMin[axis];
@@ -5468,6 +5481,9 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
           auto* boneView = entityBoneView_.Get();
           context_->VSSetShaderResources(4, 1, &boneView);
           auto* instanceBuffer = overlayInstanceBuffer_.Get();
+          // One item per frame gets the vertex-level box: 12000 vertices through a
+          // matrix is not something to repeat for every silhouette.
+          bool vertexBoxDone = false;
           for (const auto& range : overlayDrawRanges_) {
             if (range.depth != list.depth) continue;
             if (!range.vertexBuffer || range.vertexCount < 3 || range.instanceCount == 0) continue;
@@ -5578,6 +5594,36 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
                 reading.legacyX1 = static_cast<int>((legacyMaxX * 0.5f + 0.5f) * static_cast<float>(width_));
                 reading.legacyY0 = static_cast<int>((0.5f - legacyMaxY * 0.5f) * static_cast<float>(height_));
                 reading.legacyY1 = static_cast<int>((0.5f - legacyMinY * 0.5f) * static_cast<float>(height_));
+              }
+              if (!vertexBoxDone && instance.vertexPositions && instance.vertexPositionCount > 0) {
+                vertexBoxDone = true;
+                float vMinX = 1.0e30f, vMinY = 1.0e30f, vMaxX = -1.0e30f, vMaxY = -1.0e30f;
+                std::uint32_t inFront = 0;
+                for (std::uint32_t vertex = 0; vertex < instance.vertexPositionCount; ++vertex) {
+                  const float* position = instance.vertexPositions + vertex * 3;
+                  float world[3] = {0.0f, 0.0f, 0.0f};
+                  for (int axis = 0; axis < 3; ++axis) {
+                    const float* row = instance.rows + axis * 4;
+                    world[axis] = row[0] * position[0] + row[1] * position[1]
+                      + row[2] * position[2] + row[3];
+                  }
+                  const DirectX::XMVECTOR clip = DirectX::XMVector4Transform(
+                    DirectX::XMVectorSet(world[0], world[1], world[2], 1.0f), mvpForOverlay);
+                  const float w = DirectX::XMVectorGetW(clip);
+                  if (!(w > 1.0e-4f)) continue;
+                  ++inFront;
+                  vMinX = std::min(vMinX, DirectX::XMVectorGetX(clip) / w);
+                  vMaxX = std::max(vMaxX, DirectX::XMVectorGetX(clip) / w);
+                  vMinY = std::min(vMinY, DirectX::XMVectorGetY(clip) / w);
+                  vMaxY = std::max(vMaxY, DirectX::XMVectorGetY(clip) / w);
+                }
+                reading.vertexCountProjected = inFront;
+                if (inFront > 0) {
+                  reading.vertexX0 = static_cast<int>((vMinX * 0.5f + 0.5f) * static_cast<float>(width_));
+                  reading.vertexX1 = static_cast<int>((vMaxX * 0.5f + 0.5f) * static_cast<float>(width_));
+                  reading.vertexY0 = static_cast<int>((0.5f - vMaxY * 0.5f) * static_cast<float>(height_));
+                  reading.vertexY1 = static_cast<int>((0.5f - vMinY * 0.5f) * static_cast<float>(height_));
+                }
               }
               reading.ndcWidth = maxX - minX;
               reading.ndcHeight = maxY - minY;
