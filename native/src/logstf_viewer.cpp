@@ -853,7 +853,15 @@ bool LogsPanelController::scrollContent(int deltaY, int* resultingOffset) {
     ++counters_.scriptFailures;
     return false;
   }
-  if (resultingOffset != nullptr) *resultingOffset = std::atoi(result.c_str());
+  const int parsed = std::atoi(result.c_str());
+  // The raw string is recorded next to the parsed number: a host whose script
+  // seam returned something unparsable ("undefined", "") reads as 0 in the
+  // offset and would otherwise be indistinguishable from a page that did not
+  // move. scriptFailures counts only a REFUSED call, so this is the field that
+  // catches a call that succeeded and answered nonsense.
+  counters_.lastScrollOffset = parsed;
+  counters_.lastScrollRawResult = result;
+  if (resultingOffset != nullptr) *resultingOffset = parsed;
   return true;
 }
 
@@ -874,9 +882,31 @@ bool LogsPanelController::pageExtent(int* scrollHeight, int* viewportHeight) {
   }
   const std::size_t comma = result.find(',');
   if (comma == std::string::npos) return false;
-  if (scrollHeight != nullptr) *scrollHeight = std::atoi(result.substr(0, comma).c_str());
-  if (viewportHeight != nullptr) *viewportHeight = std::atoi(result.substr(comma + 1).c_str());
+  const int pageHeight = std::atoi(result.substr(0, comma).c_str());
+  const int viewport = std::atoi(result.substr(comma + 1).c_str());
+  counters_.lastScrollPageHeight = pageHeight;
+  counters_.lastScrollViewportHeight = viewport;
+  if (scrollHeight != nullptr) *scrollHeight = pageHeight;
+  if (viewportHeight != nullptr) *viewportHeight = viewport;
   return true;
+}
+
+void LogsPanelController::recordHistoryPair(const std::string& before, const std::string& after) {
+  // Both ends are supplied by the CALLER, after it has waited for the
+  // navigation to commit. The controller cannot read them itself: GoBack()
+  // returns before an asynchronous browser has committed the move, so a pair
+  // sampled around that call would compare the old URL with itself and read as
+  // "no history" on a working browser -- or, with a non-empty check, as proof.
+  counters_.urlBeforeHistory = before;
+  counters_.urlAfterHistory = after;
+}
+
+std::string LogsPanelController::currentAddress() const {
+  if (host_ != nullptr && counters_.hostAlive) {
+    const std::string live = host_->currentUrl();
+    if (!live.empty()) return live;
+  }
+  return url_;
 }
 
 LogsPanelBounds LogsPanelController::panelBounds() const {

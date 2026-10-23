@@ -290,6 +290,20 @@ struct LogsPanelSnapshot {
   std::uint32_t opens = 0;
   std::uint32_t closes = 0;
   std::uint32_t scrollCalls = 0;
+  // The PAGE's own answer to the last scroll, not the request: offset after the
+  // move, and the page/viewport heights from the same seam. A zero here while
+  // scrollCalls is non-zero is the reading that separates "the script ran and
+  // the page did not move" from "the script never ran" -- the count alone
+  // cannot, which is what made the scroll assertion decorative.
+  int lastScrollOffset = 0;
+  std::string lastScrollRawResult;
+  int lastScrollPageHeight = 0;
+  int lastScrollViewportHeight = 0;
+  // The address the browser reported immediately BEFORE and AFTER the last
+  // back/forward, so "history moved" is a changed URL and not merely a
+  // canGoBack flag that was already true once the second page loaded.
+  std::string urlBeforeHistory;
+  std::string urlAfterHistory;
   std::uint32_t scriptCalls = 0;
   std::uint32_t scriptFailures = 0;
   std::uint32_t hostStarts = 0;
@@ -346,6 +360,16 @@ public:
 
   // Push the current content rect to a live host and apply a pending navigate.
   void layout();
+
+  // The address the browser reports, or the imported URL when there is no live
+  // host. Used by a scripted step that must sample the address on both sides of
+  // a settled navigation.
+  std::string currentAddress() const;
+
+  // Record a history observation made by the caller AFTER it waited for the
+  // move to commit. Explicit because the pair cannot be sampled inside
+  // goBack(): see the definition.
+  void recordHistoryPair(const std::string& before, const std::string& after);
 
   LogsPanelState state() const { return state_; }
   LogsPanelSnapshot snapshot() const;

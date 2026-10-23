@@ -34,6 +34,8 @@
 #     m2 empty-state prefetch  -- open() navigates a default page
 #     m3 silent runtime failure-- the unavailable state loses its reason/fallback
 #     m4 resize ignored        -- setWidth stops clamping (the drag leaves the client)
+#     m6 script never runs     -- the scroll call is counted, the page never moves
+#     m7 history flag only     -- CanGoBack=1, the address never changes
 #   Plus capture mutations over the probe's own reading lines, so each needle is
 #   shown to discriminate.
 #
@@ -219,6 +221,11 @@ P_ASSERTIONS=(
   'geometryDemoSqueezed=0|geometry: the demo keeps its minimum width'
   'geometryUnreachable=0|geometry: every toolbar control stays reachable'
   'scrollOffset=480|scroll: the offset the page took is what is reported'
+  'scrollRawRecorded=1|scroll: an unparsable page answer is recorded, not folded into 0'
+  'scrollFailuresWhenRefused=1|scroll: a refused script is distinguishable from a page that stayed put'
+  'scrollOffsetWhenRefused=0|scroll: a refused script reports no offset'
+  'historyUrlBefore=https://logs.tf/1|history: the address before the move is recorded'
+  'historyUrlAfter=https://logs.tf/2|history: the address after the move is recorded'
   'scrollClamped=0|scroll: a page that cannot scroll reports 0, not the request'
   'scrollHeight=4200|scroll: the page height is read back'
   'viewportHeight=720|scroll: the viewport height is read back'
@@ -366,6 +373,21 @@ if [ "$PANEL_CONTENT" -eq 1 ]; then
   # the script and reported no failure.
   assert_contains "scroll reached the page" "$scroll_summary" "scrollCalls=1"
   assert_contains "scroll script succeeded" "$scroll_summary" "scriptFailures=0"
+  # The discriminator the report had to answer for: a script that never runs
+  # also reports offset 0, so the offset alone is decorative. Three readings from
+  # the same summary: the page is taller than the pane (a scroll is possible),
+  # the offset the page reported is greater than zero (the move happened), and
+  # the answer parsed as a number rather than "undefined".
+  scroll_page="$(pvalue "$scroll_summary" scrollPage)"
+  scroll_viewport="$(pvalue "$scroll_summary" scrollViewport)"
+  scroll_offset="$(pvalue "$scroll_summary" scrollOffset)"
+  scroll_raw="$(pvalue "$scroll_summary" scrollRaw)"
+  assert_eq "scroll: the page is taller than the pane" \
+    "$([ -n "$scroll_page" ] && [ -n "$scroll_viewport" ] && [ "$scroll_page" -gt "$scroll_viewport" ] && echo yes || echo no)" "yes"
+  assert_eq "scroll: the page really moved (offset > 0)" \
+    "$([ -n "$scroll_offset" ] && [ "$scroll_offset" -gt 0 ] && echo yes || echo no)" "yes"
+  assert_eq "scroll: the page answered a number, not undefined" \
+    "$(case "$scroll_raw" in undefined|none|"") echo bad;; *) echo ok;; esac)" "ok"
 
   run_product resize --logstf-script resize --logstf-url "https://logs.tf/1"
   resize_summary="$(grep -F 'logstf: summary' "$OUT/resize.trace" | tail -1)"
@@ -396,6 +418,13 @@ if [ "$PANEL_CONTENT" -eq 1 ]; then
   assert_contains "history has an entry behind it" "$history_summary" "canBack=1"
   assert_contains "history back/forward/reload all succeeded" "$history_summary" "scriptFailures=0"
   assert_contains "history ended on the second URL" "$history_summary" "url=https://logs.tf/2"
+  # canBack is a FLAG, and it was already true as soon as the second page
+  # loaded. What proves the browser moved is the address on both sides of the
+  # settled move: historyMoved=1 means the two differ. Both URLs are printed so
+  # a reader can see which pages they were.
+  assert_contains "history moved the page (address changed across the move)" \
+    "$history_summary" "historyMoved=1"
+  echo "  history: $(pvalue "$history_summary" urlBeforeHistory) -> $(pvalue "$history_summary" urlAfterHistory)"
 
   run_product reopen --logstf-script reopen --logstf-url "https://logs.tf/1"
   reopen_summary="$(grep -F 'logstf: summary' "$OUT/reopen.trace" | tail -1)"
@@ -503,6 +532,13 @@ if [ "$MUTATION" -eq 1 ]; then
   mutate_capture unavailable    "$OUT/probe.txt" 's/unavailableHasReason=1/unavailableHasReason=0/'
   mutate_capture geometry       "$OUT/probe.txt" 's/geometryOverlaps=0/geometryOverlaps=3/'
   mutate_capture scroll         "$OUT/probe.txt" 's/scrollOffset=480/scrollOffset=0/'
+  # The two readings the lead's question produced. A probe that reports the
+  # scroll as a call with no offset, and one whose script seam refused, must not
+  # read the same.
+  mutate_capture scroll_raw     "$OUT/probe.txt" 's/scrollRawRecorded=1/scrollRawRecorded=0/'
+  # The history reading is the address itself; collapsing it to the "no address"
+  # sentinel is what a silently-skipped history step would look like.
+  mutate_capture history_url    "$OUT/probe.txt" 's/historyUrlAfter=https:\/\/logs.tf\/2/historyUrlAfter=-/'
 
   # Product mutation 1: the host allow-list accepts anything. The probe (which
   # links the same policy) must go red on the accepted/refused cases, and the
@@ -705,6 +741,113 @@ PYEOF
   cp "$backup" native/src/logstf_viewer.cpp
   cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m5)"; mrc=1; }
 
+  # Product mutation 6: THE VACUITY MUTATION. The script call is counted but
+  # never issued -- scrollCalls=1 and scriptFailures=0 both stay green, exactly
+  # as they did before this round, while the page never moves. If the gate cannot
+  # turn this red then its scroll assertions measure a call site, not a scroll.
+  cp native/src/logstf_viewer.cpp "$backup"
+  m6_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+# The scrollContent call site, identified by BOTH its neighbours: the bare
+# "runScript" line also appears in pageExtent, and replace(count=1) would then
+# silently mutate whichever function happens to come first in the file.
+needle = """  if (!host_->runScript(script, &result, &error)) {
+    ++counters_.scriptFailures;
+    return false;
+  }
+  const int parsed = std::atoi(result.c_str());"""
+replacement = """  if (false) {
+    ++counters_.scriptFailures;
+    return false;
+  }
+  const int parsed = std::atoi(result.c_str());"""
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m6_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
+    if bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/m6.build" 2>&1; then
+      echo "  mutated build rc=0 (m6)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m6): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    run_product m6 --logstf-script scroll --logstf-url "https://logs.tf/1"
+    m6_summary="$(grep -F 'logstf: summary' "$OUT/m6.trace" | tail -1)"
+    m6_calls="$(pvalue "$m6_summary" scrollCalls)"
+    m6_fail="$(pvalue "$m6_summary" scriptFailures)"
+    m6_raw="$(pvalue "$m6_summary" scrollRaw)"
+    m6_off="$(pvalue "$m6_summary" scrollOffset)"
+    echo "  m6 readings: scrollCalls=$m6_calls scriptFailures=$m6_fail scrollRaw=$m6_raw scrollOffset=$m6_off"
+    # The point of this mutation is that the OLD assertions do not move: the
+    # verdict is only a catch if the call counter stayed green while the page
+    # reading went red. "Both went red" would not distinguish the new readings
+    # from the old ones.
+    if [ "$m6_calls" != "1" ] || [ "$m6_fail" != "0" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m6: the call counters moved too, so this"
+      echo "    mutation does not isolate the page reading: calls=$m6_calls fail=$m6_fail)"; mrc=1
+    elif [ "$m6_raw" = "none" ] || [ "${m6_off:-0}" -le 0 ] 2>/dev/null; then
+      echo "  MUTATION-CAUGHT=PASS (m6_script_never_runs: scrollCalls=1 stayed green,"
+      echo "    the page reading went red -- scrollRaw=$m6_raw scrollOffset=$m6_off)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (m6_script_never_runs: the page reading stayed green)"; mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m6_script_never_runs: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup" native/src/logstf_viewer.cpp
+  cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m6)"; mrc=1; }
+
+  # Product mutation 7: history is a FLAG, not a move. recordHistoryPair is fed
+  # the same address on both sides, which is exactly what a browser that reports
+  # CanGoBack=1 without committing a navigation looks like. canBack=1 stays
+  # green; only historyMoved / the address pair go red.
+  cp native/src/logstf_viewer.cpp "$backup"
+  m7_patch() {
+    "$PY" - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8", newline="").read()
+needle = """  counters_.urlAfterHistory = after;"""
+replacement = """  counters_.urlAfterHistory = before;"""
+if needle not in text:
+    sys.stderr.write("needle not found\n")
+    sys.exit(3)
+open(path, "w", encoding="utf-8", newline="").write(text.replace(needle, replacement, 1))
+PYEOF
+  }
+  if m7_patch native/src/logstf_viewer.cpp && ! cmp -s native/src/logstf_viewer.cpp "$backup"; then
+    if bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/m7.build" 2>&1; then
+      echo "  mutated build rc=0 (m7)"
+    else
+      echo "  MUTATION-BUILD=FAIL (m7): the mutation did not compile, so it scores"
+      echo "  nothing -- a build failure is an unverified mutation, not a caught one."; mrc=1
+    fi
+    run_product m7 --logstf-script history --logstf-url "https://logs.tf/1" --logstf-url2 "https://logs.tf/2"
+    m7_summary="$(grep -F 'logstf: summary' "$OUT/m7.trace" | tail -1)"
+    m7_moved="$(pvalue "$m7_summary" historyMoved)"
+    m7_can="$(pvalue "$m7_summary" canBack)"
+    echo "  m7 readings: canBack=$m7_can historyMoved=$m7_moved"
+    if [ "$m7_can" != "1" ]; then
+      echo "  MUTATION-UNREADABLE=FAIL (m7: canBack moved too, so this mutation"
+      echo "    does not isolate the address reading: canBack=$m7_can)"; mrc=1
+    elif [ "$m7_moved" = "0" ]; then
+      echo "  MUTATION-CAUGHT=PASS (m7_history_flag_only: canBack=1 stayed green, the"
+      echo "    address pair went red -- historyMoved=0)"
+    else
+      echo "  MUTATION-CAUGHT=FAIL (m7_history_flag_only: the address reading stayed green)"; mrc=1
+    fi
+  else
+    echo "  MUTATION-SETUP=FAIL (m7_history_flag_only: the patch changed nothing)"; mrc=1
+  fi
+  cp "$backup" native/src/logstf_viewer.cpp
+  cmp -s native/src/logstf_viewer.cpp "$backup" || { echo "  RESTORE=FAIL (m7)"; mrc=1; }
+
   # Restore the real binaries after the last mutation.
   bash build-target.sh tf2_demo_native logstf_viewer_probe > "$OUT/restore.build" 2>&1 \
     || { echo "  RESTORE-BUILD=FAIL"; mrc=1; }
@@ -712,7 +855,7 @@ PYEOF
     || { echo "  RESTORE-PROBE=FAIL (the restored probe is not green)"; mrc=1; }
 
   [ "$mrc" -eq 0 ] || { echo "LOGSTF-MUTATION=FAIL"; exit 1; }
-  echo "LOGSTF-MUTATION=PASS (six capture mutations, four product mutations and one seam mutation all went red)"
+  echo "LOGSTF-MUTATION=PASS (eight capture mutations, six product mutations and one seam mutation all went red)"
 fi
 
 echo
