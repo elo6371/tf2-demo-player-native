@@ -474,7 +474,9 @@ run_frame() { # run_frame <prefix> [args...]
        return 0 ;;
   esac
   TF2_NATIVE_TRACE="$trace" timeout "${RUN_TIMEOUT:-600}" "$EXE" "${productArgs[@]}" > "$prefix.log" 2>&1
-  echo "$?"
+  local rc=$?
+  trim_trace "$prefix"
+  echo "$rc"
 }
 OFF_RC=$(run_frame "$OUT/off" --outline off)
 ON_RC=$(run_frame "$OUT/on" --outline on)
