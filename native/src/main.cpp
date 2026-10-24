@@ -26,6 +26,7 @@
 #include "native_ui.h"
 #include "hud_import.h"
 #include "hud_state.h"
+#include "hud_panel.h"
 // wideToUtf8 / utf8ToWide: the narrow/wide bridge the HUD document path needs,
 // shared with T50's settings layer rather than re-implemented here.
 #include "ini_section.h"
@@ -1463,6 +1464,10 @@ bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
 // ---------------------------------------------------------------------------
 
 tf2::native::HudState g_hud;
+// T67: --hud-text-test draws the fixed primitive list instead of the imported
+// layout. A file-scope flag because both the argument scan and the resize path
+// (hudApplyRects) need the same answer.
+bool g_hudTextTest = false;
 // The discovered document is kept in g_hud.settings().layout, which is the value
 // that gets persisted -- a second copy here would be a second thing that can
 // disagree with what the settings file says was imported.
@@ -1660,9 +1665,49 @@ std::filesystem::path uiSettingsFilePath(std::string& status) {
   return path;
 }
 
+// T67: the fixed primitive list the --hud-text-test run draws. It is a probe,
+// not a layout: the coordinates are constants so a gate can compare the frame
+// against the same numbers. The last character is non-ASCII on purpose -- it has
+// no glyph, so it must take the fallback cell and be counted as unmapped, which
+// is what makes "unmapped text has a visible placeholder" a reading.
+void hudApplyTextTest() {
+  if (!g_renderer) return;
+  std::vector<tf2::native::Renderer::HudPrimitive> primitives;
+  tf2::native::Renderer::HudPrimitive text;
+  text.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
+  text.x = 40.0f;
+  text.y = 60.0f;
+  // 22 codepoints (21 ASCII + one non-ASCII), 8x8 cells at scale 2.
+  text.w = 22.0f * 8.0f * 2.0f;
+  text.h = 8.0f * 2.0f;
+  text.scale = 2.0f;
+  text.colour[0] = 1.0f; text.colour[1] = 1.0f; text.colour[2] = 1.0f; text.colour[3] = 1.0f;
+  text.text = "TF2 0:00 RED 12 BLU 7\xE4\xB8\xAD";
+  primitives.push_back(text);
+  tf2::native::Renderer::HudPrimitive panel;
+  panel.kind = tf2::native::Renderer::HudPrimitiveKind::Rect;
+  panel.x = 40.0f; panel.y = 120.0f; panel.w = 240.0f; panel.h = 40.0f;
+  panel.filled = true;
+  panel.colour[0] = 0.12f; panel.colour[1] = 0.28f; panel.colour[2] = 0.65f; panel.colour[3] = 1.0f;
+  primitives.push_back(panel);
+  tf2::native::Renderer::HudPrimitive red;
+  red.kind = tf2::native::Renderer::HudPrimitiveKind::Circle;
+  red.x = 60.0f; red.y = 200.0f; red.w = 24.0f; red.h = 24.0f;
+  red.colour[0] = 1.0f; red.colour[1] = 0.0f; red.colour[2] = 0.0f; red.colour[3] = 1.0f;
+  primitives.push_back(red);
+  tf2::native::Renderer::HudPrimitive blue;
+  blue.kind = tf2::native::Renderer::HudPrimitiveKind::Circle;
+  blue.x = 120.0f; blue.y = 200.0f; blue.w = 24.0f; blue.h = 24.0f;
+  blue.colour[0] = 0.1f; blue.colour[1] = 0.4f; blue.colour[2] = 1.0f; blue.colour[3] = 1.0f;
+  primitives.push_back(blue);
+  g_renderer->setHudPrimitives(primitives);
+  g_renderer->setHudEnabled(true);
+}
+
 // Pushes the current layout at the renderer for the window's current client size.
 void hudApplyRects(HWND window) {
   if (!g_renderer) return;
+  if (g_hudTextTest) { hudApplyTextTest(); return; }
   RECT client{};
   if (!window || !GetClientRect(window, &client)) { client.right = 1280; client.bottom = 720; }
   const float dpiScale = window ? static_cast<float>(GetDpiForWindow(window)) / 96.0f : 1.0f;
@@ -2800,6 +2845,11 @@ bool outlineVertexExtent = false;
         return true;
       } else if (wcscmp(arguments[i], L"--hud-apply") == 0) {
         hudApplyRequested = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-text-test") == 0) {
+        // T67: draw the fixed primitive list (text, filled panel, two dots)
+        // instead of an imported layout, so the gate can assert exact pixels.
+        g_hudTextTest = true;
         return true;
       }
     return false;
@@ -5560,6 +5610,12 @@ bool outlineVertexExtent = false;
     }
     registerKeybinds(hudSettingsFile);
     hudApplyRects(window);
+    // T67: the panel container is pure layout, so its self-test runs without a
+    // device and is reported as a reading rather than a comment.
+    {
+      const tf2::native::HudPanelSelfTest panelTest = tf2::native::hudPanelSelfTest();
+      traceFmt("hudpanel: cases=%zu pass=%zu fail=%zu", panelTest.cases, panelTest.passed, panelTest.failed);
+    }
     hudUpdateStatus(window);
     hudPublishTrace(window);
   }
@@ -9309,6 +9365,15 @@ bool outlineVertexExtent = false;
           g_renderer->hudLastRegion().x, g_renderer->hudLastRegion().y,
           g_renderer->hudLastRegion().w, g_renderer->hudLastRegion().h,
           hudUnion.x, hudUnion.y, hudUnion.w, hudUnion.h);
+        // T67: the text readings, on the same captured frame as the pixels.
+        traceFmt("hudtext: primitives=%zu drawn=%zu textQuads=%zu glyphs=%zu unmapped=%zu"
+          " region=%d,%d,%d,%d passOrdinal=%zu",
+          g_renderer->hudPrimitiveCount(), g_renderer->hudDrawnPrimitives(),
+          g_renderer->hudTextQuads(), g_renderer->hudGlyphCount(),
+          g_renderer->hudUnmappedGlyphs(),
+          g_renderer->hudLastRegion().x, g_renderer->hudLastRegion().y,
+          g_renderer->hudLastRegion().w, g_renderer->hudLastRegion().h,
+          g_renderer->hudPassOrdinal());
       }
       if (captureRequested) writeViewModelReading();
       // T21: the face trace is taken on the same frame, after the draw. Its

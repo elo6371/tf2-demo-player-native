@@ -1,0 +1,14 @@
+frame=1264x681
+regionExpected=1
+outsideDiff=803056
+insideDiff=57728
+diffBBox=0,0,1263,680
+rectColour=31,71,166
+redCentre=255,0,0
+blueCentre=25,102,255
+circleCornerDiff=4
+glyphBad=2048
+glyphChecked=8
+fallbackBad=256
+fallbackBox=0
+verifyOk=0

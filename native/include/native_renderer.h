@@ -972,16 +972,41 @@ public:
   // The pixel region the pass was allowed to touch on the last draw, unioned.
   // Declared before its accessor so the type is complete where it is used.
   struct HudPixelRectLast { int x = 0; int y = 0; int w = 0; int h = 0; bool empty = true; };
-  // Replaces the whole rect list; an empty list disables the pass without
+  // ---- T67: text, filled shapes and dots --------------------------------
+  // T51 could draw only bordered blocks, so "the HUD shows text" was a claim the
+  // frame could not show. A primitive now says which shader path draws it and,
+  // for text, carries its own UTF-8 string: the pass expands one text primitive
+  // into one quad per glyph against the embedded 8x8 font (hud_font.h). The
+  // per-vertex kind keeps the whole HUD a single draw call.
+  enum class HudPrimitiveKind { Rect = 0, Text = 1, Circle = 2 };
+  struct HudPrimitive {
+    HudPrimitiveKind kind = HudPrimitiveKind::Rect;
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    bool filled = false; // Rect only: false keeps T51's bordered block
+    std::string text;    // Text only: UTF-8
+    float scale = 1.0f;  // Text only: pixels per font pixel
+  };
+  // Replaces the whole primitive list; an empty list disables the pass without
   // touching `enabled`, so "no HUD in this document" and "the user turned it
   // off" stay distinguishable in the readings.
+  void setHudPrimitives(const std::vector<HudPrimitive>& primitives);
+  // The T51 entry point is kept: each rect maps to a bordered Rect primitive, so
+  // the existing import path and its readings keep working unchanged.
   void setHudRects(const std::vector<HudDrawRect>& rects);
   void setHudEnabled(bool enabled) { hudEnabled_ = enabled; }
   bool hudEnabled() const { return hudEnabled_; }
-  std::size_t hudRectCount() const { return hudRectVertexCount_ / 6u; }
-  // The number of rects the last draw actually covered, reset at the start of
-  // it. `hudRectCount()` is what was handed in; this is what was drawn.
+  std::size_t hudRectCount() const { return hudDrawnRects_; }
+  // The number of primitives the last draw actually covered, reset at the start
+  // of it. `hudPrimitiveCount()` is what was handed in; this is what was drawn.
+  std::size_t hudPrimitiveCount() const { return hudPrimitives_.size(); }
+  std::size_t hudDrawnPrimitives() const { return hudDrawnPrimitives_; }
   std::size_t hudDrawnRects() const { return hudDrawnRects_; }
+  // Text readings: text primitives drawn, glyph quads emitted, and codepoints
+  // that had no glyph and therefore used the fallback cell.
+  std::size_t hudTextQuads() const { return hudTextQuads_; }
+  std::size_t hudGlyphCount() const { return hudGlyphCount_; }
+  std::size_t hudUnmappedGlyphs() const { return hudUnmappedGlyphs_; }
   std::size_t hudPassOrdinal() const { return hudPassOrdinal_; }
   // Whether the pass scissored itself. Recorded from the draw rather than
   // asserted, because "the pass cannot paint outside its rects" is the claim the
@@ -1895,12 +1920,21 @@ private:
   Microsoft::WRL::ComPtr<ID3D11BlendState> hudBlendState_;
   UINT hudRectVertexCount_ = 0;
   std::size_t hudRectCapacity_ = 0;
-  std::vector<HudDrawRect> hudRects_;
+  std::vector<HudPrimitive> hudPrimitives_;
   bool hudEnabled_ = false;
   std::size_t hudDrawnRects_ = 0;
+  std::size_t hudDrawnPrimitives_ = 0;
+  std::size_t hudTextQuads_ = 0;
+  std::size_t hudGlyphCount_ = 0;
+  std::size_t hudUnmappedGlyphs_ = 0;
   std::size_t hudPassOrdinal_ = 0;
   bool hudScissorApplied_ = false;
   HudPixelRectLast hudLastRegion_{};
+  // T67: the embedded font atlas and its point sampler. The table is compiled
+  // into the binary, so these are created once and never updated.
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> hudFontTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> hudFontView_;
+  Microsoft::WRL::ComPtr<ID3D11SamplerState> hudSampler_;
 };
 
 } // namespace tf2::native

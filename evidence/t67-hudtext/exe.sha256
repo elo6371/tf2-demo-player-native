@@ -1,0 +1,3 @@
+9ecf85805051953b02201c21e5f83a3b9a3d71001cd69f4089997bbc83a06036 *native/build-nmake/tf2_demo_native.exe (forward build 14:05, superseded)
+99538046759413bc1ec5f35db6259f4f32b559d6fd389eed1952edbaa7e3e881 *native/build-nmake/tf2_demo_native.exe (restored build 14:23; produced forward.log 15:02 and passed hud-check.sh 15:01)
+3a7528676483dcd83c917278680a4537fefd2619bff2810127db4842dcb8bcbe *native/build-nmake/hud_probe.exe (built 14:56 for hud-check.sh)

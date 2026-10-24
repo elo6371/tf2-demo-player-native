@@ -1,0 +1,51 @@
+[  0%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main.cpp.obj
+main.cpp
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(2887): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(2888): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(2889): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(2890): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(2891): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(8483): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(2245): note: 参见“instance”的声明
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): note: 模板实例化上下文(最早的实例化上下文)为
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(5536): note: 查看对正在编译的函数 模板 实例化“std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string<std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,0>(_Iter,_Iter,const _Alloc &)”的引用
+        with
+        [
+            _Elem=wchar_t,
+            _Iter=std::_String_iterator<std::_String_val<std::_Simple_types<wchar_t>>>,
+            _Alloc=std::allocator<char>
+        ]
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\main.cpp(5536): note: 请参阅 "wWinMain::<lambda_18>::operator ()" 中对 "std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string" 的第一个引用
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xstring(812): note: 查看对正在编译的函数 模板 实例化“void std::basic_string<char,std::char_traits<char>,std::allocator<char>>::_Construct_from_iter<wchar_t*,wchar_t*,_Size_type>(_Iter,const _Sent,_Size)”的引用
+        with
+        [
+            _Size_type=unsigned __int64,
+            _Iter=wchar_t *,
+            _Sent=wchar_t *,
+            _Size=unsigned __int64
+        ]
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xstring(968): note: 查看对正在编译的函数 模板 实例化“_OutIt *std::_Copy_n_unchecked4<wchar_t*,_Size,char*>(_InIt,_SizeTy,_OutIt)”的引用
+        with
+        [
+            _OutIt=char *,
+            _Size=unsigned __int64,
+            _InIt=wchar_t *,
+            _SizeTy=unsigned __int64
+        ]
+[  0%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer.cpp.obj
+native_renderer.cpp
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(1654): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(1422): note: 参见“samplerDescription”的声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(3419): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(3677): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(3573): note: 参见“world”的声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4502): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4503): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4810): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4676): note: 参见“view”的声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4980): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4676): note: 参见“view”的声明
+[  0%] Linking CXX executable tf2_demo_native.exe
+Copying WebView2Loader.dll next to tf2_demo_native.exe
+[100%] Built target tf2_demo_native

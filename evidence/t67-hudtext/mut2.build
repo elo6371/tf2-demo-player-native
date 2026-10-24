@@ -1,0 +1,9 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(1654): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(3419): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(3677): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4502): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4503): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4810): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t67-hudtext\native\src\native_renderer.cpp(4980): warning C4456: “view”的声明隐藏了上一个本地声明
+rc=0
