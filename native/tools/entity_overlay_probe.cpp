@@ -476,17 +476,16 @@ int demoMode(const std::string& demoPath, const std::vector<std::int32_t>& ticks
   }
   bool haveFirst = false;
   const std::int32_t firstTick = tf2::native::firstRecordedPacketTick(index, haveFirst);
-  // THE SERVER TICK ORIGIN, derived exactly the way the product derives it
-  // (main.cpp: the first command 1 or 2 entry). This is a DIFFERENT number from
-  // firstRecordedPacketTick and the line above used to print that one under this
-  // name: the probe said 1 while the product said 10252 for the same recording,
-  // and a reader with two answers picks the one that looks authoritative. One
-  // number, one derivation, and the trace of the product is still the only place
-  // that reports what the product actually used.
-  std::int32_t serverTickOrigin = 0;
-  const auto firstCommand = std::find_if(index.entries.begin(), index.entries.end(),
-    [](const auto& entry) { return entry.command == 1 || entry.command == 2; });
-  if (firstCommand != index.entries.end()) serverTickOrigin = firstCommand->tick;
+  // THE SERVER TICK ORIGIN, and it is the tick svc_NetTick carries, not an entry
+  // tick. Until T63-F1 this probe derived it the way the product then did -- the
+  // first command 1 or 2 ENTRY tick (the signon tick) -- and that number was 68
+  // ticks early on cp_snakewater (10252 vs 10320) and 56147 early on
+  // koth_bagel_rc13 (1 vs 56148), so every playback<->server conversion the
+  // outline gate did from this field pointed 68 ticks before the frame the
+  // product actually queried. The product's own scene clock is a per-packet
+  // table now; this field is that table's first row, and firstDataEntryTick is
+  // the entry-space origin printed beside it.
+  const std::int32_t serverTickOrigin = summary.firstDataNetTick;
   // The retained window is what a random-access question can answer, so it is
   // printed rather than assumed. On this recording most of the demo is BEFORE
   // it: the first run of this probe asked for ticks 1001..2001 and every answer
