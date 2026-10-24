@@ -5039,19 +5039,16 @@ bool outlineVertexExtent = false;
   tf2::native::SoundEventTimeline soundTimeline;
   // TWO ORIGINS, because a demo carries two tick spaces and they are not the
   // same number:
-  //   * `firstPacketTick` is the SERVER tick origin. Entity history is keyed by
-  //     the tick `svc_NetTick` carries, and the signon block's entry tick holds
-  //     the server tick at connect, so the first command 1 or 2 entry is the
-  //     right origin for `sceneTick`.
-  //     IT IS PER RECORDING, so no number belongs in this comment. It used to say
-  //     "measured here: 29368", which was true of the recording the sentence was
-  //     written on and was read as a constant by the next two readers: the overlay
-  //     probe printed 1 under this name (it was printing
-  //     firstRecordedPacketTick instead) and the outline gate converted the
-  //     prober's ticks with it, producing a capture tick 10128 past the end of
-  //     the recording. cp_snakewater measures 10252 and the product prints it on
-  //     its own "scene: begin tick=0 sceneTick=<n>" line, which is the only
-  //     authority for it.
+  //   * `firstPacketTick` is the DATA-PACKET ENTRY tick origin. The command 2
+  //     block sequence starts at 1 and advances one per recorded packet; view
+  //     samples are keyed in that space. It is NOT the server tick origin. The
+  //     old comment claimed it was, because the signon block's entry tick
+  //     (10252 on snakewater) looks like a server tick; adding it to playback
+  //     put every scene query ~10k ticks before the entity history
+  //     ("tick-before-history, states=0"). A scene's server tick now comes from
+  //     the per-packet table (demoNetworkSummary.packetServerTicks), never from
+  //     an offset, because packets drop.
+  //     IT IS PER RECORDING, so no number belongs in this comment.
   //   * `soundOriginTick` is the DEMO ENTRY tick origin, because sound events
   //     are tagged with `entry.tick`. The recorded packets carry their own
   //     counter that starts near zero, so the signon tick is *above* the whole
@@ -5061,10 +5058,11 @@ bool outlineVertexExtent = false;
   // They were one variable, so fixing the sounds silently emptied the scene
   // (entity snapshots read `tick-before-history`, states=0). Kept separate and
   // both reported so the next reader cannot repeat that.
-  std::int32_t firstPacketTick = 0;
-  const auto firstPacket = std::find_if(demoIndex.entries.begin(), demoIndex.entries.end(),
-    [](const auto& entry) { return entry.command == 1 || entry.command == 2; });
-  if (firstPacket != demoIndex.entries.end()) firstPacketTick = firstPacket->tick;
+  // T63-F1: no fallback to the signon tick. A demo with no command 2 data
+  // packet has no data-entry origin at all; the scene clock reports that by
+  // name (reason=no-data-packets) instead of silently reverting to the
+  // server-connect tick that caused the original defect.
+  const std::int32_t firstPacketTick = demoNetworkSummary.firstDataEntryTick;
   bool soundOriginFound = false;
   const std::int32_t soundOriginTick = tf2::native::firstRecordedPacketTick(demoIndex, soundOriginFound);
   // The placement itself (nameless drop, origin subtraction, scheduling) lives in
@@ -8223,13 +8221,61 @@ bool outlineVertexExtent = false;
     g_cameraDirector.setPaused(g_playback.paused);
     g_cameraDirector.noteDemoTick(g_playback.paused, g_playback.tick);
     if (g_renderer && g_playback.enabled && g_playback.tick != lastSceneTick) {
-      const std::int32_t sceneTick = firstPacketTick + g_playback.tick;
+      // T63-F1: the entry-tick space and the server-tick space are separate.
+      // View samples are entry ticks; entity history, effects and projectiles
+      // are server ticks. `sceneTick` stays the SERVER tick because the existing
+      // gates read it from "scene: begin" with a greedy sed; the entry tick is
+      // published on its own "scene: clock" line.
+      const std::int32_t sceneEntryTick = firstPacketTick >= 0
+        ? firstPacketTick + g_playback.tick : -1;
+      // The table is indexed by PLAYBACK tick, not by entry tick: row r holds
+      // the packet whose entry tick is (firstDataEntryTick + r). Indexing it
+      // with sceneEntryTick read one row late (snakewater printed 10321 where
+      // the table's row 0 is 10320), and on a recording whose first data entry
+      // is 0 it reads one row early.
+      const std::int32_t sceneRow = firstPacketTick >= 0 ? g_playback.tick : -1;
+      std::int32_t sceneTick = -1;
+      bool sceneServerTickKnown = false;
+      const char* sceneClockReason = "";
+      if (sceneEntryTick < 0) {
+        sceneClockReason = "no-data-packets";
+      } else if (static_cast<std::size_t>(sceneRow)
+                 >= demoNetworkSummary.packetServerTicks.size()) {
+        sceneClockReason = "entry-tick-out-of-range";
+      } else if (demoNetworkSummary.packetServerTickKnown[sceneRow] == 0) {
+        sceneClockReason = "server-tick-unknown";
+      } else {
+        sceneTick = demoNetworkSummary.packetServerTicks[sceneRow];
+        sceneServerTickKnown = true;
+      }
+      // "scene: begin" keeps its numeric shape for the gates that read it with
+      // a greedy sed; sceneTick is -1 only when the tick is unknown and no gate
+      // treats that -1 as a tick (outline-check.sh:878-879 prints it in a
+      // failure message only). "scene: clock" carries the reason by name.
       traceFmt("scene: begin tick=%d sceneTick=%d", static_cast<int>(g_playback.tick),
         static_cast<int>(sceneTick));
+      if (sceneServerTickKnown) {
+        traceFmt("scene: clock tick=%d entryTick=%d serverTick=%d serverTickKnown=1",
+          static_cast<int>(g_playback.tick), static_cast<int>(sceneEntryTick),
+          static_cast<int>(sceneTick));
+      } else {
+        traceFmt("scene: clock tick=%d entryTick=%d serverTick=-1 serverTickKnown=0 reason=%s",
+          static_cast<int>(g_playback.tick), static_cast<int>(sceneEntryTick), sceneClockReason);
+      }
       std::int32_t resolvedSceneTick = sceneTick;
-      entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
-          demoNetworkSummary, sceneTick, currentEntityStates, &resolvedSceneTick);
-      entitySnapshotStaleness = sceneTick - resolvedSceneTick;
+      if (sceneServerTickKnown) {
+        entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
+            demoNetworkSummary, sceneTick, currentEntityStates, &resolvedSceneTick);
+        entitySnapshotStaleness = sceneTick - resolvedSceneTick;
+      } else {
+        // A packet before the first svc_NetTick has no server tick. Querying it
+        // would quietly use an entry tick as a server tick, which is the defect;
+        // report the unknown instead of guessing one.
+        currentEntityStates.clear();
+        entitySnapshotStatus = tf2::native::EntitySnapshotQueryStatus::NoHistory;
+        entitySnapshotStaleness = -1;
+        traceFmt("scene: snapshot skipped reason=server-tick-unknown");
+      }
       traceFmt("scene: snapshot status=%d stale=%d states=%zu",
         static_cast<int>(entitySnapshotStatus), static_cast<int>(entitySnapshotStaleness),
         currentEntityStates.size());
@@ -8239,7 +8285,7 @@ bool outlineVertexExtent = false;
       // the line readable on a scene tick with no observe target.
       float cameraEyeX = 0.0f, cameraEyeY = 0.0f, cameraEyeZ = 0.0f;
       const bool haveObserverView =
-        tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneTick, observerView)
+        tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneEntryTick, observerView)
         && observerView.hasOrigin && observerView.hasAngles;
       if (haveObserverView) {
         cameraEyeX = observerView.origin[0];
@@ -8337,7 +8383,7 @@ bool outlineVertexExtent = false;
       hudState = snapshotDrawable
         ? tf2::native::readPlaybackHud(currentEntityStates, demoNetworkSummary.lastViewEntity)
         : tf2::native::PlaybackHudState{};
-      hudEffectsDue = effectTimeline.countThrough(sceneTick);
+      hudEffectsDue = sceneServerTickKnown ? effectTimeline.countThrough(sceneTick) : 0;
       traceFmt("scene: hud fxDue=%d drawable=%d", static_cast<int>(hudEffectsDue),
         snapshotDrawable ? 1 : 0);
       if (snapshotDrawable) {

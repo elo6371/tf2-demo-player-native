@@ -1,0 +1,126 @@
+ACQUIRED owner=t63-clock at 2026-10-24 13:54:04
+demo-clock-check  demo_S1=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+                  demo_S5=D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem
+                  demo_P1=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-09-10_14-04-13.dem
+
+=== A0: the readers, both ways (synthetic lines, no product) ===
+  OK   reader clock entryTick = 8
+  OK   reader clock serverTick = 100
+  OK   reader clock unknown tick is empty
+  OK   reader last snapshot status = 0
+  OK   reader last snapshot states = 3
+
+=== A1/A2: the stream start, both polarities (probe + product) ===
+  OK   S1 table row 20000 present = 30320 (>= 1)
+  OK   S1 scan = 1
+  OK   S5 scan = 1
+  OK   S1 first_signon_entry_tick = 10252
+  OK   S1 first_data_entry_tick = 1
+  OK   S1 first_data_net_tick = 10320
+  OK   A1 table row 0 (playback 0) = 10320
+  OK   A1 table row 1 (playback 1) = 10321
+  OK   A1 tick0 entryTick = 1
+  OK   A1 tick0 serverTick = 10320
+  OK   A1 tick0 serverTickKnown = 1
+  OK   A1 tick1 entryTick = 2
+  OK   A1 tick1 serverTick = 10321
+  OK   A1 tick1 serverTickKnown = 1
+  OK   S5 first_data_entry_tick = 1
+  OK   S5 first_data_net_tick = 56148
+  OK   A2 table row 0 (playback 0) = 56148
+  OK   A2 tick0 entryTick = 1
+  OK   A2 tick0 serverTick = 56148
+  OK   A2 tick0 serverTickKnown = 1
+
+=== A3: mid-demo snapshot from the packet table ===
+  OK   S1 server_tick_gaps = 11
+  OK   S1 table size == header ticks (row 0 is playback 0) = 64352
+  OK   S1 last data entry tick == header ticks = 64352
+  OK   S1 data packets recorded = 64330
+  OK   A3 tick20000 entryTick = 20001
+  OK   A3 tick20000 serverTick = 30320
+  OK   A3 tick20000 serverTickKnown = 1
+  OK   A3 snapshot status = 1 (available or checkpoint)
+  OK   A3 snapshot stale equals the probe's for the same server tick = 794
+  OK   A3 staleness 794 <= checkpoint gap 1035
+  OK   A3 snapshot states = 2048 (>= 1)
+  OK   A3 table row 20000 beats the linear offset = 30320 (> 30319)
+  OK   A3 probe snapshot status = checkpoint
+  OK   A3 probe snapshot (table row 20000) states = 2048 (>= 1)
+
+=== A4: view samples are data-entry ticks, in order ===
+  OK   S1 view_ordered = 1
+  INFO S1 view_out_of_order pre-repair = 3
+  OK   S1 view_out_of_order_after_repair = 0
+  OK   S1 signon samples counted = 3 (>= 1)
+  OK   S1 first view tick = 1
+  OK   S1 last view tick = 64352 (>= 64152)
+  OK   S5 view_ordered = 1
+  INFO S5 view_out_of_order pre-repair = 2
+  OK   S5 view_out_of_order_after_repair = 0
+  OK   S5 table size == header ticks = 77466
+  OK   S5 view_samples_dropped = 0
+  OK   S5 last view tick = 77466 (>= 77266)
+
+=== A5: camera eye is the entry-tick view sample (POV demo) ===
+  OK   A5 P1 first_data_entry_tick = 0 (>= 0)
+  OK   A5 P1 table row 600 = 2106 (>= 1)
+  OK   A5 P1 first_data_entry_tick = 0 (>= 0)
+  OK   A5 tick600 entryTick = 600
+  OK   A5 tick600 serverTick = 2106
+  OK   A5 tick600 serverTickKnown = 1
+  OK   A5 probe camera_found = 1
+  OK   A5 probe camera_sample_tick = 600
+  OK   A5 probe camera_origin_valid = 1
+  OK   A5 probe camera_origin 1784.66,-3594.82,239.965 is a real position
+  OK   A5 camera eye matches the entry-600 view sample
+=== A6: negative control, the pre-fix origin ===
+  OK   A6 bagel server tick 1 status = before-history
+  OK   A6 bagel server tick 56148 status = checkpoint
+  OK   A6 bagel server tick 56148 states = 2048 (>= 1)
+
+=== mutations: each must move the reading it names ===
+
+  -- m1: sceneEntryTick uses the signon entry tick --
+  OK   S1 first_signon_entry_tick = 10252
+  OK   S1 first_data_entry_tick = 1
+  OK   S1 first_data_net_tick = 10320
+  OK   A1 table row 0 (playback 0) = 10320
+  OK   A1 table row 1 (playback 1) = 10321
+  OK   A1 tick0 entryTick = 1
+  OK   A1 tick0 serverTick = 10320
+  OK   A1 tick0 serverTickKnown = 1
+  OK   A1 tick1 entryTick = 2
+  OK   A1 tick1 serverTick = 10321
+  OK   A1 tick1 serverTickKnown = 1
+  MUTATION-GREEN m1: the mutation did not move the reading
+  restored main.cpp byte-identical (cmp)
+  OK   S1 first_signon_entry_tick = 10252
+  OK   S1 first_data_entry_tick = 1
+  OK   S1 first_data_net_tick = 10320
+  OK   A1 table row 0 (playback 0) = 10320
+  OK   A1 table row 1 (playback 1) = 10321
+  OK   A1 tick0 entryTick = 1
+  OK   A1 tick0 serverTick = 10320
+  OK   A1 tick0 serverTickKnown = 1
+  OK   A1 tick1 entryTick = 2
+  OK   A1 tick1 serverTick = 10321
+  OK   A1 tick1 serverTickKnown = 1
+
+  -- m2: entity snapshot query uses the entry tick --
+  OK   S1 server_tick_gaps = 11
+  OK   S1 table size == header ticks (row 0 is playback 0) = 64352
+  OK   S1 last data entry tick == header ticks = 64352
+  OK   S1 data packets recorded = 64330
+  OK   A3 tick20000 entryTick = 20001
+  OK   A3 tick20000 serverTick = 30320
+  OK   A3 tick20000 serverTickKnown = 1
+  OK   A3 snapshot status = 1 (available or checkpoint)
+  OK   A3 snapshot stale equals the probe's for the same server tick = 794
+  OK   A3 staleness 794 <= checkpoint gap 1035
+  OK   A3 snapshot states = 2048 (>= 1)
+  OK   A3 table row 20000 beats the linear offset = 30320 (> 30319)
+  OK   A3 probe snapshot status = checkpoint
+  OK   A3 probe snapshot (table row 20000) states = 2048 (>= 1)
+  MUTATION-GREEN m2: the mutation did not move the reading
+  restored main.cpp byte-identical (cmp)

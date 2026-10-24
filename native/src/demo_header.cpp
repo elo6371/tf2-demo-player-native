@@ -641,6 +641,12 @@ bool readGetCvarValue(MessageBits& bits, DemoNetworkSummary& summary) {
   return true;
 }
 
+// T63-F1: one cap for every view-sample stream (cmdinfo, signon, fixangle).
+// 65536 was below what a SourceTV demo can carry (bagel: 73121 fix-angle
+// samples), so samples were dropped silently and the surviving sequence looked
+// ordered. Shared with the t66-camera branch: keep this line identical there.
+constexpr std::size_t kMaxViewSamples = 1048576u;
+
 bool readFixAngle(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
   std::uint32_t relative = 0;
   if (!bits.read(1, relative)) return false;
@@ -663,14 +669,14 @@ bool readFixAngle(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t p
   summary.lastFixAngleRelative = relative != 0;
   ++summary.fixAngleCount;
   ++summary.fixAngleDecoded;
-  if (summary.viewSamples.size() >= 65536u) ++summary.viewSamplesDropped;
+  if (summary.fixAngleSamples.size() >= kMaxViewSamples) ++summary.viewSamplesDropped;
   else {
     DemoViewSample sample;
     sample.tick = packetTick;
     sample.angles[0] = angles[0]; sample.angles[1] = angles[1]; sample.angles[2] = angles[2];
     sample.hasAngles = true;
     sample.source = DemoViewSource::FixAngle;
-    summary.viewSamples.push_back(sample);
+    summary.fixAngleSamples.push_back(sample);
   }
   return true;
 }
@@ -2188,13 +2194,14 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
   }
   MessageBits bits(*source);
   std::int32_t networkTick = initialNetworkTick >= 0 ? initialNetworkTick : entryTick;
+  bool sawNetTick = false;
   while (bits.remaining() > 6) {
     const std::size_t messageBit = bits.offsetBits();
     std::uint32_t type = 0;
     if (!bits.read(6, type)) { result.packetValid = false; break; }
     if (type < DemoNetworkSummary::kMessageTypeHistogramSize) ++summary.messageTypeCounts[type];
     if (type == 0) { result.decodedAny = true; ++result.messagesDecoded; continue; }
-    if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) result.packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; ++summary.netTickCount; result.decodedAny = true; } }
+    if (type == 3) { std::uint32_t tick = 0, frameTime = 0, deviation = 0; if (!bits.read(32, tick) || !bits.read(16, frameTime) || !bits.read(16, deviation)) result.packetValid = false; else { networkTick = tick <= 0x7fffffffu ? static_cast<std::int32_t>(tick) : -1; summary.lastNetworkTick = networkTick; summary.lastNetworkTickRaw = tick; summary.lastNetworkTickRawValid = true; sawNetTick = true; ++summary.netTickCount; result.decodedAny = true; } }
     else if (type == 4) { if (!readStringCommand(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 5) { if (!readSetConVar(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 6) { if (!readSignonState(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
@@ -2231,6 +2238,13 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
     ++result.messagesDecoded;
   }
   result.bitsConsumed = bits.offsetBits();
+  // T63-F1: publish the server tick this packet ends on. A packet with no
+  // svc_NetTick of its own keeps the tick carried in from earlier packets; if
+  // there is none, the tick is unknown and stays -1 rather than borrowing the
+  // entry tick (which is what made an entry tick look like a server tick).
+  result.finalNetworkTickKnown = sawNetTick || initialNetworkTick >= 0;
+  result.finalNetworkTick = result.finalNetworkTickKnown ? networkTick : -1;
+  result.sawNetTick = sawNetTick;
   result.lastNetworkTick = networkTick;
   return true;
 }
@@ -2278,6 +2292,11 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
       continue;
     }
     if (entry.command != 1 && entry.command != 2) continue;
+    if (entry.command == 1 && summary.firstSignonEntryTick < 0) summary.firstSignonEntryTick = entry.tick;
+    if (entry.command == 2) {
+      if (summary.firstDataEntryTick < 0) summary.firstDataEntryTick = entry.tick;
+      summary.lastDataEntryTick = entry.tick;
+    }
     if (entry.payloadOffset >= 88) {
       std::uint8_t cmdInfo[76] = {};
       file.seekg(static_cast<std::streamoff>(entry.payloadOffset - 88), std::ios::beg);
@@ -2285,8 +2304,17 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
         DemoViewSample sample;
         if (parseDemoCmdInfo(cmdInfo, sizeof(cmdInfo), sample)) {
           sample.tick = entry.tick;
-          if (summary.viewSamples.size() >= 65536u) ++summary.viewSamplesDropped;
-          else summary.viewSamples.push_back(sample);
+          sample.fromSignon = entry.command == 1;
+          // T63-F1: keep the pre-fix assembly here (signon samples included) so
+          // viewSamplesOutOfOrder measures the defect, then partition after the
+          // scan. Pushing them in and dropping them later is what makes the
+          // pre-repair reading honest.
+          if (sample.fromSignon) ++summary.signonViewSamples;
+          if (summary.viewSamples.size() >= kMaxViewSamples) {
+            ++summary.viewSamplesDropped;
+          } else {
+            summary.viewSamples.push_back(sample);
+          }
         }
       }
     }
@@ -2297,6 +2325,109 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
                                                   summary.lastNetworkTick, summary, stream);
     ++summary.packetsScanned;
     if (!streamOk || !stream.packetValid || !stream.decodedAny) ++summary.malformedPackets;
+    if (entry.command == 2) {
+      // T63-F1: the row is indexed by PLAYBACK tick, not by packet ordinal.
+      // Data entry tick == firstDataEntryTick + playback tick, so the packet
+      // recorded at this entry lands on row (entry.tick - firstDataEntryTick).
+      // Indexing by packet ordinal instead slides by one for every dropped
+      // packet: S1 drops 22 and S5 drops 4348, so ordinal 20000 is not
+      // playback 20000 on either.
+      const bool tickKnown = streamOk && stream.finalNetworkTickKnown;
+      const std::int32_t playbackIndex = entry.tick - summary.firstDataEntryTick;
+      if (playbackIndex >= 0) {
+        const std::size_t row = static_cast<std::size_t>(playbackIndex);
+        if (row >= summary.packetServerTicks.size()) {
+          summary.packetServerTicks.resize(row + 1, -1);
+          summary.packetServerTickKnown.resize(row + 1, 0u);
+          summary.packetServerTickOwn.resize(row + 1, 0u);
+        }
+        summary.packetServerTickOwn[row] = 1u;
+        ++summary.dataPacketCount;
+        if (tickKnown) {
+          summary.packetServerTicks[row] = stream.finalNetworkTick;
+          summary.packetServerTickKnown[row] = 1u;
+          ++summary.serverTickKnownCount;
+          if (summary.firstDataNetTick < 0) summary.firstDataNetTick = stream.finalNetworkTick;
+        }
+      }
+      if (stream.sawNetTick) ++summary.packetsWithOwnNetTick;
+      if (summary.firstDataPacketOwnNetTick < 0) {
+        summary.firstDataPacketOwnNetTick = stream.sawNetTick ? 1 : 0;
+      }
+    }
+  }
+  // T63-F1: a playback tick whose packet was dropped still renders. Its row
+  // holds the tick of the last recorded packet at or before it -- the same
+  // at-or-before rule the entity query uses. That is a hold, not an invented
+  // number: packetServerTickOwn[row] is 1 only where a packet exists.
+  for (std::size_t i = 1; i < summary.packetServerTicks.size(); ++i) {
+    if (summary.packetServerTickOwn[i] != 0) continue;
+    if (summary.packetServerTickKnown[i - 1] != 0) {
+      summary.packetServerTicks[i] = summary.packetServerTicks[i - 1];
+      summary.packetServerTickKnown[i] = 1u;
+      ++summary.serverTickHeldCount;
+    }
+  }
+  // Gaps are measured between consecutive RECORDED packets only; a held row
+  // repeats the previous tick and would otherwise read as a stall.
+  std::int32_t previousRecordedTick = -1;
+  for (std::size_t i = 0; i < summary.packetServerTicks.size(); ++i) {
+    if (summary.packetServerTickOwn[i] == 0 || summary.packetServerTickKnown[i] == 0) continue;
+    if (previousRecordedTick >= 0) {
+      const std::int32_t delta = summary.packetServerTicks[i] - previousRecordedTick;
+      if (delta > 1) ++summary.serverTickGaps;
+      else if (delta <= 0) ++summary.serverTickStalls;
+    }
+    previousRecordedTick = summary.packetServerTicks[i];
+  }
+  // T63-F1 diagnosis: count adjacent non-increasing ticks in the sample order
+  // as assembled. upper_bound in findObserverViewAtOrBeforeTick requires
+  // strictly increasing input, so a non-zero reading here is a precondition
+  // violation, not a style detail. Measured before any repair.
+  for (std::size_t i = 1; i < summary.viewSamples.size(); ++i) {
+    if (summary.viewSamples[i].tick <= summary.viewSamples[i - 1].tick) ++summary.viewSamplesOutOfOrder;
+  }
+  // T63-F1 fix: partition anything that is not a data-packet cmdinfo sample out
+  // of the data sequence, then check the sequence the query actually consumes.
+  {
+    std::vector<DemoViewSample> dataSamples;
+    dataSamples.reserve(summary.viewSamples.size());
+    for (auto& sample : summary.viewSamples) {
+      if (sample.fromSignon) continue;
+      if (sample.source == DemoViewSource::FixAngle) { summary.fixAngleSamples.push_back(sample); continue; }
+      dataSamples.push_back(sample);
+    }
+    summary.viewSamples.swap(dataSamples);
+  }
+  // POV demos interleave cmdinfo samples out of tick order (measured 505 of
+  // 5051 out of order on pl_frontier). upper_bound over an unsorted vector
+  // finds nothing, so the camera read back as "no view at or before this
+  // tick"; the product then held its default pose. Sort, then keep the LAST
+  // sample for a repeated tick.
+  std::stable_sort(summary.viewSamples.begin(), summary.viewSamples.end(),
+      [](const tf2::native::DemoViewSample& a, const tf2::native::DemoViewSample& b) {
+        return a.tick < b.tick;
+      });
+  if (!summary.viewSamples.empty()) {
+    std::vector<tf2::native::DemoViewSample> deduped;
+    deduped.reserve(summary.viewSamples.size());
+    for (const auto& sample : summary.viewSamples) {
+      if (!deduped.empty() && deduped.back().tick == sample.tick) {
+        ++summary.viewSamplesDuplicates;
+        deduped.back() = sample;
+      } else {
+        deduped.push_back(sample);
+      }
+    }
+    summary.viewSamples.swap(deduped);
+  }
+  summary.viewSamplesOrdered = true;
+  summary.viewSamplesOutOfOrderAfterRepair = 0;
+  for (std::size_t i = 1; i < summary.viewSamples.size(); ++i) {
+    if (summary.viewSamples[i].tick <= summary.viewSamples[i - 1].tick) {
+      summary.viewSamplesOrdered = false;
+      ++summary.viewSamplesOutOfOrderAfterRepair;
+    }
   }
   for (const auto& entity : summary.entityStates) {
     for (const auto& [name, value] : entity.properties) {
@@ -2794,10 +2925,24 @@ std::vector<ProjectileTrackSample> queryProjectileTracksInRange(
 
 bool findObserverViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick, DemoViewSample& sample) {
   if (summary.viewSamples.empty()) return false;
+  // T63-F1: upper_bound is only correct on a strictly increasing sequence.
+  // The producer verifies that and records the answer; a hand-built summary
+  // keeps the default (true) so probes that build their own rows still work.
+  if (!summary.viewSamplesOrdered) return false;
   const auto match = std::upper_bound(
       summary.viewSamples.begin(), summary.viewSamples.end(), tick,
       [](std::int32_t value, const DemoViewSample& item) { return value < item.tick; });
   if (match == summary.viewSamples.begin()) return false;
+  sample = *std::prev(match);
+  return true;
+}
+
+bool findFixAngleViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick, DemoViewSample& sample) {
+  if (summary.fixAngleSamples.empty()) return false;
+  const auto match = std::upper_bound(
+      summary.fixAngleSamples.begin(), summary.fixAngleSamples.end(), tick,
+      [](std::int32_t value, const DemoViewSample& item) { return value < item.tick; });
+  if (match == summary.fixAngleSamples.begin()) return false;
   sample = *std::prev(match);
   return true;
 }
