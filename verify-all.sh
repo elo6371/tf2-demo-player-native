@@ -316,9 +316,20 @@ tail -6 "$OUT/1-build.txt"
 # rather than suppressed. This pin is edited in the release round on purpose:
 # it is the number that says the build produced every target, and it has to
 # move with the target list or it starts agreeing with a truncated build.
+#
+# 2026-10-24 review wave: 49 -> 50, measured on the merged tree after the
+# T63-F1 / T68 / T67 / T69 merges (a7d0a77): grep -c '^add_executable(' = 50
+# and a build of every target leaving 50 exes on disk (this round's
+# evidence/release-gates/build-p0-wave2.log: `ls native/build-nmake/*.exe |
+# wc -l` = 50 after BUILD_RC=0 with 0 errors). One target joined:
+#   T69 eff64cd minimap_probe          the minimap projection / hit-test / panel state,
+#                                      compiled from the same src/minimap.cpp as the product
+# The other three merges added no target: T63-F1 and T68 extend demo_open_probe,
+# T67 adds hud_font.cpp + hud_panel.h to the existing product and hud_probe.
+# The warning count is unchanged at 16 in this build.
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=49$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=50$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
