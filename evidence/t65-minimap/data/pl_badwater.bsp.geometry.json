@@ -1,0 +1,2770 @@
+{
+  "bsp": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/pl_badwater.bsp",
+  "ident": "VBSP",
+  "version": 20,
+  "bytes": 16619247,
+  "sha256": "68654502abf02c205862fa034403f581a9df9d3131793e7fbf7bef926c61ac48",
+  "entityCount": 999,
+  "classCounts": {
+    "light_spot": 150,
+    "path_track": 124,
+    "point_spotlight": 85,
+    "prop_dynamic": 77,
+    "info_player_teamspawn": 76,
+    "func_areaportal": 68,
+    "env_soundscape_proxy": 62,
+    "func_door": 48,
+    "prop_dynamic_override": 41,
+    "env_lightglow": 30,
+    "func_nobuild": 21,
+    "func_brush": 16,
+    "logic_relay": 14,
+    "func_occluder": 14,
+    "item_healthkit_small": 13,
+    "func_lod": 13,
+    "item_ammopack_full": 11,
+    "move_rope": 10,
+    "keyframe_rope": 10,
+    "env_sprite": 9,
+    "trigger_multiple": 8,
+    "func_respawnroomvisualizer": 8,
+    "item_ammopack_medium": 7,
+    "item_healthkit_medium": 6,
+    "light": 5,
+    "ambient_generic": 5,
+    "info_observer_point": 5,
+    "item_ammopack_small": 4,
+    "func_respawnroom": 4,
+    "func_regenerate": 4
+  },
+  "worldModel": {
+    "mins": [
+      -14924.0,
+      -5136.0,
+      -14728.0
+    ],
+    "maxs": [
+      4624.0,
+      15452.0,
+      2064.0
+    ],
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "headnode": 0,
+    "firstface": 0,
+    "numfaces": 9830
+  },
+  "faceCount": 11357,
+  "floorFaces": 3008,
+  "skipped": {
+    "not_floor": 7184,
+    "special:water": 111,
+    "special:tools": 465,
+    "special:sky": 589
+  },
+  "vertexCount": 22054,
+  "playableBounds": {
+    "minX": -2944.0,
+    "maxX": 4576.0,
+    "minY": -5120.0,
+    "maxY": 4480.0
+  },
+  "playableAreaUnits2": 71139328.0,
+  "zRange": [
+    -128.0,
+    896.0
+  ],
+  "zBands": [
+    -28.0,
+    128.0,
+    128.0,
+    256.0,
+    448.0,
+    896.0
+  ],
+  "cellCount": 43601,
+  "multiLevelCells": 10621,
+  "levelHistogram": {
+    "3": 2577,
+    "1": 32980,
+    "2": 7950,
+    "4": 94
+  },
+  "zFilter": {
+    "zlo": -512.0,
+    "zhi": 1280.0,
+    "mainBin": 0,
+    "mainBinCount": 158,
+    "band": [
+      0.0,
+      256.0
+    ],
+    "inbandPoints": 193,
+    "totalPoints": 205,
+    "inbandZRange": [
+      -232.0,
+      280.0
+    ],
+    "dropped": {
+      "cells": 6841,
+      "zRange": [
+        -2452.0,
+        -640.0
+      ],
+      "bbox": [
+        -6784.0,
+        288.0,
+        704.0,
+        10496.0
+      ],
+      "materials": [
+        [
+          "NATURE/BLENDGROUNDTOGRAVEL005",
+          6708
+        ],
+        [
+          "CONCRETE/CONCRETEFLOOR003",
+          100
+        ],
+        [
+          "NATURE/ROCKWALL013",
+          29
+        ],
+        [
+          "WOOD/WOOD_BRIDGE001",
+          4
+        ]
+      ]
+    }
+  },
+  "components": {
+    "count": 1,
+    "kept": 1,
+    "droppedCount": 0,
+    "list": [
+      {
+        "cells": 43601,
+        "bbox": [
+          -2944.0,
+          4576.0,
+          -5120.0,
+          4480.0
+        ],
+        "zRange": [
+          -294.4762209937686,
+          896.0
+        ],
+        "kept": true
+      }
+    ],
+    "dropped": []
+  },
+  "projection": {
+    "width": 1024,
+    "height": 1024,
+    "minX": -3094.4,
+    "maxX": 4726.4,
+    "minY": -3789.4,
+    "maxY": 4031.4,
+    "frameUnits": [
+      -2944.0,
+      4576.0,
+      -3424.0,
+      3666.0
+    ],
+    "frameMarginUnits": 1536.0,
+    "frameSource": "gameplay entity bbox + margin, clamped to BSP floor extent",
+    "outsideFrameCells": 6629,
+    "outsideCanvasCells": 4723,
+    "scalePxPerUnit": 0.1309328968903437,
+    "unitsPerPixel": 7.637499999999999,
+    "yFlip": true,
+    "formulaPx": "px=(x-minX)*scale",
+    "formulaPy": "py=(maxY-y)*scale"
+  },
+  "entities": {
+    "team_control_point": [
+      {
+        "origin": [
+          44.0,
+          -1234.0,
+          128.0
+        ],
+        "team": null,
+        "targetname": "cap_1",
+        "target": null,
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1218.0,
+          -908.0,
+          128.0
+        ],
+        "team": null,
+        "targetname": "cap_2",
+        "target": null,
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          1966.0,
+          128.0
+        ],
+        "team": null,
+        "targetname": "cap_3",
+        "target": null,
+        "model": null,
+        "angles": "0 90 0"
+      },
+      {
+        "origin": [
+          96.0,
+          860.0,
+          -132.0
+        ],
+        "team": null,
+        "targetname": "cap_4",
+        "target": null,
+        "model": null,
+        "angles": "0 0 0"
+      }
+    ],
+    "team_control_point_master": [
+      {
+        "origin": [
+          2216.0,
+          -1144.0,
+          160.0
+        ],
+        "team": null,
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": null
+      }
+    ],
+    "info_player_teamspawn": [
+      {
+        "origin": [
+          416.0,
+          240.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 194 0"
+      },
+      {
+        "origin": [
+          416.0,
+          144.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          416.0,
+          48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          416.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 162 0"
+      },
+      {
+        "origin": [
+          336.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 135 0"
+      },
+      {
+        "origin": [
+          336.0,
+          240.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 195 0"
+      },
+      {
+        "origin": [
+          336.0,
+          48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          336.0,
+          144.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          256.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 124 0"
+      },
+      {
+        "origin": [
+          256.0,
+          240.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 212 0"
+      },
+      {
+        "origin": [
+          256.0,
+          48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 161 0"
+      },
+      {
+        "origin": [
+          256.0,
+          144.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          496.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          496.0,
+          48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          496.0,
+          144.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          496.0,
+          240.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          -2368.0,
+          -896.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -2368.0,
+          -992.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 19 0"
+      },
+      {
+        "origin": [
+          -2368.0,
+          -800.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 341 0"
+      },
+      {
+        "origin": [
+          -2368.0,
+          -1088.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 35 0"
+      },
+      {
+        "origin": [
+          -2368.0,
+          -704.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 325 0"
+      },
+      {
+        "origin": [
+          -2272.0,
+          -704.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 313 0"
+      },
+      {
+        "origin": [
+          -2272.0,
+          -1088.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 47 0"
+      },
+      {
+        "origin": [
+          -2272.0,
+          -992.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 28 0"
+      },
+      {
+        "origin": [
+          -2272.0,
+          -896.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -2272.0,
+          -800.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 332 0"
+      },
+      {
+        "origin": [
+          -2272.0,
+          -1184.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 58 0"
+      },
+      {
+        "origin": [
+          -2368.0,
+          -1184.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 46 0"
+      },
+      {
+        "origin": [
+          -2368.0,
+          -608.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 314 0"
+      },
+      {
+        "origin": [
+          -2272.0,
+          -608.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 302 0"
+      },
+      {
+        "origin": [
+          -2176.0,
+          -1088.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 67 0"
+      },
+      {
+        "origin": [
+          -2176.0,
+          -704.0,
+          280.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 293 0"
+      },
+      {
+        "origin": [
+          384.0,
+          0.0,
+          -232.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 67 0"
+      },
+      {
+        "origin": [
+          480.0,
+          0.0,
+          -232.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 84 0"
+      },
+      {
+        "origin": [
+          576.0,
+          0.0,
+          -232.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 102 0"
+      },
+      {
+        "origin": [
+          576.0,
+          128.0,
+          -232.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 110 0"
+      },
+      {
+        "origin": [
+          480.0,
+          128.0,
+          -232.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 80 0"
+      },
+      {
+        "origin": [
+          384.0,
+          128.0,
+          -232.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 54 0"
+      },
+      {
+        "origin": [
+          736.0,
+          144.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 158 0"
+      },
+      {
+        "origin": [
+          736.0,
+          48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 157 0"
+      },
+      {
+        "origin": [
+          736.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 152 0"
+      },
+      {
+        "origin": [
+          832.0,
+          176.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          832.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 157 0"
+      },
+      {
+        "origin": [
+          640.0,
+          144.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 159 0"
+      },
+      {
+        "origin": [
+          640.0,
+          48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 154 0"
+      },
+      {
+        "origin": [
+          640.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 141 0"
+      },
+      {
+        "origin": [
+          544.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 135 0"
+      },
+      {
+        "origin": [
+          448.0,
+          -48.0,
+          152.0
+        ],
+        "team": "2",
+        "targetname": "redspawn_2",
+        "target": null,
+        "model": null,
+        "angles": "0 121 0"
+      },
+      {
+        "origin": [
+          3680.0,
+          -1664.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 128 0"
+      },
+      {
+        "origin": [
+          3680.0,
+          -1568.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 135 0"
+      },
+      {
+        "origin": [
+          3680.0,
+          -1472.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 145 0"
+      },
+      {
+        "origin": [
+          3584.0,
+          -1472.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 135 0"
+      },
+      {
+        "origin": [
+          3584.0,
+          -1568.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 125 0"
+      },
+      {
+        "origin": [
+          3584.0,
+          -1664.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 118 0"
+      },
+      {
+        "origin": [
+          3488.0,
+          -1472.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 120 0"
+      },
+      {
+        "origin": [
+          3488.0,
+          -1568.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 112 0"
+      },
+      {
+        "origin": [
+          3488.0,
+          -1664.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 107 0"
+      },
+      {
+        "origin": [
+          3392.0,
+          -1664.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 94 0"
+      },
+      {
+        "origin": [
+          3392.0,
+          -1568.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 96 0"
+      },
+      {
+        "origin": [
+          3392.0,
+          -1472.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 98 0"
+      },
+      {
+        "origin": [
+          3584.0,
+          -1376.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 150 0"
+      },
+      {
+        "origin": [
+          3680.0,
+          -1280.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 174 0"
+      },
+      {
+        "origin": [
+          3584.0,
+          -1280.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 172 0"
+      },
+      {
+        "origin": [
+          3680.0,
+          -1376.0,
+          152.0
+        ],
+        "team": "3",
+        "targetname": "bluespawn_1",
+        "target": null,
+        "model": null,
+        "angles": "0 158 0"
+      },
+      {
+        "origin": [
+          -14500.0,
+          14086.0,
+          -14592.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 256.5 0"
+      },
+      {
+        "origin": [
+          -14452.0,
+          14086.0,
+          -14592.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 289 0"
+      },
+      {
+        "origin": [
+          -14453.0,
+          14007.0,
+          -14622.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 259.5 0"
+      },
+      {
+        "origin": [
+          -14498.0,
+          14007.0,
+          -14622.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 264 0"
+      },
+      {
+        "origin": [
+          -14415.0,
+          14030.0,
+          -14622.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 286 0"
+      },
+      {
+        "origin": [
+          -14537.0,
+          14029.0,
+          -14622.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 257.5 0"
+      },
+      {
+        "origin": [
+          -14462.0,
+          13897.0,
+          -14664.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 81.5 0"
+      },
+      {
+        "origin": [
+          -14490.0,
+          13921.0,
+          -14664.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 90 0"
+      },
+      {
+        "origin": [
+          -14430.0,
+          13920.0,
+          -14665.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 105 0"
+      },
+      {
+        "origin": [
+          -14410.0,
+          13903.0,
+          -14662.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 120 0"
+      },
+      {
+        "origin": [
+          -14512.0,
+          13900.0,
+          -14664.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 75 0"
+      },
+      {
+        "origin": [
+          -14543.0,
+          13919.0,
+          -14664.0
+        ],
+        "team": "0",
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "0 60 0"
+      }
+    ],
+    "team_train_watcher": [
+      {
+        "origin": [
+          2488.0,
+          -984.0,
+          160.0
+        ],
+        "team": null,
+        "targetname": "watcher",
+        "target": null,
+        "model": null,
+        "angles": null
+      }
+    ],
+    "path_track": [
+      {
+        "origin": [
+          2310.0,
+          -908.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_8",
+        "target": "minecart_path_9",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2332.0,
+          -878.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_7",
+        "target": "minecart_path_8",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2290.0,
+          -950.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_9",
+        "target": "minecart_path_10",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2276.0,
+          -1036.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_10",
+        "target": "minecart_path_11",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2276.0,
+          -1280.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_11",
+        "target": "minecart_path_12",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2272.0,
+          -1316.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_12",
+        "target": "minecart_path_13",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2264.0,
+          -1350.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_13",
+        "target": "minecart_path_14",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2246.0,
+          -1388.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_14",
+        "target": "minecart_path_15",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2226.0,
+          -1418.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_15",
+        "target": "minecart_path_16",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2198.0,
+          -1448.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_16",
+        "target": "minecart_path_17",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2162.0,
+          -1474.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_17",
+        "target": "minecart_path_18",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2122.0,
+          -1492.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_18",
+        "target": "minecart_path_19",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2084.0,
+          -1502.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_19",
+        "target": "minecart_path_20",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2048.0,
+          -1504.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_20",
+        "target": "minecart_path_21",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          1378.0,
+          -1520.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_22",
+        "target": "minecart_path_23",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          1440.0,
+          -1504.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_21",
+        "target": "minecart_path_22",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          676.0,
+          -1870.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_23",
+        "target": "minecart_path_24",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          612.0,
+          -1888.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_24",
+        "target": "minecart_path_25",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          256.0,
+          -1888.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_25",
+        "target": "minecart_path_26",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          144.0,
+          -1888.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_26",
+        "target": "minecart_path_27",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          112.0,
+          -1882.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_27",
+        "target": "minecart_path_28",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          74.0,
+          -1860.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_28",
+        "target": "minecart_path_29",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          54.0,
+          -1832.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_29",
+        "target": "minecart_path_30",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          44.0,
+          -1234.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_33",
+        "target": "minecart_path_34",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          44.0,
+          -1176.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_34",
+        "target": "minecart_path_35",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          44.0,
+          -1150.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_35",
+        "target": "minecart_path_36",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          44.0,
+          -1290.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_32",
+        "target": "minecart_path_33",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          44.0,
+          -1318.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_31",
+        "target": "minecart_path_32",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          44.0,
+          -904.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_36",
+        "target": "minecart_path_37",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          40.0,
+          -864.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_37",
+        "target": "minecart_path_38",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          26.0,
+          -816.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_38",
+        "target": "minecart_path_39",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          6.0,
+          -778.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_39",
+        "target": "minecart_path_40",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -24.0,
+          -742.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_40",
+        "target": "minecart_path_41",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -58.0,
+          -714.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_41",
+        "target": "minecart_path_42",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -96.0,
+          -694.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_42",
+        "target": "minecart_path_43",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -144.0,
+          -680.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_43",
+        "target": "minecart_path_44",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -184.0,
+          -676.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_44",
+        "target": "minecart_path_45",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -326.0,
+          -676.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_45",
+        "target": "minecart_path_46",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -358.0,
+          -672.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_46",
+        "target": "minecart_path_47",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -388.0,
+          -660.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_47",
+        "target": "minecart_path_48",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -490.0,
+          -596.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_48",
+        "target": "minecart_path_49",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -520.0,
+          -584.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_49",
+        "target": "minecart_path_50",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -566.0,
+          -580.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_50",
+        "target": "minecart_path_51",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -892.0,
+          -580.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_51",
+        "target": "minecart_path_52",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -914.0,
+          -584.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_52",
+        "target": "minecart_path_53",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -940.0,
+          -594.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_53",
+        "target": "minecart_path_54",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -962.0,
+          -610.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_54",
+        "target": "minecart_path_55",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -982.0,
+          -640.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_55",
+        "target": "minecart_path_56",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -998.0,
+          -848.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_58",
+        "target": "minecart_path_59",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1018.0,
+          -878.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_59",
+        "target": "minecart_path_60",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1040.0,
+          -894.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_60",
+        "target": "minecart_path_61",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1066.0,
+          -904.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_61",
+        "target": "minecart_path_62",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -990.0,
+          -680.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_56",
+        "target": "minecart_path_57",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -992.0,
+          -808.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_57",
+        "target": "minecart_path_58",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1302.0,
+          -908.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_66",
+        "target": "minecart_path_67",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1276.0,
+          -908.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_65",
+        "target": "minecart_path_66",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1218.0,
+          -908.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_64",
+        "target": "minecart_path_65",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1162.0,
+          -908.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_63",
+        "target": "minecart_path_64",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1134.0,
+          -908.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_62",
+        "target": "minecart_path_63",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2560.0,
+          -800.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_1",
+        "target": "minecart_path_2",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2496.0,
+          -800.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_2",
+        "target": "minecart_path_3",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2462.0,
+          -804.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_3",
+        "target": "minecart_path_4",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2426.0,
+          -814.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_4",
+        "target": "minecart_path_5",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2388.0,
+          -832.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_5",
+        "target": "minecart_path_6",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          2356.0,
+          -854.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_6",
+        "target": "minecart_path_7",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1321.52,
+          -899.91,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_67",
+        "target": "minecart_path_68",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1351.52,
+          -879.91,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_68",
+        "target": "minecart_path_69",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1367.52,
+          -857.91,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_69",
+        "target": "minecart_path_70",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1377.52,
+          -831.91,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_70",
+        "target": "minecart_path_71",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1382.0,
+          -808.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_71",
+        "target": "minecart_path_72",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1382.0,
+          -428.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_72",
+        "target": "minecart_path_73",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1386.0,
+          -381.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_73",
+        "target": "minecart_path_74",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1396.0,
+          -353.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_74",
+        "target": "minecart_path_75",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1462.0,
+          -249.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_75",
+        "target": "minecart_path_76",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1474.0,
+          -215.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_76",
+        "target": "minecart_path_77",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1478.0,
+          -172.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_77",
+        "target": "minecart_path_78",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1478.0,
+          256.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_78",
+        "target": "minecart_path_79",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1478.0,
+          640.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_79",
+        "target": "minecart_path_80",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1482.0,
+          687.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_80",
+        "target": "minecart_path_81",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1492.0,
+          715.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_81",
+        "target": "minecart_path_82",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1558.0,
+          819.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_82",
+        "target": "minecart_path_83",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1570.0,
+          853.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_83",
+        "target": "minecart_path_84",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1578.0,
+          943.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_84",
+        "target": "minecart_path_85",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1588.0,
+          971.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_85",
+        "target": "minecart_path_86",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1654.0,
+          1075.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_86",
+        "target": "minecart_path_87",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1666.0,
+          1109.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_87",
+        "target": "minecart_path_88",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          1152.0,
+          56.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_88",
+        "target": "minecart_path_89",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          1536.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_89",
+        "target": "minecart_path_90",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          1966.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_92",
+        "target": "minecart_path_93",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          2024.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_93",
+        "target": "minecart_path_94",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          2050.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_94",
+        "target": "minecart_path_100",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          1882.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_90",
+        "target": "minecart_path_91",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1670.0,
+          1910.0,
+          190.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_91",
+        "target": "minecart_path_92",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          44.0,
+          -1788.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_30",
+        "target": "minecart_path_31",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1566.0,
+          2130.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_103",
+        "target": "minecart_path_104",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1596.0,
+          2126.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_102",
+        "target": "minecart_path_103",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1630.0,
+          2110.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_101",
+        "target": "minecart_path_102",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1650.0,
+          2090.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_100",
+        "target": "minecart_path_101",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1158.0,
+          2130.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_104",
+        "target": "minecart_path_105",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1112.0,
+          2122.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_105",
+        "target": "minecart_path_106",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -1004.0,
+          2090.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_106",
+        "target": "minecart_path_107",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -956.0,
+          2083.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_107",
+        "target": "minecart_path_108",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -747.0,
+          2083.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_108",
+        "target": "minecart_path_109",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -713.0,
+          2079.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_109",
+        "target": "minecart_path_110",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -677.0,
+          2069.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_110",
+        "target": "minecart_path_111",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -639.0,
+          2051.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_111",
+        "target": "minecart_path_112",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -607.0,
+          2029.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_112",
+        "target": "minecart_path_113",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -583.0,
+          2005.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_113",
+        "target": "minecart_path_114",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -561.0,
+          1975.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_114",
+        "target": "minecart_path_115",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -541.0,
+          1933.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_115",
+        "target": "minecart_path_116",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -527.0,
+          1879.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_116",
+        "target": "minecart_path_117",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -527.0,
+          1856.0,
+          184.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_117",
+        "target": "minecart_path_118",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -527.0,
+          1344.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_118",
+        "target": "minecart_path_119",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -527.0,
+          1068.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_119",
+        "target": "minecart_path_120",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -513.0,
+          1014.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_120",
+        "target": "minecart_path_121",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -493.0,
+          972.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_121",
+        "target": "minecart_path_122",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -471.0,
+          942.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_122",
+        "target": "minecart_path_123",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -447.0,
+          918.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_123",
+        "target": "minecart_path_124",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -415.0,
+          896.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_124",
+        "target": "minecart_path_125",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -377.0,
+          878.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_125",
+        "target": "minecart_path_126",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -341.0,
+          868.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_126",
+        "target": "minecart_path_127",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          -307.0,
+          864.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_127",
+        "target": "minecart_path_128",
+        "model": null,
+        "angles": "0 0 0"
+      },
+      {
+        "origin": [
+          16.0,
+          864.0,
+          -68.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_128",
+        "target": "minecart_path_129",
+        "model": null,
+        "angles": "0 180 0"
+      },
+      {
+        "origin": [
+          96.0,
+          864.0,
+          -72.0
+        ],
+        "team": null,
+        "targetname": "minecart_path_129",
+        "target": null,
+        "model": null,
+        "angles": "0 180 0"
+      }
+    ],
+    "info_observer_point": [
+      {
+        "origin": [
+          217.0,
+          -2564.26,
+          521.286
+        ],
+        "team": null,
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "18 85 0"
+      },
+      {
+        "origin": [
+          -843.51,
+          -1184.0,
+          584.0
+        ],
+        "team": null,
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "33 120 0"
+      },
+      {
+        "origin": [
+          -1464.0,
+          2336.0,
+          422.831
+        ],
+        "team": null,
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "15 252 0"
+      },
+      {
+        "origin": [
+          -666.43,
+          1706.4,
+          513.742
+        ],
+        "team": null,
+        "targetname": null,
+        "target": null,
+        "model": null,
+        "angles": "24 300 0"
+      },
+      {
+        "origin": [
+          -14476.0,
+          13648.0,
+          -14561.0
+        ],
+        "team": null,
+        "targetname": "observer_cam",
+        "target": null,
+        "model": null,
+        "angles": "3 90 0"
+      }
+    ],
+    "func_respawnroom": [
+      {
+        "origin": null,
+        "team": "2",
+        "targetname": "red_respawnroom_2",
+        "target": null,
+        "model": "*18",
+        "angles": null
+      },
+      {
+        "origin": null,
+        "team": "2",
+        "targetname": "red_respawnroom_1",
+        "target": null,
+        "model": "*19",
+        "angles": null
+      },
+      {
+        "origin": null,
+        "team": "3",
+        "targetname": "blue_respawnroom_2",
+        "target": null,
+        "model": "*20",
+        "angles": null
+      },
+      {
+        "origin": null,
+        "team": "3",
+        "targetname": "blue_respawnroom_1",
+        "target": null,
+        "model": "*35",
+        "angles": null
+      }
+    ]
+  },
+  "png": "evidence/t65-minimap/data\\pl_badwater.bsp.floorplan.png",
+  "cellsCsv": "evidence/t65-minimap/data\\pl_badwater.bsp.cells.csv.gz"
+}

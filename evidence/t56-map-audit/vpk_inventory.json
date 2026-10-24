@@ -1,0 +1,123 @@
+{
+  "_generated_by": "evidence/t56-map-audit/vpk_materials.py",
+  "tf2_misc_dir.vpk": {
+    "version": 2,
+    "entries": 104137,
+    "tree_size": 5313889,
+    "data_section_bytes": 0,
+    "file_bytes": 5402349,
+    "top_ext": [
+      [
+        "vtx",
+        43113
+      ],
+      [
+        "vmt",
+        26060
+      ],
+      [
+        "mdl",
+        14416
+      ],
+      [
+        "vvd",
+        14372
+      ],
+      [
+        "phy",
+        4757
+      ],
+      [
+        "res",
+        778
+      ],
+      [
+        "txt",
+        201
+      ],
+      [
+        "pcf",
+        135
+      ],
+      [
+        "ctx",
+        88
+      ],
+      [
+        "vfe",
+        64
+      ]
+    ],
+    "materials_vmt": 26060,
+    "materials_vtf": 0
+  },
+  "tf2_textures_dir.vpk": {
+    "version": 2,
+    "entries": 29639,
+    "tree_size": 1615010,
+    "data_section_bytes": 0,
+    "file_bytes": 1974706,
+    "top_ext": [
+      [
+        "vtf",
+        29639
+      ]
+    ],
+    "materials_vmt": 0,
+    "materials_vtf": 29639
+  },
+  "tf2_sound_misc_dir.vpk": {
+    "version": 2,
+    "entries": 3230,
+    "tree_size": 120142,
+    "data_section_bytes": 0,
+    "file_bytes": 158146,
+    "top_ext": [
+      [
+        "wav",
+        2757
+      ],
+      [
+        "mp3",
+        472
+      ],
+      [
+        "midi",
+        1
+      ]
+    ],
+    "materials_vmt": 0,
+    "materials_vtf": 0
+  },
+  "tf2_sound_vo_english_dir.vpk": {
+    "version": 2,
+    "entries": 12728,
+    "tree_size": 547150,
+    "data_section_bytes": 0,
+    "file_bytes": 560962,
+    "top_ext": [
+      [
+        "mp3",
+        12668
+      ],
+      [
+        "wav",
+        60
+      ]
+    ],
+    "materials_vmt": 0,
+    "materials_vtf": 0
+  },
+  "_loose_materials": {
+    "vmt": 3,
+    "vtf": 1
+  },
+  "_download_materials": {
+    "vmt": 2810,
+    "vtf": 2723
+  },
+  "_custom_materials": {
+    "vmt": 381,
+    "vtf": 396
+  }
+}

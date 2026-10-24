@@ -1,0 +1,14 @@
+# demo_path=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem sha256=308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f demo=snakewater map=cp_snakewater_final1 event=teamplay_round_start total=5 first_tick=334 last_tick=57069
+# fields=full_reset
+# section=first50
+334	teamplay_round_start	true
+10357	teamplay_round_start	true
+22901	teamplay_round_start	true
+38059	teamplay_round_start	true
+57069	teamplay_round_start	true
+# section=last50
+334	teamplay_round_start	true
+10357	teamplay_round_start	true
+22901	teamplay_round_start	true
+38059	teamplay_round_start	true
+57069	teamplay_round_start	true

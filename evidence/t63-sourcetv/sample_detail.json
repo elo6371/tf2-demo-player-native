@@ -1,0 +1,326 @@
+{
+ "snakewater": {
+  "path": "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem",
+  "map": "cp_snakewater_final1",
+  "recording": "SourceTV",
+  "client": "SourceTV Demo",
+  "server": "Matcha Bookable",
+  "demo_ticks_header": 64352,
+  "playback_seconds": 965.28,
+  "size_bytes": 51834617,
+  "sha256_full": "308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f",
+  "sha256_header_1072": "0a563c25216cf203c70bb0b23219821c1be7c149028eac9bfac5e64d6730e324",
+  "bsp_present": true,
+  "clock": {
+   "path": "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem",
+   "map": "cp_snakewater_final1",
+   "ticks": 64352,
+   "packets": 64333,
+   "net_tick_pairs": 58079,
+   "first_packet_tick": 2,
+   "last_packet_tick": 64349,
+   "first_server_tick": 10321,
+   "last_server_tick": 74668,
+   "server_minus_packet_offsets": [
+    10319
+   ],
+   "offset_constant": true,
+   "samples": [
+    {
+     "packet_tick": 2,
+     "server_tick": 10321
+    },
+    {
+     "packet_tick": 12806,
+     "server_tick": 23125
+    },
+    {
+     "packet_tick": 25733,
+     "server_tick": 36052
+    },
+    {
+     "packet_tick": 38571,
+     "server_tick": 48890
+    },
+    {
+     "packet_tick": 51497,
+     "server_tick": 61816
+    },
+    {
+     "packet_tick": 64346,
+     "server_tick": 74665
+    }
+   ]
+  }
+ },
+ "review12": {
+  "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/review12.dem",
+  "map": "cp_reckoner",
+  "recording": "SourceTV",
+  "client": "SourceTV Demo",
+  "server": "Matcha Bookable",
+  "demo_ticks_header": 120936,
+  "playback_seconds": 1814.04,
+  "size_bytes": 80261474,
+  "sha256_full": "f1e91c6cb2e8abd20d45107be86e0b0227ef7e841cd74486e498c820bc361974",
+  "sha256_header_1072": "2ce67cabeb3958059ea15d41feaae9e9469f341115e23d51d4952acf0d014ad5",
+  "bsp_present": true,
+  "clock": {
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/review12.dem",
+   "map": "cp_reckoner",
+   "ticks": 120936,
+   "packets": 120917,
+   "net_tick_pairs": 109035,
+   "first_packet_tick": 2,
+   "last_packet_tick": 120934,
+   "first_server_tick": 15346,
+   "last_server_tick": 136278,
+   "server_minus_packet_offsets": [
+    15344
+   ],
+   "offset_constant": true,
+   "samples": [
+    {
+     "packet_tick": 2,
+     "server_tick": 15346
+    },
+    {
+     "packet_tick": 24051,
+     "server_tick": 39395
+    },
+    {
+     "packet_tick": 48312,
+     "server_tick": 63656
+    },
+    {
+     "packet_tick": 72587,
+     "server_tick": 87931
+    },
+    {
+     "packet_tick": 96718,
+     "server_tick": 112062
+    }
+   ]
+  }
+ },
+ "ashville73": {
+  "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/73.dem",
+  "map": "koth_ashville_final1",
+  "recording": "SourceTV",
+  "client": "SourceTV Demo",
+  "server": "Matcha Bookable",
+  "demo_ticks_header": 112396,
+  "playback_seconds": 1685.94,
+  "size_bytes": 106397681,
+  "sha256_full": "69f9a864c88c6cf885cf46068f0be590e2fbd47b8d8ef9bbb2e6c71bccebccce",
+  "sha256_header_1072": "e0ea8ba7122cafb68e7817c6cc6c91af2122ae23ba4ac6ba50a967cf00e1274e",
+  "bsp_present": false,
+  "clock": {
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/73.dem",
+   "map": "koth_ashville_final1",
+   "ticks": 112396,
+   "packets": 112175,
+   "net_tick_pairs": 90952,
+   "first_packet_tick": 1,
+   "last_packet_tick": 112393,
+   "first_server_tick": 16350,
+   "last_server_tick": 128742,
+   "server_minus_packet_offsets": [
+    16349
+   ],
+   "offset_constant": true,
+   "samples": [
+    {
+     "packet_tick": 1,
+     "server_tick": 16350
+    },
+    {
+     "packet_tick": 22400,
+     "server_tick": 38749
+    },
+    {
+     "packet_tick": 44913,
+     "server_tick": 61262
+    },
+    {
+     "packet_tick": 67418,
+     "server_tick": 83767
+    },
+    {
+     "packet_tick": 90124,
+     "server_tick": 106473
+    },
+    {
+     "packet_tick": 112392,
+     "server_tick": 128741
+    }
+   ]
+  }
+ },
+ "prodcutscout": {
+  "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/prodcutscout.dem",
+  "map": "koth_product_final",
+  "recording": "SourceTV",
+  "client": "SourceTV Demo",
+  "server": "Matcha Bookable",
+  "demo_ticks_header": 88311,
+  "playback_seconds": 1324.66,
+  "size_bytes": 62389932,
+  "sha256_full": "378734bc25bb4d3746503b36f9602489b195a58ecb2932e01436bc670d63557e",
+  "sha256_header_1072": "ada905dce5c9ceea54545eba5342aad21f725cd3260a2e59744e34b92ca4eb32",
+  "bsp_present": false,
+  "clock": {
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/prodcutscout.dem",
+   "map": "koth_product_final",
+   "ticks": 88311,
+   "packets": 88307,
+   "net_tick_pairs": 78793,
+   "first_packet_tick": 2,
+   "last_packet_tick": 88309,
+   "first_server_tick": 25597,
+   "last_server_tick": 113904,
+   "server_minus_packet_offsets": [
+    25595
+   ],
+   "offset_constant": true,
+   "samples": [
+    {
+     "packet_tick": 2,
+     "server_tick": 25597
+    },
+    {
+     "packet_tick": 17680,
+     "server_tick": 43275
+    },
+    {
+     "packet_tick": 35386,
+     "server_tick": 60981
+    },
+    {
+     "packet_tick": 53167,
+     "server_tick": 78762
+    },
+    {
+     "packet_tick": 70720,
+     "server_tick": 96315
+    },
+    {
+     "packet_tick": 88307,
+     "server_tick": 113902
+    }
+   ]
+  }
+ },
+ "bagel": {
+  "path": "D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem",
+  "map": "koth_bagel_rc13",
+  "recording": "SourceTV",
+  "client": "SourceTV Demo",
+  "server": "na.serveme.tf #633053",
+  "demo_ticks_header": 77466,
+  "playback_seconds": 1161.99,
+  "size_bytes": 46921111,
+  "sha256_full": "03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436",
+  "sha256_header_1072": "e056c23d8f311fc9b1b23d168e65c9e72b4f27741a5a99d6e32631421a4eb17c",
+  "bsp_present": false,
+  "clock": {
+   "path": "D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem",
+   "map": "koth_bagel_rc13",
+   "ticks": 77466,
+   "packets": 73121,
+   "net_tick_pairs": 65367,
+   "first_packet_tick": 1,
+   "last_packet_tick": 77464,
+   "first_server_tick": 56148,
+   "last_server_tick": 129275,
+   "server_minus_packet_offsets": [
+    51811,
+    56147
+   ],
+   "offset_constant": false,
+   "samples": [
+    {
+     "packet_tick": 1,
+     "server_tick": 56148
+    },
+    {
+     "packet_tick": 18882,
+     "server_tick": 70693
+    },
+    {
+     "packet_tick": 33455,
+     "server_tick": 85266
+    },
+    {
+     "packet_tick": 47951,
+     "server_tick": 99762
+    },
+    {
+     "packet_tick": 62651,
+     "server_tick": 114462
+    },
+    {
+     "packet_tick": 77463,
+     "server_tick": 129274
+    }
+   ]
+  }
+ },
+ "sunshine": {
+  "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem",
+  "map": "cp_sunshine",
+  "recording": "SourceTV",
+  "client": "SourceTV Demo",
+  "server": "Matcha Bookable",
+  "demo_ticks_header": 128432,
+  "playback_seconds": 1926.48,
+  "size_bytes": 82759239,
+  "sha256_full": "7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08",
+  "sha256_header_1072": "d3d49cb968e6e881823af6726fe7d716bad59b5d404e078d44f96c8a07d946f2",
+  "bsp_present": true,
+  "clock": {
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem",
+   "map": "cp_sunshine",
+   "ticks": 128432,
+   "packets": 120929,
+   "net_tick_pairs": 108539,
+   "first_packet_tick": 2,
+   "last_packet_tick": 128430,
+   "first_server_tick": 24458,
+   "last_server_tick": 145390,
+   "server_minus_packet_offsets": [
+    16960,
+    17707,
+    20852,
+    24456
+   ],
+   "offset_constant": false,
+   "samples": [
+    {
+     "packet_tick": 2,
+     "server_tick": 24458
+    },
+    {
+     "packet_tick": 31597,
+     "server_tick": 48557
+    },
+    {
+     "packet_tick": 55844,
+     "server_tick": 72804
+    },
+    {
+     "packet_tick": 79822,
+     "server_tick": 96782
+    },
+    {
+     "packet_tick": 104097,
+     "server_tick": 121057
+    },
+    {
+     "packet_tick": 128426,
+     "server_tick": 145386
+    }
+   ]
+  }
+ }
+}

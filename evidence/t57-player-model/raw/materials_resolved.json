@@ -1,0 +1,2239 @@
+[
+ {
+  "className": "Scout",
+  "tfClass": 1,
+  "mdlTextureCount": 17,
+  "slots": 17,
+  "resolved": 15,
+  "incomplete": [
+   "models/player/scout/eyeball_l (no root $basetexture)",
+   "models/player/scout/eyeball_r (no root $basetexture)"
+  ],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/scout/scout_red",
+    "candidates": [
+     "models/player/scout/scout_red"
+    ],
+    "vmt": "materials/models/player/scout/scout_red.vmt",
+    "base": "models/player/scout/scout_red",
+    "vtf": "materials/models/player/scout/scout_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "models/player/scout/scout_head_red",
+    "candidates": [
+     "models/player/scout/scout_head_red"
+    ],
+    "vmt": "materials/models/player/scout/scout_head_red.vmt",
+    "base": "models/player/scout/scout_head",
+    "vtf": "materials/models/player/scout/scout_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 2,
+    "texture": "models/player/scout/eyeball_l",
+    "candidates": [
+     "models/player/scout/eyeball_l"
+    ],
+    "vmt": "materials/models/player/scout/eyeball_l.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 3,
+    "texture": "models/player/scout/eyeball_r",
+    "candidates": [
+     "models/player/scout/eyeball_r"
+    ],
+    "vmt": "materials/models/player/scout/eyeball_r.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 4,
+    "texture": "scout_blue",
+    "candidates": [
+     "models/player/scout/scout_blue",
+     "scout_blue"
+    ],
+    "vmt": "materials/models/player/scout/scout_blue.vmt",
+    "base": "models/player/scout/scout_blue",
+    "vtf": "materials/models/player/scout/scout_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "scout_head_blue",
+    "candidates": [
+     "models/player/scout/scout_head_blue",
+     "scout_head_blue"
+    ],
+    "vmt": "materials/models/player/scout/scout_head_blue.vmt",
+    "base": "models/player/scout/scout_head",
+    "vtf": "materials/models/player/scout/scout_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "scout_red_invun",
+    "candidates": [
+     "models/player/scout/scout_red_invun",
+     "scout_red_invun"
+    ],
+    "vmt": "materials/models/player/scout/scout_red_invun.vmt",
+    "base": "models/player/scout/scout_red_invun",
+    "vtf": "materials/models/player/scout/scout_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "scout_head_red_invun",
+    "candidates": [
+     "models/player/scout/scout_head_red_invun",
+     "scout_head_red_invun"
+    ],
+    "vmt": "materials/models/player/scout/scout_head_red_invun.vmt",
+    "base": "models/player/scout/scout_head_red_invun",
+    "vtf": "materials/models/player/scout/scout_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "eyeball_invun",
+    "candidates": [
+     "models/player/scout/eyeball_invun",
+     "eyeball_invun"
+    ],
+    "vmt": "materials/models/player/scout/eyeball_invun.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "scout_blue_invun",
+    "candidates": [
+     "models/player/scout/scout_blue_invun",
+     "scout_blue_invun"
+    ],
+    "vmt": "materials/models/player/scout/scout_blue_invun.vmt",
+    "base": "models/player/scout/scout_blue_invun",
+    "vtf": "materials/models/player/scout/scout_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "scout_head_blue_invun",
+    "candidates": [
+     "models/player/scout/scout_head_blue_invun",
+     "scout_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/scout/scout_head_blue_invun.vmt",
+    "base": "models/player/scout/scout_head_blue_invun",
+    "vtf": "materials/models/player/scout/scout_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "scout_red_zombie_alphatest",
+    "candidates": [
+     "models/player/scout/scout_red_zombie_alphatest",
+     "scout_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/scout/scout_red_zombie_alphatest.vmt",
+    "base": "models/player/scout/scout_red_zombie",
+    "vtf": "materials/models/player/scout/scout_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "scout_head_zombie",
+    "candidates": [
+     "models/player/scout/scout_head_zombie",
+     "scout_head_zombie"
+    ],
+    "vmt": "materials/models/player/scout/scout_head_zombie.vmt",
+    "base": "models/player/scout/scout_head_zombie",
+    "vtf": "materials/models/player/scout/scout_head_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "eyeball_zombie",
+    "candidates": [
+     "models/player/scout/eyeball_zombie",
+     "eyeball_zombie"
+    ],
+    "vmt": "materials/models/player/scout/eyeball_zombie.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "scout_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/scout/scout_blue_zombie_alphatest",
+     "scout_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/scout/scout_blue_zombie_alphatest.vmt",
+    "base": "models/player/scout/scout_blue_zombie",
+    "vtf": "materials/models/player/scout/scout_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 15,
+    "texture": "scout_red_invun_zombie",
+    "candidates": [
+     "models/player/scout/scout_red_invun_zombie",
+     "scout_red_invun_zombie"
+    ],
+    "vmt": "materials/models/player/scout/scout_red_invun_zombie.vmt",
+    "base": "models/player/scout/scout_red_zombie",
+    "vtf": "materials/models/player/scout/scout_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 16,
+    "texture": "scout_blue_invun_zombie",
+    "candidates": [
+     "models/player/scout/scout_blue_invun_zombie",
+     "scout_blue_invun_zombie"
+    ],
+    "vmt": "materials/models/player/scout/scout_blue_invun_zombie.vmt",
+    "base": "models/player/scout/scout_blue_zombie",
+    "vtf": "materials/models/player/scout/scout_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/scout/scout_red",
+   "candidates": [
+    "models/player/scout/scout_red"
+   ],
+   "vmt": "materials/models/player/scout/scout_red.vmt",
+   "base": "models/player/scout/scout_red",
+   "vtf": "materials/models/player/scout/scout_red.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Sniper",
+  "tfClass": 2,
+  "mdlTextureCount": 20,
+  "slots": 20,
+  "resolved": 18,
+  "incomplete": [
+   "models/player/sniper/eyeball_l (no root $basetexture)",
+   "models/player/sniper/eyeball_r (no root $basetexture)"
+  ],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/sniper/sniper_red",
+    "candidates": [
+     "models/player/sniper/sniper_red"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_red.vmt",
+    "base": "models/player/sniper/sniper_red",
+    "vtf": "materials/models/player/sniper/sniper_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "models/player/sniper/sniper_lens",
+    "candidates": [
+     "models/player/sniper/sniper_lens"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_lens.vmt",
+    "base": "models/player/sniper/sniper_lens",
+    "vtf": "materials/models/player/sniper/sniper_lens.vtf",
+    "complete": true
+   },
+   {
+    "slot": 2,
+    "texture": "models/player/sniper/eyeball_l",
+    "candidates": [
+     "models/player/sniper/eyeball_l"
+    ],
+    "vmt": "materials/models/player/sniper/eyeball_l.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 3,
+    "texture": "models/player/sniper/sniper_head_red",
+    "candidates": [
+     "models/player/sniper/sniper_head_red"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_head_red.vmt",
+    "base": "models/player/sniper/sniper_head",
+    "vtf": "materials/models/player/sniper/sniper_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 4,
+    "texture": "models/player/sniper/eyeball_r",
+    "candidates": [
+     "models/player/sniper/eyeball_r"
+    ],
+    "vmt": "materials/models/player/sniper/eyeball_r.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 5,
+    "texture": "models/weapons/c_items/c_arrow",
+    "candidates": [
+     "models/weapons/c_items/c_arrow"
+    ],
+    "vmt": "materials/models/weapons/c_items/c_arrow.vmt",
+    "base": "models\\weapons\\c_items/c_arrow",
+    "vtf": "materials/models/weapons/c_items/c_arrow.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "sniper_blue",
+    "candidates": [
+     "models/player/sniper/sniper_blue",
+     "sniper_blue"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_blue.vmt",
+    "base": "models/player/sniper/sniper_blue",
+    "vtf": "materials/models/player/sniper/sniper_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "sniper_head_blue",
+    "candidates": [
+     "models/player/sniper/sniper_head_blue",
+     "sniper_head_blue"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_head_blue.vmt",
+    "base": "models/player/sniper/sniper_head",
+    "vtf": "materials/models/player/sniper/sniper_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "sniper_red_invun",
+    "candidates": [
+     "models/player/sniper/sniper_red_invun",
+     "sniper_red_invun"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_red_invun.vmt",
+    "base": "models/player/sniper/sniper_red_invun",
+    "vtf": "materials/models/player/sniper/sniper_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "sniper_head_red_invun",
+    "candidates": [
+     "models/player/sniper/sniper_head_red_invun",
+     "sniper_head_red_invun"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_head_red_invun.vmt",
+    "base": "models/player/sniper/sniper_head_red_invun",
+    "vtf": "materials/models/player/sniper/sniper_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "eyeball_invun",
+    "candidates": [
+     "models/player/sniper/eyeball_invun",
+     "eyeball_invun"
+    ],
+    "vmt": "materials/models/player/sniper/eyeball_invun.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "sniper_lens_invuln",
+    "candidates": [
+     "models/player/sniper/sniper_lens_invuln",
+     "sniper_lens_invuln"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_lens_invuln.vmt",
+    "base": "models\\player\\sniper\\sniper_lens_invuln",
+    "vtf": "materials/models/player/sniper/sniper_lens_invuln.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "sniper_blue_invun",
+    "candidates": [
+     "models/player/sniper/sniper_blue_invun",
+     "sniper_blue_invun"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_blue_invun.vmt",
+    "base": "models/player/sniper/sniper_blue_invun",
+    "vtf": "materials/models/player/sniper/sniper_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "sniper_head_blue_invun",
+    "candidates": [
+     "models/player/sniper/sniper_head_blue_invun",
+     "sniper_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_head_blue_invun.vmt",
+    "base": "models/player/sniper/sniper_head_blue_invun",
+    "vtf": "materials/models/player/sniper/sniper_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "sniper_red_zombie_alphatest",
+    "candidates": [
+     "models/player/sniper/sniper_red_zombie_alphatest",
+     "sniper_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_red_zombie_alphatest.vmt",
+    "base": "models/player/sniper/sniper_red_zombie",
+    "vtf": "materials/models/player/sniper/sniper_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 15,
+    "texture": "sniper_head_zombie_alphatest",
+    "candidates": [
+     "models/player/sniper/sniper_head_zombie_alphatest",
+     "sniper_head_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_head_zombie_alphatest.vmt",
+    "base": "models/player/sniper/sniper_head_zombie",
+    "vtf": "materials/models/player/sniper/sniper_head_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 16,
+    "texture": "eyeball_zombie",
+    "candidates": [
+     "models/player/sniper/eyeball_zombie",
+     "eyeball_zombie"
+    ],
+    "vmt": "materials/models/player/sniper/eyeball_zombie.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 17,
+    "texture": "sniper_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/sniper/sniper_blue_zombie_alphatest",
+     "sniper_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_blue_zombie_alphatest.vmt",
+    "base": "models/player/sniper/sniper_blue_zombie",
+    "vtf": "materials/models/player/sniper/sniper_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 18,
+    "texture": "sniper_red_zombie_invun",
+    "candidates": [
+     "models/player/sniper/sniper_red_zombie_invun",
+     "sniper_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_red_zombie_invun.vmt",
+    "base": "models/player/sniper/sniper_red_zombie",
+    "vtf": "materials/models/player/sniper/sniper_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 19,
+    "texture": "sniper_blue_zombie_invun",
+    "candidates": [
+     "models/player/sniper/sniper_blue_zombie_invun",
+     "sniper_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/sniper/sniper_blue_zombie_invun.vmt",
+    "base": "models/player/sniper/sniper_blue_zombie",
+    "vtf": "materials/models/player/sniper/sniper_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/sniper/sniper_red",
+   "candidates": [
+    "models/player/sniper/sniper_red"
+   ],
+   "vmt": "materials/models/player/sniper/sniper_red.vmt",
+   "base": "models/player/sniper/sniper_red",
+   "vtf": "materials/models/player/sniper/sniper_red.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Soldier",
+  "tfClass": 3,
+  "mdlTextureCount": 20,
+  "slots": 20,
+  "resolved": 18,
+  "incomplete": [
+   "models/player/soldier/eyeball_l (no root $basetexture)",
+   "models/player/soldier/eyeball_r (no root $basetexture)"
+  ],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/soldier/soldier_red",
+    "candidates": [
+     "models/player/soldier/soldier_red"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_red.vmt",
+    "base": "models/player/soldier/soldier_red",
+    "vtf": "materials/models/player/soldier/soldier_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "models/player/soldier/eyeball_l",
+    "candidates": [
+     "models/player/soldier/eyeball_l"
+    ],
+    "vmt": "materials/models/player/soldier/eyeball_l.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 2,
+    "texture": "models/player/soldier/soldier_head_red",
+    "candidates": [
+     "models/player/soldier/soldier_head_red"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_head_red.vmt",
+    "base": "models/player/soldier/soldier_head",
+    "vtf": "materials/models/player/soldier/soldier_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 3,
+    "texture": "models/player/soldier/eyeball_r",
+    "candidates": [
+     "models/player/soldier/eyeball_r"
+    ],
+    "vmt": "materials/models/player/soldier/eyeball_r.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 4,
+    "texture": "models/weapons/w_rocketlauncher/w_rocket01",
+    "candidates": [
+     "models/weapons/w_rocketlauncher/w_rocket01"
+    ],
+    "vmt": "materials/models/weapons/w_rocketlauncher/w_rocket01.vmt",
+    "base": "models\\weapons\\w_rocketlauncher\\w_rocket01",
+    "vtf": "materials/models/weapons/w_rocketlauncher/w_rocket01.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "models/player/items/soldier/medals",
+    "candidates": [
+     "models/player/items/soldier/medals"
+    ],
+    "vmt": "materials/models/player/items/soldier/medals.vmt",
+    "base": "models/player/items/soldier/medals",
+    "vtf": "materials/models/player/items/soldier/medals.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "soldier_blue",
+    "candidates": [
+     "models/player/soldier/soldier_blue",
+     "models/player/items/soldier/soldier_blue",
+     "soldier_blue"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_blue.vmt",
+    "base": "models/player/soldier/soldier_blue",
+    "vtf": "materials/models/player/soldier/soldier_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "soldier_head_blue",
+    "candidates": [
+     "models/player/soldier/soldier_head_blue",
+     "models/player/items/soldier/soldier_head_blue",
+     "soldier_head_blue"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_head_blue.vmt",
+    "base": "models/player/soldier/soldier_head",
+    "vtf": "materials/models/player/soldier/soldier_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "medals_blue",
+    "candidates": [
+     "models/player/soldier/medals_blue",
+     "models/player/items/soldier/medals_blue",
+     "medals_blue"
+    ],
+    "vmt": "materials/models/player/items/soldier/medals_blue.vmt",
+    "base": "models/player/items/soldier/medals_blue",
+    "vtf": "materials/models/player/items/soldier/medals_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "soldier_red_invun",
+    "candidates": [
+     "models/player/soldier/soldier_red_invun",
+     "models/player/items/soldier/soldier_red_invun",
+     "soldier_red_invun"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_red_invun.vmt",
+    "base": "models/player/soldier/soldier_red_invun",
+    "vtf": "materials/models/player/soldier/soldier_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "soldier_head_red_invun",
+    "candidates": [
+     "models/player/soldier/soldier_head_red_invun",
+     "models/player/items/soldier/soldier_head_red_invun",
+     "soldier_head_red_invun"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_head_red_invun.vmt",
+    "base": "models/player/soldier/soldier_head_red_invun",
+    "vtf": "materials/models/player/soldier/soldier_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "eyeball_invun",
+    "candidates": [
+     "models/player/soldier/eyeball_invun",
+     "models/player/items/soldier/eyeball_invun",
+     "eyeball_invun"
+    ],
+    "vmt": "materials/models/player/soldier/eyeball_invun.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "soldier_blue_invun",
+    "candidates": [
+     "models/player/soldier/soldier_blue_invun",
+     "models/player/items/soldier/soldier_blue_invun",
+     "soldier_blue_invun"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_blue_invun.vmt",
+    "base": "models/player/soldier/soldier_blue_invun",
+    "vtf": "materials/models/player/soldier/soldier_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "soldier_head_blue_invun",
+    "candidates": [
+     "models/player/soldier/soldier_head_blue_invun",
+     "models/player/items/soldier/soldier_head_blue_invun",
+     "soldier_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_head_blue_invun.vmt",
+    "base": "models/player/soldier/soldier_head_blue_invun",
+    "vtf": "materials/models/player/soldier/soldier_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "soldier_red_zombie_alphatest",
+    "candidates": [
+     "models/player/soldier/soldier_red_zombie_alphatest",
+     "models/player/items/soldier/soldier_red_zombie_alphatest",
+     "soldier_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_red_zombie_alphatest.vmt",
+    "base": "models/player/soldier/soldier_red_zombie",
+    "vtf": "materials/models/player/soldier/soldier_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 15,
+    "texture": "soldier_head_zombie",
+    "candidates": [
+     "models/player/soldier/soldier_head_zombie",
+     "models/player/items/soldier/soldier_head_zombie",
+     "soldier_head_zombie"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_head_zombie.vmt",
+    "base": "models/player/soldier/soldier_head_zombie",
+    "vtf": "materials/models/player/soldier/soldier_head_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 16,
+    "texture": "eyeball_zombie",
+    "candidates": [
+     "models/player/soldier/eyeball_zombie",
+     "models/player/items/soldier/eyeball_zombie",
+     "eyeball_zombie"
+    ],
+    "vmt": "materials/models/player/soldier/eyeball_zombie.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 17,
+    "texture": "soldier_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/soldier/soldier_blue_zombie_alphatest",
+     "models/player/items/soldier/soldier_blue_zombie_alphatest",
+     "soldier_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_blue_zombie_alphatest.vmt",
+    "base": "models/player/soldier/soldier_blue_zombie",
+    "vtf": "materials/models/player/soldier/soldier_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 18,
+    "texture": "soldier_red_zombie_invun",
+    "candidates": [
+     "models/player/soldier/soldier_red_zombie_invun",
+     "models/player/items/soldier/soldier_red_zombie_invun",
+     "soldier_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_red_zombie_invun.vmt",
+    "base": "models/player/soldier/soldier_red_zombie",
+    "vtf": "materials/models/player/soldier/soldier_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 19,
+    "texture": "soldier_blue_zombie_invun",
+    "candidates": [
+     "models/player/soldier/soldier_blue_zombie_invun",
+     "models/player/items/soldier/soldier_blue_zombie_invun",
+     "soldier_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/soldier/soldier_blue_zombie_invun.vmt",
+    "base": "models/player/soldier/soldier_blue_zombie",
+    "vtf": "materials/models/player/soldier/soldier_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/soldier/soldier_red",
+   "candidates": [
+    "models/player/soldier/soldier_red"
+   ],
+   "vmt": "materials/models/player/soldier/soldier_red.vmt",
+   "base": "models/player/soldier/soldier_red",
+   "vtf": "materials/models/player/soldier/soldier_red.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Demoman",
+  "tfClass": 4,
+  "mdlTextureCount": 17,
+  "slots": 17,
+  "resolved": 16,
+  "incomplete": [
+   "models/player/demo/eyeball_r (no root $basetexture)"
+  ],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/demo/demoman_red",
+    "candidates": [
+     "models/player/demo/demoman_red"
+    ],
+    "vmt": "materials/models/player/demo/demoman_red.vmt",
+    "base": "models/player/demo/demoman_red",
+    "vtf": "materials/models/player/demo/demoman_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "models/player/demo/demoman_head_red",
+    "candidates": [
+     "models/player/demo/demoman_head_red"
+    ],
+    "vmt": "materials/models/player/demo/demoman_head_red.vmt",
+    "base": "models/player/demo/demoman_head",
+    "vtf": "materials/models/player/demo/demoman_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 2,
+    "texture": "models/player/demo/eyeball_r",
+    "candidates": [
+     "models/player/demo/eyeball_r"
+    ],
+    "vmt": "materials/models/player/demo/eyeball_r.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 3,
+    "texture": "models/effects/smiley",
+    "candidates": [
+     "models/effects/smiley"
+    ],
+    "vmt": "materials/models/effects/smiley.vmt",
+    "base": "models/effects/smiley",
+    "vtf": "materials/models/effects/smiley.vtf",
+    "complete": true
+   },
+   {
+    "slot": 4,
+    "texture": "demoman_blue",
+    "candidates": [
+     "models/player/demo/demoman_blue",
+     "demoman_blue"
+    ],
+    "vmt": "materials/models/player/demo/demoman_blue.vmt",
+    "base": "models/player/demo/demoman_blue",
+    "vtf": "materials/models/player/demo/demoman_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "demoman_head_blue",
+    "candidates": [
+     "models/player/demo/demoman_head_blue",
+     "demoman_head_blue"
+    ],
+    "vmt": "materials/models/player/demo/demoman_head_blue.vmt",
+    "base": "models/player/demo/demoman_head",
+    "vtf": "materials/models/player/demo/demoman_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "demoman_red_invun",
+    "candidates": [
+     "models/player/demo/demoman_red_invun",
+     "demoman_red_invun"
+    ],
+    "vmt": "materials/models/player/demo/demoman_red_invun.vmt",
+    "base": "models/player/demo/demoman_red_invun",
+    "vtf": "materials/models/player/demo/demoman_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "demoman_head_red_invun",
+    "candidates": [
+     "models/player/demo/demoman_head_red_invun",
+     "demoman_head_red_invun"
+    ],
+    "vmt": "materials/models/player/demo/demoman_head_red_invun.vmt",
+    "base": "models/player/demo/demoman_head_red_invun",
+    "vtf": "materials/models/player/demo/demoman_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "eyeball_invun",
+    "candidates": [
+     "models/player/demo/eyeball_invun",
+     "eyeball_invun"
+    ],
+    "vmt": "materials/models/player/demo/eyeball_invun.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "demoman_blue_invun",
+    "candidates": [
+     "models/player/demo/demoman_blue_invun",
+     "demoman_blue_invun"
+    ],
+    "vmt": "materials/models/player/demo/demoman_blue_invun.vmt",
+    "base": "models/player/demo/demoman_blue_invun",
+    "vtf": "materials/models/player/demo/demoman_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "demoman_head_blue_invun",
+    "candidates": [
+     "models/player/demo/demoman_head_blue_invun",
+     "demoman_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/demo/demoman_head_blue_invun.vmt",
+    "base": "models/player/demo/demoman_head_blue_invun",
+    "vtf": "materials/models/player/demo/demoman_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "demoman_red_zombie_alphatest",
+    "candidates": [
+     "models/player/demo/demoman_red_zombie_alphatest",
+     "demoman_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/demo/demoman_red_zombie_alphatest.vmt",
+    "base": "models/player/demo/demoman_red_zombie",
+    "vtf": "materials/models/player/demo/demoman_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "demoman_head_zombie",
+    "candidates": [
+     "models/player/demo/demoman_head_zombie",
+     "demoman_head_zombie"
+    ],
+    "vmt": "materials/models/player/demo/demoman_head_zombie.vmt",
+    "base": "models/player/demo/demoman_head_zombie",
+    "vtf": "materials/models/player/demo/demoman_head_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "eyeball_zombie",
+    "candidates": [
+     "models/player/demo/eyeball_zombie",
+     "eyeball_zombie"
+    ],
+    "vmt": "materials/models/player/demo/eyeball_zombie.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "demoman_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/demo/demoman_blue_zombie_alphatest",
+     "demoman_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/demo/demoman_blue_zombie_alphatest.vmt",
+    "base": "models/player/demo/demoman_blue_zombie",
+    "vtf": "materials/models/player/demo/demoman_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 15,
+    "texture": "demoman_red_zombie_invun",
+    "candidates": [
+     "models/player/demo/demoman_red_zombie_invun",
+     "demoman_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/demo/demoman_red_zombie_invun.vmt",
+    "base": "models/player/demo/demoman_red_zombie",
+    "vtf": "materials/models/player/demo/demoman_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 16,
+    "texture": "demoman_blue_zombie_invun",
+    "candidates": [
+     "models/player/demo/demoman_blue_zombie_invun",
+     "demoman_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/demo/demoman_blue_zombie_invun.vmt",
+    "base": "models/player/demo/demoman_blue_zombie",
+    "vtf": "materials/models/player/demo/demoman_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/demo/demoman_red",
+   "candidates": [
+    "models/player/demo/demoman_red"
+   ],
+   "vmt": "materials/models/player/demo/demoman_red.vmt",
+   "base": "models/player/demo/demoman_red",
+   "vtf": "materials/models/player/demo/demoman_red.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Medic",
+  "tfClass": 5,
+  "mdlTextureCount": 21,
+  "slots": 21,
+  "resolved": 19,
+  "incomplete": [
+   "eyeball_r (no root $basetexture)",
+   "eyeball_l (no root $basetexture)"
+  ],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "medic_red",
+    "candidates": [
+     "models/player/medic/medic_red",
+     "models/player/items/all_class/medic_red"
+    ],
+    "vmt": "materials/models/player/medic/medic_red.vmt",
+    "base": "models/player/medic/medic_red",
+    "vtf": "materials/models/player/medic/medic_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "medic_head_red",
+    "candidates": [
+     "models/player/medic/medic_head_red",
+     "models/player/items/all_class/medic_head_red"
+    ],
+    "vmt": "materials/models/player/medic/medic_head_red.vmt",
+    "base": "models/player/medic/medic_head",
+    "vtf": "materials/models/player/medic/medic_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 2,
+    "texture": "eyeball_r",
+    "candidates": [
+     "models/player/medic/eyeball_r",
+     "models/player/items/all_class/eyeball_r"
+    ],
+    "vmt": "materials/models/player/medic/eyeball_r.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 3,
+    "texture": "eyeball_l",
+    "candidates": [
+     "models/player/medic/eyeball_l",
+     "models/player/items/all_class/eyeball_l"
+    ],
+    "vmt": "materials/models/player/medic/eyeball_l.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 4,
+    "texture": "medic_backpack_red",
+    "candidates": [
+     "models/player/medic/medic_backpack_red",
+     "models/player/items/all_class/medic_backpack_red"
+    ],
+    "vmt": "materials/models/player/medic/medic_backpack_red.vmt",
+    "base": "models/player/medic/medic_backpack_red",
+    "vtf": "materials/models/player/medic/medic_backpack_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "medic_blue",
+    "candidates": [
+     "models/player/medic/medic_blue",
+     "models/player/items/all_class/medic_blue"
+    ],
+    "vmt": "materials/models/player/medic/medic_blue.vmt",
+    "base": "models/player/medic/medic_blue",
+    "vtf": "materials/models/player/medic/medic_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "medic_head_blue",
+    "candidates": [
+     "models/player/medic/medic_head_blue",
+     "models/player/items/all_class/medic_head_blue"
+    ],
+    "vmt": "materials/models/player/medic/medic_head_blue.vmt",
+    "base": "models/player/medic/medic_head",
+    "vtf": "materials/models/player/medic/medic_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "medic_backpack_blue",
+    "candidates": [
+     "models/player/medic/medic_backpack_blue",
+     "models/player/items/all_class/medic_backpack_blue"
+    ],
+    "vmt": "materials/models/player/medic/medic_backpack_blue.vmt",
+    "base": "models/player/medic/medic_backpack_blue",
+    "vtf": "materials/models/player/medic/medic_backpack_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "medic_red_invun",
+    "candidates": [
+     "models/player/medic/medic_red_invun",
+     "models/player/items/all_class/medic_red_invun"
+    ],
+    "vmt": "materials/models/player/medic/medic_red_invun.vmt",
+    "base": "models/player/medic/medic_red_invun",
+    "vtf": "materials/models/player/medic/medic_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "medic_head_red_invun",
+    "candidates": [
+     "models/player/medic/medic_head_red_invun",
+     "models/player/items/all_class/medic_head_red_invun"
+    ],
+    "vmt": "materials/models/player/medic/medic_head_red_invun.vmt",
+    "base": "models/player/medic/medic_head_red_invun",
+    "vtf": "materials/models/player/medic/medic_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "eyeball_invun",
+    "candidates": [
+     "models/player/medic/eyeball_invun",
+     "models/player/items/all_class/eyeball_invun"
+    ],
+    "vmt": "materials/models/player/medic/eyeball_invun.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "..\\..\\effects\\invulnfx_red",
+    "candidates": [
+     "models/effects/invulnfx_red",
+     "models/player/effects/invulnfx_red"
+    ],
+    "vmt": "materials/models/effects/invulnfx_red.vmt",
+    "base": "effects/red",
+    "vtf": "materials/effects/red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "medic_blue_invun",
+    "candidates": [
+     "models/player/medic/medic_blue_invun",
+     "models/player/items/all_class/medic_blue_invun"
+    ],
+    "vmt": "materials/models/player/medic/medic_blue_invun.vmt",
+    "base": "models/player/medic/medic_blue_invun",
+    "vtf": "materials/models/player/medic/medic_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "medic_head_blue_invun",
+    "candidates": [
+     "models/player/medic/medic_head_blue_invun",
+     "models/player/items/all_class/medic_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/medic/medic_head_blue_invun.vmt",
+    "base": "models/player/medic/medic_head_blue_invun",
+    "vtf": "materials/models/player/medic/medic_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "..\\..\\effects\\invulnfx_blue",
+    "candidates": [
+     "models/effects/invulnfx_blue",
+     "models/player/effects/invulnfx_blue"
+    ],
+    "vmt": "materials/models/effects/invulnfx_blue.vmt",
+    "base": "effects/blue",
+    "vtf": "materials/effects/blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 15,
+    "texture": "medic_red_zombie_alphatest",
+    "candidates": [
+     "models/player/medic/medic_red_zombie_alphatest",
+     "models/player/items/all_class/medic_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/medic/medic_red_zombie_alphatest.vmt",
+    "base": "models/player/medic/medic_red_zombie",
+    "vtf": "materials/models/player/medic/medic_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 16,
+    "texture": "medic_head_zombie",
+    "candidates": [
+     "models/player/medic/medic_head_zombie",
+     "models/player/items/all_class/medic_head_zombie"
+    ],
+    "vmt": "materials/models/player/medic/medic_head_zombie.vmt",
+    "base": "models/player/medic/medic_head_zombie",
+    "vtf": "materials/models/player/medic/medic_head_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 17,
+    "texture": "eyeball_zombie",
+    "candidates": [
+     "models/player/medic/eyeball_zombie",
+     "models/player/items/all_class/eyeball_zombie"
+    ],
+    "vmt": "materials/models/player/medic/eyeball_zombie.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 18,
+    "texture": "medic_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/medic/medic_blue_zombie_alphatest",
+     "models/player/items/all_class/medic_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/medic/medic_blue_zombie_alphatest.vmt",
+    "base": "models/player/medic/medic_blue_zombie",
+    "vtf": "materials/models/player/medic/medic_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 19,
+    "texture": "medic_red_zombie_invun",
+    "candidates": [
+     "models/player/medic/medic_red_zombie_invun",
+     "models/player/items/all_class/medic_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/medic/medic_red_zombie_invun.vmt",
+    "base": "models/player/medic/medic_red_zombie",
+    "vtf": "materials/models/player/medic/medic_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 20,
+    "texture": "medic_blue_zombie_invun",
+    "candidates": [
+     "models/player/medic/medic_blue_zombie_invun",
+     "models/player/items/all_class/medic_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/medic/medic_blue_zombie_invun.vmt",
+    "base": "models/player/medic/medic_blue_zombie",
+    "vtf": "materials/models/player/medic/medic_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "medic_red",
+   "candidates": [
+    "models/player/medic/medic_red",
+    "models/player/items/all_class/medic_red"
+   ],
+   "vmt": "materials/models/player/medic/medic_red.vmt",
+   "base": "models/player/medic/medic_red",
+   "vtf": "materials/models/player/medic/medic_red.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Heavy",
+  "tfClass": 6,
+  "mdlTextureCount": 21,
+  "slots": 21,
+  "resolved": 19,
+  "incomplete": [
+   "models/player/hvyweapon/eyeball_r (no root $basetexture)",
+   "models/player/hvyweapon/eyeball_l (no root $basetexture)"
+  ],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/hvyweapon/heavy_head_red",
+    "candidates": [
+     "models/player/hvyweapon/heavy_head_red"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_head_red.vmt",
+    "base": "models/player/hvyweapon/heavy_head",
+    "vtf": "materials/models/player/hvyweapon/heavy_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "models/player/hvyweapon/eyeball_r",
+    "candidates": [
+     "models/player/hvyweapon/eyeball_r"
+    ],
+    "vmt": "materials/models/player/hvyweapon/eyeball_r.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 2,
+    "texture": "models/player/hvyweapon/eyeball_l",
+    "candidates": [
+     "models/player/hvyweapon/eyeball_l"
+    ],
+    "vmt": "materials/models/player/hvyweapon/eyeball_l.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 3,
+    "texture": "models/player/hvyweapon/hvyweapon_red",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_red"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_red.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_red",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 4,
+    "texture": "models/player/hvyweapon/hvyweapon_red_sheen",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_red_sheen"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_red_sheen.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_red",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "hvyweapon_blue",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_blue",
+     "hvyweapon_blue"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_blue.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_blue",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "heavy_head_blue",
+    "candidates": [
+     "models/player/hvyweapon/heavy_head_blue",
+     "heavy_head_blue"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_head_blue.vmt",
+    "base": "models/player/hvyweapon/heavy_head",
+    "vtf": "materials/models/player/hvyweapon/heavy_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "hvyweapon_blue_sheen",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_blue_sheen",
+     "hvyweapon_blue_sheen"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_blue_sheen.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_blue",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "hvyweapon_red_invun",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_red_invun",
+     "hvyweapon_red_invun"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_red_invun.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_red_invun",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "heavy_head_red_invun",
+    "candidates": [
+     "models/player/hvyweapon/heavy_head_red_invun",
+     "heavy_head_red_invun"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_head_red_invun.vmt",
+    "base": "models/player/hvyweapon/heavy_head_red_invun",
+    "vtf": "materials/models/player/hvyweapon/heavy_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "eyeball_invun",
+    "candidates": [
+     "models/player/hvyweapon/eyeball_invun",
+     "eyeball_invun"
+    ],
+    "vmt": "materials/models/player/hvyweapon/eyeball_invun.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "hvyweapon_blue_invun",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_blue_invun",
+     "hvyweapon_blue_invun"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_blue_invun.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_blue_invun",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "heavy_head_blue_invun",
+    "candidates": [
+     "models/player/hvyweapon/heavy_head_blue_invun",
+     "heavy_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_head_blue_invun.vmt",
+    "base": "models/player/hvyweapon/heavy_head_blue_invun",
+    "vtf": "materials/models/player/hvyweapon/heavy_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "heavy_red_zombie_alphatest",
+    "candidates": [
+     "models/player/hvyweapon/heavy_red_zombie_alphatest",
+     "heavy_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_red_zombie_alphatest.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_red_zombie",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "heavy_head_zombie",
+    "candidates": [
+     "models/player/hvyweapon/heavy_head_zombie",
+     "heavy_head_zombie"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_head_zombie.vmt",
+    "base": "models/player/hvyweapon/heavy_head_zombie",
+    "vtf": "materials/models/player/hvyweapon/heavy_head_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 15,
+    "texture": "eyeball_zombie",
+    "candidates": [
+     "models/player/hvyweapon/eyeball_zombie",
+     "eyeball_zombie"
+    ],
+    "vmt": "materials/models/player/hvyweapon/eyeball_zombie.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 16,
+    "texture": "heavy_red_zombie_alphatest_sheen",
+    "candidates": [
+     "models/player/hvyweapon/heavy_red_zombie_alphatest_sheen",
+     "heavy_red_zombie_alphatest_sheen"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_red_zombie_alphatest_sheen.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_red_zombie",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 17,
+    "texture": "heavy_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/hvyweapon/heavy_blue_zombie_alphatest",
+     "heavy_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_blue_zombie_alphatest.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_blue_zombie",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 18,
+    "texture": "heavy_blue_zombie_alphatest_sheen",
+    "candidates": [
+     "models/player/hvyweapon/heavy_blue_zombie_alphatest_sheen",
+     "heavy_blue_zombie_alphatest_sheen"
+    ],
+    "vmt": "materials/models/player/hvyweapon/heavy_blue_zombie_alphatest_sheen.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_blue_zombie",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 19,
+    "texture": "hvyweapon_red_zombie_invun",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_red_zombie_invun",
+     "hvyweapon_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_red_zombie_invun.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_red_zombie",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 20,
+    "texture": "hvyweapon_blue_zombie_invun",
+    "candidates": [
+     "models/player/hvyweapon/hvyweapon_blue_zombie_invun",
+     "hvyweapon_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/hvyweapon/hvyweapon_blue_zombie_invun.vmt",
+    "base": "models/player/hvyweapon/hvyweapon_blue_zombie",
+    "vtf": "materials/models/player/hvyweapon/hvyweapon_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/hvyweapon/heavy_head_red",
+   "candidates": [
+    "models/player/hvyweapon/heavy_head_red"
+   ],
+   "vmt": "materials/models/player/hvyweapon/heavy_head_red.vmt",
+   "base": "models/player/hvyweapon/heavy_head",
+   "vtf": "materials/models/player/hvyweapon/heavy_head.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Pyro",
+  "tfClass": 7,
+  "mdlTextureCount": 8,
+  "slots": 8,
+  "resolved": 8,
+  "incomplete": [],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/pyro/pyro_red",
+    "candidates": [
+     "models/player/pyro/pyro_red"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_red.vmt",
+    "base": "models/player/pyro/pyro_red",
+    "vtf": "materials/models/player/pyro/pyro_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "pyro_blue",
+    "candidates": [
+     "models/player/pyro/pyro_blue",
+     "models/effects/pyro/pyro_blue",
+     "pyro_blue"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_blue.vmt",
+    "base": "models/player/pyro/pyro_blue",
+    "vtf": "materials/models/player/pyro/pyro_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 2,
+    "texture": "pyro_red_invun",
+    "candidates": [
+     "models/player/pyro/pyro_red_invun",
+     "models/effects/pyro/pyro_red_invun",
+     "pyro_red_invun"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_red_invun.vmt",
+    "base": "models/player/pyro/pyro_red_invun",
+    "vtf": "materials/models/player/pyro/pyro_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 3,
+    "texture": "pyro_blue_invun",
+    "candidates": [
+     "models/player/pyro/pyro_blue_invun",
+     "models/effects/pyro/pyro_blue_invun",
+     "pyro_blue_invun"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_blue_invun.vmt",
+    "base": "models/player/pyro/pyro_blue_invun",
+    "vtf": "materials/models/player/pyro/pyro_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 4,
+    "texture": "pyro_red_zombie_alphatest",
+    "candidates": [
+     "models/player/pyro/pyro_red_zombie_alphatest",
+     "models/effects/pyro/pyro_red_zombie_alphatest",
+     "pyro_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_red_zombie_alphatest.vmt",
+    "base": "models/player/pyro/pyro_red_zombie",
+    "vtf": "materials/models/player/pyro/pyro_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "pyro_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/pyro/pyro_blue_zombie_alphatest",
+     "models/effects/pyro/pyro_blue_zombie_alphatest",
+     "pyro_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_blue_zombie_alphatest.vmt",
+    "base": "models/player/pyro/pyro_blue_zombie",
+    "vtf": "materials/models/player/pyro/pyro_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "pyro_red_zombie_invun",
+    "candidates": [
+     "models/player/pyro/pyro_red_zombie_invun",
+     "models/effects/pyro/pyro_red_zombie_invun",
+     "pyro_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_red_zombie_invun.vmt",
+    "base": "models/player/pyro/pyro_red_zombie",
+    "vtf": "materials/models/player/pyro/pyro_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "pyro_blue_zombie_invun",
+    "candidates": [
+     "models/player/pyro/pyro_blue_zombie_invun",
+     "models/effects/pyro/pyro_blue_zombie_invun",
+     "pyro_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/pyro/pyro_blue_zombie_invun.vmt",
+    "base": "models/player/pyro/pyro_blue_zombie",
+    "vtf": "materials/models/player/pyro/pyro_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/pyro/pyro_red",
+   "candidates": [
+    "models/player/pyro/pyro_red"
+   ],
+   "vmt": "materials/models/player/pyro/pyro_red.vmt",
+   "base": "models/player/pyro/pyro_red",
+   "vtf": "materials/models/player/pyro/pyro_red.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Spy",
+  "tfClass": 8,
+  "mdlTextureCount": 31,
+  "slots": 31,
+  "resolved": 29,
+  "incomplete": [
+   "models/player/spy/eyeball_l (no root $basetexture)",
+   "models/player/spy/eyeball_r (no root $basetexture)"
+  ],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/spy/spy_head_red",
+    "candidates": [
+     "models/player/spy/spy_head_red"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_red.vmt",
+    "base": "models/player/spy/spy_head_red",
+    "vtf": "materials/models/player/spy/spy_head_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "models/player/spy/eyeball_l",
+    "candidates": [
+     "models/player/spy/eyeball_l"
+    ],
+    "vmt": "materials/models/player/spy/eyeball_l.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 2,
+    "texture": "models/player/spy/eyeball_r",
+    "candidates": [
+     "models/player/spy/eyeball_r"
+    ],
+    "vmt": "materials/models/player/spy/eyeball_r.vmt",
+    "base": null,
+    "vtf": null,
+    "complete": false
+   },
+   {
+    "slot": 3,
+    "texture": "models/player/spy/spy_red",
+    "candidates": [
+     "models/player/spy/spy_red"
+    ],
+    "vmt": "materials/models/player/spy/spy_red.vmt",
+    "base": "models/player/spy/spy_red",
+    "vtf": "materials/models/player/spy/spy_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 4,
+    "texture": "models/player/spy/mask_spy",
+    "candidates": [
+     "models/player/spy/mask_spy"
+    ],
+    "vmt": "materials/models/player/spy/mask_spy.vmt",
+    "base": "models/player/spy/mask_spy",
+    "vtf": "materials/models/player/spy/mask_spy.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "spy_blue",
+    "candidates": [
+     "models/player/spy/spy_blue",
+     "spy_blue"
+    ],
+    "vmt": "materials/models/player/spy/spy_blue.vmt",
+    "base": "models/player/spy/spy_blue",
+    "vtf": "materials/models/player/spy/spy_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "spy_head_blue",
+    "candidates": [
+     "models/player/spy/spy_head_blue",
+     "spy_head_blue"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_blue.vmt",
+    "base": "models/player/spy/spy_head_blue",
+    "vtf": "materials/models/player/spy/spy_head_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "spy_red_invun",
+    "candidates": [
+     "models/player/spy/spy_red_invun",
+     "spy_red_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_red_invun.vmt",
+    "base": "models/player/spy/spy_red_invun",
+    "vtf": "materials/models/player/spy/spy_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "spy_head_red_invun",
+    "candidates": [
+     "models/player/spy/spy_head_red_invun",
+     "spy_head_red_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_red_invun.vmt",
+    "base": "models/player/spy/spy_head_red_invun",
+    "vtf": "materials/models/player/spy/spy_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "eyeball_invun",
+    "candidates": [
+     "models/player/spy/eyeball_invun",
+     "eyeball_invun"
+    ],
+    "vmt": "materials/models/player/spy/eyeball_invun.vmt",
+    "base": "models/player/shared/eyeball_invun",
+    "vtf": "materials/models/player/shared/eyeball_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "/../../effects/invulnfx_red",
+    "candidates": [
+     "models/effects/invulnfx_red",
+     "effects/invulnfx_red"
+    ],
+    "vmt": "materials/models/effects/invulnfx_red.vmt",
+    "base": "effects/red",
+    "vtf": "materials/effects/red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "spy_blue_invun",
+    "candidates": [
+     "models/player/spy/spy_blue_invun",
+     "spy_blue_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_blue_invun.vmt",
+    "base": "models/player/spy/spy_blue_invun",
+    "vtf": "materials/models/player/spy/spy_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "spy_head_blue_invun",
+    "candidates": [
+     "models/player/spy/spy_head_blue_invun",
+     "spy_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_blue_invun.vmt",
+    "base": "models/player/spy/spy_head_blue_invun",
+    "vtf": "materials/models/player/spy/spy_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "/../../effects/invulnfx_blue",
+    "candidates": [
+     "models/effects/invulnfx_blue",
+     "effects/invulnfx_blue"
+    ],
+    "vmt": "materials/models/effects/invulnfx_blue.vmt",
+    "base": "effects/blue",
+    "vtf": "materials/effects/blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "mask_scout",
+    "candidates": [
+     "models/player/spy/mask_scout",
+     "mask_scout"
+    ],
+    "vmt": "materials/models/player/spy/mask_scout.vmt",
+    "base": "models/player/spy/mask_scout",
+    "vtf": "materials/models/player/spy/mask_scout.vtf",
+    "complete": true
+   },
+   {
+    "slot": 15,
+    "texture": "mask_sniper",
+    "candidates": [
+     "models/player/spy/mask_sniper",
+     "mask_sniper"
+    ],
+    "vmt": "materials/models/player/spy/mask_sniper.vmt",
+    "base": "models/player/spy/mask_sniper",
+    "vtf": "materials/models/player/spy/mask_sniper.vtf",
+    "complete": true
+   },
+   {
+    "slot": 16,
+    "texture": "mask_soldier",
+    "candidates": [
+     "models/player/spy/mask_soldier",
+     "mask_soldier"
+    ],
+    "vmt": "materials/models/player/spy/mask_soldier.vmt",
+    "base": "models/player/spy/mask_soldier",
+    "vtf": "materials/models/player/spy/mask_soldier.vtf",
+    "complete": true
+   },
+   {
+    "slot": 17,
+    "texture": "mask_demo",
+    "candidates": [
+     "models/player/spy/mask_demo",
+     "mask_demo"
+    ],
+    "vmt": "materials/models/player/spy/mask_demo.vmt",
+    "base": "models/player/spy/mask_demo",
+    "vtf": "materials/models/player/spy/mask_demo.vtf",
+    "complete": true
+   },
+   {
+    "slot": 18,
+    "texture": "mask_medic",
+    "candidates": [
+     "models/player/spy/mask_medic",
+     "mask_medic"
+    ],
+    "vmt": "materials/models/player/spy/mask_medic.vmt",
+    "base": "models/player/spy/mask_medic",
+    "vtf": "materials/models/player/spy/mask_medic.vtf",
+    "complete": true
+   },
+   {
+    "slot": 19,
+    "texture": "mask_heavy",
+    "candidates": [
+     "models/player/spy/mask_heavy",
+     "mask_heavy"
+    ],
+    "vmt": "materials/models/player/spy/mask_heavy.vmt",
+    "base": "models/player/spy/mask_heavy",
+    "vtf": "materials/models/player/spy/mask_heavy.vtf",
+    "complete": true
+   },
+   {
+    "slot": 20,
+    "texture": "mask_pyro",
+    "candidates": [
+     "models/player/spy/mask_pyro",
+     "mask_pyro"
+    ],
+    "vmt": "materials/models/player/spy/mask_pyro.vmt",
+    "base": "models/player/spy/mask_pyro",
+    "vtf": "materials/models/player/spy/mask_pyro.vtf",
+    "complete": true
+   },
+   {
+    "slot": 21,
+    "texture": "mask_engi",
+    "candidates": [
+     "models/player/spy/mask_engi",
+     "mask_engi"
+    ],
+    "vmt": "materials/models/player/spy/mask_engi.vmt",
+    "base": "models/player/spy/mask_engi",
+    "vtf": "materials/models/player/spy/mask_engi.vtf",
+    "complete": true
+   },
+   {
+    "slot": 22,
+    "texture": "spy_red_zombie_alphatest",
+    "candidates": [
+     "models/player/spy/spy_red_zombie_alphatest",
+     "spy_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/spy/spy_red_zombie_alphatest.vmt",
+    "base": "models/player/spy/spy_red_zombie",
+    "vtf": "materials/models/player/spy/spy_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 23,
+    "texture": "spy_head_red_zombie_alphatest",
+    "candidates": [
+     "models/player/spy/spy_head_red_zombie_alphatest",
+     "spy_head_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_red_zombie_alphatest.vmt",
+    "base": "models/player/spy/spy_head_red_zombie",
+    "vtf": "materials/models/player/spy/spy_head_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 24,
+    "texture": "eyeball_zombie",
+    "candidates": [
+     "models/player/spy/eyeball_zombie",
+     "eyeball_zombie"
+    ],
+    "vmt": "materials/models/player/spy/eyeball_zombie.vmt",
+    "base": "dev/null",
+    "vtf": "materials/dev/null.vtf",
+    "complete": true
+   },
+   {
+    "slot": 25,
+    "texture": "spy_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/spy/spy_blue_zombie_alphatest",
+     "spy_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/spy/spy_blue_zombie_alphatest.vmt",
+    "base": "models/player/spy/spy_blue_zombie",
+    "vtf": "materials/models/player/spy/spy_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 26,
+    "texture": "spy_head_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/spy/spy_head_blue_zombie_alphatest",
+     "spy_head_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_blue_zombie_alphatest.vmt",
+    "base": "models/player/spy/spy_head_blue_zombie",
+    "vtf": "materials/models/player/spy/spy_head_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 27,
+    "texture": "spy_red_zombie_invun",
+    "candidates": [
+     "models/player/spy/spy_red_zombie_invun",
+     "spy_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_red_zombie_invun.vmt",
+    "base": "models/player/spy/spy_red_zombie",
+    "vtf": "materials/models/player/spy/spy_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 28,
+    "texture": "spy_head_red_zombie_invun",
+    "candidates": [
+     "models/player/spy/spy_head_red_zombie_invun",
+     "spy_head_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_red_zombie_invun.vmt",
+    "base": "models/player/spy/spy_head_red_zombie",
+    "vtf": "materials/models/player/spy/spy_head_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 29,
+    "texture": "spy_blue_zombie_invun",
+    "candidates": [
+     "models/player/spy/spy_blue_zombie_invun",
+     "spy_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_blue_zombie_invun.vmt",
+    "base": "models/player/spy/spy_blue_zombie",
+    "vtf": "materials/models/player/spy/spy_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 30,
+    "texture": "spy_head_blue_zombie_invun",
+    "candidates": [
+     "models/player/spy/spy_head_blue_zombie_invun",
+     "spy_head_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/spy/spy_head_blue_zombie_invun.vmt",
+    "base": "models/player/spy/spy_head_blue_zombie",
+    "vtf": "materials/models/player/spy/spy_head_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/spy/spy_head_red",
+   "candidates": [
+    "models/player/spy/spy_head_red"
+   ],
+   "vmt": "materials/models/player/spy/spy_head_red.vmt",
+   "base": "models/player/spy/spy_head_red",
+   "vtf": "materials/models/player/spy/spy_head_red.vtf",
+   "complete": true
+  }
+ },
+ {
+  "className": "Engineer",
+  "tfClass": 9,
+  "mdlTextureCount": 15,
+  "slots": 15,
+  "resolved": 15,
+  "incomplete": [],
+  "entries": [
+   {
+    "slot": 0,
+    "texture": "models/player/engineer/engineer_red",
+    "candidates": [
+     "models/player/engineer/engineer_red"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_red.vmt",
+    "base": "models/player/engineer/engineer_red",
+    "vtf": "materials/models/player/engineer/engineer_red.vtf",
+    "complete": true
+   },
+   {
+    "slot": 1,
+    "texture": "models/player/engineer/engineer_head_red",
+    "candidates": [
+     "models/player/engineer/engineer_head_red"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_head_red.vmt",
+    "base": "models/player/engineer/engineer_head",
+    "vtf": "materials/models/player/engineer/engineer_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 2,
+    "texture": "models/player/engineer/engineer_mech_hand",
+    "candidates": [
+     "models/player/engineer/engineer_mech_hand"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_mech_hand.vmt",
+    "base": "models/player/engineer/engineer_mech_hand",
+    "vtf": "materials/models/player/engineer/engineer_mech_hand.vtf",
+    "complete": true
+   },
+   {
+    "slot": 3,
+    "texture": "engineer_blue",
+    "candidates": [
+     "models/player/engineer/engineer_blue",
+     "engineer_blue"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_blue.vmt",
+    "base": "models/player/engineer/engineer_blue",
+    "vtf": "materials/models/player/engineer/engineer_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 4,
+    "texture": "engineer_head_blue",
+    "candidates": [
+     "models/player/engineer/engineer_head_blue",
+     "engineer_head_blue"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_head_blue.vmt",
+    "base": "models/player/engineer/engineer_head",
+    "vtf": "materials/models/player/engineer/engineer_head.vtf",
+    "complete": true
+   },
+   {
+    "slot": 5,
+    "texture": "engineer_mech_hand_blue",
+    "candidates": [
+     "models/player/engineer/engineer_mech_hand_blue",
+     "engineer_mech_hand_blue"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_mech_hand_blue.vmt",
+    "base": "models/player/engineer/engineer_mech_hand_blue",
+    "vtf": "materials/models/player/engineer/engineer_mech_hand_blue.vtf",
+    "complete": true
+   },
+   {
+    "slot": 6,
+    "texture": "engineer_red_invun",
+    "candidates": [
+     "models/player/engineer/engineer_red_invun",
+     "engineer_red_invun"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_red_invun.vmt",
+    "base": "models/player/engineer/engineer_red_invun",
+    "vtf": "materials/models/player/engineer/engineer_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 7,
+    "texture": "engineer_head_red_invun",
+    "candidates": [
+     "models/player/engineer/engineer_head_red_invun",
+     "engineer_head_red_invun"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_head_red_invun.vmt",
+    "base": "models/player/engineer/engineer_head_red_invun",
+    "vtf": "materials/models/player/engineer/engineer_head_red_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 8,
+    "texture": "engineer_blue_invun",
+    "candidates": [
+     "models/player/engineer/engineer_blue_invun",
+     "engineer_blue_invun"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_blue_invun.vmt",
+    "base": "models/player/engineer/engineer_blue_invun",
+    "vtf": "materials/models/player/engineer/engineer_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 9,
+    "texture": "engineer_head_blue_invun",
+    "candidates": [
+     "models/player/engineer/engineer_head_blue_invun",
+     "engineer_head_blue_invun"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_head_blue_invun.vmt",
+    "base": "models/player/engineer/engineer_head_blue_invun",
+    "vtf": "materials/models/player/engineer/engineer_head_blue_invun.vtf",
+    "complete": true
+   },
+   {
+    "slot": 10,
+    "texture": "engineer_red_zombie_alphatest",
+    "candidates": [
+     "models/player/engineer/engineer_red_zombie_alphatest",
+     "engineer_red_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_red_zombie_alphatest.vmt",
+    "base": "models/player/engineer/engineer_red_zombie",
+    "vtf": "materials/models/player/engineer/engineer_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 11,
+    "texture": "engineer_head_zombie",
+    "candidates": [
+     "models/player/engineer/engineer_head_zombie",
+     "engineer_head_zombie"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_head_zombie.vmt",
+    "base": "models/player/engineer/engineer_head_zombie",
+    "vtf": "materials/models/player/engineer/engineer_head_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 12,
+    "texture": "engineer_blue_zombie_alphatest",
+    "candidates": [
+     "models/player/engineer/engineer_blue_zombie_alphatest",
+     "engineer_blue_zombie_alphatest"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_blue_zombie_alphatest.vmt",
+    "base": "models/player/engineer/engineer_blue_zombie",
+    "vtf": "materials/models/player/engineer/engineer_blue_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 13,
+    "texture": "engineer_red_zombie_invun",
+    "candidates": [
+     "models/player/engineer/engineer_red_zombie_invun",
+     "engineer_red_zombie_invun"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_red_zombie_invun.vmt",
+    "base": "models/player/engineer/engineer_red_zombie",
+    "vtf": "materials/models/player/engineer/engineer_red_zombie.vtf",
+    "complete": true
+   },
+   {
+    "slot": 14,
+    "texture": "engineer_blue_zombie_invun",
+    "candidates": [
+     "models/player/engineer/engineer_blue_zombie_invun",
+     "engineer_blue_zombie_invun"
+    ],
+    "vmt": "materials/models/player/engineer/engineer_blue_zombie_invun.vmt",
+    "base": "models/player/engineer/engineer_blue_zombie",
+    "vtf": "materials/models/player/engineer/engineer_blue_zombie.vtf",
+    "complete": true
+   }
+  ],
+  "slot0": {
+   "slot": 0,
+   "texture": "models/player/engineer/engineer_red",
+   "candidates": [
+    "models/player/engineer/engineer_red"
+   ],
+   "vmt": "materials/models/player/engineer/engineer_red.vmt",
+   "base": "models/player/engineer/engineer_red",
+   "vtf": "materials/models/player/engineer/engineer_red.vtf",
+   "complete": true
+  }
+ }
+]

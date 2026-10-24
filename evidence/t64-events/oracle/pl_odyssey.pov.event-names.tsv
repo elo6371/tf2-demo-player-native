@@ -1,0 +1,5 @@
+post_inventory_application	4	32	338
+player_spawn	3	32	318
+player_changeclass	2	32	318
+player_disconnect	1	5	5
+teams_changed	1	5	5

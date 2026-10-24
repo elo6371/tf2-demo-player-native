@@ -1,0 +1,4 @@
+map	path	bytes	sha256	note
+cp_snakewater_final1	D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem	51834617	308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f	world-material-check.sh:61, material-coverage-check.sh:67
+pl_odyssey	D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem	21856667	c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e	visual-baseline:75, world-material-face:64, hole-check:57, lighting-semantics:81
+koth_bagel_rc12	D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-06-24_21-46-16.dem	66810721	7c8b1c543886ea7fd7b1dd1cebe47fbc1247c20d78f825cbbcbc033d6cf06bb4	candidate third map (not used by any gate)

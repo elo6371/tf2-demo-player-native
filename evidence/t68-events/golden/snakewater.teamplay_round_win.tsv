@@ -1,0 +1,14 @@
+# demo_path=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem sha256=308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f demo=snakewater map=cp_snakewater_final1 event=teamplay_round_win total=5 first_tick=9690 last_tick=63683
+# fields=flagcaplimit,full_round,losing_team_num_caps,round_time,team,was_sudden_death,winreason
+# section=first50
+9690	teamplay_round_win	0	1	0	140.33998	3	0	1
+22234	teamplay_round_win	0	1	0	178.155	3	0	1
+37392	teamplay_round_win	0	1	0	217.36499	3	0	1
+56402	teamplay_round_win	0	1	0	275.14502	3	0	1
+63683	teamplay_round_win	0	1	0	99.21002	3	0	1
+# section=last50
+9690	teamplay_round_win	0	1	0	140.33998	3	0	1
+22234	teamplay_round_win	0	1	0	178.155	3	0	1
+37392	teamplay_round_win	0	1	0	217.36499	3	0	1
+56402	teamplay_round_win	0	1	0	275.14502	3	0	1
+63683	teamplay_round_win	0	1	0	99.21002	3	0	1

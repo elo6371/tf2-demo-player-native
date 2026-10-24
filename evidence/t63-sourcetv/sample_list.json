@@ -1,0 +1,462 @@
+{
+ "schema": "t63-sample-list-v1",
+ "frozen_on": "2026-10-24",
+ "owner": "t63-sourcetv",
+ "consumers": [
+  "T63",
+  "T64",
+  "T65",
+  "T67"
+ ],
+ "repo": {
+  "path": "D:/TF2_Native_Test",
+  "branch": "p0-entity-protocol",
+  "head": "99eeea294cbe883e4c3e6b4b82c83de45d2ab926"
+ },
+ "identity": {
+  "product_exe": {
+   "path": "native/build-nmake/tf2_demo_native.exe",
+   "sha256": "f454718bbaff5825e4720b721f92da2b1689d29365d18a1e1f6f776afdf30a0a"
+  },
+  "probes": {
+   "entity_protocol_probe.exe": "9588f239c755674ec04bcf1663249161abfdacf3bf921665e7479638b788c352",
+   "entity_model_probe.exe": "eb02d7e82946f050a9b7b4587759a996872a45173eacd8d7d13afc7969ccc79f",
+   "demo_open_probe.exe": "7de049951425c68459fd53e9c28bcac46962aee87d3df401a6a8617eb7493cf2"
+  }
+ },
+ "clocks": {
+  "playback_tick": "the product's g_playback.tick; demo packet-frame axis, 0..packet_frames",
+  "demo_packet_tick": "cmdinfo tick of a demo packet; starts at first_packet_tick and advances with packets",
+  "server_tick": "tick carried by net_Tick (type 3); entity history snapshots are keyed by THIS tick",
+  "current_build_keying": "main.cpp:8226 sceneTick = firstPacketTick + g_playback.tick; main.cpp:8230 queryEntitySnapshotAtOrBeforeTick(sceneTick)",
+  "correct_keying": "server_tick = playback_tick + packet_to_server_offset (offset measured on the packet stream; see packet_clock.py)",
+  "known_mismatch": "for every demo here the current build is behind by (packet_to_server_offset - first_packet_tick) ticks"
+ },
+ "demos": [
+  {
+   "id": "S1",
+   "name": "snakewater",
+   "role": "primary pixel+data demo (BSP present)",
+   "path": "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem",
+   "map": "cp_snakewater_final1",
+   "recording": "SourceTV",
+   "client": "SourceTV Demo",
+   "server": "Matcha Bookable",
+   "header_ticks": 64352,
+   "packet_frames": 64330,
+   "playback_seconds": 965.28,
+   "size_bytes": 51834617,
+   "sha256_full": "308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f",
+   "sha256_header_1072": "0a563c25216cf203c70bb0b23219821c1be7c149028eac9bfac5e64d6730e324",
+   "bsp_present": true,
+   "bsp_bytes": 59590420,
+   "clock": {
+    "first_packet_tick": 2,
+    "first_server_tick": 10321,
+    "last_packet_tick": 64349,
+    "last_server_tick": 74668,
+    "packet_to_server_offset": 10319,
+    "offset_constant": true,
+    "all_offsets": [
+     10319
+    ]
+   },
+   "known_player_entities": null,
+   "inspection_points": [
+    {
+     "id": "S1-P0",
+     "kind": "negative-control (before-window)",
+     "playback_tick": 600,
+     "scene_tick_current_build": 602,
+     "correct_server_tick": 10919,
+     "clock_mismatch_ticks": 10317,
+     "expected_current_hud": "entity=before-window; stale=0; health=? team=? class=? clip=? uber=?",
+     "why": "history starts at server tick 10321; current sceneTick=602 is below it, so no snapshot can resolve",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 10919 --entity <id>"
+    },
+    {
+     "id": "S1-P1",
+     "kind": "in-window",
+     "playback_tick": 20000,
+     "scene_tick_current_build": 20002,
+     "correct_server_tick": 30319,
+     "clock_mismatch_ticks": 10317,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=20002; 0<=stale<=worstGap(history-stats); values are those of server tick ~20002 (packet ~9683), NOT of playback position 20000 (correct server tick 30319)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=20002 while the same playback frame is server tick 30319",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 30319 --entity <id>"
+    },
+    {
+     "id": "S1-P2",
+     "kind": "last-100",
+     "playback_tick": 64249,
+     "scene_tick_current_build": 64251,
+     "correct_server_tick": 74568,
+     "clock_mismatch_ticks": 10317,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=64251; 0<=stale<=worstGap(history-stats); values are those of server tick ~64251 (packet ~53932), NOT of playback position 64249 (correct server tick 74568)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=64251 while the same playback frame is server tick 74568",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 74568 --entity <id>"
+    }
+   ],
+   "tick_exact_usable": true
+  },
+  {
+   "id": "S2",
+   "name": "review12",
+   "role": "pixel+data demo (BSP present, cp_reckoner)",
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/review12.dem",
+   "map": "cp_reckoner",
+   "recording": "SourceTV",
+   "client": "SourceTV Demo",
+   "server": "Matcha Bookable",
+   "header_ticks": 120936,
+   "packet_frames": 120914,
+   "playback_seconds": 1814.04,
+   "size_bytes": 80261474,
+   "sha256_full": "f1e91c6cb2e8abd20d45107be86e0b0227ef7e841cd74486e498c820bc361974",
+   "sha256_header_1072": "2ce67cabeb3958059ea15d41feaae9e9469f341115e23d51d4952acf0d014ad5",
+   "bsp_present": true,
+   "bsp_bytes": 45759167,
+   "clock": {
+    "first_packet_tick": 2,
+    "first_server_tick": 15346,
+    "last_packet_tick": 120934,
+    "last_server_tick": 136278,
+    "packet_to_server_offset": 15344,
+    "offset_constant": true,
+    "all_offsets": [
+     15344
+    ]
+   },
+   "known_player_entities": null,
+   "inspection_points": [
+    {
+     "id": "S2-P0",
+     "kind": "negative-control (before-window)",
+     "playback_tick": 600,
+     "scene_tick_current_build": 602,
+     "correct_server_tick": 15944,
+     "clock_mismatch_ticks": 15342,
+     "expected_current_hud": "entity=before-window; stale=0; health=? team=? class=? clip=? uber=?",
+     "why": "history starts at server tick 15346; current sceneTick=602 is below it, so no snapshot can resolve",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 15944 --entity <id>"
+    },
+    {
+     "id": "S2-P1",
+     "kind": "in-window",
+     "playback_tick": 20000,
+     "scene_tick_current_build": 20002,
+     "correct_server_tick": 35344,
+     "clock_mismatch_ticks": 15342,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=20002; 0<=stale<=worstGap(history-stats); values are those of server tick ~20002 (packet ~4658), NOT of playback position 20000 (correct server tick 35344)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=20002 while the same playback frame is server tick 35344",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 35344 --entity <id>"
+    },
+    {
+     "id": "S2-P2",
+     "kind": "last-100",
+     "playback_tick": 120834,
+     "scene_tick_current_build": 120836,
+     "correct_server_tick": 136178,
+     "clock_mismatch_ticks": 15342,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=120836; 0<=stale<=worstGap(history-stats); values are those of server tick ~120836 (packet ~105492), NOT of playback position 120834 (correct server tick 136178)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=120836 while the same playback frame is server tick 136178",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 136178 --entity <id>"
+    }
+   ],
+   "tick_exact_usable": true
+  },
+  {
+   "id": "S3",
+   "name": "ashville73",
+   "role": "data demo (koth; roster known from oracle enters; no BSP)",
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/73.dem",
+   "map": "koth_ashville_final1",
+   "recording": "SourceTV",
+   "client": "SourceTV Demo",
+   "server": "Matcha Bookable",
+   "header_ticks": 112396,
+   "packet_frames": 112172,
+   "playback_seconds": 1685.94,
+   "size_bytes": 106397681,
+   "sha256_full": "69f9a864c88c6cf885cf46068f0be590e2fbd47b8d8ef9bbb2e6c71bccebccce",
+   "sha256_header_1072": "e0ea8ba7122cafb68e7817c6cc6c91af2122ae23ba4ac6ba50a967cf00e1274e",
+   "bsp_present": false,
+   "bsp_bytes": 0,
+   "clock": {
+    "first_packet_tick": 1,
+    "first_server_tick": 16350,
+    "last_packet_tick": 112393,
+    "last_server_tick": 128742,
+    "packet_to_server_offset": 16349,
+    "offset_constant": true,
+    "all_offsets": [
+     16349
+    ]
+   },
+   "known_player_entities": [
+    3,
+    7,
+    12
+   ],
+   "inspection_points": [
+    {
+     "id": "S3-P0",
+     "kind": "negative-control (before-window)",
+     "playback_tick": 600,
+     "scene_tick_current_build": 601,
+     "correct_server_tick": 16949,
+     "clock_mismatch_ticks": 16348,
+     "expected_current_hud": "entity=before-window; stale=0; health=? team=? class=? clip=? uber=?",
+     "why": "history starts at server tick 16350; current sceneTick=601 is below it, so no snapshot can resolve",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 16949 --entity <id>"
+    },
+    {
+     "id": "S3-P1",
+     "kind": "in-window",
+     "playback_tick": 20000,
+     "scene_tick_current_build": 20001,
+     "correct_server_tick": 36349,
+     "clock_mismatch_ticks": 16348,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=20001; 0<=stale<=worstGap(history-stats); values are those of server tick ~20001 (packet ~3652), NOT of playback position 20000 (correct server tick 36349)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=20001 while the same playback frame is server tick 36349",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 36349 --entity <id>"
+    },
+    {
+     "id": "S3-P2",
+     "kind": "last-100",
+     "playback_tick": 112293,
+     "scene_tick_current_build": 112294,
+     "correct_server_tick": 128642,
+     "clock_mismatch_ticks": 16348,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=112294; 0<=stale<=worstGap(history-stats); values are those of server tick ~112294 (packet ~95945), NOT of playback position 112293 (correct server tick 128642)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=112294 while the same playback frame is server tick 128642",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 128642 --entity <id>"
+    }
+   ],
+   "tick_exact_usable": true
+  },
+  {
+   "id": "S4",
+   "name": "prodcutscout",
+   "role": "data demo (koth_product; no BSP)",
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/prodcutscout.dem",
+   "map": "koth_product_final",
+   "recording": "SourceTV",
+   "client": "SourceTV Demo",
+   "server": "Matcha Bookable",
+   "header_ticks": 88311,
+   "packet_frames": 88304,
+   "playback_seconds": 1324.66,
+   "size_bytes": 62389932,
+   "sha256_full": "378734bc25bb4d3746503b36f9602489b195a58ecb2932e01436bc670d63557e",
+   "sha256_header_1072": "ada905dce5c9ceea54545eba5342aad21f725cd3260a2e59744e34b92ca4eb32",
+   "bsp_present": false,
+   "bsp_bytes": 0,
+   "clock": {
+    "first_packet_tick": 2,
+    "first_server_tick": 25597,
+    "last_packet_tick": 88309,
+    "last_server_tick": 113904,
+    "packet_to_server_offset": 25595,
+    "offset_constant": true,
+    "all_offsets": [
+     25595
+    ]
+   },
+   "known_player_entities": null,
+   "inspection_points": [
+    {
+     "id": "S4-P0",
+     "kind": "negative-control (before-window)",
+     "playback_tick": 600,
+     "scene_tick_current_build": 602,
+     "correct_server_tick": 26195,
+     "clock_mismatch_ticks": 25593,
+     "expected_current_hud": "entity=before-window; stale=0; health=? team=? class=? clip=? uber=?",
+     "why": "history starts at server tick 25597; current sceneTick=602 is below it, so no snapshot can resolve",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 26195 --entity <id>"
+    },
+    {
+     "id": "S4-P1",
+     "kind": "in-window",
+     "playback_tick": 50000,
+     "scene_tick_current_build": 50002,
+     "correct_server_tick": 75595,
+     "clock_mismatch_ticks": 25593,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=50002; 0<=stale<=worstGap(history-stats); values are those of server tick ~50002 (packet ~24407), NOT of playback position 50000 (correct server tick 75595)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=50002 while the same playback frame is server tick 75595",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 75595 --entity <id>"
+    },
+    {
+     "id": "S4-P2",
+     "kind": "last-100",
+     "playback_tick": 88209,
+     "scene_tick_current_build": 88211,
+     "correct_server_tick": 113804,
+     "clock_mismatch_ticks": 25593,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=88211; 0<=stale<=worstGap(history-stats); values are those of server tick ~88211 (packet ~62616), NOT of playback position 88209 (correct server tick 113804)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=88211 while the same playback frame is server tick 113804",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 113804 --entity <id>"
+    }
+   ],
+   "tick_exact_usable": true
+  },
+  {
+   "id": "S5",
+   "name": "bagel",
+   "role": "data demo (koth_bagel; camera+target known; no BSP)",
+   "path": "D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem",
+   "map": "koth_bagel_rc13",
+   "recording": "SourceTV",
+   "client": "SourceTV Demo",
+   "server": "na.serveme.tf #633053",
+   "header_ticks": 77466,
+   "packet_frames": 73118,
+   "playback_seconds": 1161.99,
+   "size_bytes": 46921111,
+   "sha256_full": "03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436",
+   "sha256_header_1072": "e056c23d8f311fc9b1b23d168e65c9e72b4f27741a5a99d6e32631421a4eb17c",
+   "bsp_present": false,
+   "bsp_bytes": 0,
+   "clock": {
+    "first_packet_tick": 1,
+    "first_server_tick": 56148,
+    "last_packet_tick": 77464,
+    "last_server_tick": 129275,
+    "packet_to_server_offset": 51811,
+    "offset_constant": false,
+    "all_offsets": [
+     51811,
+     56147
+    ]
+   },
+   "known_player_entities": [
+    1,
+    3
+   ],
+   "inspection_points": [
+    {
+     "id": "S5-P0",
+     "kind": "negative-control (before-window)",
+     "playback_tick": 600,
+     "scene_tick_current_build": 601,
+     "correct_server_tick": 52411,
+     "clock_mismatch_ticks": 51810,
+     "expected_current_hud": "entity=before-window; stale=0; health=? team=? class=? clip=? uber=?",
+     "why": "history starts at server tick 56148; current sceneTick=601 is below it, so no snapshot can resolve",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 52411 --entity <id>"
+    },
+    {
+     "id": "S5-P1",
+     "kind": "in-window",
+     "playback_tick": 60000,
+     "scene_tick_current_build": 60001,
+     "correct_server_tick": 111811,
+     "clock_mismatch_ticks": 51810,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=60001; 0<=stale<=worstGap(history-stats); values are those of server tick ~60001 (packet ~8190), NOT of playback position 60000 (correct server tick 111811)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=60001 while the same playback frame is server tick 111811",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 111811 --entity <id>"
+    },
+    {
+     "id": "S5-P2",
+     "kind": "last-100",
+     "playback_tick": 77364,
+     "scene_tick_current_build": 77365,
+     "correct_server_tick": 129175,
+     "clock_mismatch_ticks": 51810,
+     "expected_current_hud": "entity=checkpoint|available; resolved<=77365; 0<=stale<=worstGap(history-stats); values are those of server tick ~77365 (packet ~25554), NOT of playback position 77364 (correct server tick 129175)",
+     "why": "in-window point; the current build keys the snapshot by sceneTick=77365 while the same playback frame is server tick 129175",
+     "canonical_probe": "entity_model_probe.exe --demo <path> --props-at 129175 --entity <id>"
+    }
+   ],
+   "tick_exact_usable": false
+  },
+  {
+   "id": "X1",
+   "name": "sunshine",
+   "role": "pixel-only extra (cp_sunshine; clock unstable: no tick-exact assertions)",
+   "path": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem",
+   "map": "cp_sunshine",
+   "recording": "SourceTV",
+   "client": "SourceTV Demo",
+   "server": "Matcha Bookable",
+   "header_ticks": 128432,
+   "packet_frames": 120926,
+   "playback_seconds": 1926.48,
+   "size_bytes": 82759239,
+   "sha256_full": "7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08",
+   "sha256_header_1072": "d3d49cb968e6e881823af6726fe7d716bad59b5d404e078d44f96c8a07d946f2",
+   "bsp_present": true,
+   "bsp_bytes": 30319857,
+   "clock": {
+    "first_packet_tick": 2,
+    "first_server_tick": 24458,
+    "last_packet_tick": 128430,
+    "last_server_tick": 145390,
+    "packet_to_server_offset": 16960,
+    "offset_constant": false,
+    "all_offsets": [
+     16960,
+     17707,
+     20852,
+     24456
+    ]
+   },
+   "known_player_entities": null,
+   "inspection_points": [],
+   "tick_exact_usable": false
+  }
+ ],
+ "known_readings": [
+  {
+   "id": "R1",
+   "demo": "bagel",
+   "server_tick": 129277,
+   "entity": 1,
+   "property": "DT_TFLocalPlayerExclusive.m_vecOrigin",
+   "expected": [
+    -3244.337891,
+    198.821442,
+    352.03125
+   ],
+   "source": "evidence/fast/entity/slot-freshness.txt (chosen slot, lastWrite=129277 age=0)"
+  },
+  {
+   "id": "R2",
+   "demo": "bagel",
+   "server_tick": 129277,
+   "entity": 1,
+   "property": "observer-focus",
+   "expected": "mode=4 targetHandle=1718275 targetIndex=3 targetSerial=839 follows=1",
+   "source": "evidence/observer-focus/gate.txt"
+  },
+  {
+   "id": "R3",
+   "demo": "ashville73",
+   "server_tick": 16350,
+   "property": "entity roster at packet tick 1",
+   "expected": "entities 0..19 class 247 CTFPlayer; 26..29 class 318 CTFTeam; 31 class 249 CTFPlayerResource; 32 class 235 CTFObjectiveResource",
+   "source": "evidence/final/oracle-enters-ashville73.txt"
+  },
+  {
+   "id": "R4",
+   "demo": "bagel",
+   "playback_tick": 600,
+   "expected": "entity=before-window stale=0 health=? team=? class=? clip=? uber=?",
+   "source": "evidence/camera-ui/e2e.driver.txt:3"
+  },
+  {
+   "id": "R5",
+   "demo": "snakewater",
+   "playback_tick": 3001,
+   "expected": "health=1 team=1 class=0 clip=? uber=? (SUPERSEDED: pre-HEAD evidence; not reproducible under current clock keying)",
+   "source": "evidence/entity-material/gate.txt:41"
+  }
+ ],
+ "gaps": [
+  "G1 no Payload SourceTV demo exists locally (982 pl_ demos are all POV); payload objective (CTeamTrainWatcher.m_flTotalProgress) has no demo -> not covered",
+  "G2 bagel/snakewater/review12/prodcutscout player rosters are not known statically (their oracle enters files are 0-byte placeholders); entity ids must be discovered by the runtime prop-candidates pass",
+  "G3 no BSP for koth_bagel_rc13 / koth_ashville_final1 / koth_product_final -> those demos are data-only for pixel tasks",
+  "G4 SUNSHINE.dem has a non-constant packet->server offset -> excluded from tick-exact assertions (pixel-only extra)"
+ ]
+}

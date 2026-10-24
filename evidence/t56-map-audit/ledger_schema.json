@@ -1,0 +1,477 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T56 per-item problem ledger (multi-map audit)",
+  "description": "One row per audited pixel/face item. Emitted columns come from the product's --world-face-trace output; external columns must be filled by the run manifest or a join. Columns marked not-emitted are documented gaps, not optional data.",
+  "producer": "evidence/t56-map-audit/face_trace_to_ledger.py",
+  "source_trace_example": "evidence/world-material-face/trace-albedo.txt (pl_odyssey, --capture-tick 2000, --world-face-trace)",
+  "example_rows": "evidence/t56-map-audit/ledger_template.tsv (3 real rows from that trace)",
+  "capture_geometry": {
+    "width": 1264,
+    "height": 681,
+    "background_rgb": [
+      36,
+      28,
+      24
+    ],
+    "source": "evidence/world-material-face/regions.txt:1"
+  },
+  "columns": [
+    {
+      "key": "map_identity",
+      "group": "map",
+      "source": "derived from 'map: lookup' line: <map>@<bsp bytes>",
+      "status": "derived",
+      "required": true,
+      "note": "Proves which BSP the sample came from."
+    },
+    {
+      "key": "demo_path",
+      "group": "demo",
+      "source": "not emitted by the product; supplied by the run manifest",
+      "status": "external",
+      "required": true,
+      "note": "Relative to TF root; hash in input_hashes.sha256."
+    },
+    {
+      "key": "capture_tick",
+      "group": "tick",
+      "source": "'capture: armed requested=<t> frame_tick=<t>'",
+      "status": "emitted",
+      "required": true,
+      "note": "frame_tick must equal the requested tick."
+    },
+    {
+      "key": "trace_sha256",
+      "group": "provenance",
+      "source": "external: sha256 of the trace file",
+      "status": "external",
+      "required": true,
+      "note": "Recorded per sample in the run manifest."
+    },
+    {
+      "key": "frame_sha256",
+      "group": "provenance",
+      "source": "external: sha256 of the captured BMP/PNG",
+      "status": "external",
+      "required": false,
+      "note": "Needed for delta-vs-reference; absent from trace."
+    },
+    {
+      "key": "camera_eye_x",
+      "group": "camera",
+      "source": "'gpu: world vis ... eyeMap=(x,y,z)'",
+      "status": "emitted",
+      "required": true,
+      "note": "Only world-space camera eye in the trace."
+    },
+    {
+      "key": "camera_eye_y",
+      "group": "camera",
+      "source": "same eyeMap tuple",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "camera_eye_z",
+      "group": "camera",
+      "source": "same eyeMap tuple",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "camera_mode",
+      "group": "camera",
+      "source": "'scene: camera mode=<m>'",
+      "status": "emitted",
+      "required": true,
+      "note": "e.g. first-person."
+    },
+    {
+      "key": "camera_freeze",
+      "group": "camera",
+      "source": "'scene: camera ... freeze=<0|1>'",
+      "status": "emitted",
+      "required": true,
+      "note": "freeze=1 is the pause/freeze path; record it."
+    },
+    {
+      "key": "camera_pitch",
+      "group": "camera",
+      "source": "NOT EMITTED anywhere in the trace",
+      "status": "not-emitted",
+      "required": false,
+      "note": "GAP: pitch is unrecoverable from the trace; do not fabricate."
+    },
+    {
+      "key": "camera_yaw",
+      "group": "camera",
+      "source": "NOT EMITTED anywhere in the trace",
+      "status": "not-emitted",
+      "required": false,
+      "note": "GAP: yaw is unrecoverable from the trace; do not fabricate."
+    },
+    {
+      "key": "point_x",
+      "group": "pixel",
+      "source": "'gpu: world face-trace point=<x>,<y>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Capture is 1264x681 (regions.txt)."
+    },
+    {
+      "key": "point_y",
+      "group": "pixel",
+      "source": "same point tuple",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "region_id",
+      "group": "pixel",
+      "source": "derived: r<floor(x/100)>x<floor(y/100)>",
+      "status": "derived",
+      "required": false,
+      "note": "Stable 100x100 bucket for grouping."
+    },
+    {
+      "key": "face_id",
+      "group": "face",
+      "source": "'tri=<id>'",
+      "status": "emitted",
+      "required": true,
+      "note": "tri=none means no drawn triangle (refusal)."
+    },
+    {
+      "key": "material",
+      "group": "material",
+      "source": "'material=<name>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Upper-case map material name."
+    },
+    {
+      "key": "vmt_path",
+      "group": "material",
+      "source": "'vmt=<path>'",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "vmt_store",
+      "group": "material",
+      "source": "'vmtStore=<pakfile|vpk-volume|...>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Resolution store: pakfile, vpk-volume, download, custom, loose."
+    },
+    {
+      "key": "vmt_sha256",
+      "group": "material",
+      "source": "external join: map_material_reachability.tsv (map, material) -> vmt_sha256",
+      "status": "external-join",
+      "required": true,
+      "note": "Absent from trace; join is exact by (map, material)."
+    },
+    {
+      "key": "vtf_path",
+      "group": "material",
+      "source": "'vtf=<path>'",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "vtf_store",
+      "group": "material",
+      "source": "'vtfStore=<...>'",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "vtf_sha256",
+      "group": "material",
+      "source": "external join: map_material_reachability.tsv -> vtf_sha256",
+      "status": "external-join",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "uv_size",
+      "group": "uv",
+      "source": "'src=<WxH>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Source VTF dimensions."
+    },
+    {
+      "key": "uv",
+      "group": "uv",
+      "source": "'uv=<u>,<v>'",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "uv_inside",
+      "group": "uv",
+      "source": "'uvInside=<0|1>'",
+      "status": "emitted",
+      "required": true,
+      "note": "0 means UV escaped the tile."
+    },
+    {
+      "key": "atlas_tile",
+      "group": "atlas",
+      "source": "'tile=<col>/<row>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Atlas tile index."
+    },
+    {
+      "key": "atlas_tile_size",
+      "group": "atlas",
+      "source": "'size=<WxH>'",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "atlas_tile_rect",
+      "group": "atlas",
+      "source": "'rect=<x>,<y>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Tile origin in atlas pixels."
+    },
+    {
+      "key": "atlas_size",
+      "group": "atlas",
+      "source": "'atlas=<WxH>'",
+      "status": "emitted",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "texel",
+      "group": "pixel",
+      "source": "'texel=<r>,<g>,<b>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Sampled source texel."
+    },
+    {
+      "key": "blend",
+      "group": "material",
+      "source": "'blend=<none|...>'",
+      "status": "emitted",
+      "required": false,
+      "note": "Blend mode for displacement/blend materials."
+    },
+    {
+      "key": "lightmap_uv",
+      "group": "lightmap",
+      "source": "'luv=<u>,<v>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Lightmap UV coordinates."
+    },
+    {
+      "key": "lightmap_page",
+      "group": "lightmap",
+      "source": "NOT EMITTED: only aggregate 'gpu: world lightmap ... atlas=1'",
+      "status": "not-emitted",
+      "required": false,
+      "note": "GAP: page/coords not per-item; record null and note in report."
+    },
+    {
+      "key": "light_color",
+      "group": "lightmap",
+      "source": "'light=<r>,<g>,<b>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Sampled lightmap color."
+    },
+    {
+      "key": "albedo",
+      "group": "pixel",
+      "source": "'albedo=<r>,<g>,<b>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Sampled albedo at the point."
+    },
+    {
+      "key": "albedo_tile",
+      "group": "pixel",
+      "source": "'albedoTile=<r>,<g>,<b>'",
+      "status": "emitted",
+      "required": false,
+      "note": "Albedo sampled from the tile copy (before modulation)."
+    },
+    {
+      "key": "expected",
+      "group": "pixel",
+      "source": "'expected=<r>,<g>,<b>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Product's expected composite color."
+    },
+    {
+      "key": "refusal_reason",
+      "group": "verdict",
+      "source": "'reason=<tiled|no-basetexture|vmt-missing|...>'",
+      "status": "emitted",
+      "required": true,
+      "note": "Why the sample was not drawn/blended."
+    },
+    {
+      "key": "beyond_old_cap",
+      "group": "verdict",
+      "source": "'beyondOldCap=<0|1>'",
+      "status": "emitted",
+      "required": false,
+      "note": "Old 512 cap discriminator."
+    },
+    {
+      "key": "old_order",
+      "group": "verdict",
+      "source": "'oldOrder=<n>'",
+      "status": "emitted",
+      "required": false,
+      "note": ""
+    },
+    {
+      "key": "depth",
+      "group": "depth",
+      "source": "'depth=<float>'",
+      "status": "emitted",
+      "required": false,
+      "note": ""
+    },
+    {
+      "key": "frame_depth",
+      "group": "depth",
+      "source": "'frameDepth=<float>'",
+      "status": "emitted",
+      "required": false,
+      "note": ""
+    },
+    {
+      "key": "final_depth",
+      "group": "depth",
+      "source": "'finalDepth=<float>'",
+      "status": "emitted",
+      "required": false,
+      "note": "Often empty; keep column for completeness."
+    },
+    {
+      "key": "depth_match",
+      "group": "depth",
+      "source": "derived: |depth-frameDepth| <= 0.001",
+      "status": "derived",
+      "required": false,
+      "note": ""
+    },
+    {
+      "key": "visibility_state",
+      "group": "visibility",
+      "source": "aggregate from 'gpu: world vis' (cameraCluster, clipApplied)",
+      "status": "derived",
+      "required": false,
+      "note": "Aggregate, not per item; per-item vis/cull needs the hole-check matrix."
+    },
+    {
+      "key": "cull_state",
+      "group": "visibility",
+      "source": "NOT EMITTED per item; needs the --no-world-cull control capture",
+      "status": "not-emitted",
+      "required": false,
+      "note": "GAP: record 'unknown' unless a control frame exists."
+    },
+    {
+      "key": "delta_vs_reference",
+      "group": "verdict",
+      "source": "external: compare sampled pixel to reference BMP at the same point",
+      "status": "external-derived",
+      "required": false,
+      "note": "Requires the paired reference frame."
+    },
+    {
+      "key": "issue_class",
+      "group": "triage",
+      "source": "human/agent classification",
+      "status": "external",
+      "required": true,
+      "note": "e.g. vmt-missing, atlas-overflow, lightmap-dark."
+    },
+    {
+      "key": "owner",
+      "group": "triage",
+      "source": "who fixes it",
+      "status": "external",
+      "required": true,
+      "note": ""
+    },
+    {
+      "key": "next_step",
+      "group": "triage",
+      "source": "concrete action",
+      "status": "external",
+      "required": true,
+      "note": ""
+    }
+  ],
+  "joins": [
+    {
+      "table": "evidence/t56-map-audit/map_material_reachability.tsv",
+      "key": [
+        "map",
+        "material"
+      ],
+      "fills": [
+        "vmt_sha256",
+        "vtf_sha256",
+        "vmt_store",
+        "vtf_store"
+      ],
+      "note": "561 rows over 4 maps; sha256 per resolved VMT/VTF."
+    },
+    {
+      "table": "evidence/t56-map-audit/input_hashes.sha256",
+      "key": "absolute path",
+      "fills": [
+        "trace_sha256",
+        "frame_sha256"
+      ],
+      "note": "693 lines: demos, BSPs, VPK _dir files, gate scripts, probe binaries, per-material VMT/VTF."
+    },
+    {
+      "table": "evidence/t56-map-audit/reachability.tsv",
+      "key": [
+        "map"
+      ],
+      "fills": [
+        "demo_path",
+        "capture_tick range"
+      ],
+      "note": "map -> BSP/demo identity + tick counts."
+    }
+  ],
+  "rejection_rules": [
+    "no 'map: lookup map=<expected> ... reason=found' line -> refuse",
+    "map in lookup != expected map -> refuse",
+    "no 'capture: armed requested=<t> frame_tick=<t>' or frame_tick != expected -> refuse",
+    "no 'gpu: world vis ... eyeMap=(x,y,z)' or eyeMap == (0,0,0) -> refuse",
+    "no 'gpu: world face-trace' rows -> refuse"
+  ],
+  "gaps": [
+    "camera_pitch/camera_yaw are not in the trace at all; only eyeMap is world-space.",
+    "lightmap_page is not per-item; only an aggregate 'gpu: world lightmap atlas=1' line exists.",
+    "cull_state is not per-item; requires the 4-combo vis/cull matrix from world-geometry-hole-check.sh.",
+    "delta_vs_reference needs the paired reference frame (before/after PNGs in evidence/world-material-face)."
+  ]
+}

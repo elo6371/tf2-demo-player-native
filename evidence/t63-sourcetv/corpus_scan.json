@@ -1,0 +1,176 @@
+{
+ "total": 1748,
+ "parse_errors": [],
+ "sourceTV_count": 9,
+ "sourceTV": [
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "koth_ashville_final1",
+   "gameDir": "tf",
+   "playbackSec": 1685.94,
+   "ticks": 112396,
+   "frames": 112172,
+   "signonLength": 1058986,
+   "demo": "73.dem",
+   "bytes": 106397681,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "cp_sunshine",
+   "gameDir": "tf",
+   "playbackSec": 1926.48,
+   "ticks": 128432,
+   "frames": 120926,
+   "signonLength": 1034785,
+   "demo": "SUNSHINE.dem",
+   "bytes": 82759239,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "cp_gullywash_f9",
+   "gameDir": "tf",
+   "playbackSec": 1814.04,
+   "ticks": 120936,
+   "frames": 120926,
+   "signonLength": 1032397,
+   "demo": "gullyscout.dem",
+   "bytes": 76066801,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "cp_process_f12",
+   "gameDir": "tf",
+   "playbackSec": 923.53,
+   "ticks": 61569,
+   "frames": 61541,
+   "signonLength": 1052593,
+   "demo": "proc2.dem",
+   "bytes": 38541519,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "cp_process_f12",
+   "gameDir": "tf",
+   "playbackSec": 1814.04,
+   "ticks": 120936,
+   "frames": 120901,
+   "signonLength": 1020554,
+   "demo": "processdemo.dem",
+   "bytes": 81960416,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "koth_product_final",
+   "gameDir": "tf",
+   "playbackSec": 1324.66,
+   "ticks": 88311,
+   "frames": 88304,
+   "signonLength": 1027772,
+   "demo": "prodcutscout.dem",
+   "bytes": 62389932,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "koth_ashville_final1",
+   "gameDir": "tf",
+   "playbackSec": 1368.97,
+   "ticks": 91265,
+   "frames": 91244,
+   "signonLength": 1066793,
+   "demo": "review1.dem",
+   "bytes": 82903524,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "cp_reckoner",
+   "gameDir": "tf",
+   "playbackSec": 1814.04,
+   "ticks": 120936,
+   "frames": 120914,
+   "signonLength": 1033754,
+   "demo": "review12.dem",
+   "bytes": 80261474,
+   "sourceTV": true
+  },
+  {
+   "magic": "HL2DEMO\u0000",
+   "demoProtocol": 3,
+   "netProtocol": 24,
+   "server": "Matcha Bookable",
+   "client": "SourceTV Demo",
+   "map": "cp_sultry_b8a",
+   "gameDir": "tf",
+   "playbackSec": 1209.07,
+   "ticks": 80605,
+   "frames": 80588,
+   "signonLength": 1040567,
+   "demo": "review44.dem",
+   "bytes": 53569778,
+   "sourceTV": true
+  }
+ ],
+ "pl_count": 982,
+ "pl_sourceTV_count": 0,
+ "pl_sourceTV": [],
+ "pl_clients": [
+  [
+   "\u76ae\u9769warrior",
+   370
+  ],
+  [
+   "SpawN",
+   282
+  ],
+  [
+   "Sinister Mark",
+   274
+  ],
+  [
+   "mewboli",
+   35
+  ],
+  [
+   "\u6c38\u96cf\u5854\u83f2\u539f\u578b\u673a",
+   21
+  ]
+ ]
+}

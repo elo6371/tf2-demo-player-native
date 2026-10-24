@@ -1,0 +1,104 @@
+# demo_path=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem sha256=308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f demo=snakewater map=cp_snakewater_final1 event=player_death total=109 first_tick=71 last_tick=63705
+# fields=assister,assister_fallback,attacker,crit_type,customkill,damagebits,death_flags,duck_streak_assist,duck_streak_total,duck_streak_victim,ducks_streaked,inflictor_entindex,kill_streak_assist,kill_streak_total,kill_streak_victim,kill_streak_wep,playerpenetratecount,rocket_jump,silent_kill,stun_flags,userid,victim_entindex,weapon,weapon_def_index,weapon_logclassname,weaponid
+# section=first50
+71	player_death	65535		13	0	6	0	0	0	0	0	0	4294967295	0	0	1	0	0	true	false	0	14	11	world	200	world	0
+87	player_death	65535		7	0	0	262208	128	0	0	0	0	663	0	1	0	1	0	false	false	0	10	7	iron_bomber	1151	iron_bomber	0
+111	player_death	9		12	0	0	2359360	128	0	0	0	0	328	1	0	2	0	0	false	false	0	3	2	quake_rl	513	quake_rl	22
+135	player_death	65535	b#TF_spr18_private_maggot_muncher	3	0	0	2359360	128	0	0	0	0	474	0	1	0	1	0	false	false	0	13	10	tf_projectile_rocket	15028	tf_projectile_rocket	22
+273	player_death	9		12	0	0	2359360	130	0	0	0	0	492	2	0	2	0	0	false	false	0	4	3	quake_rl	513	quake_rl	22
+1801	player_death	9		7	0	25	2490432	1024	0	0	0	0	591	1	1	0	1	0	false	false	0	6	4	tf_projectile_pipe_remote	207	tf_projectile_pipe_remote	35
+2454	player_death	7		17	0	0	2359360	128	0	0	0	0	346	0	1	0	1	0	false	false	0	14	11	quake_rl	513	quake_rl	22
+2515	player_death	14		3	0	0	2359360	128	0	0	0	0	237	0	1	1	1	0	false	false	0	9	6	tf_projectile_rocket	15028	tf_projectile_rocket	22
+2535	player_death	20		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	10	7	scattergun	200	scattergun	16
+2885	player_death	17		13	0	0	538968064	0	0	0	0	0	10	0	0	1	0	0	false	false	0	3	2	scattergun	200	scattergun	16
+5280	player_death	65535		12	0	0	2359360	128	0	0	0	0	608	0	0	0	0	0	false	false	0	10	7	quake_rl	513	quake_rl	22
+5501	player_death	65535		7	0	31	2490432	1152	0	0	0	0	516	0	2	0	2	0	false	false	0	4	3	tf_projectile_pipe_remote	207	tf_projectile_pipe_remote	35
+6258	player_death	9		20	0	0	538968064	0	0	0	0	0	15	1	0	0	0	0	false	false	0	14	11	scattergun	13	scattergun	16
+8558	player_death	18		14	0	0	2359360	128	0	0	0	0	316	0	1	0	1	0	false	false	0	12	9	quake_rl	513	quake_rl	22
+8889	player_death	17		7	0	0	262208	128	0	0	0	0	596	0	3	1	1	0	false	false	0	14	11	iron_bomber	1151	iron_bomber	0
+8897	player_death	10		4	0	0	538968064	0	0	0	0	0	3	0	1	3	1	0	false	false	0	7	5	scattergun	200	scattergun	16
+8968	player_death	20		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	10	7	scattergun	200	scattergun	16
+9051	player_death	6		4	0	0	538968064	0	0	0	0	0	3	0	2	1	2	0	false	false	0	17	8	scattergun	200	scattergun	16
+9171	player_death	13		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	6	4	scattergun	13	scattergun	16
+9415	player_death	18		4	0	0	538968064	0	0	0	0	0	3	0	3	0	3	0	false	false	0	13	10	scattergun	200	scattergun	16
+9492	player_death	9		20	0	0	538968064	0	0	0	0	0	15	2	0	3	0	0	false	false	0	4	3	scattergun	13	scattergun	16
+9629	player_death	9		20	0	0	2097154	0	0	0	0	0	15	3	0	0	0	0	false	false	0	18	13	pistol_scout	22	pistol_scout	42
+12383	player_death	9		20	0	0	2097154	0	0	0	0	0	15	1	0	0	0	0	false	false	0	3	2	pistol_scout	22	pistol_scout	42
+12603	player_death	65535		0	0	0	32	0	0	0	0	0	0	0	0	0	0	0	false	false	0	14	11	worldspawn	65535	worldspawn	0
+12711	player_death	65535	a咕咕嘎嘎	10	0	0	538968064	1024	0	0	0	0	7	0	0	0	0	0	false	false	0	7	5	scattergun	200	scattergun	16
+12726	player_death	65535		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	10	7	scattergun	200	scattergun	16
+13264	player_death	18		4	0	0	538968064	0	0	0	0	0	3	0	1	0	1	0	false	false	0	17	8	scattergun	200	scattergun	16
+14844	player_death	65535	b#TF_spr18_private_maggot_muncher	3	0	6	0	0	0	0	0	0	4294967295	0	0	0	0	0	false	false	0	12	9	world	15028	world	0
+14877	player_death	9		13	0	34	4	1	0	0	0	0	10	2	0	0	0	0	false	false	0	10	7	bleed_kill	200	bleed_kill	0
+16652	player_death	7		17	0	0	2359360	128	0	0	0	0	632	0	1	1	1	0	false	false	0	4	3	quake_rl	513	quake_rl	22
+16776	player_death	4		3	1	0	3407936	128	0	0	0	0	614	0	1	1	1	0	false	false	0	17	8	tf_projectile_rocket	15028	tf_projectile_rocket	22
+17971	player_death	3		10	0	0	538968064	4	0	0	0	0	7	0	1	0	1	0	false	false	0	13	10	shotgun_primary	199	shotgun_primary	12
+20535	player_death	3		10	0	5	2097154	0	0	0	0	0	7	0	0	0	0	0	false	false	0	17	8	minigun	15	minigun	18
+20788	player_death	65535		12	0	0	2359360	128	0	0	0	0	516	0	0	0	0	0	false	false	0	18	13	quake_rl	513	quake_rl	22
+20794	player_death	65535		7	0	0	262208	128	0	0	0	0	657	0	1	0	1	0	false	false	0	14	11	iron_bomber	207	iron_bomber	0
+20805	player_death	4		10	0	5	2097154	0	0	0	0	0	7	0	0	0	0	0	false	false	0	12	9	minigun	15	minigun	18
+21340	player_death	13		7	0	0	262208	128	0	0	0	0	510	0	2	0	2	0	false	false	0	10	7	iron_bomber	1151	iron_bomber	0
+21510	player_death	65535		4	0	0	538968064	0	0	0	0	0	3	0	1	2	1	0	false	false	0	7	5	scattergun	200	scattergun	16
+21803	player_death	9		20	0	0	2097154	0	0	0	0	0	15	3	0	1	0	0	false	false	0	4	3	pistol_scout	22	pistol_scout	42
+22067	player_death	65535		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	6	4	scattergun	200	scattergun	16
+22267	player_death	65535		20	2	0	3145730	0	0	0	0	0	15	0	0	0	0	0	false	false	0	3	2	pistol_scout	22	pistol_scout	42
+24727	player_death	20		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	14	11	scattergun	200	scattergun	16
+24794	player_death	6		3	0	0	2359360	128	0	0	0	0	552	0	1	0	1	0	false	false	0	9	6	tf_projectile_rocket	15028	tf_projectile_rocket	22
+24843	player_death	13		20	0	0	2097154	0	0	0	0	0	15	0	0	1	0	0	false	false	0	3	2	pistol_scout	22	pistol_scout	42
+24974	player_death	65535	a咕咕嘎嘎	10	0	0	538968064	1024	0	0	0	0	7	0	0	0	0	0	true	false	0	12	9	scattergun	200	scattergun	16
+25114	player_death	17		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	18	13	scattergun	200	scattergun	16
+25184	player_death	65535	a咕咕嘎嘎	10	0	0	2097154	0	0	0	0	0	7	0	0	0	0	0	false	false	0	17	8	pistol_scout	209	pistol_scout	42
+25302	player_death	13		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	6	4	scattergun	13	scattergun	16
+25367	player_death	13		7	0	0	262208	128	0	0	0	0	423	0	1	0	1	0	false	false	0	4	3	iron_bomber	1151	iron_bomber	0
+25720	player_death	65535		7	0	25	2490432	1024	0	0	0	0	423	0	2	0	1	0	false	false	0	10	7	tf_projectile_pipe_remote	207	tf_projectile_pipe_remote	35
+# section=last50
+36446	player_death	18		4	0	0	538968064	0	0	0	0	0	3	0	1	0	1	0	false	false	0	13	10	scattergun	200	scattergun	16
+36476	player_death	20		12	0	0	2359360	128	0	0	0	0	380	0	0	1	0	0	false	false	0	4	3	quake_rl	513	quake_rl	22
+36835	player_death	65535		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	18	13	scattergun	13	scattergun	16
+37028	player_death	9		7	0	31	2490432	1024	0	0	0	0	574	2	2	0	1	0	false	false	0	6	4	tf_projectile_pipe_remote	207	tf_projectile_pipe_remote	35
+37094	player_death	7		12	0	0	2359360	128	0	0	0	0	657	0	0	0	0	0	false	false	0	10	7	quake_rl	513	quake_rl	22
+37592	player_death	65535		7	2	31	3539008	1152	0	0	0	0	297	0	3	0	2	0	false	false	0	3	2	tf_projectile_pipe_remote	1151	tf_projectile_pipe_remote	35
+37665	player_death	9		7	2	0	1310784	128	0	0	0	0	506	0	4	0	2	0	false	false	0	14	11	iron_bomber	1151	iron_bomber	0
+39917	player_death	13		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	14	11	scattergun	13	scattergun	16
+40002	player_death	3		10	0	0	538968064	1024	0	0	0	0	7	0	0	0	0	0	false	false	0	9	6	scattergun	200	scattergun	16
+40069	player_death	20		13	0	0	2097154	2	0	0	0	0	10	0	0	0	0	0	false	false	0	3	2	pistol_scout	22	pistol_scout	42
+40194	player_death	65535	a咕咕嘎嘎	10	0	0	2097154	0	0	0	0	0	7	0	0	0	0	0	false	false	0	13	10	pistol_scout	209	pistol_scout	42
+40282	player_death	65535		17	0	0	2359360	128	0	0	0	0	485	0	1	0	1	0	false	false	0	4	3	quake_rl	513	quake_rl	22
+40417	player_death	65535	a咕咕嘎嘎	10	0	0	538968064	1024	0	0	0	0	7	0	0	0	0	0	false	false	0	12	9	scattergun	200	scattergun	16
+40420	player_death	65535		17	0	0	2359360	128	0	0	0	0	584	0	2	0	2	0	false	false	0	18	13	quake_rl	513	quake_rl	22
+40593	player_death	65535		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	10	7	scattergun	13	scattergun	16
+40725	player_death	65535		6	1	0	1310784	128	0	0	0	0	425	0	0	2	0	0	false	false	0	17	8	iron_bomber	1151	iron_bomber	0
+40725	player_death	65535		17	0	6	0	128	0	0	0	0	4294967295	0	0	0	0	0	false	false	0	6	4	world	65535	world	0
+41472	player_death	65535		7	0	31	2490432	1152	0	0	0	0	425	0	1	0	1	0	false	false	0	14	11	tf_projectile_pipe_remote	207	tf_projectile_pipe_remote	35
+46064	player_death	4		6	0	31	2490432	128	0	0	0	0	641	0	0	0	0	0	false	false	0	12	9	tf_projectile_pipe_remote	20	tf_projectile_pipe_remote	35
+46563	player_death	65535	b#TF_spr18_private_maggot_muncher	3	0	0	2359360	128	0	0	0	0	528	0	1	0	1	0	false	false	0	17	8	tf_projectile_rocket	15028	tf_projectile_rocket	22
+48913	player_death	65535	b#TF_spr18_private_maggot_muncher	3	0	0	2359360	128	0	0	0	0	567	0	1	0	1	0	false	false	0	13	10	tf_projectile_rocket	15028	tf_projectile_rocket	22
+52051	player_death	65535	b#TF_spr18_private_maggot_muncher	3	1	0	3407936	128	0	0	0	0	559	0	1	0	1	0	false	false	0	12	9	tf_projectile_rocket	15028	tf_projectile_rocket	22
+52073	player_death	20		7	0	0	262208	0	0	0	0	0	582	0	2	0	1	0	false	false	0	6	4	iron_bomber	1151	iron_bomber	0
+52128	player_death	65535	a咕咕嘎嘎	10	2	2	135270528	0	0	0	0	0	7	0	0	2	0	0	false	false	0	7	5	knife	194	knife	7
+52271	player_death	4		3	0	0	2359360	128	0	0	0	0	288	0	2	0	2	0	true	false	0	17	8	tf_projectile_rocket	15028	tf_projectile_rocket	22
+52828	player_death	9		20	0	0	538968064	1	0	0	0	0	15	1	0	0	0	0	false	false	0	4	3	scattergun	13	scattergun	16
+55530	player_death	7		12	0	0	2359360	130	0	0	0	0	668	0	0	0	0	0	false	false	0	6	4	quake_rl	513	quake_rl	22
+55573	player_death	17		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	3	2	scattergun	200	scattergun	16
+55657	player_death	65535	a咕咕嘎嘎	10	0	0	538968064	1024	0	0	0	0	7	0	0	0	0	0	false	false	0	13	10	scattergun	200	scattergun	16
+55865	player_death	7		20	0	0	538968064	1	0	0	0	0	15	0	0	0	0	0	false	false	0	14	11	scattergun	13	scattergun	16
+55964	player_death	9		17	0	0	2359360	128	0	0	0	0	380	2	1	0	1	0	false	false	0	10	7	quake_rl	513	quake_rl	22
+56260	player_death	17		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	4	3	scattergun	13	scattergun	16
+56338	player_death	20		12	0	0	2359360	0	0	0	0	0	288	0	0	0	0	0	false	false	0	18	13	quake_rl	513	quake_rl	22
+58849	player_death	7		13	0	0	538968064	1	0	0	0	0	10	0	0	0	0	0	false	false	0	14	11	scattergun	200	scattergun	16
+59161	player_death	20		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	true	false	0	3	2	scattergun	200	scattergun	16
+60299	player_death	18		6	0	25	2490432	128	0	0	0	0	598	0	0	0	0	0	false	false	0	12	9	tf_projectile_pipe_remote	1151	tf_projectile_pipe_remote	35
+60351	player_death	17		20	0	0	538968064	1	0	0	0	0	15	0	0	0	0	0	false	false	0	10	7	scattergun	13	scattergun	16
+60484	player_death	65535		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	4	3	scattergun	13	scattergun	16
+60917	player_death	65535		6	1	20	135270528	0	0	0	0	0	4	0	1	0	1	0	false	false	0	17	8	demokatana	357	demokatana	64
+60941	player_death	7		20	0	0	2097154	0	0	0	0	0	15	0	0	0	0	0	false	false	0	14	11	pistol_scout	22	pistol_scout	42
+62438	player_death	65535		20	0	0	538968064	0	0	0	0	0	15	0	0	0	0	0	false	false	0	4	3	scattergun	13	scattergun	16
+62904	player_death	65535	b#TF_spr18_private_maggot_muncher	3	0	0	2359360	0	0	0	0	0	606	0	1	0	1	0	false	false	0	17	8	tf_projectile_rocket	15028	tf_projectile_rocket	22
+63073	player_death	65535		20	0	6	0	0	0	0	0	0	4294967295	0	0	0	0	0	true	false	0	14	11	world	13	world	0
+63084	player_death	14		3	0	0	2359360	128	0	0	0	0	608	0	2	0	2	0	false	false	0	9	6	tf_projectile_rocket	15028	tf_projectile_rocket	22
+63103	player_death	65535		7	0	0	262208	128	0	0	0	0	289	0	1	2	1	0	false	false	0	3	2	iron_bomber	1151	iron_bomber	0
+63131	player_death	65535		6	0	0	262208	128	0	0	0	0	664	0	0	0	0	0	false	false	0	12	9	iron_bomber	1151	iron_bomber	0
+63330	player_death	7		13	0	0	538968064	0	0	0	0	0	10	0	0	0	0	0	false	false	0	10	7	scattergun	200	scattergun	16
+63400	player_death	10		6	0	31	2490432	128	0	0	0	0	297	0	0	0	0	0	false	false	0	13	10	tf_projectile_pipe_remote	20	tf_projectile_pipe_remote	35
+63612	player_death	20		7	0	31	2490432	1154	0	0	0	0	549	0	2	0	1	0	false	false	0	6	4	tf_projectile_pipe_remote	207	tf_projectile_pipe_remote	35
+63705	player_death	65535		20	2	0	540016640	1	0	0	0	0	15	0	0	0	0	0	false	false	0	18	13	scattergun	13	scattergun	16

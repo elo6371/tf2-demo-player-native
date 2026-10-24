@@ -1,0 +1,465 @@
+{
+ "cp_snakewater_final1": {
+  "identity": {
+   "file": "tf/maps/cp_snakewater_final1.bsp",
+   "bytes": 59590420,
+   "sha256": "f09d406d2bbe397c8f9df9ca17f11b36b53d40fcf57e3f1532ec9af811b2a1eb"
+  },
+  "projection": {
+   "width": 1024,
+   "height": 1024,
+   "minX": -6011.52,
+   "maxX": 7067.52,
+   "minY": -6331.52,
+   "maxY": 6747.52,
+   "scalePxPerUnit": 0.07829320806420043,
+   "unitsPerPixel": 12.7725,
+   "frameUnits": [
+    -5760.0,
+    6816.0,
+    -4188.0,
+    4604.0
+   ],
+   "frameMarginUnits": 1536.0,
+   "frameSource": "gameplay entity bbox + margin, clamped to BSP floor extent",
+   "formulaPx": "px=(x-minX)*scale",
+   "formulaPy": "py=(maxY-y)*scale",
+   "yFlip": true,
+   "outsideFrameCells": 2348,
+   "outsideCanvasCells": 0
+  },
+  "geometry": {
+   "faceCount": 16103,
+   "floorFaces": 4489,
+   "vertexCount": 33784,
+   "skipped": {
+    "not_floor": 10095,
+    "special:tools": 647,
+    "special:water": 182,
+    "special:sky": 690
+   },
+   "entityCount": 986,
+   "playableBounds": {
+    "minX": -5760.0,
+    "maxX": 6816.0,
+    "minY": -4832.0,
+    "maxY": 5248.0
+   },
+   "zRange": [
+    -312.0,
+    951.6934579439253
+   ],
+   "zBands": [
+    -308.0,
+    -176.0,
+    -108.0,
+    -2.0,
+    181.46902654867256,
+    520.0
+   ],
+   "cellCount": 57812,
+   "multiLevelCells": 16789,
+   "levelHistogram": {
+    "2": 10368,
+    "3": 4579,
+    "1": 41023,
+    "4": 1683,
+    "5": 158,
+    "6": 1
+   },
+   "worldModel": {
+    "mins": [
+     -14924.0,
+     -4856.0,
+     -14728.0
+    ],
+    "maxs": [
+     6824.0,
+     15452.0,
+     1792.0
+    ],
+    "origin": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "headnode": 0,
+    "firstface": 0,
+    "numfaces": 12471
+   },
+   "zFilter": {
+    "zlo": -768.0,
+    "zhi": 1024.0,
+    "mainBin": -1,
+    "mainBinCount": 84,
+    "band": [
+     -256.0,
+     0.0
+    ],
+    "inbandPoints": 101,
+    "totalPoints": 113,
+    "inbandZRange": [
+     -152.0,
+     67.7749
+    ],
+    "dropped": {}
+   }
+  },
+  "controlPoints": [
+   {
+    "name": "cp_3",
+    "world": [
+     527.999,
+     207.999,
+     67.7749
+    ],
+    "px": [
+     512.0,
+     512.0
+    ]
+   },
+   {
+    "name": "cp_red2",
+    "world": [
+     2568.0,
+     -1896.0,
+     -108.0
+    ],
+    "px": [
+     671.718,
+     676.729
+    ]
+   },
+   {
+    "name": "cp_red1",
+    "world": [
+     5060.0,
+     -1632.0,
+     -148.0
+    ],
+    "px": [
+     866.825,
+     656.06
+    ]
+   },
+   {
+    "name": "cp_blu2",
+    "world": [
+     -1512.0,
+     2312.0,
+     -107.75
+    ],
+    "px": [
+     352.282,
+     347.271
+    ]
+   },
+   {
+    "name": "cp_blu1",
+    "world": [
+     -4015.52,
+     2046.95,
+     -144.475
+    ],
+    "px": [
+     156.273,
+     368.023
+    ]
+   }
+  ],
+  "teamSpawnCentroids": {
+   "2": {
+    "count": 48,
+    "centroid": [
+     3429.333,
+     -1295.667,
+     -77.333
+    ],
+    "px": [
+     739.155,
+     629.727
+    ],
+    "bbox": [
+     1816.0,
+     6248.0,
+     -2652.0,
+     376.0
+    ]
+   },
+   "3": {
+    "count": 48,
+    "centroid": [
+     -2373.333,
+     1709.0,
+     -81.333
+    ],
+    "px": [
+     284.845,
+     394.482
+    ],
+    "bbox": [
+     -5192.0,
+     -760.0,
+     32.0,
+     3068.0
+    ]
+   }
+  },
+  "extra": {},
+  "errorBudget": {
+   "roundTripMaxAbsErrorWorldUnits": 6.821210263296962e-13,
+   "halfPixelWorldUnits": 6.38625,
+   "pixelQuantization": "world error <= 0.5 px * unitsPerPixel at 1024x1024"
+  }
+ },
+ "pl_badwater": {
+  "identity": {
+   "file": "tf/maps/pl_badwater.bsp",
+   "bytes": 16619247,
+   "sha256": "68654502abf02c205862fa034403f581a9df9d3131793e7fbf7bef926c61ac48"
+  },
+  "projection": {
+   "width": 1024,
+   "height": 1024,
+   "minX": -3094.4,
+   "maxX": 4726.4,
+   "minY": -3789.4,
+   "maxY": 4031.4,
+   "scalePxPerUnit": 0.1309328968903437,
+   "unitsPerPixel": 7.637499999999999,
+   "frameUnits": [
+    -2944.0,
+    4576.0,
+    -3424.0,
+    3666.0
+   ],
+   "frameMarginUnits": 1536.0,
+   "frameSource": "gameplay entity bbox + margin, clamped to BSP floor extent",
+   "formulaPx": "px=(x-minX)*scale",
+   "formulaPy": "py=(maxY-y)*scale",
+   "yFlip": true,
+   "outsideFrameCells": 6629,
+   "outsideCanvasCells": 4723
+  },
+  "geometry": {
+   "faceCount": 11357,
+   "floorFaces": 3008,
+   "vertexCount": 22054,
+   "skipped": {
+    "not_floor": 7184,
+    "special:water": 111,
+    "special:tools": 465,
+    "special:sky": 589
+   },
+   "entityCount": 999,
+   "playableBounds": {
+    "minX": -2944.0,
+    "maxX": 4576.0,
+    "minY": -5120.0,
+    "maxY": 4480.0
+   },
+   "zRange": [
+    -128.0,
+    896.0
+   ],
+   "zBands": [
+    -28.0,
+    128.0,
+    128.0,
+    256.0,
+    448.0,
+    896.0
+   ],
+   "cellCount": 43601,
+   "multiLevelCells": 10621,
+   "levelHistogram": {
+    "3": 2577,
+    "1": 32980,
+    "2": 7950,
+    "4": 94
+   },
+   "worldModel": {
+    "mins": [
+     -14924.0,
+     -5136.0,
+     -14728.0
+    ],
+    "maxs": [
+     4624.0,
+     15452.0,
+     2064.0
+    ],
+    "origin": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "headnode": 0,
+    "firstface": 0,
+    "numfaces": 9830
+   },
+   "zFilter": {
+    "zlo": -512.0,
+    "zhi": 1280.0,
+    "mainBin": 0,
+    "mainBinCount": 158,
+    "band": [
+     0.0,
+     256.0
+    ],
+    "inbandPoints": 193,
+    "totalPoints": 205,
+    "inbandZRange": [
+     -232.0,
+     280.0
+    ],
+    "dropped": {
+     "cells": 6841,
+     "zRange": [
+      -2452.0,
+      -640.0
+     ],
+     "bbox": [
+      -6784.0,
+      288.0,
+      704.0,
+      10496.0
+     ],
+     "materials": [
+      [
+       "NATURE/BLENDGROUNDTOGRAVEL005",
+       6708
+      ],
+      [
+       "CONCRETE/CONCRETEFLOOR003",
+       100
+      ],
+      [
+       "NATURE/ROCKWALL013",
+       29
+      ],
+      [
+       "WOOD/WOOD_BRIDGE001",
+       4
+      ]
+     ]
+    }
+   }
+  },
+  "controlPoints": [
+   {
+    "name": "cap_1",
+    "world": [
+     44.0,
+     -1234.0,
+     128.0
+    ],
+    "px": [
+     410.92,
+     689.414
+    ]
+   },
+   {
+    "name": "cap_2",
+    "world": [
+     -1218.0,
+     -908.0,
+     128.0
+    ],
+    "px": [
+     245.682,
+     646.73
+    ]
+   },
+   {
+    "name": "cap_3",
+    "world": [
+     -1670.0,
+     1966.0,
+     128.0
+    ],
+    "px": [
+     186.501,
+     270.429
+    ]
+   },
+   {
+    "name": "cap_4",
+    "world": [
+     96.0,
+     860.0,
+     -132.0
+    ],
+    "px": [
+     417.728,
+     415.241
+    ]
+   }
+  ],
+  "teamSpawnCentroids": {
+   "2": {
+    "count": 32,
+    "centroid": [
+     490.0,
+     70.0,
+     80.0
+    ],
+    "px": [
+     469.316,
+     518.678
+    ],
+    "bbox": [
+     256.0,
+     832.0,
+     -48.0,
+     240.0
+    ]
+   },
+   "3": {
+    "count": 32,
+    "centroid": [
+     629.0,
+     -1202.0,
+     216.0
+    ],
+    "px": [
+     487.516,
+     685.224
+    ],
+    "bbox": [
+     -2368.0,
+     3680.0,
+     -1664.0,
+     -608.0
+    ]
+   }
+  },
+  "extra": {
+   "train_watcher": {
+    "world": [
+     2488.0,
+     -984.0,
+     160.0
+    ],
+    "px": [
+     730.92,
+     656.681
+    ]
+   },
+   "path_track": {
+    "count": 124,
+    "bbox": [
+     -1670.0,
+     2560.0,
+     -1888.0,
+     2130.0
+    ]
+   }
+  },
+  "errorBudget": {
+   "roundTripMaxAbsErrorWorldUnits": 4.547473508864641e-13,
+   "halfPixelWorldUnits": 3.8187499999999996,
+   "pixelQuantization": "world error <= 0.5 px * unitsPerPixel at 1024x1024"
+  }
+ }
+}

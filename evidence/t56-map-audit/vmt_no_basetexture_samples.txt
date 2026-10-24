@@ -1,0 +1,311 @@
+=== cp_snakewater_final1 | maps/cp_snakewater_final1/tile/floor_tile_004a_5934_-1624_-24 | pak
+"patch"
+{
+	"include"		"materials/TILE/FLOOR_TILE_004A.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_snakewater_final1/c5934_-1624_-24"
+	}
+}
+
+
+=== cp_snakewater_final1 | maps/cp_snakewater_final1/tile/floor_tile_005a_-5135_2022_-15 | pak
+"patch"
+{
+	"include"		"materials/TILE/FLOOR_TILE_005A.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_snakewater_final1/c-5135_2022_-15"
+	}
+}
+
+
+=== cp_snakewater_final1 | water/water_2fort_beneath.vmt | vpk:tf2_misc
+"Water"
+{
+	"%keywords" "tf"
+//	"$forcecheap" 1
+
+	"$abovewater" 0
+	"%compilewater" 1
+	"$CHEAPWATERSTARTDISTANCE" 500.0
+	"$CHEAPWATERENDDISTANCE" 1000.0
+	// bottom materials shouldn't use $envmap!!!  They won't work if they do.
+//	"$envmap" "env_cubemap"
+	"%tooltexture" "dev/water_normal"
+	"$refractamount" ".5"
+	"$refracttint" "[0.95 1.0 0.97]"
+
+	"$reflectamount" "1.0"
+	"$reflecttint" "[1 1 1]"
+
+//	"$reflecttexture" "_rt_WaterReflection"
+	"$refracttexture" "_rt_WaterRefraction"
+
+	"$scale" "[1 1]"
+
+	<dx90
+	{
+		 	"$fallbackmaterial" "water/water_2fort_beneath_dx80"
+
+	}
+
+
+=== cp_snakewater_final1 | maps/cp_snakewater_final1/glass/glasswindow001a_5934_-1624_-24 | pak
+"patch"
+{
+	"include"		"materials/GLASS/GLASSWINDOW001A.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_snakewater_final1/c5934_-1624_-24"
+	}
+}
+
+
+=== cp_snakewater_final1 | maps/cp_snakewater_final1/water/water_sawmill_1235_-3530_-160 | pak
+"patch"
+{
+	"include"		"materials/WATER/WATER_SAWMILL.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_snakewater_final1/c1235_-3530_-160"
+		"Proxies"
+		{
+		}
+	}
+}
+
+
+=== pl_odyssey | GREEK/GREEK_GROUND03B | pak
+LightmappedGeneric
+{
+	$basetexture "greek/greek_ground03b"
+	$bumpmap "greek/greek_ground03b_ssbump"
+	$surfaceprop Concrete
+	$ssbump 1
+
+	%keywords "tf, greek, greece, hades"
+}
+
+=== pl_odyssey | GREEK/GREEK_GROUND03D | pak
+LightmappedGeneric
+{
+	$basetexture "greek/greek_ground03d"
+	$bumpmap "greek/greek_ground03d_ssbump"
+	$surfaceprop Concrete
+	$ssbump 1
+
+	%keywords "tf, greek, greece, hades"
+}
+
+=== pl_odyssey | GREEK/GREEK_GROUND03B_COBBLE | pak
+LightmappedGeneric
+{
+	$basetexture "greek/greek_ground03b_cobble"
+	$bumpmap "greek/greek_ground03b_cobble_ssbump"
+	$surfaceprop Concrete
+	$ssbump 1
+
+	%keywords "tf, greek, greece, hades"
+}
+
+
+=== pl_odyssey | maps/pl_odyssey/metal/metalchrome002_-3408_3264_-928 | pak
+"patch"
+{
+	"include"		"materials/METAL/METALCHROME002.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/pl_odyssey/c-3408_3264_-928"
+	}
+}
+
+
+=== pl_odyssey | water/water_well_beneath.vmt | vpk:tf2_misc
+"Water"
+{
+	"%keywords" "tf"
+	"$forceexpensive" 1
+
+	"$abovewater" 0
+	"%compilewater" 1
+	"$CHEAPWATERSTARTDISTANCE" 500.0
+	"$CHEAPWATERENDDISTANCE" 1000.0
+	// bottom materials shouldn't use $envmap!!!  They won't work if they do.
+//	"$envmap" "env_cubemap"
+	"%tooltexture" "dev/water_normal"
+	"$refractamount" ".2"
+	"$refracttint" "[0.95 1.0 0.97]"
+
+	"$reflectamount" "1.0"
+	"$reflecttint" "[1 1 1]"
+
+//	"$reflecttexture" "_rt_WaterReflection"
+	"$refracttexture" "_rt_WaterRefraction"
+
+
+	<dx90
+	{
+		 	"$fallbackmaterial" "water/water_well_beneath_dx80"
+	}
+
+	"$scale" "[1 1]"
+
+=== cp_sunshine | water/water_well_beneath.vmt | vpk:tf2_misc
+"Water"
+{
+	"%keywords" "tf"
+	"$forceexpensive" 1
+
+	"$abovewater" 0
+	"%compilewater" 1
+	"$CHEAPWATERSTARTDISTANCE" 500.0
+	"$CHEAPWATERENDDISTANCE" 1000.0
+	// bottom materials shouldn't use $envmap!!!  They won't work if they do.
+//	"$envmap" "env_cubemap"
+	"%tooltexture" "dev/water_normal"
+	"$refractamount" ".2"
+	"$refracttint" "[0.95 1.0 0.97]"
+
+	"$reflectamount" "1.0"
+	"$reflecttint" "[1 1 1]"
+
+//	"$reflecttexture" "_rt_WaterReflection"
+	"$refracttexture" "_rt_WaterRefraction"
+
+
+	<dx90
+	{
+		 	"$fallbackmaterial" "water/water_well_beneath_dx80"
+	}
+
+	"$scale" "[1 1]"
+
+=== cp_sunshine | maps/cp_sunshine/water/water_well_-10235_6919_-224 | pak
+"patch"
+{
+	"include"		"materials/WATER/WATER_WELL.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_sunshine/c-10235_6919_-224"
+		"Proxies"
+		{
+		}
+	}
+}
+
+
+=== cp_sunshine | maps/cp_sunshine/water/water_well_-891_3279_-224 | pak
+"patch"
+{
+	"include"		"materials/WATER/WATER_WELL.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_sunshine/c-891_3279_-224"
+		"Proxies"
+		{
+		}
+	}
+}
+
+
+=== cp_sunshine | maps/cp_sunshine/glass/glasswindow001b_-3635_2124_136 | pak
+"patch"
+{
+	"include"		"materials/GLASS/GLASSWINDOW001B.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_sunshine/c-3635_2124_136"
+	}
+}
+
+
+=== cp_sunshine | maps/cp_sunshine/glass/glasswindow001b_-7628_8371_136 | pak
+"patch"
+{
+	"include"		"materials/GLASS/GLASSWINDOW001B.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/cp_sunshine/c-7628_8371_136"
+	}
+}
+
+
+=== koth_bagel_rc12 | water/water_2fort_beneath.vmt | vpk:tf2_misc
+"Water"
+{
+	"%keywords" "tf"
+//	"$forcecheap" 1
+
+	"$abovewater" 0
+	"%compilewater" 1
+	"$CHEAPWATERSTARTDISTANCE" 500.0
+	"$CHEAPWATERENDDISTANCE" 1000.0
+	// bottom materials shouldn't use $envmap!!!  They won't work if they do.
+//	"$envmap" "env_cubemap"
+	"%tooltexture" "dev/water_normal"
+	"$refractamount" ".5"
+	"$refracttint" "[0.95 1.0 0.97]"
+
+	"$reflectamount" "1.0"
+	"$reflecttint" "[1 1 1]"
+
+//	"$reflecttexture" "_rt_WaterReflection"
+	"$refracttexture" "_rt_WaterRefraction"
+
+	"$scale" "[1 1]"
+
+	<dx90
+	{
+		 	"$fallbackmaterial" "water/water_2fort_beneath_dx80"
+
+	}
+
+
+=== koth_bagel_rc12 | maps/koth_bagel_rc12/water/water_bagel_0_4352_304 | pak
+"patch"
+{
+	"include"		"materials/WATER/WATER_BAGEL.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/koth_bagel_rc12/c0_4352_304"
+		"Proxies"
+		{
+		}
+	}
+}
+
+
+=== koth_bagel_rc12 | maps/koth_bagel_rc12/glass/glasswindow001a_-896_-448_216 | pak
+"patch"
+{
+	"include"		"materials/GLASS/GLASSWINDOW001A.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/koth_bagel_rc12/c-896_-448_216"
+	}
+}
+
+
+=== koth_bagel_rc12 | maps/koth_bagel_rc12/glass/glasswindow001a_896_448_218 | pak
+"patch"
+{
+	"include"		"materials/GLASS/GLASSWINDOW001A.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/koth_bagel_rc12/c896_448_218"
+	}
+}
+
+
+=== koth_bagel_rc12 | maps/koth_bagel_rc12/glass/glasswindow001a_1088_128_322 | pak
+"patch"
+{
+	"include"		"materials/GLASS/GLASSWINDOW001A.vmt"
+	"replace"
+	{
+		"$envmap"		"maps/koth_bagel_rc12/c1088_128_322"
+	}
+}
+
+

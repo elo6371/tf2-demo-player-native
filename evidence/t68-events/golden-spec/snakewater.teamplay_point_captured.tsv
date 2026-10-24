@@ -1,0 +1,34 @@
+# demo_path=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem sha256=308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f demo=snakewater map=cp_snakewater_final1 event=teamplay_point_captured total=15 first_tick=4008 last_tick=63683
+# fields=cappers,cp,cpname,team
+# section=first50
+4008	teamplay_point_captured	 	2	#CP_cap_cp3	3
+7231	teamplay_point_captured	 	3	the RED Forward Point	3
+9690	teamplay_point_captured		4	#CP_cap_red_cp1	3
+14036	teamplay_point_captured	 	2	#CP_cap_cp3	3
+16228	teamplay_point_captured	 	3	the RED Forward Point	3
+22234	teamplay_point_captured	 	4	#CP_cap_red_cp1	3
+27033	teamplay_point_captured	 	2	#CP_cap_cp3	3
+28635	teamplay_point_captured	 	3	the RED Forward Point	3
+37392	teamplay_point_captured	 	4	#CP_cap_red_cp1	3
+41798	teamplay_point_captured		2	#CP_cap_cp3	3
+43543	teamplay_point_captured	 	3	the RED Forward Point	3
+56402	teamplay_point_captured		4	#CP_cap_red_cp1	3
+60748	teamplay_point_captured	 	2	#CP_cap_cp3	3
+61447	teamplay_point_captured	 	3	the RED Forward Point	3
+63683	teamplay_point_captured		4	#CP_cap_red_cp1	3
+# section=last50
+4008	teamplay_point_captured	 	2	#CP_cap_cp3	3
+7231	teamplay_point_captured	 	3	the RED Forward Point	3
+9690	teamplay_point_captured		4	#CP_cap_red_cp1	3
+14036	teamplay_point_captured	 	2	#CP_cap_cp3	3
+16228	teamplay_point_captured	 	3	the RED Forward Point	3
+22234	teamplay_point_captured	 	4	#CP_cap_red_cp1	3
+27033	teamplay_point_captured	 	2	#CP_cap_cp3	3
+28635	teamplay_point_captured	 	3	the RED Forward Point	3
+37392	teamplay_point_captured	 	4	#CP_cap_red_cp1	3
+41798	teamplay_point_captured		2	#CP_cap_cp3	3
+43543	teamplay_point_captured	 	3	the RED Forward Point	3
+56402	teamplay_point_captured		4	#CP_cap_red_cp1	3
+60748	teamplay_point_captured	 	2	#CP_cap_cp3	3
+61447	teamplay_point_captured	 	3	the RED Forward Point	3
+63683	teamplay_point_captured		4	#CP_cap_red_cp1	3

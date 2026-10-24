@@ -1,0 +1,130 @@
+{
+  "cp_snakewater_final1": {
+    "bsp": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/cp_snakewater_final1.bsp",
+    "pakfile_bytes": 21089341,
+    "entries": 3354,
+    "ext": [
+      [
+        "vhv",
+        3246
+      ],
+      [
+        "vtf",
+        66
+      ],
+      [
+        "vmt",
+        40
+      ],
+      [
+        "ppl",
+        2
+      ]
+    ],
+    "materials_vmt": 40,
+    "materials_vtf": 66
+  },
+  "pl_odyssey": {
+    "bsp": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/pl_odyssey.bsp",
+    "pakfile_bytes": 87721634,
+    "entries": 4941,
+    "ext": [
+      [
+        "vhv",
+        3428
+      ],
+      [
+        "vtx",
+        461
+      ],
+      [
+        "vtf",
+        367
+      ],
+      [
+        "vmt",
+        236
+      ],
+      [
+        "mdl",
+        165
+      ],
+      [
+        "vvd",
+        165
+      ],
+      [
+        "phy",
+        90
+      ],
+      [
+        "ppl",
+        19
+      ]
+    ],
+    "materials_vmt": 236,
+    "materials_vtf": 367
+  },
+  "cp_sunshine": {
+    "bsp": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/cp_sunshine.bsp",
+    "pakfile_bytes": 8926449,
+    "entries": 3476,
+    "ext": [
+      [
+        "vhv",
+        3186
+      ],
+      [
+        "vtf",
+        222
+      ],
+      [
+        "vmt",
+        68
+      ]
+    ],
+    "materials_vmt": 68,
+    "materials_vtf": 222
+  },
+  "koth_bagel_rc12": {
+    "bsp": "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/download/maps/koth_bagel_rc12.bsp",
+    "pakfile_bytes": 18036915,
+    "entries": 3707,
+    "ext": [
+      [
+        "vhv",
+        2942
+      ],
+      [
+        "vtf",
+        251
+      ],
+      [
+        "vtx",
+        169
+      ],
+      [
+        "vmt",
+        132
+      ],
+      [
+        "mdl",
+        55
+      ],
+      [
+        "vvd",
+        55
+      ],
+      [
+        "ppl",
+        50
+      ],
+      [
+        "phy",
+        49
+      ]
+    ],
+    "materials_vmt": 132,
+    "materials_vtf": 251
+  }
+}

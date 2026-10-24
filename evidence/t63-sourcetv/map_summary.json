@@ -1,0 +1,1031 @@
+{
+ "generated_by": "evidence/t63-sourcetv/build_sample_data.py",
+ "source_jsonl": "evidence/t56-map-audit/demo_headers_tfdemos.jsonl",
+ "demos_total": 1748,
+ "maps_total": 146,
+ "maps_with_bsp": 126,
+ "maps": {
+  "2koth_abbey": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 23816,
+   "bsp_present": true
+  },
+  "arena_perks": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 1129,
+   "bsp_present": true
+  },
+  "bball_ozone_ozf": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 6050,
+   "bsp_present": false
+  },
+  "cp_badlands": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 51382,
+   "bsp_present": true
+  },
+  "cp_canaveral_5cp": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 30068,
+   "bsp_present": true
+  },
+  "cp_coldfront": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 13745,
+   "bsp_present": true
+  },
+  "cp_cowerhouse": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 38838,
+   "bsp_present": true
+  },
+  "cp_darkmarsh": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 30465,
+   "bsp_present": true
+  },
+  "cp_degrootkeep": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 33400,
+   "bsp_present": true
+  },
+  "cp_dustbowl": {
+   "total": 9,
+   "SourceTV": 0,
+   "POV": 9,
+   "ticks": 98497,
+   "bsp_present": true
+  },
+  "cp_egypt_final": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 1810,
+   "bsp_present": true
+  },
+  "cp_foundry": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 80659,
+   "bsp_present": true
+  },
+  "cp_freaky_fair": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 12386,
+   "bsp_present": true
+  },
+  "cp_freight_final1": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 12431,
+   "bsp_present": true
+  },
+  "cp_fulgur": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 11498,
+   "bsp_present": true
+  },
+  "cp_gorge_event": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 79525,
+   "bsp_present": true
+  },
+  "cp_granary": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 23424,
+   "bsp_present": true
+  },
+  "cp_gullywash_f9": {
+   "total": 18,
+   "SourceTV": 1,
+   "POV": 17,
+   "ticks": 1995548,
+   "bsp_present": false
+  },
+  "cp_gullywash_final1": {
+   "total": 23,
+   "SourceTV": 0,
+   "POV": 23,
+   "ticks": 2479199,
+   "bsp_present": true
+  },
+  "cp_holyhell": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 46428,
+   "bsp_present": true
+  },
+  "cp_junction_final": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 5608,
+   "bsp_present": true
+  },
+  "cp_lavapit_final": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 70977,
+   "bsp_present": true
+  },
+  "cp_manor_event": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 45424,
+   "bsp_present": true
+  },
+  "cp_metalworks": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 41232,
+   "bsp_present": true
+  },
+  "cp_mojave": {
+   "total": 9,
+   "SourceTV": 0,
+   "POV": 9,
+   "ticks": 297905,
+   "bsp_present": true
+  },
+  "cp_mossrock": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 76091,
+   "bsp_present": true
+  },
+  "cp_powerhouse": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 36632,
+   "bsp_present": true
+  },
+  "cp_premuda": {
+   "total": 9,
+   "SourceTV": 0,
+   "POV": 9,
+   "ticks": 391995,
+   "bsp_present": true
+  },
+  "cp_process_f12": {
+   "total": 116,
+   "SourceTV": 2,
+   "POV": 114,
+   "ticks": 11087949,
+   "bsp_present": false
+  },
+  "cp_process_final": {
+   "total": 58,
+   "SourceTV": 0,
+   "POV": 58,
+   "ticks": 6561743,
+   "bsp_present": true
+  },
+  "cp_reckoner": {
+   "total": 17,
+   "SourceTV": 1,
+   "POV": 16,
+   "ticks": 2091784,
+   "bsp_present": true
+  },
+  "cp_snakewater_final1": {
+   "total": 61,
+   "SourceTV": 0,
+   "POV": 61,
+   "ticks": 7528993,
+   "bsp_present": true
+  },
+  "cp_snakewater_u13": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 1114,
+   "bsp_present": false
+  },
+  "cp_standin_final": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 8044,
+   "bsp_present": true
+  },
+  "cp_steel": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 39746,
+   "bsp_present": true
+  },
+  "cp_steel_f12": {
+   "total": 7,
+   "SourceTV": 0,
+   "POV": 7,
+   "ticks": 570674,
+   "bsp_present": false
+  },
+  "cp_sultry_b8a": {
+   "total": 12,
+   "SourceTV": 1,
+   "POV": 11,
+   "ticks": 1622315,
+   "bsp_present": false
+  },
+  "cp_sunshine": {
+   "total": 66,
+   "SourceTV": 1,
+   "POV": 65,
+   "ticks": 7409101,
+   "bsp_present": true
+  },
+  "cp_sunshine_event": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 73576,
+   "bsp_present": true
+  },
+  "cp_vanguard": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 19613,
+   "bsp_present": true
+  },
+  "cp_well": {
+   "total": 5,
+   "SourceTV": 0,
+   "POV": 5,
+   "ticks": 47669,
+   "bsp_present": true
+  },
+  "cp_wildcat_event": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 114288,
+   "bsp_present": true
+  },
+  "cp_yukon_final": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 23572,
+   "bsp_present": true
+  },
+  "cppl_gavle": {
+   "total": 9,
+   "SourceTV": 0,
+   "POV": 9,
+   "ticks": 166243,
+   "bsp_present": true
+  },
+  "ctf_2fort": {
+   "total": 8,
+   "SourceTV": 0,
+   "POV": 8,
+   "ticks": 32057,
+   "bsp_present": true
+  },
+  "ctf_2fort_invasion": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 1572,
+   "bsp_present": true
+  },
+  "ctf_ballin_skyfall": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 176742,
+   "bsp_present": false
+  },
+  "ctf_crasher": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 75742,
+   "bsp_present": true
+  },
+  "ctf_doublecross_event": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 81749,
+   "bsp_present": true
+  },
+  "ctf_haarp": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 35409,
+   "bsp_present": true
+  },
+  "ctf_helltrain_event": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 72160,
+   "bsp_present": true
+  },
+  "ctf_medi_evil": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 38025,
+   "bsp_present": true
+  },
+  "ctf_sidewinder": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 5636,
+   "bsp_present": true
+  },
+  "ctf_turbine": {
+   "total": 5,
+   "SourceTV": 0,
+   "POV": 5,
+   "ticks": 74449,
+   "bsp_present": true
+  },
+  "koth_ashville_final": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 143643,
+   "bsp_present": false
+  },
+  "koth_ashville_final1": {
+   "total": 10,
+   "SourceTV": 2,
+   "POV": 8,
+   "ticks": 1194735,
+   "bsp_present": false
+  },
+  "koth_badlands": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 41041,
+   "bsp_present": true
+  },
+  "koth_bagel_event": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 66667,
+   "bsp_present": true
+  },
+  "koth_bagel_rc12": {
+   "total": 31,
+   "SourceTV": 0,
+   "POV": 31,
+   "ticks": 3301754,
+   "bsp_present": false
+  },
+  "koth_bagel_rc5": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 417441,
+   "bsp_present": false
+  },
+  "koth_boardwalk": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 60494,
+   "bsp_present": true
+  },
+  "koth_brazil": {
+   "total": 5,
+   "SourceTV": 0,
+   "POV": 5,
+   "ticks": 221879,
+   "bsp_present": true
+  },
+  "koth_cachoeira": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 20919,
+   "bsp_present": true
+  },
+  "koth_camp_saxton": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 57913,
+   "bsp_present": true
+  },
+  "koth_cascade": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 77563,
+   "bsp_present": true
+  },
+  "koth_demolition": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 1764,
+   "bsp_present": true
+  },
+  "koth_dryfield": {
+   "total": 5,
+   "SourceTV": 0,
+   "POV": 5,
+   "ticks": 153564,
+   "bsp_present": true
+  },
+  "koth_dusker": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 60018,
+   "bsp_present": true
+  },
+  "koth_harvest_event": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 130655,
+   "bsp_present": true
+  },
+  "koth_harvest_final": {
+   "total": 30,
+   "SourceTV": 0,
+   "POV": 30,
+   "ticks": 932883,
+   "bsp_present": true
+  },
+  "koth_king": {
+   "total": 5,
+   "SourceTV": 0,
+   "POV": 5,
+   "ticks": 249953,
+   "bsp_present": true
+  },
+  "koth_lakeside_event": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 2369,
+   "bsp_present": true
+  },
+  "koth_lakeside_final": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 127148,
+   "bsp_present": true
+  },
+  "koth_lazarus": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 87083,
+   "bsp_present": true
+  },
+  "koth_megaton": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 85893,
+   "bsp_present": true
+  },
+  "koth_moonshine_event": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 14600,
+   "bsp_present": true
+  },
+  "koth_nucleus": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 38231,
+   "bsp_present": true
+  },
+  "koth_overcast_final": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 27614,
+   "bsp_present": true
+  },
+  "koth_probed": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 13307,
+   "bsp_present": true
+  },
+  "koth_product_final": {
+   "total": 20,
+   "SourceTV": 1,
+   "POV": 19,
+   "ticks": 1795033,
+   "bsp_present": false
+  },
+  "koth_product_rc8": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 405053,
+   "bsp_present": false
+  },
+  "koth_proot_b6c-alt2": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 84155,
+   "bsp_present": false
+  },
+  "koth_rotunda": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 86304,
+   "bsp_present": true
+  },
+  "koth_sawmill": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 149838,
+   "bsp_present": true
+  },
+  "koth_sharkbay": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 70770,
+   "bsp_present": true
+  },
+  "koth_shorelight": {
+   "total": 12,
+   "SourceTV": 0,
+   "POV": 12,
+   "ticks": 243472,
+   "bsp_present": true
+  },
+  "koth_slasher": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 18807,
+   "bsp_present": true
+  },
+  "koth_slaughter_event": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 82667,
+   "bsp_present": true
+  },
+  "koth_slime": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 45813,
+   "bsp_present": true
+  },
+  "koth_snowtower": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 5134,
+   "bsp_present": true
+  },
+  "koth_suijin": {
+   "total": 6,
+   "SourceTV": 0,
+   "POV": 6,
+   "ticks": 67029,
+   "bsp_present": true
+  },
+  "koth_toxic": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 170413,
+   "bsp_present": true
+  },
+  "koth_trainsawlaser": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 123181,
+   "bsp_present": true
+  },
+  "koth_viaduct": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 53085,
+   "bsp_present": true
+  },
+  "koth_viaduct_event": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 209761,
+   "bsp_present": true
+  },
+  "koth_warmtic_f10": {
+   "total": 10,
+   "SourceTV": 0,
+   "POV": 10,
+   "ticks": 980617,
+   "bsp_present": false
+  },
+  "koth_winter_ridge": {
+   "total": 9,
+   "SourceTV": 0,
+   "POV": 9,
+   "ticks": 117275,
+   "bsp_present": true
+  },
+  "mge_chillypunch_final4_fix2": {
+   "total": 36,
+   "SourceTV": 0,
+   "POV": 36,
+   "ticks": 50554,
+   "bsp_present": true
+  },
+  "mge_league_granarymiddle_pro": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 5116,
+   "bsp_present": false
+  },
+  "mvm_mannhattan": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 343658,
+   "bsp_present": true
+  },
+  "mvm_rottenburg": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 292896,
+   "bsp_present": true
+  },
+  "pd_circus": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 60919,
+   "bsp_present": true
+  },
+  "pd_mannsylvania": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 1397,
+   "bsp_present": true
+  },
+  "pd_monster_bash": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 64953,
+   "bsp_present": true
+  },
+  "pd_pit_of_death_event": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 1422,
+   "bsp_present": true
+  },
+  "pl_aquarius": {
+   "total": 18,
+   "SourceTV": 0,
+   "POV": 18,
+   "ticks": 407257,
+   "bsp_present": true
+  },
+  "pl_aridpass_event": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 50050,
+   "bsp_present": true
+  },
+  "pl_badwater": {
+   "total": 177,
+   "SourceTV": 0,
+   "POV": 177,
+   "ticks": 7988663,
+   "bsp_present": true
+  },
+  "pl_barnblitz": {
+   "total": 53,
+   "SourceTV": 0,
+   "POV": 53,
+   "ticks": 2727491,
+   "bsp_present": true
+  },
+  "pl_bloodwater": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 127074,
+   "bsp_present": true
+  },
+  "pl_borneo": {
+   "total": 54,
+   "SourceTV": 0,
+   "POV": 54,
+   "ticks": 2680791,
+   "bsp_present": true
+  },
+  "pl_breadspace": {
+   "total": 5,
+   "SourceTV": 0,
+   "POV": 5,
+   "ticks": 86317,
+   "bsp_present": true
+  },
+  "pl_camber": {
+   "total": 7,
+   "SourceTV": 0,
+   "POV": 7,
+   "ticks": 243589,
+   "bsp_present": true
+  },
+  "pl_cashworks": {
+   "total": 20,
+   "SourceTV": 0,
+   "POV": 20,
+   "ticks": 485696,
+   "bsp_present": true
+  },
+  "pl_citadel": {
+   "total": 32,
+   "SourceTV": 0,
+   "POV": 32,
+   "ticks": 1395927,
+   "bsp_present": true
+  },
+  "pl_corruption": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 98236,
+   "bsp_present": true
+  },
+  "pl_embargo": {
+   "total": 8,
+   "SourceTV": 0,
+   "POV": 8,
+   "ticks": 361938,
+   "bsp_present": true
+  },
+  "pl_emerge": {
+   "total": 10,
+   "SourceTV": 0,
+   "POV": 10,
+   "ticks": 154867,
+   "bsp_present": true
+  },
+  "pl_enclosure_final": {
+   "total": 11,
+   "SourceTV": 0,
+   "POV": 11,
+   "ticks": 357597,
+   "bsp_present": true
+  },
+  "pl_fifthcurve_event": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 191604,
+   "bsp_present": true
+  },
+  "pl_frontier_final": {
+   "total": 60,
+   "SourceTV": 0,
+   "POV": 60,
+   "ticks": 2396985,
+   "bsp_present": true
+  },
+  "pl_goldrush": {
+   "total": 30,
+   "SourceTV": 0,
+   "POV": 30,
+   "ticks": 963199,
+   "bsp_present": true
+  },
+  "pl_hoodoo_final": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 18989,
+   "bsp_present": true
+  },
+  "pl_millstone_event": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 78683,
+   "bsp_present": true
+  },
+  "pl_odyssey": {
+   "total": 42,
+   "SourceTV": 0,
+   "POV": 42,
+   "ticks": 1213365,
+   "bsp_present": true
+  },
+  "pl_patagonia": {
+   "total": 14,
+   "SourceTV": 0,
+   "POV": 14,
+   "ticks": 1134054,
+   "bsp_present": true
+  },
+  "pl_phoenix": {
+   "total": 42,
+   "SourceTV": 0,
+   "POV": 42,
+   "ticks": 1871189,
+   "bsp_present": true
+  },
+  "pl_pier": {
+   "total": 52,
+   "SourceTV": 0,
+   "POV": 52,
+   "ticks": 2587690,
+   "bsp_present": true
+  },
+  "pl_precipice_event_final": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 4421,
+   "bsp_present": true
+  },
+  "pl_prowater_b12": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 63674,
+   "bsp_present": false
+  },
+  "pl_redwood": {
+   "total": 12,
+   "SourceTV": 0,
+   "POV": 12,
+   "ticks": 430255,
+   "bsp_present": true
+  },
+  "pl_rumble_event": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 368,
+   "bsp_present": true
+  },
+  "pl_rumford_event": {
+   "total": 8,
+   "SourceTV": 0,
+   "POV": 8,
+   "ticks": 202852,
+   "bsp_present": true
+  },
+  "pl_snowycoast": {
+   "total": 30,
+   "SourceTV": 0,
+   "POV": 30,
+   "ticks": 1436189,
+   "bsp_present": true
+  },
+  "pl_spineyard": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 2483,
+   "bsp_present": true
+  },
+  "pl_swiftwater_final1": {
+   "total": 63,
+   "SourceTV": 0,
+   "POV": 63,
+   "ticks": 2852086,
+   "bsp_present": true
+  },
+  "pl_thundermountain": {
+   "total": 41,
+   "SourceTV": 0,
+   "POV": 41,
+   "ticks": 1811693,
+   "bsp_present": true
+  },
+  "pl_upward": {
+   "total": 134,
+   "SourceTV": 0,
+   "POV": 134,
+   "ticks": 6335107,
+   "bsp_present": true
+  },
+  "pl_upward_f12": {
+   "total": 9,
+   "SourceTV": 0,
+   "POV": 9,
+   "ticks": 1233149,
+   "bsp_present": false
+  },
+  "pl_venice": {
+   "total": 19,
+   "SourceTV": 0,
+   "POV": 19,
+   "ticks": 725283,
+   "bsp_present": true
+  },
+  "pl_vigil_rc10": {
+   "total": 16,
+   "SourceTV": 0,
+   "POV": 16,
+   "ticks": 1488418,
+   "bsp_present": false
+  },
+  "plr_hightower_event": {
+   "total": 4,
+   "SourceTV": 0,
+   "POV": 4,
+   "ticks": 71362,
+   "bsp_present": true
+  },
+  "sd_doomsday_event": {
+   "total": 3,
+   "SourceTV": 0,
+   "POV": 3,
+   "ticks": 140229,
+   "bsp_present": true
+  },
+  "tow_dynamite": {
+   "total": 2,
+   "SourceTV": 0,
+   "POV": 2,
+   "ticks": 40138,
+   "bsp_present": true
+  },
+  "tr_walkway_rc2": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 3420,
+   "bsp_present": true
+  },
+  "ultiduo_baloo_v2": {
+   "total": 1,
+   "SourceTV": 0,
+   "POV": 1,
+   "ticks": 65524,
+   "bsp_present": false
+  }
+ }
+}

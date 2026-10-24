@@ -5,6 +5,7 @@
 #include <vector>
 #include <filesystem>
 #include <unordered_map>
+#include <utility>
 
 #include "audio_timeline.h"
 
@@ -448,6 +449,52 @@ struct DemoRecordingClassification {
   const char* label = "unknown";
 };
 
+// One entry (field) of a game-event definition: the field name and its wire
+// value type. The definition is the only schema a svc_GameEvent payload has --
+// the wire carries no per-value type tag -- so a definition/table mismatch
+// silently produces garbage values and the decoder must validate the consumed
+// bit count against the event's declared length instead of trusting the table.
+enum class GameEventValueType : std::uint8_t {
+  None = 0,
+  String = 1,
+  Float = 2,
+  Long = 3,
+  Short = 4,
+  Byte = 5,
+  Boolean = 6,
+  Local = 7,
+};
+
+struct GameEventEntry {
+  std::string name;
+  GameEventValueType kind = GameEventValueType::None;
+};
+
+// svc_GameEventList sends the whole table (414 definitions, ids 0..413 in both
+// local samples). Lookup is by table POSITION, matching the reference parser's
+// event_definitions.get(id): the table is sent in id order but the wire id is
+// still checked against the table size before indexing, never used as an
+// unchecked index.
+struct GameEventDefinition {
+  std::uint16_t id = 0;
+  std::string name;
+  std::vector<GameEventEntry> entries;
+};
+
+// One decoded svc_GameEvent, in wire order. The three coordinates
+// (tick, packetOrdinal, messageBit) are the identity of an event: tick alone is
+// ambiguous -- bagel has 2,915 ticks carrying more than one event and tick 334
+// carries 209 of them -- so any dedupe/navigation key that drops either the
+// packet ordinal or the bit offset loses events.
+struct DemoGameEvent {
+  std::int32_t tick = 0;
+  std::uint16_t eventId = 0;
+  std::string name;
+  std::vector<std::pair<std::string, std::string>> fields;
+  std::uint32_t packetOrdinal = 0;
+  std::uint32_t messageBit = 0;
+};
+
 struct DemoNetworkSummary {
   std::size_t packetsScanned = 0;
   std::size_t malformedPackets = 0;
@@ -763,6 +810,17 @@ struct DemoNetworkSummary {
   std::size_t gameEventDefinitionCount = 0;
   std::size_t gameEventCount = 0;
   std::size_t gameEventPayloadBits = 0;
+  // svc_GameEventList payload, last list wins (the reference parser replaces the
+  // table too). Lookup is by position in this vector.
+  std::vector<GameEventDefinition> gameEventDefinitions;
+  std::size_t gameEventDefinitionsParsed = 0;
+  // Decoded events in wire order. Kept only when the event was structurally
+  // valid: an unknown id or a value-count mismatch is counted below and NOT
+  // turned into an empty event.
+  std::vector<DemoGameEvent> gameEvents;
+  std::size_t gameEventDecoded = 0;
+  std::size_t gameEventDecodeFailures = 0;
+  std::size_t gameEventUnknownId = 0;
   std::size_t userMessageCount = 0;
   std::size_t userMessagePayloadBits = 0;
   std::size_t prefetchCount = 0;
@@ -962,7 +1020,8 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
                              std::int32_t entryTick,
                              std::int32_t initialNetworkTick,
                              DemoNetworkSummary& summary,
-                             DemoMessageStreamResult& result);
+                             DemoMessageStreamResult& result,
+                             std::uint32_t packetOrdinal = 0);
 bool findTempEntityEventsInTickRange(const DemoNetworkSummary& summary, std::int32_t firstTick,
                                      std::int32_t lastTick, std::vector<TempEntityEvent>& events);
 bool parseDemoCmdInfo(const std::uint8_t* bytes, std::size_t size, DemoViewSample& sample);
