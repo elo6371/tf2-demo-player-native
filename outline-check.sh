@@ -432,12 +432,12 @@ trim_trace() { # trim_trace <prefix>
   { grep -a "title: " "$raw" | tail -n 5 || true; } >> "$kept"
   tail -n "${TRACE_KEEP_TAIL:-2000}" "$raw" >> "$kept"
   if ! grep -aq "outline: draw" "$kept"; then
-    echo "  trace $(basename "$prefix"): NOT trimmed (summary lines did not survive); raw kept"
+    echo "  trace $(basename "$prefix"): NOT trimmed (summary lines did not survive); raw kept" >&2
     rm -f "$kept"; return 0
   fi
   mv "$kept" "$raw"
   after=$(stat -c %s "$raw" 2>/dev/null || echo 0)
-  printf "  trace %s: %s -> %s bytes\n" "$(basename "$prefix")" "$before" "$after"
+  printf "  trace %s: %s -> %s bytes\n" "$(basename "$prefix")" "$before" "$after" >&2
 }
 run_frame() { # run_frame <prefix> [args...]
   local prefix="$1"; shift
