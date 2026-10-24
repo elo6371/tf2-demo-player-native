@@ -1,0 +1,169 @@
+playback-control-check  demo=D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem
+                       probe=native/build-nmake/playback_control_probe.exe
+
+=== build ===
+  OK   build playback_control_probe tf2_demo_native
+
+=== suite: the controller contract (probe) ===
+  OK   suite exit code = 0
+  OK   suite failures = 0
+  INFO suite checks=22 failures=0 steps=39
+
+=== A: frame stepping is exact ===
+  OK   A step-forward #1 requested = 101
+  OK   A step-forward #1 landed = 101
+  OK   A step-forward #1 status = ok
+  OK   A step-forward #1 playing = 0
+  OK   A step-forward #2 requested = 102
+  OK   A step-forward #2 landed = 102
+  OK   A step-forward #2 status = ok
+  OK   A step-forward #2 playing = 0
+  OK   A step-forward #3 requested = 103
+  OK   A step-forward #3 landed = 103
+  OK   A step-forward #3 status = ok
+  OK   A step-forward #3 playing = 0
+  OK   A step-forward #4 requested = 104
+  OK   A step-forward #4 landed = 104
+  OK   A step-forward #4 status = ok
+  OK   A step-forward #4 playing = 0
+  OK   A step-forward #5 requested = 105
+  OK   A step-forward #5 landed = 105
+  OK   A step-forward #5 status = ok
+  OK   A step-forward #5 playing = 0
+  OK   A step-forward #6 requested = 106
+  OK   A step-forward #6 landed = 106
+  OK   A step-forward #6 status = ok
+  OK   A step-forward #6 playing = 0
+  OK   A step-forward #7 requested = 107
+  OK   A step-forward #7 landed = 107
+  OK   A step-forward #7 status = ok
+  OK   A step-forward #7 playing = 0
+  OK   A step-forward #8 requested = 108
+  OK   A step-forward #8 landed = 108
+  OK   A step-forward #8 status = ok
+  OK   A step-forward #8 playing = 0
+  OK   A step-forward #9 requested = 109
+  OK   A step-forward #9 landed = 109
+  OK   A step-forward #9 status = ok
+  OK   A step-forward #9 playing = 0
+  OK   A step-forward #10 requested = 110
+  OK   A step-forward #10 landed = 110
+  OK   A step-forward #10 status = ok
+  OK   A step-forward #10 playing = 0
+  OK   A step-backward #1 requested = 109
+  OK   A step-backward #1 landed = 109
+  OK   A step-backward #1 status = ok
+  OK   A step-backward #2 requested = 108
+  OK   A step-backward #2 landed = 108
+  OK   A step-backward #2 status = ok
+  OK   A step-backward #3 requested = 107
+  OK   A step-backward #3 landed = 107
+  OK   A step-backward #3 status = ok
+  OK   A step-backward #4 requested = 106
+  OK   A step-backward #4 landed = 106
+  OK   A step-backward #4 status = ok
+  OK   A step-backward #5 requested = 105
+  OK   A step-backward #5 landed = 105
+  OK   A step-backward #5 status = ok
+  OK   A step-backward #6 requested = 104
+  OK   A step-backward #6 landed = 104
+  OK   A step-backward #6 status = ok
+  OK   A step-backward #7 requested = 103
+  OK   A step-backward #7 landed = 103
+  OK   A step-backward #7 status = ok
+  OK   A step-backward #8 requested = 102
+  OK   A step-backward #8 landed = 102
+  OK   A step-backward #8 status = ok
+  OK   A step-backward #9 requested = 101
+  OK   A step-backward #9 landed = 101
+  OK   A step-backward #9 status = ok
+  OK   A step-backward #10 requested = 100
+  OK   A step-backward #10 landed = 100
+  OK   A step-backward #10 status = ok
+  OK   A boundary start requested = -1
+  OK   A boundary start landed = 0
+  OK   A boundary start status = clamped
+  OK   A boundary end requested = 1001
+  OK   A boundary end landed = 1000
+  OK   A boundary end status = clamped
+  OK   A boundary end cursor check = 1
+=== B: 1 s / 5 s jumps, transport unchanged ===
+  OK   B jump-1s requested = 167
+  OK   B jump-1s landed = 167
+  OK   B jump-1s status = ok
+  OK   B jump-1s playing (paused by the seek before it) = 0
+  OK   B resume playing = 1
+  OK   B jump-5s requested = 500
+  OK   B jump-5s landed = 500
+  OK   B jump-5s status = ok
+  OK   B jump-5s playing (unchanged) = 1
+  OK   B playing before jump5 check = 1
+  OK   B playing after jump5 check = 1
+=== C: speed ===
+  OK   C speed 0.125 ticks/s = 8
+  OK   C speed 0.25 ticks/s = 16
+  OK   C speed 0.5 ticks/s = 33
+  OK   C speed 1.0 ticks/s = 66
+  OK   C speed 2.0 ticks/s = 133
+  OK   C speed 4.0 ticks/s = 266
+  OK   C speed 8.0 ticks/s = 533
+  OK   C 2.0 vs 2x1.0 delta (ticks) = 1 (<= 2)
+  OK   C speed-change does not move tick (checks ok) = 7
+  OK   C speed-change does not move tick (checks failed) = 0
+=== D: interrupted seek ===
+  OK   D superseded request id = 1 (!= 0)
+  OK   D pending request id = 2 (!= 0)
+  OK   D superseded is the displaced request, not the pending one = 1 (!= 2)
+  OK   D interruptedSeeks = 1
+  OK   D superseded-id check = 1
+  OK   D interrupted-seeks check = 1
+  OK   D final landing id is the pending request = 2
+  OK   D final landing cursor = 4000
+  OK   D final landing status = exact
+  OK   D final-landing-id check = 1
+  OK   D final-landing-cursor check = 1
+=== E: unreachable ticks ===
+  OK   E strict end requested = 1001
+  OK   E strict end landed (cursor unchanged) = 100
+  OK   E strict end status = unreachable
+  OK   E strict start requested = -1
+  OK   E strict start landed (cursor unchanged) = 100
+  OK   E strict start status = unreachable
+  OK   E unreachable-end-unchanged check = 1
+  OK   E unreachable-start-unchanged check = 1
+  OK   E clamp end requested = 1050
+  OK   E clamp end landed = 1000
+  OK   E clamp end status = clamped
+  OK   E clamp start requested = -50
+  OK   E clamp start landed = 0
+  OK   E clamp start status = clamped
+  OK   E clamped-end check = 1
+  OK   E clamped-start check = 1
+=== focus and landing map ===
+  OK   focus: keyboard step refused while a text field has focus = rejected
+  OK   focus-suppressed count = 1
+  OK   landing checkpoint status = 1
+  OK   landing checkpoint delta = 1
+  OK   landing before-window status = 1
+=== F: missing-demo negative control ===
+  OK   F missing-demo exit code = 1
+  OK   F missing-demo names the file contains 'error=demo-not-found'
+  OK   F missing-demo step status = rejected
+=== G: product wiring (camera script) ===
+  OK   G product exit code = 0
+  OK   G seek accepted contains 'cmd=seek result=ok'
+  OK   G seek request contains 'kind=jump-ticks source=camera-script requestedTick=100 '
+  OK   G step request contains 'kind=step-ticks source=camera-script requestedTick=101 '
+  OK   G 1 s jump request contains 'kind=jump-seconds source=camera-script requestedTick=168 '
+  OK   G speed request contains 'kind=set-speed source=camera-script'
+  OK   G speed after contains 'speedAfter=2.000000'
+  OK   G state cursor contains 'playback: state phase=paused cursor=168 '
+  OK   G state speed contains 'speed=2.000000'
+  OK   G title req/act contains ' req=168 act=168 frame='
+  OK   G last title req/act contains ' req=168 act=168 frame='
+  OK   G last title is a title line contains 'title: '
+  OK   G last title has a req field contains ' req='
+  OK   G last title frame not pending = 0
+
+PLAYBACK-CONTROL-CHECK=PASS
+GATE_RC=0

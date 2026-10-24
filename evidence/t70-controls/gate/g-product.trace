@@ -1,0 +1,325 @@
+0.0 trace open
+564.6 resources: requested=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf tf_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf valid=1
+18059.2 gpu: overlay meshes prepared=9 of 9
+18206.2 vpk: archives opened=4 refused=0
+18206.3 map: lookup map=koth_bagel_rc13 store=none selected=- bytes=0 reason=not found in maps, download/maps or a vpk
+18209.8 gpu: entity paint unresolved path=models/props_gameplay/windowed_door.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18209.8 gpu: entity paint unresolved path=models/props_gameplay/windowed_door.mdl family=1 slot=1 reason=skin family 1 has no texture for material slot 1
+18215.3 gpu: entity paint unresolved path=models/props_gameplay/resupply_locker.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18215.5 gpu: entity paint unresolved path=models/props_gameplay/resupply_locker.mdl family=1 slot=1 reason=skin family 1 has no texture for material slot 1
+18215.5 gpu: entity paint unresolved path=models/props_gameplay/resupply_locker.mdl family=1 slot=2 reason=skin family 1 has no texture for material slot 2
+18215.5 gpu: entity paint unresolved path=models/props_gameplay/resupply_locker.mdl family=1 slot=3 reason=skin family 1 has no texture for material slot 3
+18215.7 gpu: entity paint unresolved path=models/props_gameplay/door_slide_large_dynamic.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18233.8 gpu: entity paint unresolved path=models/items/ammopack_medium.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18238.7 gpu: entity paint unresolved path=models/props_2fort/chimney007.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18240.2 gpu: entity paint unresolved path=models/items/medkit_small.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18241.7 gpu: entity paint unresolved path=models/items/medkit_medium.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18241.8 gpu: entity paint unresolved path=models/props_gameplay/bottle001.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18242.0 gpu: entity paint unresolved path=models/props_farm/tools_fork.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18244.5 gpu: entity paint unresolved path=models/items/ammopack_small.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18268.8 gpu: entity paint unresolved path=models/props_sunshine/deer_cutout001.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18269.0 gpu: entity paint unresolved path=models/weapons/c_models/c_sledgehammer/c_sledgehammer.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=1 reason=skin family 1 has no texture for material slot 1
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=2 reason=skin family 1 has no texture for material slot 2
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=3 reason=skin family 1 has no texture for material slot 3
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=4 reason=skin family 1 has no texture for material slot 4
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=5 reason=skin family 1 has no texture for material slot 5
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=6 reason=skin family 1 has no texture for material slot 6
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=7 reason=skin family 1 has no texture for material slot 7
+18282.4 gpu: entity paint unresolved path=models/effects/cappoint_hologram.mdl family=1 slot=8 reason=skin family 1 has no texture for material slot 8
+18282.8 gpu: entity paint unresolved path=models/weapons/c_models/c_hippocrates_bust/c_hippocrates_bust.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18290.6 gpu: entity paint unresolved path=models/workshop/weapons/c_models/c_winger_pistol/c_winger_pistol.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18292.6 gpu: entity paint unresolved path=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18296.2 gpu: entity paint unresolved path=models/player/items/mvm_loot/all_class/mvm_flask_generic.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18296.5 gpu: entity paint unresolved path=models/player/items/all_class/ring_Soldier.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18296.5 gpu: entity paint unresolved path=models/player/items/all_class/ring_Soldier.mdl family=1 slot=1 reason=skin family 1 has no texture for material slot 1
+18296.8 gpu: entity paint unresolved path=models/weapons/c_models/c_pickaxe/c_pickaxe.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18310.9 gpu: entity paint unresolved path=models/workshop/weapons/c_models/c_market_gardener/c_market_gardener.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18316.4 gpu: entity paint unresolved path=models/weapons/c_models/c_pistol/c_pistol.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18330.4 gpu: entity paint unresolved path=models/player/items/all_class/hwn_spellbook_complete.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18330.7 gpu: entity paint unresolved path=models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl family=1 slot=0 reason=skin family 1 has no texture for material slot 0
+18383.6 audio: timeline firstPacketTick=1 soundOriginTick=1 originFound=1 read=5234 scheduled=5167 unresolved=52 unplaceable=15 refused=0 kinds=w2641/f4/u23/o1927/v571/a1/m0
+18384.6 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=0/77466 req=none act=none frame=pending fdelta=na speed=1.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward playing HUD[tick=0 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=playing camera=first-person error=none speed=1.000000 entity=no-history stale=0 audio=0/0 health=? team=? class=? clip=? uber=? snd=2641/4/23 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=0 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=0/52 entityPaintedSlots=0 animSkinned=0/0 animBones=0 animSeq=-1 animFrame=0/0 animSource=none animBindings=0/0 animCache=0 animAdv=0 animWitness=- gpuSkin=0/0 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnown=505 weaponClassKnow...[TRUNCATED]
+18699.8 hud: settings-file path=D:/TF2_Native_Worktrees/t70-controls/evidence/t70-controls/gate/g-product.ui.ini status=ok loaded=1 repaired=0
+18699.8 hud: cli import=0 reset=0 scale=-1 enabled=-1 result=nothing-to-do discover=-
+18699.9 hud: keys action=hud.toggle chord=H bound=1
+18699.9 hud: keys action=hud.preview chord=Ctrl+P bound=1
+18699.9 hud: keys action=hud.reset chord=Ctrl+Shift+H bound=1
+18699.9 hudpanel: cases=11 pass=11 fail=0
+18699.9 hud: settings enabled=0 scale=100 preview=1 root=- layout=- imported=0
+18699.9 hud: layout ok=0 document=- panels=0 refused=0 nesting=0 unknownKeys=0 duplicates=0 includes=0
+18699.9 hud: rects resolved=0 visible=0 invalid=0 union=0,0,0,0 empty=1
+18699.9 hud: refuse accepted=0 refused=0 lastReason=none detail=-
+18699.9 hud: draw drawn=0 rects=0 ordinal=0 scissor=0 region=0,0,0,0
+18699.9 gpu: reload begin
+18700.1 gpu: reload-stage stage=texture lastError=0x00000000
+18700.1 gpu: reload-stage stage=aux lastError=0x00000000
+18700.1 gpu: reload-stage stage=lightmap lastError=0x00000000
+18700.1 gpu: reload-stage stage=cubemap lastError=0x00000000
+18700.1 gpu: reload-stage stage=sky lastError=0x00000000
+18700.1 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+18700.1 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+18700.1 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+18700.1 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+18700.1 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+18700.2 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+18700.2 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+18700.2 gpu: world geometry=all blend=on
+18700.2 gpu: reload-stage stage=water lastError=0x00000000
+18700.2 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+18700.2 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0 bounds=(0.00,0.00,0.00)..(0.00,0.00,0.00) lightmapEnabled=1
+18700.2 gpu: world geometry displacedTriangles=0 waterTriangles=0
+18700.2 gpu: world blend enabled=1 terrainOnly=0 textures=0 layers=0 accepted=0 acceptedLayers=0 tiles=0 modulateTiles=0 malformedLayers=0 weightedVertices=0 modulatedVertices=0 weightMin=-1.000 weightMax=-1.000 distinctWeights=0
+18700.2 gpu: world atlas size=0 bytes=0 atlases=0 totalBytes=0 state=no world atlas was uploaded
+18700.2 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+18720.9 gpu: model 0/52 slots=2 painted=2 20.8ms
+18750.1 gpu: model 1/52 slots=4 painted=4 29.1ms
+18751.2 gpu: model 2/52 slots=1 painted=1 1.1ms
+18752.3 gpu: model 3/52 slots=2 painted=2 1.1ms
+18777.7 gpu: model 4/52 slots=4 painted=4 25.4ms
+18845.2 gpu: model 5/52 slots=2 painted=2 67.4ms
+18855.1 gpu: model 6/52 slots=1 painted=1 9.9ms
+18878.1 gpu: model 7/52 slots=6 painted=6 22.9ms
+18880.6 gpu: model 8/52 slots=1 painted=1 2.5ms
+18887.4 gpu: model 9/52 slots=1 painted=1 6.7ms
+18894.1 gpu: model 10/52 slots=1 painted=1 6.6ms
+18894.6 gpu: model 11/52 slots=1 painted=1 0.5ms
+18895.7 gpu: model 12/52 slots=1 painted=1 1.1ms
+18901.8 gpu: model 13/52 slots=2 painted=2 6.1ms
+18908.6 gpu: model 14/52 slots=1 painted=1 6.7ms
+18973.9 gpu: model 15/52 slots=2 painted=2 65.3ms
+19039.1 gpu: model 16/52 slots=2 painted=2 65.1ms
+19040.2 gpu: model 17/52 slots=1 painted=1 1.1ms
+19041.2 gpu: model 18/52 slots=1 painted=1 1.0ms
+19100.2 gpu: model 19/52 slots=2 painted=2 59.0ms
+19106.3 gpu: model 20/52 slots=9 painted=9 6.1ms
+19108.8 gpu: model 21/52 slots=1 painted=1 2.6ms
+19119.2 gpu: model 22/52 slots=4 painted=4 10.3ms
+19151.3 gpu: model 23/52 slots=1 painted=1 32.2ms
+19159.9 gpu: model 24/52 slots=1 painted=1 8.5ms
+19164.2 gpu: model 25/52 slots=2 painted=2 4.2ms
+19175.9 gpu: model 26/52 slots=2 painted=2 11.8ms
+19179.7 gpu: model 27/52 slots=1 painted=1 3.7ms
+19181.6 gpu: model 28/52 slots=2 painted=2 1.9ms
+19183.8 gpu: model 29/52 slots=1 painted=1 2.2ms
+19244.8 gpu: model 30/52 slots=2 painted=2 61.0ms
+19261.0 gpu: model 31/52 slots=6 painted=6 16.2ms
+19264.8 gpu: model 32/52 slots=2 painted=2 3.7ms
+19267.2 gpu: model 33/52 slots=1 painted=1 2.4ms
+19300.5 gpu: model 34/52 slots=1 painted=1 33.2ms
+19362.8 gpu: model 35/52 slots=2 painted=2 62.3ms
+19368.8 gpu: model 36/52 slots=2 painted=2 6.0ms
+19378.1 gpu: model 37/52 slots=1 painted=1 9.2ms
+19380.5 gpu: model 38/52 slots=1 painted=1 2.4ms
+19397.6 gpu: model 39/52 slots=4 painted=4 17.0ms
+19401.7 gpu: model 40/52 slots=2 painted=2 4.1ms
+19412.9 gpu: model 41/52 slots=6 painted=6 11.1ms
+19423.6 gpu: model 42/52 slots=6 painted=6 10.7ms
+19446.3 gpu: model 43/52 slots=8 painted=8 22.6ms
+19462.1 gpu: model 44/52 slots=12 painted=12 15.8ms
+19475.1 gpu: model 45/52 slots=12 painted=12 13.0ms
+19485.4 gpu: model 46/52 slots=8 painted=8 10.3ms
+19511.6 gpu: model 47/52 slots=10 painted=10 26.1ms
+19546.9 gpu: model 48/52 slots=10 painted=10 35.3ms
+19562.3 gpu: model 49/52 slots=2 painted=2 15.3ms
+19575.1 gpu: model 50/52 slots=10 painted=10 12.7ms
+19610.4 gpu: model 51/52 slots=6 painted=6 35.3ms
+19610.4 gpu: models done 52 uploaded=52
+19615.9 gpu: overlay meshes prepared=9 uploaded=9 rejected=0
+19616.0 gpu: reload-stage stage=models lastError=0x00000000
+19616.0 gpu: reload end
+19616.0 gpu: post-reload lastError=0x00000000
+19616.0 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+19616.1 camera: accept result=loaded steps=8
+19616.1 loop n=1 tick=0
+19616.1 audio: advance tick=0 cursor=0 seen=0 played=0 skippedVoice=0 missing=0 dup=0
+19616.1 scene: begin tick=0 sceneTick=56148
+19616.1 scene: clock tick=0 entryTick=1 serverTick=56148 serverTickKnown=1
+19622.2 scene: snapshot status=1 stale=0 states=2048
+19622.2 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+19622.2 scene: observer done
+19622.2 scene: hud fxDue=0 drawable=1
+19623.4 scene: buildInstances=256
+19634.0 scene: setInstances draws=21 markers=32
+19634.2 scene: anim skinned=9 bindPose=12 matrices=44 gpuSkin=0/44 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=56148 status=missing reason=entity carried no m_nSequence
+19634.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+19634.2 scene: instances set
+19635.3 scene: done
+19637.3 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=0/77466 req=none act=none frame=pending fdelta=na speed=1.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward playing HUD[tick=0 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=playing camera=first-person error=none speed=1.000000 entity=checkpoint stale=0 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2641/4/23 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=61 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=52/52 entityPaintedSlots=176 animSkinned=9/21 animBones=44 animSeq=0 animFrame=22/30 animSource=missing animBindings=21/21 animCache=11 animAdv=0 animWitness=- gpuSkin=0/44 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnown=505 w...[TRUNCATED]
+19655.0 loop n=2 tick=0
+19655.1 audio: advance tick=2 cursor=2 seen=0 played=0 skippedVoice=0 missing=0 dup=0
+19655.1 scene: begin tick=2 sceneTick=56150
+19655.1 scene: clock tick=2 entryTick=3 serverTick=56150 serverTickKnown=1
+19658.3 scene: snapshot status=1 stale=2 states=2048
+19658.3 scene: camera mode=first-person target=1 follows=2 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+19658.3 scene: observer done
+19658.4 scene: hud fxDue=0 drawable=1
+19659.6 scene: buildInstances=256
+19659.7 scene: setInstances draws=21 markers=32
+19659.8 scene: anim skinned=9 bindPose=12 matrices=44 gpuSkin=0/44 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=56148 status=missing reason=entity carried no m_nSequence
+19659.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+19659.8 scene: instances set
+19660.9 scene: done
+19661.2 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=2/77466 req=none act=none frame=pending fdelta=na speed=1.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward playing HUD[tick=2 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=playing camera=first-person error=none speed=1.000000 entity=checkpoint stale=2 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2641/4/23 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=61 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=52/52 entityPaintedSlots=176 animSkinned=9/21 animBones=44 animSeq=0 animFrame=22/30 animSource=missing animBindings=21/42 animCache=32 animAdv=0 animWitness=- gpuSkin=0/44 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnown=505 w...[TRUNCATED]
+19661.2 playback: request id=1 kind=set-paused source=camera-script requestedTick=2 requestedSeconds=0.000000 appliedTick=2 appliedSeconds=0.000000 deltaTicks=0 deltaSeconds=0.000000 speedBefore=1.000000 speedAfter=1.000000 strict=0 status=applied reason=
+19661.2 camera: accept step=0 cmd=pause result=ok detail=paused
+19661.2 draw: begin tick=2 frames=0
+19662.7 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+19662.7 gpu: world clip near=4.00000000 far=100.000000 nearMapUnits=4.00 farMapUnits=100 horizontalScale=1.00000000 state=published
+19662.7 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=0 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+19662.7 gpu: world vis cameraCluster=-1 visibleFromCamera=-1 clusters=0 clusteredTriangles=0 hiddenTriangles=0 withoutCluster=0 inputTriangles=0 drawnTriangles=0 clipApplied=0 state=unavailable eyeMap=(0.0,0.0,0.0) reason=the bsp carries no cluster pvs
+19662.7 gpu: world cull backfaces=1 mode=cull-back
+19662.7 gpu: world debug view=textured
+19662.7 gpu: world atlas-plan batches=0 blendBatches=0 tiled=0 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=0 reason=no atlas plan was made
+19662.7 gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=0 batchDraws=0 texturedBatchDraws=0
+19662.7 gpu: world features materials=0 bumpmap=0(visible 0, resolved 0, missing 0, distinct 0) bumpmap2=0(visible 0) ssbump=0(visible 0) detail=0(visible 0, resolved 0, types 0)
+19662.7 gpu: world feature feature=bumpmap declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+19662.7 gpu: world feature feature=bumpmap2 declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+19662.8 gpu: world feature feature=ssbump declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+19662.8 gpu: world feature feature=detail declared=0 visible=0 resolved=0 missing=0 first=- resource=- reason=-
+19662.8 gpu: world feature-detail distinctBumpPaths=0 detailTypesRead=0 firstDetailType=-
+19662.8 gpu: world lighting dynamic=0 specular=0 bump=0 requestedDynamic=0 requestedSpecular=0 requestedBump=0 bumpOwner=- bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+19662.8 gpu: world lighting-summary controls=6 applied=0 refused=0 disabled=2 notDeclared=4 phong=0(visible 0, exponents 0/0) bumpOwner=-
+19662.8 gpu: world feature-apply bump enabled=0 tiles=0 materials=0 vertices=0 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
+19662.8 gpu: world lighting-control control=dynamicLighting kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant, not a material key: the pixel shader replaces the lightmap-only factor with 0.62+0.38*dot(normal, lightDirection) for 0 visible materials / 0 visible triangles; no VMT declares it, so every surface is shaded by the same guessed direction and the baked lightmap's own direct light is counted twice; off
+19662.8 gpu: world lighting-control control=specular kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant: one lobe (boost 0.12, exponent 32) for 0 visible materials / 0 visible triangles; no visible material declares $phong, so the lobe is added to materials that never asked for one; off
+19662.8 gpu: world lighting-control control=bump kind=pass-switch state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=off: the world pass has one bump sampler slot (--world-bump) and the per-material path is off too (--world-material-bump), so the 0 visible materials that name one of 0 distinct $bumpmap textures are drawn with no normal map at all
+19662.8 gpu: world lighting-control control=$bumpmap2 kind=material-key state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=no material declares $bumpmap2
+19662.8 gpu: world lighting-control control=%detailtype kind=material-key state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=no material declares $detail
+19662.8 gpu: world lighting-control control=$ssbump kind=material-key state=not-declared declared=0 visible=0 resolved=0 missing=0 materials=0 triangles=0 requested=0 effective=0 parsed=0 first=- resource=- reason=no material declares $ssbump
+19662.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=13 poseWorld=0 poseBind=0 samples=13 sampledTicks=2 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+19662.8 draw: end frames=1 pending=0
+19662.8 loop n=3 tick=2
+19663.0 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=2/77466 req=2 act=2 frame=pending fdelta=na speed=1.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward paused HUD[tick=2 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=paused camera=first-person error=none speed=1.000000 entity=checkpoint stale=2 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2641/4/23 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=61 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=52/52 entityPaintedSlots=176 animSkinned=9/21 animBones=44 animSeq=0 animFrame=22/30 animSource=missing animBindings=21/42 animCache=32 animAdv=0 animWitness=- gpuSkin=0/44 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnown=505 weaponCla...[TRUNCATED]
+19670.9 loop n=4 tick=2
+19671.0 playback: state phase=paused cursor=2 end=77466 paused=1 reverse=0 speed=1.000000 rate=66.666667 firstPacketTick=1 origin=1 pending=0 lastRequest=1 lastStatus=applied lastFrameRequest=0 boundary=0 requests=1 landings=0 rejected=0
+19671.1 camera: accept step=1 cmd=playback-state result=ok detail=cursor=2
+19671.1 draw: begin tick=2 frames=1
+19671.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=13 poseWorld=0 poseBind=0 samples=13 sampledTicks=2 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+19671.5 draw: end frames=2 pending=0
+19671.5 loop n=5 tick=2
+19686.7 loop n=6 tick=2
+19686.7 playback: request id=2 kind=jump-ticks source=camera-script requestedTick=100 requestedSeconds=0.000000 appliedTick=100 appliedSeconds=0.000000 deltaTicks=98 deltaSeconds=0.000000 speedBefore=1.000000 speedAfter=1.000000 strict=0 status=applied reason=
+19686.7 camera: accept step=2 cmd=seek result=ok detail=tick=100
+19686.7 draw: begin tick=100 frames=2
+19686.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=13 poseWorld=0 poseBind=0 samples=13 sampledTicks=2 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+19686.9 draw: end frames=3 pending=0
+19686.9 loop n=7 tick=100
+19686.9 scene: begin tick=100 sceneTick=56248
+19686.9 scene: clock tick=100 entryTick=101 serverTick=56248 serverTickKnown=1
+19689.4 scene: snapshot status=1 stale=100 states=2048
+19689.4 scene: camera mode=first-person target=1 follows=3 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+19689.4 scene: observer done
+19689.4 scene: hud fxDue=4 drawable=1
+19690.7 scene: buildInstances=256
+19690.8 scene: setInstances draws=21 markers=32
+19690.9 scene: anim skinned=9 bindPose=12 matrices=44 gpuSkin=0/44 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=56148 status=missing reason=entity carried no m_nSequence
+19690.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+19690.9 scene: instances set
+19691.9 scene: done
+19692.7 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=100/77466 req=100 act=100 frame=checkpoint fdelta=100 speed=1.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward paused HUD[tick=100 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=paused camera=first-person error=none speed=1.000000 entity=checkpoint stale=100 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2641/4/23 fxDue=4 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=61 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=52/52 entityPaintedSlots=176 animSkinned=9/21 animBones=44 animSeq=0 animFrame=22/30 animSource=missing animBindings=21/63 animCache=53 animAdv=0 animWitness=- gpuSkin=0/44 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnown...[TRUNCATED]
+19702.4 loop n=8 tick=100
+19702.5 playback: request id=3 kind=step-ticks source=camera-script requestedTick=101 requestedSeconds=0.000000 appliedTick=101 appliedSeconds=0.000000 deltaTicks=1 deltaSeconds=0.000000 speedBefore=1.000000 speedAfter=1.000000 strict=0 status=applied reason=
+19702.5 camera: accept step=3 cmd=step result=ok detail=tick=101
+19702.5 draw: begin tick=101 frames=3
+19702.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=13 poseWorld=0 poseBind=0 samples=13 sampledTicks=3 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+19702.7 draw: end frames=4 pending=0
+19702.7 loop n=9 tick=101
+19702.7 scene: begin tick=101 sceneTick=56249
+19702.7 scene: clock tick=101 entryTick=102 serverTick=56249 serverTickKnown=1
+19705.5 scene: snapshot status=1 stale=101 states=2048
+19705.6 scene: camera mode=first-person target=1 follows=4 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+19705.6 scene: observer done
+19705.6 scene: hud fxDue=4 drawable=1
+19706.8 scene: buildInstances=256
+19707.0 scene: setInstances draws=21 markers=32
+19707.0 scene: anim skinned=9 bindPose=12 matrices=44 gpuSkin=0/44 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=56148 status=missing reason=entity carried no m_nSequence
+19707.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+19707.0 scene: instances set
+19708.1 scene: done
+19708.4 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=101/77466 req=101 act=101 frame=checkpoint fdelta=101 speed=1.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward paused HUD[tick=101 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=paused camera=first-person error=none speed=1.000000 entity=checkpoint stale=101 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2641/4/23 fxDue=4 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=61 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=52/52 entityPaintedSlots=176 animSkinned=9/21 animBones=44 animSeq=0 animFrame=22/30 animSource=missing animBindings=21/84 animCache=74 animAdv=0 animWitness=- gpuSkin=0/44 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnown...[TRUNCATED]
+19718.4 loop n=10 tick=101
+19718.5 playback: request id=4 kind=jump-seconds source=camera-script requestedTick=168 requestedSeconds=1.000000 appliedTick=168 appliedSeconds=1.005000 deltaTicks=67 deltaSeconds=0.005000 speedBefore=1.000000 speedAfter=1.000000 strict=0 status=applied reason=
+19718.5 camera: accept step=4 cmd=jump-seconds result=ok detail=tick=168
+19718.5 draw: begin tick=168 frames=4
+19718.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=13 poseWorld=0 poseBind=0 samples=13 sampledTicks=4 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+19718.7 draw: end frames=5 pending=0
+19718.7 loop n=11 tick=168
+19718.7 scene: begin tick=168 sceneTick=56316
+19718.7 scene: clock tick=168 entryTick=169 serverTick=56316 serverTickKnown=1
+19721.4 scene: snapshot status=1 stale=168 states=2048
+19721.5 scene: camera mode=first-person target=1 follows=5 holds=0 freeze=0 eye=0.0,0.0,0.0 pitch=0.00 yaw=0.00 src=demo
+19721.5 scene: observer done
+19721.5 scene: hud fxDue=6 drawable=1
+19722.6 scene: buildInstances=256
+19722.8 scene: setInstances draws=21 markers=32
+19722.8 scene: anim skinned=9 bindPose=12 matrices=44 gpuSkin=0/44 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=0 targetAdv=0 cycle=0/0 tick=56148 status=missing reason=entity carried no m_nSequence
+19722.8 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+19722.8 scene: instances set
+19723.9 scene: done
+19724.3 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=168/77466 req=168 act=168 frame=checkpoint fdelta=168 speed=1.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward paused HUD[tick=168 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=paused camera=first-person error=none speed=1.000000 entity=checkpoint stale=168 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2641/4/23 fxDue=6 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=61 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=52/52 entityPaintedSlots=176 animSkinned=9/21 animBones=44 animSeq=0 animFrame=22/30 animSource=missing animBindings=21/105 animCache=95 animAdv=0 animWitness=- gpuSkin=0/44 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnow...[TRUNCATED]
+19734.0 loop n=12 tick=168
+19734.1 playback: request id=5 kind=set-speed source=camera-script requestedTick=168 requestedSeconds=0.000000 appliedTick=168 appliedSeconds=0.000000 deltaTicks=0 deltaSeconds=0.000000 speedBefore=1.000000 speedAfter=2.000000 strict=0 status=applied reason=
+19734.1 camera: accept step=5 cmd=speed result=ok detail=speed=2.000000
+19734.1 draw: begin tick=168 frames=5
+19734.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=13 poseWorld=0 poseBind=0 samples=13 sampledTicks=5 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+19734.3 draw: end frames=6 pending=0
+19734.3 loop n=13 tick=168
+19734.4 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=168/77466 req=168 act=168 frame=checkpoint fdelta=168 speed=2.000000 rate=66.666667 anchorAbs=-2147483648@1047958 forward paused HUD[tick=168 demo=4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem state=paused camera=first-person error=none speed=2.000000 entity=checkpoint stale=168 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2641/4/23 fxDue=6 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 modelMissing=0 vpkHits=113 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=61 entityModels=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=52/52 entityPaintedSlots=176 animSkinned=9/21 animBones=44 animSeq=0 animFrame=22/30 animSource=missing animBindings=21/105 animCache=95 animAdv=0 animWitness=- gpuSkin=0/44 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: koth_bagel_rc13 SourceTV ticks=77466 commands=73125 packets=73121 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=73119 print=2 setconvar=10 convars=54 temp=14879 teheaders=25957 tefail=0 teprops=80611 teproj=0 teparticle=0 teexplosion=1961 tebullets=1363 teanim=16722 tefbhits=3398 tepehits=0 teexhits=0 teanimhits=17776 tecached=16384 projectileTimeline=2099 assetRefs=679 modelKnown=559 weaponKnown=37 itemKnown=84 paintKnown=0 skinKnown=170 qualityKnown=84 modelPathKnow...[TRUNCATED]
+19749.4 loop n=14 tick=168
+19749.5 playback: state phase=paused cursor=168 end=77466 paused=1 reverse=0 speed=2.000000 rate=66.666667 firstPacketTick=1 origin=1 pending=0 lastRequest=5 lastStatus=applied lastFrameRequest=4 boundary=0 requests=5 landings=3 rejected=0
+19749.5 camera: accept step=6 cmd=playback-state result=ok detail=cursor=168
+19749.6 draw: begin tick=168 frames=6
+19749.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=13 poseWorld=0 poseBind=0 samples=13 sampledTicks=5 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+19749.6 draw: end frames=7 pending=0
+19749.7 loop n=15 tick=168
+19764.9 loop n=16 tick=168
+19765.1 camera: accept steps=8 failures=0 captures=0
+19765.1 metrics t=0.15 tick=168 iter=16
+19765.1 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=7 capture_written=0 metrics_written=0 exit=1
+19765.1 audio: summary soundEventsRead=5234 soundEventsScheduled=5167 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=1 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=0 soundEventsMp3Seen=0 soundEventsMp3Played=0 soundEventsMp3Skipped=0 soundEventsMp3Failed=0 soundEventsMp3Inaudible=0 soundEventsInaudible=0
+19765.1 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=5 holdsNoTarget=0 freezeFrames=0
+19765.1 camera: director frozen=11 advanced=1 violations=3 tick=168 moves=0 movesWhilePaused=0 freeFlySteps=0 bookmarkApplies=0 resetToPlayer=0/0 resetView=0 focusSuppressed=0 captures=0
+19765.1 camera: bookmarks saved=0 of=8 saves=0 deletes=0 jumps=0 refusals=0
+19765.1 playback: summary requests=5 landings=3 rejected=0 clampedStart=0 clampedEnd=0 interruptedSeeks=0 superseded=0 staleLandings=0 sameTick=0 speedChanges=1 advanceTicks=2 stepsForward=1 stepsBackward=0 jumps1s=1 jumps5s=0 exact=0 checkpoint=3 unavailable=0 focusSuppressed=0 elapsedSeconds=0.039219 maxFrameDelta=168 lastRequestedTick=168 lastLandedTick=168 lastStatus=applied lastFrameStatus=checkpoint
+19765.2 keys: table actions=27 sets=0 conflicts=0 resets=0 dispatched=0 unbound=0 suppressed=0 last=-
+19765.2 keys: bind action=camera.bookmark.delete1 chord=Ctrl+Shift+F1
+19765.2 keys: bind action=camera.bookmark.delete2 chord=Ctrl+Shift+F2
+19765.2 keys: bind action=camera.bookmark.delete3 chord=Ctrl+Shift+F3
+19765.2 keys: bind action=camera.bookmark.delete4 chord=Ctrl+Shift+F4
+19765.2 keys: bind action=camera.bookmark.delete5 chord=Ctrl+Shift+F5
+19765.2 keys: bind action=camera.bookmark.delete6 chord=Ctrl+Shift+F6
+19765.2 keys: bind action=camera.bookmark.delete7 chord=Ctrl+Shift+F7
+19765.2 keys: bind action=camera.bookmark.delete8 chord=Ctrl+Shift+F8
+19765.2 keys: bind action=camera.bookmark.jump1 chord=F1
+19765.2 keys: bind action=camera.bookmark.jump2 chord=F2
+19765.2 keys: bind action=camera.bookmark.jump3 chord=F3
+19765.2 keys: bind action=camera.bookmark.jump4 chord=F4
+19765.2 keys: bind action=camera.bookmark.jump5 chord=F5
+19765.2 keys: bind action=camera.bookmark.jump6 chord=F6
+19765.2 keys: bind action=camera.bookmark.jump7 chord=F7
+19765.2 keys: bind action=camera.bookmark.jump8 chord=F8
+19765.2 keys: bind action=camera.bookmark.save1 chord=Ctrl+F1
+19765.2 keys: bind action=camera.bookmark.save2 chord=Ctrl+F2
+19765.2 keys: bind action=camera.bookmark.save3 chord=Ctrl+F3
+19765.2 keys: bind action=camera.bookmark.save4 chord=Ctrl+F4
+19765.2 keys: bind action=camera.bookmark.save5 chord=Ctrl+F5
+19765.2 keys: bind action=camera.bookmark.save6 chord=Ctrl+F6
+19765.2 keys: bind action=camera.bookmark.save7 chord=Ctrl+F7
+19765.2 keys: bind action=camera.bookmark.save8 chord=Ctrl+F8
+19765.2 keys: bind action=camera.freeFly chord=F9
+19765.2 keys: bind action=camera.resetToPlayer chord=F10
+19765.2 keys: bind action=camera.resetView chord=F11
+19765.2 camera: bookmark slot=1 saved=0
+19765.2 camera: bookmark slot=2 saved=0
+19765.2 camera: bookmark slot=3 saved=0
+19765.2 camera: bookmark slot=4 saved=0
+19765.2 camera: bookmark slot=5 saved=0
+19765.2 camera: bookmark slot=6 saved=0
+19765.2 camera: bookmark slot=7 saved=0
+19765.2 camera: bookmark slot=8 saved=0
+20134.7 logstf: summary attached=1 script=- state=closed host=none panel=0 content=0 client=1264,681 dpiScale=1.00 url=- navigations=0 accepted=0 refused=0 opens=0 closes=0 hostStarts=0 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=- scrollOffset=0 scrollRaw=none scrollPage=0 scrollViewport=0 urlBeforeHistory=- urlAfterHistory=- historyMoved=0
+20135.1 logstf: runtime kind=webview2 available=1 source=registry version=155.0.4283.62 loader=present
+20510.5 hud: keys actions=30 registered=1 dispatched=0 suppressed=0 conflicts=0
+20510.5 hud: summary imported=0 accepted=0 refused=0 panels=0 visible=0 invalid=0 scale=100 enabled=0 lastReason=none

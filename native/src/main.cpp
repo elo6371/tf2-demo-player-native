@@ -27,6 +27,10 @@
 #include "animation_binding.h"
 #include "item_schema.h"
 #include "native_ui.h"
+// T70: the request/landing ledger. Pure logic (no Win32/D3D) so the probe
+// that checks the transport rules links the same translation unit the product
+// runs.
+#include "playback_control.h"
 #include "hud_import.h"
 #include "hud_state.h"
 #include "hud_panel.h"
@@ -479,6 +483,36 @@ struct PlaybackState {
 PlaybackState g_playback{};
 constexpr double kTargetFrameSeconds = 1.0 / 120.0;
 
+// T70: the request/landing ledger. g_playback stays the loop's view of the
+// transport because the renderer, the audio scheduler and the camera director
+// read it; this owns request ids, the pending seek and the frame landing. The
+// only transport writes that do not pass through request() are the frame
+// loop's own advance and the --capture-tick pin, which report back through
+// noteExternalCursor().
+tf2::native::PlaybackControl g_playbackControl;
+
+// Applies one request and mirrors the resulting view into the legacy state.
+// Every keyboard, native-UI and --camera-script transport command goes through
+// here, so "requested" and "landed" cannot diverge without a trace line.
+void applyPlaybackRequest(const tf2::native::PlaybackRequest& request) {
+  const tf2::native::PlaybackResult result = g_playbackControl.request(request);
+  traceFmt("playback: request id=%d kind=%s source=%s requestedTick=%d requestedSeconds=%.6f"
+    " appliedTick=%d appliedSeconds=%.6f deltaTicks=%d deltaSeconds=%.6f"
+    " speedBefore=%.6f speedAfter=%.6f strict=%d status=%s reason=%s",
+    static_cast<int>(result.id),
+    tf2::native::PlaybackControl::requestKindName(request.kind), request.source,
+    static_cast<int>(result.requestedTick), result.requestedSeconds,
+    static_cast<int>(result.appliedTick), result.appliedSeconds,
+    static_cast<int>(result.deltaTicks), result.deltaSeconds,
+    result.speedBefore, result.speedAfter, request.strict ? 1 : 0,
+    tf2::native::PlaybackControl::statusName(result.status), result.reason);
+  const tf2::native::PlaybackView view = g_playbackControl.view();
+  g_playback.tick = view.cursorTick;
+  g_playback.paused = view.paused;
+  g_playback.reverse = view.reverse;
+  g_playback.speed = view.speed;
+}
+
 // ---------------------------------------------------------------------------
 // T50: the camera director and the key table, as the window procedure uses them.
 // ---------------------------------------------------------------------------
@@ -838,7 +872,11 @@ bool runCameraScriptStep() {
   }
   if (step.command == "pause" || step.command == "resume") {
     const bool paused = step.command == "pause";
-    g_playback.paused = paused;
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::SetPaused;
+    request.paused = paused;
+    request.source = "camera-script";
+    applyPlaybackRequest(request);
     g_pauseKey.paused = paused;
     g_cameraDirector.setPaused(paused);
     return ok(paused ? "paused" : "playing");
@@ -1092,6 +1130,67 @@ bool runCameraScriptStep() {
     traceFmt("camera: settings bookmarks=%d keys=%d loaded=1 slots=%zu",
       bookmarks ? 1 : 0, keys ? 1 : 0, g_cameraBookmarks.savedCount());
     return ok("loaded");
+  }
+  // T70: the scripted transport driver. Every command goes through the same
+  // request() the keyboard uses, so a scripted acceptance run exercises the
+  // production path rather than a test-only copy.
+  if (step.command == "step") {
+    double delta = 0.0;
+    if (!number(0, delta)) return fail("bad-argument");
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::StepTicks;
+    request.ticks = static_cast<std::int32_t>(delta);
+    request.source = "camera-script";
+    applyPlaybackRequest(request);
+    return ok("tick=" + std::to_string(g_playback.tick));
+  }
+  if (step.command == "jump-seconds") {
+    double seconds = 0.0;
+    if (!number(0, seconds)) return fail("bad-argument");
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::JumpSeconds;
+    request.seconds = seconds;
+    request.source = "camera-script";
+    applyPlaybackRequest(request);
+    return ok("tick=" + std::to_string(g_playback.tick));
+  }
+  if (step.command == "seek") {
+    double tick = 0.0;
+    if (!number(0, tick)) return fail("bad-argument");
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::JumpTicks;
+    request.tick = static_cast<std::int32_t>(tick);
+    request.source = "camera-script";
+    applyPlaybackRequest(request);
+    return ok("tick=" + std::to_string(g_playback.tick));
+  }
+  if (step.command == "speed") {
+    double speed = 0.0;
+    if (!number(0, speed)) return fail("bad-argument");
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::SetSpeed;
+    request.speed = speed;
+    request.source = "camera-script";
+    applyPlaybackRequest(request);
+    return ok("speed=" + std::to_string(g_playback.speed));
+  }
+  if (step.command == "playback-state") {
+    const tf2::native::PlaybackView view = g_playbackControl.view();
+    const tf2::native::PlaybackReadings readings = g_playbackControl.readings();
+    traceFmt("playback: state phase=%s cursor=%d end=%d paused=%d reverse=%d speed=%.6f"
+      " rate=%.6f firstPacketTick=%d origin=%d pending=%d lastRequest=%d lastStatus=%s"
+      " lastFrameRequest=%d boundary=%d requests=%llu landings=%llu rejected=%llu",
+      tf2::native::PlaybackControl::phaseName(view.phase),
+      static_cast<int>(view.cursorTick), static_cast<int>(view.endTick),
+      view.paused ? 1 : 0, view.reverse ? 1 : 0, view.speed, view.tickRate,
+      static_cast<int>(view.firstPacketTick), view.firstPacketOriginKnown ? 1 : 0,
+      static_cast<int>(view.pendingRequestId), static_cast<int>(view.lastRequestId),
+      tf2::native::PlaybackControl::statusName(view.lastStatus),
+      static_cast<int>(view.lastFrameRequest), view.boundary ? 1 : 0,
+      static_cast<unsigned long long>(readings.requests),
+      static_cast<unsigned long long>(readings.landings),
+      static_cast<unsigned long long>(readings.rejected));
+    return ok("cursor=" + std::to_string(view.cursorTick));
   }
   if (step.command == "quit") {
     traceFmt("camera: accept steps=%u failures=%u captures=%u",
@@ -1934,6 +2033,11 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         g_playback.tick = 0;
         g_playback.paused = true;
         g_playback.reverse = false;
+        // T70: the imported demo's data-entry origin is not known on this path
+        // (the header is read by the UI controller), so the ledger starts with
+        // originKnown=false and every landing reports origin-unknown rather
+        // than inventing an offset.
+        g_playbackControl.setDemo(g_playback.endTick, g_playback.tickRate, -1, false, true);
       }
     } else if (id == kUiPlay) {
       g_nativeUi->command(tf2::native::UiCommand::PlayPause);
@@ -2001,10 +2105,44 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     } else {
       return DefWindowProcW(window, message, wParam, lParam);
     }
+    // T70: translate the UI controller's resulting state into transport
+    // requests instead of writing g_playback directly, so a UI click and a
+    // keyboard edge produce the same request/landing ledger. The controller
+    // keeps its own copy for drawing; this is the copy that moves playback.
+    // Only the transport buttons change transport state. A camera or HUD
+    // button leaves the controller's copy alone, and that copy can lag the
+    // playing tick by one frame, so translating it would scrub playback
+    // backwards on an unrelated click.
+    const bool transportCommand = id == kUiPlay || id == kUiStop
+      || id == kUiBack || id == kUiForward || id == kUiReverse;
     const auto state = g_nativeUi->snapshot();
-    g_playback.tick = state.tick;
-    g_playback.paused = !state.playing;
-    g_playback.reverse = state.reverse;
+    if (g_playback.enabled && transportCommand) {
+      if (state.tick != g_playback.tick) {
+        tf2::native::PlaybackRequest request;
+        request.kind = tf2::native::PlaybackRequestKind::Scrub;
+        request.tick = state.tick;
+        request.source = "ui-timeline";
+        applyPlaybackRequest(request);
+      }
+      if ((!state.playing) != g_playback.paused) {
+        tf2::native::PlaybackRequest request;
+        request.kind = tf2::native::PlaybackRequestKind::SetPaused;
+        request.paused = !state.playing;
+        request.source = "ui-play";
+        applyPlaybackRequest(request);
+      }
+      if (state.reverse != g_playback.reverse) {
+        tf2::native::PlaybackRequest request;
+        request.kind = tf2::native::PlaybackRequestKind::SetReverse;
+        request.reverse = state.reverse;
+        request.source = "ui-reverse";
+        applyPlaybackRequest(request);
+      }
+    } else {
+      g_playback.tick = state.tick;
+      g_playback.paused = !state.playing;
+      g_playback.reverse = state.reverse;
+    }
     updateNativeUiControls(window);
     return 0;
   }
@@ -2023,9 +2161,14 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       const auto position = static_cast<std::int32_t>(SendMessageW(
         g_uiTimeline, TBM_GETPOS, 0, 0));
       g_nativeUi->command(tf2::native::UiCommand::Scrub, position);
-      const auto state = g_nativeUi->snapshot();
-      g_playback.tick = state.tick;
-      g_playback.paused = true;
+      // T70: a timeline drag is a seek, not a direct cursor write: it lands
+      // through the same pending-request path as a keyboard step, which is what
+      // makes an interrupted drag show up in interruptedSeeks.
+      tf2::native::PlaybackRequest request;
+      request.kind = tf2::native::PlaybackRequestKind::Scrub;
+      request.tick = position;
+      request.source = "ui-slider";
+      applyPlaybackRequest(request);
       updateNativeUiControls(window);
       return 0;
     }
@@ -2133,9 +2276,23 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     }
     if (wParam == VK_HOME) {
       if (g_renderer) g_renderer->resetCamera();
-      if (g_playback.enabled) { g_playback.tick = 0; g_playback.reverse = false; }
+      if (g_playback.enabled) {
+        tf2::native::PlaybackRequest request;
+        request.kind = tf2::native::PlaybackRequestKind::JumpTicks;
+        request.tick = 0;
+        request.source = "key-home";
+        request.fromKeyboard = true;
+        request.textFieldFocused = g_textFieldFocused;
+        applyPlaybackRequest(request);
+      }
     } else if (wParam == VK_END && g_playback.enabled) {
-      g_playback.tick = g_playback.endTick;
+      tf2::native::PlaybackRequest request;
+      request.kind = tf2::native::PlaybackRequestKind::JumpTicks;
+      request.tick = g_playback.endTick;
+      request.source = "key-end";
+      request.fromKeyboard = true;
+      request.textFieldFocused = g_textFieldFocused;
+      applyPlaybackRequest(request);
     } else if (wParam == VK_SPACE && g_playback.enabled) {
       // SPACE is the camera cycle key now; P owns pause (see the 'P' arm
       // below). One edge press advances the mode; a second press inside the
@@ -2154,20 +2311,78 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     } else if (wParam == 'P' && g_playback.enabled) {
       // Pause moved from SPACE to P (T4): the pause toggle and the camera
       // cycle no longer share a key.
-      g_playback.paused = g_pauseKey.toggle();
+      tf2::native::PlaybackRequest request;
+      request.kind = tf2::native::PlaybackRequestKind::SetPaused;
+      request.paused = g_pauseKey.toggle();
+      request.source = "key-p";
+      request.fromKeyboard = true;
+      request.textFieldFocused = g_textFieldFocused;
+      applyPlaybackRequest(request);
     } else if (wParam == 'R' && g_playback.enabled) {
-      if (!g_playback.reverse && g_playback.tick == 0) g_playback.tick = g_playback.endTick;
-      g_playback.reverse = !g_playback.reverse;
+      if (!g_playback.reverse && g_playback.tick == 0) {
+        tf2::native::PlaybackRequest jump;
+        jump.kind = tf2::native::PlaybackRequestKind::JumpTicks;
+        jump.tick = g_playback.endTick;
+        jump.source = "key-r";
+        jump.fromKeyboard = true;
+        jump.textFieldFocused = g_textFieldFocused;
+        applyPlaybackRequest(jump);
+      }
+      tf2::native::PlaybackRequest request;
+      request.kind = tf2::native::PlaybackRequestKind::SetReverse;
+      request.reverse = !g_playback.reverse;
+      request.source = "key-r";
+      request.fromKeyboard = true;
+      request.textFieldFocused = g_textFieldFocused;
+      applyPlaybackRequest(request);
     } else if (wParam == VK_LEFT && g_playback.enabled) {
-      const std::int32_t step = (GetKeyState(VK_SHIFT) & 0x8000) ? 66 : 1;
-      g_playback.tick = std::max<std::int32_t>(0, g_playback.tick - step);
+      // T70: SHIFT+LEFT is the one-second jump (67 ticks), not a 66-tick step.
+      // The 5-second jump is reachable from the native UI and --camera-script;
+      // CTRL+arrow stays swallowed by the camera key table above, so this arm
+      // cannot see it.
+      tf2::native::PlaybackRequest request;
+      request.fromKeyboard = true;
+      request.textFieldFocused = g_textFieldFocused;
+      if (GetKeyState(VK_SHIFT) & 0x8000) {
+        request.kind = tf2::native::PlaybackRequestKind::JumpSeconds;
+        request.seconds = -1.0;
+        request.source = "key-shift-left";
+      } else {
+        request.kind = tf2::native::PlaybackRequestKind::StepTicks;
+        request.ticks = -1;
+        request.source = "key-left";
+      }
+      applyPlaybackRequest(request);
     } else if (wParam == VK_RIGHT && g_playback.enabled) {
-      const std::int32_t step = (GetKeyState(VK_SHIFT) & 0x8000) ? 66 : 1;
-      g_playback.tick = std::min(g_playback.endTick, g_playback.tick + step);
+      tf2::native::PlaybackRequest request;
+      request.fromKeyboard = true;
+      request.textFieldFocused = g_textFieldFocused;
+      if (GetKeyState(VK_SHIFT) & 0x8000) {
+        request.kind = tf2::native::PlaybackRequestKind::JumpSeconds;
+        request.seconds = 1.0;
+        request.source = "key-shift-right";
+      } else {
+        request.kind = tf2::native::PlaybackRequestKind::StepTicks;
+        request.ticks = 1;
+        request.source = "key-right";
+      }
+      applyPlaybackRequest(request);
     } else if ((wParam == VK_OEM_PLUS || wParam == VK_ADD) && g_playback.enabled) {
-      g_playback.speed = std::min(8.0, g_playback.speed * 2.0);
+      tf2::native::PlaybackRequest request;
+      request.kind = tf2::native::PlaybackRequestKind::SetSpeed;
+      request.speed = std::min(8.0, g_playback.speed * 2.0);
+      request.source = "key-plus";
+      request.fromKeyboard = true;
+      request.textFieldFocused = g_textFieldFocused;
+      applyPlaybackRequest(request);
     } else if ((wParam == VK_OEM_MINUS || wParam == VK_SUBTRACT) && g_playback.enabled) {
-      g_playback.speed = std::max(0.125, g_playback.speed * 0.5);
+      tf2::native::PlaybackRequest request;
+      request.kind = tf2::native::PlaybackRequestKind::SetSpeed;
+      request.speed = std::max(0.125, g_playback.speed * 0.5);
+      request.source = "key-minus";
+      request.fromKeyboard = true;
+      request.textFieldFocused = g_textFieldFocused;
+      applyPlaybackRequest(request);
     }
     return 0;
   }
@@ -5173,6 +5388,23 @@ bool outlineVertexExtent = false;
   // name (reason=no-data-packets) instead of silently reverting to the
   // server-connect tick that caused the original defect.
   const std::int32_t firstPacketTick = demoNetworkSummary.firstDataEntryTick;
+  // T70: hand the ledger the extent and the data-entry origin. originKnown is
+  // false when the demo has no command-2 data packet, which is the same
+  // condition the scene clock reports as reason=no-data-packets; the ledger
+  // then reports origin-unknown instead of subtracting a made-up offset.
+  if (demoHeader.valid) {
+    g_playbackControl.setDemo(g_playback.endTick, g_playback.tickRate, firstPacketTick,
+      firstPacketTick >= 0, g_playback.paused);
+    if (g_playback.speed != 1.0) {
+      tf2::native::PlaybackRequest request;
+      request.kind = tf2::native::PlaybackRequestKind::SetSpeed;
+      request.speed = g_playback.speed;
+      request.source = "cli";
+      applyPlaybackRequest(request);
+    }
+  } else {
+    g_playbackControl.clear();
+  }
   bool soundOriginFound = false;
   const std::int32_t soundOriginTick = tf2::native::firstRecordedPacketTick(demoIndex, soundOriginFound);
   // The placement itself (nameless drop, origin subtraction, scheduling) lives in
@@ -5491,7 +5723,25 @@ bool outlineVertexExtent = false;
     const std::wstring anchorSuffix = g_playback.anchorValid
       ? L" anchorAbs=" + std::to_wstring(g_playback.anchor.tick) + L"@" + std::to_wstring(g_playback.anchor.offset)
       : L" anchor=none";
+    // T70: requested vs actual on the title, because the task's whole point is
+    // that those two numbers are allowed to differ (clamping, an interrupted
+    // seek, a frame that has not resolved yet). "req" is the last tick a
+    // request asked for; "act" is the last tick a request actually landed on;
+    // "frame" is what the scene resolve said about that landing.
+    const tf2::native::PlaybackReadings playbackReadings = g_playbackControl.readings();
+    const tf2::native::FrameLanding playbackLastFrame = g_playbackControl.lastFrame();
+    const auto frameStatusText = [](tf2::native::FrameStatus status) {
+      const char* name = tf2::native::PlaybackControl::frameStatusName(status);
+      return std::wstring(name, name + std::strlen(name));
+    };
     const std::wstring playbackSuffix = L" playback=" + std::to_wstring(g_playback.tick) + L"/" + std::to_wstring(g_playback.endTick)
+      + L" req=" + (playbackReadings.lastRequestedTick >= 0
+          ? std::to_wstring(playbackReadings.lastRequestedTick) : std::wstring(L"none"))
+      + L" act=" + (playbackReadings.lastLandedTick >= 0
+          ? std::to_wstring(playbackReadings.lastLandedTick) : std::wstring(L"none"))
+      + L" frame=" + frameStatusText(playbackReadings.lastFrameStatus)
+      + L" fdelta=" + (playbackLastFrame.valid && playbackLastFrame.frameDelta >= 0
+          ? std::to_wstring(playbackLastFrame.frameDelta) : std::wstring(L"na"))
       + L" speed=" + std::to_wstring(g_playback.speed) + L" rate=" + std::to_wstring(g_playback.tickRate)
       + anchorSuffix + (g_playback.reverse ? L" reverse" : L" forward")
       + (g_playback.paused ? L" paused" : L" playing")
@@ -5585,9 +5835,22 @@ bool outlineVertexExtent = false;
       + L" bodyParts=" + std::to_wstring(modelBodyPartCount)
       + L" resources=" + ((modelCompanionMissing == 0 && demoNetworkSummary.decodedSoundResourceMisses == 0) ? L"ok" : L"missing") + L"]"
       + L" export=unavailable(native-encoder-missing)";
-    std::wstring title = titleBase + playbackSuffix;
-    if (title == lastTitle) return false;
-    SetWindowTextW(window, title.c_str());
+    // T70: the playback readings come BEFORE the demo summary, not after it.
+    // traceFmt keeps 2048 bytes; the demo summary alone is longer than that, so
+    // when the playback segment was appended last the trace showed the demo
+    // counters and then "...[TRUNCATED]" -- the requested/actual ticks a user
+    // reads were never in the line at all. The window caption had the same
+    // shape: 3 KB of decode counters before the one number the player wanted.
+    // Ordering, not a bigger buffer, is the fix: the short fields a person reads
+    // stay in the caption, the diagnostics follow and may be cut.
+    // NOT named `title`: a declaration's own name is in scope in its
+    // initialiser, so `std::wstring title = title + ...` copies an
+    // uninitialised string onto itself. That is undefined behaviour and it
+    // did not fail loudly -- the product threw 0xE06D7363 partway through the
+    // run and every title reading vanished from the trace.
+    std::wstring fullTitle = title + playbackSuffix + demoSuffix;
+    if (fullTitle == lastTitle) return false;
+    SetWindowTextW(window, fullTitle.c_str());
     // T53: THE TITLE IS THE ONLY ASSEMBLY POINT FOR THE HUD READINGS, and under
     // --hidden-window nothing ever reads a window caption. A gate that wants to
     // assert "the flag set the field it claims to set" therefore had no channel
@@ -5596,8 +5859,8 @@ bool outlineVertexExtent = false;
     //
     // So the same string goes to the trace, once per CHANGE (matching the
     // SetWindowTextW above) rather than once per frame.
-    traceFmt("title: %s", std::string(title.begin(), title.end()).c_str());
-    lastTitle = std::move(title);
+    traceFmt("title: %s", std::string(fullTitle.begin(), fullTitle.end()).c_str());
+    lastTitle = std::move(fullTitle);
     return true;
   };
   refreshWindowTitle();
@@ -8303,31 +8566,32 @@ bool outlineVertexExtent = false;
         lastReverse = g_playback.reverse;
         soundScheduler.reset(g_playback.tick);
       }
-      tickAccumulator += elapsed * g_playback.tickRate * g_playback.speed;
-      while (tickAccumulator >= 1.0) {
-        if (g_playback.reverse) {
-          if (g_playback.tick <= 0) { tickAccumulator = 0.0; break; }
-          --g_playback.tick;
-        } else {
-          if (g_playback.tick >= g_playback.endTick) { tickAccumulator = 0.0; break; }
-          ++g_playback.tick;
-          // T27: `--capture-tick N` means "the frame drawn AT tick N", not "the
-          // first frame drawn at or after N". Those differ whenever a drawn
-          // frame spans more than one tick: the draw cadence is wall clock
-          // (~8.3 ms target) while the tick cadence is the demo's `tickRate`
-          // (~66.7 Hz), and both read the same `elapsed`, so a loaded machine
-          // draws every tenth tick and a capture armed at N lands at N+10.
-          // Holding the cursor at N until that draw happens makes the captured
-          // tick exact by construction rather than by retrying, which is what
-          // a pinned pixel diff needs. The hold lasts one frame: the draw that
-          // satisfies it disarms the capture and the next iteration resumes.
-          if (captureArmed && captureTick > 0 && g_playback.tick > captureTick) {
-            g_playback.tick = static_cast<std::int32_t>(captureTick);
-            tickAccumulator = 0.0;
-            break;
-          }
+      // T70: the ledger owns the accumulator and the per-tick loop; the loop
+      // only supplies elapsed wall time. Adopt any transport fields a path
+      // outside request() changed (defensive), then let advance() move the
+      // cursor. The --capture-tick pin is a product constraint the ledger does
+      // not know about, so it is applied here and reported back.
+      g_playbackControl.noteExternalCursor(g_playback.tick);
+      g_playbackControl.syncTransport(g_playback.paused, g_playback.reverse, g_playback.speed);
+      const std::int32_t advanced = g_playbackControl.advance(elapsed);
+      if (advanced != 0) {
+        g_playback.tick += advanced;
+        tickAccumulator = 0.0;
+        // T27: `--capture-tick N` means "the frame drawn AT tick N", not "the
+        // first frame drawn at or after N". Those differ whenever a drawn
+        // frame spans more than one tick: the draw cadence is wall clock
+        // (~8.3 ms target) while the tick cadence is the demo's `tickRate`
+        // (~66.7 Hz), and both read the same `elapsed`, so a loaded machine
+        // draws every tenth tick and a capture armed at N lands at N+10.
+        // Holding the cursor at N until that draw happens makes the captured
+        // tick exact by construction rather than by retrying, which is what
+        // a pinned pixel diff needs. The hold lasts one frame: the draw that
+        // satisfies it disarms the capture and the next iteration resumes.
+        if (captureArmed && captureTick > 0 && g_playback.tick > captureTick) {
+          g_playback.tick = static_cast<std::int32_t>(captureTick);
+          g_playbackControl.noteExternalCursor(g_playback.tick);
+          g_playbackControl.resetAccumulator();
         }
-        tickAccumulator -= 1.0;
       }
       if (!g_playback.reverse) {
         if (g_playback.tick < lastAudioTick) soundScheduler.reset(g_playback.tick);
@@ -8360,6 +8624,15 @@ bool outlineVertexExtent = false;
     // or not the tick moved, because "frozen" is only meaningful per frame.
     g_cameraDirector.setPaused(g_playback.paused);
     g_cameraDirector.noteDemoTick(g_playback.paused, g_playback.tick);
+    // T70: the request this frame's scene resolve belongs to, captured before
+    // the block so a landing cannot be attributed to a later request.
+    const std::int32_t sceneRequestId = g_playbackControl.pendingRequestId();
+    if (!g_renderer && g_playbackControl.needsSceneResolve()) {
+      // No renderer means no scene query will ever run; the landing must say so
+      // instead of leaving the pending request to block advance() forever.
+      g_playbackControl.noteSceneUnavailable(sceneRequestId,
+        tf2::native::FrameStatus::NoRenderer);
+    }
     if (g_renderer && g_playback.enabled && g_playback.tick != lastSceneTick) {
       // T63-F1: the entry-tick space and the server-tick space are separate.
       // View samples are entry ticks; entity history, effects and projectiles
@@ -8427,6 +8700,30 @@ bool outlineVertexExtent = false;
       const bool haveObserverView =
         tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneEntryTick, observerView)
         && observerView.hasOrigin && observerView.hasAngles;
+      // T70: report the landing for the pending seek/step, mapping the entity
+      // query status onto the frame status the ledger publishes. This is the
+      // only place a request becomes "landed" in the product.
+      if (sceneRequestId != 0) {
+        tf2::native::SceneQueryStatus queryStatus = tf2::native::SceneQueryStatus::NoHistory;
+        if (sceneServerTickKnown) {
+          switch (entitySnapshotStatus) {
+            case tf2::native::EntitySnapshotQueryStatus::Available:
+              queryStatus = tf2::native::SceneQueryStatus::Available; break;
+            case tf2::native::EntitySnapshotQueryStatus::Checkpoint:
+              queryStatus = tf2::native::SceneQueryStatus::Checkpoint; break;
+            case tf2::native::EntitySnapshotQueryStatus::TickBeforeHistory:
+              queryStatus = tf2::native::SceneQueryStatus::TickBeforeHistory; break;
+            case tf2::native::EntitySnapshotQueryStatus::Gap:
+              queryStatus = tf2::native::SceneQueryStatus::Gap; break;
+            case tf2::native::EntitySnapshotQueryStatus::NoHistory:
+              queryStatus = tf2::native::SceneQueryStatus::NoHistory; break;
+            case tf2::native::EntitySnapshotQueryStatus::DeltaBaseMissing:
+              queryStatus = tf2::native::SceneQueryStatus::DeltaBaseMissing; break;
+          }
+        }
+        g_playbackControl.noteSceneResolved(sceneRequestId, queryStatus, sceneTick,
+          resolvedSceneTick, haveObserverView ? observerView.tick : -1, haveObserverView);
+      }
       if (haveObserverView) {
         cameraEyeX = observerView.origin[0];
         cameraEyeY = observerView.origin[1];
@@ -9655,6 +9952,44 @@ bool outlineVertexExtent = false;
       g_cameraBookmarks.savedCount(), tf2::native::kCameraBookmarkSlots,
       g_cameraBookmarks.saveCount(), g_cameraBookmarks.deleteCount(),
       g_cameraBookmarks.jumpCount(), g_cameraBookmarks.refusedCount());
+    // T70: the transport ledger's exit summary. One line so a gate reads every
+    // counter from a single place; "landings" counts scene resolves that
+    // accepted the pending request, "unavailable" the ones that could not (the
+    // frame status says which reason).
+    {
+      const tf2::native::PlaybackReadings playbackSummary = g_playbackControl.readings();
+      traceFmt("playback: summary requests=%llu landings=%llu rejected=%llu clampedStart=%llu"
+        " clampedEnd=%llu interruptedSeeks=%llu superseded=%llu staleLandings=%llu sameTick=%llu"
+        " speedChanges=%llu advanceTicks=%llu stepsForward=%llu stepsBackward=%llu jumps1s=%llu"
+        " jumps5s=%llu exact=%llu checkpoint=%llu unavailable=%llu focusSuppressed=%llu"
+        " elapsedSeconds=%.6f maxFrameDelta=%d lastRequestedTick=%d lastLandedTick=%d"
+        " lastStatus=%s lastFrameStatus=%s",
+        static_cast<unsigned long long>(playbackSummary.requests),
+        static_cast<unsigned long long>(playbackSummary.landings),
+        static_cast<unsigned long long>(playbackSummary.rejected),
+        static_cast<unsigned long long>(playbackSummary.clampedAtStart),
+        static_cast<unsigned long long>(playbackSummary.clampedAtEnd),
+        static_cast<unsigned long long>(playbackSummary.interruptedSeeks),
+        static_cast<unsigned long long>(playbackSummary.superseded),
+        static_cast<unsigned long long>(playbackSummary.staleLandings),
+        static_cast<unsigned long long>(playbackSummary.sameTick),
+        static_cast<unsigned long long>(playbackSummary.speedChanges),
+        static_cast<unsigned long long>(playbackSummary.advanceTicks),
+        static_cast<unsigned long long>(playbackSummary.stepsForward),
+        static_cast<unsigned long long>(playbackSummary.stepsBackward),
+        static_cast<unsigned long long>(playbackSummary.jumps1s),
+        static_cast<unsigned long long>(playbackSummary.jumps5s),
+        static_cast<unsigned long long>(playbackSummary.exact),
+        static_cast<unsigned long long>(playbackSummary.checkpoint),
+        static_cast<unsigned long long>(playbackSummary.unavailable),
+        static_cast<unsigned long long>(playbackSummary.focusSuppressed),
+        playbackSummary.elapsedSeconds,
+        static_cast<int>(playbackSummary.maxFrameDelta),
+        static_cast<int>(playbackSummary.lastRequestedTick),
+        static_cast<int>(playbackSummary.lastLandedTick),
+        tf2::native::PlaybackControl::statusName(playbackSummary.lastStatus),
+        tf2::native::PlaybackControl::frameStatusName(playbackSummary.lastFrameStatus));
+    }
     // Counters for the WHOLE shared table, so the same neutral prefix. The
     // action count in a merged build includes T51's three, and a gate that
     // pinned an exact 27 here would go red the moment the two features met --

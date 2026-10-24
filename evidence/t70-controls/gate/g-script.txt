@@ -1,0 +1,12 @@
+# The script must establish a deterministic transport before it asserts exact
+# ticks: while the product is playing the cursor advances between two script
+# steps (measured: seek 100 then step landed on 103, jump landed 170). A pause
+# first makes every later request land on an exact, replayable tick.
+pause
+playback-state
+seek 100
+step 1
+jump-seconds 1
+speed 2.0
+playback-state
+quit

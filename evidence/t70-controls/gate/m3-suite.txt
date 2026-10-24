@@ -1,0 +1,74 @@
+step=1 cmd=seek requested=100 landed=100 status=ok playing=0 speed=1.000
+step=2 cmd=step-forward requested=101 landed=101 status=ok playing=0 speed=1.000
+step=3 cmd=step-forward requested=102 landed=102 status=ok playing=0 speed=1.000
+step=4 cmd=step-forward requested=103 landed=103 status=ok playing=0 speed=1.000
+step=5 cmd=step-forward requested=104 landed=104 status=ok playing=0 speed=1.000
+step=6 cmd=step-forward requested=105 landed=105 status=ok playing=0 speed=1.000
+step=7 cmd=step-forward requested=106 landed=106 status=ok playing=0 speed=1.000
+step=8 cmd=step-forward requested=107 landed=107 status=ok playing=0 speed=1.000
+step=9 cmd=step-forward requested=108 landed=108 status=ok playing=0 speed=1.000
+step=10 cmd=step-forward requested=109 landed=109 status=ok playing=0 speed=1.000
+step=11 cmd=step-forward requested=110 landed=110 status=ok playing=0 speed=1.000
+step=12 cmd=step-backward requested=109 landed=109 status=ok playing=0 speed=1.000
+step=13 cmd=step-backward requested=108 landed=108 status=ok playing=0 speed=1.000
+step=14 cmd=step-backward requested=107 landed=107 status=ok playing=0 speed=1.000
+step=15 cmd=step-backward requested=106 landed=106 status=ok playing=0 speed=1.000
+step=16 cmd=step-backward requested=105 landed=105 status=ok playing=0 speed=1.000
+step=17 cmd=step-backward requested=104 landed=104 status=ok playing=0 speed=1.000
+step=18 cmd=step-backward requested=103 landed=103 status=ok playing=0 speed=1.000
+step=19 cmd=step-backward requested=102 landed=102 status=ok playing=0 speed=1.000
+step=20 cmd=step-backward requested=101 landed=101 status=ok playing=0 speed=1.000
+step=21 cmd=step-backward requested=100 landed=100 status=ok playing=0 speed=1.000
+step=22 cmd=seek requested=0 landed=0 status=ok playing=0 speed=1.000
+step=23 cmd=step-backward requested=-1 landed=-1 status=ok playing=0 speed=1.000
+step=24 cmd=seek requested=1000 landed=1000 status=ok playing=0 speed=1.000
+step=25 cmd=step-forward requested=1001 landed=1001 status=ok playing=0 speed=1.000
+check=a-boundary-end-cursor ok=0 cursor=1001
+step=26 cmd=seek requested=100 landed=100 status=ok playing=0 speed=1.000
+step=27 cmd=jump-1s requested=167 landed=167 status=ok playing=0 speed=1.000
+step=28 cmd=resume requested=167 landed=167 status=ok playing=1 speed=1.000
+check=b-playing-before-jump5 ok=1 paused=0
+step=29 cmd=jump-5s requested=500 landed=500 status=ok playing=1 speed=1.000
+check=b-playing-after-jump5 ok=1 paused=0
+check=c-speed-does-not-move-tick ok=1 speed=0.125000 cursor=0
+advance label=speed0.125 ticks=8 cursor=8 speedAfter=0.125
+check=c-speed-does-not-move-tick ok=1 speed=0.250000 cursor=0
+advance label=speed0.250 ticks=16 cursor=16 speedAfter=0.250
+check=c-speed-does-not-move-tick ok=1 speed=0.500000 cursor=0
+advance label=speed0.500 ticks=33 cursor=33 speedAfter=0.500
+check=c-speed-does-not-move-tick ok=1 speed=1.000000 cursor=0
+advance label=speed1.000 ticks=66 cursor=66 speedAfter=1.000
+check=c-speed-does-not-move-tick ok=1 speed=2.000000 cursor=0
+advance label=speed2.000 ticks=133 cursor=133 speedAfter=2.000
+check=c-speed-does-not-move-tick ok=1 speed=4.000000 cursor=0
+advance label=speed4.000 ticks=266 cursor=266 speedAfter=4.000
+check=c-speed-does-not-move-tick ok=1 speed=8.000000 cursor=0
+advance label=speed8.000 ticks=533 cursor=533 speedAfter=8.000
+step=30 cmd=seek-first requested=3000 landed=3000 status=ok playing=0 speed=1.000
+step=31 cmd=seek-second requested=4000 landed=4000 status=ok playing=0 speed=1.000
+interrupt superseded=1 pending=2 interruptedSeeks=1
+check=d-superseded-id ok=1 superseded=1
+check=d-interrupted-seeks ok=1 count=1
+landing id=2 landedCursor=4000 frameStatus=exact frameTick=4000 frameDelta=0
+check=d-final-landing-id ok=1 id=2
+check=d-final-landing-cursor ok=1 cursor=4000
+step=32 cmd=seek requested=100 landed=100 status=ok playing=0 speed=1.000
+step=33 cmd=seek-strict requested=1001 landed=1001 status=ok playing=0 speed=1.000
+check=e-unreachable-end-unchanged ok=0 cursor=1001
+step=34 cmd=seek-strict requested=-1 landed=-1 status=ok playing=0 speed=1.000
+check=e-unreachable-start-unchanged ok=0 cursor=-1
+step=35 cmd=seek-clamp requested=1050 landed=1050 status=ok playing=0 speed=1.000
+check=e-clamped-end ok=0 cursor=1050
+step=36 cmd=seek-clamp requested=-50 landed=-50 status=ok playing=0 speed=1.000
+check=e-clamped-start ok=0 cursor=-50
+step=37 cmd=step-forward-focus requested=0 landed=0 status=rejected playing=0 speed=1.000
+detail=step=37 status=refused-text-focus reason=text-focus id=1
+check=focus-suppressed ok=1 count=1
+step=38 cmd=seek requested=200 landed=200 status=ok playing=0 speed=1.000
+landing id=1 landedCursor=200 frameStatus=checkpoint frameTick=197 frameDelta=3
+check=landing-checkpoint ok=1 status=checkpoint
+check=landing-checkpoint-delta ok=1 delta=3
+step=39 cmd=seek requested=300 landed=300 status=ok playing=0 speed=1.000
+landing id=2 landedCursor=300 frameStatus=before-window frameTick=-1 frameDelta=-1
+check=landing-before-window ok=1 status=before-window
+checks=22 failures=5 steps=39

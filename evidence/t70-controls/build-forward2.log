@@ -1,0 +1,9 @@
+=== build tf2_demo_native playback_control_probe ===
+D:\TF2_Native_Worktrees\t70-controls\native\src\main.cpp(3106): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t70-controls\native\src\main.cpp(3107): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t70-controls\native\src\main.cpp(3108): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t70-controls\native\src\main.cpp(3109): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t70-controls\native\src\main.cpp(3110): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t70-controls\native\src\main.cpp(8910): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
