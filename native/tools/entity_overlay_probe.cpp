@@ -34,6 +34,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -554,6 +555,31 @@ int demoMode(const std::string& demoPath, const std::vector<std::int32_t>& ticks
   // A row is mis-mapped when its classification disagrees with its raw
   // m_iTeamNum: 2 must be Red, 3 must be Blue, and nothing else may be either.
   std::size_t teamMappingMismatches = 0;
+  // T57: the entity -> model resolution, counted rather than described.
+  //   withModel        the sample carries a model path (from m_nModelIndex or
+  //                    the m_iClass fallback), i.e. the world pass has something
+  //                    to look up.
+  //   markerOnly       no model path at all: the entity can only become a
+  //                    marker, never a body. On the recordings measured so far
+  //                    this is the shape of "the player has no m_nModelIndex and
+  //                    no usable m_iClass".
+  //   missingModelIndex  the sample says, in its own words, that the entity has
+  //                    no m_nModelIndex slot -- the reason the fallback exists.
+  //   classFallback    the model came from m_iClass rather than m_nModelIndex.
+  // They are separate counts because they answer separate questions: a tick can
+  // have withModel == rows while every one of those models came from a guess.
+  std::size_t withModel = 0, markerOnly = 0, missingModelIndex = 0, classFallback = 0;
+  struct ClassModelTally {
+    std::size_t rows = 0;
+    std::size_t withModel = 0;
+    std::size_t markerOnly = 0;
+  };
+  std::map<std::string, ClassModelTally> classModels;
+  // Same tally keyed by m_iClass (0 = no usable class) and by team, so "which of
+  // the nine classes is reachable in this recording" and "does either team draw"
+  // are rows instead of an inference from the aggregate.
+  std::map<int, ClassModelTally> classByTfClass;
+  std::map<std::string, ClassModelTally> classByTeam;
   std::unordered_set<std::uint16_t> distinctEntities;
   OverlayEntityTracker tracker;
 
@@ -595,6 +621,26 @@ int demoMode(const std::string& demoPath, const std::vector<std::int32_t>& ticks
         case OverlayTeam::Blue: ++blue; ++tickBlue; break;
         case OverlayTeam::Unknown: ++unknown; ++tickUnknown; break;
       }
+      const std::string classKey = sample.className.empty() ? "-" : sample.className;
+      auto& tally = classModels[classKey];
+      ++tally.rows;
+      if (sample.modelPath.empty()) {
+        ++markerOnly;
+        ++tally.markerOnly;
+      } else {
+        ++withModel;
+        ++tally.withModel;
+      }
+      if (sample.reason.find("no m_nModelIndex slot") != std::string::npos) ++missingModelIndex;
+      if (sample.modelPathFromClass) ++classFallback;
+      const int tfKey = (sample.hasPlayerClass && sample.playerClass >= 1 && sample.playerClass <= 9)
+        ? static_cast<int>(sample.playerClass) : 0;
+      auto& tfTally = classByTfClass[tfKey];
+      ++tfTally.rows;
+      if (sample.modelPath.empty()) ++tfTally.markerOnly; else ++tfTally.withModel;
+      auto& teamTally = classByTeam[overlayTeamName(sample.team)];
+      ++teamTally.rows;
+      if (sample.modelPath.empty()) ++teamTally.markerOnly; else ++teamTally.withModel;
       // Per-tick identity: one line per sampled player, so "the outline is on
       // entity N, team T, at this pose" is a reading for every tick rather
       // than an aggregate that hides a swap.
@@ -615,6 +661,16 @@ int demoMode(const std::string& demoPath, const std::vector<std::int32_t>& ticks
     }
     std::fprintf(stdout, "tick summary requested=%d rows=%zu red=%zu blue=%zu unknown=%zu posed=%zu\n",
       resolution.requestedTick, samples.size(), tickRed, tickBlue, tickUnknown, tickPose);
+    std::size_t tickWithModel = 0, tickMarkerOnly = 0, tickMissingModelIndex = 0, tickClassFallback = 0;
+    for (const auto& sample : samples) {
+      if (sample.modelPath.empty()) ++tickMarkerOnly; else ++tickWithModel;
+      if (sample.reason.find("no m_nModelIndex slot") != std::string::npos) ++tickMissingModelIndex;
+      if (sample.modelPathFromClass) ++tickClassFallback;
+    }
+    std::fprintf(stdout,
+      "tick models requested=%d rows=%zu withModel=%zu markerOnly=%zu missingModelIndex=%zu classFallback=%zu\n",
+      resolution.requestedTick, samples.size(), tickWithModel, tickMarkerOnly, tickMissingModelIndex,
+      tickClassFallback);
   }
 
   // The identities the aggregate rests on, so a swap of two entities' rows is
@@ -626,6 +682,26 @@ int demoMode(const std::string& demoPath, const std::vector<std::int32_t>& ticks
     sampledTicks, rows, distinctEntities.size(), withTeam, red, blue, unknown, withPose,
     exact, fallback, unavailable, tracker.stats().appeared, tracker.stats().vanished,
     ticksWithRows, rowsMissingTeam, rowsMissingPose, teamMappingMismatches);
+  // T57: the entity -> model resolution published as its own summary. It is a
+  // READING, not a verdict: this round does not fix the product, so "markerOnly
+  // is not zero" must be visible without being an assertion. The counts are also
+  // split by class so "which classes have no model" is a row rather than an
+  // inference from an aggregate.
+  std::fprintf(stdout,
+    "demo models rows=%zu withModel=%zu markerOnly=%zu missingModelIndex=%zu classFallback=%zu\n",
+    rows, withModel, markerOnly, missingModelIndex, classFallback);
+  for (const auto& [className, tally] : classModels) {
+    std::fprintf(stdout, "demo class name=%s rows=%zu withModel=%zu markerOnly=%zu\n",
+      className.c_str(), tally.rows, tally.withModel, tally.markerOnly);
+  }
+  for (const auto& [tfClass, tally] : classByTfClass) {
+    std::fprintf(stdout, "demo playerclass tfClass=%d rows=%zu withModel=%zu markerOnly=%zu\n",
+      tfClass, tally.rows, tally.withModel, tally.markerOnly);
+  }
+  for (const auto& [team, tally] : classByTeam) {
+    std::fprintf(stdout, "demo team name=%s rows=%zu withModel=%zu markerOnly=%zu\n",
+      team.c_str(), tally.rows, tally.withModel, tally.markerOnly);
+  }
   // Asserted here as well as read by the gate: a classification that disagrees
   // with the wire value is the defect the colour assertions rest on, and it is a
   // property of the sample, not of the frame.

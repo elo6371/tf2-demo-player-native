@@ -1,0 +1,35 @@
+demo history packets=190 retainedFirst=74481 retainedLast=74671 checkpoints=2 checkpointFirst=74481 checkpointLast=74609 archive=96 dropped=174 flushes=174 gap=0 gapTick=0 firstRecordedPacketTick=1 serverTickOrigin=10252 activeEntities=626 lastEntityStates=2048 limitsEvents=8192 limitsCheckpoints=8 limitsStride=128
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=1 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=-358.63,1091.97,93.84 hasOrigin=1 model=- classFallback=0 reason=no m_nModelIndex slot
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=2 class=CTFPlayer player=1 team=red raw=2 hasTeam=1 origin=4395.17,-2326.22,84.01 hasOrigin=1 model=models/player/soldier.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=3 class=CTFPlayer player=1 team=red raw=2 hasTeam=1 origin=5085.75,-1775.42,40.03 hasOrigin=1 model=models/player/scout.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=4 class=CTFPlayer player=1 team=red raw=2 hasTeam=1 origin=5152.12,-1975.73,79.56 hasOrigin=1 model=models/player/demo.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=5 class=CTFPlayer player=1 team=blue raw=3 hasTeam=1 origin=-798.55,19.01,-23.97 hasOrigin=1 model=models/player/demo.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=6 class=CTFPlayer player=1 team=blue raw=3 hasTeam=1 origin=3285.15,-1155.61,30.82 hasOrigin=1 model=models/player/medic.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=7 class=CTFPlayer player=1 team=red raw=2 hasTeam=1 origin=5085.00,-1775.41,40.03 hasOrigin=1 model=models/player/heavy.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=8 class=CTFPlayer player=1 team=blue raw=3 hasTeam=1 origin=-787.70,-7.02,-23.97 hasOrigin=1 model=models/player/soldier.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=9 class=CTFPlayer player=1 team=blue raw=3 hasTeam=1 origin=-843.93,59.40,-23.97 hasOrigin=1 model=models/player/soldier.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=10 class=CTFPlayer player=1 team=blue raw=3 hasTeam=1 origin=3465.97,-1671.95,80.03 hasOrigin=1 model=models/player/scout.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=11 class=CTFPlayer player=1 team=red raw=2 hasTeam=1 origin=5843.82,-1692.36,-38.09 hasOrigin=1 model=models/player/soldier.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=12 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=3285.15,-1155.61,30.82 hasOrigin=1 model=- classFallback=0 reason=no m_nModelIndex slot
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=13 class=CTFPlayer player=1 team=red raw=2 hasTeam=1 origin=5152.12,-1975.73,79.56 hasOrigin=1 model=models/player/medic.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=14 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=3337.19,-1162.21,8.03 hasOrigin=1 model=- classFallback=0 reason=no m_nModelIndex slot
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=15 class=CTFPlayer player=1 team=blue raw=3 hasTeam=1 origin=3336.71,-1162.24,8.03 hasOrigin=1 model=models/player/scout.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=16 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=4393.54,-2326.05,61.84 hasOrigin=1 model=models/player/medic.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=17 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=5152.12,-1975.73,79.56 hasOrigin=1 model=models/player/soldier.mdl classFallback=1 reason=no m_nModelIndex slot; class fallback model path
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=18 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=3337.76,-1162.18,8.03 hasOrigin=1 model=- classFallback=0 reason=no m_nModelIndex slot
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=19 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=5085.00,-1775.41,40.03 hasOrigin=1 model=- classFallback=0 reason=no m_nModelIndex slot
+tick requested=64231 resolved=63721 fidelity=checkpointFallback stale=510 entity=20 class=CTFPlayer player=1 team=unknown raw=1 hasTeam=1 origin=3467.50,-1666.14,80.03 hasOrigin=1 model=- classFallback=0 reason=no m_nModelIndex slot
+tick summary requested=64231 rows=20 red=6 blue=6 unknown=8 posed=20
+tick models requested=64231 rows=20 withModel=14 markerOnly=6 missingModelIndex=20 classFallback=14
+demo summary ticks=1 rows=20 distinctEntities=20 withTeam=20 red=6 blue=6 unknown=8 withPose=20 exact=0 checkpointFallback=1 unavailable=0 appeared=20 vanished=0 ticksWithRows=1 rowsMissingTeam=0 rowsMissingPose=0 teamMappingMismatches=0
+demo models rows=20 withModel=14 markerOnly=6 missingModelIndex=20 classFallback=14
+demo class name=CTFPlayer rows=20 withModel=14 markerOnly=6
+demo playerclass tfClass=0 rows=6 withModel=0 markerOnly=6
+demo playerclass tfClass=1 rows=3 withModel=3 markerOnly=0
+demo playerclass tfClass=3 rows=5 withModel=5 markerOnly=0
+demo playerclass tfClass=4 rows=2 withModel=2 markerOnly=0
+demo playerclass tfClass=5 rows=3 withModel=3 markerOnly=0
+demo playerclass tfClass=6 rows=1 withModel=1 markerOnly=0
+demo team name=blue rows=6 withModel=6 markerOnly=0
+demo team name=red rows=6 withModel=6 markerOnly=0
+demo team name=unknown rows=8 withModel=2 markerOnly=6
