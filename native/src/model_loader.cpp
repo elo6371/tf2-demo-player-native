@@ -540,6 +540,44 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
       out.textureCandidates.push_back(std::move(candidates));
     }
   }
+  // The skin family table: words 220/224/228 are numskinref / numskinfamilies /
+  // skinindex (an ABSOLUTE file offset). The table is numskinfamilies rows of
+  // numskinref int16 texture slots. This is the only table in the resource set
+  // that maps a mesh material slot to a texture for a given team; T57's entity
+  // pass never read it and painted slot 0 for all nine classes.
+  //
+  // It is validated against the texture table instead of trusted: every entry
+  // must be a real texture slot. A wrong offset does not read as garbage here --
+  // it reads as plausible small integers -- so an out-of-range count is the
+  // signal, and the table stays unavailable rather than guessing.
+  std::uint32_t numSkinRef = 0, numSkinFamilies = 0, skinIndex = 0;
+  readAt(b, 220, numSkinRef); readAt(b, 224, numSkinFamilies); readAt(b, 228, skinIndex);
+  out.skinFamilies.skinRefCount = numSkinRef;
+  out.skinFamilies.skinFamilyCount = numSkinFamilies;
+  if (numSkinRef == 0 || numSkinFamilies == 0) {
+    out.skinFamilies.reason = "MDL declares no skin family table";
+  } else if (!saneCount(numSkinRef, "skinref") || !saneCount(numSkinFamilies, "skinfamily")
+      || !rangeFits(skinIndex, static_cast<std::size_t>(numSkinRef) * numSkinFamilies, 2, b.size())) {
+    out.skinFamilies.reason = "skin family table is outside the MDL file";
+  } else {
+    out.skinFamilies.families.assign(numSkinFamilies, std::vector<std::int32_t>(numSkinRef, -1));
+    std::size_t outOfRange = 0;
+    for (std::uint32_t family = 0; family < numSkinFamilies; ++family) {
+      for (std::uint32_t ref = 0; ref < numSkinRef; ++ref) {
+        std::uint16_t slot = 0;
+        readAt(b, static_cast<std::size_t>(skinIndex)
+            + (static_cast<std::size_t>(family) * numSkinRef + ref) * 2, slot);
+        if (slot >= numTextures) { ++outOfRange; continue; }
+        out.skinFamilies.families[family][ref] = static_cast<std::int32_t>(slot);
+      }
+    }
+    if (outOfRange > 0) {
+      out.skinFamilies.reason = "skin family entries outside the texture table: " + std::to_string(outOfRange);
+    } else {
+      out.skinFamilies.available = true;
+      out.skinFamilies.reason = "decoded";
+    }
+  }
   if (!saneCount(numSequences, "sequence") || !rangeFits(sequenceIndex, numSequences, kSequenceStride, b.size())) {
     out.diagnostics.push_back("sequence table is outside the MDL file or uses an unsupported layout");
     out.sequenceDecodeReason = "sequence descriptor table is outside bounds";
@@ -1205,19 +1243,32 @@ bool ModelLoader::buildBindPoseMesh(ModelMetadata& metadata, std::size_t descrip
   return true;
 }
 
-bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error, std::size_t maxVertices) {
+bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error) {
   metadata.bindPoseVertices.clear();
   metadata.bindPoseVertexCount = 0;
+  metadata.bindPoseRanges.clear();
+  metadata.bindPoseLod0Budget = 0;
+  metadata.bindPoseLod0Skipped = 0;
   if (metadata.indices.empty() || metadata.renderIndices.empty() || metadata.vertices.empty()) {
     error = "model has no decoded bind-pose indices";
     return false;
   }
-  if (maxVertices == 0) maxVertices = 12000;
   bool anyLod0 = false;
   for (const auto& descriptor : metadata.indices) {
     if (descriptor.lod == 0) { anyLod0 = true; break; }
   }
-  metadata.bindPoseVertices.reserve(std::min(maxVertices, metadata.renderIndices.size()));
+  // The budget is this model's own LOD0 size: the sum of the render indices of
+  // the LOD0 descriptors that are in bounds. Not a constant, and not a number
+  // borrowed from the largest model measured -- a model that happens to land on
+  // a constant is indistinguishable from one that was cut off at it.
+  std::size_t budget = 0;
+  for (const auto& descriptor : metadata.indices) {
+    if (anyLod0 && descriptor.lod != 0) continue;
+    if (descriptor.renderIndexStart + descriptor.renderIndexCount > metadata.renderIndices.size()) continue;
+    budget += descriptor.renderIndexCount;
+  }
+  metadata.bindPoseLod0Budget = budget;
+  metadata.bindPoseVertices.reserve(budget);
   std::size_t skipped = 0;
   for (const auto& descriptor : metadata.indices) {
     if (anyLod0 && descriptor.lod != 0) continue;
@@ -1225,8 +1276,8 @@ bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& er
       skipped += descriptor.renderIndexCount;
       continue;
     }
+    const std::size_t rangeStart = metadata.bindPoseVertices.size();
     for (std::uint32_t i = 0; i < descriptor.renderIndexCount; ++i) {
-      if (metadata.bindPoseVertices.size() >= maxVertices) break;
       const auto original = metadata.renderIndices[descriptor.renderIndexStart + i];
       if (original >= metadata.vertices.size()) { ++skipped; continue; }
       const auto& source = metadata.vertices[original];
@@ -1239,9 +1290,23 @@ bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& er
       metadata.bindPoseVertices.push_back(ModelDrawVertex{
         source.position, source.normal, source.texcoord, source.weights, source.boneIndices, source.boneCount});
     }
-    if (metadata.bindPoseVertices.size() >= maxVertices) break;
+    // Record the run this descriptor contributed, even when a weight check
+    // skipped some of its indices: the range is the vertices that DID land, and
+    // the renderer paints them with this descriptor's material. A zero-length
+    // run is not recorded -- it would be a draw of nothing.
+    if (metadata.bindPoseVertices.size() > rangeStart) {
+      ModelBindPoseRange range;
+      range.bodyPart = descriptor.bodyPart;
+      range.model = descriptor.model;
+      range.mesh = descriptor.mesh;
+      range.lod = descriptor.lod;
+      range.vertexStart = static_cast<std::uint32_t>(rangeStart);
+      range.vertexCount = static_cast<std::uint32_t>(metadata.bindPoseVertices.size() - rangeStart);
+      metadata.bindPoseRanges.push_back(range);
+    }
   }
   metadata.bindPoseVertexCount = metadata.bindPoseVertices.size();
+  metadata.bindPoseLod0Skipped = skipped;
   if (metadata.bindPoseVertices.size() < 3) {
     error = "bind-pose LOD0 produced fewer than 3 vertices";
     metadata.bindPoseVertices.clear();
@@ -1249,6 +1314,55 @@ bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& er
     return false;
   }
   if (skipped > 0) metadata.diagnostics.push_back("bind-pose LOD0 skipped " + std::to_string(skipped) + " vertices");
+  return true;
+}
+
+bool ModelLoader::buildMaterialRuns(const ModelMetadata& metadata, std::vector<ModelMeshMaterialRun>& runs,
+    std::string& error) {
+  runs.clear();
+  if (!metadata.meshMaterials.available) {
+    error = "mesh material table is unavailable: " + metadata.meshMaterials.reason;
+    return false;
+  }
+  if (metadata.bindPoseRanges.empty()) {
+    error = "model has no bind-pose LOD0 ranges";
+    return false;
+  }
+  for (const auto& range : metadata.bindPoseRanges) {
+    if (range.lod != 0 || range.vertexCount == 0) continue;
+    const auto slot = metadata.meshMaterials.slotFor(range.bodyPart, range.model, range.mesh);
+    if (slot < 0) {
+      error = "bind-pose range names a mesh with no material slot: bodyPart "
+        + std::to_string(range.bodyPart) + " model " + std::to_string(range.model)
+        + " mesh " + std::to_string(range.mesh);
+      runs.clear();
+      return false;
+    }
+    const auto materialSlot = static_cast<std::uint32_t>(slot);
+    if (!runs.empty() && runs.back().materialSlot == materialSlot
+        && runs.back().vertexStart + runs.back().vertexCount == range.vertexStart) {
+      runs.back().vertexCount += range.vertexCount;
+    } else {
+      runs.push_back(ModelMeshMaterialRun{range.vertexStart, range.vertexCount, materialSlot});
+    }
+  }
+  // The runs must tile the de-indexed vertex list exactly: a gap would leave
+  // vertices undrawn, an overlap would draw them twice. Both are silent on screen.
+  std::uint32_t expected = 0;
+  for (const auto& run : runs) {
+    if (run.vertexStart != expected || run.vertexCount == 0) {
+      error = "material runs do not tile the bind-pose vertex list at vertex " + std::to_string(expected);
+      runs.clear();
+      return false;
+    }
+    expected += run.vertexCount;
+  }
+  if (expected != metadata.bindPoseVertexCount) {
+    error = "material runs cover " + std::to_string(expected) + " of "
+      + std::to_string(metadata.bindPoseVertexCount) + " bind-pose vertices";
+    runs.clear();
+    return false;
+  }
   return true;
 }
 

@@ -1,0 +1,61 @@
+=== 1/4 nine class models resolve, are renderable, and report a LOD count ===
+  audit rc=0 (log evidence/t57-player-model/runtime/player-model-audit.txt)
+  OK   class rows = 9
+  OK   audit exit = 0
+  OK   summary classes = 9
+  OK   summary resolved = 9
+  OK   summary renderable = 9
+  OK   summary companionsComplete = 9
+  OK   summary lodCountKnown = 9
+  OK   vvdLodsMin = 7 (>= 1)
+  OK   vtxLodsMin = 7 (>= 1)
+
+  --- published defect readings (not assertions; T60 turns these into assertions) ---
+  lod0Truncated=9 lod0LostTotal=107829
+  productPaintedSlots=1 slot0Resolved=9
+  class     model                        bones  seqs   lod0Idx    lod0Built  lod0Lost slots  skinRef skinFam slot0
+  Scout     models/player/scout.mdl      78     306    23442      12000      11442    4      17     8      1
+  Sniper    models/player/sniper.mdl     74     240    23595      12000      11595    6      20     8      1
+  Soldier   models/player/soldier.mdl    86     361    26922      12000      14922    6      20     8      1
+  Demoman   models/player/demo.mdl       84     276    25755      12000      13755    4      17     8      1
+  Medic     models/player/medic.mdl      92     213    24864      12000      12864    5      21     8      1
+  Heavy     models/player/heavy.mdl      79     259    28944      12000      16944    5      21     8      1
+  Pyro      models/player/pyro.mdl       76     270    12603      12000      603      1      8      8      1
+  Spy       models/player/spy.mdl        84     274    16980      12000      4980     5      31     26     1
+  Engineer  models/player/engineer.mdl   73     351    32724      12000      20724    3      15     8      1
+
+=== 2/4 each class's animation source resolves (separate _animations.mdl) ===
+  scout     bones=78   animInput=ok             animPath=models/player/scout.mdl                        animSeqs=2    bindBones=78/78
+  sniper    bones=74   animInput=ok             animPath=models/player/sniper.mdl                       animSeqs=2    bindBones=74/74
+  soldier   bones=86   animInput=ok             animPath=models/player/soldier.mdl                      animSeqs=2    bindBones=86/86
+  demo      bones=84   animInput=ok             animPath=models/player/demo.mdl                         animSeqs=2    bindBones=84/84
+  medic     bones=92   animInput=ok             animPath=models/player/medic.mdl                        animSeqs=2    bindBones=92/92
+  heavy     bones=79   animInput=ok             animPath=models/player/heavy.mdl                        animSeqs=2    bindBones=79/79
+  pyro      bones=76   animInput=ok             animPath=models/player/pyro.mdl                         animSeqs=2    bindBones=76/76
+  spy       bones=84   animInput=ok             animPath=models/player/spy.mdl                          animSeqs=2    bindBones=84/84
+  engineer  bones=73   animInput=ok             animPath=models/player/engineer.mdl                     animSeqs=2    bindBones=73/73
+  OK   animation rows = 9
+
+=== 3/4 sampled player entities resolve to a model (bagel 6 ticks + snakewater 1) ===
+  bagel rc=0 snakewater rc=0
+  OK   bagel probe exit = 0
+  OK   snakewater probe exit = 0
+  bagel: demo models rows=39 withModel=36 markerOnly=3 missingModelIndex=39 classFallback=36
+  OK   bagel rows = 39 (>= 1)
+  OK   bagel withModel = 36 (>= 1)
+  snakewater: demo models rows=20 withModel=14 markerOnly=6 missingModelIndex=20 classFallback=14
+  OK   snakewater rows = 20 (>= 1)
+  OK   snakewater withModel = 14 (>= 1)
+  --- published: entities that can only become a marker ---
+  demo models rows=39 withModel=36 markerOnly=3 missingModelIndex=39 classFallback=36
+  demo models rows=20 withModel=14 markerOnly=6 missingModelIndex=20 classFallback=14
+  demo class name=CTFPlayer rows=39 withModel=36 markerOnly=3
+  demo class name=CTFPlayer rows=20 withModel=14 markerOnly=6
+
+=== 4/4 negative controls: each must fail with its named reason ===
+  OK   wrong-tf-root failed rc=2 with 'player-model-audit FAIL tf-root is not a valid AssetRoot'
+  OK   wrong-demo failed rc=2 with 'the demo header did not parse'
+  OK   class-table-8 failed rc=2 with 'class-table entries=8 expected=9'
+  OK   class-table-missing-model failed rc=1 with 'class models did not resolve'
+
+PASS player-model-check: 9/9 class models loaded and renderable; sampled players resolved; defects published above.

@@ -1,0 +1,9 @@
+1 models/player/not_a_class_model.mdl
+2 models/player/sniper.mdl
+3 models/player/soldier.mdl
+4 models/player/demo.mdl
+5 models/player/medic.mdl
+6 models/player/heavy.mdl
+7 models/player/pyro.mdl
+8 models/player/spy.mdl
+9 models/player/engineer.mdl

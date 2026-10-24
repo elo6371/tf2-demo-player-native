@@ -1,0 +1,86 @@
+=== baseline: the unmutated tree must be green before any case ===
+  OK   baseline rc=0 FAIL-count=0 (log evidence/t57-player-model/runtime/t60/mutations/baseline.log)
+
+=== case a: mutate native/src/model_loader.cpp ===
+  patched (backup .scratch/t60-mutations/a.orig)
+=== build entity_model_probe entity_overlay_probe model_robustness_probe tf2_demo_native ===
+rc=0
+  gate rc=1 FAIL-count=30 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named reason present: A summary lod0Truncated = 9, expected 0
+  OK   named reason present: A summary lod0LostTotal =
+  OK   named reason present: A Scout lod0Built = 12000, expected 23442
+  OK   restored byte-identical (cmp -s)
+=== build entity_model_probe entity_overlay_probe model_robustness_probe tf2_demo_native ===
+rc=0
+  OK   baseline green again after restore (FAIL-count=0)
+
+=== case b: mutate native/include/material_slot_resolution.h ===
+  patched (backup .scratch/t60-mutations/b.orig)
+=== build entity_model_probe entity_overlay_probe model_robustness_probe tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2841): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2842): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2843): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2844): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2845): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(8507): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(3342): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(3600): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4473): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4474): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4781): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4951): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t60-model\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+rc=0
+  gate rc=1 FAIL-count=9 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named reason present: B Scout redBluDistinctSlots = 0, expected >= 1
+  OK   named reason present: B Heavy redBluDistinctSlots = 0, expected >= 1
+  OK   restored byte-identical (cmp -s)
+=== build entity_model_probe entity_overlay_probe model_robustness_probe tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2841): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2842): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2843): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2844): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(2845): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\main.cpp(8507): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(3342): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(3600): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4473): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4474): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4781): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\native_renderer.cpp(4951): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t60-model\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t60-model\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+rc=0
+  OK   baseline green again after restore (FAIL-count=0)
+
+=== case c: mutate native/src/animation_binding.cpp ===
+  patched (backup .scratch/t60-mutations/c.orig)
+=== build entity_model_probe entity_overlay_probe model_robustness_probe tf2_demo_native ===
+rc=0
+  gate rc=1 FAIL-count=27 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named reason present: C scout separateAnimSource = 0, expected 1
+  OK   named reason present: C scout animSeqs = 2, expected >= 200
+  OK   restored byte-identical (cmp -s)
+=== build entity_model_probe entity_overlay_probe model_robustness_probe tf2_demo_native ===
+rc=0
+  OK   baseline green again after restore (FAIL-count=0)
+
+=== case meta: mutate the gate's own expectation (config, not product) ===
+  gate rc=1 FAIL-count=1 (baseline 0)
+  OK   gate-config mutation turned the gate red for its own reason
+  OK   gate restored byte-identical (cmp -s)
+  OK   gate green again after restore (FAIL-count=0)
+
+PASS player-model-mutations: A/B/C each went red for its named reason; meta mutation proved the gate itself can fail; every file restored byte-identically; baseline green again.

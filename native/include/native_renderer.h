@@ -243,6 +243,11 @@ struct EntityModelDrawInstance {
   bool skinningEnabled = false;
   std::uint32_t boneOffset = 0;
   std::uint32_t boneCount = 0;
+  // Which skin family (team) this instance is drawn with: 0 = red, 1 = blue.
+  // The mesh carries one texture per (material slot, family); the draw ranges are
+  // bucketed by family so a red and a blue instance of the same model do not
+  // share a paint. Defaults to 0, the family every model has.
+  std::uint32_t skinFamily = 0;
 };
 
 // Everything the first-person pass needs, in one value. It is deliberately a
@@ -744,8 +749,16 @@ public:
   const float* overlayInstanceRow0Gpu() const { return overlayInstanceRow0Gpu_; }
   const float* overlayInstanceRow0Cpu() const { return overlayInstanceRow0Cpu_; }
 
-  bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices);
-  bool uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // Uploads the whole de-indexed LOD0 list -- there is no vertex-count cap here
+  // and no truncation: the buffer is exactly as long as the model's LOD0. `runs`
+  // splits the buffer into per-material draws; an empty list means one draw with
+  // material slot 0.
+  bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ModelMeshMaterialRun>& runs = {});
+  // One texture per (material slot, skin family). The draw loop picks the
+  // instance's family and binds that texture for the matching runs.
+  bool uploadEntityModelTexture(const std::string& cacheKey, std::uint32_t materialSlot, std::uint32_t skinFamily,
+    const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
   // The bone matrices every skinned instance indexes into, concatenated. Uploaded
   // once per scene update rather than per draw: a demo can carry 96 instances and
@@ -759,6 +772,13 @@ public:
   std::size_t entityModelTexturedRangeCount() const { return entityModelTexturedRangeCount_; }
   std::size_t entityModelTexturedInstanceCount() const { return entityModelTexturedInstanceCount_; }
   std::size_t entityModelDrawRangeCount() const { return entityModelDrawRanges_.size(); }
+  // Vertices dropped on upload because a cap was applied. Must stay 0: T57
+  // measured this path cutting every player model at 12000 vertices. The counter
+  // exists so a re-introduced cap is a published reading, not a silent cut.
+  std::size_t entityModelMeshTruncatedCount() const { return entityModelMeshTruncatedCount_; }
+  // Number of (material slot, skin family) textures uploaded for entity models.
+  // Zero means every draw falls back to the world atlas.
+  std::size_t entityModelTextureCount() const { return entityModelTextureCount_; }
   std::size_t projectileVertexCount() const { return projectileVertexCount_; }
   // T53: the observed-trajectory pass's own count, kept separate from the
   // TempEntity pass above so "the new pass did not quietly move the old one" is
@@ -1509,12 +1529,22 @@ private:
     // box is the same question asked of the vertices instead of of a box around
     // them, so the two answers can be compared.
     std::vector<float> cpuPositions;  // x,y,z per vertex
-    // The model's own paint, resolved from its MDL texture table. Empty until
-    // uploadEntityModelTexture succeeds; a null view keeps the world atlas.
-    Texture2D texture;
+    // Per-material runs over vertexBuffer, in vertex order. Each run is drawn with
+    // the texture of (run.materialSlot, instance.skinFamily).
+    std::vector<ModelMeshMaterialRun> runs;
+    // One texture per (material slot << 32 | skin family). The model's own paint,
+    // resolved through the MDL skin family table. A missing key means "no material
+    // for this slot/family": that run falls back to the world atlas, it does not
+    // borrow another slot's texture.
+    std::unordered_map<std::uint64_t, Texture2D> textures;
+    static std::uint64_t textureKey(std::uint32_t materialSlot, std::uint32_t skinFamily) {
+      return (static_cast<std::uint64_t>(materialSlot) << 32) | skinFamily;
+    }
   };
   struct EntityModelDrawRange {
     ID3D11Buffer* vertexBuffer = nullptr;
+    // Vertex offset into vertexBuffer. One model's runs all share the buffer.
+    UINT vertexStart = 0;
     UINT vertexCount = 0;
     UINT instanceStart = 0;
     UINT instanceCount = 0;
@@ -1535,6 +1565,8 @@ private:
   std::size_t entityModelInstanceCount_ = 0;
   std::size_t entityModelSkinnedInstanceCount_ = 0;
   std::size_t entityModelTexturedRangeCount_ = 0;
+  std::size_t entityModelMeshTruncatedCount_ = 0;
+  std::size_t entityModelTextureCount_ = 0;
   std::size_t entityModelTexturedInstanceCount_ = 0;
   // First-person pass. Nothing here is shared with the entity members above.
   Microsoft::WRL::ComPtr<ID3D11VertexShader> viewModelVertexShader_;

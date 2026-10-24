@@ -1,0 +1,193 @@
+=== 0/4 binary freshness: each probe is newer than every input it compiles ===
+  OK   BINARY-FRESH=1 probe exe=2026-10-24 15:39:03
+  OK   BINARY-FRESH=1 overlay exe=2026-10-24 15:39:12
+  OK   BINARY-FRESH=1 robust exe=2026-10-24 15:42:13
+
+=== 1/4 negative controls: each must fail with its named reason ===
+  OK   wrong-tf-root failed rc=2 with 'player-model-audit FAIL tf-root is not a valid AssetRoot'
+  OK   wrong-demo failed rc=2 with 'the demo header did not parse'
+  OK   class-table-8 failed rc=2 with 'class-table entries=8 expected=9'
+  OK   class-table-missing-model failed rc=1 with 'class models did not resolve'
+
+=== 2/4 nine class models: A LOD0 complete, B paint per slot and family ===
+  audit rc=0 (log evidence/t57-player-model/runtime/t60/player-model-audit.txt)
+  OK   class rows = 9
+  OK   audit exit = 0
+  OK   summary classes = 9
+  OK   summary resolved = 9
+  OK   summary renderable = 9
+  OK   summary companionsComplete = 9
+  OK   summary lodCountKnown = 9
+  OK   vvdLodsMin = 7 (>= 1)
+  OK   vtxLodsMin = 7 (>= 1)
+  --- A: LOD0 budget is the model's own render-index count ---
+  OK   A summary lod0Truncated = 0
+  OK   A summary lod0LostTotal = 0
+  OK   A summary lod0SkippedTotal = 0
+  OK   A Scout lod0Budget = 23442
+  OK   A Scout lod0Built = 23442
+  OK   A Scout lod0Lost = 0
+  OK   A Scout lod0Skipped = 0
+  OK   A Sniper lod0Budget = 23595
+  OK   A Sniper lod0Built = 23595
+  OK   A Sniper lod0Lost = 0
+  OK   A Sniper lod0Skipped = 0
+  OK   A Soldier lod0Budget = 26922
+  OK   A Soldier lod0Built = 26922
+  OK   A Soldier lod0Lost = 0
+  OK   A Soldier lod0Skipped = 0
+  OK   A Demoman lod0Budget = 25755
+  OK   A Demoman lod0Built = 25755
+  OK   A Demoman lod0Lost = 0
+  OK   A Demoman lod0Skipped = 0
+  OK   A Medic lod0Budget = 24864
+  OK   A Medic lod0Built = 24864
+  OK   A Medic lod0Lost = 0
+  OK   A Medic lod0Skipped = 0
+  OK   A Heavy lod0Budget = 28944
+  OK   A Heavy lod0Built = 28944
+  OK   A Heavy lod0Lost = 0
+  OK   A Heavy lod0Skipped = 0
+  OK   A Pyro lod0Budget = 12603
+  OK   A Pyro lod0Built = 12603
+  OK   A Pyro lod0Lost = 0
+  OK   A Pyro lod0Skipped = 0
+  OK   A Spy lod0Budget = 16980
+  OK   A Spy lod0Built = 16980
+  OK   A Spy lod0Lost = 0
+  OK   A Spy lod0Skipped = 0
+  OK   A Engineer lod0Budget = 32724
+  OK   A Engineer lod0Built = 32724
+  OK   A Engineer lod0Lost = 0
+  OK   A Engineer lod0Skipped = 0
+  --- B: every LOD0 slot painted for red (0) and blu (1) ---
+  OK   B summary classesWithPaint = 9
+  OK   B summary paintedFamiliesMin = 2
+  OK   B summary distinctPaintedStemsMin = 1 (>= 1)
+  OK   B summary headOnBodyClasses = 0
+  OK   B Scout lod0MaterialSlots = 4 (>= 1)
+  OK   B Scout paintedSlots = 8
+  OK   B Scout paintedFamilies = 2
+  OK   B Scout headOnBody = 0
+  OK   B Scout redBluDistinctSlots = 1 (>= 1)
+  OK   B Scout distinctPaintedStems = 4
+  OK   B Sniper lod0MaterialSlots = 6 (>= 1)
+  OK   B Sniper paintedSlots = 12
+  OK   B Sniper paintedFamilies = 2
+  OK   B Sniper headOnBody = 0
+  OK   B Sniper redBluDistinctSlots = 1 (>= 1)
+  OK   B Sniper distinctPaintedStems = 6
+  OK   B Soldier lod0MaterialSlots = 6 (>= 1)
+  OK   B Soldier paintedSlots = 12
+  OK   B Soldier paintedFamilies = 2
+  OK   B Soldier headOnBody = 0
+  OK   B Soldier redBluDistinctSlots = 2 (>= 1)
+  OK   B Soldier distinctPaintedStems = 6
+  OK   B Demoman lod0MaterialSlots = 4 (>= 1)
+  OK   B Demoman paintedSlots = 8
+  OK   B Demoman paintedFamilies = 2
+  OK   B Demoman headOnBody = 0
+  OK   B Demoman redBluDistinctSlots = 1 (>= 1)
+  OK   B Demoman distinctPaintedStems = 4
+  OK   B Medic lod0MaterialSlots = 5 (>= 1)
+  OK   B Medic paintedSlots = 10
+  OK   B Medic paintedFamilies = 2
+  OK   B Medic headOnBody = 0
+  OK   B Medic redBluDistinctSlots = 2 (>= 1)
+  OK   B Medic distinctPaintedStems = 5
+  OK   B Heavy lod0MaterialSlots = 5 (>= 1)
+  OK   B Heavy paintedSlots = 10
+  OK   B Heavy paintedFamilies = 2
+  OK   B Heavy headOnBody = 0
+  OK   B Heavy redBluDistinctSlots = 2 (>= 1)
+  OK   B Heavy distinctPaintedStems = 5
+  OK   B Pyro lod0MaterialSlots = 1 (>= 1)
+  OK   B Pyro paintedSlots = 2
+  OK   B Pyro paintedFamilies = 2
+  OK   B Pyro headOnBody = 0
+  OK   B Pyro redBluDistinctSlots = 1 (>= 1)
+  OK   B Pyro distinctPaintedStems = 1
+  OK   B Spy lod0MaterialSlots = 5 (>= 1)
+  OK   B Spy paintedSlots = 10
+  OK   B Spy paintedFamilies = 2
+  OK   B Spy headOnBody = 0
+  OK   B Spy redBluDistinctSlots = 2 (>= 1)
+  OK   B Spy distinctPaintedStems = 5
+  OK   B Engineer lod0MaterialSlots = 3 (>= 1)
+  OK   B Engineer paintedSlots = 6
+  OK   B Engineer paintedFamilies = 2
+  OK   B Engineer headOnBody = 0
+  OK   B Engineer redBluDistinctSlots = 2 (>= 1)
+  OK   B Engineer distinctPaintedStems = 3
+  OK   B summary productPaintedSlots = 78
+  OK   B summary productPaintedSlots = 78 (>= 18)
+
+=== 3/4 C: each class's animation source is the separate _animations.mdl ===
+  scout     bones=78   animInput=ok             animPath=models/player/scout_animations.mdl             animSeqs=1012 bindBones=78/78
+  OK   C scout separateAnimSource = 1
+  OK   C scout animSeqs = 1012 (>= 200)
+  OK   C scout animPath contains _animations.mdl
+  OK   C scout animPath does not contain _user_animations.mdl
+  OK   C scout bindBones = 78/78
+  sniper    bones=74   animInput=ok             animPath=models/player/sniper_animations.mdl            animSeqs=932  bindBones=74/74
+  OK   C sniper separateAnimSource = 1
+  OK   C sniper animSeqs = 932 (>= 200)
+  OK   C sniper animPath contains _animations.mdl
+  OK   C sniper animPath does not contain _user_animations.mdl
+  OK   C sniper bindBones = 74/74
+  soldier   bones=86   animInput=ok             animPath=models/player/soldier_animations.mdl           animSeqs=858  bindBones=86/86
+  OK   C soldier separateAnimSource = 1
+  OK   C soldier animSeqs = 858 (>= 200)
+  OK   C soldier animPath contains _animations.mdl
+  OK   C soldier animPath does not contain _user_animations.mdl
+  OK   C soldier bindBones = 86/86
+  demo      bones=84   animInput=ok             animPath=models/player/demo_animations.mdl              animSeqs=767  bindBones=84/84
+  OK   C demo separateAnimSource = 1
+  OK   C demo animSeqs = 767 (>= 200)
+  OK   C demo animPath contains _animations.mdl
+  OK   C demo animPath does not contain _user_animations.mdl
+  OK   C demo bindBones = 84/84
+  medic     bones=92   animInput=ok             animPath=models/player/medic_animations.mdl             animSeqs=671  bindBones=92/92
+  OK   C medic separateAnimSource = 1
+  OK   C medic animSeqs = 671 (>= 200)
+  OK   C medic animPath contains _animations.mdl
+  OK   C medic animPath does not contain _user_animations.mdl
+  OK   C medic bindBones = 92/92
+  heavy     bones=79   animInput=ok             animPath=models/player/heavy_animations.mdl             animSeqs=819  bindBones=79/79
+  OK   C heavy separateAnimSource = 1
+  OK   C heavy animSeqs = 819 (>= 200)
+  OK   C heavy animPath contains _animations.mdl
+  OK   C heavy animPath does not contain _user_animations.mdl
+  OK   C heavy bindBones = 79/79
+  pyro      bones=76   animInput=ok             animPath=models/player/pyro_animations.mdl              animSeqs=842  bindBones=76/76
+  OK   C pyro separateAnimSource = 1
+  OK   C pyro animSeqs = 842 (>= 200)
+  OK   C pyro animPath contains _animations.mdl
+  OK   C pyro animPath does not contain _user_animations.mdl
+  OK   C pyro bindBones = 76/76
+  spy       bones=84   animInput=ok             animPath=models/player/spy_animations.mdl               animSeqs=826  bindBones=84/84
+  OK   C spy separateAnimSource = 1
+  OK   C spy animSeqs = 826 (>= 200)
+  OK   C spy animPath contains _animations.mdl
+  OK   C spy animPath does not contain _user_animations.mdl
+  OK   C spy bindBones = 84/84
+  engineer  bones=73   animInput=ok             animPath=models/player/engineer_animations.mdl          animSeqs=1131 bindBones=73/73
+  OK   C engineer separateAnimSource = 1
+  OK   C engineer animSeqs = 1131 (>= 200)
+  OK   C engineer animPath contains _animations.mdl
+  OK   C engineer animPath does not contain _user_animations.mdl
+  OK   C engineer bindBones = 73/73
+  OK   animation rows = 9
+
+=== 4/4 sampled player entities resolve to a model (bagel 6 ticks + snakewater 1) ===
+  bagel rc=0 snakewater rc=0
+  OK   bagel probe exit = 0
+  OK   snakewater probe exit = 0
+  bagel: demo models rows=39 withModel=36 markerOnly=3 missingModelIndex=39 classFallback=36
+  OK   bagel rows = 39 (>= 1)
+  OK   bagel withModel = 36 (>= 1)
+  snakewater: demo models rows=20 withModel=14 markerOnly=6 missingModelIndex=20 classFallback=14
+  OK   snakewater rows = 20 (>= 1)
+  OK   snakewater withModel = 14 (>= 1)
+
+PASS player-model-check: negative controls named-failed; A lod0Truncated=0; B paintedSlots per slot x family; C separateAnimSource=1.

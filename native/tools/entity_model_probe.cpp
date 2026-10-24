@@ -1,6 +1,9 @@
 #include "asset_root.h"
 #include "demo_header.h"
 #include "entity_model.h"
+// T60: the product and this audit share one material-slot resolver, so the
+// published painted-slot count cannot disagree with what the product uploads.
+#include "material_slot_resolution.h"
 #include "model_loader.h"
 #include "vmt_material.h"
 #include "vpk_archive.h"
@@ -13,8 +16,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <limits>
+#include <map>
+#include <set>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -1403,6 +1412,405 @@ void printPropCandidatesAt(const tf2::native::DemoNetworkSummary& summary,
 
 } // namespace
 
+// ---------------------------------------------------------------------------
+// T57: the player-model audit.
+//
+// WHY THIS MODE EXISTS
+//   The nine TF2 classes are the subject of the T57 round, and before this mode
+//   the only readings of them were ad-hoc: one --dump-model-textures run per
+//   model, a hand-written Python VPK reader for the LOD counts, and a gate that
+//   checked two models' material-slot totals. A subject measured in three
+//   places with three shapes cannot be asserted on, and "the list is complete"
+//   was a claim about a spreadsheet rather than about the loader.
+//
+// WHAT IT MEASURES, AND WHY EACH NUMBER IS THE LOADER'S
+//   * resolution/companion flags: ModelLoader::resolveAsset's own answer.
+//   * LOD counts: VVD header word 12 and VTX header word 20, read from the same
+//     bytes the loader reads. ModelMetadata does not retain them (it only needs
+//     LOD0), so re-reading two fixed words is the reading rather than a second
+//     parser.
+//   * lod0RenderIndices / lod0Built / lod0Lost: the LOD0 descriptor sum from the
+//     decoded VTX hierarchy, and the vertex count buildBindPoseMeshLod0 actually
+//     produced under its 12000-vertex budget. The product calls the same
+//     function with the same default, so lod0Lost > 0 is the truncation the
+//     world pass pays, measured at the site that pays it.
+//   * material slots: the MDL mstudiomesh_t.material table cross-validated
+//     against the VTX descriptors (ModelMetadata::meshMaterials), plus slot 0
+//     resolved end to end (name -> VMT -> base VTF). paintedSlots=1 is what the
+//     world pass binds (main.cpp takes textureCandidates.front()); it is printed
+//     next to slotsUsedByMeshes so "one paint for a seventeen-slot model" is a
+//     comparison rather than a claim.
+//
+// A class that does not resolve to a renderable model is a FAILURE of the mode,
+// not a row: the audit's first job is to prove the subject exists.
+// ---------------------------------------------------------------------------
+
+struct PlayerModelClassEntry {
+  int tfClass = 0;
+  std::string modelPath;
+};
+
+const char* playerClassDisplayName(int tfClass) {
+  switch (tfClass) {
+    case 1: return "Scout";
+    case 2: return "Sniper";
+    case 3: return "Soldier";
+    case 4: return "Demoman";
+    case 5: return "Medic";
+    case 6: return "Heavy";
+    case 7: return "Pyro";
+    case 8: return "Spy";
+    case 9: return "Engineer";
+    default: return "Unknown";
+  }
+}
+
+// The default table is the product's own mapping, not a second copy of it:
+// a class table that drifted from EntityModelResolver::defaultPlayerModelPath
+// would make the audit disagree with the thing it audits.
+std::vector<PlayerModelClassEntry> defaultPlayerModelClassTable() {
+  std::vector<PlayerModelClassEntry> table;
+  for (int tfClass = 1; tfClass <= 9; ++tfClass) {
+    table.push_back(PlayerModelClassEntry{tfClass, tf2::native::EntityModelResolver::defaultPlayerModelPath(tfClass)});
+  }
+  return table;
+}
+
+const char* modelAssetResolutionName(tf2::native::ModelAssetResolution resolution) {
+  switch (resolution) {
+    case tf2::native::ModelAssetResolution::Missing: return "Missing";
+    case tf2::native::ModelAssetResolution::FoundLoose: return "FoundLoose";
+    case tf2::native::ModelAssetResolution::FoundVpk: return "FoundVpk";
+    case tf2::native::ModelAssetResolution::Ambiguous: return "Ambiguous";
+    case tf2::native::ModelAssetResolution::Unknown: break;
+  }
+  return "Unknown";
+}
+
+std::uint32_t readLittleEndianU32(const std::vector<std::uint8_t>& bytes, std::size_t offset) {
+  if (offset + 4 > bytes.size()) return 0;
+  return static_cast<std::uint32_t>(bytes[offset])
+    | (static_cast<std::uint32_t>(bytes[offset + 1]) << 8)
+    | (static_cast<std::uint32_t>(bytes[offset + 2]) << 16)
+    | (static_cast<std::uint32_t>(bytes[offset + 3]) << 24);
+}
+
+std::vector<std::uint8_t> readAssetBytes(const tf2::native::AssetRoot& assets, const std::string& resource) {
+  std::error_code error;
+  const auto loose = assets.resolve(resource);
+  if (!loose.empty() && std::filesystem::is_regular_file(loose, error)) {
+    std::ifstream input(loose, std::ios::binary);
+    if (input) {
+      return std::vector<std::uint8_t>((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    }
+  }
+  std::vector<std::filesystem::path> holders;
+  assets.archives().collectContaining(resource, holders);
+  for (const auto& holder : holders) {
+    const auto* archive = assets.archives().find(holder);
+    if (!archive) continue;
+    auto bytes = archive->read(resource);
+    if (!bytes.empty()) return bytes;
+  }
+  return {};
+}
+
+// A class table is a file of "<tfClass> <model path>" lines, comments allowed.
+// The tampered-table negative control is the reason this exists: a gate that
+// can only run the built-in list cannot show that it reads a table at all.
+bool loadPlayerModelClassTable(const std::string& path, std::vector<PlayerModelClassEntry>& table, std::string& error) {
+  std::ifstream input(path);
+  if (!input) { error = "cannot read " + path; return false; }
+  std::string line;
+  int lineNumber = 0;
+  while (std::getline(input, line)) {
+    ++lineNumber;
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t')) line.pop_back();
+    std::size_t first = 0;
+    while (first < line.size() && (line[first] == ' ' || line[first] == '\t')) ++first;
+    if (first >= line.size() || line[first] == '#') continue;
+    std::istringstream fields(line.substr(first));
+    int tfClass = 0;
+    std::string modelPath;
+    if (!(fields >> tfClass >> modelPath)) {
+      error = "line " + std::to_string(lineNumber) + " is not '<tfClass> <model path>'";
+      return false;
+    }
+    table.push_back(PlayerModelClassEntry{tfClass, modelPath});
+  }
+  if (table.size() != 9) { error = "entries=" + std::to_string(table.size()) + " expected=9"; return false; }
+  std::set<int> seen;
+  for (const auto& entry : table) {
+    if (entry.tfClass < 1 || entry.tfClass > 9) { error = "tfClass out of range: " + std::to_string(entry.tfClass); return false; }
+    if (!seen.insert(entry.tfClass).second) { error = "duplicate tfClass: " + std::to_string(entry.tfClass); return false; }
+    if (entry.modelPath.size() < 4 || entry.modelPath.compare(entry.modelPath.size() - 4, 4, ".mdl") != 0) {
+      error = "model path is not .mdl: " + entry.modelPath;
+      return false;
+    }
+  }
+  return true;
+}
+
+bool resolveMaterialSlotChain(const tf2::native::AssetRoot& assets, const tf2::native::ModelMetadata& metadata,
+                              std::uint32_t skinFamily, std::int32_t slot,
+                              tf2::native::MaterialSlotResolution& out) {
+  const auto reader = [&assets](const std::string& resource) { return readAssetBytes(assets, resource); };
+  return tf2::native::resolveMaterialSlot(metadata.skinFamilies, metadata.textureCandidates,
+    skinFamily, slot, reader, out);
+}
+
+int runPlayerModelAudit(const std::string& tfRoot, const std::string& classTablePath) {
+  const auto assets = tf2::native::AssetRoot::fromPath(tfRoot);
+  if (!assets.valid()) {
+    std::fprintf(stdout, "player-model-audit FAIL tf-root is not a valid AssetRoot: %s\n", tfRoot.c_str());
+    return 2;
+  }
+  std::vector<PlayerModelClassEntry> table = defaultPlayerModelClassTable();
+  if (!classTablePath.empty()) {
+    table.clear();
+    std::string error;
+    if (!loadPlayerModelClassTable(classTablePath, table, error)) {
+      std::fprintf(stdout, "player-model-audit FAIL class-table %s\n", error.c_str());
+      return 2;
+    }
+  }
+  std::vector<tf2::native::AssetReference> references;
+  references.reserve(table.size());
+  for (const auto& entry : table) {
+    tf2::native::AssetReference reference;
+    reference.entityIndex = static_cast<std::uint16_t>(entry.tfClass);
+    reference.hasModelPath = true;
+    reference.modelPath = entry.modelPath;
+    reference.className = "CTFPlayer";
+    references.push_back(reference);
+  }
+  const auto requests = tf2::native::ModelLoader::buildRenderRequests(assets, references, nullptr, nullptr);
+  std::unordered_map<std::string, const tf2::native::ModelRenderRequest*> requestByPath;
+  for (const auto& request : requests) requestByPath[tf2::native::normalizeModelPath(request.modelPath)] = &request;
+
+  std::size_t resolvedClasses = 0, renderableClasses = 0, companionCompleteClasses = 0;
+  std::size_t lod0TruncatedClasses = 0, slot0ResolvedClasses = 0, lodCountKnownClasses = 0;
+  std::size_t vvdLodsMin = 0, vvdLodsMax = 0, vtxLodsMin = 0, vtxLodsMax = 0;
+  long long lod0LostTotal = 0;
+  // T60 readings: what the product would paint, per class and in total.
+  std::size_t lod0SkippedTotal = 0;
+  std::size_t productPaintedSlots = 0;
+  std::size_t headOnBodyClasses = 0;
+  std::size_t redBluDistinctTotal = 0;
+  // Sentinel, not 0: a class that paints nothing must not be able to overwrite
+  // the minimum. With 0 as both the initial value and the "unset" test, the
+  // first class set 0 and every later class overwrote it, so the summary read 2
+  // while seven classes were 0 -- an absent value that read as benign.
+  std::size_t paintedFamiliesMin = static_cast<std::size_t>(-1);
+  std::size_t distinctPaintedStemsMin = static_cast<std::size_t>(-1);
+  std::size_t classesWithPaint = 0;
+  for (const auto& entry : table) {
+    const char* display = playerClassDisplayName(entry.tfClass);
+    const auto candidate = tf2::native::ModelLoader::resolveAsset(assets, entry.modelPath);
+    const auto found = requestByPath.find(tf2::native::normalizeModelPath(entry.modelPath));
+    if (found == requestByPath.end() || candidate.resolution == tf2::native::ModelAssetResolution::Missing) {
+      std::fprintf(stdout, "player-model class=%s tfClass=%d path=%s resolved=0 renderable=0 missing=1 resolution=%s\n",
+                   display, entry.tfClass, entry.modelPath.c_str(), modelAssetResolutionName(candidate.resolution));
+      continue;
+    }
+    ++resolvedClasses;
+    const auto& request = *found->second;
+    const auto& inspection = request.inspection;
+    const auto& metadata = inspection.metadata;
+    const std::string stem = entry.modelPath.substr(0, entry.modelPath.size() - 4);
+    const auto mdlBytes = readAssetBytes(assets, entry.modelPath);
+    // studiohdr_t 220/224: the skin-reference table the renderer never reads. Read
+    // here so "one paint for a seventeen-slot model" carries the slot table size
+    // the asset actually declares, not a number copied from a doc.
+    const std::uint32_t skinRefs = readLittleEndianU32(mdlBytes, 220);
+    const std::uint32_t skinFamilies = readLittleEndianU32(mdlBytes, 224);
+    const auto vvdBytes = readAssetBytes(assets, stem + ".vvd");
+    const auto vtxBytes = readAssetBytes(assets, stem + ".dx90.vtx");
+    const std::uint32_t vvdLods = readLittleEndianU32(vvdBytes, 12);
+    const std::uint32_t vtxLods = readLittleEndianU32(vtxBytes, 20);
+    if (vvdLods > 0 && vtxLods > 0) {
+      ++lodCountKnownClasses;
+      if (lodCountKnownClasses == 1) {
+        vvdLodsMin = vvdLodsMax = vvdLods;
+        vtxLodsMin = vtxLodsMax = vtxLods;
+      } else {
+        vvdLodsMin = std::min(vvdLodsMin, static_cast<std::size_t>(vvdLods));
+        vvdLodsMax = std::max(vvdLodsMax, static_cast<std::size_t>(vvdLods));
+        vtxLodsMin = std::min(vtxLodsMin, static_cast<std::size_t>(vtxLods));
+        vtxLodsMax = std::max(vtxLodsMax, static_cast<std::size_t>(vtxLods));
+      }
+    }
+    std::size_t lod0Descriptors = 0, lod0Indices = 0;
+    for (const auto& descriptor : metadata.indices) {
+      if (descriptor.lod != 0) continue;
+      ++lod0Descriptors;
+      lod0Indices += descriptor.renderIndexCount;
+    }
+    auto meshMetadata = metadata;
+    std::string meshError;
+    const bool meshBuilt = tf2::native::ModelLoader::buildBindPoseMeshLod0(meshMetadata, meshError);
+    const std::size_t lod0Built = meshBuilt ? meshMetadata.bindPoseVertexCount : 0;
+    // T60/A: the budget is derived from the model's own LOD0 index count, so it
+    // is published next to the built count. A built value that equals the budget
+    // is not a fit unless the budget itself came from this model.
+    const std::size_t lod0Budget = meshMetadata.bindPoseLod0Budget;
+    const std::size_t lod0Skipped = meshMetadata.bindPoseLod0Skipped;
+    const long long lod0Lost = static_cast<long long>(lod0Indices) - static_cast<long long>(lod0Built);
+    if (lod0Lost > 0) ++lod0TruncatedClasses;
+    lod0LostTotal += lod0Lost > 0 ? lod0Lost : 0;
+    lod0SkippedTotal += lod0Skipped;
+    std::set<int> usedSlots;
+    if (metadata.meshMaterials.available) {
+      for (const auto& descriptor : metadata.indices) {
+        const int slot = metadata.meshMaterials.slotFor(descriptor.bodyPart, descriptor.model, descriptor.mesh);
+        if (slot >= 0) usedSlots.insert(slot);
+      }
+    }
+    int meshMaterialSlotMax = -1;
+    for (const int slot : usedSlots) meshMaterialSlotMax = std::max(meshMaterialSlotMax, slot);
+    // T60/B: the runs are the LOD0 slot layout; the skin family table turns each
+    // material slot into a texture slot for red (0) and blu (1). Both families
+    // are resolved because a class model is worn by both teams.
+    std::vector<tf2::native::ModelMeshMaterialRun> materialRuns;
+    std::string materialRunsError;
+    const bool runsBuilt = meshBuilt
+      && tf2::native::ModelLoader::buildMaterialRuns(meshMetadata, materialRuns, materialRunsError);
+    std::set<std::uint32_t> lod0Slots;
+    std::uint32_t dominantSlot = 0;
+    std::uint32_t dominantVertices = 0;
+    for (const auto& run : materialRuns) {
+      lod0Slots.insert(run.materialSlot);
+      if (run.vertexCount > dominantVertices) {
+        dominantVertices = run.vertexCount;
+        dominantSlot = run.materialSlot;
+      }
+    }
+    std::map<std::uint32_t, std::array<std::string, 2>> slotVtf;
+    std::map<std::uint32_t, std::array<std::string, 2>> slotStem;
+    std::size_t paintedSlots = 0;
+    std::size_t familySlots[2] = {0, 0};
+    std::string headStem;
+    for (const std::uint32_t family : {0u, 1u}) {
+      for (const auto slot : lod0Slots) {
+        tf2::native::MaterialSlotResolution resolution;
+        if (!resolveMaterialSlotChain(assets, meshMetadata, family, static_cast<std::int32_t>(slot), resolution)) {
+          continue;
+        }
+        ++paintedSlots;
+        ++familySlots[family];
+        slotVtf[slot][family] = resolution.vtfPath;
+        slotStem[slot][family] = resolution.textureStem;
+        if (family == 0 && resolution.textureStem.find("_head") != std::string::npos) {
+          headStem = resolution.textureStem;
+        }
+      }
+    }
+    std::size_t redBluDistinct = 0;
+    for (const auto& entry : slotVtf) {
+      if (entry.second[0].empty() || entry.second[1].empty()) continue;
+      if (entry.second[0] != entry.second[1]) ++redBluDistinct;
+    }
+    // How many different textures this class would actually paint. One is the
+    // T57 reading (slot 0 for every mesh); a correct per-run bind paints one per
+    // distinct material slot, so this count is what tells them apart.
+    std::set<std::string> paintedStems;
+    for (const auto& entry : slotStem) {
+      if (!entry.second[0].empty()) paintedStems.insert(entry.second[0]);
+    }
+    // "The head is not painted on the body". The body shell is the run with the
+    // most vertices among runs whose OWN material slot is declared as a non-head
+    // texture -- not simply the largest run: TF2 heads are often the largest
+    // single mesh (sniper head 861 verts vs body 789; spy head 1036 vs body 361),
+    // so the old "largest run is the body" definition was wrong for this family.
+    // The declared stem comes from the skin table, the resolved stem from the
+    // paint chain; if the chain fell back to slot 0 they would disagree and this
+    // reading would go red.
+    const auto declaredStemFor = [&meshMetadata](std::uint32_t slot) {
+      const auto textureSlot = meshMetadata.skinFamilies.textureSlotFor(0, static_cast<std::int32_t>(slot));
+      if (textureSlot < 0 || static_cast<std::size_t>(textureSlot) >= meshMetadata.textureNames.size()) return std::string();
+      return meshMetadata.textureNames[static_cast<std::size_t>(textureSlot)];
+    };
+    std::uint32_t bodySlot = 0;
+    std::uint32_t bodyVertices = 0;
+    for (const auto& run : materialRuns) {
+      const std::string declared = declaredStemFor(run.materialSlot);
+      if (declared.empty() || declared.find("_head") != std::string::npos) continue;
+      if (run.vertexCount > bodyVertices) { bodyVertices = run.vertexCount; bodySlot = run.materialSlot; }
+    }
+    const auto bodyResolved = slotStem.find(bodySlot);
+    const std::string bodyStem = bodyResolved == slotStem.end() ? std::string() : bodyResolved->second[0];
+    const bool headOnBody = !bodyStem.empty() && bodyStem.find("_head") != std::string::npos;
+    const auto dominantStemEntry = slotStem.find(dominantSlot);
+    const std::string dominantStem = dominantStemEntry == slotStem.end() ? std::string() : dominantStemEntry->second[0];
+    if (headOnBody) ++headOnBodyClasses;
+    productPaintedSlots += paintedSlots;
+    redBluDistinctTotal += redBluDistinct;
+    std::size_t paintedFamilies = 0;
+    for (const std::uint32_t family : {0u, 1u}) {
+      if (lod0Slots.empty()) continue;
+      if (familySlots[family] == lod0Slots.size()) ++paintedFamilies;
+    }
+    if (paintedFamilies < paintedFamiliesMin) paintedFamiliesMin = paintedFamilies;
+    if (paintedStems.size() < distinctPaintedStemsMin) distinctPaintedStemsMin = paintedStems.size();
+    if (paintedSlots > 0) ++classesWithPaint;
+    tf2::native::MaterialSlotResolution slot0Resolution;
+    const bool slot0Resolved = resolveMaterialSlotChain(assets, meshMetadata, 0, 0, slot0Resolution);
+    if (slot0Resolved) ++slot0ResolvedClasses;
+    const std::string slot0Name = slot0Resolution.textureStem;
+    const std::string slot0Vmt = slot0Resolution.vmtPath;
+    const std::string slot0Vtf = slot0Resolution.vtfPath;
+    if (request.renderable) ++renderableClasses;
+    if (candidate.companionSetComplete) ++companionCompleteClasses;
+    std::fprintf(stdout,
+      "player-model class=%s tfClass=%d path=%s resolution=%s companions=vvd=%d,dx90=%d,dx80=%d,sw=%d,phy=%d "
+      "companionComplete=%d renderable=%d mdlVersion=%u checksum=%u bytes=%llu bones=%u sequences=%u textures=%u "
+      "bodyParts=%u attachments=%u vvdLods=%u vtxLods=%u vvdVertices=%zu lod0Descriptors=%zu lod0RenderIndices=%zu "
+      "lod0Budget=%zu lod0Built=%zu lod0Skipped=%zu lod0Lost=%lld meshMaterialTable=%d meshMaterialSlotMax=%d "
+      "materialRuns=%zu lod0MaterialSlots=%zu paintedSlots=%zu paintedFamilies=%zu redBluDistinctSlots=%zu "
+      "distinctPaintedStems=%zu headOnBody=%d dominantSlot=%u dominantStem=%s bodySlot=%u bodyStem=%s headStem=%s "
+      "skinRefs=%u skinFamilies=%u slotsUsedByMeshes=%zu slot0=%s "
+      "slot0Vmt=%s slot0Vtf=%s slot0Resolved=%d\n",
+      display, entry.tfClass, entry.modelPath.c_str(), modelAssetResolutionName(candidate.resolution),
+      candidate.vvdFound ? 1 : 0, candidate.dx90VtxFound ? 1 : 0, candidate.dx80VtxFound ? 1 : 0,
+      candidate.swVtxFound ? 1 : 0, candidate.phyFound ? 1 : 0, candidate.companionSetComplete ? 1 : 0,
+      request.renderable ? 1 : 0, inspection.mdl.version, inspection.mdl.checksum,
+      static_cast<unsigned long long>(inspection.mdl.bytes), metadata.boneCount, metadata.sequenceCount,
+      metadata.textureCount, metadata.bodyPartCount, metadata.attachmentCount, vvdLods, vtxLods,
+      metadata.vertices.size(), lod0Descriptors, lod0Indices, lod0Budget, lod0Built, lod0Skipped, lod0Lost,
+      metadata.meshMaterials.available ? 1 : 0, meshMaterialSlotMax, materialRuns.size(), lod0Slots.size(),
+      paintedSlots, paintedFamilies, redBluDistinct, paintedStems.size(),
+      headOnBody ? 1 : 0, dominantSlot, dominantStem.empty() ? "-" : dominantStem.c_str(),
+      bodySlot, bodyStem.empty() ? "-" : bodyStem.c_str(),
+      headStem.empty() ? "-" : headStem.c_str(),
+      skinRefs, skinFamilies, usedSlots.size(),
+      slot0Name.empty() ? "-" : slot0Name.c_str(), slot0Vmt.empty() ? "-" : slot0Vmt.c_str(),
+      slot0Vtf.empty() ? "-" : slot0Vtf.c_str(), slot0Resolved ? 1 : 0);
+  }
+  std::fprintf(stdout,
+    "player-model-audit summary classes=%zu resolved=%zu renderable=%zu companionsComplete=%zu "
+    "lodCountKnown=%zu vvdLodsMin=%zu vvdLodsMax=%zu vtxLodsMin=%zu vtxLodsMax=%zu "
+    "lod0Truncated=%zu lod0LostTotal=%lld lod0SkippedTotal=%zu "
+    "classesWithPaint=%zu productPaintedSlots=%zu paintedFamiliesMin=%zu distinctPaintedStemsMin=%zu headOnBodyClasses=%zu "
+    "redBluDistinctSlotsTotal=%zu slot0Resolved=%zu\n",
+    table.size(), resolvedClasses, renderableClasses, companionCompleteClasses, lodCountKnownClasses,
+    vvdLodsMin, vvdLodsMax, vtxLodsMin, vtxLodsMax, lod0TruncatedClasses, lod0LostTotal, lod0SkippedTotal,
+    classesWithPaint, productPaintedSlots,
+    paintedFamiliesMin == static_cast<std::size_t>(-1) ? 0 : paintedFamiliesMin,
+    distinctPaintedStemsMin == static_cast<std::size_t>(-1) ? 0 : distinctPaintedStemsMin,
+    headOnBodyClasses, redBluDistinctTotal,
+    slot0ResolvedClasses);
+  if (resolvedClasses != table.size()) {
+    std::fprintf(stderr, "player-model-audit FAIL %zu of %zu class models did not resolve\n", table.size() - resolvedClasses, table.size());
+    return 1;
+  }
+  if (renderableClasses != table.size()) {
+    std::fprintf(stderr, "player-model-audit FAIL %zu of %zu class models are not renderable\n",
+                 table.size() - renderableClasses, table.size());
+    return 1;
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
   std::string tfRoot;
   std::string demoPath;
@@ -1419,11 +1827,14 @@ int main(int argc, char** argv) {
   std::string classPropsFilter;
   std::string precacheFilter;
   std::string modelTexturePath;
+  std::string modelSlotsPath;
   bool weaponModelDump = false;
   bool animationPropsDump = false;
   bool historyStats = false;
   std::size_t historyCoverageSamples = 0;
   bool renderedOrigins = false;
+  bool playerModelAudit = false;
+  std::string classTablePath;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--self-test") selfTest = true;
@@ -1432,6 +1843,7 @@ int main(int argc, char** argv) {
     else if (arg == "--dump-class-props" && i + 1 < argc) classPropsFilter = argv[++i];
     else if (arg == "--dump-precache" && i + 1 < argc) precacheFilter = argv[++i];
     else if (arg == "--dump-model-textures" && i + 1 < argc) modelTexturePath = argv[++i];
+    else if (arg == "--dump-model-slots" && i + 1 < argc) modelSlotsPath = argv[++i];
     else if (arg == "--dump-weapon-models") weaponModelDump = true;
     else if (arg == "--anim-props") animationPropsDump = true;
     else if (arg == "--history-stats") historyStats = true;
@@ -1446,8 +1858,14 @@ int main(int argc, char** argv) {
     else if (arg == "--trajectory" && i + 1 < argc) trajectoryTicks = std::strtoul(argv[++i], nullptr, 10);
     else if (arg == "--trajectory-dump") trajectoryDump = true;
     else if (arg == "--trajectory-at" && i + 1 < argc) parseTickList(argv[++i], trajectoryAt);
+    else if (arg == "--player-model-audit") playerModelAudit = true;
+    else if (arg == "--class-table" && i + 1 < argc) classTablePath = argv[++i];
   }
   if (selfTest && !runSelfTest()) return fail("self-test failed");
+  if (playerModelAudit) {
+    if (tfRoot.empty()) return fail("--player-model-audit needs --tf-root");
+    return runPlayerModelAudit(tfRoot, classTablePath);
+  }
 
   std::size_t uniqueRenderable = 0;
   std::size_t vpkRenderable = 0;
@@ -1523,6 +1941,72 @@ int main(int argc, char** argv) {
     // reach for a model is exactly this list, each entry a material path stem
     // under `materials/`, and no other mode of this probe prints it. Silent
     // unless the flag is passed, so no existing consumer of this output moves.
+    // Dump the material-slot chain of one named model: the texture table, the
+    // skin family table, the per-mesh material index, and the LOD0 descriptor
+    // slot mapping for red (0) and blu (1). T60/B rests on this: "which texture
+    // do these triangles get" has one answer per team, and printing the skinref
+    // table beside the mesh table is what makes the answer checkable instead of
+    // asserted.
+    if (!modelSlotsPath.empty()) {
+      tf2::native::AssetReference slotProbe;
+      slotProbe.entityIndex = 1;
+      slotProbe.hasModelPath = true;
+      slotProbe.modelPath = modelSlotsPath;
+      slotProbe.className = "CBaseAnimating";
+      const auto slotRequests = tf2::native::ModelLoader::buildRenderRequests(assets, {slotProbe}, nullptr, nullptr);
+      if (slotRequests.size() != 1 || !slotRequests[0].renderable) {
+        std::fprintf(stderr, "model-slots FAIL %s did not resolve to a renderable model\n", modelSlotsPath.c_str());
+        return 2;
+      }
+      const auto& slotMetadata = slotRequests[0].inspection.metadata;
+      const auto& skinTable = slotMetadata.skinFamilies;
+      std::fprintf(stdout,
+                   "model-slots path=%s textures=%u textureNames=%zu skinRefs=%u skinFamilies=%u available=%d reason=%s\n",
+                   modelSlotsPath.c_str(), slotMetadata.textureCount, slotMetadata.textureNames.size(),
+                   skinTable.skinRefCount, skinTable.skinFamilyCount, skinTable.available ? 1 : 0,
+                   skinTable.reason.empty() ? "-" : skinTable.reason.c_str());
+      for (std::size_t i = 0; i < slotMetadata.textureNames.size(); ++i) {
+        std::fprintf(stdout, "model-slot-texture slot=%zu name=%s\n", i, slotMetadata.textureNames[i].c_str());
+      }
+      const auto textureNameAt = [&](std::int32_t slot) -> std::string {
+        if (slot < 0 || static_cast<std::size_t>(slot) >= slotMetadata.textureNames.size()) return std::string("-");
+        return slotMetadata.textureNames[static_cast<std::size_t>(slot)];
+      };
+      if (skinTable.available) {
+        for (std::uint32_t family = 0; family < skinTable.skinFamilyCount && family < 2; ++family) {
+          for (std::uint32_t ref = 0; ref < skinTable.skinRefCount; ++ref) {
+            const std::int32_t slot = skinTable.textureSlotFor(family, static_cast<std::int32_t>(ref));
+            std::fprintf(stdout, "model-slot-skinref family=%u ref=%u textureSlot=%d name=%s\n",
+                         family, ref, slot, textureNameAt(slot).c_str());
+          }
+        }
+      }
+      const auto& materialTable = slotMetadata.meshMaterials;
+      if (materialTable.available) {
+        for (std::size_t bp = 0; bp < materialTable.slots.size(); ++bp) {
+          for (std::size_t model = 0; model < materialTable.slots[bp].size(); ++model) {
+            for (std::size_t mesh = 0; mesh < materialTable.slots[bp][model].size(); ++mesh) {
+              const std::int32_t material = materialTable.slots[bp][model][mesh];
+              std::fprintf(stdout, "model-slot-mesh bodyPart=%zu model=%zu mesh=%zu material=%d textureName=%s\n",
+                           bp, model, mesh, material, textureNameAt(material).c_str());
+            }
+          }
+        }
+      }
+      for (const auto& descriptor : slotMetadata.indices) {
+        if (descriptor.lod != 0) continue;
+        const std::int32_t material = materialTable.available
+          ? materialTable.slotFor(descriptor.bodyPart, descriptor.model, descriptor.mesh) : -1;
+        const std::int32_t redSlot = skinTable.available ? skinTable.textureSlotFor(0, material) : -1;
+        const std::int32_t bluSlot = skinTable.available ? skinTable.textureSlotFor(1, material) : -1;
+        std::fprintf(stdout,
+                     "model-slot-descriptor lod0 bodyPart=%u model=%u mesh=%u renderIndexCount=%u material=%d "
+                     "redSlot=%d redName=%s bluSlot=%d bluName=%s\n",
+                     descriptor.bodyPart, descriptor.model, descriptor.mesh, descriptor.renderIndexCount,
+                     material, redSlot, textureNameAt(redSlot).c_str(), bluSlot, textureNameAt(bluSlot).c_str());
+      }
+      return 0;
+    }
     if (!modelTexturePath.empty()) {
       const auto readResource = [&](const std::string& resource) -> std::vector<std::uint8_t> {
         std::vector<std::filesystem::path> resourceHolders;

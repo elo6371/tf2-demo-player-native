@@ -16,6 +16,12 @@ struct VmtMaterial {
   std::string shader;
   std::unordered_map<std::string, std::string> fields;
   std::string baseTexture;
+  // Some TF2 shaders (EyeRefract) declare their base texture only inside a
+  // nested DX8 fallback block, e.g. "Eyes_dx8" { "$basetexture" ... }, and
+  // leave the root key empty. Kept as a separate field so the world pass still
+  // reads exactly the root key it read before; the model material resolver
+  // follows the fallback when the root key is absent.
+  std::string fallbackBaseTexture;
   std::string baseTexture2;
   // T12: `$blendmodulatetexture` is the mask that reshapes the vertex-alpha
   // blend between `$basetexture` and `$basetexture2`. In the SDK's
