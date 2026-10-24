@@ -1,0 +1,4 @@
+=== build minimap_probe ===
+D:\TF2_Native_Worktrees\t69-minimap\native\src\minimap.cpp(116): warning C4189: “tieWithSmallerIndex”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t69-minimap\native\src\minimap.cpp(115): warning C4189: “closer”: 局部变量已初始化但不引用
+rc=0
