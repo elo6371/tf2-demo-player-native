@@ -15,6 +15,9 @@
 #include "effects_timeline.h"
 #include "playback_hud.h"
 #include "model_loader.h"
+// T60: the one material-slot resolver the audit probe also calls, so the pixels
+// and the published reading cannot disagree.
+#include "material_slot_resolution.h"
 #include "viewmodel.h"
 #include "entity_model.h"
 #include "entity_overlay.h"
@@ -157,6 +160,7 @@ int runLifecycle(LifecycleRequest& request) {
 #include <vector>
 #include <memory>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -3696,6 +3700,10 @@ bool outlineVertexExtent = false;
     std::string path;
     std::string cacheKey;
     std::vector<tf2::native::ModelDrawVertex> vertices;
+    // T60: one draw run per mesh material slot, in bind-pose vertex order. The
+    // renderer binds one texture per run; without this a model with six meshes
+    // and four materials is one draw with one texture.
+    std::vector<tf2::native::ModelMeshMaterialRun> runs;
     // Paint resolution for this model, filled from its MDL texture table. The
     // empty materialVtfPath means the model ships no readable main texture and
     // the draw loop keeps the world atlas for its instances.
@@ -3705,6 +3713,20 @@ bool outlineVertexExtent = false;
     std::string materialVtfPath;
     std::size_t textureSlots = 0;
     std::size_t textureNamesRead = 0;
+    // T60: the tables the paint path needs after the loader's metadata is gone.
+    // A copy, not a reference: the request's metadata is consumed when its
+    // vertices are moved out.
+    tf2::native::ModelMetadata::SkinFamilyTable skinFamilies;
+    std::vector<std::vector<std::string>> textureCandidates;
+    // One entry per (material slot, skin family) whose VMT+VTF read. The upload
+    // stage decodes these one at a time; the renderer keys them by the pair.
+    struct PaintedSlot {
+      std::uint32_t materialSlot = 0;
+      std::uint32_t skinFamily = 0;
+      std::string vmtPath;
+      std::string vtfPath;
+    };
+    std::vector<PaintedSlot> paintedSlots;
   };
   std::vector<PreparedEntityMesh> preparedEntityMeshes;
   // The overlay's own bind-pose player meshes. Separate list so the world pass's
@@ -3715,6 +3737,9 @@ bool outlineVertexExtent = false;
   // readable VTF, and how many of those became a GPU texture.
   std::size_t entityMaterialResolvedModels = 0;
   std::size_t entityMaterialUploadedModels = 0;
+  // T60: how many (model, material slot, skin family) textures actually reached
+  // the GPU. The reading that replaced "1" -- the single slot-0 paint.
+  std::size_t entityPaintedSlotCount = 0;
   // One flag per prepared mesh, in the same order, so --dump-entity-materials
   // can say which models reached a GPU texture and which did not.
   std::vector<char> entityMaterialUploadFlags;
@@ -3746,6 +3771,16 @@ bool outlineVertexExtent = false;
       prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
       prepared.textureSlots = request.inspection.metadata.textureCount;
       prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
+      // T60: the runs are the model's own slot layout. A model whose mesh table
+      // cannot be decoded is skipped WITH a reason -- guessing slot 0 for it is
+      // the defect this round removes.
+      std::string runsError;
+      if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs, runsError)) {
+        traceFmt("gpu: entity mesh skipped path=%s reason=%s", request.modelPath.c_str(), runsError.c_str());
+        continue;
+      }
+      prepared.skinFamilies = request.inspection.metadata.skinFamilies;
+      prepared.textureCandidates = request.inspection.metadata.textureCandidates;
       if (!request.inspection.metadata.textureCandidates.empty()) {
         prepared.materialCandidates = request.inspection.metadata.textureCandidates.front();
       }
@@ -5000,27 +5035,52 @@ bool outlineVertexExtent = false;
         displayHeight = texture.header().height;
       }
     }
-    // Entity model paint, stage one: walk each prepared model's candidate list
-    // for its first slot -- a bare stem carries one entry per `$cdmaterials`
-    // directory -- and keep the first one whose VMT parses and whose VTF reads.
+    // Entity model paint, stage one: resolve every material slot the model's
+    // LOD0 runs actually use, for BOTH skin families. The slot comes from the
+    // mesh table (bodyPart, model, mesh -> material slot), then the skin family
+    // table maps it to the texture slot for red (family 0) and blu (family 1).
+    // This replaces the "first candidate of slot 0" guess that painted all nine
+    // classes with their slot-0 texture -- for heavy and spy that slot is the
+    // HEAD, so the body wore a head.
+    //
     // The pixels stay unread here; reloadGpuResources decodes and uploads one
     // model at a time so the RGBA buffers are not all alive at once.
+    const auto paintRead = [&assetChain](const std::string& resource) {
+      return assetChain.lookup(resource).bytes;
+    };
     for (auto& prepared : preparedEntityMeshes) {
-      for (const auto& candidate : prepared.materialCandidates) {
-        if (candidate.empty()) continue;
-        const std::string preparedVmtPath = tf2::native::VmtParser::resourcePath(candidate, ".vmt");
-        auto preparedVmt = assetChain.lookup(preparedVmtPath).bytes;
-        if (preparedVmt.empty()) continue;
-        tf2::native::VmtMaterial preparedMaterial;
-        if (!tf2::native::VmtParser::parse(std::string(preparedVmt.begin(), preparedVmt.end()), preparedMaterial)
-            || preparedMaterial.baseTexture.empty()) continue;
-        const auto preparedVtfPath = tf2::native::VmtParser::resourcePath(preparedMaterial.baseTexture, ".vtf");
-        if (readMaterialVtf(preparedVtfPath).empty()) continue;
-        prepared.materialName = candidate;
-        prepared.materialVmtPath = preparedVmtPath;
-        prepared.materialVtfPath = preparedVtfPath;
+      if (!prepared.skinFamilies.available) {
+        traceFmt("gpu: entity paint skipped path=%s reason=skin family table unavailable: %s",
+          prepared.path.c_str(), prepared.skinFamilies.reason.c_str());
+        continue;
+      }
+      std::set<std::uint32_t> slots;
+      for (const auto& run : prepared.runs) slots.insert(run.materialSlot);
+      for (const auto family : {0u, 1u}) {
+        for (const auto slot : slots) {
+          tf2::native::MaterialSlotResolution resolution;
+          if (!tf2::native::resolveMaterialSlot(prepared.skinFamilies, prepared.textureCandidates,
+                family, static_cast<std::int32_t>(slot), paintRead, resolution)) {
+            traceFmt("gpu: entity paint unresolved path=%s family=%u slot=%u reason=%s",
+              prepared.path.c_str(), family, slot, resolution.reason.c_str());
+            continue;
+          }
+          PreparedEntityMesh::PaintedSlot painted;
+          painted.materialSlot = slot;
+          painted.skinFamily = family;
+          painted.vmtPath = resolution.vmtPath;
+          painted.vtfPath = resolution.vtfPath;
+          prepared.paintedSlots.push_back(std::move(painted));
+        }
+      }
+      if (!prepared.paintedSlots.empty()) {
+        // Keep the slot-0 fields meaningful for the dump/title readers that still
+        // look at them; the draw path uses paintedSlots, not these.
+        prepared.materialName = prepared.textureCandidates.empty() || prepared.textureCandidates.front().empty()
+          ? std::string() : prepared.textureCandidates.front().front();
+        prepared.materialVmtPath = prepared.paintedSlots.front().vmtPath;
+        prepared.materialVtfPath = prepared.paintedSlots.front().vtfPath;
         ++entityMaterialResolvedModels;
-        break;
       }
     }
   }
@@ -5445,6 +5505,7 @@ bool outlineVertexExtent = false;
       + L" entityMaterials=" + std::to_wstring(renderer.entityModelTexturedInstanceCount()) + L"/" + std::to_wstring(renderer.entityModelInstanceCount())
       + L" entityMaterialRanges=" + std::to_wstring(renderer.entityModelTexturedRangeCount()) + L"/" + std::to_wstring(renderer.entityModelDrawRangeCount())
       + L" entityMaterialModels=" + std::to_wstring(entityMaterialUploadedModels) + L"/" + std::to_wstring(preparedEntityMeshes.size())
+      + L" entityPaintedSlots=" + std::to_wstring(entityPaintedSlotCount)
       // Animation, stated as the readings a gate can assert from outside the
       // process: how many instances actually got a pose, how many bones went to
       // the GPU, and -- when none did -- which model and which reason.
@@ -6408,30 +6469,41 @@ bool outlineVertexExtent = false;
     for (std::size_t preparedIndex = 0; preparedIndex < preparedEntityMeshes.size(); ++preparedIndex) {
       const double modelBeginMs = traceNowMs();
       const auto& prepared = preparedEntityMeshes[preparedIndex];
-      renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices);
-      if (prepared.materialVtfPath.empty()) continue;
-      // Stage two of the paint path: decode one model at a time so only one
-      // RGBA buffer is alive, then hand it to the renderer as that model's t0.
-      const auto& preparedVtf = readMaterialVtf(prepared.materialVtfPath);
-      tf2::native::VtfTexture preparedTexture;
-      std::vector<std::uint8_t> preparedRgba;
-      if (preparedVtf.empty() || !preparedTexture.parse(preparedVtf)
-          || (preparedRgba = preparedTexture.decodeRgba(preparedVtf)).empty()) {
-        traceFmt("gpu: model %zu/%zu decode-failed %.1fms %s", preparedIndex,
-          preparedEntityMeshes.size(), traceNowMs() - modelBeginMs, prepared.materialVtfPath.c_str());
+      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs)) {
+        traceFmt("gpu: model %zu/%zu mesh-refused key=%s lastError=0x%08lX", preparedIndex,
+          preparedEntityMeshes.size(), prepared.cacheKey.c_str(),
+          static_cast<unsigned long>(renderer.lastError()));
         continue;
       }
-      const UINT preparedWidth = preparedTexture.header().width;
-      const UINT preparedHeight = preparedTexture.header().height;
-      const bool textureUploaded =
-        renderer.uploadEntityModelTexture(prepared.cacheKey, preparedRgba, preparedWidth, preparedHeight);
-      if (textureUploaded) {
+      // Stage two of the paint path: decode one (slot, family) at a time so only
+      // one RGBA buffer is alive, then hand it to the renderer keyed by the pair.
+      std::size_t preparedPainted = 0;
+      for (const auto& painted : prepared.paintedSlots) {
+        const auto& preparedVtf = readMaterialVtf(painted.vtfPath);
+        tf2::native::VtfTexture preparedTexture;
+        std::vector<std::uint8_t> preparedRgba;
+        if (preparedVtf.empty() || !preparedTexture.parse(preparedVtf)
+            || (preparedRgba = preparedTexture.decodeRgba(preparedVtf)).empty()) {
+          traceFmt("gpu: model %zu/%zu slot=%u family=%u decode-failed %.1fms %s", preparedIndex,
+            preparedEntityMeshes.size(), painted.materialSlot, painted.skinFamily,
+            traceNowMs() - modelBeginMs, painted.vtfPath.c_str());
+          continue;
+        }
+        const UINT preparedWidth = preparedTexture.header().width;
+        const UINT preparedHeight = preparedTexture.header().height;
+        if (renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
+              preparedRgba, preparedWidth, preparedHeight)) {
+          ++preparedPainted;
+        }
+      }
+      if (preparedPainted > 0) {
         ++entityMaterialUploadedModels;
         entityMaterialUploadFlags[preparedIndex] = 1;
       }
-      traceFmt("gpu: model %zu/%zu %ux%u %.1fms uploaded=%d", preparedIndex,
-        preparedEntityMeshes.size(), preparedWidth, preparedHeight, traceNowMs() - modelBeginMs,
-        textureUploaded ? 1 : 0);
+      entityPaintedSlotCount += preparedPainted;
+      traceFmt("gpu: model %zu/%zu slots=%zu painted=%zu %.1fms", preparedIndex,
+        preparedEntityMeshes.size(), prepared.paintedSlots.size(), preparedPainted,
+        traceNowMs() - modelBeginMs);
     }
     traceFmt("gpu: models done %zu uploaded=%zu", preparedEntityMeshes.size(),
       entityMaterialUploadedModels);
@@ -7699,18 +7771,26 @@ bool outlineVertexExtent = false;
     if (!materialDump) {
       OutputDebugStringW(L"TF2 Demo Player: cannot open --dump-entity-materials.\n");
     } else {
-      materialDump << "path\tcacheKey\tslots\tnamesRead\tmaterialName\tvmt\tvtf\tresolved\tuploaded\n";
+      // T60: the per-slot account. One row per model, then one row per painted
+      // (material slot, skin family) so "which slots got paint" is a reading and
+      // not an inference from a count.
+      materialDump << "path\tcacheKey\tslots\tnamesRead\truns\tpaintedSlots\tresolved\tuploaded\n";
       for (std::size_t index = 0; index < preparedEntityMeshes.size(); ++index) {
         const auto& prepared = preparedEntityMeshes[index];
         const bool uploaded = index < entityMaterialUploadFlags.size() && entityMaterialUploadFlags[index] != 0;
         materialDump << prepared.path << '\t' << prepared.cacheKey << '\t' << prepared.textureSlots << '\t'
-          << prepared.textureNamesRead << '\t' << prepared.materialName << '\t' << prepared.materialVmtPath << '\t'
-          << prepared.materialVtfPath << '\t' << (prepared.materialVtfPath.empty() ? 0 : 1) << '\t'
-          << (uploaded ? 1 : 0) << '\n';
+          << prepared.textureNamesRead << '\t' << prepared.runs.size() << '\t' << prepared.paintedSlots.size()
+          << '\t' << (prepared.paintedSlots.empty() ? 0 : 1) << '\t' << (uploaded ? 1 : 0) << '\n';
+        for (const auto& painted : prepared.paintedSlots) {
+          materialDump << "# slot model=" << prepared.path << " materialSlot=" << painted.materialSlot
+            << " skinFamily=" << painted.skinFamily << " vmt=" << painted.vmtPath
+            << " vtf=" << painted.vtfPath << '\n';
+        }
       }
       materialDump << "# summary models=" << preparedEntityMeshes.size()
         << " resolved=" << entityMaterialResolvedModels
-        << " uploaded=" << entityMaterialUploadedModels << '\n';
+        << " uploaded=" << entityMaterialUploadedModels
+        << " paintedSlots=" << entityPaintedSlotCount << '\n';
     }
   }
   if (hiddenWindow) {
@@ -8457,6 +8537,10 @@ bool outlineVertexExtent = false;
             } else {
               draw.color[0] = 0.72f; draw.color[1] = 0.74f; draw.color[2] = 0.70f; draw.color[3] = 1.0f;
             }
+            // T60: the skin family is the paint index, not a tint. Family 0 is
+            // red and family 1 is blu in every class model's table; an entity
+            // whose team is unknown keeps family 0 rather than a colour average.
+            draw.skinFamily = (instance.transform.hasTeam && instance.transform.team == 3) ? 1u : 0u;
             // Animation, when this entity has a sequence and the model has a
             // table to look it up in. Anything short of a complete pose leaves
             // the instance in the bind-pose path and records why.

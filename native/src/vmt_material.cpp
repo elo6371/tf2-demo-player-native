@@ -98,6 +98,17 @@ bool VmtParser::parse(const std::string& text, VmtMaterial& material) {
   if (!readObject(tokens, cursor, root, material.error)) return false;
   for (const auto& [key, value] : root) if (!value.object) material.fields[key] = value.text;
   material.baseTexture = scalar(root, "$basetexture");
+  // `EyeRefract` VMTs (the shared eyeball materials) name their base texture
+  // only in a nested `Eyes_dx8` fallback block. Reading the root key alone
+  // leaves them textureless, which used to make the model resolver drop the
+  // eyeball meshes. Follow the fallback block; the world pass keeps reading
+  // `baseTexture` and is unaffected.
+  if (material.baseTexture.empty()) {
+    const auto fallback = root.find("eyes_dx8");
+    if (fallback != root.end() && fallback->second.object) {
+      material.fallbackBaseTexture = scalar(fallback->second.fields, "$basetexture");
+    }
+  }
   material.baseTexture2 = scalar(root, "$basetexture2");
   material.blendModulateTexture = scalar(root, "$blendmodulatetexture");
   material.bumpMap = scalar(root, "$bumpmap");

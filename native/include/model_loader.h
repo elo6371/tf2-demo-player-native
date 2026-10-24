@@ -127,6 +127,32 @@ struct ModelVertex {
   std::uint8_t boneCount = 0;
 };
 
+// One contiguous run of the de-indexed LOD0 vertex list, tied back to the MDL
+// mesh it came from. The renderer needs this to paint per material slot: a
+// vertex range's material is the slot of the (bodyPart, model, mesh) triple it
+// was decoded from, and the triple is the only key the mesh-material table
+// accepts. Ranges are emitted in the same order the vertices were pushed, so
+// vertexStart is exact and the ranges tile the vertex list with no gaps.
+struct ModelBindPoseRange {
+  std::uint32_t bodyPart = 0;
+  std::uint32_t model = 0;
+  std::uint32_t mesh = 0;
+  std::uint32_t lod = 0;
+  std::uint32_t vertexStart = 0;
+  std::uint32_t vertexCount = 0;
+};
+
+// One contiguous run of the de-indexed LOD0 vertex list that shares one mesh
+// material slot. Built from ModelBindPoseRange (which mesh a run came from) and
+// ModelMeshMaterialTable (which slot that mesh uses); consecutive ranges with the
+// same slot are merged so a model with six strip groups and four materials is
+// four draws, not six. The renderer binds one texture per run.
+struct ModelMeshMaterialRun {
+  std::uint32_t vertexStart = 0;
+  std::uint32_t vertexCount = 0;
+  std::uint32_t materialSlot = 0;
+};
+
 struct ModelDrawVertex {
   std::array<float, 3> position{};
   std::array<float, 3> normal{};
@@ -288,6 +314,35 @@ struct ModelMetadata {
   // `available=false` is a real state -- a consumer then has to say which slot it
   // guessed instead of reporting an unearned slot number.
   ModelMeshMaterialTable meshMaterials;
+  // The MDL skin family table: which texture slot each mesh material slot becomes
+  // for a given team. Words 220/224/228 of the studio header (numskinref /
+  // numskinfamilies / skinindex) and a numskinfamilies x numskinref table of
+  // int16 texture slots. Without this table a consumer can only ever paint the
+  // texture of one slot -- which is what the entity pass did before T60.
+  struct SkinFamilyTable {
+    bool available = false;
+    std::string reason;
+    std::uint32_t skinRefCount = 0;
+    std::uint32_t skinFamilyCount = 0;
+    // [family][skinRef] -> MDL texture slot; -1 for an unreadable entry.
+    std::vector<std::vector<std::int32_t>> families;
+    std::int32_t textureSlotFor(std::uint32_t family, std::int32_t skinRef) const {
+      if (skinRef < 0 || family >= families.size()) return -1;
+      if (static_cast<std::size_t>(skinRef) >= families[family].size()) return -1;
+      return families[family][static_cast<std::size_t>(skinRef)];
+    }
+  } skinFamilies;
+  // The bind-pose LOD0 vertex runs, in the same order the vertices were pushed.
+  // Filled by buildBindPoseMeshLod0 (always, not only when a caller asks).
+  std::vector<ModelBindPoseRange> bindPoseRanges;
+  // The vertex budget buildBindPoseMeshLod0 derived for this model: the sum of
+  // the in-bounds LOD0 descriptors' renderIndexCount. Published so a consumer can
+  // compare built against it instead of against a constant.
+  std::size_t bindPoseLod0Budget = 0;
+  // Render indices that could not become vertices (out-of-bounds index, invalid
+  // weights). A non-zero value means lod0Built < budget for a reason other than
+  // truncation; it is published separately so the two cannot be confused.
+  std::size_t bindPoseLod0Skipped = 0;
   std::vector<std::string> diagnostics;
 };
 
@@ -351,6 +406,21 @@ struct ModelRenderRequestStats {
   std::size_t archiveOpens = 0;
 };
 
+// The bind-pose LOD0 budget is DERIVED PER MODEL, not a constant.
+//
+// T57 measured the old fixed 12000-vertex cap truncating all nine player models
+// (603..20724 render indices lost) and T60 replaced it: buildBindPoseMeshLod0 now
+// counts the render indices of the LOD0 descriptors this model actually has and
+// allocates exactly that many vertices. A constant -- 12000, 34000, or anything
+// else -- is a budget for some other model, and a value that lands exactly on it
+// is indistinguishable from a fit. The derived budget is published as
+// ModelMetadata::bindPoseLod0Budget so callers can compare built against it.
+//
+// Cost at the largest measured model (engineer, 32724 LOD0 indices):
+// ModelDrawVertex and EntityModelGpuVertex are 48 bytes each, so ~1.57 MB CPU +
+// ~1.57 MB GPU per model, ~151 MB at the 96-model upload cap. That is the price
+// of drawing the model the file describes instead of the first 12000 vertices.
+
 class ModelLoader final {
 public:
   static ModelAssetCandidate resolveAsset(const AssetRoot& root, const std::string& modelPath);
@@ -369,7 +439,16 @@ public:
   static bool buildModelMeshDataAll(const ModelInspection& inspection,
     ModelMeshData& mesh, std::string& error);
   static bool buildBindPoseMesh(ModelMetadata& metadata, std::size_t descriptorIndex, std::string& error);
-  static bool buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error, std::size_t maxVertices = 12000);
+  // De-indexes the LOD0 meshes into ModelDrawVertex order. The budget is this
+  // model's own LOD0 render-index count; there is no caller-supplied cap and no
+  // constant to tune. Fills metadata.bindPoseRanges and metadata.bindPoseLod0Budget.
+  static bool buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error);
+  // Groups metadata.bindPoseRanges into per-material runs using
+  // metadata.meshMaterials. Returns false with a reason when the table is
+  // unavailable or the runs do not tile the vertex list -- a caller that cannot
+  // split must say so rather than silently paint the whole model with one slot.
+  static bool buildMaterialRuns(const ModelMetadata& metadata, std::vector<ModelMeshMaterialRun>& runs,
+    std::string& error);
   static bool cpuSkinVertexReference(const ModelMetadata& metadata, const ModelDrawVertex& vertex,
     std::array<float, 3>& outputPosition, std::string& error);
 };

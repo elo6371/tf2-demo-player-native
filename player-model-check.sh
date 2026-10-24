@@ -1,45 +1,42 @@
 #!/usr/bin/env bash
-# player-model-check.sh -- T57: the nine class models exist, load, and every
-# sampled player entity resolves to one. Defects are PUBLISHED, not judged.
+# player-model-check.sh -- T60: the player-model gate.
 #
-# WHY THIS GATE IS AN AUDIT AND NOT A VERDICT
-# -------------------------------------------
-# The T57 round measured three defects in the player-model chain:
-#   1. the 12000-vertex budget truncates every class model's LOD0
-#      (model_loader.cpp buildBindPoseMeshLod0 breaks at the cap, so the tail of
-#      the bodypart list is never built);
-#   2. the world pass binds one material -- textureCandidates.front(), slot 0 --
-#      to a model that declares 8..31 slots (main.cpp), so every class is painted
-#      with its slot-0 texture regardless of team or bodypart;
-#   3. on the recorded demos a player entity may carry no m_nModelIndex and no
-#      usable m_iClass, in which case it can only become a marker.
-# None of those is fixed by this round. A gate that ASSERTED "not truncated /
-# not slot0 / every entity has a model" would therefore be red on a tree that is
-# working exactly as intended, and the first response to a red gate is to weaken
-# it. So the split is explicit:
-#   * SUBJECT EXISTENCE is asserted. Nine class models must resolve, be
-#     renderable with their companion set complete, report a LOD count, and the
-#     demos must sample players whose model resolves. If the subject is missing
-#     the gate is red, because then nothing below it was measured.
-#   * THE THREE DEFECTS are published as named readings with their counts. The
-#     T60 fix gate turns them into assertions, and at that point the mutations
-#     that make them red already exist (this gate's negative controls prove the
-#     reading path can go red).
+# WHAT THIS GATE IS NOW
+# ---------------------
+# T57 published three defects as readings and asserted only that the subject
+# (nine class models) existed. T60 fixes them, so the readings become
+# assertions, and the four negative controls that prove the reading path can go
+# red run FIRST -- a forward assertion is only worth its green if the probe
+# behind it has been shown to fail with a named reason.
 #
-# NEGATIVE CONTROLS
-# -----------------
-# A reading that cannot fail is not a reading. Four controls run by default and
-# each must fail with a NAMED reason:
+#   A. LOD0 is not truncated: the vertex budget is derived from each model's own
+#      LOD0 render-index count, so lod0Budget == lod0RenderIndices,
+#      lod0Built == lod0RenderIndices, lod0Lost == 0 and lod0Truncated == 0 for
+#      all nine classes.
+#   B. Paint is per material slot and per skin family: every LOD0 material slot
+#      resolves for red (family 0) and blu (family 1), paintedSlots is
+#      2 x lod0MaterialSlots, the dominant body run is not a *_head texture, and
+#      productPaintedSlots is the sum over the classes -- not the single slot-0
+#      paint T57 measured.
+#   C. The animation source is the separate <class>_animations.mdl: every class
+#      reports separateAnimSource=1, a sequence count in the hundreds, and a path
+#      ending in _animations.mdl (not _user_animations.mdl).
+#
+# NEGATIVE CONTROLS (first, each must fail with a NAMED reason)
 #   * a tf root with no *_dir.vpk         -> "tf-root is not a valid AssetRoot"
 #   * a file that is not a demo           -> "the demo header did not parse"
 #   * a class table with eight rows       -> "class-table entries=8 expected=9"
 #   * a class table naming a missing mdl  -> "class models did not resolve"
-# If a control fails for the wrong reason, or does not fail at all, the gate is
-# red: that is the one assertion here that is about the gate itself.
+#
+# BINARY FRESHNESS
+#   The probes are prebuilt. A probe older than the sources it reads would
+#   publish the previous tree's numbers under this tree's label, so the gate
+#   prints BINARY-FRESH=1 only when each exe is newer than every source file,
+#   and fails with STALE-BINARY=1 otherwise.
 #
 # Usage: bash player-model-check.sh [--skip-negative-controls]
-# Exit:  0 = every existence assertion held, every defect reading was produced,
-#            and every negative control failed with its named reason.
+# Exit:  0 = negative controls failed with their named reasons AND every forward
+#            assertion held.
 #        1 = one of those did not hold.
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -78,6 +75,18 @@ assert_ge() { # assert_ge <label> <actual> <minimum>
     echo "  FAIL $1 = ${2:-<none>}, expected >= $3"; fail=1
   fi
 }
+assert_contains() { # assert_contains <label> <haystack> <needle>
+  case "${2:-}" in
+    *"$3"*) echo "  OK   $1 contains $3" ;;
+    *) echo "  FAIL $1 = ${2:-<none>}, expected to contain $3"; fail=1 ;;
+  esac
+}
+assert_not_contains() { # assert_not_contains <label> <haystack> <needle>
+  case "${2:-}" in
+    *"$3"*) echo "  FAIL $1 = ${2:-<none>}, must not contain $3"; fail=1 ;;
+    *) echo "  OK   $1 does not contain $3" ;;
+  esac
+}
 field() { # field <line> <name> -> value of the first "name=value" token
   local line="$1" name="$2" rest
   case "$line" in
@@ -92,82 +101,40 @@ for path in "$PROBE" "$OVERLAY" "$ROBUST" "$TF" "$BAGEL" "$SNAKEWATER"; do
 done
 
 # ===========================================================================
-echo "=== 1/4 nine class models resolve, are renderable, and report a LOD count ==="
-AUDIT="$OUT/player-model-audit.txt"
-"$PROBE" --tf-root "$TF" --player-model-audit > "$AUDIT" 2>&1
-AUDIT_RC=$?
-echo "  audit rc=$AUDIT_RC (log $AUDIT)"
-ROWS=$(grep -c '^player-model class=' "$AUDIT" 2>/dev/null || echo 0)
-assert_eq "class rows" "$ROWS" "9"
-
-SUMMARY=$(grep '^player-model-audit summary ' "$AUDIT" | head -1)
-assert_eq "audit exit" "$AUDIT_RC" "0"
-for f in classes resolved renderable companionsComplete lodCountKnown; do
-  assert_eq "summary $f" "$(field "$SUMMARY" "$f")" "9"
+echo "=== 0/4 binary freshness: each probe is newer than every input it compiles ==="
+# The dependency set is derived from CMake's own DependInfo for the target, not
+# hand-written: native/src holds translation units that only some tools compile
+# (entity_overlay_probe does not compile model_loader.cpp), so comparing every
+# exe against every shared source reported a stale binary for a file the exe
+# never reads. Header dependencies are untracked by the build, so
+# build-target.sh touches every source when any header under native/include,
+# native/src, native/tools or native/third_party is newer than .headers-stamp;
+# a fresh binary must therefore also be newer than all of those headers.
+for pair in "probe:$PROBE:entity_model_probe" "overlay:$OVERLAY:entity_overlay_probe" "robust:$ROBUST:model_robustness_probe"; do
+  label="${pair%%:*}"; rest="${pair#*:}"; exe="${rest%%:*}"; target="${rest#*:}"
+  deps="native/build-nmake/CMakeFiles/$target.dir/DependInfo.cmake"
+  if [ ! -f "$deps" ]; then
+    echo "  FAIL STALE-BINARY=1 $label missing dependency list $deps"; fail=1; continue
+  fi
+  stale=""
+  while IFS= read -r src; do
+    [ -e "$src" ] || continue
+    if [ "$exe" -ot "$src" ]; then stale="$src"; fi
+  done < <(sed -n 's/^  "\(.*\)" "CMakeFiles.*/\1/p' "$deps")
+  if [ -z "$stale" ]; then
+    stale=$(find native/include native/src native/tools native/third_party -type f \( -name '*.h' -o -name '*.hpp' \) -newer "$exe" -print -quit 2>/dev/null)
+  fi
+  if [ -n "$stale" ]; then
+    echo "  FAIL STALE-BINARY=1 $label exe=$exe older than $stale"; fail=1
+  else
+    echo "  OK   BINARY-FRESH=1 $label exe=$(date -r "$exe" '+%Y-%m-%d %H:%M:%S')"
+  fi
 done
-assert_ge "vvdLodsMin" "$(field "$SUMMARY" vvdLodsMin)" 1
-assert_ge "vtxLodsMin" "$(field "$SUMMARY" vtxLodsMin)" 1
-
-echo
-echo "  --- published defect readings (not assertions; T60 turns these into assertions) ---"
-echo "  lod0Truncated=$(field "$SUMMARY" lod0Truncated) lod0LostTotal=$(field "$SUMMARY" lod0LostTotal)"
-echo "  productPaintedSlots=$(field "$SUMMARY" productPaintedSlots) slot0Resolved=$(field "$SUMMARY" slot0Resolved)"
-printf '  %-9s %-28s %-6s %-6s %-10s %-10s %-8s %-6s %-6s %-6s %s\n' class model bones seqs lod0Idx lod0Built lod0Lost slots skinRef skinFam slot0
-grep '^player-model class=' "$AUDIT" | while read -r line; do
-  printf '  %-9s %-28s %-6s %-6s %-10s %-10s %-8s %-6s %-6s %-6s %s\n' \
-    "$(field "$line" class)" "$(field "$line" path)" "$(field "$line" bones)" \
-    "$(field "$line" sequences)" "$(field "$line" lod0RenderIndices)" \
-    "$(field "$line" lod0Built)" "$(field "$line" lod0Lost)" \
-    "$(field "$line" slotsUsedByMeshes)" "$(field "$line" skinRefs)" "$(field "$line" skinFamilies)" \
-    "$(field "$line" slot0Resolved)"
-done
-
-# ===========================================================================
-echo
-echo "=== 2/4 each class's animation source resolves (separate _animations.mdl) ==="
-ANIM="$OUT/player-model-anim.txt"
-: > "$ANIM"
-ANIM_ROWS=0
-for mdl in scout sniper soldier demo medic heavy pyro spy engineer; do
-  line=$("$ROBUST" --tf-root "$TF" --model "models/player/$mdl.mdl" 2>&1 | grep '^robust model=' | head -1)
-  [ -n "$line" ] || { echo "  FAIL no robust line for models/player/$mdl.mdl"; fail=1; continue; }
-  ANIM_ROWS=$((ANIM_ROWS + 1))
-  echo "$line" >> "$ANIM"
-  printf '  %-9s bones=%-4s animInput=%-14s animPath=%-46s animSeqs=%-4s bindBones=%s\n' \
-    "$mdl" "$(field "$line" bones)" "$(field "$line" animationInput)" \
-    "$(field "$line" animPath)" "$(field "$line" animSeqs)" "$(field "$line" bindBones)"
-done
-assert_eq "animation rows" "$ANIM_ROWS" "9"
-
-# ===========================================================================
-echo
-echo "=== 3/4 sampled player entities resolve to a model (bagel 6 ticks + snakewater 1) ==="
-DEMO_LOG="$OUT/player-model-demo.txt"
-: > "$DEMO_LOG"
-"$OVERLAY" --demo "$BAGEL" --ticks "$BAGEL_TICKS" > "$OUT/player-model-demo-bagel.txt" 2>&1
-BAGEL_RC=$?
-cat "$OUT/player-model-demo-bagel.txt" >> "$DEMO_LOG"
-"$OVERLAY" --demo "$SNAKEWATER" --ticks "$SNAKEWATER_TICKS" > "$OUT/player-model-demo-snakewater.txt" 2>&1
-SW_RC=$?
-cat "$OUT/player-model-demo-snakewater.txt" >> "$DEMO_LOG"
-echo "  bagel rc=$BAGEL_RC snakewater rc=$SW_RC"
-assert_eq "bagel probe exit" "$BAGEL_RC" "0"
-assert_eq "snakewater probe exit" "$SW_RC" "0"
-
-for tag in bagel snakewater; do
-  line=$(grep '^demo models ' "$OUT/player-model-demo-$tag.txt" | head -1)
-  echo "  $tag: ${line:-<no demo models line>}"
-  assert_ge "$tag rows" "$(field "$line" rows)" 1
-  assert_ge "$tag withModel" "$(field "$line" withModel)" 1
-done
-echo "  --- published: entities that can only become a marker ---"
-grep -h '^demo models ' "$OUT"/player-model-demo-*.txt | sed 's/^/  /'
-grep -h '^demo class ' "$OUT"/player-model-demo-*.txt | sed 's/^/  /'
 
 # ===========================================================================
 if [ "$RUN_NEGATIVE" = "1" ]; then
   echo
-  echo "=== 4/4 negative controls: each must fail with its named reason ==="
+  echo "=== 1/4 negative controls: each must fail with its named reason ==="
   NEG="$OUT/negative"
   mkdir -p "$NEG/logs"
   # (a) a directory that is not a tf root: no *_dir.vpk, so AssetRoot is invalid.
@@ -224,9 +191,107 @@ TABLE
     "$PROBE" --tf-root "$TF" --player-model-audit --class-table "$NEG/class-table-missing-model.txt"
 fi
 
+# ===========================================================================
+echo
+echo "=== 2/4 nine class models: A LOD0 complete, B paint per slot and family ==="
+AUDIT="$OUT/player-model-audit.txt"
+"$PROBE" --tf-root "$TF" --player-model-audit > "$AUDIT" 2>&1
+AUDIT_RC=$?
+echo "  audit rc=$AUDIT_RC (log $AUDIT)"
+ROWS=$(grep -c '^player-model class=' "$AUDIT" 2>/dev/null || echo 0)
+assert_eq "class rows" "$ROWS" "9"
+SUMMARY=$(grep '^player-model-audit summary ' "$AUDIT" | head -1)
+assert_eq "audit exit" "$AUDIT_RC" "0"
+for f in classes resolved renderable companionsComplete lodCountKnown; do
+  assert_eq "summary $f" "$(field "$SUMMARY" "$f")" "9"
+done
+assert_ge "vvdLodsMin" "$(field "$SUMMARY" vvdLodsMin)" 1
+assert_ge "vtxLodsMin" "$(field "$SUMMARY" vtxLodsMin)" 1
+
+# --- A: no truncation, budget derived from the model -----------------------
+echo "  --- A: LOD0 budget is the model's own render-index count ---"
+assert_eq "A summary lod0Truncated" "$(field "$SUMMARY" lod0Truncated)" "0"
+assert_eq "A summary lod0LostTotal" "$(field "$SUMMARY" lod0LostTotal)" "0"
+assert_eq "A summary lod0SkippedTotal" "$(field "$SUMMARY" lod0SkippedTotal)" "0"
+PAINTED_SUM=0
+while read -r line; do
+  c=$(field "$line" class)
+  assert_eq "A $c lod0Budget" "$(field "$line" lod0Budget)" "$(field "$line" lod0RenderIndices)"
+  assert_eq "A $c lod0Built" "$(field "$line" lod0Built)" "$(field "$line" lod0RenderIndices)"
+  assert_eq "A $c lod0Lost" "$(field "$line" lod0Lost)" "0"
+  assert_eq "A $c lod0Skipped" "$(field "$line" lod0Skipped)" "0"
+done < <(grep '^player-model class=' "$AUDIT")
+
+# --- B: per-slot, per-family paint ----------------------------------------
+echo "  --- B: every LOD0 slot painted for red (0) and blu (1) ---"
+assert_eq "B summary classesWithPaint" "$(field "$SUMMARY" classesWithPaint)" "9"
+assert_eq "B summary paintedFamiliesMin" "$(field "$SUMMARY" paintedFamiliesMin)" "2"
+assert_ge "B summary distinctPaintedStemsMin" "$(field "$SUMMARY" distinctPaintedStemsMin)" 1
+assert_eq "B summary headOnBodyClasses" "$(field "$SUMMARY" headOnBodyClasses)" "0"
+while read -r line; do
+  c=$(field "$line" class)
+  slots=$(field "$line" lod0MaterialSlots)
+  assert_ge "B $c lod0MaterialSlots" "$slots" 1
+  assert_eq "B $c paintedSlots" "$(field "$line" paintedSlots)" "$(( slots * 2 ))"
+  assert_eq "B $c paintedFamilies" "$(field "$line" paintedFamilies)" "2"
+  assert_eq "B $c headOnBody" "$(field "$line" headOnBody)" "0"
+  assert_ge "B $c redBluDistinctSlots" "$(field "$line" redBluDistinctSlots)" 1
+  # The count that separates "one texture for the whole model" (the T57 defect:
+  # slot 0 painted everywhere) from a per-run bind: one texture per material slot.
+  assert_eq "B $c distinctPaintedStems" "$(field "$line" distinctPaintedStems)" "$slots"
+  PAINTED_SUM=$(( PAINTED_SUM + $(field "$line" paintedSlots) ))
+done < <(grep '^player-model class=' "$AUDIT")
+assert_eq "B summary productPaintedSlots" "$(field "$SUMMARY" productPaintedSlots)" "$PAINTED_SUM"
+assert_ge "B summary productPaintedSlots" "$(field "$SUMMARY" productPaintedSlots)" 18
+
+# ===========================================================================
+echo
+echo "=== 3/4 C: each class's animation source is the separate _animations.mdl ==="
+ANIM="$OUT/player-model-anim.txt"
+: > "$ANIM"
+ANIM_ROWS=0
+for mdl in scout sniper soldier demo medic heavy pyro spy engineer; do
+  line=$("$ROBUST" --tf-root "$TF" --model "models/player/$mdl.mdl" 2>&1 | grep '^robust model=' | head -1)
+  [ -n "$line" ] || { echo "  FAIL no robust line for models/player/$mdl.mdl"; fail=1; continue; }
+  ANIM_ROWS=$((ANIM_ROWS + 1))
+  echo "$line" >> "$ANIM"
+  printf '  %-9s bones=%-4s animInput=%-14s animPath=%-46s animSeqs=%-4s bindBones=%s\n' \
+    "$mdl" "$(field "$line" bones)" "$(field "$line" animationInput)" \
+    "$(field "$line" animPath)" "$(field "$line" animSeqs)" "$(field "$line" bindBones)"
+  assert_eq "C $mdl separateAnimSource" "$(field "$line" separateAnimSource)" "1"
+  assert_ge "C $mdl animSeqs" "$(field "$line" animSeqs)" 200
+  assert_contains "C $mdl animPath" "$(field "$line" animPath)" "_animations.mdl"
+  assert_not_contains "C $mdl animPath" "$(field "$line" animPath)" "_user_animations.mdl"
+  # The robust probe prints bindBones=<bones>/<materialized>; the second number
+  # must equal the first, i.e. every bind-pose bone was materialized.
+  assert_eq "C $mdl bindBones" "$(field "$line" bindBones)" "$(field "$line" bones)/$(field "$line" bones)"
+done
+assert_eq "animation rows" "$ANIM_ROWS" "9"
+
+# ===========================================================================
+echo
+echo "=== 4/4 sampled player entities resolve to a model (bagel 6 ticks + snakewater 1) ==="
+DEMO_LOG="$OUT/player-model-demo.txt"
+: > "$DEMO_LOG"
+"$OVERLAY" --demo "$BAGEL" --ticks "$BAGEL_TICKS" > "$OUT/player-model-demo-bagel.txt" 2>&1
+BAGEL_RC=$?
+cat "$OUT/player-model-demo-bagel.txt" >> "$DEMO_LOG"
+"$OVERLAY" --demo "$SNAKEWATER" --ticks "$SNAKEWATER_TICKS" > "$OUT/player-model-demo-snakewater.txt" 2>&1
+SW_RC=$?
+cat "$OUT/player-model-demo-snakewater.txt" >> "$DEMO_LOG"
+echo "  bagel rc=$BAGEL_RC snakewater rc=$SW_RC"
+assert_eq "bagel probe exit" "$BAGEL_RC" "0"
+assert_eq "snakewater probe exit" "$SW_RC" "0"
+for tag in bagel snakewater; do
+  line=$(grep '^demo models ' "$OUT/player-model-demo-$tag.txt" | head -1)
+  echo "  $tag: ${line:-<no demo models line>}"
+  assert_ge "$tag rows" "$(field "$line" rows)" 1
+  assert_ge "$tag withModel" "$(field "$line" withModel)" 1
+done
+
 echo
 if [ "$fail" = "0" ]; then
-  echo "PASS player-model-check: 9/9 class models loaded and renderable; sampled players resolved; defects published above."
+  echo "PASS player-model-check: negative controls named-failed; A lod0Truncated=0; B paintedSlots per slot x family; C separateAnimSource=1."
 else
   echo "FAIL player-model-check: see the FAIL lines above."
 fi

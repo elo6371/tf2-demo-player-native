@@ -185,96 +185,119 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
   // so a model whose own table is real keeps it byte for byte.
   AnimationModel anims;
   std::string animPath = modelPath;
-  std::string companionCandidate;
+  // Candidate animation sources: every declared include that names an
+  // "_animations.mdl", then the naming convention as the last resort.
+  //
+  // WHY ALL OF THEM AND NOT THE FIRST MATCH (2026-10-24, T57/T60)
+  //   The first-match rule picked `models/player/<class>_user_animations.mdl`
+  //   for all nine player models, because that name contains "_animations.mdl"
+  //   and TF2 lists it FIRST in the include table. That file carries one
+  //   sequence, so the strictly-more-bindings test below could never fire and
+  //   the entity kept the model's own two-sequence stub; the real source
+  //   (`<class>_animations.mdl`, 377 sequences all bound for scout) was never
+  //   read. Scoring every candidate by how many of the model's own sequences it
+  //   binds by name is the difference between "the model declares a companion"
+  //   and "the model can actually be posed".
+  std::vector<std::string> companionCandidates;
   for (const auto& include : model.includes) {
-    if (include.find("_animations.mdl") != std::string::npos) { companionCandidate = include; break; }
+    if (include.find("_animations.mdl") == std::string::npos) continue;
+    if (std::find(companionCandidates.begin(), companionCandidates.end(), include)
+        != companionCandidates.end()) continue;
+    companionCandidates.push_back(include);
   }
-  if (companionCandidate.empty()) companionCandidate = companionPath(modelPath);
-  if (decodeAnimationModel(modelBytes.data(), modelBytes.size(), anims) != AnimationStatus::Ok
-      || anims.animations.empty()) {
-    std::string candidate = companionCandidate;
-    bool loaded = false;
-    if (!candidate.empty()) {
-      ++archiveReads_;
-      const auto companionBytes = readAsset(*root_, candidate);
-      if (!companionBytes.empty()) {
-        AnimationModel decoded;
-        if (decodeAnimationModel(companionBytes.data(), companionBytes.size(), decoded) == AnimationStatus::Ok
-            && !decoded.animations.empty()) {
-          anims = std::move(decoded);
-          animPath = candidate;
-          entry.binding.separateAnimSource = true;
-          loaded = true;
-        }
+  const std::string conventionalCompanion = companionPath(modelPath);
+  if (!conventionalCompanion.empty()
+      && std::find(companionCandidates.begin(), companionCandidates.end(), conventionalCompanion)
+        == companionCandidates.end()) {
+    companionCandidates.push_back(conventionalCompanion);
+  }
+  const auto boundInBase = [](const AnimationModel& source) {
+    std::size_t bound = 0;
+    for (const auto& sequence : source.sequences) {
+      if (sequence.animDesc >= 0
+          && static_cast<std::size_t>(sequence.animDesc) < source.animations.size()) {
+        ++bound;
       }
     }
-    if (!loaded) {
+    return bound;
+  };
+  const auto nameBoundAgainst = [&model](const AnimationModel& source) {
+    std::size_t bound = 0;
+    for (const auto& baseSequence : model.sequences) {
+      for (const auto& candidateSequence : source.sequences) {
+        if (candidateSequence.label != baseSequence.label) continue;
+        if (candidateSequence.animDesc >= 0
+            && static_cast<std::size_t>(candidateSequence.animDesc) < source.animations.size()) {
+          ++bound;
+        }
+        break;
+      }
+    }
+    return bound;
+  };
+  // Score every candidate; the best one wins. Ties keep the earlier candidate,
+  // so the declared order still breaks them.
+  std::size_t bestNameBound = 0;
+  std::string bestCompanion;
+  AnimationModel bestCompanionModel;
+  for (const auto& candidate : companionCandidates) {
+    ++archiveReads_;
+    const auto companionBytes = readAsset(*root_, candidate);
+    if (companionBytes.empty()) continue;
+    AnimationModel decoded;
+    if (decodeAnimationModel(companionBytes.data(), companionBytes.size(), decoded) != AnimationStatus::Ok
+        || decoded.animations.empty()) continue;
+    const auto nameBound = nameBoundAgainst(decoded);
+    if (bestCompanion.empty() || nameBound > bestNameBound) {
+      bestNameBound = nameBound;
+      bestCompanion = candidate;
+      bestCompanionModel = std::move(decoded);
+    }
+  }
+  const bool baseDecoded =
+    decodeAnimationModel(modelBytes.data(), modelBytes.size(), anims) == AnimationStatus::Ok
+    && !anims.animations.empty();
+  if (!baseDecoded) {
+    if (bestCompanion.empty()) {
       // Distinguish "declared a companion that is absent" from "has no
       // animation at all": the first is a packaging fault, the second is a
       // static prop, and a caller that cannot tell them apart cannot report
       // which one it hit.
-      if (!candidate.empty()) {
+      if (!companionCandidates.empty()) {
         return finish(false, AnimationInputStatus::AnimSourceMissing,
-          "animation companion is absent: " + candidate);
+          "animation companion is absent: " + companionCandidates.front());
       }
       return finish(false, AnimationInputStatus::ModelHasNoAnimation, "model carries no animation data");
     }
-  } else if (!companionCandidate.empty() && companionCandidate != modelPath) {
-    // Route 1 answered, but the answer can still be a stub. Ask the declared
-    // companion whether it binds more of the same sequences by name.
-    const auto boundInBase = [](const AnimationModel& source) {
-      std::size_t bound = 0;
-      for (const auto& sequence : source.sequences) {
-        if (sequence.animDesc >= 0
-            && static_cast<std::size_t>(sequence.animDesc) < source.animations.size()) {
-          ++bound;
+    anims = std::move(bestCompanionModel);
+    animPath = bestCompanion;
+    entry.binding.separateAnimSource = true;
+  } else if (!bestCompanion.empty() && bestNameBound > boundInBase(anims)) {
+    // Route 1 answered, but the answer can still be a stub. Adopt the companion
+    // that binds the most of the same sequences by name.
+    //
+    // The companion's animation data is used, but the base model's sequence
+    // table stays the index space: the entity's m_nSequence is an index into the
+    // model it named, and the two tables are not index compatible. Every
+    // sequence is resolved by name against the companion; one that has no
+    // same-named companion sequence is left unbound and refuses with the
+    // decoder's existing words rather than playing a neighbour's clip.
+    std::vector<AnimationSequence> merged = model.sequences;
+    for (auto& sequence : merged) {
+      sequence.animDesc = -1;
+      for (const auto& candidateSequence : bestCompanionModel.sequences) {
+        if (candidateSequence.label != sequence.label) continue;
+        if (candidateSequence.animDesc >= 0
+            && static_cast<std::size_t>(candidateSequence.animDesc) < bestCompanionModel.animations.size()) {
+          sequence.animDesc = candidateSequence.animDesc;
         }
-      }
-      return bound;
-    };
-    ++archiveReads_;
-    const auto companionBytes = readAsset(*root_, companionCandidate);
-    AnimationModel decoded;
-    if (!companionBytes.empty()
-        && decodeAnimationModel(companionBytes.data(), companionBytes.size(), decoded) == AnimationStatus::Ok
-        && !decoded.animations.empty()) {
-      std::size_t nameBound = 0;
-      for (const auto& baseSequence : model.sequences) {
-        for (const auto& candidateSequence : decoded.sequences) {
-          if (candidateSequence.label != baseSequence.label) continue;
-          if (candidateSequence.animDesc >= 0
-              && static_cast<std::size_t>(candidateSequence.animDesc) < decoded.animations.size()) {
-            ++nameBound;
-          }
-          break;
-        }
-      }
-      if (nameBound > boundInBase(anims)) {
-        // Adopt the companion's animation data, but keep the base model's
-        // sequence table as the index space: the entity's m_nSequence is an
-        // index into the model it named, and the two tables are not index
-        // compatible. Every sequence is resolved by name against the companion;
-        // one that has no same-named companion sequence is left unbound and
-        // refuses with the decoder's existing words rather than playing a
-        // neighbour's clip.
-        std::vector<AnimationSequence> merged = model.sequences;
-        for (auto& sequence : merged) {
-          sequence.animDesc = -1;
-          for (const auto& candidateSequence : decoded.sequences) {
-            if (candidateSequence.label != sequence.label) continue;
-            if (candidateSequence.animDesc >= 0
-                && static_cast<std::size_t>(candidateSequence.animDesc) < decoded.animations.size()) {
-              sequence.animDesc = candidateSequence.animDesc;
-            }
-            break;
-          }
-        }
-        anims = std::move(decoded);
-        anims.sequences = std::move(merged);
-        animPath = companionCandidate;
-        entry.binding.separateAnimSource = true;
+        break;
       }
     }
+    anims = std::move(bestCompanionModel);
+    anims.sequences = std::move(merged);
+    animPath = bestCompanion;
+    entry.binding.separateAnimSource = true;
   }
   if (anims.animations.empty()) {
     return finish(false, AnimationInputStatus::ModelHasNoAnimation, "animation source carries no animations");

@@ -3805,7 +3805,8 @@ void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
   entityMarkerVertexCount_ = static_cast<UINT>(vertices.size());
 }
 
-bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices) {
+bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ModelMeshMaterialRun>& runs) {
   if (!device_ || cacheKey.empty() || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
   // 96, not 64 (2026-10-22). The cap is a GPU-memory guard, and the sizes it
   // guards are the world pass's 64 models plus the outline's nine class models,
@@ -3820,9 +3821,15 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
     lastError_ = E_OUTOFMEMORY;
     return false;
   }
-  const auto limit = std::min<std::size_t>(vertices.size(), 12000u);
-  const auto count = limit - (limit % 3);
+  // T57 measured this line cutting every one of the nine player models at 12000
+  // vertices (603..20724 LOD0 indices lost per class). The cap was a budget for
+  // some model that was never named, applied to a list whose length the model
+  // itself already determined. There is no cap now: the buffer is exactly the
+  // de-indexed LOD0 list. If a cap is ever re-introduced the vertices it drops
+  // are COUNTED here, so the loss is a published reading instead of a silent cut.
+  const auto count = vertices.size() - (vertices.size() % 3);
   if (count < 3) { lastError_ = E_INVALIDARG; return false; }
+  if (count != vertices.size()) ++entityModelMeshTruncatedCount_;
   std::vector<EntityModelGpuVertex> local(count);
   for (std::size_t i = 0; i < count; ++i) {
     const auto& source = vertices[i];
@@ -3844,6 +3851,25 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
       boundsMax[axis] = std::max(boundsMax[axis], position[axis]);
     }
   }
+  // Validate the material runs against the buffer they describe BEFORE anything
+  // is created. A run that runs past the end would draw another model's vertices,
+  // and a gap would leave a hole in the mesh; both are silent on screen.
+  std::vector<ModelMeshMaterialRun> validatedRuns;
+  if (runs.empty()) {
+    validatedRuns.push_back(ModelMeshMaterialRun{0u, static_cast<std::uint32_t>(count), 0u});
+  } else {
+    std::uint32_t expected = 0;
+    for (const auto& run : runs) {
+      if (run.vertexCount == 0 || run.vertexStart != expected
+          || static_cast<std::size_t>(run.vertexStart) + run.vertexCount > count) {
+        lastError_ = E_INVALIDARG;
+        return false;
+      }
+      expected += run.vertexCount;
+      validatedRuns.push_back(run);
+    }
+    if (expected != count) { lastError_ = E_INVALIDARG; return false; }
+  }
   D3D11_BUFFER_DESC description{};
   description.ByteWidth = static_cast<UINT>(count * sizeof(EntityModelGpuVertex));
   description.Usage = D3D11_USAGE_IMMUTABLE;
@@ -3864,6 +3890,7 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
     mesh.cpuPositions.push_back(vertex.z);
   }
   mesh.vertexCount = static_cast<UINT>(count);
+  mesh.runs = std::move(validatedRuns);
   for (int axis = 0; axis < 3; ++axis) {
     mesh.boundsMin[axis] = boundsMin[axis];
     mesh.boundsMax[axis] = boundsMax[axis];
@@ -3877,16 +3904,22 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   return true;
 }
 
-bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, std::uint32_t materialSlot,
+    std::uint32_t skinFamily, const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
   if (!device_ || cacheKey.empty() || rgba.empty() || width == 0 || height == 0) { lastError_ = E_INVALIDARG; return false; }
   const auto mesh = entityModelMeshes_.find(cacheKey);
   if (mesh == entityModelMeshes_.end()) { lastError_ = E_INVALIDARG; return false; }
+  Texture2D texture;
   std::string error;
-  if (!mesh->second.texture.create(device_.Get(), rgba, width, height, &error)) {
+  if (!texture.create(device_.Get(), rgba, width, height, &error)) {
     if (!error.empty()) OutputDebugStringA(("Entity model texture upload failed: " + error + "\n").c_str());
     lastError_ = E_INVALIDARG;
     return false;
   }
+  const auto key = EntityModelMesh::textureKey(materialSlot, skinFamily);
+  const bool existed = mesh->second.textures.find(key) != mesh->second.textures.end();
+  mesh->second.textures[key] = std::move(texture);
+  if (!existed) ++entityModelTextureCount_;
   return true;
 }
 
@@ -3908,10 +3941,13 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   world.horizontalScale = worldHorizontalScale_;
   world.zScale = 0.8f / worldSpanZ_;
   constexpr std::size_t maxInstances = 96;
+  // A bucket is one (model, skin family) pair: the same model worn by a red and a
+  // blue player shares the vertex buffer but not the paint, so it needs one range
+  // per material run per family. Keying only by cacheKey -- as this did before T60
+  // -- made the two teams one draw and one texture.
   struct Bucket {
-    ID3D11Buffer* vertexBuffer = nullptr;
-    UINT vertexCount = 0;
-    ID3D11ShaderResourceView* textureView = nullptr;
+    const EntityModelMesh* mesh = nullptr;
+    std::uint32_t skinFamily = 0;
     std::vector<EntityModelInstanceGpu> items;
   };
   std::vector<Bucket> buckets;
@@ -3927,12 +3963,12 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
         || mesh->second.vertexCount < 3 || (mesh->second.vertexCount % 3) != 0) continue;
     EntityModelInstanceRows rows;
     if (!buildEntityModelInstanceRows(instance.origin, instance.angles, instance.hasAngles, world, rows)) continue;
-    const auto inserted = bucketOf.emplace(instance.cacheKey, buckets.size());
+    const std::string bucketKey = instance.cacheKey + "#" + std::to_string(instance.skinFamily);
+    const auto inserted = bucketOf.emplace(bucketKey, buckets.size());
     if (inserted.second) {
       Bucket created;
-      created.vertexBuffer = mesh->second.vertexBuffer.Get();
-      created.vertexCount = mesh->second.vertexCount;
-      created.textureView = mesh->second.texture.view();
+      created.mesh = &mesh->second;
+      created.skinFamily = instance.skinFamily;
       buckets.push_back(std::move(created));
     }
     EntityModelInstanceGpu gpu{};
@@ -3966,20 +4002,32 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   entityModelDrawRanges_.reserve(buckets.size());
   UINT uniqueVertices = 0;
   for (const auto& bucket : buckets) {
-    if (bucket.items.empty() || bucket.vertexBuffer == nullptr || bucket.vertexCount < 3) continue;
-    EntityModelDrawRange range;
-    range.vertexBuffer = bucket.vertexBuffer;
-    range.vertexCount = bucket.vertexCount;
-    range.instanceStart = static_cast<UINT>(packed.size());
-    range.instanceCount = static_cast<UINT>(bucket.items.size());
-    range.textureView = bucket.textureView;
-    packed.insert(packed.end(), bucket.items.begin(), bucket.items.end());
-    entityModelDrawRanges_.push_back(range);
-    uniqueVertices += bucket.vertexCount;
-    if (range.textureView) {
-      ++entityModelTexturedRangeCount_;
-      entityModelTexturedInstanceCount_ += range.instanceCount;
+    if (bucket.items.empty() || bucket.mesh == nullptr || bucket.mesh->vertexCount < 3) continue;
+    bool instanceCountedAsTextured = false;
+    for (const auto& run : bucket.mesh->runs) {
+      if (run.vertexCount < 3) continue;
+      EntityModelDrawRange range;
+      range.vertexBuffer = bucket.mesh->vertexBuffer.Get();
+      range.vertexStart = run.vertexStart;
+      range.vertexCount = run.vertexCount;
+      range.instanceStart = static_cast<UINT>(packed.size());
+      range.instanceCount = static_cast<UINT>(bucket.items.size());
+      const auto texture = bucket.mesh->textures.find(
+        EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));
+      range.textureView = texture == bucket.mesh->textures.end() ? nullptr : texture->second.view();
+      packed.insert(packed.end(), bucket.items.begin(), bucket.items.end());
+      entityModelDrawRanges_.push_back(range);
+      if (range.textureView) {
+        ++entityModelTexturedRangeCount_;
+        // An instance covered by any of its model's textured runs is a textured
+        // instance; counting it per run would report more instances than exist.
+        if (!instanceCountedAsTextured) {
+          entityModelTexturedInstanceCount_ += range.instanceCount;
+          instanceCountedAsTextured = true;
+        }
+      }
     }
+    uniqueVertices += bucket.mesh->vertexCount;
   }
   if (packed.empty()) {
     entityModelDrawRanges_.clear();
@@ -5767,7 +5815,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       auto* rangeView = range.textureView;
       context_->PSSetShaderResources(0, 1, &rangeView);
       ID3D11Buffer* buffers[2] = { range.vertexBuffer, instanceBuffer };
-      context_->IASetVertexBuffers(0, 2, buffers, strides, offsets);
+      // The run is a window into the model's one vertex buffer: offset the bind
+      // instead of uploading a buffer per material.
+      const UINT rangeOffsets[2] = {
+        range.vertexStart * static_cast<UINT>(sizeof(EntityModelGpuVertex)), 0u };
+      context_->IASetVertexBuffers(0, 2, buffers, strides, rangeOffsets);
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
     }
   }
@@ -6427,6 +6479,8 @@ void Renderer::shutdown() {
   entityModelInstanceCount_ = 0;
   entityModelTexturedRangeCount_ = 0;
   entityModelTexturedInstanceCount_ = 0;
+  entityModelMeshTruncatedCount_ = 0;
+  entityModelTextureCount_ = 0;
   entityModelDrawRanges_.clear();
   entityModelMeshes_.clear();
   modelVertexBuffer_.Reset();
