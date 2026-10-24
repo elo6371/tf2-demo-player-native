@@ -431,6 +431,11 @@ struct DemoViewSample {
   bool hasOrigin = false;
   bool hasAngles = false;
   DemoViewSource source = DemoViewSource::None;
+  // T63-F1: true when this sample came from a command 1 (signon) block. The
+  // signon block's entry tick is a server-connect tick (10252 on snakewater),
+  // not a position in the data-packet sequence (1, 2, 3...), so a sample from
+  // it must never be mixed into the ordered data-packet samples.
+  bool fromSignon = false;
 };
 
 enum class DemoRecordingKind { Unknown, SourceTv, Pov };
@@ -468,6 +473,53 @@ struct DemoNetworkSummary {
   std::int32_t lastNetworkTick = -1;
   std::uint32_t lastNetworkTickRaw = 0;
   bool lastNetworkTickRawValid = false;
+  // T63-F1: the demo carries two tick spaces and they are not the same number.
+  // firstSignonEntryTick is the entry tick of the first command 1 (signon)
+  // block; first/lastDataEntryTick are the entry ticks of the command 2 (data)
+  // blocks; firstDataNetTick is the first svc_NetTick (server tick) decoded from
+  // a data packet. net_minus_entry is the constant offset between the spaces --
+  // a reading, never a guess.
+  std::int32_t firstSignonEntryTick = -1;
+  std::int32_t firstDataEntryTick = -1;
+  std::int32_t lastDataEntryTick = -1;
+  std::int32_t firstDataNetTick = -1;
+  std::size_t signonViewSamples = 0;
+  std::size_t viewSamplesOutOfOrder = 0;
+  // T63-F1 diagnosis: how many data packets carried their OWN svc_NetTick and
+  // whether the first data packet did. Both readings are known ticks; the
+  // distinction is whether the packet stamped it or the persistent networkTick
+  // was already valid when the packet arrived (carry-over).
+  std::size_t packetsWithOwnNetTick = 0;
+  std::int32_t firstDataPacketOwnNetTick = -1;  // -1 not recorded, 0 no, 1 yes
+  // T63-F1 fix: two tick spaces, kept apart. packetServerTicks[i] is the server
+  // tick (svc_NetTick) in force at PLAYBACK tick i. The playback tick is the
+  // demo tick counter, and data entry tick == firstDataEntryTick + playback
+  // tick, so row i is the packet recorded at entry tick firstDataEntryTick + i
+  // -- not the i-th packet: S1 drops 22 packets and S5 drops 4348, which slides
+  // any packet-ordinal index by that many ticks.
+  // A row with no packet of its own holds the previous recorded packet's tick,
+  // because a dropped packet still renders (the entity query is at-or-before);
+  // packetServerTickOwn[i] is 1 only where a packet really exists and the held
+  // rows are counted in serverTickHeldCount. A tick before the first recorded
+  // packet stays unknown: it is never inferred by adding an offset.
+  std::vector<std::int32_t> packetServerTicks;
+  std::vector<std::uint8_t> packetServerTickKnown;
+  std::vector<std::uint8_t> packetServerTickOwn;
+  std::size_t dataPacketCount = 0;
+  std::size_t serverTickKnownCount = 0;
+  std::size_t serverTickHeldCount = 0;
+  std::size_t serverTickGaps = 0;    // recorded packets: table[i] > table[i-1]+1
+  std::size_t serverTickStalls = 0;  // recorded packets: table[i] <= table[i-1]
+  std::size_t viewSamplesOutOfOrderAfterRepair = 0;
+  // Two cmdinfo samples for the same entry tick are legal (a packet can carry
+  // more than one). The repair keeps the LAST one, because that is the pose the
+  // decoder saw last; the count is published so a gate can see the repair did
+  // something rather than assume it.
+  std::size_t viewSamplesDuplicates = 0;
+  // FixAngle samples carry server ticks while cmdinfo samples carry entry ticks;
+  // mixing them in one vector made the sequence non-monotonic. They live here.
+  std::vector<DemoViewSample> fixAngleSamples;
+  bool viewSamplesOrdered = true;  // post-repair check; upper_bound needs this
   std::size_t printCount = 0;
   std::size_t setConVarCount = 0;
   std::size_t setConVarPairCount = 0;
@@ -891,6 +943,12 @@ struct DemoMessageStreamResult {
   bool hitUnknownType = false;
   std::uint32_t unknownType = 0;
   std::int32_t lastNetworkTick = -1;
+  // T63-F1: the persistent server tick at the END of this packet's message
+  // stream, and whether it is known at all. A packet before the first
+  // svc_NetTick has no server tick; -1 + known=0 is that state, not a guess.
+  std::int32_t finalNetworkTick = -1;
+  bool finalNetworkTickKnown = false;
+  bool sawNetTick = false;  // this packet itself carried svc_NetTick
 };
 
 // Decodes a raw message stream exactly the way scanKnownDemoMessages does.
@@ -911,6 +969,7 @@ bool parseDemoCmdInfo(const std::uint8_t* bytes, std::size_t size, DemoViewSampl
 float demoBitAngleToDegrees(std::uint32_t raw, int width);
 void demoViewForward(float pitchDegrees, float yawDegrees, float out[3]);
 bool findObserverViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick, DemoViewSample& sample);
+bool findFixAngleViewAtOrBeforeTick(const DemoNetworkSummary& summary, std::int32_t tick, DemoViewSample& sample);
 DemoRecordingClassification classifyDemoRecording(const DemoHeader& header, const DemoNetworkSummary& summary);
 void applyTempEntityFields(TempEntityEvent& event);
 bool projectileFromTempEntity(const TempEntityEvent& event, ProjectileTimelineEvent& timeline);

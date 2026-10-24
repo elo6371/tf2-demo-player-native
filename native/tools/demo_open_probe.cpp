@@ -35,6 +35,27 @@ int wmain(int argc, wchar_t** argv) {
     cameraTick = static_cast<std::int32_t>(parsed);
     firstPath += 2;
   }
+  std::vector<std::int32_t> serverTickAts;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--server-tick-at") {
+    const std::wstring list(argv[firstPath + 1]);
+    std::size_t start = 0;
+    while (start <= list.size()) {
+      const std::size_t comma = list.find(L',', start);
+      const std::wstring item = list.substr(start, comma == std::wstring::npos ? std::wstring::npos : comma - start);
+      if (!item.empty()) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(item.c_str(), &end, 10);
+        if (end == item.c_str() || *end != L'\0' || parsed < 0 || parsed > std::numeric_limits<std::int32_t>::max()) {
+          std::wcerr << L"invalid server tick index\n";
+          return 2;
+        }
+        serverTickAts.push_back(static_cast<std::int32_t>(parsed));
+      }
+      if (comma == std::wstring::npos) break;
+      start = comma + 1;
+    }
+    firstPath += 2;
+  }
   if (firstPath >= argc) {
     std::wcerr << L"usage: demo_open_probe [--scan] <demo.dem>\n";
     return 2;
@@ -58,7 +79,9 @@ int wmain(int argc, wchar_t** argv) {
                << L" map=" << std::wstring(header.mapName.begin(), header.mapName.end())
                << L" malformed_offset=" << index.malformedOffset
                << L" commands=" << index.commandCount
-               << L" packets=" << index.packetCount;
+               << L" packets=" << index.packetCount
+               << L" ticks=" << header.ticks
+               << L" frames=" << header.frames;
     if (scan && indexOk) {
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
@@ -170,18 +193,106 @@ int wmain(int argc, wchar_t** argv) {
                  << L" fixangle=" << summary.lastFixAngle[0] << L"," << summary.lastFixAngle[1]
                  << L"," << summary.lastFixAngle[2]
                  << L" camera_track=" << summary.viewSamples.size()
-                 << L" camera_track_dropped=" << summary.viewSamplesDropped;
+                 << L" camera_track_dropped=" << summary.viewSamplesDropped
+                 << L" view_signon_samples=" << summary.signonViewSamples
+                 << L" view_out_of_order=" << summary.viewSamplesOutOfOrder
+                 << L" view_out_of_order_after_repair=" << summary.viewSamplesOutOfOrderAfterRepair
+                 << L" view_duplicates=" << summary.viewSamplesDuplicates
+                 << L" view_strictly_increasing=" << (summary.viewSamplesOrdered ? 1 : 0)
+                 << L" first_signon_entry_tick=" << summary.firstSignonEntryTick
+                 << L" first_data_entry_tick=" << summary.firstDataEntryTick
+                 << L" last_data_entry_tick=" << summary.lastDataEntryTick
+                 << L" first_data_net_tick=" << summary.firstDataNetTick
+                 << L" net_minus_entry=" << (summary.firstDataNetTick - summary.firstDataEntryTick)
+                 << L" view_ordered=" << (summary.viewSamplesOrdered ? 1 : 0)
+                 << L" packet_server_ticks=" << summary.packetServerTicks.size()
+                 << L" data_packets=" << summary.dataPacketCount
+                 << L" server_tick_held=" << summary.serverTickHeldCount
+                 << L" server_tick_known_count=" << summary.serverTickKnownCount
+                 << L" server_tick_gaps=" << summary.serverTickGaps
+                 << L" server_tick_stalls=" << summary.serverTickStalls
+                 << L" fixangle_samples=" << summary.fixAngleSamples.size()
+                 << L" packets_with_own_net_tick=" << summary.packetsWithOwnNetTick
+                 << L" first_data_packet_own_net_tick=" << summary.firstDataPacketOwnNetTick;
+      {
+        std::wstring first5, last5;
+        const std::size_t sampleCount = summary.viewSamples.size();
+        const std::size_t tailStart = sampleCount > 5u ? sampleCount - 5u : 0u;
+        for (std::size_t i = 0; i < sampleCount && i < 5u; ++i) {
+          if (i != 0) first5 += L",";
+          first5 += std::to_wstring(summary.viewSamples[i].tick);
+        }
+        for (std::size_t i = tailStart; i < sampleCount; ++i) {
+          if (i != tailStart) last5 += L",";
+          last5 += std::to_wstring(summary.viewSamples[i].tick);
+        }
+        std::wcout << L" view_first5=" << first5 << L" view_last5=" << last5;
+      }
+      {
+        std::wstring firstTicks, lastTicks;
+        const std::size_t tickCount = summary.packetServerTicks.size();
+        const std::size_t tickTail = tickCount > 5u ? tickCount - 5u : 0u;
+        for (std::size_t i = 0; i < tickCount && i < 5u; ++i) {
+          if (i != 0) firstTicks += L",";
+          firstTicks += std::to_wstring(summary.packetServerTicks[i]);
+        }
+        for (std::size_t i = tickTail; i < tickCount; ++i) {
+          if (i != tickTail) lastTicks += L",";
+          lastTicks += std::to_wstring(summary.packetServerTicks[i]);
+        }
+        std::wcout << L" packet_server_first5=" << firstTicks << L" packet_server_last5=" << lastTicks;
+      }
+      for (const std::int32_t idx : serverTickAts) {
+        std::int32_t value = -1;
+        if (idx >= 0 && static_cast<std::size_t>(idx) < summary.packetServerTicks.size()) {
+          value = summary.packetServerTicks[static_cast<std::size_t>(idx)];
+        }
+        std::int32_t own = 0;
+        if (idx >= 0 && static_cast<std::size_t>(idx) < summary.packetServerTickOwn.size()) {
+          own = summary.packetServerTickOwn[static_cast<std::size_t>(idx)];
+        }
+        std::wcout << L" server_tick_at_" << idx << L"=" << value
+                   << L" server_tick_own_at_" << idx << L"=" << own;
+      }
       if (cameraTick >= 0) {
         tf2::native::DemoViewSample camera;
         const bool found = tf2::native::findObserverViewAtOrBeforeTick(summary, cameraTick, camera);
         std::wcout << L" camera_tick=" << cameraTick << L" camera_found=" << (found ? 1 : 0)
                    << L" camera_sample_tick=" << camera.tick
                    << L" camera_angles_valid=" << (camera.hasAngles ? 1 : 0)
-                   << L" camera_origin_valid=" << (camera.hasOrigin ? 1 : 0);
+                   << L" camera_origin_valid=" << (camera.hasOrigin ? 1 : 0)
+                   << L" camera_origin=" << camera.origin[0] << L"," << camera.origin[1] << L"," << camera.origin[2]
+                   << L" camera_pitch=" << camera.angles[0] << L" camera_yaw=" << camera.angles[1];
+      }
+      {
+        // How far a checkpoint can sit behind a requested tick. The gate reads
+        // this so it can assert the product's staleness equals the history's own
+        // density instead of demanding a zero a checkpoint store cannot give.
+        std::int32_t historyGapMax = 0;
+        for (std::size_t i = 1; i < summary.entityHistoryCheckpoints.size(); ++i) {
+          const std::int32_t gap = summary.entityHistoryCheckpoints[i].tick
+            - summary.entityHistoryCheckpoints[i - 1].tick;
+          if (gap > historyGapMax) historyGapMax = gap;
+        }
+        // The snapshot query resolves against the THINNED ARCHIVE once the live
+        // window has flushed, so the archive's own spacing is the bound a
+        // staleness reading has to be compared with; the live vector holds only
+        // the two checkpoints the window still carries.
+        std::int32_t archiveGapMax = 0;
+        for (std::size_t i = 1; i < summary.entityHistoryArchive.size(); ++i) {
+          const std::int32_t gap = summary.entityHistoryArchive[i].tick
+            - summary.entityHistoryArchive[i - 1].tick;
+          if (gap > archiveGapMax) archiveGapMax = gap;
+        }
+        std::wcout << L" entity_history_checkpoints=" << summary.entityHistoryCheckpoints.size()
+                   << L" entity_history_gap_max=" << historyGapMax
+                   << L" entity_history_archive=" << summary.entityHistoryArchive.size()
+                   << L" entity_history_archive_gap_max=" << archiveGapMax;
       }
       if (snapshotTick >= 0) {
         std::vector<tf2::native::EntityState> states;
-        const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, snapshotTick, states);
+        std::int32_t resolvedTick = snapshotTick;
+        const auto status = tf2::native::queryEntitySnapshotAtOrBeforeTick(summary, snapshotTick, states, &resolvedTick);
         const auto statusName = [](tf2::native::EntitySnapshotQueryStatus value) {
           switch (value) {
             case tf2::native::EntitySnapshotQueryStatus::Available: return L"available";
@@ -195,7 +306,9 @@ int wmain(int argc, wchar_t** argv) {
         };
         std::wcout << L" snapshot_tick=" << snapshotTick
                    << L" snapshot_status=" << statusName(status)
-                   << L" snapshot_states=" << states.size();
+                   << L" snapshot_states=" << states.size()
+                   << L" snapshot_resolved_tick=" << resolvedTick
+                   << L" snapshot_stale=" << (snapshotTick - resolvedTick);
       }
     }
     std::wcout << L'\n';

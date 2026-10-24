@@ -1,0 +1,67 @@
+T63-F1 诊断记录（只读探针，无产品启动）
+worktree: D:/TF2_Native_Worktrees/t63-clock   branch: task/t63-clock   base: 99eeea2
+probe: native/build-nmake/demo_open_probe.exe  (sha256 见 binaries.sha256)
+运行方式: bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t63-clock bash evidence/t63-clock/build_and_diag.sh
+时间: 2026-10-24 12:52:20 - 12:57:08 (lock 持有至 12:57:08 释放)
+
+== 1. 两个 tick 空间的定义（源码） ==
+- entry tick: demo 命令在文件中的序号。native/src/demo_header.cpp:2280 起只扫 command==1/2；
+  command==1 为 signon，command==2 为数据包。cmdinfo 视图样本的 sample.tick = entry.tick
+  (demo_header.cpp:2292 附近)。
+- server tick: svc_NetTick (type 3) 携带的 tick。demo_header.cpp:2197 更新 networkTick /
+  lastNetworkTick / lastNetworkTickRaw，每包只在该消息出现时前进；网络丢包时跳号。
+  实体快照按 server tick 存 (appendEntityHistory, demo_header.cpp:1384)。
+
+== 2. 实测（探针原始输出，见 diag-S1-scan.txt / diag-S5-scan.txt） ==
+S1 cp_snakewater_final1 (SourceTV, D:/TF2_Demo_Player/testdata/demos/bb841c6d...cp_snakewater_final1.dem)
+  ticks=64352 frames=64330 packets=64333
+  first_signon_entry_tick=10252  first_data_entry_tick=1  last_data_entry_tick=64352
+  first_data_net_tick=10320  net_minus_entry=10319
+  camera_track=64330  camera_track_dropped=0  view_signon_samples=3
+  view_out_of_order=0  view_strictly_increasing=1  view_ordered=1
+  view_first5=1,2,3,4,5   view_last5=64347,64348,64349,64350,64352
+  packet_server_ticks=64330  server_tick_known_count=64330
+  server_tick_gaps=11  server_tick_stalls=0  fixangle_samples=0
+  packet_server_first5=10320,10321,10322,10323,10324
+  packet_server_last5=74666,74667,74668,74669,74671
+S5 koth_bagel_rc13 (SourceTV, D:/TF2_Demo_Player/testdata/demos/4a9bfb92...koth_bagel_rc13.dem)
+  ticks=77466 frames=73118 packets=73121
+  first_signon_entry_tick=-2147483648 (本 demo 无 command==1；INT_MIN 哨兵，不能作为断言)
+  first_data_entry_tick=1  last_data_entry_tick=77466
+  first_data_net_tick=56148  net_minus_entry=56147
+  camera_track=73118  camera_track_dropped=0  view_signon_samples=3
+  view_out_of_order=0  view_strictly_increasing=1  view_ordered=1
+  view_first5=1,3,4,5,6   view_last5=77462,77463,77464,77465,77466
+  packet_server_ticks=73118  server_tick_known_count=73118
+  server_tick_gaps=4  server_tick_stalls=0  fixangle_samples=0
+  packet_server_first5=56148,56150,56151,56152,56153
+  packet_server_last5=129273,129274,129275,129276,129277
+
+== 3. 结论（对修复的含义） ==
+(1) 旧代码把 firstPacketTick 当 server origin 是错的：S1 的 firstPacketTick 是 10252（signon
+    entry tick），与 server tick 10320 毫无关系；旧代码 sceneTick = 10252 + playback，
+    在 playback=0 时查询 10252，比实体历史起点（74481）早 6 万多 tick。
+(2) 正确关系是逐包表，不是线性偏移：S1 有 11 处 server tick 跳号、S5 有 4 处，说明包被丢弃。
+    table[0]=10320 (S1) / 56148 (S5)，table 末项 S1=74671、S5=129277。
+(3) 第一个数据包不一定带自己的 svc_NetTick：S1 的首个数据包 entry=1 自身无 NetTick，
+    但 networkTick 从 signon 的 NetTick 继承（10320），所以 server tick 已知且为 10320，
+    不是推测；S5 的首个数据包自带 NetTick=56148。规则 6 满足：值来自持久 networkTick，
+    没有做任何“偏移相加”。
+(4) 视图样本（cmdinfo）用 entry tick 排序，signon 样本必须排除：S1 signon 样本 3 条
+    (entry 10252 起)，数据样本从 1 开始严格递增；S5 同理。修复后 view_ordered=1。
+(5) 实体历史从 74481 (S1) / 129210 (S5) 起才有 checkpoint：所以 playback 0 查询 10320
+    得到 before-history，这是 A6 负控的依据；而 30319 查询得到 checkpoint（states=2048），
+    56148 也是 checkpoint。快照状态 0=available, 1=checkpoint 都表示“有对象”，
+    A3/A6 必须接受两者，不能用 “available” 单值。
+(6) SourceTV demo 的 76 字节 cmdinfo 区全为 0（S1 tick 601/20000/60000、S5 tick 600/601/602
+    逐字节检查；探针 camera_origin=0,0,0）。所以 SourceTV demo 无法证明相机眼位；
+    A5 改用 POV demo P1（pl_frontier_final, autorecord_2026-09-10_14-04-13.dem，
+    ticks=5118，cmdinfo tick 600 原点 1784.664,-3594.817,239.965）。
+(7) 修复后的场景时钟 trace 行（gate 读）:
+    scene: clock tick=<playback> entryTick=<firstDataEntryTick+playback> serverTick=<table[playback]> serverTickKnown=1
+    旧的 "scene: begin tick=... sceneTick=..." 行保留（下游 gate 用贪婪 sed 读最后一个 tick=）。
+
+== 4. 未验证项（NOT VERIFIED） ==
+- 产品在 POV demo 上的相机眼位是否等于 cmdinfo 原点：A5 由运行期 gate 验证（本轮 job）。
+- outline-check.sh / trajectory-overlay-check.sh 在本分支是否保持绿：本轮 job 末尾运行。
+- t66-camera 分支对 kMaxViewSamples 的合并：两分支常量必须同为 1048576u（已按要求放置）。
