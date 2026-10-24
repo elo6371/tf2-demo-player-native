@@ -1,0 +1,140 @@
+=== T67 HUD text gate: forward ===
+  exe: 2026-10-24 14:04:54.544737700 +0800 2300416 bytes
+  out: evidence/t67-hudtext
+  scratch: .scratch/t67-hudtext/20261024141752-17184
+
+=== 1/4 the product draws the fixed primitive list, and only it ===
+  OK   hud-text-off exit code = 0
+  OK   hud-text-on exit code = 0
+  off: hud drawn=0 ordinal=0 hudtext primitives=0 textQuads=0
+  on:  hud drawn=1 rects=1 scissor=1 ordinal=8
+  on:  hudtext primitives=4 drawn=4 textQuads=1 glyphs=22 unmapped=1 passOrdinal=8 region=40,60,352,164
+  OK   a hud-off run draws nothing = 0
+  OK   a hud-off run publishes no text primitives = 0
+  OK   a hud-off run emits no text quads = 0
+  OK   the probe publishes four primitives = 4
+  OK   all four primitives are drawn = 4
+  OK   the text primitive becomes one text quad = 1
+  OK   the text expands to 22 glyphs = 22
+  OK   one codepoint has no glyph and uses the fallback = 1
+  OK   the pass publishes the fixed region = 40,60,352,164
+  OK   the HUD pass runs after the world = 8 (>= 1)
+  OK   the filled rect is counted as a drawn rect = 1
+  OK   the pass applied its scissor = 1
+
+=== 2/4 the panel container's layout rules are pure logic ===
+  reading: 20386.6 hudpanel: cases=11 pass=11 fail=0
+  OK   the panel self-test ran cases = 11 (>= 10)
+  OK   every panel layout case passes = 0
+  OK   all cases were scored = 11
+
+=== 3/4 the captured frame matches the font table and the probe colours ===
+  frame=1264x681
+  regionExpected=1
+  outsideDiff=0
+  insideDiff=12336
+  diffBBox=40,60,391,223
+  rectColour=31,71,166
+  redCentre=255,0,0
+  blueCentre=25,102,255
+  circleCornerDiff=0
+  glyphBad=0
+  glyphChecked=8
+  fallbackBad=0
+  fallbackBox=1
+  verifyOk=1
+  OK   the pixel verifier holds = 0
+  OK   nothing outside the published region changed = 0
+  OK   the region really did change = 12336 (>= 1000)
+  OK   every checked glyph pixel matches the table = 0
+  OK   the unmapped codepoint draws the fallback box = 1
+  OK   the circle mask leaves its bounding-box corners alone = 0
+  OK   the changed pixels are exactly the published region = 40,60,391,223
+  OK   the published region is the probe's fixed region = 1
+
+
+MUTATION-SUITE: rebuilding the product once per defect, four defects
+
+--- mutation 1/4: the text advance is dropped ---
+  frame=1264x681
+  regionExpected=1
+  outsideDiff=0
+  insideDiff=10752
+  diffBBox=40,60,279,223
+  rectColour=31,71,166
+  redCentre=255,0,0
+  blueCentre=25,102,255
+  circleCornerDiff=0
+  glyphBad=836
+  glyphChecked=8
+  fallbackBad=112
+  fallbackBox=0
+  verifyOk=0
+  mutated readings: glyphs=22 glyphBad=836 outsideDiff=0 (forward glyphBad=0)
+  MUTATION-RED   m1: text advance dropped -- the frame no longer matches the table (glyphBad=836)
+  RESTORED native/src/native_renderer.cpp (byte-identical to the backup)
+  RESTORED-READING-IDENTICAL (the restored build reproduces the forward hudtext line)
+
+--- mutation 2/4: the unmapped fallback is dropped ---
+  frame=1264x681
+  regionExpected=1
+  outsideDiff=0
+  insideDiff=12224
+  diffBBox=40,60,371,223
+  rectColour=31,71,166
+  redCentre=255,0,0
+  blueCentre=25,102,255
+  circleCornerDiff=0
+  glyphBad=0
+  glyphChecked=8
+  fallbackBad=112
+  fallbackBox=0
+  verifyOk=0
+  mutated readings: glyphs=21 unmapped=0 fallbackBox=0 (forward unmapped=1 fallbackBox=1)
+  MUTATION-RED   m2: fallback dropped -- unmapped=0 and the fallback box is gone
+  RESTORED native/src/native_renderer.cpp (byte-identical to the backup)
+  RESTORED-READING-IDENTICAL (the restored build reproduces the forward hudtext line)
+
+--- mutation 3/4: a primitive escapes its rect ---
+  frame=1264x681
+  regionExpected=1
+  outsideDiff=803056
+  insideDiff=57728
+  diffBBox=0,0,1263,680
+  rectColour=31,71,166
+  redCentre=255,0,0
+  blueCentre=25,102,255
+  circleCornerDiff=4
+  glyphBad=2048
+  glyphChecked=8
+  fallbackBad=256
+  fallbackBox=0
+  verifyOk=0
+  mutated readings: outsideDiff=803056 region=0,0,1264,681 (forward outsideDiff=0 region=40,60,352,164)
+  MUTATION-RED   m3: a primitive escaped its rect -- 803056 pixels outside the forward region changed
+  RESTORED native/src/native_renderer.cpp (byte-identical to the backup)
+  RESTORED-READING-IDENTICAL (the restored build reproduces the forward hudtext line)
+
+--- mutation 4/4: the circle mask is dropped ---
+  frame=1264x681
+  regionExpected=1
+  outsideDiff=0
+  insideDiff=12592
+  diffBBox=40,60,391,223
+  rectColour=31,71,166
+  redCentre=255,0,0
+  blueCentre=25,102,255
+  circleCornerDiff=4
+  glyphBad=0
+  glyphChecked=8
+  fallbackBad=0
+  fallbackBox=1
+  verifyOk=0
+  mutated readings: circleCornerDiff=4 (forward 0)
+  MUTATION-RED   m4: circle mask dropped -- 4 dot corners are painted
+  RESTORED native/src/native_renderer.cpp (byte-identical to the backup)
+  RESTORED-READING-IDENTICAL (the restored build reproduces the forward hudtext line)
+
+MUTATION-SUITE=ALL-RED-RESTORED (4/4 mutations red, every source restored byte-identically and rebuilt)
+
+HUD-TEXT-CHECK=PASS

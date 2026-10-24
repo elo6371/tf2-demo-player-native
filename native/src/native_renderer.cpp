@@ -1,6 +1,7 @@
 #include "native_renderer.h"
 
 #include "entity_model.h"
+#include "hud_font.h"
 
 #include <algorithm>
 #include <array>
@@ -1145,8 +1146,20 @@ float4 main(Input input) : SV_TARGET {
 cbuffer HudConstants : register(b0) {
   float4 screenSize;   // xy = back-buffer pixels, zw = 1/size
 };
-struct Input { float2 position : POSITION; float4 colour : COLOR0; float2 rect : TEXCOORD0; };
-struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 local : TEXCOORD0; };
+struct Input {
+  float2 position : POSITION;
+  float4 colour : COLOR0;
+  float2 rect : TEXCOORD0;
+  float2 uv : TEXCOORD1;
+  float kind : TEXCOORD2;
+};
+struct Output {
+  float4 position : SV_POSITION;
+  float4 colour : COLOR0;
+  float2 local : TEXCOORD0;
+  float2 uv : TEXCOORD1;
+  float kind : TEXCOORD2;
+};
 Output main(Input input) {
   Output output;
   // top-left origin -> clip space. The y flip is here and only here.
@@ -1155,15 +1168,42 @@ Output main(Input input) {
   output.position = float4(ndc, 0.0, 1.0);
   output.colour = input.colour;
   output.local = input.rect;
+  output.uv = input.uv;
+  output.kind = input.kind;
   return output;
 })HLSL";
   static constexpr char hudPixelSource[] = R"HLSL(
-// A HUD panel is drawn as a bordered block rather than a flat fill: this build
-// rasterises no font and no image (see native/docs/hud-supported-formats.md), and
-// a solid rectangle with a one-pixel frame is the shape that says "this panel is
-// here, at this size" without pretending to be the panel's contents.
-struct Input { float4 position : SV_POSITION; float4 colour : COLOR0; float2 local : TEXCOORD0; };
+// T67: one shader, four paths, chosen by the per-vertex kind so the whole HUD
+// stays a single draw call:
+//   0 = bordered rect (T51's panel block)
+//   1 = filled rect
+//   2 = text: sample the embedded 8x8 R8 atlas. Coverage below 0.5 is discarded,
+//       so a glyph pixel is either the table's pixel or nothing -- never a blend
+//       of the panel behind it, which is what makes a frame comparison exact.
+//   3 = circle: the 0..1 local coordinate spans the bounding box, so a squared
+//       distance from the centre above 0.25 is outside the disc.
+Texture2D<float> fontAtlas : register(t0);
+SamplerState fontSampler : register(s0);
+struct Input {
+  float4 position : SV_POSITION;
+  float4 colour : COLOR0;
+  float2 local : TEXCOORD0;
+  float2 uv : TEXCOORD1;
+  float kind : TEXCOORD2;
+};
 float4 main(Input input) : SV_TARGET {
+  const int kind = (int)(input.kind + 0.5);
+  if (kind == 2) {
+    const float coverage = fontAtlas.Sample(fontSampler, input.uv);
+    if (coverage < 0.5) discard;
+    return input.colour;
+  }
+  if (kind == 3) {
+    const float2 offset = input.local - 0.5;
+    if (dot(offset, offset) > 0.25) discard;
+    return input.colour;
+  }
+  if (kind == 1) return input.colour;
   const float edge = min(min(input.local.x, input.local.y),
                          min(1.0 - input.local.x, 1.0 - input.local.y));
   const float border = edge < 0.035 ? 1.0 : 0.0;
@@ -1185,12 +1225,14 @@ float4 main(Input input) : SV_TARGET {
       {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 2, DXGI_FORMAT_R32_FLOAT, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
     if (FAILED(device_->CreateVertexShader(hudVertexBytecode->GetBufferPointer(),
           hudVertexBytecode->GetBufferSize(), nullptr, hudVertexShader_.GetAddressOf()))
         || FAILED(device_->CreatePixelShader(hudPixelBytecode->GetBufferPointer(),
           hudPixelBytecode->GetBufferSize(), nullptr, hudPixelShader_.GetAddressOf()))
-        || FAILED(device_->CreateInputLayout(hudElements, 3,
+        || FAILED(device_->CreateInputLayout(hudElements, 5,
           hudVertexBytecode->GetBufferPointer(), hudVertexBytecode->GetBufferSize(),
           hudInputLayout_.GetAddressOf()))) {
       lastError_ = E_FAIL;
@@ -1583,6 +1625,41 @@ float4 main(Input input) : SV_TARGET {
   hudBlendDescription.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
   hudBlendDescription.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
   if (FAILED(device_->CreateBlendState(&hudBlendDescription, hudBlendState_.GetAddressOf()))) return false;
+  // T67: the embedded font atlas, uploaded once. R8_UNORM and immutable: the
+  // table is compiled into the binary, so nothing can fail at draw time and
+  // nothing needs updating. Point sampling with clamp addressing makes a texel
+  // fetch exact -- a filter that blended neighbouring cells would make the
+  // frame-versus-table comparison meaningless.
+  {
+    const unsigned char* atlas = hudFontAtlas();
+    const UINT atlasWidth = static_cast<UINT>(hudFontAtlasWidth());
+    const UINT atlasHeight = static_cast<UINT>(hudFontAtlasHeight());
+    if (!atlas || atlasWidth == 0 || atlasHeight == 0) { lastError_ = E_FAIL; return false; }
+    D3D11_TEXTURE2D_DESC atlasDescription{};
+    atlasDescription.Width = atlasWidth;
+    atlasDescription.Height = atlasHeight;
+    atlasDescription.MipLevels = 1;
+    atlasDescription.ArraySize = 1;
+    atlasDescription.Format = DXGI_FORMAT_R8_UNORM;
+    atlasDescription.SampleDesc.Count = 1;
+    atlasDescription.Usage = D3D11_USAGE_IMMUTABLE;
+    atlasDescription.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    const D3D11_SUBRESOURCE_DATA atlasData{atlas, atlasWidth, 0};
+    if (FAILED(device_->CreateTexture2D(&atlasDescription, &atlasData, hudFontTexture_.GetAddressOf()))) return false;
+    D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
+    viewDescription.Format = atlasDescription.Format;
+    viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    viewDescription.Texture2D.MipLevels = 1;
+    if (FAILED(device_->CreateShaderResourceView(hudFontTexture_.Get(), &viewDescription, hudFontView_.GetAddressOf()))) return false;
+    D3D11_SAMPLER_DESC samplerDescription{};
+    samplerDescription.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    samplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
+    if (FAILED(device_->CreateSamplerState(&samplerDescription, hudSampler_.GetAddressOf()))) return false;
+  }
   D3D11_BUFFER_DESC modelConstantsDescription{};
   modelConstantsDescription.ByteWidth = 8208;
   modelConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
@@ -5286,6 +5363,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // HUD off would leave drawn=<the previous count> on the trace and a gate would
   // read a HUD that no longer exists.
   hudDrawnRects_ = 0;
+  hudDrawnPrimitives_ = 0;
+  hudTextQuads_ = 0;
+  hudGlyphCount_ = 0;
+  hudUnmappedGlyphs_ = 0;
   hudPassOrdinal_ = 0;
   hudScissorApplied_ = false;
   hudLastRegion_ = HudPixelRectLast{};
@@ -6209,82 +6290,180 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
 
 // ---- T51: the custom HUD pass --------------------------------------------
 
-void Renderer::setHudRects(const std::vector<HudDrawRect>& rects) {
-  hudRects_ = rects;
+void Renderer::setHudPrimitives(const std::vector<HudPrimitive>& primitives) {
+  hudPrimitives_ = primitives;
   // The vertex buffer is rebuilt lazily in drawHudPass, not here: this is called
   // on resize and on import, and a device lost between the two would make an
   // eager upload a failure the caller never asked about.
   hudRectVertexCount_ = 0;
 }
 
+void Renderer::setHudRects(const std::vector<HudDrawRect>& rects) {
+  // T51 callers keep the bordered-block look: a rect is an unfilled Rect
+  // primitive, which is exactly what the old draw path emitted.
+  std::vector<HudPrimitive> primitives;
+  primitives.reserve(rects.size());
+  for (const HudDrawRect& rect : rects) {
+    HudPrimitive primitive;
+    primitive.kind = HudPrimitiveKind::Rect;
+    primitive.x = rect.left;
+    primitive.y = rect.top;
+    primitive.w = rect.right - rect.left;
+    primitive.h = rect.bottom - rect.top;
+    for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = rect.colour[channel];
+    primitive.filled = false;
+    primitives.push_back(std::move(primitive));
+  }
+  setHudPrimitives(primitives);
+}
+
 void Renderer::drawHudPass() {
   if (!context_ || !target_ || width_ == 0 || height_ == 0) return;
   if (!hudVertexShader_ || !hudPixelShader_ || !hudInputLayout_ || !hudConstants_
-      || !hudRasterizerState_ || !hudDepthStencilState_ || !hudBlendState_) return;
-  // An empty rect list is "this document has no panels this build can place";
-  // it is NOT an error and it is NOT the same as `enabled == false`, which is
-  // the user's switch. Both are reported separately by the caller.
-  if (hudRects_.empty()) return;
-  if (hudRectVertexCount_ == 0 || hudRectCapacity_ < hudRects_.size() * 6u) {
-    const std::size_t needed = hudRects_.size() * 6u;
-    D3D11_BUFFER_DESC description{};
-    description.ByteWidth = static_cast<UINT>(needed * sizeof(float) * 8u);
-    description.Usage = D3D11_USAGE_DYNAMIC;
-    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, hudVertexBuffer_.ReleaseAndGetAddressOf()))) return;
-    hudRectCapacity_ = needed;
-  }
-  // Two triangles per rect, six vertices, each carrying its clip position, its
-  // colour and the 0..1 local coordinate the border is derived from.
+      || !hudRasterizerState_ || !hudDepthStencilState_ || !hudBlendState_
+      || !hudFontView_ || !hudSampler_) return;
+  // An empty primitive list is "this document has no panels this build can
+  // place"; it is NOT an error and it is NOT the same as `enabled == false`,
+  // which is the user's switch. Both are reported separately by the caller.
+  if (hudPrimitives_.empty()) return;
+  // Six vertices per quad, 11 floats each: pos2, colour4, local2, uv2, kind1.
+  // A text primitive expands to one quad per glyph, so the vertex count is only
+  // known after the list is expanded; build into a vector, size the buffer from
+  // the result.
   std::vector<float> vertices;
-  vertices.reserve(hudRects_.size() * 6u * 8u);
+  vertices.reserve(hudPrimitives_.size() * 6u * 11u);
   int regionLeft = width_, regionTop = height_, regionRight = 0, regionBottom = 0;
-  for (const HudDrawRect& rect : hudRects_) {
-    if (!(rect.right > rect.left) || !(rect.bottom > rect.top)) continue;
-    const float left = (std::max)(0.0f, rect.left);
-    const float top = (std::max)(0.0f, rect.top);
-    const float right = (std::min)(static_cast<float>(width_), rect.right);
-    const float bottom = (std::min)(static_cast<float>(height_), rect.bottom);
-    if (!(right > left) || !(bottom > top)) continue;
+  auto pushQuad = [&vertices](float left, float top, float right, float bottom,
+                              const float colour[4], const float locals[4], const float uv[4],
+                              float kind) {
     const float corners[6][2] = {
       {left, top}, {left, bottom}, {right, bottom},
       {left, top}, {right, bottom}, {right, top},
     };
-    const float locals[6][2] = {
-      {0.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 1.0f},
-      {0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 0.0f},
+    const float localCorners[6][2] = {
+      {locals[0], locals[1]}, {locals[0], locals[3]}, {locals[2], locals[3]},
+      {locals[0], locals[1]}, {locals[2], locals[3]}, {locals[2], locals[1]},
+    };
+    const float uvCorners[6][2] = {
+      {uv[0], uv[1]}, {uv[0], uv[3]}, {uv[2], uv[3]},
+      {uv[0], uv[1]}, {uv[2], uv[3]}, {uv[2], uv[1]},
     };
     for (int corner = 0; corner < 6; ++corner) {
       vertices.push_back(corners[corner][0]);
       vertices.push_back(corners[corner][1]);
-      vertices.push_back(rect.colour[0]);
-      vertices.push_back(rect.colour[1]);
-      vertices.push_back(rect.colour[2]);
-      vertices.push_back(rect.colour[3]);
-      vertices.push_back(locals[corner][0]);
-      vertices.push_back(locals[corner][1]);
+      vertices.push_back(colour[0]);
+      vertices.push_back(colour[1]);
+      vertices.push_back(colour[2]);
+      vertices.push_back(colour[3]);
+      vertices.push_back(localCorners[corner][0]);
+      vertices.push_back(localCorners[corner][1]);
+      vertices.push_back(uvCorners[corner][0]);
+      vertices.push_back(uvCorners[corner][1]);
+      vertices.push_back(kind);
     }
-    ++hudDrawnRects_;
+  };
+  for (const HudPrimitive& primitive : hudPrimitives_) {
+    const float width = primitive.w;
+    const float height = primitive.h;
+    if (!(width > 0.0f) || !(height > 0.0f)) continue;
+    if (primitive.kind == HudPrimitiveKind::Text) {
+      const std::vector<char32_t> codepoints = hudUtf8Decode(primitive.text);
+      if (codepoints.empty()) continue;
+      const float scale = primitive.scale > 0.0f ? primitive.scale : 1.0f;
+      const float glyphWidth = static_cast<float>(kHudFontGlyphWidth) * scale;
+      const float glyphHeight = static_cast<float>(kHudFontGlyphHeight) * scale;
+      float penX = primitive.x;
+      const float penY = primitive.y;
+      bool drewAny = false;
+      for (const char32_t codepoint : codepoints) {
+        int cell = hudFontGlyphIndex(codepoint);
+        if (cell < 0) {
+          cell = kHudFontFallbackCell;
+          ++hudUnmappedGlyphs_;
+        }
+        const float left = (std::max)(0.0f, penX);
+        const float top = (std::max)(0.0f, penY);
+        const float right = (std::min)(static_cast<float>(width_), penX + glyphWidth);
+        const float bottom = (std::min)(static_cast<float>(height_), penY + glyphHeight);
+        if (right > left && bottom > top) {
+          const int column = cell % kHudFontAtlasColumns;
+          const int row = cell / kHudFontAtlasColumns;
+          const float cellU0 = static_cast<float>(column * kHudFontGlyphWidth)
+            / static_cast<float>(kHudFontAtlasWidth);
+          const float cellU1 = static_cast<float>((column + 1) * kHudFontGlyphWidth)
+            / static_cast<float>(kHudFontAtlasWidth);
+          const float cellV0 = static_cast<float>(row * kHudFontGlyphHeight)
+            / static_cast<float>(kHudFontAtlasHeight);
+          const float cellV1 = static_cast<float>((row + 1) * kHudFontGlyphHeight)
+            / static_cast<float>(kHudFontAtlasHeight);
+          const float uv[4] = {
+            cellU0 + (left - penX) / glyphWidth * (cellU1 - cellU0),
+            cellV0 + (top - penY) / glyphHeight * (cellV1 - cellV0),
+            cellU0 + (right - penX) / glyphWidth * (cellU1 - cellU0),
+            cellV0 + (bottom - penY) / glyphHeight * (cellV1 - cellV0),
+          };
+          const float locals[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+          pushQuad(left, top, right, bottom, primitive.colour, locals, uv, 2.0f);
+          ++hudGlyphCount_;
+          drewAny = true;
+          regionLeft = (std::min)(regionLeft, static_cast<int>(left));
+          regionTop = (std::min)(regionTop, static_cast<int>(top));
+          regionRight = (std::max)(regionRight, static_cast<int>(right + 0.999f));
+          regionBottom = (std::max)(regionBottom, static_cast<int>(bottom + 0.999f));
+        }
+        penX += glyphWidth;
+      }
+      if (drewAny) {
+        ++hudDrawnPrimitives_;
+        ++hudTextQuads_;
+      }
+      continue;
+    }
+    const float left = (std::max)(0.0f, primitive.x);
+    const float top = (std::max)(0.0f, primitive.y);
+    const float right = (std::min)(static_cast<float>(width_), primitive.x + width);
+    const float bottom = (std::min)(static_cast<float>(height_), primitive.y + height);
+    if (!(right > left) || !(bottom > top)) continue;
+    const float locals[4] = {
+      (left - primitive.x) / width, (top - primitive.y) / height,
+      (right - primitive.x) / width, (bottom - primitive.y) / height,
+    };
+    const float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+    float kind = 0.0f;
+    if (primitive.kind == HudPrimitiveKind::Circle) kind = 3.0f;
+    else if (primitive.filled) kind = 1.0f;
+    pushQuad(left, top, right, bottom, primitive.colour, locals, uv, kind);
+    if (primitive.kind == HudPrimitiveKind::Rect) ++hudDrawnRects_;
+    ++hudDrawnPrimitives_;
     regionLeft = (std::min)(regionLeft, static_cast<int>(left));
     regionTop = (std::min)(regionTop, static_cast<int>(top));
     regionRight = (std::max)(regionRight, static_cast<int>(right + 0.999f));
     regionBottom = (std::max)(regionBottom, static_cast<int>(bottom + 0.999f));
   }
   if (vertices.empty()) return;
+  const UINT vertexCount = static_cast<UINT>(vertices.size() / 11u);
+  if (hudRectCapacity_ < vertexCount) {
+    D3D11_BUFFER_DESC description{};
+    description.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(float));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, hudVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    hudRectCapacity_ = vertexCount;
+  }
   D3D11_MAPPED_SUBRESOURCE mapped{};
   if (FAILED(context_->Map(hudVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
   std::memcpy(mapped.pData, vertices.data(), vertices.size() * sizeof(float));
   context_->Unmap(hudVertexBuffer_.Get(), 0);
-  hudRectVertexCount_ = static_cast<UINT>(hudDrawnRects_ * 6u);
+  hudRectVertexCount_ = vertexCount;
   hudLastRegion_.x = regionLeft;
   hudLastRegion_.y = regionTop;
   hudLastRegion_.w = regionRight - regionLeft;
   hudLastRegion_.h = regionBottom - regionTop;
-  hudLastRegion_.empty = hudDrawnRects_ == 0;
-  // The whole pass is scissored to the union of the rectangles it is about to
+  hudLastRegion_.empty = hudDrawnPrimitives_ == 0;
+  // The whole pass is scissored to the union of the primitives it is about to
   // draw. That is belt and braces next to the fact that it only emits those
-  // rectangles: the scissor is what makes "cannot paint outside" a hardware
+  // primitives: the scissor is what makes "cannot paint outside" a hardware
   // property rather than an arithmetic argument, and the reading is printed so
   // the gate can see it was set.
   D3D11_RECT scissor{};
@@ -6302,7 +6481,7 @@ void Renderer::drawHudPass() {
   const float blendFactor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   context_->OMSetBlendState(hudBlendState_.Get(), blendFactor, 0xFFFFFFFFu);
   context_->IASetInputLayout(hudInputLayout_.Get());
-  const UINT stride = sizeof(float) * 8u, offset = 0;
+  const UINT stride = sizeof(float) * 11u, offset = 0;
   auto* buffer = hudVertexBuffer_.Get();
   context_->IASetVertexBuffers(0, 1, &buffer, &stride, &offset);
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -6310,12 +6489,14 @@ void Renderer::drawHudPass() {
   context_->PSSetShader(hudPixelShader_.Get(), nullptr, 0);
   auto* constants = hudConstants_.Get();
   context_->VSSetConstantBuffers(0, 1, &constants);
-  // No textures and no sampler: a bound texture would be sampled by a shader
-  // that declares none, but leaving slot 0 pointing at the weapon albedo from
-  // the ViewModel pass is how a "screen-space HUD" quietly becomes a picture of
-  // the gun. Clearing it is one call and removes the question.
-  ID3D11ShaderResourceView* noTexture = nullptr;
-  context_->PSSetShaderResources(0, 1, &noTexture);
+  // The font atlas is the only texture this pass may sample. Binding it here and
+  // clearing it after the draw keeps the "a HUD frame differs from a HUD-less
+  // frame only in the pixels the pass drew" claim true for the resource slots as
+  // well as for the pixels.
+  auto* fontView = hudFontView_.Get();
+  auto* fontSampler = hudSampler_.Get();
+  context_->PSSetShaderResources(0, 1, &fontView);
+  context_->PSSetSamplers(0, 1, &fontSampler);
   context_->Draw(hudRectVertexCount_, 0);
   hudPassOrdinal_ = ++framePassOrdinal_;
   // Restore the frame's own states so a HUD enabled frame and a HUD disabled
@@ -6331,6 +6512,10 @@ void Renderer::drawHudPass() {
   context_->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFFu);
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(rasterizerState_.Get());
+  ID3D11ShaderResourceView* noTexture = nullptr;
+  context_->PSSetShaderResources(0, 1, &noTexture);
+  ID3D11SamplerState* noSampler = nullptr;
+  context_->PSSetSamplers(0, 1, &noSampler);
 }
 
 void Renderer::shutdown() {

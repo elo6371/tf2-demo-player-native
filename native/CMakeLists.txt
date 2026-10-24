@@ -72,6 +72,8 @@ add_executable(tf2_demo_native WIN32
   # what a document means); hud_state.cpp is the [hud] settings round trip.
   src/hud_import.cpp
   src/hud_state.cpp
+  # T67: the embedded 8x8 font and its atlas; the HUD text pass samples it.
+  src/hud_font.cpp
   # T50's shared hotkey/INI layer, copied byte-identical from task/t50-camera.
   # The HUD registers its three actions into the ONE table rather than a second.
   src/keybinds.cpp
