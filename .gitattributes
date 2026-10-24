@@ -14,3 +14,9 @@ evidence/weapon-material/** -text
 # otherwise rewrite the text files on checkout and make the report's hashes describe
 # a different file. Checked out byte for byte, like evidence/weapon-material/**.
 evidence/t30/** -text
+
+# T68: the golden event fixtures and the same-tick table are evidence whose bytes
+# the gate hashes (same-tick-334.tsv sha256 9d6817c9...). core.autocrlf=true on
+# this host rewrites LF to CRLF on checkout, which moved that hash to 18f506ff...
+# and made the gate fail against its own fixture. Checked out byte for byte.
+evidence/t68-events/** -text
