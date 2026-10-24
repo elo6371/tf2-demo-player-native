@@ -4,10 +4,13 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <set>
+#include <string>
+#include <tuple>
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] <demo.dem>\n";
     return 2;
   }
   bool scan = false;
@@ -35,12 +38,31 @@ int wmain(int argc, wchar_t** argv) {
     cameraTick = static_cast<std::int32_t>(parsed);
     firstPath += 2;
   }
+  // --events <n>: dump decoded svc_GameEvent rows in wire order, n rows (0 = all).
+  // Only meaningful with --scan, like the other dump switches.
+  int eventLimit = -1;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--events") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0 || parsed > std::numeric_limits<int>::max()) {
+      std::wcerr << L"invalid events limit\n";
+      return 2;
+    }
+    eventLimit = static_cast<int>(parsed);
+    firstPath += 2;
+  }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] <demo.dem>\n";
     return 2;
   }
   for (int i = firstPath; i < argc; ++i) {
     const std::filesystem::path path(argv[i]);
+    // Raw UTF-8 row dump, written with the narrow stream after the wide summary
+    // line: wcout would convert these bytes through the active C locale and
+    // mangle the UTF-8 player names that golden rows contain.
+    std::string eventDump;
+    std::size_t eventRows = 0;
+    std::size_t eventDupes = 0;
     tf2::native::DemoHeader header;
     const bool headerOk = tf2::native::parseDemoHeaderFile(path, header);
     tf2::native::DemoIndex index;
@@ -83,6 +105,31 @@ int wmain(int argc, wchar_t** argv) {
       const auto wide = [](const std::string& value) {
         return std::wstring(value.begin(), value.end());
       };
+      if (eventLimit >= 0) {
+        // Dedupe key is (tick, packetOrdinal, messageBit), NOT tick: bagel has
+        // 2,915 ticks with more than one event and tick 334 alone carries 209,
+        // so a tick-only key silently loses almost every same-tick event.
+        std::set<std::tuple<std::int32_t, std::uint32_t, std::uint32_t>> seen;
+        for (const auto& event : summary.gameEvents) {
+          const auto key = std::make_tuple(event.tick, event.packetOrdinal, event.messageBit);
+          if (!seen.insert(key).second) { ++eventDupes; continue; }
+          if (eventLimit > 0 && eventRows >= static_cast<std::size_t>(eventLimit)) break;
+          eventDump += std::to_string(event.tick);
+          eventDump += '\t';
+          eventDump += std::to_string(event.eventId);
+          eventDump += '\t';
+          eventDump += event.name;
+          eventDump += '\t';
+          for (std::size_t field = 0; field < event.fields.size(); ++field) {
+            if (field != 0) eventDump += ';';
+            eventDump += event.fields[field].first;
+            eventDump += '=';
+            eventDump += event.fields[field].second;
+          }
+          eventDump += '\n';
+          ++eventRows;
+        }
+      }
       std::wcout << L" scan=" << (scanOk ? 1 : 0)
                 << L" source_tv=" << (summary.sourceTv ? 1 : 0)
                 << L" server_name=" << std::wstring(summary.serverName.begin(), summary.serverName.end())
@@ -164,7 +211,15 @@ int wmain(int argc, wchar_t** argv) {
                 << L" first_temp_failure_flags=" << summary.firstTempEntityFailureFlags
                 << L" first_temp_failure_bits=" << summary.firstTempEntityFailureBits
                 << L" first_temp_failure_tick=" << summary.firstTempEntityFailureTick
-                << L" unknown_packets=" << summary.unknownMessagePackets;
+                << L" unknown_packets=" << summary.unknownMessagePackets
+                << L" eventlists=" << summary.gameEventListCount
+                << L" events=" << summary.gameEventCount
+                << L" eventdefs=" << summary.gameEventDefinitionsParsed
+                << L" eventdecoded=" << summary.gameEventDecoded
+                << L" eventfail=" << summary.gameEventDecodeFailures
+                << L" eventunknown=" << summary.gameEventUnknownId
+                << L" event_rows=" << eventRows
+                << L" event_dupes=" << eventDupes;
       std::wcout << L" fixangle_valid=" << (summary.lastFixAngleValid ? 1 : 0)
                  << L" fixangle_relative=" << (summary.lastFixAngleRelative ? 1 : 0)
                  << L" fixangle=" << summary.lastFixAngle[0] << L"," << summary.lastFixAngle[1]
@@ -199,6 +254,11 @@ int wmain(int argc, wchar_t** argv) {
       }
     }
     std::wcout << L'\n';
+    if (!eventDump.empty()) {
+      std::wcout.flush();
+      std::cout.write(eventDump.data(), static_cast<std::streamsize>(eventDump.size()));
+      std::cout.flush();
+    }
   }
   return 0;
 }

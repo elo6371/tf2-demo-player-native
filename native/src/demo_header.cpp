@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <limits>
@@ -399,10 +401,20 @@ bool projectileFromTempEntity(const TempEntityEvent& event, ProjectileTimelineEv
 namespace {
 class MessageBits {
 public:
-  explicit MessageBits(const std::vector<std::uint8_t>& bytes) : bytes_(bytes) {}
+  explicit MessageBits(const std::vector<std::uint8_t>& bytes) : bytes_(bytes), limitBits_(bytes.size() * 8) {}
   std::size_t offsetBits() const { return offset_; }
-  std::size_t remaining() const { return bytes_.size() * 8 - offset_; }
-  void setMinimumRemaining(std::size_t minimum) { minimumRemaining_ = std::min(minimum, bytes_.size() * 8); }
+  std::size_t remaining() const { return limitBits_ - offset_; }
+  void setMinimumRemaining(std::size_t minimum) { minimumRemaining_ = std::min(minimum, limitBits_ - offset_); }
+  // A reader over the next `count` bits of this one. Reads past that boundary
+  // fail instead of walking into the next message: an svc_GameEvent body is
+  // bounded by its own 11-bit length, and a malformed length must not be able
+  // to eat the following message's 6-bit type.
+  MessageBits limited(std::size_t count) const {
+    MessageBits view(*this);
+    view.limitBits_ = offset_ + std::min(count, remaining());
+    view.minimumRemaining_ = 0;
+    return view;
+  }
   bool read(std::uint32_t count, std::uint32_t& value) {
     if (count > 32 || count > remaining() || remaining() - count < minimumRemaining_) return false;
     value = 0;
@@ -431,7 +443,7 @@ public:
     return true;
   }
 private:
-  const std::vector<std::uint8_t>& bytes_; std::size_t offset_ = 0; std::size_t minimumRemaining_ = 0;
+  const std::vector<std::uint8_t>& bytes_; std::size_t offset_ = 0; std::size_t limitBits_ = 0; std::size_t minimumRemaining_ = 0;
 };
 
 bool readVoiceInit(MessageBits& bits, DemoNetworkSummary& summary) {
@@ -787,11 +799,103 @@ bool readCmdKeyValues(MessageBits& bits, DemoNetworkSummary& summary) {
   return true;
 }
 
-bool readGameEvent(MessageBits& bits, DemoNetworkSummary& summary) {
+// Game-event values are rendered the way the T64 oracle renders them
+// (work/_refs_demostf/examples/dump_events.rs): strings sanitised (\t \n \r -> space,
+// ';' -> ','), floats as Rust's Display (shortest round-trip digits, fixed
+// notation, no exponent), integers decimal, booleans true/false. The oracle is
+// the only consumer of this text, so the format is pinned by the gate.
+std::string sanitizeGameEventText(const std::string& value) {
+  std::string text = value;
+  for (char& character : text) {
+    if (character == '\t' || character == '\n' || character == '\r') character = ' ';
+    else if (character == ';') character = ',';
+  }
+  return text;
+}
+
+std::string formatGameEventFloat(float value) {
+  char buffer[64] = {};
+  const auto converted = std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::fixed);
+  if (converted.ec == std::errc()) return std::string(buffer, converted.ptr);
+  char fallback[64] = {};
+  std::snprintf(fallback, sizeof(fallback), "%.9g", static_cast<double>(value));
+  return fallback;
+}
+
+// svc_GameEvent = 25: 11-bit length in BITS, then a payload of exactly that many
+// bits: 9-bit event id followed by one value per definition entry, in
+// definition order. The definition is the only schema, so the consumed bit
+// count is validated against the declared length; a mismatch is counted, never
+// turned into a shorter event. The tick is the cmd=2 packet tick (playback
+// domain), NOT the signon entry's tick field.
+bool readGameEvent(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t entryTick,
+                   std::uint32_t packetOrdinal, std::uint32_t messageBit) {
   std::uint32_t payloadBits = 0;
-  if (!bits.read(11, payloadBits) || payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
+  if (!bits.read(11, payloadBits)) return false;
+  if (payloadBits > bits.remaining()) return false;
+  MessageBits payload = bits.limited(payloadBits);
+  std::uint32_t eventId = 0;
+  const bool idOk = payload.read(9, eventId);
+  if (!idOk) {
+    ++summary.gameEventDecodeFailures;
+  } else if (summary.gameEventDefinitions.empty()) {
+    // The table arrives in svc_GameEventList during signon, before the first
+    // data packet. An event before it is a decode failure, not an empty event:
+    // the reference crate returns an empty event and does not even consume the
+    // payload, which is the silent loss this counter exists to prevent.
+    ++summary.gameEventDecodeFailures;
+  } else if (eventId >= summary.gameEventDefinitions.size()) {
+    ++summary.gameEventUnknownId;
+  } else {
+    const GameEventDefinition& definition = summary.gameEventDefinitions[eventId];
+    DemoGameEvent event;
+    event.tick = entryTick;
+    event.eventId = static_cast<std::uint16_t>(eventId);
+    event.name = definition.name;
+    event.packetOrdinal = packetOrdinal;
+    event.messageBit = messageBit;
+    bool valuesOk = true;
+    for (const auto& entry : definition.entries) {
+      std::string rendered;
+      switch (entry.kind) {
+        case GameEventValueType::String: {
+          std::string text;
+          // The terminator byte is part of the value, so a value can never be
+          // longer than the payload's remaining whole bytes.
+          if (!payload.readString(text, payload.remaining() / 8)) { valuesOk = false; break; }
+          rendered = sanitizeGameEventText(text);
+          break;
+        }
+        case GameEventValueType::Float: {
+          std::uint32_t raw = 0;
+          if (!payload.read(32, raw)) { valuesOk = false; break; }
+          float real = 0.0f;
+          std::memcpy(&real, &raw, sizeof(real));
+          rendered = formatGameEventFloat(real);
+          break;
+        }
+        case GameEventValueType::Long: { std::uint32_t number = 0; if (!payload.read(32, number)) { valuesOk = false; break; } rendered = std::to_string(number); break; }
+        case GameEventValueType::Short: { std::uint32_t number = 0; if (!payload.read(16, number)) { valuesOk = false; break; } rendered = std::to_string(number); break; }
+        case GameEventValueType::Byte: { std::uint32_t number = 0; if (!payload.read(8, number)) { valuesOk = false; break; } rendered = std::to_string(number); break; }
+        case GameEventValueType::Boolean: { std::uint32_t flag = 0; if (!payload.read(1, flag)) { valuesOk = false; break; } rendered = flag != 0 ? "true" : "false"; break; }
+        case GameEventValueType::Local: break;  // no wire bits; the value is client state
+        case GameEventValueType::None: valuesOk = false; break;
+      }
+      if (!valuesOk) break;
+      event.fields.emplace_back(entry.name, std::move(rendered));
+    }
+    if (!valuesOk || payload.remaining() != 0) {
+      // Do not fail the packet: the event's length field is still authoritative
+      // and the next 6-bit message type sits exactly at start + payloadBits.
+      ++summary.gameEventDecodeFailures;
+    } else {
+      ++summary.gameEventDecoded;
+      summary.gameEvents.push_back(std::move(event));
+    }
+  }
   ++summary.gameEventCount;
   summary.gameEventPayloadBits += payloadBits;
+  if (!bits.skip(payloadBits)) return false;
   return true;
 }
 
@@ -804,13 +908,43 @@ bool readUserMessage(MessageBits& bits, DemoNetworkSummary& summary) {
   return true;
 }
 
+// svc_GameEventList = 30: 9-bit count, 20-bit length in BITS, then that many
+// definitions: 9-bit id, null-terminated UTF-8 name, repeated (3-bit value type,
+// null-terminated UTF-8 entry name) until a 3-bit type == 0. The table replaces
+// any previous one (last list wins), matching the reference parser.
 bool readGameEventList(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t eventCount = 0;
   std::uint32_t payloadBits = 0;
   if (!bits.read(9, eventCount) || !bits.read(20, payloadBits)) return false;
-  if (payloadBits > bits.remaining() || !bits.skip(payloadBits)) return false;
+  if (payloadBits > bits.remaining()) return false;
+  MessageBits payload = bits.limited(payloadBits);
+  std::vector<GameEventDefinition> definitions;
+  definitions.reserve(eventCount);
+  bool ok = true;
+  for (std::uint32_t index = 0; index < eventCount && ok; ++index) {
+    GameEventDefinition definition;
+    std::uint32_t id = 0;
+    if (!payload.read(9, id) || !payload.readString(definition.name, payload.remaining() / 8)) { ok = false; break; }
+    definition.id = static_cast<std::uint16_t>(id);
+    while (ok) {
+      std::uint32_t kind = 0;
+      if (!payload.read(3, kind)) { ok = false; break; }
+      if (kind == 0) break;
+      if (kind > static_cast<std::uint32_t>(GameEventValueType::Local)) { ok = false; break; }
+      GameEventEntry entry;
+      entry.kind = static_cast<GameEventValueType>(kind);
+      if (!payload.readString(entry.name, payload.remaining() / 8)) { ok = false; break; }
+      definition.entries.push_back(std::move(entry));
+    }
+    definitions.push_back(std::move(definition));
+  }
+  if (ok && payload.remaining() != 0) ok = false;  // real data has no padding
   ++summary.gameEventListCount;
   summary.gameEventDefinitionCount += eventCount;
+  if (!bits.skip(payloadBits)) return false;
+  if (!ok) return false;
+  summary.gameEventDefinitions = std::move(definitions);
+  summary.gameEventDefinitionsParsed = summary.gameEventDefinitions.size();
   return true;
 }
 
@@ -2176,7 +2310,8 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
                              std::int32_t entryTick,
                              std::int32_t initialNetworkTick,
                              DemoNetworkSummary& summary,
-                             DemoMessageStreamResult& result) {
+                             DemoMessageStreamResult& result,
+                             std::uint32_t packetOrdinal) {
   result = {};
   std::vector<std::uint8_t> trimmed;
   const std::vector<std::uint8_t>* source = &payload;
@@ -2211,7 +2346,7 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
     else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 23) { if (!readUserMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 24) { if (!readEntityMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
-    else if (type == 25) { if (!readGameEvent(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 25) { if (!readGameEvent(bits, summary, entryTick, packetOrdinal, static_cast<std::uint32_t>(messageBit))) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 28) { if (!readPrefetch(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
@@ -2258,7 +2393,8 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   summary.entityClassByIndex.assign(2048u, -1);
   summary.entityStates.assign(2048u, EntityState{});
   std::ifstream file(path, std::ios::binary); if (!file) return false;
-  for (const auto& entry : index.entries) {
+  for (std::size_t entryIndex = 0; entryIndex < index.entries.size(); ++entryIndex) {
+    const DemoIndexEntry& entry = index.entries[entryIndex];
     if (entry.command == 6) {
       std::vector<std::uint8_t> dataTablePayload;
       if (!readEntryPayload(file, entry, dataTablePayload, 128u * 1024u * 1024u)) {
@@ -2294,7 +2430,8 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
     if (!readEntryPayload(file, entry, payload, 128u * 1024u * 1024u)) { ++summary.malformedPackets; continue; }
     DemoMessageStreamResult stream;
     const bool streamOk = decodeDemoMessageStream(payload, payload.size() * 8u, entry.tick,
-                                                  summary.lastNetworkTick, summary, stream);
+                                                  summary.lastNetworkTick, summary, stream,
+                                                  static_cast<std::uint32_t>(entryIndex));
     ++summary.packetsScanned;
     if (!streamOk || !stream.packetValid || !stream.decodedAny) ++summary.malformedPackets;
   }

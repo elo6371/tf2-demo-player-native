@@ -1,0 +1,7 @@
+# T68 progress log (t68-events worktree) -- one line per step: time / step / result
+2026-10-24T14:05+08:00 / kickoff / worktree task/t68-events @ 99eeea2 created; read NEXT-TASKS §1+T68, problems/INDEX.md, GAME-EVENT-SPEC.md, SAME-TICK.md, golden/SUMMARY.tsv
+2026-10-24T14:11+08:00 / golden / copied 14 T64 oracle files into evidence/t68-events/golden; same-tick sha256 matches source 9d6817c9...60be
+2026-10-24T14:11+08:00 / implementation / demo_header.h: DemoGameEvent/GameEventDefinition/GameEventEntry + summary fields; demo_header.cpp: MessageBits::limited bounded sub-view, readGameEvent + readGameEventList decoders, decodeDemoMessageStream packetOrdinal, scan loop entry index; main.cpp counters; demo_open_probe --events dump with (tick,packetOrdinal,messageBit) dedupe
+2026-10-24T14:25+08:00 / build / demo_open_probe + tf2_demo_native built with MSVC 14.44 (NMake); probe scans both demos
+2026-10-24T14:25+08:00 / baseline / probe: bagel events=12982 eventdefs=414 eventdecoded=12982 eventfail=0 eventunknown=0 event_dupes=0; snakewater events=10703 same counters; gate game-event-check.sh GATE=PASS (12 golden first50/last50, same-tick 209/213 wire order, tick-only 6071/4850 and 136->1 ammo, --events 1)
+2026-10-24T14:56+08:00 / mutations / game-event-check.sh --mutation: MUTATION-MODE=PASS 3/3; m1 event_count=0; m2 signon tick -2147483648; m3 same_tick rows=1; each RESTORED=1 cmp byte-identical + rebuild + BASELINE-GREEN=1 both demos; LOCKED-COMMAND-EXIT rc=0

@@ -1,0 +1,15 @@
+# T68 golden event samples - summary
+# source=evidence/t64-events/oracle/*.events.tsv (T64 oracle, tf-demo-parser 0.5.1)
+# demo	event	total	first_tick	last_tick	fields
+bagel	player_death	168	98	77075	assister,assister_fallback,attacker,crit_type,customkill,damagebits,death_flags,duck_streak_assist,duck_streak_total,duck_streak_victim,ducks_streaked,inflictor_entindex,kill_streak_assist,kill_streak_total,kill_streak_victim,kill_streak_wep,playerpenetratecount,rocket_jump,silent_kill,stun_flags,userid,victim_entindex,weapon,weapon_def_index,weapon_logclassname,weaponid
+bagel	teamplay_round_start	3	334	48715	full_reset
+bagel	teamplay_round_win	3	27830	76464	flagcaplimit,full_round,losing_team_num_caps,round_time,team,was_sudden_death,winreason
+bagel	controlpoint_starttouch	551	5698	76287	area,player
+bagel	controlpoint_endtouch	551	5779	76899	area,player
+bagel	teamplay_point_captured	15	6926	67958	cappers,cp,cpname,team
+snakewater	player_death	109	71	63705	assister,assister_fallback,attacker,crit_type,customkill,damagebits,death_flags,duck_streak_assist,duck_streak_total,duck_streak_victim,ducks_streaked,inflictor_entindex,kill_streak_assist,kill_streak_total,kill_streak_victim,kill_streak_wep,playerpenetratecount,rocket_jump,silent_kill,stun_flags,userid,victim_entindex,weapon,weapon_def_index,weapon_logclassname,weaponid
+snakewater	teamplay_round_start	5	334	57069	full_reset
+snakewater	teamplay_round_win	5	9690	63683	flagcaplimit,full_round,losing_team_num_caps,round_time,team,was_sudden_death,winreason
+snakewater	controlpoint_starttouch	244	1744	63689	area,player
+snakewater	controlpoint_endtouch	244	1767	63767	area,player
+snakewater	teamplay_point_captured	15	4008	63683	cappers,cp,cpname,team

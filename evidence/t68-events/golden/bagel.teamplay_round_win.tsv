@@ -1,0 +1,10 @@
+# demo_path=D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem sha256=03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 demo=bagel map=koth_bagel_rc13 event=teamplay_round_win total=3 first_tick=27830 last_tick=76464
+# fields=flagcaplimit,full_round,losing_team_num_caps,round_time,team,was_sudden_death,winreason
+# section=first50
+27830	teamplay_round_win	0	1	3	347.40002	3	0	1
+47714	teamplay_round_win	0	1	1	283.245	3	0	1
+76464	teamplay_round_win	0	1	3	416.235	3	0	1
+# section=last50
+27830	teamplay_round_win	0	1	3	347.40002	3	0	1
+47714	teamplay_round_win	0	1	1	283.245	3	0	1
+76464	teamplay_round_win	0	1	3	416.235	3	0	1

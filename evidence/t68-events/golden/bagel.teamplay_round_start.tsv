@@ -1,0 +1,10 @@
+# demo_path=D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem sha256=03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436 demo=bagel map=koth_bagel_rc13 event=teamplay_round_start total=3 first_tick=334 last_tick=48715
+# fields=full_reset
+# section=first50
+334	teamplay_round_start	true
+28831	teamplay_round_start	true
+48715	teamplay_round_start	true
+# section=last50
+334	teamplay_round_start	true
+28831	teamplay_round_start	true
+48715	teamplay_round_start	true
