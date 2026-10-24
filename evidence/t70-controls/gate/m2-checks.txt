@@ -1,0 +1,10 @@
+  FAIL C speed 0.125 ticks/s = 66, expected 8
+  FAIL C speed 0.25 ticks/s = 66, expected 16
+  FAIL C speed 0.5 ticks/s = 66, expected 33
+  OK   C speed 1.0 ticks/s = 66
+  FAIL C speed 2.0 ticks/s = 66, expected 133
+  FAIL C speed 4.0 ticks/s = 66, expected 266
+  FAIL C speed 8.0 ticks/s = 66, expected 533
+  OK   C 2.0 vs 2x1.0 delta (ticks) = 1 (<= 2)
+  OK   C speed-change does not move tick (checks ok) = 7
+  OK   C speed-change does not move tick (checks failed) = 0

@@ -1,0 +1,4 @@
+demo=missing path=D:/TF2_Demo_Player/testdata/demos/t70-controls-missing-demo.dem
+step=1 cmd=step-forward requested=0 landed=0 status=rejected playing=0 speed=1.000
+detail=step=1 status=refused-disabled reason=disabled id=2
+error=demo-not-found path=D:/TF2_Demo_Player/testdata/demos/t70-controls-missing-demo.dem

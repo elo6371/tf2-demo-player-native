@@ -67,6 +67,10 @@ add_executable(tf2_demo_native WIN32
   src/effects_timeline.cpp
   src/pcf_operators.cpp
   src/playback_hud.cpp
+  # T70: the request/landing ledger. Pure logic, shared with
+  # playback_control_probe so the gate drives the same implementation the
+  # product runs rather than a second copy that happens to agree.
+  src/playback_control.cpp
   # T51: the custom HUD import. hud_import.cpp is the pure rule set (shared with
   # hud_probe byte for byte, so the probe and the product cannot disagree about
   # what a document means); hud_state.cpp is the [hud] settings round trip.
@@ -623,6 +627,13 @@ target_link_libraries(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(native_ui_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(native_ui_probe PRIVATE include third_party/lzma)
 set_target_properties(native_ui_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# T70 playback-control probe. PlaybackControl is pure logic (no Win32, no D3D,
+# no demo parser), so this target links only its translation unit. The gate
+# drives it under the shared host lock like every other probe.
+add_executable(playback_control_probe tools/playback_control_probe.cpp src/playback_control.cpp)
+target_include_directories(playback_control_probe PRIVATE include)
+set_target_properties(playback_control_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # T50 camera gate probe. The freeze rule, the bookmark store and the key table
 # are all pure; this probe drives them without a GPU or a demo, which is what

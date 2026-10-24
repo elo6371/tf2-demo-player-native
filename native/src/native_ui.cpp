@@ -14,7 +14,8 @@
 namespace tf2::native {
 namespace {
 
-constexpr std::int32_t kSecondStepTicks = 66;
+// 1 second at 66.6667 ticks/s rounds to 67 ticks (DESIGN: 1s = 67).
+constexpr std::int32_t kSecondStepTicks = 67;
 
 bool isDemoPath(const std::filesystem::path& path) {
   if (path.empty() || !path.has_filename()) return false;

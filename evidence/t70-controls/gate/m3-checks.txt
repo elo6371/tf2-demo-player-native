@@ -1,0 +1,16 @@
+  OK   E strict end requested = 1001
+  FAIL E strict end landed (cursor unchanged) = 1001, expected 100
+  FAIL E strict end status = ok, expected unreachable
+  OK   E strict start requested = -1
+  FAIL E strict start landed (cursor unchanged) = -1, expected 100
+  FAIL E strict start status = ok, expected unreachable
+  FAIL E unreachable-end-unchanged check = 0, expected 1
+  FAIL E unreachable-start-unchanged check = 0, expected 1
+  OK   E clamp end requested = 1050
+  FAIL E clamp end landed = 1050, expected 1000
+  FAIL E clamp end status = ok, expected clamped
+  OK   E clamp start requested = -50
+  FAIL E clamp start landed = -50, expected 0
+  FAIL E clamp start status = ok, expected clamped
+  FAIL E clamped-end check = 0, expected 1
+  FAIL E clamped-start check = 0, expected 1

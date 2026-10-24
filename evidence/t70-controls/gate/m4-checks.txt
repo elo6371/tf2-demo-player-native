@@ -1,0 +1,11 @@
+  FAIL D superseded request id = 0, expected != 0
+  OK   D pending request id = 2 (!= 0)
+  OK   D superseded is the displaced request, not the pending one = 0 (!= 2)
+  FAIL D interruptedSeeks = 0, expected 1
+  FAIL D superseded-id check = 0, expected 1
+  FAIL D interrupted-seeks check = 0, expected 1
+  OK   D final landing id is the pending request = 2
+  OK   D final landing cursor = 4000
+  OK   D final landing status = exact
+  OK   D final-landing-id check = 1
+  OK   D final-landing-cursor check = 1
