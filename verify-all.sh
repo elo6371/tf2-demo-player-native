@@ -327,9 +327,23 @@ tail -6 "$OUT/1-build.txt"
 # The other three merges added no target: T63-F1 and T68 extend demo_open_probe,
 # T67 adds hud_font.cpp + hud_panel.h to the existing product and hud_probe.
 # The warning count is unchanged at 16 in this build.
+#
+# 2026-10-24 T70 merge: 50 -> 51, measured on the integration tree after the
+# T70 merge (42b345f): grep -c '^add_executable(' = 51 and
+# build-target.sh tf2_demo_native playback_control_probe left 51 exes on disk
+# with BUILD_RC=0 and 0 'error C' lines (evidence/release-gates/build-p0-t70.log).
+# One target joined:
+#   T70 bf06eea playback_control_probe the frame-step / short-jump / speed-tier
+#                                      controller, compiled from the same
+#                                      src/playback_control.cpp as the product
+# The warning count is unchanged at 18 lines in this build (18 since the T52 v2 merge
+# added native_renderer.cpp C4100/C4456 sites; T70 adds none).
+# This pin is edited in the release round on purpose: it is the number that says
+# the build produced every target, and it must move with the target list or it
+# starts agreeing with a truncated build.
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
    && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=50$' "$OUT/1-build.txt"; then
+   && grep -q '^exe_count=51$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
