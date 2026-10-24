@@ -397,6 +397,13 @@ echo "  capture tick=$TICK (first in-window playback tick; T52_TICK pins it)"
 # speed, so the default has to be a speed whose frames are measured -- a third
 # value that no assertion covers would be the same trust-me as no assertion.
 SPEED="${T52_SPEED:-8}"
+# SLOW-CAPTURE TIMEOUT (2026-10-24). The speed=1 capture advances the playback
+# cursor one tick per rendered frame, so it costs about 28 minutes on this host
+# (measured: 23 minutes to 384 MB of trace, ~30 to the end). It used to sit on a
+# hard 1800 s, which is the same number as its own duration: a slightly slower
+# machine fails the gate for being slower, not for being wrong. 2400 s keeps the
+# failure mode (a hang still fails) and drops the coincidence. Override with
+# T52_SLOW_TIMEOUT when the host is busy.
 # TRACE SIZE (2026-10-24). A capture writes every frame's item lines, so one
 # speed=1 trace reached 501,926,433 bytes (478.7 MiB), and two of them sat in
 # evidence/outline/ after the run -- gitignored, but half a gigabyte each, and the
@@ -496,7 +503,7 @@ echo "  -- speed invariance: the harness knob may not change the frame --"
 # hold was added. Without the off/off2 reading, a difference here would be that
 # old defect and this block would be attributing it to the speed.
 SPEED1_START=$(date +%s)
-SPEED1_RC=$(RUN_TIMEOUT=1800 SPEED=1 run_frame "$OUT/speed1" --outline on)
+SPEED1_RC=$(RUN_TIMEOUT="${T52_SLOW_TIMEOUT:-2400}" SPEED=1 run_frame "$OUT/speed1" --outline on)
 SPEED1_TOOK=$(( $(date +%s) - SPEED1_START ))
 echo "  speed=1 rc=$SPEED1_RC bmp=$(stat -c%s "$OUT/speed1.bmp" 2>/dev/null || echo 0) took=${SPEED1_TOOK}s"
 assert_eq "speed=1 capture rc" "$SPEED1_RC" "0"
@@ -1341,7 +1348,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
 "            g_playback.tick = static_cast<std::int32_t>(captureTick);" \
 "            g_playback.tick = static_cast<std::int32_t>(captureTick) + (g_playback.speed > 2.0 ? 30 : 0);  /* mutation m6 */" || mut_fail=1
   if rebuild_product m6; then
-    M6_SLOW=$(RUN_TIMEOUT=1800 SPEED=1 run_frame "$OUT/m6-speed1" --outline on)
+    M6_SLOW=$(RUN_TIMEOUT="${T52_SLOW_TIMEOUT:-2400}" SPEED=1 run_frame "$OUT/m6-speed1" --outline on)
     M6_FAST=$(run_frame "$OUT/m6-default" --outline on)
     echo "    m6 speed=1 rc=$M6_SLOW speed=${SPEED} rc=$M6_FAST"
     if cmp -s "$OUT/m6-speed1.bmp" "$OUT/m6-default.bmp"; then
