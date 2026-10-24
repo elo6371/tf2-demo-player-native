@@ -722,6 +722,18 @@ target_compile_definitions(install_cli_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEA
 target_link_libraries(install_cli_probe PRIVATE bcrypt)
 set_target_properties(install_cli_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T69: the minimap's PURE logic. The probe links src/minimap.cpp -- the same
+# translation unit the product will link -- so a green run is a statement about
+# the projection arithmetic, the world<->pixel round trip, the hit test and the
+# panel state machine, and cannot be helped by a GPU, a window or a demo file.
+# The DRAWING half of T69 is deliberately not covered here: it needs T67's HUD
+# primitive layer and arrives with it, so this probe proves the numbers a
+# renderer will consume, not the picture a user will see.
+add_executable(minimap_probe tools/minimap_probe.cpp src/minimap.cpp)
+target_include_directories(minimap_probe PRIVATE include)
+target_compile_definitions(minimap_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+set_target_properties(minimap_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 # T37: the install rule now lays down the LIFECYCLE, not only the executables.
 #
 #   the package payload   <prefix>/.uninstall/payload/ -- exactly the files
@@ -789,6 +801,8 @@ if (MSVC)
   # T51: the probe is held to the product's warning bar, because a probe is read as
   # evidence and evidence built at /W3 is not the same evidence.
   target_compile_options(hud_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
+  # T69: same bar as hud_probe, for the same reason.
+  target_compile_options(minimap_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_link_options(tf2_demo_native PRIVATE /DYNAMICBASE /NXCOMPAT)
 endif()
 

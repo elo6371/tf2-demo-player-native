@@ -1,0 +1,4 @@
+=== configure ===
+=== build minimap_probe ===
+note: fresh build tree; header stamp guard not needed
+rc=0

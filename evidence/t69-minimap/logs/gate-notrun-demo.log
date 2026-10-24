@@ -1,0 +1,4 @@
+NOT RUN: probe missing: native/build-nmake/minimap_probe.exe
+  build it with: bash build-target.sh minimap_probe
+MINIMAP-CHECK=FAIL
+RC=2

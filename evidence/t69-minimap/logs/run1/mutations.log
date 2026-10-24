@@ -1,0 +1,25 @@
+=== T69 minimap mutation suite ===
+=== pre-mutation baseline ===
+BASELINE=PASS build_rc=0 gate_rc=0
+PATCH-OK name=m1 PATCH-APPLIED count=1 bytes=8140
+MUTATED-BUILD-RC=0 name=m1
+MUTATION-CAUGHT name=m1 assertion="yflip:" gate_rc=1
+RESTORE-OK name=m1
+BASELINE-RESTORED name=m1 rebuild_rc=0 gate_rc=0
+PATCH-OK name=m2 PATCH-APPLIED count=1 bytes=8140
+MUTATED-BUILD-RC=0 name=m2
+MUTATION-CAUGHT name=m2 assertion="hittest nearest:" gate_rc=1
+RESTORE-OK name=m2
+BASELINE-RESTORED name=m2 rebuild_rc=0 gate_rc=0
+PATCH-OK name=m3 PATCH-APPLIED count=1 bytes=7093
+MUTATED-BUILD-RC=0 name=m3
+MUTATION-CAUGHT name=m3 assertion="panel collapsed initial:" gate_rc=1
+RESTORE-OK name=m3
+BASELINE-RESTORED name=m3 rebuild_rc=0 gate_rc=0
+PATCH-OK name=m4 PATCH-APPLIED count=1 bytes=8140
+MUTATED-BUILD-RC=0 name=m4
+MUTATION-CAUGHT name=m4 assertion="zoom2 hittest:" gate_rc=1
+RESTORE-OK name=m4
+BASELINE-RESTORED name=m4 rebuild_rc=0 gate_rc=0
+mutations_caught=4/4
+MUTATION-SUITE=PASS

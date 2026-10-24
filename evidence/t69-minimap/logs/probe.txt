@@ -1,0 +1,31 @@
+minimap: probe begin version=1
+minimap: synthetic bounds minX=0.000000 minY=0.000000 maxX=4096.000000 maxY=4096.000000 pixel=512x512 valid=1
+minimap: projection valid=1 scale=0.125000 offsetX=0.000000 offsetY=512.000000 yFlip=1 zoom=1.000000
+minimap: point index=0 worldX=0.000000 worldY=0.000000 px=0.000000 py=512.000000 inside=1
+minimap: point index=1 worldX=4096.000000 worldY=4096.000000 px=512.000000 py=0.000000 inside=1
+minimap: point index=2 worldX=1024.000000 worldY=3072.000000 px=128.000000 py=128.000000 inside=1
+minimap: point index=3 worldX=2048.000000 worldY=1024.000000 px=256.000000 py=384.000000 inside=1
+minimap: roundtrip index=0 errorPx=0.000000000
+minimap: roundtrip index=1 errorPx=0.000000000
+minimap: roundtrip index=2 errorPx=0.000000000
+minimap: roundtrip index=3 errorPx=0.000000000
+minimap: hittest case=nearest query=300.000000,384.000000 radius=250.000000 result=3
+minimap: hittest case=tie query=256.000000,384.000000 radius=200.000000 result=0
+minimap: hittest case=outside query=500.000000,500.000000 radius=10.000000 result=-1
+minimap: hittest case=invisible query=2.000000,510.000000 radius=10.000000 result=-1
+minimap: hittest order forward_nearest=3 reversed_nearest=3 forward_tie=0 reversed_tie=0
+minimap: panel initial collapsed=1 zoom=1.000000 expandCount=0 collapseCount=0
+minimap: panel after_expand collapsed=0 expandCount=1 collapseCount=0
+minimap: panel after_collapse collapsed=1 expandCount=1 collapseCount=1
+minimap: zoom1 point=3 px=256.000000 py=384.000000 center=256.000000,256.000000 distance=128.000000
+minimap: panel after_zoom zoom=2.000000 zoomChanges=1
+minimap: zoom2 point=3 px=256.000000 py=512.000000 center=256.000000,256.000000 distance=256.000000
+minimap: roundtrip_zoom2 point=3 errorPx=0.000000000
+minimap: zoom2_hittest point=0 query=0.000000,512.000000 radius=10.000000 result=0
+minimap: panel after_reset zoom=1.000000 panX=0.000000 panY=0.000000 zoomChanges=2
+minimap: panel state collapsed=1 zoom=1.000000 panX=0.000000 panY=0.000000 expandCount=1 collapseCount=1 zoomChanges=2 hitTests=1 hits=1 misses=0 lastHitIndex=0 available=1 reason=-
+minimap: unavailable map=koth_bagel_rc13 boundsValid=0 projectionValid=0 reason=koth_bagel_rc13:bounds-invalid available=0
+minimap: unavailable map=degenerate boundsValid=1 projectionValid=0 reason=degenerate:world-span-nonpositive available=0
+minimap: ledger map=cp_snakewater_final1 scale=0.078293204308 expected=0.078293208064 offsetX=470.661194 offsetY=528.285034 valid=1
+minimap: ledger map=pl_badwater scale=0.130932897329 expected=0.130932896890 offsetX=405.158752 offsetY=527.842896 valid=1
+minimap: probe done ok=1

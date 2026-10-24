@@ -1,0 +1,28 @@
+OK   probe ran: native/build-nmake/minimap_probe.exe --minimap-test rc=0 (29 lines)
+OK   projection valid=1 scale=0.125000 offsetX=0.000000 offsetY=512.000000 yFlip=1
+OK   point index=0 px=0.000000 py=512.000000 inside=1 (expected 0,512 tol=0.001)
+OK   point index=1 px=512.000000 py=0.000000 inside=1 (expected 512,0 tol=0.001)
+OK   point index=2 px=128.000000 py=128.000000 inside=1 (expected 128,128 tol=0.001)
+OK   point index=3 px=256.000000 py=384.000000 inside=1 (expected 256,384 tol=0.001)
+OK   roundtrip index=0 errorPx=0.000000000 < 1e-4 px
+OK   roundtrip index=1 errorPx=0.000000000 < 1e-4 px
+OK   roundtrip index=2 errorPx=0.000000000 < 1e-4 px
+OK   roundtrip index=3 errorPx=0.000000000 < 1e-4 px
+OK   yflip: world y=4096 -> py=0.000000 is above world y=0 -> py=512.000000
+OK   hittest nearest: result=3 (expected 3)
+OK   hittest tie: result=0 (expected 0)
+OK   hittest outside: result=-1 (expected -1)
+OK   hittest invisible: result=-1 (expected -1)
+OK   hittest order: forward/reversed agree (nearest 3/3, tie 0/0)
+OK   panel collapsed initial: collapsed=1
+OK   panel expand/collapse: collapsed 0 then 1, expandCount=1 collapseCount=1
+OK   panel zoom: zoom=2.000000 zoomChanges=1
+OK   zoom2 distance: 256.000000 = 2 x 128.000000 from the panel centre
+OK   zoom2 pixel: point=3 px=256.000000 py=512.000000 (expected 256,512)
+OK   zoom2 roundtrip: errorPx=0.000000000 < 1e-4 px
+OK   zoom2 hittest: result=0 (the hit test uses the zoomed projection)
+OK   unavailable: available=0 projectionValid=0 reason=koth_bagel_rc13:bounds-invalid
+OK   unavailable degenerate: available=0 reason=degenerate:world-span-nonpositive
+assertions_ok=25 assertions_bad=0
+MINIMAP-CHECK=PASS
+RC=0

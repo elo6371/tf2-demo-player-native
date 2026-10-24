@@ -1,0 +1,9 @@
+HEAD=99eeea294cbe883e4c3e6b4b82c83de45d2ab926
+BRANCH=task/t69-minimap
+DATE=2026-10-24 12:50:45 +0800
+ M native/CMakeLists.txt
+?? evidence/t69-minimap/
+?? minimap-check.sh
+?? native/include/minimap.h
+?? native/src/minimap.cpp
+?? native/tools/minimap_probe.cpp
