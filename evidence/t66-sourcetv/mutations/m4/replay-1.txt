@@ -1,0 +1,4 @@
+demo: map=cp_snakewater_final1 source_tv=1 setview=1 view_entity=1 ticks=64352 frames=64330 packets=64333
+demo: source available=0 checkpoint=1936 skipped=0 checkpoint_lag_mean=341.3 worst=1031
+demo: frames=1936 deaths=1 handovers=0 director=1 stable=0 manual=0 rejected=0 notarget=0 resync=0 hidden=15 transitions_open=0 transitions_closed=0 origin_focus_hits=0 final_target=17 focus_valid=1 final_focus=4974.1,-1738.4,-152.0 last_deaths=1 last_handovers=0
+SPECTATE-DEMO=PASS frames=1936

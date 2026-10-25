@@ -1,0 +1,38 @@
+ACQUIRED owner=t66-round2 at 2026-10-25 15:39:41
+======================================================================
+--- mutant m4 (sections 3,4)
+PATCH-APPLIED case=m4 file=native/src/spectate_target.cpp bytes=13381->13397 the demo director handle is trusted without validating the slot it names
+  BUILD spectate_probe rc=0 errors=0
+  BUILD tf2_demo_native rc=0 errors=0
+  GATE-RC=1
+      FAIL replayed deaths = 1, expected 3
+      FAIL replayed handovers = 0, expected 3
+      FAIL handovers that opened = 0, expected 3
+      FAIL handovers that closed = 0, expected 3
+      FAIL the director handle was never usable on this demo = 1, expected 0
+      FAIL product deaths = 1, expected 3
+      FAIL product handovers = 0, expected 3
+      FAIL the product never used the demo director handle either = 1, expected 0
+  MUTATION-RED m4: 'the director handle was never usable on this demo'
+  RESTORED m4 byte-for-byte
+  BUILD spectate_probe rc=0 errors=0
+  BUILD tf2_demo_native rc=0 errors=0
+  --- the product-side reading of the same clause:
+      FAIL the product never used the demo director handle either = 1, expected 0
+======================================================================
+--- mutant m5 (sections 2)
+PATCH-APPLIED case=m5 file=native/src/spectate_target.cpp bytes=13381->13496 an empty roster jumps the camera to the world origin
+  BUILD spectate_probe rc=0 errors=0
+  BUILD tf2_demo_native rc=0 errors=0
+  GATE-RC=1
+      FAIL S4 the camera keeps its last valid position when nobody is alive
+      FAIL S4 the camera never falls back to the world origin
+      FAIL self-test exit = 1, expected 0
+      FAIL self-test verdict = SPECTATE-SELF-TEST=FAIL checks=49 failures=2, expected to contain SPECTATE-SELF-TEST=PASS
+      FAIL self-test failures = 2, expected 0
+  MUTATION-RED m5: 'the camera never falls back to the world origin'
+  RESTORED m5 byte-for-byte
+  BUILD spectate_probe rc=0 errors=0
+  BUILD tf2_demo_native rc=0 errors=0
+======================================================================
+--- final baseline on the patched gate (all sections)

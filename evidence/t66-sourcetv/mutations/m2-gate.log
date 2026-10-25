@@ -1,0 +1,15 @@
+=== 4/8 the product: the same three deaths at 8x, a handover in progress, corpses removed ===
+  OK   product run exit = 0
+  OK   product trace bytes = 8833983 (>= 1000000)
+  summary: 60506.9 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=0 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19503
+  OK   product deaths = 3
+  OK   product handovers = 3
+  OK   product frames with no target = 0
+  OK   product seeks = 0
+  OK   product manual picks = 0
+  FAIL instances the corpse rule removed = 0, expected >= 100
+  FAIL frames that published a corpse filter line = 0, expected >= 3
+  FAIL the last corpse filter names the dead player = <none>, expected to contain indices=
+  FAIL the first corpse filter names the first dead player (2) = <none>, expected to contain 2
+==========================================================================
+SPECTATE-CHECK=FAIL
