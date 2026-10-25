@@ -1,0 +1,8 @@
+animtable model=models/player/soldier.mdl animSource=models/player/soldier_animations.mdl separate=1 bones=86 bindBones=86 validBindBones=86 sequences=361 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=22 poseLabel=ReloadAirwalk_PRIMARY poseFrames=33 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|test|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|AttackStand_PRIMARY2|AttackCrouch_PRIMARY2|AttackSwim_PRIMARY2|AttackStand_PRIMARY2_SUPER|AttackCrouch_PRIMARY2_SUPER|AttackSwim_PRIMARY2_SUPER|layer_reload_standing_arms|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadAirwalk_PRIMARY|layer_reload_standing_arms_loop|...
+boundDiag bindRadius=80.590332 boundDiag=162.180664 bones=86 composed=1 reason=-
+contcand rank=0 sequence=199 label=s_swimAlign_LOSER frames=61 sparseStep=6.428752 halfSwing=81.953033
+contcand rank=1 sequence=228 label=layer_gesture_item1_buglecall frames=81 sparseStep=12.323654 halfSwing=84.988945
+contcand rank=2 sequence=238 label=primary_floatA frames=31 sparseStep=17.485065 halfSwing=89.695755
+contcand rank=3 sequence=212 label=airwalk_PRIMARY frames=31 sparseStep=17.485065 halfSwing=89.695755
+contcand rank=4 sequence=239 label=primary_floatB frames=27 sparseStep=18.863302 halfSwing=121.258392
+FAIL player-animation-test reason=no-continuity-sequence detail=no clip with a half-cycle swing above half the bound and a per-frame step below a quarter

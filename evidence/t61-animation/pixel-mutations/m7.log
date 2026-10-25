@@ -1,0 +1,36 @@
+=== F1: the binary under test is newer than the sources it compiles ===
+  OK   binary is newer than every source that feeds the pixel path
+
+=== F2/F3/F4: capture the coverage mask, the animated frame and the off frame ===
+  coverage rc=0 view=entity-coverage frameTick=64161 sceneTick=74481
+  animated rc=0 view=textured frameTick=64161 sceneTick=74481
+  off     rc=0 view=textured frameTick=64161 sceneTick=74481
+  repeat  rc=0 view=textured frameTick=64161 sceneTick=74481
+  OK   the repeat capture landed the same playback and scene tick (64161/74481)
+  OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
+  OK   coverage frame really is the entity-coverage view
+  OK   animated frame is the product view
+  OK   off frame is the product view
+  OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
+  OK   both runs resolved the same scene tick 74481
+  OK   the animated capture published an animsum line (the drive ran)
+  OK   coverage.bmp exists (2582406 bytes)
+  OK   animated.bmp exists (2582406 bytes)
+  OK   off.bmp exists (2582406 bytes)
+
+=== F3/F4: the pixel assertions themselves ===
+  MASK pixels=6876 of 860784 (0.80%) sentinel=(255,0,255)
+  MASK non-sentinel top=[((89, 158, 97), 691228), ((14, 18, 22), 162680)]
+  OK   mask size 6876 in [2000, 215196]
+  BODY over mask: distinct=1716 mean_lum=21.2 pure_black=0.163 top=[((0, 0, 0), 697), ((18, 15, 13), 271), ((5, 13, 25), 176)]
+  OK   body distinct colours 1716 >= 200 (not a flat fill)
+  OK   body mean luminance 21.2 >= 12.0
+  OK   body pure-black share 0.163 <= 0.35
+  animation-off vs animated over mask: differ=0 (0.00%) differ_by_>=24=0 (0.00%)
+  FAIL animation-off moved 0.00% < 5.0% of body pixels
+  PIXEL-CHECK=FAIL
+  FAIL t61-pixels.py exited 1 (see evidence/t61-animation/pixels/mutations/pixel-check.txt)
+  FAIL t61-pixels.py did not print PIXEL-CHECK=PASS (a missing verdict is not a pass)
+  FAIL 1 FAIL line(s) from the pixel tool
+
+FAIL player-animation-pixels: see the FAIL lines above.

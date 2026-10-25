@@ -1,0 +1,5 @@
+tag=animated2 rc=0 view=textured frameTick=64161 sceneTick=74481
+141551.6 animsum: tick=74481 players=14 moving=7 idle=7 advanced=7 skipped=0 maxDeltaCycle=0.856742
+21420.7 gpu: world debug view=textured
+141554.0 capture: armed requested=64161 frame_tick=64161 frames=11236
+141551.8 scene: anim skinned=67 bindPose=29 matrices=1339 gpuSkin=66/1339 boneMismatch=63513 poseChanges=5345 targetInstances=2 targetPose=3 advances=4931 targetAdv=3 cycle=167103/155008 tick=74481 status=ok reason=ReloadAirwalk_PRIMARY

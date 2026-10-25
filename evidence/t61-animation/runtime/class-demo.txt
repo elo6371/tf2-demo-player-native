@@ -1,0 +1,24 @@
+animtable model=models/player/demo.mdl animSource=models/player/demo_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=276 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=24 poseLabel=a_PRIMARY_reload_airwalk poseFrames=51 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|a_PRIMARY_reload|PRIMARY_reload|a_PRIMARY_reload_loop|a_PRIMARY_reload_end|a_PRIMARY_crouch_reload|PRIMARY_crouch_reload|a_PRIMARY_crouch_reload_loop|a_PRIMARY_crouch_reload_end|a_PRIMARY_swim_reload|PRIMARY_swim_reload|a_PRIMARY_swim_reload_loop|a_PRIMARY_swim_reload_end|...
+boundDiag bindRadius=76.172211 boundDiag=153.344421 bones=82 composed=1 reason=-
+contcand rank=0 sequence=138 label=swim_MELEE frames=31 sparseStep=10.403534 halfSwing=82.873390
+contcand rank=1 sequence=141 label=swim_MELEE_ALLCLASS frames=31 sparseStep=10.403534 halfSwing=82.873390
+contcand rank=2 sequence=146 label=swim_LOSER frames=31 sparseStep=11.798075 halfSwing=89.062599
+contcand rank=3 sequence=272 label=layer_taunt_nuke frames=332 sparseStep=11.937920 halfSwing=95.100830
+contcand rank=4 sequence=266 label=layer_taunt_rps_scissors_lose frames=106 sparseStep=20.954987 halfSwing=87.056244
+contpick sequence=138 label=swim_MELEE frames=31 sweepStep=11.252254 limit=38.336105 halfSwing=82.873390
+animcontseq sequence=138 label=swim_MELEE frames=31 sweepStep=11.252254
+animpose cycle=0.0000 sequence=24 label=a_PRIMARY_reload_airwalk frame=0/51 localFrame=0 sectionFrames=0 bones=84 checksum=ab434981ceebdcb5 maxDelta=68.632790 finite=1
+animpose cycle=0.2500 sequence=24 label=a_PRIMARY_reload_airwalk frame=12/51 localFrame=12 sectionFrames=0 bones=84 checksum=0416648481f235f2 maxDelta=73.850571 finite=1
+animpose cycle=0.5000 sequence=24 label=a_PRIMARY_reload_airwalk frame=25/51 localFrame=25 sectionFrames=0 bones=84 checksum=3b80ca1656c9abc4 maxDelta=71.111755 finite=1
+animpose cycle=0.7500 sequence=24 label=a_PRIMARY_reload_airwalk frame=38/51 localFrame=38 sectionFrames=0 bones=84 checksum=1afbacf2a9c6142d maxDelta=74.290108 finite=1
+animcont sequence=138 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=11.252254 worstBone=12 worstElement=14 worstTick=59 usable=1
+animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
+animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=10 speed=300.000 state=moving cycle=0.200000003 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=20 speed=300.000 state=moving cycle=0.400000066 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=30 speed=300.000 state=moving cycle=0.600000024 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=31 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=40 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=50 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=60 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animticks mode=synthetic ticks=61 movingTicks=31 movingAdvanced=30 idleTicks=30 idleAdvanced=0 maxMovingDelta=0.020000001 maxIdleDelta=0.000000000

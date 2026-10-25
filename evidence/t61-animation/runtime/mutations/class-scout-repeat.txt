@@ -1,0 +1,8 @@
+animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=24 poseLabel=PRIMARY_airwalk_reload_start poseFrames=21 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary_start|layer_reload_standing_arms_primary_loop|layer_reload_standing_arms_primary_end|PRIMARY_reload_start|PRIMARY_reload_loop|PRIMARY_reload_end|PRIMARY_crouch_reload_start|PRIMARY_crouch_reload_loop|PRIMARY_crouch_reload_end|PRIMARY_swim_reload_start|PRIMARY_swim_reload_loop|PRIMARY_swim_reload_end|...
+boundDiag bindRadius=73.534996 boundDiag=148.069992 bones=76 composed=1 reason=-
+contcand rank=0 sequence=208 label=swim_ITEM2 frames=31 sparseStep=13.604114 halfSwing=80.227402
+contcand rank=1 sequence=205 label=Swim_ITEM1 frames=31 sparseStep=13.604114 halfSwing=80.227402
+contcand rank=2 sequence=202 label=Swim_MELEE_ALLCLASS frames=31 sparseStep=13.604114 halfSwing=80.227402
+contcand rank=3 sequence=196 label=Swim_SECONDARY frames=31 sparseStep=13.604114 halfSwing=80.227402
+contcand rank=4 sequence=193 label=swim_PRIMARY frames=31 sparseStep=13.604114 halfSwing=80.227402
+FAIL player-animation-test reason=no-continuity-sequence detail=no clip with a half-cycle swing above half the bound and a per-frame step below a quarter

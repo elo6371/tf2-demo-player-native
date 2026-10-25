@@ -25,6 +25,9 @@
 #include "projectile_track.h"
 #include "projectile_overlay.h"
 #include "animation_binding.h"
+// T61: the pure animation clock. In the product rather than inlined because the
+// probe and the gate drive the same arithmetic (see animation_clock.h).
+#include "animation_clock.h"
 #include "item_schema.h"
 #include "native_ui.h"
 // T70: the request/landing ledger. Pure logic (no Win32/D3D) so the probe
@@ -171,6 +174,74 @@ int runLifecycle(LifecycleRequest& request) {
 
 namespace {
 tf2::native::Renderer* g_renderer = nullptr;
+
+// T61: pick the sequence a player model plays for a drive state.
+//
+// The sequence table is the model's own; this does not invent one. It looks for
+// the first labelled sequence whose name contains a moving needle ("run",
+// "walk", "move") or an idle needle ("idle", "stand"), preferring a candidate
+// that reaches an animation descriptor (frameCount > 0) so the pick cannot land
+// on a label that poses nothing. Returns -1 when the table has no such label;
+// the caller then leaves the entity alone rather than forcing sequence 0, which
+// on a player model is a stand pose and would read as "idle works" for the
+// wrong reason.
+std::int32_t choosePlayerAnimationSequence(
+    const tf2::native::AnimationBinding& binding,
+    bool moving,
+    std::string* label) {
+  static const char* const kMovingNeedles[] = {"run", "walk", "move"};
+  static const char* const kIdleNeedles[] = {"idle", "stand"};
+  const char* const* needles = moving ? kMovingNeedles : kIdleNeedles;
+  const std::size_t needleCount = moving ? 3u : 2u;
+  std::int32_t animated = -1;
+  std::int32_t posed = -1;
+  std::int32_t fallback = -1;
+  std::string animatedLabel, posedLabel, fallbackLabel;
+  for (std::size_t index = 0; index < binding.anims.sequences.size(); ++index) {
+    const auto& sequence = binding.anims.sequences[index];
+    std::string lower = sequence.label;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    // animDesc is an index into the animation descriptor table, not a
+    // descriptor: a sequence with -1 or an out-of-range index carries no
+    // frames and cannot pose anything.
+    const std::int32_t frameCount = (sequence.animDesc >= 0
+      && static_cast<std::size_t>(sequence.animDesc) < binding.anims.animations.size())
+      ? binding.anims.animations[static_cast<std::size_t>(sequence.animDesc)].frameCount : 0;
+    const bool hasDescriptor = frameCount > 0;
+    for (std::size_t needle = 0; needle < needleCount; ++needle) {
+      if (lower.find(needles[needle]) == std::string::npos) continue;
+      if (hasDescriptor) {
+        // A label match can still be a one-frame pose: PRIMARY_aimmatrix_run is
+        // a static aim pose with frameCount 1, and cycling through it would
+        // stand still no matter what the clock says. Keep the animated pick
+        // when one exists and only fall back to a single-frame pose.
+        if (frameCount > 1) {
+          if (animated < 0) {
+            animated = static_cast<std::int32_t>(index);
+            animatedLabel = sequence.label;
+          }
+        } else if (posed < 0) {
+          posed = static_cast<std::int32_t>(index);
+          posedLabel = sequence.label;
+        }
+      } else if (fallback < 0) {
+        fallback = static_cast<std::int32_t>(index);
+        fallbackLabel = sequence.label;
+      }
+    }
+  }
+  if (animated >= 0) {
+    if (label != nullptr) *label = animatedLabel;
+    return animated;
+  }
+  if (posed >= 0) {
+    if (label != nullptr) *label = posedLabel;
+    return posed;
+  }
+  if (fallback >= 0 && label != nullptr) *label = fallbackLabel;
+  return fallback;
+}
 
 // TEMP DIAGNOSTIC -- entity-material wiring regression, 2026-10-09.
 // The process leaves with 0xC0000409 a fraction of a second after the main loop
@@ -357,7 +428,13 @@ tf2::native::OverlayToggleState g_overlayToggle;
 // the nine class models itself, under the exact key EntityModelResolver uses for
 // its class fallback, and prefers the world pass's mesh whenever one exists.
 std::vector<std::string> g_overlayBindMeshes;
-// The prepared meshes themselves live next to preparedEntityMeshes, in the scope that uploads them.
+// What the overlay paint produced, set where the paint runs and printed where
+// the upload settles. File scope because those are two different blocks: the
+// world paint lives in the resource-load block and the upload lives in
+// reloadGpuResources. A reading that only lives inside the first one cannot be
+// printed by the second.
+std::size_t g_overlayPaintedModels = 0;
+std::size_t g_overlayPaintedSlots = 0;
 std::size_t g_overlaySampledTicks = 0;
 std::size_t g_overlayFramesWithList = 0;
 // What the last built list contained, as scalars so the trace prints one line
@@ -2699,6 +2776,14 @@ bool outlineVertexExtent = false;
   // refused as `missing` and the bind pose is what gets drawn. Reaching a pose at
   // all on this input needs `--viewmodel-sequence` above.
   bool viewModelApplyAnimation = false;
+  // T61: third-person player animation. OFF by default, and the default is the
+  // point. The demos this product can play carry no per-player m_nSequence or
+  // m_flCycle -- a CTFPlayer entity's animation properties are absent, which is
+  // exactly why the entity pass refuses every player pose today. Turning this on
+  // makes a player body pose from its own origin speed through the pure clock,
+  // so a gate can prove the sampling chain end to end; a natural run keeps
+  // rendering the bind pose exactly as before.
+  bool playerAnimationEnabled = false;
   std::size_t viewModelBoneLimit = 0;   // 0 = upload the whole table
   // Which model the first-person pass draws.
   //
@@ -3129,6 +3214,28 @@ bool outlineVertexExtent = false;
         // "which face owns this pixel", which is the independent check of the
         // CPU point oracle the empty-pixel trace uses.
         ++worldDebugViewGiven; worldDebugView = 4;
+      } else if (wcscmp(arguments[i], L"--world-texel") == 0) {
+        // T61: the raw t0 sample for each pixel, with no blend, lightmap or
+        // lighting. A body that comes out black in the albedo view can then be
+        // split into "the sheet is black there" and "the sheet is not what the
+        // pass bound".
+        ++worldDebugViewGiven; worldDebugView = 5;
+      } else if (wcscmp(arguments[i], L"--world-uv") == 0) {
+        // T61: the interpolated uv as a colour. Flat uv means the attribute
+        // never reached the pixel shader, which is the other way a textured
+        // body reads as one flat colour.
+        ++worldDebugViewGiven; worldDebugView = 6;
+      } else if (wcscmp(arguments[i], L"--world-entity-blend") == 0) {
+        // T61 diagnostic: red = the blend weight the entity vertex shader
+        // leaves unwritten, green = its modulate, blue = the detail bit. All
+        // three are read by the shared world pixel shader; the entity vertex
+        // shader writes none of them.
+        ++worldDebugViewGiven; worldDebugView = 7;
+      } else if (wcscmp(arguments[i], L"--world-entity-coverage") == 0) {
+        // T61: which pixels the entity pass actually drew. The blend view
+        // (7) answered 'what are the PS inputs' and is all black once the
+        // vertex shader writes the sentinel, so it cannot double as a mask.
+        ++worldDebugViewGiven; worldDebugView = 8;
       } else if (wcscmp(arguments[i], L"--world-face-trace") == 0) {
         worldFaceTraceRequested = true;
       } else if (wcscmp(arguments[i], L"--world-hole-trace") == 0 && i + 1 < argumentCount) {
@@ -3307,6 +3414,8 @@ bool outlineVertexExtent = false;
         viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-apply-animation") == 0) {
         viewModelApplyAnimation = true;
+      } else if (wcscmp(arguments[i], L"--player-animation") == 0) {
+        playerAnimationEnabled = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-identity-bones") == 0) {
         viewModelIdentityBones = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-bone-limit") == 0 && i + 1 < argumentCount) {
@@ -3848,6 +3957,31 @@ bool outlineVertexExtent = false;
     }
   };
   AnimationSceneStats animationStats;
+  // T61: one animation clock per player entity, keyed by entity index, plus the
+  // idle/moving sequence choice per model path. The clock state is the thing the
+  // product must not lose between scene updates: a cycle that restarts every
+  // frame is a pose that never advances, which is the defect the demo-mode
+  // continuity reading exists to catch.
+  struct PlayerAnimationRuntime {
+    tf2::native::AnimationClockState clock;
+    bool hasLastOrigin = false;
+    float lastOrigin[3] = {0.0f, 0.0f, 0.0f};
+    std::int32_t lastOriginTick = 0;
+    std::int32_t sequence = -1;
+    std::string sequenceLabel;
+    float speed = 0.0f;
+    bool moving = false;
+  };
+  std::unordered_map<std::int32_t, PlayerAnimationRuntime> playerAnimationRuntimes;
+  struct PlayerSequenceChoice {
+    bool resolved = false;
+    std::int32_t idle = -1;
+    std::int32_t moving = -1;
+    std::string idleLabel;
+    std::string movingLabel;
+  };
+  std::unordered_map<std::string, PlayerSequenceChoice> playerSequenceChoices;
+  const tf2::native::AnimationClockConfig playerAnimationConfig;
   // The T2.5 reading, kept out of AnimationSceneStats on purpose: that struct is
   // the entity pass's account and its counters are what weapon-animation-check.sh
   // asserts on, so a ViewModel field there would move an entity reading for a
@@ -4097,6 +4231,30 @@ bool outlineVertexExtent = false;
       PreparedEntityMesh prepared;
       prepared.path = request.modelPath;
       prepared.cacheKey = request.modelPath + "#class-fallback";
+      // T61: the body meshes need the same two things the world meshes get:
+      // the model's OWN material runs (so the entity pass binds one range per
+      // material slot instead of one guessed slot 0 over the whole buffer) and
+      // the paint tables (so those ranges have a texture view at all). Without
+      // them the renderer keeps the range and refuses to draw it -- the body is
+      // submitted, counted and rasterised from nothing, which is exactly the
+      // "list is right and the frame is empty" shape.
+      //
+      // ORDER: buildBindPoseMeshLod0 above has already rebuilt bindPoseRanges,
+      // and buildMaterialRuns reads them; the vertices are moved out on the
+      // next line, so the runs are built before the move.
+      std::string runsError;
+      if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs, runsError)) {
+        traceFmt("gpu: overlay mesh skipped path=%s reason=%s", request.modelPath.c_str(), runsError.c_str());
+        continue;
+      }
+      prepared.skinFamilies = request.inspection.metadata.skinFamilies;
+      prepared.textureCandidates = request.inspection.metadata.textureCandidates;
+      if (!request.inspection.metadata.textureCandidates.empty()) {
+        prepared.materialCandidates = request.inspection.metadata.textureCandidates.front();
+      }
+      if (!prepared.materialCandidates.empty()) {
+        prepared.materialName = prepared.materialCandidates.front();
+      }
       prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
       prepared.textureSlots = request.inspection.metadata.textureCount;
       prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
@@ -5313,7 +5471,10 @@ bool outlineVertexExtent = false;
     const auto paintRead = [&assetChain](const std::string& resource) {
       return assetChain.lookup(resource).bytes;
     };
-    for (auto& prepared : preparedEntityMeshes) {
+    g_overlayPaintedModels = 0;
+    g_overlayPaintedSlots = 0;
+    const auto paintModels = [&](std::vector<PreparedEntityMesh>& models, bool countAsWorldPass) {
+    for (auto& prepared : models) {
       if (!prepared.skinFamilies.available) {
         traceFmt("gpu: entity paint skipped path=%s reason=skin family table unavailable: %s",
           prepared.path.c_str(), prepared.skinFamilies.reason.c_str());
@@ -5345,9 +5506,17 @@ bool outlineVertexExtent = false;
           ? std::string() : prepared.textureCandidates.front().front();
         prepared.materialVmtPath = prepared.paintedSlots.front().vmtPath;
         prepared.materialVtfPath = prepared.paintedSlots.front().vtfPath;
-        ++entityMaterialResolvedModels;
+        // The world-pass counters keep meaning "the world pass". The overlay's
+        // nine bodies are counted separately, so raising the number a gate
+        // already asserts is not how this fix gets noticed.
+        if (countAsWorldPass) { ++entityMaterialResolvedModels; }
+        else { ++g_overlayPaintedModels; }
       }
     }
+    };
+    paintModels(preparedEntityMeshes, true);
+    paintModels(overlayBindMeshes, false);
+    for (const auto& overlayPainted : overlayBindMeshes) g_overlayPaintedSlots += overlayPainted.paintedSlots.size();
   }
   g_playback.enabled = demoHeader.valid;
   g_playback.endTick = std::max<std::int32_t>(0, demoHeader.ticks);
@@ -6837,11 +7006,152 @@ bool outlineVertexExtent = false;
     std::size_t overlayMeshesUploaded = 0;
     std::size_t overlayMeshesRejected = 0;
     for (const auto& prepared : overlayBindMeshes) {
-      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices)) {
+      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs)) {
         ++overlayMeshesRejected;
         traceFmt("gpu: overlay mesh refused key=%s lastError=0x%08lX",
           prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
         continue;
+      }
+      // The body is black and the textures are not. Separate the two halves of
+      // that sentence: the mesh's own texcoords (a NaN or a wild value samples a
+      // texel nobody authored) and the texel at the mesh's first vertex. Both
+      // readings are CPU-side and name the same uv the shader will interpolate.
+      float overlayUvMin[2] = {1.0e30f, 1.0e30f};
+      float overlayUvMax[2] = {-1.0e30f, -1.0e30f};
+      std::size_t overlayUvNonFinite = 0;
+      for (const auto& overlayVertex : prepared.vertices) {
+        for (int overlayAxis = 0; overlayAxis < 2; ++overlayAxis) {
+          const float overlayUv = overlayVertex.texcoord[overlayAxis];
+          if (!std::isfinite(overlayUv)) { ++overlayUvNonFinite; continue; }
+          overlayUvMin[overlayAxis] = std::min(overlayUvMin[overlayAxis], overlayUv);
+          overlayUvMax[overlayAxis] = std::max(overlayUvMax[overlayAxis], overlayUv);
+        }
+      }
+      traceFmt("gpu: overlay uv key=%s verts=%zu uvMin=%.4f,%.4f uvMax=%.4f,%.4f nonFinite=%zu",
+        prepared.cacheKey.c_str(), prepared.vertices.size(),
+        overlayUvMin[0], overlayUvMin[1], overlayUvMax[0], overlayUvMax[1], overlayUvNonFinite);
+      // Same two-stage paint the world pass uses: decode one (slot, family) at a
+      // time and hand it over keyed by the pair. A mesh whose ranges carry no
+      // texture view is skipped by the entity draw pass, so an upload without
+      // this is a body that is accepted, counted and never rasterised.
+      for (const auto& painted : prepared.paintedSlots) {
+        const auto& overlayVtf = readMaterialVtf(painted.vtfPath);
+        tf2::native::VtfTexture overlayTexture;
+        std::vector<std::uint8_t> overlayRgba;
+        if (overlayVtf.empty() || !overlayTexture.parse(overlayVtf)
+            || (overlayRgba = overlayTexture.decodeRgba(overlayVtf)).empty()) {
+          traceFmt("gpu: overlay texture decode-failed key=%s slot=%u family=%u %s",
+            prepared.cacheKey.c_str(), painted.materialSlot, painted.skinFamily, painted.vtfPath.c_str());
+          continue;
+        }
+        // A texture that decodes to black is indistinguishable from a missing
+        // one from the outside: the draw is accepted, the range is textured, and
+        // the body comes out a silhouette. Publish the size and a subsampled mean
+        // of the RGBA that was actually handed to the GPU, so "the body is black"
+        // can be attributed to the texture or excluded from it.
+        double overlayR = 0.0, overlayG = 0.0, overlayB = 0.0, overlayA = 0.0;
+        std::size_t overlaySamples = 0;
+        for (std::size_t sampleIndex = 0; sampleIndex + 3 < overlayRgba.size(); sampleIndex += 4 * 4093) {
+          overlayR += overlayRgba[sampleIndex + 0];
+          overlayG += overlayRgba[sampleIndex + 1];
+          overlayB += overlayRgba[sampleIndex + 2];
+          overlayA += overlayRgba[sampleIndex + 3];
+          ++overlaySamples;
+        }
+        const double overlayScale = overlaySamples > 0 ? 1.0 / static_cast<double>(overlaySamples) : 0.0;
+        // The texel the shader interpolates towards at the mesh's first vertex,
+        // read from the very RGBA about to be uploaded. If this is black then a
+        // black body is a GPU-side bind problem, not a texture or uv problem --
+        // the two have opposite fixes.
+        float overlayTexel[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        const UINT overlayTexWidth = overlayTexture.header().width;
+        const UINT overlayTexHeight = overlayTexture.header().height;
+        if (!prepared.vertices.empty() && overlayTexWidth > 0 && overlayTexHeight > 0) {
+          const float overlaySampleU = prepared.vertices.front().texcoord[0];
+          const float overlaySampleV = prepared.vertices.front().texcoord[1];
+          if (std::isfinite(overlaySampleU) && std::isfinite(overlaySampleV)) {
+            long overlayPx = static_cast<long>(std::floor(
+              (overlaySampleU - std::floor(overlaySampleU)) * static_cast<float>(overlayTexWidth)));
+            long overlayPy = static_cast<long>(std::floor(
+              (overlaySampleV - std::floor(overlaySampleV)) * static_cast<float>(overlayTexHeight)));
+            if (overlayPx < 0) overlayPx = 0;
+            if (overlayPy < 0) overlayPy = 0;
+            if (overlayPx >= static_cast<long>(overlayTexWidth)) overlayPx = static_cast<long>(overlayTexWidth) - 1;
+            if (overlayPy >= static_cast<long>(overlayTexHeight)) overlayPy = static_cast<long>(overlayTexHeight) - 1;
+            const std::size_t overlayTexelIndex =
+              (static_cast<std::size_t>(overlayPy) * overlayTexWidth + static_cast<std::size_t>(overlayPx)) * 4;
+            if (overlayTexelIndex + 3 < overlayRgba.size()) {
+              overlayTexel[0] = static_cast<float>(overlayRgba[overlayTexelIndex + 0]);
+              overlayTexel[1] = static_cast<float>(overlayRgba[overlayTexelIndex + 1]);
+              overlayTexel[2] = static_cast<float>(overlayRgba[overlayTexelIndex + 2]);
+              overlayTexel[3] = static_cast<float>(overlayRgba[overlayTexelIndex + 3]);
+            }
+          }
+        }
+        const bool overlayUploaded = renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
+              overlayRgba, overlayTexture.header().width, overlayTexture.header().height);
+        traceFmt("gpu: overlay texture key=%s slot=%u family=%u size=%ux%u uploaded=%d meanRGBA=%.1f,%.1f,%.1f,%.1f samples=%zu vtf=%s",
+          prepared.cacheKey.c_str(), painted.materialSlot, painted.skinFamily,
+          overlayTexture.header().width, overlayTexture.header().height, overlayUploaded ? 1 : 0,
+          overlayR * overlayScale, overlayG * overlayScale, overlayB * overlayScale, overlayA * overlayScale,
+          overlaySamples, painted.vtfPath.c_str());
+        traceFmt("gpu: overlay texel key=%s slot=%u family=%u uv=%.4f,%.4f rgba=%.0f,%.0f,%.0f,%.0f",
+          prepared.cacheKey.c_str(), painted.materialSlot, painted.skinFamily,
+          prepared.vertices.empty() ? 0.0f : prepared.vertices.front().texcoord[0],
+          prepared.vertices.empty() ? 0.0f : prepared.vertices.front().texcoord[1],
+          overlayTexel[0], overlayTexel[1], overlayTexel[2], overlayTexel[3]);
+
+        // A sheet that is healthy on AVERAGE can still be black everywhere this
+        // mesh actually points, and a mesh-level scan cannot see that: the same
+        // vertex list paired with the wrong slot's sheet is a different picture
+        // than the run that will actually be drawn. So scan PER RUN -- the run's
+        // own vertex window against the run's own material slot -- and publish
+        // the coverage and black fraction for each. A body whose runs all read
+        // near-1.0 black while every sheet mean is healthy is a slot/uv pairing
+        // defect; a body whose runs read near-0 black while the frame is black is
+        // a GPU bind defect. The two have opposite fixes.
+        {
+          std::size_t slotRunVertices = 0;
+          std::size_t slotRunBlack = 0;
+          std::size_t slotRunCount = 0;
+          for (const auto& overlayRun : prepared.runs) {
+            if (overlayRun.materialSlot != painted.materialSlot) continue;
+            ++slotRunCount;
+            const std::size_t runEnd = std::min<std::size_t>(
+              static_cast<std::size_t>(overlayRun.vertexStart) + overlayRun.vertexCount,
+              prepared.vertices.size());
+            const std::size_t runBegin = std::min<std::size_t>(overlayRun.vertexStart, runEnd);
+            const std::size_t runSpan = runEnd - runBegin;
+            const std::size_t runStride = runSpan > 512 ? runSpan / 512 : 1;
+            for (std::size_t runIndex = runBegin; runIndex < runEnd; runIndex += runStride) {
+              const float runU = prepared.vertices[runIndex].texcoord[0];
+              const float runV = prepared.vertices[runIndex].texcoord[1];
+              if (!std::isfinite(runU) || !std::isfinite(runV)) continue;
+              long runPx = static_cast<long>(std::floor((runU - std::floor(runU)) * static_cast<float>(overlayTexWidth)));
+              long runPy = static_cast<long>(std::floor((runV - std::floor(runV)) * static_cast<float>(overlayTexHeight)));
+              if (runPx < 0) runPx = 0;
+              if (runPy < 0) runPy = 0;
+              if (runPx >= static_cast<long>(overlayTexWidth)) runPx = static_cast<long>(overlayTexWidth) - 1;
+              if (runPy >= static_cast<long>(overlayTexHeight)) runPy = static_cast<long>(overlayTexHeight) - 1;
+              const std::size_t runTexel = (static_cast<std::size_t>(runPy) * overlayTexWidth + static_cast<std::size_t>(runPx)) * 4;
+              if (runTexel + 3 >= overlayRgba.size()) continue;
+              ++slotRunVertices;
+              if (overlayRgba[runTexel + 0] <= 8 && overlayRgba[runTexel + 1] <= 8 && overlayRgba[runTexel + 2] <= 8) {
+                ++slotRunBlack;
+              }
+            }
+          }
+          const double slotBlackPct = slotRunVertices > 0
+            ? (100.0 * static_cast<double>(slotRunBlack) / static_cast<double>(slotRunVertices)) : 0.0;
+          traceFmt("gpu: overlay runscan key=%s slot=%u family=%u runs=%zu verts=%zu black=%zu blackPct=%.1f meshVerts=%zu",
+            prepared.cacheKey.c_str(), painted.materialSlot, painted.skinFamily,
+            slotRunCount, slotRunVertices, slotRunBlack, slotBlackPct, prepared.vertices.size());
+        }
+        if (!overlayUploaded) {
+          traceFmt("gpu: overlay texture refused key=%s slot=%u family=%u lastError=0x%08lX",
+            prepared.cacheKey.c_str(), painted.materialSlot, painted.skinFamily,
+            static_cast<unsigned long>(renderer.lastError()));
+        }
       }
       g_overlayBindMeshes.push_back(prepared.cacheKey);
       ++overlayMeshesUploaded;
@@ -6851,8 +7161,9 @@ bool outlineVertexExtent = false;
     // assumed: at cap 64 this recording refuses five of the nine class models
     // (the world pass has already taken 59 of the 64 slots), and a refused key is
     // submitted, counted and drawn from nothing.
-    traceFmt("gpu: overlay meshes prepared=%zu uploaded=%zu rejected=%zu%s",
+    traceFmt("gpu: overlay meshes prepared=%zu uploaded=%zu rejected=%zu painted=%zu paintedSlots=%zu%s",
       overlayBindMeshes.size(), overlayMeshesUploaded, overlayMeshesRejected,
+      g_overlayPaintedModels, g_overlayPaintedSlots,
       overlayMeshesUploaded == 0 ? " (NONE -- the outline has no mesh source and will submit nothing)" : "");
     traceFmt("gpu: reload-stage stage=models lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedBones = true;
@@ -7165,7 +7476,11 @@ bool outlineVertexExtent = false;
       sample.worldCullBackfaces ? 1 : 0,
       sample.worldCullBackfaces ? "cull-back" : "cull-none");
     traceFmt("gpu: world debug view=%s",
-      sample.worldDebugView == 4 ? "face-id"
+      sample.worldDebugView == 8 ? "entity-coverage"
+        : sample.worldDebugView == 7 ? "entity-blend"
+        : sample.worldDebugView == 6 ? "uv"
+        : sample.worldDebugView == 5 ? "texel"
+        : sample.worldDebugView == 4 ? "face-id"
         : sample.worldDebugView == 3 ? "albedo"
         : sample.worldDebugView == 2 ? "depth" : sample.worldDebugView == 1 ? "flat" : "textured");
     // ---- T19: the atlas plan, and the per-material account behind it --------
@@ -8830,7 +9145,7 @@ bool outlineVertexExtent = false;
         const auto buildGuarded = [&]() {
           try {
             return tf2::native::EntityModelResolver::buildInstances(
-              modelRenderRequests, currentEntityStates, demoNetworkSummary.serverClassSchemas, 256);
+              modelRenderRequests, currentEntityStates, demoNetworkSummary.serverClassSchemas, tf2::native::EntityModelResolver::kMaxInstances);
           } catch (const std::exception& error) {
             traceFmt("scene: buildInstances THREW %s requests=%zu states=%zu schemas=%zu",
               error.what(), modelRenderRequests.size(), currentEntityStates.size(),
@@ -8843,7 +9158,14 @@ bool outlineVertexExtent = false;
           }
         };
         const auto modelInstances = buildGuarded();
-        traceFmt("scene: buildInstances=%zu", modelInstances.size());
+        // The cap is a reading, not a constant: when the request loop fills it,
+        // the player-class sweep below never runs and every player silently
+        // vanishes while the instance count still looks healthy. Publish the
+        // resolver counters that make that starvation visible.
+        const auto& resolverStats = tf2::native::lastResolverStats();
+        traceFmt("scene: buildInstances=%zu requests=%zu states=%zu scanned=%zu classLookups=%zu cap=256",
+          modelInstances.size(), resolverStats.instanceRequests, currentEntityStates.size(),
+          resolverStats.fallbackEntitiesScanned, resolverStats.classLookups);
         std::vector<tf2::native::EntityModelDrawInstance> draws;
         std::vector<tf2::native::EntityMarker> fallbackMarkers;
         // Every skinned instance's matrices, concatenated. One upload per scene
@@ -8854,6 +9176,10 @@ bool outlineVertexExtent = false;
         entityBoneMatrices.reserve(1024);
         if (animationStats.hasObservedTick && sceneTick < animationStats.lastObservedTick) {
           animationStats = AnimationSceneStats{};
+          // A rewound demo is a different run: the per-player clocks would
+          // otherwise integrate across the seek and report a cycle the new run
+          // never produced.
+          playerAnimationRuntimes.clear();
         }
         animationStats.hasObservedTick = true;
         animationStats.lastObservedTick = sceneTick;
@@ -8907,6 +9233,36 @@ bool outlineVertexExtent = false;
             currentEntityStates[demoNetworkSummary.lastViewEntity]);
           if (focus.hasOrigin) focused = tryFocusOrigin(focus.origin[0], focus.origin[1], focus.origin[2]);
         }
+        // T61 per-update readings for the anim:/animsum: lines. They are
+        // local to this scene update on purpose: a per-frame line that
+        // accumulated across frames would report "moving" for a player that
+        // stopped ten seconds ago.
+        std::size_t animTraceLines = 0;
+        std::size_t playerAnimEntities = 0;
+        std::size_t playerAnimMoving = 0;
+        std::size_t playerAnimIdle = 0;
+        std::size_t playerAnimAdvanced = 0;
+        std::size_t playerAnimSkipped = 0;
+        float playerAnimMaxDelta = 0.0f;
+        // T61: the draw budget. The renderer accepts 96 instances per update
+        // and the resolver appends the player-class bodies AFTER every world
+        // prop, so a first-come-first-served ceiling spends the whole budget on
+        // props and the bodies this build is about never reach the drive block
+        // below. Count the bodies first and hold their slots back; the total
+        // stays inside the same ceiling.
+        constexpr std::size_t kDrawBudget = 96;
+        std::size_t playerBudget = 0;
+        for (const auto& bodyCandidate : modelInstances) {
+          if (!bodyCandidate.transform.hasOrigin || bodyCandidate.viewModelSkipped) continue;
+          const bool body = bodyCandidate.className.find("Player") != std::string::npos
+            || bodyCandidate.className.find("TFPlayer") != std::string::npos
+            || bodyCandidate.playerClassFallback;
+          if (body) ++playerBudget;
+        }
+        if (playerBudget > kDrawBudget) playerBudget = kDrawBudget;
+        const std::size_t propBudget = kDrawBudget - playerBudget;
+        std::size_t playerDraws = 0;
+        std::size_t propDraws = 0;
         for (const auto& instance : modelInstances) {
           if (!instance.transform.hasOrigin) continue;
           const bool player = instance.className.find("Player") != std::string::npos
@@ -8923,7 +9279,8 @@ bool outlineVertexExtent = false;
           }
           const bool hasMesh = !cacheKey.empty() && !instance.viewModelSkipped
             && (instance.renderable || instance.playerClassFallback);
-          if (hasMesh && draws.size() < 96) {
+          if (hasMesh && (player ? playerDraws < playerBudget : propDraws < propBudget)) {
+            if (player) { ++playerDraws; } else { ++propDraws; }
             tf2::native::EntityModelDrawInstance draw;
             draw.cacheKey = cacheKey;
             draw.origin[0] = instance.transform.origin[0];
@@ -8959,6 +9316,82 @@ bool outlineVertexExtent = false;
             request.tickRate = static_cast<float>(g_playback.tickRate);
             std::string missingReason;
             readPlaybackState(instance.entityIndex, request, missingReason);
+            // T61: the third-person drive. Only when asked for, only for a
+            // player body, and only once the binding resolved -- a clock whose
+            // cycle nothing samples is a number with no picture behind it.
+            // The speed is the origin delta over the ticks that actually
+            // elapsed, not over one frame: a demo whose scene update runs at a
+            // different cadence than its packets must still report units per
+            // second.
+            if (playerAnimationEnabled && player && binding != nullptr) {
+              ++playerAnimEntities;
+              PlayerAnimationRuntime& runtime = playerAnimationRuntimes[instance.entityIndex];
+              const float tickRate = static_cast<float>(g_playback.tickRate);
+              float speed = 0.0f;
+              if (runtime.hasLastOrigin && resolvedSceneTick > runtime.lastOriginTick) {
+                const double dx = static_cast<double>(instance.transform.origin[0])
+                  - static_cast<double>(runtime.lastOrigin[0]);
+                const double dy = static_cast<double>(instance.transform.origin[1])
+                  - static_cast<double>(runtime.lastOrigin[1]);
+                const double dz = static_cast<double>(instance.transform.origin[2])
+                  - static_cast<double>(runtime.lastOrigin[2]);
+                const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+                const double elapsedTicks = static_cast<double>(resolvedSceneTick - runtime.lastOriginTick);
+                speed = static_cast<float>(distance * static_cast<double>(tickRate) / elapsedTicks);
+              }
+              runtime.hasLastOrigin = true;
+              runtime.lastOrigin[0] = instance.transform.origin[0];
+              runtime.lastOrigin[1] = instance.transform.origin[1];
+              runtime.lastOrigin[2] = instance.transform.origin[2];
+              runtime.lastOriginTick = resolvedSceneTick;
+              const tf2::native::AnimationClockStep step = tf2::native::advanceAnimationClock(
+                runtime.clock, resolvedSceneTick, tickRate, speed, playerAnimationConfig);
+              runtime.speed = step.speed;
+              runtime.moving = step.state == tf2::native::AnimationDriveState::Moving;
+              PlayerSequenceChoice& choice = playerSequenceChoices[instance.modelPath];
+              if (!choice.resolved) {
+                choice.resolved = true;
+                choice.idle = choosePlayerAnimationSequence(*binding, false, &choice.idleLabel);
+                choice.moving = choosePlayerAnimationSequence(*binding, true, &choice.movingLabel);
+              }
+              const std::int32_t chosen = runtime.moving ? choice.moving : choice.idle;
+              if (chosen >= 0) {
+                runtime.sequence = chosen;
+                runtime.sequenceLabel = runtime.moving ? choice.movingLabel : choice.idleLabel;
+                // Feed the clock's cycle through the existing sampling path:
+                // the sequence and cycle the demo would have supplied are
+                // replaced, everything downstream (binding, sampling, upload)
+                // is the code the weapon entities already use.
+                request.sequence = chosen;
+                request.hasCycle = true;
+                request.cycle = step.cycle;
+                request.hasPlaybackRate = false;
+              } else {
+                ++playerAnimSkipped;
+              }
+              if (runtime.moving) ++playerAnimMoving;
+              else ++playerAnimIdle;
+              if (step.advanced) ++playerAnimAdvanced;
+              if (step.deltaCycle > playerAnimMaxDelta) playerAnimMaxDelta = step.deltaCycle;
+              if (animTraceLines < 8) {
+                ++animTraceLines;
+                // The trailing origin= is the body own MAP position, not the eye
+                // and not a screen coordinate: it is what lets a reader point a
+                // diagnostic camera at THIS body. Without it the only map
+                // positions in the trace belong to the camera, and "frame the
+                // subject" becomes a guess made from a screen-space box.
+                traceFmt("anim: ent=%d model=%s state=%s speed=%.3f rate=%.6f cycle=%.6f delta=%.6f seq=%d label=%s advanced=%d origin=%.1f,%.1f,%.1f",
+                  static_cast<int>(instance.entityIndex), instance.modelPath.c_str(),
+                  tf2::native::animationDriveStateName(step.state),
+                  step.speed, step.rate, step.cycle, step.deltaCycle,
+                  static_cast<int>(request.sequence),
+                  runtime.sequenceLabel.empty() ? "-" : runtime.sequenceLabel.c_str(),
+                  step.advanced ? 1 : 0,
+                  static_cast<double>(instance.transform.origin[0]),
+                  static_cast<double>(instance.transform.origin[1]),
+                  static_cast<double>(instance.transform.origin[2]));
+              }
+            }
             if (request.hasCycle) {
               ++animationStats.cycleInstances;
               if (request.cycle != 0.0f) ++animationStats.cycleNonZero;
@@ -9089,7 +9522,13 @@ bool outlineVertexExtent = false;
             fallbackMarkers.push_back(marker);
           }
         }
-        traceFmt("scene: setInstances draws=%zu markers=%zu", draws.size(), fallbackMarkers.size());
+        if (playerAnimationEnabled) {
+          traceFmt("animsum: tick=%d players=%zu moving=%zu idle=%zu advanced=%zu skipped=%zu maxDeltaCycle=%.6f",
+            static_cast<int>(resolvedSceneTick), playerAnimEntities, playerAnimMoving,
+            playerAnimIdle, playerAnimAdvanced, playerAnimSkipped, playerAnimMaxDelta);
+        }
+        traceFmt("scene: setInstances draws=%zu markers=%zu playerDraws=%zu propDraws=%zu playerBudget=%zu propBudget=%zu",
+          draws.size(), fallbackMarkers.size(), playerDraws, propDraws, playerBudget, propBudget);
         renderer.setEntityBoneMatrices(entityBoneMatrices);
         renderer.setEntityModelInstances(draws);
         renderer.setEntityMarkers(fallbackMarkers);
@@ -9099,6 +9538,15 @@ bool outlineVertexExtent = false;
         // unskinned, and only the renderer knows that.
         animationStats.gpuSkinnedInstances = renderer.entitySkinnedInstanceCount();
         animationStats.gpuBoneMatrices = renderer.entityBoneMatrixCount();
+        // T61 diagnostic: what the renderer actually built from the draw list.
+        // A range with no textureView is skipped by the entity pass, so a black
+        // body with texturedRanges=0 means the material bind missed, not that
+        // the shading is dark. This is printed here, after the upload, because
+        // the counters describe the ranges the renderer made, not the caller's.
+        traceFmt("scene: entityRanges ranges=%zu texturedRanges=%zu texturedInstances=%zu skinnedInstances=%zu meshes=%zu textures=%zu",
+          renderer.entityModelDrawRangeCount(), renderer.entityModelTexturedRangeCount(),
+          renderer.entityModelTexturedInstanceCount(), renderer.entitySkinnedInstanceCount(),
+          renderer.entityModelMeshCount(), renderer.entityModelTextureCount());
         animationStats.bindingsResolved = animationBindings.resolveCalls();
         animationStats.cacheHits = animationBindings.cacheHits();
         animationStats.archiveReads = animationBindings.archiveReads();
