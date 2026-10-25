@@ -1,2 +1,8 @@
 trace trace-textured.txt kept 1890 of 40446 lines
 trace trace-albedo.txt kept 1908 of 40871 lines
+trace trace-textured.txt kept 1883 of 40499 lines
+trace trace-albedo.txt kept 1825 of 39944 lines
+trace trace-textured.txt kept 1885 of 41081 lines
+trace trace-albedo.txt kept 1886 of 41112 lines
+trace trace-textured.txt kept 1892 of 41039 lines
+trace trace-albedo.txt kept 1905 of 41123 lines

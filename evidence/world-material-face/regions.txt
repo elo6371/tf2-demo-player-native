@@ -1,4 +1,4 @@
-frame path=.scratch/world-material-face.20261025202439-1617/ref.20261025202439-1617.bmp size=1264x681 background=(84,91,101) backgroundLum=90.1
+frame path=.scratch/world-material-face.20261025213207-1444/ref.20261025213207-1444.bmp size=1264x681 background=(84,91,101) backgroundLum=90.1
 region x=0,y=0,w=420,h=200 pixels=84000 meanLum=105.3 stdLum=20.72 nearBackground=0.1515 nearBlack=0.0000 nearWhite=0.0000 meanGradient=3.74 neutralGrey=118
 region x=0,y=560,w=420,h=121 pixels=50820 meanLum=107.9 stdLum=23.79 nearBackground=0.1713 nearBlack=0.0000 nearWhite=0.0000 meanGradient=3.88 neutralGrey=43
 region x=1100,y=100,w=164,h=200 pixels=32800 meanLum=95.8 stdLum=22.90 nearBackground=0.2806 nearBlack=0.0008 nearWhite=0.0000 meanGradient=3.71 neutralGrey=0

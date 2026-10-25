@@ -358,7 +358,7 @@ fi
 # ---------------------------------------------------------------------------
 echo "== mutation mode =="
 mfail=0
-mred=0   # mutations that actually went red; the verdict counts this, not a literal
+m1_red=0; m2_red=0; m3_red=0; m4_red=0; m5_red=0; m6_red=0   # one flag per mutant; a mutant may print two reds
 SRC_REN="native/src/native_renderer.cpp"
 SRC_MAIN="native/src/main.cpp"
 SRC_VMT="native/src/vmt_material.cpp"
@@ -412,12 +412,12 @@ if capture "$M1_BMP" "$M1_TRACE" --world-albedo; then
   if [ "$M1_RC" = "0" ]; then
     echo "  NOT-RED M1: the reverted uv still matched the albedo frame"; mfail=1
   else
-    mred=$((mred + 1)); echo "  RED M1 as required: $M1_OVER points mismatched ($(grep 'FACE-CHECK' "$SCRATCH/m1-face.$RUN_TAG.txt" | tail -1))"
+    m1_red=1; echo "  RED M1 as required: $M1_OVER points mismatched ($(grep 'FACE-CHECK' "$SCRATCH/m1-face.$RUN_TAG.txt" | tail -1))"
   fi
   if cmp -s "$M1_BMP" "$ALB_BMP"; then
     echo "  NOT-RED M1: the reverted uv produced a byte-identical frame"; mfail=1
   else
-    mred=$((mred + 1)); echo "  RED M1 as required: the frame moved too"
+    m1_red=1; echo "  RED M1 as required: the frame moved too"
   fi
   # The other half of the discrimination. Under this mutation the OLD uv is in
   # the build, so the rival prediction is the one the frame must agree with.
@@ -470,7 +470,7 @@ if capture "$M2_BMP" "$M2_TRACE" --world-albedo; then
   if [ "$M2_RC" = "0" ]; then
     echo "  NOT-RED M2: dropping the tile origin still matched"; mfail=1
   else
-    mred=$((mred + 1)); echo "  RED M2 as required: $(grep 'FACE-CHECK' "$SCRATCH/m2-face.$RUN_TAG.txt" | tail -1)"
+    m2_red=1; echo "  RED M2 as required: $(grep 'FACE-CHECK' "$SCRATCH/m2-face.$RUN_TAG.txt" | tail -1)"
   fi
 else
   echo "  FAIL M2 capture"; mfail=1
@@ -503,7 +503,7 @@ if capture "$M3_BMP" "$M3_TRACE" && capture "$M3_ALB_BMP" "$M3_ALB_TRACE" --worl
   if [ "$M3_RC" = "0" ]; then
     echo "  NOT-RED M3: the unlit prediction still matched the textured frame"; mfail=1
   else
-    mred=$((mred + 1)); echo "  RED M3 as required: $(grep 'FACE-CHECK' "$SCRATCH/m3-face.$RUN_TAG.txt" | tail -1)"
+    m3_red=1; echo "  RED M3 as required: $(grep 'FACE-CHECK' "$SCRATCH/m3-face.$RUN_TAG.txt" | tail -1)"
   fi
   if [ "$M3_ALB_RC" != "0" ]; then
     echo "  FAIL M3 control: the albedo comparison also went red, so the two pins are not independent"; mfail=1
@@ -542,7 +542,7 @@ if capture "$M4_BMP" "$M4_TRACE"; then
   if [ "$M4_BAD" = "0" ] && [ "$M4_ROWS" = "$M4_TILED" ]; then
     echo "  NOT-RED M4: the table still reads $M4_TILED tiled rows, none malformed"; mfail=1
   else
-    mred=$((mred + 1)); echo "  RED M4 as required: $M4_BAD rows claim a tile without a batch ($M4_TILED of $M4_ROWS say tiled)"
+    m4_red=1; echo "  RED M4 as required: $M4_BAD rows claim a tile without a batch ($M4_TILED of $M4_ROWS say tiled)"
   fi
 else
   echo "  FAIL M4 capture"; mfail=1
@@ -569,7 +569,7 @@ if capture "$M5_BMP" "$M5_TRACE"; then
   M5_NOBASE=$(printf '%s' "$M5_LINE" | grep -oE "vmtNoBase=[0-9]+" | cut -d= -f2)
   M5_PATCHED=$(grep "gpu: world tile material=" "$M5_TRACE" | grep -cE "metalchrome002|floor_tile_004")
   if [ "$M5_DECL" = "0" ] || [ "$M5_TILED" = "$TILED" ] || [ "$M5_PATCHED" != "0" ]; then
-    mred=$((mred + 1)); echo "  RED M5 as required: patchDeclared=$M5_DECL (want > 0), tiled=$M5_TILED (want < $TILED), include-only rows=$M5_PATCHED (want 0), vmtNoBase=$M5_NOBASE"
+    m5_red=1; echo "  RED M5 as required: patchDeclared=$M5_DECL (want > 0), tiled=$M5_TILED (want < $TILED), include-only rows=$M5_PATCHED (want 0), vmtNoBase=$M5_NOBASE"
   else
     echo "  NOT-RED M5: the fetch still reads patchDeclared=$M5_DECL tiled=$M5_TILED -- the patch section proves nothing"; mfail=1
   fi
@@ -604,13 +604,14 @@ if capture "$M6_BMP" "$M6_TRACE"; then
   if [ "$M6_MAPTEX" = "$MAPTEX" ]; then
     echo "  NOT-RED M6: the map material still resolves ($M6_MAPTEX, same as the forward run) -- the maptex assertion proves nothing"; mfail=1
   else
-    mred=$((mred + 1)); echo "  RED M6 as required: the map material no longer resolves (maptex: $M6_MAPTEX, forward read $MAPTEX)"
+    m6_red=1; echo "  RED M6 as required: the map material no longer resolves (maptex: $M6_MAPTEX, forward read $MAPTEX)"
   fi
 else
   echo "  FAIL M6 capture"; mfail=1
 fi
 restore_sources
 echo "== verdict =="
+mred=$((m1_red + m2_red + m3_red + m4_red + m5_red + m6_red))
 if [ "$mred" != "6" ]; then
   echo "  FAIL only $mred of the 6 mutations went red -- the suite does not count what it claims"
   mfail=1

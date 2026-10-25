@@ -1,0 +1,1 @@
+mapmat: WOOD/WALL007A maptex: 1024x1024
