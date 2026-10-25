@@ -165,6 +165,25 @@ OK   expect readonly_refused: ok=1
 OK   expect event_key_manual_none: ok=1
 OK   expect players_trace_named: ok=1
 OK   expect list_line_has_fields: ok=1
-assertions_ok=167 assertions_bad=0
+OK   product run 1 exited 0 (created the workspace)
+OK   run 1 created the workspace through the product's own store
+OK   the workspace file exists after run 1 (3121 bytes)
+OK   the file is bound to the demo's own sha256 (308cc1453672...)
+OK   the camera section is filled (valid=1 reason=read-back-from-renderer)
+OK   the file carries all 8 T50 slots
+OK   slot 2 round-trips as saved with its name (Gate%20Slot)
+OK   the bookmark is in the file (count=1 title=Smoke tick=27)
+OK   the bookmark carries a real demo tick
+OK   product run 2 exited 0 (reopened the same file)
+OK   the second run opens the file it wrote (state=opened loaded=1 bookmarks=1)
+OK   a stored bookmark jumps: status=applied
+OK   the jump reports landing on the bookmark's own tick (27)
+OK   the paused transport still reads the bookmark's tick (27) after the jump
+OK   the run leaves the file saved and the session closed cleanly
+OK   a workspace from another demo is refused by name (state=hash_mismatch)
+OK   the refused file is not rewritten
+OK   the seeded hash really was the wrong one (the control is not a no-op)
+OK   a corrupt workspace is refused by name (state=corrupt)
+assertions_ok=186 assertions_bad=0
 REVIEW-WORKSPACE-CHECK=PASS
 RC=0

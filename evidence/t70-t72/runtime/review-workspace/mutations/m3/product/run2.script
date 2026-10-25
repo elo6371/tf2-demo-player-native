@@ -1,0 +1,5 @@
+pause
+bookmark-list tick
+bookmark-jump 1
+workspace-report
+quit

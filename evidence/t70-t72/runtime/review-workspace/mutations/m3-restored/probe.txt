@@ -1,5 +1,5 @@
 review-workspace: demo hashA=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892 hashB=25ed15af8e7aaebd214d608cbfee731c43c1ef7612de0216c2911aeecf175944
-review-workspace: step=new result=created path=evidence%2Ft70-t72%2Fruntime%2Freview-workspace%2Fmutations%2Fm3-restored%2Fscratch%5Crun-67668%5Cworkspace-a.ini
+review-workspace: step=new result=created path=evidence%2Ft70-t72%2Fruntime%2Freview-workspace%2Fmutations%2Fm3-restored%2Fscratch%5Crun-50588%5Cworkspace-a.ini
 review-workspace: expect name=new_created ok=1 detail=created
 review-workspace: expect name=new_file_exists ok=1
 review-workspace: step=save result=ok count=0
@@ -11,7 +11,7 @@ review-workspace: field name=schema expected=1 actual=1 match=1
 review-workspace: field name=name expected=Bagel%20Review actual=Bagel%20Review match=1
 review-workspace: field name=demoHashAlgo expected=sha256 actual=sha256 match=1
 review-workspace: field name=demoHash expected=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892 actual=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892 match=1
-review-workspace: field name=demoPathHint expected=D%3A%5CTF2_Native_Worktrees%5Ct71-workspace%5Cevidence%5Ct70-t72%5Cruntime%5Creview-workspace%5Cmutations%5Cm3-restored%5Cscratch%5Crun-67668%5CdemoA.dem actual=D%3A%5CTF2_Native_Worktrees%5Ct71-workspace%5Cevidence%5Ct70-t72%5Cruntime%5Creview-workspace%5Cmutations%5Cm3-restored%5Cscratch%5Crun-67668%5CdemoA.dem match=1
+review-workspace: field name=demoPathHint expected=D%3A%5CTF2_Native_Test%5Cevidence%5Ct70-t72%5Cruntime%5Creview-workspace%5Cmutations%5Cm3-restored%5Cscratch%5Crun-50588%5CdemoA.dem actual=D%3A%5CTF2_Native_Test%5Cevidence%5Ct70-t72%5Cruntime%5Creview-workspace%5Cmutations%5Cm3-restored%5Cscratch%5Crun-50588%5CdemoA.dem match=1
 review-workspace: field name=updatedUtc expected=1700000100 actual=1700000100 match=1
 review-workspace: field name=nextBookmarkId expected=1 actual=1 match=1
 review-workspace: field name=autosave expected=1 actual=1 match=1
@@ -31,9 +31,9 @@ review-workspace: field name=camera.targetName expected=Soldier actual=Soldier m
 review-workspace: field name=camera.targetReason expected= actual= match=1
 review-workspace: field name=camera.cameraReason expected= actual= match=1
 review-workspace: field name=camera.slotCount expected=8 actual=8 match=1
-review-workspace: field name=camera.slot.0.slot expected=0 actual=0 match=1
+review-workspace: field name=camera.slot.0.slot expected=1 actual=1 match=1
 review-workspace: field name=camera.slot.0.saved expected=1 actual=1 match=1
-review-workspace: field name=camera.slot.0.name expected=Slot%200 actual=Slot%200 match=1
+review-workspace: field name=camera.slot.0.name expected=Slot%201 actual=Slot%201 match=1
 review-workspace: field name=camera.slot.0.focusX expected=10 actual=10 match=1
 review-workspace: field name=camera.slot.0.focusY expected=20 actual=20 match=1
 review-workspace: field name=camera.slot.0.focusZ expected=30 actual=30 match=1
@@ -43,9 +43,9 @@ review-workspace: field name=camera.slot.0.distance expected=250 actual=250 matc
 review-workspace: field name=camera.slot.0.fov expected=90 actual=90 match=1
 review-workspace: field name=camera.slot.0.mode expected=first-person actual=first-person match=1
 review-workspace: field name=camera.slot.0.tick expected=100 actual=100 match=1
-review-workspace: field name=camera.slot.1.slot expected=1 actual=1 match=1
+review-workspace: field name=camera.slot.1.slot expected=2 actual=2 match=1
 review-workspace: field name=camera.slot.1.saved expected=0 actual=0 match=1
-review-workspace: field name=camera.slot.1.name expected=Slot%201 actual=Slot%201 match=1
+review-workspace: field name=camera.slot.1.name expected=Slot%202 actual=Slot%202 match=1
 review-workspace: field name=camera.slot.1.focusX expected=11 actual=11 match=1
 review-workspace: field name=camera.slot.1.focusY expected=20.5 actual=20.5 match=1
 review-workspace: field name=camera.slot.1.focusZ expected=29 actual=29 match=1
@@ -55,9 +55,9 @@ review-workspace: field name=camera.slot.1.distance expected=260 actual=260 matc
 review-workspace: field name=camera.slot.1.fov expected=91 actual=91 match=1
 review-workspace: field name=camera.slot.1.mode expected=first-person actual=first-person match=1
 review-workspace: field name=camera.slot.1.tick expected=101 actual=101 match=1
-review-workspace: field name=camera.slot.2.slot expected=2 actual=2 match=1
+review-workspace: field name=camera.slot.2.slot expected=3 actual=3 match=1
 review-workspace: field name=camera.slot.2.saved expected=1 actual=1 match=1
-review-workspace: field name=camera.slot.2.name expected=Slot%202 actual=Slot%202 match=1
+review-workspace: field name=camera.slot.2.name expected=Slot%203 actual=Slot%203 match=1
 review-workspace: field name=camera.slot.2.focusX expected=12 actual=12 match=1
 review-workspace: field name=camera.slot.2.focusY expected=21 actual=21 match=1
 review-workspace: field name=camera.slot.2.focusZ expected=28 actual=28 match=1
@@ -67,9 +67,9 @@ review-workspace: field name=camera.slot.2.distance expected=270 actual=270 matc
 review-workspace: field name=camera.slot.2.fov expected=92 actual=92 match=1
 review-workspace: field name=camera.slot.2.mode expected=first-person actual=first-person match=1
 review-workspace: field name=camera.slot.2.tick expected=102 actual=102 match=1
-review-workspace: field name=camera.slot.3.slot expected=3 actual=3 match=1
+review-workspace: field name=camera.slot.3.slot expected=4 actual=4 match=1
 review-workspace: field name=camera.slot.3.saved expected=0 actual=0 match=1
-review-workspace: field name=camera.slot.3.name expected=Slot%203 actual=Slot%203 match=1
+review-workspace: field name=camera.slot.3.name expected=Slot%204 actual=Slot%204 match=1
 review-workspace: field name=camera.slot.3.focusX expected=13 actual=13 match=1
 review-workspace: field name=camera.slot.3.focusY expected=21.5 actual=21.5 match=1
 review-workspace: field name=camera.slot.3.focusZ expected=27 actual=27 match=1
@@ -79,9 +79,9 @@ review-workspace: field name=camera.slot.3.distance expected=280 actual=280 matc
 review-workspace: field name=camera.slot.3.fov expected=93 actual=93 match=1
 review-workspace: field name=camera.slot.3.mode expected=first-person actual=first-person match=1
 review-workspace: field name=camera.slot.3.tick expected=103 actual=103 match=1
-review-workspace: field name=camera.slot.4.slot expected=4 actual=4 match=1
+review-workspace: field name=camera.slot.4.slot expected=5 actual=5 match=1
 review-workspace: field name=camera.slot.4.saved expected=1 actual=1 match=1
-review-workspace: field name=camera.slot.4.name expected=Slot%204 actual=Slot%204 match=1
+review-workspace: field name=camera.slot.4.name expected=Slot%205 actual=Slot%205 match=1
 review-workspace: field name=camera.slot.4.focusX expected=14 actual=14 match=1
 review-workspace: field name=camera.slot.4.focusY expected=22 actual=22 match=1
 review-workspace: field name=camera.slot.4.focusZ expected=26 actual=26 match=1
@@ -91,9 +91,9 @@ review-workspace: field name=camera.slot.4.distance expected=290 actual=290 matc
 review-workspace: field name=camera.slot.4.fov expected=94 actual=94 match=1
 review-workspace: field name=camera.slot.4.mode expected=first-person actual=first-person match=1
 review-workspace: field name=camera.slot.4.tick expected=104 actual=104 match=1
-review-workspace: field name=camera.slot.5.slot expected=5 actual=5 match=1
+review-workspace: field name=camera.slot.5.slot expected=6 actual=6 match=1
 review-workspace: field name=camera.slot.5.saved expected=0 actual=0 match=1
-review-workspace: field name=camera.slot.5.name expected=Slot%205 actual=Slot%205 match=1
+review-workspace: field name=camera.slot.5.name expected=Slot%206 actual=Slot%206 match=1
 review-workspace: field name=camera.slot.5.focusX expected=15 actual=15 match=1
 review-workspace: field name=camera.slot.5.focusY expected=22.5 actual=22.5 match=1
 review-workspace: field name=camera.slot.5.focusZ expected=25 actual=25 match=1
@@ -103,9 +103,9 @@ review-workspace: field name=camera.slot.5.distance expected=300 actual=300 matc
 review-workspace: field name=camera.slot.5.fov expected=95 actual=95 match=1
 review-workspace: field name=camera.slot.5.mode expected=first-person actual=first-person match=1
 review-workspace: field name=camera.slot.5.tick expected=105 actual=105 match=1
-review-workspace: field name=camera.slot.6.slot expected=6 actual=6 match=1
+review-workspace: field name=camera.slot.6.slot expected=7 actual=7 match=1
 review-workspace: field name=camera.slot.6.saved expected=1 actual=1 match=1
-review-workspace: field name=camera.slot.6.name expected=Slot%206 actual=Slot%206 match=1
+review-workspace: field name=camera.slot.6.name expected=Slot%207 actual=Slot%207 match=1
 review-workspace: field name=camera.slot.6.focusX expected=16 actual=16 match=1
 review-workspace: field name=camera.slot.6.focusY expected=23 actual=23 match=1
 review-workspace: field name=camera.slot.6.focusZ expected=24 actual=24 match=1
@@ -115,9 +115,9 @@ review-workspace: field name=camera.slot.6.distance expected=310 actual=310 matc
 review-workspace: field name=camera.slot.6.fov expected=96 actual=96 match=1
 review-workspace: field name=camera.slot.6.mode expected=first-person actual=first-person match=1
 review-workspace: field name=camera.slot.6.tick expected=106 actual=106 match=1
-review-workspace: field name=camera.slot.7.slot expected=7 actual=7 match=1
+review-workspace: field name=camera.slot.7.slot expected=8 actual=8 match=1
 review-workspace: field name=camera.slot.7.saved expected=0 actual=0 match=1
-review-workspace: field name=camera.slot.7.name expected=Slot%207 actual=Slot%207 match=1
+review-workspace: field name=camera.slot.7.name expected=Slot%208 actual=Slot%208 match=1
 review-workspace: field name=camera.slot.7.focusX expected=17 actual=17 match=1
 review-workspace: field name=camera.slot.7.focusY expected=23.5 actual=23.5 match=1
 review-workspace: field name=camera.slot.7.focusZ expected=23 actual=23 match=1
@@ -180,7 +180,7 @@ review-workspace: expect name=roundtrip_fields ok=1 detail=fields%3D169%20mismat
 review-workspace: expect name=resave_ok ok=1 detail=saved
 review-workspace: expect name=resave_bytes_readable ok=1
 review-workspace: expect name=resave_bytes_equal ok=1
-review-workspace: step=resave result=ok bytes=2928
+review-workspace: step=resave result=ok bytes=3019
 review-workspace: expect name=moved_copy ok=1
 review-workspace: step=load-moved result=opened moved=1
 review-workspace: expect name=moved_still_opens ok=1

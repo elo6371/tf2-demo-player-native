@@ -1,0 +1,189 @@
+OK   probe ran: native/build-nmake/review_workspace_probe.exe --workspace-test rc=0 (309 lines)
+OK   demo fixtures: two distinct 64-hex hashes
+OK   summary: add=5 update=1 delete=1 refused=6 duplicateEvent=1 jumpFailures=3 fields=169 fieldMismatches=0
+OK   probe assertions: 104 executed, 0 failed
+OK   roundtrip fields: 169 compared, 0 mismatched
+OK   step new: result=created
+OK   step save: result=ok
+OK   step load: result=opened
+OK   step resave: result=ok
+OK   step load-moved: result=opened
+OK   field schema: 1
+OK   field name: Bagel%20Review
+OK   field demoHashAlgo: sha256
+OK   field demoHash: 892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892
+OK   field autosave: 1
+OK   field camera.valid: 1
+OK   field camera.focusX: 1.5
+OK   field camera.focusY: -2.25
+OK   field camera.focusZ: 512.125
+OK   field camera.yaw: 45.5
+OK   field camera.pitch: -12.25
+OK   field camera.distance: 320
+OK   field camera.fov: 95.5
+OK   field camera.mode: third-person
+OK   field camera.cameraTick: 1234
+OK   field camera.slotCount: 8
+OK   field hud.enabled: 1
+OK   field hud.scale: 125
+OK   field hud.panelCount: 3
+OK   field minimap.collapsed: 0
+OK   field minimap.zoom: 1.5
+OK   field minimap.mapName: koth_bagel
+OK   field minimap.available: 1
+OK   field eventFilter.eventName: player_death
+OK   field eventFilter.player: userid%3A7
+OK   field logs.tfUrl: https%3A%2F%2Flogs.tf%2F123456
+OK   field playback.speed: 0.5
+OK   field playback.tick: 987
+OK   field extraKeyCount: 1
+OK   field extraSectionCount: 1
+OK   expect new_created: ok=1
+OK   expect new_file_exists: ok=1
+OK   expect save_ok: ok=1
+OK   expect save_bytes_readable: ok=1
+OK   expect load_opened: ok=1
+OK   expect roundtrip_fields: ok=1
+OK   expect resave_ok: ok=1
+OK   expect resave_bytes_readable: ok=1
+OK   expect resave_bytes_equal: ok=1
+OK   expect moved_copy: ok=1
+OK   expect moved_still_opens: ok=1
+OK   expect moved_path_named: ok=1
+OK   step load-hash-mismatch: result=hash_mismatch
+OK   expect hash_mismatch_named: ok=1
+OK   expect hash_mismatch_bytes_before: ok=1
+OK   expect hash_mismatch_save_refused: ok=1
+OK   expect hash_mismatch_bytes_after: ok=1
+OK   expect hash_mismatch_file_intact: ok=1
+OK   step load-corrupt: result=corrupt
+OK   expect corrupt_written: ok=1
+OK   expect corrupt_named: ok=1
+OK   expect corrupt_bytes_before: ok=1
+OK   expect corrupt_save_refused: ok=1
+OK   expect corrupt_bytes_after: ok=1
+OK   expect corrupt_file_intact: ok=1
+OK   expect header_only_corrupt: ok=1
+OK   step load-old-schema: result=old_schema
+OK   step migrate: result=ok
+OK   step migrate-unknown: result=refused
+OK   expect old_schema_written: ok=1
+OK   expect old_schema_named: ok=1
+OK   expect migrate_ok: ok=1
+OK   expect migrate_reopens: ok=1
+OK   expect migrated_bytes: ok=1
+OK   expect migrate_header_rewritten: ok=1
+OK   expect migrate_records_rewritten: ok=1
+OK   expect header_only_patched: ok=1
+OK   expect header_only_written: ok=1
+OK   expect future_written: ok=1
+OK   expect unknown_version_named: ok=1
+OK   expect unknown_version_migrate_refused: ok=1
+OK   unknown version: migrate refused reason=unsupported-version
+OK   step bookmark-load: result=loaded
+OK   step bookmark-add: result=added
+OK   step bookmark-add: result=added
+OK   step bookmark-add-event: result=added
+OK   step bookmark-add-event: result=added
+OK   step bookmark-add-event: result=added
+OK   step bookmark-add-event: result=already_exists
+OK   step list: result=ok
+OK   step bookmark-update: result=updated
+OK   step bookmark-delete: result=removed
+OK   expect bookmark_load_loaded: ok=1
+OK   expect bookmark_add_manual: ok=1
+OK   expect bookmark_add_second: ok=1
+OK   expect bookmark_add_event: ok=1
+OK   expect bookmark_add_event_same_tick: ok=1
+OK   expect bookmark_add_event_third: ok=1
+OK   expect duplicate_event_already_exists: ok=1
+OK   expect empty_title_refused: ok=1
+OK   expect seek_pending_refused: ok=1
+OK   expect no_demo_refused: ok=1
+OK   expect not_loaded_refused: ok=1
+OK   expect sort_ascending: ok=1
+OK   expect same_tick_keys_differ: ok=1
+OK   expect query_text: ok=1
+OK   expect filter_event: ok=1
+OK   expect filter_player_userid: ok=1
+OK   expect filter_player_entindex: ok=1
+OK   expect filter_tick_range: ok=1
+OK   expect filter_manual: ok=1
+OK   expect update_ok: ok=1
+OK   expect update_immutable: ok=1
+OK   expect update_empty_title_refused: ok=1
+OK   expect update_missing: ok=1
+OK   expect delete_ok: ok=1
+OK   expect delete_missing: ok=1
+OK   step bookmark-jump: result=applied
+OK   step bookmark-jump: result=applied
+OK   step bookmark-jump: result=refused_out_of_range
+OK   step bookmark-jump: result=refused_playback
+OK   expect jump_applied: ok=1
+OK   expect same_tick_jump_separate: ok=1
+OK   expect jump_out_of_range_keeps: ok=1
+OK   expect jump_playback_rollback: ok=1
+OK   expect jump_camera_refused: ok=1
+OK   expect jump_missing: ok=1
+OK   expect jump_hash_mismatch: ok=1
+OK   expect jump_not_loaded: ok=1
+OK   step bookmark-save: result=ok
+OK   step rename: result=renamed
+OK   step load-missing: result=missing
+OK   step load-wrong-path: result=corrupt
+OK   step save-readonly: result=refused_read_only
+OK   expect bookmark_save_to_doc: ok=1
+OK   expect bookmark_save_ok: ok=1
+OK   expect bookmark_reopen: ok=1
+OK   expect bookmarks_persist: ok=1
+OK   expect bookmarks_persist_eventkeys: ok=1
+OK   expect bookmarks_persist_note: ok=1
+OK   expect bookmarks_jump_after_reload: ok=1
+OK   expect no_identity_unavailable: ok=1
+OK   expect no_identity_trace_named: ok=1
+OK   expect lifecycle_open: ok=1
+OK   expect autosave_clean: ok=1
+OK   expect autosave_disabled: ok=1
+OK   expect autosave_saved: ok=1
+OK   expect rename_empty: ok=1
+OK   expect rename_too_long: ok=1
+OK   expect rename_ok: ok=1
+OK   expect rename_save: ok=1
+OK   expect close_unsaved: ok=1
+OK   expect close_clean: ok=1
+OK   expect missing_named: ok=1
+OK   expect wrong_path_named: ok=1
+OK   expect new_no_hash: ok=1
+OK   expect new_already_exists: ok=1
+OK   expect save_not_loaded: ok=1
+OK   expect readonly_seed: ok=1
+OK   expect readonly_attrib: ok=1
+OK   expect readonly_open: ok=1
+OK   expect readonly_bytes_before: ok=1
+OK   expect readonly_bytes_after: ok=1
+OK   expect readonly_refused: ok=1
+OK   expect event_key_manual_none: ok=1
+OK   expect players_trace_named: ok=1
+OK   expect list_line_has_fields: ok=1
+OK   product run 1 exited 0 (created the workspace)
+OK   run 1 created the workspace through the product's own store
+OK   the workspace file exists after run 1 (3121 bytes)
+OK   the file is bound to the demo's own sha256 (308cc1453672...)
+OK   the camera section is filled (valid=1 reason=read-back-from-renderer)
+OK   the file carries all 8 T50 slots
+OK   slot 2 round-trips as saved with its name (Gate%20Slot)
+OK   the bookmark is in the file (count=1 title=Smoke tick=32)
+OK   the bookmark carries a real demo tick
+OK   product run 2 exited 0 (reopened the same file)
+OK   the second run opens the file it wrote (state=opened loaded=1 bookmarks=1)
+OK   a stored bookmark jumps: status=applied
+OK   the jump reports landing on the bookmark's own tick (32)
+OK   the paused transport still reads the bookmark's tick (32) after the jump
+OK   the run leaves the file saved and the session closed cleanly
+OK   a workspace from another demo is refused by name (state=hash_mismatch)
+OK   the refused file is not rewritten
+OK   the seeded hash really was the wrong one (the control is not a no-op)
+OK   a corrupt workspace is refused by name (state=corrupt)
+assertions_ok=186 assertions_bad=0
+REVIEW-WORKSPACE-CHECK=PASS
+RC=0
