@@ -5,11 +5,11 @@
 #   1. The picture did not move. `textured` and `ref` are byte-identical to the
 #      frames the same commit produces without the T26 instrumentation. The
 #      instrument adds a buffer and a trace; it must not add a surface.
-#   2. The missing population reproduces the account: 38,328 pixels, every one
+#   2. The missing population reproduces the account: 97,453 pixels, every one
 #      covered by a BSP sky face, none without one.
-#   3. The enclosed components are sky-backed too: the 2,313 pixels that looked
-#      like closed holes are the map's sky seen through brush seams, not absent
-#      geometry.
+#   3. The enclosed component is sky-backed too: the 4,613 pixels that look like
+#      a closed hole are the map's sky seen through a gap between brush surfaces
+#      at the verified pose (T58 re-baseline), not absent geometry.
 #   4. The point oracle and the rasterizer agree. Representative points of every
 #      component >= 200 px are projected by the product itself, the nearest
 #      world triangle and the nearest sky face are named, and the face-id frame
@@ -19,7 +19,7 @@
 #      says it would hide two thirds of the eye's first hits. The numbers are
 #      pinned so a later "fix" has to argue with them.
 #   6. The seam classification is not a cull artefact. Every measured seam
-#      direction resolves, 0 of the 8 named seam faces are derived-back at the
+#      direction resolves, 0 of the named seam faces are derived-back at the
 #      capture's own camera, and a POSITIVE control shows the product cull still
 #      removes a named non-seam face at the same pose. Mutation M6 disables the
 #      cull and must turn the positive control red while the seam answer stays.
@@ -103,53 +103,98 @@ mkdir -p "$SCRATCH" "$ANA"
 # "at least one sliver had a culled neighbour" (SEAM_CULLED >= 1); on this tree
 # it is RED and it must not be called a pass: after the T29 near-plane fix none
 # of the surviving slivers is bracketed by a surface the product culls. T41
-# derived why and T44 measured it at the capture's own pose: all eight named
-# seam faces are derived-FRONT under the D3D11 rule (CULL_BACK,
-# FrontCounterClockwise=FALSE, front iff dot(emittedNormal, eye-p) > 0), so a
-# correct cull CANNOT remove them and 0 cull-off-only directions is the correct
-# reading. The old >=1 pin encoded a pre-T29 artefact. It is replaced -- not
-# relaxed -- by four measurements that can fail independently:
-#   * every one of the 24 measured direction probes resolves to a face
-#     (6 seam points x 4 directions). The merged wave summary's "32/32" is a
-#     documentation error: T40's own log (evidence/t40-pixel-pins/t26-hole.log,
-#     lines 51-55) shows 6 seam lines and 13 face-info requests, and this gate
-#     now asserts the measured total instead of copying the number;
-#   * 0 of the 8 named faces are derived-back at the trace's camera;
-#   * a POSITIVE control: the product cull removes 81,218 face-id px from 18
-#     non-seam faces at the same pose, the largest being face 17605
-#     (disp/side-0, derived-back, 33,167 px), so "the cull is on" is measured;
-#   * mutation M6 disables the cull and must turn that control RED while the
-#     derived-side classification stays at 0 derived-back, so the seam answer
-#     cannot be an artefact of a disabled cull.
-PIN_MISSING=1648
-PIN_SKY_MISSING=1648
+# derived why: a named seam face is derived-FRONT under the D3D11 rule
+# (CULL_BACK, FrontCounterClockwise=FALSE, front iff dot(emittedNormal, eye-p) > 0),
+# so a correct cull CANNOT remove it and 0 cull-off-only directions is the
+# correct reading. The old >= 1 pin encoded a pre-T29 artefact. It is replaced --
+# not relaxed -- by readings that can fail independently: every measured
+# direction probe resolves, 0 of the named faces are derived-back at the trace's
+# own camera, and a POSITIVE control shows the product cull still removing a
+# named non-seam face at the same pose while mutation M6 disables the cull.
+#
+# T58 RE-BASELINE: THE T35/T44 PINS WERE PHOTOGRAPHED FROM INSIDE THE WORLD.
+# They were taken on a tree that predates the T63-F1 clock fix (5ee9642). Before
+# it, scene queries resolved entity history by the SIGNON entry tick while the
+# frames advance on the server net_Tick, so "the camera at playback tick 2000"
+# was a different pose than the demo's: eye -2294.8,348.8,383.4, inside solid
+# geometry looking at its back faces. The stored textured.bmp proves that without
+# any code -- black slabs, one grass texture smeared across a giant triangle,
+# brick at the bottom of the frame. With the corrected clock
+# (demo-clock-check.sh: 63 assertions, 0 failures) the same playback tick 2000
+# renders a COHERENT view from eye 815.5,-147.8,-194.3: stone blocks, a wooden
+# pergola, open sky. Every pin derived from a FRAME moved; every pin derived from
+# the BSP did not, and that split is what says this is a pose correction rather
+# than a geometry-rule change:
+#
+#   reading                         corrupt pose   verified pose   moved?
+#   missing                              1,648          97,453   yes
+#   missing covered by a sky face        1,648          97,453   yes
+#   missing with no sky face                 0               0   no
+#   enclosed                             1,648           4,613   yes
+#   enclosed components >= 200 px            3               1   yes
+#   back-face rejections (T23)          80,917          52,788   yes
+#   sky faces / sky triangles        731/1,842       731/1,842   no
+#   buffer triangles                    99,312          99,312   no
+#   textured frame sha                ac2cfe9        1b0ab46   yes
+#   ref frame sha                     6bb4d9a        e9218c4   yes
+#   seam points / direction probes         6/24             2/8   yes
+#   named seam faces                         8               4   yes
+#   cull control           face 17605/33,167 px   face 17560/52,788   yes
+#
+# TWO ATTRIBUTIONS CHANGE WITH THE POSE, and neither is a product defect:
+#   * the enclosed population is no longer a crack between surfaces. At the
+#     verified pose the only enclosed component (4,613 px, bbox x700..801
+#     y31..127, fill 0.466) is the SKY SEEN THROUGH THE PERGOLA GAP: the account
+#     probes three of its points, world_geometry_probe resolves sky faces
+#     13313/13314/13319 of material TOOLS/TOOLSSKYBOX just behind them, nothing
+#     is rasterised there and the frame's depth is cleared (1.0000). It is a
+#     legitimate opening, so the shape test is INVERTED rather than deleted: at
+#     this pose NO enclosed component may be needle-shaped, because a crack
+#     appearing is exactly the phenomenon that must be re-investigated. The
+#     component population is pinned line by line as well, so a change is a red
+#     instead of a shape argument.
+#   * NO displacement cell brackets the enclosed population at this pose
+#     (PIN_SEAM_DISPLACED=0, was "at least one"). The old "at least one side of a
+#     sliver is a tessellated displacement cell" claim has no subject here; it is
+#     INVERTED, not dropped, so a displacement cell appearing behind an enclosed
+#     region turns this gate red and has to be attributed before it is believed.
+# The cull's positive control is now face 17560, kind=disp, BSP side bit 1,
+# derived-back, 52,788 px. The side bit is pinned as a READING of the population:
+# the cull argument is T41's derived side, never the bit. The previous control
+# face was side-0 and also derived-back, so both faces disagree with their bit in
+# the direction that matters -- a brush fan emits the plane normal whatever the
+# side bit says.
+PIN_MISSING=97453
+PIN_SKY_MISSING=97453
 PIN_UNEXPLAINED=0
-PIN_ENCLOSED=1648
+PIN_ENCLOSED=4613
 PIN_ENCLOSED_MIN_COMPONENT=200
-PIN_ENCLOSED_COMPONENTS=3
+PIN_ENCLOSED_COMPONENTS=1
+PIN_ENCLOSED_POP="rank=2 area=4613 sky=4613 unexplained=0 bbox=(x=700..801,y=31..127) edge=0 fill=0.466"
 PIN_SKY_FACES=731
 PIN_SKY_TRIANGLES=1842
 PIN_WORLD_TRIANGLES=99312
-PIN_BACKFACE=80917
-PIN_TEXTURED_SHA=ac2cfe9b45bad37a210ad3a8a25b34c2e768fe3e4bd8c578046262bdf31c129d
-PIN_REF_SHA=6bb4d9a712e82ef4cf58929651cea1070d11c1ac082bdb25a6e6d7097e2f974b
+PIN_BACKFACE=52788
+PIN_TEXTURED_SHA=1b0ab468364e20c7b209b48ca710e9b56530e07bfafff53ec6707a0f62ec70b6
+PIN_REF_SHA=e9218c42c7c93249656e2d343b4a834ddca0e6dd7faa754f99292e300e01188e
 
-# T44 pins, measured on 6888e6d + the T44 assertion at the same camera/tick as
-# the T35 re-baseline (trace: captures/traces/world-ids.trace, last
-# 'scene: camera' before 'capture: armed ... frame_tick=2000', src=demo --
-# NOT the once-per-run 'gpu: world vis eyeMap', which is the first drawn frame).
-# The account traces 6 representative points (2 per enclosed sliver >= 200 px),
-# 4 directions each = 24 probes, and all 24 resolve. The 8 named faces are all
-# derived-front; the cull's positive control removes 18 non-seam faces.
-PIN_CAPTURE_EYE="-2294.8,348.8,383.4"
-PIN_SEAM_IDS="8555,15324,17217,17260,17262,17266,17268,17326"
-PIN_SEAM_POINTS=6
-PIN_SEAM_PROBES=24
+# T58 pins, measured with the same trace and the same playback tick as the frame
+# pins above (captures/traces/world-ids.trace, last 'scene: camera' before
+# 'capture: armed ... frame_tick=2000', src=demo -- NOT the once-per-run
+# 'gpu: world vis eyeMap', which is the first drawn frame). The account traces
+# representative points of every enclosed component >= 200 px, four directions
+# each, and all of them resolve.
+PIN_CAPTURE_EYE="815.5,-147.8,-194.3"
+PIN_SEAM_IDS="238,4173,9187,9189"
+PIN_SEAM_POINTS=2
+PIN_SEAM_PROBES=8
 PIN_SEAM_CULLED=0
 PIN_SEAM_DERIVED_BACK=0
-PIN_CULL_TOP_FACE=17605
+PIN_SEAM_DISPLACED=0
+PIN_CULL_TOP_FACE=17560
+PIN_CULL_TOP_SIDE=1
 PIN_CULL_TOP_DERIVED=back
-PIN_CULL_TOP_PIXELS=33167
+PIN_CULL_TOP_PIXELS=52788
 
 fail=0
 assert_in() { # assert_in <file> <fixed string> <label>
@@ -757,12 +802,20 @@ echo "  $DEPTH_CONTROL"
 assert_eq "$(field "$DEPTH_CONTROL" measured)" "1" "the depth control ran"
 assert_eq "$(field "$DEPTH_CONTROL" saturated)" "1" "the depth view is saturated, so it is not used as evidence"
 
-# The enclosed population, per component. Two things are asserted for each
-# component of consequence: it is sky-backed, and it is needle-shaped. A missing
-# FACE would be a compact blob; a seam between two surfaces is a sliver with a
-# low fill ratio, and the distinction is what keeps this account from calling a
-# crack a lost face.
+# The enclosed population, per component. At the verified pose the T58
+# re-measurement attributes it to the map's own sky seen through a gap between
+# brush surfaces, and two statements keep that attribution honest:
+#   * the population is pinned line by line (rank, area, sky, bbox, edge, fill),
+#     so a component that appears, vanishes or changes size is a red. This
+#     replaced the old "every enclosed component is a needle sliver" rule, which
+#     was an argument about SHAPE: it could not see a differently shaped hole and
+#     it had to be edited whenever the pose moved.
+#   * the shape argument survives, INVERTED: at this pose no enclosed component
+#     may be needle-shaped. A needle is what a crack looks like, and a crack
+#     appearing where a legitimate opening was measured is precisely the
+#     phenomenon this gate exists to catch.
 enclosed_components=0
+ENCLOSED_POP=""
 while IFS= read -r line; do
   area=$(field "$line" area)
   unexplained=$(field "$line" unexplained)
@@ -772,6 +825,7 @@ while IFS= read -r line; do
   [ "${area:-0}" -ge "$PIN_ENCLOSED_MIN_COMPONENT" ] || continue
   if [ "${edge:-1}" = "1" ]; then continue; fi
   enclosed_components=$((enclosed_components + 1))
+  ENCLOSED_POP="${ENCLOSED_POP}${ENCLOSED_POP:+ | }${line#HOLE component }"
   if [ "${unexplained:-1}" != "0" ]; then
     echo "  FAIL component ${line#HOLE component }"
     fail=1
@@ -779,19 +833,20 @@ while IFS= read -r line; do
   read -r x0 x1 y0 y1 <<<"$bbox"
   width=$((x1 - x0 + 1)); height=$((y1 - y0 + 1))
   thin=$((width < height ? width : height)); long=$((width < height ? height : width))
-  if [ "$thin" -gt 32 ] || [ "$long" -lt 40 ]; then
-    echo "  FAIL component ${line#HOLE component } is not a sliver (${width}x${height})"
+  if [ "$thin" -le 32 ] && [ "$long" -ge 40 ]; then
+    echo "  FAIL component ${line#HOLE component } is needle-shaped (${width}x${height}): a crack appeared where the verified pose has an opening"
     fail=1
   fi
   if [ -n "$fill" ] && "$PYTHON" -c "import sys; sys.exit(0 if float(sys.argv[1]) < 0.70 else 1)" "$fill"; then
     :
   else
-    echo "  FAIL component ${line#HOLE component } fills its box (fill=$fill): a solid blob is a missing face, not a seam"
+    echo "  FAIL component ${line#HOLE component } fills its box (fill=$fill): a solid blob would be a lost face, not an opening"
     fail=1
   fi
 done < <(grep -F "HOLE component " "$ANA/hole-account.txt")
-assert_eq "$enclosed_components" "$PIN_ENCLOSED_COMPONENTS" "enclosed components >= 200 px, each a sliver"
-[ "$fail" = 0 ] && echo "  PASS every enclosed component is a thin sky-backed sliver"
+assert_eq "$enclosed_components" "$PIN_ENCLOSED_COMPONENTS" "enclosed components >= $PIN_ENCLOSED_MIN_COMPONENT px"
+assert_eq "$ENCLOSED_POP" "$PIN_ENCLOSED_POP" "the enclosed population, component by component"
+[ "$fail" = 0 ] && echo "  PASS every enclosed component is sky-backed, pinned, and not crack-shaped"
 
 echo "== 6b. the T23 account still reads the same =="
 # The point of re-running T23's own tool on T26's frames is that the two tasks
@@ -914,13 +969,13 @@ if [ "$UNRESOLVED" -ne 0 ]; then
 fi
 # The pre-T29 gate asserted that at least one sliver had a cull-off-only
 # neighbour. After the near-plane fix no sliver at this pose is bracketed by a
-# surface the product culls, and T41 derived why: all eight named seam faces are
+# surface the product culls, and T41 derived why: every named seam face is
 # derived-FRONT, so a correct cull cannot remove them. The old >= 1 assertion
 # encoded a pre-T29 artefact and is SUPERSEDED by the statement below; it is not
 # relaxed in place. A seam face the cull wrongly removed is still caught here,
 # because its neighbour would then resolve only in the all-off frame.
 assert_eq "${SEAM_CULLED:-0}" "$PIN_SEAM_CULLED" "seam directions only the cull-off frame could name (a front seam neighbour was not culled)"
-assert_eq "$SEAM_IDS" "$PIN_SEAM_IDS" "the eight named seam faces"
+assert_eq "$SEAM_IDS" "$PIN_SEAM_IDS" "the seam faces bracketing the enclosed population"
 
 SKY_FACE_IDS=$(grep -o "sky=face=[0-9]*" "$ANA/point-trace.txt" 2>/dev/null \
   | sed 's/.*face=//' | sort -un | tr '\n' ',' | sed 's/,$//')
@@ -946,11 +1001,16 @@ else
     assert_eq "$RESOLVED_FACES" "$REQUESTED" "every named face exists in the map's face table"
     assert_eq "$ABSENT" "0" "no face index was invented by a decode error"
     echo "  $DISPLACED of them are displacement faces, $SKY_KIND are sky faces"
-    if [ "${DISPLACED:-0}" -ge 1 ]; then
-      echo "  PASS at least one side of a sliver is a tessellated displacement cell"
-    else
-      echo "  FAIL no displacement face bounds a sliver: the seam account lost its subject"
-      fail=1
+    # T58 INVERTED this reading. The pre-T58 pin was DISPLACED >= 1: at the
+    # corrupt pose a tessellated displacement cell bounded a sliver. At the
+    # verified pose nothing displacement-shaped sits behind the enclosed region,
+    # so "at least one" would be a permanent red, and a permanent red is not a
+    # gate. The reading is pinned instead, in the direction that can still fail:
+    # a displacement cell appearing behind an enclosed region is a red and has to
+    # be attributed before it is believed.
+    assert_eq "${DISPLACED:-0}" "$PIN_SEAM_DISPLACED" "displacement cells bounding the enclosed population"
+    if [ "${DISPLACED:-0}" = "0" ]; then
+      echo "  PASS no displacement cell brackets the enclosed population (the corrupt-pose seam subject is absent)"
     fi
     if [ "${SKY_KIND:-0}" -ge 1 ]; then
       echo "  PASS at least one traced empty pixel is backed by a sky face of the map"
@@ -961,7 +1021,7 @@ else
     grep "geometry face-info index=" "$ANA/face-info.txt" | head -12 | sed 's/^/       /'
   fi
 
-  # ---- the derived side of the eight named faces -------------------------
+  # ---- the derived side of the named seam faces --------------------------
   # The T41 rule applied per face at the capture's own eye, not per pixel:
   # D3D11_CULL_BACK with FrontCounterClockwise=FALSE, front iff
   # dot(emittedNormal, eye - p) > 0. A brush fan emits the plane normal whatever
@@ -982,9 +1042,13 @@ else
       DERIVED_BACK=$(field "$CLASS_SUMMARY" derivedBack)
       DERIVED_PARSED=$(field "$CLASS_SUMMARY" parsed)
       assert_eq "$DERIVED_BACK" "$PIN_SEAM_DERIVED_BACK" "named seam faces the derived raster rule calls back at this pose"
-      assert_eq "$DERIVED_PARSED" "8" "every named seam face parsed from the BSP face table"
+      # The count is derived from the id list, not typed: the old hardcoded "8"
+      # was a second copy of PIN_SEAM_IDS and would have silently accepted a
+      # classification that parsed a different number of faces.
+      EXPECTED_FACES=$(tr ',' '\n' <<<"$SEAM_IDS" | grep -c .)
+      assert_eq "$DERIVED_PARSED" "$EXPECTED_FACES" "every named seam face parsed from the BSP face table"
       if [ "${DERIVED_BACK:-1}" = "0" ]; then
-        echo "  PASS all 8 named seam faces are derived-front: a correct cull leaves them drawn"
+        echo "  PASS all $DERIVED_PARSED named seam faces are derived-front: a correct cull leaves them drawn"
       fi
     fi
   else
@@ -1032,7 +1096,7 @@ else
     fi
     assert_eq "$CULL_TOP" "$PIN_CULL_TOP_FACE" "top non-seam face the product cull removed"
     assert_eq "$CULL_TOP_KIND" "disp" "the control face is a displacement face"
-    assert_eq "$CULL_TOP_SIDE" "0" "the control face's BSP side bit"
+    assert_eq "$CULL_TOP_SIDE" "$PIN_CULL_TOP_SIDE" "the control face's BSP side bit (a reading of the population, never the cull argument)"
     assert_eq "$CULL_TOP_DERIVED" "$PIN_CULL_TOP_DERIVED" "the control face's derived side (what a correct cull removes)"
     assert_eq "$CULL_TOP_PIXELS" "$PIN_CULL_TOP_PIXELS" "pixels the cull removed from the control face"
     case ",$SEAM_IDS," in
@@ -1040,7 +1104,7 @@ else
         echo "  FAIL the positive control face $CULL_TOP is one of the named seam faces"
         fail=1 ;;
       *)
-        echo "  PASS the positive control face $CULL_TOP is not one of the 8 named seam faces" ;;
+        echo "  PASS the positive control face $CULL_TOP is not one of the named seam faces" ;;
     esac
   fi
 fi
@@ -1327,7 +1391,7 @@ fi
 restore_sources
 
 # M6: the world back-face cull never runs. The forward verdict now stands on two
-# independent statements: the seam classification (0 of 8 named faces are
+# independent statements: the seam classification (0 of the named faces are
 # derived-back; a BSP+eye reading the product cannot change) and the positive
 # control (the cull removes a named non-seam face). This mutation deletes the
 # second: with the cull disabled the culled frame equals the unculled one, so the
@@ -1359,6 +1423,7 @@ elif build_mutated M6; then
         --faces "$PIN_SEAM_IDS" > "$SCRATCH/m6/seam-derived.txt" 2>&1
       M6_CLASS=$(grep -F 'CLASS-SUMMARY ' "$SCRATCH/m6/seam-derived.txt")
       M6_DERIVED_BACK=$(field "$M6_CLASS" derivedBack)
+      M6_PARSED=$(field "$M6_CLASS" parsed)
       echo "  seam classification with the cull disabled: $M6_CLASS"
       "$PYTHON" "$SCRATCH/seam-cull.py" cull --bsp "$BSP" --eye="$M6_EYE" \
         --seam "$PIN_SEAM_IDS" --ids "$SCRATCH/m6/world-ids.bmp" \
@@ -1377,7 +1442,7 @@ elif build_mutated M6; then
         echo "  FAIL M6: the seam classification stopped being meaningful: $M6_CLASS"
         mfail=1
       else
-        echo "  PASS M6: the cull removed 0 px (positive control RED) while 8 of 8 named seam faces are still derived-front -- the seam answer is geometry, not the cull"
+        echo "  PASS M6: the cull removed 0 px (positive control RED) while all $M6_PARSED named seam faces are still derived-front -- the seam answer is geometry, not the cull"
       fi
     fi
   fi
