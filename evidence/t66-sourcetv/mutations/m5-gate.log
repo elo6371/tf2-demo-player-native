@@ -1,0 +1,10 @@
+=== 2/8 the decision itself: spectate_probe --self-test ===
+  SPECTATE-SELF-TEST=FAIL checks=49 failures=2
+  FAIL S4 the camera keeps its last valid position when nobody is alive
+  FAIL S4 the camera never falls back to the world origin
+  FAIL self-test exit = 1, expected 0
+  FAIL self-test verdict = SPECTATE-SELF-TEST=FAIL checks=49 failures=2, expected to contain SPECTATE-SELF-TEST=PASS
+  FAIL self-test failures = 2, expected 0
+  OK   self-test checks = 49 (>= 49)
+==========================================================================
+SPECTATE-CHECK=FAIL

@@ -1,0 +1,69 @@
+=== 0/8 binary freshness: both executables are newer than what they compile ===
+  OK   BINARY-FRESH=1
+=== 1/8 negative controls: each must fail with a NAMED reason ===
+  OK   missing demo: exit 1 and names the path
+  OK   inverted window: exit 2 and names both ticks
+=== 2/8 the decision itself: spectate_probe --self-test ===
+  SPECTATE-SELF-TEST=PASS checks=49 failures=0
+  OK   self-test exit = 0
+  OK   self-test verdict contains SPECTATE-SELF-TEST=PASS
+  OK   self-test failures = 0
+  OK   self-test checks = 49 (>= 49)
+=== 3/8 the demo replay: three deaths, three handovers, no seek, no empty frame ===
+  OK   demo replay exit = 0
+  OK   demo replay verdict contains SPECTATE-DEMO=PASS
+  OK   replayed deaths = 3
+  OK   replayed handovers = 3
+  OK   handovers that opened = 3
+  OK   handovers that closed = 3
+  OK   frames with no target = 0
+  OK   seeks detected in a linear replay = 0
+  OK   the director handle was never usable on this demo = 0
+  OK   replayed frames = 1936 (>= 1000)
+  OK   a repeat replay of the same window is byte-identical
+=== 4/8 the product: the same three deaths at 8x, a handover in progress, corpses removed ===
+  OK   product run exit = 0
+  OK   product trace bytes = 9015992 (>= 1000000)
+  summary: 58452.3 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=8370 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19505
+  OK   product deaths = 3
+  OK   product handovers = 3
+  OK   product frames with no target = 0
+  OK   product seeks = 0
+  OK   product manual picks = 0
+  OK   the product never used the demo director handle either = 0
+  OK   instances the corpse rule removed = 8370 (>= 100)
+  OK   frames that published a corpse filter line = 21 (>= 3)
+  OK   the last corpse filter names the dead player contains indices=
+  OK   the first corpse filter names the first dead player (2) contains 2
+=== 5/8 the handover shape: intermediate positions, monotone progress, no single jump ===
+  OK   handover analysis exit = 0
+  handover n=1 tick0=13615 tick1=13776 samples=12 total=4495.3 largest=886.8 maxstep=0.197 monotone=1 startgap=0.0 endgap=0.0
+  handover n=2 tick0=15907 tick1=16075 samples=15 total=983.1 largest=126.9 maxstep=0.129 monotone=1 startgap=0.0 endgap=0.0
+  handover n=3 tick0=19505 tick1=19671 samples=18 total=776.8 largest=96.2 maxstep=0.124 monotone=1 startgap=0.0 endgap=0.0
+  HANDOVERS=3
+  OK   handovers analysed = 3
+  OK   handover 1 intermediate positions = 12 (>= 5)
+  OK   handover 1 largest step as a share of the move = 0.197 (<= 0.30)
+  OK   handover 1 progress never went backwards = 1
+  OK   handover 1 settled exactly on the target = 0.0 (<= 1.0)
+  OK   handover 2 intermediate positions = 15 (>= 5)
+  OK   handover 2 largest step as a share of the move = 0.129 (<= 0.30)
+  OK   handover 2 progress never went backwards = 1
+  OK   handover 2 settled exactly on the target = 0.0 (<= 1.0)
+  OK   handover 3 intermediate positions = 18 (>= 5)
+  OK   handover 3 largest step as a share of the move = 0.124 (<= 0.30)
+  OK   handover 3 progress never went backwards = 1
+  OK   handover 3 settled exactly on the target = 0.0 (<= 1.0)
+=== 6/8 the manual pick: same frame, no handover, not taken back ===
+  OK   manual pick run exit = 0
+  summary: 44081.3 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=5237 target=15 src=stable tr=0 prog=0.000 focus=-1609.3,1083.6,150.0 deaths=3 handovers=3 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=3 hidden=7 lastdeath=19955
+  OK   manual pick accepted = 1
+  OK   manual pick rejected = 0
+  OK   the first product frame already carries the manual target contains target=6
+  OK   the first product frame reports the pick as manual contains src=manual
+  OK   the first product frame is not mid-handover contains tr=0
+  OK   handovers that happened before the first death in the manual run = 0
+  OK   product frames printed by the manual run = 51 (>= 3)
+  OK   out-of-range pick flagged = 1 (>= 1)
+  OK   out-of-range pick was never handed to the relay as a target = 0
+=== 7/8 the picture: the corpse rule does not touch a frame with nobody dead ===

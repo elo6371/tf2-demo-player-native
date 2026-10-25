@@ -48,6 +48,9 @@
 // same reason the rest of this file's collaborators are: a probe with its own
 // copy would only prove that two copies agree.
 #include "camera_director.h"
+// T66: the SourceTV relay camera -- who is being watched, when a death hands the
+// view over, and which dead bodies must not be drawn. Pure logic, no D3D.
+#include "spectate_target.h"
 #include "camera_bookmarks.h"
 #include "keybinds.h"
 // T50: wideToUtf8, so a name typed into the bookmark field reaches the store in
@@ -485,6 +488,39 @@ bool g_textFieldFocused = false;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
 std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
 std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
+
+// T66: one director for the whole run, so the handover clock and the hidden-body
+// list survive across frames. g_spectateManualTarget is the --spectate-target
+// value waiting to be applied; the frame that applies it clears it, because a
+// pick that re-applied every frame could never be told apart from a director pick.
+tf2::native::SpectateDirector g_spectateDirector;
+std::int32_t g_spectateManualTarget = -1;
+std::uint32_t g_spectateArgumentRejected = 0;
+std::int32_t g_spectateLastTarget = -2;
+std::int32_t g_spectateLastTransitioning = -1;
+
+// T66: --spectate-pause-at <playback tick> stops the demo once, keeps rendering
+// for --spectate-pause-seconds, then resumes. The pause is not the point: the
+// requirement says the handover must keep moving while the demo clock is frozen,
+// and a trace that only prints on tick changes cannot show that at all.
+std::int32_t g_spectatePauseAtTick = -1;
+double g_spectatePauseSeconds = 2.0;
+bool g_spectatePauseFired = false;
+double g_spectatePauseStartedAt = 0.0;
+// The last handover progress this run printed. A handover that is only ever
+// sampled at its two ends cannot be told apart from an instant cut, which is
+// exactly the defect the gate has to be able to see, so the middle of the
+// transition is published in steps of 0.05.
+double g_spectateLastProgress = -1.0;
+// Diagnostic switch: hides nothing, so a capture with it on and one with it off
+// differ ONLY by the corpses. That is the negative control the pixel evidence
+// needs -- "the body is gone" is proven by "the same frame drawn without the
+// rule still has it", not by a silhouette somebody eyeballed.
+bool g_spectateShowCorpses = false;
+// How many submitted instances the corpse rule actually removed. A rule that
+// hides nothing and a rule that hides what the camera cannot see leave the same
+// picture, and only this counter tells them apart.
+std::uint32_t g_spectateHiddenInstances = 0;
 
 // Repositions every UI control from the planner's answer for the current
 // client rect and window dpi. The planner guarantees containment and
@@ -3416,6 +3452,44 @@ bool outlineVertexExtent = false;
         viewModelApplyAnimation = true;
       } else if (wcscmp(arguments[i], L"--player-animation") == 0) {
         playerAnimationEnabled = true;
+      } else if (wcscmp(arguments[i], L"--spectate-target") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        // A manual spectate pick. Refused rather than defaulted when it does not
+        // parse: "the gate asked for player 5" and "the gate asked for nothing"
+        // must not read the same in the trace.
+        if (end && *end == L'\0' && parsed >= 0 && parsed <= 2047) {
+          g_spectateManualTarget = static_cast<std::int32_t>(parsed);
+        } else {
+          ++g_spectateArgumentRejected;
+        }
+      } else if (wcscmp(arguments[i], L"--spectate-target") == 0) {
+        ++g_spectateArgumentRejected;
+      } else if (wcscmp(arguments[i], L"--spectate-pause-at") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(arguments[++i], &end, 10);
+        // A playback tick, not a server tick: the demo clock the product advances
+        // is the recording's own cursor. Refused rather than clamped when it does
+        // not parse, so "pause at 3302" and "pause somewhere" never read the same.
+        if (end && *end == L'\0' && parsed >= 0 && parsed <= 100000000) {
+          g_spectatePauseAtTick = static_cast<std::int32_t>(parsed);
+        } else {
+          ++g_spectateArgumentRejected;
+        }
+      } else if (wcscmp(arguments[i], L"--spectate-pause-at") == 0) {
+        ++g_spectateArgumentRejected;
+      } else if (wcscmp(arguments[i], L"--spectate-pause-seconds") == 0 && i + 1 < argumentCount) {
+        wchar_t* end = nullptr;
+        const double parsed = std::wcstod(arguments[++i], &end);
+        if (end && *end == L'\0' && parsed >= 0.0 && parsed <= 60.0) {
+          g_spectatePauseSeconds = parsed;
+        } else {
+          ++g_spectateArgumentRejected;
+        }
+      } else if (wcscmp(arguments[i], L"--spectate-pause-seconds") == 0) {
+        ++g_spectateArgumentRejected;
+      } else if (wcscmp(arguments[i], L"--spectate-show-corpses") == 0) {
+        g_spectateShowCorpses = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-identity-bones") == 0) {
         viewModelIdentityBones = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-bone-limit") == 0 && i + 1 < argumentCount) {
@@ -8830,6 +8904,15 @@ bool outlineVertexExtent = false;
   bool lastReverse = false;
   bool lastPaused = false;
   std::vector<tf2::native::EntityState> currentEntityStates;
+  // T66: the relay's INPUT is refreshed only when a new demo tick arrives (the
+  // snapshot is what changes), but its CLOCK is the wall clock, so the decision
+  // itself runs on every frame. It used to live inside the tick-changed branch,
+  // which froze a handover the moment the demo was paused -- the one case the
+  // requirement names explicitly, and the case no tick-keyed reading could see.
+  std::vector<tf2::native::SpectateSlot> spectateSlots;
+  std::int64_t spectateDirectorHandle = 0;
+  std::int32_t spectateSceneTick = -1;
+  bool spectateSnapshotDrawable = false;
   soundScheduler.reset(0);
   // `--capture-frame` is a one-shot diagnostic: arm it, wait until playback has
   // reached the requested tick, write one frame, then leave through the exit
@@ -8865,6 +8948,11 @@ bool outlineVertexExtent = false;
     QueryPerformanceCounter(&now);
     const double measuredElapsed = static_cast<double>(now.QuadPart - lastFrame.QuadPart)
       / static_cast<double>(frequency.QuadPart);
+    // T66: a monotonic WALL clock for the relay handover. Deliberately not derived
+    // from the demo tick and not frozen with the playback: the task requires the
+    // 0.3 s handover to keep running while the demo is paused, and passing this
+    // number is what makes that assertable without a human watching the title.
+    const double wallSeconds = static_cast<double>(now.QuadPart) / static_cast<double>(frequency.QuadPart);
     // Do not fast-forward a long interval after a debugger break, resize, or
     // temporary OS stall. The next frame resumes at the current playback rate.
     const double elapsed = std::clamp(measuredElapsed, 0.0, 0.25);
@@ -8963,7 +9051,7 @@ bool outlineVertexExtent = false;
       // is 0 it reads one row early.
       const std::int32_t sceneRow = firstPacketTick >= 0 ? g_playback.tick : -1;
       std::int32_t sceneTick = -1;
-      bool sceneServerTickKnown = false;
+      bool sceneTickKnown = false;
       const char* sceneClockReason = "";
       if (sceneEntryTick < 0) {
         sceneClockReason = "no-data-packets";
@@ -8974,7 +9062,7 @@ bool outlineVertexExtent = false;
         sceneClockReason = "server-tick-unknown";
       } else {
         sceneTick = demoNetworkSummary.packetServerTicks[sceneRow];
-        sceneServerTickKnown = true;
+        sceneTickKnown = true;
       }
       // "scene: begin" keeps its numeric shape for the gates that read it with
       // a greedy sed; sceneTick is -1 only when the tick is unknown and no gate
@@ -8982,7 +9070,7 @@ bool outlineVertexExtent = false;
       // failure message only). "scene: clock" carries the reason by name.
       traceFmt("scene: begin tick=%d sceneTick=%d", static_cast<int>(g_playback.tick),
         static_cast<int>(sceneTick));
-      if (sceneServerTickKnown) {
+      if (sceneTickKnown) {
         traceFmt("scene: clock tick=%d entryTick=%d serverTick=%d serverTickKnown=1",
           static_cast<int>(g_playback.tick), static_cast<int>(sceneEntryTick),
           static_cast<int>(sceneTick));
@@ -8991,7 +9079,7 @@ bool outlineVertexExtent = false;
           static_cast<int>(g_playback.tick), static_cast<int>(sceneEntryTick), sceneClockReason);
       }
       std::int32_t resolvedSceneTick = sceneTick;
-      if (sceneServerTickKnown) {
+      if (sceneTickKnown) {
         entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
             demoNetworkSummary, sceneTick, currentEntityStates, &resolvedSceneTick);
         entitySnapshotStaleness = sceneTick - resolvedSceneTick;
@@ -9020,7 +9108,7 @@ bool outlineVertexExtent = false;
       // only place a request becomes "landed" in the product.
       if (sceneRequestId != 0) {
         tf2::native::SceneQueryStatus queryStatus = tf2::native::SceneQueryStatus::NoHistory;
-        if (sceneServerTickKnown) {
+        if (sceneTickKnown) {
           switch (entitySnapshotStatus) {
             case tf2::native::EntitySnapshotQueryStatus::Available:
               queryStatus = tf2::native::SceneQueryStatus::Available; break;
@@ -9135,7 +9223,7 @@ bool outlineVertexExtent = false;
       hudState = snapshotDrawable
         ? tf2::native::readPlaybackHud(currentEntityStates, demoNetworkSummary.lastViewEntity)
         : tf2::native::PlaybackHudState{};
-      hudEffectsDue = sceneServerTickKnown ? effectTimeline.countThrough(sceneTick) : 0;
+      hudEffectsDue = sceneTickKnown ? effectTimeline.countThrough(sceneTick) : 0;
       traceFmt("scene: hud fxDue=%d drawable=%d", static_cast<int>(hudEffectsDue),
         snapshotDrawable ? 1 : 0);
       if (snapshotDrawable) {
@@ -9166,6 +9254,34 @@ bool outlineVertexExtent = false;
         traceFmt("scene: buildInstances=%zu requests=%zu states=%zu scanned=%zu classLookups=%zu cap=256",
           modelInstances.size(), resolverStats.instanceRequests, currentEntityStates.size(),
           resolverStats.fallbackEntitiesScanned, resolverStats.classLookups);
+        // T66 rule 1 removes a dead player from the SUBMITTED set here, before the
+        // budget and focus passes see it, instead of skipping it inside the draw
+        // loop. A skip and a removal leave the same picture, but only a removal can
+        // be counted, and the count is the evidence: corpses=0 with the camera
+        // pointed somewhere else entirely still has to say "this player's model is
+        // not in this frame". Skipping inside the loop could only prove that the
+        // instances we skipped were the ones we skipped.
+        std::vector<tf2::native::ModelInstance> drawCandidates;
+        std::string corpseSignature;
+        drawCandidates.reserve(modelInstances.size());
+        for (const auto& candidate : modelInstances) {
+          if (!g_spectateShowCorpses
+              && g_spectateDirector.hidesModel(static_cast<std::int32_t>(candidate.entityIndex))) {
+            ++g_spectateHiddenInstances;
+            if (!corpseSignature.empty()) corpseSignature += ',';
+            corpseSignature += std::to_string(candidate.entityIndex);
+            continue;
+          }
+          drawCandidates.push_back(candidate);
+        }
+        static std::string lastCorpseSignature;
+        if (corpseSignature != lastCorpseSignature) {
+          lastCorpseSignature = corpseSignature;
+          traceFmt("scene: corpseFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
+            corpseSignature.empty() ? 0 : std::count(corpseSignature.begin(), corpseSignature.end(), ',') + 1,
+            corpseSignature.empty() ? "-" : corpseSignature.c_str(),
+            drawCandidates.size(), modelInstances.size());
+        }
         std::vector<tf2::native::EntityModelDrawInstance> draws;
         std::vector<tf2::native::EntityMarker> fallbackMarkers;
         // Every skinned instance's matrices, concatenated. One upload per scene
@@ -9222,13 +9338,83 @@ bool outlineVertexExtent = false;
           }
           if (request.sequence < 0) missingReason = "m_nSequence is absent";
         };
-        bool focused = false;
+        // T66: the SourceTV relay. The demo names ONE entity (svc_SetView ->
+        // lastViewEntity) and on this recording that entity is the camera's own
+        // spectator slot, dead at every tick -- so the observed player is a
+        // decision, not a reading. Everything below is the director's input and
+        // output: the snapshot reduced to player rows, the demo's own observer
+        // handle, the wall clock, and the focus the renderer must use.
+        spectateSlots.clear();
+        spectateSlots.reserve(currentEntityStates.size());
+        for (std::size_t slotIndex = 0; slotIndex < currentEntityStates.size(); ++slotIndex) {
+          const auto& slotState = currentEntityStates[slotIndex];
+          tf2::native::SpectateSlot slot;
+          slot.entityIndex = static_cast<std::int32_t>(slotIndex);
+          if (slotState.classId >= 0
+              && static_cast<std::size_t>(slotState.classId) < demoNetworkSummary.serverClassSchemas.size()) {
+            slot.isPlayer = demoNetworkSummary.serverClassSchemas[static_cast<std::size_t>(slotState.classId)]
+              .name.find("Player") != std::string::npos;
+          }
+          // The same suffix rule the transform path uses: a player carries its
+          // fields in several slots (Local vs NonLocal exclusive) and every one of
+          // them ends in the same suffix.
+          const auto readSpectateInt = [&](const char* suffix, std::int64_t& out) {
+            const std::size_t length = std::strlen(suffix);
+            for (const auto& entry : slotState.properties) {
+              const auto& name = entry.first;
+              if (name.size() < length) continue;
+              if (name.compare(name.size() - length, length, suffix) != 0) continue;
+              if (!(name.size() == length || name[name.size() - length - 1] == '.')) continue;
+              const auto& value = entry.second;
+              out = value.type == tf2::native::SendPropType::Float
+                ? static_cast<std::int64_t>(value.x) : value.intValue;
+              return true;
+            }
+            return false;
+          };
+          slot.hasHealth = readSpectateInt("m_iHealth", slot.health);
+          slot.hasLifeState = readSpectateInt("m_lifeState", slot.lifeState);
+          slot.hasTeam = readSpectateInt("m_iTeamNum", slot.team);
+          const auto slotTransform = tf2::native::EntityModelResolver::extractTransform(slotState);
+          if (slotTransform.hasOrigin) {
+            slot.hasOrigin = true;
+            slot.origin[0] = slotTransform.origin[0];
+            slot.origin[1] = slotTransform.origin[1];
+            slot.origin[2] = slotTransform.origin[2];
+          }
+          spectateSlots.push_back(slot);
+        }
+        spectateDirectorHandle = 0;
+        if (demoNetworkSummary.lastViewEntity >= 0
+            && static_cast<std::size_t>(demoNetworkSummary.lastViewEntity) < currentEntityStates.size()) {
+          const std::size_t handleLength = std::strlen("m_hObserverTarget");
+          for (const auto& entry : currentEntityStates[static_cast<std::size_t>(demoNetworkSummary.lastViewEntity)].properties) {
+            const auto& name = entry.first;
+            if (name.size() < handleLength) continue;
+            if (name.compare(name.size() - handleLength, handleLength, "m_hObserverTarget") != 0) continue;
+            if (!(name.size() == handleLength || name[name.size() - handleLength - 1] == '.')) continue;
+            spectateDirectorHandle = entry.second.intValue;
+            break;
+          }
+        }
+        // Hand the snapshot to the frame loop below. The decision is NOT taken
+        // here: this block only runs when the demo clock advances, and a handover
+        // that only advances with the demo clock stands still exactly when the
+        // user pauses -- which is the situation the requirement calls out.
+        spectateSceneTick = sceneTick;
+        spectateSnapshotDrawable = snapshotDrawable;
+        // A valid relay focus is already applied above; the fallbacks below only
+        // run when the director has no answer (pre-snapshot or unresolved world).
+        bool focused = g_spectateDirector.focusValid();
         const auto tryFocusOrigin = [&](float x, float y, float z) {
           if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
           renderer.setObserverFocusWorld(x, y, z);
           return true;
         };
-        if (demoNetworkSummary.lastViewEntity < currentEntityStates.size()) {
+        // T66: the relay decision wins. The old unconditional focus on the
+        // svc_SetView entity is the fallback for the frames the director has no
+        // answer for (before the first snapshot, or a world it cannot resolve).
+        if (!focused && demoNetworkSummary.lastViewEntity < currentEntityStates.size()) {
           const auto focus = tf2::native::EntityModelResolver::extractTransform(
             currentEntityStates[demoNetworkSummary.lastViewEntity]);
           if (focus.hasOrigin) focused = tryFocusOrigin(focus.origin[0], focus.origin[1], focus.origin[2]);
@@ -9252,7 +9438,7 @@ bool outlineVertexExtent = false;
         // stays inside the same ceiling.
         constexpr std::size_t kDrawBudget = 96;
         std::size_t playerBudget = 0;
-        for (const auto& bodyCandidate : modelInstances) {
+        for (const auto& bodyCandidate : drawCandidates) {
           if (!bodyCandidate.transform.hasOrigin || bodyCandidate.viewModelSkipped) continue;
           const bool body = bodyCandidate.className.find("Player") != std::string::npos
             || bodyCandidate.className.find("TFPlayer") != std::string::npos
@@ -9263,8 +9449,11 @@ bool outlineVertexExtent = false;
         const std::size_t propBudget = kDrawBudget - playerBudget;
         std::size_t playerDraws = 0;
         std::size_t propDraws = 0;
-        for (const auto& instance : modelInstances) {
+        for (const auto& instance : drawCandidates) {
           if (!instance.transform.hasOrigin) continue;
+          // T66 rule 1: a dead player left the candidate set above, at the tick
+          // m_lifeState stopped being 0, so it can neither be drawn nor become the
+          // camera target.
           const bool player = instance.className.find("Player") != std::string::npos
             || instance.className.find("TFPlayer") != std::string::npos
             || instance.playerClassFallback;
@@ -10124,6 +10313,72 @@ bool outlineVertexExtent = false;
       lastSceneTick = g_playback.tick;
       traceCheckpoint("scene: done");
     }
+    // T66 clause 3: the relay runs once per FRAME with the WALL clock, using the
+    // last snapshot decoded. While the demo is paused no new snapshot arrives, but
+    // the 0.3 s handover keeps moving -- and the trace line keeps printing with
+    // the SAME scene tick, which is the reading that proves the clock is not the
+    // demo's. Gating this on the tick instead is exactly what a "pause freeze"
+    // mutant does; the gate names it.
+    if (g_spectatePauseAtTick >= 0 && g_playback.enabled) {
+      if (!g_spectatePauseFired && g_playback.tick >= g_spectatePauseAtTick) {
+        g_spectatePauseFired = true;
+        g_spectatePauseStartedAt = wallSeconds;
+        tf2::native::PlaybackRequest pauseRequest;
+        pauseRequest.kind = tf2::native::PlaybackRequestKind::SetPaused;
+        pauseRequest.paused = true;
+        pauseRequest.source = "spectate-pause-at";
+        applyPlaybackRequest(pauseRequest);
+        traceFmt("spectate: pause-at tick=%d wall=%.6f seconds=%.3f",
+          static_cast<int>(g_playback.tick), wallSeconds, g_spectatePauseSeconds);
+      } else if (g_spectatePauseFired && wallSeconds - g_spectatePauseStartedAt >= g_spectatePauseSeconds) {
+        g_spectatePauseFired = false;
+        g_spectatePauseAtTick = -1;
+        tf2::native::PlaybackRequest resumeRequest;
+        resumeRequest.kind = tf2::native::PlaybackRequestKind::SetPaused;
+        resumeRequest.paused = false;
+        resumeRequest.source = "spectate-pause-at";
+        applyPlaybackRequest(resumeRequest);
+        traceFmt("spectate: resume-after tick=%d wall=%.6f", static_cast<int>(g_playback.tick), wallSeconds);
+      }
+    }
+    if (g_spectateManualTarget >= 0) {
+      g_spectateDirector.pickManual(g_spectateManualTarget);
+      g_spectateManualTarget = -1;
+    }
+    // Only a resolved snapshot may move the camera: a missing or stale one is not
+    // evidence that anybody died.
+    if (spectateSnapshotDrawable && spectateSceneTick >= 0) {
+      g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick);
+    }
+    if (g_spectateDirector.focusValid()) {
+      float spectateFocus[3] = {0.0f, 0.0f, 0.0f};
+      g_spectateDirector.focus(spectateFocus);
+      if (std::isfinite(spectateFocus[0]) && std::isfinite(spectateFocus[1]) && std::isfinite(spectateFocus[2])) {
+        renderer.setObserverFocusWorld(spectateFocus[0], spectateFocus[1], spectateFocus[2]);
+      }
+    }
+    // Printed on change, not per frame: the trace of a long run must stay
+    // readable, and a line per frame is exactly the sort of noise that made a
+    // previous 500 MB trace impossible to inspect. A progress step is a change,
+    // though -- that is how the paused handover shows its intermediate positions.
+    const double spectateProgress = g_spectateDirector.transitionProgress();
+    const bool spectateProgressStep = g_spectateDirector.transitioning()
+      && spectateProgress - g_spectateLastProgress >= 0.05;
+    if (g_spectateDirector.targetIndex() != g_spectateLastTarget
+        || (g_spectateDirector.transitioning() ? 1 : 0) != g_spectateLastTransitioning
+        || spectateProgressStep) {
+      g_spectateLastTarget = g_spectateDirector.targetIndex();
+      g_spectateLastTransitioning = g_spectateDirector.transitioning() ? 1 : 0;
+      g_spectateLastProgress = spectateProgress;
+      std::string deadList;
+      for (const std::int32_t deadIndex : g_spectateDirector.deadIndices()) {
+        if (!deadList.empty()) deadList.push_back(',');
+        deadList += std::to_string(deadIndex);
+      }
+      traceFmt("spectate: tick=%d dead=%s corpses=%d %s", static_cast<int>(spectateSceneTick),
+        deadList.empty() ? "-" : deadList.c_str(), g_spectateShowCorpses ? 1 : 0,
+        g_spectateDirector.traceFields().c_str());
+    }
     nativeUi.setPlaybackState(g_playback.tick, g_playback.enabled && !g_playback.paused,
       g_playback.reverse, g_playback.speed);
     // All three are called every iteration on purpose -- the cheap part of each
@@ -10383,6 +10638,13 @@ bool outlineVertexExtent = false;
       tf2::native::CameraModeController::doubleClickWindowMs(),
       g_pauseKey.toggles, g_cameraFollows, g_cameraHoldsNoTarget,
       g_cameraFreezeFrames);
+    // T66: the relay contract on its own line, so the readings above stay
+    // untouched. A run over a demo with real deaths must read deaths>=1 and
+    // handovers>=1, must never read notarget>0 while players are alive, and must
+    // keep hidden<=the number of player rows it ever saw die.
+    traceFmt("spectate: summary rejectedFlags=%u corpses=%d hiddenInstances=%u %s",
+      g_spectateArgumentRejected, g_spectateShowCorpses ? 1 : 0,
+      g_spectateHiddenInstances, g_spectateDirector.traceFields().c_str());
     // T50: the contract this round adds, on its own line so the T4 gate's
     // readings above are untouched. `frozenFrames` counts main-loop iterations
     // that ran while paused with the tick holding; `violations` counts the ones

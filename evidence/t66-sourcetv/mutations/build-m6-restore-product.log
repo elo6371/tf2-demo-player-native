@@ -1,0 +1,9 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3227): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3228): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3229): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3230): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3231): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(9452): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0

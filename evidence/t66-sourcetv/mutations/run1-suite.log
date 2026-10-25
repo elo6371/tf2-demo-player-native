@@ -1,0 +1,71 @@
+==========================================================================
+T66 mutation suite
+==========================================================================
+--- mutant m1
+PATCH-APPLIED case=m1 file=native/include/spectate_target.h bytes=7831->7858 the handover window is zero seconds
+  BUILD-OK m1-apply (0 errors)
+  gate sections 4,5 exited 1
+      FAIL handovers analysed = 0, expected 3
+  MUTATION-RED m1: 'handovers analysed'
+  RESTORED m1 byte-for-byte
+  BUILD-OK m1-restore (0 errors)
+--- mutant m2
+PATCH-APPLIED case=m2 file=native/src/spectate_target.cpp bytes=13381->13354 hidesModel never hides anybody
+  BUILD-OK m2-apply (0 errors)
+  gate sections 4 exited 1
+      FAIL instances the corpse rule removed = 0, expected >= 100
+      FAIL frames that published a corpse filter line = 0, expected >= 3
+      FAIL the last corpse filter names the dead player = <none>, expected to contain indices=
+      FAIL the first corpse filter names the first dead player (2) = <none>, expected to contain 2
+  MUTATION-RED m2: 'instances the corpse rule removed'
+  RESTORED m2 byte-for-byte
+  BUILD-OK m2-restore (0 errors)
+--- mutant m3
+PATCH-APPLIED case=m3 file=native/src/spectate_target.cpp bytes=13381->13377 a manual pick is turned into a handover by the automatic rule
+  BUILD-OK m3-apply (0 errors)
+  gate sections 6 exited 1
+      FAIL the first product frame already carries the manual target = 22217.6 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain target=6
+      FAIL the first product frame reports the pick as manual = 22217.6 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain src=manual
+      FAIL the first product frame is not mid-handover = 22217.6 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain tr=0
+      FAIL handovers that happened before the first death in the manual run = 3, expected 0
+  MUTATION-RED m3: 'handovers that happened before the first death in the manual run'
+  RESTORED m3 byte-for-byte
+  BUILD-OK m3-restore (0 errors)
+--- mutant m4
+PATCH-APPLIED case=m4 file=native/src/spectate_target.cpp bytes=13381->13404 the director target is accepted without the alive test
+  BUILD-OK m4-apply (0 errors)
+  gate sections 3 exited 0
+  MUTATION-GREEN m4: the gate stayed green, so nothing asserts this clause
+  RESTORED m4 byte-for-byte
+  BUILD-OK m4-restore (0 errors)
+--- mutant m5
+PATCH-APPLIED case=m5 file=native/src/spectate_target.cpp bytes=13381->13496 an empty roster jumps the camera to the world origin
+  BUILD-OK m5-apply (0 errors)
+  gate sections 2 exited 1
+      FAIL self-test exit = 1, expected 0
+      FAIL self-test verdict = SPECTATE-SELF-TEST=FAIL checks=49 failures=2, expected to contain SPECTATE-SELF-TEST=PASS
+      FAIL self-test failures = 2, expected 0
+  MUTATION-MISS m5: the gate went red but not on 'the camera never falls back to the world origin'
+  RESTORED m5 byte-for-byte
+  BUILD-OK m5-restore (0 errors)
+--- mutant m6
+PATCH-APPLIED case=m6 file=native/src/main.cpp bytes=645601->645682 the handover clock is derived from the demo tick, so a pause freezes it
+  BUILD-OK m6-apply (0 errors)
+  gate sections 8 exited 1
+      FAIL handover lines the product printed while the clock was frozen = 1, expected >= 8
+      FAIL distinct handover progress values while the clock was frozen = 1, expected >= 5
+  MUTATION-RED m6: 'handover lines the product printed while the clock was frozen'
+  RESTORED m6 byte-for-byte
+  BUILD-OK m6-restore (0 errors)
+==========================================================================
+--- final baseline: the restored tree must be green in every section
+    OK   seeks in the paused run = 0
+  ==========================================================================
+  SPECTATE-CHECK=FAIL
+  BASELINE-FAIL: the restored tree does not pass its own gate
+      FAIL STALE-BINARY=1 native/build-nmake/spectate_probe.exe<native/src/main.cpp
+==========================================================================
+mutants caught:     4/4
+mutants green:      1 (an unasserted clause)
+mutants invalid:    0 (did not apply or did not compile)
+SPECTATE-MUTATION=FAIL

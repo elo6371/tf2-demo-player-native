@@ -1,0 +1,50 @@
+OK S9 the S1 observer handle 301073 decodes to entity 17 serial 147
+OK S9 a handle whose entry index is past the entity count is refused
+OK S9 a zero handle names no entity
+OK S9 a negative handle names no entity
+OK S1 first target is the lowest living entity index
+OK S1 the first target comes from the stable order
+OK S1 the first adoption is not a handover
+OK S1 the first adoption has no transition window
+OK S1 the focus lands on the first target
+OK S1 a living target is drawn
+OK S2 the death of the observed target is counted
+OK S2 the death is stamped with the tick it was seen on
+OK S2 the camera relays to the next living player
+OK S2 the relay is counted as a handover
+OK S2 a handover opens a transition window
+OK S2 the dead body stops being drawn at the death tick
+OK S2 the handover starts from where the camera was instead of cutting to the new player
+OK S2 the focus keeps moving toward the new target while the tick is frozen
+OK S2 the window is still open before 0.3 s
+OK S2 a frozen demo tick is not a seek
+OK S2 the window closes once 0.3 s of wall time have passed
+OK S2 the focus arrives exactly on the new target
+OK S2b an unresolved row never becomes the camera target
+OK S2b an unresolved row is not hidden: no reading is not evidence of a corpse
+OK S2b the hidden counter counts corpses, not unresolved rows
+OK S4 a total wipe is counted instead of silently ignored
+FAIL S4 the camera keeps its last valid position when nobody is alive
+FAIL S4 the camera never falls back to the world origin
+OK S4 only the observed target's death is counted, not the whole wipe
+OK S5 a manual pick changes the target
+OK S5 the manual pick is named as its source
+OK S5 the manual pick is counted
+OK S5 a manual pick is not a handover
+OK S5 a manual pick has no transition window
+OK S5 the manual pick lands in the same frame
+OK S6 a pick on a dead slot is rejected
+OK S6 a rejected pick leaves the target alone
+OK S6 a rejected pick is not counted as a pick
+OK S7 a handover is open before the seek
+OK S7 a backwards tick is counted as a seek
+OK S7 a seek abandons the half-finished handover
+OK S7 a forward jump larger than the gap is counted as a seek
+OK S8 a living director handle decides the target before the stable order
+OK S8 the source reads director
+OK S8 the director pick is counted
+OK S8 the stable order is not used when the director names a living player
+OK S8 a director handle on the spectator team is not an observation target
+OK S8 the stable order takes over when the handle is unusable
+OK S10 two runs of the same snapshot sequence produce the same trace
+SPECTATE-SELF-TEST=FAIL checks=49 failures=2

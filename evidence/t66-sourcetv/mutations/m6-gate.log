@@ -1,0 +1,15 @@
+=== 8/8 the pause: the handover keeps moving while the demo clock is frozen ===
+  OK   pause run exit = 0
+  OK   pause trace bytes = 8519643 (>= 1000000)
+  OK   pause windows opened = 1
+  OK   pause windows resumed = 1
+  frozen window: 28178.7 spectate: tick=13638 dead=1,2,6,7,11,12,14,16,17,18,19 corpses=0 target=3 src=stable tr=0 prog=0.000 focus=3593.1,-1184.6,8.0 deaths=1 handovers=1 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=2 hidden=11 lastdeath=13614|28179.1 title: TF2 Demo Player - TF2 DòÞ¥: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104137, V
+  FAIL handover lines the product printed while the clock was frozen = 1, expected >= 8
+  OK   distinct demo ticks seen during the pause = 1
+  OK   handovers that finished while the clock was frozen = 1 (>= 1)
+  FAIL distinct handover progress values while the clock was frozen = 1, expected >= 5
+  OK   deaths in the paused run = 3
+  OK   handovers in the paused run = 3
+  OK   seeks in the paused run = 0
+==========================================================================
+SPECTATE-CHECK=FAIL

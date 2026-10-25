@@ -1,0 +1,3 @@
+=== build spectate_probe ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+rc=0

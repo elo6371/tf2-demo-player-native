@@ -137,6 +137,12 @@ add_executable(tf2_demo_native WIN32
   # claims. Both files link bcrypt (already in the link line) for SHA-256.
   src/install_manifest.cpp
   src/install_lifecycle.cpp
+  # T66: the SourceTV spectate director -- the death relay, the wall-clock
+  # handover and the 'keep the last camera when nobody is alive' rule. Product
+  # code, not probe code: the frame loop drives update() and the draw loop asks
+  # hidesModel() before it submits an instance, so a gate that ran a second copy
+  # would only prove that the copy agrees with itself.
+  src/spectate_target.cpp
 )
 
 # T37: the package version, stated once. It is a cache variable so a release can
@@ -374,6 +380,28 @@ target_link_libraries(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(entity_model_probe PRIVATE include third_party/lzma)
 set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# T66: the spectate probe. --self-test drives the relay rules with synthetic
+# snapshots, so every rule is a named assertion that needs no GPU, no demo and no
+# lock; --demo replays a real SourceTV recording through the same class, so the
+# gate can assert that the sample's own deaths and handovers happened rather than
+# only the synthetic path. entity_model.cpp is linked because the probe reads the
+# slot origin with the same resolver the draw loop uses -- a probe-side reader
+# would let the two disagree about where the player stands.
+add_executable(spectate_probe
+  tools/spectate_probe.cpp
+  src/spectate_target.cpp
+  src/entity_model.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
+  src/item_schema.cpp
+  src/vmt_material.cpp
+  src/vtf_texture.cpp)
+target_link_libraries(spectate_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(spectate_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+target_include_directories(spectate_probe PRIVATE include third_party/lzma)
+set_target_properties(spectate_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # T53: the projectile track probe. Links entity_model.cpp because one of its
 # assertions is that the trajectory origin reader and the entity resolver agree
