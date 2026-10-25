@@ -1301,11 +1301,14 @@ step "29/30 world materials: a patch wrapper's include reaches the pixels"
 # gate refuses the wrapper again and requires the flat frame, so the section cannot
 # pass by accident.
 #
-# 87 is the forward assertion count measured on c06e82c+T59 (2026-10-25, owner
-# t59-covfwd: 87 OK / 0 FAIL). Pinned for the same reason as the other steps: a
-# gate that prints PASS while its assertions quietly disappear is not a gate.
-# Do not re-pin to make this chain green; a re-pin must name the reading that
-# moved and why (the T59 section of material-coverage-check.sh is the template).
+# 88 is the forward assertion count measured on 480cd20 + the T59b report
+# (2026-10-26T00:56, owner lead-covpin: 88 OK / 0 FAIL, MATERIAL-COVERAGE=PASS,
+# log .scratch/covpin.log). It was 87 on c06e82c+T59 (owner t59-covfwd) and moved
+# because T59b added one assertion: the wrapper-ledger closure that replaces the
+# tautological resolved==declared (86 assert_ calls in the gate, was 85).
+# Pinned for the same reason as the other steps: a gate that prints PASS while
+# its assertions quietly disappear is not a gate. Do not re-pin to make this
+# chain green; a re-pin must name the reading that moved and why.
 COV_OUT="$OUT/29-world-materials"
 mkdir -p "$COV_OUT"
 COV_LOG="$COV_OUT/coverage.txt"
@@ -1315,10 +1318,10 @@ COV_RC=$?
 tail -10 "$COV_LOG"
 COV_OK=$(grep -c '^  OK' "$COV_LOG" || true)
 if [ "$COV_RC" -eq 0 ] && grep -q '^MATERIAL-COVERAGE=PASS' "$COV_LOG" \
-    && [ "$COV_OK" = "87" ]; then
-  echo "MATERIAL-COVERAGE-CHECK=PASS (87 assertions)"
+    && [ "$COV_OK" = "88" ]; then
+  echo "MATERIAL-COVERAGE-CHECK=PASS (88 assertions)"
 else
-  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 87)"; rc_all=1
+  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 88)"; rc_all=1
 fi
 # 30. the review workspace, driven by the product ---------------------------------
 # T71/T72 shipped as a store plus a probe. Every assertion passed while the only
