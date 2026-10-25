@@ -795,6 +795,18 @@ target_include_directories(minimap_probe PRIVATE include)
 target_compile_definitions(minimap_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 set_target_properties(minimap_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
+# T71/T72: review workspace and bookmarks, linked against the same translation
+# units the product uses. The probe exercises the real store (atomic write,
+# hash binding, migration) and the real bookmark collection (eventKey, sort,
+# jump) in a scratch directory, so a green run is a statement about the bytes
+# that will be written on a user's disk.
+add_executable(review_workspace_probe tools/review_workspace_probe.cpp
+  src/review_workspace.cpp src/review_bookmarks.cpp src/install_manifest.cpp)
+target_include_directories(review_workspace_probe PRIVATE include)
+target_compile_definitions(review_workspace_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
+target_link_libraries(review_workspace_probe PRIVATE bcrypt)
+set_target_properties(review_workspace_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
 # T37: the install rule now lays down the LIFECYCLE, not only the executables.
 #
 #   the package payload   <prefix>/.uninstall/payload/ -- exactly the files
@@ -864,6 +876,8 @@ if (MSVC)
   target_compile_options(hud_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   # T69: same bar as hud_probe, for the same reason.
   target_compile_options(minimap_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
+  # T71/T72: evidence at the product's warning bar.
+  target_compile_options(review_workspace_probe PRIVATE /W4 /permissive- /EHsc /utf-8)
   target_link_options(tf2_demo_native PRIVATE /DYNAMICBASE /NXCOMPAT)
 endif()
 

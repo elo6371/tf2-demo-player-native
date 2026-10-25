@@ -1,0 +1,309 @@
+review-workspace: demo hashA=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892 hashB=25ed15af8e7aaebd214d608cbfee731c43c1ef7612de0216c2911aeecf175944
+review-workspace: step=new result=created path=evidence%2Ft70-t72%2Fruntime%2Freview-workspace%2Fmutations%2Fm3%2Fscratch%5Crun-50864%5Cworkspace-a.ini
+review-workspace: expect name=new_created ok=1 detail=created
+review-workspace: expect name=new_file_exists ok=1
+review-workspace: step=save result=ok count=0
+review-workspace: expect name=save_ok ok=1 detail=saved
+review-workspace: expect name=save_bytes_readable ok=1
+review-workspace: step=load result=opened loaded=1 storedHash=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892
+review-workspace: expect name=load_opened ok=1 detail=loaded
+review-workspace: field name=schema expected=1 actual=1 match=1
+review-workspace: field name=name expected=Bagel%20Review actual=Bagel%20Review match=1
+review-workspace: field name=demoHashAlgo expected=sha256 actual=sha256 match=1
+review-workspace: field name=demoHash expected=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892 actual=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892 match=1
+review-workspace: field name=demoPathHint expected=D%3A%5CTF2_Native_Worktrees%5Ct71-workspace%5Cevidence%5Ct70-t72%5Cruntime%5Creview-workspace%5Cmutations%5Cm3%5Cscratch%5Crun-50864%5CdemoA.dem actual=D%3A%5CTF2_Native_Worktrees%5Ct71-workspace%5Cevidence%5Ct70-t72%5Cruntime%5Creview-workspace%5Cmutations%5Cm3%5Cscratch%5Crun-50864%5CdemoA.dem match=1
+review-workspace: field name=updatedUtc expected=1700000100 actual=1700000100 match=1
+review-workspace: field name=nextBookmarkId expected=1 actual=1 match=1
+review-workspace: field name=autosave expected=1 actual=1 match=1
+review-workspace: field name=camera.valid expected=1 actual=1 match=1
+review-workspace: field name=camera.focusX expected=1.5 actual=1.5 match=1
+review-workspace: field name=camera.focusY expected=-2.25 actual=-2.25 match=1
+review-workspace: field name=camera.focusZ expected=512.125 actual=512.125 match=1
+review-workspace: field name=camera.yaw expected=45.5 actual=45.5 match=1
+review-workspace: field name=camera.pitch expected=-12.25 actual=-12.25 match=1
+review-workspace: field name=camera.distance expected=320 actual=320 match=1
+review-workspace: field name=camera.fov expected=95.5 actual=95.5 match=1
+review-workspace: field name=camera.mode expected=third-person actual=third-person match=1
+review-workspace: field name=camera.cameraTick expected=1234 actual=1234 match=1
+review-workspace: field name=camera.targetKind expected=player actual=player match=1
+review-workspace: field name=camera.targetEntindex expected=7 actual=7 match=1
+review-workspace: field name=camera.targetName expected=Soldier actual=Soldier match=1
+review-workspace: field name=camera.targetReason expected= actual= match=1
+review-workspace: field name=camera.cameraReason expected= actual= match=1
+review-workspace: field name=camera.slotCount expected=8 actual=8 match=1
+review-workspace: field name=camera.slot.0.slot expected=0 actual=0 match=1
+review-workspace: field name=camera.slot.0.saved expected=1 actual=1 match=1
+review-workspace: field name=camera.slot.0.name expected=Slot%200 actual=Slot%200 match=1
+review-workspace: field name=camera.slot.0.focusX expected=10 actual=10 match=1
+review-workspace: field name=camera.slot.0.focusY expected=20 actual=20 match=1
+review-workspace: field name=camera.slot.0.focusZ expected=30 actual=30 match=1
+review-workspace: field name=camera.slot.0.yaw expected=90 actual=90 match=1
+review-workspace: field name=camera.slot.0.pitch expected=-5 actual=-5 match=1
+review-workspace: field name=camera.slot.0.distance expected=250 actual=250 match=1
+review-workspace: field name=camera.slot.0.fov expected=90 actual=90 match=1
+review-workspace: field name=camera.slot.0.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.0.tick expected=100 actual=100 match=1
+review-workspace: field name=camera.slot.1.slot expected=1 actual=1 match=1
+review-workspace: field name=camera.slot.1.saved expected=0 actual=0 match=1
+review-workspace: field name=camera.slot.1.name expected=Slot%201 actual=Slot%201 match=1
+review-workspace: field name=camera.slot.1.focusX expected=11 actual=11 match=1
+review-workspace: field name=camera.slot.1.focusY expected=20.5 actual=20.5 match=1
+review-workspace: field name=camera.slot.1.focusZ expected=29 actual=29 match=1
+review-workspace: field name=camera.slot.1.yaw expected=91 actual=91 match=1
+review-workspace: field name=camera.slot.1.pitch expected=-6 actual=-6 match=1
+review-workspace: field name=camera.slot.1.distance expected=260 actual=260 match=1
+review-workspace: field name=camera.slot.1.fov expected=91 actual=91 match=1
+review-workspace: field name=camera.slot.1.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.1.tick expected=101 actual=101 match=1
+review-workspace: field name=camera.slot.2.slot expected=2 actual=2 match=1
+review-workspace: field name=camera.slot.2.saved expected=1 actual=1 match=1
+review-workspace: field name=camera.slot.2.name expected=Slot%202 actual=Slot%202 match=1
+review-workspace: field name=camera.slot.2.focusX expected=12 actual=12 match=1
+review-workspace: field name=camera.slot.2.focusY expected=21 actual=21 match=1
+review-workspace: field name=camera.slot.2.focusZ expected=28 actual=28 match=1
+review-workspace: field name=camera.slot.2.yaw expected=92 actual=92 match=1
+review-workspace: field name=camera.slot.2.pitch expected=-7 actual=-7 match=1
+review-workspace: field name=camera.slot.2.distance expected=270 actual=270 match=1
+review-workspace: field name=camera.slot.2.fov expected=92 actual=92 match=1
+review-workspace: field name=camera.slot.2.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.2.tick expected=102 actual=102 match=1
+review-workspace: field name=camera.slot.3.slot expected=3 actual=3 match=1
+review-workspace: field name=camera.slot.3.saved expected=0 actual=0 match=1
+review-workspace: field name=camera.slot.3.name expected=Slot%203 actual=Slot%203 match=1
+review-workspace: field name=camera.slot.3.focusX expected=13 actual=13 match=1
+review-workspace: field name=camera.slot.3.focusY expected=21.5 actual=21.5 match=1
+review-workspace: field name=camera.slot.3.focusZ expected=27 actual=27 match=1
+review-workspace: field name=camera.slot.3.yaw expected=93 actual=93 match=1
+review-workspace: field name=camera.slot.3.pitch expected=-8 actual=-8 match=1
+review-workspace: field name=camera.slot.3.distance expected=280 actual=280 match=1
+review-workspace: field name=camera.slot.3.fov expected=93 actual=93 match=1
+review-workspace: field name=camera.slot.3.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.3.tick expected=103 actual=103 match=1
+review-workspace: field name=camera.slot.4.slot expected=4 actual=4 match=1
+review-workspace: field name=camera.slot.4.saved expected=1 actual=1 match=1
+review-workspace: field name=camera.slot.4.name expected=Slot%204 actual=Slot%204 match=1
+review-workspace: field name=camera.slot.4.focusX expected=14 actual=14 match=1
+review-workspace: field name=camera.slot.4.focusY expected=22 actual=22 match=1
+review-workspace: field name=camera.slot.4.focusZ expected=26 actual=26 match=1
+review-workspace: field name=camera.slot.4.yaw expected=94 actual=94 match=1
+review-workspace: field name=camera.slot.4.pitch expected=-9 actual=-9 match=1
+review-workspace: field name=camera.slot.4.distance expected=290 actual=290 match=1
+review-workspace: field name=camera.slot.4.fov expected=94 actual=94 match=1
+review-workspace: field name=camera.slot.4.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.4.tick expected=104 actual=104 match=1
+review-workspace: field name=camera.slot.5.slot expected=5 actual=5 match=1
+review-workspace: field name=camera.slot.5.saved expected=0 actual=0 match=1
+review-workspace: field name=camera.slot.5.name expected=Slot%205 actual=Slot%205 match=1
+review-workspace: field name=camera.slot.5.focusX expected=15 actual=15 match=1
+review-workspace: field name=camera.slot.5.focusY expected=22.5 actual=22.5 match=1
+review-workspace: field name=camera.slot.5.focusZ expected=25 actual=25 match=1
+review-workspace: field name=camera.slot.5.yaw expected=95 actual=95 match=1
+review-workspace: field name=camera.slot.5.pitch expected=-10 actual=-10 match=1
+review-workspace: field name=camera.slot.5.distance expected=300 actual=300 match=1
+review-workspace: field name=camera.slot.5.fov expected=95 actual=95 match=1
+review-workspace: field name=camera.slot.5.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.5.tick expected=105 actual=105 match=1
+review-workspace: field name=camera.slot.6.slot expected=6 actual=6 match=1
+review-workspace: field name=camera.slot.6.saved expected=1 actual=1 match=1
+review-workspace: field name=camera.slot.6.name expected=Slot%206 actual=Slot%206 match=1
+review-workspace: field name=camera.slot.6.focusX expected=16 actual=16 match=1
+review-workspace: field name=camera.slot.6.focusY expected=23 actual=23 match=1
+review-workspace: field name=camera.slot.6.focusZ expected=24 actual=24 match=1
+review-workspace: field name=camera.slot.6.yaw expected=96 actual=96 match=1
+review-workspace: field name=camera.slot.6.pitch expected=-11 actual=-11 match=1
+review-workspace: field name=camera.slot.6.distance expected=310 actual=310 match=1
+review-workspace: field name=camera.slot.6.fov expected=96 actual=96 match=1
+review-workspace: field name=camera.slot.6.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.6.tick expected=106 actual=106 match=1
+review-workspace: field name=camera.slot.7.slot expected=7 actual=7 match=1
+review-workspace: field name=camera.slot.7.saved expected=0 actual=0 match=1
+review-workspace: field name=camera.slot.7.name expected=Slot%207 actual=Slot%207 match=1
+review-workspace: field name=camera.slot.7.focusX expected=17 actual=17 match=1
+review-workspace: field name=camera.slot.7.focusY expected=23.5 actual=23.5 match=1
+review-workspace: field name=camera.slot.7.focusZ expected=23 actual=23 match=1
+review-workspace: field name=camera.slot.7.yaw expected=97 actual=97 match=1
+review-workspace: field name=camera.slot.7.pitch expected=-12 actual=-12 match=1
+review-workspace: field name=camera.slot.7.distance expected=320 actual=320 match=1
+review-workspace: field name=camera.slot.7.fov expected=97 actual=97 match=1
+review-workspace: field name=camera.slot.7.mode expected=first-person actual=first-person match=1
+review-workspace: field name=camera.slot.7.tick expected=107 actual=107 match=1
+review-workspace: field name=hud.enabled expected=1 actual=1 match=1
+review-workspace: field name=hud.scale expected=125 actual=125 match=1
+review-workspace: field name=hud.root expected=hud%2Froot actual=hud%2Froot match=1
+review-workspace: field name=hud.layout expected=compact actual=compact match=1
+review-workspace: field name=hud.panelCount expected=3 actual=3 match=1
+review-workspace: field name=hud.panel.0.id expected=health actual=health match=1
+review-workspace: field name=hud.panel.0.visible expected=1 actual=1 match=1
+review-workspace: field name=hud.panel.0.x expected=10 actual=10 match=1
+review-workspace: field name=hud.panel.0.y expected=20 actual=20 match=1
+review-workspace: field name=hud.panel.0.w expected=300 actual=300 match=1
+review-workspace: field name=hud.panel.0.h expected=40 actual=40 match=1
+review-workspace: field name=hud.panel.1.id expected=chat actual=chat match=1
+review-workspace: field name=hud.panel.1.visible expected=0 actual=0 match=1
+review-workspace: field name=hud.panel.1.x expected=10 actual=10 match=1
+review-workspace: field name=hud.panel.1.y expected=700 actual=700 match=1
+review-workspace: field name=hud.panel.1.w expected=500 actual=500 match=1
+review-workspace: field name=hud.panel.1.h expected=200 actual=200 match=1
+review-workspace: field name=hud.panel.2.id expected=minimap actual=minimap match=1
+review-workspace: field name=hud.panel.2.visible expected=1 actual=1 match=1
+review-workspace: field name=hud.panel.2.x expected=1500 actual=1500 match=1
+review-workspace: field name=hud.panel.2.y expected=40 actual=40 match=1
+review-workspace: field name=hud.panel.2.w expected=256 actual=256 match=1
+review-workspace: field name=hud.panel.2.h expected=256 actual=256 match=1
+review-workspace: field name=minimap.collapsed expected=0 actual=0 match=1
+review-workspace: field name=minimap.zoom expected=1.5 actual=1.5 match=1
+review-workspace: field name=minimap.panX expected=-12.5 actual=-12.5 match=1
+review-workspace: field name=minimap.panY expected=8.25 actual=8.25 match=1
+review-workspace: field name=minimap.mapName expected=koth_bagel actual=koth_bagel match=1
+review-workspace: field name=minimap.available expected=1 actual=1 match=1
+review-workspace: field name=minimap.reason expected= actual= match=1
+review-workspace: field name=eventFilter.text expected=soldier actual=soldier match=1
+review-workspace: field name=eventFilter.eventName expected=player_death actual=player_death match=1
+review-workspace: field name=eventFilter.player expected=userid%3A7 actual=userid%3A7 match=1
+review-workspace: field name=logs.tfUrl expected=https%3A%2F%2Flogs.tf%2F123456 actual=https%3A%2F%2Flogs.tf%2F123456 match=1
+review-workspace: field name=playback.restorable expected=1 actual=1 match=1
+review-workspace: field name=playback.tick expected=987 actual=987 match=1
+review-workspace: field name=playback.speed expected=0.5 actual=0.5 match=1
+review-workspace: field name=playback.paused expected=1 actual=1 match=1
+review-workspace: field name=playback.reverse expected=0 actual=0 match=1
+review-workspace: field name=playback.reason expected= actual= match=1
+review-workspace: field name=extraKeyCount expected=1 actual=1 match=1
+review-workspace: field name=extraKey.0.section expected=workspace actual=workspace match=1
+review-workspace: field name=extraKey.0.key expected=futureFlag actual=futureFlag match=1
+review-workspace: field name=extraKey.0.value expected=on actual=on match=1
+review-workspace: field name=extraSectionCount expected=1 actual=1 match=1
+review-workspace: field name=extraSection.0.name expected=workspace.future actual=workspace.future match=1
+review-workspace: field name=extraSection.0.keyCount expected=2 actual=2 match=1
+review-workspace: field name=extraSection.0.key.0 expected=alpha%3D1 actual=alpha%3D1 match=1
+review-workspace: field name=extraSection.0.key.1 expected=note%3Dkept%20raw actual=note%3Dkept%20raw match=1
+review-workspace: expect name=roundtrip_fields ok=1 detail=fields%3D169%20mismatches%3D0
+review-workspace: expect name=resave_ok ok=1 detail=saved
+review-workspace: expect name=resave_bytes_readable ok=1
+review-workspace: expect name=resave_bytes_equal ok=1
+review-workspace: step=resave result=ok bytes=2919
+review-workspace: expect name=moved_copy ok=1
+review-workspace: step=load-moved result=opened moved=1
+review-workspace: expect name=moved_still_opens ok=1
+review-workspace: expect name=moved_path_named ok=1
+review-workspace: step=load-hash-mismatch result=hash_mismatch storedHash=892c0b5e8cb43a868593776bf8bcf992aa851fefb255b289c895162324de1892 actualHash=25ed15af8e7aaebd214d608cbfee731c43c1ef7612de0216c2911aeecf175944
+review-workspace: expect name=hash_mismatch_named ok=1 detail=demo-hash-mismatch
+review-workspace: expect name=hash_mismatch_bytes_before ok=1
+review-workspace: expect name=hash_mismatch_save_refused ok=1 detail=workspace-not-loaded
+review-workspace: expect name=hash_mismatch_bytes_after ok=1
+review-workspace: expect name=hash_mismatch_file_intact ok=1
+review-workspace: expect name=corrupt_written ok=1
+review-workspace: step=load-corrupt result=corrupt reason=missing-key%20version
+review-workspace: expect name=corrupt_named ok=1 detail=missing-key%20version
+review-workspace: expect name=corrupt_bytes_before ok=1
+review-workspace: expect name=corrupt_save_refused ok=1 detail=workspace-not-loaded
+review-workspace: expect name=corrupt_bytes_after ok=1
+review-workspace: expect name=corrupt_file_intact ok=1
+review-workspace: expect name=old_schema_written ok=1
+review-workspace: step=load-old-schema result=old_schema reason=schema-version
+review-workspace: expect name=old_schema_named ok=1 detail=schema-version
+review-workspace: step=migrate result=ok reason=migrated
+review-workspace: expect name=migrate_ok ok=1 detail=migrated
+review-workspace: expect name=migrate_reopens ok=1 detail=loaded
+review-workspace: expect name=migrated_bytes ok=1
+review-workspace: expect name=migrate_header_rewritten ok=1
+review-workspace: expect name=migrate_records_rewritten ok=1
+review-workspace: expect name=header_only_patched ok=1
+review-workspace: expect name=header_only_written ok=1
+review-workspace: step=load-header-only result=corrupt reason=bookmark-demo-hash-mismatch%20id%3D1
+review-workspace: expect name=header_only_corrupt ok=1 detail=bookmark-demo-hash-mismatch%20id%3D1
+review-workspace: expect name=future_written ok=1
+review-workspace: step=load-unknown-version result=old_schema reason=schema-version
+review-workspace: expect name=unknown_version_named ok=1 detail=schema-version
+review-workspace: step=migrate-unknown result=refused reason=unsupported-version
+review-workspace: expect name=unknown_version_migrate_refused ok=1 detail=unsupported-version
+review-workspace: expect name=bookmarks_reopen ok=1
+review-workspace: step=bookmark-load result=loaded count=0
+review-workspace: expect name=bookmark_load_loaded ok=1 detail=loaded
+review-workspace: step=bookmark-add result=added key=none tick=100 id=1
+review-workspace: expect name=bookmark_add_manual ok=1 detail=added
+review-workspace: step=bookmark-add result=added key=none tick=50 id=2
+review-workspace: expect name=bookmark_add_second ok=1 detail=added
+review-workspace: step=bookmark-add-event result=added key=300:2:5 tick=300 id=3 eventId=5
+review-workspace: expect name=bookmark_add_event ok=1 detail=added
+review-workspace: step=bookmark-add-event result=added key=300:2:9 tick=300 id=4 eventId=6
+review-workspace: expect name=bookmark_add_event_same_tick ok=1 detail=added
+review-workspace: step=bookmark-add-event result=added key=300:3:5 tick=300 id=5 eventId=5
+review-workspace: expect name=bookmark_add_event_third ok=1 detail=added
+review-workspace: step=bookmark-add-event result=already_exists key=300:2:5 existing=3
+review-workspace: expect name=duplicate_event_already_exists ok=1 detail=duplicate-event-key%20300%3A2%3A5%20id%3D3
+review-workspace: step=bookmark-add result=refused_empty_title key=none
+review-workspace: expect name=empty_title_refused ok=1 detail=empty-title
+review-workspace: step=bookmark-add result=refused_seek_pending key=none
+review-workspace: expect name=seek_pending_refused ok=1 detail=seek-pending
+review-workspace: expect name=no_demo_refused ok=1 detail=no-demo
+review-workspace: expect name=not_loaded_refused ok=1 detail=not-loaded
+review-workspace: step=list result=ok order=tick ids=1,2,3,4,5
+review-workspace: expect name=sort_ascending ok=0 detail=1%2C2%2C3%2C4%2C5
+review-workspace: expect name=same_tick_keys_differ ok=1 detail=none%2Cnone%2C300%3A2%3A5%2C300%3A2%3A9%2C300%3A3%3A5
+review-workspace: expect name=query_text ok=1
+review-workspace: expect name=filter_event ok=1
+review-workspace: expect name=filter_player_userid ok=1
+review-workspace: expect name=filter_player_entindex ok=1
+review-workspace: expect name=filter_tick_range ok=1
+review-workspace: expect name=filter_manual ok=0
+review-workspace: step=bookmark-update result=updated id=1 tickUnchanged=1
+review-workspace: expect name=update_ok ok=1
+review-workspace: expect name=update_immutable ok=1
+review-workspace: expect name=update_empty_title_refused ok=1
+review-workspace: expect name=update_missing ok=1
+review-workspace: step=bookmark-delete result=removed id=2 count=4
+review-workspace: expect name=delete_ok ok=1
+review-workspace: expect name=delete_missing ok=1
+review-workspace: step=bookmark-jump result=applied key=300:2:5 tick=300
+review-workspace: expect name=jump_applied ok=1
+review-workspace: step=bookmark-jump result=applied key=300:3:5 tick=300
+review-workspace: expect name=same_tick_jump_separate ok=1 detail=300%3A2%3A5%7C300%3A2%3A9%7C300%3A3%3A5
+review-workspace: expect name=range_load ok=1
+review-workspace: step=bookmark-jump result=refused_out_of_range key=none tick=5000
+review-workspace: expect name=jump_out_of_range_keeps ok=1 detail=out-of-range%20tick%3D5000
+review-workspace: step=bookmark-jump result=refused_playback key=300:2:5 tick=300 rollback=1
+review-workspace: expect name=jump_playback_rollback ok=1 detail=playback
+review-workspace: expect name=jump_camera_refused ok=1 detail=camera
+review-workspace: expect name=jump_missing ok=1
+review-workspace: expect name=jump_hash_mismatch ok=1
+review-workspace: expect name=jump_not_loaded ok=1
+review-workspace: expect name=bookmark_save_to_doc ok=1 detail=saved
+review-workspace: step=bookmark-save result=ok count=4
+review-workspace: expect name=bookmark_save_ok ok=1 detail=saved
+review-workspace: expect name=bookmark_reopen ok=1 detail=loaded
+review-workspace: expect name=bookmarks_persist ok=1 detail=loaded
+review-workspace: expect name=bookmarks_persist_eventkeys ok=1 detail=none%2C300%3A2%3A5%2C300%3A2%3A9%2C300%3A3%3A5
+review-workspace: expect name=bookmarks_persist_note ok=1
+review-workspace: expect name=bookmarks_jump_after_reload ok=1
+review-workspace: expect name=no_identity_unavailable ok=1 detail=no-player-context
+review-workspace: expect name=no_identity_trace_named ok=1
+review-workspace: expect name=lifecycle_open ok=1
+review-workspace: expect name=autosave_clean ok=1 detail=clean
+review-workspace: expect name=autosave_disabled ok=1 detail=autosave-disabled
+review-workspace: expect name=autosave_saved ok=1 detail=saved
+review-workspace: expect name=rename_empty ok=1 detail=empty-name
+review-workspace: expect name=rename_too_long ok=1 detail=name-too-long
+review-workspace: step=rename result=renamed name=My%20Workspace
+review-workspace: expect name=rename_ok ok=1 detail=renamed
+review-workspace: expect name=rename_save ok=1 detail=saved
+review-workspace: expect name=close_unsaved ok=1
+review-workspace: expect name=close_clean ok=1
+review-workspace: step=load-missing result=missing reason=missing
+review-workspace: expect name=missing_named ok=1 detail=missing
+review-workspace: step=load-wrong-path result=corrupt reason=not-a-regular-file
+review-workspace: expect name=wrong_path_named ok=1 detail=not-a-regular-file
+review-workspace: expect name=new_no_hash ok=1 detail=no-demo-hash
+review-workspace: expect name=new_already_exists ok=1 detail=already-exists
+review-workspace: expect name=save_not_loaded ok=1 detail=workspace-not-loaded
+review-workspace: expect name=readonly_seed ok=1
+review-workspace: expect name=readonly_attrib ok=1
+review-workspace: expect name=readonly_open ok=1 detail=loaded
+review-workspace: expect name=readonly_bytes_before ok=1
+review-workspace: step=save-readonly result=refused_read_only reason=target-read-only
+review-workspace: expect name=readonly_bytes_after ok=1
+review-workspace: expect name=readonly_refused ok=1 detail=target-read-only
+review-workspace: expect name=event_key_manual_none ok=1
+review-workspace: expect name=players_trace_named ok=1
+review-workspace: expect name=list_line_has_fields ok=1
+review-workspace: summary add=5 update=1 delete=1 refused=6 loadFailures=0 saveFailures=0 jumpFailures=3 duplicateEvent=1 fields=169 fieldMismatches=0
+review-workspace: probe done ok=0 failures=2
