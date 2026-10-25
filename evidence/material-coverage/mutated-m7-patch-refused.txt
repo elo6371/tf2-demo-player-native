@@ -1,0 +1,4 @@
+pixels=860784
+distinct=1
+modal=245,245,245
+modal_share_ppm=1000000

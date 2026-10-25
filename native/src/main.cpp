@@ -2952,6 +2952,11 @@ bool outlineVertexExtent = false;
   // resolved.
   int worldDebugView = 0;
   int worldDebugViewGiven = 0;
+  // T59 diagnostic: paint the untiled (flat-fallback) vertices magenta so the
+  // refused set is countable in pixels. Separate from worldDebugView because it
+  // moves the vertex colours, not the pixel shader.
+  int worldRefusedMask = 0;
+  int worldRefusedMaskGiven = 0;
   int invalidWorldDebugArgument = 0;
   // T21: emit one chain record per sampled screen point on the captured frame.
   // Off by default: a per-face trace is a diagnostic, and a normal run's trace
@@ -3235,6 +3240,8 @@ bool outlineVertexExtent = false;
         worldCullRequested = true; worldCullGiven = true;
       } else if (wcscmp(arguments[i], L"--no-world-cull") == 0) {
         worldCullRequested = false; worldCullGiven = true;
+      } else if (wcscmp(arguments[i], L"--world-refused-mask") == 0) {
+        ++worldRefusedMaskGiven; worldRefusedMask = 1;
       } else if (wcscmp(arguments[i], L"--world-flat") == 0) {
         ++worldDebugViewGiven; worldDebugView = 1;
       } else if (wcscmp(arguments[i], L"--world-depth") == 0) {
@@ -3669,6 +3676,7 @@ bool outlineVertexExtent = false;
       ? tf2::native::OverlayDepthMode::DepthTested : tf2::native::OverlayDepthMode::XRay;
   }
   if (worldDebugViewGiven > 1) ++invalidWorldDebugArgument;
+  if (worldRefusedMaskGiven > 1) ++invalidWorldDebugArgument;
   if (audioDeviceRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --audio-device; default device not used.\n");
     return 13;
@@ -4758,6 +4766,15 @@ bool outlineVertexExtent = false;
       // silence.
       constexpr std::size_t kMaxWorldMaterials = 256;
       std::size_t fetchDistinct = 0, fetchCapped = 0, fetchVmtMissing = 0, fetchVmtNoBase = 0;
+      // T59: patch wrappers, counted apart from a plain no-basetexture. Declared is
+      // how many materials are wrappers, resolved is how many got their include merged
+      // (and so reached the ordinary fetch), unparsable is how many could not. The
+      // three numbers are what separates the map patching 17 materials from the patch
+      // path working.
+      std::size_t fetchPatchDeclared = 0, fetchPatchResolved = 0, fetchPatchUnparsable = 0;
+      // T59: a material whose $basetexturetransform is not the identity. Refused by
+      // name; drawing it axis-aligned would be a wrong picture, not a missing one.
+      std::size_t fetchTransformRefused = 0;
       std::size_t fetchVtfMissing = 0, fetchVtfTooLarge = 0, fetchDecodeEmpty = 0, fetchTiled = 0;
       std::size_t fetchMaxWidth = 0, fetchMaxHeight = 0;
       std::size_t fetchFromPakfile = 0, fetchDownscaled = 0;
@@ -4857,6 +4874,14 @@ bool outlineVertexExtent = false;
         const auto materialPath = tf2::native::VmtParser::resourcePath(materialName, ".vmt");
         return assetChain.lookup(materialPath).bytes;
       };
+      // T59: the store a patch VMT's include is read from. It is the same asset chain
+      // the .vtf fetches use, so an include in the map's own pakfile, in a VPK, or
+      // loose all resolve exactly the way every other asset does.
+      const tf2::native::VmtParser::IncludeReader readInclude =
+        [&](const std::string& resourcePath) {
+          auto looked = assetChain.lookup(resourcePath);
+          return std::move(looked.bytes);
+        };
       {
         std::unordered_map<std::string, std::size_t> coverage;
         for (const auto& triangle : displayMap.triangles) {
@@ -4877,7 +4902,7 @@ bool outlineVertexExtent = false;
           const auto bytes = readVmt(entry.second);
           if (bytes.empty()) continue;
           tf2::native::VmtMaterial material;
-          if (!tf2::native::VmtParser::parse(std::string(bytes.begin(), bytes.end()), material)) continue;
+          if (!tf2::native::VmtParser::parse(std::string(bytes.begin(), bytes.end()), material, readInclude)) continue;
           declaresBlend[entry.second] = !material.baseTexture2.empty()
             && material.baseTexture2 != material.baseTexture;
         }
@@ -5015,8 +5040,26 @@ bool outlineVertexExtent = false;
         if (materialLookup.store == tf2::native::AssetStore::Pakfile) ++fetchFromPakfile;
         tf2::native::VmtMaterial material;
         if (materialBytes.empty()) { ++fetchVmtMissing; chain.reason = "vmt-missing"; continue; }
-        if (!tf2::native::VmtParser::parse(std::string(materialBytes.begin(), materialBytes.end()), material)) {
-          ++fetchVmtNoBase; chain.reason = "vmt-unparsable"; continue;
+        // T59: patch wrappers are resolved through the store above, so a patched
+        // material arrives at the fetch below with the include's $basetexture instead
+        // of an empty one. A wrapper that cannot be resolved keeps its own name.
+        const bool parsed = tf2::native::VmtParser::parse(
+          std::string(materialBytes.begin(), materialBytes.end()), material, readInclude);
+        if (material.patch.declared) {
+          ++fetchPatchDeclared;
+          if (material.patch.resolved) ++fetchPatchResolved;
+        }
+        if (!parsed) {
+          ++fetchVmtNoBase;
+          chain.reason = material.patch.declared ? "patch-unresolved" : "vmt-unparsable";
+          if (material.patch.declared) {
+            ++fetchPatchUnparsable;
+            traceFmt("gpu: world patch-refused material=%s include=%s cause=%s",
+              materialName.c_str(),
+              material.patch.includeResource.empty() ? "-" : material.patch.includeResource.c_str(),
+              material.error.c_str());
+          }
+          continue;
         }
         // Recorded before the base-texture check: a material with no
         // `$basetexture` still declares `$detail` or `$ssbump`, and the feature
@@ -5025,6 +5068,16 @@ bool outlineVertexExtent = false;
         if (material.baseTexture.empty() && material.baseTexture2.empty()) {
           ++fetchVmtNoBase; chain.reason = "no-basetexture"; continue;
         }
+          // T59: the base texture resolved, but the material re-maps its uv before
+          // sampling. Refused by name: the world pass samples the face's own texinfo
+          // axes, so drawing this axis-aligned would put the texture where TF2 does not.
+          if (material.baseTextureTransform) {
+            ++fetchTransformRefused;
+            chain.reason = "basetexture-transform";
+            traceFmt("gpu: world transform-refused material=%s transform=%s",
+              materialName.c_str(), material.baseTextureTransformText.c_str());
+            continue;
+          }
         // T12: one lookup policy, written once and used for every resource a
         // material names. Loose file, then the archives in the order this file
         // opened them, then the map's own pakfile -- the same order for the
@@ -5468,10 +5521,10 @@ bool outlineVertexExtent = false;
           worldTextures.push_back(std::move(tiled));
         }
       }
-      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu",
+      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu patchDeclared=%zu patchResolved=%zu patchUnparsable=%zu transformRefused=%zu",
         fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
         fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled,
-        fetchBlendFirst, fetchBlendLastRank, fetchBlendCapped);
+        fetchBlendFirst, fetchBlendLastRank, fetchBlendCapped, fetchPatchDeclared, fetchPatchResolved, fetchPatchUnparsable, fetchTransformRefused);
       traceFmt("gpu: world blend-fetch declared=%zu resolved=%zu refused=%zu disabled=%zu resampled=%zu modulateDeclared=%zu modulateResolved=%zu modulateRefused=%zu",
         fetchBlendDeclared, fetchBlendResolved, fetchBlendRefused, fetchBlendDisabled, fetchBlendResampled,
         fetchModulateDeclared, fetchModulateResolved, fetchModulateRefused);
@@ -6753,6 +6806,7 @@ bool outlineVertexExtent = false;
     // colour, so both are upload-time decisions like the terrain filter.
     renderer.setWorldSkyFaceOnly(worldGeometry == WorldGeometryFilter::Sky);
     renderer.setWorldFaceIdUpload(worldDebugView == 4);
+    renderer.setWorldRefusedMask(worldRefusedMask != 0);
     renderer.setWorldDiagnosticIsolation(worldGeometry != WorldGeometryFilter::All);
     // T17: this one changes a draw-time constant, not the upload. It is set here
     // so the reading and the frames of one run describe one configuration.
@@ -8359,6 +8413,29 @@ bool outlineVertexExtent = false;
     for (const auto& entry : refusalTotals) {
       traceFmt("gpu: world visible-refusal reason=%s materials=%zu visibleTriangles=%zu",
         entry.first.c_str(), entry.second.first, entry.second.second);
+    }
+    // T59: name the refused materials, ranked by the pvs-visible triangles they cost.
+    // The aggregate line above answers how many; this answers which and how much, which
+    // is the only form a defect ranking can be built from -- an unnamed count cannot be
+    // pointed at a pixel, and a material is only a defect if the frame can show it.
+    std::vector<std::pair<std::size_t, std::string>> refusedRanked;
+    for (const auto& entry : worldMaterialChain) {
+      if (entry.second.reason == "tiled") continue;
+      refusedRanked.emplace_back(visibleByMaterial[entry.first], entry.first);
+    }
+    std::sort(refusedRanked.begin(), refusedRanked.end(),
+      [](const std::pair<std::size_t, std::string>& a, const std::pair<std::size_t, std::string>& b) {
+        if (a.first != b.first) return a.first > b.first;
+        return a.second < b.second;
+      });
+    for (const auto& row : refusedRanked) {
+      const auto& record = worldMaterialChain.at(row.second);
+      traceFmt("gpu: world refused material=%s visible=%zu reason=%s vmt=%s vmtStore=%s"
+        " vtf=%s vtfStore=%s src=%dx%d",
+        row.second.c_str(), row.first, record.reason.c_str(),
+        record.vmtPath.empty() ? "-" : record.vmtPath.c_str(), record.vmtStore.c_str(),
+        record.vtfPath.empty() ? "-" : record.vtfPath.c_str(), record.vtfStore.c_str(),
+        record.sourceWidth, record.sourceHeight);
     }
     traceFmt("gpu: world face-trace-summary points=%d hits=%zu tiled=%zu untiled=%zu blend=%zu"
       " oversized=%zu beyondOldCap=%zu depthMatched=%zu discriminating=%zu clipApplied=%d"

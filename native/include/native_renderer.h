@@ -948,6 +948,11 @@ public:
   // colour or a projection is to draw a frame that contains the terrain and
   // nothing else, from the same camera and the same buffers.
   void setWorldTerrainOnly(bool terrainOnly) { worldTerrainOnly_ = terrainOnly; }
+  // T59 diagnostic: paint the flat fallback -- the branch a material takes when
+  // it got no tile -- in magenta instead of its shade, so "how much of this frame
+  // is an untiled material" becomes a pixel count on the capture instead of a
+  // triangle count that cannot say where those triangles landed.
+  void setWorldRefusedMask(bool enabled) { worldRefusedMask_ = enabled; }
   // T26: `--world-geometry sky` uploads the BSP's sky-brush polygons and
   // nothing else. It is not a picture of the game: it is the only honest answer
   // to "is this empty pixel sky by design or is it a hole", because it is the
@@ -1854,6 +1859,7 @@ private:
   // all/off, terrain/on, terrain/off.
   bool worldBlendEnabled_ = true;
   bool worldTerrainOnly_ = false;
+  bool worldRefusedMask_ = false;
   // T26: upload the sky-brush polygons instead of the world triangles, and/or
   // bake the face index into the vertex colour. Both are diagnostic-only and
   // both are read by `uploadWorldGeometry`, which is why they are set before the

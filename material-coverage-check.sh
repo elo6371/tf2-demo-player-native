@@ -21,11 +21,14 @@
 #      must equal the number of materials the fetch handed over: a material that
 #      is neither tiled nor refused is the defect this round removed.
 #   2. the picture, as a control -- the same build with the budget cut so only
-#      one batch fits reproduces the pre-T19 frame *byte for byte* (measured:
-#      65934ede... on this host, against a build of the base commit e67630b).
-#      That makes the full frame's difference the coverage difference and
-#      nothing else, and it is why the gate asserts the refused set equals the
-#      set of materials that only the second batch admitted.
+#      one batch fits names the second batch's materials as budget refusals and
+#      reproduces the full frame. That reproduction is a READING, not a pass:
+#      re-measured on ea97815 (2026-10-25) the frame is identical because none of
+#      the second batch's materials owns a pixel at the reference pose (T19's
+#      "the frame loses what those 48 carried" was measured on a build whose
+#      second batch held different materials; see the RE-PIN note below). The
+#      diff code is kept honest by the blend-off frame, and a batch's visibility
+#      is asserted at a pose that does own the screen: section 8.
 #   3. the state, at the draw -- t0 is bound through one function, and a weapon
 #      draw that finds a world atlas there (or a world draw that finds a weapon
 #      texture) is counted. Both are asserted 0 on a frame that draws both
@@ -35,17 +38,30 @@
 #   1. the probe's own plan: one material, 148 materials across 3 batches, the
 #      budget refusal, duplicate and malformed refusals, the uv, the blit
 #   2. the fixture: 16 synthetic materials tile and each samples its own block
-#   3. the real map: 148 distinct, 112 with pixels, 0 refused, 2 batches, and
+#   3. the real map: 148 distinct, 123 with pixels, 0 refused, 2 batches, and
 #      the four unsupported shader features each refused by name
 #   4. the product's reading of the same frame: capped=0, the tile table, the
 #      visible count per material, the isolation counters, determinism
 #   5. the blend switch off: the albedo batching does not move, the blend tiles
 #      leave
 #   6. a frame that draws the weapon as well: the isolation counters still 0
-#   7. the control: the budget cut to one batch keeps the 64 largest surfaces,
-#      names the other 48 as budget refusals, and the frame loses exactly what
-#      those 48 carried
-#   8. the mutations (--mutation): six defects, each of which must go red
+#   7. the control: the budget cut to one batch keeps the 64 largest surfaces and
+#      names the other 59 as budget refusals (the frame is identical at this pose,
+#      for the reason in 2)
+#   8. an include-only material owns the screen: the pose is a patch wrapper,
+#      the albedo view is that material's texture, and a refused wrapper has to
+#      collapse it to one colour
+#   9. the mutations (--mutation): seven defects, each of which must go red
+#
+# RE-PIN 2026-10-25 (T59: patch includes). Two kinds of pin moved here. The T59
+# ones are the point of the round: 11 materials that are only reachable through a
+# "patch" wrapper's include are now tiled (112 -> 123), so batch 1 holds 59 and
+# the control refuses 59. The other four were already wrong on ea97815 BEFORE
+# T59 -- measured by running this same gate on that tree: $ssbump's reason text is
+# lowercase, WOOD/WOOD_WALL007A carries 67 visible triangles, the frame draws
+# 193508 triangles, and the control frame equals the full frame. Each of those
+# carries that measurement in the comment beside it. Do not re-pin again without
+# one.
 #
 # BUILD FIRST
 #   bash build-target.sh tf2_demo_native material_coverage_probe
@@ -142,7 +158,7 @@ check_count() { # check_count <lines> <label> <minimum how many it must print>
   assert_ge "$2 check count" "$total" "$3"
 }
 
-echo "=== 1/7 the probe's own plan, on synthetic inputs ==="
+echo "=== 1/8 the probe's own plan, on synthetic inputs ==="
 SELF=$("$PROBE" --self-test 2>&1); SELF_RC=$?
 echo "$SELF" > "$OUT/self-test.txt"
 assert_eq "self-test rc" "$SELF_RC" "0"
@@ -156,7 +172,7 @@ assert_eq "148 materials, last atlas" "$(ckdetail "$SELF" plan.148.last)" "20 ti
 assert_eq "budget refusal count" "$(ckdetail "$SELF" budget.refused)" "accepted=64 budget=84"
 
 echo
-echo "=== 2/7 the fixture: 16 materials, each sampling its own block ==="
+echo "=== 2/8 the fixture: 16 materials, each sampling its own block ==="
 FIX=$("$PROBE" --fixture 2>&1); FIX_RC=$?
 echo "$FIX" > "$OUT/fixture.txt"
 assert_eq "fixture rc" "$FIX_RC" "0"
@@ -170,7 +186,7 @@ assert_eq "fixture uv matches tile" "$(kv "$FIX" fixture.uvMatchesTile)" "16"
 assert_eq "fixture malformed refused" "$(kv "$FIX" fixture.refusedAfterBad)" "1"
 
 echo
-echo "=== 3/7 the real map, read off the BSP ==="
+echo "=== 3/8 the real map, read off the BSP ==="
 REAL=$("$PROBE" --map "$TF/maps/$MAP.bsp" --tf-root "$TF" --expect-material "$BEYOND_CAP_MATERIAL" 2>&1)
 REAL_RC=$?
 echo "$REAL" > "$OUT/probe-$MAP.txt"
@@ -180,6 +196,13 @@ assert_eq "materials with pixels" "$(kv "$REAL" plan.tiled)" "112"
 # The claim this round is built on: nothing the planner was handed is dropped.
 # 148 - 112 = 36 materials the *fetch* refused earlier (4 missing VMT, 31 with no
 # $basetexture, 1 missing VTF); the planner itself refuses none.
+#
+# The probe's fetch model does NOT follow a "patch" wrapper's include, so its
+# plan still tiles 112 of the map's materials while the product's fetch tiles 123
+# (measured 2026-10-25, T59): the probe is the authority for the planner arithmetic
+# and the product trace is the authority for what the fetch actually resolved. The
+# two numbers are asserted separately on purpose -- reading either as the other's
+# expected value is what a re-pin would get wrong.
 assert_eq "materials refused by the planner" "$(kv "$REAL" plan.refused)" "0"
 assert_eq "batches" "$(kv "$REAL" plan.batches)" "2"
 assert_eq "budget refusals" "$(kv "$REAL" plan.refusedBudget)" "0"
@@ -206,7 +229,7 @@ case "$B2_REASON" in
 esac
 SS_REASON=$(kv "$REAL" feature.ssbump.reason)
 case "$SS_REASON" in
-  *SSBump*) echo "  OK   \$ssbump is refused by name" ;;
+  *ssbump*|*SSBump*) echo "  OK   \$ssbump is refused by name" ;;
   *) echo "  FAIL \$ssbump has no refusal: ${SS_REASON:-<none>}"; fail=1 ;;
 esac
 
@@ -242,7 +265,7 @@ tiles_of() { grep -ao "gpu: world tile material=.*" "$1" 2>/dev/null | sed 's/.*
 refused_of() { grep -ao "gpu: world tile material=.*" "$1" 2>/dev/null | sed 's/.*material=\([^ ]*\) .*batch=\([-0-9]*\).*/\1 \2/' | tr -d '\r' | awk '$2 < 0'; }
 
 echo
-echo "=== 4/7 the product's own reading of the reference frame ==="
+echo "=== 4/8 the product's own reading of the reference frame ==="
 run_product full "$DEMO" "$TICK"
 assert_eq "full rc" "$RC_full" "0"
 FETCH=$(grep -ao "gpu: world material-fetch .*" "$TRACE_full" 2>/dev/null | head -1)
@@ -252,7 +275,7 @@ ATLAS=$(grep -ao "gpu: world atlas .*" "$TRACE_full" 2>/dev/null | head -1)
 VIS=$(grep -ao "gpu: world vis .*" "$TRACE_full" 2>/dev/null | head -1)
 printf '%s\n%s\n%s\n%s\n%s\n' "$FETCH" "$PLAN" "$ISO" "$ATLAS" "$VIS" > "$OUT/product-readings.txt"
 # The ceiling, as the reading it should have been all along.
-assert_eq "materials tiled" "$(rval "$FETCH" tiled)" "112"
+assert_eq "materials tiled" "$(rval "$FETCH" tiled)" "123"
 assert_eq "materials dropped by a ceiling" "$(rval "$FETCH" capped)" "0"
 assert_eq "the planner refused nothing" "$(rval "$PLAN" refused)" "0"
 assert_eq "batches bound" "$(rval "$PLAN" batches)" "2"
@@ -264,9 +287,9 @@ assert_eq "atlas state" "$(rval "$ATLAS" state)" "bound"
 assert_ge "largest atlas bytes" "$(rval "$ATLAS" bytes)" "67000000"
 assert_eq "atlases bound" "$(rval "$ATLAS" atlases)" "2"
 assert_ge "atlas bytes in total" "$(rval "$ATLAS" totalBytes)" "119000000"
-# The tile table: 112 materials, 48 of them in the batch the old ceiling could
+# The tile table: 123 materials, 59 of them in the batch the old ceiling could
 # not have reached. The fetch order is coverage order, so batch 0 is the 64
-# largest surfaces and batch 1 the 48 smallest -- the opposite of what the old
+# largest surfaces and batch 1 the 59 smallest -- the opposite of what the old
 # comparator did, which sorted by name and put the map's largest material at
 # index 71 (measured: MEDIEVAL/PLASTERWALL002A, 80256 triangles, behind the
 # ceiling). Both halves of that are asserted below, because "no silent drop"
@@ -274,9 +297,9 @@ assert_ge "atlas bytes in total" "$(rval "$ATLAS" totalBytes)" "119000000"
 # one the old order would have thrown away first.
 TILES=$(tiles_of "$TRACE_full")
 echo "$TILES" > "$OUT/tile-table-$MAP.txt"
-assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "112"
+assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "123"
 assert_eq "tiles in batch 0" "$(printf '%s\n' "$TILES" | awk '$2==0' | grep -c .)" "64"
-assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "48"
+assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "59"
 VISIBLE_B1=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" | grep -c "visible=0 ")
 assert_le "batch-1 tiles with no visible triangle" "$VISIBLE_B1" "6"
 # The large surface: coverage order keeps it in the first atlas, and it is in
@@ -284,12 +307,17 @@ assert_le "batch-1 tiles with no visible triangle" "$VISIBLE_B1" "6"
 BEYOND_LINE=$(grep -ao "gpu: world tile material=$BEYOND_CAP_MATERIAL .*" "$TRACE_full" | head -1)
 assert_eq "$BEYOND_CAP_MATERIAL batch" "$(rval "$BEYOND_LINE" batch)" "0"
 assert_ge "$BEYOND_CAP_MATERIAL visible triangles" "$(rval "$BEYOND_LINE" visible)" "10000"
-# The small surfaces: the 48 materials behind the old ceiling are visible too,
-# and together they carry the pixels the control below takes away.
+# The small surfaces: the 59 materials behind the old ceiling are visible too.
+# The visible column is a static per-material count (it does not move between two
+# different frames), so it says the material is in the world, not that it owns a
+# pixel at this pose -- section 8 is where a pixel claim is made.
 SMALL_CAP_MATERIAL="WOOD/WOOD_WALL007A"
 SMALL_LINE=$(grep -ao "gpu: world tile material=$SMALL_CAP_MATERIAL .*" "$TRACE_full" | head -1)
 assert_eq "$SMALL_CAP_MATERIAL batch" "$(rval "$SMALL_LINE" batch)" "1"
-assert_ge "$SMALL_CAP_MATERIAL visible triangles" "$(rval "$SMALL_LINE" visible)" "100"
+# 67 on ea97815 before T59 (measured); the old floor of 100 was set on a build
+# whose material set differed. The assertion stays a floor: the material has to
+# be in the world, and 67 is the smallest honest reading of it.
+assert_ge "$SMALL_CAP_MATERIAL visible triangles" "$(rval "$SMALL_LINE" visible)" "67"
 B1_VISIBLE_SUM=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" \
   | sed 's/.*visible=\([0-9]*\) .*/\1/' | awk '{s+=$1} END {print s+0}')
 assert_ge "batch-1 visible triangles" "$B1_VISIBLE_SUM" "1500"
@@ -301,8 +329,8 @@ assert_eq "world draws holding a weapon texture" "$(rval "$ISO" worldDrawsWithWe
 assert_eq "batch draws" "$(rval "$ISO" batchDraws)" "2"
 assert_eq "batch draws with a texture" "$(rval "$ISO" texturedBatchDraws)" "2"
 assert_ge "slot-0 binds" "$(rval "$ISO" slot0Binds)" "2"
-# The pvs is not what this round changed: the same 189128 triangles are drawn.
-assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "189128"
+# The pvs is not what this round changed: the same 193508 triangles are drawn.
+assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "193508"
 # Two runs of the same build, byte for byte.
 run_product full2 "$DEMO" "$TICK"
 if cmp -s "$BMP_full" "$BMP_full2"; then
@@ -320,20 +348,20 @@ assert_eq "unclipped rc" "$RC_noclip" "0"
 NOCLIP_VIS=$(grep -ao "gpu: world vis .*" "$TRACE_noclip" 2>/dev/null | head -1)
 NOCLIP_PLAN=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_noclip" 2>/dev/null | head -1)
 assert_eq "unclipped frame is unclipped" "$(rval "$NOCLIP_VIS" clipApplied)" "0"
-assert_eq "unclipped tiles" "$(rval "$NOCLIP_PLAN" tiled)" "112"
+assert_eq "unclipped tiles" "$(rval "$NOCLIP_PLAN" tiled)" "123"
 assert_eq "unclipped batches" "$(rval "$NOCLIP_PLAN" batches)" "2"
 
 echo
-echo "=== 5/7 the blend switch off: the albedo batching must not move ==="
+echo "=== 5/8 the blend switch off: the albedo batching must not move ==="
 run_product noblend "$DEMO" "$TICK" --world-blend off
 assert_eq "blend off rc" "$RC_noblend" "0"
 PLAN_OFF=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_noblend" 2>/dev/null | head -1)
 assert_eq "blend off batches" "$(rval "$PLAN_OFF" batches)" "2"
-assert_eq "blend off tiles" "$(rval "$PLAN_OFF" tiled)" "112"
+assert_eq "blend off tiles" "$(rval "$PLAN_OFF" tiled)" "123"
 assert_eq "blend off blend batches" "$(rval "$PLAN_OFF" blendBatches)" "0"
 
 echo
-echo "=== 6/7 a frame that draws the weapon as well ==="
+echo "=== 6/8 a frame that draws the weapon as well ==="
 PAUSE=0
 run_product weapon "$POV_DEMO" "$POV_TICK" --viewmodel "$VM_MODEL" --viewmodel-fov 90
 PAUSE=1
@@ -351,7 +379,7 @@ assert_eq "weapon frame: world draws holding a weapon texture" "$(rval "$ISO_W" 
 assert_ge "weapon frame: slot-0 binds" "$(rval "$ISO_W" slot0Binds)" "2"
 
 echo
-echo "=== 7/7 the control: one batch, and the picture it has to reproduce ==="
+echo "=== 7/8 the control: one batch, and the picture it has to reproduce ==="
 # The budget is cut so that only the first batch fits. That is not a defect: it
 # is the pre-T19 tile set, arrived at through the new planner. Everything the
 # batching added must disappear together, and the frame must fall back to the
@@ -403,10 +431,10 @@ run_product control "$DEMO" "$TICK"
 CONTROL_LINE=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_control" 2>/dev/null | head -1)
 assert_eq "control rc" "$RC_control" "0"
 assert_eq "control tiles" "$(rval "$CONTROL_LINE" tiled)" "64"
-assert_eq "control refused" "$(rval "$CONTROL_LINE" refused)" "48"
-assert_eq "control refusals are budget refusals" "$(rval "$CONTROL_LINE" budget)" "48"
+assert_eq "control refused" "$(rval "$CONTROL_LINE" refused)" "59"
+assert_eq "control refusals are budget refusals" "$(rval "$CONTROL_LINE" budget)" "59"
 assert_eq "control batches" "$(rval "$CONTROL_LINE" batches)" "1"
-# The refusal has to name the same 48 materials the second batch admitted, or
+# The refusal has to name the same 59 materials the second batch admitted, or
 # "bounded batching added these" is a claim about a total rather than about a
 # set. `comm -23` is a set difference: in the full run's batch 1, not in the
 # control's tile table.
@@ -414,14 +442,22 @@ printf '%s\n' "$TILES" | awk '$2==1 {print $1}' | sort > "$SCRATCH/beyond-cap.$R
 tiles_of "$TRACE_control" | awk '{print $1}' | sort > "$SCRATCH/control-tiles.$RUN_TAG.txt"
 comm -23 "$SCRATCH/beyond-cap.$RUN_TAG.txt" "$SCRATCH/control-tiles.$RUN_TAG.txt" \
   > "$SCRATCH/control-refused.$RUN_TAG.txt"
-assert_eq "materials the control refused" "$(grep -c . "$SCRATCH/control-refused.$RUN_TAG.txt")" "48"
+assert_eq "materials the control refused" "$(grep -c . "$SCRATCH/control-refused.$RUN_TAG.txt")" "59"
 # ...and every one of them is a named refusal in the table, not a missing row.
 CONTROL_REFUSED_ROWS=$(refused_of "$TRACE_control" | grep -c .)
 CONTROL_BUDGET_ROWS=$(grep -ao "gpu: world tile .*" "$TRACE_control" | grep -c "reason=atlas-budget")
-assert_eq "control rows that name a refusal" "$CONTROL_REFUSED_ROWS" "48"
-assert_eq "control rows refused for budget" "$CONTROL_BUDGET_ROWS" "48"
-# And the picture: the coverage difference is visible, not merely allocated.
-DELTA=$("python" - "$BMP_full" "$BMP_control" 2>&1 <<'PY'
+assert_eq "control rows that name a refusal" "$CONTROL_REFUSED_ROWS" "59"
+assert_eq "control rows refused for budget" "$CONTROL_BUDGET_ROWS" "59"
+# And the picture. Two separate facts, because they are no longer the same one.
+#   - the control frame equals the full frame BYTE FOR BYTE at this pose. With 59
+#     materials refused to the flat fallback that is only possible because none of
+#     them owns a pixel here (measured: 0 changed pixels). It is pinned as a
+#     reading, and the coverage claim is the refused SET, not a pixel count.
+#   - the diff code is not vacuous: the blend-off frame differs from the full frame
+#     by 104024 pixels (worst channel delta 34) on the same run. A diff that read 0
+#     for both pairs would be broken, and these assertions are what would say so.
+frame_diff() { # frame_diff <bmp-a> <bmp-b> -> pixels= changed= max_channel_delta=
+"python" - "$1" "$2" 2>&1 <<'PY'
 import struct, sys
 
 def load(path):
@@ -460,17 +496,75 @@ print('pixels=%d' % (w * h))
 print('changed=%d' % diff)
 print('max_channel_delta=%d' % worst)
 PY
-)
+}
+DELTA=$(frame_diff "$BMP_full" "$BMP_control")
 echo "$DELTA" > "$OUT/coverage-delta.txt"
 printf '%s\n' "$DELTA" | sed 's/^/  /'
-assert_ge "pixels the extra batch changes" "$(rk "$DELTA" changed)" "5000"
-assert_ge "largest channel delta" "$(rk "$DELTA" max_channel_delta)" "32"
+assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "0"
+DELTA_BLEND=$(frame_diff "$BMP_full" "$BMP_noblend")
+echo "$DELTA_BLEND" > "$OUT/coverage-delta-blend-off.txt"
+printf '%s\n' "$DELTA_BLEND" | sed 's/^/  /'
+assert_ge "pixels the blend switch moves" "$(rk "$DELTA_BLEND" changed)" "50000"
+assert_ge "largest channel delta" "$(rk "$DELTA_BLEND" max_channel_delta)" "32"
 restore_source "$CONTROL_BACKUP" native/include/world_tile_atlas.h control "$CONTROL_HASH" tf2_demo_native material_coverage_probe || {
   echo "MATERIAL-COVERAGE=FAIL"; exit 1; }
 
 echo
+echo "=== 8/8 an include-only material owns the screen: the parse reaches the pixels ==="
+# WHY THIS SECTION EXISTS. cp_snakewater_final1's pak ships "patch" wrappers: the
+# VMT is only {patch: {include, replace}} and the shader with its $basetexture lives
+# in the included file. Before T59 the parser read the wrapper's own root only, so
+# the material was refused with no $basetexture and drawn as one flat colour by the
+# untiled branch of the world vertex build. The pose below looks straight down at
+# maps/cp_snakewater_final1/tile/floor_tile_004a_5934_-1624_-24, one of those
+# wrappers, and every sampled pixel of the frame resolves to it -- so the albedo
+# view is a direct reading of that single material. Measured on the two builds
+# before this assertion was written: 169 distinct colours with the include followed,
+# and ONE colour (245,245,245, share 1.0000) on a build that refuses the wrapper.
+# The bounds sit between those two readings, around neither.
+INCLUDE_MATERIAL="maps/cp_snakewater_final1/tile/floor_tile_004a_5934_-1624_-24"
+# albedo_stats <bmp> -> pixels= distinct= modal=r,g,b modal_share_ppm=
+albedo_stats() {
+"python" - "$1" 2>&1 <<'PY'
+import struct, sys
+from collections import Counter
+d = open(sys.argv[1], 'rb').read()
+if d[:2] != b'BM':
+    raise SystemExit('not a BMP: ' + sys.argv[1])
+off = struct.unpack_from('<I', d, 10)[0]
+w, h = struct.unpack_from('<ii', d, 18)
+bpp = struct.unpack_from('<H', d, 28)[0]
+step = bpp // 8
+stride = ((w * step) + 3) // 4 * 4
+px = []
+for y in range(abs(h)):
+    row = off + (y if h < 0 else abs(h) - 1 - y) * stride
+    for x in range(w):
+        p = row + x * step
+        px.append((d[p + 2], d[p + 1], d[p]))
+c = Counter(px)
+top, count = c.most_common(1)[0]
+print('pixels=%d' % len(px))
+print('distinct=%d' % len(c))
+print('modal=%d,%d,%d' % top)
+print('modal_share_ppm=%d' % (count * 1000000 // len(px)))
+PY
+}
+run_product include "$DEMO" "$TICK" --debug-camera 5934 -1624 96 89 0 --world-albedo --world-face-trace
+assert_eq "include-pose rc" "$RC_include" "0"
+INCLUDE_POINTS=$(grep -ac "gpu: world face-trace " "$TRACE_include" 2>/dev/null || echo 0)
+INCLUDE_NAMED=$(grep -ao "gpu: world face-trace .*" "$TRACE_include" 2>/dev/null | grep -c "material=$INCLUDE_MATERIAL ")
+assert_eq "face-trace points at the include pose" "$INCLUDE_POINTS" "28"
+assert_eq "points that resolve to the include-only material" "$INCLUDE_NAMED" "$INCLUDE_POINTS"
+INCLUDE_STATS=$(albedo_stats "$BMP_include")
+echo "$INCLUDE_STATS" > "$OUT/include-material-pixels.txt"
+printf '%s\n' "$INCLUDE_STATS" | sed 's/^/  /'
+assert_ge "albedo colours where the include-only material covers the screen" "$(rk "$INCLUDE_STATS" distinct)" "100"
+assert_le "share of the most common albedo colour (ppm)" "$(rk "$INCLUDE_STATS" modal_share_ppm)" "500000"
+
+echo
 if [ "$MUTATION" -eq 1 ]; then
-  echo "=== the mutations: six defects, each of which must turn this gate red ==="
+  echo "=== the mutations: seven defects, each of which must turn this gate red ==="
   # The cheap half first: values the forward run must NOT produce.
   if [ "$(rval "$FETCH" capped)" != "0" ]; then
     echo "  FAIL a material was dropped by a ceiling before any mutation"; exit 1
@@ -484,18 +578,18 @@ if [ "$MUTATION" -eq 1 ]; then
 
   # ---- m1: the budget stops the batching after one batch --------------------
   # This is the old ceiling, rebuilt out of new parts: one atlas, 64 tiles, the
-  # other 48 materials untextured. Every count that existed before this round
+  # other 59 materials untextured. Every count that existed before this round
   # stays green -- the atlas is bound, the fetch reports no cap -- and the
   # coverage claim is what goes red. Already run above as the control; the
-  # defect is the *forward* assertion that tiled=112, which the control's 64
+  # defect is the *forward* assertion that tiled=123, which the control's 64
   # fails.
   echo "--- m1: the budget admits one batch (the old 64-tile ceiling, rebuilt)"
-  if [ "$(rval "$CONTROL_LINE" tiled)" = "112" ]; then
+  if [ "$(rval "$CONTROL_LINE" tiled)" = "123" ]; then
     echo "  MUTATION-CAUGHT=FAIL (m1: the control still tiled every material)"
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$CONTROL_LINE" tiled)" = "64" ] && [ "$(rval "$CONTROL_LINE" refused)" = "48" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m1: tiled=64 refused=48 while the forward run read 112/0)"
+  if [ "$(rval "$CONTROL_LINE" tiled)" = "64" ] && [ "$(rval "$CONTROL_LINE" refused)" = "59" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m1: tiled=64 refused=59 while the forward run read 123/0)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m1: tiled=$(rval "$CONTROL_LINE" tiled) refused=$(rval "$CONTROL_LINE" refused))"
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
@@ -604,7 +698,7 @@ if [ "$MUTATION" -eq 1 ]; then
 
   # ---- m5: the batch index is built from triangles, not vertices -----------
   # The refactor's own failure mode: `triangle * 3` becomes `triangle`, so every
-  # index points into the middle of some other triangle. All 112 tiles are still
+  # index points into the middle of some other triangle. All 123 tiles are still
   # allocated, all 2 batches are still drawn, the plan is unchanged, and the map
   # turns into a hash of stretched polygons. Only the frame says so.
   echo "--- m5: the index buffer is built from triangle numbers (geometry tears)"
@@ -629,8 +723,8 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$M5_BACKUP" native/src/native_renderer.cpp m5 "$M5_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$M5_PLAN" tiled)" = "112" ] && [ "$(rval "$M5_PLAN" batches)" = "2" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m5: tiled=112 batches=2 unchanged, the frame moved)"
+  if [ "$(rval "$M5_PLAN" tiled)" = "123" ] && [ "$(rval "$M5_PLAN" batches)" = "2" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m5: tiled=123 batches=2 unchanged, the frame moved)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m5: the plan moved too, so this did not isolate the index)"
     restore_source "$M5_BACKUP" native/src/native_renderer.cpp m5 "$M5_HASH" tf2_demo_native || true
@@ -643,9 +737,20 @@ if [ "$MUTATION" -eq 1 ]; then
   # ---- m6: the clip ignores the batch table --------------------------------
   # The other half of the same question. The frame is clipped, so the indices
   # come from `setWorldVisDrawList`; putting every surviving index in batch 0
-  # leaves the plan at 112 tiles / 2 batches, keeps every tile allocated, and
+  # leaves the plan at 123 tiles / 2 batches, keeps every tile allocated, and
   # paints batch 1's materials with batch 0's atlas. Texture selection and
   # index grouping have to agree, and only the picture says whether they do.
+  #
+  # RE-ANCHOR 2026-10-25: this mutant used to compare against the acceptance
+  # frame (tick 0, no camera override). At that pose batch 1 owns zero pixels --
+  # measured, not assumed: section 7's control refuses all 59 batch-1 materials
+  # and its frame comes back byte-identical to the full frame, and that was
+  # already true on ea97815 before T59. Regrouping batch-1 indices into batch 0
+  # therefore could not move one pixel, and the mutant was vacuous -- last green
+  # before the map's material set drifted (the same drift that dropped
+  # WOOD/WOOD_WALL007A from >=100 to 67 visible triangles). It is now anchored
+  # on section 8's include pose, where all 28 face-trace points resolve to a
+  # batch-1 material that fills the screen, so the regroup has to repaint it.
   echo "--- m6: the clipped indices all land in batch 0 (batch 1 samples batch 0's atlas)"
   M6_BACKUP="$SCRATCH/native_renderer.cpp.regroup.backup"
   cp native/src/native_renderer.cpp "$M6_BACKUP"
@@ -661,22 +766,59 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  run_product m6 "$DEMO" "$TICK"
+  run_product m6 "$DEMO" "$TICK" --debug-camera 5934 -1624 96 89 0 --world-albedo --world-face-trace
   M6_PLAN=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_m6" 2>/dev/null | head -1)
-  if cmp -s "$BMP_full" "$BMP_m6"; then
-    echo "  MUTATION-CAUGHT=FAIL (m6: the frame is unchanged, so the regroup is not what draws it)"
+  M6_STATS=$(albedo_stats "$BMP_m6" | tr '\n' ' ')
+  if cmp -s "$BMP_include" "$BMP_m6"; then
+    echo "  MUTATION-CAUGHT=FAIL (m6: the include-pose frame is unchanged, so the regroup is not what draws it)"
     restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$M6_PLAN" tiled)" = "112" ] && [ "$(rval "$M6_PLAN" batches)" = "2" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m6: tiled=112 batches=2 unchanged, the frame moved)"
+  if [ "$(rval "$M6_PLAN" tiled)" = "123" ] && [ "$(rval "$M6_PLAN" batches)" = "2" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m6: tiled=123 batches=2 unchanged, the include-pose frame moved: $M6_STATS)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m6: the plan moved too, so this did not isolate the regroup)"
     restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  ( cd "$SCRATCH" && sha256sum "m6.$RUN_TAG.bmp" "full.$RUN_TAG.bmp" ) | sed 's/^/  ..   /'
+  ( cd "$SCRATCH" && sha256sum "m6.$RUN_TAG.bmp" "include.$RUN_TAG.bmp" ) | sed 's/^/  ..   /'
   restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || {
+    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
+
+  # ---- m7: the patch wrapper is refused instead of followed -------------------
+  # T59's own failure mode, and the reason section 8 exists. Refusing the wrapper
+  # leaves every count that existed before T59 green -- no cap, nothing crashed, the
+  # planner still refuses nothing -- and turns the screen into the single flat colour
+  # the pre-T59 build drew. Only the picture says so, so the mutant is judged on the
+  # same pose and the same statistic the forward section pins.
+  echo "--- m7: the patch wrapper is refused instead of followed (the screen goes flat)"
+  M7_BACKUP="$SCRATCH/vmt_material.cpp.patch.backup"
+  cp native/src/vmt_material.cpp "$M7_BACKUP"
+  M7_HASH=$(git hash-object native/src/vmt_material.cpp)
+  if ! patch_in native/src/vmt_material.cpp \
+      '  if (lower(node.shader) != "patch") return true;' \
+      '  if (true) return true;  // mutation: every material resolves as itself'; then
+    echo "  MUTATION-SETUP=FAIL (m7: the patch did not apply)"; cp "$M7_BACKUP" native/src/vmt_material.cpp
+    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
+  fi
+  if ! bash build-target.sh tf2_demo_native > "$SCRATCH/m7.build" 2>&1; then
+    echo "  MUTATION-SETUP=FAIL (m7: the rebuild failed)"
+    restore_source "$M7_BACKUP" native/src/vmt_material.cpp m7 "$M7_HASH" tf2_demo_native || true
+    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
+  fi
+  run_product m7 "$DEMO" "$TICK" --debug-camera 5934 -1624 96 89 0 --world-albedo --world-face-trace
+  M7_STATS=$(albedo_stats "$BMP_m7")
+  M7_DISTINCT=$(rk "$M7_STATS" distinct); [ -n "$M7_DISTINCT" ] || M7_DISTINCT=0
+  M7_SHARE=$(rk "$M7_STATS" modal_share_ppm); [ -n "$M7_SHARE" ] || M7_SHARE=0
+  if [ "$M7_DISTINCT" -le 2 ] && [ "$M7_SHARE" -ge 900000 ]; then
+    echo "  MUTATION-CAUGHT=PASS (m7: distinct=$M7_DISTINCT, one colour covers ${M7_SHARE}ppm of the frame -- the wrapper is refused and the screen is flat)"
+  else
+    echo "  MUTATION-CAUGHT=FAIL (m7: distinct=$M7_DISTINCT modal_share_ppm=$M7_SHARE -- the picture did not go flat, so the include is not what draws it)"
+    restore_source "$M7_BACKUP" native/src/vmt_material.cpp m7 "$M7_HASH" tf2_demo_native || true
+    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
+  fi
+  echo "$M7_STATS" > "$OUT/mutated-m7-patch-refused.txt"
+  restore_source "$M7_BACKUP" native/src/vmt_material.cpp m7 "$M7_HASH" tf2_demo_native || {
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
 
   if [ "$fail" -ne 0 ]; then
@@ -686,8 +828,8 @@ if [ "$MUTATION" -eq 1 ]; then
   fi
   echo "MUTATION-CAUGHT=PASS (the one-batch budget, the dropped half-texel, the"
   echo "  weapon range bound to the world atlas, the ignored \$bumpmap2, the"
-  echo "  triangle-numbered index and the regroup that ignored the batch table each"
-  echo "  go red; every source came back byte-identical)"
+  echo "  triangle-numbered index, the regroup that ignored the batch table and the"
+  echo "  refused patch wrapper each go red; every source came back byte-identical)"
   exit 0
 fi
 

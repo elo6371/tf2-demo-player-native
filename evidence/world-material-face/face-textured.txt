@@ -1,31 +1,32 @@
-FACE-POINT point=90,70 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=70,82,95 got=70,82,95 maxDelta=0
-FACE-POINT point=300,70 status=ok material=GREEK/GREEK_WALL04_WHITE tile=0/19 rect=1543,1029 src=1024x1024 want=52,43,38 got=52,43,38 maxDelta=0
+FACE-POINT point=90,70 status=not-this-face material=GREEK/GREEK_WALL04_WHITE
+FACE-POINT point=300,70 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=106,107,116 got=106,106,116 maxDelta=1
 FACE-POINT point=510,70 status=no-face reason=no-drawn-triangle
-FACE-POINT point=720,70 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=102,84,71 got=101,83,71 maxDelta=1
-FACE-POINT point=930,70 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=41,34,25 got=40,33,26 maxDelta=1
-FACE-POINT point=1140,70 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=124,94,66 got=124,95,66 maxDelta=1
-FACE-POINT point=90,230 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=0,0,0 got=0,0,0 maxDelta=0
-FACE-POINT point=300,230 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=64,67,73 got=64,67,73 maxDelta=0
-FACE-POINT point=510,230 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=108,111,123 got=108,111,123 maxDelta=0
-FACE-POINT point=720,230 status=ok material=SWAMP/PROPS/FISHINGNET002 tile=0/13 rect=2571,515 src=512x512 want=57,50,44 got=57,50,44 maxDelta=0
-FACE-POINT point=930,230 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=129,112,95 got=128,112,94 maxDelta=1
-FACE-POINT point=1140,230 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=125,110,96 got=125,110,96 maxDelta=0
-FACE-POINT point=90,390 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=22,16,9 got=22,15,9 maxDelta=1
-FACE-POINT point=300,390 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=0,0,0 got=0,0,0 maxDelta=0
-FACE-POINT point=510,390 status=ok material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY tile=0/2 rect=1029,1 src=1024x1024 want=147,135,106 got=147,135,106 maxDelta=0
-FACE-POINT point=720,390 status=not-this-face material=WOOD/WOOD_FLOOR004
-FACE-POINT point=930,390 status=ok material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY tile=0/2 rect=1029,1 src=1024x1024 want=82,79,40 got=82,79,40 maxDelta=0
-FACE-POINT point=1140,390 status=ok material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY tile=0/2 rect=1029,1 src=1024x1024 want=102,96,59 got=102,96,59 maxDelta=0
-FACE-POINT point=90,550 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=53,39,26 got=53,39,26 maxDelta=0
-FACE-POINT point=300,550 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=0,0,0 got=0,0,0 maxDelta=0
-FACE-POINT point=510,550 status=ok material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY tile=0/0 rect=1,1 src=1024x1024 want=96,112,132 got=95,112,132 maxDelta=1
-FACE-POINT point=720,550 status=ok material=NATURE/BLENDGROUNDTOGRASS_ODYSSEY tile=0/2 rect=1029,1 src=1024x1024 want=24,21,18 got=24,21,19 maxDelta=1
-FACE-POINT point=930,550 status=ok material=WOOD/WOOD_FLOOR004 tile=0/15 rect=3599,515 src=1024x1024 want=0,0,0 got=0,0,0 maxDelta=0
-FACE-POINT point=1140,550 status=no-face reason=no-drawn-triangle
-FACE-POINT point=200,120 status=ok material=GREEK/GREEK_GROUND03D tile=0/14 rect=3085,515 src=1024x1024 want=65,58,54 got=65,58,55 maxDelta=1
-FACE-POINT point=200,620 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=0,0,0 got=0,0,0 maxDelta=0
-FACE-POINT point=1180,200 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=131,118,102 got=131,118,102 maxDelta=0
+FACE-POINT point=720,70 status=ok material=GREEK/GREEK_GROUND03D tile=0/14 rect=3085,515 src=1024x1024 want=0,0,0 got=0,0,0 maxDelta=0
+FACE-POINT point=930,70 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=56,48,44 got=56,48,44 maxDelta=0
+FACE-POINT point=1140,70 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=22,27,30 got=21,26,30 maxDelta=1
+FACE-POINT point=90,230 status=not-this-face material=GREEK/GREEK_GROUND03B
+FACE-POINT point=300,230 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=92,88,86 got=92,88,86 maxDelta=0
+FACE-POINT point=510,230 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=115,113,116 got=115,113,116 maxDelta=0
+FACE-POINT point=720,230 status=no-face reason=no-drawn-triangle
+FACE-POINT point=930,230 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=47,45,44 got=47,45,44 maxDelta=0
+FACE-POINT point=1140,230 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=109,92,76 got=108,92,76 maxDelta=1
+FACE-POINT point=90,390 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=97,102,112 got=96,102,112 maxDelta=1
+FACE-POINT point=300,390 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=92,96,109 got=92,96,109 maxDelta=0
+FACE-POINT point=510,390 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=43,40,40 got=42,40,39 maxDelta=1
+FACE-POINT point=720,390 status=no-face reason=no-drawn-triangle
+FACE-POINT point=930,390 status=no-face reason=no-drawn-triangle
+FACE-POINT point=1140,390 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=48,49,47 got=49,48,47 maxDelta=1
+FACE-POINT point=90,550 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=90,97,104 got=90,97,104 maxDelta=0
+FACE-POINT point=300,550 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=55,71,83 got=55,70,83 maxDelta=1
+FACE-POINT point=510,550 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=105,110,121 got=105,110,121 maxDelta=0
+FACE-POINT point=720,550 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=70,67,67 got=70,66,67 maxDelta=1
+FACE-POINT point=930,550 status=ok material=GREEK/GREEK_GROUND03D tile=0/14 rect=3085,515 src=1024x1024 want=87,101,118 got=87,101,117 maxDelta=1
+FACE-POINT point=1140,550 status=ok material=GREEK/GREEK_GROUND03B tile=0/11 rect=1543,515 src=1024x1024 want=112,118,123 got=111,117,123 maxDelta=1
+FACE-POINT point=200,120 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=96,74,55 got=96,74,55 maxDelta=0
+FACE-POINT point=200,620 status=ok material=GREEK/GREEK_GROUND03B_COBBLE tile=0/20 rect=2057,1029 src=1024x1024 want=95,103,112 got=95,103,112 maxDelta=0
+FACE-POINT point=1180,200 status=ok material=WOOD/WALL007A tile=0/10 rect=1029,515 src=1024x1024 want=134,119,92 got=134,119,92 maxDelta=0
 FACE-POINT point=630,30 status=no-face reason=no-drawn-triangle
-FACE-CHECK status=PASS mode=textured compared=24 mismatched=0 skipped=3 depthSkipped=1 tolerance=6 worstDelta=1 worstPoint=720,70 points=28 tiled=25 untiled=0 blend=5 oversized=24 beyondOldCap=11 discriminating=24
-FACE-REFUSAL reason=no-basetexture materials=20 visibleTriangles=758
+FACE-CHECK status=PASS mode=textured compared=21 mismatched=0 skipped=5 depthSkipped=2 tolerance=6 worstDelta=1 worstPoint=300,70 points=28 tiled=23 untiled=0 blend=0 oversized=23 beyondOldCap=16 discriminating=23
+FACE-REFUSAL reason=no-basetexture materials=2 visibleTriangles=300
+FACE-REFUSAL reason=basetexture-transform materials=4 visibleTriangles=160
 FACE-REFUSAL reason=vmt-missing materials=3 visibleTriangles=144
