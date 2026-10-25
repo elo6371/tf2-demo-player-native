@@ -1,0 +1,2 @@
+trace trace-textured.txt kept 1890 of 40446 lines
+trace trace-albedo.txt kept 1908 of 40871 lines

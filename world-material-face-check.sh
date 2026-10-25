@@ -130,8 +130,20 @@ REP_BMP="$SCRATCH/repeat.$RUN_TAG.bmp"; REP_TRACE="$SCRATCH/repeat.$RUN_TAG.trac
 capture "$REF_BMP" "$REF_TRACE" || { echo "  FAIL textured capture"; exit 1; }
 capture "$ALB_BMP" "$ALB_TRACE" --world-albedo || { echo "  FAIL albedo capture"; exit 1; }
 capture "$REP_BMP" "$REP_TRACE" || { echo "  FAIL repeat capture"; exit 1; }
-cp "$REF_TRACE" "$OUT/trace-textured.txt"
-cp "$ALB_TRACE" "$OUT/trace-albedo.txt"
+# The committed trace is the evidence a reader re-checks, not the whole log. Each
+# full trace is 5-6 MB, is written once per captured frame (24k `draw: begin tick=`
+# lines in one capture) and every line carries a timestamp, so committing it whole
+# makes each run a 59k-line diff in which nothing is read. Keep exactly the lines
+# this gate parses, plus the LAST frame's start line; the working trace keeps
+# everything. Measured on m3's trace: 126,621 lines -> ~140.
+trim_trace() { # trim_trace <src> <dst>
+  { grep -a 'draw: begin tick=' "$1" | tail -1
+    grep -a -E 'scene: camera|gpu: world material-fetch |gpu: world tile material=|gpu: world transform-refused material=|gpu: world refused material=|gpu: world face-trace point=|gpu: world face-trace-summary |gpu: world visible-refusal ' "$1"
+  } > "$2"
+  printf 'trace %s kept %s of %s lines\n' "$(basename "$2")" "$(wc -l < "$2")" "$(wc -l < "$1")" >> "$OUT/trace-trim.txt"
+}
+trim_trace "$REF_TRACE" "$OUT/trace-textured.txt"
+trim_trace "$ALB_TRACE" "$OUT/trace-albedo.txt"
 if cmp -s "$REF_BMP" "$REP_BMP"; then
   echo "  OK repeat capture byte-identical ($(sha256sum "$REF_BMP" | cut -d' ' -f1))"
 else
@@ -152,8 +164,16 @@ VMTMISS=$(printf '%s' "$MATFETCH" | grep -oE 'vmtMissing=[0-9]+' | cut -d= -f2)
 VMTNOBASE=$(printf '%s' "$MATFETCH" | grep -oE 'vmtNoBase=[0-9]+' | cut -d= -f2)
 VTFMISS=$(printf '%s' "$MATFETCH" | grep -oE 'vtfMissing=[0-9]+' | cut -d= -f2)
 DECODEEMPTY=$(printf '%s' "$MATFETCH" | grep -oE 'decodeEmpty=[0-9]+' | cut -d= -f2)
+# T59: patch wrappers are a fifth outcome, not a flavour of no-basetexture. A
+# wrapper is a material whose only $basetexture lives in the material it includes,
+# so before T59 every one of them was counted as a material that declares no base
+# texture at all -- which read as a map defect and was in fact a parser gap.
+PATCHDECL=$(printf '%s' "$MATFETCH" | grep -oE 'patchDeclared=[0-9]+' | cut -d= -f2)
+PATCHRES=$(printf '%s' "$MATFETCH" | grep -oE 'patchResolved=[0-9]+' | cut -d= -f2)
+PATCHUNP=$(printf '%s' "$MATFETCH" | grep -oE 'patchUnparsable=[0-9]+' | cut -d= -f2)
+TRANSFORM=$(printf '%s' "$MATFETCH" | grep -oE 'transformRefused=[0-9]+' | cut -d= -f2)
 echo "  $MATFETCH"
-assert_eq "fetch partitions distinct" "$((TILED + CAPPED + VMTMISS + VMTNOBASE + VTFMISS + DECODEEMPTY))" "$DISTINCT"
+assert_eq "fetch partitions distinct" "$((TILED + CAPPED + VMTMISS + VMTNOBASE + VTFMISS + DECODEEMPTY + TRANSFORM))" "$DISTINCT"
 assert_gt "materials tiled" "$TILED" 0
 # The atlas is handed exactly the materials the fetch tiled, so the table has
 # one row per tiled material and no others. A material that disappears between
@@ -166,6 +186,37 @@ assert_eq "tile table tiled rows" "$TILE_TILED" "$TILED"
 BAD_ROWS=$(grep "gpu: world tile material=" "$REF_TRACE" | grep "reason=tiled" \
   | grep -cE "batch=-1|tile=-1|size=0x")
 assert_eq "tile rows with a rectangle" "$BAD_ROWS" "0"
+
+# ---------------------------------------------------------------------------
+# 2b. patch wrappers: the include is followed, and what cannot be followed is named
+# ---------------------------------------------------------------------------
+# A patch VMT is the map's own per-face wrapper: header patch, an include naming
+# the material that actually has the texture, and a replace block of per-face
+# overrides. pl_odyssey ships 19 of them. Following the include is what turns the
+# 20 no-basetexture refusals of the T44 account into the 2 that are genuinely
+# texture-less (the water shader, whose surface is drawn by the water pass).
+echo "== 2b. patch wrappers: include followed, the rest refused by name =="
+assert_gt "patch wrappers declared" "$PATCHDECL" 0
+assert_eq "patch wrappers resolved through their include" "$PATCHRES" "$PATCHDECL"
+assert_eq "patch wrappers that could not be resolved" "$PATCHUNP" "0"
+# A wrapper whose material asks for a non-identity basetexturetransform is drawn
+# by TF2 with its uv re-mapped. The world pass samples the face texinfo axes, so
+# this pass cannot put that texture where TF2 does; it must refuse by name rather
+# than draw it axis-aligned and call the picture correct.
+assert_eq "materials refused for a non-identity basetexturetransform" "$TRANSFORM" "4"
+TRANSFORM_LINES=$(grep -c "gpu: world transform-refused material=" "$REF_TRACE")
+assert_eq "transform refusals traced, one per material" "$TRANSFORM_LINES" "$TRANSFORM"
+TRANSFORM_NAMED=$(grep "gpu: world transform-refused material=" "$REF_TRACE" | grep -c "rotate 45")
+assert_eq "transform refusals that print the transform they refused" "$TRANSFORM_NAMED" "$TRANSFORM"
+# The fourteen materials that exist only inside an include must now be tiled: a
+# resolved wrapper that still reaches the atlas with no batch is the defect
+# wearing the fix.
+PATCHED_ROWS=$(grep "gpu: world tile material=" "$REF_TRACE" | grep -cE "metalchrome002|floor_tile_004")
+assert_eq "materials that only exist through their include, now tiled" "$PATCHED_ROWS" "14"
+# And the refusal that must survive: the water shader genuinely has no base
+# texture, so a fix that made IT tiled would be a fix that draws something false.
+WATER_REFUSED=$(grep "gpu: world refused material=" "$REF_TRACE" | grep "reason=no-basetexture" | grep -c "water_well")
+assert_eq "water shader materials still refused as no-basetexture" "$WATER_REFUSED" "2"
 
 # ---------------------------------------------------------------------------
 # 3. the face trace: the chain has no hole, and both cases were exercised
@@ -261,17 +312,22 @@ fi
 # ---------------------------------------------------------------------------
 echo "== mutation mode =="
 mfail=0
+mred=0   # mutations that actually went red; the verdict counts this, not a literal
 SRC_REN="native/src/native_renderer.cpp"
 SRC_MAIN="native/src/main.cpp"
+SRC_VMT="native/src/vmt_material.cpp"
+SAVE_VMT="$SCRATCH/vmt_material.cpp.save"
 SAVE_REN="$SCRATCH/native_renderer.cpp.save"
 SAVE_MAIN="$SCRATCH/main.cpp.save"
 cp "$SRC_REN" "$SAVE_REN"
 cp "$SRC_MAIN" "$SAVE_MAIN"
+cp "$SRC_VMT" "$SAVE_VMT"
 restore_sources() {
   cp "$SAVE_REN" "$SRC_REN"
   cp "$SAVE_MAIN" "$SRC_MAIN"
-  if cmp -s "$SAVE_REN" "$SRC_REN" && cmp -s "$SAVE_MAIN" "$SRC_MAIN"; then
-    echo "  RESTORE=OK (both sources byte-identical)"
+  cp "$SAVE_VMT" "$SRC_VMT"
+  if cmp -s "$SAVE_REN" "$SRC_REN" && cmp -s "$SAVE_MAIN" "$SRC_MAIN" && cmp -s "$SAVE_VMT" "$SRC_VMT"; then
+    echo "  RESTORE=OK (all three sources byte-identical)"
   else
     echo "  RESTORE=FAIL (a source did not come back byte-identical)"; fail=1
   fi
@@ -310,12 +366,12 @@ if capture "$M1_BMP" "$M1_TRACE" --world-albedo; then
   if [ "$M1_RC" = "0" ]; then
     echo "  NOT-RED M1: the reverted uv still matched the albedo frame"; mfail=1
   else
-    echo "  RED M1 as required: $M1_OVER points mismatched ($(grep 'FACE-CHECK' "$SCRATCH/m1-face.$RUN_TAG.txt" | tail -1))"
+    mred=$((mred + 1)); echo "  RED M1 as required: $M1_OVER points mismatched ($(grep 'FACE-CHECK' "$SCRATCH/m1-face.$RUN_TAG.txt" | tail -1))"
   fi
   if cmp -s "$M1_BMP" "$ALB_BMP"; then
     echo "  NOT-RED M1: the reverted uv produced a byte-identical frame"; mfail=1
   else
-    echo "  RED M1 as required: the frame moved too"
+    mred=$((mred + 1)); echo "  RED M1 as required: the frame moved too"
   fi
   # The other half of the discrimination. Under this mutation the OLD uv is in
   # the build, so the rival prediction is the one the frame must agree with.
@@ -368,7 +424,7 @@ if capture "$M2_BMP" "$M2_TRACE" --world-albedo; then
   if [ "$M2_RC" = "0" ]; then
     echo "  NOT-RED M2: dropping the tile origin still matched"; mfail=1
   else
-    echo "  RED M2 as required: $(grep 'FACE-CHECK' "$SCRATCH/m2-face.$RUN_TAG.txt" | tail -1)"
+    mred=$((mred + 1)); echo "  RED M2 as required: $(grep 'FACE-CHECK' "$SCRATCH/m2-face.$RUN_TAG.txt" | tail -1)"
   fi
 else
   echo "  FAIL M2 capture"; mfail=1
@@ -401,7 +457,7 @@ if capture "$M3_BMP" "$M3_TRACE" && capture "$M3_ALB_BMP" "$M3_ALB_TRACE" --worl
   if [ "$M3_RC" = "0" ]; then
     echo "  NOT-RED M3: the unlit prediction still matched the textured frame"; mfail=1
   else
-    echo "  RED M3 as required: $(grep 'FACE-CHECK' "$SCRATCH/m3-face.$RUN_TAG.txt" | tail -1)"
+    mred=$((mred + 1)); echo "  RED M3 as required: $(grep 'FACE-CHECK' "$SCRATCH/m3-face.$RUN_TAG.txt" | tail -1)"
   fi
   if [ "$M3_ALB_RC" != "0" ]; then
     echo "  FAIL M3 control: the albedo comparison also went red, so the two pins are not independent"; mfail=1
@@ -440,16 +496,49 @@ if capture "$M4_BMP" "$M4_TRACE"; then
   if [ "$M4_BAD" = "0" ] && [ "$M4_ROWS" = "$M4_TILED" ]; then
     echo "  NOT-RED M4: the table still reads $M4_TILED tiled rows, none malformed"; mfail=1
   else
-    echo "  RED M4 as required: $M4_BAD rows claim a tile without a batch ($M4_TILED of $M4_ROWS say tiled)"
+    mred=$((mred + 1)); echo "  RED M4 as required: $M4_BAD rows claim a tile without a batch ($M4_TILED of $M4_ROWS say tiled)"
   fi
 else
   echo "  FAIL M4 capture"; mfail=1
 fi
 restore_sources
 
+echo "-- M5: the include is no longer followed --"
+"$PYTHON" - "$SRC_VMT" <<'PYEOF_INNER'
+import sys
+path = sys.argv[1]
+src = open(path, encoding='utf-8', newline='').read()
+old = 'if (lower(node.shader) != "patch") return true;'
+new = 'if (true) return true;  // M5: a patch keeps its own root, the defect this task removes'
+assert src.count(old) == 1, 'M5 patch site not found'
+open(path, 'w', encoding='utf-8', newline='').write(src.replace(old, new))
+PYEOF_INNER
+if [ $? != 0 ]; then echo "  FAIL M5 could not patch"; mfail=1; fi
+bash build-target.sh tf2_demo_native > "$SCRATCH/m5.$RUN_TAG.build" 2>&1 || { echo "  FAIL M5 build"; mfail=1; }
+M5_BMP="$SCRATCH/m5.$RUN_TAG.bmp"; M5_TRACE="$SCRATCH/m5.$RUN_TAG.trace"
+if capture "$M5_BMP" "$M5_TRACE"; then
+  M5_LINE=$(grep -o "gpu: world material-fetch .*" "$M5_TRACE" | head -1)
+  M5_DECL=$(printf '%s' "$M5_LINE" | grep -oE "patchDeclared=[0-9]+" | cut -d= -f2)
+  M5_TILED=$(printf '%s' "$M5_LINE" | grep -oE "tiled=[0-9]+" | cut -d= -f2)
+  M5_NOBASE=$(printf '%s' "$M5_LINE" | grep -oE "vmtNoBase=[0-9]+" | cut -d= -f2)
+  M5_PATCHED=$(grep "gpu: world tile material=" "$M5_TRACE" | grep -cE "metalchrome002|floor_tile_004")
+  if [ "$M5_DECL" = "0" ] || [ "$M5_TILED" = "$TILED" ] || [ "$M5_PATCHED" != "0" ]; then
+    mred=$((mred + 1)); echo "  RED M5 as required: patchDeclared=$M5_DECL (want > 0), tiled=$M5_TILED (want < $TILED), include-only rows=$M5_PATCHED (want 0), vmtNoBase=$M5_NOBASE"
+  else
+    echo "  NOT-RED M5: the fetch still reads patchDeclared=$M5_DECL tiled=$M5_TILED -- the patch section proves nothing"; mfail=1
+  fi
+else
+  echo "  FAIL M5 capture"; mfail=1
+fi
+restore_sources
+
 echo "== verdict =="
+if [ "$mred" != "5" ]; then
+  echo "  FAIL only $mred of the 5 mutations went red -- the suite does not count what it claims"
+  mfail=1
+fi
 if [ "$fail" = 0 ] && [ "$mfail" = 0 ]; then
-  echo "PASS: the forward material chain held, all four mutations went red, every source came back byte-identical."
+  echo "PASS: the forward material chain held, all $mred of 5 mutations went red, every source came back byte-identical."
   exit 0
 fi
 echo "FAIL: forward-fail=$fail mutation-not-red=$mfail"

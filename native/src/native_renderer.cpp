@@ -2421,6 +2421,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(triangle.material));
       const float shade = 0.78f + static_cast<float>(hash % 23) / 100.0f;
       a.r = a.g = a.b = b.r = b.g = b.b = c.r = c.g = c.b = shade;
+      // T59 diagnostic: the same shade, replaced by magenta on request so the untiled
+      // set is countable in pixels. The alpha stays 0 -- that is what makes the pixel
+      // shader take the flat branch at all.
+      if (worldRefusedMask_) {
+        a.r = b.r = c.r = 1.0f;
+        a.g = b.g = c.g = 0.0f;
+        a.b = b.b = c.b = 1.0f;
+      }
       // The lightmap is per *face*, not per *texture*: a face whose material
       // was refused a tile still has its own RGBExp32 slice, and dropping its
       // light uv here would draw it flat. On snakewater the atlas covered 64 of

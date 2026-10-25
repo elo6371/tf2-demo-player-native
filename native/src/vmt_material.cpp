@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <sstream>
 #include <utility>
@@ -84,18 +85,118 @@ bool enabled(const std::string& value) {
   if (end && *end == '\0') return number != 0.0;
   return true;
 }
-}
+// T59 ------------------------------------------------------------------------
+// Patch VMTs. A TF2 map ships one wrapper per lightmapped face that needs a
+// local env cubemap. The wrapper's header is the word patch, it names an include
+// material and a replace block whose keys override the include's. The parser
+// used to read the wrapper's own root fields only, so $basetexture was empty and
+// every such material was refused and drawn as a flat shade.
+//
+// The include is read through the caller's store rather than a path here: a VMT
+// can live loose, in a VPK, or inside the map's own BSP pakfile, and only the
+// caller knows which -- the same lookup policy the product already uses for the
+// .vtf files it fetches.
+struct VmtNode {
+  std::string shader;
+  std::unordered_map<std::string, VmtValue> root;
+};
 
-bool VmtParser::parse(const std::string& text, VmtMaterial& material) {
-  material = {};
+bool loadNode(const std::string& text, VmtNode& node, std::string& error) {
   const auto tokens = tokenize(text);
   if (tokens.size() < 2 || tokens[0].kind != Token::Kind::Text || tokens[1].kind != Token::Kind::Open) {
-    material.error = "VMT shader header is missing"; return false;
+    error = "VMT shader header is missing"; return false;
   }
-  material.shader = tokens[0].value;
-  std::unordered_map<std::string, VmtValue> root;
+  node.shader = tokens[0].value;
+  node.root.clear();
   std::size_t cursor = 2;
-  if (!readObject(tokens, cursor, root, material.error)) return false;
+  return readObject(tokens, cursor, node.root, error);
+}
+
+// Depth 4 is a refusal, not a tuning knob: a chain deeper than that is a cycle or
+// a mistake, and following it forever would hang the loader.
+constexpr int kMaxPatchDepth = 4;
+
+bool resolveNode(VmtNode& node, const VmtParser::IncludeReader& read, int depth,
+    VmtPatchReading& patch, std::string& error) {
+  if (lower(node.shader) != "patch") return true;
+  patch.declared = true;
+  if (depth >= kMaxPatchDepth) { error = "patch include chain is deeper than 4"; return false; }
+  const std::string include = scalar(node.root, "include");
+  if (patch.includePath.empty()) patch.includePath = include;
+  if (include.empty()) { error = "patch declares no include"; return false; }
+  const std::string resource = VmtParser::resourcePath(include, ".vmt");
+  if (patch.includeResource.empty()) patch.includeResource = resource;
+  if (!read) { error = "patch include cannot be read: no store was given"; return false; }
+  const auto bytes = read(resource);
+  if (bytes.empty()) { error = "patch include is missing: " + resource; return false; }
+  VmtNode included;
+  std::string includeError;
+  if (!loadNode(std::string(bytes.begin(), bytes.end()), included, includeError)) {
+    error = "patch include did not parse: " + resource + ": " + includeError; return false;
+  }
+  if (!resolveNode(included, read, depth + 1, patch, includeError)) { error = includeError; return false; }
+  const auto replace = node.root.find("replace");
+  if (replace != node.root.end() && replace->second.object) {
+    for (const auto& entry : replace->second.fields) {
+      if (entry.second.object) { patch.objectBlocks.push_back(entry.first); continue; }
+      included.root[entry.first] = entry.second;
+      patch.replaced.push_back(entry.first);
+    }
+  }
+  // The resolved node carries the INCLUDE's shader: the pass draws a
+  // LightMappedGeneric, and patch is the wrapper's bookkeeping, not a shader this
+  // renderer could fall back on.
+  node = std::move(included);
+  patch.resolved = true;
+  return true;
+}
+
+// True only for a $basetexturetransform that leaves the uv alone. A word this
+// parser does not understand is NOT identity: an unknown key is a uv change it
+// cannot reproduce, and guessing identity is how a rotated texture gets drawn
+// axis-aligned without anyone noticing.
+bool textureTransformIsIdentity(const std::string& text) {
+  double center[2] = {0.5, 0.5}, scale[2] = {1.0, 1.0}, translate[2] = {0.0, 0.0}, rotate = 0.0;
+  std::size_t i = 0;
+  const auto word = [&](std::string& out) {
+    while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i]))) ++i;
+    out.clear();
+    while (i < text.size() && !std::isspace(static_cast<unsigned char>(text[i]))) out.push_back(text[i++]);
+    return !out.empty();
+  };
+  const auto number = [&](double& out) {
+    std::string token;
+    if (!word(token)) return false;
+    char* end = nullptr;
+    out = std::strtod(token.c_str(), &end);
+    return end && *end == 0;
+  };
+  std::string key;
+  while (word(key)) {
+    const std::string name = lower(key);
+    if (name == "center") {
+      if (!number(center[0]) || !number(center[1])) return false;
+    } else if (name == "scale") {
+      if (!number(scale[0]) || !number(scale[1])) return false;
+    } else if (name == "rotate") {
+      if (!number(rotate)) return false;
+    } else if (name == "translate") {
+      if (!number(translate[0]) || !number(translate[1])) return false;
+    } else {
+      return false;
+    }
+  }
+  const auto same = [](double a, double b) { return std::fabs(a - b) <= 1.0e-6; };
+  return same(center[0], 0.5) && same(center[1], 0.5) && same(scale[0], 1.0)
+    && same(scale[1], 1.0) && same(rotate, 0.0) && same(translate[0], 0.0)
+    && same(translate[1], 0.0);
+}
+
+// The field extraction stage, run on the EFFECTIVE root: for a patch wrapper that
+// is the include's root after the replace block was overlaid, so every typed field
+// below ($basetexture, $bumpmap, $blendmodulatetexture, ...) reads the merged
+// material and not the empty wrapper.
+bool extractFields(const std::unordered_map<std::string, VmtValue>& root, VmtMaterial& material) {
   for (const auto& [key, value] : root) if (!value.object) material.fields[key] = value.text;
   material.baseTexture = scalar(root, "$basetexture");
   // `EyeRefract` VMTs (the shared eyeball materials) name their base texture
@@ -169,8 +270,47 @@ bool VmtParser::parse(const std::string& text, VmtMaterial& material) {
   const auto shaderName = lower(material.shader);
   material.waterShader = shaderName == "water" || shaderName == "water_dx90"
     || !material.waterBottomMaterial.empty() || !material.underwaterOverlay.empty();
-  material.valid = true;
+  // T59: $basetexturetransform re-maps the uv before sampling (center, scale,
+  // rotate, translate). The world pass samples the face's own texinfo axes, so a
+  // material carrying a non-identity transform would be drawn rotated and
+  // stretched from where TF2 puts it -- pl_odyssey's glass windows ask for
+  // rotate 45 scale 4. Refusing by name is the honest answer until the matrix is
+  // applied in the vertex stage; the alternative is a wrong picture nobody can
+  // tell is wrong.
+  {
+    const std::string transform = scalar(root, "$basetexturetransform");
+    if (!transform.empty() && !textureTransformIsIdentity(transform)) {
+      material.baseTextureTransform = true;
+      material.baseTextureTransformText = transform;
+    }
+  }
   return true;
+}
+}
+
+bool VmtParser::parse(const std::string& text, VmtMaterial& material) {
+  return parse(text, material, IncludeReader{});
+}
+
+bool VmtParser::parse(const std::string& text, VmtMaterial& material,
+    const IncludeReader& readInclude) {
+  material = {};
+  VmtNode node;
+  if (!loadNode(text, node, material.error)) return false;
+  VmtPatchReading patch;
+  std::string patchError;
+  if (!resolveNode(node, readInclude, 0, patch, patchError)) {
+    // The wrapper stays in the reading even when it fails: a patch whose include
+    // is missing and a VMT with no shader are different refusals, and only the
+    // first one can be fixed by shipping the asset.
+    material.shader = "patch";
+    material.patch = patch;
+    material.error = patchError;
+    return false;
+  }
+  material.shader = node.shader;
+  material.patch = patch;
+  return extractFields(node.root, material);
 }
 
 std::string VmtParser::resourcePath(const std::string& materialName, const char* extension) {
