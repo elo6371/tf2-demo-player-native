@@ -122,11 +122,16 @@ TRACE_DIR=evidence/weapon-material
 # redden it, and above zero so a material that never bound cannot pass it.
 MIN_MATERIAL_PIXELS=5000
 # The world strip above the composite. The body's own silhouette was measured to
-# start at y=231 (x 659..707) on the final tree -- it is drawn edge-on, a
-# pre-existing framing limitation this task records rather than fixes -- so the
-# strip stops above it. A material change that reaches this strip is a leak into
-# the world pass, not the body.
-WORLD_STRIP="0,0,1264,220"
+# start at y=231 (x 659..707) on the 2026-10-18 tree, whose LOD0 was still capped at
+# 12000 vertices, so the strip was hard-coded to stop at y=220. T60 raised that
+# budget (lod0Truncated=0) and the body grew to y=217 (x 639..732) -- measured
+# 2026-10-25 on 047bcfb -- which put 36 body pixels inside the old y<220 region and
+# reddened this assertion with a difference that is the body's own material, not a
+# leak. The strip is therefore taken from the measured silhouette instead of a
+# hand-written height, and the reading is pinned so a further move is a red.
+# A material change that reaches ABOVE the body is still a leak into the world pass.
+PIN_BODY_TOP=217
+PIN_BODY_STRIP_MIN=100
 
 TRACE_DIR=${TRACE_DIR%$'\r'}
 TF=${TF%$'\r'}
@@ -469,8 +474,15 @@ echo "  ..   $MASK_LINE"
 assert_eq "the material difference is inside the body's own coverage" "$MASK_RC" "0"
 assert_contains "the mask report says so" "$MASK_LINE" "outside=0"
 assert_contains "and the difference is not a rounding artefact" "$MASK_LINE" "status=PASS"
-# The world strip above the composite. The mask test already covers this (the
-# strip is outside the body's coverage), but naming it keeps the reading in the
+# The body's silhouette top, read back from the mask the tool just printed, and the
+# strip above it. Both numbers come from this run; the pin makes a silent move loud.
+BODY_TOP=$(printf '%s' "$MASK_LINE" | tr -d '\r' | sed -n 's/.* bbox=(x=[0-9]*\.\.[0-9]*, y=\([0-9]*\)\.\..*/\1/p')
+assert_eq "the body's silhouette top is where the LOD fix put it" "$BODY_TOP" "$PIN_BODY_TOP"
+STRIP_TOP=$((BODY_TOP - 1))
+assert_ge "the world strip above the body is worth measuring" "$STRIP_TOP" "$PIN_BODY_STRIP_MIN"
+WORLD_STRIP="0,0,1264,$STRIP_TOP"
+# The world strip above the composite, now really above it: the mask test already
+# covers this (the strip is outside the body's coverage), but naming it keeps the
 # gate's own vocabulary rather than only in the tool's.
 STRIP_LINE=$("$PY" bmp-pixel-diff.py "$TRACE_DIR/override-on.bmp" "$TRACE_DIR/override-flat.bmp" \
   --region "$WORLD_STRIP" --max-diff-percent 0)
