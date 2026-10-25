@@ -178,9 +178,12 @@ WorkspaceDocument makePopulatedDocument(const fs::path& demoPath, const std::str
   doc.camera.cameraReason.clear();
   for (int i = 0; i < 8; ++i) {
     WorkspaceCameraSlot slot;
-    slot.slot = i;
+    // T50 slots are 1-based everywhere the user sees them, so the probe
+    // builds them the same way the product does instead of a 0-based run
+    // that would only prove the codec agrees with itself.
+    slot.slot = i + 1;
     slot.saved = (i % 2) == 0;
-    slot.name = "Slot " + std::to_string(i);
+    slot.name = "Slot " + std::to_string(i + 1);
     slot.pose.valid = slot.saved;
     slot.pose.focusX = 10.0f + static_cast<float>(i);
     slot.pose.focusY = 20.0f + static_cast<float>(i) * 0.5f;

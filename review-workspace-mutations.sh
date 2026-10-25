@@ -20,7 +20,7 @@
 #   bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t71 \
 #     bash -c 'cd /d/TF2_Native_Worktrees/t71-workspace && bash review-workspace-mutations.sh'
 #
-# Usage: bash review-workspace-mutations.sh [case ...]   (default: m1 m2 m3 m4)
+# Usage: bash review-workspace-mutations.sh [case ...]   (default: m1 m2 m3 m4 m5 m6)
 # Exit:  0 = every case went red for its named reason, restored byte-for-byte,
 #            and the baseline came back green.
 set -uo pipefail
@@ -77,7 +77,9 @@ backup_file() { # backup_file <file> <tag>
 }
 
 rebuild() {
-  bash build-target.sh review_workspace_probe
+  # m5/m6 mutate native/src/review_session.cpp, which only the product links, so
+  # a probe-only rebuild would leave the mutant out of the gate's section 8.
+  bash build-target.sh review_workspace_probe tf2_demo_native
 }
 
 count_fails() { # count_fails <log>
@@ -267,13 +269,39 @@ case_m4() {
     "expect bookmarks_persist_eventkeys: ok=0"
 }
 
-CASES="${*:-m1 m2 m3 m4}"
+# m5: the file is written without ever reading the camera back. The store is
+# fine and the probe's roundtrip still passes -- only the PRODUCT's file loses
+# the section, which is why this defect can only be seen from section 8.
+case_m5() {
+  run_case m5 native/src/review_session.cpp "  store_.markDirty();
+  captureEnvironment();
+}" "  store_.markDirty();
+  // mutant: the camera section is never captured
+}"     "// mutant: the camera section is never captured"     "the camera section is empty"     "slot 2 saved="
+}
+
+# m6: a jump that reports applied without moving the transport. The bookmark
+# store still says applied and the row is still listed, so only the landed tick
+# disagrees -- the exact shape of a silent lie the file cannot reveal.
+case_m6() {
+  run_case m6 native/src/review_session.cpp "bool ReviewSession::seek(std::int32_t tick) {
+  return ports_.seek(tick);
+}" "bool ReviewSession::seek(std::int32_t tick) {
+  // mutant: the seek is reported, never performed
+  (void)tick;
+  return true;
+}"     "// mutant: the seek is reported, never performed"     "after the pause the transport reads tick=" "the jump reports tick="
+}
+
+CASES="${*:-m1 m2 m3 m4 m5 m6}"
 for c in $CASES; do
   case "$c" in
     m1) case_m1 ;;
     m2) case_m2 ;;
     m3) case_m3 ;;
     m4) case_m4 ;;
+    m5) case_m5 ;;
+    m6) case_m6 ;;
     *) echo "unknown case: $c"; fail_all=1 ;;
   esac
 done
@@ -283,7 +311,7 @@ if [ "$fail_all" = "0" ]; then
   if [ "${MUTATION_VERIFY:-0}" = "1" ]; then
     echo "PASS review-workspace-mutations (verify): every anchor applies and its marker appears; tree untouched."
   else
-    echo "PASS review-workspace-mutations: m1-m4 each went red for its named reason; every file restored byte-identically; baseline green again."
+    echo "PASS review-workspace-mutations: $CASES each went red for its named reason; every file restored byte-identically; baseline green again."
   fi
 else
   echo "FAIL review-workspace-mutations: see the FAIL lines above."

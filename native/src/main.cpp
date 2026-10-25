@@ -58,6 +58,9 @@
 #include "ini_section.h"
 #include "logstf_panel.h"
 #include "logstf_viewer.h"
+// T71/T72: the review workspace + bookmark session, so the product (not only a
+// probe) can open a workspace, remember the camera and list bookmarks.
+#include "review_session.h"
 
 // T37: the installer lifecycle modes. Declared at namespace scope rather than
 // inside wWinMain so the enumeration and the argument scan are one readable
@@ -607,7 +610,7 @@ tf2::native::PlaybackControl g_playbackControl;
 // Applies one request and mirrors the resulting view into the legacy state.
 // Every keyboard, native-UI and --camera-script transport command goes through
 // here, so "requested" and "landed" cannot diverge without a trace line.
-void applyPlaybackRequest(const tf2::native::PlaybackRequest& request) {
+tf2::native::PlaybackResult applyPlaybackRequest(const tf2::native::PlaybackRequest& request) {
   const tf2::native::PlaybackResult result = g_playbackControl.request(request);
   traceFmt("playback: request id=%d kind=%s source=%s requestedTick=%d requestedSeconds=%.6f"
     " appliedTick=%d appliedSeconds=%.6f deltaTicks=%d deltaSeconds=%.6f"
@@ -624,6 +627,7 @@ void applyPlaybackRequest(const tf2::native::PlaybackRequest& request) {
   g_playback.paused = view.paused;
   g_playback.reverse = view.reverse;
   g_playback.speed = view.speed;
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -730,6 +734,160 @@ bool jumpToCameraBookmark(std::size_t slot, std::string& reason) {
   g_cameraBookmarks.noteJump();
   reason = "ok";
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// T71/T72: the ports the review session borrows from the running player.
+//
+// Every method here is a read of state the player already owns, or a REQUEST
+// through the same path the keyboard and --camera-script take. The session never
+// writes g_playback itself: a restored workspace that edited the transport
+// directly could report a tick the renderer never drew.
+// ---------------------------------------------------------------------------
+class ProductReviewPorts final : public tf2::native::ReviewSessionPorts {
+ public:
+  std::int32_t tick() const override { return g_playback.tick; }
+  double speed() const override { return g_playback.speed; }
+  bool paused() const override { return g_playback.paused; }
+  bool reverse() const override { return g_playback.reverse; }
+  bool seek(std::int32_t tick) override {
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::JumpTicks;
+    request.tick = tick;
+    request.source = "workspace";
+    return requestAccepted(request);
+  }
+  bool setSpeed(double speed) override {
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::SetSpeed;
+    request.speed = speed;
+    request.source = "workspace";
+    return requestAccepted(request);
+  }
+  void setPaused(bool paused) override {
+    tf2::native::PlaybackRequest request;
+    request.kind = tf2::native::PlaybackRequestKind::SetPaused;
+    request.paused = paused;
+    request.source = "workspace";
+    applyPlaybackRequest(request);
+    g_pauseKey.paused = paused;
+    g_cameraDirector.setPaused(paused);
+  }
+  tf2::native::WorkspaceCameraRef cameraNow() const override {
+    tf2::native::WorkspaceCameraRef camera;
+    if (!g_renderer) { camera.cameraReason = "no-renderer"; return camera; }
+    const auto reading = g_renderer->orbitPose();
+    if (!reading.valid) { camera.cameraReason = "no-pose"; return camera; }
+    camera.pose.focusX = reading.focusX;
+    camera.pose.focusY = reading.focusY;
+    camera.pose.focusZ = reading.focusZ;
+    camera.pose.yaw = reading.yaw;
+    camera.pose.pitch = reading.pitch;
+    camera.pose.distance = reading.distance;
+    camera.pose.valid = true;
+    // The fov the last frame was drawn through, read from the same place the
+    // orbit fields come from: a bookmark is the whole camera, not just its pose.
+    camera.fov = reading.fovDegrees;
+    camera.mode = cameraModeToken(g_cameraMode.mode());
+    camera.cameraTick = g_playback.tick;
+    camera.cameraReason = "read-back-from-renderer";
+    camera.valid = true;
+    return camera;
+  }
+  bool applyCamera(const tf2::native::WorkspaceCameraRef& camera) override {
+    if (!camera.pose.valid || !g_renderer) return false;
+    if (!g_renderer->setOrbitPose(camera.pose.focusX, camera.pose.focusY,
+        camera.pose.focusZ, camera.pose.yaw, camera.pose.pitch,
+        camera.pose.distance)) {
+      return false;
+    }
+    g_renderer->setViewModelFov(camera.fov);
+    g_renderer->clearObserverDemoView();
+    syncRendererPoseToDirector(tf2::native::CameraMoveSource::Bookmark);
+    if (camera.mode == "first-person") g_cameraMode.setMode(tf2::native::CameraMode::FirstPerson);
+    else if (camera.mode == "third-person") g_cameraMode.setMode(tf2::native::CameraMode::ThirdPerson);
+    else if (camera.mode == "free-look") g_cameraMode.setMode(tf2::native::CameraMode::FreeLook);
+    g_lastAppliedCameraMode = g_cameraMode.mode();
+    return true;
+  }
+
+ private:
+  // Applied and SameTick are both "the transport now stands where the file
+  // asked"; a clamp or a refusal is a different answer and must not be reported
+  // as a restored workspace.
+  static bool requestAccepted(const tf2::native::PlaybackRequest& request) {
+    const tf2::native::PlaybackResult result = applyPlaybackRequest(request);
+    return result.status == tf2::native::PlaybackRequestStatus::Applied ||
+           result.status == tf2::native::PlaybackRequestStatus::SameTick;
+  }
+};
+
+// The one session for this process. A global because the scripted step executor
+// (runCameraScriptStep) and the window procedure both reach it, and because its
+// lifetime must outlive the loop -- finish() is what closes the file.
+std::unique_ptr<tf2::native::ReviewSession> g_reviewSession;
+
+// Creates the session and binds it to the demo that is open. The event lookup is
+// the decoded T68 table, so the bookmark-add-event step can only bookmark an
+// event that exists in the demo instead of a tick the caller hoped for.
+void beginReviewSession(const std::filesystem::path& workspacePath,
+    const std::filesystem::path& demoPath, const std::string& demoHash,
+    std::int32_t endTick, const std::vector<tf2::native::DemoGameEvent>& events) {
+  static ProductReviewPorts ports;
+  const auto lookup = [&events](std::int32_t tick,
+      std::vector<tf2::native::ReviewEventInput>& out) {
+    for (const tf2::native::DemoGameEvent& event : events) {
+      if (event.tick != tick) continue;
+      tf2::native::ReviewEventInput input;
+      input.name = event.name;
+      input.eventId = event.eventId;
+      input.tick = event.tick;
+      input.packetOrdinal = event.packetOrdinal;
+      input.messageBit = event.messageBit;
+      input.identityReason = "decoded-from-demo";
+      out.push_back(std::move(input));
+    }
+    return !out.empty();
+  };
+  const auto trace = [](const std::string& line) { traceFmt("review: %s", line.c_str()); };
+  // The T50 numbered slots: a workspace carries all of them, not only the camera
+  // the user is standing in. Unsaved slots stay in the list with saved=0 so a
+  // reopen cannot shift a slot number onto somebody else's bookmark.
+  const auto captureEnv = [](tf2::native::WorkspaceDocument& document) {
+    document.camera.slots.clear();
+    for (std::size_t slot = 1; slot <= tf2::native::kCameraBookmarkSlots; ++slot) {
+      tf2::native::WorkspaceCameraSlot record;
+      record.slot = static_cast<int>(slot);
+      if (g_cameraBookmarks.saved(slot)) {
+        const tf2::native::CameraBookmark& bookmark = g_cameraBookmarks.at(slot);
+        record.saved = true;
+        record.name = bookmark.name;
+        record.pose = bookmark.pose;
+        record.fov = bookmark.fov;
+        record.mode = bookmark.mode;
+        record.tick = bookmark.tick;
+      }
+      document.camera.slots.push_back(std::move(record));
+    }
+  };
+  const auto applyEnv = [](const tf2::native::WorkspaceDocument& document) {
+    for (const tf2::native::WorkspaceCameraSlot& record : document.camera.slots) {
+      if (!record.saved || record.slot < 1 ||
+          record.slot > static_cast<int>(tf2::native::kCameraBookmarkSlots)) {
+        continue;
+      }
+      const std::size_t slot = static_cast<std::size_t>(record.slot);
+      if (g_cameraBookmarks.save(slot, record.name, record.pose, record.mode, record.tick,
+                                 record.fov) &&
+          g_renderer) {
+        g_renderer->saveCameraPreset(slot - 1);
+      }
+    }
+  };
+  g_reviewSession =
+      std::make_unique<tf2::native::ReviewSession>(ports, trace, lookup, captureEnv, applyEnv);
+  g_reviewSession->setPath(workspacePath);
+  g_reviewSession->begin(demoPath, demoHash, endTick);
 }
 
 // One key edge, already classified by the window procedure. The action id drives
@@ -1305,6 +1463,120 @@ bool runCameraScriptStep() {
       static_cast<unsigned long long>(readings.rejected));
     return ok("cursor=" + std::to_string(view.cursorTick));
   }
+  if (step.command == "save-bookmark") {
+    // A T50 numbered slot, saved the way the key handler saves it, so the
+    // workspace carries more than the camera the user is standing in.
+    if (step.args.empty()) return fail("save-bookmark needs a slot");
+    char* slotEnd = nullptr;
+    const unsigned long long slotValue = std::strtoull(step.args[0].c_str(), &slotEnd, 10);
+    if (!slotEnd || *slotEnd != 0 || slotValue < 1) return fail("bad-slot");
+    std::string slotName;
+    for (std::size_t k = 1; k < step.args.size(); ++k) {
+      if (!slotName.empty()) slotName.push_back(32);
+      slotName += step.args[k];
+    }
+    if (!saveCameraBookmark(static_cast<std::size_t>(slotValue), slotName)) {
+      return fail("bookmark-refused");
+    }
+    return ok("slot=" + std::to_string(slotValue));
+  }
+  // T71/T72: the review workspace and its bookmarks, drivable from the same
+  // script the camera gates use. Nothing here has a shortcut into the stores: a
+  // step calls the session, the session calls the store, and the store writes
+  // the file, so "the product saved a workspace" is a file on disk after the run.
+  if (step.command == "workspace-report") {
+    if (!g_reviewSession) return fail("no-workspace");
+    g_reviewSession->traceState();
+    return ok("reported");
+  }
+  if (step.command == "workspace-apply") {
+    if (!g_reviewSession) return fail("no-workspace");
+    std::string detail;
+    return g_reviewSession->applyPlayback(detail) ? ok(detail) : fail(detail);
+  }
+  if (step.command == "workspace-save") {
+    if (!g_reviewSession) return fail("no-workspace");
+    // force writes even when nothing changed; the default is an autosave, the
+    // same call the process makes on the way out.
+    const bool force = !step.args.empty() && step.args.front() == "force";
+    std::string detail;
+    return g_reviewSession->save(force, detail) ? ok(detail) : fail(detail);
+  }
+  const auto bookmarkId = [&](std::size_t position, std::uint64_t& value) {
+    if (position >= step.args.size()) return false;
+    char* end = nullptr;
+    value = std::strtoull(step.args[position].c_str(), &end, 10);
+    return end && *end == '\0' && value > 0;
+  };
+  const auto restFrom = [&](std::size_t position) {
+    std::string joined;
+    for (std::size_t k = position; k < step.args.size(); ++k) {
+      if (!joined.empty()) joined.push_back(' ');
+      joined += step.args[k];
+    }
+    return joined;
+  };
+  if (step.command == "bookmark-add") {
+    if (!g_reviewSession) return fail("no-workspace");
+    if (step.args.empty()) return fail("bad-argument");
+    std::string detail;
+    const bool added = g_reviewSession->addManual(g_playback.tick, step.args.front(),
+      restFrom(1), detail);
+    return added ? ok(detail) : fail(detail);
+  }
+  if (step.command == "bookmark-add-event") {
+    if (!g_reviewSession) return fail("no-workspace");
+    double wanted = 0.0;
+    if (!number(0, wanted)) return fail("bad-argument");
+    const std::string title = step.args.size() > 1 ? step.args[1] : std::string("event");
+    std::string detail;
+    const bool added = g_reviewSession->addEvent(static_cast<std::int32_t>(wanted), title,
+      restFrom(2), detail);
+    return added ? ok(detail) : fail(detail);
+  }
+  if (step.command == "bookmark-list") {
+    if (!g_reviewSession) return fail("no-workspace");
+    tf2::native::ReviewSort sort = tf2::native::ReviewSort::Tick;
+    if (!step.args.empty()) {
+      const std::string& name = step.args.front();
+      if (name == "created") sort = tf2::native::ReviewSort::Created;
+      else if (name == "title") sort = tf2::native::ReviewSort::Title;
+      else if (name != "tick") return fail("bad-argument");
+    }
+    g_reviewSession->list(sort, nullptr, step.args.empty() ? "all" : step.args.front());
+    return ok("listed");
+  }
+  if (step.command == "bookmark-query") {
+    if (!g_reviewSession) return fail("no-workspace");
+    tf2::native::ReviewQuery query;
+    query.text = restFrom(0);
+    g_reviewSession->list(tf2::native::ReviewSort::Tick, &query, "query");
+    return ok("queried");
+  }
+  if (step.command == "bookmark-update") {
+    if (!g_reviewSession) return fail("no-workspace");
+    std::uint64_t id = 0;
+    if (!bookmarkId(0, id)) return fail("bad-argument");
+    std::string detail;
+    const bool updated = g_reviewSession->update(id,
+      step.args.size() > 1 ? step.args[1] : std::string(), restFrom(2), detail);
+    return updated ? ok(detail) : fail(detail);
+  }
+  if (step.command == "bookmark-remove") {
+    if (!g_reviewSession) return fail("no-workspace");
+    std::uint64_t id = 0;
+    if (!bookmarkId(0, id)) return fail("bad-argument");
+    std::string detail;
+    return g_reviewSession->erase(id, detail) ? ok(detail) : fail(detail);
+  }
+  if (step.command == "bookmark-jump") {
+    if (!g_reviewSession) return fail("no-workspace");
+    std::uint64_t id = 0;
+    if (!bookmarkId(0, id)) return fail("bad-argument");
+    std::string detail;
+    return g_reviewSession->jump(id, detail) ? ok(detail) : fail(detail);
+  }
+
   if (step.command == "quit") {
     traceFmt("camera: accept steps=%u failures=%u captures=%u",
       g_cameraScriptStepsRun, g_cameraScriptStepsFailed, g_cameraCaptures);
@@ -2704,6 +2976,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // every ordinary run, which is why the default product path never sees it.
   std::filesystem::path cameraScriptPath;
   bool cameraScriptRejected = false;
+  // T71/T72: the review workspace file for this run. Empty in every ordinary
+  // run, which is why the default product path never touches one.
+  std::filesystem::path workspacePath;
+  bool workspaceRejected = false;
   // T52: the outline overlay's command-line state. `--outline on|off` is the
   // toggle the one key press also drives; `--outline-depth xray|tested` is the
   // CONTROL the depth-awareness mutation needs, and it is a separate argument
@@ -3409,6 +3685,12 @@ bool outlineVertexExtent = false;
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
         commandDemo = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--workspace") == 0 && i + 1 < argumentCount) {
+        // T71/T72: the review workspace this run reads and writes. A path that
+        // cannot be opened is reported through the session trace, never guessed at.
+        workspacePath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--workspace") == 0) {
+        workspaceRejected = true;
       } else if (wcscmp(arguments[i], L"--model") == 0 && i + 1 < argumentCount) {
         commandModel = arguments[++i];
       } else if (wcscmp(arguments[i], L"--model-sequence") == 0 && i + 1 < argumentCount) {
@@ -3689,6 +3971,10 @@ bool outlineVertexExtent = false;
     OutputDebugStringW(L"TF2 Demo Player: --camera-script needs a path.\n");
     return 13;
   }
+  if (workspaceRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: --workspace needs a path.\n");
+    return 13;
+  }
   if (hudArgumentRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --hud-root/--hud-layout/--hud-scale; refusing to guess.\n");
     return 13;
@@ -3904,6 +4190,15 @@ bool outlineVertexExtent = false;
         }
       }
     }
+  }
+  // T71/T72: bind the workspace to the demo that was just decoded. Done before
+  // the loop so a workspace that failed to load is in the trace before any step
+  // runs, and because the demo's own event table is what makes an event bookmark
+  // verifiable rather than a tick the caller hoped for.
+  if (!workspacePath.empty()) {
+    const std::int32_t workspaceEndTick = demoHeader.valid ? demoHeader.ticks : -1;
+    beginReviewSession(workspacePath, commandDemo, demoSha256, workspaceEndTick,
+      demoNetworkSummary.gameEvents);
   }
   tf2::native::ModelRenderRequestStats modelRequestStats;
   std::vector<tf2::native::ModelRenderRequest> modelRenderRequests;
@@ -10894,6 +11189,15 @@ bool outlineVertexExtent = false;
       g_hud.settings().scalePercent, g_hud.settings().enabled ? 1 : 0,
       tf2::native::hudRefusalName(g_hud.lastRefusal()));
   }
+  // T71/T72: close the workspace on the way out. finish() captures where playback
+  // really is, autosaves and reports the close state, which is what makes
+  // "reopen the demo and the bookmark is still there" a property of an ordinary
+  // run rather than of the gate that saved it.
+  if (g_reviewSession) {
+    g_reviewSession->finish();
+    g_reviewSession.reset();
+  }
+
   g_renderer = nullptr;
   // A scripted run reports its own failures through this code; every other run
   // keeps the historical WM_QUIT code.

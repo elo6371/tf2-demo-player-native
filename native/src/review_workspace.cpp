@@ -318,9 +318,10 @@ bool parseCameraSection(const SectionValues& values, WorkspaceCameraState& camer
   if (slotCount > 8) { reason = "slot-count-range"; return false; }
   camera.slots.clear();
   for (std::uint32_t index = 0; index < slotCount; ++index) {
-    const std::string prefix = "slot." + std::to_string(index) + ".";
+    const std::string prefix = "slot." + std::to_string(index + 1) + ".";
     WorkspaceCameraSlot slot;
-    slot.slot = static_cast<int>(index);
+    slot.slot = static_cast<int>(index) + 1;
+    if (!values.takeI32(prefix + "slot", slot.slot, reason)) return false;
     if (!values.takeBool(prefix + "saved", slot.saved, reason)) return false;
     if (!values.takeText(prefix + "name", slot.name, reason)) return false;
     if (!values.takeF32(prefix + "focusX", slot.pose.focusX, reason)) return false;
@@ -635,8 +636,14 @@ std::string WorkspaceStore::serialize(const WorkspaceDocument& document) {
   keyText("targetReason", document.camera.targetReason);
   keyText("cameraReason", document.camera.cameraReason);
   key("slotCount", std::to_string(document.camera.slots.size()));
-  for (const auto& slot : document.camera.slots) {
-    const std::string prefix = "slot." + std::to_string(slot.slot) + ".";
+  // The key is the slot POSITION in the list, not the number the record
+  // carries: keying by the number would make a document whose slots are not a
+  // dense 1..N run unreadable, while the number is data the record holds
+  // anyway, so it travels as its own field.
+  for (std::size_t position = 0; position < document.camera.slots.size(); ++position) {
+    const WorkspaceCameraSlot& slot = document.camera.slots[position];
+    const std::string prefix = "slot." + std::to_string(position + 1) + ".";
+    key((prefix + "slot").c_str(), std::to_string(slot.slot));
     keyBool((prefix + "saved").c_str(), slot.saved);
     keyText((prefix + "name").c_str(), slot.name);
     keyF32((prefix + "focusX").c_str(), slot.pose.focusX);

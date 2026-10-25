@@ -394,6 +394,156 @@ expect_ok event_key_manual_none
 expect_ok players_trace_named
 expect_ok list_line_has_fields
 
+# --- 8. the product itself: create -> reopen -> jump, and two named refusals --
+# Sections 1..7 drive the stores through the probe. This one proves the PRODUCT
+# drives them: a real demo, real runs, and the file the product wrote. No reading
+# below comes from the probe's output -- each one is a trace line or a byte in
+# the workspace file, so "the probe can save a workspace" cannot stand in for
+# "the player can save a workspace".
+PRODUCT=native/build-nmake/tf2_demo_native.exe
+DEMO="${DEMO:-D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem}"
+TF_ROOT="${TF_ROOT:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf}"
+PROD_OUT="$OUT/product"
+mkdir -p "$PROD_OUT"
+
+ws_section() { # ws_section <file> <section> <key> -> the value, empty when absent
+  sed -n "/^\[$2\]/,/^\[/p" "$1" | sed -n "s/^$3=//p" | head -1
+}
+
+if [ ! -f "$PRODUCT" ]; then
+  bad "product missing: $PRODUCT (build it with: bash build-target.sh tf2_demo_native)"
+elif [ ! -f "$DEMO" ]; then
+  bad "demo missing: $DEMO"
+else
+  WS="$PROD_OUT/ws.ini"
+  rm -f "$WS"
+  printf 'save-bookmark 2 Gate Slot\nbookmark-add Smoke note from the product\nworkspace-save\nquit\n' > "$PROD_OUT/run1.script"
+  # pause BEFORE the jump: a playing transport advances a tick between two script
+  # steps (measured: bookmark tick 19 landed 19 on one run, bookmark 18 landed 19 on
+  # the next), so an unpaused run turns this reading into a coin flip.
+  printf 'pause\nbookmark-list tick\nbookmark-jump 1\nworkspace-report\nquit\n' > "$PROD_OUT/run2.script"
+  printf 'quit\n' > "$PROD_OUT/run3.script"
+
+  run_product() { # run_product <tag> <workspace> <script>
+    TF2_NATIVE_TRACE="$PROD_OUT/$1.trace" timeout 240 "$PRODUCT" --tf-root "$TF_ROOT" \
+      --audio-device 6 --audio-disabled --hidden-window --demo "$DEMO" \
+      --workspace "$2" --camera-script "$3" > "$PROD_OUT/$1.log" 2>&1
+  }
+
+  run_product run1 "$WS" "$PROD_OUT/run1.script"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then ok "product run 1 exited 0 (created the workspace)"; else bad "product run 1 rc=$rc (see $PROD_OUT/run1.log)"; fi
+  if grep -qF 'review: workspace: create status=created' "$PROD_OUT/run1.trace"; then
+    ok "run 1 created the workspace through the product's own store"
+  else
+    bad "run 1 never printed a create line"
+  fi
+  if [ -s "$WS" ]; then ok "the workspace file exists after run 1 ($(wc -c < "$WS" | tr -d ' ') bytes)"; else bad "no workspace file at $WS"; fi
+
+  demo_sha=$(sha256sum "$DEMO" | cut -d' ' -f1)
+  stored_sha=$(sed -n 's/^demoHash=//p' "$WS" | head -1)
+  if [ -n "$stored_sha" ] && [ "$stored_sha" = "$demo_sha" ]; then
+    ok "the file is bound to the demo's own sha256 (${demo_sha:0:12}...)"
+  else
+    bad "file demoHash=${stored_sha:-<missing>} but the demo hashes to ${demo_sha:0:12}..."
+  fi
+
+  cam_valid=$(ws_section "$WS" workspace.camera valid)
+  cam_reason=$(ws_section "$WS" workspace.camera cameraReason)
+  slot_count=$(ws_section "$WS" workspace.camera slotCount)
+  slot2_saved=$(ws_section "$WS" workspace.camera slot.2.saved)
+  slot2_name=$(ws_section "$WS" workspace.camera slot.2.name)
+  if [ "$cam_valid" = "1" ]; then
+    ok "the camera section is filled (valid=1 reason=${cam_reason:-<missing>})"
+  else
+    bad "the camera section is empty (valid=${cam_valid:-<missing>} reason=${cam_reason:-<missing>})"
+  fi
+  if [ "$slot_count" = "8" ]; then ok "the file carries all 8 T50 slots"; else bad "slotCount=${slot_count:-<missing>} (want 8)"; fi
+  if [ "$slot2_saved" = "1" ] && printf '%s' "$slot2_name" | grep -qE '^Gate(%20| )Slot$'; then
+    ok "slot 2 round-trips as saved with its name (${slot2_name})"
+  else
+    bad "slot 2 saved=${slot2_saved:-<missing>} name=${slot2_name:-<missing>}"
+  fi
+
+  bm_count=$(sed -n 's/^count=//p' "$WS" | head -1)
+  bm_tick=$(sed -n '/^\[review\.bookmark\.1\]/,/^\[/p' "$WS" | sed -n 's/^tick=//p' | head -1)
+  bm_title=$(sed -n '/^\[review\.bookmark\.1\]/,/^\[/p' "$WS" | sed -n 's/^title=//p' | head -1)
+  if [ "$bm_count" = "1" ] && [ "$bm_title" = "Smoke" ]; then
+    ok "the bookmark is in the file (count=1 title=$bm_title tick=${bm_tick:-<missing>})"
+  else
+    bad "bookmark record count=${bm_count:-<missing>} title=${bm_title:-<missing>}"
+  fi
+  if [ -n "$bm_tick" ] && [ "$bm_tick" -ge 0 ] 2>/dev/null; then ok "the bookmark carries a real demo tick"; else bad "bookmark tick=${bm_tick:-<missing>}"; fi
+
+  run_product run2 "$WS" "$PROD_OUT/run2.script"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then ok "product run 2 exited 0 (reopened the same file)"; else bad "product run 2 rc=$rc (see $PROD_OUT/run2.log)"; fi
+  open_line=$(grep -F 'review: workspace: open state=' "$PROD_OUT/run2.trace" | head -1)
+  open_state=$(field "$open_line" state)
+  open_loaded=$(field "$open_line" loaded)
+  open_bookmarks=$(field "$open_line" bookmarks)
+  if [ "$open_state" = "opened" ] && [ "$open_loaded" = "1" ] && [ "$open_bookmarks" = "1" ]; then
+    ok "the second run opens the file it wrote (state=opened loaded=1 bookmarks=1)"
+  else
+    bad "second run open state=${open_state:-<missing>} loaded=${open_loaded:-<missing>} bookmarks=${open_bookmarks:-<missing>} (reason=$(field "$open_line" reason))"
+  fi
+  jump_line=$(grep -F 'review: bookmark: jump status=' "$PROD_OUT/run2.trace" | head -1)
+  jump_status=$(field "$jump_line" status)
+  if [ "$jump_status" = "applied" ]; then ok "a stored bookmark jumps: status=applied"; else bad "bookmark jump status=${jump_status:-<missing>} (reason=$(field "$jump_line" reason))"; fi
+  jump_tick=$(field "$jump_line" tick)
+  landed=$(grep -F 'review: workspace: state ' "$PROD_OUT/run2.trace" | tail -1 | sed -n 's/.*[[:space:]]tick=\([0-9-]*\).*/\1/p')
+  if [ -n "$jump_tick" ] && [ "$jump_tick" = "$bm_tick" ]; then
+    ok "the jump reports landing on the bookmark's own tick ($jump_tick)"
+  else
+    bad "the jump reports tick=${jump_tick:-<missing>} but the bookmark says ${bm_tick:-<missing>}"
+  fi
+  if [ -n "$landed" ] && [ "$landed" = "$bm_tick" ]; then
+    ok "the paused transport still reads the bookmark's tick ($landed) after the jump"
+  else
+    bad "after the pause the transport reads tick=${landed:-<missing>} while the bookmark says ${bm_tick:-<missing>}"
+  fi
+  exit_line=$(grep -F 'review: workspace: exit ' "$PROD_OUT/run2.trace" | tail -1)
+  if [ "$(field "$exit_line" autosave)" = "saved" ] && [ "$(field "$exit_line" close)" = "clean" ]; then
+    ok "the run leaves the file saved and the session closed cleanly"
+  else
+    bad "exit line: $(printf '%s' "$exit_line" | sed 's/^ *//')"
+  fi
+
+  # Negative control 1: a file whose demoHash is not this demo must be refused by
+  # name and must not be rewritten. A gate that only proves the happy path would
+  # pass on a product that ignored the hash entirely.
+  cp "$WS" "$PROD_OUT/ws-badhash.ini"
+  good_sha=$(sed -n 's/^demoHash=//p' "$PROD_OUT/ws-badhash.ini" | head -1)
+  fake_sha=$(printf 'a%.0s' $(seq 1 64))
+  sed -i "s/^demoHash=$good_sha\$/demoHash=$fake_sha/" "$PROD_OUT/ws-badhash.ini"
+  seeded_sha=$(sed -n 's/^demoHash=//p' "$PROD_OUT/ws-badhash.ini" | head -1)
+  before_bytes=$(sha256sum "$PROD_OUT/ws-badhash.ini" | cut -d' ' -f1)
+  run_product run3 "$PROD_OUT/ws-badhash.ini" "$PROD_OUT/run3.script"
+  mismatch_line=$(grep -F 'review: workspace: open state=' "$PROD_OUT/run3.trace" | head -1)
+  if [ "$(field "$mismatch_line" state)" = "hash_mismatch" ] && [ "$(field "$mismatch_line" loaded)" = "0" ]; then
+    ok "a workspace from another demo is refused by name (state=hash_mismatch)"
+  else
+    bad "wrong-demo open state=$(field "$mismatch_line" state) (want hash_mismatch)"
+  fi
+  after_bytes=$(sha256sum "$PROD_OUT/ws-badhash.ini" | cut -d' ' -f1)
+  if [ "$before_bytes" = "$after_bytes" ]; then
+    ok "the refused file is not rewritten"
+  else
+    bad "the refused file was rewritten by a run that could not load it"
+  fi
+  if [ "$seeded_sha" = "$fake_sha" ]; then ok "the seeded hash really was the wrong one (the control is not a no-op)"; else bad "the seeded hash edit did not take"; fi
+
+  # Negative control 2: a file that is not a workspace must be named corrupt.
+  printf 'this is not a workspace\n' > "$PROD_OUT/ws-corrupt.ini"
+  run_product run4 "$PROD_OUT/ws-corrupt.ini" "$PROD_OUT/run3.script"
+  corrupt_line=$(grep -F 'review: workspace: open state=' "$PROD_OUT/run4.trace" | head -1)
+  if [ "$(field "$corrupt_line" state)" = "corrupt" ] && [ "$(field "$corrupt_line" loaded)" = "0" ]; then
+    ok "a corrupt workspace is refused by name (state=corrupt)"
+  else
+    bad "corrupt open state=$(field "$corrupt_line" state) (want corrupt)"
+  fi
+fi
+
 # --- summary ----------------------------------------------------------------
 echo "assertions_ok=$ok_count assertions_bad=$bad_count"
 if [ "$fail" -eq 0 ]; then

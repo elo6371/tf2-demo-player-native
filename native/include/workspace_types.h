@@ -60,7 +60,11 @@ struct WorkspaceBookmarkRecord {
 // keeps the defaults the T50 store reports, so a save/load round trip is
 // byte-stable.
 struct WorkspaceCameraSlot {
-  int slot = 0;
+  // 1-based, matching the T50 store and the settings keys (bookmark1..8).
+  // The file keys a slot by its POSITION in the list and stores this number as
+  // a field, so a document is readable even if the numbers are not a dense
+  // 1..N run.
+  int slot = 1;
   bool saved = false;
   std::string name;
   CameraPose pose{};

@@ -143,6 +143,14 @@ add_executable(tf2_demo_native WIN32
   # hidesModel() before it submits an instance, so a gate that ran a second copy
   # would only prove that the copy agrees with itself.
   src/spectate_target.cpp
+  # T71/T72: the review workspace store and the bookmark logic. In the PRODUCT
+  # target, not only in review_workspace_probe: the session in main.cpp calls them,
+  # so a workspace file this build writes has to be the file the probe already
+  # verified. A probe-only copy would leave the product's own save path unverified,
+  # which is the gap T71 was opened to close.
+  src/review_workspace.cpp
+  src/review_bookmarks.cpp
+  src/review_session.cpp
 )
 
 # T37: the package version, stated once. It is a cache variable so a release can
