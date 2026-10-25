@@ -1,10 +1,10 @@
-HOLE-POINT point=699,515 status=OK drawn=- skyFace=12721 idFace=12721 idMatch=1 skyDepth=0.9988 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=701,525 status=OK drawn=- skyFace=12721 idFace=12721 idMatch=1 skyDepth=0.9988 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=702,538 status=OK drawn=- skyFace=12721 idFace=12721 idMatch=1 skyDepth=0.9988 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=489,481 status=OK drawn=- skyFace=10517 idFace=10517 idMatch=1 skyDepth=0.9992 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=488,501 status=OK drawn=- skyFace=10517 idFace=10517 idMatch=1 skyDepth=0.9992 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=486,512 status=OK drawn=- skyFace=10483 idFace=10483 idMatch=1 skyDepth=0.9994 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=577,501 status=OK drawn=- skyFace=10666 idFace=10666 idMatch=1 skyDepth=0.9991 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=576,520 status=OK drawn=- skyFace=10392 idFace=10392 idMatch=1 skyDepth=0.9994 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
-HOLE-POINT point=583,544 status=OK drawn=- skyFace=10392 idFace=10392 idMatch=1 skyDepth=0.9994 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=484,190 status=OK drawn=- skyFace=15012 idFace=15012 idMatch=1 skyDepth=0.9988 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=678,235 status=OK drawn=- skyFace=13318 idFace=13318 idMatch=1 skyDepth=0.9988 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=631,407 status=OK drawn=- skyFace=15001 idFace=15001 idMatch=1 skyDepth=0.9988 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=1232,22 status=OK drawn=- skyFace=13304 idFace=13304 idMatch=1 skyDepth=0.9974 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=1255,31 status=OK drawn=- skyFace=13304 idFace=13304 idMatch=1 skyDepth=0.9973 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=1249,77 status=OK drawn=- skyFace=13304 idFace=13304 idMatch=1 skyDepth=0.9973 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=760,53 status=OK drawn=- skyFace=13314 idFace=13314 idMatch=1 skyDepth=0.9986 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=763,90 status=OK drawn=- skyFace=13313 idFace=13313 idMatch=1 skyDepth=0.9987 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
+HOLE-POINT point=722,86 status=OK drawn=- skyFace=13319 idFace=13319 idMatch=1 skyDepth=0.9987 depthFrame=- depthMatch=1 frameDepth=1.0000 empty=1
 HOLE-POINT-SUMMARY points=9 failures=0 ids=1264x681 depth=-
