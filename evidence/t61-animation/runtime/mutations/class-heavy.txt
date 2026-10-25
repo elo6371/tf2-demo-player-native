@@ -1,0 +1,8 @@
+animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=7 idleLabel=PRIMARY_aimmatrix_idle movingSeq=8 movingLabel=PRIMARY_aimmatrix_run poseSeq=31 poseLabel=a_SECONDARY_reload_airwalk poseFrames=46 labels=ref|ragdoll|user_ref|ragdollspawn|SPELL_arm_pose_raw|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_aimmatrix_crouch_walk|PRIMARY_aimmatrix_deployed_crouch|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|a_SECONDARY_reload|SECONDARY_reload|SECONDARY_reload_loop|a_SECONDARY_reload_end|a_SECONDARY_crouch_reload|...
+boundDiag bindRadius=79.631165 boundDiag=160.262329 bones=77 composed=1 reason=-
+contcand rank=0 sequence=224 label=selectionMenu_Anim01 frames=72 sparseStep=13.342402 halfSwing=83.955917
+contcand rank=1 sequence=206 label=layer_taunt_highFiveSuccessFull frames=126 sparseStep=17.111847 halfSwing=114.910904
+contcand rank=2 sequence=205 label=taunt_highFiveStart frames=87 sparseStep=17.114334 halfSwing=92.224373
+contcand rank=3 sequence=208 label=layer_taunt_highFiveSuccess frames=115 sparseStep=17.270226 halfSwing=113.438332
+contcand rank=4 sequence=194 label=heavy_taunt_replay frames=86 sparseStep=18.675381 halfSwing=92.909676
+FAIL player-animation-test reason=no-continuity-sequence detail=no clip with a half-cycle swing above half the bound and a per-frame step below a quarter

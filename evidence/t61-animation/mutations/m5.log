@@ -1,0 +1,106 @@
+=== 0/6 binary freshness: the probe is newer than every input it compiles ===
+  OK   BINARY-FRESH=1 probe=2026-10-25 11:05:18
+
+=== 2/6 A: nine class models pick from a >=200-sequence table, bindBones==bones ===
+  FAIL A scout probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A sniper probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A soldier probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A demo probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A medic probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A heavy probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A pyro probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A spy probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A engineer probe exit = 2, expected 0
+       | FAIL player-animation-test reason=non-finite-pose detail=skin matrices contain a non-finite element
+  FAIL A class rows = 0, expected 9
+
+=== 3/6 B: four quarter-cycle poses differ pairwise and stay inside boundDiag ===
+  FAIL B scout boundDiag composed = <none>, expected 1
+  FAIL B scout boundDiag = <none>, expected > 1
+  FAIL B scout distinct pose checksums = 0, expected 4
+  FAIL B sniper boundDiag composed = <none>, expected 1
+  FAIL B sniper boundDiag = <none>, expected > 1
+  FAIL B sniper distinct pose checksums = 0, expected 4
+  FAIL B soldier boundDiag composed = <none>, expected 1
+  FAIL B soldier boundDiag = <none>, expected > 1
+  FAIL B soldier distinct pose checksums = 0, expected 4
+  FAIL B demo boundDiag composed = <none>, expected 1
+  FAIL B demo boundDiag = <none>, expected > 1
+  FAIL B demo distinct pose checksums = 0, expected 4
+  FAIL B medic boundDiag composed = <none>, expected 1
+  FAIL B medic boundDiag = <none>, expected > 1
+  FAIL B medic distinct pose checksums = 0, expected 4
+  FAIL B heavy boundDiag composed = <none>, expected 1
+  FAIL B heavy boundDiag = <none>, expected > 1
+  FAIL B heavy distinct pose checksums = 0, expected 4
+  FAIL B pyro boundDiag composed = <none>, expected 1
+  FAIL B pyro boundDiag = <none>, expected > 1
+  FAIL B pyro distinct pose checksums = 0, expected 4
+  FAIL B spy boundDiag composed = <none>, expected 1
+  FAIL B spy boundDiag = <none>, expected > 1
+  FAIL B spy distinct pose checksums = 0, expected 4
+  FAIL B engineer boundDiag composed = <none>, expected 1
+  FAIL B engineer boundDiag = <none>, expected > 1
+  FAIL B engineer distinct pose checksums = 0, expected 4
+
+=== 4/6 C: sixty 1/60 s steps never move a matrix element by more than boundDiag/4 ===
+  FAIL C scout animcont usable = <none>, expected 1
+  FAIL C scout maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C scout maxStepDelta = <none>, expected > 0
+  FAIL C sniper animcont usable = <none>, expected 1
+  FAIL C sniper maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C sniper maxStepDelta = <none>, expected > 0
+  FAIL C soldier animcont usable = <none>, expected 1
+  FAIL C soldier maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C soldier maxStepDelta = <none>, expected > 0
+  FAIL C demo animcont usable = <none>, expected 1
+  FAIL C demo maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C demo maxStepDelta = <none>, expected > 0
+  FAIL C medic animcont usable = <none>, expected 1
+  FAIL C medic maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C medic maxStepDelta = <none>, expected > 0
+  FAIL C heavy animcont usable = <none>, expected 1
+  FAIL C heavy maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C heavy maxStepDelta = <none>, expected > 0
+  FAIL C pyro animcont usable = <none>, expected 1
+  FAIL C pyro maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C pyro maxStepDelta = <none>, expected > 0
+  FAIL C spy animcont usable = <none>, expected 1
+  FAIL C spy maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C spy maxStepDelta = <none>, expected > 0
+  FAIL C engineer animcont usable = <none>, expected 1
+  FAIL C engineer maxStepDelta (quarter=0.000000000) = <none>, expected <= 0.000000000
+  FAIL C engineer maxStepDelta = <none>, expected > 0
+
+=== 5/6 D: movingRate > idleRate, one moving second == expected, idle second == 0 ===
+  
+  FAIL D movingRate = <none>, expected > 
+  FAIL D idleRate = <none>, expected 0.000000
+  FAIL D idleOneSecond = <none>, expected 0.000000000
+  FAIL D movingOneSecond = <none>, expected  +/- 1%
+
+=== 6/6 E: speed advances the cycle, no speed freezes it (synthetic and demo) ===
+  
+  FAIL E synthetic ticks = <none>, expected 61
+  FAIL E synthetic movingTicks = <none>, expected >= 1
+  FAIL E synthetic movingAdvanced (baseline excluded) = <none>, expected >= -1
+  FAIL E synthetic idleAdvanced = <none>, expected 0
+  FAIL E synthetic maxIdleDelta = <none>, expected 0.000000000
+  FAIL E synthetic maxMovingDelta = <none>, expected > 0
+  FAIL E synthetic tick 30 state = <none>, expected moving
+  FAIL E synthetic tick 30 advanced = <none>, expected 1
+  FAIL E synthetic tick 31 state = <none>, expected idle
+  FAIL E synthetic tick 31 advanced = <none>, expected 0
+  demo window=60000,62000 rc=2 (log evidence/t61-animation/runtime/mutations/demo-ticks.txt)
+  FAIL E demo probe exit = 2, expected 0
+  
+
+FAIL player-animation-check: see the FAIL lines above.

@@ -1,0 +1,8 @@
+animtable model=models/player/medic.mdl animSource=models/player/medic_animations.mdl separate=1 bones=92 bindBones=92 validBindBones=92 sequences=213 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=16 poseLabel=ReloadAirwalk_PRIMARY poseFrames=46 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|ReloadAirwalk_PRIMARY|a_flinch01|layer_placeSapper_ArmL|PRIMARY_placeSapper|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|SECONDARY_aimmatrix_crouch_walk|...
+boundDiag bindRadius=78.772736 boundDiag=158.545471 bones=92 composed=1 reason=-
+contcand rank=0 sequence=79 label=swim_LOSER frames=31 sparseStep=11.527103 halfSwing=97.868271
+contcand rank=1 sequence=211 label=layer_taunt_xray frames=185 sparseStep=15.743229 halfSwing=95.106812
+contcand rank=2 sequence=207 label=layer_taunt_headbutt_start frames=258 sparseStep=17.946381 halfSwing=117.117279
+contcand rank=3 sequence=118 label=layer_taunt06 frames=121 sparseStep=18.841818 halfSwing=81.821365
+contcand rank=4 sequence=154 label=layer_gesture_secondary_cheer_armR frames=41 sparseStep=19.636757 halfSwing=98.620438
+FAIL player-animation-test reason=no-continuity-sequence detail=no clip with a half-cycle swing above half the bound and a per-frame step below a quarter

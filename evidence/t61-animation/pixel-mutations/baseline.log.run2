@@ -1,0 +1,35 @@
+=== F1: the binary under test is newer than the sources it compiles ===
+  OK   binary is newer than every source that feeds the pixel path
+
+=== F2/F3/F4: capture the coverage mask, the animated frame and the off frame ===
+  coverage rc=0 view=entity-coverage frameTick=64161 sceneTick=74481
+  animated rc=0 view=textured frameTick=64161 sceneTick=74481
+  off     rc=0 view=textured frameTick=64161 sceneTick=74481
+  repeat  rc=0 view=textured frameTick=64161 sceneTick=74481
+  OK   the repeat capture landed the same playback and scene tick (64161/74481)
+  OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
+  OK   coverage frame really is the entity-coverage view
+  OK   animated frame is the product view
+  OK   off frame is the product view
+  OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
+  OK   both runs resolved the same scene tick 74481
+  OK   the animated capture published an animsum line (the drive ran)
+  OK   coverage.bmp exists (2582406 bytes)
+  OK   animated.bmp exists (2582406 bytes)
+  OK   off.bmp exists (2582406 bytes)
+
+=== F3/F4: the pixel assertions themselves ===
+  MASK pixels=6876 of 860784 (0.80%) sentinel=(255,0,255)
+  MASK non-sentinel top=[((89, 158, 97), 691228), ((14, 18, 22), 162680)]
+  OK   mask size 6876 in [2000, 215196]
+  BODY over mask: distinct=1660 mean_lum=43.9 pure_black=0.148 top=[((0, 0, 0), 579), ((11, 13, 18), 87), ((55, 35, 25), 77)]
+  OK   body distinct colours 1660 >= 200 (not a flat fill)
+  OK   body mean luminance 43.9 >= 12.0
+  OK   body pure-black share 0.148 <= 0.35
+  animation-off vs animated over mask: differ=5665 (82.39%) differ_by_>=24=3580 (52.07%)
+  OK   animation-off moved 82.39% >= 5.0% of body pixels
+  PIXEL-CHECK=PASS
+  OK   t61-pixels.py printed PIXEL-CHECK=PASS
+  OK   no FAIL lines from the pixel tool
+
+PASS player-animation-pixels: the entity pass's measured mask is a shaded body (distinct colours, luminance, black share) and the animation drive moves a measured share of those pixels between the on and off frames of the same scene tick.

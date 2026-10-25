@@ -413,6 +413,32 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // shade by. The direction a texel of the box looks up is the direction from
   // the camera to it, which is why the box's vertices are built around the
   // origin and the pass drops the view matrix's translation.
+  // T61 diagnostic: the two PS-side terms that can zero the albedo on the
+  // entity pass, read together. R = the blend weight whose TEXCOORD4 the
+  // entity vertex shader never writes (a constant >= 1 makes saturate() 1,
+  // so the single-layer lerp reads the unbound t6 and yields 0); B = the
+  // detail bit in feature.x (TEXCOORD6, also unwritten). This arm sits above
+  // the uv view because that view is open ended (x > 7.5).
+  // T61 diagnostic: the ENTITY COVERAGE mask. The entity pass returns an
+  // exact sentinel and every other pass returns something else, so 'this
+  // pixel is an entity pixel' is a measured mask rather than a hand-drawn
+  // box. The product path cannot produce it: the world view for this mode
+  // is the flat arm (0.35,0.62,0.38), and this arm is the only one that
+  // returns a saturated magenta.
+  if (envFeatures.x > 9.5) {
+    return float4(1.0, 0.0, 1.0, 1.0);
+  }
+  if (envFeatures.x > 8.5) {
+    uint entityDetail = ((uint)feature.x) & 4u;
+    return float4(saturate(blend), saturate(blendModulate),
+      entityDetail != 0u ? 1.0 : 0.0, 1.0);
+  }
+  // T61 diagnostic: the texture coordinate the rasterizer interpolated, as a
+  // colour. A body that samples black can then be told apart from a body whose
+  // uvs are the same value everywhere, which is the other way this fails.
+  if (envFeatures.x > 7.5) {
+    return float4(frac(uv), 0.0, 1.0);
+  }
   if (envFeatures.x > 2.5 && envFeatures.x < 3.5) {
     return float4(envCube.Sample(sampler0, safeNormalize(worldPosition)).rgb, 1.0);
   }
@@ -433,6 +459,11 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     return float4(0.35, 0.62, 0.38, 1.0);
   }
   float3 sampled = texture0.Sample(sampler0, uv).rgb;
+  // T61 diagnostic: the raw t0 sample for this pixel's uv, before the blend
+  // layer, the lightmap and the lighting. This is the value the GPU read.
+  if (envFeatures.x > 0.5 && envFeatures.x < 1.5) {
+    return float4(sampled, 1.0);
+  }
   // T12: WorldVertexTransition. Source's LightmappedGeneric pixel shader picks
   // between `$basetexture` and `$basetexture2` with the vertex alpha, and
   // reshapes that weight with `smoothstep(g - r, g + r, w)` when the material
@@ -767,6 +798,26 @@ struct Output {
   float3 normal : NORMAL0;
   float3 worldPosition : TEXCOORD2;
   float2 lightUv : TEXCOORD3;
+  // T61: the world pixel shader reads four more interpolants than this
+  // shader used to write: TEXCOORD4 (blend), 5 (blendModulate), 6
+  // (feature) and 7 (tangent). Leaving them undeclared is not a compile
+  // error and does not fall back to zero -- an input the vertex shader
+  // never writes is undefined, and on this driver it reads as 1.0. A
+  // blend weight of 1.0 means the vertex is fully the second layer, so
+  // sampled = lerp(sampled, t6_sample, 1.0) replaced every entity texel
+  // with the blend atlas -- which this pass never binds -- and the albedo
+  // lerp then produced exactly (0,0,0) over the whole player. Measured
+  // with --world-entity-blend: all 10845 body pixels read blend=1,
+  // blendModulate=1, detail bit 0.
+  //
+  // Declaring them and writing the neutral value is the fix: -1 is the
+  // single-layer sentinel the world shader also uses, so blend >= 0.0 is
+  // false and the blend atlas is never sampled, and a zero feature mask
+  // means no detail tile.
+  float blend : TEXCOORD4;
+  float blendModulate : TEXCOORD5;
+  float4 feature : TEXCOORD6;
+  float4 tangent : TEXCOORD7;
 };
 Output main(Input input) {
   Output output;
@@ -802,6 +853,12 @@ Output main(Input input) {
   output.normal = (lengthSquared > 1e-8 && lengthSquared < 1e8) ? rotated * rsqrt(lengthSquared) : float3(0.0, 0.0, 1.0);
   output.worldPosition = mapped;
   output.lightUv = float2(-1.0, -1.0);
+  // T61: the neutral values, written explicitly. See the Output struct
+  // for what leaving these unwritten did to the frame.
+  output.blend = -1.0;
+  output.blendModulate = 0.0;
+  output.feature = float4(0.0, 0.0, 0.0, 0.0);
+  output.tangent = float4(1.0, 0.0, 0.0, 0.0);
   return output;
 }
 )HLSL";
@@ -5683,7 +5740,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // 6.0 and is therefore a third member of it rather than a new sweep.
       debugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
         : worldDebugView_ == 3 ? 0.0f
-        : worldDebugView_ == 4 ? 6.0f : 4.0f;
+        : worldDebugView_ == 4 ? 6.0f
+        : worldDebugView_ == 5 ? 1.0f
+        : worldDebugView_ == 6 ? 8.0f
+        : worldDebugView_ == 7 ? 9.0f
+        // Coverage mode (8) deliberately falls through to 4.0 so the world
+        // never wears the sentinel; only the entity pass sits above it.
+        : 4.0f;
       debugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &debugConstants, 0, 0);
     }
@@ -5887,6 +5950,25 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     auto* boneView = entityBoneView_.Get();
     context_->VSSetShaderResources(4, 1, &boneView);
     auto* instanceBuffer = entityModelInstanceBuffer_.Get();
+    // T61 diagnostic: the same flat/albedo/face-id views the world pass has,
+    // applied to the entity pass. Without this the entity pixels can only be
+    // read as the product's own shading, so a black body cannot be told apart
+    // from a body whose albedo sample is black. Written for THIS pass only and
+    // restored below, for the reason the world block records: the constants
+    // buffer is shared, and a debug frame that also flattens the world would
+    // be a picture of the wrong pass.
+    if (worldDebugView_ != 0 && frameConstantsValid) {
+      WorldConstantsData entityDebugConstants = frameConstants;
+      entityDebugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
+        : worldDebugView_ == 3 ? 0.0f
+        : worldDebugView_ == 4 ? 6.0f
+        : worldDebugView_ == 5 ? 1.0f
+        : worldDebugView_ == 6 ? 8.0f
+        : worldDebugView_ == 7 ? 9.0f
+        : worldDebugView_ == 8 ? 10.0f : 4.0f;
+      entityDebugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &entityDebugConstants, 0, 0);
+    }
     for (const auto& range : entityModelDrawRanges_) {
       if (!range.vertexBuffer || range.vertexCount < 3 || range.instanceCount == 0) continue;
       // Entity meshes have their own material domain. Binding the world atlas
@@ -5902,6 +5984,9 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         range.vertexStart * static_cast<UINT>(sizeof(EntityModelGpuVertex)), 0u };
       context_->IASetVertexBuffers(0, 2, buffers, strides, rangeOffsets);
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
+    }
+    if (worldDebugView_ != 0 && frameConstantsValid) {
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
   }
   ++framePassOrdinal_;

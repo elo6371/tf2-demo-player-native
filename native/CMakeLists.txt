@@ -60,6 +60,10 @@ add_executable(tf2_demo_native WIN32
   src/entity_model.cpp
   src/animation_decoder.cpp
   src/animation_binding.cpp
+  # T61: the per-player animation clock. In the product because the probe and
+  # the gate drive the same arithmetic the product drives; a copy in the gate
+  # would only prove the two copies agree.
+  src/animation_clock.cpp
   src/vmt_material.cpp
   src/audio_resource.cpp
   src/audio_player.cpp
@@ -304,10 +308,28 @@ target_include_directories(texture_quad_probe PRIVATE include)
 target_link_libraries(texture_quad_probe PRIVATE d3d11 d3dcompiler)
 set_target_properties(texture_quad_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(model_pose_probe tools/model_pose_probe.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp)
+# T61: the pose probe also answers the player-animation questions -- which
+# sequence table a player model carries, what a cycle looks like, whether a
+# pose is continuous across ticks, and what the clock does at rest and at run
+# speed. It links the animation binding, the overlay sampler and the entity
+# transform resolver because the readings have to come from the same objects
+# the product uses: the binding maps the animation skeleton onto the render
+# skeleton, the overlay sampler is the only per-tick player reader, and
+# EntityModelResolver owns the origin the speed is measured from.
+add_executable(model_pose_probe
+  tools/model_pose_probe.cpp
+  src/model_loader.cpp
+  src/asset_root.cpp
+  src/animation_binding.cpp
+  src/animation_clock.cpp
+  src/animation_decoder.cpp
+  src/entity_overlay.cpp
+  src/entity_model.cpp
+  ${TF2_DEMO_HEADER_SOURCES}
+  src/item_schema.cpp)
 target_link_libraries(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
-target_include_directories(model_pose_probe PRIVATE include)
+target_include_directories(model_pose_probe PRIVATE include third_party/lzma)
 set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # T13: prints the descriptor table and the built range table for one model, so

@@ -232,7 +232,7 @@ rc_all=0
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
-step "1/24 clean full Release build"
+step "1/26 clean full Release build"
 bash build-cmake.sh > "$OUT/1-build.txt" 2>&1
 tail -6 "$OUT/1-build.txt"
 # exe_count pins that the build actually produced the targets: rc=0 with zero
@@ -335,7 +335,7 @@ else
   echo "BUILD=FAIL"; rc_all=1
 fi
 
-step "2/24 nine-demo census"
+step "2/26 nine-demo census"
 bash run-demos.sh evidence/final | tee "$OUT/2-census.txt"
 if [ "$(grep -c 'entity_failures=0 malformed_packets=0 unknown_message_packets=0' "$OUT/2-census.txt")" -eq 9 ]; then
   echo "CENSUS=PASS (9/9 demos at zero)"
@@ -349,7 +349,7 @@ else
   echo "COVERAGE=FAIL"; rc_all=1
 fi
 
-step "3/24 wire fixtures"
+step "3/26 wire fixtures"
 native/build-nmake/entity_message_fixture_probe.exe > "$OUT/3-fixture.txt" 2>&1
 FIXTURES=$(grep -c '^PASS' "$OUT/3-fixture.txt" || true)
 echo "fixture_pass_count=$FIXTURES"
@@ -363,7 +363,7 @@ else
   echo "FIXTURE=FAIL"; rc_all=1
 fi
 
-step "4/24 oracle cross-check (nine demos)"
+step "4/26 oracle cross-check (nine demos)"
 bash check-oracle.sh "D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe" evidence/final \
   | tee "$OUT/4-oracle.txt"
 if grep -q 'ORACLE-GATE=PASS' "$OUT/4-oracle.txt"; then
@@ -372,7 +372,7 @@ else
   echo "ORACLE=FAIL"; rc_all=1
 fi
 
-step "5/24 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
+step "5/26 oracle cross-check on a corpus sample (n=$ORACLE_SAMPLE)"
 # The input set is pinned, not sampled from the live directory. `sorted(glob())`
 # plus evenly spaced sampling is a property of the machine: the live corpus grew
 # from 1656 to 1658 recordings mid-round on 2026-10-08, every index moved, and the
@@ -405,7 +405,7 @@ else
   echo "ORACLE-CORPUS-SELFTEST=FAIL"; rc_all=1
 fi
 
-step "6/24 oracle demo recording types"
+step "6/26 oracle demo recording types"
 bash oracle-recording-types.sh | tee "$OUT/6-recording-types.txt"
 if grep -q 'ORACLE-RECORDING-TYPES=PASS' "$OUT/6-recording-types.txt"; then
   echo "RECORDING-TYPES=PASS"
@@ -413,7 +413,7 @@ else
   echo "RECORDING-TYPES=FAIL"; rc_all=1
 fi
 
-step "7/24 probe output is additive"
+step "7/26 probe output is additive"
 bash check-probe-output-additive.sh | tee "$OUT/7-probe-additive.txt"
 if grep -q 'PROBE-OUTPUT-ADDITIVE=PASS' "$OUT/7-probe-additive.txt"; then
   echo "PROBE-ADDITIVE=PASS"
@@ -421,7 +421,7 @@ else
   echo "PROBE-ADDITIVE=FAIL"; rc_all=1
 fi
 
-step "8/24 mutation suite (C++)"
+step "8/26 mutation suite (C++)"
 VERIFY_ALL_LOCK_HELD=1 bash mutate.sh > "$OUT/8-mutation.txt" 2>&1
 tail -8 "$OUT/8-mutation.txt"
 # Counting the verdict lines is what stops this step from passing on an empty
@@ -454,7 +454,7 @@ else
   echo "MUTATION=FAIL"; rc_all=1
 fi
 
-step "9/24 census verdict is falsifiable"
+step "9/26 census verdict is falsifiable"
 bash census-negative-test.sh | tee "$OUT/9-census-negative.txt"
 # The report count is asserted so this step cannot pass on an empty pinned set:
 # CENSUS-NEGATIVE=PASS is also what a suite that mutated zero reports would
@@ -468,7 +468,7 @@ else
   echo "CENSUS-NEGATIVE=FAIL (pinned_reports=${NEG_REPORTS:-0})"; rc_all=1
 fi
 
-step "10/24 reconstructed positions vs the independent oracle, per value"
+step "10/26 reconstructed positions vs the independent oracle, per value"
 # Steps 4-6 compare *counts* against the Rust oracle. Counts cannot see a value
 # that is decoded correctly and then read from the wrong property -- which is
 # exactly the P1 z defect: every counter stayed green while every player rendered
@@ -488,7 +488,7 @@ else
   echo "TRAJECTORY-ORACLE=FAIL (rc=$TRAJ_RC compared=${COMPARED:-0} mutation_rc=$MUT_RC)"; rc_all=1
 fi
 
-step "11/24 entity history coverage (how old a Checkpoint answer may be)"
+step "11/26 entity history coverage (how old a Checkpoint answer may be)"
 # Step 10 compares values only inside the ~70-packet live window, because that is
 # the only place the answer is tick-exact. Everywhere else the answer falls back
 # to a retained checkpoint, and nothing bounded how old that could be -- measured
@@ -506,7 +506,7 @@ else
   echo "HISTORY-COVERAGE=FAIL"; rc_all=1
 fi
 
-step "12/24 weapon world model (a weapon must not be drawn as its arms)"
+step "12/26 weapon world model (a weapon must not be drawn as its arms)"
 # Step 10 compares values but only for positions; a model path is the other half
 # of "the picture is right", and it fails differently. A weapon entity carries
 # two indices: m_nModelIndex is the first-person composite (its class's c_*_arms
@@ -529,7 +529,7 @@ else
   echo "WEAPON-WORLD-MODEL=FAIL (fixture_ok=$WS_FIXTURE, live_window_packets=${WS_PACKETS:-0})"; rc_all=1
 fi
 
-step "13/24 observer focus (who a spectator is watching, and what it would cost)"
+step "13/26 observer focus (who a spectator is watching, and what it would cost)"
 # A camera driven by the view entity alone is right for a live player and wrong
 # for a spectator: TF2 names the subject in m_iObserverMode / m_hObserverTarget,
 # and this pipeline read neither. Step 13 asserts the pair resolves, that it agrees
@@ -560,7 +560,7 @@ else
   echo "OBSERVER-FOCUS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "14/24 entity property slot freshness (the rule must take the later write)"
+step "14/26 entity property slot freshness (the rule must take the later write)"
 # Step 10 compares positions but only inside one demo's live window, and on that
 # demo the rank rule happens to be right. A player's origin arrives in two slots --
 # DT_TFLocalPlayerExclusive (full precision, sent to the owning client) and
@@ -596,7 +596,7 @@ else
   echo "SLOT-FRESHNESS-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "15/24 real SourceTV coverage (all nine recordings, end to end)"
+step "15/26 real SourceTV coverage (all nine recordings, end to end)"
 # The pinned 24-demo calibration set carries one SourceTV recording, so almost all of
 # the SourceTV-side evidence in steps 1-14 is bagel and snakewater. A whole-corpus
 # header scan says there are nine SourceTV recordings on this machine, and this step
@@ -630,7 +630,7 @@ else
   echo "SOURCE-TV-COVERAGE-MUTATION=FAIL (a perturbation went unnoticed)"; rc_all=1
 fi
 
-step "16/24 frame capture (the picture can be taken out of the running program)"
+step "16/26 frame capture (the picture can be taken out of the running program)"
 # Steps 1-15 are all counters and decoded values. Not one of them can speak to
 # whether the picture is right, and the gap is structural rather than a missing
 # assertion: step 12's weapon drawn as its arms resolved to a real asset and drew
@@ -673,7 +673,7 @@ else
   echo "FRAME-CAPTURE-MUTATION=FAIL (a one-byte change went unnoticed)"; rc_all=1
 fi
 
-step "17/24 resource reachability (what the demo scene can actually load)"
+step "17/26 resource reachability (what the demo scene can actually load)"
 # Step 16 pins the instrument but never asks what is *in* the frame it takes. That
 # gap was not hypothetical on this machine: the demo named in frame-capture-check.sh
 # is koth_bagel_rc13, whose BSP is not installed here, so the renderer fell through
@@ -717,7 +717,7 @@ else
   echo "RESOURCE-REACHABILITY-MUTATION=FAIL (a wrong expectation went unnoticed)"; rc_all=1
 fi
 
-step "18/24 idle spin (the loop must sleep until the next frame is due)"
+step "18/26 idle spin (the loop must sleep until the next frame is due)"
 # Every step above reads what the program *produced*: counters, decoded values,
 # resources, pixels. None of them could see the loop running hot between frames,
 # because a hot loop produces the same output -- it just produces it while
@@ -765,7 +765,7 @@ else
   echo "IDLE-SPIN-MUTATION=FAIL (the defect stayed at or above the floor)"; rc_all=1
 fi
 
-step "19/24 entity property lookup (the class sweep must not transform what it discards)"
+step "19/26 entity property lookup (the class sweep must not transform what it discards)"
 # The class-fallback sweep in EntityModelResolver::buildInstances used to build a
 # full transform for every player-named entity it walked, then throw the work away
 # when the transform came back without a player class. extractTransform scans the
@@ -808,7 +808,7 @@ else
   echo "ENTITY-PROPERTY-LOOKUP-MUTATION=FAIL (the pre-check's absence moved nothing)"; rc_all=1
 fi
 
-step "20/24 entity material (a model must carry its own paint, past the entity boundary)"
+step "20/26 entity material (a model must carry its own paint, past the entity boundary)"
 ENTITY_MAT="$OUT/20-entity-material.txt"
 bash entity-material-check.sh > "$ENTITY_MAT" 2>&1
 cat "$ENTITY_MAT"
@@ -837,7 +837,7 @@ else
   echo "ENTITY-MATERIAL-MUTATION=FAIL (the atlas-painted input was not caught)"; rc_all=1
 fi
 
-step "21/24 animation availability (a demo does not carry a player's sequence)"
+step "21/26 animation availability (a demo does not carry a player's sequence)"
 ANIM_AVAIL="$OUT/21-animation-availability.txt"
 bash animation-availability-check.sh > "$ANIM_AVAIL" 2>&1
 cat "$ANIM_AVAIL"
@@ -869,7 +869,7 @@ else
   echo "ANIMATION-AVAILABILITY-MUTATION=FAIL (a reading was assumed rather than extracted)"; rc_all=1
 fi
 
-step "22/24 weapon animation (the product skins models from real demo input)"
+step "22/26 weapon animation (the product skins models from real demo input)"
 # The gate's default output directory holds frozen witness frames. The chain
 # redirects it, and the trace directory, into this step's own output, so a chain
 # run cannot rewrite a committed frame. The frames are the point: the gate's
@@ -958,7 +958,7 @@ else
   echo "WEAPON-ANIMATION-MUTATION-IDENTITY=FAIL (the silhouette rule did not catch a moved transform)"; rc_all=1
 fi
 
-step "23/24 viewmodel animation (the entity's sequence is refused by the drawn model's own table)"
+step "23/26 viewmodel animation (the entity's sequence is refused by the drawn model's own table)"
 # T2.5. T2 drew the ViewModel in its bind pose and reported animationInput=missing;
 # this step is what turns that string into a measurement. Its machine products
 # (a trace and two 2.5 MB witness frames per launch) go to the ignored
@@ -1032,7 +1032,7 @@ else
   echo "VIEWMODEL-ANIMATION-MUTATION=FAIL (the range branch was not load bearing)"; rc_all=1
 fi
 
-step "24/24 viewmodel companion proof (the pass draws the model named by the entity)"
+step "24/26 viewmodel companion proof (the pass draws the model named by the entity)"
 # The companion path is the product-side closure of T2.5: owner, model index,
 # model path equality, sequence table membership and bone coverage are checked
 # against the model actually uploaded by the pass. It runs under the chain lock,
@@ -1125,6 +1125,50 @@ if wait_for_companion_image; then
   fi
 else
   echo "VIEWMODEL-COMPANION-MUTATION=SKIPPED (the product image did not settle; see the wait above)"; rc_all=1
+fi
+
+step "25/26 player animation (the demo's ticks drive a player's cycle, one link at a time)"
+# T61. The demo does not carry a player's m_nSequence, so the product derives the
+# animation input from the entity's own velocity and the playback tick. Each link
+# of that chain is asserted separately (sequence table, pose, continuity, clock
+# rate, tick script), with three negative controls first, so a link that stops
+# working is a named red rather than a smaller number of green lines. The counter
+# is pinned: a section that silently stops running is red.
+ANIMATION_OUT="$OUT/25-player-animation"
+PLAYER_ANIMATION_OUT="$ANIMATION_OUT" bash player-animation-check.sh > "$ANIMATION_OUT.txt" 2>&1
+ANIMATION_RC=$?
+tail -8 "$ANIMATION_OUT.txt"
+ANIMATION_OK=$(grep -c '^  OK ' "$ANIMATION_OUT.txt" || true)
+# 2026-10-25 T61: 213 = 209 + 4 determinism (the same probe twice must give the
+# same pose digest: repeat exit, repeat line count, lines to compare, digest).
+# Six sections: freshness, negative controls, A (nine class
+# models x 6 readings), B (four cycle points x 2 readings + checksum, per class),
+# C (continuity), D (clock rate), E (tick script, synthetic and demo).
+if [ "$ANIMATION_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-CHECK=PASS' "$ANIMATION_OUT.txt" && [ "$ANIMATION_OK" = "213" ]; then
+  echo "PLAYER-ANIMATION-CHECK=PASS (213 assertions)"
+else
+  echo "PLAYER-ANIMATION-CHECK=FAIL (rc=$ANIMATION_RC ok=$ANIMATION_OK expected 213)"; rc_all=1
+fi
+
+step "26/26 player animation pixels (the body is a shaded surface, and the drive moves it)"
+# T61. The end of the chain above, measured in the frame: the entity pass's own
+# mask, the body's colours and luminance inside it, and the share of those pixels
+# that change when --player-animation is removed at the same scene tick. The mask
+# is not a hardcoded box, so a pass that stops drawing there fails.
+ANIM_PIXEL_OUT="$OUT/26-animation-pixels"
+T61_PIXEL_OUT="$ANIM_PIXEL_OUT" bash player-animation-pixels.sh > "$OUT/26-animation-pixels.txt" 2>&1
+ANIM_PIXEL_RC=$?
+tail -10 "$OUT/26-animation-pixels.txt"
+ANIM_PIXEL_OK=$(grep -c '^  OK ' "$OUT/26-animation-pixels.txt" || true)
+# 2026-10-25 T61: 19 = 17 + 2. Freshness, FOUR captures (coverage/animated/off
+# and a repeat of animated, which must land the same ticks and be byte-identical,
+# so the on/off pair is a controlled A-B), six
+# identity readings that exist in both runs, three frames non-empty, and five
+# pixel assertions from t61-pixels.py.
+if [ "$ANIM_PIXEL_RC" -eq 0 ] && grep -q 'PIXEL-CHECK=PASS' "$OUT/26-animation-pixels.txt" && [ "$ANIM_PIXEL_OK" = "19" ]; then
+  echo "PLAYER-ANIMATION-PIXELS=PASS (19 assertions)"
+else
+  echo "PLAYER-ANIMATION-PIXELS=FAIL (rc=$ANIM_PIXEL_RC ok=$ANIM_PIXEL_OK expected 19)"; rc_all=1
 fi
 
 printf '\n'
