@@ -556,6 +556,8 @@ INCLUDE_POINTS=$(grep -ac "gpu: world face-trace " "$TRACE_include" 2>/dev/null 
 INCLUDE_NAMED=$(grep -ao "gpu: world face-trace .*" "$TRACE_include" 2>/dev/null | grep -c "material=$INCLUDE_MATERIAL ")
 assert_eq "face-trace points at the include pose" "$INCLUDE_POINTS" "28"
 assert_eq "points that resolve to the include-only material" "$INCLUDE_NAMED" "$INCLUDE_POINTS"
+INCLUDE_NAMES=$(grep -a "gpu: world face-trace point=" "$TRACE_include" | grep -ao "material=[^ ]*" | sort -u | wc -l)
+assert_eq "distinct materials the include pose names" "$INCLUDE_NAMES" "1"
 INCLUDE_STATS=$(albedo_stats "$BMP_include")
 echo "$INCLUDE_STATS" > "$OUT/include-material-pixels.txt"
 printf '%s\n' "$INCLUDE_STATS" | sed 's/^/  /'

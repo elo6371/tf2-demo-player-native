@@ -4448,6 +4448,11 @@ bool outlineVertexExtent = false;
     // have dropped it".
     std::size_t oldOrderAccepted = 0;
     bool beyondOldCap = false;
+    // T59: this material's VMT was a `patch` wrapper. Recorded on the chain so the
+    // face trace can name what happened to each wrapper instead of only counting
+    // them: `patchResolved` says the include was read, not that the material
+    // reached the atlas.
+    bool patchDeclared = false;
     std::string reason = "not-reached";
   };
   std::unordered_map<std::string, WorldMaterialChainRecord> worldMaterialChain;
@@ -5049,6 +5054,7 @@ bool outlineVertexExtent = false;
           ++fetchPatchDeclared;
           if (material.patch.resolved) ++fetchPatchResolved;
         }
+        chain.patchDeclared = material.patch.declared;
         if (!parsed) {
           ++fetchVmtNoBase;
           chain.reason = material.patch.declared ? "patch-unresolved" : "vmt-unparsable";
@@ -8436,6 +8442,17 @@ bool outlineVertexExtent = false;
         record.vmtPath.empty() ? "-" : record.vmtPath.c_str(), record.vmtStore.c_str(),
         record.vtfPath.empty() ? "-" : record.vtfPath.c_str(), record.vtfStore.c_str(),
         record.sourceWidth, record.sourceHeight);
+    }
+    // T59: one line per declared wrapper, naming the outcome it actually got. The
+    // aggregate counters say how many wrappers were declared and how many includes
+    // were read; neither says what became of a given wrapper, and a wrapper that
+    // resolves its include but is then refused for another reason is invisible in
+    // both. This is the ledger the gate closes against patchDeclared.
+    for (const auto& entry : worldMaterialChain) {
+      if (!entry.second.patchDeclared) continue;
+      traceFmt("gpu: world patch material=%s outcome=%s tiled=%d visible=%zu",
+        entry.first.c_str(), entry.second.reason.c_str(),
+        entry.second.reason == "tiled" ? 1 : 0, visibleByMaterial[entry.first]);
     }
     traceFmt("gpu: world face-trace-summary points=%d hits=%zu tiled=%zu untiled=%zu blend=%zu"
       " oversized=%zu beyondOldCap=%zu depthMatched=%zu discriminating=%zu clipApplied=%d"

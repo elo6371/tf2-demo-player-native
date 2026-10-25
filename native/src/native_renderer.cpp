@@ -1834,6 +1834,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
     a.r = shade; a.g = shade; a.b = shade; a.a = textured ? 1.0f : 0.0f;
     b.r = shade; b.g = shade; b.b = shade; b.a = textured ? 1.0f : 0.0f;
     c.r = shade; c.g = shade; c.b = shade; c.a = textured ? 1.0f : 0.0f;
+    // T59: the same mask the atlas overload applies, so --world-refused-mask means
+    // one thing on both paths. Without this the flag painted 0 px whenever the
+    // single-material overload was the one that uploaded (the sky pass and the
+    // atlas-failed fallback), and a reading of 0 could not be told apart from
+    // "nothing refused is on screen".
+    if (worldRefusedMask_ && !textured) {
+      a.r = b.r = c.r = 1.0f; a.g = b.g = c.g = 0.0f; a.b = b.b = c.b = 1.0f;
+    }
     // T26: the face-id frame. `$colour` is unused by the id mode, so it carries
     // the face index instead. A helper because both upload overloads must agree:
     // the first version of this wrote the id only on the single-material path,

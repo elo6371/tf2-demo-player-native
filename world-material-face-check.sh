@@ -39,8 +39,14 @@
 #     the textured frame matches it too (tol 6),
 #  5. the same capture repeated is byte-identical,
 #  6. named refusal counts are printed, weighted by pvs-visible triangles.
+#  7. every declared patch wrapper has one ledger line whose outcome is one of
+#     the four named ones and the outcomes add up to the wrappers declared (the
+#     old "resolved == declared" compared a counter with the value it had just
+#     been incremented to), and
+#  8. the worldspawn material the product names resolves a base texture -- that
+#     path is the single-material upload, which no atlas counter covers.
 #
-# mutation: four source mutations, each of which must turn a forward pin red,
+# mutation: six source mutations, each of which must turn a forward pin red,
 # and each source must come back byte-identical:
 #   M1 restores the pre-T19 uv normaliser (tile size where the source size
 #      belongs) -- every downscaled texture repeats, the albedo comparison must
@@ -52,6 +58,10 @@
 #      albedo pin twice),
 #   M4 makes the tile table call a refused material `tiled` -- the table/name
 #      assertion must go red.
+#   M5 stops following the include -- every wrapper keeps its own root, so the
+#      patch section has no ledger to close,
+#   M6 puts the map material valid flag back to its default -- the title maptex
+#      reading must fall back, which is the regression 788f95c shipped.
 #
 # Usage: bash world-material-face-check.sh [--mutation]
 # Exit:  0 = every assertion held (or, with --mutation, every mutation went red
@@ -197,8 +207,26 @@ assert_eq "tile rows with a rectangle" "$BAD_ROWS" "0"
 # texture-less (the water shader, whose surface is drawn by the water pass).
 echo "== 2b. patch wrappers: include followed, the rest refused by name =="
 assert_gt "patch wrappers declared" "$PATCHDECL" 0
-assert_eq "patch wrappers resolved through their include" "$PATCHRES" "$PATCHDECL"
 assert_eq "patch wrappers that could not be resolved" "$PATCHUNP" "0"
+# The ledger: every declared wrapper must appear once, with an outcome a reader can
+# name. "resolved == declared" alone is a tautology -- main.cpp counts a wrapper
+# resolved as soon as its include is read, before the transform check and before
+# tiling -- so the closure below is the assertion that carries weight.
+PATCH_LINES=$(grep -c "gpu: world patch material=" "$REF_TRACE")
+assert_eq "declared wrappers with one ledger line each" "$PATCH_LINES" "$PATCHDECL"
+PATCH_TILED=$(grep "gpu: world patch material=" "$REF_TRACE" | grep -c "outcome=tiled")
+assert_gt "wrappers that reached the atlas" "$PATCH_TILED" 0
+PATCH_TRANSFORM=$(grep "gpu: world patch material=" "$REF_TRACE" | grep -c "outcome=basetexture-transform")
+assert_eq "wrappers refused for their transform, one per transform refusal" "$PATCH_TRANSFORM" "$TRANSFORM"
+PATCH_UNRES=$(grep "gpu: world patch material=" "$REF_TRACE" | grep -c "outcome=patch-unresolved")
+assert_eq "wrappers whose include failed, one per unparsable wrapper" "$PATCH_UNRES" "$PATCHUNP"
+PATCH_NOBASE=$(grep "gpu: world patch material=" "$REF_TRACE" | grep -c "outcome=no-basetexture")
+PATCH_OTHER=$(grep "gpu: world patch material=" "$REF_TRACE" | grep -vcE "outcome=(tiled|basetexture-transform|patch-unresolved|no-basetexture)")
+PATCH_UNNAMED=$(grep "gpu: world patch material=" "$REF_TRACE" | grep -c "outcome=not-reached")
+assert_eq "wrappers left without an outcome" "$PATCH_UNNAMED" "0"
+assert_eq "wrappers whose outcome is none of the four named ones" "$PATCH_OTHER" "0"
+assert_eq "the wrapper outcomes add up to the wrappers declared" \
+  "$((PATCH_TILED + PATCH_TRANSFORM + PATCH_UNRES + PATCH_NOBASE + PATCH_OTHER))" "$PATCHDECL"
 # A wrapper whose material asks for a non-identity basetexturetransform is drawn
 # by TF2 with its uv re-mapped. The world pass samples the face texinfo axes, so
 # this pass cannot put that texture where TF2 does; it must refuse by name rather
@@ -217,6 +245,24 @@ assert_eq "materials that only exist through their include, now tiled" "$PATCHED
 # texture, so a fix that made IT tiled would be a fix that draws something false.
 WATER_REFUSED=$(grep "gpu: world refused material=" "$REF_TRACE" | grep "reason=no-basetexture" | grep -c "water_well")
 assert_eq "water shader materials still refused as no-basetexture" "$WATER_REFUSED" "2"
+# The map material: the demo names a worldspawn material and the single-material
+# upload path resolves its base texture from it. That path is only reached when the
+# atlas is absent, so no counter in the atlas path covers it -- the window title is
+# where the product prints the reading, and "maptex: fallback" is what a dropped
+# resolution looks like.
+MAPMATEX=$(grep -a -m1 "maptex: " "$REF_TRACE" | sed -E "s/.*(mapmat: [^,]+).*(maptex: [^]]+)\].*/\1 \2/")
+printf '%s\n' "$MAPMATEX" > "$OUT/map-material.txt"
+MAPMAT=$(printf '%s' "$MAPMATEX" | sed -n -E "s/^mapmat: (.*) maptex: .*$/\1/p")
+MAPTEX=$(printf '%s' "$MAPMATEX" | sed -n -E "s/^.* maptex: (.*)$/\1/p")
+if [ -n "$MAPMAT" ] && [ "$MAPMAT" != "none" ]; then
+  echo "  OK the demo's map material is named ($MAPMAT)"
+else
+  echo "  FAIL the demo's map material is not named (read: '$MAPMAT')"; fail=1
+fi
+case "$MAPTEX" in
+  [0-9]*x[0-9]*) echo "  OK the map material resolves a base texture ($MAPTEX)" ;;
+  *) echo "  FAIL the map material resolved no base texture (read: '$MAPTEX')"; fail=1 ;;
+esac
 
 # ---------------------------------------------------------------------------
 # 3. the face trace: the chain has no hole, and both cases were exercised
@@ -532,13 +578,45 @@ else
 fi
 restore_sources
 
+echo "-- M6: the map material stops being marked valid --"
+# The single-material upload path (main.cpp, the worldspawn material) only resolves
+# its base texture when VmtMaterial::valid is true; the atlas path never reads it,
+# so no counter in the atlas path can see this field go missing. That is exactly how
+# 788f95c dropped "material.valid = true" without one gate noticing. This mutation
+# puts the field back to its default and requires the title's maptex reading to say
+# "fallback", i.e. the forward assertion above is load-bearing.
+"$PYTHON" - "$SRC_VMT" <<'PYEOF_INNER'
+import sys
+path = sys.argv[1]
+src = open(path, encoding='utf-8', newline='').read()
+old = '  material.valid = true;'
+new = '  material.valid = false;  // M6: the field the atlas path never reads'
+assert src.count(old) == 1, 'M6 patch site not found'
+open(path, 'w', encoding='utf-8', newline='').write(src.replace(old, new))
+PYEOF_INNER
+if [ $? != 0 ]; then echo "  FAIL M6 could not patch"; mfail=1; fi
+bash build-target.sh tf2_demo_native > "$SCRATCH/m6.$RUN_TAG.build" 2>&1 || { echo "  FAIL M6 build"; mfail=1; }
+M6_BMP="$SCRATCH/m6.$RUN_TAG.bmp"; M6_TRACE="$SCRATCH/m6.$RUN_TAG.trace"
+if capture "$M6_BMP" "$M6_TRACE"; then
+  M6_MAPMATEX=$(grep -a -m1 "maptex: " "$M6_TRACE" | sed -E 's/.*(mapmat: [^,]+).*(maptex: [^]]+)\].*/\1 \2/')
+  M6_MAPTEX=$(printf '%s' "$M6_MAPMATEX" | sed -n -E 's/^.* maptex: (.*)$/\1/p')
+  printf '%s\n' "$M6_MAPMATEX" > "$OUT/mutated-m6-map-material.txt"
+  if [ "$M6_MAPTEX" = "$MAPTEX" ]; then
+    echo "  NOT-RED M6: the map material still resolves ($M6_MAPTEX, same as the forward run) -- the maptex assertion proves nothing"; mfail=1
+  else
+    mred=$((mred + 1)); echo "  RED M6 as required: the map material no longer resolves (maptex: $M6_MAPTEX, forward read $MAPTEX)"
+  fi
+else
+  echo "  FAIL M6 capture"; mfail=1
+fi
+restore_sources
 echo "== verdict =="
-if [ "$mred" != "5" ]; then
-  echo "  FAIL only $mred of the 5 mutations went red -- the suite does not count what it claims"
+if [ "$mred" != "6" ]; then
+  echo "  FAIL only $mred of the 6 mutations went red -- the suite does not count what it claims"
   mfail=1
 fi
 if [ "$fail" = 0 ] && [ "$mfail" = 0 ]; then
-  echo "PASS: the forward material chain held, all $mred of 5 mutations went red, every source came back byte-identical."
+  echo "PASS: the forward material chain held, all $mred of 6 mutations went red, every source came back byte-identical."
   exit 0
 fi
 echo "FAIL: forward-fail=$fail mutation-not-red=$mfail"

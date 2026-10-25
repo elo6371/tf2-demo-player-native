@@ -278,12 +278,40 @@ bool extractFields(const std::unordered_map<std::string, VmtValue>& root, VmtMat
   // applied in the vertex stage; the alternative is a wrong picture nobody can
   // tell is wrong.
   {
-    const std::string transform = scalar(root, "$basetexturetransform");
-    if (!transform.empty() && !textureTransformIsIdentity(transform)) {
+    // T59: $basetexturetransform re-maps the uv before sampling (center, scale,
+    // rotate, translate). The world pass samples the face's own texinfo axes, so a
+    // material carrying a non-identity transform would be drawn rotated and
+    // stretched from where TF2 puts it -- pl_odyssey's glass windows ask for
+    // rotate 45 scale 4. Refusing by name is the honest answer until the matrix is
+    // applied in the vertex stage; the alternative is a wrong picture nobody can
+    // tell is wrong.
+    //
+    // The key can also be an object block ({"center" ".5 .5"}) rather than a
+    // string; `scalar` reports an object as empty, so reading only the string form
+    // would treat that shape as "no transform" and draw it axis-aligned.
+    // $basetexturetransform2 re-maps the second layer and is checked the same way.
+    const auto refuseTransform = [&material](const std::string& text) {
+      if (material.baseTextureTransform) return;
       material.baseTextureTransform = true;
-      material.baseTextureTransformText = transform;
+      material.baseTextureTransformText = text;
+    };
+    for (const char* key : {"$basetexturetransform", "$basetexturetransform2"}) {
+      const auto found = root.find(key);
+      if (found == root.end()) continue;
+      if (found->second.object) {
+        refuseTransform(std::string(key) + " is an object block");
+        continue;
+      }
+      if (!textureTransformIsIdentity(found->second.text)) refuseTransform(found->second.text);
     }
   }
+  // T59 (regression repaired): this assignment lived in VmtParser::parse before
+  // 788f95c moved the body into extractFields, and the move dropped it. No gate
+  // noticed, because every gate reads the atlas path; the map-material fallback
+  // (main.cpp:4671) is the only reader, and without this line it silently stopped
+  // resolving the demo's worldspawn texture -- the window title printed
+  // "maptex: fallback" and the fallback upload received 0x0.
+  material.valid = true;
   return true;
 }
 }
