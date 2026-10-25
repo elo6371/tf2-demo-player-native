@@ -252,3 +252,130 @@ before the gate was touched (patch -> build -> capture -> `M6-PRE=CHANGED`,
 `tiled=123 batches=2`; restore -> source hash equal to the backup, rebuild clean).
 No threshold was widened: the mutant still has to move the frame, and it now does so
 at a pose where the mechanism has a subject.
+
+## 10. Review response (T59b): one blocker and three majors
+
+An independent adversarial review of `788f95c` was run on the merged tree
+(`D:/TF2_Native_Worktrees/t59-review/REVIEW.md`, 297 lines: 1 blocker, 3 major,
+8 minor, 7 nit). Every finding below was re-checked here before it was acted on,
+and two of this report's own sentences are retracted.
+
+### 10.1 BLOCKER -- the map material was never marked valid (fixed)
+
+`788f95c` moved the body of `VmtParser::parse` into `extractFields`. The moved
+body kept its closing
+
+```cpp
+  return true;
+```
+
+and lost the line above it, `material.valid = true;` (it is
+`788f95c^:native/src/vmt_material.cpp:172`). `VmtMaterial::valid` therefore stayed at its
+default `false` for every material the product parsed. The field has exactly one
+reader, `native/src/main.cpp`'s worldspawn-material branch:
+
+```cpp
+if (!mapVmt.empty() && mapMaterial.valid) { ... resolve base texture ... }
+```
+
+With `valid` false the base texture was never resolved, `mapWidth/mapHeight` stayed
+0, and the single-material upload path drew the flat fallback while **every
+counter and every gate stayed green** -- all gates take the atlas overload, which
+never reads this field.
+
+Measured, odyssey tick 2000, acceptance camera, window title:
+
+| tree | title reading |
+| --- | --- |
+| `047bcfb` (before) | `mapmat: WOOD/WALL007A, deps: base2=none bump=none, maptex: fallback]` |
+| `480cd20` (after) | `mapmat: WOOD/WALL007A, deps: base2=none bump=none, maptex: 1024x1024]` |
+
+The fix restores the assignment at the end of `extractFields` with a comment naming
+the commit that dropped it and the single line that reads it, and the reading is
+now a gate assertion (`OK the map material resolves a base texture (1024x1024)`). The
+inverse mutation M6 sets `material.valid = false` and requires the title to fall back,
+so the assertion is proven load-bearing rather than merely true.
+
+### 10.2 MAJOR -- the wrapper assertion was a tautology (fixed)
+
+`assert_eq "patch wrappers resolved through their include" $PATCHRES $PATCHDECL`
+compared a counter with the value it had just been incremented to. `patchResolved`
+is incremented when the include is read, before the transform check and before
+tiling, so a wrapper that resolved and was then refused had no recorded outcome
+at all -- three of the odyssey wrappers were in exactly that state and nothing
+could see it.
+
+The product now prints one ledger line per declared wrapper:
+
+```
+gpu: world patch material=<name> outcome=<tiled|basetexture-transform|
+  patch-unresolved|no-basetexture|not-reached> tiled=<0|1> visible=<n>
+```
+
+and the gate asserts the closure instead: one line per declared wrapper, each
+outcome one of the four named ones, and
+
+tiled + transform + unresolved + no-basetexture + other == declared.
+
+Measured on this tree, odyssey (19 declared wrappers):
+
+| outcome | lines |
+| --- | --- |
+| `tiled` | 14 |
+| `basetexture-transform` | 4 |
+| `no-basetexture` (the water wrapper, whose include is the Water shader) | 1 |
+| `patch-unresolved` | 0 |
+| `not-reached` | 0 |
+
+### 10.3 MAJOR -- `--world-refused-mask` covered only one of the two paths (fixed)
+
+The mask was applied in the atlas vertex setup only. The single-material vertex
+setup (used by the sky pass and by the fallback) has the same shade expression
+without it, so a fallback run painted 0 px whether or not the flag worked. The
+mask is now applied on both paths, and this report's earlier sentence -- "0 px
+at the acceptance pose" -- is **retracted**: it could not distinguish "nothing to
+paint" from "the flag is not wired on this path". What the mask readings in §5
+do establish is that the flag paints refused geometry when refused geometry is
+on screen (101,407 / 54,403 / 108,778 / 50,564 / 333 px at the five survey poses).
+
+### 10.4 MAJOR -- the wrapper arithmetic in §5 did not close (retracted, corrected)
+
+§5 said odyssey ships 20 wrappers and split them 14 + 4 + 2. The correct split is
+**14 + 4 + 1 = 19**: `water/water_well_beneath.vmt` is an ordinary `vpk-volume` material,
+not a wrapper; the second water refusal is the pak wrapper
+`water/water_well_-1120_-8880_312`, whose include resolves to the Water shader,
+which has no `$basetexture` by design. The §2 sentence that counted WATER_WELL twice is
+corrected by this paragraph; the fetch partition itself was right
+(`99 + 3 + 2 + 0 + 4 = 108`).
+
+### 10.5 Minors: acted on, or deliberately not
+
+- **Object-valued `$basetexturetransform` drawn axis-aligned -- fixed.** Both
+  `$basetexturetransform` and `$basetexturetransform2` now go through one refusal helper, and an
+  object-valued key is refused as an object block instead of being ignored.
+- **One event counted in two counters** (`fetchVmtNoBase` and
+  `fetchPatchUnparsable`) -- **kept, with the reason**: the partition in the
+  material-fetch line has seven reason classes and `vmtNoBase` covers both textual
+  failures; `patchUnparsable` is a sub-annotation. No material on either map reaches
+  that branch (odyssey `patchUnparsable=0`, snakewater `patchUnparsable=0`), so the
+  ambiguity is not load-bearing here.
+- **The gate identified the 14 include-only rows by name substring** -- the closure
+  now proves the 14 from the ledger sum, and the coverage gate's include pose
+  asserts how many distinct materials its 28 points name (one), so the number is
+  no longer carried by a substring search alone.
+- **The 169-vs-236 distinct-colour spread at the include pose is not attributed**
+  (the one-off capture and the gate capture differ in exactly one respect that was
+  not recorded: the gate's capture renders the viewmodel companion). Both readings
+  are two orders of magnitude away from the refused state (1 colour, modal share
+  1.0000), which is what the bound is for; the bound is one-sided on purpose and
+  no attempt is made to pin the exact colour count.
+
+### 10.6 What the review confirmed as sound
+
+Failed patches cannot fall back to their wrapper; the recursion is bounded
+(`kMaxPatchDepth = 4`, checked before the read); scalar transform identity
+detection is correct and caught `rotate 45` on all four odyssey glass wrappers; the
+mask cannot change pixels when disabled; the M6 pixel mutant's re-anchor is
+legitimate; `verify-all.sh` pins `COV_OK=87`; encoding is LF/no BOM/no stray CR;
+and both fetch partitions close (odyssey `99+3+2+0+4=108`, snakewater
+`123+4+4+1+16=148`).
