@@ -1,0 +1,3 @@
+=== 0/4 precondition ===
+STALE-BINARY FAIL: native/build-nmake/projectile_track_probe.exe is older than: native/src/projectile_track.cpp
+  (a mutation that failed before its restore step leaves exactly this state)
