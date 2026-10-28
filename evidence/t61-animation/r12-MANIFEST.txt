@@ -1,0 +1,94 @@
+R12-START 2026-10-28T17:44:48
+HEAD db3316e5b14b9a9dd573fe04686790db64184732
+BRANCH task/t61-airwalk
+TRACKED-DIFFSTAT-BEFORE  7 files changed, 1163 insertions(+), 130 deletions(-)
+PORCELAIN-COUNT-BEFORE 107
+BASH-N-OK player-animation-unit-mutations.sh lines=691
+BASH-N-OK player-animation-pixel-mutations.sh lines=691
+BASH-N-OK player-animation-recovery-branches.sh lines=533
+BASH-N-OK player-animation-interrupt-demo.sh lines=126
+REGION-UNITS 0
+STEP driver START 2026-10-28T17:44:49
+STEP driver RC=0 END 2026-10-28T17:45:43
+  driver:       FAIL CLEAN-EXIT-STALE-BINARY /tmp/t61-recovery.CBSDMq/cleanexit-pixel-stale/out/product.exe: it is not newer than /tmp/t61-recovery.CBSDMq/cleanexit-pixel-stale/src/f.cpp, which this run restored, so the object compiled from the mutant was relinked instead of recompiled
+  driver:       FAIL CLEAN-EXIT-STALE-OBJECT /tmp/t61-recovery.CBSDMq/cleanexit-pixel-stale/obj/CMakeFiles/tf2_demo_native.dir/src/f.cpp.obj is not newer than /tmp/t61-recovery.CBSDMq/cleanexit-pixel-stale/src/f.cpp, which this run restored, so an object compiled from the mutant could be relinked rather than recompiled
+  driver:       FAIL CLEAN-EXIT-NOT-FRESH: the tree at exit is not the tree the last case proved: a source does not match its backup, or an object or a binary is not newer than the source it was built from
+  driver:       REFUSAL the case cannot be undone (CLEAN-EXIT-NOT-FRESH); no further build, no further case, no baseline.
+  driver:   OK   pixel/clean-exit-stale: the exit refused and named CLEAN-EXIT-NOT-FRESH
+  driver:   OK   pixel/clean-exit-stale: the marker names CLEAN-EXIT-STALE-BINARY
+  driver: ASSERTIONS-OK=289 ASSERTIONS-FAIL=0
+  driver: ON-EXIT-BRANCHES=PASS
+STEP demo-unit-int START 2026-10-28T17:45:43
+STEP demo-unit-int RC=0 END 2026-10-28T17:49:27
+  demo-unit-int: WRAPPER-RC=130
+  demo-unit-int:     INTERRUPT-RECOVERY=rebuilt: sources restored and both binaries rebuilt from them, with every object they touch newer than the restored file, so nothing mutant is left to run (log .scratch/t61-unit-mutations/recovery-build.log)
+  demo-unit-int: INTERRUPT-DEMO=PASS
+STEP demo-unit-hup START 2026-10-28T17:49:27
+STEP demo-unit-hup RC=0 END 2026-10-28T17:53:10
+  demo-unit-hup: WRAPPER-RC=129
+  demo-unit-hup:     INTERRUPT-RECOVERY=rebuilt: sources restored and both binaries rebuilt from them, with every object they touch newer than the restored file, so nothing mutant is left to run (log .scratch/t61-unit-mutations/recovery-build.log)
+  demo-unit-hup: INTERRUPT-DEMO=PASS
+STEP demo-pixel-int START 2026-10-28T17:53:10
+STEP demo-pixel-int RC=0 END 2026-10-28T18:06:03
+  demo-pixel-int: WRAPPER-RC=130
+  demo-pixel-int:     INTERRUPT-RECOVERY=rebuilt: sources restored and the product rebuilt from them, with every object they touch newer than the restored file, so nothing mutant is left to run (log .scratch/t61-pixel-mutations/recovery-build.log)
+  demo-pixel-int: INTERRUPT-DEMO=PASS
+STEP unit-suite START 2026-10-28T18:06:03
+STEP unit-suite RC=0 END 2026-10-28T19:00:01
+  unit: === baseline: the unmutated tree must be green before any case ===
+  unit:   OK   baseline rc=0 FAIL-count=0 OK-count=232 (log evidence/t61-animation/r12-unit-mutations/baseline.log)
+  unit: === case u1: mutate native/include/animation_sequence_match.h ===
+  unit:   gate rc=1 FAIL-count=3 (baseline 0)
+  unit: === case u2: mutate native/include/entity_id_color.h ===
+  unit:   gate rc=1 FAIL-count=2 (baseline 0)
+  unit: === case u3: mutate native/include/animation_sequence_match.h ===
+  unit:   gate rc=1 FAIL-count=4 (baseline 0)
+  unit: === case u4: mutate native/include/animation_sequence_match.h ===
+  unit:   gate rc=1 FAIL-count=4 (baseline 0)
+  unit: === case u5: mutate native/include/animation_sequence_match.h ===
+  unit:   gate rc=1 FAIL-count=5 (baseline 0)
+  unit: === case u6: mutate native/include/animation_sequence_match.h ===
+  unit:   gate rc=1 FAIL-count=3 (baseline 0)
+  unit: === case u7: mutate native/include/entity_id_color.h ===
+  unit:   gate rc=1 FAIL-count=4 (baseline 0)
+  unit: === case u8: mutate native/include/entity_id_color.h ===
+  unit:   gate rc=1 FAIL-count=2 (baseline 0)
+  unit: === case u9: mutate native/include/entity_id_color.h ===
+  unit:   gate rc=1 FAIL-count=3 (baseline 0)
+  unit: === case u10: mutate native/include/entity_id_color.h ===
+  unit:   gate rc=1 FAIL-count=3 (baseline 0)
+  unit:   OK   final baseline green (OK-count=232 FAIL-count=0)
+  unit: UNIT-MUTATION-SUITE=PASS: every unit case reddened a NAMED assertion of 1b/6 or 1c/6, the probe was rebuilt with each mutant (never STALE-BINARY), the tree was restored byte-for-byte, and the final baseline is green.
+STEP pixel-suite START 2026-10-28T19:00:01
+STEP pixel-suite RC=0 END 2026-10-28T21:10:34
+  pixel: === baseline: the unmutated tree must be green before any case ===
+  pixel:   OK   baseline rc=0 FAIL-count=0 (log evidence/t61-animation/r12-pixel-mutations/baseline.log)
+  pixel: === case m6: mutate native/src/native_renderer.cpp ===
+  pixel:   gate rc=1 FAIL-count=4 (baseline 0)
+  pixel: === case m7: mutate native/src/main.cpp ===
+  pixel:   gate rc=1 FAIL-count=41 (baseline 0)
+  pixel: === case m8: mutate native/src/main.cpp ===
+  pixel:   gate rc=1 FAIL-count=3 (baseline 0)
+  pixel: === case m9: mutate native/include/animation_sequence_match.h ===
+  pixel:   gate rc=1 FAIL-count=1 (baseline 0)
+  pixel: === case m10: mutate native/src/main.cpp ===
+  pixel:   gate rc=1 FAIL-count=37 (baseline 0)
+  pixel: === case m11: mutate native/src/main.cpp ===
+  pixel:   gate rc=1 FAIL-count=5 (baseline 0)
+  pixel: === case m12: mutate native/src/main.cpp ===
+  pixel:   gate rc=1 FAIL-count=3 (baseline 0)
+  pixel:   OK   final baseline green (FAIL-count=0)
+  pixel: MUTATION-SUITE=PASS: every pixel case reddened a NAMED pixel assertion, the tree was restored byte-for-byte, and the final baseline is green.
+STEP check-gate START 2026-10-28T21:10:35
+STEP check-gate RC=1 END 2026-10-28T21:11:34
+  check-gate FAIL lines: 1
+  PLAYER-ANIMATION-CHECK=FAIL
+STEP pixel-gate START 2026-10-28T21:11:34
+STEP pixel-gate RC=0 END 2026-10-28T21:23:37
+  PLAYER-ANIMATION-PIXELS=PASS
+TRACKED-DIFFSTAT-AFTER  7 files changed, 1163 insertions(+), 130 deletions(-)
+PORCELAIN-COUNT-AFTER 114
+PROBE 865280 bytes 2026-10-28 18:56:20.675108700 +0800
+PRODUCT 2657280 bytes 2026-10-28 20:57:22.397873400 +0800
+BINARIES-NOT-FOR-ACCEPTANCE-COUNT 1
+R12-END 2026-10-28T21:23:39

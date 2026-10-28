@@ -1,9 +1,32 @@
 === 0/6 binary freshness: the probe is newer than every input it compiles ===
-  OK   BINARY-FRESH=1 probe=2026-10-25 11:02:02
+  OK   BINARY-FRESH=1 probe=2026-10-27 12:34:10
+
+=== 1b/6 matcher: the selector and the ranker agree about order ===
+  OK   matcher selftest exit = 0
+  OK   matcher ordered = 1
+  OK   matcher head = 1
+  OK   matcher boundary = 1
+  OK   matcher substringDefect = 1
+  OK   matcher leading = 1
+  OK   matcher ranked order = 0,3,1,4
+  OK   matcher selector agrees with rank head = 0
+  OK   matcher whole-token pick = 1
+  OK   matcher substring pick = 0
+  OK   matcher leading-token pick = 1
+
+=== 1c/6 entity id: the diagnostic colour never names two bodies ===
+  OK   entity id selftest exit = 0
+  OK   entity id one = 1
+  OK   entity id max = 1
+  OK   entity id over = 1
+  OK   entity id zero = 1
+  OK   entity id negative = 1
+  OK   entity id injective = 1
+  OK   entity id ceiling = 255
 
 === 2/6 A: nine class models pick from a >=200-sequence table, bindBones==bones ===
   OK   A scout probe exit = 0
-  scout: animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=6
+  scout: animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=9
   OK   A scout sequences = 306 (>= 200)
   OK   A scout bindBones==bones = 78
   OK   A scout validBindBones = 78 (>= 1)
@@ -24,32 +47,32 @@
   OK   A soldier separate = 1
   OK   A soldier animSource contains _animations.mdl
   OK   A demo probe exit = 0
-  demo: animtable model=models/player/demo.mdl animSource=models/player/demo_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=276 idleSeq=6 i
+  demo: animtable model=models/player/demo.mdl animSource=models/player/demo_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=276 idleSeq=9 i
   OK   A demo sequences = 276 (>= 200)
   OK   A demo bindBones==bones = 84
   OK   A demo validBindBones = 84 (>= 1)
   OK   A demo separate = 1
   OK   A demo animSource contains _animations.mdl
   FAIL A medic probe exit = 2, expected 0
-       | animtable model=models/player/medic.mdl animSource=models/player/medic_animations.mdl separate=1 bones=92 bindBones=92 validBindBones=92 sequences=213 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=16 poseLabel=ReloadAirwalk_PRIMARY poseFrames=46 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|ReloadAirwalk_PRIMARY|a_flinch01|layer_placeSapper_ArmL|PRIMARY_placeSapper|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|SECONDARY_aimmatrix_crouch_walk|...
+       | animtable model=models/player/medic.mdl animSource=models/player/medic_animations.mdl separate=1 bones=92 bindBones=92 validBindBones=92 sequences=213 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY poseSeq=80 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|ReloadAirwalk_PRIMARY|a_flinch01|layer_placeSapper_ArmL|PRIMARY_placeSapper|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|SECONDARY_aimmatrix_crouch_walk|...
        | boundDiag bindRadius=78.772736 boundDiag=158.545471 bones=92 composed=1 reason=-
        | contcand rank=0 sequence=79 label=swim_LOSER frames=31 sparseStep=11.527103 halfSwing=97.868271
        | contcand rank=1 sequence=211 label=layer_taunt_xray frames=185 sparseStep=15.743229 halfSwing=95.106812
        | contcand rank=2 sequence=207 label=layer_taunt_headbutt_start frames=258 sparseStep=17.946381 halfSwing=117.117279
   FAIL A heavy probe exit = 2, expected 0
-       | animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=7 idleLabel=PRIMARY_aimmatrix_idle movingSeq=8 movingLabel=PRIMARY_aimmatrix_run poseSeq=31 poseLabel=a_SECONDARY_reload_airwalk poseFrames=46 labels=ref|ragdoll|user_ref|ragdollspawn|SPELL_arm_pose_raw|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_aimmatrix_crouch_walk|PRIMARY_aimmatrix_deployed_crouch|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|a_SECONDARY_reload|SECONDARY_reload|SECONDARY_reload_loop|a_SECONDARY_reload_end|a_SECONDARY_crouch_reload|...
+       | animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY poseSeq=115 poseLabel=run_PRIMARY poseFrames=17 labels=ref|ragdoll|user_ref|ragdollspawn|SPELL_arm_pose_raw|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_aimmatrix_crouch_walk|PRIMARY_aimmatrix_deployed_crouch|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|a_SECONDARY_reload|SECONDARY_reload|SECONDARY_reload_loop|a_SECONDARY_reload_end|a_SECONDARY_crouch_reload|...
        | boundDiag bindRadius=79.631165 boundDiag=160.262329 bones=77 composed=1 reason=-
        | contcand rank=0 sequence=224 label=selectionMenu_Anim01 frames=72 sparseStep=13.342402 halfSwing=83.955917
        | contcand rank=1 sequence=206 label=layer_taunt_highFiveSuccessFull frames=126 sparseStep=17.111847 halfSwing=114.910904
        | contcand rank=2 sequence=205 label=taunt_highFiveStart frames=87 sparseStep=17.114334 halfSwing=92.224373
   FAIL A pyro probe exit = 2, expected 0
-       | animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=47 poseLabel=layer_reload_flaregun_airwalk_ITEM1 poseFrames=61 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_walk|PRIMARY_aimmatrix_crouch_idle|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_flinch01|primary_fire|AttackCrouch_PRIMARY|AttackCrouch_PRIMARY_spoolup|AttackCrouch_PRIMARY_spooldown|SECONDARYAttackCrouch_PRIMARY|AttackStand_PRIMARY|AttackStand_primary_spoolup|AttackStand_primary_spooldown|SECONDARYAttackStand_PRIMARY|AttackSwim_PRIMARY|...
+       | animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=10 idleLabel=ReloadStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY poseSeq=141 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_walk|PRIMARY_aimmatrix_crouch_idle|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_flinch01|primary_fire|AttackCrouch_PRIMARY|AttackCrouch_PRIMARY_spoolup|AttackCrouch_PRIMARY_spooldown|SECONDARYAttackCrouch_PRIMARY|AttackStand_PRIMARY|AttackStand_primary_spoolup|AttackStand_primary_spooldown|SECONDARYAttackStand_PRIMARY|AttackSwim_PRIMARY|...
        | boundDiag bindRadius=71.823799 boundDiag=144.647598 bones=76 composed=1 reason=-
        | contcand rank=0 sequence=173 label=layer_taunt_scorch_shot frames=114 sparseStep=0.000000 halfSwing=123.435883
        | contcand rank=1 sequence=188 label=layer_taunt_laugh frames=151 sparseStep=17.077446 halfSwing=101.861374
        | contcand rank=2 sequence=241 label=layer_taunt_flip_success_initiator frames=122 sparseStep=19.806391 halfSwing=93.738396
   FAIL A spy probe exit = 2, expected 0
-       | animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=7 idleLabel=SECONDARY_aimmatrix_idle movingSeq=8 movingLabel=SECONDARY_aimmatrix_run poseSeq=16 poseLabel=layer_reload_airwalk_arms_SECONDARY poseFrames=41 labels=ref|ragdoll|user_ref|test_swingBlend|ragdollspawn|r_handposes|r_armposes|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|layer_reload_standing_arms_SECONDARY|layer_reload_crouching_arms_SECONDARY|layer_reload_swimming_arms_SECONDARY|layer_reload_airwalk_arms_SECONDARY|ReloadStand_SECONDARY|ReloadCrouch_SECONDARY|ReloadSwim_SECONDARY|ReloadAirwalk_SECONDARY|a_flinch01|layer_placeSapper_ArmL|SECONDARY_placeSapper|...
+       | animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY poseSeq=145 poseLabel=run_SECONDARY poseFrames=19 labels=ref|ragdoll|user_ref|test_swingBlend|ragdollspawn|r_handposes|r_armposes|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|layer_reload_standing_arms_SECONDARY|layer_reload_crouching_arms_SECONDARY|layer_reload_swimming_arms_SECONDARY|layer_reload_airwalk_arms_SECONDARY|ReloadStand_SECONDARY|ReloadCrouch_SECONDARY|ReloadSwim_SECONDARY|ReloadAirwalk_SECONDARY|a_flinch01|layer_placeSapper_ArmL|SECONDARY_placeSapper|...
        | boundDiag bindRadius=75.745811 boundDiag=152.491623 bones=84 composed=1 reason=-
        | contcand rank=0 sequence=227 label=layer_taunt_buy_a_life frames=192 sparseStep=0.000000 halfSwing=81.300598
        | contcand rank=1 sequence=144 label=swim_LOSER frames=31 sparseStep=12.674725 halfSwing=94.978500
@@ -67,46 +90,46 @@
   OK   B scout boundDiag composed = 1
   OK   B scout boundDiag = 148.069992 (> 1)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.0000 = 69.670395 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.0000 = 80.123543 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.7500 = 68.860672 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.7500 = 80.329147 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.5000 = 68.752670 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.5000 = 80.250557 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.2500 = 68.716560 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.2500 = 80.981621 (<= 148.069992)
   OK   B scout distinct pose checksums = 4
   OK   B sniper boundDiag composed = 1
   OK   B sniper boundDiag = 168.444580 (> 1)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.0000 = 74.901497 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.0000 = 94.478920 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.7500 = 74.077370 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.7500 = 97.487022 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.5000 = 70.738968 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.5000 = 94.874527 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.2500 = 73.126823 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.2500 = 97.381599 (<= 168.444580)
   OK   B sniper distinct pose checksums = 4
   OK   B soldier boundDiag composed = 1
   OK   B soldier boundDiag = 162.180664 (> 1)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.0000 = 80.176758 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.0000 = 59.035938 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.7500 = 76.416283 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.7500 = 64.649261 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.5000 = 75.606133 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.5000 = 57.399475 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.2500 = 81.630997 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.2500 = 64.011276 (<= 162.180664)
   OK   B soldier distinct pose checksums = 4
   OK   B demo boundDiag composed = 1
   OK   B demo boundDiag = 153.344421 (> 1)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.0000 = 68.632790 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.0000 = 66.777214 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.7500 = 74.290108 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.7500 = 74.243271 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.5000 = 71.111755 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.5000 = 66.529282 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.2500 = 73.850571 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.2500 = 72.604279 (<= 153.344421)
   OK   B demo distinct pose checksums = 4
   OK   B medic boundDiag composed = 1
   OK   B medic boundDiag = 158.545471 (> 1)
@@ -123,14 +146,18 @@
   OK   B engineer boundDiag composed = 1
   OK   B engineer boundDiag = 153.530396 (> 1)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.0000 = 78.078697 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.0000 = 77.884537 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.7500 = 78.065056 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.7500 = 82.237099 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.5000 = 78.065056 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.5000 = 77.438210 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.2500 = 78.065056 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.2500 = 83.335449 (<= 153.530396)
   OK   B engineer distinct pose checksums = 4
+  OK   B scout repeat probe exit = 0
+  OK   B scout repeat pose line count = 4
+  OK   B scout pose lines to compare = 4 (>= 4)
+  OK   B scout pose digest repeatable = f8d1dbc868d32d9582e1def48e3e96fb
 
 === 4/6 C: sixty 1/60 s steps never move a matrix element by more than boundDiag/4 ===
   OK   C scout animcont usable = 1
@@ -194,3 +221,4 @@
   OK   E demo printed idle ticks that advanced = 0
 
 FAIL player-animation-check: see the FAIL lines above.
+PLAYER-ANIMATION-CHECK=FAIL

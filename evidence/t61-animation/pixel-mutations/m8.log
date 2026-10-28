@@ -1,0 +1,59 @@
+=== F1: the binary under test is newer than the sources it compiles ===
+  OK   binary is newer than every source that feeds the pixel path
+
+=== F2/F3/F4: capture the coverage mask, the animated frame and the off frame ===
+  coverage rc=0 view=entity-coverage frameTick=64161 sceneTick=74481
+  animated rc=0 view=textured frameTick=64161 sceneTick=74481
+  off     rc=0 view=textured frameTick=64161 sceneTick=74481
+  repeat  rc=0 view=textured frameTick=64161 sceneTick=74481
+  identity rc=0 view=entity-id frameTick=64161 sceneTick=74481
+  OK   the identity frame landed the requested playback tick 64161
+  OK   the identity frame resolved the same scene tick as the animated frame (74481)
+  OK   the repeat capture landed the same playback and scene tick (64161/74481)
+  OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
+  OK   coverage frame really is the entity-coverage view
+  OK   animated frame is the product view
+  OK   off frame is the product view
+  OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
+  OK   both runs resolved the same scene tick 74481
+  OK   the animated capture published an animsum line (the drive ran)
+  OK   the animated capture published 8 per-model pick line(s)
+  OK   moving picks resolved on 6 distinct label(s): PRIMARY_airwalk_reload_start ReloadAirwalk_PRIMARY ReloadAirwalk_SECONDARY a_PRIMARY_reload_airwalk a_SECONDARY_reload_airwalk layer_reload_airwalk_arms_SECONDARY
+  FAIL a moving pick is an air-walk clip: PRIMARY_airwalk_reload_start ReloadAirwalk_PRIMARY ReloadAirwalk_SECONDARY a_PRIMARY_reload_airwalk a_SECONDARY_reload_airwalk layer_reload_airwalk_arms_SECONDARY [T61.1 regression -- the needle matched a substring again]
+  FAIL a moving pick is not a run cycle: PRIMARY_airwalk_reload_start ReloadAirwalk_PRIMARY ReloadAirwalk_SECONDARY a_PRIMARY_reload_airwalk a_SECONDARY_reload_airwalk layer_reload_airwalk_arms_SECONDARY [the rule must prefer the label whose first token is the needle]
+  FAIL the rendered scene reports reason=PRIMARY_airwalk_reload_start: the frame is an air-walk pose
+
+=== F5: the per-entity chain ===
+  LEDGER lines=96 distinct-ids=96
+  PICKS  models=8
+  MASK   distinct-ids=3 pixels=6382
+  SUBJECT id=95 ent=5 model=models/player/demo.mdl state=moving seq=24 label=a_PRIMARY_reload_airwalk pixels=5192
+  VISIBLE players=1 props=2
+  JOIN   subject matches its own pick: models/player/demo.mdl moving seq=24 label=a_PRIMARY_reload_airwalk
+  DRAWN  2 skinned player instance(s) report their own pick (0 not skinned, not judged)
+  SAMPLE 31 per-entity sample line(s), each matching its own model pick
+  MOTION subject=95 over-mask=5192 differ=4297 share=82.76%
+  DECODED id=95 ent=5 model=models/player/demo.mdl state=moving seq=24 label=a_PRIMARY_reload_airwalk
+  ENTITY-ID=PASS
+  OK   the id frame decodes to a named body whose own pick, own samples and own pixels agree
+  OK   coverage.bmp exists (2582406 bytes)
+  OK   animated.bmp exists (2582406 bytes)
+  OK   off.bmp exists (2582406 bytes)
+  OK   identity.bmp exists (2582406 bytes)
+
+=== F3/F4: the pixel assertions themselves ===
+  MASK pixels=3497 of 860784 (0.41%) sentinel=(255,0,255)
+  MASK non-sentinel top=[((89, 158, 97), 707011), ((14, 18, 22), 150276)]
+  OK   mask size 3497 in [2000, 215196]
+  BODY over mask: distinct=777 mean_lum=81.3 pure_black=0.099 top=[((0, 0, 0), 205), ((199, 196, 191), 82), ((194, 192, 189), 79)]
+  OK   body distinct colours 777 >= 200 (not a flat fill)
+  OK   body mean luminance 81.3 >= 12.0
+  OK   body pure-black share 0.099 <= 0.35
+  animation-off vs animated over mask: differ=2278 (65.14%) differ_by_>=24=1246 (35.63%)
+  OK   animation-off moved 65.14% >= 5.0% of body pixels
+  PIXEL-CHECK=PASS
+  OK   t61-pixels.py printed PIXEL-CHECK=PASS
+  OK   no FAIL lines from the pixel tool
+
+FAIL player-animation-pixels: see the FAIL lines above.
+PLAYER-ANIMATION-PIXELS=FAIL

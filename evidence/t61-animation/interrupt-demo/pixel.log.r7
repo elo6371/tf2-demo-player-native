@@ -1,0 +1,35 @@
+=== baseline: the unmutated tree must be green before any case ===
+  OK   baseline rc=0 FAIL-count=0 (log .scratch/interrupt-demo-out/pixel/baseline.log)
+         OK   binary is newer than every source that feeds the pixel path
+         OK   the identity frame landed the requested playback tick 64161
+         OK   the identity frame resolved the same scene tick as the animated frame (74481)
+         OK   the repeat capture landed the same playback and scene tick (64161/74481)
+         OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
+         OK   coverage frame really is the entity-coverage view
+         OK   animated frame is the product view
+         OK   off frame is the product view
+         OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
+         OK   both runs resolved the same scene tick 74481
+         OK   the animated capture published an animsum line (the drive ran)
+         OK   the animated capture published 8 per-model pick line(s)
+         OK   moving picks resolved on 2 distinct label(s): run_PRIMARY run_SECONDARY
+         OK   no moving pick is an air-walk clip
+         OK   every moving pick is a run cycle
+         OK   the rendered scene reports reason=run_PRIMARY, one of the picks for the drive state it is in (run_PRIMARY run_SECONDARY )
+         OK   the id frame decodes to a named body whose own pick, own samples and own pixels agree
+         OK   coverage.bmp exists (2582406 bytes)
+         OK   animated.bmp exists (2582406 bytes)
+         OK   off.bmp exists (2582406 bytes)
+
+=== case m12: mutate native/src/main.cpp ===
+  patched (backup .scratch/t61-pixel-mutations/m12.orig)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
+INTERRUPT-RECOVERY=rebuilt: sources restored and the product rebuilt from them, so no mutant binary is left to run (log .scratch/t61-pixel-mutations/recovery-build.log)

@@ -1,0 +1,1 @@
+matchselftest ordered=1 head=1 boundary=1 substringDefect=0 leading=1 ranked=0,3,1,4 chosen=0 wholeTokenPick=1 substringPick=1 leadingPick=1

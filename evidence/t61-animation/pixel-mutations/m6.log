@@ -6,6 +6,9 @@
   animated rc=0 view=textured frameTick=64161 sceneTick=74481
   off     rc=0 view=textured frameTick=64161 sceneTick=74481
   repeat  rc=0 view=textured frameTick=64161 sceneTick=74481
+  identity rc=0 view=entity-id frameTick=64161 sceneTick=74481
+  OK   the identity frame landed the requested playback tick 64161
+  OK   the identity frame resolved the same scene tick as the animated frame (74481)
   OK   the repeat capture landed the same playback and scene tick (64161/74481)
   OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
   OK   coverage frame really is the entity-coverage view
@@ -14,23 +17,44 @@
   OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
   OK   both runs resolved the same scene tick 74481
   OK   the animated capture published an animsum line (the drive ran)
+  OK   the animated capture published 8 per-model pick line(s)
+  OK   moving picks resolved on 2 distinct label(s): run_PRIMARY run_SECONDARY
+  OK   no moving pick is an air-walk clip
+  OK   every moving pick is a run cycle
+  OK   the rendered scene reports reason=run_PRIMARY, one of the picks for the drive state it is in (run_PRIMARY run_SECONDARY )
+
+=== F5: the per-entity chain ===
+  LEDGER lines=96 distinct-ids=96
+  PICKS  models=8
+  MASK   distinct-ids=3 pixels=5573
+  SUBJECT id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=4383
+  VISIBLE players=1 props=2
+  JOIN   subject matches its own pick: models/player/demo.mdl moving seq=147 label=run_PRIMARY
+  DRAWN  2 skinned player instance(s) report their own pick (0 not skinned, not judged)
+  SAMPLE 31 per-entity sample line(s), each matching its own model pick
+  MOTION subject=95 over-mask=4383 differ=3687 share=84.12%
+  DECODED id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
+  ENTITY-ID=PASS
+  OK   the id frame decodes to a named body whose own pick, own samples and own pixels agree
   OK   coverage.bmp exists (2582406 bytes)
   OK   animated.bmp exists (2582406 bytes)
   OK   off.bmp exists (2582406 bytes)
+  OK   identity.bmp exists (2582406 bytes)
 
 === F3/F4: the pixel assertions themselves ===
-  MASK pixels=6876 of 860784 (0.80%) sentinel=(255,0,255)
-  MASK non-sentinel top=[((89, 158, 97), 691228), ((14, 18, 22), 162680)]
-  OK   mask size 6876 in [2000, 215196]
-  BODY over mask: distinct=537 mean_lum=27.8 pure_black=0.840 top=[((0, 0, 0), 5775), ((197, 194, 189), 37), ((199, 196, 191), 36)]
-  OK   body distinct colours 537 >= 200 (not a flat fill)
-  OK   body mean luminance 27.8 >= 12.0
-  FAIL body pure-black share 0.840 > 0.35 (silhouette again)
-  animation-off vs animated over mask: differ=1101 (16.01%) differ_by_>=24=1101 (16.01%)
-  OK   animation-off moved 16.01% >= 5.0% of body pixels
+  MASK pixels=3497 of 860784 (0.41%) sentinel=(255,0,255)
+  MASK non-sentinel top=[((89, 158, 97), 707011), ((14, 18, 22), 150276)]
+  OK   mask size 3497 in [2000, 215196]
+  BODY over mask: distinct=475 mean_lum=87.4 pure_black=0.539 top=[((0, 0, 0), 1886), ((199, 196, 191), 102), ((194, 192, 189), 79)]
+  OK   body distinct colours 475 >= 200 (not a flat fill)
+  OK   body mean luminance 87.4 >= 12.0
+  FAIL body pure-black share 0.539 > 0.35 (silhouette again)
+  animation-off vs animated over mask: differ=1611 (46.07%) differ_by_>=24=1611 (46.07%)
+  OK   animation-off moved 46.07% >= 5.0% of body pixels
   PIXEL-CHECK=FAIL
   FAIL t61-pixels.py exited 1 (see evidence/t61-animation/pixels/mutations/pixel-check.txt)
   FAIL t61-pixels.py did not print PIXEL-CHECK=PASS (a missing verdict is not a pass)
   FAIL 1 FAIL line(s) from the pixel tool
 
 FAIL player-animation-pixels: see the FAIL lines above.
+PLAYER-ANIMATION-PIXELS=FAIL

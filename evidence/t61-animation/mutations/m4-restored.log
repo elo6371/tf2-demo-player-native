@@ -1,9 +1,32 @@
 === 0/6 binary freshness: the probe is newer than every input it compiles ===
-  OK   BINARY-FRESH=1 probe=2026-10-25 11:04:16
+  OK   BINARY-FRESH=1 probe=2026-10-27 12:36:14
+
+=== 1b/6 matcher: the selector and the ranker agree about order ===
+  OK   matcher selftest exit = 0
+  OK   matcher ordered = 1
+  OK   matcher head = 1
+  OK   matcher boundary = 1
+  OK   matcher substringDefect = 1
+  OK   matcher leading = 1
+  OK   matcher ranked order = 0,3,1,4
+  OK   matcher selector agrees with rank head = 0
+  OK   matcher whole-token pick = 1
+  OK   matcher substring pick = 0
+  OK   matcher leading-token pick = 1
+
+=== 1c/6 entity id: the diagnostic colour never names two bodies ===
+  OK   entity id selftest exit = 0
+  OK   entity id one = 1
+  OK   entity id max = 1
+  OK   entity id over = 1
+  OK   entity id zero = 1
+  OK   entity id negative = 1
+  OK   entity id injective = 1
+  OK   entity id ceiling = 255
 
 === 2/6 A: nine class models pick from a >=200-sequence table, bindBones==bones ===
   OK   A scout probe exit = 0
-  scout: animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=6
+  scout: animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=9
   OK   A scout sequences = 306 (>= 200)
   OK   A scout bindBones==bones = 78
   OK   A scout validBindBones = 78 (>= 1)
@@ -24,35 +47,35 @@
   OK   A soldier separate = 1
   OK   A soldier animSource contains _animations.mdl
   OK   A demo probe exit = 0
-  demo: animtable model=models/player/demo.mdl animSource=models/player/demo_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=276 idleSeq=6 i
+  demo: animtable model=models/player/demo.mdl animSource=models/player/demo_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=276 idleSeq=9 i
   OK   A demo sequences = 276 (>= 200)
   OK   A demo bindBones==bones = 84
   OK   A demo validBindBones = 84 (>= 1)
   OK   A demo separate = 1
   OK   A demo animSource contains _animations.mdl
   OK   A medic probe exit = 0
-  medic: animtable model=models/player/medic.mdl animSource=models/player/medic_animations.mdl separate=1 bones=92 bindBones=92 validBindBones=92 sequences=213 idleSeq=6
+  medic: animtable model=models/player/medic.mdl animSource=models/player/medic_animations.mdl separate=1 bones=92 bindBones=92 validBindBones=92 sequences=213 idleSeq=9
   OK   A medic sequences = 213 (>= 200)
   OK   A medic bindBones==bones = 92
   OK   A medic validBindBones = 92 (>= 1)
   OK   A medic separate = 1
   OK   A medic animSource contains _animations.mdl
   OK   A heavy probe exit = 0
-  heavy: animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=7
+  heavy: animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=1
   OK   A heavy sequences = 259 (>= 200)
   OK   A heavy bindBones==bones = 79
   OK   A heavy validBindBones = 79 (>= 1)
   OK   A heavy separate = 1
   OK   A heavy animSource contains _animations.mdl
   OK   A pyro probe exit = 0
-  pyro: animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=6 i
+  pyro: animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=10 
   OK   A pyro sequences = 270 (>= 200)
   OK   A pyro bindBones==bones = 76
   OK   A pyro validBindBones = 76 (>= 1)
   OK   A pyro separate = 1
   OK   A pyro animSource contains _animations.mdl
   OK   A spy probe exit = 0
-  spy: animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=7 idl
+  spy: animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=10 id
   OK   A spy sequences = 274 (>= 200)
   OK   A spy bindBones==bones = 84
   OK   A spy validBindBones = 84 (>= 1)
@@ -71,102 +94,106 @@
   OK   B scout boundDiag composed = 1
   OK   B scout boundDiag = 148.069992 (> 1)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.0000 = 69.670395 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.0000 = 80.123543 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.2500 = 68.716560 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.2500 = 80.981621 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.5000 = 68.752670 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.5000 = 80.250557 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.7500 = 68.860672 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.7500 = 80.329147 (<= 148.069992)
   OK   B scout distinct pose checksums = 4
   OK   B sniper boundDiag composed = 1
   OK   B sniper boundDiag = 168.444580 (> 1)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.0000 = 74.901497 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.0000 = 94.478920 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.2500 = 73.126823 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.2500 = 97.381599 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.5000 = 70.738968 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.5000 = 94.874527 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.7500 = 74.077370 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.7500 = 97.487022 (<= 168.444580)
   OK   B sniper distinct pose checksums = 4
   OK   B soldier boundDiag composed = 1
   OK   B soldier boundDiag = 162.180664 (> 1)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.0000 = 80.176758 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.0000 = 59.035938 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.2500 = 81.630997 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.2500 = 64.011276 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.5000 = 75.606133 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.5000 = 57.399475 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.7500 = 76.416283 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.7500 = 64.649261 (<= 162.180664)
   OK   B soldier distinct pose checksums = 4
   OK   B demo boundDiag composed = 1
   OK   B demo boundDiag = 153.344421 (> 1)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.0000 = 68.632790 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.0000 = 66.777214 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.2500 = 73.850571 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.2500 = 72.604279 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.5000 = 71.111755 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.5000 = 66.529282 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.7500 = 74.290108 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.7500 = 74.243271 (<= 153.344421)
   OK   B demo distinct pose checksums = 4
   OK   B medic boundDiag composed = 1
   OK   B medic boundDiag = 158.545471 (> 1)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.0000 = 76.533752 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.0000 = 97.196129 (<= 158.545471)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.2500 = 73.846451 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.2500 = 99.948143 (<= 158.545471)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.5000 = 75.890503 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.5000 = 97.550713 (<= 158.545471)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.7500 = 76.490417 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.7500 = 100.189140 (<= 158.545471)
   OK   B medic distinct pose checksums = 4
   OK   B heavy boundDiag composed = 1
   OK   B heavy boundDiag = 160.262329 (> 1)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.0000 = 71.225464 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.0000 = 57.628395 (<= 160.262329)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.2500 = 76.390839 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.2500 = 65.019592 (<= 160.262329)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.5000 = 80.757179 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.5000 = 61.150166 (<= 160.262329)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.7500 = 77.288994 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.7500 = 63.762997 (<= 160.262329)
   OK   B heavy distinct pose checksums = 4
   OK   B pyro boundDiag composed = 1
   OK   B pyro boundDiag = 144.647598 (> 1)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.0000 = 99.977791 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.0000 = 82.310555 (<= 144.647598)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.2500 = 82.844711 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.2500 = 87.248924 (<= 144.647598)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.5000 = 71.275291 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.5000 = 82.593567 (<= 144.647598)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.7500 = 86.160973 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.7500 = 88.807404 (<= 144.647598)
   OK   B pyro distinct pose checksums = 4
   OK   B spy boundDiag composed = 1
   OK   B spy boundDiag = 152.491623 (> 1)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.0000 = 99.419136 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.0000 = 91.206558 (<= 152.491623)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.2500 = 103.754593 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.2500 = 85.813347 (<= 152.491623)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.5000 = 92.944839 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.5000 = 95.650833 (<= 152.491623)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.7500 = 100.305557 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.7500 = 88.291389 (<= 152.491623)
   OK   B spy distinct pose checksums = 4
   OK   B engineer boundDiag composed = 1
   OK   B engineer boundDiag = 153.530396 (> 1)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.0000 = 78.078697 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.0000 = 77.884537 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.2500 = 78.065056 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.2500 = 83.335449 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.5000 = 78.065056 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.5000 = 77.438210 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.7500 = 78.065056 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.7500 = 82.237099 (<= 153.530396)
   OK   B engineer distinct pose checksums = 4
+  OK   B scout repeat probe exit = 0
+  OK   B scout repeat pose line count = 4
+  OK   B scout pose lines to compare = 4 (>= 4)
+  OK   B scout pose digest repeatable = cf489aa9ea9bba842abc105d62670678
 
 === 4/6 C: sixty 1/60 s steps never move a matrix element by more than boundDiag/4 ===
   OK   C scout animcont usable = 1
@@ -230,3 +257,4 @@
   OK   E demo printed idle ticks that advanced = 0
 
 PASS player-animation-check: negative controls named-failed; A sequences>=200 and bindBones==bones; B four distinct poses inside boundDiag; C maxStepDelta<=boundDiag/4; D moving second==expected, idle second==0; E speed advances the cycle and no speed freezes it.
+PLAYER-ANIMATION-CHECK=PASS

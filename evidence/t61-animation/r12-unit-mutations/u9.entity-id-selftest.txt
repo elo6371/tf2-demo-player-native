@@ -1,0 +1,1 @@
+entityidselftest one=1 max=1 over=1 zero=0 negative=0 injective=1 maxId=255

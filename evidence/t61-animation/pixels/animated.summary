@@ -1,5 +1,44 @@
 tag=animated rc=0 view=textured frameTick=64161 sceneTick=74481
-140063.0 animsum: tick=74481 players=14 moving=7 idle=7 advanced=7 skipped=0 maxDeltaCycle=0.856742
-19914.5 gpu: world debug view=textured
-140064.9 capture: armed requested=64161 frame_tick=64161 frames=12623
-140063.1 scene: anim skinned=67 bindPose=29 matrices=1339 gpuSkin=66/1339 boneMismatch=71366 poseChanges=5345 targetInstances=2 targetPose=3 advances=4931 targetAdv=3 cycle=187675/174216 tick=74481 status=ok reason=ReloadAirwalk_PRIMARY
+158190.3 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+37709.0 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+37743.2 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+37783.3 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+37819.7 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+37855.7 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+50964.9 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
+68948.3 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
+134298.3 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
+anim: ent=10 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=10 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=11 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=11 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+anim: ent=13 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=13 model=models/player/medic.mdl state=moving seq=80 label=run_PRIMARY
+anim: ent=15 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=2 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=2 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+anim: ent=3 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=3 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=3 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY
+anim: ent=4 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=4 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
+anim: ent=5 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
+anim: ent=6 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=6 model=models/player/medic.mdl state=moving seq=80 label=run_PRIMARY
+anim: ent=7 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=7 model=models/player/engineer.mdl state=moving seq=265 label=run_PRIMARY
+anim: ent=7 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY
+anim: ent=7 model=models/player/heavy.mdl state=moving seq=115 label=run_PRIMARY
+anim: ent=7 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=7 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=7 model=models/player/spy.mdl state=idle seq=10 label=AttackStand_SECONDARY
+anim: ent=7 model=models/player/spy.mdl state=moving seq=145 label=run_SECONDARY
+anim: ent=8 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=8 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+anim: ent=9 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=9 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+37982.2 gpu: world debug view=textured
+158193.6 capture: armed requested=64161 frame_tick=64161 frames=3795
+158190.4 scene: anim skinned=63 bindPose=33 matrices=338 gpuSkin=62/338 boneMismatch=18378 poseChanges=4804 targetInstances=3 targetPose=3 advances=4634 targetAdv=3 cycle=46718/38194 tick=74481 status=ok reason=run_PRIMARY

@@ -425,6 +425,15 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // box. The product path cannot produce it: the world view for this mode
   // is the flat arm (0.35,0.62,0.38), and this arm is the only one that
   // returns a saturated magenta.
+  // T61.1 diagnostic: WHICH entity, not merely whether. The coverage arm
+  // below answers "is this pixel an entity" with one sentinel, so two
+  // characters are indistinguishable and a sequence resolved for one
+  // model can be carried by another with no reading to show it. This arm
+  // sits ABOVE the sentinel because the entity pass hands it 11.0 and
+  // 11.0 > 9.5: an arm placed below would be unreachable.
+  if (envFeatures.x > 10.5) {
+    return float4(colour.rgb, 1.0);
+  }
   if (envFeatures.x > 9.5) {
     return float4(1.0, 0.0, 1.0, 1.0);
   }
@@ -464,7 +473,14 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   if (envFeatures.x > 0.5 && envFeatures.x < 1.5) {
     return float4(sampled, 1.0);
   }
-  // T12: WorldVertexTransition. Source's LightmappedGeneric pixel shader picks
+)HLSL"
+    // MSVC caps a single string literal at about 16 KB and truncates the
+    // tail silently as C2026 ("string too large, trailing characters
+    // truncated"). The T61.1 diagnostic arm pushed this shader past that
+    // cap, so it is carried as adjacent literals that the compiler
+    // concatenates. The split is load-bearing: joining the two literals
+    // back into one does not compile.
+    R"HLSL(  // T12: WorldVertexTransition. Source's LightmappedGeneric pixel shader picks
   // between `$basetexture` and `$basetexture2` with the vertex alpha, and
   // reshapes that weight with `smoothstep(g - r, g + r, w)` when the material
   // declares `$blendmodulatetexture`
@@ -5760,8 +5776,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         : worldDebugView_ == 5 ? 1.0f
         : worldDebugView_ == 6 ? 8.0f
         : worldDebugView_ == 7 ? 9.0f
-        // Coverage mode (8) deliberately falls through to 4.0 so the world
+        // Coverage mode (8) knowingly falls through to 4.0 so the world
         // never wears the sentinel; only the entity pass sits above it.
+        // The id view (9) falls through for the same reason: the world is
+        // background there, and a world pixel in an id colour would join a
+        // per-entity mask it does not belong to.
         : 4.0f;
       debugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &debugConstants, 0, 0);
@@ -5981,7 +6000,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         : worldDebugView_ == 5 ? 1.0f
         : worldDebugView_ == 6 ? 8.0f
         : worldDebugView_ == 7 ? 9.0f
-        : worldDebugView_ == 8 ? 10.0f : 4.0f;
+        // T61.1: mode 9 (per-entity id) is 11.0, one step above the
+        // coverage sentinel, because its arm tests x > 10.5.
+        : worldDebugView_ == 8 ? 10.0f
+        : worldDebugView_ == 9 ? 11.0f : 4.0f;
       entityDebugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &entityDebugConstants, 0, 0);
     }

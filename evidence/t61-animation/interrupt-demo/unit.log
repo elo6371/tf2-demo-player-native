@@ -1,0 +1,18 @@
+=== interrupt demo: unit -- bash player-animation-unit-mutations.sh u1
+=== logs and captures under .scratch/interrupt-demo-out/unit; suite log .scratch/interrupt-demo-unit.log
+=== signalling the suite shell (SIGINT), the mutant is on disk
+15:37:59 signal
+15:40:40 done
+WRAPPER-RC=130
+=== tail of the suite log:
+    D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+    D:\TF2_Native_Worktrees\t61-airwalk\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+    D:\TF2_Native_Worktrees\t61-airwalk\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+    D:\TF2_Native_Worktrees\t61-airwalk\native\src\spectate_target.cpp(286): warning C4127: 条件表达式是常量
+    rc=0
+    INTERRUPT-RECOVERY=rebuilt: sources restored and both binaries rebuilt from them, so nothing mutant is left to run (log .scratch/t61-unit-mutations/recovery-build.log)
+=== binaries:
+    -rwxr-xr-x 1 Administrator 197121  865280 Oct 27 15:39 native/build-nmake/model_pose_probe.exe
+    -rwxr-xr-x 1 Administrator 197121 2657280 Oct 27 15:40 native/build-nmake/tf2_demo_native.exe
+INTERRUPT-DEMO=PASS
+DEMO-RC=0

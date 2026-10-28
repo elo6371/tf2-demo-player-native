@@ -168,6 +168,67 @@ fi
 
 # ===========================================================================
 echo
+echo "=== 1b/6 matcher: the selector and the ranker agree about order ==="
+# T61.1 review 2, P1. `model_pose_probe --matcher-selftest` runs four synthetic
+# cases over the shared matcher: the nesting (sequence-major, so the ranker's
+# head is the selector's own pick), the whole-token boundary (walk must not
+# match inside airwalk), the substring defect (it DOES match there, which is
+# what m8 reintroduces), and the leading-token preference (a run cycle beats an
+# arm-layer clip that merely contains the token -- what m9 removes).
+#
+# This section exists because the probe's --self-test had NO caller: a unit test
+# no gate runs is a comment. The reading is a single line the probe prints, and
+# every field in it is required to be 1, so a partially broken matcher cannot
+# pass by printing a plausible line.
+MATCH_LOG="$OUT/matcher-selftest.txt"
+"$PROBE" --matcher-selftest > "$MATCH_LOG" 2>&1
+MATCH_RC=$?
+MATCH_LINE=$(head -1 "$MATCH_LOG")
+assert_eq "matcher selftest exit" "$MATCH_RC" "0"
+for matcher_field in ordered head boundary substringDefect leading; do
+  assert_eq "matcher $matcher_field" "$(field "$MATCH_LINE" "$matcher_field")" "1"
+done
+# The ranker's order is the property the fix was about, so it is pinned by
+# value, not only by the `ordered=1` flag. The synthetic table leads with
+# `walk_SECONDARY` at index 0 and puts `run_SECONDARY` at index 3, so a
+# sequence-major ranker answers 0,3,1,4 -- the earlier leading-token match
+# first -- while a needle-major one walks `run` to exhaustion and answers
+# 3,0,1,4. The selector is sequence-major and picks 0, so the head of this
+# list is the pick; that equality is the review-2 property, and this pair of
+# assertions is the only place in the suite where the difference is visible.
+assert_eq "matcher ranked order" "$(field "$MATCH_LINE" ranked)" "0,3,1,4"
+assert_eq "matcher selector agrees with rank head" \
+  "$(field "$MATCH_LINE" chosen)" "0"
+# The two modes must DISAGREE on this table; if they ever agree, the substring
+# case has stopped testing the defect it names.
+assert_eq "matcher whole-token pick" "$(field "$MATCH_LINE" wholeTokenPick)" "1"
+assert_eq "matcher substring pick" "$(field "$MATCH_LINE" substringPick)" "0"
+assert_eq "matcher leading-token pick" "$(field "$MATCH_LINE" leadingPick)" "1"
+# ===========================================================================
+echo
+echo "=== 1c/6 entity id: the diagnostic colour never names two bodies ==="
+# T61.1 review 2, P2. The id view paints body k with red k/255, and the reader
+# decodes a pixel back to an entity by that byte alone, so two ids sharing a
+# colour would silently merge two entities -- a reading that looks like a pass.
+# The product refuses the whole capture (exit 17) rather than clamping, and the
+# encoder is where that decision lives, so the encoder is tested directly: the
+# range is injective, the ceiling is legal, one past it is refused AND the
+# colour is left untouched.
+#
+# The refusal itself cannot be reached from a scene today (the draw budget caps
+# the id at 96), so this unit test is the only place the ceiling is exercised;
+# a scene-level test of it would be vacuous by construction.
+ENTITYID_LOG="$OUT/entity-id-selftest.txt"
+"$PROBE" --entity-id-selftest > "$ENTITYID_LOG" 2>&1
+ENTITYID_RC=$?
+ENTITYID_LINE=$(head -1 "$ENTITYID_LOG")
+assert_eq "entity id selftest exit" "$ENTITYID_RC" "0"
+for id_field in one max over zero negative injective; do
+  assert_eq "entity id $id_field" "$(field "$ENTITYID_LINE" "$id_field")" "1"
+done
+assert_eq "entity id ceiling" "$(field "$ENTITYID_LINE" maxId)" "255"
+# ===========================================================================
+echo
 echo "=== 2/6 A: nine class models pick from a >=200-sequence table, bindBones==bones ==="
 CLASSES="scout sniper soldier demo medic heavy pyro spy engineer"
 CLASS_ROWS=0
@@ -300,9 +361,18 @@ if [ "$DEMO_RC" = "0" ]; then
 fi
 
 echo
+# The machine verdict. verify-all.sh greps for exactly this token and had been
+# grepping for a line this gate NEVER PRINTED: it went in with 02610db and no
+# full chain ran between then and the T61.1 review, so a permanent red sat in
+# the release chain unobserved. Every other gate in this repo ends with
+# `NAME=PASS` (CAMERA-UI=PASS, HUD=PASS, LOGSTF=PASS, ORACLE-GATE=PASS) for
+# exactly this reason, so this one now does too, and the prose line stays for a
+# human reading the log.
 if [ "$fail" = "0" ]; then
   echo "PASS player-animation-check: negative controls named-failed; A sequences>=200 and bindBones==bones; B four distinct poses inside boundDiag; C maxStepDelta<=boundDiag/4; D moving second==expected, idle second==0; E speed advances the cycle and no speed freezes it."
+  echo "PLAYER-ANIMATION-CHECK=PASS"
 else
   echo "FAIL player-animation-check: see the FAIL lines above."
+  echo "PLAYER-ANIMATION-CHECK=FAIL"
 fi
 exit "$fail"

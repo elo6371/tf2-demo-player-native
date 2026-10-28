@@ -1,8 +1,24 @@
-animtable model=models/player/engineer.mdl animSource=models/player/engineer_animations.mdl separate=1 bones=73 bindBones=73 validBindBones=73 sequences=351 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=24 poseLabel=a_PRIMARY_reload_airwalk poseFrames=76 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_PRIMARY_reload|a_PRIMARY_reload_loop|b_PRIMARY_reload_loop|PRIMARY_reload_end|a_PRIMARYcrouch_reload|reloadcrouch_PRIMARY_end|PRIMARY_reloadcrouch|a_PRIMARY_reloadcrouch_loop|b_PRIMARY_reloadcrouch_loop|...
+animtable model=models/player/engineer.mdl animSource=models/player/engineer_animations.mdl separate=1 bones=73 bindBones=73 validBindBones=73 sequences=351 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY poseSeq=265 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_PRIMARY_reload|a_PRIMARY_reload_loop|b_PRIMARY_reload_loop|PRIMARY_reload_end|a_PRIMARYcrouch_reload|reloadcrouch_PRIMARY_end|PRIMARY_reloadcrouch|a_PRIMARY_reloadcrouch_loop|b_PRIMARY_reloadcrouch_loop|...
 boundDiag bindRadius=76.265198 boundDiag=153.530396 bones=73 composed=1 reason=-
 contcand rank=0 sequence=252 label=s_swimAlign_ITEM2 frames=61 sparseStep=5.989169 halfSwing=79.305054
 contcand rank=1 sequence=263 label=s_swimAlign_LOSER frames=61 sparseStep=5.989169 halfSwing=79.305054
 contcand rank=2 sequence=256 label=swim_PDA frames=31 sparseStep=15.033545 halfSwing=78.123810
 contcand rank=3 sequence=349 label=layer_taunt_killer_time_outro frames=69 sparseStep=15.507639 halfSwing=88.701012
 contcand rank=4 sequence=343 label=layer_taunt_headbutt_start frames=186 sparseStep=18.230675 halfSwing=85.764648
-FAIL player-animation-test reason=no-continuity-sequence detail=no clip with a half-cycle swing above half the bound and a per-frame step below a quarter
+contpick sequence=252 label=s_swimAlign_ITEM2 frames=61 sweepStep=7.102366 limit=38.382599 halfSwing=79.305054
+animcontseq sequence=252 label=s_swimAlign_ITEM2 frames=61 sweepStep=7.102366
+animpose cycle=0.0000 sequence=265 label=run_PRIMARY frame=0/19 localFrame=0 sectionFrames=0 bones=73 checksum=ec4dacb424ebf956 maxDelta=77.884537 finite=1
+animpose cycle=0.2500 sequence=265 label=run_PRIMARY frame=4/19 localFrame=4 sectionFrames=0 bones=73 checksum=27fc75ab7d0c391f maxDelta=83.335449 finite=1
+animpose cycle=0.5000 sequence=265 label=run_PRIMARY frame=9/19 localFrame=9 sectionFrames=0 bones=73 checksum=119d8df3e0d0a006 maxDelta=77.438210 finite=1
+animpose cycle=0.7500 sequence=265 label=run_PRIMARY frame=14/19 localFrame=14 sectionFrames=0 bones=73 checksum=ab122e66ffdf0da7 maxDelta=82.237099 finite=1
+animcont sequence=252 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=7.102366 worstBone=55 worstElement=13 worstTick=60 usable=1
+animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
+animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=10 speed=300.000 state=moving cycle=0.200000003 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=20 speed=300.000 state=moving cycle=0.400000066 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=30 speed=300.000 state=moving cycle=0.600000024 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=31 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=40 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=50 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=60 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animticks mode=synthetic ticks=61 movingTicks=31 movingAdvanced=30 idleTicks=30 idleAdvanced=0 maxMovingDelta=0.020000001 maxIdleDelta=0.000000000
