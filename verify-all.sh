@@ -1177,10 +1177,26 @@ ANIMATION_OK=$(grep -c '^  OK ' "$ANIMATION_OUT.txt" || true)
 # Six sections: freshness, negative controls, A (nine class
 # models x 6 readings), B (four cycle points x 2 readings + checksum, per class),
 # C (continuity), D (clock rate), E (tick script, synthetic and demo).
-if [ "$ANIMATION_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-CHECK=PASS' "$ANIMATION_OUT.txt" && [ "$ANIMATION_OK" = "213" ]; then
-  echo "PLAYER-ANIMATION-CHECK=PASS (213 assertions)"
+#
+# 2026-10-26 T61.1 review 2: 232 = 213 + 11 matcher + 8 entity id. Two sections
+# were added because two properties the reviewer named had NO assertion anywhere:
+#
+#   1b/6 matcher (11) -- the selector and the ranker must agree about ORDER.
+#     `rankSequenceCandidates` nested the needle outside the index while
+#     `chooseSequenceByNeedles` nests the index outside, so the probe could try,
+#     and report a pose for, a sequence the product would never pick first. The
+#     probe's --self-test existed but NO gate called it, which is why a unit test
+#     is worthless until a section runs it and pins every field.
+#
+#   1c/6 entity id (8) -- the id view paints body k red k/255 and the reader
+#     decodes a pixel by that byte alone, so two ids sharing a colour merge two
+#     entities silently. The encoder now refuses instead of clamping and the
+#     product exits 17 rather than report a merged frame; the encoder is unit
+#     tested because the scene cannot reach the ceiling (the draw budget is 96).
+if [ "$ANIMATION_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-CHECK=PASS' "$ANIMATION_OUT.txt" && [ "$ANIMATION_OK" = "232" ]; then
+  echo "PLAYER-ANIMATION-CHECK=PASS (232 assertions)"
 else
-  echo "PLAYER-ANIMATION-CHECK=FAIL (rc=$ANIMATION_RC ok=$ANIMATION_OK expected 213)"; rc_all=1
+  echo "PLAYER-ANIMATION-CHECK=FAIL (rc=$ANIMATION_RC ok=$ANIMATION_OK expected 232)"; rc_all=1
 fi
 
 step "26/30 player animation pixels (the body is a shaded surface, and the drive moves it)"
@@ -1198,10 +1214,37 @@ ANIM_PIXEL_OK=$(grep -c '^  OK ' "$OUT/26-animation-pixels.txt" || true)
 # so the on/off pair is a controlled A-B), six
 # identity readings that exist in both runs, three frames non-empty, and five
 # pixel assertions from t61-pixels.py.
-if [ "$ANIM_PIXEL_RC" -eq 0 ] && grep -q 'PIXEL-CHECK=PASS' "$OUT/26-animation-pixels.txt" && [ "$ANIM_PIXEL_OK" = "19" ]; then
-  echo "PLAYER-ANIMATION-PIXELS=PASS (19 assertions)"
+# 2026-10-26 T61.1: the step went 19 -> 26 assertions, and the first review is why.
+# It rejected scene-level evidence: the gate merged every model legal sequence
+# into one set and compared that set with a scene line that carries no entity
+# identity, so a single body drawing the wrong clip hid behind another model
+# legal clip. F5 answers it with a fifth capture under --world-entity-id, which
+# paints each drawn instance its own red and prints one ledger line per
+# instance; the decoder t61-entityid.py joins id -> model -> pick -> sample ->
+# pixels on ONE named body, and its band over the ledger judges every drawn
+# player instance, not only the eight the sample trace prints. The withdrawn
+# idle assertion is the only line this step lost; the four F5 lines are what it
+# gained. Measured on this tree: 26 OK / 0 FAIL; ENTITY-ID=PASS, LEDGER
+# entries=96, DRAWN 2, MOTION 86.56%.
+#
+# 2026-10-26 T61.1 review 2: 26 -> 28. The reviewer caught the identity frame
+# clock assertions being permissive: frame_tick was only checked when non-empty,
+# so a capture that never published one passed, and scene_tick was printed but
+# never asserted. Both are now mandatory, and scene_tick must equal the value the
+# animated capture reported -- the identity frame is compared pixel-for-pixel
+# against that frame, so a different moment would make the comparison
+# meaningless rather than wrong.
+# Measured on this tree: 28 OK / 0 FAIL (64161/74481 in all three captures).
+# The verdict grepped here is the GATE'S OWN, not the inner tool's. Until
+# 2026-10-26 this line matched 'PIXEL-CHECK=PASS', which t61-pixels.py prints
+# and the gate only echoes on a pass -- so it happened to work, but it named a
+# quantity one level below the thing being judged. Step 25 had the same shape
+# and did NOT happen to work: it grepped a token the gate never printed at all
+# (see the note there). Both gates now print `NAME=PASS` and both steps grep it.
+if [ "$ANIM_PIXEL_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-PIXELS=PASS' "$OUT/26-animation-pixels.txt" && [ "$ANIM_PIXEL_OK" = "28" ]; then
+  echo "PLAYER-ANIMATION-PIXELS=PASS (28 assertions)"
 else
-  echo "PLAYER-ANIMATION-PIXELS=FAIL (rc=$ANIM_PIXEL_RC ok=$ANIM_PIXEL_OK expected 19)"; rc_all=1
+  echo "PLAYER-ANIMATION-PIXELS=FAIL (rc=$ANIM_PIXEL_RC ok=$ANIM_PIXEL_OK expected 28)"; rc_all=1
 fi
 
 step "27/30 SourceTV relay camera (the death handover runs on the wall clock, and the corpse leaves the set)"

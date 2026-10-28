@@ -1,9 +1,11 @@
 #include "animation_binding.h"
+#include "animation_sequence_match.h"
 #include "animation_clock.h"
 #include "asset_root.h"
 #include "demo_header.h"
 #include "entity_model.h"
 #include "entity_overlay.h"
+#include "entity_id_color.h"
 #include "model_loader.h"
 
 #include <algorithm>
@@ -125,6 +127,169 @@ int selfTest() {
     && cpuSkinWeightMutationRejected && sequenceRejected
     && !attachmentPreflight && !bodyPartPreflight ? 0 : 1;
 }
+// T61.1 review 2, P1: the selector and the ranker must agree about ORDER.
+//
+// `chooseSequenceByNeedles` (the product's pick) walks the sequence table once,
+// outer loop over sequences, so within a band the EARLIEST index wins.
+// `rankSequenceCandidates` (the probe's fallback walk) exists so a caller can
+// try poses in turn, and the first version nested the needle loop OUTSIDE the
+// index: it put "the first sequence that matches needle 0" ahead of an earlier
+// sequence that matches needle 1, so the probe could test -- and then report a
+// pose for -- a sequence the product would never have chosen first.
+//
+// The tables below are synthetic on purpose. They are small enough to check by
+// eye, and they are built so the two nestings DISAGREE: on real player tables
+// the two orders happen to coincide, which is exactly why the defect survived
+// a green gate. Each case names the rule it pins, and each rule is also the
+// mechanism a pixel mutation targets (m8 = the mode argument, m9 = the
+// leading-token preference), so a unit failure here says which rule broke
+// before an 8-minute capture is spent finding out.
+int matcherSelfTest() {
+  using tf2::native::SequenceMatchMode;
+  const auto selectorFor = [](const std::vector<std::string>& labels,
+                              const std::vector<std::int32_t>& frames,
+                              SequenceMatchMode mode, std::string* chosen) {
+    const auto labelAt = [&labels](std::size_t index) -> const std::string& {
+      return labels[index];
+    };
+    const auto frameCountAt = [&frames](std::size_t index) -> std::int32_t {
+      return frames[index];
+    };
+    return tf2::native::chooseSequenceByNeedles(labels.size(), labelAt, frameCountAt,
+      tf2::native::kMovingNeedles, tf2::native::kMovingNeedleCount, mode, chosen);
+  };
+  const auto rankedFor = [](const std::vector<std::string>& labels, SequenceMatchMode mode) {
+    const auto labelAt = [&labels](std::size_t index) -> const std::string& {
+      return labels[index];
+    };
+    return tf2::native::rankSequenceCandidates(labels.size(), labelAt,
+      tf2::native::kMovingNeedles, tf2::native::kMovingNeedleCount, mode);
+  };
+
+  // Case 1: the nesting. This table is built so the two nestings DISAGREE,
+  // which is the only way the case can fail. Index 0 leads with `walk` and
+  // index 3 leads with `run`, so a sequence-major ranker puts the EARLIER
+  // sequence first -- 0 before 3 -- because the needle loop is inside the
+  // index loop. A needle-major ranker walks `run` to exhaustion first and
+  // returns 3 before 0. The selector is sequence-major, so it answers 0, and
+  // the ranker's head must be that same 0: otherwise the probe would try, and
+  // then report a pose for, a sequence the product never picks (review 2, P1).
+  const std::vector<std::string> mixed = {
+    "walk_SECONDARY",
+    "layer_AttackStandMelee_runS_arms",
+    "PRIMARY_airwalk_reload_start",
+    "run_SECONDARY",
+    "layer_gesture_primary_help_runN_armL",
+  };
+  const std::vector<std::int32_t> frames = {2, 2, 2, 2, 2};
+  const std::vector<std::size_t> ranked = rankedFor(mixed, SequenceMatchMode::WholeToken);
+  const bool rankedIsSequenceMajor = ranked.size() == 4
+    && ranked[0] == 0 && ranked[1] == 3 && ranked[2] == 1 && ranked[3] == 4;
+  std::string chosenLabel;
+  const std::int32_t chosen = selectorFor(mixed, frames, SequenceMatchMode::WholeToken, &chosenLabel);
+  const bool selectorAgreesWithRankedHead = chosen == 0 && !ranked.empty()
+    && ranked[0] == static_cast<std::size_t>(chosen);
+
+  // Case 2: the whole-token boundary. `walk` must not match inside `airwalk`,
+  // so in WholeToken mode the only candidate is the run cycle at index 1.
+  const std::vector<std::string> airwalk = {"PRIMARY_airwalk_reload_start", "run_SECONDARY"};
+  const std::vector<std::int32_t> airwalkFrames = {2, 2};
+  const std::int32_t wholeTokenPick = selectorFor(airwalk, airwalkFrames,
+    SequenceMatchMode::WholeToken, &chosenLabel);
+  const bool wholeTokenRejectsAirwalk = wholeTokenPick == 1;
+
+  // Case 3: the same table in Substring mode picks the air-walk clip. This is
+  // not a rule to preserve -- it is the defect m8 reintroduces at the call
+  // site, asserted here so the unit test states the mechanism instead of
+  // assuming it.
+  const std::int32_t substringPick = selectorFor(airwalk, airwalkFrames,
+    SequenceMatchMode::Substring, &chosenLabel);
+  const bool substringModePicksAirwalk = substringPick == 0;
+
+  // Case 4: the leading-token preference. Both labels carry the whole token
+  // `run`; only index 1 carries it as its FIRST token, and that is the one the
+  // product must animate. Without the preference (m9) the earlier index wins.
+  const std::vector<std::string> leading = {
+    "layer_AttackStandMelee_runS_arms", "run_SECONDARY"};
+  const std::vector<std::int32_t> leadingFrames = {2, 2};
+  const std::int32_t leadingPick = selectorFor(leading, leadingFrames,
+    SequenceMatchMode::WholeToken, &chosenLabel);
+  const bool leadingTokenBeatsArmLayer = leadingPick == 1;
+
+  const bool pass = rankedIsSequenceMajor && selectorAgreesWithRankedHead
+    && wholeTokenRejectsAirwalk && substringModePicksAirwalk && leadingTokenBeatsArmLayer;
+  std::cout << "matchselftest ordered=" << (rankedIsSequenceMajor ? 1 : 0)
+    << " head=" << (selectorAgreesWithRankedHead ? 1 : 0)
+    << " boundary=" << (wholeTokenRejectsAirwalk ? 1 : 0)
+    << " substringDefect=" << (substringModePicksAirwalk ? 1 : 0)
+    << " leading=" << (leadingTokenBeatsArmLayer ? 1 : 0)
+    << " ranked=";
+  for (std::size_t index = 0; index < ranked.size(); ++index) {
+    std::cout << (index == 0 ? "" : ",") << ranked[index];
+  }
+  std::cout << " chosen=" << chosen << " wholeTokenPick=" << wholeTokenPick
+    << " substringPick=" << substringPick << " leadingPick=" << leadingPick << "\n";
+  return pass ? 0 : 1;
+}
+// T61.1 review 2, P1: the id->colour mapping is a pure function with a hard
+// ceiling, so it is tested as one. The product's refusal (exit 17) can only fire
+// when more bodies are drawn than one red byte can name, and today the draw
+// budget caps that at 96 -- so the refusal is unreachable from the scene and a
+// scene-level test of it would be vacuous. What is testable, and what actually
+// protects the reading, is that the ENCODER never maps two ids to one colour:
+// that is asserted here, including the boundary at kEntityIdMax and the refusal
+// past it.
+int entityIdSelfTest() {
+  using tf2::native::encodeEntityId;
+  using tf2::native::kEntityIdMax;
+  float color[4] = {-1.0f, -1.0f, -1.0f, -1.0f};
+
+  // 1: id 1 is the smallest legal id and must round-trip to exactly 1/255.
+  const bool oneAccepted = encodeEntityId(1, color)
+    && color[0] == 1.0f / static_cast<float>(kEntityIdMax)
+    && color[1] == 0.0f && color[2] == 0.0f && color[3] == 1.0f;
+
+  // 2: the ceiling itself is legal and maps to exactly 1.0.
+  const bool maxAccepted = encodeEntityId(kEntityIdMax, color) && color[0] == 1.0f;
+
+  // 3: one past the ceiling is REFUSED and the colour is left untouched. A
+  //    clamp would paint two bodies the same red, and the reader would decode
+  //    one entity's pixels as the other's -- a reading that looks like a pass.
+  float untouched[4] = {-1.0f, -1.0f, -1.0f, -1.0f};
+  const bool overRejected = !encodeEntityId(kEntityIdMax + 1, untouched)
+    && untouched[0] == -1.0f && untouched[1] == -1.0f;
+
+  // 4: id 0 and negatives are refused too; they are not 'the first body'.
+  const bool zeroRejected = !encodeEntityId(0, untouched);
+  const bool negativeRejected = !encodeEntityId(-3, untouched);
+
+  // 5: the whole legal range is INJECTIVE once quantised to a byte. This is the
+  //    property the diagnostic depends on: two ids, two colours, no exceptions.
+  bool injective = true;
+  std::vector<int> seen(static_cast<std::size_t>(kEntityIdMax) + 1, 0);
+  for (int id = 1; id <= kEntityIdMax && injective; ++id) {
+    float probe[4] = {};
+    if (!encodeEntityId(id, probe)) { injective = false; break; }
+    const int byte = static_cast<int>(probe[0] * 255.0f + 0.5f);
+    if (byte < 1 || byte > kEntityIdMax || seen[static_cast<std::size_t>(byte)] != 0) {
+      injective = false;
+      break;
+    }
+    seen[static_cast<std::size_t>(byte)] = id;
+  }
+
+  const bool pass = oneAccepted && maxAccepted && overRejected && zeroRejected
+    && negativeRejected && injective;
+  std::cout << "entityidselftest one=" << (oneAccepted ? 1 : 0)
+    << " max=" << (maxAccepted ? 1 : 0)
+    << " over=" << (overRejected ? 1 : 0)
+    << " zero=" << (zeroRejected ? 1 : 0)
+    << " negative=" << (negativeRejected ? 1 : 0)
+    << " injective=" << (injective ? 1 : 0)
+    << " maxId=" << kEntityIdMax << "\n";
+  return pass ? 0 : 1;
+}
+
 // ===========================================================================
 // T61 -- THE PLAYER ANIMATION PROBE
 //
@@ -160,12 +325,6 @@ int failPlayerAnimation(const std::string& reason, const std::string& detail) {
   if (!detail.empty()) std::cerr << " detail=" << detail;
   std::cerr << "\n";
   return 2;
-}
-
-std::string lowerCopy(std::string value) {
-  std::transform(value.begin(), value.end(), value.begin(),
-    [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-  return value;
 }
 
 std::uint64_t poseChecksum(const std::vector<std::array<float, 16>>& matrices) {
@@ -214,21 +373,26 @@ bool allFinite(const std::vector<std::array<float, 16>>& matrices) {
   return true;
 }
 
-std::int32_t findSequenceByNeedles(const tf2::native::AnimationModel& anims,
-    const std::vector<std::string>& needles) {
-  for (const auto& needle : needles) {
-    for (std::size_t i = 0; i < anims.sequences.size(); ++i) {
-      if (lowerCopy(anims.sequences[i].label) == needle) return static_cast<std::int32_t>(i);
+// The product's own selector, reached through the shared header. The probe must
+// not carry a second copy of the candidate order: a review of the first draft of
+// this change named that duplication (this file had the needle sweep at two
+// places, each with its own needle list) and it is what would let the probe
+// report a sequence the product would never play.
+std::int32_t pickSequence(const tf2::native::AnimationModel& anims,
+    const char* const* needles, std::size_t needleCount,
+    tf2::native::SequenceMatchMode mode) {
+  const auto labelAt = [&anims](std::size_t index) -> const std::string& {
+    return anims.sequences[index].label;
+  };
+  const auto frameCountAt = [&anims](std::size_t index) -> std::int32_t {
+    const std::int32_t descriptor = anims.sequences[index].animDesc;
+    if (descriptor < 0 || static_cast<std::size_t>(descriptor) >= anims.animations.size()) {
+      return 0;
     }
-  }
-  for (const auto& needle : needles) {
-    for (std::size_t i = 0; i < anims.sequences.size(); ++i) {
-      if (lowerCopy(anims.sequences[i].label).find(needle) != std::string::npos) {
-        return static_cast<std::int32_t>(i);
-      }
-    }
-  }
-  return -1;
+    return anims.animations[static_cast<std::size_t>(descriptor)].frameCount;
+  };
+  return tf2::native::chooseSequenceByNeedles(anims.sequences.size(), labelAt, frameCountAt,
+    needles, needleCount, mode, nullptr);
 }
 
 std::int32_t animationFrameCount(const tf2::native::AnimationModel& anims, std::int32_t sequence) {
@@ -280,12 +444,18 @@ std::int32_t findAnimatingSequence(const tf2::native::AnimationBinding& binding,
     return true;
   };
   if (trySequence(preferred)) return preferred;
-  static const char* const kNeedles[] = {"walk", "run", "move"};
-  for (const char* needle : kNeedles) {
-    for (std::size_t i = 0; i < anims.sequences.size(); ++i) {
-      if (lowerCopy(anims.sequences[i].label).find(needle) == std::string::npos) continue;
-      if (trySequence(static_cast<std::int32_t>(i))) return static_cast<std::int32_t>(i);
-    }
+  // The same preference order the selector uses, from the same header: the
+  // primary-token band first, then the whole-token band. This walk only exists
+  // because this probe applies one more filter than the selector does -- a
+  // candidate has to have four distinct quarter-cycle poses -- so it needs the
+  // order, not just the winner.
+  const auto labelAt = [&anims](std::size_t index) -> const std::string& {
+    return anims.sequences[index].label;
+  };
+  for (const std::size_t index : tf2::native::rankSequenceCandidates(anims.sequences.size(),
+      labelAt, tf2::native::kMovingNeedles, tf2::native::kMovingNeedleCount,
+      tf2::native::SequenceMatchMode::WholeToken)) {
+    if (trySequence(static_cast<std::int32_t>(index))) return static_cast<std::int32_t>(index);
   }
   for (std::size_t i = 0; i < anims.sequences.size(); ++i) {
     if (trySequence(static_cast<std::int32_t>(i))) return static_cast<std::int32_t>(i);
@@ -640,9 +810,11 @@ int playerAnimationTest(int argc, char** argv) {
   if (const int rc = validateSequence(options.movingSequence, "--moving-sequence")) return rc;
 
   std::int32_t idleSequence = options.idleSequence;
-  if (idleSequence < 0) idleSequence = findSequenceByNeedles(anims, {"idle", "stand"});
+  if (idleSequence < 0) idleSequence = pickSequence(anims, tf2::native::kIdleNeedles,
+    tf2::native::kIdleNeedleCount, tf2::native::SequenceMatchMode::Substring);
   std::int32_t movingSequence = options.movingSequence;
-  if (movingSequence < 0) movingSequence = findSequenceByNeedles(anims, {"run", "walk"});
+  if (movingSequence < 0) movingSequence = pickSequence(anims, tf2::native::kMovingNeedles,
+    tf2::native::kMovingNeedleCount, tf2::native::SequenceMatchMode::WholeToken);
   if (idleSequence < 0 || movingSequence < 0) {
     return failPlayerAnimation("sequence-picker-missing",
       "idle=" + std::to_string(idleSequence) + " moving=" + std::to_string(movingSequence));
@@ -837,6 +1009,8 @@ int playerAnimationTest(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--self-test") return selfTest();
+  if (argc == 2 && std::string(argv[1]) == "--matcher-selftest") return matcherSelfTest();
+  if (argc == 2 && std::string(argv[1]) == "--entity-id-selftest") return entityIdSelfTest();
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--player-animation-test") return playerAnimationTest(argc, argv);
   }

@@ -21,10 +21,14 @@
 #include "viewmodel.h"
 #include "entity_model.h"
 #include "entity_overlay.h"
+// T61.1 review 2, P1: the id->colour mapping and its 255 ceiling live in one
+// place so the product and the gate cannot disagree about the encoding.
+#include "entity_id_color.h"
 // T53: the trajectory overlay builder and its retained-row query.
 #include "projectile_track.h"
 #include "projectile_overlay.h"
 #include "animation_binding.h"
+#include "animation_sequence_match.h"
 // T61: the pure animation clock. In the product rather than inlined because the
 // probe and the gate drive the same arithmetic (see animation_clock.h).
 #include "animation_clock.h"
@@ -183,70 +187,50 @@ tf2::native::Renderer* g_renderer = nullptr;
 
 // T61: pick the sequence a player model plays for a drive state.
 //
-// The sequence table is the model's own; this does not invent one. It looks for
-// the first labelled sequence whose name contains a moving needle ("run",
-// "walk", "move") or an idle needle ("idle", "stand"), preferring a candidate
-// that reaches an animation descriptor (frameCount > 0) so the pick cannot land
-// on a label that poses nothing. Returns -1 when the table has no such label;
-// the caller then leaves the entity alone rather than forcing sequence 0, which
-// on a player model is a stand pose and would read as "idle works" for the
-// wrong reason.
+// The sequence table is the model's own; this does not invent one. The whole of
+// the choice -- the needle lists, the two match modes, the one-frame-pose
+// staircase and the return order -- lives in animation_sequence_match.h, because
+// the probe (native/tools/model_pose_probe.cpp) has to reach the same answer as
+// the product. A second copy of it here is how the two come to disagree, and a
+// review of the first draft of this change named exactly that duplication.
+//
+// MOVING uses the T61.1 rules: a whole token (never a substring, so "walk" is
+// not inside "airwalk"), and among the labels carrying the token, the one whose
+// FIRST token is the needle wins -- run_PRIMARY is a cycle, while
+// layer_AttackStandMelee_runS_arms merely mentions "run".
+//
+// IDLE keeps the pre-T61.1 substring test and gets no primary tier. The matching
+// "stand"/"AttackStand" defect is a separate task: this change fixes one cause
+// and does not retune the selector.
+//
+// Returns -1 when the table has no such label; the caller then leaves the entity
+// alone rather than forcing sequence 0, which on a player model is a stand pose
+// and would read as "idle works" for the wrong reason.
 std::int32_t choosePlayerAnimationSequence(
     const tf2::native::AnimationBinding& binding,
     bool moving,
     std::string* label) {
-  static const char* const kMovingNeedles[] = {"run", "walk", "move"};
-  static const char* const kIdleNeedles[] = {"idle", "stand"};
-  const char* const* needles = moving ? kMovingNeedles : kIdleNeedles;
-  const std::size_t needleCount = moving ? 3u : 2u;
-  std::int32_t animated = -1;
-  std::int32_t posed = -1;
-  std::int32_t fallback = -1;
-  std::string animatedLabel, posedLabel, fallbackLabel;
-  for (std::size_t index = 0; index < binding.anims.sequences.size(); ++index) {
+  const auto labelAt = [&binding](std::size_t index) -> const std::string& {
+    return binding.anims.sequences[index].label;
+  };
+  // animDesc is an index into the animation descriptor table, not a
+  // descriptor: a sequence with -1 or an out-of-range index carries no
+  // frames and cannot pose anything.
+  const auto frameCountAt = [&binding](std::size_t index) -> std::int32_t {
     const auto& sequence = binding.anims.sequences[index];
-    std::string lower = sequence.label;
-    std::transform(lower.begin(), lower.end(), lower.begin(),
-      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    // animDesc is an index into the animation descriptor table, not a
-    // descriptor: a sequence with -1 or an out-of-range index carries no
-    // frames and cannot pose anything.
-    const std::int32_t frameCount = (sequence.animDesc >= 0
-      && static_cast<std::size_t>(sequence.animDesc) < binding.anims.animations.size())
-      ? binding.anims.animations[static_cast<std::size_t>(sequence.animDesc)].frameCount : 0;
-    const bool hasDescriptor = frameCount > 0;
-    for (std::size_t needle = 0; needle < needleCount; ++needle) {
-      if (lower.find(needles[needle]) == std::string::npos) continue;
-      if (hasDescriptor) {
-        // A label match can still be a one-frame pose: PRIMARY_aimmatrix_run is
-        // a static aim pose with frameCount 1, and cycling through it would
-        // stand still no matter what the clock says. Keep the animated pick
-        // when one exists and only fall back to a single-frame pose.
-        if (frameCount > 1) {
-          if (animated < 0) {
-            animated = static_cast<std::int32_t>(index);
-            animatedLabel = sequence.label;
-          }
-        } else if (posed < 0) {
-          posed = static_cast<std::int32_t>(index);
-          posedLabel = sequence.label;
-        }
-      } else if (fallback < 0) {
-        fallback = static_cast<std::int32_t>(index);
-        fallbackLabel = sequence.label;
-      }
+    if (sequence.animDesc < 0
+        || static_cast<std::size_t>(sequence.animDesc) >= binding.anims.animations.size()) {
+      return 0;
     }
-  }
-  if (animated >= 0) {
-    if (label != nullptr) *label = animatedLabel;
-    return animated;
-  }
-  if (posed >= 0) {
-    if (label != nullptr) *label = posedLabel;
-    return posed;
-  }
-  if (fallback >= 0 && label != nullptr) *label = fallbackLabel;
-  return fallback;
+    return binding.anims.animations[static_cast<std::size_t>(sequence.animDesc)].frameCount;
+  };
+  return tf2::native::chooseSequenceByNeedles(
+      binding.anims.sequences.size(), labelAt, frameCountAt,
+      moving ? tf2::native::kMovingNeedles : tf2::native::kIdleNeedles,
+      moving ? tf2::native::kMovingNeedleCount : tf2::native::kIdleNeedleCount,
+      moving ? tf2::native::SequenceMatchMode::WholeToken
+             : tf2::native::SequenceMatchMode::Substring,
+      label);
 }
 
 // TEMP DIAGNOSTIC -- entity-material wiring regression, 2026-10-09.
@@ -3555,6 +3539,15 @@ bool outlineVertexExtent = false;
         // (7) answered 'what are the PS inputs' and is all black once the
         // vertex shader writes the sentinel, so it cannot double as a mask.
         ++worldDebugViewGiven; worldDebugView = 8;
+      } else if (wcscmp(arguments[i], L"--world-entity-id") == 0) {
+        // T61.1: which pixels belong to WHICH entity, not merely "an
+        // entity". The coverage view (8) answers the second question and
+        // says nothing about identity, so a label resolved for one model
+        // could be carried by another model and no reading would show it.
+        // Mode 9 paints each drawn instance with a unique red value and the
+        // scene publishes one "entity: id=" line per instance, so a colour
+        // in the frame decodes back to an entity and its sequence.
+        ++worldDebugViewGiven; worldDebugView = 9;
       } else if (wcscmp(arguments[i], L"--world-face-trace") == 0) {
         worldFaceTraceRequested = true;
       } else if (wcscmp(arguments[i], L"--world-hole-trace") == 0 && i + 1 < argumentCount) {
@@ -7905,7 +7898,8 @@ bool outlineVertexExtent = false;
       sample.worldCullBackfaces ? 1 : 0,
       sample.worldCullBackfaces ? "cull-back" : "cull-none");
     traceFmt("gpu: world debug view=%s",
-      sample.worldDebugView == 8 ? "entity-coverage"
+      sample.worldDebugView == 9 ? "entity-id"
+        : sample.worldDebugView == 8 ? "entity-coverage"
         : sample.worldDebugView == 7 ? "entity-blend"
         : sample.worldDebugView == 6 ? "uv"
         : sample.worldDebugView == 5 ? "texel"
@@ -9308,6 +9302,10 @@ bool outlineVertexExtent = false;
   // code. A gate therefore never has to guess when to kill the process.
   bool captureArmed = !captureFramePath.empty();
   bool captureRequested = false;
+  // T61.1 review 2, P1: set when the id view could not give every drawn body its
+  // own colour. The capture still happens (the frame on disk is real), but the
+  // run refuses to report success, because a merged colour decodes as one body.
+  bool entityIdOverflow = false;
   // T50: load the acceptance script before the loop and say so in the trace.
   // A path that does not load is a hard refusal, not an empty script: a gate
   // whose steps silently vanished would read as "everything passed".
@@ -9882,6 +9880,13 @@ bool outlineVertexExtent = false;
             // Animation, when this entity has a sequence and the model has a
             // table to look it up in. Anything short of a complete pose leaves
             // the instance in the bind-pose path and records why.
+            // T61.1: what THIS entity sampled. Declared outside the drive
+            // block because the ledger below is printed after it, and a
+            // reading that says "a sequence was resolved" without saying
+            // which entity sampled it is the hole this closes.
+            std::string ledgerState = "-";
+            std::int32_t ledgerSeq = -1;
+            std::string ledgerLabel = "-";
             tf2::native::AnimationInputStatus animStatus = tf2::native::AnimationInputStatus::ModelMissing;
             std::string animReason;
             const auto* binding = animationBindings.resolve(instance.modelPath, animStatus, animReason);
@@ -9926,11 +9931,20 @@ bool outlineVertexExtent = false;
                 runtime.clock, resolvedSceneTick, tickRate, speed, playerAnimationConfig);
               runtime.speed = step.speed;
               runtime.moving = step.state == tf2::native::AnimationDriveState::Moving;
+              ledgerState = tf2::native::animationDriveStateName(step.state);
               PlayerSequenceChoice& choice = playerSequenceChoices[instance.modelPath];
               if (!choice.resolved) {
                 choice.resolved = true;
                 choice.idle = choosePlayerAnimationSequence(*binding, false, &choice.idleLabel);
                 choice.moving = choosePlayerAnimationSequence(*binding, true, &choice.movingLabel);
+                // T61.1: one line per model, whatever the per-entity trace cap
+                // is. The pick is per modelPath and resolved once, so the
+                // capped "anim: ent=" lines can only ever show the first eight
+                // bodies; a gate that wants to assert what the product plays
+                // needs a line that is always present exactly once per model.
+                traceFmt("anim: pick model=%s idleSeq=%d idleLabel=%s movingSeq=%d movingLabel=%s",
+                  instance.modelPath.c_str(), choice.idle, choice.idleLabel.c_str(),
+                  choice.moving, choice.movingLabel.c_str());
               }
               const std::int32_t chosen = runtime.moving ? choice.moving : choice.idle;
               if (chosen >= 0) {
@@ -9999,6 +10013,8 @@ bool outlineVertexExtent = false;
                 animationStats.lastStatus = tf2::native::animationInputStatusName(sampled.status);
                 animationStats.lastModel = instance.modelPath;
                 animationStats.lastReason = sampled.sequenceLabel;
+                ledgerSeq = request.sequence;
+                ledgerLabel = sampled.sequenceLabel;
                 // Two readings that fail independently, kept apart on purpose:
                 //   * the frame cursor advancing per tick (advances / target)
                 //   * the uploaded pose actually changing (poseChanges / witness)
@@ -10082,14 +10098,45 @@ bool outlineVertexExtent = false;
                 animationStats.lastStatus = tf2::native::animationInputStatusName(sampled.status);
                 animationStats.lastReason = sampled.reason;
                 animationStats.lastModel = instance.modelPath;
+                ledgerSeq = request.sequence;
+                ledgerLabel = sampled.reason;
               }
             } else {
               ++animationStats.instancesBindPose;
               animationStats.lastStatus = tf2::native::animationInputStatusName(animStatus);
               animationStats.lastReason = animReason;
               animationStats.lastModel = instance.modelPath;
+              ledgerSeq = request.sequence;
+              ledgerLabel = animReason;
             }
             if (request.sequence >= 0) ++animationStats.instancesWithAnimationInput;
+            // T61.1: the per-entity id. A unique red channel per drawn
+            // instance, written where the instance colour is already
+            // decided, plus one ledger line so a colour in the frame
+            // decodes back to an entity and the sequence it sampled.
+            // Only on the frame that is about to be captured: the capture
+            // arms on this same iteration and prints its own frame_tick,
+            // so the ledger and the picture are the same moment.
+            if (worldDebugView == 9 && captureArmed && captureTick > 0
+                && g_playback.tick >= captureTick) {
+              const int entityId = static_cast<int>(draws.size()) + 1;
+              if (tf2::native::encodeEntityId(entityId, draw.color)) {
+                traceFmt("entity: id=%d ent=%d model=%s state=%s seq=%d label=%s skinned=%d frame_tick=%d",
+                  entityId, static_cast<int>(instance.entityIndex), instance.modelPath.c_str(),
+                  ledgerState.c_str(), static_cast<int>(ledgerSeq), ledgerLabel.c_str(),
+                  draw.skinningEnabled ? 1 : 0, static_cast<int>(g_playback.tick));
+              } else {
+                // More bodies than one red byte can name. Refusing is the only
+                // honest option: clamping would paint two bodies the same colour
+                // and the reader would decode one entity's pixels as the other's,
+                // which is a reading that looks like a pass.
+                entityIdOverflow = true;
+                traceFmt("entity: overflow id=%d max=%d ent=%d model=%s draws=%zu",
+                  entityId, tf2::native::kEntityIdMax,
+                  static_cast<int>(instance.entityIndex), instance.modelPath.c_str(),
+                  draws.size());
+              }
+            }
             draws.push_back(draw);
           } else if (fallbackMarkers.size() < 32) {
             tf2::native::EntityMarker marker;
@@ -10908,7 +10955,12 @@ bool outlineVertexExtent = false;
       traceFmt("draw: end frames=%llu pending=%d", static_cast<unsigned long long>(renderedFrames),
         renderer.frameCapturePending() ? 1 : 0);
       if (captureRequested && !renderer.frameCapturePending()) {
-        PostQuitMessage(renderer.lastFrameCaptureSucceeded() ? 0 : 16);
+        // T61.1 review 2, P1: an id frame whose bodies could not all be named is
+        // not a reading, so it leaves through its own code instead of 0 or 16.
+        // 17 is unused: 0 success, 2/3/4 device loss, 13 argument refusals,
+        // 16 capture failed.
+        PostQuitMessage(entityIdOverflow ? 17
+          : (renderer.lastFrameCaptureSucceeded() ? 0 : 16));
         continue;
       }
       lastFrame = now;
