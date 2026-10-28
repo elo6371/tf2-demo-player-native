@@ -1,5 +1,28 @@
 === 0/6 binary freshness: the probe is newer than every input it compiles ===
-  OK   BINARY-FRESH=1 probe=2026-10-25 11:05:18
+  OK   BINARY-FRESH=1 probe=2026-10-27 12:37:11
+
+=== 1b/6 matcher: the selector and the ranker agree about order ===
+  OK   matcher selftest exit = 0
+  OK   matcher ordered = 1
+  OK   matcher head = 1
+  OK   matcher boundary = 1
+  OK   matcher substringDefect = 1
+  OK   matcher leading = 1
+  OK   matcher ranked order = 0,3,1,4
+  OK   matcher selector agrees with rank head = 0
+  OK   matcher whole-token pick = 1
+  OK   matcher substring pick = 0
+  OK   matcher leading-token pick = 1
+
+=== 1c/6 entity id: the diagnostic colour never names two bodies ===
+  OK   entity id selftest exit = 0
+  OK   entity id one = 1
+  OK   entity id max = 1
+  OK   entity id over = 1
+  OK   entity id zero = 1
+  OK   entity id negative = 1
+  OK   entity id injective = 1
+  OK   entity id ceiling = 255
 
 === 2/6 A: nine class models pick from a >=200-sequence table, bindBones==bones ===
   FAIL A scout probe exit = 2, expected 0
@@ -50,6 +73,10 @@
   FAIL B engineer boundDiag composed = <none>, expected 1
   FAIL B engineer boundDiag = <none>, expected > 1
   FAIL B engineer distinct pose checksums = 0, expected 4
+  FAIL B scout repeat probe exit = 2, expected 0
+  OK   B scout repeat pose line count = 0
+  FAIL B scout pose lines to compare = 0, expected >= 4
+  OK   B scout pose digest repeatable = d41d8cd98f00b204e9800998ecf8427e
 
 === 4/6 C: sixty 1/60 s steps never move a matrix element by more than boundDiag/4 ===
   FAIL C scout animcont usable = <none>, expected 1
@@ -104,3 +131,4 @@
   
 
 FAIL player-animation-check: see the FAIL lines above.
+PLAYER-ANIMATION-CHECK=FAIL

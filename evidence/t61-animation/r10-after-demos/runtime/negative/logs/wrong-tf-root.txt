@@ -1,0 +1,1 @@
+FAIL player-animation-test reason=tf-root-invalid detail=evidence/t61-animation/r10-after-demos/runtime/negative/not-a-tf

@@ -1,0 +1,62 @@
+=== F1: the binary under test is newer than the sources it compiles ===
+  OK   binary is newer than every source that feeds the pixel path
+
+=== F2/F3/F4: capture the coverage mask, the animated frame and the off frame ===
+  coverage rc=0 view=entity-coverage frameTick=64161 sceneTick=74481
+  animated rc=0 view=textured frameTick=64161 sceneTick=74481
+  off     rc=0 view=textured frameTick=64161 sceneTick=74481
+  repeat  rc=0 view=textured frameTick=64161 sceneTick=74481
+  identity rc=0 view=entity-id frameTick=64161 sceneTick=74481
+  OK   the identity frame landed the requested playback tick 64161
+  OK   the identity frame resolved the same scene tick as the animated frame (74481)
+  OK   the repeat capture landed the same playback and scene tick (64161/74481)
+  OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
+  OK   coverage frame really is the entity-coverage view
+  OK   animated frame is the product view
+  OK   off frame is the product view
+  OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
+  OK   both runs resolved the same scene tick 74481
+  OK   the animated capture published an animsum line (the drive ran)
+  OK   the animated capture published 8 per-model pick line(s)
+  OK   moving picks resolved on 2 distinct label(s): run_PRIMARY run_SECONDARY
+  OK   no moving pick is an air-walk clip
+  OK   every moving pick is a run cycle
+  OK   the rendered scene reports reason=run_PRIMARY, one of the picks for the drive state it is in (run_PRIMARY run_SECONDARY )
+
+=== F5: the per-entity chain ===
+  LEDGER lines=96 distinct-ids=2
+  PICKS  models=8
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=49 model=models/props_2fort/lantern001.mdl
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=53 model=models/props_2fort/lantern001.mdl
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=62 model=models/props_2fort/lantern001.mdl
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=66 model=models/props_2fort/lantern001.mdl
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=70 model=models/props_2fort/lantern001.mdl
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=73 model=models/props_gameplay/windowed_door.mdl
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=89 model=models/props_gameplay/door_slide_large_door.mdl
+  DUP    id=1 kept ent=40 model=models/props_gameplay/resupply_locker.mdl ; dropped ent=95 model=models/props_2fort/lantern001.mdl
+  DUP    ... and 86 more duplicated ledger line(s)
+  FAIL 94 ledger line(s) reuse an entity id another body already claims (ids 1, 2): the id colour names one body twice, so the subject mask could be read from the wrong body
+  ENTITY-ID=FAIL
+  FAIL two bodies share one entity id: the ledger claims an id twice, so the id colour cannot name one body and the subject mask could be read from the wrong body
+  FAIL the per-entity chain failed (see evidence/t61-animation/pixels/mutations/entityid.txt): 1 named reason(s)
+  OK   coverage.bmp exists (2582406 bytes)
+  OK   animated.bmp exists (2582406 bytes)
+  OK   off.bmp exists (2582406 bytes)
+  OK   identity.bmp exists (2582406 bytes)
+
+=== F3/F4: the pixel assertions themselves ===
+  MASK pixels=3497 of 860784 (0.41%) sentinel=(255,0,255)
+  MASK non-sentinel top=[((89, 158, 97), 707011), ((14, 18, 22), 150276)]
+  OK   mask size 3497 in [2000, 215196]
+  BODY over mask: distinct=841 mean_lum=100.6 pure_black=0.100 top=[((0, 0, 0), 196), ((7, 8, 10), 138), ((6, 7, 9), 111)]
+  OK   body distinct colours 841 >= 200 (not a flat fill)
+  OK   body mean luminance 100.6 >= 12.0
+  OK   body pure-black share 0.100 <= 0.35
+  animation-off vs animated over mask: differ=2268 (64.86%) differ_by_>=24=1625 (46.47%)
+  OK   animation-off moved 64.86% >= 5.0% of body pixels
+  PIXEL-CHECK=PASS
+  OK   t61-pixels.py printed PIXEL-CHECK=PASS
+  OK   no FAIL lines from the pixel tool
+
+FAIL player-animation-pixels: see the FAIL lines above.
+PLAYER-ANIMATION-PIXELS=FAIL

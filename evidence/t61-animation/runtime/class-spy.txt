@@ -1,4 +1,4 @@
-animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=7 idleLabel=SECONDARY_aimmatrix_idle movingSeq=8 movingLabel=SECONDARY_aimmatrix_run poseSeq=16 poseLabel=layer_reload_airwalk_arms_SECONDARY poseFrames=41 labels=ref|ragdoll|user_ref|test_swingBlend|ragdollspawn|r_handposes|r_armposes|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|layer_reload_standing_arms_SECONDARY|layer_reload_crouching_arms_SECONDARY|layer_reload_swimming_arms_SECONDARY|layer_reload_airwalk_arms_SECONDARY|ReloadStand_SECONDARY|ReloadCrouch_SECONDARY|ReloadSwim_SECONDARY|ReloadAirwalk_SECONDARY|a_flinch01|layer_placeSapper_ArmL|SECONDARY_placeSapper|...
+animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY poseSeq=145 poseLabel=run_SECONDARY poseFrames=19 labels=ref|ragdoll|user_ref|test_swingBlend|ragdollspawn|r_handposes|r_armposes|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|layer_reload_standing_arms_SECONDARY|layer_reload_crouching_arms_SECONDARY|layer_reload_swimming_arms_SECONDARY|layer_reload_airwalk_arms_SECONDARY|ReloadStand_SECONDARY|ReloadCrouch_SECONDARY|ReloadSwim_SECONDARY|ReloadAirwalk_SECONDARY|a_flinch01|layer_placeSapper_ArmL|SECONDARY_placeSapper|...
 boundDiag bindRadius=75.745811 boundDiag=152.491623 bones=84 composed=1 reason=-
 contcand rank=0 sequence=227 label=layer_taunt_buy_a_life frames=192 sparseStep=0.000000 halfSwing=81.300598
 contcand rank=1 sequence=144 label=swim_LOSER frames=31 sparseStep=12.674725 halfSwing=94.978500
@@ -7,10 +7,10 @@ contcand rank=3 sequence=252 label=layer_taunt_rps_rock frames=104 sparseStep=16
 contcand rank=4 sequence=256 label=layer_taunt_rps_scissors frames=104 sparseStep=17.779503 halfSwing=104.499283
 contpick sequence=144 label=swim_LOSER frames=31 sweepStep=12.674725 limit=38.122906 halfSwing=94.978500
 animcontseq sequence=144 label=swim_LOSER frames=31 sweepStep=12.674725
-animpose cycle=0.0000 sequence=16 label=layer_reload_airwalk_arms_SECONDARY frame=0/41 localFrame=0 sectionFrames=0 bones=84 checksum=991290cefdabce03 maxDelta=99.419136 finite=1
-animpose cycle=0.2500 sequence=16 label=layer_reload_airwalk_arms_SECONDARY frame=10/41 localFrame=10 sectionFrames=0 bones=84 checksum=24909b5c611a4a2c maxDelta=103.754593 finite=1
-animpose cycle=0.5000 sequence=16 label=layer_reload_airwalk_arms_SECONDARY frame=20/41 localFrame=20 sectionFrames=0 bones=84 checksum=87fc37b87a36d2a8 maxDelta=92.944839 finite=1
-animpose cycle=0.7500 sequence=16 label=layer_reload_airwalk_arms_SECONDARY frame=30/41 localFrame=30 sectionFrames=0 bones=84 checksum=52b49224d97d1385 maxDelta=100.305557 finite=1
+animpose cycle=0.0000 sequence=145 label=run_SECONDARY frame=0/19 localFrame=0 sectionFrames=0 bones=84 checksum=c0ad3821c9df2324 maxDelta=91.206558 finite=1
+animpose cycle=0.2500 sequence=145 label=run_SECONDARY frame=4/19 localFrame=4 sectionFrames=0 bones=84 checksum=3f410ef17d1b0834 maxDelta=85.813347 finite=1
+animpose cycle=0.5000 sequence=145 label=run_SECONDARY frame=9/19 localFrame=9 sectionFrames=0 bones=84 checksum=a8ef2479e303b043 maxDelta=95.650833 finite=1
+animpose cycle=0.7500 sequence=145 label=run_SECONDARY frame=14/19 localFrame=14 sectionFrames=0 bones=84 checksum=ca01ea38f53abd36 maxDelta=88.291389 finite=1
 animcont sequence=144 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=12.674725 worstBone=22 worstElement=12 worstTick=39 usable=1
 animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
 animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0

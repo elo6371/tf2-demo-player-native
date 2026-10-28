@@ -1,0 +1,400 @@
+=== part 1: the two copies of the recovery state machine are identical ===
+  OK   the recovery region is byte-identical in both harnesses (317 lines)
+  OK   the extracted function sets differ only in run_case (expected: per-suite reasons)
+
+=== part 2: every refusal reason is wired into both harnesses ===
+  OK   unit harness wires the refusal (25/25 anchors)
+  OK   pixel harness wires the refusal (25/25 anchors)
+
+=== part 3: the per-case restore state machine (both harnesses) ===
+--- unit/clean: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-unit-clean/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-unit-clean/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+      REFUSAL the case cannot be undone (CASE-REBUILD-NOT-FRESH); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-NO-OBJECT-DEPENDENCY: no object that depends on the restored /tmp/t61-recovery.hJ11vW/case-unit-clean/src/f.cpp exists, so a recompile cannot be proven, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-clean/backup by hand, then rebuild before any gate run.
+  FAIL unit/clean: exit code: rc=1 expected 0
+  OK   unit/clean: no refusal to name (clean control)
+  OK   unit/clean: builds after the case (want 2)
+  OK   unit/clean: the source is back to the original bytes
+  FAIL unit/clean: the product is missing
+  FAIL unit/clean: a stale marker was written
+  FAIL unit/clean: no object-proof OK line
+--- unit/mismatch: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-MISMATCH /tmp/t61-recovery.hJ11vW/case-unit-mismatch/src/f.cpp: the copy from /tmp/t61-recovery.hJ11vW/case-unit-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes both binaries and writes /tmp/t61-recovery.hJ11vW/case-unit-mismatch/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-MISMATCH: the copy from /tmp/t61-recovery.hJ11vW/case-unit-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-mismatch/backup by hand, then rebuild before any gate run.
+  OK   unit/mismatch: exit code (rc=1)
+  OK   unit/mismatch: CASE-RESTORE-MISMATCH named on a FAIL line
+  OK   unit/mismatch: builds after the case (want 1)
+  OK   unit/mismatch: the source is back to the original bytes
+  OK   unit/mismatch: the product is DELETED, not left mutant
+  OK   unit/mismatch: the probe is DELETED
+  OK   unit/mismatch: marker written
+  OK   unit/mismatch: the marker names CASE-RESTORE-MISMATCH
+--- unit/unreadable: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-UNREADABLE-BACKUP /tmp/t61-recovery.hJ11vW/case-unit-unreadable/backup/r1.orig
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes both binaries and writes /tmp/t61-recovery.hJ11vW/case-unit-unreadable/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-UNREADABLE-BACKUP /tmp/t61-recovery.hJ11vW/case-unit-unreadable/backup/r1.orig
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-UNREADABLE-BACKUP: the backup /tmp/t61-recovery.hJ11vW/case-unit-unreadable/backup/r1.orig exists but cannot be read, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-unreadable/backup by hand, then rebuild before any gate run.
+  OK   unit/unreadable: exit code (rc=1)
+  OK   unit/unreadable: CASE-RESTORE-UNREADABLE-BACKUP named on a FAIL line
+  OK   unit/unreadable: builds after the case (want 1)
+  OK   unit/unreadable: no restore is claimed (the backup could not be read)
+  OK   unit/unreadable: the product is DELETED, not left mutant
+  OK   unit/unreadable: the probe is DELETED
+  OK   unit/unreadable: marker written
+  OK   unit/unreadable: the marker names CASE-RESTORE-UNREADABLE-BACKUP
+--- unit/touch-fail: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-TOUCH-FAILED /tmp/t61-recovery.hJ11vW/case-unit-touch-fail/src/f.cpp: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes both binaries and writes /tmp/t61-recovery.hJ11vW/case-unit-touch-fail/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-TOUCH-FAILED /tmp/t61-recovery.hJ11vW/case-unit-touch-fail/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-TOUCH-FAILED: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-touch-fail/backup by hand, then rebuild before any gate run.
+  OK   unit/touch-fail: exit code (rc=1)
+  OK   unit/touch-fail: CASE-RESTORE-TOUCH-FAILED named on a FAIL line
+  OK   unit/touch-fail: builds after the case (want 1)
+  OK   unit/touch-fail: the source is back to the original bytes
+  OK   unit/touch-fail: the product is DELETED, not left mutant
+  OK   unit/touch-fail: the probe is DELETED
+  OK   unit/touch-fail: marker written
+  OK   unit/touch-fail: the marker names CASE-RESTORE-TOUCH-FAILED
+--- unit/lie-touch: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-MTIME-NOT-ADVANCED /tmp/t61-recovery.hJ11vW/case-unit-lie-touch/src/f.cpp: touch returned 0, but the mtime is not newer than /tmp/t61-recovery.hJ11vW/case-unit-lie-touch/obj/.headers-stamp, so the next build would skip the recompile and keep the mutant object
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes both binaries and writes /tmp/t61-recovery.hJ11vW/case-unit-lie-touch/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-MTIME-NOT-ADVANCED /tmp/t61-recovery.hJ11vW/case-unit-lie-touch/src/f.cpp (the mtime is not newer than /tmp/t61-recovery.hJ11vW/case-unit-lie-touch/obj/.headers-stamp)
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-MTIME-NOT-ADVANCED: touch returned 0, but the mtime of the file is not newer than the build stamp, so the next build would skip the recompile and keep the mutant object, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-lie-touch/backup by hand, then rebuild before any gate run.
+  OK   unit/lie-touch: exit code (rc=1)
+  OK   unit/lie-touch: CASE-RESTORE-MTIME-NOT-ADVANCED named on a FAIL line
+  OK   unit/lie-touch: builds after the case (want 1)
+  OK   unit/lie-touch: the source is back to the original bytes
+  OK   unit/lie-touch: the product is DELETED, not left mutant
+  OK   unit/lie-touch: the probe is DELETED
+  OK   unit/lie-touch: marker written
+  OK   unit/lie-touch: the marker names CASE-RESTORE-MTIME-NOT-ADVANCED
+  OK   unit/lie-touch: the lie is spelled out in the refusal
+--- unit/build-fail: rc=1 rebuilds=1
+      FAIL CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence
+      REFUSAL the case cannot be undone (CASE-BUILD-MUTANT-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-build-fail/backup by hand, then rebuild before any gate run.
+  OK   unit/build-fail: exit code (rc=1)
+  OK   unit/build-fail: CASE-BUILD-MUTANT-FAILED named on a FAIL line
+  OK   unit/build-fail: builds after the case (want 1)
+  OK   unit/build-fail: the source is back to the original bytes
+  OK   unit/build-fail: the product is DELETED, not left mutant
+  OK   unit/build-fail: the probe is DELETED
+  OK   unit/build-fail: marker written
+  OK   unit/build-fail: the marker names CASE-BUILD-MUTANT-FAILED
+  OK   unit/build-fail: no gate ran on the failed mutant build
+--- unit/rebuild-fail: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree
+      REFUSAL the case cannot be undone (CASE-REBUILD-RESTORED-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-rebuild-fail/backup by hand, then rebuild before any gate run.
+  OK   unit/rebuild-fail: exit code (rc=1)
+  OK   unit/rebuild-fail: CASE-REBUILD-RESTORED-FAILED named on a FAIL line
+  OK   unit/rebuild-fail: builds after the case (want 2)
+  OK   unit/rebuild-fail: the source is back to the original bytes
+  OK   unit/rebuild-fail: the product is DELETED, not left mutant
+  OK   unit/rebuild-fail: the probe is DELETED
+  OK   unit/rebuild-fail: marker written
+  OK   unit/rebuild-fail: the marker names CASE-REBUILD-RESTORED-FAILED
+--- unit/stale-object: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-unit-stale-object/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-unit-stale-object/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+      REFUSAL the case cannot be undone (CASE-REBUILD-NOT-FRESH); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-NO-OBJECT-DEPENDENCY: no object that depends on the restored /tmp/t61-recovery.hJ11vW/case-unit-stale-object/src/f.cpp exists, so a recompile cannot be proven, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-stale-object/backup by hand, then rebuild before any gate run.
+  OK   unit/stale-object: exit code (rc=1)
+  FAIL unit/stale-object: no FAIL line for CASE-REBUILD-STALE-OBJECT
+  OK   unit/stale-object: builds after the case (want 2)
+  OK   unit/stale-object: the source is back to the original bytes
+  OK   unit/stale-object: the product is DELETED, not left mutant
+  OK   unit/stale-object: the probe is DELETED
+  OK   unit/stale-object: marker written
+  FAIL unit/stale-object: the marker does not name CASE-REBUILD-STALE-OBJECT
+--- unit/no-object: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-unit-no-object/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-unit-no-object/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+      REFUSAL the case cannot be undone (CASE-REBUILD-NOT-FRESH); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-NO-OBJECT-DEPENDENCY: no object that depends on the restored /tmp/t61-recovery.hJ11vW/case-unit-no-object/src/f.cpp exists, so a recompile cannot be proven, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-unit-no-object/backup by hand, then rebuild before any gate run.
+  OK   unit/no-object: exit code (rc=1)
+  OK   unit/no-object: CASE-REBUILD-NO-OBJECT-DEPENDENCY named on a FAIL line
+  OK   unit/no-object: builds after the case (want 2)
+  OK   unit/no-object: the source is back to the original bytes
+  OK   unit/no-object: the product is DELETED, not left mutant
+  OK   unit/no-object: the probe is DELETED
+  OK   unit/no-object: marker written
+  OK   unit/no-object: the marker names CASE-REBUILD-NO-OBJECT-DEPENDENCY
+--- unit/stale-binary: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-STALE-BINARY /tmp/t61-recovery.hJ11vW/case-unit-stale-binary/out/probe.exe: it is not newer than /tmp/t61-recovery.hJ11vW/case-unit-stale-binary/src/f.cpp, which this run restored, so the object compiled from the mutant was relinked instead of recompiled
+      FAIL CASE-REBUILD-STALE-BINARY /tmp/t61-recovery.hJ11vW/case-unit-stale-binary/out/product.exe: it is not newer than /tmp/t61-recovery.hJ11vW/case-unit-stale-binary/src/f.cpp, which this run restored, so the object compiled from the mutant was relinked instead of recompiled
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-unit-stale-binary/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-unit-stale-binary/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+  OK   unit/stale-binary: exit code (rc=1)
+  OK   unit/stale-binary: CASE-REBUILD-STALE-BINARY named on a FAIL line
+  OK   unit/stale-binary: builds after the case (want 2)
+  OK   unit/stale-binary: the source is back to the original bytes
+  OK   unit/stale-binary: the product is DELETED, not left mutant
+  OK   unit/stale-binary: the probe is DELETED
+  OK   unit/stale-binary: marker written
+  OK   unit/stale-binary: the marker names CASE-REBUILD-STALE-BINARY
+--- pixel/clean: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-pixel-clean/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-pixel-clean/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+      REFUSAL the case cannot be undone (CASE-REBUILD-NOT-FRESH); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-NO-OBJECT-DEPENDENCY: no object that depends on the restored /tmp/t61-recovery.hJ11vW/case-pixel-clean/src/f.cpp exists, so a recompile cannot be proven, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-clean/backup by hand, then rebuild before any gate run.
+  FAIL pixel/clean: exit code: rc=1 expected 0
+  OK   pixel/clean: no refusal to name (clean control)
+  OK   pixel/clean: builds after the case (want 2)
+  OK   pixel/clean: the source is back to the original bytes
+  FAIL pixel/clean: the product is missing
+  FAIL pixel/clean: a stale marker was written
+  FAIL pixel/clean: no object-proof OK line
+--- pixel/mismatch: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-MISMATCH /tmp/t61-recovery.hJ11vW/case-pixel-mismatch/src/f.cpp: the copy from /tmp/t61-recovery.hJ11vW/case-pixel-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes the product and writes /tmp/t61-recovery.hJ11vW/case-pixel-mismatch/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-MISMATCH: the copy from /tmp/t61-recovery.hJ11vW/case-pixel-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-mismatch/backup by hand, then rebuild before any gate run.
+  OK   pixel/mismatch: exit code (rc=1)
+  OK   pixel/mismatch: CASE-RESTORE-MISMATCH named on a FAIL line
+  OK   pixel/mismatch: builds after the case (want 1)
+  OK   pixel/mismatch: the source is back to the original bytes
+  OK   pixel/mismatch: the product is DELETED, not left mutant
+  OK   pixel/mismatch: marker written
+  OK   pixel/mismatch: the marker names CASE-RESTORE-MISMATCH
+--- pixel/unreadable: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-UNREADABLE-BACKUP /tmp/t61-recovery.hJ11vW/case-pixel-unreadable/backup/r1.orig
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes the product and writes /tmp/t61-recovery.hJ11vW/case-pixel-unreadable/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-UNREADABLE-BACKUP /tmp/t61-recovery.hJ11vW/case-pixel-unreadable/backup/r1.orig
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-UNREADABLE-BACKUP: the backup /tmp/t61-recovery.hJ11vW/case-pixel-unreadable/backup/r1.orig exists but cannot be read, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-unreadable/backup by hand, then rebuild before any gate run.
+  OK   pixel/unreadable: exit code (rc=1)
+  OK   pixel/unreadable: CASE-RESTORE-UNREADABLE-BACKUP named on a FAIL line
+  OK   pixel/unreadable: builds after the case (want 1)
+  OK   pixel/unreadable: no restore is claimed (the backup could not be read)
+  OK   pixel/unreadable: the product is DELETED, not left mutant
+  OK   pixel/unreadable: marker written
+  OK   pixel/unreadable: the marker names CASE-RESTORE-UNREADABLE-BACKUP
+--- pixel/touch-fail: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-TOUCH-FAILED /tmp/t61-recovery.hJ11vW/case-pixel-touch-fail/src/f.cpp: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes the product and writes /tmp/t61-recovery.hJ11vW/case-pixel-touch-fail/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-TOUCH-FAILED /tmp/t61-recovery.hJ11vW/case-pixel-touch-fail/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-TOUCH-FAILED: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-touch-fail/backup by hand, then rebuild before any gate run.
+  OK   pixel/touch-fail: exit code (rc=1)
+  OK   pixel/touch-fail: CASE-RESTORE-TOUCH-FAILED named on a FAIL line
+  OK   pixel/touch-fail: builds after the case (want 1)
+  OK   pixel/touch-fail: the source is back to the original bytes
+  OK   pixel/touch-fail: the product is DELETED, not left mutant
+  OK   pixel/touch-fail: marker written
+  OK   pixel/touch-fail: the marker names CASE-RESTORE-TOUCH-FAILED
+--- pixel/lie-touch: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-MTIME-NOT-ADVANCED /tmp/t61-recovery.hJ11vW/case-pixel-lie-touch/src/f.cpp: touch returned 0, but the mtime is not newer than /tmp/t61-recovery.hJ11vW/case-pixel-lie-touch/obj/.headers-stamp, so the next build would skip the recompile and keep the mutant object
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes the product and writes /tmp/t61-recovery.hJ11vW/case-pixel-lie-touch/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-MTIME-NOT-ADVANCED /tmp/t61-recovery.hJ11vW/case-pixel-lie-touch/src/f.cpp (the mtime is not newer than /tmp/t61-recovery.hJ11vW/case-pixel-lie-touch/obj/.headers-stamp)
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-MTIME-NOT-ADVANCED: touch returned 0, but the mtime of the file is not newer than the build stamp, so the next build would skip the recompile and keep the mutant object, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-lie-touch/backup by hand, then rebuild before any gate run.
+  OK   pixel/lie-touch: exit code (rc=1)
+  OK   pixel/lie-touch: CASE-RESTORE-MTIME-NOT-ADVANCED named on a FAIL line
+  OK   pixel/lie-touch: builds after the case (want 1)
+  OK   pixel/lie-touch: the source is back to the original bytes
+  OK   pixel/lie-touch: the product is DELETED, not left mutant
+  OK   pixel/lie-touch: marker written
+  OK   pixel/lie-touch: the marker names CASE-RESTORE-MTIME-NOT-ADVANCED
+  OK   pixel/lie-touch: the lie is spelled out in the refusal
+--- pixel/build-fail: rc=1 rebuilds=1
+      FAIL CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence
+      REFUSAL the case cannot be undone (CASE-BUILD-MUTANT-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-build-fail/backup by hand, then rebuild before any gate run.
+  OK   pixel/build-fail: exit code (rc=1)
+  OK   pixel/build-fail: CASE-BUILD-MUTANT-FAILED named on a FAIL line
+  OK   pixel/build-fail: builds after the case (want 1)
+  OK   pixel/build-fail: the source is back to the original bytes
+  OK   pixel/build-fail: the product is DELETED, not left mutant
+  OK   pixel/build-fail: marker written
+  OK   pixel/build-fail: the marker names CASE-BUILD-MUTANT-FAILED
+  OK   pixel/build-fail: no gate ran on the failed mutant build
+--- pixel/rebuild-fail: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree
+      REFUSAL the case cannot be undone (CASE-REBUILD-RESTORED-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-rebuild-fail/backup by hand, then rebuild before any gate run.
+  OK   pixel/rebuild-fail: exit code (rc=1)
+  OK   pixel/rebuild-fail: CASE-REBUILD-RESTORED-FAILED named on a FAIL line
+  OK   pixel/rebuild-fail: builds after the case (want 2)
+  OK   pixel/rebuild-fail: the source is back to the original bytes
+  OK   pixel/rebuild-fail: the product is DELETED, not left mutant
+  OK   pixel/rebuild-fail: marker written
+  OK   pixel/rebuild-fail: the marker names CASE-REBUILD-RESTORED-FAILED
+--- pixel/stale-object: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-pixel-stale-object/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-pixel-stale-object/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+      REFUSAL the case cannot be undone (CASE-REBUILD-NOT-FRESH); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-NO-OBJECT-DEPENDENCY: no object that depends on the restored /tmp/t61-recovery.hJ11vW/case-pixel-stale-object/src/f.cpp exists, so a recompile cannot be proven, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-stale-object/backup by hand, then rebuild before any gate run.
+  OK   pixel/stale-object: exit code (rc=1)
+  FAIL pixel/stale-object: no FAIL line for CASE-REBUILD-STALE-OBJECT
+  OK   pixel/stale-object: builds after the case (want 2)
+  OK   pixel/stale-object: the source is back to the original bytes
+  OK   pixel/stale-object: the product is DELETED, not left mutant
+  OK   pixel/stale-object: marker written
+  FAIL pixel/stale-object: the marker does not name CASE-REBUILD-STALE-OBJECT
+--- pixel/no-object: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-pixel-no-object/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-pixel-no-object/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+      REFUSAL the case cannot be undone (CASE-REBUILD-NOT-FRESH); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-NO-OBJECT-DEPENDENCY: no object that depends on the restored /tmp/t61-recovery.hJ11vW/case-pixel-no-object/src/f.cpp exists, so a recompile cannot be proven, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/case-pixel-no-object/backup by hand, then rebuild before any gate run.
+  OK   pixel/no-object: exit code (rc=1)
+  OK   pixel/no-object: CASE-REBUILD-NO-OBJECT-DEPENDENCY named on a FAIL line
+  OK   pixel/no-object: builds after the case (want 2)
+  OK   pixel/no-object: the source is back to the original bytes
+  OK   pixel/no-object: the product is DELETED, not left mutant
+  OK   pixel/no-object: marker written
+  OK   pixel/no-object: the marker names CASE-REBUILD-NO-OBJECT-DEPENDENCY
+--- pixel/stale-binary: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-STALE-BINARY /tmp/t61-recovery.hJ11vW/case-pixel-stale-binary/out/product.exe: it is not newer than /tmp/t61-recovery.hJ11vW/case-pixel-stale-binary/src/f.cpp, which this run restored, so the object compiled from the mutant was relinked instead of recompiled
+      FAIL CASE-REBUILD-NO-OBJECT-DEPENDENCY /tmp/t61-recovery.hJ11vW/case-pixel-stale-binary/src/f.cpp: no object under /tmp/t61-recovery.hJ11vW/case-pixel-stale-binary/obj/CMakeFiles/<target>.dir depends on it, so a recompile cannot be proven
+      FAIL CASE-REBUILD-NOT-FRESH: the rebuild did not leave every dependent object and every binary newer than the files this case restored, so an object compiled from the mutant could have been relinked instead of recompiled
+      REFUSAL the case cannot be undone (CASE-REBUILD-NOT-FRESH); no further build, no further case, no baseline.
+  OK   pixel/stale-binary: exit code (rc=1)
+  OK   pixel/stale-binary: CASE-REBUILD-STALE-BINARY named on a FAIL line
+  OK   pixel/stale-binary: builds after the case (want 2)
+  OK   pixel/stale-binary: the source is back to the original bytes
+  OK   pixel/stale-binary: the product is DELETED, not left mutant
+  OK   pixel/stale-binary: marker written
+  OK   pixel/stale-binary: the marker names CASE-REBUILD-STALE-BINARY
+
+=== part 4: on_exit() failure matrix (both harnesses) ===
+--- unit/trap-missing: rc=3 rebuilds=0
+    TRAP-RESTORE-MISSING-BACKUP /tmp/t61-recovery.hJ11vW/trap-unit-missing/src/f.cpp (expected /tmp/t61-recovery.hJ11vW/trap-unit-missing/backup/f.orig)
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-MISSING-BACKUP: the backup /tmp/t61-recovery.hJ11vW/trap-unit-missing/backup/f.orig is missing, so the mutant cannot be undone, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-unit-missing/backup by hand, then rebuild before any gate run.
+  OK   unit/trap-missing: exit code (rc=3)
+  OK   unit/trap-missing: builds during recovery (rc=0)
+  OK   unit/trap-missing: the trap names TRAP-RESTORE-MISSING-BACKUP
+  OK   unit/trap-missing: marker written
+  OK   unit/trap-missing: the marker names TRAP-RESTORE-MISSING-BACKUP
+  OK   unit/trap-missing: the product is DELETED
+  OK   unit/trap-missing: the probe is DELETED
+--- unit/trap-mismatch: rc=3 rebuilds=0
+    TRAP-RESTORE-MISMATCH /tmp/t61-recovery.hJ11vW/trap-unit-mismatch/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-MISMATCH: the copy from /tmp/t61-recovery.hJ11vW/trap-unit-mismatch/backup/f.orig did not verify, so the tree may still carry the mutant, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-unit-mismatch/backup by hand, then rebuild before any gate run.
+  OK   unit/trap-mismatch: exit code (rc=3)
+  OK   unit/trap-mismatch: builds during recovery (rc=0)
+  OK   unit/trap-mismatch: the trap names TRAP-RESTORE-MISMATCH
+  OK   unit/trap-mismatch: marker written
+  OK   unit/trap-mismatch: the marker names TRAP-RESTORE-MISMATCH
+  OK   unit/trap-mismatch: the product is DELETED
+  OK   unit/trap-mismatch: the probe is DELETED
+--- unit/trap-unreadable: rc=3 rebuilds=0
+    TRAP-RESTORE-UNREADABLE-BACKUP /tmp/t61-recovery.hJ11vW/trap-unit-unreadable/backup/f.orig
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-UNREADABLE-BACKUP: the backup /tmp/t61-recovery.hJ11vW/trap-unit-unreadable/backup/f.orig exists but cannot be read, so the mutant cannot be undone, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-unit-unreadable/backup by hand, then rebuild before any gate run.
+  OK   unit/trap-unreadable: exit code (rc=3)
+  OK   unit/trap-unreadable: builds during recovery (rc=0)
+  OK   unit/trap-unreadable: the trap names TRAP-RESTORE-UNREADABLE-BACKUP
+  OK   unit/trap-unreadable: marker written
+  OK   unit/trap-unreadable: the marker names TRAP-RESTORE-UNREADABLE-BACKUP
+  OK   unit/trap-unreadable: the product is DELETED
+  OK   unit/trap-unreadable: the probe is DELETED
+--- unit/trap-touch-fail: rc=3 rebuilds=0
+    TRAP-RESTORE-TOUCH-FAILED /tmp/t61-recovery.hJ11vW/trap-unit-touch-fail/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-TOUCH-FAILED: the bytes were restored but the mtime could not be advanced, so a rebuild would skip the recompile, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-unit-touch-fail/backup by hand, then rebuild before any gate run.
+  OK   unit/trap-touch-fail: exit code (rc=3)
+  OK   unit/trap-touch-fail: builds during recovery (rc=0)
+  OK   unit/trap-touch-fail: the trap names TRAP-RESTORE-TOUCH-FAILED
+  OK   unit/trap-touch-fail: marker written
+  OK   unit/trap-touch-fail: the marker names TRAP-RESTORE-TOUCH-FAILED
+  OK   unit/trap-touch-fail: the product is DELETED
+  OK   unit/trap-touch-fail: the probe is DELETED
+--- unit/trap-lie-touch: rc=3 rebuilds=0
+    TRAP-RESTORE-MTIME-NOT-ADVANCED /tmp/t61-recovery.hJ11vW/trap-unit-lie-touch/src/f.cpp (the mtime is not newer than /tmp/t61-recovery.hJ11vW/trap-unit-lie-touch/obj/.headers-stamp)
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-MTIME-NOT-ADVANCED: touch returned 0, but the mtime of the file is not newer than the build stamp, so a rebuild would skip the recompile and keep the mutant object, so both binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-unit-lie-touch/backup by hand, then rebuild before any gate run.
+  OK   unit/trap-lie-touch: exit code (rc=3)
+  OK   unit/trap-lie-touch: builds during recovery (rc=0)
+  OK   unit/trap-lie-touch: the trap names TRAP-RESTORE-MTIME-NOT-ADVANCED
+  OK   unit/trap-lie-touch: marker written
+  OK   unit/trap-lie-touch: the marker names TRAP-RESTORE-MTIME-NOT-ADVANCED
+  OK   unit/trap-lie-touch: the product is DELETED
+  OK   unit/trap-lie-touch: the probe is DELETED
+--- unit/trap-equal-old: rc=3 rebuilds=1
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: the recovery build left a binary or an object that is not newer than a source it restored, so a mutant build could have been relinked rather than recompiled; the binaries do not evidence this tree (log /tmp/t61-recovery.hJ11vW/trap-unit-equal-old/backup/recovery-build.log)
+  FAIL unit/trap-equal-old: exit code: rc=3 expected 0
+  OK   unit/trap-equal-old: builds during recovery (rc=1)
+  FAIL unit/trap-equal-old: a marker was written
+  OK   unit/trap-equal-old: the product is back (rebuilt)
+  FAIL unit/trap-equal-old: no rebuilt line
+  OK   unit/trap-equal-old: no false touch failure
+--- unit/trap-deletion: rc=3 rebuilds=0
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: a mutant binary could NOT be deleted (/tmp/t61-recovery.hJ11vW/trap-unit-deletion/out/product.exe); refusing to rebuild or to call the tree clean. Delete it by hand, restore the sources from /tmp/t61-recovery.hJ11vW/trap-unit-deletion/backup, then rebuild.
+  OK   unit/trap-deletion: exit code (rc=3)
+  OK   unit/trap-deletion: builds during recovery (rc=0)
+  OK   unit/trap-deletion: the trap names could NOT be deleted
+  OK   unit/trap-deletion: marker written
+  OK   unit/trap-deletion: the marker names survived the recovery
+  OK   unit/trap-deletion: the undeletable product is still there (refused)
+--- pixel/trap-missing: rc=3 rebuilds=0
+    TRAP-RESTORE-MISSING-BACKUP /tmp/t61-recovery.hJ11vW/trap-pixel-missing/src/f.cpp (expected /tmp/t61-recovery.hJ11vW/trap-pixel-missing/backup/f.orig)
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-MISSING-BACKUP: the backup /tmp/t61-recovery.hJ11vW/trap-pixel-missing/backup/f.orig is missing, so the mutant cannot be undone, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-pixel-missing/backup by hand, then rebuild before any gate run.
+  OK   pixel/trap-missing: exit code (rc=3)
+  OK   pixel/trap-missing: builds during recovery (rc=0)
+  OK   pixel/trap-missing: the trap names TRAP-RESTORE-MISSING-BACKUP
+  OK   pixel/trap-missing: marker written
+  OK   pixel/trap-missing: the marker names TRAP-RESTORE-MISSING-BACKUP
+  OK   pixel/trap-missing: the product is DELETED
+--- pixel/trap-mismatch: rc=3 rebuilds=0
+    TRAP-RESTORE-MISMATCH /tmp/t61-recovery.hJ11vW/trap-pixel-mismatch/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-MISMATCH: the copy from /tmp/t61-recovery.hJ11vW/trap-pixel-mismatch/backup/f.orig did not verify, so the tree may still carry the mutant, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-pixel-mismatch/backup by hand, then rebuild before any gate run.
+  OK   pixel/trap-mismatch: exit code (rc=3)
+  OK   pixel/trap-mismatch: builds during recovery (rc=0)
+  OK   pixel/trap-mismatch: the trap names TRAP-RESTORE-MISMATCH
+  OK   pixel/trap-mismatch: marker written
+  OK   pixel/trap-mismatch: the marker names TRAP-RESTORE-MISMATCH
+  OK   pixel/trap-mismatch: the product is DELETED
+--- pixel/trap-unreadable: rc=3 rebuilds=0
+    TRAP-RESTORE-UNREADABLE-BACKUP /tmp/t61-recovery.hJ11vW/trap-pixel-unreadable/backup/f.orig
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-UNREADABLE-BACKUP: the backup /tmp/t61-recovery.hJ11vW/trap-pixel-unreadable/backup/f.orig exists but cannot be read, so the mutant cannot be undone, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-pixel-unreadable/backup by hand, then rebuild before any gate run.
+  OK   pixel/trap-unreadable: exit code (rc=3)
+  OK   pixel/trap-unreadable: builds during recovery (rc=0)
+  OK   pixel/trap-unreadable: the trap names TRAP-RESTORE-UNREADABLE-BACKUP
+  OK   pixel/trap-unreadable: marker written
+  OK   pixel/trap-unreadable: the marker names TRAP-RESTORE-UNREADABLE-BACKUP
+  OK   pixel/trap-unreadable: the product is DELETED
+--- pixel/trap-touch-fail: rc=3 rebuilds=0
+    TRAP-RESTORE-TOUCH-FAILED /tmp/t61-recovery.hJ11vW/trap-pixel-touch-fail/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-TOUCH-FAILED: the bytes were restored but the mtime could not be advanced, so a rebuild would skip the recompile, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-pixel-touch-fail/backup by hand, then rebuild before any gate run.
+  OK   pixel/trap-touch-fail: exit code (rc=3)
+  OK   pixel/trap-touch-fail: builds during recovery (rc=0)
+  OK   pixel/trap-touch-fail: the trap names TRAP-RESTORE-TOUCH-FAILED
+  OK   pixel/trap-touch-fail: marker written
+  OK   pixel/trap-touch-fail: the marker names TRAP-RESTORE-TOUCH-FAILED
+  OK   pixel/trap-touch-fail: the product is DELETED
+--- pixel/trap-lie-touch: rc=3 rebuilds=0
+    TRAP-RESTORE-MTIME-NOT-ADVANCED /tmp/t61-recovery.hJ11vW/trap-pixel-lie-touch/src/f.cpp (the mtime is not newer than /tmp/t61-recovery.hJ11vW/trap-pixel-lie-touch/obj/.headers-stamp)
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-MTIME-NOT-ADVANCED: touch returned 0, but the mtime of the file is not newer than the build stamp, so a rebuild would skip the recompile and keep the mutant object, so the product were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-recovery.hJ11vW/trap-pixel-lie-touch/backup by hand, then rebuild before any gate run.
+  OK   pixel/trap-lie-touch: exit code (rc=3)
+  OK   pixel/trap-lie-touch: builds during recovery (rc=0)
+  OK   pixel/trap-lie-touch: the trap names TRAP-RESTORE-MTIME-NOT-ADVANCED
+  OK   pixel/trap-lie-touch: marker written
+  OK   pixel/trap-lie-touch: the marker names TRAP-RESTORE-MTIME-NOT-ADVANCED
+  OK   pixel/trap-lie-touch: the product is DELETED
+--- pixel/trap-equal-old: rc=3 rebuilds=1
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: the recovery build left a binary or an object that is not newer than a source it restored, so a mutant build could have been relinked rather than recompiled; the binaries do not evidence this tree (log /tmp/t61-recovery.hJ11vW/trap-pixel-equal-old/backup/recovery-build.log)
+  FAIL pixel/trap-equal-old: exit code: rc=3 expected 0
+  OK   pixel/trap-equal-old: builds during recovery (rc=1)
+  FAIL pixel/trap-equal-old: a marker was written
+  OK   pixel/trap-equal-old: the product is back (rebuilt)
+  FAIL pixel/trap-equal-old: no rebuilt line
+  OK   pixel/trap-equal-old: no false touch failure
+--- pixel/trap-deletion: rc=3 rebuilds=0
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: a mutant binary could NOT be deleted (/tmp/t61-recovery.hJ11vW/trap-pixel-deletion/out/product.exe); refusing to rebuild or to call the tree clean. Delete it by hand, restore the sources from /tmp/t61-recovery.hJ11vW/trap-pixel-deletion/backup, then rebuild.
+  OK   pixel/trap-deletion: exit code (rc=3)
+  OK   pixel/trap-deletion: builds during recovery (rc=0)
+  OK   pixel/trap-deletion: the trap names could NOT be deleted
+  OK   pixel/trap-deletion: marker written
+  OK   pixel/trap-deletion: the marker names survived the recovery
+  OK   pixel/trap-deletion: the undeletable product is still there (refused)
+
+=== part 5: exit-code propagation and the signal traps ===
+  OK   unit/exit-clean: a clean exit keeps the case's rc (rc=7)
+  OK   unit/exit-int: SIGINT exits 130 (rc=130)
+  FAIL unit/exit-int: no rebuilt line
+  OK   unit/exit-term: SIGTERM exits 130 (rc=130)
+  OK   unit/exit-hup: SIGHUP exits 129 (rc=129)
+  OK   pixel/exit-clean: a clean exit keeps the case's rc (rc=7)
+  OK   pixel/exit-int: SIGINT exits 130 (rc=130)
+  FAIL pixel/exit-int: no rebuilt line
+  OK   pixel/exit-term: SIGTERM exits 130 (rc=130)
+  OK   pixel/exit-hup: SIGHUP exits 129 (rc=129)
+
+ASSERTIONS-OK=236 ASSERTIONS-FAIL=20
+ON-EXIT-BRANCHES=FAIL

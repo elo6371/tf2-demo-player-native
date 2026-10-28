@@ -1,0 +1,1 @@
+FAIL player-animation-test reason=model-missing detail=models/player/not_a_class_model.mdl

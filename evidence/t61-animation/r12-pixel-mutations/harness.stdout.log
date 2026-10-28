@@ -1,0 +1,291 @@
+=== baseline: the unmutated tree must be green before any case ===
+  OK   baseline rc=0 FAIL-count=0 (log evidence/t61-animation/r12-pixel-mutations/baseline.log)
+         OK   binary is newer than every source that feeds the pixel path
+         OK   the identity frame landed the requested playback tick 64161
+         OK   the identity frame resolved the same scene tick as the animated frame (74481)
+         OK   the repeat capture landed the same playback and scene tick (64161/74481)
+         OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
+         OK   coverage frame really is the entity-coverage view
+         OK   animated frame is the product view
+         OK   off frame is the product view
+         OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
+         OK   both runs resolved the same scene tick 74481
+         OK   the animated capture published an animsum line (the drive ran)
+         OK   the animated capture published 8 per-model pick line(s)
+         OK   moving picks resolved on 2 distinct label(s): run_PRIMARY run_SECONDARY
+         OK   no moving pick is an air-walk clip
+         OK   every moving pick is a run cycle
+         OK   the rendered scene reports reason=run_PRIMARY, one of the picks for the drive state it is in (run_PRIMARY run_SECONDARY )
+         OK   the id frame decodes to a named body whose own pick, own samples and own pixels agree
+         OK   coverage.bmp exists (2582406 bytes)
+         OK   animated.bmp exists (2582406 bytes)
+         OK   off.bmp exists (2582406 bytes)
+
+=== case m6: mutate native/src/native_renderer.cpp ===
+  patched (backup .scratch/t61-pixel-mutations/m6.orig)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1724): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3505): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3763): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4636): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4637): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4944): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5114): warning C4456: “view”的声明隐藏了上一个本地声明
+rc=0
+  gate rc=1 FAIL-count=4 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named PIXEL reason present: body pure-black share
+  OK   named PIXEL reason present: silhouette again
+  OK   restored byte-identical (cmp -s)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+rc=0
+  OK   every object that depends on a restored file, plus the product, is newer than it (the recompile is proven)
+
+=== case m7: mutate native/src/main.cpp ===
+  patched (backup .scratch/t61-pixel-mutations/m7.orig)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
+  gate rc=1 FAIL-count=41 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named PIXEL reason present: animation-off moved
+  OK   restored byte-identical (cmp -s)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+rc=0
+  OK   every object that depends on a restored file, plus the product, is newer than it (the recompile is proven)
+
+=== case m8: mutate native/src/main.cpp ===
+  patched (backup .scratch/t61-pixel-mutations/m8.orig)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
+  gate rc=1 FAIL-count=3 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named PIXEL reason present: air-walk clip
+  OK   restored byte-identical (cmp -s)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+rc=0
+  OK   every object that depends on a restored file, plus the product, is newer than it (the recompile is proven)
+
+=== case m9: mutate native/include/animation_sequence_match.h ===
+  patched (backup .scratch/t61-pixel-mutations/m9.orig)
+=== build tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\spectate_target.cpp(286): warning C4127: 条件表达式是常量
+rc=0
+  gate rc=1 FAIL-count=1 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named PIXEL reason present: is not a run cycle
+  OK   restored byte-identical (cmp -s)
+=== build tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\spectate_target.cpp(286): warning C4127: 条件表达式是常量
+rc=0
+  OK   every object that depends on a restored file, plus the product, is newer than it (the recompile is proven)
+
+=== case m10: mutate native/src/main.cpp ===
+  patched (backup .scratch/t61-pixel-mutations/m10.orig)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
+  gate rc=1 FAIL-count=37 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named PIXEL reason present: the pick and the picture disagree
+  OK   restored byte-identical (cmp -s)
+=== build tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\spectate_target.cpp(286): warning C4127: 条件表达式是常量
+rc=0
+  OK   every object that depends on a restored file, plus the product, is newer than it (the recompile is proven)
+
+=== case m11: mutate native/src/main.cpp ===
+  patched (backup .scratch/t61-pixel-mutations/m11.orig)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
+  gate rc=1 FAIL-count=5 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named PIXEL reason present: but its pick is
+  OK   restored byte-identical (cmp -s)
+=== build tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\spectate_target.cpp(286): warning C4127: 条件表达式是常量
+rc=0
+  OK   every object that depends on a restored file, plus the product, is newer than it (the recompile is proven)
+
+=== case m12: mutate native/src/main.cpp ===
+  patched (backup .scratch/t61-pixel-mutations/m12.orig)
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
+  gate rc=1 FAIL-count=3 (baseline 0)
+  OK   gate went red and the FAIL count rose
+  OK   named PIXEL reason present: two bodies share one entity id
+  OK   restored byte-identical (cmp -s)
+=== build tf2_demo_native ===
+note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3492): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3493): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3494): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3508): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(3766): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4639): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4640): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(4947): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\native_renderer.cpp(5117): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t61-airwalk\native\src\spectate_target.cpp(286): warning C4127: 条件表达式是常量
+rc=0
+  OK   every object that depends on a restored file, plus the product, is newer than it (the recompile is proven)
+
+=== final: the tree must be green again after every restore ===
+  OK   final baseline green (FAIL-count=0)
+
+MUTATION-SUITE=PASS: every pixel case reddened a NAMED pixel assertion, the tree was restored byte-for-byte, and the final baseline is green.
+  OK   clean exit: every restored source still matches its backup, and every object that depends on it plus the product is newer than it (nothing was touched after the proof)
+STEP pixel-suite RC=0 END 2026-10-28T21:10:34

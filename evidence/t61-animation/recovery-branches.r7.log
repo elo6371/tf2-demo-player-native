@@ -1,0 +1,202 @@
+EXTRACTED-LINES-UNIT=210
+EXTRACTED-LINES-PIXEL=193
+
+=== the unit harness's on_exit(), six branches ===
+  OK   A missing backup ends the suite nonzero (rc=3)
+  OK   A named error printed
+  OK   A marker written
+  OK   A binaries deleted, not rebuilt
+  OK   B failed copy ends the suite nonzero (rc=3)
+  OK   B mismatch named
+  OK   B marker written
+  OK   C failed deletion ends the suite nonzero (rc=3)
+  OK   C deletion failure named
+  OK   C marker says the binary survived
+  OK   C the deletable binary is still removed
+  OK   D restore failure on a passing run exits 3 (rc=3)
+  OK   E a clean exit keeps the case's rc (rc=7)
+  OK   F clean run stays 0 (rc=0)
+
+=== the pixel harness's on_exit(): missing backup (symmetry with A) ===
+  OK   G pixel missing backup ends the suite nonzero (rc=3)
+  OK   G named error printed
+  OK   G marker written
+  OK   G the product is DELETED
+
+=== the refusal is wired into both harnesses (the code path, not prose) ===
+  OK   unit harness wires the refusal (11/11 anchors)
+  OK   pixel harness wires the refusal (11/11 anchors)
+
+=== per-case restore failure, driven through run_case() (review 5 P1) ===
+--- unit/mismatch: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-MISMATCH /tmp/t61-on-exit.FGDBtz/case-unit-mismatch/src/f.cpp: the copy from /tmp/t61-on-exit.FGDBtz/case-unit-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes both binaries and writes /tmp/t61-on-exit.FGDBtz/case-unit-mismatch/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-MISMATCH: the copy from /tmp/t61-on-exit.FGDBtz/case-unit-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant, so the binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-unit-mismatch/backup by hand, then rebuild before any gate run.
+  OK   unit/mismatch: the refusal ends the run nonzero (rc=1)
+  OK   unit/mismatch: CASE-RESTORE-MISMATCH named on a FAIL line
+  OK   unit/mismatch: the refusal is announced
+  OK   unit/mismatch: no build after the refusal (rebuilds=1)
+  OK   unit/mismatch: the source is back to the original bytes
+  OK   unit/mismatch: the product is DELETED, not left mutant
+  OK   unit/mismatch: the probe is DELETED
+  OK   unit/mismatch: marker written
+  OK   unit/mismatch: the marker names CASE-RESTORE-MISMATCH
+--- unit/clean: rc=0 rebuilds=2
+  OK   unit/clean: a clean case still finishes 0 (rc=0)
+  OK   unit/clean: two builds, the mutant's and the restore's (control)
+  OK   unit/clean: the source is original
+  OK   unit/clean: the product is present (nothing to refuse)
+  OK   unit/clean: no marker on a clean case
+--- pixel/mismatch: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-MISMATCH /tmp/t61-on-exit.FGDBtz/case-pixel-mismatch/src/f.cpp: the copy from /tmp/t61-on-exit.FGDBtz/case-pixel-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes the product and writes /tmp/t61-on-exit.FGDBtz/case-pixel-mismatch/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-MISMATCH: the copy from /tmp/t61-on-exit.FGDBtz/case-pixel-mismatch/backup/r1.orig did not verify, so the tree may still carry the mutant, so the product was DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-pixel-mismatch/backup by hand, then rebuild before any gate run.
+  OK   pixel/mismatch: the refusal ends the run nonzero (rc=1)
+  OK   pixel/mismatch: CASE-RESTORE-MISMATCH named on a FAIL line
+  OK   pixel/mismatch: the refusal is announced
+  OK   pixel/mismatch: no build after the refusal (rebuilds=1)
+  OK   pixel/mismatch: the source is back to the original bytes
+  OK   pixel/mismatch: the product is DELETED, not left mutant
+  OK   pixel/mismatch: marker written
+  OK   pixel/mismatch: the marker names CASE-RESTORE-MISMATCH
+--- pixel/clean: rc=0 rebuilds=2
+  OK   pixel/clean: a clean case still finishes 0 (rc=0)
+  OK   pixel/clean: two builds, the mutant's and the restore's (control)
+  OK   pixel/clean: the source is original
+  OK   pixel/clean: the product is present (nothing to refuse)
+  OK   pixel/clean: no marker on a clean case
+
+=== build-failure paths enter the refusal state (review 6 P1) ===
+--- unit/build-fail: rc=1 rebuilds=1
+      FAIL CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence
+      REFUSAL the case cannot be undone (CASE-BUILD-MUTANT-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence, so the binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-unit-build-fail/backup by hand, then rebuild before any gate run.
+  OK   unit/build-fail: the refusal ends the run nonzero (rc=1)
+  OK   unit/build-fail: CASE-BUILD-MUTANT-FAILED named on a FAIL line
+  OK   unit/build-fail: the refusal is announced
+  OK   unit/build-fail: no build after the refusal (rebuilds=1)
+  OK   unit/build-fail: the source is back to the original bytes
+  OK   unit/build-fail: the product is DELETED, not left mutant
+  OK   unit/build-fail: the probe is DELETED
+  OK   unit/build-fail: marker written
+  OK   unit/build-fail: the marker names CASE-BUILD-MUTANT-FAILED
+  OK   unit/build-fail: no gate ran on the failed mutant build
+--- unit/rebuild-fail: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree
+      REFUSAL the case cannot be undone (CASE-REBUILD-RESTORED-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree, so the binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-unit-rebuild-fail/backup by hand, then rebuild before any gate run.
+  OK   unit/rebuild-fail: the refusal ends the run nonzero (rc=1)
+  OK   unit/rebuild-fail: CASE-REBUILD-RESTORED-FAILED named on a FAIL line
+  OK   unit/rebuild-fail: the refusal is announced
+  OK   unit/rebuild-fail: no build after the refusal (rebuilds=2)
+  OK   unit/rebuild-fail: the source is back to the original bytes
+  OK   unit/rebuild-fail: the product is DELETED, not left mutant
+  OK   unit/rebuild-fail: the probe is DELETED
+  OK   unit/rebuild-fail: marker written
+  OK   unit/rebuild-fail: the marker names CASE-REBUILD-RESTORED-FAILED
+--- pixel/build-fail: rc=1 rebuilds=1
+      FAIL CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence
+      REFUSAL the case cannot be undone (CASE-BUILD-MUTANT-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-BUILD-MUTANT-FAILED: the mutant would not compile, so no gate ran and the binaries on disk are not evidence, so the product was DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-pixel-build-fail/backup by hand, then rebuild before any gate run.
+  OK   pixel/build-fail: the refusal ends the run nonzero (rc=1)
+  OK   pixel/build-fail: CASE-BUILD-MUTANT-FAILED named on a FAIL line
+  OK   pixel/build-fail: the refusal is announced
+  OK   pixel/build-fail: no build after the refusal (rebuilds=1)
+  OK   pixel/build-fail: the source is back to the original bytes
+  OK   pixel/build-fail: the product is DELETED, not left mutant
+  OK   pixel/build-fail: marker written
+  OK   pixel/build-fail: the marker names CASE-BUILD-MUTANT-FAILED
+  OK   pixel/build-fail: no gate ran on the failed mutant build
+--- pixel/rebuild-fail: rc=1 rebuilds=2
+      FAIL CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree
+      REFUSAL the case cannot be undone (CASE-REBUILD-RESTORED-FAILED); no further build, no further case, no baseline.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-REBUILD-RESTORED-FAILED: the rebuild from the restored sources failed, so the binaries on disk do not evidence this tree, so the product was DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-pixel-rebuild-fail/backup by hand, then rebuild before any gate run.
+  OK   pixel/rebuild-fail: the refusal ends the run nonzero (rc=1)
+  OK   pixel/rebuild-fail: CASE-REBUILD-RESTORED-FAILED named on a FAIL line
+  OK   pixel/rebuild-fail: the refusal is announced
+  OK   pixel/rebuild-fail: no build after the refusal (rebuilds=2)
+  OK   pixel/rebuild-fail: the source is back to the original bytes
+  OK   pixel/rebuild-fail: the product is DELETED, not left mutant
+  OK   pixel/rebuild-fail: marker written
+  OK   pixel/rebuild-fail: the marker names CASE-REBUILD-RESTORED-FAILED
+
+=== the restore's touch failure is a refusal (review 6 P1) ===
+--- unit/touch-fail: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-TOUCH-FAILED /tmp/t61-on-exit.FGDBtz/case-unit-touch-fail/src/f.cpp: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes both binaries and writes /tmp/t61-on-exit.FGDBtz/case-unit-touch-fail/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-TOUCH-FAILED: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object, so the binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-unit-touch-fail/backup by hand, then rebuild before any gate run.
+  OK   unit/touch-fail: the refusal ends the run nonzero (rc=1)
+  OK   unit/touch-fail: CASE-RESTORE-TOUCH-FAILED named on a FAIL line
+  OK   unit/touch-fail: the refusal is announced
+  OK   unit/touch-fail: no build after the refusal (rebuilds=1)
+  OK   unit/touch-fail: the source is back to the original bytes
+  OK   unit/touch-fail: the product is DELETED, not left mutant
+  OK   unit/touch-fail: the probe is DELETED
+  OK   unit/touch-fail: marker written
+  OK   unit/touch-fail: the marker names CASE-RESTORE-TOUCH-FAILED
+  OK   unit/touch-fail: the mtime reason is spelled out
+--- pixel/touch-fail: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-TOUCH-FAILED /tmp/t61-on-exit.FGDBtz/case-pixel-touch-fail/src/f.cpp: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes the product and writes /tmp/t61-on-exit.FGDBtz/case-pixel-touch-fail/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-TOUCH-FAILED: the file is byte-identical but its mtime could not be advanced, so the next build would skip the recompile and keep the mutant object, so the product was DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-pixel-touch-fail/backup by hand, then rebuild before any gate run.
+  OK   pixel/touch-fail: the refusal ends the run nonzero (rc=1)
+  OK   pixel/touch-fail: CASE-RESTORE-TOUCH-FAILED named on a FAIL line
+  OK   pixel/touch-fail: the refusal is announced
+  OK   pixel/touch-fail: no build after the refusal (rebuilds=1)
+  OK   pixel/touch-fail: the source is back to the original bytes
+  OK   pixel/touch-fail: the product is DELETED, not left mutant
+  OK   pixel/touch-fail: marker written
+  OK   pixel/touch-fail: the marker names CASE-RESTORE-TOUCH-FAILED
+  OK   pixel/touch-fail: the mtime reason is spelled out
+
+=== an unreadable backup is a refusal (review 6 P2; SYNTHETIC: chmod 000 cannot) ===
+--- unit/unreadable: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-UNREADABLE-BACKUP /tmp/t61-on-exit.FGDBtz/case-unit-unreadable/backup/r1.orig
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes both binaries and writes /tmp/t61-on-exit.FGDBtz/case-unit-unreadable/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-UNREADABLE-BACKUP /tmp/t61-on-exit.FGDBtz/case-unit-unreadable/backup/r1.orig
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-UNREADABLE-BACKUP: the backup /tmp/t61-on-exit.FGDBtz/case-unit-unreadable/backup/r1.orig exists but cannot be read, so the binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-unit-unreadable/backup by hand, then rebuild before any gate run.
+  OK   unit/unreadable: the refusal ends the run nonzero (rc=1)
+  OK   unit/unreadable: CASE-RESTORE-UNREADABLE-BACKUP named on a FAIL line
+  OK   unit/unreadable: the refusal is announced
+  OK   unit/unreadable: no build after the refusal (rebuilds=1)
+  OK   unit/unreadable: no restore is claimed (the backup could not be read)
+  OK   unit/unreadable: the product is DELETED, not left mutant
+  OK   unit/unreadable: the probe is DELETED
+  OK   unit/unreadable: marker written
+  OK   unit/unreadable: the marker names CASE-RESTORE-UNREADABLE-BACKUP
+  OK   unit/unreadable: the trap hits it too and says so
+--- pixel/unreadable: rc=1 rebuilds=1
+      FAIL CASE-RESTORE-UNREADABLE-BACKUP /tmp/t61-on-exit.FGDBtz/case-pixel-unreadable/backup/r1.orig
+      REFUSAL the tree could not be restored: no further build, no further case, no baseline. The EXIT trap deletes the product and writes /tmp/t61-on-exit.FGDBtz/case-pixel-unreadable/out/BINARIES-NOT-FOR-ACCEPTANCE.txt.
+    TRAP-RESTORE-UNREADABLE-BACKUP /tmp/t61-on-exit.FGDBtz/case-pixel-unreadable/backup/r1.orig
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: CASE-RESTORE-UNREADABLE-BACKUP: the backup /tmp/t61-on-exit.FGDBtz/case-pixel-unreadable/backup/r1.orig exists but cannot be read, so the product was DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/case-pixel-unreadable/backup by hand, then rebuild before any gate run.
+  OK   pixel/unreadable: the refusal ends the run nonzero (rc=1)
+  OK   pixel/unreadable: CASE-RESTORE-UNREADABLE-BACKUP named on a FAIL line
+  OK   pixel/unreadable: the refusal is announced
+  OK   pixel/unreadable: no build after the refusal (rebuilds=1)
+  OK   pixel/unreadable: no restore is claimed (the backup could not be read)
+  OK   pixel/unreadable: the product is DELETED, not left mutant
+  OK   pixel/unreadable: marker written
+  OK   pixel/unreadable: the marker names CASE-RESTORE-UNREADABLE-BACKUP
+  OK   pixel/unreadable: the trap hits it too and says so
+
+=== the trap's restore_all touch failure upgrades a passing run (review 6 P1) ===
+--- unit/trap-touch: rc=3
+    TRAP-RESTORE-TOUCH-FAILED /tmp/t61-on-exit.FGDBtz/traptouch-unit/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-TOUCH-FAILED: the bytes were restored but the mtime could not be advanced, so a rebuild would skip the recompile, so the binaries were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/traptouch-unit/backup by hand, then rebuild before any gate run.
+  OK   unit/trap-touch: a touch failure on a passing run exits 3 (rc=3)
+  OK   unit/trap-touch: the trap names the touch failure
+  OK   unit/trap-touch: the bytes are back
+  OK   unit/trap-touch: the product is DELETED
+  OK   unit/trap-touch: the marker names the cause
+--- pixel/trap-touch: rc=3
+    TRAP-RESTORE-TOUCH-FAILED /tmp/t61-on-exit.FGDBtz/traptouch-pixel/src/f.cpp
+    INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: TRAP-RESTORE-TOUCH-FAILED: the bytes were restored but the mtime could not be advanced, so a rebuild would skip the recompile, so the product was DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from /tmp/t61-on-exit.FGDBtz/traptouch-pixel/backup by hand, then rebuild before any gate run.
+  OK   pixel/trap-touch: a touch failure on a passing run exits 3 (rc=3)
+  OK   pixel/trap-touch: the trap names the touch failure
+  OK   pixel/trap-touch: the bytes are back
+  OK   pixel/trap-touch: the product is DELETED
+  OK   pixel/trap-touch: the marker names the cause
+
+ASSERTIONS-OK=131 ASSERTIONS-FAIL=0
+ON-EXIT-BRANCHES=PASS

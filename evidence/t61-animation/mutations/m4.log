@@ -1,57 +1,80 @@
 === 0/6 binary freshness: the probe is newer than every input it compiles ===
-  OK   BINARY-FRESH=1 probe=2026-10-25 11:04:02
+  OK   BINARY-FRESH=1 probe=2026-10-27 12:35:59
+
+=== 1b/6 matcher: the selector and the ranker agree about order ===
+  OK   matcher selftest exit = 0
+  OK   matcher ordered = 1
+  OK   matcher head = 1
+  OK   matcher boundary = 1
+  OK   matcher substringDefect = 1
+  OK   matcher leading = 1
+  OK   matcher ranked order = 0,3,1,4
+  OK   matcher selector agrees with rank head = 0
+  OK   matcher whole-token pick = 1
+  OK   matcher substring pick = 0
+  OK   matcher leading-token pick = 1
+
+=== 1c/6 entity id: the diagnostic colour never names two bodies ===
+  OK   entity id selftest exit = 0
+  OK   entity id one = 1
+  OK   entity id max = 1
+  OK   entity id over = 1
+  OK   entity id zero = 1
+  OK   entity id negative = 1
+  OK   entity id injective = 1
+  OK   entity id ceiling = 255
 
 === 2/6 A: nine class models pick from a >=200-sequence table, bindBones==bones ===
   FAIL A scout probe exit = 2, expected 0
-       | animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=24 poseLabel=PRIMARY_airwalk_reload_start poseFrames=21 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary_start|layer_reload_standing_arms_primary_loop|layer_reload_standing_arms_primary_end|PRIMARY_reload_start|PRIMARY_reload_loop|PRIMARY_reload_end|PRIMARY_crouch_reload_start|PRIMARY_crouch_reload_loop|PRIMARY_crouch_reload_end|PRIMARY_swim_reload_start|PRIMARY_swim_reload_loop|PRIMARY_swim_reload_end|...
+       | animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY poseSeq=212 poseLabel=run_PRIMARY poseFrames=49 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary_start|layer_reload_standing_arms_primary_loop|layer_reload_standing_arms_primary_end|PRIMARY_reload_start|PRIMARY_reload_loop|PRIMARY_reload_end|PRIMARY_crouch_reload_start|PRIMARY_crouch_reload_loop|PRIMARY_crouch_reload_end|PRIMARY_swim_reload_start|PRIMARY_swim_reload_loop|PRIMARY_swim_reload_end|...
        | boundDiag bindRadius=73.534996 boundDiag=148.069992 bones=76 composed=1 reason=-
        | contcand rank=0 sequence=208 label=swim_ITEM2 frames=31 sparseStep=13.604114 halfSwing=80.227402
        | contcand rank=1 sequence=205 label=Swim_ITEM1 frames=31 sparseStep=13.604114 halfSwing=80.227402
        | contcand rank=2 sequence=202 label=Swim_MELEE_ALLCLASS frames=31 sparseStep=13.604114 halfSwing=80.227402
   FAIL A sniper probe exit = 2, expected 0
-       | animtable model=models/player/sniper.mdl animSource=models/player/sniper_animations.mdl separate=1 bones=74 bindBones=74 validBindBones=74 sequences=240 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=34 poseLabel=ReloadAirwalk_SECONDARY poseFrames=41 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_crouch_aimmatrix_deployed|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|AttackCrouch_PRIMARY_DEPLOYED|AttackSwim_PRIMARY_DEPLOYED|ReloadStand_PRIMARY_DEPLOYED|ReloadCrouch_PRIMARY_DEPLOYED|ReloadSwim_PRIMARY_DEPLOYED|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|attackstand_Primary_deployed_fire|a_flinch01|...
+       | animtable model=models/player/sniper.mdl animSource=models/player/sniper_animations.mdl separate=1 bones=74 bindBones=74 validBindBones=74 sequences=240 idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY poseSeq=213 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_crouch_aimmatrix_deployed|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|AttackCrouch_PRIMARY_DEPLOYED|AttackSwim_PRIMARY_DEPLOYED|ReloadStand_PRIMARY_DEPLOYED|ReloadCrouch_PRIMARY_DEPLOYED|ReloadSwim_PRIMARY_DEPLOYED|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|attackstand_Primary_deployed_fire|a_flinch01|...
        | boundDiag bindRadius=83.722290 boundDiag=168.444580 bones=74 composed=1 reason=-
        | contcand rank=0 sequence=199 label=s_swimAlign_ITEM1 frames=61 sparseStep=7.164055 halfSwing=89.502289
        | contcand rank=1 sequence=141 label=SelectionMenu_Anim01 frames=81 sparseStep=15.315834 halfSwing=96.681671
        | contcand rank=2 sequence=208 label=swim_LOSER frames=31 sparseStep=16.194920 halfSwing=96.336929
   FAIL A soldier probe exit = 2, expected 0
-       | animtable model=models/player/soldier.mdl animSource=models/player/soldier_animations.mdl separate=1 bones=86 bindBones=86 validBindBones=86 sequences=361 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=22 poseLabel=ReloadAirwalk_PRIMARY poseFrames=33 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|test|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|AttackStand_PRIMARY2|AttackCrouch_PRIMARY2|AttackSwim_PRIMARY2|AttackStand_PRIMARY2_SUPER|AttackCrouch_PRIMARY2_SUPER|AttackSwim_PRIMARY2_SUPER|layer_reload_standing_arms|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadAirwalk_PRIMARY|layer_reload_standing_arms_loop|...
+       | animtable model=models/player/soldier.mdl animSource=models/player/soldier_animations.mdl separate=1 bones=86 bindBones=86 validBindBones=86 sequences=361 idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY poseSeq=201 poseLabel=run_PRIMARY poseFrames=22 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|test|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|AttackStand_PRIMARY2|AttackCrouch_PRIMARY2|AttackSwim_PRIMARY2|AttackStand_PRIMARY2_SUPER|AttackCrouch_PRIMARY2_SUPER|AttackSwim_PRIMARY2_SUPER|layer_reload_standing_arms|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadAirwalk_PRIMARY|layer_reload_standing_arms_loop|...
        | boundDiag bindRadius=80.590332 boundDiag=162.180664 bones=86 composed=1 reason=-
        | contcand rank=0 sequence=199 label=s_swimAlign_LOSER frames=61 sparseStep=6.428752 halfSwing=81.953033
        | contcand rank=1 sequence=228 label=layer_gesture_item1_buglecall frames=81 sparseStep=12.323654 halfSwing=84.988945
        | contcand rank=2 sequence=238 label=primary_floatA frames=31 sparseStep=17.485065 halfSwing=89.695755
   FAIL A demo probe exit = 2, expected 0
-       | animtable model=models/player/demo.mdl animSource=models/player/demo_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=276 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=24 poseLabel=a_PRIMARY_reload_airwalk poseFrames=51 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|a_PRIMARY_reload|PRIMARY_reload|a_PRIMARY_reload_loop|a_PRIMARY_reload_end|a_PRIMARY_crouch_reload|PRIMARY_crouch_reload|a_PRIMARY_crouch_reload_loop|a_PRIMARY_crouch_reload_end|a_PRIMARY_swim_reload|PRIMARY_swim_reload|a_PRIMARY_swim_reload_loop|a_PRIMARY_swim_reload_end|...
+       | animtable model=models/player/demo.mdl animSource=models/player/demo_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=276 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY poseSeq=147 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|a_PRIMARY_reload|PRIMARY_reload|a_PRIMARY_reload_loop|a_PRIMARY_reload_end|a_PRIMARY_crouch_reload|PRIMARY_crouch_reload|a_PRIMARY_crouch_reload_loop|a_PRIMARY_crouch_reload_end|a_PRIMARY_swim_reload|PRIMARY_swim_reload|a_PRIMARY_swim_reload_loop|a_PRIMARY_swim_reload_end|...
        | boundDiag bindRadius=76.172211 boundDiag=153.344421 bones=82 composed=1 reason=-
        | contcand rank=0 sequence=138 label=swim_MELEE frames=31 sparseStep=10.403534 halfSwing=82.873390
        | contcand rank=1 sequence=141 label=swim_MELEE_ALLCLASS frames=31 sparseStep=10.403534 halfSwing=82.873390
        | contcand rank=2 sequence=146 label=swim_LOSER frames=31 sparseStep=11.798075 halfSwing=89.062599
   FAIL A medic probe exit = 2, expected 0
-       | animtable model=models/player/medic.mdl animSource=models/player/medic_animations.mdl separate=1 bones=92 bindBones=92 validBindBones=92 sequences=213 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=16 poseLabel=ReloadAirwalk_PRIMARY poseFrames=46 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|ReloadAirwalk_PRIMARY|a_flinch01|layer_placeSapper_ArmL|PRIMARY_placeSapper|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|SECONDARY_aimmatrix_crouch_walk|...
+       | animtable model=models/player/medic.mdl animSource=models/player/medic_animations.mdl separate=1 bones=92 bindBones=92 validBindBones=92 sequences=213 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY poseSeq=80 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|ReloadAirwalk_PRIMARY|a_flinch01|layer_placeSapper_ArmL|PRIMARY_placeSapper|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|SECONDARY_aimmatrix_crouch_walk|...
        | boundDiag bindRadius=78.772736 boundDiag=158.545471 bones=92 composed=1 reason=-
        | contcand rank=0 sequence=79 label=swim_LOSER frames=31 sparseStep=11.527103 halfSwing=97.868271
        | contcand rank=1 sequence=211 label=layer_taunt_xray frames=185 sparseStep=15.743229 halfSwing=95.106812
        | contcand rank=2 sequence=207 label=layer_taunt_headbutt_start frames=258 sparseStep=17.946381 halfSwing=117.117279
   FAIL A heavy probe exit = 2, expected 0
-       | animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=7 idleLabel=PRIMARY_aimmatrix_idle movingSeq=8 movingLabel=PRIMARY_aimmatrix_run poseSeq=31 poseLabel=a_SECONDARY_reload_airwalk poseFrames=46 labels=ref|ragdoll|user_ref|ragdollspawn|SPELL_arm_pose_raw|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_aimmatrix_crouch_walk|PRIMARY_aimmatrix_deployed_crouch|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|a_SECONDARY_reload|SECONDARY_reload|SECONDARY_reload_loop|a_SECONDARY_reload_end|a_SECONDARY_crouch_reload|...
+       | animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY poseSeq=115 poseLabel=run_PRIMARY poseFrames=17 labels=ref|ragdoll|user_ref|ragdollspawn|SPELL_arm_pose_raw|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_aimmatrix_crouch_walk|PRIMARY_aimmatrix_deployed_crouch|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|a_SECONDARY_reload|SECONDARY_reload|SECONDARY_reload_loop|a_SECONDARY_reload_end|a_SECONDARY_crouch_reload|...
        | boundDiag bindRadius=79.631165 boundDiag=160.262329 bones=77 composed=1 reason=-
        | contcand rank=0 sequence=224 label=selectionMenu_Anim01 frames=72 sparseStep=13.342402 halfSwing=83.955917
        | contcand rank=1 sequence=206 label=layer_taunt_highFiveSuccessFull frames=126 sparseStep=17.111847 halfSwing=114.910904
        | contcand rank=2 sequence=205 label=taunt_highFiveStart frames=87 sparseStep=17.114334 halfSwing=92.224373
   FAIL A pyro probe exit = 2, expected 0
-       | animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=47 poseLabel=layer_reload_flaregun_airwalk_ITEM1 poseFrames=61 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_walk|PRIMARY_aimmatrix_crouch_idle|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_flinch01|primary_fire|AttackCrouch_PRIMARY|AttackCrouch_PRIMARY_spoolup|AttackCrouch_PRIMARY_spooldown|SECONDARYAttackCrouch_PRIMARY|AttackStand_PRIMARY|AttackStand_primary_spoolup|AttackStand_primary_spooldown|SECONDARYAttackStand_PRIMARY|AttackSwim_PRIMARY|...
+       | animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=10 idleLabel=ReloadStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY poseSeq=141 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_walk|PRIMARY_aimmatrix_crouch_idle|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_flinch01|primary_fire|AttackCrouch_PRIMARY|AttackCrouch_PRIMARY_spoolup|AttackCrouch_PRIMARY_spooldown|SECONDARYAttackCrouch_PRIMARY|AttackStand_PRIMARY|AttackStand_primary_spoolup|AttackStand_primary_spooldown|SECONDARYAttackStand_PRIMARY|AttackSwim_PRIMARY|...
        | boundDiag bindRadius=71.823799 boundDiag=144.647598 bones=76 composed=1 reason=-
        | contcand rank=0 sequence=173 label=layer_taunt_scorch_shot frames=114 sparseStep=0.000000 halfSwing=123.435883
        | contcand rank=1 sequence=188 label=layer_taunt_laugh frames=151 sparseStep=17.077446 halfSwing=101.861374
        | contcand rank=2 sequence=241 label=layer_taunt_flip_success_initiator frames=122 sparseStep=19.806391 halfSwing=93.738396
   FAIL A spy probe exit = 2, expected 0
-       | animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=7 idleLabel=SECONDARY_aimmatrix_idle movingSeq=8 movingLabel=SECONDARY_aimmatrix_run poseSeq=16 poseLabel=layer_reload_airwalk_arms_SECONDARY poseFrames=41 labels=ref|ragdoll|user_ref|test_swingBlend|ragdollspawn|r_handposes|r_armposes|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|layer_reload_standing_arms_SECONDARY|layer_reload_crouching_arms_SECONDARY|layer_reload_swimming_arms_SECONDARY|layer_reload_airwalk_arms_SECONDARY|ReloadStand_SECONDARY|ReloadCrouch_SECONDARY|ReloadSwim_SECONDARY|ReloadAirwalk_SECONDARY|a_flinch01|layer_placeSapper_ArmL|SECONDARY_placeSapper|...
+       | animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY poseSeq=145 poseLabel=run_SECONDARY poseFrames=19 labels=ref|ragdoll|user_ref|test_swingBlend|ragdollspawn|r_handposes|r_armposes|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|layer_reload_standing_arms_SECONDARY|layer_reload_crouching_arms_SECONDARY|layer_reload_swimming_arms_SECONDARY|layer_reload_airwalk_arms_SECONDARY|ReloadStand_SECONDARY|ReloadCrouch_SECONDARY|ReloadSwim_SECONDARY|ReloadAirwalk_SECONDARY|a_flinch01|layer_placeSapper_ArmL|SECONDARY_placeSapper|...
        | boundDiag bindRadius=75.745811 boundDiag=152.491623 bones=84 composed=1 reason=-
        | contcand rank=0 sequence=227 label=layer_taunt_buy_a_life frames=192 sparseStep=0.000000 halfSwing=81.300598
        | contcand rank=1 sequence=144 label=swim_LOSER frames=31 sparseStep=12.674725 halfSwing=94.978500
        | contcand rank=2 sequence=245 label=layer_taunt_dosido_intro frames=152 sparseStep=16.622627 halfSwing=95.729050
   FAIL A engineer probe exit = 2, expected 0
-       | animtable model=models/player/engineer.mdl animSource=models/player/engineer_animations.mdl separate=1 bones=73 bindBones=73 validBindBones=73 sequences=351 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=24 poseLabel=a_PRIMARY_reload_airwalk poseFrames=76 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_PRIMARY_reload|a_PRIMARY_reload_loop|b_PRIMARY_reload_loop|PRIMARY_reload_end|a_PRIMARYcrouch_reload|reloadcrouch_PRIMARY_end|PRIMARY_reloadcrouch|a_PRIMARY_reloadcrouch_loop|b_PRIMARY_reloadcrouch_loop|...
+       | animtable model=models/player/engineer.mdl animSource=models/player/engineer_animations.mdl separate=1 bones=73 bindBones=73 validBindBones=73 sequences=351 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY poseSeq=265 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_PRIMARY_reload|a_PRIMARY_reload_loop|b_PRIMARY_reload_loop|PRIMARY_reload_end|a_PRIMARYcrouch_reload|reloadcrouch_PRIMARY_end|PRIMARY_reloadcrouch|a_PRIMARY_reloadcrouch_loop|b_PRIMARY_reloadcrouch_loop|...
        | boundDiag bindRadius=76.265198 boundDiag=153.530396 bones=73 composed=1 reason=-
        | contcand rank=0 sequence=252 label=s_swimAlign_ITEM2 frames=61 sparseStep=5.989169 halfSwing=79.305054
        | contcand rank=1 sequence=263 label=s_swimAlign_LOSER frames=61 sparseStep=5.989169 halfSwing=79.305054
@@ -86,6 +109,10 @@
   OK   B engineer boundDiag composed = 1
   OK   B engineer boundDiag = 153.530396 (> 1)
   FAIL B engineer distinct pose checksums = 0, expected 4
+  FAIL B scout repeat probe exit = 2, expected 0
+  OK   B scout repeat pose line count = 0
+  FAIL B scout pose lines to compare = 0, expected >= 4
+  OK   B scout pose digest repeatable = d41d8cd98f00b204e9800998ecf8427e
 
 === 4/6 C: sixty 1/60 s steps never move a matrix element by more than boundDiag/4 ===
   FAIL C scout animcont usable = <none>, expected 1
@@ -140,3 +167,4 @@
   
 
 FAIL player-animation-check: see the FAIL lines above.
+PLAYER-ANIMATION-CHECK=FAIL

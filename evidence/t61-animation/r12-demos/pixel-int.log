@@ -1,0 +1,18 @@
+=== interrupt demo: pixel -- bash player-animation-pixel-mutations.sh m12
+=== logs and captures under .scratch/interrupt-demo-out/pixel; suite log .scratch/interrupt-demo-pixel.log
+=== signalling the suite shell (SIGINT), the mutant is on disk
+18:05:34 signal
+18:06:03 done
+WRAPPER-RC=130
+=== tail of the suite log:
+    D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3495): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+    D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(3496): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+    D:\TF2_Native_Worktrees\t61-airwalk\native\src\main.cpp(9839): warning C4457: “instance”的声明隐藏了函数参数
+    C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+    rc=0
+    INTERRUPT-RECOVERY=rebuilt: sources restored and the product rebuilt from them, with every object they touch newer than the restored file, so nothing mutant is left to run (log .scratch/t61-pixel-mutations/recovery-build.log)
+=== binaries:
+    -rwxr-xr-x 1 Administrator 197121  865280 Oct 28 17:52 native/build-nmake/model_pose_probe.exe
+    -rwxr-xr-x 1 Administrator 197121 2657280 Oct 28 18:06 native/build-nmake/tf2_demo_native.exe
+INTERRUPT-DEMO=PASS
+STEP demo-pixel-int RC=0 END 2026-10-28T18:06:03

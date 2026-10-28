@@ -1,0 +1,92 @@
+=== F1: the binary under test is newer than the sources it compiles ===
+  OK   binary is newer than every source that feeds the pixel path
+
+=== F2/F3/F4: capture the coverage mask, the animated frame and the off frame ===
+  coverage rc=0 view=entity-coverage frameTick=64161 sceneTick=74481
+  animated rc=0 view=textured frameTick=64161 sceneTick=74481
+  off     rc=0 view=textured frameTick=64161 sceneTick=74481
+  repeat  rc=0 view=textured frameTick=64161 sceneTick=74481
+  identity rc=0 view=entity-id frameTick=64161 sceneTick=74481
+  OK   the identity frame landed the requested playback tick 64161
+  OK   the identity frame resolved the same scene tick as the animated frame (74481)
+  OK   the repeat capture landed the same playback and scene tick (64161/74481)
+  OK   a repeat capture of the same moment is byte-identical (2582406 bytes)
+  OK   coverage frame really is the entity-coverage view
+  OK   animated frame is the product view
+  OK   off frame is the product view
+  OK   both runs captured the requested playback tick 64161 (frame_tick=64161)
+  OK   both runs resolved the same scene tick 74481
+  OK   the animated capture published an animsum line (the drive ran)
+  OK   the animated capture published 8 per-model pick line(s)
+  OK   moving picks resolved on 2 distinct label(s): run_PRIMARY run_SECONDARY
+  OK   no moving pick is an air-walk clip
+  OK   every moving pick is a run cycle
+  FAIL the rendered scene reports reason=entitycarriednom_nSequence, which is none of the picks for the drive state animsum reports moving=2 idle=0 (run_PRIMARY run_SECONDARY ): the pick and the picture disagree
+
+=== F5: the per-entity chain ===
+  LEDGER lines=96 distinct-ids=96
+  PICKS  models=8
+  MASK   distinct-ids=3 pixels=3497
+  SUBJECT id=95 ent=5 model=models/player/demo.mdl state=moving seq=-1 label=entity pixels=2307
+  VISIBLE players=1 props=2
+  MOTION subject=95 over-mask=2307 differ=0 share=0.00%
+  DECODED id=95 ent=5 model=models/player/demo.mdl state=moving seq=-1 label=entity
+  FAIL subject seq=-1 but its own model pick for moving is 147
+  FAIL subject label=entity but its own model pick for moving is run_PRIMARY
+  FAIL no drawn player body carries a drive state and a skinned sequence: the per-instance half of the chain would be vacuous
+  FAIL ent=10 models/player/scout.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=10 models/player/scout.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=212 label=run_PRIMARY
+  FAIL ent=11 models/player/soldier.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=10 label=AttackStand_PRIMARY
+  FAIL ent=11 models/player/soldier.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=201 label=run_PRIMARY
+  FAIL ent=13 models/player/medic.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=13 models/player/medic.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=80 label=run_PRIMARY
+  FAIL ent=15 models/player/scout.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=15 models/player/scout.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=212 label=run_PRIMARY
+  FAIL ent=2 models/player/soldier.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=10 label=AttackStand_PRIMARY
+  FAIL ent=2 models/player/soldier.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=201 label=run_PRIMARY
+  FAIL ent=3 models/player/scout.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=3 models/player/scout.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=212 label=run_PRIMARY
+  FAIL ent=3 models/player/sniper.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=11 label=AttackStand_PRIMARY
+  FAIL ent=4 models/player/demo.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=4 models/player/demo.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=147 label=run_PRIMARY
+  FAIL ent=5 models/player/demo.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=5 models/player/demo.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=147 label=run_PRIMARY
+  FAIL ent=6 models/player/medic.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=6 models/player/medic.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=80 label=run_PRIMARY
+  FAIL ent=7 models/player/engineer.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=7 models/player/engineer.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=265 label=run_PRIMARY
+  FAIL ent=7 models/player/heavy.mdl idle sampled seq=-1 label=AttackStand_SECONDARY but its pick is seq=16 label=AttackStand_SECONDARY
+  FAIL ent=7 models/player/heavy.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=115 label=run_PRIMARY
+  FAIL ent=7 models/player/scout.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=9 label=AttackStand_PRIMARY
+  FAIL ent=7 models/player/scout.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=212 label=run_PRIMARY
+  FAIL ent=7 models/player/spy.mdl idle sampled seq=-1 label=AttackStand_SECONDARY but its pick is seq=10 label=AttackStand_SECONDARY
+  FAIL ent=7 models/player/spy.mdl moving sampled seq=-1 label=run_SECONDARY but its pick is seq=145 label=run_SECONDARY
+  FAIL ent=8 models/player/soldier.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=10 label=AttackStand_PRIMARY
+  FAIL ent=8 models/player/soldier.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=201 label=run_PRIMARY
+  FAIL ent=9 models/player/soldier.mdl idle sampled seq=-1 label=AttackStand_PRIMARY but its pick is seq=10 label=AttackStand_PRIMARY
+  FAIL ent=9 models/player/soldier.mdl moving sampled seq=-1 label=run_PRIMARY but its pick is seq=201 label=run_PRIMARY
+  FAIL the subject moved 0.00% of its own pixels, below 20%
+  ENTITY-ID=FAIL
+  FAIL the per-entity chain failed (see evidence/t61-animation/r10-pixels/mutations/entityid.txt): 35 named reason(s)
+  OK   coverage.bmp exists (2582406 bytes)
+  OK   animated.bmp exists (2582406 bytes)
+  OK   off.bmp exists (2582406 bytes)
+  OK   identity.bmp exists (2582406 bytes)
+
+=== F3/F4: the pixel assertions themselves ===
+  MASK pixels=3497 of 860784 (0.41%) sentinel=(255,0,255)
+  MASK non-sentinel top=[((89, 158, 97), 707011), ((14, 18, 22), 150276)]
+  OK   mask size 3497 in [2000, 215196]
+  BODY over mask: distinct=529 mean_lum=17.1 pure_black=0.202 top=[((0, 0, 0), 321), ((6, 7, 9), 165), ((8, 9, 12), 91)]
+  OK   body distinct colours 529 >= 200 (not a flat fill)
+  OK   body mean luminance 17.1 >= 12.0
+  OK   body pure-black share 0.202 <= 0.35
+  animation-off vs animated over mask: differ=0 (0.00%) differ_by_>=24=0 (0.00%)
+  FAIL animation-off moved 0.00% < 5.0% of body pixels
+  PIXEL-CHECK=FAIL
+  FAIL t61-pixels.py exited 1 (see evidence/t61-animation/r10-pixels/mutations/pixel-check.txt)
+  FAIL t61-pixels.py did not print PIXEL-CHECK=PASS (a missing verdict is not a pass)
+  FAIL 1 FAIL line(s) from the pixel tool
+
+FAIL player-animation-pixels: see the FAIL lines above.
+PLAYER-ANIMATION-PIXELS=FAIL

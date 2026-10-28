@@ -1,0 +1,4 @@
+tag=coverage rc=0 view=entity-coverage frameTick=64161 sceneTick=74481
+32518.9 gpu: world debug view=entity-coverage
+152563.2 capture: armed requested=64161 frame_tick=64161 frames=4753
+152558.2 scene: anim skinned=61 bindPose=35 matrices=176 gpuSkin=60/176 boneMismatch=0 poseChanges=2816 targetInstances=3 targetPose=3 advances=2812 targetAdv=3 cycle=10014/0 tick=74481 status=missing reason=entity carried no m_nSequence

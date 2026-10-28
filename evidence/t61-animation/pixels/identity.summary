@@ -1,0 +1,140 @@
+tag=identity rc=0 view=entity-id frameTick=64161 sceneTick=74481
+157265.2 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+36809.4 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+36846.7 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+36887.9 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+36920.7 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+36950.8 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+50065.7 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
+68063.2 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
+133350.4 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
+anim: ent=10 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=10 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=11 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=11 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+anim: ent=13 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=13 model=models/player/medic.mdl state=moving seq=80 label=run_PRIMARY
+anim: ent=15 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=2 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=2 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+anim: ent=3 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=3 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=3 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY
+anim: ent=4 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=4 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
+anim: ent=5 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
+anim: ent=6 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=6 model=models/player/medic.mdl state=moving seq=80 label=run_PRIMARY
+anim: ent=7 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=7 model=models/player/engineer.mdl state=moving seq=265 label=run_PRIMARY
+anim: ent=7 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY
+anim: ent=7 model=models/player/heavy.mdl state=moving seq=115 label=run_PRIMARY
+anim: ent=7 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
+anim: ent=7 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+anim: ent=7 model=models/player/spy.mdl state=idle seq=10 label=AttackStand_SECONDARY
+anim: ent=7 model=models/player/spy.mdl state=moving seq=145 label=run_SECONDARY
+anim: ent=8 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=8 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+anim: ent=9 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
+anim: ent=9 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
+157264.1 entity: id=1 ent=40 model=models/props_gameplay/resupply_locker.mdl state=- seq=2 label=close skinned=1 frame_tick=64161
+157264.1 entity: id=2 ent=45 model=models/props_gameplay/windowed_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.1 entity: id=3 ent=49 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.1 entity: id=4 ent=51 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=5 ent=53 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=6 ent=55 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=7 ent=62 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=8 ent=64 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=9 ent=66 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=10 ent=68 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=11 ent=70 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=12 ent=72 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.2 entity: id=13 ent=73 model=models/props_gameplay/windowed_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.3 entity: id=14 ent=80 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.3 entity: id=15 ent=89 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.3 entity: id=16 ent=93 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.3 entity: id=17 ent=95 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.3 entity: id=18 ent=96 model=models/props_gameplay/windowed_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.3 entity: id=19 ent=99 model=models/ambulance.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.3 entity: id=20 ent=101 model=models/props_gameplay/resupply_locker.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.3 entity: id=21 ent=105 model=models/props_2fort/lantern001.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.3 entity: id=22 ent=106 model=models/props_gameplay/resupply_locker.mdl state=- seq=1 label=open skinned=1 frame_tick=64161
+157264.3 entity: id=23 ent=109 model=models/weapons/c_models/c_ubersaw/c_ubersaw.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.4 entity: id=24 ent=110 model=models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.4 entity: id=25 ent=111 model=models/ambulance.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.4 entity: id=26 ent=118 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.4 entity: id=27 ent=121 model=models/props_training/target_medic.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.4 entity: id=28 ent=122 model=models/props_training/target_scout.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.4 entity: id=29 ent=123 model=models/props_training/target_scout.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.4 entity: id=30 ent=124 model=models/props_doomsday/cap_point_small.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.4 entity: id=31 ent=134 model=models/props_gameplay/windowed_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.4 entity: id=32 ent=136 model=models/props_ui/bannerflag_comp_l.mdl state=- seq=1 label=wave skinned=1 frame_tick=64161
+157264.4 entity: id=33 ent=138 model=models/props_ui/comp_stage_cam.mdl state=- seq=1 label=winner_stage_intro skinned=1 frame_tick=64161
+157264.4 entity: id=34 ent=139 model=models/props_ui/comp_win_banner_scaled.mdl state=- seq=0 label=ref skinned=1 frame_tick=64161
+157264.4 entity: id=35 ent=153 model=models/props_gameplay/resupply_locker.mdl state=- seq=2 label=close skinned=1 frame_tick=64161
+157264.5 entity: id=36 ent=159 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.5 entity: id=37 ent=163 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.5 entity: id=38 ent=165 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.5 entity: id=39 ent=167 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.5 entity: id=40 ent=171 model=models/props_gameplay/resupply_locker.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.5 entity: id=41 ent=188 model=models/weapons/c_models/c_scattergun.mdl state=- seq=26 label=sequence 26 is past the model's 1 sequences skinned=0 frame_tick=64161
+157264.5 entity: id=42 ent=190 model=models/weapons/c_models/c_pistol/c_pistol.mdl state=- seq=17 label=sequence 17 is past the model's 1 sequences skinned=0 frame_tick=64161
+157264.5 entity: id=43 ent=193 model=models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl state=- seq=3 label=sequence 3 is past the model's 1 sequences skinned=0 frame_tick=64161
+157264.5 entity: id=44 ent=214 model=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl state=- seq=44 label=sequence 44 is past the model's 1 sequences skinned=0 frame_tick=64161
+157264.5 entity: id=45 ent=223 model=models/props_gameplay/cap_point_base.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.5 entity: id=46 ent=226 model=models/items/medkit_large.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=47 ent=227 model=models/items/ammopack_large.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=48 ent=228 model=models/items/ammopack_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=49 ent=235 model=models/props_ui/bannerflag_comp_r.mdl state=- seq=1 label=wave skinned=1 frame_tick=64161
+157264.6 entity: id=50 ent=239 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=51 ent=240 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=52 ent=241 model=models/items/ammopack_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=53 ent=244 model=models/items/ammopack_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=54 ent=251 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=55 ent=252 model=models/items/medkit_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=56 ent=253 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.6 entity: id=57 ent=254 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.7 entity: id=58 ent=255 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.7 entity: id=59 ent=256 model=models/items/ammopack_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.7 entity: id=60 ent=259 model=models/items/ammopack_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.7 entity: id=61 ent=268 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.7 entity: id=62 ent=269 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.7 entity: id=63 ent=275 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.7 entity: id=64 ent=279 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.7 entity: id=65 ent=284 model=models/props_gameplay/door_slide_large_door.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.7 entity: id=66 ent=289 model=models/weapons/c_models/c_spy_arms.mdl state=- seq=0 label=sequence has no animation binding skinned=0 frame_tick=64161
+157264.7 entity: id=67 ent=300 model=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl state=- seq=44 label=sequence 44 is past the model's 1 sequences skinned=0 frame_tick=64161
+157264.7 entity: id=68 ent=303 model=models/items/medkit_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=69 ent=311 model=models/items/ammopack_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=70 ent=312 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=71 ent=321 model=models/items/ammopack_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=72 ent=322 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=73 ent=326 model=models/effects/cappoint_hologram.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=74 ent=328 model=models/effects/cappoint_hologram.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=75 ent=329 model=models/weapons/c_models/c_scattergun.mdl state=- seq=29 label=sequence 29 is past the model's 1 sequences skinned=0 frame_tick=64161
+157264.8 entity: id=76 ent=331 model=models/effects/cappoint_hologram.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.8 entity: id=77 ent=332 model=models/props_gameplay/cap_point_base.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.8 entity: id=78 ent=333 model=models/items/medkit_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.9 entity: id=79 ent=334 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.9 entity: id=80 ent=340 model=models/effects/cappoint_hologram.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.9 entity: id=81 ent=341 model=models/props_gameplay/cap_point_base.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.9 entity: id=82 ent=343 model=models/props_gameplay/cap_point_base.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.9 entity: id=83 ent=345 model=models/workshop/weapons/c_models/c_quadball/c_quadball.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.9 entity: id=84 ent=365 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157264.9 entity: id=85 ent=366 model=models/props_gameplay/sign_gameplay01_witharrow_R.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.9 entity: id=86 ent=367 model=models/props_gameplay/sign_gameplay01_witharrow_R.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.9 entity: id=87 ent=371 model=models/props_gameplay/orange_cone001.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157264.9 entity: id=88 ent=372 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157265.0 entity: id=89 ent=373 model=models/items/medkit_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157265.0 entity: id=90 ent=374 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157265.0 entity: id=91 ent=375 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157265.0 entity: id=92 ent=376 model=models/items/medkit_small.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157265.0 entity: id=93 ent=378 model=models/items/ammopack_medium.mdl state=- seq=0 label=idle skinned=1 frame_tick=64161
+157265.0 entity: id=94 ent=379 model=models/props_gameplay/orange_cone001.mdl state=- seq=0 label=animation bone index is outside the skeleton skinned=0 frame_tick=64161
+157265.1 entity: id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY skinned=1 frame_tick=64161
+157265.2 entity: id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY skinned=1 frame_tick=64161
+37068.0 gpu: world debug view=entity-id
+157268.4 capture: armed requested=64161 frame_tick=64161 frames=3721
+157265.3 scene: anim skinned=63 bindPose=33 matrices=338 gpuSkin=62/338 boneMismatch=18016 poseChanges=4804 targetInstances=3 targetPose=3 advances=4634 targetAdv=3 cycle=45424/37173 tick=74481 status=ok reason=run_PRIMARY

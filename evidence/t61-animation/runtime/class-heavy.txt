@@ -1,4 +1,4 @@
-animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=7 idleLabel=PRIMARY_aimmatrix_idle movingSeq=8 movingLabel=PRIMARY_aimmatrix_run poseSeq=31 poseLabel=a_SECONDARY_reload_airwalk poseFrames=46 labels=ref|ragdoll|user_ref|ragdollspawn|SPELL_arm_pose_raw|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_aimmatrix_crouch_walk|PRIMARY_aimmatrix_deployed_crouch|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|a_SECONDARY_reload|SECONDARY_reload|SECONDARY_reload_loop|a_SECONDARY_reload_end|a_SECONDARY_crouch_reload|...
+animtable model=models/player/heavy.mdl animSource=models/player/heavy_animations.mdl separate=1 bones=79 bindBones=79 validBindBones=79 sequences=259 idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY poseSeq=115 poseLabel=run_PRIMARY poseFrames=17 labels=ref|ragdoll|user_ref|ragdollspawn|SPELL_arm_pose_raw|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_aimmatrix_crouch_walk|PRIMARY_aimmatrix_deployed_crouch|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|a_SECONDARY_reload|SECONDARY_reload|SECONDARY_reload_loop|a_SECONDARY_reload_end|a_SECONDARY_crouch_reload|...
 boundDiag bindRadius=79.631165 boundDiag=160.262329 bones=77 composed=1 reason=-
 contcand rank=0 sequence=224 label=selectionMenu_Anim01 frames=72 sparseStep=13.342402 halfSwing=83.955917
 contcand rank=1 sequence=206 label=layer_taunt_highFiveSuccessFull frames=126 sparseStep=17.111847 halfSwing=114.910904
@@ -7,10 +7,10 @@ contcand rank=3 sequence=208 label=layer_taunt_highFiveSuccess frames=115 sparse
 contcand rank=4 sequence=194 label=heavy_taunt_replay frames=86 sparseStep=18.675381 halfSwing=92.909676
 contpick sequence=224 label=selectionMenu_Anim01 frames=72 sweepStep=13.546520 limit=40.065582 halfSwing=83.955917
 animcontseq sequence=224 label=selectionMenu_Anim01 frames=72 sweepStep=13.546520
-animpose cycle=0.0000 sequence=31 label=a_SECONDARY_reload_airwalk frame=0/46 localFrame=0 sectionFrames=0 bones=79 checksum=3dd57e8fca42482c maxDelta=71.225464 finite=1
-animpose cycle=0.2500 sequence=31 label=a_SECONDARY_reload_airwalk frame=11/46 localFrame=11 sectionFrames=0 bones=79 checksum=afaaa5bdfb9d51ea maxDelta=76.390839 finite=1
-animpose cycle=0.5000 sequence=31 label=a_SECONDARY_reload_airwalk frame=23/46 localFrame=23 sectionFrames=0 bones=79 checksum=ff47a34a4f7a1461 maxDelta=80.757179 finite=1
-animpose cycle=0.7500 sequence=31 label=a_SECONDARY_reload_airwalk frame=34/46 localFrame=34 sectionFrames=0 bones=79 checksum=5fd9b47da39feef4 maxDelta=77.288994 finite=1
+animpose cycle=0.0000 sequence=115 label=run_PRIMARY frame=0/17 localFrame=0 sectionFrames=0 bones=79 checksum=541798de0264ff69 maxDelta=57.628395 finite=1
+animpose cycle=0.2500 sequence=115 label=run_PRIMARY frame=4/17 localFrame=4 sectionFrames=0 bones=79 checksum=bc7d779061168815 maxDelta=65.019592 finite=1
+animpose cycle=0.5000 sequence=115 label=run_PRIMARY frame=8/17 localFrame=8 sectionFrames=0 bones=79 checksum=b7bf8e5f60158a9b maxDelta=61.150166 finite=1
+animpose cycle=0.7500 sequence=115 label=run_PRIMARY frame=12/17 localFrame=12 sectionFrames=0 bones=79 checksum=4b7625a2c6fed576 maxDelta=63.762997 finite=1
 animcont sequence=224 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=13.546520 worstBone=11 worstElement=14 worstTick=40 usable=1
 animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
 animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0

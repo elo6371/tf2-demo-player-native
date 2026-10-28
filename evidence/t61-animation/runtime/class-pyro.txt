@@ -1,4 +1,4 @@
-animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=6 idleLabel=PRIMARY_aimmatrix_idle movingSeq=7 movingLabel=PRIMARY_aimmatrix_run poseSeq=47 poseLabel=layer_reload_flaregun_airwalk_ITEM1 poseFrames=61 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_walk|PRIMARY_aimmatrix_crouch_idle|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_flinch01|primary_fire|AttackCrouch_PRIMARY|AttackCrouch_PRIMARY_spoolup|AttackCrouch_PRIMARY_spooldown|SECONDARYAttackCrouch_PRIMARY|AttackStand_PRIMARY|AttackStand_primary_spoolup|AttackStand_primary_spooldown|SECONDARYAttackStand_PRIMARY|AttackSwim_PRIMARY|...
+animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=10 idleLabel=ReloadStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY poseSeq=141 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_walk|PRIMARY_aimmatrix_crouch_idle|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_flinch01|primary_fire|AttackCrouch_PRIMARY|AttackCrouch_PRIMARY_spoolup|AttackCrouch_PRIMARY_spooldown|SECONDARYAttackCrouch_PRIMARY|AttackStand_PRIMARY|AttackStand_primary_spoolup|AttackStand_primary_spooldown|SECONDARYAttackStand_PRIMARY|AttackSwim_PRIMARY|...
 boundDiag bindRadius=71.823799 boundDiag=144.647598 bones=76 composed=1 reason=-
 contcand rank=0 sequence=173 label=layer_taunt_scorch_shot frames=114 sparseStep=0.000000 halfSwing=123.435883
 contcand rank=1 sequence=188 label=layer_taunt_laugh frames=151 sparseStep=17.077446 halfSwing=101.861374
@@ -7,10 +7,10 @@ contcand rank=3 sequence=169 label=layer_taunt_bubbles frames=151 sparseStep=20.
 contcand rank=4 sequence=185 label=taunt_highFiveStart frames=87 sparseStep=25.375984 halfSwing=108.991554
 contpick sequence=173 label=layer_taunt_scorch_shot frames=114 sweepStep=32.513805 limit=36.161900 halfSwing=123.435883
 animcontseq sequence=173 label=layer_taunt_scorch_shot frames=114 sweepStep=32.513805
-animpose cycle=0.0000 sequence=47 label=layer_reload_flaregun_airwalk_ITEM1 frame=0/61 localFrame=0 sectionFrames=0 bones=76 checksum=cea06b4946ce4373 maxDelta=99.977791 finite=1
-animpose cycle=0.2500 sequence=47 label=layer_reload_flaregun_airwalk_ITEM1 frame=15/61 localFrame=15 sectionFrames=0 bones=76 checksum=6340469f3c45fef8 maxDelta=82.844711 finite=1
-animpose cycle=0.5000 sequence=47 label=layer_reload_flaregun_airwalk_ITEM1 frame=30/61 localFrame=30 sectionFrames=0 bones=76 checksum=af91558d2b75ddd4 maxDelta=71.275291 finite=1
-animpose cycle=0.7500 sequence=47 label=layer_reload_flaregun_airwalk_ITEM1 frame=45/61 localFrame=45 sectionFrames=0 bones=76 checksum=d9393f1d354f4cfb maxDelta=86.160973 finite=1
+animpose cycle=0.0000 sequence=141 label=run_PRIMARY frame=0/19 localFrame=0 sectionFrames=0 bones=76 checksum=4b834b135fcba6de maxDelta=82.310555 finite=1
+animpose cycle=0.2500 sequence=141 label=run_PRIMARY frame=4/19 localFrame=4 sectionFrames=0 bones=76 checksum=9360bc8c618b91b1 maxDelta=87.248924 finite=1
+animpose cycle=0.5000 sequence=141 label=run_PRIMARY frame=9/19 localFrame=9 sectionFrames=0 bones=76 checksum=690c96970cbc4397 maxDelta=82.593567 finite=1
+animpose cycle=0.7500 sequence=141 label=run_PRIMARY frame=14/19 localFrame=14 sectionFrames=0 bones=76 checksum=ac4b1234bc52ffd5 maxDelta=88.807404 finite=1
 animcont sequence=173 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=32.513805 worstBone=24 worstElement=12 worstTick=40 usable=1
 animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
 animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
