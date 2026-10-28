@@ -1,0 +1,17 @@
+format=tf2-demo-native-install-manifest
+formatVersion=1
+package=tf2_demo_native
+packageVersion=0.1.0
+packageVersionCode=100
+sourceDateEpoch=0
+sourceTree=5412f9188e16
+installedUtc=2026-10-28T14:55:27Z
+installDirectory=D:/TF2_Native_Worktrees/t75-cmake/.scratch/t75-lifecycle-recon/out/clean/pkg
+files=7
+file=new	160	61b72697d0902afa18b04d37c34224b37fb995c029e6b771eba8b52f547b9822	VERSION.txt
+file=unchanged	159320	1f278b330448cefccfbc2691fae525b9dfd47e4768f1286857e45ea0df07ff3f	WebView2Loader.dll
+file=unchanged	812	9af2e272a77f9e154474d9c681f07dbbcb5e7108dd66da6205251640ae70fec6	install_smoke_probe.ps1
+file=unchanged	297984	4903bf0e5917758eb9aa2bdcffc6e028ad1e4672f7471c47ccabc165039ab831	native_install_smoke_probe.exe
+file=unchanged	2651648	f630e71400da85d65d4f5b37a2e7bcabc18123b08aee8814b9b30999fffaece6	tf2_demo_native.exe
+file=preserved	1513	24deadea987f1c7682753a8cef4e70bde8a13cc65684e06cab9a965469362075	third_party/webview2/LICENSE.txt
+file=preserved	3979	9dd2e51ad1f27741d0cbf74227d03fecf55c43e3081501f9d7f553b16d33835e	third_party/webview2/NOTICE.txt

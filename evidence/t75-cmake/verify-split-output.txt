@@ -1,0 +1,93 @@
+T75 Phase 1 equivalence verifier
+  repo      D:\TF2_Native_Worktrees\t75-cmake
+  base      db3316e5b14b9a9dd573fe04686790db64184732
+  cmake     cmake version 4.4.3
+  method    configure only: 3 build trees, no compilation, no linking
+
+== 0. stage the pre-split source tree
+  OK   module list from the include() order                     23 modules, each on disk
+  OK   BASE CMakeLists.txt restored                             891 lines from db3316e
+  OK   worktree entry point                                     53 lines + 23 modules
+
+== 1. configure (NMake Makefiles, Release, cl) -- no build, no link
+  OK   before: configure                                        rc=0  -- Configuring done (1.5s) -- Generating done (0.4s)
+  OK   after: configure                                         rc=0  -- Configuring done (1.5s) -- Generating done (0.4s)
+  OK   before-ctl: configure                                    rc=0  -- Configuring done (1.5s) -- Generating done (0.4s)
+  OK   no object files produced                                 configure-only, as required
+
+== 2. control experiment: what CMake does not reproduce between two runs
+  the same unmodified CMakeLists.txt configured twice:
+    503 common files, 501 byte-identical, 2 unstable
+      unstable: CMakeFiles/4.4.3/CMakeDetermineCompilerABI_C.bin
+      unstable: CMakeFiles/4.4.3/CMakeDetermineCompilerABI_CXX.bin
+      unstable: CMakeFiles/4.4.3/CompilerIdC/CMakeCCompilerId.exe
+      unstable: CMakeFiles/4.4.3/CompilerIdC/CMakeCCompilerId.obj
+      unstable: CMakeFiles/4.4.3/CompilerIdCXX/CMakeCXXCompilerId.exe
+      unstable: CMakeFiles/4.4.3/CompilerIdCXX/CMakeCXXCompilerId.obj
+      unstable: CMakeFiles/CMakeConfigureLog.yaml
+      unstable: CMakeFiles/Makefile.cmake
+      unstable: CMakeFiles/ShowIncludes/main.obj
+  OK   control run leaves every contract file byte-identical    9 files unstable, none of them contract-bearing
+
+== 3. generated build tree: normalised byte comparison
+  files: before=503 after=503
+  OK   every remaining difference is control-proven unstable    2 of 503 files differ
+       CMakeFiles/Makefile.cmake                    unordered dependency list (+ the 23 module paths)
+       CMakeFiles/ShowIncludes/main.obj             control-proven unstable
+  OK   CMakeFiles/Makefile.cmake delta                          0 lines lost, 23 gained, exactly the 23 module paths
+
+== 4. contract comparison (layout independent)
+  OK   add_executable/add_library: names and ordered sources    53 targets
+  OK   no target defined twice                                  53 add_* calls == 53 unique names, both sides
+  OK   target creation order (== NMAKE build order)             identical, 53 targets
+  OK   target_link_libraries: libs and their order              32 targets, 35 calls
+  OK   target_compile_definitions                               35 targets
+  OK   target_compile_options                                   6 targets
+  OK   target_include_directories                               50 targets
+  OK   set_target_properties                                    52 targets
+  OK   install() rules                                          8 rules
+  OK   CACHE variables (name, default, type, doc)               TF2_PACKAGE_VERSION, TF2_PACKAGE_VERSION_CODE, TF2_SOURCE_DATE_EPOCH
+  OK   other statements (multiset; order checked by layer 3)    21 statements
+
+== 5. verbatim-move guard
+  OK   native/cmake/tf2-settings.cmake                          BASE lines 4-30, 27 lines
+  OK   native/cmake/tf2-version.cmake                           BASE lines 156-179, 24 lines
+  OK   native/cmake/tf2-product.cmake                           BASE lines 32-154,181-190, 134 lines
+  OK   native/cmake/tf2-probes-logstf.cmake                     BASE lines 192-203, 12 lines
+  OK   native/cmake/tf2-probes-core.cmake                       BASE lines 205-235, 31 lines
+  OK   native/cmake/tf2-probes-archive.cmake                    BASE lines 237-259, 23 lines
+  OK   native/cmake/tf2-probes-world.cmake                      BASE lines 261-309, 49 lines
+  OK   native/cmake/tf2-probes-presentation.cmake               BASE lines 311-327, 17 lines
+  OK   native/cmake/tf2-probes-model.cmake                      BASE lines 329-390, 62 lines
+  OK   native/cmake/tf2-probes-overlay.cmake                    BASE lines 392-432, 41 lines
+  OK   native/cmake/tf2-probes-viewmodel.cmake                  BASE lines 434-558, 125 lines
+  OK   native/cmake/tf2-probes-animation.cmake                  BASE lines 560-593, 34 lines
+  OK   native/cmake/tf2-probes-audio.cmake                      BASE lines 595-664, 70 lines
+  OK   native/cmake/tf2-probes-runtime.cmake                    BASE lines 666-687, 22 lines
+  OK   native/cmake/tf2-probes-playback.cmake                   BASE lines 689-706, 18 lines
+  OK   native/cmake/tf2-probes-protocol.cmake                   BASE lines 708-731, 24 lines
+  OK   native/cmake/tf2-probes-quiet-capture.cmake              BASE lines 733-739, 7 lines
+  OK   native/cmake/tf2-probes-viewmodel-material.cmake         BASE lines 741-760, 20 lines
+  OK   native/cmake/tf2-probes-hud.cmake                        BASE lines 762-770, 9 lines
+  OK   native/cmake/tf2-probes-install-cli.cmake                BASE lines 772-792, 21 lines
+  OK   native/cmake/tf2-probes-minimap.cmake                    BASE lines 794-804, 11 lines
+  OK   native/cmake/tf2-probes-review.cmake                     BASE lines 806-816, 11 lines
+  OK   native/cmake/tf2-package.cmake                           BASE lines 818-891, 73 lines
+  OK   entry point carries exactly 2 statements + includes      23 include() lines
+  OK   every module included exactly once                       23 include lines, no duplicates
+  OK   non-blank line multiset preserved                        685 distinct lines, 0 lost, 0 duplicated
+
+== 6. target inventory
+  OK   target directories                                       53 before == 53 after, same names
+  OK   link lines: exe name, subsystem, libs and order          53 targets identical (53 unique exes)
+  OK   per-target ordered source list                           53 targets, 430 compile rules, 106 distinct sources
+  OK   source path set                                          identical; no source lost, none invented
+  OK   cmake_install.cmake file(INSTALL) rules                  9 before == 9 after
+
+== RESULT
+  targets_before=53          targets_after=53
+  object_rules_before=430     object_rules_after=430
+  generated_files=503 per side
+  byte_identical=501          control_proven_unstable=2          unexplained=0
+  contract_files_differing=0  install_rules_differing=0  link_lines_differing=0
+  EQUIVALENT=YES

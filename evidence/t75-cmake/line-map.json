@@ -1,0 +1,262 @@
+{
+ "total_lines": 891,
+ "modules": [
+  {
+   "file": "native/cmake/tf2-settings.cmake",
+   "ranges": [
+    [
+     4,
+     30
+    ]
+   ],
+   "purpose": "global settings and the shared demo-header contract",
+   "targets": "-"
+  },
+  {
+   "file": "native/cmake/tf2-version.cmake",
+   "ranges": [
+    [
+     156,
+     179
+    ]
+   ],
+   "purpose": "package identity: version, build stamp, source tree, TF2_VERSION_DEFINES",
+   "targets": "-"
+  },
+  {
+   "file": "native/cmake/tf2-product.cmake",
+   "ranges": [
+    [
+     32,
+     154
+    ],
+    [
+     181,
+     190
+    ]
+   ],
+   "purpose": "the product target tf2_demo_native and its include dirs / defines / link line",
+   "targets": "tf2_demo_native"
+  },
+  {
+   "file": "native/cmake/tf2-probes-logstf.cmake",
+   "ranges": [
+    [
+     192,
+     203
+    ]
+   ],
+   "purpose": "the logs.tf panel contract probe",
+   "targets": "logstf_viewer_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-core.cmake",
+   "ranges": [
+    [
+     205,
+     235
+    ]
+   ],
+   "purpose": "item schema, overlay contract, temp effects/fixtures, demo open",
+   "targets": "item_schema_probe entity_overlay_probe temp_effect_probe temp_entities_fixture_probe demo_open_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-archive.cmake",
+   "ranges": [
+    [
+     237,
+     259
+    ]
+   ],
+   "purpose": "PCF capability, material/resource chains through the archive layer, VPK query and integrity",
+   "targets": "pcf_capability_probe material_chain_probe resource_reachability_probe vpk_query vpk_integrity_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-world.cmake",
+   "ranges": [
+    [
+     261,
+     309
+    ]
+   ],
+   "purpose": "world material / geometry / coverage / lighting / feature / terrain blend",
+   "targets": "world_material_probe world_geometry_probe material_coverage_probe lighting_semantics_probe world_feature_probe terrain_blend_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-presentation.cmake",
+   "ranges": [
+    [
+     311,
+     327
+    ]
+   ],
+   "purpose": "presentation, map lookup order, texture quad",
+   "targets": "presentation_probe map_lookup_probe texture_quad_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-model.cmake",
+   "ranges": [
+    [
+     329,
+     390
+    ]
+   ],
+   "purpose": "model pose, viewmodel range, model robustness, entity model",
+   "targets": "model_pose_probe viewmodel_range_probe model_robustness_probe entity_model_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-overlay.cmake",
+   "ranges": [
+    [
+     392,
+     432
+    ]
+   ],
+   "purpose": "the overlays that read per-entity state: SourceTV spectate and projectile track",
+   "targets": "spectate_probe projectile_track_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-viewmodel.cmake",
+   "ranges": [
+    [
+     434,
+     558
+    ]
+   ],
+   "purpose": "the ViewModel contract, FOV, animation state and the static weapon body",
+   "targets": "viewmodel_fov_probe viewmodel_contract_probe viewmodel_animation_probe weapon_body_probe animation_viewmodel_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-animation.cmake",
+   "ranges": [
+    [
+     560,
+     593
+    ]
+   ],
+   "purpose": "skinning contract and weapon animation",
+   "targets": "skeleton_skin_probe weapon_animation_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-audio.cmake",
+   "ranges": [
+    [
+     595,
+     664
+    ]
+   ],
+   "purpose": "audio effects / schedule / timeline census / content map / corpus scan / winmm sink",
+   "targets": "audio_effects_probe audio_scheduler_probe sound_timeline_census_probe sound_content_map_probe sound_corpus_scan_probe winmm_sink_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-runtime.cmake",
+   "ranges": [
+    [
+     666,
+     687
+    ]
+   ],
+   "purpose": "install smoke and the native UI resource panel",
+   "targets": "native_install_smoke_probe native_ui_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-playback.cmake",
+   "ranges": [
+    [
+     689,
+     706
+    ]
+   ],
+   "purpose": "playback control and the camera director / bookmarks / key table",
+   "targets": "playback_control_probe camera_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-protocol.cmake",
+   "ranges": [
+    [
+     708,
+     731
+    ]
+   ],
+   "purpose": "entity protocol census and the synthetic wire fixtures",
+   "targets": "entity_protocol_probe entity_message_fixture_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-quiet-capture.cmake",
+   "ranges": [
+    [
+     733,
+     739
+    ]
+   ],
+   "purpose": "the quiet-capture trace/metric/bitmap reader",
+   "targets": "quiet_capture_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-viewmodel-material.cmake",
+   "ranges": [
+    [
+     741,
+     760
+    ]
+   ],
+   "purpose": "the ViewModel material resource chain (phase 1)",
+   "targets": "viewmodel_material_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-hud.cmake",
+   "ranges": [
+    [
+     762,
+     770
+    ]
+   ],
+   "purpose": "the custom HUD import contract",
+   "targets": "hud_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-install-cli.cmake",
+   "ranges": [
+    [
+     772,
+     792
+    ]
+   ],
+   "purpose": "the installer lifecycle CLI and the VPK readiness probe",
+   "targets": "install_cli_probe vpk_readiness_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-minimap.cmake",
+   "ranges": [
+    [
+     794,
+     804
+    ]
+   ],
+   "purpose": "the minimap projection / hit test / panel state",
+   "targets": "minimap_probe"
+  },
+  {
+   "file": "native/cmake/tf2-probes-review.cmake",
+   "ranges": [
+    [
+     806,
+     816
+    ]
+   ],
+   "purpose": "the review workspace store and bookmarks",
+   "targets": "review_workspace_probe"
+  },
+  {
+   "file": "native/cmake/tf2-package.cmake",
+   "ranges": [
+    [
+     818,
+     891
+    ]
+   ],
+   "purpose": "install rules, package payload, WebView2 loader staging, compiler options",
+   "targets": "-"
+  }
+ ]
+}
