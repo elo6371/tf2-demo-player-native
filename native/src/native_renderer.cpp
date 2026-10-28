@@ -3272,7 +3272,8 @@ void Renderer::setProjectileTimeline(const std::vector<ProjectileTimelineEvent>&
 // The difference between this and setProjectileTimeline above is the whole point
 // of the task. That pass is fed from TempEntity GENERATION events: one position
 // and a velocity, so anything drawn from it has to be extrapolated, and
-// extrapolation is the constant-velocity assumption NEXT-TASKS:583-584 forbids.
+// extrapolation is the constant-velocity assumption this pass deliberately
+// avoids.
 //
 // This pass is fed positions the demo actually recorded, one per tick. Nothing
 // here interpolates, smooths, or extends a trail past the last observed point:

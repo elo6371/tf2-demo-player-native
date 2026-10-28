@@ -1,8 +1,7 @@
 # TF2 Demo Player Native Renderer
 
-Current handoff: [`docs/TAKEOVER-2026-10-05.md`](docs/TAKEOVER-2026-10-05.md).
-Use that file as the native branch entry point; older root-level handoffs are
-historical records.
+The root [README](../README.md) is the project entry point. Build and release
+acceptance rules live in [`docs/RELEASE-POLICY.md`](../docs/RELEASE-POLICY.md).
 
 This is the new Windows-native rendering direction. It deliberately has no
 Electron, browser, WebGL, Node.js runtime, or web UI dependency.
@@ -104,8 +103,7 @@ powershell -ExecutionPolicy Bypass -File native/tools/native_acceptance_gate.ps1
 
 The native UI state-machine probe is `native/build/Release/native_ui_probe.exe`.
 It verifies opening, import review, player transition, cancel recovery, tick
-clamping, HUD toggle, and corrupt-Demo recovery. The product handoff and all
-remaining work are tracked in `native/docs/TAKEOVER-2026-10-05.md`.
+clamping, HUD toggle, and corrupt-Demo recovery.
 
 ## Release install smoke
 

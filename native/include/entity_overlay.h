@@ -7,10 +7,9 @@
 // WHY THIS FILE EXISTS BEFORE EITHER FEATURE DOES
 //   T52 and T53 both draw "something about entities" over a world frame they
 //   must not change. They were allowed to be prototyped in parallel only if
-//   they agree on one ownership and tick-sampling API first
-//   (NEXT-TASKS-2026-10-21.md, "Product-feature execution and parallelism"
-//   item 3). Two independently invented overlays would each look correct and
-//   together would double-sample every entity, both write the same depth
+//   they agree on one ownership and tick-sampling contract first. Two
+//   independently invented overlays would each look correct and together
+//   would double-sample every entity, both write the same depth
 //   state, and both claim the same pass slot -- and the second one to land
 //   would silently change the first one's pixels. So the split is fixed here,
 //   in one header that neither task owns alone.
