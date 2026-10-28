@@ -1,0 +1,4 @@
+# files that are not byte-identical between the two build trees
+# (all of them are proven unstable by the control run; see section 2)
+CMakeFiles/Makefile.cmake
+CMakeFiles/ShowIncludes/main.obj

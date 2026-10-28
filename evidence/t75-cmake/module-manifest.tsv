@@ -1,0 +1,24 @@
+module	lines	base_lines	added_lines	base_line_ranges	owns	targets
+tf2-package.cmake	88	74	14	818-891	install rules, package payload, WebView2 loader staging, compiler options	-
+tf2-probes-animation.cmake	49	34	15	560-593	skinning contract and weapon animation	skeleton_skin_probe weapon_animation_probe
+tf2-probes-archive.cmake	38	23	15	237-259	PCF capability, material/resource chains through the archive layer, VPK query and integrity	pcf_capability_probe material_chain_probe resource_reachability_probe vpk_query vpk_integrity_probe
+tf2-probes-audio.cmake	85	70	15	595-664	audio effects / schedule / timeline census / content map / corpus scan / winmm sink	audio_effects_probe audio_scheduler_probe sound_timeline_census_probe sound_content_map_probe sound_corpus_scan_probe winmm_sink_probe
+tf2-probes-core.cmake	46	31	15	205-235	item schema, overlay contract, temp effects/fixtures, demo open	item_schema_probe entity_overlay_probe temp_effect_probe temp_entities_fixture_probe demo_open_probe
+tf2-probes-hud.cmake	24	9	15	762-770	the custom HUD import contract	hud_probe
+tf2-probes-install-cli.cmake	36	21	15	772-792	the installer lifecycle CLI and the VPK readiness probe	install_cli_probe vpk_readiness_probe
+tf2-probes-logstf.cmake	27	12	15	192-203	the logs.tf panel contract probe	logstf_viewer_probe
+tf2-probes-minimap.cmake	26	11	15	794-804	the minimap projection / hit test / panel state	minimap_probe
+tf2-probes-model.cmake	77	62	15	329-390	model pose, viewmodel range, model robustness, entity model	model_pose_probe viewmodel_range_probe model_robustness_probe entity_model_probe
+tf2-probes-overlay.cmake	56	41	15	392-432	the overlays that read per-entity state: SourceTV spectate and projectile track	spectate_probe projectile_track_probe
+tf2-probes-playback.cmake	33	18	15	689-706	playback control and the camera director / bookmarks / key table	playback_control_probe camera_probe
+tf2-probes-presentation.cmake	32	17	15	311-327	presentation, map lookup order, texture quad	presentation_probe map_lookup_probe texture_quad_probe
+tf2-probes-protocol.cmake	39	24	15	708-731	entity protocol census and the synthetic wire fixtures	entity_protocol_probe entity_message_fixture_probe
+tf2-probes-quiet-capture.cmake	22	7	15	733-739	the quiet-capture trace/metric/bitmap reader	quiet_capture_probe
+tf2-probes-review.cmake	26	11	15	806-816	the review workspace store and bookmarks	review_workspace_probe
+tf2-probes-runtime.cmake	37	22	15	666-687	install smoke and the native UI resource panel	native_install_smoke_probe native_ui_probe
+tf2-probes-viewmodel-material.cmake	35	20	15	741-760	the ViewModel material resource chain (phase 1)	viewmodel_material_probe
+tf2-probes-viewmodel.cmake	140	125	15	434-558	the ViewModel contract, FOV, animation state and the static weapon body	viewmodel_fov_probe viewmodel_contract_probe viewmodel_animation_probe weapon_body_probe animation_viewmodel_probe
+tf2-probes-world.cmake	64	49	15	261-309	world material / geometry / coverage / lighting / feature / terrain blend	world_material_probe world_geometry_probe material_coverage_probe lighting_semantics_probe world_feature_probe terrain_blend_probe
+tf2-product.cmake	149	133	16	32-154,181-190	the product target tf2_demo_native and its include dirs / defines / link line	tf2_demo_native
+tf2-settings.cmake	42	27	15	4-30	global settings and the shared demo-header contract	-
+tf2-version.cmake	39	24	15	156-179	package identity: version, build stamp, source tree, TF2_VERSION_DEFINES	-
