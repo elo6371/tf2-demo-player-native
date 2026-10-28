@@ -225,7 +225,7 @@ fi
 for required in "$TF_ROOT" "$REAL_DEMO" "$BSP_SOURCE"; do
   eq "input present ${required##*/}" "$([ -e "$required" ] && echo yes || echo no)" "yes"
 done
-stale="$(find native/src native/include native/CMakeLists.txt -type f -newer "$EXE" 2>/dev/null | head -3)"
+stale="$(find native/src native/include native/CMakeLists.txt native/cmake -type f -newer "$EXE" 2>/dev/null | head -3)"
 eq "product build is fresh against its sources" "$([ -z "$stale" ] && echo fresh || echo stale)" "fresh"
 if [ -n "$stale" ]; then echo "  newer than the exe: $(printf "%s" "$stale" | tr "\n" " ")"; fi
 eq "no product process before the run" "$(product_processes)" "0"
@@ -250,9 +250,10 @@ write_inventory "$INSTALL" "$OUT/package-files.txt"
 # those three plus the loader, VERSION.txt and the two licence files. The list is
 # sorted by LC_ALL=C, so "WebView2Loader.dll" (W) precedes "install_..." (i) and
 # "VERSION.txt" (V) precedes "WebView2Loader.dll". Derived from the install rules
-# at native/CMakeLists.txt:656-689; the observation this line needs is this gate's
-# own run, and until that run exists the eleven names are a derivation, not a
-# measurement.
+# at native/CMakeLists.txt:656-689 (T75: those rules now live in
+# native/cmake/tf2-package.cmake); the observation this line needs is this
+# gate's own run, and until that run exists the eleven names are a derivation,
+# not a measurement.
 expected_package="$(printf ".uninstall/payload/WebView2Loader.dll\n.uninstall/payload/install_smoke_probe.ps1\n.uninstall/payload/native_install_smoke_probe.exe\n.uninstall/payload/tf2_demo_native.exe\nVERSION.txt\nWebView2Loader.dll\ninstall_smoke_probe.ps1\nnative_install_smoke_probe.exe\ntf2_demo_native.exe\nthird_party/webview2/LICENSE.txt\nthird_party/webview2/NOTICE.txt")"
 actual_package="$(cut -f1 "$OUT/package-files.txt")"
 eq "package file list" "$actual_package" "$expected_package"
@@ -261,7 +262,8 @@ eq "package file count" "$(wc -l < "$OUT/package-files.txt" | tr -d " ")" "11"
 # entries are the three top-level files the installer lays down again PLUS
 # WebView2Loader.dll, which the payload needs in order to install it, while the
 # two licence files are documentation and stay OUT of the payload on purpose
-# (native/CMakeLists.txt:670-676).
+# (native/CMakeLists.txt:670-676; T75: both rules now live in
+# native/cmake/tf2-package.cmake).
 eq "the payload holds the three files it lays down at the top level plus WebView2Loader.dll (4 = 3 + loader; the licence files are not payload)" \
   "$(grep -c '^.uninstall/payload/' "$OUT/package-files.txt" | tr -d ' ')" "4"
 eq "the package carries the version file the product reads first" \
@@ -546,24 +548,30 @@ eq "no product process left behind" "$(product_processes)" "0"
 eq "the removed executable is gone" "$([ -e "$INSTALL/tf2_demo_native.exe" ] && echo present || echo absent)" "absent"
 
 sec "13/13 installer features this package does NOT have (release blockers)"
+# T75: the build description is native/CMakeLists.txt PLUS the modules it
+# includes (native/cmake/*.cmake, twenty-three files). After the split, content
+# that moved reads ZERO when grepped from the entry point alone -- and a zero
+# here is not a passing gate, it is a blind one. Every search of "the
+# CMakeLists" below spans this list instead of the entry point.
+CMAKE_FILES="native/CMakeLists.txt native/cmake/*.cmake"
 installer_defs="$(find . -path ./.git -prune -o -path ./native/build-nmake -prune -o -path ./.scratch -prune -o -type f \( -name "*.iss" -o -name "*.wxs" -o -name "*.nsi" -o -name "*.msi" -o -name "*.msix" \) -print 2>/dev/null | head -5)"
 eq "installer definition files in the tree" "${installer_defs:-none}" "none"
-cpack_rules="$(grep -lE "include\(CPack\)|CPACK_" native/CMakeLists.txt 2>/dev/null | head -1 || true)"
-eq "CPack/package rules in native/CMakeLists.txt" "${cpack_rules:-none}" "none"
+cpack_rules="$(grep -lE "include\(CPack\)|CPACK_" $CMAKE_FILES 2>/dev/null | head -1 || true)"
+eq "CPack/package rules in the CMake build description" "${cpack_rules:-none}" "none"
 # T37 closed this gap: uninstall is now a PRODUCT mode (--uninstall), driven from a
 # manifest, not a CMake rule that deletes a directory. The assertion therefore
 # measures the thing that matters -- is there a rule that removes directories
 # blindly -- rather than the word "uninstall" appearing in a comment.
-uninstall_rules="$(grep -lEi "remove_directory|rmdir" native/CMakeLists.txt 2>/dev/null | head -1 || true)"
-eq "blind directory-removal rule in native/CMakeLists.txt" "${uninstall_rules:-none}" "none"
+uninstall_rules="$(grep -lEi "remove_directory|rmdir" $CMAKE_FILES 2>/dev/null | head -1 || true)"
+eq "blind directory-removal rule in the CMake build description" "${uninstall_rules:-none}" "none"
 eq "the product and the probe link the same lifecycle source" \
-  "$(grep -c 'install_lifecycle.cpp' native/CMakeLists.txt | tr -d ' ')" "3"
+  "$(cat $CMAKE_FILES | grep -c 'install_lifecycle.cpp' | tr -d ' ')" "3"
 # T37 added the package version ("0.1.0" / 100) that --version and --install both
 # read. There are still no MSI/CPack/registry version keys -- the two lines below
 # are the whole metadata story -- so this assertion now pins HOW MUCH version
 # metadata exists rather than claiming there is none.
-version_defs="$(grep -cE "^set\(TF2_PACKAGE_VERSION" native/CMakeLists.txt 2>/dev/null | tr -d ' ')"
-eq "package version metadata lines in native/CMakeLists.txt" "${version_defs:-0}" "2"
+version_defs="$(cat $CMAKE_FILES 2>/dev/null | grep -cE "^set\(TF2_PACKAGE_VERSION" | tr -d ' ')"
+eq "package version metadata lines in the CMake build description" "${version_defs:-0}" "2"
 has "the version the package answers is the one it ships" \
   "$(sed -n "s/^version=//p" VERSION.txt | tr -d "\r")" "0.1.0"
 # T37 closed two of the five: the package already carried an installer
@@ -606,10 +614,14 @@ MUT="$OUT/mutation"
 mkdir -p "$MUT/backup" "$MUT/logs"
 SRC_MAP="$REPO/native/src/map_lookup.cpp"
 SRC_VPK="$REPO/native/src/vpk_archive.cpp"
-SRC_CMAKE="$REPO/native/CMakeLists.txt"
+# T75: M3 rewrites the install rules, and those rules moved out of the entry
+# point into the module it includes -- tf2-package.cmake (install(TARGETS ...)
+# at :30, the payload's TARGET_FILE line at :60). Aimed at the entry point
+# instead, M3 would mutate nothing and still report a caught mutation.
+SRC_CMAKE="$REPO/native/cmake/tf2-package.cmake"
 cp "$SRC_MAP" "$MUT/backup/map_lookup.cpp"
 cp "$SRC_VPK" "$MUT/backup/vpk_archive.cpp"
-cp "$SRC_CMAKE" "$MUT/backup/CMakeLists.txt"
+cp "$SRC_CMAKE" "$MUT/backup/tf2-package.cmake"
 
 rebuild_product() { # <log-name>
   bash build-target.sh tf2_demo_native map_lookup_probe > "$MUT/logs/$1.log" 2>&1
@@ -796,8 +808,8 @@ else
 fi
 eq "M3 package holds the reference file list minus the two probe copies" \
   "$(wc -l < "$MUT/m3-package-files.txt" | tr -d " ")" "$(( M3_REF_COUNT - 2 ))"
-cp "$MUT/backup/CMakeLists.txt" "$SRC_CMAKE"
-if cmp -s "$SRC_CMAKE" "$MUT/backup/CMakeLists.txt"; then ok "M3 source restored byte-identical" "yes"; else wrong "M3 source restored byte-identical" "no" "yes"; fi
+cp "$MUT/backup/tf2-package.cmake" "$SRC_CMAKE"
+if cmp -s "$SRC_CMAKE" "$MUT/backup/tf2-package.cmake"; then ok "M3 source restored byte-identical" "yes"; else wrong "M3 source restored byte-identical" "no" "yes"; fi
 bash build-target.sh tf2_demo_native native_install_smoke_probe > "$MUT/logs/m3-restore-build.log" 2>&1
 eq "M3 restore build succeeded" "$?" "0"
 M3_R_HITS="$(grep -c native_install_smoke_probe "$BUILD/cmake_install.cmake" 2>/dev/null | tr -d " ")"
@@ -812,7 +824,7 @@ eq "M3 restored reference package list" \
 
 # ------------------------------------------------------------------- verdict
 sec "mutation verdict"
-for pair in "map_lookup.cpp|$SRC_MAP" "vpk_archive.cpp|$SRC_VPK" "CMakeLists.txt|$SRC_CMAKE"; do
+for pair in "map_lookup.cpp|$SRC_MAP" "vpk_archive.cpp|$SRC_VPK" "tf2-package.cmake|$SRC_CMAKE"; do
   name="${pair%%|*}"; path="${pair#*|}"; backup="$MUT/backup/$name"
   if cmp -s "$path" "$backup"; then ok "restored byte-identical: $name" "yes"; else wrong "restored byte-identical: $name" "no" "yes"; fi
 done
