@@ -58,7 +58,7 @@
 #   are removed again before the gate exits.
 #
 # MUTATION MODE
-#   A mutation must run its own binary. Three mutations rebuild the product; each
+#   A mutation must run its own binary. Four mutations rebuild the product; each
 #   fixture asserts that the executable it is about to run is the one the mutated
 #   build produced, so a stale copy cannot be read as "the mutation was not
 #   caught". A fixture that would run the reference binary instead is
@@ -286,6 +286,22 @@ sec "4/15 --install into a directory that holds nothing but the payload (the pac
 # takes. Both are real and both are measured, so four files below is the right
 # answer for the packaged prefix and three is the right answer for a fresh
 # directory. The fresh one is section 4b.
+#
+# THE TWO LICENCE DOCUMENTS ARE IN THE PACKAGE, SO THE MANIFEST MUST DESCRIBE THEM.
+#   tf2-package.cmake installs third_party/webview2/{LICENSE,NOTICE}.txt beside
+#   the product as documentation. They are in the directory before the installer
+#   runs, so the installer does not own them and uninstall must not delete them;
+#   the manifest describes that with the state word the product defines for "it
+#   was already here and it is not ours" -- preserved, one of four states
+#   (native/include/install_manifest.h; T37-INSTALLER-2026-10-20.md section 4).
+#   Commit e5851c1 (2026-10-22) added the licences to the package and updated the
+#   counts in this section but left these three pins at their pre-licence values,
+#   and its green list names INSTALL-READINESS only, so this gate never re-ran:
+#   T75 phase 2 measured preserved=2 records=7 states "new preserved unchanged"
+#   against 0/5/"new unchanged" and read three FAILs. The pins were stale; the
+#   product is the correct side, because recording the documents is what makes
+#   "uninstall left the directory as it found it" a statement about the COMPLETE
+#   listing rather than only about the files this package happened to lay down.
 IRC="$(run_exe "$PKG/tf2_demo_native.exe" "$OUT/install.txt" --install)"
 eq "product --install exit code" "$IRC" "0"
 echo "  --- --install ---"
@@ -295,7 +311,7 @@ eq "install mode" "$(field "$OUT/install.txt" mode)" "fresh"
 eq "files the install owns (4 payload + the VERSION.txt it writes)" "$(field "$OUT/install.txt" files)" "5"
 eq "the only file it created" "$(field "$OUT/install.txt" new)" "1"
 eq "files it had to back up" "$(field "$OUT/install.txt" backups)" "0"
-eq "no file was already there to preserve" "$(field "$OUT/install.txt" preserved)" "0"
+eq "the two licence documents were already there and were preserved" "$(field "$OUT/install.txt" preserved)" "2"
 eq "the payload was consumed, not left behind" \
   "$([ -d "$PKG/.uninstall/payload" ] && echo present || echo consumed)" "consumed"
 eq "the manifest is on disk" "$([ -f "$PKG/.uninstall/install-manifest.txt" ] && echo yes || echo no)" "yes"
@@ -306,22 +322,31 @@ echo "  --- installed directory ---"
 sed "s/^/    /" "$OUT/installed-files.txt"
 # The count includes the two WebView2 licence files that ship in the package as
 # documentation (third_party/webview2/LICENSE.txt and NOTICE.txt): they are in
-# the package, so they are in a listing of the package, but they are not install
-# records and the manifest below does not claim them.
+# the package, so they are in a listing of the package, and the manifest records
+# them as preserved -- see the note at the head of this section.
 eq "installed file count (4 payload + VERSION.txt + manifest + 2 licence files)" \
   "$(wc -l < "$OUT/installed-files.txt" | tr -d " ")" "8"
 eq "the installed manifest records the package version" \
   "$(sed -n "s/^packageVersion=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$declared_version"
 eq "the installed manifest records a monotonic version code" \
   "$(sed -n "s/^packageVersionCode=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$PVC"
-eq "the manifest lists exactly the installed files, each once" \
-  "$(sed -n "s/^file=//p" "$PKG/.uninstall/install-manifest.txt" | wc -l | tr -d " ")" "5"
+# The five install records plus the two preserved licence records: the manifest
+# describes the whole directory, not only what this run laid down.
+eq "the manifest lists the five installed files and the two licence documents, each once" \
+  "$(sed -n "s/^file=//p" "$PKG/.uninstall/install-manifest.txt" | wc -l | tr -d " ")" "7"
+# Pinning the COUNT alone would accept any two stray preserved records, and the
+# claim this section makes is that they are these two documents, so the paths are
+# pinned too. A record is "state<TAB>bytes<TAB>sha256<TAB>path"; this selection
+# keeps the path of every preserved record.
+eq "the only records the manifest adds for files it did not install are the two licence documents" \
+  "$(sed -n "s/^file=preserved\t[^\t]*\t[^\t]*\t//p" "$PKG/.uninstall/install-manifest.txt" | LC_ALL=C sort | tr "\n" " " | sed "s/ $//")" \
+  "third_party/webview2/LICENSE.txt third_party/webview2/NOTICE.txt"
 # A record is "state<TAB>bytes<TAB>sha256<TAB>path", so the state words are read
 # from the tab-separated field and not from the start of the line: a manifest key
 # line also starts with a word.
 eq "every manifest record is a state word the product knows" \
   "$(sed -n "s/^file=\([a-z]*\)\t.*/\1/p" "$PKG/.uninstall/install-manifest.txt" | sort -u | tr "\n" " " | sed "s/ $//")" \
-  "new unchanged"
+  "new preserved unchanged"
 
 sec "4b/15 --install into an empty directory: the shape a user actually takes"
 FRESH="$OUT/clean/fresh"; rm -rf "$FRESH"; mkdir -p "$FRESH/.uninstall"
@@ -864,7 +889,7 @@ mutated_binary_identity() { # <exe> <label>
 }
 mutation_not_linked() { # <message>
   echo "  MUTATION-NOT-LINKED: $1"
-  echo "  cases=3 checks=$CHECKS mutations=$MUTATIONS"
+  echo "  cases=4 checks=$CHECKS mutations=$MUTATIONS"
   echo "  INSTALL-LIFECYCLE-MUTATION=MUTATION-NOT-LINKED"
   exit 90
 }
@@ -1009,15 +1034,56 @@ if cmp -s "$SRC_MAN" "$MUT/backup/install_manifest.cpp"; then ok "M3 source rest
 rebuild m3-restore
 eq "M3 restore build succeeded" "$?" "0"
 
+# ------------------------------------------------------ M4 preserved records
+sec "M4 preserved: the documents that were already there stop being recorded"
+python - "$SRC_LIFE" <<'PY'
+import sys
+path = sys.argv[1]
+data = open(path, 'rb').read()
+old = b"      if (ours.count(relative) != 0) continue;"
+new = b"      if (ours.count(relative) != 0 || relative.rfind(\"third_party/\", 0) == 0) continue;"
+if old not in data:
+    sys.exit("M4 anchor absent")
+open(path, "wb").write(data.replace(old, new, 1))
+print("  mutated: the preserved sweep drops every file under third_party/")
+PY
+eq "M4 applied" "$?" "0"
+M4_BUILD=0
+rebuild m4-build || M4_BUILD=$?
+eq "M4 build succeeded AND relinked" "$M4_BUILD" "0"
+M4="$MUT/pkg-m4"
+fresh_package "$M4" || echo "  stage warning"
+M4_LINKED=0
+mutated_binary_identity "$M4/tf2_demo_native.exe" "M4 staged binary" || M4_LINKED=$?
+if [ "$M4_LINKED" = "90" ]; then mutation_not_linked "the M4 fixture would run the reference build"; fi
+# The packaged prefix holds the two licence documents before the install runs, so
+# the reference product records them as preserved. Under M4 the sweep skips them:
+# the three pins section 4 makes must read 0 / 5 / "new unchanged" instead of
+# 2 / 7 / "new preserved unchanged", each for the named reason. Anything else
+# means the mutation did not reach the reading it is aimed at.
+M4RC="$(run_exe "$M4/tf2_demo_native.exe" "$MUT/m4-install.txt" --install)"
+M4_RECORDS="$(sed -n 's/^file=//p' "$M4/.uninstall/install-manifest.txt" | wc -l | tr -d ' ')"
+M4_WORDS="$(sed -n 's/^file=\([a-z]*\)\t.*/\1/p' "$M4/.uninstall/install-manifest.txt" | sort -u | tr '\n' ' ' | sed 's/ $//')"
+echo "  under M4: exit=$M4RC preserved=$(field "$MUT/m4-install.txt" preserved) records=$M4_RECORDS states=$M4_WORDS"
+eq "M4 install exit code" "$M4RC" "0"
+MUTATIONS=$((MUTATIONS + 1))
+eq "M4 caught: the preserved pin reads 0, not 2" "$(field "$MUT/m4-install.txt" preserved)" "0"
+eq "M4 caught: the record pin reads 5, not 7" "$M4_RECORDS" "5"
+eq "M4 caught: the state-word pin reads new unchanged, not new preserved unchanged" "$M4_WORDS" "new unchanged"
+cp "$MUT/backup/install_lifecycle.cpp" "$SRC_LIFE"
+if cmp -s "$SRC_LIFE" "$MUT/backup/install_lifecycle.cpp"; then ok "M4 source restored byte-identical" "yes"; else wrong "M4 source restored byte-identical" "no" "yes"; fi
+rebuild m4-restore
+eq "M4 restore build succeeded" "$?" "0"
+
 sec "mutation verdict"
 for pair in "main.cpp|$SRC_MAIN" "install_lifecycle.cpp|$SRC_LIFE" "install_manifest.cpp|$SRC_MAN"; do
   name="${pair%%|*}"; path="${pair#*|}"; backup="$MUT/backup/$name"
   if cmp -s "$path" "$backup"; then ok "restored byte-identical: $name" "yes"; else wrong "restored byte-identical: $name" "no" "yes"; fi
 done
 echo
-echo "  cases=3 checks=$CHECKS mutations=$MUTATIONS"
-if [ "$FAIL" -eq 0 ] && [ "$MUTATIONS" -eq 3 ]; then
-  echo "  INSTALL-LIFECYCLE-MUTATION=PASS (3 mutations caught, sources restored)"
+echo "  cases=4 checks=$CHECKS mutations=$MUTATIONS"
+if [ "$FAIL" -eq 0 ] && [ "$MUTATIONS" -eq 4 ]; then
+  echo "  INSTALL-LIFECYCLE-MUTATION=PASS (4 mutations caught, sources restored)"
   exit 0
 fi
 echo "  INSTALL-LIFECYCLE-MUTATION=FAIL fail=$FAIL mutations=$MUTATIONS"

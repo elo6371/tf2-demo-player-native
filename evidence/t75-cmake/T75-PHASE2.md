@@ -7,6 +7,13 @@ Status: **PHASE2-OK**。拆分后的构建树在 NMake + MSVC 19.44 上完成了
 许可证写进了安装清单，与门禁第 4 节注释声明的契约不符；与本次拆分无关，未修改**（源码
 不在本任务授权范围）。
 
+> **后续（2026-10-28 22:55-23:00）**：第 4 节那三条红项已经对账完毕，结论改判为
+> **门禁陈旧、产品侧正确**——产品把两份 WebView2 许可证记为 preserved 正是
+> `native/include/install_manifest.h` 四状态之 `preserved` 的定义（T37 第 4 节），
+> 是 e5851c1 改包之后这一节没重跑才显出三条旧 pin。修门禁后实测
+> `--forward` cases=15 checks=214 全绿、`--mutation` cases=4 mutations=4 全捕获。
+> 细节见 T75-LIFECYCLE-RECON.md；下文保留修门禁之前的原始读数，不再改写。
+
 基准提交 5412f91（"T75 WIP: point the install gate at native/cmake modules"），分支
 task/t75-cmake，worktree D:/TF2_Native_Worktrees/t75-cmake。Phase 1（静态等价）见
 T75-SPLIT-PHASE1.md，锚点修复见 T75-GATE-ANCHORS.md。
