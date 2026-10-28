@@ -58,7 +58,7 @@
 | T58 地图几何修复 | 未开始；等待 T56 根因证据 | 只修已证明的几何缺陷；与 T59 共用 renderer 时串行 |
 | T59 材质/光照修复 | 未开始；等待 T56 材质账本 | 按实测影响修复，每张图记录变化与未覆盖项 |
 | T60 第三人称人物显示 | 未开始；等待 T57 可达样本 | 先做一个职业的实体到 draw-call 竖切验证 |
-| T61 第三人称动作 | 未开始；等待 T60 稳定 | 与模型显示分开验证骨骼、sequence 和 pose 连续性 |
+| T61 第三人称动作 | **已完成**：T61 + T61.1 复审通过，已并入 p0 `29e27ca`；报告 `evidence/t61-animation/T61-ANIMATION-REPORT.md` | 不搬运旧分支实现；验证真实 sequence 经采样、骨骼矩阵到实际画面的完整链 |
 | T62 现有范围视觉矩阵 | 未开始；等待 T56–T61 收尾 | 仅跑 focused 矩阵，不跑最终完整链 |
 | T63 SourceTV HUD 数据审计 | 可先选定并冻结共同 demo 样本清单；审计待开展 | 清单冻结后审计血量/弹药/Uber/队伍比分/目标与死亡状态字段 |
 | T64 SourceTV 事件审计 | 等 T63 样本清单；之后可并行静态审计 | 审计死亡、击杀、回合、目标和导演事件 tick；运行扫描串行 |
@@ -248,16 +248,19 @@
 
 ## 10. T61 — 第三人称动作与骨骼连续性
 
-**前置：**T60 模型静态显示稳定；T57 已定位真实动画资源和可达 sequence。必须与 T60 分开，避免模型选择错误被误诊为骨骼错误。
+**状态：**已完成。T61 + T61.1（复审通过后）已并入 p0-entity-protocol `29e27ca`；报告 `evidence/t61-animation/T61-ANIMATION-REPORT.md` (1,780 行)，证据 `evidence/t61-animation/`。下面保留执行时的计划原文，作为验收依据的历史记录。
+
+**前置：**T60 模型静态显示稳定；T57 已定位真实动画资源和可达 sequence。主线已有 `native/src/animation_decoder.cpp`（`decodeAnimationModel`、`sampleAnimation`）及 `native/src/animation_binding.cpp`（动画源选择、骨骼绑定与采样调用），先复用并审查这条路径；旧 `ai-continuation` 仅作历史参考，不整支合并或重复移植。必须与 T60 分开，避免模型选择错误被误诊为骨骼错误。
 
 **步骤**
 
-1. 固定同一实体，收集多个连续 tick 的 sequence、cycle、playback rate、活动状态、动画 source、骨骼矩阵摘要和实际截图。
-2. 对照 TF2 相同实体/动作的参考帧；先验证 demo 输入确实在改变 sequence/cycle，再判断产品 pose。
-3. 从 sequence lookup、companion binding、cycle 更新、blend/interpolation、parent/bone transform 的调用链向下定位；每次只改一类行为。
-4. 增加连续帧检查：cycle 单调/按状态转变，关节变换有限且有界，root 与 mesh bounds 一致；装备/手持物附件另记，不把 ViewModel 接触当人物动作结论。
-5. 跑 player-animation-check forward 和针对根因的 mutation；mutation 要让姿态/矩阵断言变红，不能只让编译失败或删除 trace 行。
-6. 字节级恢复并重建；同输入重复输出 pose digest/截图一致，再跑 T60 player-model gate 和相关 animation availability focused gate。
+1. 选 T57 中动画资源完整、demo 里确实可达的职业和实体；先审查并复用主线的 `decodeAnimationModel`、`sampleAnimation`、动画源选择与骨骼映射，不另造并行 decoder，也不把旧分支直接 cherry-pick 进来。
+2. 固定同一实体，收集多个连续 tick 的 sequence、cycle、playback rate、活动状态、动画 source、骨骼映射结果、采样 pose/矩阵摘要、送入绘制的矩阵摘要和实际截图；每个读数带 demo、tick、实体身份。
+3. 逐段确认真实输入是否变化，以及变化是否传到画面：资源解码 → 动画源/骨骼绑定 → sequence 选择 → cycle/blend 采样 → parent/bone transform → draw 输入 → 像素。对照 TF2 相同实体/动作的参考帧；输入未变化时标为样本不足，不归咎于 pose。
+4. 从 sequence lookup、companion binding、cycle 更新、blend/interpolation、parent/bone transform 的调用链向下定位；每次只改一类行为，并先证明对应阶段的输入/输出读数能区分正确与错误。
+5. 增加连续帧检查：cycle 随真实状态单调或按状态转变，关节变换有限且有界，root 与 mesh bounds 一致；装备/手持物附件另记，不把 ViewModel 接触当人物动作结论。
+6. 跑 player-animation-check forward 和针对根因的 mutation；mutation 必须令姿态/矩阵或像素断言变红，不能只靠编译失败、缺 trace、缺帧或空值通过判定。
+7. 字节级恢复并重建；同输入重复输出 pose digest/截图一致，再跑 T60 player-model gate 和相关 animation availability focused gate。报告分别给出解码、绑定、采样、绘制与画面结论，不把前段 PASS 外推成动作 PASS。
 
 **验收：**至少覆盖真实存在的静止与移动动作，另覆盖 demo 中确实存在的攻击/死亡等状态；无模型飞散、错 sequence、明显跳 pose；缺失数据明确标注，不伪称九职业所有动作已通过。
 
