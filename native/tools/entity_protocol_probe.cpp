@@ -1,8 +1,8 @@
 // entity_protocol_probe - full-demo entity protocol decoder census.
 //
 // WHY THIS EXISTS
-//   `demo_open_probe` only reports header/index/packet counts. The P0 task in
-//   docs/TASKS-2026-10-06.md needs a reading for entityUnknownStateFailures (the
+//   `demo_open_probe` only reports header/index/packet counts. The entity
+//   protocol acceptance gate needs a reading for entityUnknownStateFailures (the
 //   "7320 failures" number) plus enough context to explain each failure. This
 //   probe prints one key=value line per metric so it can be diffed and gated.
 //
