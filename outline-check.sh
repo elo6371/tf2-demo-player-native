@@ -149,6 +149,61 @@ command_not_found_handle() {
   return 127
 }
 
+# newer_than <reference> <path>... -- the files strictly newer than the
+# reference, one path per line (at most four). A gate that measures a binary
+# older than the tree it sits in is measuring a build of some other source.
+newer_than() {
+  local ref="$1"; shift
+  find "$@" -type f -newer "$ref" 2>/dev/null | head -4
+}
+
+# depsources <target> -- the source files CMake compiles into that target, taken
+# from the configured build tree's own DependInfo.cmake. This is the dependency
+# record, not a guess from a directory: the first version of this guard compared
+# both binaries against every file under native/tools, and native/tools holds
+# sources of other targets (projectile_track_probe.cpp among them), so an edit to
+# one of those reddened a run whose binaries were not built from it. NMAKE keeps
+# no header dependencies (every .obj.d is empty), so the source list is the only
+# per-target dependency data that exists.
+depsources() {
+  local dep="${TF2_BUILD_DIR:-native/build-nmake}/CMakeFiles/$1.dir/DependInfo.cmake"
+  [ -f "$dep" ] || return 1
+  awk -F'"' '/\.obj"/ && ($2 ~ /\.(cpp|c|cc|cxx)$/) {print $2}' "$dep"
+}
+
+# stale_reason <exe> <target> -- why that binary cannot be trusted for this tree,
+# or nothing at all. Two conditions, both taken from the build itself:
+#   headers: build-target.sh:124-133 treats a header newer than .headers-stamp as
+#            reason to touch every source, because header dependencies are not
+#            tracked; a stale stamp means this binary predates a header edit.
+#   sources: the target's own DependInfo list, compared against the binary.
+# Directories are never scanned: a source that some other target compiles says
+# nothing about this one.
+stale_reason() {
+  local exe="$1" target="$2" build stamp new srcs
+  build="${TF2_BUILD_DIR:-native/build-nmake}"
+  stamp="$build/.headers-stamp"
+  [ -f "$exe" ] || { echo "no binary at $exe"; return 0; }
+  [ -f "$stamp" ] || { echo "no header stamp at $stamp, so build-target.sh would rebuild every source"; return 0; }
+  new=$(find native/include native/src native/tools native/third_party \
+          -type f \( -name '*.h' -o -name '*.hpp' \) -newer "$stamp" 2>/dev/null | head -2)
+  if [ -n "$new" ]; then
+    echo "headers are newer than $stamp, which is how build-target.sh decides to rebuild:"
+    printf '         %s\n' $new
+    return 0
+  fi
+  srcs=$(depsources "$target") || {
+    echo "no DependInfo for $target under $build, so the sources behind this binary are unknown"
+    return 0
+  }
+  new=$(for srcs in $srcs; do [ "$srcs" -nt "$exe" ] && echo "$srcs"; done | head -2)
+  if [ -n "$new" ]; then
+    echo "sources are newer than the binary, so it is a build of some other tree:"
+    printf '         %s\n' $new
+    return 0
+  fi
+}
+
 # SECTION -1: the harness checks itself before it measures anything. A helper
 # that cannot go red is a comment that runs, and a PASS from a harness that
 # never evaluated one of its own assertions is not a reading at all.
@@ -189,6 +244,64 @@ else
   fail=1; harness_broken=1
 fi
 : > "$HARNESS_UNKNOWN_LOG"
+# The binary is part of what is being measured, and a binary older than its own
+# source is a reading of some other tree. This is not hypothetical: the mutation
+# phase rebuilds after every case and the forward phase does not build at all, so
+# the exe a mutation run leaves behind is a mutant, and the next run's forward
+# phase measured it -- 2026-10-29, four depth assertions red with an untouched
+# source tree. Both directions are proved here so the guard cannot itself be a
+# comment that runs.
+_st_dir=$(mktemp -d "${TMPDIR:-/tmp}/outline-stale.XXXXXX")
+: > "$_st_dir/fake.exe"; : > "$_st_dir/new.cpp"
+touch -t 202001010000 "$_st_dir/fake.exe" 2>/dev/null
+if [ -n "$(newer_than "$_st_dir/fake.exe" "$_st_dir")" ]; then
+  echo "  OK   a source newer than the binary is reported as stale"
+else
+  echo "  FAIL a newer source went unreported, so a stale binary would be measured"
+  fail=1; harness_broken=1
+fi
+touch -t 209901010000 "$_st_dir/fake.exe" 2>/dev/null
+if [ -z "$(newer_than "$_st_dir/fake.exe" "$_st_dir")" ]; then
+  echo "  OK   a binary at least as new as its sources passes the same guard"
+else
+  echo "  FAIL a fresh binary was called stale, so the guard would redden an honest run"
+  fail=1; harness_broken=1
+fi
+rm -rf "$_st_dir"
+# THE SCOPE OF THE GUARD IS PART OF THE GUARD. entity_overlay_probe does not
+# compile native/tools/projectile_track_probe.cpp. The first version of this
+# check walked every file under native/tools, so an edit to another target's
+# tool would have reddened a run whose binary never included it -- and the
+# rebuild hint it printed could not have cleared that red either.
+_probe_deps=$(depsources entity_overlay_probe)
+if [ -z "$_probe_deps" ]; then
+  echo "  FAIL no DependInfo for entity_overlay_probe, so its own source list cannot be checked"
+  fail=1; harness_broken=1
+else
+  if printf '%s\n' "$_probe_deps" | grep -q 'projectile_track_probe\.cpp$'; then
+    echo "  FAIL the list read for entity_overlay_probe names projectile_track_probe.cpp, a source of another target"
+    fail=1; harness_broken=1
+  else
+    echo "  OK   the dependency list is scoped to its target: entity_overlay_probe does not compile projectile_track_probe.cpp"
+  fi
+  if printf '%s\n' "$_probe_deps" | grep -q 'native/src/demo_header\.cpp$'; then
+    echo "  OK   the same list names demo_header.cpp, a source that target does compile"
+  else
+    echo "  FAIL the list read for entity_overlay_probe does not name demo_header.cpp, so it is not that target's list"
+    fail=1; harness_broken=1
+  fi
+fi
+for _pair in "$EXE:tf2_demo_native" "$PROBE:entity_overlay_probe"; do
+  _why=$(stale_reason "${_pair%:*}" "${_pair##*:}")
+  if [ -z "$_why" ]; then
+    echo "  OK   ${_pair%:*} is not older than the sources its target compiles"
+  else
+    echo "  FAIL ${_pair%:*} cannot be trusted for this tree, so this run would measure a binary the tree does not describe:"
+    printf '%s\n' "$_why"
+    echo "         rebuild first: bash build-target.sh tf2_demo_native entity_overlay_probe"
+    fail=1; harness_broken=1
+  fi
+done
 if [ "$harness_broken" != "0" ]; then
   echo
   echo "OUTLINE-CHECK=FAIL"
@@ -1417,8 +1530,8 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   # to land on the requested tick is luck, and a mutation that depends on luck
   # reports green for the wrong reason about one run in N.
   patch_in "$MUT_MAIN" \
-"            g_playback.tick = static_cast<std::int32_t>(captureTick);" \
-"            g_playback.tick = static_cast<std::int32_t>(captureTick) + (g_playback.speed > 2.0 ? 30 : 0);  /* mutation m6 */" || mut_fail=1
+"          g_playback.tick = static_cast<std::int32_t>(captureTick);" \
+"          g_playback.tick = static_cast<std::int32_t>(captureTick) + (g_playback.speed > 2.0 ? 30 : 0);  /* mutation m6 */" || mut_fail=1
   if rebuild_product m6; then
     M6_SLOW=$(RUN_TIMEOUT="${T52_SLOW_TIMEOUT:-2400}" SPEED=1 run_frame "$OUT/m6-speed1" --outline on)
     M6_FAST=$(run_frame "$OUT/m6-default" --outline on)
