@@ -133,14 +133,37 @@ MAP="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/cp_snakewater_fina
 # shape the bind-pose assertion needs: identity skin matrices through the
 # skinning branch must leave this skeleton's bind pose where it was.
 #
-# It is NOT a motion witness. Of its 25 sequences only two carry an animation
-# binding at all -- `ref` (0) and `ragdoll` (1) -- and both are a single frame,
-# because a TF2 player model includes its animations from a separate model
-# rather than embedding them. One frame proves the branch composes a real pose;
-# it cannot prove the pose follows the tick, so that claim is made on the model
-# below instead of being implied by this one.
+# It is NOT a motion witness: one sequence proves the branch composes a real
+# pose, it cannot prove the pose follows the tick, so that claim is made on the
+# model below instead of being implied by this one.
+#
+# WHICH SEQUENCE, AFTER T60 (2026-10-29)
+#   T60's AnimationBindingCache (0819fce) keeps the BASE model's sequence table as
+#   the entity's index space and binds each entry to the companion's clip BY NAME;
+#   a base sequence whose label has no same-named companion clip stays unbound and
+#   is refused rather than played with a neighbour's animation. scout.mdl is exactly
+#   that shape: 306 base sequences, 303 bound, and `ref` (index 0) is one of the
+#   three unbound ones. So index 0 is no longer a positive sample -- it is the
+#   NEGATIVE control below -- and the positive sample is index 212, `run_PRIMARY`,
+#   which resolves to a measured 49-frame clip.
+#
+#   Measured on this tree, not assumed:
+#     model_robustness_probe --model models/player/scout.mdl
+#       animPath=models/player/scout_animations.mdl separateAnimSource=1
+#       animSeqs=1012 boundSeqs=303
+#     model_pose_probe --player-animation-test
+#       sequences=306 ... movingSeq=212 movingLabel=run_PRIMARY poseFrames=49
+#     tf2_demo_native --model models/player/scout.mdl --model-sequence 212 --model-tick 30
+#       gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=212 frame=30/49 reason=run_PRIMARY
+#     tf2_demo_native --model models/player/scout.mdl --model-sequence 0 --model-tick 30
+#       gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=0 frame=0/0 reason=sequence has no animation binding
 MODEL="models/player/scout.mdl"
-MODEL_SEQUENCE=0
+MODEL_SEQUENCE=212
+# The negative control: a base sequence with no same-named companion clip.
+MODEL_UNBOUND_SEQUENCE=0
+# The frame count `run_PRIMARY` resolves to in the adopted companion, measured on
+# 2026-10-29 by the probe and by the product's own trace (`frame=30/49`).
+MODEL_FRAMES=49
 MODEL_TICK=30
 # The motion witness: a game prop whose `wave` sequence has 100 frames, measured
 # to advance its frame index with the tick (0/15/30/50 -> frame 0/15/30/50) and
@@ -334,6 +357,13 @@ assert_ge() { # assert_ge <label> <actual> <minimum>
   else
     echo "  FAIL $1 = ${2:-<none>}, expected >= $3"; fail=1; FAIL_LINES+=("$1: ${2:-<none>} < $3")
   fi
+}
+assert_contains() { # assert_contains <label> <haystack> <needle>
+  case "${2:-}" in
+    *"$3"*) echo "  OK   $1 contains $3" ;;
+    *) echo "  FAIL $1 = ${2:-<none>}, expected to contain $3"
+       fail=1; FAIL_LINES+=("$1: ${2:-<none>} missing $3") ;;
+  esac
 }
 assert_ne() { # assert_ne <label> <actual> <forbidden>
   if [ -n "${2:-}" ] && [ "${2:-}" != "$3" ]; then
@@ -828,6 +858,10 @@ skin_line() {
 MODEL_IDENTITY=$(run_model identity "$MODEL" --model-skinning 1)
 MODEL_CONTROL=$(run_model control "$MODEL" --model-skinning 0)
 MODEL_ANIMATED=$(run_model animated "$MODEL" --model-sequence "$MODEL_SEQUENCE" --model-tick "$MODEL_TICK")
+# The same model, the same tick, a sequence whose label has no same-named clip in
+# the companion T60 selected. It must refuse and say so; it must not fall through
+# to a neighbouring clip (which is what an index-only binding did before T60).
+MODEL_UNBOUND=$(run_model unbound "$MODEL" --model-sequence "$MODEL_UNBOUND_SEQUENCE" --model-tick "$MODEL_TICK")
 WAVE_A=$(run_model wave-a "$WAVE_MODEL" --model-sequence "$WAVE_SEQUENCE" --model-tick "$WAVE_TICK_A")
 WAVE_B=$(run_model wave-b "$WAVE_MODEL" --model-sequence "$WAVE_SEQUENCE" --model-tick "$WAVE_TICK_B")
 WAVE_ZERO=$(run_model wave-zero "$WAVE_MODEL" --model-sequence "$WAVE_SEQUENCE" --model-tick 0)
@@ -836,12 +870,14 @@ WAVE_FULL=$(run_model wave-full "$WAVE_MODEL" --model-sequence "$WAVE_SEQUENCE" 
 IDENTITY_LINE=$(skin_line identity)
 CONTROL_LINE=$(skin_line control)
 ANIMATED_LINE=$(skin_line animated)
+UNBOUND_LINE=$(skin_line unbound)
 WAVE_A_LINE=$(skin_line wave-a)
 WAVE_B_LINE=$(skin_line wave-b)
 WAVE_FULL_LINE=$(skin_line wave-full)
 echo "  identity: $IDENTITY_LINE"
 echo "  control : $CONTROL_LINE"
 echo "  animated: $ANIMATED_LINE"
+echo "  unbound : $UNBOUND_LINE"
 echo "  wave-a  : $WAVE_A_LINE"
 echo "  wave-b  : $WAVE_B_LINE"
 if [ -z "$IDENTITY_LINE" ]; then
@@ -853,6 +889,24 @@ assert_eq "the --model path enables the skinning branch" "$(field "$IDENTITY_LIN
 assert_eq "the --model path uploads every bone" "$(field "$IDENTITY_LINE" uploaded)" "$(field "$IDENTITY_LINE" bones)"
 assert_eq "a supplied sequence produces an animated pose" "$(field "$ANIMATED_LINE" source)" "animated"
 assert_eq "the animated run uploads every bone" "$(field "$ANIMATED_LINE" uploaded)" "$(field "$ANIMATED_LINE" bones)"
+# ...and it is a REAL clip, not the one-frame stub a player model carries itself.
+# `source=animated` alone cannot tell those apart: the pre-T60 tree read
+# `source=animated frame=0/1`. The denominator is what proves the companion's clip
+# was reached, so it is pinned.
+assert_eq "the supplied sequence is a multi-frame companion clip" \
+  "$(field "$ANIMATED_LINE" frame | cut -d/ -f2)" "$MODEL_FRAMES"
+# The negative control, three readings, because a refusal has three ways to be
+# wrong: it could still claim a pose, it could drop the pose with no reason, or it
+# could sample the neighbouring clip (a denominator that is not 0). Each is
+# asserted separately so a regression names which of the three it broke.
+assert_eq "a base sequence with no companion clip is not played" \
+  "$(field "$UNBOUND_LINE" source)" "identity"
+assert_eq "the unbound sequence samples no frames at all" \
+  "$(field "$UNBOUND_LINE" frame)" "0/0"
+assert_contains "the unbound sequence is refused with its reason" \
+  "$UNBOUND_LINE" "sequence has no animation binding"
+assert_eq "the unbound run still uploads every bone" \
+  "$(field "$UNBOUND_LINE" uploaded)" "$(field "$UNBOUND_LINE" bones)"
 # The claim itself. Identity skin matrices through the skinning branch versus no
 # skinning branch at all. It is NOT a byte-exact claim and never was: the skinning
 # shader evaluates sum(w_i * M_i * v) with normalized weights, a different float
@@ -902,9 +956,10 @@ fi
 bmp_diff "a sampled sequence moves the geometry" \
   "$MODEL_IDENTITY" "$MODEL_ANIMATED" --min-diff-percent 1 --min-delta 100
 # The cursor-versus-picture pair, on a sequence that really has frames to move
-# through. scout.mdl cannot carry this: its only two bound sequences are one
-# frame each, so "a sequence moved the geometry" is satisfiable there by a
-# static pose block -- the exact confusion this pair removes.
+# through. Still the WAVE prop rather than scout.mdl: scout's clip now has 49
+# frames (see the head of this file), but the prop is an independent model whose
+# 100-frame wrap is measured on its own, so this pair does not rest on the same
+# model the pose claim above already uses.
 WAVE_A_FRAME=$(field "$WAVE_A_LINE" frame)
 WAVE_B_FRAME=$(field "$WAVE_B_LINE" frame)
 assert_eq "the witness sequence has $WAVE_FRAMES frames" "${WAVE_A_FRAME##*/}" "$WAVE_FRAMES"

@@ -928,6 +928,20 @@ tail -16 "$OUT/22-weapon-animation.txt"
 # T39-WEAPON-ANIMATION-2026-10-21.md), and the forward run on the final tree
 # emits 57 OK + 0 FAIL = 57 with per-section counts 27 / 6 / 5 / 12 / 6 / 1.
 #
+# 2026-10-29, after T60: 57 -> 62, per-section 27 / 6 / 5 / 17 / 6 / 1.
+#   T60 (0819fce) keeps the base model's sequence table as the entity's index
+#   space and binds each entry to the companion BY NAME, refusing a base sequence
+#   whose label has no same-named clip. scout.mdl is that shape (306 base
+#   sequences, 303 bound) and `ref` at index 0 is one of the three unbound ones,
+#   so index 0 could no longer be section 4's positive sample: it read
+#   `source=identity frame=0/0 reason=sequence has no animation binding`. The
+#   sample is now index 212 (`run_PRIMARY`, a 49-frame clip) and `ref` is kept as
+#   a named negative control -- five new assertions: the positive clip's frame
+#   count, and the refusal's source, frame count, reason and bone upload. The
+#   count is what the gate emits on this tree with this change (measured run:
+#   .scratch/anim-recon-20261029/s22/forward.log), not a number chosen to make
+#   the step green: the same gate printed 54 OK + 4 FAIL before the change.
+#
 # 27 = 9 per playback tick in section 1 (capture rc, skinned instances, uploaded
 # matrices, GPU-accepted instances, GPU matrices == caller matrices, bind-bone
 # mismatches, the weapon-class instance count being reported at all, every
@@ -942,7 +956,7 @@ tail -16 "$OUT/22-weapon-animation.txt"
 # wrap-at-frame-count compare) + 6 in section 5 (both halves of the bind-pose
 # mutation pair, each with its own compared-entity count) + 1 in section 6.
 WA_OK=$(grep -c '^  OK   ' "$OUT/22-weapon-animation.txt" || true)
-if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 57 ]; then
+if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 62 ]; then
   echo "WEAPON-ANIMATION=PASS (assertions_ok=$WA_OK)"
 else
   echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0})"; rc_all=1
@@ -1040,6 +1054,25 @@ tail -18 "$OUT/23-viewmodel-animation.txt"
 # all-applied equality and the frame diff) + 12 in section 7 (five paired
 # mutations, each with its named assertion and its control, plus the two work
 # counts).
+#
+# 2026-10-29, after T60: the pin stays 154, and the gate's own count on this tree
+# is 154 OK + 0 FAIL. Three readings inside it changed, none of them the count:
+#   * `pov refusal sequence` was pinned to the literal 29 and is now the invariant
+#     `sequence == entitySequence`. The literal was a snapshot of how many frames
+#     the run had drawn -- the entity's m_nSequence advances with the demo and the
+#     line read is the last one (this run: two observations, both 28).
+#   * `pov companion` 51 -> 31 and `pov history` 61 -> 61-from-the-maximum. T60
+#     keeps the base table as the index space, so the entity's index now resolves
+#     to the same label's clip in the companion instead of the companion's entry
+#     at that index (51 frames at index 28 became the `draw` clip's 31). Both read
+#     the MAXIMUM over the run rather than the last line, because the last line is
+#     whichever sequence the final drawn frame carried (measured: 248 one-frame
+#     clips, 1,003 of 31 and 486 of 61 in one history run).
+#   * `matcha pairing says nothing was there`: the absence now takes the second
+#     branch of entity_model.cpp's message ("no ViewModel entity names the view
+#     entity in m_hOwner") because the scan reports ViewModel entities present but
+#     none owned by the view entity, which is a more specific absence than the
+#     one pinned on 2026-10-22. The rule and the refusal are unchanged.
 VM_ANIM_OK=$(grep -c '^  OK   ' "$OUT/23-viewmodel-animation.txt" || true)
 if grep -q 'VIEWMODEL-ANIMATION=PASS' "$OUT/23-viewmodel-animation.txt" \
    && [ "${VM_ANIM_OK:-0}" -eq 154 ]; then

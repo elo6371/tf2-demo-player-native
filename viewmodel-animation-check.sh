@@ -232,6 +232,15 @@ done
 # is ever resolved there), the probe's index-space verdict (computed from the two
 # models' own tables, not through the resolver) and the probe's own battery, which
 # must still run all 92 checks while 5 of them go red.
+#
+# RE-ANCHORED 2026-10-29. T60 (0819fce) rewrote the companion adoption: the old
+# branch was `if (nameBound > boundInBase(anims)) {`, the new one is the else-if
+# arm `} else if (!bestCompanion.empty() && bestNameBound > boundInBase(anims)) {`
+# with the score kept in `bestNameBound`. The old anchor matched zero times, so
+# the step-23 mutation died with "the mutation did not land" instead of mutating
+# -- the same dead-anchor shape m12 had at step 8. The replacement keeps the
+# original intent: a constant false on that branch means the declared companion is
+# never adopted, whatever the score says.
 if [ "$MUTATION" -eq 1 ]; then
   if ! git diff --quiet -- native/; then
     echo "FATAL: --mutation needs a committed native/ tree (git checkout is the restore)"
@@ -257,10 +266,10 @@ patches = [
    "  // the entity did not name and measure the entity's sequence against it.\n"
    "  if (false && !entityModelMatches) {"),
   (sys.argv[2],
-   "      if (nameBound > boundInBase(anims)) {",
-   "      // MUTATION: the declared companion is never adopted, so a model whose\n"
-   "      // own table is a stub keeps refusing every sequence it cannot pose.\n"
-   "      if (false && nameBound > boundInBase(anims)) {"),
+   "  } else if (!bestCompanion.empty() && bestNameBound > boundInBase(anims)) {",
+   "  // MUTATION: the declared companion is never adopted, so a model whose\n"
+   "  // own table is a stub keeps refusing every sequence it cannot pose.\n"
+   "  } else if (false && !bestCompanion.empty() && bestNameBound > boundInBase(anims)) {"),
 ]
 for path, find, repl in patches:
     raw = io.open(path, 'rb').read()
@@ -329,6 +338,20 @@ assert_contains() { # assert_contains <label> <haystack> <needle>
 # field <line> <name> -> the value of name=<value> in a trace line, "" if absent.
 field() {
   printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p" | head -1
+}
+# max_frames <trace> -> the largest clip length (`frame=<i>/<N>`) any vmAnim line
+# in that run resolved to.
+#
+# WHY NOT THE LAST LINE (2026-10-29): the assertions that prove "a real clip was
+# reached, not the one-frame stub" used to read the last vmAnim line of the run.
+# That value moves with how many frames the run drew -- the entity's sequence
+# advances, and the run length is startup latency, not a product property.
+# Measured on this tree: the same history run sampled 248 one-frame clips, 1,003
+# of 31 frames and 486 of 61, while its last line was a one-frame clip. The
+# maximum is stable and still falsifiable: a stub-only table cannot produce it.
+max_frames() {
+  grep -a "scene: vmAnim entity=" "$1" 2>/dev/null \
+    | grep -oE "frame=[0-9]+/[0-9]+" | cut -d/ -f2 | sort -n | tail -1
 }
 # rfield <file> <name> -> the value of name=<value> on the LAST matching reading
 # line of a probe stderr file.
@@ -708,7 +731,16 @@ assert_eq "pov refusal drawn" "$(field "$POV_READING" drawn)" "1"
 # The entity the lookup selected and the state it carried are unchanged by the
 # refusal: what the proof rejects is the drawing, not the input.
 assert_eq "pov refusal entity" "$(field "$LAST_VMANIM" entity)" "1077"
-assert_eq "pov refusal sequence" "$(field "$LAST_VMANIM" sequence)" "29"
+# The reported sequence is the entity's own index, and the two fields on the line
+# come from different places (`animationInput.sequence`, `lookup.input.sequence`),
+# so they must agree. This used to be pinned to the literal 29 -- a snapshot of
+# how many frames the run had drawn, because the entity's m_nSequence advances
+# with the demo and the line read is the LAST one (2026-10-29: two observations,
+# both 28; the earlier pin was taken on a longer run). The agreement is what the
+# proof needs and it does not drift with run length; an override or a remap would
+# break it, which is the defect the literal was there to catch.
+assert_eq "pov refusal sequence is the entity's own index" \
+  "$(field "$LAST_VMANIM" sequence)" "$(field "$LAST_VMANIM" entitySequence)"
 # The absence, on the product's own line: the field the task named is not there.
 assert_eq "pov refusal cyclePresent" "$(field "$LAST_VMANIM" cyclePresent)" "0"
 assert_eq "pov refusal poseAvailable" "$(field "$LAST_VMANIM" poseAvailable)" "0"
@@ -763,18 +795,26 @@ assert_eq "pov companion every observation matched" \
 assert_eq "pov companion every sequence was in range" \
   "$(field "$LAST_SUMMARY" sequenceInRange)" "$(field "$LAST_SUMMARY" observations)"
 assert_eq "pov companion refused nothing for a range reason" "$(field "$LAST_SUMMARY" outOfRange)" "0"
-# The pose the entity carried resolves to a real animation: sequence 29 binds by
-# name to the companion's own clip for that label, 51 frames long. The base
-# model's stub table could pose nothing here, so the frame count is the reading
-# that says the adoption happened and reached a real clip.
+# The pose the entity carried resolves to a real animation through the companion
+# the drawn model adopts (`c_sniper_animations.mdl`, separateAnimSource=1,
+# 38 of 43 base sequences bound by name -- measured with model_robustness_probe on
+# 2026-10-29). The frame count is the reading that says the adoption reached a real
+# clip rather than the model's own one-frame stub.
+#
+# 51 -> 31 on 2026-10-29: T60 (0819fce) keeps the BASE model's table as the index
+# space and binds each entry to the companion BY NAME. Before it, the first
+# `_animations.mdl` companion that decoded was adopted wholesale, so index 28 in
+# this run named companion entry 28 (a 51-frame clip). After it, index 28 is the
+# base table's `draw`, bound to the companion's `draw` clip, 31 frames. Same
+# entity, same demo, same companion file: the index space moved, the clip did not.
 if [ "$MUTATION" -eq 1 ]; then
   assert_eq "pov companion pose is available" "$(field "$LAST_VMANIM" poseAvailable)" "0"
   assert_eq "pov companion frame count is the companion's" \
-    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+    "$(max_frames "$TRACE_DIR/pov-companion.trace")" "0"
 else
   assert_eq "pov companion pose is available" "$(field "$LAST_VMANIM" poseAvailable)" "1"
   assert_eq "pov companion frame count is the companion's" \
-    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "51"
+    "$(max_frames "$TRACE_DIR/pov-companion.trace")" "31"
 fi
 # Opt-in, in both fields: the resolver accepted and the pass applied nothing.
 assert_eq "pov companion applies nothing by default" "$(field "$LAST_VMANIM" applied)" "0"
@@ -794,7 +834,16 @@ assert_eq "matcha pairing vmAnimApplied" "$(field "$LAST_ORDER" vmAnimApplied)" 
 assert_eq "matcha pairing skinning" "$(field "$LAST_ORDER" skinning)" "0"
 assert_eq "matcha pairing entity" "$(field "$LAST_VMANIM" entity)" "-1"
 assert_contains "matcha pairing names the absence" "$LAST_VMANIM" "no viewmodel entity owned by the view entity"
-assert_contains "matcha pairing says nothing was there" "$LAST_VMANIM" "the snapshot holds no ViewModel entity"
+# ...and the entity-lookup rule that decided it names its own branch. The message
+# has two branches (entity_model.cpp: "the snapshot holds no ViewModel entity"
+# when the scan saw none, "no ViewModel entity names the view entity in m_hOwner"
+# when it saw some but none owns this view entity). This recording has now moved
+# to the second branch: on 2026-10-29 the run reported
+# `entities=0` for the animation proof but a non-zero scan count, i.e. ViewModel
+# entities exist in the snapshot and none of them is owned by the view entity --
+# a more specific absence than the one pinned before (2026-10-22). The rule and
+# the refusal are unchanged; the branch is, so the branch is what is asserted.
+assert_contains "matcha pairing says nothing was there" "$LAST_VMANIM" "no ViewModel entity names the view entity in m_hOwner"
 assert_ge "matcha pairing observations" "$(field "$LAST_SUMMARY" observations)" 1
 assert_eq "matcha pairing missing count" "$(field "$LAST_SUMMARY" missing)" "$(field "$LAST_SUMMARY" observations)"
 # Control for the --mutation verdict: no owning entity is resolved before the
@@ -844,15 +893,18 @@ assert_eq "pov history applied nothing without the flag" "$(field "$LAST_SUMMARY
 POV_RANGE=$(field "$LAST_SUMMARY" range)
 assert_eq "pov history sequence range" "$POV_RANGE" "1..30"
 assert_ge "pov history sequence changes" "$(field "$LAST_SUMMARY" changes)" 1
-# The number the acceptance rests on: the last observed sequence's animation.
-# Sequence 30 binds BY NAME to the companion's 61-frame clip; the stub table the
-# model carries itself could pose nothing here.
+# The number the acceptance rests on: the run reaches the companion's 61-frame
+# clip. It is the MAXIMUM over the run rather than the last line, because the last
+# line is whichever sequence the entity happened to carry on the final drawn frame
+# (2026-10-29: 248 one-frame clips, 1,003 of 31 frames, 486 of 61; the last line
+# was a one-frame clip at sequence 1). The maximum cannot be produced by the
+# model's own stub table, which is the property this assertion exists for.
 if [ "$MUTATION" -eq 1 ]; then
   assert_eq "pov history frame count is the companion's" \
-    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "0"
+    "$(max_frames "$TRACE_DIR/pov-history.trace")" "0"
 else
   assert_eq "pov history frame count is the companion's" \
-    "$(field "$LAST_VMANIM" frame | cut -d/ -f2)" "61"
+    "$(max_frames "$TRACE_DIR/pov-history.trace")" "61"
 fi
 # Mutations snapshot, taken here while LAST_SUMMARY is the history run: under the
 # adoption-neutered mutation every natural observation goes back to refused, so
