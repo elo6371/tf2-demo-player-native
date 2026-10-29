@@ -5,7 +5,8 @@ Status: store + product wiring implemented and gated on the integrated tree
 
 ## 1. What the tasks asked for
 
-T71 (NEXT-TASKS-2026-10-23.md:410-421), in its own words, asks for a versioned per-demo
+T71 (the task list that defined it was deleted in the 2026-10-29 cleanup; what follows is the
+requirement summary this report has always carried) asks for a versioned per-demo
 workspace bound to the demo's content hash, with open / explicit save / autosave / rename,
 and named results for every way the file can fail to load: hash mismatch, corrupt file,
 older schema, moved path, unsaved exit. The saved state covers camera bookmarks, the current

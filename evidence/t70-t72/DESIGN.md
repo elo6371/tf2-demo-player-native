@@ -3,7 +3,7 @@
 - 文档性质：**纯静态设计（DESIGN ONLY / NOT IMPLEMENTED）**。本文没有 build、没有启动产品、没有获取共享锁、没有修改产品源码。
 - 日期：2026-10-24（Asia/Shanghai）。
 - 仓库：`D:\TF2_Native_Test`，分支 `p0-entity-protocol`，基线 HEAD `99eeea294cbe883e4c3e6b4b82c83de45d2ab926`。
-- 任务来源：`NEXT-TASKS-2026-10-23.md` §15，T70（第 396-407 行）与 T72（第 422-433 行）；T71（第 409-420 行）只作为格式依赖。
+- 任务来源：原任务清单 §15（该清单已于 2026-10-29 随仓库清理删除），T70 与 T72；T71 只作为格式依赖。
 - 相关规格：`evidence/t64-events/DATA-CONTRACT.md`、`evidence/t68-events/GAME-EVENT-SPEC.md`、`evidence/t68-events/SAME-TICK.md`。
 
 > **断言等级声明。** 本文所有 `应读到` / `期望` 都是**设计断言**，不是运行结果。没有执行任何产品进程、脚本或探针，因此不存在任何 T70/T72 的 PASS；把本文的表格当成“已验收”就是 §1 规则所说的“零断言判 PASS”。真正的验收必须在实现后按每行的“读数 + mutation”重跑。
