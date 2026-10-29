@@ -1,0 +1,7 @@
+pak01_dir.vpk: 1 entries, 1 match 'maps' ext=.bsp
+    maps/t32_marker.bsp
+tf2_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_textures_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_misc_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+tf2_sound_vo_english_dir.vpk: ABSENT (ERROR_FILE_NOT_FOUND)
+total matches: 1

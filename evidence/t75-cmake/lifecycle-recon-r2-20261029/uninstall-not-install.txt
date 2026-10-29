@@ -1,0 +1,1 @@
+uninstall=FAIL reason=no_manifest manifest=.uninstall/install-manifest.txt detail=cannot open the manifest

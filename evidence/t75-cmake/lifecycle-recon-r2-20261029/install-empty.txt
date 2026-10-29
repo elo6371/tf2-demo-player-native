@@ -1,0 +1,2 @@
+install=START package=0.1.0 payloadFiles=0 payloadBytes=0 mode=fresh
+install=FAIL reason=empty_payload

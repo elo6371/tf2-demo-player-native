@@ -1,0 +1,1 @@
+status=DEGRADED package=tf2_demo_native version=0.1.0 versionCode=100 installedUtc=2026-10-29T09:06:22Z files=5 present=4 missing=0 modified=1

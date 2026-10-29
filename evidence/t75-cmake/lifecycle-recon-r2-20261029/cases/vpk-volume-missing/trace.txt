@@ -1,0 +1,103 @@
+0.0 trace open
+181.5 resources: requested=D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\fixtures\roots\vpk-volume-missing tf_root=D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\fixtures\roots\vpk-volume-missing valid=1
+14211.9 gpu: overlay mesh unavailable path=models/player/scout.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.0 gpu: overlay mesh unavailable path=models/player/sniper.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.1 gpu: overlay mesh unavailable path=models/player/soldier.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.1 gpu: overlay mesh unavailable path=models/player/demo.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.1 gpu: overlay mesh unavailable path=models/player/medic.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.2 gpu: overlay mesh unavailable path=models/player/heavy.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.2 gpu: overlay mesh unavailable path=models/player/pyro.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.2 gpu: overlay mesh unavailable path=models/player/spy.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.2 gpu: overlay mesh unavailable path=models/player/engineer.mdl renderable=0 error=model has no decoded bind-pose indices model not found in loose files or VPK archives companions(vvd=0,dx90=0,dx80=0,sw=0,phy=0)
+14212.2 gpu: overlay meshes prepared=0 of 9 (NONE -- the outline has no mesh source and will submit nothing)
+14212.5 vpk: archives opened=1 refused=0
+14212.6 map: lookup map=t32_marker store=none selected=- bytes=0 reason=not found in maps, download/maps or a vpk
+14222.6 audio: timeline firstPacketTick=0 soundOriginTick=0 originFound=1 read=5563 scheduled=5323 unresolved=240 unplaceable=0 refused=0 kinds=w888/f2263/u14/o1647/v504/a7/m0
+14223.8 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\fixtures\roots\vpk-volume-missing [VPK entries: 1, VTF: fallback, VMT: unparsed/no base texture, BSP: invalid/BSP header is invalid, lightmap: samples=0 faces=0 tris=0 bytes=0 state=unavailable atlas=0x0, mapmat: none, deps: base2=none bump=none, maptex: fallback] playback=0/39122 req=none act=none frame=pending fdelta=na speed=1.000000 rate=66.666665 anchorAbs=29368@1072 forward paused HUD[tick=0 demo=t32_marker.dem state=paused camera=first-person error=none speed=1.000000 entity=no-history stale=0 audio=0/0 health=? team=? class=? clip=? uber=? snd=888/2263/14 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:24f526787334f45ff3104344dd28745a7bc7721f12b9cce3ee8134d35fd3dc7c modelMissing=0 vpkHits=0 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=0 entityModels=0 entitySlots=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=0/0 entityPaintedSlots=0 animSkinned=0/0 animBones=0 animSeq=-1 animFrame=0/0 animSource=none animBindings=0/0 animCache=0 animAdv=0 animWitness=- gpuSkin=0/0 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: t32_marker POV ticks=39122 commands=81538 packets=38558 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=18 nettick=38555 print=1 setconvar=3 convars=16 temp=12321 teheaders=33237 tefail=0 teprops=83878 teproj=0 teparticle=223 teexplosion=916 tebullets=2953 teanim=22798 tefbhits=5388 tepehits=9 teexhits=0 teanimhits=9761 tecached=16384 projectileTimeline=2027 assetRefs=675 modelKnown=515 weaponKnown=41 itemKnown=134 paintKnown=0 skinKnown=292 qualityKnown=134 modelPathKnown=387 weaponClassKnown=0 ass...[TRUNCATED]
+14545.7 hud: settings-file path=C:\Users\Administrator\AppData\Local\TF2 Demo Player\ui.ini status=ok loaded=1 repaired=0
+14545.8 hud: cli import=0 reset=0 scale=-1 enabled=-1 result=nothing-to-do discover=-
+14545.8 hud: keys action=hud.toggle chord=H bound=1
+14545.9 hud: keys action=hud.preview chord=Ctrl+P bound=1
+14545.9 hud: keys action=hud.reset chord=Ctrl+Shift+H bound=1
+14545.9 hudpanel: cases=11 pass=11 fail=0
+14545.9 hud: settings enabled=0 scale=100 preview=1 root=- layout=- imported=0
+14545.9 hud: layout ok=0 document=- panels=0 refused=0 nesting=0 unknownKeys=0 duplicates=0 includes=0
+14545.9 hud: rects resolved=0 visible=0 invalid=0 union=0,0,0,0 empty=1
+14545.9 hud: refuse accepted=0 refused=0 lastReason=none detail=-
+14545.9 hud: draw drawn=0 rects=0 ordinal=0 scissor=0 region=0,0,0,0
+14545.9 gpu: reload begin
+14545.9 gpu: reload-stage stage=texture lastError=0x00000000
+14545.9 gpu: reload-stage stage=aux lastError=0x00000000
+14545.9 gpu: reload-stage stage=lightmap lastError=0x00000000
+14545.9 gpu: reload-stage stage=cubemap lastError=0x00000000
+14545.9 gpu: reload-stage stage=sky lastError=0x00000000
+14545.9 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=0 resampled=0 reason=skybox draw disabled by the caller
+14545.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14545.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14545.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14545.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14545.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14545.9 gpu: world sky-face index=0 dir= suffix= vmt= vtf= rgba=
+14546.0 gpu: world geometry=all blend=on
+14546.0 gpu: reload-stage stage=water lastError=0x00000000
+14546.0 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+14546.0 gpu: world lightmap status=unavailable intensity=1.000 atlas=0 bump=0 env=0 vertices=0 lightmapped=0 bounds=(0.00,0.00,0.00)..(0.00,0.00,0.00) lightmapEnabled=1
+14546.0 gpu: world geometry displacedTriangles=0 waterTriangles=0
+14546.0 gpu: world blend enabled=1 terrainOnly=0 textures=0 layers=0 accepted=0 acceptedLayers=0 tiles=0 modulateTiles=0 malformedLayers=0 weightedVertices=0 modulatedVertices=0 weightMin=-1.000 weightMax=-1.000 distinctWeights=0
+14546.0 gpu: world atlas size=0 bytes=0 atlases=0 totalBytes=0 state=no world atlas was uploaded
+14546.0 gpu: world cubemap status=unavailable mode=0 preset=performance declared=0 faces=0 size=0 source=- reason=no env_cubemap sample decoded all six faces
+14546.0 gpu: models done 0 uploaded=0
+14546.0 gpu: overlay meshes prepared=0 uploaded=0 rejected=0 painted=0 paintedSlots=0 (NONE -- the outline has no mesh source and will submit nothing)
+14546.0 gpu: reload-stage stage=models lastError=0x00000000
+14546.0 gpu: reload end
+14546.0 gpu: post-reload lastError=0x00000000
+14546.0 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+14546.0 loop n=1 tick=0
+14550.8 metrics t=0.00 tick=0 iter=1
+14550.8 mode: summary window_created=0 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=0 events_played=0 events_skipped=0 events_missing=0 drawn=0 capture_written=0 metrics_written=0 exit=0
+14550.8 audio: summary soundEventsRead=5563 soundEventsScheduled=5323 soundEventsPlayed=0 soundEventsSkippedVoice=0 soundEventsMissingResource=0 firstPacketTick=0 soundOriginTick=0 reverseRecoveries=0 duplicateTicks=0 soundEventsMp3Seen=0 soundEventsMp3Played=0 soundEventsMp3Skipped=0 soundEventsMp3Failed=0 soundEventsMp3Inaudible=0 soundEventsInaudible=0
+14550.8 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=0 freezeFrames=0
+14550.8 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=0 target=-1 src=none tr=0 prog=0.000 focus=0.0,0.0,0.0 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=0 hidden=0 lastdeath=-1
+14550.8 camera: director frozen=0 advanced=0 violations=0 tick=-1 moves=0 movesWhilePaused=0 freeFlySteps=0 bookmarkApplies=0 resetToPlayer=0/0 resetView=0 focusSuppressed=0 captures=0
+14550.8 camera: bookmarks saved=0 of=8 saves=0 deletes=0 jumps=0 refusals=0
+14550.8 playback: summary requests=0 landings=0 rejected=0 clampedStart=0 clampedEnd=0 interruptedSeeks=0 superseded=0 staleLandings=0 sameTick=0 speedChanges=0 advanceTicks=0 stepsForward=0 stepsBackward=0 jumps1s=0 jumps5s=0 exact=0 checkpoint=0 unavailable=0 focusSuppressed=0 elapsedSeconds=0.000000 maxFrameDelta=0 lastRequestedTick=-1 lastLandedTick=-1 lastStatus=applied lastFrameStatus=pending
+14550.8 keys: table actions=27 sets=0 conflicts=0 resets=0 dispatched=0 unbound=0 suppressed=0 last=-
+14550.8 keys: bind action=camera.bookmark.delete1 chord=Ctrl+Shift+F1
+14550.8 keys: bind action=camera.bookmark.delete2 chord=Ctrl+Shift+F2
+14550.8 keys: bind action=camera.bookmark.delete3 chord=Ctrl+Shift+F3
+14550.9 keys: bind action=camera.bookmark.delete4 chord=Ctrl+Shift+F4
+14550.9 keys: bind action=camera.bookmark.delete5 chord=Ctrl+Shift+F5
+14550.9 keys: bind action=camera.bookmark.delete6 chord=Ctrl+Shift+F6
+14550.9 keys: bind action=camera.bookmark.delete7 chord=Ctrl+Shift+F7
+14550.9 keys: bind action=camera.bookmark.delete8 chord=Ctrl+Shift+F8
+14550.9 keys: bind action=camera.bookmark.jump1 chord=F1
+14550.9 keys: bind action=camera.bookmark.jump2 chord=F2
+14550.9 keys: bind action=camera.bookmark.jump3 chord=F3
+14550.9 keys: bind action=camera.bookmark.jump4 chord=F4
+14550.9 keys: bind action=camera.bookmark.jump5 chord=F5
+14550.9 keys: bind action=camera.bookmark.jump6 chord=F6
+14550.9 keys: bind action=camera.bookmark.jump7 chord=F7
+14550.9 keys: bind action=camera.bookmark.jump8 chord=F8
+14550.9 keys: bind action=camera.bookmark.save1 chord=Ctrl+F1
+14550.9 keys: bind action=camera.bookmark.save2 chord=Ctrl+F2
+14550.9 keys: bind action=camera.bookmark.save3 chord=Ctrl+F3
+14550.9 keys: bind action=camera.bookmark.save4 chord=Ctrl+F4
+14550.9 keys: bind action=camera.bookmark.save5 chord=Ctrl+F5
+14550.9 keys: bind action=camera.bookmark.save6 chord=Ctrl+F6
+14550.9 keys: bind action=camera.bookmark.save7 chord=Ctrl+F7
+14550.9 keys: bind action=camera.bookmark.save8 chord=Ctrl+F8
+14550.9 keys: bind action=camera.freeFly chord=F9
+14550.9 keys: bind action=camera.resetToPlayer chord=F10
+14550.9 keys: bind action=camera.resetView chord=F11
+14550.9 camera: bookmark slot=1 saved=0
+14550.9 camera: bookmark slot=2 saved=0
+14550.9 camera: bookmark slot=3 saved=0
+14550.9 camera: bookmark slot=4 saved=0
+14550.9 camera: bookmark slot=5 saved=0
+14550.9 camera: bookmark slot=6 saved=0
+14550.9 camera: bookmark slot=7 saved=0
+14550.9 camera: bookmark slot=8 saved=0
+14845.8 logstf: summary attached=1 script=- state=closed host=none panel=0 content=0 client=0,0 dpiScale=0.00 url=- navigations=0 accepted=0 refused=0 opens=0 closes=0 hostStarts=0 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=- scrollOffset=0 scrollRaw=none scrollPage=0 scrollViewport=0 urlBeforeHistory=- urlAfterHistory=- historyMoved=0
+14846.1 logstf: runtime kind=webview2 available=1 source=registry version=156.0.4314.50 loader=present
+16729.5 hud: keys actions=30 registered=1 dispatched=0 suppressed=0 conflicts=0
+16730.0 hud: summary imported=0 accepted=0 refused=0 panels=0 visible=0 invalid=0 scale=100 enabled=0 lastReason=none

@@ -1,0 +1,4 @@
+install=note upgrade fromVersionCode=100 toVersionCode=200
+install=START package=0.2.0 payloadFiles=4 payloadBytes=3115415 mode=upgrade
+install=PASS files=5 new=4 changed=1 unchanged=0 preserved=0 backups=1 copied=4
+install_manifest=.uninstall/install-manifest.txt version=0.2.0 versionCode=200

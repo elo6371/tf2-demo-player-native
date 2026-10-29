@@ -1,0 +1,37 @@
+T4-RERUN start 2026-10-29 17:06:08 +0800
+repo=/d/TF2_Native_Worktrees/candidate-final
+head=b3af4b6a3bd3a3f3bad0a867908a11a1e42ef02a
+branch=candidate/p0-final
+status_before:
+  ?? evidence/t75-cmake/lifecycle-recon-r2-20261029/
+source_sha256_before:
+  57cc0ac3b555bcb04c7432f30ba7d4a88024ac83e23dc4cdafdd9a11fb59d126 *native/src/main.cpp
+  36dba4b7f52ff51a211e3091edce77153fae9790622cae95bccc4564c5ba082b *native/src/install_lifecycle.cpp
+  e53da57e4e38a570e3237aa4a5fa25f8b70ffe38e62aaa32fdfe485fe7149efb *native/src/install_manifest.cpp
+lock: LOCKED owner=t4-t75-gate heartbeat_age=311s
+BUILD-RC=0 2026-10-29 17:06:14
+  build: === build tf2_demo_native native_install_smoke_probe install_cli_probe vpk_query ===
+  build: rc=0
+FORWARD-RC=0 2026-10-29 17:09:34
+MUTATION-RC=0 2026-10-29 17:10:38
+status_after:
+  ?? evidence/t75-cmake/lifecycle-recon-r2-20261029/
+source_sha256_after:
+  57cc0ac3b555bcb04c7432f30ba7d4a88024ac83e23dc4cdafdd9a11fb59d126 *native/src/main.cpp
+  36dba4b7f52ff51a211e3091edce77153fae9790622cae95bccc4564c5ba082b *native/src/install_lifecycle.cpp
+  e53da57e4e38a570e3237aa4a5fa25f8b70ffe38e62aaa32fdfe485fe7149efb *native/src/install_manifest.cpp
+binary:
+  -rwxr-xr-x 1 Administrator 197121 2657280 Oct 29 17:10 native/build-nmake/tf2_demo_native.exe
+  427dd705890f6ed9df4bdaa79349d091bb2f6cdc3cf46bb295a8aaad5cdad594 *native/build-nmake/tf2_demo_native.exe
+forward_tail:
+    OK   the deny-read VPK fixture ACL was reset for cleanup = 0
+  
+    cases=15 checks=214 mutations=0
+    INSTALL-LIFECYCLE=PASS
+mutation_tail:
+    OK   restored byte-identical: install_lifecycle.cpp = yes
+    OK   restored byte-identical: install_manifest.cpp = yes
+  
+    cases=4 checks=34 mutations=4
+    INSTALL-LIFECYCLE-MUTATION=PASS (4 mutations caught, sources restored)
+T4-RERUN end 2026-10-29 17:10:39 +0800

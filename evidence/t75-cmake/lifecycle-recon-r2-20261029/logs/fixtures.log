@@ -1,0 +1,10 @@
+fixtures_root=D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\fixtures
+fixture_demo=D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\fixtures\demo\t32_marker.dem
+fixture_roots=7
+fixture_files=30
+fixture_vpk=roots/precedence-shadow/pak01_dir.vpk bytes=2897057 sha256=51a98e22f5cba869dc855fd0edd33fecf24f86b1301cf396dc350679c4ae2e19
+fixture_vpk=roots/vpk-format/pak01_dir.vpk bytes=53 sha256=37a122bd739120fead8c81562003c275678beeb2dacca47444622b6d7373e0eb
+fixture_vpk=roots/vpk-truncated-tree/pak01_dir.vpk bytes=28 sha256=e1825937f3e5f15551f91311d000319a753c8cfe152b5793f1c0c7e34ac0ed79
+fixture_vpk=roots/vpk-unreadable/pak01_dir.vpk bytes=-1 sha256=unreadable-by-design
+fixture_vpk=roots/vpk-valid/pak01_dir.vpk bytes=2897057 sha256=51a98e22f5cba869dc855fd0edd33fecf24f86b1301cf396dc350679c4ae2e19
+fixture_vpk=roots/vpk-volume-missing/pak01_dir.vpk bytes=53 sha256=9becf9c731013afa7d56cae4d935b42cf95eb9d5aa6411b99c2d2121a3c0f5df

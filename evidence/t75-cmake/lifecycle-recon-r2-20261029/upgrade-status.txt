@@ -1,0 +1,1 @@
+status=VERIFIED package=tf2_demo_native version=0.2.0 versionCode=200 installedUtc=2026-10-29T09:06:33Z files=5 present=5 missing=0 modified=0

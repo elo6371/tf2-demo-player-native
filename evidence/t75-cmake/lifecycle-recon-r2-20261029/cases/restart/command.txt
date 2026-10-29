@@ -1,0 +1,2 @@
+﻿"D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\clean\launch\tf2_demo_native.exe"
+--demo D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\fixtures\demo\t32_marker.dem --hidden-window --audio-device 6 --audio-disabled --start-paused --settings-file D:\TF2_Native_Worktrees\candidate-final\evidence\t75-cmake\lifecycle-recon-r2-20261029\cases\first-launch\settings.ini

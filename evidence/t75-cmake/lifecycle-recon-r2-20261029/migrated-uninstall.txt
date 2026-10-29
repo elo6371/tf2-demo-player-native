@@ -1,0 +1,2 @@
+uninstall=note deferred_running_image=tf2_demo_native.exe
+uninstall=INCOMPLETE removed=3 restored=1 preserved=0 modified=0 alreadyMissing=0 deferredRunningImage=1

@@ -1,0 +1,5 @@
+.uninstall/payload/WebView2Loader.dll	159320
+.uninstall/payload/install_smoke_probe.ps1	812
+.uninstall/payload/native_install_smoke_probe.exe	297984
+.uninstall/payload/tf2_demo_native.exe	2657280
+user-data.txt	46
