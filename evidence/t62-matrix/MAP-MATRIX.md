@@ -1,11 +1,13 @@
 # MAP-MATRIX — T62 focused map matrix (existing T50–T61 scope only)
 
-**Tree:** `D:/TF2_Native_Test`, branch `p0-entity-protocol`, HEAD `047bcfb` ("Merge T59: world materials through VMT patch includes"), written 2026-10-25.
-**No gate was run for this document.** Every cell below quotes a file that is already committed (or names the directory listing that proves the file does not exist). Where nothing is committed the cell says so — no reading is inferred, estimated, or carried over from a report's prose without saying so.
-**Working tree is dirty** (`M NEXT-TASKS-2026-10-23.md`, `M evidence/t68-events/runs/bagel.events*.txt`, `M evidence/t68-events/runs/snakewater.events.txt`, `M evidence/t70-controls/gate/build-baseline.log`), so HEAD alone does not pin every file read here; the dirty paths are none of the evidence quoted below.
+**Evidence snapshot for this refresh:** candidate `task/repo-cleanup @ 2f14873` (not frozen). Original 2026-10-25 assessment was against `047bcfb` ("Merge T59: world materials through VMT patch includes").
+**No map gate was re-run for this refresh.** The four PASS cells below are historical readings from their cited evidence, not fresh verdicts on candidate `2f14873`; no status is inferred from unchanged code paths.
+**Working tree at evidence review:** clean at `2f14873`; this documentation-only update makes it dirty. No map evidence or gate output was changed.
 **Not a release verdict.** T62 forbids one ("do not equate all-green release gates with a correct picture"); T55 video clip/export is out of scope and unimplemented; `verify-all.sh --quick` belongs to T73.
 
 Status legend: **PASS** = a gate exists, a committed run exists, and the committed reading supports the claim. **FAIL** = committed evidence contradicts the pin or the claim it is used for. **NOT VERIFIED** = the axis is measurable today but no committed reading covers this map at this tree. **UNSUPPORTED** = the input the axis needs is absent from the install, so no run can produce it.
+
+For this refresh, every PASS cell shown below is explicitly historical and was not re-tested at `2f14873`.
 
 ---
 
@@ -19,7 +21,9 @@ Status legend: **PASS** = a gate exists, a committed run exists, and the committ
 | **koth_bagel_rc12** | **NOT VERIFIED**<br>`evidence/t56-map-audit/gate_matrix.md:155-156` "koth_bagel_rc12 (alternative, not in the three-map set): covered by **no gate** — no script names it"; static audit only: `evidence/t56-map-audit/inventory.md:60` "| koth_bagel_rc12 | 102 | 0 | 22 | 0 | 43 | vpk 59 / pak 43 |" | **NOT VERIFIED**<br>same line; no gate, no hole account | **NOT VERIFIED**<br>same line; no gate | **NOT VERIFIED**<br>same line; no gate. Its only installed BSP is `tf/download/maps/koth_bagel_rc12.bsp` (26,486,963 B, sha `c991a61e…`), which no `--bsp` gate accepts by name |
 | **koth_bagel_rc13** | **UNSUPPORTED**<br>`world-material-check.sh:281` "OK   koth_bagel_rc13.bsp is not installed here, so the run reads an empty map"<br>`evidence/t56-map-audit/inventory.md:79` "the BSP is absent from tf/maps and tf/download/maps (gen_reachability.py: 'bagel_rc13 bsp: (None, None)')" | **UNSUPPORTED**<br>no BSP on this install, so no world frame can be rasterised; the testdata demo exists (77,466 ticks) but its map does not | **UNSUPPORTED**<br>same absent BSP | **UNSUPPORTED**<br>same absent BSP |
 
-‡ `PASS` for odyssey materials rests on the committed refusal counters plus the T59 report arithmetic; the raw product fetch line for that run (tiled=99) is committed only as report text — see §2.
+‡ Historical odyssey-material PASS rests on the committed refusal counters plus T59 report arithmetic; the raw product fetch line (`tiled=99`) is committed only as report text, with no tile table. The arithmetic is `99 + 3 + 2 + 4 = 108`; it is rechecked, not re-run.
+
+**Refresh counts:** 4 historical PASS (not re-tested at `2f14873`), 12 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL. No map cell was upgraded or freshly passed in this refresh.
 
 **No cell in this table is FAIL.** The failures this tree actually contains are bookkeeping failures — a stale quoted counter, a stale audit claim, a stale camera — and they are recorded in §2 with both paths named. §2 is where a reader should look for "something is wrong", not the matrix.
 
