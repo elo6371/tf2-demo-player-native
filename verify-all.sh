@@ -942,6 +942,17 @@ tail -16 "$OUT/22-weapon-animation.txt"
 #   .scratch/anim-recon-20261029/s22/forward.log), not a number chosen to make
 #   the step green: the same gate printed 54 OK + 4 FAIL before the change.
 #
+# 2026-10-29, review finding: 62 -> 65, per-section 27 / 6 / 5 / 20 / 6 / 1.
+#   The sample's identity was implied by the command line rather than read off the
+#   product. A 49-frame denominator proves a 49-frame clip was reached, not WHICH
+#   clip, so another 49-frame sequence -- or a correctly-bound sequence that is
+#   not the intended one -- would have passed. Section 4 now also asserts the
+#   index and label the product itself reports (`seq=212`, `reason=run_PRIMARY`)
+#   and the index the negative control refused (`seq=0`), all against literals so
+#   that editing MODEL_SEQUENCE/MODEL_FRAMES cannot move the expectation, and a
+#   field the product did not print reads as empty and fails. Measured:
+#   65 OK + 0 FAIL = 65 (.scratch/t60-s22-identity-20261029/forward.log).
+#
 # 27 = 9 per playback tick in section 1 (capture rc, skinned instances, uploaded
 # matrices, GPU-accepted instances, GPU matrices == caller matrices, bind-bone
 # mismatches, the weapon-class instance count being reported at all, every
@@ -956,7 +967,7 @@ tail -16 "$OUT/22-weapon-animation.txt"
 # wrap-at-frame-count compare) + 6 in section 5 (both halves of the bind-pose
 # mutation pair, each with its own compared-entity count) + 1 in section 6.
 WA_OK=$(grep -c '^  OK   ' "$OUT/22-weapon-animation.txt" || true)
-if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 62 ]; then
+if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 65 ]; then
   echo "WEAPON-ANIMATION=PASS (assertions_ok=$WA_OK)"
 else
   echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0})"; rc_all=1

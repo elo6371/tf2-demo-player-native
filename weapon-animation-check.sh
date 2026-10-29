@@ -889,18 +889,38 @@ assert_eq "the --model path enables the skinning branch" "$(field "$IDENTITY_LIN
 assert_eq "the --model path uploads every bone" "$(field "$IDENTITY_LINE" uploaded)" "$(field "$IDENTITY_LINE" bones)"
 assert_eq "a supplied sequence produces an animated pose" "$(field "$ANIMATED_LINE" source)" "animated"
 assert_eq "the animated run uploads every bone" "$(field "$ANIMATED_LINE" uploaded)" "$(field "$ANIMATED_LINE" bones)"
+# WHICH sequence, read off the product's own line rather than assumed from the
+# command line that asked for it. The frame denominator below proves a 49-frame
+# clip was reached; it cannot prove WHICH clip, so any other 49-frame sequence --
+# or a correctly-bound sequence that is not the intended one -- would satisfy it.
+# These two fields are the product's answer: the index it read (`seq=`) and the
+# label it resolved (`reason=`). The expected values are LITERALS, not
+# `$MODEL_SEQUENCE`/`$MODEL_FRAMES`, so that editing the constant cannot move the
+# expectation with it. A field the product did not print reads as empty and fails.
+assert_eq "the animated run read the intended sequence index" \
+  "$(field "$ANIMATED_LINE" seq)" "212"
+assert_eq "the animated run resolved the intended clip label" \
+  "$(field "$ANIMATED_LINE" reason)" "run_PRIMARY"
 # ...and it is a REAL clip, not the one-frame stub a player model carries itself.
 # `source=animated` alone cannot tell those apart: the pre-T60 tree read
 # `source=animated frame=0/1`. The denominator is what proves the companion's clip
 # was reached, so it is pinned.
 assert_eq "the supplied sequence is a multi-frame companion clip" \
   "$(field "$ANIMATED_LINE" frame | cut -d/ -f2)" "$MODEL_FRAMES"
-# The negative control, three readings, because a refusal has three ways to be
-# wrong: it could still claim a pose, it could drop the pose with no reason, or it
-# could sample the neighbouring clip (a denominator that is not 0). Each is
-# asserted separately so a regression names which of the three it broke.
+# The negative control: five readings, because a refusal has five ways to look
+# right for the wrong reason -- it could claim a pose, it could refuse a different
+# index than the one asked for, it could sample the neighbouring clip (a
+# denominator that is not 0), it could drop the pose with no reason, or it could
+# stop uploading bones. Each is asserted separately so a regression names which
+# one it broke.
 assert_eq "a base sequence with no companion clip is not played" \
   "$(field "$UNBOUND_LINE" source)" "identity"
+# The refusal must be about THE sequence that was asked for. `source=identity`
+# plus a named reason would also describe a refusal of a different index (a
+# product that dropped the request, or clamped it), so the index the product read
+# is asserted too -- a literal, for the same reason as above.
+assert_eq "the refusal is about the intended sequence index" \
+  "$(field "$UNBOUND_LINE" seq)" "0"
 assert_eq "the unbound sequence samples no frames at all" \
   "$(field "$UNBOUND_LINE" frame)" "0/0"
 assert_contains "the unbound sequence is refused with its reason" \

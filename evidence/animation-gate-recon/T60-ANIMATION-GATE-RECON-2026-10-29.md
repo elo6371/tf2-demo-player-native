@@ -64,6 +64,7 @@ gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=212 frame=30
 * `MODEL_SEQUENCE` 0 → 212；新增 `MODEL_UNBOUND_SEQUENCE=0`、`MODEL_FRAMES=49`；
 * 新增一次产品运行 `unbound`，与 identity/control/animated 同模型同 tick；
 * 新增 5 条断言：正样本是**多帧 companion 片段**（`49`）、`ref` 不被播放（`source=identity`）、`ref` 采样零帧（`0/0`）、`ref` 的具名原因（`sequence has no animation binding`）、`ref` 仍上传全部骨骼（78）；
+* 复审补丁（2026-10-29 第二轮）再加 3 条**样本身份**断言：正样本 `seq=212`、`reason=run_PRIMARY`，负控 `seq=0`。理由见 §3.5；
 * WAVE 100 帧样本保留，仍是 tick 前进与循环的唯一见证（不拿单帧冒充时间动画）；
 * 新增 `assert_contains` 辅助函数（与本仓其他 gate 同名同义）。
 
@@ -71,12 +72,35 @@ gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=212 frame=30
 
 | 运行 | 读数 | 结论 |
 |---|---|---|
-| forward（新二进制） | **62 OK / 0 FAIL** | `WEAPON-ANIMATION=PASS` |
+| forward（新二进制） | **65 OK / 0 FAIL** | `WEAPON-ANIMATION=PASS` |
 | `--mutation` | 具名红：`no witness model at tick …`、`uploaded pose changes by the last tick = 0` | `MUTATION-CAUGHT=PASS` |
 | `--mutation-model` | 具名红：`identity skinning changes nothing outside the measured edge mask` | `MUTATION-CAUGHT=PASS` |
 | `--mutation-identity` | 同上（silhouette 规则本身抓住） | `MUTATION-CAUGHT=PASS` |
 
-各节断言数 27 / 6 / 5 / **17** / 6 / 1 = 62（旧 12+4FAIL）。identity-vs-animated 图像断言现在真的会红：`the silhouette rule did not reject a real pose change` 由 FAIL 转 OK，`a sampled sequence moves the geometry` 同样转 OK。
+各节断言数 27 / 6 / 5 / **20** / 6 / 1 = 65（旧 12+4FAIL）。identity-vs-animated 图像断言现在真的会红：`the silhouette rule did not reject a real pose change` 由 FAIL 转 OK，`a sampled sequence moves the geometry` 同样转 OK。
+
+### 3.5 复审缺口与补丁：样本身份
+
+复审指出的问题成立：本轮第一版的 section 4 只断言了 `source=animated`、`uploaded == bones` 和分母 `49`，**没有任何断言证明产品读到的就是 `seq=212` / `run_PRIMARY`**；负控同样没有断言产品读到的是 `seq=0`。后果是：换成另一个 49 帧片段（或另一个恰好也按名绑上的序列），或负控换成另一个未绑定序列，照样能过。
+
+补丁（`weapon-animation-check.sh`，仍是 3 条断言，期望值写**字面量**而不是 `$MODEL_SEQUENCE` / `$MODEL_FRAMES`，这样改常量不会把期望一起带走；产品没打印的字段读成空值，`assert_eq` 直接 FAIL）：
+
+```
+assert_eq "the animated run read the intended sequence index"   "$(field "$ANIMATED_LINE" seq)"    "212"
+assert_eq "the animated run resolved the intended clip label"   "$(field "$ANIMATED_LINE" reason)" "run_PRIMARY"
+assert_eq "the refusal is about the intended sequence index"    "$(field "$UNBOUND_LINE" seq)"     "0"
+```
+
+实测（新 run-id `.scratch/t60-s22-identity-20261029/`）：
+
+```
+  OK   the animated run read the intended sequence index = 212
+  OK   the animated run resolved the intended clip label = run_PRIMARY
+  OK   the refusal is about the intended sequence index = 0
+65 OK / 0 FAIL / WEAPON-ANIMATION=PASS / rc=0
+```
+
+第 23、24 步未改动，pin 保持 154、125；本轮没有再运行它们（上一轮的 154 OK / 125 OK 仍是它们的最近读数）。
 
 ## 4. 第 23 步：四项读数逐条归因
 
@@ -142,7 +166,7 @@ tick 由运行中的序列变化时刻推导，tick 变了，落在 tick 上的�
 
 | 步骤 | 旧 pin | 新 pin | 依据 |
 |---|---|---|---|
-| 22 | 57 | **62** | 本轮新增 5 条断言，实测 62 OK + 0 FAIL（`.scratch/anim-recon-20261029/f22.log`，节计数 27/6/5/17/6/1） |
+| 22 | 57 | **65** | 第一轮新增 5 条（62 OK，`.scratch/anim-recon-20261029/f22.log`，节计数 27/6/5/17/6/1），复审补丁再新增 3 条样本身份断言（65 OK，`.scratch/t60-s22-identity-20261029/forward.log`，节计数 27/6/5/20/6/1） |
 | 23 | 154 | **154**（不变） | 只换提取方式与一处期望，断言数不变；实测 154 OK（`f23.log`） |
 | 24 | 125 | **125**（不变） | 三条 pin 换成三条不变量；实测 125 OK（`f24.log`） |
 
@@ -161,8 +185,10 @@ tick 由运行中的序列变化时刻推导，tick 变了，落在 tick 上的�
 
 ```
 task:      T60 后动画门禁对账（verify-all 第 22/23/24 步与 T60 序列来源规则）
-status:    PASS（三个 gate forward + mutation；T60/T61 focused 回归）；含 1 处 INVALID 修复（第 23 步死锚点）
-owner:     anim-recon（s22-forward, s22s23-mut, s23-forward, s23m-s24f-2, s23m-s24m, t60-t61-rerun, final-forward）
+status:    PASS（三个 gate forward + mutation；T60/T61 focused 回归）；含 1 处 INVALID 修复（第 23 步死锚点）；
+           复审补丁后第 22 步 65 断言已复跑绿（第 23/24 步未改、未重跑）
+owner:     anim-recon（s22-forward, s22s23-mut, s23-forward, s23m-s24f-2, s23m-s24m, t60-t61-rerun,
+           final-forward, s22-identity）
 branch:    p0-entity-protocol
 head:      a947e28（开工）→ 本轮提交见 git log
 worktree:  D:/TF2_Native_Test（主树）
@@ -173,12 +199,13 @@ commands:  weapon-animation-check.sh [--mutation|--mutation-model|--mutation-ide
            viewmodel-companion-check.sh [--mutation]
            player-model-check.sh / player-animation-check.sh / player-animation-pixels.sh
            build-target.sh（tf2_demo_native + 9 个探针）
-tests:     22: 62 OK/0 FAIL；23: 154 OK/0 FAIL；24: 125 OK/0 FAIL
+tests:     22: 65 OK/0 FAIL；23: 154 OK/0 FAIL；24: 125 OK/0 FAIL
            mutation: 22 三种 + 23 + 24 全部 MUTATION-CAUGHT=PASS
            T60: 167 OK/0 FAIL；T61: 232 OK/0 FAIL；T61 pixels: 28 OK/0 FAIL
 rc:        0（全部上述运行）；1（首轮 23 变异死锚点、首轮 T60/T61 探针过期——均已复跑转绿）
 evidence:  .scratch/anim-recon-20261029/{f22,f23,f24,s22/forward,s23-forward,s24-forward,
            mut/22-*,mut/23-mutation,s24-mutation,t60,t61,t61p,probe-after-rebuild}.log
+           .scratch/t60-s22-identity-20261029/{forward.log,out,traces}（复审补丁的 65 断言运行）
 failures:  首轮 23 变异锚点 0 命中（INVALID，已重锚）；首轮 T60/T61 三处 STALE-BINARY（已重建探针复跑绿）
 restore:   native/ 全净；animation_binding.cpp、viewmodel.cpp 哈希 = HEAD；viewmodel.cpp 一次
            git checkout -- 恢复（变异脚本残留，见 §4.1）
