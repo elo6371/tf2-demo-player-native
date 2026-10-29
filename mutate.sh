@@ -562,17 +562,25 @@ for case_id in $CASES; do
     m12)
       # Reintroduce the defect the entity-material round fixed, at the one point
       # the round's own gate has to be able to see: the resolution chain still
-      # runs, the texture is still decoded, and the SRV never reaches the draw --
-      # so every instance is painted with the world atlas again. The synthetic
-      # half of the gate must NOT move (19 of medic's 21 slots still resolve),
-      # because a red there would mean the mutation moved the wrong thing and the
-      # gate's two layers are one reading counted twice.
+      # runs, the RGBA is still decoded, and the SRV never reaches the draw -- so
+      # every instance is painted with the world atlas again.
+      #
+      # T60 (0819fce) rewrote this upload path -- per (material slot, skin family)
+      # instead of one call per model -- so the anchor this case was written
+      # against stopped existing and the full chain's step 8 read "PATTERN NOT
+      # FOUND" instead of a mutation. The anchor below is the current call in
+      # native/src/main.cpp; hiding it behind a constant false keeps the upload
+      # from happening while leaving the call's arguments, and therefore the
+      # resolution above it, in the binary.
+      #
+      # The synthetic half of the gate must NOT move (19 of medic's 21 slots still
+      # resolve), because a red there would mean the mutation moved the wrong
+      # thing and the gate's two layers are one reading counted twice.
       echo "--- m12 no model SRV reaches the draw (the atlas paints the models again)"
       patch_in "$MAINSRC" \
-        '      const bool textureUploaded =
-        renderer.uploadEntityModelTexture(prepared.cacheKey, preparedRgba, preparedWidth, preparedHeight);
-' '      // mutation: the resolved texture never reaches the draw
-      const bool textureUploaded = false;
+        '        if (renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
+' '        // mutation: the resolved texture never reaches the draw
+        if (false && renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
 ' || { rc_all=1; continue; }
       rebuild tf2_demo_native || continue
       ENTITY_MATERIAL_OUT="$OUT/entitymaterial-m12" bash entity-material-check.sh \
@@ -582,7 +590,9 @@ for case_id in $CASES; do
         'ENTITY-MATERIAL=FAIL' "$m12rc"
       # The instance-level counter is the reading the defect targets: every
       # instance still drawn, none of them with a model texture bound. The
-      # extractor cuts on the first '=', so each assertion names one field.
+      # denominator is the instance count (95), not the run-slot sum the product
+      # used to publish as "instances" -- that is the count regression the same
+      # round fixed, and this pin would read 0/201 if it came back.
       must_move "m12 no model SRV -> every instance loses its texture" \
         "$OUT/gate.m12.txt" 'entityMaterials=[0-9]+/[0-9]+' '95/95'
       # The per-model account must move too, and for the reason the mutation has:
