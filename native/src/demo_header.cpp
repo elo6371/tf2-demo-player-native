@@ -2865,6 +2865,10 @@ bool readTrackOrigin(const EntityState& state, float out[3]) {
 // have gaps exactly where the projectile was briefly not updated. Its stored
 // origin is the last one written, which is the position it holds at this tick.
 void appendProjectileTrackSamples(DemoNetworkSummary& summary, std::int32_t tick) {
+  // Opt-in, default off: see ProjectileTrackLimits::enabled. A scan that collects
+  // nothing also reports nothing, which is the honest count for a run that did
+  // not ask for the rows.
+  if (!summary.projectileTrackLimits.enabled) return;
   ++summary.projectileTrackPacketsScanned;
   const std::size_t limit = std::max<std::size_t>(1, summary.projectileTrackLimits.maxSamples);
   // RESERVE THE BOUND ONCE, because the tail of the append cost was MINE.

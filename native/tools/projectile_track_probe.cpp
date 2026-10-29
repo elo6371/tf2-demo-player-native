@@ -336,7 +336,8 @@ int runSelfTest() {
 enum class SubjectSelector { Flight, Longest };
 
 int runDemo(const std::string& demoPath, int top, bool expectEmptySearch,
-            SubjectSelector subjectSelector = SubjectSelector::Flight) {
+            SubjectSelector subjectSelector = SubjectSelector::Flight,
+            bool collectRetention = true) {
   using namespace tf2::native;
   DemoHeader header;
   DemoIndex index;
@@ -345,14 +346,29 @@ int runDemo(const std::string& demoPath, int top, bool expectEmptySearch,
   indexDemoFile(demoPath, header, index);
   summary.networkProtocol = header.networkProtocol;
   // The append cost has to be a measurement: the judge rule for it is stated in
-  // milliseconds, so the clock is on for this run.
-  summary.projectileTrackLimits.measureAppendCost = true;
+  // milliseconds, so the clock is on for this run. Retention itself is opt-in
+  // since 2026-10-29, so this probe -- its only reader -- turns it on. The
+  // --no-retention case runs the SAME scan with the default, so the default is
+  // exercised by a real demo rather than assumed.
+  summary.projectileTrackLimits.measureAppendCost = collectRetention;
+  summary.projectileTrackLimits.enabled = collectRetention;
   if (!scanKnownDemoMessages(demoPath, index, summary)) return fail("demo scan failed");
 
   std::printf("demo=%s\n", demoPath.c_str());
   std::printf("track: rows=%zu dropped=%zu packetsScanned=%zu limit=%zu\n",
               summary.projectileTrackSamples.size(), summary.projectileTrackSamplesDropped,
               summary.projectileTrackPacketsScanned, summary.projectileTrackLimits.maxSamples);
+  std::printf("retention: enabled=%s capacity=%zu rows=%zu\n",
+              collectRetention ? "true" : "false",
+              summary.projectileTrackSamples.capacity(), summary.projectileTrackSamples.size());
+  if (!collectRetention) {
+    // THE DEFAULT-OFF PATH, RUN ON PURPOSE. Capacity 0 is the proof that the
+    // bound was never reserved and no append ever ran -- the cost the product and
+    // entity_protocol_probe used to pay for rows they never read. The scan itself
+    // still decoded this demo, so the reading is not vacuous.
+    std::printf("scan: packets=%zu\n", summary.packetsScanned);
+    return 0;
+  }
 
   // THE INVARIANT THE BINARY SEARCH DEPENDS ON. Rows are appended per packet in
   // tick order, so the tick field is non-decreasing. A lower_bound over them is
@@ -934,6 +950,9 @@ int runOrderingMutation(const std::string& demoPath, const std::string& tfRoot) 
   if (!parseDemoHeaderFile(demoPath, header)) return fail("demo header parse failed");
   indexDemoFile(demoPath, header, index);
   summary.networkProtocol = header.networkProtocol;
+  // The mutation reads real retained rows, so it asks for retention like the
+  // measurement path does.
+  summary.projectileTrackLimits.enabled = true;
   if (!scanKnownDemoMessages(demoPath, index, summary)) return fail("demo scan failed");
 
   std::size_t firstInversion = 0;
@@ -971,6 +990,7 @@ int main(int argc, char** argv) {
   bool expectEmptySearch = false;
   bool reverseAppendOrder = false;
   bool longestSubject = false;
+  bool noRetention = false;
   std::string tfRoot, demoPath;
   int top = 5;
   for (int i = 1; i < argc; ++i) {
@@ -983,6 +1003,9 @@ int main(int argc, char** argv) {
     // Mutation m2: the acceptance subject becomes the longest series. Used only
     // by the gate's mutation mode.
     else if (std::strcmp(argv[i], "--subject-longest") == 0) longestSubject = true;
+    // Runs the same scan with retention left at its default (off), which is what
+    // the product and every non-projectile probe do.
+    else if (std::strcmp(argv[i], "--no-retention") == 0) noRetention = true;
   }
   if (selfTest) return runSelfTest();
   if (!demoPath.empty() && !tfRoot.empty()) {
@@ -998,8 +1021,9 @@ int main(int argc, char** argv) {
       return runOrderingMutation(demoPath, tfRoot);
     }
     return runDemo(demoPath, top, expectEmptySearch,
-                   longestSubject ? SubjectSelector::Longest : SubjectSelector::Flight);
+                   longestSubject ? SubjectSelector::Longest : SubjectSelector::Flight,
+                   !noRetention);
   }
-  std::printf("usage: projectile_track_probe --self-test | --tf-root <tf> --demo <demo.dem>\n");
+  std::printf("usage: projectile_track_probe --self-test | --tf-root <tf> --demo <demo.dem> [--no-retention]\n");
   return 2;
 }

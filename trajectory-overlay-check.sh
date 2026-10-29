@@ -399,6 +399,31 @@ cat "$OUT/demo.txt"
 [ "$DEMORC" -eq 0 ] || ST_FAIL=1
 
 echo
+echo "=== 2b/4 retention is opt-in: the default allocates nothing ==="
+# Only projectile_track_probe reads the retained rows; the product and
+# entity_protocol_probe scan demos and never look at them. Until 2026-10-29 the
+# product paid for them anyway: on a 70 MB corpus demo the 400000-row bound was
+# reached and every later append memmoved 400k rows, which turned a demo open into
+# a 900 s stall. The default is off now; this case runs the same scan on the same
+# demo with the default and requires nothing to be retained. capacity=0 is the
+# proof: the reservation and the appends never happened.
+"$PROBE" --tf-root "$TF" --demo "$BAGEL" --no-retention > "$OUT/no-retention.txt" 2>&1
+NORETRC=$?
+cat "$OUT/no-retention.txt"
+[ "$NORETRC" -eq 0 ] || ST_FAIL=1
+if grep -qF "retention: enabled=false capacity=0 rows=0" "$OUT/no-retention.txt"; then
+  echo "  OK   the default retains nothing (capacity=0, rows=0)"
+else
+  echo "  FAIL the default allocated or retained rows"; ST_FAIL=1
+fi
+NRPACKETS=$(grep -F "scan: packets=" "$OUT/no-retention.txt" | head -1 | cut -d= -f2)
+if [ "${NRPACKETS:-0}" -gt 0 ]; then
+  echo "  OK   the default-off scan still decoded $NRPACKETS packets, so the reading is not vacuous"
+else
+  echo "  FAIL the default-off scan decoded no packets"; ST_FAIL=1
+fi
+
+echo
 DOCTORED_FAILS=0
 doctored_selftest "$OUT/demo.txt" || DOCTORED_FAILS=$?
 

@@ -386,6 +386,16 @@ struct ProjectileTrackSample {
 };
 
 struct ProjectileTrackLimits {
+  // OPT-IN RETENTION, DEFAULT OFF.
+  //
+  // The rows below are read by projectile_track_probe and by nothing else: the
+  // product and entity_protocol_probe scan a demo and never look at them. Paying
+  // for them on every scan made opening one 70 MB corpus demo take 900 s -- the
+  // bound was reached and each append then memmoved 400k rows to drop one. A
+  // product run has no reading to show for that work, so collection is opt-in
+  // for the same reason measureAppendCost is: a run pays only for readings it
+  // asked for.
+  bool enabled = false;
   // Rows retained, oldest dropped first. 400k rows is ~1M live projectiles'
   // worth of a 30-minute recording; the two demos measured here need ~15k each,
   // so the bound is loose in practice and its collision is counted.
