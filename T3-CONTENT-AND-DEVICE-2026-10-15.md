@@ -1,6 +1,6 @@
 # T3 交付：音频内容类别与真实设备验收（2026-10-15）
 
-本文件是 T3（`NEXT-TASKS-2026-10-15.md` §6）的交付记录。每个数字都来自一次真实运行，
+本文件是 T3（`NEXT-TASKS-2026-10-15.md` (deleted in the 2026-10-29 cleanup) §6）的交付记录。每个数字都来自一次真实运行，
 命令在 §4、证据在 §8，可按图索骥重跑。凡未跑到的写在 §9，能力边界写在 §10。
 
 **一句话结论**：把音频证据从「时间线定位」推进到「内容与真实设备」的过程中，先发现了
@@ -20,7 +20,7 @@ tick 窗口的 `events_played` 601→**742**。同轮补齐：时长上限命名
 
 | 项 | 值 |
 |---|---|
-| 任务 | T3 音频内容与真实设备验收（`NEXT-TASKS-2026-10-15.md` §6） |
+| 任务 | T3 音频内容与真实设备验收（`NEXT-TASKS-2026-10-15.md` (deleted in the 2026-10-29 cleanup) §6） |
 | 工作区 | `D:\TF2_Native_Worktrees\audio-content-device` |
 | 分支 | `task/audio-content-device` |
 | 基线 commit | `917b012`（`docs: record final chain pin status and task plan`，即当前整合 HEAD） |

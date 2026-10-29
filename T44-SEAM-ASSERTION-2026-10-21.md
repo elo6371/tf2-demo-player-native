@@ -33,7 +33,7 @@ disabled cull. No threshold was widened and no assertion was deleted.
 
 ## 2. The "32/32" documentation error
 
-`NEXT-TASKS-2026-10-21.md` line 190 says "32/32 directions resolve". The gate's
+`NEXT-TASKS-2026-10-21.md` (deleted in the 2026-10-29 cleanup) line 190 says "32/32 directions resolve". The gate's
 own T40 log contradicts it: `evidence/t40-pixel-pins/t26-hole.log` lines 51–55
 carry **6** `HOLE seam` lines (6 points × 4 directions = 24 probes) and **13**
 face-info requests, and `evidence/t40-pixel-pins/T40-REPORT.md` (lines 99–107)

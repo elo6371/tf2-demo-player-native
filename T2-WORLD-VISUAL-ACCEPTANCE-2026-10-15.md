@@ -33,7 +33,7 @@ switch changes pixels" cannot be claimed for it.
 
 | | |
 |---|---|
-| Task | T2 — World Material and Visual Acceptance (`NEXT-TASKS-2026-10-15.md` section 5) |
+| Task | T2 — World Material and Visual Acceptance (`NEXT-TASKS-2026-10-15.md` (deleted in the 2026-10-29 cleanup) section 5) |
 | Branch | `task/world-material-visual` |
 | Worktree | `D:\TF2_Native_Worktrees\world-material-visual` |
 | Upstream repo | `D:\TF2_Native_Test` (`git@github.com:elo6371/tf2-demo-player-native.git`) |

@@ -1,6 +1,6 @@
 # T22 — ViewModel and weapon presentation, judged in pixels
 
-**Task:** `NEXT-TASKS-2026-10-19.md`, T22 "ViewModel and weapon presentation".
+**Task:** `NEXT-TASKS-2026-10-19.md` (deleted in the 2026-10-29 cleanup), T22 "ViewModel and weapon presentation".
 **Problem as stated:** re-assess the applied-animation camera/model framing and the
 T18 rendered pose on a real captured frame; confirm hand mesh ranges, weapon body
 material slots and animation pose placement independently; do not treat `skinning=1`

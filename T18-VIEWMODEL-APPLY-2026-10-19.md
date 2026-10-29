@@ -1,6 +1,6 @@
 # T18 — the applied ViewModel pose is a picture, not a reading
 
-**Task:** `NEXT-TASKS-2026-10-19.md`, T18 "ViewModel applied-pose camera and animation
+**Task:** `NEXT-TASKS-2026-10-19.md` (deleted in the 2026-10-29 cleanup), T18 "ViewModel applied-pose camera and animation
 frame".
 **Problem as stated:** "T13 proves that skinning and animation are applied, but the
 `--viewmodel-apply-animation` evidence frame is a camera-inside-model close-up and is

@@ -1,6 +1,6 @@
 # T3 · 世界材质与光照（world-material-lighting）
 
-- 任务：`TASK-PLAN-2026-10-13-4-WAY.md` §T3（= `IMPLEMENTATION-PLAN-2026-10-10.md` §T4「世界材质与地图光照」；两份文档编号不同，本文件按任务书称 T3）。
+- 任务：`TASK-PLAN-2026-10-13-4-WAY.md` (deleted in the 2026-10-29 cleanup) §T3（= `IMPLEMENTATION-PLAN-2026-10-10.md` (deleted in the 2026-10-29 cleanup) §T4「世界材质与地图光照」；两份文档编号不同，本文件按任务书称 T3）。
 - 分支 / worktree：`task/world-material-lighting` / `D:\TF2_Native_Worktrees\world-material-lighting`
 - 基线 commit：`0f023bb6dcb6b9617ace804fcf9cf34b93594ae9`（`docs: record T3 integration and fix audio input line endings`）
 - 最终 commit：`f7eea49`（代码/门禁/证据/四份文档；其后为判定运行的证据提交与交付报告，见 §7）

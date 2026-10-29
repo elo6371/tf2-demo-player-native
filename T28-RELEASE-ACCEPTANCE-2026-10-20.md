@@ -8,7 +8,7 @@ hash; ahead/behind vs `origin/p0-entity-protocol` = 0/0 after the push.
 
 T29-T33 were implemented in five isolated worktrees from `36303c2`, reviewed one
 by one, and merged into `p0-entity-protocol`. Merge commits and their log
-entries are in `NEXT-TASKS-2026-10-20.md` §Merge log.
+entries are in `NEXT-TASKS-2026-10-20.md` (deleted in the 2026-10-29 cleanup) §Merge log.
 
 | Task | Branch tip | Merge | Result |
 |---|---|---|---|

@@ -1,6 +1,6 @@
 # T11 Follow-up — World Geometry: the winding residual, measured
 
-Task `T11` (`RELEASE-BLOCKERS-NEXT-WAVE-2026-10-17.md`), continuation round.
+Task `T11` (`RELEASE-BLOCKERS-NEXT-WAVE-2026-10-17.md` (deleted in the 2026-10-29 cleanup)), continuation round.
 The first round (commits `3289111`, `622a8c9`, `a6e0b74`) fixed the pvs row table
 and the per-class winding and delivered the two fixed views. This round attacks
 the one geometry limitation that round left open: **"top-down right side still
