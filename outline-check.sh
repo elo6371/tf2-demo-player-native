@@ -125,6 +125,76 @@ assert_lt() { # assert_lt <label> <actual> <maximum, exclusive>
     echo "  FAIL $1 = ${2:-<none>}, expected < $3"; fail=1
   fi
 }
+assert_contains() { # assert_contains <label> <haystack> <needle>
+  case "${2:-}" in
+    *"${3:-}"*) echo "  OK   $1" ;;
+    *) echo "  FAIL $1 (wanted: ${3:-<none>})"; fail=1 ;;
+  esac
+}
+
+# An unknown command is a failed reading. Until 2026-10-29 this gate called
+# assert_contains at line 270 without ever defining it: bash printed "command
+# not found", the call returned 127, nothing set fail, and the suite went on to
+# print OUTLINE-CHECK=PASS with that assertion never evaluated.
+#
+# bash runs this handler in a subshell, so it cannot set fail in the parent --
+# it records the name in a file instead, and the end of the run reads that file
+# and turns the verdict red. A missing command that leaves no trace is exactly
+# the defect this gate shipped once already.
+HARNESS_UNKNOWN_LOG="${TMPDIR:-/tmp}/outline-check-unknown-commands.$$.log"
+: > "$HARNESS_UNKNOWN_LOG"
+command_not_found_handle() {
+  printf '%s\n' "${1:-<empty>}" >> "$HARNESS_UNKNOWN_LOG" 2>/dev/null
+  echo "  FAIL harness: '${1:-<empty>}' is not a defined command, so the reading it guards was never taken" >&2
+  return 127
+}
+
+# SECTION -1: the harness checks itself before it measures anything. A helper
+# that cannot go red is a comment that runs, and a PASS from a harness that
+# never evaluated one of its own assertions is not a reading at all.
+echo "=== -1/6 the harness itself: every assert_* it calls is defined and can go red ==="
+harness_broken=0
+# Static scan of this script's own source: every assert_* name it mentions has
+# to be a defined function. This is the check that would have gone red on
+# 2026-10-29 while the suite printed PASS.
+for _fn in $(grep -oE '\bassert_[a-z_]+' "$0" | sort -u); do
+  if declare -F "$_fn" >/dev/null 2>&1; then
+    echo "  OK   the harness defines $_fn"
+  else
+    echo "  FAIL the harness calls $_fn but never defines it, so that reading is not taken"
+    fail=1; harness_broken=1
+  fi
+done
+_self_red=$( ( fail=0; assert_contains "self-test, absent sentence" "alpha beta" "gamma"; echo "fail=$fail" ) )
+case "$_self_red" in
+  *"fail=1") echo "  OK   assert_contains goes red when the sentence is absent" ;;
+  *) echo "  FAIL assert_contains stayed green on an absent sentence"
+     fail=1; harness_broken=1 ;;
+esac
+_self_green=$( ( fail=0; assert_contains "self-test, present sentence" "alpha beta gamma" "beta"; echo "fail=$fail" ) )
+case "$_self_green" in
+  *"fail=0") echo "  OK   assert_contains goes green when the sentence is present" ;;
+  *) echo "  FAIL assert_contains rejected a sentence that is present"
+     fail=1; harness_broken=1 ;;
+esac
+# The unknown-command path: the handler cannot set fail from its subshell, so
+# what is tested is the trace it leaves, which the verdict reads below.
+_before_unknown=$(wc -l < "$HARNESS_UNKNOWN_LOG" 2>/dev/null || echo 0)
+( outline_harness_never_defines_this_command ) >/dev/null 2>&1
+_after_unknown=$(wc -l < "$HARNESS_UNKNOWN_LOG" 2>/dev/null || echo 0)
+if [ "${_after_unknown:-0}" -gt "${_before_unknown:-0}" ] 2>/dev/null; then
+  echo "  OK   an undefined command leaves the trace that reddens the verdict"
+else
+  echo "  FAIL an undefined command left no trace, so the verdict could stay green"
+  fail=1; harness_broken=1
+fi
+: > "$HARNESS_UNKNOWN_LOG"
+if [ "$harness_broken" != "0" ]; then
+  echo
+  echo "OUTLINE-CHECK=FAIL"
+  echo "  the harness is broken, so nothing measured below this line can be believed."
+  exit 1
+fi
 
 # v <file> <key> -- the value of the LAST "<key>=<value>" token on a report file.
 # The gate reads the probe's own sentence instead of inventing a key, so the keys
@@ -1660,6 +1730,16 @@ else
 fi
 
 echo
+# Last reading of all: did any command in this run never resolve? The handler at
+# the top could not set fail (bash runs it in a subshell), so the names it left
+# behind are read here. A run that called a command it never defined measured
+# something other than what it claims, so the verdict cannot be green.
+if [ -s "$HARNESS_UNKNOWN_LOG" ]; then
+  echo "  FAIL harness: this run invoked undefined command(s): $(sort -u "$HARNESS_UNKNOWN_LOG" | tr '\n' ' ')"
+  fail=1
+fi
+rm -f "$HARNESS_UNKNOWN_LOG" 2>/dev/null
+
 if [ "$fail" = "0" ]; then
   echo "OUTLINE-CHECK=PASS"
 else
