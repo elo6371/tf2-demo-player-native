@@ -288,7 +288,7 @@ ticks or the Demoman sample.
 8. **No animation matches the server.** Entities carry no `m_nSequence` (`status=missing reason=entity carried no m_nSequence`) and no `m_nModelIndex` (`missingModelIndex=39/39, 20/20`). The pose is the product's own pick from `m_vecVelocity` and the playback tick; fidelity is never claimed.
 9. **Run selection is fixed; other actions remain open.** The moving pick is now a multi-frame run clip; no gate measures crouch, attack, flinch or death on screen.
 10. **Weapon coverage is first-person only, one weapon, one demo.** `c_pro_rifle` / `CTFSniperRifle` / 2 materials / `capture_tick=2000`.
-11. **`boneMismatch` on players is explained, not fixed.** `71366` with the drive on vs `0` off; T61 §7 calls it counter arithmetic, and no player gate asserts zero.
+11. **`boneMismatch` on players is explained, not fixed.** `24155` with the drive on (`evidence/t61-animation/r10-after-demos/pixels/animated.summary:44`) vs `0` off (`evidence/t61-animation/r10-after-demos/pixels/off.summary:4`); T61 §7 (`evidence/t61-animation/T61-ANIMATION-REPORT.md:229-231`, quoting an older run's `34800`) calls it counter arithmetic, and no player gate asserts zero.
 12. **Ragdoll and video export are out of scope**, recorded here as absences, not as passes.
 
 ---
