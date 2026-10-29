@@ -1,0 +1,9 @@
+T52-MUTATION start 2026-10-29T21:16:13+08:00
+HEAD c1879eb49940a6842df0d8112f744bbea8ced5e4
+branch candidate/p0-final
+status_before:
+ M outline-check.sh
+87fe100ce2b5f92f2e3d6e49253676ebaea1fd27b33a2c57936c7a97981e5220 *native/src/native_renderer.cpp
+7d564565d2a52a82a03523937591bf26146437da69ca88dffc36e09ed56e7a81 *native/src/demo_header.cpp
+5e81ad07c3f5c2837d908447afa15ab10bb2944740530be8593190704634cd78 *native/include/demo_header.h
+0d37f815165a2fec27e88a5dcf108b0effe8e119c94a018fed6cb496fabc9451 *native/tools/entity_overlay_probe.cpp

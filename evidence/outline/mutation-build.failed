@@ -1,14 +1,14 @@
 === build tf2_demo_native entity_overlay_probe ===
-note: a header is newer than native/build-nmake/.headers-stamp; touching sources (header deps are untracked)
 build failed (rc=2); preserving .scratch/build-target.log.failed-attempt-1 and retrying once
-D:\TF2_Native_Test\native\src\native_renderer.cpp(3342): warning C4100: 'tick': 未引用的参数
-D:\TF2_Native_Test\native\src\native_renderer.cpp(3600): warning C4456: “world”的声明隐藏了上一个本地声明
-D:\TF2_Native_Test\native\src\native_renderer.cpp(4425): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
-D:\TF2_Native_Test\native\src\native_renderer.cpp(4426): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
-D:\TF2_Native_Test\native\src\native_renderer.cpp(4733): warning C4456: “view”的声明隐藏了上一个本地声明
-D:\TF2_Native_Test\native\src\native_renderer.cpp(4903): warning C4456: “view”的声明隐藏了上一个本地声明
-D:\TF2_Native_Test\native\src\native_renderer.cpp(6501): fatal error C1189: #error:  T52 meta self-test: this mutant must not compile
-NMAKE : fatal error U1077: ��"C:\Program Files\CMake\bin\cmake.exe" -E cmake_cl_compile_depends --dep-file=CMakeFiles\tf2_demo_native.dir\src\native_renderer.cpp.obj.d --working-dir=D:\TF2_Native_Test\native\build-nmake --filter-prefix="ע��: �����ļ�:  " -- "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe" @C:\Users\ADMINI~1\AppData\Local\Temp\nmD14F.tmp��: ���ش��롰0x2��
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(1727): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(3509): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(3767): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(4650): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(4651): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(4958): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(5128): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\candidate-final\native\src\native_renderer.cpp(6875): fatal error C1189: #error:  T52 meta self-test: this mutant must not compile
+NMAKE : fatal error U1077: ��"C:\Program Files\CMake\bin\cmake.exe" -E cmake_cl_compile_depends --dep-file=CMakeFiles\tf2_demo_native.dir\src\native_renderer.cpp.obj.d --working-dir=D:\TF2_Native_Worktrees\candidate-final\native\build-nmake --filter-prefix="ע��: �����ļ�:  " -- "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe" @C:\Users\ADMINI~1\AppData\Local\Temp\nm1D6B.tmp��: ���ش��롰0x2��
 NMAKE : fatal error U1077: ��"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\nmake.exe" -s -f CMakeFiles\tf2_demo_native.dir\build.make /nologo -SL                 CMakeFiles\tf2_demo_native.dir\build��: ���ش��롰0x2��
 NMAKE : fatal error U1077: ��"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\nmake.exe" -s -f CMakeFiles\Makefile2 /nologo -SL                 CMakeFiles\tf2_demo_native.dir\all��: ���ش��롰0x2��
 NMAKE : fatal error U1077: ��"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\nmake.exe" -s -f CMakeFiles\Makefile2 /nologo -LS                 tf2_demo_native��: ���ش��롰0x2��
