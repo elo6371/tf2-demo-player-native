@@ -102,6 +102,17 @@ assert_eq "the refusal is about the intended sequence index"    "$(field "$UNBOU
 
 第 23、24 步未改动，pin 保持 154、125；本轮没有再运行它们（上一轮的 154 OK / 125 OK 仍是它们的最近读数）。
 
+补丁后补跑了一次 `--mutation`，确认新增的身份断言不会在变异模式下误红（变异把姿势强制回 bind pose，序列解析本身仍在）：
+
+```
+MUTATION-CAUGHT=PASS (entity mutation turns this step red)   rc=0
+  OK   the animated run read the intended sequence index = 212
+  OK   the animated run resolved the intended clip label = run_PRIMARY
+  OK   the refusal is about the intended sequence index = 0
+```
+
+`--mutation-model` 与 `--mutation-identity` 未在 65 断言版本上重跑（它们掐的是模型路径与 identity 矩阵，不触及 `seq=`/`reason=` 字段），记为 **NOT RUN**，不是通过。
+
 ## 4. 第 23 步：四项读数逐条归因
 
 | 断言 | 旧期望 | 实测 | 归因 | 处置 |
