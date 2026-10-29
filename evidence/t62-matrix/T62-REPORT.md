@@ -3,9 +3,33 @@
 Date: 2026-10-25. Tree: `D:/TF2_Native_Test`, branch `p0-entity-protocol`.
 Deliverables: `MAP-MATRIX.md` (106 lines), `CHARACTER-MATRIX.md` (341 lines), this report.
 
+## 0. 任务定义（内联存档）
+
+The task list that defined T62 (`NEXT-TASKS-2026-10-23.md` §11) was deleted from the repository by
+the 2026-10-29 cleanup. Its text is reproduced verbatim below, so that this report remains the
+authoritative definition of what T62 asked for and what it forbade; the "§11" citations elsewhere
+in this matrix set point here.
+
+### 原文（逐字，删除前版本）
+
+> ## 11. T62 — 现有范围视觉矩阵与验收准备
+>
+> **前置：**T49.1–T61 的 blocker 已关闭或由用户明确接受为限制；T55 若按原范围实施，则必须在本任务之前完成。所有功能分支由用户整合并冻结，禁止验收过程中继续 merge/edit。
+>
+> **步骤**
+>
+> 1. 记录当前候选 HEAD；确认干净 worktree、用户证据处置状态、远端目标、host lock FREE、无产品/探针/编译进程。
+> 2. 在冻结树先运行 T50–T61 直接受影响的 focused gates，一次性记录实际 assertion 与证据身份；只补缺口，不重跑已证实且身份匹配的无关 gate。
+> 3. 跑地图矩阵（T56 选定地图 × 已修材料/几何）和人物矩阵（T57 可达职业 × T61 可达动作）；逐格记 PASS / FAIL / NOT VERIFIED / UNSUPPORTED 与原因。
+> 4. T55 视频剪辑/导出当前明确延后；本任务不验收编码器或 MP4。报告需把该项列作未实现范围，不得据此声称完整产品功能全部完成。
+> 5. 确认所有 FAIL/INVALID/NOT VERIFIED 都有 owner 和处置，不把 release gate 全绿等同“画面正确”；本任务不出最终 release verdict。
+> 6. 最终 `bash verify-all.sh --quick` 移至 T73，在 SourceTV 与复盘工作区任务完成、由用户整合并冻结后恰好运行一次。
+>
+> **验收：**当前范围矩阵单元有证据或显式未验证理由；focused 与 full-chain verdict 分开报告；不得把本任务称为全软件最终验收。
+
 ## 1. What T62 asks for, and what it forbids
 
-T62 (NEXT-TASKS-2026-10-23.md:265-278): build a **focused** matrix over the existing T50–T61 scope,
+T62 (§0, the task definition inlined above): build a **focused** matrix over the existing T50–T61 scope,
 run the affected focused gates once with their identity, produce a map matrix (the maps T56 selected
 × fixed materials/geometry axes) and a character matrix (the T57 classes × T61 action axes), with
 every cell marked PASS / FAIL / NOT VERIFIED / UNSUPPORTED plus an owner and a disposition.

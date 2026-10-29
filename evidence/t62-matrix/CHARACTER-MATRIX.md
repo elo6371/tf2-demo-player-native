@@ -1,6 +1,6 @@
 # CHARACTER-MATRIX — focused visual matrix over the existing scope (T50–T61)
 
-**HEAD this was written against:** `047bcfbdb89225c1c054535dc3e51bc44b9cf3b1` — branch `p0-entity-protocol`, subject *"Merge T59: world materials through VMT patch includes"*. Written 2026-10-25 for T62 (`NEXT-TASKS-2026-10-23.md` §11).
+**HEAD this was written against:** `047bcfbdb89225c1c054535dc3e51bc44b9cf3b1` — branch `p0-entity-protocol`, subject *"Merge T59: world materials through VMT patch includes"*. Written 2026-10-25 for T62 (`T62-REPORT.md` §0, which carries the task definition inline because the task list itself was deleted in the 2026-10-29 cleanup).
 
 **Rule of this document: no gate was run to produce it.** Nothing was built, launched, captured or mutated, and the host lock was not touched. Every PASS / FAIL / NOT VERIFIED / UNSUPPORTED below quotes a line that already exists in a committed evidence file at the HEAD above. Where a cell rests on a gate *script* that was read but not executed here, the script path and line are given instead of a reading.
 
@@ -335,6 +335,6 @@ Root cause: the demo-tick and scene trace lines carry entity ids and no class/mo
 | `evidence/weapon-material/natural-on.readings.txt` | `weaponBody model=… class=CTFSniperRifle`, draw calls, materials `2/2/2/2` |
 | `native/src/entity_model.cpp:589-602` | tfClass → model path |
 | `native/src/main.cpp:191-247`, `:9626`, `:9689` | Sequence chooser, stored label, `lastReason` |
-| `NEXT-TASKS-2026-10-23.md` §11 | T62 scope, acceptance, "no release verdict", T55 deferred |
+| `T62-REPORT.md` §0 | T62 scope, acceptance, "no release verdict", T55 deferred (inlined verbatim there; the task list was deleted in the 2026-10-29 cleanup) |
 
 **Missing from the tree, and blocking a stronger matrix:** a third-person camera capture of a named class (T57 §7 step 4, never run); a per-tick class/model field on the demo animation trace; any recording containing Sniper, Pyro, Spy or Engineer as a player; any measurement of crouch, attack, flinch, death or ragdoll; any BLU-team draw.
