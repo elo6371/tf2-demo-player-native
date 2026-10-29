@@ -4065,6 +4065,7 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   entityModelDrawRanges_.clear();
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  entityModelInstanceSlotCount_ = 0;
   entityModelTexturedRangeCount_ = 0;
   entityModelTexturedInstanceCount_ = 0;
   return true;
@@ -4092,6 +4093,7 @@ bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, std::uint32
 void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances) {
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  entityModelInstanceSlotCount_ = 0;
   entityModelSkinnedInstanceCount_ = 0;
   entityModelTexturedRangeCount_ = 0;
   entityModelTexturedInstanceCount_ = 0;
@@ -4226,7 +4228,15 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   std::memcpy(mapped.pData, packed.data(), packed.size() * sizeof(EntityModelInstanceGpu));
   context_->Unmap(entityModelInstanceBuffer_.Get(), 0);
   entityModelVertexCount_ = uniqueVertices;
-  entityModelInstanceCount_ = packed.size();
+  // Two readings, not one. "accepted" is how many entities were drawn;
+  // packed.size() is how many instance rows the ranges carry, i.e. the same
+  // entities counted once per material run. The textured-instance numerator is
+  // per instance (a bucket is counted once), so its denominator has to be
+  // accepted; using the slot sum here made N/N unreachable for every model with
+  // more than one run -- 91/201 on 2026-10-28 -- and the gate read that as a
+  // paint defect when the paint was mostly there.
+  entityModelInstanceCount_ = accepted;
+  entityModelInstanceSlotCount_ = packed.size();
 }
 
 void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices) {
@@ -6785,6 +6795,7 @@ void Renderer::shutdown() {
   entityModelInstanceCapacity_ = 0;
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  entityModelInstanceSlotCount_ = 0;
   entityModelTexturedRangeCount_ = 0;
   entityModelTexturedInstanceCount_ = 0;
   entityModelMeshTruncatedCount_ = 0;

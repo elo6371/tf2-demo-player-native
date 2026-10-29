@@ -4502,6 +4502,11 @@ bool outlineVertexExtent = false;
   // model count stays the number other tasks read (see the preparation site).
   std::vector<PreparedEntityMesh> overlayBindMeshes;
   std::unordered_map<std::string, std::string> entityMeshKeyByPath;
+  // How many skin families each prepared mesh actually has. The draw stage needs
+  // it to ask for a family that exists (material_slot_resolution.h): a one-family
+  // model drawn for BLU asked for family 1, resolved nothing, and its instances
+  // fell back to the world atlas.
+  std::unordered_map<std::string, std::uint32_t> entitySkinFamilyCountByKey;
   // Paint accounting for the window title: how many prepared models reached a
   // readable VTF, and how many of those became a GPU texture.
   std::size_t entityMaterialResolvedModels = 0;
@@ -4558,6 +4563,8 @@ bool outlineVertexExtent = false;
       }
       preparedKeys.insert(request.cacheKey);
       entityMeshKeyByPath[request.modelPath] = request.cacheKey;
+      entitySkinFamilyCountByKey[request.cacheKey] =
+        static_cast<std::uint32_t>(prepared.skinFamilies.families.size());
       preparedEntityMeshes.push_back(std::move(prepared));
       if (preparedEntityMeshes.size() >= 64) break;
     }
@@ -5903,7 +5910,14 @@ bool outlineVertexExtent = false;
       }
       std::set<std::uint32_t> slots;
       for (const auto& run : prepared.runs) slots.insert(run.materialSlot);
-      for (const auto family : {0u, 1u}) {
+      // T60 fix: paint the families this model HAS, not the two a team can ask
+      // for. A one-family model has no family 1, so a family-1 key could never be
+      // filled; the BLU instances of that model then had no model texture and the
+      // range fell back to the world atlas. The draw stage below clamps the
+      // request with the same rule, so the key uploaded here is the key it looks
+      // up there (see effectiveSkinFamily() in material_slot_resolution.h).
+      for (std::uint32_t family = 0;
+           family < tf2::native::selectableSkinFamilyCount(prepared.skinFamilies); ++family) {
         for (const auto slot : slots) {
           tf2::native::MaterialSlotResolution resolution;
           if (!tf2::native::resolveMaterialSlot(prepared.skinFamilies, prepared.textureCandidates,
@@ -6393,6 +6407,13 @@ bool outlineVertexExtent = false;
       + L" viewmodel=" + std::wstring(modelViewModelStatus == tf2::native::ModelFeatureStatus::Available ? L"available" : modelViewModelStatus == tf2::native::ModelFeatureStatus::Missing ? L"missing" : L"unknown")
       + L" entityMeshes=" + std::to_wstring(renderer.entityModelMeshCount())
       + L" entityModels=" + std::to_wstring(renderer.entityModelInstanceCount())
+      // Instances and instance SLOTS are two readings and stay two. A draw range
+      // carries the same instance once per material run, so summing the runs over
+      // the ranges counted 201 for the 96 instances that were drawn, and the
+      // "N/N textured" reading could never be true again (2026-10-28). The
+      // denominator of entityMaterials is the instance count; this field is the
+      // slot count, published so the two cannot be mistaken for each other.
+      + L" entitySlots=" + std::to_wstring(renderer.entityModelInstanceSlotCount())
       + L" entityModelVerts=" + std::to_wstring(renderer.entityModelVertexCount())
       + L" entityMaterials=" + std::to_wstring(renderer.entityModelTexturedInstanceCount()) + L"/" + std::to_wstring(renderer.entityModelInstanceCount())
       + L" entityMaterialRanges=" + std::to_wstring(renderer.entityModelTexturedRangeCount()) + L"/" + std::to_wstring(renderer.entityModelDrawRangeCount())
@@ -9876,7 +9897,19 @@ bool outlineVertexExtent = false;
             // T60: the skin family is the paint index, not a tint. Family 0 is
             // red and family 1 is blu in every class model's table; an entity
             // whose team is unknown keeps family 0 rather than a colour average.
-            draw.skinFamily = (instance.transform.hasTeam && instance.transform.team == 3) ? 1u : 0u;
+            // A model that ships ONE family has no blu family, and asking for one
+            // is what left 5 of 96 instances atlas-painted on 2026-10-28: the
+            // engine clamps an out-of-range paint index to the model's default
+            // family, so the request is clamped before the bucket key is built --
+            // the same rule the paint stage used to decide which keys to upload.
+            const std::uint32_t requestedSkinFamily =
+              (instance.transform.hasTeam && instance.transform.team == 3) ? 1u : 0u;
+            std::uint32_t drawnSkinFamilyCount = 0;
+            const auto drawnFamilyCount = entitySkinFamilyCountByKey.find(cacheKey);
+            if (drawnFamilyCount != entitySkinFamilyCountByKey.end()) {
+              drawnSkinFamilyCount = drawnFamilyCount->second;
+            }
+            draw.skinFamily = tf2::native::effectiveSkinFamily(drawnSkinFamilyCount, requestedSkinFamily);
             // Animation, when this entity has a sequence and the model has a
             // table to look it up in. Anything short of a complete pose leaves
             // the instance in the bind-pose path and records why.

@@ -41,6 +41,47 @@ struct MaterialSlotResolution {
   std::string reason;
 };
 
+// THE SKIN FAMILY RULE (engine behaviour, not a tolerance)
+// ------------------------------------------------------
+// A model's skin family table carries skinFamilyCount families, and a model that
+// ships one family has no family 1. The product derives an instance's paint index
+// from its team (BLU -> family 1), so a one-family model used to be asked for a
+// family it does not contain. What the engine does with an out-of-range paint
+// index is clamp it to the model's own default (family 0), and this pair of
+// helpers is that rule written once, for both sides of the product:
+//
+//   * the paint stage uploads one texture per SELECTABLE family, and
+//   * the draw stage picks the instance's family from the same list,
+//
+// so the key a texture is uploaded under and the key the draw looks up cannot
+// disagree. On 2026-10-28 they did: 35 (slot, family) requests named a family the
+// model did not have, 5 of 96 drawn instances carried no model texture at all,
+// and every counter still read plausibly because the range fell back to the world
+// atlas.
+//
+// resolveMaterialSlot below is deliberately NOT changed: an audit that reports
+// "family 1 is absent from this model" must be able to say exactly that, and the
+// probe (native/tools/entity_model_probe.cpp) counts per family. Choosing a family
+// the model has is the caller's job; resolving it is this function's.
+constexpr std::uint32_t kMaxSelectedSkinFamilies = 2;  // red and blu
+
+// The family a request becomes. familyCount is the number of families the model
+// actually has; 0 means the table is unknown, and then the request is passed
+// through rather than invented.
+inline std::uint32_t effectiveSkinFamily(std::uint32_t familyCount, std::uint32_t requested) {
+  if (familyCount == 0) return requested;
+  return requested < familyCount ? requested : 0;
+}
+
+// How many families can be selected for one model: one per team, never more than
+// the model has, never zero (an unknown table still gets family 0, whose
+// resolution then fails loudly instead of the model silently having no paint).
+inline std::uint32_t selectableSkinFamilyCount(const ModelMetadata::SkinFamilyTable& skinFamilies) {
+  const std::uint32_t count = skinFamilies.skinFamilyCount > 0
+    ? skinFamilies.skinFamilyCount : 1u;
+  return count < kMaxSelectedSkinFamilies ? count : kMaxSelectedSkinFamilies;
+}
+
 // `read` returns the bytes of a resource path, empty when the path does not
 // exist. Both callers already have such a lookup (AssetRoot / AssetStoreChain).
 template <typename Reader>

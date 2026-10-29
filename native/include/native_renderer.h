@@ -767,7 +767,14 @@ public:
   std::size_t entitySkinnedInstanceCount() const { return entityModelSkinnedInstanceCount_; }
   std::size_t entityBoneMatrixCount() const { return entityBoneMatrixCount_; }
   std::size_t entityModelMeshCount() const { return entityModelMeshes_.size(); }
+  // Instances DRAWN: one per accepted entity, at most the entity pass's cap.
   std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
+  // Instance SLOTS: the same instances counted once per material run, which is
+  // what the vertex shader sees per draw range. A separate reading on purpose --
+  // using it as the denominator of the textured-instance count reported 201 drawn
+  // instances for 96 real ones (2026-10-28), so "every drawn instance is painted"
+  // was arithmetically unreachable rather than false.
+  std::size_t entityModelInstanceSlotCount() const { return entityModelInstanceSlotCount_; }
   std::size_t entityModelVertexCount() const { return entityModelVertexCount_; }
   std::size_t entityModelTexturedRangeCount() const { return entityModelTexturedRangeCount_; }
   std::size_t entityModelTexturedInstanceCount() const { return entityModelTexturedInstanceCount_; }
@@ -1568,6 +1575,7 @@ private:
   std::size_t entityBoneMatrixCount_ = 0;
   UINT entityModelVertexCount_ = 0;
   std::size_t entityModelInstanceCount_ = 0;
+  std::size_t entityModelInstanceSlotCount_ = 0;
   std::size_t entityModelSkinnedInstanceCount_ = 0;
   std::size_t entityModelTexturedRangeCount_ = 0;
   std::size_t entityModelMeshTruncatedCount_ = 0;
