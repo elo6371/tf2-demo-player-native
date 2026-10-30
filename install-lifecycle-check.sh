@@ -834,9 +834,15 @@ MUT="$OUT/mutation"; mkdir -p "$MUT/backup" "$MUT/logs"
 SRC_MAIN="$REPO/native/src/main.cpp"
 SRC_LIFE="$REPO/native/src/install_lifecycle.cpp"
 SRC_MAN="$REPO/native/src/install_manifest.cpp"
+# T76: the T37 lifecycle parser/runner (parseLifecycleRequest, runLifecycle)
+# moved to src/main_lifecycle.cpp, so M1's anchor lives there now. main.cpp
+# is still backed up: it is where the moved code came from, and the restore
+# list at the end proves every file this gate touched comes back identical.
+SRC_LC="$REPO/native/src/main_lifecycle.cpp"
 cp "$SRC_MAIN" "$MUT/backup/main.cpp"
 cp "$SRC_LIFE" "$MUT/backup/install_lifecycle.cpp"
 cp "$SRC_MAN" "$MUT/backup/install_manifest.cpp"
+cp "$SRC_LC" "$MUT/backup/main_lifecycle.cpp"
 
 # A MUTATION MUST RUN ITS OWN BINARY.
 #   A build that silently did not relink leaves the previous exe in place and every
@@ -896,7 +902,7 @@ mutation_not_linked() { # <message>
 
 # ---------------------------------------------------------------- M1 stdout
 sec "M1 stdout: the product takes the redirected handle again"
-python - "$SRC_MAIN" <<'PY'
+python - "$SRC_LC" <<'PY'
 import sys
 path = sys.argv[1]
 data = open(path, 'rb').read()
@@ -924,8 +930,8 @@ else
   wrong "M1 caught: exit 0 with an empty redirect file" \
     "exit=$M1RC bytes=$(wc -c < "$MUT/m1-version.txt" | tr -d ' ')" "exit=0 bytes=0"
 fi
-cp "$MUT/backup/main.cpp" "$SRC_MAIN"
-if cmp -s "$SRC_MAIN" "$MUT/backup/main.cpp"; then ok "M1 source restored byte-identical" "yes"; else wrong "M1 source restored byte-identical" "no" "yes"; fi
+cp "$MUT/backup/main_lifecycle.cpp" "$SRC_LC"
+if cmp -s "$SRC_LC" "$MUT/backup/main_lifecycle.cpp"; then ok "M1 source restored byte-identical" "yes"; else wrong "M1 source restored byte-identical" "no" "yes"; fi
 rebuild m1-restore
 eq "M1 restore build succeeded" "$?" "0"
 
@@ -1076,7 +1082,7 @@ rebuild m4-restore
 eq "M4 restore build succeeded" "$?" "0"
 
 sec "mutation verdict"
-for pair in "main.cpp|$SRC_MAIN" "install_lifecycle.cpp|$SRC_LIFE" "install_manifest.cpp|$SRC_MAN"; do
+for pair in "main.cpp|$SRC_MAIN" "main_lifecycle.cpp|$SRC_LC" "install_lifecycle.cpp|$SRC_LIFE" "install_manifest.cpp|$SRC_MAN"; do
   name="${pair%%|*}"; path="${pair#*|}"; backup="$MUT/backup/$name"
   if cmp -s "$path" "$backup"; then ok "restored byte-identical: $name" "yes"; else wrong "restored byte-identical: $name" "no" "yes"; fi
 done

@@ -588,7 +588,7 @@ echo "  BLOCKER tf2_assets_not_packaged_by_design=1 owner=product (locate or pro
 INSTALLER_GAPS=2
 eq "installer features absent (pinned: adding one must update this gate)" "$INSTALLER_GAPS" "2"
 eq "installer lifecycle modes the package now provides" \
-  "$(grep -oE 'L"--(version|install|uninstall|install-status)"' native/src/main.cpp | sort -u | wc -l | tr -d ' ')" "4"
+  "$(grep -oE 'L"--(version|install|uninstall|install-status)"' native/src/main_lifecycle.cpp | sort -u | wc -l | tr -d ' ')" "4"
 
 cases=13
 echo
