@@ -1211,6 +1211,19 @@ step "25/30 player animation (the demo's ticks drive a player's cycle, one link 
 # rate, tick script), with three negative controls first, so a link that stops
 # working is a named red rather than a smaller number of green lines. The counter
 # is pinned: a section that silently stops running is red.
+# 2026-10-30 T6: step 19's entity-property-lookup mutation edits
+# native/src/entity_model.cpp and restores it, then rebuilds only
+# entity_model_probe; the model_pose_probe that this gate reads is still the one
+# step 1 built, so the gate's own STALE-BINARY guard refuses to measure it (as it
+# should). Rebuild the probe here, so the reading describes the tree. The guard
+# stays a guard: it refuses on a dirty tree, and the caller decides to rebuild.
+bash build-target.sh model_pose_probe > "$OUT/25-probe-build.txt" 2>&1
+ANIMATION_BUILD_RC=$?
+if [ "$ANIMATION_BUILD_RC" -ne 0 ]; then
+  tail -20 "$OUT/25-probe-build.txt"
+  echo "PLAYER-ANIMATION-CHECK=FAIL (model_pose_probe rebuild rc=$ANIMATION_BUILD_RC; see $OUT/25-probe-build.txt)"
+  rc_all=1
+fi
 ANIMATION_OUT="$OUT/25-player-animation"
 PLAYER_ANIMATION_OUT="$ANIMATION_OUT" bash player-animation-check.sh > "$ANIMATION_OUT.txt" 2>&1
 ANIMATION_RC=$?
