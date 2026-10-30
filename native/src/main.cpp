@@ -72,6 +72,7 @@
 // and the using-directive below keeps every call site spelled exactly as it
 // was: this was a move, not a rewrite.
 #include "main_internal.h"
+#include "playback_state.h"
 
 using namespace tf2::native::main_internal;
 
@@ -412,51 +413,11 @@ void applyUiLayout(HWND window) {
 }
 
 
-struct PlaybackState {
-  bool enabled = false;
-  bool paused = false;
-  bool reverse = false;
-  double speed = 1.0;
-  double tickRate = 66.6666667;
-  std::int32_t tick = 0;
-  std::int32_t endTick = 0;
-  std::int32_t anchorLookupTick = -1;
-  bool anchorValid = false;
-  tf2::native::DemoIndexEntry anchor{};
-};
-PlaybackState g_playback{};
+// T76 (2026-10-30): PlaybackState, g_playback, g_playbackControl and
+// applyPlaybackRequest moved to src/playback_state.cpp. The loop's view keeps
+// the same spelling through the using-directive above; this was a move, not a
+// rewrite.
 constexpr double kTargetFrameSeconds = 1.0 / 120.0;
-
-// T70: the request/landing ledger. g_playback stays the loop's view of the
-// transport because the renderer, the audio scheduler and the camera director
-// read it; this owns request ids, the pending seek and the frame landing. The
-// only transport writes that do not pass through request() are the frame
-// loop's own advance and the --capture-tick pin, which report back through
-// noteExternalCursor().
-tf2::native::PlaybackControl g_playbackControl;
-
-// Applies one request and mirrors the resulting view into the legacy state.
-// Every keyboard, native-UI and --camera-script transport command goes through
-// here, so "requested" and "landed" cannot diverge without a trace line.
-tf2::native::PlaybackResult applyPlaybackRequest(const tf2::native::PlaybackRequest& request) {
-  const tf2::native::PlaybackResult result = g_playbackControl.request(request);
-  traceFmt("playback: request id=%d kind=%s source=%s requestedTick=%d requestedSeconds=%.6f"
-    " appliedTick=%d appliedSeconds=%.6f deltaTicks=%d deltaSeconds=%.6f"
-    " speedBefore=%.6f speedAfter=%.6f strict=%d status=%s reason=%s",
-    static_cast<int>(result.id),
-    tf2::native::PlaybackControl::requestKindName(request.kind), request.source,
-    static_cast<int>(result.requestedTick), result.requestedSeconds,
-    static_cast<int>(result.appliedTick), result.appliedSeconds,
-    static_cast<int>(result.deltaTicks), result.deltaSeconds,
-    result.speedBefore, result.speedAfter, request.strict ? 1 : 0,
-    tf2::native::PlaybackControl::statusName(result.status), result.reason);
-  const tf2::native::PlaybackView view = g_playbackControl.view();
-  g_playback.tick = view.cursorTick;
-  g_playback.paused = view.paused;
-  g_playback.reverse = view.reverse;
-  g_playback.speed = view.speed;
-  return result;
-}
 
 // ---------------------------------------------------------------------------
 // T50: the camera director and the key table, as the window procedure uses them.
