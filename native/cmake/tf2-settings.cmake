@@ -33,7 +33,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 # that predates T9 and blocked every build, not a T9 change. Listed once here
 # because this same list was already silently short in fourteen places; a
 # fifteenth copy of it is how it got that way.
-set(TF2_DEMO_HEADER_SOURCES src/demo_header.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+set(TF2_DEMO_HEADER_SOURCES src/demo_header.cpp src/demo_header_core.cpp src/demo_header_net.cpp src/demo_header_entity.cpp src/demo_header_strtab.cpp src/demo_header_sound.cpp src/demo_header_events.cpp src/demo_header_track.cpp src/audio_timeline.cpp src/audio_resource.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
 set(TF2_DEMO_HEADER_LIBS winmm msacm32)
 # audio_resource.cpp calls std::min on values from <windows.h>, so a target that
 # compiles it without NOMINMAX fails at `std::min` (C2589 "illegal token on right
