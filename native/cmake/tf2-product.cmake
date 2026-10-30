@@ -25,6 +25,8 @@ add_executable(tf2_demo_native WIN32
   src/native_renderer_settings.cpp
   src/native_renderer_capture.cpp
   src/native_renderer_camera.cpp
+  src/native_renderer_entity.cpp
+  src/native_renderer_overlay.cpp
   # T53: the trajectory overlay builder. In the product because the probe must
   # drive the filter/linger/quality rules the product actually applies -- a probe
   # with its own copy would only prove two copies agree.
