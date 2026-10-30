@@ -5,9 +5,9 @@ whenever a task finished or a date passed.
 
 ## The rule
 
-1. **The full chain runs once, on the final frozen tree**, after T49.1 through T55
-   are all complete and merged. Not per task, not per day, not for a milestone
-   count.
+1. **The full chain runs once, on the final frozen tree**, after the final task wave
+   (T75 at the time of writing) is complete and merged. Not per task, not per day,
+   not for a milestone count.
 2. **Quality is carried by each task's own gates**, not by repeated chain runs:
    every task ships a forward gate and a mutation for every assertion it makes,
    and the mutation must turn the assertion red for the right reason.

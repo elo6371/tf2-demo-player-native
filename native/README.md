@@ -4,7 +4,7 @@ The root [README](../README.md) is the project entry point. Build and release
 acceptance rules live in [`docs/RELEASE-POLICY.md`](../docs/RELEASE-POLICY.md).
 
 This is the new Windows-native rendering direction. It deliberately has no
-Electron, browser, WebGL, Node.js runtime, or web UI dependency.
+Electron, Node.js runtime or WebGL path. The only web technology is the vendored WebView2 loader behind the logs panel (`native/cmake/tf2-product.cmake:107-111,145`); on a host without the WebView2 runtime the player still starts, the logs panel just cannot display imported URLs.
 
 ## Current stage
 
@@ -27,21 +27,28 @@ local TF2 configuration and the supplied 2560x1440 screenshots:
   LOD 0.
 
 Both profiles start with VSync disabled so a 120 FPS display target is not
-artificially capped at 60 Hz; a future presentation option can enable VSync.
+artificially capped at 60 Hz; `--vsync` enables it for a launch without changing the saved settings.
 
 The performance profile mirrors `maxframes.cfg`; the standard profile is the
-native renderer target for matching the screenshot appearance. These flags
-are configuration inputs for the future D3D11 passes; the current shell only
-clears and presents a swap chain.
+native renderer target for matching the screenshot appearance. These profiles
+drive the implemented D3D11 passes; focused reports in `evidence/` record what
+each gate actually verified.
 
 The supplied `bestsoldiercfg (1).zip` identifies the default HUD source as
 `custom/m0rehud-5.8`, with Soldier-specific configuration layered on top. The
-native HUD loader will use that resource layout when the HUD pass is migrated;
-the current renderer shell does not yet draw HUD panels.
+native HUD loader uses that resource layout; HUD panels, the logs panel and the
+minimap draw through the native HUD path (`src/hud_*.cpp`, `src/playback_hud.cpp`).
 
 ## Build
 
-From a Visual Studio Developer PowerShell:
+From Git Bash (CMake, NMake, and MSVC on PATH):
+
+```bash
+bash build-cmake.sh                    # configure + clean Release build -> native/build-nmake/
+bash build-target.sh tf2_demo_native   # incremental rebuild of one target
+```
+
+Where the Visual Studio generator does work, the preset remains available:
 
 ```powershell
 cmake --preset windows-release -S native
@@ -51,11 +58,11 @@ cmake --build native/build --config Release
 The release preset uses the static MSVC runtime and enables ASLR/NX. A
 Windows 10/11 SDK and the MSVC C++ workload are required on the build machine.
 
-The migration order is: shared binary parsers, replay timeline, D3D11 world
+The migration order was: shared binary parsers, replay timeline, D3D11 world
 pass and lightmaps, StudioMDL skinning, particles/audio, native UI/HUD, then
-export. `AssetRoot` is the native boundary for the user's existing `tf`
+export. `AssetRoot` is the native boundary for the existing `tf`
 directory; it validates loose `materials`, `models`, and `maps` directories or
-standard `*_dir.vpk` archives, and rejects path escape attempts. The former WebGL/Electron tree was removed from this product worktree on 2026-10-03; native code and the documented real-resource smoke checks are now the source of truth.
+standard `*_dir.vpk` archives, and rejects path escape attempts. The former WebGL/Electron tree was removed from this product worktree on 2026-10-03; native code and the documented real-resource smoke checks are now the source of truth. Current implementation status is tracked in the task reports.
 
 The native shell now indexes a base VPK at startup using bounded directory-tree
 reads and reports the indexed entry count in the window title. A local TF2
@@ -64,7 +71,9 @@ kept on demand for the later material/model passes.
 
 For machines with a nonstandard Steam install, launch with
 `tf2_demo_native.exe --tf-root "X:\\SteamLibrary\\steamapps\\common\\Team Fortress 2\\tf"`.
-This explicit path takes priority over automatic discovery.
+This explicit path takes priority over automatic discovery. Open a recorded demo
+with `--demo <path>`; the entity/TempEntity regression gate at the end of this
+file accepts comma-separated paths.
 
 Quality can be overridden for diagnostics with `--quality performance` or
 `--quality standard`; `--vsync` and `--no-vsync` override presentation sync for
@@ -98,16 +107,16 @@ For the current acceptance gate, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File native/tools/native_acceptance_gate.ps1 `
-  -InstallDir native/build/Release -MissingTfRoot -Seconds 5 -MinSamples 3
+  -InstallDir native/build-nmake -MissingTfRoot -Seconds 5 -MinSamples 3
 ```
 
-The native UI state-machine probe is `native/build/Release/native_ui_probe.exe`.
+The native UI state-machine probe is `native/build-nmake/native_ui_probe.exe`.
 It verifies opening, import review, player transition, cancel recovery, tick
 clamping, HUD toggle, and corrupt-Demo recovery.
 
 ## Release install smoke
 
-Install the Release targets with `cmake --install native/build --config Release
+Install the Release targets with `cmake --install native/build-nmake --config Release
 --prefix install`. The layout contains `tf2_demo_native.exe`,
 `native_install_smoke_probe.exe`, and `install_smoke_probe.ps1`; TF2 VPKs and
 other game assets are intentionally excluded. Run
