@@ -22,6 +22,10 @@ add_executable(tf2_demo_native WIN32
   src/main_trace.cpp
   src/main_lifecycle.cpp
   src/playback_state.cpp
+  # T76: the T51 HUD product layer (state, folder picker, layout push and the
+  # hud: readings). registerKeybinds stays in main.cpp -- hud-check.sh mutates
+  # its text there.
+  src/main_hud.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
   # T53: the trajectory overlay builder. In the product because the probe must
