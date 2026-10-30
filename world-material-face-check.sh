@@ -121,7 +121,14 @@ if [ $? -ne 0 ]; then
 fi
 echo "  OK build"
 EXE_HASH=$(sha256sum "$PRODUCT" | cut -d' ' -f1)
-SOURCE_HASH=$(git hash-object native/src/main.cpp native/src/native_renderer.cpp native/src/world_tile_atlas.cpp | tr '\n' ' ')
+SOURCE_HASH=$(git hash-object native/src/main.cpp native/src/world_tile_atlas.cpp \
+  native/include/native_renderer.h native/src/renderer_internal.h \
+  native/src/native_renderer.cpp \
+  native/src/native_renderer_camera.cpp native/src/native_renderer_capture.cpp \
+  native/src/native_renderer_entity.cpp native/src/native_renderer_frame.cpp \
+  native/src/native_renderer_overlay.cpp native/src/native_renderer_settings.cpp \
+  native/src/native_renderer_viewmodel.cpp native/src/native_renderer_world.cpp \
+  native/src/native_renderer_world_material.cpp | tr '\n' ' ')
 HEAD_SHA=$(git rev-parse HEAD)
 echo "  head=$HEAD_SHA exe=$EXE_HASH"
 {
