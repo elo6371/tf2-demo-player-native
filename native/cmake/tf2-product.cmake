@@ -15,6 +15,12 @@
 # ---------------------------------------------------------------------------
 add_executable(tf2_demo_native WIN32
   src/main.cpp
+  # T76: the two translation units split out of main.cpp -- the trace
+  # checkpoint channel and the T37 installer lifecycle -- with their shared
+  # declarations in src/main_internal.h. Code motion only: the command line,
+  # the trace text and the exit codes are unchanged.
+  src/main_trace.cpp
+  src/main_lifecycle.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
   # T53: the trajectory overlay builder. In the product because the probe must
