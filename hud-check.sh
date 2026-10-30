@@ -1197,8 +1197,8 @@ PYEOF
   # DETECTABLE, not merely avoided by construction.
   echo
   echo "--- mutation 2/2: the HUD pass perturbs the world ---"
-  cp native/src/native_renderer.cpp "$SCRATCH/native_renderer.cpp.backup"
-  "$PY" - native/src/native_renderer.cpp <<'PYEOF'
+  cp native/src/native_renderer_frame.cpp "$SCRATCH/native_renderer.cpp.backup"
+  "$PY" - native/src/native_renderer_frame.cpp <<'PYEOF'
 import sys
 path = sys.argv[1]
 text = open(path, encoding='utf-8').read()
@@ -1224,7 +1224,7 @@ if needle not in text:
     raise SystemExit("mutation-2 anchor not found")
 open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, replacement, 1))
 PYEOF
-  if cmp -s native/src/native_renderer.cpp "$SCRATCH/native_renderer.cpp.backup"; then
+  if cmp -s native/src/native_renderer_frame.cpp "$SCRATCH/native_renderer.cpp.backup"; then
     echo "  MUTATION-SETUP=FAIL (mutation 2 changed nothing)"; mrc=1
   else
     bash build-target.sh tf2_demo_native > "$OUT/mut2.build" 2>&1
@@ -1251,7 +1251,7 @@ PYEOF
     else
       echo "  MUTATION-CAUGHT=FAIL (mutation 2: the world comparison stayed green)"; mrc=1
     fi
-    mut_restore native/src/native_renderer.cpp "$SCRATCH/native_renderer.cpp.backup"
+    mut_restore native/src/native_renderer_frame.cpp "$SCRATCH/native_renderer.cpp.backup"
     bash build-target.sh tf2_demo_native > "$OUT/mut2.restore.build" 2>&1 \
       || { echo "  RESTORE-BUILD=FAIL (mutation 2)"; mrc=1; }
     run_hud restored_off

@@ -439,21 +439,21 @@ if [ "$MUTATION" -eq 1 ]; then
   }
 
   WATER_BACKUP="$SCRATCH/native_renderer.cpp.water.backup"
-  cp native/src/native_renderer.cpp "$WATER_BACKUP"
+  cp native/src/native_renderer_frame.cpp "$WATER_BACKUP"
   sed -i 's|if (worldWaterEnabled_ \&\& worldWaterVertexBuffer_ \&\& worldWaterVertexCount_ > 0|if (false \&\& worldWaterEnabled_ \&\& worldWaterVertexBuffer_ \&\& worldWaterVertexCount_ > 0|' \
-    native/src/native_renderer.cpp
-  if cmp -s native/src/native_renderer.cpp "$WATER_BACKUP"; then
+    native/src/native_renderer_frame.cpp
+  if cmp -s native/src/native_renderer_frame.cpp "$WATER_BACKUP"; then
     echo "  MUTATION-SETUP=FAIL (water_draw_deleted: the sed changed nothing)"
-    cp "$WATER_BACKUP" native/src/native_renderer.cpp
+    cp "$WATER_BACKUP" native/src/native_renderer_frame.cpp
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mutated-water_draw_deleted.$RUN_TAG.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (water_draw_deleted: the rebuild failed)"
-    restore_source "$WATER_BACKUP" native/src/native_renderer.cpp water || true
+    restore_source "$WATER_BACKUP" native/src/native_renderer_frame.cpp water || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   if ! run_mutated mutated-water-draw-deleted "$DEMO" --start-paused --world-sky --world-water on; then
-    restore_source "$WATER_BACKUP" native/src/native_renderer.cpp water || true
+    restore_source "$WATER_BACKUP" native/src/native_renderer_frame.cpp water || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   MUT_WATER=$(grep -ao "gpu: world water .*" "$MUT_TRACE" 2>/dev/null | head -1)
@@ -463,11 +463,11 @@ if [ "$MUTATION" -eq 1 ]; then
     echo "  MUTATION-CAUGHT=PASS (water_draw_deleted: draws=0 while the state still reads active)"
   else
     echo "  MUTATION-CAUGHT=FAIL (water_draw_deleted: draws=$MUT_WATER_DRAWS state=$MUT_WATER_STATE, the gate would have stayed green)"
-    restore_source "$WATER_BACKUP" native/src/native_renderer.cpp water || true
+    restore_source "$WATER_BACKUP" native/src/native_renderer_frame.cpp water || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   echo "$MUT_WATER" > "$OUT/mutated-water_draw_deleted.txt"
-  restore_source "$WATER_BACKUP" native/src/native_renderer.cpp water || {
+  restore_source "$WATER_BACKUP" native/src/native_renderer_frame.cpp water || {
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1; }
 
   # ---- Product mutation 2: the warp disabled -------------------------------
@@ -512,23 +512,23 @@ if [ "$MUTATION" -eq 1 ]; then
   # parsed, uploaded -- and only `applied` moves, which is the split this round
   # exists to make visible.
   PHONG_BACKUP="$SCRATCH/native_renderer.cpp.phong.backup"
-  cp native/src/native_renderer.cpp "$PHONG_BACKUP"
+  cp native/src/native_renderer_viewmodel.cpp "$PHONG_BACKUP"
   sed -i 's|const bool phongOn = effects.shaderReady \&\& effects.phong.declared \&\& effects.phong.parsed;|const bool phongOn = false;|' \
-    native/src/native_renderer.cpp
-  if cmp -s native/src/native_renderer.cpp "$PHONG_BACKUP"; then
+    native/src/native_renderer_viewmodel.cpp
+  if cmp -s native/src/native_renderer_viewmodel.cpp "$PHONG_BACKUP"; then
     echo "  MUTATION-SETUP=FAIL (phong_upload_deleted: the sed changed nothing)"
-    cp "$PHONG_BACKUP" native/src/native_renderer.cpp
+    cp "$PHONG_BACKUP" native/src/native_renderer_viewmodel.cpp
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mutated-phong_upload_deleted.$RUN_TAG.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (phong_upload_deleted: the rebuild failed)"
-    restore_source "$PHONG_BACKUP" native/src/native_renderer.cpp phong || true
+    restore_source "$PHONG_BACKUP" native/src/native_renderer_viewmodel.cpp phong || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   if ! run_mutated mutated-phong-upload-deleted "$VM_DEMO" --start-paused \
       --viewmodel "$VM_MODEL" --viewmodel-fov 90 --viewmodel-render command \
       --viewmodel-material-slot 0; then
-    restore_source "$PHONG_BACKUP" native/src/native_renderer.cpp phong || true
+    restore_source "$PHONG_BACKUP" native/src/native_renderer_viewmodel.cpp phong || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   MUT_PHONG=$(grep -ao "gpu: viewmodel effects .*" "$MUT_TRACE" 2>/dev/null | head -1)
@@ -538,11 +538,11 @@ if [ "$MUTATION" -eq 1 ]; then
     echo "  MUTATION-CAUGHT=PASS (phong_upload_deleted: declared=1 applied=0)"
   else
     echo "  MUTATION-CAUGHT=FAIL (phong_upload_deleted: declared=$MUT_PHONG_DECL applied=$MUT_PHONG_APPLIED, the gate would have stayed green)"
-    restore_source "$PHONG_BACKUP" native/src/native_renderer.cpp phong || true
+    restore_source "$PHONG_BACKUP" native/src/native_renderer_viewmodel.cpp phong || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   echo "$MUT_PHONG" > "$OUT/mutated-phong_upload_deleted.txt"
-  restore_source "$PHONG_BACKUP" native/src/native_renderer.cpp phong || {
+  restore_source "$PHONG_BACKUP" native/src/native_renderer_viewmodel.cpp phong || {
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1; }
 
   # ---- Product mutation 4: the normal-map bind deleted ---------------------
@@ -551,23 +551,23 @@ if [ "$MUTATION" -eq 1 ]; then
   # moves, which is what says the bind is the thing that matters rather than the
   # texture existing.
   BUMP_BACKUP="$SCRATCH/native_renderer.cpp.bump.backup"
-  cp native/src/native_renderer.cpp "$BUMP_BACKUP"
+  cp native/src/native_renderer_viewmodel.cpp "$BUMP_BACKUP"
   sed -i 's|const bool bumpOn = effects.shaderReady \&\& effects.bump.declared \&\& effects.bump.parsed|const bool bumpOn = false \&\& effects.shaderReady \&\& effects.bump.declared \&\& effects.bump.parsed|' \
-    native/src/native_renderer.cpp
-  if cmp -s native/src/native_renderer.cpp "$BUMP_BACKUP"; then
+    native/src/native_renderer_viewmodel.cpp
+  if cmp -s native/src/native_renderer_viewmodel.cpp "$BUMP_BACKUP"; then
     echo "  MUTATION-SETUP=FAIL (bump_bind_deleted: the sed changed nothing)"
-    cp "$BUMP_BACKUP" native/src/native_renderer.cpp
+    cp "$BUMP_BACKUP" native/src/native_renderer_viewmodel.cpp
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mutated-bump_bind_deleted.$RUN_TAG.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (bump_bind_deleted: the rebuild failed)"
-    restore_source "$BUMP_BACKUP" native/src/native_renderer.cpp bump || true
+    restore_source "$BUMP_BACKUP" native/src/native_renderer_viewmodel.cpp bump || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   if ! run_mutated mutated-bump-bind-deleted "$VM_DEMO" --start-paused \
       --viewmodel "$VM_MODEL" --viewmodel-fov 90 --viewmodel-render command \
       --viewmodel-material-slot 0; then
-    restore_source "$BUMP_BACKUP" native/src/native_renderer.cpp bump || true
+    restore_source "$BUMP_BACKUP" native/src/native_renderer_viewmodel.cpp bump || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   MUT_BUMP=$(grep -ao "gpu: viewmodel effects .*" "$MUT_TRACE" 2>/dev/null | head -1)
@@ -577,11 +577,11 @@ if [ "$MUTATION" -eq 1 ]; then
     echo "  MUTATION-CAUGHT=PASS (bump_bind_deleted: textureUploaded=1 applied=0)"
   else
     echo "  MUTATION-CAUGHT=FAIL (bump_bind_deleted: textureUploaded=$MUT_BUMP_UPLOADED applied=$MUT_BUMP_APPLIED, the gate would have stayed green)"
-    restore_source "$BUMP_BACKUP" native/src/native_renderer.cpp bump || true
+    restore_source "$BUMP_BACKUP" native/src/native_renderer_viewmodel.cpp bump || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
   echo "$MUT_BUMP" > "$OUT/mutated-bump_bind_deleted.txt"
-  restore_source "$BUMP_BACKUP" native/src/native_renderer.cpp bump || {
+  restore_source "$BUMP_BACKUP" native/src/native_renderer_viewmodel.cpp bump || {
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1; }
 
   # The forward sections ran BEFORE the mutations, and both verdicts have to

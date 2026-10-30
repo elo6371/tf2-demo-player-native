@@ -326,7 +326,7 @@ fi
 # ---------------------------------------------------------------------------
 echo "== mutation mode =="
 mfail=0
-SRC_REN="native/src/native_renderer.cpp"
+SRC_REN="native/src/native_renderer_frame.cpp"
 SAVE_REN="$SCRATCH/native_renderer.cpp.save"
 cp "$SRC_REN" "$SAVE_REN"
 echo "-- M1: the near plane is the box-unit constant 0.05 again --"

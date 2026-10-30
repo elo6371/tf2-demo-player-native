@@ -1204,11 +1204,15 @@ if [ "$MUTATION" = "1" ]; then
   MUT_SRC="native/src/entity_overlay.cpp"
   MUT_MAIN="native/src/main.cpp"
   MUT_RENDERER="native/src/native_renderer.cpp"
+  MUT_FRAME="native/src/native_renderer_frame.cpp"
+  MUT_ENTITY="native/src/native_renderer_entity.cpp"
   BACKUP_DIR="$OUT/mutation-backup"
   mkdir -p "$BACKUP_DIR"
   cp "$MUT_SRC" "$BACKUP_DIR/entity_overlay.cpp"
   cp "$MUT_MAIN" "$BACKUP_DIR/main.cpp"
   cp "$MUT_RENDERER" "$BACKUP_DIR/native_renderer.cpp"
+  cp "$MUT_FRAME" "$BACKUP_DIR/native_renderer_frame.cpp"
+  cp "$MUT_ENTITY" "$BACKUP_DIR/native_renderer_entity.cpp"
   mut_fail=0
   mut_invalid=0
 
@@ -1283,8 +1287,10 @@ PYEOF
     cp "$BACKUP_DIR/entity_overlay.cpp" "$MUT_SRC"
     cp "$BACKUP_DIR/main.cpp" "$MUT_MAIN"
     cp "$BACKUP_DIR/native_renderer.cpp" "$MUT_RENDERER"
+    cp "$BACKUP_DIR/native_renderer_frame.cpp" "$MUT_FRAME"
+    cp "$BACKUP_DIR/native_renderer_entity.cpp" "$MUT_ENTITY"
     local ok=1
-    for pair in "entity_overlay.cpp:$MUT_SRC" "main.cpp:$MUT_MAIN" "native_renderer.cpp:$MUT_RENDERER"; do
+    for pair in "entity_overlay.cpp:$MUT_SRC" "main.cpp:$MUT_MAIN" "native_renderer.cpp:$MUT_RENDERER" "native_renderer_frame.cpp:$MUT_FRAME" "native_renderer_entity.cpp:$MUT_ENTITY"; do
       local backup="${pair%%:*}" target="${pair##*:}"
       if cmp -s "$BACKUP_DIR/$backup" "$target"; then
         echo "  restored $(basename "$target") byte-identical (cmp)"
@@ -1418,7 +1424,7 @@ PYEOF
   # FOUND, the case was built and run unmutated anyway, and it reported GREEN --
   # an unapplied mutation wearing a pass. The anchor moves with the code; the
   # hard stop below is what keeps this from recurring.
-  patch_in "$MUT_RENDERER" \
+  patch_in "$MUT_FRAME" \
 "      ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();" \
 "      ? overlayDepthTestedState_.Get() : overlayDepthTestedState_.Get();"
   M2_APPLIED=$?
@@ -1623,7 +1629,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   # refused with E_OUTOFMEMORY, and a refused key is submitted, counted and drawn
   # from nothing (precisely the shape m8 injects on purpose). Without this pair
   # "raise the cap" would be an assumption, not a reading.
-  patch_in "$MUT_RENDERER" \
+  patch_in "$MUT_ENTITY" \
 "  constexpr std::size_t kEntityModelMeshLimit = 96;" \
 "  constexpr std::size_t kEntityModelMeshLimit = 64;  /* cap A: the old limit */" || mut_fail=1
   if rebuild_product cap64; then
@@ -1653,11 +1659,11 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   # buffer. Expressed as two literal replacements -- remove the call from its
   # slot, insert it after the ViewModel -- so the restore is still a byte copy
   # and the ordinal is taken where the pass actually ran, not faked with a +2.
-  patch_in "$MUT_RENDERER" \
+  patch_in "$MUT_FRAME" \
 "  drawOverlayPass();
   // T21: the depth the frame has after the world" \
 "  // T21: the depth the frame has after the world" || mut_fail=1
-  patch_in "$MUT_RENDERER" \
+  patch_in "$MUT_FRAME" \
 "  drawViewModel();" \
 "  drawViewModel();
   drawOverlayPass();  /* mutation m4: after the pass that clears depth */" || mut_fail=1
@@ -1710,7 +1716,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   # and leaves the box the pass publishes computed from the UNSHIFTED mvpForOverlay.
   # If outsideDiff does not leave the fixed reading, the new region rule is soft and
   # this round proved nothing.
-  patch_in "$MUT_RENDERER" \
+  patch_in "$MUT_FRAME" \
 "          overlayConstants.mvp = frameConstants.mvp;" \
 "          overlayConstants.mvp = frameConstants.mvp;
           /* mutation m12: shift only what the GPU draws; the published box keeps the
@@ -1735,7 +1741,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   # its own idea of how thick a shell is would see nothing wrong. The outside /
   # tolerance pair must fail, because the tolerance is built from the declaration.
   # (The declaration-side lie -- publish 0, draw 1.5 -- is m14 below.)
-  patch_in "$MUT_RENDERER" \
+  patch_in "$MUT_FRAME" \
 "            frameEye_[0], frameEye_[1], frameEye_[2], kOverlaySilhouetteExpandPixels);" \
 "            frameEye_[0], frameEye_[1], frameEye_[2],
             10.0f * kOverlaySilhouetteExpandPixels);  /* mutation m13: 15 px shell */" || mut_fail=1
@@ -1756,7 +1762,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   # the RENDERER expanding (clip space, 1.5 px) and only lies about it, so a gate that
   # trusted its own idea of the shell would pass. The band must fail (zero is not an
   # outline) and so must the outside/tolerance pair.
-  patch_in "$MUT_RENDERER" \
+  patch_in "$MUT_FRAME" \
 "                reading.expandPixels = kOverlaySilhouetteExpandPixels;" \
 "                reading.expandPixels = 0.0f;  /* mutation m14: declare no shell */" || mut_fail=1
   if rebuild_product m14; then
