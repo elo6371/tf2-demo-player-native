@@ -26,6 +26,8 @@ add_executable(tf2_demo_native WIN32
   # hud: readings). registerKeybinds stays in main.cpp -- hud-check.sh mutates
   # its text there.
   src/main_hud.cpp
+  # T76: the T50 camera pose/bookmark layer.
+  src/main_camera.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
   # T53: the trajectory overlay builder. In the product because the probe must
