@@ -484,7 +484,7 @@ PYEOF
   # m4: the shared cap back to 65536 (the line t66-camera also edits).
   echo
   echo "  -- m4: kMaxViewSamples back to 65536 --"
-  if apply_mutation native/src/demo_header.cpp \
+  if apply_mutation native/src/demo_header_internal.h \
       'constexpr std::size_t kMaxViewSamples = 1048576u;' \
       'constexpr std::size_t kMaxViewSamples = 65536u;' m4; then
     if rebuild m4 demo_open_probe; then
@@ -493,14 +493,14 @@ PYEOF
       assert_eq "m4 S5 view_samples_dropped" "$(v "$OUT/m4-S5-scan.txt" camera_track_dropped)" "0"
       if [ "$fail" = "1" ]; then echo "  MUTATION-RED   m4: the drop reading moved"; else
         echo "  MUTATION-GREEN m4: the mutation did not move the reading"; mut_fail=1; fi
-      restore_source native/src/demo_header.cpp || mut_fail=1
+      restore_source native/src/demo_header_internal.h || mut_fail=1
       rebuild m4-restore demo_open_probe || mut_fail=1
       probe_run "$OUT/m4r-S5-scan" "$S5"
       fail=0
       assert_eq "m4r S5 view_samples_dropped" "$(v "$OUT/m4r-S5-scan.txt" camera_track_dropped)" "0"
       if [ "$fail" != "0" ]; then echo "  FAIL m4 baseline after restore is not green"; mut_fail=1; fi
     else
-      restore_source native/src/demo_header.cpp || mut_fail=1
+      restore_source native/src/demo_header_internal.h || mut_fail=1
       rebuild m4-restore demo_open_probe || mut_fail=1
       mut_fail=1
     fi
