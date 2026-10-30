@@ -17,6 +17,14 @@ add_executable(tf2_demo_native WIN32
   src/main.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
+  # T77 (2026-10-30): the renderer split. native_renderer.cpp keeps the device and
+  # the pipeline construction; every other responsibility is its own translation
+  # unit below. The bodies moved verbatim, so the pass order (which lives in
+  # draw(), native_renderer_frame.cpp) and every threshold are unchanged; the
+  # capture, trace and pixel gates assert the same contract they always did.
+  src/native_renderer_settings.cpp
+  src/native_renderer_capture.cpp
+  src/native_renderer_camera.cpp
   # T53: the trajectory overlay builder. In the product because the probe must
   # drive the filter/linger/quality rules the product actually applies -- a probe
   # with its own copy would only prove two copies agree.
