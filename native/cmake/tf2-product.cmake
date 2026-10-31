@@ -15,6 +15,19 @@
 # ---------------------------------------------------------------------------
 add_executable(tf2_demo_native WIN32
   src/main.cpp
+  # T76: the two translation units split out of main.cpp -- the trace
+  # checkpoint channel and the T37 installer lifecycle -- with their shared
+  # declarations in src/main_internal.h. Code motion only: the command line,
+  # the trace text and the exit codes are unchanged.
+  src/main_trace.cpp
+  src/main_lifecycle.cpp
+  src/playback_state.cpp
+  # T76: the T51 HUD product layer (state, folder picker, layout push and the
+  # hud: readings). registerKeybinds stays in main.cpp -- hud-check.sh mutates
+  # its text there.
+  src/main_hud.cpp
+  # T76: the T50 camera pose/bookmark layer.
+  src/main_camera.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
   # T77 (2026-10-30): the renderer split. native_renderer.cpp keeps the device and

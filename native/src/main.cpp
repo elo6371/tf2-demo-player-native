@@ -66,90 +66,17 @@
 // probe) can open a workspace, remember the camera and list bookmarks.
 #include "review_session.h"
 
-// T37: the installer lifecycle modes. Declared at namespace scope rather than
-// inside wWinMain so the enumeration and the argument scan are one readable
-// thing; the state they fill is small and local to the process.
-namespace {
-enum class LifecycleMode { None, Version, Install, Uninstall, Status };
+// T76 (2026-10-29): the T37 installer lifecycle and the TF2_NATIVE_TRACE
+// channel moved out of this file -- src/main_lifecycle.cpp and
+// src/main_trace.cpp respectively. Their declarations are in main_internal.h,
+// and the using-directive below keeps every call site spelled exactly as it
+// was: this was a move, not a rewrite.
+#include "main_internal.h"
+#include "playback_state.h"
+#include "main_hud.h"
+#include "main_camera.h"
 
-struct LifecycleRequest {
-  LifecycleMode mode = LifecycleMode::None;
-  tf2::native::installer::Options options;
-  bool directoryGiven = false;
-};
-
-// Four modes, not "a playback run with a flag": each answers a question and
-// exits. They are recognised before the settings file is read and before the
-// window is created, which is what makes --version usable from a script and
-// keeps an uninstall from depending on a working GPU, a demo or a saved root.
-bool parseLifecycleRequest(int argumentCount, wchar_t** arguments, LifecycleRequest* request) {
-  for (int i = 1; i < argumentCount; ++i) {
-    const wchar_t* argument = arguments[i];
-    if (wcscmp(argument, L"--version") == 0) request->mode = LifecycleMode::Version;
-    else if (wcscmp(argument, L"--install") == 0) request->mode = LifecycleMode::Install;
-    else if (wcscmp(argument, L"--uninstall") == 0) request->mode = LifecycleMode::Uninstall;
-    else if (wcscmp(argument, L"--install-status") == 0) request->mode = LifecycleMode::Status;
-    else if (wcscmp(argument, L"--install-dry-run") == 0) request->options.dryRun = true;
-    else if (wcscmp(argument, L"--install-dir") == 0 && i + 1 < argumentCount) {
-      request->options.installDir = std::filesystem::absolute(std::filesystem::path(arguments[++i]));
-      request->directoryGiven = true;
-    }
-  }
-  return request->mode != LifecycleMode::None;
-}
-
-// The default install directory is the executable's own, not the working
-// directory: a user who double clicks the exe from an arbitrary folder must not
-// install into that folder by accident.
-std::filesystem::path defaultInstallDirectory() {
-  wchar_t self[MAX_PATH]{};
-  if (GetModuleFileNameW(nullptr, self, MAX_PATH) == 0) return {};
-  return std::filesystem::path(self).parent_path();
-}
-
-// A REDIRECTED STDOUT IS THE CALLER'S AND IS NEVER REPLACED.
-//   The first version of this attached to the parent console unconditionally
-//   and then reopened CONOUT$ "to be safe". Under a shell redirect such as
-//   "tf2_demo_native --version > out.txt" AttachConsole succeeds against the
-//   shell's console, the reopen points stdout at the terminal, and the file the
-//   caller redirected to stays 0 bytes while the reading appears on a terminal
-//   nobody captured. Measured on 2026-10-20: 0 bytes in the file and exit 0 --
-//   a silent, green-shaped lie, and the exact failure a gate that parses the
-//   file would call "no output" or, worse, "passed". Only a process with no
-//   usable stdout at all needs the console (a double click, where Windows hands
-//   a GUI subsystem process an invalid handle), and only then is it attached,
-//   used and freed.
-int runLifecycle(LifecycleRequest& request) {
-  if (!request.directoryGiven) request.options.installDir = defaultInstallDirectory();
-  tf2::native::installer::Result result;
-  switch (request.mode) {
-    case LifecycleMode::Version: result = tf2::native::installer::version(request.options); break;
-    case LifecycleMode::Install: result = tf2::native::installer::install(request.options); break;
-    case LifecycleMode::Uninstall: result = tf2::native::installer::uninstall(request.options); break;
-    case LifecycleMode::Status:
-    default: result = tf2::native::installer::status(request.options); break;
-  }
-  const HANDLE given = GetStdHandle(STD_OUTPUT_HANDLE);
-  const bool noStdout = given == nullptr || given == INVALID_HANDLE_VALUE;
-  bool attached = false;
-  std::FILE* sink = stdout;
-  if (noStdout) {
-    attached = AttachConsole(ATTACH_PARENT_PROCESS) != 0;
-    if (attached) {
-      std::FILE* reopened = nullptr;
-      if (_wfreopen_s(&reopened, L"CONOUT$", L"w", stdout) == 0 && reopened != nullptr) sink = reopened;
-    }
-  }
-  for (const auto& line : result.lines) {
-    std::fprintf(sink, "%s\n", line.c_str());
-    std::fflush(sink);
-  }
-  const int code = result.exitCode;
-  if (attached) FreeConsole();
-  return code;
-}
-} // namespace
-
+using namespace tf2::native::main_internal;
 
 #include <Windows.h>
 #include <commctrl.h>
@@ -182,8 +109,20 @@ int runLifecycle(LifecycleRequest& request) {
 #include <unordered_map>
 #include <unordered_set>
 
-namespace {
+// T76 (2026-10-29): the renderer pointer, the HUD tray handles and the T50/T51
+// shared key table live in tf2::native::main_internal, not in the anonymous
+// namespace below. src/main_hud.cpp is a second translation unit now and the HUD
+// layer reads these same objects; an anonymous-namespace definition has no name
+// another file could declare, so these five are defined here instead.
+namespace tf2::native::main_internal {
 tf2::native::Renderer* g_renderer = nullptr;
+HWND g_uiHudPreview = nullptr;
+HWND g_uiHudScale = nullptr;
+HWND g_uiHudStatus = nullptr;
+tf2::native::KeyBindTable g_keybinds;
+}  // namespace tf2::native::main_internal
+
+namespace {
 
 // T61: pick the sequence a player model plays for a drive state.
 //
@@ -233,89 +172,9 @@ std::int32_t choosePlayerAnimationSequence(
       label);
 }
 
-// TEMP DIAGNOSTIC -- entity-material wiring regression, 2026-10-09.
-// The process leaves with 0xC0000409 a fraction of a second after the main loop
-// starts advancing ticks. The metrics file's last line cannot say where, and the
-// exception is a fast-fail, so no filter that runs after the fact can. These
-// checkpoints can: every line is flushed as it is written, so the last line in
-// the file names the phase the process died in. Nothing opens the file unless
-// TF2_NATIVE_TRACE names one, so every other run is byte-for-byte unaffected.
-std::FILE* g_traceFile = nullptr;
-LARGE_INTEGER g_traceFrequency{};
-LARGE_INTEGER g_traceOrigin{};
-
-double traceNowMs() {
-  LARGE_INTEGER now{};
-  QueryPerformanceCounter(&now);
-  return 1000.0 * static_cast<double>(now.QuadPart - g_traceOrigin.QuadPart)
-    / static_cast<double>(g_traceFrequency.QuadPart);
-}
-
-void traceCheckpoint(const char* what) {
-  if (!g_traceFile) return;
-  std::fprintf(g_traceFile, "%.1f %s\n", traceNowMs(), what);
-  std::fflush(g_traceFile);
-}
-
-// The format string is NOT checked by the compiler. `_Printf_format_string_` was
-// tried here and is inert for a user-defined variadic function: under /W4 a probe
-// with `%d` fed a `const char*` produced no C4477, while the CRT's own printf did.
-// Only /analyze acts on the annotation, and that is a project-wide flag rather than
-// a local one. So a mismatch between this format and its arguments compiles
-// silently -- one did: `%zu` fed a `uint32_t` printed uninitialised register bits as
-// a bone count. Cast the argument to the type the conversion asks for, and do not
-// trust the compiler to catch it.
-void traceFmt(const char* format, ...) {
-  if (!g_traceFile) return;
-  // 192 was enough while every line was a handful of counters. A witness line
-  // names a model path, and TF2 model paths run past 60 characters, so the
-  // reading was being silently truncated mid-field -- the worst shape for a
-  // diagnostic: it looks like it answered.
-  //
-  // T21: 512 then did the same thing to the per-face trace. That line carries
-  // two VTF paths, a tile rectangle, an atlas uv, three sampled texels and four
-  // depths; measured on pl_odyssey it needs 540-odd bytes and lost its tail
-  // (`depthMatch`, `frameRaw`) without saying so, so a point was being compared
-  // with no depth verdict and read as "this face". The size is now generous and
-  // the truncation that remains is written down instead of hidden: a line that
-  // cannot be trusted says it cannot be trusted.
-  char buffer[2048];
-  va_list args;
-  va_start(args, format);
-  const int written = std::vsnprintf(buffer, sizeof(buffer), format, args);
-  va_end(args);
-  if (written < 0) return;
-  if (static_cast<std::size_t>(written) >= sizeof(buffer)) {
-    static const char kTail[] = "...[TRUNCATED]";
-    std::memcpy(buffer + sizeof(buffer) - sizeof(kTail), kTail, sizeof(kTail));
-  }
-  traceCheckpoint(buffer);
-}
-
-void openTrace() {
-  // Read through the Win32 call rather than getenv/fopen so the steady build
-  // keeps its one pre-existing warning and no more: a diagnostic channel that
-  // adds noise to every build is a diagnostic channel people turn off.
-  wchar_t path[MAX_PATH]{};
-  if (GetEnvironmentVariableW(L"TF2_NATIVE_TRACE", path, MAX_PATH) == 0) return;
-  if (_wfopen_s(&g_traceFile, path, L"w") != 0) return;
-  if (!g_traceFile) return;
-  QueryPerformanceFrequency(&g_traceFrequency);
-  QueryPerformanceCounter(&g_traceOrigin);
-  std::set_terminate([]() {
-    traceCheckpoint("TERMINATE (a C++ exception left main)");
-    std::abort();
-  });
-  // A fast-fail is not catchable, but a stack-cookie failure or a plain access
-  // violation reaches this filter before the process dies, and the code is what
-  // separates "our buffer was overrun" from "the heap was corrupted".
-  SetUnhandledExceptionFilter([](LPEXCEPTION_POINTERS info) -> LONG {
-    traceFmt("UNHANDLED 0x%08lX",
-      static_cast<unsigned long>(info->ExceptionRecord->ExceptionCode));
-    return EXCEPTION_EXECUTE_HANDLER;
-  });
-  traceCheckpoint("trace open");
-}
+// T76: the TF2_NATIVE_TRACE checkpoint channel (TEMP DIAGNOSTIC, 2026-10-09
+// entity-material wiring regression) moved to src/main_trace.cpp; its
+// declarations are in main_internal.h.
 
 // T54: argument text -> UTF-8. The logs panel's URL policy is defined in bytes
 // (ASCII only, refusing everything else), so the conversion has to be exact and
@@ -361,10 +220,7 @@ HWND g_uiKeybindReset = nullptr;
 // T51: the custom HUD row. Its own ids and its own planner (see native_ui.h);
 // nothing here touches a rect the base planner produced.
 HWND g_uiHudImport = nullptr;
-HWND g_uiHudPreview = nullptr;
-HWND g_uiHudScale = nullptr;
 HWND g_uiHudReset = nullptr;
-HWND g_uiHudStatus = nullptr;
 constexpr int kUiOpen = 4101;
 constexpr int kUiCancel = 4102;
 constexpr int kUiConfirm = 4103;
@@ -404,7 +260,7 @@ bool g_logsPanelArgumentRejected = false;
 // single/double classification; the per-scene-tick decision is
 // decideCameraSceneAction and the counters below are what the trace reports
 // and camera-ui-check.sh pins.
-tf2::native::CameraModeController g_cameraMode;
+// T76: the controller object is defined in src/main_camera.cpp (main_camera.h).
 bool g_debugCamera = false;
 // T52: the overlay's toggle. One slot, one owner: main.cpp is the outline's
 // owner and no other feature may change the flag while it holds the slot, which
@@ -455,14 +311,14 @@ float g_debugCameraEye[3] = {0.0f, 0.0f, 0.0f};
 float g_debugCameraPitch = 0.0f;
 float g_debugCameraYaw = 0.0f;
 tf2::native::PauseKeyController g_pauseKey;
-tf2::native::CameraMode g_lastAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
+// T76: the last applied mode is defined in src/main_camera.cpp (it is written by
+// jumpToCameraBookmark there and read by handleCameraAction below).
 
 // T50. The camera director owns the freeze rule and the camera operations; the
-// bookmark store owns the named positions; the key table owns every binding the
-// product has. Declared here rather than inside wWinMain because the window
-// procedure's key arm needs all three.
-tf2::native::CameraDirector g_cameraDirector;
-tf2::native::CameraBookmarkStore g_cameraBookmarks;
+// bookmark store owns the named positions. T76: both objects are defined in
+// src/main_camera.cpp with the pose/bookmark functions. The key table below
+// stays HERE on purpose: the window procedure's key arm and registerKeybinds
+// own it, and hud-check.sh's mutation-3 deletes a line out of this file.
 tf2::native::KeyBindTable g_keyBinds = tf2::native::defaultKeyBindings();
 // Which action a key edge dispatched, last one only. Reported in the summary so
 // a run that pressed nothing and a run whose press found no binding are
@@ -568,157 +424,22 @@ void applyUiLayout(HWND window) {
 }
 
 
-struct PlaybackState {
-  bool enabled = false;
-  bool paused = false;
-  bool reverse = false;
-  double speed = 1.0;
-  double tickRate = 66.6666667;
-  std::int32_t tick = 0;
-  std::int32_t endTick = 0;
-  std::int32_t anchorLookupTick = -1;
-  bool anchorValid = false;
-  tf2::native::DemoIndexEntry anchor{};
-};
-PlaybackState g_playback{};
+// T76 (2026-10-30): PlaybackState, g_playback, g_playbackControl and
+// applyPlaybackRequest moved to src/playback_state.cpp. The loop's view keeps
+// the same spelling through the using-directive above; this was a move, not a
+// rewrite.
 constexpr double kTargetFrameSeconds = 1.0 / 120.0;
 
-// T70: the request/landing ledger. g_playback stays the loop's view of the
-// transport because the renderer, the audio scheduler and the camera director
-// read it; this owns request ids, the pending seek and the frame landing. The
-// only transport writes that do not pass through request() are the frame
-// loop's own advance and the --capture-tick pin, which report back through
-// noteExternalCursor().
-tf2::native::PlaybackControl g_playbackControl;
-
-// Applies one request and mirrors the resulting view into the legacy state.
-// Every keyboard, native-UI and --camera-script transport command goes through
-// here, so "requested" and "landed" cannot diverge without a trace line.
-tf2::native::PlaybackResult applyPlaybackRequest(const tf2::native::PlaybackRequest& request) {
-  const tf2::native::PlaybackResult result = g_playbackControl.request(request);
-  traceFmt("playback: request id=%d kind=%s source=%s requestedTick=%d requestedSeconds=%.6f"
-    " appliedTick=%d appliedSeconds=%.6f deltaTicks=%d deltaSeconds=%.6f"
-    " speedBefore=%.6f speedAfter=%.6f strict=%d status=%s reason=%s",
-    static_cast<int>(result.id),
-    tf2::native::PlaybackControl::requestKindName(request.kind), request.source,
-    static_cast<int>(result.requestedTick), result.requestedSeconds,
-    static_cast<int>(result.appliedTick), result.appliedSeconds,
-    static_cast<int>(result.deltaTicks), result.deltaSeconds,
-    result.speedBefore, result.speedAfter, request.strict ? 1 : 0,
-    tf2::native::PlaybackControl::statusName(result.status), result.reason);
-  const tf2::native::PlaybackView view = g_playbackControl.view();
-  g_playback.tick = view.cursorTick;
-  g_playback.paused = view.paused;
-  g_playback.reverse = view.reverse;
-  g_playback.speed = view.speed;
-  return result;
-}
-
 // ---------------------------------------------------------------------------
-// T50: the camera director and the key table, as the window procedure uses them.
+// T76 (2026-10-30): the T50 camera pose and bookmark layer --
+// syncDirectorPoseToRenderer, syncRendererPoseToDirector, cameraModeToken,
+// saveCameraBookmark, jumpToCameraBookmark -- and the director/bookmark state it
+// owns moved to src/main_camera.cpp (declarations: main_camera.h). This was a
+// move, not a rewrite: the pose the trace prints is still read from the same
+// renderer reading, and the two lines camera-ui-check.sh's T50-M2/M2b mutations
+// patch by exact text are still inside jumpToCameraBookmark, by the same text,
+// in the new file.
 // ---------------------------------------------------------------------------
-
-// Pushes the director's pose into the renderer. The director is the pure half
-// (it has no D3D11), so this is the one place the two are connected; every
-// camera operation goes through it rather than touching the renderer directly,
-// which is what makes "the pose the trace prints" and "the pose the frame is
-// drawn from" the same number.
-void syncDirectorPoseToRenderer(tf2::native::CameraMoveSource source) {
-  if (!g_renderer) return;
-  const auto& pose = g_cameraDirector.pose();
-  if (!pose.valid) return;
-  if (source == tf2::native::CameraMoveSource::Reset) {
-    // A view reset is the renderer's own reset (it also clears the demo view),
-    // and then the director's focus is re-applied so the two agree.
-    g_renderer->resetCamera();
-    g_renderer->setOrbitPose(pose.focusX, pose.focusY, pose.focusZ,
-      pose.yaw, pose.pitch, pose.distance);
-    return;
-  }
-  g_renderer->setOrbitPose(pose.focusX, pose.focusY, pose.focusZ,
-    pose.yaw, pose.pitch, pose.distance);
-}
-
-// Reads the renderer's current pose back into the director. Called once per
-// scene tick, so the director always holds what the frame was drawn from and a
-// bookmark saved between ticks captures the drawn camera rather than a stale
-// copy of it.
-void syncRendererPoseToDirector(tf2::native::CameraMoveSource source =
-    tf2::native::CameraMoveSource::Player) {
-  if (!g_renderer) return;
-  const auto reading = g_renderer->orbitPose();
-  if (!reading.valid) return;
-  tf2::native::CameraPose pose;
-  pose.focusX = reading.focusX;
-  pose.focusY = reading.focusY;
-  pose.focusZ = reading.focusZ;
-  pose.yaw = reading.yaw;
-  pose.pitch = reading.pitch;
-  pose.distance = reading.distance;
-  pose.valid = true;
-  // The SOURCE travels with the pose: it is what separates "the camera moved"
-  // from "a bookmark moved it", and the summary reports both.
-  g_cameraDirector.applyPose(pose, source);
-}
-
-const char* cameraModeToken(tf2::native::CameraMode mode) {
-  return tf2::native::cameraModeName(mode);
-}
-
-// Saves the camera under `slot` with `name` (empty means the default name).
-// Reads the pose from the renderer, because the renderer is what the last frame
-// was drawn from.
-bool saveCameraBookmark(std::size_t slot, const std::string& name) {
-  if (!g_renderer) return false;
-  syncRendererPoseToDirector();
-  tf2::native::CameraPose pose = g_cameraDirector.pose();
-  if (!pose.valid) return false;
-  // The fov the frame behind this save was drawn through. Read from the same
-  // reading the orbit fields come from, so a bookmark is the whole camera.
-  const auto reading = g_renderer->orbitPose();
-  const float fov = reading.valid ? reading.fovDegrees : tf2::native::kDefaultBookmarkFov;
-  const bool ok = g_cameraBookmarks.save(slot, name, pose,
-    cameraModeToken(g_cameraMode.mode()), g_playback.tick, fov);
-  if (ok && g_renderer) {
-    // The renderer keeps its own transient presets (F1..F8 via the old Ctrl
-    // arms). Kept in step so an old binding path and the new bookmark store
-    // cannot disagree about where slot n is.
-    g_renderer->saveCameraPreset(slot - 1);
-  }
-  return ok;
-}
-
-// Jumps to `slot`. The pose is applied through setOrbitPose, which is the same
-// clamp path a preset takes, and the camera mode saved with the bookmark is
-// restored so the jump lands on the view the user saved.
-bool jumpToCameraBookmark(std::size_t slot, std::string& reason) {
-  if (!g_cameraBookmarks.saved(slot)) { reason = "empty"; return false; }
-  const auto& bookmark = g_cameraBookmarks.at(slot);
-  if (!bookmark.pose.valid) { reason = "no-pose"; return false; }
-  if (!g_renderer) { reason = "no-renderer"; return false; }
-  if (!g_renderer->setOrbitPose(bookmark.pose.focusX, bookmark.pose.focusY,
-      bookmark.pose.focusZ, bookmark.pose.yaw, bookmark.pose.pitch,
-      bookmark.pose.distance)) {
-    reason = "rejected";
-    return false;
-  }
-  // The projection is part of the saved view: an orbit restored into a
-  // different FOV is a different frame, so the jump writes it back too.
-  g_renderer->setViewModelFov(bookmark.fov);
-  // A jump leaves the demo eye: the pose IS the new camera, and a demo view
-  // left armed would overwrite it on the next scene tick.
-  g_renderer->clearObserverDemoView();
-  syncRendererPoseToDirector(tf2::native::CameraMoveSource::Bookmark);
-  if (!bookmark.mode.empty()) {
-    if (bookmark.mode == "first-person") g_cameraMode.setMode(tf2::native::CameraMode::FirstPerson);
-    else if (bookmark.mode == "third-person") g_cameraMode.setMode(tf2::native::CameraMode::ThirdPerson);
-    else if (bookmark.mode == "free-look") g_cameraMode.setMode(tf2::native::CameraMode::FreeLook);
-    g_lastAppliedCameraMode = g_cameraMode.mode();
-  }
-  g_cameraBookmarks.noteJump();
-  reason = "ok";
-  return true;
-}
 
 // ---------------------------------------------------------------------------
 // T71/T72: the ports the review session borrows from the running player.
@@ -1921,36 +1642,19 @@ bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
 }
 
 // ---------------------------------------------------------------------------
-// T51: the custom HUD, at the product level.
-//
-// The split is deliberate and mirrors hud_import.h / hud_state.h: the pure rules
-// (paths, documents, coordinates) live in hud_import.cpp and are asserted by
-// hud_probe without a window; the settings round trip lives in hud_state.cpp;
-// only the two things that need a window -- a folder picker and pushing
-// rectangles at the renderer -- are here.
-//
-// Every state change funnels through hudPublishTrace(), which prints the hud:
-// lines the gate reads. A reading is printed even when the answer is "nothing
-// happened", because a gate that only sees lines when something works cannot
-// tell "off" from "broken".
-// ---------------------------------------------------------------------------
-
-tf2::native::HudState g_hud;
-// T67: --hud-text-test draws the fixed primitive list instead of the imported
-// layout. A file-scope flag because both the argument scan and the resize path
-// (hudApplyRects) need the same answer.
-bool g_hudTextTest = false;
-// The discovered document is kept in g_hud.settings().layout, which is the value
-// that gets persisted -- a second copy here would be a second thing that can
-// disagree with what the settings file says was imported.
-bool g_hudTraceEnabled = true;
+// T76 (2026-10-29): the T51 HUD block -- its state, the folder picker, the
+// layout push and every hud: reading -- moved to src/main_hud.cpp. The hotkey
+// table below stays here on purpose: hud-check.sh's mutation-3 deletes the
+// registerDefault("hud.toggle", ...) line out of THIS file.
 
 
 // T50/T51 shared hotkey table (native/include/keybinds.h, contract 1.2). T51
 // registers its three actions into the ONE table rather than building a second
 // one; at merge time T50's camera actions register into the same object. The
 // table is a global because there is one window and one settings file.
-tf2::native::KeyBindTable g_keybinds;
+// T76: the OBJECT is defined near the top of this file (namespace
+// tf2::native::main_internal, declared in main_hud.h) so src/main_hud.cpp can
+// reach the same table; only the loader stays here.
 bool g_keybindsLoaded = false;
 
 void registerKeybinds(const std::filesystem::path& settingsFile) {
@@ -1993,318 +1697,9 @@ bool isTextFieldFocused() {
     || _wcsicmp(className, L"RichEdit50W") == 0;
 }
 
-// The action a key press maps to, or empty. Modifiers come from GetKeyState
-// rather than the message because WM_KEYDOWN does not carry them.
-std::string hudActionForKey(WPARAM key) {
-  tf2::native::KeyChord chord;
-  chord.vk = static_cast<unsigned>(key);
-  chord.ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-  chord.alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
-  chord.shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-  const auto* action = g_keybinds.actionForKey(chord);
-  if (!action) return {};
-  return *action;
-}
-
-// A folder picker. GetOpenFileNameW cannot select a directory, which is the
-// whole reason this is a second helper rather than a flag on the existing one.
-bool chooseHudFolder(HWND owner, std::filesystem::path& result) {
-  BROWSEINFOW browse{};
-  browse.hwndOwner = owner;
-  browse.lpszTitle = L"Select the folder that contains the HUD (the one with resource/ui)";
-  browse.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
-  PIDLIST_ABSOLUTE idList = SHBrowseForFolderW(&browse);
-  if (!idList) return false;
-  wchar_t path[MAX_PATH]{};
-  const bool ok = SHGetPathFromIDListW(idList, path) != FALSE;
-  // SHBrowseForFolderW returns a PIDLIST_ABSOLUTE allocated with CoTaskMemAlloc,
-  // so it is freed with CoTaskMemFree and not with ILFree (which is for the
-  // shell item's child pidls). Getting this wrong leaks one small block per
-  // dialog; the gate opens the dialog zero times, so the leak would be invisible
-  // in every reading -- stated here instead of discovered later.
-  CoTaskMemFree(idList);
-  if (!ok) return false;
-  result = std::filesystem::path(path);
-  return true;
-}
-
-// Which document inside the folder is the HUD. The candidates are ordered from
-// most specific to least, and the answer is reported so a user whose folder has
-// three .res files can see which one was taken.
-std::string discoverHudLayout(const std::filesystem::path& root, std::string& detail) {
-  std::error_code error;
-  const char* candidates[] = {
-    "resource/ui/hudlayout.res",
-    "scripts/hudlayout.res",
-    "ui/hudlayout.res",
-    "hudlayout.res",
-  };
-  for (const char* candidate : candidates) {
-    const auto file = root / std::filesystem::u8path(candidate);
-    if (std::filesystem::is_regular_file(file, error)) {
-      detail = std::string("candidate:") + candidate;
-      return candidate;
-    }
-  }
-  // Fall back to an enumeration: the single .res under resource/ui, then the
-  // single .res anywhere under the folder. More than one is refused rather than
-  // guessed -- picking the alphabetically first of fifteen panels is not "the
-  // HUD", and a silently-wrong pick is exactly the kind of claim this task
-  // forbids.
-  std::vector<std::string> found;
-  const auto collect = [&](const std::filesystem::path& directory, bool recursive) {
-    std::error_code scanError;
-    if (!std::filesystem::is_directory(directory, scanError)) return;
-    if (recursive) {
-      for (const auto& entry : std::filesystem::recursive_directory_iterator(directory, scanError)) {
-        if (scanError) break;
-        if (!entry.is_regular_file()) continue;
-        if (entry.path().extension() != ".res") continue;
-        if (found.size() < 64u) found.push_back(entry.path().lexically_relative(root).generic_u8string());
-      }
-    } else {
-      for (const auto& entry : std::filesystem::directory_iterator(directory, scanError)) {
-        if (scanError) break;
-        if (!entry.is_regular_file()) continue;
-        if (entry.path().extension() != ".res") continue;
-        if (found.size() < 64u) found.push_back(entry.path().lexically_relative(root).generic_u8string());
-      }
-    }
-  };
-  collect(root / "resource" / "ui", false);
-  if (found.size() == 1u) { detail = "unique:resource/ui"; return found.front(); }
-  found.clear();
-  collect(root, true);
-  if (found.size() == 1u) { detail = "unique:recursive"; return found.front(); }
-  detail = "ambiguous:" + std::to_string(found.size()) + "-documents";
-  return {};
-}
-
-void hudPublishTrace(HWND window) {
-  if (!g_hudTraceEnabled) return;
-  const auto& settings = g_hud.settings();
-  const auto unionRect = g_hud.unionRect();
-  traceFmt("hud: settings enabled=%d scale=%d preview=%d root=%s layout=%s imported=%d",
-    settings.enabled ? 1 : 0, settings.scalePercent, settings.preview ? 1 : 0,
-    settings.root.empty() ? "-" : settings.root.c_str(),
-    settings.layout.empty() ? "-" : settings.layout.c_str(),
-    g_hud.imported() ? 1 : 0);
-  traceFmt("hud: layout ok=%d document=%s panels=%zu refused=%zu nesting=%zu"
-    " unknownKeys=%zu duplicates=%zu includes=%zu",
-    g_hud.layout().ok ? 1 : 0,
-    g_hud.layout().documentName.empty() ? "-" : g_hud.layout().documentName.c_str(),
-    g_hud.layout().panels.size(), g_hud.layout().refusedPanels,
-    g_hud.layout().nestingDepth, g_hud.layout().unknownKeys,
-    g_hud.layout().duplicateNames, g_hud.layout().includeCount);
-  // Three counts, named for what they measure. `resolved` counts geometry that
-  // came out; `visible` counts what will actually be drawn; `invalid` counts the
-  // panels whose geometry failed. Collapsing them is how "it resolved 5 panels"
-  // and "it drew 4" become the same sentence.
-  traceFmt("hud: rects resolved=%zu visible=%zu invalid=%zu union=%d,%d,%d,%d empty=%d",
-    g_hud.resolvedPanels(), g_hud.visiblePanels(), g_hud.invalidPanels(),
-    unionRect.x, unionRect.y, unionRect.w, unionRect.h, unionRect.empty ? 1 : 0);
-  traceFmt("hud: refuse accepted=%d refused=%d lastReason=%s detail=%s",
-    g_hud.acceptedImports(), g_hud.refusedImports(),
-    tf2::native::hudRefusalName(g_hud.lastRefusal()),
-    g_hud.lastRefusalDetail().empty() ? "-" : g_hud.lastRefusalDetail().c_str());
-  if (g_hud.repaired()) traceFmt("hud: repaired detail=%s", g_hud.repairDetail().c_str());
-  // The draw reading. It is emitted on every publish so a run whose HUD is off
-  // says so out loud instead of leaving the gate to infer it from a missing line.
-  if (g_renderer) {
-    traceFmt("hud: draw drawn=%zu rects=%zu ordinal=%zu scissor=%d region=%d,%d,%d,%d",
-      g_renderer->hudDrawnRects(), g_renderer->hudRectCount(),
-      g_renderer->hudPassOrdinal(), g_renderer->hudScissorApplied() ? 1 : 0,
-      g_renderer->hudLastRegion().x, g_renderer->hudLastRegion().y,
-      g_renderer->hudLastRegion().w, g_renderer->hudLastRegion().h);
-  }
-  (void)window;
-}
-
-
-// T51: where ui.ini is. native_ui.cpp's uiSettingsPath() is in an anonymous
-// namespace inside that translation unit, and the [hud] section has to go into
-// the SAME file as [ui] -- a second path computed here that drifted from that
-// one would produce a HUD that never persists. It mirrors the same rule and is
-// cross-checked by the gate, which reads the path out of the trace and checks the
-// file exists.
-// T51: where ui.ini is. The path itself lives in native_ui.cpp (that file owns
-// it, and the [hud] section has to be in the SAME file as [ui]); this wrapper
-// only turns "no path" into a reading, because a silent empty path would look
-// like a HUD that simply did not persist.
-std::filesystem::path uiSettingsFilePath(std::string& status) {
-  const auto path = tf2::native::uiSettingsPath();
-  status = path.empty() ? "no-ui-settings-path" : "ok";
-  return path;
-}
-
-// T67: the fixed primitive list the --hud-text-test run draws. It is a probe,
-// not a layout: the coordinates are constants so a gate can compare the frame
-// against the same numbers. The last character is non-ASCII on purpose -- it has
-// no glyph, so it must take the fallback cell and be counted as unmapped, which
-// is what makes "unmapped text has a visible placeholder" a reading.
-void hudApplyTextTest() {
-  if (!g_renderer) return;
-  std::vector<tf2::native::Renderer::HudPrimitive> primitives;
-  tf2::native::Renderer::HudPrimitive text;
-  text.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
-  text.x = 40.0f;
-  text.y = 60.0f;
-  // 22 codepoints (21 ASCII + one non-ASCII), 8x8 cells at scale 2.
-  text.w = 22.0f * 8.0f * 2.0f;
-  text.h = 8.0f * 2.0f;
-  text.scale = 2.0f;
-  text.colour[0] = 1.0f; text.colour[1] = 1.0f; text.colour[2] = 1.0f; text.colour[3] = 1.0f;
-  text.text = "TF2 0:00 RED 12 BLU 7\xE4\xB8\xAD";
-  primitives.push_back(text);
-  tf2::native::Renderer::HudPrimitive panel;
-  panel.kind = tf2::native::Renderer::HudPrimitiveKind::Rect;
-  panel.x = 40.0f; panel.y = 120.0f; panel.w = 240.0f; panel.h = 40.0f;
-  panel.filled = true;
-  panel.colour[0] = 0.12f; panel.colour[1] = 0.28f; panel.colour[2] = 0.65f; panel.colour[3] = 1.0f;
-  primitives.push_back(panel);
-  tf2::native::Renderer::HudPrimitive red;
-  red.kind = tf2::native::Renderer::HudPrimitiveKind::Circle;
-  red.x = 60.0f; red.y = 200.0f; red.w = 24.0f; red.h = 24.0f;
-  red.colour[0] = 1.0f; red.colour[1] = 0.0f; red.colour[2] = 0.0f; red.colour[3] = 1.0f;
-  primitives.push_back(red);
-  tf2::native::Renderer::HudPrimitive blue;
-  blue.kind = tf2::native::Renderer::HudPrimitiveKind::Circle;
-  blue.x = 120.0f; blue.y = 200.0f; blue.w = 24.0f; blue.h = 24.0f;
-  blue.colour[0] = 0.1f; blue.colour[1] = 0.4f; blue.colour[2] = 1.0f; blue.colour[3] = 1.0f;
-  primitives.push_back(blue);
-  g_renderer->setHudPrimitives(primitives);
-  g_renderer->setHudEnabled(true);
-}
-
-// Pushes the current layout at the renderer for the window's current client size.
-void hudApplyRects(HWND window) {
-  if (!g_renderer) return;
-  if (g_hudTextTest) { hudApplyTextTest(); return; }
-  RECT client{};
-  if (!window || !GetClientRect(window, &client)) { client.right = 1280; client.bottom = 720; }
-  const float dpiScale = window ? static_cast<float>(GetDpiForWindow(window)) / 96.0f : 1.0f;
-  g_hud.layoutFor(client.right, client.bottom, dpiScale);
-  std::vector<tf2::native::Renderer::HudDrawRect> rects;
-  // Colors are per-panel and fixed: this build rasterises no font and no image,
-  // so the colour is the only thing that distinguishes one panel from another
-  // and a stable palette is what lets a reviewer name a block from a screenshot.
-  static const float kPalette[][4] = {
-    {0.16f, 0.35f, 0.55f, 0.72f},
-    {0.20f, 0.50f, 0.28f, 0.72f},
-    {0.55f, 0.35f, 0.14f, 0.72f},
-    {0.45f, 0.20f, 0.45f, 0.72f},
-  };
-  std::size_t index = 0;
-  for (const auto& rect : g_hud.rects()) {
-    // Hidden panels keep their geometry but are not drawn; the index is advanced
-    // anyway so a panel's colour depends on the document, not on which of its
-    // siblings happen to be hidden in this frame.
-    if (!rect.valid || !rect.visible) { ++index; continue; }
-    tf2::native::Renderer::HudDrawRect draw;
-    draw.left = static_cast<float>(rect.x);
-    draw.top = static_cast<float>(rect.y);
-    draw.right = static_cast<float>(rect.x + rect.w);
-    draw.bottom = static_cast<float>(rect.y + rect.h);
-    const float* colour = kPalette[index % 4u];
-    draw.colour[0] = colour[0]; draw.colour[1] = colour[1];
-    draw.colour[2] = colour[2]; draw.colour[3] = colour[3];
-    rects.push_back(draw);
-    ++index;
-  }
-  g_renderer->setHudRects(rects);
-  // The pass draws only when the user enabled the HUD AND there is something to
-  // draw. Both conditions are visible in the trace above.
-  g_renderer->setHudEnabled(g_hud.settings().enabled && !rects.empty());
-}
-
-void hudUpdateStatus(HWND window) {
-  if (!g_uiHudStatus) return;
-  const auto& settings = g_hud.settings();
-  std::wstring text = L"HUD: none";
-  if (g_hud.imported()) {
-    text = L"HUD: " + std::wstring(g_hud.layout().documentName.begin(), g_hud.layout().documentName.end())
-      + L" | panels=" + std::to_wstring(g_hud.visiblePanels())
-      + L" | scale=" + std::to_wstring(settings.scalePercent) + L"%"
-      + (settings.enabled ? L" | on" : L" | off");
-    if (g_hud.layout().refusedPanels != 0 || g_hud.invalidPanels() != 0) {
-      text += L" | refused=" + std::to_wstring(g_hud.layout().refusedPanels + g_hud.invalidPanels());
-    }
-  } else if (g_hud.lastRefusal() != tf2::native::HudRefusal::None) {
-    const char* reason = tf2::native::hudRefusalName(g_hud.lastRefusal());
-    text = L"HUD refused: " + std::wstring(reason, reason + std::strlen(reason));
-  }
-  SetWindowTextW(g_uiHudStatus, text.c_str());
-  if (g_uiHudPreview) {
-    SendMessageW(g_uiHudPreview, BM_SETCHECK, settings.preview ? BST_CHECKED : BST_UNCHECKED, 0);
-  }
-  if (g_uiHudScale) SendMessageW(g_uiHudScale, TBM_SETPOS, TRUE, settings.scalePercent);
-  if (window) InvalidateRect(window, nullptr, FALSE);
-}
-
-void hudImportInteractive(HWND window) {
-  std::filesystem::path folder;
-  if (!chooseHudFolder(window, folder)) {
-    traceFmt("hud: import action=cancelled");
-    return;
-  }
-  std::string detail;
-  const std::string layout = discoverHudLayout(folder, detail);
-  traceFmt("hud: import root=%s discover=%s", folder.u8string().c_str(), detail.c_str());
-  if (layout.empty()) {
-    // Nothing to import: report the discovery result as the refusal rather than
-    // silently doing nothing, because "I clicked Import and nothing happened" is
-    // the failure mode this whole feature exists to avoid.
-    const bool ambiguous = detail.compare(0, 10, "ambiguous:") == 0;
-    traceFmt("hud: import refused reason=%s", ambiguous ? "ambiguous-document" : "missing");
-    if (g_uiHudStatus) {
-      g_hud.noteDiscoveryRefusal(ambiguous ? "ambiguous-document" : "missing");
-      SetWindowTextW(g_uiHudStatus, ambiguous
-        ? L"HUD refused: several documents; pick a folder with one"
-        : L"HUD refused: no .res document in that folder");
-    }
-    return;
-  }
-  RECT client{};
-  GetClientRect(window, &client);
-  const float dpiScale = static_cast<float>(GetDpiForWindow(window)) / 96.0f;
-  tf2::native::HudImportRequest request;
-  request.root = folder;
-  request.layout = layout;
-  const auto result = g_hud.import(request, client.right, client.bottom, dpiScale);
-  traceFmt("hud: import result=%s document=%s", tf2::native::hudApplyResultName(result),
-    layout.c_str());
-  if (result == tf2::native::HudApplyResult::Applied) {
-    hudApplyRects(window);
-  }
-  hudUpdateStatus(window);
-  hudPublishTrace(window);
-}
-
-void hudTogglePreview(HWND window) {
-  const bool checked = g_uiHudPreview
-    && SendMessageW(g_uiHudPreview, BM_GETCHECK, 0, 0) == BST_CHECKED;
-  // The checkbox is the feature switch, not a second "enabled": it drives
-  // hud.enabled, which is the one key the contract gives this feature.
-  g_hud.setEnabled(checked);
-  g_hud.setPreview(checked);
-  traceFmt("hud: toggle enabled=%d", checked ? 1 : 0);
-  hudApplyRects(window);
-  hudUpdateStatus(window);
-  hudPublishTrace(window);
-}
-
-void hudResetToDefault(HWND window) {
-  const auto result = g_hud.resetToDefault();
-  traceFmt("hud: reset result=%s", tf2::native::hudApplyResultName(result));
-  // The renderer is told there is nothing to draw BEFORE the status line is
-  // updated, so a reset cannot leave a frame with a stale HUD on it.
-  if (g_renderer) {
-    g_renderer->setHudRects({});
-    g_renderer->setHudEnabled(false);
-  }
-  hudUpdateStatus(window);
-  hudPublishTrace(window);
-}
+// T76 (2026-10-29): hudActionForKey, chooseHudFolder, discoverHudLayout,
+// hudPublishTrace, uiSettingsFilePath and the hud* window/renderer helpers
+// moved to src/main_hud.cpp.
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
   switch (message) {

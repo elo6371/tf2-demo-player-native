@@ -1082,8 +1082,8 @@ T50EOF
 
   echo
   echo "--- T50-M2: a bookmark jump lands 0.001 box units off"
-  t50_backup native/src/main.cpp || t50mrc=1
-  if t50_patch native/src/main.cpp "      bookmark.pose.focusZ, bookmark.pose.yaw, bookmark.pose.pitch," "      bookmark.pose.focusZ + 0.001f, bookmark.pose.yaw, bookmark.pose.pitch,"; then
+  t50_backup native/src/main_camera.cpp || t50mrc=1
+  if t50_patch native/src/main_camera.cpp "      bookmark.pose.focusZ, bookmark.pose.yaw, bookmark.pose.pitch," "      bookmark.pose.focusZ + 0.001f, bookmark.pose.yaw, bookmark.pose.pitch,"; then
     # (the +0.001f is the whole defect: the saved pose is honest, the jump is not)
     if bash build-target.sh tf2_demo_native > "$T50M/m2.build" 2>&1; then
       t50_script_run m2
@@ -1102,7 +1102,7 @@ T50EOF
   else
     echo "  MUTATION-SETUP=FAIL (T50-M2: the patch did not apply)"; t50mrc=1
   fi
-  t50_restore_check native/src/main.cpp || t50mrc=1
+  t50_restore_check native/src/main_camera.cpp || t50mrc=1
   bash build-target.sh tf2_demo_native > "$T50M/m2.restore.build" 2>&1 || { echo "  RESTORE-BUILD=FAIL (T50-M2)"; t50mrc=1; }
 
   echo
@@ -1111,8 +1111,8 @@ T50EOF
   # leaves all six orbit numbers exact, so the pose assertion stays green and
   # ONLY the fov assertion can catch it -- which is what proves the fov check is
   # an assertion and not a duplicate of the pose one.
-  t50_backup native/src/main.cpp || t50mrc=1
-  if t50_patch native/src/main.cpp \
+  t50_backup native/src/main_camera.cpp || t50mrc=1
+  if t50_patch native/src/main_camera.cpp \
       "  g_renderer->setViewModelFov(bookmark.fov);" \
       "  g_renderer->setViewModelFov(bookmark.fov + 1.0f);  // mutation: wrong fov"; then
     if bash build-target.sh tf2_demo_native > "$T50M/m2b.build" 2>&1; then
@@ -1132,7 +1132,7 @@ T50EOF
   else
     echo "  MUTATION-SETUP=FAIL (T50-M2b: the patch did not apply)"; t50mrc=1
   fi
-  t50_restore_check native/src/main.cpp || t50mrc=1
+  t50_restore_check native/src/main_camera.cpp || t50mrc=1
   bash build-target.sh tf2_demo_native > "$T50M/m2b.restore.build" 2>&1 || { echo "  RESTORE-BUILD=FAIL (T50-M2b)"; t50mrc=1; }
 
   echo
