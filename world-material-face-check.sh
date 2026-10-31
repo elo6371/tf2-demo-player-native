@@ -366,7 +366,7 @@ fi
 echo "== mutation mode =="
 mfail=0
 m1_red=0; m2_red=0; m3_red=0; m4_red=0; m5_red=0; m6_red=0   # one flag per mutant; a mutant may print two reds
-SRC_REN="native/src/native_renderer.cpp"
+SRC_REN="native/src/native_renderer_world.cpp"
 SRC_MAIN="native/src/main.cpp"
 SRC_VMT="native/src/vmt_material.cpp"
 SAVE_VMT="$SCRATCH/vmt_material.cpp.save"

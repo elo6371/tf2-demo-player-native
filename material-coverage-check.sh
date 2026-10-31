@@ -639,17 +639,17 @@ if [ "$MUTATION" -eq 1 ]; then
   # count stays the same; only the cross-pass counter moves.
   echo "--- m3: a weapon range binds the world atlas at t0 (the gun samples a wall)"
   M3_BACKUP="$SCRATCH/native_renderer.cpp.leak.backup"
-  cp native/src/native_renderer.cpp "$M3_BACKUP"
-  M3_HASH=$(git hash-object native/src/native_renderer.cpp)
-  if ! patch_in native/src/native_renderer.cpp \
+  cp native/src/native_renderer_viewmodel.cpp "$M3_BACKUP"
+  M3_HASH=$(git hash-object native/src/native_renderer_viewmodel.cpp)
+  if ! patch_in native/src/native_renderer_viewmodel.cpp \
       '          bindSlot0(view, "weapon-range");' \
       '          bindSlot0(worldAtlasTextures_.empty() ? view : worldAtlasTextures_.front().view(), "weapon-range");'; then
-    echo "  MUTATION-SETUP=FAIL (m3: the patch did not apply)"; cp "$M3_BACKUP" native/src/native_renderer.cpp
+    echo "  MUTATION-SETUP=FAIL (m3: the patch did not apply)"; cp "$M3_BACKUP" native/src/native_renderer_viewmodel.cpp
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/m3.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (m3: the rebuild failed)"
-    restore_source "$M3_BACKUP" native/src/native_renderer.cpp m3 "$M3_HASH" tf2_demo_native || true
+    restore_source "$M3_BACKUP" native/src/native_renderer_viewmodel.cpp m3 "$M3_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   run_product m3 "$POV_DEMO" "$POV_TICK" --viewmodel "$VM_MODEL" --viewmodel-fov 90
@@ -659,11 +659,11 @@ if [ "$MUTATION" -eq 1 ]; then
     echo "  MUTATION-CAUGHT=PASS (m3: weaponDrawsWithWorldAtlas=$M3_LEAK while the forward run read 0)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m3: weaponDrawsWithWorldAtlas=${M3_LEAK:-<none>})"
-    restore_source "$M3_BACKUP" native/src/native_renderer.cpp m3 "$M3_HASH" tf2_demo_native || true
+    restore_source "$M3_BACKUP" native/src/native_renderer_viewmodel.cpp m3 "$M3_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   echo "$M3_ISO" > "$OUT/mutated-m3-weapon-leak.txt"
-  restore_source "$M3_BACKUP" native/src/native_renderer.cpp m3 "$M3_HASH" tf2_demo_native || {
+  restore_source "$M3_BACKUP" native/src/native_renderer_viewmodel.cpp m3 "$M3_HASH" tf2_demo_native || {
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
 
   # ---- m4: $bumpmap2 is dropped instead of refused -------------------------
@@ -705,35 +705,35 @@ if [ "$MUTATION" -eq 1 ]; then
   # turns into a hash of stretched polygons. Only the frame says so.
   echo "--- m5: the index buffer is built from triangle numbers (geometry tears)"
   M5_BACKUP="$SCRATCH/native_renderer.cpp.index.backup"
-  cp native/src/native_renderer.cpp "$M5_BACKUP"
-  M5_HASH=$(git hash-object native/src/native_renderer.cpp)
-  if ! patch_in native/src/native_renderer.cpp \
+  cp native/src/native_renderer_world.cpp "$M5_BACKUP"
+  M5_HASH=$(git hash-object native/src/native_renderer_world.cpp)
+  if ! patch_in native/src/native_renderer_world.cpp \
       '      const auto base = static_cast<std::uint32_t>(triangle * 3u);' \
       '      const auto base = static_cast<std::uint32_t>(triangle);  // mutation: no *3'; then
-    echo "  MUTATION-SETUP=FAIL (m5: the patch did not apply)"; cp "$M5_BACKUP" native/src/native_renderer.cpp
+    echo "  MUTATION-SETUP=FAIL (m5: the patch did not apply)"; cp "$M5_BACKUP" native/src/native_renderer_world.cpp
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/m5.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (m5: the rebuild failed)"
-    restore_source "$M5_BACKUP" native/src/native_renderer.cpp m5 "$M5_HASH" tf2_demo_native || true
+    restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   run_product m5 "$DEMO" "$TICK" --no-world-vis-clip
   M5_PLAN=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_m5" 2>/dev/null | head -1)
   if cmp -s "$BMP_noclip" "$BMP_m5"; then
     echo "  MUTATION-CAUGHT=FAIL (m5: the frame is unchanged, so the index base is not what draws it)"
-    restore_source "$M5_BACKUP" native/src/native_renderer.cpp m5 "$M5_HASH" tf2_demo_native || true
+    restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   if [ "$(rval "$M5_PLAN" tiled)" = "123" ] && [ "$(rval "$M5_PLAN" batches)" = "2" ]; then
     echo "  MUTATION-CAUGHT=PASS (m5: tiled=123 batches=2 unchanged, the frame moved)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m5: the plan moved too, so this did not isolate the index)"
-    restore_source "$M5_BACKUP" native/src/native_renderer.cpp m5 "$M5_HASH" tf2_demo_native || true
+    restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   ( cd "$SCRATCH" && sha256sum "m5.$RUN_TAG.bmp" "noclip.$RUN_TAG.bmp" ) | sed 's/^/  ..   /'
-  restore_source "$M5_BACKUP" native/src/native_renderer.cpp m5 "$M5_HASH" tf2_demo_native || {
+  restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || {
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
 
   # ---- m6: the clip ignores the batch table --------------------------------
@@ -755,17 +755,17 @@ if [ "$MUTATION" -eq 1 ]; then
   # batch-1 material that fills the screen, so the regroup has to repaint it.
   echo "--- m6: the clipped indices all land in batch 0 (batch 1 samples batch 0's atlas)"
   M6_BACKUP="$SCRATCH/native_renderer.cpp.regroup.backup"
-  cp native/src/native_renderer.cpp "$M6_BACKUP"
-  M6_HASH=$(git hash-object native/src/native_renderer.cpp)
-  if ! patch_in native/src/native_renderer.cpp \
+  cp native/src/native_renderer_world.cpp "$M6_BACKUP"
+  M6_HASH=$(git hash-object native/src/native_renderer_world.cpp)
+  if ! patch_in native/src/native_renderer_world.cpp \
       '    perBatch[static_cast<std::size_t>(batch)].push_back(index);' \
       '    perBatch[0].push_back(index);  // mutation: the clip ignores the batch table'; then
-    echo "  MUTATION-SETUP=FAIL (m6: the patch did not apply)"; cp "$M6_BACKUP" native/src/native_renderer.cpp
+    echo "  MUTATION-SETUP=FAIL (m6: the patch did not apply)"; cp "$M6_BACKUP" native/src/native_renderer_world.cpp
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/m6.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (m6: the rebuild failed)"
-    restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || true
+    restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   run_product m6 "$DEMO" "$TICK" --debug-camera 5934 -1624 96 89 0 --world-albedo --world-face-trace
@@ -773,18 +773,18 @@ if [ "$MUTATION" -eq 1 ]; then
   M6_STATS=$(albedo_stats "$BMP_m6" | tr '\n' ' ')
   if cmp -s "$BMP_include" "$BMP_m6"; then
     echo "  MUTATION-CAUGHT=FAIL (m6: the include-pose frame is unchanged, so the regroup is not what draws it)"
-    restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || true
+    restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   if [ "$(rval "$M6_PLAN" tiled)" = "123" ] && [ "$(rval "$M6_PLAN" batches)" = "2" ]; then
     echo "  MUTATION-CAUGHT=PASS (m6: tiled=123 batches=2 unchanged, the include-pose frame moved: $M6_STATS)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m6: the plan moved too, so this did not isolate the regroup)"
-    restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || true
+    restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
   ( cd "$SCRATCH" && sha256sum "m6.$RUN_TAG.bmp" "include.$RUN_TAG.bmp" ) | sed 's/^/  ..   /'
-  restore_source "$M6_BACKUP" native/src/native_renderer.cpp m6 "$M6_HASH" tf2_demo_native || {
+  restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || {
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
 
   # ---- m7: the patch wrapper is refused instead of followed -------------------

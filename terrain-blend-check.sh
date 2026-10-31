@@ -719,15 +719,15 @@ PY
   # is why it is a reading.
   echo "--- m3: every uploaded weight is forced to 1 (the blend draws the second layer flat)"
   M3_BACKUP="$SCRATCH/native_renderer.cpp.weight.backup"
-  cp native/src/native_renderer.cpp "$M3_BACKUP"
-  patch_in native/src/native_renderer.cpp \
+  cp native/src/native_renderer_world.cpp "$M3_BACKUP"
+  patch_in native/src/native_renderer_world.cpp \
     '        a.blend = triangle.aAlpha; b.blend = triangle.bAlpha; c.blend = triangle.cAlpha;' \
     '        a.blend = b.blend = c.blend = 1.0f;  // mutation: a constant, not the map weight' || {
       echo "  MUTATION-SETUP=FAIL (m3: the patch did not apply)"
-      cp "$M3_BACKUP" native/src/native_renderer.cpp; echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
+      cp "$M3_BACKUP" native/src/native_renderer_world.cpp; echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/m3.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (m3: the rebuild failed)"
-    restore_source "$M3_BACKUP" native/src/native_renderer.cpp m3 tf2_demo_native || true
+    restore_source "$M3_BACKUP" native/src/native_renderer_world.cpp m3 tf2_demo_native || true
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
   fi
   run_product m3
@@ -739,11 +739,11 @@ PY
     echo "  MUTATION-CAUGHT=PASS (m3: distinctWeights=1 weightMin=1 while weightedVertices=$M3_WEIGHTED)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m3: distinctWeights=$M3_DISTINCT weightMin=$M3_MIN weightedVertices=$M3_WEIGHTED)"
-    restore_source "$M3_BACKUP" native/src/native_renderer.cpp m3 tf2_demo_native || true
+    restore_source "$M3_BACKUP" native/src/native_renderer_world.cpp m3 tf2_demo_native || true
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
   fi
   echo "$M3_LINE" > "$OUT/mutated-m3-constant-weight.txt"
-  restore_source "$M3_BACKUP" native/src/native_renderer.cpp m3 tf2_demo_native || {
+  restore_source "$M3_BACKUP" native/src/native_renderer_world.cpp m3 tf2_demo_native || {
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
 
   # ---- m4: the modulate never reaches the shader ---------------------------
@@ -753,15 +753,15 @@ PY
   # for a soft transition. The reading is `modulatedVertices`.
   echo "--- m4: the blend-modulate flag never reaches a vertex (hard edges)"
   M4_BACKUP="$SCRATCH/native_renderer.cpp.modulate.backup"
-  cp native/src/native_renderer.cpp "$M4_BACKUP"
-  patch_in native/src/native_renderer.cpp \
+  cp native/src/native_renderer_world.cpp "$M4_BACKUP"
+  patch_in native/src/native_renderer_world.cpp \
     '        const float modulate = modulatedMaterials.count(triangle.material) ? 1.0f : 0.0f;' \
     '        const float modulate = 0.0f;  // mutation: the modulate is fetched and never applied' || {
       echo "  MUTATION-SETUP=FAIL (m4: the patch did not apply)"
-      cp "$M4_BACKUP" native/src/native_renderer.cpp; echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
+      cp "$M4_BACKUP" native/src/native_renderer_world.cpp; echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/m4.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (m4: the rebuild failed)"
-    restore_source "$M4_BACKUP" native/src/native_renderer.cpp m4 tf2_demo_native || true
+    restore_source "$M4_BACKUP" native/src/native_renderer_world.cpp m4 tf2_demo_native || true
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
   fi
   run_product m4
@@ -779,11 +779,11 @@ PY
     echo "  MUTATION-CAUGHT=PASS (m4: modulateTiles=$M4_TILES modulatedVertices=0 weightedVertices=$M4_WEIGHTED)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m4: modulateTiles=$M4_TILES modulatedVertices=$M4_MODULATED weightedVertices=$M4_WEIGHTED)"
-    restore_source "$M4_BACKUP" native/src/native_renderer.cpp m4 tf2_demo_native || true
+    restore_source "$M4_BACKUP" native/src/native_renderer_world.cpp m4 tf2_demo_native || true
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1
   fi
   echo "$M4_LINE" > "$OUT/mutated-m4-no-modulate.txt"
-  restore_source "$M4_BACKUP" native/src/native_renderer.cpp m4 tf2_demo_native || {
+  restore_source "$M4_BACKUP" native/src/native_renderer_world.cpp m4 tf2_demo_native || {
     echo "TERRAIN-BLEND-MUTATION=FAIL"; exit 1; }
 
   # ---- m5: the winding swaps the positions and not the weights ------------
