@@ -382,14 +382,42 @@ PAUSE_RESUMED=$(grep -c 'spectate: resume-after' "$OUT/pause.trace" 2>/dev/null 
 assert_eq "pause windows opened" "${PAUSE_OPEN:-0}" "1"
 assert_eq "pause windows resumed" "${PAUSE_RESUMED:-0}" "1"
 echo "  frozen window: $(tr '\n' '|' < "$OUT/pause-window.txt" | cut -c1-360)"
+# The window is read from what the product printed for itself, so the reading is
+# only as fine as the frames the host actually ran inside it. Two kinds of clause
+# are kept apart here: the ones that decide the CONTRACT hold on any host, and the
+# ones that measure SAMPLING DENSITY only apply when the host gave the loop enough
+# frames. A single 842 ms frame inside the window swallows the whole 0.3 s handover
+# (the 2026-10-31 chain run hit exactly that: two lines and one progress value,
+# with the handover demonstrably completing), and a starved host is not evidence
+# that the relay stopped. Density is therefore gated on the frame count the window
+# actually contains; the contract clauses below never are.
 FROZEN_LINES=$(grep -c 'spectate: tick=' "$OUT/pause-window.txt" 2>/dev/null || true)
-assert_ge "handover lines the product printed while the clock was frozen" "${FROZEN_LINES:-0}" "8"
+FROZEN_FRAMES=$(grep -c 'draw: begin' "$OUT/pause-window.txt" 2>/dev/null || true)
+# Even a starved window must show the handover in flight and finishing: a relay
+# that froze with the demo clock prints one line and never a tr=0.
+assert_ge "handover lines printed while the clock was frozen" "${FROZEN_LINES:-0}" "2"
 FROZEN_TICKS=$(grep -o 'spectate: tick=[0-9]*' "$OUT/pause-window.txt" | sort -u | wc -l)
 assert_eq "distinct demo ticks seen during the pause" "$FROZEN_TICKS" "1"
 FROZEN_CLOSED=$(grep -c 'tr=0' "$OUT/pause-window.txt" 2>/dev/null || true)
 assert_ge "handovers that finished while the clock was frozen" "${FROZEN_CLOSED:-0}" "1"
 FROZEN_PROGRESS=$(grep -o 'prog=[0-9.]*' "$OUT/pause-window.txt" | sort -u | wc -l)
-assert_ge "distinct handover progress values while the clock was frozen" "$FROZEN_PROGRESS" "5"
+# Only lines where the handover is still in flight (tr=1) carry a progress value;
+# the line that reports the completion resets it, so reading the reset as a
+# backwards step would fail every run.
+FROZEN_BACKWARDS=$(awk '
+  /spectate: tick=/ && /tr=1/ && match($0, /prog=[0-9.]+/) {
+    v = substr($0, RSTART + 5, RLENGTH - 5) + 0
+    if (seen && v < prev) bad++
+    prev = v; seen = 1
+  }
+  END { print bad + 0 }' "$OUT/pause-window.txt")
+assert_eq "handover progress went backwards while the clock was frozen" "${FROZEN_BACKWARDS:-<none>}" "0"
+if [ "${FROZEN_FRAMES:-0}" -ge 8 ]; then
+  assert_ge "handover lines the product printed while the clock was frozen" "${FROZEN_LINES:-0}" "8"
+  assert_ge "distinct handover progress values while the clock was frozen" "$FROZEN_PROGRESS" "5"
+else
+  echo "  NOTE starved window: frames = ${FROZEN_FRAMES:-0} (< 8), so line and progress counts cannot read the handover; completion, monotonic progress and the single tick still decide"
+fi
 PAUSE_SUMMARY=$(grep 'spectate: summary' "$OUT/pause.trace" | tail -1)
 assert_eq "deaths in the paused run" "$(field "$PAUSE_SUMMARY" deaths)" "3"
 assert_eq "handovers in the paused run" "$(field "$PAUSE_SUMMARY" handovers)" "3"
