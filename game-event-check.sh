@@ -379,7 +379,7 @@ restore_and_verify() {
 
 echo
 echo "=== mutation m1: the event body decode is skipped ==="
-SOURCE=native/src/demo_header.cpp
+SOURCE=native/src/demo_header_events.cpp
 BACKUP=.scratch/game-event-m1.bak
 cp "$SOURCE" "$BACKUP"
 if ! "$PY" - "$SOURCE" <<'PYEOF'

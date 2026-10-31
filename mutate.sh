@@ -26,6 +26,16 @@ if [ "${VERIFY_ALL_LOCK_HELD:-0}" != "1" ]; then
 fi
 
 SRC=native/src/demo_header.cpp
+# The split moved the demo_header.cpp helpers into one translation unit per concern;
+# a mutation case must patch the file that now owns its needle, or patch_in()
+# fails with PATTERN NOT FOUND.
+SRC_CORE=native/src/demo_header_core.cpp
+SRC_NET=native/src/demo_header_net.cpp
+SRC_ENTITY=native/src/demo_header_entity.cpp
+SRC_STRTAB=native/src/demo_header_strtab.cpp
+SRC_SOUND=native/src/demo_header_sound.cpp
+SRC_EVENTS=native/src/demo_header_events.cpp
+SRC_TRACK=native/src/demo_header_track.cpp
 MODELSRC=native/src/entity_model.cpp
 MODELTOOL=native/tools/entity_model_probe.cpp
 MAINSRC=native/src/main.cpp
@@ -224,16 +234,16 @@ for case_id in $CASES; do
       # walk kept its three sites, and those are the ones that carry bagel's
       # 7669-byte entry, so the readings this case asserts are unchanged.
       echo "--- m2: restore the 1024-byte cap at all four string-table sites"
-      patch_in "$SRC" \
+      patch_in "$SRC_STRTAB" \
         '        if (!table.read(14, userBytes)) return false;' \
         '        if (!table.read(14, userBytes) || userBytes > 1024u) return false;' || { rc_all=1; continue; }
-      patch_in "$SRC" \
+      patch_in "$SRC_STRTAB" \
         '        if (!data.read(14, userDataBytes)) return false;' \
         '        if (!data.read(14, userDataBytes) || userDataBytes > 1024u) return false;' || { rc_all=1; continue; }
-      patch_in "$SRC" \
+      patch_in "$SRC_STRTAB" \
         '        if (static_cast<std::size_t>(userBytes) * 8u > bits.remaining()) return false;' \
         '        if (userBytes > 1024u) return false;' || { rc_all=1; continue; }
-      patch_in "$SRC" \
+      patch_in "$SRC_STRTAB" \
         '          if (!bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;' \
         '          if (userBytes > 1024u || !bits.skip(static_cast<std::size_t>(userBytes) * 8u)) return false;' || { rc_all=1; continue; }
       rebuild entity_protocol_probe || continue
@@ -247,7 +257,7 @@ for case_id in $CASES; do
       ;;
     m3)
       echo "--- m3: revert svc_Prefetch to the >23 width rule"
-      patch_in "$SRC" \
+      patch_in "$SRC_NET" \
         '  const std::uint32_t width = summary.networkProtocol > 22 ? 14u : 13u;' \
         '  const std::uint32_t width = summary.networkProtocol > 23 ? 14u : 13u;' || { rc_all=1; continue; }
       rebuild entity_protocol_probe || continue
@@ -261,7 +271,7 @@ for case_id in $CASES; do
       ;;
     m4)
       echo "--- m4: make Preserve history events carry a full state again"
-      patch_in "$SRC" \
+      patch_in "$SRC_ENTITY" \
         '                               false, {}, std::move(changes)});' \
         '                               true, summary.entityStates[static_cast<std::size_t>(lastEntity)], std::move(changes)});' || { rc_all=1; continue; }
       rebuild entity_message_fixture_probe || continue
@@ -273,7 +283,7 @@ for case_id in $CASES; do
       ;;
     m5)
       echo "--- m5: drop the base state on the preserve path (no swap-back)"
-      patch_in "$SRC" \
+      patch_in "$SRC_ENTITY" \
         '      EntityState candidate;
       std::swap(candidate, liveState);
       std::vector<EntityPropChange> changes;' \
@@ -291,14 +301,14 @@ for case_id in $CASES; do
       # state the P0 acceptance run was in when it reported all nine oracle demos
       # as POV; five of them are SourceTV match demos (clientname="SourceTV Demo").
       echo "--- m6: classifier reads servername only again"
-      patch_in "$SRC" \
+      patch_in "$SRC_CORE" \
         '  return containsInsensitive(header.serverName, "sourcetv")
       || containsInsensitive(header.serverName, "hltv")
       || containsInsensitive(header.clientName, "sourcetv")
       || containsInsensitive(header.clientName, "hltv");' \
         '  return containsInsensitive(header.serverName, "sourcetv")
       || containsInsensitive(header.serverName, "hltv");' || { rc_all=1; continue; }
-      patch_in "$SRC" \
+      patch_in "$SRC_TRACK" \
         '  result.headerName = header.recordingType == DemoRecordingType::SourceTv
       || namesIndicateSourceTv(header);' \
         '  result.headerName = header.recordingType == DemoRecordingType::SourceTv;' || { rc_all=1; continue; }
@@ -327,7 +337,7 @@ for case_id in $CASES; do
       # no entity's m_nModelIndex resolves to a path, and the render request list
       # empties out again.
       echo "--- m7: readCreateStringTable stops retaining modelprecache"
-      patch_in "$SRC" \
+      patch_in "$SRC_STRTAB" \
         '  if (name == "soundprecache" || name == "modelprecache") {' \
         '  if (name == "soundprecache") {' || { rc_all=1; continue; }
       rebuild entity_protocol_probe entity_model_probe || continue
@@ -398,7 +408,7 @@ for case_id in $CASES; do
       # than the handoff's 54392: the duplicate-tick pushes that padded the old
       # archive are gone in this build, so the hole is the policy's alone.
       echo "--- m9: thin the history archive by index again (head pinned, big hole)"
-      patch_in "$SRC" \
+      patch_in "$SRC_ENTITY" \
         '  const std::size_t last = archive.size() - 1;
   std::vector<char> kept(archive.size(), 0);
   kept[0] = 1;
@@ -480,7 +490,7 @@ for case_id in $CASES; do
       # there", and an unreachable block leaves the same runtime shape while
       # keeping the compilers quiet about everything around it.
       echo "--- m10: world-model route unreachable again (weapons name their arms)"
-      patch_in "$SRC" \
+      patch_in "$SRC_STRTAB" \
         '    if (reference.hasWorldModelIndex) {
 ' '    if (false && reference.hasWorldModelIndex) {
 ' || { rc_all=1; continue; }
