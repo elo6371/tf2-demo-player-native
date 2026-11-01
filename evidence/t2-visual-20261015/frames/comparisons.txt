@@ -1,7 +1,8 @@
-on vs sky-off  : BMP-DIFF differing=2005722 total=2582352 percent=77.6704 max_delta=149 extent=1264x681x24 status=PASS
-on vs vis-off  : BMP-DIFF differing=347102 total=2582352 percent=13.4413 max_delta=250 extent=1264x681x24 status=PASS
-on vs water-off: BMP-DIFF differing=5571 total=2582352 percent=0.2157 max_delta=79 extent=1264x681x24 status=PASS
-on vs repeat   : BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
-region sky-off: differing_pixels=668574 bbox=(x=0..1263, y=0..680) w=1264 h=681
-region vis-off: differing_pixels=116515 bbox=(x=0..1218, y=123..539) w=1219 h=417
-region water-off: differing_pixels=1857 bbox=(x=646..846, y=396..405) w=201 h=10
+sky-on vs sky-off    : BMP-DIFF differing=2582352 total=2582352 percent=100.0000 max_delta=235 extent=1264x681x24 status=PASS
+water-on vs water-off: BMP-DIFF differing=35972 total=2582352 percent=1.3930 max_delta=65 extent=1264x681x24 status=PASS
+on vs vis-off        : BMP-DIFF differing=505997 total=2582352 percent=19.5944 max_delta=168 extent=1264x681x24 status=PASS
+on vs repeat         : BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+water cam vs sky cam : BMP-DIFF differing=2582176 total=2582352 percent=99.9932 max_delta=213 extent=1264x681x24 status=PASS
+region sky-off: differing_pixels=860784 bbox=(x=0..1263, y=0..680) w=1264 h=681
+region vis-off: differing_pixels=169102 bbox=(x=0..1263, y=100..668) w=1264 h=569
+region water-off: differing_pixels=13024 bbox=(x=894..1105, y=244..631) w=212 h=388
