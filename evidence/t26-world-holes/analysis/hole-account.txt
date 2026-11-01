@@ -1,30 +1,36 @@
 HOLE status=ok dir=evidence/t26-world-holes/captures size=1264x681 flat_colour=(97,158,89)
 HOLE background clear_colour=(22,18,14) overlay=0
-HOLE masks pixels=860784 missing=97453 skyFaceCoverage=860784
-HOLE totals missing=97453 sky=97453 unexplained=0 skyOnDrawn=710543 skyOnDrawnUnmeasured=710543
+HOLE masks pixels=860784 missing=62394 skyFaceCoverage=860784
+HOLE totals missing=62394 sky=62394 unexplained=0 skyOnDrawn=747625 skyOnDrawnUnmeasured=747625
 HOLE maskReach coverage=860784 share=1.00000 degenerate=1
-HOLE depthControl drawnCovered=710543 skyBehind=0 skyInFront=0 tie=710543 measured=1 saturated=1
-HOLE component rank=0 area=86746 sky=86746 unexplained=0 bbox=(x=448..845,y=0..413) edge=1 fill=0.526
-HOLE component rank=1 area=6094 sky=6094 unexplained=0 bbox=(x=1188..1263,y=0..158) edge=1 fill=0.504
-HOLE component rank=2 area=4613 sky=4613 unexplained=0 bbox=(x=700..801,y=31..127) edge=0 fill=0.466
-HOLE split open=92840 enclosed=4613 enclosedUnexplained=0 components=3
-HOLE point=484,190 component=0 area=86746
-HOLE point=678,235 component=0 area=86746
-HOLE point=631,407 component=0 area=86746
-HOLE point=1232,22 component=1 area=6094
-HOLE point=1255,31 component=1 area=6094
-HOLE point=1249,77 component=1 area=6094
-HOLE point=760,53 component=2 area=4613
-HOLE point=763,90 component=2 area=4613
-HOLE point=722,86 component=2 area=4613
-HOLE points=484,190;678,235;631,407;1232,22;1255,31;1249,77;760,53;763,90;722,86
-HOLE seam rank=2 point=760,53 left=9189:1 right=238:38 up=9189:1 down=4173:52
-HOLE seam rank=2 point=763,90 left=9187:61 right=4173:24 up=9189:40 down=4173:14
-HOLE seamFaces count=4 ids=238,4173,9187,9189
+HOLE depthControl drawnCovered=747625 skyBehind=0 skyInFront=0 tie=747625 measured=1 saturated=1
+HOLE component rank=0 area=50343 sky=50343 unexplained=0 bbox=(x=602..845,y=91..407) edge=0 fill=0.651
+HOLE component rank=1 area=4634 sky=4634 unexplained=0 bbox=(x=702..806,y=45..138) edge=0 fill=0.470
+HOLE component rank=2 area=4292 sky=4292 unexplained=0 bbox=(x=1203..1263,y=0..138) edge=1 fill=0.506
+HOLE component rank=3 area=3125 sky=3125 unexplained=0 bbox=(x=606..694,y=0..66) edge=1 fill=0.524
+HOLE split open=7417 enclosed=54977 enclosedUnexplained=0 components=4
+HOLE point=660,285 component=0 area=50343
+HOLE point=800,204 component=0 area=50343
+HOLE point=765,319 component=0 area=50343
+HOLE point=802,95 component=1 area=4634
+HOLE point=749,85 component=1 area=4634
+HOLE point=725,98 component=1 area=4634
+HOLE point=1231,26 component=2 area=4292
+HOLE point=1237,47 component=2 area=4292
+HOLE point=1251,68 component=2 area=4292
+HOLE point=646,0 component=3 area=3125
+HOLE point=657,5 component=3 area=3125
+HOLE point=636,38 component=3 area=3125
+HOLE points=660,285;800,204;765,319;802,95;749,85;725,98;1231,26;1237,47;1251,68;646,0;657,5;636,38
+HOLE seam rank=0 point=660,285 left=19043:59 right=- up=- down=-
+HOLE seam rank=0 point=800,204 left=- right=238:20 up=9186:35 down=-
+HOLE seam rank=1 point=802,95 left=- right=4173:3 up=238:35 down=4173:2
+HOLE seam rank=1 point=749,85 left=9189:17 right=238:57 up=9189:11 down=4173:40
+HOLE seamFaces count=5 ids=238,4173,9186,9189,19043
 HOLE seamCulled directions=0
 HOLE region W1 x=0,y=0,w=420,h=200 drawn=84000 missing=0 sky=0 unexplained=0
 HOLE region W2 x=0,y=560,w=420,h=121 drawn=50820 missing=0 sky=0 unexplained=0
-HOLE region W3 x=1100,y=100,w=164,h=200 drawn=27975 missing=862 sky=862 unexplained=0
-HOLE region W4 x=600,y=0,w=64,h=60 drawn=1510 missing=2330 sky=2330 unexplained=0
-HOLE dark drawn=710543 dark=13396 limit=16
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=28673 missing=348 sky=348 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=1162 missing=2678 sky=2678 unexplained=0
+HOLE dark drawn=747625 dark=12475 limit=16
 HOLE mask=evidence/t26-world-holes/analysis\hole-mask.bmp
