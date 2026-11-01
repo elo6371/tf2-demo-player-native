@@ -6844,6 +6844,15 @@ bool outlineVertexExtent = false;
         renderer.worldAtlasSize(), static_cast<std::size_t>(renderer.worldAtlasBytes()),
         renderer.worldAtlasCount(), static_cast<std::size_t>(renderer.worldAtlasTotalBytes()),
         renderer.worldAtlasReason().c_str());
+      // T83: the brush models, and which of them this build refuses to draw. A
+      // refused model is a hole the frame may show, so the reasons are counted
+      // separately instead of being folded into "faces skipped".
+      traceFmt("gpu: world brush models total=%zu drawn=%zu skippedMoving=%zu skippedUnknown=%zu"
+        " facesDrawn=%zu facesSkipped=%zu worldFaces=%zu brushFaces=%zu",
+        displayMap.brushModelsTotal, displayMap.brushModelsDrawn,
+        displayMap.brushModelsSkippedMoving, displayMap.brushModelsSkippedUnknown,
+        displayMap.brushFacesDrawn, displayMap.brushFacesSkipped,
+        displayMap.worldFaceCount, displayMap.brushFaceCount);
     }
     {
       // T1 (2026-10-13): the pvs clip no longer measures the price of not

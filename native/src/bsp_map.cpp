@@ -15,7 +15,7 @@ std::string gLzmaError;
 struct Lump { std::int32_t offset = 0; std::int32_t length = 0; };
 using Bytes = std::vector<std::uint8_t>;
 constexpr std::size_t kHeaderSize = 8 + 64 * 16 + 4;
-constexpr int kLumpTexData = 2, kLumpVertices = 3, kLumpTexInfo = 6, kLumpFaces = 7,
+constexpr int kLumpEntities = 0, kLumpTexData = 2, kLumpVertices = 3, kLumpTexInfo = 6, kLumpFaces = 7,
   kLumpLighting = 8,
   kLumpEdges = 12, kLumpSurfEdges = 13, kLumpModels = 14,
   kLumpStringData = 43, kLumpStringTable = 44,
@@ -256,7 +256,98 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   }
   const bool dispInfoOk = !dispInfo.empty() && dispInfo.size() % 176 == 0;
   const bool dispVertsOk = dispVerts.size() % 20 == 0;
-  const auto firstFace = read<std::int32_t>(models, 40), faceCount = read<std::int32_t>(models, 44); if (firstFace < 0 || faceCount < 0 || static_cast<std::size_t>(firstFace) + static_cast<std::size_t>(faceCount) > faces.size() / 56) return fail("BSP world face range is invalid"); map.faceCount = static_cast<std::size_t>(faceCount);
+  const auto firstFace = read<std::int32_t>(models, 40), faceCount = read<std::int32_t>(models, 44); if (firstFace < 0 || faceCount < 0 || static_cast<std::size_t>(firstFace) + static_cast<std::size_t>(faceCount) > faces.size() / 56) return fail("BSP world face range is invalid");
+  // T83: the worldspawn range is [firstFace, firstFace + faceCount); the REMaining
+  // dmodels are brush entities whose faces sit in the same lumps at their
+  // compile-time position (Source stores brush brushes in map space). Building
+  // only model 0 left 1,446 of ashville's 6,457 faces -- 116 models, 22.4 % of
+  // the map -- out of the world pass entirely, and the baked-black interior
+  // faces behind them showed through the gap.
+  map.worldFaceCount = static_cast<std::size_t>(faceCount);
+  const std::int32_t allFaceCount = static_cast<std::int32_t>(faces.size() / 56);
+  map.brushFaceCount = static_cast<std::size_t>(allFaceCount) - map.worldFaceCount;
+  map.faceCount = static_cast<std::size_t>(allFaceCount);
+  // T83: which brush models may be drawn. The entity lump (lump 0, plain text)
+  // names each dmodel after the second one; a brush entity is drawn only when
+  // its class cannot move by itself, because Source stores it at its compile-time
+  // pose and a demo's runtime pose lives in the networked entity state, which
+  // this parser does not read. Everything else is refused and counted by reason.
+  struct RawBrushEntity { std::string className; std::string model; };
+  std::vector<RawBrushEntity> brushEntities;
+  {
+    Bytes entityBytes;
+    if (tryDecode(bytes, table[kLumpEntities], entityBytes) && !entityBytes.empty()) {
+      const std::string text(entityBytes.begin(), entityBytes.end());
+      RawBrushEntity current;
+      bool inBlock = false;
+      std::size_t i = 0;
+      while (i < text.size()) {
+        const char c = text[i];
+        if (c == '{') { current = RawBrushEntity{}; inBlock = true; ++i; continue; }
+        if (c == '}') { if (inBlock) brushEntities.push_back(current); inBlock = false; ++i; continue; }
+        if (c != '"') { ++i; continue; }
+        const auto keyEnd = text.find('"', i + 1);
+        if (keyEnd == std::string::npos) break;
+        const std::string key = text.substr(i + 1, keyEnd - i - 1);
+        std::size_t valueAt = keyEnd + 1;
+        while (valueAt < text.size() && (text[valueAt] == ' ' || text[valueAt] == '\t'
+            || text[valueAt] == '\r' || text[valueAt] == '\n')) ++valueAt;
+        std::string value;
+        if (valueAt < text.size() && text[valueAt] == '"') {
+          const auto valueEnd = text.find('"', valueAt + 1);
+          if (valueEnd == std::string::npos) break;
+          value = text.substr(valueAt + 1, valueEnd - valueAt - 1);
+          i = valueEnd + 1;
+        } else {
+          i = valueAt;
+        }
+        if (key == "classname") current.className = value;
+        else if (key == "model") current.model = value;
+      }
+    }
+  }
+  const std::size_t modelCount = models.size() / 48;
+  std::vector<std::string> modelClassName(modelCount);
+  for (const auto& entity : brushEntities) {
+    if (entity.model.size() < 2 || entity.model[0] != '*') continue;
+    const long index = std::strtol(entity.model.c_str() + 1, nullptr, 10);
+    if (index <= 0 || static_cast<std::size_t>(index) >= modelCount) continue;
+    modelClassName[static_cast<std::size_t>(index)] = entity.className;
+  }
+  // "Cannot move on its own" is the whole test. func_wall_toggle is left out on
+  // purpose: it still toggles, and a toggle is not a static pose.
+  const auto brushClassIsStatic = [](const std::string& name) {
+    return name == "func_brush" || name == "func_wall" || name == "func_lod";
+  };
+  std::vector<char> modelDrawn(modelCount, 0);
+  std::vector<int> faceModel(faces.size() / 56, 0);
+  for (std::size_t index = 0; index < modelCount; ++index) {
+    const auto modelFirst = read<std::int32_t>(models, index * 48 + 40);
+    const auto modelFaces = read<std::int32_t>(models, index * 48 + 44);
+    if (modelFirst < 0 || modelFaces <= 0) continue;
+    const auto end = static_cast<std::size_t>(modelFirst) + static_cast<std::size_t>(modelFaces);
+    for (auto face = static_cast<std::size_t>(modelFirst); face < end && face < faceModel.size(); ++face) {
+      faceModel[face] = static_cast<int>(index);
+    }
+    if (index == 0) continue;   // worldspawn is always drawn
+    ++map.brushModelsTotal;
+    const auto& className = modelClassName[index];
+    if (brushClassIsStatic(className)) {
+      modelDrawn[index] = 1;
+      ++map.brushModelsDrawn;
+    } else if (className.empty()) {
+      ++map.brushModelsSkippedUnknown;
+    } else {
+      ++map.brushModelsSkippedMoving;
+    }
+  }
+  const auto faceIsDrawable = [&](std::int32_t faceIndex) {
+    const auto slot = static_cast<std::size_t>(faceIndex);
+    if (slot >= faceModel.size()) return true;
+    const auto model = faceModel[slot];
+    if (model <= 0) return true;   // worldspawn or an unattributed face
+    return modelDrawn[static_cast<std::size_t>(model)] != 0;
+  };
   std::unordered_map<std::int32_t, std::string> names; for (std::size_t i = 0; i < texData.size() / 32; ++i) { const auto id = read<std::int32_t>(texData, i * 32 + 12); if (id >= 0 && static_cast<std::size_t>(id) < stringTable.size() / 4) names[static_cast<std::int32_t>(i)] = readString(stringData, read<std::int32_t>(stringTable, static_cast<std::size_t>(id) * 4)); }
   const auto vertexCount = vertices.size() / 12, edgeCount = edges.size() / 4, surfEdgeCount = surfEdges.size() / 4;
   // T1 (2026-10-13): the shelf packer used to be hard-coded to 2048 and a face
@@ -275,7 +366,8 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // which is why the answer cannot disagree with what the pass then does.
     const auto fits = [&](int size) {
       int cursorX = 0, cursorY = 0, rowHeight = 0;
-      for (std::int32_t faceIndex = firstFace; faceIndex < firstFace + faceCount; ++faceIndex) {
+      for (std::int32_t faceIndex = 0; faceIndex < allFaceCount; ++faceIndex) {
+        if (!faceIsDrawable(faceIndex)) continue;
         const auto base = static_cast<std::size_t>(faceIndex) * 56;
         const auto infoIndex = read<std::int16_t>(faces, base + 10);
         if (infoIndex < 0 || static_cast<std::size_t>(infoIndex) >= texInfo.size() / 72) continue;
@@ -339,7 +431,18 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     }
     return polygon.size() >= 3;
   };
-  for (std::int32_t faceIndex = firstFace; faceIndex < firstFace + faceCount; ++faceIndex) {
+  for (std::int32_t faceIndex = 0; faceIndex < allFaceCount; ++faceIndex) {
+    if (!faceIsDrawable(faceIndex)) {
+      // A refused brush model's faces: counted apart from "invalid" and "nodraw",
+      // because the gap they leave is a decision this parser made, not a fact
+      // about the file.
+      ++map.brushFacesSkipped;
+      continue;
+    }
+    if (faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceModel.size()
+        && faceModel[static_cast<std::size_t>(faceIndex)] > 0) {
+      ++map.brushFacesDrawn;
+    }
     const auto base = static_cast<std::size_t>(faceIndex) * 56; const auto firstEdge = read<std::int32_t>(faces, base + 4); const auto count = read<std::int16_t>(faces, base + 8); const auto infoIndex = read<std::int16_t>(faces, base + 10);
     if (count < 3 || firstEdge < 0 || static_cast<std::size_t>(firstEdge) + static_cast<std::size_t>(count) > surfEdgeCount || infoIndex < 0 || static_cast<std::size_t>(infoIndex) >= texInfo.size() / 72) continue;
     const auto flags = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 64);

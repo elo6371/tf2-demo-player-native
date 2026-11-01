@@ -93,6 +93,25 @@ struct BspMap {
   // 64/128). They are geometry the renderer is supposed to omit, so they must
   // not be counted as missing surfaces.
   std::size_t facesSkippedNoDraw = 0;
+  // T83: how the face lump splits. Model 0 (worldspawn) owns [0, worldFaceCount);
+  // every other dmodel is a brush entity -- func_brush, doors, breakables -- and
+  // those faces live in the same lumps at their compile-time position. The
+  // parser used to read model 0's range only, so 22.4 % of ashville's faces were
+  // never built. brushFaceCount is the share this change adds.
+  std::size_t worldFaceCount = 0;
+  std::size_t brushFaceCount = 0;
+  // Which brush models are drawn, and how many were refused. A brush entity is
+  // drawn only when the entity lump says it cannot move on its own
+  // (func_brush/func_wall/func_lod): a door, a train or a breakable is stored at
+  // its compile-time pose and drawing that pose would put a closed door across a
+  // doorway the demo has open. The refused models are counted by reason so the
+  // gap is a number, not silence.
+  std::size_t brushModelsTotal = 0;
+  std::size_t brushModelsDrawn = 0;
+  std::size_t brushModelsSkippedMoving = 0;
+  std::size_t brushModelsSkippedUnknown = 0;
+  std::size_t brushFacesDrawn = 0;
+  std::size_t brushFacesSkipped = 0;
   std::size_t triangleCount = 0;
   std::size_t lightmapSampleCount = 0;
   std::size_t lightmapFaceCount = 0;
