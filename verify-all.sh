@@ -959,18 +959,24 @@ tail -16 "$OUT/22-weapon-animation.txt"
 # bind-pose fallback carrying a reason, and a named witness) x 3, + 6 in section
 # 2 (four last-tick readings plus the two growth comparisons) + 5 in section 3
 # (T34: the pose was published at all three ticks, the camera reading resolved a
-# branch, the frames are one picture on a still camera, that frame is a picture
-# and not a flat fill, and the frames were drawn through the T29 near plane) +
+# branch, the three frames were drawn from the stated debug camera, the frames
+# differ with playback, that frame is a picture and not a flat fill, and the
+# frames were drawn through the T29 near plane) +
 # 12 in section 4 (five field equalities, the measured-silhouette rule, its
 # real-pose control, the sampled-sequence move, the witness frame count, the
 # two-tick frame inequality, the tick-following compare, and the
 # wrap-at-frame-count compare) + 6 in section 5 (both halves of the bind-pose
 # mutation pair, each with its own compared-entity count) + 1 in section 6.
 WA_OK=$(grep -c '^  OK   ' "$OUT/22-weapon-animation.txt" || true)
-if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 65 ]; then
+# 66 since 2026-11-01: section 3 gained the camera-identity assertion when the
+# three captures pinned --debug-camera (T84 made that switch reach the draw, so
+# the assertion measures the frame and not the trace), and "one picture on a
+# still camera" became "the frames differ with playback" -- the old claim only
+# held while the pre-T80 zero eye pointed the view at nothing that moved.
+if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 66 ]; then
   echo "WEAPON-ANIMATION=PASS (assertions_ok=$WA_OK)"
 else
-  echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0})"; rc_all=1
+  echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0}, expected 66)"; rc_all=1
 fi
 # This gate owns three contracts, and the second one is the shape that was
 # actually wrong. `--mutation` forces the sampled pose back to the bind pose and

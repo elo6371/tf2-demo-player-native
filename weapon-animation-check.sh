@@ -40,12 +40,16 @@
 #            gate already writes (scene: camera ... eye= pitch= yaw=), and
 #        (b) frames are required to be byte-identical when the camera did not
 #            move, and to differ when it did.
-#      Measured on this demo: the camera does not move (eye=0,0,0 at every one
-#      of 5009 scene ticks; see T34-NEARCLIP-2026-10-20.md), so branch (b-i)
-#      fires and the three frames are asserted IDENTICAL. That is a stronger
-#      statement than the old "two differ" was: on a still camera any
-#      difference would be the world or the animation moving, and the animation
-#      moving is what sections 1-2 already measure per instance, per tick.
+#      The three captures below pin the camera with --debug-camera (the WALL013
+#      pose T45/T52 use) and assert the trace names it. This demo's own eye is
+#      0,0,0 at every one of 5009 scene ticks (T34-NEARCLIP-2026-10-20.md), and
+#      since T80 the renderer refuses that pose, so without a stated camera the
+#      frame comes from the fallback orbit camera while the trace prints
+#      src=held -- the reading and the picture would disagree. With the camera
+#      stated and identified, branch (b-i) fires and the frames must DIFFER:
+#      the world and the animation advance with playback while the camera does
+#      not. The per-instance animation claims stay in sections 1-2, where they
+#      are named per entity, never inferred from a whole-frame difference.
 #      A demo whose camera does move gets branch (b-ii) automatically; the
 #      choice is made from the reading, never from a flag or a demo name.
 #   7. Every bind-pose instance carries a non-empty reason.
@@ -340,6 +344,12 @@ done
 # Audio: the device is opened during startup and pausing does not stop it, so
 # every launch names it. The default device is the wrong one on this machine.
 AUDIO_DEVICE=6
+# T84: the stated camera. Left as one word-split string so the capture command
+# below reads like the product's own command line.
+CAM_POSE_ARGS="--debug-camera -3498.225 1021.852 1327.843 70.529329 134.999352"
+# What that camera must look like in the trace: camera_pose prints
+# "eye pitch yaw src", the eye keeps the product's one-decimal comma form.
+PIN_CAM_POSE="-3498.2,1021.9,1327.8 70.53 135.00 debug"
 RUN_TIMEOUT=300
 
 fail=0
@@ -654,6 +664,7 @@ for tick in "${TICKS[@]}"; do
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
     --demo "$DEMO" \
     --capture-frame "$BMP" --capture-tick "$tick" --metrics-file "$CSV" \
+    $CAM_POSE_ARGS \
     > "$TRACE_DIR/tick-$tick.log" 2>&1
   rc=$?
   size=$(stat -c%s "$BMP" 2>/dev/null || echo 0)
@@ -786,12 +797,21 @@ CAM_MOVED=$(printf '%s' "$CAM_SPREAD" | awk '{print $2}')
 echo "  camera across ticks ${TICKS[0]}..${TICKS[2]}: $CAM_SPREAD (eps=$CAMERA_STILL_EPS)"
 assert_ne "the camera reading resolved a branch" "$CAM_MOVED" "no-reading"
 if [ "$CAM_MOVED" = "still" ]; then
-  # The camera did not move, so the only correct reading is that the frames are
-  # one picture. This is the assertion the old "distinct >= 2" inverted, and it
-  # is the whole of T34: on a still camera three DIFFERING frames are a world
-  # difference being credited to the animation chain.
-  echo "  ..   camera still across the three ticks: the frames must be ONE picture"
-  assert_eq "frames of a still camera are one picture (distinct)" "$DISTINCT" "1"
+  # The camera did not move, so every frame difference has to be the world or
+  # the animation advancing with playback -- and because the camera is stated
+  # (--debug-camera) rather than inherited from a fallback, the first thing to
+  # assert is that the frames were drawn from the camera we asked for. The old
+  # reading here was "the three frames are ONE picture"; it was true only while
+  # the pre-T80 zero eye put the view where nothing advanced, which is a vacuous
+  # pass, so it is REPLACED (not relaxed) by "the frames differ with playback"
+  # plus the camera-identity assertion. T84 is what makes the identity assertion
+  # possible at all: before it the trace printed src=debug over a frame another
+  # camera drew, so an identity check would have measured the trace, not the draw.
+  echo "  ..   camera still across the three ticks: the frames must ADVANCE with playback"
+  POSES_ALL="${POSES[0]}|${POSES[1]}|${POSES[2]}"
+  EXPECTED_ALL="$PIN_CAM_POSE|$PIN_CAM_POSE|$PIN_CAM_POSE"
+  assert_eq "the three frames were drawn from the stated debug camera" "$POSES_ALL" "$EXPECTED_ALL"
+  assert_ge "frames under a still camera differ with playback (distinct)" "$DISTINCT" 2
   # The positive control: a still camera over a static world still has to show
   # the world, so the frame may not be a flat fill. 32 distinct colours over a
   # 1-in-49 sample is a floor a black or single-colour frame cannot reach and a
