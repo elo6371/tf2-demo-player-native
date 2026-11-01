@@ -652,6 +652,13 @@ public:
   void zoomCamera(float delta);
   void setObserverFocus(float x, float y, float z);
   void setObserverFocusWorld(float x, float y, float z);
+  // T80: the orbit distance in MAP units. The renderer keeps the orbit in the
+  // normalized unit box, so a caller that has a distance in world units (the
+  // spectate relay wants the watched player at a fixed number of units away,
+  // not at a fixed fraction of whichever map is loaded) has to convert through
+  // the same scale the focus conversion uses. Clamped so a bad scale cannot put
+  // the eye inside the near plane.
+  void setObserverOrbitDistanceWorld(float worldUnits);
   void setObserverDemoViewWorld(float x, float y, float z, float pitchDegrees, float yawDegrees);
   void clearObserverDemoView();
   bool observerFocusWorld(float& x, float& y, float& z) const;

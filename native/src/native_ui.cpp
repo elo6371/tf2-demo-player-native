@@ -532,6 +532,14 @@ bool CameraModeController::spacePress(std::uint32_t nowMs) {
   return cycleMode();
 }
 
+bool observerEyeUsable(float x, float y, float z) {
+  if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
+  // The origin test is on the whole vector, not per component: a player
+  // standing at x=0 is ordinary, a camera at (0,0,0) is the map's inside.
+  const float magnitude = std::fabs(x) + std::fabs(y) + std::fabs(z);
+  return magnitude > 0.5f;
+}
+
 CameraSceneAction decideCameraSceneAction(CameraMode mode, bool haveObserverView) {
   switch (mode) {
     case CameraMode::FirstPerson:

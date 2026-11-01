@@ -94,6 +94,20 @@ enum class CameraSceneAction { SetDemoView, SetOrbitFocus, HoldCurrent, FreezeCu
 
 CameraSceneAction decideCameraSceneAction(CameraMode mode, bool haveObserverView);
 
+// T80: is this demo eye a camera at all?
+//
+// A SourceTV recording whose svc_SetView names the recorder itself reports an
+// eye of exactly (0,0,0) on every scene tick -- measured on the KOTH ashville
+// SourceTV sample: 3312 of 3312 camera lines said eye=0.0,0.0,0.0. Adopting
+// that is how the picture gets rendered from a point no player can stand at,
+// because every TF2 map puts its origin inside the geometry.
+//
+// The test is deliberately narrow: non-finite or all-zero is refused, nothing
+// else. A bounds check against the loaded map would make the camera depend on
+// which map is open rather than on what the demo said, and a demo that names a
+// real eye just outside the current map's box is still a demo that named an eye.
+bool observerEyeUsable(float x, float y, float z);
+
 // The P-key pause contract, kept next to the camera controller so one probe
 // covers both keys the player presses. The counter exists so a trace can
 // report "pause was touched" even when the run never pressed P.

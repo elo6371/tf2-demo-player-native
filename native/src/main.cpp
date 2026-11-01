@@ -331,6 +331,17 @@ bool g_textFieldFocused = false;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
 std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
 std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
+// T80: did the scene tick that is being drawn give the camera a real eye? False
+// means the demo's own view was missing or implausible (SourceTV reports
+// eye=0,0,0), so the spectate relay's focus is the only thing that can place the
+// camera, and it is applied at a distance in MAP units rather than at the
+// shipped orbit's fraction of the map.
+bool g_cameraDemoViewUsable = false;
+// T80: how far the relayed target is watched from, in map units. 260 is roughly
+// three player heights: close enough to read the pose and the weapon, far enough
+// that the near plane never cuts into the model. It is a product constant, not a
+// gate constant -- the gate asserts the focus, which is unchanged.
+constexpr float kSpectateOrbitWorldUnits = 260.0f;
 
 // T66: one director for the whole run, so the handover clock and the hidden-body
 // list survive across frames. g_spectateManualTarget is the --spectate-target
@@ -8903,9 +8914,19 @@ bool outlineVertexExtent = false;
       // same observer view the camera decision below consumes. Defaults keep
       // the line readable on a scene tick with no observe target.
       float cameraEyeX = 0.0f, cameraEyeY = 0.0f, cameraEyeZ = 0.0f;
+      // T80: a sample that resolves to the world origin is not a camera. The
+      // gate that used to be here asked only whether a sample EXISTED, and a
+      // SourceTV recording answers that with eye=0,0,0 on every tick -- so the
+      // "no target, hold the camera" rule in the spectate relay was satisfied
+      // while the first-person path rendered the whole match from the map's
+      // inside. Plausibility is now part of "have a view", and the relay's
+      // focus is what the camera falls back to.
       const bool haveObserverView =
         tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneEntryTick, observerView)
-        && observerView.hasOrigin && observerView.hasAngles;
+        && observerView.hasOrigin && observerView.hasAngles
+        && tf2::native::observerEyeUsable(observerView.origin[0], observerView.origin[1],
+                                          observerView.origin[2]);
+      g_cameraDemoViewUsable = haveObserverView;
       // T70: report the landing for the pending seek/step, mapping the entity
       // query status onto the frame status the ledger publishes. This is the
       // only place a request becomes "landed" in the product.
@@ -10219,6 +10240,14 @@ bool outlineVertexExtent = false;
       g_spectateDirector.focus(spectateFocus);
       if (std::isfinite(spectateFocus[0]) && std::isfinite(spectateFocus[1]) && std::isfinite(spectateFocus[2])) {
         renderer.setObserverFocusWorld(spectateFocus[0], spectateFocus[1], spectateFocus[2]);
+        // T80: with no usable demo eye, first-person IS this orbit. Its shipped
+        // distance is a fraction of the normalized map box, which on a SourceTV
+        // recording left the camera at map scale and, on the KOTH sample, inside
+        // geometry for the whole run. The relay knows how close a spectator
+        // should stand, so it says so in map units.
+        if (!g_cameraDemoViewUsable && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
+          renderer.setObserverOrbitDistanceWorld(kSpectateOrbitWorldUnits);
+        }
       }
     }
     // Printed on change, not per frame: the trace of a long run must stay
