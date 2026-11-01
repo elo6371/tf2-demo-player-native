@@ -6,7 +6,7 @@ An experimental Windows-native Team Fortress 2 demo player and renderer built wi
 
 ## Project status
 
-The public default branch is `p0-entity-protocol`. This checkout is the release HEAD of the T8/T9/T10 source-split merge (branch `integration/t79-final`); when `git rev-parse p0-entity-protocol` equals `git rev-parse HEAD`, the public branch carries the current software: the Win32/Direct3D 11 demo player with entity-protocol, world and material rendering, viewmodel and player animation, HUD and logs panel, audio and settings persistence, through the T75 work recorded in CHANGELOG.md. Older T50-T54 reports remain in `evidence/` as historical records.
+The public default branch is `p0-entity-protocol`. This checkout is the release HEAD of the T8/T9/T10 source-split merge (branch `integration/t79-final`); when `git rev-parse p0-entity-protocol` equals `git rev-parse HEAD`, the public branch carries the current software: the Win32/Direct3D 11 demo player with entity-protocol, world and material rendering, viewmodel and player animation, HUD and logs panel, audio and settings persistence, including the T75 install lifecycle and the T80/T82/T83/T84 camera, PVS, brush-geometry and gate work recorded in CHANGELOG.md. Older T50-T54 reports remain in `evidence/` as historical records.
 
 World geometry/material rendering and third-person player models/animation are still under development. A passing focused gate is not a claim that every map, material, class, or animation is visually correct.
 
@@ -14,7 +14,9 @@ See [CHANGELOG.md](CHANGELOG.md) for the current hosted snapshot, [docs/KNOWN-IS
 
 ## Verification status
 
-- The full `verify-all.sh` acceptance chain ran end to end on this merged tree on 2026-11-01: 30 of 30 steps judge PASS (29 measured directly, step 27 re-measured on `fa1233f`, the chain-side count fix that came after the run). `CHANGELOG.md` records the run, the numbers, and the three behaviour-neutral gate-side corrections it needed. `--quick` runs an 8-demo oracle sample while the full run walks the whole corpus.
+- The last full `verify-all.sh` acceptance chain completed on 2026-11-01 on the merge tree `55560c3`: 30 of 30 steps judge PASS (29 measured directly, step 27 re-measured on `fa1233f`, the chain-side count fix that came after the run). `CHANGELOG.md` records that run and the three behaviour-neutral gate-side corrections it needed. `--quick` runs an 8-demo oracle sample while the full run walks the whole corpus.
+- This checkout is **not** that tree: it adds the relay camera, the any-leaf PVS rule, static brush geometry and the `--debug-camera` fix. On this tree the affected steps (20-26, 28 and 29) were re-run one by one on 2026-11-01 and each PASS, with the counts in `CHANGELOG.md`. **The full 30-step chain has not been re-run here**, so this tree's claim is "the nine affected steps pass", not "the chain passes".
+- Two items remain NOT VERIFIED and no passing gate covers them: the eight product defects listed in `evidence/outline/T52-REPORT.md` and the seven items listed in `evidence/t66-sourcetv/T66-SOURCETV-REPORT.md`.
 - Focused reports live in `evidence/`; each report keeps its own PASS, NOT VERIFIED, and UNSUPPORTED boundaries.
 - The hosted tree is a development snapshot: a passing focused gate is not a claim that every map, material, class, or animation is visually correct.
 
