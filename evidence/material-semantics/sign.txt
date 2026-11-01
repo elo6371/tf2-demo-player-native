@@ -1,9 +1,10 @@
 BMP-SIGN brighter=0 darker=0 same=2582352 max_up=0 max_down=0 extent=1264x681x24 status=OK
-BMP-SIGN brighter=79 darker=0 same=2582273 max_up=17 max_down=0 extent=1264x681x24 status=OK
-BMP-SIGN brighter=0 darker=271060 same=2311292 max_up=0 max_down=60 extent=1264x681x24 status=OK
-BMP-SIGN brighter=4107 darker=3236 same=2575009 max_up=26 max_down=22 extent=1264x681x24 status=OK
 BMP-SIGN brighter=0 darker=0 same=2582352 max_up=0 max_down=0 extent=1264x681x24 status=OK
-BMP-SIGN brighter=458 darker=532 same=2581362 max_up=5 max_down=19 extent=1264x681x24 status=OK
-BMP-SIGN brighter=337 darker=7 same=2582008 max_up=5 max_down=1 extent=1264x681x24 status=OK
-BMP-SIGN brighter=386760 darker=388375 same=1807217 max_up=24 max_down=21 extent=1264x681x24 status=OK
-BMP-SIGN brighter=203847 darker=484255 same=1894250 max_up=14 max_down=60 extent=1264x681x24 status=OK
+BMP-SIGN brighter=0 darker=182483 same=2399869 max_up=0 max_down=42 extent=1264x681x24 status=OK
+BMP-SIGN brighter=0 darker=0 same=2582352 max_up=0 max_down=0 extent=1264x681x24 status=OK
+BMP-SIGN brighter=0 darker=0 same=2582352 max_up=0 max_down=0 extent=1264x681x24 status=OK
+BMP-SIGN brighter=0 darker=0 same=2582352 max_up=0 max_down=0 extent=1264x681x24 status=OK
+BMP-SIGN brighter=0 darker=0 same=2582352 max_up=0 max_down=0 extent=1264x681x24 status=OK
+BMP-SIGN brighter=401259 darker=393180 same=1787913 max_up=24 max_down=21 extent=1264x681x24 status=OK
+BMP-SIGN brighter=214075 darker=511726 same=1856551 max_up=14 max_down=61 extent=1264x681x24 status=OK
+BMP-SIGN brighter=1843 darker=1999 same=2578510 max_up=18 max_down=17 extent=1264x681x24 status=OK
