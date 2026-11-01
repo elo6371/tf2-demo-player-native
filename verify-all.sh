@@ -1328,16 +1328,18 @@ SPECTATE_OUT="$SPECTATE_OUT" bash spectate-check.sh > "$OUT/27-sourceTV-relay.tx
 SPECTATE_RC=$?
 tail -8 "$OUT/27-sourceTV-relay.txt"
 SPECTATE_OK=$(grep -c '^  OK ' "$OUT/27-sourceTV-relay.txt" || true)
-# 71 is the current assertion count, per section 1 / 2 / 4 / 12 / 11 / 14 / 10 / 6 /
-# 11 (sections 0/8 through 8/8). Pinned for the same reason as steps 8 and 22-24: a
-# gate that prints PASS while its assertions quietly disappear is not a gate. The
-# pause section's own floors (>= 8 handover lines on one tick, >= 5 progress values)
-# live in the gate rather than here, because they are measurements with margin
-# rather than a fixed count.
-if [ "$SPECTATE_RC" -eq 0 ] && grep -q 'SPECTATE-CHECK=PASS' "$OUT/27-sourceTV-relay.txt" && [ "$SPECTATE_OK" = "71" ]; then
-  echo "SPECTATE-CHECK=PASS (71 assertions)"
+# 71 is the floor, not the count: sections 0/8 through 8/8 hold 71 unconditional
+# assertions, and the pause section adds two more (>= 8 handover lines on one tick,
+# >= 5 progress values) that only read on a host that gave the window at least 8
+# frames -- on a starved host the gate prints a NOTE and skips them. So a healthy
+# host prints 73 and a starved host prints 71; pinning either number exactly fails
+# the other one (PGD-9, 2026-11-01). A floor keeps the property that matters here --
+# a gate that prints PASS while its assertions quietly disappear is not a gate --
+# without measuring the host's frame rate.
+if [ "$SPECTATE_RC" -eq 0 ] && grep -q 'SPECTATE-CHECK=PASS' "$OUT/27-sourceTV-relay.txt" && [ "$SPECTATE_OK" -ge 71 ]; then
+  echo "SPECTATE-CHECK=PASS ($SPECTATE_OK assertions, floor 71)"
 else
-  echo "SPECTATE-CHECK=FAIL (rc=$SPECTATE_RC ok=$SPECTATE_OK expected 71)"; rc_all=1
+  echo "SPECTATE-CHECK=FAIL (rc=$SPECTATE_RC ok=$SPECTATE_OK expected >= 71)"; rc_all=1
 fi
 
 step "28/30 world geometry at the pinned pose (every empty pixel is the map's own sky)"
