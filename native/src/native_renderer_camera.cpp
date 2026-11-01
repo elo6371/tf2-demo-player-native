@@ -61,6 +61,17 @@ void Renderer::setObserverFocusWorld(float x, float y, float z) {
   setObserverFocus(normalizedX, normalizedY, normalizedZ);
 }
 
+void Renderer::setObserverOrbitDistanceWorld(float worldUnits) {
+  if (!std::isfinite(worldUnits) || worldUnits <= 0.0f) return;
+  if (!std::isfinite(worldHorizontalScale_) || worldHorizontalScale_ <= 0.0f) return;
+  // world->box is (value - center) * worldHorizontalScale_ in
+  // setObserverFocusWorld, so a length converts by the scale alone. The lower
+  // bound is NOT the orbit's own 0.8: this path exists to get closer than the
+  // shipped orbit, which is exactly what 0.8 would prevent.
+  const float boxUnits = worldUnits * worldHorizontalScale_;
+  cameraDistance_ = std::clamp(boxUnits, 0.02f, 12.0f);
+}
+
 bool Renderer::observerFocusWorld(float& x, float& y, float& z) const {
   if (!observerFocusValid_) return false;
   x = observerFocusX_; y = observerFocusY_; z = observerFocusZ_;

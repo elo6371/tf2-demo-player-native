@@ -331,6 +331,93 @@ bool g_textFieldFocused = false;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
 std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
 std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
+// T80: did the scene tick that is being drawn give the camera a real eye? False
+// means the demo's own view was missing or implausible (SourceTV reports
+// eye=0,0,0), so the spectate relay's focus is the only thing that can place the
+// camera, and it is applied at a distance in MAP units rather than at the
+// shipped orbit's fraction of the map.
+bool g_cameraDemoViewUsable = false;
+// T80: how far the relayed target is watched from, in map units. 260 is roughly
+// three player heights: close enough to read the pose and the weapon, far enough
+// that the near plane never cuts into the model. It is a product constant, not a
+// gate constant -- the gate asserts the focus, which is unchanged.
+constexpr float kSpectateOrbitWorldUnits = 260.0f;
+// T81: the spectator camera the relay places when the demo names no eye.
+// TF2's eye height is 64 units above the origin (VEC_VIEW); the camera stands a
+// little higher and 200 units behind so the watched player's body, weapon and
+// the ground they are standing on are all in frame. These are framing constants,
+// not measurement thresholds: no gate asserts them, the gates assert the focus.
+constexpr float kSpectatorEyeHeight = 68.0f;
+// T81: the camera stands AT the watched player's eye, not behind them. Behind is
+// what a third-person spectator camera does, and it was the first version of this
+// change -- but at 200 units the eye lands inside the wall the player is standing
+// next to on roughly every tick of a real match (measured on koth_ashville and
+// pl_upward: the frame is then filled with the inside of a building and the player
+// is occluded). The player's own eye is a position the demo itself guarantees is
+// outside geometry, because the player is looking from it.
+constexpr float kSpectatorBackUnits = 0.0f;
+// T81: placed-once-per-change trace so a long run does not print a line a frame.
+float g_spectateCameraLastEye[3] = {0.0f, 0.0f, 0.0f};
+bool g_spectateCameraEyePrinted = false;
+// T81: the entity whose eye the relay camera is standing in, or -1. Its own model
+// is removed from the submitted set for the same reason a first-person game hides
+// the player's body: the camera is inside it, and a rendered head at the near
+// plane is not a picture. This is a CAMERA rule, not a corpse rule -- it is
+// independent of m_lifeState and it applies to a living player.
+std::int32_t g_spectateCameraHiddenEntity = -1;
+std::uint32_t g_spectateCameraHiddenInstances = 0;
+
+// Place the camera behind the relayed player, looking where that player looks.
+//
+// The relay resolves WHICH player to watch; this turns that into a camera when
+// the demo has no eye of its own (every SourceTV recording). Walking the
+// snapshot for the target's row is O(rows) -- 468 rows on the sample recording,
+// once per frame -- and is done here rather than in the relay because the relay
+// is deliberately kept to the fields it can state as numbers, while the eye
+// angles live in the entity property map.
+//
+// Returns false when the row, the origin or the facing cannot be read: the
+// caller then falls back to the orbit rather than guessing a direction.
+bool placeSpectatorView(tf2::native::Renderer& renderer,
+                        const std::vector<tf2::native::EntityState>& states,
+                        std::int32_t targetIndex,
+                        const float focus[3]) {
+  // The snapshot is a dense vector: the entity index IS the slot. That is the
+  // same rule the spectate slot builder above uses, so the two cannot disagree
+  // about which row belongs to the player the relay picked.
+  if (targetIndex < 0 || static_cast<std::size_t>(targetIndex) >= states.size()) return false;
+  const tf2::native::EntityState& row = states[static_cast<std::size_t>(targetIndex)];
+  const tf2::native::ModelInstanceTransform transform =
+    tf2::native::EntityModelResolver::extractTransform(row);
+  if (!transform.hasOrigin || !transform.hasAngles) return false;
+  float forward[3] = {0.0f, 0.0f, 0.0f};
+  tf2::native::demoViewForward(transform.angles[0], transform.angles[1], forward);
+  const float eye[3] = {
+    transform.origin[0] - forward[0] * kSpectatorBackUnits,
+    transform.origin[1] - forward[1] * kSpectatorBackUnits,
+    transform.origin[2] + kSpectatorEyeHeight - forward[2] * kSpectatorBackUnits
+  };
+  for (const float value : eye) {
+    if (!std::isfinite(value)) return false;
+  }
+  renderer.setObserverDemoViewWorld(eye[0], eye[1], eye[2], transform.angles[0], transform.angles[1]);
+  // The camera is inside this player's head, so their body must not be submitted.
+  g_spectateCameraHiddenEntity = targetIndex;
+  const float dx = eye[0] - g_spectateCameraLastEye[0];
+  const float dy = eye[1] - g_spectateCameraLastEye[1];
+  const float dz = eye[2] - g_spectateCameraLastEye[2];
+  if (!g_spectateCameraEyePrinted || dx * dx + dy * dy + dz * dz > 1024.0f) {
+    g_spectateCameraLastEye[0] = eye[0];
+    g_spectateCameraLastEye[1] = eye[1];
+    g_spectateCameraLastEye[2] = eye[2];
+    g_spectateCameraEyePrinted = true;
+    traceFmt("spectate: camera relay target=%d eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f behind=%.0f",
+      static_cast<int>(targetIndex), eye[0], eye[1], eye[2], transform.angles[0],
+      transform.angles[1], kSpectatorBackUnits);
+  }
+  (void)focus;  // kept for the caller's symmetry; the eye is derived from the row
+  return true;
+}
 
 // T66: one director for the whole run, so the handover clock and the hidden-body
 // list survive across frames. g_spectateManualTarget is the --spectate-target
@@ -8903,9 +8990,19 @@ bool outlineVertexExtent = false;
       // same observer view the camera decision below consumes. Defaults keep
       // the line readable on a scene tick with no observe target.
       float cameraEyeX = 0.0f, cameraEyeY = 0.0f, cameraEyeZ = 0.0f;
+      // T80: a sample that resolves to the world origin is not a camera. The
+      // gate that used to be here asked only whether a sample EXISTED, and a
+      // SourceTV recording answers that with eye=0,0,0 on every tick -- so the
+      // "no target, hold the camera" rule in the spectate relay was satisfied
+      // while the first-person path rendered the whole match from the map's
+      // inside. Plausibility is now part of "have a view", and the relay's
+      // focus is what the camera falls back to.
       const bool haveObserverView =
         tf2::native::findObserverViewAtOrBeforeTick(demoNetworkSummary, sceneEntryTick, observerView)
-        && observerView.hasOrigin && observerView.hasAngles;
+        && observerView.hasOrigin && observerView.hasAngles
+        && tf2::native::observerEyeUsable(observerView.origin[0], observerView.origin[1],
+                                          observerView.origin[2]);
+      g_cameraDemoViewUsable = haveObserverView;
       // T70: report the landing for the pending seek/step, mapping the entity
       // query status onto the frame status the ledger publishes. This is the
       // only place a request becomes "landed" in the product.
@@ -9066,8 +9163,23 @@ bool outlineVertexExtent = false;
         // instances we skipped were the ones we skipped.
         std::vector<tf2::native::ModelInstance> drawCandidates;
         std::string corpseSignature;
+        std::string cameraSignature;
         drawCandidates.reserve(modelInstances.size());
         for (const auto& candidate : modelInstances) {
+          // T81: the relay camera stands in one player's eye; that player's body
+          // is hidden whether they are alive or not (see g_spectateCameraHiddenEntity).
+          const bool hiddenForCamera =
+            g_spectateCameraHiddenEntity >= 0
+            && static_cast<std::int32_t>(candidate.entityIndex) == g_spectateCameraHiddenEntity;
+          if (hiddenForCamera) {
+            // Counted separately from the corpse rule: the corpse counters are a
+            // T66 contract with fixed meanings, and "the camera is inside this
+            // player" is a different statement from "this player is dead".
+            ++g_spectateCameraHiddenInstances;
+            if (!cameraSignature.empty()) cameraSignature += ',';
+            cameraSignature += std::to_string(candidate.entityIndex);
+            continue;
+          }
           if (!g_spectateShowCorpses
               && g_spectateDirector.hidesModel(static_cast<std::int32_t>(candidate.entityIndex))) {
             ++g_spectateHiddenInstances;
@@ -9076,6 +9188,14 @@ bool outlineVertexExtent = false;
             continue;
           }
           drawCandidates.push_back(candidate);
+        }
+        static std::string lastCameraSignature;
+        if (cameraSignature != lastCameraSignature) {
+          lastCameraSignature = cameraSignature;
+          traceFmt("scene: cameraFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
+            cameraSignature.empty() ? 0 : std::count(cameraSignature.begin(), cameraSignature.end(), ',') + 1,
+            cameraSignature.empty() ? "-" : cameraSignature.c_str(),
+            drawCandidates.size(), modelInstances.size());
         }
         static std::string lastCorpseSignature;
         if (corpseSignature != lastCorpseSignature) {
@@ -10219,6 +10339,25 @@ bool outlineVertexExtent = false;
       g_spectateDirector.focus(spectateFocus);
       if (std::isfinite(spectateFocus[0]) && std::isfinite(spectateFocus[1]) && std::isfinite(spectateFocus[2])) {
         renderer.setObserverFocusWorld(spectateFocus[0], spectateFocus[1], spectateFocus[2]);
+        // T80/T81: with no usable demo eye, the relay has to place the camera
+        // itself. A SourceTV recording names no eye at all, and the shipped
+        // orbit is a fraction of the normalized map box -- on the KOTH sample it
+        // left the camera at map scale and inside geometry for the whole run.
+        // The relay knows which player is being watched and what that player is
+        // looking at, so it stands behind them, at eye height, along their view.
+        if (!g_cameraDemoViewUsable && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
+          if (!placeSpectatorView(renderer, currentEntityStates,
+                                  g_spectateDirector.targetIndex(), spectateFocus)) {
+            // No readable facing for the target: fall back to the orbit, but at
+            // a distance in map units rather than a fraction of the map.
+            renderer.setObserverOrbitDistanceWorld(kSpectateOrbitWorldUnits);
+            g_spectateCameraHiddenEntity = -1;
+          }
+        } else {
+          // A demo eye, or a mode that does not stand in the player: nothing is
+          // hidden on the camera's account.
+          g_spectateCameraHiddenEntity = -1;
+        }
       }
     }
     // Printed on change, not per frame: the trace of a long run must stay
