@@ -1,11 +1,11 @@
-{"reading":"feature.materials","value":"108"}
-{"reading":"feature.bumpmap.declared","value":"45"}
+{"reading":"feature.materials","value":"127"}
+{"reading":"feature.bumpmap.declared","value":"46"}
 {"reading":"feature.bumpmap.visible","value":"0"}
-{"reading":"feature.bumpmap.resolved","value":"45"}
+{"reading":"feature.bumpmap.resolved","value":"46"}
 {"reading":"feature.bumpmap.missing","value":"0"}
 {"reading":"feature.bumpmap.first","value":"GREEK/GREEK_GROUND03B"}
 {"reading":"feature.bumpmap.resource","value":"materials/greek/greek_ground03b_ssbump.vtf"}
-{"reading":"feature.bumpmap.reason","value":"the materials name 26 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 9 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 36 that do stay refused (see the $ssbump row)"}
+{"reading":"feature.bumpmap.reason","value":"the materials name 26 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 10 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 36 that do stay refused (see the $ssbump row)"}
 {"reading":"feature.bumpmap2.declared","value":"5"}
 {"reading":"feature.bumpmap2.visible","value":"0"}
 {"reading":"feature.bumpmap2.resolved","value":"5"}
@@ -28,7 +28,7 @@
 {"reading":"feature.detail.resource","value":"materials/overlays/detail006.vmt"}
 {"reading":"feature.detail.reason","value":"detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused"}
 {"reading":"feature.bumpmap.distinctPaths","value":"26"}
-{"reading":"feature.bumpmap.nonSsBump","value":"9"}
+{"reading":"feature.bumpmap.nonSsBump","value":"10"}
 {"reading":"feature.bumpmap2.ssBump","value":"4"}
 {"reading":"feature.ssbump.declared","value":"36"}
 {"reading":"feature.detail.typesRead","value":"1"}

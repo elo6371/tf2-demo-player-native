@@ -6844,6 +6844,15 @@ bool outlineVertexExtent = false;
         renderer.worldAtlasSize(), static_cast<std::size_t>(renderer.worldAtlasBytes()),
         renderer.worldAtlasCount(), static_cast<std::size_t>(renderer.worldAtlasTotalBytes()),
         renderer.worldAtlasReason().c_str());
+      // T83: the brush models, and which of them this build refuses to draw. A
+      // refused model is a hole the frame may show, so the reasons are counted
+      // separately instead of being folded into "faces skipped".
+      traceFmt("gpu: world brush models total=%zu drawn=%zu skippedMoving=%zu skippedUnknown=%zu"
+        " facesDrawn=%zu facesSkipped=%zu worldFaces=%zu brushFaces=%zu",
+        displayMap.brushModelsTotal, displayMap.brushModelsDrawn,
+        displayMap.brushModelsSkippedMoving, displayMap.brushModelsSkippedUnknown,
+        displayMap.brushFacesDrawn, displayMap.brushFacesSkipped,
+        displayMap.worldFaceCount, displayMap.brushFaceCount);
     }
     {
       // T1 (2026-10-13): the pvs clip no longer measures the price of not
@@ -7283,6 +7292,10 @@ bool outlineVertexExtent = false;
   worldVisProbe.resize(displayMap.triangles.size());
   for (std::size_t index = 0; index < displayMap.triangles.size(); ++index) {
     worldVisProbe[index].cluster = displayMap.triangles[index].cluster;
+    // T82: the clip now tests every cluster the face carries, which it finds
+    // through this field. Copying only the cluster would leave the probe with no
+    // face and the clip would silently fall back to the one-cluster rule.
+    worldVisProbe[index].faceIndex = displayMap.triangles[index].faceIndex;
   }
   int worldVisAppliedCluster = -2;
   bool worldDrawTraceEmitted = false;
@@ -9032,6 +9045,17 @@ bool outlineVertexExtent = false;
         cameraEyeY = observerView.origin[1];
         cameraEyeZ = observerView.origin[2];
       }
+      // T84: the debug camera below REPLACES whatever this tick resolved, and it
+      // is re-stated immediately before the draw, so these are the numbers that
+      // reach the renderer. The trace printed the demo eye here (all zeroes on a
+      // recording with no observer sample) next to src=debug, which is how a
+      // capture could be attributed to a camera it was never drawn with. The eye
+      // printed is now the one the frame is drawn with.
+      if (g_debugCamera) {
+        cameraEyeX = g_debugCameraEye[0];
+        cameraEyeY = g_debugCameraEye[1];
+        cameraEyeZ = g_debugCameraEye[2];
+      }
       // T4 camera modes. The mode machine and the no-target rule live in
       // native_ui (decideCameraSceneAction, probe-checked over the whole
       // matrix); this block only executes the decision. The historical
@@ -10464,6 +10488,19 @@ bool outlineVertexExtent = false;
         traceFmt("gpu: pre-draw error hresult=0x%08lX drawn=%llu",
           static_cast<unsigned long>(renderer.lastError()),
           static_cast<unsigned long long>(renderedFrames));
+      }
+      // T84 diagnostic camera, re-stated immediately before the draw: the
+      // per-frame apply in the scene tick is not enough. Everything between
+      // that tick and this line -- the camera director's pose sync, the orbit
+      // pose the relay writes -- can clear the demo view, and a cleared view
+      // silently falls back to the orbit camera. Measured before this line
+      // existed: two --debug-camera eyes 1500 units apart produced
+      // byte-identical frames at the same tick, and the trace still said
+      // src=debug, because the trace reports the REQUEST, not the camera the
+      // frame was drawn with.
+      if (g_renderer && g_debugCamera) {
+        g_renderer->setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1],
+          g_debugCameraEye[2], g_debugCameraPitch, g_debugCameraYaw);
       }
       if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) {
         ++renderedFrames;

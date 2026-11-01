@@ -29,6 +29,16 @@
 #      second batch held different materials; see the RE-PIN note below). The
 #      diff code is kept honest by the blend-off frame, and a batch's visibility
 #      is asserted at a pose that does own the screen: section 8.
+#
+#      RE-MEASURED 2026-11-01: the frame is no longer identical. The camera the
+#      frame is drawn from changed (T80 stopped accepting a zero observer eye, so
+#      this demo -- a POV recording with no observer sample -- now renders from
+#      the orbit camera instead of from the world origin), and at that pose the
+#      refused materials own the top-left wall: the control draws it as the flat
+#      fallback while the full frame draws its texture. Measured 90188 pixels
+#      (10.48% of 860784), max channel delta 245. The reading is pinned, not the
+#      identity; the pass claim of this section is still the refused SET (59
+#      named, all budget), and section 8 still owns the pixel claim.
 #   3. the state, at the draw -- t0 is bound through one function, and a weapon
 #      draw that finds a world atlas there (or a world draw that finds a weapon
 #      texture) is counted. Both are asserted 0 on a frame that draws both
@@ -46,8 +56,8 @@
 #      leave
 #   6. a frame that draws the weapon as well: the isolation counters still 0
 #   7. the control: the budget cut to one batch keeps the 64 largest surfaces and
-#      names the other 59 as budget refusals (the frame is identical at this pose,
-#      for the reason in 2)
+#      names the other 59 as budget refusals (at this pose the refused materials
+#      now own a measured 90188 pixels, for the reason in 2)
 #   8. an include-only material owns the screen: the pose is a patch wrapper,
 #      the albedo view is that material's texture, and a refused wrapper has to
 #      collapse it to one colour
@@ -62,6 +72,20 @@
 # 193508 triangles, and the control frame equals the full frame. Each of those
 # carries that measurement in the comment beside it. Do not re-pin again without
 # one.
+#
+# RE-PIN 2026-11-01 (T80 camera, T82 any-leaf pvs, T83 brush models). Four pins
+# moved and every one of them is a count of what the reference camera's pvs
+# reaches, so they moved together and for one reason: T80 made the held camera
+# reject the zero observer eye, which moved this demo's frame from the world
+# origin to the orbit camera. The old pins were taken before that (2026-10-25,
+# ea97815). Measured on this tree: batch-1 tiles with no visible triangle 6 -> 9,
+# WOOD/WOOD_WALL007A visible 67 -> 39, triangles drawn 193508 -> 184961, control
+# frame difference 0 -> 90188. The trace line "gpu: world vis ... drawn=184961
+# hidden=15039" is the same orbit-camera reading t2-visual-matrix.sh and
+# visual-baseline-check.sh were re-pinned to on the same day, from the same demo
+# at the same tick. The difference is attributable, and it reproduces: two runs
+# of this build produce the same frame byte for byte, and each reading above was
+# taken off that build.
 #
 # BUILD FIRST
 #   bash build-target.sh tf2_demo_native material_coverage_probe
@@ -301,7 +325,10 @@ assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "123"
 assert_eq "tiles in batch 0" "$(printf '%s\n' "$TILES" | awk '$2==0' | grep -c .)" "64"
 assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "59"
 VISIBLE_B1=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" | grep -c "visible=0 ")
-assert_le "batch-1 tiles with no visible triangle" "$VISIBLE_B1" "6"
+# 9 of the 59 batch-1 materials reach no triangle at this pose (6 before the
+# camera moved; see the 2026-11-01 RE-PIN note). The bound stays a ceiling on
+# how much of the second batch can be invisible, not a count of it.
+assert_le "batch-1 tiles with no visible triangle" "$VISIBLE_B1" "9"
 # The large surface: coverage order keeps it in the first atlas, and it is in
 # the picture, not merely resident.
 BEYOND_LINE=$(grep -ao "gpu: world tile material=$BEYOND_CAP_MATERIAL .*" "$TRACE_full" | head -1)
@@ -314,10 +341,11 @@ assert_ge "$BEYOND_CAP_MATERIAL visible triangles" "$(rval "$BEYOND_LINE" visibl
 SMALL_CAP_MATERIAL="WOOD/WOOD_WALL007A"
 SMALL_LINE=$(grep -ao "gpu: world tile material=$SMALL_CAP_MATERIAL .*" "$TRACE_full" | head -1)
 assert_eq "$SMALL_CAP_MATERIAL batch" "$(rval "$SMALL_LINE" batch)" "1"
-# 67 on ea97815 before T59 (measured); the old floor of 100 was set on a build
-# whose material set differed. The assertion stays a floor: the material has to
-# be in the world, and 67 is the smallest honest reading of it.
-assert_ge "$SMALL_CAP_MATERIAL visible triangles" "$(rval "$SMALL_LINE" visible)" "67"
+# 67 on ea97815 before T59 (measured), 39 on this tree (2026-11-01, same
+# measurement, the camera moved: see the RE-PIN note). The old floor of 100 was
+# set on a build whose material set differed. The assertion stays a floor: the
+# material has to be in the world, and 39 is the smallest honest reading of it.
+assert_ge "$SMALL_CAP_MATERIAL visible triangles" "$(rval "$SMALL_LINE" visible)" "39"
 B1_VISIBLE_SUM=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" \
   | sed 's/.*visible=\([0-9]*\) .*/\1/' | awk '{s+=$1} END {print s+0}')
 assert_ge "batch-1 visible triangles" "$B1_VISIBLE_SUM" "1500"
@@ -329,8 +357,11 @@ assert_eq "world draws holding a weapon texture" "$(rval "$ISO" worldDrawsWithWe
 assert_eq "batch draws" "$(rval "$ISO" batchDraws)" "2"
 assert_eq "batch draws with a texture" "$(rval "$ISO" texturedBatchDraws)" "2"
 assert_ge "slot-0 binds" "$(rval "$ISO" slot0Binds)" "2"
-# The pvs is not what this round changed: the same 193508 triangles are drawn.
-assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "193508"
+# The batching round did not change this number; the camera did. 193508 was the
+# orbit camera's reading on ea97815 before T80 moved the held camera off the
+# world origin; 184961 is the reading on this tree, and it is the same number
+# t2-visual-matrix.sh pins for this demo at this tick (see the RE-PIN note).
+assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "184961"
 # Two runs of the same build, byte for byte.
 run_product full2 "$DEMO" "$TICK"
 if cmp -s "$BMP_full" "$BMP_full2"; then
@@ -500,7 +531,12 @@ PY
 DELTA=$(frame_diff "$BMP_full" "$BMP_control")
 echo "$DELTA" > "$OUT/coverage-delta.txt"
 printf '%s\n' "$DELTA" | sed 's/^/  /'
-assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "0"
+# 0 while the reference camera saw none of the refused 59. Since the 2026-11-01
+# camera it sees the top-left wall, which is one of them: the control draws that
+# wall as the flat fallback. The number is pinned as the reading it is -- the
+# claim that the batching kept its set is the refusal table above, and the claim
+# that the diff code is not vacuous is the blend-off pair below.
+assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90188"
 DELTA_BLEND=$(frame_diff "$BMP_full" "$BMP_noblend")
 echo "$DELTA_BLEND" > "$OUT/coverage-delta-blend-off.txt"
 printf '%s\n' "$DELTA_BLEND" | sed 's/^/  /'

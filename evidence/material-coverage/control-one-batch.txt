@@ -1,6 +1,6 @@
 {"reading":"map.distinctMaterials","value":"148"}
 {"reading":"map.triangles","value":"200000"}
-{"reading":"map.vpkEntries","value":"149734"}
+{"reading":"map.vpkEntries","value":"149970"}
 {"reading":"map.vmtResolved","value":"114"}
 {"reading":"map.vmtMissing","value":"4"}
 {"reading":"map.vmtNoBase","value":"31"}

@@ -93,6 +93,25 @@ struct BspMap {
   // 64/128). They are geometry the renderer is supposed to omit, so they must
   // not be counted as missing surfaces.
   std::size_t facesSkippedNoDraw = 0;
+  // T83: how the face lump splits. Model 0 (worldspawn) owns [0, worldFaceCount);
+  // every other dmodel is a brush entity -- func_brush, doors, breakables -- and
+  // those faces live in the same lumps at their compile-time position. The
+  // parser used to read model 0's range only, so 22.4 % of ashville's faces were
+  // never built. brushFaceCount is the share this change adds.
+  std::size_t worldFaceCount = 0;
+  std::size_t brushFaceCount = 0;
+  // Which brush models are drawn, and how many were refused. A brush entity is
+  // drawn only when the entity lump says it cannot move on its own
+  // (func_brush/func_wall/func_lod): a door, a train or a breakable is stored at
+  // its compile-time pose and drawing that pose would put a closed door across a
+  // doorway the demo has open. The refused models are counted by reason so the
+  // gap is a number, not silence.
+  std::size_t brushModelsTotal = 0;
+  std::size_t brushModelsDrawn = 0;
+  std::size_t brushModelsSkippedMoving = 0;
+  std::size_t brushModelsSkippedUnknown = 0;
+  std::size_t brushFacesDrawn = 0;
+  std::size_t brushFacesSkipped = 0;
   std::size_t triangleCount = 0;
   std::size_t lightmapSampleCount = 0;
   std::size_t lightmapFaceCount = 0;
@@ -137,6 +156,18 @@ struct BspMap {
   std::uint64_t hdrLightmapToneCount = 0;
   std::string lightmapAtlasReason;
   std::vector<std::uint8_t> lightmapAtlas;
+  // T82: every cluster that carries a face, flattened as (offsets, values), so a
+  // face can be tested against the pvs leaf by leaf. Source draws a face when ANY
+  // leaf that carries it is potentially visible; the older one-cluster-per-face
+  // rule kept whichever leaf came first in lump 16, and when that leaf was behind
+  // the camera the whole face vanished -- a hole you can see straight through.
+  // faceClusterOffsets has faceCount + 1 entries; values are never negative.
+  std::vector<std::uint32_t> faceClusterOffsets;
+  std::vector<std::int32_t> faceClusterValues;
+  // Faces that carry more than one cluster. This is how many faces the any-leaf
+  // rule can decide differently from the first-leaf rule, so a change in it is a
+  // change in what the clip is allowed to hide.
+  std::size_t facesWithSeveralClusters = 0;
   std::vector<BspTriangle> triangles;
   // T26: the sky faces, as geometry, kept apart from `triangles` on purpose.
   // The product must not draw them -- a sky brush face inside the world pass

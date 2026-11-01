@@ -1,5 +1,5 @@
 MASK pixels=3497 of 860784 (0.41%) sentinel=(255,0,255)
-MASK non-sentinel top=[((89, 158, 97), 707011), ((14, 18, 22), 150276)]
+MASK non-sentinel top=[((89, 158, 97), 668469), ((14, 18, 22), 188818)]
 OK   mask size 3497 in [2000, 215196]
 BODY over mask: distinct=841 mean_lum=100.6 pure_black=0.100 top=[((0, 0, 0), 196), ((7, 8, 10), 138), ((6, 7, 9), 111)]
 OK   body distinct colours 841 >= 200 (not a flat fill)

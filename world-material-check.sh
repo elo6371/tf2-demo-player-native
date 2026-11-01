@@ -367,14 +367,23 @@ vfield() { printf '%s\n' "$VIS" | grep -oE "$1=[0-9-]+" | head -1 | cut -d= -f2;
 # With Renderer::observerFocusMapWorld feeding the clip the map-space eye, the
 # camera reads its real leaf (639), the pvs answers 611 visible clusters, and
 # the hidden/drawn split moves accordingly (29609/170391 of 200000).
-assert_eq "render vis camera cluster" "$(vfield cameraCluster)" "639"
-assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "2150"
+#
+# Re-pinned 2026-11-01 (T82/T83). History, kept so the move is auditable:
+#   cameraCluster 639 -> 2108, visibleFromCamera 2150 -> 1481,
+#   hiddenTriangles 10872 -> 15039, drawnTriangles 189128 -> 184961.
+# Why: T80 stands the relay camera in the watched player's eye instead of the
+# world origin, so the clip is asked about a different leaf (639 was the origin
+# camera's), and T83 builds the 1,237 brush-model faces the parser used to drop,
+# which the clip then also judges. inputTriangles stays 200000 and the
+# drawn + hidden = input identity below is what still holds the numbers together.
+assert_eq "render vis camera cluster" "$(vfield cameraCluster)" "2108"
+assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "1481"
 assert_eq "render vis clustered triangles" "$(vfield clusteredTriangles)" "34517"
-assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "10872"
+assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "15039"
 assert_eq "render vis clip applied" "$(vfield clipApplied)" "1"
 assert_eq "render vis clip state" "$(printf '%s\n' "$VIS" | grep -oE 'state=[a-z]+' | head -1 | cut -d= -f2)" "active"
 assert_eq "render vis input triangles" "$(vfield inputTriangles)" "200000"
-assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "189128"
+assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "184961"
 # The identity, not a second pin: what the draw call was given plus what the pvs
 # withheld has to be the whole map. A clip that hid triangles by not uploading
 # them would satisfy the two numbers above and fail this one.

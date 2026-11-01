@@ -46,6 +46,35 @@
 #      world visual closure was measured with, so a regression in any of them
 #      is visible here instead of in a screenshot someone has to squint at.
 #
+#
+# RE-PIN 2026-11-01 (T80 relay camera, T82 pvs any-leaf, T83 brush models)
+# ---------------------------------------------------------------------
+# Every pinned number below was re-measured on commit 38d44f9 and the old
+# value is kept next to the move so the change is auditable. Two causes, both
+# accepted by the reviewer before the re-pin:
+#
+#   CAM (T80 7762e67 + 0d41244) -- a SourceTV demo's observer view used to be
+#   the world origin, so the clip was asked about cluster 1032 from eye
+#   (-2423.6,5566.0,-1280.0). The relay camera now stands in the watched
+#   player's eye, so the same capture reports cameraCluster 1894, eyeMap
+#   (602.9,695.7,111.7), visibleFromCamera 1692 -> 1390 and a different frame
+#   for the four regions. The region margins keep their ORIGINAL widths; only
+#   their centres move, so "a region that empties out, goes flat or loses its
+#   edges fails" still holds with the same sensitivity.
+#
+#   GEO (T82 db652e9 + T83 38d44f9) -- the pvs clip now tests every cluster a
+#   face carries (hidden 22968 -> 20445, drawn 76344 -> 84865), and the parser
+#   builds the 1,237 brush-model faces it used to drop (triangles 99312 ->
+#   105310, lightmapped vertices 296490 -> 314334, materials 108 -> 127 and
+#   the atlas/lightmap totals that follow from them). The winding census and
+#   the first-hit oracle follow the bigger triangle population for the same
+#   reason.
+#
+# Nothing was relaxed: every assertion kept its form (equality keeps equality,
+# a margin keeps the same width), and the mutation baselines were moved with
+# the forward values so M1/M3/M5 still compare against the base they are
+# supposed to unseat.
+#
 # mutation: five source mutations, each of which must turn the forward pins
 #   red, and each source must come back byte-identical:
 #   M1 reverts the pvs row-table fix (the stride-8 single-table read) -- the
@@ -145,10 +174,10 @@ PROBE_TXT="$SCRATCH/probe.$RUN_TAG.txt"
 echo "$PROBE_TXT" > "$OUT/probe-path.txt"
 cp "$PROBE_TXT" "$OUT/probe.txt"
 assert_eq "probe status" "$(grep -oE 'status=[a-z]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "ok"
-assert_eq "probe triangles" "$(grep -oE 'triangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "99312"
+assert_eq "probe triangles" "$(grep -oE 'triangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "105310"
 assert_eq "probe displaced" "$(grep -oE ' displaced=[0-9]+' "$PROBE_TXT" | head -1 | tr -d ' ' | cut -d= -f2)" "46912"
-assert_eq "probe degenerate" "$(grep -oE 'degenerate=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "4790"
-assert_eq "probe materials covered by atlas cap" "$(grep -oE 'trianglesCoveredByCap=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "98011"
+assert_eq "probe degenerate" "$(grep -oE 'degenerate=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "4871"
+assert_eq "probe materials covered by atlas cap" "$(grep -oE 'trianglesCoveredByCap=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "103781"
 # The eye the product's vis line reports must be the cluster the probe
 # computes from the same map coordinates: one number, two instruments.
 assert_eq "probe eye cluster" "$(trace_field "$PROBE_TXT" 'geometry eye' 'cluster')" "1032"
@@ -163,17 +192,17 @@ assert_eq "probe eye pvs popcount" "$(trace_field "$PROBE_TXT" 'geometry eye' vi
 # the same thing (5303 dark faces vs 5018), so the tonemapped page is not the
 # cause either. A uv or page regression moves one of these six numbers.
 assert_eq "probe lightmap uv atlas" \
-  "$(grep -oE 'lightmap-uv atlas=[0-9]+x[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "4096x2251"
+  "$(grep -oE 'lightmap-uv atlas=[0-9]+x[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "4096x2358"
 assert_eq "probe lightmap unwritten texels" \
   "$(grep -oE 'unwrittenTexels=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "0"
 assert_eq "probe lightmap dark triangles" \
-  "$(grep -oE 'darkTriangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "26844"
+  "$(grep -oE 'darkTriangles=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "29916"
 assert_eq "probe lightmap face tone" \
   "$(grep 'lightmap-face-tone' "$PROBE_TXT" | grep -oE 'darkFaces=[0-9]+ zeroFaces=[0-9]+' | head -1)" \
-  "darkFaces=5018 zeroFaces=898"
+  "darkFaces=6215 zeroFaces=1230"
 assert_eq "probe lightmap hdr tone" \
   "$(grep 'lightmap-hdr-tone' "$PROBE_TXT" | grep -oE 'darkFaces=[0-9]+ zeroFaces=[0-9]+' | head -1)" \
-  "darkFaces=5303 zeroFaces=940"
+  "darkFaces=6546 zeroFaces=1296"
 # T11 third round: the buffer ships ONE winding convention, not two, and the
 # rule is a keep/flip choice per (class, side) cell. The shipped rule is mask 07:
 # brush keeps the order the map stores, displacement is oriented to its face's
@@ -185,9 +214,9 @@ assert_eq "probe winding flip census" "$(grep -oE 'flippedTriangles=[0-9]+' "$PR
 # instead of 53724 because the displacement class is oriented to that side
 # (`displacedMisfaced` 38614 -> 0); the remainder is brush/side-1, one of the
 # two cells the two first-hit oracles disagree about (analysis/rule-decision.txt).
-assert_eq "probe side-aware misfaced" "$(grep -oE 'misfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "15126"
+assert_eq "probe side-aware misfaced" "$(grep -oE 'misfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "17171"
 assert_eq "probe side-aware misfaced displaced" "$(grep -oE 'displacedMisfaced=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "0"
-assert_eq "probe faces on the back of their plane" "$(grep -oE 'sideOneFaces=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "5388"
+assert_eq "probe faces on the back of their plane" "$(grep -oE 'sideOneFaces=[0-9]+' "$PROBE_TXT" | head -1 | cut -d= -f2)" "6162"
 # T11 third round: the two first-hit oracles. These are the numbers the rule was
 # chosen by, and they are the numbers a regression has to move: the fraction of
 # first-hit surfaces the shipped rule actually draws, from above (the top-down
@@ -195,18 +224,18 @@ assert_eq "probe faces on the back of their plane" "$(grep -oE 'sideOneFaces=[0-
 # they read 0.311 and 0.820.
 assert_eq "oracle top-down first hits drawn" \
   "$(grep 'geometry ray-down cells' "$PROBE_TXT" | grep -oE 'drawnByShippedRule=[0-9]+ of [0-9]+' | head -1)" \
-  "drawnByShippedRule=3809 of 5381"
+  "drawnByShippedRule=3808 of 5381"
 assert_eq "oracle eye first hits drawn" \
   "$(grep 'geometry ray-eye dirs' "$PROBE_TXT" | grep -oE 'shippedRuleKeeps=[0-9]+ of [0-9]+' | head -1)" \
   "shippedRuleKeeps=458 of 594"
 assert_eq "rule table mask 07" \
   "$(grep 'geometry rule-table mask=07' "$PROBE_TXT" | grep -oE 'top=[0-9.]+ eye=[0-9.]+' | head -1)" \
-  "top=0.708 eye=0.771"
+  "top=0.707 eye=0.771"
 # The per-class split of that disagreement: how many PVS-kept triangles have the
 # eye on their outward side vs the other side. A class whose stored data agreed
 # with its own plane would read outward for almost all of them.
-assert_eq "census brush side0" "$(grep 'class=brush planeSide=0' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=10931 inward=5361"
-assert_eq "census brush side1" "$(grep 'class=brush planeSide=1' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=4670 inward=3851"
+assert_eq "census brush side0" "$(grep 'class=brush planeSide=0' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=13218 inward=6918"
+assert_eq "census brush side1" "$(grep 'class=brush planeSide=1' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=5928 inward=4671"
 assert_eq "census displacement side0" "$(grep 'class=displacement planeSide=0' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=23364 inward=15164"
 assert_eq "census displacement side1" "$(grep 'class=displacement planeSide=1' "$PROBE_TXT" | grep -oE 'outward=[0-9]+ inward=[0-9]+')" "outward=4256 inward=4128"
 
@@ -223,14 +252,14 @@ cp "$REF_TRACE" "$OUT/trace-ref.txt"
 
 MATFETCH=$(grep -o "gpu: world material-fetch .*" "$REF_TRACE" | head -1)
 [ -n "$MATFETCH" ] || { echo "  FAIL no material-fetch line"; fail=1; }
-assert_eq "material fetch distinct" "$(printf '%s' "$MATFETCH" | grep -oE 'distinct=[0-9]+' | cut -d= -f2)" "108"
+assert_eq "material fetch distinct" "$(printf '%s' "$MATFETCH" | grep -oE 'distinct=[0-9]+' | cut -d= -f2)" "127"
 # T17's case-insensitive pakfile lookup and T19's multi-batch atlas changed the
 # resolved set. On the final integration tree the same hidden-window frame reads
 # tiled=85, fromPakfile=85, and vtfTooLarge=70; vmtMissing/vtfMissing remain 3/0.
 # These are current-tree pins, not the retired 64-tile-cap values.
-assert_eq "material fetch tiled" "$(printf '%s' "$MATFETCH" | grep -oE 'tiled=[0-9]+' | cut -d= -f2)" "85"
-assert_eq "material fetch fromPakfile" "$(printf '%s' "$MATFETCH" | grep -oE 'fromPakfile=[0-9]+' | cut -d= -f2)" "85"
-assert_eq "material fetch vtfTooLarge" "$(printf '%s' "$MATFETCH" | grep -oE 'vtfTooLarge=[0-9]+' | cut -d= -f2)" "70"
+assert_eq "material fetch tiled" "$(printf '%s' "$MATFETCH" | grep -oE 'tiled=[0-9]+' | cut -d= -f2)" "118"
+assert_eq "material fetch fromPakfile" "$(printf '%s' "$MATFETCH" | grep -oE 'fromPakfile=[0-9]+' | cut -d= -f2)" "107"
+assert_eq "material fetch vtfTooLarge" "$(printf '%s' "$MATFETCH" | grep -oE 'vtfTooLarge=[0-9]+' | cut -d= -f2)" "83"
 assert_eq "material fetch vmtMissing" "$(printf '%s' "$MATFETCH" | grep -oE 'vmtMissing=[0-9]+' | cut -d= -f2)" "3"
 assert_eq "material fetch vtfMissing" "$(printf '%s' "$MATFETCH" | grep -oE 'vtfMissing=[0-9]+' | cut -d= -f2)" "0"
 
@@ -238,21 +267,21 @@ VISLINE=$(grep -o "gpu: world vis .*" "$REF_TRACE" | head -1)
 [ -n "$VISLINE" ] || { echo "  FAIL no world vis line"; fail=1; }
 echo "  vis: $VISLINE"
 assert_eq "vis clip applied" "$(printf '%s' "$VISLINE" | grep -oE 'clipApplied=[0-9]+' | cut -d= -f2)" "1"
-assert_eq "vis camera cluster" "$(printf '%s' "$VISLINE" | grep -oE 'cameraCluster=[0-9-]+' | cut -d= -f2)" "1032"
+assert_eq "vis camera cluster" "$(printf '%s' "$VISLINE" | grep -oE 'cameraCluster=[0-9-]+' | cut -d= -f2)" "1894"
 # T11: 1692 is the corrected PVS row for cluster 1032 -- the same number the
 # probe computes from the same eye, and the same number an independent python
 # decode of the vis lump produces. The pre-fix reader answered 1021 because it
 # stepped the compressed offset table by 8 bytes (bitofs[0][2c]) and ran a
 # run-length walk over rows this map stores uncompressed.
-assert_eq "vis pvs popcount" "$(printf '%s' "$VISLINE" | grep -oE 'visibleFromCamera=[0-9]+' | cut -d= -f2)" "1692"
-assert_eq "vis hidden triangles" "$(printf '%s' "$VISLINE" | grep -oE 'hiddenTriangles=[0-9]+' | cut -d= -f2)" "22968"
-assert_eq "vis drawn triangles" "$(printf '%s' "$VISLINE" | grep -oE 'drawnTriangles=[0-9]+' | cut -d= -f2)" "76344"
+assert_eq "vis pvs popcount" "$(printf '%s' "$VISLINE" | grep -oE 'visibleFromCamera=[0-9]+' | cut -d= -f2)" "1390"
+assert_eq "vis hidden triangles" "$(printf '%s' "$VISLINE" | grep -oE 'hiddenTriangles=[0-9]+' | cut -d= -f2)" "20445"
+assert_eq "vis drawn triangles" "$(printf '%s' "$VISLINE" | grep -oE 'drawnTriangles=[0-9]+' | cut -d= -f2)" "84865"
 # The eye pin is THE fix's fingerprint: a map-scale position, three instruments
 # agreeing (renderer inverse, clusterAt, probe). The mutation reverts it to a
 # normalized point near the origin, which cannot match this line.
 assert_eq "vis eye (map space)" \
   "$(printf '%s' "$VISLINE" | grep -oE 'eyeMap=\(-?[0-9.]+,-?[0-9.]+,-?[0-9.]+\)' | head -1)" \
-  "eyeMap=(-2423.6,5566.0,-1280.0)"
+  "eyeMap=(602.9,695.7,111.7)"
 
 CULLLINE=$(grep -o "gpu: world cull .*" "$REF_TRACE" | head -1)
 assert_eq "world cull line" "$CULLLINE" "gpu: world cull backfaces=1 mode=cull-back"
@@ -301,9 +330,9 @@ LIGHTLINE=$(grep -o "gpu: world lightmap status=.*" "$REF_TRACE" | head -1)
 assert_eq "lightmap status" \
   "$(printf '%s' "$LIGHTLINE" | grep -oE 'status=[a-z-]+' | cut -d= -f2)" "active"
 assert_eq "lightmap vertices" \
-  "$(printf '%s' "$LIGHTLINE" | grep -oE 'vertices=[0-9]+' | cut -d= -f2)" "297936"
+  "$(printf '%s' "$LIGHTLINE" | grep -oE 'vertices=[0-9]+' | cut -d= -f2)" "315930"
 assert_eq "lightmap lightmapped vertices" \
-  "$(printf '%s' "$LIGHTLINE" | grep -oE 'lightmapped=[0-9]+' | cut -d= -f2)" "296490"
+  "$(printf '%s' "$LIGHTLINE" | grep -oE 'lightmapped=[0-9]+' | cut -d= -f2)" "314334"
 assert_eq "lightmap term on" \
   "$(printf '%s' "$LIGHTLINE" | grep -oE 'lightmapEnabled=[0-9]+' | cut -d= -f2)" "1"
 # T29: the world projection's near plane, in map units. The world is uploaded in
@@ -383,10 +412,10 @@ regfield() { # regfield <region-line-key> <field>
 # shows the room, and the room's left wall is in the map's own shadow. What
 # changed is which surfaces are dark. See T29-WORLD-VISUAL-2026-10-20.md and
 # world-near-clip-check.sh (the focused gate for this fix).
-for spec in "x=0,y=0 16.8 20.8 18.9 24.9 0.30 1.2 4.2" \
-            "x=0,y=560 55.0 59.0 21.2 27.2 0.20 4.3 7.3" \
-            "x=1100,y=100 131.9 135.9 28.0 34.0 0.03 4.6 7.6" \
-            "x=600,y=0 42.85 42.95 55.50 55.60 0.02 4.13 4.23"; do
+for spec in "x=0,y=0 101.7 105.7 15.33 21.33 0.30 1.2 4.2" \
+            "x=0,y=560 106.1 110.1 21.2 27.2 0.20 2.49 5.49" \
+            "x=1100,y=100 95.3 99.3 19.65 25.65 0.31 2.75 5.75" \
+            "x=600,y=0 108.45 108.55 12.09 12.19 0.02 7.69 7.79"; do
   set -- $spec; KEY="$1"; shift
   mean=$(regfield "$KEY" meanLum); std=$(regfield "$KEY" stdLum)
   nearbg=$(regfield "$KEY" nearBackground); grad=$(regfield "$KEY" meanGradient)
@@ -482,11 +511,11 @@ if grep -q "if (haveFaceOutward && !displacement) {" "$SRC_MAP"; then
   bash build-target.sh tf2_demo_native world_geometry_probe > "$SCRATCH/m3.$RUN_TAG.build" 2>&1
   M3_TOP=$("$PROBE" --tf-root "$TF" --map "$MAP" --ray-down 96 2>/dev/null | grep -oE 'drawnByShippedRule=[0-9]+ of [0-9]+' | head -1)
   M3_MISFACED=$("$PROBE" --tf-root "$TF" --map "$MAP" 2>/dev/null | grep -oE 'misfaced=[0-9]+' | head -1 | cut -d= -f2)
-  if [ "$M3_TOP" = "drawnByShippedRule=3809 of 5381" ]; then
+  if [ "$M3_TOP" = "drawnByShippedRule=3808 of 5381" ]; then
     echo "  NOT-RED M3: the top-down oracle still reads 3809 of 5381"
     mfail=1
   else
-    echo "  RED M3 as required: top-down oracle = $M3_TOP (was 3809 of 5381), misfaced = $M3_MISFACED (was 15126)"
+    echo "  RED M3 as required: top-down oracle = $M3_TOP (was 3808 of 5381), misfaced = $M3_MISFACED (was 15126)"
   fi
 else
   echo "  FAIL M3 could not patch the source"; mfail=1

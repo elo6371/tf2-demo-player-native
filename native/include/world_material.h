@@ -624,6 +624,11 @@ struct WorldVisClipReading {
   // and dropping them would be a claim the data does not support, so they are
   // kept and counted.
   std::size_t trianglesWithoutCluster = 0;
+  // T82: triangles that a first-leaf rule would have hidden but the any-leaf rule
+  // keeps, because a cluster further down the face's list is visible. Every one of
+  // these is a surface the older rule removed outright, so this number is the
+  // measure of the bug and not a tuning knob.
+  std::size_t trianglesRescuedByLaterCluster = 0;
   int cameraCluster = -1;
   std::string reason;
 };

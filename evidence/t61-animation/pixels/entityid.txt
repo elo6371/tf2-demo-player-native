@@ -1,11 +1,11 @@
-LEDGER entries=96
+LEDGER lines=96 distinct-ids=96
 PICKS  models=8
 MASK   distinct-ids=3 pixels=5573
-SUBJECT id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=4383
+SUBJECT id=96 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=4383
 VISIBLE players=1 props=2
 JOIN   subject matches its own pick: models/player/demo.mdl moving seq=147 label=run_PRIMARY
-DRAWN  2 skinned player instance(s) report their own pick (0 not skinned, not judged)
+DRAWN  1 skinned player instance(s) report their own pick (0 not skinned, not judged)
 SAMPLE 31 per-entity sample line(s), each matching its own model pick
-MOTION subject=95 over-mask=4383 differ=3794 share=86.56%
-DECODED id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
+MOTION subject=96 over-mask=4383 differ=3794 share=86.56%
+DECODED id=96 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
 ENTITY-ID=PASS
