@@ -14,7 +14,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the current hosted snapshot, [docs/KNOWN-IS
 
 ## Verification status
 
-- The full `verify-all.sh` acceptance chain passed on the `ebc4716` release candidate (2026-10-30); the T8/T9/T10 source-split commits after it are refactors, so the shipped acceptance record is the chain run on this merged tree, and its result is appended to CHANGELOG.md once the run has finished. `--quick` runs an 8-demo oracle sample while the full run walks the whole corpus.
+- The full `verify-all.sh` acceptance chain ran end to end on this merged tree on 2026-11-01: 30 of 30 steps judge PASS (29 measured directly, step 27 re-measured on `fa1233f`, the chain-side count fix that came after the run). `CHANGELOG.md` records the run, the numbers, and the three behaviour-neutral gate-side corrections it needed. `--quick` runs an 8-demo oracle sample while the full run walks the whole corpus.
 - Focused reports live in `evidence/`; each report keeps its own PASS, NOT VERIFIED, and UNSUPPORTED boundaries.
 - The hosted tree is a development snapshot: a passing focused gate is not a claim that every map, material, class, or animation is visually correct.
 
