@@ -818,7 +818,29 @@ WorldVisClipReading clipWorldTrianglesByVis(const BspMap& map,
       if (keptIndices) keptIndices->push_back(index);
       continue;
     }
-    if (BspParser::clusterVisible(map, request.cameraCluster, triangle.cluster)) {
+    // T82: test every cluster the face carries, not just the first one. Source
+    // draws a surface when ANY leaf that carries it is potentially visible; with
+    // one cluster the clip hid whole faces whose first leaf was behind the
+    // camera, which reads on screen as a hole you can see through.
+    bool visible = false;
+    std::size_t clustersTested = 0;
+    const auto faceSlot = triangle.faceIndex >= 0 ? static_cast<std::size_t>(triangle.faceIndex) : 0;
+    if (triangle.faceIndex >= 0 && faceSlot + 1 < map.faceClusterOffsets.size()) {
+      const auto begin = static_cast<std::size_t>(map.faceClusterOffsets[faceSlot]);
+      const auto end = static_cast<std::size_t>(map.faceClusterOffsets[faceSlot + 1]);
+      for (auto slot = begin; slot < end; ++slot) {
+        ++clustersTested;
+        if (BspParser::clusterVisible(map, request.cameraCluster,
+              map.faceClusterValues[slot])) { visible = true; break; }
+      }
+    }
+    if (!visible && clustersTested == 0) {
+      // No list (a triangle this map cannot attribute to a leaf) falls back to the
+      // single-cluster field, which is what the parser filled in as its summary.
+      visible = BspParser::clusterVisible(map, request.cameraCluster, triangle.cluster);
+    }
+    if (visible) {
+      if (clustersTested > 1) ++reading.trianglesRescuedByLaterCluster;
       output.push_back(triangle);
       if (keptIndices) keptIndices->push_back(index);
     } else {
@@ -830,7 +852,9 @@ WorldVisClipReading clipWorldTrianglesByVis(const BspMap& map,
   reading.outputTriangles = output.size();
   reading.reason = "hid " + std::to_string(reading.hiddenTriangles) + " of "
     + std::to_string(reading.inputTriangles) + " triangles from cluster "
-    + std::to_string(request.cameraCluster);
+    + std::to_string(request.cameraCluster) + " ("
+    + std::to_string(reading.trianglesRescuedByLaterCluster)
+    + " kept by a cluster past the first)";
   return reading;
 }
 

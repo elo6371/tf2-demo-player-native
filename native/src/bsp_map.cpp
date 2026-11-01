@@ -169,7 +169,13 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     map.leafFaces.resize(leafFaceBytes.size() / 2);
     for (std::size_t i = 0; i < map.leafFaces.size(); ++i) map.leafFaces[i] = read<std::uint16_t>(leafFaceBytes, i * 2);
   }
-  std::vector<int> faceCluster(faces.size() / 56, -1);
+  // T82: a face can belong to several leaves, so keep every cluster it carries
+  // instead of the first one only. The lists are small (a face is in one leaf for
+  // most of the map) and flattened into facesWithSeveralClusters/faceCluster* after
+  // the walk, because a vector<vector<int>> per face would cost more than the
+  // answer is worth.
+  const std::size_t faceSlotCount = faces.size() / 56;
+  std::vector<std::vector<int>> faceClusters(faceSlotCount);
   if (leafs.size() % 32 == 0) {
     map.leaves.reserve(leafs.size() / 32);
     for (std::size_t i = 0; i < leafs.size() / 32; ++i) {
@@ -183,10 +189,32 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         const auto index = static_cast<std::size_t>(leaf.firstFace) + static_cast<std::size_t>(face);
         if (index >= map.leafFaces.size()) break;
         const auto faceIndex = map.leafFaces[index];
-        if (faceIndex < faceCluster.size() && faceCluster[faceIndex] < 0) faceCluster[faceIndex] = leaf.cluster;
+        if (faceIndex < faceClusters.size() && leaf.cluster >= 0) {
+          auto& clusters = faceClusters[faceIndex];
+          bool known = false;
+          for (int existing : clusters) { if (existing == leaf.cluster) { known = true; break; } }
+          if (!known) clusters.push_back(leaf.cluster);
+        }
       }
     }
   }
+  map.faceClusterOffsets.reserve(faceClusters.size() + 1);
+  map.faceClusterOffsets.push_back(0);
+  for (const auto& clusters : faceClusters) {
+    map.faceClusterValues.insert(map.faceClusterValues.end(), clusters.begin(), clusters.end());
+    map.faceClusterOffsets.push_back(static_cast<std::uint32_t>(map.faceClusterValues.size()));
+    if (clusters.size() > 1) ++map.facesWithSeveralClusters;
+  }
+  // The renderer's per-triangle field is only a summary of this list: the first
+  // cluster the face carries. Everything that decides visibility reads the list.
+  const auto firstClusterOf = [&](std::int32_t faceIndex) -> int {
+    if (faceIndex < 0) return -1;
+    const auto slot = static_cast<std::size_t>(faceIndex);
+    if (slot + 1 >= map.faceClusterOffsets.size()) return -1;
+    const auto begin = static_cast<std::size_t>(map.faceClusterOffsets[slot]);
+    if (begin >= static_cast<std::size_t>(map.faceClusterOffsets[slot + 1])) return -1;
+    return map.faceClusterValues[begin];
+  };
   if (vis.size() >= 4) {
     const auto clusters = read<std::int32_t>(vis, 0);
     const auto headerBytes = static_cast<std::size_t>(4) + static_cast<std::size_t>(clusters) * 8u;
@@ -348,7 +376,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     }
     const std::uint32_t facePlaneNumber = read<std::uint16_t>(faces, base);
     const std::uint8_t facePlaneSide = faces[base + 2];
-    const int cluster = faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceCluster.size() ? faceCluster[static_cast<std::size_t>(faceIndex)] : -1;
+    const int cluster = firstClusterOf(faceIndex);
     if (skyFace) {
       ++map.skyFaces;
       const auto skyPlane = static_cast<std::size_t>(facePlaneNumber) < map.planes.size()

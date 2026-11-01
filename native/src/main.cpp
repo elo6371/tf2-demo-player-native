@@ -7283,6 +7283,10 @@ bool outlineVertexExtent = false;
   worldVisProbe.resize(displayMap.triangles.size());
   for (std::size_t index = 0; index < displayMap.triangles.size(); ++index) {
     worldVisProbe[index].cluster = displayMap.triangles[index].cluster;
+    // T82: the clip now tests every cluster the face carries, which it finds
+    // through this field. Copying only the cluster would leave the probe with no
+    // face and the clip would silently fall back to the one-cluster rule.
+    worldVisProbe[index].faceIndex = displayMap.triangles[index].faceIndex;
   }
   int worldVisAppliedCluster = -2;
   bool worldDrawTraceEmitted = false;
