@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace tf2::native {
@@ -494,6 +495,26 @@ OverlayDrawList buildOutlineDrawList(
   list.depth = depth;
   const std::unordered_set<std::string> world(worldMeshes.begin(), worldMeshes.end());
   const std::unordered_set<std::string> fallback(fallbackMeshes.begin(), fallbackMeshes.end());
+  // T52 A3: THE THIRD SPELLING OF A WORLD KEY.
+  //
+  // The world set is handed over as the frame's DRAWN instance keys, and those are
+  // "<path>#<checksum>" (model_loader.cpp:1041; main.cpp:9411-9421 rewrites a player
+  // instance's key to the world mesh it was prepared as). The two spellings matched
+  // below -- the bare path and "<path>#class-fallback" -- are the two the CLASS
+  // FALLBACK list uses, so on a frame where the entity pass really does draw player
+  // bodies every silhouette still fell through to the bind upload. The keys did not
+  // disagree about the model; they disagreed about the suffix.
+  //
+  // Indexed by path, keeping the full key, because the draw stage needs the key it
+  // can find in its own mesh table. A path maps to one checksum (the checksum IS the
+  // model), so this cannot silently pick between two models.
+  std::unordered_map<std::string, std::string> worldKeyByPath;
+  worldKeyByPath.reserve(worldMeshes.size());
+  for (const auto& key : worldMeshes) {
+    const std::size_t separator = key.rfind('#');
+    if (separator == std::string::npos || separator == 0) continue;
+    worldKeyByPath.emplace(key.substr(0, separator), key);
+  }
   for (const auto& sample : samples) {
     if (!sample.present) { ++list.rejectedNotPlayer; continue; }
     // A row that is not a player is counted rather than silently dropped: a
@@ -523,6 +544,13 @@ OverlayDrawList buildOutlineDrawList(
         poseSource = OverlayPoseSource::World;
       } else if (world.find(classKey) != world.end()) {
         meshKey = classKey;
+        poseSource = OverlayPoseSource::World;
+      } else if (const auto keyed = worldKeyByPath.find(sample.modelPath); keyed != worldKeyByPath.end()) {
+        // The entity pass drew this model this frame (its instance key is in the
+        // world set) -- so the silhouette takes its mesh AND, downstream, the
+        // bone range of that draw. This is the branch that makes a drawn player
+        // animate instead of standing in bind pose.
+        meshKey = keyed->second;
         poseSource = OverlayPoseSource::World;
       } else if (fallback.find(classKey) != fallback.end()) {
         meshKey = classKey;

@@ -231,6 +231,13 @@ struct EntityMarker {
 
 struct EntityModelDrawInstance {
   std::string cacheKey;
+  // The entity state index this instance belongs to, or -1 when the caller has
+  // none. It is the join key between a drawn body and that body's silhouette:
+  // the cache key cannot join them (two players of one class share one), and the
+  // origin cannot either (a match there is only ever a coincidence that survives
+  // because both sides read the same field). The overlay item carries the same
+  // index, so "which body is under this ink" is answered by identity.
+  std::int32_t entityIndex = -1;
   float origin[3] = {};
   float angles[3] = {};
   bool hasAngles = false;

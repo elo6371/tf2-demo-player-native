@@ -1,0 +1,33 @@
+T52 A3 -- per-entity world-skinned silhouette coverage
+source: TF2_NATIVE_TRACE=on1.trace (animation ON), capture tick 64250 playback (= server 74570)
+counting rule: awk over "outline: itemdiag" lines, count frames where " skinned=1 " appears
+denominator: 7183 outline: draw groups in the trace
+
+entity class    skinned_frames / frames   note
+  2    soldier      5449 / 7183           0.759
+  3    scout        5571 / 7183           0.776
+  4    demo         5591 / 7183           0.778
+  5    demo         6394 / 7183           0.890
+  6    medic        4944 / 7183           0.688
+  7    heavy        5524 / 7183           0.769
+  8    soldier      5664 / 7183           0.789
+  9    soldier      5943 / 7183           0.827
+ 10    scout        5359 / 7183           0.746
+ 11    soldier      4881 / 7183           0.680
+ 12    spy             1 / 7183           0.000  single frame only
+ 13    medic        6440 / 7183           0.897
+ 15    scout        4177 / 7183           0.581
+ 16    medic           0 / 7183                  never skinned
+ 17    soldier         0 / 7183                  never skinned
+
+totals: 15 players with a class-fallback player model; 13 of them carried a
+world-skinned silhouette on at least one frame. entity 1 is class CTFPlayer with
+model=- (no m_nModelIndex slot and no class fallback) and is not a player model.
+
+per class (players with skinned_frames > 0 / players of that class):
+  soldier 4/5   scout 3/3   demo 2/2   medic 2/3   heavy 1/1   spy 1/1
+
+classes present in this recording: soldier, scout, demo, medic, heavy, spy (6).
+pyro / engineer / sniper do not appear in bb841c6d...cp_snakewater_final1.dem
+(probe classes-74570.txt has no such model), so a nine-class claim cannot be
+measured on this input and is not made here.

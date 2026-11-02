@@ -9419,6 +9419,7 @@ bool outlineVertexExtent = false;
             if (player) { ++playerDraws; } else { ++propDraws; }
             tf2::native::EntityModelDrawInstance draw;
             draw.cacheKey = cacheKey;
+            draw.entityIndex = static_cast<std::int32_t>(instance.entityIndex);
             draw.origin[0] = instance.transform.origin[0];
             draw.origin[1] = instance.transform.origin[1];
             draw.origin[2] = instance.transform.origin[2];
@@ -9801,17 +9802,41 @@ bool outlineVertexExtent = false;
             // at: the entity pass already resolved a transform per instance, and a
             // second resolution here would be a second answer to "where is
             // entity N". Matching by cache key is not enough -- two players of the
-            // same class share one -- so the entity index is the join.
+            // same class share one -- and matching by origin is not either, because
+            // the silhouette's origin is copied from the draw it is meant to join:
+            // the check could only ever pass where it was already known to pass. The
+            // entity index is the identity both sides already carry.
             for (auto& item : list.items) {
               for (const auto& draw : draws) {
-                if (draw.cacheKey != item.cacheKey) continue;
-                if (std::fabs(draw.origin[0] - item.origin[0]) > 1.0e-3f
-                    || std::fabs(draw.origin[1] - item.origin[1]) > 1.0e-3f
-                    || std::fabs(draw.origin[2] - item.origin[2]) > 1.0e-3f) continue;
+                if (draw.entityIndex < 0) continue;
+                if (static_cast<std::uint16_t>(draw.entityIndex) != item.entityIndex) continue;
                 item.skinned = draw.skinningEnabled;
                 item.boneOffset = draw.boneOffset;
                 item.boneCount = draw.boneCount;
                 break;
+              }
+            }
+            // T52 A3: THE LABEL FOLLOWS THE JOIN, NOT THE KEY MATCH.
+            //
+            // "World" is a claim about the pose the silhouette is DRAWN at, and that
+            // pose comes from the bone range the loop above copies off the matching
+            // draw. A world key that no draw matches (two players of one class, only
+            // one of them inside the draw budget) is the world MESH drawn at bind
+            // pose; calling it World would be the reading-disagrees-with-the-pixels
+            // shape this feature keeps paying for. So: World only with a bone range,
+            // Bind otherwise, and the two numbers still sum to "submitted".
+            std::size_t poseWorldItems = 0;
+            std::size_t poseBindItems = 0;
+            for (auto& item : list.items) {
+              const bool posed = item.poseSource == tf2::native::OverlayPoseSource::World
+                && item.skinned && item.boneCount > 0;
+              if (posed) {
+                ++poseWorldItems;
+              } else {
+                if (item.poseSource == tf2::native::OverlayPoseSource::World) {
+                  item.poseSource = tf2::native::OverlayPoseSource::Bind;
+                }
+                ++poseBindItems;
               }
             }
             outlineStats.lastSubmitted = list.items.size();
@@ -9821,8 +9846,8 @@ bool outlineVertexExtent = false;
             outlineStats.lastNoMesh = list.rejectedNoMesh;
             outlineStats.lastNoOrigin = list.rejectedNoOrigin;
             outlineStats.lastDisabled = list.rejectedDisabled;
-            outlineStats.lastPoseWorld = list.poseSourceWorld;
-            outlineStats.lastPoseBind = list.poseSourceBind;
+            outlineStats.lastPoseWorld = poseWorldItems;
+            outlineStats.lastPoseBind = poseBindItems;
             outlineStats.lastSamples = samples.size();
             // Where the region comes from, set with the list so the pass and the reading
             // cannot disagree about which rule produced the box.

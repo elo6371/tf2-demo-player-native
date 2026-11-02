@@ -1,0 +1,26 @@
+T52 A3 -- pixel evidence at one fixed camera and tick
+camera: --debug-camera 5699 -1611 150 14.4 -143.3
+tick:   --capture-tick 64250 (playback), --playback-speed 8, 1920x1080x24bpp BMP
+runs:   on1  (--player-animation)      tick 64250
+        on2  (--player-animation)      tick 64258
+        bind1 (--no-player-animation)  tick 64250
+        bind_d (--no-player-animation) tick 64250  (determinism control)
+script: a3region.mjs (region classification against the published boxes of on1)
+
+published_boxes=12
+boxes=2:453,334-477,346 3:460,345-475,354 4:444,335-478,344 5:0,304-0,320
+      6:322,310-338,314 7:455,333-479,345 8:753,331-793,341 10:322,310-338,313
+      11:449,335-477,346 12:200,294-213,295 13:429,339-476,351 15:322,310-338,313
+
+determinism_bind_vs_binddup = {"inside":0,"outside":0,"maxd":0,"box":[-,-,-,-]}
+  -> same configuration, two launches: 0 differing pixels (byte-identical frames).
+
+animation_on_vs_bind = {"inside":9,"outside":76,"maxd":210,"box":[191,290,212,298]}
+  -> 85 pixels differ between the skinned run and the bind run at the same tick;
+     9 of them fall inside the published silhouette boxes and 76 outside, because
+     for a skinned instance the published box is the sampler AABB and not the
+     vertex extent (see A3-REPORT.md section 5). maxdelta 210 means the
+     difference is silhouette ink, not a 1-2 level resample wobble.
+
+Both frames come from the same executable built at HEAD f1f98f0 + the A3 patch,
+so the 85-pixel difference is the animation, not a different binary.
