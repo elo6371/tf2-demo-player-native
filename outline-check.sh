@@ -587,6 +587,21 @@ echo "  capture camera=$CAM_EYE (pinned free-look eye; T52_CAM pins it)"
 # one another.
 ANIM_ARGS=(--no-player-animation)
 echo "  capture animation=off (bind mesh; the animated silhouette is A3 evidence)"
+# CORPSES ON, and this is a fixture decision about what THIS FRAME CAN MEASURE.
+#
+# The pinned tick is near the end of the recording, where the product's corpse rule
+# (T66 rule 1) has already dropped most of the players out of the world pass: at
+# 64250 nineteen of the twenty samples are entities the pass no longer draws, so the
+# frame carries ONE body. A fixture that hides corpses therefore cannot measure the
+# silhouette-to-body join at all, and the rounds that ran that way were green while
+# thirteen of their silhouettes outlined entities the picture did not contain
+# (measured 2026-11-02: submitted=15, poseWorld=2, poseBind=13). With corpses shown
+# the same tick and camera carry fourteen silhouettes of both teams -- 6 red, 6 blue,
+# 2 unknown, 5 rejected noMesh -- and every one of them is joined to a drawn body.
+# Section 5b then re-runs this frame with the rule ON, which is what turns "the
+# silhouette follows the body" into an assertion instead of a sentence.
+CORPSE_ARGS=(--spectate-show-corpses)
+echo "  capture corpse rule=off (--spectate-show-corpses: the frame has bodies to outline)"
 # Two things had to change here before a capture could ever happen, and both were
 # found by reading the product instead of the gate:
 #   * --start-paused freezes g_playback.tick at 0, so the one-shot capture armed
@@ -675,6 +690,7 @@ run_frame() { # run_frame <prefix> [args...]
     # failure that produced the empty capture frame in the first place.
     --debug-camera $CAM_EYE
     "${ANIM_ARGS[@]}"
+    "${CORPSE_ARGS[@]}"
     "$@"
   )
   case " ${productArgs[*]} " in
@@ -800,6 +816,15 @@ SUBMITTED_ON=$(outline_value "$OUT/on.trace" submitted)
 echo "  on.poseWorld=${POSE_WORLD:-<none>} on.poseBind=${POSE_BIND:-<none>}"
 assert_eq "every submitted silhouette declares a pose source" \
   "$(( ${POSE_WORLD:-0} + ${POSE_BIND:-0} ))" "${SUBMITTED_ON:-0}"
+# AND EVERY SILHOUETTE HAS A BODY. The pair above is satisfied by "I did not know
+# where this entity is" as easily as by "here it is": an item whose entity index
+# matches no draw in this frame is still SUBMITTED, it just gets no bone range and no
+# pose source. That is exactly the defect this reading was added for (T52 A3b,
+# 2026-11-02): the overlay was publishing thirteen silhouettes for players the world
+# pass had dropped as corpses, and the pose split reported it as a skeleton problem.
+# poseJoinMissed counts items that matched no draw; zero is the contract.
+assert_eq "silhouettes with no body behind them (overlay on)" \
+  "$(outline_value "$OUT/on.trace" poseJoinMissed)" "0"
 # THE WORLD PASS'S MODEL COUNT, AS AN ASSERTION AND NOT AS A SENTENCE.
 # The report used to say "the overlay must not disturb the world pass's 59 models"
 # while main.cpp:2159-2161 merges nine class requests into the same meshSource the
@@ -1267,6 +1292,35 @@ echo "  off frame team pixels (frame-wide, diagnostic; scene reds sit outside th
 echo "  off frame team pixels inside the published regions: $OFF_TEAM_INSIDE"
 assert_eq "team-coloured pixels inside the published regions in the overlay-off frame" \
   "$(echo "$OFF_TEAM_INSIDE" | grep -o "team_inside=[0-9]*" | cut -d= -f2)" "0"
+echo
+echo "=== 5b/6 the corpse rule: no silhouette for a body the world pass dropped ==="
+# THE OTHER HALF OF THE SAME CONTRACT, measured on the same frame with the rule back
+# on. The 5/6 assertions above are taken with corpses shown, because that is the only
+# way this pinned tick has bodies to join; this run takes the flag away and asks what
+# the overlay publishes when the world pass drops nineteen of the twenty samples.
+# Three readings, one defect each:
+#   removed>=1   -- the rule actually fires on this frame (if it stops firing the run
+#                   is measuring a different frame, and the two assertions below
+#                   would be green for the wrong reason);
+#   submitted==kept -- what the overlay publishes is the set the rule kept, not the
+#                   set it sampled: the defect was publishing the sampled set;
+#   poseJoinMissed==0 -- and the silhouettes that survive still have bodies, which
+#                   is the reading a "drop the filter" mutant moves to 18.
+CORPSE_ARGS=()
+CORPSE_RC=$(run_frame "$OUT/corpse" --outline on)
+CORPSE_ARGS=(--spectate-show-corpses)
+echo "  corpse-rule run rc=$CORPSE_RC bmp=$(stat -c%s "$OUT/corpse.bmp" 2>/dev/null || echo 0)"
+assert_eq "corpse-rule run rc" "$CORPSE_RC" "0"
+CORPSE_LINE=$(grep -a "overlay: corpseFilter removed=" "$OUT/corpse.trace" 2>/dev/null | tail -1)
+CORPSE_REMOVED=$(printf "%s" "$CORPSE_LINE" | sed -n "s/.*removed=\([0-9]*\).*/\1/p")
+CORPSE_KEPT=$(printf "%s" "$CORPSE_LINE" | sed -n "s/.*kept=\([0-9]*\).*/\1/p")
+echo "  corpse rule: ${CORPSE_LINE:-<no corpseFilter line>}"
+assert_ge "players the corpse rule removed from the silhouette set" "${CORPSE_REMOVED:-0}" "1"
+assert_eq "silhouettes submitted == the samples the rule kept" \
+  "$(outline_value "$OUT/corpse.trace" submitted)" "${CORPSE_KEPT:-none}"
+assert_eq "silhouettes with no body behind them (corpse rule on)" \
+  "$(outline_value "$OUT/corpse.trace" poseJoinMissed)" "0"
+
 
 echo
 

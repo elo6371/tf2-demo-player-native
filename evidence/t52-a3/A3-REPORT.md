@@ -46,6 +46,12 @@ Two defects, both confirmed by reading the two sides of the join.
 
 ## 4. Readings at the capture frame
 
+> **Correction (2026-11-02, T52 A3b).** Most of the `poseBind` items reported below were
+> not a skeleton fallback: they were entities the world pass had already dropped as
+> corpses, which the overlay was still outlining. See
+> `A3B-SILHOUETTE-FOLLOWS-BODY.md` for the measurement that separated the two, and
+> section 9 below for what it changes in this report.
+
 ```
 scene: setInstances playerDraws=2 ...
 outline: draw ... silhouettes=... submitted=14 poseWorld=2 poseBind=12
@@ -112,3 +118,24 @@ node a3region.mjs                            # region counts against the publish
 The four captures and the probe write to `D:/_shared/t52-a3/`; the frames are 2,582,406
 byte 1920x1080 24bpp BMPs and are not committed. Both frames the pixel claim rests on
 are reproducible from the recipe and the executable built at this HEAD.
+## 9. Correction (T52 A3b, 2026-11-02)
+
+Sections 1-8 stand as the record of the key-form and join defects, both of which were
+real and both of which are fixed. One reading in them was mis-attributed:
+
+* **`poseBind` was not (mostly) "the skeleton was not found".** The world pass drops the
+  camera-hidden player (T81) and, on late-recording ticks, every player the director hides
+  as a corpse (T66 rule 1) *before* it draws. The overlay's sample set applied neither
+  rule, so it published silhouettes for entities the picture did not contain; those items
+  matched no draw and fell to bind. At the gate's pinned tick, thirteen of fifteen
+  silhouettes outlined nothing.
+* Fixed in `native/src/main.cpp` by filtering the silhouette samples with the same two
+  predicates the world pass uses, and by counting `poseJoinMissed` (items that matched no
+  draw at all; zero is now the contract). On the same frame the bind count drops to zero
+  for a different reason than the key-form fix: there is nothing left to mis-join.
+* The gate around this also changed: it now shows corpses at the pinned tick (that frame
+  otherwise carries a single body) and asserts `poseJoinMissed = 0`,
+  `submitted == kept` and `removed >= 1` in a new section 5b. A run with those assertions
+  is `evidence/outline/run-20261102-a3b`: 117 OK / 0 FAIL.
+
+Detail and the before/after table: `A3B-SILHOUETTE-FOLLOWS-BODY.md`.

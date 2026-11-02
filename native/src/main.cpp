@@ -303,6 +303,12 @@ struct OverlayStats {
   // mesh upload retires itself instead of needing a patch.
   std::size_t lastPoseWorld = 0;
   std::size_t lastPoseBind = 0;
+  // T52 A3b: items whose entity index matched no draw at all -- the silhouette
+  // has no body behind it on this frame. Zero is the contract: the overlay's
+  // sample set is filtered by the same corpse/camera rules the world pass
+  // applies, so "an outline where the picture has nobody" is a red, not a pose
+  // reading.
+  std::size_t lastJoinMissed = 0;
 };
 OverlayStats outlineStats{};
 // The tier is the performance dial; the product default is every tick.
@@ -7668,7 +7674,7 @@ bool outlineVertexExtent = false;
     traceFmt("outline: draw enabled=%d depth=%s depthTest=%d depthWrite=%d drew=%d ordinal=%zu vmOrdinal=%zu orderOk=%d"
       " silhouettes=%zu lines=%zu markers=%zu vertexCount=%zu drawCalls=%zu"
       " submitted=%zu red=%zu blue=%zu unknown=%zu noMesh=%zu noOrigin=%zu disabled=%zu"
-      " poseWorld=%zu poseBind=%zu"
+      " poseWorld=%zu poseBind=%zu poseJoinMissed=%zu"
       " samples=%zu sampledTicks=%zu presses=%u stateChanges=%u refused=%u owner=%s stateTest=%d stateWrite=%d stateBound=%d"
       // T52 (2026-10-23b): the depth-stencil state as the DEVICE reports it (raw mask,
       // 0=ZERO 1=ALL) beside the description it was created from, and one bool that says
@@ -7683,6 +7689,7 @@ bool outlineVertexExtent = false;
       outlineStats.lastSubmitted, outlineStats.lastRed, outlineStats.lastBlue,
       outlineStats.lastUnknown, outlineStats.lastNoMesh, outlineStats.lastNoOrigin,
       outlineStats.lastDisabled, outlineStats.lastPoseWorld, outlineStats.lastPoseBind,
+      outlineStats.lastJoinMissed,
       outlineStats.lastSamples, g_overlaySampledTicks,
       g_overlayToggle.presses(), g_overlayToggle.stateChanges(),
       g_overlayToggle.refusedForeignPresses(),
@@ -9817,6 +9824,34 @@ bool outlineVertexExtent = false;
               currentEntityStates, demoNetworkSummary.serverClassSchemas,
               demoNetworkSummary.modelPrecache, tf2::native::OverlayEntityFilter::Players,
               nullptr, nullptr);
+            // T52 A3b: THE SILHOUETTE FOLLOWS THE BODY.
+            //
+            // The world pass drops two kinds of entity before it draws anything
+            // (main.cpp, the drawCandidates loop above): the player the relay
+            // camera stands inside (T81), and every player the director hides as
+            // a corpse (T66 rule 1). Both were still in this sample set, so the
+            // overlay submitted silhouettes for entities the picture does not
+            // contain -- drawn at bind pose, because the join below found no draw
+            // -- and the reading blamed the skeleton for it. Drop the same
+            // entities here, with the same two predicates, so the silhouette set
+            // is a subset of the body set by construction rather than by luck.
+            const std::size_t samplesSampled = samples.size();
+            for (std::size_t i = 0; i < samples.size();) {
+              const auto entityIndex = static_cast<std::int32_t>(samples[i].entityIndex);
+              const bool cameraHides =
+                g_spectateCameraHiddenEntity >= 0 && entityIndex == g_spectateCameraHiddenEntity;
+              const bool corpseHides =
+                !g_spectateShowCorpses && g_spectateDirector.hidesModel(entityIndex);
+              if (cameraHides || corpseHides) {
+                samples.erase(samples.begin() + static_cast<std::ptrdiff_t>(i));
+              } else {
+                ++i;
+              }
+            }
+            if (samples.size() != samplesSampled) {
+              traceFmt("overlay: corpseFilter removed=%zu samples=%zu kept=%zu",
+                samplesSampled - samples.size(), samplesSampled, samples.size());
+            }
             // WORLD FIRST, BIND SECOND, and the builder is told which is which
             // rather than being handed one merged set: the item records the
             // source, the line prints the split, and a future world pass that
@@ -9835,15 +9870,19 @@ bool outlineVertexExtent = false;
             // the silhouette's origin is copied from the draw it is meant to join:
             // the check could only ever pass where it was already known to pass. The
             // entity index is the identity both sides already carry.
+            std::size_t poseJoinMissed = 0;
             for (auto& item : list.items) {
+              bool joined = false;
               for (const auto& draw : draws) {
                 if (draw.entityIndex < 0) continue;
                 if (static_cast<std::uint16_t>(draw.entityIndex) != item.entityIndex) continue;
                 item.skinned = draw.skinningEnabled;
                 item.boneOffset = draw.boneOffset;
                 item.boneCount = draw.boneCount;
+                joined = true;
                 break;
               }
+              if (!joined) ++poseJoinMissed;
             }
             // T52 A3: THE LABEL FOLLOWS THE JOIN, NOT THE KEY MATCH.
             //
@@ -9877,6 +9916,7 @@ bool outlineVertexExtent = false;
             outlineStats.lastDisabled = list.rejectedDisabled;
             outlineStats.lastPoseWorld = poseWorldItems;
             outlineStats.lastPoseBind = poseBindItems;
+            outlineStats.lastJoinMissed = poseJoinMissed;
             outlineStats.lastSamples = samples.size();
             // Where the region comes from, set with the list so the pass and the reading
             // cannot disagree about which rule produced the box.
