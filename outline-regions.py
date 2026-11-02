@@ -16,9 +16,19 @@ MODES
   --occluded       a rectangle EVERY pixel of which the frame's own depth buffer
                    says is behind world geometry. Empty when there is none.
 
-  --occluded needs --depth (the same tick's capture). The depth it compares
-  against is read out of the BMP the renderer wrote with --world-depth, so a
-  wall that is not where the trace thinks it is cannot be assumed away.
+  --occluded needs --depth-pgm (preferred) or --depth, the same tick's capture.
+  --depth-pgm is the 16-bit PGM the renderer writes with --capture-depth: the
+  depth buffer's own value, 1/65535 apart. --depth is the 8-bit BMP written by
+  --world-depth, whose diagnostic view SATURATES past a few world units (T26
+  asserts that saturation, so it has to stay), which left "is this pixel behind a
+  wall 900 units away when the player is 1200 away" with 8 levels of answer --
+  everything reads 255, and no occlusion can be proved. The 16-bit image is the
+  same 0..1 value with 256x the resolution, so a wall and a player behind it stay
+  distinguishable.
+
+  --pgm-stats      facts about a --capture-depth image (bytes, size, distinct
+                   values, min/max), so "the depth map is really 16-bit" is an
+                   assertion and not a hope.
 
 WHY THE OCCLUDED REGION IS A RECTANGLE AND NOT A BOUNDING BOX
   The depth-awareness assertion is "the depth-tested frame draws NOTHING here and
@@ -29,6 +39,7 @@ WHY THE OCCLUDED REGION IS A RECTANGLE AND NOT A BOUNDING BOX
   rectangle that the depth buffer proves is occluded, so the claim is about a
   region that is occluded by construction.
 """
+import os
 import re
 import struct
 import sys
@@ -41,8 +52,8 @@ DEPTH_EPSILON = 0.004
 
 
 def parse_args(argv):
-    args = {"mode": None, "trace": None, "depth": None, "on": None, "off": None,
-            "frame": "captured"}
+    args = {"mode": None, "trace": None, "depth": None, "depthpgm": None,
+            "on": None, "off": None, "frame": "captured"}
     pending = None
     for item in argv[1:]:
         if pending == "--frame":
@@ -55,6 +66,10 @@ def parse_args(argv):
             continue
         if pending == "--depth":
             args["depth"] = item
+            pending = None
+            continue
+        if pending == "--depth-pgm":
+            args["depthpgm"] = item
             pending = None
             continue
         if pending == "--on":
@@ -73,6 +88,8 @@ def parse_args(argv):
             args["mode"] = "occluded"
         elif item == "--depth-stats":
             args["mode"] = "depthstats"
+        elif item == "--pgm-stats":
+            args["mode"] = "pgmstats"
         elif item == "--attribute":
             args["mode"] = "attribute"
         elif item == "--extent":
@@ -85,6 +102,8 @@ def parse_args(argv):
             pending = "--trace"
         elif item == "--depth":
             pending = "--depth"
+        elif item == "--depth-pgm":
+            pending = "--depth-pgm"
         elif item == "--on":
             pending = "--on"
         elif item == "--off":
@@ -95,6 +114,8 @@ def parse_args(argv):
             pending = "--frame"
         elif item.startswith("--depth="):
             args["depth"] = item.split("=", 1)[1]
+        elif item.startswith("--depth-pgm="):
+            args["depthpgm"] = item.split("=", 1)[1]
         elif item.startswith("--frame="):
             args["frame"] = item.split("=", 1)[1]
         else:
@@ -213,12 +234,50 @@ def read_depth_bmp(path):
     return data[off:], width, height, bpp, flip, stride
 
 
+def read_depth_pgm(path):
+    """The --capture-depth image: a 16-bit P5 PGM of the world depth buffer.
+
+    Same meaning as read_depth_bmp -- 0 is the near plane, 1 is far -- but taken
+    from the depth buffer itself (D24_UNORM_S8_UINT, quantised to 16 bits on the
+    way out) instead of the 8-bit diagnostic view, which saturates. Rows are
+    written top-down and there is no row padding, so flip is False.
+    """
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if data[0:2] != b"P5":
+        raise SystemExit("not a P5 PGM: " + path)
+    cursor = 2
+    fields = []
+    while len(fields) < 3:
+        while cursor < len(data) and chr(data[cursor]).isspace():
+            cursor += 1
+        if data[cursor:cursor + 1] == b"#":
+            while cursor < len(data) and data[cursor:cursor + 1] != b"\n":
+                cursor += 1
+            continue
+        start = cursor
+        while cursor < len(data) and not chr(data[cursor]).isspace():
+            cursor += 1
+        fields.append(int(data[start:cursor]))
+    cursor += 1  # the single whitespace byte that ends the header
+    width, height, maxval = fields
+    if maxval != 65535:
+        raise SystemExit("want 16-bit P5 (maxval 65535), got %d in %s" % (maxval, path))
+    pixels = data[cursor:]
+    if len(pixels) < width * height * 2:
+        raise SystemExit("short PGM: %d bytes for %dx%d" % (len(pixels), width, height))
+    return pixels, width, height, 2, False, width * 2
+
+
 def depth_at(frame, x, y):
     pixels, width, height, bpp, flip, stride = frame
     if x < 0 or y < 0 or x >= width or y >= height:
         return None
     row = y if flip else (height - 1 - y)
     offset = row * stride + x * bpp
+    if bpp == 2:
+        # read_depth_pgm: big-endian 16-bit samples, 256x the 8-bit view's steps.
+        return ((pixels[offset] << 8) | pixels[offset + 1]) / 65535.0
     return pixels[offset] / 255.0
 
 
@@ -342,6 +401,45 @@ def depth_stats(path):
     }
 
 
+def pgm_stats(path):
+    """Facts about a --capture-depth image that an 8-bit capture cannot fake.
+
+    distinct is the assertion with teeth: the diagnostic view can only hold 256
+    values, so a depth map with thousands of distinct samples came from the
+    buffer and not from the saturated view. min/max bound the scene: a capture
+    that never drew anything is all 65535 (the clear), one that drew only the sky
+    is a single value.
+    """
+    try:
+        pixels, width, height, bpp, flip, stride = read_depth_pgm(path)
+        size = os.stat(path).st_size
+    except (OSError, SystemExit) as error:
+        return {"bytes": 0, "width": 0, "height": 0, "distinct": 0, "min": -1, "max": -1,
+                "error": str(error)}
+    count = min(len(pixels) // 2, width * height)
+    step = max(1, count // 200000)
+    seen = {}
+    low = 65536
+    high = -1
+    for index in range(0, count, step):
+        offset = index * 2
+        value = (pixels[offset] << 8) | pixels[offset + 1]
+        seen[value] = seen.get(value, 0) + 1
+        if value < low:
+            low = value
+        if value > high:
+            high = value
+    return {
+        "bytes": size,
+        "width": width,
+        "height": height,
+        "distinct": len(seen),
+        "min": low if high >= 0 else -1,
+        "max": high,
+        "samples": count,
+    }
+
+
 def attribute_rows(trace, on_path, off_path):
     """One row per drawn item: which entity, which box, where its paint is.
 
@@ -419,6 +517,17 @@ def main(argv):
         print("bytes=%d nonGreyPct=%.2f nonzeroPct=%.2f uniqueSampled=%d"
               % (stats["bytes"], stats["nonGreyPct"], stats["nonzeroPct"],
                  stats["uniqueSampled"]))
+        return 0
+    if args.get("mode") == "pgmstats":
+        if not args["depthpgm"]:
+            raise SystemExit("--pgm-stats needs --depth-pgm <capture-depth pgm>")
+        stats = pgm_stats(args["depthpgm"])
+        if stats.get("error"):
+            print("error=%s" % stats["error"])
+            return 1
+        print("bytes=%d width=%d height=%d distinct=%d min=%d max=%d"
+              % (stats["bytes"], stats["width"], stats["height"], stats["distinct"],
+                 stats["min"], stats["max"]))
         return 0
     if args.get("mode") == "expand-band":
         # The band the shell thickness has to sit in, read off the PRODUCT's own
@@ -509,9 +618,13 @@ def main(argv):
         return 0
 
     if args["mode"] == "occluded":
-        if not args["depth"]:
-            raise SystemExit("--occluded needs --depth <world-depth bmp>")
-        frame = read_depth_bmp(args["depth"])
+        if args.get("depthpgm"):
+            frame = read_depth_pgm(args["depthpgm"])
+        elif args["depth"]:
+            frame = read_depth_bmp(args["depth"])
+        else:
+            raise SystemExit("--occluded needs --depth-pgm <capture-depth pgm> "
+                             "or --depth <world-depth bmp>")
         best = occluded_rectangle(on_screen, frame)
         if best is None:
             sys.stderr.write("occluded: no fully-occluded pixel in %d drawn item(s)\n"

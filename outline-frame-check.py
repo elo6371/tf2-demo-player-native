@@ -154,7 +154,13 @@ def main(argv):
         # and the gate's assertion cannot disagree: a log that prints "VERDICT FAIL"
         # next to a green assertion is two readings of the same thing that differ,
         # and this project has paid for that shape of error before.
-        max_outside = int(args.get("max_outside", "0"))
+        # The caller passes the product's tolerance as a formatted number
+        # ("1134.000"); int() on that raised ValueError on 2026-11-02, the reader
+        # died, and the gate went on reading the lines it had printed before the
+        # crash -- a green assertion next to a reader that never reached its
+        # verdict. Accept both spellings here, and the gate asserts this process
+        # exited 0 and printed VERDICT PASS.
+        max_outside = int(float(args.get("max_outside", "0")))
         ok = outside <= max_outside and (inside > 0 or not want_inside)
         if max_outside:
             print("tolerance_outside=%d allowed=%d" % (outside, max_outside))

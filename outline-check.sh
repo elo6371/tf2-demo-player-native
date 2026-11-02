@@ -644,7 +644,9 @@ trim_trace() { # trim_trace <prefix>
 }
 run_frame() { # run_frame <prefix> [args...]
   local prefix="$1"; shift
-  rm -f "$prefix.bmp" "$prefix.trace" "$prefix.log"
+  # .pgm included: --capture-depth writes it beside the frame, and a stale one from
+  # an earlier run would make a capture that failed to write look like evidence.
+  rm -f "$prefix.bmp" "$prefix.pgm" "$prefix.trace" "$prefix.log"
   local trace
   trace="$(cygpath -m "$PWD/$prefix.trace")"
   # The speed=1 capture below is the slow one by construction (a tick near the end
@@ -921,11 +923,23 @@ printf "%s" "$REGIONS" > "$OUT/regions.txt"
 TOLERANCE=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --expand-tolerance)
 echo "  tolerance: ${TOLERANCE:-<none>}  (the product's own shell, summed)"
 TOL_VALUE=$(echo "$TOLERANCE" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
+# The reader takes an integer; the product's number arrives formatted ("1134.000").
+# One conversion, here, so the tolerance the comparison is given and the tolerance
+# the assertion checks are the same number (2026-11-02: passing "1134.000" made the
+# reader raise ValueError, print nothing, and the gate read the tolerance assertion
+# as green off a process that had no verdict).
+TOL_INT=$(awk -v t="${TOL_VALUE:-0}" 'BEGIN { printf "%d", t + 0 }')
 TOL_MISSING=$(echo "$TOLERANCE" | grep -o "missing=[0-9]*" | cut -d= -f2)
 BAND=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --expand-band)
 echo "  expand band: ${BAND:-<none>}  (0 < expandPx <= 4 is an outline)"
-NI=$("$PY" outline-frame-check.py noninterference on="$OUT/on.bmp" off="$OUT/off.bmp" $REGION_ARG max_outside="${TOL_VALUE:-0}" 2>&1)
+NI=$("$PY" outline-frame-check.py noninterference on="$OUT/on.bmp" off="$OUT/off.bmp" $REGION_ARG max_outside="${TOL_INT:-0}" 2>&1)
+NI_RC=$?
 echo "  $NI" | sed "s/^/    /"
+# The reader's own verdict, before any number is read out of its output: a reader
+# that exited non-zero printed neither a verdict nor trustworthy counts, and the
+# awk comparison below would happily call the missing number zero.
+assert_eq "the non-interference reader ran" "$NI_RC" "0"
+assert_contains "the non-interference reader's own verdict" "$NI" "VERDICT PASS"
 # PRECONDITION, written before the numbers it guards: two runs may only be
 # compared once they are shown to be looking at the same scene. The rule is
 # mechanical -- a scene mismatch is not confined to where a player stands, so it
@@ -963,7 +977,7 @@ assert_eq "items whose shell expansion the product published" "${TOL_MISSING:-<n
 assert_eq "silhouettes whose shell the product did not publish" "$(echo "$BAND" | grep -o "missing=[0-9]*" | cut -d= -f2)" "0"
 assert_eq "silhouettes with a shell of zero pixels (the outline is not drawn)" "$(echo "$BAND" | grep -o "below=[0-9]*" | cut -d= -f2)" "0"
 assert_eq "silhouettes with a shell above the outline band (> 4 px)" "$(echo "$BAND" | grep -o "above=[0-9]*" | cut -d= -f2)" "0"
-WITHIN=$(awk -v out="${NI_OUT:-0}" -v tol="${TOL_VALUE:-0}" 'BEGIN { printf "%d", ((out + 0) <= (tol + 0)) ? 1 : 0 }')
+WITHIN=$(awk -v out="${NI_OUT:-0}" -v tol="${TOL_INT:-0}" 'BEGIN { printf "%d", ((out + 0) <= (tol + 0)) ? 1 : 0 }')
 assert_eq "painted pixels outside every drawn region, within the product's own tolerance" "${WITHIN:-<none>}" "1"
 assert_ge "differing pixels INSIDE the drawn regions" "$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)" "1"
 
@@ -1062,10 +1076,39 @@ echo "=== 5/6 depth awareness: the occluded region, three ways ==="
 # behind world geometry. It is derived from the depth buffer the capture took,
 # not from a guess about where the map is, and the gate refuses to run the
 # assertion on an empty region: "nothing was occluded" would make it vacuous.
-# The world-depth capture is what "behind a wall" is measured against, so it is
-# taken from the SAME tick in a fourth run rather than assumed from geometry.
-DEPTH_RC=$(run_frame "$OUT/worlddepth" --outline off --world-depth)
-echo "  world-depth run rc=$DEPTH_RC"
+# The depth capture is what "behind a wall" is measured against, so it is taken
+# from the SAME tick and camera as the boxes rather than assumed from geometry.
+#
+# THE OCCLUSION FIXTURE IS A SECOND CAMERA (2026-11-02). The pinned camera above
+# looks at the two clusters in the open, so at its tick no player is behind world
+# geometry and the region came back empty for four rounds -- the one reading this
+# gate still carried as NOT VERIFIED. The camera below (eye 5138 -1130 10, pitch
+# 2.5, yaw -90, on the ground ~900 units from the same clusters, same tick) was
+# found by scanning 8 positions: it sees 7 items, six of them in the open, and one
+# (blue entity 8) behind the map's own geometry -- zero team-coloured pixels in
+# its published box on the depth-tested frame, while the x-ray frame paints its
+# neighbours with 291-600. The tick and the camera are pinned as a PAIR, for the
+# reason the pinned fixture above documents: the tick moved 300 between rounds and
+# a camera measured against the old tick silently missed every player.
+#
+# Four runs at that fixture, same tick, same window: x-ray (publishes the boxes
+# and the "you can see through walls" frame), depth-tested, overlay-off (the
+# comparison target for "draws nothing here"), and the depth capture. The capture
+# writes BOTH the 8-bit --world-depth view whose saturation T26 asserts AND the
+# 16-bit --capture-depth image the occlusion comparison needs.
+DEPTH_CAM="${T52_DEPTH_CAM:-5138 -1130 10 2.5 -90}"
+CAM_EYE_PINNED=$CAM_EYE
+CAM_EYE=$DEPTH_CAM
+echo "  occlusion fixture: tick $TICK, camera eye/pitch/yaw $DEPTH_CAM"
+DEPTH_ON_RC=$(run_frame "$OUT/depthon" --outline on)
+DEPTH_TESTED_RC=$(run_frame "$OUT/depthtested" --outline on --outline-depth tested)
+DEPTH_OFF_RC=$(run_frame "$OUT/depthoff" --outline off)
+DEPTH_RC=$(run_frame "$OUT/worlddepth" --outline off --world-depth --capture-depth "$OUT/worlddepth.pgm")
+CAM_EYE=$CAM_EYE_PINNED
+echo "  world-depth run rc=$DEPTH_RC (x-ray=$DEPTH_ON_RC depth-tested=$DEPTH_TESTED_RC off=$DEPTH_OFF_RC)"
+assert_eq "occlusion fixture: the x-ray run rc" "$DEPTH_ON_RC" "0"
+assert_eq "occlusion fixture: the depth-tested run rc" "$DEPTH_TESTED_RC" "0"
+assert_eq "occlusion fixture: the overlay-off run rc" "$DEPTH_OFF_RC" "0"
 # THE DEPTH IMAGE HAS TO BE PROVED BEFORE ONE PIXEL OF IT IS EVIDENCE.
 #
 # On 2026-10-23 this run was given a 600 s timeout, never reached the requested tick,
@@ -1116,30 +1159,78 @@ else
   echo "  FAIL the depth image is one value (${DEPTH_UNIQUE:-none} sampled): nothing was rendered"
   fail=1; DEPTH_OK=0
 fi
+# THE 8-BIT VIEW CANNOT ANSWER THE QUESTION, so the capture also writes the depth
+# buffer itself. Everything past a few world units reads 255 in --world-depth (T26
+# asserts exactly that saturation, so it has to stay), while the region this
+# section needs is a wall ~900 units from the camera in front of a player ~1200
+# away: 8 levels of answer, all of them 255. --capture-depth writes the D24S8
+# buffer as 16-bit PGM -- 256x the resolution, ~177 steps across that gap -- and
+# these three readings are what make the file evidence instead of a file.
+PGM_STATS=$("$PY" "$PWD/outline-regions.py" --pgm-stats --depth-pgm "$OUT/worlddepth.pgm" 2>&1)
+echo "  capture-depth image: ${PGM_STATS:-<none>}"
+pgm_stat() { printf '%s' "${PGM_STATS:-}" | grep -o "$1=[^ ]*" | cut -d= -f2; }
+PGM_BYTES=$(pgm_stat bytes)
+PGM_WIDTH=$(pgm_stat width)
+PGM_HEIGHT=$(pgm_stat height)
+PGM_DISTINCT=$(pgm_stat distinct)
+PGM_MIN=$(pgm_stat min)
+PGM_MAX=$(pgm_stat max)
+if [ "${PGM_BYTES:-0}" -ge 100000 ] 2>/dev/null; then
+  echo "  OK   capture-depth bytes written = $PGM_BYTES (>= 100000)"
+else
+  echo "  FAIL capture-depth bytes written = ${PGM_BYTES:-<none>}, expected >= 100000"
+  echo "       (a depth capture that wrote no 16-bit image cannot prove occlusion at all)"
+  fail=1; DEPTH_OK=0
+fi
+if [ "${PGM_WIDTH:-0}" -ge 800 ] && [ "${PGM_HEIGHT:-0}" -ge 600 ] 2>/dev/null; then
+  echo "  OK   capture-depth image size = ${PGM_WIDTH}x${PGM_HEIGHT}"
+else
+  echo "  FAIL capture-depth image size = ${PGM_WIDTH:-none}x${PGM_HEIGHT:-none}, expected the capture window"
+  fail=1; DEPTH_OK=0
+fi
+if [ "${PGM_DISTINCT:-0}" -gt 256 ] 2>/dev/null; then
+  echo "  OK   capture-depth carries $PGM_DISTINCT distinct depths (> 256, so it is the buffer and not the 8-bit view)"
+else
+  echo "  FAIL capture-depth carries ${PGM_DISTINCT:-none} distinct depths, expected > 256"
+  echo "       (the 8-bit --world-depth view can only hold 256 values; a 'depth map' with"
+  echo "       <= 256 of them is the saturated view wearing this file's name)"
+  fail=1; DEPTH_OK=0
+fi
+if [ "${PGM_MAX:-0}" -gt "${PGM_MIN:-0}" ] 2>/dev/null; then
+  echo "  OK   capture-depth spans ${PGM_MIN}..${PGM_MAX} (near surface to the clear plane)"
+else
+  echo "  FAIL capture-depth spans ${PGM_MIN:-none}..${PGM_MAX:-none}: one value, nothing was drawn"
+  fail=1; DEPTH_OK=0
+fi
 OCCLUDED=""
 if [ "$DEPTH_OK" -eq 0 ]; then
   echo "  FAIL depth section: the depth evidence is not usable, so the occluded region is"
-  echo "       NOT measured. Red on purpose: NOT VERIFIED is for a depth image that"
-  echo "       exists and shows no occlusion, not for a capture that never arrived."
+  echo "       NOT measured. Red on purpose: a capture that did not arrive is not an"
+  echo "       unproven claim, it is a measurement that did not happen."
 else
-  OCCLUDED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/on.trace" --occluded --depth "$OUT/worlddepth.bmp" 2>/dev/null)
+  # The boxes come from the x-ray run of this fixture and the depth from the
+  # capture of the same fixture; the 16-bit image is what the comparison uses.
+  OCCLUDED=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/depthon.trace" --occluded --depth-pgm "$OUT/worlddepth.pgm" 2> "$OUT/occluded.log")
+  sed "s/^/    /" "$OUT/occluded.log" 2>/dev/null || true
 fi
 echo "  occluded region: ${OCCLUDED:-<none>}"
 if [ "$DEPTH_OK" -eq 0 ]; then
   : # already red above; the region could not be measured
 elif [ -z "$OCCLUDED" ]; then
-  # The depth image is real and the region is empty: that is a statement about THIS
-  # camera position, not about the depth test, so it is NOT VERIFIED and the item
-  # rows are printed as the evidence for "no player is behind world geometry here".
-  echo "  NOT VERIFIED: the depth image is valid, but no drawn player pixel is behind"
-  echo "  world geometry at this tick, so the depth-awareness mutation has no region."
-  echo "  Owner: t52-outline. Cheapest next step: pick a capture tick at which a player"
-  echo "  is behind a wall (the item rows below carry per-item depth and screen box)."
-  grep -a "outline: item " "$OUT/on.trace" 2>/dev/null | tail -6 | sed "s/^/    /"
-  echo "  NOT-VERIFIED depthaware=1"
+  # The fixture was CHOSEN because a player is behind the map there, so an empty
+  # region is no longer "unproven" -- it is the fixture not being what it says it
+  # is, which is red. (Before 2026-11-02 this branch was NOT VERIFIED, truthfully:
+  # the pinned camera looked at the clusters in the open.)
+  echo "  FAIL no drawn player pixel is behind world geometry at the occlusion fixture"
+  echo "       (tick $TICK, camera $DEPTH_CAM). That pair was picked because a player IS"
+  echo "       behind the map there (blue entity 8, measured 2026-11-02), so an empty region"
+  echo "       means the camera or the tick moved, or the depth capture did not line up."
+  echo "       The item rows are printed as the evidence for what this frame contains:"
+  grep -a "outline: item " "$OUT/depthon.trace" 2>/dev/null | tail -6 | sed "s/^/    /"
+  fail=1
 else
   DEPTH=$("$PY" outline-frame-check.py depth region="$OCCLUDED" \
-    xray="$OUT/on.bmp" tested="$OUT/tested.bmp" off="$OUT/off.bmp" 2>&1)
+    xray="$OUT/depthon.bmp" tested="$OUT/depthtested.bmp" off="$OUT/depthoff.bmp" 2>&1)
   echo "  $DEPTH" | sed "s/^/    /"
   assert_ge "team-coloured pixels drawn THROUGH the wall (x-ray)" "$(echo "$DEPTH" | grep -o "occluded_xray=[0-9]*" | cut -d= -f2)" "8"
   assert_eq "team-coloured pixels through the wall when depth-tested" "$(echo "$DEPTH" | grep -o "occluded_tested=[0-9]*" | cut -d= -f2)" "0"
@@ -1464,7 +1555,13 @@ PYEOF
   if ! mut_applied "$M2_APPLIED"; then
     mut_fail=1
   elif rebuild_product m2; then
+    # The occlusion reading below compares this mutant's frame against the fixed
+    # build's DEPTH FIXTURE camera, so the mutant has to be captured there too:
+    # the same region numbers describe a different picture at the pinned camera.
+    M2_CAM_EYE=$CAM_EYE
+    CAM_EYE=$DEPTH_CAM
     M2_RC=$(run_frame "$OUT/m2" --outline on)
+    CAM_EYE=$M2_CAM_EYE
     # m2 may only have a conclusion when section 5's depth evidence is usable. If the
     # depth capture did not arrive, saying "m2 has nothing to prove" would hide a
     # red behind a NOT VERIFIED; if it arrived but no player is behind geometry,
@@ -1474,7 +1571,7 @@ PYEOF
       echo "    m2 is NOT proven by this run -- the red above is the finding, not this line."
     elif [ -n "$OCCLUDED" ]; then
       M2_DEPTH=$("$PY" outline-frame-check.py depth region="$OCCLUDED" \
-        xray="$OUT/m2.bmp" tested="$OUT/tested.bmp" off="$OUT/off.bmp" 2>&1)
+        xray="$OUT/m2.bmp" tested="$OUT/depthtested.bmp" off="$OUT/depthoff.bmp" 2>&1)
       echo "    $M2_DEPTH" | sed "s/^/      /"
       M2_XRAY=$(echo "$M2_DEPTH" | grep -o "occluded_xray=[0-9]*" | cut -d= -f2)
       # The fixed build draws team-coloured pixels THROUGH the wall here; the
