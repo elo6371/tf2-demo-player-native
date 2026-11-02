@@ -94,7 +94,22 @@ printed `VERDICT PASS` before reading any number out of it.
 `<prefix>.pgm` with the frame it belongs to, so a run that fails to write depth
 cannot leave last run's image to be measured.
 
-## The run after this file is the measurement
+## The measurement
 
-Nothing in this file is a result. `evidence/outline/run-<stamp>/gate.log` from
-the next full `bash outline-check.sh --mutation` is.
+The run this file was written for is `gate-cam2.log` (2026-11-02 12:43-14:23,
+`integration/t79-final` at `e3e2910`):
+
+    OUTLINE-CHECK=PASS
+    MUTATION-SUITE=ALL-RED-RESTORED
+    121 OK, 0 FAIL, 18 MUTATION-RED, 0 NOT-VERIFIED
+
+Section 5 measured all five things this file asks it to measure:
+
+    depth image: bytes=2582406 nonGreyPct=0.00 nonzeroPct=66.75 uniqueSampled=2
+    capture-depth image: bytes=1721586 width=1264 height=681 distinct=3896 min=61090 max=65535
+    occluded: entity=8 team=blue occludedPixels=182 rect=665,334,690,340
+    occluded_xray=143 occluded_tested=0 occluded_tested_diff=0 region=26x7
+
+and the depth-awareness clause carries no NOT-VERIFIED line for the first time.
+The full record, including the mutation readings and the fixture it ran at, is
+`GATE-CAM2-RUN.md` and `gate-cam2.log` in this directory.
