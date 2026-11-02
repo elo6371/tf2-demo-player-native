@@ -39,3 +39,14 @@
 - **两个门禁在终树上必须改语义，均已写明理由**：`f6b961b` 让 weapon-animation 的三次抓帧钉死 `--debug-camera` 并断言相机身份，把"静止相机 ⟹ 同一张图"（只在 T80 之前的零眼位空镜下成立）换成"相机不动而画面前进"，断言数 65 → 66；`e5643cc` 按 T35/T58 的程序重钉 world-geometry-hole（missing 97,453 → 62,394 px，全部仍由天空面解释、unexplained 0；seam 探针从"每条都解析"改为钉住 10/16，因为它们现在由天空面围合而 face-id 帧不画天空）。
 - **终树分步验证**（HEAD `44c8bad` + 上面两个门禁提交）：按 2026-11-01 的裁决不跑完整 30 步，只跑受影响的 20–26、28、29 九步，逐个 **PASS**：entity-material 24、animation-availability 23、weapon-animation 66、viewmodel-animation 154、viewmodel-companion 125、player-animation 232、animation-pixels 28、world-geometry 53、material-coverage 88。
 - **仍未验证/已知限制**：整链没有在这棵终树上重跑（最后一次 30 步 PASS 在 `ebc4716`）；T52 的 8 个产品缺陷读数与 T66 的 7 项仍为 NOT VERIFIED；`src=held` 时 trace 仍打印 demo 请求的零眼位而不是帧实际使用的相机（T84 只修了 `--debug-camera` 那条路径），已作为已知限制另排一轮。
+
+## 2026-11-02 — T52 轮廓门禁重钉、T66 七项收口、终树全链
+
+- **T52 轮廓门禁：7 红 → 121 OK / 0 FAIL，变异 m1–m14 全红**（`cc11860` 深度视图标量化、`87ecadc` 夹具重钉、`660ff40` 记录该轮读数）。三条根因都不是"数字没调对"：① 抓帧 tick 由 probe 的 `serverTickOrigin` 推导，那个值从 10252 漂到 10320，派生出的 64161 帧上 11 个玩家**全部 onScreen=0**；② ⑦ 数"全帧队色像素"，而该机位正对红砖墙，on/off 两帧**逐字节相同**也有 7607 个"队色"像素；③ `--world-depth` 只改世界 pass 的着色器，天空盒是独立 pass，彩色天空盖在标量图上（同机位对照：关天空盒 nonGreyPct 27.61% → 0.00%）。
+- **深度视图与遮挡**：深度视图不再画天空、clear 用黑，读数 nonGreyPct=0.00、nonzeroPct=73.66；另加 `--capture-depth`（16 位 D24 回读，distinct=3896、min=61090、max=65535），遮挡判断改用它而不是那张 8 位饱和图——8 位视图仍是饱和图，T26 的 `saturated=1` 不受影响。
+- **A3 剪影**：draw→item 的 join 改为按 `entityIndex`（代码原注释自己写着 "the entity index is the join"，实现却用 cacheKey + 原点浮点比较），动画开启时 `poseWorld=2` 与 `scene: setInstances playerDraws=2` 相等；动画开/关同 tick 差 85 px，同配置复跑 0 px。
+- **夹具**：抓帧 tick 与机位成对钉死（64250 / `5699 -1611 150 14.4 -143.3`），并固定 `--no-player-animation`（绑定姿势夹具）；⑦ 的判据改为"**发布区矩形内**的队色像素"（off 帧 0，m3 变异 1132）。
+- **T66 七项 NOT VERIFIED 全部关闭**（`71911cc`，70 文件）：删除 `kSeekGapTicks=200` 的固定阈值，按播放速度算一帧该走多少 tick（16x 下 `resync=0`，8x/16x 同样 deaths=3 handovers=3）；真实 seek 接进门禁第 10 节（连跑三次读数一致：`before_tick=13748 → after_tick=12820`、`after_resync=1`、summary `resync=1`）；新增暂停中手动选人（第 9 节，`manual=1 rejected=0 notarget=0`）与 16x（第 11 节）两节；变异 8/8 全红、每例源文件逐字节还原，断言地板 71→93（健康宿主 95）。
+- **终树全链**（HEAD `59d94a7`，16:41:24 → 19:34:41，`bash verify-all.sh --quick`）：30 步里 **29 步 PASS**，第 27 步在测量前被自己的 `BINARY-FRESH` 守卫拦下——第 8 步的变异套件恢复文件时刷新了源码 mtime（17:12），而探针是第 1 步编的（16:48），`git status` 干净、源码哈希与冻结值一致。修复是在第 27 步前重建 `spectate_probe`（与第 25 步重建 `model_pose_probe` 同一先例，守卫本身不放宽）；按用户决定**只重跑第 27 步**，读到 `SPECTATE-CHECK=PASS`、95 断言、0 FAIL，全链没有跑第二次。记录见 `evidence/t66-sourcetv/CHAIN-RUN-20261102.md`。
+- 仓库仍处于开发阶段；本次没有创建发行版。
+
