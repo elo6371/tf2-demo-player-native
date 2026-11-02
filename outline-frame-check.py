@@ -209,6 +209,35 @@ def main(argv):
         print("VERDICT %s" % ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
 
+    if mode == "teamregions":
+        # The toggle guard's reading: team-coloured pixels INSIDE the published
+        # regions. A frame-wide count cannot be zero on the pinned camera -- the
+        # map itself has red brick in it (measured: 2872 red pixels, every one of
+        # them outside every published box) -- so "the overlay-off frame has no
+        # team-coloured pixel" was a statement about the map, not about the
+        # switch. What the switch owns is the ink inside the regions the overlay
+        # publishes, and that is what this mode counts. The frame-wide number is
+        # still printed by the caller as a diagnostic.
+        frame = Frame(args["frame"])
+        with open(args["regions_file"], "r", encoding="utf-8") as handle:
+            raw = handle.read().strip()
+        regions = [parse_region(item) for item in raw.split(";") if item]
+        inside = outside = 0
+        for y in range(frame.height):
+            for x in range(frame.width):
+                r, g, b = frame.rgb(x, y)
+                if not is_team_coloured(r, g, b):
+                    continue
+                if any(in_region(region, x, y) for region in regions):
+                    inside += 1
+                else:
+                    outside += 1
+        print("team_inside=%d team_outside=%d regions=%d"
+              % (inside, outside, len(regions)))
+        ok = inside <= int(args.get("max_inside", "0"))
+        print("VERDICT %s" % ("PASS" if ok else "FAIL"))
+        return 0 if ok else 1
+
     if mode == "depth":
         xray = Frame(args["xray"])
         tested = Frame(args["tested"])

@@ -558,15 +558,35 @@ echo "=== 4/6 the frames: nothing else changed, both colours, both directions ==
 #   off     --outline off
 #   on      --outline on
 #   tested  --outline on --outline-depth tested (the depth-awareness control)
-# The capture tick is the FIRST tick inside the retained window derived above.
-# It used to be a pinned 2000, which is the same stale-constant shape as the tick
-# list: 2000 is outside this recording's window, so the frames were captured from
-# the demo's opening seconds -- a different camera, players 3-5x nearer -- and the
-# pixel readings below moved for that reason alone. T52_TICK stays as the
-# diagnostic pin, exactly like T52_TICKS.
-CAPTURE_TICK="$FIRST"
+# The capture tick used to be the FIRST tick inside the retained window derived
+# above, and that was right while the window was fixed: the frame followed the
+# recording. THE FIXTURE IS PINNED NOW (T52 A3, 2026-11-02), because the derived
+# tick moved when an unrelated reading moved -- serverTickOrigin went 10252 ->
+# 10320, so the derived playback tick went 64229 -> 64161 -- and 64161 is a frame
+# the camera no longer looks at the players on (measured on the draw lines: the
+# captured group has 11 items, every one onScreen=0, extent=0, box=0). That single
+# drift collapsed the region, attribution and depth readings below in one go.
+# A fixture that moves when an unrelated reading moves is not a fixture, so the
+# tick and the camera are pinned TOGETHER as a pair: 64250 is a frame on which the
+# measured draw group has 11 players on screen with a real vertex extent, and the
+# eye is the one the silhouette evidence in evidence/t52-a3/ was captured with.
+# The window-derived value is still printed, so drift stays visible; T52_TICK and
+# T52_CAM keep the diagnostic override they always had.
+CAPTURE_TICK=64250
 TICK="${T52_TICK:-$CAPTURE_TICK}"
-echo "  capture tick=$TICK (first in-window playback tick; T52_TICK pins it)"
+CAM_EYE="${T52_CAM:-5699 -1611 150 14.4 -143.3}"
+echo "  capture tick=$TICK (pinned fixture tick 64250; window-derived $FIRST; T52_TICK pins it)"
+echo "  capture camera=$CAM_EYE (pinned free-look eye; T52_CAM pins it)"
+# The frame under test is a BIND-mesh fixture. The silhouette the region readings
+# compare is the vertex extent, which the renderer publishes for a non-skinned
+# instance only (native/src/native_renderer_frame.cpp:830-836 refuses to derive a
+# vertex box from a skinned instance: the CPU holds bind positions, so such a box
+# would describe a pose nobody drew). The ANIMATED silhouette is covered by
+# evidence/t52-a3/A3-REPORT.md, at this same camera and tick, and passing the flag
+# here keeps the gate's statement and the evidence's statement from being read as
+# one another.
+ANIM_ARGS=(--no-player-animation)
+echo "  capture animation=off (bind mesh; the animated silhouette is A3 evidence)"
 # Two things had to change here before a capture could ever happen, and both were
 # found by reading the product instead of the gate:
 #   * --start-paused freezes g_playback.tick at 0, so the one-shot capture armed
@@ -648,6 +668,11 @@ run_frame() { # run_frame <prefix> [args...]
     # assertion measures its own ruler instead of the overlay. Part of the launch this
     # helper builds, so a caller cannot forget it.
     --outline-vertex-extent
+    # T52 A3: the pinned fixture camera. It is part of the launch this helper
+    # builds, not a caller's flag: a camera that a caller can forget is the same
+    # failure that produced the empty capture frame in the first place.
+    --debug-camera $CAM_EYE
+    "${ANIM_ARGS[@]}"
     "$@"
   )
   case " ${productArgs[*]} " in
@@ -1136,13 +1161,21 @@ assert_eq "second overlay-off run rc" "$OFF2_RC" "0"
 OFF2_DIFF=$("$PY" outline-frame-check.py noninterference \
   on="$OUT/off2.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
 assert_eq "two independent overlay-off frames differ by" "$(echo "$OFF2_DIFF" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)" "0"
-# And the off frame carries no team-coloured pixel anywhere: that is the switch's
-# own pixel statement, and it is the reading mutation m3 has to move.
+# And the off frame carries no team-coloured pixel inside the regions the overlay
+# publishes: that is the switch's own pixel statement, and it is the reading
+# mutation m3 has to move. FRAME-WIDE IS NOT THE SWITCH'S STATEMENT (T52 A3,
+# 2026-11-02): on the pinned camera the map's own red brick reads 2872 red pixels,
+# every one of them OUTSIDE every published box (measured on off.bmp with
+# outline-frame-check.py teamregions: team_inside=0 team_outside=2872), so the old
+# frame-wide assertion was measuring the map, not the toggle. The frame-wide count
+# stays as a printed diagnostic; the assertion counts ink in the published regions.
 OFF_TEAM=$("$PY" outline-frame-check.py teamcount frame="$OUT/off.bmp" 2>&1)
-echo "  off frame team pixels: $OFF_TEAM"
-OFF_TEAM_RED=$(echo "$OFF_TEAM" | grep -o "red_total=[0-9]*" | cut -d= -f2)
-OFF_TEAM_BLUE=$(echo "$OFF_TEAM" | grep -o "blue_total=[0-9]*" | cut -d= -f2)
-assert_eq "team-coloured pixels in the overlay-off frame" "$(( ${OFF_TEAM_RED:-0} + ${OFF_TEAM_BLUE:-0} ))" "0"
+OFF_TEAM_INSIDE=$("$PY" outline-frame-check.py teamregions \
+  frame="$OUT/off.bmp" regions_file="$OUT/regions.txt" 2>&1)
+echo "  off frame team pixels (frame-wide, diagnostic; scene reds sit outside the boxes): $OFF_TEAM"
+echo "  off frame team pixels inside the published regions: $OFF_TEAM_INSIDE"
+assert_eq "team-coloured pixels inside the published regions in the overlay-off frame" \
+  "$(echo "$OFF_TEAM_INSIDE" | grep -o "team_inside=[0-9]*" | cut -d= -f2)" "0"
 
 echo
 
@@ -1481,14 +1514,17 @@ must_move "m2" "x-ray depth test state actually bound" "$(outline_value "$OUT/on
 "  list.enabled = true;  /* mutation m3: the switch no longer reaches the pass */" || mut_fail=1
   if rebuild_product m3; then
     M3_RC=$(run_frame "$OUT/m3" --outline off)
-    M3_TEAM=$("$PY" outline-frame-check.py teamcount frame="$OUT/m3.bmp" 2>&1)
+    M3_TEAM=$("$PY" outline-frame-check.py teamregions \
+      frame="$OUT/m3.bmp" regions_file="$OUT/regions.txt" 2>&1)
     echo "    $M3_TEAM" | sed "s/^/      /"
-    M3_RED=$(echo "$M3_TEAM" | grep -o "red_total=[0-9]*" | cut -d= -f2)
-    M3_BLUE=$(echo "$M3_TEAM" | grep -o "blue_total=[0-9]*" | cut -d= -f2)
-    # The reading is the switch's own pixels: a frame captured with --outline off
-    # that leaked the overlay cannot have zero team-coloured pixels, and zero is
-    # what the fixed build's off frame reads.
-    must_move "m3" "team-coloured pixels in the --outline off frame" "0" "$(( ${M3_RED:-0} + ${M3_BLUE:-0} ))"
+    M3_INSIDE=$(echo "$M3_TEAM" | grep -o "team_inside=[0-9]*" | cut -d= -f2)
+    # The reading is the switch's own pixels, counted the same way the fixed build
+    # is counted (inside the published regions): a frame captured with --outline
+    # off that leaked the overlay cannot leave those regions empty, and zero is what
+    # the fixed build's off frame reads. The regions stay the FIXED capture's -- the
+    # mutant's own trace is captured with --outline off and publishes no regions,
+    # and taking the regions from the mutant would let it move the ruler as well.
+    must_move "m3" "team-coloured pixels inside the published regions in the --outline off frame" "0" "${M3_INSIDE:-0}"
   fi
   restore_all || true
 
