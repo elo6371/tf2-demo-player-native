@@ -1329,6 +1329,21 @@ step "27/30 SourceTV relay camera (the death handover runs on the wall clock, an
 #     green on a frozen relay; that is the whole reason section 8 exists.
 # The gate refuses a stale binary first (BINARY-FRESH=1) and runs three negative
 # controls, so a skipped run is a named red instead of a smaller number.
+# 2026-11-02 T66 closeout: step 8's C++ mutation suite restores every file it
+# patched, and a restore rewrites the file whether or not the bytes changed -- so
+# after step 8 the probe's sources carry a newer mtime than the binary step 1
+# built, and BINARY-FRESH refuses a probe that is in fact this tree's own build.
+# The full run on 2026-11-02 read `FAIL STALE-BINARY=1` at 19:16 with a clean
+# git status, which is a red about the chain's order, not about the product.
+# Rebuild here for the same reason step 25 rebuilds model_pose_probe; the guard
+# stays a guard, and a genuinely stale binary still fails this step.
+bash build-target.sh spectate_probe > "$OUT/27-probe-build.txt" 2>&1
+SPECTATE_BUILD_RC=$?
+if [ "$SPECTATE_BUILD_RC" -ne 0 ]; then
+  tail -20 "$OUT/27-probe-build.txt"
+  echo "SPECTATE-CHECK=FAIL (spectate_probe rebuild rc=$SPECTATE_BUILD_RC; see $OUT/27-probe-build.txt)"
+  rc_all=1
+fi
 SPECTATE_OUT="$OUT/27-sourceTV-relay"
 SPECTATE_OUT="$SPECTATE_OUT" bash spectate-check.sh > "$OUT/27-sourceTV-relay.txt" 2>&1
 SPECTATE_RC=$?
@@ -1350,7 +1365,7 @@ SPECTATE_OK=$(grep -c '^  OK ' "$OUT/27-sourceTV-relay.txt" || true)
 if [ "$SPECTATE_RC" -eq 0 ] && grep -q 'SPECTATE-CHECK=PASS' "$OUT/27-sourceTV-relay.txt" && [ "$SPECTATE_OK" -ge 93 ]; then
   echo "SPECTATE-CHECK=PASS ($SPECTATE_OK assertions, floor 93)"
 else
-  echo "SPECTATE-CHECK=FAIL (rc=$SPECTATE_RC ok=$SPECTATE_OK expected >= 71)"; rc_all=1
+  echo "SPECTATE-CHECK=FAIL (rc=$SPECTATE_RC ok=$SPECTATE_OK floor 93)"; rc_all=1
 fi
 
 step "28/30 world geometry at the pinned pose (every empty pixel is the map's own sky)"

@@ -1,61 +1,252 @@
-path	cacheKey	slots	namesRead	materialName	vmt	vtf	resolved	uploaded
-models/props_gameplay/resupply_locker.mdl	models/props_gameplay/resupply_locker.mdl#799888055	4	4	models/props_gameplay/resupply_locker	materials/models/props_gameplay/resupply_locker.vmt	materials/models/props_gameplay/resupply_locker.vtf	1	0
-models/props_gameplay/windowed_door.mdl	models/props_gameplay/windowed_door.mdl#3317277868	2	2	models/props_gameplay/windowed_door	materials/models/props_gameplay/windowed_door.vmt	materials/models/props_gameplay/windowed_door.vtf	1	0
-models/props_2fort/lantern001.mdl	models/props_2fort/lantern001.mdl#4048614901	2	2	models/props_2fort/lantern_glass001	materials/models/props_2fort/lantern_glass001.vmt	materials/Models/props_2fort/lantern_glass001.vtf	1	0
-models/props_gameplay/door_slide_large_door.mdl	models/props_gameplay/door_slide_large_door.mdl#334333520	3	3	models/props_gameplay/door_slide_large	materials/models/props_gameplay/door_slide_large.vmt	materials/models/props_gameplay/door_slide_large.vtf	1	0
-models/ambulance.mdl	models/ambulance.mdl#3030961762	2	2	ambulance/amb_red	materials/ambulance/amb_red.vmt	materials/ambulance/amb_red.vtf	1	0
-models/weapons/c_models/c_ubersaw/c_ubersaw.mdl	models/weapons/c_models/c_ubersaw/c_ubersaw.mdl#4028386761	2	2	models/weapons/c_models/c_ubersaw/c_ubersaw	materials/models/weapons/c_models/c_ubersaw/c_ubersaw.vmt	materials/models/weapons/c_models/c_ubersaw/c_ubersaw.vtf	1	0
-models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl	models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl#2521644852	3	3	models/weapons/c_items/festivizer_battery	materials/models/weapons/c_items/festivizer_battery.vmt	materials/models/weapons/c_items/festivizer_battery.vtf	1	0
-models/props_training/target_medic.mdl	models/props_training/target_medic.mdl#3529535284	2	2	models/props_training/target_medic	materials/models/props_training/target_medic.vmt	materials/models/props_training/target_medic.vtf	1	0
-models/props_training/target_scout.mdl	models/props_training/target_scout.mdl#896927130	2	2	models/props_training/target_scout	materials/models/props_training/target_scout.vmt	materials/models/props_training/target_scout.vtf	1	0
-models/props_doomsday/cap_point_small.mdl	models/props_doomsday/cap_point_small.mdl#1225292909	3	3	models/props_gameplay/cap_point_base	materials/models/props_gameplay/cap_point_base.vmt	materials/Models/props_gameplay/cap_point_base.vtf	1	0
-models/props_ui/bannerflag_comp_l.mdl	models/props_ui/bannerflag_comp_l.mdl#663974807	2	2	models/props_ui/bannerflag_comp	materials/models/props_ui/bannerflag_comp.vmt	materials/models/props_ui/bannerflag_comp.vtf	1	0
-models/weapons/c_models/c_scout_arms.mdl	models/weapons/c_models/c_scout_arms.mdl#1592644444	1	1	models/player/scout/scout_hands	materials/models/player/scout/scout_hands.vmt	materials/models/player/scout/scout_hands.vtf	1	0
-models/props_ui/comp_win_banner_scaled.mdl	models/props_ui/comp_win_banner_scaled.mdl#2392208823	1	1	models/props_ui/win_banner	materials/models/props_ui/win_banner.vmt	materials/models/props_ui/win_banner.vtf	1	0
-models/weapons/c_models/c_scattergun.mdl	models/weapons/c_models/c_scattergun.mdl#4127930877	2	2	models/weapons/c_models/c_scattergun/c_scattergun	materials/models/weapons/c_models/c_scattergun/c_scattergun.vmt	materials/models/weapons/c_models/c_scattergun/c_scattergun.vtf	1	0
-models/weapons/c_models/c_pistol/c_pistol.mdl	models/weapons/c_models/c_pistol/c_pistol.mdl#2874656406	1	1	models/weapons/c_models/c_pistol/c_pistol	materials/models/weapons/c_models/c_pistol/c_pistol.vmt	materials/models/weapons/c_models/c_pistol/c_pistol.vtf	1	0
-models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl	models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl#3701898965	1	1	models/workshop/weapons/c_models/c_boston_basher/c_boston_basher	materials/models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.vmt	materials/models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.vtf	1	0
-models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl	models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl#3035680321	1	1	models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher	materials/models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.vmt	materials/models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.vtf	1	0
-models/props_gameplay/cap_point_base.mdl	models/props_gameplay/cap_point_base.mdl#3524702198	3	3	models/props_gameplay/cap_point_base	materials/models/props_gameplay/cap_point_base.vmt	materials/Models/props_gameplay/cap_point_base.vtf	1	0
-models/items/medkit_large.mdl	models/items/medkit_large.mdl#2847915741	1	1	models/items/medkit	materials/models/items/medkit.vmt	materials/models/items/medkit.vtf	1	0
-models/items/ammopack_large.mdl	models/items/ammopack_large.mdl#1953911548	1	1	models/items/ammo_box1	materials/models/items/ammo_box1.vmt	materials/models/items/ammo_box1.vtf	1	0
-models/items/ammopack_small.mdl	models/items/ammopack_small.mdl#3824252796	1	1	models/items/ammo_box2	materials/models/items/ammo_box2.vmt	materials/models/items/ammo_box2.vtf	1	0
-models/props_ui/bannerflag_comp_r.mdl	models/props_ui/bannerflag_comp_r.mdl#101943112	2	2	models/props_ui/bannerflag_comp	materials/models/props_ui/bannerflag_comp.vmt	materials/models/props_ui/bannerflag_comp.vtf	1	0
-models/weapons/c_models/c_medic_arms.mdl	models/weapons/c_models/c_medic_arms.mdl#1438140777	4	4	models/player/medic/medic_red	materials/models/player/medic/medic_red.vmt	materials/models/player/medic/medic_red.vtf	1	0
-models/items/medkit_small.mdl	models/items/medkit_small.mdl#1838321979	1	1	models/items/medkit	materials/models/items/medkit.vmt	materials/models/items/medkit.vtf	1	0
-models/items/ammopack_medium.mdl	models/items/ammopack_medium.mdl#2900183192	1	1	models/items/ammo_box2	materials/models/items/ammo_box2.vmt	materials/models/items/ammo_box2.vtf	1	0
-models/items/medkit_medium.mdl	models/items/medkit_medium.mdl#599881045	1	1	models/items/medkit	materials/models/items/medkit.vmt	materials/models/items/medkit.vtf	1	0
-models/weapons/c_models/c_spy_arms.mdl	models/weapons/c_models/c_spy_arms.mdl#195418196	2	2	models/player/spy/spy_hands_red	materials/models/player/spy/spy_hands_red.vmt	materials/models/player/spy/spy_hands_red.vtf	1	0
-models/effects/cappoint_hologram.mdl	models/effects/cappoint_hologram.mdl#1602564522	9	9	models/effects/cappoint_logo_neutral	materials/models/effects/cappoint_logo_neutral.vmt	materials/models/effects/cappoint_logo_neutral.vtf	1	0
-models/weapons/c_models/c_demo_arms.mdl	models/weapons/c_models/c_demo_arms.mdl#3180992446	3	3	models/player/demo/demoman_hands	materials/models/player/demo/demoman_hands.vmt	materials/models/player/demo/demoman_hands.vtf	1	0
-models/workshop/weapons/c_models/c_quadball/c_quadball.mdl	models/workshop/weapons/c_models/c_quadball/c_quadball.mdl#4222725767	3	3	models/workshop/weapons/c_models/c_quadball/c_quadball	materials/models/workshop/weapons/c_models/c_quadball/c_quadball.vmt	materials/models/workshop/weapons/c_models/c_quadball/c_quadball.vtf	1	0
-models/props_gameplay/sign_gameplay01_witharrow_R.mdl	models/props_gameplay/sign_gameplay01_witharrow_r.mdl#530131913	12	12	models/props_gameplay/sign_gameplay01_skin1	materials/models/props_gameplay/sign_gameplay01_skin1.vmt	materials/models/props_gameplay/sign_gameplay01_skin1.vtf	1	0
-models/props_gameplay/orange_cone001.mdl	models/props_gameplay/orange_cone001.mdl#1620915379	1	1	models/props_gameplay/orange_cone001	materials/models/props_gameplay/orange_cone001.vmt	materials/Models/props_gameplay/orange_cone001.vtf	1	0
-models/weapons/c_models/c_soldier_arms.mdl	models/weapons/c_models/c_soldier_arms.mdl#717368988	4	4	models/player/soldier/soldier_hands	materials/models/player/soldier/soldier_hands.vmt	materials/models/player/soldier/soldier_hands.vtf	1	0
-models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl	models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl#2162392466	1	1	models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder	materials/models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.vmt	materials/models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.vtf	1	0
-models/weapons/c_models/c_pickaxe/c_pickaxe.mdl	models/weapons/c_models/c_pickaxe/c_pickaxe.mdl#3223655018	1	1	models/weapons/c_items/c_pickaxe	materials/models/weapons/c_items/c_pickaxe.vmt	materials/models/weapons/c_items/c_pickaxe.vtf	1	0
-models/weapons/c_models/c_minigun/c_minigun.mdl	models/weapons/c_models/c_minigun/c_minigun.mdl#1798327882	2	2	models/weapons/c_models/c_minigun/c_minigun	materials/models/weapons/c_models/c_minigun/c_minigun.vmt	materials/models/weapons/c_models/c_minigun/c_minigun.vtf	1	0
-models/weapons/c_models/c_sandwich/c_sandwich.mdl	models/weapons/c_models/c_sandwich/c_sandwich.mdl#2641557653	1	1	models/weapons/c_items/c_sandwich	materials/models/weapons/c_items/c_sandwich.vmt	materials/models/weapons/c_items/c_sandwich.vtf	1	0
-models/weapons/c_models/c_heavy_arms.mdl	models/weapons/c_models/c_heavy_arms.mdl#3150768291	2	2	models/player/hvyweapon/hvyweapon_hands	materials/models/player/hvyweapon/hvyweapon_hands.vmt	materials/models/player/hvyweapon/hvyweapon_hands.vtf	1	0
-models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl	models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl#331926893	2	2	models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow	materials/models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.vmt	materials/models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.vtf	1	0
-models/props_forest/sawblade_moving.mdl	models/props_forest/sawblade_moving.mdl#1859852710	5	5	models/props_forest/sawblade_moving	materials/models/props_forest/sawblade_moving.vmt	materials/models/props_forest/sawblade_moving.vtf	1	0
-models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.mdl	models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.mdl#3780378374	2	2	models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap	materials/models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.vmt	materials/models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.vtf	1	0
-models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl	models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl#1360354901	2	2	models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher	materials/models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.vmt	materials/models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.vtf	1	0
-models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana_soldier.mdl	models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana_soldier.mdl#2566168449	2	2	models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana	materials/models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana.vmt	materials/models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana.vtf	1	0
-models/weapons/c_models/c_medigun/c_medigun.mdl	models/weapons/c_models/c_medigun/c_medigun.mdl#922244099	3	3	models/weapons/c_models/c_medigun/c_medigun	materials/models/weapons/c_models/c_medigun/c_medigun.vmt	materials/models/weapons/c_models/c_medigun/c_medigun.vtf	1	0
-models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl	models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl#3353683628	2	2	models/weapons/c_models/c_rocketlauncher/c_rocketlauncher	materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vmt	materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vtf	1	0
-models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.mdl	models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.mdl#3398292473	1	1	models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun	materials/models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.vmt	materials/models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.vtf	1	0
-models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.mdl	models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.mdl#1458702079	1	1	models/workshop/weapons/c_models/c_scout_sword/c_scout_sword	materials/models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.vmt	materials/models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.vtf	1	0
-models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl	models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl#28517227	4	4	models/player/items/mvm_loot/all_class/fob_diamond	materials/models/player/items/mvm_loot/all_class/fob_diamond.vmt	materials/models/player/items/mvm_loot/all_class/fob_heavy_diamond.vtf	1	0
-models/weapons/c_models/c_hippocrates_bust/c_hippocrates_bust.mdl	models/weapons/c_models/c_hippocrates_bust/c_hippocrates_bust.mdl#359809388	1	1	models/weapons/c_items/c_hippocrates_bust	materials/models/weapons/c_items/c_hippocrates_bust.vmt	materials/models/weapons/c_items/c_hippocrates_bust.vtf	1	0
-models/player/items/mvm_loot/all_class/mvm_flask_generic.mdl	models/player/items/mvm_loot/all_class/mvm_flask_generic.mdl#4107353615	1	1	models/player/items/mvm_loot/all_class/mvm_flask_generic	materials/models/player/items/mvm_loot/all_class/mvm_flask_generic.vmt	materials/models/player/items/mvm_loot/all_class/mvm_flask_generic.vtf	1	0
-models/player/scout.mdl	models/player/scout.mdl#1098120898	17	17	models/player/scout/scout_red	materials/models/player/scout/scout_red.vmt	materials/models/player/scout/scout_red.vtf	1	0
-models/player/sniper.mdl	models/player/sniper.mdl#3495254885	20	20	models/player/sniper/sniper_red	materials/models/player/sniper/sniper_red.vmt	materials/models/player/sniper/sniper_red.vtf	1	0
-models/player/soldier.mdl	models/player/soldier.mdl#3748736120	20	20	models/player/soldier/soldier_red	materials/models/player/soldier/soldier_red.vmt	materials/models/player/soldier/soldier_red.vtf	1	0
-models/player/demo.mdl	models/player/demo.mdl#1505337062	17	17	models/player/demo/demoman_red	materials/models/player/demo/demoman_red.vmt	materials/models/player/demo/demoman_red.vtf	1	0
-models/player/medic.mdl	models/player/medic.mdl#1029183977	21	21	models/player/medic/medic_red	materials/models/player/medic/medic_red.vmt	materials/models/player/medic/medic_red.vtf	1	0
-models/player/heavy.mdl	models/player/heavy.mdl#1641026357	21	21	models/player/hvyweapon/heavy_head_red	materials/models/player/hvyweapon/heavy_head_red.vmt	materials/models/player/hvyweapon/heavy_head.vtf	1	0
-models/player/pyro.mdl	models/player/pyro.mdl#3846592064	8	8	models/player/pyro/pyro_red	materials/models/player/pyro/pyro_red.vmt	materials/models/player/pyro/pyro_red.vtf	1	0
-models/player/spy.mdl	models/player/spy.mdl#4261541971	31	31	models/player/spy/spy_head_red	materials/models/player/spy/spy_head_red.vmt	materials/models/player/spy/spy_head_red.vtf	1	0
-models/player/engineer.mdl	models/player/engineer.mdl#1880291295	15	15	models/player/engineer/engineer_red	materials/models/player/engineer/engineer_red.vmt	materials/models/player/engineer/engineer_red.vtf	1	0
-# summary models=59 resolved=59 uploaded=0
+path	cacheKey	slots	namesRead	runs	paintedSlots	resolved	uploaded
+models/props_gameplay/resupply_locker.mdl	models/props_gameplay/resupply_locker.mdl#799888055	4	4	4	4	1	0
+# slot model=models/props_gameplay/resupply_locker.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_gameplay/resupply_locker.vmt vtf=materials/models/props_gameplay/resupply_locker.vtf
+# slot model=models/props_gameplay/resupply_locker.mdl materialSlot=1 skinFamily=0 vmt=materials/models/items/ammo_box2.vmt vtf=materials/models/items/ammo_box2.vtf
+# slot model=models/props_gameplay/resupply_locker.mdl materialSlot=2 skinFamily=0 vmt=materials/models/items/ammo_box1.vmt vtf=materials/models/items/ammo_box1.vtf
+# slot model=models/props_gameplay/resupply_locker.mdl materialSlot=3 skinFamily=0 vmt=materials/models/items/medkit.vmt vtf=materials/models/items/medkit.vtf
+models/props_gameplay/windowed_door.mdl	models/props_gameplay/windowed_door.mdl#3317277868	2	2	2	2	1	0
+# slot model=models/props_gameplay/windowed_door.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_gameplay/windowed_door.vmt vtf=materials/models/props_gameplay/windowed_door.vtf
+# slot model=models/props_gameplay/windowed_door.mdl materialSlot=1 skinFamily=0 vmt=materials/models/props_gameplay/windowed_door_window.vmt vtf=materials/models/props_gameplay/windowed_door_window.vtf
+models/props_2fort/lantern001.mdl	models/props_2fort/lantern001.mdl#4048614901	2	2	2	2	1	0
+# slot model=models/props_2fort/lantern001.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_2fort/lantern_glass001.vmt vtf=materials/Models/props_2fort/lantern_glass001.vtf
+# slot model=models/props_2fort/lantern001.mdl materialSlot=1 skinFamily=0 vmt=materials/models/props_2fort/lantern001.vmt vtf=materials/Models/props_2fort/lantern001.vtf
+models/props_gameplay/door_slide_large_door.mdl	models/props_gameplay/door_slide_large_door.mdl#334333520	3	3	1	2	1	0
+# slot model=models/props_gameplay/door_slide_large_door.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_gameplay/door_slide_large.vmt vtf=materials/models/props_gameplay/door_slide_large.vtf
+# slot model=models/props_gameplay/door_slide_large_door.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_gameplay/door_slide_large_noentry.vmt vtf=materials/models/props_gameplay/door_slide_large_noentry.vtf
+models/ambulance.mdl	models/ambulance.mdl#3030961762	2	2	1	2	1	0
+# slot model=models/ambulance.mdl materialSlot=0 skinFamily=0 vmt=materials/ambulance/amb_red.vmt vtf=materials/ambulance/amb_red.vtf
+# slot model=models/ambulance.mdl materialSlot=0 skinFamily=1 vmt=materials/ambulance/amb_blu.vmt vtf=materials/ambulance/amb_blu.vtf
+models/weapons/c_models/c_ubersaw/c_ubersaw.mdl	models/weapons/c_models/c_ubersaw/c_ubersaw.mdl#4028386761	2	2	1	2	1	0
+# slot model=models/weapons/c_models/c_ubersaw/c_ubersaw.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_models/c_ubersaw/c_ubersaw.vmt vtf=materials/models/weapons/c_models/c_ubersaw/c_ubersaw.vtf
+# slot model=models/weapons/c_models/c_ubersaw/c_ubersaw.mdl materialSlot=0 skinFamily=1 vmt=materials/models/weapons/c_models/c_ubersaw/c_ubersaw_blu.vmt vtf=materials/models/weapons/c_models/c_ubersaw/c_ubersaw.vtf
+models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl	models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl#2521644852	3	3	2	4	1	0
+# slot model=models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_items/festivizer_battery.vmt vtf=materials/models/weapons/c_items/festivizer_battery.vtf
+# slot model=models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl materialSlot=1 skinFamily=0 vmt=materials/models/weapons/c_items/festive_lights_red.vmt vtf=materials/models/weapons/c_items/festive_lights_red.vtf
+# slot model=models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl materialSlot=0 skinFamily=1 vmt=materials/models/weapons/c_items/festivizer_battery.vmt vtf=materials/models/weapons/c_items/festivizer_battery.vtf
+# slot model=models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl materialSlot=1 skinFamily=1 vmt=materials/models/weapons/c_items/festive_lights_blue.vmt vtf=materials/models/weapons/c_items/festive_lights_blue.vtf
+models/props_training/target_medic.mdl	models/props_training/target_medic.mdl#3529535284	2	2	1	2	1	0
+# slot model=models/props_training/target_medic.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_training/target_medic.vmt vtf=materials/models/props_training/target_medic.vtf
+# slot model=models/props_training/target_medic.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_training/target_medic_blu.vmt vtf=materials/models/props_training/target_medic_blu.vtf
+models/props_training/target_scout.mdl	models/props_training/target_scout.mdl#896927130	2	2	1	2	1	0
+# slot model=models/props_training/target_scout.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_training/target_scout.vmt vtf=materials/models/props_training/target_scout.vtf
+# slot model=models/props_training/target_scout.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_training/target_scout_blu.vmt vtf=materials/models/props_training/target_scout_blu.vtf
+models/props_doomsday/cap_point_small.mdl	models/props_doomsday/cap_point_small.mdl#1225292909	3	3	1	2	1	0
+# slot model=models/props_doomsday/cap_point_small.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_gameplay/cap_point_base.vmt vtf=materials/Models/props_gameplay/cap_point_base.vtf
+# slot model=models/props_doomsday/cap_point_small.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_gameplay/cap_point_base_red.vmt vtf=materials/Models/props_gameplay/cap_point_base_red.vtf
+models/props_ui/bannerflag_comp_l.mdl	models/props_ui/bannerflag_comp_l.mdl#663974807	2	2	1	2	1	0
+# slot model=models/props_ui/bannerflag_comp_l.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_ui/bannerflag_comp.vmt vtf=materials/models/props_ui/bannerflag_comp.vtf
+# slot model=models/props_ui/bannerflag_comp_l.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_ui/bannerflag_comp_blu.vmt vtf=materials/models/props_ui/bannerflag_comp_blu.vtf
+models/weapons/c_models/c_scout_arms.mdl	models/weapons/c_models/c_scout_arms.mdl#1592644444	1	1	1	2	1	0
+# slot model=models/weapons/c_models/c_scout_arms.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/scout/scout_hands.vmt vtf=materials/models/player/scout/scout_hands.vtf
+# slot model=models/weapons/c_models/c_scout_arms.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/scout/scout_hands.vmt vtf=materials/models/player/scout/scout_hands.vtf
+models/props_ui/comp_win_banner_scaled.mdl	models/props_ui/comp_win_banner_scaled.mdl#2392208823	1	1	1	1	1	0
+# slot model=models/props_ui/comp_win_banner_scaled.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_ui/win_banner.vmt vtf=materials/models/props_ui/win_banner.vtf
+models/weapons/c_models/c_scattergun.mdl	models/weapons/c_models/c_scattergun.mdl#4127930877	2	2	1	2	1	0
+# slot model=models/weapons/c_models/c_scattergun.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_models/c_scattergun/c_scattergun.vmt vtf=materials/models/weapons/c_models/c_scattergun/c_scattergun.vtf
+# slot model=models/weapons/c_models/c_scattergun.mdl materialSlot=0 skinFamily=1 vmt=materials/models/weapons/c_models/c_scattergun/c_scattergun.vmt vtf=materials/models/weapons/c_models/c_scattergun/c_scattergun.vtf
+models/weapons/c_models/c_pistol/c_pistol.mdl	models/weapons/c_models/c_pistol/c_pistol.mdl#2874656406	1	1	1	1	1	0
+# slot model=models/weapons/c_models/c_pistol/c_pistol.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_models/c_pistol/c_pistol.vmt vtf=materials/models/weapons/c_models/c_pistol/c_pistol.vtf
+models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl	models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl#3701898965	1	1	1	1	1	0
+# slot model=models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.vmt vtf=materials/models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.vtf
+models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl	models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl#3035680321	1	1	1	1	1	0
+# slot model=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.vmt vtf=materials/models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.vtf
+models/props_gameplay/cap_point_base.mdl	models/props_gameplay/cap_point_base.mdl#3524702198	3	3	1	2	1	0
+# slot model=models/props_gameplay/cap_point_base.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_gameplay/cap_point_base.vmt vtf=materials/Models/props_gameplay/cap_point_base.vtf
+# slot model=models/props_gameplay/cap_point_base.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_gameplay/cap_point_base_red.vmt vtf=materials/Models/props_gameplay/cap_point_base_red.vtf
+models/items/medkit_large.mdl	models/items/medkit_large.mdl#2847915741	1	1	1	1	1	0
+# slot model=models/items/medkit_large.mdl materialSlot=0 skinFamily=0 vmt=materials/models/items/medkit.vmt vtf=materials/models/items/medkit.vtf
+models/items/ammopack_large.mdl	models/items/ammopack_large.mdl#1953911548	1	1	1	1	1	0
+# slot model=models/items/ammopack_large.mdl materialSlot=0 skinFamily=0 vmt=materials/models/items/ammo_box1.vmt vtf=materials/models/items/ammo_box1.vtf
+models/items/ammopack_small.mdl	models/items/ammopack_small.mdl#3824252796	1	1	1	1	1	0
+# slot model=models/items/ammopack_small.mdl materialSlot=0 skinFamily=0 vmt=materials/models/items/ammo_box2.vmt vtf=materials/models/items/ammo_box2.vtf
+models/props_ui/bannerflag_comp_r.mdl	models/props_ui/bannerflag_comp_r.mdl#101943112	2	2	1	2	1	0
+# slot model=models/props_ui/bannerflag_comp_r.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_ui/bannerflag_comp.vmt vtf=materials/models/props_ui/bannerflag_comp.vtf
+# slot model=models/props_ui/bannerflag_comp_r.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_ui/bannerflag_comp_blu.vmt vtf=materials/models/props_ui/bannerflag_comp_blu.vtf
+models/weapons/c_models/c_medic_arms.mdl	models/weapons/c_models/c_medic_arms.mdl#1438140777	4	4	2	4	1	0
+# slot model=models/weapons/c_models/c_medic_arms.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/medic/medic_red.vmt vtf=materials/models/player/medic/medic_red.vtf
+# slot model=models/weapons/c_models/c_medic_arms.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/medic/medic_hands_red.vmt vtf=materials/models/player/medic/medic_hands_red.vtf
+# slot model=models/weapons/c_models/c_medic_arms.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/medic/medic_blue.vmt vtf=materials/models/player/medic/medic_blue.vtf
+# slot model=models/weapons/c_models/c_medic_arms.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/medic/medic_hands_blue.vmt vtf=materials/models/player/medic/medic_hands_blue.vtf
+models/items/medkit_small.mdl	models/items/medkit_small.mdl#1838321979	1	1	1	1	1	0
+# slot model=models/items/medkit_small.mdl materialSlot=0 skinFamily=0 vmt=materials/models/items/medkit.vmt vtf=materials/models/items/medkit.vtf
+models/items/ammopack_medium.mdl	models/items/ammopack_medium.mdl#2900183192	1	1	1	1	1	0
+# slot model=models/items/ammopack_medium.mdl materialSlot=0 skinFamily=0 vmt=materials/models/items/ammo_box2.vmt vtf=materials/models/items/ammo_box2.vtf
+models/items/medkit_medium.mdl	models/items/medkit_medium.mdl#599881045	1	1	1	1	1	0
+# slot model=models/items/medkit_medium.mdl materialSlot=0 skinFamily=0 vmt=materials/models/items/medkit.vmt vtf=materials/models/items/medkit.vtf
+models/weapons/c_models/c_spy_arms.mdl	models/weapons/c_models/c_spy_arms.mdl#195418196	2	2	1	2	1	0
+# slot model=models/weapons/c_models/c_spy_arms.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/spy/spy_hands_red.vmt vtf=materials/models/player/spy/spy_hands_red.vtf
+# slot model=models/weapons/c_models/c_spy_arms.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/spy/spy_hands_blue.vmt vtf=materials/models/player/spy/spy_hands_blue.vtf
+models/effects/cappoint_hologram.mdl	models/effects/cappoint_hologram.mdl#1602564522	9	9	9	9	1	0
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=0 skinFamily=0 vmt=materials/models/effects/cappoint_logo_neutral.vmt vtf=materials/models/effects/cappoint_logo_neutral.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=1 skinFamily=0 vmt=materials/models/effects/cappoint_beam_neutral.vmt vtf=materials/models/effects/cappoint_beam_neutral.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=2 skinFamily=0 vmt=materials/models/effects/cappoint_logo_neutral_dark.vmt vtf=materials/models/effects/cappoint_logo_neutral.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=3 skinFamily=0 vmt=materials/models/effects/cappoint_beam_red.vmt vtf=materials/models/effects/cappoint_beam_red.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=4 skinFamily=0 vmt=materials/models/effects/cappoint_logo_red.vmt vtf=materials/models/effects/cappoint_logo_red.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=5 skinFamily=0 vmt=materials/models/effects/cappoint_logo_red_dark.vmt vtf=materials/models/effects/cappoint_logo_red.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=6 skinFamily=0 vmt=materials/models/effects/cappoint_logo_blue.vmt vtf=materials/models/effects/cappoint_logo_blue.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=7 skinFamily=0 vmt=materials/models/effects/cappoint_beam_blue.vmt vtf=materials/models/effects/cappoint_beam_lines.vtf
+# slot model=models/effects/cappoint_hologram.mdl materialSlot=8 skinFamily=0 vmt=materials/models/effects/cappoint_logo_blue_dark.vmt vtf=materials/models/effects/cappoint_logo_blue.vtf
+models/weapons/c_models/c_demo_arms.mdl	models/weapons/c_models/c_demo_arms.mdl#3180992446	3	3	2	4	1	0
+# slot model=models/weapons/c_models/c_demo_arms.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/demo/demoman_hands.vmt vtf=materials/models/player/demo/demoman_hands.vtf
+# slot model=models/weapons/c_models/c_demo_arms.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/demo/demoman_red.vmt vtf=materials/models/player/demo/demoman_red.vtf
+# slot model=models/weapons/c_models/c_demo_arms.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/demo/demoman_hands.vmt vtf=materials/models/player/demo/demoman_hands.vtf
+# slot model=models/weapons/c_models/c_demo_arms.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/demo/demoman_blue.vmt vtf=materials/models/player/demo/demoman_blue.vtf
+models/workshop/weapons/c_models/c_quadball/c_quadball.mdl	models/workshop/weapons/c_models/c_quadball/c_quadball.mdl#4222725767	3	3	2	4	1	0
+# slot model=models/workshop/weapons/c_models/c_quadball/c_quadball.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_quadball/c_quadball.vmt vtf=materials/models/workshop/weapons/c_models/c_quadball/c_quadball.vtf
+# slot model=models/workshop/weapons/c_models/c_quadball/c_quadball.mdl materialSlot=1 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_quadball/w_quadball_grenade_red.vmt vtf=materials/models/workshop/weapons/c_models/c_quadball/w_quadball_grenade_red.vtf
+# slot model=models/workshop/weapons/c_models/c_quadball/c_quadball.mdl materialSlot=0 skinFamily=1 vmt=materials/models/workshop/weapons/c_models/c_quadball/c_quadball.vmt vtf=materials/models/workshop/weapons/c_models/c_quadball/c_quadball.vtf
+# slot model=models/workshop/weapons/c_models/c_quadball/c_quadball.mdl materialSlot=1 skinFamily=1 vmt=materials/models/workshop/weapons/c_models/c_quadball/w_quadball_grenade_blue.vmt vtf=materials/models/workshop/weapons/c_models/c_quadball/w_quadball_grenade_blue.vtf
+models/props_gameplay/sign_gameplay01_witharrow_R.mdl	models/props_gameplay/sign_gameplay01_witharrow_r.mdl#530131913	12	12	1	2	1	0
+# slot model=models/props_gameplay/sign_gameplay01_witharrow_R.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_gameplay/sign_gameplay01_skin1.vmt vtf=materials/models/props_gameplay/sign_gameplay01_skin1.vtf
+# slot model=models/props_gameplay/sign_gameplay01_witharrow_R.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_gameplay/sign_gameplay01_skin2.vmt vtf=materials/models/props_gameplay/sign_gameplay01_skin2.vtf
+models/props_gameplay/orange_cone001.mdl	models/props_gameplay/orange_cone001.mdl#1620915379	1	1	1	1	1	0
+# slot model=models/props_gameplay/orange_cone001.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_gameplay/orange_cone001.vmt vtf=materials/Models/props_gameplay/orange_cone001.vtf
+models/weapons/c_models/c_soldier_arms.mdl	models/weapons/c_models/c_soldier_arms.mdl#717368988	4	4	3	6	1	0
+# slot model=models/weapons/c_models/c_soldier_arms.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/soldier/soldier_hands.vmt vtf=materials/models/player/soldier/soldier_hands.vtf
+# slot model=models/weapons/c_models/c_soldier_arms.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/soldier/soldier_sleeves_red.vmt vtf=materials/models/player/soldier/soldier_sleeves_red.vtf
+# slot model=models/weapons/c_models/c_soldier_arms.mdl materialSlot=2 skinFamily=0 vmt=materials/models/weapons/w_rocketlauncher/w_rocket01.vmt vtf=materials/models/weapons/w_rocketlauncher/w_rocket01.vtf
+# slot model=models/weapons/c_models/c_soldier_arms.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/soldier/soldier_hands.vmt vtf=materials/models/player/soldier/soldier_hands.vtf
+# slot model=models/weapons/c_models/c_soldier_arms.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/soldier/soldier_sleeves_blue.vmt vtf=materials/models/player/soldier/soldier_sleeves_blue.vtf
+# slot model=models/weapons/c_models/c_soldier_arms.mdl materialSlot=2 skinFamily=1 vmt=materials/models/weapons/w_rocketlauncher/w_rocket01.vmt vtf=materials/models/weapons/w_rocketlauncher/w_rocket01.vtf
+models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl	models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl#2162392466	1	1	1	1	1	0
+# slot model=models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.vmt vtf=materials/models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.vtf
+models/weapons/c_models/c_pickaxe/c_pickaxe.mdl	models/weapons/c_models/c_pickaxe/c_pickaxe.mdl#3223655018	1	1	1	1	1	0
+# slot model=models/weapons/c_models/c_pickaxe/c_pickaxe.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_items/c_pickaxe.vmt vtf=materials/models/weapons/c_items/c_pickaxe.vtf
+models/weapons/c_models/c_minigun/c_minigun.mdl	models/weapons/c_models/c_minigun/c_minigun.mdl#1798327882	2	2	1	2	1	0
+# slot model=models/weapons/c_models/c_minigun/c_minigun.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_models/c_minigun/c_minigun.vmt vtf=materials/models/weapons/c_models/c_minigun/c_minigun.vtf
+# slot model=models/weapons/c_models/c_minigun/c_minigun.mdl materialSlot=0 skinFamily=1 vmt=materials/models/weapons/c_models/c_minigun/c_minigun.vmt vtf=materials/models/weapons/c_models/c_minigun/c_minigun.vtf
+models/weapons/c_models/c_sandwich/c_sandwich.mdl	models/weapons/c_models/c_sandwich/c_sandwich.mdl#2641557653	1	1	1	1	1	0
+# slot model=models/weapons/c_models/c_sandwich/c_sandwich.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_items/c_sandwich.vmt vtf=materials/models/weapons/c_items/c_sandwich.vtf
+models/weapons/c_models/c_heavy_arms.mdl	models/weapons/c_models/c_heavy_arms.mdl#3150768291	2	2	2	4	1	0
+# slot model=models/weapons/c_models/c_heavy_arms.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/hvyweapon/hvyweapon_hands.vmt vtf=materials/models/player/hvyweapon/hvyweapon_hands.vtf
+# slot model=models/weapons/c_models/c_heavy_arms.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/hvyweapon/hvyweapon_hands_sheen.vmt vtf=materials/models/player/hvyweapon/hvyweapon_hands.vtf
+# slot model=models/weapons/c_models/c_heavy_arms.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/hvyweapon/hvyweapon_hands.vmt vtf=materials/models/player/hvyweapon/hvyweapon_hands.vtf
+# slot model=models/weapons/c_models/c_heavy_arms.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/hvyweapon/hvyweapon_hands_sheen.vmt vtf=materials/models/player/hvyweapon/hvyweapon_hands.vtf
+models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl	models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl#331926893	2	2	1	2	1	0
+# slot model=models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.vmt vtf=materials/models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.vtf
+# slot model=models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl materialSlot=0 skinFamily=1 vmt=materials/models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow_blue.vmt vtf=materials/models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow_blue.vtf
+models/props_forest/sawblade_moving.mdl	models/props_forest/sawblade_moving.mdl#1859852710	5	5	3	6	1	0
+# slot model=models/props_forest/sawblade_moving.mdl materialSlot=0 skinFamily=0 vmt=materials/models/props_forest/sawblade_moving.vmt vtf=materials/models/props_forest/sawblade_moving.vtf
+# slot model=models/props_forest/sawblade_moving.mdl materialSlot=1 skinFamily=0 vmt=materials/models/props_forest/sawblade_belt.vmt vtf=materials/models/props_forest/sawblade_belt.vtf
+# slot model=models/props_forest/sawblade_moving.mdl materialSlot=2 skinFamily=0 vmt=materials/models/props_forest/sawblade_blur.vmt vtf=materials/models/props_forest/sawblade_blur.vtf
+# slot model=models/props_forest/sawblade_moving.mdl materialSlot=0 skinFamily=1 vmt=materials/models/props_forest/sawblade_moving_bloody.vmt vtf=materials/models/props_forest/sawblade_moving_bloody.vtf
+# slot model=models/props_forest/sawblade_moving.mdl materialSlot=1 skinFamily=1 vmt=materials/models/props_forest/sawblade_belt.vmt vtf=materials/models/props_forest/sawblade_belt.vtf
+# slot model=models/props_forest/sawblade_moving.mdl materialSlot=2 skinFamily=1 vmt=materials/models/props_forest/sawblade_blur_bloody.vmt vtf=materials/models/props_forest/sawblade_blur_bloody.vtf
+models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.mdl	models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.mdl#3780378374	2	2	1	2	1	0
+# slot model=models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.vmt vtf=materials/models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.vtf
+# slot model=models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap.mdl materialSlot=0 skinFamily=1 vmt=materials/models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap_blue.vmt vtf=materials/models/workshop/weapons/c_models/c_xms_giftwrap/c_xms_giftwrap_blue.vtf
+models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl	models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl#1360354901	2	2	1	2	1	0
+# slot model=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.vmt vtf=materials/models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.vtf
+# slot model=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl materialSlot=0 skinFamily=1 vmt=materials/models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.vmt vtf=materials/models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.vtf
+models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana_soldier.mdl	models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana_soldier.mdl#2566168449	2	2	1	2	1	0
+# slot model=models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana_soldier.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana.vmt vtf=materials/models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana.vtf
+# slot model=models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana_soldier.mdl materialSlot=0 skinFamily=1 vmt=materials/models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana.vmt vtf=materials/models/workshop_partner/weapons/c_models/c_shogun_katana/c_shogun_katana.vtf
+models/weapons/c_models/c_medigun/c_medigun.mdl	models/weapons/c_models/c_medigun/c_medigun.mdl#922244099	3	3	1	2	1	0
+# slot model=models/weapons/c_models/c_medigun/c_medigun.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_models/c_medigun/c_medigun.vmt vtf=materials/models/weapons/c_models/c_medigun/c_medigun.vtf
+# slot model=models/weapons/c_models/c_medigun/c_medigun.mdl materialSlot=0 skinFamily=1 vmt=materials/models/weapons/c_models/c_medigun/c_medigun_blue.vmt vtf=materials/models/weapons/c_models/c_medigun/c_medigun_blue.vtf
+models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl	models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl#3353683628	2	2	1	2	1	0
+# slot model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vmt vtf=materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vtf
+# slot model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl materialSlot=0 skinFamily=1 vmt=materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vmt vtf=materials/models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.vtf
+models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.mdl	models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.mdl#3398292473	1	1	1	1	1	0
+# slot model=models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.vmt vtf=materials/models/workshop/weapons/c_models/c_ttg_max_gun/c_ttg_max_gun.vtf
+models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.mdl	models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.mdl#1458702079	1	1	1	1	1	0
+# slot model=models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.mdl materialSlot=0 skinFamily=0 vmt=materials/models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.vmt vtf=materials/models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.vtf
+models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl	models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl#28517227	4	4	3	6	1	0
+# slot model=models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/items/mvm_loot/all_class/fob_diamond.vmt vtf=materials/models/player/items/mvm_loot/all_class/fob_heavy_diamond.vtf
+# slot model=models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/items/mvm_loot/all_class/fob_diamond_top.vmt vtf=materials/models/player/items/mvm_loot/all_class/fob_heavy_diamond.vtf
+# slot model=models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/items/mvm_loot/medic/chain_medic.vmt vtf=materials/models/player/items/mvm_loot/medic/chain_medic.vtf
+# slot model=models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/items/mvm_loot/all_class/fob_diamond.vmt vtf=materials/models/player/items/mvm_loot/all_class/fob_heavy_diamond.vtf
+# slot model=models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/items/mvm_loot/all_class/fob_diamond_top.vmt vtf=materials/models/player/items/mvm_loot/all_class/fob_heavy_diamond.vtf
+# slot model=models/player/items/mvm_loot/medic/fob_h_medigun_diamond.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/items/mvm_loot/medic/chain_medic.vmt vtf=materials/models/player/items/mvm_loot/medic/chain_medic.vtf
+models/weapons/c_models/c_hippocrates_bust/c_hippocrates_bust.mdl	models/weapons/c_models/c_hippocrates_bust/c_hippocrates_bust.mdl#359809388	1	1	1	1	1	0
+# slot model=models/weapons/c_models/c_hippocrates_bust/c_hippocrates_bust.mdl materialSlot=0 skinFamily=0 vmt=materials/models/weapons/c_items/c_hippocrates_bust.vmt vtf=materials/models/weapons/c_items/c_hippocrates_bust.vtf
+models/player/items/mvm_loot/all_class/mvm_flask_generic.mdl	models/player/items/mvm_loot/all_class/mvm_flask_generic.mdl#4107353615	1	1	1	1	1	0
+# slot model=models/player/items/mvm_loot/all_class/mvm_flask_generic.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/items/mvm_loot/all_class/mvm_flask_generic.vmt vtf=materials/models/player/items/mvm_loot/all_class/mvm_flask_generic.vtf
+models/player/scout.mdl	models/player/scout.mdl#1098120898	17	17	5	8	1	0
+# slot model=models/player/scout.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/scout/scout_red.vmt vtf=materials/models/player/scout/scout_red.vtf
+# slot model=models/player/scout.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/scout/scout_head_red.vmt vtf=materials/models/player/scout/scout_head.vtf
+# slot model=models/player/scout.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/scout/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/scout.mdl materialSlot=3 skinFamily=0 vmt=materials/models/player/scout/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/scout.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/scout/scout_blue.vmt vtf=materials/models/player/scout/scout_blue.vtf
+# slot model=models/player/scout.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/scout/scout_head_blue.vmt vtf=materials/models/player/scout/scout_head.vtf
+# slot model=models/player/scout.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/scout/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/scout.mdl materialSlot=3 skinFamily=1 vmt=materials/models/player/scout/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+models/player/sniper.mdl	models/player/sniper.mdl#3495254885	20	20	7	12	1	0
+# slot model=models/player/sniper.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/sniper/sniper_red.vmt vtf=materials/models/player/sniper/sniper_red.vtf
+# slot model=models/player/sniper.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/sniper/sniper_lens.vmt vtf=materials/models/player/sniper/sniper_lens.vtf
+# slot model=models/player/sniper.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/sniper/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/sniper.mdl materialSlot=3 skinFamily=0 vmt=materials/models/player/sniper/sniper_head_red.vmt vtf=materials/models/player/sniper/sniper_head.vtf
+# slot model=models/player/sniper.mdl materialSlot=4 skinFamily=0 vmt=materials/models/player/sniper/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/sniper.mdl materialSlot=5 skinFamily=0 vmt=materials/models/weapons/c_items/c_arrow.vmt vtf=materials/models/weapons/c_items/c_arrow.vtf
+# slot model=models/player/sniper.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/sniper/sniper_blue.vmt vtf=materials/models/player/sniper/sniper_blue.vtf
+# slot model=models/player/sniper.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/sniper/sniper_lens.vmt vtf=materials/models/player/sniper/sniper_lens.vtf
+# slot model=models/player/sniper.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/sniper/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/sniper.mdl materialSlot=3 skinFamily=1 vmt=materials/models/player/sniper/sniper_head_blue.vmt vtf=materials/models/player/sniper/sniper_head.vtf
+# slot model=models/player/sniper.mdl materialSlot=4 skinFamily=1 vmt=materials/models/player/sniper/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/sniper.mdl materialSlot=5 skinFamily=1 vmt=materials/models/weapons/c_items/c_arrow.vmt vtf=materials/models/weapons/c_items/c_arrow.vtf
+models/player/soldier.mdl	models/player/soldier.mdl#3748736120	20	20	8	12	1	0
+# slot model=models/player/soldier.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/soldier/soldier_red.vmt vtf=materials/models/player/soldier/soldier_red.vtf
+# slot model=models/player/soldier.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/soldier/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/soldier.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/soldier/soldier_head_red.vmt vtf=materials/models/player/soldier/soldier_head.vtf
+# slot model=models/player/soldier.mdl materialSlot=3 skinFamily=0 vmt=materials/models/player/soldier/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/soldier.mdl materialSlot=4 skinFamily=0 vmt=materials/models/weapons/w_rocketlauncher/w_rocket01.vmt vtf=materials/models/weapons/w_rocketlauncher/w_rocket01.vtf
+# slot model=models/player/soldier.mdl materialSlot=5 skinFamily=0 vmt=materials/models/player/items/soldier/medals.vmt vtf=materials/models/player/items/soldier/medals.vtf
+# slot model=models/player/soldier.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/soldier/soldier_blue.vmt vtf=materials/models/player/soldier/soldier_blue.vtf
+# slot model=models/player/soldier.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/soldier/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/soldier.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/soldier/soldier_head_blue.vmt vtf=materials/models/player/soldier/soldier_head.vtf
+# slot model=models/player/soldier.mdl materialSlot=3 skinFamily=1 vmt=materials/models/player/soldier/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/soldier.mdl materialSlot=4 skinFamily=1 vmt=materials/models/weapons/w_rocketlauncher/w_rocket01.vmt vtf=materials/models/weapons/w_rocketlauncher/w_rocket01.vtf
+# slot model=models/player/soldier.mdl materialSlot=5 skinFamily=1 vmt=materials/models/player/items/soldier/medals_blue.vmt vtf=materials/models/player/items/soldier/medals_blue.vtf
+models/player/demo.mdl	models/player/demo.mdl#1505337062	17	17	5	8	1	0
+# slot model=models/player/demo.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/demo/demoman_red.vmt vtf=materials/models/player/demo/demoman_red.vtf
+# slot model=models/player/demo.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/demo/demoman_head_red.vmt vtf=materials/models/player/demo/demoman_head.vtf
+# slot model=models/player/demo.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/demo/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/demo.mdl materialSlot=3 skinFamily=0 vmt=materials/models/effects/smiley.vmt vtf=materials/models/effects/smiley.vtf
+# slot model=models/player/demo.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/demo/demoman_blue.vmt vtf=materials/models/player/demo/demoman_blue.vtf
+# slot model=models/player/demo.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/demo/demoman_head_blue.vmt vtf=materials/models/player/demo/demoman_head.vtf
+# slot model=models/player/demo.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/demo/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/demo.mdl materialSlot=3 skinFamily=1 vmt=materials/models/effects/smiley.vmt vtf=materials/models/effects/smiley.vtf
+models/player/medic.mdl	models/player/medic.mdl#1029183977	21	21	5	10	1	0
+# slot model=models/player/medic.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/medic/medic_red.vmt vtf=materials/models/player/medic/medic_red.vtf
+# slot model=models/player/medic.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/medic/medic_head_red.vmt vtf=materials/models/player/medic/medic_head.vtf
+# slot model=models/player/medic.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/medic/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/medic.mdl materialSlot=3 skinFamily=0 vmt=materials/models/player/medic/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/medic.mdl materialSlot=4 skinFamily=0 vmt=materials/models/player/medic/medic_backpack_red.vmt vtf=materials/models/player/medic/medic_backpack_red.vtf
+# slot model=models/player/medic.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/medic/medic_blue.vmt vtf=materials/models/player/medic/medic_blue.vtf
+# slot model=models/player/medic.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/medic/medic_head_blue.vmt vtf=materials/models/player/medic/medic_head.vtf
+# slot model=models/player/medic.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/medic/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/medic.mdl materialSlot=3 skinFamily=1 vmt=materials/models/player/medic/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/medic.mdl materialSlot=4 skinFamily=1 vmt=materials/models/player/medic/medic_backpack_blue.vmt vtf=materials/models/player/medic/medic_backpack_blue.vtf
+models/player/heavy.mdl	models/player/heavy.mdl#1641026357	21	21	6	10	1	0
+# slot model=models/player/heavy.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/hvyweapon/heavy_head_red.vmt vtf=materials/models/player/hvyweapon/heavy_head.vtf
+# slot model=models/player/heavy.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/hvyweapon/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/heavy.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/hvyweapon/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/heavy.mdl materialSlot=3 skinFamily=0 vmt=materials/models/player/hvyweapon/hvyweapon_red.vmt vtf=materials/models/player/hvyweapon/hvyweapon_red.vtf
+# slot model=models/player/heavy.mdl materialSlot=4 skinFamily=0 vmt=materials/models/player/hvyweapon/hvyweapon_red_sheen.vmt vtf=materials/models/player/hvyweapon/hvyweapon_red.vtf
+# slot model=models/player/heavy.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/hvyweapon/heavy_head_blue.vmt vtf=materials/models/player/hvyweapon/heavy_head.vtf
+# slot model=models/player/heavy.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/hvyweapon/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/heavy.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/hvyweapon/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/heavy.mdl materialSlot=3 skinFamily=1 vmt=materials/models/player/hvyweapon/hvyweapon_blue.vmt vtf=materials/models/player/hvyweapon/hvyweapon_blue.vtf
+# slot model=models/player/heavy.mdl materialSlot=4 skinFamily=1 vmt=materials/models/player/hvyweapon/hvyweapon_blue_sheen.vmt vtf=materials/models/player/hvyweapon/hvyweapon_blue.vtf
+models/player/pyro.mdl	models/player/pyro.mdl#3846592064	8	8	1	2	1	0
+# slot model=models/player/pyro.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/pyro/pyro_red.vmt vtf=materials/models/player/pyro/pyro_red.vtf
+# slot model=models/player/pyro.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/pyro/pyro_blue.vmt vtf=materials/models/player/pyro/pyro_blue.vtf
+models/player/spy.mdl	models/player/spy.mdl#4261541971	31	31	5	10	1	0
+# slot model=models/player/spy.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/spy/spy_head_red.vmt vtf=materials/models/player/spy/spy_head_red.vtf
+# slot model=models/player/spy.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/spy/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/spy.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/spy/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/spy.mdl materialSlot=3 skinFamily=0 vmt=materials/models/player/spy/spy_red.vmt vtf=materials/models/player/spy/spy_red.vtf
+# slot model=models/player/spy.mdl materialSlot=4 skinFamily=0 vmt=materials/models/player/spy/mask_spy.vmt vtf=materials/models/player/spy/mask_spy.vtf
+# slot model=models/player/spy.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/spy/spy_head_blue.vmt vtf=materials/models/player/spy/spy_head_blue.vtf
+# slot model=models/player/spy.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/spy/eyeball_l.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+# slot model=models/player/spy.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/spy/eyeball_r.vmt vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+# slot model=models/player/spy.mdl materialSlot=3 skinFamily=1 vmt=materials/models/player/spy/spy_blue.vmt vtf=materials/models/player/spy/spy_blue.vtf
+# slot model=models/player/spy.mdl materialSlot=4 skinFamily=1 vmt=materials/models/player/spy/mask_spy.vmt vtf=materials/models/player/spy/mask_spy.vtf
+models/player/engineer.mdl	models/player/engineer.mdl#1880291295	15	15	4	6	1	0
+# slot model=models/player/engineer.mdl materialSlot=0 skinFamily=0 vmt=materials/models/player/engineer/engineer_red.vmt vtf=materials/models/player/engineer/engineer_red.vtf
+# slot model=models/player/engineer.mdl materialSlot=1 skinFamily=0 vmt=materials/models/player/engineer/engineer_head_red.vmt vtf=materials/models/player/engineer/engineer_head.vtf
+# slot model=models/player/engineer.mdl materialSlot=2 skinFamily=0 vmt=materials/models/player/engineer/engineer_mech_hand.vmt vtf=materials/models/player/engineer/engineer_mech_hand.vtf
+# slot model=models/player/engineer.mdl materialSlot=0 skinFamily=1 vmt=materials/models/player/engineer/engineer_blue.vmt vtf=materials/models/player/engineer/engineer_blue.vtf
+# slot model=models/player/engineer.mdl materialSlot=1 skinFamily=1 vmt=materials/models/player/engineer/engineer_head_blue.vmt vtf=materials/models/player/engineer/engineer_head.vtf
+# slot model=models/player/engineer.mdl materialSlot=2 skinFamily=1 vmt=materials/models/player/engineer/engineer_mech_hand_blue.vmt vtf=materials/models/player/engineer/engineer_mech_hand_blue.vtf
+# summary models=59 resolved=59 uploaded=0 paintedSlots=0

@@ -43,11 +43,11 @@
 === 2/6 the pass draws the entity's own model ===
   history rc=0 bmp=2582406
   OK   history rc = 0
-  OK   history observations = 1768 (>= 1000)
+  OK   history observations = 1420 (>= 1000)
   OK   history distinct sequences = 3
   OK   history sequence range = 1..30
   OK   witness ticks derived = 3
-  ..   derived witness ticks: 0 814 1698
+  ..   derived witness ticks: 0 507 1730
   witness-a rc=0 bmp=2582406
   OK   witness-a rc = 0
   OK   witness-a drawn model = models/weapons/c_models/c_sniper_arms.mdl
@@ -59,7 +59,7 @@
   OK   witness-a vertices = 9996
   OK   witness-a ranges = 2
   OK   witness-a distinct material slots bound = 2
-  OK   witness-a sequence = 29
+  OK   witness-a sequence is the entity's own index = 28
   OK   witness-a owner is the view entity = 18
   OK   witness-a model index is the entity's own = 1032
   OK   witness-a names the entity's own model contains c_sniper_arms.mdl
@@ -68,26 +68,26 @@
   OK   witness-a sequences in range, counted = 2
   witness-b rc=0 bmp=2582406
   OK   witness-b rc = 0
-  OK   witness-b sequence = 1
+  OK   the first two witnesses sample different sequences = 30 (!= 28)
   OK   witness-b entity model matches the drawn model = 1
   OK   witness-b model mismatches, counted = 0
-  OK   witness-b sequences in range, counted = 712
-  OK   witness-b observations exceed witness-a's = 712 (> 2)
+  OK   witness-b sequences in range, counted = 454
+  OK   witness-b observations exceed witness-a's = 454 (> 2)
   OK   witness-b sequence changes = 1 (>= 1)
   witness-c rc=0 bmp=2582406
   OK   witness-c rc = 0
-  OK   witness-c sequence = 30
+  OK   the last two witnesses sample different sequences = 1 (!= 30)
   OK   witness-c entity model matches the drawn model = 1
   OK   witness-c model mismatches, counted = 0
-  OK   witness-c sequence changes = 2 (>= 2)
+  OK   witness-c sequence changes = 5 (>= 2)
   OK   witness-c sequence range over the run = 1..30
-  OK   every natural run observation was accepted = 1471
+  OK   every natural run observation was accepted = 1276
   OK   and none was refused = 0
   OK   no override was in force = -1
-  OK   the frames of ticks a and b differ = 2366405 (> 0)
-  OK   the frames of ticks b and c differ = 2560637 (> 0)
-  OK   the frames of ticks a and c differ = 2524017 (> 0)
-  ..   witness frames differ by 2366405 / 2560637 / 2524017 byte positions
+  OK   the frames of ticks a and b differ = 2533696 (> 0)
+  OK   the frames of ticks b and c differ = 1931083 (> 0)
+  OK   the frames of ticks a and c differ = 2533487 (> 0)
+  ..   witness frames differ by 2533696 / 1931083 / 2533487 byte positions
 
 === 3/6 the accepted pose, on the entity's own model ===
   OK   entity model rc = 0
@@ -118,14 +118,14 @@
   OK   pose-applied every accepted pose was applied = 2
   OK   pose-applied every observation was accepted = 2 (> 0)
   OK   pose-applied refused nothing = 0
-  ..   pose-accepted vs pose-applied: 30163 byte positions differ (the reference pose equals the bind pose)
+  ..   pose-accepted vs pose-applied: 2312786 byte positions differ (the reference pose equals the bind pose)
   pose-motion rc=0 bmp=2582406
   OK   pose-motion rc = 0
   OK   pose-motion applied = 1
   OK   pose-motion skinned = 1
   OK   pose-motion frame count = 61
-  OK   the applied real animation changes the frame = 409815 (> 0)
-  ..   history vs pose-motion: 409815 byte positions differ
+  OK   the applied real animation changes the frame = 53513 (> 0)
+  ..   history vs pose-motion: 53513 byte positions differ
 
 === 4/6 the mismatch is still refused, and the pose is still bind ===
   refusal rc=0 bmp=2582406

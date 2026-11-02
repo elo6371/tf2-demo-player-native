@@ -1,1 +1,119 @@
-WEAPON-ANIMATION=FAIL (another weapon-animation-check run owns .scratch/weapon-animation.lock)
+=== mutation: buildAnimationSkinMatrices is forced to the bind pose ===
+MUTATION-PATCHED
+mutation build rc=0
+=== 1/6 the product skins entity models on the GPU ===
+tick=2000 rc=0 bmp=2582406
+  OK   capture rc at tick 2000 = 0
+  51179.7 scene: anim skinned=56 bindPose=40 matrices=158 gpuSkin=55/158 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=45 targetAdv=0 cycle=4215/0 tick=12016 status=missing reason=entity carried no m_nSequence
+  51179.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  OK   skinned instances at tick 2000 = 56 (>= 1)
+  OK   bone matrices uploaded at tick 2000 = 158 (>= 1)
+  OK   GPU-accepted skinned instances at tick 2000 = 55 (>= 1)
+  OK   GPU bone matrices == caller matrices at tick 2000 = 158
+  OK   uploaded bones == valid bones at tick 2000 = 0
+  OK   the anim reading carries the weapon-class instance count at tick 2000 = 2 (!= )
+  ..   weapon-class instances in this update's draw list at tick 2000 = 2
+  OK   bind-pose fallbacks carry a reason (40 instance(s))
+  FAIL no witness model at tick 2000 -- nothing was caught moving
+tick=4000 rc=0 bmp=2582406
+  OK   capture rc at tick 4000 = 0
+  82545.6 scene: anim skinned=56 bindPose=40 matrices=160 gpuSkin=55/160 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=174 targetAdv=0 cycle=5673/0 tick=14288 status=missing reason=entity carried no m_nSequence
+  82545.6 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  OK   skinned instances at tick 4000 = 56 (>= 1)
+  OK   bone matrices uploaded at tick 4000 = 160 (>= 1)
+  OK   GPU-accepted skinned instances at tick 4000 = 55 (>= 1)
+  OK   GPU bone matrices == caller matrices at tick 4000 = 160
+  OK   uploaded bones == valid bones at tick 4000 = 0
+  OK   the anim reading carries the weapon-class instance count at tick 4000 = 2 (!= )
+  ..   weapon-class instances in this update's draw list at tick 4000 = 2
+  OK   bind-pose fallbacks carry a reason (40 instance(s))
+  FAIL no witness model at tick 4000 -- nothing was caught moving
+tick=6000 rc=0 bmp=2582406
+  OK   capture rc at tick 6000 = 0
+  113475.2 scene: anim skinned=58 bindPose=38 matrices=166 gpuSkin=57/166 boneMismatch=0 poseChanges=0 targetInstances=2 targetPose=0 advances=273 targetAdv=0 cycle=5955/0 tick=15907 status=missing reason=entity carried no m_nSequence
+  113475.2 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+  OK   skinned instances at tick 6000 = 58 (>= 1)
+  OK   bone matrices uploaded at tick 6000 = 166 (>= 1)
+  OK   GPU-accepted skinned instances at tick 6000 = 57 (>= 1)
+  OK   GPU bone matrices == caller matrices at tick 6000 = 166
+  OK   uploaded bones == valid bones at tick 6000 = 0
+  OK   the anim reading carries the weapon-class instance count at tick 6000 = 2 (!= )
+  ..   weapon-class instances in this update's draw list at tick 6000 = 2
+  OK   bind-pose fallbacks carry a reason (38 instance(s))
+  FAIL no witness model at tick 6000 -- nothing was caught moving
+
+=== 2/6 the cursor and the pose advance with the tick ===
+  tick 2000: advances=45 poseChanges=0 witnessFrame=0 witnessPose=0
+  tick 4000: advances=174 poseChanges=0 witnessFrame=0 witnessPose=0
+  tick 6000: advances=273 poseChanges=0 witnessFrame=0 witnessPose=0
+  OK   frame cursor advances by the last tick = 273 (>= 1)
+  FAIL uploaded pose changes by the last tick = 0, expected >= 1
+  FAIL witness frame advances by the last tick = 0, expected >= 1
+  FAIL witness pose changes by the last tick = 0, expected >= 1
+  OK   the frame cursor count grows with the tick
+  FAIL the pose change count did not grow (0 -> 0)
+
+=== 3/6 the frames, read against what the camera did ===
+  tick=2000 camera='-3498.2,1021.9,1327.8 70.53 135.00 debug' sha256=59932b3d38a139bdb24c7006139ceda799f49fe0d0006182fbac198472150afb
+  tick=4000 camera='-3498.2,1021.9,1327.8 70.53 135.00 debug' sha256=1011fcede9eae91366894d8006b9cfbabd55cd29177c80c7aef6e1681f521332
+  tick=6000 camera='-3498.2,1021.9,1327.8 70.53 135.00 debug' sha256=1b3a308526e36f49a34dbca63e3e690fe5696e4eebd778c7b937ac866223a8c7
+  distinct frames = 3 of 3
+  OK   ticks that published a camera pose = 3
+  near plane: nearMapUnits=4.00 (T29: 4.0 map units)
+  OK   the frames were drawn through the T29 near plane (nearMapUnits=4.00 in [3,5])
+  camera across ticks 2000..6000: 0.000 still (eps=0.5)
+  OK   the camera reading resolved a branch = still (!= no-reading)
+  ..   camera still across the three ticks: the frames must ADVANCE with playback
+  OK   the three frames were drawn from the stated debug camera = -3498.2,1021.9,1327.8 70.53 135.00 debug|-3498.2,1021.9,1327.8 70.53 135.00 debug|-3498.2,1021.9,1327.8 70.53 135.00 debug
+  OK   frames under a still camera differ with playback (distinct) = 3 (>= 2)
+  ..   distinct sampled colours in the tick 2000 frame: 9116
+  OK   the still-camera frame is a picture and not a flat fill = 9116 (>= 32)
+
+=== 4/6 the standalone --model path skins without deforming the bind pose ===
+  identity: 4228.7 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=-1 frame=0/0 reason=no --model-sequence
+  control : 4146.5 gpu: model skin source=identity bones=78 uploaded=78 skinning=0 seq=-1 frame=0/0 reason=no --model-sequence
+  animated: 4300.2 gpu: model skin source=animated bones=78 uploaded=78 skinning=1 seq=212 frame=30/49 reason=run_PRIMARY
+  unbound : 4122.1 gpu: model skin source=identity bones=78 uploaded=78 skinning=1 seq=0 frame=0/0 reason=sequence has no animation binding
+  wave-a  : 4076.2 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=15/100 reason=wave
+  wave-b  : 4237.5 gpu: model skin source=animated bones=16 uploaded=16 skinning=1 seq=1 frame=50/100 reason=wave
+  OK   the --model path uploads identity matrices with skinning on = identity
+  OK   the --model path enables the skinning branch = 1
+  OK   the --model path uploads every bone = 78
+  OK   a supplied sequence produces an animated pose = animated
+  OK   the animated run uploads every bone = 78
+  OK   the animated run read the intended sequence index = 212
+  OK   the animated run resolved the intended clip label = run_PRIMARY
+  OK   the supplied sequence is a multi-frame companion clip = 49
+  OK   a base sequence with no companion clip is not played = identity
+  OK   the refusal is about the intended sequence index = 0
+  OK   the unbound sequence samples no frames at all = 0/0
+  OK   the unbound sequence is refused with its reason contains sequence has no animation binding
+  OK   the unbound run still uploads every bone = 78
+  BMP-SILHOUETTE changed=1 changed_bytes=3 inside=1 outside=0 mask_pixels=18415 mask_share=2.1393 interior_pixels=842369 interior_max=0 global_max=59 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=PASS
+  OK   identity skinning changes nothing outside the measured edge mask
+  BMP-SILHOUETTE changed=184 changed_bytes=424 inside=68 outside=116 mask_pixels=18414 mask_share=2.1392 interior_pixels=842370 interior_max=63 global_max=71 edge_threshold=32 extent=1264x681x24 frame_pixels=860784 status=FAIL reason=interior_max=63 exceeds 1; changed=184 exceeds 4; outside=116 changed pixels are not on a measured edge
+  OK   the silhouette rule rejects a real pose change (identity vs animated)
+  BMP-DIFF differing=424 total=2582352 percent=0.0164 max_delta=71 extent=1264x681x24 status=FAIL reason=whole frame percent=0.0164 is below 1.0000; whole frame max_delta=71 is below 100
+  FAIL a sampled sequence moves the geometry (rc=1)
+  OK   the witness sequence has 100 frames = 100
+  OK   the two ticks sample different frames = 15/100 (!= 50/100)
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=FAIL reason=whole frame percent=0.0000 is below 1.0000; whole frame max_delta=0 is below 100
+  FAIL the sampled pose follows the tick (rc=1)
+  BMP-DIFF differing=0 total=2582352 percent=0.0000 max_delta=0 extent=1264x681x24 status=PASS
+  OK   the frame index wraps at the frame count
+
+=== 5/6 the probe's bind-pose mutation is discriminated ===
+  normal : {"status":"ok","demo":"D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem","selfTests":3,"selfTestsTotal":3,"sequenceOutOfRange":true,"snapshots":6,"tickCount":6,"tickFirst":74481,"tickLast":74671,"entitiesScanned":6,"sequenceReads":6,"sequencesOutOfRange":0,"distinctModels":1,"modelsWithAnimations":1,"modelsWithoutAnimations":0,"modelLoadFailures":0,"sampledFrames":6,"entitiesCompared":1,"frameAdvanced":0,"staticEntities":1,"changedEntities":0,"boneMatricesBuilt":96,"validBindBones":96,"skinOrderChecks":6,"bindPoseWorst":0,"rigidityWorst":2.98023e-07,"motionDelta":1.24223,"motionRotationDelta":0.0224676,"motionWorst":1.24223,"motionEntity":"136@models/props_ui/bannerflag_comp_l.mdl","skinLands":1.52588e-05,"skinReversed":82.9222,"skinSequence":"wave","sampleStart":74481,"sampleStep":0,"sampleCount":6,"models":"props_ui/bannerflag_comp_l","failures":0}
+  mutated: {"status":"ok","mutation":"bindpose","mutationMoved":true,"entitiesCompared":1,"skinOrderChecks":6,"skinLands":7.62939e-06,"skinReversed":2.28882e-05,"motionDelta":0,"motionRotationDelta":0,"motionWorst":0,"bindPoseWorst":1.51098e-05,"rigidityWorst":2.38419e-07}
+  OK   the normal run reads a pose change = 1.24223 (> 0)
+  OK   the normal run compared at least one entity = 1 (>= 1)
+  OK   the mutated run reports the mutation as moved = true
+  OK   the mutated run compared at least one entity = 1 (>= 1)
+  OK   the mutated run reads no pose change = 0
+  OK   the moving witness is "136@models/props_ui/bannerflag_comp_l.mdl"
+
+=== 6/6 the probe's matrix-order mutation is caught ===
+probe skinLands under --mutation order = 35.9878
+  OK   the order mutation moves skinLands off zero = 35.9878 (> 1.0)
+restore build rc=0
+MUTATION-CAUGHT=PASS (entity mutation turns this step red)
