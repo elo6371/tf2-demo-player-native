@@ -1,0 +1,127 @@
+ACQUIRED owner=t8-base-camera-ui at 2026-11-02 20:24:04
+=== 0/4 build (product + native_ui_probe + camera_probe) ===
+  OK build tf2_demo_native native_ui_probe camera_probe
+=== 1/3 native_ui_probe (camera modes, double-click window, layout, HUD) ===
+PASS native_ui_probe screen=opening->import-review->player->opening scrub=clamped corrupt=recoverable
+doubleWindowMs=300 cameraDefault=first-person cameraCycle=1 doubleInsideMs=1 doubleBoundaryMs=1 cameraDecisionMatrix=6 cameraNoTargetHold=1 pauseToggles=2 pauseStateReturn=1 layoutCases=42 layoutOverlap=0 layoutOutOfRange=0 layoutControls=19 hudExact=1 hudSingleLine=1 hudFields=5 uiFixture=ran
+  OK   probe: the legacy verdict line, byte-identical
+  OK   camera: the default mode is first-person
+  OK   camera: one step per single press walks the full cycle
+  OK   camera: the double-click window is the named 300
+  OK   camera: 299 ms is inside the window (a double)
+  OK   camera: 300 ms is the boundary (a fresh single)
+  OK   camera: all 6 mode/target decisions are pinned
+  OK   camera: no observe target keeps the current camera
+  OK   pause: P toggled twice and returned
+  OK   pause: the second toggle restored the state
+  OK   layout: the planner ran the 42-case size/dpi matrix
+  OK   layout: no two control rects overlap anywhere
+  OK   layout: every control rect stays inside the client
+  OK   layout: all 19 controls are planned (10 T4 + 9 T50)
+  OK   hud: the five fields sit in the pinned order
+  OK   hud: CR/LF/tab never survive into the line
+  OK   hud: five fields, always present
+  OK   fixture: the demo fixture was present and exercised
+assertions_ok=18 assertions_bad=0
+  OK   probe exit = 0
+  OK   the launcher guard refused each missing-flag line and accepted the full one = 3/1
+  OK   run_t50_product consults the guard before launching = 1
+
+=== 2/3 quiet product run (hidden window, audio disabled, title poll) ===
+  OK   e2e run rc = 0
+  OK   e2e title polls = 127 (>= 1)
+34649.5 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=232 events_played=0 events_skipped=163 events_missing=69 drawn=445 capture_written=1 capture_depth_written=0 capture_depth_bytes=0 metrics_written=0 exit=0
+34649.5 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=0 holdsNoTarget=445 freezeFrames=0
+  OK   trace mode summary (hidden, no device)
+  OK   trace camera mode default
+  OK   trace camera window constant
+  OK   trace camera no input in a gate run
+  OK   trace camera no pause toggles in a gate run
+  OK   trace camera freeze untouched
+  FAIL trace camera followed observe targets = 0, expected >= 1
+  OK   title HUD tick field
+  OK   title HUD demo name
+  OK   title HUD playback state
+  OK   title HUD camera mode
+  OK   title HUD error status
+
+=== T50 1/3 camera_probe (freeze rule, bookmarks, key table) ===
+PASS camera_probe pause=freeze-tick camera=continues bookmarks=3 keys=conflict
+pauseFrozenTick=1 pauseCameraMoves=2 pauseFrozenFrames=20 pauseResumeAdvance=5 pauseViolationDetected=1 resetToPlayer=1 resetView=1 bookmarksSaved=3 bookmarkPoseExact=3 bookmarkFovExact=3 bookmarkNames=tower|spawn_door|mid_high bookmarkFilePoseExact=3 bookmarkFileFovExact=3 bookmarkFileStable=1 bookmarkDeletePersists=1 bookmarkCorruptRefused=1 bookmarkJumpStable=1 chordRoundTrips=13 keyActions=27 keyConflictsRefused=2 keySharedTable=1 keyUnboundDispatch=1 keyDispatchOk=1 keyResetCount=4 keyFileRoundTrip=1 keyDuplicateRefused=1 keyFocusSuppresses=1
+  OK   T50 probe exit = 0
+  OK   T50 probe verdict
+  OK   T50 pause froze the tick for 20 frames = 20
+  OK   T50 camera moved while paused = 2 (>= 2)
+  OK   T50 resume advanced the tick = 5
+  OK   T50 a moving tick while paused is counted = 1
+  OK   T50 three bookmarks stored = 3
+  OK   T50 every saved pose came back exactly = 3
+  OK   T50 every saved fov came back exactly = 3
+  OK   T50 every pose survived the settings file exactly = 3
+  OK   T50 every fov survived the settings file exactly = 3
+  OK   T50 deleting a bookmark is durable = 1
+  OK   T50 two saves of the same bookmarks are byte-identical = 1
+  OK   T50 re-applying a bookmark changes no pose = 1
+  OK   T50 reset-to-player applies exactly once = 1
+  OK   T50 reset-view restores every default = 1
+  OK   T50 a corrupt pose is refused, not defaulted = 1
+  OK   T50 the chord grammar round-trips = 13
+  OK   T50 27 actions are registered = 27
+  OK   T50 conflicts are refused = 2
+  OK   T50 an unbound key dispatches nothing = 1
+  OK   T50 a rebound key survives the file = 1
+  OK   T50 a duplicate chord in the file is refused = 1
+  OK   T50 a focused text field suppresses hotkeys = 1
+  OK   T50 the key table is shared with the HUD actions = 1
+  OK   T50 a bound key dispatches its action = 1
+  OK   T50 the three resets each ran = 4
+
+=== T50 2/3 scripted product run (hidden window, audio disabled) ===
+  OK   T50 scripted run rc = 0
+  OK   T50 script steps executed = 94 (>= 85)
+  OK   T50 script steps that failed = 0
+  OK   T50 pause: the tick held at three separate marks = 3
+  OK   T50 pause: the tick was the same before and after the orbit = 203
+  OK   T50 pause: the idle snapshot is on the same tick = 203
+  OK   T50 pause: the camera pose changed while the tick held
+       before: focus=0.000000,0.000000,0.250000 yaw=0.000000 pitch=0.360000 dist=1.650000
+       after:  focus=0.000000,0.000000,0.250000 yaw=0.280000 pitch=0.600000 dist=1.463419
+  OK   T50 pause: the camera does not drift on its own = focus=0.000000,0.000000,0.250000 yaw=0.000000 pitch=0.360000 dist=1.650000
+  OK   T50 resume: the tick advanced past the paused tick = 1
+  OK   T50 resume: tick 203 -> 236
+  OK   T50 bookmark poses verified = 7 (>= 6)
+  OK   T50 bookmark poses exact = 7
+  OK   T50 bookmark fovs restored exactly = 7
+  OK   T50 the bookmarked fov is the seeded non-default
+  OK   T50 three bookmark names round-tripped = 3
+  OK   T50 three bookmarks saved = 3
+  OK   T50 the three bookmarks are three different cameras = 3
+  OK   T50 two captures of the same bookmark are byte-identical (2582406 bytes)
+  OK   T50 the compared frame has bytes = 2582406 (>= 100000)
+  OK   T50 two conflicting binds were refused = 2
+  OK   T50 an unbound key dispatched nothing = 1
+  OK   T50 restore-defaults re-armed the key = 1
+  OK   T50 a focused text field suppressed two bound keys = 2
+  OK   T50 no pause violation in the live run
+  OK   T50 paused frames were counted = 272 (>= 5)
+  OK   T50 camera moves while paused were counted = 21 (>= 3)
+  OK   T50 bookmark applications were counted = 10 (>= 6)
+  OK   T50 text-field suppressions were counted = 2 (>= 2)
+  OK   T50 the product exports the binding table
+  OK   T50 the exported table carries the bookmark keys
+  OK   T50 the exported table carries the save keys
+  OK   T50 restore-defaults is visible in the exported table
+  OK   T50 the rebound action came back to its default
+  OK   T50 the exported table reports its size
+  OK   T50 the exported table counted the conflicts = 2 (>= 2)
+  OK   T50 bookmarks persisted
+  OK   T50 a bookmark name persisted
+  OK   T50 the key table persisted
+  OK   T50 the first compared capture was taken while paused
+  OK   T50 the second compared capture was taken while paused
+  OK   T50 both compared captures are on the same tick = 239
+  OK   T50 the scripted run was hidden and opened no audio device
+
+CAMERA-UI=FAIL
+LOCKED-COMMAND-EXIT rc=1 owner=t8-base-camera-ui
+BASE-GATE-RC=1

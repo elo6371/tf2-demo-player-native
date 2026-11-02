@@ -120,6 +120,50 @@ HWND g_uiHudPreview = nullptr;
 HWND g_uiHudScale = nullptr;
 HWND g_uiHudStatus = nullptr;
 tf2::native::KeyBindTable g_keybinds;
+// T76 stage 3 (2026-11-02): the window-control handles and the two flags that
+// describe them, moved out of the anonymous namespace so src/main_ui.cpp can
+// reach the same objects. Definitions stay in this translation unit, which
+// keeps the initialisation order main.cpp already had; only the linkage
+// changes, and the declarations live in main_internal.h.
+tf2::native::NativeUiController* g_nativeUi = nullptr;
+HWND g_uiStatus = nullptr;
+HWND g_uiOpen = nullptr;
+HWND g_uiCancel = nullptr;
+HWND g_uiConfirm = nullptr;
+HWND g_uiPlay = nullptr;
+HWND g_uiStop = nullptr;
+HWND g_uiBack = nullptr;
+HWND g_uiForward = nullptr;
+HWND g_uiReverse = nullptr;
+HWND g_uiTimeline = nullptr;
+// T50: the camera controls (contract section 3).
+HWND g_uiCameraMode = nullptr;
+HWND g_uiFreeFly = nullptr;
+HWND g_uiResetToPlayer = nullptr;
+HWND g_uiResetView = nullptr;
+HWND g_uiBookmarkSave = nullptr;
+HWND g_uiBookmarkName = nullptr;
+HWND g_uiBookmarkDelete = nullptr;
+HWND g_uiBookmarkList = nullptr;
+HWND g_uiKeybindReset = nullptr;
+// T51: the custom HUD row. Its own ids and its own planner (see native_ui.h);
+// nothing here touches a rect the base planner produced.
+HWND g_uiHudImport = nullptr;
+HWND g_uiHudReset = nullptr;
+// Which bookmark slot the controls act on. 1-based, matching the store and the
+// settings keys; the cycler walks 1..8 and wraps.
+std::size_t g_uiBookmarkSlot = 1;
+// T50/T51 shared hotkey table (native/include/keybinds.h, contract 1.2). T51
+// registers its three actions into the ONE table rather than building a second
+// one; at merge time T50's camera actions register into the same object. The
+// table is a global because there is one window and one settings file.
+// T76: the OBJECT is defined near the top of this file (namespace
+// tf2::native::main_internal, declared in main_hud.h) so src/main_hud.cpp can
+// reach the same table; only the loader stays here.
+bool g_keybindsLoaded = false;
+// True while a text field has focus. Set by the bookmark-name edit control's
+// EN_SETFOCUS/EN_KILLFOCUS; read by shouldDispatchHotkey before every key.
+bool g_textFieldFocused = false;
 }  // namespace tf2::native::main_internal
 
 namespace {
@@ -176,77 +220,9 @@ std::int32_t choosePlayerAnimationSequence(
 // entity-material wiring regression) moved to src/main_trace.cpp; its
 // declarations are in main_internal.h.
 
-// T54: argument text -> UTF-8. The logs panel's URL policy is defined in bytes
-// (ASCII only, refusing everything else), so the conversion has to be exact and
-// lossless-or-refused rather than "best effort": a URL that cannot survive the
-// wide->narrow trip is refused by the policy instead of being mangled into
-// something that passes the host allow-list.
-std::string narrowAscii(const wchar_t* value) {
-  if (value == nullptr) return {};
-  std::string result;
-  for (const wchar_t* cursor = value; *cursor != L'\0'; ++cursor) {
-    if (*cursor < 0 || *cursor > 0x7F) {
-      // Out of range on purpose: the policy refuses non-ASCII bytes, and this
-      // is how they get to it instead of silently becoming '?'.
-      result.push_back('\x7F');
-      continue;
-    }
-    result.push_back(static_cast<char>(*cursor));
-  }
-  return result;
-}
 
-tf2::native::NativeUiController* g_nativeUi = nullptr;
-HWND g_uiStatus = nullptr;
-HWND g_uiOpen = nullptr;
-HWND g_uiCancel = nullptr;
-HWND g_uiConfirm = nullptr;
-HWND g_uiPlay = nullptr;
-HWND g_uiStop = nullptr;
-HWND g_uiBack = nullptr;
-HWND g_uiForward = nullptr;
-HWND g_uiReverse = nullptr;
-HWND g_uiTimeline = nullptr;
-// T50: the camera controls (contract section 3).
-HWND g_uiCameraMode = nullptr;
-HWND g_uiFreeFly = nullptr;
-HWND g_uiResetToPlayer = nullptr;
-HWND g_uiResetView = nullptr;
-HWND g_uiBookmarkSave = nullptr;
-HWND g_uiBookmarkName = nullptr;
-HWND g_uiBookmarkDelete = nullptr;
-HWND g_uiBookmarkList = nullptr;
-HWND g_uiKeybindReset = nullptr;
-// T51: the custom HUD row. Its own ids and its own planner (see native_ui.h);
-// nothing here touches a rect the base planner produced.
-HWND g_uiHudImport = nullptr;
-HWND g_uiHudReset = nullptr;
-constexpr int kUiOpen = 4101;
-constexpr int kUiCancel = 4102;
-constexpr int kUiConfirm = 4103;
-constexpr int kUiPlay = 4104;
-constexpr int kUiStop = 4105;
-constexpr int kUiBack = 4106;
-constexpr int kUiForward = 4107;
-constexpr int kUiReverse = 4108;
-constexpr int kUiTimeline = 4109;
-constexpr int kUiFreeFly = 4110;
-constexpr int kUiResetToPlayer = 4111;
-constexpr int kUiResetView = 4112;
-constexpr int kUiBookmarkSave = 4113;
-constexpr int kUiBookmarkName = 4114;
-constexpr int kUiBookmarkDelete = 4115;
-constexpr int kUiBookmarkList = 4116;
-constexpr int kUiKeybindReset = 4117;
-// Which bookmark slot the controls act on. 1-based, matching the store and the
-// settings keys; the cycler walks 1..8 and wraps.
-std::size_t g_uiBookmarkSlot = 1;
 // T51: the HUD row's own ids. Chosen above the base block (4110+) rather than
 // interleaved with it, so a later base control cannot collide with one of these.
-constexpr int kUiHudImport = 4121;
-constexpr int kUiHudPreview = 4122;
-constexpr int kUiHudScale = 4123;
-constexpr int kUiHudReset = 4124;
 bool g_orbiting = false;
 POINT g_lastMouse{};
 
@@ -331,9 +307,6 @@ tf2::native::KeyBindTable g_keyBinds = tf2::native::defaultKeyBindings();
 // different readings.
 std::string g_lastDispatchedAction;
 std::uint32_t g_hotkeySuppressedByFocus = 0;
-// True while a text field has focus. Set by the bookmark-name edit control's
-// EN_SETFOCUS/EN_KILLFOCUS; read by shouldDispatchHotkey before every key.
-bool g_textFieldFocused = false;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
 std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
 std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
@@ -458,63 +431,6 @@ bool g_spectateShowCorpses = false;
 // picture, and only this counter tells them apart.
 std::uint32_t g_spectateHiddenInstances = 0;
 
-// Repositions every UI control from the planner's answer for the current
-// client rect and window dpi. The planner guarantees containment and
-// non-overlap; this function is the only place that turns a plan into
-// MoveWindow calls, so a layout regression is a planner regression the probe
-// can see, not a Win32 accident it cannot.
-void applyUiLayout(HWND window) {
-  if (!window) return;
-  RECT client{};
-  if (!GetClientRect(window, &client)) return;
-  const UINT dpi = GetDpiForWindow(window);
-  const auto plan = tf2::native::planUiLayout(client.right, client.bottom,
-    static_cast<float>(dpi) / 96.0f);
-  if (!plan.valid) return;
-  const auto move = [&](tf2::native::UiControlId id, HWND control) {
-    if (!control) return;
-    const auto& rect = plan.rects[static_cast<std::size_t>(id)];
-    MoveWindow(control, rect.x, rect.y, rect.w, rect.h, TRUE);
-  };
-  move(tf2::native::UiControlId::Status, g_uiStatus);
-  move(tf2::native::UiControlId::Open, g_uiOpen);
-  move(tf2::native::UiControlId::Cancel, g_uiCancel);
-  move(tf2::native::UiControlId::Confirm, g_uiConfirm);
-  move(tf2::native::UiControlId::Play, g_uiPlay);
-  move(tf2::native::UiControlId::Stop, g_uiStop);
-  move(tf2::native::UiControlId::Back, g_uiBack);
-  move(tf2::native::UiControlId::Forward, g_uiForward);
-  move(tf2::native::UiControlId::Reverse, g_uiReverse);
-  move(tf2::native::UiControlId::Timeline, g_uiTimeline);
-  move(tf2::native::UiControlId::CameraMode, g_uiCameraMode);
-  move(tf2::native::UiControlId::FreeFly, g_uiFreeFly);
-  move(tf2::native::UiControlId::ResetToPlayer, g_uiResetToPlayer);
-  move(tf2::native::UiControlId::ResetView, g_uiResetView);
-  move(tf2::native::UiControlId::BookmarkSave, g_uiBookmarkSave);
-  move(tf2::native::UiControlId::BookmarkNameEdit, g_uiBookmarkName);
-  move(tf2::native::UiControlId::BookmarkDelete, g_uiBookmarkDelete);
-  move(tf2::native::UiControlId::BookmarkList, g_uiBookmarkList);
-  move(tf2::native::UiControlId::KeybindReset, g_uiKeybindReset);
-  // T51: the HUD row is placed by consuming the plan above, never by editing it.
-  const auto hudPlan = tf2::native::planHudLayout(plan, client.right, client.bottom,
-    static_cast<float>(dpi) / 96.0f);
-  if (hudPlan.valid) {
-    const auto moveHud = [&](tf2::native::UiHudControlId id, HWND control) {
-      if (!control) return;
-      const auto& rect = hudPlan.rects[static_cast<std::size_t>(id)];
-      MoveWindow(control, rect.x, rect.y, rect.w, rect.h, TRUE);
-    };
-    moveHud(tf2::native::UiHudControlId::Import, g_uiHudImport);
-    moveHud(tf2::native::UiHudControlId::Preview, g_uiHudPreview);
-    moveHud(tf2::native::UiHudControlId::Scale, g_uiHudScale);
-    moveHud(tf2::native::UiHudControlId::Reset, g_uiHudReset);
-    moveHud(tf2::native::UiHudControlId::Status, g_uiHudStatus);
-  }
-  if (g_nativeUi) {
-    g_nativeUi->setDisplayMetrics(dpi, static_cast<unsigned>(client.right),
-      static_cast<unsigned>(client.bottom), IsZoomed(window) != 0);
-  }
-}
 
 
 // T76 (2026-10-30): PlaybackState, g_playback, g_playbackControl and
@@ -1390,335 +1306,13 @@ bool runCameraScriptStep() {
   return fail("unknown-command");
 }
 
-// Reduce a `--model` argument to the form the animation cache is keyed by.
-// Two legitimate shapes, and picking the wrong one is the difference between
-// "model-missing" and a pose:
-//   * a path under the tf root, e.g. tf/download/models/buildables/x.mdl --
-//     loose custom models live there and are NOT reachable as `models/...`
-//   * a VPK path, e.g. models/weapons/w_models/w_pistol.mdl
-// So an absolute path under the root becomes root-relative first, and only a
-// path with no root prefix is reduced to its `models/` suffix. Anything that
-// matches neither is passed through unchanged, so a wrong path stays wrong and
-// surfaces as model-missing with the path it tried.
-std::string normalizedModelPath(const std::string& rawPath, const std::filesystem::path& tfRoot) {
-  std::string path = rawPath;
-  for (char& character : path) {
-    if (character == '\\') character = '/';
-  }
-  const auto lower = [](std::string value) {
-    for (char& character : value) {
-      character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
-    }
-    return value;
-  };
-  const std::string root = lower(tfRoot.generic_string());
-  const std::string lowered = lower(path);
-  if (!root.empty() && lowered.size() > root.size() && lowered.compare(0, root.size(), root) == 0) {
-    std::size_t start = root.size();
-    while (start < path.size() && path[start] == '/') ++start;
-    if (start < path.size()) return path.substr(start);
-  }
-  // The VPK-relative path starts at the *first* "models/", not the last.
-  // `rfind` was latent-wrong for any path containing "v_models/", because that
-  // directory name itself contains "models/": `models/weapons/v_models/
-  // v_scattergun_scout.mdl` was truncated to `models/v_scattergun_scout.mdl` and
-  // every ViewModel then read as "was not found". The two `--model` paths the T1
-  // gate uses (`models/player/scout.mdl`, `models/props_ui/bannerflag_comp_l.mdl`)
-  // contain the substring once, so `find` and `rfind` agree on them and that
-  // gate's readings are unchanged.
-  const std::size_t marker = lowered.find("models/");
-  if (marker == std::string::npos) return path;
-  return path.substr(marker);
-}
 
 
-const wchar_t* entitySnapshotStatusName(tf2::native::EntitySnapshotQueryStatus status) {
-  switch (status) {
-    case tf2::native::EntitySnapshotQueryStatus::Available: return L"available";
-    case tf2::native::EntitySnapshotQueryStatus::Checkpoint: return L"checkpoint";
-    case tf2::native::EntitySnapshotQueryStatus::NoHistory: return L"no-history";
-    case tf2::native::EntitySnapshotQueryStatus::TickBeforeHistory: return L"before-window";
-    case tf2::native::EntitySnapshotQueryStatus::Gap: return L"gap";
-    case tf2::native::EntitySnapshotQueryStatus::DeltaBaseMissing: return L"delta-base-missing";
-    default: return L"unknown";
-  }
-}
 
-void addSteamRegistryRoots(std::vector<std::filesystem::path>& roots) {
-  constexpr std::array<const wchar_t*, 2> keys = {
-    L"Software\\Valve\\Steam",
-    L"Software\\WOW6432Node\\Valve\\Steam",
-  };
-  constexpr std::array<const wchar_t*, 2> values = { L"SteamPath", L"InstallPath" };
-  for (const auto* key : keys) {
-    for (const auto* value : values) {
-      for (const auto hive : { HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE }) {
-        HKEY handle = nullptr;
-        if (RegOpenKeyExW(hive, key, 0, KEY_READ, &handle) != ERROR_SUCCESS) continue;
-        wchar_t buffer[MAX_PATH]{};
-        DWORD bytes = sizeof(buffer);
-        const LONG result = RegQueryValueExW(handle, value, nullptr, nullptr,
-          reinterpret_cast<LPBYTE>(buffer), &bytes);
-        RegCloseKey(handle);
-        if (result == ERROR_SUCCESS && buffer[0] != L'\0') roots.emplace_back(buffer);
-      }
-    }
-  }
-}
 
-void setUiControlVisible(HWND control, bool visible) {
-  if (control) ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
-}
 
-// Signature of everything updateNativeUiControls actually pushes to a control:
-// the screen, the fields that appear in the status line, the camera mode the
-// player status line shows, and the timeline range and position. `dpi`/
-// `recentDemos`/`tfRoot` are deliberately absent -- nothing here renders them,
-// so a change there must not force a refresh. dtors of the tuple members
-// (std::string) are cheap next to a SendMessageW round trip.
-bool uiControlsUnchanged(const tf2::native::UiSnapshot& state, int cameraMode,
-    const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-      std::string, bool, std::uint32_t, std::string, int, std::size_t, bool, bool>&
-      signature) {
-  return std::get<0>(signature) == static_cast<int>(state.screen)
-    && std::get<1>(signature) == state.tick
-    && std::get<2>(signature) == state.ticks
-    && std::get<3>(signature) == state.playing
-    && std::get<4>(signature) == state.reverse
-    && std::get<5>(signature) == state.mapName
-    && std::get<6>(signature) == state.recordingType
-    && std::get<7>(signature) == state.bspAvailable
-    && std::get<8>(signature) == state.missingResourceCount
-    && std::get<9>(signature) == state.error
-    && std::get<10>(signature) == cameraMode
-    && std::get<11>(signature) == g_uiBookmarkSlot
-    && std::get<12>(signature) == g_cameraDirector.freeFly()
-    && std::get<13>(signature) == g_textFieldFocused;
-}
 
-// Returns true when it actually pushed to the controls, false when the cached
-// signature said there was nothing to push. Callers use the return value as the
-// "work done" reading rather than counting the call itself.
-bool updateNativeUiControls(HWND window) {
-  if (!g_nativeUi) return false;
-  const auto state = g_nativeUi->snapshot();
-  const int cameraMode = static_cast<int>(g_cameraMode.mode());
-  // Cached signature of the previous push. A static here is safe: there is one
-  // window, hence one call site, and the whole reason this function is called
-  // every iteration is to keep the controls in step with the playback state.
-  static std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-    std::string, bool, std::uint32_t, std::string, int, std::size_t, bool, bool>
-    lastSignature{};
-  static bool signatureValid = false;
-  // T50 adds the bookmark slot, the free-fly state and the text-field focus to
-  // the cache key. Without them the camera label and the slot button would only
-  // refresh when some unrelated field moved, which is exactly the stale-label
-  // class this cache exists to avoid -- a control that is correct once and
-  // frozen afterwards.
-  const std::tuple<int, std::int32_t, std::int32_t, bool, bool, std::string,
-    std::string, bool, std::uint32_t, std::string, int, std::size_t, bool, bool>
-    signature{
-      static_cast<int>(state.screen), state.tick, state.ticks, state.playing,
-      state.reverse, state.mapName, state.recordingType, state.bspAvailable,
-      state.missingResourceCount, state.error, cameraMode, g_uiBookmarkSlot,
-      g_cameraDirector.freeFly(), g_textFieldFocused};
-  if (signatureValid && uiControlsUnchanged(state, cameraMode, lastSignature)) return false;
-  lastSignature = signature;
-  signatureValid = true;
-  const bool opening = state.screen == tf2::native::UiScreen::Opening;
-  const bool review = state.screen == tf2::native::UiScreen::ImportReview;
-  const bool player = state.screen == tf2::native::UiScreen::Player;
-  const bool error = state.screen == tf2::native::UiScreen::Error;
-  setUiControlVisible(g_uiOpen, opening || error);
-  setUiControlVisible(g_uiCancel, review || error);
-  setUiControlVisible(g_uiConfirm, review);
-  setUiControlVisible(g_uiPlay, player);
-  setUiControlVisible(g_uiStop, player);
-  setUiControlVisible(g_uiBack, player);
-  setUiControlVisible(g_uiForward, player);
-  setUiControlVisible(g_uiReverse, player);
-  setUiControlVisible(g_uiTimeline, player);
-  // T50: the camera controls are player-screen controls, like the transport.
-  setUiControlVisible(g_uiCameraMode, player);
-  setUiControlVisible(g_uiFreeFly, player);
-  setUiControlVisible(g_uiResetToPlayer, player);
-  setUiControlVisible(g_uiResetView, player);
-  setUiControlVisible(g_uiBookmarkSave, player);
-  setUiControlVisible(g_uiBookmarkName, player);
-  setUiControlVisible(g_uiBookmarkDelete, player);
-  setUiControlVisible(g_uiBookmarkList, player);
-  setUiControlVisible(g_uiKeybindReset, player);
-  if (player) {
-    // The camera row is a readout: the mode the frame is drawing from, plus
-    // whether a text field currently owns the keyboard. Both are state a user
-    // needs to see to understand why a key did nothing.
-    if (g_uiCameraMode) {
-      const char* modeName = tf2::native::cameraModeName(g_cameraMode.mode());
-      std::wstring text = L"camera: " + std::wstring(modeName, modeName + std::strlen(modeName));
-      if (g_cameraDirector.freeFly()) text += L" | free-fly";
-      if (g_textFieldFocused) text += L" | typing";
-      SetWindowTextW(g_uiCameraMode, text.c_str());
-    }
-    if (g_uiBookmarkList) {
-      // "Slot n/9" carries the slot, whether it holds a bookmark and the name,
-      // so the cycler's state is readable without opening a dialog.
-      const auto& bookmark = g_cameraBookmarks.at(g_uiBookmarkSlot);
-      std::wstring label = L"Slot " + std::to_wstring(g_uiBookmarkSlot);
-      if (bookmark.saved) {
-        label += L": " + std::wstring(bookmark.name.begin(), bookmark.name.end());
-      }
-      SetWindowTextW(g_uiBookmarkList, label.c_str());
-    }
-    if (g_uiBookmarkDelete) EnableWindow(g_uiBookmarkDelete,
-      g_cameraBookmarks.saved(g_uiBookmarkSlot) ? TRUE : FALSE);
-  }
-  if (g_uiTimeline) {
-    SendMessageW(g_uiTimeline, TBM_SETRANGE, TRUE,
-      MAKELONG(0, std::max<std::int32_t>(0, state.ticks)));
-    SendMessageW(g_uiTimeline, TBM_SETPOS, TRUE, state.tick);
-  }
-  std::wstring status = L"Opening: choose a .dem file";
-  if (review) {
-    status = L"Import review: " + std::wstring(state.mapName.begin(), state.mapName.end())
-      + L" | " + std::wstring(state.recordingType.begin(), state.recordingType.end())
-      + L" | ticks=" + std::to_wstring(state.ticks)
-      + L" | BSP=" + (state.bspAvailable ? L"ready" : L"missing")
-      + L" | missing=" + std::to_wstring(state.missingResourceCount);
-  } else if (player) {
-    status = L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
-      + (state.playing ? L" | playing" : L" | paused")
-      + (state.reverse ? L" | reverse" : L"")
-      + L" | camera " + [&]() {
-          const char* modeName = tf2::native::cameraModeName(g_cameraMode.mode());
-          return std::wstring(modeName, modeName + std::strlen(modeName));
-        }();
-  } else if (error) {
-    status = L"Error: " + std::wstring(state.error.begin(), state.error.end());
-  }
-  if (g_uiStatus) SetWindowTextW(g_uiStatus, status.c_str());
-  if (window) InvalidateRect(window, nullptr, FALSE);
-  return true;
-}
 
-void createNativeUiControls(HWND window, HINSTANCE instance) {
-  INITCOMMONCONTROLSEX common{sizeof(common), ICC_BAR_CLASSES};
-  InitCommonControlsEx(&common);
-  const auto make = [&](LPCWSTR className, LPCWSTR text, DWORD style, int id,
-      int x, int y, int width, int height) {
-    return CreateWindowExW(0, className, text, WS_CHILD | style,
-      x, y, width, height, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
-      instance, nullptr);
-  };
-  // The initial geometry comes from the same planner WM_SIZE will use later,
-  // so the first paint and every resize after it follow one set of rules.
-  RECT client{};
-  UINT dpi = 96;
-  if (GetClientRect(window, &client)) {
-    dpi = GetDpiForWindow(window);
-  } else {
-    client.right = 1280;
-    client.bottom = 720;
-  }
-  const auto plan = tf2::native::planUiLayout(client.right, client.bottom,
-    static_cast<float>(dpi) / 96.0f);
-  const auto& rects = plan.rects;
-  const auto rectFor = [&](tf2::native::UiControlId id, int fallbackX, int fallbackY,
-      int fallbackW, int fallbackH) {
-    if (!plan.valid) return std::make_tuple(fallbackX, fallbackY, fallbackW, fallbackH);
-    const auto& rect = rects[static_cast<std::size_t>(id)];
-    return std::make_tuple(rect.x, rect.y, rect.w, rect.h);
-  };
-  auto [sx, sy, sw, sh] = rectFor(tf2::native::UiControlId::Status, 16, 12, 900, 28);
-  g_uiStatus = make(L"STATIC", L"Opening: choose a .dem file", SS_LEFT, 0, sx, sy, sw, sh);
-  auto [ox, oy, ow, oh] = rectFor(tf2::native::UiControlId::Open, 16, 48, 120, 30);
-  g_uiOpen = make(L"BUTTON", L"Open Demo...", BS_PUSHBUTTON, kUiOpen, ox, oy, ow, oh);
-  auto [cx, cy, cw, ch] = rectFor(tf2::native::UiControlId::Cancel, 144, 48, 90, 30);
-  g_uiCancel = make(L"BUTTON", L"Cancel", BS_PUSHBUTTON, kUiCancel, cx, cy, cw, ch);
-  auto [fx, fy, fw, fh] = rectFor(tf2::native::UiControlId::Confirm, 240, 48, 90, 30);
-  g_uiConfirm = make(L"BUTTON", L"Import", BS_DEFPUSHBUTTON, kUiConfirm, fx, fy, fw, fh);
-  auto [px, py, pw, ph] = rectFor(tf2::native::UiControlId::Play, 16, 84, 110, 30);
-  g_uiPlay = make(L"BUTTON", L"Play/Pause", BS_PUSHBUTTON, kUiPlay, px, py, pw, ph);
-  auto [tx, ty, tw, th] = rectFor(tf2::native::UiControlId::Stop, 132, 84, 80, 30);
-  g_uiStop = make(L"BUTTON", L"Stop", BS_PUSHBUTTON, kUiStop, tx, ty, tw, th);
-  auto [bx, by, bw, bh] = rectFor(tf2::native::UiControlId::Back, 218, 84, 80, 30);
-  g_uiBack = make(L"BUTTON", L"< Tick", BS_PUSHBUTTON, kUiBack, bx, by, bw, bh);
-  auto [nx, ny, nw, nh] = rectFor(tf2::native::UiControlId::Forward, 304, 84, 80, 30);
-  g_uiForward = make(L"BUTTON", L"Tick >", BS_PUSHBUTTON, kUiForward, nx, ny, nw, nh);
-  auto [rx, ry, rw, rh] = rectFor(tf2::native::UiControlId::Reverse, 390, 84, 90, 30);
-  g_uiReverse = make(L"BUTTON", L"Reverse", BS_PUSHBUTTON, kUiReverse, rx, ry, rw, rh);
-  auto [lx, ly, lw, lh] = rectFor(tf2::native::UiControlId::Timeline, 16, 122, 700, 30);
-  g_uiTimeline = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_ENABLESELRANGE,
-    kUiTimeline, lx, ly, lw, lh);
-  // T50: the camera controls. Labels are the shipped key names so the button and
-  // the binding read the same; a rebound key does not rename the button (the
-  // binding is the source of truth and the tooltip/hint names the action, not a
-  // key that may have moved).
-  auto [ffx, ffy, ffw, ffh] = rectFor(tf2::native::UiControlId::FreeFly, 16, 158, 90, 30);
-  g_uiFreeFly = make(L"BUTTON", L"Free-fly", BS_PUSHBUTTON, kUiFreeFly, ffx, ffy, ffw, ffh);
-  auto [rpx, rpy, rpw, rph] = rectFor(tf2::native::UiControlId::ResetToPlayer, 112, 158, 90, 30);
-  g_uiResetToPlayer = make(L"BUTTON", L"To player", BS_PUSHBUTTON, kUiResetToPlayer,
-    rpx, rpy, rpw, rph);
-  auto [rvx, rvy, rvw, rvh] = rectFor(tf2::native::UiControlId::ResetView, 208, 158, 90, 30);
-  g_uiResetView = make(L"BUTTON", L"Reset view", BS_PUSHBUTTON, kUiResetView,
-    rvx, rvy, rvw, rvh);
-  {
-    // A copy, not a reference: the ternary would otherwise have to reconcile a
-    // const reference with a temporary.
-    tf2::native::UiRect rect{304, 158, 200, 30};
-    if (plan.valid) rect = rects[static_cast<std::size_t>(tf2::native::UiControlId::CameraMode)];
-    g_uiCameraMode = make(L"STATIC", L"camera: first-person", SS_LEFT, 0,
-      rect.x, rect.y, rect.w, rect.h);
-  }
-  auto [bsx, bsy, bsw, bsh] = rectFor(tf2::native::UiControlId::BookmarkSave, 16, 194, 90, 28);
-  g_uiBookmarkSave = make(L"BUTTON", L"Save mark", BS_PUSHBUTTON, kUiBookmarkSave,
-    bsx, bsy, bsw, bsh);
-  auto [bnx, bny, bnw, bnh] = rectFor(tf2::native::UiControlId::BookmarkNameEdit, 112, 194, 240, 28);
-  // A text field owns the keyboard while it has focus: dispatchHotkey consults
-  // shouldDispatchHotkey BEFORE the table, and the flag it reads is set from the
-  // edit control EN_SETFOCUS / EN_KILLFOCUS notifications in WM_COMMAND. No
-  // subclass is used: WM_COMMAND is a path the product already routes, so focus
-  // state has one owner.
-  g_uiBookmarkName = make(L"EDIT", L"", WS_BORDER | ES_AUTOHSCROLL,
-    kUiBookmarkName, bnx, bny, bnw, bnh);
-  auto [bdx, bdy, bdw, bdh] = rectFor(tf2::native::UiControlId::BookmarkDelete, 358, 194, 90, 28);
-  g_uiBookmarkDelete = make(L"BUTTON", L"Delete", BS_PUSHBUTTON, kUiBookmarkDelete,
-    bdx, bdy, bdw, bdh);
-  auto [blx, bly, blw, blh] = rectFor(tf2::native::UiControlId::BookmarkList, 454, 194, 110, 28);
-  g_uiBookmarkList = make(L"BUTTON", L"Slot 1", BS_PUSHBUTTON, kUiBookmarkList,
-    blx, bly, blw, blh);
-  auto [krx, kry, krw, krh] = rectFor(tf2::native::UiControlId::KeybindReset, 570, 194, 110, 28);
-  g_uiKeybindReset = make(L"BUTTON", L"Default keys", BS_PUSHBUTTON, kUiKeybindReset,
-    krx, kry, krw, krh);
-  // T51: the HUD row, from the HUD planner. It consumes the base plan computed
-  // above, so the HUD controls follow whatever T50's row ends up being.
-  const auto hudPlan = tf2::native::planHudLayout(plan, client.right, client.bottom,
-    static_cast<float>(dpi) / 96.0f);
-  const auto hudRectFor = [&](tf2::native::UiHudControlId id, int fallbackX,
-      int fallbackY, int fallbackW, int fallbackH) {
-    if (!hudPlan.valid) return std::make_tuple(fallbackX, fallbackY, fallbackW, fallbackH);
-    const auto& rect = hudPlan.rects[static_cast<std::size_t>(id)];
-    return std::make_tuple(rect.x, rect.y, rect.w, rect.h);
-  };
-  auto [hix, hiy, hiw, hih] = hudRectFor(tf2::native::UiHudControlId::Import, 16, 160, 130, 30);
-  g_uiHudImport = make(L"BUTTON", L"Import HUD...", BS_PUSHBUTTON, kUiHudImport, hix, hiy, hiw, hih);
-  auto [hpx, hpy, hpw, hph] = hudRectFor(tf2::native::UiHudControlId::Preview, 152, 160, 120, 30);
-  g_uiHudPreview = make(L"BUTTON", L"Preview HUD", BS_AUTOCHECKBOX, kUiHudPreview, hpx, hpy, hpw, hph);
-  auto [hsx, hsy, hsw, hsh] = hudRectFor(tf2::native::UiHudControlId::Scale, 278, 160, 160, 30);
-  g_uiHudScale = make(TRACKBAR_CLASSW, L"", TBS_AUTOTICKS | TBS_HORZ,
-    kUiHudScale, hsx, hsy, hsw, hsh);
-  if (g_uiHudScale) {
-    // 50..200 in the contract's window, one tick per 10% so a drag lands on a
-    // round number and the preview text is readable.
-    SendMessageW(g_uiHudScale, TBM_SETRANGE, TRUE, MAKELONG(50, 200));
-    SendMessageW(g_uiHudScale, TBM_SETTICFREQ, 10, 0);
-    SendMessageW(g_uiHudScale, TBM_SETPOS, TRUE, 100);
-  }
-  auto [hrx, hry, hrw, hrh] = hudRectFor(tf2::native::UiHudControlId::Reset, 444, 160, 140, 30);
-  g_uiHudReset = make(L"BUTTON", L"Reset HUD", BS_PUSHBUTTON, kUiHudReset, hrx, hry, hrw, hrh);
-  auto [hcx, hcy, hcw, hch] = hudRectFor(tf2::native::UiHudControlId::Status, 590, 160, 400, 30);
-  g_uiHudStatus = make(L"STATIC", L"HUD: none", SS_LEFT, 0, hcx, hcy, hcw, hch);
-  updateNativeUiControls(window);
-}
 
 bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
   wchar_t buffer[32768]{};
@@ -1741,14 +1335,6 @@ bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
 // registerDefault("hud.toggle", ...) line out of THIS file.
 
 
-// T50/T51 shared hotkey table (native/include/keybinds.h, contract 1.2). T51
-// registers its three actions into the ONE table rather than building a second
-// one; at merge time T50's camera actions register into the same object. The
-// table is a global because there is one window and one settings file.
-// T76: the OBJECT is defined near the top of this file (namespace
-// tf2::native::main_internal, declared in main_hud.h) so src/main_hud.cpp can
-// reach the same table; only the loader stays here.
-bool g_keybindsLoaded = false;
 
 void registerKeybinds(const std::filesystem::path& settingsFile) {
   if (g_keybindsLoaded) return;
@@ -2251,70 +1837,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   }
 }
 
-std::vector<std::uint8_t> readFile(const std::filesystem::path& path) {
-  std::ifstream file(path, std::ios::binary | std::ios::ate);
-  if (!file) return {};
-  const auto size = file.tellg();
-  if (size <= 0) return {};
-  std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
-  file.seekg(0);
-  if (!file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()))) return {};
-  return bytes;
-}
 
-std::string sha256File(const std::filesystem::path& path, std::string& status) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file) { status = "missing"; return {}; }
-  BCRYPT_ALG_HANDLE algorithm = nullptr;
-  BCRYPT_HASH_HANDLE hash = nullptr;
-  DWORD objectLength = 0, resultLength = 0;
-  if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) != 0
-      || BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH, reinterpret_cast<PUCHAR>(&objectLength), sizeof(objectLength), &resultLength, 0) != 0) {
-    if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
-    status = "failed"; return {};
-  }
-  std::vector<std::uint8_t> object(objectLength);
-  std::array<std::uint8_t, 32> digest{};
-  std::string result;
-  bool ok = BCryptCreateHash(algorithm, &hash, object.data(), objectLength, nullptr, 0, 0) == 0;
-  // Keep the streaming buffer on the heap; the Windows default thread stack
-  // is small enough that a 1 MiB local array can trigger STATUS_STACK_OVERFLOW.
-  std::vector<std::uint8_t> chunk(1024u * 1024u);
-  while (ok && file) {
-    file.read(reinterpret_cast<char*>(chunk.data()), static_cast<std::streamsize>(chunk.size()));
-    const auto count = file.gcount();
-    if (count > 0) ok = BCryptHashData(hash, chunk.data(), static_cast<ULONG>(count), 0) == 0;
-  }
-  if (ok && BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) == 0) {
-    static constexpr char hex[] = "0123456789abcdef";
-    result.reserve(64);
-    for (const auto byte : digest) { result.push_back(hex[byte >> 4u]); result.push_back(hex[byte & 15u]); }
-    status = "ready";
-  }
-  if (hash) BCryptDestroyHash(hash);
-  BCryptCloseAlgorithmProvider(algorithm, 0);
-  if (result.empty()) status = "failed";
-  return result;
-}
 
-std::filesystem::path localCacheDirectory(std::string& status) {
-  wchar_t* value = nullptr; std::size_t length = 0;
-  if (_wdupenv_s(&value, &length, L"LOCALAPPDATA") == 0 && value) {
-    std::filesystem::path path = std::filesystem::path(value) / L"TF2 Demo Player" / L"cache";
-    free(value);
-    std::error_code error; std::filesystem::create_directories(path, error);
-    if (error) { status = "unavailable"; return {}; }
-    const auto probe = path / L".write-test";
-    std::ofstream probeFile(probe, std::ios::binary | std::ios::trunc);
-    if (!probeFile) { status = "unwritable"; return {}; }
-    probeFile.close();
-    std::filesystem::remove(probe, error);
-    status = "ready";
-    return path;
-  }
-  status = "unavailable";
-  return {};
-}
 
 }
 

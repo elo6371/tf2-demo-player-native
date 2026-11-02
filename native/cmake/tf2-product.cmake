@@ -28,6 +28,14 @@ add_executable(tf2_demo_native WIN32
   src/main_hud.cpp
   # T76: the T50 camera pose/bookmark layer.
   src/main_camera.cpp
+  # T76 stage 2 (2026-11-02): the file, path and byte helpers -- readFile,
+  # sha256File, localCacheDirectory, normalizedModelPath, narrowAscii,
+  # entitySnapshotStatusName, addSteamRegistryRoots. No captured state and no
+  # globals, so they were the cheapest slice to move next.
+  src/main_helpers.cpp
+  # T76 stage 3 (2026-11-02): the native Win32 control layer (layout, per-frame
+  # sync, control creation). windowProc and dispatchHotkey stay in main.cpp.
+  src/main_ui.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
   # T77 (2026-10-30): the renderer split. native_renderer.cpp keeps the device and
