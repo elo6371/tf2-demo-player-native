@@ -38,6 +38,10 @@ add_executable(tf2_demo_native WIN32
   src/main_ui.cpp
   ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
+  # T77, second stage (2026-11-02): the HLSL, held apart from the D3D state that
+  # compiles it. createPipeline() was 1,454 lines with 854 of them shader source
+  # in the middle; the text now lives here and the function names it.
+  src/native_renderer_shaders.cpp
   # T77 (2026-10-30): the renderer split. native_renderer.cpp keeps the device and
   # the pipeline construction; every other responsibility is its own translation
   # unit below. The bodies moved verbatim, so the pass order (which lives in
