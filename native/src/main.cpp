@@ -6548,8 +6548,18 @@ bool outlineVertexExtent = false;
       // or the mask derived from it would include whatever else happened to be
       // drawn. The sky and the water are their own passes, so both are forced
       // off here rather than left to the caller's flags.
+      // T52 (2026-11-02): and a --world-depth frame is a SCALAR image, so the sky
+      // is forced off there for the same reason -- it is a colour pass, not a
+      // depth one. Measured at the pinned fixture camera, tick 64250: with the sky
+      // drawn, 27.61% of the capture was sky colour (93,94,136 and the sun's
+      // glow) over a grey depth render; with --no-world-sky the same run read
+      // nonGreyPct=0.00, nonzeroPct=72.39. The gate's depth assertion asks for a
+      // scalar image and had been reading the sky since the fixture moved; making
+      // the view's own contract explicit fixes it where the defect is, instead of
+      // asking every caller to remember a flag.
       const bool skyEnabled = (worldSkyGiven ? worldSkyRequested
-        : persistent.render.skybox) && worldGeometry == WorldGeometryFilter::All;
+        : persistent.render.skybox) && worldGeometry == WorldGeometryFilter::All &&
+        worldDebugView != 2;
       const auto skyCapture = tf2::native::captureSkyFaces(displayMap, readMaterialVtf);
       std::vector<tf2::native::WorldSkyVertex> skyVertices;
       tf2::native::WorldSkyDrawRequest skyRequest;
@@ -10527,7 +10537,18 @@ bool outlineVertexExtent = false;
         g_renderer->setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1],
           g_debugCameraEye[2], g_debugCameraPitch, g_debugCameraYaw);
       }
-      if (g_renderer && renderer.draw(0.055f, 0.07f, 0.085f)) {
+      // T52 (2026-11-02): a --world-depth frame clears to black. The depth view
+      // writes one scalar into R, G and B, so every non-grey pixel in a real
+      // capture was the tinted clear colour showing through where the world drew
+      // nothing (measured on a 1264x681 capture: 26.35% of pixels, all exactly
+      // 14,18,22 -- the tint, not geometry). "No geometry" now reads as 0 depth
+      // instead of as a colour, which is what makes the capture a scalar image
+      // and what the occluded region needs in order to tell "behind a wall" from
+      // "outside the map". Only the depth view is affected.
+      const float clearR = worldDebugView == 2 ? 0.0f : 0.055f;
+      const float clearG = worldDebugView == 2 ? 0.0f : 0.07f;
+      const float clearB = worldDebugView == 2 ? 0.0f : 0.085f;
+      if (g_renderer && renderer.draw(clearR, clearG, clearB)) {
         ++renderedFrames;
         // T54: the responsiveness reading, taken where a FRAME exists. The
         // interval is the time since the previous draw (lastFrame is only moved
