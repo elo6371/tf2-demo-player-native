@@ -154,3 +154,9 @@ __pycache__/
 # a frozen witness frame is committed on purpose, a run's working set is not.
 evidence/t66-sourcetv/**/*.trace
 evidence/t66-sourcetv/**/*.bmp
+
+# The outline gate writes a per-run directory (traces, frames, per-assertion output) and
+# every round makes a new one: run-20261102-cam2 alone is 72 MB. The readings that are
+# committed live in evidence/outline/*.log and evidence/t52-a3/; a run's working set is
+# machine output, so it stays out of the index.
+evidence/outline/run-*/
