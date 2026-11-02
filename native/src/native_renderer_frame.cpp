@@ -1006,6 +1006,14 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     capturePath_.clear();
     captureSucceeded_ = writeBackBufferToFile(path);
   }
+  // The depth that belongs to the frame just written. Read from the same capture
+  // (frame loop, before the ViewModel clear), so picture and depth describe one
+  // frame -- a depth image of a different tick would compare two cameras.
+  if (!captureDepthPath_.empty()) {
+    const std::wstring depthPath = captureDepthPath_;
+    captureDepthPath_.clear();
+    depthCaptureSucceeded_ = writeWorldDepthToPgm(depthPath);
+  }
   const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
   if (FAILED(result)) { lastError_ = result; return false; }
   return true;

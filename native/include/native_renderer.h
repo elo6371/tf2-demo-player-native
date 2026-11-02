@@ -1337,9 +1337,17 @@ public:
   // Present(), so the file holds the frame this call actually composed -- not
   // whatever the swap chain happens to leave behind afterwards. The request is
   // consumed once; ask again if you want the next frame too.
-  void requestFrameCapture(std::wstring path);
+  // The second argument asks for the frame's WORLD DEPTH next to the picture.
+  // The debug depth view (--world-depth) is an 8-bit product that saturates for
+  // everything past a few units -- T26 asserts that saturation on purpose -- so
+  // it cannot answer "is this pixel in front of that player": the answer is 255
+  // either way. This reads the same D24S8 buffer the face trace already trusts,
+  // at the resolution that buffer has, and writes it as a 16-bit PGM.
+  void requestFrameCapture(std::wstring path, std::wstring depthPath = {});
   bool frameCapturePending() const { return !capturePath_.empty(); }
   bool lastFrameCaptureSucceeded() const { return captureSucceeded_; }
+  bool lastDepthCaptureSucceeded() const { return depthCaptureSucceeded_; }
+  unsigned long long lastDepthCaptureBytes() const { return depthCaptureBytes_; }
   const std::wstring& lastFrameCaptureError() const { return captureError_; }
 
 private:
@@ -1362,6 +1370,8 @@ private:
   bool createTarget(UINT width, UINT height);
   bool createPipeline();
   bool writeBackBufferToFile(const std::wstring& path);
+  // 16-bit P5 dump of capturedDepth_, the depth this frame's world pixels carry.
+  bool writeWorldDepthToPgm(const std::wstring& path);
   // T24: the three pass-level lighting controls as the draw will upload them.
   // One implementation each, read by both the constant buffer and the frame
   // sample, so "what the settings asked for" and "what the shader got" cannot
@@ -1964,6 +1974,9 @@ private:
   const char* initStage_ = "none";
   std::wstring capturePath_;
   bool captureSucceeded_ = false;
+  std::wstring captureDepthPath_;
+  bool depthCaptureSucceeded_ = false;
+  unsigned long long depthCaptureBytes_ = 0;
   std::wstring captureError_;
   // ---- T51: the HUD pass's own state --------------------------------------
   // Deliberately small and entirely separate from every other pass: a vertex

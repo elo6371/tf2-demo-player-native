@@ -24,10 +24,57 @@
 namespace tf2::native {
 
 
-void Renderer::requestFrameCapture(std::wstring path) {
+void Renderer::requestFrameCapture(std::wstring path, std::wstring depthPath) {
   capturePath_ = std::move(path);
   captureSucceeded_ = false;
+  captureDepthPath_ = std::move(depthPath);
+  depthCaptureSucceeded_ = false;
+  depthCaptureBytes_ = 0;
   captureError_.clear();
+}
+
+// The world depth of the frame that was just written, as a 16-bit PGM (P5,
+// top-down, which is the order the staging readback hands rows over in).
+//
+// Why this exists at all: --world-depth is an 8-bit VIEW and saturates for
+// everything past a few units -- T26 asserts that saturation, because a depth
+// image that saturates is not evidence and the gate says so out loud. The
+// question section 5 of outline-check.sh has to answer is finer than that: "is
+// the world geometry in front of this player". 255 against 255 answers nothing.
+// The buffer behind it is D24S8, and capturedDepth_ already holds it for the
+// face trace, so this is a writer, not a second measurement.
+bool Renderer::writeWorldDepthToPgm(const std::wstring& path) {
+  if (capturedDepth_.empty() || capturedDepthWidth_ <= 0 || capturedDepthHeight_ <= 0) {
+    captureError_ = L"no world depth was captured for this frame";
+    return false;
+  }
+  std::FILE* file = nullptr;
+  if (_wfopen_s(&file, path.c_str(), L"wb") != 0 || file == nullptr) {
+    captureError_ = L"depth file open failed";
+    return false;
+  }
+  std::fprintf(file, "P5\n%d %d\n65535\n", capturedDepthWidth_, capturedDepthHeight_);
+  std::vector<std::uint8_t> row(static_cast<std::size_t>(capturedDepthWidth_) * 2u, 0u);
+  unsigned long long written = 0;
+  bool ok = true;
+  for (int y = 0; y < capturedDepthHeight_ && ok; ++y) {
+    for (int x = 0; x < capturedDepthWidth_; ++x) {
+      const float depth = capturedDepth_[static_cast<std::size_t>(y) *
+        static_cast<std::size_t>(capturedDepthWidth_) + static_cast<std::size_t>(x)];
+      // 1.0 is the cleared far value; an unmeasured entry reads as far rather
+      // than as a near surface, so a hole can never claim to occlude anything.
+      const float clamped = !(depth >= 0.0f) ? 1.0f : (depth > 1.0f ? 1.0f : depth);
+      const unsigned value = static_cast<unsigned>(std::lround(clamped * 65535.0f));
+      row[static_cast<std::size_t>(x) * 2u + 0u] = static_cast<std::uint8_t>((value >> 8) & 0xFFu);
+      row[static_cast<std::size_t>(x) * 2u + 1u] = static_cast<std::uint8_t>(value & 0xFFu);
+    }
+    if (std::fwrite(row.data(), 1, row.size(), file) != row.size()) ok = false;
+    else written += row.size();
+  }
+  if (std::fclose(file) != 0) ok = false;
+  depthCaptureBytes_ = written;
+  if (!ok) captureError_ = L"writing the depth image failed";
+  return ok;
 }
 
 // Reads the swap chain's back buffer back to the CPU and writes it as an

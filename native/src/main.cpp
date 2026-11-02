@@ -2415,6 +2415,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool playbackSpeedRejected = false;
   std::filesystem::path metricsPath;
   std::filesystem::path captureFramePath;
+  // Optional second artefact of the same capture: the frame's world depth as a
+  // 16-bit PGM. Its own flag because the picture alone is what most callers
+  // want, and a depth plane is two bytes a pixel of extra output.
+  std::filesystem::path captureDepthPath;
+  bool captureDepthRejected = false;
   // T51 acceptance surface. The HUD is a user feature with a picker, but a gate
   // cannot click one, so the same code path is reachable from the command line:
   //   --hud-root DIR          the folder the picker would have returned
@@ -3409,6 +3414,10 @@ bool outlineVertexExtent = false;
         dumpEntityMaterialsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
         captureFramePath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--capture-depth") == 0 && i + 1 < argumentCount) {
+        captureDepthPath = arguments[++i];
+      } else if (wcscmp(arguments[i], L"--capture-depth") == 0) {
+        captureDepthRejected = true;
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const long long parsed = std::wcstoll(arguments[++i], &end, 10);
@@ -3440,6 +3449,16 @@ bool outlineVertexExtent = false;
   }
   if (captureTickRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
+    return 13;
+  }
+  if (!captureDepthPath.empty() && captureFramePath.empty()) {
+    // A depth plane belongs to a frame. Asking for one without the picture would
+    // write nothing and exit 0, and a gate that forgot --capture-frame would
+    // read that absence as "the flag is ignored" instead of as its own mistake.
+    captureDepthRejected = true;
+  }
+  if (captureDepthRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-depth; it needs a path and a --capture-frame.\n");
     return 13;
   }
   if (cameraScriptRejected) {
@@ -10488,7 +10507,7 @@ bool outlineVertexExtent = false;
       // stale rectangle would make the frame comparison measure the wrong region.
       if (captureArmed && g_renderer) hudApplyRects(window);
       if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
-        renderer.requestFrameCapture(captureFramePath.wstring());
+        renderer.requestFrameCapture(captureFramePath.wstring(), captureDepthPath.wstring());
         captureArmed = false;
         captureRequested = true;
         // T26: which tick the captured frame actually belongs to. The arm fires
@@ -10609,8 +10628,11 @@ bool outlineVertexExtent = false;
         // not a reading, so it leaves through its own code instead of 0 or 16.
         // 17 is unused: 0 success, 2/3/4 device loss, 13 argument refusals,
         // 16 capture failed.
+        // A depth plane that was asked for and not written is a failed capture:
+        // the caller reads a PGM next, and a missing file must not exit 0.
+        const bool depthFailed = !captureDepthPath.empty() && !renderer.lastDepthCaptureSucceeded();
         PostQuitMessage(entityIdOverflow ? 17
-          : (renderer.lastFrameCaptureSucceeded() ? 0 : 16));
+          : ((renderer.lastFrameCaptureSucceeded() && !depthFailed) ? 0 : 16));
         continue;
       }
       lastFrame = now;
@@ -10679,7 +10701,7 @@ bool outlineVertexExtent = false;
     // "N attempts, not one succeeded" are different readings. Under
     // --audio-disabled all three are 0.
     traceFmt("mode: summary window_created=%d window_visible=%d audio_mode=%s audio_device_opened=%zu"
-      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_missing=%zu drawn=%llu capture_written=%d metrics_written=%d exit=%d",
+      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_missing=%zu drawn=%llu capture_written=%d capture_depth_written=%d capture_depth_bytes=%llu metrics_written=%d exit=%d",
       windowAlive ? 1 : 0,
       (windowAlive && IsWindowVisible(window)) ? 1 : 0,
       audioDisabled ? "disabled" : "device",
@@ -10691,6 +10713,8 @@ bool outlineVertexExtent = false;
       audioStats.eventsMissingResource,
       static_cast<unsigned long long>(renderedFrames),
       (captureRequested && renderer.lastFrameCaptureSucceeded()) ? 1 : 0,
+      (!captureDepthPath.empty() && renderer.lastDepthCaptureSucceeded()) ? 1 : 0,
+      renderer.lastDepthCaptureBytes(),
       (!metricsPath.empty() && metricsFile.is_open() && metricsWriteCalls > 0) ? 1 : 0,
       static_cast<int>(message.wParam));
     // The eight fields the audio wiring is accepted on, on one line so a gate
