@@ -271,19 +271,19 @@ bash spectate-mutations.sh                  # 六个变异：重建 + 跑对应�
 
 ## 9. 边界与未验证项
 
-**已测**：一份 SourceTV 录像的 8x 回放；3 次死亡、3 次接管、1 次手动选人（含越界拒绝）、1 次 2.0 s 暂停；探针回放 1936 帧且重复运行逐字节相同。
+**已测（2026-11-02 收口后）**：一份 SourceTV 录像的 **8x 与 16x** 回放；3 次死亡、3 次接管、1 次手动选人（含越界拒绝）、**1 次暂停中的手动选人**、**1 次真实倒退 seek**、1 次 2.0 s 暂停；探针回放 1936 帧且重复运行逐字节相同。
 
-**NOT VERIFIED（不是通过）**：
+**七条的处置**：三条变成测量（1、2、6），其中一条同时是产品缺陷的修复；四条带着写明的理由接受（3、4、5、7）。逐条依据在 [`T66-NV-MATRIX.md`](T66-NV-MATRIX.md)，读数、命令与时间线在 [`T66-CLOSEOUT.md`](T66-CLOSEOUT.md)。**没有一条留成"未证明、也不知道能不能用"。**
 
-1. **高倍速**：16x 回放时 `resync=2`——寻求启发式 `kSeekGapTicks=200` 把一帧卡顿误判成 seek。产品的反应是对的（重新选人、不跳原点），但这个阈值在 16x 下不成立，所以门禁固定 8x，16x 以上不测。
-2. **真实 seek / rewind**：工作区或拖动条的主动 seek 没有接进接管的测试；接管的 seek 路径只被 16x 的误触发碰到过。
-3. **demo 自带导演目标**：S1 的 `m_hObserverTarget=301073`（index 17 / serial 147）指向一个**永久的死亡观察者槽位**（team 1 / health 200 / lifeState 2，tick 15000..70000 全同），所以"优先用 demo 自己的目标"这条在本录像上只能断言为 `director=0`（从未可用），不能断言为"跟随了导演"。语料里没有找到该句柄指向活人的录像。
-4. **特殊死亡**：环境死亡、队友伤害、自杀等写法的区分没测；只测了 `lifeState`/`health` 两个字段。
-5. **附加模型**：尸体移除只处理玩家模型本身；`m_hMyWearables`、帽子等附加模型走另一条路径，没有验证它们是否同时消失。
-6. **暂停中的手动选人**：测了暂停中的自动接管（§6.5），没测"暂停时手动点名另一个人"。
-7. **多显示器 / 独占全屏 / 音频**：沿用 T49.1 的 NOT VERIFIED；本轮改动没有触及这条路径。
+1. **高倍速 → 已关闭，且是产品缺陷。** 旧判据是固定的 `kSeekGapTicks=200`（只看 tick 增量），16x 下"一帧耗时够久"与"用户 seek 了"无法区分，于是 `resync=2`。现在 seek 上限按当前倍速与墙钟帧时长算：`kTickRate=66`、`kSeekFloorTicks=32`、窗口 2 倍余量（`native/src/spectate_target.cpp` 的 `update()`）；`update()` 新增**必填**参数 `playbackSpeed`——不给默认值，因为默认值会把这个缺陷原样带回来（`native/src/main.cpp:10412-10415` 传 `g_playback.speed`）。实测 16x：`resync=0`，deaths=3、handovers=3 与 8x 一致（门禁 §11）。探针自测补 S7b 四条（49 → **53** 断言）。
+2. **真实 seek / rewind → 已关闭。** 门禁 §10 用 `--camera-script`（播到 tick 3400 → `seek 2500` → 跑 24 帧）驱动产品自己的 `PlaybackControl` 请求，实测 `before_tick=13748 before_resync=0`、`after_tick=12820 after_resync=1`，整个 run 的 `resync` 恰好 1 次，且 seek 后第一帧就已经在新位置（回退约 930 tick），没有从旧位置滑过去的过渡。夹具原先带 `pause`，第三轮变异实测它不确定（暂停足够长时交接按墙钟已经走完，`before_tr` 读到 0；跳转有时还没落地脚本就退出了，`after_resync=<none>`，恢复后的基线因此自己判红），所以去掉了暂停；去掉后同一段连跑三次读数逐字一致（`/d/_shared/t66-nv/seekdet1..3.log`）。"清掉进行中的交接"那一行本身无法用变异证明（保留交接的补丁在这份录像上不可见，下一帧换目标就结束了），这条限制写在 `T66-CLOSEOUT.md` §2。
+3. **demo 自带导演目标 → 接受（语料限制）。** S1 的 `m_hObserverTarget=301073`（index 17 / serial 147）指向一个**永久的死亡观察者槽位**（team 1 / health 200 / lifeState 2，tick 15000..70000 全同），所以"优先用 demo 自己的目标"这条在本录像上只能断言为 `director=0`（从未可用），不能断言为"跟随了导演"。要关闭需要一份该句柄指向活人的 SourceTV 录像；夹具生成器 `stability-make-inputs.ps1` 只截断真 demo，造不出来。
+4. **特殊死亡 → 接受（在契约外）。** 接管只读 `m_lifeState` / `m_iHealth` 两个字段（`native/src/spectate_target.cpp:94-98`），从不问死因：demo 报成死亡的都覆盖，报不出来的死亡换任何死因分类也覆盖不了。"两列都没有的行不算尸体"这条禁路已被断言（§3 步 3）。
+5. **附加模型（帽子/可穿戴）→ 接受，并留一条明确的后续。** 尸体规则按实体索引只隐玩家模型本身；产品目前没有 `m_hMyWearables` 读取路径（`grep -r wearable native/` 只命中绘制分类与探针注释）。要关闭需要（a）世界实体的 owner handle 解析、（b）一份戴帽玩家在画面里死亡的录像，两者都不在本语料里。
+6. **暂停中的手动选人 → 已关闭。** 门禁 §9 在 §8 的暂停夹具上加 `--spectate-target 6`（选 2500 这个 tick 是真有理由的：被点的 6 号在 server tick 13097 死亡，晚于约 2750 就测不到"暂停保住了选人"）。实测：冻结窗内零重发（安静形态），冻结开始前最后一行 `target=6 src=manual`，恢复后第一次换人带 `deaths>=1`——换人来自死亡，不是来自暂停。
+7. **多显示器 / 独占全屏 / 音频 → 接受（沿用 T49.1）**：本机只有一个 64 位 D3D11 窗口、一块屏，环境上测不到；清单留在 T49.1，不在这里复制第二份。
 
-**已知取舍**：`native/src/spectate_target.cpp:286` 的 `kHandoverSeconds > 0.0` 判据会触发 `warning C4127`（条件表达式是常量）。它存在的原因是让 m1 变异体（把 0.3 改成 0.0）不除零崩溃，从而把变红的原因说成"接管消失了"而不是"崩了"。这是门禁侧需要它，不是产品需要它，故保留并在报告里点名。
+**已知取舍**（不变）：`native/src/spectate_target.cpp` 的 `kHandoverSeconds > 0.0` 判据会触发 `warning C4127`（条件表达式是常量，构建日志里报在 :303）。它存在的原因是让 m1 变异体（把 0.3 改成 0.0）不除零崩溃，从而把变红的原因说成"接管消失了"而不是"崩了"。这是门禁侧需要它，不是产品需要它，故保留并在报告里点名。
 
 ---
 
@@ -298,8 +298,26 @@ bash spectate-mutations.sh                  # 六个变异：重建 + 跑对应�
 | `native/tools/spectate_probe.cpp` | 460（新） | 自测 49 断言（S1-S8，含 S2b"未解析行不是尸体"）+ 真实录像回放 |
 | `native/src/main.cpp` | +282 / -11 | 接线（`--spectate-target` / `--spectate-show-corpses` / `--spectate-pause-at` / `--spectate-pause-seconds`）、每帧决策块、绘制候选集重构、`spectate:` 追踪与总结 |
 | `native/CMakeLists.txt` | +28 | 产品源 + `spectate_probe` 目标（exe 51 → 52） |
-| `verify-all.sh` | +41 / -26 | 27 步（新增 27/27）、exe 钉 52、断言钉 71 |
+| `verify-all.sh` | +41 / -26 | 27 步（新增 27/27）、exe 钉 52、断言地板 71（收口轮提高到 94，见 §10.1） |
 | `spectate-check.sh` | 406（新） | 九段门禁；每段可用 `SPECTATE_SECTIONS` 单独跑，变异套件靠这一点只跑携带该断言的那一段 |
 | `spectate-mutations.sh` + `spectate-patchlib.py` | 172 + 200（新） | 六个变异、逐字节恢复、`error C` 计数、恢复后重跑基线 |
 | `spectate-pixels.py` / `spectate-transitions.py` | 75 / 110（新） | BMP 对比（24bpp）；接管形状分析（段 5 的另一半） |
 | `evidence/t66-sourcetv/` | — | 本报告 + 门禁日志 + 变异日志 |
+
+### 10.1 收口轮（2026-11-02）的改动
+
+`git diff --numstat` 实测，相对 `660ff40`：
+
+| 文件 | 增 / 删 | 内容 |
+|---|---|---|
+| `native/include/spectate_target.h` | +24 / -7 | 删 `kSeekGapTicks`；加 `kSeekFloorTicks=32`、`kTickRate=66.0`；`update()` 新增必填 `playbackSpeed` 与 `lastNow_`/`hasLastNow_` |
+| `native/src/spectate_target.cpp` | +23 / -6 | seek 上限 = 2 × 66 × speed × 帧时长，带 32 tick 地板；命中时清交接 |
+| `native/src/main.cpp` | +4 / -1 | 每帧把 `g_playback.speed` 传给 `update()` |
+| `native/tools/spectate_probe.cpp` | +51 / -20 | 20 处调用补 `kReplaySpeed`；S7b 四条（16x 卡顿不算 seek、一帧跳 240 tick 算 seek、零耗时不算、1x 半秒算）；自测 53 断言 |
+| `spectate-check.sh` | +176 / -10 | 段数 11；§9 暂停中的选人、§10 真实 seek、§11 16x 回放；`assert_contains` 传文本不传路径的坑写进注释 |
+| `spectate-mutations.sh` | +20 / -4 | `caught/4` 写死改为按文件数出 `TOTAL_CASES`（否则 8 例全红仍判 FAIL） |
+| `spectate-patchlib.py` | +25 / -2 | m6 needle 跟上新调用；m7/m8 换成能红 §9/§10 的变异 |
+| `verify-all.sh` | +13 / -10 | 27/27 的断言地板 71 → 94（12 段合计 96，starved host 94），注释列出每段计数 |
+| `evidence/t66-sourcetv/T66-NV-MATRIX.md` | 新 | 七条 NV 的逐条处置与要关闭它需要什么 |
+| `evidence/t66-sourcetv/T66-CLOSEOUT.md` | 新 | 本轮读数、命令、时间线、变异证据与那次被打断的重跑 |
+| `evidence/t66-sourcetv/T66-SOURCETV-REPORT.md` | 改 | §9 重写为"逐条处置"，§10 增本节 |

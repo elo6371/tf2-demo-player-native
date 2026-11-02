@@ -125,8 +125,10 @@ run_case m1 "4,5" "handovers analysed"
 run_case m2 "4" "instances the corpse rule removed"
 
 # m3: the manual wiring reverted -- the pick is stolen back by the automatic rule
-# and animated. Section 6 asserts a manual pick produces no handover at all.
-run_case m3 "6" "handovers that happened before the first death in the manual run"
+# and animated. Section 6 asserts a manual pick produces no handover at all, and
+# section 9 asks the same of a pick held across a pause: the automatic rule runs in
+# the paused frames too, so both readings travel with this mutant.
+run_case m3 "6,9" "handovers that happened before the first death in the manual run"
 
 # m4: the demo's own observer handle accepted without the alive test -- the camera
 # follows a permanently dead spectator slot. Section 3 is the replay that counts
@@ -144,6 +146,16 @@ run_case m5 "2" "the camera never falls back to the world origin"
 # green on this mutant, which is why the pause clause needed a section of its own.
 run_case m6 "8" "handover lines the product printed while the clock was frozen"
 
+# m7: the seek is abandoned but the counter never moves, so the trace and the
+# summary report a run in which the relay silently lost its target and said nothing.
+# Section 10 is the only section that drives the product's own jump path.
+run_case m7 "10" "seeks counted in the whole seek run"
+
+# m8: the seek bound is the pre-fix fixed 200 ticks, which ignores the speed. The
+# self-test states the 16x reading (S7b); at 8x the same rule looks correct, which
+# is why the clause is asserted in the decision section and not in a capture.
+run_case m8 "2" "S7b a 240-tick step over 3 s at 16x is playback"
+
 echo "=========================================================================="
 if [ "$RUN_BASELINE" = "1" ]; then
   echo "--- final baseline: the restored tree must be green in every section"
@@ -160,11 +172,15 @@ else
   echo "--- final baseline skipped (--skip-baseline): a skipped baseline is NOT RUN, not a pass"
 fi
 
+# The total is read from the file, not spelled: the suite grew from four cases to
+# eight and the summary line plus the pass condition kept saying four, so a run
+# that caught every mutant still printed SPECTATE-MUTATION=FAIL.
+TOTAL_CASES=$(grep -c '^run_case ' "$0")
 echo "=========================================================================="
-echo "mutants caught:     $caught/4"
+echo "mutants caught:     $caught/$TOTAL_CASES"
 echo "mutants green:      $green (an unasserted clause)"
 echo "mutants invalid:    $invalid (did not apply or did not compile)"
-if [ "$fail" -eq 0 ] && [ "$caught" -eq 4 ]; then
+if [ "$fail" -eq 0 ] && [ "$caught" -eq "$TOTAL_CASES" ]; then
   echo "SPECTATE-MUTATION=PASS: every clause of the relay reddened its own named assertion, the tree was restored byte-for-byte, and the final baseline gate is green."
 else
   echo "SPECTATE-MUTATION=FAIL"

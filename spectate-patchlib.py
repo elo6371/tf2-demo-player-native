@@ -73,10 +73,37 @@ CASES = {
     # pre-fix wiring, where a paused recording froze the handover in flight.
     "m6": {
         "file": M,
-        "needle": "      g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick);",
-        "replacement": ("      g_spectateDirector.update(static_cast<double>(spectateSceneTick) / 66.0, spectateSlots, spectateDirectorHandle, spectateSceneTick);"
+        "needle": ("      g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick,"
+                   "\n                                static_cast<double>(g_playback.speed));"),
+        "replacement": ("      g_spectateDirector.update(static_cast<double>(spectateSceneTick) / 66.0, spectateSlots, spectateDirectorHandle, spectateSceneTick,"
+                        "\n                                static_cast<double>(g_playback.speed));"
                         "  // T66 m6: the demo clock drives the handover"),
         "what": "the handover clock is derived from the demo tick, so a pause freezes it",
+    },
+    # A seek is abandoned but NOT counted: the camera does jump (so the frame after it
+    # is not mid-handover) while the counter that the trace and the summary publish
+    # stays at zero, i.e. the relay silently stops reporting that it lost its target.
+    # The obvious mutant here -- keep the handover in flight across the seek -- was
+    # measured and is equivalent on this fixture: the next frame's target change ends
+    # the transition anyway (evidence/t66-sourcetv/T66-CLOSEOUT.md), so the case that
+    # is asserted is the counting, not the clearing.
+    "m7": {
+        "file": C,
+        "needle": "      ++resyncs_;\n      transitionActive_ = false;\n      targetDeadRecorded_ = false;",
+        "replacement": "      transitionActive_ = false;  // T66 m7: the seek is not counted\n      targetDeadRecorded_ = false;",
+        "what": "a seek is abandoned but not counted",
+    },
+    # The seek bound is the pre-fix fixed 200 ticks: correct at 8x, and wrong at 16x,
+    # where continuous playback covers more than that between two frames on a slow
+    # host. The self-test states the 16x reading (S7b), so the case needs no product
+    # run -- and it is deterministic, which a host-timing reading would not be.
+    "m8": {
+        "file": C,
+        "needle": ("    const std::int32_t allowed = travel > static_cast<double>(kSeekFloorTicks)\n"
+                   "      ? static_cast<std::int32_t>(travel)\n"
+                   "      : kSeekFloorTicks;"),
+        "replacement": "    const std::int32_t allowed = 200;  // T66 m8: the pre-fix fixed gap",
+        "what": "the seek bound ignores the playback speed",
     },
 }
 

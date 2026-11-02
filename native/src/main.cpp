@@ -10410,7 +10410,10 @@ bool outlineVertexExtent = false;
     // Only a resolved snapshot may move the camera: a missing or stale one is not
     // evidence that anybody died.
     if (spectateSnapshotDrawable && spectateSceneTick >= 0) {
-      g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick);
+      // The live speed, not a constant: the seek bound is derived from it, so a
+      // 16x replay reads as continuous playback instead of a seek on every frame.
+      g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick,
+                                static_cast<double>(g_playback.speed));
     }
     if (g_spectateDirector.focusValid()) {
       float spectateFocus[3] = {0.0f, 0.0f, 0.0f};

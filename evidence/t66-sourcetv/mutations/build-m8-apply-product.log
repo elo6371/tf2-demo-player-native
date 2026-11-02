@@ -1,0 +1,4 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t66-nv\native\src\spectate_target.cpp(90): warning C4189: “travel”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t66-nv\native\src\spectate_target.cpp(301): warning C4127: 条件表达式是常量
+rc=0

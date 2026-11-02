@@ -1,0 +1,12 @@
+=== 10/11 a real seek: counted once, and no frame after it is mid-handover ===
+  OK   seek run exit = 0
+  OK   the product accepted the seek contains cmd=seek result=ok detail=tick=2500
+  OK   the seek went through the jump path contains source=camera-script requestedTick=2500
+  before_tick=13738 before_resync=0 after_tick=12820 after_resync=0
+  OK   seeks the relay reported before the seek = 0
+  FAIL seeks the relay reported after the seek = 0, expected >= 1
+  OK   the tick of the first line published after the seek = 12820 (< 13738)
+  summary: 37965.9 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=740 target=3 src=stable tr=0 prog=0.000 focus=2632.6,-1146.0,-41.5 deaths=1 handovers=1 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=2 hidden=11 lastdeath=13622
+  FAIL seeks counted in the whole seek run = 0, expected 1
+==========================================================================
+SPECTATE-CHECK=FAIL

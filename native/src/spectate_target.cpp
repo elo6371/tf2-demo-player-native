@@ -64,17 +64,34 @@ const char* spectateSourceName(SpectateSource source) {
 void SpectateDirector::update(double nowSeconds,
                               const std::vector<SpectateSlot>& slots,
                               std::int64_t directorHandle,
-                              std::int32_t serverTick) {
+                              std::int32_t serverTick,
+                              double playbackSpeed) {
   ++frames_;
+  const double frameSeconds = hasLastNow_ && nowSeconds > lastNow_ ? nowSeconds - lastNow_ : 0.0;
+  lastNow_ = nowSeconds;
+  hasLastNow_ = true;
   now_ = nowSeconds;
 
   // ---- 1. a new timeline? ------------------------------------------------
-  // A tick that goes backwards, or one that jumps further than any continuous
-  // playback could, is a seek. The handover is abandoned: interpolating between
-  // a focus from the old moment and a target from the new one would draw a
-  // camera standing between two points of the match that never coexisted.
+  // A tick that goes backwards, or one that jumps further than continuous
+  // playback could have jumped in the time that actually elapsed, is a seek. The
+  // handover is abandoned: interpolating between a focus from the old moment and
+  // a target from the new one would draw a camera standing between two points of
+  // the match that never coexisted.
+  //
+  // The bound is the distance continuous playback at THIS speed could have
+  // covered, doubled for host jitter: a frame that took 40 ms at 8x moves the
+  // tick by ~21, and a seek moves it by thousands. Reading the speed here, rather
+  // than assuming the gate's 8x, is what lets a 16x replay be a replay instead of
+  // a seek on every frame. The floor keeps a paused screen (no elapsed time, no
+  // travel) from calling a one-tick step a seek.
   if (serverTick >= 0 && lastServerTick_ >= 0) {
-    if (serverTick < lastServerTick_ || serverTick - lastServerTick_ > kSeekGapTicks) {
+    const double speed = playbackSpeed > 0.0 ? playbackSpeed : 1.0;
+    const double travel = kTickRate * speed * frameSeconds * 2.0;
+    const std::int32_t allowed = travel > static_cast<double>(kSeekFloorTicks)
+      ? static_cast<std::int32_t>(travel)
+      : kSeekFloorTicks;
+    if (serverTick < lastServerTick_ || serverTick - lastServerTick_ > allowed) {
       ++resyncs_;
       transitionActive_ = false;
       targetDeadRecorded_ = false;

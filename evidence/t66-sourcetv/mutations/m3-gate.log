@@ -1,14 +1,28 @@
-=== 6/8 the manual pick: same frame, no handover, not taken back ===
+=== 6/11 the manual pick: same frame, no handover, not taken back ===
   OK   manual pick run exit = 0
-  summary: 44595.3 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=5132 target=15 src=stable tr=0 prog=0.000 focus=-1609.3,1083.6,150.0 deaths=3 handovers=4 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=4 hidden=7 lastdeath=19949
+  summary: 50255.5 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=3038 target=15 src=stable tr=0 prog=0.000 focus=-1609.3,1083.6,150.0 deaths=3 handovers=4 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=4 hidden=7 lastdeath=19961
   OK   manual pick accepted = 1
   OK   manual pick rejected = 0
-  FAIL the first product frame already carries the manual target = 22217.6 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain target=6
-  FAIL the first product frame reports the pick as manual = 22217.6 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain src=manual
-  FAIL the first product frame is not mid-handover = 22217.6 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain tr=0
+  FAIL the first product frame already carries the manual target = 27892.1 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain target=6
+  FAIL the first product frame reports the pick as manual = 27892.1 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain src=manual
+  FAIL the first product frame is not mid-handover = 27892.1 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=7 src=stable tr=1 prog=0.000 focus=755.2,269.0,64.0 deaths=0 handovers=1 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1, expected to contain tr=0
   FAIL handovers that happened before the first death in the manual run = 3, expected 0
-  OK   product frames printed by the manual run = 56 (>= 3)
+  OK   product frames printed by the manual run = 40 (>= 3)
   OK   out-of-range pick flagged = 1 (>= 1)
   OK   out-of-range pick was never handed to the relay as a target = 0
+=== 9/11 the pick: a manual target survives a pause, and nothing takes it back ===
+  OK   pick-through-pause run exit = 0
+  summary: 67630.7 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=4726 target=15 src=stable tr=0 prog=0.000 focus=3563.9,-1458.9,120.8 deaths=3 handovers=4 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=4 hidden=8 lastdeath=19960
+  OK   picks accepted in the pick run = 1
+  OK   picks refused in the pick run = 0
+  OK   frames with no target in the pick run = 0
+  OK   pause windows opened in the pick run = 1
+  OK   pause windows resumed in the pick run = 1
+  frozen window:
+  NOTE the pick was never re-published during the pause, which is the quiet form of holding it
+  before_target=7 before_src=stable after_target=8 after_deaths=1
+  FAIL the target when the freeze began = 7, expected 6
+  FAIL the source when the freeze began = stable, expected manual
+  OK   deaths behind the first target change after the resume = 1 (>= 1)
 ==========================================================================
 SPECTATE-CHECK=FAIL

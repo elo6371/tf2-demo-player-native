@@ -40,6 +40,10 @@ OK S7 a handover is open before the seek
 OK S7 a backwards tick is counted as a seek
 OK S7 a seek abandons the half-finished handover
 OK S7 a forward jump larger than the gap is counted as a seek
+OK S7b a 240-tick step over 3 s at 16x is playback, not a seek
+OK S7b the same 240-tick step in 10 ms at 16x is a seek
+OK S7b a one-tick step with no elapsed time is not a seek
+OK S7b 240 ticks in 0.5 s at 1x is a seek
 OK S8 a living director handle decides the target before the stable order
 OK S8 the source reads director
 OK S8 the director pick is counted
@@ -47,4 +51,4 @@ OK S8 the stable order is not used when the director names a living player
 OK S8 a director handle on the spectator team is not an observation target
 OK S8 the stable order takes over when the handle is unusable
 OK S10 two runs of the same snapshot sequence produce the same trace
-SPECTATE-SELF-TEST=PASS checks=49 failures=0
+SPECTATE-SELF-TEST=PASS checks=53 failures=0

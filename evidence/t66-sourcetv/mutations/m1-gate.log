@@ -1,17 +1,18 @@
-=== 4/8 the product: the same three deaths at 8x, a handover in progress, corpses removed ===
+=== 4/11 the product: the same three deaths at 8x, a handover in progress, corpses removed ===
   OK   product run exit = 0
-  OK   product trace bytes = 8441268 (>= 1000000)
-  summary: 58830.3 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=7852 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19502
+  OK   product trace bytes = 4388091 (>= 1000000)
+  summary: 71409.4 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=4039 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19499
   OK   product deaths = 3
   OK   product handovers = 3
   OK   product frames with no target = 0
   OK   product seeks = 0
   OK   product manual picks = 0
-  OK   instances the corpse rule removed = 7852 (>= 100)
+  OK   the product never used the demo director handle either = 0
+  OK   instances the corpse rule removed = 4039 (>= 100)
   OK   frames that published a corpse filter line = 21 (>= 3)
   OK   the last corpse filter names the dead player contains indices=
   OK   the first corpse filter names the first dead player (2) contains 2
-=== 5/8 the handover shape: intermediate positions, monotone progress, no single jump ===
+=== 5/11 the handover shape: intermediate positions, monotone progress, no single jump ===
   OK   handover analysis exit = 0
   HANDOVERS=0
   FAIL handovers analysed = 0, expected 3

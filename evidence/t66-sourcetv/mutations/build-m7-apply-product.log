@@ -1,0 +1,3 @@
+=== build tf2_demo_native ===
+D:\TF2_Native_Worktrees\t66-nv\native\src\spectate_target.cpp(302): warning C4127: 条件表达式是常量
+rc=0

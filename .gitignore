@@ -146,3 +146,11 @@ evidence/outline/mutation-backup/
 scratch/
 __pycache__/
 *.pyc
+
+# T66 closeout: the relay's gate writes one trace and up to four 2.5 MB BMPs per run
+# into evidence/t66-sourcetv/, and every mutation case rewrites them. They are machine
+# artifacts -- 87 MB of traces after one suite -- and what is committed is the readings
+# (*.log, *.txt) and the two reports. Same rule as evidence/weapon-animation/*.trace:
+# a frozen witness frame is committed on purpose, a run's working set is not.
+evidence/t66-sourcetv/**/*.trace
+evidence/t66-sourcetv/**/*.bmp

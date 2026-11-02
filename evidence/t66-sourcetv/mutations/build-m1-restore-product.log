@@ -1,21 +1,21 @@
 === build tf2_demo_native ===
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3227): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3228): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3229): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3230): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(3231): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\main.cpp(9452): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Worktrees\t66-nv\native\src\main.cpp(2979): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-nv\native\src\main.cpp(2980): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-nv\native\src\main.cpp(2981): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-nv\native\src\main.cpp(2982): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-nv\native\src\main.cpp(2983): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-nv\native\src\main.cpp(9428): warning C4457: “instance”的声明隐藏了函数参数
 C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\native_renderer.cpp(1711): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\native_renderer.cpp(3476): warning C4100: 'tick': 未引用的参数
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\native_renderer.cpp(3734): warning C4456: “world”的声明隐藏了上一个本地声明
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\native_renderer.cpp(4607): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\native_renderer.cpp(4608): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\native_renderer.cpp(4915): warning C4456: “view”的声明隐藏了上一个本地声明
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\native_renderer.cpp(5085): warning C4456: “view”的声明隐藏了上一个本地声明
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
-D:\TF2_Native_Worktrees\t66-sourcetv\native\src\spectate_target.cpp(286): warning C4127: 条件表达式是常量
+D:\TF2_Native_Worktrees\t66-nv\native\src\native_renderer.cpp(1543): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t66-nv\native\src\native_renderer_overlay.cpp(142): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t66-nv\native\src\native_renderer_overlay.cpp(400): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t66-nv\native\src\native_renderer_viewmodel.cpp(390): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-nv\native\src\native_renderer_viewmodel.cpp(391): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t66-nv\native\src\native_renderer_viewmodel.cpp(698): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t66-nv\native\src\native_renderer_viewmodel.cpp(868): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t66-nv\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t66-nv\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t66-nv\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t66-nv\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t66-nv\native\src\spectate_target.cpp(303): warning C4127: 条件表达式是常量
 rc=0

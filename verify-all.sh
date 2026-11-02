@@ -1334,16 +1334,21 @@ SPECTATE_OUT="$SPECTATE_OUT" bash spectate-check.sh > "$OUT/27-sourceTV-relay.tx
 SPECTATE_RC=$?
 tail -8 "$OUT/27-sourceTV-relay.txt"
 SPECTATE_OK=$(grep -c '^  OK ' "$OUT/27-sourceTV-relay.txt" || true)
-# 71 is the floor, not the count: sections 0/8 through 8/8 hold 71 unconditional
-# assertions, and the pause section adds two more (>= 8 handover lines on one tick,
-# >= 5 progress values) that only read on a host that gave the window at least 8
-# frames -- on a starved host the gate prints a NOTE and skips them. So a healthy
-# host prints 73 and a starved host prints 71; pinning either number exactly fails
-# the other one (PGD-9, 2026-11-01). A floor keeps the property that matters here --
-# a gate that prints PASS while its assertions quietly disappear is not a gate --
-# without measuring the host's frame rate.
-if [ "$SPECTATE_RC" -eq 0 ] && grep -q 'SPECTATE-CHECK=PASS' "$OUT/27-sourceTV-relay.txt" && [ "$SPECTATE_OK" -ge 71 ]; then
-  echo "SPECTATE-CHECK=PASS ($SPECTATE_OK assertions, floor 71)"
+# 93 is the floor, not the count. The gate runs twelve sections (0/11 through 11/11)
+# and prints 95 assertions on a healthy host: the pause section adds two
+# (>= 8 handover lines on one tick, >= 5 progress values) that only read on a host
+# that gave the window at least 8 frames, and the pick-through-pause section adds
+# two more (a line inside the frozen window that names the picked target) only when
+# the relay re-published inside the window. A starved host with a quiet window
+# therefore prints 93. Pin 95 and any other host fails; pin 71 and the three new
+# sections (the pick held across a pause, a real seek, a 16x replay) can vanish
+# silently while the gate still says PASS -- the exact shape this floor exists to
+# prevent (PGD-9, 2026-11-01; T66 closeout, 2026-11-02).
+#   section counts on 2026-11-02: 1+2+4+11+12+14+10+6+13+9+7+6 = 95
+#   (the seek section carries four assertions after the fixture lost its pause: the
+#    reading is the count and the tick of the first line published after the jump)
+if [ "$SPECTATE_RC" -eq 0 ] && grep -q 'SPECTATE-CHECK=PASS' "$OUT/27-sourceTV-relay.txt" && [ "$SPECTATE_OK" -ge 93 ]; then
+  echo "SPECTATE-CHECK=PASS ($SPECTATE_OK assertions, floor 93)"
 else
   echo "SPECTATE-CHECK=FAIL (rc=$SPECTATE_RC ok=$SPECTATE_OK expected >= 71)"; rc_all=1
 fi

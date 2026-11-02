@@ -78,20 +78,32 @@ class SpectateDirector {
 public:
   // 0.3 s: the task's number, spelled once.
   static constexpr double kHandoverSeconds = 0.3;
-  // A tick jump larger than this is a seek, not a frame. At 66 tick/s a normal
-  // frame moves the tick by at most a handful; the threshold is deliberately far
-  // above playback speed 8 so a fast but continuous playback is not mistaken for
-  // a seek.
-  static constexpr std::int32_t kSeekGapTicks = 200;
+  // A jump is a seek when the tick moves further than continuous playback could
+  // have moved it since the previous update. That distance depends on the speed,
+  // so it is computed, not spelled: kSeekFloorTicks is the floor (at 66 tick/s a
+  // frame moves the tick by a handful) and update() raises it to twice the
+  // distance the live speed could have travelled in the elapsed wall time. A
+  // single fixed 200 was right at 8x and reported every other frame of a 16x
+  // replay as a seek -- the defect T66 note 1 records.
+  static constexpr std::int32_t kSeekFloorTicks = 32;
+  // The demo's tick rate, spelled once, used only to turn a wall-clock interval
+  // into the number of ticks that interval could have contained.
+  static constexpr double kTickRate = 66.0;
 
   // nowSeconds is a monotonic wall clock. It is never compared with, derived
   // from or stored as a demo tick: that separation is what makes "the handover
   // keeps running while the demo is paused" testable by passing one tick twice
   // and advancing only this number.
+  //
+  // playbackSpeed has no default on purpose. A default would let a caller that
+  // knows the live speed silently inherit the gate's speed and misjudge every
+  // frame of a fast replay as a seek -- the shape of the bug this parameter
+  // exists to fix. Every caller states the speed it is running at.
   void update(double nowSeconds,
               const std::vector<SpectateSlot>& slots,
               std::int64_t directorHandle,
-              std::int32_t serverTick);
+              std::int32_t serverTick,
+              double playbackSpeed);
 
   // The player the user clicked. It takes effect on the next update, immediately
   // and without a transition; the source reads Manual so a gate can tell the two
@@ -157,6 +169,11 @@ private:
 
   std::int32_t lastServerTick_ = -1;
   std::int32_t lastDeathTick_ = -1;
+  // Wall clock of the previous update, so a seek bound can be derived from the
+  // time the frames actually took. hasLastNow_ keeps the first update honest:
+  // there is no previous interval to measure, so only the floor applies.
+  double lastNow_ = 0.0;
+  bool hasLastNow_ = false;
 
   std::uint32_t frames_ = 0;
   std::uint32_t deaths_ = 0;

@@ -1,0 +1,6 @@
+tick 3400
+pause
+frames 2
+seek 2500
+frames 8
+quit

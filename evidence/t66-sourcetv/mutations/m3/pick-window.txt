@@ -1,0 +1,648 @@
+33362.0 spectate: pause-at tick=2505 wall=27415.326651 seconds=2.000
+33362.4 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=200174 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=4096x1156, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=2505/64352 req=2505 act=2505 frame=pending fdelta=na speed=8.000000 rate=66.666669 anchorAbs=12742@10537657 forward paused HUD[tick=2505 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=paused camera=first-person error=none speed=8.000000 entity=checkpoint stale=356 audio=0/258 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=139 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=212 entityModelVerts=329826 entityMaterials=95/95 entityMaterialRanges=82/82 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=57/96 animBones=163 animSeq=0 animFrame=10/30 animSource=missing animBindings=96/15072 animCache=15032 animAdv=77 animWitness=models/props_ui/bannerflag_comp_l.mdl gpuSkin=56/163 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projecti...[TRUNCATED]
+33362.4 draw: begin tick=2505 frames=155
+33362.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33362.5 draw: end frames=156 pending=0
+33362.6 loop n=158 tick=2505
+33362.7 draw: begin tick=2505 frames=156
+33362.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33362.9 draw: end frames=157 pending=0
+33362.9 loop n=159 tick=2505
+33371.1 loop n=160 tick=2505
+33371.3 draw: begin tick=2505 frames=157
+33371.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33371.4 draw: end frames=158 pending=0
+33371.4 loop n=161 tick=2505
+33386.4 loop n=162 tick=2505
+33386.6 draw: begin tick=2505 frames=158
+33386.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33386.7 draw: end frames=159 pending=0
+33386.7 loop n=163 tick=2505
+33401.8 loop n=164 tick=2505
+33402.2 draw: begin tick=2505 frames=159
+33402.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33402.4 draw: end frames=160 pending=0
+33402.4 loop n=165 tick=2505
+33417.5 loop n=166 tick=2505
+33417.7 draw: begin tick=2505 frames=160
+33417.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33417.9 draw: end frames=161 pending=0
+33417.9 loop n=167 tick=2505
+33433.2 loop n=168 tick=2505
+33433.5 draw: begin tick=2505 frames=161
+33433.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33433.7 draw: end frames=162 pending=0
+33433.7 loop n=169 tick=2505
+33448.3 loop n=170 tick=2505
+33448.4 draw: begin tick=2505 frames=162
+33448.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33448.5 draw: end frames=163 pending=0
+33448.5 loop n=171 tick=2505
+33463.3 loop n=172 tick=2505
+33463.5 draw: begin tick=2505 frames=163
+33463.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33463.6 draw: end frames=164 pending=0
+33463.6 loop n=173 tick=2505
+33479.2 loop n=174 tick=2505
+33479.4 draw: begin tick=2505 frames=164
+33479.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33479.6 draw: end frames=165 pending=0
+33479.6 loop n=175 tick=2505
+33494.3 loop n=176 tick=2505
+33494.5 draw: begin tick=2505 frames=165
+33494.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33494.6 draw: end frames=166 pending=0
+33494.6 loop n=177 tick=2505
+33510.2 loop n=178 tick=2505
+33510.5 draw: begin tick=2505 frames=166
+33510.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33510.7 draw: end frames=167 pending=0
+33510.7 loop n=179 tick=2505
+33525.5 loop n=180 tick=2505
+33525.7 draw: begin tick=2505 frames=167
+33525.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33525.9 draw: end frames=168 pending=0
+33525.9 loop n=181 tick=2505
+33541.0 loop n=182 tick=2505
+33541.2 draw: begin tick=2505 frames=168
+33541.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33541.3 draw: end frames=169 pending=0
+33541.3 loop n=183 tick=2505
+33556.2 loop n=184 tick=2505
+33556.4 draw: begin tick=2505 frames=169
+33556.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33556.5 draw: end frames=170 pending=0
+33556.5 loop n=185 tick=2505
+33571.9 loop n=186 tick=2505
+33572.2 draw: begin tick=2505 frames=170
+33572.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33572.4 draw: end frames=171 pending=0
+33572.4 loop n=187 tick=2505
+33587.1 loop n=188 tick=2505
+33587.3 draw: begin tick=2505 frames=171
+33587.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33587.4 draw: end frames=172 pending=0
+33587.4 loop n=189 tick=2505
+33603.2 loop n=190 tick=2505
+33603.5 draw: begin tick=2505 frames=172
+33603.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33603.7 draw: end frames=173 pending=0
+33603.7 loop n=191 tick=2505
+33618.5 loop n=192 tick=2505
+33618.7 draw: begin tick=2505 frames=173
+33618.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33618.9 draw: end frames=174 pending=0
+33618.9 loop n=193 tick=2505
+33634.1 loop n=194 tick=2505
+33634.3 draw: begin tick=2505 frames=174
+33634.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33634.5 draw: end frames=175 pending=0
+33634.5 loop n=195 tick=2505
+33649.2 loop n=196 tick=2505
+33649.4 draw: begin tick=2505 frames=175
+33649.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33649.5 draw: end frames=176 pending=0
+33649.5 loop n=197 tick=2505
+33664.8 loop n=198 tick=2505
+33665.1 draw: begin tick=2505 frames=176
+33665.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33665.3 draw: end frames=177 pending=0
+33665.3 loop n=199 tick=2505
+33680.1 loop n=200 tick=2505
+33680.3 draw: begin tick=2505 frames=177
+33680.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33680.5 draw: end frames=178 pending=0
+33680.5 loop n=201 tick=2505
+33696.1 loop n=202 tick=2505
+33696.4 draw: begin tick=2505 frames=178
+33696.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33696.5 draw: end frames=179 pending=0
+33696.6 loop n=203 tick=2505
+33712.0 loop n=204 tick=2505
+33712.2 draw: begin tick=2505 frames=179
+33712.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33712.3 draw: end frames=180 pending=0
+33712.3 loop n=205 tick=2505
+33727.6 loop n=206 tick=2505
+33727.8 draw: begin tick=2505 frames=180
+33727.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33727.9 draw: end frames=181 pending=0
+33727.9 loop n=207 tick=2505
+33743.7 loop n=208 tick=2505
+33743.9 draw: begin tick=2505 frames=181
+33744.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33744.1 draw: end frames=182 pending=0
+33744.1 loop n=209 tick=2505
+33759.2 loop n=210 tick=2505
+33759.3 draw: begin tick=2505 frames=182
+33759.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33759.5 draw: end frames=183 pending=0
+33759.5 loop n=211 tick=2505
+33774.4 loop n=212 tick=2505
+33774.6 draw: begin tick=2505 frames=183
+33774.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33774.7 draw: end frames=184 pending=0
+33774.7 loop n=213 tick=2505
+33789.5 loop n=214 tick=2505
+33789.9 draw: begin tick=2505 frames=184
+33790.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33790.1 draw: end frames=185 pending=0
+33790.1 loop n=215 tick=2505
+33805.4 loop n=216 tick=2505
+33805.7 draw: begin tick=2505 frames=185
+33805.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33805.9 draw: end frames=186 pending=0
+33805.9 loop n=217 tick=2505
+33820.6 loop n=218 tick=2505
+33820.9 draw: begin tick=2505 frames=186
+33821.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33821.1 draw: end frames=187 pending=0
+33821.1 loop n=219 tick=2505
+33835.9 loop n=220 tick=2505
+33836.1 draw: begin tick=2505 frames=187
+33836.2 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33836.2 draw: end frames=188 pending=0
+33836.2 loop n=221 tick=2505
+33852.0 loop n=222 tick=2505
+33852.2 draw: begin tick=2505 frames=188
+33852.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33852.4 draw: end frames=189 pending=0
+33852.4 loop n=223 tick=2505
+33867.6 loop n=224 tick=2505
+33867.8 draw: begin tick=2505 frames=189
+33868.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33868.0 draw: end frames=190 pending=0
+33868.0 loop n=225 tick=2505
+33882.5 loop n=226 tick=2505
+33882.7 draw: begin tick=2505 frames=190
+33882.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33882.8 draw: end frames=191 pending=0
+33882.8 loop n=227 tick=2505
+33897.9 loop n=228 tick=2505
+33898.2 draw: begin tick=2505 frames=191
+33898.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33898.4 draw: end frames=192 pending=0
+33898.4 loop n=229 tick=2505
+33913.7 loop n=230 tick=2505
+33914.0 draw: begin tick=2505 frames=192
+33914.2 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33914.2 draw: end frames=193 pending=0
+33914.2 loop n=231 tick=2505
+33928.5 loop n=232 tick=2505
+33928.7 draw: begin tick=2505 frames=193
+33928.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33928.9 draw: end frames=194 pending=0
+33928.9 loop n=233 tick=2505
+33944.3 loop n=234 tick=2505
+33944.6 draw: begin tick=2505 frames=194
+33944.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33944.7 draw: end frames=195 pending=0
+33944.7 loop n=235 tick=2505
+33959.5 loop n=236 tick=2505
+33959.7 draw: begin tick=2505 frames=195
+33959.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33959.8 draw: end frames=196 pending=0
+33959.8 loop n=237 tick=2505
+33975.1 loop n=238 tick=2505
+33975.3 draw: begin tick=2505 frames=196
+33975.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33975.4 draw: end frames=197 pending=0
+33975.4 loop n=239 tick=2505
+33991.1 loop n=240 tick=2505
+33991.4 draw: begin tick=2505 frames=197
+33991.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+33991.5 draw: end frames=198 pending=0
+33991.5 loop n=241 tick=2505
+34007.2 loop n=242 tick=2505
+34007.5 draw: begin tick=2505 frames=198
+34007.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34007.7 draw: end frames=199 pending=0
+34007.7 loop n=243 tick=2505
+34022.7 loop n=244 tick=2505
+34022.9 draw: begin tick=2505 frames=199
+34023.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34023.0 draw: end frames=200 pending=0
+34023.0 loop n=245 tick=2505
+34038.2 loop n=246 tick=2505
+34038.5 draw: begin tick=2505 frames=200
+34038.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34038.8 draw: end frames=201 pending=0
+34038.8 loop n=247 tick=2505
+34053.2 loop n=248 tick=2505
+34053.4 draw: begin tick=2505 frames=201
+34053.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34053.5 draw: end frames=202 pending=0
+34053.5 loop n=249 tick=2505
+34069.3 loop n=250 tick=2505
+34069.5 draw: begin tick=2505 frames=202
+34069.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34069.6 draw: end frames=203 pending=0
+34069.6 loop n=251 tick=2505
+34084.3 loop n=252 tick=2505
+34084.5 draw: begin tick=2505 frames=203
+34084.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34084.7 draw: end frames=204 pending=0
+34084.7 loop n=253 tick=2505
+34099.4 loop n=254 tick=2505
+34099.6 draw: begin tick=2505 frames=204
+34099.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34099.7 draw: end frames=205 pending=0
+34099.7 loop n=255 tick=2505
+34114.9 loop n=256 tick=2505
+34115.2 draw: begin tick=2505 frames=205
+34115.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34115.4 draw: end frames=206 pending=0
+34115.4 loop n=257 tick=2505
+34130.9 loop n=258 tick=2505
+34131.1 draw: begin tick=2505 frames=206
+34131.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34131.3 draw: end frames=207 pending=0
+34131.3 loop n=259 tick=2505
+34146.7 loop n=260 tick=2505
+34146.9 draw: begin tick=2505 frames=207
+34147.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34147.1 draw: end frames=208 pending=0
+34147.1 loop n=261 tick=2505
+34161.7 loop n=262 tick=2505
+34161.9 draw: begin tick=2505 frames=208
+34162.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34162.0 draw: end frames=209 pending=0
+34162.0 loop n=263 tick=2505
+34177.0 loop n=264 tick=2505
+34177.3 draw: begin tick=2505 frames=209
+34177.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34177.4 draw: end frames=210 pending=0
+34177.4 loop n=265 tick=2505
+34192.9 loop n=266 tick=2505
+34193.2 draw: begin tick=2505 frames=210
+34193.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34193.3 draw: end frames=211 pending=0
+34193.3 loop n=267 tick=2505
+34209.2 loop n=268 tick=2505
+34209.5 draw: begin tick=2505 frames=211
+34209.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34209.6 draw: end frames=212 pending=0
+34209.6 loop n=269 tick=2505
+34224.5 loop n=270 tick=2505
+34224.7 draw: begin tick=2505 frames=212
+34224.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34224.8 draw: end frames=213 pending=0
+34224.8 loop n=271 tick=2505
+34240.6 loop n=272 tick=2505
+34240.8 draw: begin tick=2505 frames=213
+34241.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34241.0 draw: end frames=214 pending=0
+34241.0 loop n=273 tick=2505
+34256.1 loop n=274 tick=2505
+34256.4 draw: begin tick=2505 frames=214
+34256.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34256.6 draw: end frames=215 pending=0
+34256.6 loop n=275 tick=2505
+34272.1 loop n=276 tick=2505
+34272.4 draw: begin tick=2505 frames=215
+34272.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34272.6 draw: end frames=216 pending=0
+34272.6 loop n=277 tick=2505
+34287.6 loop n=278 tick=2505
+34287.9 draw: begin tick=2505 frames=216
+34288.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34288.1 draw: end frames=217 pending=0
+34288.1 loop n=279 tick=2505
+34302.8 loop n=280 tick=2505
+34303.0 draw: begin tick=2505 frames=217
+34303.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34303.1 draw: end frames=218 pending=0
+34303.1 loop n=281 tick=2505
+34318.0 loop n=282 tick=2505
+34318.1 draw: begin tick=2505 frames=218
+34318.2 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34318.2 draw: end frames=219 pending=0
+34318.2 loop n=283 tick=2505
+34333.1 loop n=284 tick=2505
+34333.3 draw: begin tick=2505 frames=219
+34333.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34333.4 draw: end frames=220 pending=0
+34333.4 loop n=285 tick=2505
+34349.1 loop n=286 tick=2505
+34349.3 draw: begin tick=2505 frames=220
+34349.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34349.4 draw: end frames=221 pending=0
+34349.4 loop n=287 tick=2505
+34364.2 loop n=288 tick=2505
+34364.4 draw: begin tick=2505 frames=221
+34364.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34364.6 draw: end frames=222 pending=0
+34364.6 loop n=289 tick=2505
+34379.4 loop n=290 tick=2505
+34379.8 draw: begin tick=2505 frames=222
+34380.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34380.0 draw: end frames=223 pending=0
+34380.0 loop n=291 tick=2505
+34395.3 loop n=292 tick=2505
+34395.5 draw: begin tick=2505 frames=223
+34395.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34395.6 draw: end frames=224 pending=0
+34395.6 loop n=293 tick=2505
+34410.3 loop n=294 tick=2505
+34410.5 draw: begin tick=2505 frames=224
+34410.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34410.6 draw: end frames=225 pending=0
+34410.6 loop n=295 tick=2505
+34425.5 loop n=296 tick=2505
+34425.7 draw: begin tick=2505 frames=225
+34425.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34425.9 draw: end frames=226 pending=0
+34425.9 loop n=297 tick=2505
+34440.7 loop n=298 tick=2505
+34440.8 draw: begin tick=2505 frames=226
+34440.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34440.9 draw: end frames=227 pending=0
+34440.9 loop n=299 tick=2505
+34456.5 loop n=300 tick=2505
+34456.8 draw: begin tick=2505 frames=227
+34457.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34457.0 draw: end frames=228 pending=0
+34457.0 loop n=301 tick=2505
+34471.6 loop n=302 tick=2505
+34471.8 draw: begin tick=2505 frames=228
+34471.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34471.9 draw: end frames=229 pending=0
+34471.9 loop n=303 tick=2505
+34487.3 loop n=304 tick=2505
+34487.5 draw: begin tick=2505 frames=229
+34487.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34487.6 draw: end frames=230 pending=0
+34487.6 loop n=305 tick=2505
+34502.4 loop n=306 tick=2505
+34502.6 draw: begin tick=2505 frames=230
+34502.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34502.7 draw: end frames=231 pending=0
+34502.7 loop n=307 tick=2505
+34517.7 loop n=308 tick=2505
+34517.9 draw: begin tick=2505 frames=231
+34518.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34518.1 draw: end frames=232 pending=0
+34518.1 loop n=309 tick=2505
+34532.7 loop n=310 tick=2505
+34532.9 draw: begin tick=2505 frames=232
+34533.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34533.0 draw: end frames=233 pending=0
+34533.0 loop n=311 tick=2505
+34548.2 loop n=312 tick=2505
+34548.4 draw: begin tick=2505 frames=233
+34548.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34548.5 draw: end frames=234 pending=0
+34548.5 loop n=313 tick=2505
+34564.0 loop n=314 tick=2505
+34564.3 draw: begin tick=2505 frames=234
+34564.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34564.4 draw: end frames=235 pending=0
+34564.4 loop n=315 tick=2505
+34579.5 loop n=316 tick=2505
+34579.7 draw: begin tick=2505 frames=235
+34579.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34579.9 draw: end frames=236 pending=0
+34579.9 loop n=317 tick=2505
+34595.3 loop n=318 tick=2505
+34595.5 draw: begin tick=2505 frames=236
+34595.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34595.6 draw: end frames=237 pending=0
+34595.6 loop n=319 tick=2505
+34610.8 loop n=320 tick=2505
+34611.0 draw: begin tick=2505 frames=237
+34611.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34611.1 draw: end frames=238 pending=0
+34611.1 loop n=321 tick=2505
+34626.0 loop n=322 tick=2505
+34626.1 draw: begin tick=2505 frames=238
+34626.2 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34626.2 draw: end frames=239 pending=0
+34626.2 loop n=323 tick=2505
+34641.5 loop n=324 tick=2505
+34641.8 draw: begin tick=2505 frames=239
+34641.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34641.9 draw: end frames=240 pending=0
+34641.9 loop n=325 tick=2505
+34656.4 loop n=326 tick=2505
+34656.6 draw: begin tick=2505 frames=240
+34656.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34656.7 draw: end frames=241 pending=0
+34656.7 loop n=327 tick=2505
+34672.1 loop n=328 tick=2505
+34672.4 draw: begin tick=2505 frames=241
+34672.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34672.5 draw: end frames=242 pending=0
+34672.5 loop n=329 tick=2505
+34688.1 loop n=330 tick=2505
+34688.4 draw: begin tick=2505 frames=242
+34688.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34688.6 draw: end frames=243 pending=0
+34688.6 loop n=331 tick=2505
+34703.3 loop n=332 tick=2505
+34703.6 draw: begin tick=2505 frames=243
+34703.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34703.7 draw: end frames=244 pending=0
+34703.7 loop n=333 tick=2505
+34719.0 loop n=334 tick=2505
+34719.3 draw: begin tick=2505 frames=244
+34719.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34719.4 draw: end frames=245 pending=0
+34719.4 loop n=335 tick=2505
+34734.1 loop n=336 tick=2505
+34734.3 draw: begin tick=2505 frames=245
+34734.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34734.5 draw: end frames=246 pending=0
+34734.5 loop n=337 tick=2505
+34750.1 loop n=338 tick=2505
+34750.3 draw: begin tick=2505 frames=246
+34750.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34750.5 draw: end frames=247 pending=0
+34750.5 loop n=339 tick=2505
+34765.4 loop n=340 tick=2505
+34765.6 draw: begin tick=2505 frames=247
+34765.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34765.7 draw: end frames=248 pending=0
+34765.7 loop n=341 tick=2505
+34780.5 loop n=342 tick=2505
+34780.7 draw: begin tick=2505 frames=248
+34780.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34780.9 draw: end frames=249 pending=0
+34780.9 loop n=343 tick=2505
+34796.5 loop n=344 tick=2505
+34796.8 draw: begin tick=2505 frames=249
+34796.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34796.9 draw: end frames=250 pending=0
+34796.9 loop n=345 tick=2505
+34812.2 loop n=346 tick=2505
+34812.3 draw: begin tick=2505 frames=250
+34812.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34812.4 draw: end frames=251 pending=0
+34812.4 loop n=347 tick=2505
+34827.8 loop n=348 tick=2505
+34827.9 draw: begin tick=2505 frames=251
+34828.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34828.0 draw: end frames=252 pending=0
+34828.1 loop n=349 tick=2505
+34843.3 loop n=350 tick=2505
+34843.4 draw: begin tick=2505 frames=252
+34843.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34843.6 draw: end frames=253 pending=0
+34843.6 loop n=351 tick=2505
+34858.2 loop n=352 tick=2505
+34858.3 draw: begin tick=2505 frames=253
+34858.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34858.4 draw: end frames=254 pending=0
+34858.4 loop n=353 tick=2505
+34873.3 loop n=354 tick=2505
+34873.5 draw: begin tick=2505 frames=254
+34873.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34873.6 draw: end frames=255 pending=0
+34873.6 loop n=355 tick=2505
+34889.2 loop n=356 tick=2505
+34889.5 draw: begin tick=2505 frames=255
+34889.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34889.6 draw: end frames=256 pending=0
+34889.6 loop n=357 tick=2505
+34905.2 loop n=358 tick=2505
+34905.5 draw: begin tick=2505 frames=256
+34905.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34905.7 draw: end frames=257 pending=0
+34905.7 loop n=359 tick=2505
+34920.6 loop n=360 tick=2505
+34920.9 draw: begin tick=2505 frames=257
+34921.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34921.1 draw: end frames=258 pending=0
+34921.1 loop n=361 tick=2505
+34935.6 loop n=362 tick=2505
+34935.9 draw: begin tick=2505 frames=258
+34936.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34936.0 draw: end frames=259 pending=0
+34936.0 loop n=363 tick=2505
+34951.2 loop n=364 tick=2505
+34951.4 draw: begin tick=2505 frames=259
+34951.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34951.5 draw: end frames=260 pending=0
+34951.5 loop n=365 tick=2505
+34966.3 loop n=366 tick=2505
+34966.6 draw: begin tick=2505 frames=260
+34966.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34966.7 draw: end frames=261 pending=0
+34966.7 loop n=367 tick=2505
+34981.5 loop n=368 tick=2505
+34981.7 draw: begin tick=2505 frames=261
+34981.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34981.8 draw: end frames=262 pending=0
+34981.9 loop n=369 tick=2505
+34997.7 loop n=370 tick=2505
+34997.8 draw: begin tick=2505 frames=262
+34998.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+34998.1 draw: end frames=263 pending=0
+34998.1 loop n=371 tick=2505
+35012.7 loop n=372 tick=2505
+35012.9 draw: begin tick=2505 frames=263
+35013.1 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35013.1 draw: end frames=264 pending=0
+35013.1 loop n=373 tick=2505
+35027.9 loop n=374 tick=2505
+35028.1 draw: begin tick=2505 frames=264
+35028.2 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35028.2 draw: end frames=265 pending=0
+35028.2 loop n=375 tick=2505
+35043.1 loop n=376 tick=2505
+35043.3 draw: begin tick=2505 frames=265
+35043.4 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35043.4 draw: end frames=266 pending=0
+35043.4 loop n=377 tick=2505
+35059.2 loop n=378 tick=2505
+35059.4 draw: begin tick=2505 frames=266
+35059.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35059.6 draw: end frames=267 pending=0
+35059.6 loop n=379 tick=2505
+35075.2 loop n=380 tick=2505
+35075.4 draw: begin tick=2505 frames=267
+35075.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35075.7 draw: end frames=268 pending=0
+35075.7 loop n=381 tick=2505
+35090.2 loop n=382 tick=2505
+35090.5 draw: begin tick=2505 frames=268
+35090.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35090.8 draw: end frames=269 pending=0
+35090.8 loop n=383 tick=2505
+35105.2 loop n=384 tick=2505
+35105.4 draw: begin tick=2505 frames=269
+35105.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35105.5 draw: end frames=270 pending=0
+35105.5 loop n=385 tick=2505
+35120.7 loop n=386 tick=2505
+35120.9 draw: begin tick=2505 frames=270
+35121.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35121.0 draw: end frames=271 pending=0
+35121.0 loop n=387 tick=2505
+35135.9 loop n=388 tick=2505
+35136.1 draw: begin tick=2505 frames=271
+35136.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35136.3 draw: end frames=272 pending=0
+35136.3 loop n=389 tick=2505
+35151.5 loop n=390 tick=2505
+35151.7 draw: begin tick=2505 frames=272
+35151.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35151.9 draw: end frames=273 pending=0
+35151.9 loop n=391 tick=2505
+35167.0 loop n=392 tick=2505
+35167.3 draw: begin tick=2505 frames=273
+35167.5 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35167.5 draw: end frames=274 pending=0
+35167.5 loop n=393 tick=2505
+35182.3 loop n=394 tick=2505
+35182.6 draw: begin tick=2505 frames=274
+35182.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35182.8 draw: end frames=275 pending=0
+35182.8 loop n=395 tick=2505
+35197.4 loop n=396 tick=2505
+35197.6 draw: begin tick=2505 frames=275
+35197.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35197.7 draw: end frames=276 pending=0
+35197.7 loop n=397 tick=2505
+35213.3 loop n=398 tick=2505
+35213.5 draw: begin tick=2505 frames=276
+35213.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35213.6 draw: end frames=277 pending=0
+35213.6 loop n=399 tick=2505
+35229.3 loop n=400 tick=2505
+35229.5 draw: begin tick=2505 frames=277
+35229.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35229.6 draw: end frames=278 pending=0
+35229.6 loop n=401 tick=2505
+35244.4 loop n=402 tick=2505
+35244.6 draw: begin tick=2505 frames=278
+35244.7 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35244.7 draw: end frames=279 pending=0
+35244.7 loop n=403 tick=2505
+35259.4 loop n=404 tick=2505
+35259.6 draw: begin tick=2505 frames=279
+35259.8 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35259.8 draw: end frames=280 pending=0
+35259.8 loop n=405 tick=2505
+35274.9 loop n=406 tick=2505
+35275.1 draw: begin tick=2505 frames=280
+35275.3 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35275.3 draw: end frames=281 pending=0
+35275.3 loop n=407 tick=2505
+35290.5 loop n=408 tick=2505
+35290.7 draw: begin tick=2505 frames=281
+35291.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35291.0 draw: end frames=282 pending=0
+35291.0 loop n=409 tick=2505
+35306.2 loop n=410 tick=2505
+35306.5 draw: begin tick=2505 frames=282
+35306.6 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35306.6 draw: end frames=283 pending=0
+35306.6 loop n=411 tick=2505
+35321.8 loop n=412 tick=2505
+35321.9 draw: begin tick=2505 frames=283
+35322.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=19 poseWorld=0 poseBind=0 samples=19 sampledTicks=157 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+35322.0 draw: end frames=284 pending=0
+35322.0 loop n=413 tick=2505
+35337.6 loop n=414 tick=2505
+35337.6 playback: request id=3 kind=set-paused source=spectate-pause-at requestedTick=2505 requestedSeconds=0.000000 appliedTick=2505 appliedSeconds=0.000000 deltaTicks=0 deltaSeconds=0.000000 speedBefore=8.000000 speedAfter=8.000000 strict=0 status=applied reason=
+35337.6 spectate: resume-after tick=2505 wall=27417.329667

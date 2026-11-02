@@ -1,0 +1,10 @@
+=== 2/11 the decision itself: spectate_probe --self-test ===
+  SPECTATE-SELF-TEST=FAIL checks=53 failures=2
+  FAIL S7b a 240-tick step over 3 s at 16x is playback, not a seek
+  FAIL S7b the same 240-tick step in 10 ms at 16x is a seek
+  FAIL self-test exit = 1, expected 0
+  FAIL self-test verdict = SPECTATE-SELF-TEST=FAIL checks=53 failures=2, expected to contain SPECTATE-SELF-TEST=PASS
+  FAIL self-test failures = 2, expected 0
+  OK   self-test checks = 53 (>= 49)
+==========================================================================
+SPECTATE-CHECK=FAIL

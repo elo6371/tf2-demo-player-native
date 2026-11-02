@@ -21,6 +21,11 @@
 
 namespace {
 
+// The speed the unit tests replay at. Every call states it: the seek bound is
+// derived from the speed, and a caller that inherits the wrong one misjudges a
+// fast replay as a seek (T66 note 1). S7's speed checks pass their own numbers.
+constexpr double kReplaySpeed = 8.0;
+
 using tf2::native::EntityPropertyValue;
 using tf2::native::EntitySnapshotQueryStatus;
 using tf2::native::EntityState;
@@ -89,7 +94,7 @@ int runSelfTest() {
     SpectateDirector director;
     std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                         makeSlot(5, true, 200.0f, 0.0f, 0.0f) };
-    director.update(0.0, slots, 0, 1000);
+    director.update(0.0, slots, 0, 1000, kReplaySpeed);
     check(director.targetIndex() == 3, "S1 first target is the lowest living entity index");
     check(director.source() == SpectateSource::StableOrder, "S1 the first target comes from the stable order");
     check(director.handovers() == 0, "S1 the first adoption is not a handover");
@@ -105,9 +110,9 @@ int runSelfTest() {
     SpectateDirector director;
     std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                         makeSlot(5, true, 200.0f, 0.0f, 0.0f) };
-    director.update(0.0, slots, 0, 1000);
+    director.update(0.0, slots, 0, 1000, kReplaySpeed);
     slots[0] = makeSlot(3, false, 100.0f, 0.0f, 0.0f);   // the observed player dies
-    director.update(0.02, slots, 0, 1001);
+    director.update(0.02, slots, 0, 1001, kReplaySpeed);
     check(director.deaths() == 1, "S2 the death of the observed target is counted");
     check(director.lastDeathTick() == 1001, "S2 the death is stamped with the tick it was seen on");
     check(director.targetIndex() == 5, "S2 the camera relays to the next living player");
@@ -118,13 +123,13 @@ int runSelfTest() {
     focusOf(director, early);
     check(nearly(early[0], 100.0),
           "S2 the handover starts from where the camera was instead of cutting to the new player");
-    director.update(0.17, slots, 0, 1001);   // same tick: ONLY the wall clock moved
+    director.update(0.17, slots, 0, 1001, kReplaySpeed);   // same tick: ONLY the wall clock moved
     float middle[3];
     focusOf(director, middle);
     check(middle[0] > early[0], "S2 the focus keeps moving toward the new target while the tick is frozen");
     check(director.transitioning() == true, "S2 the window is still open before 0.3 s");
     check(director.resyncs() == 0, "S2 a frozen demo tick is not a seek");
-    director.update(0.32, slots, 0, 1001);
+    director.update(0.32, slots, 0, 1001, kReplaySpeed);
     float arrived[3];
     focusOf(director, arrived);
     check(director.transitioning() == false, "S2 the window closes once 0.3 s of wall time have passed");
@@ -141,7 +146,7 @@ int runSelfTest() {
     unresolved.hasOrigin = true;
     unresolved.origin[0] = 300.0f;
     slots.push_back(unresolved);
-    director.update(0.0, slots, 0, 1000);
+    director.update(0.0, slots, 0, 1000, kReplaySpeed);
     check(director.targetIndex() == 3, "S2b an unresolved row never becomes the camera target");
     check(director.hidesModel(7) == false,
           "S2b an unresolved row is not hidden: no reading is not evidence of a corpse");
@@ -153,12 +158,12 @@ int runSelfTest() {
     SpectateDirector director;
     std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                         makeSlot(5, true, 200.0f, 0.0f, 0.0f) };
-    director.update(0.0, slots, 0, 1000);
+    director.update(0.0, slots, 0, 1000, kReplaySpeed);
     float before[3];
     focusOf(director, before);
     slots[0] = makeSlot(3, false, 100.0f, 0.0f, 0.0f);
     slots[1] = makeSlot(5, false, 200.0f, 0.0f, 0.0f);
-    director.update(0.5, slots, 0, 1002);
+    director.update(0.5, slots, 0, 1002, kReplaySpeed);
     float after[3];
     focusOf(director, after);
     check(director.noTargetFrames() >= 1, "S4 a total wipe is counted instead of silently ignored");
@@ -174,9 +179,9 @@ int runSelfTest() {
     SpectateDirector director;
     std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                         makeSlot(5, true, 200.0f, 0.0f, 0.0f) };
-    director.update(0.0, slots, 0, 1000);
+    director.update(0.0, slots, 0, 1000, kReplaySpeed);
     director.pickManual(5);
-    director.update(0.001, slots, 0, 1000);
+    director.update(0.001, slots, 0, 1000, kReplaySpeed);
     check(director.targetIndex() == 5, "S5 a manual pick changes the target");
     check(director.source() == SpectateSource::Manual, "S5 the manual pick is named as its source");
     check(director.manualPicks() == 1, "S5 the manual pick is counted");
@@ -192,9 +197,9 @@ int runSelfTest() {
     SpectateDirector director;
     std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                         makeSlot(5, false, 200.0f, 0.0f, 0.0f) };
-    director.update(0.0, slots, 0, 1000);
+    director.update(0.0, slots, 0, 1000, kReplaySpeed);
     director.pickManual(5);
-    director.update(0.001, slots, 0, 1000);
+    director.update(0.001, slots, 0, 1000, kReplaySpeed);
     check(director.manualRejected() == 1, "S6 a pick on a dead slot is rejected");
     check(director.targetIndex() == 3, "S6 a rejected pick leaves the target alone");
     check(director.manualPicks() == 0, "S6 a rejected pick is not counted as a pick");
@@ -205,15 +210,41 @@ int runSelfTest() {
     SpectateDirector director;
     std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                         makeSlot(5, true, 200.0f, 0.0f, 0.0f) };
-    director.update(0.0, slots, 0, 5000);
+    director.update(0.0, slots, 0, 5000, kReplaySpeed);
     slots[0] = makeSlot(3, false, 100.0f, 0.0f, 0.0f);
-    director.update(0.02, slots, 0, 5001);
+    director.update(0.02, slots, 0, 5001, kReplaySpeed);
     check(director.transitioning() == true, "S7 a handover is open before the seek");
-    director.update(0.03, slots, 0, 200);   // rewind
+    director.update(0.03, slots, 0, 200, kReplaySpeed);   // rewind
     check(director.resyncs() == 1, "S7 a backwards tick is counted as a seek");
     check(director.transitioning() == false, "S7 a seek abandons the half-finished handover");
-    director.update(0.04, slots, 0, 9000);  // jump forward past the gap
+    director.update(0.04, slots, 0, 9000, kReplaySpeed);  // jump forward past the gap
     check(director.resyncs() == 2, "S7 a forward jump larger than the gap is counted as a seek");
+  }
+
+  // S7b: the seek bound follows the playback speed. A 240-tick step over 3 s of a
+  // 16x replay is ordinary playback (3168 ticks could have passed); the old fixed
+  // 200-tick gap counted it as a seek, which is the defect T66 note 1 records. The
+  // same step in 10 ms of wall time is a seek at any speed, and the floor keeps a
+  // paused screen that advances one tick from being read as one.
+  {
+    SpectateDirector fast;
+    std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
+                                        makeSlot(5, true, 200.0f, 0.0f, 0.0f) };
+    fast.update(0.0, slots, 0, 1000, 16.0);
+    fast.update(3.0, slots, 0, 1240, 16.0);
+    check(fast.resyncs() == 0, "S7b a 240-tick step over 3 s at 16x is playback, not a seek");
+    fast.update(3.01, slots, 0, 1480, 16.0);
+    check(fast.resyncs() == 1, "S7b the same 240-tick step in 10 ms at 16x is a seek");
+
+    SpectateDirector paused;
+    paused.update(0.0, slots, 0, 500, 16.0);
+    paused.update(0.0, slots, 0, 501, 16.0);
+    check(paused.resyncs() == 0, "S7b a one-tick step with no elapsed time is not a seek");
+
+    SpectateDirector slow;
+    slow.update(0.0, slots, 0, 1000, 1.0);
+    slow.update(0.5, slots, 0, 1240, 1.0);
+    check(slow.resyncs() == 1, "S7b 240 ticks in 0.5 s at 1x is a seek");
   }
 
   // S8: the demo's own director handle wins when it names a living player.
@@ -222,7 +253,7 @@ int runSelfTest() {
     std::vector<SpectateSlot> slots = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                         makeSlot(7, true, 300.0f, 0.0f, 0.0f) };
     const std::int64_t handle = (147LL << 11) | 7LL;
-    director.update(0.0, slots, handle, 1000);
+    director.update(0.0, slots, handle, 1000, kReplaySpeed);
     check(director.targetIndex() == 7, "S8 a living director handle decides the target before the stable order");
     check(director.source() == SpectateSource::Director, "S8 the source reads director");
     check(director.directorPicks() == 1, "S8 the director pick is counted");
@@ -231,7 +262,7 @@ int runSelfTest() {
     std::vector<SpectateSlot> spectator = { makeSlot(3, true, 100.0f, 0.0f, 0.0f),
                                             makeSlot(7, true, 300.0f, 0.0f, 0.0f, 1) };
     SpectateDirector second;
-    second.update(0.0, spectator, handle, 1000);
+    second.update(0.0, spectator, handle, 1000, kReplaySpeed);
     check(second.targetIndex() == 3, "S8 a director handle on the spectator team is not an observation target");
     check(second.source() == SpectateSource::StableOrder, "S8 the stable order takes over when the handle is unusable");
   }
@@ -251,7 +282,7 @@ int runSelfTest() {
         if (frame == 12) slots[1] = makeSlot(5, false, 200.0f, 0.0f, 0.0f);
         if (frame == 14) slots[0] = makeSlot(3, true, 110.0f, 0.0f, 0.0f);
         now += 0.033;
-        director.update(now, slots, 0, tick);
+        director.update(now, slots, 0, tick, kReplaySpeed);
         trace += director.traceFields();
         trace += '\n';
       }
@@ -380,7 +411,7 @@ int runDemo(const std::string& demoPath, int fromTick, int toTick, int step, boo
       readInt(states[static_cast<std::size_t>(summary.lastViewEntity)], "m_hObserverTarget", handle);
     }
     const double wall = static_cast<double>(tick - fromTick) / 66.0;
-    director.update(wall, slots, handle, tick);
+    director.update(wall, slots, handle, tick, kReplaySpeed);
     ++frames;
     if (director.transitioning() && !previousTransition) ++transitionOpens;
     if (!director.transitioning() && previousTransition) ++transitionCloses;
