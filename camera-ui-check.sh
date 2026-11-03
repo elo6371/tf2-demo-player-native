@@ -350,6 +350,21 @@ if [ -s "$OUT/e2e.trace" ]; then
   assert_contains "trace camera freeze untouched" "$camera_line" "freezeFrames=0"
   follows="$(pvalue <(printf '%s\n' "$camera_line") follows)"
   assert_ge_ok "trace camera followed observe targets" "$follows" 1
+  # T79: the counter above says the relay followed somebody; these say the trace
+  # now names the pose the frame was actually DRAWN with. Before T79 the scene
+  # line was written at the decision site -- before the relay had placed the
+  # camera -- so it reported src=held eye=0.0,0.0,0.0 on every frame while the
+  # picture was already inside the followed player's head. The defect is the same
+  # one T84 fixed for --debug-camera: a trace that reports the request and not
+  # the drawing. Measured on the KOTH sample, same command: the old trace had
+  # follows=0 and src=held eye=0.0,0.0,0.0; the fixed trace has follows=589 and
+  # src=follow eye=765.7,-529.6,388.0.
+  follow_lines="$(grep -cE 'scene: camera .*src=follow' "$OUT/e2e.trace")"
+  assert_ge_ok "trace camera published the pose each followed frame drew with" "$follow_lines" 1
+  assert_eq "no followed frame claims the world origin for an eye" \
+    "$(grep -E 'scene: camera .*src=follow' "$OUT/e2e.trace" | grep -c 'eye=0.0,0.0,0.0')" "0"
+  follow_target="$(grep -E 'scene: camera .*src=follow' "$OUT/e2e.trace" | tail -1 | grep -oE 'target=[0-9]+' | head -1 | cut -d= -f2)"
+  assert_ge_ok "the published followed frame names the watched target" "$follow_target" 1
 else
   echo "  FAIL the trace was not written"; fail=1
 fi

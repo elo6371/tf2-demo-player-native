@@ -360,7 +360,9 @@ std::uint32_t g_spectateCameraHiddenInstances = 0;
 bool placeSpectatorView(tf2::native::Renderer& renderer,
                         const std::vector<tf2::native::EntityState>& states,
                         std::int32_t targetIndex,
-                        const float focus[3]) {
+                        const float focus[3],
+                        float outEye[3],
+                        float outAngles[2]) {
   // The snapshot is a dense vector: the entity index IS the slot. That is the
   // same rule the spectate slot builder above uses, so the two cannot disagree
   // about which row belongs to the player the relay picked.
@@ -380,6 +382,18 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
     if (!std::isfinite(value)) return false;
   }
   renderer.setObserverDemoViewWorld(eye[0], eye[1], eye[2], transform.angles[0], transform.angles[1]);
+  // T79: hand the pose back so the frame's trace line can name the lens the
+  // frame is actually drawn with. Callers that only want the side effects pass
+  // nullptr.
+  if (outEye != nullptr) {
+    outEye[0] = eye[0];
+    outEye[1] = eye[1];
+    outEye[2] = eye[2];
+  }
+  if (outAngles != nullptr) {
+    outAngles[0] = transform.angles[0];
+    outAngles[1] = transform.angles[1];
+  }
   // The camera is inside this player's head, so their body must not be submitted.
   g_spectateCameraHiddenEntity = targetIndex;
   const float dx = eye[0] - g_spectateCameraLastEye[0];
@@ -8493,6 +8507,22 @@ bool outlineVertexExtent = false;
     // T70: the request this frame's scene resolve belongs to, captured before
     // the block so a landing cannot be attributed to a later request.
     const std::int32_t sceneRequestId = g_playbackControl.pendingRequestId();
+    // T79: the camera pose this frame is drawn with is published AFTER the relay
+    // has had its say, not at the decision site. On a SourceTV recording the
+    // decision site has no demo eye to follow, so it printed src=held eye=0,0,0
+    // while the relay below stood the camera in the followed player's eye and the
+    // frame was drawn from there: the trace named a lens the capture was not
+    // taken with, which is the defect T84 fixed for --debug-camera and this block
+    // extends to the relay. These locals carry the pose from whichever site last
+    // applied it; nothing after the print moves the camera.
+    bool cameraTraceReady = false;
+    const char* cameraTraceMode = tf2::native::cameraModeName(g_cameraMode.mode());
+    bool cameraTraceHasTarget = false;
+    bool cameraTraceDeferred = false;
+    float cameraTraceEye[3] = {0.0f, 0.0f, 0.0f};
+    float cameraTracePitch = 0.0f;
+    float cameraTraceYaw = 0.0f;
+    const char* cameraTraceSource = "held";
     if (!g_renderer && g_playbackControl.needsSceneResolve()) {
       // No renderer means no scene query will ever run; the landing must say so
       // instead of leaving the pending request to block advance() forever.
@@ -8635,6 +8665,17 @@ bool outlineVertexExtent = false;
         }
         g_lastAppliedCameraMode = cameraMode;
       }
+      // T79: with no demo eye the relay places the camera itself (T80/T81) and
+      // that placement runs later in this iteration, after the relay's update.
+      // Whether it will succeed is knowable here from the relay's last resolved
+      // focus, and it decides whether this scene tick is a follow or a hold. The
+      // counters said "held" for every one of these frames while the relay was
+      // moving the camera -- the reading camera-ui-check.sh caught as follows=0
+      // on a run that visibly follows.
+      const bool relayWillPlace = !haveObserverView
+        && cameraMode == tf2::native::CameraMode::FirstPerson
+        && g_spectateDirector.focusValid()
+        && g_spectateDirector.targetIndex() >= 0;
       switch (tf2::native::decideCameraSceneAction(cameraMode, haveObserverView)) {
         case tf2::native::CameraSceneAction::SetDemoView:
           renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
@@ -8648,8 +8689,12 @@ bool outlineVertexExtent = false;
           break;
         case tf2::native::CameraSceneAction::HoldCurrent:
           // No observe target at this tick: keep the current camera. No
-          // clear, no focus update, no teleport to the orbit default.
-          ++g_cameraHoldsNoTarget;
+          // clear, no focus update, no teleport to the orbit default. When the
+          // relay is about to place the camera from its own target this is not a
+          // hold, so the count is deferred to the line printed below, where it is
+          // known whether the placement actually happened.
+          if (relayWillPlace) cameraTraceDeferred = true;
+          else ++g_cameraHoldsNoTarget;
           break;
         case tf2::native::CameraSceneAction::FreezeCurrent:
           // Free-look: neither eye nor focus is fed from the demo, so the
@@ -8657,6 +8702,20 @@ bool outlineVertexExtent = false;
           ++g_cameraFreezeFrames;
           break;
       }
+      // T79: the baseline the print below starts from. The eye is whatever the
+      // decision site applied (debug camera, demo view, or nothing); the relay
+      // overwrites it with src=follow when it places the camera.
+      cameraTraceReady = true;
+      cameraTraceMode = tf2::native::cameraModeName(cameraMode);
+      cameraTraceHasTarget = haveObserverView;
+      cameraTraceEye[0] = cameraEyeX;
+      cameraTraceEye[1] = cameraEyeY;
+      cameraTraceEye[2] = cameraEyeZ;
+      cameraTracePitch = g_debugCamera ? g_debugCameraPitch
+        : (haveObserverView ? observerView.angles[0] : 0.0f);
+      cameraTraceYaw = g_debugCamera ? g_debugCameraYaw
+        : (haveObserverView ? observerView.angles[1] : 0.0f);
+      cameraTraceSource = g_debugCamera ? "debug" : (haveObserverView ? "demo" : "held");
       // T50 "back to the player": the request is a LATCH the scene tick
       // consumes, and only on a tick that actually has an observe target --
       // that is the whole reason it is latched rather than applied in the key
@@ -8685,22 +8744,6 @@ bool outlineVertexExtent = false;
         renderer.setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1],
           g_debugCameraEye[2], g_debugCameraPitch, g_debugCameraYaw);
       }
-      // T34: the camera pose this scene tick resolved, in MAP units.
-      // Published because a gate that asserts "the picture changed between
-      // two ticks" has to know whether the camera moved between them, or it
-      // is measuring the world rather than the thing it names. The counters
-      // above say the decision was taken; these numbers say where the camera
-      // ended up, and `src` names the source the pose came from.
-      traceFmt("scene: camera mode=%s target=%d follows=%u holds=%u freeze=%u"
-        " eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f src=%s",
-        tf2::native::cameraModeName(cameraMode), haveObserverView ? 1 : 0,
-        g_cameraFollows, g_cameraHoldsNoTarget, g_cameraFreezeFrames,
-        cameraEyeX, cameraEyeY, cameraEyeZ,
-        g_debugCamera ? g_debugCameraPitch
-          : (haveObserverView ? observerView.angles[0] : 0.0f),
-        g_debugCamera ? g_debugCameraYaw
-          : (haveObserverView ? observerView.angles[1] : 0.0f),
-        g_debugCamera ? "debug" : (haveObserverView ? "demo" : "held"));
       traceCheckpoint("scene: observer done");
       const bool snapshotDrawable = entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
           || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
@@ -9990,13 +10033,38 @@ bool outlineVertexExtent = false;
         // left the camera at map scale and inside geometry for the whole run.
         // The relay knows which player is being watched and what that player is
         // looking at, so it stands behind them, at eye height, along their view.
-        if (!g_cameraDemoViewUsable && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
+        // T84's rule, applied to the relay: a --debug-camera frame is drawn with
+        // the diagnostic eye, so a camera the relay writes here would only look
+        // like it wins and then lose to the re-statement immediately before the
+        // draw (main.cpp, the g_debugCamera block above renderer.draw()). Worse,
+        // the failed branch would still hide the followed player, so a
+        // diagnostic frame would silently be missing one body. Skip the relay
+        // entirely when the diagnostic camera owns the frame.
+        if (!g_debugCamera && !g_cameraDemoViewUsable
+            && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
+          float relayEye[3] = {0.0f, 0.0f, 0.0f};
+          float relayAngles[2] = {0.0f, 0.0f};
           if (!placeSpectatorView(renderer, currentEntityStates,
-                                  g_spectateDirector.targetIndex(), spectateFocus)) {
+                                  g_spectateDirector.targetIndex(), spectateFocus,
+                                  relayEye, relayAngles)) {
             // No readable facing for the target: fall back to the orbit, but at
             // a distance in map units rather than a fraction of the map.
             renderer.setObserverOrbitDistanceWorld(kSpectateOrbitWorldUnits);
             g_spectateCameraHiddenEntity = -1;
+          } else if (cameraTraceReady) {
+            // T79: this frame IS following the relay's target -- count it as a
+            // follow (once per scene tick, the unit the counter is documented in)
+            // and publish the pose the frame is drawn with. The decision site
+            // above deferred the hold for exactly this case.
+            ++g_cameraFollows;
+            cameraTraceDeferred = false;
+            cameraTraceHasTarget = true;
+            cameraTraceEye[0] = relayEye[0];
+            cameraTraceEye[1] = relayEye[1];
+            cameraTraceEye[2] = relayEye[2];
+            cameraTracePitch = relayAngles[0];
+            cameraTraceYaw = relayAngles[1];
+            cameraTraceSource = "follow";
           }
         } else {
           // A demo eye, or a mode that does not stand in the player: nothing is
@@ -10004,6 +10072,22 @@ bool outlineVertexExtent = false;
           g_spectateCameraHiddenEntity = -1;
         }
       }
+    }
+    // T79/T84: the frame's camera, printed after every site that can move it and
+    // before the capture is armed. The eye/pitch/yaw/src here are the ones the
+    // draw below uses; on a SourceTV recording that is the relay's placement
+    // (src=follow), not the demo view the decision site could not find.
+    if (cameraTraceReady) {
+      // The deferred hold is resolved here: the relay had a target when the
+      // decision was taken but did not place the camera (unreadable facing or no
+      // focus), so the frame really is a hold.
+      if (cameraTraceDeferred) ++g_cameraHoldsNoTarget;
+      traceFmt("scene: camera mode=%s target=%d follows=%u holds=%u freeze=%u"
+        " eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f src=%s",
+        cameraTraceMode, cameraTraceHasTarget ? 1 : 0,
+        g_cameraFollows, g_cameraHoldsNoTarget, g_cameraFreezeFrames,
+        cameraTraceEye[0], cameraTraceEye[1], cameraTraceEye[2],
+        cameraTracePitch, cameraTraceYaw, cameraTraceSource);
     }
     // Printed on change, not per frame: the trace of a long run must stay
     // readable, and a line per frame is exactly the sort of noise that made a

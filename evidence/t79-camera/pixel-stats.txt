@@ -1,0 +1,4 @@
+D:\_shared\camfix2\pixel-stats.py:6: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  px = list(d.getdata())
+R.bmp vs D.bmp {'size': (1264, 681), 'pixels': 860784, 'any_gt0': 161389, 'gt2': 6899, 'gt8': 638, 'pct_gt8': 0.074, 'maxdelta': 195, 'cells_with_diff': 77, 'top_cells': [((5, 3), 54), ((4, 3), 53), ((5, 9), 41), ((2, 16), 37), ((2, 17), 30)]}
+R.bmp vs D2.bmp {'size': (1264, 681), 'pixels': 860784, 'any_gt0': 859666, 'gt2': 844988, 'gt8': 799512, 'pct_gt8': 92.882, 'maxdelta': 247, 'cells_with_diff': 219, 'top_cells': [((0, 0), 4096), ((0, 1), 4096), ((0, 2), 4096), ((0, 3), 4096), ((0, 16), 4096)]}

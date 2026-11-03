@@ -50,3 +50,12 @@
 - **终树全链**（HEAD `59d94a7`，16:41:24 → 19:34:41，`bash verify-all.sh --quick`）：30 步里 **29 步 PASS**，第 27 步在测量前被自己的 `BINARY-FRESH` 守卫拦下——第 8 步的变异套件恢复文件时刷新了源码 mtime（17:12），而探针是第 1 步编的（16:48），`git status` 干净、源码哈希与冻结值一致。修复是在第 27 步前重建 `spectate_probe`（与第 25 步重建 `model_pose_probe` 同一先例，守卫本身不放宽）；按用户决定**只重跑第 27 步**，读到 `SPECTATE-CHECK=PASS`、95 断言、0 FAIL，全链没有跑第二次。记录见 `evidence/t66-sourcetv/CHAIN-RUN-20261102.md`。
 - 仓库仍处于开发阶段；本次没有创建发行版。
 
+
+## 2026-11-03 — T79 跟拍相机：trace 改为记录"帧实际使用的镜头"
+
+- **症状**：SourceTV 录制没有可用的 demo 眼位时，相机由 relay 自己放置（`native/src/main.cpp:10047`），但 `scene: camera` 那行在**决定处**就打印了，且 `eye=` 只由 demo 眼位或 `--debug-camera` 填充（`cameraEyeX/Y/Z` 初值 `0.0f`）。于是 KOTH 样本上 trace 恒为 `follows=0 holdsNoTarget=445 ... src=held eye=0.0,0.0,0.0`，而画面早已在被跟拍玩家的头里——与 T84 修 `--debug-camera` 时同一类缺陷：trace 记录的是**请求**，不是绘制。
+- **修复**：`placeSpectatorView()` 抽出为返回实际姿势的函数（`native/src/main.cpp:360-399`，`outEye`/`outAngles` 可为 nullptr）；relay 守卫加 `!g_debugCamera`（`native/src/main.cpp:10043`），调试机位拥有自己的帧；trace 记账在 relay 之后、`renderer.draw()` 之前统一打印（`native/src/main.cpp:10085-10089`），relay 用实际应用的姿势覆盖决定处的种子（`native/src/main.cpp:8711-8713` → `:10062-10067`）；relay 即将放置的帧不再计入 holds（`native/src/main.cpp:8696`，`holdsNoTarget` 445 → 1）。
+- **像素证明**（同 tick 2000、snakewater、1x）：R（relay 跟拍）vs D（`--debug-camera` 用 R 打印的 eye）只有 **638 / 860,784** 像素差 >8（0.074%，max 195，散在 77 个 64x64 格、最大格 54 px，与视图模型/远处实体的动画相位一致）；R vs D2（世界原点机位）**799,512** 像素差 >8（92.882%，max 247）。**修复前 R 打印的正是 D2 的姿势。** 产物与读数在 `evidence/t79-camera/`。
+- **门禁**：`camera-ui-check.sh` **108 OK / 0 FAIL**（新增三条断言：511 帧带 `src=follow`、0 帧声称 `eye=0.0,0.0,0.0`、最后一条 `src=follow` 带 `target>=1`；修复前第一条读 0 并直接红）；同一把 host lock 下 spectate / frame-capture / demo-clock / outline 依次 **PASS**（合计 293 OK / 0 FAIL）。
+- **边界**：KOTH 样本的地图 `koth_bagel_rc13` 本机未安装（空世界），所以 camera-ui 的 e2e 只证明 trace、计数与 HUD，画面结论来自 snakewater；本轮未跑 outline 的 `--mutation`，它重新引入的 8 个缺陷仍为 NOT VERIFIED。T79 关闭了 2026-11-01 那节记下的 `src=held` 已知限制。
+
