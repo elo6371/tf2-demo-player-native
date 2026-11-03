@@ -1,0 +1,4 @@
+  entity=3 class=247 CTFPlayer DT_TFLocalPlayerExclusive.m_angEyeAngles[0] type=1 x=18.000008 y=0.000000 z=0.000000 int=0
+  entity=3 class=247 CTFPlayer DT_TFLocalPlayerExclusive.m_angEyeAngles[1] type=1 x=159.765396 y=0.000000 z=0.000000 int=0
+  entity=3 class=247 CTFPlayer DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] type=1 x=18.000008 y=0.000000 z=0.000000 int=0
+  entity=3 class=247 CTFPlayer DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] type=1 x=159.765396 y=0.000000 z=0.000000 int=0

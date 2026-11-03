@@ -92,10 +92,137 @@ One host lock, sequential, `D:/_shared/camfix2/focused-gates.log`:
 
 ## 5. What this does not claim
 
-* The KOTH sample's map (`koth_bagel_rc13`) is not installed on this machine, so the
-  camera-ui e2e runs against an empty world: it proves the trace, the counters and the
-  HUD, not the picture. The picture claim comes from the snakewater run in section 3.
+* At the time of this round the KOTH sample's map (`koth_bagel_rc13`) was not
+  installed, so the camera-ui e2e ran against an empty world: it proved the trace, the
+  counters and the HUD, not the picture. The picture claim came from the snakewater run
+  in section 3. Section 6 re-runs the same evidence on `koth_bagel_rc11`, which **is**
+  installed, so the e2e there does draw the real map.
 * `outline-check.sh --mutation` was NOT RUN in this round, so the eight defects it
   reintroduces remain NOT VERIFIED by this evidence.
 * The 638 differing pixels of R vs D are attributed to animation phase by their
   distribution; no individual pixel was traced to its cause.
+## 6. Re-run on the shipped sample: koth_bagel_rc11 (2026-11-03)
+
+The map the release sample actually ships with is `koth_bagel_rc11`, which is installed
+on this machine (`download/maps/koth_bagel_rc11.bsp`, 26,370,688 bytes,
+sha256 `f06cfe4b389da5ca152dff0702fb3f4d69b48bfc7b08ed9994e1d057a211720a`). The demo is
+`dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem`
+(sha256 `0e8197dcc1fe18ca1028aba0fe09df2db291f7c64c4f54e9476e658199cea37d`), read from
+`D:/TF2_Demo_Player/testdata/demos/`. Everything below is a fresh run, not a reuse.
+
+### 6.1 camera-ui e2e now draws a real world
+
+`bash camera-ui-check.sh` under the shared host lock, log `D:/_shared/b4-rc11-path-fixed/collect.log`:
+**CAMERA-UI=PASS, 108 OK / 0 FAIL**. The same four trace assertions as section 4, now
+fired on a map the machine can load:
+
+    camera: summary mode=first-person ... follows=426 holdsNoTarget=1 freezeFrames=0
+    OK   trace camera followed observe targets = 426 (>= 1)
+    OK   trace camera published the pose each followed frame drew with = 426 (>= 1)
+    OK   no followed frame claims the world origin for an eye = 0
+    OK   the published followed frame names the watched target = 1 (>= 1)
+
+`follows=426` is a placement count, so it is a property of how often the relay
+re-places the camera on this recording; it is not comparable across maps and was not
+used as a floor. The floor stays ">= 1 published followed frame", unchanged from
+section 4. The trace shows the world it drew: `map: lookup ... selected=download/maps/koth_bagel_rc11.bsp`,
+`world geometry displacedTriangles=46048 waterTriangles=118`, sky
+`vertices=36 triangles=12 faces=6`, and the last frame
+`eye=1227.5,-400.5,452.0 pitch=17.29 yaw=92.55 target=3`. Screenshot
+`evidence/t79-camera/rc11-20261103/camera-ui-e2e.png`.
+
+### 6.2 The R/D fixture needed a new pose source, not a new threshold
+
+Replaying D with the eye the trace prints **does not reproduce R on a real map**.
+`scene: camera` prints eye at `%.1f` and angles at `%.2f` (`native/src/main.cpp:407`,
+`:10086`). Measured at tick 900 on rc11, with the eye held fixed:
+
+| D fed | R vs D >8 |
+| --- | --- |
+| trace values `18.00 / 159.77` | 6,127 (0.712%) |
+| `18.002` / `18.004` | 10,760 (1.250%) |
+| `18.01` | 22,496 (2.613%) |
+| `159.78` | 17,153 (1.993%) |
+| `17.998` / `159.770` / `159.766` | 6,127 (0.712%) |
+| exact probe pose (below) | **120 (0.014%)** |
+
+Two decimals of pitch are worth several thousand pixels on this map, i.e. an order of
+magnitude more than the 638-pixel signal the fixture is supposed to detect. A fixture
+that cannot tell a rounding artefact from a regression is not measuring the camera, so
+`run-pix.sh` now feeds D a **probed** pose instead of the printed one:
+
+* eye: `entity_model_probe --observer-focus-at <sceneTick> --entity <target>` prints
+  `selfOrigin` (the same `EntityModelResolver::extractTransform` the playback loop
+  calls, `native/src/main.cpp:371-373`); `eyez = origin.z + 68.0` because
+  `placeSpectatorView` applies `kSpectatorEyeHeight` with `kSpectatorBackUnits = 0`
+  (`native/src/main.cpp:329/337/376-380`, trace prints `behind=0`).
+* angles: `--props-at` prints `m_angEyeAngles[0]` / `[1]` at `%.6f`; the script
+  asserts each is **single-valued** across the snapshot's local and non-local copies
+  rather than silently picking one.
+* the scene tick is derived, not assumed: `serverTick - stale` from
+  `scene: clock` (`native/src/main.cpp:8567`) and `scene: snapshot`
+  (`:8588`), cross-checked against the independent `tick=` field of
+  `scene: anim` (`:9354/9362`). `--capture-tick` names a different instant.
+* D is then checked against what it drew: `src=debug` and all five components within
+  eye 0.06 / angle 0.006 of what was fed in.
+
+This changes the fixture, not the acceptance numbers: **the thresholds are unchanged**
+(R vs D <= 0.1% above delta 8, R vs D2 >= 90%, three runs with the same
+`capture: armed frame_tick`).
+
+### 6.3 Readings, tick 900
+
+`bash evidence/t79-camera/run-pix.sh --demo ...rc11.dem --tick 900 --out D:/_shared/b4-rc11-b44-second`,
+log `D:/_shared/b4-rc11-b44-second.log`, artifacts copied to
+`evidence/t79-camera/rc11-20261103/`. R printed
+`3480.4 -218.2 420.0 18.00 159.77`; `serverTick=27568 stale=146` -> scene tick **27422**,
+followed entity **3**, exact pose
+`3480.350098 -218.232910 420.031250 18.000008 159.765396`.
+
+| run | camera arguments | trace line the frame was drawn with |
+| --- | --- | --- |
+| R | none (relay follows) | `mode=first-person target=1 follows=1495 holds=1 freeze=0 eye=3480.4,-218.2,420.0 pitch=18.00 yaw=159.77 src=follow` |
+| D | `--debug-camera 3480.350098 -218.232910 420.031250 18.000008 159.765396` | `mode=free-look ... src=debug` eye 3480.4,-218.2,420.0 |
+| D2 | `--debug-camera 0 0 1000 0 0` | `mode=free-look ... src=debug` eye 0,0,1000 |
+
+All three at `frame_tick=900`. Bodies: R `draws=84 playerDraws=11 propBudget=85` with
+`cameraFilter removed=1 indices=3`; D `draws=85 playerDraws=12 propBudget=84` -- the
+followed body stays in D's set, as T84 documents.
+
+| pair | any >0 | >2 | >8 | % >8 | max delta | largest component |
+| --- | --- | --- | --- | --- | --- | --- |
+| R vs D (same pose) | 120 | 120 | **120** | **0.014%** | 117 | 120 px, box (759,672)-(782,680) |
+| R vs D2 (origin pose) | 860,683 | 858,310 | **836,501** | **97.179%** | 254 | 836,078 px |
+
+`PIX-EVIDENCE=PASS`, `LOCKED-COMMAND-EXIT rc=0`. The 120 residual pixels are one
+24x9 patch on a ground/geometry edge: no body, no missing object (8x zoom checked).
+R vs D is the same order as the snakewater 638 and still well inside 0.1%; R vs D2 is a
+different picture everywhere.
+
+### 6.4 Ticks where the followed body is in frame cannot be fixtures
+
+Same script, `--tick 2000` (log `D:/_shared/b4-rc11-b44-negative.log`, dir
+`D:/_shared/b4-rc11-b44-negative/`), exits 1 **by design**: R vs D is
+`gt8=21,059` = **2.446%**, one connected component of 21,059 px in box
+(632,564)-(913,680). That block is the followed player's body: diagnostic frames
+deliberately keep it (`native/src/main.cpp:10036-10043`), and on this tick the relay
+camera sits inside that player's head, so the body fills the lower frame. The pose
+replay is not at fault -- feeding the exact pose changed the count from 24,716 (printed
+pose) to 21,059 (exact pose), i.e. the remainder is the body, not rounding.
+
+So "which tick" is part of the fixture's validity, not a knob for a greener number.
+Tick 900 is used because the body is not in frame there; tick 2000 is recorded here as
+the negative control that shows the ceiling is live. Both readings come from the same
+unchanged code and the same unchanged thresholds.
+
+### 6.5 What this does not claim
+
+* The 120-pixel residual is attributed to sub-pixel edge sampling on a ground/geometry
+  boundary by its shape and zoomed inspection; no individual pixel was traced to a
+  cause. It is not claimed to be zero, and it is not claimed to be animation phase the
+  way section 3's 638 is.
+* The KOTH e2e proves the trace, the counters, the HUD **and** that a real map was
+  loaded and drawn; it does not prove the picture matches a reference render -- there is
+  no second renderer to compare against.
+* `outline-check.sh --mutation` remains NOT RUN in this round (see section 5).
+

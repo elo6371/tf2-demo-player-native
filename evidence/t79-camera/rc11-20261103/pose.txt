@@ -1,0 +1,6 @@
+demo=D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem
+tick=900
+target=3
+scene_tick=27422
+printed_pose=3480.4 -218.2 420.0 18.00 159.77
+exact_pose=3480.350098 -218.232910 420.031250 18.000008 159.765396

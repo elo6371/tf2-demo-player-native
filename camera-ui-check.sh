@@ -69,9 +69,31 @@ export LC_ALL=C
 EXE=native/build-nmake/tf2_demo_native.exe
 PROBE=native/build-nmake/native_ui_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
-BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
-DEMO_NAME="4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
-OUT="${CAMERA_UI_OUT:-.scratch/camera-ui}"
+# rc11 replaces rc13: unlike the rc13 recording, its referenced map is installed,
+# so this fixture exercises real BSP geometry as well as the observer camera.
+# rc13 empty-world readings to preserve: follows=511, holdsNoTarget=1; the T79
+# trace assertion block also recorded follows=589 with eye=765.7,-529.6,388.0.
+# rc11's observe-target coverage and relay poses differ, so follow/hold counts are
+# fixture readings rather than universal thresholds; the existing nonzero-follow
+# and zero-origin-eye assertions remain unchanged.
+BAGEL="D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem"
+DEMO_NAME="dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem"
+# CAMERA_UI_OUT may be absolute: do not prefix it with $PWD a second time.
+# Native product paths are converted once, here, so every child script gets a
+# usable Windows path for both relative and absolute evidence destinations.
+case "${CAMERA_UI_OUT:-}" in
+  /*|[A-Za-z]:*) OUT="$(cygpath -m "$CAMERA_UI_OUT")" ;;
+  *) OUT="$(cygpath -m "$PWD/${CAMERA_UI_OUT:-.scratch/camera-ui}")" ;;
+esac
+# Cygwin truncates a drive-qualified path after a prefixed $PWD (for example,
+# $PWD/D:/out becomes D:). Convert every relative output once, at the root.
+absolute_out() { # absolute_out <shell path under OUT> -- native Windows path
+  local path="$1"
+  case "$path" in
+    /*|[A-Za-z]:*) cygpath -m "$path" ;;
+    *) cygpath -m "$PWD/$path" ;;
+  esac
+}
 # patch-source.py is invoked by absolute path so a mutation runs from any cwd.
 ROOT="$(pwd)"
 RUN_TIMEOUT=240
@@ -174,7 +196,7 @@ run_e2e() { # run_e2e <prefix> -- one quiet product run with title polling
   local prefix="$1"
   rm -f "$prefix.bmp" "$prefix.trace" "$prefix.driver.txt"
   local trace
-  trace="$(cygpath -m "$PWD/$prefix.trace")"
+  trace="$(absolute_out "$prefix.trace")"
   "$PY" - "$EXE" "$RUN_TIMEOUT" "$prefix.bmp" "$LIVE_TICK" "$TF" "$BAGEL" \
     "$trace" > "$prefix.driver.txt" <<'PYEOF'
 import ctypes
@@ -495,10 +517,10 @@ rm -f "$T50_TRACE" "$T50_FRAME_A" "$T50_FRAME_B" "$T50_SETTINGS"
 # must report fovWant=100 with fovMatch=1. The product loads this file because
 # --settings-file is taken before loadSettings (the pre-scan in wWinMain).
 printf '[renderer]\r\nviewModelFov=100\r\n' > "$T50_SETTINGS"
-cyg_trace="$(cygpath -m "$PWD/$T50_TRACE")"
-cyg_a="$(cygpath -m "$PWD/$T50_FRAME_A")"
-cyg_b="$(cygpath -m "$PWD/$T50_FRAME_B")"
-cyg_settings="$(cygpath -m "$PWD/$T50_SETTINGS")"
+cyg_trace="$(absolute_out "$T50_TRACE")"
+cyg_a="$(absolute_out "$T50_FRAME_A")"
+cyg_b="$(absolute_out "$T50_FRAME_B")"
+cyg_settings="$(absolute_out "$T50_SETTINGS")"
 # The heredoc is QUOTED: the comments below are documentation, and an unquoted
 # heredoc ran their backticked text as command substitution (the first run printed
 # `camera: command not found` twice and silently deleted the words). The two
@@ -514,16 +536,13 @@ tick 200
 frames 2
 pause
 frames 4
-# 0. Establish the orbit camera explicitly. This machine's tf root has bagel
-#    rc5/rc10/rc11/rc12 but NOT the demo's koth_bagel_rc13, so the map's world
-#    box is empty (gpu: world atlas state=no world atlas was uploaded) and the
-#    first-person follow cannot convert the demo eye into it: the orbit pose is
-#    never set, every snapshot reads valid=0 and every save is refused. The
-#    reset seeds a representable pose (focusZ 0.25, pitch 0.36, distance 1.65,
-#    all inside setOrbitPose's clamps) so the pause/bookmark assertions measure
-#    the camera the renderer actually draws from. The demo-view pose path is a
-#    named input limitation in the report, not something this seed pretends to
-#    have measured.
+# 0. Establish the orbit camera explicitly. The pinned rc11 demo's map is
+#    installed, but this camera-director contract tests the deterministic orbit
+#    pose, not SourceTV's follow pose. Reset seeds focusZ 0.25, pitch 0.36 and
+#    distance 1.65 (inside setOrbitPose's clamps), so pause/bookmark assertions
+#    measure the camera the renderer actually draws from rather than whichever
+#    observe target the demo happens to select at tick 200. SourceTV follow and
+#    relay poses are measured separately in section 1/3.
 reset-view
 frames 1
 mark-tick
@@ -633,7 +652,7 @@ sed -e "s|__CAPTURE_A__|$cyg_a|" -e "s|__CAPTURE_B__|$cyg_b|" \
 
 T50_RUN_TIMEOUT=300
 run_t50_product "$cyg_trace" --hidden-window --audio-disabled --start-paused \
-  --settings-file "$cyg_settings" --camera-script "$(cygpath -m "$PWD/$T50_SCRIPT")" \
+  --settings-file "$cyg_settings" --camera-script "$(absolute_out "$T50_SCRIPT")" \
   > "$OUT/t50-run.log" 2>&1
 t50_rc=$?
 assert_eq "T50 scripted run rc" "$t50_rc" "0"
