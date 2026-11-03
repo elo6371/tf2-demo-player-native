@@ -1,0 +1,9 @@
+RUN-HEAD b461b1b05317e781e7afeae31e75558aa0d957e4
+RUN-BRANCH integration/t79-final
+LOG-SHA256
+a8ba9d66ae34017a72e1a59337c0a025ad1007fa8f6e10ebd8447713e5927060 */d/_shared/b5-world-hole-final.log
+VERDICT
+  PASS pixels the cull removed from the control face (50765)
+  PASS the positive control face 17560 is not one of the named seam faces
+== verdict ==
+PASS: every empty pixel in the reference frame is covered by the map's own sky brush; there is no missing geometry to fix, and the one winding repair the oracle can see is a measured regression.

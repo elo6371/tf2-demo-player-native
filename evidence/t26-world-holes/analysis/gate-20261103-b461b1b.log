@@ -1,0 +1,115 @@
+== 0. source and tool identity ==
+  HEAD=b461b1b05317 branch=integration/t79-final
+  PASS native/ is clean
+== 1. build ==
+  PASS build
+HEAD b461b1b05317
+tf2_demo_native.exe 35d6051a5dbe394c4c8ebb2a59ec84935c12638a4c44063066919138eb3ce4e8
+world_geometry_probe.exe f680cd6681c4853fd4b9796060ab4abb2ca107c48643f22890de6608e412c32d
+native/src/bsp_map.cpp 86dfa66618c328b7e1ece0a4986452fc7fb5e2040362e6805929e5785dc0bf3d
+native/src/main.cpp 0118f00bc7ac54baefa7708fa617425787063084bd75da837ed4bef6b479cab6
+native/src/native_renderer.cpp 8c35a8c2f57961f098dcc4947f26388bef9fc848eac2a2c56b3e6d424fb4b7a2
+== 2. capture matrix ==
+  cached matrix before this run: 0 of 18 frames reusable
+  T26 capture matrix complete: 18 frames in evidence/t26-world-holes/captures, each with a pose-bearing trace and an identity file
+  captured this run: 18 recaptured, 0 reused from cache
+  cache control without the pose line: reason=trace-no-camera-pose
+  PASS a trace that lost its "scene: camera" pose line is refused, not reused
+  cache control with a different exe hash: reason=identity-mismatch
+  PASS a frame whose executable identity changed is refused, not reused
+  this run's matrix is 18/18 reusable on the next run
+  PASS every frame this run wrote carries an identity and a pose-bearing trace
+== 3. the product picture did not move ==
+  PASS stored textured frame identity (61734c8f224bf04685b7d24197aad6b1737e2b4110bb826b5b4be5b63fe09f3d)
+  PASS stored ref frame identity (0dad99ca7fa87005bcc180a6dcbeaf3c344fc666d85adbc600e2cc078029c533)
+  PASS the binary this run built reproduces the pinned textured frame byte for byte
+== 4. probe: the sky as geometry ==
+  PASS sky face census
+  PASS face account unchanged
+== 5. first-hit oracle: the winding candidate is refused ==
+  shipped mask07 eye=0.771 flip mask05 eye=0.325 top mask13 eye=0.283
+  PASS the shipped rule keeps 0.771 of the eye's first hits; the two cells a flip would win read 0.325 and 0.283
+== 6. the empty-pixel account ==
+  HOLE totals missing=62394 sky=62394 unexplained=0 skyOnDrawn=747625 skyOnDrawnUnmeasured=747625
+  HOLE split open=7417 enclosed=54977 enclosedUnexplained=0 components=4
+  PASS missing pixels (62394)
+  PASS missing pixels covered by a sky face (62394)
+  PASS missing pixels with no sky face (0)
+  PASS enclosed missing pixels (54977)
+  PASS enclosed pixels with no sky face (0)
+  HOLE maskReach coverage=860784 share=1.00000 degenerate=1
+  PASS the sky hull is closed from this camera (the mask cannot discriminate) (1)
+  HOLE depthControl drawnCovered=747625 skyBehind=0 skyInFront=0 tie=747625 measured=1 saturated=1
+  PASS the depth control ran (1)
+  PASS the depth view is saturated, so it is not used as evidence (1)
+  PASS enclosed components >= 200 px (2)
+  PASS the enclosed population, component by component (rank=0 area=50343 sky=50343 unexplained=0 bbox=(x=602..845,y=91..407) edge=0 fill=0.651 | rank=1 area=4634 sky=4634 unexplained=0 bbox=(x=702..806,y=45..138) edge=0 fill=0.470)
+  PASS every enclosed component is sky-backed, pinned, and not crack-shaped
+== 6b. the T23 account still reads the same ==
+  ACCOUNTING totals pixels=860784 drawn=747625 backface=50765 visibility=0 both=0 missing=62394 other=0 overlay=0
+  PASS T23 and T26 agree on the missing population (62394)
+  PASS back-face population (T11 winding unchanged) (50765)
+  PASS visibility population (T17 clip unchanged) (0)
+== 7. the point oracle and the rasterizer ==
+  51011.8 gpu: world hole-trace-summary points=12 drawnHits=0 anyHits=0 skyHits=12 emptyWithSky=12 emptyWithoutSky=0 cull=1 clipApplied=1
+  PASS points with no sky face (0)
+  PASS 12 of 12 traced points are empty with a sky face behind them
+  PASS HOLE-POINT-SUMMARY points=12 failures=0 ids=1264x681 depth=-
+  PASS the traced frame is the pinned textured frame (the trace changed no pixel)
+== 8. what the empty pixels sit between ==
+  EYE eye=815.5,-147.8,-194.3 src=demo tick=2000 armed=50879.4 capture: armed requested=2000 frame_tick=2000 frames=2148
+  EYE camera-line 50866.2 scene: camera mode=first-person target=1 follows=1728 holds=0 freeze=0 eye=815.5,-147.8,-194.3 pitch=-5.45 yaw=-39.04 src=demo
+  EYE superseded-eyeMap absent
+  PASS the capture pose is the demo camera at tick 2000 (demo)
+  PASS capture-pose eye from the trace's last scene camera (815.5,-147.8,-194.3)
+  seam points: 4; direction probes: 16; resolved: 10; cull-off-only: 0
+  seam faces: 238,4173,9186,9189,19043
+  PASS seam representative points (four probes each) (4)
+  PASS seam direction probes measured at this pose (16)
+  PASS seam direction probes that resolve to a drawn face (the rest are sky-bounded) (10)
+       HOLE seam rank=0 point=660,285 left=19043:59 right=- up=- down=-
+       HOLE seam rank=0 point=800,204 left=- right=238:20 up=9186:35 down=-
+       HOLE seam rank=1 point=802,95 left=- right=4173:3 up=238:35 down=4173:2
+  PASS seam directions only the cull-off frame could name (a front seam neighbour was not culled) (0)
+  PASS the seam faces bracketing the enclosed population (238,4173,9186,9189,19043)
+  sky faces at the traced points: 13304,13313,13314,13318,13319,14442
+  PASS every named face exists in the map's face table (11)
+  PASS no face index was invented by a decode error (0)
+  0 of them are displacement faces, 6 are sky faces
+  PASS displacement cells bounding the enclosed population (0)
+  PASS no displacement cell brackets the enclosed population (the corrupt-pose seam subject is absent)
+  PASS at least one traced empty pixel is backed by a sky face of the map
+       geometry face-info index=238 kind=world material=WOOD/WALL007A triangles=3 displacement=0 fallback=0 plane=85 planeSide=1 cluster=2042 centroid=(1280.0,-200.0,-78.2) bounds=(1280.0,-208.0,-192.0)..(1280.0,-192.0,64.0)
+       geometry face-info index=4173 kind=world material=GREEK/GREEK_GROUND03D triangles=4 displacement=0 fallback=0 plane=-1 planeSide=1 cluster=2022 centroid=(1600.0,-285.3,134.7) bounds=(1600.0,-464.0,128.0)..(1600.0,-48.0,144.0)
+       geometry face-info index=9186 kind=world material=GREEK/GREEK_GROUND03D triangles=3 displacement=0 fallback=0 plane=3179 planeSide=1 cluster=2 centroid=(1640.0,-198.2,80.0) bounds=(1600.0,-336.0,80.0)..(1672.0,-88.0,80.0)
+       geometry face-info index=9189 kind=world material=GREEK/GREEK_GROUND03D triangles=6 displacement=0 fallback=0 plane=3179 planeSide=1 cluster=2026 centroid=(1316.0,-161.3,80.0) bounds=(1272.0,-336.0,80.0)..(1344.0,-88.0,80.0)
+       geometry face-info index=19043 kind=world material=SKYBOX/CLOUD_ODYSSEY_03 triangles=2 displacement=0 fallback=0 plane=15494 planeSide=0 cluster=-1 centroid=(1225.1,-1201.2,0.0) bounds=(1004.5,-1637.7,-648.0)..(1445.7,-764.7,648.0)
+       geometry face-info index=13304 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=113 planeSide=1 cluster=2 centroid=(3456.0,1536.0,-704.0) bounds=(3456.0,1024.0,-2432.0)..(3456.0,2048.0,1024.0)
+       geometry face-info index=13313 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=113 planeSide=1 cluster=2 centroid=(3456.0,-512.0,-704.0) bounds=(3456.0,-1024.0,-2432.0)..(3456.0,0.0,1024.0)
+       geometry face-info index=13314 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=105 planeSide=1 cluster=2 centroid=(3264.0,-512.0,1024.0) bounds=(3072.0,-1024.0,1024.0)..(3456.0,0.0,1024.0)
+       geometry face-info index=13318 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=113 planeSide=1 cluster=2 centroid=(3456.0,-1536.0,-704.0) bounds=(3456.0,-2048.0,-2432.0)..(3456.0,-1024.0,1024.0)
+       geometry face-info index=13319 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=105 planeSide=1 cluster=2 centroid=(3264.0,-1536.0,1024.0) bounds=(3072.0,-2048.0,1024.0)..(3456.0,-1024.0,1024.0)
+       geometry face-info index=14442 kind=sky material=TOOLS/TOOLSSKYBOX triangles=2 displacement=0 fallback=0 plane=105 planeSide=1 cluster=2 centroid=(2560.0,-1536.0,1024.0) bounds=(2048.0,-2048.0,1024.0)..(3072.0,-1024.0,1024.0)
+       CLASS face=238 kind=brush side=1 disp=0 plane=85 planeSD=464.500 emittedDot=464.500 derived=front
+       CLASS face=4173 kind=brush side=1 disp=0 plane=3959 planeSD=784.500 emittedDot=784.500 derived=front
+       CLASS face=9186 kind=brush side=1 disp=0 plane=3179 planeSD=274.300 emittedDot=274.300 derived=front
+       CLASS face=9189 kind=brush side=1 disp=0 plane=3179 planeSD=274.300 emittedDot=274.300 derived=front
+       CLASS face=19043 kind=brush side=0 disp=0 plane=15494 planeSD=840.707 emittedDot=840.706 derived=front
+  CLASS-SUMMARY faces=5 parsed=5 derivedFront=5 derivedBack=0
+  PASS named seam faces the derived raster rule calls back at this pose (0)
+  PASS every named seam face parsed from the BSP face table (5)
+  PASS all 5 named seam faces are derived-front: a correct cull leaves them drawn
+       CULL state=ok frames=1264x681 kept=713844 removed=50765 onlyInCull=0 distinctRemoved=1
+       CULL face=17560 pixels=50765 kind=disp side=1 derived=back planeSD=470.500 seam=0
+  CULL-SUMMARY removed=50765 onlyInCull=0 distinct=1 nonSeam=1 seamFacesRemoved=0 topNonSeam=17560 topNonSeamPixels=50765 topNonSeamKind=disp topNonSeamSide=1 topNonSeamDerived=back
+  PASS the culled face-id frame is a subset of the unculled frame (0)
+  PASS the product cull removed 50765 face-id pixels at this pose
+  PASS 1 non-seam face(s) lost pixels to the cull
+  PASS top non-seam face the product cull removed (17560)
+  PASS the control face is a displacement face (disp)
+  PASS the control face's BSP side bit (a reading of the population, never the cull argument) (1)
+  PASS the control face's derived side (what a correct cull removes) (back)
+  PASS pixels the cull removed from the control face (50765)
+  PASS the positive control face 17560 is not one of the named seam faces
+== verdict ==
+PASS: every empty pixel in the reference frame is covered by the map's own sky brush; there is no missing geometry to fix, and the one winding repair the oracle can see is a measured regression.
