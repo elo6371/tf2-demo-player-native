@@ -152,13 +152,13 @@ restore_all() {
     f=${entry%%|*}; b=${entry#*|}
     # T61.1 review 4, P1: a missing backup is a FAILED restore, not a no-op.
     if [ ! -f "$b" ]; then
-      echo "TRAP-RESTORE-MISSING-BACKUP $f (expected $b)" >&2
+      echo "  FAIL TRAP-RESTORE-MISSING-BACKUP $f (expected $b)" >&2
       note_cause TRAP-RESTORE-MISSING-BACKUP "the backup $b is missing, so the mutant cannot be undone"
       RESTORE_FAILED=1
       continue
     fi
     if [ ! -r "$b" ]; then
-      echo "TRAP-RESTORE-UNREADABLE-BACKUP $b" >&2
+      echo "  FAIL TRAP-RESTORE-UNREADABLE-BACKUP $b" >&2
       note_cause TRAP-RESTORE-UNREADABLE-BACKUP "the backup $b exists but cannot be read, so the mutant cannot be undone"
       RESTORE_FAILED=1
       continue
@@ -166,7 +166,7 @@ restore_all() {
     if ! cmp -s "$b" "$f"; then
       cp -p "$b" "$f" 2>/dev/null || true
       if ! cmp -s "$b" "$f"; then
-        echo "TRAP-RESTORE-MISMATCH $f" >&2
+        echo "  FAIL TRAP-RESTORE-MISMATCH $f" >&2
         note_cause TRAP-RESTORE-MISMATCH "the copy from $b did not verify, so the tree may still carry the mutant"
         RESTORE_FAILED=1
         continue
@@ -177,11 +177,11 @@ restore_all() {
     # bytes already matched. Touch every time, then require the result to be
     # newer than the stamp the next build compares against.
     if ! touch "$f" 2>/dev/null; then
-      echo "TRAP-RESTORE-TOUCH-FAILED $f" >&2
+      echo "  FAIL TRAP-RESTORE-TOUCH-FAILED $f" >&2
       note_cause TRAP-RESTORE-TOUCH-FAILED "the bytes were restored but the mtime could not be advanced, so a rebuild would skip the recompile"
       RESTORE_FAILED=1
     elif ! mtime_newer_than_stamp "$f"; then
-      echo "TRAP-RESTORE-MTIME-NOT-ADVANCED $f (the mtime is not newer than $STAMP)" >&2
+      echo "  FAIL TRAP-RESTORE-MTIME-NOT-ADVANCED $f (the mtime is not newer than $STAMP)" >&2
       note_cause TRAP-RESTORE-MTIME-NOT-ADVANCED "touch returned 0, but the mtime of the file is not newer than the build stamp, so a rebuild would skip the recompile and keep the mutant object"
       RESTORE_FAILED=1
     fi
@@ -263,8 +263,11 @@ recover_binaries() {
   for b in $BINS; do rm -f "$b" 2>/dev/null || true; done
   for b in $BINS; do
     if [ -e "$b" ]; then
-      echo "INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: a mutant binary could NOT be deleted ($b); refusing to rebuild or to call the tree clean. Delete it by hand, restore the sources from $BACKUP, then rebuild." >&2
-      printf '%s\n' "NOT-FOR-ACCEPTANCE: a mutant binary survived the recovery's delete ($b). Do not run a gate on this tree and do not quote a pass from it until the binary is gone and the sources are restored from $BACKUP." > "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
+      note_cause RECOVERY-BINARY-DELETE-FAILED "the mutant binary $b survived deletion, so it must not be used as evidence"
+      echo "  FAIL RECOVERY-BINARY-DELETE-FAILED $b: a mutant binary could NOT be deleted" >&2
+      echo "  REFUSAL recovery cannot continue; refusing to rebuild or to call the tree clean. Delete it by hand, restore the sources from $BACKUP, then rebuild." >&2
+      echo "INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: RECOVERY-BINARY-DELETE-FAILED ($b)" >&2
+      printf '%s\n' "NOT-FOR-ACCEPTANCE: RECOVERY-BINARY-DELETE-FAILED: a mutant binary survived the recovery's delete ($b). Do not run a gate on this tree and do not quote a pass from it until the binary is gone and the sources are restored from $BACKUP." > "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
       RESTORE_FAILED=1
       return 1
     fi
@@ -272,6 +275,7 @@ recover_binaries() {
   # T61.1 review 4: a rebuild is only safe when the restore VERIFIED. If it did
   # not, the mutant source is still on disk and a rebuild would compile it.
   if [ "$RESTORE_FAILED" = "1" ]; then
+    echo "  REFUSAL recovery refused (${REFUSAL_CAUSE:-the source restore did NOT verify}); no rebuild was attempted." >&2
     echo "INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: ${REFUSAL_CAUSE:-the source restore did NOT verify}, so $BINWORD were DELETED rather than rebuilt -- a rebuild now would compile the mutant. Restore the sources from $BACKUP by hand, then rebuild before any gate run." >&2
     printf '%s\n' "NOT-FOR-ACCEPTANCE: $SUITE_LABEL refused (${REFUSAL_CAUSE:-the source restore did not verify}), so the sources may still carry a mutant and $BINWORD were DELETED. Do not run a gate on this tree and do not quote a pass from it until the sources are restored from $BACKUP and build-target.sh $T61_BUILD_TARGETS succeeds." > "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
     return 1
@@ -281,13 +285,22 @@ recover_binaries() {
       echo "INTERRUPT-RECOVERY=rebuilt: sources restored and $BINWORD rebuilt from them, with every object they touch newer than the restored file, so nothing mutant is left to run (log $BACKUP/recovery-build.log)" >&2
       rm -f "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
     else
-      echo "INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: the recovery build left a binary or an object that is not newer than a source it restored, so a mutant build could have been relinked rather than recompiled; the binaries do not evidence this tree (log $BACKUP/recovery-build.log)" >&2
-      printf '%s\n' "NOT-FOR-ACCEPTANCE: $SUITE_LABEL's recovery build left a binary or an object that is not newer than a restored source (see $BACKUP/recovery-build.log). Do not run a gate on this tree and do not quote a pass from it until build-target.sh $T61_BUILD_TARGETS recompiles the restored sources." > "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
+      note_cause RECOVERY-BUILD-NOT-FRESH "the recovery build did not prove that every restored source was recompiled"
+      echo "  FAIL RECOVERY-BUILD-NOT-FRESH: a binary or an object is not newer than a source it restored" >&2
+      echo "  REFUSAL the recovery build is not evidence; a mutant object could have been relinked rather than recompiled." >&2
+      echo "INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: ${REFUSAL_CAUSE:-RECOVERY-BUILD-NOT-FRESH} (log $BACKUP/recovery-build.log)" >&2
+      printf '%s\n' "NOT-FOR-ACCEPTANCE: $SUITE_LABEL refused (${REFUSAL_CAUSE:-RECOVERY-BUILD-NOT-FRESH}); the recovery build did not prove recompilation (see $BACKUP/recovery-build.log). Do not run a gate on this tree and do not quote a pass from it until build-target.sh $T61_BUILD_TARGETS recompiles the restored sources." > "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
+      RESTORE_FAILED=1
       return 1
     fi
   else
-    echo "INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: sources restored but the rebuild FAILED; the binaries do not evidence this tree -- rebuild before any gate run (log $BACKUP/recovery-build.log)" >&2
-    printf '%s\n' "NOT-FOR-ACCEPTANCE: $SUITE_LABEL was interrupted and its recovery rebuild failed. Do not run a gate on this tree, and do not quote a pass from it, until build-target.sh $T61_BUILD_TARGETS succeeds. See $BACKUP/recovery-build.log" > "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
+    note_cause RECOVERY-BUILD-FAILED "the recovery rebuild from restored sources failed"
+    echo "  FAIL RECOVERY-BUILD-FAILED: sources were restored, but the rebuild failed (log $BACKUP/recovery-build.log)" >&2
+    echo "  REFUSAL the recovery build failed; the binaries do not evidence this tree." >&2
+    echo "INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE: RECOVERY-BUILD-FAILED; rebuild before any gate run (log $BACKUP/recovery-build.log)" >&2
+    printf '%s\n' "NOT-FOR-ACCEPTANCE: $SUITE_LABEL refused (RECOVERY-BUILD-FAILED) after sources were restored. Do not run a gate on this tree, and do not quote a pass from it, until build-target.sh $T61_BUILD_TARGETS succeeds. See $BACKUP/recovery-build.log" > "$OUT/BINARIES-NOT-FOR-ACCEPTANCE.txt"
+    RESTORE_FAILED=1
+    return 1
   fi
 }
 

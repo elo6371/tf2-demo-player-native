@@ -103,6 +103,9 @@ wiring() { # wiring <file> <label>
     'TRAP-RESTORE-MTIME-NOT-ADVANCED' \
     'TRAP-RESTORE-MISSING-BACKUP' \
     'TRAP-RESTORE-MISMATCH' \
+    'RECOVERY-BUILD-FAILED' \
+    'RECOVERY-BUILD-NOT-FRESH' \
+    'RECOVERY-BINARY-DELETE-FAILED' \
     'verify_case_build_is_fresh' \
     'verify_objects_are_fresh' \
     'verify_clean_exit() {' \
@@ -157,7 +160,8 @@ stub_rebuild() { # stub_rebuild <kind> <dir> <mode>: counts builds, refreshes ob
   REBUILDS=$((REBUILDS+1))
   echo "$REBUILDS" > "$SC/rebuilds"
   case "$MODE" in
-    build-fail)   [ "$REBUILDS" = "1" ] && return 1 ;;
+    build-fail|int-build-fail|term-build-fail|hup-build-fail)
+      [ "$REBUILDS" = "1" ] && return 1 ;;
     rebuild-fail) [ "$REBUILDS" = "2" ] && return 1 ;;
   esac
   if [ "$MODE" = "stale-object" ] && [ "$REBUILDS" = "2" ]; then
@@ -372,7 +376,7 @@ assert_trap() { # assert_trap <kind> <mode> <rc> <cause|none> <rebuilds> <bins d
   if [ "$cause" = "none" ]; then
     [ ! -e "$d/out/BINARIES-NOT-FOR-ACCEPTANCE.txt" ] && ok "$label: no marker (the tree is clean)" || bad "$label: a marker was written"
   else
-    grep -qF "$cause" "$d/run.log" && ok "$label: the trap names $cause" || bad "$label: the trap did not name $cause"
+    grep -qF "  FAIL $cause" "$d/run.log" && ok "$label: the trap names $cause on a FAIL line" || bad "$label: no FAIL line names $cause"
     [ -f "$d/out/BINARIES-NOT-FOR-ACCEPTANCE.txt" ] && ok "$label: marker written" || bad "$label: no marker"
     grep -qF "$marker" "$d/out/BINARIES-NOT-FOR-ACCEPTANCE.txt" 2>/dev/null && ok "$label: the marker names $marker" || bad "$label: the marker does not name $marker"
   fi
@@ -405,13 +409,16 @@ for kind in unit pixel; do
   grep -qF 'TRAP-RESTORE-TOUCH-FAILED' "$T/trap-$kind-equal-old/run.log" \
     && bad "$kind/trap-equal-old: it still claims a touch failure" || ok "$kind/trap-equal-old: no false touch failure"
   trap_case "$kind" deletion
-  assert_trap "$kind" deletion 3 "could NOT be deleted" 0 dir "survived the recovery"
+  assert_trap "$kind" deletion 3 RECOVERY-BINARY-DELETE-FAILED 0 dir "survived the recovery"
 done
 
-# clean normal exit keeps the case's own code; interrupt codes are measured
+# clean normal exit keeps the case's own code. Every signal test starts with a
+# REAL mutant on disk and a backup, then delivers an actual signal to the shell.
+# The trap must restore the bytes, then either prove the recovery build or leave
+# a named refusal marker. SIGKILL cannot be trapped and is deliberately excluded.
 echo
-echo "=== part 5: exit-code propagation and the signal traps ==="
-exit_case() { # exit_case <kind> <mode>   mode = clean|int|term|hup
+echo "=== part 5: real signals with a mutant on disk; recovery success and refusal ==="
+exit_case() { # exit_case <kind> <mode>: clean|int|term|hup[-build-fail|-touch-fail|-lie-touch]
   local kind=$1 mode=$2 d rc
   d="$T/exit-$kind-$mode"
   rm -rf "$d"
@@ -420,7 +427,8 @@ exit_case() { # exit_case <kind> <mode>   mode = clean|int|term|hup
   cp -p "$d/src/f.cpp" "$d/backup/f.orig"
   setup_objs "$kind" "$d" normal
   : > "$d/out/probe.exe"; : > "$d/out/product.exe"
-  : > "$d/obj/.headers-stamp"; touch -t 202001010000 "$d/obj/.headers-stamp"
+  : > "$d/obj/.headers-stamp"
+  case "$mode" in *-lie-touch) : ;; *) touch -t 202001010000 "$d/obj/.headers-stamp" ;; esac
   (
     set -u
     SC="$d"; MODE="$mode"; REBUILDS=0
@@ -433,31 +441,71 @@ exit_case() { # exit_case <kind> <mode>   mode = clean|int|term|hup
     fail_all=0; BASE_FAILS=0; REFUSAL_CAUSE=""
     TOUCHED="$d/src/f.cpp|$d/backup/f.orig"
     rebuild() { stub_rebuild "$kind" "$d" "$mode"; }
+    printf 'mutant source\n' > "$d/src/f.cpp"
     case "$mode" in
-      clean)  ( exit 7 ); on_exit ;;
-      int)    kill -INT "$BASHPID"; sleep 5 ;;
-      term)   kill -TERM "$BASHPID"; sleep 5 ;;
-      hup)    kill -HUP "$BASHPID"; sleep 5 ;;
+      *-touch-fail)
+        touch() { case "$1" in */f.cpp) return 1 ;; esac; command touch "$@"; } ;;
+      *-lie-touch)
+        touch() { case "$1" in */f.cpp) return 0 ;; esac; command touch "$@"; } ;;
     esac
+    case "$mode" in
+      clean) ( exit 7 ); on_exit ;;
+      int*)  kill -INT "$BASHPID"; sleep 5 ;;
+      term*) kill -TERM "$BASHPID"; sleep 5 ;;
+      hup*)  kill -HUP "$BASHPID"; sleep 5 ;;
+    esac
+    bad "signal $mode returned to the interrupted command instead of exiting"
   ) > "$d/run.log" 2>&1
   rc=$?
   echo "$rc" > "$d/rc"
+}
+
+assert_exit_recovery() { # assert_exit_recovery <kind> <mode> <rc> <cause|none> <builds>
+  local kind=$1 mode=$2 exp_rc=$3 cause=$4 builds=$5
+  local d="$T/exit-$kind-$mode" label rc
+  label="$kind/signal-$mode"; rc=$(cat "$d/rc")
+  echo "--- $label: rc=$rc"
+  grep -E 'FAIL (TRAP-|RECOVERY-)|REFUSAL|INTERRUPT-RECOVERY=' "$d/run.log" | head -5 | sed 's/^/    /'
+  chk "$label: exit code" "$exp_rc" "$rc"
+  cmp -s "$d/src/f.cpp" "$d/backup/f.orig" && ok "$label: the mutant was restored byte-for-byte" || bad "$label: the mutant is still on disk"
+  chk "$label: recovery builds" "$builds" "$(cat "$d/rebuilds" 2>/dev/null || echo 0)"
+  if [ "$cause" = "none" ]; then
+    grep -qF 'INTERRUPT-RECOVERY=rebuilt' "$d/run.log" && ok "$label: recovery rebuilt and verified" || bad "$label: no rebuilt line"
+    [ ! -e "$d/out/BINARIES-NOT-FOR-ACCEPTANCE.txt" ] && ok "$label: no refusal marker" || bad "$label: unexpected refusal marker"
+    [ -e "$d/out/product.exe" ] && ok "$label: restored product present" || bad "$label: rebuilt product missing"
+  else
+    grep -qF "  FAIL $cause" "$d/run.log" && ok "$label: $cause is a named FAIL" || bad "$label: no named FAIL for $cause"
+    grep -qF '  REFUSAL ' "$d/run.log" && ok "$label: recovery entered refusal" || bad "$label: no REFUSAL line"
+    [ -f "$d/out/BINARIES-NOT-FOR-ACCEPTANCE.txt" ] && ok "$label: refusal marker written" || bad "$label: no refusal marker"
+    grep -qF "$cause" "$d/out/BINARIES-NOT-FOR-ACCEPTANCE.txt" 2>/dev/null && ok "$label: marker names $cause" || bad "$label: marker omits $cause"
+    grep -qF 'INTERRUPT-RECOVERY=NOT-FOR-ACCEPTANCE' "$d/run.log" && ok "$label: recovery is explicitly not for acceptance" || bad "$label: recovery was reported as successful"
+    [ ! -e "$d/out/product.exe" ] && ok "$label: product deleted" || bad "$label: product survived a refusal"
+    if [ "$kind" = "unit" ]; then
+      [ ! -e "$d/out/probe.exe" ] && ok "$label: probe deleted" || bad "$label: probe survived a refusal"
+    fi
+  fi
 }
 
 for kind in unit pixel; do
   exit_case "$kind" clean
   rc=$(cat "$T/exit-$kind-clean/rc")
   chk "$kind/exit-clean: a clean exit keeps the case's rc" 7 "$rc"
-  exit_case "$kind" int
-  rc=$(cat "$T/exit-$kind-int/rc")
-  chk "$kind/exit-int: SIGINT exits 130" 130 "$rc"
-  grep -qF 'INTERRUPT-RECOVERY=rebuilt' "$T/exit-$kind-int/run.log" && ok "$kind/exit-int: the recovery rebuilt" || bad "$kind/exit-int: no rebuilt line"
-  exit_case "$kind" term
-  rc=$(cat "$T/exit-$kind-term/rc")
-  chk "$kind/exit-term: SIGTERM exits 130" 130 "$rc"
-  exit_case "$kind" hup
-  rc=$(cat "$T/exit-$kind-hup/rc")
-  chk "$kind/exit-hup: SIGHUP exits 129" 129 "$rc"
+  for mode in int term hup; do
+    exit_case "$kind" "$mode"
+    rc=130; [ "$mode" = "hup" ] && rc=129
+    assert_exit_recovery "$kind" "$mode" "$rc" none 1
+  done
+  for mode in int-build-fail term-build-fail hup-build-fail int-touch-fail term-touch-fail hup-lie-touch; do
+    exit_case "$kind" "$mode"
+    rc=130; case "$mode" in hup*) rc=129 ;; esac
+    cause=TRAP-RESTORE-TOUCH-FAILED
+    case "$mode" in
+      *-build-fail) cause=RECOVERY-BUILD-FAILED ;;
+      *-lie-touch) cause=TRAP-RESTORE-MTIME-NOT-ADVANCED ;;
+    esac
+    builds=0; case "$mode" in *-build-fail) builds=1 ;; esac
+    assert_exit_recovery "$kind" "$mode" "$rc" "$cause" "$builds"
+  done
 done
 
 # ---------------------------------------------------------------------------
