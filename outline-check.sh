@@ -82,6 +82,26 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 # the frame is a real world with real players rather than the fallback quad.
 DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
 OUT="${OUTLINE_OUT:-evidence/outline}"
+# Cygwin truncates a drive-qualified path once it sits behind $PWD: a trace
+# named "$PWD/D:/out/x.trace" is written to a directory called "D:" and every
+# reader of it comes back empty. Measured on 2026-11-03: an absolute
+# OUTLINE_OUT produced "sed: can't read D:/_shared/a2-outline-final/on.trace"
+# while all four bmps were written correctly, because the frames are opened by
+# the prefix as given and only the trace was routed through $PWD. Normalise the
+# root ONCE, here, so every consumer of OUT sees one form.
+case "$OUT" in
+  /*|[A-Za-z]:*) OUT="$(cygpath -m "$OUT")" ;;
+  *) OUT="$(cygpath -m "$PWD/$OUT")" ;;
+esac
+# absolute_out() is the only place a path under OUT is converted, so a caller
+# cannot reintroduce the double prefix by hand.
+absolute_out() { # absolute_out <shell path under OUT> -- native Windows path
+  local path="$1"
+  case "$path" in
+    /*|[A-Za-z]:*) cygpath -m "$path" ;;
+    *) cygpath -m "$PWD/$path" ;;
+  esac
+}
 mkdir -p "$OUT"
 
 MUTATION=0
@@ -663,7 +683,7 @@ run_frame() { # run_frame <prefix> [args...]
   # an earlier run would make a capture that failed to write look like evidence.
   rm -f "$prefix.bmp" "$prefix.pgm" "$prefix.trace" "$prefix.log"
   local trace
-  trace="$(cygpath -m "$PWD/$prefix.trace")"
+  trace="$(absolute_out "$prefix.trace")"
   # The speed=1 capture below is the slow one by construction (a tick near the end
   # of the recording costs its playback position in wall clock), so the timeout is
   # a knob per call rather than a number that has to fit the slowest run.

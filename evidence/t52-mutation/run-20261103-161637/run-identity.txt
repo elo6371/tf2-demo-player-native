@@ -1,0 +1,17 @@
+RUN-HEAD b461b1b05317e781e7afeae31e75558aa0d957e4
+RUN-BRANCH integration/t79-final
+RUN-NATIVE-STATUS
+RUN-HARNESS
+M outline-check.sh (absolute OUTLINE_OUT repair; committed together with this evidence)
+B5-PIN-STATUS
+M evidence/t26-world-holes/analysis/{identity,point-trace,seam-eye}.txt (from completed B5 gate)
+STRAY
+?? D (52,101-byte pre-existing miswritten trace; deliberately untracked)
+LOCK-AT-END
+FREE
+queue=head=
+reservation=none
+product_processes=0
+FINAL-BINARIES
+06a715f41e9c6b891ed70e8937390017f08851dd3404c64199d5133b746854f7 *native/build-nmake/tf2_demo_native.exe
+ae7ac2cc195fdb1562bd2972bb43b6e08ec5bd4c634a3a8c820b40c51ef8062d *native/build-nmake/entity_overlay_probe.exe
