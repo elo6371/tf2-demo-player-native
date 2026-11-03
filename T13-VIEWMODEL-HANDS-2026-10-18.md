@@ -1,7 +1,7 @@
 # T13 — ViewModel multi-range hands
 
 Delivery record for the release blocker F3 ("ViewModel Hands and Arms"), task T13
-of `RELEASE-BLOCKERS-NEXT-WAVE-2026-10-17.md`.
+of the historical release-blocker list dated 2026-10-17 (removed from the current tree).
 
 | | |
 |---|---|

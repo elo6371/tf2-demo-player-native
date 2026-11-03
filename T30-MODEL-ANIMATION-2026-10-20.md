@@ -1,6 +1,6 @@
 # T30 — Real model, animation and companion robustness
 
-**Task:** `NEXT-TASKS-2026-10-20.md` (deleted in the 2026-10-29 cleanup) T30, shared task board `task-2`, owner `t30-model`.
+**Task:** historical task list dated 2026-10-20 (deleted in the 2026-10-29 cleanup), T30, shared task board `task-2`, owner `t30-model`.
 
 ## 0. Verdict
 

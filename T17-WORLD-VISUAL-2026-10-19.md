@@ -1,6 +1,6 @@
 # T17 — World Visual Closure: what the reference frame is made of
 
-Task `T17` (`NEXT-TASKS-2026-10-19.md` (deleted in the 2026-10-29 cleanup)), owner rendering specialist. This round
+Task `T17` (historical task list dated 2026-10-19, deleted in the 2026-10-29 cleanup), owner rendering specialist. This round
 turns the fixed reference frame from "a flat fragment with holes" into a picture
 whose every population is named, fixes the three causes that were measured, and
 leaves the rest as readings rather than adjectives.

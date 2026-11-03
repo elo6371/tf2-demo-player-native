@@ -35,7 +35,7 @@ Phong/bump/selfillum **未实现**，读数逐帧标 `*AppliedRanges=0`；本项
 | `bmp-pixel-diff.py` | 门禁 | 新增 `--region x,y,w,h`；无 `--region` 时输出与旧版逐字节一致 |
 | `viewmodel-material-check.sh` | 门禁 | 新增第 6--9 节产品段落与 4 条产品变异 |
 | `evidence/viewmodel/material-readings.txt` | 证据 | 产品材质读数归档（刷新） |
-| `README.md` / `CHANGELOG.md` / `HANDOFF-2026-10-07.md` / `IMPLEMENTATION-PLAN-2026-10-10.md` | 文档 | 任务状态同步 |
+| `README.md` / `CHANGELOG.md`，以及历史 2026-10-07 交接文档和 2026-10-10 实施计划（后两份已从当前树移除） | 文档 | 任务状态同步 |
 
 六项必证与证据对照：
 

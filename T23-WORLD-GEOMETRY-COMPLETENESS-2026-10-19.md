@@ -1,7 +1,7 @@
 # T23 — World geometry completeness: the empty pixels, accounted
 
 Date: 2026-10-19
-Task: `NEXT-TASKS-2026-10-19.md` (deleted in the 2026-10-29 cleanup), T23 (world geometry completeness)
+Task: historical task list dated 2026-10-19 (deleted in the 2026-10-29 cleanup), T23 (world geometry completeness)
 Branch: `task/t23-world-geometry`
 Worktree: `D:/TF2_Native_Worktrees/t23-world-geometry`
 Base commit: `9591499` (`p0-entity-protocol`; T17, T18 and T19 integrated)

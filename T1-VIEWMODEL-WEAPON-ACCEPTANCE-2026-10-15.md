@@ -1,6 +1,6 @@
 # T1 -- ViewModel and Weapon Manual Acceptance
 
-- Task: T1 per NEXT-TASKS-2026-10-15.md (deleted in the 2026-10-29 cleanup) section 4.
+- Task: T1 per the historical task list dated 2026-10-15, section 4 (deleted in the 2026-10-29 cleanup).
 - Branch / worktree: `task/viewmodel-weapon-acceptance` / `D:\TF2_Native_Worktrees\viewmodel-weapon-acceptance`
 - Base commit: `2235227` (the integration branch's HEAD when this task opened)
 - Final commit: this commit (see `git log -1`)

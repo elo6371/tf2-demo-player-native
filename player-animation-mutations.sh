@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # player-animation-mutations.sh -- prove the T61 A-E readings can go red.
 #
-# SOUL.md rule 1: a criterion that has never been seen to fail is not evidence.
+# External playbook rule 1 (see docs/READ-THE-PLAYBOOK-FIRST.md): a criterion that
+# has never been seen to fail is not evidence.
 # player-animation-check.sh asserts A (sequence table and bind skeleton), B
 # (four distinct quarter-cycle poses inside the bound sphere), C (continuity),
 # D (the clock rate), E (speed advances the cycle, no speed freezes it). This

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # mutate.sh -- prove the acceptance readings can go red.
 #
-# SOUL.md rule 1: a criterion that has never been seen to fail is not evidence.
+# External playbook rule 1 (see docs/READ-THE-PLAYBOOK-FIRST.md): a criterion that
+# has never been seen to fail is not evidence.
 # Each case reintroduces one defect the P0/P1 fixes removed (or an equivalent),
 # rebuilds, runs the affected reading, and asserts the reading moved away from
 # the fixed-build value. Then it restores the tree with `git checkout` and

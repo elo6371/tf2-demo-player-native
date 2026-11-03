@@ -1,7 +1,7 @@
 # T33 — Code quality, performance, and footprint audit (2026-10-20)
 
 Status: **audit delivered**. No product source was changed (read-only audit mode,
-per NEXT-TASKS-2026-10-20.md (deleted in the 2026-10-29 cleanup) assignment order step 4). The committed increment is
+per the historical task list dated 2026-10-20, assignment order step 4; deleted in the 2026-10-29 cleanup). The committed increment is
 this report, one new gate (`quality-audit-check.sh`) and its evidence. Deletion
 candidates are listed in §7 with their proof and are **not** applied: they are
 other tasks' evidence and the integration owner decides.

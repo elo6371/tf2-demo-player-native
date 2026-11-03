@@ -1,6 +1,6 @@
 # T18 — the applied ViewModel pose is a picture, not a reading
 
-**Task:** `NEXT-TASKS-2026-10-19.md` (deleted in the 2026-10-29 cleanup), T18 "ViewModel applied-pose camera and animation
+**Task:** historical task list dated 2026-10-19 (deleted in the 2026-10-29 cleanup), T18 "ViewModel applied-pose camera and animation
 frame".
 **Problem as stated:** "T13 proves that skinning and animation are applied, but the
 `--viewmodel-apply-animation` evidence frame is a camera-inside-model close-up and is
@@ -59,8 +59,8 @@ and removed afterwards (`git worktree remove --force`, then `git worktree prune`
 
 `git status --short` on the main worktree was read before starting and its four
 pre-existing entries (`M evidence/world-material/real-cp_snakewater_final1.txt`,
-`?? NEXT-TASKS-2026-10-18.md`, `?? NEXT-TASKS-2026-10-19.md`,
-`?? RELEASE-BLOCKERS-NEXT-WAVE-2026-10-17.md`) were not touched: every edit below is
+the untracked 2026-10-18 and 2026-10-19 task lists, and the untracked
+2026-10-17 release-blocker list; all three are historical documents removed from the current tree) were not touched: every edit below is
 inside this worktree.
 
 ---

@@ -1,6 +1,6 @@
 # T6 -- ViewModel Animation Binding
 
-- Task: T6 of NEXT-WAVE-TASKS-2026-10-16.md (deleted in the 2026-10-29 cleanup).
+- Task: T6 of the historical next-wave task list dated 2026-10-16 (deleted in the 2026-10-29 cleanup).
 - Branch / worktree: `task/viewmodel-animation-binding` / `D:\TF2_Native_Worktrees\viewmodel-animation-binding`
 - Base commit: `4360403` (the T5 planning baseline)
 - Final commit: `91280ba` (product `cedbaf9`, gate pins `91280ba`)

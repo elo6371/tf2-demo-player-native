@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # player-model-mutations.sh -- prove the T60 A/B/C readings can go red.
 #
-# SOUL.md rule 1: a criterion that has never been seen to fail is not evidence.
+# External playbook rule 1 (see docs/READ-THE-PLAYBOOK-FIRST.md): a criterion that
+# has never been seen to fail is not evidence.
 # player-model-check.sh asserts A (LOD0 not truncated), B (paint per material
 # slot and skin family) and C (separate _animations.mdl source). This script
 # reintroduces each defect, rebuilds, and requires the gate to go red with a

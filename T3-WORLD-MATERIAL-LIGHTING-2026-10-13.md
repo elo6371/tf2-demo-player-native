@@ -1,6 +1,6 @@
 # T3 · 世界材质与光照（world-material-lighting）
 
-- 任务：`TASK-PLAN-2026-10-13-4-WAY.md` (deleted in the 2026-10-29 cleanup) §T3（= `IMPLEMENTATION-PLAN-2026-10-10.md` (deleted in the 2026-10-29 cleanup) §T4「世界材质与地图光照」；两份文档编号不同，本文件按任务书称 T3）。
+- 任务：历史 2026-10-13 四路任务计划 §T3（= 历史 2026-10-10 实施计划 §T4「世界材质与地图光照」；两份文档均于 2026-10-29 清理中移除，编号不同，本文件按任务书称 T3）。
 - 分支 / worktree：`task/world-material-lighting` / `D:\TF2_Native_Worktrees\world-material-lighting`
 - 基线 commit：`0f023bb6dcb6b9617ace804fcf9cf34b93594ae9`（`docs: record T3 integration and fix audio input line endings`）
 - 最终 commit：`f7eea49`（代码/门禁/证据/四份文档；其后为判定运行的证据提交与交付报告，见 §7）
@@ -54,7 +54,7 @@
 | `frame-capture-check.sh` | +127/−25 | **共享门禁判据更新**（§6）：颜色多样性上限 → 同次运行回退帧的字节比较；paused 场景注释按实测修正。单独提交 `3ba4803`。 |
 | `evidence/world-material/*` | 13 文件 + 3 子目录 | 本轮全部门禁读数的入库件（`before/` 对照、三张帧 PNG、`frame-capture-gate/` 与 `verify-render/` 的判定日志），`README.md` 逐文件说明。 |
 | `evidence/frame-capture/*` | 7 文件 | 见证帧刷新（snakewater `019a2899`、paused `dd65787f`；bagel 不变且成为新判据的参照物）。 |
-| `README.md` / `CHANGELOG.md` / `HANDOFF-2026-10-07.md` / `IMPLEMENTATION-PLAN-2026-10-10.md` | 文档 | 按工作规则同步；本文件即交付报告。 |
+| `README.md` / `CHANGELOG.md`，以及历史 2026-10-07 交接文档和 2026-10-10 实施计划（后两份已从当前树移除） | 文档 | 按工作规则同步；本文件即交付报告。 |
 
 **超出任务书允许清单的 5 个文件，逐条理由**（任务书允许：`native/include/world_material*.h`、`native/src/world_material*.cpp`、`native/src/native_renderer.cpp`、`native/tools/world_material_probe.cpp`、`world-material-check.sh`、`evidence/world-material/`）：
 

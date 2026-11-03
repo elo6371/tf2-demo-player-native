@@ -41,7 +41,7 @@ Status: DELIVERED (evidence committed; see section 0)
 
 ## 1. Task, branch, worktree
 
-- Task: T4 - Stability and Release Validation (`NEXT-TASKS-2026-10-15.md` (deleted in the 2026-10-29 cleanup) section 7).
+- Task: T4 - Stability and Release Validation (historical task list dated 2026-10-15, section 7; deleted in the 2026-10-29 cleanup).
 - Branch: `task/stability-release-head` (new branch, born from the integration HEAD).
 - Worktree: `D:\TF2_Native_Worktrees\stability-release-head`.
 - The historical T4 worktree `D:\TF2_Native_Worktrees\stability-release`

@@ -54,8 +54,10 @@ entity_history_gap=0 entity_delta_tick_misses=0
 `demo_open_probe` currently writes raw payload output to the fixed filename
 `packet-entities-target-evidence.txt`. Concurrent probes can overwrite it, so
 the command must run alone or the file must be copied immediately. The raw
-payloads and offsets already committed in `PACKET-ENTITIES-TARGET-EVIDENCE.md`
-remain the authoritative bagel capture.
+payloads and offsets archived by historical commit `163b4c0` remain the
+authoritative bagel capture, although that record is no longer in the current tree.
+The packet boundaries are reproduced above; [the tick-axis record](ENTITY-PACKET-TICK-MAPPING.md)
+retains the corresponding command offsets.
 
 This harness does not establish the missing SendProp schema rule and does not
 propose a decoder change. A reliable repair still needs a packet-local replay

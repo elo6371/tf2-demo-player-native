@@ -1,7 +1,7 @@
 # T11 third round -- the winding decision
 
 Date: 2026-10-18
-Task: `RELEASE-BLOCKERS-NEXT-WAVE-2026-10-17.md` (deleted in the 2026-10-29 cleanup), T11 (world geometry), remaining
+Task: historical release-blocker list dated 2026-10-17 (deleted in the 2026-10-29 cleanup), T11 (world geometry), remaining
 item. Branch `task/t11-world-geometry`, worktree
 `D:\TF2_Native_Worktrees\t11-world-geometry`.
 

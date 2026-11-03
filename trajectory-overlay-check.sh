@@ -3,7 +3,8 @@
 #
 # WHAT IT ASSERTS
 # ---------------
-# NEXT-TASKS-2026-10-21.md:583-589 asks for a projectile trajectory overlay that
+# Historical task list dated 2026-10-21, lines 583-589 (removed from the current
+# tree), asks for a projectile trajectory overlay that
 # "must not assume constant velocity if the demo provides observed projectile
 # positions that capture gravity, collision, or deflection", with all-player and
 # selected-player filters, sampling/performance tiers, a ~0.5 s linger, and an

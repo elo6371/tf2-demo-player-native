@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # review-workspace-mutations.sh -- prove the T71/T72 gate readings can go red.
 #
-# SOUL.md rule 1: a criterion that has never been seen to fail is not evidence.
+# External playbook rule 1 (see docs/READ-THE-PLAYBOOK-FIRST.md): a criterion that
+# has never been seen to fail is not evidence.
 # review-workspace-check.sh asserts the workspace file roundtrip, the demo-hash
 # binding, corrupt/old-schema refusal, bookmark identity (tick:packet:bit),
 # sort order, transaction rollback and persistence. This script reintroduces
