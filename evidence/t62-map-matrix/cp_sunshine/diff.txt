@@ -1,0 +1,16 @@
+bmp_a=D:/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/cp_sunshine.tick0.bmp
+bmp_b=D:/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/cp_sunshine.tick2000.bmp
+width=1264
+height=681
+bpp_a=24
+bpp_b=24
+channel_delta_tolerance=8
+total_pixels=860784
+pixels_any_delta=554551
+pixels_channel_gt8=547656
+percent_channel_gt8=63.6229
+percent_channel_any=64.4239
+max_channel_delta=209
+sha256_a=edd92e3b24fbac452b1470e390961fc28a0ff11cacf83ba5cc01650e895cb553
+sha256_b=bc86d1c167a921db2267d072b7e31156bd70ba5912f62acc070945d3f503bd4a
+identical_files=0

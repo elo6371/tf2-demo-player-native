@@ -1,0 +1,16 @@
+bmp_a=D:/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/pl_odyssey.tick0.bmp
+bmp_b=D:/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/pl_odyssey.tick2000.bmp
+width=1264
+height=681
+bpp_a=24
+bpp_b=24
+channel_delta_tolerance=8
+total_pixels=860784
+pixels_any_delta=485277
+pixels_channel_gt8=475423
+percent_channel_gt8=55.2314
+percent_channel_any=56.3762
+max_channel_delta=226
+sha256_a=b3acaa2998b0bc6bce079a9467aad07bbfe2e34c89547149af8831e862ff93a7
+sha256_b=8f4b3911b8a02b1e5e3aa5a912d8d1f5a240e8479ac80891985e4918a26a5848
+identical_files=0

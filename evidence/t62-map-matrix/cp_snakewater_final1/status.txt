@@ -1,0 +1,1 @@
+map=cp_snakewater_final1 status=ok probe_rc=0 product_rc_tick0=0 product_rc_tick2000=0 tile_rows_0=123 tile_rows_2000=123

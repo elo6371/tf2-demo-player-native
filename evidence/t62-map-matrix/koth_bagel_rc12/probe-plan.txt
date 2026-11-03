@@ -1,0 +1,35 @@
+ACQUIRED owner=t62-map at 2026-11-03 19:08:42
+{"reading":"map.distinctMaterials","value":"99"}
+{"reading":"map.triangles","value":"97574"}
+{"reading":"map.vpkEntries","value":"149970"}
+{"reading":"map.vmtResolved","value":"78"}
+{"reading":"map.vmtMissing","value":"0"}
+{"reading":"map.vmtNoBase","value":"22"}
+{"reading":"map.vtfResolved","value":"77"}
+{"reading":"map.vtfMissing","value":"0"}
+{"reading":"plan.tiled","value":"77"}
+{"reading":"plan.refused","value":"0"}
+{"reading":"plan.batches","value":"2"}
+{"reading":"plan.refusedMalformed","value":"0"}
+{"reading":"plan.refusedDuplicate","value":"0"}
+{"reading":"plan.refusedBudget","value":"0"}
+{"reading":"plan.albedoMiB","value":"80"}
+{"reading":"plan.reason","value":"77 of 77 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=80+0+0+0+0 MiB"}
+{"reading":"plan.beyondOldCap","value":"13"}
+{"reading":"feature.summary","value":"materials=99 bumpmap=25(visible 0, resolved 25, missing 0, distinct 17) bumpmap2=0(visible 0) ssbump=17(visible 0) detail=19(visible 0, resolved 0, types 3)"}
+{"reading":"feature.bumpmap.declared","value":"25"}
+{"reading":"feature.bumpmap.resolved","value":"25"}
+{"reading":"feature.bumpmap.missing","value":"0"}
+{"reading":"feature.bumpmap.distinct","value":"17"}
+{"reading":"feature.bumpmap.reason","value":"the materials name 17 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 14 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 11 that do stay refused (see the $ssbump row)"}
+{"reading":"feature.bumpmap2.declared","value":"0"}
+{"reading":"feature.bumpmap2.reason","value":""}
+{"reading":"feature.ssbump.declared","value":"17"}
+{"reading":"feature.ssbump.reason","value":"$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on"}
+{"reading":"feature.detail.declared","value":"19"}
+{"reading":"feature.detail.resolved","value":"0"}
+{"reading":"feature.detail.types","value":"3"}
+{"reading":"feature.detail.firstType","value":"tf_bagel_grass"}
+{"reading":"feature.detail.reason","value":"detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused"}
+{"reading":"mapTest","value":"true"}
+LOCKED-COMMAND-EXIT rc=0 owner=t62-map

@@ -1,0 +1,16 @@
+bmp_a=D:/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/koth_bagel_rc12.tick0.bmp
+bmp_b=D:/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/koth_bagel_rc12.tick2000.bmp
+width=1264
+height=681
+bpp_a=24
+bpp_b=24
+channel_delta_tolerance=8
+total_pixels=860784
+pixels_any_delta=186201
+pixels_channel_gt8=173961
+percent_channel_gt8=20.2096
+percent_channel_any=21.6316
+max_channel_delta=255
+sha256_a=24fcf23b1d0abb964c83a733f6c3fe487ec75a4d81d7e6e17efea8526d5c8c96
+sha256_b=9644a1e6f0f65073285593299cfc179ff8c31d49a71b1e0f3c5edb8b6745b6f6
+identical_files=0
