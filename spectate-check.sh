@@ -71,6 +71,15 @@ OUT="${SPECTATE_OUT:-evidence/t66-sourcetv/runtime}"
 SPEED="${SPECTATE_SPEED:-8}"
 CAPTURE_TICK="${SPECTATE_CAPTURE_TICK:-19700}"
 ALIVE_TICK="${SPECTATE_ALIVE_TICK:-12000}"
+
+# The product rejects absolute output paths. Fail here with a useful message
+# instead of later with exit 16 and an empty trace; keep all evidence in-repo.
+case "$OUT" in
+  /*|[A-Za-z]:[\\/]*|[\\/][\\/]*)
+    echo "FATAL: SPECTATE_OUT must be a repository-relative path, got: $OUT"
+    echo "       Use, for example, evidence/t66-sourcetv/runtime-fresh."
+    exit 2 ;;
+esac
 mkdir -p "$OUT"
 
 RUN_NEGATIVE=1

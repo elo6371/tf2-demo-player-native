@@ -18,6 +18,7 @@
 # the same lens geometry class-pixels-check.sh uses (and the reference camera
 # player-animation-pixels.sh was hand-built from). targets.txt is an INPUT:
 # the script fails if the id frame refuses to draw the named body.
+# Read it and the settings from INPUT; OUT may be a new, empty output directory.
 #
 # WHY tick 63000 OF THE SNAKEWATER RECORDING
 # It is the only tick this recording offers where player bodies of BOTH teams
@@ -33,7 +34,8 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
-OUT=${T62_BODY_OUT:-evidence/t62-matrix/body-appearance}
+INPUT=${T62_BODY_INPUT:-evidence/t62-matrix/body-appearance}
+OUT=${T62_BODY_OUT:-$INPUT}
 PRODUCT=${T62_BODY_PRODUCT:-native/build-nmake/tf2_demo_native.exe}
 PY=${T62_BODY_PYTHON:-C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe}
 TF=${T62_BODY_TF_ROOT:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf}
@@ -55,9 +57,9 @@ say_fail() { echo "  FAIL $*"; fail=1; }
 
 mkdir -p "$OUT"
 for f in settings.json ui.json; do
-  [ -e "$OUT/$f" ] || cp "evidence/t62-matrix/class-pixels/$f" "$OUT/$f"
+  [ -e "$INPUT/$f" ] || cp "evidence/t62-matrix/class-pixels/$f" "$INPUT/$f"
 done
-for path in "$PRODUCT" "$TF" "$DEMO" "$PY" "$OUT/targets.txt" "$OUT/settings.json" "$OUT/ui.json"; do
+for path in "$PRODUCT" "$TF" "$DEMO" "$PY" "$INPUT/targets.txt" "$INPUT/settings.json" "$INPUT/ui.json"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 2; }
 done
 
@@ -68,7 +70,7 @@ run_frame() {
   rm -f "$bmp" "$trace"
   TF2_NATIVE_TRACE="$trace" timeout 1200 "$PRODUCT" \
     --tf-root "$TF" --hidden-window --audio-disabled \
-    --settings-file "$OUT/settings.json" --ui-settings-file "$OUT/ui.json" \
+    --settings-file "$INPUT/settings.json" --ui-settings-file "$INPUT/ui.json" \
     --demo "$DEMO" --capture-tick "$TICK" --playback-speed "$SPEED" \
     --capture-frame "$bmp" \
     --debug-camera "$eyeX" "$eyeY" "$eyeZ" "$CAMERA_PITCH" "$CAMERA_YAW" \
@@ -187,7 +189,7 @@ while read -r LABEL CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
   judged=$((judged + 1))
   rm -f "$dir/identity.trace" "$dir/painted.trace"
   echo
-done < "$OUT/targets.txt"
+done < "$INPUT/targets.txt"
 
 # --- the pair claim: the same model must be painted by BOTH teams, and the two
 # readings must point in OPPOSITE directions. One body per team could pass by
