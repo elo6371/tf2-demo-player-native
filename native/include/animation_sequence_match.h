@@ -149,6 +149,19 @@ enum class SequenceMatchMode {
   WholeToken,
 };
 
+// A one-shot action is not a cycle. TF2 labels its reload family
+// ReloadStand_PRIMARY / ReloadCrouch_PRIMARY / ReloadSwim_PRIMARY, so "stand"
+// matches it as a whole token AND as a substring: neither match mode can tell a
+// stand idle from a reload that happens to stand. Measured on the nine class
+// tables (2026-11-04): only the Pyro's idle pick landed on a reload, and that
+// sequence carries an empty bone chain, so every Pyro body in every demo was
+// drawn in its bind pose. The reload family is rejected for both pickers; no
+// moving needle matches such a label, so this removes a false idle and no
+// locomotion pick.
+inline bool sequenceLabelIsOneShot(const std::string& label) {
+  return sequenceLabelHasSubstring(label, "reload");
+}
+
 // The selector. labelAt(i) returns sequence i's label, frameCountAt(i) returns
 // sequence i's frame count (0 when the sequence has no animation descriptor).
 // Tiers, in the order they are tried:
@@ -177,6 +190,8 @@ std::int32_t chooseSequenceByNeedles(std::size_t sequenceCount,
     const std::string& candidate = labelAt(index);
     const std::int32_t frameCount = frameCountAt(index);
     const bool hasDescriptor = frameCount > 0;
+    // See sequenceLabelIsOneShot: a reload is a state the entity cannot hold.
+    if (sequenceLabelIsOneShot(candidate)) continue;
     for (std::size_t needle = 0; needle < needleCount; ++needle) {
       const char* const needleText = needles[needle];
       const bool matched = wholeToken
@@ -282,6 +297,10 @@ std::vector<std::size_t> rankSequenceCandidates(std::size_t sequenceCount,
   };
   for (std::size_t index = 0; index < sequenceCount; ++index) {
     const std::string& candidate = labelAt(index);
+    // Same one-shot rule as the selector: the ranker exists so the probe tries
+    // poses in the product's order, and a reload the product would never play
+    // must not appear anywhere in that order.
+    if (sequenceLabelIsOneShot(candidate)) continue;
     for (std::size_t needle = 0; needle < needleCount; ++needle) {
       const char* const needleText = needles[needle];
       const bool leading = wholeToken
@@ -292,6 +311,7 @@ std::vector<std::size_t> rankSequenceCandidates(std::size_t sequenceCount,
   }
   for (std::size_t index = 0; index < sequenceCount; ++index) {
     const std::string& candidate = labelAt(index);
+    if (sequenceLabelIsOneShot(candidate)) continue;
     for (std::size_t needle = 0; needle < needleCount; ++needle) {
       const char* const needleText = needles[needle];
       const bool matched = wholeToken

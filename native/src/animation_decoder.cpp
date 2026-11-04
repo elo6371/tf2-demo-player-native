@@ -18,6 +18,8 @@ constexpr int kMaxBones = 1024;
 constexpr int kMaxAnims = 8192;
 constexpr int kMaxSequences = 8192;
 constexpr int kMaxIncludes = 64;
+// A bone chain ends with a record whose bone field is 0xFF; see sampleAnimation.
+constexpr int kAnimationChainTerminator = 0xFF;
 constexpr int kLoopingFlag = 0x0001;
 constexpr int kRawPos = 0x01;
 constexpr int kRawRot = 0x02;
@@ -598,6 +600,16 @@ AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequen
     const int boneIndex = model.bytes[boneCursor];
     std::int16_t next = 0;
     readAt(model.bytes.data(), model.bytes.size(), boneCursor + 2, next);
+    // T62: 0xFF is the chain terminator, not a bone index. TF2's ReloadStand /
+    // ReloadCrouch / ReloadSwim family carries an animation block with no bone
+    // deltas at all: the block is that single record (bone=255, next=0). Source's
+    // own walkers stop on the sentinel; treating it as an index failed the whole
+    // sample, and a failed sample pins the entity to its bind pose -- the pyro
+    // was drawn unskinned in every demo for exactly this reason. Stopping here
+    // leaves every bone at its reference transform, which is what an empty chain
+    // means, and it can only turn a failed sample into a reference-pose sample:
+    // no sequence that decodes today reaches this branch.
+    if (boneIndex == kAnimationChainTerminator) break;
     if (boneIndex >= static_cast<int>(model.bones.size())) {
       sample.reason = "animation bone index is outside the skeleton";
       return sample;

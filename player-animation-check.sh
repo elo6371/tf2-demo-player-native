@@ -185,7 +185,12 @@ MATCH_LOG="$OUT/matcher-selftest.txt"
 MATCH_RC=$?
 MATCH_LINE=$(head -1 "$MATCH_LOG")
 assert_eq "matcher selftest exit" "$MATCH_RC" "0"
-for matcher_field in ordered head boundary substringDefect leading; do
+# `oneShot` is the T62 rule: a clip the product plays once (today: reload)
+# is never the idle, even when its label carries the token `stand`. It is a
+# required field so a matcher that drops the rule cannot pass by printing a
+# plausible line, and the case that sets it also proves the label WOULD have
+# matched, so the rejection is what moved the pick.
+for matcher_field in ordered head boundary substringDefect leading oneShot; do
   assert_eq "matcher $matcher_field" "$(field "$MATCH_LINE" "$matcher_field")" "1"
 done
 # The ranker's order is the property the fix was about, so it is pinned by

@@ -276,9 +276,17 @@ int main(int argc, char** argv) {
   // geometry that no winding rule, pvs row or cull mode can bring back, so it
   // is separated from the faces that emitted and from the ones a displacement
   // fallback substituted for.
-  std::printf("geometry faces total=%zu rendered=%zu sky=%zu skippedNoDraw=%zu skippedInvalid=%zu\n",
+  // T62: the fifth term. A brush-model face the parser refuses to draw is
+  // neither rendered nor sky, so the four terms above do not add up to faceCount
+  // on any map that hides a brush model (snakewater: 12825 + 3278 = 16103). The
+  // term is appended rather than inserted so the substring the older gate pins
+  // (.. skippedInvalid=0) still matches.
+  std::printf("geometry faces total=%zu rendered=%zu sky=%zu skippedNoDraw=%zu skippedInvalid=%zu"
+              " skippedBrushModel=%zu worldFaces=%zu brushFaces=%zu\n",
               map.faceCount, map.renderedFaceCount, map.skyFaces,
-              map.facesSkippedNoDraw, map.facesSkippedInvalid);
+              map.facesSkippedNoDraw, map.facesSkippedInvalid,
+              map.brushFacesSkipped, map.worldFaceCount,
+              map.brushFacesDrawn + map.brushFacesSkipped);
   // T26: the sky faces as geometry rather than as a count. `triangleCount` above
   // is the product's buffer and must not include them; this line says how many
   // polygons the sky brushes contribute, which is what the `--world-geometry

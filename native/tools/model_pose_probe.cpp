@@ -177,7 +177,7 @@ int matcherSelfTest() {
   const std::vector<std::string> mixed = {
     "walk_SECONDARY",
     "layer_AttackStandMelee_runS_arms",
-    "PRIMARY_airwalk_reload_start",
+    "PRIMARY_airwalk_start",
     "run_SECONDARY",
     "layer_gesture_primary_help_runN_armL",
   };
@@ -192,7 +192,7 @@ int matcherSelfTest() {
 
   // Case 2: the whole-token boundary. `walk` must not match inside `airwalk`,
   // so in WholeToken mode the only candidate is the run cycle at index 1.
-  const std::vector<std::string> airwalk = {"PRIMARY_airwalk_reload_start", "run_SECONDARY"};
+  const std::vector<std::string> airwalk = {"PRIMARY_airwalk_start", "run_SECONDARY"};
   const std::vector<std::int32_t> airwalkFrames = {2, 2};
   const std::int32_t wholeTokenPick = selectorFor(airwalk, airwalkFrames,
     SequenceMatchMode::WholeToken, &chosenLabel);
@@ -216,13 +216,37 @@ int matcherSelfTest() {
     SequenceMatchMode::WholeToken, &chosenLabel);
   const bool leadingTokenBeatsArmLayer = leadingPick == 1;
 
+  // Case 5: a one-shot action is never an idle. `reload` is not among the
+  // idle needles, so the substring matcher DOES accept `ReloadStand_PRIMARY`
+  // (it carries the token `stand`); before the one-shot rule that made Pyro's
+  // idle pick a 31-frame reload clip whose animation block is an empty
+  // 0xFF-terminated chain in pyro.mdl. The selector must skip it and fall to
+  // the standing attack at index 1, and the second half of the flag proves the
+  // rejection -- not a lost match -- is what moved the pick.
+  const std::vector<std::string> idleTable = {"ReloadStand_PRIMARY", "AttackStand_PRIMARY"};
+  const auto idleSelectorFor = [](const std::vector<std::string>& labels) -> std::int32_t {
+    const auto labelAt = [&labels](std::size_t at) -> const std::string& {
+      return labels[at];
+    };
+    const auto frameCountAt = [](std::size_t) -> std::int32_t { return 2; };
+    std::string ignored;
+    return tf2::native::chooseSequenceByNeedles(labels.size(), labelAt, frameCountAt,
+      tf2::native::kIdleNeedles, tf2::native::kIdleNeedleCount,
+      SequenceMatchMode::Substring, &ignored);
+  };
+  const std::int32_t idlePick = idleSelectorFor(idleTable);
+  const bool oneShotReloadRejected = idlePick == 1
+    && tf2::native::sequenceLabelHasToken(idleTable[0], "stand");
+
   const bool pass = rankedIsSequenceMajor && selectorAgreesWithRankedHead
-    && wholeTokenRejectsAirwalk && substringModePicksAirwalk && leadingTokenBeatsArmLayer;
+    && wholeTokenRejectsAirwalk && substringModePicksAirwalk && leadingTokenBeatsArmLayer
+    && oneShotReloadRejected;
   std::cout << "matchselftest ordered=" << (rankedIsSequenceMajor ? 1 : 0)
     << " head=" << (selectorAgreesWithRankedHead ? 1 : 0)
     << " boundary=" << (wholeTokenRejectsAirwalk ? 1 : 0)
     << " substringDefect=" << (substringModePicksAirwalk ? 1 : 0)
     << " leading=" << (leadingTokenBeatsArmLayer ? 1 : 0)
+    << " oneShot=" << (oneShotReloadRejected ? 1 : 0)
     << " ranked=";
   for (std::size_t index = 0; index < ranked.size(); ++index) {
     std::cout << (index == 0 ? "" : ",") << ranked[index];
@@ -318,6 +342,7 @@ struct PlayerAnimationOptions {
   std::int32_t movingSequence = -1;
   std::int32_t motionWindowStart = -1;
   std::int32_t motionWindowEnd = -1;
+  bool dumpSequences = false;
 };
 
 int failPlayerAnimation(const std::string& reason, const std::string& detail) {
@@ -750,6 +775,7 @@ int playerAnimationTest(int argc, char** argv) {
     else if (argument == "--demo") { const char* v = next("--demo"); if (!v) return 2; options.demoPath = v; }
     else if (argument == "--sequence") { const char* v = next("--sequence"); if (!v) return 2; options.sequence = std::atoi(v); }
     else if (argument == "--idle-sequence") { const char* v = next("--idle-sequence"); if (!v) return 2; options.idleSequence = std::atoi(v); }
+    else if (argument == "--dump-sequences") { options.dumpSequences = true; }
     else if (argument == "--moving-sequence") { const char* v = next("--moving-sequence"); if (!v) return 2; options.movingSequence = std::atoi(v); }
     else if (argument == "--ticks") {
       const char* v = next("--ticks"); if (!v) return 2;
@@ -868,6 +894,14 @@ int playerAnimationTest(int argc, char** argv) {
     movingSequence, anims.sequences[static_cast<std::size_t>(movingSequence)].label.c_str(),
     poseSequence, poseLabel.c_str(), animationFrameCount(anims, poseSequence),
     labelList(anims, 24).c_str());
+  if (options.dumpSequences) {
+    for (std::size_t index = 0; index < anims.sequences.size(); ++index) {
+      const auto& sequence = anims.sequences[index];
+      std::printf("seq index=%zu label=%s frames=%d activity=%d flags=%d animDesc=%d\n",
+        index, sequence.label.c_str(), animationFrameCount(anims, static_cast<std::int32_t>(index)),
+        sequence.activity, sequence.flags, sequence.animDesc);
+    }
+  }
   std::printf("boundDiag bindRadius=%.6f boundDiag=%.6f bones=%zu composed=%d reason=%s\n",
     bindRadius, boundDiag, anims.bones.size(), composed ? 1 : 0,
     composed ? "-" : composeReason.c_str());
