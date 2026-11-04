@@ -718,21 +718,30 @@ bool buildEntityModelInstanceRows(
   }
   const float horizontal = world.horizontalScale;
   const float zScale = world.zScale;
-  rows.positionRows[0] = horizontal * m00;
-  rows.positionRows[1] = horizontal * m01;
-  rows.positionRows[2] = horizontal * m02;
+  // T62: the VVD vertex block is Y-up (height along model +Y, forward along
+  // model +Z), while the renderer's world is Z-up (X/Y horizontal, Z altitude).
+  // The Source model hull in the MDL header confirms the required permutation:
+  // hull x -16.23..13.49 == model z -16.23..13.07, hull y +-22.61 == model
+  // x +-21.26 (dilated), hull z -3.14..82.52 == model y 0..79.68 (dilated).
+  // Mapping model (x,y,z) -> Source (z,x,y) and then applying the yaw/pitch
+  // rotation is what puts the player upright. Without the permutation a
+  // 79.68-unit-tall body got its height multiplied by horizontalScale and was
+  // laid flat, which is the collapsed blob the T62 captures kept showing.
+  rows.positionRows[0] = horizontal * m01;
+  rows.positionRows[1] = horizontal * m02;
+  rows.positionRows[2] = horizontal * m00;
   rows.positionRows[3] = (origin[0] - world.centerX) * horizontal;
-  rows.positionRows[4] = horizontal * m10;
-  rows.positionRows[5] = horizontal * m11;
-  rows.positionRows[6] = horizontal * m12;
+  rows.positionRows[4] = horizontal * m11;
+  rows.positionRows[5] = horizontal * m12;
+  rows.positionRows[6] = horizontal * m10;
   rows.positionRows[7] = (origin[1] - world.centerY) * horizontal;
-  rows.positionRows[8] = zScale * m20;
-  rows.positionRows[9] = zScale * m21;
-  rows.positionRows[10] = zScale * m22;
+  rows.positionRows[8] = zScale * m21;
+  rows.positionRows[9] = zScale * m22;
+  rows.positionRows[10] = zScale * m20;
   rows.positionRows[11] = (origin[2] - world.minZ) * zScale + 0.1f;
-  rows.normalRows[0] = m00; rows.normalRows[1] = m01; rows.normalRows[2] = m02;
-  rows.normalRows[3] = m10; rows.normalRows[4] = m11; rows.normalRows[5] = m12;
-  rows.normalRows[6] = m20; rows.normalRows[7] = m21; rows.normalRows[8] = m22;
+  rows.normalRows[0] = m01; rows.normalRows[1] = m02; rows.normalRows[2] = m00;
+  rows.normalRows[3] = m11; rows.normalRows[4] = m12; rows.normalRows[5] = m10;
+  rows.normalRows[6] = m21; rows.normalRows[7] = m22; rows.normalRows[8] = m20;
   return std::isfinite(rows.positionRows[3]) && std::isfinite(rows.positionRows[7]) && std::isfinite(rows.positionRows[11]);
 }
 
