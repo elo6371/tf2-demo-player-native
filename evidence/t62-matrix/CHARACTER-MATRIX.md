@@ -75,16 +75,16 @@ Axes, deliberately split because "animation" has two very different evidence lev
 | Class | A model load | B materials | C weapon body | D1 anim data/clock | D2 demo tick + pixels |
 |---|---|---|---|---|---|
 | Scout | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
-| Sniper | PASS | PASS | UNSUPPORTED | PASS | NOT VERIFIED |
+| Sniper | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
 | Soldier | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
 | Demoman | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
 | Medic | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
-| Heavy | PASS | PASS | UNSUPPORTED | PASS | NOT VERIFIED |
-| Pyro | PASS | PASS (thinnest: 1 slot) | UNSUPPORTED | PASS | NOT VERIFIED |
-| Spy | PASS | PASS | UNSUPPORTED | PASS | NOT VERIFIED |
-| Engineer | PASS | PASS | UNSUPPORTED | PASS | NOT VERIFIED |
+| Heavy | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
+| Pyro | PASS | PASS (thinnest: 1 slot) | UNSUPPORTED | PASS | **PASS** |
+| Spy | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
+| Engineer | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
 
-Four D2 cells (Demoman, Scout, Soldier, Medic) are per-class rendered frame readings, each on its own playback tick; the remaining PASS cells are static or probe-level evidence (§4.2). The five classes without a D2 reading are each named with its reason in §2.6.
+All nine D2 cells are per-class rendered frame readings, each on its own playback tick; the remaining PASS cells are static or probe-level evidence (§4.2). Two recordings supply them: snakewater for Demoman, Scout, Soldier and Medic, and the Highlander STV `pl_upward_f12` for Pyro, Heavy, Spy, Engineer and Sniper (§2.6).
 
 ### 2.2 A — model load (static). 9/9 PASS, one gate, one sweep
 
@@ -194,6 +194,9 @@ are under `evidence/t61-animation/r10-after-demos/runtime/`; the unit mutation s
 and returns to a 232/0 baseline. Each class now resolves a
 multi-frame run clip and samples four distinct cycles; Spy uses its secondary run clip. The separate
 continuity sweep remains a swim, taunt or menu sequence, so it is not evidence of in-demo behavior.
+At `931588b` the same gate reads 233 assertions / 0 failures; the extra one is the new
+`matcher oneShot` field that pins the reload rule (§5 item 9, `RUNS-2026-11-04.md` §11). The
+committed T61 log quoted above predates that assertion, which is why it still reads 232.
 
 | Class | moving / sampled sequence | frames | continuity sweep |
 |---|---|---:|---|
@@ -207,10 +210,9 @@ continuity sweep remains a swim, taunt or menu sequence, so it is not evidence o
 | Spy | 145 `run_SECONDARY` | 19 | 144 `swim_LOSER` (31) |
 | Engineer | 265 `run_PRIMARY` | 19 | 252 `s_swimAlign_ITEM2` (61) |
 
-The run sequences are asset/probe-level evidence: they load, produce bounded distinct sampled poses,
-and advance the reported cycle. Only the four classes in §2.6 have a named D2 pixel chain in a real demo frame.
+The run sequences are asset/probe-level evidence: they load, produce bounded distinct sampled poses, and advance the reported cycle. Every class in §2.6 also has a named D2 pixel chain in a real demo frame.
 
-### 2.6 D2 — animation on a real demo tick and on screen, per class. 4/9 PASS, 5/9 NOT VERIFIED
+### 2.6 D2 — animation on a real demo tick and on screen, per class. 9/9 PASS, 0/9 NOT VERIFIED
 
 The T61.1 pixel run links one rendered entity instead of inferring a class from the class-blind
 aggregate tick log. `evidence/t61-animation/r10-pixel-mutations/baseline.log:5-24` pins playback
@@ -227,24 +229,21 @@ The model path maps to Demoman (`entity_model.cpp:589-602`). The same log record
 coverage-view mask (3,497 pixels) and 2,268 changed pixels (64.86%) between drive-on and drive-off;
 that coverage mask is distinct from the subject's 4,383-pixel ID mask used for the per-entity motion
 measurement above.
-That (the 2026-10-29 reading) is one Demoman entity's product-selected run pose, not a claim about
-the server's sequence, every Demoman instance, other classes, other actions or other ticks; the
-refresh below adds three more classes on the same terms.
+That (the 2026-10-29 reading) is one Demoman entity's product-selected run pose, not a claim about the server's sequence, every Demoman instance, other classes, other actions or other ticks; the first refresh below adds three more classes on the same terms, and the second adds the last five.
 
-**Refresh (2026-11-04): the chain now covers four classes.** `class-pixels-check.sh` (repo root)
-drives one playback tick per class, captures `animated` / `off` / `identity` frames from a camera
-derived from that body's own origin, and grades the `BODY` line the pixel gate prints for every
-drawn player body. Readings are from [RUNS-2026-11-04.md](RUNS-2026-11-04.md) §5; frames are in
-`evidence/t62-matrix/class-pixels/<class>/`.
+**Refresh (2026-11-04): the chain covers nine classes on two recordings.** `class-pixels-check.sh` (repo root) drives one playback tick per class, captures `animated` / `off` / `identity` frames from a camera derived from that body's own origin, and grades the `BODY` line the pixel gate prints for every drawn player body. Readings are from [RUNS-2026-11-04.md](RUNS-2026-11-04.md) §5 and §12; frames are in `evidence/t62-matrix/class-pixels/<class>/` and `evidence/t62-matrix/class-pixels-upward/<class>/`.
 
-| Class | Frame | Body | Own pick | Pixels | Moved | Status |
-|---|---|---|---|---|---|---|
-| Demoman | 64161 | `id=95 ent=5 demo.mdl` | `run_PRIMARY` seq 147 (moving) | 1,767 | 1,391 (78.72 %) | **PASS** |
-| Scout | 64161 | `id=96 ent=15 scout.mdl` | `run_PRIMARY` seq 212 (moving) | 1,161 | 500 (43.07 %) | **PASS** |
-| Soldier | 63000 | `id=86 ent=2 soldier.mdl` | `AttackStand_PRIMARY` (idle) | 1,140 | 1,068 (93.68 %) | **PASS** |
-| Medic | 64000 | `id=95 ent=13 medic.mdl` | `AttackStand_PRIMARY` (idle) | 1,400 | 904 (64.57 %) | **PASS** |
-| Heavy | — | `ent=7` only | `ent=7` carries no model index | — | — | **NOT VERIFIED** |
-| Sniper, Pyro, Spy, Engineer | — | none drawn | — | — | — | **NOT VERIFIED** |
+| Class | Recording | Frame | Body | Own pick | Pixels | Moved | Status |
+|---|---|---|---|---|---|---|---|
+| Demoman | snakewater | 64161 | `id=95 ent=5 demo.mdl` | `run_PRIMARY` seq 147 (moving) | 1,767 | 1,391 (78.72 %) | **PASS** |
+| Scout | snakewater | 64161 | `id=96 ent=15 scout.mdl` | `run_PRIMARY` seq 212 (moving) | 1,161 | 500 (43.07 %) | **PASS** |
+| Soldier | snakewater | 63000 | `id=86 ent=2 soldier.mdl` | `AttackStand_PRIMARY` (idle) | 1,140 | 1,068 (93.68 %) | **PASS** |
+| Medic | snakewater | 64000 | `id=95 ent=13 medic.mdl` | `AttackStand_PRIMARY` (idle) | 1,400 | 904 (64.57 %) | **PASS** |
+| Pyro | pl_upward_f12 | 30001 | `id=85 ent=3 pyro.mdl` | `AttackStand_PRIMARY` seq 19 (idle) | 3,152 | 1,180 (37.44 %) | **PASS** |
+| Heavy | pl_upward_f12 | 24001 | `id=89 ent=11 heavy.mdl` | `AttackStand_SECONDARY` seq 16 (idle) | 5,072 | 3,377 (66.58 %) | **PASS** |
+| Spy | pl_upward_f12 | 24001 | `id=95 ent=18 spy.mdl` | `AttackStand_SECONDARY` seq 10 (idle) | 2,730 | 1,626 (59.56 %) | **PASS** |
+| Engineer | pl_upward_f12 | 24001 | `id=86 ent=8 engineer.mdl` | `AttackStand_PRIMARY` seq 9 (idle) | 3,033 | 2,631 (86.75 %) | **PASS** |
+| Sniper | pl_upward_f12 | 20001 | `id=93 ent=15 sniper.mdl` | `AttackStand_PRIMARY` seq 11 (idle) | 3,681 | 2,213 (60.12 %) | **PASS** |
 
 Why each class uses the tick it uses (this is tick selection, not threshold tuning):
 
@@ -258,10 +257,11 @@ Why each class uses the tick it uses (this is tick selection, not threshold tuni
   class to a frame where the nearest neighbour is >400 units off-axis (Soldier `e2` at
   3640.0,-1764.5,-312.0; Medic `e13` at 4779.4,-2001.4,-88.0) fixed both. `MIN_BODY_PIXELS=200`
   and `MIN_BODY_MOTION_SHARE=5 %` were not changed.
-- Heavy: the only Heavy body any recording draws is `ent=7`, a class-fallback entity whose model
-  cycles scout→heavy→scout→engineer→spy because the entity carries no model index
-  (`player-model-check` reports `missingModelIndex=20 classFallback=14`). Its pixels cannot be
-  attributed to a Heavy player, so the row stays unverified instead of upgrading on a cycling model.
+- The second recording is the Highlander STV `a9630c65…match-20261030-2145-pl_upward_f12.dem`, which draws 19 player bodies per sampled tick — both teams, every class. Its per-body origin comes from the product ledger line of the captured frame (`entity: id=… origin=`), not from `entity_overlay_probe`: that probe falls back to checkpoint snapshots and its origins were up to 1,135 ticks (~17 s) stale, which aimed the first upward run's cameras at empty ground. Each target also had to pass a clearance test — with `eye = origin + (-250, 0, +58)` and a ±55° cone, no other body within 300 units in front — because a nearer body takes the subject slot even when the intended body reads well (Heavy's first upward frame had Engineer `e2` 4,274 px in front of it).
+
+- Heavy now uses a real Heavy player body (`ent=11`, blue, `AttackStand_SECONDARY`); the old `ent=7` note applies to snakewater only — that entity is a class-fallback body whose model cycles scout→heavy→scout→engineer→spy because it carries no model index, and it is not used here.
+
+- Pyro's row was blocked by a real defect, not by cast: every Pyro body drew the bind pose because the reload family's animation blocks are empty 0xFF-terminated chains (`skinned=0`), and the idle picker had selected one of those clips. Both were fixed in `native/src/animation_decoder.cpp` and `native/include/animation_sequence_match.h`; Pyro now selects `AttackStand_PRIMARY` seq 19 and is skinned (`RUNS-2026-11-04.md` §11).
 
 Pixel counts are judgement-stable but not byte-stable across processes (Scout read 1,161 / 1,211 /
 1,161 px in three runs of the same tick and camera); in-process determinism is proved separately by
@@ -273,18 +273,18 @@ The old `demo-ticks.txt` aggregate remains class-blind and is not used to upgrad
 
 ## 3. The ACTION axis
 
-Rows separate the probe-level action evidence from the named rendered samples. D2 now has four named class samples (Demoman, Scout, Soldier, Medic) and five unverified classes (§2.6).
+Rows separate the probe-level action evidence from the named rendered samples. D2 now has nine named class samples, one per class (§2.6).
 
 | # | Action / pose | Sequence(s) the gate reads | Classes | Demo / tick | What is actually measured | Status | Evidence |
 |---|---|---|---|---|---|---|---|
 | 1 | idle | `PRIMARY_aimmatrix_idle` / `AttackStand_*` | all 9 | none — `idleTicks=0` | idle clock rate is zero at probe level; no idle demo tick is identified | **PASS (clock)** / **NOT VERIFIED (demo)** | `r10-after-demos/runtime/class-*.txt`; `demo-ticks.txt:33` |
-| 2 | run (moving) | per-class `run_PRIMARY`; Spy `run_SECONDARY` (indices/frames in §2.5) | all 9 at probe level | Demoman + Scout, snakewater frame 64161; Soldier 63000; Medic 64000 (all scene tick = frame) | multi-frame poses and rate at probe level; rendered bodies change 78.72 % / 43.07 % / 93.68 % / 64.57 % of their own measured pixels on drive on/off (Demoman / Scout / Soldier / Medic) | **PASS (D1 all 9; D2 four classes)** / **NOT VERIFIED (D2 other 5)** | `r10-after-demos/runtime/class-*.txt`; `r10-pixel-mutations/baseline.log:26-58`; `RUNS-2026-11-04.md` §5 |
+| 2 | run (moving) | per-class `run_PRIMARY`; Spy `run_SECONDARY` (indices/frames in §2.5) | all 9 at probe level | Demoman + Scout at snakewater 64161; Soldier 63000; Medic 64000 (scene tick = frame); Pyro/Heavy/Spy/Engineer/Sniper are drawn idle on pl_upward_f12 | multi-frame poses and rate at probe level; rendered bodies change 78.72 % / 43.07 % / 93.68 % / 64.57 % of their own measured pixels on drive on/off (Demoman / Scout / Soldier / Medic) | **PASS (D1 all 9; D2 nine classes)** | `r10-after-demos/runtime/class-*.txt`; `r10-pixel-mutations/baseline.log:26-58`; `RUNS-2026-11-04.md` §5, §12 |
 | 3 | walk | whole-token `walk` needle | — | — | no walk cycle is selected; `walk` no longer matches inside `airwalk` | **NOT VERIFIED** | matcher tests in `player-animation-check.sh`; T61 report §8.7 |
 | 4 | swim / taunt / menu (continuity sweep) | per-class continuity sequences in §2.5 | all 9 (one sequence each) | none | bounded pose continuity, `usable=1`; this remains a separate sweep from the run pick | **PASS** (pose stability only) | `r10-after-demos/runtime/class-*.txt` `animcontseq` / `animcont` |
 | 5 | airwalk / reload pose | labels remain in model tables; they are not the selected moving pose | all 9 tables | none | no current per-class gate asserts these actions on screen | **NOT VERIFIED** | `class-*.txt` label lists; matcher mutation m8 |
-| 6 | **what is drawn** | Demoman `run_PRIMARY` (147), Scout `run_PRIMARY` (212), Soldier and Medic `AttackStand_PRIMARY` | `id=95` demo, `id=96` scout, `id=86` soldier, `id=95` medic | 64161 / 64161 / 63000 / 64000 | own identity, pick, sample and pixel motion chain, per body | **PASS (four samples)**; five other classes **NOT VERIFIED** | `r10-pixel-mutations/baseline.log:26-58`; `evidence/t62-matrix/class-pixels/` |
-| 8 | attack | labels exist: `AttackStand_PRIMARY`, `AttackCrouch_PRIMARY`, `attackstand_Primary_deployed_fire` | 0 of 9 sampled | none | nothing | **NOT VERIFIED** | same label list |
-| 9 | flinch | label `a_flinch01` | 0 of 9 sampled | none | nothing | **NOT VERIFIED** | same label list |
+| 6 | **what is drawn** | nine per-class picks: Demoman `run_PRIMARY` (147), Scout `run_PRIMARY` (212), Pyro/Engineer/Sniper/Soldier/Medic `AttackStand_PRIMARY`, Heavy/Spy `AttackStand_SECONDARY` | `id=95` demo, `id=96` scout, `id=86` soldier, `id=95` medic (snakewater); `id=85` pyro, `id=89` heavy, `id=95` spy, `id=86` engineer, `id=93` sniper (upward) | 64161 / 64161 / 63000 / 64000 / 30001 / 24001 / 24001 / 24001 / 20001 | own identity, pick, sample and pixel motion chain, per body | **PASS (nine samples)** | `r10-pixel-mutations/baseline.log:26-58`; `evidence/t62-matrix/class-pixels/`; `evidence/t62-matrix/class-pixels-upward/` |
+| 8 | attack | standing attack labels are the idle pick for six classes (`AttackStand_PRIMARY` / `AttackStand_SECONDARY`); crouched attack labels (`AttackCrouch_PRIMARY` etc.) exist and decode | 6 of 9 drawn (as idle); crouch clips 9 of 9 decode | the same D2 frames | the drawn pose is an attack-stance idle, not a driven attack; crouched attack data is decoded by the pose-family gate but never selected | **PASS (data) / NOT VERIFIED (driven attack)** | `RUNS-2026-11-04.md` §13; label lists in `class-*.txt` |
+| 9 | flinch | `a_flinch01` in four tables (medic, pyro, sniper, spy), 14 flinch sequences across the nine tables | 0 of 9 drawn; all sampled flinch clips decode | none | data decodes (`finite=1`, label echo, moving poses); the runtime never selects one | **PASS (data) / NOT VERIFIED (runtime)** | `RUNS-2026-11-04.md` §13 |
 | 10 | ragdoll / death | labels `ragdoll`, `ragdollspawn` in every table | 0 of 9 | none | nothing; excluded by task scope | **UNSUPPORTED** | T62 §11 |
 | 11 | video cut/export (T55) | — | — | — | not implemented, not accepted | **UNSUPPORTED** | T62 §11 step 4 |
 
@@ -304,7 +304,7 @@ fidelity or prove every action on screen.
 
 ### 4.1 Counts, computed from §2.1
 
-**9 classes × 5 axes = 45 cells: 31 PASS, 5 NOT VERIFIED, 9 UNSUPPORTED, 0 FAIL.**
+**9 classes × 5 axes = 45 cells: 36 PASS, 0 NOT VERIFIED, 9 UNSUPPORTED, 0 FAIL.**
 
 | Axis | PASS | NOT VERIFIED | UNSUPPORTED |
 |---|---|---|---|
@@ -312,38 +312,34 @@ fidelity or prove every action on screen.
 | B materials/bodies | 9 | 0 | 0 |
 | C weapon body (3rd person) | 0 | 0 | 9 |
 | D1 anim data/clock | 9 | 0 | 0 |
-| D2 demo tick + pixels | 4 | 5 | 0 |
-| **Total** | **31** | **5** | **9** |
+| D2 demo tick + pixels | 9 | 0 | 0 |
+| **Total** | **36** | **0** | **9** |
 
-Against the four-axis shape the brief illustrated (model load / materials / weapon body / animations) the same evidence reads **36 cells: 22 measured, 5 NOT VERIFIED, 9 UNSUPPORTED**. D2 has four class samples and five unverified classes.
+Against the four-axis shape the brief illustrated (model load / materials / weapon body / animations) the same evidence reads **36 cells: 27 measured, 0 NOT VERIFIED, 9 UNSUPPORTED**. D2 now has one sample per class.
 
-### 4.2 Four of 31 PASS cells are backed by a named rendered entity
+### 4.2 Nine of 36 PASS cells are backed by a named rendered entity
 
-Twenty-seven PASS cells are table/probe readings. The four rendered D2 cells are Demoman `id=95` and Scout `id=96` at frame 64161, Soldier `id=86` at 63000 and Medic `id=95` at 64000, each joined to its model, its own pick, its samples and a per-entity pixel mask (§2.6). This is not a third-person player camera; T57's planned third-person capture (`evidence/t57-player-model/REPORT.md:388`) remains unrun, so C is still unsupported.
+Twenty-seven PASS cells are table/probe readings. The nine rendered D2 cells are Demoman `id=95` and Scout `id=96` at snakewater frame 64161, Soldier `id=86` at 63000, Medic `id=95` at 64000, Pyro `id=85` at upward 30001, Heavy `id=89`, Spy `id=95` and Engineer `id=86` at 24001, and Sniper `id=93` at 20001, each joined to its model, its own pick, its samples and a per-entity pixel mask (§2.6). This is not a third-person player camera; T57's planned third-person capture (`evidence/t57-player-model/REPORT.md:388`) remains unrun, so C is still unsupported.
 
 A second, non-cell reading joins four more bodies to pixels: the appearance gate measures the Demoman and the Scout in both teams (§2.3), which is a team-dimension criterion rather than a per-class cell, so the 45-cell count below is unchanged by it.
 
 ### 4.3 Remaining D2 evidence
 
-The class-blindness blocker is closed for the four classes in §2.6. The five open ones need a
-recording that draws them as a nameable player body: Heavy appears only as the class-fallback
-entity `ent=7` whose model cycles (§2.6), and Sniper, Pyro, Spy and Engineer do not appear as
-players in the committed recordings at all. Do not infer any of these cells from aggregate ticks or
-from the four samples.
+The class-blindness blocker is closed: all nine classes have a rendered D2 cell from a recording that draws them as a nameable player body (§2.6). What remains is breadth rather than a missing class — one tick and one body per class, two maps, and no product-driven crouch, flinch or standing attack clip (§5 items 2, 3, 7, 9). Do not infer any further cell from aggregate ticks.
 
 ---
 
 ## 5. What this matrix cannot claim
 
 1. **Not a release verdict.** T62 step 5: *"本任务不出最终 release verdict"*. A green grid here plus green gates still does not mean the picture is right.
-2. **Four of nine classes have a rendered D2 cell.** Demoman, Scout, Soldier and Medic are each identified and measured on their own tick; the other five remain NOT VERIFIED and are named in §2.6.
-3. **One map, three ticks, a camera derived per body.** All D2 frames are snakewater (`64161`, `63000`, `64000`). The reference camera is `--debug-camera 5363.8 -1102.1 5.9 4.1 0.0`; each per-class camera is that eye position minus the body's own origin, i.e. `eye = origin + (-250, 0, +58)`. Nothing generalises to another tick, camera or map.
+2. **Every class has a rendered D2 cell, but one body on one tick each.** Demoman, Scout, Soldier and Medic are read on snakewater; Pyro, Heavy, Spy, Engineer and Sniper on `pl_upward_f12`. A second instance of the same class is not measured.
+3. **Two maps, six ticks, a camera derived per body.** Four D2 frames are snakewater (`64161`, `63000`, `64000`) and five are `pl_upward_f12` (`20001`, `24001`, `30001`). The reference camera is `--debug-camera 5363.8 -1102.1 5.9 4.1 0.0`; each per-class camera is that eye position minus the body's own origin, i.e. `eye = origin + (-250, 0, +58)`. Nothing generalises to another tick, camera or map.
 4. **The pixel comparison is same-tick drive on/off.** It demonstrates the selected product pose moves the measured body's own pixels; it does not prove the server's animation sequence or a multi-tick run cycle.
 5. **The identity mask measures one body per run.** The F5 chain associates the subject body with its own ID-coloured pixels (4,383 px in the historical Demoman reading; 1,767 px for Demoman at this tree); it makes no claim about the other bodies drawn on the same screen.
 6. **Only LOD0 is built, and only RED is bound.** `vvdLods=7 / vtxLods=7` are counted, not built; every drawn stem in §2.3 ends in `_red`.
-7. **Each D2 sample is one body at one tick.** The four classes are covered by one body each; a second instance of the same class is not measured (frame 62000 alone draws two Scouts and two Demomans), and no other tick, action or map is covered.
+7. **Each D2 sample is one body at one tick.** The nine classes are covered by one body each; a second instance of the same class is not measured (snakewater frame 62000 alone draws two Scouts and two Demomans; upward draws both teams), and no other tick or action is covered.
 8. **No animation matches the server.** Entities carry no `m_nSequence` (`status=missing reason=entity carried no m_nSequence`) and no `m_nModelIndex` (`missingModelIndex=39/39, 20/20`). The pose is the product's own pick from `m_vecVelocity` and the playback tick; fidelity is never claimed.
-9. **Run selection is fixed; crouch, flinch and ragdoll remain open on screen.** The driver chooses between the idle clip and the moving clip and nothing else (`choosePlayerAnimationSequence`, `native/src/main.cpp:170-236`; the runtime takes `runtime.moving ? choice.moving : choice.idle`), so no code path selects a crouch or flinch sequence even though the class animation tables carry them. The death clause — the dead player leaving the drawn set at the tick `m_lifeState` stops being 0 (`native/src/main.cpp:9005`, `native/src/spectate_target.cpp:38`) — is now measured: the T66 relay gate ran at `74e946b` and read 3 deaths, 3 handovers, 9,642 instances removed across frames, 21 `scene: corpseFilter` lines, and identical pixels with the rule on and off on a frame where nobody was dead (`RUNS-2026-11-04.md` §9c). `AttackStand_PRIMARY` poses are drawn, but as the idle pick, so that is a pose name, not a driven attack.
+9. **Run selection is fixed; crouch, flinch and ragdoll remain open on screen.** The driver chooses between the idle clip and the moving clip and nothing else (`choosePlayerAnimationSequence`, `native/src/main.cpp:170-236`; the runtime takes `runtime.moving ? choice.moving : choice.idle`), so no code path selects a crouch or flinch sequence even though the class animation tables carry them. The death clause — the dead player leaving the drawn set at the tick `m_lifeState` stops being 0 (`native/src/main.cpp:9005`, `native/src/spectate_target.cpp:38`) — is now measured: the T66 relay gate ran at `74e946b` and read 3 deaths, 3 handovers, 9,642 instances removed across frames, 21 `scene: corpseFilter` lines, and identical pixels with the rule on and off on a frame where nobody was dead (`RUNS-2026-11-04.md` §9c). `AttackStand_PRIMARY` poses are drawn, but as the idle pick, so that is a pose name, not a driven attack. The crouch/flinch *data* was checked separately on 2026-11-04 by `class-pose-family-check.sh`: all nine tables name crouch clips outside the reload and arm-layer families, 40 sampled crouch/flinch sequences decode (`finite=1`, label echo) and every class has at least one crouch clip that moves across its own frames (`RUNS-2026-11-04.md` §13). That is a data reading; the runtime still never selects one.
 10. **Weapon coverage is first-person only, one weapon, one demo.** `c_pro_rifle` / `CTFSniperRifle` / 2 materials / `capture_tick=2000`.
 11. **`boneMismatch` on players is explained, not fixed.** `24155` with the drive on (`evidence/t61-animation/r10-after-demos/pixels/animated.summary:44`) vs `0` off (`evidence/t61-animation/r10-after-demos/pixels/off.summary:4`); T61 §7 (`evidence/t61-animation/T61-ANIMATION-REPORT.md:229-231`, quoting an older run's `34800`) calls it counter arithmetic, and no player gate asserts zero.
 12. **Ragdoll and video export are out of scope**, recorded here as absences, not as passes.
@@ -382,5 +378,6 @@ Paths are relative to the worktree this refresh read (`D:/TF2_Native_Worktrees/t
 | `evidence/t62-matrix/body-appearance/` | Per target: `identity.bmp` (id view), `painted.bmp`; `targets.txt` records tick, ent and origin |
 | `map-material-matrix.sh`, `evidence/t62-map-matrix/` | Five maps × two ticks of the world-material pipeline, asserted per row; see `MAP-MATRIX.md` |
 | `evidence/t62-matrix/RUNS-2026-11-04.md` §9, §9c | The second refresh: eight gate runs at `65315d2` with log hashes, the team-colour readings, and the T66 relay gate run at `74e946b` |
+| `evidence/t62-matrix/RUNS-2026-11-04.md` §10 to §14 | The fourth and fifth passes: the five-map geometry/lighting gate, the Highlander per-class chain, the Pyro fix, and the freeze sweep that re-ran build plus ten gates at `931588b` with every log hashed |
 
 **Still missing, and limiting broader claims:** a class/model field on every aggregate demo-animation tick (the entity chain covers only the four named samples, one body each); any recording containing Sniper, Pyro, Spy or Engineer as a player, or a real Heavy player (only the class-fallback body appears); any measurement of crouch, flinch or ragdoll on screen, and of an attack as an action rather than an idle pose (the driver selects only idle and moving, `native/src/main.cpp:170-236`); a BLU material *stem* named by a draw (the BLU body is measured in pixels, not by stem); a team-colour pair for any class other than Demoman and Scout.
