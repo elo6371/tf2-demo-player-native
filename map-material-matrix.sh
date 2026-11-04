@@ -12,11 +12,21 @@
 #     the two frames differ by the tick they were drawn on, not by a moved
 #     observer.
 #
-# What this is NOT: a gate. No threshold is asserted and nothing is tuned to
-# pass; the exit code is non-zero only when a reading the matrix needs is
-# missing or a run failed. The probe prints aggregates only -- it has no
-# per-material tile table -- so the tile tables here come from the product's
-# trace and README.md says so instead of inventing one.
+# What this asserts (2026-11-04: this is now a gate, not just a recorder). Every
+# row must satisfy the structural invariants the world-material pipeline promises,
+# and one of them is a pin nothing was tuned to satisfy:
+#   * the demo's own header names the map the row claims (map= and server_map=),
+#   * the fetch was not capped and the atlas bound with bytes > 0,
+#   * the atlas plan refused nothing malformed or duplicated,
+#   * the tile table has one row per planned material and every row's batch is in
+#     [0, plan.batches),
+#   * the capture landed on the requested tick and drew at least one frame,
+#   * the two captures are not byte-identical, so the pair is a real observation.
+# What is still NOT asserted: how MANY pixels the two ticks differ by. That is a
+# rendering reading, not an invariant, and the matrix records it rather than
+# bounding it. The probe prints aggregates only -- it has no per-material tile
+# table -- so the tile tables here come from the product's trace and README.md
+# says so instead of inventing one.
 #
 # Every probe/product launch goes through the shared host lock
 # (hostlock.sh run t62-map bash -c '...'), one process at a time. Traces (~10-50 MB)
@@ -34,8 +44,10 @@
 #   <map>/diff.txt            pixel diff, tick 0 vs tick 2000
 #   <map>/run-tick<N>.log     product stdout/stderr
 #
-# Exit: 0 every required reading present; 1 a reading is missing or a run
-#       failed; 2 usage or environment error.
+# Exit: 0 every reading present AND every invariant asserted (prints
+#       MAP-MATERIAL-MATRIX=PASS); 1 a reading is missing, a run failed, or an
+#       invariant does not hold; 2 usage or environment error. A map whose BSP is
+#       absent is recorded as UNSUPPORTED and is counted, not failed.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 2
 ROOT=$PWD
@@ -163,6 +175,74 @@ rval() { printf '%s\n' "$1" | tr ' ' '\n' | awk -F= -v k="$2" '$1==k{print $2; e
 readings_only() { grep -a -- "$2" "$1" 2>/dev/null | grep -av '^#' | tr -d '\r'; }
 
 locked() { bash "$LOCK" run t62-map bash -c "$1"; }
+# ---- the invariants this gate asserts ----------------------------------------
+# assert_tick <map> <tick> <fetch line> <plan line> <atlas line> <armed line> <tile_rows>
+# Every bound here is a promise the pipeline makes, not a value tuned to pass.
+assert_tick() {
+  local map=$1 tick=$2 fetch=$3 plan=$4 atlas=$5 armed=$6 rows=$7 v tiled refused
+  v=$(rval "$fetch" capped)
+  [ "${v:-NA}" = "0" ] || failure "$map tick $tick: fetch capped=${v:-NA}, must be 0 (a capped fetch means material fell past the budget silently)"
+  v=$(rval "$fetch" distinct); tiled=$(rval "$fetch" tiled)
+  if [ -n "$v" ] && [ -n "$tiled" ]; then
+    [ "$v" -ge "$tiled" ] || failure "$map tick $tick: fetch distinct=$v < tiled=$tiled"
+  else
+    failure "$map tick $tick: fetch line has no distinct/tiled reading"
+  fi
+  v=$(rval "$plan" malformed)
+  [ "${v:-NA}" = "0" ] || failure "$map tick $tick: atlas plan malformed=${v:-NA}, must be 0"
+  v=$(rval "$plan" duplicate)
+  [ "${v:-NA}" = "0" ] || failure "$map tick $tick: atlas plan duplicate=${v:-NA}, must be 0"
+  tiled=$(rval "$plan" tiled); refused=$(rval "$plan" refused)
+  if [ -n "$tiled" ]; then
+    [ "$rows" -eq "$((tiled + ${refused:-0}))" ] ||
+      failure "$map tick $tick: tile table has $rows rows, plan tiled=$tiled + refused=${refused:-0}"
+  else
+    failure "$map tick $tick: atlas plan line has no tiled reading"
+  fi
+  v=$(rval "$plan" batches)
+  if [ -n "$v" ]; then
+    [ "$v" -gt 0 ] || failure "$map tick $tick: atlas plan batches=$v, must be >= 1"
+  else
+    failure "$map tick $tick: atlas plan line has no batches reading"
+  fi
+  v=$(rval "$atlas" state)
+  [ "$v" = "bound" ] || failure "$map tick $tick: atlas state=${v:-NA}, must be bound"
+  v=$(rval "$atlas" bytes)
+  if [ -n "$v" ]; then
+    [ "$v" -gt 0 ] || failure "$map tick $tick: atlas bytes=$v, must be > 0"
+  else
+    failure "$map tick $tick: atlas line has no bytes reading"
+  fi
+  v=$(rval "$armed" requested); tiled=$(rval "$armed" frame_tick)
+  [ -n "$v" ] && [ "$v" = "$tiled" ] ||
+    failure "$map tick $tick: capture landed on frame_tick=${tiled:-NA}, not the requested ${v:-NA}"
+  v=$(rval "$armed" frames)
+  if [ -n "$v" ]; then
+    # Tick 0 is captured from --start-paused: no frame has been drawn when the
+    # capture arms, so frames=0 is the expected reading there.
+    if [ "$v" -eq 0 ] && [ "$tick" -ne 0 ]; then
+      failure "$map tick $tick: frames=$v, must be >= 1 for a tick > 0"
+    fi
+  else
+    failure "$map tick $tick: capture: armed line has no frames reading"
+  fi
+}
+
+# assert_tile_table <map> <tick> <raw tile file> <plan line>
+# One row per material, and every row belongs to a batch the plan declared.
+assert_tile_table() {
+  local map=$1 tick=$2 raw=$3 plan=$4 rows uniq batches bad
+  rows=$(grep -ac 'material=' "$raw" 2>/dev/null || true); rows=${rows:-0}
+  uniq=$(sed -n 's/.*material=\([^ ]*\) .*/\1/p' "$raw" 2>/dev/null | sort -u | wc -l)
+  [ "$rows" -eq "$uniq" ] || failure "$map tick $tick: tile table repeats a material ($rows rows, $uniq unique)"
+  batches=$(rval "$plan" batches)
+  if [ -n "$batches" ] && [ "$rows" -gt 0 ]; then
+    bad=$(sed -n 's/.*batch=\(-\{0,1\}[0-9]*\) .*/\1/p' "$raw" 2>/dev/null | awk -v b="$batches" '$1<0 || $1>=b' | wc -l)
+    bad=${bad:-0}
+    [ "$bad" -eq 0 ] || failure "$map tick $tick: $bad tile rows have a batch outside [0,$batches)"
+  fi
+}
+
 
 # product_cmd <trace_win> <bmp_win> <metrics_win> <demo> <tick> [extra args...]
 # Returns one %q-quoted string so hostlock runs it through bash -c exactly like
@@ -332,6 +412,18 @@ for MAP in "${MAPS[@]}"; do
   C_PROBE=$DIR/camera-probe.txt
   CP_CMD=$(printf '%q ' "$DEMO_PROBE" --scan --camera-tick 2000 "$DEMO")
   locked "$CP_CMD" > "$C_PROBE" 2>&1
+  # The demo must be a recording of the map this row claims: a shared or renamed
+  # recording would otherwise let a row say "cp_sunshine" while the frames came
+  # from somewhere else. demo_open_probe reads both the header map and the server
+  # map, so this needs no new instrument.
+  DEMO_MAP_NAMED=$(grep -ao ' map=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^ map=//')
+  SERVER_MAP_NAMED=$(grep -ao 'server_map=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^server_map=//')
+  [ "$DEMO_MAP_NAMED" = "$MAP" ] ||
+    failure "$MAP: the demo header names map=${DEMO_MAP_NAMED:-NA}, not $MAP ($DEMO)"
+  [ "$SERVER_MAP_NAMED" = "$MAP" ] ||
+    failure "$MAP: the demo's server_map=${SERVER_MAP_NAMED:-NA}, not $MAP ($DEMO)"
+  printf 'demo_map=%s\nserver_map=%s\n' "${DEMO_MAP_NAMED:-NA}" "${SERVER_MAP_NAMED:-NA}" >> "$DIR/camera.txt"
+
   C_SRC=NA; C_EYE=NA; C_PITCH=NA; C_YAW=NA
   ORIGIN=$(grep -ao 'camera_origin=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_origin=//')
   C_PITCH=$(grep -ao 'camera_pitch=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_pitch=//')
@@ -430,6 +522,9 @@ for MAP in "${MAPS[@]}"; do
     ARMED=$(readings_only "$TF_FILE" 'capture: armed ' | tail -1)
     TRACE_BYTES=$(sed -n 's/^# map=[^ ]* tick=[^ ]* trace=.* bytes=\([0-9]*\) lines=.*/\1/p' "$TF_FILE" | head -1)
     TILE_ROWS=$(grep -ac 'material=' "$DIR/tile-tick$TICK.raw" 2>/dev/null || true)
+    assert_tick "$MAP" "$TICK" "$FETCH" "$PLAN" "$ATLAS" "$ARMED" "$TILE_ROWS"
+    assert_tile_table "$MAP" "$TICK" "$DIR/tile-tick$TICK.raw" "$PLAN"
+
     if [ "$TICK" = "0" ]; then
       PRC=$RC_0
       SHA=$D_SHA0
@@ -478,13 +573,53 @@ if [ -s "$PREV" ]; then
 fi
 
 echo
+# ---- 7. the same invariants, asserted over EVERY row in readings.tsv ---------
+# A --only run merges rows written by earlier runs, so the merged matrix has to
+# be held to the same bounds as the rows this run wrote; otherwise a green run
+# would hide a stale row that violates an invariant.
+MATRIX_OUT=$OUT/matrix-check.txt
+awk -F'\t' '
+  NR==1{for(i=1;i<=NF;i++) col[$i]=i; next}
+  {
+    m=$1; t=$2; st=$3
+    if (st=="UNSUPPORTED") { unsup++; seen[$1]=1; next }
+    rows++; seen[$1]=1
+    bad=""
+    if (st!="ok") bad=bad " status=" st
+    if ($(col["probe_rc"])!="0") bad=bad " probe_rc=" $(col["probe_rc"])
+    if ($(col["product_rc"])!="0") bad=bad " product_rc=" $(col["product_rc"])
+    if ($(col["fetch_capped"])!="0") bad=bad " fetch_capped=" $(col["fetch_capped"])
+    if ($(col["plan_malformed"])!="0") bad=bad " plan_malformed=" $(col["plan_malformed"])
+    if ($(col["plan_duplicate"])!="0") bad=bad " plan_duplicate=" $(col["plan_duplicate"])
+    if ($(col["tile_rows"])+0 != $(col["plan_tiled"])+0 + $(col["plan_refused"])+0)
+      bad=bad " tile_rows=" $(col["tile_rows"]) " vs plan_tiled+refused=" $(col["plan_tiled"]) "+" $(col["plan_refused"])
+    if ($(col["atlas_state"])!="bound") bad=bad " atlas_state=" $(col["atlas_state"])
+    if ($(col["atlas_bytes"])+0<=0) bad=bad " atlas_bytes=" $(col["atlas_bytes"])
+    if ($(col["capture_requested"]) != $(col["capture_frame_tick"]))
+      bad=bad " capture_frame_tick=" $(col["capture_frame_tick"]) " requested=" $(col["capture_requested"])
+    if (t+0>0 && $(col["frames_rendered"])+0<=0) bad=bad " frames_rendered=" $(col["frames_rendered"])
+    if ($(col["diff_pixels_ch8"])+0<=0) bad=bad " diff_pixels_ch8=" $(col["diff_pixels_ch8"])
+    if (bad!="") { printf "FAIL %s tick %s:%s\n", m, t, bad; fails++ }
+  }
+  END {
+    n=0; for (k in seen) n++
+    printf "MATRIX maps=%d rows=%d unsupported=%d failed=%d\n", n, rows, unsup, fails
+  }' "$OUT/readings.tsv" > "$MATRIX_OUT"
+MATRIX_LINE=$(tail -1 "$MATRIX_OUT")
+MATRIX_FAILED=$(printf '%s' "$MATRIX_LINE" | sed -n 's/.*failed=\([0-9]*\).*/\1/p')
+if [ "${MATRIX_FAILED:-0}" -gt 0 ]; then
+  grep '^FAIL ' "$MATRIX_OUT" | sed 's/^FAIL /matrix invariant: /' >> "$OUT/failures.txt"
+  fail=1
+fi
+
+echo
 echo "=== readings: $OUT/readings.tsv ==="
 column -t -s $'\t' "$OUT/readings.tsv" 2>/dev/null | cut -c1-200 || sed -n '1,20p' "$OUT/readings.tsv"
 echo
 if [ "$fail" -ne 0 ]; then
-  echo "FAIL: readings missing or a run failed -- see $OUT/failures.txt"
+  echo "FAIL: a reading is missing, a run failed, or an invariant does not hold -- see $OUT/failures.txt"
   sed -n '1,20p' "$OUT/failures.txt"
   exit 1
 fi
-echo "OK: every map produced a probe plan, two captures and a pixel diff (not a gate: no threshold was asserted)"
+echo "MAP-MATERIAL-MATRIX=PASS $(printf '%s' "$MATRIX_LINE" | sed 's/^MATRIX //')"
 exit 0

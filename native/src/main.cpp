@@ -9297,10 +9297,20 @@ bool outlineVertexExtent = false;
                 && g_playback.tick >= captureTick) {
               const int entityId = static_cast<int>(draws.size()) + 1;
               if (tf2::native::encodeEntityId(entityId, draw.color)) {
-                traceFmt("entity: id=%d ent=%d model=%s state=%s seq=%d label=%s skinned=%d frame_tick=%d",
+                // T62: the team the body was dressed for, the paint family that
+                // team selected, and the origin the camera has to be derived
+                // from. A pixel test of team paint needs all three on the same
+                // line as the id: family is what the draw asked the material
+                // atlas for, team is the demo's own m_iTeamNum, and the id is
+                // only meaningful for the pixels if it can be located.
+                traceFmt("entity: id=%d ent=%d model=%s team=%d family=%d state=%s seq=%d label=%s skinned=%d origin=%.1f,%.1f,%.1f frame_tick=%d",
                   entityId, static_cast<int>(instance.entityIndex), instance.modelPath.c_str(),
+                  instance.transform.hasTeam ? static_cast<int>(instance.transform.team) : -1,
+                  static_cast<int>(draw.skinFamily),
                   ledgerState.c_str(), static_cast<int>(ledgerSeq), ledgerLabel.c_str(),
-                  draw.skinningEnabled ? 1 : 0, static_cast<int>(g_playback.tick));
+                  draw.skinningEnabled ? 1 : 0,
+                  instance.transform.origin[0], instance.transform.origin[1],
+                  instance.transform.origin[2], static_cast<int>(g_playback.tick));
               } else {
                 // More bodies than one red byte can name. Refusing is the only
                 // honest option: clamping would paint two bodies the same colour

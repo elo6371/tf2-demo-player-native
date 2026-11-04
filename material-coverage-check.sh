@@ -398,7 +398,17 @@ run_product weapon "$POV_DEMO" "$POV_TICK" --viewmodel "$VM_MODEL" --viewmodel-f
 PAUSE=1
 assert_eq "weapon frame rc" "$RC_weapon" "0"
 ISO_W=$(grep -ao "gpu: world isolation .*" "$TRACE_weapon" 2>/dev/null | head -1)
-PASSES=$(grep -ao "gpu: viewmodel pass order .*" "$TRACE_weapon" 2>/dev/null | head -1)
+# The trace carries one pass-order line per rendered frame. The FIRST one is the
+# startup frame that runs before the world pass has drawn anything
+# (worldPass=0 viewModelPass=0 drawCalls=0; measured 2026-11-04 on 9219baf), and
+# reading it was how this gate reported "weapon drew after the world = 0" while
+# the captured frame had the weapon drawn 1844 times. The frame this run captures
+# is the LAST pass-order line: the process exits as soon as the frame is written.
+# Anchoring on the capture marker keeps that true if a future build renders more
+# frames after the capture.
+ARM_LINE=$(grep -an "capture: armed" "$TRACE_weapon" 2>/dev/null | head -1 | cut -d: -f1)
+: "${ARM_LINE:=1}"
+PASSES=$(tail -n "+${ARM_LINE}" "$TRACE_weapon" 2>/dev/null | grep -ao "gpu: viewmodel pass order .*" | tail -1)
 DRAWN=$(grep -ao "gpu: viewmodel materials .*drawnSlot=.*" "$TRACE_weapon" 2>/dev/null | head -1)
 echo "$ISO_W" > "$OUT/isolation-weapon.txt"
 # The weapon pass has to have drawn something, and drawn after the world, or the
@@ -536,7 +546,11 @@ printf '%s\n' "$DELTA" | sed 's/^/  /'
 # wall as the flat fallback. The number is pinned as the reading it is -- the
 # claim that the batching kept its set is the refusal table above, and the claim
 # that the diff code is not vacuous is the blend-off pair below.
-assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90188"
+# Re-pinned 2026-11-04 on 9219baf: 90188 was measured 2026-11-01, before be5e3ef
+# (2026-11-03) published the pose the followed frame is DRAWN with. The draw pose
+# moved, so 31 of the pixels the second batch's wall owned at the reference pose
+# now resolve elsewhere. The structural assertions above are unchanged.
+assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90157"
 DELTA_BLEND=$(frame_diff "$BMP_full" "$BMP_noblend")
 echo "$DELTA_BLEND" > "$OUT/coverage-delta-blend-off.txt"
 printf '%s\n' "$DELTA_BLEND" | sed 's/^/  /'
