@@ -1,7 +1,7 @@
 # T62 — focused visual matrix, evidence refresh
 
 Original assessment: 2026-10-25 at `047bcfb`. First evidence refresh: 2026-10-29 against candidate `task/repo-cleanup @ 2f14873` (not frozen). Second refresh: 2026-11-04 at `integration/t79-final @ 046f4cd52a6eae5eb952488bb0095bcce86500b1`; third pass the same day at `65315d27b10d416a46680123c6719416c11d6541`, which adds the team-colour gate and turns the map matrix into a gate (not frozen).
-Deliverables: `MAP-MATRIX.md`, `CHARACTER-MATRIX.md`, this report. **Eight gates were run at `65315d2` and all eight pass** — the six character gates, the team-colour gate (`BODY-APPEARANCE`) and the five-map material matrix (`MAP-MATERIAL-MATRIX`). The map matrix now has a committed run at this tree; geometry and lighting cells remain historical or unmeasured, as `MAP-MATRIX.md` states cell by cell. Commands, verdicts, tree identity and log/frame hashes: `RUNS-2026-11-04.md`.
+Deliverables: `MAP-MATRIX.md`, `CHARACTER-MATRIX.md`, this report. **Eight role gates were run at `65315d2` and all eight pass** — the six character gates, the team-colour gate (`BODY-APPEARANCE`) and the five-map material matrix (`MAP-MATERIAL-MATRIX`); a ninth, the T66 relay gate, was run at `74e946b` and passes as well (`SPECTATE-CHECK`, 95 assertions), which is what backs the death clause. The map matrix now has a committed run at this tree; geometry and lighting cells remain historical or unmeasured, as `MAP-MATRIX.md` states cell by cell. Commands, verdicts, tree identity and log/frame hashes: `RUNS-2026-11-04.md`.
 
 ## 0. 任务定义（内联存档）
 
@@ -171,3 +171,8 @@ that pass is what filled five map cells. The C axis remains UNSUPPORTED for all 
 weapon-world-model data is not a third-person player render. No T75 install gate or full
 `verify-all.sh` run was performed in any refresh; T73's final frozen-tree run and the release verdict
 remain separate work.
+
+A fourth pass at `74e946b` (docs only; `native/` unchanged since `65315d2`) ran the T66 relay
+gate: 95 assertions, `SPECTATE-CHECK=PASS` (`RUNS-2026-11-04.md` §9c). That run is what turns the
+death clause — a dead player leaving the drawn set — from an argument into a measurement; the C
+axis, the map geometry and lighting cells, and the crouch/flinch gaps are untouched by it.
