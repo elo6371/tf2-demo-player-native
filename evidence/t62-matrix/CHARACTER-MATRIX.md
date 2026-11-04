@@ -2,7 +2,7 @@
 
 **Evidence snapshot for this refresh:** commit `integration/t79-final @ 65315d27b10d416a46680123c6719416c11d6541` on 2026-11-04 (not frozen); the first pass of this refresh was read at `046f4cd52a6eae5eb952488bb0095bcce86500b1` and is unchanged by the second. The gates behind this refresh were run at that commit and are recorded in [RUNS-2026-11-04.md](RUNS-2026-11-04.md): tree and binary identity, per-gate command and verdict, log and frame hashes. The original 2026-10-25 matrix was written against `047bcfbdb89225c1c054535dc3e51bc44b9cf3b1`; T62's task definition is retained in `T62-REPORT.md` §0.
 
-**Eight gates were run during this refresh, at the commit above, and all eight pass** — `PLAYER-ANIMATION-CHECK`, `player-model-check`, `ANIMATION-AVAILABILITY`, `ENTITY-MATERIAL`, `ENTITY-PROPERTY-LOOKUP`, and `PLAYER-ANIMATION-PIXELS` / `PIXEL-CHECK` / `ENTITY-ID` (readings: `RUNS-2026-11-04.md` §3, §3b, §4), plus the two gates `65315d2` added: `player-body-appearance-check.sh` (`BODY-APPEARANCE`, §2.3 and `RUNS` §9a) and `map-material-matrix.sh` (`MAP-MATERIAL-MATRIX`, `MAP-MATRIX.md`). The per-class pixel chain in §2.6 is new in this refresh and is recorded there in §5. What those runs do **not** establish is listed in `RUNS-2026-11-04.md` §6. A ninth gate, the T66 relay gate (`spectate-check.sh`, `SPECTATE-CHECK`), was run at `74e946b41f8720f14578d4124aa296c4de47983e` and passes; it is what backs the death clause now recorded in §5 item 9 (`RUNS` §9c).
+**Every gate this refresh added now passes.** The eight of the `65315d2` sweep: — `PLAYER-ANIMATION-CHECK`, `player-model-check`, `ANIMATION-AVAILABILITY`, `ENTITY-MATERIAL`, `ENTITY-PROPERTY-LOOKUP`, and `PLAYER-ANIMATION-PIXELS` / `PIXEL-CHECK` / `ENTITY-ID` (readings: `RUNS-2026-11-04.md` §3, §3b, §4), plus the two gates `65315d2` added: `player-body-appearance-check.sh` (`BODY-APPEARANCE`, §2.3 and `RUNS` §9a) and `map-material-matrix.sh` (`MAP-MATERIAL-MATRIX`, `MAP-MATRIX.md`). The per-class pixel chain in §2.6 is new in this refresh and is recorded there in §5. What those runs do **not** establish is listed in `RUNS-2026-11-04.md` §6. A ninth, the T66 relay gate (`spectate-check.sh`, `SPECTATE-CHECK`), was run at `74e946b41f8720f14578d4124aa296c4de47983e` and passes; it is what backs the death clause now recorded in §5 item 9 (`RUNS` §9c).
 
 **Working tree at reading time:** the gates in §3/§4 were run at `046f4cd`; `65315d2` then added two gates and put `team`, `family` and `origin` on the entity-ledger line (trace only — no draw, decode or material path changed), and the eight gates were re-run at that commit (`RUNS` §9). Neither commit changes product renderer/decoder behaviour. The commits and what each touches are listed in `RUNS-2026-11-04.md` §1 and §8.
 
@@ -153,26 +153,44 @@ Three things this axis honestly says, and does not say:
 - Heavy's body stem is a weapon-skin family (`hvyweapon_red_sheen`) and Spy has `skinFamilies=26`. Both are asserted green and both sit on T57's own NOT VERIFIED list (`evidence/t57-player-model/REPORT.md:394` §8: *"Heavy/Spy head-paint look"*).
 
 **The team dimension, measured on screen (2026-11-04).** The stems above are
-material-slot readings; they say nothing about which family reached a drawn
-body. `player-body-appearance-check.sh` (commit `65315d2`) closes that with
-pixels: at tick 63000 of the snakewater recording it captures each body twice
-from a camera derived from that body's ledger origin — once in the entity-id view
-(which names the id of every pixel) and once painted — and then measures the
-paint over exactly the body's own mask. The recording puts both teams on screen
-at that tick, and the Demoman and the Scout each give a same-model pair:
+material-slot readings; they say nothing about which family reached a drawn body.
+`player-body-appearance-check.sh` (introduced at `65315d2`, extended in this pass)
+closes that with pixels: for each body it captures an entity-id frame (which names
+the id of every pixel) and a painted frame of the same tick, from a camera derived
+from the ledger origin of that body (`eye = origin + (-250, 0, +58)`, pitch 4.1,
+yaw 0), and measures the paint over exactly the id mask of that body. The pass at
+`65315d2` read two same-model pairs on snakewater tick 63000 (Demoman and Scout,
+gap 69.7 and 133.1); this pass repeated it on a Highlander recording
+(`pl_upward_f12`, tick 24001) where both teams are on screen for every class, and
+read **16 bodies, seven same-class pairs**:
 
-| Class | team 2 (red) | team 3 (blu) | red-minus-blu gap |
+| Class | red body | blu body | red-minus-blu gap |
 |---|---|---|---|
-| Demoman | `id=88 ent=4`, family 0, 1538 px, r−b **48.1** | `id=89 ent=5`, family 1, 1588 px, b−r **21.6** | **69.7** |
-| Scout | `id=87 ent=3`, family 0, 1129 px, r−b **89.3** | `id=96 ent=15`, family 1, 847 px, b−r **43.8** | **133.1** |
+| Demoman | ent 19, 2,111 px, r-b 39.6 | ent 6, 2,706 px, b-r 19.4 | **59.0** |
+| Heavy | ent 5 (tick 20001), 5,077 px, r-b 58.9 | ent 11, 5,072 px, b-r 20.9 | **79.8** |
+| Pyro | ent 9, 3,287 px, r-b 53.5 | ent 3, 622 px, b-r 33.5 | **87.0** |
+| Spy | ent 18, 2,730 px, r-b 50.1 | ent 13, 1,409 px, b-r 37.4 | **87.5** |
+| Soldier | ent 16, 3,147 px, r-b 55.6 | ent 4, 2,678 px, b-r 33.7 | **89.3** |
+| Engineer | ent 8, 3,033 px, r-b 71.4 | ent 2, 1,562 px, b-r 30.2 | **101.6** |
+| Medic | ent 10, 2,891 px, r-b 74.8 | ent 7, 5,030 px, b-r 44.9 | **119.7** |
+| Scout | ent 14 is in the ledger (team 2) but paints 0 px -- a nearer Medic body fills that camera | ent 12, 1,475 px, b-r 47.5 | -- |
+| Sniper | ent 17 is in the ledger (team 2) but paints 0 px -- a nearer Demoman body fills that camera | ent 15, 2,030 px, b-r 17.8 | -- |
 
-Every ledger line wrote the family its team asks for (`team=2 → family=0`,
-`team=3 → family=1`); the mask floor is 200 px and the paired gap floor is 40.
-The pair is the hinge: one red body could read red on a red-lit map by accident,
-a same-model pair cannot. Evidence `evidence/t62-matrix/body-appearance/`,
-readings `RUNS-2026-11-04.md` §9a. This is not a BLU stem name, and it covers the
-two classes the recording draws at that tick; the nine B cells above stay
-stem-level and unchanged.
+Every ledger line wrote the family its team asks for, 16 of 16 (`team=2 -> family=0`,
+`team=3 -> family=1`). The floors are a 200 px mask, 15 counts for the tint sign of a
+body and 40 for the pair gap; the smallest measured gap is 59.0 and the per-body
+tints run 17.8 to 74.8. The pair is the hinge: one red body could read red on a
+red-lit map by accident, a same-model pair cannot, which is why the claim is made on
+the gap and not on a per-body constant. A static audit agrees at stem level: all 39
+LOD0 material pairs of the nine class models resolve, 14 (family, slot) pairs are
+distinct images -- exactly the per-class `redBluDistinctSlots` the model probe reports
+(scout 1, sniper 1, soldier 2, demo 1, medic 2, heavy 2, spy 2, engineer 2, pyro 1) --
+and its 72 assertions pass. Evidence `evidence/t62-matrix/body-appearance/` and
+`evidence/t62-matrix/body-appearance-upward/` (frames as lossless PNG, with the
+sha256 of each source BMP in `frame-hashes.txt`); readings `RUNS-2026-11-04.md` §9a
+and §18. What it still does not do: Scout and Sniper are single-team because no
+unoccluded red body of those two classes was found on any recorded frame, and the
+measurement reads paint, never a BLU stem name.
 
 
 ### 2.4 C — weapon body in third person. 9/9 UNSUPPORTED
@@ -231,7 +249,7 @@ that coverage mask is distinct from the subject's 4,383-pixel ID mask used for t
 measurement above.
 That (the 2026-10-29 reading) is one Demoman entity's product-selected run pose, not a claim about the server's sequence, every Demoman instance, other classes, other actions or other ticks; the first refresh below adds three more classes on the same terms, and the second adds the last five.
 
-**Refresh (2026-11-04): the chain covers nine classes on two recordings.** `class-pixels-check.sh` (repo root) drives one playback tick per class, captures `animated` / `off` / `identity` frames from a camera derived from that body's own origin, and grades the `BODY` line the pixel gate prints for every drawn player body. Readings are from [RUNS-2026-11-04.md](RUNS-2026-11-04.md) §5 and §12; frames are in `evidence/t62-matrix/class-pixels/<class>/` and `evidence/t62-matrix/class-pixels-upward/<class>/`.
+**Refresh (2026-11-04): the chain covers nine classes on two recordings.** `class-pixels-check.sh` (repo root) drives one playback tick per class, captures `animated` / `off` / `identity` / `identity-2` frames from a camera derived from that body's own origin, asserts that the two `identity` captures are byte-identical, and grades the `BODY` line the pixel gate prints for every drawn player body. Readings are from [RUNS-2026-11-04.md](RUNS-2026-11-04.md) §5 and §12; frames are in `evidence/t62-matrix/class-pixels/<class>/` and `evidence/t62-matrix/class-pixels-upward/<class>/`.
 
 | Class | Recording | Frame | Body | Own pick | Pixels | Moved | Status |
 |---|---|---|---|---|---|---|---|
@@ -263,9 +281,13 @@ Why each class uses the tick it uses (this is tick selection, not threshold tuni
 
 - Pyro's row was blocked by a real defect, not by cast: every Pyro body drew the bind pose because the reload family's animation blocks are empty 0xFF-terminated chains (`skinned=0`), and the idle picker had selected one of those clips. Both were fixed in `native/src/animation_decoder.cpp` and `native/include/animation_sequence_match.h`; Pyro now selects `AttackStand_PRIMARY` seq 19 and is skinned (`RUNS-2026-11-04.md` §11).
 
-Pixel counts are judgement-stable but not byte-stable across processes (Scout read 1,161 / 1,211 /
-1,161 px in three runs of the same tick and camera); in-process determinism is proved separately by
-the official gate's `animated` = `animated2` frame comparison, which this chain does not repeat.
+Pixel counts are byte-stable across processes at a pinned tick and camera: the Scout `identity`
+frame was captured six times over ten hours and hashed `7317b7a2...f0e423` every time, reading
+1,161 px each time. The single 1,211 px reading came from the superseded per-target driver
+generation (`/d/_shared/t62-class-pixels3.log`), which also mis-framed Soldier and Medic in that run;
+it is not a rendering variance (`RUNS-2026-11-04.md` §5, §6). The chain now asserts that stability
+itself: every class captures its `identity` frame twice in two processes and fails unless the two
+BMPs are byte-identical -- the same construction as the official gate's `animated` = `animated2`.
 
 The old `demo-ticks.txt` aggregate remains class-blind and is not used to upgrade any other row.
 
@@ -370,8 +392,8 @@ Paths are relative to the worktree this refresh read (`D:/TF2_Native_Worktrees/t
 | `native/src/entity_model.cpp:589-602` | tfClass → model path |
 | `native/src/main.cpp:191-247`, `:9626`, `:9689` | Sequence chooser, stored label, `lastReason` |
 | `T62-REPORT.md` §0 | T62 scope, acceptance, "no release verdict", T55 deferred (inlined verbatim there; the task list was deleted in the 2026-10-29 cleanup) |
-| `class-pixels-check.sh` | Per-class D2 driver: one playback tick per class, camera derived from that body's origin, grades the `BODY` line of the pixel gate |
-| `evidence/t62-matrix/class-pixels/<class>/` | Per class: `animated` / `off` / `identity` frames, three summaries, `entity-id.txt`; `targets.txt` records each class's tick and origin and why it changed |
+| `class-pixels-check.sh` | Per-class D2 driver: one playback tick per class, camera derived from that body's origin, grades the `BODY` line of the pixel gate, and asserts that two captures of the same `identity` frame are byte-identical |
+| `evidence/t62-matrix/class-pixels/<class>/` | Per class: `animated` / `off` / `identity` / `identity-2` frames, four summaries, `entity-id.txt`; the last block of each summary and of `entity-id.txt` is a `frame:` provenance record (frame sha256s, product sha256, exact request); `targets.txt` records each class's tick and origin and why it changed |
 | `evidence/t62-matrix/RUNS-2026-11-04.md` | This refresh: tree and binary identity, six gate runs with commands/rc/log hashes, pixel frame hashes, per-class chain, what the runs do not show |
 | `native/tools/t61-entityid.py` | Pixel-gate grader; the `BODIES` block prints one line per drawn player body and is what the per-class chain grades |
 | `player-body-appearance-check.sh`, `player-body-appearance-pixels.py` | Team-colour gate: two captures per body (entity-id mask, then painted), asserts team/family, mask floor, tint direction and the same-model red/blu gap |
@@ -380,4 +402,6 @@ Paths are relative to the worktree this refresh read (`D:/TF2_Native_Worktrees/t
 | `evidence/t62-matrix/RUNS-2026-11-04.md` §9, §9c | The second refresh: eight gate runs at `65315d2` with log hashes, the team-colour readings, and the T66 relay gate run at `74e946b` |
 | `evidence/t62-matrix/RUNS-2026-11-04.md` §10 to §14 | The fourth and fifth passes: the five-map geometry/lighting gate, the Highlander per-class chain, the Pyro fix, and the freeze sweep that re-ran build plus ten gates at `931588b` with every log hashed |
 
-**Still missing, and limiting broader claims:** a class/model field on every aggregate demo-animation tick (the entity chain covers only the four named samples, one body each); any recording containing Sniper, Pyro, Spy or Engineer as a player, or a real Heavy player (only the class-fallback body appears); any measurement of crouch, flinch or ragdoll on screen, and of an attack as an action rather than an idle pose (the driver selects only idle and moving, `native/src/main.cpp:170-236`); a BLU material *stem* named by a draw (the BLU body is measured in pixels, not by stem); a team-colour pair for any class other than Demoman and Scout.
+**Still missing, and limiting broader claims:** a class/model field on every aggregate demo-animation tick (the entity chain covers only the named samples); a real Heavy player in any recording (only the class-fallback body appears as Heavy); any measurement of crouch, flinch or ragdoll on screen, and of an attack as an action rather than an idle pose (the driver selects only idle and moving, `native/src/main.cpp:170-236`); a BLU material *stem* named by a draw (the BLU body is measured in pixels, not by stem); a team-colour pair for Scout and Sniper (both are single-team: their red bodies exist in the ledger and are fully occluded).
+
+The pass after `931588b` re-ran the per-class pixel chain with the identity capture taken twice per class, so the chain now also asserts determinism: the two identity frames are byte-identical on every class (`demo e346a723..., scout 7317b7a2...`) even though the pixel counts the chain reports come from runs that earlier disagreed (`RUNS-2026-11-04.md` §17). It also added `bone-mismatch-semantics-check.sh` (`BONE-MISMATCH-SEMANTICS`, §16), which pins what the trace counter counts rather than a value, and re-ran the five-map geometry/lighting gate under the corrected hole criterion (§15, §19).
