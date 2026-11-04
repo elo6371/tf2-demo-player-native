@@ -1,13 +1,13 @@
 # MAP-MATRIX — T62 focused map matrix (existing T50–T61 scope only)
 
-**Evidence snapshot for this refresh:** candidate `task/repo-cleanup @ 2f14873` (not frozen). Original 2026-10-25 assessment was against `047bcfb` ("Merge T59: world materials through VMT patch includes").
-**No map gate was re-run for this refresh.** The four PASS cells below are historical readings from their cited evidence, not fresh verdicts on candidate `2f14873`; no status is inferred from unchanged code paths.
-**Working tree at evidence review:** clean at `2f14873`; this documentation-only update makes it dirty. No map evidence or gate output was changed.
+**Evidence snapshot for this refresh:** `integration/t79-final @ 046f4cd52a6eae5eb952488bb0095bcce86500b1` (2026-11-04, not frozen). First refresh: 2026-10-29 against candidate `task/repo-cleanup @ 2f14873`. Original 2026-10-25 assessment was against `047bcfb` ("Merge T59: world materials through VMT patch includes").
+**No map gate was re-run for this refresh.** The six gates run on 2026-11-04 are character gates (`player-animation-check`, `player-model-check`, `animation-availability-check`, `entity-material-check`, `entity-property-lookup-check`, `player-animation-pixels`); their readings are in [RUNS-2026-11-04.md](RUNS-2026-11-04.md). The four PASS cells below remain historical readings from their cited evidence, not fresh verdicts on `046f4cd`; no status is inferred from unchanged code paths.
+**Working tree at evidence review:** the 2026-11-04 commit adds character-pixel evidence, a per-class driver and documentation. No map evidence or map gate output was changed.
 **Not a release verdict.** T62 forbids one ("do not equate all-green release gates with a correct picture"); T55 video clip/export is out of scope and unimplemented; `verify-all.sh --quick` belongs to T73.
 
 Status legend: **PASS** = a gate exists, a committed run exists, and the committed reading supports the claim. **FAIL** = committed evidence contradicts the pin or the claim it is used for. **NOT VERIFIED** = the axis is measurable today but no committed reading covers this map at this tree. **UNSUPPORTED** = the input the axis needs is absent from the install, so no run can produce it.
 
-For this refresh, every PASS cell shown below is explicitly historical and was not re-tested at `2f14873`.
+For this refresh, every PASS cell shown below is explicitly historical and was not re-tested at `046f4cd`.
 
 ---
 
@@ -23,7 +23,7 @@ For this refresh, every PASS cell shown below is explicitly historical and was n
 
 ‡ Historical odyssey-material PASS rests on the committed refusal counters plus T59 report arithmetic; the raw product fetch line (`tiled=99`) is committed only as report text, with no tile table. The arithmetic is `99 + 3 + 2 + 4 = 108`; it is rechecked, not re-run.
 
-**Refresh counts:** 4 historical PASS (not re-tested at `2f14873`), 12 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL. No map cell was upgraded or freshly passed in this refresh.
+**Refresh counts:** 4 historical PASS (not re-tested at `046f4cd`), 12 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL. No map cell was upgraded or freshly passed in this refresh.
 
 **No cell in this table is FAIL.** The failures this tree actually contains are bookkeeping failures — a stale quoted counter, a stale audit claim, a stale camera — and they are recorded in §2 with both paths named. §2 is where a reader should look for "something is wrong", not the matrix.
 

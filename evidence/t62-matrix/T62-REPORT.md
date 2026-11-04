@@ -1,7 +1,7 @@
 # T62 — focused visual matrix, evidence refresh
 
-Original assessment: 2026-10-25 at `047bcfb`. Evidence refresh: 2026-10-29 against candidate `task/repo-cleanup @ 2f14873` (not frozen).
-Deliverables: `MAP-MATRIX.md`, `CHARACTER-MATRIX.md`, this report. No gates were run during this refresh.
+Original assessment: 2026-10-25 at `047bcfb`. First evidence refresh: 2026-10-29 against candidate `task/repo-cleanup @ 2f14873` (not frozen). Second refresh: 2026-11-04 at `integration/t79-final @ 046f4cd52a6eae5eb952488bb0095bcce86500b1` (not frozen).
+Deliverables: `MAP-MATRIX.md`, `CHARACTER-MATRIX.md`, this report. **Six character gates were run at the 2026-11-04 commit and all six pass**; no map gate was run, so every map cell remains a historical reading. Commands, verdicts, tree identity and log/frame hashes: `RUNS-2026-11-04.md`.
 
 ## 0. 任务定义（内联存档）
 
@@ -51,7 +51,7 @@ input the axis needs is absent, so no run can produce it.
 
 ## 3. The counts
 
-**Map matrix, 5 maps × 4 axes = 20 cells: 4 historical PASS (not re-tested on `2f14873`), 12 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL.**
+**Map matrix, 5 maps × 4 axes = 20 cells: 4 historical PASS (not re-tested at `046f4cd`), 12 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL.**
 
 | Map | materials | geometry | lighting | coverage table | 
 | --- | --- | --- | --- | --- |
@@ -61,18 +61,23 @@ input the axis needs is absent, so no run can produce it.
 | koth_bagel_rc12 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED |
 | koth_bagel_rc13 | UNSUPPORTED | UNSUPPORTED | UNSUPPORTED | UNSUPPORTED (no BSP in the install) |
 
-**Character matrix, 9 classes × 5 axes = 45 cells: 28 PASS, 8 NOT VERIFIED, 9 UNSUPPORTED, 0 FAIL.**
-The 28 PASS are model load (9), body materials (9), animation data/clock (9), and one rendered
-Demoman D2 sample. The 8 NOT VERIFIED are D2 for the other classes; the 9 UNSUPPORTED are the
-third-person weapon body. Against the brief's four axes (model / materials / weapon / animation),
-the same evidence reads 36 cells: 19 measured, 8 NOT VERIFIED, 9 UNSUPPORTED.
+**Character matrix, 9 classes × 5 axes = 45 cells: 31 PASS, 5 NOT VERIFIED, 9 UNSUPPORTED, 0 FAIL.**
+The 31 PASS are model load (9), body materials (9), animation data/clock (9), and four rendered D2
+samples — Demoman, Scout, Soldier and Medic, each on its own playback tick (`CHARACTER-MATRIX.md`
+§2.6). The 5 NOT VERIFIED are D2 for Heavy (only a class-fallback body whose model cycles appears),
+and Sniper, Pyro, Spy and Engineer (no committed recording draws them as a player). The 9
+UNSUPPORTED are the third-person weapon body. Against the brief's four axes (model / materials /
+weapon / animation), the same evidence reads 36 cells: 22 measured, 5 NOT VERIFIED, 9 UNSUPPORTED.
 
 ## 4. What the matrix found that is not a cell
 
-1. **One of the 28 PASS cells is tied to a rendered frame.** The T61.1 pixel evidence joins identity
-   `id=95` to `models/player/demo.mdl`, the Demoman `run_PRIMARY` pick and its own sampled pixels at
-   playback tick 64161 / scene tick 74481. The other 27 PASS cells are model, material or probe
-   readings. This is one named entity sample, not general proof for all Demoman instances or classes.
+1. **Four of the 31 PASS cells are tied to a rendered frame.** The T61.1 pixel chain and the per-class
+   driver join `id=95` to `models/player/demo.mdl` (`run_PRIMARY` seq 147, 1,767 px, 78.72 % moved),
+   `id=96` to Scout (`run_PRIMARY` seq 212, 1,161 px, 43.07 %), Soldier `id=86` at frame 63000
+   (1,140 px, 93.68 %) and Medic `id=95` at 64000 (1,400 px, 64.57 %), each with its own pick, its
+   samples and its own per-entity mask. The other 27 PASS cells are model, material or probe readings.
+   These are four named bodies at one tick each — not general proof for other instances, other ticks,
+   or the five classes without a sample.
 2. **The lighting evidence is still the pre-clock-fix pose.** `evidence/t36-lighting-dark-account/frames.txt:3`
    reads `eye=-2294.8,348.8,383.4` and `evidence/lighting-semantics/frames.txt:4` reads
    `A sha256=6bb4d9a7...`, i.e. the camera the T63-F1 clock defect produced, while
@@ -95,9 +100,10 @@ the same evidence reads 36 cells: 19 measured, 8 NOT VERIFIED, 9 UNSUPPORTED.
 7. **The old `ReloadAirwalk_PRIMARY` false match is fixed.** T61.1's whole-token matcher excludes
    `walk` inside `airwalk`, prefers a multi-frame run clip and pins the resolved sample identity;
    the current gate is 232/0 and its unit mutations include matcher regressions (T61 report §8.7).
-8. **D2 remains narrow despite the named sample.** The pixel chain identifies one Demoman entity;
-   the other eight D2 class cells remain NOT VERIFIED. Four classes (Sniper, Pyro, Spy and Engineer)
-   do not appear as played players in the committed recordings. The product still has no server
+8. **D2 remains narrow despite four samples.** The pixel chain identifies one body each for Demoman,
+   Scout, Soldier and Medic; the other five D2 cells remain NOT VERIFIED. Sniper, Pyro, Spy and
+   Engineer do not appear as played players in the committed recordings, and Heavy appears only as
+   the class-fallback entity `ent=7` whose model cycles. The product still has no server
    `m_nSequence`/`m_nModelIndex` for these rows, so its selected pose is not a claim of server fidelity.
 
 ## 5. The cheapest way to settle each open cell
@@ -115,7 +121,7 @@ armed requested=2000 frame_tick=2000 frames=2056" and `evidence/world-material-f
 | cp_sunshine (all four) | coverage → geometry (3 frames) → lighting, in that order | 4 + 3 + 6 min |
 | koth_bagel_rc12 | `world-material-face-check.sh` with its own POV demo (needs no `MAP`) | ~3 min |
 | koth_bagel_rc13 | nothing: no BSP; keep it as the negative control | — |
-| character D2 (8 cells remain) | capture and join per-entity identity, model, selected sequence and pixels for the four other classes present in recordings; four absent classes require a recording containing them | not estimated; requires additional evidence |
+| character D2 (5 cells remain) | Heavy needs a recording with a real Heavy player (the only Heavy body present is the class-fallback `ent=7`, whose model cycles); Sniper, Pyro, Spy and Engineer need a recording that draws them as played players. Once such a recording exists, `class-pixels-check.sh` gives three captures per class | ~1 min per class at `speed 32`, plus the recording |
 
 ## 6. The gates this matrix rests on, and the map/tick each one pins
 
@@ -134,7 +140,7 @@ twelve of the twenty map cells cannot be filled from the record.
 
 ## 7. Disposition
 
-* The 4 map PASS cells are historical readings only; no map gate was re-run against candidate `2f14873`.
+* The 4 map PASS cells are historical readings only; no map gate was re-run against candidate `046f4cd`.
   Their source evidence and the Odyssey `99 + 3 + 2 + 4 = 108` arithmetic were re-read, but no fresh
   map verdict is claimed. Odyssey's `tiled=99` still has no committed tile table.
 * The 12 map NOT VERIFIED cells are **queued, not excused**: §5 gives each a costed test. They stay NOT
@@ -143,15 +149,20 @@ twelve of the twenty map cells cannot be filled from the record.
   character matrix's 9 C-axis cells are UNSUPPORTED because no gate renders a third-person weapon
   attached to a player body.
 * The historical `ReloadAirwalk_PRIMARY` false match is closed by T61.1's token-boundary matcher;
-  the nine current class probes select multi-frame run clips, while only the Demoman has a named D2
-  pixel sample.
+  the nine current class probes select multi-frame run clips, while four classes (Demoman, Scout,
+  Soldier, Medic) now have a named D2 pixel sample and five do not (§4).
 
-## 8. Evidence refresh on the candidate tree
+## 8. Evidence refreshes on the candidate trees
 
-This refresh reads committed T61.1 evidence available at `task/repo-cleanup @ 2f14873`, including the
-nine `r10-after-demos/runtime/class-*.txt` records and
-`r10-pixel-mutations/baseline.log`. The character matrix updates D1 and the single Demoman D2 cell;
-the C axis remains UNSUPPORTED for all nine classes because weapon-world-model data is not a
-third-person player render. No map gate, T75 install gate, or full `verify-all.sh` run was performed;
-the map PASS cells remain historical and explicitly un-retested. T73's final frozen-tree run and the
-release verdict remain separate work.
+The 2026-10-29 refresh read committed T61.1 evidence available at
+`task/repo-cleanup @ 2f14873`, including the nine `r10-after-demos/runtime/class-*.txt` records and
+`r10-pixel-mutations/baseline.log`; it updated D1 and the single Demoman D2 cell.
+
+The 2026-11-04 refresh at `integration/t79-final @ 046f4cd52a6eae5eb952488bb0095bcce86500b1`
+re-ran the six character gates at that commit (`RUNS-2026-11-04.md` §3 and §3b) and added the
+per-class pixel chain that makes D2 measured for Demoman, Scout, Soldier and Medic
+(`CHARACTER-MATRIX.md` §2.6, `RUNS-2026-11-04.md` §5). The C axis remains UNSUPPORTED for all nine
+classes because weapon-world-model data is not a third-person player render. No map gate, T75
+install gate, or full `verify-all.sh` run was performed in either refresh; the map PASS cells remain
+historical and explicitly un-retested. T73's final frozen-tree run and the release verdict remain
+separate work.
