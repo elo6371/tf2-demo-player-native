@@ -284,6 +284,24 @@ bool locateFrame(const std::uint8_t* bytes, std::size_t size, std::size_t animOf
 
 bool readBoneFrame(const std::uint8_t* bytes, std::size_t size, const AnimationBone& bone, std::size_t record,
     int frame, std::array<float, 3>& position, std::array<float, 4>& rotation, std::string& reason) {
+  if (bone.parent < 0) {
+    // T62: a skeleton root's animated transform is baked in the animation's own
+    // world frame, not in the entity's local frame. demo_animations.mdl keeps
+    // the pelvis at a fixed authoring spot (-0.8, -47.5, 45.7..51.6 = the rig's
+    // world placement plus hip height) with an absolute orientation of roughly
+    // 87 degrees about X; adding those to the reference pose drags the whole
+    // skeleton to the floor and tips it over, which is why the character
+    // rendered as a spiked blob. The entity matrix already supplies the world
+    // placement, and every child channel is a bone-local offset that is used as
+    // authored, so the root keeps its reference transform here.
+    position = bone.position;
+    rotation = bone.rotation;
+    if (!finite3(position) || !finite4(rotation)) {
+      reason = "bone bind rotation is not finite";
+      return false;
+    }
+    return true;
+  }
   const auto flags = bytes[record + 1];
   const std::size_t data = record + 4;
   std::size_t rotationBytes = 0;
@@ -305,9 +323,10 @@ bool readBoneFrame(const std::uint8_t* bytes, std::size_t size, const AnimationB
     }
     radianEulerToQuat(x, y, z, rotation);
     rotationBytes = 6;
-  } else if ((flags & kDelta) != 0) {
-    rotation = {0.0f, 0.0f, 0.0f, 1.0f};
   } else {
+    // A delta block with no rotation channel means "unchanged from the
+    // reference pose", so the reference pose itself is the answer. Writing an
+    // identity here would drop the bone's rest orientation.
     rotation = bone.rotation;
   }
 
@@ -323,9 +342,9 @@ bool readBoneFrame(const std::uint8_t* bytes, std::size_t size, const AnimationB
       position[1] += bone.position[1];
       position[2] += bone.position[2];
     }
-  } else if ((flags & kDelta) != 0) {
-    position = {0.0f, 0.0f, 0.0f};
   } else {
+    // Same for translation: a delta block that carries no position channel
+    // leaves the bone at its rest offset, not at its parent's origin.
     position = bone.position;
   }
   if (!finite3(position) || !finite4(rotation)) {
