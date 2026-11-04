@@ -1,0 +1,22 @@
+LEDGER lines=96 distinct-ids=96
+PICKS  models=9
+MASK   distinct-ids=14 pixels=4676
+SUBJECT id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=3681
+VISIBLE players=10 props=4
+JOIN   subject matches its own pick: models/player/sniper.mdl idle seq=11 label=AttackStand_PRIMARY
+DRAWN  16 skinned player instance(s) report their own pick (0 not skinned, not judged)
+SAMPLE 26 per-entity sample line(s), each matching its own model pick
+MOTION subject=93 over-mask=3681 differ=2213 share=60.12%
+BODIES drawn player bodies on screen:
+BODY id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=3681 differ=2213 share=60.12%
+BODY id=85 ent=6 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=248 differ=174 share=70.16%
+BODY id=82 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=237 differ=59 share=24.89%
+BODY-SKIP id=90 ent=12 model=models/player/scout.mdl pixels=157 (< 200, too few to judge)
+BODY-SKIP id=89 ent=11 model=models/player/heavy.mdl pixels=80 (< 200, too few to judge)
+BODY-SKIP id=84 ent=5 model=models/player/heavy.mdl pixels=68 (< 200, too few to judge)
+BODY-SKIP id=81 ent=2 model=models/player/engineer.mdl pixels=66 (< 200, too few to judge)
+BODY-SKIP id=92 ent=14 model=models/player/scout.mdl pixels=65 (< 200, too few to judge)
+BODY-SKIP id=86 ent=8 model=models/player/engineer.mdl pixels=1 (< 200, too few to judge)
+BODY-SKIP id=87 ent=9 model=models/player/pyro.mdl pixels=1 (< 200, too few to judge)
+DECODED id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY
+ENTITY-ID=PASS

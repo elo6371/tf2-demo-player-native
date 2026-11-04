@@ -1,0 +1,25 @@
+HOLE status=ok dir=.scratch/t62-map-axes/cp_sunshine size=1264x681 flat_colour=(97,158,89)
+HOLE background clear_colour=(22,18,14) overlay=0
+HOLE masks pixels=860784 missing=388218 skyFaceCoverage=367700
+HOLE totals missing=388218 sky=1707 unexplained=386511 skyOnDrawn=356418 skyOnDrawnUnmeasured=356418
+HOLE maskReach coverage=367700 share=0.42717 degenerate=0
+HOLE depthControl drawnCovered=356418 skyBehind=0 skyInFront=0 tie=0 measured=0 saturated=0
+HOLE component rank=0 area=387982 sky=1543 unexplained=386439 bbox=(x=0..1263,y=342..680) edge=1 fill=0.905
+HOLE component rank=1 area=84 sky=61 unexplained=23 bbox=(x=331..365,y=356..359) edge=0 fill=0.600
+HOLE component rank=2 area=72 sky=72 unexplained=0 bbox=(x=967..1001,y=346..350) edge=0 fill=0.411
+HOLE component rank=3 area=45 sky=19 unexplained=26 bbox=(x=207..231,y=365..368) edge=0 fill=0.450
+HOLE component rank=4 area=23 sky=0 unexplained=23 bbox=(x=322..344,y=361..361) edge=0 fill=1.000
+HOLE component rank=5 area=7 sky=7 unexplained=0 bbox=(x=1006..1012,y=350..350) edge=0 fill=1.000
+HOLE split open=387982 enclosed=236 enclosedUnexplained=72 components=10
+HOLE point=1138,630 component=0 area=387982
+HOLE point=655,546 component=0 area=387982
+HOLE point=354,589 component=0 area=387982
+HOLE points=1138,630;655,546;354,589
+HOLE seamFaces count=0 ids=
+HOLE seamCulled directions=0
+HOLE region W1 x=0,y=0,w=420,h=200 drawn=84000 missing=0 sky=0 unexplained=0
+HOLE region W2 x=0,y=560,w=420,h=121 drawn=0 missing=50820 sky=0 unexplained=50820
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=32800 missing=0 sky=0 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=3840 missing=0 sky=0 unexplained=0
+HOLE dark drawn=444373 dark=63541 limit=16
+HOLE mask=.scratch/t62-map-axes/cp_sunshine/analysis\hole-mask.bmp

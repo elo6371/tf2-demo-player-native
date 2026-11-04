@@ -1,0 +1,52 @@
+CLASS scout sequences=306 crouchCandidates=30 flinchCandidates=1
+  SAMPLE scout crouch seq=10 label=AttackCrouch_PRIMARY distinctPoses=4 maxDelta=116.193001
+  SAMPLE scout crouch seq=33 label=AttackCrouch_SECONDARY distinctPoses=4 maxDelta=112.820908
+  SAMPLE scout crouch seq=45 label=AttackCrouch_ITEM2 distinctPoses=4 maxDelta=116.888344
+  SAMPLE scout flinch seq=69 label=a_flinch01 distinctPoses=4 maxDelta=110.086304
+CLASS soldier sequences=361 crouchCandidates=23 flinchCandidates=1
+  SAMPLE soldier crouch seq=11 label=AttackCrouch_PRIMARY distinctPoses=4 maxDelta=146.816849
+  SAMPLE soldier crouch seq=14 label=AttackCrouch_PRIMARY2 distinctPoses=4 maxDelta=146.885544
+  SAMPLE soldier crouch seq=17 label=AttackCrouch_PRIMARY2_SUPER distinctPoses=4 maxDelta=147.253326
+  SAMPLE soldier flinch seq=75 label=a_flinch01 distinctPoses=4 maxDelta=138.622070
+CLASS pyro sequences=270 crouchCandidates=25 flinchCandidates=1
+  SAMPLE pyro crouch seq=15 label=AttackCrouch_PRIMARY distinctPoses=4 maxDelta=107.405968
+  SAMPLE pyro crouch seq=16 label=AttackCrouch_PRIMARY_spoolup distinctPoses=4 maxDelta=107.381187
+  SAMPLE pyro crouch seq=17 label=AttackCrouch_PRIMARY_spooldown distinctPoses=4 maxDelta=107.406921
+  SAMPLE pyro flinch seq=13 label=a_flinch01 distinctPoses=4 maxDelta=115.834930
+CLASS demo sequences=276 crouchCandidates=27 flinchCandidates=1
+  SAMPLE demo crouch seq=10 label=AttackCrouch_PRIMARY distinctPoses=4 maxDelta=134.531906
+  SAMPLE demo crouch seq=35 label=AttackCrouch_SECONDARY distinctPoses=4 maxDelta=134.965027
+  SAMPLE demo crouch seq=68 label=armslayer_melee_Crouch_swing distinctPoses=4 maxDelta=91.093781
+  SAMPLE demo flinch seq=28 label=a_flinch01 distinctPoses=4 maxDelta=129.368073
+CLASS heavy sequences=259 crouchCandidates=29 flinchCandidates=4
+  SAMPLE heavy crouch seq=17 label=AttackCrouch_SECONDARY distinctPoses=4 maxDelta=126.810501
+  SAMPLE heavy crouch seq=41 label=attackCrouch_MELEE_L distinctPoses=4 maxDelta=123.648445
+  SAMPLE heavy crouch seq=42 label=attackCrouch_MELEE_R distinctPoses=4 maxDelta=138.025085
+  SAMPLE heavy flinch seq=151 label=PRIMARY_flinch distinctPoses=4 maxDelta=126.930344
+  SAMPLE heavy flinch seq=152 label=SECONDARY_flinch distinctPoses=4 maxDelta=126.930344
+  SAMPLE heavy flinch seq=153 label=MELEE_flinch distinctPoses=4 maxDelta=126.930344
+CLASS engineer sequences=351 crouchCandidates=47 flinchCandidates=3
+  SAMPLE engineer crouch seq=10 label=AttackCrouch_PRIMARY distinctPoses=4 maxDelta=106.489853
+  SAMPLE engineer crouch seq=45 label=AttackCrouch_SECONDARY distinctPoses=4 maxDelta=85.291031
+  SAMPLE engineer crouch seq=92 label=AttackCrouch_PDA distinctPoses=4 maxDelta=115.552124
+  SAMPLE engineer flinch seq=297 label=a_flinch01 distinctPoses=4 maxDelta=96.762337
+  SAMPLE engineer flinch seq=298 label=a_flinch02 distinctPoses=4 maxDelta=91.365112
+  SAMPLE engineer flinch seq=299 label=a_flinch04 distinctPoses=4 maxDelta=98.074295
+CLASS medic sequences=213 crouchCandidates=24 flinchCandidates=1
+  SAMPLE medic crouch seq=10 label=AttackCrouch_PRIMARY distinctPoses=4 maxDelta=125.860153
+  SAMPLE medic crouch seq=27 label=AttackCrouch_SECONDARY_Prefire distinctPoses=4 maxDelta=113.432541
+  SAMPLE medic crouch seq=28 label=AttackCrouch_SECONDARY distinctPoses=4 maxDelta=106.903076
+  SAMPLE medic flinch seq=17 label=a_flinch01 distinctPoses=4 maxDelta=97.062981
+CLASS sniper sequences=240 crouchCandidates=39 flinchCandidates=1
+  SAMPLE sniper crouch seq=12 label=AttackCrouch_PRIMARY distinctPoses=4 maxDelta=116.582222
+  SAMPLE sniper crouch seq=14 label=AttackCrouch_PRIMARY_DEPLOYED distinctPoses=4 maxDelta=119.237694
+  SAMPLE sniper crouch seq=30 label=AttackCrouch_SECONDARY distinctPoses=4 maxDelta=115.300896
+  SAMPLE sniper flinch seq=23 label=a_flinch01 distinctPoses=4 maxDelta=103.931396
+CLASS spy sequences=274 crouchCandidates=32 flinchCandidates=1
+  SAMPLE spy crouch seq=11 label=AttackCrouch_SECONDARY distinctPoses=4 maxDelta=124.839035
+  SAMPLE spy crouch seq=30 label=armslayer_melee_Crouch_swing distinctPoses=4 maxDelta=82.119240
+  SAMPLE spy crouch seq=31 label=bodylayer_Melee_Crouch_Swing distinctPoses=4 maxDelta=128.927475
+  SAMPLE spy flinch seq=21 label=a_flinch01 distinctPoses=4 maxDelta=133.932602
+
+POSE-FAMILIES classes=9 crouchClasses=9 flinchSequences=14 sampled=40 decoded=40 failed=0
+POSE-FAMILIES=PASS every sampled crouch/flinch sequence decodes and at least one crouch clip moves

@@ -1,0 +1,13 @@
+LEDGER lines=96 distinct-ids=96
+PICKS  models=9
+MASK   distinct-ids=4 pixels=18068
+SUBJECT id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=3033
+VISIBLE players=1 props=3
+JOIN   subject matches its own pick: models/player/engineer.mdl idle seq=9 label=AttackStand_PRIMARY
+DRAWN  16 skinned player instance(s) report their own pick (0 not skinned, not judged)
+SAMPLE 26 per-entity sample line(s), each matching its own model pick
+MOTION subject=86 over-mask=3033 differ=2631 share=86.75%
+BODIES drawn player bodies on screen:
+BODY id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=3033 differ=2631 share=86.75%
+DECODED id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY
+ENTITY-ID=PASS

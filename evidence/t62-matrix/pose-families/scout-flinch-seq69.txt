@@ -1,0 +1,24 @@
+animtable model=models/player/scout.mdl animSource=models/player/scout_animations.mdl separate=1 bones=78 bindBones=78 validBindBones=78 sequences=306 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY poseSeq=69 poseLabel=a_flinch01 poseFrames=13 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|layer_reload_standing_arms_primary_start|layer_reload_standing_arms_primary_loop|layer_reload_standing_arms_primary_end|PRIMARY_reload_start|PRIMARY_reload_loop|PRIMARY_reload_end|PRIMARY_crouch_reload_start|PRIMARY_crouch_reload_loop|PRIMARY_crouch_reload_end|PRIMARY_swim_reload_start|PRIMARY_swim_reload_loop|PRIMARY_swim_reload_end|...
+boundDiag bindRadius=73.534996 boundDiag=148.069992 bones=76 composed=1 reason=-
+contcand rank=0 sequence=285 label=taunt_rps_start frames=187 sparseStep=15.446758 halfSwing=80.875961
+contcand rank=1 sequence=108 label=layer_gesture_primary_positive_armL frames=41 sparseStep=16.476936 halfSwing=79.498550
+contcand rank=2 sequence=281 label=layer_taunt_flip_success_initiator frames=116 sparseStep=19.035332 halfSwing=97.172318
+contcand rank=3 sequence=107 label=gesture_primary_cheer frames=41 sparseStep=21.471581 halfSwing=82.996101
+contcand rank=4 sequence=147 label=taunt_highFiveStart frames=77 sparseStep=23.782192 halfSwing=188.374969
+contpick sequence=108 label=layer_gesture_primary_positive_armL frames=41 sweepStep=16.476936 limit=37.017498 halfSwing=79.498550
+animcontseq sequence=108 label=layer_gesture_primary_positive_armL frames=41 sweepStep=16.476936
+animpose cycle=0.0000 sequence=69 label=a_flinch01 frame=0/13 localFrame=0 sectionFrames=0 bones=78 checksum=f3251a42ad6370b7 maxDelta=110.086304 finite=1
+animpose cycle=0.2500 sequence=69 label=a_flinch01 frame=3/13 localFrame=3 sectionFrames=0 bones=78 checksum=d4be135976ef18cd maxDelta=104.208023 finite=1
+animpose cycle=0.5000 sequence=69 label=a_flinch01 frame=6/13 localFrame=6 sectionFrames=0 bones=78 checksum=be67fb288d78b1ce maxDelta=108.476082 finite=1
+animpose cycle=0.7500 sequence=69 label=a_flinch01 frame=9/13 localFrame=9 sectionFrames=0 bones=78 checksum=0b9ad503c59af5e9 maxDelta=103.849899 finite=1
+animcont sequence=108 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=16.476936 worstBone=61 worstElement=13 worstTick=18 usable=1
+animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
+animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=10 speed=300.000 state=moving cycle=0.200000003 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=20 speed=300.000 state=moving cycle=0.400000066 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=30 speed=300.000 state=moving cycle=0.600000024 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=31 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=40 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=50 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=60 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animticks mode=synthetic ticks=61 movingTicks=31 movingAdvanced=30 idleTicks=30 idleAdvanced=0 maxMovingDelta=0.020000001 maxIdleDelta=0.000000000

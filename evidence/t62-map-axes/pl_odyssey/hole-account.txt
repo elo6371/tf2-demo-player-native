@@ -1,0 +1,23 @@
+HOLE status=ok dir=.scratch/t62-map-axes/pl_odyssey size=1264x681 flat_colour=(97,158,89)
+HOLE background clear_colour=(22,18,14) overlay=0
+HOLE masks pixels=860784 missing=1838 skyFaceCoverage=670352
+HOLE totals missing=1838 sky=1838 unexplained=0 skyOnDrawn=534263 skyOnDrawnUnmeasured=534263
+HOLE maskReach coverage=670352 share=0.77877 degenerate=0
+HOLE depthControl drawnCovered=534263 skyBehind=0 skyInFront=0 tie=0 measured=0 saturated=0
+HOLE component rank=0 area=1664 sky=1664 unexplained=0 bbox=(x=703..737,y=0..57) edge=1 fill=0.820
+HOLE component rank=1 area=147 sky=147 unexplained=0 bbox=(x=646..653,y=103..133) edge=0 fill=0.593
+HOLE component rank=2 area=23 sky=23 unexplained=0 bbox=(x=645..650,y=154..157) edge=0 fill=0.958
+HOLE component rank=3 area=4 sky=4 unexplained=0 bbox=(x=628..629,y=202..204) edge=0 fill=0.667
+HOLE split open=1664 enclosed=174 enclosedUnexplained=0 components=4
+HOLE point=716,18 component=0 area=1664
+HOLE point=722,25 component=0 area=1664
+HOLE point=723,37 component=0 area=1664
+HOLE points=716,18;722,25;723,37
+HOLE seamFaces count=0 ids=
+HOLE seamCulled directions=0
+HOLE region W1 x=0,y=0,w=420,h=200 drawn=46550 missing=0 sky=0 unexplained=0
+HOLE region W2 x=0,y=560,w=420,h=121 drawn=41821 missing=0 sky=0 unexplained=0
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=32800 missing=0 sky=0 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=3050 missing=0 sky=0 unexplained=0
+HOLE dark drawn=657999 dark=72564 limit=16
+HOLE mask=.scratch/t62-map-axes/pl_odyssey/analysis\hole-mask.bmp

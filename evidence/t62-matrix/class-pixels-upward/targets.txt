@@ -1,0 +1,37 @@
+# T62 per-class pixel chain on a Highlander demo (pl_upward_f12, SourceTV).
+#
+# demo: C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_
+#       match-20261030-2145-pl_upward_f12.dem -- nine classes, one body per team.
+#
+# Columns: class ent tick origin_x origin_y origin_z
+#
+# The origin is the capture-frame value from the product's own ledger
+# (entity: id= ... origin=), NOT the entity_overlay_probe reading: that probe
+# reports fidelity=checkpointFallback and its snapshot can be up to ~1135 ticks
+# (~17 s) old, which is hundreds of units of drift. The first run of this chain
+# aimed from probe origins and every class missed.
+#
+# The camera is derived from the origin, not authored: eye = origin +
+# (-250, 0, +58), pitch 4.1, yaw 0.0 -- the offset measured on the snakewater
+# chain between the reference camera and the Demoman body at the same tick
+# (RUNS-2026-11-04.md, section 5).
+#
+# Each body was chosen so that no other player body stands in the forward cone
+# between the eye and that body: clearance is the distance, in units, to the
+# nearest body inside a 55-degree cone (9999 = none). Bodies that are far off
+# axis do not count, so a small clearance is not automatically a failure, but a
+# neighbour closer than the 256.6-unit eye-to-body distance takes the SUBJECT
+# role and fails the class -- that is what happened on the first run.
+#
+#   pyro      tick 30001, clearance 269   (run 2: PASS, 3152 px, moved 37.44%)
+#   heavy     tick 24001, clearance 334   nearest is scout ent=12
+#   spy       tick 24001, clearance 775   nearest is soldier ent=16, off axis
+#   engineer  tick 24001, clearance 9999  empty cone
+#   sniper    tick 20001, clearance 867   the other tick-20001 sniper (ent=17)
+#             was in the ledger but drew no pixels -- occluded by world
+#             geometry -- so the chain names ent=15 instead
+pyro 3 30001 1957.0 -125.1 94.8
+heavy 11 24001 1609.4 -1293.8 80.7
+spy 18 24001 955.4 -1255.4 349.5
+engineer 8 24001 1889.4 288.9 400.0
+sniper 15 20001 -958.4 -1496.8 267.6

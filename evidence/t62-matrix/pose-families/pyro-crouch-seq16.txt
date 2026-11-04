@@ -1,0 +1,24 @@
+animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=19 idleLabel=AttackStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY poseSeq=16 poseLabel=AttackCrouch_PRIMARY_spoolup poseFrames=7 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_walk|PRIMARY_aimmatrix_crouch_idle|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_flinch01|primary_fire|AttackCrouch_PRIMARY|AttackCrouch_PRIMARY_spoolup|AttackCrouch_PRIMARY_spooldown|SECONDARYAttackCrouch_PRIMARY|AttackStand_PRIMARY|AttackStand_primary_spoolup|AttackStand_primary_spooldown|SECONDARYAttackStand_PRIMARY|AttackSwim_PRIMARY|...
+boundDiag bindRadius=71.823799 boundDiag=144.647598 bones=76 composed=1 reason=-
+contcand rank=0 sequence=173 label=layer_taunt_scorch_shot frames=114 sparseStep=0.000000 halfSwing=230.342743
+contcand rank=1 sequence=241 label=layer_taunt_flip_success_initiator frames=122 sparseStep=21.096788 halfSwing=84.593018
+contcand rank=2 sequence=195 label=gesture_primary_cheer frames=36 sparseStep=21.680994 halfSwing=85.841835
+contcand rank=3 sequence=188 label=layer_taunt_laugh frames=151 sparseStep=22.607300 halfSwing=86.718185
+contcand rank=4 sequence=185 label=taunt_highFiveStart frames=87 sparseStep=22.725471 halfSwing=118.215347
+contpick sequence=173 label=layer_taunt_scorch_shot frames=114 sweepStep=30.637253 limit=36.161900 halfSwing=230.342743
+animcontseq sequence=173 label=layer_taunt_scorch_shot frames=114 sweepStep=30.637253
+animpose cycle=0.0000 sequence=16 label=AttackCrouch_PRIMARY_spoolup frame=0/7 localFrame=0 sectionFrames=0 bones=76 checksum=3e28739c11f6e09d maxDelta=106.958763 finite=1
+animpose cycle=0.2500 sequence=16 label=AttackCrouch_PRIMARY_spoolup frame=1/7 localFrame=1 sectionFrames=0 bones=76 checksum=a9da8e123a24cab9 maxDelta=107.050056 finite=1
+animpose cycle=0.5000 sequence=16 label=AttackCrouch_PRIMARY_spoolup frame=3/7 localFrame=3 sectionFrames=0 bones=76 checksum=7471708f219c2028 maxDelta=107.315071 finite=1
+animpose cycle=0.7500 sequence=16 label=AttackCrouch_PRIMARY_spoolup frame=5/7 localFrame=5 sectionFrames=0 bones=76 checksum=e21e1f268e291577 maxDelta=107.381187 finite=1
+animcont sequence=173 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=30.637253 worstBone=24 worstElement=12 worstTick=40 usable=1
+animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
+animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=10 speed=300.000 state=moving cycle=0.200000003 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=20 speed=300.000 state=moving cycle=0.400000066 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=30 speed=300.000 state=moving cycle=0.600000024 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=31 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=40 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=50 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=60 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animticks mode=synthetic ticks=61 movingTicks=31 movingAdvanced=30 idleTicks=30 idleAdvanced=0 maxMovingDelta=0.020000001 maxIdleDelta=0.000000000

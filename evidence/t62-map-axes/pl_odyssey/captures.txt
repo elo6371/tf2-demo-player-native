@@ -1,0 +1,21 @@
+map=pl_odyssey
+bsp=maps/pl_odyssey.bsp
+demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-26_23-14-06.dem
+tick=2000
+speed=8
+camera=--debug-camera -1221.21 462.209 650.252 14.3087 171.148
+pose_eye=-1221.2,462.2,650.3
+product_sha256=389ab0b2b4f34728e7b8c4062ecd8aaf5fa047eeebac6fd7c73a19d195dfaf50
+probe_sha256=abc5415404092ec8a08bb718ca321b3b54816a275d042e1154425a7e029fcf5b
+head=931588b1dc8fc14ec0775be53dc47ba217e1a94f
+frame textured sha256=1f99d9395d560cfb1b11ada6149dc5748ae5be4d29ab1cf35defdb708a8fc6fb bytes=2582406
+frame none sha256=c04021f716da86dc61d30c8115703ce97ad037f762c3e8f7b291b9b056cfecfc bytes=2582406
+frame sky-faces sha256=ac50a928ea39c2e922ceb32fe7f1c2fdafa72b871726d17c08239cdb1584ee73 bytes=2582406
+frame flat-base sha256=c15139ec29ecc030612e66d2719a000ba4ec6f7d2612a80ffc592a43aed41310 bytes=2582406
+frame flat-novis sha256=e304ea9b539595f14f6e6ebdb60c9eaa3909c9bd4a2cf0b26ec40fd6f370ac03 bytes=2582406
+frame flat-nocull sha256=b4a021be26ffb4befedc60d2cf2209495c8081973db69f84cac0c3986625cdf5 bytes=2582406
+frame flat-novis-nocull sha256=f7b345dc66729d25b9d5643c4313bf9902e5a65e096efca6492d74d61cdf29d6 bytes=2582406
+frame ids sha256=ba21d1d3af856037994db2ce00a459ef2a2070946e920936a8a0e1ca5a3cc4c6 bytes=2582406
+frame ids-nocull sha256=baad098a5b539c171c104ab2ac68ff979a69b422782477ac979ec5217c551ef4 bytes=2582406
+frame lmoff sha256=6d27b1f408eefa65243c6557cf0b85a9bd638e534da5d9cc5479e75ae033e09e bytes=2582406
+frame_flat=copy of flat-base.bmp

@@ -1,0 +1,18 @@
+LEDGER lines=96 distinct-ids=96
+PICKS  models=9
+MASK   distinct-ids=9 pixels=10504
+SUBJECT id=95 ent=18 model=models/player/spy.mdl state=idle seq=10 label=AttackStand_SECONDARY pixels=2730
+VISIBLE players=6 props=3
+JOIN   subject matches its own pick: models/player/spy.mdl idle seq=10 label=AttackStand_SECONDARY
+DRAWN  16 skinned player instance(s) report their own pick (0 not skinned, not judged)
+SAMPLE 26 per-entity sample line(s), each matching its own model pick
+MOTION subject=95 over-mask=2730 differ=1626 share=59.56%
+BODIES drawn player bodies on screen:
+BODY id=95 ent=18 model=models/player/spy.mdl state=idle seq=10 label=AttackStand_SECONDARY pixels=2730 differ=1626 share=59.56%
+BODY id=94 ent=16 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY pixels=588 differ=495 share=84.18%
+BODY id=85 ent=7 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=214 differ=142 share=66.36%
+BODY-SKIP id=93 ent=15 model=models/player/sniper.mdl pixels=83 (< 200, too few to judge)
+BODY-SKIP id=84 ent=6 model=models/player/demo.mdl pixels=56 (< 200, too few to judge)
+BODY-SKIP id=89 ent=11 model=models/player/heavy.mdl pixels=42 (< 200, too few to judge)
+DECODED id=95 ent=18 model=models/player/spy.mdl state=idle seq=10 label=AttackStand_SECONDARY
+ENTITY-ID=PASS

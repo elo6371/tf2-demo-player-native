@@ -1,21 +1,21 @@
-# map=pl_odyssey tick=0 trace=/d/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/pl_odyssey.tick0.trace bytes=86075 lines=572
+# map=pl_odyssey tick=0 trace=/d/TF2_Native_Worktrees/t79-integration/.scratch/t62-map-matrix/pl_odyssey.tick0.trace bytes=86072 lines=572
 # not the trace itself: the gpu: world lines are emitted once per run
 # (main.cpp traceWorldDraw emits on the first world draw). The rows below
 # are every line that run printed, not a sample.
 # gpu: world material-fetch  count=1
-23845.9 gpu: world material-fetch distinct=127 tiled=118 capped=0 vmtMissing=3 vmtNoBase=2 vtfMissing=0 vtfTooLarge=83 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=107 downscaled=83 blendFirst=10 blendLastRank=10 blendCapped=0 patchDeclared=31 patchResolved=31 patchUnparsable=0 transformRefused=4
+22501.0 gpu: world material-fetch distinct=127 tiled=118 capped=0 vmtMissing=3 vmtNoBase=2 vtfMissing=0 vtfTooLarge=83 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=107 downscaled=83 blendFirst=10 blendLastRank=10 blendCapped=0 patchDeclared=31 patchResolved=31 patchUnparsable=0 transformRefused=4
 # gpu: world atlas  count=1
-24774.1 gpu: world atlas size=4112 bytes=67634176 atlases=2 totalBytes=126814080 state=bound
+23267.9 gpu: world atlas size=4112 bytes=67634176 atlases=2 totalBytes=126814080 state=bound
 # gpu: world atlas-plan  count=1
-26183.4 gpu: world atlas-plan batches=2 blendBatches=1 tiled=118 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=262082432 reason=118 of 118 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=120+64+64+0+0 MiB
+24430.4 gpu: world atlas-plan batches=2 blendBatches=1 tiled=118 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=262082432 reason=118 of 118 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=120+64+64+0+0 MiB
 # gpu: world tile  count=118
-26186.7 gpu: world tile material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY tris=6850 visible=6850 batch=0 tile=0 size=512x512 blend=1 modulate=1 reason=tiled
+24434.0 gpu: world tile material=NATURE/BLENDCLIFFTOGRASS_ODYSSEY tris=6850 visible=6850 batch=0 tile=0 size=512x512 blend=1 modulate=1 reason=tiled
 # gpu: world isolation  count=1
-26187.0 gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=2 batchDraws=2 texturedBatchDraws=2
+24434.5 gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=2 batchDraws=2 texturedBatchDraws=2
 # gpu: world vis  count=1
-26183.4 gpu: world vis cameraCluster=2388 visibleFromCamera=1130 clusters=2938 clusteredTriangles=52380 hiddenTriangles=26570 withoutCluster=52930 inputTriangles=105310 drawnTriangles=78740 clipApplied=1 state=active eyeMap=(-1896.0,512.2,702.2) reason=hid 26570 of 105310 triangles from cluster 2388 (5296 kept by a cluster past the first)
+24430.4 gpu: world vis cameraCluster=2388 visibleFromCamera=1130 clusters=2938 clusteredTriangles=52380 hiddenTriangles=26570 withoutCluster=52930 inputTriangles=105310 drawnTriangles=78740 clipApplied=1 state=active eyeMap=(-1896.0,512.2,702.2) reason=hid 26570 of 105310 triangles from cluster 2388 (5296 kept by a cluster past the first)
 # capture: armed (last; frame_tick is the tick the frame was drawn on)
-26157.9 capture: armed requested=0 frame_tick=0 frames=0
+24405.1 capture: armed requested=0 frame_tick=0 frames=0
 # camera: capture (last)
 # scene: camera (last)
-26141.4 scene: camera mode=free-look target=1 follows=0 holds=0 freeze=1 eye=-1221.2,462.2,650.3 pitch=14.31 yaw=171.15 src=debug
+24390.1 scene: camera mode=free-look target=1 follows=0 holds=0 freeze=1 eye=-1221.2,462.2,650.3 pitch=14.31 yaw=171.15 src=debug

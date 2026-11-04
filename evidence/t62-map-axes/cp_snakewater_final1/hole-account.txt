@@ -1,0 +1,46 @@
+HOLE status=ok dir=.scratch/t62-map-axes/cp_snakewater_final1 size=1264x681 flat_colour=(97,158,89)
+HOLE background clear_colour=(22,18,14) overlay=0
+HOLE masks pixels=860784 missing=214560 skyFaceCoverage=491461
+HOLE totals missing=214560 sky=210736 unexplained=3824 skyOnDrawn=257319 skyOnDrawnUnmeasured=257319
+HOLE maskReach coverage=491461 share=0.57095 degenerate=0
+HOLE depthControl drawnCovered=257319 skyBehind=0 skyInFront=0 tie=0 measured=0 saturated=0
+HOLE component rank=0 area=208455 sky=208455 unexplained=0 bbox=(x=0..966,y=0..377) edge=1 fill=0.570
+HOLE component rank=1 area=3038 sky=0 unexplained=3038 bbox=(x=251..560,y=451..502) edge=0 fill=0.188
+HOLE component rank=2 area=756 sky=756 unexplained=0 bbox=(x=358..392,y=351..375) edge=0 fill=0.864
+HOLE component rank=3 area=677 sky=0 unexplained=677 bbox=(x=260..374,y=424..441) edge=0 fill=0.327
+HOLE component rank=4 area=637 sky=637 unexplained=0 bbox=(x=405..446,y=352..369) edge=0 fill=0.843
+HOLE component rank=5 area=387 sky=387 unexplained=0 bbox=(x=453..516,y=352..358) edge=0 fill=0.864
+HOLE component rank=6 area=250 sky=250 unexplained=0 bbox=(x=343..353,y=351..376) edge=0 fill=0.874
+HOLE component rank=7 area=141 sky=73 unexplained=68 bbox=(x=322..329,y=383..406) edge=0 fill=0.734
+HOLE component rank=8 area=51 sky=51 unexplained=0 bbox=(x=269..319,y=382..382) edge=0 fill=1.000
+HOLE component rank=9 area=42 sky=42 unexplained=0 bbox=(x=355..396,y=380..380) edge=0 fill=1.000
+HOLE component rank=10 area=37 sky=37 unexplained=0 bbox=(x=398..400,y=355..369) edge=0 fill=0.822
+HOLE component rank=11 area=34 sky=0 unexplained=34 bbox=(x=448..461,y=409..412) edge=0 fill=0.607
+HOLE component rank=12 area=11 sky=11 unexplained=0 bbox=(x=359..365,y=351..353) edge=0 fill=0.524
+HOLE component rank=13 area=8 sky=8 unexplained=0 bbox=(x=405..409,y=352..353) edge=0 fill=0.800
+HOLE component rank=14 area=7 sky=7 unexplained=0 bbox=(x=477..477,y=337..343) edge=0 fill=1.000
+HOLE component rank=15 area=7 sky=7 unexplained=0 bbox=(x=344..347,y=349..351) edge=0 fill=0.583
+HOLE component rank=16 area=5 sky=0 unexplained=5 bbox=(x=326..327,y=419..421) edge=0 fill=0.833
+HOLE component rank=17 area=4 sky=4 unexplained=0 bbox=(x=444..446,y=352..353) edge=0 fill=0.667
+HOLE split open=208455 enclosed=6105 enclosedUnexplained=3824 components=27
+HOLE point=410,39 component=0 area=208455
+HOLE point=510,122 component=0 area=208455
+HOLE point=695,91 component=0 area=208455
+HOLE point=489,465 component=1 area=3038
+HOLE point=416,471 component=1 area=3038
+HOLE point=343,483 component=1 area=3038
+HOLE point=368,364 component=2 area=756
+HOLE point=371,370 component=2 area=756
+HOLE point=375,372 component=2 area=756
+HOLE point=347,425 component=3 area=677
+HOLE point=304,426 component=3 area=677
+HOLE point=289,429 component=3 area=677
+HOLE points=410,39;510,122;695,91;489,465;416,471;343,483;368,364;371,370;375,372;347,425;304,426;289,429
+HOLE seamFaces count=0 ids=
+HOLE seamCulled directions=0
+HOLE region W1 x=0,y=0,w=420,h=200 drawn=15298 missing=65251 sky=65251 unexplained=0
+HOLE region W2 x=0,y=560,w=420,h=121 drawn=50820 missing=0 sky=0 unexplained=0
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=22104 missing=0 sky=0 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=0 missing=3840 sky=3840 unexplained=0
+HOLE dark drawn=618381 dark=187036 limit=16
+HOLE mask=.scratch/t62-map-axes/cp_snakewater_final1/analysis\hole-mask.bmp

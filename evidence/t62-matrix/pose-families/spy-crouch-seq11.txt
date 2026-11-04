@@ -1,0 +1,24 @@
+animtable model=models/player/spy.mdl animSource=models/player/spy_animations.mdl separate=1 bones=84 bindBones=84 validBindBones=84 sequences=274 idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY poseSeq=11 poseLabel=AttackCrouch_SECONDARY poseFrames=16 labels=ref|ragdoll|user_ref|test_swingBlend|ragdollspawn|r_handposes|r_armposes|SECONDARY_aimmatrix_idle|SECONDARY_aimmatrix_run|SECONDARY_aimmatrix_crouch_idle|AttackStand_SECONDARY|AttackCrouch_SECONDARY|AttackSwim_SECONDARY|layer_reload_standing_arms_SECONDARY|layer_reload_crouching_arms_SECONDARY|layer_reload_swimming_arms_SECONDARY|layer_reload_airwalk_arms_SECONDARY|ReloadStand_SECONDARY|ReloadCrouch_SECONDARY|ReloadSwim_SECONDARY|ReloadAirwalk_SECONDARY|a_flinch01|layer_placeSapper_ArmL|SECONDARY_placeSapper|...
+boundDiag bindRadius=75.745811 boundDiag=152.491623 bones=84 composed=1 reason=-
+contcand rank=0 sequence=227 label=layer_taunt_buy_a_life frames=192 sparseStep=0.000000 halfSwing=84.347061
+contcand rank=1 sequence=144 label=swim_LOSER frames=31 sparseStep=12.974876 halfSwing=120.679131
+contcand rank=2 sequence=171 label=layer_gesture_secondary_cheer_armL frames=36 sparseStep=17.841385 halfSwing=100.066277
+contcand rank=3 sequence=256 label=layer_taunt_rps_scissors frames=104 sparseStep=17.860012 halfSwing=117.246201
+contcand rank=4 sequence=254 label=layer_taunt_rps_paper frames=104 sparseStep=17.860012 halfSwing=117.086044
+contpick sequence=144 label=swim_LOSER frames=31 sweepStep=12.974876 limit=38.122906 halfSwing=120.679131
+animcontseq sequence=144 label=swim_LOSER frames=31 sweepStep=12.974876
+animpose cycle=0.0000 sequence=11 label=AttackCrouch_SECONDARY frame=0/16 localFrame=0 sectionFrames=0 bones=84 checksum=81a1eb33e9198e1d maxDelta=123.981415 finite=1
+animpose cycle=0.2500 sequence=11 label=AttackCrouch_SECONDARY frame=4/16 localFrame=4 sectionFrames=0 bones=84 checksum=c831226a69f562cd maxDelta=122.869415 finite=1
+animpose cycle=0.5000 sequence=11 label=AttackCrouch_SECONDARY frame=8/16 localFrame=8 sectionFrames=0 bones=84 checksum=a5a40787782a7fb9 maxDelta=124.839035 finite=1
+animpose cycle=0.7500 sequence=11 label=AttackCrouch_SECONDARY frame=12/16 localFrame=12 sectionFrames=0 bones=84 checksum=74248ce312742619 maxDelta=124.661469 finite=1
+animcont sequence=144 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=12.974876 worstBone=25 worstElement=13 worstTick=39 usable=1
+animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
+animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=10 speed=300.000 state=moving cycle=0.200000003 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=20 speed=300.000 state=moving cycle=0.400000066 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=30 speed=300.000 state=moving cycle=0.600000024 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=31 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=40 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=50 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=60 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animticks mode=synthetic ticks=61 movingTicks=31 movingAdvanced=30 idleTicks=30 idleAdvanced=0 maxMovingDelta=0.020000001 maxIdleDelta=0.000000000

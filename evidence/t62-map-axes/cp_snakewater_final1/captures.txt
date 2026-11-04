@@ -1,0 +1,21 @@
+map=cp_snakewater_final1
+bsp=maps/cp_snakewater_final1.bsp
+demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+tick=2000
+speed=8
+camera=--debug-camera 1185.5 -813.5 207.1 -6.71 118.59
+pose_eye=1185.5,-813.5,207.1
+product_sha256=389ab0b2b4f34728e7b8c4062ecd8aaf5fa047eeebac6fd7c73a19d195dfaf50
+probe_sha256=abc5415404092ec8a08bb718ca321b3b54816a275d042e1154425a7e029fcf5b
+head=931588b1dc8fc14ec0775be53dc47ba217e1a94f
+frame textured sha256=bdeecfd41a87451a1f243a43cb0822ca0040ba259f599b637a5b231eac810933 bytes=2582406
+frame none sha256=c04021f716da86dc61d30c8115703ce97ad037f762c3e8f7b291b9b056cfecfc bytes=2582406
+frame sky-faces sha256=a7c576e17773464b50c3cb890f7d1fc76894013d53166f2b5540562023e5e403 bytes=2582406
+frame flat-base sha256=0e0d9eeb0a6c5b15e78cde97a5b4222dadcf16ce765aa9dc65b2e9f76c597569 bytes=2582406
+frame flat-novis sha256=6372d09d9b9ee92610512cf1b9d7b0f0795de70424f95e78d5fb77cac26b79f9 bytes=2582406
+frame flat-nocull sha256=344cf9413949656664f803e0c533ff013cb96c072345000fe7e6ec71d4622076 bytes=2582406
+frame flat-novis-nocull sha256=35c9c1efaff8586ea589be7457819c49c883f780430de307f63568d350942791 bytes=2582406
+frame ids sha256=21edac7184a895de66f227ff46a63608a0bd257a698c2976f1f9469022450776 bytes=2582406
+frame ids-nocull sha256=1389055cd18dd79a06c55abc54d41aee868395d79cb1daae8b4b8a5865c91eff bytes=2582406
+frame lmoff sha256=79ce770b6a60394269d1c47ae4eac494f48f803b210fb2c4a3f7e8ac089c2b65 bytes=2582406
+frame_flat=copy of flat-base.bmp

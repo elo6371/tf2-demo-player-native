@@ -1,0 +1,29 @@
+HOLE status=ok dir=.scratch/t62-map-axes/koth_bagel_rc12 size=1264x681 flat_colour=(97,158,89)
+HOLE background clear_colour=(22,18,14) overlay=0
+HOLE masks pixels=860784 missing=250143 skyFaceCoverage=306353
+HOLE totals missing=250143 sky=28382 unexplained=221761 skyOnDrawn=270624 skyOnDrawnUnmeasured=270624
+HOLE maskReach coverage=306353 share=0.35590 degenerate=0
+HOLE depthControl drawnCovered=270624 skyBehind=0 skyInFront=0 tie=0 measured=0 saturated=0
+HOLE component rank=0 area=244898 sky=24311 unexplained=220587 bbox=(x=0..685,y=203..680) edge=1 fill=0.747
+HOLE component rank=1 area=4071 sky=4071 unexplained=0 bbox=(x=0..177,y=155..196) edge=1 fill=0.545
+HOLE component rank=2 area=983 sky=0 unexplained=983 bbox=(x=767..812,y=280..317) edge=0 fill=0.562
+HOLE component rank=3 area=191 sky=0 unexplained=191 bbox=(x=763..781,y=317..337) edge=0 fill=0.479
+HOLE split open=248969 enclosed=1174 enclosedUnexplained=1174 components=4
+HOLE point=16,496 component=0 area=244898
+HOLE point=285,549 component=0 area=244898
+HOLE point=521,513 component=0 area=244898
+HOLE point=40,164 component=1 area=4071
+HOLE point=47,188 component=1 area=4071
+HOLE point=105,188 component=1 area=4071
+HOLE point=772,300 component=2 area=983
+HOLE point=771,311 component=2 area=983
+HOLE point=784,310 component=2 area=983
+HOLE points=16,496;285,549;521,513;40,164;47,188;105,188;772,300;771,311;784,310
+HOLE seamFaces count=0 ids=
+HOLE seamCulled directions=0
+HOLE region W1 x=0,y=0,w=420,h=200 drawn=78611 missing=4071 sky=4071 unexplained=0
+HOLE region W2 x=0,y=560,w=420,h=121 drawn=0 missing=50820 sky=0 unexplained=50820
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=32800 missing=0 sky=0 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=3840 missing=0 sky=0 unexplained=0
+HOLE dark drawn=582093 dark=118050 limit=16
+HOLE mask=.scratch/t62-map-axes/koth_bagel_rc12/analysis\hole-mask.bmp

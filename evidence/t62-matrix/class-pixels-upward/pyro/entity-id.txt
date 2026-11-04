@@ -1,0 +1,13 @@
+LEDGER lines=96 distinct-ids=96
+PICKS  models=9
+MASK   distinct-ids=1 pixels=3152
+SUBJECT id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=3152
+VISIBLE players=1 props=0
+JOIN   subject matches its own pick: models/player/pyro.mdl idle seq=19 label=AttackStand_PRIMARY
+DRAWN  13 skinned player instance(s) report their own pick (0 not skinned, not judged)
+SAMPLE 28 per-entity sample line(s), each matching its own model pick
+MOTION subject=85 over-mask=3152 differ=1180 share=37.44%
+BODIES drawn player bodies on screen:
+BODY id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=3152 differ=1180 share=37.44%
+DECODED id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY
+ENTITY-ID=PASS

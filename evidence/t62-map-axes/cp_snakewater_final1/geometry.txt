@@ -1,0 +1,56 @@
+geometry status=ok map=maps/cp_snakewater_final1.bsp version=20 triangles=234699 faces=16103 displaced=199360 water=36 lightmapped=234621 degenerate=3827 maxEdge=2057.6 over256=11030 over1024=19 over4096=0 bounds=(-14892,-4832,-14673)..(6808,15420,960)
+geometry faces total=16103 rendered=12133 sky=690 skippedNoDraw=2 skippedInvalid=0 skippedBrushModel=3278 worldFaces=12471 brushFaces=3632
+geometry sky faces=690 triangles=2021 bufferTriangles=234699
+geometry lightmap-uv atlas=4096x1179 vertices=703863 unwrittenTexels=0 unwrittenShare=0.0000 sampledMeanLum=54.2
+geometry lightmap-tone histogram=129324,38960,20224,11753,7545,8581,7337,10897 darkTriangles=113610 darkShare=0.4841
+geometry lightmap-face-tone histogram=6753,2264,1022,603,384,362,324,384 darkFaces=5890 zeroFaces=1383
+geometry lightmap-hdr-tone histogram=6772,2259,1010,606,380,361,324,384 darkFaces=5905 zeroFaces=1397 intensity=0.441 samples=2793687
+geometry lightmap-tone darkest: 0[CONCRETE/CONCRETEWALL002C n=7] 0[DEV/REFLECTIVITY_50 n=18] 0[METAL/IMETAL001 n=2] 0[maps/cp_snakewater_final1/dev/dev_blendmeasure_wvt_patch n=20] 0[maps/cp_snakewater_final1/tile/floor_tile_005a_-2444_2301_152 n=6] 0[maps/cp_snakewater_final1/tile/floor_tile_005a_3494_-1886_152 n=5] 2[maps/cp_snakewater_final1/glass/glasswindow001a_1726_-1905_-112 n=2] 4[CONCRETE/CONCRETEFLOOR005 n=42]
+geometry lightmap-tone darkMaterials: 43121[MEDIEVAL/PLASTERWALL002A n=80256] 10073[METAL/CHICKEN_WIRE001 n=14092] 9080[WOOD/WOOD_BEAM02 n=10288] 8006[TOOLS/TOOLSBLACK n=15714] 6572[WOOD/WOOD_BRIDGE001 n=8290] 3622[METAL/WALL028 n=11846] 2722[METAL/WALL015 n=11859] 2595[WINTER/ROCKWALL014 n=4378]
+geometry edge-groups staticMaxEdge=2057.6 staticOver1024=19 staticMaterialOver1024=4 displacedMaxEdge=412.9 displacedOver1024=0
+geometry displacement faces=1583 triangles=199360 cornerMatches=1583
+geometry displacement coverage candidates=1585 emitted=1583 fallback=2 (lump=0 polygon=0 index=0 power=0 range=0 corner=0 nonFinite=0 cell=2 limit=0 other=0)
+geometry displacement fallback-face index=10929 material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL
+geometry displacement fallback-face index=10935 material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL
+geometry displacement fallback-quads triangles=4
+geometry winding agree=4133 of 11152 faces (37.1% agree with the bsp plane normals)
+geometry winding flippedTriangles=36417 of 234699
+geometry winding sideAware misfaced=10910 displacedMisfaced=0 sideOneFaces=4120 of 11152
+geometry stored-winding class=brush alongPlane=27 againstPlane=9540
+geometry stored-winding class=displacement alongPlane=0 againstPlane=1585
+geometry grid-vs-polygon keeps=3 reverses=1582 of 1583 displacement faces
+geometry pre-rule class=brush alongPlane=27095 againstPlane=95 alongOutward=16280 againstOutward=10910
+geometry pre-rule class=displacement alongPlane=199145 againstPlane=467 alongOutward=163195 againstOutward=36417
+geometry materials distinct=149 atlasCap=64 trianglesCoveredByCap=231102 of 234699 (98.5%)
+geometry material rank=0 triangles=80256 name=MEDIEVAL/PLASTERWALL002A
+geometry material rank=1 triangles=15714 name=TOOLS/TOOLSBLACK
+geometry material rank=2 triangles=14092 name=METAL/CHICKEN_WIRE001
+geometry material rank=3 triangles=11859 name=METAL/WALL015
+geometry material rank=4 triangles=11846 name=METAL/WALL028
+geometry material rank=5 triangles=10311 name=METAL/WALL027B
+geometry material rank=6 triangles=10288 name=WOOD/WOOD_BEAM02
+geometry material rank=7 triangles=8330 name=METAL/WALL011G
+geometry offender index=39509 longest=2057.6 area=1049920.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL cluster=-1
+      a=(-5392.0, 3704.0, -184.0)      b=(-4032.0, 5248.0, -184.0)      c=(-5392.0, 5248.0, -184.0)
+geometry offender index=39510 longest=2057.6 area=1049920.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL cluster=-1
+      a=(-5392.0, 3704.0, -184.0)      b=(-4032.0, 3704.0, -184.0)      c=(-4032.0, 5248.0, -184.0)
+geometry offender index=39959 longest=2057.6 area=1049920.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL cluster=-1
+      a=(5088.0, -4832.0, -184.0)      b=(6448.0, -3288.0, -184.0)      c=(5088.0, -3288.0, -184.0)
+geometry offender index=39960 longest=2057.6 area=1049920.0 displacement=0 water=0 material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL cluster=-1
+      a=(5088.0, -4832.0, -184.0)      b=(6448.0, -4832.0, -184.0)      c=(6448.0, -3288.0, -184.0)
+geometry offender index=32256 longest=1238.7 area=356848.7 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=2646
+      a=(1721.0, -3072.0, -188.0)      b=(1024.0, -4096.0, -188.0)      c=(1024.0, -3072.0, -188.0)
+geometry offender index=32257 longest=1238.7 area=356848.7 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=2646
+      a=(1721.0, -3072.0, -188.0)      b=(1721.0, -4096.0, -188.0)      c=(1024.0, -4096.0, -188.0)
+geometry offender index=32258 longest=1238.7 area=356848.7 displacement=0 water=1 material=maps/cp_snakewater_final1/water/water_sawmill_1235_-3530_-160 cluster=2644
+      a=(1721.0, -4096.0, -188.0)      b=(1024.0, -3072.0, -188.0)      c=(1024.0, -4096.0, -188.0)
+geometry offender index=32259 longest=1238.7 area=356848.7 displacement=0 water=1 material=maps/cp_snakewater_final1/water/water_sawmill_1235_-3530_-160 cluster=2644
+      a=(1721.0, -4096.0, -188.0)      b=(1721.0, -3072.0, -188.0)      c=(1024.0, -3072.0, -188.0)
+geometry offender index=32260 longest=1222.6 area=342016.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=2649
+      a=(1024.0, -3072.0, -188.0)      b=(356.0, -4096.0, -188.0)      c=(356.0, -3072.0, -188.0)
+geometry offender index=32261 longest=1222.6 area=342016.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=2649
+      a=(1024.0, -3072.0, -188.0)      b=(1024.0, -4096.0, -188.0)      c=(356.0, -4096.0, -188.0)
+geometry offender index=32262 longest=1222.6 area=342016.0 displacement=0 water=1 material=maps/cp_snakewater_final1/water/water_sawmill_1235_-3530_-160 cluster=2648
+      a=(1024.0, -4096.0, -188.0)      b=(356.0, -3072.0, -188.0)      c=(356.0, -4096.0, -188.0)
+geometry offender index=32263 longest=1222.6 area=342016.0 displacement=0 water=1 material=maps/cp_snakewater_final1/water/water_sawmill_1235_-3530_-160 cluster=2648
+      a=(1024.0, -4096.0, -188.0)      b=(1024.0, -3072.0, -188.0)      c=(356.0, -3072.0, -188.0)

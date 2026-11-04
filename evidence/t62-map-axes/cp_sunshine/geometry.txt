@@ -1,0 +1,54 @@
+geometry status=ok map=maps/cp_sunshine.bsp version=20 triangles=81943 faces=20449 displaced=24000 water=410 lightmapped=81406 degenerate=5757 maxEdge=1448.2 over256=14076 over1024=184 over4096=0 bounds=(-14892,-423,-14673)..(1338,15420,1386)
+geometry faces total=20449 rendered=18729 sky=760 skippedNoDraw=0 skippedInvalid=0 skippedBrushModel=960 worldFaces=16787 brushFaces=3662
+geometry sky faces=760 triangles=1988 bufferTriangles=81943
+geometry lightmap-uv atlas=4096x1649 vertices=244218 unwrittenTexels=0 unwrittenShare=0.0000 sampledMeanLum=69.2
+geometry lightmap-tone histogram=38842,15260,7318,3771,2509,2539,2301,8866 darkTriangles=33114 darkShare=0.4041
+geometry lightmap-face-tone histogram=9206,3811,1752,816,536,697,544,1154 darkFaces=7954 zeroFaces=1604
+geometry lightmap-hdr-tone histogram=9115,3709,1867,827,549,680,586,1183 darkFaces=7884 zeroFaces=1615 intensity=0.658 samples=4506001
+geometry lightmap-tone darkest: 0[CONCRETE/CONCRETEWALL011 n=24] 0[CONCRETE/CONCRETEWALL011B n=8] 0[maps/cp_sunshine/concrete/concretefloor004_-5515_3657_64 n=2] 0[maps/cp_sunshine/concrete/concretefloor004_-5748_6838_64 n=2] 3[TOOLS/TOOLSBLACK n=326] 3[maps/cp_sunshine/glass/glasswindow001b_-3864_2639_128 n=6] 3[maps/cp_sunshine/glass/glasswindow001b_-7399_7856_128 n=6] 6[TEST/COLOR008 n=20]
+geometry lightmap-tone darkMaterials: 5760[WOOD/WALL007A n=8734] 2662[METAL/IBEAM001_MEDIUM n=4565] 2548[PL_BARNBLITZ/WOODWALL_YELLOWWORN002 n=3581] 2331[WINTER/ROCKWALL014 n=9856] 1732[METAL/IBEAM001B n=3054] 1078[CP_SUNSHINE/NATURE/BLENDROCKTOGRASS001 n=4288] 1072[CONCRETE/STONESTAIR001 n=3943] 934[CONCRETE/CONCRETEWALL012 n=1231]
+geometry edge-groups staticMaxEdge=1448.2 staticOver1024=184 staticMaterialOver1024=0 displacedMaxEdge=334.4 displacedOver1024=0
+geometry displacement faces=642 triangles=24000 cornerMatches=642
+geometry displacement coverage candidates=642 emitted=642 fallback=0 (lump=0 polygon=0 index=0 power=0 range=0 corner=0 nonFinite=0 cell=0 limit=0 other=0)
+geometry displacement fallback-quads triangles=0
+geometry winding agree=6535 of 17419 faces (37.5% agree with the bsp plane normals)
+geometry winding flippedTriangles=2974 of 81943
+geometry winding sideAware misfaced=17526 displacedMisfaced=0 sideOneFaces=6506 of 17419
+geometry stored-winding class=brush alongPlane=67 againstPlane=16710
+geometry stored-winding class=displacement alongPlane=0 againstPlane=642
+geometry grid-vs-polygon keeps=2 reverses=640 of 642 displacement faces
+geometry pre-rule class=brush alongPlane=45279 againstPlane=442 alongOutward=28195 againstOutward=17526
+geometry pre-rule class=displacement alongPlane=23968 againstPlane=32 alongOutward=21026 againstOutward=2974
+geometry materials distinct=169 atlasCap=64 trianglesCoveredByCap=78821 of 81943 (96.2%)
+geometry material rank=0 triangles=9856 name=WINTER/ROCKWALL014
+geometry material rank=1 triangles=8734 name=WOOD/WALL007A
+geometry material rank=2 triangles=4565 name=METAL/IBEAM001_MEDIUM
+geometry material rank=3 triangles=4288 name=CP_SUNSHINE/NATURE/BLENDROCKTOGRASS001
+geometry material rank=4 triangles=4224 name=NATURE/BLENDGROUNDTOGRASS007_NODETAIL
+geometry material rank=5 triangles=3943 name=CONCRETE/STONESTAIR001
+geometry material rank=6 triangles=3581 name=PL_BARNBLITZ/WOODWALL_YELLOWWORN002
+geometry material rank=7 triangles=3328 name=NATURE/BLENDGROUNDTOGRASS007_REDUCEDETAIL
+geometry offender index=35658 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/cp_sunshine/water/water_well_-10235_6919_-224 cluster=107
+      a=(-9216.0, 9216.0, -288.0)      b=(-9216.0, 10240.0, -288.0)      c=(-10240.0, 10240.0, -288.0)
+geometry offender index=42823 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_well_beneath.vmt cluster=217
+      a=(-2048.0, 2048.0, -288.0)      b=(-2048.0, 3072.0, -288.0)      c=(-1024.0, 3072.0, -288.0)
+geometry offender index=42822 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_well_beneath.vmt cluster=217
+      a=(-2048.0, 2048.0, -288.0)      b=(-1024.0, 3072.0, -288.0)      c=(-1024.0, 2048.0, -288.0)
+geometry offender index=42765 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/cp_sunshine/water/water_well_-891_3279_-224 cluster=217
+      a=(-1024.0, 3072.0, -288.0)      b=(-1024.0, 4096.0, -288.0)      c=(-2048.0, 4096.0, -288.0)
+geometry offender index=42764 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/cp_sunshine/water/water_well_-891_3279_-224 cluster=217
+      a=(-1024.0, 3072.0, -288.0)      b=(-2048.0, 4096.0, -288.0)      c=(-2048.0, 3072.0, -288.0)
+geometry offender index=37096 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_well_beneath.vmt cluster=0
+      a=(-3072.0, 7168.0, 120.0)      b=(-2048.0, 6144.0, 120.0)      c=(-3072.0, 6144.0, 120.0)
+geometry offender index=37097 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_well_beneath.vmt cluster=0
+      a=(-3072.0, 7168.0, 120.0)      b=(-2048.0, 7168.0, 120.0)      c=(-2048.0, 6144.0, 120.0)
+geometry offender index=37098 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/cp_sunshine/water/water_well_-10235_6919_-224 cluster=0
+      a=(-2048.0, 7168.0, 120.0)      b=(-3072.0, 6144.0, 120.0)      c=(-2048.0, 6144.0, 120.0)
+geometry offender index=37099 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/cp_sunshine/water/water_well_-10235_6919_-224 cluster=0
+      a=(-2048.0, 7168.0, 120.0)      b=(-3072.0, 7168.0, 120.0)      c=(-3072.0, 6144.0, 120.0)
+geometry offender index=42763 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_well_beneath.vmt cluster=217
+      a=(-1024.0, 4096.0, -288.0)      b=(-1024.0, 3072.0, -288.0)      c=(-2048.0, 3072.0, -288.0)
+geometry offender index=42762 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_well_beneath.vmt cluster=217
+      a=(-1024.0, 4096.0, -288.0)      b=(-2048.0, 3072.0, -288.0)      c=(-2048.0, 4096.0, -288.0)
+geometry offender index=50515 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/cp_sunshine/water/water_well_-10235_6919_-224 cluster=107
+      a=(-10240.0, 8192.0, -288.0)      b=(-9216.0, 7168.0, -288.0)      c=(-9216.0, 8192.0, -288.0)

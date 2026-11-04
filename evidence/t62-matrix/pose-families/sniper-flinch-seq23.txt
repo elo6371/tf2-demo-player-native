@@ -1,0 +1,24 @@
+animtable model=models/player/sniper.mdl animSource=models/player/sniper_animations.mdl separate=1 bones=74 bindBones=74 validBindBones=74 sequences=240 idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY poseSeq=23 poseLabel=a_flinch01 poseFrames=13 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|PRIMARY_aimmatrix_deployed|PRIMARY_crouch_aimmatrix_deployed|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|AttackCrouch_PRIMARY_DEPLOYED|AttackSwim_PRIMARY_DEPLOYED|ReloadStand_PRIMARY_DEPLOYED|ReloadCrouch_PRIMARY_DEPLOYED|ReloadSwim_PRIMARY_DEPLOYED|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|attackstand_Primary_deployed_fire|a_flinch01|...
+boundDiag bindRadius=83.722290 boundDiag=168.444580 bones=74 composed=1 reason=-
+contcand rank=0 sequence=199 label=s_swimAlign_ITEM1 frames=61 sparseStep=6.976276 halfSwing=91.205482
+contcand rank=1 sequence=141 label=SelectionMenu_Anim01 frames=81 sparseStep=14.104397 halfSwing=91.828888
+contcand rank=2 sequence=208 label=swim_LOSER frames=31 sparseStep=16.360081 halfSwing=97.846756
+contcand rank=3 sequence=197 label=swim_MELEE_ALLCLASS frames=31 sparseStep=17.039299 halfSwing=99.175812
+contcand rank=4 sequence=194 label=swim_MELEE frames=31 sparseStep=17.039299 halfSwing=99.175812
+contpick sequence=199 label=s_swimAlign_ITEM1 frames=61 sweepStep=7.136417 limit=42.111145 halfSwing=91.205482
+animcontseq sequence=199 label=s_swimAlign_ITEM1 frames=61 sweepStep=7.136417
+animpose cycle=0.0000 sequence=23 label=a_flinch01 frame=0/13 localFrame=0 sectionFrames=0 bones=74 checksum=c4aea5ef5ab6b008 maxDelta=102.528046 finite=1
+animpose cycle=0.2500 sequence=23 label=a_flinch01 frame=3/13 localFrame=3 sectionFrames=0 bones=74 checksum=268a0e0449020b99 maxDelta=103.931396 finite=1
+animpose cycle=0.5000 sequence=23 label=a_flinch01 frame=6/13 localFrame=6 sectionFrames=0 bones=74 checksum=96606e966907cde9 maxDelta=99.183334 finite=1
+animpose cycle=0.7500 sequence=23 label=a_flinch01 frame=9/13 localFrame=9 sectionFrames=0 bones=74 checksum=9eec8ef8e3a8205d maxDelta=101.765160 finite=1
+animcont sequence=199 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=7.136417 worstBone=55 worstElement=12 worstTick=60 usable=1
+animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
+animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=10 speed=300.000 state=moving cycle=0.200000003 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=20 speed=300.000 state=moving cycle=0.400000066 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=30 speed=300.000 state=moving cycle=0.600000024 deltaCycle=0.020000001 advanced=1
+animtick mode=synthetic tick=31 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=40 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=50 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animtick mode=synthetic tick=60 speed=0.000 state=idle cycle=0.600000024 deltaCycle=0.000000000 advanced=0
+animticks mode=synthetic ticks=61 movingTicks=31 movingAdvanced=30 idleTicks=30 idleAdvanced=0 maxMovingDelta=0.020000001 maxIdleDelta=0.000000000

@@ -1,0 +1,40 @@
+frame 1264x681  dark(lum<16) = 179168 of 860784 (20.81%)
+  A_no_face_id                               156 (  0.09%)
+  rect_all_zero_back_albedoBright           1000 (  0.56%)
+  rect_all_zero_front_albedoBright          3009 (  1.68%)
+  rect_bright_back_albedoBright              396 (  0.22%)
+  rect_bright_back_albedoDark                731 (  0.41%)
+  rect_bright_front_albedoBright            8205 (  4.58%)
+  rect_bright_front_albedoDark                13 (  0.01%)
+  rect_lt_32_back_albedoBright               992 (  0.55%)
+  rect_lt_32_front_albedoBright            15134 (  8.45%)
+  rect_lt_32_front_albedoDark                 33 (  0.02%)
+  rect_lt_8_back_albedoBright               1718 (  0.96%)
+  rect_lt_8_back_albedoDark                    2 (  0.00%)
+  rect_lt_8_front_albedoBright             67179 ( 37.49%)
+  rect_lt_96_back_albedoBright              1110 (  0.62%)
+  rect_lt_96_back_albedoDark                   8 (  0.00%)
+  rect_lt_96_front_albedoBright            79450 ( 44.34%)
+  rect_lt_96_front_albedoDark                 32 (  0.02%)
+
+masks (1 = in the population):
+  A_no_face_id                               156 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\A_no_face_id.mask
+  rect_all_zero_back_albedoBright           1000 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_all_zero_back_albedoBright.mask
+  rect_all_zero_front_albedoBright          3009 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright              396 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_bright_back_albedoBright.mask
+  rect_bright_back_albedoDark                731 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_bright_back_albedoDark.mask
+  rect_bright_front_albedoBright            8205 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark                13 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_bright_front_albedoDark.mask
+  rect_lt_32_back_albedoBright               992 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_32_back_albedoBright.mask
+  rect_lt_32_front_albedoBright            15134 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_32_front_albedoBright.mask
+  rect_lt_32_front_albedoDark                 33 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_32_front_albedoDark.mask
+  rect_lt_8_back_albedoBright               1718 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_8_back_albedoBright.mask
+  rect_lt_8_back_albedoDark                    2 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_8_back_albedoDark.mask
+  rect_lt_8_front_albedoBright             67179 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_8_front_albedoBright.mask
+  rect_lt_96_back_albedoBright              1110 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_96_back_albedoBright.mask
+  rect_lt_96_back_albedoDark                   8 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_96_back_albedoDark.mask
+  rect_lt_96_front_albedoBright            79450 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_96_front_albedoBright.mask
+  rect_lt_96_front_albedoDark                 32 px -> .scratch/t62-map-axes/cp_snakewater_final1/account\rect_lt_96_front_albedoDark.mask
+
+ledger -> .scratch/t62-map-axes/cp_snakewater_final1/account/account.json
+product-attributable (albedo bright AND rectangle bright): 8601 px (4.8005% of dark)
