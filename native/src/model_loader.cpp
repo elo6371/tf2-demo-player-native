@@ -7,7 +7,9 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <unordered_map>
 
@@ -49,6 +51,8 @@ constexpr std::size_t kMeshStride = 116;
 // version-49 tail. Both are offered to the validator rather than picked here.
 constexpr std::size_t kModelNumMeshesOffset = 72;
 constexpr std::size_t kModelMeshIndexOffset = 76;
+constexpr std::size_t kModelNumVerticesOffset = 80;
+constexpr std::size_t kModelVertexIndexOffset = 84;
 constexpr std::size_t kModelStrideCandidates[] = { 148u, 140u };
 
 // normalizeModelPath is declared in model_loader.h: entity_model.cpp and
@@ -181,6 +185,32 @@ void parseVvd(const Bytes& b, ModelMetadata& out) {
     out.diagnostics.push_back("VVD vertex table is outside the file or uses an unsupported layout");
     return;
   }
+  // The LOD header and the fixup table are read next to the vertex table they
+  // describe: the LOD counts say how many vertices each LOD adds to the storage
+  // pool, and the fixups name every pool run by (lod, base, length). Both are
+  // evidence for the pool mapping in applyVvdPoolMapping -- a mapping that only
+  // "looks right" is not evidence.
+  if (numLods > 0 && numLods <= 32) {
+    out.vvdLodCount = numLods;
+    out.vvdLodVertexCounts.resize(numLods, 0);
+    for (std::uint32_t lod = 0; lod < numLods; ++lod) {
+      std::uint32_t count = 0;
+      if (readAt(b, 16 + lod * 4, count)) out.vvdLodVertexCounts[lod] = count;
+    }
+  }
+  std::uint32_t numFixups = 0, fixupTableStart = 0;
+  readAt(b, 48, numFixups); readAt(b, 52, fixupTableStart);
+  if (numFixups <= 4096 && fixupTableStart != 0
+      && rangeFits(fixupTableStart, numFixups, 12, b.size())) {
+    out.vvdFixups.reserve(numFixups);
+    for (std::uint32_t i = 0; i < numFixups; ++i) {
+      const auto off = static_cast<std::size_t>(fixupTableStart) + i * 12;
+      ModelMetadata::VvdFixup fixup;
+      if (!readAt(b, off, fixup.lod) || !readAt(b, off + 4, fixup.sourceVertexId)
+          || !readAt(b, off + 8, fixup.numVertices)) break;
+      out.vvdFixups.push_back(fixup);
+    }
+  }
   out.vertices.reserve(numLod0);
   std::size_t invalidSkin = 0;
   for (std::uint32_t i = 0; i < numLod0; ++i) {
@@ -246,6 +276,7 @@ bool parseVtxHierarchyWithStrides(const Bytes& b, ModelMetadata& out, std::size_
   if (!d.bodyPartTableInBounds) return false;
   out.indices.clear();
   out.renderIndices.clear();
+  out.renderIndicesOriginal.clear();
   d.vtxDescriptorCount = 0;
   d.vtxIndexCount = 0;
   d.vtxOutOfBoundsCount = 0;
@@ -277,6 +308,30 @@ bool parseVtxHierarchyWithStrides(const Bytes& b, ModelMetadata& out, std::size_
               ++d.vtxOutOfBoundsCount;
               continue;
             }
+            // The VVD pool mapping needs every origMeshVertID this mesh uses at
+            // this LOD, not only the ones its triangles reference: a pool run is
+            // the whole vertex array of the mesh at that LOD, so unreferenced
+            // slots still take up storage positions.
+            {
+              ModelMetadata::VtxLodOids* lodOids = nullptr;
+              for (auto& existing : out.vtxLodOids) {
+                if (existing.bodyPart == bp && existing.model == model
+                    && existing.lod == lod && existing.mesh == mesh) { lodOids = &existing; break; }
+              }
+              if (lodOids == nullptr) {
+                ModelMetadata::VtxLodOids fresh;
+                fresh.bodyPart = bp; fresh.model = model; fresh.lod = lod; fresh.mesh = mesh;
+                out.vtxLodOids.push_back(std::move(fresh));
+                lodOids = &out.vtxLodOids.back();
+              }
+              for (std::uint32_t i = 0; i < vertexCount; ++i) {
+                std::uint16_t slotOid = 0;
+                if (!readAt(b, groupOff + vertexRel + i * vertexStride + 4, slotOid)) break;
+                if (std::find(lodOids->oids.begin(), lodOids->oids.end(), slotOid) == lodOids->oids.end()) {
+                  lodOids->oids.push_back(slotOid);
+                }
+              }
+            }
             ModelIndexDescriptor descriptor{bp, model, lod, mesh, group, static_cast<std::uint32_t>(groupOff + indexRel), indexCount, static_cast<std::uint32_t>(groupOff + vertexRel), vertexCount, static_cast<std::uint32_t>(out.renderIndices.size()), indexCount};
             const auto renderStart = out.renderIndices.size();
             bool conversionOk = true;
@@ -287,10 +342,15 @@ bool parseVtxHierarchyWithStrides(const Bytes& b, ModelMetadata& out, std::size_
               std::uint16_t originalIndex = 0;
               if (!readAt(b, groupOff + vertexRel + localIndex * vertexStride + 4, originalIndex)
                   || originalIndex >= out.vertices.size()) { ++d.vtxOutOfBoundsCount; conversionOk = false; break; }
-              out.renderIndices.push_back(originalIndex);
+              // The draw index is the strip-group's local index: it is the
+              // position inside the VVD model vertex block once the model base
+              // is added. origMeshVertID is kept only as a fallback.
+              out.renderIndices.push_back(localIndex);
+              out.renderIndicesOriginal.push_back(originalIndex);
             }
             if (!conversionOk) {
               out.renderIndices.resize(renderStart);
+              out.renderIndicesOriginal.resize(renderStart);
               continue;
             }
             d.vtxIndexCount += indexCount;
@@ -317,6 +377,8 @@ void parseVtxHierarchy(const Bytes& b, ModelMetadata& out) {
   const std::size_t vertexStrides[] = { kVtxVertexStride, 9u };
   std::vector<ModelIndexDescriptor> bestIndices;
   std::vector<std::uint32_t> bestRender;
+  std::vector<std::uint32_t> bestRenderOriginal;
+  std::vector<ModelMetadata::VtxLodOids> bestLodOids;
   std::size_t bestDescriptors = 0;
   std::size_t bestGroupStride = kVtxStripGroupStride;
   std::size_t bestVertexStride = kVtxVertexStride;
@@ -331,6 +393,8 @@ void parseVtxHierarchy(const Bytes& b, ModelMetadata& out) {
         bestDescriptors = trial.indices.size();
         bestIndices = std::move(trial.indices);
         bestRender = std::move(trial.renderIndices);
+        bestRenderOriginal = std::move(trial.renderIndicesOriginal);
+        bestLodOids = std::move(trial.vtxLodOids);
         bestDiag = trial.vtxDiagnostics;
         bestGroupStride = groupStride;
         bestVertexStride = vertexStride;
@@ -343,6 +407,8 @@ void parseVtxHierarchy(const Bytes& b, ModelMetadata& out) {
   }
   out.indices = std::move(bestIndices);
   out.renderIndices = std::move(bestRender);
+  out.renderIndicesOriginal = std::move(bestRenderOriginal);
+  out.vtxLodOids = std::move(bestLodOids);
   out.vtxDiagnostics = bestDiag;
   d.failureReason = "VTX hierarchy decoded with stripgroupStride=" + std::to_string(bestGroupStride)
     + " vertexStride=" + std::to_string(bestVertexStride);
@@ -649,6 +715,8 @@ void decodeMeshMaterials(const Bytes& b, ModelMetadata& out) {
     candidate.descriptorsValidated = 0;
     const std::uint32_t textureLimit = std::max<std::uint32_t>(1u, out.textureCount);
     candidate.slots.resize(out.bodyParts.size());
+    candidate.modelVertexBase.clear();
+    candidate.modelVertexBase.resize(out.bodyParts.size());
     for (std::size_t bp = 0; bp < out.bodyParts.size(); ++bp) {
       const auto& part = out.bodyParts[bp];
       if (part.modelCount < 0 || part.modelIndex < 0) { candidate.reason = "bodypart declares a negative model count or table offset"; return false; }
@@ -661,6 +729,7 @@ void decodeMeshMaterials(const Bytes& b, ModelMetadata& out) {
       const std::size_t bodyPartOff = static_cast<std::size_t>(bodyPartIndex)
         + bp * bodyPartStride + static_cast<std::size_t>(part.modelIndex);
       candidate.slots[bp].resize(static_cast<std::size_t>(part.modelCount));
+      candidate.modelVertexBase[bp].resize(static_cast<std::size_t>(part.modelCount));
       for (std::int32_t model = 0; model < part.modelCount; ++model) {
         const std::size_t modelOff = bodyPartOff + static_cast<std::size_t>(model) * modelStride;
         if (model > 0) candidate.modelStrideExercised = true;
@@ -672,6 +741,35 @@ void decodeMeshMaterials(const Bytes& b, ModelMetadata& out) {
         readAt(b, modelOff + kModelNumMeshesOffset, numMeshes);
         readAt(b, modelOff + kModelMeshIndexOffset, meshIndex);
         if (numMeshes > 4096) { candidate.reason = "model mesh count exceeds safe limit"; return false; }
+        std::uint32_t numVertices = 0, vertexIndex = 0;
+        if (modelOff + kModelVertexIndexOffset + 4 > b.size()) {
+          candidate.reason = "model vertex block header is outside the MDL file at stride " + std::to_string(modelStride);
+          return false;
+        }
+        readAt(b, modelOff + kModelNumVerticesOffset, numVertices);
+        readAt(b, modelOff + kModelVertexIndexOffset, vertexIndex);
+        if (numVertices > 4000000) { candidate.reason = "model vertex count exceeds safe limit"; return false; }
+        if (numMeshes > 0 && numVertices == 0) {
+          candidate.reason = "model " + std::to_string(model) + " has " + std::to_string(numMeshes)
+            + " meshes but reads zero vertices at model stride " + std::to_string(modelStride);
+          return false;
+        }
+        if (numVertices > 0) {
+          if (vertexIndex % kVvdVertexStride != 0) {
+            candidate.reason = "model " + std::to_string(model) + " vertexindex "
+              + std::to_string(vertexIndex) + " is not a multiple of the VVD vertex stride at model stride "
+              + std::to_string(modelStride);
+            return false;
+          }
+          const std::size_t base = vertexIndex / kVvdVertexStride;
+          if (base + numVertices > out.vertices.size()) {
+            candidate.reason = "model " + std::to_string(model) + " vertex block "
+              + std::to_string(base) + "+" + std::to_string(numVertices) + " exceeds "
+              + std::to_string(out.vertices.size()) + " VVD vertices";
+            return false;
+          }
+          candidate.modelVertexBase[bp][static_cast<std::size_t>(model)] = static_cast<std::uint32_t>(base);
+        }
         // `meshindex` is relative to the model record, for the same reason
         // `modelindex` is relative to the bodypart record: `pMesh(i)` is
         // `(mstudiomesh_t*)((byte*)this + meshindex) + i`. Reading it as an
@@ -779,6 +877,221 @@ void decodeMeshMaterials(const Bytes& b, ModelMetadata& out) {
   out.diagnostics.push_back("mesh material table unavailable: " + table.reason);
 }
 
+// The older reading, kept as a last resort and named as such: it is right only
+// where a mesh's strip-group slot happens to equal its storage position.
+void applyModelVertexBaseFallback(ModelMetadata& out, const std::string& reason) {
+  const auto& bases = out.meshMaterials.modelVertexBase;
+  if (!out.meshMaterials.available || bases.empty()) {
+    out.renderIndices = out.renderIndicesOriginal;
+    out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+      + reason + ") and no validated model vertex base");
+    return;
+  }
+  auto direct = out.renderIndices;
+  for (const auto& descriptor : out.indices) {
+    if (descriptor.bodyPart >= bases.size()
+        || descriptor.model >= bases[descriptor.bodyPart].size()) {
+      out.renderIndices = out.renderIndicesOriginal;
+      out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+        + reason + ") and descriptor (bodyPart " + std::to_string(descriptor.bodyPart)
+        + ", model " + std::to_string(descriptor.model) + ") has no vertex base");
+      return;
+    }
+    const auto base = bases[descriptor.bodyPart][descriptor.model];
+    const std::size_t start = descriptor.renderIndexStart;
+    const std::size_t count = descriptor.renderIndexCount;
+    if (start > direct.size() || count > direct.size() - start) {
+      out.renderIndices = out.renderIndicesOriginal;
+      out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+        + reason + ") and a descriptor render range is outside the decoded index stream");
+      return;
+    }
+    for (std::size_t i = 0; i < count; ++i) {
+      const std::uint64_t rebased = static_cast<std::uint64_t>(direct[start + i]) + base;
+      if (rebased >= out.vertices.size()) {
+        out.renderIndices = out.renderIndicesOriginal;
+        out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+          + reason + ") and a rebased index exceeds the VVD vertex count");
+        return;
+      }
+      direct[start + i] = static_cast<std::uint32_t>(rebased);
+    }
+  }
+  out.renderIndices = std::move(direct);
+  out.diagnostics.push_back("render indices fell back to model vertex base + strip-group local index: pool mapping unavailable ("
+    + reason + ")");
+}
+
+// T62: which VVD vertex a VTX index means.
+//
+//   A VTX index counts positions inside its strip group's own vertex array, and
+//   every one of those slots carries `Vertex_t::origMeshVertID` -- an identifier
+//   in the *mesh* numbering, not a storage index. The VVD stores vertices in a
+//   different order: measured on pyro.vvd, scout.vvd and demo.vvd, the pool is
+//   LOD-major, coarsest LOD first. It begins with the vertices only the coarsest
+//   LOD uses, then the vertices the next-finer LOD adds, and so on down to LOD0,
+//   and inside one LOD the vertices of one (bodyPart, model, mesh) form one
+//   contiguous run sorted by origMeshVertID. `mstudiovtxfixup_t` names each of
+//   those runs as (lod, sourceVertexID, numVertexes), so the ordering is not a
+//   guess: the runs derived here are compared against that table and against the
+//   VVD LOD vertex counts *before* a single index is rewritten. If either
+//   comparison disagrees the mapping is refused and the reason is published.
+//
+//   The two readings this replaces: origMeshVertID taken directly as a storage
+//   index joins one LOD's triangles to another LOD's vertices; and "model vertex
+//   base + strip-group local index" is only right for the slots that happen to
+//   land on their own storage position (measured 71% of pyro's LOD0 triangles,
+//   the rest drew as long spikes).
+bool applyVvdPoolMapping(ModelMetadata& out) {
+  if (out.renderIndicesOriginal.size() != out.renderIndices.size()) {
+    applyModelVertexBaseFallback(out, "the origMeshVertID stream is missing");
+    return false;
+  }
+  if (out.vtxLodOids.empty()) {
+    applyModelVertexBaseFallback(out, "the VTX LOD vertex table was not decoded");
+    return false;
+  }
+  if (out.vvdLodVertexCounts.empty()) {
+    applyModelVertexBaseFallback(out, "the VVD LOD vertex counts were not decoded");
+    return false;
+  }
+  // Coarsest LOD first, then the model tree order the file itself uses.
+  std::vector<std::size_t> order(out.vtxLodOids.size());
+  for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+  std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+    const auto& ea = out.vtxLodOids[a];
+    const auto& eb = out.vtxLodOids[b];
+    if (ea.lod != eb.lod) return ea.lod > eb.lod;
+    if (ea.bodyPart != eb.bodyPart) return ea.bodyPart < eb.bodyPart;
+    if (ea.model != eb.model) return ea.model < eb.model;
+    return ea.mesh < eb.mesh;
+  });
+  // The key is the MESH, not the model: measured on demo.vvd/scout.vvd, a
+  // meshes' origMeshVertIDs restart at 0, so two meshes of one model reuse the
+  // same identifiers for different vertices. Deduplicating per model would drop
+  // one mesh's whole run and shift every later run against the fixup table.
+  using MeshKey = std::array<std::uint32_t, 3>;  // {bodyPart, model, mesh}
+  std::map<MeshKey, std::set<std::uint32_t>> assigned;
+  std::map<MeshKey, std::map<std::uint32_t, std::uint32_t>> oidToPool;
+  std::vector<ModelMetadata::VvdFixup> runs;
+  std::uint32_t cursor = 0;
+  std::uint32_t previousLod = 0;
+  bool firstRun = true;
+  for (const auto index : order) {
+    const auto& entry = out.vtxLodOids[index];
+    if (!firstRun && entry.lod != previousLod) {
+      // Every LOD's runs must be complete before the next one starts: the LOD
+      // counts are cumulative, so a short or long run shows up here.
+      if (previousLod >= out.vvdLodVertexCounts.size()) {
+        applyModelVertexBaseFallback(out, "the VTX declares LOD " + std::to_string(previousLod)
+          + " but the VVD header has " + std::to_string(out.vvdLodVertexCounts.size()) + " LOD counts");
+        return false;
+      }
+      const auto expected = out.vvdLodVertexCounts[previousLod];
+      if (cursor != expected) {
+        applyModelVertexBaseFallback(out, "LOD " + std::to_string(previousLod)
+          + " runs end at pool " + std::to_string(cursor) + ", VVD header says "
+          + std::to_string(expected));
+        return false;
+      }
+    }
+    previousLod = entry.lod;
+    firstRun = false;
+    const MeshKey meshKey{entry.bodyPart, entry.model, entry.mesh};
+    auto& assignedSet = assigned[meshKey];
+    std::vector<std::uint32_t> fresh;
+    fresh.reserve(entry.oids.size());
+    for (const auto oid : entry.oids) {
+      if (assignedSet.find(oid) == assignedSet.end()) fresh.push_back(oid);
+    }
+    if (fresh.empty()) continue;
+    std::sort(fresh.begin(), fresh.end());
+    fresh.erase(std::unique(fresh.begin(), fresh.end()), fresh.end());
+    const auto base = cursor;
+    auto& map = oidToPool[meshKey];
+    for (std::size_t i = 0; i < fresh.size(); ++i) {
+      map[fresh[i]] = base + static_cast<std::uint32_t>(i);
+      assignedSet.insert(fresh[i]);
+    }
+    cursor += static_cast<std::uint32_t>(fresh.size());
+    runs.push_back(ModelMetadata::VvdFixup{entry.lod, base, static_cast<std::uint32_t>(fresh.size())});
+  }
+  if (firstRun) {
+    applyModelVertexBaseFallback(out, "the VTX LOD vertex table is empty");
+    return false;
+  }
+  if (cursor != out.vvdLodVertexCounts[0]) {
+    applyModelVertexBaseFallback(out, "the derived runs cover " + std::to_string(cursor)
+      + " vertices, VVD LOD0 has " + std::to_string(out.vvdLodVertexCounts[0]));
+    return false;
+  }
+  if (!out.vvdFixups.empty()) {
+    // The file's own run table, compared as a sorted multiset: the fixup entries
+    // are written per mesh, not in pool order, so order carries no meaning here.
+    auto byTriple = [](const ModelMetadata::VvdFixup& a, const ModelMetadata::VvdFixup& b) {
+      if (a.lod != b.lod) return a.lod < b.lod;
+      if (a.sourceVertexId != b.sourceVertexId) return a.sourceVertexId < b.sourceVertexId;
+      return a.numVertices < b.numVertices;
+    };
+    auto derived = runs;
+    auto declared = out.vvdFixups;
+    std::sort(derived.begin(), derived.end(), byTriple);
+    std::sort(declared.begin(), declared.end(), byTriple);
+    if (derived.size() != declared.size()) {
+      applyModelVertexBaseFallback(out, "derived " + std::to_string(derived.size())
+        + " pool runs, VVD fixup table declares " + std::to_string(declared.size()));
+      return false;
+    }
+    for (std::size_t i = 0; i < derived.size(); ++i) {
+      if (derived[i].lod != declared[i].lod
+          || derived[i].sourceVertexId != declared[i].sourceVertexId
+          || derived[i].numVertices != declared[i].numVertices) {
+        applyModelVertexBaseFallback(out, "derived pool run " + std::to_string(i)
+          + " is {lod " + std::to_string(derived[i].lod) + ", base "
+          + std::to_string(derived[i].sourceVertexId) + ", count "
+          + std::to_string(derived[i].numVertices) + "} but the fixup table says {lod "
+          + std::to_string(declared[i].lod) + ", base "
+          + std::to_string(declared[i].sourceVertexId) + ", count "
+          + std::to_string(declared[i].numVertices) + "}");
+        return false;
+      }
+    }
+  }
+  auto mapped = out.renderIndicesOriginal;
+  for (const auto& descriptor : out.indices) {
+    const MeshKey meshKey{descriptor.bodyPart, descriptor.model, descriptor.mesh};
+    const auto mapIt = oidToPool.find(meshKey);
+    if (mapIt == oidToPool.end()) {
+      applyModelVertexBaseFallback(out, "bodyPart " + std::to_string(descriptor.bodyPart)
+        + " model " + std::to_string(descriptor.model) + " mesh "
+        + std::to_string(descriptor.mesh) + " has no pool runs");
+      return false;
+    }
+    const std::size_t start = descriptor.renderIndexStart;
+    const std::size_t count = descriptor.renderIndexCount;
+    if (start > mapped.size() || count > mapped.size() - start) {
+      applyModelVertexBaseFallback(out, "a descriptor render range is outside the decoded origMeshVertID stream");
+      return false;
+    }
+    for (std::size_t i = 0; i < count; ++i) {
+      const auto oid = mapped[start + i];
+      const auto poolIt = mapIt->second.find(oid);
+      if (poolIt == mapIt->second.end()) {
+        applyModelVertexBaseFallback(out, "origMeshVertID " + std::to_string(oid)
+          + " of bodyPart " + std::to_string(descriptor.bodyPart) + " model "
+          + std::to_string(descriptor.model) + " mesh "
+          + std::to_string(descriptor.mesh) + " has no pool run");
+        return false;
+      }
+      mapped[start + i] = poolIt->second;
+    }
+  }
+  out.renderIndices = std::move(mapped);
+  out.diagnostics.push_back("render indices resolved from the VVD LOD-major pool: (bodyPart, model, mesh) run sorted by origMeshVertID, runs cross-checked against "
+    + std::to_string(out.vvdFixups.size()) + " VVD fixup entries and LOD0 vertex count");
+  return true;
+}
+
 ModelFileStatus inspectBytes(const Bytes& bytes, ModelFileKind kind, const std::filesystem::path& path) {
   ModelFileStatus result;
   result.kind = kind;
@@ -839,6 +1152,7 @@ ModelInspection inspectBuffers(const Bytes& mdlBytes, const Bytes& vvdBytes, con
   // anything consumes `meshMaterials`, so a consumer can never see an unvalidated
   // table.
   if (result.metadata.valid && result.mdl.signatureValid) decodeMeshMaterials(mdlBytes, result.metadata);
+  if (result.metadata.valid) applyVvdPoolMapping(result.metadata);
   result.renderableResourceSet = result.mdl.signatureValid && result.vvd.signatureValid && anyVtx;
   if (result.metadata.valid) {
     result.attachmentStatus = result.metadata.attachmentCount > 0

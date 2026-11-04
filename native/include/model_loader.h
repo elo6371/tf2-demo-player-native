@@ -213,6 +213,11 @@ struct ModelMeshMaterialTable {
   std::string reason;
   // [bodyPart][model] -> one material slot per mesh, in MDL (= VTX) mesh order.
   std::vector<std::vector<std::vector<std::int32_t>>> slots;
+  // [bodyPart][model] -> first VVD vertex of that model's contiguous vertex
+  // block, from `mstudiomodel_t::vertexindex / 48`. Validated against the VVD
+  // size and applied only when every rebased index stays in bounds; an
+  // unvalidated base is never used.
+  std::vector<std::vector<std::uint32_t>> modelVertexBase;
   std::size_t modelStride = 0;
   std::size_t meshStride = 0;
   // "derived" when the stride was solved from consecutive bodypart tables,
@@ -304,7 +309,47 @@ struct ModelMetadata {
   std::vector<ModelVertex> vertices;
   std::vector<ModelMeshDescriptor> meshes;
   std::vector<ModelIndexDescriptor> indices;
+  // Storage-order indices into the VVD vertex block. `parseVtx` fills these
+  // with the strip-group's local index; `applyVtxVertexBases` adds the model's
+  // validated VVD base once the MDL model table stride is known. It used to
+  // hold `mesh.origMeshVertID` directly, which is an identifier in the VTX's
+  // own numbering, not a position in this VVD -- reading it as one joined the
+  // right triangles to the wrong vertices and drew every player as a blob.
   std::vector<std::uint32_t> renderIndices;
+  // The same stream as `origMeshVertID`, kept only as the fallback when the
+  // pool mapping cannot be validated. Never drawn from when the mapping was
+  // proven.
+  std::vector<std::uint32_t> renderIndicesOriginal;
+  // VTX `Vertex_t::origMeshVertID` per strip-group slot, for every decoded LOD,
+  // merged per (bodyPart, model, LOD, mesh). The VVD vertex pool is ordered
+  // LOD-major (coarsest LOD first) and, inside one LOD, one contiguous run per
+  // mesh in ascending `origMeshVertID` order. That ordering is what turns an
+  // origMeshVertID into a VVD storage index; without it the render index stream
+  // indexes vertices of the wrong LOD, which draws a player as long spikes
+  // instead of a body.
+  struct VtxLodOids {
+    std::uint32_t bodyPart = 0;
+    std::uint32_t model = 0;
+    std::uint32_t lod = 0;
+    std::uint32_t mesh = 0;
+    std::vector<std::uint32_t> oids;
+  };
+  std::vector<VtxLodOids> vtxLodOids;
+  // The VVD LOD header, kept because the pool ordering can be checked against
+  // it: the runs for LOD L are exactly the vertices LOD L uses and no coarser
+  // LOD used, so the cumulative run count must equal `vvdLodVertexCounts[L]`
+  // and the whole pool must end at `vvdLodVertexCounts[0]`.
+  std::uint32_t vvdLodCount = 0;
+  std::vector<std::uint32_t> vvdLodVertexCounts;
+  // `mstudiovtxfixup_t` entries: {lod, sourceVertexID, numVertexes}. Each one
+  // names one pool run by its base and length, so the derived runs can be
+  // compared against the file's own table instead of being trusted.
+  struct VvdFixup {
+    std::uint32_t lod = 0;
+    std::uint32_t sourceVertexId = 0;
+    std::uint32_t numVertices = 0;
+  };
+  std::vector<VvdFixup> vvdFixups;
   std::vector<ModelDrawVertex> bindPoseVertices;
   std::size_t bindPoseVertexCount = 0;
   ModelVtxDiagnostics vtxDiagnostics;
